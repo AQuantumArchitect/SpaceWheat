@@ -35,7 +35,7 @@ PHI = 1.6180339887498949
 
 POLICY_ACTIONS = [
     "quest_cycle", "probe_cycle", "lindblad_drain", "time_skip",
-    "discover_biome", "victory_lap_partial", "lock_offer", "channel_drain",
+    "discover_biome", "victory_lap_partial", "quest_cycle", "lindblad_drain",
 ]
 
 # ── Paths ─────────────────────────────────────────────────────────────
@@ -96,28 +96,32 @@ DEFAULT_KNOBS: List[Tuple[str, int, str, int, int, int]] = [
     ("action_costs.pop.👥",                  1, "",                    1, 0, MAX_FIB_INDEX),
     ("action_costs.reap.🍼",                 1, "victory_lap_partial", 1, 0, MAX_FIB_INDEX),
     ("action_costs.quest_reroll.🐇",         1, "quest_cycle",         1, 0, MAX_FIB_INDEX),
-    ("action_costs.quest_lock.🌲",           1, "lock_offer",          1, 0, MAX_FIB_INDEX),
-    ("action_costs.discover_biome.🦅",       5, "discover_biome",      1, 0, MAX_FIB_INDEX),
-    ("action_costs.remove_vocabulary.🐺",   21, "",                    1, 0, MAX_FIB_INDEX),
-    ("action_costs.lindblad_pump.🌱",        8, "lindblad_drain",      1, 0, MAX_FIB_INDEX),
-    ("action_costs.lindblad_drain.⚙",       2, "lindblad_drain",      1, 0, MAX_FIB_INDEX),
+    ("action_costs.quest_cycle.🌲",           1, "quest_cycle",          1, 0, MAX_FIB_INDEX),
+    ("action_costs.discover_biome.🦅",      21, "discover_biome",      1, 0, MAX_FIB_INDEX),
+    ("action_costs.remove_icon.🐺",         13, "",                    1, 0, MAX_FIB_INDEX),
+    ("action_costs.lindblad_pump.💨",       8, "lindblad_drain",      1, 0, MAX_FIB_INDEX),
+    ("action_costs.lindblad_drain.⚙",      2, "lindblad_drain",      1, 0, MAX_FIB_INDEX),
     # Tier 1: dynamic costs
     ("dynamic.lindblad_drain_gear_cost",      2, "lindblad_drain",      1, 0, MAX_FIB_INDEX),
     ("dynamic.lindblad_drain_south_cost",     8, "lindblad_drain",      1, 0, MAX_FIB_INDEX),
-    ("dynamic.lindblad_pump_sprout_cost",     8, "lindblad_drain",      1, 0, MAX_FIB_INDEX),
+    ("dynamic.lindblad_pump_wind_cost",       8, "lindblad_drain",      1, 0, MAX_FIB_INDEX),
     ("dynamic.lindblad_pump_north_cost",     34, "lindblad_drain",      1, 0, MAX_FIB_INDEX),
-    ("dynamic.vocab_injection_south_cost",    5, "quest_cycle",         1, 0, MAX_FIB_INDEX),
-    ("dynamic.vocab_injection_sprout_cost",   8, "quest_cycle",         1, 0, MAX_FIB_INDEX),
+    ("dynamic.icon_injection_south_cost",    13, "quest_cycle",         1, 0, MAX_FIB_INDEX),
+    ("dynamic.icon_injection_sprout_cost",    5, "quest_cycle",         1, 0, MAX_FIB_INDEX),
     # Tier 2: gate costs
     ("gate_costs.pauli_x.☀",   1, "", 2, 0, MAX_FIB_INDEX),
     ("gate_costs.pauli_y.🌙",  1, "", 2, 0, MAX_FIB_INDEX),
     ("gate_costs.pauli_z.🍂",  1, "", 2, 0, MAX_FIB_INDEX),
     ("gate_costs.hadamard.🔥", 1, "", 2, 0, MAX_FIB_INDEX),
-    ("gate_costs.s_gate.🌱",   1, "", 2, 0, MAX_FIB_INDEX),
+    ("gate_costs.s_gate.🌀",   1, "", 2, 0, MAX_FIB_INDEX),
     ("gate_costs.t_gate.🌿",   1, "", 2, 0, MAX_FIB_INDEX),
-    ("gate_costs.cnot.🍄",     1, "", 2, 0, MAX_FIB_INDEX),
-    ("gate_costs.cz.🦌",       1, "", 2, 0, MAX_FIB_INDEX),
-    ("gate_costs.swap.🐺",     1, "", 2, 0, MAX_FIB_INDEX),
+    ("gate_costs.cnot.🍄",              1, "", 2, 0, MAX_FIB_INDEX),
+    ("gate_costs.cz.🦌",               1, "", 2, 0, MAX_FIB_INDEX),
+    ("gate_costs.swap.⚖",              1, "", 2, 0, MAX_FIB_INDEX),
+    ("rotation_costs.rotate_up.⛰",    1, "", 2, 0, MAX_FIB_INDEX),
+    ("rotation_costs.rotate_down.🏜",  1, "", 2, 0, MAX_FIB_INDEX),
+    ("gate_action_costs.inspect.🔬",   1, "", 2, 0, MAX_FIB_INDEX),
+    ("gate_action_costs.remove_gates.⚔", 1, "", 2, 0, MAX_FIB_INDEX),
     # Tier 3: quest rewards
     ("quest_rewards.resource_reward_min_total",      8, "quest_cycle",         3, 0, MAX_FIB_INDEX),
     ("quest_rewards.resource_reward_max_total",    233, "quest_cycle",         3, 0, MAX_FIB_INDEX),
@@ -450,7 +454,7 @@ def main() -> None:
     extra = {
         "found_milk": summary.get("found_milk"),
         "loops_completed": summary.get("loops_completed"),
-        "known_pairs_count": summary.get("known_pairs_count"),
+        "known_icons_count": summary.get("known_icons_count"),
     }
     block = adversary.write_berry_block(action_pct, mutations, extra_observed=extra, ledger_path=ledger)
 

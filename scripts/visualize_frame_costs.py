@@ -1,73 +1,29 @@
 #!/usr/bin/env python3
-"""
-Extract and visualize frame cost breakdown from Godot profiling logs.
-
-Parses PERFORMANCE BREAKDOWN sections and generates ASCII bar charts
-comparing different rendering configurations.
-"""
+"""Visualize current SpaceWheat runtime profile reports."""
 
 import sys
-import re
 import statistics
 from pathlib import Path
-from collections import defaultdict
+import json
 
-def parse_log_file(log_path):
-    """Extract performance metrics from a Godot log file."""
-    with open(log_path, 'r', encoding='utf-8', errors='ignore') as f:
-        content = f.read()
-
+def parse_report_file(report_path):
+    """Extract performance metrics from a current runtime JSON report."""
+    data = json.loads(report_path.read_text(encoding='utf-8'))
+    monitor = data.get('monitor_summary', {})
+    render = data.get('render_breakdown', {})
+    batcher = data.get('batcher_summary', {})
     metrics = {
-        'config_name': log_path.stem,
-        'compute_backend': 'UNKNOWN',
-        'fps_samples': [],
-        'frame_time_samples': [],
-        'untracked_samples': [],
-        'process_total_samples': [],
-        'draw_total_samples': [],
-        'frame_gap_samples': [],
+        'config_name': report_path.stem,
+        'render_path': data.get('rendering_method', '') or data.get('rendering_driver', '') or 'default',
+        'adapter': data.get('video_adapter_name', 'unknown'),
+        'fps_avg': float(monitor.get('fps', {}).get('avg', 0.0)),
+        'frame_time_avg': float(render.get('frame_time_ms', 0.0)),
+        'untracked_avg': float(render.get('untracked_ms', 0.0)),
+        'process_total_avg': float(render.get('avg_ms', {}).get('process_total', 0.0)),
+        'draw_total_avg': float(render.get('avg_ms', {}).get('draw_total', 0.0)),
+        'frame_gap_avg': float(render.get('frame_gap_ms', 0.0)),
+        'batch_avg': float(batcher.get('avg_batch_time_ms', {}).get('avg', 0.0)),
     }
-
-    # Extract compute backend
-    match = re.search(r'ComputeSelector.*Selected:\s*(\w+)', content)
-    if match:
-        metrics['compute_backend'] = match.group(1)
-
-    # Extract FPS samples
-    for match in re.finditer(r'\[F\d+\]\s+(\d+)\s+FPS', content):
-        metrics['fps_samples'].append(int(match.group(1)))
-
-    # Extract performance breakdown sections
-    breakdown_pattern = re.compile(
-        r'PERFORMANCE BREAKDOWN.*?'
-        r'ACTUAL:\s+([\d.]+)ms.*?'
-        r'GDScript _process\(\):\s+([\d.]+)ms.*?'
-        r'GDScript _draw\(\):\s+([\d.]+)ms.*?'
-        r'Frame gap \(wait\):\s+([\d.]+)ms.*?'
-        r'UNTRACKED:\s+([\d.]+)ms',
-        re.DOTALL
-    )
-
-    for match in breakdown_pattern.finditer(content):
-        metrics['frame_time_samples'].append(float(match.group(1)))
-        metrics['process_total_samples'].append(float(match.group(2)))
-        metrics['draw_total_samples'].append(float(match.group(3)))
-        metrics['frame_gap_samples'].append(float(match.group(4)))
-        metrics['untracked_samples'].append(float(match.group(5)))
-
-    # Calculate averages
-    for key in ['fps', 'frame_time', 'untracked', 'process_total', 'draw_total', 'frame_gap']:
-        samples = metrics.get(f'{key}_samples', [])
-        if samples:
-            metrics[f'{key}_avg'] = statistics.mean(samples)
-            metrics[f'{key}_median'] = statistics.median(samples)
-            metrics[f'{key}_min'] = min(samples)
-            metrics[f'{key}_max'] = max(samples)
-        else:
-            metrics[f'{key}_avg'] = 0.0
-            metrics[f'{key}_median'] = 0.0
-            metrics[f'{key}_min'] = 0.0
-            metrics[f'{key}_max'] = 0.0
 
     return metrics
 
@@ -116,12 +72,13 @@ def visualize_comparison(all_metrics):
     max_total = max(m['frame_time_avg'] for m in all_metrics)
 
     for m in all_metrics:
-        print(f"\n{m['config_name']:35s} (Backend: {m['compute_backend']})")
+        print(f"\n{m['config_name']:35s} (Renderer: {m['render_path']}, Adapter: {m['adapter']})")
         print(f"  {'Total frame time:':25s} {draw_bar(m['frame_time_avg'], max_total, 30)} {m['frame_time_avg']:6.2f} ms")
         print(f"  {'  ├─ _process():':25s} {draw_bar(m['process_total_avg'], max_process, 30)} {m['process_total_avg']:6.2f} ms")
         print(f"  {'  ├─ _draw():':25s} {draw_bar(m['draw_total_avg'], max_draw, 30)} {m['draw_total_avg']:6.2f} ms")
         print(f"  {'  ├─ frame_gap (wait):':25s} {draw_bar(m['frame_gap_avg'], max_gap, 30)} {m['frame_gap_avg']:6.2f} ms")
         print(f"  {'  └─ UNTRACKED:':25s} {draw_bar(m['untracked_avg'], max_untracked, 30)} {m['untracked_avg']:6.2f} ms")
+        print(f"  {'  └─ batch avg:':25s} {m['batch_avg']:6.2f} ms")
 
     print()
     print("=" * 80)
@@ -157,46 +114,42 @@ def visualize_comparison(all_metrics):
     print()
 
 def main():
-    if len(sys.argv) < 2:
-        print("Usage: visualize_frame_costs.py <log_directory>")
-        print("   or: visualize_frame_costs.py <log_file1> <log_file2> ...")
+    if len(sys.argv) < 2 or sys.argv[1] in {"-h", "--help"}:
+        print("Usage: visualize_frame_costs.py <report_directory>")
+        print("   or: visualize_frame_costs.py <report1.json> <report2.json> ...")
         sys.exit(1)
 
-    log_files = []
+    report_files = []
 
     # Check if first argument is a directory
     first_arg = Path(sys.argv[1])
     if first_arg.is_dir():
-        log_files = sorted(first_arg.glob("*.log"))
+        report_files = sorted(first_arg.glob("*.json"))
     else:
         # Treat all arguments as file paths
-        log_files = [Path(p) for p in sys.argv[1:]]
+        report_files = [Path(p) for p in sys.argv[1:]]
 
-    if not log_files:
-        print("No log files found")
+    if not report_files:
+        print("No report files found")
         sys.exit(1)
 
-    print(f"Parsing {len(log_files)} log files...")
+    print(f"Parsing {len(report_files)} report files...")
     print()
 
     all_metrics = []
-    for log_path in log_files:
-        if not log_path.exists():
-            print(f"Warning: {log_path} does not exist, skipping")
+    for report_path in report_files:
+        if not report_path.exists():
+            print(f"Warning: {report_path} does not exist, skipping")
             continue
 
-        print(f"  - {log_path.name}")
-        metrics = parse_log_file(log_path)
-
-        if metrics['fps_samples']:
-            all_metrics.append(metrics)
-        else:
-            print(f"    Warning: No FPS samples found in {log_path.name}")
+        print(f"  - {report_path.name}")
+        metrics = parse_report_file(report_path)
+        all_metrics.append(metrics)
 
     print()
 
     if not all_metrics:
-        print("No valid metrics found in any log file")
+        print("No valid metrics found in any report file")
         sys.exit(1)
 
     visualize_comparison(all_metrics)

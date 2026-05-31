@@ -23,5 +23,5 @@ A chainable, declarative builder that composes a sequence of gate instructions a
 - **QuantumGateLibrary** — already imported; all gate dispatch goes through it.
 - **QuantumComputer** — `run_on(qc)` is the bridge; the circuit is engine-agnostic as long as the computer exposes `apply_gate`, `project_qubit`, `get_marginal`, `evolve`.
 - **Biome Lab sweep CLI** — circuits are ideal as parameterized test fixtures: build once, sweep over theta values.
-- **PlayerInputMacroRunner** — the macro runner does the same conceptual job (action sequences) at the gameplay level; QuantumCircuit is its quantum-physics analogue.
+- **QuantumInstrumentInput / rig input helpers** — the current gameplay-level action sequence path does the same conceptual job; QuantumCircuit is its quantum-physics analogue.
 - **Gate Architect System** — circuit builder is the natural authoring format for the headless gate injection workflow described in `project_gate_architect.md`.

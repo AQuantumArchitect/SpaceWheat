@@ -7,21 +7,19 @@ extends RefCounted
 ## the contract qubit. Concretely:
 ##
 ##   1. Compose the biased ρ_market via MarketBiasSources (biome supply, world
-##      mass, faction-biome resonance, player-faction resonance, standings).
+##      mass, realized-biome resonance, player-faction resonance, standings).
 ##   2. Read P(gozouta) — the probability the faction's preferred pole pays out.
-##   3. price_quantum = 1/P(gozouta) — the natural information weight (= what
-##      the faction expects to lose at exercise under its own lens).
-##   4. Multiply by QUANTUM_CLASSICAL_RATIO to get classical units.
-##   5. Apply standing modifier: high legitimacy discounts, debt premiums.
+##   3. price = −kT·log P(gozouta) — the Boltzmann surprisal energy of the
+##      payout (EnergyPricing), = the information the faction must pay to realize
+##      it. kT is the biome's market temperature (warmer = steeper, mixed biomes).
+##   4. Apply standing modifier: high legitimacy discounts, debt premiums.
 ##
-## Properties:
-##   - At P=0.5 (neutral): price = 2 × QC_RATIO = 20 classical (the fair middle).
-##   - At P=0.99 (faction sees gozouta as near-certain): price ≈ 10 classical.
-##   - At P=0.01 (rare lottery): price = 1000 classical.
+## Properties (at kT≈10):
+##   - At P=0.5 (neutral): price ≈ 6.9 classical (the fair middle).
+##   - At P=0.99 (near-certain): price ≈ 0.1 classical (cheap, no surprise).
+##   - At P=0.01 (rare lottery): price ≈ 46 classical — bounded, no 1/p cliff.
 ##   - Determinism: same substrate state → same price, no RNG.
 
-const HamiltonianConfig = preload("res://Core/Config/HamiltonianConfig.gd")
-const MarketBiasSources = preload("res://Core/Markets/MarketBiasSources.gd")
 
 
 static func price_contract(contract, farm) -> float:
@@ -30,9 +28,11 @@ static func price_contract(contract, farm) -> float:
 	# Null farm is valid (degraded substrate); all sources return 0 → neutral price.
 	var rho: Dictionary = MarketBiasSources.compose_market_qubit(contract, farm)
 	var p_gozouta: float = float(rho.get("p_gozouta", 0.5))
-	var p_clipped: float = clampf(p_gozouta, HamiltonianConfig.P_MIN, 1.0 - HamiltonianConfig.P_MIN)
-	var price_quantum: float = 1.0 / p_clipped
-	var price_classical: float = price_quantum * HamiltonianConfig.QUANTUM_CLASSICAL_RATIO
+	# Boltzmann scarcity: price = surprisal energy E = −kT·log p (EnergyPricing).
+	# The faction's risk-neutral valuation of its own observable on the qubit.
+	var biome = MarketBiasSources._safe_get_biome(contract, farm)
+	var kT: float = EnergyPricing.biome_temperature(biome, farm)
+	var price_classical: float = EnergyPricing.surprisal_energy(p_gozouta, kT)
 
 	# Standing modifier: legitimacy discounts (factor < 1), debt premiums (factor > 1).
 	# Use a soft-clip so extreme standings don't blow up the price.

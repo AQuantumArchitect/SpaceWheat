@@ -1,11 +1,9 @@
 class_name SaveStore
 extends RefCounted
 
-## SaveStore - persistence helper for GameState resources.
+## SaveStore - persistence layer for GameState resources.
 ## Centralizes disk IO + scenario/template loading (no Farm/UI dependencies).
 
-const GameState = preload("res://Core/GameState/GameState.gd")
-const EmojiRegistry = preload("res://Core/Biomes/EmojiRegistry.gd")
 
 const SAVE_DIR = "user://saves/"
 const NUM_SAVE_SLOTS = 3
@@ -26,6 +24,19 @@ static func get_save_path(slot: int) -> String:
 	return SAVE_DIR + "save_slot_" + str(slot) + ".tres"
 
 
+static func normalize_boot_request(request: Dictionary) -> Dictionary:
+	# Canonical shape for boot/restart requests across AppRoot, GameRoot,
+	# SessionLoader, and the rest of the boot pipeline.
+	var sid := str(request.get("scenario_id", DEFAULT_SCENARIO_ID))
+	if sid == "":
+		sid = DEFAULT_SCENARIO_ID
+	return {
+		"slot": int(request.get("slot", -1)),
+		"scenario_id": sid,
+		"headless": bool(request.get("headless", DisplayServer.get_name() == "headless")),
+	}
+
+
 static func get_save_artifact_index_path() -> String:
 	return SAVE_DIR + SAVE_ARTIFACT_INDEX_FILE
 
@@ -35,10 +46,9 @@ static func save_exists(slot: int) -> bool:
 
 
 static func save_state(state: GameState, slot: int) -> int:
-	"""Atomic save: write to .tmp then rename, so interrupted saves never corrupt.
+	# Atomic save: write to .tmp then rename, so interrupted saves never corrupt.
 
-	Returns OK or error code from ResourceSaver.save().
-	"""
+	# Returns OK or error code from ResourceSaver.save().
 	if slot < 0 or slot >= NUM_SAVE_SLOTS:
 		push_error("Invalid save slot: " + str(slot))
 		return ERR_INVALID_PARAMETER
@@ -54,7 +64,7 @@ static func save_state(state: GameState, slot: int) -> int:
 
 
 static func save_state_to_path(state: GameState, path: String) -> int:
-	"""Atomic save to an explicit path (returns OK or error code)."""
+	# Atomic save to an explicit path (returns OK or error code).
 	if not state:
 		push_error("No game state to save!")
 		return ERR_INVALID_DATA
@@ -64,12 +74,11 @@ static func save_state_to_path(state: GameState, path: String) -> int:
 
 
 static func _atomic_save(state: GameState, path: String) -> int:
-	"""Write to a .tmp file, then rename atomically.
+	# Write to a .tmp file, then rename atomically.
 
-	If the process dies mid-write, the .tmp is garbage but the previous
-	save at `path` is untouched. The rename is atomic on all filesystems.
-	A save either succeeds completely or doesn't happen at all.
-	"""
+	# If the process dies mid-write, the .tmp is garbage but the previous
+	# save at `path` is untouched. The rename is atomic on all filesystems.
+	# A save either succeeds completely or doesn't happen at all.
 	# Keep a recognized resource extension in the temp path (`*.tmp.tres`),
 	# otherwise ResourceSaver rejects unknown suffixes like `*.tres.tmp`.
 	var ext = path.get_extension()
@@ -78,15 +87,15 @@ static func _atomic_save(state: GameState, path: String) -> int:
 		var stem = path.substr(0, path.length() - ext.length() - 1)
 		tmp_path = "%s.tmp.%s" % [stem, ext]
 	var result = ResourceSaver.save(state, tmp_path)
+	var dir = DirAccess.open(tmp_path.get_base_dir())
 	if result != OK:
 		push_error("Atomic save write failed: %d (%s) path=%s" % [result, error_string(result), tmp_path])
 		# Clean up failed temp file
-		var dir = DirAccess.open(tmp_path.get_base_dir())
 		if dir:
 			dir.remove(tmp_path.get_file())
 		return result
 	# Atomic rename: .tmp → final path
-	var dir = DirAccess.open(tmp_path.get_base_dir())
+	dir = DirAccess.open(tmp_path.get_base_dir())
 	if dir:
 		# Remove old file first (rename won't overwrite on all platforms)
 		if dir.file_exists(path.get_file()):
@@ -110,7 +119,7 @@ static func load_state(slot: int) -> GameState:
 
 
 static func load_state_by_path(save_path: String) -> GameState:
-	"""Load a save directly via full path or save filename under user://saves."""
+	# Load a save directly via full path or save filename under user://saves.
 	var path = save_path.strip_edges()
 	if path == "":
 		return null
@@ -118,7 +127,15 @@ static func load_state_by_path(save_path: String) -> GameState:
 		path = SAVE_DIR + save_path
 	if not FileAccess.file_exists(path):
 		return null
-	return ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE) as GameState
+	var state = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE) as GameState
+	if state:
+		print("[SAVE][DEBUG] load_state_by_path known_icons:", state.known_icons.size())
+	if state and (not state.known_icons or state.known_icons.size() <= 1):
+		var recovered_known_icons = _extract_known_icons_from_resource_text(path)
+		if not recovered_known_icons.is_empty():
+			print("[SAVE][DEBUG] recovered known_icons from text:", recovered_known_icons.size())
+			state.known_icons = recovered_known_icons
+	return state
 
 
 static func _ensure_parent_dir(path: String) -> void:
@@ -135,6 +152,43 @@ static func _is_absolute_path(path: String) -> bool:
 	if path.length() >= 3 and path[1] == ":" and (path[2] == "/" or path[2] == "\\"):
 		return true
 	return false
+
+
+static func _extract_known_icons_from_resource_text(path: String) -> Array:
+	var file = FileAccess.open(path, FileAccess.READ)
+	if not file:
+		return []
+	var text = file.get_as_text()
+	file.close()
+
+	var marker = "known_icons = "
+	var start = text.find(marker)
+	if start < 0:
+		return []
+	start = text.find("[", start)
+	if start < 0:
+		return []
+
+	var depth = 0
+	var end = -1
+	for idx in range(start, text.length()):
+		var ch = text.substr(idx, 1)
+		if ch == "[":
+			depth += 1
+		elif ch == "]":
+			depth -= 1
+			if depth == 0:
+				end = idx + 1
+				break
+
+	if end <= start:
+		return []
+
+	var block = text.substr(start, end - start)
+	var parsed = JSON.parse_string(block)
+	if parsed is Array:
+		return parsed
+	return []
 
 
 static func get_save_info(slot: int) -> Dictionary:
@@ -159,30 +213,18 @@ static func get_save_info(slot: int) -> Dictionary:
 
 
 static func load_scenario(scenario_id: String) -> GameState:
-	var scenario_path = SCENARIO_DIR + scenario_id + ".tres"
+	var id := scenario_id.strip_edges()
+	if id == "":
+		id = DEFAULT_SCENARIO_ID
+	var scenario_path = SCENARIO_DIR + id + ".tres"
 	if ResourceLoader.exists(scenario_path):
 		return ResourceLoader.load(scenario_path).duplicate()
-	var state = GameState.new()
-	state.scenario_id = scenario_id
-	return state
+	push_error("Scenario not found: %s" % scenario_path)
+	return null
 
 
 static func load_new_game_template() -> GameState:
-	# Prefer one canonical project template for normal fresh-game boot.
-	# A stale user:// override should not silently replace the shipped default character.
-	var project_path = SCENARIO_DIR + NEW_GAME_TEMPLATE
-	if ResourceLoader.exists(project_path):
-		var project_state = ResourceLoader.load(project_path).duplicate()
-		if project_state:
-			return project_state
-	var user_path = SAVE_DIR + NEW_GAME_TEMPLATE
-	if FileAccess.file_exists(user_path):
-		var user_state = ResourceLoader.load(user_path, "", ResourceLoader.CACHE_MODE_IGNORE)
-		if user_state:
-			return user_state
-	var state = GameState.new()
-	state.scenario_id = DEFAULT_SCENARIO_ID
-	return state
+	return load_scenario(DEFAULT_SCENARIO_ID)
 
 
 static func _write_save_artifacts(state: GameState, slot: int, canonical_path: String) -> void:
@@ -225,7 +267,7 @@ static func _choose_marker_emoji(state: GameState, slot: int) -> String:
 	var candidates: Array[String] = []
 
 	if state:
-		for emoji in GameState.derive_known_emojis_from_pairs(state.known_pairs):
+		for emoji in GameState.derive_known_emojis_from_icons(state.known_icons):
 			var s = str(emoji)
 			if s != "" and s not in candidates:
 				candidates.append(s)
@@ -238,8 +280,11 @@ static func _choose_marker_emoji(state: GameState, slot: int) -> String:
 				candidates.append(s)
 
 	if candidates.is_empty():
-		var registry = EmojiRegistry.new()
-		for emoji in registry.get_all_emojis():
+		var ml := Engine.get_main_loop()
+		var registry = ml.root.get_node_or_null("/root/IconRegistry") if ml and ml.root else null
+		if registry == null:
+			registry = load("res://Core/Factions/IconRegistry.gd").new()
+		for emoji in registry.build_emoji_universe():
 			var s = str(emoji)
 			if s != "" and s not in candidates:
 				candidates.append(s)
@@ -248,8 +293,8 @@ static func _choose_marker_emoji(state: GameState, slot: int) -> String:
 		return ""
 
 	candidates.sort()
-	var seed = int(Time.get_unix_time_from_system()) + (slot * 17)
-	var idx = posmod(seed, candidates.size())
+	var slot_seed = int(Time.get_unix_time_from_system()) + (slot * 17)
+	var idx = posmod(slot_seed, candidates.size())
 	return candidates[idx]
 
 
@@ -299,18 +344,18 @@ static func _write_save_sidecar(
 	canonical_path: String,
 	sidecar_path: String
 ) -> void:
-	var sidecar_icon_map = state.icon_map_snapshot.duplicate(true)
-	var sidecar_icon_source = state.icon_map_snapshot_source
-	var sidecar_icon_time = int(state.icon_map_snapshot_time)
+	var sidecar_icon_map = state.atom_map_snapshot.duplicate(true)
+	var sidecar_icon_source = state.atom_map_snapshot_source
+	var sidecar_icon_time = int(state.atom_map_snapshot_time)
 	if sidecar_icon_map.is_empty():
 		var by_emoji = {}
-		for e in GameState.derive_known_emojis_from_pairs(state.known_pairs):
+		for e in GameState.derive_known_emojis_from_icons(state.known_icons):
 			var s = str(e)
 			if s != "":
 				by_emoji[s] = 1.0
 		if not by_emoji.is_empty():
 			sidecar_icon_map = {"by_emoji": by_emoji, "total": float(by_emoji.size()), "steps": 1}
-			sidecar_icon_source = "derived_from_pairs"
+			sidecar_icon_source = "derived_from_icons"
 			sidecar_icon_time = int(Time.get_unix_time_from_system())
 
 	var payload = {
@@ -322,19 +367,31 @@ static func _write_save_sidecar(
 		"canonical_path": canonical_path,
 		"scenario_id": state.scenario_id,
 		"save_timestamp": int(state.save_timestamp),
-		"known_pairs": state.known_pairs.duplicate(true),
+		"known_icons": state.known_icons.duplicate(true),
 		"balance_profile_id": state.balance_profile_id,
 		"balance_workbench_config": state.balance_workbench_config,
 		"farm_variable_graph_path": state.farm_variable_graph_path,
 		"farm_variable_graph_jsonl": state.farm_variable_graph_jsonl,
 		"economy_variables": state.economy_variables,
-		"icon_map_snapshot": sidecar_icon_map,
-		"icon_map_snapshot_source": sidecar_icon_source,
-		"icon_map_snapshot_time": sidecar_icon_time,
+		"atom_map_snapshot": sidecar_icon_map,
+		"atom_map_snapshot_source": sidecar_icon_source,
+		"atom_map_snapshot_time": sidecar_icon_time,
 		"policy_state": state.policy_state.duplicate(true) if ("policy_state" in state and state.policy_state is Dictionary) else {},
 		"policy_graph_path": state.policy_graph_path,
 		"policy_graph_jsonl": state.policy_graph_jsonl,
 	}
+	# Include fully-built biome icon physics so Python lab reads exactly what the game ran.
+	var biome_icon_snapshots = {}
+	for biome_name in state.biome_states:
+		var bs = state.biome_states[biome_name]
+		if bs is Dictionary and bs.has("icons"):
+			biome_icon_snapshots[biome_name] = {
+				"icons":         bs["icons"],
+				"register_axes": bs.get("register_axes", []),
+			}
+	if not biome_icon_snapshots.is_empty():
+		payload["biome_icon_snapshots"] = biome_icon_snapshots
+
 	var file = FileAccess.open(sidecar_path, FileAccess.WRITE)
 	if not file:
 		push_warning("SaveStore: failed to write emoji sidecar '%s'" % sidecar_path)

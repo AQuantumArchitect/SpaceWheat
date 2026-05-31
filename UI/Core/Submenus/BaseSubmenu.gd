@@ -40,20 +40,19 @@ const ACTION_KEYS = ["Q", "E", "R"]
 ## ============================================================================
 
 static func paginate(options: Array, page: int) -> Dictionary:
-	"""Calculate pagination for options array.
+	# Calculate pagination for options array.
 
-	Args:
-		options: Full array of options
-		page: Requested page number (will wrap)
+	# Args:
+	# options: Full array of options
+	# page: Requested page number (will wrap)
 
-	Returns:
-		{
-			"page": int,           # Current page (0-indexed)
-			"max_pages": int,      # Total pages
-			"total_options": int,  # Total option count
-			"page_options": Array  # Options for current page (up to 3)
-		}
-	"""
+	# Returns:
+	# {
+	# "page": int,           # Current page (0-indexed)
+	# "max_pages": int,      # Total pages
+	# "total_options": int,  # Total option count
+	# "page_options": Array  # Options for current page (up to 3)
+	# }
 	var total = options.size()
 	var max_pages = ceili(float(total) / OPTIONS_PER_PAGE) if total > 0 else 1
 	var current_page = page % max_pages if max_pages > 0 else 0
@@ -75,17 +74,16 @@ static func paginate(options: Array, page: int) -> Dictionary:
 ## ============================================================================
 
 static func build_actions(page_options: Array, action_builder: Callable = Callable()) -> Dictionary:
-	"""Build Q/E/R action dictionary from page options.
+	# Build Q/E/R action dictionary from page options.
 
-	Args:
-		page_options: Array of up to 3 options for current page
-		action_builder: Optional Callable(option) -> Dictionary
-		                If not provided, uses default_action_data()
+	# Args:
+	# page_options: Array of up to 3 options for current page
+	# action_builder: Optional Callable(option) -> Dictionary
+	# If not provided, uses default_action_data()
 
-	Returns:
-		{"Q": action_data, "E": action_data, "R": action_data}
-		(only includes keys for available options)
-	"""
+	# Returns:
+	# {"Q": action_data, "E": action_data, "R": action_data}
+	# (only includes keys for available options)
 	var actions = {}
 
 	for i in range(mini(page_options.size(), OPTIONS_PER_PAGE)):
@@ -99,10 +97,9 @@ static func build_actions(page_options: Array, action_builder: Callable = Callab
 
 
 static func default_action_data(option: Dictionary) -> Dictionary:
-	"""Default action data builder - passes through common fields.
+	# Default action data builder - passes through common fields.
 
-	Override by providing custom action_builder to build_actions().
-	"""
+	# Override by providing custom action_builder to build_actions().
 	return {
 		"action": option.get("action", ""),
 		"label": option.get("label", ""),
@@ -127,18 +124,17 @@ static func build_result(
 	actions: Dictionary,
 	extras: Dictionary = {}
 ) -> Dictionary:
-	"""Build final submenu result dictionary.
+	# Build final submenu result dictionary.
 
-	Args:
-		name: Submenu identifier (e.g., "gate_selection")
-		title: Display title (e.g., "Build Gate")
-		pagination: Result from paginate()
-		actions: Result from build_actions()
-		extras: Additional fields to merge (e.g., selection_count)
+	# Args:
+	# name: Submenu identifier (e.g., "gate_selection")
+	# title: Display title (e.g., "Build Gate")
+	# pagination: Result from paginate()
+	# actions: Result from build_actions()
+	# extras: Additional fields to merge (e.g., selection_count)
 
-	Returns:
-		Complete submenu dictionary
-	"""
+	# Returns:
+	# Complete submenu dictionary
 	var result = {
 		"name": name,
 		"title": title,
@@ -161,14 +157,13 @@ static func build_result(
 ## ============================================================================
 
 static func format_cost(cost: Dictionary) -> String:
-	"""Format cost dictionary as display string.
+	# Format cost dictionary as display string.
 
-	Args:
-		cost: {"emoji": amount, ...} e.g., {"🍼": 2, "🌾": 5}
+	# Args:
+	# cost: {"emoji": amount, ...} e.g., {"🍼": 2, "🌾": 5}
 
-	Returns:
-		Formatted string like "🍼×2 🌾×5"
-	"""
+	# Returns:
+	# Formatted string like "🍼×2 🌾×5"
 	if cost.is_empty():
 		return ""
 
@@ -184,15 +179,14 @@ static func format_cost(cost: Dictionary) -> String:
 
 
 static func check_affordability(cost: Dictionary, economy) -> bool:
-	"""Check if economy can afford the cost.
+	# Check if economy can afford the cost.
 
-	Args:
-		cost: {"resource_name": amount, ...}
-		economy: FarmEconomy instance with can_afford() or get_balance()
+	# Args:
+	# cost: {"resource_name": amount, ...}
+	# economy: FarmEconomy instance with can_afford() or get_balance()
 
-	Returns:
-		true if affordable, false otherwise
-	"""
+	# Returns:
+	# true if affordable, false otherwise
 	if cost.is_empty():
 		return true
 
@@ -228,15 +222,14 @@ static func check_affordability(cost: Dictionary, economy) -> bool:
 
 
 static func apply_cost_to_options(options: Array, economy) -> Array:
-	"""Add can_afford and cost_display fields to options with costs.
+	# Add can_afford and cost_display fields to options with costs.
 
-	Args:
-		options: Array of option dictionaries (may have "cost" field)
-		economy: FarmEconomy instance
+	# Args:
+	# options: Array of option dictionaries (may have "cost" field)
+	# economy: FarmEconomy instance
 
-	Returns:
-		Same array with can_afford and cost_display added where applicable
-	"""
+	# Returns:
+	# Same array with can_afford and cost_display added where applicable
 	for option in options:
 		var cost = option.get("cost", {})
 		if not cost.is_empty():
@@ -254,16 +247,15 @@ static func apply_cost_to_options(options: Array, economy) -> Array:
 ## ============================================================================
 
 static func sort_by_field(options: Array, field: String, descending: bool = true) -> Array:
-	"""Sort options by a numeric field.
+	# Sort options by a numeric field.
 
-	Args:
-		options: Array of option dictionaries
-		field: Field name to sort by (e.g., "affinity", "priority")
-		descending: true for highest first, false for lowest first
+	# Args:
+	# options: Array of option dictionaries
+	# field: Field name to sort by (e.g., "affinity", "priority")
+	# descending: true for highest first, false for lowest first
 
-	Returns:
-		Sorted array (modifies in place and returns)
-	"""
+	# Returns:
+	# Sorted array (modifies in place and returns)
 	if descending:
 		options.sort_custom(func(a, b): return a.get(field, 0) > b.get(field, 0))
 	else:
@@ -273,10 +265,9 @@ static func sort_by_field(options: Array, field: String, descending: bool = true
 
 
 static func sort_enabled_first(options: Array) -> Array:
-	"""Sort options with enabled=true before enabled=false.
+	# Sort options with enabled=true before enabled=false.
 
-	Preserves relative order within each group.
-	"""
+	# Preserves relative order within each group.
 	var enabled: Array = []
 	var disabled: Array = []
 
@@ -295,16 +286,15 @@ static func sort_enabled_first(options: Array) -> Array:
 ## ============================================================================
 
 static func empty_submenu(name: String, title: String, message: String) -> Dictionary:
-	"""Create a submenu showing a disabled message (e.g., "No options available").
+	# Create a submenu showing a disabled message (e.g., "No options available").
 
-	Args:
-		name: Submenu identifier
-		title: Display title
-		message: Message to show in Q slot
+	# Args:
+	# name: Submenu identifier
+	# title: Display title
+	# message: Message to show in Q slot
 
-	Returns:
-		Submenu with single disabled option
-	"""
+	# Returns:
+	# Submenu with single disabled option
 	return {
 		"name": name,
 		"title": title,

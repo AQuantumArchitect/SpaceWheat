@@ -4,6 +4,7 @@ import json
 import math
 import random
 import statistics
+import shutil
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -14,6 +15,7 @@ from milk_hunt_console import Console, resolve_console_profile
 from milk_hunt_io import write_json
 from profiles import load, get_profile_name_for_save, get_save_path, resolve_save_spec
 from run_executor import ensure_lane, run_cli
+from rig_client import RigClient
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 RUNNER = SCRIPT_DIR / "milk_hunt_runner.py"
@@ -44,6 +46,11 @@ def _compact_run_summary(summary: Dict[str, Any]) -> Dict[str, Any]:
         "policy_action_entropy_bits": float(summary.get("policy_action_entropy_bits", 0.0) or 0.0),
         "biome_discovery_order": list(summary.get("biome_discovery_order", []) or []),
         "vocab_milestone_count": len(summary.get("vocab_milestones", []) or []),
+        "story_flags_fired_count": int(summary.get("story_flags_fired_count", 0) or 0),
+        "story_flags_fired_ids": sorted(
+            [str(k) for k in (summary.get("story_flags_fired", {}) or {}).keys()]
+        ) if isinstance(summary.get("story_flags_fired", {}), dict) else [],
+        "story_log_count": int(summary.get("story_log_count", 0) or 0),
         "timeout_action": summary.get("timeout_action"),
         "run_error": summary.get("run_error"),
     }
@@ -52,6 +59,30 @@ def _compact_run_summary(summary: Dict[str, Any]) -> Dict[str, Any]:
     if "batcher_metrics_samples" in summary:
         compact["batcher_metrics_samples"] = len(summary.get("batcher_metrics_samples", []) or [])
     return compact
+
+
+def _archive_rig_data(run_dir: Path, lane) -> Dict[str, Any]:
+    """Copy the live rig queue/results files into the local run directory."""
+    rig = RigClient(xdg=lane.xdg_root, root_from_file=Path(__file__))
+    rig_dir = rig.queue_file.parent
+    dest_dir = run_dir / "rig"
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    manifest: Dict[str, Any] = {"source_dir": str(rig_dir), "dest_dir": str(dest_dir), "files": {}}
+    for name in ("queue.jsonl", "results.jsonl", "heartbeat", "bridge_ready"):
+        src = rig_dir / name
+        dst = dest_dir / name
+        entry: Dict[str, Any] = {"source": str(src), "dest": str(dst), "exists": src.exists()}
+        if src.exists():
+            try:
+                shutil.copy2(src, dst)
+                entry["bytes"] = int(src.stat().st_size)
+            except OSError as exc:
+                entry["copy_error"] = str(exc)
+        manifest["files"][name] = entry
+    manifest_path = run_dir / "rig_capture.json"
+    write_json(manifest_path, manifest)
+    manifest["manifest_path"] = str(manifest_path)
+    return manifest
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -69,6 +100,18 @@ def _build_parser() -> argparse.ArgumentParser:
         choices=["default", "quantum_fiber_nodes", "io_min"],
         default=None,
         help="Runtime env profile to apply when launching rig listener",
+    )
+    parser.add_argument(
+        "--archive-rig-data",
+        dest="archive_rig_data",
+        action="store_true",
+        help="Copy live rig queue/results files into each run directory",
+    )
+    parser.add_argument(
+        "--no-archive-rig-data",
+        dest="archive_rig_data",
+        action="store_false",
+        help="Do not copy live rig queue/results files into each run directory",
     )
     parser.add_argument(
         "--output-dir",
@@ -139,9 +182,13 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--epsilon-jitter", type=float, default=0.12, help="Absolute epsilon mutation radius")
     parser.add_argument("--ucb-octave-jitter", type=float, default=0.45, help="Log2 mutation radius for UCB scale")
     parser.add_argument("--mutation-seed", type=int, default=1337, help="RNG seed for topology mutations")
+    parser.set_defaults(archive_rig_data=False)
     parser.set_defaults(strict_biome_economy=True, reuse_listener=True)
     parser.set_defaults(include_offer_reward_resources=False)
-    parser.set_defaults(include_offer_market_projection=False)
+    # Market projection is always-on by default: hunters that don't carry it
+    # can't tell us anything about how the market lattice is shaping their
+    # environment. Telemetry only — no adversary tunes off this signal.
+    parser.set_defaults(include_offer_market_projection=True)
     parser.set_defaults(policy_restrictions=False, topology_gto=False)
     return parser
 
@@ -300,6 +347,7 @@ def _run_trial(
     policy_restrictions: bool = False,
     policy_epsilon: float | None = None,
     policy_ucb_scale: float | None = None,
+    archive_rig_data: bool = False,
     lane = None,
 ) -> Dict[str, Any]:
     run_name = f"run_{run_idx:03d}"
@@ -362,9 +410,12 @@ def _run_trial(
     if reuse_listener:
         cmd.append("--reuse-listener")
         cmd.append("--no-clear-rig")
+    cmd.extend(["--expand-biomes", "--min-eagles-for-expansion", "0"])
     if no_stop:
         cmd.append("--no-stop")
-    proc = run_cli(cmd, lane=lane, capture_output=True, timeout_s=600)
+    # Scale timeout with max_loops: 15s/loop + 120s boot margin, minimum 120s
+    timeout_s = max(120, max_loops * 15 + 120)
+    proc = run_cli(cmd, lane=lane, capture_output=True, timeout_s=timeout_s)
 
     summary: Dict[str, Any] = {}
     if proc.stdout:
@@ -384,6 +435,8 @@ def _run_trial(
         should_write_log = True
     if should_write_log:
         log_path.write_text((proc.stdout or "") + (proc.stderr or ""), encoding="utf-8")
+    if archive_rig_data:
+        summary["rig_capture"] = _archive_rig_data(run_dir, lane)
     return summary
 
 
@@ -531,6 +584,7 @@ def main() -> int:
             policy_restrictions=bool(args.policy_restrictions),
             policy_epsilon=float(mutation.get("policy_epsilon", args.base_policy_epsilon)),
             policy_ucb_scale=float(mutation.get("policy_ucb_scale", args.base_policy_ucb_scale)),
+            archive_rig_data=bool(args.archive_rig_data),
             lane=lane,
         )
         summary["policy_mutation"] = mutation
@@ -638,6 +692,7 @@ def main() -> int:
         "profile_save_index": args.profile_save_index,
         "console_profile": console.profile,
         "reuse_listener": reuse_enabled,
+        "archive_rig_data": bool(args.archive_rig_data),
         "metrics_every": metrics_every,
         "runtime_profile": args.runtime_profile or "default",
         "include_offer_reward_resources": bool(args.include_offer_reward_resources),

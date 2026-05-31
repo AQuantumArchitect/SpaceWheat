@@ -25,6 +25,14 @@ var btn_texture: Texture2D = null
 var buttons: Array[Dictionary] = []
 var selected_id: int = -1
 
+# Cross-ring active state. When the WASD cursor parks on this ring, the
+# row paints a thin amber border around its outer container so the player
+# can see which ring A/D will step across. Distinct from per-button cyan
+# selected tint — both can apply simultaneously.
+var is_active_ring: bool = false
+const ACTIVE_RING_BORDER_COLOR: Color = Color(1.0, 0.75, 0.2, 1.0)
+const ACTIVE_RING_BORDER_WIDTH: float = 2.0
+
 signal button_selected(id: int)
 
 
@@ -36,10 +44,6 @@ func _ready():
 
 	# Container setup
 	add_theme_constant_override("separation", 8)
-	add_theme_constant_override("margin_left", 8)
-	add_theme_constant_override("margin_right", 8)
-	add_theme_constant_override("margin_top", 4)
-	add_theme_constant_override("margin_bottom", 4)
 
 	# Allow keyboard input to pass through, but buttons can still receive clicks
 	mouse_filter = MOUSE_FILTER_PASS
@@ -47,14 +51,13 @@ func _ready():
 
 
 func build_buttons(button_specs: Array[Dictionary]) -> void:
-	"""Rebuild buttons from specs.
+	# Rebuild buttons from specs.
 
-	Spec fields:
-	- id: int
-	- text: String
-	- icon_path: String (optional)
-	- enabled: bool (optional, default true)
-	"""
+	# Spec fields:
+	# - id: int
+	# - text: String
+	# - icon_path: String (optional)
+	# - enabled: bool (optional, default true)
 	_clear_buttons()
 	for spec in button_specs:
 		var btn_data = _create_button(spec)
@@ -63,7 +66,7 @@ func build_buttons(button_specs: Array[Dictionary]) -> void:
 
 
 func _create_button(spec: Dictionary) -> Dictionary:
-	"""Create a single button from a spec."""
+	# Create a single button from a spec.
 	var button_id = spec.get("id", -1)
 	var label_text = spec.get("text", "")
 	var icon_path = spec.get("icon_path", "")
@@ -142,13 +145,18 @@ func _create_button(spec: Dictionary) -> Dictionary:
 	container.mouse_entered.connect(_on_button_hover.bind(button_id, true))
 	container.mouse_exited.connect(_on_button_hover.bind(button_id, false))
 
+	var tooltip: String = str(spec.get("tooltip", ""))
+	if tooltip != "":
+		container.tooltip_text = tooltip
+
 	var btn_data = {
 		"container": container,
 		"texture": texture_rect,
 		"icon": icon_rect,
 		"label": label,
 		"id": button_id,
-		"disabled": not enabled
+		"disabled": not enabled,
+		"tooltip": tooltip,
 	}
 
 	if not enabled:
@@ -169,18 +177,13 @@ func _on_button_input(event: InputEvent, button_id: int) -> void:
 	if not btn_data or btn_data.disabled:
 		return
 
-	if event is InputEventMouseButton:
-		if event.button_index == MOUSE_BUTTON_LEFT:
-			if event.pressed:
-				btn_data.texture.modulate = pressed_color
-			else:
-				set_selected(button_id)
-				button_selected.emit(button_id)
-
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		var viewport = get_viewport()
-		if viewport:
-			viewport.set_input_as_handled()
+		if event.pressed:
+			btn_data.texture.modulate = pressed_color
+		else:
+			set_selected(button_id)
+			button_selected.emit(button_id)
+		get_viewport().set_input_as_handled()
 
 
 func _on_button_hover(button_id: int, is_hovering: bool) -> void:
@@ -204,6 +207,16 @@ func _get_button_data(button_id: int) -> Dictionary:
 	return {}
 
 
+## Return the tooltip text of the currently-selected button, or "" if none.
+## Overlays can call this inside get_hovered_tooltip() to expose button
+## descriptions via the E key for keyboard players.
+func get_selected_button_tooltip() -> String:
+	var btn_data = _get_button_data(selected_id)
+	if btn_data.is_empty():
+		return ""
+	return str(btn_data.get("tooltip", ""))
+
+
 func set_selected(button_id: int) -> void:
 	selected_id = button_id
 	for btn_data in buttons:
@@ -213,6 +226,7 @@ func set_selected(button_id: int) -> void:
 			btn_data.texture.modulate = selected_color
 		else:
 			btn_data.texture.modulate = normal_color
+	queue_redraw()
 
 
 func set_button_enabled(button_id: int, enabled: bool) -> void:
@@ -233,3 +247,21 @@ func set_layout_manager(mgr) -> void:
 	layout_manager = mgr
 	if layout_manager:
 		scale_factor = layout_manager.scale_factor
+
+
+func set_active_ring(active: bool) -> void:
+	if is_active_ring == active:
+		return
+	is_active_ring = active
+	queue_redraw()
+
+
+func _draw() -> void:
+	if is_active_ring:
+		draw_rect(Rect2(Vector2.ZERO, size), ACTIVE_RING_BORDER_COLOR, false, ACTIVE_RING_BORDER_WIDTH)
+	if selected_id >= 0:
+		for btn_data in buttons:
+			if btn_data.id == selected_id:
+				var r: Rect2 = btn_data.container.get_rect()
+				draw_rect(Rect2(r.position.x, r.end.y - 3.0, r.size.x, 3.0), ACTIVE_RING_BORDER_COLOR, true)
+				break

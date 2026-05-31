@@ -10,23 +10,21 @@ extends RefCounted
 
 
 func draw(graph: Node2D, ctx: Dictionary) -> void:
-	"""Draw gate infrastructure.
+	# Draw gate infrastructure.
 
-	Args:
-	    graph: The QuantumForceGraph node
-	    ctx: Context dictionary
-	"""
+	# Args:
+	# graph: The QuantumForceGraph node
+	# ctx: Context dictionary
 	_draw_persistent_gate_infrastructure(graph, ctx)
 	_draw_bell_gate_ghosts(graph, ctx)
 
 
 func _draw_persistent_gate_infrastructure(graph: Node2D, ctx: Dictionary) -> void:
-	"""Draw persistent gate infrastructure at PLOT positions."""
+	# Draw persistent gate infrastructure at PLOT positions.
 	var farm_grid = ctx.get("farm_grid")
 	var all_plot_positions = ctx.get("all_plot_positions", {})
 	var quantum_nodes_by_grid_pos = ctx.get("quantum_nodes_by_grid_pos", {})
 	var graph_radius = ctx.get("graph_radius", 300.0)
-	var time_accumulator = ctx.get("time_accumulator", 0.0)
 	var batcher = ctx.get("geometry_batcher")
 
 	if not farm_grid:
@@ -73,52 +71,48 @@ func _draw_persistent_gate_infrastructure(graph: Node2D, ctx: Dictionary) -> voi
 
 			match gate_type:
 				"bell":
-					_draw_bell_gate_infrastructure(graph, plot_positions, base_width, max_width, corner_radius, time_accumulator, batcher)
+					_draw_bell_gate_infrastructure(graph, plot_positions, base_width, max_width, corner_radius, batcher)
 				"cluster":
-					_draw_cluster_gate_infrastructure(graph, plot_positions, base_width, max_width, corner_radius, time_accumulator, batcher)
+					_draw_cluster_gate_infrastructure(graph, plot_positions, base_width, max_width, corner_radius, batcher)
 				_:
-					_draw_bell_gate_infrastructure(graph, plot_positions, base_width, max_width, corner_radius, time_accumulator, batcher)
+					_draw_bell_gate_infrastructure(graph, plot_positions, base_width, max_width, corner_radius, batcher)
 
 
-func _draw_bell_gate_infrastructure(graph: Node2D, positions: Array[Vector2], base_width: float, max_width: float, corner_radius: float, time: float, batcher = null) -> void:
-	"""Draw Bell gate infrastructure (2-node connection)."""
+func _draw_bell_gate_infrastructure(graph: Node2D, positions: Array[Vector2], base_width: float, max_width: float, corner_radius: float, batcher = null) -> void:
+	# Draw Bell gate infrastructure (2-node connection).
 	if positions.size() < 2:
 		return
 
 	var p1 = positions[0]
 	var p2 = positions[1]
 
-	var pulse = (sin(time * 0.8) + 1.0) / 2.0
-	var pulse_factor = 0.7 + pulse * 0.3
-
 	var infra_color = Color(1.0, 0.75, 0.2)
 	var infra_glow = Color(1.0, 0.85, 0.4)
 
 	var line_width = base_width + max_width * 0.5
-	var pulsed_width = line_width * pulse_factor
 
 	# Glow layer
 	var glow_color = infra_glow
-	glow_color.a = 0.3 * pulse_factor
+	glow_color.a = 0.3
 
 	# Core line
 	var core_color = infra_color
-	core_color.a = 0.85 * pulse_factor
+	core_color.a = 0.85
 
 	if batcher:
-		batcher.add_line(p1, p2, glow_color, pulsed_width * 2.5)
-		batcher.add_line(p1, p2, core_color, pulsed_width)
+		batcher.add_line(p1, p2, glow_color, line_width * 2.5)
+		batcher.add_line(p1, p2, core_color, line_width)
 	else:
-		graph.draw_line(p1, p2, glow_color, pulsed_width * 2.5, true)
-		graph.draw_line(p1, p2, core_color, pulsed_width, true)
+		graph.draw_line(p1, p2, glow_color, line_width * 2.5, true)
+		graph.draw_line(p1, p2, core_color, line_width, true)
 
 	# Corner connectors
-	_draw_gate_corner_connector(graph, p1, corner_radius, infra_color, pulse_factor, batcher)
-	_draw_gate_corner_connector(graph, p2, corner_radius, infra_color, pulse_factor, batcher)
+	_draw_gate_corner_connector(graph, p1, corner_radius, infra_color, batcher)
+	_draw_gate_corner_connector(graph, p2, corner_radius, infra_color, batcher)
 
 
-func _draw_cluster_gate_infrastructure(graph: Node2D, positions: Array[Vector2], base_width: float, max_width: float, corner_radius: float, time: float, batcher = null) -> void:
-	"""Draw Cluster gate infrastructure (N-node web)."""
+func _draw_cluster_gate_infrastructure(graph: Node2D, positions: Array[Vector2], base_width: float, max_width: float, corner_radius: float, batcher = null) -> void:
+	# Draw Cluster gate infrastructure (N-node web).
 	if positions.size() < 2:
 		return
 
@@ -128,42 +122,38 @@ func _draw_cluster_gate_infrastructure(graph: Node2D, positions: Array[Vector2],
 		hub += pos
 	hub /= positions.size()
 
-	var pulse = (sin(time * 0.8) + 1.0) / 2.0
-	var pulse_factor = 0.7 + pulse * 0.3
-
 	var cluster_color = Color(0.7, 0.4, 1.0)
 	var cluster_glow = Color(0.85, 0.6, 1.0)
 
 	var line_width = base_width + max_width * 0.3
-	var pulsed_width = line_width * pulse_factor
 
 	# Draw spokes
 	for pos in positions:
 		var glow_color = cluster_glow
-		glow_color.a = 0.25 * pulse_factor
+		glow_color.a = 0.25
 
 		var core_color = cluster_color
-		core_color.a = 0.8 * pulse_factor
+		core_color.a = 0.8
 
 		if batcher:
-			batcher.add_line(hub, pos, glow_color, pulsed_width * 2.0)
-			batcher.add_line(hub, pos, core_color, pulsed_width)
+			batcher.add_line(hub, pos, glow_color, line_width * 2.0)
+			batcher.add_line(hub, pos, core_color, line_width)
 		else:
-			graph.draw_line(hub, pos, glow_color, pulsed_width * 2.0, true)
-			graph.draw_line(hub, pos, core_color, pulsed_width, true)
+			graph.draw_line(hub, pos, glow_color, line_width * 2.0, true)
+			graph.draw_line(hub, pos, core_color, line_width, true)
 
-		_draw_gate_corner_connector(graph, pos, corner_radius, cluster_color, pulse_factor, batcher)
+		_draw_gate_corner_connector(graph, pos, corner_radius, cluster_color, batcher)
 
 	# Central hub
-	var hub_size = corner_radius * 1.5 * pulse_factor
+	var hub_size = corner_radius * 1.5
 	var hub_glow = cluster_glow
-	hub_glow.a = 0.4 * pulse_factor
+	hub_glow.a = 0.4
 
 	var hub_core = cluster_color
-	hub_core.a = 0.9 * pulse_factor
+	hub_core.a = 0.9
 
 	var bright = Color.WHITE
-	bright.a = 0.6 * pulse_factor
+	bright.a = 0.6
 
 	if batcher:
 		batcher.add_circle(hub, hub_size * 1.5, hub_glow)
@@ -175,18 +165,18 @@ func _draw_cluster_gate_infrastructure(graph: Node2D, positions: Array[Vector2],
 		graph.draw_circle(hub, hub_size * 0.4, bright)
 
 
-func _draw_gate_corner_connector(graph: Node2D, pos: Vector2, radius: float, color: Color, pulse_factor: float, batcher = null) -> void:
-	"""Draw corner connector at a plot position."""
-	var size = radius * pulse_factor
+func _draw_gate_corner_connector(graph: Node2D, pos: Vector2, radius: float, color: Color, batcher = null) -> void:
+	# Draw corner connector at a plot position.
+	var size = radius
 
 	var glow = color
-	glow.a = 0.3 * pulse_factor
+	glow.a = 0.3
 
 	var core = color
-	core.a = 0.9 * pulse_factor
+	core.a = 0.9
 
 	var highlight = Color.WHITE
-	highlight.a = 0.5 * pulse_factor
+	highlight.a = 0.5
 
 	if batcher:
 		batcher.add_circle(pos, size * 1.8, glow)
@@ -199,7 +189,7 @@ func _draw_gate_corner_connector(graph: Node2D, pos: Vector2, radius: float, col
 
 
 func _draw_bell_gate_ghosts(graph: Node2D, ctx: Dictionary) -> void:
-	"""Draw fading ghost lines for historical Bell gate entanglements."""
+	# Draw fading ghost lines for historical Bell gate entanglements.
 	var biomes = ctx.get("biomes", {})
 	var active_biome = ctx.get("active_biome", "")
 	var all_plot_positions = ctx.get("all_plot_positions", {})

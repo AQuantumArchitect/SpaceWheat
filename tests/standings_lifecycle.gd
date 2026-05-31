@@ -11,9 +11,6 @@ extends SceneTree
 ##
 ## Run: godot --headless -s tests/standings_lifecycle.gd
 
-const FactionStanding = preload("res://Core/Factions/FactionStanding.gd")
-const QuestRewards = preload("res://Core/Quests/QuestRewards.gd")
-const SubstrateFixtures = preload("res://tests/substrate_fixtures.gd")
 
 
 func _init() -> void:

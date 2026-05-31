@@ -1,6 +1,7 @@
 class_name BiomeDeterministicStepper
 extends RefCounted
 
+
 var batcher
 var _stride_dt_carry: Dictionary = {}
 
@@ -245,7 +246,7 @@ func run_time_skip_cycles(cycles: int, dt: float = -1.0, biome_names: Array = []
 				var rho_dim = int(qc.density_matrix.n) if qc and qc.density_matrix else -1
 				var h_dim = int(qc.hamiltonian.n) if qc and qc.hamiltonian else -1
 				var lindblad_count = int(qc.lindblad_operators.size()) if qc and "lindblad_operators" in qc else 0
-				print("[TIME_SKIP][BATCHER] cycle=%d biome=%s reg_dim=%d rho_dim=%d H_dim=%d L_count=%d max_dt=%.6f target_dt=%.6f mode=%s" % [
+				VerboseHelper.debug("trace", "time-skip", "cycle=%d biome=%s reg_dim=%d rho_dim=%d H_dim=%d L_count=%d max_dt=%.6f target_dt=%.6f mode=%s" % [
 					cycle_index,
 					batcher._get_biome_name(biome),
 					reg_dim,
@@ -265,7 +266,7 @@ func run_time_skip_cycles(cycles: int, dt: float = -1.0, biome_names: Array = []
 				else:
 					run_direct_biome_cycle(biome, packet_dt, packet_max_dt)
 				if debug_time_skip:
-					print("[TIME_SKIP][BATCHER] cycle=%d biome=%s evolve_ok stride=%d packet_dt=%.6f packet_max_dt=%.6f carry_dt=%.6f" % [
+					VerboseHelper.debug("trace", "time-skip", "cycle=%d biome=%s evolve_ok stride=%d packet_dt=%.6f packet_max_dt=%.6f carry_dt=%.6f" % [
 						cycle_index,
 						batcher._get_biome_name(biome),
 						packet_stride,
@@ -290,7 +291,7 @@ func run_time_skip_cycles(cycles: int, dt: float = -1.0, biome_names: Array = []
 		stride_flushed_steps += 1
 		evolved_steps += 1
 		if debug_time_skip:
-			print("[TIME_SKIP][BATCHER] flush biome=%s stride=%d packet_dt=%.6f packet_max_dt=%.6f" % [
+			VerboseHelper.debug("trace", "time-skip", "flush biome=%s stride=%d packet_dt=%.6f packet_max_dt=%.6f" % [
 				batcher._get_biome_name(biome),
 				int(flush_packet.get("stride", 1)),
 				flush_dt,
@@ -359,10 +360,10 @@ func run_native_biome_cycle(biome, dt: float, max_dt_override: float = -1.0) -> 
 	var dim = int(qc.register_map.dim())
 
 	if dim > 0 and rho_packed.size() >= dim * dim * 2:
-		var tr = 0.0
+		var trace = 0.0
 		for i in range(dim):
-			tr += rho_packed[i * (dim + 1) * 2]
-		if tr < 1e-10:
+			trace += rho_packed[i * (dim + 1) * 2]
+		if trace < 1e-10:
 			var fresh_packed = PackedFloat64Array()
 			fresh_packed.resize(dim * dim * 2)
 			var diag_val = 1.0 / float(dim)
@@ -377,6 +378,13 @@ func run_native_biome_cycle(biome, dt: float, max_dt_override: float = -1.0) -> 
 		var final_rho = results[results.size() - 1]
 		if final_rho is PackedFloat64Array and final_rho.size() > 0:
 			qc.load_packed_state(final_rho, dim, true)
+	if biome.viz_cache:
+		var packet = qc.export_bloch_packet() if qc.has_method("export_bloch_packet") else PackedFloat64Array()
+		var num_qubits = qc.register_map.num_qubits if qc.register_map else 0
+		if packet.size() > 0 and num_qubits > 0:
+			biome.viz_cache.update_from_bloch_packet(packet, num_qubits)
+		if qc.has_method("get_purity"):
+			biome.viz_cache.update_purity(qc.get_purity())
 
 	batcher._post_evolution_update(biome)
 	batcher.biome_evolution_counts[biome_name] = batcher.biome_evolution_counts.get(biome_name, 0) + 1

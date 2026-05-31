@@ -1,6 +1,5 @@
 extends Node
 
-const InputBindingRegistry = preload("res://UI/Core/InputBindingRegistry.gd")
 
 ## ActiveBiomeManager - Singleton tracking which biome is currently active/visible
 ## Note: No class_name needed - accessed via autoload singleton "ActiveBiomeManager"
@@ -63,7 +62,7 @@ func _ready() -> void:
 
 func _connect_to_observation_frame() -> void:
 	# Connect to ObservationFrame for spindle-based biome tracking.
-	_observation_frame = InstrumentLocator.resolve_observation_frame(self)
+	_observation_frame = get_node_or_null("/root/ObservationFrame")
 	if _observation_frame:
 		if not _observation_frame.neutral_changed.is_connected(_on_neutral_changed):
 			_observation_frame.neutral_changed.connect(_on_neutral_changed)
@@ -319,4 +318,3 @@ func _rebuild_slot_assignment() -> void:
 			break
 		_slot_assignment[slot_idx] = biome_name
 		slot_idx += 1
-const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")

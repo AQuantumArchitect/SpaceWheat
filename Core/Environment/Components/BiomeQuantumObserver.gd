@@ -8,8 +8,6 @@ extends RefCounted
 ## - Visualization support (emoji probability, purity)
 ## - Register queries for quantum state inspection
 
-const Complex = preload("res://Core/QuantumSubstrate/Complex.gd")
-const ComplexMatrix = preload("res://Core/QuantumSubstrate/ComplexMatrix.gd")
 
 # Injected dependencies
 var quantum_computer = null
@@ -27,14 +25,14 @@ func set_viz_cache(vc) -> void:
 # ============================================================================
 # Quest System Observable Readers (Phase 4)
 # ============================================================================
-# Safe read-only methods that work in both bath-first and legacy modes
+# Safe read-only methods that work across bath-first and older save states
 # Used by quest system to track quantum state progress
 
 func get_observable_theta(north: String, south: String) -> float:
 	# Get polar angle theta for projection [0, PI]
 
 	# Physical meaning: theta=0 is pure north, theta=PI is pure south, theta=PI/2 is equal superposition
-	# Safe read-only method that works in both bath and legacy modes.
+	# Safe read-only method that works across bath-first and older save states.
 
 	# Args:
 	# north: North pole emoji (e.g., "🌾")
@@ -140,7 +138,7 @@ func get_emoji_probability(emoji: String) -> float:
 	return p_north if pole == 0 else (1.0 - p_north)
 
 
-func get_emoji_coherence(north_emoji: String, south_emoji: String):
+func get_emoji_coherence(north_emoji: String, _south_emoji: String):
 	# Off-diagonal element ρ₀₁ of the single-qubit reduced density matrix.
 	# Returns Complex or null.
 	#

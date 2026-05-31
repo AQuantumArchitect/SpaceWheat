@@ -8,9 +8,6 @@ extends RefCounted
 ## - expand_quantum_system() - Add qubit axis at runtime, rebuild operators
 ## - inject_coupling() - Add Hamiltonian coupling at runtime
 
-const OperatorCache = preload("res://Core/QuantumSubstrate/OperatorCache.gd")
-const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
-const VerboseHelper = preload("res://Core/Config/VerboseHelper.gd")
 
 # Signals
 signal coupling_updated(emoji_a: String, emoji_b: String, strength: float)
@@ -18,11 +15,13 @@ signal coupling_updated(emoji_a: String, emoji_b: String, strength: float)
 # Injected dependencies
 var quantum_computer = null
 var resource_registry = null  # BiomeResourceRegistry
+var atom_components: Dictionary = {}  # biome's authoritative L/decay spec
 
 
-func set_dependencies(qc, res_registry) -> void:
+func set_dependencies(qc, res_registry, atoms: Dictionary = {}) -> void:
 	quantum_computer = qc
 	resource_registry = res_registry
+	atom_components = atoms if atoms is Dictionary else {}
 
 
 # ============================================================================
@@ -82,13 +81,15 @@ func expand_quantum_system(north_emoji: String, south_emoji: String) -> Dictiona
 	if resource_registry:
 		resource_registry.add_emoji_pair_to_producible(north_emoji, south_emoji)
 
-	# 8. Build Icon list from the expanded register_map axes (icon-cloud path).
+	# 8. Build Icon list from the expanded register_map axes (H from icons.json).
 	var HamBuilder = load("res://Core/QuantumSubstrate/HamiltonianBuilder.gd")
 	var LindBuilder = load("res://Core/QuantumSubstrate/LindbladBuilder.gd")
-	var IconAtlasCls = load("res://Core/Factions/IconAtlas.gd")
+	var IconRegistryCls = load("res://Core/Factions/IconRegistry.gd")
 	var IconCls = load("res://Core/QuantumSubstrate/Icon.gd")
-	var verbose = InstrumentLocator.resolve_verbose_config_main_loop()
-	var lexicon = IconAtlasCls.new()
+	var verbose = (Engine.get_main_loop().root.get_node_or_null("/root/VerboseConfig") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
+	var lexicon = (Engine.get_main_loop().root.get_node_or_null("/root/IconRegistry") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
+	if lexicon == null:
+		lexicon = IconRegistryCls.new()  # test harness fallback
 
 	var biome_icons: Array = []
 	for q in range(quantum_computer.register_map.num_qubits):
@@ -100,13 +101,12 @@ func expand_quantum_system(north_emoji: String, south_emoji: String) -> Dictiona
 		var physics = lexicon.get_icon_physics_by_pair(north, south)
 		var rec = lexicon.find_icon_by_pair(north, south)
 		var iname: String = str(rec.get("name", north)) if not rec.is_empty() else north
-		biome_icons.append(IconCls.from_pair_physics(iname, north, south, physics, {}, 1.0))
+		biome_icons.append(IconCls.from_pair_physics(iname, north, south, physics, 1.0))
 
-	# 9. Rebuild H and L using the icon-cloud path.
-	# Proc-gen-added icons start with empty cloud (no Lindblad); existing icon
-	# clouds are baked into Icon objects at biome boot time, not tracked here.
+	# 9. Rebuild H from icons.json; rebuild L from biome.atom_components.
+	# Primed terms whose endpoints are now in basis activate automatically.
 	quantum_computer.hamiltonian = HamBuilder.build_from_icons(biome_icons, quantum_computer.register_map, verbose)
-	var lindblad_result = LindBuilder.build_from_icon_clouds(biome_icons, quantum_computer.register_map, verbose)
+	var lindblad_result = LindBuilder.build_from_atoms(atom_components, quantum_computer.register_map, verbose)
 	quantum_computer.lindblad_operators = lindblad_result.get("operators", [])
 
 	# 9b. Extract and set time-dependent driver configurations.
@@ -175,46 +175,58 @@ func inject_coupling(emoji_a: String, emoji_b: String, strength: float) -> Dicti
 # Operator Building with Caching
 # ============================================================================
 
-## Icon-cloud path: build H and L from Array[Icon], with caching.
-## Called for biomes that use the new first-class icon format.
-func build_operators_from_icons(biome_name: String, biome_icons: Array) -> void:
+## Build H from Array[Icon] (icons.json physics) and L from atom_components, with caching.
+func build_operators_from_icons(biome_name: String, biome_icons: Array, atoms: Dictionary = {}) -> void:
 	if not quantum_computer:
 		push_error("build_operators_from_icons: quantum_computer not set")
 		return
-	var verbose = InstrumentLocator.resolve_verbose_config_main_loop()
-	# Cache key: stable string from icon poles
-	var key_parts: PackedStringArray = []
+	# Adopt the biome's atom_components as the L/decay authority for this builder.
+	if not atoms.is_empty():
+		atom_components = atoms
+	var verbose = (Engine.get_main_loop().root.get_node_or_null("/root/VerboseConfig") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
+	# Cache key MUST reflect every input that affects H or L. If it doesn't,
+	# editing icons.json physics fields silently serves stale operators.
+	# Always include atom_components signature (even when empty) so the first
+	# transition to non-empty atoms misses the cache instead of hitting it.
+	var icon_sigs: PackedStringArray = []
 	for icon in biome_icons:
-		key_parts.append("%s|%s" % [icon.pole_0, icon.pole_1])
-	var cache_key := biome_name + "_icons_" + "|".join(key_parts)
+		icon_sigs.append("%s|%s|se0=%.6f|se1=%.6f|rabi=%.6f|hc=%s|drv=%s" % [
+			icon.pole_0, icon.pole_1,
+			icon.self_energy_0, icon.self_energy_1, icon.rabi_coupling,
+			JSON.stringify(icon.hamiltonian_couplings),
+			"%s/%.6f/%.6f/%.6f" % [icon.self_energy_driver, icon.driver_frequency, icon.driver_phase, icon.driver_amplitude]
+		])
+	var cache_key := biome_name + "_icons_" + "|".join(icon_sigs).md5_text() + "_atoms_" + JSON.stringify(atom_components).md5_text()
 
 	var cache = OperatorCache.get_instance()
 	var cached_ops = cache.try_load(biome_name, cache_key)
 	var HamBuilder = load("res://Core/QuantumSubstrate/HamiltonianBuilder.gd")
 	var LindBuilder = load("res://Core/QuantumSubstrate/LindbladBuilder.gd")
 
+	var driven: Array = []
+
 	if not cached_ops.is_empty():
 		quantum_computer.hamiltonian = cached_ops.hamiltonian
 		quantum_computer.lindblad_operators = cached_ops.lindblad_operators
-		var driven = HamBuilder.get_driven_icons(biome_icons, quantum_computer.register_map)
+		driven = HamBuilder.get_driven_icons(biome_icons, quantum_computer.register_map)
 		quantum_computer.set_driven_icons(driven)
 		if verbose:
-			verbose.info("cache", "✅", "Icon-cloud cache HIT: %s" % biome_name)
+			verbose.info("cache", "✅", "Operator cache HIT: %s" % biome_name)
 		return
 
 	if verbose:
-		verbose.info("cache", "🔨", "Icon-cloud cache MISS: building %s" % biome_name)
+		verbose.info("cache", "🔨", "Operator cache MISS: building %s" % biome_name)
 	var start_time = Time.get_ticks_msec()
 
 	quantum_computer.hamiltonian = HamBuilder.build_from_icons(
 			biome_icons, quantum_computer.register_map, verbose)
-	var lindblad_result = LindBuilder.build_from_icon_clouds(
-			biome_icons, quantum_computer.register_map, verbose)
+	var lindblad_result = LindBuilder.build_from_atoms(
+			atom_components, quantum_computer.register_map, verbose)
 	quantum_computer.lindblad_operators = lindblad_result.get("operators", [])
-	var driven = HamBuilder.get_driven_icons(biome_icons, quantum_computer.register_map)
+	driven = HamBuilder.get_driven_icons(biome_icons, quantum_computer.register_map)
 	quantum_computer.set_driven_icons(driven)
 
 	var elapsed = Time.get_ticks_msec() - start_time
 	if verbose:
-		verbose.info("cache", "💾", "Icon-cloud built in %d ms — caching" % elapsed)
+		verbose.info("cache", "💾", "Operators built in %d ms — caching" % elapsed)
 	cache.save(biome_name, cache_key, quantum_computer.hamiltonian, quantum_computer.lindblad_operators)

@@ -9,7 +9,6 @@ extends SceneTree
 ##   - Expected value across the qubit (E[reward] ≈ qubit_dim = 2 quantum)
 ##   - Seeded RNG reproducibility (same seed → same outcome)
 
-const HamiltonianConfig = preload("res://Core/Config/HamiltonianConfig.gd")
 
 var _failed: int = 0
 var _passed: int = 0
@@ -36,44 +35,45 @@ func _check(cond: bool, label: String) -> void:
 
 
 func _reward_for_p(p: float) -> int:
-	var p_clipped = clampf(p, HamiltonianConfig.P_MIN, 1.0 - HamiltonianConfig.P_MIN)
-	var reward_quantum = round(1.0 / p_clipped)
-	var credits = reward_quantum * HamiltonianConfig.QUANTUM_CLASSICAL_RATIO
-	return maxi(int(credits), 1)
+	# Boltzmann surprisal reward: E = −kT·log p (kT = MARKET_TEMPERATURE_BASE here).
+	var kT: float = float(EconomyConstants.MARKET_TEMPERATURE_BASE)
+	return maxi(int(round(EnergyPricing.surprisal_energy(p, kT))), 1)
 
 
 func _t_reward_at_neutral() -> void:
-	# p = 0.5 → reward_quantum = 2 → credits = 20
+	# p = 0.5 → −10·ln(0.5) ≈ 6.93 → 7 classical (bounded, no 1/p cliff).
 	var r = _reward_for_p(0.5)
-	_check(r == 20, "p=0.5: reward = 20 classical (got %d)" % r)
+	_check(r == 7, "p=0.5: reward = 7 classical (got %d)" % r)
 
 
 func _t_reward_at_rare() -> void:
-	# p = 0.01 → reward_quantum = 100 → credits = 1000
+	# p = 0.01 → −10·ln(0.01) ≈ 46.05 → 46 classical (smooth, not 1000).
 	var r = _reward_for_p(0.01)
-	_check(r == 1000, "p=0.01: rare-side reward = 1000 classical (got %d)" % r)
+	_check(r == 46, "p=0.01: rare-side reward = 46 classical (got %d)" % r)
 
 
 func _t_reward_at_common() -> void:
-	# p = 0.99 → reward_quantum = round(1.01) = 1 → credits = 10
+	# p = 0.99 → −10·ln(0.99) ≈ 0.10 → floored to 1 (common outcomes barely pay).
 	var r = _reward_for_p(0.99)
-	_check(r == 10, "p=0.99: common-side reward = 10 classical (got %d)" % r)
+	_check(r == 1, "p=0.99: common-side reward = 1 classical (got %d)" % r)
 
 
 func _t_expected_value_conserved() -> void:
-	# E[reward] should equal 2 quantum (qubit dim) for any qubit state.
-	# Test at p=0.3, p=0.7 and verify p·R(p) + (1-p)·R(1-p) ≈ 2·QC_RATIO classical.
+	# Boltzmann invariant: E[reward] = p·E(p) + (1−p)·E(1−p) = kT·H(p), the qubit's
+	# (natural-log) entropy times temperature — the same kT·S law as reap. State-
+	# dependent now (max at p=0.5), not a constant. Rounding/floor → ±2 tolerance.
+	var kT: float = float(EconomyConstants.MARKET_TEMPERATURE_BASE)
 	var p_values: Array[float] = [0.1, 0.3, 0.5, 0.7, 0.9]
 	var ok = true
 	for p in p_values:
 		var R_top = float(_reward_for_p(p))
 		var R_bot = float(_reward_for_p(1.0 - p))
 		var ev = p * R_top + (1.0 - p) * R_bot
-		# Expected ≈ 2 × QC_RATIO = 20 classical (rounding tolerance ±5)
-		if abs(ev - 20.0) > 5.0:
+		var expected = kT * (-p * log(p) - (1.0 - p) * log(1.0 - p))
+		if abs(ev - expected) > 2.0:
 			ok = false
-			print("    p=%.2f: E[r]=%.2f, expected ≈ 20 (rounding)" % [p, ev])
-	_check(ok, "E[reward] ≈ 20 classical at p ∈ {0.1, 0.3, 0.5, 0.7, 0.9}")
+			print("    p=%.2f: E[r]=%.2f, expected kT·H ≈ %.2f" % [p, ev, expected])
+	_check(ok, "E[reward] ≈ kT·H(p) (entropy law) at p ∈ {0.1, 0.3, 0.5, 0.7, 0.9}")
 
 
 func _t_seeded_rng_reproducible() -> void:

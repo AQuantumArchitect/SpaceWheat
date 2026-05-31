@@ -1,8 +1,6 @@
 class_name DensityMatrix
 extends RefCounted
 
-const Complex = preload("res://Core/QuantumSubstrate/Complex.gd")
-const ComplexMatrix = preload("res://Core/QuantumSubstrate/ComplexMatrix.gd")
 
 ## Density Matrix: The quantum state representation
 ##
@@ -279,15 +277,15 @@ func apply_lindblad_term(L, rate: float, dt: float) -> void:
 
 ## Normalize to unit trace
 func _ensure_normalized() -> void:
-	var tr = _matrix.trace().re
-	if abs(tr) > 1e-14 and abs(tr - 1.0) > 1e-10:
-		_matrix = _matrix.scale_real(1.0 / tr)
+	var trace = _matrix.trace().re
+	if abs(trace) > 1e-14 and abs(trace - 1.0) > 1e-10:
+		_matrix = _matrix.scale_real(1.0 / trace)
 
 ## Enforce trace = 1 (with numerical robustness)
 func _enforce_trace_one() -> void:
-	var tr = _matrix.trace().re
-	if abs(tr) > 1e-14:
-		_matrix = _matrix.scale_real(1.0 / tr)
+	var trace = _matrix.trace().re
+	if abs(trace) > 1e-14:
+		_matrix = _matrix.scale_real(1.0 / trace)
 
 ## Enforce Hermiticity: ρ = (ρ + ρ†)/2
 func _enforce_hermitian() -> void:

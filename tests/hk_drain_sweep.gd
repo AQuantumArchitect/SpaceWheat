@@ -12,10 +12,6 @@ extends SceneTree
 ##
 ## Run: godot --headless --quit --script tests/hk_drain_sweep.gd
 
-const BiomeBuilder = preload("res://Core/Biomes/BiomeBuilder.gd")
-const BiomeRegistry = preload("res://Core/Biomes/BiomeRegistry.gd")
-const FactionDensityMatrix = preload("res://Core/Factions/FactionDensityMatrix.gd")
-const MarketLattice = preload("res://Core/Markets/MarketLattice.gd")
 
 const SIM_SECONDS: float = 30.0
 const STEP_SECONDS: float = 0.5

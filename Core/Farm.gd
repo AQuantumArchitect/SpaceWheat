@@ -2,62 +2,38 @@ class_name Farm
 extends Node
 
 # Access autoloads safely (avoids compile-time errors)
-@onready var _icon_registry = InstrumentLocator.resolve_icon_registry(self)
-@onready var _verbose = InstrumentLocator.resolve_verbose_config(self)
+@onready var _verbose = get_node_or_null("/root/VerboseConfig")
 
-## Farm - Pure simulation manager for quantum wheat farming
+## Farm - Pure simulation core for quantum wheat farming
 ## Owns all game systems and handles all game logic
 ## Emits signals when state changes (no UI dependencies)
 
 # System preloads
 # Grid configuration (Phase 2)
-const GridConfig = preload("res://Core/GameState/GridConfig.gd")
-const PlotConfig = preload("res://Core/GameState/PlotConfig.gd")
-const KeyboardLayoutConfig = preload("res://Core/GameState/KeyboardLayoutConfig.gd")
-const InputBindingRegistry = preload("res://UI/Core/InputBindingRegistry.gd")
-const PhysicsConfig = preload("res://Core/Config/PhysicsConfig.gd")
-const GridSentinel = preload("res://Core/GameState/GridSentinel.gd")
 
-const FarmGrid = preload("res://Core/GameMechanics/FarmGrid.gd")
-const FarmPlot = preload("res://Core/GameMechanics/FarmPlot.gd")
-const FarmEconomy = preload("res://Core/GameMechanics/FarmEconomy.gd")
-const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
-const ActionCostRuntime = preload("res://Core/GameMechanics/ActionCostRuntime.gd")
-const BalanceService = preload("res://Core/GameMechanics/BalanceService.gd")
 const TerminalPoolClass = preload("res://Core/GameMechanics/TerminalPool.gd")
 const BiomeEvolutionBatcherClass = preload("res://Core/Environment/BiomeEvolutionBatcher.gd")
-const GameState = preload("res://Core/GameState/GameState.gd")
-const SignatureEvolution = preload("res://Core/QuantumSubstrate/SignatureEvolution.gd")
-const BiomeDiscoveryForecastService = preload("res://Core/Gameplay/BiomeDiscoveryForecastService.gd")
-const ProbeActions = preload("res://Core/Actions/ProbeActions.gd")
-const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
-const VerboseHelper = preload("res://Core/Config/VerboseHelper.gd")
-const FactionDensityMatrix = preload("res://Core/Factions/FactionDensityMatrix.gd")
-const IconLexicon = preload("res://Core/Factions/IconLexicon.gd")
-const HamiltonianConfig = preload("res://Core/Config/HamiltonianConfig.gd")
-const FactionStanding = preload("res://Core/Factions/FactionStanding.gd")
-const AffinityGraphCls = preload("res://Core/Affinity/AffinityGraph.gd")
-const ContractMarket = preload("res://Core/Markets/ContractMarket.gd")
-const MarketLattice = preload("res://Core/Markets/MarketLattice.gd")
+const AlignmentGraphCls = preload("res://Core/Alignment/AlignmentGraph.gd")
 
-# Icon system moved to faction-based EmojiPhysicsRegistry (no preload needed)
+# Icon system now lives in the shared IconRegistry autoload.
 
 # Core simulation systems
 var grid: FarmGrid
 var economy  # FarmEconomy type
 var _loaded_biome_count: int = 0  # Track how many biomes loaded successfully
-var signature_evolution: SignatureEvolution  # Signature evolution system
-var known_pairs: Array = []  # Player icons (canonical, farm-owned)
+var known_icons: Array = []  # Player icons (canonical, farm-owned)
+var active_icon_slots: Array = [0, 1, 2]  # 3 indices into known_icons — the player's active expression voice
 var reap_count: int = 0  # Number of global seasonal reaps completed
 var faction_density: FactionDensityMatrix = FactionDensityMatrix.new()  # ρ over factions; drives affinity
-var icon_lexicon: IconLexicon = null  # Pair-Icon registry (lazy-init on first use)
+var icon_atlas: IconRegistry = null  # Pair-Icon atlas (lazy-init on first use)
 var faction_standings: Dictionary = {}  # faction_name -> FactionStanding (6-channel rep; written by QuestManager, read by FactionAffinity)
+var story_log: Array = []              # Array[Dictionary] — fired story flag entries {id, act, display_name, arc_beat, fired_at}
+var story_flags_fired: Dictionary = {} # flag_id -> phrame_index (int); prevents re-firing
 ## Player's 12-qubit affinity substrate. Starts at |+⟩^⊗12 (no preferred pole);
-## evolves via icon-learn rotations and settlement Lindblad jumps. Read by
-## ContractMarket as the canonical player axial position.
-var player_affinity = AffinityGraphCls.from_uniform_superposition()
-var contract_market: ContractMarket = null  # Legacy single-biome market (ContractMarket / native engine bid path)
-var market_lattice: MarketLattice = null    # Phase VI tensor-pair market (commodity-to-commodity, biome ⊗ biome)
+## evolves via icon-learn rotations and settlement Lindblad jumps. Read by the
+## market layer as the canonical player axial grid_pos.
+var player_alignment = AlignmentGraphCls.from_uniform_superposition()
+var market_lattice: MarketLattice = null    # Canonical tensor-pair market (commodity-to-commodity, biome ⊗ biome)
 var grid_config: GridConfig = null  # Single source of truth for grid layout
 var _bootstrap_pool: TerminalPoolClass = null  # Created at boot, transferred to instrument via set_instrument()
 var instrument = null  # QuantumInstrument (set via set_instrument() after boot)
@@ -66,8 +42,9 @@ var instrument = null  # QuantumInstrument (set via set_instrument() after boot)
 var terminal_pool: TerminalPoolClass:
 	get: return instrument.terminal_pool if instrument and instrument.terminal_pool else _bootstrap_pool
 var biome_evolution_batcher: BiomeEvolutionBatcherClass = null  # Batched quantum evolution
+var _initial_biome_boot_finalized: bool = false
 
-# Icon system now managed by faction-based EmojiPhysicsRegistry (deprecated variables removed)
+# Icon system now managed by the shared IconRegistry.
 
 # PERFORMANCE: Cached mushroom count (avoid O(n) iteration every frame)
 var _cached_mushroom_count: int = 0
@@ -79,28 +56,24 @@ func _log_debug(message: String) -> void:
 
 
 func invalidate_mushroom_cache() -> void:
-	"""Call when plots are planted/harvested to recalculate mushroom count on next frame"""
+	# Call when plots are planted/harvested to recalculate mushroom count on next frame
 	_mushroom_count_dirty = true
 
 
 func _get_gsm():
-	return InstrumentLocator.resolve_game_state_manager(self)
+	return GameStateManager
 
 
-func _get_player_vocab():
-	return InstrumentLocator.resolve_player_vocabulary(self)
-
-
-func _get_active_biome_manager():
-	return InstrumentLocator.resolve_active_biome_manager(self)
+func _get_active_biome_router():
+	return ActiveBiomeManager
 
 
 func _get_icon_registry_autoload():
-	return InstrumentLocator.resolve_icon_registry(self)
+	return IconRegistry
 
 
 func _exit_tree() -> void:
-	"""Release runtime-only refs so session shutdown does not orphan the batcher graph."""
+	# Release runtime-only refs so session shutdown does not orphan the batcher graph.
 	if biome_evolution_batcher and biome_evolution_batcher.has_method("cleanup"):
 		biome_evolution_batcher.cleanup()
 	biome_evolution_batcher = null
@@ -109,18 +82,17 @@ func _exit_tree() -> void:
 
 
 func set_instrument(inst) -> void:
-	"""Transfer bootstrap terminal pool to instrument and store reference."""
+	# Transfer bootstrap terminal pool to instrument and store reference.
 	instrument = inst
 	inst.terminal_pool = _bootstrap_pool
 
 
 func _finalize_biome_evolution_batcher() -> void:
-	"""Finalize batched biome evolution setup after all biomes are loaded.
+	# Finalize batched biome evolution setup after all biomes are loaded.
 
-	The batcher was created before biome loading and biomes were registered
-	during BootManager.load_biome(). The batcher owns biome process state; this
-	finalizer only verifies every loaded biome reached that single owner.
-	"""
+	# The batcher was created before biome loading and biomes were registered
+	# during BootManager.load_biome(). The batcher owns biome process state; this
+	# finalizer only verifies every loaded biome reached that single owner.
 	if not biome_evolution_batcher:
 		push_warning("Farm: Batcher not initialized - cannot finalize")
 		return
@@ -146,7 +118,6 @@ const MAX_PLOTS_PER_BIOME = 7  # J K L ; ' H G
 const LINDBLAD_TIMESCALE_BASE_DT = 0.02
 const LINDBLAD_TIMESCALE_CAP = 4096.0
 const RAINBOW_DRAIN_MODE_DEFAULT = false
-const CORE_BIOMES: Array[String] = ["StarterForest", "Village"]
 
 # Dynamic row mappings (built from explored biome order)
 var biome_row_map: Dictionary = {}  # biome_name -> row index
@@ -164,8 +135,6 @@ const GATHER_ACTIONS = {
 
 # Signals - emitted when game state changes (no UI callbacks needed)
 signal state_changed(state_data: Dictionary)
-signal action_result(action: String, success: bool, message: String)
-signal action_rejected(action: String, position: Vector2i, reason: String)  # For visual/audio feedback
 signal grid_resized(new_config)  # Emitted when grid dimensions change
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -182,46 +151,38 @@ signal terminal_measured(grid_position: Vector2i, terminal_id: String, outcome: 
 ## Emitted when POP releases the terminal back to pool
 signal terminal_released(grid_position: Vector2i, terminal_id: String, credits_earned: int)
 
-## Emitted when a biome is loaded dynamically (for visualization updates)
+## Emitted when a biome is loaded dynamically (for visualization updates). Fired by WorldBuilder.
 signal biome_loaded(biome_name: String, biome_ref)
 
 ## Emitted BEFORE a biome is removed (for cascading cleanup)
 signal biome_removed(biome_name: String)
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Plot-facing visualization signals
-# These remain intentional because the player-facing UI is plot-oriented even
-# though the simulation/runtime path is terminal-oriented underneath.
-# ═══════════════════════════════════════════════════════════════════════════════
-
-signal plot_measured(position: Vector2i, outcome: String)
-
-# ═══════════════════════════════════════════════════════════════════════════════
 # OTHER SIGNALS
 # ═══════════════════════════════════════════════════════════════════════════════
 
 signal plots_entangled(pos1: Vector2i, pos2: Vector2i, bell_state: String)
+signal standing_changed(faction: String, channel: String, delta: float, new_value: float)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # CENTRAL SIGNAL EMISSION (DRY Architecture)
-# All action→signal mapping in ONE place. UI handlers call this instead of
+# All action→signal mapping in ONE place. UI surfaces call this instead of
 # emitting signals directly. This ensures headless and headed modes behave
 # identically, and tests can trigger visualization by calling this method.
 # ═══════════════════════════════════════════════════════════════════════════════
 
 func emit_action_signal(action: String, result: Dictionary, grid_pos: Vector2i = GridSentinel.INVALID_POSITION) -> void:
-	"""Central hub for action→signal emission.
+	# Central hub for action→signal emission.
 
-	Simulation layer (ProbeActions) returns result dictionaries.
-	This method translates those results into appropriate Farm signals.
-	Visualization layer observes these signals to update display.
+	# Simulation layer (ProbeActions) returns result dictionaries.
+	# This method translates those results into appropriate Farm signals.
+	# Visualization layer observes these signals to update display.
 
-	Args:
-		action: Action name ("explore", "measure", "pop", "reap", "build")
-		result: Dictionary returned by ProbeActions (must have "success" key)
-		grid_pos: Grid position for the action (used by most signals)
-	"""
+	# Args:
+	# action: Action name ("explore", "measure", "pop", "reap", "build")
+	# result: Dictionary returned by ProbeActions (must have "success" key)
+	# grid_pos: Grid grid_pos for the action (used by most signals)
 	if not result.get("success", false):
 		return  # Only emit signals on successful actions
 
@@ -280,7 +241,7 @@ func emit_action_signal(action: String, result: Dictionary, grid_pos: Vector2i =
 
 
 func _ready():
-	# Ensure EmojiPhysicsRegistry exists in headless/script harnesses that do not build the
+	# Ensure IconRegistry exists in headless/script harnesses that do not build the
 	# full autoload stack through the normal project boot path.
 	_ensure_iconregistry()
 
@@ -306,44 +267,32 @@ func _ready():
 	biome_evolution_batcher = BiomeEvolutionBatcherClass.new()
 	biome_evolution_batcher.initialize([], _bootstrap_pool, self)  # Initialize with empty array, biomes register individually
 
-	# Create environmental simulations (six biomes for multi-biome support)
-	# UNIFIED LOADING: All biomes go through BootManager.load_biome() for consistency
-	# This ensures: script load → grid register → batcher register → operator rebuild
 	biome_enabled = false
 	_loaded_biome_count = 0
 
-	# Load only unlocked biomes (initially just StarterForest and Village)
-	# Other biomes are loaded dynamically when explored via 4E action
-	var observation_frame = InstrumentLocator.resolve_observation_frame(self)
-	var unlocked_biomes = ["StarterForest", "Village"]  # Default
-	if observation_frame and observation_frame.has_method("get_explored_biomes"):
-		unlocked_biomes = observation_frame.get_explored_biomes()
-	elif observation_frame and observation_frame.has_method("get_unlocked_biomes"):
-		unlocked_biomes = observation_frame.get_unlocked_biomes()
+	# Farm intentionally stops here. GameRoot/BootManager owns initial biome
+	# loading and calls finalize_initial_biome_boot() before state restore.
 
-	# Load unlocked biomes through unified BootManager.load_biome()
-	var boot_manager = InstrumentLocator.resolve_root_node(self, "/root/BootManager")
-	for biome_name in unlocked_biomes:
-		if boot_manager and boot_manager.has_method("load_biome"):
-			var result = boot_manager.load_biome(biome_name, self)
-			if result.get("success", false):
-				_loaded_biome_count += 1
-			else:
-				_verbose.warn("boot", "⚠️", "Failed to load biome '%s': %s" % [biome_name, result.get("message", "unknown error")])
 
-	# Enable biome features if at least one biome loaded
+func finalize_initial_biome_boot() -> bool:
+	# Finalize simulation wiring after BootManager has loaded initial biomes.
+	if _initial_biome_boot_finalized:
+		return biome_enabled
+
+	_loaded_biome_count = grid.get_biome_names().size() if grid else 0
+
 	if _loaded_biome_count > 0:
 		biome_enabled = true
 		_log_debug("Farm: %d biomes loaded successfully (via unified BootManager.load_biome)" % _loaded_biome_count)
 	else:
 		biome_enabled = false
 		push_error("Farm: no biomes loaded - aborting boot")
-		return
+		return false
 
 	# NOTE: Operator rebuild now handled by BootManager in Stage 3A
-	# This ensures deterministic ordering: EmojiPhysicsRegistry ready → rebuild operators → verify biomes
+	# This ensures deterministic ordering: IconRegistry ready → rebuild operators → verify biomes
 
-	# Icon system now managed by faction-based EmojiPhysicsRegistry
+	# Icon system now managed by the shared IconRegistry
 
 	# Grid already created (empty) - resize after biomes load
 	refresh_grid_for_biomes()
@@ -355,7 +304,7 @@ func _ready():
 			push_error("GridConfig validation failed:")
 			for error in validation.errors:
 				push_error("  - %s" % error)
-			return
+			return false
 
 	# Persist grid dimensions into GameState (source of truth for saves)
 	var gsm = _get_gsm()
@@ -364,7 +313,6 @@ func _ready():
 		gsm.current_state.grid_height = grid_config.grid_height
 
 	# PERFORMANCE: Connect grid signals to invalidate mushroom cache
-	grid.plot_planted.connect(func(_pos): invalidate_mushroom_cache())
 	terminal_released.connect(func(_pos, _terminal_id, _credits): invalidate_mushroom_cache())
 
 	# Connect economy to grid for mill/market/kitchen flour & bread processing
@@ -378,32 +326,15 @@ func _ready():
 	# Register grid as metadata for UI systems
 	set_meta("grid", grid)
 
-	# Configure plot-to-biome assignments from GridConfig (biomes × plots)
-	# Row ordering matches BIOME_ORDER (StarterForest=0, Village=1, then unlocked biomes)
+	# Configure plot-to-biome assignments from GridConfig (biomes × plots).
+	# Row ordering follows the loaded save/scenario biome order.
 	if biome_enabled and grid and grid.has_method("assign_plot_to_biome"):
 		for pos in grid_config.biome_assignments:
 			var biome_name = grid_config.biome_assignments[pos]
 			grid.assign_plot_to_biome(pos, biome_name)
 
-	# Get persistent signature evolution from GameStateManager
-	# The signature persists across farms/biomes and travels with the player
-	# Safe access for headless mode where get_tree() may return null
-	var game_state_mgr = _get_gsm()
-	if game_state_mgr and game_state_mgr.has_method("get_vocabulary_evolution"):
-		signature_evolution = game_state_mgr.get_vocabulary_evolution()
-	else:
-		# Fallback: create local signature if GameStateManager not available
-		# This happens in test/standalone scenarios
-		var SignatureEvolution = preload("res://Core/QuantumSubstrate/SignatureEvolution.gd")
-		signature_evolution = SignatureEvolution.new()
-		add_child(signature_evolution)
-
 	# Initialize farm-owned signature (canonical player signature)
-	_ensure_vocabulary_initialized()
-
-	# Inject signature reference into grid for tap validation
-	if grid:
-		grid.signature_evolution = signature_evolution
+	_ensure_signature_initialized()
 
 	# Finalize biome evolution batcher setup
 	# (Batcher was created before biome loading, biomes registered during load)
@@ -415,25 +346,32 @@ func _ready():
 	# Connect economy signals to canonical farm state propagation only.
 	var economy_signals = ["wheat_changed", "credits_changed", "flour_changed", "flower_changed", "labor_changed"]
 	for sig_name in economy_signals:
-		if economy.has_signal(sig_name):
+		if economy.has_signal(sig_name) and not economy.is_connected(sig_name, _on_economy_changed):
 			economy.connect(sig_name, _on_economy_changed)
 
+	_initial_biome_boot_finalized = true
+	return true
+
 
 ## ============================================================================
-## VOCABULARY (FARM-OWNED)
+## ICONS (FARM-OWNED)
 ## ============================================================================
 
-func _ensure_vocabulary_initialized() -> void:
-	"""Ensure farm has a valid starting signature."""
-	if known_pairs.is_empty():
-		set_known_pairs([{"north": "🌾", "south": "👥"}], true, false)
-	else:
-		_sync_player_vocabulary(false)
+func _ensure_signature_initialized() -> void:
+	# Ensure farm has a valid starting signature.
+	var gsm = _get_gsm()
+	if gsm and "current_state" in gsm and gsm.current_state and "known_icons" in gsm.current_state:
+		var state_icons = gsm.current_state.known_icons
+		if state_icons is Array and not state_icons.is_empty():
+			set_known_icons(state_icons)
+			return
+	if known_icons.is_empty():
+		set_known_icons([{"north": "🌾", "south": "👥"}])
 
 
-func get_known_pairs() -> Array:
-	"""Return player-known icons (canonical)."""
-	return known_pairs.duplicate(true)
+func get_known_icons() -> Array:
+	# Return player-known icons (canonical).
+	return known_icons.duplicate(true)
 
 
 func get_reap_count() -> int:
@@ -445,19 +383,19 @@ func set_reap_count(value: int) -> void:
 
 
 func get_known_emojis() -> Array:
-	"""Return unique emojis from known icons."""
-	return GameState.derive_known_emojis_from_pairs(known_pairs)
+	# Return unique emojis from known icons.
+	return GameState.derive_known_emojis_from_icons(known_icons)
 
 
-func set_known_pairs(pairs: Array, sync_player_vocab: bool = true, reset_player_vocab: bool = false) -> void:
-	"""Replace known icons with sanitized list."""
+func set_known_icons(icons: Array) -> void:
+	# Replace known icons with sanitized list.
 	var filtered: Array = []
 	var seen: Dictionary = {}
-	for pair in pairs:
-		if not (pair is Dictionary):
+	for icon in icons:
+		if not (icon is Dictionary):
 			continue
-		var north = pair.get("north", "")
-		var south = pair.get("south", "")
+		var north = icon.get("north", "")
+		var south = icon.get("south", "")
 		if north == "" or south == "" or north == south:
 			continue
 		var key = "%s|%s" % [north, south]
@@ -469,53 +407,44 @@ func set_known_pairs(pairs: Array, sync_player_vocab: bool = true, reset_player_
 	if filtered.is_empty():
 		filtered = [{"north": "🌾", "south": "👥"}]
 
-	known_pairs = filtered
-	if sync_player_vocab:
-		_sync_player_vocabulary(reset_player_vocab)
-	_sync_current_state_vocab()
+	known_icons = filtered
+	if _verbose:
+		_verbose.info("save", "📖", "Farm known_icons set to %d icon(s)" % known_icons.size())
+	_sync_current_state_signature()
 
 
-func discover_pair(north: String, south: String) -> bool:
-	"""Learn a new icon (farm-owned source of truth)."""
+func discover_icon(north: String, south: String) -> bool:
+	# Learn a new icon (farm-owned source of truth).
 	if north == "" or south == "" or north == south:
 		return false
 
 	# Check if exact pair already exists
-	for pair in known_pairs:
-		if pair.get("north", "") == north and pair.get("south", "") == south:
+	for icon in known_icons:
+		if icon.get("north", "") == north and icon.get("south", "") == south:
 			return false  # Already known
 
 	# North must be new; south may repeat across pairs.
-	for pair in known_pairs:
-		var existing_north = pair.get("north", "")
-		var existing_south = pair.get("south", "")
+	for icon in known_icons:
+		var existing_north = icon.get("north", "")
+		var existing_south = icon.get("south", "")
 		if north == existing_north or north == existing_south:
 			# North already known (as north or south) - can't add overlapping north
 			return false
 
-	known_pairs.append({"north": north, "south": south})
-	# Incremental sync: only push the new pair (was O(n²): full _sync_player_vocabulary on every discovery)
-	var player_vocab = _get_player_vocab()
-	if player_vocab and player_vocab.has_method("learn_vocab_pair"):
-		player_vocab.learn_vocab_pair(north, south)
-	_sync_current_state_vocab()
+	known_icons.append({"north": north, "south": south})
+	_sync_current_state_signature()
 	_pump_for_icon(north, south)
 	return true
 
 
-func _ensure_icon_lexicon() -> IconLexicon:
-	if icon_lexicon == null:
-		icon_lexicon = IconLexicon.new()
-	return icon_lexicon
-
-
-func _ensure_contract_market() -> ContractMarket:
-	if contract_market == null:
-		contract_market = ContractMarket.new(self)
-	return contract_market
+func _ensure_icon_atlas() -> IconRegistry:
+	if icon_atlas == null:
+		icon_atlas = get_node_or_null("/root/IconRegistry")
+	return icon_atlas
 
 
 func get_market_lattice() -> MarketLattice:
+	# Canonical live market authority.
 	return _ensure_market_lattice()
 
 
@@ -526,9 +455,8 @@ func _ensure_market_lattice() -> MarketLattice:
 
 
 func get_or_create_standing(faction_name: String) -> FactionStanding:
-	"""Return the FactionStanding for `faction_name`, lazy-creating if absent.
-	Always returns a non-null record. Mutate via the returned object's channels.
-	"""
+	# Return the FactionStanding for `faction_name`, lazy-creating if absent.
+	# Always returns a non-null record. Mutate via the returned object's channels.
 	if faction_name == "":
 		return FactionStanding.new()
 	if not faction_standings.has(faction_name):
@@ -537,24 +465,39 @@ func get_or_create_standing(faction_name: String) -> FactionStanding:
 
 
 func apply_standing_deltas(faction_name: String, deltas: Dictionary) -> void:
-	"""Apply per-channel deltas to a faction's standing. Channel keys:
-	trust / debt / attention / access / legitimacy / entanglement.
-	Unknown keys are ignored. Faction record is created if needed.
-	"""
+	# Apply per-channel deltas to a faction's standing. Channel keys:
+	# trust / debt / attention / access / legitimacy / entanglement.
+	# Unknown keys are ignored. Faction record is created if needed.
 	if faction_name == "" or deltas == null or deltas.is_empty():
 		return
 	var s = get_or_create_standing(faction_name)
 	var trust_delta: float = float(deltas.get("trust", 0.0))
 	for key in deltas:
 		var v: float = float(deltas[key])
+		var new_val: float = 0.0
 		match key:
-			"trust": s.trust += v
-			"debt": s.debt += v
-			"attention": s.attention += v
-			"access": s.access += v
-			"legitimacy": s.legitimacy += v
-			"entanglement": s.entanglement += v
-	# Settlement rotation: positive trust → player_affinity rotates toward the
+			"trust":
+				s.trust += v
+				new_val = s.trust
+			"debt":
+				s.debt += v
+				new_val = s.debt
+			"attention":
+				s.attention += v
+				new_val = s.attention
+			"access":
+				s.access += v
+				new_val = s.access
+			"legitimacy":
+				s.legitimacy += v
+				new_val = s.legitimacy
+			"entanglement":
+				s.entanglement += v
+				new_val = s.entanglement
+			_:
+				continue
+		standing_changed.emit(faction_name, str(key), v, new_val)
+	# Settlement rotation: positive trust → player_alignment rotates toward the
 	# faction's bits (Hamiltonian, unitary — no decoherence). Factions live in
 	# pure-state Hamiltonian space; the player's substrate moves toward them
 	# the same way an icon-learn does, just with magnitude scaled by trust.
@@ -564,6 +507,50 @@ func apply_standing_deltas(faction_name: String, deltas: Dictionary) -> void:
 		_apply_settlement_rotation(faction_name, trust_delta)
 
 
+## Returns the faction the player is currently pinned to (empty string = detached).
+## Source-of-truth: gsm.current_state.player_faction_name. Today the pin is set
+## by scenario load (.tres default "The Demos") and never mutated at runtime —
+## the player IS The Demos by design (see Player IS a Faction memory).
+func get_pinned_faction_name() -> String:
+	var gsm = _get_gsm()
+	if gsm == null or gsm.current_state == null:
+		return ""
+	if not ("player_faction_name" in gsm.current_state):
+		return ""
+	return String(gsm.current_state.player_faction_name)
+
+
+## True iff a faction is currently pinned (player is "playing as" it).
+func is_attached_to_faction() -> bool:
+	return get_pinned_faction_name() != ""
+
+
+## Single entry point for trade-driven affinity mutation. Always tugs
+## `Farm.player_alignment` toward the seller. If the player is attached to a
+## faction, also tugs that faction's record toward the seller — keeping them
+## in lockstep with the player's drift. StoryEngine.on_contract_exercised
+## calls this; no other path should mutate player_alignment from trade.
+func apply_player_trade_alignment(seller_affinity, rate: float) -> void:
+	if seller_affinity == null or rate <= 0.0:
+		return
+	if player_alignment != null:
+		player_alignment.lindblad_jump_toward(seller_affinity, rate)
+	if not is_attached_to_faction():
+		return
+	if faction_density == null:
+		return
+	var registry = faction_density.get_registry()
+	if registry == null:
+		return
+	var pname: String = get_pinned_faction_name()
+	if pname == "":
+		return
+	var pinned = registry.get_by_name(pname)
+	if pinned == null or pinned.alignment == null:
+		return
+	pinned.alignment.lindblad_jump_toward(seller_affinity, rate)
+
+
 func _apply_settlement_rotation(faction_name: String, trust_delta: float) -> void:
 	if trust_delta <= 0.0 or faction_density == null:
 		return
@@ -571,13 +558,13 @@ func _apply_settlement_rotation(faction_name: String, trust_delta: float) -> voi
 	if registry == null:
 		return
 	var f = registry.get_by_name(faction_name)
-	if f == null or f.signature.is_empty():
+	if f == null or f.cloud.is_empty():
 		return
 	# Substrate-derived θ: find a live biome qubit in the faction's signature
 	# and exercise a micro-contract on it. distribute_settlement_theta handles
 	# the per-faction weighted rotation — no fixed-rate constant needed.
 	var lat = _ensure_market_lattice()
-	for emoji in f.signature:
+	for emoji in f.cloud:
 		var result = lat.synthesize_and_exercise(str(emoji), faction_name)
 		if result.get("ok", false):
 			return
@@ -611,15 +598,15 @@ func distribute_settlement_theta(theta_total: float, contract) -> void:
 		if str(bname) == contract.biome_name:
 			biome = b
 			break
-	if biome != null and "affinity" in biome and biome.affinity != null:
+	if biome != null and "affinity" in biome and biome.alignment != null:
 		for f in registry.get_all():
-			if f == primary or f == null or f.affinity == null:
+			if f == primary or f == null or f.alignment == null:
 				continue
-			var k: float = float(f.affinity.overlap(biome.affinity))
+			var k: float = float(f.alignment.overlap(biome.alignment))
 			if k >= HamiltonianConfig.PRESENCE_NOISE_FLOOR:
 				participants.append({"kind": "faction", "obj": f})
 	# Player participates if they have any standings.
-	if player_affinity != null:
+	if player_alignment != null:
 		participants.append({"kind": "player", "obj": null})
 
 	# Compute presences.
@@ -637,8 +624,8 @@ func distribute_settlement_theta(theta_total: float, contract) -> void:
 		return
 
 	# Distribute θ proportionally; rotate each toward biome signature.
-	var bits: PackedByteArray = (biome.affinity.principal_bits() if (biome != null and biome.affinity != null) else PackedByteArray())
-	if bits.size() != AffinityGraphCls.AXIS_COUNT:
+	var bits: PackedByteArray = (biome.alignment.principal_bits() if (biome != null and "affinity" in biome and biome.alignment != null) else PackedByteArray())
+	if bits.size() != AlignmentGraphCls.AXIS_COUNT:
 		return
 	for i in range(participants.size()):
 		var share: float = presences[i] / total_presence
@@ -648,12 +635,12 @@ func distribute_settlement_theta(theta_total: float, contract) -> void:
 		var p = participants[i]
 		var graph = null
 		if p.kind == "player":
-			graph = player_affinity
+			graph = player_alignment
 		else:
-			graph = p.obj.affinity
+			graph = p.obj.alignment
 		if graph == null:
 			continue
-		for axis in range(AffinityGraphCls.AXIS_COUNT):
+		for axis in range(AlignmentGraphCls.AXIS_COUNT):
 			var signed_theta: float = theta_i if int(bits[axis]) == 1 else -theta_i
 			graph.rotate_axis(axis, signed_theta)
 
@@ -676,14 +663,16 @@ func _faction_presence(f) -> float:
 	if f == null:
 		return 0.0
 	var icons_owned: int = 0
-	if icon_lexicon != null and icon_lexicon.has_method("get_icons_for_faction"):
-		icons_owned = icon_lexicon.get_icons_for_faction(f.name).size()
+	if icon_atlas != null and icon_atlas.has_method("get_icons_for_faction"):
+		icons_owned = icon_atlas.get_icons_for_faction(f.name).size()
 	var biomes_present: int = 0
 	if grid != null and grid.has_biomes():
-		for b in grid.get_all_biomes().values():
-			if b.has_method("get_biome_type"):
-				if "native_factions" in b and b.native_factions is Array and f.name in b.native_factions:
-					biomes_present += 1
+		# Computed from signature ∩ biome atoms (replaces deleted native_factions field).
+		var fbm = load("res://Core/Biomes/FactionBiomeMap.gd")
+		var biomes_dict: Dictionary = grid.get_all_biomes()
+		var registry = faction_density.get_registry() if faction_density != null and faction_density.has_method("get_registry") else null
+		var fb_list: Array = fbm.biomes_for_faction(f.name, biomes_dict, registry) if registry != null else []
+		biomes_present = fb_list.size()
 	var loudness: float = 0.0
 	if faction_density != null and faction_density.has_method("get_weight"):
 		loudness = float(faction_density.get_weight(f.name))
@@ -691,78 +680,90 @@ func _faction_presence(f) -> float:
 
 
 func _pump_for_icon(north: String, south: String) -> void:
-	"""When a icon is learned, pump FactionDensityMatrix:
-	  - ICON_PUMP_OWNER_RATE on the Icon's owner faction (if any)
-	  - ICON_PUMP_SHARED_RATE on every other faction whose sig contains either pole
-	  - register anonymous in lexicon if no faction owns the pair
-	"""
-	var lex = _ensure_icon_lexicon()
-	var icon: Dictionary = lex.find_icon_by_pair(north, south)
-	var owner: String = ""
-	if icon.is_empty():
-		var anon = lex.register_anonymous(north, south)
-		owner = anon.get("owner_faction", "")
-	else:
-		owner = icon.get("owner_faction", "")
-
-	if owner != "":
-		faction_density.pump(owner, HamiltonianConfig.ICON_PUMP_OWNER_RATE)
+	# When an icon is learned, pump FactionDensityMatrix:
+	# - ICON_PUMP_OWNER_RATE on the Icon's owner faction (if any)
+	# - ICON_PUMP_SHARED_RATE on every other faction whose sig contains either pole
+	# - register anonymous in lexicon if no faction owns the icon
+	var lex = _ensure_icon_atlas()
+	if lex.find_icon_by_pair(north, south).is_empty():
+		lex.register_anonymous(north, south)
+	var owner_name: String = ""
+	for faction_owner in lex.get_factions_for_pair(north, south):
+		var candidate := ""
+		if faction_owner is String:
+			candidate = str(faction_owner)
+		elif faction_owner != null and "name" in faction_owner:
+			candidate = str(faction_owner.name)
+		else:
+			candidate = str(owner)
+		if candidate == "":
+			continue
+		if owner_name == "":
+			owner_name = candidate
+		faction_density.pump(candidate, HamiltonianConfig.ICON_PUMP_OWNER_RATE)
 
 	var touched: Dictionary = {}
 	for f in faction_density.get_registry().get_factions_for_emoji(north):
 		touched[f.name] = true
 	for f in faction_density.get_registry().get_factions_for_emoji(south):
 		touched[f.name] = true
-	if owner != "":
-		touched.erase(owner)
+	if owner_name != "":
+		touched.erase(owner_name)
 	for fname in touched:
 		faction_density.pump(fname, HamiltonianConfig.ICON_PUMP_SHARED_RATE)
 
 	# Icon-learn affinity event: exercise a micro-contract on the icon's north
 	# emoji to get a substrate-derived θ via distribute_settlement_theta.
 	# Owner-less icons don't kick (no faction context to distribute toward).
-	if owner != "":
-		_ensure_market_lattice().synthesize_and_exercise(north, owner)
+	if owner_name != "":
+		_ensure_market_lattice().synthesize_and_exercise(north, owner_name)
 
 
-func get_pair_for_emoji(emoji: String) -> Variant:
-	"""Return the icon containing an emoji (or null)."""
-	for pair in known_pairs:
-		if pair.get("north", "") == emoji or pair.get("south", "") == emoji:
-			return pair
+func get_icon_for_emoji(emoji: String) -> Variant:
+	# Return the icon containing an emoji (or null).
+	for icon in known_icons:
+		if icon.get("north", "") == emoji or icon.get("south", "") == emoji:
+			return icon
 	return null
 
 
-func _sync_player_vocabulary(reset_first: bool) -> void:
-	"""Keep PlayerSignature QC in sync with farm-owned signature."""
-	var player_vocab = _get_player_vocab()
-	if not player_vocab:
-		return
-	if reset_first and player_vocab.has_method("reset"):
-		player_vocab.reset()
-	for pair in known_pairs:
-		var north = pair.get("north", "")
-		var south = pair.get("south", "")
-		if north != "" and south != "":
-			if player_vocab.has_method("learn_vocab_pair"):
-				player_vocab.learn_vocab_pair(north, south)
-
-
-func _sync_current_state_vocab() -> void:
-	"""Mirror canonical farm signature into the active GameState when present."""
+func _sync_current_state_signature() -> void:
+	# Mirror canonical farm signature into the active GameState when present.
 	var gsm = _get_gsm()
 	if gsm and "current_state" in gsm and gsm.current_state:
-		gsm.current_state.known_pairs = get_known_pairs()
+		gsm.current_state.known_icons = get_known_icons()
+		# Clamp slots to current pairs and mirror to state.
+		var max_idx: int = max(0, known_icons.size() - 1)
+		var clamped: Array = []
+		for s in active_icon_slots:
+			clamped.append(clampi(int(s), 0, max_idx))
+		while clamped.size() < 3:
+			clamped.append(clamped.back() if clamped.size() > 0 else 0)
+		active_icon_slots = clamped
+		gsm.current_state.active_icon_slots = clamped.duplicate()
+
+
+# Public setter so the Z Self icon picker can rebind a slot without poking
+# into the array directly. slot_idx in [0,2]; icon_idx is index into known_icons.
+func set_active_icon_slot(slot_idx: int, icon_idx: int) -> bool:
+	if slot_idx < 0 or slot_idx >= 3:
+		return false
+	if icon_idx < 0 or icon_idx >= known_icons.size():
+		return false
+	while active_icon_slots.size() < 3:
+		active_icon_slots.append(0)
+	active_icon_slots[slot_idx] = icon_idx
+	_sync_current_state_signature()
+	return true
 
 
 ## Rebuild quantum operators after biomes have initialized
 func rebuild_all_biome_operators() -> void:
-	"""Rebuild quantum operators for all biomes
+	# Rebuild quantum operators for all biomes
 
-	Called by BootManager in Stage 3A after EmojiPhysicsRegistry is confirmed ready.
-	This ensures all biomes have complete Hamiltonian and Lindblad operators
-	even if they initialized before EmojiPhysicsRegistry loaded all icons.
-	"""
+	# Called by BootManager in Stage 3A after IconRegistry is confirmed ready.
+	# This ensures all biomes have complete Hamiltonian and Lindblad operators
+	# even if they initialized before IconRegistry loaded all icons.
 	if not biome_enabled:
 		return
 
@@ -776,21 +777,19 @@ func rebuild_all_biome_operators() -> void:
 
 ## Called by BootManager in Stage 3A to finalize setup before simulation starts
 func finalize_setup() -> void:
-	"""Finalize farm setup after all basic initialization.
+	# Finalize farm setup after all basic initialization.
 
-	Called by BootManager.boot() after biomes are loaded and verified.
-	Quantum verification already happened in BootManager.load_biome().
-	"""
+	# Called by BootManager.boot() after biomes are loaded and verified.
+	# Quantum verification already happened in BootManager.load_biome().
 	_verbose.info("boot", "✓", "Farm setup finalized (%d biomes active)" % _loaded_biome_count)
 
 
 ## Called by BootManager in Stage 3D to enable simulation processing
 func enable_simulation() -> void:
-	"""Enable the farm simulation to start processing quantum evolution.
+	# Enable the farm simulation to start processing quantum evolution.
 
-	Called by BootManager.boot() after UI is initialized.
-	This enables _process() to evolve quantum states in biomes.
-	"""
+	# Called by BootManager.boot() after UI is initialized.
+	# This enables _process() to evolve quantum states in biomes.
 	set_process(true)
 	set_physics_process(true)
 
@@ -830,12 +829,15 @@ var _player_shell_cache = null  # Cached PlayerShell ref for pause flag.
 
 
 func _physics_process(delta: float) -> void:
-	"""Physics simulation - runs at fixed 20Hz.
+	# Physics simulation - runs at fixed 20Hz.
 
-	Short-circuits when PlayerShell.paused is true (E key sets pause,
-	F key clears it). See UI/Core/KEYBOARD_GRAMMAR.md.
-	"""
+	# Short-circuits when PlayerShell.paused is true (E key sets pause,
+	# F key clears it). See UI/Core/KEYBOARD_GRAMMAR.md.
 	if _is_globally_paused():
+		return
+
+	var gsm = _get_gsm()
+	if gsm and "phase" in gsm and int(gsm.phase) != int(SessionLifecycle.SessionPhase.RUNNING):
 		return
 
 	# BATCHED QUANTUM EVOLUTION (moved here for visual/physics separation)
@@ -862,7 +864,7 @@ func _is_globally_paused() -> bool:
 
 
 func time_skip_phrames(phrames: int, delta: float = PhysicsConfig.PHRAME_DT) -> Dictionary:
-	"""Advance farm physics/evolution synchronously for deterministic headless rig control."""
+	# Advance farm physics/evolution synchronously for deterministic headless rig control.
 	var steps = max(0, int(phrames))
 	var dt = max(0.000001, float(delta))
 	var debug_time_skip = OS.get_environment("RIG_DEBUG_TIMESKIP").to_lower() in ["1", "true", "yes", "on"]
@@ -916,7 +918,7 @@ func time_skip_phrames(phrames: int, delta: float = PhysicsConfig.PHRAME_DT) -> 
 
 
 func _process_lindblad_effects(delta: float) -> void:
-	"""Apply persistent Lindblad pump/drain effects from Tool 2."""
+	# Apply persistent Lindblad pump/drain effects from the Spark/Merchant frames.
 	if not grid:
 		return
 
@@ -991,7 +993,7 @@ func _process_lindblad_effects(delta: float) -> void:
 
 
 func _get_lindblad_effective_delta_for_biome(biome, frame_delta: float) -> float:
-	"""Scale Lindblad timestep by biome timescale controls (stride + resolution)."""
+	# Scale Lindblad timestep by biome timescale controls (stride + resolution).
 	var base_delta = maxf(0.0, float(frame_delta))
 	if base_delta <= 0.0:
 		return 0.0
@@ -1095,11 +1097,10 @@ func _harvest_rainbow_sink_flux(active_drain_biomes: Dictionary) -> void:
 
 
 func _process_mushroom_composting(delta: float):
-	"""Passive composting: converts detritus → mushrooms based on planted mushroom count
+	# Passive composting: converts detritus → mushrooms based on planted mushroom count
 
-	Composting rate scales with number of planted mushrooms
-	Ratio: 2 detritus → 1 mushroom
-	"""
+	# Composting rate scales with number of planted mushrooms
+	# Ratio: 2 detritus → 1 mushroom
 	if not economy or not grid:
 		return
 
@@ -1170,15 +1171,14 @@ func _process_mushroom_composting(delta: float):
 ##   height = number of explored biomes loaded into the farm
 
 func _create_grid_config() -> GridConfig:
-	"""Create grid configuration - single source of truth for layout
+	# Create grid configuration - single source of truth for layout
 
-	Quantum Instrument Layout: dynamic grid
-	  width  = max plot count across loadable biomes (min 5)
-	  height = explored biomes count
+	# Quantum Instrument Layout: dynamic grid
+	# width  = max plot count across loadable biomes (min 5)
+	# height = explored biomes count
 
-	Keyboard layout:
-	  Homerow keys map to columns 0..N-1 (N=grid_width)
-	"""
+	# Keyboard layout:
+	# Homerow keys map to columns 0..N-1 (N=grid_width)
 	var config = GridConfig.new()
 	var explored_biomes = _get_loaded_biomes_in_order()
 	if explored_biomes.is_empty():
@@ -1203,7 +1203,7 @@ func _create_grid_config() -> GridConfig:
 		var pos = Vector2i(i, 0)  # Default to y=0, remapped at runtime
 		keyboard.action_to_position["plot_neutral_" + str(i)] = pos
 		keyboard.position_to_label[pos] = key_label.to_upper()
-		# Also add labels for other biome rows (same x position, different y)
+		# Also add labels for other biome rows (same x grid_pos, different y)
 		for biome_row in range(1, grid_height):
 			keyboard.position_to_label[Vector2i(i, biome_row)] = key_label.to_upper()
 
@@ -1232,8 +1232,8 @@ func _create_grid_config() -> GridConfig:
 
 
 func _get_explored_biomes() -> Array[String]:
-	"""Get explored biomes (preferred terminology)."""
-	var observation_frame = InstrumentLocator.resolve_observation_frame(self)
+	# Get explored biomes (preferred terminology).
+	var observation_frame = get_node_or_null("/root/ObservationFrame")
 	if observation_frame and observation_frame.has_method("get_explored_biomes"):
 		return observation_frame.get_explored_biomes()
 	if observation_frame and observation_frame.has_method("get_unlocked_biomes"):
@@ -1241,27 +1241,31 @@ func _get_explored_biomes() -> Array[String]:
 	var gsm = _get_gsm()
 	if gsm and gsm.current_state and "unlocked_biomes" in gsm.current_state:
 		return gsm.current_state.unlocked_biomes
-	return ["StarterForest", "Village"]
+	return []
 
 
 func _get_loaded_biomes_in_order() -> Array[String]:
-	"""Return explored biomes filtered to those currently loaded (in order)."""
+	# Return loaded biomes, preserving observation order when available.
 	var explored = _get_explored_biomes()
 	var loaded: Array[String] = []
 	for biome_name in explored:
 		if _is_biome_loaded(biome_name):
 			loaded.append(biome_name)
+	if grid:
+		for biome_name in grid.get_biome_names():
+			if biome_name not in loaded:
+				loaded.append(biome_name)
 	return loaded
 
 
 func _is_biome_loaded(biome_name: String) -> bool:
-	"""Check if a biome instance is loaded on this Farm."""
+	# Check if a biome instance is loaded on this Farm.
 	return grid != null and grid.get_biome(biome_name) != null
 
 
 func _get_loadable_biomes() -> Array[String]:
-	"""Get loadable biomes (icon build succeeded)."""
-	var observation_frame = InstrumentLocator.resolve_observation_frame(self)
+	# Get loadable biomes (icon build succeeded).
+	var observation_frame = get_node_or_null("/root/ObservationFrame")
 	if observation_frame and observation_frame.has_method("get_loadable_biomes"):
 		return observation_frame.get_loadable_biomes()
 	# Fallback to explored list if loadable list not available
@@ -1269,10 +1273,10 @@ func _get_loadable_biomes() -> Array[String]:
 
 
 func _get_max_biome_plot_count(biome_names: Array[String]) -> int:
-	"""Compute max plot count across biome layouts (fallback to DEFAULT_PLOTS_PER_BIOME)."""
+	# Compute max plot count across biome layouts (fallback to DEFAULT_PLOTS_PER_BIOME).
 	var max_count = 0
-	for name in biome_names:
-		var biome = _get_loaded_biome_ref(name)
+	for bname in biome_names:
+		var biome = _get_loaded_biome_ref(bname)
 		if biome and biome.quantum_computer and biome.quantum_computer.register_map:
 			var count = biome.quantum_computer.register_map.num_qubits
 			if count > max_count:
@@ -1369,7 +1373,7 @@ func _liquidate_biome_resources(biome_name: String, biome) -> Dictionary:
 
 
 func _rebuild_biome_row_maps(biome_list: Array[String]) -> void:
-	"""Rebuild row mappings based on explored biome order."""
+	# Rebuild row mappings based on explored biome order.
 	biome_row_map.clear()
 	row_biome_map.clear()
 	for i in range(biome_list.size()):
@@ -1379,7 +1383,7 @@ func _rebuild_biome_row_maps(biome_list: Array[String]) -> void:
 
 
 func refresh_grid_for_biomes() -> bool:
-	"""Rebuild grid_config and resize grid/terminal_pool when real biomes are loaded."""
+	# Rebuild grid_config and resize grid/terminal_pool when real biomes are loaded.
 	var new_config = _create_grid_config()
 	if not new_config:
 		push_error("Farm.refresh_grid_for_biomes(): no loaded biomes available")
@@ -1424,17 +1428,17 @@ func refresh_grid_for_biomes() -> bool:
 
 
 func get_biome_row(biome_name: String) -> int:
-	"""Get the row (y-coordinate) for a biome"""
+	# Get the row (y-coordinate) for a biome
 	return biome_row_map.get(biome_name, 0)
 
 
 func get_biome_for_row(row: int) -> String:
-	"""Get the biome name for a row (y-coordinate)"""
+	# Get the biome name for a row (y-coordinate)
 	return row_biome_map.get(row, "")
 
 
 func get_biomes() -> Array:
-	"""Get all loaded biomes for testing/diagnostics."""
+	# Get all loaded biomes for testing/diagnostics.
 	if not grid:
 		return []
 	var result: Array = []
@@ -1446,24 +1450,23 @@ func get_biomes() -> Array:
 
 
 func get_plot_position_for_active_biome(plot_index: int) -> Vector2i:
-	"""Convert plot index (0-3) to full position using active biome
+	# Convert plot index (0-3) to full grid_pos using active biome
 
-	Used by input handling to map plot keys to the correct biome's plots.
-	Now uses ObservationFrame as the source of truth for active biome.
-	"""
+	# Used by input handling to map plot keys to the correct biome's plots.
+	# Now uses ObservationFrame as the source of truth for active biome.
 	# Clamp plot_index to valid range (0..grid_width-1)
 	var max_index = grid_config.grid_width - 1 if grid_config else 3
 	plot_index = clampi(plot_index, 0, max_index)
 
 	# Try ObservationFrame first, fall back to ActiveBiomeManager
-	var observation_frame = InstrumentLocator.resolve_observation_frame(self)
+	var observation_frame = get_node_or_null("/root/ObservationFrame")
 	var active_biome = "BioticFlux"
 	if observation_frame:
 		active_biome = observation_frame.get_neutral_biome()
 	else:
-		var biome_mgr = _get_active_biome_manager()
-		if biome_mgr:
-			active_biome = biome_mgr.get_active_biome()
+		var biome_router = _get_active_biome_router()
+		if biome_router:
+			active_biome = biome_router.get_active_biome()
 
 	var biome_row = get_biome_row(active_biome)
 	return Vector2i(plot_index, biome_row)
@@ -1472,15 +1475,15 @@ func get_plot_position_for_active_biome(plot_index: int) -> Vector2i:
 ## Public API - Game Operations
 
 func can_discover_biome() -> Dictionary:
-	"""Check if a new biome can be explored (slots + availability)."""
-	var observation_frame = InstrumentLocator.resolve_observation_frame(self)
+	# Check if a new biome can be explored (slots + availability).
+	var observation_frame = get_node_or_null("/root/ObservationFrame")
 	if not observation_frame:
 		return {"ok": false, "message": "ObservationFrame not available"}
 
-	var biome_mgr = _get_active_biome_manager()
-	if not biome_mgr:
+	var biome_router = _get_active_biome_router()
+	if not biome_router:
 		return {"ok": false, "message": "ActiveBiomeManager not available"}
-	if biome_mgr.has_method("has_open_biome_slot") and not biome_mgr.has_open_biome_slot():
+	if biome_router.has_method("has_open_biome_slot") and not biome_router.has_open_biome_slot():
 		return {"ok": false, "message": "Biome slots full"}
 
 	var unexplored = observation_frame.get_unexplored_biomes()
@@ -1495,22 +1498,20 @@ func can_discover_biome() -> Dictionary:
 
 
 func can_remove_biome() -> Dictionary:
-	"""Check if the current active biome can be liquidated and removed."""
-	var observation_frame = InstrumentLocator.resolve_observation_frame(self)
+	# Check if the current active biome can be liquidated and removed.
+	var observation_frame = get_node_or_null("/root/ObservationFrame")
 	if not observation_frame:
 		return {"ok": false, "message": "ObservationFrame not available"}
 
-	var biome_mgr = _get_active_biome_manager()
-	if not biome_mgr:
+	var biome_router = _get_active_biome_router()
+	if not biome_router:
 		return {"ok": false, "message": "ActiveBiomeManager not available"}
 
-	var biome_name = str(biome_mgr.get_active_biome())
+	var biome_name = str(biome_router.get_active_biome())
 	if biome_name == "":
 		return {"ok": false, "message": "No active biome"}
-	if biome_name in CORE_BIOMES:
-		return {"ok": false, "message": "Starter biomes cannot be removed"}
-	if observation_frame.get_unlocked_biomes().size() <= CORE_BIOMES.size():
-		return {"ok": false, "message": "Need at least one removable biome unlocked"}
+	if observation_frame.get_unlocked_biomes().size() <= 1:
+		return {"ok": false, "message": "Need at least two biomes before removing one"}
 
 	var biome = _get_loaded_biome_ref(biome_name)
 	if not biome:
@@ -1519,14 +1520,13 @@ func can_remove_biome() -> Dictionary:
 	return {"ok": true, "biome_name": biome_name}
 
 func discover_biome() -> Dictionary:
-	"""Explore and unlock a random new biome (4E action)
+	# Explore and unlock a random new biome (4E action)
 
-	Returns:
-		Dictionary with:
-			- success: bool
-			- biome_name: String (if successful)
-			- message: String (error or success message)
-	"""
+	# Returns:
+	# Dictionary with:
+	# - success: bool
+	# - biome_name: String (if successful)
+	# - message: String (error or success message)
 	_log_debug("🗺️ discover_biome() called!")
 
 	var gate = can_discover_biome()
@@ -1535,7 +1535,7 @@ func discover_biome() -> Dictionary:
 		_log_debug("❌ %s" % msg)
 		return {"success": false, "blocked": true, "message": msg}
 
-	var observation_frame = InstrumentLocator.resolve_observation_frame(self)
+	var observation_frame = get_node_or_null("/root/ObservationFrame")
 	if not observation_frame:
 		_log_debug("❌ ObservationFrame not found")
 		return {"success": false, "message": "ObservationFrame not available"}
@@ -1564,22 +1564,22 @@ func discover_biome() -> Dictionary:
 
 	# Load the new biome
 	_log_debug("🗺️ Loading biome dynamically...")
-	var biome_loaded = _load_biome_dynamically(new_biome)
-	if not biome_loaded:
+	var biome_load_ok = _load_biome_dynamically(new_biome)
+	if not biome_load_ok:
 		_log_debug("❌ Biome failed to load")
 		return {"success": false, "biome_name": new_biome, "message": "Biome unlocked but failed to load"}
 	_log_debug("✅ Biome loaded successfully")
 
 	# Sync with ActiveBiomeManager
-	var biome_manager = _get_active_biome_manager()
-	if biome_manager:
-		biome_manager.set_biome_order(observation_frame.get_unlocked_biomes())
+	var biome_router = _get_active_biome_router()
+	if biome_router:
+		biome_router.set_biome_order(observation_frame.get_unlocked_biomes())
 		_log_debug("✅ Synced with ActiveBiomeManager")
 
 	# Switch to the new biome
-	if biome_manager:
+	if biome_router:
 		var direction = 1  # Slide right (new biome appears)
-		biome_manager.set_active_biome(new_biome, direction)
+		biome_router.set_active_biome(new_biome, direction)
 		_log_debug("✅ Switched to new biome: %s" % new_biome)
 
 	if economy and not ActionCostRuntime.commit_action(economy, "discover_biome"):
@@ -1590,7 +1590,7 @@ func discover_biome() -> Dictionary:
 
 
 func remove_biome() -> Dictionary:
-	"""Liquidate the active biome from its live quantum state, then unregister it."""
+	# Liquidate the active biome from its live quantum state, then unregister it.
 	var gate = can_remove_biome()
 	if not gate.get("ok", false):
 		return {
@@ -1607,7 +1607,7 @@ func remove_biome() -> Dictionary:
 	var liquidation = _liquidate_biome_resources(biome_name, biome)
 	_release_terminals_in_biome(biome_name)
 
-	var observation_frame = InstrumentLocator.resolve_observation_frame(self)
+	var observation_frame = get_node_or_null("/root/ObservationFrame")
 	var old_order: Array[String] = observation_frame.get_unlocked_biomes() if observation_frame else []
 	var removed_index := old_order.find(biome_name)
 	var successor := ""
@@ -1638,11 +1638,11 @@ func remove_biome() -> Dictionary:
 
 	refresh_grid_for_biomes()
 
-	var biome_manager = _get_active_biome_manager()
-	if biome_manager and observation_frame:
-		biome_manager.set_biome_order(observation_frame.get_unlocked_biomes())
+	var biome_router = _get_active_biome_router()
+	if biome_router and observation_frame:
+		biome_router.set_biome_order(observation_frame.get_unlocked_biomes())
 		if successor != "":
-			biome_manager.set_active_biome(successor, -1)
+			biome_router.set_active_biome(successor, -1)
 
 	_emit_state_changed()
 
@@ -1656,32 +1656,31 @@ func remove_biome() -> Dictionary:
 
 
 func compute_discovery_forecast() -> Dictionary:
-	"""Compatibility facade over the discovery forecast service."""
+	# Compatibility bridge to the discovery forecast layer.
 	return BiomeDiscoveryForecastService.compute_forecast(self)
 
 
 func _load_biome_dynamically(biome_name: String) -> bool:
-	"""Load a biome at runtime via unified BootManager.load_biome().
+	# Load a biome at runtime via unified BootManager.load_biome().
 
-	This delegates to BootManager to ensure consistent loading sequence:
-	1. Load & instantiate
-	2. Register with grid
-	3. Assign plots
-	4. Rebuild operators (CRITICAL: before batcher registration)
-	5. Register with batcher
-	6. Emit signals
+	# This delegates to BootManager to ensure consistent loading sequence:
+	# 1. Load & instantiate
+	# 2. Register with grid
+	# 3. Assign plots
+	# 4. Rebuild operators (CRITICAL: before batcher registration)
+	# 5. Register with batcher
+	# 6. Emit signals
 
-	Idempotent: if already loaded, returns true without re-initializing.
-	"""
-	var boot_manager = InstrumentLocator.resolve_root_node(self, "/root/BootManager")
-	if not boot_manager:
+	# Idempotent: if already loaded, returns true without re-initializing.
+	var boot_runtime = get_node_or_null("/root/BootManager")
+	if not boot_runtime:
 		push_error("BootManager not found")
 		return false
 
 	# Ensure grid is sized for the newly explored biome
 	refresh_grid_for_biomes()
 
-	var result = boot_manager.load_biome(biome_name, self)
+	var result = boot_runtime.load_biome(biome_name, self)
 	if not result.get("success", false):
 		var error = result.get("message", "Unknown error")
 		push_error("Failed to load biome '%s': %s" % [biome_name, error])
@@ -1696,58 +1695,47 @@ func _load_biome_dynamically(biome_name: String) -> bool:
 	return true
 
 func entangle_plots(pos1: Vector2i, pos2: Vector2i, bell_state: String = "phi_plus") -> bool:
-	"""Create entanglement between two plots with specified Bell state
+	# Create entanglement between two plots with specified Bell state
 
-	Args:
-		pos1: Grid position of first plot
-		pos2: Grid position of second plot
-		bell_state: "phi_plus" (same correlation), "psi_plus" (opposite correlation)
+	# Args:
+	# pos1: Grid grid_pos of first plot
+	# pos2: Grid grid_pos of second plot
+	# bell_state: "phi_plus" (same correlation), "psi_plus" (opposite correlation)
 
-	Returns:
-		bool: True if successful, False if failed
+	# Returns:
+	# bool: True if successful, False if failed
 
-	Emits: plots_entangled signal on success
-	"""
+	# Emits: plots_entangled signal on success
 	if not grid:
-		action_result.emit("entangle", false, "Farm grid not initialized")
 		return false
 
-	# Verify both plots exist and are planted
 	var plot1 = grid.get_plot(pos1)
 	var plot2 = grid.get_plot(pos2)
 
 	if not plot1 or not plot1.is_active():
-		action_result.emit("entangle", false, "First plot must be planted!")
 		return false
 
 	if not plot2 or not plot2.is_active():
-		action_result.emit("entangle", false, "Second plot must be planted!")
 		return false
 
-	# Create the entanglement in the grid
 	var result = grid.create_entanglement(pos1, pos2, bell_state)
 
 	if result:
-		# Emit entanglement signal
 		plots_entangled.emit(pos1, pos2, bell_state)
 		_emit_state_changed()
-
-		var state_name = "same correlation (Φ+)" if bell_state == "phi_plus" else "opposite correlation (Ψ+)"
-		action_result.emit("entangle", true, "🔗 Entangled %s ↔ %s (%s)" % [pos1, pos2, state_name])
 		return true
 	else:
-		action_result.emit("entangle", false, "Failed to create entanglement")
 		return false
 
-func get_plot(position: Vector2i):
-	"""Get plot at given grid position (returns FarmPlot or subclass)"""
+func get_plot(grid_pos: Vector2i):
+	# Get plot at given grid grid_pos (returns FarmPlot or subclass)
 	if grid:
-		return grid.get_plot(position)
+		return grid.get_plot(grid_pos)
 	return null
 
 
 func get_state() -> Dictionary:
-	"""Get complete game state snapshot for serialization"""
+	# Get complete game state snapshot for serialization
 	if not grid or not economy:
 		return {}
 
@@ -1774,55 +1762,54 @@ func get_state() -> Dictionary:
 ## Private Helpers - Biome Access
 
 func _get_plot_biome(pos: Vector2i):
-	"""Get biome for plot position. Returns null if biomes disabled or not found."""
+	# Get biome for plot grid_pos. Returns null if biomes disabled or not found.
 	if grid:
 		return grid.get_biome_for_plot(pos)
 	return null
 
 
 func _ensure_iconregistry() -> void:
-	"""Ensure EmojiPhysicsRegistry exists in harnesses that bypass normal autoload boot.
+	# Ensure IconRegistry exists in harnesses that bypass normal autoload boot.
 
-	In normal gameplay: EmojiPhysicsRegistry is autoload at /root/EmojiPhysicsRegistry
-	In script/headless harnesses: create a local root child if needed
-	"""
+	# In normal gameplay: IconRegistry is autoload at /root/IconRegistry
+	# In script/headless harnesses: create a local root child if needed
 	var icon_registry = _get_icon_registry_autoload()
 	if icon_registry:
 		# Already exists (normal game mode)
 		return
 
-	# Harness mode: create EmojiPhysicsRegistry on demand
-	var EmojiPhysicsRegistryScript = load("res://Core/QuantumSubstrate/EmojiPhysicsRegistry.gd")
-	if not EmojiPhysicsRegistryScript:
-		push_error("Failed to load EmojiPhysicsRegistry.gd!")
+	# Harness mode: create IconRegistry on demand
+	var IconRegistryScript = load("res://Core/Factions/IconRegistry.gd")
+	if not IconRegistryScript:
+		push_error("Failed to load IconRegistry.gd!")
 		return
 
-	icon_registry = EmojiPhysicsRegistryScript.new()
-	icon_registry.name = "EmojiPhysicsRegistry"
+	icon_registry = IconRegistryScript.new()
+	icon_registry.name = "IconRegistry"
 	# Use get_tree() if available, otherwise just initialize locally
 	var tree = get_tree()
 	if tree and tree.root:
 		tree.root.add_child(icon_registry)
 		icon_registry._ready()  # Trigger initialization
 		if _verbose:
-			_verbose.info("test", "✓", "Test mode: EmojiPhysicsRegistry initialized with %d icons" % icon_registry.icons.size())
+			_verbose.info("test", "✓", "Test mode: IconRegistry initialized with %d icons" % icon_registry.atoms.size())
 	else:
 		# Headless mode without scene tree - just initialize locally
 		icon_registry._ready()
 		if _verbose:
-			_verbose.info("test", "✓", "Headless mode: EmojiPhysicsRegistry initialized with %d icons" % icon_registry.icons.size())
+			_verbose.info("test", "✓", "Headless mode: IconRegistry initialized with %d icons" % icon_registry.atoms.size())
 
 
 ## Private Helpers - Resource & Economy Management
 ## Now uses FarmEconomy's unified emoji-credits API
 
 func _can_afford_cost(cost: Dictionary) -> bool:
-	"""Check if player can afford emoji-credits cost."""
+	# Check if player can afford emoji-credits cost.
 	return economy.can_afford_cost(cost)
 
 
 func _get_missing_resources(cost: Dictionary) -> String:
-	"""Get human-readable list of missing resources."""
+	# Get human-readable list of missing resources.
 	var missing = []
 	for emoji in cost.keys():
 		var need = cost[emoji]
@@ -1834,21 +1821,21 @@ func _get_missing_resources(cost: Dictionary) -> String:
 
 
 func _spend_resources(cost: Dictionary, action: String) -> void:
-	"""Deduct emoji-credits from economy."""
+	# Deduct emoji-credits from economy.
 	economy.spend_cost(cost, action)
 
 
 func _refund_resources(cost: Dictionary) -> void:
-	"""Return emoji-credits to player (failed operation)."""
+	# Return emoji-credits to player (failed operation).
 	for emoji in cost.keys():
 		economy.add_resource(emoji, cost[emoji], "refund")
 
 
 func _emit_state_changed() -> void:
-	"""Emit state_changed signal with current game state"""
+	# Emit state_changed signal with current game state
 	state_changed.emit(get_state())
 
 
 func _on_economy_changed(_value) -> void:
-	"""Handle economy signal"""
+	# Handle economy signal
 	_emit_state_changed()

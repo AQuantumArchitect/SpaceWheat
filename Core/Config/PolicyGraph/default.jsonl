@@ -21,8 +21,8 @@
 {"op":"set","path":"action_priors.lindblad_drain.milk_corridor_weight","value":1.0}
 {"op":"set","path":"action_priors.lindblad_drain.base","value":0.9}
 {"op":"set","path":"action_priors.time_skip.base","value":0.4}
-{"op":"set","path":"action_priors.lock_offer.milk_distance_gain","value":2.5}
-{"op":"set","path":"action_priors.lock_offer.milk_cascade_gain","value":1.2}
+{"op":"set","path":"action_priors.quest_cycle.milk_distance_gain","value":2.5}
+{"op":"set","path":"action_priors.quest_cycle.milk_cascade_gain","value":1.2}
 {"op":"set","path":"action_priors.discover_biome.base","value":0.7}
 {"op":"set","path":"action_limits.default.enabled","value":true}
 {"op":"set","path":"action_limits.default.min_loop","value":1}

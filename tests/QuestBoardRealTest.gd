@@ -122,8 +122,8 @@ func _test_north_only_invalidation():
 
 	# Use first quest
 	var quest = quests[0]
-	var north = quest.get("reward_vocab_north", "")
-	var south = quest.get("reward_vocab_south", "")
+	var north = quest.get("reward_north", "")
+	var south = quest.get("reward_south", "")
 
 	# Check invalidation - should only check north
 	var result = quest_board._is_quest_invalidated(quest)
@@ -141,8 +141,8 @@ func _test_south_known_doesnt_invalidate():
 	var quest = {
 		"id": 1,
 		"faction": "Test Faction",
-		"reward_vocab_north": "🍄",
-		"reward_vocab_south": "🌾",
+		"reward_north": "🍄",
+		"reward_south": "🌾",
 		"resource": "🌲",
 		"quantity": 5
 	}
@@ -170,9 +170,10 @@ func _test_completion_removes_quest():
 
 	# Get first quest ID
 	var quest_id = before.pool_ids[0]
+	var quest_to_accept = quest_board.all_available_quests[0]
 
 	# Accept it
-	quest_manager.accept_quest(quest_id)
+	quest_manager.accept_quest(quest_to_accept)
 	await get_tree().process_frame
 
 	var middle = _capture_state()

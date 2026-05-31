@@ -6,14 +6,32 @@ extends RefCounted
 ## JSON-backed faction loading with indexed lookups.
 ## Provides O(1) lookup by emoji, name, and tag via pre-built indexes.
 ##
-## Usage:
-##   var registry = FactionRegistry.new()
+## Usage (preferred — shared cache):
+##   var registry = FactionRegistry.get_shared()
 ##   var factions = registry.get_all()
 ##   var verdant = registry.get_by_name("Verdant Pulse")
-##   var sun_factions = registry.get_factions_for_emoji("☀")
+##
+## Tests/tools may still `FactionRegistry.new()` for isolation. Production code
+## should use `get_shared()` so a single JSON parse serves the whole session.
 
-const Faction = preload("res://Core/Factions/Faction.gd")
-const JSON_PATH = "res://Core/Factions/data/factions_merged.json"
+const JSON_PATH = "res://Core/Factions/data/factions.json"
+
+# Process-wide shared instance. Engine code should access via `get_shared()`.
+static var _shared = null
+
+
+## Return the process-wide shared registry, building it on first access.
+## Use this from engine/UI code so factions.json is parsed once per session.
+static func get_shared() -> FactionRegistry:
+	if _shared == null:
+		_shared = load("res://Core/Factions/FactionRegistry.gd").new()
+	return _shared
+
+
+## Drop the shared instance (forces a fresh load on next `get_shared()`).
+## For tests and save-slot transitions where factions.json has changed on disk.
+static func reset_shared() -> void:
+	_shared = null
 
 # Faction storage
 var _factions: Array = []
@@ -84,7 +102,7 @@ func _build_indexes() -> void:
 		_ring_index[faction.ring].append(faction)
 
 		# Emoji index
-		for emoji in faction.signature:
+		for emoji in faction.cloud:
 			if not _emoji_index.has(emoji):
 				_emoji_index[emoji] = []
 			_emoji_index[emoji].append(faction)
@@ -115,16 +133,6 @@ func get_factions_for_emoji(emoji: String) -> Array:
 	return _emoji_index.get(emoji, [])
 
 
-## Get all factions with a given tag
-func get_factions_by_tag(tag: String) -> Array:
-	return _tag_index.get(tag, [])
-
-
-## Get all factions in a given ring
-func get_factions_by_ring(ring: String) -> Array:
-	return _ring_index.get(ring, [])
-
-
 ## Get all unique emojis across all factions
 func get_all_emojis() -> Array:
 	return _emoji_index.keys()
@@ -138,154 +146,6 @@ func get_emoji_contestation() -> Dictionary:
 		for faction in _emoji_index[emoji]:
 			result[emoji].append(faction.name)
 	return result
-
-
-## ========================================
-## Biome Presets
-## ========================================
-
-## Get factions for a specific biome type
-func get_biome_factions(biome_type: String) -> Array:
-	match biome_type:
-		"BioticFlux":
-			return _get_factions_by_names([
-				"Celestial Archons",
-				"Verdant Pulse",
-				"Mycelial Web",
-			])
-
-		"StellarForges":
-			return _get_factions_by_names([
-				"Kilowatt Collective",   # 🔋⚙🔌⚡ — power and gear baseline
-				"Gearwright Circle",     # 🧰🛠⚙🔩 — mechanical assembly
-				"Rocketwright Institute", # ⚙📋🚀🔬 — launch and propulsion
-				"Iron Shepherds",        # 🛸🧭🐑🛡 — covers 🛸
-			])
-
-		"FungalNetworks":
-			return _get_factions_by_names([
-				"Mycelial Web",
-				"Celestial Archons",
-				"Locusts",
-				"Mossline Brokers",
-			])
-
-		"VolcanicWorlds":
-			return _get_factions_by_names([
-				"Volcanic Foundry",        # 🌋🔥🪨💎🌫✨ — covers 5/6 emojis
-				"The Gilded Legacy",       # ⛏💎💰✨ — covers ⛏ (the missing one)
-				"Brotherhood of Ash",      # ⚔🌫⚱🩹 — ash/aftermath narrative
-				"Children of the Ember",   # ⚔🔥✊🚩🧨 — fire cult narrative
-				"Wildfire",                # 🔥🌿🌲🍂🌬 — spread and burn dynamics
-			])
-
-		"StarterForest":
-			# Celestial Archons intentionally excluded: its 🌙 self-energy (+0.8)
-			# inverts StarterForest's day/night design. ☀/🌙 physics lives in
-			# starterforest.jsonl instead.
-			return _get_factions_by_names([
-				"Verdant Pulse",    # 🌱🌿🌲🍂 — plant growth/decay cycle
-				"Swift Herd",       # 🐇🦌🌿 — grazers and prey
-				"Pack Lords",       # 🐺🦅🐇🦌 — predators and death
-			])
-
-		"Village":
-			# Verdant Pulse excluded: its sig (🌱🌿🌾🌲🍂) has zero overlap with Village emojis
-			# 👥 is an orphan (no faction covers it); defined fully in village.jsonl
-			# ⚙️ normalization: Millwright's ⚙ (U+2699) matches ⚙️ (U+2699+FE0F) via EmojiUtil
-			return _get_factions_by_names([
-				"Celestial Archons",     # ☀🌙🔥💧⛰🌬 — contributes 🔥 self_energy
-				"Hearth Keepers",        # 🔥❄️💨🍞 — primary fire/ice driver
-				"Granary Guilds",        # 🌱🍞💰🧺 — commerce and grain loop
-				"Millwright's Union",    # ⚙🏭💨🍞 — covers ⚙ after EmojiUtil normalization
-				"Yeast Prophets",        # 🍞🥖🫙 — gated bread production
-			])
-
-		"Imperial":
-			return _get_factions_by_names([
-				"Market Spirits",
-				"Granary Guilds",
-				"Millwright's Union",
-				"Station Lords",
-				"Void Serfs",
-				"Carrion Throne",
-			])
-
-		"Scavenger":
-			return _get_factions_by_names([
-				"Hearth Keepers",
-				"Scavenged Psithurism",
-				"Millwright's Union",
-			])
-
-		_:
-			push_warning("FactionRegistry: Unknown biome type: %s" % biome_type)
-			return []
-
-
-## Helper: Get multiple factions by name
-func _get_factions_by_names(names: Array) -> Array:
-	var result: Array = []
-	for faction_name in names:
-		var faction = get_by_name(faction_name)
-		if faction:
-			result.append(faction)
-		else:
-			push_warning("FactionRegistry: Faction not found: %s" % faction_name)
-	return result
-
-
-## ========================================
-## Starter Factions
-## ========================================
-
-## Get factions accessible from starter emojis (🍞 + 👥)
-func get_starter_accessible() -> Array:
-	var result: Array = []
-
-	# Hearth Keepers (🍞 producer)
-	var hearth = get_by_name("Hearth Keepers")
-	if hearth:
-		result.append(hearth)
-
-	# Civilization factions
-	for faction_name in ["Granary Guilds", "Millwright's Union", "Yeast Prophets",
-						  "Station Lords", "Void Serfs", "Carrion Throne", "Scavenged Psithurism"]:
-		var faction = get_by_name(faction_name)
-		if faction:
-			result.append(faction)
-
-	return result
-
-
-## ========================================
-## Category Accessors (for compatibility)
-## ========================================
-
-## Get core ecosystem factions
-func get_core() -> Array:
-	return _get_factions_by_names([
-		"Celestial Archons", "Verdant Pulse", "Mycelial Web", "Swift Herd",
-		"Pack Lords", "Market Spirits", "Hearth Keepers", "Pollinator Guild",
-		"Plague Vectors", "Wildfire"
-	])
-
-
-## Get civilization factions
-func get_civilization() -> Array:
-	return _get_factions_by_names([
-		"Granary Guilds", "Millwright's Union", "Yeast Prophets",
-		"Station Lords", "Void Serfs", "Carrion Throne", "Scavenged Psithurism"
-	])
-
-
-## Get tier 2 factions
-func get_tier2() -> Array:
-	return _get_factions_by_names([
-		"Tinker Team", "Seedvault Curators", "Relay Lattice", "Gearwright Circle",
-		"Terrarium Collective", "Clan of the Hidden Root", "Scythe Provosts",
-		"Ledger Bailiffs", "Measure Scribes", "The Indelible Precept"
-	])
 
 
 ## ========================================

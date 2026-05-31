@@ -2,8 +2,6 @@ class_name BubbleAtlasBatcher
 extends RefCounted
 
 # Shared constants
-const VisualizationConstants = preload("res://Core/Visualization/VisualizationConstants.gd")
-const VerboseHelper = preload("res://Core/Config/VerboseHelper.gd")
 
 ## Bubble Atlas Batcher - GPU-Accelerated Bubble Rendering
 ##
@@ -106,25 +104,24 @@ var current_quality: GraphicsQuality = GraphicsQuality.HIGH
 
 
 func set_graphics_quality(quality: GraphicsQuality) -> void:
-	"""Configure visual layers based on quality preset.
+	# Configure visual layers based on quality preset.
 
-	LOW:    Minimal layers for max FPS (37-50 FPS on llvmpipe)
-	        - Core bubble + border + emoji only
-	        - No glows, rings, spin, or wedges
+	# LOW:    Minimal layers for max FPS (37-50 FPS on llvmpipe)
+	# - Core bubble + border + emoji only
+	# - No glows, rings, spin, or wedges
 
-	MEDIUM: Balanced visuals (20-27 FPS on llvmpipe)
-	        - Core bubble + border + emoji
-	        - Berry phase glow (1 circle)
-	        - Spin pattern (subtle internal spiral)
-	        - No data rings or season wedges
+	# MEDIUM: Balanced visuals (20-27 FPS on llvmpipe)
+	# - Core bubble + border + emoji
+	# - Berry phase glow (1 circle)
+	# - Spin pattern (subtle internal spiral)
+	# - No data rings or season wedges
 
-	HIGH:   Full visual fidelity (12-18 FPS on llvmpipe, 60+ on GPU)
-	        - All layers enabled
-	        - Berry phase glow
-	        - Spin pattern
-	        - Season wedges (phi broadcast)
-	        - Data rings (purity, uncertainty)
-	"""
+	# HIGH:   Full visual fidelity (12-18 FPS on llvmpipe, 60+ on GPU)
+	# - All layers enabled
+	# - Berry phase glow
+	# - Spin pattern
+	# - Season wedges (phi broadcast)
+	# - Data rings (purity, uncertainty)
 	current_quality = quality
 
 	match quality:
@@ -153,109 +150,8 @@ func set_graphics_quality(quality: GraphicsQuality) -> void:
 # Arc configuration
 const ARC_SEGMENTS: int = 24  # Segments for full circle arc
 
-# =============================================================================
-# PURITY BAND CACHING - Pre-computed arc geometry for fast rendering
-# =============================================================================
-# Bands: 0=[0-0.25], 1=[0.25-0.5], 2=[0.5-0.75], 3=[0.75-1.0]
-# Arc angles: 45°, 135°, 225°, 315° (midpoint of each band × 360°)
-const PURITY_BAND_ANGLES: Array[float] = [
-	0.125 * TAU,   # Band 0: 45°
-	0.375 * TAU,   # Band 1: 135°
-	0.625 * TAU,   # Band 2: 225°
-	0.875 * TAU,   # Band 3: 315°
-]
-
-# Pre-computed unit arc geometry (relative to center, unit radius)
-# Format: PackedFloat64Array of [cos1, sin1, cos2, sin2] per segment, flattened
-var _purity_arc_cache: Array[PackedFloat64Array] = []  # Band index → flat array
-var _purity_arc_segment_counts: PackedInt32Array = PackedInt32Array()  # Segments per band
-var _purity_arc_cache_built: bool = false
-
-
-func _build_purity_arc_cache() -> void:
-	"""Pre-compute arc geometry for each purity band (call once at startup)."""
-	if _purity_arc_cache_built:
-		return
-
-	_purity_arc_cache.clear()
-	_purity_arc_segment_counts.clear()
-
-	for band in range(4):
-		var angle_span = PURITY_BAND_ANGLES[band]
-		var segments = maxi(8, int(absf(angle_span) * ARC_SEGMENTS / TAU))
-		var data = PackedFloat64Array()
-		data.resize(segments * 4)  # 4 floats per segment: cos1, sin1, cos2, sin2
-
-		for i in range(segments):
-			var t1 = float(i) / float(segments)
-			var t2 = float(i + 1) / float(segments)
-
-			var a1 = -PI / 2 + angle_span * t1  # Start from top (-PI/2)
-			var a2 = -PI / 2 + angle_span * t2
-
-			var base = i * 4
-			data[base + 0] = cos(a1)
-			data[base + 1] = sin(a1)
-			data[base + 2] = cos(a2)
-			data[base + 3] = sin(a2)
-
-		_purity_arc_cache.append(data)
-		_purity_arc_segment_counts.append(segments)
-
-	_purity_arc_cache_built = true
-
-
-func add_purity_ring_from_band(pos: Vector2, radius: float, width: float,
-							   band: int, color: Color) -> void:
-	"""Add purity ring using pre-cached geometry (FAST path).
-
-	Uses pre-computed cos/sin values in packed array - minimal overhead.
-	"""
-	if color.a < 0.01 or radius < 0.5 or width < 0.5:
-		return
-	if band < 0 or band > 3:
-		band = 1  # Default to middle band
-
-	var inner_radius = maxf(0.0, radius - width * 0.5)
-	var outer_radius = radius + width * 0.5
-
-	# Use pre-cached segment geometry (packed array for fast access)
-	var data = _purity_arc_cache[band]
-	var segments = _purity_arc_segment_counts[band]
-
-	for i in range(segments):
-		var base = i * 4
-		var cos1 = data[base + 0]
-		var sin1 = data[base + 1]
-		var cos2 = data[base + 2]
-		var sin2 = data[base + 3]
-
-		var inner1 = pos + Vector2(cos1 * inner_radius, sin1 * inner_radius)
-		var outer1 = pos + Vector2(cos1 * outer_radius, sin1 * outer_radius)
-		var inner2 = pos + Vector2(cos2 * inner_radius, sin2 * inner_radius)
-		var outer2 = pos + Vector2(cos2 * outer_radius, sin2 * outer_radius)
-
-		# Triangle 1: inner1, outer1, inner2
-		_arc_points.append(inner1)
-		_arc_points.append(outer1)
-		_arc_points.append(inner2)
-		_arc_colors.append(color)
-		_arc_colors.append(color)
-		_arc_colors.append(color)
-
-		# Triangle 2: inner2, outer1, outer2
-		_arc_points.append(inner2)
-		_arc_points.append(outer1)
-		_arc_points.append(outer2)
-		_arc_colors.append(color)
-		_arc_colors.append(color)
-		_arc_colors.append(color)
-
-	_arc_count += 1
-
-
 func _ensure_indices_capacity(size: int) -> void:
-	"""Ensure pre-allocated indices array is large enough."""
+	# Ensure pre-allocated indices array is large enough.
 	if size <= _max_indices_size:
 		return
 	# Grow with headroom to avoid frequent reallocations
@@ -269,7 +165,7 @@ func _ensure_indices_capacity(size: int) -> void:
 
 
 func _ensure_arc_indices_capacity(size: int) -> void:
-	"""Ensure pre-allocated arc indices array is large enough."""
+	# Ensure pre-allocated arc indices array is large enough.
 	if size <= _max_arc_indices_size:
 		return
 	var new_size = maxi(size, _max_arc_indices_size * 2)
@@ -291,13 +187,12 @@ func _init():
 
 
 func build_atlas() -> bool:
-	"""Pre-render all geometric templates to a GPU texture atlas.
+	# Pre-render all geometric templates to a GPU texture atlas.
 
-	Call this ONCE at startup.
+	# Call this ONCE at startup.
 
-	Returns:
-		true if atlas was built successfully
-	"""
+	# Returns:
+	# true if atlas was built successfully
 	var start_time = Time.get_ticks_msec()
 
 	# Create atlas image (RGBA8 for transparency)
@@ -342,23 +237,19 @@ func build_atlas() -> bool:
 	_atlas_texture = ImageTexture.create_from_image(_atlas_image)
 	_atlas_built = true
 
-	# Pre-compute purity band arc geometry (avoids per-frame trig calls)
-	_build_purity_arc_cache()
-
 	var elapsed = Time.get_ticks_msec() - start_time
-	_log_debug("[BubbleAtlasBatcher] Atlas built: %dx%d (%d templates) + %d purity bands in %dms" % [
-		ATLAS_WIDTH, ATLAS_HEIGHT, _template_uvs.size(), _purity_arc_cache.size(), elapsed
+	_log_debug("[BubbleAtlasBatcher] Atlas built: %dx%d (%d templates) in %dms" % [
+		ATLAS_WIDTH, ATLAS_HEIGHT, _template_uvs.size(), elapsed
 	])
 
 	return true
 
 
 func _render_template(template_name: String, cell_size: int, radius_factor: float, is_ring: bool, thickness: float) -> Image:
-	"""Render a single geometric template to an Image.
+	# Render a single geometric template to an Image.
 
-	Creates grayscale/white shapes with anti-aliased edges.
-	Color modulation is applied per-vertex at draw time.
-	"""
+	# Creates grayscale/white shapes with anti-aliased edges.
+	# Color modulation is applied per-vertex at draw time.
 	# Special templates with custom rendering
 	if template_name == "wedge_gradient":
 		return _render_wedge_template(cell_size)
@@ -413,16 +304,15 @@ func _render_template(template_name: String, cell_size: int, radius_factor: floa
 
 
 func _render_wedge_template(cell_size: int) -> Image:
-	"""Render a triangular gradient wedge for season broadcast.
+	# Render a triangular gradient wedge for season broadcast.
 
-	The wedge:
-	- Points upward (0° = up, will be rotated at draw time)
-	- Inner radius = 0.5 (starts at bubble edge when scaled)
-	- Outer radius = 1.0 (extends to 2× bubble radius)
-	- Angular span = 40° (20° each side)
-	- Gradient: alpha 1.0 at inner → 0.0 at outer
-	- Soft angular falloff at edges
-	"""
+	# The wedge:
+	# - Points upward (0° = up, will be rotated at draw time)
+	# - Inner radius = 0.5 (starts at bubble edge when scaled)
+	# - Outer radius = 1.0 (extends to 2× bubble radius)
+	# - Angular span = 40° (20° each side)
+	# - Gradient: alpha 1.0 at inner → 0.0 at outer
+	# - Soft angular falloff at edges
 	var img = Image.create(cell_size, cell_size, false, Image.FORMAT_RGBA8)
 	img.fill(Color(0, 0, 0, 0))
 
@@ -469,11 +359,10 @@ func _render_wedge_template(cell_size: int) -> Image:
 
 
 func _render_spin_spiral_template(cell_size: int) -> Image:
-	"""Render a subtle spiral pattern for spinning illusion.
+	# Render a subtle spiral pattern for spinning illusion.
 
-	Creates radial lines with slight spiral twist that, when rotated,
-	create the illusion of a spinning disk.
-	"""
+	# Creates radial lines with slight spiral twist that, when rotated,
+	# create the illusion of a spinning disk.
 	var img = Image.create(cell_size, cell_size, false, Image.FORMAT_RGBA8)
 	img.fill(Color(0, 0, 0, 0))
 
@@ -519,7 +408,7 @@ func _render_spin_spiral_template(cell_size: int) -> Image:
 
 
 func _wrap_angle(angle: float) -> float:
-	"""Wrap angle to [-PI, PI] range."""
+	# Wrap angle to [-PI, PI] range.
 	while angle > PI:
 		angle -= TAU
 	while angle < -PI:
@@ -528,17 +417,16 @@ func _wrap_angle(angle: float) -> float:
 
 
 func smoothstep(edge0: float, edge1: float, x: float) -> float:
-	"""Smooth interpolation between edges."""
+	# Smooth interpolation between edges.
 	var t = clampf((x - edge0) / (edge1 - edge0), 0.0, 1.0)
 	return t * t * (3.0 - 2.0 * t)
 
 
 func begin(canvas_item: RID) -> void:
-	"""Begin a new batch frame.
+	# Begin a new batch frame.
 
-	Args:
-		canvas_item: The canvas item RID to draw to (from get_canvas_item())
-	"""
+	# Args:
+	# canvas_item: The canvas item RID to draw to (from get_canvas_item())
 	_canvas_item = canvas_item
 	_points.clear()
 	_uvs.clear()
@@ -551,14 +439,13 @@ func begin(canvas_item: RID) -> void:
 
 
 func add_circle_layer(template: String, pos: Vector2, radius: float, color: Color) -> void:
-	"""Add a circle layer using pre-rendered atlas template.
+	# Add a circle layer using pre-rendered atlas template.
 
-	Args:
-		template: Template name (e.g., "circle_100", "circle_160")
-		pos: Center position in screen space
-		radius: Desired radius in pixels
-		color: Color to modulate (applied via per-vertex colors)
-	"""
+	# Args:
+	# template: Template name (e.g., "circle_100", "circle_160")
+	# pos: Center position in screen space
+	# radius: Desired radius in pixels
+	# color: Color to modulate (applied via per-vertex colors)
 	if not _template_uvs.has(template):
 		push_warning("[BubbleAtlasBatcher] Unknown template: %s" % template)
 		return
@@ -575,15 +462,14 @@ func add_circle_layer(template: String, pos: Vector2, radius: float, color: Colo
 
 
 func _add_quad_to_batch(center: Vector2, radius: float, uv_rect: Rect2, color: Color) -> void:
-	"""Add a textured quad to the batch arrays.
+	# Add a textured quad to the batch arrays.
 
-	Creates 2 triangles (6 vertices) for the quad.
-	"""
+	# Creates 2 triangles (6 vertices) for the quad.
 	var half_size = Vector2(radius, radius)
 
 	# Quad corners
 	var tl = center - half_size
-	var tr = center + Vector2(half_size.x, -half_size.y)
+	var corner_tr = center + Vector2(half_size.x, -half_size.y)
 	var bl = center + Vector2(-half_size.x, half_size.y)
 	var br = center + half_size
 
@@ -593,9 +479,9 @@ func _add_quad_to_batch(center: Vector2, radius: float, uv_rect: Rect2, color: C
 	var uv_bl = Vector2(uv_rect.position.x, uv_rect.position.y + uv_rect.size.y)
 	var uv_br = Vector2(uv_rect.position.x + uv_rect.size.x, uv_rect.position.y + uv_rect.size.y)
 
-	# Triangle 1: tl, tr, br
+	# Triangle 1: tl, corner_tr, br
 	_points.append(tl); _uvs.append(uv_tl); _colors.append(color)
-	_points.append(tr); _uvs.append(uv_tr); _colors.append(color)
+	_points.append(corner_tr); _uvs.append(uv_tr); _colors.append(color)
 	_points.append(br); _uvs.append(uv_br); _colors.append(color)
 
 	# Triangle 2: tl, br, bl
@@ -606,18 +492,17 @@ func _add_quad_to_batch(center: Vector2, radius: float, uv_rect: Rect2, color: C
 
 func add_rotated_quad(template: String, center: Vector2, radius: float,
 					  rotation: float, color: Color) -> void:
-	"""Add a rotated textured quad using pre-rendered atlas template.
+	# Add a rotated textured quad using pre-rendered atlas template.
 
-	Rotates the quad corners around the center while keeping UV mapping fixed.
-	This allows the wedge template to be drawn at any angle without multiple atlas entries.
+	# Rotates the quad corners around the center while keeping UV mapping fixed.
+	# This allows the wedge template to be drawn at any angle without multiple atlas entries.
 
-	Args:
-		template: Template name (e.g., "wedge_gradient")
-		center: Center position in screen space
-		radius: Desired radius in pixels (half the quad size)
-		rotation: Rotation angle in radians
-		color: Color to modulate (applied via per-vertex colors)
-	"""
+	# Args:
+	# template: Template name (e.g., "wedge_gradient")
+	# center: Center position in screen space
+	# radius: Desired radius in pixels (half the quad size)
+	# rotation: Rotation angle in radians
+	# color: Color to modulate (applied via per-vertex colors)
 	if not _template_uvs.has(template):
 		push_warning("[BubbleAtlasBatcher] Unknown template: %s" % template)
 		return
@@ -653,7 +538,7 @@ func add_rotated_quad(template: String, center: Vector2, radius: float,
 		rotated.append(center + rotated_offset)
 
 	var tl = rotated[0]
-	var tr = rotated[1]
+	var corner_tr = rotated[1]
 	var bl = rotated[2]
 	var br = rotated[3]
 
@@ -663,9 +548,9 @@ func add_rotated_quad(template: String, center: Vector2, radius: float,
 	var uv_bl = Vector2(uv_rect.position.x, uv_rect.position.y + uv_rect.size.y)
 	var uv_br = Vector2(uv_rect.position.x + uv_rect.size.x, uv_rect.position.y + uv_rect.size.y)
 
-	# Triangle 1: tl, tr, br
+	# Triangle 1: tl, corner_tr, br
 	_points.append(tl); _uvs.append(uv_tl); _colors.append(color)
-	_points.append(tr); _uvs.append(uv_tr); _colors.append(color)
+	_points.append(corner_tr); _uvs.append(uv_tr); _colors.append(color)
 	_points.append(br); _uvs.append(uv_br); _colors.append(color)
 
 	# Triangle 2: tl, br, bl
@@ -677,10 +562,9 @@ func add_rotated_quad(template: String, center: Vector2, radius: float,
 
 
 func add_arc_layer(pos: Vector2, radius: float, from_angle: float, to_angle: float, width: float, color: Color) -> void:
-	"""Add an arc layer using dynamic geometry (batched).
+	# Add an arc layer using dynamic geometry (batched).
 
-	For variable-angle arcs that can't be pre-rendered.
-	"""
+	# For variable-angle arcs that can't be pre-rendered.
 	if color.a < 0.01:
 		return
 
@@ -736,7 +620,7 @@ func add_arc_layer(pos: Vector2, radius: float, from_angle: float, to_angle: flo
 
 
 func add_filled_arc(pos: Vector2, radius: float, from_angle: float, to_angle: float, color: Color) -> void:
-	"""Add a filled arc (pie slice) using dynamic geometry."""
+	# Add a filled arc (pie slice) using dynamic geometry.
 	if color.a < 0.01:
 		return
 
@@ -771,11 +655,10 @@ func add_filled_arc(pos: Vector2, radius: float, from_angle: float, to_angle: fl
 
 
 func flush() -> void:
-	"""Submit all batched draws to RenderingServer.
+	# Submit all batched draws to RenderingServer.
 
-	ONE draw call for textured quads (atlas), ONE for arcs (untextured).
-	Uses pre-allocated indices arrays to avoid slow GDScript loops.
-	"""
+	# ONE draw call for textured quads (atlas), ONE for arcs (untextured).
+	# Uses pre-allocated indices arrays to avoid slow GDScript loops.
 	if not _canvas_item.is_valid():
 		return
 
@@ -821,17 +704,17 @@ func flush() -> void:
 
 
 func is_atlas_built() -> bool:
-	"""Check if atlas is ready for use."""
+	# Check if atlas is ready for use.
 	return _atlas_built
 
 
 func get_atlas_texture() -> ImageTexture:
-	"""Get the atlas texture (for debugging/visualization)."""
+	# Get the atlas texture (for debugging/visualization).
 	return _atlas_texture
 
 
 func release_resources() -> void:
-	"""Release atlas texture and batched draw state before shutdown."""
+	# Release atlas texture and batched draw state before shutdown.
 	_canvas_item = RID()
 	_points.clear()
 	_uvs.clear()
@@ -839,15 +722,13 @@ func release_resources() -> void:
 	_arc_points.clear()
 	_arc_colors.clear()
 	_template_uvs.clear()
-	_purity_arc_cache.clear()
-	_purity_arc_segment_counts.clear()
 	_atlas_texture = null
 	_atlas_image = null
 	_atlas_built = false
 
 
 func get_stats() -> Dictionary:
-	"""Get batching statistics for performance monitoring."""
+	# Get batching statistics for performance monitoring.
 	var total_verts = _last_vertex_count + _last_arc_count
 	return {
 		"layer_count": _layer_count,
@@ -864,29 +745,28 @@ func get_stats() -> Dictionary:
 # HIGH-LEVEL BUBBLE DRAWING API
 # =============================================================================
 # These methods mirror the C++ batched_bubble_renderer.cpp visual layers
-# for easy migration. Call these instead of low-level add_circle_layer().
+# for direct use. Call these instead of low-level add_circle_layer().
 
 func draw_bubble(pos: Vector2, base_radius: float, anim_scale: float, anim_alpha: float,
-				 base_color: Color, energy: float, time: float,
+				 base_color: Color, time: float,
 				 is_measured: bool, is_celestial: bool,
-				 individual_purity: float = 0.5, biome_purity: float = 0.5,
 				 global_prob: float = 0.0, p_north: float = 0.0, p_south: float = 0.0,
 				 sink_flux: float = 0.0, _pulse_phase: float = 0.0,
 				 phi_raw: float = 0.0, season_projections: Array = [],
-				 coherence: float = 0.0, shadow_influence: Dictionary = {},
+				 coherence: float = 0.0, purity: float = -1.0, shadow_influence: Dictionary = {},
 				 berry_phase: float = 0.0) -> void:
-	"""Draw a complete bubble with all visual layers.
+	# Draw a complete bubble with all visual layers.
 
-	Replicates the C++ batched_bubble_renderer visual appearance.
-	Now includes spinning bubbles with triangular seasonal broadcast.
+	# Replicates the C++ batched_bubble_renderer visual appearance.
+	# Now includes spinning bubbles with triangular seasonal broadcast.
 
-	New parameters for spinning/wedges:
-		phi_raw: Raw phase angle (drives rotation)
-		season_projections: [R, G, B] intensities at 0°, 120°, 240°
-		coherence: Coherence magnitude for spin pattern visibility
-		shadow_influence: Optional {tint: Color, strength: float} from nearby bubbles
-		berry_phase: Accumulated geometric phase (drives glow intensity)
-	"""
+	# New parameters for spinning/wedges:
+	# phi_raw: Raw phase angle (drives rotation)
+	# season_projections: [R, G, B] intensities at 0°, 120°, 240°
+	# coherence: Coherence magnitude for spin pattern visibility
+	# purity: Explicit state purity for its own ring channel
+	# shadow_influence: Optional {tint: Color, strength: float} from nearby bubbles
+	# berry_phase: Accumulated geometric phase (drives glow intensity)
 	if anim_scale <= 0.0:
 		return
 
@@ -945,7 +825,7 @@ func draw_bubble(pos: Vector2, base_radius: float, anim_scale: float, anim_alpha
 	# === LAYER 6b-6e: Data rings (non-celestial only) ===
 	if draw_data_rings and not is_celestial:
 		_draw_data_rings(pos, effective_radius, anim_alpha,
-			individual_purity, biome_purity, global_prob, p_north, p_south, sink_flux, time)
+			global_prob, p_north, p_south, sink_flux, purity, time)
 
 	# === LAYER 7: Phi arc + directional wedge (non-celestial, non-measured only) ===
 	if enable_season_wedges and not is_celestial and not is_measured and season_projections.size() >= 3:
@@ -953,7 +833,7 @@ func draw_bubble(pos: Vector2, base_radius: float, anim_scale: float, anim_alpha
 
 
 func _draw_measured_glow(pos: Vector2, base_radius: float, anim_scale: float, anim_alpha: float, _time: float) -> void:
-	"""Draw single cyan glow for measured bubbles (simplified for performance)."""
+	# Draw single cyan glow for measured bubbles (simplified for performance).
 
 	var glow_alpha = 0.65 * anim_alpha
 	var glow_radius = base_radius * 1.9 * anim_scale
@@ -961,7 +841,7 @@ func _draw_measured_glow(pos: Vector2, base_radius: float, anim_scale: float, an
 
 
 func _draw_unmeasured_glow(pos: Vector2, effective_radius: float, glow_tint: Color, glow_alpha: float, is_celestial: bool) -> void:
-	"""Draw single complementary-hued glow for unmeasured bubbles (shows berry phase via glow_alpha)."""
+	# Draw single complementary-hued glow for unmeasured bubbles (shows berry phase via glow_alpha).
 	# Single glow circle - glow_alpha encodes energy/berry phase
 	var glow_mult = 2.0 if is_celestial else 1.7
 	var glow_color = glow_tint
@@ -970,7 +850,7 @@ func _draw_unmeasured_glow(pos: Vector2, effective_radius: float, glow_tint: Col
 
 
 func _draw_measured_outline(pos: Vector2, base_radius: float, anim_scale: float, anim_alpha: float, _time: float) -> void:
-	"""Draw cyan outline with checkmark indicator for measured bubbles."""
+	# Draw cyan outline with checkmark indicator for measured bubbles.
 
 	# Outer cyan ring
 	var outline_alpha = 0.95 * anim_alpha
@@ -988,30 +868,9 @@ func _draw_measured_outline(pos: Vector2, base_radius: float, anim_scale: float,
 
 
 func _draw_data_rings(pos: Vector2, effective_radius: float, anim_alpha: float,
-					  individual_purity: float, biome_purity: float,
 					  global_prob: float, p_north: float, p_south: float,
-					  sink_flux: float, time: float) -> void:
-	"""Draw purity, probability, and uncertainty data rings."""
-
-	# Purity ring (inner) - OPTIMIZED: uses pre-cached arc geometry
-	if individual_purity > 0.01:
-		# Bucket purity into bands for color + cached arc geometry
-		var purity_band = clampi(int(individual_purity * 4.0), 0, 3)
-		var biome_band = clampi(int(biome_purity * 4.0), 0, 3)
-
-		var purity_color: Color
-		if purity_band > biome_band:
-			purity_color = Color(0.4, 0.9, 1.0, 0.6 * anim_alpha)  # Cyan: purer
-		elif purity_band < biome_band:
-			purity_color = Color(1.0, 0.4, 0.8, 0.6 * anim_alpha)  # Magenta: mixed
-		else:
-			purity_color = Color(0.9, 0.9, 0.9, 0.4 * anim_alpha)  # White: average
-
-		var purity_radius = effective_radius * 0.6
-		# Use cached arc geometry (no per-frame trig calls!)
-		add_purity_ring_from_band(pos, purity_radius, 2.0, purity_band, purity_color)
-
-	# Probability ring - REMOVED (redundant with bubble size)
+					  sink_flux: float, purity: float, time: float) -> void:
+	# Draw uncertainty and sink flux data rings.
 
 	# Uncertainty ring
 	var mass = p_north + p_south
@@ -1054,9 +913,18 @@ func _draw_data_rings(pos: Vector2, effective_radius: float, anim_alpha: float,
 
 			add_circle_layer("circle_050", Vector2(px, py), particle_size, particle_color)
 
+	# Purity ring: explicit mixed-state readout, separate from body size.
+	if purity >= 0.0:
+		var purity_clamped = clampf(purity, 0.0, 1.0)
+		var ring_radius = effective_radius * 1.22
+		var thickness = 1.5 + purity_clamped * 3.5
+		var ring_hue = 0.08 + purity_clamped * 0.22
+		var ring_color = Color.from_hsv(ring_hue, 0.45 + purity_clamped * 0.2, 0.95, 0.18 + purity_clamped * 0.28 * anim_alpha)
+		add_arc_layer(pos, ring_radius, 0, TAU, thickness, ring_color)
+
 
 func _get_complementary_color(base: Color) -> Color:
-	"""Calculate complementary glow color (180° hue shift)."""
+	# Calculate complementary glow color (180° hue shift).
 	var h = fmod(base.h + 0.5, 1.0)
 	var s = minf(base.s * 1.3, 1.0)
 	var v = maxf(base.v * 0.6, 0.3)
@@ -1064,7 +932,7 @@ func _get_complementary_color(base: Color) -> Color:
 
 
 func _lighten(color: Color, amount: float) -> Color:
-	"""Lighten a color by blending toward white (alpha controls layer opacity)."""
+	# Lighten a color by blending toward white (alpha controls layer opacity).
 	return Color(
 		minf(1.0, color.r + (1.0 - color.r) * amount),
 		minf(1.0, color.g + (1.0 - color.g) * amount),
@@ -1083,16 +951,15 @@ func _lighten(color: Color, amount: float) -> Color:
 func draw_season_wedges(pos: Vector2, radius: float, phi_raw: float,
 						season_projections: Array, anim_alpha: float,
 						shadow_influence: Dictionary = {}) -> void:
-	"""Draw 3 RGB wedges per bubble at 0°, 120°, 240° rotated by phi_raw.
+	# Draw 3 RGB wedges per bubble at 0°, 120°, 240° rotated by phi_raw.
 
-	Args:
-		pos: Bubble center position
-		radius: Bubble radius
-		phi_raw: Raw phase angle (drives rotation)
-		season_projections: [R, G, B] intensities at 0°, 120°, 240°
-		anim_alpha: Animation alpha for fade-in
-		shadow_influence: Optional {tint: Color, strength: float} from nearby bubbles
-	"""
+	# Args:
+	# pos: Bubble center position
+	# radius: Bubble radius
+	# phi_raw: Raw phase angle (drives rotation)
+	# season_projections: [R, G, B] intensities at 0°, 120°, 240°
+	# anim_alpha: Animation alpha for fade-in
+	# shadow_influence: Optional {tint: Color, strength: float} from nearby bubbles
 	if anim_alpha < 0.01:
 		return
 
@@ -1128,20 +995,19 @@ func draw_season_wedges(pos: Vector2, radius: float, phi_raw: float,
 
 func draw_phi_arc_and_wedge(pos: Vector2, radius: float, phi_raw: float,
 							season_projections: Array, coherence: float, anim_alpha: float) -> void:
-	"""Draw phi arc + directional wedge (Option B: clean phi visualization).
+	# Draw phi arc + directional wedge (Option B: clean phi visualization).
 
-	Replaces 3-wedge system with:
-	1. Phi arc: Small arc at bubble edge showing current phi position
-	2. Color wedge: Single wedge showing coupling direction & dominant season
+	# Replaces 3-wedge system with:
+	# 1. Phi arc: Small arc at bubble edge showing current phi position
+	# 2. Color wedge: Single wedge showing coupling direction & dominant season
 
-	Args:
-		pos: Bubble center position
-		radius: Bubble radius
-		phi_raw: Current phi angle (drives rotation)
-		season_projections: [R, G, B] intensities at 0°, 120°, 240°
-		coherence: Coherence magnitude (0-1)
-		anim_alpha: Animation alpha for fade-in
-	"""
+	# Args:
+	# pos: Bubble center position
+	# radius: Bubble radius
+	# phi_raw: Current phi angle (drives rotation)
+	# season_projections: [R, G, B] intensities at 0°, 120°, 240°
+	# coherence: Coherence magnitude (0-1)
+	# anim_alpha: Animation alpha for fade-in
 	if anim_alpha < 0.01 or coherence < 0.05:
 		return
 
@@ -1186,17 +1052,16 @@ func draw_phi_arc_and_wedge(pos: Vector2, radius: float, phi_raw: float,
 
 func draw_spin_pattern(pos: Vector2, radius: float, phi_raw: float,
 					   coherence: float, anim_alpha: float) -> void:
-	"""Draw subtle rotating internal spiral pattern.
+	# Draw subtle rotating internal spiral pattern.
 
-	Creates "spinning disk" illusion without disturbing bubble's main appearance.
+	# Creates "spinning disk" illusion without disturbing bubble's main appearance.
 
-	Args:
-		pos: Bubble center position
-		radius: Bubble radius
-		phi_raw: Raw phase angle (drives rotation)
-		coherence: Coherence magnitude (higher = more visible pattern)
-		anim_alpha: Animation alpha for fade-in
-	"""
+	# Args:
+	# pos: Bubble center position
+	# radius: Bubble radius
+	# phi_raw: Raw phase angle (drives rotation)
+	# coherence: Coherence magnitude (higher = more visible pattern)
+	# anim_alpha: Animation alpha for fade-in
 	if anim_alpha < 0.01 or coherence < 0.05:
 		return  # Skip if invisible or decoherent
 

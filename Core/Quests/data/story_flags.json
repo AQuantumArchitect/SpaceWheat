@@ -85,11 +85,6 @@
         "trust": 0.12,
         "legitimacy": 0.05
       }
-    },
-    "arc_quest": {
-      "type": "STEER_TO_ATTRACTOR",
-      "biome": "StarterForest",
-      "hint": "The forest has a natural equilibrium it's trying to reach. Help it get there."
     }
   },
   {

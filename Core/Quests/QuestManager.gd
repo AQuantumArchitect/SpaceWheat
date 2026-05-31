@@ -6,20 +6,9 @@ extends Node
 ## Integrates with FarmEconomy for resource checking
 
 # Quest system dependency
-const QuestGenerator = preload("res://Core/Quests/QuestGenerator.gd")
-const QuestTheming = preload("res://Core/Quests/QuestTheming.gd")
-const QuestTypes = preload("res://Core/Quests/QuestTypes.gd")
-const QuestRewards = preload("res://Core/Quests/QuestRewards.gd")
-const QuestMath = preload("res://Core/Quests/QuestMath.gd")
-const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
-const FactionStateMatcher = preload("res://Core/QuantumSubstrate/FactionStateMatcher.gd")
-const QuestStateProjectionService = preload("res://Core/Quests/QuestStateProjectionService.gd")
-const PolicyGraph = preload("res://Core/AI/PolicyGraph.gd")
-const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
-const BiomeRegistry = preload("res://Core/Biomes/BiomeRegistry.gd")
 
 # Logging
-@onready var _verbose = InstrumentLocator.resolve_verbose_config(self)
+@onready var _verbose = get_node_or_null("/root/VerboseConfig")
 
 # =============================================================================
 # SIGNALS
@@ -32,8 +21,6 @@ signal quest_completed(quest_id: int, rewards: Dictionary)
 signal quest_failed(quest_id: int, reason: String)
 signal quest_expired(quest_id: int)
 signal active_quests_changed()
-signal offer_locked(quest_id: int)
-signal offer_unlocked(quest_id: int)
 signal icon_learned(north: String, south: String, faction: String)
 signal story_flag_fired(flag_id: String, flag_data: Dictionary)
 
@@ -42,10 +29,11 @@ signal story_flag_fired(flag_id: String, flag_data: Dictionary)
 # =============================================================================
 
 var active_quests: Dictionary = {}  # quest_id -> quest_data (status: "active" or "ready")
-var locked_offers: Dictionary = {}  # quest_id -> quest_data (status: "locked", persists across offer cycles)
+var story_offers: Dictionary = {}  # quest_id -> quest_data (story arc offers pending acknowledgement)
 var completed_quests: Array = []
 var failed_quests: Array = []
 var next_quest_id: int = 0
+var _announced_offers: Dictionary = {}  # quest_id -> true; dedup for quest_offered emit
 
 # Quest timers
 var quest_timers: Dictionary = {}  # quest_id -> Timer
@@ -54,9 +42,6 @@ var quest_timers: Dictionary = {}  # quest_id -> Timer
 var economy: Node = null
 var faction_manager: Node = null
 var current_biome: Node = null  # For tracking non-delivery quest progress
-var _biome_offer_counts: Dictionary = {}
-var _non_native_resonance_factor: float = 0.8  # from biome_economics.non_native_resonance_factor
-var _biome_config: Dictionary = {}  # Resolved biome_economics from PolicyGraph — passed to QuestTheming resonance gate
 var _state_projection: QuestStateProjectionService = QuestStateProjectionService.new()
 var _story_flags: Array = []    # All flag definitions loaded from story_flags.json
 var _unfired_flags: Array = []  # Subset not yet in farm.story_flags_fired
@@ -66,7 +51,6 @@ var _unfired_flags: Array = []  # Subset not yet in farm.story_flags_fired
 # =============================================================================
 
 const MAX_ACTIVE_QUESTS: int = 5
-const MAX_LOCKED_OFFERS: int = 3
 const QUEST_OFFER_COOLDOWN: float = 30.0  # Seconds between new quest offers
 const AUTO_FAIL_ON_RESOURCE_SHORTAGE: bool = true
 
@@ -128,10 +112,6 @@ func _physics_process(delta: float) -> void:
 				_update_prevent_decoherence_quest(quest, delta)
 			QuestTypes.Type.COLLAPSE_DELIBERATELY:
 				_update_collapse_deliberately_quest(quest, delta)
-			QuestTypes.Type.STEER_TO_ATTRACTOR:
-				_update_steer_to_attractor_quest(quest, delta)
-			QuestTypes.Type.HEAL_ATTRACTOR:
-				_update_heal_attractor_quest(quest, delta)
 	var t1 = Time.get_ticks_usec()
 	if Engine.get_physics_frames() % 60 == 0:
 		if _verbose:
@@ -197,7 +177,7 @@ func _evaluate_story_flags() -> void:
 		return
 	for flag in _unfired_flags.duplicate():
 		var predicates = flag.get("predicates", [])
-		if _evaluate_flag_predicates(predicates, farm) >= FLAG_FIRE_THRESHOLD:
+		if _evaluate_flag_fire_predicates(predicates, farm) >= FLAG_FIRE_THRESHOLD:
 			_fire_story_flag(flag, farm)
 
 
@@ -211,6 +191,20 @@ func _evaluate_flag_predicates(predicates: Array, farm) -> float:
 		if not (pred is Dictionary):
 			return 0.0
 		scores.append(_check_flag_predicate(pred, farm))
+	return QuestMath.smooth_and(scores)
+
+
+func _evaluate_flag_fire_predicates(predicates: Array, farm) -> float:
+	## Returns a hard-threshold confidence score for actual story-flag firing.
+	## The Arc tab keeps the soft projection; firing should happen at the
+	## threshold, not after overshoot.
+	if predicates.is_empty():
+		return 0.0
+	var scores: Array = []
+	for pred in predicates:
+		if not (pred is Dictionary):
+			return 0.0
+		scores.append(_check_flag_predicate_fire(pred, farm))
 	return QuestMath.smooth_and(scores)
 
 
@@ -265,10 +259,11 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 			var pole := int(coord.get("pole", 0))
 			if qubit < 0:
 				return 0.0
-			var marginal: float = biome.quantum_computer.get_marginal(qubit, pole)
+			var snap: Dictionary = biome.viz_cache.get_snapshot(qubit)
+			var marginal: float = float(snap.get("p1" if pole == 1 else "p0", 0.0))
 			return QuestMath.soft_gate(marginal, float(pred.get("value", 0.0)))
 		"signature_size_gte":
-			return QuestMath.soft_gate(float(farm.known_pairs.size()), float(pred.get("value", 0)), 2.0)
+			return QuestMath.soft_gate(float(farm.known_icons.size()), float(pred.get("value", 0)), 2.0)
 		"atom_count_gte":
 			if farm.grid == null:
 				return 0.0
@@ -317,6 +312,131 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 			return 0.0
 
 
+func _check_flag_predicate_fire(pred: Dictionary, farm) -> float:
+	## Returns 1.0 when a predicate is fully satisfied, 0.0 otherwise.
+	## This is used for one-shot story-flag firing.
+	var kind := str(pred.get("type", ""))
+	match kind:
+		"story_flag_set":
+			return 1.0 if farm.story_flags_fired.has(str(pred.get("id", ""))) else 0.0
+		"biome_evolving":
+			if farm.grid == null:
+				return 0.0
+			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
+			return 1.0 if (biome != null and biome.get("quantum_computer") != null) else 0.0
+		"berry_consumed_count_gte":
+			if farm.grid == null:
+				return 0.0
+			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
+			if biome == null or biome.get("quantum_computer") == null:
+				return 0.0
+			var count := float(biome.quantum_computer.berry_register.get_consumed_count())
+			return 1.0 if count >= float(pred.get("value", 0)) else 0.0
+		"berry_total_phase_gte":
+			if farm.grid == null:
+				return 0.0
+			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
+			if biome == null or biome.get("quantum_computer") == null:
+				return 0.0
+			var phase: float = biome.quantum_computer.berry_register.get_consumed_phase()
+			return 1.0 if phase >= float(pred.get("value", 0.0)) else 0.0
+		"standing_gte":
+			var standing = farm.faction_standings.get(str(pred.get("faction", "")))
+			if standing == null:
+				return 0.0
+			var channel: String = str(pred.get("channel", "trust"))
+			var current := float(standing.to_dict().get(channel, 0.0))
+			return 1.0 if current >= float(pred.get("value", 0.0)) else 0.0
+		"biome_state_gte":
+			if farm.grid == null:
+				return 0.0
+			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
+			if biome == null or biome.get("quantum_computer") == null:
+				return 0.0
+			var atom := str(pred.get("atom", ""))
+			var reg = biome.quantum_computer.register_map
+			if reg == null or not reg.coordinates.has(atom):
+				return 0.0
+			var coord: Dictionary = reg.coordinates[atom]
+			var qubit := int(coord.get("qubit", -1))
+			var pole := int(coord.get("pole", 0))
+			if qubit < 0:
+				return 0.0
+			var snap: Dictionary = biome.viz_cache.get_snapshot(qubit)
+			var marginal: float = float(snap.get("p1" if pole == 1 else "p0", 0.0))
+			return 1.0 if marginal >= float(pred.get("value", 0.0)) else 0.0
+		"signature_size_gte":
+			return 1.0 if float(farm.known_icons.size()) >= float(pred.get("value", 0)) else 0.0
+		"atom_count_gte":
+			if farm.grid == null:
+				return 0.0
+			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
+			if biome == null or biome.get("quantum_computer") == null:
+				return 0.0
+			var count := float(biome.quantum_computer.register_map.coordinates.size())
+			return 1.0 if count >= float(pred.get("value", 0)) else 0.0
+		"atom_in_biome":
+			if farm.grid == null:
+				return 0.0
+			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
+			if biome == null or biome.get("quantum_computer") == null:
+				return 0.0
+			return 1.0 if biome.quantum_computer.register_map.coordinates.has(str(pred.get("atom", ""))) else 0.0
+		"biome_attractor_emoji_gte":
+			if farm.grid == null:
+				return 0.0
+			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
+			if biome == null or not biome.has_method("get_attractor_state"):
+				return 0.0
+			var attractor: Dictionary = biome.get_attractor_state()
+			return 1.0 if float(attractor.get(str(pred.get("emoji", "")), 0.0)) >= float(pred.get("value", 0.5)) else 0.0
+		"biome_eigenvalue_gap_gte":
+			if farm.grid == null:
+				return 0.0
+			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
+			if biome == null or not biome.has_method("get_attractor_state"):
+				return 0.0
+			var attractor: Dictionary = biome.get_attractor_state()
+			return 1.0 if float(attractor.get("eigenvalue_gap", 0.0)) >= float(pred.get("value", 0.15)) else 0.0
+		"biome_purity_trending":
+			if farm.grid == null:
+				return 0.0
+			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
+			if biome == null or not biome.has_method("predict_purity"):
+				return 0.0
+			var steps := int(pred.get("steps", 5))
+			var trend: float = biome.predict_purity(steps) - biome.get_purity()
+			return 1.0 if trend >= 0.01 else 0.0
+		_:
+			return 0.0
+
+
+## Public: all loaded story flags (for Arc tab and tooling).
+func get_all_story_flags() -> Array:
+	return _story_flags
+
+
+## Public: score a single predicate against the active farm. Score is in [0,1];
+## ≥ FLAG_FIRE_THRESHOLD on combined `smooth_and` over a flag's predicates is
+## what triggers a fire. Used by C-surface Arc tab to show progress.
+func evaluate_predicate_score(pred: Dictionary) -> float:
+	var farm = _get_active_farm()
+	if farm == null or not (pred is Dictionary):
+		return 0.0
+	return _check_flag_predicate(pred, farm)
+
+
+## Public: combined `smooth_and` score for a whole flag's predicates.
+func evaluate_flag_score(flag: Dictionary) -> float:
+	var farm = _get_active_farm()
+	if farm == null:
+		return 0.0
+	var preds = flag.get("predicates", [])
+	if not (preds is Array):
+		return 0.0
+	return _evaluate_flag_predicates(preds, farm)
+
+
 func _fire_story_flag(flag: Dictionary, farm) -> void:
 	var flag_id := str(flag.get("id", ""))
 	if flag_id == "" or farm.story_flags_fired.has(flag_id):
@@ -345,19 +465,21 @@ func offer_story_quest(quest_def: Dictionary, source_flag: String) -> int:
 		"id": quest_id,
 		"category": "ARC",
 		"source_flag": source_flag,
-		"status": "locked",
+		"status": "story",
 		"expires": false,
-		"locked_at": Time.get_ticks_msec(),
+		"offered_at": Time.get_ticks_msec(),
 	}
 	q.merge(quest_def)
-	locked_offers[quest_id] = q
-	offer_locked.emit(quest_id)
+	story_offers[quest_id] = q
+	if not _announced_offers.has(quest_id):
+		_announced_offers[quest_id] = true
+		quest_offered.emit(q)
 	return quest_id
 
 
-## True if any locked or active quest has source_flag == flag_id (for save/load restore check).
+## True if any story or active quest has source_flag == flag_id (for save/load restore check).
 func has_quest_for_flag(flag_id: String) -> bool:
-	for q in locked_offers.values():
+	for q in story_offers.values():
 		if q.get("source_flag") == flag_id:
 			return true
 	for q in active_quests.values():
@@ -367,7 +489,7 @@ func has_quest_for_flag(flag_id: String) -> bool:
 
 
 func _get_gsm():
-	return InstrumentLocator.resolve_game_state_manager(self)
+	return get_node_or_null("/root/GameStateManager")
 
 
 func _get_active_farm():
@@ -385,16 +507,16 @@ func _get_signature_emojis() -> Array:
 	return []
 
 
-func _discover_vocab_pair(north: String, south: String) -> bool:
+func _discover_icon(north: String, south: String) -> bool:
 	# Grant an icon to the player (farm-owned preferred).
 
 	# Returns true if signature was newly discovered, false if already known.
 	var gsm = _get_gsm()
 	var active_farm = gsm.get_active_farm() if gsm and gsm.has_method("get_active_farm") else null
-	if active_farm and active_farm.has_method("discover_pair"):
-		return active_farm.discover_pair(north, south)
+	if active_farm and active_farm.has_method("discover_icon"):
+		return active_farm.discover_icon(north, south)
 	elif gsm and gsm.player_progress:
-		return gsm.player_progress.discover_pair(north, south)
+		return gsm.player_progress.discover_icon(north, south)
 	return false
 
 
@@ -421,7 +543,7 @@ func _grant_resource_rewards(reward, faction_name: String) -> Dictionary:
 	return granted
 
 
-func _grant_vocabulary_rewards(reward, faction_name: String) -> void:
+func _grant_icon_rewards(reward, faction_name: String) -> void:
 	# Grant icon rewards and emit discovery signals.
 	if reward == null:
 		return
@@ -432,7 +554,7 @@ func _grant_vocabulary_rewards(reward, faction_name: String) -> void:
 		var south = pair.get("south", "")
 		if north == "" or south == "":
 			continue
-		var was_new = _discover_vocab_pair(north, south)
+		var was_new = _discover_icon(north, south)
 		if was_new:
 			icon_learned.emit(north, south, faction_name)
 			if _verbose:
@@ -460,207 +582,6 @@ func _build_reward_payload(reward, granted_resources: Dictionary) -> Dictionary:
 	return payload
 
 
-func _get_simulated_vocab_emojis(biome: Node) -> Array:
-	if not biome or not biome.has_method("get"):
-		return []
-	var qc = biome.get("quantum_computer")
-	if not qc or not qc.has_method("get"):
-		return []
-	var rm = qc.get("register_map")
-	if not rm:
-		return []
-	var coords = rm.get("coordinates") if rm.has_method("get") else null
-	if coords is Dictionary:
-		return coords.keys()
-	return []
-
-# =============================================================================
-# QUEST OFFERING
-# =============================================================================
-
-func _stamp_offered_quest(quest: Dictionary) -> void:
-	# Stamp status, timestamp, and emit offer signal. Called at end of all offer paths.
-	quest["status"] = "offered"
-	quest["offered_at"] = Time.get_ticks_msec()
-	quest_offered.emit(quest)
-
-
-## @deprecated — replaced by MarketLattice. Only used by test_quest_lifecycle().
-func offer_quest(faction: Dictionary, biome_name: String, resources: Array) -> Dictionary:
-	# Generate and offer a new quest
-
-	# Returns:
-	# Quest data with unique ID, or empty dict if offer failed
-	if active_quests.size() >= MAX_ACTIVE_QUESTS:
-		push_warning("Cannot offer quest: max active quests reached (%d)" % MAX_ACTIVE_QUESTS)
-		return {}
-
-	# Generate quest
-	var quest = QuestGenerator.generate_quest(faction, biome_name, resources)
-	if quest.is_empty():
-		return {}
-	if not _is_valid_offer(quest):
-		return {}
-
-	quest = _annotate_quest_context(quest, biome_name)
-
-	# Assign unique ID
-	quest["id"] = next_quest_id
-	next_quest_id += 1
-
-	_stamp_offered_quest(quest)
-	return quest
-
-func offer_emoji_quest(faction: Dictionary, biome_name: String, resources: Array) -> Dictionary:
-	# Generate and offer emoji-only quest
-	if active_quests.size() >= MAX_ACTIVE_QUESTS:
-		return {}
-
-	var quest = QuestGenerator.generate_emoji_quest(faction, biome_name, resources)
-	if quest.is_empty():
-		return {}
-	if not _is_valid_offer(quest):
-		return {}
-
-	quest["id"] = next_quest_id
-	next_quest_id += 1
-	_stamp_offered_quest(quest)
-	return quest
-
-# =============================================================================
-# EMERGENT QUEST OFFERING (Quantum x Faction)
-# =============================================================================
-
-## @deprecated — replaced by MarketLattice. No callers; safe to delete next cleanup.
-func offer_quest_emergent(faction: Dictionary, biome) -> Dictionary:
-	# Generate quest using emergent faction x biome multiplication
-
-	# This is the quantum approach: faction state-shape preferences are
-	# matched against biome quantum observables to generate quests.
-	# Respects player signature for resource constraints!
-
-	if active_quests.size() >= MAX_ACTIVE_QUESTS:
-		return {}
-
-	# Get player signature for filtering
-	var player_vocab = _get_signature_emojis()
-	var bias_emojis = _get_simulated_vocab_emojis(biome)
-
-	# Opportunistically offer a STEER_TO_ATTRACTOR quest if the biome has a stable attractor.
-	# This surfaces physics-guided quests alongside the standard faction-vocabulary quests.
-	var attractor_quest := _maybe_offer_attractor_quest(faction, biome)
-	if not attractor_quest.is_empty() and _is_valid_offer(attractor_quest):
-		attractor_quest["id"] = next_quest_id
-		next_quest_id += 1
-		attractor_quest["biome"] = biome.biome_name if biome and biome.get("biome_name") else "Unknown"
-		_stamp_offered_quest(attractor_quest)
-		# Fall through: still generate a regular quest too (both can coexist)
-
-	# Rarely (~1-in-6 chance), offer a HEAL_ATTRACTOR quest instead: perturb the biome
-	# and challenge the player to restore it.  Low probability keeps it dramatic.
-	if randi() % 6 == 0:
-		var heal_quest := _maybe_offer_heal_quest(faction, biome)
-		if not heal_quest.is_empty() and _is_valid_offer(heal_quest):
-			heal_quest["id"] = next_quest_id
-			next_quest_id += 1
-			heal_quest["biome"] = biome.biome_name if biome and biome.get("biome_name") else "Unknown"
-			_stamp_offered_quest(heal_quest)
-
-	# Generate via abstract machinery + theming (with signature constraint!)
-	var quest = QuestTheming.generate_quest(faction, biome, player_vocab, bias_emojis, self.economy, null, null, _biome_config)
-
-	# Check for signature mismatch error
-	if quest.is_empty() or quest.has("error"):
-		return {}  # Faction inaccessible - no signature overlap
-	if not _is_valid_offer(quest):
-		return {}
-
-	var biome_name = biome.biome_name if biome and biome.get("biome_name") else ""
-	quest = _annotate_quest_context(quest, biome_name)
-
-	# Assign ID and metadata
-	quest["id"] = next_quest_id
-	next_quest_id += 1
-	quest["biome"] = biome.biome_name if biome and biome.get("biome_name") else "Unknown"
-
-	# Generate display text
-	quest["body"] = QuestTheming.generate_display_text(quest)
-	if quest.time_limit > 0:
-		quest["full_text"] = "%s wants: %s in %ds" % [quest.faction, quest.body, int(quest.time_limit)]
-	else:
-		quest["full_text"] = "%s wants: %s" % [quest.faction, quest.body]
-
-	_stamp_offered_quest(quest)
-	return quest
-
-
-func _maybe_offer_attractor_quest(faction: Dictionary, biome) -> Dictionary:
-	# Offer a STEER_TO_ATTRACTOR quest when the biome has a stable, strong attractor.
-	# Called opportunistically from offer_quest_emergent; returns {} if conditions not met.
-	if not biome or not biome.has_method("get_attractor_state"):
-		return {}
-	var attractor: Dictionary = biome.get_attractor_state()
-	if attractor.is_empty():
-		return {}
-	var dominant_ev: float = attractor.get("dominant_eigenvalue", 0.0)
-	var gap: float = attractor.get("eigenvalue_gap", 0.0)
-	# Soft gate: offer probability rises smoothly as attractor strengthens.
-	# Below combined score of 0.5 the offer is suppressed — too weak to aim at.
-	var offer_gate := QuestMath.smooth_and([
-		QuestMath.soft_gate(dominant_ev, 0.6, 0.05),
-		QuestMath.soft_gate(gap, 0.08, 0.02),
-	])
-	if offer_gate < 0.5:
-		return {}
-	var emojis: Array = attractor.get("emojis", [])
-	if emojis.is_empty():
-		return {}
-	var top_emoji: String = emojis[0]
-	var biome_name: String = biome.biome_name if biome.get("biome_name") else "biome"
-	var quest := {
-		"type": QuestTypes.Type.STEER_TO_ATTRACTOR,
-		"faction": faction.get("name", "Unknown"),
-		"faction_emoji": "".join(faction.get("sig", []).slice(0, 3)),
-		"target_emoji": top_emoji,
-		"target_attractor_prob": 0.55,
-		"target_gap": 0.10,
-		"target_purity": 0.75,
-		"snapshot_attractor": attractor,
-		"body": "The %s is reaching for %s. Help it complete the loop." % [biome_name, top_emoji],
-		"hint": "Guide the biome's dominant state — high purity and a strong attractor both matter.",
-		"reward_multiplier": 1.5 + clampf(gap, 0.0, 0.5),
-		"time_limit": -1.0,
-		"expires": false,
-	}
-	return quest
-
-
-func _annotate_quest_context(quest: Dictionary, biome_name: String) -> Dictionary:
-	return _annotate_quest_context_with_vocab(quest, biome_name, _get_signature_emojis())
-
-
-func _annotate_quest_context_with_vocab(quest: Dictionary, biome_name: String, known: Array) -> Dictionary:
-	if not quest:
-		return quest
-	var biome_new = _track_biome_offer(biome_name)
-	quest["biome_new"] = biome_new
-	var north = quest.get("reward_north", "")
-	var south = quest.get("reward_south", "")
-	quest["contains_new_vocab"] = not (north in known and south in known)
-	quest["biome_name"] = biome_name
-	_apply_market_projection(quest)
-	return quest
-
-
-func _track_biome_offer(biome_name: String) -> bool:
-	if biome_name == "":
-		return false
-	var count = int(_biome_offer_counts.get(biome_name, 0))
-	var is_new = count < 1
-	_biome_offer_counts[biome_name] = count + 1
-	return is_new
-
-
 func offer_all_faction_quests(biome) -> Array:
 	# Generate quests for the current biome.
 
@@ -668,16 +589,13 @@ func offer_all_faction_quests(biome) -> Array:
 	# substrate (faction density, principal mode, biome admitted factions,
 	# player economy) and proposes bids that QuestManager wraps into the lifecycle.
 
-	# Locked offers are prepended (persist across cycles).
 	var quests: Array = []
-	for quest in locked_offers.values():
-		quests.append(quest)
 
 	var now_ms: int = Time.get_ticks_msec()
-	var player_vocab := _get_signature_emojis()
+	var player_icons := _get_signature_emojis()
 	var seen_pairs: Dictionary = {}
 	for quest in _offer_from_market_lattice(biome):
-		if not _is_valid_offer_with_vocab(quest, player_vocab):
+		if not _is_valid_offer_with_icons(quest, player_icons):
 			continue
 		var pk: String = "%s|%s" % [quest.get("reward_north", ""), quest.get("reward_south", "")]
 		if pk != "|" and seen_pairs.has(pk):
@@ -687,6 +605,9 @@ func offer_all_faction_quests(biome) -> Array:
 		next_quest_id += 1
 		quest["offered_at"] = now_ms
 		quests.append(quest)
+		if not _announced_offers.has(quest["id"]):
+			_announced_offers[quest["id"]] = true
+			quest_offered.emit(quest)
 	return quests
 
 
@@ -702,12 +623,7 @@ func get_state_projection_snapshot() -> Dictionary:
 	return _state_projection.get_snapshot()
 
 
-func _is_valid_offer(quest: Dictionary) -> bool:
-	# Reject broken offers (delivery with no resource/qty, north duplicate).
-	return _is_valid_offer_with_vocab(quest, _get_signature_emojis())
-
-
-func _is_valid_offer_with_vocab(quest: Dictionary, player_vocab: Array) -> bool:
+func _is_valid_offer_with_icons(quest: Dictionary, player_icons: Array) -> bool:
 	# Reject broken offers using pre-fetched player signature (avoids GSM walk).
 	if quest.is_empty():
 		return false
@@ -720,11 +636,11 @@ func _is_valid_offer_with_vocab(quest: Dictionary, player_vocab: Array) -> bool:
 
 	var north = quest.get("reward_north", "")
 	var south = quest.get("reward_south", "")
-	var has_vocab_pair = (north != "" and south != "")
-	var has_no_vocab = (north == "" and south == "")
-	if not has_vocab_pair and not has_no_vocab:
+	var has_icon_axis = (north != "" and south != "")
+	var has_no_icon = (north == "" and south == "")
+	if not has_icon_axis and not has_no_icon:
 		return false
-	if has_vocab_pair and (north in player_vocab or south in player_vocab):
+	if has_icon_axis and (north in player_icons or south in player_icons):
 		return false
 	return true
 
@@ -786,6 +702,8 @@ func accept_quest(quest_data: Dictionary) -> bool:
 	if active_quests.has(quest_id):
 		push_warning("Quest %d already active" % quest_id)
 		return false
+	if story_offers.has(quest_id):
+		story_offers.erase(quest_id)
 
 	# Update status
 	quest_data["status"] = "active"
@@ -826,7 +744,7 @@ func check_quest_completion(quest_id: int) -> bool:
 		return false
 
 	# Check if player has enough resources
-	# quantity is already in credits (10-150 range from QuestTheming)
+	# quantity is already in credits.
 	var player_amount = economy.get_resource(required_emoji)
 	return player_amount >= required_qty
 
@@ -870,32 +788,36 @@ func complete_quest(quest_id: int) -> bool:
 		push_warning("Cannot complete quest %d: insufficient resources" % quest_id)
 		return false
 
+	var faction_name = str(quest.get("faction", "Unknown"))
+
+	# Resource reward: route through the live MarketLattice only.
+	# If the lattice is unavailable, fail loudly and do not mutate the quest.
+	var granted_resources: Dictionary = {}
+	var lat = _get_farm_market_lattice()
+	if lat == null or not lat.has_method("synthesize_and_exercise"):
+		push_error("QuestManager: market lattice required for quest completion")
+		return false
+
+	var exer: Dictionary = lat.synthesize_and_exercise(required_emoji, faction_name)
+	if not exer.get("ok", false):
+		push_error("QuestManager: market lattice exercise failed for quest %d: %s" % [
+			quest_id,
+			str(exer.get("error", "unknown"))
+		])
+		return false
+
 	if not economy.remove_resource(required_emoji, required_qty, "quest_completion"):
 		var player_has = economy.get_resource(required_emoji)
 		push_error("Failed to deduct resources for quest %d: need %d %s, have %d" % [quest_id, required_qty, required_emoji, player_has])
 		return false
 
-	var faction_name = str(quest.get("faction", "Unknown"))
-
-	# Resource reward: route through MarketLattice.exercise for substrate-derived
-	# 1/p × QC_RATIO reward. Falls back to the icon-based QuestRewards path if
-	# there is no live market connection (biome not live, headless rig, etc.).
-	var granted_resources: Dictionary = {}
-	var lat = _get_farm_market_lattice()
-	if lat != null:
-		var exer: Dictionary = lat.synthesize_and_exercise(required_emoji, faction_name)
-		if exer.get("ok", false):
-			var out_emoji: String = str(exer.get("outcome", required_emoji))
-			granted_resources[out_emoji] = int(exer.get("classical_reward", 0))
-	else:
-		var player_vocab = _get_signature_emojis()
-		var reward_fallback = QuestRewards.generate_reward(quest, null, player_vocab)
-		granted_resources = _grant_resource_rewards(reward_fallback, faction_name)
+	var out_emoji: String = str(exer.get("outcome", required_emoji))
+	granted_resources[out_emoji] = int(exer.get("classical_reward", 0))
 
 	# Vocabulary and standing always go through their own paths.
-	var player_vocab2 = _get_signature_emojis()
-	var reward = QuestRewards.generate_reward(quest, null, player_vocab2)
-	_grant_vocabulary_rewards(reward, faction_name)
+	var player_icons2 = _get_signature_emojis()
+	var reward = QuestRewards.generate_reward(quest, null, player_icons2)
+	_grant_icon_rewards(reward, faction_name)
 	_apply_standing_deltas(faction_name, reward.standing_deltas if reward else {})
 
 	_finalize_quest_completion(quest_id, quest, reward, granted_resources)
@@ -1006,8 +928,12 @@ func _offer_from_market_lattice(biome) -> Array:
 			if bname == "": bname = str(biome.name) if "name" in biome else ""
 			var breg = BiomeRegistry.get_shared()
 			var bdef = breg.get_by_name(bname) if bname != "" else null
-			if bdef and "icons" in bdef:
-				for icon in bdef.icons:
+			var loadout: Array = []
+			if bdef:
+				if bdef.has_method("get_neighborhood_icons"):
+					loadout = bdef.get_neighborhood_icons()
+			if not loadout.is_empty():
+				for icon in loadout:
 					var p0: String = str(icon.get("pole_0", ""))
 					var p1: String = str(icon.get("pole_1", ""))
 					if p0 == res_emoji or p1 == res_emoji:
@@ -1065,11 +991,11 @@ func claim_quest(quest_id: int) -> bool:
 		return false
 
 	# Generate and grant rewards
-	var player_vocab = _get_signature_emojis()
-	var reward = QuestRewards.generate_reward(quest, null, player_vocab)
+	var player_icons = _get_signature_emojis()
+	var reward = QuestRewards.generate_reward(quest, null, player_icons)
 	var faction_name = quest.get("faction", "Unknown")
 	var granted_resources = _grant_resource_rewards(reward, faction_name)
-	_grant_vocabulary_rewards(reward, faction_name)
+	_grant_icon_rewards(reward, faction_name)
 	_apply_standing_deltas(faction_name, reward.standing_deltas if reward else {})
 
 	_finalize_quest_completion(quest_id, quest, reward, granted_resources)
@@ -1152,7 +1078,7 @@ func get_quest_time_remaining(quest_id: int) -> float:
 # QUEST TYPE TRACKING (non-delivery quests)
 # =============================================================================
 
-func _update_shape_achieve_quest(quest: Dictionary, delta: float) -> void:
+func _update_shape_achieve_quest(quest: Dictionary, _delta: float) -> void:
 	var observable_name = quest.get("observable", "purity")
 	var target_value := float(quest.get("target", 0.7))
 	var comparison = quest.get("comparison", ">")
@@ -1204,7 +1130,7 @@ func _update_shape_maintain_quest(quest: Dictionary, delta: float) -> void:
 			mark_quest_ready(quest_id, "maintained_duration")
 
 
-func _update_evolution_quest(quest: Dictionary, delta: float) -> void:
+func _update_evolution_quest(quest: Dictionary, _delta: float) -> void:
 	var observable_name = quest.get("observable", "purity")
 	var required_delta := float(quest.get("delta", 0.2))
 	var direction = quest.get("direction", "increase")
@@ -1228,7 +1154,7 @@ func _update_evolution_quest(quest: Dictionary, delta: float) -> void:
 			mark_quest_ready(quest_id, "evolution_achieved")
 
 
-func _update_entanglement_quest(quest: Dictionary, delta: float) -> void:
+func _update_entanglement_quest(quest: Dictionary, _delta: float) -> void:
 	var target_coherence := float(quest.get("target_coherence", 0.6))
 
 	var obs = get_biome_observables(current_biome)
@@ -1244,7 +1170,7 @@ func _update_entanglement_quest(quest: Dictionary, delta: float) -> void:
 			mark_quest_ready(quest_id, "entanglement_created")
 
 
-func _update_achieve_eigenstate_quest(quest: Dictionary, delta: float) -> void:
+func _update_achieve_eigenstate_quest(quest: Dictionary, _delta: float) -> void:
 	var target_purity := float(quest.get("target_purity", 0.95))
 
 	var obs = get_biome_observables(current_biome)
@@ -1287,7 +1213,7 @@ func _update_maintain_coherence_quest(quest: Dictionary, delta: float) -> void:
 			mark_quest_ready(quest_id, "coherence_maintained")
 
 
-func _update_induce_bell_state_quest(quest: Dictionary, delta: float) -> void:
+func _update_induce_bell_state_quest(quest: Dictionary, _delta: float) -> void:
 	var target_pair = quest.get("target_pair", [])
 	var threshold := float(quest.get("threshold", 0.7))
 
@@ -1334,7 +1260,7 @@ func _update_prevent_decoherence_quest(quest: Dictionary, delta: float) -> void:
 			mark_quest_ready(quest_id, "decoherence_prevented")
 
 
-func _update_collapse_deliberately_quest(quest: Dictionary, delta: float) -> void:
+func _update_collapse_deliberately_quest(quest: Dictionary, _delta: float) -> void:
 	var target_emoji = quest.get("target_emoji", "")
 	var target_probability := float(quest.get("target_probability", 0.8))
 
@@ -1361,100 +1287,6 @@ func _update_collapse_deliberately_quest(quest: Dictionary, delta: float) -> voi
 			mark_quest_ready(quest_id, "state_collapsed")
 
 
-func _update_steer_to_attractor_quest(quest: Dictionary, _delta: float) -> void:
-	if not current_biome or not current_biome.has_method("get_attractor_state"):
-		return
-	var attractor: Dictionary = current_biome.get_attractor_state()
-	if attractor.is_empty():
-		return
-	var emoji: String = quest.get("target_emoji", "")
-	var progress: float = QuestMath.smooth_and([
-		QuestMath.soft_gate(attractor.get(emoji, 0.0),
-				float(quest.get("target_attractor_prob", 0.55))),
-		QuestMath.soft_gate(attractor.get("eigenvalue_gap", 0.0),
-				float(quest.get("target_gap", 0.10)), 0.02),
-		QuestMath.soft_gate(current_biome.get_purity(),
-				float(quest.get("target_purity", 0.75))),
-	])
-	quest["progress"] = progress
-	if progress >= 0.9:
-		mark_quest_ready(quest.get("id", -1), "attractor_achieved")
-
-
-func _update_heal_attractor_quest(quest: Dictionary, _delta: float) -> void:
-	if not current_biome or not current_biome.has_method("get_attractor_state"):
-		return
-	var attractor: Dictionary = current_biome.get_attractor_state()
-	if attractor.is_empty():
-		return
-	var emoji: String = quest.get("target_emoji", "")
-	var progress: float = QuestMath.smooth_and([
-		QuestMath.soft_gate(attractor.get(emoji, 0.0),
-				float(quest.get("target_attractor_prob", 0.50))),
-		QuestMath.soft_gate(attractor.get("eigenvalue_gap", 0.0),
-				float(quest.get("target_gap", 0.10)), 0.02),
-		QuestMath.soft_gate(current_biome.get_purity(),
-				float(quest.get("target_purity", 0.70))),
-	])
-	quest["progress"] = progress
-	if progress >= 0.9:
-		mark_quest_ready(quest.get("id", -1), "attractor_healed")
-
-
-func _maybe_offer_heal_quest(faction: Dictionary, biome) -> Dictionary:
-	# Perturb the biome and offer a HEAL_ATTRACTOR quest to fix it.
-	# Only fires when the biome has a strong, readable attractor — we need a
-	# concrete target for the player to aim at after the perturbation lands.
-	if not biome or not biome.has_method("get_attractor_state"):
-		return {}
-	var attractor: Dictionary = biome.get_attractor_state()
-	if attractor.is_empty():
-		return {}
-	var dominant_ev: float = attractor.get("dominant_eigenvalue", 0.0)
-	var gap: float = attractor.get("eigenvalue_gap", 0.0)
-	# Require a very confident attractor before perturbing — the target must be
-	# unambiguous or the healing quest becomes impossible.  Soft gate so biomes
-	# approaching the threshold have a chance rather than a cliff edge.
-	var offer_gate := QuestMath.smooth_and([
-		QuestMath.soft_gate(dominant_ev, 0.65, 0.04),
-		QuestMath.soft_gate(gap, 0.10, 0.02),
-	])
-	if offer_gate < 0.6:
-		return {}
-	var emojis: Array = attractor.get("emojis", [])
-	if emojis.is_empty():
-		return {}
-	var top_emoji: String = emojis[0]
-	var biome_name: String = biome.biome_name if biome.get("biome_name") else "biome"
-
-	# Apply the perturbation — this physically modifies the quantum state.
-	# The quest is now live: the player must restore what was just scattered.
-	var qc = biome.get("quantum_computer")
-	if qc == null or not qc.has_method("apply_perturbation"):
-		return {}
-	var perturb_result: Dictionary = qc.apply_perturbation(0.85)
-	if perturb_result.is_empty():
-		return {}
-
-	var quest := {
-		"type": QuestTypes.Type.HEAL_ATTRACTOR,
-		"faction": faction.get("name", "Unknown"),
-		"faction_emoji": "".join(faction.get("sig", []).slice(0, 3)),
-		"target_emoji": top_emoji,
-		"target_attractor_prob": 0.50,
-		"target_gap": 0.10,
-		"target_purity": 0.70,
-		"snapshot_attractor": attractor,
-		"perturbation_strength": 0.85,
-		"body": "The %s was scattered — %s dispersed. Help it remember itself." % [biome_name, top_emoji],
-		"hint": "The icon physics remembers. Feed it, wait, or gate it back.",
-		"reward_multiplier": 2.0 + clampf(gap, 0.0, 0.5),
-		"time_limit": -1.0,
-		"expires": false,
-	}
-	return quest
-
-
 # =============================================================================
 # QUERY FUNCTIONS
 # =============================================================================
@@ -1471,53 +1303,26 @@ func get_active_quests() -> Array:
 	# Get all active quests as array
 	return active_quests.values()
 
-# =============================================================================
-# QUEST LOCKING (pin offers across cycles)
-# =============================================================================
 
-func lock_offer(quest_data: Dictionary) -> bool:
-	# Lock an offered quest so it persists across offer cycles.
-	# Returns false if at capacity, missing id, or already locked/active.
-	if locked_offers.size() >= MAX_LOCKED_OFFERS:
+func get_story_offers() -> Array:
+	# Get all pending story arc offers.
+	return story_offers.values()
+
+
+func dismiss_story_offer(quest_id: int) -> bool:
+	# Remove a pending story arc offer from the current board view.
+	if not story_offers.has(quest_id):
 		return false
-	if not quest_data.has("id"):
-		return false
-	var quest_id = int(quest_data["id"])
-	if locked_offers.has(quest_id) or active_quests.has(quest_id):
-		return false
-	quest_data["status"] = "locked"
-	quest_data["locked_at"] = Time.get_ticks_msec()
-	locked_offers[quest_id] = quest_data
-	offer_locked.emit(quest_id)
+	story_offers.erase(quest_id)
 	return true
-
-
-func unlock_offer(quest_id: int) -> bool:
-	# Release a locked offer (it disappears).
-	if not locked_offers.has(quest_id):
-		return false
-	locked_offers.erase(quest_id)
-	offer_unlocked.emit(quest_id)
-	return true
-
-
-func get_locked_offers() -> Array:
-	# Return all currently locked offers.
-	return locked_offers.values()
-
-
-func accept_locked_offer(quest_id: int) -> bool:
-	# Accept a locked offer — moves it from locked → active.
-	if not locked_offers.has(quest_id):
-		return false
-	var quest = locked_offers[quest_id]
-	locked_offers.erase(quest_id)
-	return accept_quest(quest)
-
 
 func get_quest_by_id(quest_id: int) -> Dictionary:
-	# Get quest data by ID (active quests only)
-	return active_quests.get(quest_id, {})
+	# Get quest data by ID (active quests first, then pending story offers).
+	if active_quests.has(quest_id):
+		return active_quests.get(quest_id, {})
+	if story_offers.has(quest_id):
+		return story_offers.get(quest_id, {})
+	return {}
 
 func has_active_quest_for_faction(faction_name: String) -> bool:
 	# Check if there's an active quest from this faction
@@ -1544,10 +1349,11 @@ func clear_all_quests() -> void:
 		_stop_quest_timer(quest_id)
 
 	active_quests.clear()
-	locked_offers.clear()
+	story_offers.clear()
 	completed_quests.clear()
 	failed_quests.clear()
 	next_quest_id = 0
+	_announced_offers.clear()
 	active_quests_changed.emit()
 
 func print_quest_status() -> void:
@@ -1571,33 +1377,5 @@ func print_quest_status() -> void:
 			])
 
 static func test_quest_lifecycle() -> void:
-	# Test quest manager with sample quest
-	print("🧪 Testing QuestManager lifecycle...")
-
-	var QuestManagerClass = load("res://Core/Quests/QuestManager.gd")
-	var manager = QuestManagerClass.new()
-
-	# Mock economy
-	var mock_economy = Node.new()
-	mock_economy.set_script(load("res://Core/GameMechanics/FarmEconomy.gd"))
-	manager.connect_to_economy(mock_economy)
-
-	# Create test faction
-	var faction = {
-		"name": "Millwright's Union",
-		"bits": [1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1],
-		"emoji": "🌾⚙️🏭"
-	}
-
-	# Offer quest
-	var quest = manager.offer_quest(faction, "BioticFlux", ["🌾", "🍄"])
-	print("✓ Quest offered: ID %d" % quest["id"])
-
-	# Accept quest
-	var accepted = manager.accept_quest(quest)
-	print("✓ Quest accepted: %s" % str(accepted))
-
-	# Check status
-	manager.print_quest_status()
-
-	print("\n✅ QuestManager test complete")
+	# Lifecycle smoke removed with the old offer surface.
+	print("🧪 QuestManager lifecycle smoke retired; use live lattice tests instead.")

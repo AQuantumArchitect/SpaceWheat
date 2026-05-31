@@ -8,7 +8,7 @@ SpaceWheat is a game where every wheat field is a quantum register, every harves
 
 ### The Quantum Foundation
 
-Each biome runs a **density matrix simulation** of its quantum state. Qubits are emoji pairs — one emoji for the north pole (|0>), one for the south pole (|1>). A wheat qubit might be sun/moon, a population qubit might be people/fire. The state evolves under a biome-specific Hamiltonian with Lindblad dissipation channels, and when you measure, Born's rule decides what you get.
+Each biome runs a **density matrix simulation** of its quantum state. A biome is a *cloud of atoms* (single emojis) under Lindblad dissipation; its qubit axes form when a faction's **icons** are installed over it (a neighborhood) — each icon pairs two atoms into a north pole (|0>) and a south pole (|1>). A wheat qubit might be sun/moon, a population qubit might be people/fire. Pole-pairing is a neighborhood/faction product, not a property of the biome itself. The state evolves under the induced Hamiltonian with the biome's Lindblad dissipation channels, and when you measure, Born's rule decides what you get.
 
 This isn't approximate. The gate library implements all standard quantum gates with exact matrix definitions:
 
@@ -64,7 +64,7 @@ Navigate biomes with T-Y-U-I-O-P (6 active slots). Select plots within a biome w
 
 ### Economy
 
-All resources are **emoji-credits** — unified currency per emoji type. Measurements convert quantum probability to credits at 10:1. Completing quests teaches you vocabulary pairs, and known pairs earn a purity bonus during seasonal reaps.
+All resources are **emoji-credits** — unified currency per emoji type. Measurements convert quantum probability to credits at 10:1. Completing quests teaches you vocabulary icons, and known icons earn a purity bonus during seasonal reaps.
 
 Quests are procedurally generated from faction data and reference specific emoji deliveries, pushing you to explore diverse biomes and quantum states.
 
@@ -82,7 +82,7 @@ The `libquantummatrix` C++ extension provides:
 - Dense matrix multiplication via Eigen
 - Mutual information computation at physics rate (5 Hz)
 - Lookahead evolution for the BiomeEvolutionBatcher
-- Automatic fallback to pure GDScript when native isn't available
+- Pure GDScript execution when native isn't available
 
 ## Testing
 

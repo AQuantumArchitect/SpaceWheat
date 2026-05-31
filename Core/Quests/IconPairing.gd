@@ -1,7 +1,6 @@
 class_name IconPairing
 extends RefCounted
 
-const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
 ## Signature Pairing System (South-First Design)
 ##
@@ -15,46 +14,6 @@ const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.
 ##    North cannot be an emoji already in player's signature.
 ##
 ## The pair forms a qubit axis that can be planted in biomes.
-
-
-## Get EmojiPhysicsRegistry from scene tree
-static func _get_atom_registry():
-	return InstrumentLocator.resolve_icon_registry_main_loop()
-
-
-## Roll a complete icon (South first, then North)
-## Returns: {"north": emoji, "south": emoji, "weight": float, ...}
-##
-## Algorithm:
-## 1. Roll SOUTH pole first (biased by player resources)
-## 2. Roll NORTH pole second (connected to South, can't be in known icon)
-static func roll_pair(known_vocab: Array = []) -> Dictionary:
-	var atom_registry = _get_atom_registry()
-
-	if not atom_registry:
-		push_error("IconPairing: EmojiPhysicsRegistry not found")
-		return {"error": "no_icon_registry"}
-
-	# Step 1: Roll SOUTH pole (biased by player resources)
-	var south_result = _roll_south_pole(atom_registry)
-	if south_result.get("error"):
-		return south_result
-
-	var south_emoji = south_result.south
-
-	# Step 2: Roll NORTH pole (connected to South, not in known icon)
-	var north_result = _roll_north_pole(south_emoji, known_vocab, atom_registry)
-	if north_result.get("error"):
-		return north_result
-
-	return {
-		"north": north_result.north,
-		"south": south_emoji,
-		"south_weight": south_result.weight,
-		"north_weight": north_result.weight,
-		"south_connections": south_result.connections,
-		"north_connections": north_result.connections
-	}
 
 
 ## Roll SOUTH pole - biased heavily by player resource quantities
@@ -132,7 +91,7 @@ static func _roll_south_pole_from_signature(atom_registry, faction_signature: Ar
 	# Biome-native emojis in the faction signature get a soft boost.
 
 	# Args:
-	# atom_registry: EmojiPhysicsRegistry for connection data
+	# atom_registry: IconRegistry for connection data
 	# faction_signature: Faction's signature emojis
 	# biome_emojis: Emojis native to the active biome (soft boost)
 
@@ -155,9 +114,9 @@ static func _roll_south_pole_from_signature(atom_registry, faction_signature: Ar
 		# Get player's inventory amount for this emoji (0 if none)
 		var amount = all_resources.get(emoji, 0)
 
-		# Get EmojiPhysicsRegistry connections if available (used for north pole selection)
+		# Get IconRegistry connections if available (used for north pole selection)
 		var connections = get_connection_weights(emoji, atom_registry)
-		# Don't skip emojis without EmojiPhysicsRegistry connections — north pole selection
+		# Don't skip emojis without IconRegistry connections — north pole selection
 		# falls back to faction co-membership when connections are empty.
 
 		# Weight = power-law inventory bias (preserves Fibonacci ratios)
@@ -208,7 +167,7 @@ static func _roll_south_pole_constrained(atom_registry, allowed_vocab: Array) ->
 	# Used for faction quests where south pole must come from faction signature.
 
 	# Args:
-	# atom_registry: EmojiPhysicsRegistry for connection data
+	# atom_registry: IconRegistry for connection data
 	# allowed_vocab: Array of allowed emoji strings (e.g., faction signature)
 
 	# Returns:
@@ -375,7 +334,7 @@ static func calculate_vocab_connectivity(emoji: String, player_vocab: Array, ato
 	# Args:
 	# emoji: The emoji to check connectivity for
 	# player_vocab: Player's known emojis
-	# atom_registry: EmojiPhysicsRegistry for connection data
+	# atom_registry: IconRegistry for connection data
 
 	# Returns:
 	# Sum of connection weights to player_vocab (0.0 if no connections)
@@ -400,36 +359,19 @@ static func get_connection_weights(emoji: String, atom_registry) -> Dictionary:
 	if not icon:
 		return {}
 
-	var connections = {}  # target -> {weight, h, l_in, l_out}
+	var connections = {}  # target -> {h, weight}
 
-	# Hamiltonian couplings (absolute value)
+	# Hamiltonian couplings (icons own H only; L lives on biome.atom_components)
 	for target in icon.hamiltonian_couplings:
 		var val = icon.hamiltonian_couplings[target]
 		if val is float or val is int:
 			if not connections.has(target):
-				connections[target] = {"h": 0.0, "l_in": 0.0, "l_out": 0.0, "weight": 0.0}
+				connections[target] = {"h": 0.0, "weight": 0.0}
 			connections[target]["h"] = abs(val)
 
-	# Lindblad outgoing (absolute value)
-	for target in icon.lindblad_outgoing:
-		var val = icon.lindblad_outgoing[target]
-		if val is float or val is int:
-			if not connections.has(target):
-				connections[target] = {"h": 0.0, "l_in": 0.0, "l_out": 0.0, "weight": 0.0}
-			connections[target]["l_out"] = abs(val)
-
-	# Lindblad incoming (absolute value)
-	for source in icon.lindblad_incoming:
-		var val = icon.lindblad_incoming[source]
-		if val is float or val is int:
-			if not connections.has(source):
-				connections[source] = {"h": 0.0, "l_in": 0.0, "l_out": 0.0, "weight": 0.0}
-			connections[source]["l_in"] = abs(val)
-
-	# Calculate total weights
 	for target in connections:
 		var c = connections[target]
-		c["weight"] = c["h"] + c["l_in"] + c["l_out"]
+		c["weight"] = c["h"]
 
 	# Remove zero-weight connections
 	var to_remove = []
@@ -457,8 +399,6 @@ static func get_sorted_connections(emoji: String, atom_registry) -> Array:
 			"weight": connections[target]["weight"],
 			"probability": connections[target]["weight"] / total_weight if total_weight > 0 else 0,
 			"h": connections[target]["h"],
-			"l_in": connections[target]["l_in"],
-			"l_out": connections[target]["l_out"]
 		})
 
 	sorted_list.sort_custom(func(a, b): return a.weight > b.weight)
@@ -471,7 +411,7 @@ static func format_pair(north: String, south: String) -> String:
 
 ## Check if an emoji has any connections (can be paired)
 static func can_be_paired(emoji: String) -> bool:
-	var atom_registry = _get_atom_registry()
+	var atom_registry = (Engine.get_main_loop().root.get_node_or_null("/root/IconRegistry") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 	if not atom_registry:
 		return false
 

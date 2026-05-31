@@ -2,7 +2,7 @@
 ## Handles:
 ## - Plot grid display and tiles
 ## - Keyboard selection (T/Y/U/I/O/P/0/9/8/7)
-## - Tool switching (1-4)
+## - Frame switching (hat row 4-0, sub-modes 1-3)
 ## - Action execution (Q/E/R)
 ##
 ## This layer is swappable - created fresh for each farm
@@ -10,23 +10,18 @@
 class_name FarmUI
 extends Control
 
-signal farm_setup_complete  # Emitted when setup_farm() finishes and input_handler is ready
+signal farm_setup_complete  # Emitted when setup_farm() finishes and instrument_input is ready
 
-const PlotGridDisplay = preload("res://UI/PlotGridDisplay.gd")
 # Input is handled by QuantumInstrumentInput (created in BootManager)
-const ResourcePanel = preload("res://UI/Widgets/ResourcePanel.gd")
 const QuantumModeStatusIndicator = preload("res://UI/Widgets/QuantumModeStatusIndicator.gd")
-const GridConfig = preload("res://Core/GameState/GridConfig.gd")
-const VerboseHelper = preload("res://Core/Config/VerboseHelper.gd")
 
 var farm: Node
 var grid_config: GridConfig
 var plot_grid_display = null  # From scene
-var input_handler = null  # Created dynamically
+var instrument_input = null  # Created dynamically
 var resource_panel = null  # From scene
 var quantum_mode_indicator = null  # Created dynamically
 var quantum_visualization = null  # Optional - only if needed later
-var current_tool: int = 1
 var layout_manager: Node = null
 
 # DEBUG: Layout visibility
@@ -39,11 +34,10 @@ func _log_debug(message: String) -> void:
 
 
 func _ready() -> void:
-	"""FarmUI scene is ready - get references to child nodes and setup layout.
+	# FarmUI scene is ready - get references to child nodes and setup layout.
 
-	NOTE: Farm setup (setup_farm()) will be called by BootManager after all
-	dependencies are guaranteed to exist. We only initialize scene structure here.
-	"""
+	# NOTE: Farm setup (setup_farm()) will be called by BootManager after all
+	# dependencies are guaranteed to exist. We only initialize scene structure here.
 	_log_debug("🎮 FarmUI initializing from scene...")
 
 	# Ensure FarmUI is properly sized to fill parent (using anchors)
@@ -84,7 +78,7 @@ func _ready() -> void:
 
 
 func setup_farm(farm_ref: Node) -> void:
-	"""Configure FarmUI for a specific farm (called after scene instantiation)"""
+	# Configure FarmUI for a specific farm (called after scene instantiation)
 	_log_debug("📂 Loading farm into FarmUI...")
 
 	farm = farm_ref
@@ -105,36 +99,31 @@ func setup_farm(farm_ref: Node) -> void:
 		if farm.grid and farm.grid.has_biomes():
 			plot_grid_display.inject_biomes(farm.grid.get_all_biomes())
 
-		# Wire rejection visual feedback
-		if farm.has_signal("action_rejected"):
-			if not farm.action_rejected.is_connected(plot_grid_display.show_rejection_effect):
-				farm.action_rejected.connect(plot_grid_display.show_rejection_effect)
-				_log_debug("   📡 Connected to farm.action_rejected for visual feedback")
-
 		_log_debug("   ✅ PlotGridDisplay wired to farm")
 
 	# Action bars (ToolSelectionRow, ActionPreviewRow) are now managed by PlayerShell's ActionBarManager
 	# Signal connections are handled in PlayerShell.load_farm_ui()
 
-	# Input handler is created in BootManager and injected here
+	# Instrument input is created in BootManager and injected here
 
-	# Wire input handler (will be set by BootManager after creation)
-	if farm and input_handler:
-		input_handler.farm = farm
-		input_handler.inject_plot_grid_display(plot_grid_display)
+	# Wire instrument input (will be set by BootManager after creation)
+	if farm and instrument_input:
+		instrument_input.farm = farm
+		instrument_input.inject_plot_grid_display(plot_grid_display)
 
 	# Wire plot selection changes
 	if plot_grid_display and plot_grid_display.has_signal("selection_count_changed"):
-		plot_grid_display.selection_count_changed.connect(_on_selection_changed)
+		if not plot_grid_display.selection_count_changed.is_connected(_on_selection_changed):
+			plot_grid_display.selection_count_changed.connect(_on_selection_changed)
 		_log_debug("   📡 Connected to plot selection changes")
 
 	_log_debug("✅ FarmUI farm setup complete")
-	farm_setup_complete.emit()  # Signal PlayerShell that input_handler is ready
+	farm_setup_complete.emit()  # Signal PlayerShell that instrument_input is ready
 
 
-func inject_layout_manager(manager: Node) -> void:
-	"""Inject shared UILayoutManager for normalized sizing."""
-	layout_manager = manager
+func inject_layout_manager(layout_mgr: Node) -> void:
+	# Inject shared UILayoutManager for normalized sizing.
+	layout_manager = layout_mgr
 	if resource_panel and resource_panel.has_method("set_layout_manager"):
 		resource_panel.set_layout_manager(layout_manager)
 	if plot_grid_display and plot_grid_display.has_method("inject_layout_manager"):
@@ -142,10 +131,9 @@ func inject_layout_manager(manager: Node) -> void:
 
 
 func _input(event: InputEvent) -> void:
-	"""Handle debug display toggle and UI input
+	# Handle debug display toggle and UI input
 
-	Note: Tool selection (1-4) is handled by QuantumInstrumentInput via signals
-	"""
+	# Note: Tool selection (1-4) is handled by QuantumInstrumentInput via signals
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_F3:  # F3 to toggle debug layout display
 			debug_layout_visible = not debug_layout_visible
@@ -153,20 +141,8 @@ func _input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 
 
-func _select_tool(tool_num: int) -> void:
-	"""Switch to a different tool (UI-driven)."""
-	current_tool = tool_num
-	# Action bars are updated via PlayerShell's ActionBarManager
-	_log_debug("🔧 Tool changed to %d" % tool_num)
-
-
-func _on_tool_selected(tool_num: int) -> void:
-	"""Handle tool selection from UI buttons"""
-	_select_tool(tool_num)
-
-
 func _on_selection_changed(count: int) -> void:
-	"""Handle plot selection changes"""
+	# Handle plot selection changes
 	var has_selection = count > 0
 	if has_selection:
 		_log_debug("✅ %d plot(s) selected - Q/E/R actions available" % count)
@@ -175,15 +151,13 @@ func _on_selection_changed(count: int) -> void:
 
 
 func _apply_parametric_sizing() -> void:
-	"""Apply parametric sizing to UI components based on viewport dimensions.
+	# Apply parametric sizing to UI components based on viewport dimensions.
 
-	Uses UILayoutManager constants for consistent layout proportions.
-	"""
+	# Uses UILayoutManager constants for consistent layout proportions.
 	var viewport_size = get_viewport_rect().size
 	var viewport_height = viewport_size.y
 
 	# Use UILayoutManager constants for consistent proportions across all UI
-	const UILayoutManager = preload("res://UI/Managers/UILayoutManager.gd")
 	var top_bar_percent = UILayoutManager.TOP_BAR_HEIGHT_PERCENT  # 0.06 (6%)
 
 	# Parametric layout: divide viewport into zones
@@ -203,7 +177,7 @@ func _apply_parametric_sizing() -> void:
 
 
 func _update_debug_display() -> void:
-	"""Update or create debug display showing layout positions"""
+	# Update or create debug display showing layout positions
 	if debug_layout_visible:
 		# Create debug label if needed
 		if debug_label == null:
@@ -240,7 +214,7 @@ func _update_debug_display() -> void:
 ## ========================================
 
 func _create_quantum_mode_indicator() -> void:
-	"""Create and position quantum rigor mode status indicator (top-right corner)"""
+	# Create and position quantum rigor mode status indicator (top-right corner)
 	# Create the indicator component
 	quantum_mode_indicator = QuantumModeStatusIndicator.new()
 

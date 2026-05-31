@@ -1,9 +1,6 @@
 class_name EmojiAtlasBatcher
 extends RefCounted
 
-const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
-const TieredEmojiRegistry = preload("res://Core/Visualization/TieredEmojiRegistry.gd")
-const VerboseHelper = preload("res://Core/Config/VerboseHelper.gd")
 
 ## Emoji Atlas Batcher - GPU-Accelerated Emoji Rendering
 ##
@@ -46,7 +43,7 @@ var _cells_per_row: int = 0
 # Current canvas item we're drawing to
 var _canvas_item: RID = RID()
 
-# Optional geometry batcher for placeholder rendering
+# Optional geometry batcher for batched bubble rendering
 var _geometry_batcher = null
 
 # Batch data (single texture = single batch!)
@@ -62,18 +59,12 @@ var _empty_weights := PackedFloat32Array()
 var _emoji_count: int = 0
 var _draw_calls: int = 0
 var _atlas_built: bool = false
-var _debug_placeholder_printed: bool = false
-
 # Track fallback usage for debugging (MUST be declared before begin() uses them)
 var _fallback_count: int = 0
 var _atlas_hit_count: int = 0
 var _missing_emojis_this_frame: Dictionary = {}  # Track emojis missing from atlas this frame (for batched warning)
 
-# Fallback for visual asset registry textures (DEPRECATED - use _tiered_emoji_registry)
-var _visual_asset_registry = null
-
-# NEW: Three-tier emoji registry (hand-crafted → twemoji → text)
-var _tiered_emoji_registry = null
+var _emoji_registry = null
 
 # Verbose config (for gating per-frame logs)
 var _verbose_config = null
@@ -87,27 +78,23 @@ func _log_debug(message: String) -> void:
 
 
 func _init():
-	# Initialize tiered emoji registry
-	_tiered_emoji_registry = TieredEmojiRegistry.shared()
+	_emoji_registry = EmojiRegistry.shared()
 
-	# Keep legacy registry for backward compatibility (deprecated)
 	var tree = Engine.get_main_loop()
 	if tree and tree is SceneTree:
-		_visual_asset_registry = InstrumentLocator.resolve_visual_asset_registry_main_loop()
-		_verbose_config = InstrumentLocator.resolve_verbose_config_main_loop()
+		_verbose_config = (Engine.get_main_loop().root.get_node_or_null("/root/VerboseConfig") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 
 
 ## CRITICAL: Normalize emoji strings to handle variation selector inconsistencies.
 ## Some emojis may have U+FE0F (variation selector) or other Unicode markers
 ## that differ between atlas building and rendering. This strips them for consistent lookup.
 func _normalize_emoji(emoji: String) -> String:
-	"""Normalize emoji string for consistent lookup.
+	# Normalize emoji string for consistent lookup.
 
-	Removes variation selectors (U+FE0F) and zero-width joiners to ensure
-	emojis match between atlas building and rendering phases.
+	# Removes variation selectors (U+FE0F) and zero-width joiners to ensure
+	# emojis match between atlas building and rendering phases.
 
-	Example: "⚙️" (with U+FE0F) becomes "⚙" (without)
-	"""
+	# Example: "⚙️" (with U+FE0F) becomes "⚙" (without)
 	if emoji.is_empty():
 		return emoji
 
@@ -122,17 +109,16 @@ func _normalize_emoji(emoji: String) -> String:
 
 
 func build_atlas(emoji_list: Array, font_size: int = 48) -> bool:
-	"""Pre-render all emojis to a GPU texture atlas.
+	# Pre-render all emojis to a GPU texture atlas.
 
-	Call this ONCE at startup with all emojis you'll use.
+	# Call this ONCE at startup with all emojis you'll use.
 
-	Args:
-	    emoji_list: Array of emoji strings to include
-	    font_size: Font size for rendering (default 48 for crisp scaling)
+	# Args:
+	# emoji_list: Array of emoji strings to include
+	# font_size: Font size for rendering (default 48 for crisp scaling)
 
-	Returns:
-	    true if atlas was built successfully
-	"""
+	# Returns:
+	# true if atlas was built successfully
 	if emoji_list.is_empty():
 		push_warning("[EmojiAtlasBatcher] No emojis provided for atlas")
 		return false
@@ -146,7 +132,7 @@ func build_atlas(emoji_list: Array, font_size: int = 48) -> bool:
 	# Find optimal square-ish atlas size
 	_cells_per_row = ceili(sqrt(float(num_emojis)))
 	_atlas_width = mini(_cells_per_row * cell_total, MAX_ATLAS_SIZE)
-	_cells_per_row = _atlas_width / cell_total
+	_cells_per_row = int(float(_atlas_width) / float(cell_total))
 
 	var rows_needed = ceili(float(num_emojis) / float(_cells_per_row))
 	_atlas_height = mini(rows_needed * cell_total, MAX_ATLAS_SIZE)
@@ -164,21 +150,21 @@ func build_atlas(emoji_list: Array, font_size: int = 48) -> bool:
 	# Render each emoji to its cell
 	var cell_index = 0
 	for emoji in emoji_list:
-		if cell_index >= _cells_per_row * (MAX_ATLAS_SIZE / cell_total):
+		if cell_index >= _cells_per_row * int(float(MAX_ATLAS_SIZE) / float(cell_total)):
 			push_warning("[EmojiAtlasBatcher] Atlas full, skipping remaining emojis")
 			break
 
-		var row = cell_index / _cells_per_row
+		var row = int(float(cell_index) / float(_cells_per_row))
 		var col = cell_index % _cells_per_row
 
-		var cell_x = col * cell_total + ATLAS_PADDING / 2
-		var cell_y = row * cell_total + ATLAS_PADDING / 2
+		var cell_x = col * cell_total + int(float(ATLAS_PADDING) / 2.0)
+		var cell_y = row * cell_total + int(float(ATLAS_PADDING) / 2.0)
 
 		# Render emoji to a temporary image using SubViewport
 		var emoji_image = _render_emoji_to_image(emoji, font, font_size)
 		if emoji_image:
 			# Blit emoji image to atlas
-			var dest_rect = Rect2i(cell_x, cell_y, ATLAS_CELL_SIZE, ATLAS_CELL_SIZE)
+			var _dest_rect = Rect2i(cell_x, cell_y, ATLAS_CELL_SIZE, ATLAS_CELL_SIZE)
 			var src_rect = Rect2i(0, 0, mini(emoji_image.get_width(), ATLAS_CELL_SIZE),
 								   mini(emoji_image.get_height(), ATLAS_CELL_SIZE))
 			_atlas_image.blit_rect(emoji_image, src_rect, Vector2i(cell_x, cell_y))
@@ -208,22 +194,22 @@ func build_atlas(emoji_list: Array, font_size: int = 48) -> bool:
 	return true
 
 
-func _render_emoji_to_image(emoji: String, font: Font, font_size: int) -> Image:
-	"""Render a single emoji to an Image using SubViewport.
+func _render_emoji_to_image(emoji: String, _font: Font, font_size: int) -> Image:
+	# Render a single emoji to an Image using SubViewport.
 
-	Creates a temporary viewport, renders the emoji text, captures the result.
-	This is called at startup time, not per-frame.
+	# Creates a temporary viewport, renders the emoji text, captures the result.
+	# This is called at startup time, not per-frame.
 
-	Uses 3-tier priority system:
-	  1. Hand-crafted SVGs (highest quality)
-	  2. Twemoji SVGs (downloaded)
-	  3. Text rendering fallback (system font) with warnings
-	"""
+	# Uses 3-tier priority system:
+	# 1. Hand-crafted SVGs (highest quality)
+	# 2. Twemoji SVGs (downloaded)
+	# 3. Text rendering fallback (system font) with warnings
 	# Priority 1 & 2: Try tiered emoji registry (custom + twemoji)
-	if _tiered_emoji_registry:
-		var tex = _tiered_emoji_registry.get_texture(emoji)
+	var img = null
+	if _emoji_registry:
+		var tex = _emoji_registry.get_texture(emoji)
 		if tex:
-			var img = tex.get_image()
+			img = tex.get_image()
 			if img:
 				return img
 			else:
@@ -263,7 +249,7 @@ func _render_emoji_to_image(emoji: String, font: Font, font_size: int) -> Image:
 	RenderingServer.force_draw()
 
 	# Capture the image
-	var img = viewport.get_texture().get_image()
+	img = viewport.get_texture().get_image()
 
 	# Cleanup
 	viewport.queue_free()
@@ -272,11 +258,10 @@ func _render_emoji_to_image(emoji: String, font: Font, font_size: int) -> Image:
 
 
 func build_atlas_async(emoji_list: Array, parent_node: Node, font_size: int = 48) -> void:
-	"""Build atlas asynchronously using SubViewport rendering.
+	# Build atlas asynchronously using SubViewport rendering.
 
-	Must be called from scene tree context (e.g., during _ready).
-	Uses coroutines to avoid blocking.
-	"""
+	# Must be called from scene tree context (e.g., during _ready).
+	# Uses coroutines to avoid blocking.
 	_log_debug("[EmojiAtlasBatcher] build_atlas_async called with %d emojis" % emoji_list.size())
 	if emoji_list.is_empty():
 		push_warning("[EmojiAtlasBatcher] No emojis provided for atlas")
@@ -291,7 +276,7 @@ func build_atlas_async(emoji_list: Array, parent_node: Node, font_size: int = 48
 
 	_cells_per_row = ceili(sqrt(float(num_emojis)))
 	_atlas_width = mini(_cells_per_row * cell_total, MAX_ATLAS_SIZE)
-	_cells_per_row = _atlas_width / cell_total
+	_cells_per_row = int(float(_atlas_width) / float(cell_total))
 
 	var rows_needed = ceili(float(num_emojis) / float(_cells_per_row))
 	_atlas_height = mini(rows_needed * cell_total, MAX_ATLAS_SIZE)
@@ -319,33 +304,23 @@ func build_atlas_async(emoji_list: Array, parent_node: Node, font_size: int = 48
 
 	# Render each emoji
 	var cell_index = 0
-	var successful_count = 0
+	var _successful_count = 0
 	var svg_count = 0
 	var viewport_count = 0
 	var failed_count = 0
 	for emoji in emoji_list:
-		if cell_index >= _cells_per_row * (MAX_ATLAS_SIZE / cell_total):
+		if cell_index >= _cells_per_row * int(float(MAX_ATLAS_SIZE) / float(cell_total)):
 			break
 
-		var row = cell_index / _cells_per_row
+		var row = int(float(cell_index) / float(_cells_per_row))
 		var col = cell_index % _cells_per_row
-		var cell_x = col * cell_total + ATLAS_PADDING / 2
-		var cell_y = row * cell_total + ATLAS_PADDING / 2
+		var cell_x = col * cell_total + int(float(ATLAS_PADDING) / 2.0)
+		var cell_y = row * cell_total + int(float(ATLAS_PADDING) / 2.0)
 
 		# Check for SVG texture first: tiered registry (hand-crafted + twemoji) takes priority
 		var emoji_image: Image = null
-		if _tiered_emoji_registry:
-			var tex = _tiered_emoji_registry.get_texture(emoji)
-			if tex:
-				emoji_image = tex.get_image()
-				if emoji_image:
-					emoji_image = emoji_image.duplicate()
-					emoji_image.resize(ATLAS_CELL_SIZE, ATLAS_CELL_SIZE)
-					svg_count += 1
-
-		# Legacy fallback: VisualAssetRegistry (deprecated, 26 emojis)
-		if not emoji_image and _visual_asset_registry and _visual_asset_registry.has_texture(emoji):
-			var tex = _visual_asset_registry.get_texture(emoji)
+		if _emoji_registry:
+			var tex = _emoji_registry.get_texture(emoji)
 			if tex:
 				emoji_image = tex.get_image()
 				if emoji_image:
@@ -383,7 +358,7 @@ func build_atlas_async(emoji_list: Array, parent_node: Node, font_size: int = 48
 			var normalized_emoji = _normalize_emoji(emoji)
 			_emoji_uvs[normalized_emoji] = Rect2(uv_x, uv_y, uv_w, uv_h)
 			_emoji_cells[normalized_emoji] = cell_index
-			successful_count += 1
+			_successful_count += 1
 		else:
 			_log_debug("[EmojiAtlasBatcher] DEBUG: emoji_image is null for '%s' (svg=%s, vp=%s, failed=%s)" % [emoji, svg_count, viewport_count, failed_count])
 
@@ -435,35 +410,17 @@ func build_atlas_async(emoji_list: Array, parent_node: Node, font_size: int = 48
 		_log_debug("")
 
 	# NEW: Print tiered registry statistics
-	if _tiered_emoji_registry:
-		_tiered_emoji_registry.print_statistics()
+	if _emoji_registry:
+		_emoji_registry.print_statistics()
 		_log_debug("")
 
-	# Early warning: Check VisualAssetRegistry for missing SVG files (DEPRECATED)
-	if _visual_asset_registry:
-		var missing_svg_files: Array = []
-		# Get all registered emojis from the registry
-		for emoji in emoji_list:
-			if _visual_asset_registry.has_texture(emoji):
-				# Check if the SVG actually exists
-				var tex = _visual_asset_registry.get_texture(emoji)
-				if not tex:
-					missing_svg_files.append(emoji)
-
-		if missing_svg_files.size() > 0:
-			missing_svg_files.sort()
-			var missing_str = " ".join(missing_svg_files) if missing_svg_files.size() <= 10 else "%d emojis" % missing_svg_files.size()
-			push_warning("[EmojiAtlasBatcher] 🎨 ⚠️ %d emoji(s) registered in VisualAssetRegistry but missing SVG files, will render as text boxes: %s" % [missing_svg_files.size(), missing_str])
-
-
 func build_atlas_cached(emoji_list: Array, parent_node: Node, font_size: int = 48) -> void:
-	"""Build atlas through the live renderer.
+	# Build atlas through the live renderer.
 
-	Args:
-		emoji_list: Array of emoji strings to include
-		parent_node: Node to attach SubViewport for rendering
-		font_size: Font size for rendering (default 48)
-	"""
+	# Args:
+	# emoji_list: Array of emoji strings to include
+	# parent_node: Node to attach SubViewport for rendering
+	# font_size: Font size for rendering (default 48)
 	var start_time = Time.get_ticks_msec()
 	VerboseHelper.debug("viz", "atlas", "[EmojiAtlasBatcher] build_atlas_cached called with %d emojis" % emoji_list.size())
 
@@ -487,16 +444,15 @@ func build_atlas_cached(emoji_list: Array, parent_node: Node, font_size: int = 4
 
 
 func get_cache_stats() -> Dictionary:
-	"""Get cache statistics for monitoring."""
+	# Get cache statistics for monitoring.
 	return {}
 
 
 func begin(canvas_item: RID) -> void:
-	"""Begin a new batch frame.
+	# Begin a new batch frame.
 
-	Args:
-	    canvas_item: The canvas item RID to draw to (from get_canvas_item())
-	"""
+	# Args:
+	# canvas_item: The canvas item RID to draw to (from get_canvas_item())
 	_canvas_item = canvas_item
 	_points.clear()
 	_uvs.clear()
@@ -510,20 +466,18 @@ func begin(canvas_item: RID) -> void:
 
 
 func set_geometry_batcher(batcher) -> void:
-	"""Set the geometry batcher for batched placeholder rendering.
+	# Set the geometry batcher for batched bubble rendering.
 
-	Args:
-		batcher: GeometryBatcher instance to use for placeholders
-	"""
+	# Args:
+	# batcher: GeometryBatcher instance to use for batched bubbles
 	_geometry_batcher = batcher
 
 
 func add_emoji(position: Vector2, size: Vector2, texture: Texture2D, color: Color, shadow_offset: Vector2 = Vector2(2, 2)) -> void:
-	"""Add an emoji to the batch using provided texture.
+	# Add an emoji to the batch using provided texture.
 
-	This is the SVG texture path - uses individual textures.
-	For best performance, use add_emoji_by_name() with the atlas.
-	"""
+	# This is the SVG texture path - uses individual textures.
+	# For best performance, use add_emoji_by_name() with the atlas.
 	if not texture:
 		return
 
@@ -533,19 +487,17 @@ func add_emoji(position: Vector2, size: Vector2, texture: Texture2D, color: Colo
 
 
 func add_emoji_by_name(position: Vector2, size: Vector2, emoji: String, color: Color, shadow_offset: Vector2 = Vector2(2, 2)) -> void:
-	"""Add an emoji to the batch by name (uses pre-built atlas).
+	# Add an emoji to the batch by name (uses pre-built atlas).
 
-	This is the FAST path - all emojis batch into one draw call!
+	# This is the FAST path - all emojis batch into one draw call!
 
-	Fallback chain:
-	  1. Atlas (if built and emoji present) → batched GPU call
-	  2. SVG texture (if VisualAssetRegistry has it) → immediate draw
-	  3. Text box fallback → rendered at end of frame via flush_text_fallbacks()
+	# Fallback chain:
+	# 1. Atlas (if built and emoji present) → batched GPU call
+	# 2. Text box fallback → rendered at end of frame via flush_text_fallbacks()
 
-	CRITICAL: The emoji atlas is built synchronously at boot time via
-	EmojiAtlasBatcher.build_atlas_async() called from BootManager.
-	Therefore, _atlas_built is GUARANTEED to be true on all frames.
-	"""
+	# CRITICAL: The emoji atlas is built synchronously at boot time via
+	# EmojiAtlasBatcher.build_atlas_async() called from BootManager.
+	# Therefore, _atlas_built is GUARANTEED to be true on all frames.
 	# Normalize emoji string to handle variation selector inconsistencies
 	var normalized_emoji = _normalize_emoji(emoji)
 
@@ -565,15 +517,7 @@ func add_emoji_by_name(position: Vector2, size: Vector2, emoji: String, color: C
 	if _atlas_built:
 		_missing_emojis_this_frame[normalized_emoji] = emoji
 
-	# FALLBACK 1: Try SVG texture from VisualAssetRegistry
-	if _visual_asset_registry:
-		var tex = _visual_asset_registry.get_texture(emoji)
-		if tex:
-			_draw_textured_quad_immediate(tex, position, size, color, shadow_offset)
-			_emoji_count += 1
-			return
-
-	# FALLBACK 2: Queue for text box rendering
+	# FALLBACK: Queue for text box rendering
 	# This is the last-resort fallback - will render as a bordered box with emoji text
 	_text_fallback_queue.append({
 		"position": position,
@@ -589,10 +533,10 @@ var _text_fallback_queue: Array = []
 
 
 func _add_quad_to_batch(position: Vector2, size: Vector2, uv_rect: Rect2, color: Color, shadow_offset: Vector2) -> void:
-	"""Add a textured quad to the batch arrays."""
+	# Add a textured quad to the batch arrays.
 	var half_size = size * 0.5
 	var tl = position - half_size
-	var tr = position + Vector2(half_size.x, -half_size.y)
+	var corner_tr = position + Vector2(half_size.x, -half_size.y)
 	var bl = position + Vector2(-half_size.x, half_size.y)
 	var br = position + half_size
 
@@ -606,7 +550,7 @@ func _add_quad_to_batch(position: Vector2, size: Vector2, uv_rect: Rect2, color:
 	if shadow_offset != Vector2.ZERO:
 		var shadow_color = Color(0, 0, 0, 0.7 * color.a)
 		var s_tl = tl + shadow_offset
-		var s_tr = tr + shadow_offset
+		var s_tr = corner_tr + shadow_offset
 		var s_bl = bl + shadow_offset
 		var s_br = br + shadow_offset
 
@@ -619,9 +563,9 @@ func _add_quad_to_batch(position: Vector2, size: Vector2, uv_rect: Rect2, color:
 		_points.append(s_br); _uvs.append(uv_br); _colors.append(shadow_color)
 		_points.append(s_bl); _uvs.append(uv_bl); _colors.append(shadow_color)
 
-	# Main emoji quad - triangle 1 (tl, tr, br)
+	# Main emoji quad - triangle 1 (tl, corner_tr, br)
 	_points.append(tl); _uvs.append(uv_tl); _colors.append(color)
-	_points.append(tr); _uvs.append(uv_tr); _colors.append(color)
+	_points.append(corner_tr); _uvs.append(uv_tr); _colors.append(color)
 	_points.append(br); _uvs.append(uv_br); _colors.append(color)
 
 	# Main emoji quad - triangle 2 (tl, br, bl)
@@ -631,7 +575,7 @@ func _add_quad_to_batch(position: Vector2, size: Vector2, uv_rect: Rect2, color:
 
 
 func _draw_textured_quad_immediate(texture: Texture2D, position: Vector2, size: Vector2, color: Color, shadow_offset: Vector2) -> void:
-	"""Draw a single textured quad immediately (for non-atlas textures)."""
+	# Draw a single textured quad immediately (for non-atlas textures).
 	if not _canvas_item.is_valid() or not texture:
 		return
 
@@ -656,11 +600,10 @@ func _draw_textured_quad_immediate(texture: Texture2D, position: Vector2, size: 
 
 
 func add_emoji_text_fallback(graph: Node2D, position: Vector2, emoji: String, font_size: int, color: Color) -> void:
-	"""Fallback for emojis without textures - uses immediate draw_string.
+	# Fallback for emojis without textures - uses immediate draw_string.
 
-	This breaks batching but ensures emojis still render.
-	Should be called AFTER flush() to maintain z-order.
-	"""
+	# This breaks batching but ensures emojis still render.
+	# Should be called AFTER flush() to maintain z-order.
 	var font = ThemeDB.fallback_font
 	var text_pos = position - Vector2(font_size * 0.4, -font_size * 0.25)
 
@@ -673,10 +616,9 @@ func add_emoji_text_fallback(graph: Node2D, position: Vector2, emoji: String, fo
 
 
 func flush() -> void:
-	"""Submit all batched emoji draws to RenderingServer.
+	# Submit all batched emoji draws to RenderingServer.
 
-	ONE draw call for all atlas-batched emojis!
-	"""
+	# ONE draw call for all atlas-batched emojis!
 	if not _canvas_item.is_valid():
 		return
 
@@ -701,16 +643,15 @@ func flush() -> void:
 
 
 func flush_text_fallbacks(graph: Node2D) -> void:
-	"""Render text boxes for emojis not in the atlas.
+	# Render text boxes for emojis not in the atlas.
 
-	Instead of rendering black placeholders, this draws a small bordered box
-	with the emoji string as text. The text may not render as a colored emoji
-	glyph but will show the Unicode character(s), making debugging easier.
+	# Instead of rendering black empty states, this draws a small bordered box
+	# with the emoji string as text. The text may not render as a colored emoji
+	# glyph but will show the Unicode character(s), making debugging easier.
 
-	Called AFTER flush() to maintain proper z-order.
+	# Called AFTER flush() to maintain proper z-order.
 
-	Emits a batched warning at the end if any emojis are missing from atlas.
-	"""
+	# Emits a batched warning at the end if any emojis are missing from atlas.
 	if _text_fallback_queue.is_empty():
 		return
 
@@ -736,17 +677,16 @@ func flush_text_fallbacks(graph: Node2D) -> void:
 	_text_fallback_queue.clear()
 
 
-func _draw_text_box(graph: Node2D, font: Font, position: Vector2, size: Vector2, emoji: String, color: Color, shadow_offset: Vector2) -> void:
-	"""Draw a bordered text box with the emoji string inside.
+func _draw_text_box(graph: Node2D, font: Font, position: Vector2, size: Vector2, emoji: String, color: Color, _shadow_offset: Vector2) -> void:
+	# Draw a bordered text box with the emoji string inside.
 
-	Fallback rendering for emojis missing from atlas. Creates a visible
-	bordered box containing the emoji text as a last-resort fallback.
+	# Fallback rendering for emojis missing from atlas. Creates a visible
+	# bordered box containing the emoji text as a last-resort fallback.
 
-	Box styling:
-	  - Fill: Very translucent dark background (0.13 * color.a)
-	  - Border: Semi-transparent color-tinted border (0.6 * color.a)
-	  - Text: White emoji at full opacity (color.a)
-	"""
+	# Box styling:
+	# - Fill: Very translucent dark background (0.13 * color.a)
+	# - Border: Semi-transparent color-tinted border (0.6 * color.a)
+	# - Text: White emoji at full opacity (color.a)
 	var half_size = size * 0.5
 	var rect = Rect2(position - half_size, size)
 
@@ -776,13 +716,13 @@ func _draw_text_box(graph: Node2D, font: Font, position: Vector2, size: Vector2,
 
 
 func has_emoji(emoji: String) -> bool:
-	"""Check if emoji is in the atlas."""
+	# Check if emoji is in the atlas.
 	var normalized_emoji = _normalize_emoji(emoji)
 	return _emoji_uvs.has(normalized_emoji)
 
 
 func _count_non_empty_cells() -> int:
-	"""Count atlas cells that have non-transparent content."""
+	# Count atlas cells that have non-transparent content.
 	if not _atlas_image:
 		return 0
 
@@ -791,14 +731,14 @@ func _count_non_empty_cells() -> int:
 
 	for emoji in _emoji_cells.keys():
 		var cell_idx = _emoji_cells[emoji]
-		var row = cell_idx / _cells_per_row
+		var row = int(float(cell_idx) / float(_cells_per_row))
 		var col = cell_idx % _cells_per_row
-		var cell_x = col * cell_total + ATLAS_PADDING / 2
-		var cell_y = row * cell_total + ATLAS_PADDING / 2
+		var cell_x = col * cell_total + int(float(ATLAS_PADDING) / 2.0)
+		var cell_y = row * cell_total + int(float(ATLAS_PADDING) / 2.0)
 
 		# Sample center of cell
-		var sample_x = cell_x + ATLAS_CELL_SIZE / 2
-		var sample_y = cell_y + ATLAS_CELL_SIZE / 2
+		var sample_x = cell_x + int(float(ATLAS_CELL_SIZE) / 2.0)
+		var sample_y = cell_y + int(float(ATLAS_CELL_SIZE) / 2.0)
 		if sample_x < _atlas_image.get_width() and sample_y < _atlas_image.get_height():
 			var pixel = _atlas_image.get_pixel(sample_x, sample_y)
 			if pixel.a > 0.01:
@@ -808,12 +748,12 @@ func _count_non_empty_cells() -> int:
 
 
 func get_atlas_texture() -> ImageTexture:
-	"""Get the atlas texture (for debugging/visualization)."""
+	# Get the atlas texture (for debugging/visualization).
 	return _atlas_texture
 
 
 func get_stats() -> Dictionary:
-	"""Get batching statistics for performance monitoring."""
+	# Get batching statistics for performance monitoring.
 	return {
 		"emoji_count": _emoji_count,
 		"draw_calls": _draw_calls,
@@ -827,7 +767,7 @@ func get_stats() -> Dictionary:
 
 
 func release_resources() -> void:
-	"""Release atlas textures and cached render state before shutdown."""
+	# Release atlas textures and cached render state before shutdown.
 	_canvas_item = RID()
 	_points.clear()
 	_uvs.clear()
@@ -840,7 +780,6 @@ func release_resources() -> void:
 	_atlas_texture = null
 	_atlas_image = null
 	_geometry_batcher = null
-	_visual_asset_registry = null
-	_tiered_emoji_registry = null
+	_emoji_registry = null
 	_verbose_config = null
 	_atlas_built = false

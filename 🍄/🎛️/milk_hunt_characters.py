@@ -2,7 +2,7 @@
 """Higher-order milk-hunt characters.
 
 Characters sit above raw world_state and policy_graph. A character defines:
-- world seed state (resources, biomes, known pairs)
+- world seed state (resources, biomes, known icons)
 - policy graph template/overrides per hunter policy
 
 This layer is for LLM-facing orchestration in 🍄/🎛️.
@@ -123,7 +123,7 @@ def get_character(name_or_path: str) -> CharacterDict:
     data.setdefault("scenario_id", "default")
     data.setdefault("strict_biome_economy", True)
     data.setdefault("resources", {})
-    data.setdefault("known_pairs", [])
+    data.setdefault("known_icons", [])
     data.setdefault("unlocked_biomes", ["StarterForest", "Village"])
     data.setdefault("unexplored_biomes", [])
     if not data.get("active_biome"):
@@ -142,7 +142,7 @@ def resolve_character_world_state(character: CharacterDict) -> Dict[str, Any]:
         "scenario_id": str(character.get("scenario_id", "default")),
         "strict_biome_economy": bool(character.get("strict_biome_economy", True)),
         "resources": dict(character.get("resources", {})),
-        "known_pairs": list(character.get("known_pairs", [])),
+        "known_icons": list(character.get("known_icons", [])),
         "unlocked_biomes": list(character.get("unlocked_biomes", [])),
         "unexplored_biomes": list(character.get("unexplored_biomes", [])),
         "active_biome": str(character.get("active_biome", "")),

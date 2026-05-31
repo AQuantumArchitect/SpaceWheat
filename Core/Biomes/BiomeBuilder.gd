@@ -1,68 +1,34 @@
 class_name BiomeBuilder
 extends RefCounted
 
-const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
-const VerboseHelper = preload("res://Core/Config/VerboseHelper.gd")
 
-## BiomeBuilder: Builds biome quantum systems from the icon-cloud format.
+## BiomeBuilder: Builds neighborhood quantum systems from a bare biome plus
+## a neighborhood loadout.
 ##
-## Architecture (icon-cloud):
-##   biome.icons[]  →  _build_biome_icon_list()
+## Architecture (neighborhood):
+##   faction.icons (via IconRegistry) → _resolve_neighborhood_loadout()
 ##                         ↓
-##              IconLexicon.get_icon_physics_by_pair()  ← icons.json
+##              IconRegistry.get_icon_physics_by_pair()  ← icons.json
 ##                         ↓
-##              BiomeIcon.from_lexicon(name, p0, p1, physics, cloud)
+##              Icon.from_pair_physics(name, p0, p1, physics, cloud)
 ##                         ↓
 ##              build_operators_from_icons()  →  H + L
 ##
 ## H comes from icons.json (self_energy, rabi, hamiltonian_couplings).
-## L comes from the biome's icon cloud dicts (per-pole Lindblad terms).
-## Factions are identified via icons; admission is read-only (market/UI).
+## L comes from the biome's atom_components dict (per-pole Lindblad terms).
+## Factions are identified via the neighborhood loadout; admission is read-only
+## (market/UI).
 ##
-## Biomes with no icons[] (e.g. _orphan_lindblads) boot as data-store
-## nodes with no quantum system — valid, silent, no evolution.
+## Bare biomes with no neighborhood loadout (e.g. _orphan_lindblads) boot as
+## data-store nodes with no quantum system — valid, silent, no evolution.
 ##
-## Faction standing → H tuning is stubbed; see rebuild_icons_for_standings().
+## Faction standings affect operators *outside* H (action weights, market lattice),
+## not icon-derived H itself. Icons.json is the sole authority for coherent dynamics.
 
-const IconLexicon = preload("res://Core/Factions/IconLexicon.gd")
-const BiomeIcon = preload("res://Core/QuantumSubstrate/BiomeIcon.gd")
-const FactionRegistry = preload("res://Core/Factions/FactionRegistry.gd")
-const BiomeRegistry = preload("res://Core/Biomes/BiomeRegistry.gd")
-const BiomeCharacteristics = preload("res://Core/Biomes/BiomeCharacteristics.gd")
-const QuantumComputer = preload("res://Core/QuantumSubstrate/QuantumComputer.gd")
-const LindbladBuilder = preload("res://Core/QuantumSubstrate/LindbladBuilder.gd")
-const BiomeQuantumSystemBuilder = preload("res://Core/Environment/Components/BiomeQuantumSystemBuilder.gd")
-const DynamicBiome = preload("res://Core/Environment/DynamicBiome.gd")
 
 ## ── Faction Hamiltonian normalization + standings ─────────────────────────────
 ## Canonical source: HamiltonianConfig.gd (single source of truth)
-const HamiltonianConfig = preload("res://Core/Config/HamiltonianConfig.gd")
 const FACTION_DIRECTION_NORMALIZATION: bool = HamiltonianConfig.FACTION_DIRECTION_NORMALIZATION
-
-## Singleton instances (lazy-loaded)
-static var _faction_registry: FactionRegistry = null
-static var _biome_registry: BiomeRegistry = null
-static var _icon_registry = null  # Autoload reference
-## Get or create FactionRegistry
-static func _get_faction_registry() -> FactionRegistry:
-	if _faction_registry == null:
-		_faction_registry = FactionRegistry.new()
-	return _faction_registry
-
-
-## Get or create BiomeRegistry
-static func _get_biome_registry() -> BiomeRegistry:
-	if _biome_registry == null:
-		_biome_registry = BiomeRegistry.get_shared()
-	return _biome_registry
-
-
-## Get EmojiPhysicsRegistry autoload
-static func _get_atom_registry():
-	if _icon_registry == null:
-		_icon_registry = InstrumentLocator.resolve_icon_registry_main_loop()
-	return _icon_registry
-
 
 ## ============================================================================
 ## UNIFIED BIOME CONSTRUCTION FROM REGISTRY
@@ -82,7 +48,8 @@ static func build_from_registry(
 
 	# This method:
 	# 1. Loads biome definition from BiomeRegistry
-	# 2. Extracts emoji pairs from biome.emojis
+	# 2. Reads biome.emojis as the atom basis (a cloud of atoms — qubit axes are
+	#    grouped from the NEIGHBORHOOD's induced icons, not from emoji order)
 	# 3. Builds Lindblad spec from biome.atom_components
 	# 4. Calls build_biome_quantum_system() to create QuantumComputer
 	# 5. Creates DynamicBiome node with viz_cache
@@ -112,8 +79,8 @@ static func build_from_registry(
 		"error": ""
 	}
 
-	# 1. Load biome from registry
-	var biome_registry = _get_biome_registry()
+	# 1. Load bare biome from registry
+	var biome_registry = BiomeRegistry.get_shared()
 	var biome_def = biome_registry.get_by_name(biome_name)
 
 	if not biome_def:
@@ -122,6 +89,21 @@ static func build_from_registry(
 
 	# Delegate to build_from_spec (single biome-centric path)
 	return build_from_spec(biome_def, parent_node, options)
+
+
+## Build a neighborhood loadout onto a bare biome.
+## The bare biome provides terrain / dissipation / discovery metadata while the
+## faction contributes the icon loadout that becomes live in the neighborhood.
+static func build_neighborhood_loadout(
+	bare_biome_def,
+	faction_name: String,
+	parent_node: Node,
+	options: Dictionary = {}
+) -> Dictionary:
+	var build_options = options.duplicate()
+	if faction_name != "":
+		build_options["neighborhood_faction"] = faction_name
+	return build_from_spec(bare_biome_def, parent_node, build_options)
 
 
 ## Build complete biome from a Biome spec (Biome object or dict-like)
@@ -148,27 +130,23 @@ static func build_from_spec(
 		result.error = "Biome spec missing name"
 		return result
 
-	# Detect icon-cloud biome (new format) vs. emojis-based biome (legacy format)
 	var build_options = options.duplicate()
+	var neighborhood_loadout = _resolve_neighborhood_loadout(biome_def, build_options)
+	var neighborhood_icons: Array = neighborhood_loadout.get("icons", [])
+	var neighborhood_faction: String = str(build_options.get("neighborhood_faction", ""))
 	var emoji_pairs: Array = []
-	if _is_icon_cloud_biome(biome_def):
-		var biome_icons = _build_biome_icon_list(biome_def)
-		if biome_icons.is_empty():
-			result.error = "Icon-cloud biome '%s' has no icons" % biome_name
-			return result
-		build_options["biome_icons"] = biome_icons
-		# Derive emoji_pairs from icon poles for viz_metadata
-		for bi in biome_icons:
-			emoji_pairs.append({"north": bi.pole_0, "south": bi.pole_1})
-	else:
-		# No icons[] (e.g. _orphan_lindblads data store). Valid node, no quantum system.
+
+	if neighborhood_icons.is_empty():
+		# No neighborhood loadout (e.g. _orphan_lindblads data store). Valid node,
+		# no quantum system.
 		var data_biome = DynamicBiome.new()
 		data_biome.set_biome_type(biome_name)
 		data_biome.name = biome_name
 		data_biome.quantum_computer = null
 		data_biome.icons = {}
-		data_biome.icon_overrides = {}
 		data_biome.set_meta("icons", {})
+		if neighborhood_faction != "":
+			data_biome.set_meta("neighborhood_faction", neighborhood_faction)
 		data_biome.set_meta("biome_def", biome_def)
 		var _pl = _spec_get(biome_def, "plot_layout", [])
 		if _pl is Array and not _pl.is_empty():
@@ -187,6 +165,10 @@ static func build_from_spec(
 		result.success = true
 		result.biome_node = data_biome
 		return result
+
+	for bi in neighborhood_icons:
+		emoji_pairs.append({"north": bi.pole_0, "south": bi.pole_1})
+	build_options["neighborhood_icons"] = neighborhood_icons
 
 	# Build quantum system (H + L)
 	var atom_components: Dictionary = _spec_get(biome_def, "atom_components", {})
@@ -212,10 +194,12 @@ static func build_from_spec(
 	biome.name = biome_name
 	biome.quantum_computer = qc
 
-	# Store icons for viz_cache coupling data and per-biome overrides
+	# Store icons for viz_cache coupling data. IconRegistry remains canonical;
+	# this dict is a per-biome cache keyed by emoji.
 	biome.icons = icons
-	biome.icon_overrides = icons.duplicate(true)
 	biome.set_meta("icons", icons)
+	if neighborhood_faction != "":
+		biome.set_meta("neighborhood_faction", neighborhood_faction)
 
 	# Store biome definition for later reference
 	biome.set_meta("biome_def", biome_def)
@@ -247,8 +231,8 @@ static func build_from_spec(
 
 	# Create viz_cache with metadata (emoji_pairs derived above covers both paths)
 	var viz_metadata = _build_viz_metadata(emoji_pairs, biome_def)
-	var QuantumVizCache = load("res://Core/Visualization/QuantumVizCache.gd")
-	biome.viz_cache = QuantumVizCache.new()
+	var viz_cache_script = load("res://Core/Visualization/QuantumVizCache.gd")
+	biome.viz_cache = viz_cache_script.new()
 	biome.viz_cache.update_metadata_from_payload(viz_metadata)
 
 	# Seed viz_cache with coupling data from icons
@@ -257,6 +241,7 @@ static func build_from_spec(
 
 	# Apply optimal evolution granularity from characteristics
 	BiomeCharacteristics.apply_to_biome(biome)
+	result.icons = biome.icons
 
 	# Add to tree (unless skip_tree_add)
 	if not options.get("skip_tree_add", false) and parent_node:
@@ -282,7 +267,7 @@ static func _spec_get(spec, key: String, default_value = null):
 
 
 ## INTERNAL: Build viz_cache metadata from emoji pairs
-static func _build_viz_metadata(emoji_pairs: Array, biome_def) -> Dictionary:
+static func _build_viz_metadata(emoji_pairs: Array, _biome_def) -> Dictionary:
 	# Create visualization metadata for QuantumVizCache.
 
 	# Returns metadata dict with axes, emoji mappings, and emoji list.
@@ -296,13 +281,15 @@ static func _build_viz_metadata(emoji_pairs: Array, biome_def) -> Dictionary:
 
 	for i in range(emoji_pairs.size()):
 		var pair = emoji_pairs[i]
-		metadata.axes[i] = {"north": pair.north, "south": pair.south}
-		metadata.emoji_to_qubit[pair.north] = i
-		metadata.emoji_to_qubit[pair.south] = i
-		metadata.emoji_to_pole[pair.north] = 0
-		metadata.emoji_to_pole[pair.south] = 1
-		metadata.emoji_list.append(pair.north)
-		metadata.emoji_list.append(pair.south)
+		var north: String = str(pair.get("north", ""))
+		var south: String = str(pair.get("south", ""))
+		metadata.axes[i] = {"north": north, "south": south}
+		metadata.emoji_to_qubit[north] = i
+		metadata.emoji_to_qubit[south] = i
+		metadata.emoji_to_pole[north] = 0
+		metadata.emoji_to_pole[south] = 1
+		metadata.emoji_list.append(north)
+		metadata.emoji_list.append(south)
 
 	return metadata
 
@@ -326,12 +313,6 @@ static func _initialize_biome_components(biome, quantum_computer) -> void:
 		return
 
 	# Load component classes
-	const BiomeResourceRegistry = preload("res://Core/Environment/Components/BiomeResourceRegistry.gd")
-	const BiomeBellGateTracker = preload("res://Core/Environment/Components/BiomeBellGateTracker.gd")
-	const BiomeQuantumObserver = preload("res://Core/Environment/Components/BiomeQuantumObserver.gd")
-	const BiomeGateOperations = preload("res://Core/Environment/Components/BiomeGateOperations.gd")
-	const BiomeQuantumSystemBuilder = preload("res://Core/Environment/Components/BiomeQuantumSystemBuilder.gd")
-	const BiomeDensityMatrixMutator = preload("res://Core/Environment/Components/BiomeDensityMatrixMutator.gd")
 
 	# Initialize components (same order as BiomeBase._ready())
 	biome._resource_registry = BiomeResourceRegistry.new()
@@ -354,8 +335,8 @@ static func _initialize_biome_components(biome, quantum_computer) -> void:
 ## INVARIANT: Can be called at boot OR during gameplay (same logic)
 static func build_biome_quantum_system(
 	biome_name: String,
-	emoji_pairs: Array,  # [{north: String, south: String}]
-	faction_standings: Dictionary = {},  # {faction_name: weight (0.0-1.0)}
+	_emoji_pairs: Array,  # [{north: String, south: String}]
+	_faction_standings: Dictionary = {},  # {faction_name: weight (0.0-1.0)}
 	atom_components: Dictionary = {},
 	options: Dictionary = {}
 ) -> Dictionary:
@@ -393,14 +374,14 @@ static func build_biome_quantum_system(
 	var sys_builder = BiomeQuantumSystemBuilder.new()
 	sys_builder.quantum_computer = qc
 
-	var biome_icons: Array = options.get("biome_icons", [])
+	var neighborhood_icons: Array = options.get("neighborhood_icons", [])
 
-	# ── Icon-cloud path ───────────────────────────────────────────────────────
-	for i in range(biome_icons.size()):
-		var bi = biome_icons[i]
+	# ── Neighborhood-loadout path ─────────────────────────────────────────────
+	for i in range(neighborhood_icons.size()):
+		var bi = neighborhood_icons[i]
 		qc.allocate_axis(i, bi.pole_0, bi.pole_1)
-	VerboseHelper.info("biome", "build", "Icon-cloud: %d icons for %s" % [biome_icons.size(), biome_name])
-	sys_builder.build_operators_from_icons(biome_name, biome_icons)
+	VerboseHelper.info("biome", "build", "Neighborhood loadout: %d icons for %s" % [neighborhood_icons.size(), biome_name])
+	sys_builder.build_operators_from_icons(biome_name, neighborhood_icons, atom_components)
 	result.icons = {}
 
 	result.hamiltonian = qc.hamiltonian
@@ -421,50 +402,58 @@ static func build_biome_quantum_system(
 	return result
 
 
-## Rebuild H when faction standings change.
-## TODO: Redesign for icon-cloud — H weighting by player-faction affinity not yet implemented.
-## Stubbed until the new mechanism is settled (see design discussion).
-static func rebuild_icons_for_standings(
-	_register_map,
-	_faction_standings: Dictionary
-) -> Dictionary:
-	push_warning("BiomeBuilder.rebuild_icons_for_standings: stubbed — faction H tuning not yet implemented for icon-cloud path")
-	return {}
-
-
 ## Get VerboseConfig singleton (safe access)
 static func _get_verbose_config():
-	return InstrumentLocator.resolve_verbose_config_main_loop()
+	var ml := Engine.get_main_loop()
+	return ml.root.get_node_or_null("/root/VerboseConfig") if ml and ml.root else null
 
 
-## INTERNAL: True if this biome uses the icon-cloud format.
-## An icon-cloud biome defines its register via icons[] alone — no emojis[] list.
-## Stripping emojis[] from a biome IS the migration signal; no extra flag needed.
-static func _is_icon_cloud_biome(biome_def) -> bool:
-	var icons = _spec_get(biome_def, "icons", [])
-	if icons.is_empty():
-		return false
-	# emojis[] non-empty = still on legacy path (not yet migrated)
-	var emojis = _spec_get(biome_def, "emojis", null)
-	if emojis != null and not (emojis is Array and (emojis as Array).is_empty()):
-		return false
-	return true
+## INTERNAL: Build Array[Icon] from a neighborhood's loadout.
+## Physics is looked up from icons.json via IconRegistry by (pole_0, pole_1) pair.
+## Lindblad/decay live on the biome's atom_components, not on icons.
+##
+## Post-§9-cutover: icons derive from `native_factions` via `Biome.get_neighborhood_icons()`.
+static func _build_neighborhood_icon_list(biome_def) -> Array:
+	if biome_def != null and biome_def.has_method("get_neighborhood_icons"):
+		return _materialize_icon_list(biome_def.get_neighborhood_icons())
+	return []
 
 
-## INTERNAL: Build Array[BiomeIcon] from a biome's icons[] with cloud fields.
-## Physics is looked up from icons.json via IconLexicon by (pole_0, pole_1) pair.
-static func _build_biome_icon_list(biome_def) -> Array:
-	var lexicon := IconLexicon.new()
+## INTERNAL: Build Array[Icon] from an explicit array of pair-shaped entries
+## ({name, pole_0, pole_1}). Used by both the data-side path and the induced
+## neighborhood path (options["neighborhood_icons"]).
+static func _materialize_icon_list(entries: Array) -> Array:
+	var lexicon = (Engine.get_main_loop().root.get_node_or_null("/root/IconRegistry") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 	var out: Array = []
-	for entry in _spec_get(biome_def, "icons", []):
+	for entry in entries:
 		if not (entry is Dictionary):
 			continue
 		var p0 := str(entry.get("pole_0", ""))
 		var p1 := str(entry.get("pole_1", ""))
 		if p0 == "" or p1 == "":
 			continue
-		var physics := lexicon.get_icon_physics_by_pair(p0, p1)
-		var cloud: Dictionary = entry.get("cloud", {})
+		var physics: Dictionary = lexicon.get_icon_physics_by_pair(p0, p1)
 		var iname := str(entry.get("name", p0))
-		out.append(BiomeIcon.from_lexicon(iname, p0, p1, physics, cloud, 1.0))
+		out.append(Icon.from_pair_physics(iname, p0, p1, physics, 1.0))
 	return out
+
+
+## Resolve the icons a NEIGHBORHOOD installs over this biome. (Icons are a
+## neighborhood/faction concern — the biome itself owns only atoms + L.)
+##
+## Caller-provided `options["neighborhood_icons"]` (Array of {name,pole_0,pole_1})
+## takes precedence — that's the path used by IconLoadoutInducer to place a
+## neighborhood over a bare biome without mutating biome data.
+##
+## Otherwise: infer from `native_factions` via `get_neighborhood_icons()`.
+static func _resolve_neighborhood_loadout(biome_def, options: Dictionary = {}) -> Dictionary:
+	var override = options.get("neighborhood_icons", [])
+	if override is Array and not (override as Array).is_empty():
+		return {
+			"icons": _materialize_icon_list(override),
+			"source": "neighborhood",
+		}
+	return {
+		"icons": _build_neighborhood_icon_list(biome_def),
+		"source": "biome",
+	}

@@ -3,17 +3,6 @@ extends RefCounted
 
 var _bloch_cache: Dictionary = {}  # qubit_index -> {p0,p1,x,y,z,r,theta,phi}
 var _purity_cache: float = -1.0
-var _purity_band: int = 1  # 0-3: bucketed purity for caching/pre-render
-
-# Pre-computed arc angles for each purity band (avoids per-frame math)
-# Band 0: [0.0-0.25] highly mixed, Band 1: [0.25-0.5] mixed
-# Band 2: [0.5-0.75] partially pure, Band 3: [0.75-1.0] nearly pure
-const PURITY_BAND_ARC_ANGLES: Array[float] = [
-	0.125 * TAU,   # Band 0: 12.5% arc (45°)
-	0.375 * TAU,   # Band 1: 37.5% arc (135°)
-	0.625 * TAU,   # Band 2: 62.5% arc (225°)
-	0.875 * TAU,   # Band 3: 87.5% arc (315°)
-]
 var _num_qubits: int = 0
 var _axes: Dictionary = {}  # qubit_index -> {north, south}
 var _emoji_to_qubit: Dictionary = {}
@@ -21,6 +10,8 @@ var _emoji_to_pole: Dictionary = {}
 var _emoji_list: Array = []
 var _mi_values: PackedFloat64Array = PackedFloat64Array()
 var _mi_num_qubits: int = 0
+var _self_energies: Dictionary = {}  # emoji -> base self-energy
+var _self_energy_drivers: Dictionary = {}  # emoji -> {type, frequency, phase, amplitude}
 var _hamiltonian_couplings: Dictionary = {}  # emoji -> {target: strength}
 var _lindblad_outgoing: Dictionary = {}  # emoji -> {target: rate}
 var _sink_fluxes: Dictionary = {}  # emoji -> flux
@@ -35,9 +26,10 @@ var _icon_map_total: float = 0.0
 func clear() -> void:
 	_bloch_cache.clear()
 	_purity_cache = -1.0
-	_purity_band = 1
 	_mi_values = PackedFloat64Array()
 	_mi_num_qubits = 0
+	_self_energies.clear()
+	_self_energy_drivers.clear()
 	_hamiltonian_couplings.clear()
 	_lindblad_outgoing.clear()
 	_sink_fluxes.clear()
@@ -58,14 +50,14 @@ func clear_metadata() -> void:
 
 
 func update_from_bloch_packet(packed: PackedFloat64Array, num_qubits: int) -> void:
-	"""Update cache from packed [p0,p1,x,y,z,r,theta,phi] per qubit."""
-	_bloch_cache.clear()
+	# Update cache from packed [p0,p1,x,y,z,r,theta,phi,r_xy] per qubit (stride=9).
 	if packed.is_empty() or num_qubits <= 0:
-		return
-	var stride = 8
+		return  # Keep existing cache — don't clear on empty packet
+	var stride = 9
 	var expected = num_qubits * stride
 	if packed.size() < expected:
-		return
+		return  # Keep existing cache — packet too short
+	_bloch_cache.clear()
 	for q in range(num_qubits):
 		var base = q * stride
 		_bloch_cache[q] = {
@@ -77,26 +69,21 @@ func update_from_bloch_packet(packed: PackedFloat64Array, num_qubits: int) -> vo
 			"r": packed[base + 5],
 			"theta": packed[base + 6],
 			"phi": packed[base + 7],
+			"r_xy": packed[base + 8],
 		}
 
 
 func update_purity(purity: float) -> void:
-	_purity_cache = purity
-	# Auto-bucket into bands: 0=[0-0.25], 1=[0.25-0.5], 2=[0.5-0.75], 3=[0.75-1.0]
-	_purity_band = clampi(int(purity * 4.0), 0, 3)
+	# Floating-point rounding in native Lindblad evolution can produce Tr(ρ²) slightly
+	# above 1.0 (typically 1.001). Clamp silently for small overshoot; only warn if
+	# the violation is large enough to indicate a real bug.
+	if purity > 1.01 or purity < -0.01:
+		push_warning("QuantumVizCache: purity far out of [0,1]: %.4f — possible Tr(ρ²) invariant violation" % purity)
+	_purity_cache = clampf(purity, 0.0, 1.0)
 
 
 func get_purity() -> float:
 	return _purity_cache
-
-
-func get_purity_band() -> int:
-	return _purity_band
-
-
-func get_purity_band_arc_angle() -> float:
-	"""Get pre-computed arc angle for current purity band (avoids per-frame math)."""
-	return PURITY_BAND_ARC_ANGLES[_purity_band]
 
 
 func update_mi_values(mi_values: PackedFloat64Array, num_qubits: int) -> void:
@@ -122,10 +109,49 @@ func get_mutual_information(qubit_a: int, qubit_b: int) -> float:
 
 
 func update_couplings_from_payload(payload: Dictionary) -> void:
-	"""Inject couplings/sink fluxes from precomputed payload."""
+	# Inject Hamiltonian/Lindblad visual structure from precomputed payload.
+	_self_energies = payload.get("self_energies", {}).duplicate(true)
+	_self_energy_drivers = payload.get("self_energy_drivers", {}).duplicate(true)
 	_hamiltonian_couplings = payload.get("hamiltonian", {}).duplicate(true)
 	_lindblad_outgoing = payload.get("lindblad", {}).duplicate(true)
 	_sink_fluxes = payload.get("sink_fluxes", {}).duplicate(true)
+
+
+func get_self_energy(emoji: String, time: float = 0.0) -> float:
+	var base = float(_self_energies.get(emoji, 0.0))
+	var driver = _self_energy_drivers.get(emoji, {})
+	if not driver is Dictionary or driver.is_empty():
+		return base
+
+	var driver_type = str(driver.get("type", ""))
+	var frequency = float(driver.get("frequency", 0.0))
+	var phase = float(driver.get("phase", 0.0))
+	var amplitude = float(driver.get("amplitude", 1.0))
+
+	match driver_type:
+		"cosine":
+			return base * amplitude * cos(frequency * time * TAU + phase)
+		"sine":
+			return base * amplitude * sin(frequency * time * TAU + phase)
+		"pulse":
+			var pulse_phase = fmod(frequency * time + phase / TAU, 1.0)
+			return base * amplitude if pulse_phase < 0.5 else 0.0
+		_:
+			return base
+
+
+func get_self_energies(time: float = 0.0) -> Dictionary:
+	if _self_energy_drivers.is_empty():
+		return _self_energies.duplicate(true)
+
+	var out: Dictionary = {}
+	for emoji in _self_energies.keys():
+		out[emoji] = get_self_energy(emoji, time)
+	return out
+
+
+func get_self_energy_drivers() -> Dictionary:
+	return _self_energy_drivers.duplicate(true)
 
 
 func get_hamiltonian_couplings(emoji: String) -> Dictionary:
@@ -141,7 +167,7 @@ func get_sink_fluxes() -> Dictionary:
 
 
 func update_metadata_from_payload(payload: Dictionary) -> void:
-	"""Inject structural metadata from payload (emoji↔qubit mapping)."""
+	# Inject structural metadata from payload (emoji↔qubit mapping).
 	clear_metadata()
 	if payload.is_empty():
 		return
@@ -154,7 +180,7 @@ func update_metadata_from_payload(payload: Dictionary) -> void:
 
 
 func update_icon_map(payload: Dictionary) -> void:
-	"""Inject IconMap payload (cumulative emoji probabilities)."""
+	# Inject IconMap payload (cumulative emoji probabilities).
 	_icon_map = payload.duplicate(true)
 	_icon_map_emojis = payload.get("emojis", [])
 	_icon_map_weights = payload.get("weights", PackedFloat64Array())
@@ -188,7 +214,7 @@ func get_pole(emoji: String) -> int:
 
 
 func get_bloch(qubit_index: int) -> Dictionary:
-	"""Return full Bloch entry {p0,p1,x,y,z,r,theta,phi} or {}."""
+	# Return full Bloch entry {p0,p1,x,y,z,r,theta,phi} or {}.
 	return _bloch_cache.get(qubit_index, {})
 
 
@@ -226,28 +252,22 @@ func _mi_index(i: int, j: int, n: int) -> int:
 	if i < 0 or j < 0 or i >= n or j >= n or i >= j:
 		return -1
 	# Count of pairs before row i
-	var base = (i * (2 * n - i - 1)) / 2
+	var base = int(float(i * (2 * n - i - 1)) / 2.0)
 	return int(base + (j - i - 1))
 
 
 func get_snapshot(qubit_index: int) -> Dictionary:
-	"""Return {p0,p1,r_xy,phi,purity,theta} or {} if cache missing."""
+	# Return {p0,p1,r_xy,phi,purity,theta,r_bloch} or {} if cache missing.
+	# All values read directly from C++ bloch cache — no GDScript math.
 	var bloch = _bloch_cache.get(qubit_index, {})
 	if bloch.is_empty():
 		return {}
-	var p0 = bloch.get("p0", 0.5)
-	var p1 = bloch.get("p1", 0.5)
-	var x = bloch.get("x", 0.0)
-	var y = bloch.get("y", 0.0)
-	var r_xy = clampf(sqrt(x * x + y * y), 0.0, 1.0)
-	var phi = bloch.get("phi", 0.0)
-	var theta = bloch.get("theta", PI / 2.0)
-	var purity = _purity_cache
 	return {
-		"p0": p0,
-		"p1": p1,
-		"r_xy": r_xy,
-		"phi": phi,
-		"theta": theta,
-		"purity": purity
+		"p0": bloch.get("p0", 0.5),
+		"p1": bloch.get("p1", 0.5),
+		"r_xy": clampf(bloch.get("r_xy", 0.0), 0.0, 1.0),
+		"r_bloch": clampf(bloch.get("r", 0.0), 0.0, 1.0),
+		"phi": bloch.get("phi", 0.0),
+		"theta": bloch.get("theta", PI / 2.0),
+		"purity": _purity_cache,
 	}

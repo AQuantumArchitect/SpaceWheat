@@ -63,7 +63,7 @@ def _run_cmd(cmd: List[str], timeout_s: int, lane=None) -> subprocess.CompletedP
 def _cleanup_stale_processes() -> None:
     cleanup_process_patterns([
         "milk_hunt_runner.py",
-        "Tests/rig_listener.gd",
+        "Rig/rig_listener.gd",
         "milk_hunt_batch.py --profile",
     ])
 

@@ -36,7 +36,7 @@ _RESOURCE_TAXA: Dict[str, List[str]] = {
 }
 
 # ── Milk-adjacent emojis (heuristic proximity to 🍼) ───────────────────────
-# These appear in known pairs near the milk faction (Reality Midwives)
+# These appear in known icons near the milk faction (Reality Midwives)
 MILK_ADJACENT = {"🤲", "✨", "💫", "🌠", "🌌", "💃", "🎭", "🛰", "🗺", "🔭"}
 
 
@@ -73,24 +73,24 @@ def _parse_save(path: Path) -> Dict[str, Any]:
     m2 = re.search(r'active_biome_name\s*=\s*"([^"]+)"', text)
     out["active_biome"] = m2.group(1) if m2 else "Village"
 
-    # ── Known pairs ────────────────────────────────────────────────────────
-    kp_match = re.search(r'known_pairs = \[(.*?)\](?=\n[a-z_])', text, re.DOTALL)
-    pairs: List[Dict[str, str]] = []
+    # ── Known icons ────────────────────────────────────────────────────────
+    kp_match = re.search(r'known_icons = \[(.*?)\](?=\n[a-z_])', text, re.DOTALL)
+    icons: List[Dict[str, str]] = []
     if kp_match:
         norths = re.findall(r'"north":\s*"([^"]+)"', kp_match.group(1))
         souths = re.findall(r'"south":\s*"([^"]+)"', kp_match.group(1))
-        pairs = [{"north": n, "south": s} for n, s in zip(norths, souths)]
-    out["known_pairs"] = pairs
-    out["pairs_count"] = len(pairs)
+        icons = [{"north": n, "south": s} for n, s in zip(norths, souths)]
+    out["known_icons"] = icons
+    out["icons_count"] = len(icons)
     out["has_milk_pair"] = any(
-        p.get("north") == "🍼" or p.get("south") == "🍼" for p in pairs
+        p.get("north") == "🍼" or p.get("south") == "🍼" for p in icons
     )
-    # Milk-adjacent pairs (pairs containing emojis near Reality Midwives)
-    milk_adj_pairs = [
-        p for p in pairs
+    # Milk-adjacent icons (icons containing emojis near Reality Midwives)
+    milk_adj_icons = [
+        p for p in icons
         if p.get("north") in MILK_ADJACENT or p.get("south") in MILK_ADJACENT
     ]
-    out["milk_adjacent_pairs"] = len(milk_adj_pairs)
+    out["milk_adjacent_icons"] = len(milk_adj_icons)
 
     # ── Resource portfolio ─────────────────────────────────────────────────
     cred_m = re.search(r'all_emoji_credits\s*=\s*\{(.*?)\}', text, re.DOTALL)
@@ -170,7 +170,7 @@ def _flags(save: Dict, report_char: Optional[Dict]) -> List[str]:
     discovers = ac.get("discover_biome", 0)
     drains = ac.get("lindblad_drain", 0)
     probes = ac.get("probe_cycle", 0)
-    pairs = save.get("pairs_count", 0)
+    icons = save.get("icons_count", 0)
     milk = save.get("has_milk_pair", False)
 
     if discovers == 0:
@@ -179,11 +179,11 @@ def _flags(save: Dict, report_char: Optional[Dict]) -> List[str]:
         flags.append("no_lindblad_drains")
     if probes == 0:
         flags.append("no_probe_cycles")
-    if pairs >= 80 and not milk:
+    if icons >= 80 and not milk:
         flags.append("high_pairs_no_milk")
-    if pairs >= 60 and not milk and discovers == 0:
+    if icons >= 60 and not milk and discovers == 0:
         flags.append("possible_vocab_deadend")
-    if save.get("milk_adjacent_pairs", 0) > 0 and not milk:
+    if save.get("milk_adjacent_icons", 0) > 0 and not milk:
         flags.append("milk_adjacent_but_not_found")
     if milk:
         flags.append("milk_achieved")
@@ -204,31 +204,31 @@ def _resource_summary(resources: Dict[str, float], top_n: int = 8) -> Dict:
 
 
 def _milk_path_summary(save: Dict) -> Dict:
-    pairs = save.get("known_pairs", [])
+    icons = save.get("known_icons", [])
     milk = save.get("has_milk_pair", False)
-    milk_adj = save.get("milk_adjacent_pairs", 0)
-    total = save.get("pairs_count", 0)
+    milk_adj = save.get("milk_adjacent_icons", 0)
+    total = save.get("icons_count", 0)
 
     comment = ""
     if milk:
         comment = "Milk pair (🍼/🤲) present in known vocabulary."
     elif milk_adj > 0:
         comment = (
-            f"{milk_adj} milk-adjacent pairs learned — close to Reality Midwives "
+            f"{milk_adj} milk-adjacent icons learned — close to Reality Midwives "
             "faction but did not complete the milk pair quest."
         )
     elif total >= 60:
         comment = (
-            f"{total} pairs but no milk-adjacent vocabulary — "
+            f"{total} icons but no milk-adjacent vocabulary — "
             "policy may not be routing through 🍼-path factions."
         )
     else:
-        comment = "Insufficient pairs to reach milk faction territory."
+        comment = "Insufficient icons to reach milk faction territory."
 
     return {
         "reached": milk,
-        "pairs_total": total,
-        "milk_adjacent_pairs": milk_adj,
+        "icons_total": total,
+        "milk_adjacent_icons": milk_adj,
         "comment": comment,
     }
 
@@ -299,7 +299,7 @@ def generate_yaml(
     lines.append("#     co-memberships (the 'milk graph')")
     lines.append("#   - actions: quest_cycle (learn vocab), probe_cycle (harvest"),
     lines.append("#     resources), lindblad_drain (stabilise biome quantum state),")
-    lines.append("#     discover_biome (unlock new biome), time_skip, lock_offer")
+    lines.append("#     discover_biome (unlock new biome), time_skip, quest_cycle")
     lines.append("#   - policy: quantum_register — 3-qubit density matrix over 8")
     lines.append("#     actions; Hamiltonian = economy pressure, Lindblad = reward")
     lines.append("# ═══════════════════════════════════════════════════════════════════")
@@ -379,7 +379,7 @@ def generate_yaml(
         _emit_comment(lines, 2, "─── OUTCOME ────────────────────────────────────────────")
         _emit(lines, 2, f"milk_found: {'true' if milk_found else 'false'}")
         _emit(lines, 2, f"total_loops: {loops_total}")
-        _emit(lines, 2, f"pairs_learned: {save.get('pairs_count', '?')}")
+        _emit(lines, 2, f"icons_learned: {save.get('icons_count', '?')}")
         _emit(lines, 2, f"total_time_s: {time_total}")
         _emit_blank(lines)
 
@@ -401,8 +401,8 @@ def generate_yaml(
         _emit(lines, 2, "action_counts:")
         action_keys = [
             "quest_cycle", "probe_cycle", "lindblad_drain",
-            "discover_biome", "lock_offer", "time_skip",
-            "victory_lap_partial", "channel_drain",
+            "discover_biome", "quest_cycle", "time_skip",
+            "victory_lap_partial", "lindblad_drain",
         ]
         for ak in action_keys:
             v = ac.get(ak, 0)
@@ -447,8 +447,8 @@ def generate_yaml(
         _emit(lines, 2, "milk_path:")
         _emit(lines, 3, f"reached: {'true' if milk_summary['reached'] else 'false'}")
         _emit(lines, 3, f"pairs_total: {milk_summary['pairs_total']}")
-        _emit(lines, 3, f"milk_adjacent_pairs: {milk_summary['milk_adjacent_pairs']}",
-              "pairs containing emojis near Reality Midwives faction")
+        _emit(lines, 3, f"milk_adjacent_icons: {milk_summary['milk_adjacent_icons']}",
+              "icons containing emojis near Reality Midwives faction")
         _emit(lines, 3, f"comment: {_q(milk_summary['comment'])}")
         _emit_blank(lines)
 
@@ -483,11 +483,11 @@ def generate_yaml(
         _emit_blank(lines)
 
         # Pair counts
-        _emit(lines, 1, "pairs_leaderboard:")
-        sorted_by_pairs = sorted(saves.items(), key=lambda x: -x[1].get("pairs_count", 0))
-        for n, s in sorted_by_pairs:
+        _emit(lines, 1, "icons_leaderboard:")
+        sorted_by_icons = sorted(saves.items(), key=lambda x: -x[1].get("icons_count", 0))
+        for n, s in sorted_by_icons:
             milk_tag = " (milk✓)" if s.get("has_milk_pair") else ""
-            _emit(lines, 2, f"{n}: {s.get('pairs_count', '?')}{milk_tag}")
+            _emit(lines, 2, f"{n}: {s.get('icons_count', '?')}{milk_tag}")
         _emit_blank(lines)
 
         # Strategic insights
@@ -535,19 +535,19 @@ def _derive_insights(saves: Dict[str, Dict], report: Optional[Dict]) -> List[str
     # Holdouts
     holdouts = [(n, s) for n, s in saves.items() if not s.get("has_milk_pair")]
     for n, s in holdouts:
-        pairs = s.get("pairs_count", 0)
-        milkadj = s.get("milk_adjacent_pairs", 0)
+        icons = s.get("icons_count", 0)
+        milkadj = s.get("milk_adjacent_icons", 0)
         ac = s.get("action_counts", {})
         discovers = ac.get("discover_biome", 0)
-        if pairs >= 80 and discovers == 0:
+        if icons >= 80 and discovers == 0:
             insights.append(
-                f"{n} accumulated {pairs} pairs with 0 biome discoveries and "
+                f"{n} accumulated {icons} icons with 0 biome discoveries and "
                 "still has no milk — classic vocabulary dead-end signature. "
                 "StarterForest + Village alone may not connect to Reality Midwives."
             )
         elif milkadj > 0:
             insights.append(
-                f"{n} has {milkadj} milk-adjacent pairs but never closed the "
+                f"{n} has {milkadj} milk-adjacent icons but never closed the "
                 "🍼/🤲 pairing — likely needs one more targeted faction quest."
             )
 

@@ -14,7 +14,6 @@ extends RefCounted
 ## Each source returns 0.0 when its read fails — graceful degradation. A source
 ## that needs data not yet wired contributes nothing rather than crashing.
 
-const HamiltonianConfig = preload("res://Core/Config/HamiltonianConfig.gd")
 
 # ---------------- helpers ----------------
 
@@ -61,19 +60,19 @@ static func _safe_get_faction(contract, farm):
 # Biome's affinity is computed live from its signature owners (Phase V logic,
 # inlined to avoid storing on Biome which is a data record). Returns null when
 # the biome has no resolvable signature.
-static func _live_biome_affinity(biome, farm):
+static func _live_biome_alignment(biome, farm):
 	if biome == null or farm == null:
 		return null
-	if not biome.has_method("get_signature_pairs"):
+	if not biome.has_method("get_neighborhood_signature_icons"):
 		return null
-	var pairs: Array = biome.get_signature_pairs()
+	var pairs: Array = biome.get_neighborhood_signature_icons()
 	if pairs.is_empty():
 		return null
 	var lex = null
-	if "_ensure_icon_lexicon" in farm or farm.has_method("_ensure_icon_lexicon"):
-		lex = farm._ensure_icon_lexicon()
-	if lex == null and "icon_lexicon" in farm:
-		lex = farm.icon_lexicon
+	if "_ensure_icon_atlas" in farm or farm.has_method("_ensure_icon_atlas"):
+		lex = farm._ensure_icon_atlas()
+	if lex == null and "icon_atlas" in farm:
+		lex = farm.icon_atlas
 	if lex == null:
 		return null
 	var registry = null
@@ -83,21 +82,20 @@ static func _live_biome_affinity(biome, farm):
 		return null
 	var owners: Array = []
 	for pair in pairs:
-		var icon: Dictionary = lex.find_icon_by_pair(pair.pole_0, pair.pole_1)
-		var owner: String = str(icon.get("owner_faction", "")) if not icon.is_empty() else ""
+		var owner: String = lex.get_primary_faction_for_pair(str(pair.pole_0), str(pair.pole_1))
 		if owner != "":
 			owners.append(owner)
 	if owners.is_empty():
 		return null
 	var first_f = registry.get_by_name(owners[0])
-	if first_f == null or first_f.affinity == null:
+	if first_f == null or first_f.alignment == null:
 		return null
-	var AGCls = load("res://Core/Affinity/AffinityGraph.gd")
-	var bg = AGCls.from_dict(first_f.affinity.to_dict())
+	var AGCls = load("res://Core/Alignment/AlignmentGraph.gd")
+	var bg = AGCls.from_dict(first_f.alignment.to_dict())
 	for i in range(1, owners.size()):
 		var f = registry.get_by_name(owners[i])
-		if f != null and f.affinity != null:
-			bg.lindblad_jump_toward(f.affinity, 1.0 / float(i + 1))
+		if f != null and f.alignment != null:
+			bg.lindblad_jump_toward(f.alignment, 1.0 / float(i + 1))
 	return bg
 
 
@@ -143,7 +141,7 @@ static func bias_from_world_emoji_mass(contract, farm) -> float:
 	return bias if contract.qubit_pole == 1 else -bias
 
 
-static func bias_from_fdm_principal_axis(contract, farm) -> float:
+static func bias_from_fdm_principal_axis(_contract, farm) -> float:
 	# FDM's dominant eigenvector projected onto 12 axes. Variance from the
 	# uniform 0.5 baseline is the "world's mood swing". A high-variance world
 	# (eigenvector strongly biased) creates more market opportunity.
@@ -166,37 +164,37 @@ static func bias_from_fdm_principal_axis(contract, farm) -> float:
 static func bias_from_player_biome_kernel(contract, farm) -> float:
 	# Phase V kernel. Natural midpoint = 1/4096 (random overlap on 12-qubit
 	# Hilbert space) ≈ 0.00024. Anything noticeably above is meaningful resonance.
-	if farm == null or "player_affinity" not in farm or farm.player_affinity == null:
+	if farm == null or "player_alignment" not in farm or farm.player_alignment == null:
 		return 0.0
 	var biome = _safe_get_biome(contract, farm)
-	if biome == null or not "affinity" in biome or biome.affinity == null:
+	if biome == null or not "affinity" in biome or biome.alignment == null:
 		return 0.0
-	var k: float = clampf(float(farm.player_affinity.overlap(biome.affinity)), 0.0, 1.0)
+	var k: float = clampf(float(farm.player_alignment.overlap(biome.alignment)), 0.0, 1.0)
 	# Use a midpoint of 0.01 — meaningful resonance threshold for kernel overlap.
 	return _signed_around(k, 0.01)
 
 
-static func bias_from_faction_biome_kernel(contract, farm) -> float:
+static func bias_from_neighborhood_kernel(contract, farm) -> float:
 	var f = _safe_get_faction(contract, farm)
-	if f == null or f.affinity == null:
+	if f == null or f.alignment == null:
 		return 0.0
 	var biome = _safe_get_biome(contract, farm)
-	var biome_affinity = _live_biome_affinity(biome, farm)
-	if biome_affinity == null:
+	var biome_alignment = _live_biome_alignment(biome, farm)
+	if biome_alignment == null:
 		return 0.0
-	var k: float = clampf(float(f.affinity.overlap(biome_affinity)), 0.0, 1.0)
+	var k: float = clampf(float(f.alignment.overlap(biome_alignment)), 0.0, 1.0)
 	# Kernel between two corner-state factions is 0 or 1 (basis-aligned/orthogonal),
 	# but mixed biome signatures yield intermediate values.
 	return _signed_around(k, 0.01)
 
 
 static func bias_from_player_faction_kernel(contract, farm) -> float:
-	if farm == null or "player_affinity" not in farm or farm.player_affinity == null:
+	if farm == null or "player_alignment" not in farm or farm.player_alignment == null:
 		return 0.0
 	var f = _safe_get_faction(contract, farm)
-	if f == null or f.affinity == null:
+	if f == null or f.alignment == null:
 		return 0.0
-	var k: float = clampf(float(farm.player_affinity.overlap(f.affinity)), 0.0, 1.0)
+	var k: float = clampf(float(farm.player_alignment.overlap(f.alignment)), 0.0, 1.0)
 	return _signed_around(k, 0.01)
 
 
@@ -242,7 +240,7 @@ static func get_sources() -> Array[Callable]:
 		Callable(MarketBiasSources, "bias_from_world_emoji_mass"),
 		Callable(MarketBiasSources, "bias_from_fdm_principal_axis"),
 		Callable(MarketBiasSources, "bias_from_player_biome_kernel"),
-		Callable(MarketBiasSources, "bias_from_faction_biome_kernel"),
+		Callable(MarketBiasSources, "bias_from_neighborhood_kernel"),
 		Callable(MarketBiasSources, "bias_from_player_faction_kernel"),
 		Callable(MarketBiasSources, "bias_from_faction_loudness"),
 		Callable(MarketBiasSources, "bias_from_standings"),

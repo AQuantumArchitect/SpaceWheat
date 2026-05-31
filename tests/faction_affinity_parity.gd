@@ -1,10 +1,10 @@
 extends SceneTree
 
-## faction_affinity_parity.gd — Phase II faction migration verification.
+## faction_affinity_parity.gd — faction affinity verification.
 ##
 ## Run:  godot --headless --quit --script tests/faction_affinity_parity.gd
 ##
-## Confirms every loaded faction has an AffinityGraph initialized at
+## Confirms every loaded faction has an AlignmentGraph initialized at
 ## the corner state |bits⟩⟨bits|, and that get_axial_bits() returns
 ## a value identical to the raw bits config (so all consumers that
 ## switched to the accessor see no behavioral change).
@@ -29,7 +29,7 @@ func _init() -> void:
 	var inter_overlap_fail := 0
 
 	for f in all_factions:
-		if f.affinity == null:
+		if f.alignment == null:
 			no_affinity += 1
 			failed += 1
 			continue
@@ -47,7 +47,7 @@ func _init() -> void:
 			bit_mismatch += 1
 			failed += 1
 			continue
-		var p: float = f.affinity.purity()
+		var p: float = f.alignment.purity()
 		if abs(p - 1.0) > 1e-9:
 			purity_drift += 1
 			failed += 1
@@ -61,7 +61,7 @@ func _init() -> void:
 				break
 			var a = all_factions[i]
 			var b = all_factions[j]
-			if a.affinity == null or b.affinity == null:
+			if a.alignment == null or b.alignment == null:
 				continue
 			var bits_match := true
 			if a.bits.size() != b.bits.size():
@@ -71,7 +71,7 @@ func _init() -> void:
 					if a.bits[k] != b.bits[k]:
 						bits_match = false
 						break
-			var ov: float = a.affinity.overlap(b.affinity)
+			var ov: float = a.alignment.overlap(b.alignment)
 			var expected := 1.0 if bits_match else 0.0
 			if abs(ov - expected) > 1e-9:
 				inter_overlap_fail += 1

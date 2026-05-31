@@ -23,8 +23,8 @@ func create_test_quest(faction: String, reward_north: String = "✓", reward_sou
 		"faction": faction,
 		"type": 1,  # Non-delivery
 		"level": level,
-		"reward_vocab_north": reward_north,
-		"reward_vocab_south": reward_south,
+		"reward_north": reward_north,
+		"reward_south": reward_south,
 		"required_resources": {"🌲": 1},
 		"emoji_pair": [reward_north, reward_south],
 		"description": "Test quest %d from %s" % [quest_id, faction]

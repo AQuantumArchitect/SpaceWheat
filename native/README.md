@@ -39,7 +39,7 @@ make clean && make -j$(nproc)
 | `quantum_matrix_native.cpp` | 293 | General matrix ops |
 | `force_graph_engine.cpp` | 273 | Bubble physics |
 | `liquid_neural_net.cpp` | 180 | Phase modulation |
-| `register_types.cpp` | 68 | GDExtension registration |
+| `register_types.cpp` | 63 | GDExtension registration |
 
 **Total:** 7 files, 3415 lines
 

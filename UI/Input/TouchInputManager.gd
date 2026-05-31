@@ -11,10 +11,10 @@ const TAP_MAX_MOVEMENT: float = 30.0     # 30px max movement for tap (matches sw
 const SWIPE_MIN_DISTANCE: float = 30.0   # 30px minimum swipe distance
 
 # Signals for game systems to connect to
-signal tap_detected(position: Vector2)
+signal tap_detected(grid_pos: Vector2)
 signal swipe_detected(start_pos: Vector2, end_pos: Vector2, direction: Vector2)
-signal drag_started(position: Vector2)
-signal drag_moved(position: Vector2)
+signal drag_started(grid_pos: Vector2)
+signal drag_moved(grid_pos: Vector2)
 signal drag_ended(start_pos: Vector2, end_pos: Vector2)
 
 # Single touch tracking (simplified - no multi-touch)
@@ -31,7 +31,7 @@ var _verbose = null
 
 
 func _ready():
-	_verbose = InstrumentLocator.resolve_verbose_config(self)
+	_verbose = get_node_or_null("/root/VerboseConfig")
 
 
 func _input(event: InputEvent) -> void:
@@ -56,17 +56,17 @@ func _input(event: InputEvent) -> void:
 			drag_moved.emit(event.position)
 
 
-func _handle_touch_start(position: Vector2) -> void:
-	"""Unified touch/mouse start handler."""
-	touch_start_pos = position
-	touch_current_pos = position
+func _handle_touch_start(grid_pos: Vector2) -> void:
+	# Unified touch/mouse start handler.
+	touch_start_pos = grid_pos
+	touch_current_pos = grid_pos
 	touch_start_time = Time.get_ticks_msec() / 1000.0
 	is_touching = true
-	drag_started.emit(position)
+	drag_started.emit(grid_pos)
 
 
 func _handle_touch_end(end_pos: Vector2) -> void:
-	"""Unified touch/mouse end handler with gesture classification."""
+	# Unified touch/mouse end handler with gesture classification.
 	if not is_touching:
 		return
 
@@ -97,19 +97,16 @@ func get_current_touch_position() -> Vector2:
 # PHASE 2 FIX: Spatial hit testing helpers
 
 func consume_current_tap() -> void:
-	"""Mark the current tap as consumed (handled by a specific system)
-
-	Call this from tap_detected signal handlers to prevent other handlers
-	from also processing the same tap. Implements spatial hierarchy.
-	"""
+	# Mark the current tap as consumed (handled by a specific system)
+	#
+	# Call this from tap_detected signal handlers to prevent other handlers
+	# from also processing the same tap. Implements spatial hierarchy.
 	current_tap_consumed = true
 
 
 func is_current_tap_consumed() -> bool:
-	"""Check if the current tap was already consumed by another handler
-
-	Returns:
-		true if tap was consumed, false if still available to handle
-	"""
+	# Check if the current tap was already consumed by another handler
+	#
+	# Returns:
+	# true if tap was consumed, false if still available to handle
 	return current_tap_consumed
-const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")

@@ -1,7 +1,6 @@
 class_name KeyboardLayoutConfig
 extends Resource
 
-const GridSentinel = preload("res://Core/GameState/GridSentinel.gd")
 
 ## KeyboardLayoutConfig - Maps keyboard actions to grid positions and vice versa
 ## Decouples input system from grid layout
@@ -11,17 +10,17 @@ const GridSentinel = preload("res://Core/GameState/GridSentinel.gd")
 
 
 func get_position_for_action(action: String) -> Vector2i:
-	"""Get grid position for a keyboard action"""
+	# Get grid position for a keyboard action
 	return action_to_position.get(action, GridSentinel.INVALID_POSITION)
 
 
 func get_label_for_position(pos: Vector2i) -> String:
-	"""Get keyboard label for a grid position"""
+	# Get keyboard label for a grid position
 	return position_to_label.get(pos, "")
 
 
 func get_all_actions() -> Array[String]:
-	"""Get all configured input actions"""
+	# Get all configured input actions
 	var actions: Array[String] = []
 	for action in action_to_position.keys():
 		actions.append(str(action))
@@ -29,7 +28,7 @@ func get_all_actions() -> Array[String]:
 
 
 func is_action_valid(action: String) -> bool:
-	"""Check if action is configured"""
+	# Check if action is configured
 	return action_to_position.has(action)
 
 

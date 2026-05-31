@@ -9,7 +9,6 @@ extends PanelContainer
 ## Placed in top-right corner of FarmUI
 ## Updates automatically when modes change
 
-const QuantumRigorConfig = preload("res://Core/GameState/QuantumRigorConfig.gd")
 
 var config: QuantumRigorConfig = null
 var status_label: Label = null
@@ -17,7 +16,7 @@ var update_timer: float = 0.0
 
 
 func _ready() -> void:
-	"""Initialize status indicator"""
+	# Initialize status indicator
 	# Get config singleton
 	config = QuantumRigorConfig.instance
 	if not config:
@@ -39,7 +38,7 @@ func _ready() -> void:
 
 
 func _setup_theme() -> void:
-	"""Configure visual styling"""
+	# Configure visual styling
 	# Use semi-transparent background
 	add_theme_stylebox_override("panel", _create_panel_style())
 
@@ -52,7 +51,7 @@ func _setup_theme() -> void:
 
 
 func _create_panel_style() -> StyleBox:
-	"""Create semi-transparent panel background"""
+	# Create semi-transparent panel background
 	var style = StyleBoxFlat.new()
 	style.bg_color = Color(0.05, 0.05, 0.1, 0.7)  # Dark blue-black
 	# Godot 4.5: set borders individually (no set_border_enabled_all)
@@ -70,7 +69,7 @@ func _create_panel_style() -> StyleBox:
 
 
 func _process(delta: float) -> void:
-	"""Update status periodically (check for mode changes)"""
+	# Update status periodically (check for mode changes)
 	update_timer += delta
 	if update_timer >= 0.5:  # Update every 0.5 seconds
 		_update_status()
@@ -78,7 +77,7 @@ func _process(delta: float) -> void:
 
 
 func _update_status() -> void:
-	"""Update the displayed status text"""
+	# Update the displayed status text
 	if not config or not status_label:
 		return
 
@@ -97,15 +96,9 @@ func _update_status() -> void:
 
 
 func get_snapshot() -> Dictionary:
-	"""Return structured snapshot of current quantum mode status."""
+	# Return structured snapshot of current quantum mode status.
 	if not status_label:
 		return {"mode": ""}
 	return {"mode": status_label.text}
 
 
-func get_full_description() -> String:
-	"""Get detailed mode description for help text"""
-	if not config:
-		return "Quantum Rigor Config unavailable"
-
-	return config.get_mode_description()

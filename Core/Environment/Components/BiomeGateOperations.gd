@@ -7,8 +7,11 @@ extends RefCounted
 ## - Gate application (1Q and 2Q gates)
 ## - Entanglement operations (Bell pairs, cluster states)
 ## - Batch measurement across entangled components
+##
+## STATUS: register_manager is not yet wired — all position-based gate methods
+## return false immediately. This is the intended API for the operator-hat gate
+## frame; implement by injecting a real register_manager when that frame is built.
 
-const QuantumGateLibrary = preload("res://Core/QuantumSubstrate/QuantumGateLibrary.gd")
 
 # Injected dependencies
 var quantum_computer = null
@@ -80,7 +83,7 @@ func apply_gate_1q(position: Vector2i, gate_name: String) -> bool:
 	var success = quantum_computer.apply_gate(reg.bound_register_id, U)
 
 	if success and time_tracker:
-		reg.record_gate_application(gate_name, time_tracker.turn_count)
+		reg.record_gate_application(gate_name, time_tracker.cycle_count)
 
 	return success
 
@@ -125,8 +128,8 @@ func apply_gate_2q(position_a: Vector2i, position_b: Vector2i, gate_name: String
 	var success = quantum_computer.apply_gate_2q(reg_a.bound_register_id, reg_b.bound_register_id, U)
 
 	if success and time_tracker:
-		reg_a.record_gate_application(gate_name + "(ctrl)", time_tracker.turn_count)
-		reg_b.record_gate_application(gate_name + "(tgt)", time_tracker.turn_count)
+		reg_a.record_gate_application(gate_name + "(ctrl)", time_tracker.cycle_count)
+		reg_b.record_gate_application(gate_name + "(tgt)", time_tracker.cycle_count)
 
 	return success
 
@@ -340,7 +343,7 @@ func remove_entanglement(pos_a: Vector2i, pos_b: Vector2i) -> bool:
 # Batch Measurement
 # ============================================================================
 
-func batch_measure_plots(position: Vector2i, qubit_measured_callback: Callable = Callable()) -> Dictionary:
+func batch_measure_plots(position: Vector2i, _qubit_measured_callback: Callable = Callable()) -> Dictionary:
 	# Measure entire entangled component when one plot is measured (Phase 3 - Spooky Action at Distance)
 
 	# When you measure one qubit in an entangled component, all qubits in that component collapse.

@@ -5,7 +5,8 @@
 
 set -e
 
-PROJECT_ROOT="/home/tehcr33d/ws/SpaceWheat"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT"
 source "${PROJECT_ROOT}/scripts/lib/godot_runtime_env.sh"
 APPLICATION_NAME="${APPLICATION_NAME:-SpaceWheat - Quantum Farm}"
@@ -124,7 +125,7 @@ run_test_with_log() {
     fi
 
     # Build godot command
-    local godot_cmd=(godot --audio-driver "${SW_GODOT_AUDIO_DRIVER:-Dummy}")
+    local godot_cmd=(sw_godot)
     if [ "$headless" = "true" ]; then
         godot_cmd+=(--headless)
     fi
@@ -160,7 +161,7 @@ run_test_with_log() {
     return $exit_code
 }
 
-# Run a Godot test scene with timeout (legacy, uses new generic runner)
+# Run a Godot test scene with timeout (uses the generic runner)
 run_test_scene() {
     local scene_path="$1"
     local timeout_secs="${2:-20}"
@@ -195,7 +196,7 @@ verify_gpu_offload() {
     elif echo "$test_output" | grep -q "Native renderer available"; then
         echo -e "${GREEN}✓ Bubble rendering: GPU-accelerated (native C++)${NC}"
     else
-        echo -e "${YELLOW}⚠ Bubble rendering: GDScript fallback${NC}"
+        echo -e "${YELLOW}⚠ Bubble rendering: script-side path${NC}"
     fi
 
     # Check for batched emoji rendering
@@ -206,15 +207,7 @@ verify_gpu_offload() {
     fi
 
     if [ "$headless_mode" = "true" ]; then
-        if echo "$test_output" | grep -q "ComputeSelector.*Selected: NATIVE_CPU"; then
-            echo -e "${GREEN}✓ Headless compute backend: native CPU fallback active${NC}"
-        elif echo "$test_output" | grep -q "ComputeSelector.*Selected:"; then
-            local backend_line
-            backend_line=$(echo "$test_output" | grep "ComputeSelector.*Selected:" | tail -n 1)
-            echo -e "${GREEN}✓ Headless compute backend detected: ${backend_line}${NC}"
-        else
-            echo -e "${YELLOW}⚠ Compute backend selection line not found${NC}"
-        fi
+        echo -e "${BLUE}ℹ Headless mode validates the live project runtime, not the archived compute-selector lane${NC}"
     fi
 
     echo ""

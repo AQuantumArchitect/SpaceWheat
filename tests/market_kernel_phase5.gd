@@ -10,11 +10,9 @@ extends SceneTree
 ##   - produces meaningfully different attention rankings than the old
 ##     mean-abs-diff bit-vector overlap (i.e. the kernel actually moves)
 
-const AffinityGraphCls = preload("res://Core/Affinity/AffinityGraph.gd")
+const AlignmentGraphCls = preload("res://Core/Alignment/AlignmentGraph.gd")
 const FactionRegistryCls = preload("res://Core/Factions/FactionRegistry.gd")
 const BiomeRegistryCls = preload("res://Core/Biomes/BiomeRegistry.gd")
-const IconLexicon = preload("res://Core/Factions/IconLexicon.gd")
-const FactionAxes = preload("res://Core/Factions/FactionAxes.gd")
 
 var _failed: int = 0
 var _passed: int = 0
@@ -29,11 +27,11 @@ func _init() -> void:
 	_faction_reg.load_factions()
 	_biome_reg = BiomeRegistryCls.new()
 	_biome_reg.load_biomes()
-	_lex = IconLexicon.new()
+	_lex = get_node_or_null("/root/IconRegistry")
 
 	_t_kernel_range()
 	_t_native_owner_peaks()
-	_t_kernel_vs_legacy_divergence()
+	_t_kernel_vs_baseline_divergence()
 	print("=== %d passed, %d failed ===" % [_passed, _failed])
 	quit(0 if _failed == 0 else 1)
 
@@ -48,31 +46,28 @@ func _check(cond: bool, label: String) -> void:
 
 
 func _build_biome_affinity(biome):
-	var pairs: Array = biome.get_signature_pairs()
-	if pairs.is_empty():
+	var icons: Array = biome.get_neighborhood_signature_icons()
+	if icons.is_empty():
 		return null
 	var owners: Array = []
-	for pair in pairs:
-		var icon: Dictionary = _lex.find_icon_by_pair(pair.pole_0, pair.pole_1)
-		if icon.is_empty():
-			continue
-		var owner: String = str(icon.get("owner_faction", ""))
-		if owner != "":
-			owners.append(owner)
+	for icon in icons:
+		var biome_owner: String = _lex.get_primary_faction_for_pair(icon.pole_0, icon.pole_1)
+		if biome_owner != "":
+			owners.append(biome_owner)
 	if owners.is_empty():
 		return null
 	var first_f = _faction_reg.get_by_name(owners[0])
-	if first_f == null or first_f.affinity == null:
+	if first_f == null or first_f.alignment == null:
 		return null
-	var bg = AffinityGraphCls.from_dict(first_f.affinity.to_dict())
+	var bg = AlignmentGraphCls.from_dict(first_f.alignment.to_dict())
 	for i in range(1, owners.size()):
 		var f = _faction_reg.get_by_name(owners[i])
-		if f != null and f.affinity != null:
-			bg.lindblad_jump_toward(f.affinity, 1.0 / float(i + 1))
+		if f != null and f.alignment != null:
+			bg.lindblad_jump_toward(f.alignment, 1.0 / float(i + 1))
 	return bg
 
 
-static func _legacy_axial_overlap(a: Array, b: Array) -> float:
+static func _baseline_axial_overlap(a: Array, b: Array) -> float:
 	var n: int = min(a.size(), b.size())
 	if n == 0: return 0.0
 	var diff := 0.0
@@ -91,9 +86,9 @@ func _t_kernel_range() -> void:
 		if bg == null:
 			continue
 		for f in factions:
-			if f.affinity == null:
+			if f.alignment == null:
 				continue
-			var ov: float = f.affinity.overlap(bg)
+			var ov: float = f.alignment.overlap(bg)
 			if ov < -1e-9 or ov > 1.0 + 1e-9:
 				out_of_range += 1
 				if out_of_range <= 3:
@@ -117,9 +112,8 @@ func _t_native_owner_peaks() -> void:
 		if bg == null:
 			continue
 		var owners: Dictionary = {}
-		for pair in b.get_signature_pairs():
-			var icon: Dictionary = _lex.find_icon_by_pair(pair.pole_0, pair.pole_1)
-			var o: String = str(icon.get("owner_faction", "")) if not icon.is_empty() else ""
+		for icon in b.get_neighborhood_signature_icons():
+			var o: String = _lex.get_primary_faction_for_pair(icon.pole_0, icon.pole_1)
 			if o != "":
 				owners[o] = true
 		if owners.is_empty():
@@ -127,8 +121,8 @@ func _t_native_owner_peaks() -> void:
 		biomes_checked += 1
 		var scored: Array = []
 		for f in factions:
-			if f.affinity != null:
-				scored.append([f.affinity.overlap(bg), f.name])
+			if f.alignment != null:
+				scored.append([f.alignment.overlap(bg), f.name])
 		scored.sort_custom(func(a, c): return a[0] > c[0])
 		var top5: Array = scored.slice(0, 5)
 		var hit := false
@@ -144,8 +138,8 @@ func _t_native_owner_peaks() -> void:
 			[owner_in_top5, biomes_checked])
 
 
-func _t_kernel_vs_legacy_divergence() -> void:
-	# The kernel should rank factions differently than the legacy bit-vec
+func _t_kernel_vs_baseline_divergence() -> void:
+	# The kernel should rank factions differently than the bit-vec
 	# overlap on at least some biomes — otherwise we haven't actually changed
 	# the math, just renamed it.
 	var biomes = _biome_reg.get_all()
@@ -161,9 +155,8 @@ func _t_kernel_vs_legacy_divergence() -> void:
 		for i in range(FactionAxes.AXIS_COUNT):
 			axis_sums.append(0.0)
 		var counted := 0
-		for pair in b.get_signature_pairs():
-			var icon: Dictionary = _lex.find_icon_by_pair(pair.pole_0, pair.pole_1)
-			var o: String = str(icon.get("owner_faction", "")) if not icon.is_empty() else ""
+		for icon in b.get_neighborhood_signature_icons():
+			var o: String = _lex.get_primary_faction_for_pair(icon.pole_0, icon.pole_1)
 			if o == "": continue
 			var of = _faction_reg.get_by_name(o)
 			if of == null: continue
@@ -178,23 +171,23 @@ func _t_kernel_vs_legacy_divergence() -> void:
 		biomes_checked += 1
 		# Compare top-3 by each metric
 		var by_kernel: Array = []
-		var by_legacy: Array = []
+		var by_baseline: Array = []
 		for f in factions:
-			if f.affinity == null: continue
-			by_kernel.append([f.affinity.overlap(bg), f.name])
+			if f.alignment == null: continue
+			by_kernel.append([f.alignment.overlap(bg), f.name])
 			var fb: Array = []
 			for x in f.get_axial_bits():
 				fb.append(float(x))
-			by_legacy.append([_legacy_axial_overlap(fb, biome_bits), f.name])
+			by_baseline.append([_baseline_axial_overlap(fb, biome_bits), f.name])
 		by_kernel.sort_custom(func(a, c): return a[0] > c[0])
-		by_legacy.sort_custom(func(a, c): return a[0] > c[0])
+		by_baseline.sort_custom(func(a, c): return a[0] > c[0])
 		var top3_k: Array = []
-		var top3_l: Array = []
+		var top3_b: Array = []
 		for i in range(3):
 			top3_k.append(by_kernel[i][1])
-			top3_l.append(by_legacy[i][1])
-		if top3_k != top3_l:
+			top3_b.append(by_baseline[i][1])
+		if top3_k != top3_b:
 			biomes_with_rank_diff += 1
 	_check(biomes_with_rank_diff > 0,
-		"%d/%d biomes have kernel-vs-legacy top-3 rank divergence (kernel actually moves)" %
+		"%d/%d biomes have kernel-vs-baseline top-3 rank divergence (kernel actually moves)" %
 			[biomes_with_rank_diff, biomes_checked])

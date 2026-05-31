@@ -9,22 +9,25 @@ def _read(path: str) -> str:
 
 
 def test_rig_listener_exposes_player_input_backend_and_key_commands() -> None:
-    src = _read("Tests/rig_listener.gd")
-    assert 'execution_backend?: "direct"|"player_input"|"auto"' in src
+    src = _read("Rig/rig_listener.gd")
+    assert 'execution_backend?: "direct"|"player_input"|"auto"' not in src
     assert '"press_key":' in src
     assert '"key_sequence":' in src
-    assert "func _resolve_policy_execution_backend(" in src
     assert "func _press_key(" in src
-    assert "func _execute_policy_action_via_input(" in src
-    assert 'execution_backend == "player_input"' in src
-    assert 'if not _is_headless:' in src
-    assert 'return "player_input"' in src
+    assert "func _select_biome_via_input(" in src
+    assert "func _select_plot_via_input(" in src
+    assert "func _open_quest_board_via_input(" in src
+    assert '"quests"|"atlas"|"controls"' in src
+    assert '"vocabulary"|"semantic_map"' not in src
 
 
 def test_player_input_backend_does_not_hide_direct_fallbacks() -> None:
-    src = _read("UI/Core/PlayerInputMacroRunner.gd")
-    assert "not_supported_by_player_input" in src
-    assert "_direct_fallback" not in src
+    src = _read("UI/Core/QuantumInstrumentInput.gd")
+    assert "class_name QuantumInstrumentInput" in src
+    assert "func _unhandled_key_input(" in src
+    assert "func inject_instrument(" in src
+    assert "func set_checked_plots(" in src
+    assert "PlayerInputMacroRunner" not in src
 
 
 def test_runner_batch_and_launcher_thread_display_backend_flags() -> None:
@@ -41,7 +44,8 @@ def test_runner_batch_and_launcher_thread_display_backend_flags() -> None:
     assert "def clear_rig_files(self, preserve_live_sentinel: bool = True) -> None:" in client
     assert "if not preserve_live_sentinel or not self._bridge_sentinel_is_ready(self.xdg_root):" in client
     assert 'if [ "$RIG_DISPLAY_MODE" = "headed" ]; then' in launcher
-    assert "exec godot --audio-driver" in launcher
+    assert 'sw_godot --rendering-driver "$RIG_RENDERING_DRIVER" --path . --script Rig/rig_listener.gd' in launcher
+    assert 'sw_godot --headless --path . --script Rig/rig_listener.gd' in launcher
 
 
 def test_derby_and_seed_save_accept_headed_player_input_flags() -> None:
@@ -60,6 +64,6 @@ def test_derby_and_seed_save_accept_headed_player_input_flags() -> None:
     assert "if proc is not None and not args.reuse_listener:" in seed
 
 
-def test_obsolete_dev_runner_forks_are_deleted() -> None:
+def test_dev_runner_forks_are_deleted() -> None:
     assert not (ROOT / "🍄" / "🎛️" / "dev" / "milk_hunt_runner_graphics_waits.py").exists()
     assert not (ROOT / "🍄" / "🎛️" / "dev" / "milk_hunt_runner_quantum_waits.py").exists()

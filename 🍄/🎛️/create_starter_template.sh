@@ -78,14 +78,14 @@ while IFS= read -r line; do
   fi
 done < <(python3 -c "import json; data=json.load(open('$CONFIG_FILE')); [print(f'{k}:{v}') for k,v in data.get('resources', {}).items()]")
 
-# Parse known pairs
-PAIR_ARGS=()
+# Parse known icons
+ICON_ARGS=()
 while IFS= read -r line; do
   if [[ -n "$line" ]]; then
-    PAIR_ARGS+=(--known-pair "$line")
-    echo "  - Pair: $line"
+    ICON_ARGS+=(--known-icon "$line")
+    echo "  - Icon: $line"
   fi
-done < <(python3 -c "import json; data=json.load(open('$CONFIG_FILE')); [print(f'{p[\"north\"]}:{p[\"south\"]}') for p in data.get('known_pairs', [])]")
+done < <(python3 -c "import json; data=json.load(open('$CONFIG_FILE')); [print(f'{p[\"north\"]}:{p[\"south\"]}') for p in data.get('known_icons', [])]")
 
 # Parse biomes
 BIOME_ARGS=()
@@ -101,7 +101,7 @@ if [[ "$DRY_RUN" == "1" ]]; then
   echo ""
   echo "[dry-run] Would create template with:"
   echo "  Resources: ${#RESOURCE_ARGS[@]} items"
-  echo "  Pairs: ${#PAIR_ARGS[@]} items"
+  echo "  Icons: ${#ICON_ARGS[@]} items"
   echo "  Biomes: ${#BIOME_ARGS[@]} + active: $ACTIVE_BIOME"
   echo "  Target: $TEMPLATE_FILE"
   exit 0
@@ -117,7 +117,7 @@ python3 "${SCRIPT_DIR}/milk_hunt_seed_save.py" \
   --slot "$TEMP_SLOT" \
   --resource-mode set \
   "${RESOURCE_ARGS[@]}" \
-  "${PAIR_ARGS[@]}" \
+  "${ICON_ARGS[@]}" \
   "${BIOME_ARGS[@]}" \
   --active-biome "$ACTIVE_BIOME"
 

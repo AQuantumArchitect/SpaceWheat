@@ -9,7 +9,6 @@ extends PanelContainer
 ##
 ## Can be opened from main menu or pause menu
 
-const QuantumRigorConfig = preload("res://Core/GameState/QuantumRigorConfig.gd")
 
 var config: QuantumRigorConfig = null
 var scroll_container: ScrollContainer = null
@@ -17,7 +16,7 @@ var content_vbox: VBoxContainer = null
 
 
 func _ready() -> void:
-	"""Initialize settings panel"""
+	# Initialize settings panel
 	config = QuantumRigorConfig.instance
 	if not config:
 		print("⚠️  QuantumRigorConfigUI: No QuantumRigorConfig instance found")
@@ -31,7 +30,7 @@ func _ready() -> void:
 
 
 func _setup_theme() -> void:
-	"""Configure visual styling"""
+	# Configure visual styling
 	# Panel background
 	var panel_style = StyleBoxFlat.new()
 	panel_style.bg_color = Color(0.05, 0.05, 0.1, 0.95)
@@ -53,7 +52,7 @@ func _setup_theme() -> void:
 
 
 func _setup_layout() -> void:
-	"""Build UI layout"""
+	# Build UI layout
 	# Main container
 	var main_vbox = VBoxContainer.new()
 	add_child(main_vbox)
@@ -103,7 +102,7 @@ func _setup_layout() -> void:
 
 
 func _add_readout_mode_section() -> void:
-	"""Add readout mode selection section"""
+	# Add readout mode selection section
 	var section = _create_section("📡 Readout Mode", "How measurement results are presented:")
 
 	var hardware_btn_container = _create_mode_button(
@@ -126,7 +125,7 @@ func _add_readout_mode_section() -> void:
 
 
 func _add_selective_measure_section() -> void:
-	"""Add selective measurement model selection section"""
+	# Add selective measurement model selection section
 	var section = _create_section("💰 Selective Measurement Model", "Cost of measuring specific subspaces:")
 
 	var costed_btn_container = _create_mode_button(
@@ -149,7 +148,7 @@ func _add_selective_measure_section() -> void:
 
 
 func _add_invariant_checks_section() -> void:
-	"""Add debug mode for physics invariant checks"""
+	# Add debug mode for physics invariant checks
 	var section = _create_section("🐛 Debug Mode", "Expensive per-frame validation (performance impact):")
 
 	var check_box = CheckButton.new()
@@ -168,7 +167,7 @@ func _add_invariant_checks_section() -> void:
 
 
 func _create_section(title: String, description: String) -> VBoxContainer:
-	"""Create a mode section with title and description"""
+	# Create a mode section with title and description
 	var section = VBoxContainer.new()
 
 	var title_label = Label.new()
@@ -189,13 +188,13 @@ func _create_section(title: String, description: String) -> VBoxContainer:
 	return section
 
 
-func _create_mode_button(name: String, description: String, selected: bool) -> HBoxContainer:
-	"""Create a selectable mode button (returns container with button as first child)"""
+func _create_mode_button(_name: String, description: String, selected: bool) -> HBoxContainer:
+	# Create a selectable mode button (returns container with button as first child)
 	var container = HBoxContainer.new()
 	container.custom_minimum_size = Vector2(500, 60)
 
 	var button = Button.new()
-	button.text = "%s %s" % ["✓" if selected else " ", name]
+	button.text = "%s %s" % ["✓" if selected else " ", _name]
 	button.custom_minimum_size = Vector2(120, 60)
 	button.modulate = Color(0.2, 0.8, 1.0) if selected else Color.WHITE
 	container.add_child(button)
@@ -210,32 +209,32 @@ func _create_mode_button(name: String, description: String, selected: bool) -> H
 
 
 func _set_readout_mode(mode: QuantumRigorConfig.ReadoutMode) -> void:
-	"""Change readout mode"""
+	# Change readout mode
 	config.readout_mode = mode
 	print("🎲 Readout mode changed: %s" % ("HARDWARE" if mode == QuantumRigorConfig.ReadoutMode.HARDWARE else "INSPECTOR"))
 	_update_display()
 
 
 func _set_measure_model(model: QuantumRigorConfig.SelectiveMeasureModel) -> void:
-	"""Change selective measurement model"""
+	# Change selective measurement model
 	config.selective_measure_model = model
 	print("💰 Measurement model changed: %s" % ("POSTSELECT_COSTED" if model == QuantumRigorConfig.SelectiveMeasureModel.POSTSELECT_COSTED else "CLICK_NOCLICK"))
 	_update_display()
 
 
 func _set_invariant_checks(enabled: bool) -> void:
-	"""Enable/disable invariant checks"""
+	# Enable/disable invariant checks
 	config.enable_invariant_checks = enabled
 	print("🐛 Invariant checks: %s" % ("ENABLED" if enabled else "DISABLED"))
 	_update_display()
 
 
 func _update_display() -> void:
-	"""Refresh UI to reflect current config"""
+	# Refresh UI to reflect current config
 	# Could add animation or visual feedback here
 	pass
 
 
 func _on_close_pressed() -> void:
-	"""Close settings panel"""
+	# Close settings panel
 	queue_free()

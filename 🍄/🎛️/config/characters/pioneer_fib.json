@@ -12,7 +12,7 @@
     "🌾": 5,
     "🌱": 3
   },
-  "known_pairs": [
+  "known_icons": [
     { "north": "🌾", "south": "🌱" }
   ],
   "unlocked_biomes": [

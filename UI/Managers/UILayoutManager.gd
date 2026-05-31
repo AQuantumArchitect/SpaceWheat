@@ -6,8 +6,6 @@ extends Node
 ## Handles viewport resizing, breakpoints, and touch vs mouse adaptation
 
 # Preload GridConfig (Phase 5)
-const GridConfig = preload("res://Core/GameState/GridConfig.gd")
-const VerboseHelper = preload("res://Core/Config/VerboseHelper.gd")
 
 # Base resolution for design (all proportions calculated from this)
 const BASE_RESOLUTION = Vector2(960, 540)  # Static viewport base resolution
@@ -93,7 +91,7 @@ func _ready():
 
 
 func _detect_input_mode():
-	"""Detect if device supports touch input"""
+	# Detect if device supports touch input
 	is_touch_device = OS.has_feature("touchscreen")
 
 	# Additional detection for HTML5 export
@@ -106,7 +104,7 @@ func _detect_input_mode():
 
 
 func _detect_mobile_browser() -> bool:
-	"""Check if running in mobile browser (HTML5 export)"""
+	# Check if running in mobile browser (HTML5 export)
 	if OS.get_name() != "HTML5":
 		return false
 
@@ -116,7 +114,7 @@ func _detect_mobile_browser() -> bool:
 
 
 func inject_grid_config(config: GridConfig) -> void:
-	"""Inject GridConfig for dynamic layout sizing (Phase 5)"""
+	# Inject GridConfig for dynamic layout sizing (Phase 5)
 	if not config:
 		push_error("UILayoutManager: Attempted to inject null GridConfig!")
 		return
@@ -127,7 +125,7 @@ func inject_grid_config(config: GridConfig) -> void:
 
 
 func _recalculate_layout_percentages() -> void:
-	"""Recalculate layout percentages based on grid height (Phase 5)"""
+	# Recalculate layout percentages based on grid height (Phase 5)
 	if not grid_config:
 		return
 
@@ -144,7 +142,7 @@ func _recalculate_layout_percentages() -> void:
 
 
 func _on_viewport_resize():
-	"""Called when viewport size changes"""
+	# Called when viewport size changes
 	viewport_size = get_viewport().get_visible_rect().size  # Logical viewport (960×540 with canvas_items)
 	_calculate_scale_factor()
 	_calculate_layout_dimensions()
@@ -152,7 +150,7 @@ func _on_viewport_resize():
 
 
 func _calculate_scale_factor():
-	"""Calculate scale factor and determine breakpoint"""
+	# Calculate scale factor and determine breakpoint
 	var width_scale = viewport_size.x / BASE_RESOLUTION.x
 	var height_scale = viewport_size.y / BASE_RESOLUTION.y
 	var raw_scale = min(width_scale, height_scale)
@@ -184,7 +182,7 @@ func _calculate_scale_factor():
 
 
 func _calculate_layout_dimensions():
-	"""Calculate all layout dimensions based on current viewport and scale factor"""
+	# Calculate all layout dimensions based on current viewport and scale factor
 	# Recalculate if grid config changed
 	if grid_config:
 		_recalculate_layout_percentages()
@@ -224,7 +222,7 @@ func _calculate_layout_dimensions():
 
 
 func _emit_layout_change():
-	"""Emit layout change signal with complete layout data"""
+	# Emit layout change signal with complete layout data
 	layout_changed.emit({
 		"viewport_size": viewport_size,
 		"scale_factor": scale_factor,
@@ -240,53 +238,51 @@ func _emit_layout_change():
 ## Public API: Position Calculation Functions
 
 func get_scaled_size(base_size: Vector2) -> Vector2:
-	"""Scale a size vector by current scale factor"""
+	# Scale a size vector by current scale factor
 	return base_size * scale_factor
 
 
 func h(base_px_540: float) -> float:
-	"""Normalize a height token from 540px design space to current viewport."""
+	# Normalize a height token from 540px design space to current viewport.
 	return viewport_size.y * (base_px_540 / BASE_RESOLUTION.y)
 
 
 func w(base_px_960: float) -> float:
-	"""Normalize a width token from 960px design space to current viewport."""
+	# Normalize a width token from 960px design space to current viewport.
 	return viewport_size.x * (base_px_960 / BASE_RESOLUTION.x)
 
 
 func inset(base_px: float) -> float:
-	"""Scale inset/margin tokens using the smaller axis for consistent density."""
+	# Scale inset/margin tokens using the smaller axis for consistent density.
 	var by_width = w(base_px)
 	var by_height = h(base_px)
 	return min(by_width, by_height)
 
 
 func get_scaled_font_size(base_size: int) -> int:
-	"""Scale font size with cap at 1.5× to maintain readability
+	# Scale font size with cap at 1.5× to maintain readability
 
-	Args:
-		base_size: Base font size in pixels (at 1920×1080)
+	# Args:
+	# base_size: Base font size in pixels (at 1920×1080)
 
-	Returns:
-		Scaled font size, capped at 1.5× to prevent text overflow
-	"""
+	# Returns:
+	# Scaled font size, capped at 1.5× to prevent text overflow
 	var font_scale = min(scale_factor, 1.5)
 	return int(base_size * font_scale)
 
 
 func get_perimeter_position(index: int, total: int) -> Vector2:
-	"""Calculate position for plot tiles around play area perimeter
+	# Calculate position for plot tiles around play area perimeter
 
-	Distributes items evenly around the inner rectangular boundary of play area.
-	Starts at top-left corner and goes: top → right → bottom → left
+	# Distributes items evenly around the inner rectangular boundary of play area.
+	# Starts at top-left corner and goes: top → right → bottom → left
 
-	Args:
-		index: Which item this is (0 to total-1)
-		total: Total number of items to distribute
+	# Args:
+	# index: Which item this is (0 to total-1)
+	# total: Total number of items to distribute
 
-	Returns:
-		Position for this item in play area coordinates
-	"""
+	# Returns:
+	# Position for this item in play area coordinates
 	var inner_rect = play_area_inner_rect
 	var perimeter_length = (inner_rect.size.x + inner_rect.size.y) * 2
 	var segment_length = perimeter_length / total
@@ -311,20 +307,19 @@ func get_perimeter_position(index: int, total: int) -> Vector2:
 
 
 func get_play_area_center() -> Vector2:
-	"""Get center point of play area (for quantum graph positioning)"""
+	# Get center point of play area (for quantum graph positioning)
 	return play_area_rect.position + play_area_rect.size / 2
 
 
 func anchor_to_corner(corner: String, offset: Vector2) -> Vector2:
-	"""Position element relative to screen corner with scaled offset
+	# Position element relative to screen corner with scaled offset
 
-	Args:
-		corner: One of "top_left", "top_right", "bottom_left", "bottom_right"
-		offset: Offset from corner (will be scaled by scale_factor)
+	# Args:
+	# corner: One of "top_left", "top_right", "bottom_left", "bottom_right"
+	# offset: Offset from corner (will be scaled by scale_factor)
 
-	Returns:
-		Absolute screen position for the element
-	"""
+	# Returns:
+	# Absolute screen position for the element
 	var scaled_offset = offset * scale_factor
 	match corner:
 		"top_left":
@@ -341,16 +336,15 @@ func anchor_to_corner(corner: String, offset: Vector2) -> Vector2:
 
 
 func anchor_to_edge(edge: String, offset_from_edge: float, position_along_edge: float) -> Vector2:
-	"""Position element along screen edge
+	# Position element along screen edge
 
-	Args:
-		edge: One of "top", "right", "bottom", "left"
-		offset_from_edge: Distance from edge (will be scaled)
-		position_along_edge: 0.0-1.0 position along the edge (0=start, 1=end)
+	# Args:
+	# edge: One of "top", "right", "bottom", "left"
+	# offset_from_edge: Distance from edge (will be scaled)
+	# position_along_edge: 0.0-1.0 position along the edge (0=start, 1=end)
 
-	Returns:
-		Absolute screen position for the element
-	"""
+	# Returns:
+	# Absolute screen position for the element
 	var scaled_offset = offset_from_edge * scale_factor
 	match edge:
 		"top":
@@ -367,7 +361,7 @@ func anchor_to_edge(edge: String, offset_from_edge: float, position_along_edge: 
 
 
 func get_debug_info() -> Dictionary:
-	"""Return debug information about current layout state"""
+	# Return debug information about current layout state
 	return {
 		"viewport_size": viewport_size,
 		"scale_factor": scale_factor,
@@ -385,18 +379,17 @@ func get_debug_info() -> Dictionary:
 ## Consolidated from scattered hardcoded values across UI components
 
 func get_overlay_size() -> Vector2:
-	"""Default overlay size alias for medium modals."""
+	# Default overlay size alias for medium modals.
 	return get_modal_size("medium")
 
 
 func get_modal_size(mode: String = "medium") -> Vector2:
-	"""Get modal size by semantic mode.
+	# Get modal size by semantic mode.
 
-	Modes:
-	- small: compact system menu
-	- medium: standard info overlay
-	- large: content-heavy overlay
-	"""
+	# Modes:
+	# - small: compact system menu
+	# - medium: standard info overlay
+	# - large: content-heavy overlay
 	match mode:
 		"small":
 			return Vector2(
@@ -416,12 +409,11 @@ func get_modal_size(mode: String = "medium") -> Vector2:
 
 
 func center_overlay(overlay: Control, size: Vector2 = Vector2.ZERO) -> void:
-	"""Center an overlay in the viewport using anchor-based positioning.
+	# Center an overlay in the viewport using anchor-based positioning.
 
-	Args:
-		overlay: The Control node to center
-		size: Optional size override. If Vector2.ZERO, uses get_overlay_size()
-	"""
+	# Args:
+	# overlay: The Control node to center
+	# size: Optional size override. If Vector2.ZERO, uses get_overlay_size()
 	var actual_size = size if size != Vector2.ZERO else get_overlay_size()
 
 	# Set anchors to center
@@ -442,57 +434,55 @@ func center_overlay(overlay: Control, size: Vector2 = Vector2.ZERO) -> void:
 
 
 func get_action_row_height() -> float:
-	"""Calculate responsive action row height.
+	# Calculate responsive action row height.
 
-	Returns:
-		Height in pixels, based on 13% of viewport height,
-		clamped to min 55px and max 20% of viewport (so 2 rows = 40% max).
-	"""
-	var h = max(ACTION_ROW_MIN_HEIGHT, viewport_size.y * ACTION_ROW_HEIGHT_PERCENT)
+	# Returns:
+	# Height in pixels, based on 13% of viewport height,
+	# clamped to min 55px and max 20% of viewport (so 2 rows = 40% max).
+	var row_h = max(ACTION_ROW_MIN_HEIGHT, viewport_size.y * ACTION_ROW_HEIGHT_PERCENT)
 
 	# Clamp so both rows don't exceed 40% of viewport
-	if h * 2 > viewport_size.y * ACTION_ROW_MAX_PERCENT:
-		h = viewport_size.y * ACTION_ROW_MAX_PERCENT / 2
+	if row_h * 2 > viewport_size.y * ACTION_ROW_MAX_PERCENT:
+		row_h = viewport_size.y * ACTION_ROW_MAX_PERCENT / 2
 
-	return h
+	return row_h
 
 
 func get_resource_bar_height() -> float:
-	"""Height of top resource strip in the normalized 540px design space."""
+	# Height of top resource strip in the normalized 540px design space.
 	return h(RESOURCE_BAR_BASE_HEIGHT)
 
 
 func get_top_strip_gap() -> float:
-	"""Vertical gap between top resource strip and overlayed top controls."""
+	# Vertical gap between top resource strip and overlayed top controls.
 	return h(TOP_STRIP_GAP_BASE)
 
 
 func get_biome_tab_height() -> float:
-	"""Height of biome tab row."""
+	# Height of biome tab row.
 	return max(TAB_BAR_MIN_HEIGHT, h(40.0))
 
 
 func get_top_strip_side_inset() -> float:
-	"""Left/right safe inset for top strip controls."""
+	# Left/right safe inset for top strip controls.
 	return w(TOP_STRIP_SIDE_INSET_BASE)
 
 
 func get_quantum_indicator_size() -> Vector2:
-	"""Preferred size for the quantum mode indicator."""
+	# Preferred size for the quantum mode indicator.
 	return Vector2(w(QUANTUM_INDICATOR_WIDTH_BASE), h(QUANTUM_INDICATOR_HEIGHT_BASE))
 
 
 ## Utility Methods (DRY consolidation)
 
 func get_viewport_size() -> Vector2:
-	"""Get current viewport size.
+	# Get current viewport size.
 
-	Use this instead of get_viewport().get_visible_rect().size for consistent access.
-	This value is automatically updated when the viewport resizes.
-	"""
+	# Use this instead of get_viewport().get_visible_rect().size for consistent access.
+	# This value is automatically updated when the viewport resizes.
 	return viewport_size
 
 
 func get_plots_row_center() -> Vector2:
-	"""Get center point of plots row (for grid placement)."""
+	# Get center point of plots row (for grid placement).
 	return plots_row_rect.position + plots_row_rect.size / 2

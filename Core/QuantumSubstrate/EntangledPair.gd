@@ -34,7 +34,7 @@ func _init():
 
 
 func _initialize_density_matrix():
-	"""Initialize as maximally mixed state (identity/4)"""
+	# Initialize as maximally mixed state (identity/4)
 	density_matrix = []
 	for i in range(4):
 		var row = []
@@ -49,11 +49,10 @@ func _initialize_density_matrix():
 ## Bell State Creation
 
 func create_bell_phi_plus():
-	"""Create |Φ+⟩ = (|00⟩ + |11⟩)/√2
+	# Create |Φ+⟩ = (|00⟩ + |11⟩)/√2
 
-	Maximally entangled: measuring one qubit gives perfect correlation.
-	Both qubits collapse to same state.
-	"""
+	# Maximally entangled: measuring one qubit gives perfect correlation.
+	# Both qubits collapse to same state.
 	_clear_matrix()
 
 	# |Φ+⟩⟨Φ+| = 1/2 * (|00⟩⟨00| + |00⟩⟨11| + |11⟩⟨00| + |11⟩⟨11|)
@@ -68,10 +67,9 @@ func create_bell_phi_plus():
 
 
 func create_bell_phi_minus():
-	"""Create |Φ-⟩ = (|00⟩ - |11⟩)/√2
+	# Create |Φ-⟩ = (|00⟩ - |11⟩)/√2
 
-	Same correlation as Φ+, but with phase flip.
-	"""
+	# Same correlation as Φ+, but with phase flip.
 	# Clear to zeros
 	_clear_matrix()
 
@@ -86,10 +84,9 @@ func create_bell_phi_minus():
 
 
 func create_bell_psi_plus():
-	"""Create |Ψ+⟩ = (|01⟩ + |10⟩)/√2
+	# Create |Ψ+⟩ = (|01⟩ + |10⟩)/√2
 
-	Anti-correlated: measuring one qubit gives opposite result for other.
-	"""
+	# Anti-correlated: measuring one qubit gives opposite result for other.
 	_clear_matrix()
 
 	var half = 0.5
@@ -103,11 +100,10 @@ func create_bell_psi_plus():
 
 
 func create_bell_psi_minus():
-	"""Create |Ψ-⟩ = (|01⟩ - |10⟩)/√2
+	# Create |Ψ-⟩ = (|01⟩ - |10⟩)/√2
 
-	Anti-correlated with phase flip.
-	This state violates Bell inequalities maximally.
-	"""
+	# Anti-correlated with phase flip.
+	# This state violates Bell inequalities maximally.
 	_clear_matrix()
 
 	var half = 0.5
@@ -121,7 +117,7 @@ func create_bell_psi_minus():
 
 
 func _clear_matrix():
-	"""Clear density matrix to all zeros"""
+	# Clear density matrix to all zeros
 	density_matrix = []
 	for i in range(4):
 		var row = []
@@ -133,13 +129,12 @@ func _clear_matrix():
 ## Measurement Operations
 
 func measure_qubit_a() -> String:
-	"""Measure qubit A, collapsing joint state
+	# Measure qubit A, collapsing joint state
 
-	Uses partial trace to get reduced density matrix for A,
-	then samples from Born rule, then collapses full state.
+	# Uses partial trace to get reduced density matrix for A,
+	# then samples from Born rule, then collapses full state.
 
-	Returns: north_emoji_a or south_emoji_a
-	"""
+	# Returns: north_emoji_a or south_emoji_a
 	# Compute reduced density matrix for qubit A: ρ_A = Tr_B(ρ)
 	var rho_a = _partial_trace_a()  # FIX: _partial_trace_a() computes ρ_A
 
@@ -161,10 +156,9 @@ func measure_qubit_a() -> String:
 
 
 func measure_qubit_b() -> String:
-	"""Measure qubit B, collapsing joint state
+	# Measure qubit B, collapsing joint state
 
-	Returns: north_emoji_b or south_emoji_b
-	"""
+	# Returns: north_emoji_b or south_emoji_b
 	var rho_b = _partial_trace_b()  # FIX: _partial_trace_b() computes ρ_B
 	var prob_north = rho_b[0][0].x
 
@@ -181,22 +175,21 @@ func measure_qubit_b() -> String:
 
 
 func measure_both() -> Dictionary:
-	"""Measure both qubits simultaneously
+	# Measure both qubits simultaneously
 
-	Returns: {a: String, b: String}
-	"""
+	# Returns: {a: String, b: String}
 	# Get joint probabilities from diagonal of density matrix
 	var probs = []
 	for i in range(4):
 		probs.append(density_matrix[i][i].x)
 
 	# Sample from joint distribution
-	var rand = randf()
+	var rnd = randf()
 	var cumulative = 0.0
 	var outcome = 0
 	for i in range(4):
 		cumulative += probs[i]
-		if rand < cumulative:
+		if rnd < cumulative:
 			outcome = i
 			break
 
@@ -219,13 +212,12 @@ func measure_both() -> Dictionary:
 ## Partial Trace (for single-qubit measurement)
 
 func _partial_trace_a() -> Array:
-	"""Compute reduced density matrix for qubit A: ρ_A = Tr_B(ρ)
+	# Compute reduced density matrix for qubit A: ρ_A = Tr_B(ρ)
 
-	Traces out qubit B, leaving 2×2 matrix for qubit A.
-	ρ_A[i][j] = Σ_k ρ[2i+k][2j+k]
+	# Traces out qubit B, leaving 2×2 matrix for qubit A.
+	# ρ_A[i][j] = Σ_k ρ[2i+k][2j+k]
 
-	Returns: 2×2 array of Vector2
-	"""
+	# Returns: 2×2 array of Vector2
 	var rho_a = [
 		[Vector2(0, 0), Vector2(0, 0)],
 		[Vector2(0, 0), Vector2(0, 0)]
@@ -240,10 +232,9 @@ func _partial_trace_a() -> Array:
 
 
 func _partial_trace_b() -> Array:
-	"""Compute reduced density matrix for qubit B: ρ_B = Tr_A(ρ)
+	# Compute reduced density matrix for qubit B: ρ_B = Tr_A(ρ)
 
-	Returns: 2×2 array of Vector2
-	"""
+	# Returns: 2×2 array of Vector2
 	var rho_b = [
 		[Vector2(0, 0), Vector2(0, 0)],
 		[Vector2(0, 0), Vector2(0, 0)]
@@ -260,12 +251,11 @@ func _partial_trace_b() -> Array:
 ## Collapse Operations
 
 func _collapse_qubit_a(result: int):
-	"""Collapse density matrix after measuring qubit A
+	# Collapse density matrix after measuring qubit A
 
-	Projects onto subspace where qubit A = result.
-	New state: P_A ρ P_A / Tr(P_A ρ)
-	where P_A = |result⟩⟨result| ⊗ I_B
-	"""
+	# Projects onto subspace where qubit A = result.
+	# New state: P_A ρ P_A / Tr(P_A ρ)
+	# where P_A = |result⟩⟨result| ⊗ I_B
 	var new_rho = []
 	for i in range(4):
 		var row = []
@@ -293,7 +283,7 @@ func _collapse_qubit_a(result: int):
 
 
 func _collapse_qubit_b(result: int):
-	"""Collapse density matrix after measuring qubit B"""
+	# Collapse density matrix after measuring qubit B
 	var new_rho = []
 	for i in range(4):
 		var row = []
@@ -323,10 +313,9 @@ func _collapse_qubit_b(result: int):
 
 
 func _collapse_to_product_state(a_result: int, b_result: int):
-	"""Collapse to product state |a⟩⊗|b⟩
+	# Collapse to product state |a⟩⊗|b⟩
 
-	Sets density matrix to pure product state.
-	"""
+	# Sets density matrix to pure product state.
 	_initialize_density_matrix()
 	var index = a_result * 2 + b_result
 	density_matrix[index][index] = Vector2(1.0, 0.0)
@@ -335,11 +324,10 @@ func _collapse_to_product_state(a_result: int, b_result: int):
 ## Quantum State Properties
 
 func get_purity() -> float:
-	"""Calculate purity: Tr(ρ²)
+	# Calculate purity: Tr(ρ²)
 
-	Purity = 1 for pure states, < 1 for mixed states.
-	Range: [1/4, 1] for two-qubit systems.
-	"""
+	# Purity = 1 for pure states, < 1 for mixed states.
+	# Range: [1/4, 1] for two-qubit systems.
 	var rho_squared = _matrix_multiply(density_matrix, density_matrix)
 	var trace = Vector2(0, 0)
 	for i in range(4):
@@ -348,12 +336,11 @@ func get_purity() -> float:
 
 
 func get_entanglement_entropy() -> float:
-	"""Calculate entanglement entropy (von Neumann entropy of reduced state)
+	# Calculate entanglement entropy (von Neumann entropy of reduced state)
 
-	S = -Tr(ρ_A log ρ_A)
+	# S = -Tr(ρ_A log ρ_A)
 
-	S = 0 for product states, S = 1 (in nats) for maximally entangled.
-	"""
+	# S = 0 for product states, S = 1 (in nats) for maximally entangled.
 	var rho_a = _partial_trace_b()
 
 	# Get eigenvalues (for 2×2 Hermitian matrix)
@@ -369,15 +356,14 @@ func get_entanglement_entropy() -> float:
 
 
 func get_concurrence() -> float:
-	"""Calculate concurrence (entanglement measure)
+	# Calculate concurrence (entanglement measure)
 
-	C = 0 for separable states, C = 1 for maximally entangled.
+	# C = 0 for separable states, C = 1 for maximally entangled.
 
-	For two qubits: C = max(0, λ₁ - λ₂ - λ₃ - λ₄)
-	where λᵢ are square roots of eigenvalues of ρ·σ_y⊗σ_y·ρ*·σ_y⊗σ_y
+	# For two qubits: C = max(0, λ₁ - λ₂ - λ₃ - λ₄)
+	# where λᵢ are square roots of eigenvalues of ρ·σ_y⊗σ_y·ρ*·σ_y⊗σ_y
 
-	Simplified approximation: Use purity as proxy
-	"""
+	# Simplified approximation: Use purity as proxy
 	# Full concurrence calculation is complex, use purity-based approximation
 	var purity = get_purity()
 
@@ -389,10 +375,9 @@ func get_concurrence() -> float:
 
 
 func is_separable() -> bool:
-	"""Check if state is separable (not entangled)
+	# Check if state is separable (not entangled)
 
-	Uses purity criterion: if purity ≈ 1 and entropy ≈ 0, likely separable.
-	"""
+	# Uses purity criterion: if purity ≈ 1 and entropy ≈ 0, likely separable.
 	var entropy = get_entanglement_entropy()
 	return entropy < 0.1  # Threshold for "nearly zero"
 
@@ -400,16 +385,15 @@ func is_separable() -> bool:
 ## Measurement Correlations (for Emoji Entanglement)
 
 func get_measurement_correlation() -> Dictionary:
-	"""Analyze measurement correlation type
+	# Analyze measurement correlation type
 
-	Returns how the two qubits' measurement outcomes are related:
-	- correlation_type: "same" (|Φ⟩ bells), "opposite" (|Ψ⟩ bells), or "mixed"
-	- correlation_strength: [0, 1] how strongly correlated
-	- prob_same: Probability both collapse to same emoji
-	- prob_opposite: Probability they collapse to opposite emojis
+	# Returns how the two qubits' measurement outcomes are related:
+	# - correlation_type: "same" (|Φ⟩ bells), "opposite" (|Ψ⟩ bells), or "mixed"
+	# - correlation_strength: [0, 1] how strongly correlated
+	# - prob_same: Probability both collapse to same emoji
+	# - prob_opposite: Probability they collapse to opposite emojis
 
-	Used for gameplay: entangled plots have correlated harvests!
-	"""
+	# Used for gameplay: entangled plots have correlated harvests!
 
 	# Extract diagonal probabilities (measurement outcomes)
 	# |00⟩, |01⟩, |10⟩, |11⟩
@@ -447,10 +431,9 @@ func get_measurement_correlation() -> Dictionary:
 ## Matrix Operations (Helper Functions)
 
 func _matrix_multiply(A: Array, B: Array) -> Array:
-	"""Multiply two 4×4 complex matrices
+	# Multiply two 4×4 complex matrices
 
-	(A·B)[i][j] = Σ_k A[i][k] · B[k][j]
-	"""
+	# (A·B)[i][j] = Σ_k A[i][k] · B[k][j]
 	var result = []
 	for i in range(4):
 		var row = []
@@ -464,7 +447,7 @@ func _matrix_multiply(A: Array, B: Array) -> Array:
 
 
 func _complex_multiply(a: Vector2, b: Vector2) -> Vector2:
-	"""Multiply two complex numbers (a + bi)(c + di) = (ac - bd) + (ad + bc)i"""
+	# Multiply two complex numbers (a + bi)(c + di) = (ac - bd) + (ad + bc)i
 	return Vector2(
 		a.x * b.x - a.y * b.y,  # Real part
 		a.x * b.y + a.y * b.x   # Imaginary part
@@ -472,13 +455,12 @@ func _complex_multiply(a: Vector2, b: Vector2) -> Vector2:
 
 
 func _eigenvalues_2x2(m: Array) -> Array:
-	"""Calculate eigenvalues of 2×2 Hermitian matrix
+	# Calculate eigenvalues of 2×2 Hermitian matrix
 
-	For [[a, b], [c, d]], eigenvalues are:
-	λ = (a+d ± sqrt((a-d)² + 4|b|²)) / 2
+	# For [[a, b], [c, d]], eigenvalues are:
+	# λ = (a+d ± sqrt((a-d)² + 4|b|²)) / 2
 
-	Returns: [λ₁, λ₂] (both real for Hermitian matrix)
-	"""
+	# Returns: [λ₁, λ₂] (both real for Hermitian matrix)
 	var a = m[0][0].x  # Should be real (diagonal)
 	var d = m[1][1].x
 	var b = m[0][1]
@@ -514,7 +496,7 @@ func get_debug_string() -> String:
 
 
 func print_density_matrix():
-	"""Debug: Print density matrix"""
+	# Debug: Print density matrix
 	print("\n=== Density Matrix (%s ↔ %s) ===" % [qubit_a_id, qubit_b_id])
 	print("Basis: |00⟩ |01⟩ |10⟩ |11⟩")
 	for i in range(4):

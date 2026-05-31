@@ -3,10 +3,8 @@ extends Control
 
 const GameRootClass = preload("res://scenes/GameRoot.gd")
 const PlayerShellScene = preload("res://UI/PlayerShell.tscn")
-const SaveStore = preload("res://Core/GameState/SaveStore.gd")
-const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
-@onready var _verbose = InstrumentLocator.resolve_verbose_config(self)
+@onready var _verbose = get_node_or_null("/root/VerboseConfig")
 
 var game_root = null
 var player_shell = null
@@ -111,7 +109,7 @@ func _maybe_auto_start() -> void:
 
 
 func _peek_pending_boot_request() -> Dictionary:
-	var gsm = InstrumentLocator.resolve_game_state_manager(self)
+	var gsm = get_node_or_null("/root/GameStateManager")
 	if gsm and gsm.pending_boot and gsm.pending_boot.requested:
 		return {
 			"_pending": true,
@@ -129,7 +127,7 @@ func _peek_pending_boot_request() -> Dictionary:
 
 func _consume_pending_boot_request() -> Dictionary:
 	var request = _peek_pending_boot_request()
-	var gsm = InstrumentLocator.resolve_game_state_manager(self)
+	var gsm = get_node_or_null("/root/GameStateManager")
 	if gsm and gsm.pending_boot and gsm.pending_boot.requested:
 		gsm.pending_boot.clear()
 		if _verbose:

@@ -9,32 +9,25 @@ extends Node
 ## - EntanglementManager: Quantum entanglement operations
 
 # Access autoload safely (avoids compile-time errors)
-@onready var _verbose = InstrumentLocator.resolve_verbose_config(self)
+@onready var _verbose = get_node_or_null("/root/VerboseConfig")
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # SIGNALS (unchanged API)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # Internal signals (for FarmGrid-level operations)
-signal plot_planted(position: Vector2i)
-
 signal entanglement_created(from: Vector2i, to: Vector2i)
 signal entanglement_removed(from: Vector2i, to: Vector2i)
 
 # Generic signals for visualization and biome updates
-signal plot_changed(position: Vector2i, change_type: String, details: Dictionary)
+signal plot_changed(grid_pos: Vector2i, change_type: String, details: Dictionary)
 signal visualization_changed()
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # COMPONENT PRELOADS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-const GridPlotManager = preload("res://Core/GameMechanics/Grid/GridPlotManager.gd")
-const BiomeRoutingManager = preload("res://Core/GameMechanics/Grid/BiomeRoutingManager.gd")
-const EntanglementManager = preload("res://Core/GameMechanics/Grid/EntanglementManager.gd")
 
-const FarmPlot = preload("res://Core/GameMechanics/FarmPlot.gd")
-const Icon = preload("res://Core/QuantumSubstrate/Icon.gd")
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # COMPONENTS (internal)
@@ -53,14 +46,8 @@ var _entanglement: EntanglementManager
 @export var grid_height: int = 5
 
 # External references (injected by Farm.gd)
-var conspiracy_network = null
-var faction_territory_manager = null
 var farm_economy = null
-var vocabulary_evolution = null
 var terminal_pool = null
-
-# Environmental parameters
-var base_temperature: float = 20.0
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # FACADE ACCESSORS
@@ -104,7 +91,7 @@ func _init(width: int = 6, height: int = 4):
 
 
 func resize_grid(new_width: int, new_height: int) -> void:
-	"""Resize grid dimensions and update internal managers (expansion only)."""
+	# Resize grid dimensions and update internal managers (expansion only).
 	if new_width <= 0 or new_height <= 0:
 		push_error("FarmGrid.resize_grid(): invalid size %dx%d" % [new_width, new_height])
 		return
@@ -139,9 +126,6 @@ func _ready():
 	# Wire component dependencies
 	_entanglement.set_dependencies(_plot_manager, _biome_routing)
 
-	# Wire external references
-	_plot_manager.faction_territory_manager = faction_territory_manager
-
 	# Forward signals from components
 	_entanglement.entanglement_created.connect(func(a, b): entanglement_created.emit(a, b))
 	_entanglement.entanglement_removed.connect(func(a, b): entanglement_removed.emit(a, b))
@@ -160,11 +144,11 @@ func _process(delta):
 		return
 
 	# Grow all planted plots
-	for position in _plot_manager.plots.keys():
-		var plot = _plot_manager.plots[position]
+	for grid_pos in _plot_manager.plots.keys():
+		var plot = _plot_manager.plots[grid_pos]
 		if plot.is_active():
-			var plot_biome = _biome_routing.get_biome_for_plot(position)
-			plot.grow(delta, plot_biome, faction_territory_manager, {}, conspiracy_network)
+			var plot_biome = _biome_routing.get_biome_for_plot(grid_pos)
+			plot.grow(delta, plot_biome)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -172,12 +156,12 @@ func _process(delta):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 func register_biome(biome_name: String, biome_instance) -> void:
-	"""Register a biome in the grid's biome registry"""
+	# Register a biome in the grid's biome registry
 	_biome_routing.register_biome(biome_name, biome_instance)
 
 
 func unregister_biome(biome_name: String) -> void:
-	"""Unregister a biome and clear its routing assignments."""
+	# Unregister a biome and clear its routing assignments.
 	_biome_routing.unregister_biome(biome_name)
 
 
@@ -220,52 +204,51 @@ func get_primary_biome():
 	return get_biome(names[0])
 
 
-func assign_plot_to_biome(position: Vector2i, biome_name: String) -> bool:
-	"""Assign a specific plot to a biome (graceful - skips unregistered biomes)
+func assign_plot_to_biome(grid_pos: Vector2i, biome_name: String) -> bool:
+	# Assign a specific plot to a biome (graceful - skips unregistered biomes)
 
-	Returns true if assigned, false if biome not registered or invalid position.
-	"""
-	if not _plot_manager.is_valid_position(position):
-		push_error("Cannot assign plot at invalid position: %s" % position)
+	# Returns true if assigned, false if biome not registered or invalid grid_pos.
+	if not _plot_manager.is_valid_position(grid_pos):
+		push_error("Cannot assign plot at invalid grid_pos: %s" % grid_pos)
 		return false
-	return _biome_routing.assign_plot_to_biome(position, biome_name)
+	return _biome_routing.assign_plot_to_biome(grid_pos, biome_name)
 
 
 func set_terminal_pool(pool) -> void:
-	"""Inject TerminalPool for terminal-based register resolution."""
+	# Inject TerminalPool for terminal-based register resolution.
 	terminal_pool = pool
 	if _biome_routing:
 		_biome_routing.set_terminal_pool(pool)
 
 
-func get_biome_for_plot(position: Vector2i):
-	"""Get the biome responsible for a specific plot"""
-	return _biome_routing.get_biome_for_plot(position)
+func get_biome_for_plot(grid_pos: Vector2i):
+	# Get the biome responsible for a specific plot
+	return _biome_routing.get_biome_for_plot(grid_pos)
 
 
-func get_plot_biome_assignment(position: Vector2i) -> String:
-	return _biome_routing.get_biome_id_for_plot(position)
+func get_plot_biome_assignment(grid_pos: Vector2i) -> String:
+	return _biome_routing.get_biome_id_for_plot(grid_pos)
 
 
 func get_plot_positions_for_biome(biome_name: String) -> Array[Vector2i]:
 	return _biome_routing.get_plot_positions_for_biome(biome_name)
 
 
-func set_plot_biome_assignment(position: Vector2i, biome_name: String) -> bool:
-	return _biome_routing.set_plot_biome_assignment(position, biome_name)
+func set_plot_biome_assignment(grid_pos: Vector2i, biome_name: String) -> bool:
+	return _biome_routing.set_plot_biome_assignment(grid_pos, biome_name)
 
 
-func clear_plot_biome_assignment(position: Vector2i) -> void:
-	_biome_routing.clear_plot_biome_assignment(position)
+func clear_plot_biome_assignment(grid_pos: Vector2i) -> void:
+	_biome_routing.clear_plot_biome_assignment(grid_pos)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PLOT MANAGEMENT (delegates to GridPlotManager)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-func get_plot(position: Vector2i) -> FarmPlot:
-	"""Get or create plot at position"""
-	return _plot_manager.get_plot(position)
+func get_plot(grid_pos: Vector2i) -> FarmPlot:
+	# Get or create plot at grid_pos
+	return _plot_manager.get_plot(grid_pos)
 
 
 func get_plot_positions() -> Array:
@@ -276,48 +259,48 @@ func get_plot_count() -> int:
 	return _plot_manager.plots.size()
 
 
-func is_valid_position(position: Vector2i) -> bool:
-	"""Check if position is within grid bounds"""
-	return _plot_manager.is_valid_position(position)
+func is_valid_position(grid_pos: Vector2i) -> bool:
+	# Check if grid_pos is within grid bounds
+	return _plot_manager.is_valid_position(grid_pos)
 
 
 func _find_plot_by_id(plot_id: String) -> Vector2i:
-	"""Find grid position of a plot by its ID"""
+	# Find grid grid_pos of a plot by its ID
 	return _plot_manager.find_plot_by_id(plot_id)
 
 
-func is_plot_empty(position: Vector2i) -> bool:
-	"""Check if plot is empty (not planted)"""
-	return _plot_manager.is_plot_empty(position)
+func is_plot_empty(grid_pos: Vector2i) -> bool:
+	# Check if plot is empty (not planted)
+	return _plot_manager.is_plot_empty(grid_pos)
 
 
-func is_plot_mature(position: Vector2i) -> bool:
-	"""Check if plot has planted wheat"""
-	return _plot_manager.is_plot_mature(position)
+func is_plot_mature(grid_pos: Vector2i) -> bool:
+	# Check if plot has planted wheat
+	return _plot_manager.is_plot_mature(grid_pos)
 
 
-func get_neighbors(position: Vector2i) -> Array[Vector2i]:
-	"""Get valid neighbor positions (4-directional)"""
-	return _plot_manager.get_neighbors(position)
+func get_neighbors(grid_pos: Vector2i) -> Array[Vector2i]:
+	# Get valid neighbor positions (4-directional)
+	return _plot_manager.get_neighbors(grid_pos)
 
 
 func get_all_planted_positions() -> Array[Vector2i]:
-	"""Get positions of all planted plots"""
+	# Get positions of all planted plots
 	return _plot_manager.get_all_planted_positions()
 
 
 func get_all_mature_positions() -> Array[Vector2i]:
-	"""Get positions of all mature plots"""
+	# Get positions of all mature plots
 	return _plot_manager.get_all_mature_positions()
 
 
 func get_grid_stats() -> Dictionary:
-	"""Get current grid statistics"""
+	# Get current grid statistics
 	return _plot_manager.get_grid_stats()
 
 
 func print_grid_state():
-	"""Debug: Print current grid state"""
+	# Debug: Print current grid state
 	_plot_manager.print_grid_state()
 
 
@@ -326,7 +309,7 @@ func print_grid_state():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 func create_entanglement(pos_a: Vector2i, pos_b: Vector2i, bell_type: String = "phi_plus") -> bool:
-	"""Create entanglement between two plots"""
+	# Create entanglement between two plots
 	var result = _entanglement.create_entanglement(pos_a, pos_b, bell_type)
 	if result:
 		plot_changed.emit(pos_a, "entangled", {"partner": pos_b})
@@ -336,17 +319,17 @@ func create_entanglement(pos_a: Vector2i, pos_b: Vector2i, bell_type: String = "
 
 
 func create_triplet_entanglement(pos_a: Vector2i, pos_b: Vector2i, pos_c: Vector2i) -> bool:
-	"""Create triple entanglement (3-qubit Bell state)"""
+	# Create triple entanglement (3-qubit Bell state)
 	return _entanglement.create_triplet_entanglement(pos_a, pos_b, pos_c)
 
 
 func remove_entanglement(pos_a: Vector2i, pos_b: Vector2i):
-	"""Remove entanglement between two plots"""
+	# Remove entanglement between two plots
 	_entanglement.remove_entanglement(pos_a, pos_b)
 
 
 func are_plots_entangled(pos_a: Vector2i, pos_b: Vector2i) -> bool:
-	"""Check if two plots are entangled"""
+	# Check if two plots are entangled
 	return _entanglement.are_plots_entangled(pos_a, pos_b)
 
 
@@ -354,7 +337,6 @@ func are_plots_entangled(pos_a: Vector2i, pos_b: Vector2i) -> bool:
 # REGISTER MANAGEMENT (terminal-based)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-func get_register_for_plot(position: Vector2i) -> int:
-	"""Get the RegisterId for a plot via terminal binding."""
-	return _biome_routing.get_register_for_plot(position)
-const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
+func get_register_for_plot(grid_pos: Vector2i) -> int:
+	# Get the RegisterId for a plot via terminal binding.
+	return _biome_routing.get_register_for_plot(grid_pos)

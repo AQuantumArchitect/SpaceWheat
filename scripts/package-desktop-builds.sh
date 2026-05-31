@@ -55,8 +55,8 @@ LINUX_DIR="$OUTPUT_ROOT/linux-native"
 
 [ -d "$WINDOWS_DIR" ] || error "Missing Windows export folder: $WINDOWS_DIR"
 [ -d "$LINUX_DIR" ] || error "Missing Linux export folder: $LINUX_DIR"
-command -v zip >/dev/null 2>&1 || error "zip not found"
 command -v tar >/dev/null 2>&1 || error "tar not found"
+command -v python3 >/dev/null 2>&1 || error "python3 not found"
 
 mkdir -p "$PACKAGE_ROOT"
 
@@ -65,10 +65,26 @@ LINUX_ARCHIVE="$PACKAGE_ROOT/spacewheat-linux-${VERSION_TAG}.tar.gz"
 
 log "Packaging Windows build"
 rm -f "$WINDOWS_ARCHIVE"
-(
-    cd "$WINDOWS_DIR"
-    zip -q -r "$WINDOWS_ARCHIVE" .
-)
+if command -v zip >/dev/null 2>&1; then
+    (
+        cd "$WINDOWS_DIR"
+        zip -q -r "$WINDOWS_ARCHIVE" .
+    )
+else
+    python3 - "$WINDOWS_DIR" "$WINDOWS_ARCHIVE" <<'PY'
+import pathlib
+import sys
+import zipfile
+
+source = pathlib.Path(sys.argv[1])
+target = pathlib.Path(sys.argv[2])
+
+with zipfile.ZipFile(target, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+    for path in sorted(source.rglob("*")):
+        if path.is_file():
+            zf.write(path, path.relative_to(source))
+PY
+fi
 success "Windows archive: $WINDOWS_ARCHIVE"
 
 log "Packaging Linux build"

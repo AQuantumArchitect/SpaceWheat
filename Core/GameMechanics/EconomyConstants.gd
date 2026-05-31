@@ -1,6 +1,5 @@
 class_name EconomyConstants
 extends RefCounted
-const ActionIds = preload("res://Core/GameMechanics/ActionIds.gd")
 
 ## ===========================================
 ## UNIFIED ECONOMIC CONSTANTS
@@ -16,6 +15,16 @@ const ActionIds = preload("res://Core/GameMechanics/ActionIds.gd")
 ## IconMap mass (accumulated probability over ~13 steps) maps directly to credits
 const QUANTUM_TO_CREDITS: float = 1.0
 
+## Boltzmann market temperature (kT) for the E = −kT·log p scarcity law
+## (EnergyPricing). The single dimensional anchor for every reward/price/cost —
+## it replaced the old QUANTUM_CLASSICAL_RATIO. MARKET_TEMPERATURE_BASE is the
+## cold-biome floor; a biome's effective kT rises with its mixedness (entropy)
+## by ENTROPY_GAIN. Both are overridable via FarmVariableGraph JSONL
+## (tuning.market_temperature, tuning.market_temperature_entropy_gain) so the
+## Biome Lab can sweep them empirically.
+const MARKET_TEMPERATURE_BASE: float = 10.0
+const MARKET_TEMPERATURE_ENTROPY_GAIN: float = 1.0
+
 ## Reality Midwife token emoji (display + economy tracking)
 const MIDWIFE_EMOJI: String = "🍼"
 
@@ -29,20 +38,19 @@ const REAP_COST_SEQUENCE: Array[int] = [1, 1, 2, 3, 5, 8, 13, 21]
 ## Unified table: action_name → cost dictionary
 
 const ACTION_COSTS: Dictionary = {
-	"explore": {"🍞": 1},       # Send probe
+	"explore": {},              # Bind a terminal — free; auto-binds on plot select (you pay to extract/invest, not to look)
 	"measure": {"❄️": 1},       # Measure (3E) - cold/ice
 	"pop": {"👥": 1},           # Targeted terminal extraction
 	"reap": {MIDWIFE_EMOJI: 1}, # Seasonal reap (actual cost resolved by sequence)
 	"quest_reroll": {"🐇": 1},   # Reroll quest slot
-	"quest_lock": {"🌲": 1},     # Lock quest slot
 	"discover_biome": {"🦅": 21}, # Scout new biome
 	"remove_biome": {"💀": 34},  # Cull biome: pay skulls, then liquidate the biome's live state
-	"remove_vocabulary": {"🐺": 13}, # Remove signature base cost (N+S pole costs added dynamically)
-	"lindblad_pump": {"📜": 4},   # Socialite tribute contract; +north pole emoji added dynamically
-	"lindblad_drain": {"🧺": 4},  # Socialite treaty / village basket; +south pole emoji added dynamically
+	"remove_icon": {"🐺": 13}, # Remove icon base cost (N+S pole costs added dynamically)
+	"lindblad_pump": {"📜": 4},   # Merchant tribute contract; +north pole emoji added dynamically
+	"lindblad_drain": {"🧺": 4},  # Merchant treaty / village basket; +south pole emoji added dynamically
 	"spark_north": {},            # Spark pole shift — cost is 1× north pole emoji, added dynamically
 	"spark_south": {}             # Spark pole shift — cost is 1× south pole emoji, added dynamically
-	# icon_injection and remove_vocabulary are dynamic - use get_action_cost()
+	# icon_injection and remove_icon are dynamic - use get_action_cost()
 }
 
 ## ===========================================
@@ -96,7 +104,7 @@ const ICON_INJECTION_SPROUT_COST: Dictionary = {"🌱": 5}
 const ICON_REMOVAL_WOLF_COST: int = 13
 const ICON_REMOVAL_POLE_COST: int = 3
 
-## Lindblad axis-aware costs (Socialite networking — drain/transfer/pump as
+## Lindblad axis-aware costs (Merchant networking — drain/transfer/pump as
 ## faction-contract abstraction; basket/handshake/scroll mark the social
 ## instrument, pole emojis are the resource swung in the deal).
 const LINDBLAD_PUMP_SCROLL_COST: int = 4   # 📜 tribute contract
@@ -146,7 +154,7 @@ const PLANT_TYPE_EMOJIS: Dictionary = {
 ## ===========================================
 
 static func get_quantum_to_credits(economy = null) -> float:
-	"""Get conversion rate, allowing save-driven economy variable overrides."""
+	# Get conversion rate, allowing save-driven economy variable overrides.
 	var fallback = QUANTUM_TO_CREDITS
 	if economy and economy.has_method("get_economy_variable"):
 		var value = float(economy.get_economy_variable("quantum_to_credits", fallback))
@@ -156,7 +164,7 @@ static func get_quantum_to_credits(economy = null) -> float:
 
 
 static func get_max_biome_qubits(economy = null) -> int:
-	"""Get max biome qubit cap, allowing save-driven economy variable overrides."""
+	# Get max biome qubit cap, allowing save-driven economy variable overrides.
 	var fallback = MAX_BIOME_QUBITS
 	if economy and economy.has_method("get_economy_variable"):
 		var value = int(economy.get_economy_variable("max_biome_qubits", fallback))
@@ -166,19 +174,18 @@ static func get_max_biome_qubits(economy = null) -> int:
 
 
 static func quantum_to_credits(probability: float, economy = null) -> int:
-	"""Convert quantum probability to emoji-credits"""
+	# Convert quantum probability to emoji-credits
 	return int(probability * get_quantum_to_credits(economy))
 
 
-static func get_vocab_injection_cost(south_emoji: String) -> Dictionary:
-	"""Get cost dictionary for signature injection.
+static func get_icon_injection_cost(south_emoji: String) -> Dictionary:
+	# Get cost dictionary for icon injection.
 
-	Cost = 4 of south-pole emoji + 10 sprouts (🌱) - scaled for 1:1 quantum mass economy
-	Returns dictionary of {emoji: amount} for costs.
+	# Cost = 4 of south-pole emoji + 10 sprouts (🌱) - scaled for 1:1 quantum mass economy
+	# Returns dictionary of {emoji: amount} for costs.
 
-	Args:
-		south_emoji: The south pole emoji of the pair being injected
-	"""
+	# Args:
+	# south_emoji: The south pole emoji of the pair being injected
 	if south_emoji == "":
 		return ICON_INJECTION_SPROUT_COST.duplicate()
 
@@ -188,12 +195,11 @@ static func get_vocab_injection_cost(south_emoji: String) -> Dictionary:
 
 
 static func get_lindblad_injection_cost(action: String = ActionIds.LINDBLAD_PUMP, context: Dictionary = {}) -> Dictionary:
-	"""Get axis-aware Lindblad costs (Socialite networking frame).
+	# Get axis-aware Lindblad costs (Merchant networking frame).
 
-	Pump (tribute contract):  4 📜 + 21 north-pole emoji
-	Drain (village treaty):   4 🧺 + 8 south-pole emoji
-	Transfer (brokered deal): 2 🤝 + 13 source emoji + 8 destination emoji
-	"""
+	# Pump (tribute contract):  4 📜 + 21 north-pole emoji
+	# Drain (village treaty):   4 🧺 + 8 south-pole emoji
+	# Transfer (brokered deal): 2 🤝 + 13 source emoji + 8 destination emoji
 	var normalized_action = normalize_action_id(action)
 	var cost: Dictionary = {}
 	if normalized_action == ActionIds.LINDBLAD_DRAIN:
@@ -214,25 +220,28 @@ static func get_lindblad_injection_cost(action: String = ActionIds.LINDBLAD_PUMP
 			cost[south] = LINDBLAD_TRANSFER_DRAIN_COST
 		return cost
 
-	# Pump: 4 📜 + 21 north-pole emoji
+	# Pump: 4 📜 (flat social fee) + invest cost in north-pole emoji.
+	# Invest cost = surprisal energy of the target pole (EnergyPricing.invest_units),
+	# passed in via context; falls back to the flat legacy count if not supplied.
 	cost["📜"] = LINDBLAD_PUMP_SCROLL_COST
 	var north_emoji = str(context.get("north_emoji", ""))
 	if north_emoji != "":
-		cost[north_emoji] = LINDBLAD_PUMP_NORTH_COST
+		cost[north_emoji] = int(context.get("invest_units", LINDBLAD_PUMP_NORTH_COST))
 	return cost
 
 
 static func get_spark_cost(action: String, context: Dictionary = {}) -> Dictionary:
-	"""Get cost for a Spark pole-shift: 1× the pole emoji being shifted toward.
+	# Get cost for a Spark pole-shift: 1× the pole emoji being shifted toward.
 
-	spark_north → 1× north_emoji
-	spark_south → 1× south_emoji
-	"""
+	# spark_north → 1× north_emoji
+	# spark_south → 1× south_emoji
 	var normalized_action = normalize_action_id(action)
 	if normalized_action == ActionIds.SPARK_NORTH:
 		var north = str(context.get("north_emoji", ""))
 		if north != "":
-			return {north: SPARK_POLE_COST}
+			# Invest (charge north pole): cost = surprisal of the target (EnergyPricing
+			# .invest_units via context). Forcing an improbable pole costs more.
+			return {north: int(context.get("invest_units", SPARK_POLE_COST))}
 		return {}
 	if normalized_action == ActionIds.SPARK_SOUTH:
 		var south = str(context.get("south_emoji", ""))
@@ -242,11 +251,10 @@ static func get_spark_cost(action: String, context: Dictionary = {}) -> Dictiona
 	return {}
 
 
-static func get_vocab_removal_cost(north_emoji: String = "", south_emoji: String = "") -> Dictionary:
-	"""Get cost for removing a icon.
+static func get_icon_removal_cost(north_emoji: String = "", south_emoji: String = "") -> Dictionary:
+	# Get cost for removing a icon.
 
-	Base: 13 🐺 + 3 of each pole emoji (when known).
-	"""
+	# Base: 13 🐺 + 3 of each pole emoji (when known).
 	var cost = {"🐺": ICON_REMOVAL_WOLF_COST}
 	if north_emoji != "":
 		cost[north_emoji] = ICON_REMOVAL_POLE_COST
@@ -256,7 +264,7 @@ static func get_vocab_removal_cost(north_emoji: String = "", south_emoji: String
 
 
 static func can_afford(economy, costs: Dictionary) -> bool:
-	"""Check if economy can afford the given costs"""
+	# Check if economy can afford the given costs
 	if not economy:
 		return false
 	if economy.has_method("can_afford_cost"):
@@ -271,7 +279,7 @@ static func can_afford(economy, costs: Dictionary) -> bool:
 
 
 static func spend(economy, costs: Dictionary, reason: String = "purchase") -> bool:
-	"""Spend resources from economy. Returns true if successful."""
+	# Spend resources from economy. Returns true if successful.
 	if not can_afford(economy, costs):
 		return false
 	if economy.has_method("spend_cost"):
@@ -285,10 +293,9 @@ static func spend(economy, costs: Dictionary, reason: String = "purchase") -> bo
 
 
 static func preflight_cost(costs: Dictionary, economy) -> Dictionary:
-	"""Check affordability for a cost dictionary without spending.
+	# Check affordability for a cost dictionary without spending.
 
-	Returns: {ok: bool, cost: Dictionary, message?: String}
-	"""
+	# Returns: {ok: bool, cost: Dictionary, message?: String}
 	if costs.is_empty():
 		return {"ok": true, "cost": costs}
 	if not economy:
@@ -299,7 +306,7 @@ static func preflight_cost(costs: Dictionary, economy) -> Dictionary:
 
 
 static func commit_cost(costs: Dictionary, economy, reason: String = "") -> bool:
-	"""Spend a preflighted cost dictionary."""
+	# Spend a preflighted cost dictionary.
 	if costs.is_empty():
 		return true
 	if not economy:
@@ -313,20 +320,19 @@ static func commit_cost(costs: Dictionary, economy, reason: String = "") -> bool
 ## ===========================================
 
 static func get_action_cost(action: String, context: Dictionary = {}) -> Dictionary:
-	"""Get cost dictionary for an action.
+	# Get cost dictionary for an action.
 
-	Args:
-		action: Action name (explore, measure, reap, discover_biome, inject_vocabulary, lindblad_pump, lindblad_drain)
-		context: Optional context for dynamic costs (e.g., {south_emoji: "🌾"})
+	# Args:
+	# action: Action name (explore, measure, reap, discover_biome, inject_icon, lindblad_pump, lindblad_drain)
+	# context: Optional context for dynamic costs (e.g., {south_emoji: "🌾"})
 
-	Returns:
-		Dictionary of {emoji: amount} costs
-	"""
+	# Returns:
+	# Dictionary of {emoji: amount} costs
 	var normalized_action = normalize_action_id(action)
-	if normalized_action == ActionIds.INJECT_VOCAB:
-		return get_vocab_injection_cost(context.get("south_emoji", ""))
-	if normalized_action == "remove_vocabulary" and (context.has("north_emoji") or context.has("south_emoji")):
-		return get_vocab_removal_cost(context.get("north_emoji", ""), context.get("south_emoji", ""))
+	if normalized_action == ActionIds.INJECT_ICON:
+		return get_icon_injection_cost(context.get("south_emoji", ""))
+	if normalized_action == "remove_icon" and (context.has("north_emoji") or context.has("south_emoji")):
+		return get_icon_removal_cost(context.get("north_emoji", ""), context.get("south_emoji", ""))
 	if normalized_action in [ActionIds.LINDBLAD_PUMP, ActionIds.LINDBLAD_DRAIN, "lindblad_transfer"]:
 		return get_lindblad_injection_cost(normalized_action, context)
 	if normalized_action in [ActionIds.SPARK_NORTH, ActionIds.SPARK_SOUTH]:
@@ -343,19 +349,18 @@ static func get_action_cost(action: String, context: Dictionary = {}) -> Diction
 
 
 static func get_gate_cost(gate_name: String) -> Dictionary:
-	"""Get cost dictionary for a quantum gate.
+	# Get cost dictionary for a quantum gate.
 
-	Args:
-		gate_name: Gate name (pauli_x, pauli_y, pauli_z, hadamard, s_gate, t_gate, cnot, cz, swap)
+	# Args:
+	# gate_name: Gate name (pauli_x, pauli_y, pauli_z, hadamard, s_gate, t_gate, cnot, cz, swap)
 
-	Returns:
-		Dictionary of {emoji: amount} costs
-	"""
+	# Returns:
+	# Dictionary of {emoji: amount} costs
 	return GATE_COSTS.get(gate_name, {})
 
 
 static func preflight_action(action: String, economy, context: Dictionary = {}) -> Dictionary:
-	"""Check affordability for an action without spending."""
+	# Check affordability for an action without spending.
 	var normalized_action = normalize_action_id(action)
 	var cost: Dictionary
 	if economy and economy.has_method("get_overridden_action_cost"):
@@ -366,7 +371,7 @@ static func preflight_action(action: String, economy, context: Dictionary = {}) 
 
 
 static func preflight_gate(gate_name: String, economy) -> Dictionary:
-	"""Check affordability for a quantum gate without spending."""
+	# Check affordability for a quantum gate without spending.
 	var cost: Dictionary
 	if economy and economy.has_method("get_overridden_gate_cost"):
 		cost = economy.get_overridden_gate_cost(gate_name)
@@ -376,7 +381,7 @@ static func preflight_gate(gate_name: String, economy) -> Dictionary:
 
 
 static func commit_action(action: String, economy, context: Dictionary = {}, reason: String = "") -> bool:
-	"""Spend cost for an action after success."""
+	# Spend cost for an action after success.
 	var normalized_action = normalize_action_id(action)
 	var cost: Dictionary
 	if economy and economy.has_method("get_overridden_action_cost"):
@@ -388,7 +393,7 @@ static func commit_action(action: String, economy, context: Dictionary = {}, rea
 
 
 static func commit_gate(gate_name: String, economy, reason: String = "") -> bool:
-	"""Spend cost for a quantum gate after success."""
+	# Spend cost for a quantum gate after success.
 	var cost: Dictionary
 	if economy and economy.has_method("get_overridden_gate_cost"):
 		cost = economy.get_overridden_gate_cost(gate_name)

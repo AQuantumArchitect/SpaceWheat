@@ -1,7 +1,7 @@
 class_name SnapshotService
 extends Node
 
-## SnapshotService - UI/diagnostic projection service.
+## SnapshotService - UI/diagnostic projection layer.
 ##
 ## Owns:
 ## - overlay control for rig/UI diagnostics
@@ -9,11 +9,11 @@ extends Node
 ## - probe-cycle status UI
 ## - diagnostics that are not part of QuantumInstrument's gameplay API
 
-@onready var _verbose = InstrumentLocator.resolve_verbose_config(self)
+@onready var _verbose = get_node_or_null("/root/VerboseConfig")
 
 var farm: Node = null
 var player_shell: Node = null
-var overlay_manager = null
+var overlay_bridge = null
 var instrument = null  # QuantumInstrument (injected by BootManager)
 var _probe_status_panel: PanelContainer = null
 var _probe_status_label: Label = null
@@ -30,14 +30,14 @@ func setup(farm_ref: Node, shell_ref: Node) -> void:
 		return
 
 	if "overlay_manager" in shell_ref:
-		overlay_manager = shell_ref.overlay_manager
-	if overlay_manager:
-		overlay_manager.farm = farm_ref
+		overlay_bridge = shell_ref.overlay_manager
+	if overlay_bridge:
+		overlay_bridge.farm = farm_ref
 
 	if _verbose:
 		_verbose.info("instrument", "🎛️", "SnapshotService initialized (farm=%s, shell=%s)" % [
-			farm_ref.name if farm_ref else "null",
-			shell_ref.name if shell_ref else "null"
+			str(farm_ref.name) if farm_ref else "null",
+			str(shell_ref.name) if shell_ref else "null"
 		])
 
 	_ensure_probe_status_ui()
@@ -46,6 +46,15 @@ func setup(farm_ref: Node, shell_ref: Node) -> void:
 
 func inject_instrument(inst) -> void:
 	instrument = inst
+
+
+func reset() -> void:
+	# Clear references to scene-tree nodes for restart.
+	farm = null
+	player_shell = null
+	overlay_bridge = null
+	instrument = null
+	set_process(false)
 
 
 func _process(_delta: float) -> void:
@@ -57,22 +66,26 @@ func open_quest_board() -> bool:
 	return _open_overlay("quests")
 
 
-func open_vocabulary_panel() -> bool:
-	return _open_overlay("semantic_map")
-
-
-func open_semantic_map_panel() -> bool:
-	return _open_overlay("semantic_map")
+func open_icon_panel() -> bool:
+	return _open_overlay("atlas")
 
 
 func open_controls_panel() -> bool:
 	return _open_overlay("controls")
 
 
-func _open_overlay(name: String) -> bool:
-	if not overlay_manager:
+func get_policy_snapshot(include_offers: bool = true, include_grid: bool = true) -> Dictionary:
+	if instrument and instrument.has_method("get_policy_snapshot"):
+		var bundled = instrument.get_policy_snapshot(include_offers, include_grid)
+		if bundled is Dictionary:
+			return bundled
+	return {}
+
+
+func _open_overlay(_name: String) -> bool:
+	if not overlay_bridge:
 		return false
-	return overlay_manager.open_overlay(name)
+	return overlay_bridge.open_overlay(_name)
 
 
 func get_resource_amount(emoji: String) -> float:
@@ -80,7 +93,7 @@ func get_resource_amount(emoji: String) -> float:
 
 
 func get_batcher_metrics() -> Dictionary:
-	"""Return batcher health/performance metrics for rig monitoring."""
+	# Return batcher health/performance metrics for rig monitoring.
 	if not farm:
 		return {}
 	if not ("biome_evolution_batcher" in farm):
@@ -94,17 +107,15 @@ func get_batcher_metrics() -> Dictionary:
 
 
 func get_probability_map(biome_name: String = "") -> Dictionary:
-	"""Return normalized probability map from live IconMap exposure payloads."""
+	# Return normalized probability map from live IconMap exposure payloads.
 	if not farm or not ("biome_evolution_batcher" in farm) or not farm.biome_evolution_batcher:
 		return {"ok": false, "error": "no_batcher"}
 	var batcher = farm.biome_evolution_batcher
 	var payload: Dictionary = {}
 	if biome_name == "":
-		if batcher.has_method("get_global_probability_map"):
-			payload = batcher.get_global_probability_map()
+		payload = batcher.get_global_probability_map()
 	else:
-		if batcher.has_method("get_biome_probability_map"):
-			payload = batcher.get_biome_probability_map(biome_name)
+		payload = batcher.get_biome_probability_map(biome_name)
 	return {
 		"ok": true,
 		"scope": "global" if biome_name == "" else "biome",
@@ -114,46 +125,11 @@ func get_probability_map(biome_name: String = "") -> Dictionary:
 
 
 func get_lindblad_snapshot(biome_name: String = "", include_populations: bool = true) -> Dictionary:
-	"""Return no-guess diagnostics for lindblad channels, accumulators, and flux."""
+	# Return no-guess diagnostics for lindblad channels, accumulators, and flux.
 	if not farm or not ("grid" in farm) or not farm.grid:
 		return {"ok": false, "error": "no_grid"}
 	var grid = farm.grid
-	var plots = grid.get_all_plots() if grid.has_method("get_all_plots") else {}
-	var plot_channels: Array = []
-	var active_plot_count = 0
-
-	for pos in plots.keys():
-		var plot = plots[pos]
-		if not plot:
-			continue
-		if not plot.lindblad_pump_active and not plot.lindblad_drain_active:
-			continue
-		var biome = grid.get_biome_for_plot(pos)
-		var bname = ""
-		if biome and biome.has_method("get_biome_type"):
-			bname = str(biome.get_biome_type())
-		elif biome and "name" in biome:
-			bname = str(biome.name)
-		if biome_name != "" and bname != biome_name:
-			continue
-		var pair = {}
-		if farm.has_method("_get_lindblad_pair_for_plot"):
-			pair = farm._get_lindblad_pair_for_plot(plot, pos)
-		elif plot.has_method("get_plot_emojis"):
-			pair = plot.get_plot_emojis()
-		plot_channels.append({
-			"grid_pos": {"x": int(pos.x), "y": int(pos.y)},
-			"biome": bname,
-			"north": str(pair.get("north", "")),
-			"south": str(pair.get("south", "")),
-			"pump_active": bool(plot.lindblad_pump_active),
-			"pump_rate": float(plot.lindblad_pump_rate),
-			"drain_active": bool(plot.lindblad_drain_active),
-			"drain_rate": float(plot.lindblad_drain_rate),
-			"drain_accumulator": float(plot.lindblad_drain_accumulator),
-			"harvest_visible": bool(plot._get_infra_field("lindblad_harvest_visible", false)) if plot.has_method("_get_infra_field") else false
-		})
-		active_plot_count += 1
+	var active_channels: Array = []
 
 	var biomes_data: Dictionary = {}
 	if grid.has_biomes():
@@ -173,6 +149,31 @@ func get_lindblad_snapshot(biome_name: String = "", include_populations: bool = 
 					sink_fluxes = biome.quantum_computer.get_all_sink_fluxes()
 				if include_populations and biome.quantum_computer.has_method("get_all_populations"):
 					populations = biome.quantum_computer.get_all_populations()
+				if "register_infrastructure" in biome.quantum_computer:
+					for reg_key in biome.quantum_computer.register_infrastructure.keys():
+						var infra = biome.quantum_computer.register_infrastructure[reg_key]
+						if not (infra is Dictionary):
+							continue
+						if not bool(infra.get("lindblad_pump_active", false)) and not bool(infra.get("lindblad_drain_active", false)):
+							continue
+						var register_id = int(reg_key)
+						var pair = {}
+						if farm.has_method("_get_lindblad_pair_for_register"):
+							pair = farm._get_lindblad_pair_for_register(biome, register_id)
+						elif biome.has_method("get_register_emoji_pair"):
+							pair = biome.get_register_emoji_pair(register_id)
+						active_channels.append({
+							"register_id": register_id,
+							"biome": bname,
+							"north": str(pair.get("north", "")),
+							"south": str(pair.get("south", "")),
+							"pump_active": bool(infra.get("lindblad_pump_active", false)),
+							"pump_rate": float(infra.get("lindblad_pump_rate", 0.0)),
+							"drain_active": bool(infra.get("lindblad_drain_active", false)),
+							"drain_rate": float(infra.get("lindblad_drain_rate", 0.0)),
+							"drain_accumulator": float(infra.get("lindblad_drain_accumulator", 0.0)),
+							"harvest_visible": bool(infra.get("lindblad_harvest_visible", false))
+						})
 			biomes_data[bname] = {
 				"stride": stride,
 				"max_evolution_dt": max_dt,
@@ -183,8 +184,10 @@ func get_lindblad_snapshot(biome_name: String = "", include_populations: bool = 
 	return {
 		"ok": true,
 		"biome_filter": biome_name,
-		"active_plot_channels": plot_channels,
-		"active_plot_count": active_plot_count,
+		"active_channels": active_channels,
+		"active_channel_count": active_channels.size(),
+		"active_plot_channels": active_channels,
+		"active_plot_count": active_channels.size(),
 		"biomes": biomes_data,
 		"rainbow_mode": bool(farm._is_rainbow_drain_mode()) if farm and farm.has_method("_is_rainbow_drain_mode") else true,
 		"rainbow_accumulators": farm.lindblad_rainbow_accumulators.duplicate(true) if ("lindblad_rainbow_accumulators" in farm) else {}
@@ -214,7 +217,7 @@ func get_hud_snapshot(hud_name: String) -> Dictionary:
 
 func get_full_ui_snapshot() -> Dictionary:
 	var snapshot: Dictionary = {"widgets": {}, "huds": {}, "overlays": {}}
-	for wname in ["resources", "action_preview", "quantum_mode", "biome_oval", "quest_board", "faction_browser"]:
+	for wname in ["resources", "action_preview", "quantum_mode", "biome_oval", "quest_board"]:
 		var row = get_widget_snapshot(wname)
 		if bool(row.get("ok", false)):
 			snapshot["widgets"][wname] = row.get("snapshot", {})
@@ -222,14 +225,14 @@ func get_full_ui_snapshot() -> Dictionary:
 		var row = get_hud_snapshot(hname)
 		if bool(row.get("ok", false)):
 			snapshot["huds"][hname] = row.get("snapshot", {})
-	for oname in ["quests", "controls", "semantic_map", "logger", "inspector"]:
+	for oname in ["quests", "controls", "signature", "logger", "inspector"]:
 		var row = get_overlay_snapshot(oname)
 		if bool(row.get("ok", false)):
 			snapshot["overlays"][oname] = row.get("snapshot", {})
 	return snapshot
 
 
-func _resolve_overlay_manager():
+func _resolve_overlay_bridge():
 	if player_shell and "overlay_manager" in player_shell:
 		return player_shell.overlay_manager
 	return null
@@ -238,10 +241,10 @@ func _resolve_overlay_manager():
 func _resolve_overlay(overlay_name: String):
 	if overlay_name == "":
 		return null
-	var overlay_manager = _resolve_overlay_manager()
-	if not overlay_manager or not overlay_manager.has_method("get_overlay"):
+	var local_bridge = _resolve_overlay_bridge()
+	if not local_bridge or not local_bridge.has_method("get_overlay"):
 		return null
-	return overlay_manager.get_overlay(overlay_name)
+	return local_bridge.get_overlay(overlay_name)
 
 
 func _resolve_widget(widget_name: String):
@@ -265,11 +268,6 @@ func _resolve_widget(widget_name: String):
 		"quest_board":
 			var overlay = _resolve_overlay("quests")
 			return overlay
-		"faction_browser":
-			var overlay = _resolve_overlay("quests")
-			if overlay and "faction_browser" in overlay:
-				return overlay.faction_browser
-			return null
 	return null
 
 
@@ -298,7 +296,7 @@ func log_action(action: String, details: Dictionary = {}) -> void:
 
 
 func show_probe_cycle_status(biome_name: String, probe: Dictionary) -> void:
-	"""Show brief on-screen status for rig-driven probe_cycle."""
+	# Show brief on-screen status for rig-driven probe_cycle.
 	if not _probe_status_label or not _probe_status_panel:
 		return
 
@@ -347,4 +345,3 @@ func _ensure_probe_status_ui() -> void:
 	host.add_child(panel)
 	_probe_status_panel = panel
 	_probe_status_label = label
-const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")

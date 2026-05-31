@@ -7,7 +7,7 @@ extends RefCounted
 ##
 ## Action edges: for each node, we synthesize a few "action slots" so the
 ## player has something to operate on with QERF. In the golden cut these
-## slots are placeholders (loop edges back to self) — content authoring
+## slots loop back to self — content authoring
 ## adds real outgoing action edges later.
 
 const StoryGraph := preload("res://Core/Story/StoryGraph.gd")

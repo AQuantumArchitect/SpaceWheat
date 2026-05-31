@@ -5,7 +5,18 @@ extends RefCounted
 ## Caches quantum operators (Hamiltonian + Lindblad) to disk
 ## Automatically invalidates when Icon configurations change
 
-const OperatorSerializer = preload("res://Core/QuantumSubstrate/OperatorSerializer.gd")
+
+## Cache-key schema version. Bump when the cache-key formula changes
+## (BiomeQuantumSystemBuilder.build_operators_from_icons computes the key).
+## Stored in every manifest at the special key "__schema__"; on load, mismatched
+## manifests are treated as empty so stale entries can never be served.
+##
+## History:
+##   1 — initial format (icon poles only).
+##   2 — added hash(atom_components) suffix (Round 2, 2026-05-08).
+##   3 — folded full icon physics fields into key (Round 7, 2026-05-08).
+const SCHEMA_VERSION: int = 3
+const SCHEMA_KEY: String = "__schema__"
 
 # User cache (runtime, modifiable)
 const CACHE_DIR = "user://operator_cache/"
@@ -65,11 +76,17 @@ func try_load(biome_name: String, cache_key: String) -> Dictionary:
 
 ## Internal: Try to load from a specific cache directory
 func _try_load_from_dir(biome_name: String, cache_key: String, cache_dir: String, cache_manifest: Dictionary) -> Dictionary:
+	# Skip the schema marker — biome_name reserved word should never collide.
+	if biome_name == SCHEMA_KEY:
+		return {}
+
 	# Check manifest
 	if not cache_manifest.has(biome_name):
 		return {}
 
 	var entry = cache_manifest[biome_name]
+	if not (entry is Dictionary):
+		return {}
 
 	# Check if cache key matches (Icon configs haven't changed)
 	if entry.cache_key != cache_key:
@@ -119,7 +136,8 @@ func save(biome_name: String, cache_key: String, hamiltonian, lindblad_ops: Arra
 	file.store_string(JSON.stringify(data, "\t"))
 	file.close()
 
-	# Update manifest
+	# Update manifest (always stamp the schema marker).
+	manifest[SCHEMA_KEY] = SCHEMA_VERSION
 	manifest[biome_name] = {
 		"cache_key": cache_key,
 		"file_name": file_name,
@@ -141,6 +159,8 @@ func invalidate(biome_name: String):
 func invalidate_all():
 	var biome_names = manifest.keys()
 	for biome_name in biome_names:
+		if biome_name == SCHEMA_KEY:
+			continue
 		invalidate(biome_name)
 
 ## Clear entire cache (useful for debugging)
@@ -156,13 +176,17 @@ func clear_all():
 		dir.list_dir_end()
 
 	manifest.clear()
+	manifest[SCHEMA_KEY] = SCHEMA_VERSION  # restamp so post-clear writes don't trigger spurious mismatch warnings
 	_save_manifest()
 
 ## Get cache statistics
 func get_stats() -> Dictionary:
+	# Subtract the __schema__ marker from biome counts.
+	var user_biomes = max(0, manifest.size() - (1 if manifest.has(SCHEMA_KEY) else 0))
+	var bundled_biomes = max(0, bundled_manifest.size() - (1 if bundled_manifest.has(SCHEMA_KEY) else 0))
 	return {
-		"cached_biomes": manifest.size(),
-		"bundled_biomes": bundled_manifest.size(),
+		"cached_biomes": user_biomes,
+		"bundled_biomes": bundled_biomes,
 		"hit_count": hit_count,
 		"bundled_hit_count": bundled_hit_count,
 		"miss_count": miss_count,
@@ -188,15 +212,28 @@ func _ensure_cache_dir():
 		if err != OK:
 			push_error("Failed to create operator cache dir: %s (err=%d)" % [cache_dir_abs, err])
 
+## Reject a manifest whose `__schema__` doesn't match SCHEMA_VERSION. Stale
+## entries from a prior cache-key formula would never match the new key shape
+## anyway; rejecting wholesale also prevents any partial-match weirdness.
+func _validated_manifest(raw: Dictionary, source_label: String) -> Dictionary:
+	var schema_value = raw.get(SCHEMA_KEY, null)
+	if schema_value != null and int(schema_value) == SCHEMA_VERSION:
+		return raw
+	if not raw.is_empty():
+		push_warning("OperatorCache: %s manifest schema mismatch (got %s, want %d) — discarding %d stale entries" % [
+			source_label, str(schema_value), SCHEMA_VERSION, max(0, raw.size() - 1)])
+	return {SCHEMA_KEY: SCHEMA_VERSION}
+
+
 func _load_manifest():
 	var manifest_path = _user_manifest_path()
 	if not FileAccess.file_exists(manifest_path):
-		manifest = {}
+		manifest = {SCHEMA_KEY: SCHEMA_VERSION}
 		return
 
 	var file = FileAccess.open(manifest_path, FileAccess.READ)
 	if not file:
-		manifest = {}
+		manifest = {SCHEMA_KEY: SCHEMA_VERSION}
 		return
 
 	var json_str = file.get_as_text()
@@ -204,19 +241,19 @@ func _load_manifest():
 
 	var json = JSON.new()
 	if json.parse(json_str) == OK:
-		manifest = json.data
+		manifest = _validated_manifest(json.data, "user")
 	else:
-		manifest = {}
+		manifest = {SCHEMA_KEY: SCHEMA_VERSION}
 
 func _load_bundled_manifest():
-	"""Load bundled cache manifest (shipped with game, read-only)"""
+	# Load bundled cache manifest (shipped with game, read-only)
 	if not FileAccess.file_exists(BUNDLED_MANIFEST_FILE):
-		bundled_manifest = {}
+		bundled_manifest = {SCHEMA_KEY: SCHEMA_VERSION}
 		return
 
 	var file = FileAccess.open(BUNDLED_MANIFEST_FILE, FileAccess.READ)
 	if not file:
-		bundled_manifest = {}
+		bundled_manifest = {SCHEMA_KEY: SCHEMA_VERSION}
 		return
 
 	var json_str = file.get_as_text()
@@ -224,9 +261,9 @@ func _load_bundled_manifest():
 
 	var json = JSON.new()
 	if json.parse(json_str) == OK:
-		bundled_manifest = json.data
+		bundled_manifest = _validated_manifest(json.data, "bundled")
 	else:
-		bundled_manifest = {}
+		bundled_manifest = {SCHEMA_KEY: SCHEMA_VERSION}
 
 func _save_manifest():
 	_ensure_cache_dir()
@@ -242,6 +279,8 @@ func _calculate_cache_size_kb() -> float:
 	var dir = DirAccess.open(_cache_dir_absolute())
 	if dir:
 		for entry in manifest.values():
+			if not (entry is Dictionary) or not entry.has("file_name"):
+				continue  # skip __schema__ marker and any malformed entries
 			var file_path = _user_cache_entry_path(str(entry.file_name))
 			if FileAccess.file_exists(file_path):
 				var file = FileAccess.open(file_path, FileAccess.READ)

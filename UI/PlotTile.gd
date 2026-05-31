@@ -2,7 +2,6 @@ class_name PlotTile
 extends Control
 
 # Preload EmojiDisplay to ensure it's available at parse time
-const EmojiDisplay = preload("res://UI/Core/EmojiDisplay.gd")
 
 ## PlotTile - Visual representation of a single farm plot
 ## Part of the emoji lattice grid
@@ -20,6 +19,9 @@ var is_selected: bool = false
 var is_hovered: bool = false
 var is_selected_by_keyboard: bool = false  # Phase 3: Track keyboard vs mouse selection
 var is_checkbox_selected: bool = false  # NEW: Multi-select checkbox state
+var is_active_ring: bool = false  # WASD cursor is on the plot ring
+
+const ACTIVE_RING_BORDER_COLOR: Color = Color(1.0, 0.75, 0.2, 1.0)  # Amber, matches SelectionButtonRow
 
 # Long press detection
 var press_timer: float = 0.0
@@ -28,11 +30,6 @@ const LONG_PRESS_TIME = 0.5
 
 # Performance optimization: Dirty flag for event-driven updates
 var _visuals_dirty: bool = true  # Start dirty to ensure initial draw
-
-# Performance optimization: Shared glow value (static across all PlotTiles)
-# Updated once per physics frame instead of 24 times per visual frame
-static var _shared_glow_value: float = 0.5
-static var _shared_glow_frame: int = -1  # Track which frame last updated
 
 # UI elements (will be created in _ready)
 var background: ColorRect
@@ -73,8 +70,8 @@ const COLOR_PCB_EDGE_DARK = Color(0.08, 0.08, 0.08)   # Edge shadow
 const COLOR_ENTANGLEMENT_RING = Color(0.0, 1.0, 1.0, 0.8)  # Bright cyan
 const COLOR_ENTANGLEMENT_GLOW = Color(0.0, 1.0, 1.0, 0.3)  # Faint cyan glow
 
-# Reference to territory manager (set by FarmView)
-var territory_manager = null
+# Reference to territory router (set by FarmView)
+var territory_router = null
 
 # Reference to biome for temperature/energy effects (set by FarmView)
 var biome = null
@@ -104,7 +101,7 @@ func _ready():
 
 
 func set_label_text(label: String) -> void:
-	"""Set custom label text on the tile (e.g., keyboard shortcut letter)"""
+	# Set custom label text on the tile (e.g., keyboard shortcut letter)
 	if number_label:
 		number_label.text = label
 
@@ -113,8 +110,7 @@ func set_label_text(label: String) -> void:
 func _create_ui_elements():
 	# Safety check: if elements already exist, DON'T recreate them
 	if background != null:
-		print("⚠️  WARNING: PlotTile._create_ui_elements() called but background already exists!")
-		print("   This suggests elements are being created multiple times!")
+		VerboseHelper.warn("ui", "tile", "PlotTile._create_ui_elements() called after background already exists")
 		return
 
 	# Background
@@ -221,7 +217,7 @@ func _process(delta):
 		press_timer += delta
 		if press_timer >= LONG_PRESS_TIME:
 			# Long press detected
-			print("🖱️ PlotTile LONG PRESS detected at %s" % grid_position)
+			VerboseHelper.debug("ui", "tile", "PlotTile long press detected at %s" % grid_position)
 			long_pressed.emit(grid_position)
 			is_pressing = false
 			press_timer = 0.0
@@ -231,27 +227,6 @@ func _process(delta):
 	if _visuals_dirty:
 		_update_visuals()
 		_visuals_dirty = false
-
-	# Glow animation runs every frame for planted tiles
-	# (uses shared glow value computed once per physics frame)
-	# Glow animation runs every frame for planted tiles
-	# (uses shared glow value computed once per physics frame)
-	if plot_ui_data and plot_ui_data.get("is_planted", false):
-		background.color = COLOR_MATURE.lightened(_shared_glow_value * 0.2)
-		queue_redraw()
-
-
-func _physics_process(_delta):
-	"""Update shared glow value once per physics frame (not per tile).
-
-	Physics runs at fixed rate (~60Hz or game's physics tick rate).
-	Only the first tile to run each frame updates the shared value.
-	"""
-	var current_frame = Engine.get_physics_frames()
-	if _shared_glow_frame != current_frame:
-		_shared_glow_frame = current_frame
-		# Single sin() call shared by all 24 tiles
-		_shared_glow_value = (sin(Time.get_ticks_msec() * 0.003) + 1.0) / 2.0
 
 
 ## REMOVED: _gui_input() was dead code - PlotTile has mouse_filter=IGNORE
@@ -288,12 +263,12 @@ func _update_visuals():
 
 
 func _update_territory_border():
-	"""Update territory border color based on Icon control"""
-	if not territory_manager:
+	# Update territory border color based on Icon control
+	if not territory_router:
 		territory_border.color = COLOR_NEUTRAL
 		return
 
-	var controller = territory_manager.get_plot_controller(grid_position)
+	var controller = territory_router.get_plot_controller(grid_position)
 
 	match controller:
 		"biotic":
@@ -351,26 +326,36 @@ func _show_mature_state():
 	if not plot_ui_data.get("has_been_measured", false):
 		emoji_label_north.emoji = north_emoji
 		emoji_label_south.emoji = south_emoji
-		emoji_label_north.modulate.a = plot_ui_data.get("north_probability", 0.5)
-		emoji_label_south.modulate.a = plot_ui_data.get("south_probability", 0.5)
+		var north_prob = float(plot_ui_data.get("north_probability", -1.0))
+		var south_prob = float(plot_ui_data.get("south_probability", -1.0))
+		if north_prob >= 0.0 and south_prob >= 0.0:
+			emoji_label_north.modulate.a = north_prob
+			emoji_label_south.modulate.a = south_prob
+		else:
+			emoji_label_north.modulate.a = 0.5
+			emoji_label_south.modulate.a = 0.5
 	else:
-		var north_prob = plot_ui_data.get("north_probability", 0.5)
-		var south_prob = plot_ui_data.get("south_probability", 0.5)
+		var north_prob = float(plot_ui_data.get("north_probability", -1.0))
+		var south_prob = float(plot_ui_data.get("south_probability", -1.0))
 		if north_prob >= south_prob:
 			emoji_label_north.emoji = north_emoji
 			emoji_label_south.emoji = ""
 		else:
 			emoji_label_north.emoji = south_emoji
 			emoji_label_south.emoji = ""
-		emoji_label_north.modulate.a = 1.0
-		emoji_label_south.modulate.a = 0.0
+		if north_prob >= 0.0 and south_prob >= 0.0:
+			emoji_label_north.modulate.a = 1.0
+			emoji_label_south.modulate.a = 0.0
+		else:
+			emoji_label_north.modulate.a = 0.5
+			emoji_label_south.modulate.a = 0.0
 
-	# Golden glow for mature crops (uses shared glow value - not per-tile sin())
+	# Stable mature crop mark; ambient glow is reserved for state/event channels.
 	var base_golden = COLOR_MATURE
-	background.color = base_golden.lightened(_shared_glow_value * 0.2)
+	background.color = base_golden.lightened(0.1)
 
 func _get_temperature_color(normalized_theta: float) -> Color:
-	"""Map theta to temperature color (blue → white → red)"""
+	# Map theta to temperature color (blue → white → red)
 	if normalized_theta < 0.5:
 		# Blue to white (cold to neutral)
 		var t = normalized_theta * 2.0
@@ -382,12 +367,11 @@ func _get_temperature_color(normalized_theta: float) -> Color:
 
 
 func set_selected(selected: bool, by_keyboard: bool = false):
-	"""Set selection state with optional keyboard indicator
+	# Set selection state with optional keyboard indicator
 
-	Args:
-		selected: Whether the plot is selected
-		by_keyboard: Whether selection was made by keyboard (shows cyan) vs mouse (shows blue)
-	"""
+	# Args:
+	# selected: Whether the plot is selected
+	# by_keyboard: Whether selection was made by keyboard (shows cyan) vs mouse (shows blue)
 	is_selected = selected
 	is_selected_by_keyboard = by_keyboard
 
@@ -402,12 +386,18 @@ func set_selected(selected: bool, by_keyboard: bool = false):
 		selection_border.visible = false
 
 
-func set_checkbox_selected(selected: bool) -> void:
-	"""Update the multi-select checkbox visual state
+func set_active_ring(active: bool) -> void:
+	if is_active_ring == active:
+		return
+	is_active_ring = active
+	queue_redraw()
 
-	Args:
-		selected: Whether the plot is in the multi-select group
-	"""
+
+func set_checkbox_selected(selected: bool) -> void:
+	# Update the multi-select checkbox visual state
+
+	# Args:
+	# selected: Whether the plot is in the multi-select group
 	is_checkbox_selected = selected
 	if checkbox_label:
 		checkbox_label.text = "☑" if selected else "☐"
@@ -465,10 +455,14 @@ func _layout_elements():
 
 
 func _draw():
-	"""Draw PCB-style borders, solder pads, traces, and entanglement indicators"""
+	# Draw PCB-style borders, solder pads, traces, and entanglement indicators
 	var rect = get_rect()
 	if rect.size.x <= 0 or rect.size.y <= 0:
 		return
+
+	# Amber outer border when WASD cursor is on the plot ring
+	if is_active_ring:
+		draw_rect(Rect2(Vector2.ZERO, size), ACTIVE_RING_BORDER_COLOR, false, 2.0)
 
 	# Draw PCB-style beveled edge (metallic look)
 	_draw_pcb_edges(rect)
@@ -489,7 +483,7 @@ func _draw():
 
 
 func _draw_pcb_edges(rect: Rect2):
-	"""Draw beveled metallic edges like a PCB component"""
+	# Draw beveled metallic edges like a PCB component
 	var edge_width = 2
 
 	# Top edge highlight
@@ -510,7 +504,7 @@ func _draw_pcb_edges(rect: Rect2):
 
 
 func _draw_solder_pads(rect: Rect2):
-	"""Draw circular solder pads at corners"""
+	# Draw circular solder pads at corners
 	var pad_radius = 2.5
 	var pad_offset = 4
 
@@ -530,7 +524,7 @@ func _draw_solder_pads(rect: Rect2):
 
 
 func _draw_circuit_traces(rect: Rect2):
-	"""Draw subtle circuit trace patterns"""
+	# Draw subtle circuit trace patterns
 	var trace_color = COLOR_PCB_COPPER.darkened(0.4)
 	trace_color.a = 0.3  # Semi-transparent
 
@@ -545,7 +539,7 @@ func _draw_circuit_traces(rect: Rect2):
 
 
 func _update_entanglement_display():
-	"""Update entanglement visual indicators (ring + counter)"""
+	# Update entanglement visual indicators (ring + counter)
 	if plot_ui_data == null or not plot_ui_data.get("is_planted", false):
 		# No entanglement indicators for empty plots
 		entanglement_indicator.queue_redraw()
@@ -568,7 +562,7 @@ func _update_entanglement_display():
 
 
 func _update_lindblad_indicator() -> void:
-	"""Update persistent Lindblad pump/drain indicator."""
+	# Update persistent Lindblad pump/drain indicator.
 	if plot_ui_data == null or not plot_ui_data.get("is_planted", false):
 		lindblad_indicator.text = ""
 		return
@@ -596,7 +590,7 @@ func _update_lindblad_indicator() -> void:
 
 
 func _draw_entanglement_ring_inline(rect: Rect2, entangled_count: int):
-	"""Draw the entanglement glow ring inside the plot tile"""
+	# Draw the entanglement glow ring inside the plot tile
 	if entangled_count == 0:
 		return
 
@@ -606,16 +600,14 @@ func _draw_entanglement_ring_inline(rect: Rect2, entangled_count: int):
 	# Draw outer glow (faint)
 	draw_circle(center, ring_radius + 2, COLOR_ENTANGLEMENT_GLOW)
 
-	# Draw bright ring (pulsing effect based on entanglement count)
-	var pulse = (sin(Time.get_ticks_msec() * 0.005) + 1.0) / 2.0
-	var bright_color = COLOR_ENTANGLEMENT_RING.lerp(COLOR_ENTANGLEMENT_GLOW, 0.3 + pulse * 0.2)
+	var bright_color = COLOR_ENTANGLEMENT_RING.lerp(COLOR_ENTANGLEMENT_GLOW, 0.35)
 	draw_arc(center, ring_radius, 0, TAU, 16, bright_color, 2.0)
 
 
 ## Public API
 
 func set_plot_data(plot_data, pos: Vector2i, index: int = -1):
-	"""Set the plot UI data for this tile (Phase 4: PlotUIData instead of WheatPlot)"""
+	# Set the plot UI data for this tile (Phase 4: PlotUIData instead of WheatPlot)
 	plot_ui_data = plot_data
 	grid_position = pos
 

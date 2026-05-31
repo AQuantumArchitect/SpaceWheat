@@ -12,7 +12,7 @@ const ACTION_KEYCODES := {
 }
 
 const BIOME_KEYS := ["T", "Y", "U", "I", "O", "P"]
-const HOMEROW_KEYS := ["J", "K", "L", ";", "'", "H", "G"]
+const HOMEROW_KEYS := ["G", "H", "J", "K", "L", ";"]
 const SUBSPACE_KEYS := ["M", ",", ".", "/"]
 const QUEST_SLOT_KEYS := ["U", "I", "O", "P"]
 
@@ -50,13 +50,12 @@ const BIOME_ROW := {
 }
 
 const HOMEROW := {
-	"J": 0,
-	"K": 1,
-	"L": 2,
-	";": 3,
-	"'": 4,
-	"H": 5,
-	"G": 6,
+	"G": 0,
+	"H": 1,
+	"J": 2,
+	"K": 3,
+	"L": 4,
+	";": 5,
 }
 
 const SUBSPACE_ROW := {
@@ -67,7 +66,7 @@ const SUBSPACE_ROW := {
 }
 
 const BIOME_ACTIONS := ["biome_0", "biome_1", "biome_2", "biome_3", "biome_4", "biome_5"]
-const HOMEROW_ACTIONS := ["plot_0", "plot_1", "plot_2", "plot_3", "plot_4", "plot_5", "plot_6"]
+const HOMEROW_ACTIONS := ["plot_0", "plot_1", "plot_2", "plot_3", "plot_4", "plot_5"]
 const SUBSPACE_ACTIONS := ["subspace_0", "subspace_1", "subspace_2", "subspace_3"]
 const TOOL_GROUP_KEYS := ["1", "2", "3", "4"]
 const ACTION_KEYS := ["Q", "E", "R", "F"]
@@ -84,7 +83,7 @@ const GLOBAL_BINDINGS := [
 	{"key": "=", "label": "Time Up", "description": "Double stride and sim speed together"},
 	{"key": "Shift+-", "label": "Resolution Down", "description": "Use finer substeps with a 10x smaller dt"},
 	{"key": "Shift+=", "label": "Resolution Up", "description": "Use coarser substeps with a 10x larger dt"},
-	{"key": "Shift+R", "label": "Mass Pop", "description": "Pop all active bubbles in the checked set"},
+	{"key": "Shift+Q", "label": "Mass Harvest", "description": "Harvest (extract) all bound terminals in the checked set"},
 ]
 
 const OVERLAY_SHORTCUTS := {
@@ -236,7 +235,7 @@ static func _ensure_key_actions(action_names: Array, key_labels: Array) -> void:
 			continue
 
 		var event := InputEventKey.new()
-		event.keycode = keycode
+		event.keycode = keycode as Key
 		InputMap.action_add_event(action_name, event)
 
 

@@ -7,14 +7,11 @@ extends SceneTree
 ##
 ##   godot --headless -s tests/facade_parity.gd
 ##
-## Used as a regression backstop during the FDM facade migration. Before the
-## migration: GDScript FDM is the reference implementation. After: the facade
-## forwards everything to the native engine, so this test measures only the
-## native engine's self-consistency. The exact numerical match across both runs
-## indicates the port is correct.
+## Regression backstop for the FDM facade. GDScript FDM is the reference
+## implementation; the facade forwards everything to the native engine, so
+## this test measures the native engine's self-consistency. The exact
+## numerical match across both runs indicates the port is correct.
 
-const FactionRegistry = preload("res://Core/Factions/FactionRegistry.gd")
-const FactionDensityMatrix = preload("res://Core/Factions/FactionDensityMatrix.gd")
 
 const TOL: float = 1e-9
 
@@ -142,22 +139,24 @@ func _make_native(registry):
 	if engine == null:
 		return null
 	# Mirror the same registry into the engine: emojis, factions, then init density.
+	# Self-energies derived from icons.json (matches FactionDensityMatrix).
+	var IconRegistryCls = load("res://Core/Factions/IconRegistry.gd")
+	var lexicon = IconRegistryCls.new()
 	var seen_emojis: Dictionary = {}
 	for f in registry.get_all():
-		for emoji in f.signature:
+		var derived_se: Dictionary = lexicon.get_signature_physics(f.cloud).get("self_energies", {})
+		for emoji in f.cloud:
 			if seen_emojis.has(emoji):
 				continue
 			seen_emojis[emoji] = true
-			var se: float = 0.0
-			if f.self_energies.has(emoji):
-				se = float(f.self_energies[emoji])
+			var se: float = float(derived_se.get(emoji, 0.0))
 			engine.add_emoji(emoji, se, 0.0)
 	for f in registry.get_all():
 		var bits := PackedFloat64Array()
 		for b in f.bits:
 			bits.push_back(float(b))
 		var sig := PackedStringArray()
-		for e in f.signature:
+		for e in f.cloud:
 			sig.push_back(str(e))
 		engine.add_faction(str(f.name), bits, sig)
 	engine.faction_initialize_uniform()

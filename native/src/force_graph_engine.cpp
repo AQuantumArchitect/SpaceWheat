@@ -86,7 +86,7 @@ Dictionary ForceGraphEngine::update_positions(
 
             Vector2 total_force = Vector2(0, 0);
 
-            if (bloch_packet.size() >= (i + 1) * 8) {
+            if (bloch_packet.size() >= (i + 1) * 9) {
                 total_force += _calculate_purity_radial_force(i, new_positions[i], bloch_packet, biome_center);
                 total_force += _calculate_phase_angular_force(i, new_positions[i], bloch_packet, biome_center);
             }
@@ -126,9 +126,9 @@ Vector2 ForceGraphEngine::_calculate_purity_radial_force(
     const PackedFloat64Array& bloch_packet,
     Vector2 biome_center
 ) {
-    // Bloch packet: [p0, p1, x, y, z, r, theta, phi] per qubit (stride=8)
-    int offset = node_idx * 8;
-    if (offset + 7 >= bloch_packet.size()) {
+    // Bloch packet: [p0, p1, x, y, z, r, theta, phi, r_xy] per qubit (stride=9)
+    int offset = node_idx * 9;
+    if (offset + 8 >= bloch_packet.size()) {
         return Vector2(0, 0);
     }
 
@@ -170,9 +170,9 @@ Vector2 ForceGraphEngine::_calculate_phase_angular_force(
     const PackedFloat64Array& bloch_packet,
     Vector2 biome_center
 ) {
-    // Bloch packet: [p0, p1, x, y, z, r, theta, phi] per qubit
-    int offset = node_idx * 8;
-    if (offset + 7 >= bloch_packet.size()) {
+    // Bloch packet: [p0, p1, x, y, z, r, theta, phi, r_xy] per qubit (stride=9)
+    int offset = node_idx * 9;
+    if (offset + 8 >= bloch_packet.size()) {
         return Vector2(0, 0);
     }
 

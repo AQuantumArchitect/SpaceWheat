@@ -41,8 +41,8 @@ func _pick_biome_name() -> String:
 	for b in reg.get_exportable_biomes():
 		if b == null:
 			continue
-		# Skip faction-biomes (identity-shaped, atom_components empty by design)
-		if b.kind == "faction_biome":
+		# Skip neighborhoods; mutate a bare terrain shell.
+		if "neighborhood" in b.tags:
 			continue
 		return b.name
 	return ""
@@ -65,7 +65,7 @@ func _test_reset_clears() -> void:
 
 func _test_mutator_propagates() -> void:
 	BiomeRegistry.reset_shared()
-	var name = _pick_biome_name()
+	var biome_name = _pick_biome_name()
 	if name == "":
 		_check(false, "found a world biome to mutate")
 		return
@@ -110,7 +110,7 @@ func _test_mutator_guards() -> void:
 		"mutator rejects missing biome")
 
 	# Duplicate atom (use any emoji already in some biome)
-	var name = _pick_biome_name()
+	var biome_name = _pick_biome_name()
 	if name == "":
 		return
 	var biome = reg.get_by_name(name)

@@ -21,14 +21,13 @@ var bell_gates: Array = []  # Array of Vector2i arrays (triplets or pairs)
 # ============================================================================
 
 func mark_bell_gate(positions: Array) -> void:
-	"""Mark plots as having been entangled (creates a Bell gate)
+	# Mark plots as having been entangled (creates a Bell gate)
 
-	This records the historical relationship - even if plots are no longer
-	entangled now, they can be used as a measurement target later.
+	# This records the historical relationship - even if plots are no longer
+	# entangled now, they can be used as a measurement target later.
 
-	Args:
-		positions: [Vector2i, Vector2i] for 2-qubit OR [Vector2i, Vector2i, Vector2i] for 3-qubit
-	"""
+	# Args:
+	# positions: [Vector2i, Vector2i] for 2-qubit OR [Vector2i, Vector2i, Vector2i] for 3-qubit
 	if positions.size() < 2:
 		push_error("Bell gate requires at least 2 positions")
 		return
@@ -43,19 +42,19 @@ func mark_bell_gate(positions: Array) -> void:
 
 
 func get_bell_gate(index: int) -> Array:
-	"""Get a specific Bell gate by index"""
+	# Get a specific Bell gate by index
 	if index >= 0 and index < bell_gates.size():
 		return bell_gates[index]
 	return []
 
 
 func get_all_bell_gates() -> Array:
-	"""Get all Bell gates in this biome"""
+	# Get all Bell gates in this biome
 	return bell_gates.duplicate()
 
 
 func get_bell_gates_of_size(size: int) -> Array:
-	"""Get all Bell gates with specific size (2 for pairs, 3 for triplets)"""
+	# Get all Bell gates with specific size (2 for pairs, 3 for triplets)
 	var filtered = []
 	for gate in bell_gates:
 		if gate.size() == size:
@@ -64,22 +63,22 @@ func get_bell_gates_of_size(size: int) -> Array:
 
 
 func get_triplet_bell_gates() -> Array:
-	"""Get all 3-qubit Bell gates (for kitchen use)"""
+	# Get all 3-qubit Bell gates (for kitchen use)
 	return get_bell_gates_of_size(3)
 
 
 func get_pair_bell_gates() -> Array:
-	"""Get all 2-qubit Bell gates"""
+	# Get all 2-qubit Bell gates
 	return get_bell_gates_of_size(2)
 
 
 func has_bell_gates() -> bool:
-	"""Check if any Bell gates exist"""
+	# Check if any Bell gates exist
 	return bell_gates.size() > 0
 
 
 func bell_gate_count() -> int:
-	"""Get number of Bell gates"""
+	# Get number of Bell gates
 	return bell_gates.size()
 
 
@@ -88,7 +87,7 @@ func bell_gate_count() -> int:
 # ============================================================================
 
 func clear() -> void:
-	"""Clear all Bell gates"""
+	# Clear all Bell gates
 	bell_gates.clear()
 
 
@@ -97,7 +96,7 @@ func clear() -> void:
 # ============================================================================
 
 func _gates_equal(gate1: Array, gate2: Array) -> bool:
-	"""Check if two gates are equal (same positions, any order)"""
+	# Check if two gates are equal (same positions, any order)
 	if gate1.size() != gate2.size():
 		return false
 

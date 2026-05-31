@@ -2,28 +2,26 @@ class_name GateSelectionSubmenu
 extends RefCounted
 
 ## Gate Selection Submenu
-## Dynamic submenu for Tool 3 Gate Mode Q action
+## Dynamic submenu for Operator frame Gate Mode Q action
 ## Shows available entangling gates based on selection count
 ##
 ## Selection-aware options:
 ## - 2 qubits: Bell, CNOT, CZ, SWAP
 ## - 3+ qubits: GHZ, Cluster, plus 2-qubit options
 
-const BaseSubmenu = preload("res://UI/Core/Submenus/BaseSubmenu.gd")
 
 
 static func generate_submenu(biome, farm, selection: Array, page: int = 0) -> Dictionary:
-	"""Generate gate selection submenu.
+	# Generate gate selection submenu.
 
-	Args:
-		biome: Current biome (for context)
-		farm: Farm instance
-		selection: Array of selected positions (Vector2i) in ORDER
-		page: Page for F-cycling
+	# Args:
+	# biome: Current biome (for context)
+	# farm: Farm instance
+	# selection: Array of selected positions (Vector2i) in ORDER
+	# page: Page for F-cycling
 
-	Returns:
-		Submenu with gate options appropriate for selection count
-	"""
+	# Returns:
+	# Submenu with gate options appropriate for selection count
 	if selection.size() < 2:
 		return BaseSubmenu.empty_submenu(
 			"gate_selection",
@@ -47,7 +45,7 @@ static func generate_submenu(biome, farm, selection: Array, page: int = 0) -> Di
 
 
 static func _collect_options(selection: Array) -> Array:
-	"""Collect available gate types based on selection count."""
+	# Collect available gate types based on selection count.
 	var count = selection.size()
 	var options: Array = []
 
@@ -118,7 +116,7 @@ static func _collect_options(selection: Array) -> Array:
 
 
 static func _sort_options(options: Array) -> Array:
-	"""Sort options - enabled first, then by qubit requirement."""
+	# Sort options - enabled first, then by qubit requirement.
 	# First sort by qubits required (ascending)
 	options = BaseSubmenu.sort_by_field(options, "qubits_required", false)
 	# Then put enabled options first
@@ -127,7 +125,7 @@ static func _sort_options(options: Array) -> Array:
 
 
 static func _build_gate_action(option: Dictionary) -> Dictionary:
-	"""Build action data for a gate option."""
+	# Build action data for a gate option.
 	return {
 		"action": "build_gate",
 		"gate_type": option.get("gate_type", "bell"),

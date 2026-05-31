@@ -18,20 +18,20 @@ var detail_vbox: VBoxContainer
 var close_button: Button
 
 
-func set_layout_manager(manager: Node) -> void:
-	"""Set layout manager for scaling"""
-	layout_manager = manager
+func set_layout_manager(layout_mgr: Node) -> void:
+	# Set layout manager for scaling
+	layout_manager = layout_mgr
 
 
 func _ready() -> void:
-	"""Initialize UI"""
+	# Initialize UI
 	_create_ui()
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	visible = false
 
 
 func _gui_input(event: InputEvent) -> void:
-	"""Handle mouse input"""
+	# Handle mouse input
 	if event is InputEventMouseButton:
 		if event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 			# Consume clicks (prevent clicking through)
@@ -39,11 +39,11 @@ func _gui_input(event: InputEvent) -> void:
 
 
 func _create_ui() -> void:
-	"""Create the detail panel UI"""
-	var scale = layout_manager.scale_factor if layout_manager else 1.0
+	# Create the detail panel UI
+	var scale_val = layout_manager.scale_factor if layout_manager else 1.0
 
 	# Size and position (centered)
-	custom_minimum_size = Vector2(600 * scale, 800 * scale)
+	custom_minimum_size = Vector2(600 * scale_val, 800 * scale_val)
 	z_index = 11  # Info-tier overlay, below buttons and above gameplay
 
 	# Position in center of screen
@@ -51,13 +51,13 @@ func _create_ui() -> void:
 	anchor_right = 0.5
 	anchor_top = 0.5
 	anchor_bottom = 0.5
-	offset_left = -300 * scale
-	offset_right = 300 * scale
-	offset_top = -400 * scale
-	offset_bottom = 400 * scale
+	offset_left = -300 * scale_val
+	offset_right = 300 * scale_val
+	offset_top = -400 * scale_val
+	offset_bottom = 400 * scale_val
 
 	var main_vbox = VBoxContainer.new()
-	main_vbox.add_theme_constant_override("separation", int(10 * scale))
+	main_vbox.add_theme_constant_override("separation", int(10 * scale_val))
 	add_child(main_vbox)
 
 	# Header with title and close
@@ -71,13 +71,13 @@ func _create_ui() -> void:
 
 	close_button = Button.new()
 	close_button.text = "✖"
-	close_button.custom_minimum_size = Vector2(60 * scale, 60 * scale)  # Large for touch!
+	close_button.custom_minimum_size = Vector2(60 * scale_val, 60 * scale_val)  # Large for touch!
 	close_button.pressed.connect(_on_close_pressed)
 	header.add_child(close_button)
 
 	# Summary section (always visible)
 	summary_section = VBoxContainer.new()
-	summary_section.add_theme_constant_override("separation", int(5 * scale))
+	summary_section.add_theme_constant_override("separation", int(5 * scale_val))
 	main_vbox.add_child(summary_section)
 
 	# Separator
@@ -86,25 +86,25 @@ func _create_ui() -> void:
 
 	# Scrollable detail section
 	detail_scroll = ScrollContainer.new()
-	detail_scroll.custom_minimum_size.y = 600 * scale
+	detail_scroll.custom_minimum_size.y = 600 * scale_val
 	detail_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	detail_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	main_vbox.add_child(detail_scroll)
 
 	detail_vbox = VBoxContainer.new()
-	detail_vbox.add_theme_constant_override("separation", int(15 * scale))
+	detail_vbox.add_theme_constant_override("separation", int(15 * scale_val))
 	detail_scroll.add_child(detail_vbox)
 
 
 func show_icon(icon) -> void:  # icon: Icon type
-	"""Show detail panel for a specific Icon"""
+	# Show detail panel for a specific Icon
 	current_icon = icon
 	_populate_content()
 	visible = true
 
 
 func _populate_content() -> void:
-	"""Populate panel with Icon data"""
+	# Populate panel with Icon data
 	if not current_icon:
 		return
 
@@ -121,14 +121,13 @@ func _populate_content() -> void:
 
 	# Populate details (scrollable)
 	_add_hamiltonian_section()
-	_add_lindblad_section()
 	_add_energy_coupling_section()
 	_add_metadata_section()
 
 
 func _add_summary_section() -> void:
-	"""Quick info - visible without scrolling"""
-	var scale = layout_manager.scale_factor if layout_manager else 1.0
+	# Quick info - visible without scrolling
+	var _scale_val = layout_manager.scale_factor if layout_manager else 1.0
 
 	# Description
 	var desc = Label.new()
@@ -136,19 +135,6 @@ func _add_summary_section() -> void:
 	desc.autowrap_mode = TextServer.AUTOWRAP_WORD
 	desc.add_theme_font_size_override("font_size", 14)
 	summary_section.add_child(desc)
-
-	# Key interactions (Lindblad incoming - what it grows from)
-	var grows_from = []
-	for emoji in current_icon.lindblad_incoming.keys():
-		grows_from.append(emoji)
-
-	if grows_from.size() > 0:
-		var grows_label = Label.new()
-		var preview = grows_from.slice(0, min(3, grows_from.size()))
-		grows_label.text = "Grows from: " + " ".join(preview)
-		if grows_from.size() > 3:
-			grows_label.text += " (+%d more)" % (grows_from.size() - 3)
-		summary_section.add_child(grows_label)
 
 	# Trophic level
 	var trophic_names = ["Abiotic", "Producer", "Consumer", "Predator"]
@@ -160,7 +146,7 @@ func _add_summary_section() -> void:
 
 
 func _add_hamiltonian_section() -> void:
-	"""Coherent evolution details"""
+	# Coherent evolution details
 	var header = Label.new()
 	header.text = "HAMILTONIAN (Coherent Evolution) ⚛️"
 	header.add_theme_font_size_override("font_size", 18)
@@ -206,52 +192,8 @@ func _add_hamiltonian_section() -> void:
 		detail_vbox.add_child(amp)
 
 
-func _add_lindblad_section() -> void:
-	"""Dissipative evolution details"""
-	var header = Label.new()
-	header.text = "LINDBLAD (Dissipative Evolution) 🌊"
-	header.add_theme_font_size_override("font_size", 18)
-	detail_vbox.add_child(header)
-
-	# Incoming transfers (gains amplitude)
-	if not current_icon.lindblad_incoming.is_empty():
-		var inc_header = Label.new()
-		inc_header.text = "Gains amplitude from:"
-		detail_vbox.add_child(inc_header)
-
-		for source in current_icon.lindblad_incoming:
-			var rate = current_icon.lindblad_incoming[source]
-			var inc_line = Label.new()
-			inc_line.text = "  %s → %.5f/s (slow growth)" % [source, rate]
-			detail_vbox.add_child(inc_line)
-	else:
-		var no_inc = Label.new()
-		no_inc.text = "No incoming Lindblad transfers"
-		no_inc.modulate = Color(0.7, 0.7, 0.7)
-		detail_vbox.add_child(no_inc)
-
-	# Outgoing transfers
-	if not current_icon.lindblad_outgoing.is_empty():
-		var out_header = Label.new()
-		out_header.text = "Transfers amplitude to:"
-		detail_vbox.add_child(out_header)
-
-		for target in current_icon.lindblad_outgoing:
-			var rate = current_icon.lindblad_outgoing[target]
-			var out_line = Label.new()
-			out_line.text = "  %s → %.5f/s" % [target, rate]
-			detail_vbox.add_child(out_line)
-
-	# Decay
-	if current_icon.decay_rate > 0:
-		var decay_label = Label.new()
-		decay_label.text = "Decay: %.3f/s → %s" % [current_icon.decay_rate, current_icon.decay_target]
-		decay_label.modulate = Color(1.0, 0.6, 0.6)  # Light red
-		detail_vbox.add_child(decay_label)
-
-
 func _add_energy_coupling_section() -> void:
-	"""Energy couplings (bath response)"""
+	# Energy couplings (bath response)
 	var header = Label.new()
 	header.text = "ENERGY COUPLINGS (Bath Response) 📊"
 	header.add_theme_font_size_override("font_size", 18)
@@ -265,9 +207,9 @@ func _add_energy_coupling_section() -> void:
 		for observable in current_icon.energy_couplings:
 			var coupling = current_icon.energy_couplings[observable]
 			var coup_line = Label.new()
-			var sign = "+" if coupling > 0 else ""
+			var sign_val = "+" if coupling > 0 else ""
 			var effect = "growth" if coupling > 0 else "damage"
-			coup_line.text = "  When %s present → %s%.2f (%s)" % [observable, sign, coupling, effect]
+			coup_line.text = "  When %s present → %s%.2f (%s)" % [observable, sign_val, coupling, effect]
 			coup_line.modulate = Color(0.5, 1.0, 0.5) if coupling > 0 else Color(1.0, 0.5, 0.5)
 			detail_vbox.add_child(coup_line)
 	else:
@@ -278,7 +220,7 @@ func _add_energy_coupling_section() -> void:
 
 
 func _add_metadata_section() -> void:
-	"""Metadata and special flags"""
+	# Metadata and special flags
 	var header = Label.new()
 	header.text = "SPECIAL FLAGS"
 	header.add_theme_font_size_override("font_size", 18)
@@ -306,15 +248,9 @@ func _add_metadata_section() -> void:
 	eternal_flag.text = "☑ Eternal" if current_icon.is_eternal else "☐ Eternal"
 	flags_hbox.add_child(eternal_flag)
 
-	# Drain target
-	if current_icon.is_drain_target:
-		var drain_label = Label.new()
-		drain_label.text = "☑ Drain Target (tap rate: %.3f/s)" % current_icon.drain_to_sink_rate
-		drain_label.modulate = Color(0.7, 0.9, 1.0)  # Light blue
-		detail_vbox.add_child(drain_label)
 
 
 func _on_close_pressed() -> void:
-	"""Handle close button press"""
+	# Handle close button press
 	visible = false
 	panel_closed.emit()

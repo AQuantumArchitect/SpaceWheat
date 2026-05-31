@@ -1,14 +1,10 @@
 class_name GameStateSerializer
 extends RefCounted
 
-const GridSentinel = preload("res://Core/GameState/GridSentinel.gd")
 
 ## GameStateSerializer - capture/apply GameState to a live Farm.
 ## Keeps GameStateManager focused on orchestration.
 
-const GameState = preload("res://Core/GameState/GameState.gd")
-const BalanceService = preload("res://Core/GameMechanics/BalanceService.gd")
-const EmojiUtil = preload("res://Core/Utilities/EmojiUtil.gd")
 
 var _verbose = null
 
@@ -112,31 +108,24 @@ func capture_state_from_farm(farm: Node, current_state: GameState, scenario_id: 
 			if s != null and s.has_method("to_dict"):
 				standings_out[fname] = s.to_dict()
 		state.faction_standings = standings_out
-	# Phase III: player_affinity (12-qubit AffinityGraph). |+⟩^⊗12 default also
+	# Phase III: player_alignment (12-qubit AlignmentGraph). |+⟩^⊗12 default also
 	# serializes (single dense ket); load path will rehydrate or reset as needed.
-	if "player_affinity" in farm and farm.player_affinity != null \
-			and farm.player_affinity.has_method("to_dict"):
-		state.player_affinity = farm.player_affinity.to_dict()
+	if "player_alignment" in farm and farm.player_alignment != null \
+			and farm.player_alignment.has_method("to_dict"):
+		state.player_alignment = farm.player_alignment.to_dict()
 	_log("debug", "save", "💰", "Captured %d emoji types in economy" % state.all_emoji_credits.size())
 
 	var known_emojis: Array = []
 
-	# Player Signature (farm-owned canonical)
-	if farm and farm.has_method("get_known_pairs"):
-		state.known_pairs = _resolve_known_pairs_for_capture(farm)
-		known_emojis = GameState.derive_known_emojis_from_pairs(state.known_pairs)
-		_log("debug", "save", "📖", "Captured signature: %d pairs → %d emojis" % [state.known_pairs.size(), known_emojis.size()])
+	# Player signature (farm-owned canonical).
+	if farm and farm.has_method("get_known_icons"):
+		state.known_icons = _resolve_known_icons_for_capture(farm)
+		known_emojis = GameState.derive_known_emojis_from_icons(state.known_icons)
+		_log("debug", "save", "📖", "Captured signature: %d icons → %d emojis" % [state.known_icons.size(), known_emojis.size()])
 
-	# Active icon slots (3 indices into known_pairs — player's expression voice).
+	# Active icon slots (3 indices into known_icons — player's expression voice).
 	if farm and "active_icon_slots" in farm:
 		state.active_icon_slots = (farm.active_icon_slots as Array).duplicate()
-
-	# Locked quest offers
-	var quest_manager_node = _get_autoload("QuestManager")
-	if quest_manager_node and quest_manager_node.has_method("get_locked_offers"):
-		state.locked_quest_offers = quest_manager_node.get_locked_offers()
-		if state.locked_quest_offers.size() > 0:
-			_log("debug", "save", "📌", "Captured %d locked quest offers" % state.locked_quest_offers.size())
 
 	# Story flags + narrative log
 	if "story_flags_fired" in farm:
@@ -147,7 +136,7 @@ func capture_state_from_farm(farm: Node, current_state: GameState, scenario_id: 
 	# Biome progression state (unlocked/unexplored/active spindle position)
 	_capture_biome_progression_state(state, current_state)
 
-	# IconMap snapshot (tooling cache only; known_pairs remain canonical truth)
+	# IconMap snapshot (tooling cache only; known_icons remain canonical truth)
 	var icon_snapshot = _capture_atom_map_snapshot(farm, known_emojis)
 	state.atom_map_snapshot = icon_snapshot.get("atom_map_snapshot", {})
 	state.atom_map_snapshot_source = str(icon_snapshot.get("atom_map_snapshot_source", ""))
@@ -165,7 +154,7 @@ func capture_state_from_farm(farm: Node, current_state: GameState, scenario_id: 
 			var has_memory: bool = bool(plot.has_method("has_measurement_memory") and plot.has_measurement_memory())
 			var has_measurement: bool = has_live_measurement or has_memory
 			var has_live_register: bool = bool(plot.is_active())
-			var persist_plot: bool = has_live_register or has_measurement
+			var _persist_plot: bool = has_live_register or has_measurement
 			var plot_data = {
 				"position": pos,
 				"type_name": plot.plot_type_name,
@@ -233,9 +222,9 @@ func capture_state_from_farm(farm: Node, current_state: GameState, scenario_id: 
 			state.plot_biome_assignments[pos_key] = farm.grid.get_plot_biome_assignment(pos_key)
 
 	# Capture selection state from QuantumInstrumentInput
-	var input_handler = _find_quantum_instrument_input(farm)
-	if input_handler and input_handler.has_method("get_checked_plots"):
-		state.selected_plot_positions = input_handler.get_checked_plots().duplicate()
+	var instrument_input = _find_quantum_instrument_input(farm)
+	if instrument_input and instrument_input.has_method("get_checked_plots"):
+		state.selected_plot_positions = instrument_input.get_checked_plots().duplicate()
 		_log("debug", "save", "✅", "Captured selection state: %d plots selected" % state.selected_plot_positions.size())
 	else:
 		state.selected_plot_positions = []
@@ -256,18 +245,18 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 		push_error("Farm not found - cannot apply state")
 		return
 
-	# Save format compatibility:
-	#   v1 → no faction_standings, no player_affinity (both re-init from defaults)
-	#   v2 → faction_standings present; no player_affinity
-	#   v3 → current; player_affinity present (AffinityGraph serialized)
+	# Save format handling:
+	#   v1 → no faction_standings, no player_alignment (both re-init from defaults)
+	#   v2 → faction_standings present; no player_alignment
+	#   v3 → current; player_alignment present (AlignmentGraph serialized)
 	# All three are accepted. Anything outside this range is a hard mismatch.
 	if state.save_version < 1 or state.save_version > 3:
 		push_error("Save file version unsupported: %d (supported: 1, 2, 3)" % state.save_version)
 		push_error("This save may be incompatible with current game version")
 	elif state.save_version == 1:
-		push_warning("Loading v1 save under v3 schema; faction_standings + player_affinity start empty")
+		push_warning("Loading v1 save under v3 schema; faction_standings + player_alignment start empty")
 	elif state.save_version == 2:
-		push_warning("Loading v2 save under v3 schema; player_affinity starts at |+⟩^⊗12")
+		push_warning("Loading v2 save under v3 schema; player_alignment starts at |+⟩^⊗12")
 
 	if farm.grid:
 		if state.grid_width != farm.grid.grid_width or state.grid_height != farm.grid.grid_height:
@@ -324,12 +313,12 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 	# Phase 2: faction_standings — rebuild FactionStanding objects from saved dicts.
 	if "faction_standings" in farm:
 		var saved_standings: Dictionary = state.faction_standings if "faction_standings" in state else {}
-		var FactionStanding = load("res://Core/Factions/FactionStanding.gd")
+		var standing_class = load("res://Core/Factions/FactionStanding.gd")
 		farm.faction_standings = {}
 		for fname in saved_standings:
 			var sd = saved_standings[fname]
 			if sd is Dictionary:
-				farm.faction_standings[fname] = FactionStanding.from_dict(sd)
+				farm.faction_standings[fname] = standing_class.from_dict(sd)
 
 	# Story flags + narrative log
 	if "story_flags_fired" in farm:
@@ -337,15 +326,13 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 	if "story_log" in farm:
 		farm.story_log = (state.story_log if "story_log" in state else []).duplicate(true)
 
-	# Phase III: player_affinity — rehydrate AffinityGraph from saved dict, or
-	# re-initialize to |+⟩^⊗12 for v1/v2 saves (no field) or empty payloads.
-	if "player_affinity" in farm:
-		var AffinityGraphCls = load("res://Core/Affinity/AffinityGraph.gd")
-		var saved_pa: Dictionary = state.player_affinity if "player_affinity" in state else {}
+	if "player_alignment" in farm:
+		var AlignmentGraphCls = load("res://Core/Alignment/AlignmentGraph.gd")
+		var saved_pa: Dictionary = state.player_alignment if "player_alignment" in state else {}
 		if saved_pa is Dictionary and not saved_pa.is_empty():
-			farm.player_affinity = AffinityGraphCls.from_dict(saved_pa)
+			farm.player_alignment = AlignmentGraphCls.from_dict(saved_pa)
 		else:
-			farm.player_affinity = AffinityGraphCls.from_uniform_superposition()
+			farm.player_alignment = AlignmentGraphCls.from_uniform_superposition()
 
 	if farm.grid and farm.grid.has_biomes():
 		var biome_count = 0
@@ -358,16 +345,16 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 			# max_evolution_dt not restored — BiomeCharacteristics.apply_to_biome() sets it at boot
 		_log("debug", "save", "⏱️", "Applied timescale: speed=%.4fx stride=%d to %d biomes" % [state.quantum_time_scale, state.observation_stride, biome_count])
 
-	var restored_known_pairs = _resolve_known_pairs_from_state(state)
-	if farm and farm.has_method("set_known_pairs"):
-		farm.set_known_pairs(restored_known_pairs)
+	var restored_known_icons = _resolve_known_icons_from_state(state)
+	if farm and farm.has_method("set_known_icons"):
+		farm.set_known_icons(restored_known_icons)
 		if state.atom_map_snapshot and not state.atom_map_snapshot.is_empty():
 			_log("debug", "save", "🗺️", "Loaded IconMap snapshot cache (%s, %d emojis)" % [
 				state.atom_map_snapshot_source,
 				state.atom_map_snapshot.get("by_emoji", {}).size()
 			])
 
-	# Restore active icon slots (3 indices into known_pairs).
+	# Restore active icon slots (3 indices into known_icons).
 	if farm and "active_icon_slots" in farm:
 		var slots: Array = []
 		if "active_icon_slots" in state and state.active_icon_slots is Array:
@@ -375,19 +362,10 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 				slots.append(int(s))
 		if slots.size() != 3:
 			slots = [0, 1, 2]
-		# Clamp to valid known_pairs indices.
-		var max_idx: int = max(0, farm.known_pairs.size() - 1)
+		var max_idx: int = max(0, farm.known_icons.size() - 1)
 		for i in range(slots.size()):
 			slots[i] = clampi(slots[i], 0, max_idx)
 		farm.active_icon_slots = slots
-
-	# Restore locked quest offers
-	if state.locked_quest_offers and state.locked_quest_offers.size() > 0:
-		var qm_node = _get_autoload("QuestManager")
-		if qm_node and qm_node.has_method("lock_offer"):
-			for offer in state.locked_quest_offers:
-				qm_node.lock_offer(offer)
-			_log("debug", "save", "📌", "Restored %d locked quest offers" % state.locked_quest_offers.size())
 
 	# Restore biome unlock/exploration progression before grid refresh so layout sync is correct.
 	_restore_biome_progression_state(state)
@@ -419,7 +397,7 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 
 		var plot = grid.get_plot(pos)
 		if plot:
-			# Restore plot type (with backward compat for old enum saves)
+			# Restore plot type from older enum saves
 			if plot_data.has("type_name"):
 				plot.plot_type_name = plot_data["type_name"]
 			elif plot_data.has("type"):  # Old saves with enum
@@ -505,9 +483,9 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 
 	# Restore selection state to QuantumInstrumentInput
 	if state.selected_plot_positions and state.selected_plot_positions.size() > 0:
-		var input_handler = _find_quantum_instrument_input(farm)
-		if input_handler and input_handler.has_method("set_checked_plots"):
-			input_handler.set_checked_plots(state.selected_plot_positions)
+		var instrument_input = _find_quantum_instrument_input(farm)
+		if instrument_input and instrument_input.has_method("set_checked_plots"):
+			instrument_input.set_checked_plots(state.selected_plot_positions)
 			_log("debug", "save", "✅", "Restored selection state: %d plots selected" % state.selected_plot_positions.size())
 		else:
 			_log("debug", "save", "⚠️", "QuantumInstrumentInput not found - selection state not restored")
@@ -515,21 +493,21 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 	_log("info", "save", "✓", "State applied to farm successfully - quantum states will regenerate from biome")
 
 
-func _resolve_known_pairs_from_state(state: GameState) -> Array:
-	# Resolve known pairs from save state.
+func _resolve_known_icons_from_state(state: GameState) -> Array:
+	# Resolve known icons from save state.
 	var merged: Array = []
 	var seen: Dictionary = {}
 
 	var sources: Array = []
-	if state and state.known_pairs is Array:
-		sources.append(state.known_pairs)
+	if state and state.known_icons is Array:
+		sources.append(state.known_icons)
 
 	for source in sources:
-		for pair in source:
-			if not (pair is Dictionary):
+		for icon in source:
+			if not (icon is Dictionary):
 				continue
-			var north = str(pair.get("north", ""))
-			var south = str(pair.get("south", ""))
+			var north = str(icon.get("north", ""))
+			var south = str(icon.get("south", ""))
 			if north == "" or south == "" or north == south:
 				continue
 			var key = "%s|%s" % [north, south]
@@ -648,20 +626,20 @@ func _capture_atom_map_snapshot(farm: Node, known_emojis: Array) -> Dictionary:
 			"total": float(derived.size()),
 			"steps": 1
 		}
-		out["atom_map_snapshot_source"] = "derived_from_pairs"
+		out["atom_map_snapshot_source"] = "derived_from_icons"
 	return out
 
 
-func _resolve_known_pairs_for_capture(farm: Node) -> Array:
+func _resolve_known_icons_for_capture(farm: Node) -> Array:
 	var merged: Array = []
 	var seen: Dictionary = {}
 
-	if farm and farm.has_method("get_known_pairs"):
-		for pair in farm.get_known_pairs():
-			if not (pair is Dictionary):
+	if farm and farm.has_method("get_known_icons"):
+		for icon in farm.get_known_icons():
+			if not (icon is Dictionary):
 				continue
-			var north = str(pair.get("north", ""))
-			var south = str(pair.get("south", ""))
+			var north = str(icon.get("north", ""))
+			var south = str(icon.get("south", ""))
 			if north == "" or south == "" or north == south:
 				continue
 			var key = "%s|%s" % [north, south]
@@ -692,7 +670,7 @@ func _capture_all_biome_states(farm: Node) -> Dictionary:
 	return all_states
 
 
-func _capture_single_biome_state(biome: Node, biome_name: String) -> Dictionary:
+func _capture_single_biome_state(biome: Node, _biome_name: String) -> Dictionary:
 	var state_dict = {
 		"time_elapsed": 0.0,
 		"quantum_states": []
@@ -703,7 +681,7 @@ func _capture_single_biome_state(biome: Node, biome_name: String) -> Dictionary:
 	elif "time_tracker" in biome and biome.time_tracker:
 		state_dict["time_elapsed"] = biome.time_tracker.time_elapsed
 
-	if "quantum_states" in biome and not ("bath" in biome and biome.bath):
+	if "quantum_states" in biome:
 		for pos in biome.quantum_states.keys():
 			var qubit = biome.quantum_states[pos]
 			if qubit:
@@ -727,8 +705,6 @@ func _capture_single_biome_state(biome: Node, biome_name: String) -> Dictionary:
 				gate_positions.append({"x": pos.x, "y": pos.y})
 			state_dict["bell_gates"].append(gate_positions)
 
-	if "bath" in biome and biome.bath:
-		state_dict["bath_state"] = _serialize_bath_state(biome.bath)
 	if biome.quantum_computer and biome.quantum_computer.register_infrastructure.size() > 0:
 		var infra = {}
 		for reg_id in biome.quantum_computer.register_infrastructure:
@@ -756,11 +732,12 @@ func _capture_single_biome_state(biome: Node, biome_name: String) -> Dictionary:
 				"driver_phase":         ic.driver_phase if "driver_phase" in ic else 0.0,
 				"driver_amplitude":     ic.driver_amplitude if "driver_amplitude" in ic else 1.0,
 				"hamiltonian_couplings":ic.hamiltonian_couplings.duplicate() if "hamiltonian_couplings" in ic else {},
-				"lindblad_outgoing":    ic.lindblad_outgoing.duplicate() if "lindblad_outgoing" in ic else {},
-				"decay_rate":           ic.decay_rate if "decay_rate" in ic else 0.0,
-				"decay_target":         ic.decay_target if "decay_target" in ic else "",
 			}
 		state_dict["icons"] = icon_snap
+		# Physics signature — lets the load path detect H drift between save
+		# and load (e.g. icons.json edits). L lives on biome.atom_components
+		# and has its own drift detection.
+		state_dict["physics_signature"] = _physics_signature_from_snap(icon_snap)
 
 	# Snapshot register axes so Python lab can reconstruct RegisterMap.
 	if biome.quantum_computer and biome.quantum_computer.register_map:
@@ -788,6 +765,8 @@ func _restore_all_biome_states(farm: Node, biome_states: Dictionary) -> void:
 		await _restore_single_biome_state(biome, biome_state, biome_name)
 		_log("debug", "save", "📂", "Restored %s biome" % biome_name)
 
+	_warn_for_physics_drift(farm, biome_states)
+
 
 func _restore_single_biome_state(biome: Node, state: Dictionary, biome_name: String) -> void:
 	if state.has("time_elapsed"):
@@ -813,12 +792,35 @@ func _restore_single_biome_state(biome: Node, state: Dictionary, biome_name: Str
 				gate_positions.append(Vector2i(pos_dict.x, pos_dict.y))
 			biome.bell_gates.append(gate_positions)
 
-	if not "bath" in biome or not biome.bath:
-		if biome.is_inside_tree():
-			await biome.get_tree().process_frame
+	if biome.is_inside_tree():
+		await biome.get_tree().process_frame
 
-	if state.has("bath_state") and "bath" in biome and biome.bath:
-		_deserialize_bath_state(biome.bath, state.bath_state)
+	if state.has("register_axes") and biome.quantum_computer:
+		var axes = state["register_axes"]
+		if axes is Array and not axes.is_empty():
+			var qc_axes = biome.quantum_computer
+			var restored = false
+			if qc_axes.has_method("restore_register_map_from_axes"):
+				restored = qc_axes.restore_register_map_from_axes(axes)
+			else:
+				if qc_axes.register_map and qc_axes.register_map.has_method("clear"):
+					qc_axes.register_map.clear()
+				for axis_data in axes:
+					if not (axis_data is Dictionary):
+						continue
+					var qubit_raw = axis_data.get("qubit", -1)
+					if not str(qubit_raw).is_valid_int():
+						continue
+					var north_emoji = str(axis_data.get("north", ""))
+					var south_emoji = str(axis_data.get("south", ""))
+					if north_emoji == "" or south_emoji == "":
+						continue
+					qc_axes.register_map.register_axis(int(qubit_raw), north_emoji, south_emoji)
+					qc_axes._ensure_entanglement_node(int(qubit_raw))
+					qc_axes._ensure_register_infra(int(qubit_raw))
+					restored = true
+			if not restored:
+				push_warning("Biome %s register_axes present but could not be restored" % biome_name)
 
 	if state.has("register_infrastructure") and biome.quantum_computer:
 		var qc = biome.quantum_computer
@@ -833,8 +835,96 @@ func _restore_single_biome_state(biome: Node, state: Dictionary, biome_name: Str
 		if rho:
 			qc_rho.density_matrix = rho
 			if "viz_cache" in biome and biome.viz_cache and qc_rho.register_map:
+				var metadata_payload = {
+					"num_qubits": qc_rho.register_map.num_qubits,
+					"axes": qc_rho.register_map.axes.duplicate(true) if "axes" in qc_rho.register_map else {},
+				}
+				var emoji_to_qubit: Dictionary = {}
+				var emoji_to_pole: Dictionary = {}
+				var emoji_list: Array = []
+				for emoji in qc_rho.register_map.coordinates.keys():
+					var coord = qc_rho.register_map.coordinates[emoji]
+					emoji_to_qubit[emoji] = coord.get("qubit", -1)
+					emoji_to_pole[emoji] = coord.get("pole", -1)
+					emoji_list.append(emoji)
+				metadata_payload["emoji_to_qubit"] = emoji_to_qubit
+				metadata_payload["emoji_to_pole"] = emoji_to_pole
+				metadata_payload["emoji_list"] = emoji_list
+				biome.viz_cache.update_metadata_from_payload(metadata_payload)
 				var packet = qc_rho.export_bloch_packet()
+				if packet.is_empty():
+					packet = PackedFloat64Array()
+					packet.resize(qc_rho.register_map.num_qubits * 9)
+					for q in range(qc_rho.register_map.num_qubits):
+						var base = q * 9
+						packet[base + 0] = qc_rho.get_marginal(q, 0)
+						packet[base + 1] = qc_rho.get_marginal(q, 1)
+						packet[base + 2] = 0.0
+						packet[base + 3] = 0.0
+						packet[base + 4] = packet[base + 0] - packet[base + 1]
+						packet[base + 5] = abs(packet[base + 4])
+						packet[base + 6] = 0.0
+						packet[base + 7] = 0.0
+						packet[base + 8] = 0.0
 				biome.viz_cache.update_from_bloch_packet(packet, qc_rho.register_map.num_qubits)
+			elif qc_rho.register_map == null or qc_rho.register_map.num_qubits <= 0:
+				push_warning("Biome %s restored density matrix without a valid register map" % biome_name)
+
+
+func _warn_for_physics_drift(farm: Node, biome_states: Dictionary) -> void:
+	if not farm or not farm.grid:
+		return
+	for biome_name in biome_states.keys():
+		var state = biome_states[biome_name]
+		if not (state is Dictionary) or not state.has("physics_signature"):
+			continue
+		var biome = farm.grid.get_biome(str(biome_name))
+		if not biome or not ("icons" in biome) or not (biome.icons is Dictionary):
+			continue
+		var saved_sig = str(state["physics_signature"])
+		var current_snap: Dictionary = {}
+		for emoji in biome.icons:
+			var ic = biome.icons[emoji]
+			if not ic:
+				continue
+			current_snap[emoji] = {
+				"self_energy":          ic.self_energy if "self_energy" in ic else 0.0,
+				"driver":               ic.self_energy_driver if "self_energy_driver" in ic else "",
+				"driver_frequency":     ic.driver_frequency if "driver_frequency" in ic else 0.0,
+				"driver_phase":         ic.driver_phase if "driver_phase" in ic else 0.0,
+				"driver_amplitude":     ic.driver_amplitude if "driver_amplitude" in ic else 1.0,
+				"hamiltonian_couplings":ic.hamiltonian_couplings.duplicate() if "hamiltonian_couplings" in ic else {},
+			}
+		var current_sig = _physics_signature_from_snap(current_snap)
+		if saved_sig != current_sig:
+			push_warning("Biome '%s' physics drift on load: saved signature %s != current %s — restored ρ will evolve under different H/L than at save time" % [biome_name, saved_sig, current_sig])
+
+
+func _physics_signature_from_snap(icon_snap: Dictionary) -> String:
+	# Stable hash of the live icon physics snapshot used to detect drift
+	# between save-time and load-time operators.
+	if icon_snap.is_empty():
+		return ""
+	var emojis: Array = icon_snap.keys()
+	emojis.sort()
+	var parts: Array[String] = []
+	for emoji in emojis:
+		var ic = icon_snap.get(emoji, {})
+		if not (ic is Dictionary):
+			continue
+		var h_couplings = ic.get("hamiltonian_couplings", {})
+		var driver = str(ic.get("driver", ""))
+		parts.append("%s|%.6f|%s|%s|%s|%.6f|%s|%s" % [
+			str(emoji),
+			float(ic.get("self_energy", 0.0)),
+			driver,
+			str(ic.get("driver_frequency", 0.0)),
+			str(ic.get("driver_phase", 0.0)),
+			float(ic.get("driver_amplitude", 1.0)),
+			JSON.stringify(h_couplings if h_couplings is Dictionary else {}),
+			JSON.stringify(ic.get("measurement_behavior", {})),
+		])
+	return "|".join(parts).md5_text()
 
 
 func _migrate_plot_infra_to_register(farm: Node, state: GameState) -> void:
@@ -877,7 +967,7 @@ func _migrate_plot_infra_to_register(farm: Node, state: GameState) -> void:
 		migrated_count += 1
 
 	if migrated_count > 0:
-		_log("info", "save", "🔄", "Migrated %d plot infra entries to register_infrastructure (old save compat)" % migrated_count)
+		_log("info", "save", "🔄", "Migrated %d plot infra entries to register_infrastructure" % migrated_count)
 
 
 func _encode_complex_matrix(m) -> Dictionary:
@@ -907,26 +997,3 @@ func _decode_complex_matrix(encoded):
 		hydrated["data"] = PackedFloat64Array(encoded.get("data", []))
 	m._from_packed_auto(hydrated)
 	return m
-
-
-func _serialize_bath_state(bath: RefCounted) -> Dictionary:
-	var serialized_amps = {}
-	for emoji in bath.emoji_list:
-		var amp = bath.get_amplitude(emoji)
-		serialized_amps[emoji] = {"real": amp.re, "imag": amp.im}
-	return {
-		"emojis": bath.emoji_list.duplicate(),
-		"amplitudes": serialized_amps,
-		"bath_time": bath.bath_time
-	}
-
-
-func _deserialize_bath_state(bath: RefCounted, state: Dictionary) -> void:
-	const Complex = preload("res://Core/QuantumSubstrate/Complex.gd")
-	for i in range(state.emojis.size()):
-		var emoji = state.emojis[i]
-		if state.amplitudes.has(emoji):
-			var amp_data = state.amplitudes[emoji]
-			var amp = Complex.new(amp_data.real, amp_data.imag)
-			bath.amplitudes[i] = amp
-	bath.bath_time = state.bath_time

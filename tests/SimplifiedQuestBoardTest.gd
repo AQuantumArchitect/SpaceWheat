@@ -22,7 +22,7 @@ func _ready():
 	get_tree().quit()
 
 func _test_pool_preservation():
-	"""Verify that _on_vocabulary_learned doesn't rebuild quest pool"""
+	# Verify that _on_vocabulary_learned doesn't rebuild quest pool
 	print("\n" + "--------------------------------------------------------------------------------")
 	print("TEST 1: Vocabulary Learned Doesn't Rebuild Pool")
 	print("--------------------------------------------------------------------------------" + "\n")
@@ -64,7 +64,7 @@ func _test_pool_preservation():
 		_pass("Pool rebuild not present in file")
 
 func _test_vocabulary_no_rebuild():
-	"""Verify the fix comment is present"""
+	# Verify the fix comment is present
 	print("\nTEST 2: Fix Documentation Present")
 	print("--------------------------------------------------------------------------------" + "\n")
 

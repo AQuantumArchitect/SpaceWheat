@@ -25,7 +25,7 @@ def _parse_resource_pairs(values: List[str]) -> Dict[str, int]:
     return out
 
 
-def _parse_known_pairs(values: List[str]) -> List[Dict[str, str]]:
+def _parse_known_icons(values: List[str]) -> List[Dict[str, str]]:
     out: List[Dict[str, str]] = []
     for raw in values:
         if ":" not in raw:
@@ -39,7 +39,7 @@ def _parse_known_pairs(values: List[str]) -> List[Dict[str, str]]:
     return out
 
 
-def _merge_known_pairs(base: List[Dict[str, str]], extra: List[Dict[str, str]]) -> List[Dict[str, str]]:
+def _merge_known_icons(base: List[Dict[str, str]], extra: List[Dict[str, str]]) -> List[Dict[str, str]]:
     merged: List[Dict[str, str]] = []
     seen: set[str] = set()
     for pair in base + extra:
@@ -134,10 +134,10 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Optional explicit save path (e.g. user://saves/profiles/granary_scout.tres)",
     )
     parser.add_argument(
-        "--known-pair",
+        "--known-icon",
         action="append",
         default=[],
-        help="Known vocabulary pair in NORTH:SOUTH format (repeatable)",
+        help="Known icon in NORTH:SOUTH format (repeatable)",
     )
     parser.add_argument("--reuse-listener", action="store_true",
         help="Reuse an existing listener (phrame bridge or headless) instead of starting a new one")
@@ -196,7 +196,7 @@ def main() -> int:
 
     try:
         extra_resources = _parse_resource_pairs(args.resource)
-        extra_pairs = _parse_known_pairs(args.known_pair)
+        extra_icons = _parse_known_icons(args.known_icon)
     except ValueError as exc:
         safe_print(f"seed-save: {exc}")
         return 2
@@ -207,10 +207,10 @@ def main() -> int:
     for emoji, amount in extra_resources.items():
         resource_map[emoji] = amount
 
-    known_pairs: List[Dict[str, str]] = []
+    known_icons: List[Dict[str, str]] = []
     if profile:
-        known_pairs = _merge_known_pairs(known_pairs, profile.get("known_pairs", []))
-    known_pairs = _merge_known_pairs(known_pairs, extra_pairs)
+        known_icons = _merge_known_icons(known_icons, profile.get("known_icons", []))
+    known_icons = _merge_known_icons(known_icons, extra_icons)
 
     unlocked_biomes: List[str] = []
     if profile:
@@ -278,14 +278,14 @@ def main() -> int:
         snapshot = run_turn(turn, "resource_snapshot")
         history.append(snapshot)
         turn += 1
-        if unlocked_biomes or unexplored_biomes or known_pairs or active_biome or policy_graph_path_value or policy_graph_jsonl_value or args.character:
+        if unlocked_biomes or unexplored_biomes or known_icons or active_biome or policy_graph_path_value or policy_graph_jsonl_value or args.character:
             payload: Dict[str, Any] = {}
             if unlocked_biomes:
                 payload["unlocked_biomes"] = unlocked_biomes
             if unexplored_biomes:
                 payload["unexplored_biomes"] = unexplored_biomes
-            if known_pairs:
-                payload["known_pairs"] = known_pairs
+            if known_icons:
+                payload["known_icons"] = known_icons
             if active_biome:
                 payload["active_biome"] = active_biome
             if policy_graph_path_value:
@@ -343,7 +343,7 @@ def main() -> int:
             "policy_graph_jsonl": policy_graph_jsonl_value or None,
             "resource_mode": resource_mode,
             "starter_resources": resource_map,
-            "known_pairs": known_pairs,
+            "known_icons": known_icons,
             "unlocked_biomes": unlocked_biomes,
             "unexplored_biomes": unexplored_biomes,
             "active_biome": active_biome,

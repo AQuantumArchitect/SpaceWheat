@@ -28,6 +28,7 @@ from milk_hunt_summary import (
     apply_profile_metrics,
     build_common_summary_fields,
     policy_action_breakdown,
+    market_projection_summary,
     vocab_milestone_fields,
 )
 from milk_hunt_runtime_config import get_cfg_bool, get_cfg_float, get_cfg_int, get_cfg_str, load_json_config
@@ -38,7 +39,7 @@ from rig_client import RigClient
 MILK = "\U0001F37C"
 PROJECT_ROOT = project_root()
 _RIG = RigClient(root_from_file=Path(__file__))
-FACTIONS_PATH = PROJECT_ROOT / "Core" / "Factions" / "data" / "factions_merged.json"
+FACTIONS_PATH = PROJECT_ROOT / "Core" / "Factions" / "data" / "factions.json"
 _CONSOLE = Console("quiet")
 _TURN_PROGRESS_INTERVAL_S = 30.0
 
@@ -125,11 +126,11 @@ def _run_turn(turn_id: int, action: str, **kwargs: Any) -> Dict[str, Any]:
             timeout_s = 120.0
         elif action in {"active_quests"}:
             timeout_s = 45.0
-        elif action in {"policy_step"}:
+        elif action in {"quest_cycle_step"}:
             timeout_s = 300.0
         elif action in {"policy_snapshot"}:
             timeout_s = 20.0
-        elif action in {"offer_quests", "accept_offer", "known_vocab_pairs", "resource_snapshot"}:
+        elif action in {"offer_quests", "accept_offer", "known_icons", "resource_snapshot"}:
             timeout_s = 20.0
         elif action in {"grid_snapshot"}:
             timeout_s = 20.0
@@ -155,24 +156,24 @@ def _run_turn(turn_id: int, action: str, **kwargs: Any) -> Dict[str, Any]:
     return row
 
 
-def _extract_pairs(rows: List[Dict[str, Any]]) -> List[Dict[str, str]]:
-    pairs: List[Dict[str, str]] = []
+def _extract_policy_icons(rows: List[Dict[str, Any]]) -> List[Dict[str, str]]:
+    icons: List[Dict[str, str]] = []
     for row in rows:
-        if row.get("action") == "known_vocab_pairs":
+        if row.get("action") == "known_icons":
             val = row.get("pairs", [])
             if isinstance(val, list):
-                pairs = val
+                icons = val
         elif row.get("action") == "policy_snapshot":
             policy_snapshot = row.get("policy_snapshot", {})
             if isinstance(policy_snapshot, dict):
-                val = policy_snapshot.get("known_pairs", [])
+                val = policy_snapshot.get("known_icons", [])
                 if isinstance(val, list):
-                    pairs = val
-    return pairs
+                    icons = val
+    return icons
 
 
-def _contains_milk_pair(pairs: List[Dict[str, str]]) -> bool:
-    for p in pairs:
+def _contains_milk_icon(icons: List[Dict[str, str]]) -> bool:
+    for p in icons:
         if p.get("north") == MILK or p.get("south") == MILK:
             return True
     return False
@@ -208,10 +209,10 @@ def _extract_policy_snapshot(row: Dict[str, Any]) -> Dict[str, Any]:
     return payload if isinstance(payload, dict) else {}
 
 
-def _extract_policy_pairs(row: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _extract_policy_icon_payload(row: Dict[str, Any]) -> List[Dict[str, Any]]:
     payload = _extract_policy_snapshot(row)
-    pairs = payload.get("known_pairs", [])
-    return pairs if isinstance(pairs, list) else []
+    icons = payload.get("known_icons", [])
+    return icons if isinstance(icons, list) else []
 
 
 def _extract_policy_biomes(row: Dict[str, Any]) -> List[str]:
@@ -433,7 +434,7 @@ def _compute_profile_metrics(history: List[Dict[str, Any]], initial_pairs: int, 
         "lindblad_drain_already_active_total": 0,
         "resource_snapshot_calls": 0,
         "policy_snapshot_calls": 0,
-        "known_vocab_reads": 0,
+        "known_icon_reads": 0,
         "vocab_pairs_initial": max(0, int(initial_pairs)),
         "vocab_pairs_final": max(0, int(final_pairs)),
         "vocab_pairs_learned": max(0, int(final_pairs) - int(initial_pairs)),
@@ -505,10 +506,10 @@ def _compute_profile_metrics(history: List[Dict[str, Any]], initial_pairs: int, 
             metrics["resource_snapshot_calls"] += 1
         elif action == "policy_snapshot":
             metrics["policy_snapshot_calls"] += 1
-        elif action == "known_vocab_pairs":
-            metrics["known_vocab_reads"] += 1
-        elif action == "policy_step":
-            payload = row.get("policy_step", {})
+        elif action == "known_icons":
+            metrics["known_icon_reads"] += 1
+        elif action == "quest_cycle_step":
+            payload = row.get("quest_cycle_step", {})
             if not isinstance(payload, dict):
                 continue
             execution = payload.get("execution", {})
@@ -643,7 +644,7 @@ def _target_distance_score(emoji: str, distances: Dict[str, int], strategy: Stra
     if emoji == MILK:
         return strategy.distance_score(0)
     d = distances.get(emoji)
-    if d is not None and 1 <= d <= 3:
+    if d is not None and d >= 1:
         return strategy.distance_score(d)
     return 0
 
@@ -774,7 +775,7 @@ def _heuristic_best_offer_index(
         sig = faction_sigs.get(faction, set())
         if sig:
             best_sig_dist = min((distances.get(e, 9999) for e in sig), default=9999)
-            if 1 <= best_sig_dist <= 3:
+            if best_sig_dist >= 1:
                 score += strategy.faction_sig_score(best_sig_dist)
         completion_action = str(offer.get("completion_action", "") or "")
         if completion_action not in {"complete_quest", "complete_or_claim"}:
@@ -1126,7 +1127,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--policy-actions-per-loop",
         type=int,
         default=None,
-        help="When engine_policy is active, number of policy_step actions per loop",
+        help="When engine_policy is active, number of quest_cycle_step actions per loop",
     )
     parser.add_argument(
         "--policy-epsilon",
@@ -1162,17 +1163,17 @@ def _build_parser() -> argparse.ArgumentParser:
         "--policy-forbid-action",
         action="append",
         default=[],
-        help="Forbid policy actions globally (repeat or pass comma-separated values), e.g. --policy-forbid-action lock_offer",
+        help="Forbid policy actions globally (repeat or pass comma-separated values), e.g. --policy-forbid-action quest_cycle",
     )
     parser.add_argument(
         "--lock-offer-gate",
-        dest="lock_offer_gate",
+        dest="quest_cycle_gate",
         action="store_true",
         help="Override policy-graph lock gating on",
     )
     parser.add_argument(
         "--no-lock-offer-gate",
-        dest="lock_offer_gate",
+        dest="quest_cycle_gate",
         action="store_false",
         help="Override policy-graph lock gating off",
     )
@@ -1543,7 +1544,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.set_defaults(lindblad_drain_focus=None)
     parser.set_defaults(advanced_mode=None)
     parser.set_defaults(policy_reset_on_start=None)
-    parser.set_defaults(lock_offer_gate=None)
+    parser.set_defaults(quest_cycle_gate=None)
     parser.set_defaults(policy_restrictions=None)
     return parser
 
@@ -1623,7 +1624,9 @@ def main() -> int:
     if not policy_execution_backend and os.environ.get("MILK_HUNT_POLICY_EXECUTION_BACKEND", "") != "":
         policy_execution_backend = os.environ["MILK_HUNT_POLICY_EXECUTION_BACKEND"]
     if not policy_execution_backend or policy_execution_backend == "auto":
-        policy_execution_backend = "player_input" if display_mode == "headed" else "direct"
+        # player_input works in headless via synthetic InputEventKey routing — same surfaces as human.
+        # Use RIG_POLICY_EXECUTION_BACKEND=direct or --policy-execution-backend=direct to opt out.
+        policy_execution_backend = "player_input"
     elif display_mode == "headed":
         policy_execution_backend = "player_input"
 
@@ -1746,7 +1749,7 @@ def main() -> int:
         }
     if policy_restrictions is None:
         policy_restrictions = False
-    lock_offer_gate_override = args.lock_offer_gate
+    quest_cycle_gate_override = args.quest_cycle_gate
     if not bool(policy_restrictions):
         policy_max_quest_actions_per_loop = 0
         policy_forbid_actions = []
@@ -1765,15 +1768,15 @@ def main() -> int:
             pass
 
     action_gate_policies: Dict[str, Dict[str, Any]] = {
-        "lock_offer": action_limits_for_action(
-            hunter_profile, "ucb", "lock_offer",
+        "quest_cycle": action_limits_for_action(
+            hunter_profile, "ucb", "quest_cycle",
             extra_lines=_lichen_extra_lines,
         ),
     }
     if not bool(policy_restrictions):
-        action_gate_policies["lock_offer"]["enabled"] = False
-    elif lock_offer_gate_override is not None:
-        action_gate_policies["lock_offer"]["enabled"] = bool(lock_offer_gate_override)
+        action_gate_policies["quest_cycle"]["enabled"] = False
+    elif quest_cycle_gate_override is not None:
+        action_gate_policies["quest_cycle"]["enabled"] = bool(quest_cycle_gate_override)
 
     if strict_biome_economy is None:
         val = strategy.strict_biome_economy
@@ -2041,7 +2044,7 @@ def main() -> int:
 
     turn = max(1, int(args.turn_start))
     history: List[Dict[str, Any]] = []
-    initial_known_pairs_count = 0
+    initial_known_icons_count = 0
     boot_log_lines = _read_new_lines(listener_log_path, start_offset=listener_log_boot_offset, max_lines=4000)
     error_lines = _extract_boot_script_errors(boot_lines + boot_log_lines)
     if args.fail_on_boot_script_errors and error_lines:
@@ -2108,8 +2111,8 @@ def main() -> int:
                 + json.dumps(timescale_objective_payload, ensure_ascii=False),
                 "detail",
             )
-        boot_pairs = policy_boot.get("known_pairs", []) if isinstance(policy_boot, dict) else []
-        initial_known_pairs_count = len(boot_pairs) if isinstance(boot_pairs, list) else 0
+        boot_pairs = policy_boot.get("known_icons", []) if isinstance(policy_boot, dict) else []
+        initial_known_icons_count = len(boot_pairs) if isinstance(boot_pairs, list) else 0
         current_resources: Dict[str, float] = _extract_resource_map(snap)
         _safe_print("RESOURCE_SNAPSHOT " + json.dumps(current_resources, ensure_ascii=False), "trace")
 
@@ -2118,7 +2121,7 @@ def main() -> int:
         last_milk_offer: Optional[Dict[str, Any]] = None
         victory_lap_result: Dict[str, Any] = {}
         victory_lap_executed = False
-        prev_pairs_count = initial_known_pairs_count
+        prev_icons_count = initial_known_icons_count
         # Track true biome discovery (newly unlocked biomes beyond initial access).
         known_biomes: Set[str] = set(initial_biomes)
         newly_discovered_biomes: List[str] = []
@@ -2133,13 +2136,13 @@ def main() -> int:
         lindblad_biomes_activated: Set[str] = set()
         lindblad_drain_events: List[Dict[str, Any]] = []
         lindblad_wait_events: List[Dict[str, Any]] = []
-        action_gate_lock_offer_actions = 0
-        action_gate_lock_offer_success = 0
-        action_gate_lock_offer_failed = 0
-        action_gate_lock_offer_cap_hits = 0
-        action_gate_lock_offer_cooldown_hits = 0
-        action_gate_lock_offer_fail_streak = 0
-        action_gate_lock_offer_cooldown_until_loop = 0
+        action_gate_quest_cycle_actions = 0
+        action_gate_quest_cycle_success = 0
+        action_gate_quest_cycle_failed = 0
+        action_gate_quest_cycle_cap_hits = 0
+        action_gate_quest_cycle_cooldown_hits = 0
+        action_gate_quest_cycle_fail_streak = 0
+        action_gate_quest_cycle_cooldown_until_loop = 0
         timescale_events: List[Dict[str, Any]] = []
         biome_timescale_cache: Dict[str, Dict[str, float]] = {}
         policy_trace_limit = max(0, int(args.policy_trace_limit))
@@ -2234,12 +2237,12 @@ def main() -> int:
             turn += 1
             graph_payload = graph_row.get("policy_graph", {}) if isinstance(graph_row, dict) else {}
 
-            # Apply Claura's overlay to Godot's policy engine via policy_graph_apply.
+            # Apply Claura's overlay to Godot's policy engine via policy_graph_patch.
             # This reaches the Godot-side scoring (milk_distance_gain, base, etc.)
-            # which policy_graph_apply supports; the Python-side gate is handled
+            # which policy_graph_patch supports; the Python-side gate is handled
             # separately by action_limits_for_action(extra_lines=...) below.
             if _lichen_extra_lines:
-                apply_row = _run_turn(turn, "policy_graph_apply", lines=_lichen_extra_lines)
+                apply_row = _run_turn(turn, "policy_graph_patch", lines=_lichen_extra_lines)
                 history.append(apply_row)
                 turn += 1
                 if isinstance(apply_row, dict) and apply_row.get("ok"):
@@ -2248,11 +2251,11 @@ def main() -> int:
                         graph_payload = apply_payload
 
             if isinstance(graph_payload, dict) and graph_payload:
-                action_gate_policies["lock_offer"] = action_limits_for_action_from_graph(graph_payload, "lock_offer")
+                action_gate_policies["quest_cycle"] = action_limits_for_action_from_graph(graph_payload, "quest_cycle")
                 if not bool(policy_restrictions):
-                    action_gate_policies["lock_offer"]["enabled"] = False
-                elif lock_offer_gate_override is not None:
-                    action_gate_policies["lock_offer"]["enabled"] = bool(lock_offer_gate_override)
+                    action_gate_policies["quest_cycle"]["enabled"] = False
+                elif quest_cycle_gate_override is not None:
+                    action_gate_policies["quest_cycle"]["enabled"] = bool(quest_cycle_gate_override)
 
         if args.enforce_primary_resource_floors and allow_rig_resource_injection:
             turn, current_resources, floor_events = _enforce_primary_resource_floors(
@@ -2281,7 +2284,7 @@ def main() -> int:
             if use_engine_policy:
                 loop_quest_actions = 0
                 loop_lock_actions = 0
-                for policy_step_idx in range(policy_actions_per_loop):
+                for quest_cycle_step_idx in range(policy_actions_per_loop):
                     forbid_actions: List[str] = list(policy_forbid_actions)
                     if policy_max_quest_actions_per_loop > 0 and loop_quest_actions >= policy_max_quest_actions_per_loop:
                         if "quest_cycle" not in forbid_actions:
@@ -2290,33 +2293,33 @@ def main() -> int:
                     lock_gate_reasons: List[str] = []
                     lock_gate_pressure: Optional[float] = None
                     lock_gate_allowed = True
-                    lock_policy = action_gate_policies.get("lock_offer", {})
+                    lock_policy = action_gate_policies.get("quest_cycle", {})
                     lock_gate_enabled = bool(lock_policy.get("enabled", True))
                     if lock_gate_enabled:
                         loop_number = loop_idx + 1
                         lock_gate_allowed, lock_gate_reasons, lock_gate_pressure = _evaluate_action_gate(
-                            "lock_offer",
+                            "quest_cycle",
                             lock_policy,
                             loop_number=loop_number,
                             loop_action_count=loop_lock_actions,
-                            total_action_count=action_gate_lock_offer_actions,
-                            pair_count=prev_pairs_count,
+                            total_action_count=action_gate_quest_cycle_actions,
+                            pair_count=prev_icons_count,
                             known_biomes_count=len(known_biomes),
                             current_resources=current_resources,
                             resource_floors=primary_resource_floors,
-                            cooldown_until_loop=action_gate_lock_offer_cooldown_until_loop,
+                            cooldown_until_loop=action_gate_quest_cycle_cooldown_until_loop,
                         )
                         if "per_loop_cap" in lock_gate_reasons:
-                            action_gate_lock_offer_cap_hits += 1
+                            action_gate_quest_cycle_cap_hits += 1
                         if "total_action_cap" in lock_gate_reasons:
-                            action_gate_lock_offer_cap_hits += 1
+                            action_gate_quest_cycle_cap_hits += 1
                         if "cooldown" in lock_gate_reasons:
-                            action_gate_lock_offer_cooldown_hits += 1
-                        if lock_gate_reasons and "lock_offer" not in forbid_actions:
-                            forbid_actions.append("lock_offer")
+                            action_gate_quest_cycle_cooldown_hits += 1
+                        if lock_gate_reasons and "quest_cycle" not in forbid_actions:
+                            forbid_actions.append("quest_cycle")
                     policy_row = _run_turn(
                         turn,
-                        "policy_step",
+                        "quest_cycle_step",
                         execute=True,
                         compact=True,
                         execution_backend=policy_execution_backend,
@@ -2326,7 +2329,7 @@ def main() -> int:
                     history.append(policy_row)
                     turn += 1
 
-                    policy_payload = policy_row.get("policy_step", {})
+                    policy_payload = policy_row.get("quest_cycle_step", {})
                     decision = policy_payload.get("decision", {}) if isinstance(policy_payload, dict) else {}
                     execution = policy_payload.get("execution", {}) if isinstance(policy_payload, dict) else {}
                     learning = policy_payload.get("learning", {}) if isinstance(policy_payload, dict) else {}
@@ -2337,33 +2340,33 @@ def main() -> int:
                     executed_action = str(execution.get("action", selected_action)) if isinstance(execution, dict) else selected_action
                     if executed_action == "quest_cycle":
                         loop_quest_actions += 1
-                    if executed_action == "lock_offer":
+                    if executed_action == "quest_cycle":
                         loop_lock_actions += 1
-                        action_gate_lock_offer_actions += 1
+                        action_gate_quest_cycle_actions += 1
                         lock_ok = bool(isinstance(execution, dict) and execution.get("ok", False))
                         if lock_ok:
-                            action_gate_lock_offer_success += 1
-                            action_gate_lock_offer_fail_streak = 0
+                            action_gate_quest_cycle_success += 1
+                            action_gate_quest_cycle_fail_streak = 0
                         else:
-                            action_gate_lock_offer_failed += 1
-                            action_gate_lock_offer_fail_streak += 1
+                            action_gate_quest_cycle_failed += 1
+                            action_gate_quest_cycle_fail_streak += 1
                             fail_streak_trigger = int(lock_policy.get("fail_streak_trigger", 0) or 0)
                             cooldown_loops = int(lock_policy.get("cooldown_loops", 0) or 0)
                             if (
                                 lock_gate_enabled
                                 and fail_streak_trigger > 0
-                                and action_gate_lock_offer_fail_streak >= fail_streak_trigger
+                                and action_gate_quest_cycle_fail_streak >= fail_streak_trigger
                                 and cooldown_loops > 0
                             ):
-                                action_gate_lock_offer_cooldown_until_loop = max(
-                                    action_gate_lock_offer_cooldown_until_loop,
+                                action_gate_quest_cycle_cooldown_until_loop = max(
+                                    action_gate_quest_cycle_cooldown_until_loop,
                                     (loop_idx + 1) + cooldown_loops,
                                 )
-                                action_gate_lock_offer_fail_streak = 0
+                                action_gate_quest_cycle_fail_streak = 0
                     event: Dict[str, Any] = {
-                        "kind": "engine_policy_step",
+                        "kind": "engine_quest_cycle_step",
                         "loop": loop_idx + 1,
-                        "step_in_loop": policy_step_idx + 1,
+                        "step_in_loop": quest_cycle_step_idx + 1,
                         "selected_action": selected_action,
                         "executed_action": executed_action,
                         "score": selected_score,
@@ -2379,7 +2382,7 @@ def main() -> int:
                             "reasons": lock_gate_reasons,
                             "critical_pressure": lock_gate_pressure,
                             "loop_lock_actions": loop_lock_actions,
-                            "cooldown_until_loop": action_gate_lock_offer_cooldown_until_loop,
+                            "cooldown_until_loop": action_gate_quest_cycle_cooldown_until_loop,
                         }
                     if isinstance(execution, dict) and executed_action == "quest_cycle":
                         event["accepted"] = bool(execution.get("accepted", False))
@@ -2405,14 +2408,14 @@ def main() -> int:
                                     continue
                             if converted:
                                 current_resources = converted
-                        post_pair_count = int(policy_payload.get("post_known_pairs_count", prev_pairs_count) or prev_pairs_count)
-                        if post_pair_count > prev_pairs_count:
+                        post_pair_count = int(policy_payload.get("post_known_icons_count", prev_icons_count) or prev_icons_count)
+                        if post_pair_count > prev_icons_count:
                             turn, pairs_row = _run_policy_snapshot(turn, history, include_grid=False, include_offers=False)
-                            pairs = _extract_policy_pairs(pairs_row)
+                            pairs = _extract_policy_icon_payload(pairs_row)
                             actual_pair_count = len(pairs) if isinstance(pairs, list) else post_pair_count
                             new_pairs: List[Dict[str, str]] = []
                             if isinstance(pairs, list):
-                                for pair in pairs[prev_pairs_count:actual_pair_count]:
+                                for pair in pairs[prev_icons_count:actual_pair_count]:
                                     if not isinstance(pair, dict):
                                         continue
                                     north = str(pair.get("north", "") or "")
@@ -2424,13 +2427,13 @@ def main() -> int:
                                     "loop": loop_idx + 1,
                                     "step": len(history),
                                     "pair_count": actual_pair_count,
-                                    "pair_gain": actual_pair_count - prev_pairs_count,
+                                    "pair_gain": actual_pair_count - prev_icons_count,
                                     "new_pairs": new_pairs,
-                                    "contains_milk_pair": _contains_milk_pair(new_pairs),
+                                    "contains_milk_pair": _contains_milk_icon(new_pairs),
                                 }
                             )
-                            prev_pairs_count = actual_pair_count
-                            if (isinstance(pairs, list) and _contains_milk_pair(pairs)) or bool(
+                            prev_icons_count = actual_pair_count
+                            if (isinstance(pairs, list) and _contains_milk_icon(pairs)) or bool(
                                 policy_payload.get("contains_milk_pair", False)
                             ):
                                 found_milk = True
@@ -2451,7 +2454,7 @@ def main() -> int:
                         probe_ok = bool(isinstance(probe, dict) and probe.get("success", False))
                         biome_probe_events.append(
                             {
-                                "vocab_count": int(policy_payload.get("post_known_pairs_count", 0))
+                                "vocab_count": int(policy_payload.get("post_known_icons_count", 0))
                                 if isinstance(policy_payload, dict)
                                 else 0,
                                 "biome": biome_name if biome_name else None,
@@ -2530,7 +2533,6 @@ def main() -> int:
                         )
                 if found_milk:
                     break
-                continue
 
             if args.expand_biomes and expansions_attempted < max(0, int(max_biome_expansions)):
                 if loop_idx % max(1, int(expand_check_every)) == 0:
@@ -2771,9 +2773,9 @@ def main() -> int:
                 _run_loop_tail_wait(loop_idx + 1, loop_should_wait, adaptive_wait)
                 continue
 
-            known_pairs = _extract_pairs(history)
+            known_icons = _extract_policy_icons(history)
             known_symbols = set()
-            for p in known_pairs:
+            for p in known_icons:
                 if p.get("north"):
                     known_symbols.add(p["north"])
                 if p.get("south"):
@@ -2858,12 +2860,12 @@ def main() -> int:
                 turn += 1
                 turn, post_complete_snapshot = _run_policy_snapshot(turn, history, include_grid=True, include_offers=False)
                 current_resources = _extract_resource_map(post_complete_snapshot)
-                pairs = _extract_policy_pairs(post_complete_snapshot)
-                pair_count = len(pairs) if isinstance(pairs, list) else prev_pairs_count
-                if pair_count > prev_pairs_count:
+                pairs = _extract_policy_icon_payload(post_complete_snapshot)
+                pair_count = len(pairs) if isinstance(pairs, list) else prev_icons_count
+                if pair_count > prev_icons_count:
                     new_pairs: List[Dict[str, str]] = []
                     if isinstance(pairs, list):
-                        for pair in pairs[prev_pairs_count:pair_count]:
+                        for pair in pairs[prev_icons_count:pair_count]:
                             if not isinstance(pair, dict):
                                 continue
                             north = str(pair.get("north", "") or "")
@@ -2875,12 +2877,12 @@ def main() -> int:
                             "loop": loop_idx + 1,
                             "step": len(history),
                             "pair_count": pair_count,
-                            "pair_gain": pair_count - prev_pairs_count,
+                            "pair_gain": pair_count - prev_icons_count,
                             "new_pairs": new_pairs,
-                            "contains_milk_pair": _contains_milk_pair(new_pairs),
+                            "contains_milk_pair": _contains_milk_icon(new_pairs),
                         }
                     )
-                    pair_gain = pair_count - prev_pairs_count
+                    pair_gain = pair_count - prev_icons_count
                     vocab_probe_cycles = pair_gain
                     for vocab_probe_idx in range(vocab_probe_cycles):
                         turn, grid_row = _run_policy_snapshot(turn, history, include_grid=True, include_offers=False)
@@ -2940,8 +2942,8 @@ def main() -> int:
                             turn, history, include_grid=False, include_offers=False
                         )
                         current_resources = _extract_resource_map(probe_snapshot)
-                    prev_pairs_count = pair_count
-                if isinstance(pairs, list) and _contains_milk_pair(pairs):
+                    prev_icons_count = pair_count
+                if isinstance(pairs, list) and _contains_milk_icon(pairs):
                     found_milk = True
                     break
 
@@ -2960,9 +2962,10 @@ def main() -> int:
             turn, post_victory_snapshot = _run_policy_snapshot(turn, history, include_grid=False, include_offers=False)
             current_resources = _extract_resource_map(post_victory_snapshot)
 
-        final_pairs = _extract_pairs(history)
-        profile_metrics = _compute_profile_metrics(history, initial_known_pairs_count, len(final_pairs))
+        final_pairs = _extract_policy_icons(history)
+        profile_metrics = _compute_profile_metrics(history, initial_known_icons_count, len(final_pairs))
         policy_breakdown = policy_action_breakdown(policy_decisions)
+        market_view = market_projection_summary(policy_decisions)
         vocab_fields = vocab_milestone_fields(vocab_milestones)
         steps = len(history)
         summary = {
@@ -2970,8 +2973,8 @@ def main() -> int:
             "found_milk_pair": found_milk,
             "found_milk_offer": found_offer,
             "milk_offer": last_milk_offer,
-            "known_pairs_count": len(final_pairs),
-            "known_pairs": final_pairs,
+            "known_icons_count": len(final_pairs),
+            "known_icons": final_pairs,
             "steps": steps,
             "turns_executed": steps,
             "loops_completed": loops_completed,
@@ -3054,14 +3057,14 @@ def main() -> int:
                 policy_forbid_actions=policy_forbid_actions,
                 policy_quest_cap_hits=policy_quest_cap_hits,
                 action_gate_policies=action_gate_policies,
-                lock_offer_gate_override=lock_offer_gate_override,
-                action_gate_lock_offer_actions=action_gate_lock_offer_actions,
-                action_gate_lock_offer_success=action_gate_lock_offer_success,
-                action_gate_lock_offer_failed=action_gate_lock_offer_failed,
-                action_gate_lock_offer_cap_hits=action_gate_lock_offer_cap_hits,
-                action_gate_lock_offer_cooldown_hits=action_gate_lock_offer_cooldown_hits,
-                action_gate_lock_offer_cooldown_until_loop=action_gate_lock_offer_cooldown_until_loop,
-                action_gate_lock_offer_fail_streak=action_gate_lock_offer_fail_streak,
+                quest_cycle_gate_override=quest_cycle_gate_override,
+                action_gate_quest_cycle_actions=action_gate_quest_cycle_actions,
+                action_gate_quest_cycle_success=action_gate_quest_cycle_success,
+                action_gate_quest_cycle_failed=action_gate_quest_cycle_failed,
+                action_gate_quest_cycle_cap_hits=action_gate_quest_cycle_cap_hits,
+                action_gate_quest_cycle_cooldown_hits=action_gate_quest_cycle_cooldown_hits,
+                action_gate_quest_cycle_cooldown_until_loop=action_gate_quest_cycle_cooldown_until_loop,
+                action_gate_quest_cycle_fail_streak=action_gate_quest_cycle_fail_streak,
                 target_turn_hz=args.target_turn_hz,
                 metrics_every=metrics_every,
                 runtime_profile=runtime_profile,
@@ -3090,8 +3093,28 @@ def main() -> int:
             )
         )
         summary.update(policy_breakdown)
+        summary["market_projection"] = market_view
         summary.update(vocab_fields)
         apply_profile_metrics(summary, profile_metrics, len(final_pairs))
+        story_flags_row = {}
+        try:
+            story_flags_row = _run_turn(turn, "story_flags")
+            history.append(story_flags_row)
+            turn += 1
+        except Exception as exc:
+            story_flags_row = {
+                "ok": False,
+                "error": "story_flags_capture_failed",
+                "detail": str(exc),
+                "flags_fired": {},
+                "story_log": [],
+            }
+        story_flags_fired = story_flags_row.get("flags_fired", {})
+        story_log = story_flags_row.get("story_log", [])
+        summary["story_flags_fired"] = story_flags_fired if isinstance(story_flags_fired, dict) else {}
+        summary["story_log"] = story_log if isinstance(story_log, list) else []
+        summary["story_flags_fired_count"] = len(summary["story_flags_fired"])
+        summary["story_log_count"] = len(summary["story_log"])
         if args.save_slot_at_end is not None:
             save_row = _run_turn(turn, "save_game", slot=args.save_slot_at_end)
             history.append(save_row)
@@ -3127,17 +3150,17 @@ def main() -> int:
         return 0 if found_milk else 2
     except TurnTimeoutError as exc:
         timeout_diag = _rig_timeout_diagnostics(exc.turn_id, exc.action)
-        timeout_pairs = _extract_pairs(history)
+        timeout_pairs = _extract_policy_icons(history)
         timeout_profile_metrics = _compute_profile_metrics(
             history,
-            initial_known_pairs_count,
+            initial_known_icons_count,
             len(timeout_pairs),
         )
         timeout_summary = {
             "found_milk": False,
             "found_milk_pair": False,
             "found_milk_offer": False,
-            "known_pairs_count": len(timeout_pairs),
+            "known_icons_count": len(timeout_pairs),
             "steps": len(history),
             "turns_executed": len(history),
             "loops_completed": locals().get("loops_completed", 0),
@@ -3180,16 +3203,16 @@ def main() -> int:
                 policy_forbid_actions=policy_forbid_actions,
                 policy_quest_cap_hits=locals().get("policy_quest_cap_hits", 0),
                 action_gate_policies=action_gate_policies,
-                lock_offer_gate_override=lock_offer_gate_override,
-                action_gate_lock_offer_actions=locals().get("action_gate_lock_offer_actions", 0),
-                action_gate_lock_offer_success=locals().get("action_gate_lock_offer_success", 0),
-                action_gate_lock_offer_failed=locals().get("action_gate_lock_offer_failed", 0),
-                action_gate_lock_offer_cap_hits=locals().get("action_gate_lock_offer_cap_hits", 0),
-                action_gate_lock_offer_cooldown_hits=locals().get("action_gate_lock_offer_cooldown_hits", 0),
-                action_gate_lock_offer_cooldown_until_loop=locals().get(
-                    "action_gate_lock_offer_cooldown_until_loop", 0
+                quest_cycle_gate_override=quest_cycle_gate_override,
+                action_gate_quest_cycle_actions=locals().get("action_gate_quest_cycle_actions", 0),
+                action_gate_quest_cycle_success=locals().get("action_gate_quest_cycle_success", 0),
+                action_gate_quest_cycle_failed=locals().get("action_gate_quest_cycle_failed", 0),
+                action_gate_quest_cycle_cap_hits=locals().get("action_gate_quest_cycle_cap_hits", 0),
+                action_gate_quest_cycle_cooldown_hits=locals().get("action_gate_quest_cycle_cooldown_hits", 0),
+                action_gate_quest_cycle_cooldown_until_loop=locals().get(
+                    "action_gate_quest_cycle_cooldown_until_loop", 0
                 ),
-                action_gate_lock_offer_fail_streak=locals().get("action_gate_lock_offer_fail_streak", 0),
+                action_gate_quest_cycle_fail_streak=locals().get("action_gate_quest_cycle_fail_streak", 0),
                 target_turn_hz=args.target_turn_hz,
                 metrics_every=metrics_every,
                 runtime_profile=runtime_profile,
@@ -3217,7 +3240,9 @@ def main() -> int:
                 git_meta=git_meta,
             )
         )
-        timeout_summary.update(policy_action_breakdown(locals().get("policy_decisions", [])))
+        timeout_decisions = locals().get("policy_decisions", [])
+        timeout_summary.update(policy_action_breakdown(timeout_decisions))
+        timeout_summary["market_projection"] = market_projection_summary(timeout_decisions)
         timeout_summary.update(vocab_milestone_fields(locals().get("vocab_milestones", [])))
         apply_profile_metrics(timeout_summary, timeout_profile_metrics, len(timeout_pairs))
         if args.summary_path is not None:

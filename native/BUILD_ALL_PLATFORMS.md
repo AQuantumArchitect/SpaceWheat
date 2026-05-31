@@ -1,6 +1,11 @@
 # Building Native Extension for All Platforms
 
-**CRITICAL:** GDScript fallback is 4000× slower - native builds are REQUIRED for all platforms.
+Status note as of 2026-04-24:
+- Linux and Windows desktop are the active shipping path.
+- The current Web export preset is now wired for `variant/extensions_support=true`.
+- The Web/WASM material in this document is still exploratory until the browser smoke lane exists.
+
+**CRITICAL:** Native builds are the grounded desktop shipping path. Web/WASM remains exploratory until the browser smoke lane is real.
 
 ---
 
@@ -295,7 +300,7 @@ python3 -m http.server
 
 # Open browser console, look for:
 # - Eigen errors
-# - Performance (should be close to native, not 4000× slower)
+# - Performance envelope for the real browser runtime
 # - Memory issues
 ```
 

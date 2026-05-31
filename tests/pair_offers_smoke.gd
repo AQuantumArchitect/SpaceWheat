@@ -6,11 +6,6 @@ extends SceneTree
 ##
 ## Run: godot --headless --quit --script tests/pair_offers_smoke.gd
 
-const BiomeBuilder = preload("res://Core/Biomes/BiomeBuilder.gd")
-const BiomeRegistry = preload("res://Core/Biomes/BiomeRegistry.gd")
-const FactionRegistry = preload("res://Core/Factions/FactionRegistry.gd")
-const FactionDensityMatrix = preload("res://Core/Factions/FactionDensityMatrix.gd")
-const MarketLattice = preload("res://Core/Markets/MarketLattice.gd")
 
 
 class FakeFarm:

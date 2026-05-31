@@ -55,23 +55,12 @@ static func default_graph(policy_kind: String = "ucb", profile_id: String = "def
 				"eagle_cap": 2.0,
 				"forecast_scale": 1.0,
 			},
-			"lock_offer": {
-				"base": 0.5,
-				"discovery_affinity": 6.0,
-				"novelty": 1.5,
-			},
 			"time_skip": {
 				"base": 0.4,
 				"active_drain_scale": 0.35,
 			},
 			"victory_lap_partial": {
 				"base": 8.5,
-			},
-			"channel_drain": {
-				"enabled": false,
-				"base": 0.6,
-				"active_drain_scale": 0.2,
-				"min_gradient": 0.05,
 			},
 		},
 		"action_params": {
@@ -92,7 +81,7 @@ static func default_graph(policy_kind: String = "ucb", profile_id: String = "def
 				"enabled": true,
 				"min_loop": 1,
 				"max_per_loop": 1,
-				"max_total_locks": 2,
+				"max_total_actions": 2,
 				"loop_mod": 1,
 				"pairs_soft_cap": 20,
 				"min_known_biomes": 2,
@@ -100,7 +89,6 @@ static func default_graph(policy_kind: String = "ucb", profile_id: String = "def
 				"fail_streak_trigger": 2,
 				"cooldown_loops": 2,
 			},
-			"lock_offer": {},
 		},
 		"reward_terms": {
 			"resource": 0.08,
@@ -108,7 +96,6 @@ static func default_graph(policy_kind: String = "ucb", profile_id: String = "def
 			"active_quest": 5.0,
 			"biome": 8.0,
 			"drain": 2.5,
-			"lock": 3.0,
 			"milk_bonus": 120.0,
 			"execution_penalty": -4.0,
 			"reward_min": -120.0,
@@ -131,14 +118,14 @@ static func default_graph(policy_kind: String = "ucb", profile_id: String = "def
 			"signal_biome_frontier": 15.0,
 			"signal_milk_bonus_quest": 30.0,
 			"signal_milk_bonus_frontier": 15.0,
-			"signal_milk_bonus_lock": 20.0,
+			"signal_milk_bonus_offer": 20.0,
 			"signal_milk_bonus_vocab": 25.0,
 		},
 		"biome_economics": {
 			"south_pole_affinity": 1.5,
 			"native_faction_score_bonus": 12.0,
 			"non_native_resonance_factor": 0.8,
-			# Resonance gate: logistic weights for vocab probability
+			# Resonance gate: logistic weights for signature probability
 			# x = Σ(weight_i × observable_i) + bias → p_vocab = floor + scale × σ(x)
 			"resonance_signature_weight": 1.5,
 			"resonance_coherence_weight": 1.0,
@@ -168,7 +155,6 @@ static func default_graph(policy_kind: String = "ucb", profile_id: String = "def
 		graph["action_priors"]["lindblad_drain"]["base"] = 0.4
 		graph["action_priors"]["lindblad_drain"]["inactive_bonus"] = 0.0
 		graph["action_priors"]["lindblad_drain"]["active_scale"] = 0.15
-		graph["action_priors"]["channel_drain"]["enabled"] = true
 		graph["reward_terms"]["execution_penalty"] = -8.0
 		graph["dynamics"]["apply_stagnation_penalty"] = false
 	return graph

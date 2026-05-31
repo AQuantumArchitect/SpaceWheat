@@ -1,6 +1,7 @@
 class_name GeometryBatcher
 extends RefCounted
 
+
 ## Geometry Batcher - Unified Draw Call Batching for Untextured Geometry
 ##
 ## Batches all untextured geometry (lines, circles, arcs, polygons) into a
@@ -48,11 +49,10 @@ func _init():
 
 
 func begin(canvas_item: RID) -> void:
-	"""Begin a new batch frame.
+	# Begin a new batch frame.
 
-	Args:
-		canvas_item: The canvas item RID to draw to (from get_canvas_item())
-	"""
+	# Args:
+	# canvas_item: The canvas item RID to draw to (from get_canvas_item())
 	_canvas_item = canvas_item
 	_points.clear()
 	_colors.clear()
@@ -61,12 +61,12 @@ func begin(canvas_item: RID) -> void:
 
 	# Debug: print once to confirm begin() is called
 	if not _debug_printed_begin:
-		print("[GeometryBatcher] begin() called with canvas_item: %s" % canvas_item)
+		VerboseHelper.debug("viz", "batch", "GeometryBatcher.begin() canvas_item=%s" % canvas_item)
 		_debug_printed_begin = true
 
 
 func flush() -> void:
-	"""Submit all batched geometry to RenderingServer in ONE draw call."""
+	# Submit all batched geometry to RenderingServer in ONE draw call.
 	if _points.size() == 0:
 		return
 
@@ -91,16 +91,15 @@ func flush() -> void:
 
 
 func add_line(from: Vector2, to: Vector2, color: Color, width: float = 1.0) -> void:
-	"""Add a line as a quad (2 triangles).
+	# Add a line as a quad (2 triangles).
 
-	Args:
-		from: Start position
-		to: End position
-		color: Line color
-		width: Line width in pixels
-	"""
+	# Args:
+	# from: Start position
+	# to: End position
+	# color: Line color
+	# width: Line width in pixels
 	if not _debug_printed_add:
-		print("[GeometryBatcher] add_line() called!")
+		VerboseHelper.debug("viz", "batch", "GeometryBatcher.add_line() active")
 		_debug_printed_add = true
 
 	if color.a < 0.01:
@@ -133,16 +132,15 @@ func add_line(from: Vector2, to: Vector2, color: Color, width: float = 1.0) -> v
 
 func add_dashed_line(from: Vector2, to: Vector2, color: Color, width: float,
 					  dash: float, gap: float) -> void:
-	"""Add a dashed line.
+	# Add a dashed line.
 
-	Args:
-		from: Start position
-		to: End position
-		color: Line color
-		width: Line width in pixels
-		dash: Dash length in pixels
-		gap: Gap length in pixels
-	"""
+	# Args:
+	# from: Start position
+	# to: End position
+	# color: Line color
+	# width: Line width in pixels
+	# dash: Dash length in pixels
+	# gap: Gap length in pixels
 	if color.a < 0.01:
 		return
 
@@ -162,13 +160,12 @@ func add_dashed_line(from: Vector2, to: Vector2, color: Color, width: float,
 
 
 func add_circle(center: Vector2, radius: float, color: Color) -> void:
-	"""Add a filled circle using triangle fan.
+	# Add a filled circle using triangle fan.
 
-	Args:
-		center: Circle center
-		radius: Circle radius
-		color: Fill color
-	"""
+	# Args:
+	# center: Circle center
+	# radius: Circle radius
+	# color: Fill color
 	if color.a < 0.01:
 		return
 
@@ -191,16 +188,15 @@ func add_circle(center: Vector2, radius: float, color: Color) -> void:
 
 func add_arc(center: Vector2, radius: float, from_angle: float, to_angle: float,
 			 width: float, color: Color) -> void:
-	"""Add an arc (ring segment) using triangle strip.
+	# Add an arc (ring segment) using triangle strip.
 
-	Args:
-		center: Arc center
-		radius: Arc radius (center of stroke)
-		from_angle: Start angle in radians
-		to_angle: End angle in radians
-		width: Stroke width in pixels
-		color: Arc color
-	"""
+	# Args:
+	# center: Arc center
+	# radius: Arc radius (center of stroke)
+	# from_angle: Start angle in radians
+	# to_angle: End angle in radians
+	# width: Stroke width in pixels
+	# color: Arc color
 	if color.a < 0.01:
 		return
 
@@ -246,12 +242,11 @@ func add_arc(center: Vector2, radius: float, from_angle: float, to_angle: float,
 
 
 func add_polygon(points: PackedVector2Array, color: Color) -> void:
-	"""Add a filled polygon using fan triangulation from vertex 0.
+	# Add a filled polygon using fan triangulation from vertex 0.
 
-	Args:
-		points: Polygon vertices (must be convex for correct results)
-		color: Fill color
-	"""
+	# Args:
+	# points: Polygon vertices (must be convex for correct results)
+	# color: Fill color
 	if color.a < 0.01:
 		return
 
@@ -268,12 +263,11 @@ func add_polygon(points: PackedVector2Array, color: Color) -> void:
 
 
 func add_colored_polygon(points: Array, color: Color) -> void:
-	"""Add a filled polygon from Array (convenience wrapper).
+	# Add a filled polygon from Array (convenience wrapper).
 
-	Args:
-		points: Array of Vector2 vertices
-		color: Fill color
-	"""
+	# Args:
+	# points: Array of Vector2 vertices
+	# color: Fill color
 	if points.size() < 3:
 		return
 
@@ -285,16 +279,15 @@ func add_colored_polygon(points: Array, color: Color) -> void:
 
 func add_quadratic_bezier(from: Vector2, control: Vector2, to: Vector2,
 						  color: Color, width: float, segments: int = 12) -> void:
-	"""Add a quadratic bezier curve as line segments.
+	# Add a quadratic bezier curve as line segments.
 
-	Args:
-		from: Start point
-		control: Control point
-		to: End point
-		color: Curve color
-		width: Line width
-		segments: Number of segments to approximate curve
-	"""
+	# Args:
+	# from: Start point
+	# control: Control point
+	# to: End point
+	# color: Curve color
+	# width: Line width
+	# segments: Number of segments to approximate curve
 	if color.a < 0.01:
 		return
 
@@ -311,10 +304,10 @@ func add_quadratic_bezier(from: Vector2, control: Vector2, to: Vector2,
 
 
 func get_stats() -> Dictionary:
-	"""Get batching statistics for performance monitoring."""
+	# Get batching statistics for performance monitoring.
 	return {
 		"primitive_count": _primitive_count,
 		"vertex_count": _points.size(),
-		"triangle_count": _points.size() / 3,
+		"triangle_count": int(float(_points.size()) / 3.0),
 		"draw_calls": _draw_calls,
 	}

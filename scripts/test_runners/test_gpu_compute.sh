@@ -1,40 +1,17 @@
 #!/bin/bash
-# Test pure GPU compute path with Zink (even if software Vulkan)
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+OUT_DIR="${1:-/tmp/spacewheat_zink_probe_$(date +%Y%m%d_%H%M%S)}"
 
 echo "========================================================================="
-echo "GPU COMPUTE FORCE TEST - Pure Vulkan Path (C++ disabled)"
+echo "ZINK RENDERER PROBE"
 echo "========================================================================="
-echo ""
-echo "Configuration:"
-echo "  - GPU compute: FORCED ON (even with llvmpipe)"
-echo "  - C++ native: DISABLED"
-echo "  - Fallback: GDScript only"
-echo ""
-echo "This will test how the force graph behaves when computed entirely on"
-echo "the GPU (or software Vulkan emulation)."
-echo ""
-echo "========================================================================="
-echo ""
+echo
+echo "There is no live dedicated GPU-compute runtime path right now."
+echo "This wrapper probes the current runtime under zink for presentation"
+echo "and renderer-path comparison only."
+echo
 
-# Set up Zink environment
-export DISPLAY=:0
-export MESA_LOADER_DRIVER_OVERRIDE=zink
-
-# Optional verbose debugging
-# export VK_LOADER_DEBUG=all
-
-cd /home/tehcr33d/ws/SpaceWheat
-
-echo "Starting Godot with Zink..."
-echo ""
-echo "WATCH FOR:"
-echo "  ✅ 'GPUForceCalculator: Attempting GPU compute on llvmpipe'"
-echo "  ✅ 'GPUForceCalculator: GPU acceleration ENABLED'"
-echo "  ✅ 'QuantumForceSystem: GPU compute ENABLED'"
-echo "  ❌ 'Native C++ engine ENABLED' (should be disabled)"
-echo ""
-echo "========================================================================="
-echo ""
-
-# Run and capture performance metrics
-godot VisualBubbleTest.tscn 2>&1 | grep --line-buffered -E "GPU|Force|FPS|performance|llvmpipe|QuantumForce|Native"
+SW_WSL_MESA_DRIVER_OVERRIDE="${SW_WSL_MESA_DRIVER_OVERRIDE:-zink}" \
+bash "$ROOT_DIR/scripts/compare_headed_renderers.sh" "$OUT_DIR"

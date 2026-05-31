@@ -3,8 +3,6 @@ extends SceneTree
 ## Integration test for submenu system with mock game state
 ## Run: godot --headless --script tests/test_submenu_integration.gd
 
-const GateSelectionSubmenu = preload("res://UI/Core/Submenus/GateSelectionSubmenu.gd")
-const IconInjectionSubmenu = preload("res://UI/Core/Submenus/IconInjectionSubmenu.gd")
 
 var passed = 0
 var failed = 0
@@ -18,7 +16,7 @@ func _init():
 	print(DIVIDER)
 
 	test_gate_selection_integration()
-	test_vocab_injection_integration()
+	test_icon_injection_integration()
 	test_pagination_integration()
 	test_empty_state_handling()
 	test_cost_integration()
@@ -31,7 +29,7 @@ func _init():
 
 
 func test_gate_selection_integration():
-	"""Test GateSelectionSubmenu generates correct actions."""
+	# Test GateSelectionSubmenu generates correct actions.
 	print("\n[GateSelection Integration]")
 
 	var mock_biome = MockBiome.new()
@@ -67,15 +65,15 @@ func test_gate_selection_integration():
 	print("  ✓ 3-qubit selection: %d gate types available" % submenu_3["total_options"])
 
 
-func test_vocab_injection_integration():
-	"""Test IconInjectionSubmenu with mock data."""
-	print("\n[VocabInjection Integration]")
+func test_icon_injection_integration():
+	# Test IconInjectionSubmenu with mock data.
+	print("\n[IconInjection Integration]")
 
 	var mock_biome = MockBiome.new()
 	var mock_farm = MockFarm.new()
 
-	# Give farm some vocab pairs
-	mock_farm.known_pairs = [
+	# Give farm some known icons
+	mock_farm.known_icons = [
 		{"north": "🌱", "south": "🌾"},
 		{"north": "🐄", "south": "🥛"}
 	]
@@ -87,21 +85,21 @@ func test_vocab_injection_integration():
 
 	if submenu["total_options"] > 0:
 		var q = submenu["actions"]["Q"]
-		assert_eq(q["action"], "inject_vocabulary", "Q action is inject_vocabulary")
-		assert_true(q.has("vocab_pair"), "Has vocab_pair")
+		assert_eq(q["action"], "inject_icon", "Q action is inject_icon")
+		assert_true(q.has("icon"), "Has icon")
 		assert_true(q.has("affinity"), "Has affinity")
 		assert_true(q.has("cost"), "Has cost")
 
-		print("  ✓ Found %d injectable pairs" % submenu["total_options"])
-		print("  ✓ First pair: %s/%s (affinity: %.2f)" % [
-			q["vocab_pair"]["north"],
-			q["vocab_pair"]["south"],
+		print("  ✓ Found %d injectable icons" % submenu["total_options"])
+		print("  ✓ First icon: %s/%s (affinity: %.2f)" % [
+			q["icon"]["north"],
+			q["icon"]["south"],
 			q["affinity"]
 		])
 
 
 func test_pagination_integration():
-	"""Test that pagination works across multiple pages."""
+	# Test that pagination works across multiple pages.
 	print("\n[Pagination Integration]")
 
 	var mock_biome = MockBiome.new()
@@ -134,7 +132,7 @@ func test_pagination_integration():
 
 
 func test_empty_state_handling():
-	"""Test that empty states are handled gracefully."""
+	# Test that empty states are handled gracefully.
 	print("\n[Empty State Handling]")
 
 	var mock_biome = MockBiome.new()
@@ -149,15 +147,15 @@ func test_empty_state_handling():
 	var single = GateSelectionSubmenu.generate_submenu(mock_biome, mock_farm, [Vector2i(0, 0)], 0)
 	assert_true(single.get("_disabled", false), "1 qubit: disabled")
 
-	# Empty vocab
-	mock_farm.known_pairs = []
-	var no_vocab = IconInjectionSubmenu.generate_submenu(mock_biome, mock_farm, 0)
-	assert_true(no_vocab.get("_disabled", false), "No vocab: disabled")
-	print("  ✓ Empty vocab message: %s" % no_vocab.get("_message", ""))
+	# Empty icon set
+	mock_farm.known_icons = []
+	var no_icons = IconInjectionSubmenu.generate_submenu(mock_biome, mock_farm, 0)
+	assert_true(no_icons.get("_disabled", false), "No icons: disabled")
+	print("  ✓ Empty icon message: %s" % no_icons.get("_message", ""))
 
 
 func test_cost_integration():
-	"""Test that costs are applied to options."""
+	# Test that costs are applied to options.
 	print("\n[Cost Integration]")
 
 	var mock_biome = MockBiome.new()
@@ -166,7 +164,7 @@ func test_cost_integration():
 	# Set economy balance
 	mock_farm.economy.energy = 0  # Can't afford anything
 
-	mock_farm.known_pairs = [
+	mock_farm.known_icons = [
 		{"north": "🌱", "south": "🌾"}
 	]
 
@@ -208,22 +206,24 @@ func assert_true(condition: bool, msg: String):
 
 class MockBiome:
 	extends RefCounted
-	var name = "TestBiome"
+	var biome_name = "TestBiome"
 	var viz_cache = MockVizCache.new()
 
 class MockVizCache:
 	extends RefCounted
 	func get_emojis() -> Array[String]:
 		return []
+	func has_metadata() -> bool:
+		return false
 
 class MockFarm:
 	extends RefCounted
-	var known_pairs: Array = []
+	var known_icons: Array = []
 	var vocabulary_evolution = null
 	var economy = MockEconomy.new()
 
-	func get_known_pairs() -> Array:
-		return known_pairs
+	func get_known_icons() -> Array:
+		return known_icons
 
 class MockEconomy:
 	extends RefCounted

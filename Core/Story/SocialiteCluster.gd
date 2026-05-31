@@ -5,7 +5,7 @@ extends RefCounted
 ##
 ## NO SPECIAL CASES: chatter is a substrate measurement of a biome's QC,
 ## not an invented Markov walk. Each socialite picks a biome where their
-## faction signature overlaps the biome's atoms, samples the QC's basis-state
+## installed signature overlaps the biome's atoms, samples the QC's basis-state
 ## distribution, and emits the resulting emoji string.
 ##
 ## Biome length sets phrase length naturally:
@@ -14,9 +14,7 @@ extends RefCounted
 ##   Village    (~5q)       → 5-emoji phrases
 
 const Socialite := preload("res://Core/Story/Socialite.gd")
-const FactionRegistry := preload("res://Core/Factions/FactionRegistry.gd")
 const BiomeMeasurementSampler := preload("res://Core/Story/BiomeMeasurementSampler.gd")
-const FactionBiomeMap := preload("res://Core/Biomes/FactionBiomeMap.gd")
 
 # Demos is the player faction; included so player-faction state surfaces
 # alongside NPC voices via the same measurement mechanism.
@@ -41,9 +39,8 @@ var shared_registry = null
 var farm = null  # set by StoryEngine each tick so socialites can pick live biomes
 
 
-# Phase 2 hook: when ConversationHamiltonian path is revived, StoryEngine will
-# sync _recent_player_emojis here before each tick so NPC word choice responds
-# to player icon actions. Not wired yet — chatter is pure biome measurement.
+# Player icon actions are already tracked by StoryEngine and can be folded into
+# future chatter composition without introducing a second story authority.
 
 
 func size() -> int:
@@ -61,13 +58,13 @@ func populate(graph, n: int) -> void:
 		node_ids = graph.nodes.keys()
 	var seed_count := mini(n, SEED_SOCIALITES.size())
 	for i in range(seed_count):
-		var seed = SEED_SOCIALITES[i]
+		var pop_seed = SEED_SOCIALITES[i]
 		var s := Socialite.new(
 			"socialite_%d" % i,
-			str(seed.get("faction", "")),
-			str(seed.get("emoji", ""))
+			str(pop_seed.get("faction", "")),
+			str(pop_seed.get("emoji", ""))
 		)
-		s.chattiness = float(seed.get("chattiness", 0.5))
+		s.chattiness = float(pop_seed.get("chattiness", 0.5))
 		# Topic-node still tracked for trajectory record + UI focus context.
 		if not node_ids.is_empty():
 			s.current_topic_node = node_ids[i % node_ids.size()]
@@ -79,7 +76,7 @@ func populate(graph, n: int) -> void:
 ##
 ## Event shapes:
 ##   {kind: "chatter", speaker, faction, topic_node, biome, emojis, line}
-##   {kind: "step",    speaker, faction, from_node, to_node}   (legacy graph walk)
+##   {kind: "step",    speaker, faction, from_node, to_node}   (graph walk)
 func tick(graph) -> Array:
 	var events: Array = []
 	for s in socialites:
@@ -174,5 +171,5 @@ func _ensure_registry():
 	if shared_registry != null:
 		return shared_registry
 	if _faction_registry == null:
-		_faction_registry = FactionRegistry.new()
+		_faction_registry = FactionRegistry.get_shared()
 	return _faction_registry

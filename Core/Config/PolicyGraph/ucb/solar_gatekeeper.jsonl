@@ -6,9 +6,9 @@
 {"op":"set","path":"action_priors.time_skip.active_drain_scale","value":0.55}
 {"op":"set","path":"action_params.time_skip.phrames_mid_drain","value":14}
 {"op":"set","path":"action_params.time_skip.phrames_high_drain","value":24}
-{"op":"set","path":"action_limits.lock_offer.min_loop","value":3}
-{"op":"set","path":"action_limits.lock_offer.max_total_locks","value":1}
-{"op":"set","path":"action_limits.lock_offer.loop_mod","value":2}
-{"op":"set","path":"action_limits.lock_offer.pairs_soft_cap","value":16}
-{"op":"set","path":"action_limits.lock_offer.critical_pressure_cap","value":2.0}
+{"op":"set","path":"action_limits.quest_cycle.min_loop","value":3}
+{"op":"set","path":"action_limits.quest_cycle.max_total_locks","value":1}
+{"op":"set","path":"action_limits.quest_cycle.loop_mod","value":2}
+{"op":"set","path":"action_limits.quest_cycle.pairs_soft_cap","value":16}
+{"op":"set","path":"action_limits.quest_cycle.critical_pressure_cap","value":2.0}
 {"op":"set","path":"reward_terms.drain","value":4.0}

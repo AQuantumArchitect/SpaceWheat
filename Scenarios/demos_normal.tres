@@ -21,7 +21,7 @@ all_emoji_credits = {
 }
 tributes_paid = 0
 tributes_failed = 0
-known_pairs = [{
+known_icons = [{
 "north": "🌾",
 "south": "👥"
 }]

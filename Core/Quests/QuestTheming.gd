@@ -8,14 +8,6 @@ extends RefCounted
 ## Abstract inputs: alignment, intensity, complexity, urgency, variety
 ## SpaceWheat outputs: resource emoji, quantity, time_limit, reward_multiplier
 
-const FactionStateMatcher = preload("res://Core/QuantumSubstrate/FactionStateMatcher.gd")
-const QuestTypes = preload("res://Core/Quests/QuestTypes.gd")
-const FactionDatabase = preload("res://Core/Quests/FactionDatabase.gd")
-const IconPairing = preload("res://Core/Quests/IconPairing.gd")
-const QuestRewards = preload("res://Core/Quests/QuestRewards.gd")
-const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
-const VerboseHelper = preload("res://Core/Config/VerboseHelper.gd")
-const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
 # Light bias toward simulated icon when selecting north pole.
 const NORTH_BIAS_WEIGHT: float = 1.3
@@ -221,15 +213,11 @@ static func _calculate_target_value(params: FactionStateMatcher.QuestParameters,
 
 
 static func _index_to_emoji(bath, index: int) -> String:
-	# Map basis index to emoji from bath's emoji list
-	if bath == null:
+	# Map basis index to emoji from biome's viz_cache emoji list
+	if bath == null or bath.viz_cache == null:
 		return _fallback_emoji(index)
 
-	var density_matrix = bath.get("_density_matrix")
-	if density_matrix == null:
-		return _fallback_emoji(index)
-
-	var emoji_list = density_matrix.emoji_list
+	var emoji_list: Array = bath.viz_cache.get_emojis()
 	if index >= 0 and index < emoji_list.size():
 		return emoji_list[index]
 
@@ -337,23 +325,23 @@ static func _sample_from_allowed_emojis(bath, allowed_emojis: Array, params, eco
 		_log("debug", "quest", "🎲", "No bath - random from allowed: %s" % chosen)
 		return chosen
 
-	var density_matrix = bath.get("_density_matrix")
-	if density_matrix == null:
+	if bath.viz_cache == null:
 		var chosen = allowed_emojis[randi() % allowed_emojis.size()]
-		_log("debug", "quest", "🎲", "No density matrix - random from allowed: %s" % chosen)
+		_log("debug", "quest", "🎲", "No viz_cache - random from allowed: %s" % chosen)
 		return chosen
 
-	# Get bath emoji list
-	var bath_emojis = density_matrix.emoji_list
+	# Get biome emoji list from viz_cache
+	var bath_emojis: Array = bath.viz_cache.get_emojis()
 
-	# Find indices of allowed emojis in bath
+	# Find indices of allowed emojis in biome
 	var allowed_indices = []
 	var allowed_probs = []
 
 	for i in range(bath_emojis.size()):
 		if bath_emojis[i] in allowed_emojis:
+			var p: float = bath.get_emoji_probability(bath_emojis[i])
 			allowed_indices.append(i)
-			allowed_probs.append(density_matrix.get_probability_by_index(i))
+			allowed_probs.append(maxf(p, 0.0))
 
 	# If no allowed emojis in bath, pick from allowed randomly
 	if allowed_indices.is_empty():
@@ -459,7 +447,7 @@ static func generate_quest(
 
 	_log("debug", "quest", "📚", "Quest gen: %s signature=%s axial=%s" % [
 		faction_name,
-		"".join(faction_vocab.signature),
+		"".join(faction_vocab.cloud),
 		"".join(faction_vocab.axial.slice(0, 3)) + "..."
 	])
 
@@ -467,13 +455,13 @@ static func generate_quest(
 	# Quest resources come from SIGNATURE ONLY (not axial signature)
 	var available_emojis = []
 	if player_vocab.is_empty():
-		available_emojis = faction_vocab.signature
+		available_emojis = faction_vocab.cloud
 		_log("debug", "quest", "🎲", "No player signature filter - using full signature")
 	else:
-		available_emojis = FactionDatabase.get_vocabulary_overlap(faction_vocab.signature, player_vocab)
+		available_emojis = FactionDatabase.get_vocabulary_overlap(faction_vocab.cloud, player_vocab)
 		_log("debug", "quest", "🔍", "Player knows %s, faction signature %s → available %s" % [
 			"".join(player_vocab),
-			"".join(faction_vocab.signature),
+			"".join(faction_vocab.cloud),
 			"".join(available_emojis)
 		])
 
@@ -484,8 +472,8 @@ static func generate_quest(
 			"error": "no_vocabulary_overlap",
 			"message": "Learn more about %s's interests first..." % faction.get("name", "Unknown"),
 			"faction": faction.get("name", "Unknown"),
-			"required_emojis": faction_vocab.signature.slice(0, 3),
-			"faction_vocabulary": faction_vocab.signature
+			"required_emojis": faction_vocab.cloud.slice(0, 3),
+			"faction_vocabulary": faction_vocab.cloud
 		}
 
 	# 4. Extract abstract observables (use cached if provided — same bath for all factions)
@@ -743,7 +731,7 @@ static func _roll_vocabulary_reward_pair(
 
 	# Returns:
 	# {north, south, weight, probability} or {north: "", south: ""} if none available
-	var icon_registry = IconPairing._get_atom_registry()
+	var icon_registry = (Engine.get_main_loop().root.get_node_or_null("/root/IconRegistry") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 	if not icon_registry:
 		return {"north": "", "south": "", "error": "no_icon_registry"}
 
@@ -765,7 +753,7 @@ static func _roll_vocabulary_reward_pair(
 
 	# Step 2: Find NORTH candidates from faction signature
 	# Must be: in faction signature AND unknown to player
-	# Connection check: prefer EmojiPhysicsRegistry connections, but faction co-membership
+	# Connection check: prefer IconRegistry connections, but faction co-membership
 	# is sufficient (all signature emojis are considered reachable from each other).
 	var has_icon_connections = not south_connections.is_empty()
 	var north_candidates: Array = []
@@ -776,7 +764,7 @@ static func _roll_vocabulary_reward_pair(
 		# Skip if same as south
 		if emoji == south:
 			continue
-		# Skip if not connected to South (when EmojiPhysicsRegistry has data)
+		# Skip if not connected to South (when IconRegistry has data)
 		if has_icon_connections and not south_connections.has(emoji):
 			continue
 

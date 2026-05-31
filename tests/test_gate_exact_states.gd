@@ -4,7 +4,6 @@ extends SceneTree
 ## Verifies gates produce EXACT expected quantum states
 ## Run: godot --headless --script tests/test_gate_exact_states.gd
 
-const GateInjector = preload("res://Core/QuantumSubstrate/GateInjector.gd")
 
 var passed = 0
 var failed = 0
@@ -44,11 +43,15 @@ func _init():
 
 
 func setup_test_environment() -> bool:
-	"""Create a real biome with quantum computer."""
+	# Create a real biome with quantum computer.
 	print("\n[Setup: Real Biome + Quantum Computer]")
 
-	var StarterForestBiome = load("res://Core/Environment/StarterForestBiome.gd")
-	biome = StarterForestBiome.new()
+	var BiomeBuilder = load("res://Core/Biomes/BiomeBuilder.gd")
+	var result = BiomeBuilder.build_from_registry("StarterForest", root, {"skip_tree_add": true})
+	if not result.success:
+		print("  ✗ Failed to build biome: %s" % result.error)
+		return false
+	biome = result.biome_node
 	biome.name = "TestBiome"
 	root.add_child(biome)
 
@@ -63,18 +66,17 @@ func setup_test_environment() -> bool:
 
 
 func test_hadamard_exact_state():
-	"""H|0⟩ = (|0⟩+|1⟩)/√2
+	# H|0⟩ = (|0⟩+|1⟩)/√2
 
-	In 5-qubit system: H on qubit 0, state is |00000⟩
-	After H: (|00000⟩+|10000⟩)/√2
+	# In 5-qubit system: H on qubit 0, state is |00000⟩
+	# After H: (|00000⟩+|10000⟩)/√2
 
-	Expected density matrix (5 qubits, dim=32, MSB ordering):
-	- ρ[0,0] = 0.5  (prob of |00000⟩)
-	- ρ[16,16] = 0.5 (prob of |10000⟩, since qubit 0 is MSB → bit 4 → index 16)
-	- ρ[0,16] = 0.5 (coherence)
-	- ρ[16,0] = 0.5 (coherence, Hermitian)
-	- All others = 0
-	"""
+	# Expected density matrix (5 qubits, dim=32, MSB ordering):
+	# - ρ[0,0] = 0.5  (prob of |00000⟩)
+	# - ρ[16,16] = 0.5 (prob of |10000⟩, since qubit 0 is MSB → bit 4 → index 16)
+	# - ρ[0,16] = 0.5 (coherence)
+	# - ρ[16,0] = 0.5 (coherence, Hermitian)
+	# - All others = 0
 	print("\n[Hadamard Exact State: H|0⟩ = (|0⟩+|1⟩)/√2]")
 
 	var qc = biome.quantum_computer
@@ -120,15 +122,14 @@ func test_hadamard_exact_state():
 
 
 func test_pauli_x_exact_state():
-	"""X|0⟩ = |1⟩
+	# X|0⟩ = |1⟩
 
-	In 5-qubit system: X on qubit 0, state is |00000⟩
-	After X: |10000⟩
+	# In 5-qubit system: X on qubit 0, state is |00000⟩
+	# After X: |10000⟩
 
-	Expected:
-	- ρ[16,16] = 1.0 (prob of |10000⟩)
-	- All others = 0
-	"""
+	# Expected:
+	# - ρ[16,16] = 1.0 (prob of |10000⟩)
+	# - All others = 0
 	print("\n[Pauli X Exact State: X|0⟩ = |1⟩]")
 
 	var qc = biome.quantum_computer
@@ -152,12 +153,11 @@ func test_pauli_x_exact_state():
 
 
 func test_pauli_y_exact_state():
-	"""Y|0⟩ = i|1⟩
+	# Y|0⟩ = i|1⟩
 
-	After Y on |00000⟩:
-	- ρ[16,16] = 1.0 (prob of |10000⟩)
-	- Pure state, no coherences
-	"""
+	# After Y on |00000⟩:
+	# - ρ[16,16] = 1.0 (prob of |10000⟩)
+	# - Pure state, no coherences
 	print("\n[Pauli Y Exact State: Y|0⟩ = i|1⟩]")
 
 	var qc = biome.quantum_computer
@@ -178,14 +178,13 @@ func test_pauli_y_exact_state():
 
 
 func test_pauli_z_exact_state():
-	"""Z|+⟩ = |-⟩, i.e. Z·H|0⟩ = (|0⟩-|1⟩)/√2
+	# Z|+⟩ = |-⟩, i.e. Z·H|0⟩ = (|0⟩-|1⟩)/√2
 
-	After H then Z:
-	- ρ[0,0] = 0.5
-	- ρ[16,16] = 0.5
-	- ρ[0,16] = -0.5 (NEGATIVE coherence, the minus sign!)
-	- ρ[16,0] = -0.5
-	"""
+	# After H then Z:
+	# - ρ[0,0] = 0.5
+	# - ρ[16,16] = 0.5
+	# - ρ[0,16] = -0.5 (NEGATIVE coherence, the minus sign!)
+	# - ρ[16,0] = -0.5
 	print("\n[Pauli Z Exact State: Z|+⟩ = |-⟩]")
 
 	var qc = biome.quantum_computer
@@ -212,20 +211,19 @@ func test_pauli_z_exact_state():
 
 
 func test_cnot_exact_state():
-	"""CNOT|10⟩ = |11⟩
+	# CNOT|10⟩ = |11⟩
 
-	Prepare |10⟩ via X on qubit 0
-	Apply CNOT(0,1)
-	Result: |11⟩
+	# Prepare |10⟩ via X on qubit 0
+	# Apply CNOT(0,1)
+	# Result: |11⟩
 
-	In 5-qubit system:
-	- |10000⟩ = 16 (basis_10)
-	- |11000⟩ = 24 (basis_11)
+	# In 5-qubit system:
+	# - |10000⟩ = 16 (basis_10)
+	# - |11000⟩ = 24 (basis_11)
 
-	Expected after CNOT:
-	- ρ[24,24] = 1.0
-	- All others = 0
-	"""
+	# Expected after CNOT:
+	# - ρ[24,24] = 1.0
+	# - All others = 0
 	print("\n[CNOT Exact State: CNOT|10⟩ = |11⟩]")
 
 	var qc = biome.quantum_computer
@@ -258,21 +256,20 @@ func test_cnot_exact_state():
 
 
 func test_bell_state_exact():
-	"""Bell state |Φ+⟩ = (|00⟩+|11⟩)/√2
+	# Bell state |Φ+⟩ = (|00⟩+|11⟩)/√2
 
-	H on qubit 0, then CNOT(0,1)
+	# H on qubit 0, then CNOT(0,1)
 
-	In 5-qubit system:
-	- |00000⟩ = 0
-	- |11000⟩ = 24
+	# In 5-qubit system:
+	# - |00000⟩ = 0
+	# - |11000⟩ = 24
 
-	Expected:
-	- ρ[0,0] = 0.5
-	- ρ[24,24] = 0.5
-	- ρ[0,24] = 0.5 (real coherence)
-	- ρ[24,0] = 0.5
-	- All others = 0
-	"""
+	# Expected:
+	# - ρ[0,0] = 0.5
+	# - ρ[24,24] = 0.5
+	# - ρ[0,24] = 0.5 (real coherence)
+	# - ρ[24,0] = 0.5
+	# - All others = 0
 	print("\n[Bell State Exact: |Φ+⟩ = (|00⟩+|11⟩)/√2]")
 
 	var qc = biome.quantum_computer
@@ -318,14 +315,13 @@ func test_bell_state_exact():
 
 
 func test_cz_phase_flip_exact():
-	"""CZ gate flips phase of |11⟩ component
+	# CZ gate flips phase of |11⟩ component
 
-	Prepare: H(0)·H(1)|00⟩ = (|00⟩+|01⟩+|10⟩+|11⟩)/2
-	Apply CZ(0,1)
-	Result: (|00⟩+|01⟩+|10⟩-|11⟩)/2 (minus sign on |11⟩!)
+	# Prepare: H(0)·H(1)|00⟩ = (|00⟩+|01⟩+|10⟩+|11⟩)/2
+	# Apply CZ(0,1)
+	# Result: (|00⟩+|01⟩+|10⟩-|11⟩)/2 (minus sign on |11⟩!)
 
-	Check coherences change sign appropriately.
-	"""
+	# Check coherences change sign appropriately.
 	print("\n[CZ Phase Flip Exact: CZ changes |11⟩ phase]")
 
 	var qc = biome.quantum_computer
@@ -363,12 +359,11 @@ func test_cz_phase_flip_exact():
 
 
 func test_swap_exact_state():
-	"""SWAP|10⟩ = |01⟩
+	# SWAP|10⟩ = |01⟩
 
-	Prepare |10000⟩ via X(0)
-	Apply SWAP(0,1)
-	Result: |01000⟩
-	"""
+	# Prepare |10000⟩ via X(0)
+	# Apply SWAP(0,1)
+	# Result: |01000⟩
 	print("\n[SWAP Exact State: SWAP|10⟩ = |01⟩]")
 
 	var qc = biome.quantum_computer
@@ -404,7 +399,7 @@ func test_swap_exact_state():
 # ============================================================================
 
 func _snapshot_density_matrix(dm) -> Array:
-	"""Copy density matrix elements to array for comparison."""
+	# Copy density matrix elements to array for comparison.
 	var snapshot = []
 	for i in range(dm.n):
 		for j in range(dm.n):
@@ -414,7 +409,7 @@ func _snapshot_density_matrix(dm) -> Array:
 
 
 func _matrices_equal(dm1: Array, dm2: Array, epsilon: float = 1e-10) -> bool:
-	"""Check if two density matrix snapshots are equal."""
+	# Check if two density matrix snapshots are equal.
 	if dm1.size() != dm2.size():
 		return false
 
@@ -428,7 +423,7 @@ func _matrices_equal(dm1: Array, dm2: Array, epsilon: float = 1e-10) -> bool:
 
 
 func _calculate_trace(dm) -> float:
-	"""Calculate trace of density matrix (should be 1.0)."""
+	# Calculate trace of density matrix (should be 1.0).
 	var trace = 0.0
 	for i in range(dm.n):
 		var elem = dm.get_element(i, i)
@@ -437,7 +432,7 @@ func _calculate_trace(dm) -> float:
 
 
 func assert_approx(actual: float, expected: float, msg: String):
-	"""Assert two floats are approximately equal."""
+	# Assert two floats are approximately equal.
 	if abs(actual - expected) < EPSILON:
 		passed += 1
 		print("  ✓ %s" % msg)

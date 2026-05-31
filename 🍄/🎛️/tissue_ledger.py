@@ -290,8 +290,8 @@ _TISSUE_POLICY_MAP: List[Tuple[str, str, float, str]] = [
     ("offer_reward",           "reward_terms.resource",                           0.08, "ratio"),
     ("offer_deficit",          "action_priors.quest_cycle.stagnation_scale",      0.45, "ratio"),
     ("offer_delivery_cost",    "reward_terms.execution_penalty",                 -4.0,  "ratio"),
-    ("offer_critical_any",     "action_priors.lock_offer.discovery_affinity",     5.0,  "ratio"),
-    ("offer_critical_unknown", "action_priors.lock_offer.novelty",               1.5,  "ratio"),
+    ("offer_critical_any",     "action_priors.quest_cycle.discovery_affinity",     5.0,  "ratio"),
+    ("offer_critical_unknown", "action_priors.quest_cycle.novelty",               1.5,  "ratio"),
 
     # ── Probe → probe_cycle action_priors ────────────────────────────
     ("probe_frontier",         "action_priors.probe_cycle.base",                  1.0,  "ratio"),

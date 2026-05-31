@@ -3,10 +3,9 @@ extends RefCounted
 
 ## ActionCostRuntime - shared runtime cost surface resolver.
 ##
-## Centralizes economy lookup and action/cost preflight+commit helpers so
-## UI, instrument, and headless action handlers use one path.
+## Centralizes economy lookup and action/cost preflight+commit logic so
+## UI, instrument, and headless action call sites use one path.
 
-const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
 
 
 static func resolve_economy(source):
@@ -16,7 +15,7 @@ static func resolve_economy(source):
 		# Already an economy-like object.
 		if source.has_method("get_action_cost") or source.has_method("get_overridden_action_cost"):
 			return source
-		# Farm/manager-like object with `.economy`.
+		# Farm-like object with `.economy`.
 		if source.has_method("get"):
 			var object_economy = source.get("economy")
 			if object_economy:

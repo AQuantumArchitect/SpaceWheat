@@ -51,7 +51,7 @@ class InteractiveTestRunner:
                     self.godot_bin,
                     "--headless",
                     "--no-window",
-                    "scenes/FarmView.tscn"
+                    "scenes/Main.tscn"
                 ],
                 cwd=self.project_dir,
                 stdout=subprocess.PIPE,
@@ -99,7 +99,7 @@ class InteractiveTestRunner:
         """Test 2: Verify all overlays are registered"""
         self.log("Test 2: Overlay Registration", "TEST")
 
-        overlays = ["inspector", "controls", "semantic_map", "quests", "biome_detail"]
+        overlays = ["inspector", "controls", "map_meta", "quests", "biome_detail"]
         all_registered = True
 
         for overlay in overlays:

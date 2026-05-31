@@ -51,15 +51,14 @@ func _init():
 ## Qubit Management
 
 func add_qubit(qubit, plot_id: String):
-	"""Add qubit to cluster (product state extension)
+	# Add qubit to cluster (product state extension)
 
-	New qubit starts in separable state |ψ⟩⊗|0⟩.
-	Use entangle_new_qubit_cnot() to create entanglement!
+	# New qubit starts in separable state |ψ⟩⊗|0⟩.
+	# Use entangle_new_qubit_cnot() to create entanglement!
 
-	Args:
-		qubit: DualEmojiQubit to add
-		plot_id: Plot identifier
-	"""
+	# Args:
+	# qubit: DualEmojiQubit to add
+	# plot_id: Plot identifier
 	qubits.append(qubit)
 	qubit_ids.append(plot_id)
 
@@ -71,12 +70,11 @@ func add_qubit(qubit, plot_id: String):
 
 
 func _expand_density_matrix_product():
-	"""Expand density matrix for new qubit in |0⟩ state
+	# Expand density matrix for new qubit in |0⟩ state
 
-	ρ_new = ρ_old ⊗ |0⟩⟨0|
+	# ρ_new = ρ_old ⊗ |0⟩⟨0|
 
-	Dimension: 2^N × 2^N → 2^(N+1) × 2^(N+1)
-	"""
+	# Dimension: 2^N × 2^N → 2^(N+1) × 2^(N+1)
 	var N_old = qubits.size() - 1
 	var N_new = qubits.size()
 
@@ -113,16 +111,15 @@ func _expand_density_matrix_product():
 ## State Initialization
 
 func create_ghz_state():
-	"""Create GHZ state: (|00...0⟩ + |11...1⟩)/√2
+	# Create GHZ state: (|00...0⟩ + |11...1⟩)/√2
 
-	All qubits perfectly correlated.
-	Measuring one qubit instantly determines all others!
+	# All qubits perfectly correlated.
+	# Measuring one qubit instantly determines all others!
 
-	Properties:
-	- Maximally entangled
-	- Fragile: Losing ANY qubit → separable state
-	- Used in quantum teleportation, superdense coding
-	"""
+	# Properties:
+	# - Maximally entangled
+	# - Fragile: Losing ANY qubit → separable state
+	# - Used in quantum teleportation, superdense coding
 	var N = qubits.size()
 	if N < 2:
 		push_error("Need at least 2 qubits for GHZ state")
@@ -152,15 +149,14 @@ func create_ghz_state():
 
 
 func create_w_state():
-	"""Create W state: (|100...0⟩ + |010...0⟩ + ... + |00...01⟩)/√N
+	# Create W state: (|100...0⟩ + |010...0⟩ + ... + |00...01⟩)/√N
 
-	One excitation shared across all qubits.
+	# One excitation shared across all qubits.
 
-	Properties:
-	- Genuinely multi-partite entangled
-	- Robust: Losing one qubit → remaining qubits still entangled!
-	- Different entanglement structure than GHZ
-	"""
+	# Properties:
+	# - Genuinely multi-partite entangled
+	# - Robust: Losing one qubit → remaining qubits still entangled!
+	# - Different entanglement structure than GHZ
 	var N = qubits.size()
 	if N < 2:
 		push_error("Need at least 2 qubits for W state")
@@ -190,15 +186,14 @@ func create_w_state():
 
 
 func create_cluster_state_1d():
-	"""Create 1D cluster state for measurement-based quantum computing
+	# Create 1D cluster state for measurement-based quantum computing
 
-	Construction:
-	1. Initialize all qubits in |+⟩ state
-	2. Apply controlled-Z between adjacent qubits
+	# Construction:
+	# 1. Initialize all qubits in |+⟩ state
+	# 2. Apply controlled-Z between adjacent qubits
 
-	Result: Graph state where edges represent CZ gates.
-	Foundation of one-way quantum computer!
-	"""
+	# Result: Graph state where edges represent CZ gates.
+	# Foundation of one-way quantum computer!
 	var N = qubits.size()
 	if N < 2:
 		return
@@ -217,10 +212,9 @@ func create_cluster_state_1d():
 
 
 func _initialize_all_plus():
-	"""Initialize to |+⟩^⊗N state
+	# Initialize to |+⟩^⊗N state
 
-	|+⟩ = (|0⟩+|1⟩)/√2, so |+⟩^⊗N is equal superposition of all basis states.
-	"""
+	# |+⟩ = (|0⟩+|1⟩)/√2, so |+⟩^⊗N is equal superposition of all basis states.
 	_clear_density_matrix()
 
 	var N = qubits.size()
@@ -236,18 +230,17 @@ func _initialize_all_plus():
 ## Sequential Entangling Operations
 
 func entangle_new_qubit_cnot(new_qubit, new_plot_id: String, control_index: int = 0):
-	"""Add new qubit and entangle via CNOT gate
+	# Add new qubit and entangle via CNOT gate
 
-	Applies CNOT with existing qubit as control, new qubit as target.
-	This extends GHZ states: |00⟩+|11⟩ → |000⟩+|111⟩
+	# Applies CNOT with existing qubit as control, new qubit as target.
+	# This extends GHZ states: |00⟩+|11⟩ → |000⟩+|111⟩
 
-	Physics: CNOT|ψ⟩⊗|0⟩ creates entanglement between new qubit and cluster.
+	# Physics: CNOT|ψ⟩⊗|0⟩ creates entanglement between new qubit and cluster.
 
-	Args:
-		new_qubit: DualEmojiQubit to add
-		new_plot_id: Plot ID
-		control_index: Which existing qubit is control (default: first)
-	"""
+	# Args:
+	# new_qubit: DualEmojiQubit to add
+	# new_plot_id: Plot ID
+	# control_index: Which existing qubit is control (default: first)
 	if qubits.is_empty():
 		add_qubit(new_qubit, new_plot_id)
 		return
@@ -271,18 +264,17 @@ func entangle_new_qubit_cnot(new_qubit, new_plot_id: String, control_index: int 
 
 
 func _apply_cnot_expansion(old_density: Array, old_N: int, control_bit: int):
-	"""Expand N-qubit state to (N+1)-qubit state via CNOT
+	# Expand N-qubit state to (N+1)-qubit state via CNOT
 
-	CNOT transformation on computational basis:
-	- |x⟩|0⟩ → |x⟩|x[control]⟩
+	# CNOT transformation on computational basis:
+	# - |x⟩|0⟩ → |x⟩|x[control]⟩
 
-	If old state was |00⟩+|11⟩, result is |000⟩+|111⟩ (GHZ₃).
+	# If old state was |00⟩+|11⟩, result is |000⟩+|111⟩ (GHZ₃).
 
-	Args:
-		old_density: Density matrix before adding qubit
-		old_N: Number of qubits before adding
-		control_bit: Which bit is control (0-indexed)
-	"""
+	# Args:
+	# old_density: Density matrix before adding qubit
+	# old_N: Number of qubits before adding
+	# control_bit: Which bit is control (0-indexed)
 	var old_dim = int(pow(2, old_N))
 	var new_dim = int(pow(2, old_N + 1))
 
@@ -314,16 +306,15 @@ func _apply_cnot_expansion(old_density: Array, old_N: int, control_bit: int):
 
 
 func _apply_controlled_z(control: int, target: int):
-	"""Apply controlled-Z gate between two qubits in cluster
+	# Apply controlled-Z gate between two qubits in cluster
 
-	CZ|ab⟩ = (-1)^(a·b)|ab⟩ (phase flip if both qubits are |1⟩)
+	# CZ|ab⟩ = (-1)^(a·b)|ab⟩ (phase flip if both qubits are |1⟩)
 
-	Used to create cluster states from |+⟩^⊗N.
+	# Used to create cluster states from |+⟩^⊗N.
 
-	Args:
-		control: First qubit index
-		target: Second qubit index
-	"""
+	# Args:
+	# control: First qubit index
+	# target: Second qubit index
 	var N = qubits.size()
 	var dim = int(pow(2, N))
 
@@ -356,19 +347,18 @@ func _apply_controlled_z(control: int, target: int):
 ## Measurement
 
 func measure_qubit(qubit_index: int) -> int:
-	"""Measure one qubit in computational basis
+	# Measure one qubit in computational basis
 
-	Collapses cluster state according to measurement outcome.
+	# Collapses cluster state according to measurement outcome.
 
-	For GHZ: Measuring one qubit instantly determines all others!
-	For W: Measuring removes one qubit, others remain entangled.
+	# For GHZ: Measuring one qubit instantly determines all others!
+	# For W: Measuring removes one qubit, others remain entangled.
 
-	Args:
-		qubit_index: Which qubit to measure (0-indexed)
+	# Args:
+	# qubit_index: Which qubit to measure (0-indexed)
 
-	Returns:
-		0 or 1 (measurement outcome)
-	"""
+	# Returns:
+	# 0 or 1 (measurement outcome)
 	var N = qubits.size()
 
 	if qubit_index < 0 or qubit_index >= N:
@@ -393,12 +383,11 @@ func measure_qubit(qubit_index: int) -> int:
 
 
 func _probability_qubit_zero(qubit_index: int) -> float:
-	"""Calculate probability of measuring |0⟩ on given qubit
+	# Calculate probability of measuring |0⟩ on given qubit
 
-	P(0) = Tr(Π₀ ρ) where Π₀ projects onto |0⟩ for this qubit.
+	# P(0) = Tr(Π₀ ρ) where Π₀ projects onto |0⟩ for this qubit.
 
-	Computed by summing diagonal elements where qubit_index bit is 0.
-	"""
+	# Computed by summing diagonal elements where qubit_index bit is 0.
 	var N = qubits.size()
 	var dim = int(pow(2, N))
 	var prob = 0.0
@@ -413,12 +402,11 @@ func _probability_qubit_zero(qubit_index: int) -> float:
 
 
 func _collapse_to_outcome(qubit_index: int, outcome: int):
-	"""Collapse density matrix to measurement outcome
+	# Collapse density matrix to measurement outcome
 
-	Post-measurement state: Π ρ Π / Tr(Π ρ)
+	# Post-measurement state: Π ρ Π / Tr(Π ρ)
 
-	where Π projects onto basis states consistent with outcome.
-	"""
+	# where Π projects onto basis states consistent with outcome.
 	var N = qubits.size()
 	var dim = int(pow(2, N))
 
@@ -438,7 +426,7 @@ func _collapse_to_outcome(qubit_index: int, outcome: int):
 ## Helper Methods
 
 func _copy_density_matrix() -> Array:
-	"""Deep copy of density matrix"""
+	# Deep copy of density matrix
 	var copy = []
 	for row in density_matrix:
 		var row_copy = []
@@ -449,14 +437,14 @@ func _copy_density_matrix() -> Array:
 
 
 func _clear_density_matrix():
-	"""Clear density matrix to all zeros"""
+	# Clear density matrix to all zeros
 	for i in range(density_matrix.size()):
 		for j in range(density_matrix[i].size()):
 			density_matrix[i][j] = Vector2(0.0, 0.0)
 
 
 func _normalize_density_matrix():
-	"""Normalize density matrix: Tr(ρ) = 1"""
+	# Normalize density matrix: Tr(ρ) = 1
 	var trace = 0.0
 	for i in range(density_matrix.size()):
 		trace += density_matrix[i][i].x
@@ -470,12 +458,12 @@ func _normalize_density_matrix():
 ## Properties and Queries
 
 func get_qubit_count() -> int:
-	"""Number of qubits in cluster"""
+	# Number of qubits in cluster
 	return qubits.size()
 
 
 func get_state_dimension() -> int:
-	"""Hilbert space dimension: 2^N"""
+	# Hilbert space dimension: 2^N
 	return int(pow(2, qubits.size()))
 
 
@@ -492,25 +480,24 @@ func is_cluster_type() -> bool:
 
 
 func get_all_plot_ids() -> Array[String]:
-	"""Get all plot IDs in cluster"""
+	# Get all plot IDs in cluster
 	return qubit_ids
 
 
 func contains_qubit(qubit) -> bool:
-	"""Check if qubit is in this cluster"""
+	# Check if qubit is in this cluster
 	return qubit in qubits
 
 
 func contains_plot_id(plot_id: String) -> bool:
-	"""Check if plot ID is in this cluster"""
+	# Check if plot ID is in this cluster
 	return plot_id in qubit_ids
 
 
 func get_purity() -> float:
-	"""Calculate purity: Tr(ρ²)
+	# Calculate purity: Tr(ρ²)
 
-	Purity = 1 for pure states, < 1 for mixed states.
-	"""
+	# Purity = 1 for pure states, < 1 for mixed states.
 	var dim = density_matrix.size()
 	var trace_rho_squared = 0.0
 
@@ -535,13 +522,12 @@ func get_purity() -> float:
 
 
 func get_entanglement_entropy() -> float:
-	"""Estimate entanglement entropy (simplified)
+	# Estimate entanglement entropy (simplified)
 
-	For pure states: S = 0
-	For maximally mixed: S = log₂(2^N) = N
+	# For pure states: S = 0
+	# For maximally mixed: S = log₂(2^N) = N
 
-	Returns approximate von Neumann entropy.
-	"""
+	# Returns approximate von Neumann entropy.
 	var purity = get_purity()
 
 	if purity > 0.99:
@@ -554,7 +540,7 @@ func get_entanglement_entropy() -> float:
 ## Debug and Display
 
 func get_state_string() -> String:
-	"""Human-readable state description"""
+	# Human-readable state description
 	var type_names = {
 		ClusterType.GHZ: "GHZ",
 		ClusterType.W_STATE: "W",
@@ -567,7 +553,7 @@ func get_state_string() -> String:
 
 
 func get_debug_string() -> String:
-	"""Compact debug representation"""
+	# Compact debug representation
 	return "EntangledCluster[N=%d, type=%s, dim=%d×%d, purity=%.2f]" % [
 		get_qubit_count(),
 		get_state_string(),
@@ -578,7 +564,7 @@ func get_debug_string() -> String:
 
 
 func print_density_matrix():
-	"""Print density matrix (only for small N!)"""
+	# Print density matrix (only for small N!)
 	var N = qubits.size()
 	if N > 3:
 		print("⚠️ Density matrix too large to print (2^%d = %d dimensions)" %
@@ -602,7 +588,7 @@ func print_density_matrix():
 
 
 func print_state_info():
-	"""Print comprehensive state information"""
+	# Print comprehensive state information
 	print("\n" + "=".repeat(60))
 	print("  %s" % get_state_string().to_upper())
 	print("=".repeat(60))

@@ -1,7 +1,6 @@
 class_name BiomeRoutingManager
 extends RefCounted
 
-const GridSentinel = preload("res://Core/GameState/GridSentinel.gd")
 
 ## BiomeRoutingManager - Multi-biome registry and quantum computer routing
 ##
@@ -23,26 +22,25 @@ var _verbose = null
 
 
 func set_verbose(verbose_ref) -> void:
-	"""Set verbose logger reference."""
+	# Set verbose logger reference.
 	_verbose = verbose_ref
 
 
 func set_terminal_pool(pool) -> void:
-	"""Inject TerminalPool for register resolution."""
+	# Inject TerminalPool for register resolution.
 	terminal_pool = pool
 
 
 func set_plot_manager(pm) -> void:
-	"""Inject GridPlotManager for plot-based register lookups."""
+	# Inject GridPlotManager for plot-based register lookups.
 	_plot_manager = pm
 
 
 func register_biome(biome_name: String, biome_instance) -> void:
-	"""Register a biome in the grid's biome registry
+	# Register a biome in the grid's biome registry
 
-	Called by Farm._ready() during initialization.
-	Enables the grid to route plot operations to the correct biome.
-	"""
+	# Called by Farm._ready() during initialization.
+	# Enables the grid to route plot operations to the correct biome.
 	if not biome_name or not biome_instance:
 		push_error("Cannot register biome: invalid name or instance")
 		return
@@ -53,7 +51,7 @@ func register_biome(biome_name: String, biome_instance) -> void:
 
 
 func unregister_biome(biome_name: String) -> void:
-	"""Remove a biome from the registry and clear all of its plot assignments."""
+	# Remove a biome from the registry and clear all of its plot assignments.
 	if biome_name == "":
 		return
 
@@ -76,15 +74,14 @@ func unregister_biome(biome_name: String) -> void:
 
 
 func assign_plot_to_biome(position: Vector2i, biome_name: String) -> bool:
-	"""Assign a specific plot to a biome (graceful - skips unregistered biomes)
+	# Assign a specific plot to a biome (graceful - skips unregistered biomes)
 
-	Called by Farm._ready() during initialization.
-	Configures which biome manages each plot's quantum evolution.
+	# Called by Farm._ready() during initialization.
+	# Configures which biome manages each plot's quantum evolution.
 
-	Returns true if assigned, false if biome not registered (deferred).
-	Graceful handling: unregistered biomes are skipped without error,
-	allowing plots to be assigned retroactively when biomes are explored.
-	"""
+	# Returns true if assigned, false if biome not registered (deferred).
+	# Graceful handling: unregistered biomes are skipped without error,
+	# allowing plots to be assigned retroactively when biomes are explored.
 	if not biomes.has(biome_name):
 		# GRACEFUL: Biome may be locked/not-yet-loaded - defer assignment
 		return false
@@ -94,26 +91,20 @@ func assign_plot_to_biome(position: Vector2i, biome_name: String) -> bool:
 
 
 func get_biome_for_plot(position: Vector2i):
-	"""Get the biome responsible for a specific plot
+	# Get the biome responsible for a specific plot
 
-	Returns the biome instance for the given plot position.
-	If no assignment exists, falls back to StarterForest (starter biome).
-	"""
+	# Returns the biome instance for the given plot position.
 	# Check if plot has explicit assignment
 	if plot_biome_assignments.has(position):
 		var biome_name = plot_biome_assignments[position]
 		if biomes.has(biome_name):
 			return biomes[biome_name]
 
-	# Fallback to StarterForest (starter biome)
-	if biomes.has("StarterForest"):
-		return biomes["StarterForest"]
-
 	return null
 
 
 func get_biome_id_for_plot(position: Vector2i) -> String:
-	"""Get the biome ID (name) for a plot position."""
+	# Get the biome ID (name) for a plot position.
 	return plot_biome_assignments.get(position, "")
 
 
@@ -167,10 +158,9 @@ func get_plot_positions_for_biome(biome_name: String) -> Array[Vector2i]:
 
 
 func get_register_for_plot(position: Vector2i) -> int:
-	"""Get the RegisterId for a plot.
+	# Get the RegisterId for a plot.
 
-	Returns: Register ID (int) if plot is planted, -1 if not found
-	"""
+	# Returns: Register ID (int) if plot is planted, -1 if not found
 	if _plot_manager:
 		var plot = _plot_manager.get_plot(position)
 		if plot and plot.is_active():
@@ -179,10 +169,9 @@ func get_register_for_plot(position: Vector2i) -> int:
 
 
 func get_plot_for_register(register_id: int) -> Vector2i:
-	"""Reverse lookup: find the grid position bound to a register ID.
+	# Reverse lookup: find the grid position bound to a register ID.
 
-	Returns: Grid position if found, GridSentinel.INVALID_POSITION if not found
-	"""
+	# Returns: Grid position if found, GridSentinel.INVALID_POSITION if not found
 	if _plot_manager:
 		for pos in _plot_manager.plots.keys():
 			var plot = _plot_manager.plots[pos]
@@ -192,10 +181,10 @@ func get_plot_for_register(register_id: int) -> Vector2i:
 
 
 func is_biomes_empty() -> bool:
-	"""Check if no biomes are registered."""
+	# Check if no biomes are registered.
 	return biomes.is_empty()
 
 
 func get_all_biomes() -> Dictionary:
-	"""Get all registered biomes."""
+	# Get all registered biomes.
 	return biomes

@@ -1,7 +1,7 @@
-class_name AffinityGraph
+class_name AlignmentGraph
 extends RefCounted
 
-## AffinityGraph — 12-qubit density matrix on the FactionAxes Hilbert space.
+## AlignmentGraph — 12-qubit density matrix on the FactionAxes Hilbert space.
 ##
 ## One substrate, one ontology. Used by:
 ##   - factions (initialized at corner state |bits⟩⟨bits| from FactionAxes bits)
@@ -40,7 +40,7 @@ func _init() -> void:
 
 static func from_corner(bits) -> RefCounted:
 	var idx := _bits_to_index(bits)
-	var g = load("res://Core/Affinity/AffinityGraph.gd").new()
+	var g = load("res://Core/Alignment/AlignmentGraph.gd").new()
 	g.weights = PackedFloat64Array([1.0])
 	g.kets = [{idx: Vector2(1.0, 0.0)}]
 	return g
@@ -51,7 +51,7 @@ static func from_uniform_superposition() -> RefCounted:
 	var ket: Dictionary = {}
 	for i in range(DIM):
 		ket[i] = Vector2(amp, 0.0)
-	var g = load("res://Core/Affinity/AffinityGraph.gd").new()
+	var g = load("res://Core/Alignment/AlignmentGraph.gd").new()
 	g.weights = PackedFloat64Array([1.0])
 	g.kets = [ket]
 	return g
@@ -59,7 +59,7 @@ static func from_uniform_superposition() -> RefCounted:
 
 static func from_maximally_mixed() -> RefCounted:
 	# ρ = I/DIM as a rank-DIM mixture. Heavy; only use for tests.
-	var g = load("res://Core/Affinity/AffinityGraph.gd").new()
+	var g = load("res://Core/Alignment/AlignmentGraph.gd").new()
 	var w := 1.0 / float(DIM)
 	g.weights = PackedFloat64Array()
 	g.kets = []
@@ -73,7 +73,7 @@ static func from_maximally_mixed() -> RefCounted:
 
 static func _bits_to_index(bits) -> int:
 	assert(bits.size() == AXIS_COUNT,
-		"AffinityGraph: bits must be length %d, got %d" % [AXIS_COUNT, bits.size()])
+		"AlignmentGraph: bits must be length %d, got %d" % [AXIS_COUNT, bits.size()])
 	var idx := 0
 	for i in range(AXIS_COUNT):
 		idx = (idx << 1) | (int(bits[i]) & 1)
@@ -299,12 +299,12 @@ func to_dict() -> Dictionary:
 
 
 static func from_dict(d: Dictionary) -> RefCounted:
-	var g = load("res://Core/Affinity/AffinityGraph.gd").new()
+	var g = load("res://Core/Alignment/AlignmentGraph.gd").new()
 	if d == null or d.is_empty():
 		return g
 	var axis_count := int(d.get("axis_count", AXIS_COUNT))
 	assert(axis_count == AXIS_COUNT,
-		"AffinityGraph: save axis_count=%d, expected %d" % [axis_count, AXIS_COUNT])
+		"AlignmentGraph: save axis_count=%d, expected %d" % [axis_count, AXIS_COUNT])
 	var w_arr: Array = d.get("weights", [])
 	g.weights = PackedFloat64Array(w_arr)
 	g.kets = []
@@ -317,4 +317,4 @@ static func from_dict(d: Dictionary) -> RefCounted:
 
 
 func _to_string() -> String:
-	return "AffinityGraph(rank=%d trace=%.4f purity=%.4f)" % [rank(), trace(), purity()]
+	return "AlignmentGraph(rank=%d trace=%.4f purity=%.4f)" % [rank(), trace(), purity()]

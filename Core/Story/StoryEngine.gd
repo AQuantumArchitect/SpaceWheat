@@ -4,7 +4,7 @@ extends Node
 ##
 ## Owns: StoryGraph, TrajectoryLog, SocialiteCluster.
 ## Subscribes to: QuestManager story-flag firing (via on_flag_fired hook).
-## Exposes: apply_player_action() for QERF×123×GHJKL; routing from Z surface.
+## Exposes: express_icon_on_chatter() for QERF expression on a chatter line.
 ##
 ## Attention model: density on substrate, ui_focus cursor in UI.
 ##   Q  withdraw — shifts density away from chatter's topic node.
@@ -13,20 +13,22 @@ extends Node
 ##   E  express — strong reinforce + full trajectory record.
 
 const StoryGraph := preload("res://Core/Story/StoryGraph.gd")
-const StoryNode := preload("res://Core/Story/StoryNode.gd")
-const StoryEdge := preload("res://Core/Story/StoryEdge.gd")
 const StorySeedLoader := preload("res://Core/Story/StorySeedLoader.gd")
 const TrajectoryLog := preload("res://Core/Story/TrajectoryLog.gd")
 const SocialiteCluster := preload("res://Core/Story/SocialiteCluster.gd")
-const EmojiSequenceGenerator := preload("res://Core/Story/EmojiSequenceGenerator.gd")
-const InstrumentLocator := preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
 # Tunables (per plan §Open Questions defaults)
 const TICK_HZ: float = 1.0                 # substrate tick rate
-const ATTENTION_DELTA: float = 0.05         # Q/R per-press
-const PHASE_DELTA: float = PI / 6.0         # F per-press
 const MASS_SHIFT_ON_REINFORCE: float = 0.08  # density mass moved per Q/R press
 const MASS_SHIFT_ON_MEASURE: float = 0.6    # density collapse on E
+
+# Story conversation composition constants.
+const CONV_ALPHA_TOPIC: float = 1.0
+const CONV_BETA_SPEAKER: float = 1.5
+const CONV_GAMMA_PLAYER: float = 0.6
+const CONV_EPSILON_RECENT_ACTION: float = 0.8
+const CONV_VOCAB_FLOOR: float = 0.05
+const CONV_TRANSITION_FLOOR: float = 0.02
 
 var graph = null         # StoryGraph
 var trajectory = null    # TrajectoryLog (named "trajectory" to avoid shadowing log())
@@ -34,6 +36,9 @@ var cluster = null       # SocialiteCluster
 
 var _tick_accum: float = 0.0
 var _verbose
+
+var _farm = null
+var _quest_manager = null
 
 # Phase 2: rolling memory of player Icon-hat emoji touches.
 # Each entry: {emoji: String, until_tick: int} — drops off after N ticks.
@@ -49,7 +54,7 @@ signal substrate_ready()
 
 func _ready() -> void:
 	add_to_group("story_engine")
-	_verbose = InstrumentLocator.resolve_verbose_config(self)
+	_verbose = get_node_or_null("/root/VerboseConfig")
 	# Substrate is session-scope: graph + socialite cluster are populated by
 	# WorldBuilder.stage_core_systems via start_for_session(), not at autoload boot.
 	# Until then _process is a no-op (graph == null).
@@ -117,67 +122,104 @@ func _tick_substrate() -> void:
 
 
 # =============================================================================
-# PLAYER ACTION ROUTER
-# =============================================================================
-
-## Apply a QERF×123×GHJKL; expression to a selected edge.
-##
-##   icon_idx: 0/1/2 — which Icon slot (player vocab pair)
-##   verb: "Q"/"E"/"R"/"F"
-##   edge_id: id of selected edge in current focused node
-##
-## Returns a result dict for UI feedback.
-func apply_player_action(icon_idx: int, verb: String, edge_id: String) -> Dictionary:
-	if graph == null:
-		return {"success": false, "error": "no_graph"}
-	var edge = graph.get_edge(edge_id)
-	if edge == null:
-		return {"success": false, "error": "no_edge"}
-
-	match verb:
-		"Q":
-			edge.attention -= ATTENTION_DELTA
-			# Lossless: pull a sliver of mass back from to_node toward from_node.
-			graph.shift_mass(edge.to_node, edge.from_node, MASS_SHIFT_ON_REINFORCE * 0.5)
-			graph.renormalize()
-			density_shifted.emit(edge.to_node, graph.density.get(edge.to_node, 0.0))
-			trajectory.record_player_action(edge.from_node, edge.from_node, edge.id, icon_idx, "Q")
-			return {"success": true, "verb": "Q", "edge": edge.id, "attention": edge.attention}
-
-		"R":
-			edge.attention += ATTENTION_DELTA
-			# Lossless: nudge mass from_node → to_node.
-			graph.shift_mass(edge.from_node, edge.to_node, MASS_SHIFT_ON_REINFORCE)
-			graph.renormalize()
-			density_shifted.emit(edge.to_node, graph.density.get(edge.to_node, 0.0))
-			trajectory.record_player_action(edge.from_node, edge.to_node, edge.id, icon_idx, "R")
-			return {"success": true, "verb": "R", "edge": edge.id, "attention": edge.attention}
-
-		"F":
-			# Harmonize: rotate phase toward chosen Icon's axis without measuring.
-			edge.phase += PHASE_DELTA
-			edge.icon_axis = icon_idx
-			trajectory.record_player_action(edge.from_node, edge.from_node, edge.id, icon_idx, "F")
-			return {"success": true, "verb": "F", "edge": edge.id, "phase": edge.phase, "icon_axis": icon_idx}
-
-		"E":
-			# Measure: collapse → advance trajectory to to_node.
-			# Marks edge fired; shifts density hard.
-			edge.fired = true
-			graph.shift_mass(edge.from_node, edge.to_node, MASS_SHIFT_ON_MEASURE)
-			graph.renormalize()
-			trajectory.record_player_action(edge.from_node, edge.to_node, edge.id, icon_idx, "E")
-			trajectory_advanced.emit(edge.from_node, edge.to_node, edge.id)
-			density_shifted.emit(edge.to_node, graph.density.get(edge.to_node, 0.0))
-			return {"success": true, "verb": "E", "edge": edge.id, "advanced_to": edge.to_node}
-
-		_:
-			return {"success": false, "error": "unknown_verb", "verb": verb}
-
-
-# =============================================================================
 # QUESTMANAGER FIRING HOOK
 # =============================================================================
+
+## Called by QuestManager.connect_to_farm() — wires the arc lifecycle into StoryEngine.
+## Safe to call multiple times; signals are connected only once.
+func connect_to_farm_and_quests(farm, quest_manager) -> void:
+	_farm = farm
+	_quest_manager = quest_manager
+	if not quest_manager.story_flag_fired.is_connected(_on_story_flag_fired):
+		quest_manager.story_flag_fired.connect(_on_story_flag_fired)
+	if not quest_manager.quest_completed.is_connected(_on_arc_quest_completed):
+		quest_manager.quest_completed.connect(_on_arc_quest_completed)
+	_restore_arc_quests_after_load()
+
+
+## Receive a fired story flag: append beat, apply standing grants, offer arc quest,
+## then collapse density. This is the arc-lifecycle side of what QuestManager used to own.
+func _on_story_flag_fired(flag_id: String, flag_data: Dictionary) -> void:
+	# Beat text (conditional based on Village atoms when conditional_beat is set)
+	var beat := _resolve_arc_beat(flag_data)
+	# Story log
+	if _farm != null:
+		_farm.story_log.append({
+			"id": flag_id,
+			"act": int(flag_data.get("act", 0)),
+			"display_name": str(flag_data.get("display_name", flag_id)),
+			"arc_beat": beat,
+			"fired_at": Engine.get_physics_frames(),
+		})
+	# Standing grants
+	var grants: Dictionary = flag_data.get("standing_grants", {})
+	if _farm != null and not grants.is_empty():
+		for faction_name in grants:
+			_farm.apply_standing_deltas(faction_name, grants[faction_name])
+	# Arc quest — offer the live quest payload directly when the flag defines one.
+	var arc_quest = flag_data.get("arc_quest")
+	if arc_quest is Dictionary and not arc_quest.is_empty() and _quest_manager != null:
+		_quest_manager.offer_story_quest(arc_quest.duplicate(), flag_id)
+	# Density collapse + trajectory (existing method)
+	on_flag_fired(flag_id)
+
+
+func _resolve_arc_beat(flag_data: Dictionary) -> String:
+	var conditional: Array = flag_data.get("conditional_beat", [])
+	if conditional.is_empty():
+		return str(flag_data.get("arc_beat", ""))
+	if _farm != null and _farm.grid != null:
+		var biome = _farm.grid.get_biome("Village")
+		if biome != null and biome.get("quantum_computer"):
+			var reg = biome.quantum_computer.get("register_map")
+			if reg != null:
+				for entry in conditional:
+					var atom := str(entry.get("atom", ""))
+					if atom != "" and reg.coordinates.has(atom):
+						return str(entry.get("text", ""))
+	return str(flag_data.get("arc_beat", ""))
+
+
+## When any quest completes, check if it was an arc quest and advance graph density forward.
+func _on_arc_quest_completed(quest_id: int, _rewards: Dictionary) -> void:
+	if _quest_manager == null or graph == null:
+		return
+	var source_flag := ""
+	for q in _quest_manager.completed_quests:
+		if int(q.get("id", -1)) == quest_id:
+			source_flag = str(q.get("source_flag", ""))
+			break
+	if source_flag == "" or not graph.nodes.has(source_flag):
+		return
+	var successors: Array = graph.outgoing.get(source_flag, [])
+	if successors.is_empty():
+		return
+	var shift := 0.15 / float(successors.size())
+	for edge_id in successors:
+		var edge = graph.edges.get(edge_id)
+		if edge != null:
+			graph.shift_mass(source_flag, edge.to_node, shift)
+	graph.renormalize()
+	density_shifted.emit(source_flag, graph.density.get(source_flag, 0.0))
+
+
+## On reconnect after save/load: re-offer arc quests for already-fired flags
+## whose quests aren't yet in the quest manager (e.g. player dismissed or never saw them).
+func _restore_arc_quests_after_load() -> void:
+	if _farm == null or _quest_manager == null:
+		return
+	for flag_id in _farm.story_flags_fired:
+		if _quest_manager.has_quest_for_flag(flag_id):
+			continue
+		# Find the raw flag data from QuestManager's loaded flags
+		for flag_data in _quest_manager._story_flags:
+			if str(flag_data.get("id", "")) != flag_id:
+				continue
+			var arc_quest = flag_data.get("arc_quest")
+			if arc_quest is Dictionary and not arc_quest.is_empty():
+				_quest_manager.offer_story_quest(arc_quest.duplicate(), flag_id)
+			break
+
 
 ## Called by QuestManager._fire_story_flag(). Records system-driven advances
 ## into the trajectory log so we have a unified path through graph state.
@@ -210,31 +252,162 @@ func default_ui_focus() -> String:
 
 
 # =============================================================================
+# STORY COMPOSITION
+# =============================================================================
+
+## Canonical story conversation composer.
+## Returns { initial: {emoji -> weight}, transitions: {emoji -> {next -> weight}} }.
+static func compose_socialite_voice(
+	speaker_faction_name: String,
+	topic_node,
+	registry,
+	player_icons: Array = [],
+	recent_player_actions: Array = []
+) -> Dictionary:
+	var initial: Dictionary = {}
+	var transitions: Dictionary = {}
+
+	var speaker_faction = null
+	if registry != null and registry.has_method("get_by_name"):
+		speaker_faction = registry.get_by_name(speaker_faction_name)
+
+	if speaker_faction != null:
+		_apply_faction_voice(speaker_faction, CONV_BETA_SPEAKER, initial, transitions)
+
+	if topic_node != null:
+		_apply_topic_charge(topic_node, registry, CONV_ALPHA_TOPIC, initial, transitions)
+
+	if not player_icons.is_empty():
+		_apply_player_icons(player_icons, CONV_GAMMA_PLAYER, initial, transitions)
+
+	if not recent_player_actions.is_empty():
+		_apply_recent_player_actions(recent_player_actions, CONV_EPSILON_RECENT_ACTION, initial, transitions)
+
+	for emoji in initial:
+		if float(initial[emoji]) < CONV_VOCAB_FLOOR:
+			initial[emoji] = CONV_VOCAB_FLOOR
+
+	return {"initial": initial, "transitions": transitions}
+
+
+static func _apply_faction_voice(faction, weight: float, initial: Dictionary, transitions: Dictionary) -> void:
+	var cloud: Array = faction.cloud if "cloud" in faction and faction.cloud is Array else []
+	var icon_registry = _get_icon_registry()
+	var physics: Dictionary = {}
+	if icon_registry != null and icon_registry.has_method("get_signature_physics") and not cloud.is_empty():
+		physics = icon_registry.get_signature_physics(cloud)
+	var sig: Array = physics.get("sig", cloud)
+	var self_energies: Dictionary = physics.get("self_energies", {})
+	var hamiltonian: Dictionary = physics.get("hamiltonian", {})
+
+	for emoji in sig:
+		var se: float = float(self_energies.get(emoji, 0.0))
+		var w: float = weight * (0.3 + abs(se))
+		initial[emoji] = float(initial.get(emoji, 0.0)) + w
+
+	for source in hamiltonian:
+		var row: Dictionary = hamiltonian[source]
+		if not transitions.has(source):
+			transitions[source] = {}
+		for target in row:
+			var mag: float = _coupling_magnitude(row[target])
+			var existing: float = float(transitions[source].get(target, 0.0))
+			transitions[source][target] = existing + weight * (CONV_TRANSITION_FLOOR + mag)
+
+
+static func _apply_topic_charge(topic_node, registry, weight: float, initial: Dictionary, transitions: Dictionary) -> void:
+	var charge: Dictionary = topic_node.faction_charge() if topic_node.has_method("faction_charge") else {}
+	for faction_name in charge:
+		var c: float = float(charge[faction_name])
+		if c <= 0.0 or registry == null:
+			continue
+		var f = registry.get_by_name(faction_name)
+		if f == null:
+			continue
+		for emoji in f.cloud:
+			initial[emoji] = float(initial.get(emoji, 0.0)) + weight * c * 0.5
+		for source in f.cloud:
+			if not transitions.has(source):
+				transitions[source] = {}
+			for target in f.cloud:
+				if source == target:
+					continue
+				var existing: float = float(transitions[source].get(target, 0.0))
+				transitions[source][target] = existing + weight * c * CONV_TRANSITION_FLOOR
+
+
+static func _apply_player_icons(player_icons: Array, weight: float, initial: Dictionary, transitions: Dictionary) -> void:
+	for icon in player_icons:
+		var north: String = str(icon.get("north", ""))
+		var south: String = str(icon.get("south", ""))
+		if north != "":
+			initial[north] = float(initial.get(north, 0.0)) + weight * 0.5
+		if south != "":
+			initial[south] = float(initial.get(south, 0.0)) + weight * 0.5
+		if north != "" and south != "":
+			if not transitions.has(north):
+				transitions[north] = {}
+			if not transitions.has(south):
+				transitions[south] = {}
+			transitions[north][south] = float(transitions[north].get(south, 0.0)) + weight * 0.6
+			transitions[south][north] = float(transitions[south].get(north, 0.0)) + weight * 0.6
+
+
+static func _apply_recent_player_actions(recent: Array, weight: float, initial: Dictionary, transitions: Dictionary) -> void:
+	for emoji in recent:
+		var e := str(emoji)
+		if e == "":
+			continue
+		initial[e] = float(initial.get(e, 0.0)) + weight * 0.7
+		if not transitions.has(e):
+			transitions[e] = {}
+		transitions[e][e] = float(transitions[e].get(e, 0.0)) + weight * 0.2
+
+
+static func _get_icon_registry():
+	var ml := Engine.get_main_loop()
+	var local_registry = ml.root.get_node_or_null("/root/IconRegistry") if ml and ml.root else null
+	if local_registry and local_registry.has_method("rebuild_from_icons"):
+		local_registry.rebuild_from_icons()
+	return local_registry
+
+
+static func _coupling_magnitude(value) -> float:
+	if value is Vector2:
+		return value.length()
+	if value is Array and value.size() == 2:
+		var real: float = float(value[0])
+		var imag: float = float(value[1])
+		return sqrt(real * real + imag * imag)
+	return abs(float(value))
+
+
+# =============================================================================
 # PLAYER ICONS (the player faction's 3 active expression slots)
 # =============================================================================
 
-## Resolve player's 3 active icons via active_icon_slots → known_pairs[index].
-## Falls back to the first 3 known pairs if slot state is missing/invalid.
+## Resolve player's 3 active icons via active_icon_slots → known_icons[index].
+## Falls back to the first 3 known icons if slot state is missing/invalid.
 func _resolve_player_icons() -> Array:
 	var farm = InstrumentLocator.resolve_active_farm(self)
-	if farm == null or not farm.has_method("get_known_pairs"):
+	if farm == null or not farm.has_method("get_known_icons"):
 		return []
-	var pairs: Array = farm.get_known_pairs()
-	if pairs.is_empty():
+	var icons: Array = farm.get_known_icons()
+	if icons.is_empty():
 		return []
 	var slots: Array = []
 	if "active_icon_slots" in farm:
 		slots = farm.active_icon_slots
 	if slots.is_empty():
-		return pairs.slice(0, mini(3, pairs.size()))
-	var icons: Array = []
+		return icons.slice(0, mini(3, icons.size()))
+	var resolved: Array = []
 	for slot_idx in slots:
 		var i := int(slot_idx)
-		if i >= 0 and i < pairs.size():
-			icons.append(pairs[i])
-	if icons.is_empty():
-		icons = pairs.slice(0, mini(3, pairs.size()))
-	return icons
+		if i >= 0 and i < icons.size():
+			resolved.append(icons[i])
+	if resolved.is_empty():
+		resolved = icons.slice(0, mini(3, icons.size()))
+	return resolved
 
 
 ## Resolve farm-owned shared FactionRegistry.
@@ -248,14 +421,21 @@ func _resolve_shared_registry():
 
 
 # =============================================================================
-# H BACK-PROPAGATION (player Z-Story QERF → player faction Hamiltonian)
+# H BACK-PROPAGATION (player Z-Story QERF → player icon physics)
 # =============================================================================
 
-const PLAYER_FACTION_NAME := "The Demos"
+## Player's pinned faction name. Empty string means StoryEngine is being
+## called before _farm is wired (early boot / tests) or the pin field is
+## empty — callers must handle that. Source of truth is GameState; this
+## function never re-authors a default.
+func _get_player_faction_name() -> String:
+	if _farm == null or not _farm.has_method("get_pinned_faction_name"):
+		return ""
+	return _farm.get_pinned_faction_name()
 
 # Tunables for back-propagation magnitude.
 const BACK_PROP_ALIGNMENT_DELTA: float = 0.04   # Q/R per-press: alignment_couplings
-const BACK_PROP_PHASE_DELTA: float = PI / 8.0    # F per-press: hamiltonian imag part
+const BACK_PROP_PHASE_DELTA: float = PI / 8.0    # F per-press: phase shift
 const BACK_PROP_EXPRESS_MULTIPLIER: float = 2.5  # E commits stronger shift than Q/R/F
 
 ## Express the active icon onto a chatter line. Mutates the player faction
@@ -268,13 +448,14 @@ const BACK_PROP_EXPRESS_MULTIPLIER: float = 2.5  # E commits stronger shift than
 ##
 ## Q (Withdraw):  alignment_couplings[icon_emoji][chatter_emoji] -= δ  (cross-signature)
 ## R (Reinforce): alignment_couplings[icon_emoji][chatter_emoji] += δ
-## F (Harmonize): hamiltonian[icon_emoji_within_signature][icon_partner].y += phase_δ (in-signature only)
+## F (Harmonize): icon atom couplings gain phase; the shared atom registry is mutated,
+## not faction-level physics shards.
 ## E (Express):   stronger Q+R+F combo, plus persistent trajectory record + density nudge
 func express_icon_on_chatter(icon_idx: int, verb: String, chatter_emojis: Array, chatter_faction: String = "", chatter_topic_node: String = "") -> Dictionary:
 	var registry = _resolve_shared_registry()
 	if registry == null:
 		return {"success": false, "error": "no_registry"}
-	var faction = registry.get_by_name(PLAYER_FACTION_NAME)
+	var faction = registry.get_by_name(_get_player_faction_name())
 	if faction == null:
 		return {"success": false, "error": "no_player_faction"}
 
@@ -299,10 +480,10 @@ func express_icon_on_chatter(icon_idx: int, verb: String, chatter_emojis: Array,
 		"R":
 			_mutate_alignment(faction, icon_emojis, chatter_emojis, BACK_PROP_ALIGNMENT_DELTA)
 		"F":
-			_rotate_phase_within_signature(faction, icon_emojis, BACK_PROP_PHASE_DELTA)
+			_rotate_phase_within_signature(icon_emojis, BACK_PROP_PHASE_DELTA)
 		"E":
 			_mutate_alignment(faction, icon_emojis, chatter_emojis, BACK_PROP_ALIGNMENT_DELTA * multiplier)
-			_rotate_phase_within_signature(faction, icon_emojis, BACK_PROP_PHASE_DELTA * 0.5)
+			_rotate_phase_within_signature(icon_emojis, BACK_PROP_PHASE_DELTA * 0.5)
 		_:
 			return {"success": false, "error": "unknown_verb"}
 
@@ -362,8 +543,8 @@ func express_icon_on_chatter(icon_idx: int, verb: String, chatter_emojis: Array,
 
 # Cross-signature mutation: alignment_couplings[icon_e][chatter_e] += δ.
 # Both keys and values are free-form per the loader; we don't enforce signature
-# membership here because faction biomes (player faction = The Demos) often
-# have empty `signature` arrays — the hamiltonian's keys are the de-facto vocab.
+# membership here because neighborhoods (player faction = The Demos) often
+# have empty `signature` arrays — alignment couplings are the de-facto vocab.
 func _mutate_alignment(faction, icon_emojis: Array, chatter_emojis: Array, delta: float) -> void:
 	for ie in icon_emojis:
 		var key := str(ie)
@@ -383,36 +564,39 @@ func _mutate_alignment(faction, icon_emojis: Array, chatter_emojis: Array, delta
 # CONTRACT EXERCISE → PLAYER FACTION AFFINITY ROTATION
 # =============================================================================
 # Per design: contract fulfilment is the substrate of inter-faction interaction.
-# When a contract exercises, the player faction's AffinityGraph is mixed
+# When a contract exercises, the player faction's AlignmentGraph is mixed
 # (Lindblad jump) toward the seller faction's posture. Player → seller only;
 # the seller is unchanged. Rate scales with contract.cost_amount.
 #
 # Standings (6-channel) are NOT touched here — those stay quest-driven.
 
-const AFFINITY_BASE_RATE: float = 0.02       # baseline jump per exercise (cost_amount=0)
-const AFFINITY_COST_RATE_PER_UNIT: float = 0.005  # additional rate per cost unit
-const AFFINITY_MAX_RATE: float = 0.12        # hard cap per exercise
+const ALIGNMENT_BASE_RATE: float = 0.02       # baseline jump per exercise (cost_amount=0)
+const ALIGNMENT_COST_RATE_PER_UNIT: float = 0.005  # additional rate per cost unit
+const ALIGNMENT_MAX_RATE: float = 0.12        # hard cap per exercise
 
 
 ## Called by MarketLattice.exercise() on successful exercise.
 func on_contract_exercised(seller_faction_name: String, cost_amount: float = 0.0,
 		resource_emoji: String = "", biome_name: String = "") -> Dictionary:
-	if seller_faction_name == "" or seller_faction_name == PLAYER_FACTION_NAME:
+	var player_faction_name := _get_player_faction_name()
+	if seller_faction_name == "" or seller_faction_name == player_faction_name:
 		return {"success": false, "error": "no_seller_or_self"}
 	var registry = _resolve_shared_registry()
 	if registry == null:
 		return {"success": false, "error": "no_registry"}
-	var player_faction = registry.get_by_name(PLAYER_FACTION_NAME)
 	var seller_faction = registry.get_by_name(seller_faction_name)
-	if player_faction == null or seller_faction == null:
-		return {"success": false, "error": "faction_not_found"}
-	if player_faction.affinity == null or seller_faction.affinity == null:
-		return {"success": false, "error": "no_affinity_graph"}
+	if seller_faction == null or seller_faction.alignment == null:
+		return {"success": false, "error": "no_seller_affinity"}
+	var farm = InstrumentLocator.resolve_active_farm(self)
+	if farm == null or not farm.has_method("apply_player_trade_alignment"):
+		return {"success": false, "error": "no_farm"}
 	var rate: float = clampf(
-		AFFINITY_BASE_RATE + AFFINITY_COST_RATE_PER_UNIT * cost_amount,
-		0.0, AFFINITY_MAX_RATE
+		ALIGNMENT_BASE_RATE + ALIGNMENT_COST_RATE_PER_UNIT * cost_amount,
+		0.0, ALIGNMENT_MAX_RATE
 	)
-	player_faction.affinity.lindblad_jump_toward(seller_faction.affinity, rate)
+	# Routed through Farm: always tugs Farm.player_alignment; also tugs the
+	# pinned faction's affinity iff the player is attached.
+	farm.apply_player_trade_alignment(seller_faction.alignment, rate)
 	if trajectory != null:
 		trajectory.record({
 			"from_node": graph.argmax_node() if graph != null else "",
@@ -434,22 +618,25 @@ func on_contract_exercised(seller_faction_name: String, cost_amount: float = 0.0
 	return {"success": true, "seller": seller_faction_name, "rate": rate}
 
 
-# Phase rotation: rotate the imaginary part of any internal hamiltonian
-# coupling involving any of the icon's emojis (clamped to ±1). Operates on
-# whatever keys are actually present in faction.hamiltonian.
-func _rotate_phase_within_signature(faction, icon_emojis: Array, phase_delta: float) -> void:
-	for ie in icon_emojis:
-		var key := str(ie)
-		if key == "" or not faction.hamiltonian.has(key):
-			continue
-		for partner in faction.hamiltonian[key]:
-			var v = faction.hamiltonian[key][partner]
-			if v is Vector2:
-				faction.hamiltonian[key][partner] = Vector2(v.x, clampf(v.y + phase_delta, -1.0, 1.0))
+# Phase rotation: rotate the imaginary part of any internal atom coupling
+# involving any of the icon's emojis (clamped to ±1). Operates on the shared
+# IconRegistry singleton so the live session sees the phase shift.
+func _rotate_phase_within_signature(icon_emojis: Array, phase_delta: float) -> void:
+	var icon_registry = _resolve_icon_registry()
+	if icon_registry == null or not icon_registry.has_method("rotate_phase_for_emojis"):
+		return
+	icon_registry.rotate_phase_for_emojis(icon_emojis, phase_delta)
+
+
+func _resolve_icon_registry():
+	var local_registry = get_node_or_null("/root/IconRegistry")
+	if local_registry.has_method("rebuild_from_icons"):
+		local_registry.rebuild_from_icons()
+	return local_registry
 
 
 # =============================================================================
-# PHASE 2: PLAYER ACTION MEMORY (Icon-hat → conversation Hamiltonian)
+# PHASE 2: PLAYER ACTION MEMORY (Icon-hat → conversation substrate)
 # =============================================================================
 
 ## Called by Icon-hat actions (inject/remove/incorporate/Berry-ripe).
@@ -528,7 +715,7 @@ func _decay_recent_player_actions() -> void:
 
 func _ticks_now() -> int:
 	# Substrate ticks at 1 Hz; phrame_index/60 is a close proxy.
-	return int(Engine.get_physics_frames() / 60)
+	return int(float(Engine.get_physics_frames()) / 60.0)
 
 
 # =============================================================================

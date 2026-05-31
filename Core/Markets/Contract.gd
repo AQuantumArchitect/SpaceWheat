@@ -27,7 +27,7 @@ var qubit_pole: int = 1             # pole that pays player on measurement (1 = 
 var offer_phrame: int = 0
 var expiry_phrame: int = 0
 var price_paid: float = 0.0         # cost_amount actually paid at buy() time (denominated in cost_emoji)
-var cost_emoji: String = ""         # commodity that buyer pays in (e.g. "🌾", "🧂"); empty = legacy/free
+var cost_emoji: String = ""         # commodity buyer pays in (e.g. "🌾", "🧂"); empty → settle pays in the deliverable resource itself (see MarketLattice._settle)
 var cost_amount: float = 0.0        # how much of cost_emoji is required
 var status: String = STATUS_OPEN
 
@@ -71,6 +71,54 @@ func to_dict() -> Dictionary:
 		"cost_emoji": cost_emoji,
 		"cost_amount": cost_amount,
 		"status": status,
+	}
+
+
+func to_quest_offer_dict() -> Dictionary:
+	## Project the live market contract into the quest-board shape.
+	##
+	## This is a view/projection only; the contract record remains the authority.
+	var pair_a: String = str(get_meta("pair_a", "")) if has_meta("pair_a") else ""
+	var pair_b: String = str(get_meta("pair_b", "")) if has_meta("pair_b") else ""
+	var tension: float = float(get_meta("tension", 0.0)) if has_meta("tension") else 0.0
+	var shared: bool = bool(get_meta("shared", false)) if has_meta("shared") else false
+	var qty: int = max(1, int(round(cost_amount)))
+	return {
+		"id": id,
+		"status": "offered",
+		"biome": biome_name,
+		"biome_name": biome_name,
+		"faction": faction,
+		"resource": resource,
+		"quantity": qty,
+		"reward_resources": {resource: qty},
+		"reward_multiplier": 1.0,
+		"market_projection": {
+			"resource": resource,
+			"base_cost": qty,
+			"effective_cost": qty,
+			"multiplier": 1.0 + tension,
+			"market_score": tension,
+			"directional_edge": tension,
+			"scarcity": 1.0 - tension,
+			"alignment": 1.0 if shared else 0.0,
+		},
+		"_alignment": 1.0 if shared else 0.0,
+		"_intensity": tension,
+		"_complexity": 0.5,
+		"_urgency": tension,
+		"_variety": 0.5,
+		"body": "%s ⊗ %s · deliver %s · pay ~%.1f %s in %s" % [pair_a, pair_b, resource, float(cost_amount), cost_emoji, biome_name],
+		"full_text": "%s offers %s on %s. Pay ~%.2f %s (stochastic round). Exercise pops the qubit. Tension %.3f." % [
+			faction, resource, biome_name, float(cost_amount), cost_emoji, tension
+		],
+		"source": "market_lattice_pair",
+		"market_offer_id": id,
+		"pair_a": pair_a,
+		"pair_b": pair_b,
+		"tension": tension,
+		"cost_emoji": cost_emoji,
+		"cost_amount": cost_amount,
 	}
 
 

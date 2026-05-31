@@ -23,16 +23,15 @@ const BASE_REFERENCE_RADIUS = 300.0
 
 
 func compute_layout(biomes: Dictionary, new_viewport_size: Vector2, active_biome: String = "") -> Dictionary:
-	"""Compute all biome ovals from configs and viewport size
+	# Compute all biome ovals from configs and viewport size
 
-	Args:
-		biomes: Dictionary of biome_name → BiomeBase instances
-		new_viewport_size: Current viewport dimensions
-		active_biome: If set, center this biome on screen (single-biome view)
+	# Args:
+	# biomes: Dictionary of biome_name → BiomeBase instances
+	# new_viewport_size: Current viewport dimensions
+	# active_biome: If set, center this biome on screen (single-biome view)
 
-	Returns:
-		Dictionary of biome_name → oval config
-	"""
+	# Returns:
+	# Dictionary of biome_name → oval config
 	# CRITICAL: Separate actual viewport size from layout reference size
 	# - Actual viewport determines CENTER position AND positioning radius (where to draw)
 	# - Reference size determines SCALE (how big to draw)
@@ -61,7 +60,7 @@ func compute_layout(biomes: Dictionary, new_viewport_size: Vector2, active_biome
 		if not biome:
 			continue
 
-		var config = biome.get_visual_config() if biome.has_method("get_visual_config") else {}
+		var config = biome.get_visual_config()
 
 		# Extract config values with defaults
 		var center_offset = config.get("center_offset", Vector2.ZERO)
@@ -117,21 +116,20 @@ func compute_layout(biomes: Dictionary, new_viewport_size: Vector2, active_biome
 
 
 func get_biome_oval(biome_name: String) -> Dictionary:
-	"""Get cached oval config for a biome"""
+	# Get cached oval config for a biome
 	return biome_ovals.get(biome_name, {})
 
 
 func get_parametric_position(biome_name: String, t: float, ring: float) -> Vector2:
-	"""Convert parametric coordinates to absolute screen position
+	# Convert parametric coordinates to absolute screen position
 
-	Args:
-		biome_name: Which biome's oval to use
-		t: Angular parameter [0, 1] → angle around oval
-		ring: Radial parameter [0, 1] → distance from center (0=center, 1=edge)
+	# Args:
+	# biome_name: Which biome's oval to use
+	# t: Angular parameter [0, 1] → angle around oval
+	# ring: Radial parameter [0, 1] → distance from center (0=center, 1=edge)
 
-	Returns:
-		Absolute screen position within the biome's oval
-	"""
+	# Returns:
+	# Absolute screen position within the biome's oval
 	var oval = biome_ovals.get(biome_name, {})
 	if oval.is_empty():
 		return graph_center  # Fallback to center
@@ -153,11 +151,10 @@ func get_parametric_position(biome_name: String, t: float, ring: float) -> Vecto
 
 
 func update_node_positions(nodes: Array) -> void:
-	"""Update all node anchors from their parametric coordinates
+	# Update all node anchors from their parametric coordinates
 
-	Args:
-		nodes: Array of QuantumNode instances with biome_name, parametric_t, parametric_ring
-	"""
+	# Args:
+	# nodes: Array of QuantumNode instances with biome_name, parametric_t, parametric_ring
 	for node in nodes:
 		if not node:
 			continue
@@ -183,20 +180,19 @@ func update_node_positions(nodes: Array) -> void:
 		node.velocity = Vector2.ZERO
 
 
-func distribute_nodes_in_biome(biome_name: String, count: int, seed_offset: int = 0) -> Array:
-	"""Generate evenly distributed parametric positions for nodes in a biome
+func distribute_nodes_in_biome(_biome_name: String, count: int, seed_offset: int = 0) -> Array:
+	# Generate evenly distributed parametric positions for nodes in a biome
 
-	Uses hexagonal layout for 6 plots (single-biome view).
-	Falls back to golden angle for other counts.
+	# Uses hexagonal layout for 6 plots (single-biome view).
+	# Falls back to golden angle for other counts.
 
-	Args:
-		biome_name: Which biome to distribute in
-		count: Number of positions to generate
-		seed_offset: Offset for reproducible placement
+	# Args:
+	# biome_name: Which biome to distribute in
+	# count: Number of positions to generate
+	# seed_offset: Offset for reproducible placement
 
-	Returns:
-		Array of {t: float, ring: float} parametric coordinates
-	"""
+	# Returns:
+	# Array of {t: float, ring: float} parametric coordinates
 	# Use hexagonal layout for 6 plots (standard single-biome view)
 	if count == 6:
 		return distribute_nodes_hexagonal()
@@ -218,19 +214,18 @@ func distribute_nodes_in_biome(biome_name: String, count: int, seed_offset: int 
 
 
 func get_hex_screen_positions() -> Array[Vector2]:
-	"""Get FIXED hex screen positions for 6 plots (SINGLE source of truth for hex layout)
+	# Get FIXED hex screen positions for 6 plots (SINGLE source of truth for hex layout)
 
-	Returns absolute screen positions in hex pattern, centered on screen.
-	All biomes use the SAME hex size with 1.67:1 aspect ratio (wider than tall).
+	# Returns absolute screen positions in hex pattern, centered on screen.
+	# All biomes use the SAME hex size with 1.67:1 aspect ratio (wider than tall).
 
-	Layout (positions at 60° intervals, starting from top):
+	# Layout (positions at 60° intervals, starting from top):
 
-	        [0] ← top
-	    [5]     [1]
+	# [0] ← top
+	# [5]     [1]
 
-	    [4]     [2]
-	        [3] ← bottom
-	"""
+	# [4]     [2]
+	# [3] ← bottom
 	var positions: Array[Vector2] = []
 
 	# Fixed hex dimensions relative to viewport (consistent across all biomes)
@@ -252,19 +247,18 @@ func get_hex_screen_positions() -> Array[Vector2]:
 
 
 func distribute_nodes_hexagonal() -> Array:
-	"""Generate hexagonal positions for 6 plots
+	# Generate hexagonal positions for 6 plots
 
-	Positions at 60° intervals, starting from top (12 o'clock):
+	# Positions at 60° intervals, starting from top (12 o'clock):
 
-	        [0] ← top
-	    [5]     [1]
+	# [0] ← top
+	# [5]     [1]
 
-	    [4]     [2]
-	        [3] ← bottom
+	# [4]     [2]
+	# [3] ← bottom
 
-	Returns:
-		Array of {t: float, ring: float} parametric coordinates
-	"""
+	# Returns:
+	# Array of {t: float, ring: float} parametric coordinates
 	var positions: Array = []
 
 	for i in range(6):
@@ -285,7 +279,7 @@ func distribute_nodes_hexagonal() -> Array:
 
 
 func is_point_in_biome(point: Vector2, biome_name: String) -> bool:
-	"""Check if a screen point is inside a biome's oval"""
+	# Check if a screen point is inside a biome's oval
 	var oval = biome_ovals.get(biome_name, {})
 	if oval.is_empty():
 		return false
@@ -303,7 +297,7 @@ func is_point_in_biome(point: Vector2, biome_name: String) -> bool:
 
 
 func get_biomes_at_point(point: Vector2) -> Array:
-	"""Get all biomes whose ovals contain a screen point (for overlap detection)"""
+	# Get all biomes whose ovals contain a screen point (for overlap detection)
 	var result: Array = []
 	for biome_name in biome_ovals:
 		if is_point_in_biome(point, biome_name):
@@ -312,7 +306,7 @@ func get_biomes_at_point(point: Vector2) -> Array:
 
 
 func debug_info() -> String:
-	"""Return debug string with current layout state"""
+	# Return debug string with current layout state
 	var lines: Array = ["BiomeLayoutCalculator:"]
 	lines.append("  viewport=%s center=%s radius=%.0f" % [viewport_size, graph_center, graph_radius])
 

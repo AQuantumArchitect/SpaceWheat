@@ -11,9 +11,6 @@ extends RefCounted
 ## - QuantumInstrumentInput for pre-execution validation
 
 const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
-const ActionCostRuntime = preload("res://Core/GameMechanics/ActionCostRuntime.gd")
-const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
-const IconUtils = preload("res://Core/Gameplay/IconUtils.gd")
 
 
 ## ============================================================================
@@ -29,24 +26,21 @@ static func can_execute_action(
 	selected_plots: Array[Vector2i],
 	current_selection: Vector2i
 ) -> bool:
-	"""Check if action for given key can succeed with current selection.
+	# Check if action for given key can succeed with current selection.
 
-	Uses any-valid strategy: returns true if at least 1 plot can succeed.
+	# Uses any-valid strategy: returns true if at least 1 plot can succeed.
 
-	Args:
-		action_key: "Q", "E", or "R"
-		current_tool: Active archetype frame name (String) or legacy
-			tool group number (int). Both flow through ToolConfig's
-			Variant-accepting lookup methods.
-		current_submenu: Active submenu name (empty = no submenu)
-		cached_submenu: Cached submenu data for dynamic menus
-		farm: Farm instance
-		selected_plots: Currently selected plot positions
-		current_selection: Cursor position
+	# Args:
+	# action_key: "Q", "E", or "R"
+	# current_tool: Active archetype frame name (String).
+	# current_submenu: Active submenu name (empty = no submenu)
+	# cached_submenu: Cached submenu data for dynamic menus
+	# farm: Farm instance
+	# selected_plots: Currently selected plot positions
+	# current_selection: Cursor position
 
-	Returns:
-		bool: true if action would succeed on at least one selected plot
-	"""
+	# Returns:
+	# bool: true if action would succeed on at least one selected plot
 	if current_submenu != "":
 		return _can_execute_submenu_action(
 			action_key, current_submenu, cached_submenu, farm, selected_plots
@@ -63,7 +57,7 @@ static func can_execute_action_name(
 	selected_plots: Array[Vector2i],
 	current_selection: Vector2i
 ) -> bool:
-	"""Check if a specific action name can succeed (bypasses ToolConfig lookup)."""
+	# Check if a specific action name can succeed (bypasses ToolConfig lookup).
 	match action_name:
 		"explore":
 			return _can_execute_explore(farm, current_selection)
@@ -71,10 +65,10 @@ static func can_execute_action_name(
 			return _can_execute_measure(farm, selected_plots)
 		"pop", "reap":
 			return _can_execute_pop(farm, selected_plots)
-		"inject_vocabulary":
-			return _can_execute_inject_vocabulary(farm, current_selection)
-		"remove_vocabulary":
-			return _can_execute_remove_vocabulary(farm, current_selection)
+		"inject_icon":
+			return _can_execute_inject_icon(farm, current_selection)
+		"remove_icon":
+			return _can_execute_remove_icon(farm, current_selection)
 		"discover_biome":
 			return _can_execute_discover_biome(farm)
 		"remove_biome":
@@ -96,7 +90,7 @@ static func _can_execute_tool_action(
 	selected_plots: Array[Vector2i],
 	current_selection: Vector2i
 ) -> bool:
-	"""Check if tool action can succeed (not in submenu)."""
+	# Check if tool action can succeed (not in submenu).
 	if action_key == "F" and ToolConfig.has_explicit_f_action(current_tool):
 		return true
 
@@ -109,7 +103,7 @@ static func _can_execute_tool_action(
 	# Route to specific validation based on action type
 	match action:
 		# ═══════════════════════════════════════════════════════════════
-		# PROBE Tool (Tool 1) - Core gameplay loop
+		# Ace frame — probe/explore/harvest core gameplay loop
 		# ═══════════════════════════════════════════════════════════════
 		"explore":
 			return _can_execute_explore(farm, current_selection)
@@ -119,7 +113,7 @@ static func _can_execute_tool_action(
 			return _can_execute_pop(farm, selected_plots)
 
 		# ═══════════════════════════════════════════════════════════════
-		# GATES Tool (Tool 2) - 1-qubit gates
+		# Druid frame — 1-qubit unitary gates
 		# ═══════════════════════════════════════════════════════════════
 		"rotate_down", "rotate_up", "hadamard":
 			return true  # Available if plots selected
@@ -129,7 +123,7 @@ static func _can_execute_tool_action(
 			return true  # Available if plots selected
 
 		# ═══════════════════════════════════════════════════════════════
-		# ENTANGLE Tool (Tool 3) - 2-qubit gates
+		# Operator frame — 2-qubit entangling gates
 		# ═══════════════════════════════════════════════════════════════
 		"build_gate":
 			return selected_plots.size() >= 2  # Need 2+ plots for Bell/cluster
@@ -171,10 +165,10 @@ static func _can_execute_tool_action(
 		# ═══════════════════════════════════════════════════════════════
 		# TOOL 4 META / SYSTEM ACTIONS
 		# ═══════════════════════════════════════════════════════════════
-		"inject_vocabulary":
-			return _can_execute_inject_vocabulary(farm, current_selection)
-		"remove_vocabulary":
-			return _can_execute_remove_vocabulary(farm, current_selection)
+		"inject_icon":
+			return _can_execute_inject_icon(farm, current_selection)
+		"remove_icon":
+			return _can_execute_remove_icon(farm, current_selection)
 		"discover_biome":
 			return _can_execute_discover_biome(farm)
 		"remove_biome":
@@ -198,11 +192,10 @@ static func _can_execute_tool_action(
 ## ============================================================================
 
 static func _can_execute_explore(farm, current_selection: Vector2i) -> bool:
-	"""Check if EXPLORE action is available (PROBE Tool 1).
+	# Check if EXPLORE action is available (Ace frame — probe/explore).
 
-	EXPLORE binds an unbound terminal to a register in the current biome.
-	Available when: unbound terminals exist AND biome has unbound registers.
-	"""
+	# EXPLORE binds an unbound terminal to a register in the current biome.
+	# Available when: unbound terminals exist AND biome has unbound registers.
 	var terminal_pool = farm.get("terminal_pool") if farm else null
 	if not terminal_pool:
 		return false
@@ -213,11 +206,10 @@ static func _can_execute_explore(farm, current_selection: Vector2i) -> bool:
 
 
 static func _can_execute_measure(farm, selected_plots: Array[Vector2i]) -> bool:
-	"""Check if MEASURE action is available (PROBE Tool 1).
+	# Check if MEASURE action is available (Ace frame — probe/measure).
 
-	MEASURE collapses an active terminal (bound but not measured).
-	Available when: active terminal exists at any selected position.
-	"""
+	# MEASURE collapses an active terminal (bound but not measured).
+	# Available when: active terminal exists at any selected position.
 	var terminal_pool = farm.get("terminal_pool") if farm else null
 	if not terminal_pool:
 		return false
@@ -237,11 +229,10 @@ static func _can_execute_measure(farm, selected_plots: Array[Vector2i]) -> bool:
 
 
 static func _can_execute_pop(farm, selected_plots: Array[Vector2i]) -> bool:
-	"""Check if POP action is available (PROBE Tool 1).
+	# Check if POP action is available (Ace frame — probe/harvest).
 
-	POP harvests a measured terminal and unbinds it.
-	Available when: measured terminal exists at any selected position.
-	"""
+	# POP harvests a measured terminal and unbinds it.
+	# Available when: measured terminal exists at any selected position.
 	if not farm:
 		return false
 
@@ -270,7 +261,7 @@ static func _can_execute_submenu_action(
 	farm,
 	selected_plots: Array[Vector2i]
 ) -> bool:
-	"""Check if submenu action can succeed."""
+	# Check if submenu action can succeed.
 	if selected_plots.is_empty():
 		return false
 
@@ -308,7 +299,7 @@ static func _can_execute_submenu_action(
 ## ============================================================================
 
 static func has_active_terminal_at(farm, pos: Vector2i) -> bool:
-	"""Check if there's an active (bound but not measured) terminal at position."""
+	# Check if there's an active (bound but not measured) terminal at position.
 	var grid = farm.get("grid") if farm else null
 	var plot = grid.get_plot(pos) if grid else null
 	var terminal = plot.terminal if plot else null
@@ -316,15 +307,15 @@ static func has_active_terminal_at(farm, pos: Vector2i) -> bool:
 
 
 static func has_measured_terminal_at(farm, pos: Vector2i) -> bool:
-	"""Check if there's a measured terminal at position."""
+	# Check if there's a measured terminal at position.
 	var grid = farm.get("grid") if farm else null
 	var plot = grid.get_plot(pos) if grid else null
 	var terminal = plot.terminal if plot else null
 	return terminal != null and terminal.can_pop()
 
 
-static func _can_execute_inject_vocabulary(farm, current_selection: Vector2i) -> bool:
-	"""Check if there is at least one icon not yet in the biome."""
+static func _can_execute_inject_icon(farm, current_selection: Vector2i) -> bool:
+	# Check if there is at least one icon not yet in the biome.
 	var grid = farm.get("grid") if farm else null
 	if not grid:
 		return false
@@ -337,18 +328,18 @@ static func _can_execute_inject_vocabulary(farm, current_selection: Vector2i) ->
 	if _get_qubit_count(biome) >= ActionCostRuntime.get_max_biome_qubits(farm):
 		return false
 
-	var pairs = IconUtils.collect_injectable_pairs(farm, biome)
-	if pairs.is_empty():
+	var icons = _collect_injectable_icons(farm, biome)
+	if icons.is_empty():
 		return false
 		
-	# Check affordability for at least the first candidate pair
-	var first_pair = pairs[0]
-	var gate = ActionCostRuntime.preflight_action(farm, "inject_vocabulary", {"south_emoji": first_pair.get("south", "")})
+	# Check affordability for at least the first candidate icon.
+	var first_icon = icons[0]
+	var gate = ActionCostRuntime.preflight_action(farm, "inject_icon", {"south_emoji": first_icon.get("south", "")})
 	return bool(gate.get("ok", false))
 
 
 static func _can_execute_icon_assign(farm, selected_plots: Array[Vector2i], action: String) -> bool:
-	"""Check if icon assignment can succeed for this emoji."""
+	# Check if icon assignment can succeed for this emoji.
 	var grid = farm.get("grid") if farm else null
 	if not grid or selected_plots.is_empty():
 		return false
@@ -357,15 +348,15 @@ static func _can_execute_icon_assign(farm, selected_plots: Array[Vector2i], acti
 	if emoji == "":
 		return false
 
-	if not farm.has_method("get_pair_for_emoji"):
+	if not farm.has_method("get_icon_for_emoji"):
 		return false
 
-	var pair = farm.get_pair_for_emoji(emoji)
-	if not pair:
+	var icon = farm.get_icon_for_emoji(emoji)
+	if not icon:
 		return false
 
-	var north = pair.get("north", "")
-	var south = pair.get("south", "")
+	var north = icon.get("north", "")
+	var south = icon.get("south", "")
 	if north == "" or south == "":
 		return false
 
@@ -377,14 +368,14 @@ static func _can_execute_icon_assign(farm, selected_plots: Array[Vector2i], acti
 	if _get_qubit_count(biome) >= ActionCostRuntime.get_max_biome_qubits(farm):
 		return false
 
-	if IconUtils.biome_has_emoji(biome, north):
+	if biome.viz_cache and biome.viz_cache.has_metadata() and biome.viz_cache.get_qubit(north) >= 0:
 		return false
-	if IconUtils.biome_has_emoji(biome, south):
+	if biome.viz_cache and biome.viz_cache.has_metadata() and biome.viz_cache.get_qubit(south) >= 0:
 		return false
 
 	return true
-static func _can_execute_remove_vocabulary(farm, current_selection: Vector2i) -> bool:
-	"""Check if there is at least 2 qubits (minimum to remove one) and player can afford it."""
+static func _can_execute_remove_icon(farm, current_selection: Vector2i) -> bool:
+	# Check if there is at least 2 qubits (minimum to remove one) and player can afford it.
 	var grid = farm.get("grid") if farm else null
 	if not grid or not farm.get("economy"):
 		return false
@@ -398,12 +389,12 @@ static func _can_execute_remove_vocabulary(farm, current_selection: Vector2i) ->
 	if _get_qubit_count(biome) < 2:
 		return false
 
-	var gate = ActionCostRuntime.preflight_action(farm, "remove_vocabulary")
+	var gate = ActionCostRuntime.preflight_action(farm, "remove_icon")
 	return bool(gate.get("ok", false))
 
 
 static func _can_execute_discover_biome(farm) -> bool:
-	"""Check if player can afford to explore a new biome."""
+	# Check if player can afford to explore a new biome.
 	if not farm:
 		return false
 	var economy = farm.get("economy")
@@ -419,7 +410,7 @@ static func _can_execute_discover_biome(farm) -> bool:
 
 
 static func _can_execute_remove_biome(farm) -> bool:
-	"""Check if the currently active biome can be liquidated and removed."""
+	# Check if the currently active biome can be liquidated and removed.
 	if not farm:
 		return false
 	if farm.has_method("can_remove_biome"):
@@ -436,3 +427,31 @@ static func _get_qubit_count(biome) -> int:
 		if count > 0:
 			return count
 	return 0
+
+
+static func _collect_known_icons(farm_ref) -> Array:
+	if farm_ref and farm_ref.has_method("get_known_icons"):
+		return farm_ref.get_known_icons()
+	return []
+
+
+static func _collect_injectable_icons(farm_ref, biome = null) -> Array:
+	var known = _collect_known_icons(farm_ref)
+	var filtered: Array = []
+	var seen: Dictionary = {}
+	for icon in known:
+		if not (icon is Dictionary):
+			continue
+		var north = str(icon.get("north", ""))
+		var south = str(icon.get("south", ""))
+		if north == "" or south == "" or north == south:
+			continue
+		if biome and biome.viz_cache and biome.viz_cache.has_metadata():
+			if biome.viz_cache.get_qubit(north) >= 0 or biome.viz_cache.get_qubit(south) >= 0:
+				continue
+		var key = "%s|%s" % [north, south]
+		if seen.has(key):
+			continue
+		seen[key] = true
+		filtered.append({"north": north, "south": south})
+	return filtered

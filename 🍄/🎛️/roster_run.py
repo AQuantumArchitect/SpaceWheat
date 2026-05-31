@@ -30,7 +30,7 @@ def _project_root() -> Path:
 
 
 def _cleanup_stale() -> None:
-    cleanup_process_patterns(["milk_hunt_runner.py", "Tests/rig_listener.gd"])
+    cleanup_process_patterns(["milk_hunt_runner.py", "Rig/rig_listener.gd"])
 
 
 def seed_character(
@@ -119,7 +119,7 @@ def score_character(summary: Dict[str, Any], max_loops: int) -> Dict[str, Any]:
     """Compute composite score for a character run."""
     found_milk = bool(summary.get("found_milk", False))
     loops = int(summary.get("loops_completed", 0) or 0)
-    pairs = int(summary.get("known_pairs_count", 0) or 0)
+    icons = int(summary.get("known_icons_count", 0) or 0)
     biomes = len(summary.get("biome_discovery_order", []) or [])
     action_counts = summary.get("policy_action_counts", {}) or {}
     total_actions = sum(action_counts.values()) or 1
@@ -138,7 +138,7 @@ def score_character(summary: Dict[str, Any], max_loops: int) -> Dict[str, Any]:
     speed_score = max(0.0, 1.0 - loops / (max_loops * 2.0)) if found_milk else 0.0
 
     # Vocabulary breadth
-    vocab_score = min(1.0, pairs / 15.0)
+    vocab_score = min(1.0, icons / 15.0)
 
     # Action diversity
     diversity_score = min(1.0, entropy / 2.5)
@@ -301,7 +301,7 @@ def main() -> None:
         # Score
         found_milk = bool(summary.get("found_milk", False))
         loops = summary.get("loops_completed", "?")
-        pairs = int(summary.get("known_pairs_count", 0) or 0)
+        icons = int(summary.get("known_icons_count", 0) or 0)
         action_pct = summary.get("policy_action_pct", {})
         quest_pct = action_pct.get("quest_cycle", 0) * 100
 
@@ -309,7 +309,7 @@ def main() -> None:
         step_stats = extract_step_stats(summary)
 
         milk_str = "MILK!" if found_milk else "no milk"
-        print(f"[{char_name}] {milk_str}  loops={loops}  pairs={pairs}  "
+        print(f"[{char_name}] {milk_str}  loops={loops}  icons={icons}  "
               f"quest={quest_pct:.0f}%  score={score['composite']:.3f}  ({elapsed:.0f}s)", flush=True)
 
         if step_stats:
@@ -331,7 +331,7 @@ def main() -> None:
             "status": "ok",
             "found_milk": found_milk,
             "loops": loops,
-            "pairs": pairs,
+            "icons": icons,
             "quest_pct": round(quest_pct, 1),
             "elapsed_s": round(elapsed, 1),
             "score": score,
@@ -350,18 +350,18 @@ def main() -> None:
     composites = [r["score"]["composite"] for r in results]
     roster_score = sum(composites) / len(composites) if composites else 0.0
 
-    print(f"{'Slot':>5s} {'Name':<25s} {'Milk':>5s} {'Loops':>6s} {'Pairs':>6s} "
+    print(f"{'Slot':>5s} {'Name':<25s} {'Milk':>5s} {'Loops':>6s} {'Icons':>6s} "
           f"{'Quest%':>7s} {'Score':>6s} {'Time':>6s}", flush=True)
     print("-" * 72, flush=True)
     for r in results:
         name = r["name"][:24]
         milk_s = "YES" if r.get("found_milk") else ("--" if r["status"] != "ok" else "no")
         loops_s = str(r.get("loops", "--"))
-        pairs_s = str(r.get("pairs", "--"))
+        icons_s = str(r.get("icons", "--"))
         quest_s = f"{r.get('quest_pct', 0):.0f}%" if r["status"] == "ok" else "--"
         score_s = f"{r['score']['composite']:.3f}"
         time_s = f"{r.get('elapsed_s', 0):.0f}s" if "elapsed_s" in r else "--"
-        print(f"{r['slot']:>5d} {name:<25s} {milk_s:>5s} {loops_s:>6s} {pairs_s:>6s} "
+        print(f"{r['slot']:>5d} {name:<25s} {milk_s:>5s} {loops_s:>6s} {icons_s:>6s} "
               f"{quest_s:>7s} {score_s:>6s} {time_s:>6s}", flush=True)
 
     print(f"\nRoster score: {roster_score:.4f}  "

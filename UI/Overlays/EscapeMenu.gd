@@ -21,38 +21,30 @@ extends "res://UI/Core/Surface.gd"
 ## frame_ids = [run, save_load, new_game, accessibility, dev] — one per tab.
 
 signal resume_pressed()
-signal save_pressed()
-signal load_pressed()
-signal music_volume_changed(volume: float)
 
-const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
-const BiomeRegistry = preload("res://Core/Biomes/BiomeRegistry.gd")
-const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
-
-enum Tab { RUN, KEEP, NEW, LEVELS, DEV, VERBS }
+enum Tab { RUN, KEEP, NEW, DEV }
 
 enum PendingAction {
 	NONE,
 	QUIT,
 	RESTART,
 	DEV_RESTART,
-	RESET_SETTINGS,
 }
 
-# Tab row — TYUIOP slots. We use T Y U I O.
+# Tab row — TYUIOP slots. We bind T/Y/U/O; I and P are honestly empty
+# under the under-fill policy in KEYBOARD_GRAMMAR.md (Verbs reference
+# moved to X/Guide; LEVELS retired into ZBalance).
 const TAB_ROW := [
-	{"key": "T", "tab": Tab.RUN,   "name": "Now",   "frame": "run"},
-	{"key": "Y", "tab": Tab.KEEP,  "name": "Save",  "frame": "save_load"},
-	{"key": "U", "tab": Tab.NEW,   "name": "New",   "frame": "new_game"},
-	{"key": "I", "tab": Tab.VERBS, "name": "Verbs", "frame": "verbs"},
-	{"key": "O", "tab": Tab.DEV,   "name": "Dev",   "frame": "dev"},
+	{"key": "T", "tab": Tab.RUN,   "name": "Now",  "frame": "run"},
+	{"key": "Y", "tab": Tab.KEEP,  "name": "Save", "frame": "save_load"},
+	{"key": "U", "tab": Tab.NEW,   "name": "New",  "frame": "new_game"},
+	{"key": "O", "tab": Tab.DEV,   "name": "Dev",  "frame": "dev"},
 ]
 
 const TAB_BY_KEYCODE := {
 	KEY_T: Tab.RUN,
 	KEY_Y: Tab.KEEP,
 	KEY_U: Tab.NEW,
-	KEY_I: Tab.VERBS,
 	KEY_O: Tab.DEV,
 }
 
@@ -84,60 +76,27 @@ const DEFAULT_RUN_SCENARIO_ID := "demos_normal"
 
 const SCENARIO_LIST := [
 	{"id": "demos_normal",  "label": "The Demos",      "desc": "default start"},
-	{"id": "new_game_easy", "label": "Easy Farm (dev)", "desc": "legacy artifact"},
+	{"id": "new_game_easy", "label": "Easy Farm",      "desc": "starter scenario"},
 ]
-const VOLUME_STEP := 0.05
-const DEFAULT_VOLUME := 0.7
-
-# Flattened settings list — one row per GHJKL; key, across categories.
-# Today only music_volume is wired. Unwired stubs are omitted from the row
-# rather than shown disabled, so the list is never misleading.
-const SETTINGS_ROW := [
-	{"id": "music_volume", "label": "Music volume", "category": "Audio"},
-]
-
 const FRAME_RUN := "run"
 const FRAME_SAVE_LOAD := "save_load"
 const FRAME_NEW_GAME := "new_game"
-const FRAME_ACCESSIBILITY := "accessibility"  # orphan: kept for music_volume signal continuity
-const FRAME_VERBS := "verbs"
 const FRAME_DEV := "dev"
 
 const TAB_TO_FRAME := {
 	Tab.RUN: FRAME_RUN,
 	Tab.KEEP: FRAME_SAVE_LOAD,
 	Tab.NEW: FRAME_NEW_GAME,
-	Tab.LEVELS: FRAME_ACCESSIBILITY,  # orphan
-	Tab.VERBS: FRAME_VERBS,
 	Tab.DEV: FRAME_DEV,
 }
 const FRAME_TO_TAB := {
 	FRAME_RUN: Tab.RUN,
 	FRAME_SAVE_LOAD: Tab.KEEP,
 	FRAME_NEW_GAME: Tab.NEW,
-	FRAME_ACCESSIBILITY: Tab.LEVELS,  # orphan
-	FRAME_VERBS: Tab.VERBS,
 	FRAME_DEV: Tab.DEV,
 }
 
-# Verbs tab — 7 archetype frames; GHJKL; selects which (matches hat row 4-0).
-const VERBS_ITEMS := ["Spark", "Icon", "Merchant", "Captain", "Ace", "Operator", "Druid"]
-const VERBS_FRAME_ORDER: Array = [
-	"spark", "icon", "merchant", "captain", "ace", "operator", "druid",
-]
-const VERBS_HAT_KEYS: Array = ["4", "5", "6", "7", "8", "9", "0"]
-
 # Palette
-const COLOR_TAB_ACTIVE := Color(1.0, 0.9, 0.3, 1.0)
-const COLOR_TAB_IDLE := Color(0.6, 0.7, 0.85, 0.85)
-const COLOR_ITEM_ACTIVE := Color(1.0, 0.9, 0.3, 1.0)
-const COLOR_ITEM_IDLE := Color(0.75, 0.82, 0.92, 0.9)
-const COLOR_ITEM_EMPTY := Color(0.45, 0.5, 0.6, 0.75)
-const COLOR_KEY_CHIP := Color(0.55, 0.85, 1.0, 0.95)
-const COLOR_MUTED := Color(0.55, 0.6, 0.7, 0.85)
-const COLOR_VALUE := Color(0.95, 0.95, 0.8, 1.0)
-const COLOR_VERB_ACTIVE := Color(0.95, 0.75, 0.35, 1.0)
-const COLOR_VERB_IDLE := Color(0.45, 0.5, 0.6, 0.75)
 
 var _current_tab: int = Tab.RUN
 var _pending_action: int = PendingAction.NONE
@@ -148,8 +107,6 @@ var _keep_peeking: bool = false  # E toggles expanded save-slot inspector
 var _run_peeking: bool = false   # E toggles expanded run-stats inspector
 var _new_item: int = 0           # selected scenario index in New tab
 var _new_peeking: bool = false   # E toggles scenario detail panel
-var _level_item: int = 0  # orphan: LEVELS tab no longer reachable
-var _verbs_item: int = 0  # 0..6 → archetype frame index (Spark..Druid)
 var _dev_action_idx: int = 0
 
 # UI refs.
@@ -165,7 +122,6 @@ var _confirm_group: VBoxContainer = null
 var _confirm_title_label: Label = null
 var _confirm_message: Label = null
 
-
 func _init() -> void:
 	name = "EscapeMenu"
 	overlay_name = "escape_menu"
@@ -174,13 +130,12 @@ func _init() -> void:
 	panel_title_size = 22
 	panel_size_mode = PanelSizeMode.MEDIUM
 	panel_border_color = Color(0.5, 0.5, 0.3, 0.8)
-	navigation_mode = NavigationMode.CALLBACK
+	navigation_mode = NavigationMode.NONE
 	use_scroll_container = false
 	content_spacing = 8
 	surface_id = "Z"
-	frame_ids = [FRAME_RUN, FRAME_SAVE_LOAD, FRAME_NEW_GAME, FRAME_VERBS, FRAME_DEV]
+	frame_ids = [FRAME_RUN, FRAME_SAVE_LOAD, FRAME_NEW_GAME, FRAME_DEV]
 	frame_id = TAB_TO_FRAME.get(_current_tab, FRAME_RUN)
-
 
 # =============================================================================
 # BUILD
@@ -190,7 +145,7 @@ func _build_content(container: Control) -> void:
 	_status_line = Label.new()
 	_status_line.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_status_line.add_theme_font_size_override("font_size", 12)
-	_status_line.add_theme_color_override("font_color", COLOR_MUTED)
+	_status_line.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
 	container.add_child(_status_line)
 
 	_build_tab_row(container)
@@ -213,7 +168,6 @@ func _build_content(container: Control) -> void:
 	_build_confirm_group(container)
 	_render_all()
 
-
 func _build_tab_row(container: Control) -> void:
 	_tab_row_box = HBoxContainer.new()
 	_tab_row_box.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -225,7 +179,6 @@ func _build_tab_row(container: Control) -> void:
 		lbl.add_theme_font_size_override("font_size", 15)
 		_tab_row_box.add_child(lbl)
 		_tab_labels[str(entry.get("key", ""))] = lbl
-
 
 func _build_verb_chips(container: Control) -> void:
 	_verb_palette = PanelContainer.new()
@@ -258,7 +211,7 @@ func _build_verb_chips(container: Control) -> void:
 		key_lbl.text = "[%s]" % key
 		key_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		key_lbl.add_theme_font_size_override("font_size", 16)
-		key_lbl.add_theme_color_override("font_color", COLOR_KEY_CHIP)
+		key_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_KEY_CHIP)
 		cell.add_child(key_lbl)
 
 		var label_lbl := Label.new()
@@ -269,15 +222,13 @@ func _build_verb_chips(container: Control) -> void:
 
 		_verb_chip_cells[key] = {"key": key_lbl, "label": label_lbl, "cell": cell}
 
-
 func _build_close_hint(container: Control) -> void:
 	_close_hint = Label.new()
 	_close_hint.text = "ESC close   ·   TYUI tabs   ·   GHJKL; items   ·   [ ] cycle frames"
 	_close_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_close_hint.add_theme_font_size_override("font_size", 11)
-	_close_hint.add_theme_color_override("font_color", COLOR_MUTED)
+	_close_hint.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
 	container.add_child(_close_hint)
-
 
 func _build_confirm_group(container: Control) -> void:
 	_confirm_group = VBoxContainer.new()
@@ -296,7 +247,6 @@ func _build_confirm_group(container: Control) -> void:
 	_confirm_message.add_theme_color_override("font_color", Color(0.85, 0.8, 0.6))
 	_confirm_group.add_child(_confirm_message)
 
-
 # =============================================================================
 # RENDER — everything rebuilds from current state
 # =============================================================================
@@ -307,11 +257,10 @@ func _render_all() -> void:
 	_refresh_body()
 	_refresh_verb_chips()
 
-
 func _refresh_status_line() -> void:
 	if not _status_line:
 		return
-	var gsm = InstrumentLocator.resolve_game_state_manager(self)
+	var gsm = (Engine.get_main_loop().root.get_node_or_null("/root/GameStateManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 	var seed_text := "—"
 	var time_text := "—"
 	if gsm and gsm.get("current_state") != null:
@@ -321,7 +270,6 @@ func _refresh_status_line() -> void:
 		if "game_time" in st:
 			time_text = _format_playtime(float(st.game_time))
 	_status_line.text = "PAUSED  ·  seed %s  ·  %s" % [seed_text, time_text]
-
 
 func _refresh_tab_row() -> void:
 	if _tab_labels.is_empty():
@@ -335,11 +283,10 @@ func _refresh_tab_row() -> void:
 			continue
 		if tab_enum == _current_tab:
 			lbl.text = "[%s] %s" % [key_str, name_str.to_upper()]
-			lbl.add_theme_color_override("font_color", COLOR_TAB_ACTIVE)
+			lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_TAB_ACTIVE)
 		else:
 			lbl.text = "[%s] %s" % [key_str, name_str]
-			lbl.add_theme_color_override("font_color", COLOR_TAB_IDLE)
-
+			lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_TAB_IDLE)
 
 func _refresh_body() -> void:
 	if not _body_box:
@@ -352,10 +299,7 @@ func _refresh_body() -> void:
 		Tab.RUN:    _build_run_body()
 		Tab.KEEP:   _build_keep_body()
 		Tab.NEW:    _build_new_body()
-		Tab.LEVELS: _build_levels_body()  # orphan: no longer reachable via tab keys
-		Tab.VERBS:  _build_verbs_body()
 		Tab.DEV:    _build_dev_body()
-
 
 func _refresh_verb_chips() -> void:
 	if _verb_chip_cells.is_empty():
@@ -370,15 +314,13 @@ func _refresh_verb_chips() -> void:
 		var txt := str(labels.get(key, ""))
 		if txt == "":
 			label_lbl.text = "—"
-			label_lbl.add_theme_color_override("font_color", COLOR_VERB_IDLE)
-			key_lbl.add_theme_color_override("font_color", COLOR_VERB_IDLE)
+			label_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_ITEM_EMPTY)
+			key_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_ITEM_EMPTY)
 		else:
 			label_lbl.text = txt
-			label_lbl.add_theme_color_override("font_color", COLOR_VERB_ACTIVE)
-			key_lbl.add_theme_color_override("font_color", COLOR_KEY_CHIP)
-	action_labels = labels
-	action_labels_changed.emit()
-
+			label_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_VERB_ACTIVE)
+			key_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_KEY_CHIP)
+	push_action_label_strings(labels)
 
 func _current_verb_labels() -> Dictionary:
 	if _pending_action != PendingAction.NONE:
@@ -396,22 +338,17 @@ func _current_verb_labels() -> Dictionary:
 			return {"Q": "load slot", "E": peek_label, "R": "save slot", "F": "flatten" if _keep_peeking else ""}
 		Tab.NEW:
 			var new_peek_label := "inspect ▾" if not _new_peeking else "—"
-			return {"Q": "", "E": new_peek_label, "R": "start scenario", "F": "flatten" if _new_peeking else ""}
-		Tab.LEVELS:
-			return {"Q": "− value", "E": "reset default", "R": "+ value", "F": ""}
-		Tab.VERBS:
-			return {"Q": "", "E": "", "R": "", "F": ""}
+			return {"Q": "start scenario", "E": new_peek_label, "R": "", "F": "flatten" if _new_peeking else ""}
 		Tab.DEV:
 			return {"Q": "", "E": "refresh", "R": "run action", "F": ""}
 	return {}
-
 
 # =============================================================================
 # BODY BUILDERS
 # =============================================================================
 
 func _build_run_body() -> void:
-	var gsm = InstrumentLocator.resolve_game_state_manager(self)
+	var gsm = (Engine.get_main_loop().root.get_node_or_null("/root/GameStateManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 	var last_touched_slot := _get_last_touched_slot(gsm)
 	var last_touched_info := _get_last_touched_info(gsm, last_touched_slot)
 
@@ -455,16 +392,15 @@ func _build_run_body() -> void:
 		_body_box.add_child(_make_kv_row("loaded from", "slot %d" % (sls + 1) if sls >= 0 else "fresh start"))
 	# Session length — millis since process start, formatted as h:mm:ss.
 	var ms: int = Time.get_ticks_msec()
-	var total_s: int = ms / 1000
-	var hh: int = total_s / 3600
-	var mm: int = (total_s / 60) % 60
+	var total_s: int = int(float(ms) / 1000.0)
+	var hh: int = int(float(total_s) / 3600.0)
+	var mm: int = int(float(total_s % 3600) / 60.0)
 	var ss: int = total_s % 60
 	_body_box.add_child(_make_kv_row("session length", "%d:%02d:%02d" % [hh, mm, ss]))
 
 	if _run_peeking:
 		_body_box.add_child(_make_spacer(6))
 		_body_box.add_child(_make_run_inspect_panel())
-
 
 func _build_keep_body() -> void:
 	_body_box.add_child(_make_section_header("save slots"))
@@ -477,18 +413,15 @@ func _build_keep_body() -> void:
 	var hint := _make_muted_label("GHJ pick slot  ·  Q load  ·  E inspect  ·  R save", 11)
 	_body_box.add_child(hint)
 
-
 func _toggle_keep_peek() -> void:
 	_keep_peeking = not _keep_peeking
 	_refresh_body()
 	_refresh_verb_chips()
 
-
 func _toggle_run_inspect() -> void:
 	_run_peeking = not _run_peeking
 	_refresh_body()
 	_refresh_verb_chips()
-
 
 func _make_run_inspect_panel() -> Control:
 	var box := VBoxContainer.new()
@@ -517,7 +450,7 @@ func _make_run_inspect_panel() -> Control:
 		if sr.slices > 0.0:
 			box.add_child(_make_kv_row("evol rate", "%.0f/s [%dB]" % [sr.slices, sr.biomes]))
 
-	var gsm = InstrumentLocator.resolve_game_state_manager(self)
+	var gsm = (Engine.get_main_loop().root.get_node_or_null("/root/GameStateManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 	if gsm and gsm.get("current_state") != null:
 		var st = gsm.current_state
 		if "seed" in st:
@@ -528,9 +461,8 @@ func _make_run_inspect_panel() -> Control:
 
 	return panel
 
-
 func _make_keep_peek_panel(slot: int) -> Control:
-	var gsm = InstrumentLocator.resolve_game_state_manager(self)
+	var gsm = (Engine.get_main_loop().root.get_node_or_null("/root/GameStateManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 	var info: Dictionary = {}
 	if gsm and "save_load" in gsm:
 		info = gsm.save_load.peek_save_slot(slot)
@@ -585,7 +517,6 @@ func _make_keep_peek_panel(slot: int) -> Control:
 
 	return panel
 
-
 func _make_keep_slot_row(idx: int) -> Control:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
@@ -607,18 +538,17 @@ func _make_keep_slot_row(idx: int) -> Control:
 	row.add_child(detail)
 
 	var selected := idx == _keep_slot
-	var c := COLOR_ITEM_ACTIVE if selected else COLOR_ITEM_IDLE
+	var c := UIStyleFactory.COLOR_TAB_ACTIVE if selected else UIStyleFactory.COLOR_ITEM_IDLE
 	if _slot_detail_text(idx) == "empty":
-		c = COLOR_ITEM_EMPTY if not selected else COLOR_ITEM_ACTIVE
+		c = UIStyleFactory.COLOR_ITEM_EMPTY if not selected else UIStyleFactory.COLOR_TAB_ACTIVE
 	name_lbl.add_theme_color_override("font_color", c)
 	detail.add_theme_color_override("font_color", c)
 	if selected:
 		name_lbl.text = "▸ " + name_lbl.text
 	return row
 
-
 func _slot_detail_text(slot: int) -> String:
-	var gsm = InstrumentLocator.resolve_game_state_manager(self)
+	var gsm = (Engine.get_main_loop().root.get_node_or_null("/root/GameStateManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 	var last_touched := _get_last_touched_slot(gsm)
 	var marker := " ★" if last_touched == slot else ""
 	if gsm and "save_load" in gsm:
@@ -630,7 +560,6 @@ func _slot_detail_text(slot: int) -> String:
 		return "last touched ★"
 	return "—"
 
-
 func _build_new_body() -> void:
 	_body_box.add_child(_make_section_header("new game"))
 	for i in range(SCENARIO_LIST.size()):
@@ -641,7 +570,6 @@ func _build_new_body() -> void:
 	_body_box.add_child(_make_spacer(4))
 	var hint := _make_muted_label("GH pick  ·  E inspect  ·  R start", 11)
 	_body_box.add_child(hint)
-
 
 func _make_scenario_row(idx: int) -> Control:
 	var entry: Dictionary = SCENARIO_LIST[idx]
@@ -657,15 +585,14 @@ func _make_scenario_row(idx: int) -> Control:
 	var desc_lbl := Label.new()
 	desc_lbl.text = str(entry.get("desc", ""))
 	desc_lbl.add_theme_font_size_override("font_size", 11)
-	desc_lbl.add_theme_color_override("font_color", COLOR_MUTED)
+	desc_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
 	row.add_child(desc_lbl)
 	var selected := idx == _new_item
-	var c := COLOR_ITEM_ACTIVE if selected else COLOR_ITEM_IDLE
+	var c := UIStyleFactory.COLOR_TAB_ACTIVE if selected else UIStyleFactory.COLOR_ITEM_IDLE
 	name_lbl.add_theme_color_override("font_color", c)
 	if selected:
 		name_lbl.text = "▸ " + name_lbl.text
 	return row
-
 
 func _make_scenario_peek_panel(idx: int) -> Control:
 	var panel := VBoxContainer.new()
@@ -675,11 +602,11 @@ func _make_scenario_peek_panel(idx: int) -> Control:
 	var entry: Dictionary = SCENARIO_LIST[idx]
 	var scenario_id: String = str(entry.get("id", ""))
 	panel.add_child(_make_section_header(str(entry.get("label", scenario_id))))
-	var SaveStore = load("res://Core/GameState/SaveStore.gd")
-	if not SaveStore:
+	var save_store_class = load("res://Core/GameState/SaveStore.gd")
+	if not save_store_class:
 		panel.add_child(_make_muted_label("(could not load scenario)", 11))
 		return panel
-	var state = SaveStore.load_scenario(scenario_id)
+	var state = save_store_class.load_scenario(scenario_id)
 	if not state:
 		panel.add_child(_make_muted_label("scenario file missing", 11))
 		return panel
@@ -701,12 +628,10 @@ func _make_scenario_peek_panel(idx: int) -> Control:
 	]))
 	return panel
 
-
 func _toggle_new_peek() -> void:
 	_new_peeking = not _new_peeking
 	_refresh_body()
 	_refresh_verb_chips()
-
 
 func _start_new_scenario() -> void:
 	if _new_item < 0 or _new_item >= SCENARIO_LIST.size():
@@ -715,67 +640,11 @@ func _start_new_scenario() -> void:
 	var scenario_id: String = str(entry.get("id", ""))
 	if scenario_id == "":
 		return
-	var gsm = InstrumentLocator.resolve_game_state_manager(self)
+	var gsm = (Engine.get_main_loop().root.get_node_or_null("/root/GameStateManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 	if not gsm or not ("session_lifecycle" in gsm):
 		return
 	deactivate()
 	gsm.session_lifecycle.request_fresh_restart(false, scenario_id)
-
-
-func _build_levels_body() -> void:
-	_body_box.add_child(_make_section_header("settings"))
-	if SETTINGS_ROW.is_empty():
-		_body_box.add_child(_make_muted_label("no wired settings yet.", 12))
-		return
-	for i in range(SETTINGS_ROW.size()):
-		_body_box.add_child(_make_setting_row(i))
-	_body_box.add_child(_make_spacer(4))
-	var hint := _make_muted_label("GHJKL; pick setting  ·  Q − value  ·  R + value  ·  E reset default", 11)
-	_body_box.add_child(hint)
-
-
-func _make_setting_row(idx: int) -> Control:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 10)
-	var s: Dictionary = SETTINGS_ROW[idx]
-	var key_str: String = ITEM_KEYS[idx] if idx < ITEM_KEYS.size() else "?"
-	row.add_child(_make_key_chip(key_str))
-
-	var cat_lbl := Label.new()
-	cat_lbl.text = str(s.get("category", ""))
-	cat_lbl.add_theme_font_size_override("font_size", 11)
-	cat_lbl.add_theme_color_override("font_color", COLOR_MUTED)
-	cat_lbl.custom_minimum_size = Vector2(70, 0)
-	row.add_child(cat_lbl)
-
-	var name_lbl := Label.new()
-	name_lbl.text = str(s.get("label", s.get("id", "—")))
-	name_lbl.add_theme_font_size_override("font_size", 13)
-	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(name_lbl)
-
-	var value_lbl := Label.new()
-	value_lbl.text = _setting_value_text(str(s.get("id", "")))
-	value_lbl.add_theme_font_size_override("font_size", 13)
-	value_lbl.add_theme_color_override("font_color", COLOR_VALUE)
-	row.add_child(value_lbl)
-
-	var selected := idx == _level_item
-	var c := COLOR_ITEM_ACTIVE if selected else COLOR_ITEM_IDLE
-	name_lbl.add_theme_color_override("font_color", c)
-	if selected:
-		name_lbl.text = "▸ " + name_lbl.text
-	return row
-
-
-func _setting_value_text(setting_id: String) -> String:
-	match setting_id:
-		"music_volume":
-			return "%d%%" % int(round(_current_music_volume() * 100.0))
-		_:
-			return "—"
-
-
 
 func _build_dev_body() -> void:
 	# ── Live system metrics ──────────────────────────────────────────────────
@@ -817,82 +686,6 @@ func _build_dev_body() -> void:
 	_body_box.add_child(_make_spacer(4))
 	_body_box.add_child(_make_muted_label("GHJ pick  ·  W/S nav  ·  E refresh metrics  ·  R run", 11))
 
-
-# Verbs tab — reference documentation for the 7 archetype frames.
-# Pure read-only: shows each frame's QERF action labels and hints.
-func _build_verbs_body() -> void:
-	_body_box.add_child(_make_section_header("pick a frame"))
-	var picker := HBoxContainer.new()
-	picker.add_theme_constant_override("separation", 14)
-	picker.alignment = BoxContainer.ALIGNMENT_CENTER
-	_body_box.add_child(picker)
-	for i in range(VERBS_ITEMS.size()):
-		var key_str := str(ITEM_KEYS[i]) if i < ITEM_KEYS.size() else ""
-		var hat := str(VERBS_HAT_KEYS[i]) if i < VERBS_HAT_KEYS.size() else ""
-		var item := Label.new()
-		item.add_theme_font_size_override("font_size", 13)
-		item.text = "[%s/%s] %s" % [key_str, hat, VERBS_ITEMS[i]]
-		if i == _verbs_item:
-			item.add_theme_color_override("font_color", COLOR_ITEM_ACTIVE)
-		else:
-			item.add_theme_color_override("font_color", COLOR_ITEM_IDLE)
-		picker.add_child(item)
-
-	_body_box.add_child(_make_spacer(6))
-
-	var frame_name: String = VERBS_FRAME_ORDER[_verbs_item] if _verbs_item < VERBS_FRAME_ORDER.size() else ""
-	var frame_def: Dictionary = ToolConfig.get_frame(frame_name)
-	var label_name := str(frame_def.get("name", frame_name))
-	var hat_key := str(VERBS_HAT_KEYS[_verbs_item]) if _verbs_item < VERBS_HAT_KEYS.size() else ""
-	_body_box.add_child(_make_section_header("[%s] %s" % [hat_key, label_name]))
-
-	var mode_name = ToolConfig.get_frame_mode_name(frame_name)
-	var mode_actions: Dictionary = frame_def.get("actions", {}).get(mode_name, {})
-	for key in ["Q", "E", "R", "F"]:
-		var info: Dictionary = mode_actions.get(key, {})
-		var label := str(info.get("label", ""))
-		var hint := str(info.get("hint", ""))
-		if key == "F" and (label == "" or label == "-"):
-			label = "Cancel / drill out"
-			hint = "Closes any open picker; otherwise no-op"
-		if label == "" or label == "-":
-			continue
-		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 8)
-		var key_lbl := Label.new()
-		key_lbl.text = "[%s]" % key
-		key_lbl.add_theme_font_size_override("font_size", 12)
-		key_lbl.add_theme_color_override("font_color", COLOR_KEY_CHIP)
-		key_lbl.custom_minimum_size = Vector2(28, 0)
-		row.add_child(key_lbl)
-		var verb_lbl := Label.new()
-		verb_lbl.text = label
-		verb_lbl.add_theme_font_size_override("font_size", 12)
-		verb_lbl.add_theme_color_override("font_color", COLOR_ITEM_IDLE)
-		verb_lbl.custom_minimum_size = Vector2(100, 0)
-		row.add_child(verb_lbl)
-		if hint != "":
-			var hint_lbl := Label.new()
-			hint_lbl.text = hint
-			hint_lbl.add_theme_font_size_override("font_size", 11)
-			hint_lbl.add_theme_color_override("font_color", COLOR_MUTED)
-			hint_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			hint_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			row.add_child(hint_lbl)
-		_body_box.add_child(row)
-
-	_body_box.add_child(_make_spacer(4))
-	_body_box.add_child(_make_muted_label(
-		"Reference only — these verbs execute on the tool surface, not here.", 10))
-
-	var modes: Array = frame_def.get("modes", [])
-	if modes.size() > 1:
-		_body_box.add_child(_make_spacer(4))
-		_body_box.add_child(_make_muted_label(
-			"Sub-modes: %s   ·   Tab cycles, 1-%d direct-pick" % [
-				" / ".join(modes), modes.size()], 11))
-
-
 func _make_dev_action_row(idx: int) -> Control:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
@@ -911,17 +704,16 @@ func _make_dev_action_row(idx: int) -> Control:
 	var desc_lbl := Label.new()
 	desc_lbl.text = str(action.get("desc", ""))
 	desc_lbl.add_theme_font_size_override("font_size", 11)
-	desc_lbl.add_theme_color_override("font_color", COLOR_MUTED)
+	desc_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
 	desc_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(desc_lbl)
 
 	var selected := idx == _dev_action_idx
-	var c := COLOR_ITEM_ACTIVE if selected else COLOR_ITEM_IDLE
+	var c := UIStyleFactory.COLOR_TAB_ACTIVE if selected else UIStyleFactory.COLOR_ITEM_IDLE
 	name_lbl.add_theme_color_override("font_color", c)
 	if selected:
 		name_lbl.text = "▸ " + name_lbl.text
 	return row
-
 
 func _execute_dev_action(idx: int) -> void:
 	if idx >= DEV_ACTIONS.size():
@@ -950,8 +742,6 @@ func _execute_dev_action(idx: int) -> void:
 					print("  %s: %s" % [k, str(m[k])])
 			_refresh_body()
 
-
-
 # =============================================================================
 # SMALL RENDER HELPERS
 # =============================================================================
@@ -963,49 +753,44 @@ func _make_section_header(text: String) -> Label:
 	lbl.add_theme_color_override("font_color", Color(0.55, 0.7, 0.85, 0.75))
 	return lbl
 
-
 func _make_kv_row(key: String, value: String) -> Control:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
 	var k := Label.new()
 	k.text = key
 	k.add_theme_font_size_override("font_size", 12)
-	k.add_theme_color_override("font_color", COLOR_MUTED)
+	k.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
 	k.custom_minimum_size = Vector2(140, 0)
 	row.add_child(k)
 	var v := Label.new()
 	v.text = value
 	v.add_theme_font_size_override("font_size", 13)
-	v.add_theme_color_override("font_color", COLOR_VALUE)
+	v.add_theme_color_override("font_color", UIStyleFactory.COLOR_VALUE)
 	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(v)
 	return row
-
 
 func _make_key_chip(key_text: String) -> Label:
 	var lbl := Label.new()
 	lbl.text = "[%s]" % key_text
 	lbl.add_theme_font_size_override("font_size", 13)
-	lbl.add_theme_color_override("font_color", COLOR_KEY_CHIP)
+	lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_KEY_CHIP)
 	lbl.custom_minimum_size = Vector2(32, 0)
 	return lbl
 
-
-func _make_muted_label(text: String, size: int) -> Label:
+func _make_muted_label(text: String, icon_size: int) -> Label:
 	var lbl := Label.new()
 	lbl.text = text
-	lbl.add_theme_font_size_override("font_size", size)
-	lbl.add_theme_color_override("font_color", COLOR_MUTED)
+	lbl.add_theme_font_size_override("font_size", icon_size)
+	lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	return lbl
-
 
 func _make_spacer(h: int) -> Control:
 	var c := Control.new()
 	c.custom_minimum_size = Vector2(0, h)
 	return c
-
 
 # =============================================================================
 # TAB SWITCHING (mirrored into Surface.frame_id)
@@ -1025,13 +810,11 @@ func _show_tab(tab: int) -> void:
 		_emit_snapshot()
 	_render_all()
 
-
 func _on_frame_changed(new_frame_id: String, _prev_frame_id: String) -> void:
 	var target_tab: int = FRAME_TO_TAB.get(new_frame_id, Tab.RUN)
 	if _current_tab != target_tab:
 		_current_tab = target_tab
 		_render_all()
-
 
 # =============================================================================
 # QERF DISPATCH
@@ -1044,10 +827,8 @@ func _on_action_q() -> void:
 	match _current_tab:
 		Tab.RUN:    _request_confirm(PendingAction.QUIT)    # Q = screw out = quit
 		Tab.KEEP:   _load_from_selected_slot()
-		Tab.NEW:    pass                                     # Q empty — no screw-out from a template
-		Tab.LEVELS: _nudge_selected_setting(-1)
+		Tab.NEW:    _start_new_scenario()                    # Q = leave current run for a new one
 		Tab.DEV:    pass  # honest empty
-
 
 func _on_action_e() -> void:
 	if _pending_action != PendingAction.NONE:
@@ -1064,9 +845,7 @@ func _on_action_e() -> void:
 		Tab.NEW:
 			if not _new_peeking:
 				_toggle_new_peek()
-		Tab.LEVELS: _reset_selected_setting()
 		Tab.DEV:    _refresh_body()  # re-snapshot all live metrics
-
 
 func _on_action_r() -> void:
 	if _pending_action != PendingAction.NONE:
@@ -1077,10 +856,8 @@ func _on_action_r() -> void:
 	match _current_tab:
 		Tab.RUN:    _save_and_resume()                      # R = screw in = enter game
 		Tab.KEEP:   _save_to_selected_slot()
-		Tab.NEW:    _start_new_scenario()                    # R = screw in = enter the new session
-		Tab.LEVELS: _nudge_selected_setting(+1)
+		Tab.NEW:    pass                                     # R empty — no current run to commit forward yet
 		Tab.DEV:    _execute_dev_action(_dev_action_idx)
-
 
 func _on_action_f() -> void:
 	# QF chord: if we're in a quit-confirm, F = quit without saving.
@@ -1103,8 +880,6 @@ func _on_action_f() -> void:
 		_continue_or_play()
 		return
 	# Otherwise: no-op. The chip shows "—". Sim is already paused; nothing to page.
-
-
 
 # =============================================================================
 # SELECTOR KEYS — TYUI (tabs) / GHJKL; (items)
@@ -1130,7 +905,6 @@ func _on_unhandled_key(keycode: int, _event: InputEvent) -> bool:
 		return true
 	return false
 
-
 func _is_consumed_keyboard_row(keycode: int) -> bool:
 	for kc in ITEM_BY_KEYCODE.keys():
 		if kc == keycode:
@@ -1139,7 +913,6 @@ func _is_consumed_keyboard_row(keycode: int) -> bool:
 		if kc == keycode:
 			return true
 	return false
-
 
 func _select_item_in_tab(slot: int) -> void:
 	match _current_tab:
@@ -1151,21 +924,12 @@ func _select_item_in_tab(slot: int) -> void:
 			if slot < SCENARIO_LIST.size() and _new_item != slot:
 				_new_item = slot
 				_refresh_body()
-		Tab.LEVELS:
-			if slot < SETTINGS_ROW.size() and _level_item != slot:
-				_level_item = slot
-				_refresh_body()
-		Tab.VERBS:
-			if slot < VERBS_ITEMS.size() and _verbs_item != slot:
-				_verbs_item = slot
-				_refresh_body()
 		Tab.DEV:
 			if slot < DEV_ACTIONS.size() and _dev_action_idx != slot:
 				_dev_action_idx = slot
 				_refresh_body()
 		_:
 			pass
-
 
 func _on_navigate(direction: Vector2i) -> void:
 	# Per KEYBOARD_GRAMMAR.md "Selection layer":
@@ -1188,19 +952,11 @@ func _on_navigate(direction: Vector2i) -> void:
 		Tab.NEW:
 			_new_item = wrapi(_new_item + step, 0, SCENARIO_LIST.size())
 			_refresh_body()
-		Tab.LEVELS:
-			if not SETTINGS_ROW.is_empty():
-				_level_item = wrapi(_level_item + step, 0, SETTINGS_ROW.size())
-				_refresh_body()
-		Tab.VERBS:
-			_verbs_item = wrapi(_verbs_item + step, 0, VERBS_ITEMS.size())
-			_refresh_body()
 		Tab.DEV:
 			_dev_action_idx = wrapi(_dev_action_idx + step, 0, DEV_ACTIONS.size())
 			_refresh_body()
 		_:
 			pass
-
 
 # =============================================================================
 # CONFIRM MODAL
@@ -1216,33 +972,26 @@ func _request_confirm(action: int) -> void:
 	_tab_row_box.visible = false
 	_refresh_verb_chips()
 
-
 func _confirm_title(action: int) -> String:
 	match action:
 		PendingAction.QUIT:          return "QUIT GAME?"
 		PendingAction.RESTART:       return "RESTART?"
 		PendingAction.DEV_RESTART:   return "FULL RESET?"
-		PendingAction.RESET_SETTINGS: return "RESET SETTINGS?"
 		_: return "CONFIRM?"
-
 
 func _confirm_body(action: int) -> String:
 	match action:
 		PendingAction.QUIT:          return "Unsaved progress will be lost."
 		PendingAction.RESTART:       return "Reloads the session checkpoint.\nProgress since then will be lost."
 		PendingAction.DEV_RESTART:   return "Signature evolution will be cleared\nand a fresh game will begin."
-		PendingAction.RESET_SETTINGS: return "Settings will be reset to defaults."
 		_: return ""
-
 
 func _confirm_verb_labels() -> Dictionary:
 	match _pending_action:
 		PendingAction.QUIT:          return {"Q": "save & quit", "E": "cancel", "R": "resume", "F": "quit without saving"}
 		PendingAction.RESTART:       return {"Q": "save & restart", "E": "restart anyway", "R": "cancel", "F": ""}
 		PendingAction.DEV_RESTART:   return {"Q": "confirm reset", "E": "", "R": "cancel", "F": ""}
-		PendingAction.RESET_SETTINGS: return {"Q": "confirm reset", "E": "", "R": "cancel", "F": ""}
 		_: return {"Q": "confirm", "E": "", "R": "cancel", "F": ""}
-
 
 func _dismiss_confirm() -> void:
 	_pending_action = PendingAction.NONE
@@ -1250,18 +999,16 @@ func _dismiss_confirm() -> void:
 	_tab_row_box.visible = true
 	_render_all()
 
-
 func _confirm_save_and_act() -> void:
 	var action := _pending_action
 	match action:
 		PendingAction.QUIT, PendingAction.RESTART:
 			_autosave_before_action(action)
 			_execute_pending_action()
-		PendingAction.DEV_RESTART, PendingAction.RESET_SETTINGS:
+		PendingAction.DEV_RESTART:
 			_execute_pending_action()
 		_:
 			_dismiss_confirm()
-
 
 func _confirm_act_only() -> void:
 	match _pending_action:
@@ -1270,39 +1017,32 @@ func _confirm_act_only() -> void:
 		_:
 			_dismiss_confirm()
 
-
 func _execute_pending_action() -> void:
 	var action := _pending_action
 	_pending_action = PendingAction.NONE
 	match action:
-		PendingAction.RESET_SETTINGS:
-			_reset_current_setting_to_default()
-			_dismiss_confirm()
-			return
 		PendingAction.QUIT:
 			deactivate()
-			var gsm = InstrumentLocator.resolve_game_state_manager(self)
+			var gsm = (Engine.get_main_loop().root.get_node_or_null("/root/GameStateManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 			if gsm and "session_lifecycle" in gsm:
 				gsm.session_lifecycle.request_application_quit()
 		PendingAction.RESTART:
 			deactivate()
-			var gsm2 = InstrumentLocator.resolve_game_state_manager(self)
+			var gsm2 = (Engine.get_main_loop().root.get_node_or_null("/root/GameStateManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 			if gsm2 and "session_lifecycle" in gsm2:
 				gsm2.session_lifecycle.request_restart()
 		PendingAction.DEV_RESTART:
 			deactivate()
-			var gsm3 = InstrumentLocator.resolve_game_state_manager(self)
+			var gsm3 = (Engine.get_main_loop().root.get_node_or_null("/root/GameStateManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 			if gsm3 and "session_lifecycle" in gsm3:
 				gsm3.session_lifecycle.request_fresh_restart(true)
 
-
 func _autosave_before_action(action: int) -> void:
-	var gsm = InstrumentLocator.resolve_game_state_manager(self)
+	var gsm = (Engine.get_main_loop().root.get_node_or_null("/root/GameStateManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 	if not gsm or not ("save_load" in gsm):
 		return
 	var slot := _pick_auto_save_slot(gsm, action)
 	gsm.save_load.save_game(slot)
-
 
 func _pick_auto_save_slot(gsm, action: int) -> int:
 	if action == PendingAction.RESTART:
@@ -1316,7 +1056,6 @@ func _pick_auto_save_slot(gsm, action: int) -> int:
 	var last = gsm.get("last_saved_slot") if gsm.get("last_saved_slot") != null else -1
 	return int(last) if int(last) >= 0 else 0
 
-
 # =============================================================================
 # ACTIONS PER TAB
 # =============================================================================
@@ -1325,106 +1064,50 @@ func _on_resume_pressed() -> void:
 	deactivate()
 	resume_pressed.emit()
 
-
 func _continue_or_play() -> void:
 	# ZTF = continue. With a live game: close menu and resume.
 	# Without one: load the T tab's "last touched" save, or start the default scenario.
 	if _has_loaded_game():
 		_on_resume_pressed()
 		return
-	var gsm = InstrumentLocator.resolve_game_state_manager(self)
+	var gsm = (Engine.get_main_loop().root.get_node_or_null("/root/GameStateManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 	if gsm == null:
 		return
 	var slot := _get_last_touched_slot(gsm)
 	if slot >= 0 and not _get_last_touched_info(gsm, slot).is_empty() and "save_load" in gsm:
 		deactivate()
-		load_pressed.emit()
 		await gsm.save_load.load_and_apply(slot)
 		return
 	if "session_lifecycle" in gsm:
 		deactivate()
 		gsm.session_lifecycle.request_fresh_restart(false, DEFAULT_RUN_SCENARIO_ID)
 
-
 func _save_and_resume() -> void:
-	var gsm = InstrumentLocator.resolve_game_state_manager(self)
+	var gsm = (Engine.get_main_loop().root.get_node_or_null("/root/GameStateManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 	if gsm and _has_loaded_game() and "save_load" in gsm:
 		var slot := _get_last_touched_slot(gsm)
 		if slot < 0:
 			slot = 0
 		gsm.save_load.save_game(slot)
-		save_pressed.emit()
 	_on_resume_pressed()
 
-
 func _has_loaded_game() -> bool:
-	var gsm = InstrumentLocator.resolve_game_state_manager(self)
+	var gsm = (Engine.get_main_loop().root.get_node_or_null("/root/GameStateManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 	return bool(gsm and gsm.active_farm and gsm.current_state)
 
-
 func _save_to_selected_slot() -> void:
-	var gsm = InstrumentLocator.resolve_game_state_manager(self)
+	var gsm = (Engine.get_main_loop().root.get_node_or_null("/root/GameStateManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 	if not gsm or not ("save_load" in gsm):
 		return
 	gsm.save_load.save_game(_keep_slot)
-	save_pressed.emit()
 	_refresh_body()
 
-
 func _load_from_selected_slot() -> void:
-	var gsm = InstrumentLocator.resolve_game_state_manager(self)
+	var gsm = (Engine.get_main_loop().root.get_node_or_null("/root/GameStateManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 	if not gsm or not ("save_load" in gsm):
 		return
 	deactivate()
-	load_pressed.emit()
 	await gsm.save_load.load_and_apply(_keep_slot)
-
-
-func _nudge_selected_setting(step: int) -> void:
-	if SETTINGS_ROW.is_empty():
-		return
-	if _level_item >= SETTINGS_ROW.size():
-		_level_item = 0
-	var s: Dictionary = SETTINGS_ROW[_level_item]
-	match str(s.get("id", "")):
-		"music_volume":
-			_set_music_volume(clampf(_current_music_volume() + step * VOLUME_STEP, 0.0, 1.0))
-		_:
-			pass
-	_refresh_body()
-
-
-func _reset_selected_setting() -> void:
-	if SETTINGS_ROW.is_empty():
-		return
-	if _level_item >= SETTINGS_ROW.size():
-		_level_item = 0
-	var s: Dictionary = SETTINGS_ROW[_level_item]
-	match str(s.get("id", "")):
-		"music_volume":
-			_set_music_volume(DEFAULT_VOLUME)
-		_:
-			pass
-	_refresh_body()
-
-
-func _reset_current_setting_to_default() -> void:
-	_reset_selected_setting()
-
-
-func _set_music_volume(value: float) -> void:
-	var music = InstrumentLocator.resolve_music_manager(self)
-	if music and music.has_method("set_volume"):
-		music.set_volume(value)
-	music_volume_changed.emit(value)
-
-
-func _current_music_volume() -> float:
-	var music = InstrumentLocator.resolve_music_manager(self)
-	if music and music.has_method("get_volume"):
-		return float(music.get_volume())
-	return DEFAULT_VOLUME
-
 
 func _get_last_touched_slot(gsm) -> int:
 	if not gsm:
@@ -1437,7 +1120,6 @@ func _get_last_touched_slot(gsm) -> int:
 	var last_saved: int = int(gsm.get("last_saved_slot")) if gsm.get("last_saved_slot") != null else -1
 	return int(last_saved) if int(last_saved) >= 0 else -1
 
-
 func _get_last_touched_info(gsm, slot: int) -> Dictionary:
 	if slot < 0 or not gsm or not ("save_load" in gsm):
 		return {}
@@ -1446,17 +1128,14 @@ func _get_last_touched_info(gsm, slot: int) -> Dictionary:
 		return info
 	return {}
 
-
-
 func _format_playtime(seconds: float) -> String:
 	var total := int(max(0.0, seconds))
-	var h := total / 3600
-	var m := (total % 3600) / 60
+	var h := int(float(total) / 3600.0)
+	var m := int(float(total % 3600) / 60.0)
 	var s := total % 60
 	if h > 0:
 		return "%dh %02dm %02ds" % [h, m, s]
 	return "%dm %02ds" % [m, s]
-
 
 # =============================================================================
 # ACTIVATION HOOKS
@@ -1477,12 +1156,10 @@ func _on_activated() -> void:
 	if is_inside_tree():
 		call_deferred("_apply_pause", true)
 
-
 func _on_deactivated() -> void:
 	super._on_deactivated()
 	if is_inside_tree():
 		call_deferred("_apply_pause", false)
-
 
 func _apply_pause(paused: bool) -> void:
 	if not is_inside_tree():
@@ -1491,10 +1168,8 @@ func _apply_pause(paused: bool) -> void:
 		return  # Don't freeze the scene tree at the title screen
 	get_tree().paused = paused
 
-
 func hide_menu() -> void:
 	deactivate()
-
 
 # =============================================================================
 # SURFACE CONTRACT
@@ -1512,10 +1187,7 @@ func get_visible_data() -> Dictionary:
 		"tab": _current_tab,
 		"frame_label": frame_id,
 		"save_slots": save_slots,
-		"setting_index": _level_item,
-		"music_volume": _current_music_volume(),
 	}
-
 
 func get_transitions() -> Array:
 	return [

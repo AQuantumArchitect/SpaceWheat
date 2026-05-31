@@ -10,22 +10,20 @@ extends RefCounted
 
 
 func draw(graph: Node2D, ctx: Dictionary) -> void:
-	"""Draw background regions.
+	# Draw background regions.
 
-	Args:
-	    graph: The QuantumForceGraph node
-	    ctx: Context dictionary
-	"""
+	# Args:
+	# graph: The QuantumForceGraph node
+	# ctx: Context dictionary
 	_draw_biome_regions(graph, ctx)
 	_draw_temperature_heatmap(graph, ctx)
 	_draw_orbit_trails(graph, ctx)
 
 
 func _draw_biome_regions(graph: Node2D, ctx: Dictionary) -> void:
-	"""Draw biome regions - OVALS REMOVED (replaced by BiomeBackground images).
+	# Draw biome regions - OVALS REMOVED (replaced by BiomeBackground images).
 
-	Now only calls biome's custom rendering callback if present.
-	"""
+	# Now only calls biome's custom rendering callback if present.
 	var biomes = ctx.get("biomes", {})
 	var layout_calculator = ctx.get("layout_calculator")
 	var active_biome = ctx.get("active_biome", "")
@@ -63,11 +61,10 @@ func _draw_biome_regions(graph: Node2D, ctx: Dictionary) -> void:
 
 
 func _draw_temperature_heatmap(graph: Node2D, ctx: Dictionary) -> void:
-	"""Draw temperature/decoherence heatmap as background gradient.
+	# Draw temperature/decoherence heatmap as background gradient.
 
-	Hot zones (high decoherence) appear red/orange.
-	Cold zones (low decoherence) appear blue/cyan.
-	"""
+	# Hot zones (high decoherence) appear red/orange.
+	# Cold zones (low decoherence) appear blue/cyan.
 	var biomes = ctx.get("biomes", {})
 	var layout_calculator = ctx.get("layout_calculator")
 	var active_biome = ctx.get("active_biome", "")
@@ -127,7 +124,7 @@ func _draw_temperature_heatmap(graph: Node2D, ctx: Dictionary) -> void:
 
 
 func _draw_orbit_trails(graph: Node2D, ctx: Dictionary) -> void:
-	"""Draw fading trails showing bubble evolution history."""
+	# Draw fading trails showing bubble evolution history.
 	var quantum_nodes = ctx.get("quantum_nodes", [])
 	var batcher = ctx.get("geometry_batcher")
 

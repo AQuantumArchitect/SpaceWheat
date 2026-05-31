@@ -35,7 +35,7 @@ func _init(p_readout: ReadoutMode = ReadoutMode.INSPECTOR,
 
 
 func mode_description() -> String:
-	"""Human-readable description of current configuration"""
+	# Human-readable description of current configuration
 	var desc = ""
 	desc += "Readout: %s\n" % ["HARDWARE", "INSPECTOR"][readout_mode]
 	desc += "Selective Measure: %s" % ["POSTSELECT_COSTED", "CLICK_NOCLICK"][selective_measure_model]

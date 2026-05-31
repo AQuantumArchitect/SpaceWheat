@@ -1,5 +1,8 @@
 #!/bin/bash
 
+source "$(cd "$(dirname "$0")/.." && pwd)/scripts/lib/godot_runtime_env.sh"
+sw_prepare_runtime_env "interactive"
+
 echo "============================================================"
 echo "🧪 TESTING FIXES: String Formatting & Save/Load"
 echo "============================================================"
@@ -22,7 +25,7 @@ echo "Press Enter to start test..."
 read
 
 # Run automated playtest
-godot --path . --script test_automated_wheat_sale_and_save.gd
+sw_godot --path . --script test_automated_wheat_sale_and_save.gd
 
 echo ""
 echo "============================================================"

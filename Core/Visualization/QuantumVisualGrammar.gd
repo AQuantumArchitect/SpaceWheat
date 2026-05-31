@@ -39,16 +39,15 @@ const CHANNEL_EDGE_HAMILTONIAN_STRAND := "edge.hamiltonian_strand"
 const CHANNEL_EDGE_LINDBLAD_FLOW := "edge.lindblad_flow"
 const CHANNEL_EDGE_ENTANGLEMENT := "edge.entanglement"
 const CHANNEL_INFRA_GATE_TOPOLOGY := "infra.gate_topology"
-const CHANNEL_EVENT_SPAWN := "event.spawn"
 const CHANNEL_EVENT_DEATH := "event.death"
 const CHANNEL_EVENT_COHERENCE_STRIKE := "event.coherence_strike"
 
 const CHANNELS := {
 	CHANNEL_BUBBLE_RADIUS: {
 		"owner": "BatchedBubbleRenderer",
-		"source": "measurement polarization plus purity",
+		"source": "Bloch subspace radius",
 		"motion_policy": MotionPolicy.STATE_SMOOTH,
-		"rule": "Body size changes only when the quantum snapshot changes.",
+		"rule": "Body size follows subspace radius only; purity is shown elsewhere.",
 	},
 	CHANNEL_BUBBLE_EMOJI_OPACITY: {
 		"owner": "BatchedBubbleRenderer",
@@ -76,9 +75,9 @@ const CHANNELS := {
 	},
 	CHANNEL_BUBBLE_PURITY_RING: {
 		"owner": "BatchedBubbleRenderer",
-		"source": "node purity compared to biome purity",
+		"source": "node purity",
 		"motion_policy": MotionPolicy.STATE_SMOOTH,
-		"rule": "Ring state follows purity bands.",
+		"rule": "Purity has its own ring or halo; do not fold it back into radius.",
 	},
 	CHANNEL_BUBBLE_UNCERTAINTY_RING: {
 		"owner": "BatchedBubbleRenderer",
@@ -139,12 +138,6 @@ const CHANNELS := {
 		"source": "active plot gates",
 		"motion_policy": MotionPolicy.STATIC,
 		"rule": "Gate infrastructure is topology/status, not ambient line breathing.",
-	},
-	CHANNEL_EVENT_SPAWN: {
-		"owner": "QuantumEffectsRenderer",
-		"source": "spawn event",
-		"motion_policy": MotionPolicy.EVENT_BOUND,
-		"rule": "Transient motion is allowed only while the event is active.",
 	},
 	CHANNEL_EVENT_DEATH: {
 		"owner": "QuantumEffectsRenderer",

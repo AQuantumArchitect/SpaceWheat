@@ -91,6 +91,11 @@ fi
 if [[ "${STRICT_BIOME_ECONOMY}" == "1" ]]; then
   batch_args+=(--strict-biome-economy)
 fi
+if [[ "${ARCHIVE_RIG_DATA}" == "1" ]]; then
+  batch_args+=(--archive-rig-data)
+else
+  batch_args+=(--no-archive-rig-data)
+fi
 if [[ "${REUSE_LISTENER}" == "1" ]]; then
   batch_args+=(--reuse-listener)
 else

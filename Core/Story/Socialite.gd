@@ -60,7 +60,7 @@ func should_chatter(node_activity: float = 0.5) -> bool:
 	return randf() < (chattiness * 0.4 + node_activity * 0.3)
 
 
-## Fallback emoji bag — used if ConversationHamiltonian returns nothing
+## Fallback emoji bag — used if the canonical story composer returns nothing
 ## (e.g. faction not yet in registry). Just the speaker's display emoji.
 func fallback_emojis() -> Array:
 	if emoji != "":

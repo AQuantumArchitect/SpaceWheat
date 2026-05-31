@@ -54,7 +54,7 @@ var _mounted: bool = false
 # =============================================================================
 
 func bind(instrument, active_biome_mgr: Node) -> void:
-	"""Wire to live instrument + active biome manager."""
+	# Wire to live instrument + active biome manager.
 	_instrument = instrument
 	_active_biome_mgr = active_biome_mgr
 	if _active_biome_mgr and _active_biome_mgr.has_signal("active_biome_changed"):
@@ -114,10 +114,10 @@ func cycle_frame(step: int = 1) -> void:
 		set_frame(next)
 
 
-func set_object_focus(id, type) -> void:
-	if id == object_focus.get("id") and type == object_focus.get("type"):
+func set_object_focus(id, _type) -> void:
+	if id == object_focus.get("id") and _type == object_focus.get("type"):
 		return
-	object_focus = {"id": id, "type": type}
+	object_focus = {"id": id, "type": _type}
 	_emit_snapshot()
 
 

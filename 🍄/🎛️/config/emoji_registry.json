@@ -173,7 +173,7 @@
     "🌲": {
       "name": "tree",
       "category": "agriculture",
-      "role": "quest_lock",
+      "role": "quest_cycle",
       "starter": false
     },
     "🦠": {

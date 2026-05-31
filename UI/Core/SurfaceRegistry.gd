@@ -134,8 +134,7 @@ func dispatch_action(action_id: String, _args: Dictionary = {}) -> bool:
 				return true
 		"f":
 			# F = optional 4th verb. Surfaces that bind it override _on_action_f.
-			# The legacy `_on_change_frame` fallback has been removed — F is
-			# never pagination.
+			# F never paginates.
 			if active.has_method("_on_action_f"):
 				active._on_action_f()
 				return true

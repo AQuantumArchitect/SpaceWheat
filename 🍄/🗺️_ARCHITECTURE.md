@@ -26,7 +26,7 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │                  🎮 Godot Game (Headless)                        │
 │                                                                 │
-│  Tests/rig_listener.gd ──────► QuantumInstrument               │
+│  Rig/rig_listener.gd ──────► QuantumInstrument               │
 │          │                            │                         │
 │    polls queue.jsonl          executes real game actions        │
 │    writes results.jsonl       (explore / measure / pop /        │
@@ -164,7 +164,7 @@ After every run, `fibonacci_adversary.py` mutates the policy:
 
 **What gets mutated:**
 `quest_cycle` 📋 · `probe_cycle` 🔬 · `lindblad_drain` 🌊 · `time_skip` ⏩
-`discover_biome` 🗺️ · `victory_lap_partial` 🏅 · `lock_offer` 🔒 · `channel_drain` 💧
+`discover_biome` 🗺️ · `victory_lap_partial` 🏅 · `offer_quests` 📋 · `complete_or_claim` ✅
 
 ---
 
@@ -197,7 +197,7 @@ After every run, `fibonacci_adversary.py` mutates the policy:
 🎛️/rig_client.py
     │ reads/writes jsonl files
     ▼
-Tests/rig_listener.gd         ← polls every 50ms
+Rig/rig_listener.gd         ← polls every 50ms
     │ calls
     ▼
 Core/Instrumentation/QuantumInstrument.gd    ← real game API

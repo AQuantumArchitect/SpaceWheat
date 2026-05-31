@@ -5,9 +5,6 @@ extends RefCounted
 ## Dynamic submenu for Icon frame Q action showing icon options sorted by biome affinity
 ## Supports F-cycling through multiple pages of options
 
-const BaseSubmenu = preload("res://UI/Core/Submenus/BaseSubmenu.gd")
-const BiomeAffinityCalculator = preload("res://Core/Quantum/BiomeAffinityCalculator.gd")
-const ActionCostRuntime = preload("res://Core/GameMechanics/ActionCostRuntime.gd")
 
 
 static func generate_submenu(biome, farm, page: int = 0) -> Dictionary:
@@ -25,7 +22,7 @@ static func generate_submenu(biome, farm, page: int = 0) -> Dictionary:
 	if options.is_empty():
 		return BaseSubmenu.empty_submenu(
 			"icon_injection",
-			"Inject Signature",
+			"Inject Icon",
 			"No icon available"
 		)
 
@@ -34,11 +31,11 @@ static func generate_submenu(biome, farm, page: int = 0) -> Dictionary:
 	options = BaseSubmenu.apply_cost_to_options(options, farm.economy if farm else null)
 
 	var pagination = BaseSubmenu.paginate(options, page)
-	var actions = BaseSubmenu.build_actions(pagination.page_options, _build_vocab_action)
+	var actions = BaseSubmenu.build_actions(pagination.page_options, _build_icon_action)
 
 	return BaseSubmenu.build_result(
 		"icon_injection",
-		"Inject Signature",
+		"Inject Icon",
 		pagination,
 		actions
 	)
@@ -47,21 +44,21 @@ static func generate_submenu(biome, farm, page: int = 0) -> Dictionary:
 static func _collect_options(biome, farm) -> Array:
 	# Collect icons that can be injected into biome.
 
-	# A pair is injectable if:
-	# - Player has learned it (in known_pairs)
+	# An icon is injectable if:
+	# - Player has learned it (in known_icons)
 	# - NOT already in biome's quantum computer
 	var options: Array = []
 
 	if not farm:
 		return options
 
-	# Gather all known pairs
-	var pairs: Array = _collect_injectable_pairs(farm, biome)
+	# Gather all known icons
+	var icons: Array = _collect_injectable_icons(farm, biome)
 	var seen: Dictionary = {}
 
-	for pair in pairs:
-		var north = pair.get("north", "")
-		var south = pair.get("south", "")
+	for icon in icons:
+		var north = icon.get("north", "")
+		var south = icon.get("south", "")
 
 		if north == "" or south == "" or north == south:
 			continue
@@ -87,18 +84,18 @@ static func _collect_options(biome, farm) -> Array:
 static func _sort_by_affinity(options: Array, biome) -> Array:
 	# Sort icon options by descending affinity to biome.
 	for option in options:
-		var pair = {"north": option.get("north", ""), "south": option.get("south", "")}
-		var affinity = BiomeAffinityCalculator.calculate_affinity(pair, biome)
+		var icon = {"north": option.get("north", ""), "south": option.get("south", "")}
+		var affinity = BiomeAlignmentCalculator.calculate_affinity(icon, biome)
 		option["affinity"] = affinity
 		option["hint"] = "Affinity: %.2f" % affinity
 
 	return BaseSubmenu.sort_by_field(options, "affinity", true)
 
 
-static func _build_vocab_action(option: Dictionary) -> Dictionary:
-	# Build action data for a icon option.
+static func _build_icon_action(option: Dictionary) -> Dictionary:
+	# Build action data for an icon option.
 	return {
-		"action": "inject_vocabulary",
+		"action": "inject_icon",
 		"icon": {
 			"north": option.get("north", ""),
 			"south": option.get("south", "")
@@ -115,24 +112,24 @@ static func _build_vocab_action(option: Dictionary) -> Dictionary:
 
 static func _get_injection_cost(farm, south_emoji: String) -> Dictionary:
 	# Get cost for injecting a icon.
-	return ActionCostRuntime.get_action_cost(farm, "inject_vocabulary", {"south_emoji": south_emoji})
+	return ActionCostRuntime.get_action_cost(farm, "inject_icon", {"south_emoji": south_emoji})
 
 
-static func _collect_known_pairs(farm_ref) -> Array:
-	if farm_ref and farm_ref.has_method("get_known_pairs"):
-		return farm_ref.get_known_pairs()
+static func _collect_known_icons(farm_ref) -> Array:
+	if farm_ref and farm_ref.has_method("get_known_icons"):
+		return farm_ref.get_known_icons()
 	return []
 
 
-static func _collect_injectable_pairs(farm_ref, biome = null) -> Array:
-	var known = _collect_known_pairs(farm_ref)
+static func _collect_injectable_icons(farm_ref, biome = null) -> Array:
+	var known = _collect_known_icons(farm_ref)
 	var filtered: Array = []
 	var seen: Dictionary = {}
-	for pair in known:
-		if not (pair is Dictionary):
+	for icon in known:
+		if not (icon is Dictionary):
 			continue
-		var north = str(pair.get("north", ""))
-		var south = str(pair.get("south", ""))
+		var north = str(icon.get("north", ""))
+		var south = str(icon.get("south", ""))
 		if north == "" or south == "" or north == south:
 			continue
 		if biome and biome.viz_cache and biome.viz_cache.has_metadata():

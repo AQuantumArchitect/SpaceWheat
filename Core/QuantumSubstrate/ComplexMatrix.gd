@@ -1,11 +1,14 @@
 class_name ComplexMatrix
 extends RefCounted
 
-const Complex = preload("res://Core/QuantumSubstrate/Complex.gd")
-const VerboseHelper = preload("res://Core/Config/VerboseHelper.gd")
 
 # Self-reference helper for internal constructors (avoid circular reference issues)
 static var _class_ref = null
+
+static func _self() -> GDScript:
+	if not _class_ref:
+		_class_ref = load("res://Core/QuantumSubstrate/ComplexMatrix.gd")
+	return _class_ref
 
 #region Native Backend (GDExtension Acceleration)
 
@@ -140,18 +143,24 @@ const SPARSITY_THRESHOLD: float = 1e-12
 
 ## Calculate sparsity ratio (0.0 = all zero, 1.0 = all non-zero)
 func get_sparsity_ratio() -> float:
+	if n <= 0:
+		return 0.0
+	_ensure_data_valid()
 	var nonzero_count = 0
 	var total = n * n
 	for i in range(total):
-		if _data[i].abs() > SPARSITY_THRESHOLD:
+		if i < _data.size() and _data[i].abs() > SPARSITY_THRESHOLD:
 			nonzero_count += 1
 	return float(nonzero_count) / float(total) if total > 0 else 0.0
 
 ## Count non-zero elements
 func count_nonzeros() -> int:
+	if n <= 0:
+		return 0
+	_ensure_data_valid()
 	var count = 0
 	for i in range(n * n):
-		if _data[i].abs() > SPARSITY_THRESHOLD:
+		if i < _data.size() and _data[i].abs() > SPARSITY_THRESHOLD:
 			count += 1
 	return count
 
@@ -296,7 +305,7 @@ static func zeros(dimension: int):
 	var packed = PackedFloat64Array()
 	packed.resize(dimension * dimension * 2)
 	# PackedFloat64Array is zero-initialized by resize
-	return ComplexMatrix.from_packed_direct(packed, dimension)
+	return _self().from_packed_direct(packed, dimension)
 
 ## Create identity matrix
 static func identity(dimension: int):
@@ -326,7 +335,7 @@ static func diagonal(diag: Array):
 ## Deep copy
 func duplicate():
 	var packed = _to_packed()
-	return ComplexMatrix.from_packed_direct(packed.duplicate(), n)
+	return _self().from_packed_direct(packed.duplicate(), n)
 
 #region Element Access
 
@@ -408,7 +417,7 @@ func add(other):
 		var other_packed = other._to_packed()
 		native.from_packed(self_packed, n)
 		var result_packed = native.add(other_packed, n)
-		return ComplexMatrix.from_packed_direct(result_packed, n)
+		return _self().from_packed_direct(result_packed, n)
 	# GDScript fallback
 	var a = _to_packed()
 	var b = other._to_packed()
@@ -417,7 +426,7 @@ func add(other):
 	r.resize(total)
 	for i in range(total):
 		r[i] = a[i] + b[i]
-	return ComplexMatrix.from_packed_direct(r, n)
+	return _self().from_packed_direct(r, n)
 
 func sub(other):
 	if other.n != n:
@@ -429,7 +438,7 @@ func sub(other):
 		var other_packed = other._to_packed()
 		native.from_packed(self_packed, n)
 		var result_packed = native.sub(other_packed, n)
-		return ComplexMatrix.from_packed_direct(result_packed, n)
+		return _self().from_packed_direct(result_packed, n)
 	# GDScript fallback
 	var a = _to_packed()
 	var b = other._to_packed()
@@ -438,7 +447,7 @@ func sub(other):
 	r.resize(total)
 	for i in range(total):
 		r[i] = a[i] - b[i]
-	return ComplexMatrix.from_packed_direct(r, n)
+	return _self().from_packed_direct(r, n)
 
 func mul(other):
 	if other.n != n:
@@ -488,14 +497,14 @@ func _mul_packed(other):
 				# (a_re + a_im*i) * (b_re + b_im*i) = (a_re*b_re - a_im*b_im) + (a_re*b_im + a_im*b_re)*i
 				r[ij2] += a_re * b_re - a_im * b_im
 				r[ij2 + 1] += a_re * b_im + a_im * b_re
-	return ComplexMatrix.from_packed_direct(r, dim)
+	return _self().from_packed_direct(r, dim)
 
 func scale(s):
 	var native = _get_native()
 	if native:
 		native.from_packed(_to_packed(), n)
 		var result_packed = native.scale(s.re, s.im, n)
-		return ComplexMatrix.from_packed_direct(result_packed, n)
+		return _self().from_packed_direct(result_packed, n)
 	# GDScript fallback: (a+bi)(c+di) = (ac-bd)+(ad+bc)i
 	var a = _to_packed()
 	var total = n * n
@@ -509,7 +518,7 @@ func scale(s):
 		var a_im = a[i2 + 1]
 		r[i2] = a_re * s_re - a_im * s_im
 		r[i2 + 1] = a_re * s_im + a_im * s_re
-	return ComplexMatrix.from_packed_direct(r, n)
+	return _self().from_packed_direct(r, n)
 
 ## Fast scale by -i: (re, im) → (im, -re).
 func scale_neg_i():
@@ -517,7 +526,7 @@ func scale_neg_i():
 	if native:
 		native.from_packed(_to_packed(), n)
 		var result_packed = native.scale(0.0, -1.0, n)
-		return ComplexMatrix.from_packed_direct(result_packed, n)
+		return _self().from_packed_direct(result_packed, n)
 	# GDScript fallback
 	var a = _to_packed()
 	var total = n * n * 2
@@ -526,14 +535,14 @@ func scale_neg_i():
 	for i in range(0, total, 2):
 		r[i] = a[i + 1]
 		r[i + 1] = -a[i]
-	return ComplexMatrix.from_packed_direct(r, n)
+	return _self().from_packed_direct(r, n)
 
 func scale_real(s: float):
 	var native = _get_native()
 	if native:
 		native.from_packed(_to_packed(), n)
 		var result_packed = native.scale(s, 0.0, n)
-		return ComplexMatrix.from_packed_direct(result_packed, n)
+		return _self().from_packed_direct(result_packed, n)
 	# GDScript fallback
 	var a = _to_packed()
 	var total = n * n * 2
@@ -541,7 +550,7 @@ func scale_real(s: float):
 	r.resize(total)
 	for i in range(total):
 		r[i] = a[i] * s
-	return ComplexMatrix.from_packed_direct(r, n)
+	return _self().from_packed_direct(r, n)
 
 #endregion
 
@@ -552,7 +561,7 @@ func dagger():
 	if native:
 		native.from_packed(_to_packed(), n)
 		var result_packed = native.dagger(n)
-		return ComplexMatrix.from_packed_direct(result_packed, n)
+		return _self().from_packed_direct(result_packed, n)
 	# GDScript fallback
 	var a = _to_packed()
 	var dim = n
@@ -564,7 +573,7 @@ func dagger():
 			var dst = (j * dim + i) * 2
 			r[dst] = a[src]        # re
 			r[dst + 1] = -a[src + 1]  # -im (conjugate)
-	return ComplexMatrix.from_packed_direct(r, dim)
+	return _self().from_packed_direct(r, dim)
 
 func trace():
 	# Fast path: read directly from packed data
@@ -631,7 +640,7 @@ func commutator(other):
 	if native:
 		native.from_packed(_to_packed(), n)
 		var result_packed = native.commutator(other._to_packed(), n)
-		return ComplexMatrix.from_packed_direct(result_packed, n)
+		return _self().from_packed_direct(result_packed, n)
 	# GDScript fallback via mul
 	return mul(other).sub(other.mul(self))
 
@@ -1000,8 +1009,8 @@ func conjugate_transpose() -> ComplexMatrix:
 func renormalize_trace() -> void:
 	# Renormalize matrix so Tr(M) = 1 (in-place).
 	# Used after measurement/projection to restore unit trace.
-	var tr = trace()
-	var tr_val = tr.abs()
+	var trace_val_cx = trace()
+	var tr_val = trace_val_cx.abs()
 
 	if tr_val < 1e-14:
 		var now_ms = Time.get_ticks_msec()

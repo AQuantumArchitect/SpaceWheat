@@ -52,7 +52,7 @@ func to_dict() -> Dictionary:
 
 
 static func from_dict(data: Dictionary) -> FactionStanding:
-	var s = FactionStanding.new()
+	var s = load("res://Core/Factions/FactionStanding.gd").new()
 	if data == null or data.is_empty():
 		return s
 	s.trust = float(data.get("trust", 0.0))

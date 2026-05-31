@@ -107,7 +107,7 @@ func get_page_count() -> int:
 ## Subclasses can pass selected_index/label plus a concise hint and extra keys.
 func build_surface_visible_data(
 		frame_label: String,
-		selected_index: int = -1,
+		sel_index: int = -1,
 		selected_label: String = "",
 		surface_hint: String = "",
 		extra: Dictionary = {}) -> Dictionary:
@@ -116,7 +116,7 @@ func build_surface_visible_data(
 		"frame_label": frame_label if frame_label != "" else frame_id,
 		"page_index": get_page_index(),
 		"page_count": get_page_count(),
-		"selected_index": selected_index,
+		"selected_index": sel_index,
 		"selected_label": selected_label,
 		"surface_hint": surface_hint,
 	}
@@ -226,8 +226,8 @@ func _on_object_focus_changed(_new_focus: Dictionary, _prev_focus: Dictionary) -
 ## F is the optional 4th verb on the current item, parallel to Q/E/R.
 ## Override `_on_action_f` only when an overlay legitimately needs more
 ## than 3 verbs. Frame cycling is `[` / `]` (PlayerShell.cycle_active_surface_frame).
-## The legacy `_on_change_frame()` hook has been removed; call
-## `cycle_frame(±1)` directly if you need to programmatically advance a frame.
+## The old `_on_change_frame()` hook is gone; call `cycle_frame(±1)` directly
+## if you need to programmatically advance a frame.
 
 
 # =============================================================================

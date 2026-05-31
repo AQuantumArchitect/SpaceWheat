@@ -27,7 +27,7 @@ def test_action_cost_surface_parity() -> None:
     try:
         proc = rig.start_listener(
             load_slot=None,
-            scenario_id="default",
+            scenario_id="new_game_easy",
             allow_resource_injection=False,
             listener_stdout="null",
             rig_log_profile="quiet",
@@ -46,8 +46,7 @@ def test_action_cost_surface_parity() -> None:
 
         checks = [
             ("quest_reroll", {}, True),
-            ("quest_lock", {}, True),
-            ("inject_vocabulary", {"south_emoji": "👥"}, False),  # dynamic cost depends on context
+            ("inject_icon", {"south_emoji": "👥"}, False),  # dynamic cost depends on context
         ]
         for action_name, context, compare_balance_snapshot in checks:
             turn += 1

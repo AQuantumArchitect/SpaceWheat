@@ -6,16 +6,14 @@ extends Object
 ## Both UIContextController (chip text) and the action dispatcher consult this,
 ## so a resolver that overrides `action` will route through to the right handler.
 
-const IconChipResolvers = preload("res://Core/UI/IconChipResolvers.gd")
-const ChipContext = preload("res://Core/UI/ChipContext.gd")
 
 
 static func resolve(action_info: Dictionary, ctx) -> Dictionary:
 	if action_info.is_empty() or not action_info.has("chip_resolver"):
 		return action_info
-	var name: String = str(action_info["chip_resolver"])
+	var entry_name: String = str(action_info["chip_resolver"])
 	var patch: Dictionary = {}
-	match name:
+	match entry_name:
 		"icon.r_state":
 			patch = IconChipResolvers.resolve_r(ctx)
 		_:

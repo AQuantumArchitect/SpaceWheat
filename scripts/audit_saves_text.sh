@@ -2,6 +2,8 @@
 
 ## Simple text-based audit of save files and scenarios
 
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
 echo ""
 echo "=========================================================================="
 echo "🔍 SAVE FILE & SCENARIO AUDIT (Text-based)"
@@ -49,7 +51,7 @@ analyze_file() {
 		echo "    - credits: $credits"
 	fi
 
-	# Check for obsolete fields
+	# Check for removed fields
 	echo "  ⚠️  Field check:"
 
 	if grep -q '"theta"' "$path"; then
@@ -81,7 +83,7 @@ analyze_file() {
 # Audit scenarios
 echo "▶ PHASE 1: SCENARIO FILES"
 echo "----------------------------------------------------------------------"
-analyze_file "/home/tehcr33d/ws/SpaceWheat/Scenarios/default.tres" "SCENARIO"
+analyze_file "$REPO_ROOT/Scenarios/default.tres" "SCENARIO"
 
 # Audit saves
 echo ""

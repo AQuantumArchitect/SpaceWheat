@@ -51,33 +51,6 @@ static func normalize_nested_keys(d: Dictionary) -> Dictionary:
 	return result
 
 
-## Normalize gated_lindblad: {emoji_key: [{gate, source, ...}]}.
-## Outer keys and "gate"/"source" string values are all emojis.
-static func normalize_gated_lindblad(d: Dictionary) -> Dictionary:
-	if d.is_empty():
-		return d
-	var result: Dictionary = {}
-	for outer_key in d:
-		var nkey: String = normalize(str(outer_key))
-		var entries = d[outer_key]
-		if not entries is Array:
-			result[nkey] = entries
-			continue
-		var normalized_entries: Array = []
-		for entry in entries:
-			if not entry is Dictionary:
-				normalized_entries.append(entry)
-				continue
-			var ne: Dictionary = entry.duplicate()
-			if "gate" in ne:
-				ne["gate"] = normalize(str(ne["gate"]))
-			if "source" in ne:
-				ne["source"] = normalize(str(ne["source"]))
-			normalized_entries.append(ne)
-		result[nkey] = normalized_entries
-	return result
-
-
 ## Normalize decay: {emoji_key: {rate, target}}.
 ## Outer keys and "target" values are emojis.
 static func normalize_decay(d: Dictionary) -> Dictionary:

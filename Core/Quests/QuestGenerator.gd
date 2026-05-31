@@ -5,25 +5,21 @@ extends Node
 ## Based on quest_demo.py - generates quests from faction axioms
 
 # Quest system dependencies
-const QuestVocabulary = preload("res://Core/Quests/QuestVocabulary.gd")
-const FactionVoices = preload("res://Core/Quests/FactionVoices.gd")
-const BiomeLocations = preload("res://Core/Quests/BiomeLocations.gd")
 
 # =============================================================================
 # CORE QUEST GENERATION
 # =============================================================================
 
 static func generate_quest(faction: Dictionary, biome_name: String, resources: Array) -> Dictionary:
-	"""Generate quest from faction data and biome context
-
-	Args:
-		faction: {name: String, bits: Array[int], sig: Array[String]}
-		biome_name: String (e.g., "BioticFlux")
-		resources: Array[String] (available emoji resources in biome)
-
-	Returns:
-		Dictionary with complete quest data
-	"""
+	# Generate quest from faction data and biome context
+	#
+	# Args:
+	# faction: {name: String, bits: Array[int], sig: Array[String]}
+	# biome_name: String (e.g., "BioticFlux")
+	# resources: Array[String] (available emoji resources in biome)
+	#
+	# Returns:
+	# Dictionary with complete quest data
 	if resources.is_empty():
 		push_error("Cannot generate quest: no resources available in biome %s" % biome_name)
 		return {}
@@ -55,7 +51,7 @@ static func generate_quest(faction: Dictionary, biome_name: String, resources: A
 
 	# Compose full quest
 	# Convert signature array to string (first 3 emojis for display)
-	# v2.1 uses "sig" not "signature" - check both for compatibility
+	# v2.1 uses "sig" not "signature" - check both keys
 	var sig = faction.get("sig", faction.get("signature", []))
 	var faction_emoji = "".join(sig.slice(0, 3))
 
@@ -83,11 +79,10 @@ static func generate_quest(faction: Dictionary, biome_name: String, resources: A
 # =============================================================================
 
 static func _select_verb_for_bits(bits: Array) -> String:
-	"""Select verb using bit affinity scoring
-
-	Score = count of matching bits + randomness
-	Higher score = better match to faction personality
-	"""
+	# Select verb using bit affinity scoring
+	#
+	# Score = count of matching bits + randomness
+	# Higher score = better match to faction personality
 	var best_verb = ""
 	var best_score = -1.0
 
@@ -115,14 +110,14 @@ static func _select_verb_for_bits(bits: Array) -> String:
 # =============================================================================
 
 static func _get_adverb(bits: Array) -> String:
-	"""Get adverb based on bits (40% chance to include)"""
+	# Get adverb based on bits (40% chance to include)
 	if randf() < 0.4:
 		var idx = randi() % 12
 		return QuestVocabulary.BIT_ADVERBS[idx][bits[idx]]
 	return ""
 
 static func _get_adjective(bits: Array) -> String:
-	"""Get adjective based on bits"""
+	# Get adjective based on bits
 	var idx = randi() % 12
 	return QuestVocabulary.BIT_ADJECTIVES[idx][bits[idx]]
 
@@ -131,16 +126,15 @@ static func _get_adjective(bits: Array) -> String:
 # =============================================================================
 
 static func _get_urgency(bits: Array) -> Dictionary:
-	"""Get urgency from bits 0 and 4
-
-	Bit 0: Random (0) vs Deterministic (1)
-	Bit 4: Instant (0) vs Eternal (1)
-
-	00 = eternal (no time limit)
-	01 = before the cycle ends (120s)
-	10 = when the signs align (180s)
-	11 = immediately (60s)
-	"""
+	# Get urgency from bits 0 and 4
+	#
+	# Bit 0: Random (0) vs Deterministic (1)
+	# Bit 4: Instant (0) vs Eternal (1)
+	#
+	# 00 = eternal (no time limit)
+	# 01 = before the cycle ends (120s)
+	# 10 = when the signs align (180s)
+	# 11 = immediately (60s)
 	var key = "%d%d" % [bits[0], bits[4]]
 	return QuestVocabulary.URGENCY[key]
 
@@ -149,11 +143,10 @@ static func _get_urgency(bits: Array) -> Dictionary:
 # =============================================================================
 
 static func _get_quantity_from_bits(bits: Array) -> int:
-	"""Determine quantity from bits
-
-	Bit 2: Common (0) vs Elite (1)
-	Common factions ask for less, elite factions ask for more
-	"""
+	# Determine quantity from bits
+	#
+	# Bit 2: Common (0) vs Elite (1)
+	# Common factions ask for less, elite factions ask for more
 	var is_common = bits[2] == 0
 	if is_common:
 		return randi() % 5 + 1  # 1-5
@@ -167,14 +160,13 @@ static func _get_quantity_from_bits(bits: Array) -> int:
 static func _build_quest_body(verb: String, qty: String, adj: String,
 							   resource: String, location: String,
 							   urgency: Dictionary, adverb: String = "") -> String:
-	"""Build quest body text
-
-	Frame selection based on bits:
-	- Fluid (bit 6 = 1): alternate frame
-	- Subtle (bit 7 = 1): covert frame
-	- Instant (bit 4 = 0): urgent frame
-	- Default: standard frame
-	"""
+	# Build quest body text
+	#
+	# Frame selection based on bits:
+	# - Fluid (bit 6 = 1): alternate frame
+	# - Subtle (bit 7 = 1): covert frame
+	# - Instant (bit 4 = 0): urgent frame
+	# - Default: standard frame
 	var body = ""
 
 	# Include adverb if present
@@ -194,11 +186,10 @@ static func _build_quest_body(verb: String, qty: String, adj: String,
 # =============================================================================
 
 static func generate_emoji_quest(faction: Dictionary, biome_name: String, resources: Array) -> Dictionary:
-	"""Generate pure emoji quest (zero English)
-
-	Format: [faction_emoji]: [verb_emoji] [qty×resource] → [target] [urgency_emoji]
-	Example: 🌾⚙️: 🔧 🌾×5 → 🏭 ⚡
-	"""
+	# Generate pure emoji quest (zero English)
+	#
+	# Format: [faction_emoji]: [verb_emoji] [qty×resource] → [target] [urgency_emoji]
+	# Example: 🌾⚙️: 🔧 🌾×5 → 🏭 ⚡
 	if resources.is_empty():
 		return {}
 
@@ -217,7 +208,7 @@ static func generate_emoji_quest(faction: Dictionary, biome_name: String, resour
 		qty_display = "%s×%d" % [resource, quantity]
 
 	# Convert signature array to string and get first emoji
-	# v2.1 uses "sig" not "signature" - check both for compatibility
+	# v2.1 uses "sig" not "signature" - check both keys
 	var sig = faction.get("sig", faction.get("signature", []))
 	var faction_emoji = "".join(sig.slice(0, 3))
 	var target_emoji = sig[0] if sig.size() > 0 else "❓"
@@ -248,7 +239,7 @@ static func generate_emoji_quest(faction: Dictionary, biome_name: String, resour
 # =============================================================================
 
 static func test_generation() -> void:
-	"""Test quest generation with sample faction"""
+	# Test quest generation with sample faction
 	print("🧪 Testing QuestGenerator...")
 
 	var test_faction = {

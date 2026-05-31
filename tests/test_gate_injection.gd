@@ -9,11 +9,6 @@ extends SceneTree
 ##
 ## Run with: godot --headless -s tests/test_gate_injection.gd
 
-const ComplexMatrix = preload("res://Core/QuantumSubstrate/ComplexMatrix.gd")
-const Complex = preload("res://Core/QuantumSubstrate/Complex.gd")
-const QuantumComputer = preload("res://Core/QuantumSubstrate/QuantumComputer.gd")
-const QuantumGateLibrary = preload("res://Core/QuantumSubstrate/QuantumGateLibrary.gd")
-const GateInjector = preload("res://Core/QuantumSubstrate/GateInjector.gd")
 
 var tests_passed = 0
 var tests_failed = 0
@@ -58,7 +53,7 @@ func assert_near(actual: float, expected: float, tolerance: float, msg: String):
 
 
 func test_apply_gate_hadamard():
-	"""Test Hadamard gate application: |0⟩ → (|0⟩+|1⟩)/√2"""
+	# Test Hadamard gate application: |0⟩ → (|0⟩+|1⟩)/√2
 	print("\n[TEST] apply_gate() with Hadamard")
 
 	# Setup: 1 qubit in |0⟩ state
@@ -89,7 +84,7 @@ func test_apply_gate_hadamard():
 
 
 func test_apply_gate_pauli_x():
-	"""Test Pauli-X gate: |0⟩ → |1⟩"""
+	# Test Pauli-X gate: |0⟩ → |1⟩
 	print("\n[TEST] apply_gate() with Pauli-X")
 
 	var qc = QuantumComputer.new("test_pauli_x")
@@ -109,7 +104,7 @@ func test_apply_gate_pauli_x():
 
 
 func test_embed_1q_unitary():
-	"""Test _embed_1q_unitary() produces correct tensor product."""
+	# Test _embed_1q_unitary() produces correct tensor product.
 	print("\n[TEST] _embed_1q_unitary() tensor structure")
 
 	# Setup: 2 qubits
@@ -136,7 +131,7 @@ func test_embed_1q_unitary():
 
 
 func test_gate_injector_invalidates_buffer():
-	"""Test GateInjector calls signal_user_action() on batcher."""
+	# Test GateInjector calls signal_user_action() on batcher.
 	print("\n[TEST] GateInjector buffer invalidation")
 
 	# Create mock biome with quantum computer
@@ -168,7 +163,7 @@ func test_gate_injector_invalidates_buffer():
 
 
 func test_2q_gate_cnot():
-	"""Test 2-qubit CNOT gate: |00⟩ stays |00⟩, |10⟩ → |11⟩"""
+	# Test 2-qubit CNOT gate: |00⟩ stays |00⟩, |10⟩ → |11⟩
 	print("\n[TEST] apply_gate_2q() with CNOT")
 
 	# Setup: 2 qubits in |00⟩
@@ -201,7 +196,7 @@ func test_2q_gate_cnot():
 
 
 func test_batch_gate_injection():
-	"""Test batch gate injection applies gates in order with single invalidation."""
+	# Test batch gate injection applies gates in order with single invalidation.
 	print("\n[TEST] Batch gate injection (selection order preserved)")
 
 	# Setup: 3 qubits, all in |0⟩

@@ -1,11 +1,13 @@
 #!/bin/bash
+set -euo pipefail
 
-# 🖥️🌾 - SpaceWheat Visual Bubble Test (Full Display Mode)
-# Watch quantum bubbles evolve with real FPS metrics
-# Validates emoji atlas & GPU batching with visual feedback (80+ seconds)
+# 🖥️🌾 - SpaceWheat headed runtime probe
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/lib.sh"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+OUT_DIR="${1:-$PROJECT_ROOT/🍄/🎛️/.godot_tmp/headed_runtime_$(date +%Y%m%d_%H%M%S)}"
 
-run_test_with_log "VisualBubbleTest.tscn" "80" "Visual Bubble Test" "false"
-exit $?
+echo "🖥️🌾 headed runtime probe"
+echo "output: $OUT_DIR"
+
+bash "$PROJECT_ROOT/scripts/profile_headed_runtime.sh" "$OUT_DIR"

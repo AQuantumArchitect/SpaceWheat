@@ -36,6 +36,10 @@ extends Resource
 
 ## Self-energy: diagonal term H[i,i] - natural frequency
 @export var self_energy: float = 0.0
+## Pair-axis self-energy for pole_0 (used by icon-cloud biomes and pair atlases).
+@export var self_energy_0: float = 0.0
+## Pair-axis self-energy for pole_1 (used by icon-cloud biomes and pair atlases).
+@export var self_energy_1: float = 0.0
 
 ## Internal Rabi coupling: the heartbeat of the Icon.
 ## Symmetric coupling between pole_0 ↔ pole_1 — the oscillation rate of this
@@ -46,43 +50,14 @@ extends Resource
 ## Cross-axis couplings: off-diagonal terms H[i,j] to OTHER Icons' emojis.
 ## Key = target emoji, Value = coupling strength (real, will be symmetrized)
 @export var hamiltonian_couplings: Dictionary = {}
+## Alias used by the icon-cloud builder path.
+@export var cross_couplings: Dictionary = {}
 
 ## Time-dependent self-energy for external driving (e.g., day/night cycle)
 @export var self_energy_driver: String = ""  # "cosine", "sine", "pulse", or ""
 @export var driver_frequency: float = 0.0    # Hz (cycles per second)
 @export var driver_phase: float = 0.0        # Radians
 @export var driver_amplitude: float = 1.0    # Multiplier for self_energy
-
-## ========================================
-## Lindblad Terms (Dissipative Evolution)
-## ========================================
-
-## Outgoing transfers: this emoji loses amplitude to target
-## Key = target emoji, Value = transfer rate γ (in amplitude/sec, NOT energy/sec)
-##
-## IMPORTANT: Rates are in AMPLITUDE units, not energy/probability
-## With dt=0.016 (60 FPS), transfer per frame ≈ √(rate × dt)
-## Example: rate=0.008 → ~1.13% amplitude/frame → ~88% transferred in 10 seconds
-##
-## Typical ranges for amplitude-based evolution:
-##   Fast transfers (predation): 0.015/sec → ~88% in 6 seconds
-##   Medium transfers (herbivory): 0.010/sec → ~88% in 10 seconds
-##   Slow transfers (wheat growth): 0.003-0.008/sec → ~88% in 12-30 seconds
-##   Very slow (soil accumulation): 0.002/sec → ~88% in 50 seconds
-@export var lindblad_outgoing: Dictionary = {}
-
-## Incoming transfers: this emoji gains amplitude from source
-## (Syntactic sugar - will be converted to source's outgoing during bath construction)
-## Rates are in amplitude/sec (see lindblad_outgoing documentation above)
-@export var lindblad_incoming: Dictionary = {}
-
-## Self-decay: amplitude leaks to decay_target
-@export var decay_rate: float = 0.0
-@export var decay_target: String = "🍂"  # Default: organic matter
-
-## Gated transfers attach via `set_meta("gated_lindblad", [...])` rather than a
-## field — the meta carries an array of {source, gate, target, rate, power,
-## inverse} dicts. Kept off the export surface because it is biome-local data.
 
 ## ========================================
 ## Bath-Projection Coupling (Environmental Interactions)
@@ -124,7 +99,18 @@ extends Resource
 
 ## Get effective self-energy at given time (handles time-dependent drivers)
 func get_self_energy(time: float) -> float:
+	return get_pole_energy(0, time)
+
+
+## Get effective self-energy for a given pole at time.
+func get_pole_energy(pole: int, time: float) -> float:
 	var base = self_energy
+	if pole == 0 and self_energy_0 != 0.0:
+		base = self_energy_0
+	elif pole == 1 and self_energy_1 != 0.0:
+		base = self_energy_1
+	elif base == 0.0 and self_energy_0 != 0.0:
+		base = self_energy_0
 
 	match self_energy_driver:
 		"cosine":
@@ -137,7 +123,43 @@ func get_self_energy(time: float) -> float:
 		_:
 			return base
 
-## Get all emojis this icon couples to (for building bath emoji set)
+
+## Construct a pair-Icon resource from pair physics (icons.json).
+## Lindblad/decay come from biome.atom_components, not the Icon.
+static func from_pair_physics(
+		iname: String, p0: String, p1: String,
+		physics: Dictionary,
+		standing: float = 1.0) -> Icon:
+	var icon = load("res://Core/QuantumSubstrate/Icon.gd").new()
+	icon.name = iname
+	icon.pole_0 = p0
+	icon.pole_1 = p1
+	icon.self_energy_0 = float(physics.get("self_energy_0", 0.0)) * standing
+	icon.self_energy_1 = float(physics.get("self_energy_1", 0.0)) * standing
+	icon.self_energy = icon.self_energy_0
+	icon.rabi_coupling = float(physics.get("rabi_coupling", 0.0)) * standing
+	icon.hamiltonian_couplings = _scale_dict(physics.get("hamiltonian_couplings", {}), standing)
+	icon.cross_couplings = icon.hamiltonian_couplings.duplicate(true)
+	var driver: Dictionary = physics.get("driver", {})
+	if driver.has("type"):
+		icon.self_energy_driver = str(driver.get("type", ""))
+		icon.driver_frequency = float(driver.get("freq", 0.0))
+		icon.driver_phase = float(driver.get("phase", 0.0))
+		icon.driver_amplitude = float(driver.get("amp", 1.0))
+	return icon
+
+
+static func _scale_dict(d: Dictionary, s: float) -> Dictionary:
+	var out: Dictionary = {}
+	for k in d:
+		var v = d[k]
+		if v is Array and v.size() == 2:
+			out[k] = Vector2(float(v[0]), float(v[1])) * s
+		else:
+			out[k] = float(v) * s
+	return out
+
+## Get all emojis this icon couples to (Hamiltonian only; L lives on biome.atom_components)
 func get_coupled_emojis() -> Array:
 	var result: Array = []
 
@@ -145,16 +167,8 @@ func get_coupled_emojis() -> Array:
 		if not result.has(e):
 			result.append(e)
 
-	for e in lindblad_outgoing.keys():
+	for e in cross_couplings.keys():
 		if not result.has(e):
 			result.append(e)
-
-	for e in lindblad_incoming.keys():
-		if not result.has(e):
-			result.append(e)
-
-	if decay_rate > 0 and decay_target and not result.has(decay_target):
-		result.append(decay_target)
 
 	return result
-

@@ -2,9 +2,6 @@ class_name GameRoot
 extends Control
 
 const FarmViewScene = preload("res://scenes/FarmView.tscn")
-const QuantumForceGraph = preload("res://Core/Visualization/QuantumForceGraph.gd")
-const SaveStore = preload("res://Core/GameState/SaveStore.gd")
-const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
 signal game_started(farm: Node)
 
@@ -15,7 +12,7 @@ var quantum_viz: QuantumForceGraph = null
 var _starting: bool = false
 var _started: bool = false
 
-@onready var _verbose = InstrumentLocator.resolve_verbose_config(self)
+@onready var _verbose = get_node_or_null("/root/VerboseConfig")
 
 
 func _ready() -> void:
@@ -31,13 +28,13 @@ func start(request: Dictionary = {}) -> Node:
 	_starting = true
 
 	var boot_request := SaveStore.normalize_boot_request(request)
-	var boot_mgr = InstrumentLocator.resolve_root_node(self, "/root/BootManager")
+	var boot_mgr = get_node_or_null("/root/BootManager")
 	if not boot_mgr:
 		push_error("GameRoot: BootManager not found")
 		_starting = false
 		return null
 
-	farm = await boot_mgr.boot_core(boot_request, self)
+	farm = await boot_mgr.boot_session(boot_request, self)
 	if not farm:
 		push_error("GameRoot: core boot failed")
 		_starting = false
@@ -59,7 +56,7 @@ func start(request: Dictionary = {}) -> Node:
 	farm_view.attach_runtime(farm, player_shell, quantum_viz, false)
 	farm_view.prepare_runtime_visuals(false)
 
-	await boot_mgr.boot_ui(farm, farm_view, player_shell, quantum_viz)
+	await boot_mgr.boot_runtime(farm, player_shell, quantum_viz)
 	farm_view.finalize_runtime_mount(false)
 
 	_mark_started()
@@ -73,8 +70,6 @@ func teardown_visuals() -> void:
 	if farm_view and is_instance_valid(farm_view) and farm_view.has_method("teardown_runtime"):
 		farm_view.teardown_runtime()
 	if quantum_viz and is_instance_valid(quantum_viz):
-		if quantum_viz.has_method("teardown"):
-			quantum_viz.teardown()
 		quantum_viz.queue_free()
 	player_shell = null
 	quantum_viz = null

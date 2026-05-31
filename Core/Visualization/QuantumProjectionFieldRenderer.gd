@@ -1,7 +1,6 @@
 class_name QuantumProjectionFieldRenderer
 extends RefCounted
 
-const QuantumVisualGrammar = preload("res://Core/Visualization/QuantumVisualGrammar.gd")
 
 ## Draws semantic projection fields behind relationship edges and bubbles.
 ##

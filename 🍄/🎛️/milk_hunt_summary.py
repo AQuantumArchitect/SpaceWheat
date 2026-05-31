@@ -44,9 +44,80 @@ def policy_action_breakdown(policy_decisions: List[Dict[str, Any]]) -> Dict[str,
     }
 
 
-def lock_offer_gate_summary_fields(
+def market_projection_summary(policy_decisions: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Telemetry view of what the market lattice served the hunter.
+
+    Reads every `offer_quests` event from the policy decision trace, collects
+    every offer's `market_projection` payload, and aggregates:
+
+      - offers_with_projection / offers_total     (how many offers carried the payload)
+      - factions_distinct                          (how many distinct factions bid)
+      - resources_distinct                         (how many distinct emojis bid on)
+      - market_score: mean / min / max
+      - scarcity:     mean / min / max
+      - alignment:    mean / min / max
+
+    All read-only. Empty when no offer_quests events fired or projection
+    flag was off (no payload to read).
+    """
+    factions: set[str] = set()
+    resources: set[str] = set()
+    scores: List[float] = []
+    scarcities: List[float] = []
+    alignments: List[float] = []
+    offers_total = 0
+    offers_with_projection = 0
+
+    for ev in policy_decisions:
+        if not isinstance(ev, dict):
+            continue
+        if str(ev.get("action", "")) != "offer_quests":
+            continue
+        offers = ev.get("offers", [])
+        if not isinstance(offers, list):
+            continue
+        for offer in offers:
+            if not isinstance(offer, dict):
+                continue
+            offers_total += 1
+            proj = offer.get("market_projection")
+            if not isinstance(proj, dict):
+                continue
+            offers_with_projection += 1
+            faction = offer.get("faction")
+            resource = offer.get("resource")
+            if isinstance(faction, str) and faction:
+                factions.add(faction)
+            if isinstance(resource, str) and resource:
+                resources.add(resource)
+            for key, sink in (("market_score", scores), ("scarcity", scarcities), ("alignment", alignments)):
+                v = proj.get(key)
+                if isinstance(v, (int, float)):
+                    sink.append(float(v))
+
+    def _mmm(xs: List[float]) -> Dict[str, float]:
+        if not xs:
+            return {"mean": 0.0, "min": 0.0, "max": 0.0}
+        return {
+            "mean": sum(xs) / len(xs),
+            "min": min(xs),
+            "max": max(xs),
+        }
+
+    return {
+        "offers_total": offers_total,
+        "offers_with_projection": offers_with_projection,
+        "factions_distinct": len(factions),
+        "resources_distinct": len(resources),
+        "market_score": _mmm(scores),
+        "scarcity": _mmm(scarcities),
+        "alignment": _mmm(alignments),
+    }
+
+
+def quest_cycle_gate_summary_fields(
     action_gate_policies: Dict[str, Dict[str, Any]],
-    lock_offer_gate_override: Optional[bool],
+    quest_cycle_gate_override: Optional[bool],
     *,
     actions: int,
     success: int,
@@ -56,20 +127,20 @@ def lock_offer_gate_summary_fields(
     cooldown_until_loop: int,
     fail_streak_final: int,
 ) -> Dict[str, Any]:
-    lock_offer_policy = action_gate_policies.get("lock_offer", {})
-    lock_offer_enabled = bool(lock_offer_policy.get("enabled", True))
+    quest_cycle_policy = action_gate_policies.get("quest_cycle", {})
+    quest_cycle_enabled = bool(quest_cycle_policy.get("enabled", True))
     return {
-        "action_gate_overrides": {"lock_offer": lock_offer_gate_override},
-        "action_gate_lock_offer_enabled": lock_offer_enabled,
-        "action_gate_lock_offer_policy": lock_offer_policy if lock_offer_enabled else {},
+        "action_gate_overrides": {"quest_cycle": quest_cycle_gate_override},
+        "action_gate_quest_cycle_enabled": quest_cycle_enabled,
+        "action_gate_quest_cycle_policy": quest_cycle_policy if quest_cycle_enabled else {},
         "action_gate_policies": action_gate_policies,
-        "action_gate_lock_offer_actions": actions,
-        "action_gate_lock_offer_success": success,
-        "action_gate_lock_offer_failed": failed,
-        "action_gate_lock_offer_cap_hits": cap_hits,
-        "action_gate_lock_offer_cooldown_hits": cooldown_hits,
-        "action_gate_lock_offer_cooldown_until_loop": cooldown_until_loop,
-        "action_gate_lock_offer_fail_streak_final": fail_streak_final,
+        "action_gate_quest_cycle_actions": actions,
+        "action_gate_quest_cycle_success": success,
+        "action_gate_quest_cycle_failed": failed,
+        "action_gate_quest_cycle_cap_hits": cap_hits,
+        "action_gate_quest_cycle_cooldown_hits": cooldown_hits,
+        "action_gate_quest_cycle_cooldown_until_loop": cooldown_until_loop,
+        "action_gate_quest_cycle_fail_streak_final": fail_streak_final,
     }
 
 
@@ -130,14 +201,14 @@ def build_common_summary_fields(
     policy_forbid_actions: List[str],
     policy_quest_cap_hits: int,
     action_gate_policies: Dict[str, Dict[str, Any]],
-    lock_offer_gate_override: Optional[bool],
-    action_gate_lock_offer_actions: int,
-    action_gate_lock_offer_success: int,
-    action_gate_lock_offer_failed: int,
-    action_gate_lock_offer_cap_hits: int,
-    action_gate_lock_offer_cooldown_hits: int,
-    action_gate_lock_offer_cooldown_until_loop: int,
-    action_gate_lock_offer_fail_streak: int,
+    quest_cycle_gate_override: Optional[bool],
+    action_gate_quest_cycle_actions: int,
+    action_gate_quest_cycle_success: int,
+    action_gate_quest_cycle_failed: int,
+    action_gate_quest_cycle_cap_hits: int,
+    action_gate_quest_cycle_cooldown_hits: int,
+    action_gate_quest_cycle_cooldown_until_loop: int,
+    action_gate_quest_cycle_fail_streak: int,
     target_turn_hz: float,
     metrics_every: int,
     runtime_profile: str,
@@ -194,16 +265,16 @@ def build_common_summary_fields(
         "policy_max_quest_actions_per_loop": policy_max_quest_actions_per_loop,
         "policy_forbid_actions": policy_forbid_actions,
         "policy_quest_cap_hits": policy_quest_cap_hits,
-        **lock_offer_gate_summary_fields(
+        **quest_cycle_gate_summary_fields(
             action_gate_policies,
-            lock_offer_gate_override,
-            actions=action_gate_lock_offer_actions,
-            success=action_gate_lock_offer_success,
-            failed=action_gate_lock_offer_failed,
-            cap_hits=action_gate_lock_offer_cap_hits,
-            cooldown_hits=action_gate_lock_offer_cooldown_hits,
-            cooldown_until_loop=action_gate_lock_offer_cooldown_until_loop,
-            fail_streak_final=action_gate_lock_offer_fail_streak,
+            quest_cycle_gate_override,
+            actions=action_gate_quest_cycle_actions,
+            success=action_gate_quest_cycle_success,
+            failed=action_gate_quest_cycle_failed,
+            cap_hits=action_gate_quest_cycle_cap_hits,
+            cooldown_hits=action_gate_quest_cycle_cooldown_hits,
+            cooldown_until_loop=action_gate_quest_cycle_cooldown_until_loop,
+            fail_streak_final=action_gate_quest_cycle_fail_streak,
         ),
         "target_turn_hz": target_turn_hz,
         "metrics_every": metrics_every,

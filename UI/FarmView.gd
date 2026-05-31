@@ -4,9 +4,7 @@
 
 extends Control
 
-const QuantumForceGraph = preload("res://Core/Visualization/QuantumForceGraph.gd")
 const BiomeBackgroundClass = preload("res://Core/Visualization/BiomeBackground.gd")
-const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
 const BACKGROUND_LAYER := -1
 const QUANTUM_VIZ_Z_INDEX := 40
@@ -17,7 +15,7 @@ var quantum_viz: QuantumForceGraph = null
 var biome_background: Control = null
 var performance_hud: Control = null
 
-@onready var _verbose = InstrumentLocator.resolve_verbose_config(self)
+@onready var _verbose = get_node_or_null("/root/VerboseConfig")
 
 
 func _ready() -> void:
@@ -64,8 +62,6 @@ func finalize_runtime_mount(is_headless: bool = false) -> void:
 
 func teardown_runtime() -> void:
 	# Called by GameRoot.teardown_visuals before queue_free.
-	if quantum_viz and is_instance_valid(quantum_viz) and quantum_viz.has_method("teardown"):
-		quantum_viz.teardown()
 	quantum_viz = null
 	biome_background = null
 	performance_hud = null
@@ -138,7 +134,7 @@ func _on_quit_requested() -> void:
 		_verbose.info("ui", "🛑", "Quit requested")
 	if quantum_viz and quantum_viz.has_method("teardown"):
 		quantum_viz.teardown()
-	var gsm = InstrumentLocator.resolve_game_state_manager(self)
+	var gsm = get_node_or_null("/root/GameStateManager")
 	if gsm and gsm.has_method("request_application_quit"):
 		gsm.request_application_quit(true)
 	else:
@@ -158,16 +154,28 @@ func _on_quantum_node_clicked(grid_pos: Vector2i, button_index: int) -> void:
 			_verbose.warn("ui", "⚠️", "No farm or terminal_pool")
 		return
 
-	var plot = farm.grid.get_plot(grid_pos) if farm.grid else null
-	var terminal = plot.terminal if plot else null
-	if not terminal:
-		if _verbose:
-			_verbose.warn("ui", "⚠️", "No terminal at %s" % grid_pos)
-		return
-
 	if not ("instrument" in farm) or not farm.instrument:
 		if _verbose:
 			_verbose.error("ui", "❌", "Bubble tap requires Farm.instrument")
+		return
+
+	var plot = farm.grid.get_plot(grid_pos) if farm.grid else null
+	var terminal = plot.terminal if plot else null
+	if not terminal:
+		var biome_name: String = farm.grid.get_plot_biome_assignment(grid_pos) if farm.grid else ""
+		if biome_name.is_empty():
+			if _verbose:
+				_verbose.warn("ui", "⚠️", "No biome assigned at %s" % grid_pos)
+			return
+		var result = farm.instrument.action_explore(biome_name, grid_pos)
+		if result.get("success", false):
+			if _verbose:
+				_verbose.info("ui", "🔍", "Explored: register %d in %s" % [
+					result.get("register_id", -1), biome_name
+				])
+		else:
+			if _verbose:
+				_verbose.warn("ui", "⚠️", "Explore failed: %s" % result.get("message", "unknown"))
 		return
 
 	if not terminal.is_measured:
@@ -198,12 +206,12 @@ func _on_chain_swiped(positions: Array) -> void:
 		return
 	if _verbose:
 		_verbose.debug("ui", "⛓️", "Chain swipe: %d bubbles" % positions.size())
-	var qi = shell.current_farm_ui.input_handler if shell and shell.current_farm_ui else null
-	if not qi:
+	var instrument_input = shell.current_farm_ui.instrument_input if shell and shell.current_farm_ui else null
+	if not instrument_input:
 		if _verbose:
 			_verbose.error("ui", "❌", "Chain swipe: no QuantumInstrumentInput attached")
 		return
-	qi.apply_chain_gate(positions)
+	instrument_input.apply_chain_gate(positions)
 
 
 # =============================================================================

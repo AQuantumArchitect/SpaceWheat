@@ -5,19 +5,17 @@ extends Resource
 ##
 ## Architecture: Register → Terminal → (thin Plot) → Visualization
 ##
-## When a terminal (instrument probe) is attached, delegating properties
-## read from it directly. Without a terminal, fallback fields are used
-## (headless mode / bind_to_register without a terminal).
+## Live register state belongs to Terminal. A plot may still carry a
+## projection-only fallback binding for non-terminal tooling such as Lindblad
+## previews, but save/load and gameplay should attach a Terminal.
 ##
 ## Terminal is the primary data source when attached:
-##   plot.bound_register_id → terminal.bound_register_id (if terminal) else fallback
-##   plot.is_measured → terminal.is_measured (if terminal) else fallback
+##   plot.bound_register_id -> terminal.bound_register_id (if terminal) else projection fallback
+##   plot.is_measured -> terminal.is_measured (if terminal) else projection fallback
 ##
 ## Infrastructure (theta_frozen, lindblad_*, persistent_gates) delegates to
 ## register_infrastructure via QuantumComputer (unchanged).
 
-const VerboseHelper = preload("res://Core/Config/VerboseHelper.gd")
-const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
 func _log(level: String, category: String, emoji: String, message: String) -> void:
 	VerboseHelper.log(level, category, emoji, message)
@@ -32,13 +30,13 @@ func _log(level: String, category: String, emoji: String, message: String) -> vo
 @export var grid_position: Vector2i = Vector2i.ZERO
 
 # ============================================================================
-# REGISTER BINDING (delegates to terminal when attached, else uses fallback fields)
+# REGISTER BINDING (terminal authority, projection fallback)
 # ============================================================================
 
 ## Terminal reference (instrument probe attached to this plot — primary data source)
 var terminal = null
 
-## Fallback fields (used by headless mode / bind_to_register without a terminal)
+## Projection fallback fields. Gameplay/save-load should prefer Terminal.
 var _bound_register_id: int = -1
 var _bound_biome_name: String = ""
 var _north_emoji: String = ""
@@ -132,7 +130,7 @@ func _init():
 
 
 # ============================================================================
-# REGISTER ACCESSORS (read from BasePlot state - NEW architecture)
+# REGISTER ACCESSORS
 # ============================================================================
 
 func get_register_id() -> int:
@@ -163,27 +161,20 @@ func get_measured_probability() -> float:
 	return measured_probability
 
 # ============================================================================
-# REGISTER BINDING METHODS (simulation layer - headless compatible)
+# REGISTER BINDING METHODS
 # ============================================================================
 
 func attach_terminal(t) -> void:
-	"""Attach a terminal probe to this plot. Delegating properties auto-switch to reading from it."""
+	# Attach a terminal probe to this plot. Delegating properties auto-switch to reading from it.
 	terminal = t
 	_cached_biome = null
 
 
-func detach_terminal() -> void:
-	"""Detach terminal probe. Delegating properties fall back to stored fields."""
-	terminal = null
-	_cached_biome = null
-
-
 func bind_to_register(register_id: int, biome_name: String, emoji_pair: Dictionary) -> void:
-	"""Bind this plot to a quantum register (headless / fallback path).
+	# Bind this plot to a projection-only register fallback.
 
-	Sets fallback fields directly. When a terminal is attached, delegating
-	properties read from the terminal instead (terminal takes priority).
-	"""
+	# Used by non-terminal tooling. Live gameplay and save/load should bind a
+	# Terminal through TerminalPool and then attach it to the plot.
 	_bound_register_id = register_id
 	_bound_biome_name = biome_name
 	_north_emoji = emoji_pair.get("north", "")
@@ -195,7 +186,7 @@ func bind_to_register(register_id: int, biome_name: String, emoji_pair: Dictiona
 
 
 func unbind_register() -> void:
-	"""Unbind this plot from its register and detach terminal."""
+	# Unbind this plot from its register and detach terminal.
 	terminal = null
 	_bound_register_id = -1
 	_bound_biome_name = ""
@@ -207,20 +198,13 @@ func unbind_register() -> void:
 	_cached_biome = null
 
 
-func mark_measured(outcome: String, probability: float) -> void:
-	"""Mark this plot as measured (fallback fields — terminal.mark_measured is preferred)."""
-	_is_measured = true
-	_measured_outcome = outcome
-	_measured_probability = probability
-
-
-func remember_measurement(outcome: String, probability: float, north_emoji: String = "", south_emoji: String = "") -> void:
-	"""Store a non-live ghost snapshot for UI memory after the terminal is gone."""
+func remember_measurement(outcome: String, probability: float, north_e: String = "", south_e: String = "") -> void:
+	# Store a non-live ghost snapshot for UI memory after the terminal is gone.
 	_has_measurement_memory = not outcome.is_empty()
 	_memory_outcome = outcome
 	_memory_probability = probability
-	_memory_north_emoji = north_emoji
-	_memory_south_emoji = south_emoji
+	_memory_north_emoji = north_e
+	_memory_south_emoji = south_e
 
 
 func clear_measurement_memory() -> void:
@@ -250,12 +234,12 @@ func get_measurement_memory() -> Dictionary:
 # ============================================================================
 
 func _resolve_biome():
-	"""Resolve biome Node from bound_biome_name."""
+	# Resolve biome Node from bound_biome_name.
 	if _cached_biome:
 		return _cached_biome
 	if bound_biome_name == "":
 		return null
-	var abm = InstrumentLocator.resolve_active_biome_manager_main_loop()
+	var abm = (Engine.get_main_loop().root.get_node_or_null("/root/ActiveBiomeManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 	if abm and abm.has_method("get_biome_by_name"):
 		_cached_biome = abm.get_biome_by_name(bound_biome_name)
 		return _cached_biome
@@ -311,7 +295,7 @@ func get_basis_labels() -> Array[String]:
 
 ## Get purity from parent biome's quantum computer
 func get_purity() -> float:
-	"""Query purity from parent biome's quantum computer."""
+	# Query purity from parent biome's quantum computer.
 	if not is_active():
 		return 0.0
 	var biome = _resolve_biome()
@@ -322,7 +306,7 @@ func get_purity() -> float:
 
 ## Get coherence from parent biome's quantum computer
 func get_coherence() -> float:
-	"""Query coherence from parent biome's quantum computer."""
+	# Query coherence from parent biome's quantum computer.
 	if not is_active():
 		return 0.0
 	var biome = _resolve_biome()
@@ -340,7 +324,7 @@ func get_coherence() -> float:
 
 ## Get mass (probability in subspace)
 func get_mass() -> float:
-	"""Get probability mass in measurement basis subspace."""
+	# Get probability mass in measurement basis subspace.
 	if not is_active():
 		return 0.0
 	var biome = _resolve_biome()
@@ -359,18 +343,17 @@ func get_mass() -> float:
 ## Core Methods
 
 func get_dominant_emoji() -> String:
-	"""Get the current outcome emoji (measured or dominant basis state)."""
+	# Get the current outcome emoji (measured or dominant basis state).
 	if get_is_measured() and get_measured_outcome() != "":
 		return get_measured_outcome()
 	return get_north_emoji() if (randf() < 0.5) else get_south_emoji()
 
 
 func get_plot_emojis() -> Dictionary:
-	"""Get the dual-emoji pair for this plot.
+	# Get the dual-emoji pair for this plot.
 
-	Reads from BasePlot fields (Register→Plot architecture).
-	Falls back to biome capabilities or empty dict.
-	"""
+	# Reads from BasePlot fields (Register→Plot architecture).
+	# Falls back to biome capabilities or empty dict.
 	if is_active():
 		return {"north": north_emoji, "south": south_emoji}
 
@@ -388,17 +371,17 @@ func get_plot_emojis() -> Dictionary:
 
 
 func reset() -> void:
-	"""Reset plot to initial state.
-	NOTE: Infrastructure (gates, lindblad, etc.) lives on register_infrastructure
-	and naturally survives harvest/replant."""
+	# Reset plot to initial state.
+	# NOTE: Infrastructure (gates, lindblad, etc.) lives on register_infrastructure
+	# and naturally survives harvest/replant.
 	unbind_register()
 	_cached_biome = null
 	entangled_plots.clear()
 
 
 func remove_entanglement(partner_id: String) -> void:
-	"""Remove entanglement with a specific plot.
-	Called when breaking entanglement or when partner plot is harvested."""
+	# Remove entanglement with a specific plot.
+	# Called when breaking entanglement or when partner plot is harvested.
 	if entangled_plots.has(partner_id):
 		entangled_plots.erase(partner_id)
 
@@ -408,7 +391,7 @@ func remove_entanglement(partner_id: String) -> void:
 # ============================================================================
 
 func add_persistent_gate(gate_type: String, linked_plots: Array[Vector2i] = []) -> void:
-	"""Add a persistent gate to this plot. Gates survive harvest/replant."""
+	# Add a persistent gate to this plot. Gates survive harvest/replant.
 	if bound_register_id < 0: return
 	var qc = _resolve_quantum_computer()
 	if not qc: return
@@ -417,7 +400,7 @@ func add_persistent_gate(gate_type: String, linked_plots: Array[Vector2i] = []) 
 
 
 func clear_persistent_gates() -> void:
-	"""Remove ALL persistent gate infrastructure from this plot."""
+	# Remove ALL persistent gate infrastructure from this plot.
 	var count = persistent_gates.size()
 	_set_infra_field("persistent_gates", [])
 	if count > 0:
@@ -425,7 +408,7 @@ func clear_persistent_gates() -> void:
 
 
 func has_active_gate(gate_type: String) -> bool:
-	"""Check if this plot has an active gate of the specified type."""
+	# Check if this plot has an active gate of the specified type.
 	for gate in persistent_gates:
 		if gate.get("type", "") == gate_type and gate.get("active", false):
 			return true
@@ -433,7 +416,7 @@ func has_active_gate(gate_type: String) -> bool:
 
 
 func get_active_gates() -> Array[Dictionary]:
-	"""Get all active persistent gates on this plot."""
+	# Get all active persistent gates on this plot.
 	var active: Array[Dictionary] = []
 	for gate in persistent_gates:
 		if gate.get("active", false):

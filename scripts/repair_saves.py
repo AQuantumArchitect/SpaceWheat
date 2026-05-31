@@ -6,12 +6,14 @@ Current format expectations:
 - Grid: 6x1 (6 width, 1 height)
 - Each plot must have: position, type, is_planted, has_been_measured, theta_frozen, entangled_with
 - No quantum state details (theta, phi, radius, energy) - those regenerate from biome
-- No obsolete fields (growth_progress, is_mature)
+- No removed fields (growth_progress, is_mature)
 """
 
 import re
 import sys
 from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
 
 class GameStateRepair:
     def __init__(self, file_path):
@@ -88,7 +90,7 @@ class GameStateRepair:
         new_plots = []
         for x in range(6):
             for y in range(1):
-                # Try to find matching plot in old data
+        # Try to find matching plot in the previous data
                 old_plot = None
                 for p in self.plots:
                     if p.get('position') == (x, y):
@@ -119,7 +121,7 @@ class GameStateRepair:
             plots_str += plot_str + ", "
         plots_str += "]"
 
-        # Replace old plots array with new one
+        # Replace the plot array with the repaired one
         self.content = re.sub(
             r'plots = \[[^\]]*\]',
             plots_str,
@@ -131,7 +133,7 @@ class GameStateRepair:
         self.content = re.sub(r'grid_width = \d+', 'grid_width = 6', self.content)
         self.content = re.sub(r'grid_height = \d+', 'grid_height = 1', self.content)
 
-        # Remove obsolete fields if present (shouldn't be in .tres but just in case)
+        # Remove removed fields if present (shouldn't be in .tres but just in case)
         print("  ✓ Repaired file structure")
         return True
 
@@ -147,7 +149,7 @@ class GameStateRepair:
         print("\n  📊 Repair Summary:")
         print(f"    - Original plots: {len(self.plots)}")
         print(f"    - New grid size: 6x1")
-        print(f"    - Removed obsolete fields: theta, phi, growth_progress, is_mature")
+        print(f"    - Removed fields: theta, phi, growth_progress, is_mature")
         print(f"    - Added missing fields: theta_frozen")
 
 def main():
@@ -155,7 +157,7 @@ def main():
     print("🔧 SPACEWHEAT SAVE FILE REPAIR TOOL")
     print("="*70)
 
-    scenario_path = "/home/tehcr33d/ws/SpaceWheat/Scenarios/default.tres"
+    scenario_path = REPO_ROOT / "Scenarios" / "default.tres"
 
     print("\n▶ Repairing scenario file...")
     print("-"*70)

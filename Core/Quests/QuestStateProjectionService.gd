@@ -1,8 +1,6 @@
 class_name QuestStateProjectionService
 extends RefCounted
 
-const FactionStateMatcher = preload("res://Core/QuantumSubstrate/FactionStateMatcher.gd")
-const QuestMath = preload("res://Core/Quests/QuestMath.gd")
 
 const MAX_ACTION_HISTORY: int = 64
 

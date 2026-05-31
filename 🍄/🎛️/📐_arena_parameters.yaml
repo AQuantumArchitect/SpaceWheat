@@ -62,7 +62,7 @@ vocabulary:
     layer: config
     description: >
       Starter world-state config in config/world_state/*.json.  Sets initial
-      resources, biome, known_pairs, etc.
+      resources, biome, known_icons, etc.
 
   batch:
     emoji: "📦"
@@ -286,7 +286,7 @@ tissue_knobs:
   offer_critical_any:
     default: 2.0
     range: [0.5, 10.0]
-    policy_path: action_priors.lock_offer.discovery_affinity
+    policy_path: action_priors.quest_cycle.discovery_affinity
     policy_base: 5.0
     mode: ratio
     description: "Affinity for locking offers that involve any critical resource."
@@ -294,7 +294,7 @@ tissue_knobs:
   offer_critical_unknown:
     default: 7.0
     range: [2.0, 40.0]
-    policy_path: action_priors.lock_offer.novelty
+    policy_path: action_priors.quest_cycle.novelty
     policy_base: 1.5
     mode: ratio
     description: "Boost for locking offers that introduce unknown critical vocab."
@@ -465,8 +465,8 @@ policy_graph_wiring:
   action_priors.quest_cycle.unknown_vocab:        offer_novelty
   action_priors.quest_cycle.stagnation_scale:     offer_deficit
   action_priors.quest_cycle.base:                 vocab_probe_base
-  action_priors.lock_offer.discovery_affinity:    offer_critical_any
-  action_priors.lock_offer.novelty:               offer_critical_unknown
+  action_priors.quest_cycle.discovery_affinity:    offer_critical_any
+  action_priors.quest_cycle.novelty:               offer_critical_unknown
   action_priors.probe_cycle.base:                 probe_frontier
   action_priors.probe_cycle.resource_pressure:    probe_hits
   action_priors.probe_cycle.biome_pressure:       probe_critical_hits

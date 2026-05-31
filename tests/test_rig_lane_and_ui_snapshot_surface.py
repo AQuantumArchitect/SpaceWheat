@@ -33,26 +33,32 @@ def test_snapshot_service_owns_ui_snapshot_registry() -> None:
     assert "func get_widget_snapshot(" in src
     assert "func get_hud_snapshot(" in src
     assert "func get_full_ui_snapshot(" in src
-    assert "func build_policy_state_lightweight(" in src
+    assert "func get_policy_snapshot(" in src
+    assert "func open_icon_panel(" in src
+    assert "func build_policy_state(" not in src
+    assert "func build_policy_state_lightweight(" not in src
+    assert "func open_semantic_map_panel(" not in src
+    assert "func open_vocabulary_panel(" not in src
     assert '"quest_board"' in src
     assert '"quest_panel"' not in src
 
 
-def test_rig_listener_is_thinner_and_uses_player_input_macro_runner() -> None:
-    src = _read("Tests/rig_listener.gd")
-    assert 'const PlayerInputMacroRunner = preload("res://UI/Core/PlayerInputMacroRunner.gd")' in src
-    assert "_ensure_player_input_macro_runner()" in src
-    assert "return await runner.execute(decision)" in src
-    assert "func _resolve_widget(" not in src
-    assert "func _resolve_hud(" not in src
+def test_rig_listener_is_thinner_and_uses_quantum_instrument_input() -> None:
+    src = _read("Rig/rig_listener.gd")
+    assert "func _press_key(" in src
+    assert "func _select_biome_via_input(" in src
+    assert "func _select_plot_via_input(" in src
+    assert "func _open_quest_board_via_input(" in src
+    assert "PlayerInputMacroRunner removed" in src
 
 
-def test_player_input_macro_runner_exists_next_to_ui_input_layer() -> None:
-    src = _read("UI/Core/PlayerInputMacroRunner.gd")
-    assert "class_name PlayerInputMacroRunner" in src
-    assert "func execute(decision: Dictionary) -> Dictionary:" in src
-    assert "not_supported_by_player_input" in src
-    assert "_direct_fallback" not in src
+def test_quantum_instrument_input_exists_next_to_ui_input_layer() -> None:
+    src = _read("UI/Core/QuantumInstrumentInput.gd")
+    assert "class_name QuantumInstrumentInput" in src
+    assert "func _unhandled_key_input(" in src
+    assert "func inject_instrument(" in src
+    assert "func set_checked_plots(" in src
+    assert "PlayerInputMacroRunner" not in src
 
 
 def test_runner_summary_surface_is_extracted_into_helper_module() -> None:

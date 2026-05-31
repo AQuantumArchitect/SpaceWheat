@@ -6,8 +6,8 @@ extends "res://Core/Environment/BiomeBase.gd"
 
 var _biome_type: String = "Dynamic"
 
-func set_biome_type(type: String) -> void:
-	_biome_type = type
+func set_biome_type(_type: String) -> void:
+	_biome_type = _type
 
 func get_biome_type() -> String:
 	return _biome_type

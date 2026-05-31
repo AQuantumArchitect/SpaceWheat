@@ -6,7 +6,7 @@
 #   ./scripts/download_binaries.sh v0.1.0   # Download specific version
 #
 # This downloads and extracts the native extension for your platform,
-# giving you 10-100x performance boost over GDScript fallback.
+# giving you 10-100x performance boost over the pure GDScript path.
 
 set -e
 

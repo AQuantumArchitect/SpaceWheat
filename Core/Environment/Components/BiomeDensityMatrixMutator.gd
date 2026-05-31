@@ -7,14 +7,13 @@ extends RefCounted
 ## - collapse_register() - Project density matrix on measurement
 ## - drain_register_probability() - Ensemble drain model for MEASURE action
 
-const Complex = preload("res://Core/QuantumSubstrate/Complex.gd")
 
 # Injected dependency
 var quantum_computer = null
 
 
 func set_quantum_computer(qc) -> void:
-	"""Set the quantum computer reference"""
+	# Set the quantum computer reference
 	quantum_computer = qc
 
 
@@ -23,15 +22,14 @@ func set_quantum_computer(qc) -> void:
 # ============================================================================
 
 func collapse_register(register_id: int, is_north: bool) -> void:
-	"""Collapse density matrix for a measured register.
+	# Collapse density matrix for a measured register.
 
-	Applies projection operator P = |outcome><outcome| to density matrix.
-	This zeros off-diagonal elements involving this register.
+	# Applies projection operator P = |outcome><outcome| to density matrix.
+	# This zeros off-diagonal elements involving this register.
 
-	Args:
-		register_id: The register that was measured
-		is_north: True if collapsed to north state, False for south
-	"""
+	# Args:
+	# register_id: The register that was measured
+	# is_north: True if collapsed to north state, False for south
 	if not quantum_computer:
 		return
 
@@ -49,23 +47,21 @@ func collapse_register(register_id: int, is_north: bool) -> void:
 	if quantum_computer.has_method("project_register"):
 		quantum_computer.project_register(register_id, outcome_index)
 	else:
-		# Fallback: just mark that collapse happened (logging)
-		print("BiomeDensityMatrixMutator: collapse_register(%d, %s) - no quantum handler" % [
+		VerboseHelper.warn("quantum", "collapse", "collapse_register(%d, %s) - no quantum dispatcher" % [
 			register_id, "north" if is_north else "south"
 		])
 
 
 func drain_register_probability(register_id: int, is_north: bool, drain_factor: float) -> void:
-	"""Drain probability from measured outcome (Ensemble model).
+	# Drain probability from measured outcome (Ensemble model).
 
-	Reduces probability in rho for the measured state without full collapse.
-	Used by MEASURE action to simulate extracting from the ensemble.
+	# Reduces probability in rho for the measured state without full collapse.
+	# Used by MEASURE action to simulate extracting from the ensemble.
 
-	Args:
-		register_id: Which qubit was measured
-		is_north: True if outcome was north (|0>)
-		drain_factor: Fraction to drain (e.g., 0.5 = reduce by half)
-	"""
+	# Args:
+	# register_id: Which qubit was measured
+	# is_north: True if outcome was north (|0>)
+	# drain_factor: Fraction to drain (e.g., 0.5 = reduce by half)
 	if not quantum_computer:
 		return
 

@@ -6,6 +6,6 @@
   "resources": {"👥": 85, "🌾": 30, "🍞": 125, "❄️": 62, "🌱": 15, "⚙": 10, "🔥": 8},
   "unlocked_biomes": ["StarterForest", "Village", "WildHill", "FungalNetworks", "SolarPlains", "VolcanicRidge", "ArcticShelf", "CoralReef"],
   "active_biome": "WildHill",
-  "known_pairs": [{"north": "🌾", "south": "👥"}],
+  "known_icons": [{"north": "🌾", "south": "👥"}],
   "strict_biome_economy": true
 }

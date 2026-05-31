@@ -6,7 +6,6 @@ extends RefCounted
 ## Reads/writes user://saves/completed_scenarios.json. Held as a RefCounted
 ## member of GameStateManager.
 
-const SaveStore = preload("res://Core/GameState/SaveStore.gd")
 
 const FILE_NAME := "completed_scenarios.json"
 

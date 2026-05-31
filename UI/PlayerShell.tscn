@@ -57,5 +57,5 @@ offset_left = 0.0
 offset_top = 0.0
 offset_right = 0.0
 offset_bottom = 0.0
-z_index = 50
+z_index = 20
 mouse_filter = 2

@@ -50,8 +50,12 @@ _DEFAULT_BIOME_DISCOVERY: Dict[str, float] = {
     "milk_scale": 3.0,
 }
 
-_DEFAULT_DISTANCE_SCORES = {"milk": 1000, "d1": 260, "d2": 180, "d3": 80}
-_DEFAULT_FACTION_SIG_SCORES = {"d1": 140, "d2": 90, "d3": 35}
+# Geometric decay: score(d) = d1 * decay^(d-1)  for d >= 1.
+# "decay" controls how fast the gradient falls off with distance.
+# d2/d3 are kept as optional overrides in strategy JSON,
+# but the formula is used for all depths when "decay" is present (the default).
+_DEFAULT_DISTANCE_SCORES = {"milk": 1000, "d1": 260, "decay": 0.6}
+_DEFAULT_FACTION_SIG_SCORES = {"d1": 140, "decay": 0.6}
 
 _DEFAULT_EAGLE = {
     "emoji": "\U0001F985",  # 🦅
@@ -176,13 +180,12 @@ class Strategy:
         scores = self._dist_scores()
         if d == 0:
             return scores.get("milk", _DEFAULT_DISTANCE_SCORES["milk"])
-        if d == 1:
-            return scores.get("d1", _DEFAULT_DISTANCE_SCORES["d1"])
-        if d == 2:
-            return scores.get("d2", _DEFAULT_DISTANCE_SCORES["d2"])
-        if d == 3:
-            return scores.get("d3", _DEFAULT_DISTANCE_SCORES["d3"])
-        return 0
+        if d is None or d < 1:
+            return 0
+        d1 = scores.get("d1", _DEFAULT_DISTANCE_SCORES["d1"])
+        decay = float(scores.get("decay", _DEFAULT_DISTANCE_SCORES["decay"]))
+        result = int(d1 * (decay ** (d - 1)))
+        return result if result >= 1 else 0
 
     # ── faction sig scores ───────────────────────────────────────────
 
@@ -194,13 +197,12 @@ class Strategy:
 
     def faction_sig_score(self, d: int) -> int:
         scores = self._faction_scores()
-        if d == 1:
-            return scores.get("d1", _DEFAULT_FACTION_SIG_SCORES["d1"])
-        if d == 2:
-            return scores.get("d2", _DEFAULT_FACTION_SIG_SCORES["d2"])
-        if d == 3:
-            return scores.get("d3", _DEFAULT_FACTION_SIG_SCORES["d3"])
-        return 0
+        if d < 1:
+            return 0
+        d1 = scores.get("d1", _DEFAULT_FACTION_SIG_SCORES["d1"])
+        decay = float(scores.get("decay", _DEFAULT_FACTION_SIG_SCORES["decay"]))
+        result = int(d1 * (decay ** (d - 1)))
+        return result if result >= 1 else 0
 
     # ── eagle ────────────────────────────────────────────────────────
 

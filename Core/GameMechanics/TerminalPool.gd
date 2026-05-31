@@ -1,7 +1,6 @@
 class_name TerminalPool
 extends RefCounted
 
-const GridSentinel = preload("res://Core/GameState/GridSentinel.gd")
 
 ## TerminalPool - Pool of generic terminals for quantum soup probing (v2 Architecture)
 ##
@@ -87,7 +86,7 @@ func get_terminal(terminal_id: String) -> RefCounted:
 
 ## Get terminal bound to a specific register (queries Terminal state directly)
 func get_terminal_for_register(register_id: int, biome_name: String) -> RefCounted:
-	"""Query Terminal objects directly to find binding by biome NAME (not object reference)"""
+	# Query Terminal objects directly to find binding by biome NAME (not object reference)
 	for terminal in terminals:
 		if terminal.is_bound and terminal.bound_register_id == register_id and terminal.bound_biome_name == biome_name:
 			return terminal
@@ -142,7 +141,7 @@ func unbind_terminal(terminal: RefCounted) -> void:
 
 
 func release_terminal(terminal: RefCounted) -> void:
-	"""Fully remove a terminal from the field, regardless of bound/measured state."""
+	# Fully remove a terminal from the field, regardless of bound/measured state.
 	if not terminal:
 		return
 	if terminal.is_bound:
@@ -166,7 +165,7 @@ func release_terminal(terminal: RefCounted) -> void:
 
 ## Check if a register is currently bound (queries Terminal state directly)
 func is_register_bound(register_id: int, biome_name: String) -> bool:
-	"""Check if a register is bound to ANY terminal in this biome"""
+	# Check if a register is bound to ANY terminal in this biome
 	return get_terminal_for_register(register_id, biome_name) != null
 
 
@@ -285,14 +284,13 @@ func _to_string() -> String:
 
 ## Helper: Get all terminals bound in a specific biome
 func get_terminals_in_biome(biome_name: String) -> Array:
-	"""Get all terminals currently bound in a specific biome.
+	# Get all terminals currently bound in a specific biome.
 
-	Args:
-		biome_name: Name of the biome to filter by (String, not object)
+	# Args:
+	# biome_name: Name of the biome to filter by (String, not object)
 
-	Returns:
-		Array of Terminal instances bound to this biome
-	"""
+	# Returns:
+	# Array of Terminal instances bound to this biome
 	var result: Array = []
 	for terminal in terminals:
 		if terminal.is_bound and terminal.bound_biome_name == biome_name:

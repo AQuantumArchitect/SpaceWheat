@@ -20,7 +20,7 @@ export XDG_CONFIG_HOME="$XDG_ROOT"
 export APPLICATION_NAME
 export GODOT_USER_DIR
 export DISABLE_VERBOSE_FILE_LOGGING=1
-# RIG_DISABLE_LOOKAHEAD removed — use C++ MultiBiomeLookaheadEngine when available
+export RIG_DISABLE_LOOKAHEAD=1  # C++ MultiBiomeLookaheadEngine crashes on mixed qubit dims (6D+4D); re-enable when fixed
 export RIG_DISABLE_MI=1
 export RIG_DISABLE_FORCE=1
 RIG_DISPLAY_MODE="${RIG_DISPLAY_MODE:-headless}"
@@ -46,9 +46,10 @@ fi
 
 if [ "$RIG_DISPLAY_MODE" = "headed" ]; then
   if [ -n "$RIG_RENDERING_DRIVER" ]; then
-    exec godot --audio-driver "${SW_GODOT_AUDIO_DRIVER:-Dummy}" --rendering-driver "$RIG_RENDERING_DRIVER" --path . --script Tests/rig_listener.gd
+    sw_godot --rendering-driver "$RIG_RENDERING_DRIVER" --path . --script Rig/rig_listener.gd
+  else
+    sw_godot --path . --script Rig/rig_listener.gd
   fi
-  exec godot --audio-driver "${SW_GODOT_AUDIO_DRIVER:-Dummy}" --path . --script Tests/rig_listener.gd
+else
+  sw_godot --headless --path . --script Rig/rig_listener.gd
 fi
-
-exec godot --audio-driver "${SW_GODOT_AUDIO_DRIVER:-Dummy}" --headless --path . --script Tests/rig_listener.gd

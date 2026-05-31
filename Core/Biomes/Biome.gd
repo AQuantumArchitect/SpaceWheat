@@ -1,29 +1,37 @@
 class_name Biome
 extends RefCounted
 
-## Biome: Environmental quantum system (peer to Faction)
+
+## Cached fallback for headless / test contexts where the IconRegistry autoload is absent.
+static var _fallback_icon_registry = null
+
+## Biome: A full dissipative scaffold that can be paired with a neighborhood loadout.
 ##
-## Biomes define the intrinsic quantum mechanics of an ecosystem.
-## They are merged with faction contributions (weighted by faction standing)
-## to produce final Icon definitions.
+## A biome is a full terrain body. It carries terrain identity, dissipation
+## terms, register capacity, and plot layout. What it does not carry is the
+## Hamiltonian/icon side of a neighborhood.
 ##
-## Each biome has:
-## - Icon components: base quantum parameters for each emoji in this biome
-## - Metadata: name, description, image, music, discovery info
-## - Faction roster: which factions are native to this biome (for emergent overlay)
+## Factions define the emoji web (self-energies, couplings, Lindblad) at the
+## individual emoji level. The neighborhood loadout selects which emoji pairs
+## become live qubit axes in this biome. The full Hamiltonian assembles from
+## faction contributions to those emojis, then optionally patched by the
+## biome's Hamiltonian JSONL.
 
 ## ========================================
 ## Identity & Metadata
 ## ========================================
 
 var name: String = ""
+## Discoverable factions that can inhabit this bare biome.
+var native_factions: Array = []
 var description: String = ""
 var image_path: String = ""  # res://assets/biomes/...
 var music_path: String = ""  # res://assets/music/...
 var discovered: bool = false  # Whether player has unlocked this biome
+var discoverable: bool = true  # Whether this biome can appear in the captain-hat unexplored pool. Defaults true; neighborhoods opt out by setting false.
 var plot_layout: Array = []  # Optional UI plot layout (normalized or pixel positions)
 
-## The emojis native to this biome
+## The emojis hosted in this biome (flat list; terrain identity / register basis).
 var emojis: Array = []
 
 ## ========================================
@@ -42,17 +50,14 @@ var emojis: Array = []
 ## }
 var atom_components: Dictionary = {}
 
-## Cross-biome couplings (within this biome, between emojis)
-## Format: [{source: emoji, target: emoji, type: str, rate: float}]
-var cross_couplings: Array = []
-
 ## ========================================
-## Faction Roster (for emergent overlay)
+## Faction Roster
 ## ========================================
-
-## Factions present in this biome (for UI/narrative)
-## Not used in quantum build - purely informational
-var native_factions: Array = []  # Array of faction names
+##
+## REMOVED: the old faction roster annotation was a curated narrative
+## that drifted from physics in 96% of biomes. Now computed at registry time
+## from signature ∩ biome atoms — see `Core/Biomes/FactionBiomeMap.gd` and
+## `BiomeRegistry.get_factions_for_biome(name)`.
 
 ## ========================================
 ## Metadata
@@ -70,6 +75,69 @@ func get_all_emojis() -> Array:
 	return emojis.duplicate()
 
 
+func get_native_factions() -> Array:
+	return native_factions.duplicate()
+
+
+## Returns the icons currently associated with this neighborhood record.
+##
+## The canonical icon authority lives on factions. This accessor keeps the
+## neighborhood loadout shape in one place for current readers.
+func get_neighborhood_icons() -> Array:
+	var lexicon = (Engine.get_main_loop().root.get_node_or_null("/root/IconRegistry") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
+	if lexicon == null:
+		if _fallback_icon_registry == null:
+			_fallback_icon_registry = load("res://Core/Factions/IconRegistry.gd").new()
+		lexicon = _fallback_icon_registry
+	var basis: Dictionary = {}
+	for e in emojis:
+		basis[EmojiUtil.normalize(str(e))] = true
+	var claimed: Dictionary = {}  # emoji -> true once bound to an icon
+	var seen: Dictionary = {}
+	var out: Array = []
+	for fname in native_factions:
+		for icon in lexicon.get_icons_for_faction(str(fname)):
+			if not (icon is Dictionary):
+				continue
+			var p0 := EmojiUtil.normalize(str(icon.get("pole_0", "")))
+			var p1 := EmojiUtil.normalize(str(icon.get("pole_1", "")))
+			if p0 == "" or p1 == "":
+				continue
+			if not basis.has(p0) or not basis.has(p1):
+				continue
+			# Each emoji maps to exactly one qubit; skip icons that share a pole
+			# with an already-placed icon (within-faction overlaps like Swift Herd's
+			# Herd+Flight both using 🐇 — only the first encountered wins).
+			if claimed.has(p0) or claimed.has(p1):
+				continue
+			var key := "%s|%s" % [p0, p1] if p0 < p1 else "%s|%s" % [p1, p0]
+			if seen.has(key):
+				continue
+			seen[key] = true
+			claimed[p0] = true
+			claimed[p1] = true
+			var entry := {"name": str(icon.get("name", "")), "pole_0": p0, "pole_1": p1}
+			out.append(entry)
+	return out
+
+
+## Canonical neighborhood signature: the icons (dual-emoji axes) associated
+## with this biome record. Each entry is {pole_0, pole_1} — the same shape the
+## IconRegistry keys on. Market and overlays read this; faction presence is
+## still computed from atoms via FactionBiomeMap.
+func get_neighborhood_signature_icons() -> Array:
+	var out: Array = []
+	for icon in get_neighborhood_icons():
+		if not (icon is Dictionary):
+			continue
+		var p0: String = str(icon.get("pole_0", ""))
+		var p1: String = str(icon.get("pole_1", ""))
+		if p0 == "" or p1 == "":
+			continue
+		out.append({"pole_0": p0, "pole_1": p1})
+	return out
+
+
 ## Get quantum component for an emoji
 func get_atom_component(emoji: String) -> Dictionary:
 	if not emoji in emojis:
@@ -77,13 +145,60 @@ func get_atom_component(emoji: String) -> Dictionary:
 	return atom_components.get(emoji, {})
 
 
+## Mutate the biome record to grow its basis by one icon pair.
+##
+## biomes.json is mutable canonical (per the emoji-graph-spaghetti vision):
+## player actions that add atoms write directly into the in-memory biome.
+## Saves serialize the full canonical state - there is no overlay sidecar.
+##
+## When `north` or `south` matches an emoji declared in `atom_components` but
+## not in `emojis`, this is a *primed-term activation*: the term was authored
+## as biome-owned data and only fires once both endpoints are in basis. After
+## this mutation, the next substrate rebuild will pick up the now-satisfied
+## terms automatically (LindbladBuilder.build_from_atoms filters by basis).
+##
+## Returns true on success. Returns false (no mutation) on duplicate-atom or
+## invalid-input. Caller is responsible for triggering the substrate rebuild
+## (BiomeBase.expand_quantum_system or equivalent). Drift is detected at
+## tick time by `BiomeBase._check_for_orphan_atoms`, which fires a warning
+## once per biome per session if the registry mutation wasn't paired with a
+## substrate grow.
+func add_atom_pair(north: String, south: String, icon_name: String = "") -> bool:
+	if north == "" or south == "":
+		return false
+	if north == south:
+		return false
+	if north in emojis or south in emojis:
+		return false
+
+	emojis.append(north)
+	emojis.append(south)
+
+	var _icon_name_fallback: String = icon_name if icon_name != "" else "%s%s" % [north, south]
+	# Seed empty atom_components entries so primed terms keyed BY these atoms
+	# (terms whose source is north or south) have a place to live. Existing
+	# entries keyed by other atoms with target ∈ {north, south} need no edit;
+	# they activate naturally once the basis includes them.
+	if not atom_components.has(north):
+		atom_components[north] = {}
+	if not atom_components.has(south):
+		atom_components[south] = {}
+
+	return true
+
+
 ## Validate that all couplings reference defined emojis
 func validate() -> bool:
 	var valid = true
+	var icon_set: Array = get_neighborhood_icons()
 
-	if emojis.size() % 2 != 0:
-		push_error("Biome %s: emojis list must contain an even number of entries for north/south axes (got %d)" % [name, emojis.size()])
-		valid = false
+	# Validate neighborhood icons: each pole must appear in the emojis list.
+	for icon in icon_set:
+		var p0 := str(icon.get("pole_0", ""))
+		var p1 := str(icon.get("pole_1", ""))
+		if p0 == "" or p1 == "":
+			push_error("Biome %s: icon %s missing poles" % [name, icon.get("name","?")])
+			valid = false
 
 	var seen_emojis: Dictionary = {}
 	for emoji in emojis:
@@ -106,17 +221,6 @@ func validate() -> bool:
 			if target not in emojis:
 				push_warning("Biome %s: hamiltonian from %s to %s (external target OK)" % [name, emoji, target])
 
-	# Check cross-coupling references
-	for coupling in cross_couplings:
-		var src = coupling.get("source", "")
-		var tgt = coupling.get("target", "")
-		if src not in emojis:
-			push_error("Biome %s: cross-coupling source %s not in emojis" % [name, src])
-			valid = false
-		if tgt not in emojis:
-			push_error("Biome %s: cross-coupling target %s not in emojis" % [name, tgt])
-			valid = false
-
 	return valid
 
 
@@ -128,21 +232,17 @@ func validate() -> bool:
 func to_dict() -> Dictionary:
 	var data: Dictionary = {
 		"name": name,
+		"native_factions": native_factions,
 		"description": description,
 		"image_path": image_path,
 		"music_path": music_path,
 		"discovered": discovered,
+		"discoverable": discoverable,
 		"plot_layout": plot_layout,
 		"emojis": emojis,
 		"atom_components": atom_components,
 		"tags": tags,
 	}
-
-	if cross_couplings.size() > 0:
-		data["cross_couplings"] = cross_couplings
-
-	if native_factions.size() > 0:
-		data["native_factions"] = native_factions
 
 	return data
 
@@ -150,17 +250,51 @@ func to_dict() -> Dictionary:
 ## Load biome from dictionary (JSON import)
 func load_from_dict(data: Dictionary) -> void:
 	name = data.get("name", "")
+	native_factions = data.get("native_factions", [])
 	description = data.get("description", "")
 	image_path = data.get("image_path", "")
 	music_path = data.get("music_path", "")
 	discovered = data.get("discovered", false)
+	discoverable = data.get("discoverable", true)
 	plot_layout = data.get("plot_layout", [])
-	# Normalize variation selectors so emoji keys match faction sig strings
+	# Normalize variation selectors so emoji keys match faction sig strings.
 	emojis = EmojiUtil.normalize_array(data.get("emojis", []))
 	atom_components = _normalize_atom_components(data.get("atom_components", {}))
-	cross_couplings = data.get("cross_couplings", [])
-	native_factions = data.get("native_factions", [])
-	tags = data.get("tags", [])
+	tags = _normalize_tags(data.get("tags", []))
+
+
+static func _normalize_tags(raw: Array) -> Array:
+	if raw.is_empty():
+		return raw
+	var result: Array = []
+	var seen: Dictionary = {}
+	for tag in raw:
+		var normalized := str(tag)
+		if normalized == "" or seen.has(normalized):
+			continue
+		seen[normalized] = true
+		result.append(normalized)
+	return result
+
+
+## Normalize variation selectors on icon pole strings so they match the
+## (already-normalized) emojis list. Without this, an icon authored with
+## VS-16 (e.g. "🕵️") fails validation against the bare emojis list ("🕵").
+static func _normalize_icon_poles(raw: Array) -> Array:
+	if raw.is_empty():
+		return raw
+	var result: Array = []
+	for entry in raw:
+		if not (entry is Dictionary):
+			result.append(entry)
+			continue
+		var copy: Dictionary = entry.duplicate()
+		if copy.has("pole_0"):
+			copy["pole_0"] = EmojiUtil.normalize(str(copy["pole_0"]))
+		if copy.has("pole_1"):
+			copy["pole_1"] = EmojiUtil.normalize(str(copy["pole_1"]))
+		result.append(copy)
+	return result
 
 
 ## Normalize all emoji keys inside atom_components.

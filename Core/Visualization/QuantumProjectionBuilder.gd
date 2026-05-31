@@ -1,7 +1,6 @@
 class_name QuantumProjectionBuilder
 extends RefCounted
 
-const QuantumVisualGrammar = preload("res://Core/Visualization/QuantumVisualGrammar.gd")
 
 ## Builds semantic projection bodies for the quantum graph.
 ##
@@ -190,7 +189,7 @@ func _node_record(node) -> Dictionary:
 		"grid_position": node.grid_position,
 		"position": node.position,
 		"radius": node.radius,
-		"energy": node.energy,
+		"purity": node.purity,
 		"coherence": node.coherence,
 		"phase": node.phi_raw,
 		"emoji_north": node.emoji_north,
@@ -241,6 +240,7 @@ func _cluster_from_records(
 		"energy_min": min_energy,
 		"energy_max": max_energy,
 		"anchor_coupling": coupling_sum / float(count),
+		"density": count,
 		"members": members,
 		"children": [],
 		"lod": _cluster_lod(count),
@@ -289,7 +289,7 @@ func _hamiltonian_edges_from_records(records: Array, hamiltonian_couplings: Dict
 			var target_node = node_by_emoji.get(target_emoji, null)
 			if not target_node:
 				continue
-			var strength = float(outbound.get(target_emoji, 0.0))
+			var strength = _coupling_magnitude(outbound.get(target_emoji, 0.0))
 			if absf(strength) < 0.001:
 				continue
 			var pair := [source_emoji, target_emoji]
@@ -323,8 +323,8 @@ func _cluster_lod(member_count: int) -> int:
 
 
 func _node_average_self_energy(node, self_energies: Dictionary) -> float:
-	var north = float(self_energies.get(node.emoji_north, 0.0))
-	var south = float(self_energies.get(node.emoji_south, 0.0))
+	var north = _coupling_real(self_energies.get(node.emoji_north, 0.0))
+	var south = _coupling_real(self_energies.get(node.emoji_south, 0.0))
 	if node.emoji_north == "" and node.emoji_south == "":
 		return 0.0
 	if node.emoji_north == "":
@@ -344,8 +344,32 @@ func _node_anchor_coupling(node, hamiltonian_couplings: Dictionary, anchor_emoji
 			continue
 		var outbound = hamiltonian_couplings.get(anchor_emoji, {})
 		if outbound is Dictionary:
-			best = maxf(best, absf(float(outbound.get(emoji, 0.0))))
+			best = maxf(best, _coupling_magnitude(outbound.get(emoji, 0.0)))
 		var inbound = hamiltonian_couplings.get(emoji, {})
 		if inbound is Dictionary:
-			best = maxf(best, absf(float(inbound.get(anchor_emoji, 0.0))))
+			best = maxf(best, _coupling_magnitude(inbound.get(anchor_emoji, 0.0)))
 	return best
+
+
+func _coupling_real(value) -> float:
+	if value is float or value is int:
+		return float(value)
+	if value is Vector2:
+		return float(value.x)
+	if value is Complex:
+		return value.re
+	if value is String and value.is_valid_float():
+		return value.to_float()
+	return 0.0
+
+
+func _coupling_magnitude(value) -> float:
+	if value is float or value is int:
+		return absf(float(value))
+	if value is Vector2:
+		return value.length()
+	if value is Complex:
+		return value.abs()
+	if value is String and value.is_valid_float():
+		return absf(value.to_float())
+	return 0.0

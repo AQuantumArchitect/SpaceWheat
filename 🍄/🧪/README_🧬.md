@@ -58,9 +58,9 @@ bash 🍄/🧪/🧬.sh --verbose
 
 ## Implementation
 
-- **Test Controller**: `Tests/StressTestController.gd`
+- **Runtime Workload Runner**: `scripts/profile-render-workload.sh`
 - **Bash Wrapper**: `🍄/🧪/🧬.sh`
-- **Cleanup Logic**: `Core/Environment/BiomeEvolutionBatcher.gd:_notification()`
+- **Cleanup Logic**: `Core/Environment/BiomeEvolutionBatcher.gd`
 
 ## Fixes Applied
 
@@ -79,9 +79,8 @@ bash 🍄/🧪/🧬.sh --verbose
 
 **After**: GDExtension objects nulled, not freed (auto-cleanup)
 
-## All Fixes Apply to Main Game
+## Current Runtime Note
 
-There is only one `BiomeEvolutionBatcher.gd` file:
-- `Core/Environment/BiomeEvolutionBatcher.gd`
-
-Both VisualBubbleTest and main game use the same file, so all fixes automatically apply to production.
+The old `VisualBubbleTest` lane is archived. Stress testing now targets the
+main project runtime directly, so results map to production without a parallel
+test scene.

@@ -12,7 +12,7 @@ These are mechanics seeds and engineering patterns — not implemented, not prom
 | [spark_converter.md](spark_converter.md) | `Core/QuantumSubstrate/SparkConverter.gd` | Spend coherence (off-diagonal) to boost a resource population (diagonal); irreversible trade |
 | [parametric_selector.md](parametric_selector.md) | `Core/Quantum/ParametricSelector.gd` | Four similarity metrics (cosine/connection/power-law/Gaussian) over emoji-keyed vectors; select_best / select_top_k |
 | [quantum_oracle.md](quantum_oracle.md) | `Core/Quantum/QuantumOracle.gd` | Weighted RNG seeded by live quantum populations; biome state IS the luck distribution |
-| [player_input_macro_runner.md](player_input_macro_runner.md) | `UI/Core/PlayerInputMacroRunner.gd` | Abstract action dict → real keyboard/UI sequence; dual-backend pattern; canonical action→frame-hat mapping |
+| [player_input_macro_runner.md](player_input_macro_runner.md) | archived concept | Abstract action dict → real keyboard/UI sequence; dual-backend pattern; canonical action→frame-hat mapping |
 
 ## Themes worth revisiting
 
@@ -22,4 +22,4 @@ These are mechanics seeds and engineering patterns — not implemented, not prom
 
 **Validation as debug overlay** — SymplecticValidator's closure hook is a zero-cost debug primitive. Worth keeping as a dev tool even if the file is deleted — copy the `create_evolution_validator` pattern.
 
-**Declarative action tapes** — both QuantumCircuit (gate sequences) and PlayerInputMacroRunner (UI action sequences) encode "do this in order" as data. A unified instruction-tape abstraction could serve test rigs, replays, and a future in-game macro system.
+**Declarative action tapes** — both QuantumCircuit (gate sequences) and the current rig turn helpers (keyboard/UI sequences) encode "do this in order" as data. A unified instruction-tape abstraction could serve test rigs, replays, and a future in-game macro system.

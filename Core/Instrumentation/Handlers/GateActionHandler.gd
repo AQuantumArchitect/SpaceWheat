@@ -1,6 +1,6 @@
 extends RefCounted
 
-## GateActionHandler - Static instrumentation handler for quantum gate operations.
+## GateActionHandler - Static instrumentation dispatcher for quantum gate operations.
 ##
 ## Follows ProbeActions pattern:
 ## - Static methods only
@@ -13,12 +13,10 @@ extends RefCounted
 ## buffer is invalidated after density matrix mutations. This prevents
 ## stale pre-computed evolution frames from being rendered.
 
-const QuantumGateLibrary = preload("res://Core/QuantumSubstrate/QuantumGateLibrary.gd")
-const GateInjector = preload("res://Core/QuantumSubstrate/GateInjector.gd")
 
 
 static func _resolve_register_id(biome, emoji: String) -> int:
-	"""Resolve register id from viz_cache metadata."""
+	# Resolve register id from viz_cache metadata.
 	if not biome or emoji == "":
 		return -1
 	if biome.viz_cache:
@@ -33,91 +31,80 @@ static func _resolve_register_id(biome, emoji: String) -> int:
 ## ============================================================================
 
 static func apply_pauli_x(farm, positions: Array[Vector2i]) -> Dictionary:
-	"""Apply Pauli-X gate (bit flip) to selected positions.
+	# Apply Pauli-X gate (bit flip) to selected positions.
 
-	Flips the qubit state: |0> -> |1>, |1> -> |0>
-	"""
+	# Flips the qubit state: |0> -> |1>, |1> -> |0>
 	return _apply_gate_batch(farm, positions, "X", "Pauli-X")
 
 
 static func apply_pauli_y(farm, positions: Array[Vector2i]) -> Dictionary:
-	"""Apply Pauli-Y gate to selected positions.
+	# Apply Pauli-Y gate to selected positions.
 
-	Combines X and Z rotations: |0> -> i|1>, |1> -> -i|0>
-	"""
+	# Combines X and Z rotations: |0> -> i|1>, |1> -> -i|0>
 	return _apply_gate_batch(farm, positions, "Y", "Pauli-Y")
 
 
 static func apply_pauli_z(farm, positions: Array[Vector2i]) -> Dictionary:
-	"""Apply Pauli-Z gate (phase flip) to selected positions.
+	# Apply Pauli-Z gate (phase flip) to selected positions.
 
-	Applies phase flip: |0> -> |0>, |1> -> -|1>
-	"""
+	# Applies phase flip: |0> -> |0>, |1> -> -|1>
 	return _apply_gate_batch(farm, positions, "Z", "Pauli-Z")
 
 
 static func apply_hadamard(farm, positions: Array[Vector2i]) -> Dictionary:
-	"""Apply Hadamard gate (superposition) to selected positions.
+	# Apply Hadamard gate (superposition) to selected positions.
 
-	Creates equal superposition from basis states:
-	|0> -> (|0> + |1>)/sqrt(2), |1> -> (|0> - |1>)/sqrt(2)
-	"""
+	# Creates equal superposition from basis states:
+	# |0> -> (|0> + |1>)/sqrt(2), |1> -> (|0> - |1>)/sqrt(2)
 	return _apply_gate_batch(farm, positions, "H", "Hadamard")
 
 
 static func apply_s_gate(farm, positions: Array[Vector2i]) -> Dictionary:
-	"""Apply S gate (pi/2 phase) to selected positions.
+	# Apply S gate (pi/2 phase) to selected positions.
 
-	S = [[1, 0], [0, i]] (square root of Z gate)
-	"""
+	# S = [[1, 0], [0, i]] (square root of Z gate)
 	return _apply_gate_batch(farm, positions, "S", "S-gate")
 
 
 static func apply_t_gate(farm, positions: Array[Vector2i]) -> Dictionary:
-	"""Apply T gate (pi/4 phase) to selected positions.
+	# Apply T gate (pi/4 phase) to selected positions.
 
-	T = [[1, 0], [0, e^(i*pi/4)]] (enables universal computation)
-	"""
+	# T = [[1, 0], [0, e^(i*pi/4)]] (enables universal computation)
 	return _apply_gate_batch(farm, positions, "T", "T-gate")
 
 
 static func apply_sdg_gate(farm, positions: Array[Vector2i]) -> Dictionary:
-	"""Apply S-dagger gate (-pi/2 phase) to selected positions.
+	# Apply S-dagger gate (-pi/2 phase) to selected positions.
 
-	S-dagger = [[1, 0], [0, -i]] (inverse of S gate)
-	"""
+	# S-dagger = [[1, 0], [0, -i]] (inverse of S gate)
 	return _apply_gate_batch(farm, positions, "Sdg", "S-dagger")
 
 
 static func apply_tdg_gate(farm, positions: Array[Vector2i]) -> Dictionary:
-	"""Apply T-dagger gate (-pi/4 phase) to selected positions.
+	# Apply T-dagger gate (-pi/4 phase) to selected positions.
 
-	T-dagger = [[1, 0], [0, e^(-i*pi/4)]] (inverse of T gate)
-	"""
+	# T-dagger = [[1, 0], [0, e^(-i*pi/4)]] (inverse of T gate)
 	return _apply_gate_batch(farm, positions, "Tdg", "T-dagger")
 
 
 static func apply_rx_gate(farm, positions: Array[Vector2i]) -> Dictionary:
-	"""Apply Rx rotation gate to selected positions.
+	# Apply Rx rotation gate to selected positions.
 
-	Rx(theta) rotation around X-axis. Default theta = pi/4.
-	"""
+	# Rx(theta) rotation around X-axis. Default theta = pi/4.
 	return _apply_gate_batch(farm, positions, "Rx", "Rx-gate")
 
 
 static func apply_ry_gate(farm, positions: Array[Vector2i]) -> Dictionary:
-	"""Apply Ry rotation gate to selected positions.
+	# Apply Ry rotation gate to selected positions.
 
-	Ry(theta) rotation around Y-axis. Default theta = pi/4.
-	"""
+	# Ry(theta) rotation around Y-axis. Default theta = pi/4.
 	return _apply_gate_batch(farm, positions, "Ry", "Ry-gate")
 
 
 static func apply_rz_gate(farm, positions: Array[Vector2i]) -> Dictionary:
-	"""Apply Rz rotation gate to selected positions.
+	# Apply Rz rotation gate to selected positions.
 
-	Rz(theta) rotation around Z-axis. Default theta = pi/4.
-	"""
+	# Rz(theta) rotation around Z-axis. Default theta = pi/4.
 	return _apply_gate_batch(farm, positions, "Rz", "Rz-gate")
 
 
@@ -126,35 +113,31 @@ static func apply_rz_gate(farm, positions: Array[Vector2i]) -> Dictionary:
 ## ============================================================================
 
 static func apply_cnot(farm, positions: Array[Vector2i]) -> Dictionary:
-	"""Apply CNOT gate to position pairs.
+	# Apply CNOT gate to position pairs.
 
-	Processes sequential pairs: (0,1), (2,3), etc.
-	Control qubit at first position, target at second.
-	"""
+	# Processes sequential pairs: (0,1), (2,3), etc.
+	# Control qubit at first position, target at second.
 	return _apply_two_qubit_gate_batch(farm, positions, "CNOT", "CNOT")
 
 
 static func apply_cz(farm, positions: Array[Vector2i]) -> Dictionary:
-	"""Apply CZ gate to position pairs.
+	# Apply CZ gate to position pairs.
 
-	Controlled-Z gate between sequential position pairs.
-	"""
+	# Controlled-Z gate between sequential position pairs.
 	return _apply_two_qubit_gate_batch(farm, positions, "CZ", "CZ")
 
 
 static func apply_swap(farm, positions: Array[Vector2i]) -> Dictionary:
-	"""Apply SWAP gate to position pairs.
+	# Apply SWAP gate to position pairs.
 
-	Swaps qubit states between sequential position pairs.
-	"""
+	# Swaps qubit states between sequential position pairs.
 	return _apply_two_qubit_gate_batch(farm, positions, "SWAP", "SWAP")
 
 
 static func create_bell_pair(farm, positions: Array[Vector2i]) -> Dictionary:
-	"""Create Bell pair (H + CNOT) - maximally entangled state.
+	# Create Bell pair (H + CNOT) - maximally entangled state.
 
-	Requires exactly 2 positions. Creates |Phi+> = (|00> + |11>) / sqrt(2)
-	"""
+	# Requires exactly 2 positions. Creates |Phi+> = (|00> + |11>) / sqrt(2)
 	if positions.size() < 2:
 		return {
 			"success": false,
@@ -191,11 +174,10 @@ static func create_bell_pair(farm, positions: Array[Vector2i]) -> Dictionary:
 
 
 static func create_ghz_state(farm, positions: Array[Vector2i]) -> Dictionary:
-	"""Create GHZ state - maximally entangled n-qubit state.
+	# Create GHZ state - maximally entangled n-qubit state.
 
-	Creates (|000...0⟩ + |111...1⟩)/√2 for all selected positions.
-	Uses H on first qubit, then CNOT from first to each subsequent qubit.
-	"""
+	# Creates (|000...0⟩ + |111...1⟩)/√2 for all selected positions.
+	# Uses H on first qubit, then CNOT from first to each subsequent qubit.
 	if positions.size() < 2:
 		return {
 			"success": false,
@@ -243,21 +225,20 @@ static func create_ghz_state(farm, positions: Array[Vector2i]) -> Dictionary:
 ## ============================================================================
 
 static func cluster(farm, positions: Array[Vector2i]) -> Dictionary:
-	"""Create linear cluster state from selected positions.
+	# Create linear cluster state from selected positions.
 
-	A cluster state is a highly entangled state used in measurement-based
-	quantum computing. The linear cluster has graph structure:
+	# A cluster state is a highly entangled state used in measurement-based
+	# quantum computing. The linear cluster has graph structure:
 
-	    q[0] — q[1] — q[2] — ... — q[n-1]
+	# q[0] — q[1] — q[2] — ... — q[n-1]
 
-	where edges represent CZ gates applied after H on all qubits.
+	# where edges represent CZ gates applied after H on all qubits.
 
-	Preparation (respects selection order):
-	1. Apply H to ALL selected qubits → |+⟩⊗n
-	2. Apply CZ between adjacent pairs: (0,1), (1,2), ..., (n-2,n-1)
+	# Preparation (respects selection order):
+	# 1. Apply H to ALL selected qubits → |+⟩⊗n
+	# 2. Apply CZ between adjacent pairs: (0,1), (1,2), ..., (n-2,n-1)
 
-	The selection order determines the linear chain topology.
-	"""
+	# The selection order determines the linear chain topology.
 	if not farm or not farm.grid:
 		return {
 			"success": false,
@@ -318,10 +299,9 @@ static func cluster(farm, positions: Array[Vector2i]) -> Dictionary:
 
 
 static func disentangle(farm, positions: Array[Vector2i]) -> Dictionary:
-	"""Break entanglement between qubits by measuring and resetting.
+	# Break entanglement between qubits by measuring and resetting.
 
-	Performs measurement to collapse entangled state.
-	"""
+	# Performs measurement to collapse entangled state.
 	if not farm or not farm.grid:
 		return {
 			"success": false,
@@ -377,10 +357,9 @@ static func disentangle(farm, positions: Array[Vector2i]) -> Dictionary:
 
 
 static func inspect_entanglement(farm, positions: Array[Vector2i]) -> Dictionary:
-	"""Show entanglement information for selected qubits.
+	# Show entanglement information for selected qubits.
 
-	Returns which qubits are entangled with the selected ones.
-	"""
+	# Returns which qubits are entangled with the selected ones.
 	if not farm or not farm.grid:
 		return {
 			"success": false,
@@ -439,7 +418,7 @@ static func inspect_entanglement(farm, positions: Array[Vector2i]) -> Dictionary
 ## ============================================================================
 
 static func _apply_gate_batch(farm, positions: Array[Vector2i], gate_name: String, display_name: String) -> Dictionary:
-	"""Apply a single-qubit gate to all positions in batch."""
+	# Apply a single-qubit gate to all positions in batch.
 	if positions.is_empty():
 		return {
 			"success": false,
@@ -467,7 +446,7 @@ static func _apply_gate_batch(farm, positions: Array[Vector2i], gate_name: Strin
 
 
 static func _apply_two_qubit_gate_batch(farm, positions: Array[Vector2i], gate_name: String, display_name: String) -> Dictionary:
-	"""Apply a two-qubit gate to sequential position pairs."""
+	# Apply a two-qubit gate to sequential position pairs.
 	if positions.is_empty():
 		return {
 			"success": false,
@@ -496,10 +475,9 @@ static func _apply_two_qubit_gate_batch(farm, positions: Array[Vector2i], gate_n
 
 
 static func _apply_single_qubit_gate(farm, position: Vector2i, gate_name: String) -> Dictionary:
-	"""Apply a single-qubit gate at a position.
+	# Apply a single-qubit gate at a position.
 
-	Supports both v2 terminal-based and v1 plot-based models.
-	"""
+	# Supports both v2 terminal-based and v1 plot-based models.
 	if not farm:
 		return {
 			"success": false,
@@ -590,11 +568,10 @@ static func _apply_single_qubit_gate(farm, position: Vector2i, gate_name: String
 
 
 static func _apply_two_qubit_gate(farm, position_a: Vector2i, position_b: Vector2i, gate_name: String) -> Dictionary:
-	"""Apply a two-qubit gate between two positions.
+	# Apply a two-qubit gate between two positions.
 
-	Supports both v2 terminal-based and v1 plot-based models.
-	Both positions must be in the same biome.
-	"""
+	# Supports both v2 terminal-based and v1 plot-based models.
+	# Both positions must be in the same biome.
 	if not farm:
 		return {
 			"success": false,

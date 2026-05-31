@@ -985,7 +985,7 @@ Dictionary MultiBiomeLookaheadEngine::_build_icon_map(
     }
 
     int num_qubits = m_num_qubits[biome_id];
-    const int stride = 8;
+    const int stride = 9;
     const int expected = num_qubits * stride;
 
     std::vector<double> totals;

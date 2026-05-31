@@ -2,7 +2,6 @@ class_name QuantumNode
 extends RefCounted
 
 # Shared constants
-const VisualizationConstants = preload("res://Core/Visualization/VisualizationConstants.gd")
 
 ## Quantum Node - Force-Directed Graph Representation
 ## First-class quantum visualization that represents density matrix states directly.
@@ -15,10 +14,9 @@ const VisualizationConstants = preload("res://Core/Visualization/VisualizationCo
 ## Quantum Data Source (in priority order):
 ## 1. Direct quantum register (biome_name + register_id) - PREFERRED
 ## 2. Terminal binding (v2 architecture) - game mechanic overlay
-## 3. Farm plot (v1 architecture) - legacy compatibility
+## 3. Farm plot overlay - optional game-surface anchor
 
-# Optional type reference for farm plot (legacy compatibility)
-const FarmPlot = preload("res://Core/GameMechanics/FarmPlot.gd")
+# Optional type reference for farm plot overlays
 
 # Physics state
 var position: Vector2 = Vector2.ZERO
@@ -37,6 +35,7 @@ var grid_position: Vector2i = Vector2i.ZERO  # Optional: grid position if part o
 
 # Visual properties (derived from quantum state)
 var energy: float = 0.0
+var purity: float = -1.0
 var coherence: float = 1.0
 var color: Color = Color.WHITE
 var radius: float = 20.0
@@ -47,11 +46,6 @@ var emoji_north: String = "🌾"  # North pole emoji (e.g., 🌾 for wheat)
 var emoji_south: String = "👥"  # South pole emoji (e.g., 👥 for wheat)
 var emoji_north_opacity: float = 1.0  # Probability-weighted opacity
 var emoji_south_opacity: float = 0.0  # Probability-weighted opacity
-
-# Mass accumulation history (rolling window for radius calculation)
-const MASS_HISTORY_SIZE: int = 13  # ~1.3 seconds at 10 Hz physics
-var _mass_history: Array = []  # Last 13 frames of (p0 + p1)
-var _accumulated_mass: float = 0.0  # Sum of _mass_history
 
 # Parametric biome coordinates (for auto-scaling layout)
 # Position is computed by BiomeLayoutCalculator from these coords
@@ -98,9 +92,6 @@ var phi_raw: float = 0.0  # Raw phi for force calculations
 const SEASON_ANGLES = VisualizationConstants.SEASON_ANGLES
 const SEASON_COLORS = VisualizationConstants.SEASON_COLORS
 
-# Legacy compatibility (deprecated - use biome_name + parametric coords)
-var venn_zone: int = -1      # Zone enum value (-1 = not set)
-
 # Animation properties
 var visual_scale: float = 0.0  # Animated scale (0 to 1)
 var visual_alpha: float = 0.0  # Animated alpha (0 to 1)
@@ -128,12 +119,11 @@ func _init(
 	grid_pos: Vector2i = Vector2i.ZERO,
 	center_pos: Vector2 = Vector2.ZERO
 ):
-	"""Initialize quantum node.
+	# Initialize quantum node.
 
-	Two modes:
-	1. Pure quantum visualization: Pass null for wheat_plot, set biome_name/register_id manually
-	2. Farm plot mode (legacy): Pass FarmPlot instance for compatibility
-	"""
+	# Two modes:
+	# 1. Pure quantum visualization: Pass null for wheat_plot, set biome_name/register_id manually
+	# 2. Farm plot mode: pass a FarmPlot instance
 	plot = wheat_plot
 	classical_anchor = anchor_pos
 	grid_position = grid_pos
@@ -156,15 +146,19 @@ func _init(
 
 
 func start_spawn_animation(current_time: float):
-	"""Start the spawn animation for this node"""
+	# Start the spawn animation for this node
 	is_spawning = true
 	spawn_time = current_time
 	visual_scale = 0.0
 	visual_alpha = 0.0
 
 
-func update_animation(current_time: float, delta: float):
-	"""Update spawn animation"""
+func update_animation(current_time: float, _delta: float):
+	# Update spawn animation
+	if is_lifeless:
+		visual_scale = 0.0
+		visual_alpha = 0.0
+		return
 	if not is_spawning:
 		visual_scale = 1.0
 		visual_alpha = 1.0
@@ -185,74 +179,146 @@ func update_animation(current_time: float, delta: float):
 		visual_alpha = 1.0
 
 
+func apply_lifeless_visual(emojis_dict: Dictionary = {}) -> void:
+	# Apply a disconnected/static visual state.
+	is_lifeless = true
+	is_spawning = false
+	energy = 0.0
+	purity = -1.0
+	coherence = 0.0
+	radius = MIN_RADIUS
+	color = Color(0.4, 0.4, 0.5, 0.4)
+	visual_scale = 0.0
+	visual_alpha = 0.0
+
+	if not emojis_dict.is_empty():
+		emoji_north = emojis_dict.get("north", emoji_north)
+		emoji_south = emojis_dict.get("south", emoji_south)
+	emoji_north_opacity = 0.0
+	emoji_south_opacity = 0.0
+
+
+func apply_measured_visual(measured_outcome: String = "", north_value: String = "", south_value: String = "") -> void:
+	# Apply a frozen measured visual state.
+	is_lifeless = false
+	is_spawning = false
+	if north_value != "":
+		emoji_north = north_value
+	if south_value != "":
+		emoji_south = south_value
+
+	energy = 1.0
+	purity = 1.0
+	coherence = 0.0
+	color = Color(0.75, 0.75, 0.75, 0.9)
+
+	if measured_outcome != "":
+		if measured_outcome == emoji_north:
+			emoji_north_opacity = 1.0
+			emoji_south_opacity = 0.0
+		elif measured_outcome == emoji_south:
+			emoji_north_opacity = 0.0
+			emoji_south_opacity = 1.0
+		else:
+			emoji_north_opacity = 0.0
+			emoji_south_opacity = 0.0
+	else:
+		emoji_north_opacity = 0.0
+		emoji_south_opacity = 0.0
+
+
+func apply_quantum_snapshot(snap: Dictionary, smooth_radius: bool = false) -> bool:
+	# Apply a resolved quantum visualization snapshot to this node.
+	if snap.is_empty():
+		return false
+
+	is_lifeless = false
+
+	var north_prob = snap.get("p0", 0.5)
+	var south_prob = snap.get("p1", 0.5)
+	var mass = maxf(north_prob + south_prob, 1e-6)
+	var p_north = clampf(north_prob / mass, 0.0, 1.0)
+	var p_south = clampf(south_prob / mass, 0.0, 1.0)
+	emoji_north_opacity = p_north * p_north
+	emoji_south_opacity = p_south * p_south
+
+	var coh_magnitude = snap.get("r_xy", 0.0) * 0.5
+	var coh_phase = snap.get("phi", 0.0)
+	var hue = (coh_phase + PI) / TAU
+	color = Color.from_hsv(hue, coh_magnitude * 0.8, 0.9, 0.8)
+
+	var old_phi = phi_raw
+	phi_raw = coh_phase
+	for i in range(3):
+		var angle_diff = phi_raw - SEASON_ANGLES[i]
+		season_projections[i] = (1.0 + cos(angle_diff)) * 0.5 * coh_magnitude
+
+	var delta_phi = phi_raw - old_phi
+	while delta_phi > PI:
+		delta_phi -= TAU
+	while delta_phi < -PI:
+		delta_phi += TAU
+	season_angular_momentum = season_angular_momentum * 0.8 + delta_phi * 0.2
+
+	var snap_purity = snap.get("purity", -1.0)
+	purity = snap_purity if snap_purity >= 0.0 else -1.0
+	energy = purity  # Legacy alias retained for older renderers/tools
+	coherence = coh_magnitude
+
+	var r_bloch = snap.get("r_bloch", 0.0)
+	var target_radius = lerpf(MIN_RADIUS, MAX_RADIUS, r_bloch)
+	radius = lerpf(radius, target_radius, 0.15) if smooth_radius else target_radius
+
+	berry_phase = coh_magnitude * TAU
+	return true
+
+
 func update_from_quantum_state(batcher = null):
-	"""Update visual properties from quantum state (first-class quantum visualization).
+	# Update visual properties from quantum state (first-class quantum visualization).
 
-	Args:
-		batcher: Optional BiomeEvolutionBatcher for smooth 60fps interpolation.
-		         If provided and lookahead is enabled, uses interpolated snapshots
-		         between physics frames for buttery smooth visuals.
+	# Args:
+	# batcher: Optional BiomeEvolutionBatcher for smooth 60fps interpolation.
+	# If provided and lookahead is enabled, uses interpolated snapshots
+	# between physics frames for buttery smooth visuals.
 
-	Queries quantum computer directly via biome_resolver + biome_name.
-	No plot dependency - bubbles are independent quantum visualizations.
+	# Queries quantum computer directly via biome_resolver + biome_name.
+	# No plot dependency - bubbles are independent quantum visualizations.
 
-	Visual mapping (no duplicates):
-	- Emoji opacity ← Normalized probabilities (θ-like, measurement outcome)
-	- Color hue ← Coherence phase arg(ρ_{n,s}) (φ-like, quantum phase)
-	- Color saturation ← Coherence magnitude (quantum vs classical)
-	- Glow (energy) ← Purity Tr(ρ²) (pure=bright, mixed=dim)
-	- Pulse rate (coherence) ← |ρ_{n,s}| coherence magnitude (decoherence threat)
-	- Radius ← Mass P(n)+P(s) (probability in measurement subspace)
-	"""
+	# Visual mapping (no duplicates):
+	# - Emoji opacity ← Normalized probabilities (θ-like, measurement outcome)
+	# - Color hue ← Coherence phase arg(ρ_{n,s}) (φ-like, quantum phase)
+	# - Color saturation ← Coherence magnitude (quantum vs classical)
+	# - Glow ← coherence / Berry phase
+	# - Radius ← Bloch/subspace radius only
+	# - Purity ← explicit status ring / halo, not body size
+	# - Motion policy/channel ownership lives in QuantumVisualGrammar
 	var is_transitioning_planted = (radius == MAX_RADIUS)
 
 	# === DETERMINE BIOME SOURCE (priority order) ===
 	# 1. Direct quantum register (biome_name + register_id) - PREFERRED
 	# 2. Terminal binding (game mechanic overlay)
-	# 3. Farm plot (legacy compatibility)
 	var biome = null
 
-	# Priority 1: Direct biome reference (first-class quantum viz)
 	if biome_name != "" and biome_resolver.is_valid():
 		biome = biome_resolver.call(biome_name)
-		if not biome and register_id == 0:  # Debug first register only
+		if not biome and register_id == 0:
 			print("    [LIFELESS] Biome '%s' not found via resolver" % biome_name)
 
-	# Priority 2: Terminal binding (v2 game mechanic)
 	elif terminal and terminal.is_bound:
 		if biome_resolver.is_valid() and terminal.bound_biome_name != "":
 			biome = biome_resolver.call(terminal.bound_biome_name)
-			# Also update biome_name for consistency
 			if not biome_name:
 				biome_name = terminal.bound_biome_name
 
-	# Priority 3: Farm plot (v1 legacy)
-	elif plot and plot.is_active():
-		biome = plot.parent_biome
-		# Update biome_name for consistency
-		if not biome_name and biome:
-			if "biome_name" in biome:
-				biome_name = biome.biome_name
-
 	# Guard: no biome or no viz payload → LIFELESS fallback (no wiggle)
 	if not biome or not biome.viz_cache or not biome.viz_cache.has_metadata():
-		is_lifeless = true  # Mark as frozen - no physics
-		energy = 0.0       # No glow - lifeless
-		coherence = 0.0    # No pulse - static
-		radius = MIN_RADIUS  # Small - minimal presence
-		color = Color(0.4, 0.4, 0.5, 0.5)  # Dim gray - disconnected
-
 		# Try to get emojis from either source
 		var emojis_dict = {}
 		if terminal and terminal.is_bound:
 			emojis_dict = {"north": terminal.north_emoji, "south": terminal.south_emoji}
 		elif plot:
 			emojis_dict = plot.get_plot_emojis()
-
-		emoji_north = emojis_dict.get("north", emoji_north)
-		emoji_south = emojis_dict.get("south", emoji_south)
-		emoji_north_opacity = 0.3  # Dim
-		emoji_south_opacity = 0.3
+		apply_lifeless_visual(emojis_dict)
 		return
 
 	# Has real quantum data - not lifeless
@@ -261,29 +327,10 @@ func update_from_quantum_state(batcher = null):
 	# === CHECK IF MEASURED: If so, freeze at measurement outcome ===
 	var is_measured_now = is_terminal_measured()
 	if is_measured_now:
-		# Measurement outcome is frozen - don't query evolving quantum state
-		# Just show the measured outcome with static properties
-		energy = 0.5  # Static glow at neutral
-		coherence = 0.0  # No pulse (stable/static)
-		color = Color(0.6, 0.6, 0.6, 0.8)  # Neutral gray - measured state
-
-		# Show measured outcome as 100% on one emoji, 0% on other
 		if terminal and terminal.is_measured and terminal.measured_outcome:
-			emoji_north = terminal.north_emoji
-			emoji_south = terminal.south_emoji
-			if terminal.measured_outcome == emoji_north:
-				emoji_north_opacity = 1.0
-				emoji_south_opacity = 0.0
-			else:
-				emoji_north_opacity = 0.0
-				emoji_south_opacity = 1.0
+			apply_measured_visual(terminal.measured_outcome, terminal.north_emoji, terminal.south_emoji)
 		else:
-			# Fallback for plot-based measurement
-			emoji_north_opacity = 0.5
-			emoji_south_opacity = 0.5
-
-		# Freeze radius at current size
-		# (don't query evolving probabilities)
+			apply_measured_visual()
 		return
 
 	# === QUERY BIOME FOR REAL QUANTUM DATA (UNMEASURED ONLY) ===
@@ -309,149 +356,48 @@ func update_from_quantum_state(batcher = null):
 		else:
 			snap = biome.viz_cache.get_snapshot(qubit_index)
 
-	# 1. EMOJI OPACITY ← Bloch sphere polarity via theta
-	# theta = 0 (north pole) → north full, south zero
-	# theta = π (south pole) → north zero, south full
-	# theta = π/2 (equator) → equal superposition
-	var north_prob = 0.5
-	var south_prob = 0.5
 	if snap.is_empty():
-		is_lifeless = true
-		energy = 0.0
-		coherence = 0.0
-		radius = MIN_RADIUS
-		color = Color(0.4, 0.4, 0.5, 0.4)
-		emoji_north_opacity = 0.0
-		emoji_south_opacity = 0.0
+		apply_lifeless_visual({"north": emoji_north, "south": emoji_south})
 		return
-
-	# Get theta from Bloch sphere (polar angle)
-	var theta = snap.get("theta", PI / 2.0)
-	north_prob = snap.get("p0", 0.5)
-	south_prob = snap.get("p1", 0.5)
-	var mass = north_prob + south_prob  # Total probability in our subspace
-
-	if mass > 0.001:
-		# Use theta for polarity: cos²(θ/2) = (1+cos(θ))/2 for north pole
-		var cos_theta = cos(theta)
-		emoji_north_opacity = (1.0 + cos_theta) * 0.5
-		emoji_south_opacity = (1.0 - cos_theta) * 0.5
-	else:
-		# No probability in our subspace - show dim
-		emoji_north_opacity = 0.1
-		emoji_south_opacity = 0.1
-
-	# 2. COLOR HUE ← Coherence phase arg(ρ_{n,s}) (φ-like)
-	var coh_magnitude = 0.0
-	var coh_phase = 0.0
+	apply_quantum_snapshot(snap)
+	var north_prob = snap.get("p0", 0.5)
+	var south_prob = snap.get("p1", 0.5)
+	var coh_magnitude = snap.get("r_xy", 0.0) * 0.5
+	var coh_phase = snap.get("phi", 0.0)
 	var x_val = snap.get("x", 0.0)
 	var y_val = snap.get("y", 0.0)
-	coh_magnitude = snap.get("r_xy", 0.0) * 0.5
-	coh_phase = snap.get("phi", 0.0)
 
 	# DEBUG: Log phi values occasionally (every 100 frames for first qubit)
 	if register_id == 0 and Engine.get_process_frames() % 100 == 0:
 		_test_log("trace", "🧬", "Node q%d: φ=%.4f, x=%.4f, y=%.4f, r_xy=%.4f, p0=%.3f" % [
 			register_id, coh_phase, x_val, y_val, coh_magnitude * 2.0, north_prob])
 
-	# Map phase to hue [0, 1] for HSV color
-	var hue = (coh_phase + PI) / TAU  # Normalize to [0, 1]
-	var saturation = coh_magnitude  # More coherent = more saturated color
-	color = Color.from_hsv(hue, saturation * 0.8, 0.9, 0.8)
-
-	# === AZIMUTHAL SEASON PROJECTIONS ===
-	# Project phi onto 3 season basis vectors at 0°, 120°, 240°
-	# Each projection = (1 + cos(phi - season_angle)) / 2 → [0, 1]
-	var old_phi = phi_raw
-	phi_raw = coh_phase
-
-	for i in range(3):
-		var angle_diff = phi_raw - SEASON_ANGLES[i]
-		# Projection intensity: cos maps to [-1, 1], rescale to [0, 1]
-		# Multiply by coherence magnitude so mixed states have weak seasons
-		season_projections[i] = (1.0 + cos(angle_diff)) * 0.5 * coh_magnitude
-
-	# Track angular momentum (phase velocity) for whirlpool force
-	var delta_phi = phi_raw - old_phi
-	# Wrap delta to [-π, π]
-	while delta_phi > PI: delta_phi -= TAU
-	while delta_phi < -PI: delta_phi += TAU
-	# Exponential smoothing of angular momentum
-	season_angular_momentum = season_angular_momentum * 0.8 + delta_phi * 0.2
-
-	# 3. GLOW (energy) ← Purity Tr(ρ²)
-	# Pure state = 1.0 (bright glow), maximally mixed = 1/N (dim)
-	var purity = snap.get("purity", -1.0)
-	energy = purity if purity >= 0.0 else 0.5
-
-	# 4. PULSE RATE (coherence) ← |ρ_{n,s}| coherence magnitude
-	# High coherence = stable/slow pulse, low = jittery/fast
-	coherence = coh_magnitude
-
-	# 5. RADIUS ← Accumulated mass over last 13 physics frames + quadratic purity boost
-	# TEMPORARY: Disabled mass accumulation for debugging
-	# Update mass history (rolling 13-frame window)
-	# _mass_history.append(mass)
-	# if _mass_history.size() > MASS_HISTORY_SIZE:
-	# 	var oldest = _mass_history.pop_front()
-	# 	_accumulated_mass -= oldest
-	# _accumulated_mass += mass
-
-	# Base radius from current mass (not accumulated) - TEMPORARY FIX
-	var base_radius = lerpf(MIN_RADIUS, MAX_RADIUS * 0.7, clampf(mass * 2.0, 0.0, 1.0))
-
-	# Quadratic purity boost: makes pure states visibly larger
-	# Purity ranges from 0.5 (maximally mixed qubit) to 1.0 (pure)
-	# Normalize to [0, 1]: (purity - 0.5) / 0.5
-	var purity_normalized = clampf((energy - 0.5) / 0.5, 0.0, 1.0)
-	var purity_boost = purity_normalized * purity_normalized * (MAX_RADIUS * 0.3)
-
-	radius = base_radius + purity_boost
-
-	# 6. Berry phase - REAL geometric phase from Bloch sphere path integral
-	# Formula: dβ = -(1/2) × (1 - cos(θ)) × dφ
-	# This is the solid angle swept on the Bloch sphere per frame
-	# theta already defined above at line 329 from snap.get("theta")
-	var dphi = season_angular_momentum       # Phase velocity (already smoothed)
-	var berry_increment = -0.5 * (1.0 - cos(theta)) * dphi
-	berry_phase += berry_increment
-	# Berry phase wraps at 2π (full geometric cycle)
-	while berry_phase > TAU: berry_phase -= TAU
-	while berry_phase < 0: berry_phase += TAU
-
 	if is_transitioning_planted:
 		var verbose = _get_verbose()
 		if verbose:
 			verbose.debug("quantum", "⚛️", "Node %s: θ=(%.2f/%.2f) φ=%.1f° purity=%.3f |coh|=%.3f mass=%.3f" % [
 				grid_position, emoji_north_opacity, emoji_south_opacity,
-				rad_to_deg(coh_phase), energy, coh_magnitude, mass])
+				rad_to_deg(coh_phase), purity, coh_magnitude, north_prob + south_prob])
 
 
 func get_entangled_partner_ids() -> Array:
-	"""Get list of plot IDs this node is entangled with (Model B: via parent biome)"""
-	# Model B: entanglement managed by biome's quantum_computer
-	# For now, return empty array - will be implemented via biome queries
+	# Get list of plot IDs this node is entangled with.
+	# Entanglement is owned by the biome QuantumComputer/RegisterMap substrate.
+	# Plot IDs are only a UI projection and are not yet reverse-mapped here.
 	if not plot or not plot.parent_biome:
 		return []
 
-	# TODO: Query biome's quantum_computer for entangled registers
-	# var partner_ids = []
-	# for reg_id in plot.parent_biome.quantum_computer.get_entangled_registers(plot.bound_register_id):
-	#     partner_ids.append(...)
-	# return partner_ids
-
-	return []  # Empty for now - Model B visualization TODO
+	return []
 
 
 func apply_force(force: Vector2, delta: float):
-	"""Apply a force to this node, scaled by inverse mass for realism
+	# Apply a force to this node, scaled by inverse mass for realism
 
-	Physics: acceleration = force / mass
-	Here: mass = combined probability (north + south opacity)
-	High probability states (mass near 1.0) are heavy and resist forces
-	Low probability states (mass near 0.0) are light and easily moved
-	This creates quantum-mechanical inertia!
-	"""
+	# Physics: acceleration = force / mass
+	# Here: mass = combined probability (north + south opacity)
+	# High probability states (mass near 1.0) are heavy and resist forces
+	# Low probability states (mass near 0.0) are light and easily moved
+	# This creates quantum-mechanical inertia!
 	# Mass = total probability in this measurement subspace
 	var probability_mass = emoji_north_opacity + emoji_south_opacity
 	probability_mass = clampf(probability_mass, 0.1, 1.0)  # Min mass to avoid division by zero
@@ -461,20 +407,14 @@ func apply_force(force: Vector2, delta: float):
 	velocity += acceleration * delta
 
 
-func apply_damping(damping_factor: float):
-	"""Apply linear velocity damping (deprecated - use quadratic drag instead)"""
-	velocity *= damping_factor
-
-
 func apply_quadratic_drag(impulse: float):
-	"""Apply quadratic drag proportional to velocity squared
+	# Apply quadratic drag proportional to velocity squared
 
-	Quadratic drag: F_drag = -β * v * |v|
-	This creates realistic air resistance where drag increases with speed.
-	The impulse coefficient is linked to quantum coherence for physics grounding.
+	# Quadratic drag: F_drag = -β * v * |v|
+	# This creates realistic air resistance where drag increases with speed.
+	# The impulse coefficient is linked to quantum coherence for physics grounding.
 
-	Implementation: v_new = v_old * (1 - impulse * |v|)
-	"""
+	# Implementation: v_new = v_old * (1 - impulse * |v|)
 	var speed = velocity.length()
 	if speed < 1.0:
 		return  # Skip for very slow velocities to avoid numerical issues
@@ -488,7 +428,7 @@ func apply_quadratic_drag(impulse: float):
 
 
 func update_position(delta: float):
-	"""Update position from velocity"""
+	# Update position from velocity
 	position += velocity * delta
 
 	# Update orbit trail history
@@ -501,34 +441,29 @@ func update_position(delta: float):
 
 
 func get_glow_alpha() -> float:
-	"""Get glow halo alpha based on PURITY (energy) only.
+	# Get glow halo alpha based on coherence / phase energy.
+	#
+	# Purity is now a dedicated ring channel; the body glow should not be the
+	# only place purity appears.
 
-	Glow = Purity Tr(ρ²): Pure states glow brightly, mixed states are dim.
-	Range: 0.3 (mixed) to 0.8 (pure)
-
-	NOTE: Berry phase has been moved to pulse rate animation.
-	"""
-	return energy * 0.5 + 0.3  # 0.3 to 0.8 range based on purity
+	# NOTE: Ambient pulse is not a supported bubble-body channel. See QuantumVisualGrammar.
+	return 0.3 + clampf(coherence, 0.0, 1.0) * 0.5
 
 
-func _test_log(level: String, emoji: String, message: String) -> void:
-	"""Log test/debug messages with [TEST] prefix to VerboseConfig if available."""
+func _test_log(_level: String, emoji: String, message: String) -> void:
+	# Log test/debug messages with [TEST] prefix to VerboseConfig if available.
 	var tree = Engine.get_main_loop()
 	if not tree:
 		return
-	var verbose = InstrumentLocator.resolve_verbose_config_main_loop()
+	var verbose = (Engine.get_main_loop().root.get_node_or_null("/root/VerboseConfig") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 	if verbose:
 		verbose.trace("test", emoji, message)
 
 
 func get_pulse_rate() -> float:
-	"""Get pulse/oscillation speed based on BERRY PHASE only.
+	# Pulse rate used by graph-style renderers.
 
-	Berry phase accumulates during quantum evolution - more evolved = faster pulse.
-	This visualizes the "quantum experience" accumulated by the state.
-
-	Range: 0.5 to 3.0 Hz
-	"""
+	# New bubble renderers should not use this for body size or alpha breathing.
 	var berry_rate = 0.5 + clampf(berry_phase * 0.2, 0.0, 2.5)
 	return berry_rate
 
@@ -538,31 +473,30 @@ func get_pulse_rate() -> float:
 # ============================================================================
 
 func get_emoji_north() -> String:
-	"""Get north emoji - delegates to terminal when available (v2 single source of truth)"""
+	# Get north emoji - delegates to terminal when available (v2 single source of truth)
 	if terminal and terminal.is_bound:
 		return terminal.north_emoji
 	return emoji_north
 
 
 func get_emoji_south() -> String:
-	"""Get south emoji - delegates to terminal when available (v2 single source of truth)"""
+	# Get south emoji - delegates to terminal when available (v2 single source of truth)
 	if terminal and terminal.is_bound:
 		return terminal.south_emoji
 	return emoji_south
 
 
 func get_emoji_opacities(biome = null) -> Dictionary:
-	"""Get emoji opacities computed from biome's density matrix at render time.
+	# Get emoji opacities computed from biome's density matrix at render time.
 
-	V2 Architecture: Opacities are computed fresh each frame from biome state.
-	This eliminates the need to cache/duplicate probability state.
+	# V2 Architecture: Opacities are computed fresh each frame from biome state.
+	# This eliminates the need to cache/duplicate probability state.
 
-	Args:
-		biome: BiomeBase to query for probabilities (optional)
+	# Args:
+	# biome: BiomeBase to query for probabilities (optional)
 
-	Returns:
-		Dictionary with "north" and "south" opacity values (0.0-1.0)
-	"""
+	# Returns:
+	# Dictionary with "north" and "south" opacity values (0.0-1.0)
 	# If no terminal or not bound, use cached values
 	if not terminal or not terminal.is_bound:
 		return {"north": emoji_north_opacity, "south": emoji_south_opacity}
@@ -581,21 +515,29 @@ func get_emoji_opacities(biome = null) -> Dictionary:
 	if not biome:
 		return {"north": emoji_north_opacity, "south": emoji_south_opacity}
 
-	# Query biome for current probability of this register
-	var north_prob = 0.5
-	if biome.has_method("get_register_probability"):
-		north_prob = biome.get_register_probability(terminal.bound_register_id)
+	# Query live viz snapshot for this register. If unavailable, keep cached
+	# opacities rather than inventing a neutral 50/50 state.
+	if not biome.viz_cache:
+		return {"north": emoji_north_opacity, "south": emoji_south_opacity}
+
+	var snap = biome.viz_cache.get_snapshot(terminal.bound_register_id)
+	if snap.is_empty():
+		return {"north": emoji_north_opacity, "south": emoji_south_opacity}
+
+	var north_prob = float(snap.get("p0", -1.0))
+	if north_prob < 0.0:
+		return {"north": emoji_north_opacity, "south": emoji_south_opacity}
 
 	var south_prob = 1.0 - north_prob
 	var mass = north_prob + south_prob
 
 	if mass > 0.001:
 		return {"north": north_prob / mass, "south": south_prob / mass}
-	return {"north": 0.1, "south": 0.1}
+	return {"north": emoji_north_opacity, "south": emoji_south_opacity}
 
 
 func is_terminal_measured() -> bool:
-	"""Check if this node's terminal is measured (v2 single source of truth)"""
+	# Check if this node's terminal is measured (v2 single source of truth)
 	if terminal:
 		return terminal.is_measured
 	if plot:
@@ -604,6 +546,6 @@ func is_terminal_measured() -> bool:
 
 
 func _get_verbose():
-	"""Safely access VerboseConfig autoload from RefCounted class"""
-	return InstrumentLocator.resolve_verbose_config_main_loop()
-const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
+	# Safely access VerboseConfig autoload from RefCounted class
+	var ml := Engine.get_main_loop()
+	return ml.root.get_node_or_null("/root/VerboseConfig") if ml and ml.root else null

@@ -1,6 +1,5 @@
 extends Node
 
-const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
 
 ## ActionChainTracker - Tracks observation history with fractal addresses
@@ -27,7 +26,6 @@ const MAX_CHAIN_LENGTH: int = 1000
 ## Signals
 signal latest_changed(entry: Dictionary)
 signal chain_extended(chain: Array)
-signal address_changed(address: Array)
 
 
 func _ready() -> void:
@@ -105,7 +103,7 @@ func _compute_address() -> Array:
 
 	# Start from the end of the chain and work backwards to build the address
 	var current_biome = ""
-	var observation_frame = InstrumentLocator.resolve_observation_frame(self)
+	var observation_frame = get_node_or_null("/root/ObservationFrame")
 	if observation_frame:
 		current_biome = observation_frame.get_neutral_biome()
 

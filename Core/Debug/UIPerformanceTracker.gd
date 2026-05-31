@@ -17,7 +17,7 @@ func _perf_debug_enabled() -> bool:
 	return VerboseConfig.safe_allows("perf_hud", VerboseConfig.LogLevel.DEBUG)
 
 func record_time(component_name: String, time_us: float) -> void:
-	"""Record timing for a component (in microseconds)."""
+	# Record timing for a component (in microseconds).
 	if not component_samples.has(component_name):
 		component_samples[component_name] = []
 		if _perf_debug_enabled():
@@ -35,7 +35,7 @@ func record_time(component_name: String, time_us: float) -> void:
 		print("[UIPerformanceTracker] %s: %.2f us" % [component_name, time_us])
 
 func get_average_ms(component_name: String) -> float:
-	"""Get average time in milliseconds for a component."""
+	# Get average time in milliseconds for a component.
 	if not component_samples.has(component_name):
 		return 0.0
 
@@ -50,14 +50,14 @@ func get_average_ms(component_name: String) -> float:
 	return (total / samples.size()) / 1000.0  # Convert to ms
 
 func get_all_averages() -> Dictionary:
-	"""Get averages for all tracked components."""
+	# Get averages for all tracked components.
 	var averages = {}
 	for component in component_samples.keys():
 		averages[component] = get_average_ms(component)
 	return averages
 
 func print_report() -> void:
-	"""Print performance report to console."""
+	# Print performance report to console.
 	var averages = get_all_averages()
 	if averages.is_empty():
 		return

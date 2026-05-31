@@ -442,20 +442,21 @@ Eigen::MatrixXcd QuantumEvolutionEngine::partial_trace_single(
             std::complex<double> sum(0.0, 0.0);
 
             // Sum over all basis states where qubit has value a (row) and b (col)
-            // and all other qubits have the same value (trace condition)
+            // and all other qubits have the same value (trace condition).
+            // GDScript convention (RegisterMap, HamiltonianBuilder): qubit q lives at
+            // bit position (num_qubits - 1 - q) — MSB. Must match here.
             for (int other_bits = 0; other_bits < (1 << (num_qubits - 1)); other_bits++) {
-                // Construct full basis state index with qubit at position 'qubit'
-                // Insert 'a' at position qubit for row, 'b' for column
                 int row_idx = 0, col_idx = 0;
                 int bit_pos = 0;
                 for (int q = 0; q < num_qubits; q++) {
+                    int shift = num_qubits - 1 - q;
                     if (q == qubit) {
-                        row_idx |= (a << q);
-                        col_idx |= (b << q);
+                        row_idx |= (a << shift);
+                        col_idx |= (b << shift);
                     } else {
                         int other_bit = (other_bits >> bit_pos) & 1;
-                        row_idx |= (other_bit << q);
-                        col_idx |= (other_bit << q);  // Same value for trace
+                        row_idx |= (other_bit << shift);
+                        col_idx |= (other_bit << shift);
                         bit_pos++;
                     }
                 }
@@ -497,17 +498,19 @@ Eigen::MatrixXcd QuantumEvolutionEngine::partial_trace_complement(
                 int row_idx = 0, col_idx = 0;
                 int bit_pos = 0;
 
+                // MSB convention to match GDScript (qubit q at bit num_qubits-1-q).
                 for (int q = 0; q < num_qubits; q++) {
+                    int shift = num_qubits - 1 - q;
                     if (q == qubit_a) {
-                        row_idx |= (a_row << q);
-                        col_idx |= (a_col << q);
+                        row_idx |= (a_row << shift);
+                        col_idx |= (a_col << shift);
                     } else if (q == qubit_b) {
-                        row_idx |= (b_row << q);
-                        col_idx |= (b_col << q);
+                        row_idx |= (b_row << shift);
+                        col_idx |= (b_col << shift);
                     } else {
                         int other_bit = (other_bits >> bit_pos) & 1;
-                        row_idx |= (other_bit << q);
-                        col_idx |= (other_bit << q);  // Same for trace
+                        row_idx |= (other_bit << shift);
+                        col_idx |= (other_bit << shift);
                         bit_pos++;
                     }
                 }
@@ -912,12 +915,12 @@ PackedFloat64Array QuantumEvolutionEngine::compute_bloch_metrics_from_packed(
 
 PackedFloat64Array QuantumEvolutionEngine::compute_bloch_metrics(
     const Eigen::MatrixXcd& rho, int num_qubits) const {
-    // Returns packed [p0,p1,x,y,z,r,theta,phi] per qubit
+    // Returns packed [p0,p1,x,y,z,r,theta,phi,r_xy] per qubit (stride=9)
     PackedFloat64Array out;
     if (num_qubits <= 0) {
         return out;
     }
-    out.resize(num_qubits * 8);
+    out.resize(num_qubits * 9);
     double* ptr = out.ptrw();
 
     for (int q = 0; q < num_qubits; q++) {
@@ -934,6 +937,7 @@ PackedFloat64Array QuantumEvolutionEngine::compute_bloch_metrics(
         double z = p0 - p1;
 
         double r = std::sqrt(x * x + y * y + z * z);
+        double r_xy = std::sqrt(x * x + y * y);
         double theta = 0.0;
         double phi = 0.0;
         if (r > 1e-12) {
@@ -944,7 +948,7 @@ PackedFloat64Array QuantumEvolutionEngine::compute_bloch_metrics(
             phi = std::atan2(y, x);
         }
 
-        int base = q * 8;
+        int base = q * 9;
         ptr[base + 0] = p0;
         ptr[base + 1] = p1;
         ptr[base + 2] = x;
@@ -953,6 +957,7 @@ PackedFloat64Array QuantumEvolutionEngine::compute_bloch_metrics(
         ptr[base + 5] = r;
         ptr[base + 6] = theta;
         ptr[base + 7] = phi;
+        ptr[base + 8] = r_xy;
     }
 
     return out;

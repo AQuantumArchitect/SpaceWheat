@@ -3,6 +3,9 @@
 ## Quick script to set the main scene in project.godot
 ## Usage: ./SET_MAIN_SCENE.sh res://scenes/MyNewScene.tscn
 
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+PROJECT_FILE="$REPO_ROOT/project.godot"
+
 if [ -z "$1" ]; then
 	echo ""
 	echo "=========================================="
@@ -15,13 +18,12 @@ if [ -z "$1" ]; then
 	echo "  ./SET_MAIN_SCENE.sh res://scenes/MainLayout.tscn"
 	echo ""
 	echo "Current main scene:"
-	grep "run/main_scene" project.godot
+	grep "run/main_scene" "$PROJECT_FILE"
 	echo ""
 	exit 1
 fi
 
 SCENE_PATH="$1"
-PROJECT_FILE="/home/tehcr33d/ws/SpaceWheat/project.godot"
 
 if [ ! -f "$PROJECT_FILE" ]; then
 	echo "❌ project.godot not found"
@@ -40,4 +42,4 @@ echo ""
 echo "New setting:"
 grep "run/main_scene" "$PROJECT_FILE"
 echo ""
-echo "To launch: godot"
+echo "To launch: godot --path ."

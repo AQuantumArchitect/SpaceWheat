@@ -3,7 +3,6 @@ extends SceneTree
 ## Deep integration test: Gate application → Density matrix changes → C++ evolution
 ## Run: godot --headless --script tests/test_gate_application_integration.gd
 
-const GateInjector = preload("res://Core/QuantumSubstrate/GateInjector.gd")
 const GateActionHandler = preload("res://Core/Instrumentation/Handlers/GateActionHandler.gd")
 
 var passed = 0

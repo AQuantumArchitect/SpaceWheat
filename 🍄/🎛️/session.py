@@ -96,7 +96,7 @@ class RunSession:
         self._cycles: int = 0
         self._biomes: List[str] = []
         self._vocab_milestones: int = 0
-        self._known_pairs: List[Dict[str, str]] = []
+        self._known_icons: List[Dict[str, str]] = []
         self._t_start: float = 0.0
 
     # ── Lifecycle ───────────────────────────────────────────────────
@@ -193,13 +193,13 @@ class RunSession:
         result = self._run("full_snapshot", timeout_s=20.0)
         return result
 
-    def known_vocab(self) -> List[Dict[str, str]]:
-        """Get known vocabulary pairs: [{north, south}, ...]."""
+    def known_icons(self) -> List[Dict[str, str]]:
+        """Get known icons: [{north, south}, ...]."""
         result = self._run("policy_snapshot", include_offers=False, include_grid=False)
         payload = result.get("policy_snapshot", {})
-        pairs = payload.get("known_pairs", []) if isinstance(payload, dict) else []
-        self._known_pairs = pairs
-        return pairs
+        icons = payload.get("known_icons", []) if isinstance(payload, dict) else []
+        self._known_icons = icons
+        return icons
 
     def active_quests(self) -> List[Dict[str, Any]]:
         """Get currently active quests."""
@@ -242,12 +242,12 @@ class RunSession:
         new_pairs = result.get("new_vocab_pairs", [])
         if new_pairs:
             self._vocab_milestones += len(new_pairs)
-            self._known_pairs.extend(new_pairs)
+            self._known_icons.extend(new_pairs)
         return result
 
-    def lock(self, quest_id: str) -> Dict[str, Any]:
-        """Pin a quest to locked offers."""
-        result = self._run("lock_offer", quest_id=quest_id)
+    def quest_cycle(self, quest_id: str) -> Dict[str, Any]:
+        """Advance the quest cycle for a specific offer."""
+        result = self._run("quest_cycle", quest_id=quest_id)
         self._steps += 1
         return result
 
@@ -272,9 +272,9 @@ class RunSession:
         self._steps += 1
         return result
 
-    def inject_vocab(self, biome: str = "") -> Dict[str, Any]:
+    def inject_icon(self, biome: str = "") -> Dict[str, Any]:
         """Trigger a vocabulary learning event."""
-        result = self._run("inject_vocab", biome=biome)
+        result = self._run("inject_icon", biome=biome)
         self._steps += 1
         return result
 

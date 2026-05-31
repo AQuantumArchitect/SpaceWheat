@@ -6,7 +6,6 @@
 // DISABLED: batched_bubble_renderer.h - BubbleAtlasBatcher.gd always used instead
 #include "parametric_selector_native.h"      // NEW: Fast parametric music selection (100× speedup)
 #include "quantum_mythos_engine.h"           // NEW: Mythos graph substrate (Phase 1 shadow)
-#include "market/quantum_contract_engine.h"   // NEW: Contract market substrate
 
 // DISABLED HEADERS: GPU-dependent and dead code classes
 // #include "quantum_sparse_native.h"
@@ -42,9 +41,6 @@ void initialize_quantum_matrix_module(ModuleInitializationLevel p_level) {
 
     // NEW: Mythos graph substrate — shadows FactionDensityMatrix in Phase 1
     ClassDB::register_class<QuantumMythosEngine>();
-
-    // NEW: Contract market substrate — drives C menu offer generation
-    ClassDB::register_class<spacewheat::market::QuantumContractEngine>();
 
     // DISABLED: Causes crashes in WSL due to platform/GPU dependencies
     // - QuantumSolverCPUNative (replaced by integrated QuantumComputer._apply_phase_lnn)

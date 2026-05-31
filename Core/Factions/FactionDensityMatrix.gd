@@ -14,7 +14,6 @@ extends RefCounted
 ## Contract: Tr(ρ) = 1, ρ = ρ†, ρ ⪰ 0. Diagonals ρ[f,f] ∈ [0,1] = pure-alignment
 ## probability; off-diagonals ρ[f₁,f₂] ∈ ℂ = coherent superposition.
 
-const FactionRegistry = preload("res://Core/Factions/FactionRegistry.gd")
 
 const AXIS_COUNT: int = 12
 const DEFAULT_DECOHERENCE_TAU: float = 300.0
@@ -28,7 +27,7 @@ var _index: Dictionary = {}
 
 
 func _init(registry: FactionRegistry = null) -> void:
-	_registry = registry if registry else FactionRegistry.new()
+	_registry = registry if registry else FactionRegistry.get_shared()
 	assert(ClassDB.class_exists(NATIVE_CLASS),
 		"FactionDensityMatrix requires native %s — rebuild native/" % NATIVE_CLASS)
 	_engine = ClassDB.instantiate(NATIVE_CLASS)
@@ -38,16 +37,17 @@ func _init(registry: FactionRegistry = null) -> void:
 func _load_world_into_engine() -> void:
 	_engine.clear()
 	_engine.configure_default_axes()
-	# Pass 1: emojis with self-energies
+	# Pass 1: emojis with self-energies. Derived from icons.json via IconRegistry
+	# so the abstract engine reads the same authority as biome H.
+	var lexicon = (Engine.get_main_loop().root.get_node_or_null("/root/IconRegistry") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 	var seen_emojis: Dictionary = {}
 	for f in _registry.get_all():
-		for emoji in f.signature:
+		var derived_se: Dictionary = lexicon.get_signature_physics(f.cloud).get("self_energies", {})
+		for emoji in f.cloud:
 			if seen_emojis.has(emoji):
 				continue
 			seen_emojis[emoji] = true
-			var se: float = 0.0
-			if f.self_energies.has(emoji):
-				se = float(f.self_energies[emoji])
+			var se: float = float(derived_se.get(emoji, 0.0))
 			_engine.add_emoji(emoji, se, 0.0)
 	# Pass 2: factions
 	for f in _registry.get_all():
@@ -55,12 +55,13 @@ func _load_world_into_engine() -> void:
 		for b in f.get_axial_bits():
 			bits.push_back(float(b))
 		var sig := PackedStringArray()
-		for e in f.signature:
+		for e in f.cloud:
 			sig.push_back(str(e))
 		_engine.add_faction(str(f.name), bits, sig)
 	_engine.faction_initialize_uniform()
 	# Compose the emoji-basis Hamiltonian so the eigensolver has something to
-	# work with when consumers (ContractMarket, N menu) ask for spectral data.
+	# work with when consumers (MarketLattice projections, N menu) ask for
+	# spectral data.
 	_engine.compose_hamiltonian()
 	# Cache names + index for callers that iterate
 	_names.clear()
@@ -201,34 +202,12 @@ func deserialize(data: Dictionary) -> void:
 		_engine.faction_initialize_uniform()
 		return
 
-	if data.has("version") and data.has("names") and data.has("data"):
-		# v2 payload: pass through.
-		var names_packed := PackedStringArray()
-		for n in data.get("names", []):
-			names_packed.push_back(str(n))
-		var data_packed := PackedFloat64Array()
-		for v in data.get("data", []):
-			data_packed.push_back(float(v))
-		_engine.faction_deserialize({"names": names_packed, "data": data_packed})
-		return
-
-	# v1 legacy: flat {faction_name: float} diagonal dict. Build a degenerate
-	# v2 payload (diagonal-only, off-diagonals zero) and pass through.
-	var n: int = _names.size()
-	if n == 0:
-		_engine.faction_initialize_uniform()
-		return
+	assert(data.has("version") and data.has("names") and data.has("data"),
+		"FactionDensityMatrix.deserialize: malformed payload, expected {version, names, data}")
 	var names_packed := PackedStringArray()
+	for n in data.get("names", []):
+		names_packed.push_back(str(n))
 	var data_packed := PackedFloat64Array()
-	data_packed.resize(2 * n * n)
-	var total: float = 0.0
-	for i in range(n):
-		var fname = _names[i]
-		var w: float = maxf(float(data.get(fname, 0.0)), 0.0)
-		names_packed.push_back(fname)
-		data_packed[2 * (i * n + i)] = w
-		total += w
-	if total <= 0.0:
-		_engine.faction_initialize_uniform()
-		return
+	for v in data.get("data", []):
+		data_packed.push_back(float(v))
 	_engine.faction_deserialize({"names": names_packed, "data": data_packed})

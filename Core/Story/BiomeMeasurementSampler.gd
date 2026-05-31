@@ -54,7 +54,7 @@ static func sample_basis_with_marginals(biome) -> Dictionary:
 	if biome == null or biome.quantum_computer == null:
 		return {"emojis": emojis, "marginals": []}
 	var qc = biome.quantum_computer
-	if not qc.has_method("get_marginal") or qc.register_map == null:
+	if qc.register_map == null or biome.viz_cache == null:
 		return {"emojis": emojis, "marginals": []}
 	var marginals: Array = []
 	for qid in range(emojis.size()):
@@ -63,7 +63,8 @@ static func sample_basis_with_marginals(biome) -> Dictionary:
 		var pole: int = 0
 		if qc.register_map.has_method("pole"):
 			pole = int(qc.register_map.pole(emoji))
-		marginals.append(float(qc.get_marginal(qid, pole)))
+		var snap: Dictionary = biome.viz_cache.get_snapshot(qid)
+		marginals.append(float(snap.get("p1" if pole == 1 else "p0", 0.0)))
 	return {"emojis": emojis, "marginals": marginals}
 
 
@@ -72,9 +73,10 @@ static func sample_qubit_marginal(biome, qid: int) -> String:
 	if biome == null or biome.quantum_computer == null or qid < 0:
 		return ""
 	var qc = biome.quantum_computer
-	if not qc.has_method("get_marginal") or not qc.has_method("get_emoji_pair_for_qubit"):
+	if not qc.has_method("get_emoji_pair_for_qubit") or biome.viz_cache == null:
 		return ""
-	var p_north: float = float(qc.get_marginal(qid, 0))
+	var snap: Dictionary = biome.viz_cache.get_snapshot(qid)
+	var p_north: float = float(snap.get("p0", 0.5))
 	var pair: Dictionary = qc.get_emoji_pair_for_qubit(qid)
 	if randf() < p_north:
 		return str(pair.get("north", ""))

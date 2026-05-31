@@ -136,7 +136,7 @@ func _update_heatmap() -> void:
 		return
 	var dim: int = mini(1 << num_qubits, 32)
 	_heatmap_grid.columns = dim
-	var cell_px: int = maxi(4, HEATMAP_SIZE / dim)
+	var cell_px: int = maxi(4, int(float(HEATMAP_SIZE) / float(dim)))
 	var rho = quantum_computer.get_density_matrix()
 	var colors: PackedColorArray = rho.get_heatmap_colors(dim) if rho else PackedColorArray()
 	var has_colors: bool = colors.size() >= dim * dim
@@ -147,7 +147,7 @@ func _update_heatmap() -> void:
 			cell.custom_minimum_size = Vector2(cell_px, cell_px)
 			var style := StyleBoxFlat.new()
 			style.bg_color = colors[i * dim + j] if has_colors else Color(0.1, 0.1, 0.1, 1.0)
-			if stride > 0 and ((i / stride) % 2 == 0 or (j / stride) % 2 == 0):
+			if stride > 0 and (int(float(i) / float(stride)) % 2 == 0 or int(float(j) / float(stride)) % 2 == 0):
 				style.border_color = Color(1.0, 0.9, 0.3, 0.5)
 				style.set_border_width_all(1)
 			cell.add_theme_stylebox_override("panel", style)
@@ -406,7 +406,7 @@ func _describe_eigen_cell() -> String:
 	var nq: int = quantum_computer.register_map.num_qubits
 	if nq == 0 or selected_index < 0 or selected_index >= nq * nq:
 		return "WASD to select a cell"
-	var row: int = selected_index / nq
+	var row: int = int(float(selected_index) / float(nq))
 	var col: int = selected_index % nq
 	var rm = quantum_computer.register_map
 	var emoji_r: String = rm.axis(row).get("north", "?")

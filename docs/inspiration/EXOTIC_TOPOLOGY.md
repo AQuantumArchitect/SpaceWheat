@@ -30,7 +30,30 @@ Biome dynamics settle into:
 - **Strange attractor** → chaotic, occasional jackpot events
 
 Player can push biomes between attractor states by adjusting the Hamiltonian
-(Druid frame) or applying Lindblad pumping (Socialite frame).
+(Druid frame) or applying Lindblad pumping (Spark frame).
+
+### Quest Framing
+
+Attractor control is already a strong quest shape:
+
+- **Steer to attractor**: help a biome settle into its dominant basin and hold it there long enough to register as intentional play.
+- **Heal attractor**: perturb a biome, then restore the same basin after the system has been knocked out of shape.
+
+This works with present-day game tech, not future hardware. The game already has:
+
+- live attractor snapshots from the biome runtime,
+- purity / eigenvalue-gap style metrics,
+- explicit player actions that act as control inputs,
+- and a quest system that can watch threshold crossings over time.
+
+That means the quest can be implemented as a simple controller loop:
+
+1. Read current attractor state.
+2. Compare it to the target basin.
+3. Let the player apply gates, pumps, drains, or time skips.
+4. Award completion when the live metrics hold steady for long enough.
+
+No exotic runtime is required. The “future” part is mostly in the framing: the player is learning to shape the dynamics, not just to click through a checklist.
 
 ## Tier 3 — Topological Insulator Pipes (SSH Model)
 Alternating coupling strengths (v, w, v, w...) in a qubit chain.

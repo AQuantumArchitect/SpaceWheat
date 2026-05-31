@@ -2,7 +2,7 @@
 """World state loader for milk hunt seeding.
 
 A world state describes "what the world IS": starting resources, biomes,
-known pairs, and optional economy overrides (action costs, reward budgets,
+known icons, and optional economy overrides (action costs, reward budgets,
 production params).
 """
 from __future__ import annotations

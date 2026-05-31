@@ -9,8 +9,6 @@ extends Node
 ## Connects to QuantumInstrument.action_performed and ActiveBiomeManager
 ## to automatically play sounds for game events.
 
-const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
-const VerboseHelper = preload("res://Core/Config/VerboseHelper.gd")
 const CONFIG_PATH = "user://spacewheat_settings.cfg"
 
 signal volume_changed(new_volume: float)
@@ -19,7 +17,7 @@ signal volume_changed(new_volume: float)
 # STATE
 # ═══════════════════════════════════════════════════════════════════════
 
-## event_id → AudioStream (null = placeholder, will log instead of play)
+## event_id → AudioStream (null = muted and logs instead of play)
 var _sounds: Dictionary = {}
 
 ## Pool of AudioStreamPlayers for overlapping SFX
@@ -62,7 +60,7 @@ func _create_player_pool() -> void:
 
 
 func _register_default_events() -> void:
-	"""Load WAV files for all known event IDs. Falls back to null (log-only) if missing."""
+	# Load WAV files for all known event IDs. Falls back to null (log-only) if missing.
 	var events := [
 		"explore_success",
 		"measure_success",
@@ -91,7 +89,7 @@ func _register_default_events() -> void:
 # ═══════════════════════════════════════════════════════════════════════
 
 func play(event_id: String, volume_scale: float = 1.0) -> void:
-	"""Play a sound for the given event. Logs if no audio is loaded."""
+	# Play a sound for the given event. Logs if no audio is loaded.
 	if _muted:
 		return
 
@@ -111,7 +109,7 @@ func play(event_id: String, volume_scale: float = 1.0) -> void:
 
 
 func register_sound(event_id: String, stream: AudioStream) -> void:
-	"""Register or replace an audio stream for an event."""
+	# Register or replace an audio stream for an event.
 	_sounds[event_id] = stream
 
 
@@ -165,7 +163,7 @@ func _save_volume_preference() -> void:
 # ═══════════════════════════════════════════════════════════════════════
 
 func _get_free_player() -> AudioStreamPlayer:
-	"""Return the first idle player, or the oldest playing one."""
+	# Return the first idle player, or the oldest playing one.
 	for player in _players:
 		if not player.playing:
 			return player
@@ -178,7 +176,7 @@ func _get_free_player() -> AudioStreamPlayer:
 # ═══════════════════════════════════════════════════════════════════════
 
 func _connect_game_signals() -> void:
-	"""Deferred connection to game systems (waits for boot)."""
+	# Deferred connection to game systems (waits for boot).
 	# Wait for game to be ready
 	await get_tree().process_frame
 	await get_tree().process_frame
@@ -187,25 +185,25 @@ func _connect_game_signals() -> void:
 	_try_connect_instrument()
 
 	# Connect to ActiveBiomeManager
-	var abm = InstrumentLocator.resolve_active_biome_manager(self)
+	var abm = get_node_or_null("/root/ActiveBiomeManager")
 	if abm and abm.has_signal("active_biome_changed"):
-		InstrumentLocator.safe_connect(abm.active_biome_changed, _on_biome_changed)
+		InstrumentLocator._safe_connect(abm.active_biome_changed, _on_biome_changed)
 		_connected_abm = abm
 
 	# Retry instrument connection when boot completes (instrument created late)
-	var boot_mgr = InstrumentLocator.resolve_root_node(self, "/root/BootManager")
+	var boot_mgr = get_node_or_null("/root/BootManager")
 	if boot_mgr and boot_mgr.has_signal("game_ready"):
-		InstrumentLocator.safe_connect(boot_mgr.game_ready, _on_game_ready)
+		InstrumentLocator._safe_connect(boot_mgr.game_ready, _on_game_ready)
 
 
 func _on_game_ready() -> void:
-	"""Re-try instrument connection after full boot (instrument created in boot_ui)."""
+	# Re-try instrument connection after full boot (instrument created in boot_ui).
 	_try_connect_instrument()
 
 
 func _try_connect_instrument() -> void:
-	"""Connect to QuantumInstrument.action_performed if available.
-	Re-connects if the farm's instrument instance has been replaced."""
+	# Connect to QuantumInstrument.action_performed if available.
+	# Re-connects if the farm's instrument instance has been replaced.
 	var farm = InstrumentLocator.resolve_active_farm(self)
 	if not farm or not ("instrument" in farm) or not farm.instrument:
 		return
@@ -217,26 +215,26 @@ func _try_connect_instrument() -> void:
 	# Disconnect the old reference if it still exists
 	if _connected_instrument != null:
 		if _connected_instrument.has_signal("action_performed"):
-			InstrumentLocator.safe_disconnect(_connected_instrument.action_performed, _on_action_performed)
+			InstrumentLocator._safe_disconnect(_connected_instrument.action_performed, _on_action_performed)
 		_connected_instrument = null
 
 	if instrument.has_signal("action_performed"):
-		InstrumentLocator.safe_connect(instrument.action_performed, _on_action_performed)
+		InstrumentLocator._safe_connect(instrument.action_performed, _on_action_performed)
 		_connected_instrument = instrument
 		_log_debug("[SFXRegistry] Connected to QuantumInstrument.action_performed")
 
 
 func reset() -> void:
-	"""Clear connections for restart. Called by _reset_runtime_singletons."""
+	# Clear connections for restart. Called by _reset_runtime_singletons.
 	if _connected_instrument and is_instance_valid(_connected_instrument):
 		if _connected_instrument.has_signal("action_performed"):
-			InstrumentLocator.safe_disconnect(
+			InstrumentLocator._safe_disconnect(
 				_connected_instrument.action_performed, _on_action_performed)
 	_connected_instrument = null
 
 	if _connected_abm and is_instance_valid(_connected_abm):
 		if _connected_abm.has_signal("active_biome_changed"):
-			InstrumentLocator.safe_disconnect(
+			InstrumentLocator._safe_disconnect(
 				_connected_abm.active_biome_changed, _on_biome_changed)
 	_connected_abm = null
 
@@ -250,7 +248,7 @@ func reset() -> void:
 # ═══════════════════════════════════════════════════════════════════════
 
 func _on_action_performed(action: String, result: Dictionary) -> void:
-	"""Map game actions to sound events."""
+	# Map game actions to sound events.
 	if result.get("success", false):
 		match action:
 			"explore":

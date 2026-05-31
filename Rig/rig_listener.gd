@@ -6,17 +6,13 @@ extends SceneTree
 ## Result file:  user://rig/results.jsonl (append-only)
 ##
 ## Actions supported:
-## - open_overlay: {name: "quests"|"semantic_map"|"vocabulary"|"controls"}
+## - open_overlay: {_name: "quests"|"atlas"|"controls"}
 ## - offer_quests: {include_reward_resources?: bool, include_market_projection?: bool}
 ## - accept_offer: {offer_index: int}
 ## - complete_quest: {quest_id: int}
 ## - complete_or_claim: {quest_id: int}
 ## - claim_quest: {quest_id: int}
 ## - accept_quest: {quest_id: int}
-## - lock_offer: {offer_index: int} — pin an offered quest (max 3 locked)
-## - unlock_offer: {quest_id: int} — release a locked offer
-## - accept_locked: {quest_id: int} — accept a locked offer (locked → active)
-## - locked_offers — returns list of locked offers
 ## - resource_snapshot
 ## - add_resource: {emoji: String, amount: int}
 ## - set_resource: {emoji: String, amount: int}
@@ -24,14 +20,13 @@ extends SceneTree
 ## - grid_snapshot
 ## - biome_positions: {biome: String}
 ## - active_quests
-## - known_vocab_pairs
+## - known_icons
 ## - story_flags — returns {flags_fired: {id→phrame}, story_log: [{id,act,arc_beat,...}]}
 ## - consume_berry: {biome?: String, count?: int, phase_each?: float} — rig-only: advance berry harvest counter
-## - inject_vocab: {biome: String, pair_index: int}
+## - inject_icon: {biome: String, icon_index: int}
 ## - gate_inject: {gate: String, biome: String, positions: [[x,y],...]}
 ## - lindblad_pump: {biome: String, positions: [[x,y],...]}
 ## - lindblad_drain: {biome: String, positions: [[x,y],...]}
-## - channel_drain: {biome: String, source_emoji: String, target_emoji: String} — strategic drain by emoji pair
 ## - time_skip: {phrames: int, delta?: float}
 ## - set_stride: {biome: String, stride: int}
 ## - set_resolution: {biome: String, dt: float}
@@ -43,7 +38,7 @@ extends SceneTree
 ## - recommend_timescale: {biome: String, top_k?: int}
 ## - auto_timescale: {biome: String, top_k?: int}
 ## - configure_economy: {overrides: {action_costs?, gate_costs?, quest_rewards?, production?}}
-## - configure_seed_state: {known_pairs, unlocked_biomes, unexplored_biomes, active_biome, policy_graph_path?, policy_graph_jsonl?}
+## - configure_seed_state: {known_icons, unlocked_biomes, unexplored_biomes, active_biome, policy_graph_path?, policy_graph_jsonl?}
 ## - probe_cycle: {biome: String}
 ## - discover_biome (biome unlock/expansion)
 ## - discovery_forecast — returns vocab-weighted probabilities for each unexplored biome
@@ -58,11 +53,8 @@ extends SceneTree
 ## - farm_variable_graph
 ## - farm_variable_graph_apply: {lines: [String], source?: String}
 ## - farm_variable_graph_load: {path: String}
-## - policy_graph
-## - policy_graph_apply: {lines: [String]}
-## - policy_graph_load: {path: String}
-## - action_cost: {name: String, context?: Dictionary}
-## - action_preflight: {name: String, context?: Dictionary}
+## - action_cost: {_name: String, context?: Dictionary}
+## - action_preflight: {_name: String, context?: Dictionary}
 ## - save_game: {slot: int}
 ## - save_game_path: {path: String}
 ## - load_game: {slot: int}
@@ -72,9 +64,7 @@ extends SceneTree
 ## - widget_snapshot: {widget: String} — returns structured dict from widget.get_snapshot()
 ## - hud_snapshot: {hud: String} — returns structured dict from hud.get_snapshot()
 ## - full_snapshot — aggregates all widget + HUD + overlay snapshots in one call
-## - policy_reset: {config?: Dictionary}
 ## - policy_snapshot
-## - policy_step: {execute?: bool, include_state?: bool, resource_floors?: {emoji: amount}, execution_backend?: "direct"|"player_input"|"auto"}
 ## - press_key: {keycode?: int, key?: String, shift?: bool, settle_frames?: int}
 ## - key_sequence: {keys: [{keycode?: int, key?: String, shift?: bool, settle_frames?: int}, ...]}
 ## - stop
@@ -82,18 +72,10 @@ extends SceneTree
 ## Future actions can be added to the match statement in _execute_command().
 
 const PlayerShellScene = preload("res://UI/PlayerShell.tscn")
-const ProbeActions = preload("res://Core/Actions/ProbeActions.gd")
-const QuantumForceGraph = preload("res://Core/Visualization/QuantumForceGraph.gd")
 const QuantumInstrumentClass = preload("res://Core/Instrumentation/QuantumInstrument.gd")
-const PolicyGraph = preload("res://Core/AI/PolicyGraph.gd")
-const BiomeAffinityCalc = preload("res://Core/Quantum/BiomeAffinityCalculator.gd")
-const PhysicsConfig = preload("res://Core/Config/PhysicsConfig.gd")
-const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
+const BiomeAlignmentCalc = preload("res://Core/Quantum/BiomeAlignmentCalculator.gd")
 const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
-const SaveStore = preload("res://Core/GameState/SaveStore.gd")
 # PlayerInputMacroRunner removed — macro input not available in headless mode
-const InputBindingRegistry = preload("res://UI/Core/InputBindingRegistry.gd")
-const BiomeDiscoveryForecastService = preload("res://Core/Gameplay/BiomeDiscoveryForecastService.gd")
 
 signal action_executed(turn_id: int, action: String, result: Dictionary)
 signal bridge_idle()
@@ -114,10 +96,6 @@ var _shell = null
 var _snapshot_service = null
 var _instrument = null  # QuantumInstrument
 var _farm = null
-var _policy = null  # QuantumFiberPolicy
-var _cached_offers: Array = []
-var _cached_offers_pairs_count: int = -1  # Invalidate when pairs change
-var _player_input_macro_runner = null
 var _last_offers: Array = []
 var _is_headless: bool = true
 var _turn_log_enabled: bool = true
@@ -157,7 +135,12 @@ func _bootstrap() -> void:
 	_is_headless = is_headless
 	var load_slot = int(OS.get_environment("RIG_LOAD_SLOT")) if OS.get_environment("RIG_LOAD_SLOT") != "" else -1
 	var scenario_id = OS.get_environment("RIG_SCENARIO") if OS.get_environment("RIG_SCENARIO") != "" else SaveStore.DEFAULT_SCENARIO_ID
-	_farm = await boot_manager.boot_core(load_slot, scenario_id, is_headless)
+	var boot_request := {
+		"slot": load_slot,
+		"scenario_id": scenario_id,
+		"headless": is_headless,
+	}
+	_farm = await boot_manager.boot_session(boot_request, null)
 	if not _farm:
 		print("❌ Farm failed to boot; cannot start rig")
 		return
@@ -183,10 +166,10 @@ func _bootstrap() -> void:
 		quantum_viz.position = Vector2.ZERO
 		quantum_viz.z_index = 100
 
-	# boot_ui wires biomes → quantum_viz via _stage_visualization.
-	# Farm signals (terminal_bound, etc.) already connected by boot_ui's
+	# boot_runtime wires biomes → quantum_viz via _stage_visualization.
+	# Farm signals (terminal_bound, etc.) already connected by boot_runtime's
 	# connect_to_farm() call — no extra wiring needed.
-	await boot_manager.boot_ui(_farm, _shell, quantum_viz)
+	await boot_manager.boot_runtime(_farm, _shell, quantum_viz)
 
 	_on_ready()
 
@@ -197,9 +180,6 @@ func _on_ready() -> void:
 	_apply_rig_logger_profile()
 	_snapshot_service = InstrumentLocator.resolve_snapshot_service(_shell)
 	_instrument = InstrumentLocator.resolve_quantum_instrument(_shell)
-	_ensure_policy()
-	_sync_policy_from_game_state()
-	_ensure_player_input_macro_runner()
 	var turn_log_env = OS.get_environment("RIG_VERBOSE_TURN_LOG").to_lower()
 	if turn_log_env == "":
 		var profile = OS.get_environment("RIG_LOG_PROFILE").to_lower()
@@ -275,7 +255,7 @@ func _write_heartbeat(now_ms: int = -1) -> void:
 		var unix_time = Time.get_unix_time_from_system()
 		if now_ms < 0:
 			now_ms = Time.get_ticks_msec()
-		# Line 1: unix timestamp (backward compat — runner reads this)
+		# Line 1: unix timestamp
 		# Line 2: command_idle_ms — how long since last command completed
 		#   If this grows while _polling is true, the coroutine is hung.
 		var cmd_idle_ms = now_ms - _last_command_completed_at_ms if _last_command_completed_at_ms > 0 else -1
@@ -324,7 +304,7 @@ func _requires_snapshot_service(action: String) -> bool:
 		"grid_snapshot",
 		"biome_positions",
 		"active_quests",
-		"known_vocab_pairs",
+		"known_icons",
 		"batcher_metrics",
 		"probability_map",
 		"lindblad_snapshot",
@@ -340,19 +320,15 @@ func _requires_quantum_instrument(action: String) -> bool:
 		"offer_quests",
 		"accept_offer",
 		"accept_quest",
-		"lock_offer",
-		"unlock_offer",
-		"accept_locked",
 		"complete_quest",
 		"complete_or_claim",
 		"claim_quest",
-		"locked_offers",
 		"add_resource",
 		"set_resource",
 		"resource_mutations",
 		"story_flags",
 		"consume_berry",
-		"inject_vocab",
+		"inject_icon",
 		"gate_inject",
 		"lindblad_pump",
 		"lindblad_drain",
@@ -376,9 +352,6 @@ func _requires_quantum_instrument(action: String) -> bool:
 		"farm_variable_graph",
 		"farm_variable_graph_apply",
 		"farm_variable_graph_load",
-		"policy_graph",
-		"policy_graph_apply",
-		"policy_graph_load",
 		"action_cost",
 		"action_preflight",
 		"configure_seed_state",
@@ -386,7 +359,6 @@ func _requires_quantum_instrument(action: String) -> bool:
 		"discover_biome",
 		"victory_lap",
 		"victory_lap_partial",
-		"policy_step",
 	]
 
 
@@ -466,14 +438,38 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 
 	match action:
 		"open_overlay":
-			var name = cmd.get("name", "")
-			if name == "vocabulary":
-				name = "semantic_map"
-			var opened = _snapshot_service.open_quest_board() if name == "quests" \
-				else _snapshot_service.open_semantic_map_panel() if name == "semantic_map" \
-				else _snapshot_service.open_controls_panel() if name == "controls" \
+			var _name = cmd.get("name", "")
+			var opened = _snapshot_service.open_quest_board() if _name == "quests" \
+				else _snapshot_service.open_icon_panel() if _name == "atlas" \
+				else _snapshot_service.open_controls_panel() if _name == "controls" \
 				else false
 			result["opened"] = opened
+
+		"entropy_snapshot":
+			# Read-only balance probe: per-biome von Neumann entropy S, purity, the
+			# Boltzmann temperature kT, the reap bank kT·S, and a sample surprisal
+			# price (−kT·log p of the biome's most-populated atom). Drives the
+			# webway-vs-decay measurement (no state mutation).
+			var rows: Array = []
+			if _farm and "grid" in _farm and _farm.grid and _farm.grid.has_biomes():
+				for bkey in _farm.grid.get_biome_names():
+					var biome = _farm.grid.get_biome(str(bkey))
+					if not biome or not biome.quantum_computer:
+						continue
+					var qc = biome.quantum_computer
+					var s_val: float = float(qc.get_entropy()) if qc.has_method("get_entropy") else 0.0
+					var purity: float = float(qc.get_purity()) if qc.has_method("get_purity") else 0.0
+					var kT: float = float(EnergyPricing.biome_temperature(biome, _farm))
+					var pops: Dictionary = qc.get_all_populations() if qc.has_method("get_all_populations") else {}
+					var pmax: float = 0.0
+					for e in pops:
+						pmax = maxf(pmax, float(pops[e]))
+					var sample_price: float = EnergyPricing.surprisal_energy(pmax, kT) if pmax > 0.0 else 0.0
+					rows.append({
+						"biome": str(bkey), "S": s_val, "purity": purity, "kT": kT,
+						"bank_kTS": kT * s_val, "sample_price": sample_price, "atoms": pops.size()
+					})
+			result["entropy_snapshot"] = rows
 
 		"offer_quests":
 			var offers: Array = []
@@ -503,41 +499,16 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 
 		"accept_quest":
 			var quest_id = int(cmd.get("quest_id", -1))
-			var accept_by_id_result = _instrument.quest_accept_by_id(quest_id)
-			result["accepted"] = bool(accept_by_id_result.get("accepted", false))
-
-		"lock_offer":
-			var idx = int(cmd.get("offer_index", -1))
-			if idx < 0 or idx >= _last_offers.size():
-				result = {"ok": false, "turn": turn_id, "action": action, "error": "invalid_offer_index"}
-			else:
-				var offer = _last_offers[idx]
-				var lock_result = _instrument.quest_lock_offer(offer)
-				result["locked"] = bool(lock_result.get("locked", false))
-				result["quest_id"] = int(lock_result.get("quest_id", offer.get("id", -1)))
-
-		"unlock_offer":
-			var quest_id = int(cmd.get("quest_id", -1))
-			var unlock_result = _instrument.quest_unlock_offer(quest_id)
-			result["unlocked"] = bool(unlock_result.get("unlocked", false))
-
-		"accept_locked":
-			var quest_id = int(cmd.get("quest_id", -1))
-			var accept_locked_result = _instrument.quest_accept_locked(quest_id)
-			result["accepted"] = bool(accept_locked_result.get("accepted", false))
-
-		"locked_offers":
-			var locked: Array = []
-			var locked_result = _instrument.quest_locked_offers()
-			var locked_raw = locked_result.get("offers", [])
-			if locked_raw is Array:
-				locked = locked_raw
-			if locked is Array:
-				result["locked_offers"] = _slim_offers(locked, true, false)
-				result["count"] = locked.size()
-			else:
-				result["locked_offers"] = []
-				result["count"] = 0
+			var accepted := false
+			for offer in _last_offers:
+				if offer is Dictionary and int(offer.get("id", -1)) == quest_id:
+					var accept_result = _instrument.quest_accept(offer)
+					accepted = bool(accept_result.get("accepted", false))
+					break
+			if not accepted:
+				var accept_by_id_result = _instrument.quest_accept_by_id(quest_id)
+				accepted = bool(accept_by_id_result.get("accepted", false))
+			result["accepted"] = accepted
 
 		"complete_quest":
 			var quest_id = int(cmd.get("quest_id", -1))
@@ -599,9 +570,9 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				active = []
 			result["quests"] = active if full else _slim_active_quests(active)
 
-		"known_vocab_pairs":
-			var pairs = _instrument.get_known_vocab_pairs() if _instrument else []
-			result["pairs"] = pairs if pairs is Array else []
+		"known_icons":
+			var icons = _instrument.get_known_icons() if _instrument else []
+			result["icons"] = icons if icons is Array else []
 
 		"story_flags":
 			var farm = _farm
@@ -612,10 +583,10 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				result["flags_fired"] = farm.story_flags_fired.duplicate() if "story_flags_fired" in farm else {}
 				result["story_log"] = farm.story_log.duplicate(true) if "story_log" in farm else []
 
-		"inject_vocab":
+		"inject_icon":
 			var biome_name = str(cmd.get("biome", ""))
 			if biome_name != "":
-				result["inject_result"] = _instrument.action_inject_vocabulary(biome_name)
+				result["inject_result"] = _instrument.action_inject_icon(biome_name)
 			else:
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "missing_biome"}
 
@@ -669,18 +640,6 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_valid_positions"}
 			else:
 				result["drain_result"] = _instrument.lindblad_drain(positions)
-
-		"channel_drain":
-			# Strategic framing: drain by emoji pair instead of raw positions
-			# {biome, source_emoji, target_emoji} → find matching plots → activate drain
-			var biome_name = str(cmd.get("biome", ""))
-			var source_emoji = str(cmd.get("source_emoji", ""))
-			var target_emoji = str(cmd.get("target_emoji", ""))
-			if biome_name == "" or source_emoji == "" or target_emoji == "":
-				result = {"ok": false, "turn": turn_id, "action": action, "error": "missing_biome_source_or_target"}
-			else:
-				var channel_result = _execute_channel_drain(biome_name, source_emoji, target_emoji)
-				result["channel_drain"] = channel_result
 
 		"time_skip":
 			var phrames = int(cmd.get("phrames", 0))
@@ -910,39 +869,6 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			else:
 				result["farm_variable_graph"] = _instrument.load_farm_variable_graph_file(graph_path)
 
-		"policy_graph":
-			var policy = _ensure_policy()
-			result["policy_graph"] = policy.get_policy_graph() if policy and policy.has_method("get_policy_graph") else {}
-
-		"policy_describe":
-			result["schema"] = {}  # PolicyStateProjector removed
-
-		"policy_graph_apply":
-			var policy = _ensure_policy()
-			var lines = cmd.get("lines", [])
-			if not (lines is Array) or lines.is_empty():
-				result = {"ok": false, "turn": turn_id, "action": action, "error": "empty_graph_lines"}
-			elif not policy or not policy.has_method("apply_policy_graph_lines"):
-				result = {"ok": false, "turn": turn_id, "action": action, "error": "policy_graph_unavailable"}
-			else:
-				result["policy_graph"] = policy.apply_policy_graph_lines(lines)
-				_sync_policy_into_game_state()
-
-		"policy_graph_load":
-			var policy = _ensure_policy()
-			var graph_path = str(cmd.get("path", ""))
-			if graph_path == "":
-				result = {"ok": false, "turn": turn_id, "action": action, "error": "missing_graph_path"}
-			elif not policy or not policy.has_method("apply_policy_graph_lines"):
-				result = {"ok": false, "turn": turn_id, "action": action, "error": "policy_graph_unavailable"}
-			else:
-				var lines = PolicyGraph.load_graph_lines(graph_path)
-				if lines.is_empty():
-					result = {"ok": false, "turn": turn_id, "action": action, "error": "missing_or_empty_graph_file", "path": graph_path}
-				else:
-					result["policy_graph"] = policy.apply_policy_graph_lines(lines)
-					_sync_policy_into_game_state()
-
 		"action_cost":
 			var action_name = str(cmd.get("name", cmd.get("action_name", "")))
 			var context = cmd.get("context", {})
@@ -970,39 +896,34 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 		"save_game":
 			var slot = int(cmd.get("slot", -1))
 			var gsm = get_root().get_node_or_null("GameStateManager")
-			if not gsm:
+			if not gsm or not ("save_load" in gsm) or gsm.save_load == null:
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_game_state_manager"}
 			else:
-				_sync_policy_into_game_state()
 				result["slot"] = slot
-				result["saved"] = gsm.save_game(slot)
+				result["saved"] = gsm.save_load.save_game(slot)
 				result["save_path"] = gsm.get_save_path(slot) if gsm.has_method("get_save_path") else ""
 
 		"save_game_path":
 			var save_path = str(cmd.get("path", ""))
 			var gsm = get_root().get_node_or_null("GameStateManager")
-			if not gsm:
+			if not gsm or not ("save_load" in gsm) or gsm.save_load == null:
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_game_state_manager"}
 			elif save_path == "":
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "missing_save_path"}
 			else:
-				_sync_policy_into_game_state()
 				result["path"] = save_path
-				if gsm.has_method("save_game_to_path"):
-					result["saved"] = gsm.save_game_to_path(save_path)
-				else:
-					result = {"ok": false, "turn": turn_id, "action": action, "error": "save_game_to_path_unavailable"}
+				result["saved"] = gsm.save_load.save_game_to_path(save_path)
 
 		"load_game":
 			var slot = int(cmd.get("slot", -1))
 			var gsm = get_root().get_node_or_null("GameStateManager")
 			if not gsm:
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_game_state_manager"}
+			elif not ("save_load" in gsm) or gsm.save_load == null:
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_save_load_coordinator"}
 			else:
 				result["slot"] = slot
-				result["loaded"] = gsm.load_and_apply(slot)
-				if bool(result.get("loaded", false)):
-					_sync_policy_from_game_state()
+				result["loaded"] = gsm.save_load.load_and_apply(slot)
 
 		"load_game_path":
 			var path = str(cmd.get("path", ""))
@@ -1011,11 +932,11 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_game_state_manager"}
 			elif path == "":
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "missing_path"}
+			elif not ("save_load" in gsm) or gsm.save_load == null:
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_save_load_coordinator"}
 			else:
 				result["path"] = path
-				result["loaded"] = gsm.load_and_apply_path(path)
-				if bool(result.get("loaded", false)):
-					_sync_policy_from_game_state()
+				result["loaded"] = await gsm.save_load.load_and_apply_path(path)
 
 		"save_info":
 			var slot = int(cmd.get("slot", -1))
@@ -1052,88 +973,6 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 
 		"full_snapshot":
 			result["snapshot"] = _snapshot_service.get_full_ui_snapshot() if _snapshot_service else {}
-
-		"policy_reset":
-			var config = cmd.get("config", {})
-			if not (config is Dictionary):
-				config = {}
-			var policy = _ensure_policy()
-			result["policy"] = policy.reset(config)
-			_sync_policy_into_game_state()
-
-		"policy_debug_snapshot":
-			var policy = _ensure_policy()
-			result["policy"] = policy.get_snapshot()
-
-		"export_ppg_state":
-			var policy = _ensure_policy()
-			if policy.get("_ppg"):
-				result["ok"] = true
-				result["ppg_state"] = policy._ppg.export_state()
-			else:
-				result["ok"] = false
-				result["error"] = "policy has no PPG"
-
-		"set_ppg_state":
-			var policy = _ensure_policy()
-			var ppg_data = cmd.get("ppg_state", {})
-			if ppg_data is Dictionary and policy.get("_ppg"):
-				policy._ppg.load_state(ppg_data)
-				result["ok"] = true
-				result["step_count"] = policy._ppg._step_count
-			else:
-				result["ok"] = false
-				result["error"] = "policy has no PPG or invalid state"
-
-		"policy_step":
-			var policy = _ensure_policy()
-			var include_state = bool(cmd.get("include_state", false))
-			var compact = bool(cmd.get("compact", false))
-			var execute = bool(cmd.get("execute", true))
-			var execution_backend = _resolve_policy_execution_backend(str(cmd.get("execution_backend", "auto")))
-			var pre_state = _build_policy_state(cmd)
-			var decision = policy.decide(pre_state)
-			var execution: Dictionary = {"ok": false, "error": "execution_skipped"}
-			if execute:
-				if execution_backend == "player_input":
-					execution = await _execute_policy_action_via_input(decision)
-				else:
-					# Direct path is fully synchronous — no await needed.
-					# Removing await prevents potential GDScript coroutine hangs.
-					execution = _execute_policy_action(decision)
-				execution["backend"] = str(execution.get("backend", execution_backend))
-			# Build post_state WITHOUT regenerating quest offers (expensive).
-			# Only resources, pairs, biomes, and lindblad need to be fresh for reward computation.
-			var post_state = _build_policy_state_lightweight(cmd)
-			var learning = policy.observe(pre_state, decision, post_state, execution)
-			if compact:
-				decision = {
-					"action": str(decision.get("action", "")),
-					"mode": str(decision.get("mode", "")),
-					"ok": bool(decision.get("ok", false)),
-					"score": float(decision.get("score", 0.0)),
-					"params": decision.get("params", {}),
-				}
-				learning = {
-					"ok": bool(learning.get("ok", false)),
-					"action": str(learning.get("action", "")),
-					"reward": float(learning.get("reward", 0.0)),
-					"reward_components": learning.get("reward_components", {}),
-				}
-			var out: Dictionary = {
-				"decision": decision,
-				"execution": execution,
-				"execution_backend": execution_backend,
-				"learning": learning,
-				"post_resources": post_state.get("resources", {}),
-				"post_known_pairs_count": int((post_state.get("known_pairs", []) as Array).size()),
-				"contains_milk_pair": _policy_state_has_milk(post_state),
-			}
-			if include_state:
-				out["pre_state"] = pre_state
-				out["post_state"] = post_state
-			result["policy_step"] = out
-			_sync_policy_into_game_state()
 
 		"press_key":
 			var keycode = _extract_keycode(cmd)
@@ -1372,309 +1211,18 @@ func _probe_cycle(biome_name: String) -> Dictionary:
 	return out
 
 
-## Legacy fallback for victory_lap when no _instrument is available.
-## When _instrument is set (standard case), _instrument.victory_lap() is called instead.
-## Canonical implementation lives in QuantumInstrument.victory_lap().
-func _run_victory_lap() -> Dictionary:
-	if not _farm or not _farm.grid or not _farm.grid.has_biomes():
-		return {"success": false, "error": "no_farm_or_biomes"}
-	if not ("terminal_pool" in _farm) or not _farm.terminal_pool:
-		return {"success": false, "error": "no_terminal_pool"}
-
-	var selection_result = _select_all_plots_for_ui()
-	var biomes: Array[String] = []
-	for biome_name in _farm.grid.get_biome_names():
-		if biome_name is String and str(biome_name) != "":
-			biomes.append(str(biome_name))
-	biomes.sort()
-
-	var explore_total = 0
-	var explore_failures: Array = []
-	var terminal_pool = _farm.terminal_pool
-
-	for biome_name in biomes:
-		var biome = _farm.grid.get_biome(biome_name)
-		if not biome:
-			continue
-		while true:
-			var explore = ProbeActions.action_explore(terminal_pool, biome, _farm.economy)
-			if explore.get("success", false):
-				explore_total += 1
-				continue
-			var reason = str(explore.get("error", "unknown"))
-			if reason == "no_registers":
-				break
-			explore_failures.append({"biome": biome_name, "error": reason, "details": explore})
-			if reason == "no_terminals":
-				break
-			break
-		if terminal_pool.get_unbound_count() <= 0:
-			break
-
-	await _apply_visual_stage_delay("explore_batch")
-
-	var measure_total = 0
-	var measure_failures: Array = []
-	var active_terminals: Array = terminal_pool.get_active_terminals().duplicate()
-	for terminal in active_terminals:
-		if not terminal or not terminal.is_bound:
-			continue
-		var biome_name = str(terminal.bound_biome_name)
-		var biome = _farm.grid.get_biome(biome_name)
-		if not biome:
-			measure_failures.append({"terminal": terminal.terminal_id, "error": "unknown_biome", "biome": biome_name})
-			continue
-		var measure = ProbeActions.action_measure(terminal, biome, _farm.economy)
-		if measure.get("success", false):
-			measure_total += 1
-		else:
-			measure_failures.append({
-				"terminal": terminal.terminal_id,
-				"biome": biome_name,
-				"error": str(measure.get("error", "unknown")),
-				"details": measure
-			})
-
-	await _apply_visual_stage_delay("measure_batch")
-
-	var harvest_total = 0
-	var harvest_failures: Array = []
-	var measured_terminals: Array = terminal_pool.get_measured_terminals().duplicate()
-	for terminal in measured_terminals:
-		if not terminal:
-			continue
-		var pop = ProbeActions.action_pop(terminal, terminal_pool, _farm.economy, _farm)
-		if pop.get("success", false):
-			harvest_total += 1
-		else:
-			harvest_failures.append({
-				"terminal": terminal.terminal_id,
-				"error": str(pop.get("error", "unknown")),
-				"details": pop
-			})
-
-	var milk_amount = 0.0
-	if _farm and "economy" in _farm and _farm.economy and _farm.economy.has_method("get_resource"):
-		milk_amount = float(_farm.economy.get_resource("🍼"))
-
-	return {
-		"success": true,
-		"selected_plots": selection_result,
-		"biomes": biomes,
-		"visual_delays": {
-			"explore_batch_s": _get_visual_stage_delay_seconds("explore_batch"),
-			"measure_batch_s": _get_visual_stage_delay_seconds("measure_batch")
-		},
-		"explore_total": explore_total,
-		"explore_failures": explore_failures,
-		"measure_total": measure_total,
-		"measure_failures": measure_failures,
-		"harvest_total": harvest_total,
-		"harvest_failures": harvest_failures,
-		"milk_after": milk_amount
-	}
-
-
-func _run_victory_lap_partial(
-	selected_biomes: Array[String],
-	max_registers: int,
-	milk_spend: int,
-	phase_window: int
-) -> Dictionary:
-	if not _farm or not _farm.grid or not _farm.grid.has_biomes():
-		return {"success": false, "error": "no_farm_or_biomes"}
-	if not ("terminal_pool" in _farm) or not _farm.terminal_pool:
-		return {"success": false, "error": "no_terminal_pool"}
-
-	var target_registers = max(1, max_registers)
-	var target_phase_window = max(1, phase_window)
-	var target_milk_spend = max(0, milk_spend)
-	var biomes: Array[String] = []
-	var seen: Dictionary = {}
-	if selected_biomes.is_empty():
-		for biome_name in _farm.grid.get_biome_names():
-			if biome_name is String and str(biome_name) != "":
-				var b = str(biome_name)
-				if not seen.has(b):
-					biomes.append(b)
-					seen[b] = true
-	else:
-		for biome_name in selected_biomes:
-			if biome_name == "" or seen.has(biome_name):
-				continue
-			if not _farm.grid.has_biome(biome_name):
-				continue
-			biomes.append(biome_name)
-			seen[biome_name] = true
-	biomes.sort()
-	if biomes.is_empty():
-		return {"success": false, "error": "no_target_biomes"}
-
-	var terminal_pool = _farm.terminal_pool
-	var explore_total = 0
-	var measure_total = 0
-	var harvest_total = 0
-	var explore_failures: Array = []
-	var measure_failures: Array = []
-	var harvest_failures: Array = []
-	var explored_terminals: Array = []
-
-	for biome_name in biomes:
-		if explore_total >= target_registers:
-			break
-		var biome = _farm.grid.get_biome(biome_name)
-		if not biome:
-			continue
-		while explore_total < target_registers:
-			var explore = ProbeActions.action_explore(terminal_pool, biome, _farm.economy)
-			if not explore.get("success", false):
-				var reason = str(explore.get("error", "unknown"))
-				if reason != "no_registers":
-					explore_failures.append({"biome": biome_name, "error": reason, "details": explore})
-				break
-			explore_total += 1
-			var term = explore.get("terminal", null)
-			if term:
-				explored_terminals.append(term)
-			if terminal_pool.get_unbound_count() <= 0:
-				break
-
-	var measured_terminals: Array = []
-	for terminal in explored_terminals:
-		if not terminal or not terminal.is_bound:
-			continue
-		var t_biome_name = str(terminal.bound_biome_name)
-		var biome = _farm.grid.get_biome(t_biome_name)
-		if not biome:
-			measure_failures.append({"terminal": terminal.terminal_id, "error": "unknown_biome", "biome": t_biome_name})
-			continue
-		var measure = ProbeActions.action_measure(terminal, biome, _farm.economy)
-		if measure.get("success", false):
-			measure_total += 1
-			measured_terminals.append(terminal)
-		else:
-			measure_failures.append({
-				"terminal": terminal.terminal_id,
-				"biome": t_biome_name,
-				"error": str(measure.get("error", "unknown")),
-				"details": measure
-			})
-
-	var milk_before = 0.0
-	if _farm and "economy" in _farm and _farm.economy and _farm.economy.has_method("get_resource"):
-		milk_before = float(_farm.economy.get_resource("🍼"))
-	var actual_milk_spend = 0.0
-	if target_milk_spend > 0 and _farm.economy and _farm.economy.has_method("remove_resource"):
-		var spend = min(float(target_milk_spend), milk_before)
-		if spend > 0.0 and _farm.economy.remove_resource("🍼", spend, "victory_lap_partial_spend"):
-			actual_milk_spend = spend
-
-	var register_factor = max(1.0, log(1.0 + float(max(0, measure_total))) / log(2.0))
-	var milk_factor = 1.0 + (0.20 * (log(1.0 + max(0.0, actual_milk_spend)) / log(2.0)))
-	var phase_factor = clamp(0.8 + (0.1 * float(target_phase_window - 1)), 0.8, 1.2)
-	var reward_multiplier = max(1.0, register_factor * milk_factor * phase_factor)
-	var bonus_total = 0.0
-	var bonus_by_emoji: Dictionary = {}
-
-	for terminal in measured_terminals:
-		if not terminal:
-			continue
-		var pop = ProbeActions.action_pop(terminal, terminal_pool, _farm.economy, _farm)
-		if pop.get("success", false):
-			harvest_total += 1
-			var resource = str(pop.get("resource", ""))
-			var amount = float(pop.get("amount", 0))
-			if resource != "" and amount > 0.0 and reward_multiplier > 1.0 and _farm.economy and _farm.economy.has_method("add_resource"):
-				var bonus = floor(max(0.0, amount * (reward_multiplier - 1.0)))
-				if bonus > 0.0:
-					_farm.economy.add_resource(resource, bonus, "victory_lap_partial_bonus")
-					bonus_total += bonus
-					bonus_by_emoji[resource] = float(bonus_by_emoji.get(resource, 0.0)) + bonus
-		else:
-			harvest_failures.append({
-				"terminal": terminal.terminal_id,
-				"error": str(pop.get("error", "unknown")),
-				"details": pop
-			})
-
-	var milk_after = milk_before
-	if _farm and "economy" in _farm and _farm.economy and _farm.economy.has_method("get_resource"):
-		milk_after = float(_farm.economy.get_resource("🍼"))
-
-	return {
-		"success": true,
-		"mode": "partial",
-		"biomes": biomes,
-		"max_registers": target_registers,
-		"phase_window": target_phase_window,
-		"milk_spend_requested": target_milk_spend,
-		"milk_spend_actual": actual_milk_spend,
-		"reward_multiplier": reward_multiplier,
-		"explore_total": explore_total,
-		"explore_failures": explore_failures,
-		"measure_total": measure_total,
-		"measure_failures": measure_failures,
-		"harvest_total": harvest_total,
-		"harvest_failures": harvest_failures,
-		"bonus_total": bonus_total,
-		"bonus_by_emoji": bonus_by_emoji,
-		"milk_before": milk_before,
-		"milk_after": milk_after
-	}
-
-
-func _select_all_plots_for_ui() -> Dictionary:
-	if not _farm or not _farm.grid:
-		return {"ok": false, "error": "no_grid"}
-	var positions: Array = []
-	for y in range(_farm.grid.grid_height):
-		for x in range(_farm.grid.grid_width):
-			positions.append(Vector2i(x, y))
-
-	var farm_ui = _shell.get_farm_ui() if _shell and _shell.has_method("get_farm_ui") else null
-	var input_handler = null
-	if farm_ui and "input_handler" in farm_ui:
-		input_handler = farm_ui.input_handler
-
-	if input_handler and input_handler.has_method("set_checked_plots"):
-		input_handler.set_checked_plots(positions)
-		return {"ok": true, "count": positions.size()}
-	return {"ok": false, "count": positions.size(), "error": "no_input_handler"}
-
-
-func _get_visual_stage_delay_seconds(stage: String) -> float:
-	var default_seconds = 0.0 if _is_headless else (2.0 if stage == "explore_batch" else 0.5 if stage == "measure_batch" else 0.0)
-	var specific_key = "RIG_VISUAL_DELAY_%s_S" % stage.to_upper()
-	var specific_raw = OS.get_environment(specific_key)
-	if specific_raw != "":
-		return max(0.0, float(specific_raw))
-	var global_raw = OS.get_environment("RIG_VISUAL_DELAY_S")
-	if global_raw != "":
-		return max(0.0, float(global_raw))
-	return default_seconds
-
-
-func _apply_visual_stage_delay(stage: String) -> void:
-	var seconds = _get_visual_stage_delay_seconds(stage)
-	if seconds <= 0.0:
-		return
-	var phrames = int(ceil(seconds * _phrame_hz()))
-	for i in range(phrames):
-		await physics_frame
-
-
 func _configure_seed_state(cmd: Dictionary) -> Dictionary:
 	var out: Dictionary = {"ok": true}
 	var gsm = get_root().get_node_or_null("GameStateManager")
 	if not gsm or not gsm.current_state:
 		return {"ok": false, "error": "no_game_state"}
 
-	var known_pairs = _sanitize_known_pairs(cmd.get("known_pairs", []))
-	if not known_pairs.is_empty():
-		if _farm and _farm.has_method("set_known_pairs"):
-			_farm.set_known_pairs(known_pairs, true, true)
-		gsm.current_state.known_pairs = known_pairs.duplicate(true)
-		out["known_pairs"] = known_pairs
+	var known_icons = _sanitize_known_icons(cmd.get("known_icons", []))
+	if not known_icons.is_empty():
+		if _farm and _farm.has_method("set_known_icons"):
+			_farm.set_known_icons(known_icons)
+		gsm.current_state.known_icons = known_icons.duplicate(true)
+		out["known_icons"] = known_icons
 
 	var unlocked_biomes = _sanitize_biomes(cmd.get("unlocked_biomes", []))
 	if not unlocked_biomes.is_empty():
@@ -1737,8 +1285,8 @@ func _sanitize_biomes(raw) -> Array[String]:
 	return QuantumInstrumentClass._sanitize_biomes(raw)
 
 
-func _sanitize_known_pairs(raw) -> Array:
-	return QuantumInstrumentClass._sanitize_known_pairs(raw)
+func _sanitize_known_icons(raw) -> Array:
+	return QuantumInstrumentClass._sanitize_known_icons(raw)
 
 
 func _perform_time_skip(phrames: int, delta: float) -> Dictionary:
@@ -1807,132 +1355,6 @@ func _resolve_quest_manager():
 		if child_qm:
 			return child_qm
 	return null
-
-
-func _ensure_policy():
-	# QuantumFiberPolicy and PolicyQuantumRegister were removed — policy stub only.
-	if _policy:
-		return _policy
-	var policy_type = str(OS.get_environment("RIG_POLICY_TYPE"))
-	if policy_type == "quantum_register":
-		push_warning("RigListener: PolicyQuantumRegister removed — policy unavailable")
-		return null
-	else:
-		push_warning("RigListener: QuantumFiberPolicy removed — policy unavailable")
-	return null
-
-
-func _sync_policy_into_game_state() -> void:
-	if not _policy:
-		return
-	var gsm = get_root().get_node_or_null("GameStateManager")
-	if not gsm or not gsm.current_state:
-		return
-	if not ("policy_state" in gsm.current_state):
-		return
-	if _policy.has_method("export_state"):
-		gsm.current_state.policy_state = _policy.export_state()
-	else:
-		gsm.current_state.policy_state = _policy.get_snapshot()
-	if "policy_graph_jsonl" in gsm.current_state and _policy.has_method("get_policy_graph"):
-		var graph_snapshot = _policy.get_policy_graph()
-		if graph_snapshot is Dictionary:
-			gsm.current_state.policy_graph_jsonl = PolicyGraph.snapshot_to_graph_lines(graph_snapshot)
-
-
-func _sync_policy_from_game_state() -> void:
-	var gsm = get_root().get_node_or_null("GameStateManager")
-	if not gsm or not gsm.current_state:
-		return
-	if not ("policy_state" in gsm.current_state):
-		return
-	var state = gsm.current_state.policy_state
-	if not (state is Dictionary) or state.is_empty():
-		return
-	var policy = _ensure_policy()
-	if policy == null:
-		return
-	if policy.has_method("load_state"):
-		policy.load_state(state)
-	elif policy.has_method("reset"):
-		policy.reset(state)
-	if "policy_graph_jsonl" in gsm.current_state and policy.has_method("apply_policy_graph_lines"):
-		var graph_lines = gsm.current_state.policy_graph_jsonl
-		if (not (graph_lines is Array) or graph_lines.is_empty()) and "policy_graph_path" in gsm.current_state:
-			graph_lines = PolicyGraph.load_graph_lines(str(gsm.current_state.policy_graph_path))
-		if graph_lines is Array and not graph_lines.is_empty():
-			policy.apply_policy_graph_lines(graph_lines)
-
-
-func _build_policy_state(cmd: Dictionary = {}) -> Dictionary:
-	# Cache quest offers: only regenerate when vocab count changes (89 factions is expensive).
-	var known_pairs = _instrument.get_known_vocab_pairs() if _instrument else []
-	var pairs_count = known_pairs.size() if known_pairs is Array else 0
-	if pairs_count != _cached_offers_pairs_count:
-		_cached_offers = _instrument.get_quest_offers_for_current_biome() if _instrument else []
-		_cached_offers_pairs_count = pairs_count
-
-	return {
-		"profile": str(cmd.get("profile", "default")),
-		"resources": _get_resource_map(),
-		"resource_floors": _parse_wait_threshold(cmd.get("resource_floors", {})),
-		"forbid_actions": cmd.get("forbid_actions", []),
-		"known_pairs": known_pairs,
-		"offers": _cached_offers,
-		"active_quests": _instrument.get_active_quests() if _instrument else [],
-		"biomes": [],
-		"lindblad": _snapshot_service.get_lindblad_snapshot("", false) if _snapshot_service else {},
-		"discovery_forecast": _farm.compute_discovery_forecast() if _farm and _farm.has_method("compute_discovery_forecast") else {},
-		"locked_offers": _instrument.get_locked_offers() if _instrument else [],
-	}
-
-
-func _build_policy_state_lightweight(cmd: Dictionary = {}) -> Dictionary:
-	# Build post-action state for reward computation WITHOUT regenerating quest offers.
-	# Quest generation (89 factions × generate_quest) is expensive; the reward signal
-	# only needs resources, pairs, biomes, and lindblad state — not fresh offers.
-	return {
-		"profile": str(cmd.get("profile", "default")),
-		"resources": _get_resource_map(),
-		"resource_floors": _parse_wait_threshold(cmd.get("resource_floors", {})),
-		"forbid_actions": cmd.get("forbid_actions", []),
-		"known_pairs": _instrument.get_known_vocab_pairs() if _instrument else [],
-		"offers": [],  # Skip expensive quest generation for post-state
-		"active_quests": _instrument.get_active_quests() if _instrument else [],
-		"biomes": [],
-		"lindblad": _snapshot_service.get_lindblad_snapshot("", false) if _snapshot_service else {},
-		"discovery_forecast": {},  # Skip expensive forecast for post-state
-		"locked_offers": _instrument.get_locked_offers() if _instrument else [],
-	}
-
-
-func _ensure_player_input_macro_runner():
-	# PlayerInputMacroRunner removed — macro input not available.
-	return null
-
-
-func _policy_state_has_milk(state: Dictionary) -> bool:
-	var pairs = state.get("known_pairs", [])
-	if not (pairs is Array):
-		return false
-	for pair in pairs:
-		if not (pair is Dictionary):
-			continue
-		if str(pair.get("north", "")) == "🍼" or str(pair.get("south", "")) == "🍼":
-			return true
-	return false
-
-
-func _resolve_policy_execution_backend(requested: String) -> String:
-	var backend = requested.strip_edges().to_lower()
-	if not _is_headless:
-		return "player_input"
-	if backend in ["direct", "player_input"]:
-		return backend
-	var env_backend = OS.get_environment("RIG_POLICY_EXECUTION_BACKEND").strip_edges().to_lower()
-	if env_backend in ["direct", "player_input"]:
-		return env_backend
-	return "player_input" if not _is_headless else "direct"
 
 
 func _resolve_quantum_input():
@@ -2046,23 +1468,17 @@ func _close_player_overlays_via_input(max_presses: int = 4) -> void:
 		await _press_key(KEY_ESCAPE, false, 2)
 
 
-## Map a legacy tool group number (1-4) to the archetype-hat keycode that
-## now selects the equivalent frame. After the 2026-04-28 redistribution:
-##   Group 1 (Unitary)  → Druid     (KEY_0)
-##   Group 2 (Lindblad) → Spark     (KEY_4)
-##   Group 3 (Measure)  → Scientist (KEY_8)
-##   Group 4 (Meta)     → Captain   (KEY_7)
-## Mirrors ToolConfig.GROUP_TO_FRAME paired with ToolConfig.HAT_KEY_TO_FRAME.
+# Map tool group numbers to the current archetype-hat keycodes.
 func _tool_group_keycode(group_num: int) -> int:
 	match group_num:
 		1:
-			return KEY_0   # Druid (was Spark before the redistribution)
+			return KEY_0
 		2:
-			return KEY_4   # Spark (was Druid before the redistribution)
+			return KEY_4
 		3:
-			return KEY_8   # Scientist
+			return KEY_8
 		4:
-			return KEY_7   # Captain
+			return KEY_7
 	return KEY_UNKNOWN
 
 
@@ -2156,356 +1572,6 @@ func _open_quest_board_via_input() -> Dictionary:
 	return {"ok": board != null and board.visible, "opened": board != null and board.visible}
 
 
-func _navigate_quest_slot_via_input(page_idx: int, slot_idx: int) -> Dictionary:
-	var overlay_manager = _resolve_overlay_manager()
-	var board = overlay_manager.get_overlay("quests") if overlay_manager and overlay_manager.has_method("get_overlay") else null
-	if not board or not board.visible:
-		return {"ok": false, "error": "quest_board_not_open"}
-	var total_pages = max(1, int(board.get_snapshot().get("total_pages", 1))) if board.has_method("get_snapshot") else 1
-	var guard = 0
-	while int(board.get("current_page")) != page_idx and guard < total_pages + 1:
-		await _press_key(KEY_F, false, 2)
-		guard += 1
-	var quest_slot_keys = InputBindingRegistry.get_quest_slot_keys()
-	if slot_idx < 0 or slot_idx >= quest_slot_keys.size():
-		return {"ok": false, "error": "slot_idx_out_of_range", "slot_idx": slot_idx}
-	var slot_key = str(quest_slot_keys[slot_idx])
-	var slot_keycode = InputBindingRegistry.get_keycode_for_label(slot_key)
-	if slot_keycode == KEY_UNKNOWN:
-		return {"ok": false, "error": "unknown_quest_slot_key", "slot_idx": slot_idx, "key": slot_key}
-	await _press_key(slot_keycode, false, 2)
-	return {
-		"ok": int(board.get("current_page")) == page_idx and int(board.get("selected_slot_index")) == slot_idx,
-		"page": int(board.get("current_page")),
-		"slot_idx": int(board.get("selected_slot_index")),
-		"key": slot_key,
-	}
-
-
-func _execute_policy_action(decision: Dictionary) -> Dictionary:
-	var action = str(decision.get("action", ""))
-	var params = decision.get("params", {})
-	if not (params is Dictionary):
-		params = {}
-	match action:
-		"probe_cycle":
-			var biome_name = str(params.get("biome", ""))
-			if not _instrument:
-				return {"ok": false, "action": action, "error": "no_quantum_instrument"}
-			var probe_data = _instrument.probe_cycle(biome_name)
-			var probe_ok = bool(probe_data.get("success", false)) if probe_data is Dictionary else false
-			var harvested = ""
-			if probe_data is Dictionary:
-				var pop = probe_data.get("pop", {})
-				if pop is Dictionary:
-					harvested = str(pop.get("resource", ""))
-			return {
-				"ok": probe_ok,
-				"action": action,
-				"biome": biome_name,
-				"probe": _slim_probe_result(probe_data),
-				"harvested_resource": harvested,
-			}
-		"quest_cycle":
-			return _execute_policy_quest_cycle(params)
-		"lindblad_drain":
-			var biome_name = str(params.get("biome", ""))
-			var positions: Array[Vector2i] = _parse_positions(params.get("positions", []), biome_name)
-			if positions.is_empty():
-				return {"ok": false, "action": action, "error": "no_valid_positions", "biome": biome_name}
-			if not _instrument:
-				return {"ok": false, "action": action, "error": "no_quantum_instrument", "biome": biome_name}
-			var drain_result = _instrument.lindblad_drain(positions)
-			var ok = false
-			if drain_result is Dictionary:
-				ok = bool(drain_result.get("success", false))
-				ok = ok or int(drain_result.get("charged_count", 0)) > 0
-				ok = ok or int(drain_result.get("persistent_enabled", 0)) > 0
-				ok = ok or int(drain_result.get("already_active", 0)) > 0
-			return {
-				"ok": ok,
-				"action": action,
-				"biome": biome_name,
-				"drain_result": drain_result,
-			}
-		"channel_drain":
-			var biome_name = str(params.get("biome", ""))
-			var source_emoji = str(params.get("source_emoji", ""))
-			var target_emoji = str(params.get("target_emoji", ""))
-			if biome_name == "" or source_emoji == "" or target_emoji == "":
-				return {"ok": false, "action": action, "error": "missing_biome_source_or_target"}
-			var channel_result = _execute_channel_drain(biome_name, source_emoji, target_emoji)
-			return {
-				"ok": channel_result.get("ok", false),
-				"action": action,
-				"channel_drain": channel_result,
-			}
-		"time_skip":
-			var phrames = max(1, int(params.get("phrames", 6)))
-			var delta = float(params.get("delta", -1.0))
-			var skip_result = _perform_time_skip(phrames, delta)
-			var ok = bool(skip_result.get("ok", false)) if skip_result is Dictionary else false
-			var resources = _get_resource_map()
-			return {
-				"ok": ok,
-				"action": action,
-				"time_skip": skip_result,
-				"resources": resources,
-			}
-		"discover_biome":
-			if not _instrument:
-				return {"ok": false, "action": action, "error": "no_quantum_instrument"}
-			var discover_result = {}
-			if _instrument.has_method("action_discover_biome"):
-				discover_result = _instrument.action_discover_biome()
-			var ok = bool(discover_result.get("success", false)) if discover_result is Dictionary else false
-			var policy_discover_return = {
-				"ok": ok,
-				"action": action,
-				"discover_biome": discover_result,
-			}
-			if _farm and _farm.has_method("compute_discovery_forecast"):
-				policy_discover_return["discovery_forecast"] = _farm.compute_discovery_forecast()
-			return policy_discover_return
-		"victory_lap_partial":
-			if not _instrument:
-				return {"ok": false, "action": action, "error": "no_quantum_instrument"}
-			var selected_raw = params.get("selected_biomes", [])
-			var selected_biomes: Array[String] = []
-			if selected_raw is Array:
-				for item in selected_raw:
-					var b = str(item)
-					if b != "":
-						selected_biomes.append(b)
-			var max_registers = int(params.get("max_registers", 8))
-			var milk_spend = int(params.get("milk_spend", 0))
-			var phase_window = int(params.get("phase_window", 1))
-			var lap = _instrument.victory_lap_partial(selected_biomes, max_registers, milk_spend, phase_window)
-			return {
-				"ok": bool(lap.get("success", false)) if lap is Dictionary else false,
-				"action": action,
-				"victory_lap_partial": lap,
-			}
-		"lock_offer":
-			if not _instrument:
-				return {"ok": false, "action": action, "error": "no_quantum_instrument"}
-			var offer_index = int(params.get("offer_index", -1))
-			# Use cached offers instead of expensive quest_offer_all()
-			var lock_offers: Array = _cached_offers if not _cached_offers.is_empty() else []
-			if lock_offers.is_empty():
-				var lock_offer_result = _instrument.quest_offer_all()
-				var offered = lock_offer_result.get("offers", [])
-				if offered is Array:
-					lock_offers = offered
-			if offer_index < 0 or offer_index >= lock_offers.size():
-				return {"ok": false, "action": action, "error": "invalid_offer_index"}
-			var locked = false
-			var lock_res = _instrument.quest_lock_offer(lock_offers[offer_index])
-			locked = bool(lock_res.get("locked", false))
-			return {
-				"ok": locked,
-				"action": action,
-				"quest_id": int(lock_offers[offer_index].get("id", -1)),
-			}
-		_:
-			return {"ok": false, "action": action, "error": "unsupported_policy_action"}
-
-
-func _execute_policy_action_via_input(decision: Dictionary) -> Dictionary:
-	var runner = _ensure_player_input_macro_runner()
-	return await runner.execute(decision)
-
-
-func _execute_policy_quest_cycle(policy_params: Dictionary = {}) -> Dictionary:
-	if not _instrument:
-		return {"ok": false, "action": "quest_cycle", "error": "no_instrument"}
-	var completed_ids: Array = []
-	var active = _instrument.get_active_quests()
-	if active is Array:
-		for q in active:
-			if not (q is Dictionary):
-				continue
-			var qid = int(q.get("id", -1))
-			if qid < 0:
-				continue
-			var completed_or_claimed = false
-			var complete_result = _instrument.quest_complete_or_claim(qid)
-			completed_or_claimed = bool(complete_result.get("completed_or_claimed", false))
-			if completed_or_claimed:
-				completed_ids.append(qid)
-
-	# Use cached offers for this cycle's selection, then invalidate after.
-	# Like a human opening the quest board: you see current offers, act on them,
-	# and next time you open the board you get fresh stochastic rolls.
-	var offers: Array = _cached_offers if not _cached_offers.is_empty() else []
-	if offers.is_empty():
-		var offer_result = _instrument.quest_offer_all()
-		var offered = offer_result.get("offers", [])
-		if offered is Array:
-			offers = offered
-	var resources = _get_resource_map()
-	var known_pairs = _instrument.get_known_vocab_pairs() if _instrument else []
-	var known_emojis: Dictionary = {}
-	if known_pairs is Array:
-		for pair in known_pairs:
-			if not (pair is Dictionary):
-				continue
-			var north = str(pair.get("north", ""))
-			var south = str(pair.get("south", ""))
-			if north != "":
-				known_emojis[north] = true
-			if south != "":
-				known_emojis[south] = true
-
-	var accepted = false
-	var completed_after_accept = false
-	var accepted_offer_index = -1
-	var accepted_quest_id = -1
-	var accepted_offer: Dictionary = {}
-	var rerolls_spent: int = 0
-
-	if offers is Array:
-		# Use pre-ranked offer index from policy if available and still valid
-		var hint_idx = int(policy_params.get("offer_index", -1))
-		if hint_idx >= 0 and hint_idx < offers.size():
-			var hint_offer = offers[hint_idx]
-			if hint_offer is Dictionary:
-				var resource = str(hint_offer.get("resource", ""))
-				var qty = float(hint_offer.get("quantity", 0.0))
-				var have = float(resources.get(resource, 0.0))
-				# Accept hint if: delivery and affordable, OR non-delivery (no resource cost)
-				var hint_ok = (resource != "" and qty > 0.0 and have >= qty) or resource == ""
-				if hint_ok:
-					accepted_offer_index = hint_idx
-		# Fall back to scoring if hint was stale or missing
-		if accepted_offer_index < 0:
-			accepted_offer_index = _select_best_affordable_offer(offers, resources, known_emojis)
-
-		# --- Reroll loop (A): if best offer has no milk progress, spend 🐇 to fish ---
-		# Like a human scanning the quest board and rerolling bad slots.
-		var max_rerolls = int(policy_params.get("max_rerolls", 3))
-		if accepted_offer_index >= 0 and max_rerolls > 0 and _instrument:
-			var best_offer = offers[accepted_offer_index] if accepted_offer_index < offers.size() else {}
-			var best_has_milk_progress = _offer_has_milk_progress(best_offer, known_emojis)
-			var reroll_attempts = 0
-			while not best_has_milk_progress and reroll_attempts < max_rerolls:
-				# Check if we can afford a reroll (costs 🐇)
-				var preflight = _instrument.preflight_action_cost("quest_reroll")
-				if not bool(preflight.get("ok", false)):
-					break  # Can't afford 🐇
-				# Spend 🐇 and regenerate offers
-				var commit = _instrument.commit_action_cost("quest_reroll", {}, "policy_reroll")
-				if not bool(commit.get("ok", false)):
-					break  # Spend failed
-				reroll_attempts += 1
-				rerolls_spent += 1
-				# Regenerate all offers (fresh stochastic rolls)
-				var new_offer_result = _instrument.quest_offer_all()
-				var new_offered = new_offer_result.get("offers", [])
-				if new_offered is Array and not new_offered.is_empty():
-					offers = new_offered
-				resources = _get_resource_map()  # Resources changed (spent 🐇)
-				# Re-score with new offers
-				accepted_offer_index = _select_best_affordable_offer(offers, resources, known_emojis)
-				if accepted_offer_index >= 0 and accepted_offer_index < offers.size():
-					best_offer = offers[accepted_offer_index]
-					best_has_milk_progress = _offer_has_milk_progress(best_offer, known_emojis)
-				else:
-					break  # No affordable offers after reroll
-
-		if accepted_offer_index >= 0 and accepted_offer_index < offers.size():
-			var offer = offers[accepted_offer_index]
-			if offer is Dictionary:
-				accepted_offer = offer
-				var accept_result = _instrument.quest_accept(offer)
-				accepted = bool(accept_result.get("accepted", false))
-				accepted_quest_id = int(offer.get("id", -1))
-				if accepted and accepted_quest_id >= 0:
-					var complete_after_result = _instrument.quest_complete_or_claim(accepted_quest_id)
-					completed_after_accept = bool(complete_after_result.get("completed_or_claimed", false))
-
-	# Invalidate offer cache after quest interaction — next policy_step gets fresh
-	# stochastic rolls, just like a human re-opening the quest board.
-	# Non-quest actions (probe, drain, skip, discover) keep using cached offers.
-	_cached_offers_pairs_count = -1
-
-	var ok = (completed_ids.size() > 0) or accepted or completed_after_accept
-	return {
-		"ok": ok,
-		"action": "quest_cycle",
-		"completed_ids": completed_ids,
-		"offers_seen": offers.size() if offers is Array else 0,
-		"accepted": accepted,
-		"accepted_offer_index": accepted_offer_index,
-		"accepted_quest_id": accepted_quest_id,
-		"accepted_offer_reward_vocab_north": str(accepted_offer.get("reward_vocab_north", "")),
-		"accepted_offer_reward_vocab_south": str(accepted_offer.get("reward_vocab_south", "")),
-		"completed_after_accept": completed_after_accept,
-		"rerolls_spent": rerolls_spent,
-	}
-
-
-func _select_best_affordable_offer(offers: Array, resources: Dictionary, known_emojis: Dictionary) -> int:
-	var affordable_rows: Array = []
-	for i in range(offers.size()):
-		var offer = offers[i]
-		if not (offer is Dictionary):
-			continue
-		var resource = str(offer.get("resource", ""))
-		var qty = float(offer.get("quantity", 0.0))
-		# Non-DELIVERY quests (SHAPE_ACHIEVE, SHAPE_MAINTAIN, EVOLUTION, ENTANGLEMENT)
-		# have resource="" — they are always affordable (no resource cost).
-		# Delivery quests (resource != "" and qty > 0) must be checked for affordability.
-		if resource != "" and qty <= 0.0:
-			continue  # Degenerate delivery entry
-		if resource != "" and qty > 0.0 and float(resources.get(resource, 0.0)) < qty:
-			continue  # Can't afford delivery
-		var north = str(offer.get("reward_vocab_north", ""))
-		var south = str(offer.get("reward_vocab_south", ""))
-		var reward_resources = offer.get("reward_resources", {})
-		var reward_sum = 0.0
-		if reward_resources is Dictionary:
-			for emoji in reward_resources.keys():
-				reward_sum += max(0.0, float(reward_resources.get(emoji, 0.0)))
-		var novelty = 0.0
-		if north != "" and not known_emojis.has(north):
-			novelty += 1.0
-		if south != "" and not known_emojis.has(south):
-			novelty += 1.0
-		var discovery_aff = float(offer.get("discovery_affinity", 0.0))
-		var milk_bonus = 420.0 if (north == "🍼" or south == "🍼") else 0.0
-		var milk_hint = 0.0  # PolicyStateProjector removed — milk hint scoring unavailable
-		var pair_frontier_bonus = 20.0 if novelty >= 2.0 else 0.0
-		var surplus = (1.0 - qty / max(1.0, float(resources.get(resource, 0.0)))) * 12.0
-		var score = reward_sum * 0.22 + novelty * 32.0 + pair_frontier_bonus + milk_bonus + milk_hint + discovery_aff * 18.0 + surplus
-		affordable_rows.append({
-			"idx": i,
-			"score": score,
-			"novelty": novelty,
-			"is_milk": milk_bonus > 0.0,
-		})
-
-	if affordable_rows.is_empty():
-		return -1
-	var frontier: Array = []
-	for row in affordable_rows:
-		if bool(row.get("is_milk", false)) or float(row.get("novelty", 0.0)) > 0.0:
-			frontier.append(row)
-	var pool: Array = frontier if not frontier.is_empty() else affordable_rows
-	var best_idx = int(pool[0].get("idx", -1))
-	var best_score = float(pool[0].get("score", -1e18))
-	for row in pool:
-		var score = float(row.get("score", -1e18))
-		if score > best_score:
-			best_score = score
-			best_idx = int(row.get("idx", -1))
-	return best_idx
-
-
-func _offer_has_milk_progress(_offer: Dictionary, _known_emojis: Dictionary) -> bool:
-	# PolicyStateProjector removed — milk-distance scoring unavailable.
-	return false
-
 
 func _parse_positions(raw_positions, biome_name: String) -> Array[Vector2i]:
 	# Parse positions from JSON array [[x,y],...] or fall back to biome positions.
@@ -2532,89 +1598,6 @@ func _parse_positions(raw_positions, biome_name: String) -> Array[Vector2i]:
 		for pos in biome_positions:
 			positions.append(pos)
 	return positions
-
-
-func _execute_channel_drain(biome_name: String, source_emoji: String, target_emoji: String) -> Dictionary:
-	# Quantum dissipative channel: apply cross-register Lindblad operator.
-	#
-	# Creates L = √γ (σ⁺_target ⊗ σ⁻_source) on the biome's quantum computer,
-	# transferring population from source_emoji to target_emoji through the
-	# density matrix. This is a genuine quantum channel, not a flag toggle.
-	#
-	# Falls back to classical drain activation if the quantum channel can't be
-	# created (e.g., emojis on the same qubit axis or not registered).
-	if not _farm or not _farm.grid:
-		return {"ok": false, "error": "farm_not_ready"}
-
-	# Find the biome's quantum computer
-	var biome = null
-	for b in _farm.grid.get_all_biomes():
-		var bname = ""
-		if b.has_method("get_biome_type"):
-			bname = str(b.get_biome_type())
-		elif "name" in b:
-			bname = str(b.name)
-		if bname == biome_name:
-			biome = b
-			break
-
-	if not biome or not biome.quantum_computer:
-		return {"ok": false, "error": "biome_not_found", "biome": biome_name}
-
-	var qc = biome.quantum_computer
-	var rm = qc.register_map
-
-	# Resolve qubits for source and target emojis
-	if not rm.has(source_emoji) or not rm.has(target_emoji):
-		return {
-			"ok": false,
-			"error": "emoji_not_in_register_map",
-			"biome": biome_name,
-			"source_emoji": source_emoji,
-			"target_emoji": target_emoji,
-			"registered_emojis": rm.all_emojis() if rm.has_method("all_emojis") else [],
-		}
-
-	var source_qubit = rm.qubit(source_emoji)
-	var target_qubit = rm.qubit(target_emoji)
-
-	if source_qubit == target_qubit:
-		# Same axis — fall back to single-qubit drain toward target
-		var target_pole = rm.pole(target_emoji)
-		var source_pole = 1 - target_pole
-		var before_pop = qc.get_marginal(source_qubit, source_pole)
-		qc._apply_lindblad_1q(source_qubit, source_pole, target_pole, 0.5, 1.0)
-		var after_pop = qc.get_marginal(source_qubit, source_pole)
-		return {
-			"ok": true,
-			"biome": biome_name,
-			"channel_type": "same_axis_drain",
-			"source_emoji": source_emoji,
-			"target_emoji": target_emoji,
-			"population_transferred": max(0.0, before_pop - after_pop),
-		}
-
-	# Cross-register quantum channel: directed population transfer
-	var before_source_pop = qc.get_population(source_emoji)
-	var before_target_pop = qc.get_population(target_emoji)
-
-	qc.apply_cross_register_channel(source_qubit, target_qubit, 0.5, 1.0)
-
-	var after_source_pop = qc.get_population(source_emoji)
-	var after_target_pop = qc.get_population(target_emoji)
-
-	return {
-		"ok": true,
-		"biome": biome_name,
-		"channel_type": "cross_register",
-		"source_emoji": source_emoji,
-		"target_emoji": target_emoji,
-		"source_qubit": source_qubit,
-		"target_qubit": target_qubit,
-		"source_pop_delta": after_source_pop - before_source_pop,
-		"target_pop_delta": after_target_pop - before_target_pop,
-		"population_transferred": max(0.0, before_source_pop - after_source_pop),
-	}
 
 
 func _allow_rig_resource_injection() -> bool:

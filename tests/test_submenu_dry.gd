@@ -3,8 +3,6 @@ extends SceneTree
 ## Quick terminal test for BaseSubmenu DRY utilities
 ## Run: godot --headless --script tests/test_submenu_dry.gd
 
-const BaseSubmenu = preload("res://UI/Core/Submenus/BaseSubmenu.gd")
-const GateSelectionSubmenu = preload("res://UI/Core/Submenus/GateSelectionSubmenu.gd")
 
 var passed = 0
 var failed = 0

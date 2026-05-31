@@ -6,8 +6,6 @@ extends RefCounted
 ## Extracted from FarmGrid.gd as part of decomposition.
 ## Handles plot creation, lookup, validity checks, and neighbor queries.
 
-const FarmPlot = preload("res://Core/GameMechanics/FarmPlot.gd")
-const GridSentinel = preload("res://Core/GameState/GridSentinel.gd")
 
 # Grid configuration
 var grid_width: int = 5
@@ -17,7 +15,6 @@ var grid_height: int = 5
 var plots: Dictionary = {}  # Vector2i -> FarmPlot (or subclasses)
 
 # External references (injected)
-var faction_territory_manager = null
 var _verbose = null
 
 
@@ -27,14 +24,14 @@ func _init(width: int = 5, height: int = 5):
 
 
 func set_verbose(verbose_ref) -> void:
-	"""Set verbose logger reference."""
+	# Set verbose logger reference.
 	_verbose = verbose_ref
 
 
 func initialize_all_plots() -> void:
-	"""Pre-initialize all plots in the grid for headless testing compatibility.
-	Without this, the plots dictionary is only populated on-demand via get_plot(),
-	causing tests that check plots.size() to fail."""
+	# Pre-initialize all plots in the grid for headless test setup.
+	# Without this, the plots dictionary is only populated on-demand via get_plot(),
+	# causing tests that check plots.size() to fail.
 	for y in range(grid_height):
 		for x in range(grid_width):
 			var pos = Vector2i(x, y)
@@ -43,12 +40,10 @@ func initialize_all_plots() -> void:
 				plot.plot_id = "plot_%d_%d" % [x, y]
 				plot.grid_position = pos
 				plots[pos] = plot
-				if faction_territory_manager:
-					faction_territory_manager.register_plot(pos)
 
 
 func get_plot(position: Vector2i) -> FarmPlot:
-	"""Get or create plot at position (returns FarmPlot or subclass)"""
+	# Get or create plot at position (returns FarmPlot or subclass)
 	if not is_valid_position(position):
 		return null
 
@@ -58,21 +53,17 @@ func get_plot(position: Vector2i) -> FarmPlot:
 		plot.grid_position = position
 		plots[position] = plot
 
-		# Register with faction territory manager
-		if faction_territory_manager:
-			faction_territory_manager.register_plot(position)
-
 	return plots[position]
 
 
 func is_valid_position(position: Vector2i) -> bool:
-	"""Check if position is within grid bounds"""
+	# Check if position is within grid bounds
 	return (position.x >= 0 and position.x < grid_width and
 			position.y >= 0 and position.y < grid_height)
 
 
 func find_plot_by_id(plot_id: String) -> Vector2i:
-	"""Find grid position of a plot by its ID"""
+	# Find grid position of a plot by its ID
 	for y in range(grid_height):
 		for x in range(grid_width):
 			var pos = Vector2i(x, y)
@@ -83,7 +74,7 @@ func find_plot_by_id(plot_id: String) -> Vector2i:
 
 
 func get_plot_by_id(plot_id: String) -> FarmPlot:
-	"""Get plot directly by ID (convenience wrapper for cluster operations)"""
+	# Get plot directly by ID (convenience wrapper for cluster operations)
 	var pos = find_plot_by_id(plot_id)
 	if pos != GridSentinel.INVALID_POSITION:
 		return get_plot(pos)
@@ -91,19 +82,19 @@ func get_plot_by_id(plot_id: String) -> FarmPlot:
 
 
 func is_plot_empty(position: Vector2i) -> bool:
-	"""Check if plot is empty (not planted)"""
+	# Check if plot is empty (not planted)
 	var plot = get_plot(position)
 	return plot != null and not plot.is_active()
 
 
 func is_plot_mature(position: Vector2i) -> bool:
-	"""Check if plot has planted wheat (quantum-only: instant full size)"""
+	# Check if plot has planted wheat (quantum-only: instant full size)
 	var plot = get_plot(position)
 	return plot != null and plot.is_active()
 
 
 func get_neighbors(position: Vector2i) -> Array[Vector2i]:
-	"""Get valid neighbor positions (4-directional)"""
+	# Get valid neighbor positions (4-directional)
 	var neighbors: Array[Vector2i] = []
 
 	var directions = [
@@ -122,7 +113,7 @@ func get_neighbors(position: Vector2i) -> Array[Vector2i]:
 
 
 func get_all_planted_positions() -> Array[Vector2i]:
-	"""Get positions of all planted plots"""
+	# Get positions of all planted plots
 	var planted: Array[Vector2i] = []
 	for position in plots.keys():
 		if plots[position].is_active():
@@ -131,7 +122,7 @@ func get_all_planted_positions() -> Array[Vector2i]:
 
 
 func get_all_mature_positions() -> Array[Vector2i]:
-	"""Get positions of all mature plots"""
+	# Get positions of all mature plots
 	var mature: Array[Vector2i] = []
 	for position in plots.keys():
 		if plots[position].is_active():  # Quantum-only: all planted plots are "mature"
@@ -140,7 +131,7 @@ func get_all_mature_positions() -> Array[Vector2i]:
 
 
 func get_grid_stats() -> Dictionary:
-	"""Get current grid statistics"""
+	# Get current grid statistics
 	var planted_count = 0
 	var mature_count = 0
 	var entanglement_count = 0
@@ -163,7 +154,7 @@ func get_grid_stats() -> Dictionary:
 
 
 func print_grid_state() -> void:
-	"""Debug: Print current grid state"""
+	# Debug: Print current grid state
 	if _verbose:
 		_verbose.debug("farm", "=", "FARM GRID STATE")
 		var stats = get_grid_stats()

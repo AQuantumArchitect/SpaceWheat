@@ -4,188 +4,167 @@ extends RefCounted
 ## Build Lindblad operators from Icons, filtered by RegisterMap
 ##
 ## Lindblad operators: L_k = amplitude * |target⟩⟨source|
-## where amplitude = √rate (Complex number)
+## where amplitude = √(rate × lindblad_rate_scale)
 ##
 ## Icons define couplings: {target_emoji: Complex}
 ## RegisterMap filters: only include if both emojis have coordinates
+##
+## PHYSICS INTENT: Hamiltonian drives fast coherent dynamics (Rabi oscillation).
+## Lindblad drives slow irreversible dissipation (thermalization, decay).
+## lindblad_rate_scale (from BalanceConfig.physics) controls the ratio:
+## at 0.1, Lindblad timescales are ~100× slower than Hamiltonian timescales,
+## giving visible oscillation before dissipation damps it out.
 
-const ComplexMatrix = preload("res://Core/QuantumSubstrate/ComplexMatrix.gd")
-const Complex = preload("res://Core/QuantumSubstrate/Complex.gd")
-const RegisterMap = preload("res://Core/QuantumSubstrate/RegisterMap.gd")
+const _BalanceConfig = preload("res://Core/GameMechanics/BalanceConfig.gd")
+
+## Lindblad rate scale — sourced from BalanceConfig.physics.lindblad_rate_scale.
+## SCAFFOLDING: Remove once biomes.json rates are tuned to final values.
+static func _get_rate_scale() -> float:
+	return _BalanceConfig.get_physics().get("lindblad_rate_scale", 0.1)
 
 
-static func build(icons: Dictionary, register_map: RegisterMap, verbose = null) -> Dictionary:
-	"""Build Lindblad operators and gated configs from Icons dictionary.
-
-	Args:
-	    icons: Dictionary[emoji] → Icon (containing lindblad couplings)
-	    register_map: This biome's RegisterMap
-	    verbose: Optional VerboseConfig for logging (default: print to console)
-
-	Returns:
-	    Dictionary with:
-	        "operators": Array of L_k matrices (each is dim×dim ComplexMatrix)
-	        "gated_configs": Array of gated Lindblad configurations
-	            Format: [{target_emoji, source_emoji, rate, gate, power}]
-	"""
+## Build Lindblad operators directly from a biome's atom_components dict.
+##
+## Atoms-native path. atom_components is keyed by atom (emoji); each entry may
+## carry `lindblad_outgoing`, `lindblad_incoming`, and `decay` term shapes.
+## The runtime basis is whichever atoms have a coordinate in `register_map`
+## (i.e. are inhabited by an icon). Atoms referenced in atom_components but
+## absent from register_map are *primed*: their terms stay in data, no operator emitted.
+##
+## `decay {rate, target}` is treated as a transfer (same |target⟩⟨source| jump op shape).
+static func build_from_atoms(atom_components: Dictionary, register_map: RegisterMap, verbose = null) -> Dictionary:
 	var operators: Array = []
-	var gated_configs: Array = []
-	var dim = register_map.dim()
 	var num_qubits = register_map.num_qubits
 
-	# Statistics tracking
 	var stats = {
-		"outgoing_added": 0,
-		"outgoing_skipped": 0,
-		"incoming_added": 0,
-		"incoming_skipped": 0,
-		"gated_added": 0,
-		"gated_skipped": 0
+		"outgoing_added": 0, "outgoing_skipped": 0,
+		"incoming_added": 0, "incoming_skipped": 0,
+		"decay_added":    0, "decay_skipped":    0,
 	}
 
 	if verbose:
-		verbose.info("quantum", "🔨", "Building Lindblad operators: %d qubits (%dD)" % [num_qubits, dim])
-	else:
-		print("🔨 Building Lindblad operators: %d qubits (%dD)..." % [num_qubits, dim])
+		verbose.info("quantum", "🔨", "Lindblad from atoms: %d qubits" % num_qubits)
 
-	for source_emoji in icons:
-		var icon = icons[source_emoji]
+	# Track (source, target) pairs already emitted so incoming-direction entries
+	# don't double-up on outgoing-direction declarations.
+	var emitted: Dictionary = {}
 
-		# Skip if source not in this biome
-		if not register_map.has(source_emoji):
+	# Expand "everything" wildcard: merge its couplings into every real atom entry.
+	if "everything" in atom_components and atom_components["everything"] is Dictionary:
+		var wildcard: Dictionary = atom_components["everything"]
+		var expanded: Dictionary = {}
+		for k in atom_components:
+			if k == "everything":
+				continue
+			var entry: Dictionary = (atom_components[k] as Dictionary).duplicate(true)
+			for field in ["lindblad_outgoing", "lindblad_incoming"]:
+				if field in wildcard:
+					if field not in entry:
+						entry[field] = {}
+					for target in wildcard[field]:
+						if target not in entry[field]:
+							entry[field][target] = wildcard[field][target]
+			expanded[k] = entry
+		atom_components = expanded
+
+	# First pass: outgoing + decay (both produce |target⟩⟨source| jumps)
+	for source_emoji in atom_components.keys():
+		var component = atom_components[source_emoji]
+		if not (component is Dictionary):
 			continue
 
-		var source_q = register_map.qubit(source_emoji)
-		var source_p = register_map.pole(source_emoji)
+		var source_in = register_map.has(source_emoji)
+		var source_q := -1
+		var source_p := 0
+		if source_in:
+			source_q = register_map.qubit(source_emoji)
+			source_p = register_map.pole(source_emoji)
 
-		# --- Outgoing Lindblad: source loses amplitude to target ---
-		# lindblad_outgoing: {target_emoji: rate (float)}
-		if icon.lindblad_outgoing:
-			for target_emoji in icon.lindblad_outgoing:
-				# Filter: skip if target not in this biome
-				if not register_map.has(target_emoji):
-					stats.outgoing_skipped += 1
+		# --- Outgoing transfers ---
+		var outgoing = component.get("lindblad_outgoing", {})
+		if outgoing is Dictionary:
+			for target_emoji in outgoing.keys():
+				if not source_in or not register_map.has(target_emoji):
+					stats.outgoing_skipped += 1  # primed
 					if verbose:
-						verbose.debug("quantum-build", "⚠️", "L %s→%s skipped (no coordinate)" % [source_emoji, target_emoji])
+						verbose.debug("quantum", "primed", "L outgoing %s→%s (waiting for axis)" % [source_emoji, target_emoji])
 					continue
-
 				var target_q = register_map.qubit(target_emoji)
 				var target_p = register_map.pole(target_emoji)
-				var rate = icon.lindblad_outgoing[target_emoji]
-				# Convert rate to amplitude: √γ
-				var amplitude = Complex.new(sqrt(abs(rate)), 0.0)
-
-				# Operator L = √γ |target⟩⟨source| (population flows from source to target)
-				var L = _build_jump(source_q, source_p, target_q, target_p,
-									amplitude, num_qubits)
-				operators.append(L)
+				var rate = float(outgoing[target_emoji]) * _get_rate_scale()
+				var amp = Complex.new(sqrt(abs(rate)), 0.0)
+				operators.append(_build_jump(source_q, source_p, target_q, target_p, amp, num_qubits))
 				stats.outgoing_added += 1
+				emitted[source_emoji + "→" + target_emoji] = true
 
-				if verbose:
-					verbose.debug("quantum-build", "✓", "L %s→%s (γ=%.3f)" % [source_emoji, target_emoji, rate])
-				else:
-					print("  ✓ L %s→%s (γ=%.3f)" % [source_emoji, target_emoji, rate])
-
-		# --- Incoming Lindblad: target gains amplitude from source ---
-		# lindblad_incoming: {source_emoji: rate (float)}
-		if icon.lindblad_incoming:
-			for from_emoji in icon.lindblad_incoming:
-				# Filter: skip if source not in this biome
-				if not register_map.has(from_emoji):
-					stats.incoming_skipped += 1
+		# --- Decay (treated as outgoing transfer) ---
+		var decay = component.get("decay", {})
+		if decay is Dictionary and decay.has("rate"):
+			var dt_emoji: String = str(decay.get("target", ""))
+			var dt_rate: float = float(decay.get("rate", 0.0))
+			if dt_rate > 0.0:
+				if not source_in or not register_map.has(dt_emoji):
+					stats.decay_skipped += 1  # primed
 					if verbose:
-						verbose.debug("quantum-build", "⚠️", "L %s→%s skipped (no coordinate)" % [from_emoji, source_emoji])
-					continue
-
-				var from_q = register_map.qubit(from_emoji)
-				var from_p = register_map.pole(from_emoji)
-				var rate = icon.lindblad_incoming[from_emoji]
-				# Convert rate to amplitude: √γ
-				var amplitude = Complex.new(sqrt(abs(rate)), 0.0)
-
-				# Operator L = √γ |source⟩⟨from| (population flows INTO source)
-				var L = _build_jump(from_q, from_p, source_q, source_p,
-									amplitude, num_qubits)
-				operators.append(L)
-				stats.incoming_added += 1
-
-				if verbose:
-					verbose.debug("quantum-build", "✓", "L %s→%s (γ=%.3f)" % [from_emoji, source_emoji, rate])
+						verbose.debug("quantum", "primed", "decay %s→%s (waiting for axis)" % [source_emoji, dt_emoji])
 				else:
-					print("  ✓ L %s→%s (γ=%.3f)" % [from_emoji, source_emoji, rate])
+					var dt_q = register_map.qubit(dt_emoji)
+					var dt_p = register_map.pole(dt_emoji)
+					var rate = dt_rate * _get_rate_scale()
+					var amp = Complex.new(sqrt(abs(rate)), 0.0)
+					operators.append(_build_jump(source_q, source_p, dt_q, dt_p, amp, num_qubits))
+					stats.decay_added += 1
+					emitted[source_emoji + "→" + dt_emoji] = true
 
-		# --- Gated Lindblad: extract configs for runtime evaluation ---
-		# Format from IconBuilder: [{source, rate, gate, power, faction}]
-		if icon.has_meta("gated_lindblad"):
-			var gated_list = icon.get_meta("gated_lindblad")
-			for g in gated_list:
-				var source_e: String = g.get("source", "")
-				var gate_e: String = g.get("gate", "")
-				var rate: float = g.get("rate", 0.0)
-				var power: float = g.get("power", 1.0)
+	# Second pass: incoming (dedup against emitted outgoing/decay)
+	for receiver_emoji in atom_components.keys():
+		var component = atom_components[receiver_emoji]
+		if not (component is Dictionary):
+			continue
+		var incoming = component.get("lindblad_incoming", {})
+		if not (incoming is Dictionary):
+			continue
 
-				# Filter: skip if source or gate not in this biome
-				if not register_map.has(source_e):
-					stats.gated_skipped += 1
-					if verbose:
-						verbose.debug("quantum-build", "⚠️", "Gated L %s→%s skipped (source %s not in biome)" % [source_e, source_emoji, source_e])
-					continue
-				if not register_map.has(gate_e):
-					stats.gated_skipped += 1
-					if verbose:
-						verbose.debug("quantum-build", "⚠️", "Gated L %s→%s skipped (gate %s not in biome)" % [source_e, source_emoji, gate_e])
-					continue
+		var receiver_in = register_map.has(receiver_emoji)
+		var receiver_q := -1
+		var receiver_p := 0
+		if receiver_in:
+			receiver_q = register_map.qubit(receiver_emoji)
+			receiver_p = register_map.pole(receiver_emoji)
 
-				# Store config for runtime evaluation
-				gated_configs.append({
-					"target_emoji": source_emoji,  # Icon emoji is the target
-					"source_emoji": source_e,
-					"rate": rate,
-					"gate": gate_e,
-					"power": power,
-				})
-				stats.gated_added += 1
-
+		for src_emoji in incoming.keys():
+			if not receiver_in or not register_map.has(src_emoji):
+				stats.incoming_skipped += 1  # primed
 				if verbose:
-					verbose.debug("quantum-build", "✓", "Gated L %s→%s (γ=%.3f × P(%s)^%.1f)" % [
-						source_e, source_emoji, rate, gate_e, power])
-				else:
-					print("  ✓ Gated L %s→%s (γ=%.3f × P(%s)^%.1f)" % [
-						source_e, source_emoji, rate, gate_e, power])
-
-	# Print summary
-	var total_added = stats.outgoing_added + stats.incoming_added
-	var total_skipped = stats.outgoing_skipped + stats.incoming_skipped + stats.gated_skipped
+					verbose.debug("quantum", "primed", "L incoming %s→%s (waiting for axis)" % [src_emoji, receiver_emoji])
+				continue
+			if emitted.has(src_emoji + "→" + receiver_emoji):
+				continue  # outgoing/decay already covered this pair
+			var src_q = register_map.qubit(src_emoji)
+			var src_p = register_map.pole(src_emoji)
+			var rate = float(incoming[src_emoji]) * _get_rate_scale()
+			var amp = Complex.new(sqrt(abs(rate)), 0.0)
+			operators.append(_build_jump(src_q, src_p, receiver_q, receiver_p, amp, num_qubits))
+			stats.incoming_added += 1
 
 	if verbose:
 		verbose.info("quantum", "✅",
-			"Lindblad built: %d operators + %d gated | Added: %d out + %d in + %d gated | Skipped: %d" % [
+			"Atoms-Lindblad: %d ops | out:%d in:%d decay:%d | primed:%d" % [
 				operators.size(),
-				gated_configs.size(),
-				stats.outgoing_added,
-				stats.incoming_added,
-				stats.gated_added,
-				total_skipped
+				stats.outgoing_added, stats.incoming_added, stats.decay_added,
+				stats.outgoing_skipped + stats.incoming_skipped + stats.decay_skipped
 			])
-	else:
-		print("🔨 Built %d Lindblad operators + %d gated configs (added: %d, skipped: %d)" % [
-			operators.size(),
-			gated_configs.size(),
-			total_added + stats.gated_added,
-			total_skipped
-		])
 
-	return {"operators": operators, "gated_configs": gated_configs}
+	return {"operators": operators}
 
 
 static func _build_jump(from_q: int, from_p: int, to_q: int, to_p: int,
 						amplitude: Complex, num_qubits: int) -> ComplexMatrix:
-	"""Build jump operator L = amplitude * |to⟩⟨from|.
+	# Build jump operator L = amplitude * |to⟩⟨from|.
 
-	Cases:
-	    - Same qubit: flip pole (|0⟩→|1⟩ or |1⟩→|0⟩)
-	    - Different qubits: correlated transfer (flip both)
-	"""
+	# Cases:
+	# - Same qubit: flip pole (|0⟩→|1⟩ or |1⟩→|0⟩)
+	# - Different qubits: correlated transfer (flip both)
 	var dim = 1 << num_qubits
 	var L = ComplexMatrix.zeros(dim)
 

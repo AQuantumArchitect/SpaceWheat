@@ -9,10 +9,6 @@ extends SceneTree
 ## - Error handling (missing dependencies)
 ## - Quantum state integrity (no corruption)
 
-const Farm = preload("res://Core/Farm.gd")
-const FarmGrid = preload("res://Core/GameMechanics/FarmGrid.gd")
-const GridConfig = preload("res://Core/GameMechanics/GridConfig.gd")
-const BiomeEvolutionBatcher = preload("res://Core/Environment/BiomeEvolutionBatcher.gd")
 
 var passed := 0
 var failed := 0
@@ -29,8 +25,8 @@ func _initialize():
 	await get_root().ready
 
 	# Get autoloads
-	boot_manager = get_node_or_null("/root/BootManager")
-	icon_registry = get_node_or_null("/root/IconRegistry")
+	boot_manager = root.get_node_or_null("/root/BootManager")
+	icon_registry = root.get_node_or_null("/root/IconRegistry")
 
 	if not boot_manager:
 		print("❌ BootManager autoload not found - tests cannot run")
@@ -62,27 +58,15 @@ func _initialize():
 
 
 func create_test_farm() -> Farm:
-	"""Create a minimal Farm instance for testing."""
+	# Create an empty Farm; tests explicitly load biomes through BootManager.
 	var test_farm = Farm.new()
 	test_farm.name = "TestFarm"
 	get_root().add_child(test_farm)
-
-	# Create grid config (required for plot assignment)
-	test_farm.grid_config = GridConfig.new(4, 6)  # 4x6 grid
-
-	# Create grid (required for biome registration)
-	test_farm.grid = FarmGrid.new(4, 6)
-	test_farm.add_child(test_farm.grid)
-
-	# Create batcher (required for evolution)
-	test_farm.biome_evolution_batcher = BiomeEvolutionBatcher.new()
-	test_farm.add_child(test_farm.biome_evolution_batcher)
-
 	return test_farm
 
 
 func cleanup_farm(test_farm: Farm):
-	"""Cleanup farm after test."""
+	# Cleanup farm after test.
 	if test_farm and is_instance_valid(test_farm):
 		test_farm.queue_free()
 
@@ -222,14 +206,14 @@ func test_load_biome_valid_density_matrix():
 		var biome = result.get("biome_ref", null)
 		if biome and biome.quantum_computer and biome.quantum_computer.density_matrix:
 			var dm = biome.quantum_computer.density_matrix
-			var trace = dm.trace()
+			var trace = dm.trace().re
 
 			# Trace should be very close to 1.0 (allow small numerical error)
 			if abs(trace - 1.0) < 0.05:
 				# Check for negative diagonals (physically impossible)
 				var has_negative = false
 				for i in range(dm.n):
-					var diag = dm.get_element(i, i).real
+					var diag = dm.get_element(i, i).re
 					if diag < -0.001:
 						has_negative = true
 						break
@@ -359,7 +343,7 @@ func test_operators_rebuilt_before_batcher():
 		var biome = result.get("biome_ref")
 		if biome and biome.quantum_computer and biome.quantum_computer.density_matrix:
 			var dm = biome.quantum_computer.density_matrix
-			var trace = dm.trace()
+			var trace = dm.trace().re
 
 			# If operators were built after batcher started, trace would be corrupted
 			if abs(trace - 1.0) < 0.1:

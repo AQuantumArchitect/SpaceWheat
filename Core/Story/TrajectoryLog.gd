@@ -17,7 +17,6 @@ extends RefCounted
 ## In golden cut we keep this in-memory; persistence comes later.
 
 const KIND_SYSTEM := "system"
-const KIND_PLAYER := "player"
 const KIND_SOCIALITE := "socialite"
 
 const MAX_ENTRIES: int = 500
@@ -40,19 +39,6 @@ func record_system_advance(from_node: String, to_node: String, edge_id: String) 
 		"speaker": KIND_SYSTEM,
 		"icon_idx": -1,
 		"verb": "",
-		"phrame": Engine.get_physics_frames(),
-	})
-
-
-func record_player_action(from_node: String, to_node: String, edge_id: String, icon_idx: int, verb: String, signature: Dictionary = {}) -> void:
-	record({
-		"from_node": from_node,
-		"to_node": to_node,
-		"edge_id": edge_id,
-		"action_signature": signature.duplicate(true),
-		"speaker": KIND_PLAYER,
-		"icon_idx": icon_idx,
-		"verb": verb,
 		"phrame": Engine.get_physics_frames(),
 	})
 

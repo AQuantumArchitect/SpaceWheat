@@ -2,27 +2,17 @@ class_name OverlayManager
 extends Node
 
 # Access autoload safely (avoids compile-time errors)
-@onready var _verbose = InstrumentLocator.resolve_verbose_config(self)
+@onready var _verbose = get_node_or_null("/root/VerboseConfig")
 ## Centralizes management of all overlays (Quests, Knowledge, Network, Map, System Menu)
 ## Handles overlay visibility, positioning, and menu actions.
 ## Save/load is owned by the X system surface (EscapeMenu, Keep tab) — there is
 ## no standalone save/load overlay.
 
 # Preload dependencies
-const QuestBoard = preload("res://UI/Overlays/QuestBoard.gd")  # New modal quest board
-const EscapeMenu = preload("res://UI/Overlays/EscapeMenu.gd")
-const BiomeInspectorOverlay = preload("res://UI/Overlays/BiomeInspectorOverlay.gd")
-const MapMetaOverlay = preload("res://UI/Overlays/MapMetaOverlay.gd")
 const QuantumRigorConfigUI = preload("res://UI/Overlays/QuantumRigorConfigUI.gd")
-const IconDetailPanel = preload("res://UI/Widgets/IconDetailPanel.gd")
 
 # Unified overlay stack system
 const OverlayBaseClass = preload("res://UI/Core/OverlayBase.gd")
-const InspectorOverlay = preload("res://UI/Overlays/InspectorOverlay.gd")
-const ControlsOverlay = preload("res://UI/Overlays/ControlsOverlay.gd")
-const QubitAtlasOverlay = preload("res://UI/Overlays/QubitAtlasOverlay.gd")
-const MenuRegistry = preload("res://UI/Core/MenuRegistry.gd")
-const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
 # Overlay instances
 var quest_board: QuestBoard  # New modal 4-slot quest board (primary interface)
@@ -35,7 +25,7 @@ var touch_button_bar: Control  # Touch-friendly panel buttons for the top-level 
 var icon_detail_panel  # Icon information detail panel
 
 # Unified overlay registry
-var overlays: Dictionary = {}  # name → OverlayBase instance
+var overlays: Dictionary = {}  # _name → OverlayBase instance
 var _pending_pair_scope: Array = []  # [biome_a_name, biome_b_name] passed from N → C
 # Active overlay is tracked by OverlayStackManager
 var inspector_overlay = null  # Density matrix inspector
@@ -63,8 +53,7 @@ var _overlays_created: bool = false
 
 func setup(layout_mgr, _icon_sys, faction_mgr, _conspiracy_net, quest_mgr = null) -> void:
 	# Initialize OverlayManager with required dependencies.
-	# _icon_sys + _conspiracy_net retained as positional placeholders for the
-	# PlayerShell call site; the underlying systems are deleted.
+	# _icon_sys + _conspiracy_net stay positional to match the PlayerShell call site.
 	layout_manager = layout_mgr
 	faction_manager = faction_mgr
 	quest_manager = quest_mgr
@@ -152,7 +141,7 @@ func create_overlays(parent: Control) -> void:
 
 	# Force parent (OverlayLayer) to update its size based on anchors
 	parent.set_anchors_preset(Control.PRESET_FULL_RECT)
-	parent.layout_mode = 1
+	parent.set("layout_mode", 1)  # Control.LayoutMode.ANCHORS (enum not exposed to GDScript)
 	# Force immediate size update
 	if parent.is_inside_tree():
 		var viewport_size = parent.get_viewport().get_visible_rect().size
@@ -215,17 +204,10 @@ func create_overlays(parent: Control) -> void:
 	_verbose.info("ui", "🔬", "Quantum rigor config panel created (via system menu)")
 	_setup_visibility_processing(quantum_config_ui)
 
-	# Create Touch Button Bar (for touch devices)
-	touch_button_bar = _create_touch_button_bar()
-	parent.add_child(touch_button_bar)
-	_setup_visibility_processing(touch_button_bar)
-	_verbose.debug("ui", "📏", "Parent (OverlayLayer) size: %s" % parent.size)
-	_verbose.debug("ui", "📏", "Parent (OverlayLayer) position: (%s, %s)" % [parent.position.x, parent.position.y])
-	_verbose.debug("ui", "📏", "TouchButtonBar position: (%s, %s)" % [touch_button_bar.position.x, touch_button_bar.position.y])
-	_verbose.debug("ui", "📏", "TouchButtonBar size: %s" % touch_button_bar.size)
-	_verbose.debug("ui", "📏", "TouchButtonBar global_position: (%s, %s)" % [touch_button_bar.global_position.x, touch_button_bar.global_position.y])
-	_verbose.debug("ui", "📏", "TouchButtonBar z_index: %d" % touch_button_bar.z_index)
-	_verbose.debug("ui", "📏", "TouchButtonBar visible: %s" % touch_button_bar.visible)
+	# Touch button bar retired — superseded by the top MenuSelectionRow in
+	# PlayerShell, which surfaces all 7 ZXCVBNM menus in the same chrome as
+	# the bottom rows. `touch_button_bar` stays declared for null checks but
+	# is never instantiated.
 
 	# Create Icon Detail Panel
 	icon_detail_panel = IconDetailPanel.new()
@@ -273,28 +255,19 @@ func _on_icon_detail_panel_closed() -> void:
 	pass
 
 
-func _on_emoji_clicked(emoji: String, icon) -> void:
-	# Handle emoji button click - show Icon detail panel
-	if icon_detail_panel:
-		icon_detail_panel.show_icon(icon)
-	else:
-		push_warning("Icon detail panel not available")
-
-
 # _create_keyboard_hint_button REMOVED
 # Z opens ControlsOverlay via PlayerShell, and M is the biome × faction map.
 
 
 func _create_touch_button_bar() -> Control:
 	# Create touch-friendly button bar for LEFT CENTER of screen.
-	const PanelTouchButton = preload("res://UI/Components/PanelTouchButton.gd")
 
-	var scale = layout_manager.scale_factor if layout_manager else 1.0
+	var scale_val = layout_manager.scale_factor if layout_manager else 1.0
 
 	# VBoxContainer for buttons stacked vertically
 	var button_bar = VBoxContainer.new()
 	button_bar.name = "TouchButtonBar"
-	button_bar.add_theme_constant_override("separation", int(8 * scale))
+	button_bar.add_theme_constant_override("separation", int(8 * scale_val))
 
 	# Position on LEFT CENTER of screen (aligned center vertically)
 	button_bar.layout_mode = 1  # Required for anchors in Godot 4
@@ -302,10 +275,10 @@ func _create_touch_button_bar() -> Control:
 	button_bar.anchor_right = 0.0
 	button_bar.anchor_top = 0.5  # Center vertically
 	button_bar.anchor_bottom = 0.5
-	button_bar.offset_left = 10 * scale   # 10px from left edge
-	button_bar.offset_right = 80 * scale  # 70px wide
-	button_bar.offset_top = -150 * scale  # Center around middle (5 buttons)
-	button_bar.offset_bottom = 150 * scale
+	button_bar.offset_left = 10 * scale_val   # 10px from left edge
+	button_bar.offset_right = 80 * scale_val  # 70px wide
+	button_bar.offset_top = -150 * scale_val  # Center around middle (5 buttons)
+	button_bar.offset_bottom = 150 * scale_val
 	button_bar.grow_horizontal = Control.GROW_DIRECTION_END  # Grow rightward from left anchor
 	button_bar.grow_vertical = Control.GROW_DIRECTION_BOTH
 	button_bar.z_index = 4090  # Near Godot max (4096), above all UI elements
@@ -345,7 +318,7 @@ func _on_quest_board_quest_accepted(quest: Dictionary) -> void:
 	_verbose.info("quest", "📋", "Quest accepted from board: %s - %s" % [quest.get("faction", ""), quest.get("body", "")])
 
 
-func _on_quest_board_quest_completed(quest_id: int, rewards: Dictionary) -> void:
+func _on_quest_board_quest_completed(quest_id: int, _rewards: Dictionary) -> void:
 	# Handle when player completes a quest from quest board
 	_verbose.info("quest", "🎉", "Quest completed from board: ID %d" % quest_id)
 
@@ -412,35 +385,35 @@ func _create_overlays(parent: Control) -> void:
 	_verbose.info("ui", "📊", "Overlay stack created with %d overlays" % overlays.size())
 
 
-func register_overlay(name: String, overlay) -> void:
+func register_overlay(_name: String, overlay) -> void:
 	# Register an overlay for stack management.
 
 	# Args:
-	# name: Unique identifier (e.g., "inspector", "quests")
+	# _name: Unique identifier (e.g., "inspector", "quests")
 	# overlay: OverlayBase instance
-	if overlays.has(name):
-		_verbose.warn("ui", "⚠️", "overlay '%s' already registered, replacing" % name)
+	if overlays.has(_name):
+		_verbose.warn("ui", "⚠️", "overlay '%s' already registered, replacing" % _name)
 
-	overlays[name] = overlay
+	overlays[_name] = overlay
 	if overlay and overlay.has_signal("overlay_closed"):
-		var close_callable = Callable(self, "_on_registered_overlay_closed").bind(name)
+		var close_callable = Callable(self, "_on_registered_overlay_closed").bind(_name)
 		if not overlay.overlay_closed.is_connected(close_callable):
 			overlay.overlay_closed.connect(close_callable)
-	_verbose.info("ui", "📋", "Registered overlay: %s" % name)
+	_verbose.info("ui", "📋", "Registered overlay: %s" % _name)
 
 
-func unregister_overlay(name: String) -> void:
+func unregister_overlay(_name: String) -> void:
 	# Unregister an overlay.
-	if overlays.has(name):
-		overlays.erase(name)
-		_verbose.info("ui", "📋", "Unregistered overlay: %s" % name)
+	if overlays.has(_name):
+		overlays.erase(_name)
+		_verbose.info("ui", "📋", "Unregistered overlay: %s" % _name)
 
 
 ## Open the C surface (quests) scoped to a tensor pair. Call this instead of
 ## open_overlay("quests") when transferring scope from the N network frame.
-func open_overlay_with_pair(name: String, biome_a_name: String, biome_b_name: String) -> bool:
+func open_overlay_with_pair(_name: String, biome_a_name: String, biome_b_name: String) -> bool:
 	_pending_pair_scope = [biome_a_name, biome_b_name]
-	return open_overlay(name)
+	return open_overlay(_name)
 
 
 ## Write a pair scope without opening an overlay. N calls this on GHJKL selection
@@ -449,26 +422,26 @@ func set_pending_pair_scope(biome_a_name: String, biome_b_name: String) -> void:
 	_pending_pair_scope = [biome_a_name, biome_b_name]
 
 
-func open_overlay(name: String) -> bool:
-	# Open an overlay by name.
+func open_overlay(_name: String) -> bool:
+	# Open an overlay by _name.
 
 	# Uses OverlayStackManager for unified overlay management.
 	# Returns true if overlay was opened successfully.
-	if not overlays.has(name):
+	if not overlays.has(_name):
 		# Overlays not ready yet (or were torn down by reset()). Silent no-op.
 		return false
 
-	var overlay = overlays[name]
+	var overlay = overlays[_name]
 	var farm_ref = _resolve_farm()
 
-	if name == "inspector" and overlay.has_method("set_biome"):
+	if _name == "inspector" and overlay.has_method("set_biome"):
 		if farm_ref and farm_ref.has_method("get_current_biome"):
 			var biome = farm_ref.get_current_biome()
 			if biome:
 				overlay.set_biome(biome)
 
 	# QuestBoard needs quest_manager and current_biome
-	if name == "quests":
+	if _name == "quests":
 		if overlay.has_method("set_quest_manager") and quest_manager:
 			overlay.set_quest_manager(quest_manager)
 		if overlay.has_method("set_biome") and farm_ref:
@@ -487,7 +460,7 @@ func open_overlay(name: String) -> bool:
 			overlay.clear_pair_scope()
 
 	# MapMetaOverlay needs the active farm and biome.
-	if name == "map_meta":
+	if _name == "map_meta":
 		if farm_ref:
 			overlay.farm = farm_ref
 		if overlay.has_method("set_biome") and farm_ref:
@@ -496,7 +469,7 @@ func open_overlay(name: String) -> bool:
 				overlay.set_biome(biome)
 
 	# BiomeInspectorOverlay needs farm reference
-	if name == "biome_detail":
+	if _name == "biome_detail":
 		if farm_ref:
 			overlay.farm = farm_ref
 
@@ -507,9 +480,9 @@ func open_overlay(name: String) -> bool:
 		# Fallback: activate directly when no stack manager is available
 		overlay.activate()
 
-	_verbose.info("ui", "📖", "Opened overlay: %s" % name)
-	_log_overlay_open_next_frame(name, overlay)
-	overlay_changed.emit(name, true)
+	_verbose.info("ui", "📖", "Opened overlay: %s" % _name)
+	_log_overlay_open_next_frame(_name, overlay)
+	overlay_changed.emit(_name, true)
 	return true
 
 
@@ -526,14 +499,14 @@ func warm_shell_surfaces(force_refresh: bool = false) -> void:
 		escape_menu.warm_cache(force_refresh)
 
 
-func _log_overlay_open_next_frame(name: String, overlay: Control) -> void:
+func _log_overlay_open_next_frame(_name: String, overlay: Control) -> void:
 	# Deferred one-frame diagnostics for overlay open visibility/layering issues.
 	if not is_inside_tree():
 		return
-	call_deferred("_log_overlay_open_next_frame_deferred", name, overlay)
+	call_deferred("_log_overlay_open_next_frame_deferred", _name, overlay)
 
 
-func _log_overlay_open_next_frame_deferred(name: String, overlay: Control) -> void:
+func _log_overlay_open_next_frame_deferred(_name: String, overlay: Control) -> void:
 	# Deferred one-frame diagnostics for overlay open visibility/layering issues.
 	if not is_inside_tree():
 		return
@@ -550,7 +523,7 @@ func _log_overlay_open_next_frame_deferred(name: String, overlay: Control) -> vo
 		panel_exists = overlay.get_panel() != null
 
 	var msg = "overlay='%s' visible=%s in_tree=%s z=%d size=%.1fx%.1f pos=(%.1f,%.1f) panel=%s stack_top=%s stack_size=%d" % [
-		name,
+		_name,
 		overlay.visible if overlay else false,
 		overlay.is_inside_tree() if overlay else false,
 		overlay.z_index if overlay else -1,
@@ -582,12 +555,12 @@ func close_overlay() -> void:
 	overlay_changed.emit(overlay_name, false)
 
 
-func _close_registered_overlay(name: String) -> void:
+func _close_registered_overlay(_name: String) -> void:
 	# Close a registered overlay through the current runtime authority.
-	if not overlays.has(name):
+	if not overlays.has(_name):
 		return
 
-	var overlay = overlays[name]
+	var overlay = overlays[_name]
 	if overlay_stack and overlay_stack.has_overlay(overlay):
 		overlay_stack.pop_overlay(overlay)
 	else:
@@ -596,17 +569,17 @@ func _close_registered_overlay(name: String) -> void:
 		else:
 			overlay.visible = false
 
-	overlay_changed.emit(name, false)
+	overlay_changed.emit(_name, false)
 
 
-func _on_registered_overlay_closed(name: String) -> void:
+func _on_registered_overlay_closed(_name: String) -> void:
 	# Synchronize stack state when a registered overlay closes itself.
-	if not overlays.has(name) or not overlay_stack:
+	if not overlays.has(_name) or not overlay_stack:
 		return
 
-	var overlay = overlays[name]
+	var overlay = overlays[_name]
 	if overlay_stack.dismiss_overlay(overlay):
-		overlay_changed.emit(name, false)
+		overlay_changed.emit(_name, false)
 
 
 func close_all_overlays() -> void:
@@ -614,8 +587,8 @@ func close_all_overlays() -> void:
 	if not overlay_stack:
 		return
 
-	for name in overlays.keys():
-		var overlay = overlays[name]
+	for overlay_key in overlays.keys():
+		var overlay = overlays[overlay_key]
 		if overlay_stack.has_overlay(overlay):
 			overlay_stack.pop_overlay(overlay)
 			overlay_changed.emit(name, false)
@@ -637,7 +610,7 @@ func reset() -> void:
 	faction_manager = null
 
 
-func toggle_overlay(name: String) -> void:
+func toggle_overlay(_name: String) -> void:
 	# Toggle an overlay open/closed.
 
 	# Behavior:
@@ -646,18 +619,18 @@ func toggle_overlay(name: String) -> void:
 	# - If no overlay is open → open this one
 
 	# This gives "radio button" behavior for ZXCVBN keys.
-	if not overlays.has(name):
+	if not overlays.has(_name):
 		# Overlays may not be created yet (early input) or were torn down
 		# by reset(). Silently no-op rather than spam the log.
 		return
 
-	var overlay = overlays[name]
+	var overlay = overlays[_name]
 
 	# Check if this specific overlay is already open
 	if overlay_stack and overlay_stack.has_overlay(overlay):
 		# Same key pressed twice → close it
 		overlay_stack.pop_overlay(overlay)
-		overlay_changed.emit(name, false)
+		overlay_changed.emit(_name, false)
 		return
 
 	# Close any other registered overlay that's currently open (radio button behavior)
@@ -669,7 +642,7 @@ func toggle_overlay(name: String) -> void:
 				overlay_changed.emit(other_name, false)
 
 	# Open the requested overlay
-	open_overlay(name)
+	open_overlay(_name)
 
 
 func is_overlay_active() -> bool:
@@ -686,14 +659,14 @@ func get_active_overlay():
 	return null
 
 
-func get_overlay(name: String):
-	# Get a registered overlay by name, or null.
-	return overlays.get(name, null)
+func get_overlay(_name: String):
+	# Get a registered overlay by _name, or null.
+	return overlays.get(_name, null)
 
 
-func has_overlay(name: String) -> bool:
-	# Check whether an overlay name is registered.
-	return overlays.has(name)
+func has_overlay(_name: String) -> bool:
+	# Check whether an overlay _name is registered.
+	return overlays.has(_name)
 
 
 func get_registered_overlays() -> Array:

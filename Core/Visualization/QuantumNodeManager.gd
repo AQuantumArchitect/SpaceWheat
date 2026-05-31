@@ -1,8 +1,6 @@
 class_name QuantumNodeManager
 extends RefCounted
 
-const QuantumNode = preload("res://Core/Visualization/QuantumNode.gd")
-const GridSentinel = preload("res://Core/GameState/GridSentinel.gd")
 
 ## Quantum Node Manager
 ##
@@ -14,20 +12,19 @@ const GridSentinel = preload("res://Core/GameState/GridSentinel.gd")
 
 
 func create_quantum_nodes(ctx: Dictionary, _skip_quantum_register_bubbles: bool = false) -> Array:
-	"""Create quantum nodes for already-bound terminals.
+	# Create quantum nodes for already-bound terminals.
 
-	Architecture:
-	  1. Terminal bubbles for any pre-bound terminals (from save/load)
-	  2. New terminals create bubbles dynamically via _on_terminal_bound signal
-	  3. Boot explore is triggered by BootManager after viz setup (real action, not fake)
+	# Architecture:
+	# 1. Terminal bubbles for any pre-bound terminals (from save/load)
+	# 2. New terminals create bubbles dynamically via _on_terminal_bound signal
+	# 3. Boot explore is triggered by BootManager after viz setup (real action, not fake)
 
-	Args:
-	    ctx: Context dictionary with {biomes, farm_grid, terminal_pool, layout_calculator}
-	    _skip_quantum_register_bubbles: Deprecated (kept for API compat, ignored)
+	# Args:
+	# ctx: Context dictionary with {biomes, farm_grid, terminal_pool, layout_calculator}
+	# _skip_quantum_register_bubbles: Deprecated; ignored
 
-	Returns:
-	    Array of created QuantumNode instances
-	"""
+	# Returns:
+	# Array of created QuantumNode instances
 	var biomes = ctx.get("biomes", {})
 	var terminal_pool = ctx.get("terminal_pool")
 	var layout_calculator = ctx.get("layout_calculator")
@@ -51,17 +48,16 @@ func create_quantum_nodes(ctx: Dictionary, _skip_quantum_register_bubbles: bool 
 
 
 func _create_node_for_register(biome_name: String, register_id: int, biomes: Dictionary, layout_calculator):
-	"""Create a QuantumNode directly from a quantum register (first-class architecture).
+	# Create a QuantumNode directly from a quantum register (first-class architecture).
 
-	Args:
-	    biome_name: Name of the biome containing the register
-	    register_id: Index of the register/qubit in the quantum computer
-	    biomes: Dictionary of all biomes for resolver
-	    layout_calculator: For positioning bubbles
+	# Args:
+	# biome_name: Name of the biome containing the register
+	# register_id: Index of the register/qubit in the quantum computer
+	# biomes: Dictionary of all biomes for resolver
+	# layout_calculator: For positioning bubbles
 
-	Returns:
-	    QuantumNode representing this quantum register
-	"""
+	# Returns:
+	# QuantumNode representing this quantum register
 	var biome = biomes.get(biome_name)
 	if not biome or not biome.viz_cache or not biome.viz_cache.has_metadata():
 		return null
@@ -119,8 +115,60 @@ func _create_node_for_register(biome_name: String, register_id: int, biomes: Dic
 	return node
 
 
+func create_sun_qubit_node(biome, layout_calculator):
+	# Create the special sun qubit node for the BioticFlux biome.
+	#
+	# This is the top-layer celestial node, not a farm tether and not part of
+	# the regular quantum node pool. The graph renders it separately so it can
+	# stay visually distinct while still using the same bubble renderer.
+	if not biome:
+		return null
+
+	var center_pos := Vector2.ZERO
+	if layout_calculator:
+		center_pos = layout_calculator.graph_center
+
+	var biome_name := "BioticFlux"
+	if biome and "biome_name" in biome and biome.biome_name != "":
+		biome_name = biome.biome_name
+	elif biome and biome.has_method("get_biome_type"):
+		biome_name = biome.get_biome_type()
+
+	var node = QuantumNode.new(null, center_pos, GridSentinel.INVALID_POSITION, center_pos)
+	node.biome_name = biome_name
+	node.register_id = 0
+	node.plot_id = "%s_sun_qubit" % biome_name
+	node.biome_resolver = func(name: String): return biome if name == biome_name else null
+	node.has_farm_tether = false
+	node.is_terminal_bubble = false
+	node.quantum_behavior = 2  # 2 = FIXED: completely static celestial body
+	node.visible = true
+	node.visual_scale = 1.0
+	node.visual_alpha = 1.0
+	node.radius = 28.0
+	node.coherence = 1.0
+	node.energy = 1.0
+	node.purity = 1.0
+	node.color = Color(1.0, 0.88, 0.34, 1.0)
+	node.season_projections[0] = 0.5
+	node.season_projections[1] = 0.5
+	node.season_projections[2] = 0.5
+
+	var axis = {}
+	if biome and biome.viz_cache and biome.viz_cache.has_metadata():
+		axis = biome.viz_cache.get_axis(0)
+	if axis.is_empty():
+		axis = {"north": "☀", "south": "🌙"}
+	node.emoji_north = axis.get("north", "☀")
+	node.emoji_south = axis.get("south", "🌙")
+	node.emoji_north_opacity = 1.0
+	node.emoji_south_opacity = 0.15
+
+	return node
+
+
 func _create_node_for_plot(plot, grid_pos: Vector2i, layout_calculator, biomes: Dictionary):
-	"""Create a QuantumNode for a farm plot."""
+	# Create a QuantumNode for a farm plot.
 	# Calculate initial anchor position
 	var anchor_pos = Vector2.ZERO
 	var center_pos = Vector2.ZERO
@@ -173,7 +221,7 @@ func _create_node_for_plot(plot, grid_pos: Vector2i, layout_calculator, biomes: 
 
 
 func _create_node_for_terminal(terminal, layout_calculator, biomes: Dictionary):
-	"""Create a QuantumNode for a plot pool terminal."""
+	# Create a QuantumNode for a plot pool terminal.
 	# Calculate initial anchor position
 	var anchor_pos = Vector2.ZERO
 	var center_pos = Vector2.ZERO
@@ -217,68 +265,50 @@ func _create_node_for_terminal(terminal, layout_calculator, biomes: Dictionary):
 				node.parametric_t = params.get("t", 0.5)
 				node.parametric_ring = params.get("ring", 0.5)
 
-	# Set emojis from terminal
+	# Set register_id from terminal binding so viz_cache bloch lookup works
+	if "bound_register_id" in terminal and terminal.bound_register_id >= 0:
+		node.register_id = terminal.bound_register_id
+
+	# Set emojis from terminal; fall back to viz_cache axes if terminal doesn't have them
 	node.emoji_north = terminal.north_emoji if terminal.north_emoji else ""
 	node.emoji_south = terminal.south_emoji if terminal.south_emoji else ""
+	if (node.emoji_north.is_empty() or node.emoji_south.is_empty()) and node.register_id >= 0 and biome_name != "":
+		var biome = biomes.get(biome_name, null)
+		if biome and biome.viz_cache:
+			var axes = biome.viz_cache.get_axis(node.register_id)
+			if not axes.is_empty():
+				if node.emoji_north.is_empty():
+					node.emoji_north = axes.get("north", "")
+				if node.emoji_south.is_empty():
+					node.emoji_south = axes.get("south", "")
 
 	return node
 
 
 func _get_plot_index(grid_pos: Vector2i) -> int:
-	"""Convert grid position to plot index for hex layout."""
+	# Convert grid position to plot index for hex layout.
 	# Standard 2x3 grid mapping
 	return grid_pos.y * 3 + grid_pos.x
 
 
-func create_sun_qubit_node(biotic_flux_biome, layout_calculator) -> QuantumNode:
-	"""Create the sun/moon qubit node."""
-	if not biotic_flux_biome or not biotic_flux_biome.sun_qubit:
-		return null
-
-	# Calculate position
-	var anchor_pos = Vector2.ZERO
-	var center_pos = Vector2.ZERO
-
-	if layout_calculator:
-		center_pos = layout_calculator.graph_center
-		anchor_pos = center_pos + Vector2(0, -layout_calculator.graph_radius * 0.7)
-
-	# Create node with required constructor arguments (null plot, special grid pos for celestial)
-	var node = QuantumNode.new(null, anchor_pos, GridSentinel.INVALID_POSITION, center_pos)
-
-	node.plot_id = "celestial_sun"
-	node.biome_name = "BioticFlux"
-	node.has_farm_tether = false
-
-	var sun = biotic_flux_biome.sun_qubit
-	node.emoji_north = sun.north_emoji
-	node.emoji_south = sun.south_emoji
-
-	node.radius = 35.0
-	node.visual_scale = 1.0
-	node.visual_alpha = 1.0
-
-	return node
-
-
 func update_node_visuals(nodes: Array, ctx: Dictionary) -> void:
-	"""Update visual properties of all nodes from their quantum states.
+	# Update visual properties of all nodes from their quantum states.
 
-	Optimized: Batches expensive purity queries per biome.
+	# Optimized: Batches expensive purity queries per biome.
 
-	Args:
-	    nodes: Array of QuantumNode instances
-	    ctx: Context dictionary with {biomes, time_accumulator}
-	"""
+	# Args:
+	# nodes: Array of QuantumNode instances
+	# ctx: Context dictionary with {biomes, time_accumulator}
 	var biomes = ctx.get("biomes", {})
 	var time_accumulator = ctx.get("time_accumulator", 0.0)
 	var batcher = ctx.get("biome_evolution_batcher", null)
 	var use_lookahead = batcher != null and batcher.lookahead_enabled
 	var lookahead_offset = ctx.get("lookahead_offset", 0)
+	var snapshot_cache: Dictionary = {}
 
 	for node in nodes:
 		# Trigger spawn animation for new nodes
-		if not node.is_spawning and node.visual_scale == 0.0:
+		if not node.is_spawning and node.visual_scale == 0.0 and not node.is_lifeless:
 			# Pure quantum nodes (no plot, no terminal)
 			if not node.has_farm_tether and node.biome_name != "" and not node.emoji_north.is_empty():
 				node.start_spawn_animation(time_accumulator)
@@ -296,7 +326,8 @@ func update_node_visuals(nodes: Array, ctx: Dictionary) -> void:
 				biomes,
 				use_lookahead,
 				lookahead_offset,
-				batcher
+				batcher,
+				snapshot_cache
 			)
 		else:
 			_update_terminal_visuals_from_buffer(
@@ -304,7 +335,8 @@ func update_node_visuals(nodes: Array, ctx: Dictionary) -> void:
 				biomes,
 				use_lookahead,
 				lookahead_offset,
-				batcher
+				batcher,
+				snapshot_cache
 			)
 
 
@@ -313,18 +345,32 @@ func _update_node_visual_batched(
 	biomes: Dictionary,
 	use_lookahead: bool,
 	lookahead_offset: int,
-	batcher = null
+	batcher = null,
+	snapshot_cache: Dictionary = {}
 ) -> void:
-	"""Update single node's visuals with batched purity lookup."""
+	# Update single node's visuals with batched purity lookup.
+	var biome = null
+	var snap = null
+	var register_id: int = -1
 	# PURE QUANTUM VISUALIZATION (no plot, no terminal - first-class quantum)
 	if not node.has_farm_tether and not node.plot and node.biome_name != "":
-		var biome = biomes.get(node.biome_name, null)
+		biome = biomes.get(node.biome_name, null)
 		if biome and biome.viz_cache and node.register_id >= 0:
 			# Measured bubbles: frozen visuals, skip quantum state queries
 			if node.is_terminal_measured():
 				return
-			# Update from quantum state with interpolation for smooth 60fps
-			node.update_from_quantum_state(batcher)
+			snap = _get_visual_snapshot(
+				node.biome_name,
+				biome,
+				node.register_id,
+				use_lookahead,
+				lookahead_offset,
+				batcher,
+				snapshot_cache
+			)
+			if not node.apply_quantum_snapshot(snap, true):
+				node.apply_lifeless_visual({"north": node.emoji_north, "south": node.emoji_south})
+				return
 			# Ensure node is visible
 			if node.visual_scale == 0.0:
 				node.visual_scale = 1.0
@@ -342,18 +388,27 @@ func _update_node_visual_batched(
 			if node.terminal.south_emoji != "":
 				node.emoji_south = node.terminal.south_emoji
 			# Resolve biome from name using the biomes dictionary
-			var biome = biomes.get(node.terminal.bound_biome_name, null)
+			biome = biomes.get(node.terminal.bound_biome_name, null)
 			if biome and biome.viz_cache and not node.is_terminal_measured():
-				if use_lookahead and node.terminal and node.terminal.bound_register_id >= 0:
-					if _apply_buffered_metrics(
-						node,
-						biome,
-						node.terminal.bound_register_id,
-						use_lookahead,
-						lookahead_offset,
-						batcher
-					):
-						return
+				register_id = node.terminal.bound_register_id
+				if register_id < 0 and node.emoji_north != "":
+					register_id = biome.viz_cache.get_qubit(node.emoji_north)
+				snap = _get_visual_snapshot(
+					node.terminal.bound_biome_name,
+					biome,
+					register_id,
+					use_lookahead,
+					lookahead_offset,
+					batcher,
+					snapshot_cache
+				)
+				if not node.apply_quantum_snapshot(snap, true):
+					node.apply_lifeless_visual({"north": node.emoji_north, "south": node.emoji_south})
+					return
+				if node.visual_scale == 0.0:
+					node.visual_scale = 1.0
+					node.visual_alpha = 1.0
+				return
 			_set_node_fallback(node)
 		return
 
@@ -363,17 +418,10 @@ func _update_node_visual_batched(
 
 	# Guard: unplanted plot → invisible
 	if not node.plot or not node.plot.is_active():
-		node.energy = 0.0
-		node.coherence = 1.0
-		node.radius = node.MIN_RADIUS
-		node.color = Color(0.5, 0.5, 0.5, 0.0)
-		node.emoji_north_opacity = 0.0
-		node.emoji_south_opacity = 0.0
-		node.visual_scale = 0.0
-		node.visual_alpha = 0.0
+		node.apply_lifeless_visual()
 		return
 
-	var biome = node.plot.parent_biome
+	biome = node.plot.parent_biome
 	if not biome:
 		_set_node_fallback(node)
 		return
@@ -386,17 +434,24 @@ func _update_node_visual_batched(
 	node.emoji_north = emojis.get("north", node.emoji_north)
 	node.emoji_south = emojis.get("south", node.emoji_south)
 
-	if use_lookahead and "bound_register_id" in node.plot and node.plot.bound_register_id >= 0:
-		if _apply_buffered_metrics(
-			node,
-			biome,
-			node.plot.bound_register_id,
-			use_lookahead,
-			lookahead_offset,
-			batcher
-		):
-			return
-	_set_node_fallback(node)
+	register_id = node.plot.bound_register_id if "bound_register_id" in node.plot else -1
+	if register_id < 0 and node.emoji_north != "":
+		register_id = biome.viz_cache.get_qubit(node.emoji_north)
+	snap = _get_visual_snapshot(
+		biome.get_biome_type(),
+		biome,
+		register_id,
+		use_lookahead,
+		lookahead_offset,
+		batcher,
+		snapshot_cache
+	)
+	if not node.apply_quantum_snapshot(snap, true):
+		node.apply_lifeless_visual({"north": node.emoji_north, "south": node.emoji_south})
+		return
+	if node.visual_scale == 0.0:
+		node.visual_scale = 1.0
+		node.visual_alpha = 1.0
 	return
 
 
@@ -405,9 +460,10 @@ func _update_terminal_visuals_from_buffer(
 	biomes: Dictionary,
 	use_lookahead: bool,
 	lookahead_offset: int,
-	batcher = null
+	batcher = null,
+	snapshot_cache: Dictionary = {}
 ) -> void:
-	"""Update terminal bubbles from lookahead buffer when available."""
+	# Update terminal bubbles from lookahead buffer when available.
 	if not node.terminal:
 		return
 
@@ -417,15 +473,11 @@ func _update_terminal_visuals_from_buffer(
 		node.emoji_south = node.terminal.south_emoji
 
 	if node.terminal.is_measured:
-		node.coherence = 0.0
-		node.energy = 0.6
-		node.color = Color(0.75, 0.75, 0.75, 0.9)
-		if node.terminal.measured_outcome == node.terminal.north_emoji:
-			node.emoji_north_opacity = 1.0
-			node.emoji_south_opacity = 0.0
-		else:
-			node.emoji_north_opacity = 0.0
-			node.emoji_south_opacity = 1.0
+		node.apply_measured_visual(
+			node.terminal.measured_outcome,
+			node.terminal.north_emoji,
+			node.terminal.south_emoji
+		)
 		return
 
 	var biome = biomes.get(node.terminal.bound_biome_name, null)
@@ -434,134 +486,82 @@ func _update_terminal_visuals_from_buffer(
 		return
 
 	if node.terminal.bound_register_id < 0:
+		# Keep the bubble legible even if the register binding has not been
+		# restored yet. The terminal still carries the emoji pair.
+		_set_node_fallback(node)
 		return
 
-	if _apply_buffered_metrics(
-		node,
+	var snap = _get_visual_snapshot(
+		node.terminal.bound_biome_name,
 		biome,
 		node.terminal.bound_register_id,
 		use_lookahead,
 		lookahead_offset,
-		batcher
-	):
+		batcher,
+		snapshot_cache
+	)
+	if node.apply_quantum_snapshot(snap, true):
 		return
 
 	_set_node_fallback(node)
 
 
-func _apply_buffered_metrics(
-	node,
+func _get_visual_snapshot(
+	biome_name: String,
 	biome,
 	register_id: int,
 	use_lookahead: bool,
 	lookahead_offset: int,
-	batcher = null
-) -> bool:
-	"""Apply lookahead buffer metrics to a node. Returns true if applied.
-
-	Uses interpolated snapshots for smooth 60fps visual updates.
-	"""
+	batcher = null,
+	snapshot_cache: Dictionary = {}
+) -> Dictionary:
 	if not biome or not biome.viz_cache:
-		return false
+		return {}
+	if register_id < 0:
+		return {}
+
+	var cache_key = "%s:%d:%d:%d" % [biome_name, register_id, int(use_lookahead), lookahead_offset]
+	if snapshot_cache.has(cache_key):
+		return snapshot_cache[cache_key]
 
 	var snap: Dictionary = {}
 	if use_lookahead and batcher:
-		var biome_name = biome.get_biome_type() if biome.has_method("get_biome_type") else biome.name
-		# Use interpolated snapshot for smooth visuals between physics frames
-		if batcher.has_method("get_interpolated_snapshot"):
-			snap = batcher.get_interpolated_snapshot(biome_name, register_id)
-		elif batcher.has_method("get_viz_snapshot"):
-			snap = batcher.get_viz_snapshot(biome_name, register_id, lookahead_offset)
+		snap = batcher.get_interpolated_snapshot(biome_name, register_id)
+		if snap.is_empty():
+			snap = biome.viz_cache.get_snapshot(register_id)
 	else:
 		snap = biome.viz_cache.get_snapshot(register_id)
-	if snap.is_empty():
-		return false
 
-	var p0 = snap.get("p0", 0.5)
-	var p1 = snap.get("p1", 0.5)
-	var r_xy = snap.get("r_xy", 0.0)
-	var phi = snap.get("phi", 0.0)
-	var theta = snap.get("theta", PI / 2.0)
-	var purity = snap.get("purity", -1.0)
-
-	# Use theta for Bloch sphere polarity
-	var cos_theta = cos(theta)
-	node.emoji_north_opacity = (1.0 + cos_theta) * 0.5
-	node.emoji_south_opacity = (1.0 - cos_theta) * 0.5
-
-	var hue = (phi + PI) / TAU
-	node.color = Color.from_hsv(hue, r_xy * 0.8, 0.9, 0.8)
-
-	node.energy = purity if purity >= 0.0 else 0.5
-	node.coherence = r_xy * 0.5
-
-	var mass = p0 + p1
-
-	# TEMPORARY: Disabled mass accumulation for debugging
-	# # Update mass history (rolling 13-frame window)
-	# # Safety: Initialize if not present (for backwards compatibility)
-	# if not "_mass_history" in node or node._mass_history == null:
-	# 	node._mass_history = []
-	# if not "_accumulated_mass" in node or typeof(node._accumulated_mass) != TYPE_FLOAT:
-	# 	node._accumulated_mass = 0.0
-	#
-	# node._mass_history.append(mass)
-	# if node._mass_history.size() > node.MASS_HISTORY_SIZE:
-	# 	var oldest = node._mass_history.pop_front()
-	# 	node._accumulated_mass -= oldest
-	# node._accumulated_mass += mass
-	#
-	# # Base radius from accumulated mass (grows over 13 frames)
-	# var avg_mass = node._accumulated_mass / float(max(1, node._mass_history.size()))
-	# var base_radius = lerpf(node.MIN_RADIUS, node.MAX_RADIUS * 0.7, clampf(avg_mass * 2.0, 0.0, 1.0))
-
-	# Base radius from current mass (not accumulated) - TEMPORARY FIX
-	var base_radius = lerpf(node.MIN_RADIUS, node.MAX_RADIUS * 0.7, clampf(mass * 2.0, 0.0, 1.0))
-
-	# Purity boost: makes pure states visibly larger
-	# Purity ranges from 0.5 (maximally mixed qubit) to 1.0 (pure)
-	var purity_normalized = clampf((purity - 0.5) / 0.5, 0.0, 1.0)
-	var purity_boost = purity_normalized * purity_normalized * (node.MAX_RADIUS * 0.3)
-
-	node.radius = base_radius + purity_boost
-
-	# Berry phase accumulation DISABLED - should come from C++ geometric phase
-	# Real berry phase = ∮ ⟨ψ|i∇|ψ⟩·dλ computed during evolution path in C++
-	# node.berry_phase += node.energy * 0.01  # This was fake - not geometric phase!
-
-	return true
+	snapshot_cache[cache_key] = snap
+	return snap
 
 
 func _set_node_fallback(node) -> void:
-	"""Set fallback visualization when quantum state is unavailable."""
-	node.energy = 0.0
-	node.coherence = 0.0
-	node.radius = node.MIN_RADIUS
-	node.color = Color(0.4, 0.4, 0.5, 0.4)
+	# Set fallback visualization when quantum state is unavailable.
+	var emojis_dict = {}
 	if node.plot and node.plot.has_method("get_plot_emojis"):
 		var emojis = node.plot.get_plot_emojis()
-		node.emoji_north = emojis.get("north", "")
-		node.emoji_south = emojis.get("south", "")
-	node.emoji_north_opacity = 0.0
-	node.emoji_south_opacity = 0.0
+		emojis_dict = {"north": emojis.get("north", ""), "south": emojis.get("south", "")}
+	elif node.terminal:
+		emojis_dict = {"north": node.terminal.north_emoji, "south": node.terminal.south_emoji}
+	node.apply_lifeless_visual(emojis_dict)
 
 
 func update_animations(nodes: Array, time_accumulator: float, delta: float) -> void:
-	"""Update spawn animations for all nodes."""
+	# Update spawn animations for all nodes.
 	for node in nodes:
 		node.update_animation(time_accumulator, delta)
 
 
-func filter_nodes_for_biome(nodes: Array, active_biome: String) -> void:
-	"""Update node visibility based on active biome.
+func filter_nodes_for_biome(_nodes: Array, _active_biome: String) -> void:
+	# Update node visibility based on active biome.
 
-	DISABLED: Visibility now controlled by plot selection (PlotGridDisplay checkmarks).
-	This function is kept for API compatibility but doesn't change visibility.
+	# DISABLED: Visibility now controlled by plot selection (PlotGridDisplay checkmarks).
+	# This function is a no-op for visibility.
 
-	Args:
-	    nodes: Array of QuantumNode instances
-	    active_biome: Name of active biome, or "" for all biomes
-	"""
+	# Args:
+	# nodes: Array of QuantumNode instances
+	# active_biome: Name of active biome, or "" for all biomes
 	# DISABLED: Don't override selection-based visibility
 	# for node in nodes:
 	#	if active_biome == "":
@@ -572,45 +572,44 @@ func filter_nodes_for_biome(nodes: Array, active_biome: String) -> void:
 
 
 func is_node_in_active_biome(node, active_biome: String) -> bool:
-	"""Check if a node belongs to the active biome."""
+	# Check if a node belongs to the active biome.
 	if active_biome == "":
 		return true
 	return node.biome_name == active_biome
 
 
 func _get_verbose():
-	return InstrumentLocator.resolve_verbose_config_main_loop()
+	var ml := Engine.get_main_loop()
+	return ml.root.get_node_or_null("/root/VerboseConfig") if ml and ml.root else null
 
 
 func rebuild_from_biomes(biomes: Dictionary, ctx: Dictionary) -> Array:
-	"""Rebuild all quantum nodes from biomes.
+	# Rebuild all quantum nodes from biomes.
 
-	Called when biome configuration changes.
+	# Called when biome configuration changes.
 
-	Args:
-	    biomes: Dictionary of biome_name → BiomeBase
-	    ctx: Context dictionary
+	# Args:
+	# biomes: Dictionary of biome_name → BiomeBase
+	# ctx: Context dictionary
 
-	Returns:
-	    New array of QuantumNode instances
-	"""
+	# Returns:
+	# New array of QuantumNode instances
 	ctx["biomes"] = biomes
 	return create_quantum_nodes(ctx)
 
 
 func create_all_register_bubbles(biomes: Dictionary, layout_calculator) -> Array:
-	"""Create bubbles for ALL quantum registers in all biomes.
+	# Create bubbles for ALL quantum registers in all biomes.
 
-	Used by visual tests to populate the force graph without terminal bindings.
-	Creates one bubble per qubit per biome.
+	# Used by visual tests to populate the force graph without terminal bindings.
+	# Creates one bubble per qubit per biome.
 
-	Args:
-		biomes: Dictionary of biome_name → BiomeBase
-		layout_calculator: For positioning bubbles
+	# Args:
+	# biomes: Dictionary of biome_name → BiomeBase
+	# layout_calculator: For positioning bubbles
 
-	Returns:
-		Array of created QuantumNode instances
-	"""
+	# Returns:
+	# Array of created QuantumNode instances
 	var nodes: Array = []
 
 	for biome_name in biomes:
@@ -634,4 +633,3 @@ func create_all_register_bubbles(biomes: Dictionary, layout_calculator) -> Array
 		if verbose:
 			verbose.info("viz", "✓", "Created %d register bubbles total" % nodes.size())
 	return nodes
-const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")

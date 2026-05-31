@@ -27,13 +27,7 @@ extends "res://UI/Core/Surface.gd"
 ##
 ## frame_ids = [self, story, balance, guide] — one per tab.
 
-const MenuRegistry    = preload("res://UI/Core/MenuRegistry.gd")
-const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
-const BalanceService  = preload("res://Core/GameMechanics/BalanceService.gd")
-const FactionAxes     = preload("res://Core/Factions/FactionAxes.gd")
-const FactionRegistry = preload("res://Core/Factions/FactionRegistry.gd")
-const FactionCard     = preload("res://UI/Overlays/FactionCard.gd")
-const IconAtlas       = preload("res://Core/Factions/IconAtlas.gd")
+const ToolConfig      = preload("res://Core/GameState/ToolConfig.gd")
 
 # =============================================================================
 # TABS / FRAMES
@@ -58,7 +52,7 @@ const TAB_BY_KEYCODE := {
 }
 
 # Left-to-right slot keys (same convention as X).
-const ITEM_KEYS := ["G", "H", "J", "K", "L", ";"]
+const ITEM_KEYS := ["G", "H", "J", "K", "L", ";", "'"]
 const ITEM_BY_KEYCODE := {
 	KEY_G: 0,
 	KEY_H: 1,
@@ -66,6 +60,7 @@ const ITEM_BY_KEYCODE := {
 	KEY_K: 3,
 	KEY_L: 4,
 	KEY_SEMICOLON: 5,
+	KEY_APOSTROPHE: 6,
 }
 
 const FRAME_SELF    := "self"
@@ -86,28 +81,25 @@ const FRAME_TO_TAB := {
 	FRAME_GUIDE:   Tab.GUIDE,
 }
 
-# Guide tab: 5 sections, GHJKL selects which.
+# Guide tab: 7 sections, GHJKL;' selects which. The Verbs section absorbs
+# what used to live on Z's I tab — the 7-hat × QERF reference.
+# Glossary (') is the final section; projects docs/glossary/*.md live.
 const GUIDE_ITEMS := [
-	{"id": "loop",   "title": "Core Loop"},
-	{"id": "tools",  "title": "Four Tools"},
-	{"id": "biomes", "title": "Biomes & Economy"},
-	{"id": "try",    "title": "Things to Try"},
-	{"id": "ref",    "title": "Quick Reference"},
+	{"id": "loop",     "title": "Core Loop"},
+	{"id": "tools",    "title": "Four Tools"},
+	{"id": "biomes",   "title": "Biomes, Neighborhoods & Economy"},
+	{"id": "try",      "title": "Things to Try"},
+	{"id": "ref",      "title": "Quick Reference"},
+	{"id": "verbs",    "title": "Verbs (per hat)"},
+	{"id": "glossary", "title": "Glossary"},
 ]
+
+const GLOSSARY_CANONICAL_TERMS := ["biome", "signature", "neighborhood", "faction", "icon"]
 
 # =============================================================================
 # COLORS
 # =============================================================================
-
-const COLOR_TAB_ACTIVE  := Color(1.0, 0.9, 0.3, 1.0)
-const COLOR_TAB_IDLE    := Color(0.6, 0.7, 0.85, 0.85)
-const COLOR_ITEM_ACTIVE := Color(1.0, 0.9, 0.3, 1.0)
-const COLOR_ITEM_IDLE   := Color(0.75, 0.82, 0.92, 0.9)
-const COLOR_KEY_CHIP    := Color(0.55, 0.85, 1.0, 0.95)
-const COLOR_MUTED       := Color(0.55, 0.6, 0.7, 0.85)
-const COLOR_VALUE       := Color(0.95, 0.95, 0.85, 1.0)
 const COLOR_HEADER      := Color(0.55, 0.7, 0.85, 0.9)
-const COLOR_VERB        := Color(0.95, 0.75, 0.35, 1.0)
 
 # =============================================================================
 # STATE
@@ -115,6 +107,7 @@ const COLOR_VERB        := Color(0.95, 0.75, 0.35, 1.0)
 
 var _current_tab: int = Tab.SELF
 var _guide_item: int = 0    # index into GUIDE_ITEMS
+var _glossary_reg: GlossaryRegistry = null
 
 # Story graph state (the new Story page — quantum narrative substrate)
 var _story_focus_node: String = ""    # current ui_focus; "" = use density.argmax
@@ -123,15 +116,19 @@ var _story_chatter_idx: int = 0       # GHJKL; cursor into visible chatter feed 
 var _story_icon_idx: int = 0          # 0/1/2; selected via 1/2/3 keys
 var _story_chatter_connected: bool = false
 var _story_attractor_cache: Dictionary = {}  # biome_name → {emojis, gap, phrame}
+var _story_inspect_open: bool = false        # E toggles a chatter detail panel; F flattens it
 const ATTRACTOR_CACHE_TTL: int = 60          # ~1 second at 60Hz physics
 
 # Self tab icon picker state.
 var _self_picker_slot: int = 0     # which active slot (0/1/2) is being rebound
-var _self_picker_pair: int = 0     # cursor into known_pairs (GHJKL; navigates)
-var _self_picker_page: int = 0     # page of known_pairs (6 per page)
+var _self_picker_icon: int = 0     # cursor into known_icons (GHJKL; navigates)
+var _self_picker_page: int = 0     # page of known_icons (6 per page)
 
 # Experimental chatter state (mirrors EscapeMenu.gd; refreshed on demand).
-var _balance_action_idx: int = 0
+var _balance_action_idx: int = 0  # still used by the read-only action inspector
+var _balance_setting_idx: int = 0  # GHJKL; cursor into _balance_settings
+var _balance_setting_page: int = 0
+var _balance_settings: Array = []  # Array of {id, label, category, value_path, kind, step, min, max, default}
 var _balance_biome_idx: int = 0
 var _balance_snapshot: Dictionary = {}
 var _balance_action_keys: Array[String] = []
@@ -145,7 +142,6 @@ var _tab_labels: Dictionary = {}  # key str → Label
 var _body_box: VBoxContainer = null
 var _close_hint: Label = null
 
-
 func _init() -> void:
 	name = "ControlsOverlay"
 	overlay_name = "controls"
@@ -155,13 +151,12 @@ func _init() -> void:
 	panel_title_size = 22
 	panel_size_mode = PanelSizeMode.LARGE
 	panel_border_color = Color(0.5, 0.5, 0.3, 0.8)
-	navigation_mode = NavigationMode.CALLBACK
+	navigation_mode = NavigationMode.NONE
 	use_scroll_container = true
 	content_spacing = 8
 	surface_id = "X"
 	frame_ids = [FRAME_SELF, FRAME_STORY, FRAME_BALANCE, FRAME_GUIDE]
 	frame_id = TAB_TO_FRAME.get(_current_tab, FRAME_SELF)
-
 
 # =============================================================================
 # BUILD
@@ -171,7 +166,7 @@ func _build_content(container: Control) -> void:
 	_status_line = Label.new()
 	_status_line.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_status_line.add_theme_font_size_override("font_size", 12)
-	_status_line.add_theme_color_override("font_color", COLOR_MUTED)
+	_status_line.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
 	container.add_child(_status_line)
 
 	_build_tab_row(container)
@@ -189,11 +184,10 @@ func _build_content(container: Control) -> void:
 	_close_hint.text = "ESC close   ·   TYUIO tabs   ·   GHJKL; items   ·   [ ] cycle frames"
 	_close_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_close_hint.add_theme_font_size_override("font_size", 11)
-	_close_hint.add_theme_color_override("font_color", COLOR_MUTED)
+	_close_hint.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
 	container.add_child(_close_hint)
 
 	_render_all()
-
 
 func _build_tab_row(container: Control) -> void:
 	_tab_row_box = HBoxContainer.new()
@@ -207,7 +201,6 @@ func _build_tab_row(container: Control) -> void:
 		_tab_row_box.add_child(lbl)
 		_tab_labels[str(entry.get("key", ""))] = lbl
 
-
 # =============================================================================
 # RENDER
 # =============================================================================
@@ -217,12 +210,10 @@ func _render_all() -> void:
 	_refresh_tab_row()
 	_refresh_body()
 
-
 func _refresh_status_line() -> void:
 	if not _status_line:
 		return
 	_status_line.text = "Z · self mirror"
-
 
 func _refresh_tab_row() -> void:
 	if _tab_labels.is_empty():
@@ -236,11 +227,10 @@ func _refresh_tab_row() -> void:
 			continue
 		if tab_enum == _current_tab:
 			lbl.text = "[%s] %s" % [key_str, name_str.to_upper()]
-			lbl.add_theme_color_override("font_color", COLOR_TAB_ACTIVE)
+			lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_TAB_ACTIVE)
 		else:
 			lbl.text = "[%s] %s" % [key_str, name_str]
-			lbl.add_theme_color_override("font_color", COLOR_TAB_IDLE)
-
+			lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_TAB_IDLE)
 
 func _refresh_body() -> void:
 	if not _body_box:
@@ -253,23 +243,23 @@ func _refresh_body() -> void:
 		Tab.BALANCE: _build_balance_body()
 		Tab.GUIDE:   _build_guide_body()
 
-
 # =============================================================================
-# BODY: SELF — the mirror. 12-axis posture strip + faction standings.
+# BODY: SELF — the mirror. 12-axis alignment strip + faction standings.
 # =============================================================================
 
 func _build_self_body() -> void:
 	var farm = InstrumentLocator.resolve_active_farm(self)
 
-	# The Demos — the player faction biome rendered as icons + marginal bars.
-	# No Hamiltonian on faction biomes, so these only move when quest rewards or
-	# consume_grants explicitly write to them. Stillness is the point.
+	# The Demos - the player neighborhood rendered as icons + marginal bars.
+	# This self view does not advance the neighborhood's live state here, so
+	# these only move when quest rewards or consume_grants explicitly write to
+	# them. Stillness is the point.
 	_build_our_faction_view(farm)
 
 	_body_box.add_child(_make_spacer(8))
 	_build_icon_picker(farm)
 	_body_box.add_child(_make_spacer(8))
-	_body_box.add_child(_make_section_header("posture"))
+	_body_box.add_child(_make_section_header("alignment"))
 
 	# Derive per-axis bias from weighted faction standings.
 	# axis_bias[i] = probability the player leans toward pole_1 on axis i.
@@ -296,7 +286,7 @@ func _build_self_body() -> void:
 			weighted_bits[i] = 0.0
 			weight_per_axis[i] = 0.0
 
-		var faction_reg := FactionRegistry.new()
+		var faction_reg := FactionRegistry.get_shared()
 		for fname in standings.keys():
 			var s = standings[fname]
 			if s == null:
@@ -308,7 +298,7 @@ func _build_self_body() -> void:
 			if faction == null:
 				continue
 			var w := absf(sc)
-			for atom in faction.signature:
+			for atom in faction.cloud:
 				if atom in atom_axis:
 					var info: Array = atom_axis[atom]
 					weighted_bits[info[0]] += w * float(info[1])
@@ -318,7 +308,7 @@ func _build_self_body() -> void:
 			if weight_per_axis[i] > 0.0:
 				axis_bias[i] = clampf(weighted_bits[i] / weight_per_axis[i], 0.0, 1.0)
 
-	# Render posture strip — two columns of 6 axes each.
+	# Render alignment strip — two columns of 6 axes each.
 	var grid := GridContainer.new()
 	grid.columns = 2
 	grid.add_theme_constant_override("h_separation", 18)
@@ -340,7 +330,7 @@ func _build_self_body() -> void:
 		var name_lbl := Label.new()
 		name_lbl.text = "%s %s" % [pole0, label0]
 		name_lbl.add_theme_font_size_override("font_size", 11)
-		name_lbl.add_theme_color_override("font_color", COLOR_MUTED)
+		name_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
 		name_lbl.custom_minimum_size = Vector2(100, 0)
 		row.add_child(name_lbl)
 
@@ -348,13 +338,13 @@ func _build_self_body() -> void:
 		var filled := int(round(bias * 8.0))
 		bar_lbl.text = "█".repeat(filled) + "░".repeat(8 - filled)
 		bar_lbl.add_theme_font_size_override("font_size", 11)
-		bar_lbl.add_theme_color_override("font_color", COLOR_VALUE)
+		bar_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_VALUE)
 		row.add_child(bar_lbl)
 
 		var pct_lbl := Label.new()
 		pct_lbl.text = "%s %s" % [label1, pole1]
 		pct_lbl.add_theme_font_size_override("font_size", 11)
-		pct_lbl.add_theme_color_override("font_color", COLOR_MUTED)
+		pct_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
 		row.add_child(pct_lbl)
 
 		grid.add_child(row)
@@ -362,7 +352,7 @@ func _build_self_body() -> void:
 	if standings.is_empty():
 		_body_box.add_child(_make_spacer(4))
 		_body_box.add_child(_make_muted_label(
-			"no faction standing yet — posture is pure mixed state (50/50 on every axis).", 11,
+			"no faction standing yet — alignment is pure mixed state (50/50 on every axis).", 11,
 		))
 
 	# Faction standings — full 6-channel breakdown + signature progress.
@@ -379,10 +369,79 @@ func _build_self_body() -> void:
 			_body_box.add_child(_make_section_header("spotlight · %s" % spot))
 			_render_faction_card(farm, spot)
 
+	# Faction attachment (coming soon — UI shell only; no logic wired yet).
+	_body_box.add_child(_make_spacer(8))
+	_render_faction_attachment_panel(farm)
+
 	# Vocabulary lexicon
 	_body_box.add_child(_make_spacer(8))
 	_build_lexicon_section(farm)
 
+## Faction attachment panel (Phase B scaffolding — coming soon).
+## Renders the pinned faction + every other faction with overlap distance.
+## No logic wired: pressing A or D is a no-op. Cost preview is "??" until
+## the formula is calibrated.
+##
+## Cost = (1.0 - overlap) * scale * faction_standing_modifier.
+##   overlap comes from AlignmentGraph.overlap(); scale follows the calibrated attach/detach tuning.
+##   When detach lands, cost is paid in the player's most-abundant credit emoji.
+func _render_faction_attachment_panel(farm) -> void:
+	_body_box.add_child(_make_section_header("faction attachment (coming soon)"))
+	if farm == null or not "player_alignment" in farm or farm.player_alignment == null:
+		_body_box.add_child(_make_muted_label("(player alignment not yet bound)", 11))
+		return
+	var pinned_name: String = farm.get_pinned_faction_name() if farm.has_method("get_pinned_faction_name") else ""
+	var registry = null
+	if "faction_density" in farm and farm.faction_density != null \
+			and farm.faction_density.has_method("get_registry"):
+		registry = farm.faction_density.get_registry()
+	if registry == null or not registry.has_method("get_all"):
+		_body_box.add_child(_make_muted_label("(faction registry not loaded)", 11))
+		return
+	var player_ag = farm.player_alignment
+	var rows: Array = []
+	for f in registry.get_all():
+		if f == null or not "name" in f or f.alignment == null:
+			continue
+		var fname: String = str(f.name)
+		var ov: float = float(player_ag.overlap(f.alignment))
+		rows.append({"name": fname, "overlap": ov, "is_pinned": fname == pinned_name})
+	rows.sort_custom(func(a, b):
+		if bool(a.is_pinned) != bool(b.is_pinned):
+			return bool(a.is_pinned)
+		return float(a.overlap) > float(b.overlap))
+	for row in rows:
+		var hbox := HBoxContainer.new()
+		hbox.add_theme_constant_override("separation", 8)
+		var tag := Label.new()
+		tag.text = "[pinned]" if bool(row.is_pinned) else "        "
+		tag.add_theme_font_size_override("font_size", 10)
+		tag.add_theme_color_override("font_color", UIStyleFactory.COLOR_VERB_ACTIVE if bool(row.is_pinned) else UIStyleFactory.COLOR_MUTED)
+		tag.custom_minimum_size = Vector2(56, 0)
+		hbox.add_child(tag)
+		var name_lbl := Label.new()
+		name_lbl.text = String(row.name)
+		name_lbl.add_theme_font_size_override("font_size", 12)
+		name_lbl.custom_minimum_size = Vector2(140, 0)
+		hbox.add_child(name_lbl)
+		var ov_lbl := Label.new()
+		ov_lbl.text = "overlap %.2f" % float(row.overlap)
+		ov_lbl.add_theme_font_size_override("font_size", 11)
+		ov_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
+		ov_lbl.custom_minimum_size = Vector2(80, 0)
+		hbox.add_child(ov_lbl)
+		var cost_lbl := Label.new()
+		cost_lbl.text = "cost: ??"
+		cost_lbl.add_theme_font_size_override("font_size", 11)
+		cost_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
+		cost_lbl.custom_minimum_size = Vector2(64, 0)
+		hbox.add_child(cost_lbl)
+		var verb_lbl := Label.new()
+		verb_lbl.text = "[D] detach (coming soon)" if bool(row.is_pinned) else "[A] attach (coming soon)"
+		verb_lbl.add_theme_font_size_override("font_size", 11)
+		verb_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
+		hbox.add_child(verb_lbl)
+		_body_box.add_child(hbox)
 
 ## Returns the faction with the highest |scalar| standing, excluding "The Demos".
 ## Empty string when no eligible faction exists.
@@ -401,7 +460,6 @@ func _top_other_faction_by_magnitude(standings: Dictionary) -> String:
 			best_name = str(fname)
 	return best_name
 
-
 ## Render top factions with full 6-channel standing + signature progress.
 ## Sorted by aggregate scalar magnitude. Up to 6 rows.
 func _render_faction_standings_grid(farm, standings: Dictionary) -> void:
@@ -410,7 +468,7 @@ func _render_faction_standings_grid(farm, standings: Dictionary) -> void:
 	for e in known:
 		known_set[str(e)] = true
 
-	var faction_reg := FactionRegistry.new()
+	var faction_reg := FactionRegistry.get_shared()
 
 	var rows: Array = []
 	for fname in standings.keys():
@@ -424,7 +482,7 @@ func _render_faction_standings_grid(farm, standings: Dictionary) -> void:
 				and absf(s.legitimacy) < 0.0001 and absf(s.entanglement) < 0.0001:
 			continue
 		var f = faction_reg.get_by_name(str(fname))
-		var sig: Array = f.signature.duplicate() if f != null else []
+		var sig: Array = f.cloud.duplicate() if f != null else []
 		var sig_total: int = sig.size()
 		var sig_known: int = 0
 		for atom in sig:
@@ -456,7 +514,7 @@ func _render_faction_standings_grid(farm, standings: Dictionary) -> void:
 	for row in rows:
 		if shown >= 6:
 			break
-		var color: Color = COLOR_VALUE if shown == 0 else COLOR_ITEM_IDLE
+		var color: Color = UIStyleFactory.COLOR_VALUE if shown == 0 else UIStyleFactory.COLOR_ITEM_IDLE
 		var cells := [
 			str(row.faction),
 			"%+.2f" % float(row.trust),
@@ -473,7 +531,6 @@ func _render_faction_standings_grid(farm, standings: Dictionary) -> void:
 	if rows.size() > 6:
 		_body_box.add_child(_make_muted_label(
 			"… %d more standings on V `affinity`" % (rows.size() - 6), 11))
-
 
 ## Build a single fixed-width row for the standing grid. cells[0] is faction
 ## name (wide); cells[1..6] are channel values; cells[7] is sig progress.
@@ -493,7 +550,6 @@ func _make_standing_row(cells: Array, color: Color, is_header: bool) -> HBoxCont
 		row.add_child(lbl)
 	return row
 
-
 func _build_lexicon_section(farm) -> void:
 	_body_box.add_child(_make_section_header("lexicon"))
 	if farm == null:
@@ -510,8 +566,8 @@ func _build_lexicon_section(farm) -> void:
 		_body_box.add_child(_make_muted_label("(lexicon not available)", 11))
 		return
 
-	var known_pairs: Array = farm.known_pairs if "known_pairs" in farm else []
-	var discovered: Dictionary = IconAtlas.discovered_set_from_vocabulary(known_pairs)
+	var known_icons: Array = farm.known_icons if "known_icons" in farm else []
+	var discovered: Dictionary = load("res://Core/Factions/IconRegistry.gd").discovered_set_from_icons(known_icons)
 	var known_records: Array = lex.filter_discovered_records(discovered)
 
 	if known_records.is_empty():
@@ -533,24 +589,23 @@ func _build_lexicon_section(farm) -> void:
 		var row := Label.new()
 		row.text = label_text
 		row.add_theme_font_size_override("font_size", 11)
-		row.add_theme_color_override("font_color", COLOR_VALUE)
+		row.add_theme_color_override("font_color", UIStyleFactory.COLOR_VALUE)
 		_body_box.add_child(row)
 
-
 ## Z Self tab — Icon Picker. The player's 3 active expression slots, with
-## a paginated list of known_pairs for rebinding via 1/2/3 + GHJKL; + E.
+## a paginated list of known_icons for rebinding via 1/2/3 + GHJKL; + E.
 ##
 ## Controls (Self tab only):
 ##   1/2/3      — pick which slot (0/1/2) to rebind
-##   GHJKL;     — cursor through visible known_pairs (page of 6)
-##   W/S        — page through known_pairs (6 per page)
-##   E          — assign cursor's pair to selected slot
+##   GHJKL;     — cursor through visible known_icons (page of 6)
+##   W/S        — page through known_icons (6 per page)
+##   E          — assign cursor's icon to selected slot
 func _build_icon_picker(farm) -> void:
 	_body_box.add_child(_make_section_header("icons · expression"))
-	if farm == null or not farm.has_method("get_known_pairs"):
+	if farm == null or not farm.has_method("get_known_icons"):
 		_body_box.add_child(_make_muted_label("(farm not loaded)", 11))
 		return
-	var pairs: Array = farm.get_known_pairs()
+	var icons: Array = farm.get_known_icons()
 	var slots: Array = farm.active_icon_slots if "active_icon_slots" in farm else [0,1,2]
 
 	# Active slots row (1/2/3)
@@ -558,44 +613,44 @@ func _build_icon_picker(farm) -> void:
 	slot_row.add_theme_constant_override("separation", 14)
 	for i in range(3):
 		var slot_idx: int = int(slots[i]) if i < slots.size() else i
-		var pair_str := "?"
-		if slot_idx >= 0 and slot_idx < pairs.size():
-			var p: Dictionary = pairs[slot_idx]
-			pair_str = "%s%s" % [str(p.get("north", "·")), str(p.get("south", "·"))]
+		var icon_str := "?"
+		if slot_idx >= 0 and slot_idx < icons.size():
+			var icon: Dictionary = icons[slot_idx]
+			icon_str = "%s%s" % [str(icon.get("north", "·")), str(icon.get("south", "·"))]
 		var sel := (i == _self_picker_slot)
 		var lbl := Label.new()
-		lbl.text = "[%d] %s" % [i + 1, pair_str]
+		lbl.text = "[%d] %s" % [i + 1, icon_str]
 		lbl.add_theme_font_size_override("font_size", 14)
 		lbl.add_theme_color_override("font_color",
-			COLOR_ITEM_ACTIVE if sel else COLOR_ITEM_IDLE)
+			UIStyleFactory.COLOR_TAB_ACTIVE if sel else UIStyleFactory.COLOR_ITEM_IDLE)
 		slot_row.add_child(lbl)
 	_body_box.add_child(slot_row)
 	_body_box.add_child(_make_spacer(4))
 
-	# Known-pairs page (GHJKL; cursor)
-	if pairs.is_empty():
-		_body_box.add_child(_make_muted_label("(no known pairs yet — incorporate icons via the Icon hat)", 11))
+	# Known-icons page (GHJKL; cursor)
+	if icons.is_empty():
+		_body_box.add_child(_make_muted_label("(no known icons yet — incorporate icons via the Icon hat)", 11))
 		return
 
 	var page_size := ITEM_KEYS.size()  # 6
-	var max_page: int = max(0, (pairs.size() - 1) / page_size)
+	var max_page: int = max(0, int(float(icons.size() - 1) / float(page_size)))
 	_self_picker_page = clampi(_self_picker_page, 0, max_page)
 	var start := _self_picker_page * page_size
-	var end := mini(start + page_size, pairs.size())
-	_self_picker_pair = clampi(_self_picker_pair, start, end - 1)
+	var end := mini(start + page_size, icons.size())
+	_self_picker_icon = clampi(_self_picker_icon, start, end - 1)
 
 	var pair_row := HBoxContainer.new()
 	pair_row.add_theme_constant_override("separation", 10)
 	for i in range(start, end):
-		var p: Dictionary = pairs[i]
+		var icon: Dictionary = icons[i]
 		var key_str: String = ITEM_KEYS[i - start]
-		var pair_str := "%s%s" % [str(p.get("north", "·")), str(p.get("south", "·"))]
-		var sel := (i == _self_picker_pair)
+		var icon_str := "%s%s" % [str(icon.get("north", "·")), str(icon.get("south", "·"))]
+		var sel := (i == _self_picker_icon)
 		var lbl := Label.new()
-		lbl.text = "[%s] %s" % [key_str, pair_str]
+		lbl.text = "[%s] %s" % [key_str, icon_str]
 		lbl.add_theme_font_size_override("font_size", 13)
 		lbl.add_theme_color_override("font_color",
-			COLOR_ITEM_ACTIVE if sel else COLOR_ITEM_IDLE)
+			UIStyleFactory.COLOR_TAB_ACTIVE if sel else UIStyleFactory.COLOR_ITEM_IDLE)
 		pair_row.add_child(lbl)
 	_body_box.add_child(pair_row)
 
@@ -603,9 +658,8 @@ func _build_icon_picker(farm) -> void:
 	var hint := Label.new()
 	hint.text = "page %d/%d   ·   1/2/3 slot   ·   GHJKL; cursor   ·   W/S page   ·   R assign" % [_self_picker_page + 1, max_page + 1]
 	hint.add_theme_font_size_override("font_size", 10)
-	hint.add_theme_color_override("font_color", COLOR_MUTED)
+	hint.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
 	_body_box.add_child(hint)
-
 
 func _build_our_faction_view(farm) -> void:
 	_body_box.add_child(_make_section_header("the demos"))
@@ -624,33 +678,32 @@ func _build_our_faction_view(farm) -> void:
 		var icon: Dictionary = icons[q] if (icons[q] is Dictionary) else {}
 		var p0 := str(icon.get("pole_0", "?"))
 		var p1 := str(icon.get("pole_1", "?"))
-		var name := str(icon.get("name", ""))
+		var binding_name := str(icon.get("name", ""))
 		var m0: float = qc.get_marginal(q, 0) if qc.has_method("get_marginal") else 0.5
 		var bias: float = clampf(1.0 - m0, 0.0, 1.0)  # how far toward pole_1
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 6)
 		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		var name_lbl := Label.new()
-		name_lbl.text = "%s %s" % [p0, name]
+		name_lbl.text = "%s %s" % [p0, binding_name]
 		name_lbl.add_theme_font_size_override("font_size", 11)
-		name_lbl.add_theme_color_override("font_color", COLOR_MUTED)
+		name_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
 		name_lbl.custom_minimum_size = Vector2(120, 0)
 		row.add_child(name_lbl)
 		var bar_lbl := Label.new()
 		var filled := int(round(bias * 8.0))
 		bar_lbl.text = "█".repeat(filled) + "░".repeat(8 - filled)
 		bar_lbl.add_theme_font_size_override("font_size", 11)
-		bar_lbl.add_theme_color_override("font_color", COLOR_VALUE)
+		bar_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_VALUE)
 		row.add_child(bar_lbl)
 		var pole_lbl := Label.new()
 		pole_lbl.text = p1
 		pole_lbl.add_theme_font_size_override("font_size", 11)
-		pole_lbl.add_theme_color_override("font_color", COLOR_MUTED)
+		pole_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
 		row.add_child(pole_lbl)
 		_body_box.add_child(row)
 
 	_render_faction_card(farm, "The Demos")
-
 
 ## Render a faction's nature card: signature, affinity, biomes-of-presence,
 ## alignment couplings, standing. Reusable for player or NPC inspection.
@@ -665,7 +718,7 @@ func _render_faction_card(farm, faction_name: String) -> void:
 		var sig_lbl := Label.new()
 		sig_lbl.text = "signature  " + " ".join(signature)
 		sig_lbl.add_theme_font_size_override("font_size", 11)
-		sig_lbl.add_theme_color_override("font_color", COLOR_MUTED)
+		sig_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
 		_body_box.add_child(sig_lbl)
 
 	var affinity: Array = card.get("affinity", [])
@@ -676,7 +729,7 @@ func _render_faction_card(farm, faction_name: String) -> void:
 		var aff_lbl := Label.new()
 		aff_lbl.text = "affinity  " + " · ".join(parts)
 		aff_lbl.add_theme_font_size_override("font_size", 11)
-		aff_lbl.add_theme_color_override("font_color", COLOR_VALUE)
+		aff_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_VALUE)
 		_body_box.add_child(aff_lbl)
 
 	var biomes: Array = card.get("biomes_of_presence", [])
@@ -684,21 +737,21 @@ func _render_faction_card(farm, faction_name: String) -> void:
 		var bio_lbl := Label.new()
 		bio_lbl.text = "expressed in  " + ", ".join(biomes)
 		bio_lbl.add_theme_font_size_override("font_size", 11)
-		bio_lbl.add_theme_color_override("font_color", COLOR_MUTED)
+		bio_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
 		_body_box.add_child(bio_lbl)
 
 	var alignment: Array = card.get("alignment_top", [])
 	if not alignment.is_empty():
 		for entry in alignment:
 			var w: float = float(entry.get("weight", 0.0))
-			var sign := "+" if w >= 0.0 else "−"
+			var sign_val := "+" if w >= 0.0 else "−"
 			var ali_lbl := Label.new()
 			ali_lbl.text = "  %s → %s   %s%.2f" % [
 				str(entry.get("from", "")), str(entry.get("to", "")),
-				sign, absf(w),
+				sign_val, absf(w),
 			]
 			ali_lbl.add_theme_font_size_override("font_size", 11)
-			ali_lbl.add_theme_color_override("font_color", COLOR_MUTED)
+			ali_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
 			_body_box.add_child(ali_lbl)
 
 	var standing: float = float(card.get("standing", 0.0))
@@ -706,12 +759,11 @@ func _render_faction_card(farm, faction_name: String) -> void:
 		var st_lbl := Label.new()
 		st_lbl.text = "standing  %+.2f" % standing
 		st_lbl.add_theme_font_size_override("font_size", 11)
-		st_lbl.add_theme_color_override("font_color", COLOR_VALUE)
+		st_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_VALUE)
 		_body_box.add_child(st_lbl)
 
-
 # =============================================================================
-# BODY: STORY — narrative log skeleton (placeholder until story_log exists).
+# BODY: STORY — narrative log section.
 # =============================================================================
 
 ## Render per-active-biome berry consumption (count + accumulated phase).
@@ -749,10 +801,9 @@ func _render_berry_phase_section(farm) -> void:
 			str(row.biome), int(row.count), float(row.phase), ratio * 100.0
 		]
 		lbl.add_theme_font_size_override("font_size", 11)
-		lbl.add_theme_color_override("font_color", COLOR_VALUE)
+		lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_VALUE)
 		_body_box.add_child(lbl)
 	_body_box.add_child(_make_spacer(8))
-
 
 func _build_story_body() -> void:
 	_ensure_story_chatter_wired()
@@ -775,8 +826,9 @@ func _build_story_body() -> void:
 
 	# === ACTIVITY FEED (PlayerEventLog ring buffer, newest first) ===
 	const ACTIVITY_VISIBLE := 12
-	var recent_events: Array = PlayerEventLog.get_recent(ACTIVITY_VISIBLE, 1)
-	var total_events: int = PlayerEventLog.get_recent(PlayerEventLog.MAX_EVENTS, 1).size()
+	var player_event_log = get_node_or_null("/root/PlayerEventLog")
+	var recent_events: Array = player_event_log.get_recent(ACTIVITY_VISIBLE, 1) if player_event_log and player_event_log.has_method("get_recent") else []
+	var total_events: int = player_event_log.get_recent(player_event_log.MAX_EVENTS, 1).size() if player_event_log and player_event_log.has_method("get_recent") else 0
 	var header_text: String = "activity"
 	if total_events > recent_events.size():
 		header_text = "activity (%d of %d)" % [recent_events.size(), total_events]
@@ -817,7 +869,7 @@ func _build_story_body() -> void:
 			beat_lbl.text = "Act %d — %s" % [act_n, beat_text]
 			beat_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			beat_lbl.add_theme_font_size_override("font_size", 12)
-			beat_lbl.add_theme_color_override("font_color", COLOR_VALUE if i == 0 else COLOR_MUTED)
+			beat_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_VALUE if i == 0 else UIStyleFactory.COLOR_MUTED)
 			_body_box.add_child(beat_lbl)
 		_body_box.add_child(_make_spacer(8))
 
@@ -827,7 +879,7 @@ func _build_story_body() -> void:
 	beat.text = str(focus_node.arc_beat) if focus_node.arc_beat != "" else "(no beat text)"
 	beat.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	beat.add_theme_font_size_override("font_size", 13)
-	beat.add_theme_color_override("font_color", COLOR_VALUE)
+	beat.add_theme_color_override("font_color", UIStyleFactory.COLOR_VALUE)
 	_body_box.add_child(beat)
 	_body_box.add_child(_make_spacer(6))
 
@@ -840,7 +892,7 @@ func _build_story_body() -> void:
 		var charge_lbl := Label.new()
 		charge_lbl.text = "charge: " + charge_text
 		charge_lbl.add_theme_font_size_override("font_size", 11)
-		charge_lbl.add_theme_color_override("font_color", COLOR_MUTED)
+		charge_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
 		_body_box.add_child(charge_lbl)
 
 	# Density / coherence summary
@@ -872,34 +924,38 @@ func _build_story_body() -> void:
 			lbl.text = line
 			lbl.add_theme_font_size_override("font_size", 12)
 			lbl.add_theme_color_override("font_color",
-				COLOR_ITEM_ACTIVE if is_selected else COLOR_ITEM_IDLE)
+				UIStyleFactory.COLOR_TAB_ACTIVE if is_selected else UIStyleFactory.COLOR_ITEM_IDLE)
 			_body_box.add_child(lbl)
 
 	_body_box.add_child(_make_spacer(8))
 
 	# === ICON ROW ===
 	_body_box.add_child(_make_section_header("icon · expression"))
-	var icons: Array = _story_icon_pairs()
+	var icons: Array = _story_icons()
 	var icon_row := HBoxContainer.new()
 	icon_row.add_theme_constant_override("separation", 18)
 	for i in range(3):
-		var pair: Dictionary = icons[i] if i < icons.size() else {}
+		var icon: Dictionary = icons[i] if i < icons.size() else {}
 		var sel := (i == _story_icon_idx)
-		var pair_text := "%s%s" % [str(pair.get("north", "·")), str(pair.get("south", "·"))]
+		var icon_text := "%s%s" % [str(icon.get("north", "·")), str(icon.get("south", "·"))]
 		var ilbl := Label.new()
-		ilbl.text = "[%d] %s" % [i + 1, pair_text]
+		ilbl.text = "[%d] %s" % [i + 1, icon_text]
 		ilbl.add_theme_font_size_override("font_size", 14)
 		ilbl.add_theme_color_override("font_color",
-			COLOR_ITEM_ACTIVE if sel else COLOR_ITEM_IDLE)
+			UIStyleFactory.COLOR_TAB_ACTIVE if sel else UIStyleFactory.COLOR_ITEM_IDLE)
 		icon_row.add_child(ilbl)
 	_body_box.add_child(icon_row)
 	_body_box.add_child(_make_spacer(4))
 
 	# === ACTION ROW (canonical Q E R F left-to-right) ===
-	_body_box.add_child(_make_action_row("Q", "Withdraw", "screw out — pull attention away from this topic"))
-	_body_box.add_child(_make_action_row("E", "Express", "observe + commit — strong focus shift + advance trajectory"))
-	_body_box.add_child(_make_action_row("R", "Reinforce", "screw in — focus narrative attention on this topic"))
-	_body_box.add_child(_make_action_row("F", "Harmonize", "lossless — no attention shift; records intent only"))
+	_body_box.add_child(_make_action_row("Q", "Harmonize", "yield self toward target — alignment drifts toward this chatter's emoji palette"))
+	var e_label := "flatten" if _story_inspect_open else "inspect ▾"
+	var e_desc := "close detail panel" if _story_inspect_open else "open chatter detail (pauses sim)"
+	_body_box.add_child(_make_action_row("E", e_label, e_desc))
+	_body_box.add_child(_make_action_row("R", "Express", "push self outward — strong commit: alignment + mass shift + phase rotation"))
+	var f_label := "flatten" if _story_inspect_open else "—"
+	var f_desc := "close detail panel" if _story_inspect_open else ""
+	_body_box.add_child(_make_action_row("F", f_label, f_desc))
 	_body_box.add_child(_make_spacer(8))
 
 	# === CHATTER BUBBLES (cursor target for QERF) ===
@@ -941,8 +997,13 @@ func _build_story_body() -> void:
 							"sharp" if gap > 0.1 else "diffuse",
 						]
 						att_lbl.add_theme_font_size_override("font_size", 11)
-						att_lbl.add_theme_color_override("font_color", COLOR_MUTED)
+						att_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
 						_body_box.add_child(att_lbl)
+
+	# === INSPECT PANEL (E expands; F flattens) ===
+	if _story_inspect_open:
+		_body_box.add_child(_make_spacer(6))
+		_body_box.add_child(_make_story_inspect_panel())
 	_body_box.add_child(_make_spacer(8))
 
 	# === TRAJECTORY ===
@@ -958,12 +1019,80 @@ func _build_story_body() -> void:
 			var t := Label.new()
 			t.text = "  %s%s · %s → %s" % [verb_chip, spk, str(entry.get("from_node", "")), str(entry.get("to_node", ""))]
 			t.add_theme_font_size_override("font_size", 10)
-			t.add_theme_color_override("font_color", COLOR_MUTED)
+			t.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
 			_body_box.add_child(t)
 
 	_body_box.add_child(_make_spacer(8))
-	_body_box.add_child(_make_muted_label("GHJKL; pick chatter   ·   1/2/3 pick icon   ·   QERF express   ·   W parent / S child node", 10))
+	_body_box.add_child(_make_muted_label("GHJKL; pick chatter   ·   1/2/3 pick icon   ·   Q harmonize / R express / E inspect / F flatten   ·   W parent / S child node", 10))
 
+func _make_story_inspect_panel() -> Control:
+	# Detail panel for the selected chatter line. Surfaces the data Q/R will
+	# move when fired: chatter emojis, target faction standing, topic node.
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 3)
+
+	var panel := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.06, 0.09, 0.13, 0.9)
+	sb.set_corner_radius_all(4)
+	sb.content_margin_left = 8
+	sb.content_margin_right = 8
+	sb.content_margin_top = 6
+	sb.content_margin_bottom = 6
+	panel.add_theme_stylebox_override("panel", sb)
+	panel.add_child(box)
+
+	var engine = _story_engine()
+	if engine == null:
+		var lbl := Label.new()
+		lbl.text = "(story engine unavailable)"
+		lbl.add_theme_font_size_override("font_size", 11)
+		lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
+		box.add_child(lbl)
+		return panel
+
+	var chatter: Array = engine.recent_chatter(6)
+	if chatter.is_empty():
+		var lbl2 := Label.new()
+		lbl2.text = "(no chatter to inspect)"
+		lbl2.add_theme_font_size_override("font_size", 11)
+		lbl2.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
+		box.add_child(lbl2)
+		return panel
+
+	var idx := clampi(_story_chatter_idx, 0, chatter.size() - 1)
+	var ev: Dictionary = chatter[idx]
+
+	box.add_child(_make_section_header("inspect ▾"))
+
+	var emojis: Array = ev.get("emojis", [])
+	if not emojis.is_empty():
+		box.add_child(_make_kv_row("emojis", " ".join(PackedStringArray(emojis))))
+
+	var faction: String = str(ev.get("faction", ""))
+	if faction != "":
+		box.add_child(_make_kv_row("speaker", faction))
+		var farm = InstrumentLocator.resolve_active_farm(self)
+		if farm and "faction_standings" in farm:
+			var standings: Dictionary = farm.faction_standings
+			if standings.has(faction):
+				box.add_child(_make_kv_row("standing", "%+.2f" % float(standings[faction])))
+
+	var topic: String = str(ev.get("topic_node", ""))
+	if topic != "":
+		box.add_child(_make_kv_row("topic", topic))
+
+	var biome: String = str(ev.get("biome", ""))
+	if biome != "":
+		box.add_child(_make_kv_row("biome", biome))
+
+	var hint := Label.new()
+	hint.text = "Q harmonize toward · R express outward · F to flatten"
+	hint.add_theme_font_size_override("font_size", 10)
+	hint.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
+	box.add_child(hint)
+
+	return panel
 
 func _story_engine() -> Node:
 	if Engine.has_singleton("StoryEngine"):
@@ -973,20 +1102,18 @@ func _story_engine() -> Node:
 		return root.get_node("StoryEngine")
 	return null
 
-
-## Pick the player's 3 active Icons. Golden cut: top 3 known pairs by harvest count
-## (or just the first 3 if no count). Falls back to placeholder if none.
-func _story_icon_pairs() -> Array:
+## Pick the player's 3 active Icons. Golden cut: top 3 known icons by harvest count
+## (or just the first 3 if no count). Falls back to the default label if none.
+func _story_icons() -> Array:
 	var farm = InstrumentLocator.resolve_active_farm(self)
-	if farm == null or not farm.has_method("get_known_pairs"):
+	if farm == null or not farm.has_method("get_known_icons"):
 		return []
-	var pairs: Array = farm.get_known_pairs()
-	if pairs.is_empty():
+	var icons: Array = farm.get_known_icons()
+	if icons.is_empty():
 		return []
 	# No harvest-count metric in the golden cut; just take first 3.
-	var slice := pairs.slice(0, mini(3, pairs.size()))
+	var slice := icons.slice(0, mini(3, icons.size()))
 	return slice
-
 
 func _ensure_story_chatter_wired() -> void:
 	if _story_chatter_connected:
@@ -998,20 +1125,18 @@ func _ensure_story_chatter_wired() -> void:
 		engine.chatter_emitted.connect(_on_story_chatter)
 	if engine.has_signal("trajectory_advanced") and not engine.trajectory_advanced.is_connected(_on_story_trajectory):
 		engine.trajectory_advanced.connect(_on_story_trajectory)
-	if not PlayerEventLog.event_added.is_connected(_on_player_event_added):
-		PlayerEventLog.event_added.connect(_on_player_event_added)
+	var player_event_log = get_node_or_null("/root/PlayerEventLog")
+	if player_event_log != null and player_event_log.has_signal("event_added") and not player_event_log.event_added.is_connected(_on_player_event_added):
+		player_event_log.event_added.connect(_on_player_event_added)
 	_story_chatter_connected = true
-
 
 func _on_player_event_added(_entry: Dictionary) -> void:
 	if _current_tab == Tab.STORY and is_active:
 		_refresh_body()
 
-
 func _on_story_chatter(_speaker: String, _faction: String, _line: String, _topic: String) -> void:
 	if _current_tab == Tab.STORY and is_active:
 		_refresh_body()
-
 
 ## WASD on Story tab: W (step=-1) follows trajectory backward (parent — first incoming edge);
 ## S (step=+1) follows the *cursor* forward without measuring (peek at selected edge's target).
@@ -1047,7 +1172,6 @@ func _story_crawl(step: int) -> void:
 			_story_edge_idx = 0
 			_refresh_body()
 
-
 func _on_story_trajectory(_from: String, to_node: String, _edge: String) -> void:
 	# When trajectory advances (system or player E), auto-follow the focus.
 	if _story_focus_node == "":
@@ -1060,21 +1184,35 @@ func _on_story_trajectory(_from: String, to_node: String, _edge: String) -> void
 	if _current_tab == Tab.STORY and is_active:
 		_refresh_body()
 
-
 # =============================================================================
 # BODY: BALANCE — experimental action cost / timescale inspector.
 # =============================================================================
 
 func _build_balance_body() -> void:
 	_refresh_balance_snapshot()
-	if _balance_snapshot.is_empty():
-		_body_box.add_child(_make_muted_label("chatter snapshot unavailable (no active farm).", 12))
-		return
+	_ensure_balance_settings_loaded()
 
-	_body_box.add_child(_make_action_row("E", "Refresh", "re-snapshot current biome state"))
-	_body_box.add_child(_make_muted_label("Q/R  shift biome scope  ·  W/S  cycle action  ·  GHJKL; pick slot", 10))
+	# === SETTINGS LIST (Q − value · E reset · R + value · GHJKL; pick) ===
+	_body_box.add_child(_make_section_header("settings"))
+	var page_size: int = ITEM_KEYS.size()
+	var page_start: int = _balance_setting_page * page_size
+	var page_end: int = mini(page_start + page_size, _balance_settings.size())
+	for i in range(page_start, page_end):
+		_body_box.add_child(_make_balance_setting_row(i, i - page_start))
+	var page_count: int = max(1, int(ceil(float(_balance_settings.size()) / float(page_size))))
+	if page_count > 1:
+		_body_box.add_child(_make_muted_label(
+			"Q − value  ·  R + value  ·  E reset  ·  GHJKL; pick  ·  A/D page (%d/%d)" % [
+				_balance_setting_page + 1, page_count], 11))
+	else:
+		_body_box.add_child(_make_muted_label(
+			"Q − value  ·  R + value  ·  E reset  ·  GHJKL; pick", 11))
 	_body_box.add_child(_make_spacer(6))
 
+	# === BELOW: read-only action-cost inspector (kept for context) ===
+	if _balance_snapshot.is_empty():
+		_body_box.add_child(_make_muted_label("(action cost inspector unavailable — no active farm)", 11))
+		return
 	_body_box.add_child(_make_section_header("profile"))
 	var profile_id := str(_balance_snapshot.get("profile_id", "default"))
 	var profile_name := str(_balance_snapshot.get("profile_display_name", profile_id))
@@ -1088,15 +1226,15 @@ func _build_balance_body() -> void:
 		_body_box.add_child(_make_muted_label("no actions configured.", 12))
 	else:
 		var total := _balance_action_keys.size()
-		var page_size := ITEM_KEYS.size()
-		var page := _balance_action_idx / page_size
-		var start := page * page_size
-		var end: int = mini(start + page_size, total)
+		var act_page_size := ITEM_KEYS.size()
+		var act_page := int(float(_balance_action_idx) / float(act_page_size))
+		var start := act_page * act_page_size
+		var end: int = mini(start + act_page_size, total)
 		for i in range(start, end):
 			_body_box.add_child(_make_balance_action_row(i, i - start))
-		var pages := int(ceil(float(total) / float(page_size)))
+		var pages := int(ceil(float(total) / float(act_page_size)))
 		_body_box.add_child(_make_muted_label(
-			"W/S action (%d/%d, p%d/%d)  ·  Q/R scope biome" % [_balance_action_idx + 1, total, page + 1, pages],
+			"action (%d/%d, p%d/%d) — read-only inspector" % [_balance_action_idx + 1, total, act_page + 1, pages],
 			11,
 		))
 
@@ -1137,6 +1275,38 @@ func _build_balance_body() -> void:
 	_body_box.add_child(_make_spacer(4))
 	_body_box.add_child(_make_muted_label("read-only. write ops stay in the experimental chatter page.", 10))
 
+func _make_balance_setting_row(idx: int, slot_idx: int) -> Control:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	var key_str: String = ITEM_KEYS[slot_idx] if slot_idx < ITEM_KEYS.size() else "?"
+	row.add_child(_make_key_chip(key_str))
+
+	var setting: Dictionary = _balance_settings[idx]
+	var cat_lbl := Label.new()
+	cat_lbl.text = str(setting.get("category", ""))
+	cat_lbl.add_theme_font_size_override("font_size", 11)
+	cat_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
+	cat_lbl.custom_minimum_size = Vector2(70, 0)
+	row.add_child(cat_lbl)
+
+	var name_lbl := Label.new()
+	name_lbl.text = str(setting.get("label", setting.get("id", "—")))
+	name_lbl.add_theme_font_size_override("font_size", 13)
+	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(name_lbl)
+
+	var value_lbl := Label.new()
+	value_lbl.text = _balance_setting_format(setting)
+	value_lbl.add_theme_font_size_override("font_size", 13)
+	value_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_VALUE)
+	row.add_child(value_lbl)
+
+	var selected := idx == _balance_setting_idx
+	var c := UIStyleFactory.COLOR_TAB_ACTIVE if selected else UIStyleFactory.COLOR_ITEM_IDLE
+	name_lbl.add_theme_color_override("font_color", c)
+	if selected:
+		name_lbl.text = "▸ " + name_lbl.text
+	return row
 
 func _make_balance_action_row(idx: int, slot_idx: int) -> Control:
 	var row := HBoxContainer.new()
@@ -1155,16 +1325,15 @@ func _make_balance_action_row(idx: int, slot_idx: int) -> Control:
 	var cost_lbl := Label.new()
 	cost_lbl.text = _format_cost(costs.get(action_name, {}))
 	cost_lbl.add_theme_font_size_override("font_size", 12)
-	cost_lbl.add_theme_color_override("font_color", COLOR_VALUE)
+	cost_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_VALUE)
 	row.add_child(cost_lbl)
 
 	var selected := idx == _balance_action_idx
-	var c := COLOR_ITEM_ACTIVE if selected else COLOR_ITEM_IDLE
+	var c := UIStyleFactory.COLOR_TAB_ACTIVE if selected else UIStyleFactory.COLOR_ITEM_IDLE
 	name_lbl.add_theme_color_override("font_color", c)
 	if selected:
 		name_lbl.text = "▸ " + name_lbl.text
 	return row
-
 
 # =============================================================================
 # BODY: GUIDE — pick a section with GHJKL, see prose.
@@ -1182,67 +1351,66 @@ func _build_guide_body() -> void:
 		item.add_theme_font_size_override("font_size", 13)
 		item.text = "[%s] %s" % [key_str, str(GUIDE_ITEMS[i].get("title", ""))]
 		if i == _guide_item:
-			item.add_theme_color_override("font_color", COLOR_ITEM_ACTIVE)
+			item.add_theme_color_override("font_color", UIStyleFactory.COLOR_TAB_ACTIVE)
 		else:
-			item.add_theme_color_override("font_color", COLOR_ITEM_IDLE)
+			item.add_theme_color_override("font_color", UIStyleFactory.COLOR_ITEM_IDLE)
 		picker.add_child(item)
 
 	_body_box.add_child(_make_spacer(6))
 
 	var section_id := str(GUIDE_ITEMS[_guide_item].get("id", ""))
 	match section_id:
-		"loop":   _guide_core_loop()
-		"tools":  _guide_four_tools()
-		"biomes": _guide_biomes_economy()
-		"try":    _guide_things_to_try()
-		"ref":    _guide_quick_reference()
-
+		"loop":     _guide_core_loop()
+		"tools":    _guide_four_tools()
+		"biomes":   _guide_biomes_economy()
+		"try":      _guide_things_to_try()
+		"ref":      _guide_quick_reference()
+		"verbs":    _guide_verbs_table()
+		"glossary": _guide_glossary()
 
 func _guide_core_loop() -> void:
-	_body_box.add_child(_make_section_header("the core loop: Q · E · R"))
+	_body_box.add_child(_make_section_header("the core loop: R · E · Q"))
 	_body_box.add_child(_make_body("Press 8 to enter the Ace frame, then:"))
-	_body_box.add_child(_make_action_row("Q", "Explore", "Surface a terminal to a quantum register (screw out)."))
-	_body_box.add_child(_make_action_row("E", "Measure", "Collapse the quantum state (Born rule)."))
-	_body_box.add_child(_make_action_row("R", "Pop", "Harvest credits proportional to the measured outcome (screw in)."))
+	_body_box.add_child(_make_action_row("R", "Plant", "Invest energy — jolt population toward the north pole (screw in)."))
+	_body_box.add_child(_make_action_row("E", "Measure", "Read the price — collapse the quantum state (Born rule)."))
+	_body_box.add_child(_make_action_row("Q", "Harvest", "Extract energy — reward = surprisal −kT·log p, rare pays more (screw out)."))
 	_body_box.add_child(_make_body(
-		"Q screws out (surface a terminal), E observes (measure), R screws in (commit / pop). "
-		+ "Same direction in every tool."))
-
+		"R screws in (plant = invest energy), E reads the price (measure), Q screws out (harvest = extract). "
+		+ "Selecting a plot auto-binds its terminal — no separate Explore. Same direction in every tool."))
 
 func _guide_four_tools() -> void:
 	_body_box.add_child(_make_section_header("the seven archetype frames (4-0)"))
-	_body_box.add_child(_make_action_row("4", "Spark",     "Lindbladian: drain / transfer / pump. 1/2/3 = thermal / dephase / damp."))
-	_body_box.add_child(_make_action_row("5", "Icon",      "Inject a dual-emoji qubit from your faction signature."))
-	_body_box.add_child(_make_action_row("6", "Merchant", "Faction contracts: Q=Treaty, E=Broker, R=Tribute, F=Tip."))
-	_body_box.add_child(_make_action_row("7", "Captain",   "Biome lifecycle: Q=discover, R=cull."))
-	_body_box.add_child(_make_action_row("8", "Ace", "Probe: Q=explore, E=measure, R=pop."))
-	_body_box.add_child(_make_action_row("9", "Operator",  "Gate building: Q=build, E=inspect, R=break."))
+	_body_box.add_child(_make_action_row("4", "Spark",     "Lindbladian jolt (energy dyad): Q discharges south, R charges north."))
+	_body_box.add_child(_make_action_row("5", "Icon",      "Inject a dual-emoji qubit from the neighborhood's installed signature."))
+	_body_box.add_child(_make_action_row("6", "Merchant", "Faction contracts (energy dyad): Q=Sell, E=Broker, R=Buy, F=Tip. Price = −kT·log p."))
+	_body_box.add_child(_make_action_row("7", "Captain",   "Biome lifecycle: Q=cull, R=discover."))
+	_body_box.add_child(_make_action_row("8", "Ace", "Energy dyad: Q=harvest (extract), E=measure (price), R=plant (invest)."))
+	_body_box.add_child(_make_action_row("9", "Operator",  "Gate building: Q=break, E=inspect, R=gate."))
 	_body_box.add_child(_make_action_row("0", "Druid",     "Unitary rotations + Hadamard. 1/2/3 = X / Y / Z."))
 	_body_box.add_child(_make_spacer(4))
 	_body_box.add_child(_make_body(
 		"Re-press the active hat to toggle back to Ace (default toolkit). "
 		+ "Hold Shift+Q/E/R to apply the verb to every valid plot at once."))
 
-
 func _guide_biomes_economy() -> void:
 	_body_box.add_child(_make_section_header("biomes"))
 	_body_box.add_child(_make_body(
-		"Up to 6 biome slots on TYUIOP. Each has its own Hamiltonian — different physics, "
-		+ "different feel. Plots live on GHJKL; (left → right). The ' key toggles select-all."))
+		"Up to 6 biome slots on TYUIOP. Each biome is the full dissipative scaffold — different physics, "
+		+ "different feel. A neighborhood is an icon signature plus a biome. Plots live on GHJKL; "
+		+ "(left → right). The ' key toggles select-all."))
 	_body_box.add_child(_make_spacer(4))
 	_body_box.add_child(_make_section_header("economy"))
 	_body_box.add_child(_make_body(
-		"Measurements convert quantum probability to emoji-credits at 10:1. Learning icon "
-		+ "via quests grants up to 4× purity bonus on seasonal reaps."))
-
+		"Harvest pays the surprisal energy of the outcome: reward = −kT·log p (rare outcomes "
+		+ "pay more; kT is the biome's market temperature). Learning icon via quests grants "
+		+ "up to 4× purity bonus on seasonal reaps."))
 
 func _guide_things_to_try() -> void:
 	_body_box.add_child(_make_section_header("a few experiments"))
-	_body_box.add_child(_make_body("Make a Bell pair: Operator (9) → pick two plots → Q. Then Ace (8) → measure one, watch the other collapse."))
+	_body_box.add_child(_make_body("Make a Bell pair: Operator (9) → pick two plots → R. Then Ace (8) → measure one, watch the other collapse."))
 	_body_box.add_child(_make_body("Hadamard everything: Druid (0) → E → measure. Repeat — watch 50/50 emerge."))
 	_body_box.add_child(_make_body("Open N: apply a Hadamard, watch off-diagonal terms appear; measure, watch them vanish."))
 	_body_box.add_child(_make_body("Build a GHZ: entangle A↔B, then B↔C. Measure any one — all collapse."))
-
 
 func _guide_quick_reference() -> void:
 	_body_box.add_child(_make_section_header("verbs"))
@@ -1254,17 +1422,85 @@ func _guide_quick_reference() -> void:
 	_body_box.add_child(_make_action_row("Tab", "Cycle mode",   "Advance the current frame's sub-mode (was F)"))
 	_body_box.add_child(_make_action_row("1/2/3", "Pick sub-mode", "Direct sub-mode select within current frame"))
 	_body_box.add_child(_make_action_row("4-0", "Frame hat",    "Pick archetype frame; re-press toggles to Ace"))
-	_body_box.add_child(_make_action_row("WASD", "Crawl grid",  "A/D = ±1 plot, W/S = ±1 biome"))
-	_body_box.add_child(_make_action_row("[ / ]", "Frame cycle","Pages within open surface; biomes when none open"))
-	_body_box.add_child(_make_action_row(", / .", "Menu cycle", "Cycles top-level menu overlays"))
+	_body_box.add_child(_make_action_row("WASD", "Spin cylinder", "W/S rotate between rings (frame/biome/plot/surface), A/D step around the active ring"))
 	_body_box.add_child(_make_spacer(4))
 	_body_box.add_child(_make_section_header("rows"))
 	_body_box.add_child(_make_action_row("4-0",         "Frames",  ""))
 	_body_box.add_child(_make_action_row("T-Y-U-I-O-P", "Biomes",  ""))
 	_body_box.add_child(_make_action_row("G-H-J-K-L-;", "Plots",   ""))
-	_body_box.add_child(_make_action_row("'",            "All plots","toggle"))
+	_body_box.add_child(_make_action_row("Z-X-C-V-B-N-M", "Surfaces", "Top-level menus (system / self / quests / atlas / biome / network / map)"))
+	_body_box.add_child(_make_action_row("'",            "Bulk plots","Toggle: check all plots in active biome, or clear if any are checked"))
 	_body_box.add_child(_make_action_row("Shift+QER",    "Bulk",    "apply to all valid plots"))
 
+# Verbs reference — moved here from EscapeMenu's old Verbs tab. Reads the
+# 7-hat × QERF table out of ToolConfig so it stays in sync with whatever the
+# active toolkit actually does.
+const _VERBS_HAT_KEYS := ["4", "5", "6", "7", "8", "9", "0"]
+const _VERBS_FRAME_ORDER := ["spark", "icon", "merchant", "captain", "ace", "operator", "druid"]
+
+func _guide_verbs_table() -> void:
+	_body_box.add_child(_make_section_header("hats and verbs"))
+	_body_box.add_child(_make_body(
+		"Q/E/R/F per hat. Reference only — the verbs execute on the gameplay "
+		+ "surface, not here. 1/2/3 sub-modes (where shown) remap Q/R."))
+	_body_box.add_child(_make_spacer(4))
+
+	for i in range(_VERBS_FRAME_ORDER.size()):
+		var frame_name: String = _VERBS_FRAME_ORDER[i]
+		var hat_key: String = _VERBS_HAT_KEYS[i]
+		var frame_def: Dictionary = ToolConfig.get_frame(frame_name)
+		var label_name: String = str(frame_def.get("name", frame_name))
+		_body_box.add_child(_make_section_header("[%s] %s" % [hat_key, label_name]))
+
+		var mode_name: String = ToolConfig.get_frame_mode_name(frame_name)
+		var mode_actions: Dictionary = frame_def.get("actions", {}).get(mode_name, {})
+		for key in ["Q", "E", "R", "F"]:
+			var info: Dictionary = mode_actions.get(key, {})
+			var verb_label: String = str(info.get("label", ""))
+			var hint: String = str(info.get("hint", ""))
+			if verb_label == "" or verb_label == "-":
+				continue
+			_body_box.add_child(_make_action_row(key, verb_label, hint))
+
+		var modes: Array = frame_def.get("modes", [])
+		if modes.size() > 1:
+			_body_box.add_child(_make_muted_label(
+				"sub-modes: %s   ·   1-%d direct-pick" % [
+					" / ".join(modes), modes.size()], 11))
+		_body_box.add_child(_make_spacer(4))
+
+func _guide_glossary() -> void:
+	if _glossary_reg == null:
+		_glossary_reg = GlossaryRegistry.new()
+		_glossary_reg.load_all()
+	_body_box.add_child(_make_section_header("glossary"))
+	_body_box.add_child(_make_body("Locked vocabulary — one source of truth."))
+	_body_box.add_child(_make_spacer(4))
+	_body_box.add_child(_make_section_header("canonical terms"))
+	_body_box.add_child(_make_body("The core nouns used across X."))
+	if _glossary_reg.size() == 0:
+		_body_box.add_child(_make_body("[no glossary terms loaded]"))
+		return
+	_render_glossary_terms(GLOSSARY_CANONICAL_TERMS, false)
+	_body_box.add_child(_make_spacer(4))
+	_body_box.add_child(_make_section_header("full glossary"))
+	_body_box.add_child(_make_body("Alphabetical reference for the rest of the terms."))
+	_body_box.add_child(_make_spacer(4))
+	_render_glossary_terms(_glossary_reg.all_terms_sorted(), true)
+
+func _render_glossary_terms(terms: Array, include_related: bool) -> void:
+	for term_name in terms:
+		var entry := _glossary_reg.get_term(str(term_name))
+		if entry.is_empty():
+			continue
+		var short_def := str(entry.get("short_def", ""))
+		_body_box.add_child(_make_kv_row(str(term_name), short_def))
+		if include_related:
+			var related: Array = entry.get("related", [])
+			if not related.is_empty():
+				_body_box.add_child(_make_muted_label(
+					"→  " + "  ·  ".join(related), 11))
+		_body_box.add_child(_make_spacer(2))
 
 # =============================================================================
 # HELPERS
@@ -1277,25 +1513,23 @@ func _make_section_header(text: String) -> Label:
 	lbl.add_theme_color_override("font_color", COLOR_HEADER)
 	return lbl
 
-
 func _make_kv_row(key: String, value: String) -> Control:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
 	var k := Label.new()
 	k.text = key
 	k.add_theme_font_size_override("font_size", 12)
-	k.add_theme_color_override("font_color", COLOR_MUTED)
+	k.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
 	k.custom_minimum_size = Vector2(140, 0)
 	row.add_child(k)
 	var v := Label.new()
 	v.text = value
 	v.add_theme_font_size_override("font_size", 13)
-	v.add_theme_color_override("font_color", COLOR_VALUE)
+	v.add_theme_color_override("font_color", UIStyleFactory.COLOR_VALUE)
 	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	v.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	row.add_child(v)
 	return row
-
 
 func _make_action_row(key_text: String, label: String, hint: String) -> Control:
 	var row := HBoxContainer.new()
@@ -1303,44 +1537,41 @@ func _make_action_row(key_text: String, label: String, hint: String) -> Control:
 	var k := Label.new()
 	k.text = "[%s]" % key_text
 	k.add_theme_font_size_override("font_size", 13)
-	k.add_theme_color_override("font_color", COLOR_KEY_CHIP)
+	k.add_theme_color_override("font_color", UIStyleFactory.COLOR_KEY_CHIP)
 	k.custom_minimum_size = Vector2(70, 0)
 	row.add_child(k)
 	var n := Label.new()
 	n.text = label
 	n.add_theme_font_size_override("font_size", 13)
-	n.add_theme_color_override("font_color", COLOR_VERB)
+	n.add_theme_color_override("font_color", UIStyleFactory.COLOR_VERB_ACTIVE)
 	n.custom_minimum_size = Vector2(150, 0)
 	row.add_child(n)
 	if hint != "":
 		var d := Label.new()
 		d.text = hint
 		d.add_theme_font_size_override("font_size", 12)
-		d.add_theme_color_override("font_color", COLOR_MUTED)
+		d.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
 		d.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		row.add_child(d)
 	return row
 
-
 func _make_key_chip(key_text: String) -> Label:
 	var lbl := Label.new()
 	lbl.text = "[%s]" % key_text
 	lbl.add_theme_font_size_override("font_size", 13)
-	lbl.add_theme_color_override("font_color", COLOR_KEY_CHIP)
+	lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_KEY_CHIP)
 	lbl.custom_minimum_size = Vector2(32, 0)
 	return lbl
 
-
-func _make_muted_label(text: String, size: int) -> Label:
+func _make_muted_label(text: String, icon_size: int) -> Label:
 	var lbl := Label.new()
 	lbl.text = text
-	lbl.add_theme_font_size_override("font_size", size)
-	lbl.add_theme_color_override("font_color", COLOR_MUTED)
+	lbl.add_theme_font_size_override("font_size", icon_size)
+	lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	return lbl
-
 
 func _make_body(text: String) -> Label:
 	var lbl := Label.new()
@@ -1350,12 +1581,10 @@ func _make_body(text: String) -> Label:
 	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	return lbl
 
-
 func _make_spacer(h: int) -> Control:
 	var c := Control.new()
 	c.custom_minimum_size = Vector2(0, h)
 	return c
-
 
 # =============================================================================
 # CHATTER BUBBLE (Z Story page)
@@ -1367,7 +1596,6 @@ const CHATTER_EMOJI_ALPHA_MIN := 0.45
 const CHATTER_EMOJI_ALPHA_MAX := 1.0
 const CHATTER_MAX_CONNECTIONS := 6
 
-
 ## Render one chatter event as a PanelContainer "bubble".
 ##   header: speaker chip (left) + topic biome chip (right)
 ##   body: emojis sized + alpha-modulated by per-qubit measurement marginal
@@ -1376,7 +1604,7 @@ func _make_chatter_bubble(ev: Dictionary, selected: bool, key_str: String) -> Pa
 	var bubble := PanelContainer.new()
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.10, 0.12, 0.16, 0.88)
-	sb.border_color = COLOR_ITEM_ACTIVE if selected else Color(0.25, 0.30, 0.38, 0.9)
+	sb.border_color = UIStyleFactory.COLOR_TAB_ACTIVE if selected else Color(0.25, 0.30, 0.38, 0.9)
 	sb.set_border_width_all(2 if selected else 1)
 	sb.set_corner_radius_all(8)
 	sb.content_margin_left = 10
@@ -1395,7 +1623,7 @@ func _make_chatter_bubble(ev: Dictionary, selected: bool, key_str: String) -> Pa
 	var key_label := Label.new()
 	key_label.text = "[%s]" % key_str
 	key_label.add_theme_font_size_override("font_size", 11)
-	key_label.add_theme_color_override("font_color", COLOR_KEY_CHIP)
+	key_label.add_theme_color_override("font_color", UIStyleFactory.COLOR_KEY_CHIP)
 	key_label.custom_minimum_size = Vector2(28, 0)
 	header.add_child(key_label)
 
@@ -1403,7 +1631,7 @@ func _make_chatter_bubble(ev: Dictionary, selected: bool, key_str: String) -> Pa
 	speaker_label.text = "%s %s" % [str(ev.get("speaker", "")), str(ev.get("faction", ""))]
 	speaker_label.add_theme_font_size_override("font_size", 13)
 	speaker_label.add_theme_color_override("font_color",
-		COLOR_ITEM_ACTIVE if selected else COLOR_VALUE)
+		UIStyleFactory.COLOR_TAB_ACTIVE if selected else UIStyleFactory.COLOR_VALUE)
 	header.add_child(speaker_label)
 
 	var spacer_h := Control.new()
@@ -1441,21 +1669,20 @@ func _make_chatter_bubble(ev: Dictionary, selected: bool, key_str: String) -> Pa
 		var also_label := Label.new()
 		also_label.text = "also:"
 		also_label.add_theme_font_size_override("font_size", 10)
-		also_label.add_theme_color_override("font_color", COLOR_MUTED)
+		also_label.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
 		footer.add_child(also_label)
 		var visible_count := mini(connections.size(), CHATTER_MAX_CONNECTIONS)
 		for ci in range(visible_count):
-			footer.add_child(_make_story_chip(str(connections[ci]), COLOR_MUTED))
+			footer.add_child(_make_story_chip(str(connections[ci]), UIStyleFactory.COLOR_MUTED))
 		if connections.size() > visible_count:
 			var more_label := Label.new()
 			more_label.text = "+%d" % (connections.size() - visible_count)
 			more_label.add_theme_font_size_override("font_size", 10)
-			more_label.add_theme_color_override("font_color", COLOR_MUTED)
+			more_label.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
 			footer.add_child(more_label)
 		vbox.add_child(footer)
 
 	return bubble
-
 
 ## Small chip helper — used for biome / connection labels in chatter bubbles.
 func _make_story_chip(text: String, color: Color) -> PanelContainer:
@@ -1477,7 +1704,6 @@ func _make_story_chip(text: String, color: Color) -> PanelContainer:
 	chip.add_child(lbl)
 	return chip
 
-
 # =============================================================================
 # QERF DISPATCH
 # =============================================================================
@@ -1495,10 +1721,10 @@ func get_inspect_text() -> String:
 		_:
 			return ""
 
-
 func _story_inspect_text() -> String:
 	# Show the most recent event from PlayerEventLog at full message detail.
-	var recent: Array = PlayerEventLog.get_recent(1, 1)
+	var player_event_log = get_node_or_null("/root/PlayerEventLog")
+	var recent: Array = player_event_log.get_recent(1, 1) if player_event_log and player_event_log.has_method("get_recent") else []
 	if recent.is_empty():
 		return ""
 	var ev: Dictionary = recent[0]
@@ -1507,7 +1733,6 @@ func _story_inspect_text() -> String:
 	if path != "":
 		msg += "\n→ open via %s" % path
 	return msg
-
 
 func _self_inspect_text() -> String:
 	# When Self tab is showing, E pops up the spotlight faction's nature card
@@ -1533,58 +1758,55 @@ func _self_inspect_text() -> String:
 		lines.append("biomes: " + ", ".join(bio))
 	return "\n".join(lines)
 
-
 func _on_action_q() -> void:
 	match _current_tab:
-		Tab.BALANCE: _cycle_balance_biome(-1)
-		Tab.STORY:   _story_apply_verb("Q")
+		Tab.BALANCE: _nudge_balance_setting(-1)  # Q = − value
+		Tab.STORY:   _story_apply_verb("R")  # Q label "Harmonize" → engine R (player aligns toward target)
 		_: pass
-
 
 func _on_action_e() -> void:
 	match _current_tab:
 		Tab.BALANCE:
-			_refresh_balance_snapshot()
-			_refresh_body()
+			_reset_balance_setting()  # E = reset selected tunable to default
 		Tab.STORY:
-			_story_apply_verb("E")
+			_story_inspect_open = not _story_inspect_open  # E = pause + inspect (toggle panel)
+			_refresh_body()
 		_:
 			pass
 
-
 func _on_action_r() -> void:
 	match _current_tab:
-		Tab.BALANCE: _cycle_balance_biome(1)
-		Tab.STORY:   _story_apply_verb("R")
+		Tab.BALANCE: _nudge_balance_setting(1)  # R = + value
+		Tab.STORY:   _story_apply_verb("E")  # R label "Express" → engine E (strong commit / mass shift)
 		Tab.SELF:
-			# R = screw in = commit: assign cursor's pair to the selected icon slot.
+			# R = screw in = commit: assign cursor's icon to the selected icon slot.
 			var farm = InstrumentLocator.resolve_active_farm(self)
-			if farm == null or not farm.has_method("set_active_icon_slot"):
+			if farm == null:
 				return
-			var pairs: Array = farm.get_known_pairs()
-			if pairs.is_empty() or _self_picker_pair < 0 or _self_picker_pair >= pairs.size():
+			var icons: Array = farm.get_known_icons()
+			if icons.is_empty() or _self_picker_icon < 0 or _self_picker_icon >= icons.size():
 				return
-			farm.set_active_icon_slot(_self_picker_slot, _self_picker_pair)
-			_refresh_body()
+			var instr = InstrumentLocator.resolve_quantum_instrument(self)
+			if instr and instr.has_method("action_set_active_icon_slot"):
+				instr.action_set_active_icon_slot(_self_picker_slot, _self_picker_icon)
+				_refresh_body()
 		_: pass
-
 
 func _on_action_f() -> void:
 	match _current_tab:
-		Tab.STORY: _story_apply_verb("F")
+		Tab.STORY:
+			# F = play + flatten the inspect panel (PlayerShell handles global play).
+			if _story_inspect_open:
+				_story_inspect_open = false
+				_refresh_body()
 		_: pass
-
 
 func _story_apply_verb(verb: String) -> void:
 	var engine = _story_engine()
 	if engine == null:
 		return
-	# Verb target = the selected chatter line (the QERF target on Story tab).
 	var chatter: Array = engine.recent_chatter(6)
 	if chatter.is_empty():
-		# Nothing to express on; fall back to graph-edge action so QERF still does
-		# *something* visible (legacy substrate verbs from earlier phase).
-		_story_apply_substrate_verb(verb)
 		return
 	var idx := clampi(_story_chatter_idx, 0, chatter.size() - 1)
 	var ev: Dictionary = chatter[idx]
@@ -1593,30 +1815,6 @@ func _story_apply_verb(verb: String) -> void:
 	var topic_node: String = str(ev.get("topic_node", ""))
 	engine.express_icon_on_chatter(_story_icon_idx, verb, emojis, faction, topic_node)
 	_refresh_body()
-
-
-# Legacy substrate-verb path (acts on graph edges from the focused node).
-# Kept for cases when there's no chatter to target yet.
-func _story_apply_substrate_verb(verb: String) -> void:
-	var engine = _story_engine()
-	if engine == null:
-		return
-	var focus_id: String = _story_focus_node if _story_focus_node != "" else engine.default_ui_focus()
-	if focus_id == "":
-		return
-	var outgoing: Array = engine.graph.get_outgoing_edges(focus_id)
-	if outgoing.is_empty():
-		return
-	var idx := clampi(_story_edge_idx, 0, outgoing.size() - 1)
-	var edge = outgoing[idx]
-	var result: Dictionary = engine.apply_player_action(_story_icon_idx, verb, edge.id)
-	if verb == "E" and result.get("success", false):
-		var advanced_to: String = str(result.get("advanced_to", ""))
-		if advanced_to != "":
-			_story_focus_node = advanced_to
-			_story_edge_idx = 0
-	_refresh_body()
-
 
 # =============================================================================
 # SURFACE WIRING
@@ -1639,7 +1837,6 @@ func _show_tab(tab: int) -> void:
 			_story_edge_idx = 0
 	_render_all()
 
-
 func _on_frame_changed(new_frame_id: String, _prev_frame_id: String) -> void:
 	var target_tab: int = FRAME_TO_TAB.get(new_frame_id, Tab.SELF)
 	if _current_tab != target_tab:
@@ -1647,7 +1844,6 @@ func _on_frame_changed(new_frame_id: String, _prev_frame_id: String) -> void:
 		if _current_tab == Tab.BALANCE:
 			_refresh_balance_snapshot()
 		_render_all()
-
 
 # =============================================================================
 # INPUT
@@ -1698,15 +1894,14 @@ func _on_unhandled_key(keycode: int, _event: InputEvent) -> bool:
 			return true
 	return false
 
-
 func _select_item_in_tab(slot: int) -> void:
 	match _current_tab:
 		Tab.BALANCE:
+			_ensure_balance_settings_loaded()
 			var page_size := ITEM_KEYS.size()
-			var page := _balance_action_idx / page_size
-			var global_idx := page * page_size + slot
-			if global_idx < _balance_action_keys.size() and _balance_action_idx != global_idx:
-				_balance_action_idx = global_idx
+			var global_idx := _balance_setting_page * page_size + slot
+			if global_idx < _balance_settings.size() and _balance_setting_idx != global_idx:
+				_balance_setting_idx = global_idx
 				_refresh_body()
 		Tab.GUIDE:
 			if slot < GUIDE_ITEMS.size() and _guide_item != slot:
@@ -1722,21 +1917,20 @@ func _select_item_in_tab(slot: int) -> void:
 				_story_chatter_idx = slot
 				_refresh_body()
 		Tab.SELF:
-			# GHJKL; moves the picker cursor over visible known_pairs.
+			# GHJKL; moves the picker cursor over visible known_icons.
 			var farm = InstrumentLocator.resolve_active_farm(self)
 			if farm == null:
 				return
-			var pairs: Array = farm.get_known_pairs()
-			if pairs.is_empty():
+			var icons: Array = farm.get_known_icons()
+			if icons.is_empty():
 				return
 			var page_size := ITEM_KEYS.size()
 			var target := _self_picker_page * page_size + slot
-			if target < pairs.size() and _self_picker_pair != target:
-				_self_picker_pair = target
+			if target < icons.size() and _self_picker_icon != target:
+				_self_picker_icon = target
 				_refresh_body()
 		_:
 			pass
-
 
 func _on_navigate(direction: Vector2i) -> void:
 	# Per KEYBOARD_GRAMMAR.md "Selection layer":
@@ -1754,26 +1948,34 @@ func _on_navigate(direction: Vector2i) -> void:
 			# Story crawl walks parent/child along graph topology.
 			_story_crawl(step)
 		Tab.SELF:
-			# Page through known_pairs (6 per page).
+			# Page through known_icons (6 per page).
 			var farm = InstrumentLocator.resolve_active_farm(self)
 			if farm == null:
 				return
-			var pairs: Array = farm.get_known_pairs()
-			if pairs.is_empty():
+			var icons: Array = farm.get_known_icons()
+			if icons.is_empty():
 				return
 			var page_size := ITEM_KEYS.size()
-			var max_page: int = max(0, (pairs.size() - 1) / page_size)
+			var max_page: int = max(0, int(float(icons.size() - 1) / float(page_size)))
 			_self_picker_page = clampi(_self_picker_page + step, 0, max_page)
-			_self_picker_pair = clampi(_self_picker_pair, _self_picker_page * page_size, mini((_self_picker_page + 1) * page_size, pairs.size()) - 1)
+			_self_picker_icon = clampi(_self_picker_icon, _self_picker_page * page_size, mini((_self_picker_page + 1) * page_size, icons.size()) - 1)
 			_refresh_body()
 		Tab.BALANCE:
-			_cycle_balance_action(step)
+			# A/D pages the settings list when there are more entries than
+			# GHJKL; can show in one row.
+			_ensure_balance_settings_loaded()
+			var page_size: int = ITEM_KEYS.size()
+			var max_page: int = max(0, int(float(_balance_settings.size() - 1) / float(page_size)))
+			_balance_setting_page = clampi(_balance_setting_page + step, 0, max_page)
+			_balance_setting_idx = clampi(_balance_setting_idx,
+				_balance_setting_page * page_size,
+				mini((_balance_setting_page + 1) * page_size, _balance_settings.size()) - 1)
+			_refresh_body()
 		Tab.GUIDE:
 			_guide_item = wrapi(_guide_item + step, 0, GUIDE_ITEMS.size())
 			_refresh_body()
 		_:
 			pass
-
 
 # =============================================================================
 # BALANCE DATA
@@ -1785,7 +1987,6 @@ func _cycle_balance_action(step: int) -> void:
 	_balance_action_idx = posmod(_balance_action_idx + step, _balance_action_keys.size())
 	_refresh_body()
 
-
 func _cycle_balance_biome(step: int) -> void:
 	if _balance_biomes.is_empty():
 		return
@@ -1793,6 +1994,114 @@ func _cycle_balance_biome(step: int) -> void:
 	_refresh_balance_projection()
 	_refresh_body()
 
+# =============================================================================
+# BALANCE — settings tunables (Q − value / R + value / E reset)
+# =============================================================================
+
+# Static catalog of tunables Balance exposes. value_path is read/written
+# through GameState.balance_workbench_config (defaults from BalanceConfig).
+# music_volume rides alongside as a non-config tunable handled directly via
+# MusicManager.
+const _BALANCE_SETTING_DEFS := [
+	{"id": "music_volume",            "label": "Music volume",       "category": "Audio",   "value_path": [],                                          "kind": "music_pct",   "step": 5,    "min": 0,    "max": 100,    "default": 70},
+	{"id": "pop_base_yield_scale",    "label": "Pop yield scale",    "category": "Yield",   "value_path": ["tuning", "pop_base_yield_scale"],          "kind": "float",       "step": 0.5,  "min": 0.5,  "max": 50.0,   "default": 13.0},
+	{"id": "reap_base_yield",         "label": "Reap base yield",    "category": "Yield",   "value_path": ["tuning", "reap_base_yield"],               "kind": "float",       "step": 0.5,  "min": 0.5,  "max": 50.0,   "default": 8.0},
+	{"id": "flux_to_credits",         "label": "Flux → credits",     "category": "Economy", "value_path": ["tuning", "flux_to_credits"],               "kind": "float",       "step": 0.1,  "min": 0.1,  "max": 10.0,   "default": 1.0},
+	{"id": "lindblad_rate_scale",     "label": "Lindblad rate",      "category": "Physics", "value_path": ["physics", "lindblad_rate_scale"],          "kind": "float",       "step": 0.1,  "min": 0.1,  "max": 5.0,    "default": 1.0},
+	{"id": "quantum_to_credits",      "label": "Quantum → credits",  "category": "Economy", "value_path": ["economy_variables", "quantum_to_credits"], "kind": "float",       "step": 0.1,  "min": 0.1,  "max": 10.0,   "default": 1.0},
+	{"id": "measurement_drain_base",  "label": "Measurement drain",  "category": "Yield",   "value_path": ["tuning", "measurement_drain_base"],        "kind": "float",       "step": 0.05, "min": 0.0,  "max": 1.0,    "default": 0.15},
+	{"id": "reap_evolution_cycles",   "label": "Reap evolve cycles", "category": "Physics", "value_path": ["tuning", "reap_evolution_cycles"],         "kind": "int",         "step": 1,    "min": 1,    "max": 60,     "default": 13},
+	{"id": "reap_starting_tokens",    "label": "Reap start tokens",  "category": "Yield",   "value_path": ["tuning", "reap_starting_tokens"],          "kind": "int",         "step": 1,    "min": 0,    "max": 30,     "default": 6},
+	{"id": "max_biome_qubits",        "label": "Max biome qubits",   "category": "Physics", "value_path": ["economy_variables", "max_biome_qubits"],   "kind": "int",         "step": 1,    "min": 4,    "max": 24,     "default": 12},
+]
+
+func _ensure_balance_settings_loaded() -> void:
+	if _balance_settings.is_empty():
+		_balance_settings = []
+		for d in _BALANCE_SETTING_DEFS:
+			_balance_settings.append(d.duplicate(true))
+	_balance_setting_idx = clampi(_balance_setting_idx, 0, max(0, _balance_settings.size() - 1))
+	var page_size: int = ITEM_KEYS.size()
+	var max_page: int = max(0, int(float(_balance_settings.size() - 1) / float(page_size)))
+	_balance_setting_page = clampi(_balance_setting_page, 0, max_page)
+
+func _balance_setting_value(setting: Dictionary) -> Variant:
+	var kind: String = str(setting.get("kind", "float"))
+	if kind == "music_pct":
+		var music = get_node_or_null("/root/MusicManager")
+		if music and music.has_method("get_volume"):
+			return int(round(float(music.get_volume()) * 100.0))
+		return int(setting.get("default", 70))
+	var path: Array = setting.get("value_path", [])
+	if path.is_empty():
+		return setting.get("default", 0.0)
+	var gsm = (Engine.get_main_loop().root.get_node_or_null("/root/GameStateManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
+	if gsm and "balance_workbench_config" in gsm:
+		var cfg = gsm.balance_workbench_config
+		if typeof(cfg) == TYPE_DICTIONARY:
+			var node = cfg
+			for key in path:
+				if typeof(node) != TYPE_DICTIONARY or not node.has(key):
+					return setting.get("default", 0.0)
+				node = node[key]
+			return node
+	return setting.get("default", 0.0)
+
+func _balance_setting_set_value(setting: Dictionary, value: Variant) -> void:
+	var kind: String = str(setting.get("kind", "float"))
+	if kind == "music_pct":
+		var music = get_node_or_null("/root/MusicManager")
+		if music and music.has_method("set_volume"):
+			music.set_volume(clampf(float(value) / 100.0, 0.0, 1.0))
+		return
+	var path: Array = setting.get("value_path", [])
+	if path.is_empty():
+		return
+	var gsm = get_node_or_null("/root/GameStateManager")
+	if not gsm or not ("current_state" in gsm) or not gsm.current_state:
+		return
+	if gsm.current_state.has_method("set_balance_config_value"):
+		gsm.current_state.set_balance_config_value(path, value)
+
+func _balance_setting_format(setting: Dictionary) -> String:
+	var kind: String = str(setting.get("kind", "float"))
+	var v = _balance_setting_value(setting)
+	match kind:
+		"music_pct":
+			return "%d%%" % int(v)
+		"int":
+			return "%d" % int(v)
+		"float":
+			return "%.2f" % float(v)
+		_:
+			return str(v)
+
+func _nudge_balance_setting(direction: int) -> void:
+	_ensure_balance_settings_loaded()
+	if _balance_settings.is_empty():
+		return
+	var setting: Dictionary = _balance_settings[_balance_setting_idx]
+	var kind: String = str(setting.get("kind", "float"))
+	var step: float = float(setting.get("step", 1.0))
+	var lo = setting.get("min", 0.0)
+	var hi = setting.get("max", 100.0)
+	var current = _balance_setting_value(setting)
+	var next
+	match kind:
+		"music_pct", "int":
+			next = clampi(int(current) + direction * int(step), int(lo), int(hi))
+		_:
+			next = clampf(float(current) + direction * step, float(lo), float(hi))
+	_balance_setting_set_value(setting, next)
+	_refresh_body()
+
+func _reset_balance_setting() -> void:
+	_ensure_balance_settings_loaded()
+	if _balance_settings.is_empty():
+		return
+	var setting: Dictionary = _balance_settings[_balance_setting_idx]
+	_balance_setting_set_value(setting, setting.get("default", 0.0))
+	_refresh_body()
 
 func _refresh_balance_snapshot() -> void:
 	var farm = InstrumentLocator.resolve_active_farm(self)
@@ -1821,7 +2130,6 @@ func _refresh_balance_snapshot() -> void:
 		_balance_biome_idx = 0
 	_refresh_balance_projection()
 
-
 func _refresh_balance_projection() -> void:
 	_balance_projection = {}
 	if _balance_biomes.is_empty():
@@ -1835,7 +2143,6 @@ func _refresh_balance_projection() -> void:
 	if _balance_projection.is_empty() and inst.has_method("get_timescale_projection"):
 		_balance_projection = inst.get_timescale_projection(biome_name, 8)
 
-
 func _format_cost(cost: Dictionary) -> String:
 	if cost.is_empty():
 		return "(none)"
@@ -1845,7 +2152,6 @@ func _format_cost(cost: Dictionary) -> String:
 	for emoji in keys:
 		parts.append("%s%d" % [str(emoji), int(cost[emoji])])
 	return " ".join(parts)
-
 
 # =============================================================================
 # SURFACE CONTRACT
@@ -1865,7 +2171,6 @@ func get_visible_data() -> Dictionary:
 			"projection_ok": bool(_balance_projection.get("ok", false)),
 		}
 	return payload
-
 
 func get_transitions() -> Array:
 	return [

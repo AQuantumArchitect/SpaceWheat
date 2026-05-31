@@ -53,11 +53,11 @@ func _ready():
 	get_tree().quit()
 
 func _ensure_game_loaded():
-	"""Game boots via BootManager autoload, just wait for it"""
+	# Game boots via BootManager autoload, just wait for it
 	print("BootManager will handle game loading...")
 
 func _wait_for_boot():
-	"""Wait for game boot to complete"""
+	# Wait for game boot to complete
 	print("Waiting for game boot...")
 
 	# Wait for Farm to exist (boot is complete when Farm exists)
@@ -79,7 +79,7 @@ func _wait_for_boot():
 		await get_tree().process_frame
 
 func _get_references():
-	"""Get references to game components"""
+	# Get references to game components
 	farm = get_tree().get_first_node_in_group("farm")
 	quest_manager = get_node_or_null("/root/QuestManager")
 
@@ -101,7 +101,7 @@ func _get_references():
 	print("QuestBoard: %s" % ("✓" if quest_board else "❌"))
 
 func _hook_offer_function():
-	"""Hook offer_all_faction_quests to track calls during test"""
+	# Hook offer_all_faction_quests to track calls during test
 	if not quest_manager.has_method("offer_all_faction_quests"):
 		return
 
@@ -117,7 +117,7 @@ func _hook_offer_function():
 	quest_manager.offer_all_faction_quests = hook
 
 func _run_auto_test():
-	"""Run the automatic test sequence"""
+	# Run the automatic test sequence
 	print(_sep())
 	print("TEST SEQUENCE")
 	print(_sep() + "\n")

@@ -41,7 +41,7 @@ def _write_claura_overlay_jsonl(character: str) -> Optional[Path]:
     """Write Claura's policy graph overlay as a temp JSONL file.
 
     The milk_hunt_runner.py reads MILK_HUNT_POLICY_EXTRA_JSONL and applies
-    the overlay to Godot via policy_graph_apply at startup.  Claura's
+    the overlay to Godot via policy_graph_patch at startup.  Claura's
     quantum state (derby_probe.probe()) drives the overlay; if unavailable,
     no overlay is written (empty file).
 
@@ -118,7 +118,7 @@ Strategy (in priority order):
 
 def _format_game_state(
     resources: Dict[str, float],
-    known_pairs: List[Dict[str, str]],
+    known_icons: List[Dict[str, str]],
     offers: List[Dict[str, Any]],
     biomes: List[str],
     step: int,
@@ -128,7 +128,7 @@ def _format_game_state(
     lines = [
         f"Turn {step}/{max_cycles}",
         f"Resources: {json.dumps(resources, ensure_ascii=False)}",
-        f"Known pairs ({len(known_pairs)}): {json.dumps(known_pairs[:8], ensure_ascii=False)}",
+        f"Known pairs ({len(known_icons)}): {json.dumps(known_icons[:8], ensure_ascii=False)}",
         f"Biomes discovered: {biomes if biomes else 'none yet'}",
     ]
     if offers:
@@ -147,7 +147,7 @@ def _format_game_state(
 
 def _heuristic_decide(
     step: int,
-    known_pairs: List[Dict[str, str]],
+    known_icons: List[Dict[str, str]],
     offers: List[Dict[str, Any]],
     biomes: List[str],
     resources: Dict[str, float],
@@ -300,7 +300,7 @@ def _llm_decide(
     *,
     habitat_context: str = "",
     step: int = 0,
-    known_pairs: Optional[List[Dict[str, str]]] = None,
+    known_icons: Optional[List[Dict[str, str]]] = None,
     offers: Optional[List[Dict[str, Any]]] = None,
     biomes: Optional[List[str]] = None,
     resources: Optional[Dict[str, float]] = None,
@@ -312,7 +312,7 @@ def _llm_decide(
 
     if text is None:
         return _heuristic_decide(
-            step, known_pairs or [], offers or [], biomes or [],
+            step, known_icons or [], offers or [], biomes or [],
             resources or {},
         )
 
@@ -337,7 +337,7 @@ def _llm_decide(
             return action
 
     return _heuristic_decide(
-        step, known_pairs or [], offers or [], biomes or [],
+        step, known_icons or [], offers or [], biomes or [],
         resources or {},
     )
 
@@ -455,7 +455,7 @@ def play(
 
     # Write Claura's policy overlay for the engine runner.
     # milk_hunt_runner.py reads MILK_HUNT_POLICY_EXTRA_JSONL and applies
-    # the overlay to Godot via policy_graph_apply after the rig starts.
+    # the overlay to Godot via policy_graph_patch after the rig starts.
     overlay_path = _write_claura_overlay_jsonl(identity)
     if overlay_path:
         os.environ["MILK_HUNT_POLICY_EXTRA_JSONL"] = str(overlay_path)
@@ -468,7 +468,7 @@ def play(
     session_arg = character if character else profile
     with SessionClass(session_arg, slot=2) as s:  # slot=2 (valid: 0,1,2; NUM_SAVE_SLOTS=3)
         # Delegate to the full engine policy — it ranks quests by
-        # milk_distance_gain (28.0), uses probe_cycle, lock_offer,
+        # milk_distance_gain (28.0), uses probe_cycle, quest_cycle,
         # discover_biome, and lindblad_drain. This is how milk is found.
         rr = s.autoplay(max_cycles=max_cycles)
 

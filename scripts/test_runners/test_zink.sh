@@ -1,22 +1,15 @@
 #!/bin/bash
-# Test Zink GPU acceleration with Godot
+set -euo pipefail
 
-echo "=== Testing Zink GPU Acceleration ==="
-echo ""
-echo "Setting MESA_LOADER_DRIVER_OVERRIDE=zink"
-echo "This forces Mesa to translate Vulkan → OpenGL"
-echo ""
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+OUT_DIR="${1:-/tmp/spacewheat_zink_compare_$(date +%Y%m%d_%H%M%S)}"
 
-export MESA_LOADER_DRIVER_OVERRIDE=zink
+echo "========================================================================="
+echo "ZINK RENDERER COMPARISON"
+echo "========================================================================="
+echo
+echo "This wrapper compares the live runtime under zink-compatible launches."
+echo
 
-# Optional: Enable verbose Vulkan/Mesa debugging
-# export VK_LOADER_DEBUG=all
-# export MESA_DEBUG=1
-
-echo "Launching Godot with Zink..."
-echo "Watch for these messages in console:"
-echo "  ✅ 'GPUForceCalculator: GPU acceleration ENABLED on <device>'"
-echo "  ❌ 'GPUForceCalculator: Software Vulkan detected (llvmpipe)'"
-echo ""
-
-godot VisualBubbleTest.tscn 2>&1 | grep -E "GPU|Vulkan|RenderingDevice|QuantumForce" --line-buffered
+SW_WSL_MESA_DRIVER_OVERRIDE="${SW_WSL_MESA_DRIVER_OVERRIDE:-zink}" \
+bash "$ROOT_DIR/scripts/compare_headed_renderers.sh" "$OUT_DIR"

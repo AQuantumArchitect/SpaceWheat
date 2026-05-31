@@ -175,7 +175,7 @@ if [ -f "$NATIVE_LIB" ]; then
     NATIVE_SIZE=$(du -h "$NATIVE_LIB" | cut -f1)
     success "Native extension: $NATIVE_SIZE"
 else
-    warn "Native extension not found - game will run in GDScript fallback mode (slower)"
+    warn "Native extension not found - game will run in the pure GDScript path (slower)"
 fi
 
 # Done!
@@ -186,11 +186,14 @@ echo "╚═══════════════════════�
 echo ""
 echo "Next steps:"
 echo ""
-echo "  1. Run the game in Godot editor:"
-echo "     godot --path . project.godot"
+echo "  1. Run the project in the WSL-aware editor launcher:"
+echo "     ./scripts/launch-linux-editor.sh"
+echo "     # or, if you know what you are doing:"
+echo "     godot -e --path ."
 echo ""
 echo "  2. Or export a release:"
-echo "     ./scripts/build-release.sh --platform linux --install"
+echo "     ./scripts/build-desktop-local.sh --install-templates"
+echo "     ./scripts/validate-desktop-release.sh --version v0.1.0"
 echo ""
 echo "  3. For more info, see BUILDING.md"
 echo ""

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """mutate_biome_repair.py — fix odd-emoji-count biomes by adding one register
-each, AND re-order pairings so each qubit becomes a sharp named axis.
+each, and re-order pairings so each qubit becomes a sharp named axis.
 
 The "no duplicate emoji per biome" register-map rule (RegisterMap.gd:57) tripped
 on every biome with an odd `emojis` count, because the pair-grouper falls back
@@ -15,7 +15,7 @@ new emoji is chosen to extend the biome's existing physics:
   LaserGlint       + ✨   metastable upper level → 4-level laser
 
 Pair order is also rebuilt so each qubit forms a meaningful named axis (the
-biome's `icons[]` array). Earlier orderings had self-paired placeholders like
+biome's `icons[]` array). Earlier orderings had self-paired pairs like
 {🏁,🏁} and {💥,💥} which would themselves trip the new assertion.
 """
 from __future__ import annotations

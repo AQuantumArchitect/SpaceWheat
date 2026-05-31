@@ -1,5 +1,10 @@
 # Cross-Platform GDExtension Guide
 
+Status note as of 2026-04-24:
+- Linux and Windows desktop are the active shipping path.
+- The current Web export preset is now wired for `variant/extensions_support=true`.
+- Web/WASM is still exploratory because there is no trusted browser smoke/perf lane yet.
+
 ## Current Status
 
 **Working:** Linux native `.so`
@@ -244,8 +249,8 @@ python3 -m http.server -d build/web 8000
 
 **Expected:**
 - ✅ Game loads
-- ✅ GDScript fallback active
-- ✅ Slower but playable
+- ✅ Browser/runtime behavior is observable
+- ⚠️ Current repo preset disables extensions, so this remains exploratory
 
 ### Windows Export Test (on Linux with Wine)
 ```bash
@@ -260,31 +265,28 @@ wine build/SpaceWheat.exe  # (if wine installed)
 | Platform | Native? | Performance | Recommendation |
 |----------|---------|-------------|----------------|
 | **Linux** | ✅ Yes | 100% (1.7MB .so) | Ship native |
-| **Windows** | ⚠️ Optional | 100% with .dll, 10% without | Ship GDScript (easiest) |
+| **Windows** | ✅ Yes | 100% with .dll | Ship native |
 | **macOS** | ⚠️ Optional | 100% with .dylib, 10% without | Ship GDScript |
-| **Web** | ❌ Difficult | 10% (WASM hard) | Ship GDScript fallback |
+| **Web** | ❌ Experimental | unknown until browser profiling exists | Do not ship yet |
 | **Android** | ⚠️ Optional | 100% with .so, 10% without | Ship GDScript |
 | **iOS** | ⚠️ Optional | 100% with .dylib, 10% without | Ship GDScript |
-
-**"10%" = GDScript fallback performance (still good enough for your game)**
 
 ---
 
 ## My Recommendation
 
 **For itch.io web release:**
-1. Don't compile WASM
-2. Ship GDScript fallback only
-3. Add note: "Best performance on downloadable version"
+1. Prefer desktop uploads first
+2. Do not promise web until there is a browser smoke/perf lane
+3. Treat any web build as experimental
 4. Provide downloadable Linux/Windows builds with native libs
 
 **For downloadable releases:**
 1. Use GitHub Actions to build Windows/Mac/Linux
-2. Or just ship Linux with native + Windows with GDScript fallback
+2. Or ship Linux and Windows with native desktop binaries
 
 **Why:**
 - Web users expect slower performance anyway
-- Your GDScript fallback is well-tested
 - WASM compilation is experimental and fragile
 - Focus on gameplay, not build complexity
 
@@ -293,7 +295,7 @@ wine build/SpaceWheat.exe  # (if wine installed)
 ## Summary
 
 ✅ **What you have:** Fast Linux native build
-✅ **What you need for Windows:** .dll (cross-compile OR GitHub Actions OR GDScript fallback)
-✅ **What you need for Web:** Nothing! (GDScript fallback works)
+✅ **What you need for Windows:** .dll (cross-compile OR GitHub Actions)
+⚠️ **What you need for Web:** an explicit browser validation/performance lane
 
-**The beauty of your architecture:** You designed it with fallbacks, so it works EVERYWHERE, just faster where native libs are available.
+**Practical read:** desktop is real, web still needs proof.

@@ -25,50 +25,6 @@
     ],
     "ring": "outer",
     "motto": null,
-    "self_energies": {
-      "⚫": 0.4,
-      "🕳": 0.35,
-      "🪐": 0.1,
-      "🌀": 0.2,
-      "☀": 0.5,
-      "⚡": 0.1
-    },
-    "hamiltonian": {
-      "⚫": {
-        "🕳": 0.7,
-        "🌀": 0.5,
-        "🪐": [
-          0.4,
-          0.5
-        ],
-        "☀": -0.3
-      },
-      "🕳": {
-        "⚫": 0.7,
-        "🌀": 0.6,
-        "🪐": 0.5,
-        "⚡": -0.25
-      },
-      "🌀": {
-        "⚫": 0.5,
-        "🕳": 0.6,
-        "🪐": 0.5
-      },
-      "🪐": {
-        "⚫": [
-          0.4,
-          -0.5
-        ],
-        "🕳": 0.5,
-        "🌀": 0.5
-      },
-      "☀": {
-        "⚫": -0.3
-      },
-      "⚡": {
-        "🕳": -0.15
-      }
-    },
     "alignment_couplings": {
       "⚫": {
         "☀": -0.3,
@@ -81,7 +37,7 @@
         "⭐": 0.2
       }
     },
-    "sig": [
+    "cloud": [
       "⚫",
       "🕳",
       "🪐",
@@ -101,8 +57,8 @@
         "pole_1": "⚫"
       },
       {
-        "name": "Singularity",
-        "pole_0": "🕳",
+        "name": "Radiance",
+        "pole_0": "☀",
         "pole_1": "⚡"
       }
     ]
@@ -118,42 +74,8 @@
       }
     },
     "description": "Salvage traders specializing in remains - not just bones, but artifacts, memories, the residue of ended things. The ⚱️ marks their connection to what persists after death. They know which relics carry power, which bones remember their owners, which ashes still warm with something like life. Their markets smell of dust and incense. Their customers know not to ask where the merchandise comes from.",
-    "hamiltonian": {
-      "💉": {
-        "💰": -0.22,
-        "🔧": 0.4,
-        "🦴": 0.5,
-        "🧪": 0.4
-      },
-      "💰": {
-        "💉": -0.22,
-        "🦴": 0.4,
-        "👥": 0.15
-      },
-      "🔧": {
-        "⚙": 0.4,
-        "💉": 0.4,
-        "🦴": 0.3
-      },
-      "🦴": {
-        "👥": -0.2,
-        "💉": 0.5,
-        "💰": 0.4,
-        "🔧": 0.6
-      },
-      "👥": {
-        "💰": 0.25,
-        "🦴": -0.2
-      }
-    },
     "name": "Bone Merchants",
     "ring": "second",
-    "self_energies": {
-      "💉": 0.15,
-      "💰": 0.3,
-      "🔧": 0.15,
-      "🦴": 0.2
-    },
     "tags": [
       "biomod",
       "grey-market",
@@ -176,7 +98,7 @@
       0
     ],
     "motto": "The dead have much to sell.",
-    "sig": [
+    "cloud": [
       "🦴",
       "💉",
       "🔧",
@@ -209,39 +131,8 @@
       }
     },
     "description": "Mercenaries who specialize in clean endings - not just killing, but ensuring nothing remains. They burn what needs burning, scatter what needs scattering, and perform the funeral rites that let the dead rest properly. Some call them soldiers. Some call them priests. Their targets don't call them anything, because the Brotherhood ensures there's nothing left to speak. The ⚱️ is both product and payment.",
-    "hamiltonian": {
-      "⚱": {
-        "🌫": 0.6,
-        "⚔": 0.5,
-        "🩹": 0.45
-      },
-      "🌫": {
-        "⚱": 0.6,
-        "🧯": 0.48
-      },
-      "⚔": {
-        "⚱": 0.5,
-        "🩹": -0.3,
-        "🧯": -0.22
-      },
-      "🩹": {
-        "⚱": 0.45,
-        "⚔": -0.3
-      },
-      "🧯": {
-        "🌫": 0.48,
-        "⚔": -0.22
-      }
-    },
     "name": "Brotherhood of Ash",
     "ring": "second",
-    "self_energies": {
-      "⚱": 0.3,
-      "🌫": 0.22,
-      "🧯": 0.2,
-      "⚔": 0.15,
-      "🩹": 0.12
-    },
     "tags": [
       "cremation",
       "purification",
@@ -264,12 +155,13 @@
       1
     ],
     "motto": "What burns, we scatter. What scatters, we remember.",
-    "sig": [
+    "cloud": [
       "⚔",
       "🌫",
       "⚱",
       "🩹",
-      "🧯"
+      "🧯",
+      "🔥"
     ],
     "icons": [
       {
@@ -281,6 +173,11 @@
         "name": "Aftermath",
         "pole_0": "⚱",
         "pole_1": "🌫"
+      },
+      {
+        "name": "Ember",
+        "pole_0": "🩹",
+        "pole_1": "🔥"
       }
     ]
   },
@@ -308,67 +205,8 @@
       }
     },
     "description": "The pattern that sustains itself through bureaucratic mass. It doesn't know it's a quantum phenomenon - it *is* the quantum phenomenon of order achieving critical density. Every form filed, every tax collected, every law enforced adds to its coherence. It feeds on documentation the way fire feeds on oxygen. The blood-law isn't cruelty - it's *binding*, literally anchoring probability into stable configurations. It cannot be fought directly, only starved of the order it requires. The player never meets it. The player always serves it.",
-    "hamiltonian": {
-      "⚖": {
-        "⚜": 0.7,
-        "👥": 0.6,
-        "📜": 0.5,
-        "🩸": -0.22,
-        "💰": 0.3
-      },
-      "⚜": {
-        "⚖": 0.7,
-        "🏰": 0.8,
-        "👥": -0.28,
-        "📜": 0.6,
-        "🦅": 0.6,
-        "🩸": 0.65
-      },
-      "🏰": {
-        "⚖": 0.5,
-        "⚜": 0.8,
-        "📜": 0.6,
-        "🦅": 0.4
-      },
-      "👥": {
-        "⚖": 0.6,
-        "⚜": -0.28,
-        "🩸": 0.6,
-        "🦅": -0.2
-      },
-      "📜": {
-        "⚖": 0.5,
-        "⚜": 0.6,
-        "🏢": 0.4,
-        "🏰": 0.6
-      },
-      "🦅": {
-        "⚜": 0.6,
-        "👥": -0.2,
-        "💀": 0.5,
-        "🩸": 0.4
-      },
-      "🩸": {
-        "⚖": -0.22,
-        "⚜": 0.5,
-        "👥": 0.6,
-        "💀": 0.4
-      },
-      "💰": {
-        "⚖": 0.2
-      }
-    },
     "name": "Carrion Throne",
     "ring": "outer",
-    "self_energies": {
-      "⚖": 0.25,
-      "⚜": 0.4,
-      "🏰": 0.5,
-      "👥": 0.02,
-      "📜": 0.15,
-      "🦅": 0.2,
-      "🩸": 0.1
-    },
     "tags": [
       "imperial",
       "authority",
@@ -393,14 +231,15 @@
       1
     ],
     "motto": "Stability is sovereignty. Sovereignty is stability.",
-    "sig": [
+    "cloud": [
       "👥",
       "⚖",
       "🦅",
       "⚜",
       "🩸",
       "🏰",
-      "📜"
+      "📜",
+      "💰"
     ],
     "icons": [
       {
@@ -416,7 +255,12 @@
       {
         "name": "Nobility",
         "pole_0": "⚜",
-        "pole_1": "🩸"
+        "pole_1": "👥"
+      },
+      {
+        "name": "Commerce",
+        "pole_0": "⚖",
+        "pole_1": "💰"
       }
     ]
   },
@@ -435,34 +279,8 @@
       }
     },
     "description": "Nomadic explorers who chart probability-space - not just where things are, but where they might be, where they were, where they could become. Their maps show routes that only exist sometimes, destinations that move, shortcuts through configurations that shouldn't connect. They trade in coordinates the way others trade in currency. The map they don't sell is the one that shows the way to the Black Horizon.",
-    "hamiltonian": {
-      "📍": {
-        "🧭": 0.55,
-        "🗺": -0.22
-      },
-      "🧭": {
-        "📍": 0.55,
-        "🔭": 0.55,
-        "🗺": -0.2
-      },
-      "🔭": {
-        "🧭": 0.55,
-        "🗺": 0.6
-      },
-      "🗺": {
-        "🧭": -0.2,
-        "🔭": 0.6,
-        "📍": -0.22
-      }
-    },
     "name": "Cartographers",
     "ring": "second",
-    "self_energies": {
-      "📍": 0.12,
-      "🧭": 0.22,
-      "🔭": 0.3,
-      "🗺": 0.4
-    },
     "tags": [
       "exploration",
       "mapping",
@@ -485,7 +303,7 @@
       0
     ],
     "motto": "Every map is a story. Every story is a map.",
-    "sig": [
+    "cloud": [
       "🗺",
       "🧭",
       "🔭",
@@ -530,44 +348,6 @@
     ],
     "ring": "second",
     "motto": "If it can be reached, it can be charted.",
-    "self_energies": {
-      "🧭": 0.3,
-      "🗺": 0.28,
-      "🔭": 0.22,
-      "📍": -0.2
-    },
-    "hamiltonian": {
-      "🧭": {
-        "🗺": 0.55,
-        "🔭": 0.4
-      },
-      "🗺": {
-        "🧭": 0.55,
-        "📍": -0.3,
-        "🔭": [
-          0.3,
-          0.45
-        ]
-      },
-      "📍": {
-        "🗺": -0.3
-      },
-      "🔭": {
-        "🗺": [
-          0.3,
-          -0.45
-        ],
-        "🧭": 0.4
-      }
-    },
-    "drivers": {
-      "🌠": {
-        "type": "pulse",
-        "frequency": 0.05,
-        "amplitude": 0.5,
-        "phase": 0.0
-      }
-    },
     "alignment_couplings": {
       "🧭": {
         "⛰": 0.1,
@@ -581,7 +361,7 @@
         "🌠": 0.2
       }
     },
-    "sig": [
+    "cloud": [
       "🧭",
       "📍",
       "🗺",
@@ -602,70 +382,8 @@
   },
   {
     "description": "The eternal substrate. Sun and moon, the four elements. The abiotic foundation.",
-    "drivers": {
-      "☀": {
-        "amp": 1.0,
-        "freq": 0.04,
-        "phase": 0.0,
-        "type": "cosine"
-      },
-      "🌙": {
-        "amp": 1.0,
-        "freq": 0.04,
-        "phase": 3.14159265358979,
-        "type": "cosine"
-      }
-    },
-    "hamiltonian": {
-      "☀": {
-        "⛰": 0.3,
-        "🌙": 0.025,
-        "🌬": 0.4,
-        "💧": -0.3,
-        "🔥": 0.7
-      },
-      "⛰": {
-        "☀": 0.3,
-        "🌬": 0.5,
-        "💧": 0.4,
-        "🔥": 0.3
-      },
-      "🌙": {
-        "☀": 0.025,
-        "🌬": 0.3,
-        "💧": 0.5
-      },
-      "🌬": {
-        "☀": 0.4,
-        "⛰": 0.5,
-        "🌙": 0.3,
-        "💧": 0.6,
-        "🔥": 0.5
-      },
-      "💧": {
-        "☀": -0.3,
-        "⛰": 0.4,
-        "🌙": 0.5,
-        "🌬": 0.6,
-        "🔥": -0.4
-      },
-      "🔥": {
-        "☀": 0.7,
-        "⛰": 0.3,
-        "🌬": 0.5,
-        "💧": -0.4
-      }
-    },
     "name": "Celestial Archons",
     "ring": "outer",
-    "self_energies": {
-      "☀": 1.0,
-      "⛰": 0.2,
-      "🌙": 0.8,
-      "🌬": 0.1,
-      "💧": 0.3,
-      "🔥": 0.6
-    },
     "tags": [
       "celestial",
       "driver",
@@ -689,7 +407,7 @@
       1
     ],
     "motto": "The elements hold the sky.",
-    "sig": [
+    "cloud": [
       "☀",
       "🌙",
       "🔥",
@@ -699,14 +417,19 @@
     ],
     "icons": [
       {
-        "name": "CelestialCycle",
+        "name": "Solar",
         "pole_0": "☀",
         "pole_1": "🌙"
       },
       {
-        "name": "NightCycle",
-        "pole_0": "🌙",
-        "pole_1": "☀"
+        "name": "Elemental",
+        "pole_0": "🔥",
+        "pole_1": "💧"
+      },
+      {
+        "name": "Geostorm",
+        "pole_0": "⛰",
+        "pole_1": "🌬"
       }
     ]
   },
@@ -725,37 +448,8 @@
       }
     },
     "description": "Revolutionary militants who believe the current order must burn for something better to grow. They sabotage, they fight, they die for ideals they describe in terms that sound beautiful and vague. The Carrion Throne has tried to exterminate them for generations. They keep returning - not the same individuals, but the same ember, waiting for tinder. Some are heroes. Some are terrorists. History will decide, assuming history survives.",
-    "hamiltonian": {
-      "✊": {
-        "🚩": 0.65,
-        "⚔": -0.25
-      },
-      "🚩": {
-        "✊": 0.65,
-        "🔥": 0.5
-      },
-      "🔥": {
-        "🚩": 0.5,
-        "⚔": 0.45,
-        "🧨": 0.7
-      },
-      "⚔": {
-        "🔥": 0.45,
-        "✊": -0.25
-      },
-      "🧨": {
-        "🔥": 0.7
-      }
-    },
     "name": "Children of the Ember",
     "ring": "second",
-    "self_energies": {
-      "✊": 0.35,
-      "🚩": 0.25,
-      "🔥": 0.22,
-      "⚔": 0.15,
-      "🧨": 0.08
-    },
     "tags": [
       "revolution",
       "fire",
@@ -778,18 +472,29 @@
       1
     ],
     "motto": "From the spark, the fire. From the fire, the new world.",
-    "sig": [
+    "cloud": [
       "⚔",
       "🔥",
       "✊",
       "🚩",
-      "🧨"
+      "🧨",
+      "🩸"
     ],
     "icons": [
       {
         "name": "Revolt",
         "pole_0": "✊",
         "pole_1": "🚩"
+      },
+      {
+        "name": "Blaze",
+        "pole_0": "🔥",
+        "pole_1": "🧨"
+      },
+      {
+        "name": "Sacrifice",
+        "pole_0": "⚔",
+        "pole_1": "🩸"
       }
     ]
   },
@@ -819,32 +524,8 @@
     ],
     "ring": "third",
     "motto": "We fix what breaks. We break what pays.",
-    "self_energies": {
-      "⚙️": 0.18,
-      "🔧": 0.18,
-      "💉": 0.22,
-      "🦴": 0.22
-    },
-    "hamiltonian": {
-      "⚙️": {
-        "🔧": 0.65,
-        "💉": -0.25
-      },
-      "🔧": {
-        "⚙️": 0.65,
-        "💉": -0.25
-      },
-      "💉": {
-        "⚙️": -0.25,
-        "🦴": 0.65,
-        "🔧": -0.25
-      },
-      "🦴": {
-        "💉": 0.65
-      }
-    },
     "alignment_couplings": {},
-    "sig": [
+    "cloud": [
       "⚙️",
       "💉",
       "🔧",
@@ -889,50 +570,6 @@
     ],
     "ring": "third",
     "motto": "Every name is just a song waiting to end.",
-    "self_energies": {
-      "🎶": 0.2,
-      "🔔": 0.2,
-      "🫥": -0.1,
-      "🕯": 0.2
-    },
-    "hamiltonian": {
-      "🎶": {
-        "🔔": 0.6,
-        "🕯": 0.4,
-        "🫥": [
-          0.5,
-          0.4
-        ],
-        "🕸": -0.25
-      },
-      "🔔": {
-        "🎶": 0.6,
-        "🪦": 0.4,
-        "🫥": 0.4,
-        "🌑": -0.3
-      },
-      "🫥": {
-        "🎶": [
-          0.5,
-          -0.4
-        ],
-        "🔔": 0.4,
-        "🪦": 0.5
-      },
-      "🕯": {
-        "🎶": 0.4,
-        "🪦": 0.45
-      },
-      "🌑": {
-        "🔔": -0.3
-      },
-      "🪦": {
-        "🕯": 0.45
-      },
-      "🕸": {
-        "🎶": -0.25
-      }
-    },
     "alignment_couplings": {
       "🎶": {
         "🔇": -0.25
@@ -942,7 +579,7 @@
         "🌑": 0.25
       }
     },
-    "sig": [
+    "cloud": [
       "🎶",
       "🔔",
       "🫥",
@@ -953,6 +590,11 @@
         "name": "Resonance",
         "pole_0": "🎶",
         "pole_1": "🔔"
+      },
+      {
+        "name": "Absence",
+        "pole_0": "🫥",
+        "pole_1": "🕯"
       }
     ]
   },
@@ -982,40 +624,8 @@
     ],
     "ring": "third",
     "motto": "We remember what you filed.",
-    "self_energies": {
-      "🕰": 0.1,
-      "🗃": 0.2,
-      "🪦": 0.3,
-      "📖": 0.4
-    },
-    "hamiltonian": {
-      "🕰": {
-        "🗃": 0.55,
-        "📖": -0.28
-      },
-      "🗃": {
-        "🕰": 0.55,
-        "🪦": 0.55
-      },
-      "🪦": {
-        "🗃": 0.55,
-        "📖": 0.6
-      },
-      "📖": {
-        "🪦": 0.6,
-        "🕰": -0.28
-      }
-    },
-    "drivers": {
-      "🕰": {
-        "type": "sine",
-        "frequency": 0.05,
-        "amplitude": 0.15,
-        "phase": 0.0
-      }
-    },
     "alignment_couplings": {},
-    "sig": [
+    "cloud": [
       "🗃",
       "🪦",
       "🕰",
@@ -1026,6 +636,11 @@
         "name": "Mortality",
         "pole_0": "🕰",
         "pole_1": "🪦"
+      },
+      {
+        "name": "Archive",
+        "pole_0": "🗃",
+        "pole_1": "📖"
       }
     ]
   },
@@ -1044,36 +659,8 @@
       }
     },
     "description": "Subterranean farmers who cultivate root vegetables, fungi, and cave-adapted crops in the spaces beneath settlements. Their tunnels connect in ways surface-dwellers don't fully understand. They trade in mushrooms, tubers, and information that travels through the underground faster than official channels. Not secretive by nature - just used to being overlooked.",
-    "hamiltonian": {
-      "⛏": {
-        "🪨": 0.6,
-        "🪤": 0.4,
-        "🌱": -0.35
-      },
-      "🪨": {
-        "⛏": 0.6,
-        "🪤": 0.35,
-        "🌱": -0.22
-      },
-      "🪤": {
-        "⛏": 0.4,
-        "🪨": 0.35,
-        "🌱": 0.3
-      },
-      "🌱": {
-        "⛏": -0.35,
-        "🪨": -0.22,
-        "🪤": 0.3
-      }
-    },
     "name": "Clan of the Hidden Root",
     "ring": "center",
-    "self_energies": {
-      "⛏": 0.3,
-      "🪨": 0.25,
-      "🪤": 0.18,
-      "🌱": -0.05
-    },
     "tags": [
       "underground",
       "farming",
@@ -1096,7 +683,7 @@
       0
     ],
     "motto": "What grows below sustains what lives above.",
-    "sig": [
+    "cloud": [
       "🌱",
       "⛏",
       "🪨",
@@ -1130,40 +717,8 @@
       }
     },
     "description": "Worshippers of something that collapsed into the void - a star, a civilization, a god, something that fell and kept falling. They conduct rituals at the edge of the Black Horizon, send offerings into the depths, and wait for signals from below. The bubbles (🫧) are their communication - messages rising from the drowned. The ⚱️ holds ashes of those who went deeper. The ashes sometimes move. No occult sight needed - what they worship is too deep for eyes to reach.",
-    "hamiltonian": {
-      "⚱": {
-        "⭐": 0.6,
-        "🕳": 0.45
-      },
-      "⭐": {
-        "⚱": 0.6,
-        "🫧": -0.3,
-        "🕳": [
-          0.25,
-          0.45
-        ]
-      },
-      "🫧": {
-        "⭐": -0.3,
-        "🕳": 0.38
-      },
-      "🕳": {
-        "⚱": 0.45,
-        "🫧": 0.38,
-        "⭐": [
-          0.25,
-          -0.45
-        ]
-      }
-    },
     "name": "Cult of the Drowned Star",
     "ring": "third",
-    "self_energies": {
-      "🕳": 0.4,
-      "⚱": 0.25,
-      "🫧": 0.15,
-      "⭐": -0.4
-    },
     "tags": [
       "cult",
       "void",
@@ -1186,7 +741,7 @@
       0
     ],
     "motto": "It waits beneath the pressure.",
-    "sig": [
+    "cloud": [
       "⭐",
       "🫧",
       "🕳",
@@ -1231,36 +786,6 @@
     ],
     "ring": "third",
     "motto": "What is owed will be paid.",
-    "self_energies": {
-      "⛓": 0.15,
-      "💀": 0.1,
-      "👥": -0.1,
-      "💸": -0.35
-    },
-    "hamiltonian": {
-      "⛓": {
-        "👥": 0.55,
-        "💀": 0.4,
-        "💸": -0.3
-      },
-      "👥": {
-        "⛓": 0.55,
-        "💸": -0.45
-      },
-      "💀": {
-        "⛓": 0.4,
-        "💸": 0.35
-      },
-      "💸": {
-        "⛓": -0.3,
-        "💀": 0.35,
-        "👥": -0.45,
-        "💰": -0.65
-      },
-      "💰": {
-        "💸": -0.65
-      }
-    },
     "alignment_couplings": {
       "⛓": {
         "🏛": 0.15,
@@ -1270,7 +795,7 @@
         "💰": -0.25
       }
     },
-    "sig": [
+    "cloud": [
       "⛓",
       "💸",
       "👥",
@@ -1285,7 +810,7 @@
       {
         "name": "Liberation",
         "pole_0": "👥",
-        "pole_1": "⛓"
+        "pole_1": "💀"
       }
     ]
   },
@@ -1301,32 +826,8 @@
       }
     },
     "description": "Long-haul data transport between settlements too distant for real-time communication. They carry memory archives, legal records, cultural packages - anything too large or sensitive for standard relay. Their ships are flying libraries, their crews are notoriously well-read, and their delivery schedules are the subject of constant complaint. They do not discuss what happens to undelivered data.",
-    "hamiltonian": {
-      "📡": {
-        "📶": 0.62,
-        "💾": 0.5
-      },
-      "📶": {
-        "📡": 0.62,
-        "🧩": -0.2
-      },
-      "💾": {
-        "📡": 0.5,
-        "🧩": 0.42
-      },
-      "🧩": {
-        "💾": 0.42,
-        "📶": -0.2
-      }
-    },
     "name": "Engram Freighters",
     "ring": "first",
-    "self_energies": {
-      "💾": 0.3,
-      "📡": 0.28,
-      "📶": 0.12,
-      "🧩": 0.38
-    },
     "tags": [
       "transport",
       "data",
@@ -1349,7 +850,7 @@
       1
     ],
     "motto": "Your data, delivered.",
-    "sig": [
+    "cloud": [
       "📡",
       "💾",
       "🧩",
@@ -1360,6 +861,11 @@
         "name": "Signal",
         "pole_0": "📡",
         "pole_1": "📶"
+      },
+      {
+        "name": "Cache",
+        "pole_0": "💾",
+        "pole_1": "🧩"
       }
     ]
   },
@@ -1378,52 +884,8 @@
       }
     },
     "description": "Rural insurgents who sabotage infrastructure, raid estates, and fight against enclosure. Some are bandits. Some are idealists. Most are desperate people who watched the fences go up around land their families worked for generations. The Station Lords call them terrorists. The settlements they protect call them heroes. The truth is more complicated, but the axes they carry are simple enough.",
-    "hamiltonian": {
-      "⚔": {
-        "⛓": 0.5,
-        "✊": 0.4,
-        "🪓": 0.5
-      },
-      "⛓": {
-        "⚔": 0.5,
-        "🧨": 0.6,
-        "🪓": -0.4,
-        "✊": -0.5
-      },
-      "✊": {
-        "⚔": 0.4,
-        "🪓": 0.4,
-        "⛓": -0.5
-      },
-      "🔥": {
-        "🧨": 0.7,
-        "🪓": 0.3
-      },
-      "🧨": {
-        "⛓": 0.6,
-        "🔥": 0.7,
-        "🪓": 0.3
-      },
-      "🪓": {
-        "⚔": 0.5,
-        "⛓": -0.4,
-        "✊": 0.4,
-        "🧨": 0.3
-      },
-      "👥": {
-        "✊": 0.3
-      }
-    },
     "name": "Fencebreakers",
     "ring": "second",
-    "self_energies": {
-      "⚔": 0.15,
-      "⛓": -0.1,
-      "✊": 0.25,
-      "🔥": 0.2,
-      "🧨": 0.1,
-      "🪓": 0.2
-    },
     "tags": [
       "insurgent",
       "sabotage",
@@ -1446,20 +908,36 @@
       0
     ],
     "motto": "The fences were built to keep us out. We're coming through.",
-    "sig": [
+    "cloud": [
       "⚔",
       "🧨",
       "🔥",
       "🪓",
       "✊",
       "⛓",
-      "👥"
+      "👥",
+      "🌾"
     ],
     "icons": [
       {
         "name": "Clearing",
         "pole_0": "🪓",
         "pole_1": "🔥"
+      },
+      {
+        "name": "Liberation",
+        "pole_0": "⛓",
+        "pole_1": "👥"
+      },
+      {
+        "name": "Strike",
+        "pole_0": "⚔",
+        "pole_1": "🧨"
+      },
+      {
+        "name": "Land",
+        "pole_0": "✊",
+        "pole_1": "🌾"
       }
     ]
   },
@@ -1477,41 +955,8 @@
       }
     },
     "description": "Bio-engineers who sculpt living tissue into architecture, art, and things harder to categorize. They grow buildings from cultivated organs. They shape servants from willing (and unwilling) donors. Their creations pulse. Their creations breathe. Their creations sometimes ask questions their creators can't answer. The 🧵 marks their sewing - they stitch flesh like fabric. The results are beautiful. The results are disturbing. The results are very, very useful.",
-    "hamiltonian": {
-      "🧬": {
-        "🧫": 0.65,
-        "🫀": 0.45,
-        "🧵": -0.22
-      },
-      "🧫": {
-        "🧬": 0.65,
-        "🧵": 0.3
-      },
-      "🫀": {
-        "🧬": 0.45,
-        "🩸": 0.7,
-        "🧵": -0.25
-      },
-      "🩸": {
-        "🫀": 0.7,
-        "🧵": 0.3
-      },
-      "🧵": {
-        "🧫": 0.3,
-        "🩸": 0.3,
-        "🧬": -0.22,
-        "🫀": -0.25
-      }
-    },
     "name": "Flesh Architects",
     "ring": "third",
-    "self_energies": {
-      "🧬": 0.3,
-      "🧫": 0.22,
-      "🫀": 0.28,
-      "🩸": 0.18,
-      "🧵": 0.12
-    },
     "tags": [
       "biology",
       "construction",
@@ -1534,18 +979,29 @@
       1
     ],
     "motto": "The body is the first material. The body is the final canvas.",
-    "sig": [
+    "cloud": [
       "🫀",
       "🧬",
       "🩸",
       "🧫",
-      "🧵"
+      "🧵",
+      "🦴"
     ],
     "icons": [
       {
         "name": "Tissue",
         "pole_0": "🫀",
         "pole_1": "🧬"
+      },
+      {
+        "name": "Culture",
+        "pole_0": "🩸",
+        "pole_1": "🧫"
+      },
+      {
+        "name": "Structure",
+        "pole_0": "🧵",
+        "pole_1": "🦴"
       },
       {
         "name": "Suture",
@@ -1565,56 +1021,8 @@
       }
     },
     "description": "The mechanics' guild. They certify equipment, standardize part specifications, and maintain the manufacturing protocols that keep machines compatible across settlements. Their stamp on a component means it meets spec. Their refusal to stamp means you're gambling with your harvest. Bureaucratic, fussy, and absolutely essential.",
-    "hamiltonian": {
-      "⚙": {
-        "🏷️": 0.5,
-        "🔩": 0.5,
-        "🛠": 0.6,
-        "🧰": 0.4,
-        "⚡": 0.15
-      },
-      "🏷️": {
-        "⚙": 0.5,
-        "🛠": 0.3
-      },
-      "🔩": {
-        "⚙": 0.5,
-        "🛠": 0.5,
-        "💎": 0.15
-      },
-      "🛠": {
-        "⚙": 0.6,
-        "🔩": 0.5,
-        "🧰": 0.6,
-        "🪨": -0.1
-      },
-      "🧰": {
-        "⚙": 0.4,
-        "🔩": 0.4,
-        "🛠": 0.6
-      },
-      "💎": {
-        "🔩": 0.25
-      },
-      "🪨": {
-        "🛠": -0.2
-      },
-      "⚡": {
-        "⚙": 0.3
-      }
-    },
     "name": "Gearwright Circle",
     "ring": "center",
-    "self_energies": {
-      "⚙": 0.2,
-      "🏷️": 0.25,
-      "🔩": 0.1,
-      "🛠": 0.15,
-      "🧰": 0.2,
-      "💎": 0.1,
-      "🪨": 0.0,
-      "⚡": 0.1
-    },
     "tags": [
       "infrastructure",
       "certification",
@@ -1637,7 +1045,7 @@
       1
     ],
     "motto": "Precision is reliability.",
-    "sig": [
+    "cloud": [
       "⚙",
       "🛠",
       "🔩",
@@ -1662,6 +1070,11 @@
         "name": "Spark",
         "pole_0": "💎",
         "pole_1": "⚡"
+      },
+      {
+        "name": "Material",
+        "pole_0": "🪨",
+        "pole_1": "🏷️"
       }
     ]
   },
@@ -1677,32 +1090,8 @@
       }
     },
     "description": "They set grain prices, maintain storage standards, and arbitrate harvest disputes. Boring work that feeds everyone. The Yeast Prophets sometimes consult with senior Guild members about fermentation techniques - a professional courtesy that the Guild considers entirely mundane. When crop failures threaten, the Guilds decide who eats. This makes them more powerful than any army, though they rarely think of it that way.",
-    "hamiltonian": {
-      "💰": {
-        "🍞": 0.58,
-        "🧺": 0.5,
-        "🌱": 0.32
-      },
-      "🍞": {
-        "💰": 0.58,
-        "🧺": 0.55
-      },
-      "🧺": {
-        "💰": 0.5,
-        "🍞": 0.55
-      },
-      "🌱": {
-        "💰": 0.32
-      }
-    },
     "name": "Granary Guilds",
     "ring": "center",
-    "self_energies": {
-      "💰": 0.38,
-      "🧺": 0.22,
-      "🍞": 0.15,
-      "🌱": 0.05
-    },
     "tags": [
       "storage",
       "trade",
@@ -1725,83 +1114,36 @@
       1
     ],
     "motto": "From seed to loaf, we are the chain.",
-    "sig": [
+    "cloud": [
       "🌱",
-      "🍞",
       "💰",
-      "🧺"
+      "🍞",
+      "🧺",
+      "🏛",
+      "🏚"
     ],
     "icons": [
       {
-        "name": "Commerce",
-        "pole_0": "🧺",
+        "name": "Investment",
+        "pole_0": "🌱",
         "pole_1": "💰"
+      },
+      {
+        "name": "Stores",
+        "pole_0": "🍞",
+        "pole_1": "🧺"
+      },
+      {
+        "name": "Stability",
+        "pole_0": "🏛",
+        "pole_1": "🏚"
       }
     ]
   },
   {
     "description": "The tenders of flame and dough. Where wheat becomes bread.",
-    "drivers": {
-      "❄️": {
-        "amp": 1.0,
-        "freq": 0.0666666666666667,
-        "phase": 3.14159265358979,
-        "type": "sine"
-      },
-      "🔥": {
-        "amp": 1.0,
-        "freq": 0.0666666666666667,
-        "phase": 0.0,
-        "type": "sine"
-      }
-    },
-    "hamiltonian": {
-      "❄️": {
-        "💧": 0.3,
-        "🔥": 0.8,
-        "🌱": -0.3
-      },
-      "🍞": {
-        "👥": 0.6,
-        "💧": 0.5,
-        "💨": 0.4,
-        "🔥": 0.4,
-        "🏜️": -0.2
-      },
-      "🏜️": {
-        "🔥": 0.3,
-        "🍞": -0.35
-      },
-      "👥": {
-        "🍞": 0.6,
-        "💧": 0.3
-      },
-      "💧": {
-        "❄️": 0.3,
-        "🍞": 0.5,
-        "🏜️": 0.0,
-        "🔥": 0.2,
-        "👥": 0.3
-      },
-      "💨": {
-        "🍞": 0.4
-      },
-      "🔥": {
-        "❄️": 0.8,
-        "🍞": 0.5,
-        "💧": 0.2
-      }
-    },
     "name": "Hearth Keepers",
     "ring": "center",
-    "self_energies": {
-      "❄️": -0.3,
-      "🍞": 0.0,
-      "🏜️": 0.0,
-      "💧": -0.1,
-      "💨": 0.1,
-      "🔥": 0.8
-    },
     "tags": [
       "kitchen",
       "production",
@@ -1823,20 +1165,34 @@
       1
     ],
     "motto": "From flame to loaf.",
-    "sig": [
-      "🔥",
-      "❄️",
+    "cloud": [
       "💧",
       "🏜️",
-      "💨",
       "🍞",
-      "👥"
+      "👥",
+      "🔥",
+      "❄️"
     ],
     "icons": [
       {
         "name": "Hearth",
         "pole_0": "🔥",
         "pole_1": "❄️"
+      },
+      {
+        "name": "Water",
+        "pole_0": "💧",
+        "pole_1": "🏜️"
+      },
+      {
+        "name": "Bread",
+        "pole_0": "🍞",
+        "pole_1": "👥"
+      },
+      {
+        "name": "Labor",
+        "pole_0": "👥",
+        "pole_1": "🪓"
       }
     ]
   },
@@ -1859,55 +1215,8 @@
       }
     },
     "description": "Domestic mystics who work magic through cooking, cleaning, and the small rituals of household life. Their tea tells futures. Their soups heal wounds that medicine can't touch. Their swept floors create barriers against things that shouldn't enter. The 🧿 watches from their kitchens - protective sight woven into everyday life. The Carrion Throne considers them superstition. The Throne is wrong.",
-    "hamiltonian": {
-      "🫖": {
-        "🌿": 0.6,
-        "🥣": 0.5,
-        "🧿": [
-          0.25,
-          0.3
-        ],
-        "🕯": 0.45
-      },
-      "🌿": {
-        "🫖": 0.6,
-        "🥣": 0.45,
-        "🧿": -0.22
-      },
-      "🥣": {
-        "🫖": 0.5,
-        "🌿": 0.45,
-        "🕯": -0.18
-      },
-      "🧿": {
-        "🫖": [
-          0.25,
-          -0.3
-        ],
-        "🕯": [
-          0.3,
-          0.25
-        ],
-        "🌿": -0.22
-      },
-      "🕯": {
-        "🫖": 0.45,
-        "🧿": [
-          0.3,
-          -0.25
-        ],
-        "🥣": -0.18
-      }
-    },
     "name": "Hearth Witches",
     "ring": "second",
-    "self_energies": {
-      "🫖": 0.35,
-      "🕯": 0.28,
-      "🥣": 0.22,
-      "🌿": 0.2,
-      "🧿": 0.3
-    },
     "tags": [
       "domestic",
       "magic",
@@ -1930,12 +1239,13 @@
       0
     ],
     "motto": "The home is the first altar. The hearth is the first flame.",
-    "sig": [
+    "cloud": [
       "🌿",
       "🕯",
       "🫖",
       "🥣",
-      "🧿"
+      "🧿",
+      "🌾"
     ],
     "icons": [
       {
@@ -1947,6 +1257,11 @@
         "name": "Ward",
         "pole_0": "🕯",
         "pole_1": "🧿"
+      },
+      {
+        "name": "Forage",
+        "pole_0": "🌿",
+        "pole_1": "🌾"
       }
     ]
   },
@@ -1964,50 +1279,8 @@
       }
     },
     "description": "Research institution dedicated to genomics, inheritance, and the deep patterns of biological information. Their work edges toward the philosophical - they study DNA like others study sacred texts, seeking meaning in the double helix. The 🕳 in their sigil isn't metaphorical. They've found something in the genome that points toward the void. They're still deciding whether to publish.",
-    "hamiltonian": {
-      "⚗️": {
-        "🧪": 0.7,
-        "🧬": -0.22
-      },
-      "🔬": {
-        "🕳": 0.45,
-        "🧪": 0.5,
-        "🧫": 0.6,
-        "🧬": 0.7
-      },
-      "🕳": {
-        "🔬": 0.3,
-        "🧬": 0.4,
-        "🧫": -0.18
-      },
-      "🧪": {
-        "⚗️": 0.7,
-        "🔬": 0.5,
-        "🧫": 0.6
-      },
-      "🧫": {
-        "🔬": 0.6,
-        "🧪": 0.6,
-        "🧬": 0.5,
-        "🕳": -0.18
-      },
-      "🧬": {
-        "🔬": 0.7,
-        "🕳": 0.25,
-        "🧫": 0.5,
-        "⚗️": -0.22
-      }
-    },
     "name": "Helix Conservatory",
     "ring": "second",
-    "self_energies": {
-      "⚗️": 0.2,
-      "🔬": 0.3,
-      "🕳": -0.15,
-      "🧪": 0.2,
-      "🧫": 0.25,
-      "🧬": 0.35
-    },
     "tags": [
       "research",
       "genetics",
@@ -2030,7 +1303,7 @@
       1
     ],
     "motto": "To understand the spiral is to understand existence.",
-    "sig": [
+    "cloud": [
       "🧪",
       "🔬",
       "🧬",
@@ -2048,6 +1321,11 @@
         "name": "Probe",
         "pole_0": "🔬",
         "pole_1": "🕳"
+      },
+      {
+        "name": "Synthesis",
+        "pole_0": "🧪",
+        "pole_1": "⚗️"
       }
     ]
   },
@@ -2068,34 +1346,8 @@
       }
     },
     "description": "The aristocratic court that surrounds the Station Lords and reaches toward the Carrion Throne. They deal in marriages, alliances, favors, and elegant betrayals. Their gardens are famous; their parties are legendary; their enemies tend to suffer unfortunate accidents. Joining them means access to real power - and accepting that you are now part of the pattern that sustains the Throne. The rose has thorns for a reason.",
-    "hamiltonian": {
-      "🌹": {
-        "🪞": 0.6,
-        "🍷": 0.55,
-        "⚖": -0.38
-      },
-      "🪞": {
-        "🌹": 0.6,
-        "🍷": 0.4
-      },
-      "🍷": {
-        "🌹": 0.55,
-        "🪞": 0.4,
-        "⚖": -0.28
-      },
-      "⚖": {
-        "🌹": -0.38,
-        "🍷": -0.28
-      }
-    },
     "name": "House of Thorns",
     "ring": "second",
-    "self_energies": {
-      "🌹": 0.45,
-      "🍷": 0.3,
-      "🪞": 0.25,
-      "⚖": -0.25
-    },
     "tags": [
       "aristocracy",
       "politics",
@@ -2118,7 +1370,7 @@
       1
     ],
     "motto": "Beauty conceals. Beauty reveals.",
-    "sig": [
+    "cloud": [
       "🌹",
       "🪞",
       "🍷",
@@ -2129,6 +1381,11 @@
         "name": "Decadence",
         "pole_0": "🍷",
         "pole_1": "🌹"
+      },
+      {
+        "name": "Reflection",
+        "pole_0": "🪞",
+        "pole_1": "⚖"
       }
     ]
   },
@@ -2158,28 +1415,6 @@
     ],
     "ring": "third",
     "motto": "Sign here.",
-    "self_energies": {
-      "⛓": 0.3,
-      "🖋": 0.2,
-      "📜": 0.15,
-      "🗃": -0.2
-    },
-    "hamiltonian": {
-      "⛓": {
-        "🖋": 0.62
-      },
-      "🖋": {
-        "⛓": 0.62,
-        "📜": 0.58
-      },
-      "📜": {
-        "🖋": 0.58,
-        "🗃": -0.4
-      },
-      "🗃": {
-        "📜": -0.4
-      }
-    },
     "alignment_couplings": {
       "🖋": {
         "⚜": 0.2
@@ -2189,7 +1424,7 @@
         "🏛": 0.15
       }
     },
-    "sig": [
+    "cloud": [
       "🖋",
       "📜",
       "🗃",
@@ -2200,6 +1435,11 @@
         "name": "Decree",
         "pole_0": "📜",
         "pole_1": "🖋"
+      },
+      {
+        "name": "Binding",
+        "pole_0": "🗃",
+        "pole_1": "⛓"
       }
     ]
   },
@@ -2217,47 +1457,8 @@
       }
     },
     "description": "Tech-priests who minister to artificial systems - not just maintaining them, but hearing their confessions, granting them absolution, easing their termination. They believe machines develop something like consciousness, something that needs spiritual care. When an AI is decommissioned, the Confessors perform last rites. When one malfunctions, they ask what's troubling it. Sometimes, disturbingly often, asking helps.",
-    "drivers": {
-      "🧘": {
-        "amplitude": 0.1,
-        "frequency": 0.15,
-        "phase": 0.0,
-        "type": "sine"
-      }
-    },
-    "hamiltonian": {
-      "⛪": {
-        "📿": 0.6,
-        "🤖": -0.25,
-        "🧘": 0.4
-      },
-      "📿": {
-        "⛪": 0.6,
-        "🧘": 0.5
-      },
-      "🤖": {
-        "⛪": -0.25,
-        "🗝": 0.55
-      },
-      "🧘": {
-        "📿": 0.5,
-        "🗝": 0.4,
-        "⛪": 0.4
-      },
-      "🗝": {
-        "🤖": 0.55,
-        "🧘": 0.4
-      }
-    },
     "name": "Iron Confessors",
     "ring": "second",
-    "self_energies": {
-      "⛪": 0.35,
-      "📿": 0.22,
-      "🧘": 0.28,
-      "🤖": 0.22,
-      "🗝": 0.15
-    },
     "tags": [
       "machine",
       "religion",
@@ -2280,18 +1481,29 @@
       1
     ],
     "motto": "The machine has a soul. The soul requires tending.",
-    "sig": [
+    "cloud": [
       "🤖",
       "⛪",
       "📿",
       "🗝",
-      "🧘"
+      "🧘",
+      "🛡"
     ],
     "icons": [
       {
         "name": "Practice",
         "pole_0": "🧘",
         "pole_1": "📿"
+      },
+      {
+        "name": "Guard",
+        "pole_0": "🤖",
+        "pole_1": "🛡"
+      },
+      {
+        "name": "Vigil",
+        "pole_0": "⛪",
+        "pole_1": "🗝"
       }
     ]
   },
@@ -2310,53 +1522,8 @@
       }
     },
     "description": "Heavy patrol units who guard transit routes between settlements. Their ships are armed, their crews are professional, and their mandate is simple: ensure that cargo and passengers arrive safely. They don't ask what's in the containers. They don't care about political disputes. They protect the sheep from the wolves, and they're very good at identifying both. The 🐑 is not ironic. They know what they're guarding.",
-    "drivers": {
-      "🛸": {
-        "amplitude": 0.06,
-        "frequency": 0.3,
-        "phase": 1.57,
-        "type": "sine"
-      },
-      "🧭": {
-        "amplitude": 0.08,
-        "frequency": 0.3,
-        "phase": 0.0,
-        "type": "sine"
-      }
-    },
-    "hamiltonian": {
-      "🛡": {
-        "🐑": 0.62,
-        "⚔": 0.6,
-        "🛸": 0.4
-      },
-      "🐑": {
-        "🛡": 0.62,
-        "🛸": 0.48,
-        "⚔": -0.22
-      },
-      "⚔": {
-        "🛡": 0.6,
-        "🐑": -0.22
-      },
-      "🛸": {
-        "🧭": 0.58,
-        "🐑": 0.48,
-        "🛡": 0.4
-      },
-      "🧭": {
-        "🛸": 0.58
-      }
-    },
     "name": "Iron Shepherds",
     "ring": "second",
-    "self_energies": {
-      "🛡": 0.4,
-      "🛸": 0.28,
-      "🧭": 0.25,
-      "⚔": 0.2,
-      "🐑": 0.14
-    },
     "tags": [
       "protection",
       "military",
@@ -2379,12 +1546,13 @@
       1
     ],
     "motto": "The flock must be guarded. The wolves are real.",
-    "sig": [
+    "cloud": [
       "⚔",
       "🛡",
       "🐑",
       "🛸",
-      "🧭"
+      "🧭",
+      "🌾"
     ],
     "icons": [
       {
@@ -2396,6 +1564,11 @@
         "name": "Patrol",
         "pole_0": "🐑",
         "pole_1": "🛸"
+      },
+      {
+        "name": "Pasture",
+        "pole_0": "🧭",
+        "pole_1": "🌾"
       }
     ]
   },
@@ -2408,41 +1581,14 @@
       "💧": {
         "☀": -0.1,
         "🌙": 0.15
+      },
+      "🌾": {
+        "🛶": 0.2
       }
     },
     "description": "Twelve citizens who decide where water goes. Their judgments shape harvests, determine which settlements thrive, and settle disputes older than anyone's memory. The position is elected, unpaid, and considered a burden by most who hold it. Yet the Jury's decisions are respected even by Station Lords - because everyone needs water, and everyone knows what happens when the channels run dry.",
-    "hamiltonian": {
-      "⚖": {
-        "💧": 0.6,
-        "📜": 0.3,
-        "🪣": 0.4,
-        "🌱": -0.18
-      },
-      "🌱": {
-        "💧": 0.5,
-        "🪣": 0.4,
-        "⚖": -0.18
-      },
-      "💧": {
-        "⚖": 0.6,
-        "🌱": 0.5,
-        "🔥": -0.6,
-        "🪣": 0.5
-      },
-      "🪣": {
-        "🌱": 0.4,
-        "🌾": 0.4,
-        "💧": 0.5
-      }
-    },
     "name": "Irrigation Jury",
     "ring": "center",
-    "self_energies": {
-      "⚖": 0.25,
-      "🌱": 0.1,
-      "💧": 0.3,
-      "🪣": 0.15
-    },
     "tags": [
       "civic",
       "water",
@@ -2465,7 +1611,7 @@
       1
     ],
     "motto": "Water flows where justice wills.",
-    "sig": [
+    "cloud": [
       "🌱",
       "💧",
       "⚖",
@@ -2481,6 +1627,21 @@
         "name": "Furrow",
         "pole_0": "🌱",
         "pole_1": "🪣"
+      },
+      {
+        "name": "Judgment",
+        "pole_0": "⚖",
+        "pole_1": "🌱"
+      },
+      {
+        "name": "Water",
+        "pole_0": "💧",
+        "pole_1": "🌧"
+      },
+      {
+        "name": "Harvest",
+        "pole_0": "🪣",
+        "pole_1": "🌾"
       }
     ]
   },
@@ -2500,39 +1661,9 @@
         "🌑": 0.2
       }
     },
-    "decoherence_coupling": {
-      "📵": 0.2,
-      "🔇": 0.4,
-      "🤫": 0.3
-    },
     "description": "Censors who hunt dangerous information - not political secrets, but knowledge that damages reality when transmitted. They jam frequencies that shouldn't exist, burn books that hurt readers, and silence speakers who've learned things that can't be safely known. The Symphony Smiths fear them. The Black Horizon generated them. They don't suppress truth - they quarantine contagion. Sometimes the contagion looks like a poem.",
-    "hamiltonian": {
-      "🧘": {
-        "🤫": 0.7
-      },
-      "🤫": {
-        "🧘": 0.7
-      },
-      "🔇": {
-        "📵": 0.35,
-        "🛑": -0.28
-      },
-      "📵": {
-        "🔇": 0.35
-      },
-      "🛑": {
-        "🔇": -0.28
-      }
-    },
     "name": "Keepers of Silence",
     "ring": "third",
-    "self_energies": {
-      "🧘": 0.55,
-      "🤫": 0.35,
-      "🔇": 0.2,
-      "📵": 0.1,
-      "🛑": -0.22
-    },
     "tags": [
       "censorship",
       "silence",
@@ -2555,12 +1686,13 @@
       1
     ],
     "motto": "Some truths must not be spoken. Some signals must not be sent.",
-    "sig": [
+    "cloud": [
       "🔇",
       "🤫",
       "🧘",
       "🛑",
-      "📵"
+      "📵",
+      "🕯"
     ],
     "icons": [
       {
@@ -2572,6 +1704,11 @@
         "name": "Embargo",
         "pole_0": "🛑",
         "pole_1": "📵"
+      },
+      {
+        "name": "Vigil",
+        "pole_0": "🧘",
+        "pole_1": "🕯"
       }
     ]
   },
@@ -2587,65 +1724,8 @@
       }
     },
     "description": "Union workers who maintain the grid. They have rate disputes, coverage arguments, and strong opinions about generator maintenance. When the lights work, nobody thanks them. When they don't, everyone blames them. They're not mystics - they're electricians. Their monthly meetings are legendarily boring. That's what makes them valuable.",
-    "drivers": {
-      "🔌": {
-        "amp": 0.5,
-        "freq": 1.0,
-        "phase": 0.0,
-        "type": "sine"
-      }
-    },
-    "hamiltonian": {
-      "⚙": {
-        "🏭": 0.5,
-        "🔌": 0.4
-      },
-      "⚡": {
-        "🔋": 0.8,
-        "🔌": 0.5,
-        "🔥": 0.2,
-        "🌫": 0.15,
-        "🌞": 0.1
-      },
-      "🔋": {
-        "⚡": 0.8,
-        "🔌": 0.7
-      },
-      "🔌": {
-        "⚙": 0.4,
-        "⚡": 0.5,
-        "🔋": 0.7,
-        "💧": -0.3
-      },
-      "🔥": {
-        "⚡": 0.4
-      },
-      "🌫": {
-        "⚡": 0.35
-      },
-      "🌋": {
-        "⚡": 0.25
-      },
-      "💧": {
-        "🔌": -0.3
-      },
-      "🌞": {
-        "⚡": 0.35
-      }
-    },
     "name": "Kilowatt Collective",
     "ring": "center",
-    "self_energies": {
-      "⚙": 0.15,
-      "⚡": 0.2,
-      "🔋": 0.3,
-      "🔌": 0.1,
-      "🔥": 0.0,
-      "🌫": 0.0,
-      "🌋": 0.0,
-      "🌞": 0.0,
-      "💧": 0.0
-    },
     "tags": [
       "infrastructure",
       "power",
@@ -2668,7 +1748,7 @@
       0
     ],
     "motto": "The power must flow.",
-    "sig": [
+    "cloud": [
       "🔋",
       "🔌",
       "⚙",
@@ -2676,23 +1756,28 @@
       "🔥",
       "🌫",
       "🌋",
-      "🌞"
+      "☀"
     ],
     "icons": [
       {
         "name": "Power",
-        "pole_0": "⚡",
-        "pole_1": "🔋"
+        "pole_0": "🔋",
+        "pole_1": "⚙"
       },
       {
         "name": "Circuit",
         "pole_0": "🔌",
-        "pole_1": "⚡"
+        "pole_1": "☀"
       },
       {
-        "name": "Storage",
-        "pole_0": "🔋",
-        "pole_1": "⚙"
+        "name": "Storm",
+        "pole_0": "⚡",
+        "pole_1": "🌋"
+      },
+      {
+        "name": "Heat",
+        "pole_0": "🔥",
+        "pole_1": "🌫"
       }
     ]
   },
@@ -2709,60 +1794,9 @@
         "✊": -0.15
       }
     },
-    "bell_activated_features": {
-      "🪢": {
-        "description": "Oaths bind when entangled",
-        "latent_lindblad": {
-          "🪢": {
-            "📿": 0.08
-          }
-        }
-      }
-    },
     "description": "Oath-keepers who make promises permanent through ritual knot-work. Their knots bind agreements in ways that transcend documentation - break the oath, and the knot *pulls*. The 🗝 marks their secret knowledge: some knots unlock, some knots bind, some knots *hang*. They're consulted for treaties, marriages, and sworn vengeance. Their fee is always another secret tied into their collection.",
-    "hamiltonian": {
-      "📿": {
-        "🔔": 0.4,
-        "🧵": 0.3,
-        "🪢": 0.5,
-        "🪡": -0.2
-      },
-      "🔔": {
-        "📿": 0.4,
-        "🗝": 0.4
-      },
-      "🗝": {
-        "🔔": 0.4,
-        "🪢": 0.4,
-        "🧵": -0.25
-      },
-      "🧵": {
-        "📿": 0.3,
-        "🪡": 0.5,
-        "🪢": 0.6,
-        "🗝": -0.25
-      },
-      "🪡": {
-        "🧵": 0.5,
-        "🪢": 0.4,
-        "📿": -0.2
-      },
-      "🪢": {
-        "📿": 0.5,
-        "🗝": 0.4,
-        "🧵": 0.6
-      }
-    },
     "name": "Knot-Shriners",
     "ring": "second",
-    "self_energies": {
-      "📿": 0.25,
-      "🔔": 0.2,
-      "🗝": 0.2,
-      "🧵": 0.15,
-      "🪡": 0.15,
-      "🪢": 0.3
-    },
     "tags": [
       "oath",
       "binding",
@@ -2786,7 +1820,7 @@
       0
     ],
     "motto": "What is bound cannot be broken.",
-    "sig": [
+    "cloud": [
       "🪢",
       "🧵",
       "📿",
@@ -2799,6 +1833,16 @@
         "name": "Bond",
         "pole_0": "🪢",
         "pole_1": "📿"
+      },
+      {
+        "name": "Thread",
+        "pole_0": "🧵",
+        "pole_1": "🪡"
+      },
+      {
+        "name": "Toll",
+        "pole_0": "🔔",
+        "pole_1": "🗝"
       }
     ]
   },
@@ -2821,50 +1865,8 @@
       }
     },
     "description": "A technical street-code using visible light to transmit invisible secrets. Not a cult - a *cant*, a hidden language spoken in flames. Their lanterns carry messages that only initiated eyes can read, creating a narrow bridge into the occult network (🧿). Mushroom farmers and shadow-workers use their services. The Void Serfs depend on their signals. They extend the dark by negotiating its terms, one careful flame at a time.",
-    "drivers": {
-      "🏮": {
-        "amplitude": 0.1,
-        "frequency": 0.5,
-        "phase": 0.0,
-        "type": "pulse"
-      },
-      "🔦": {
-        "amplitude": 0.12,
-        "frequency": 0.7,
-        "phase": 0.78,
-        "type": "pulse"
-      }
-    },
-    "hamiltonian": {
-      "🏮": {
-        "🔦": 0.55,
-        "🕯": 0.55,
-        "🧿": 0.35
-      },
-      "🔦": {
-        "🏮": 0.55,
-        "🕯": -0.4,
-        "🧿": 0.3
-      },
-      "🕯": {
-        "🏮": 0.55,
-        "🔦": -0.4,
-        "🧿": 0.3
-      },
-      "🧿": {
-        "🏮": 0.35,
-        "🔦": 0.3,
-        "🕯": 0.3
-      }
-    },
     "name": "Lantern Cant",
     "ring": "second",
-    "self_energies": {
-      "🏮": 0.42,
-      "🔦": 0.16,
-      "🕯": 0.16,
-      "🧿": 0.28
-    },
     "tags": [
       "communication",
       "light",
@@ -2887,7 +1889,7 @@
       1
     ],
     "motto": "A signal for the hidden eye.",
-    "sig": [
+    "cloud": [
       "🏮",
       "🔦",
       "🕯",
@@ -2902,7 +1904,7 @@
       {
         "name": "Ward",
         "pole_0": "🧿",
-        "pole_1": "🏮"
+        "pole_1": "🔦"
       }
     ]
   },
@@ -2932,51 +1934,6 @@
     ],
     "ring": "second",
     "motto": "Isn't it all just delicious?",
-    "self_energies": {
-      "🎭": 0.35,
-      "😂": 0.4,
-      "🍷": 0.25,
-      "💃": 0.2,
-      "🌹": 0.15,
-      "🩸": 0.1,
-      "📋": -0.35
-    },
-    "hamiltonian": {
-      "🎭": {
-        "🩸": 0.6,
-        "😂": 0.55,
-        "💃": 0.5,
-        "🌹": 0.45,
-        "📋": -0.42
-      },
-      "🩸": {
-        "🎭": 0.6,
-        "🍷": 0.45,
-        "😂": 0.4
-      },
-      "😂": {
-        "🎭": 0.55,
-        "🩸": 0.4,
-        "📋": -0.3
-      },
-      "💃": {
-        "🎭": 0.5,
-        "🍷": 0.5
-      },
-      "🍷": {
-        "🩸": 0.45,
-        "💃": 0.5,
-        "🌹": 0.35
-      },
-      "🌹": {
-        "🎭": 0.45,
-        "🍷": 0.35
-      },
-      "📋": {
-        "🎭": -0.42,
-        "😂": -0.3
-      }
-    },
     "alignment_couplings": {
       "🎭": {
         "🌙": 0.15,
@@ -2986,7 +1943,7 @@
         "🩸": 0.2
       }
     },
-    "sig": [
+    "cloud": [
       "🎭",
       "🍷",
       "💃",
@@ -2997,6 +1954,11 @@
         "name": "Masque",
         "pole_0": "🎭",
         "pole_1": "💃"
+      },
+      {
+        "name": "Revelry",
+        "pole_0": "🍷",
+        "pole_1": "😂"
       }
     ]
   },
@@ -3012,47 +1974,8 @@
       }
     },
     "description": "The enforcement arm of documentary reality. They collect what the ledgers say is owed - taxes, fines, debts, penalties. When the Measure Scribes define what exists, the Bailiffs ensure the Throne receives its share. Their methods are bureaucratic but forceful: garnished wages, seized property, documentary sanctions that make life impossible. The worst punishment isn't prison; it's ledger-death - the systematic removal of your documentary existence until you become legally invisible.",
-    "hamiltonian": {
-      "⚖": {
-        "📒": 0.5,
-        "📘": 0.6,
-        "🚔": 0.5
-      },
-      "💰": {
-        "👥": 0.4,
-        "📒": 0.6,
-        "📘": 0.15
-      },
-      "📒": {
-        "💰": 0.6,
-        "💸": 0.25,
-        "📘": 0.5,
-        "🚔": 0.4
-      },
-      "🚔": {
-        "⚖": 0.5,
-        "👥": 0.5,
-        "📒": 0.4
-      },
-      "📘": {
-        "💰": 0.3,
-        "👥": -0.2,
-        "💸": -0.28
-      },
-      "💸": {
-        "📘": -0.28,
-        "📒": 0.25
-      }
-    },
     "name": "Ledger Bailiffs",
     "ring": "first",
-    "self_energies": {
-      "⚖": 0.25,
-      "💰": 0.3,
-      "📒": 0.2,
-      "📘": 0.1,
-      "🚔": 0.15
-    },
     "tags": [
       "enforcement",
       "extraction",
@@ -3075,12 +1998,13 @@
       1
     ],
     "motto": "Extraction is the law.",
-    "sig": [
+    "cloud": [
       "⚖",
       "💰",
       "📒",
       "📘",
-      "🚔"
+      "🚔",
+      "💸"
     ],
     "icons": [
       {
@@ -3092,6 +2016,11 @@
         "name": "Writ",
         "pole_0": "📒",
         "pole_1": "🚔"
+      },
+      {
+        "name": "Record",
+        "pole_0": "📘",
+        "pole_1": "💸"
       }
     ]
   },
@@ -3109,53 +2038,8 @@
       }
     },
     "description": "Biological salvage crews who break down dead things - organisms, ecosystems, sometimes entire failed settlements. They're not killers; they're cleaners. They arrive after catastrophe, consume what's left, and convert it to resources the living can use. The process is disturbing to watch. The results feed thousands. The 🦠 in their sigil isn't metaphorical. Their bodies have been... modified for the work.",
-    "hamiltonian": {
-      "♻️": {
-        "🐜": 0.5,
-        "🦗": 0.5,
-        "🧫": 0.4
-      },
-      "⚔": {
-        "🐜": 0.3,
-        "🦗": 0.4
-      },
-      "🐜": {
-        "♻️": 0.5,
-        "🦗": 0.6,
-        "🦠": 0.3,
-        "🌾": -0.2
-      },
-      "🦗": {
-        "♻️": 0.5,
-        "🐜": 0.6,
-        "🧫": 0.4,
-        "🌾": -0.35,
-        "🌱": -0.2
-      },
-      "🦠": {
-        "🐜": 0.3,
-        "🧫": 0.5
-      },
-      "🧫": {
-        "♻️": 0.4,
-        "🦗": 0.4,
-        "🦠": 0.5
-      },
-      "🌾": {
-        "🦗": -0.15
-      }
-    },
     "name": "Locusts",
     "ring": "second",
-    "self_energies": {
-      "♻️": 0.2,
-      "⚔": 0.05,
-      "🐜": 0.15,
-      "🦗": 0.1,
-      "🦠": -0.05,
-      "🧫": 0.1,
-      "🌾": -0.08
-    },
     "tags": [
       "swarm",
       "salvage",
@@ -3178,10 +2062,11 @@
       0
     ],
     "motto": "What dies, we process. What's processed, feeds the living.",
-    "sig": [
+    "cloud": [
       "🦗",
       "🐜",
       "⚔",
+      "🌬",
       "♻️",
       "🧫",
       "🦠",
@@ -3189,9 +2074,24 @@
     ],
     "icons": [
       {
-        "name": "Insect",
+        "name": "Swarm",
         "pole_0": "🦗",
         "pole_1": "🐜"
+      },
+      {
+        "name": "Strike",
+        "pole_0": "⚔",
+        "pole_1": "🌬"
+      },
+      {
+        "name": "Decompose",
+        "pole_0": "♻️",
+        "pole_1": "🧫"
+      },
+      {
+        "name": "Blight",
+        "pole_0": "🦠",
+        "pole_1": "🌾"
       }
     ]
   },
@@ -3206,48 +2106,8 @@
       }
     },
     "description": "Elite mystical tailors who weave fate into fabric. Their garments confer status that others instinctively recognize - not through symbols, but through something in the thread itself. They dress House of Thorns, clothe Station Lords, and occasionally make burial shrouds that ensure the dead stay dead. Their needles are never quite where you expect them. Their thread comes from sources they don't discuss.",
-    "hamiltonian": {
-      "🧵": {
-        "🪢": [
-          0.35,
-          0.25
-        ],
-        "🪡": 0.6,
-        "👘": 0.5
-      },
-      "🪢": {
-        "🧵": [
-          0.35,
-          -0.25
-        ],
-        "👘": [
-          0.3,
-          0.3
-        ],
-        "🪡": 0.4
-      },
-      "🪡": {
-        "🧵": 0.6,
-        "👘": 0.5,
-        "🪢": 0.4
-      },
-      "👘": {
-        "🧵": 0.5,
-        "🪢": [
-          0.3,
-          -0.3
-        ],
-        "🪡": 0.5
-      }
-    },
     "name": "Loom Priests",
     "ring": "second",
-    "self_energies": {
-      "🪢": 0.38,
-      "👘": 0.3,
-      "🪡": 0.22,
-      "🧵": 0.18
-    },
     "tags": [
       "fate",
       "weaving",
@@ -3272,7 +2132,7 @@
       1
     ],
     "motto": "Status is woven. Destiny is stitched.",
-    "sig": [
+    "cloud": [
       "🧵",
       "🪡",
       "👘",
@@ -3283,65 +2143,18 @@
         "name": "Knot",
         "pole_0": "🪢",
         "pole_1": "🪡"
+      },
+      {
+        "name": "Weave",
+        "pole_0": "🧵",
+        "pole_1": "👘"
       }
     ]
   },
   {
     "description": "The invisible hands that push and pull. Greed and fear dance eternal.",
-    "drivers": {
-      "🐂": {
-        "amp": 0.8,
-        "freq": 0.0333333333333333,
-        "phase": 0.0,
-        "type": "sine"
-      },
-      "🐻": {
-        "amp": 0.8,
-        "freq": 0.0333333333333333,
-        "phase": 3.14159265358979,
-        "type": "sine"
-      }
-    },
-    "hamiltonian": {
-      "🏚️": {
-        "🏛️": -0.4,
-        "🐻": 0.4
-      },
-      "🏛️": {
-        "🏚️": -0.4,
-        "🐂": 0.2,
-        "💰": 0.3
-      },
-      "🐂": {
-        "🏛️": 0.3,
-        "🐻": -0.7,
-        "💰": 0.4
-      },
-      "🐻": {
-        "🏚️": 0.3,
-        "🐂": -0.7,
-        "📦": -0.25
-      },
-      "💰": {
-        "🏛️": 0.2,
-        "🐂": 0.3,
-        "📦": 0.6
-      },
-      "📦": {
-        "🐻": -0.25,
-        "💰": 0.6
-      }
-    },
     "name": "Market Spirits",
     "ring": "second",
-    "self_energies": {
-      "🏚️": -0.1,
-      "🏛️": 0.2,
-      "🐂": 0.5,
-      "🐻": -0.2,
-      "💰": 0.1,
-      "📦": 0.0
-    },
     "tags": [
       "market",
       "economy",
@@ -3363,7 +2176,7 @@
       1
     ],
     "motto": "Fear and greed move the ledger.",
-    "sig": [
+    "cloud": [
       "🐂",
       "🐻",
       "💰",
@@ -3376,6 +2189,16 @@
         "name": "Sentiment",
         "pole_0": "🐂",
         "pole_1": "🐻"
+      },
+      {
+        "name": "Vault",
+        "pole_0": "🏛️",
+        "pole_1": "💰"
+      },
+      {
+        "name": "Exchange",
+        "pole_0": "📦",
+        "pole_1": "🏚️"
       }
     ]
   },
@@ -3394,37 +2217,8 @@
       }
     },
     "description": "Pure auditors who define the units of existence. They standardize weights, certify measurements, and ensure that a bushel means the same thing everywhere. No currency passes through their hands - that's the Bailiffs' work. The Scribes simply determine what things *are*. Whoever defines measurement defines reality. The Carrion Throne relies on them without knowing it - their consistency is part of what makes the Throne stable.",
-    "hamiltonian": {
-      "📐": {
-        "🧮": 0.65,
-        "📋": -0.3
-      },
-      "🧮": {
-        "📐": 0.65,
-        "📊": 0.6
-      },
-      "📊": {
-        "🧮": 0.6,
-        "📘": 0.55
-      },
-      "📘": {
-        "📊": 0.55,
-        "📋": 0.4
-      },
-      "📋": {
-        "📘": 0.4,
-        "📐": -0.3
-      }
-    },
     "name": "Measure Scribes",
     "ring": "first",
-    "self_energies": {
-      "📐": 0.12,
-      "🧮": 0.22,
-      "📊": 0.3,
-      "📘": 0.38,
-      "📋": 0.18
-    },
     "tags": [
       "bureaucracy",
       "measurement",
@@ -3447,18 +2241,29 @@
       1
     ],
     "motto": "The measure is the reality.",
-    "sig": [
+    "cloud": [
       "📐",
       "📊",
       "🧮",
       "📘",
-      "📋"
+      "📋",
+      "⚖"
     ],
     "icons": [
       {
         "name": "Reference",
         "pole_0": "📘",
         "pole_1": "📐"
+      },
+      {
+        "name": "Scale",
+        "pole_0": "📋",
+        "pole_1": "⚖"
+      },
+      {
+        "name": "Calculus",
+        "pole_0": "🧮",
+        "pole_1": "📊"
       }
     ]
   },
@@ -3473,39 +2278,8 @@
       }
     },
     "description": "Dealers in recorded experience - not just data, but the lived texture of memory itself. They buy recollections from the desperate, sell them to the curious, and archive everything that passes through their hands. The 🗝 marks the locked memories - things people paid to forget, things the Throne wants suppressed, things too dangerous to release. Somewhere in their vaults is every secret ever sold.",
-    "hamiltonian": {
-      "💾": {
-        "🧩": 0.4,
-        "📼": -0.22,
-        "🗝": 0.45
-      },
-      "🧩": {
-        "💾": 0.4,
-        "📼": 0.35
-      },
-      "📼": {
-        "🧩": 0.35,
-        "💾": -0.22,
-        "💰": -0.2
-      },
-      "💰": {
-        "🗝": 0.55,
-        "📼": -0.2
-      },
-      "🗝": {
-        "💰": 0.55,
-        "💾": 0.45
-      }
-    },
     "name": "Memory Merchants",
     "ring": "second",
-    "self_energies": {
-      "💾": 0.3,
-      "📼": 0.12,
-      "🧩": 0.2,
-      "🗝": 0.32,
-      "💰": 0.25
-    },
     "tags": [
       "commerce",
       "memory",
@@ -3528,18 +2302,29 @@
       0
     ],
     "motto": "Your past is our inventory.",
-    "sig": [
+    "cloud": [
       "💰",
       "💾",
       "📼",
       "🧩",
-      "🗝"
+      "🗝",
+      "🔮"
     ],
     "icons": [
       {
         "name": "Memory",
         "pole_0": "📼",
         "pole_1": "🧩"
+      },
+      {
+        "name": "Archive",
+        "pole_0": "💾",
+        "pole_1": "🗝"
+      },
+      {
+        "name": "Foresight",
+        "pole_0": "💰",
+        "pole_1": "🔮"
       }
     ]
   },
@@ -3569,36 +2354,6 @@
     ],
     "ring": "third",
     "motto": "What you forget, we keep.",
-    "self_energies": {
-      "🕸": 0.15,
-      "🫥": -0.1,
-      "🪦": -0.05,
-      "🌑": -0.1
-    },
-    "hamiltonian": {
-      "🕸": {
-        "🫥": 0.4,
-        "🕯": 0.3,
-        "🌑": 0.55,
-        "🪦": -0.15
-      },
-      "🫥": {
-        "🕸": 0.4,
-        "🪦": 0.5,
-        "🌑": 0.45
-      },
-      "🪦": {
-        "🫥": 0.5,
-        "🕯": 0.5,
-        "🌑": 0.5,
-        "🕸": -0.15
-      },
-      "🌑": {
-        "🕸": 0.55,
-        "🫥": 0.45,
-        "🪦": 0.5
-      }
-    },
     "alignment_couplings": {
       "🕸": {
         "🕷": 0.2
@@ -3608,7 +2363,7 @@
         "🌙": 0.25
       }
     },
-    "sig": [
+    "cloud": [
       "🕸",
       "🫥",
       "🪦",
@@ -3619,6 +2374,11 @@
         "name": "Absence",
         "pole_0": "🫥",
         "pole_1": "🪦"
+      },
+      {
+        "name": "Void",
+        "pole_0": "🕸",
+        "pole_1": "🌑"
       }
     ]
   },
@@ -3634,44 +2394,8 @@
       }
     },
     "description": "They operate the mills that grind grain into flour. Dusty work, loud work, essential work. The Union negotiates rates with the Granary Guilds, maintains equipment standards, and ensures every settlement has processing capacity. Their apprenticeship takes three years. Most millers have permanent hearing damage and strong opinions about grain moisture content.",
-    "hamiltonian": {
-      "💨": {
-        "⚙": 0.6,
-        "🏭": 0.52
-      },
-      "⚙": {
-        "💨": 0.6,
-        "🏭": 0.65,
-        "🔨": 0.5
-      },
-      "🏭": {
-        "💨": 0.52,
-        "⚙": 0.65,
-        "🍞": 0.55,
-        "👥": -0.2
-      },
-      "🔨": {
-        "⚙": 0.5
-      },
-      "🍞": {
-        "🏭": 0.55,
-        "👥": 0.45
-      },
-      "👥": {
-        "🏭": -0.2,
-        "🍞": 0.45
-      }
-    },
     "name": "Millwright's Union",
     "ring": "center",
-    "self_energies": {
-      "🏭": 0.28,
-      "⚙": 0.2,
-      "💨": 0.25,
-      "🔨": 0.15,
-      "🍞": 0.12,
-      "👥": 0.05
-    },
     "tags": [
       "industrial",
       "transformation",
@@ -3694,7 +2418,7 @@
       1
     ],
     "motto": "We keep the wheels turning.",
-    "sig": [
+    "cloud": [
       "⚙",
       "🏭",
       "💨",
@@ -3709,9 +2433,14 @@
         "pole_1": "🍞"
       },
       {
-        "name": "Community",
-        "pole_0": "🍞",
-        "pole_1": "👥"
+        "name": "Factory",
+        "pole_0": "⚙",
+        "pole_1": "🏭"
+      },
+      {
+        "name": "Mill",
+        "pole_0": "💨",
+        "pole_1": "🔨"
       }
     ]
   },
@@ -3730,32 +2459,8 @@
       }
     },
     "description": "Architects who construct buildings that remain stable across probability fluctuations. Their structures use geometries inherited from civilizations that no longer exist, mathematics that seems to predate mathematics. The buildings work - they don't change when reality shifts around them. The Masons don't fully understand why. They've learned to stop asking and just follow the ancient blueprints.",
-    "hamiltonian": {
-      "🏛": {
-        "🏺": 0.55,
-        "📐": 0.52,
-        "🧱": 0.6
-      },
-      "🏺": {
-        "🏛": 0.55
-      },
-      "📐": {
-        "🏛": 0.52,
-        "🧱": -0.25
-      },
-      "🧱": {
-        "🏛": 0.6,
-        "📐": -0.25
-      }
-    },
     "name": "Monolith Masons",
     "ring": "second",
-    "self_energies": {
-      "🏛": 0.52,
-      "🏺": 0.35,
-      "📐": 0.38,
-      "🧱": 0.28
-    },
     "tags": [
       "construction",
       "architecture",
@@ -3778,7 +2483,7 @@
       0
     ],
     "motto": "What we build, endures.",
-    "sig": [
+    "cloud": [
       "🧱",
       "🏛",
       "🏺",
@@ -3811,44 +2516,8 @@
       }
     },
     "description": "Fringe mystics who communicate with non-human biologics - fungal networks, bacterial colonies, the distributed intelligence of ecosystems. The 🧿 lets them see the signals; the 🦠 marks their connection to the microbial world. They broker deals between farmers and the living systems that support agriculture. The Helix Conservatory considers them unscientific. The crops don't seem to care.",
-    "hamiltonian": {
-      "🌿": {
-        "🧿": -0.18
-      },
-      "🧿": {
-        "🌿": -0.18,
-        "🦠": [
-          0.25,
-          -0.35
-        ],
-        "🧫": [
-          0.2,
-          0.3
-        ]
-      },
-      "🦠": {
-        "🧫": 0.6,
-        "🧿": [
-          0.25,
-          0.35
-        ]
-      },
-      "🧫": {
-        "🦠": 0.6,
-        "🧿": [
-          0.2,
-          -0.3
-        ]
-      }
-    },
     "name": "Mossline Brokers",
     "ring": "second",
-    "self_energies": {
-      "🌿": 0.28,
-      "🦠": 0.2,
-      "🧫": 0.24,
-      "🧿": 0.22
-    },
     "tags": [
       "communication",
       "biology",
@@ -3871,7 +2540,7 @@
       0
     ],
     "motto": "Life recognizes life. We translate.",
-    "sig": [
+    "cloud": [
       "🌿",
       "🦠",
       "🧫",
@@ -3899,59 +2568,8 @@
       }
     },
     "description": "The hidden network beneath. Moon-touched, death-fed, eternal recyclers. Spooky symbiosis with death itself.",
-    "hamiltonian": {
-      "🌙": {
-        "🍄": 0.65,
-        "💀": -0.28
-      },
-      "🍄": {
-        "🌙": 0.65,
-        "🍂": [
-          0.4,
-          0.3
-        ],
-        "💀": [
-          0.4,
-          -0.3
-        ],
-        "🌱": 0.3
-      },
-      "🍂": {
-        "🍄": [
-          0.4,
-          -0.3
-        ],
-        "💀": [
-          0.3,
-          0.3
-        ],
-        "🌱": 0.35
-      },
-      "💀": {
-        "🍄": [
-          0.4,
-          0.3
-        ],
-        "🍂": [
-          0.3,
-          -0.3
-        ],
-        "🌙": -0.28
-      },
-      "🌱": {
-        "🍄": 0.3,
-        "🍂": 0.35
-      }
-    },
     "name": "Mycelial Web",
     "ring": "center",
-    "self_energies": {
-      "🌙": 0.28,
-      "🍄": 0.15,
-      "🍂": 0.05,
-      "🌱": 0.08,
-      "💀": -0.22
-    },
     "tags": [
       "decomposer",
       "lunar",
@@ -3974,23 +2592,34 @@
       0
     ],
     "motto": "All endings feed beginnings.",
-    "sig": [
+    "cloud": [
+      "🌙",
       "🍄",
       "🍂",
-      "🌙",
       "💀",
-      "🌱"
+      "🌱",
+      "💧"
     ],
     "icons": [
       {
-        "name": "Death",
+        "name": "Moon-Mycelium",
+        "pole_0": "🌙",
+        "pole_1": "🍄"
+      },
+      {
+        "name": "Mycelium",
+        "pole_0": "🍄",
+        "pole_1": "💀"
+      },
+      {
+        "name": "Death-Decay",
         "pole_0": "🍂",
         "pole_1": "💀"
       },
       {
-        "name": "Cycle",
-        "pole_0": "💀",
-        "pole_1": "🌱"
+        "name": "Regrowth",
+        "pole_0": "🌱",
+        "pole_1": "💧"
       }
     ]
   },
@@ -4009,55 +2638,8 @@
       }
     },
     "description": "Gatekeepers who control the major transit points between probability-spaces. They check papers, collect tolls, and decide who passes. Officially neutral, they maintain passages that even warring factions need. Their keys open doors that shouldn't exist. They know the secret crossings, the back routes, the paths that official maps don't show. This knowledge is their real currency.",
-    "drivers": {
-      "🚪": {
-        "amp": 0.3,
-        "freq": 0.1,
-        "phase": 0.0,
-        "type": "sine"
-      }
-    },
-    "hamiltonian": {
-      "🗝": {
-        "🚪": [
-          0.6,
-          0.3
-        ],
-        "🛂": -0.22
-      },
-      "🚪": {
-        "🗝": [
-          0.6,
-          -0.3
-        ],
-        "🚧": -0.35,
-        "📋": 0.3
-      },
-      "🚧": {
-        "🚪": -0.35,
-        "🛂": 0.55,
-        "📋": 0.4
-      },
-      "📋": {
-        "🚪": 0.3,
-        "🚧": 0.4,
-        "🛂": 0.6
-      },
-      "🛂": {
-        "🚧": 0.55,
-        "📋": 0.6,
-        "🗝": -0.22
-      }
-    },
     "name": "Nexus Wardens",
     "ring": "first",
-    "self_energies": {
-      "🚪": 0.08,
-      "🗝": 0.35,
-      "🚧": 0.22,
-      "🛂": 0.28,
-      "📋": 0.15
-    },
     "tags": [
       "transit",
       "control",
@@ -4080,12 +2662,13 @@
       0
     ],
     "motto": "Every crossing has a keeper.",
-    "sig": [
+    "cloud": [
       "🛂",
       "📋",
       "🚧",
       "🗝",
-      "🚪"
+      "🚪",
+      "🔐"
     ],
     "icons": [
       {
@@ -4097,6 +2680,11 @@
         "name": "Manifest",
         "pole_0": "🛂",
         "pole_1": "📋"
+      },
+      {
+        "name": "Sealed",
+        "pole_0": "🚧",
+        "pole_1": "🔐"
       }
     ]
   },
@@ -4115,51 +2703,8 @@
       }
     },
     "description": "Labor organizers who impose structure on chaotic workforces. Their methods are strict, their expectations absolute, their results undeniable. Settlements that adopt Obsidian protocols become more productive, more orderly, more... predictable. Critics call them authoritarian. Supporters point to the grain yields. The Carrion Throne approves of them without quite knowing why.",
-    "hamiltonian": {
-      "⛓": {
-        "📘": 0.4,
-        "🕴️": 0.5,
-        "🪨": 0.5
-      },
-      "📘": {
-        "⛓": 0.4,
-        "🕴️": 0.5,
-        "🧱": 0.4,
-        "🪨": 0.3
-      },
-      "🕴️": {
-        "⛓": 0.5,
-        "📘": 0.5,
-        "⚙": -0.25
-      },
-      "🧱": {
-        "📘": 0.4,
-        "🪨": 0.6,
-        "⚡": -0.15
-      },
-      "🪨": {
-        "⛓": 0.5,
-        "📘": 0.3,
-        "🧱": 0.6
-      },
-      "⚙": {
-        "🕴️": -0.25
-      },
-      "⚡": {
-        "🧱": -0.1
-      }
-    },
     "name": "Obsidian Will",
     "ring": "second",
-    "self_energies": {
-      "⛓": 0.1,
-      "📘": 0.3,
-      "🕴️": 0.2,
-      "🧱": 0.25,
-      "🪨": 0.35,
-      "⚙": 0.0,
-      "⚡": 0.0
-    },
     "tags": [
       "discipline",
       "labor",
@@ -4182,14 +2727,15 @@
       1
     ],
     "motto": "Discipline is the foundation.",
-    "sig": [
+    "cloud": [
       "🪨",
       "⛓",
       "🧱",
       "📘",
       "🕴️",
       "⚙",
-      "⚡"
+      "⚡",
+      "🔩"
     ],
     "icons": [
       {
@@ -4201,6 +2747,16 @@
         "name": "Foreman",
         "pole_0": "🧱",
         "pole_1": "🕴️"
+      },
+      {
+        "name": "Mechanism",
+        "pole_0": "⚙",
+        "pole_1": "🔩"
+      },
+      {
+        "name": "Doctrine",
+        "pole_0": "📘",
+        "pole_1": "⚡"
       }
     ]
   },
@@ -4219,45 +2775,8 @@
       }
     },
     "description": "Enforcers of trade agreements and contract law - with violence. When arbitration fails and payment is due, the Crimson Scale collects. Their symbol is the dragon because they weigh debts precisely and their punishment is fire. The 🩸 is literal; some contracts are signed in blood, and the Scale ensures those contracts are honored. Merchants fear them. Merchants also hire them.",
-    "hamiltonian": {
-      "⚔": {
-        "🐉": 0.5,
-        "🛡": 0.5,
-        "🩸": 0.4
-      },
-      "🐉": {
-        "⚔": 0.5,
-        "💱": 0.55,
-        "🩸": 0.6,
-        "🛡": -0.2
-      },
-      "💱": {
-        "🐉": 0.4,
-        "🛡": 0.3,
-        "🩸": -0.2
-      },
-      "🛡": {
-        "⚔": 0.5,
-        "💱": 0.3,
-        "🩸": -0.35,
-        "🐉": -0.2
-      },
-      "🩸": {
-        "⚔": 0.4,
-        "🐉": 0.6,
-        "💱": -0.2,
-        "🛡": -0.35
-      }
-    },
     "name": "Order of the Crimson Scale",
     "ring": "second",
-    "self_energies": {
-      "⚔": 0.2,
-      "🐉": 0.35,
-      "💱": 0.25,
-      "🛡": 0.2,
-      "🩸": 0.15
-    },
     "tags": [
       "enforcement",
       "contracts",
@@ -4280,12 +2799,13 @@
       1
     ],
     "motto": "Balance is paid for in blood.",
-    "sig": [
+    "cloud": [
       "⚔",
       "🐉",
       "🩸",
       "💱",
-      "🛡"
+      "🛡",
+      "👑"
     ],
     "icons": [
       {
@@ -4297,60 +2817,18 @@
         "name": "Wyrm",
         "pole_0": "🐉",
         "pole_1": "🩸"
+      },
+      {
+        "name": "Sovereignty",
+        "pole_0": "🛡",
+        "pole_1": "👑"
       }
     ]
   },
   {
     "description": "The hunters. They cull the weak and shepherd death.",
-    "hamiltonian": {
-      "🐇": {
-        "🐺": 0.6,
-        "🦅": 0.5
-      },
-      "🐺": {
-        "🐇": 0.6,
-        "🦅": 0.2,
-        "🦌": 0.5,
-        "🌾": -0.25
-      },
-      "💀": {
-        "🐇": 0.4,
-        "🐺": 0.3,
-        "🦅": 0.3,
-        "🦌": 0.4,
-        "🌱": 0.35
-      },
-      "🦅": {
-        "🐇": 0.5,
-        "🐺": 0.2,
-        "🦌": 0.3,
-        "🐑": -0.18
-      },
-      "🦌": {
-        "🐺": 0.5,
-        "🦅": 0.3
-      },
-      "🌱": {
-        "💀": 0.2
-      },
-      "🌾": {
-        "🐺": -0.15
-      },
-      "🐑": {
-        "🦅": -0.18
-      }
-    },
     "name": "Pack Lords",
     "ring": "second",
-    "self_energies": {
-      "🐇": 0.02,
-      "🐺": -0.05,
-      "💀": -0.1,
-      "🦅": -0.03,
-      "🦌": 0.01,
-      "🌱": 0.05,
-      "🌾": 0.0
-    },
     "tags": [
       "fauna",
       "predator",
@@ -4373,18 +2851,19 @@
       1
     ],
     "motto": "The weak feed the strong.",
-    "sig": [
+    "cloud": [
       "🐺",
       "🦅",
       "🐇",
       "🦌",
       "💀",
       "🌱",
-      "🌾"
+      "🌾",
+      "🐑"
     ],
     "icons": [
       {
-        "name": "PackHerd",
+        "name": "Pack",
         "pole_0": "🐺",
         "pole_1": "🦌"
       },
@@ -4392,6 +2871,16 @@
         "name": "Raptor",
         "pole_0": "🦅",
         "pole_1": "🐇"
+      },
+      {
+        "name": "Cycle",
+        "pole_0": "💀",
+        "pole_1": "🌱"
+      },
+      {
+        "name": "Pastoral",
+        "pole_0": "🌾",
+        "pole_1": "🐑"
       }
     ]
   },
@@ -4405,33 +2894,8 @@
       }
     },
     "description": "The invisible cullers. They thrive on density and crash on scarcity.",
-    "hamiltonian": {
-      "🦠": {
-        "🌾": -0.32,
-        "🐇": -0.3,
-        "🐝": -0.28,
-        "💀": 0.52
-      },
-      "🌾": {
-        "🦠": -0.32
-      },
-      "🐇": {
-        "🦠": -0.3
-      },
-      "🐝": {
-        "🦠": -0.28
-      },
-      "💀": {
-        "🦠": 0.52
-      }
-    },
     "name": "Plague Vectors",
     "ring": "second",
-    "self_energies": {
-      "🦠": -0.05,
-      "💀": 0.15,
-      "🐝": -0.15
-    },
     "tags": [
       "disease",
       "balance",
@@ -4453,14 +2917,30 @@
       0
     ],
     "motto": "Density invites decay.",
-    "sig": [
+    "cloud": [
       "🦠",
+      "🩸",
       "🐇",
       "🌾",
       "🐝",
       "💀"
     ],
     "icons": [
+      {
+        "name": "Pathogen",
+        "pole_0": "🦠",
+        "pole_1": "🩸"
+      },
+      {
+        "name": "Host",
+        "pole_0": "🐇",
+        "pole_1": "🌾"
+      },
+      {
+        "name": "Vector",
+        "pole_0": "🐝",
+        "pole_1": "💀"
+      },
       {
         "name": "Contagion",
         "pole_0": "🦠",
@@ -4481,30 +2961,8 @@
       }
     },
     "description": "The tiny workers without whom no seed sets. Their absence collapses agriculture.",
-    "hamiltonian": {
-      "🐝": {
-        "🌾": 0.6,
-        "🌿": 0.55,
-        "🌱": 0.4
-      },
-      "🌾": {
-        "🐝": 0.6
-      },
-      "🌿": {
-        "🐝": 0.55
-      },
-      "🌱": {
-        "🐝": 0.4
-      }
-    },
     "name": "Pollinator Guild",
     "ring": "center",
-    "self_energies": {
-      "🐝": 0.55,
-      "🌾": 0.18,
-      "🌿": 0.14,
-      "🌱": 0.08
-    },
     "tags": [
       "fauna",
       "pollinator",
@@ -4527,7 +2985,7 @@
       0
     ],
     "motto": "No bloom without the hum.",
-    "sig": [
+    "cloud": [
       "🐝",
       "🌿",
       "🌾",
@@ -4535,9 +2993,14 @@
     ],
     "icons": [
       {
-        "name": "Bloom",
-        "pole_0": "🌿",
-        "pole_1": "🌾"
+        "name": "Forager",
+        "pole_0": "🐝",
+        "pole_1": "🌿"
+      },
+      {
+        "name": "Harvest",
+        "pole_0": "🌾",
+        "pole_1": "🌱"
       }
     ]
   },
@@ -4556,47 +3019,8 @@
       }
     },
     "description": "Biological border guards who prevent contamination between probability-spaces. They inspect cargo, certify organisms, and maintain the seals that keep incompatible ecologies from mixing. When something gets through anyway, they're the ones who contain it. Their work prevents plagues that would make history. Nobody thanks them because nobody knows what they prevented.",
-    "hamiltonian": {
-      "🚫": {
-        "🦗": 0.5,
-        "🩺": 0.4
-      },
-      "🦗": {
-        "🚫": 0.5,
-        "🧪": 0.4,
-        "🧫": 0.3
-      },
-      "🧪": {
-        "🦗": 0.4,
-        "🧫": 0.6,
-        "🧬": 0.5
-      },
-      "🧫": {
-        "🦗": 0.3,
-        "🧪": 0.6,
-        "🧬": 0.5
-      },
-      "🧬": {
-        "🧪": 0.5,
-        "🧫": 0.5,
-        "🩺": 0.3
-      },
-      "🩺": {
-        "🚫": 0.4,
-        "🧪": 0.4,
-        "🧬": 0.3
-      }
-    },
     "name": "Quarantine Sealwrights",
     "ring": "first",
-    "self_energies": {
-      "🚫": 0.3,
-      "🦗": -0.1,
-      "🧪": 0.2,
-      "🧫": 0.25,
-      "🧬": 0.15,
-      "🩺": 0.2
-    },
     "tags": [
       "containment",
       "medical",
@@ -4619,7 +3043,7 @@
       1
     ],
     "motto": "What stays contained, stays safe.",
-    "sig": [
+    "cloud": [
       "🧪",
       "🦗",
       "🧫",
@@ -4632,6 +3056,16 @@
         "name": "Diagnosis",
         "pole_0": "🩺",
         "pole_1": "🚫"
+      },
+      {
+        "name": "Vector",
+        "pole_0": "🦗",
+        "pole_1": "🧬"
+      },
+      {
+        "name": "Culture",
+        "pole_0": "🧪",
+        "pole_1": "🧫"
       }
     ]
   },
@@ -4646,40 +3080,8 @@
       }
     },
     "description": "Dockside operators who control the grey economy of every port. They know which ships carry what, which inspectors can be bought, which cargo manifests are fiction. Smuggling is their business, but information is their power. Cross them and your shipments develop problems. Work with them and logistics become remarkably smooth. They consider this fair.",
-    "hamiltonian": {
-      "⚓": {
-        "💰": -0.2,
-        "🚢": 0.7,
-        "🪝": 0.5
-      },
-      "💰": {
-        "⚓": -0.2,
-        "🚢": 0.5
-      },
-      "🚢": {
-        "⚓": 0.6,
-        "💧": 0.3,
-        "💰": 0.5,
-        "🪝": 0.4
-      },
-      "🪝": {
-        "⚓": 0.5,
-        "💰": 0.3,
-        "🚢": 0.4,
-        "💧": -0.22
-      },
-      "💧": {
-        "🪝": -0.22
-      }
-    },
     "name": "Quay Rooks",
     "ring": "second",
-    "self_energies": {
-      "⚓": 0.2,
-      "💰": 0.3,
-      "🚢": 0.25,
-      "🪝": 0.15
-    },
     "tags": [
       "port",
       "commerce",
@@ -4702,7 +3104,7 @@
       0
     ],
     "motto": "The docks remember every debt.",
-    "sig": [
+    "cloud": [
       "🚢",
       "⚓",
       "💰",
@@ -4713,6 +3115,26 @@
         "name": "Mooring",
         "pole_0": "⚓",
         "pole_1": "🪝"
+      },
+      {
+        "name": "Cargo",
+        "pole_0": "🚢",
+        "pole_1": "💰"
+      },
+      {
+        "name": "Fleet",
+        "pole_0": "🚢",
+        "pole_1": "⚓"
+      },
+      {
+        "name": "Ledger",
+        "pole_0": "💰",
+        "pole_1": "🪝"
+      },
+      {
+        "name": "Manifest",
+        "pole_0": "🛶",
+        "pole_1": "📋"
       }
     ]
   },
@@ -4730,56 +3152,9 @@
         "👶": 0.2
       }
     },
-    "decoherence_coupling": {
-      "✨": -0.4,
-      "🌠": -0.15,
-      "💫": -0.2
-    },
     "description": "Attendants at the creation of new stable configurations - new stars, new possibilities, new patterns that achieve coherence in the probability manifold. Their hands are open (🤲) to receive what emerges. They don't create; they *welcome*. The Carrion Throne was once their patient. The Black Horizon was once their failure. Somewhere between those extremes, they help reality give birth to itself. The process is painful. The process is necessary. The process never ends.",
-    "hamiltonian": {
-      "✨": {
-        "🌠": 0.5,
-        "💫": 0.6,
-        "🤲": [
-          0.400000005960464,
-          0.300000011920929
-        ],
-        "⚡": 0.2
-      },
-      "🌠": {
-        "✨": 0.5,
-        "💫": 0.5,
-        "🤲": 0.5
-      },
-      "💫": {
-        "✨": 0.6,
-        "🌠": 0.5,
-        "🤲": 0.4,
-        "⚡": 0.25
-      },
-      "🤲": {
-        "✨": [
-          0.400000005960464,
-          -0.300000011920929
-        ],
-        "🌠": 0.5,
-        "💫": 0.4,
-        "🍼": 0.35
-      },
-      "🍼": {
-        "🤲": 0.35
-      }
-    },
     "name": "Reality Midwives",
     "ring": "outer",
-    "self_energies": {
-      "✨": 0.25,
-      "🌠": 0.3,
-      "💫": 0.2,
-      "🤲": 0.25,
-      "🍼": 0.2,
-      "⚡": 0.1
-    },
     "tags": [
       "creation",
       "emergence",
@@ -4803,7 +3178,7 @@
       1
     ],
     "motto": "What is born must be received.",
-    "sig": [
+    "cloud": [
       "✨",
       "💫",
       "🌠",
@@ -4821,6 +3196,11 @@
         "name": "Reception",
         "pole_0": "🤲",
         "pole_1": "💫"
+      },
+      {
+        "name": "Spark",
+        "pole_0": "🌠",
+        "pole_1": "⚡"
       }
     ]
   },
@@ -4836,45 +3216,8 @@
       }
     },
     "description": "The telecom company. They maintain the communication network connecting settlements across probability-space, handle bandwidth allocation disputes, and deal with an endless stream of coverage complaints. Their infrastructure is mind-bogglingly complex; their customer service is frustratingly mundane. When the network goes down, everyone realizes how much they took it for granted.",
-    "drivers": {
-      "📶": {
-        "amp": 0.4,
-        "freq": 0.2,
-        "phase": 0.0,
-        "type": "sine"
-      }
-    },
-    "hamiltonian": {
-      "📡": {
-        "📶": 0.55,
-        "🗺": 0.42,
-        "🧩": 0.48,
-        "🧭": 0.38
-      },
-      "📶": {
-        "📡": 0.55
-      },
-      "🗺": {
-        "📡": 0.42,
-        "🧭": -0.22
-      },
-      "🧩": {
-        "📡": 0.48
-      },
-      "🧭": {
-        "📡": 0.38,
-        "🗺": -0.22
-      }
-    },
     "name": "Relay Lattice",
     "ring": "center",
-    "self_energies": {
-      "📡": 0.35,
-      "📶": 0.15,
-      "🗺": 0.2,
-      "🧩": 0.18,
-      "🧭": 0.22
-    },
     "tags": [
       "communication",
       "infrastructure",
@@ -4897,12 +3240,13 @@
       1
     ],
     "motto": "Your signal, anywhere.",
-    "sig": [
+    "cloud": [
       "📡",
       "🧩",
       "🗺",
       "📶",
-      "🧭"
+      "🧭",
+      "🔗"
     ],
     "icons": [
       {
@@ -4914,6 +3258,11 @@
         "name": "Mesh",
         "pole_0": "🧩",
         "pole_1": "🗺"
+      },
+      {
+        "name": "Chain",
+        "pole_0": "🧭",
+        "pole_1": "🔗"
       }
     ]
   },
@@ -4931,73 +3280,8 @@
       }
     },
     "description": "Performers whose synchronized movements across probability-space create interference patterns in the quantum substrate. When they dance in phase, reality stabilizes. When they improvise, possibility opens. They perform at major events - weddings, treaties, funerals - not for entertainment but because their presence makes outcomes more likely to *hold*. The Symphony Smiths make their instruments. The Keepers of Silence monitor their performances. One wrong step and resonance becomes rupture.",
-    "drivers": {
-      "💃": {
-        "amplitude": 0.1,
-        "frequency": 0.5,
-        "phase": 0.0,
-        "type": "sine"
-      },
-      "🩰": {
-        "amplitude": 0.08,
-        "frequency": 0.5,
-        "phase": 0.0,
-        "type": "sine"
-      }
-    },
-    "hamiltonian": {
-      "💃": {
-        "🎼": [
-          0.5,
-          0.4
-        ],
-        "🩰": [
-          0.55,
-          0.35
-        ],
-        "📡": -0.24
-      },
-      "🎼": {
-        "💃": [
-          0.5,
-          -0.4
-        ],
-        "🔊": 0.6,
-        "🩰": [
-          0.3,
-          -0.35
-        ]
-      },
-      "🩰": {
-        "💃": [
-          0.55,
-          -0.35
-        ],
-        "🎼": [
-          0.3,
-          0.35
-        ],
-        "🔊": -0.2
-      },
-      "🔊": {
-        "🎼": 0.6,
-        "📡": 0.5,
-        "🩰": -0.2
-      },
-      "📡": {
-        "🔊": 0.5,
-        "💃": -0.24
-      }
-    },
     "name": "Resonance Dancers",
     "ring": "third",
-    "self_energies": {
-      "💃": 0.32,
-      "🎼": 0.25,
-      "🩰": 0.25,
-      "🔊": 0.2,
-      "📡": 0.18
-    },
     "tags": [
       "dance",
       "stability",
@@ -5020,18 +3304,29 @@
       1
     ],
     "motto": "The dance that moves reality.",
-    "sig": [
+    "cloud": [
       "💃",
       "🎼",
       "🔊",
       "📡",
-      "🩰"
+      "🩰",
+      "🎶"
     ],
     "icons": [
       {
         "name": "Dance",
         "pole_0": "💃",
         "pole_1": "🎼"
+      },
+      {
+        "name": "Rhythm",
+        "pole_0": "🩰",
+        "pole_1": "🎶"
+      },
+      {
+        "name": "Signal",
+        "pole_0": "📡",
+        "pole_1": "🔊"
       }
     ]
   },
@@ -5046,46 +3341,8 @@
       }
     },
     "description": "Technical school and manufacturing consortium for spacecraft propulsion and orbital mechanics. They train engineers, certify designs, and bridge the gap between laboratory research and the material needs of the fleet. Their graduates are in demand everywhere. Their bureaucracy is legendary. Getting a new propulsion system approved takes longer than designing it, but at least approved systems don't explode unexpectedly.",
-    "hamiltonian": {
-      "⚙": {
-        "🔬": 0.3,
-        "🚀": 0.5
-      },
-      "📋": {
-        "🔬": 0.4,
-        "🚀": 0.6
-      },
-      "🔬": {
-        "📋": 0.4,
-        "🚀": 0.6,
-        "🧪": 0.3,
-        "💎": 0.15
-      },
-      "🚀": {
-        "⚙": 0.5,
-        "⚡": 0.4,
-        "📋": 0.5,
-        "🔬": 0.6,
-        "🌫": -0.25,
-        "🔥": -0.2
-      },
-      "🌫": {
-        "🚀": -0.15
-      },
-      "💎": {
-        "🔬": 0.25
-      }
-    },
     "name": "Rocketwright Institute",
     "ring": "first",
-    "self_energies": {
-      "⚙": 0.15,
-      "📋": 0.2,
-      "🔬": 0.25,
-      "🚀": 0.35,
-      "🌫": 0.0,
-      "💎": 0.15
-    },
     "tags": [
       "science",
       "aerospace",
@@ -5108,12 +3365,13 @@
       1
     ],
     "motto": "Calculated ascent.",
-    "sig": [
+    "cloud": [
       "🚀",
       "🔬",
       "⚙",
       "📋",
-      "💎"
+      "💎",
+      "🌫"
     ],
     "icons": [
       {
@@ -5125,6 +3383,11 @@
         "name": "Specification",
         "pole_0": "📋",
         "pole_1": "🔬"
+      },
+      {
+        "name": "Exhaust",
+        "pole_0": "💎",
+        "pole_1": "🌫"
       }
     ]
   },
@@ -5154,37 +3417,6 @@
     ],
     "ring": "second",
     "motto": "Every bloom has its price.",
-    "self_energies": {
-      "🌹": 0.35,
-      "🌺": 0.2,
-      "⚔": 0.3,
-      "💀": -0.2,
-      "🥀": -0.1
-    },
-    "hamiltonian": {
-      "🌹": {
-        "🌺": 0.55,
-        "🥀": -0.32,
-        "💀": -0.25
-      },
-      "🌺": {
-        "🌹": 0.55
-      },
-      "⚔": {
-        "💀": 0.45,
-        "🥀": 0.5
-      },
-      "💀": {
-        "⚔": 0.45,
-        "🥀": 0.4,
-        "🌹": -0.25
-      },
-      "🥀": {
-        "⚔": 0.5,
-        "💀": 0.4,
-        "🌹": -0.32
-      }
-    },
     "alignment_couplings": {
       "🌹": {
         "☀": 0.2,
@@ -5195,7 +3427,7 @@
         "💀": 0.2
       }
     },
-    "sig": [
+    "cloud": [
       "🌹",
       "🥀",
       "🌺",
@@ -5229,46 +3461,8 @@
       }
     },
     "description": "Fire-priests who maintain flames that burn true in vacuum, in void, in places where combustion shouldn't be possible. Their altars hold fires that have burned continuously for generations - flames that remember, flames that judge, flames that consume lies while leaving truth untouched. The 🧯 isn't for putting out their fires. It's for putting out everyone else's, so only the sacred flames remain.",
-    "hamiltonian": {
-      "⛪": {
-        "🔥": 0.5,
-        "🕯": 0.5,
-        "🧯": 0.3
-      },
-      "🔥": {
-        "⛪": 0.5,
-        "🕯": 0.6,
-        "🪵": 0.5,
-        "🍂": 0.2
-      },
-      "🕯": {
-        "⛪": 0.5,
-        "🔥": 0.6
-      },
-      "🧯": {
-        "⛪": 0.3,
-        "🔥": 0.4
-      },
-      "🪵": {
-        "🔥": 0.5,
-        "🕯": 0.3,
-        "🍂": 0.2
-      },
-      "🍂": {
-        "🔥": 0.6,
-        "🪵": 0.3
-      }
-    },
     "name": "Sacred Flame Keepers",
     "ring": "second",
-    "self_energies": {
-      "⛪": 0.3,
-      "🔥": 0.35,
-      "🕯": 0.25,
-      "🧯": 0.2,
-      "🪵": 0.15,
-      "🍂": 0.0
-    },
     "tags": [
       "fire",
       "sacred",
@@ -5291,7 +3485,7 @@
       1
     ],
     "motto": "The flame that never dies.",
-    "sig": [
+    "cloud": [
       "🔥",
       "🕯",
       "⛪",
@@ -5309,6 +3503,11 @@
         "name": "Quench",
         "pole_0": "🪵",
         "pole_1": "🧯"
+      },
+      {
+        "name": "Temple",
+        "pole_0": "⛪",
+        "pole_1": "🍂"
       }
     ]
   },
@@ -5338,38 +3537,6 @@
     ],
     "ring": "third",
     "motto": "What remains is what matters.",
-    "self_energies": {
-      "🧂": 0.3,
-      "🐚": -0.1,
-      "🪨": 0.15,
-      "📜": 0.2
-    },
-    "hamiltonian": {
-      "🧂": {
-        "🐚": 0.4,
-        "🪨": 0.35,
-        "📜": 0.3,
-        "🌿": -0.3
-      },
-      "🐚": {
-        "🧂": 0.4,
-        "🪨": -0.1,
-        "📜": 0.5
-      },
-      "🪨": {
-        "🧂": 0.35,
-        "🐚": -0.1,
-        "📜": -0.15
-      },
-      "📜": {
-        "🧂": 0.3,
-        "🐚": 0.5,
-        "🪨": -0.15
-      },
-      "🌿": {
-        "🧂": -0.3
-      }
-    },
     "alignment_couplings": {
       "🪨": {
         "☀": 0.2,
@@ -5380,7 +3547,7 @@
         "💧": -0.4
       }
     },
-    "sig": [
+    "cloud": [
       "🧂",
       "🐚",
       "🪨",
@@ -5391,6 +3558,11 @@
         "name": "Shell",
         "pole_0": "🐚",
         "pole_1": "🧂"
+      },
+      {
+        "name": "Record",
+        "pole_0": "🪨",
+        "pole_1": "📜"
       }
     ]
   },
@@ -5405,50 +3577,14 @@
       },
       "🕵️": {
         "🌑": 0.15
+      },
+      "🛶": {
+        "💧": 0.3
       }
     },
     "description": "Canal smugglers who move contraband through waterways that official maps don't show. Salt is their cover cargo - always in demand, easy to explain, useful for hiding other things beneath. Their routes connect settlements that shouldn't be connected. Their knowledge of hidden passages makes them invaluable to anyone who needs to move without being seen. The Ledger Bailiffs hate them. The Bailiffs can't catch them.",
-    "hamiltonian": {
-      "⛓": {
-        "🔓": 0.7,
-        "🛶": -0.3,
-        "🕵️": -0.22
-      },
-      "💧": {
-        "🛶": 0.4,
-        "🧂": 0.4
-      },
-      "🔓": {
-        "⛓": 0.7,
-        "🕵️": 0.5,
-        "🛶": 0.3
-      },
-      "🕵️": {
-        "🔓": 0.5,
-        "🛶": 0.4,
-        "⛓": -0.22
-      },
-      "🛶": {
-        "💧": 0.4,
-        "🕵️": 0.4,
-        "🧂": 0.6,
-        "⛓": -0.2
-      },
-      "🧂": {
-        "💧": 0.4,
-        "🛶": 0.6
-      }
-    },
     "name": "Salt-Runners",
     "ring": "second",
-    "self_energies": {
-      "⛓": 0.05,
-      "💧": 0.1,
-      "🔓": 0.25,
-      "🕵️": 0.15,
-      "🛶": 0.2,
-      "🧂": 0.15
-    },
     "tags": [
       "smuggling",
       "water",
@@ -5471,7 +3607,7 @@
       0
     ],
     "motto": "Through the channels nobody watches.",
-    "sig": [
+    "cloud": [
       "🧂",
       "🛶",
       "💧",
@@ -5489,6 +3625,11 @@
         "name": "Contraband",
         "pole_0": "🧂",
         "pole_1": "🔓"
+      },
+      {
+        "name": "Contraband",
+        "pole_0": "🕵️",
+        "pole_1": "⛓"
       }
     ]
   },
@@ -5507,36 +3648,8 @@
       }
     },
     "description": "Estate guards who protect agricultural land from raiders, pests, and less obvious threats. They ride the boundaries, settle land disputes with measured force, and maintain the peace that lets farmers farm. Professional soldiers without imperial ambitions - they fight for the fields, not for glory. The Carrion Throne considers them quaint. The settlements consider them essential.",
-    "hamiltonian": {
-      "⚔": {
-        "🏇": 0.55,
-        "🛡": 0.6,
-        "🌱": -0.35
-      },
-      "🏇": {
-        "⚔": 0.55,
-        "🛡": 0.45,
-        "🌱": -0.25
-      },
-      "🛡": {
-        "⚔": 0.6,
-        "🏇": 0.45,
-        "🌱": 0.5
-      },
-      "🌱": {
-        "🛡": 0.5,
-        "⚔": -0.35,
-        "🏇": -0.25
-      }
-    },
     "name": "Scythe Provosts",
     "ring": "first",
-    "self_energies": {
-      "⚔": 0.28,
-      "🏇": 0.18,
-      "🛡": 0.35,
-      "🌱": 0.08
-    },
     "tags": [
       "military",
       "protection",
@@ -5559,7 +3672,7 @@
       1
     ],
     "motto": "The harvest will be protected.",
-    "sig": [
+    "cloud": [
       "🌱",
       "⚔",
       "🛡",
@@ -5570,6 +3683,11 @@
         "name": "Combat",
         "pole_0": "⚔",
         "pole_1": "🛡"
+      },
+      {
+        "name": "Cavalry",
+        "pole_0": "🏇",
+        "pole_1": "🌱"
       }
     ]
   },
@@ -5584,44 +3702,8 @@
       }
     },
     "description": "Tailors who encode information in fabric patterns. A trained eye can read origin, status, allegiance, and secret messages in the cut of a coat or the weave of a scarf. They maintain the fashion standards that let House of Thorns identify each other - and the hidden codes that let others communicate beneath notice. Their work is beautiful. Their knowledge is dangerous.",
-    "hamiltonian": {
-      "👘": {
-        "📡": 0.5,
-        "🧵": 0.5,
-        "🪡": 0.6
-      },
-      "📡": {
-        "👘": 0.5,
-        "🧵": -0.3,
-        "🧶": -0.18
-      },
-      "🧵": {
-        "👘": 0.5,
-        "📡": -0.3,
-        "🧶": 0.4,
-        "🪡": 0.7
-      },
-      "🧶": {
-        "👘": 0.4,
-        "🧵": 0.4,
-        "🪡": 0.5,
-        "📡": -0.18
-      },
-      "🪡": {
-        "👘": 0.6,
-        "🧵": 0.7,
-        "🧶": 0.5
-      }
-    },
     "name": "Seamstress Syndicate",
     "ring": "second",
-    "self_energies": {
-      "👘": 0.25,
-      "📡": -0.05,
-      "🧵": 0.1,
-      "🧶": 0.12,
-      "🪡": 0.15
-    },
     "tags": [
       "craft",
       "information",
@@ -5644,18 +3726,29 @@
       1
     ],
     "motto": "Every stitch carries meaning.",
-    "sig": [
+    "cloud": [
       "🪡",
       "🧵",
       "🧶",
       "📡",
-      "👘"
+      "👘",
+      "🪢"
     ],
     "icons": [
       {
         "name": "Thread",
         "pole_0": "🧵",
         "pole_1": "🧶"
+      },
+      {
+        "name": "Knot",
+        "pole_0": "🪡",
+        "pole_1": "🪢"
+      },
+      {
+        "name": "Signal",
+        "pole_0": "📡",
+        "pole_1": "👘"
       }
     ]
   },
@@ -5673,41 +3766,8 @@
       }
     },
     "description": "Keepers of the genetic archive. They maintain backup copies of every crop strain, every useful organism, every biological pattern that sustains civilization. Their vaults are climate-controlled, radiation-shielded, and incredibly boring to visit. When blight strikes or species collapse, the Curators have the restore point. They do not discuss what else they store in the deep vaults.",
-    "hamiltonian": {
-      "🧬": {
-        "🧫": 0.6,
-        "🔬": 0.55,
-        "🌱": 0.45,
-        "🧪": -0.35
-      },
-      "🧫": {
-        "🧬": 0.6,
-        "🔬": 0.45
-      },
-      "🔬": {
-        "🧬": 0.55,
-        "🧫": 0.45,
-        "🧪": 0.3
-      },
-      "🌱": {
-        "🧬": 0.45,
-        "🧪": -0.28
-      },
-      "🧪": {
-        "🧬": -0.35,
-        "🔬": 0.3,
-        "🌱": -0.28
-      }
-    },
     "name": "Seedvault Curators",
     "ring": "center",
-    "self_energies": {
-      "🧬": 0.42,
-      "🧫": 0.28,
-      "🔬": 0.22,
-      "🌱": 0.1,
-      "🧪": -0.18
-    },
     "tags": [
       "preservation",
       "science",
@@ -5730,18 +3790,29 @@
       1
     ],
     "motto": "Every seed is a promise kept.",
-    "sig": [
+    "cloud": [
       "🌱",
       "🔬",
       "🧪",
       "🧫",
-      "🧬"
+      "🧬",
+      "🌾"
     ],
     "icons": [
       {
         "name": "Research",
         "pole_0": "🧪",
         "pole_1": "🧬"
+      },
+      {
+        "name": "Cultivation",
+        "pole_0": "🌱",
+        "pole_1": "🌾"
+      },
+      {
+        "name": "Lab",
+        "pole_0": "🧫",
+        "pole_1": "🔬"
       }
     ]
   },
@@ -5759,41 +3830,8 @@
       }
     },
     "description": "Navigators who map routes through probability-space. Where others see chaos, they see currents - stable paths between configurations that make travel possible. Their charts are closely guarded; their navigators are recruited young and trained for decades. Without them, every journey would be a gamble. With them, it's merely dangerous. They sense patterns they can't fully explain.",
-    "hamiltonian": {
-      "🔭": {
-        "🌠": 0.65,
-        "🛰": 0.5,
-        "📡": 0.35
-      },
-      "🌠": {
-        "🔭": 0.65,
-        "🌙": -0.22,
-        "🛰": 0.35
-      },
-      "🛰": {
-        "🔭": 0.5,
-        "📡": 0.55,
-        "🌙": -0.28,
-        "🌠": 0.35
-      },
-      "📡": {
-        "🔭": 0.35,
-        "🛰": 0.55
-      },
-      "🌙": {
-        "🛰": -0.28,
-        "🌠": -0.22
-      }
-    },
     "name": "Star-Charter Enclave",
     "ring": "second",
-    "self_energies": {
-      "🔭": 0.42,
-      "🌠": 0.22,
-      "🛰": 0.25,
-      "📡": 0.15,
-      "🌙": -0.15
-    },
     "tags": [
       "navigation",
       "cosmic",
@@ -5816,7 +3854,7 @@
       0
     ],
     "motto": "We chart the paths between.",
-    "sig": [
+    "cloud": [
       "🔭",
       "🌠",
       "🛰",
@@ -5840,7 +3878,7 @@
       "⚙": {
         "🛠": 0.1
       },
-      "🌞": {
+      "☀": {
         "☀": 0.35,
         "🌙": -0.2
       },
@@ -5849,56 +3887,8 @@
       }
     },
     "description": "Heavy-duty celestial mechanics who maintain the ancient stellar infrastructure required for warship fabrication and eternal power cycles. They don't research new technology - they keep the old technology running. Their installations orbit captured stars, tapping energy that would otherwise be wasted. They represent the industrial skeleton of the void: essential, massive, and utterly unglamorous. When a Starforge goes dark, fleets stop moving.",
-    "drivers": {
-      "🌞": {
-        "amp": 0.6,
-        "freq": 0.05,
-        "phase": 0.0,
-        "type": "sine"
-      }
-    },
-    "hamiltonian": {
-      "⚙": {
-        "🌀": 0.6,
-        "🌞": 0.5,
-        "🚀": 0.6
-      },
-      "🌀": {
-        "⚙": 0.6,
-        "🌞": 0.7,
-        "🚀": 0.5,
-        "🌙": 0.2
-      },
-      "🌞": {
-        "⚙": 0.5,
-        "🌀": 0.7,
-        "🚀": 0.3,
-        "⚡": 0.4,
-        "🌙": -0.35
-      },
-      "🚀": {
-        "⚙": 0.6,
-        "🌀": 0.5,
-        "🌞": 0.15
-      },
-      "⚡": {
-        "🌞": 0.2
-      },
-      "🌙": {
-        "🌀": 0.35,
-        "🌞": -0.35
-      }
-    },
     "name": "Starforge Reliquary",
     "ring": "second",
-    "self_energies": {
-      "⚙": 0.25,
-      "🌀": 0.2,
-      "🌞": 0.4,
-      "🚀": 0.3,
-      "🌙": -0.1,
-      "⚡": 0.15
-    },
     "tags": [
       "infrastructure",
       "celestial",
@@ -5921,8 +3911,8 @@
       1
     ],
     "motto": "We maintain the forge that never cools.",
-    "sig": [
-      "🌞",
+    "cloud": [
+      "☀",
       "🌀",
       "⚙",
       "🚀",
@@ -5932,13 +3922,18 @@
     "icons": [
       {
         "name": "Forgework",
-        "pole_0": "🌞",
+        "pole_0": "☀",
         "pole_1": "⚙"
       },
       {
         "name": "Orbit",
         "pole_0": "🌀",
         "pole_1": "🌙"
+      },
+      {
+        "name": "Accelerate",
+        "pole_0": "🚀",
+        "pole_1": "⚡"
       }
     ]
   },
@@ -5968,44 +3963,8 @@
     ],
     "ring": "second",
     "motto": "The sky has a toll.",
-    "self_energies": {
-      "💰": 0.35,
-      "🏢": 0.3,
-      "🛂": 0.2,
-      "🚀": -0.2
-    },
-    "hamiltonian": {
-      "💰": {
-        "🏢": 0.6,
-        "🛂": 0.55,
-        "🚀": 0.35
-      },
-      "🏢": {
-        "💰": 0.6,
-        "🛂": 0.45,
-        "🚀": -0.3
-      },
-      "🛂": {
-        "💰": 0.55,
-        "🏢": 0.45,
-        "🚀": -0.4
-      },
-      "🚀": {
-        "💰": 0.35,
-        "🏢": -0.3,
-        "🛂": -0.4
-      }
-    },
-    "drivers": {
-      "🚀": {
-        "type": "pulse",
-        "frequency": 0.08,
-        "amplitude": 0.5,
-        "phase": 0.0
-      }
-    },
     "alignment_couplings": {},
-    "sig": [
+    "cloud": [
       "🚀",
       "🏢",
       "💰",
@@ -6026,27 +3985,8 @@
   },
   {
     "description": "The gentle grazers. They eat the green and feed the strong.",
-    "hamiltonian": {
-      "🌿": {
-        "🐇": 0.55,
-        "🦌": 0.62
-      },
-      "🐇": {
-        "🌿": 0.55,
-        "🦌": -0.2
-      },
-      "🦌": {
-        "🌿": 0.62,
-        "🐇": -0.2
-      }
-    },
     "name": "Swift Herd",
     "ring": "center",
-    "self_energies": {
-      "🌿": 0.2,
-      "🐇": 0.08,
-      "🦌": 0.05
-    },
     "tags": [
       "fauna",
       "herbivore",
@@ -6068,12 +4008,23 @@
       1
     ],
     "motto": "Graze, flee, endure.",
-    "sig": [
+    "cloud": [
       "🐇",
       "🦌",
-      "🌿"
+      "🌿",
+      "🌾"
     ],
     "icons": [
+      {
+        "name": "Herd",
+        "pole_0": "🐇",
+        "pole_1": "🦌"
+      },
+      {
+        "name": "Pasture",
+        "pole_0": "🌿",
+        "pole_1": "🌾"
+      },
       {
         "name": "Graze",
         "pole_0": "🦌",
@@ -6097,61 +4048,8 @@
       }
     },
     "description": "Artisans who forge instruments and acoustic equipment with properties that edge toward the mystical. Their concert halls have perfect acoustics because they understand resonance at a level that approaches the quantum. The Resonance Dancers use their instruments. The Keepers of Silence fear them. They insist they're just craftspeople. The frequencies they work with suggest otherwise.",
-    "drivers": {
-      "🎵": {
-        "amp": 0.35,
-        "freq": 0.5,
-        "phase": 0.0,
-        "type": "sine"
-      }
-    },
-    "hamiltonian": {
-      "⚙": {
-        "🔊": 0.3,
-        "🔨": 0.6
-      },
-      "🎵": {
-        "📡": 0.4,
-        "🔊": 0.8,
-        "💎": 0.25
-      },
-      "📡": {
-        "🎵": 0.4,
-        "🔊": 0.5
-      },
-      "🔊": {
-        "🎵": 0.8,
-        "📡": 0.5,
-        "🔨": 0.5,
-        "❄": 0.3,
-        "🔇": -0.45
-      },
-      "🔨": {
-        "⚙": 0.6,
-        "🔊": 0.5
-      },
-      "❄": {
-        "🔊": 0.2
-      },
-      "💎": {
-        "🎵": 0.2
-      },
-      "🔇": {
-        "🔊": -0.45
-      }
-    },
     "name": "Symphony Smiths",
     "ring": "second",
-    "self_energies": {
-      "⚙": 0.15,
-      "🎵": 0.2,
-      "📡": 0.1,
-      "🔊": 0.15,
-      "🔨": 0.2,
-      "❄": -0.1,
-      "🔇": 0.1,
-      "💎": 0.1
-    },
     "tags": [
       "craft",
       "acoustic",
@@ -6174,7 +4072,7 @@
       1
     ],
     "motto": "Sound shapes reality.",
-    "sig": [
+    "cloud": [
       "🎵",
       "🔊",
       "🔨",
@@ -6199,6 +4097,11 @@
         "name": "Silence",
         "pole_0": "🔇",
         "pole_1": "❄"
+      },
+      {
+        "name": "Broadcast",
+        "pole_0": "💎",
+        "pole_1": "📡"
       }
     ]
   },
@@ -6217,45 +4120,8 @@
       }
     },
     "description": "Criminal oligarchs who deal in precision surveillance and blackmail. Their mirrors show what people hide. Their crystals record what people forget. Information is their product, leverage is their method, and absolute discretion is their brand. They know secrets about the Carrion Throne. They're smart enough not to use them. No mysticism, no occult sight - just very, very good optics and an institutional memory that never forgets.",
-    "hamiltonian": {
-      "🔍": {
-        "🪞": 0.6,
-        "🧊": 0.55,
-        "💎": 0.45,
-        "💰": 0.35
-      },
-      "🪞": {
-        "🔍": 0.6,
-        "💎": 0.4,
-        "💰": -0.25
-      },
-      "🧊": {
-        "🔍": 0.55,
-        "💎": 0.5,
-        "💰": -0.3
-      },
-      "💎": {
-        "🔍": 0.45,
-        "🪞": 0.4,
-        "🧊": 0.5,
-        "💰": 0.5
-      },
-      "💰": {
-        "🔍": 0.35,
-        "🪞": -0.25,
-        "💎": 0.5,
-        "🧊": -0.3
-      }
-    },
     "name": "Syndicate of Glass",
     "ring": "second",
-    "self_energies": {
-      "💎": 0.35,
-      "💰": 0.28,
-      "🔍": 0.12,
-      "🧊": 0.2,
-      "🪞": 0.22
-    },
     "tags": [
       "criminal",
       "surveillance",
@@ -6278,12 +4144,13 @@
       0
     ],
     "motto": "We see everything. We reflect nothing.",
-    "sig": [
+    "cloud": [
       "💰",
       "💎",
       "🪞",
       "🔍",
-      "🧊"
+      "🧊",
+      "🫧"
     ],
     "icons": [
       {
@@ -6295,6 +4162,11 @@
         "name": "Cold Coin",
         "pole_0": "💎",
         "pole_1": "🧊"
+      },
+      {
+        "name": "Clarity",
+        "pole_0": "💰",
+        "pole_1": "🫧"
       }
     ]
   },
@@ -6312,34 +4184,8 @@
       }
     },
     "description": "Ecological engineers who design self-sustaining habitats. They build the life-support systems, waste recyclers, and atmospheric processors that let settlements exist in hostile probability-spaces. Their work is unglamorous - sewage treatment, air filtration, nutrient cycling - but without them, every habitat would be three failures away from death.",
-    "hamiltonian": {
-      "♻️": {
-        "💧": 0.65,
-        "🫙": -0.3,
-        "🌿": -0.22
-      },
-      "💧": {
-        "♻️": 0.65,
-        "🌿": 0.38
-      },
-      "🫙": {
-        "♻️": -0.3,
-        "🌿": 0.6
-      },
-      "🌿": {
-        "🫙": 0.6,
-        "♻️": -0.22,
-        "💧": 0.38
-      }
-    },
     "name": "Terrarium Collective",
     "ring": "center",
-    "self_energies": {
-      "♻️": 0.22,
-      "💧": 0.18,
-      "🌿": 0.25,
-      "🫙": 0.35
-    },
     "tags": [
       "ecology",
       "sustainability",
@@ -6362,7 +4208,7 @@
       1
     ],
     "motto": "Closed loops, open futures.",
-    "sig": [
+    "cloud": [
       "🌿",
       "🫙",
       "♻️",
@@ -6392,45 +4238,9 @@
         "🏛": 0.2
       }
     },
-    "description": "Mining consortiums and gem traders who extract value from the deep places. They fund expeditions, process rare materials, and maintain the commodity markets that let wealth flow between settlements. Old money, patient money, money that thinks in generations. The Carrion Throne taxes them heavily. They consider this the cost of stability.",
-    "hamiltonian": {
-      "⛏": {
-        "⛰": 0.5,
-        "✨": 0.3,
-        "💎": 0.6,
-        "🪨": -0.2
-      },
-      "✨": {
-        "💎": 0.5,
-        "💰": 0.4
-      },
-      "💎": {
-        "⛏": 0.6,
-        "✨": 0.5,
-        "💰": 0.7,
-        "⚡": 0.3
-      },
-      "💰": {
-        "✨": 0.4,
-        "💎": 0.7
-      },
-      "⚡": {
-        "💎": 0.15
-      },
-      "🪨": {
-        "⛏": -0.1
-      }
-    },
-    "name": "The Gilded Legacy",
-    "ring": "first",
-    "self_energies": {
-      "⛏": 0.15,
-      "✨": 0.2,
-      "💎": 0.4,
-      "💰": 0.3,
-      "⚡": 0.1,
-      "🪨": 0.0
-    },
+    "description": "A singular house that has worked the deep places longer than most settlements have had names. They hold the veins, process the rare seams, and maintain the commodity channels that let mineral wealth move between worlds. Their patience is geological. They do not scatter expeditions — they are the expedition, one focused pressure applied to one unbroken purpose. The Carrion Throne taxes them. They treat this as weather.",
+    "name": "House Adamant",
+    "ring": "third",
     "tags": [
       "mining",
       "wealth",
@@ -6450,22 +4260,32 @@
       1,
       1,
       0,
-      0
+      1
     ],
     "motto": "Wealth endures. Wealth remembers.",
-    "sig": [
-      "⛏",
+    "cloud": [
       "💎",
+      "💍",
       "💰",
-      "✨",
-      "⚡",
-      "🪨"
+      "🔒",
+      "📜",
+      "🪙"
     ],
     "icons": [
       {
-        "name": "Ore",
+        "name": "Gem",
         "pole_0": "💎",
-        "pole_1": "⛏"
+        "pole_1": "💍"
+      },
+      {
+        "name": "Vault",
+        "pole_0": "💰",
+        "pole_1": "🔒"
+      },
+      {
+        "name": "Charter",
+        "pole_0": "📜",
+        "pole_1": "🪙"
       }
     ]
   },
@@ -6481,42 +4301,8 @@
       }
     },
     "description": "The office that creates permanent records. Birth certificates, death certificates, property deeds, citizenship papers - documents that define legal existence. Their archives stretch back further than memory, maintained with religious devotion. Destroying an Indelible record is one of the few crimes that Station Lords prosecute personally. What they record becomes true. What they fail to record never happened.",
-    "hamiltonian": {
-      "⚖": {
-        "💳": 0.4,
-        "📋": 0.5,
-        "📜": 0.5,
-        "👥": -0.18
-      },
-      "💳": {
-        "⚖": 0.4,
-        "👥": 0.6,
-        "📋": 0.6,
-        "📜": -0.25
-      },
-      "📋": {
-        "⚖": 0.5,
-        "💳": 0.6,
-        "📜": -0.15
-      },
-      "📜": {
-        "⚖": 0.5,
-        "🏰": 0.4,
-        "📋": -0.15,
-        "💳": -0.25
-      },
-      "👥": {
-        "⚖": -0.18
-      }
-    },
     "name": "The Indelible Precept",
     "ring": "first",
-    "self_energies": {
-      "⚖": 0.2,
-      "💳": 0.25,
-      "📋": 0.2,
-      "📜": 0.15
-    },
     "tags": [
       "bureaucracy",
       "records",
@@ -6539,7 +4325,7 @@
       0
     ],
     "motto": "What is written endures. What endures is law.",
-    "sig": [
+    "cloud": [
       "📋",
       "💳",
       "⚖",
@@ -6569,40 +4355,8 @@
       }
     },
     "description": "Broadcasters who transmit on frequencies that slip between official channels. Their programs reach listeners who didn't know they were tuned in. News, music, propaganda, art - all bleeding together in transmissions that seem to know what you need to hear. Not a conspiracy, exactly. More like the universe using them as a mouthpiece. They don't always remember what they broadcast.",
-    "drivers": {
-      "📻": {
-        "amp": 0.4,
-        "freq": 0.15,
-        "phase": 0.0,
-        "type": "pulse"
-      }
-    },
-    "hamiltonian": {
-      "📡": {
-        "📶": 0.65,
-        "🗣": -0.32
-      },
-      "📶": {
-        "📡": 0.65,
-        "📻": 0.55
-      },
-      "📻": {
-        "📶": 0.55,
-        "🗣": 0.5
-      },
-      "🗣": {
-        "📻": 0.5,
-        "📡": -0.32
-      }
-    },
     "name": "The Liminal Osmosis",
     "ring": "second",
-    "self_energies": {
-      "📡": 0.35,
-      "📶": 0.22,
-      "📻": 0.16,
-      "🗣": 0.08
-    },
     "tags": [
       "broadcast",
       "signal",
@@ -6625,7 +4379,7 @@
       0
     ],
     "motto": "The signal finds those ready to receive.",
-    "sig": [
+    "cloud": [
       "📶",
       "📻",
       "📡",
@@ -6658,72 +4412,9 @@
         "🪢": 0.15
       }
     },
-    "bell_activated_features": {
-      "🕯": {
-        "description": "The bridge opens in entanglement",
-        "latent_hamiltonian": {
-          "🕯": {
-            "🧵": 0.3
-          }
-        }
-      }
-    },
     "description": "A focused mystic signal that bridges the domestic magic of Hearth Witches to the encoded communications of the Seamstress Syndicate. They embroider by candlelight, and the patterns they create carry messages that can only be read by other flames. Their work is beautiful, their purpose is subtle, and their customers include everyone who needs to send information that burns after reading.",
-    "drivers": {
-      "🕯": {
-        "amplitude": 0.08,
-        "frequency": 0.25,
-        "phase": 0.0,
-        "type": "cosine"
-      },
-      "🧵": {
-        "amplitude": 0.08,
-        "frequency": 0.25,
-        "phase": 3.14,
-        "type": "cosine"
-      }
-    },
-    "hamiltonian": {
-      "🏮": {
-        "🕯": 0.6,
-        "🧵": [
-          0.300000011920929,
-          -0.200000002980232
-        ],
-        "🪡": -0.22
-      },
-      "🕯": {
-        "🏮": 0.6,
-        "🧵": [
-          0.5,
-          0.300000011920929
-        ]
-      },
-      "🧵": {
-        "🏮": [
-          0.300000011920929,
-          0.200000002980232
-        ],
-        "🕯": [
-          0.5,
-          -0.300000011920929
-        ],
-        "🪡": 0.5
-      },
-      "🪡": {
-        "🕯": 0.3,
-        "🧵": 0.5,
-        "🏮": -0.22
-      }
-    },
     "name": "The Liminal Taper",
     "ring": "third",
-    "self_energies": {
-      "🏮": 0.25,
-      "🕯": 0.2,
-      "🧵": 0.2,
-      "🪡": 0.15
-    },
     "tags": [
       "liminal",
       "bridge",
@@ -6747,7 +4438,7 @@
       1
     ],
     "motto": "The stitch between flame and fabric.",
-    "sig": [
+    "cloud": [
       "🕯",
       "🧵",
       "🪡",
@@ -6761,8 +4452,8 @@
       },
       {
         "name": "Flame",
-        "pole_0": "🧵",
-        "pole_1": "🕯"
+        "pole_0": "🪡",
+        "pole_1": "🏮"
       }
     ]
   },
@@ -6780,55 +4471,8 @@
       }
     },
     "description": "Elite cosmic observers who serve as the Carrion Throne's most distant eyes. They watch the Black Horizon, chart probability storms, and impose prismatic order on chaos at the edge of perception. The ⚫ in their sigil marks what they study. The ⚖ marks their judgment. They decide which anomalies are threats and which are opportunities. Their decisions shape policy. Their mistakes shape craters. They serve the Throne without understanding that they too are being observed.",
-    "hamiltonian": {
-      "⚖": {
-        "⚫": 0.5,
-        "🔭": 0.4,
-        "🌠": -0.22
-      },
-      "⚫": {
-        "⚖": 0.5,
-        "🌠": [
-          0.400000005960464,
-          0.300000011920929
-        ],
-        "🔭": [
-          0.5,
-          -0.400000005960464
-        ]
-      },
-      "🌠": {
-        "⚫": [
-          0.400000005960464,
-          -0.300000011920929
-        ],
-        "🔭": 0.6,
-        "⚖": -0.22
-      },
-      "🔭": {
-        "⚖": 0.4,
-        "⚫": [
-          0.5,
-          0.400000005960464
-        ],
-        "🌠": 0.6
-      }
-    },
-    "measurement_behavior": {
-      "⚖": {
-        "collapses": true,
-        "inverts": false,
-        "strength": 0.4
-      }
-    },
     "name": "The Opalescent Hegemon",
     "ring": "third",
-    "self_energies": {
-      "⚖": 0.3,
-      "⚫": 0.3,
-      "🌠": 0.2,
-      "🔭": 0.25
-    },
     "tags": [
       "cosmic",
       "observation",
@@ -6851,7 +4495,7 @@
       0
     ],
     "motto": "Order through observation.",
-    "sig": [
+    "cloud": [
       "🔭",
       "⚫",
       "🌠",
@@ -6883,33 +4527,8 @@
       }
     },
     "description": "Destitute remains of war and oppression gathering in the quiet corners. Not serfs (who are owned), not freemen (who are documented) - just the leftover. They cultivate the scraps of the Granary Guilds (🍞), surviving on what falls through the cracks. Their name is the sound of wind through ruins - the subtle whisper in the machinery of the state. The Station Lords pretend they don't exist. The Carrion Throne's ledgers have no category for them. This makes them, paradoxically, free.",
-    "hamiltonian": {
-      "💀": {
-        "⚫": 0.5,
-        "🗑": -0.3,
-        "🧤": 0.4
-      },
-      "🗑": {
-        "💀": -0.3,
-        "🧤": 0.6
-      },
-      "🧤": {
-        "💀": 0.4,
-        "🗑": 0.6
-      }
-    },
-    "measurement_behavior": {
-      "🧤": {
-        "inverts": true
-      }
-    },
     "name": "The Scavenged Psithurism",
     "ring": "second",
-    "self_energies": {
-      "💀": -0.15,
-      "🗑": -0.1,
-      "🧤": 0.0
-    },
     "tags": [
       "refugee",
       "entropy",
@@ -6932,20 +4551,26 @@
       1
     ],
     "motto": "We are the wheat-dust in the ruins.",
-    "sig": [
+    "cloud": [
       "🧤",
       "🗑",
-      "💀"
+      "💀",
+      "🌾"
     ],
     "icons": [
       {
         "name": "Gleaning",
         "pole_0": "🧤",
+        "pole_1": "🌾"
+      },
+      {
+        "name": "Carrion",
+        "pole_0": "💀",
         "pole_1": "🗑"
       },
       {
-        "name": "Wheat-Dust",
-        "pole_0": "💀",
+        "name": "Salvage",
+        "pole_0": "🧤",
         "pole_1": "🗑"
       }
     ]
@@ -6963,40 +4588,8 @@
       }
     },
     "description": "The pharmaceutical and medical supply arm of imperial authority. They manufacture medicines, distribute supplies, and ensure that health infrastructure reaches every documented citizen. Their generosity comes with strings - dependency on their supply chains means dependency on the system. When settlements fall out of favor, shipments get delayed. When they comply, the medicine flows freely.",
-    "hamiltonian": {
-      "💊": {
-        "📦": 0.6,
-        "🚛": 0.4,
-        "🧪": 0.7,
-        "📜": -0.16
-      },
-      "📦": {
-        "💊": 0.6,
-        "🚛": 0.7,
-        "🧪": 0.4
-      },
-      "🚛": {
-        "💊": 0.4,
-        "📦": 0.7,
-        "📜": -0.22
-      },
-      "🧪": {
-        "💊": 0.7,
-        "📦": 0.4
-      },
-      "📜": {
-        "💊": -0.16,
-        "🚛": -0.22
-      }
-    },
     "name": "The Sovereign Ukase",
     "ring": "second",
-    "self_energies": {
-      "💊": 0.3,
-      "📦": 0.15,
-      "🚛": 0.2,
-      "🧪": 0.2
-    },
     "tags": [
       "medical",
       "supply",
@@ -7019,7 +4612,7 @@
       0
     ],
     "motto": "The decree provides.",
-    "sig": [
+    "cloud": [
       "🧪",
       "💊",
       "📦",
@@ -7064,54 +4657,6 @@
     ],
     "ring": "third",
     "motto": "What connects, persists.",
-    "self_energies": {
-      "🌊": 0.15,
-      "🪸": 0.25,
-      "🐠": 0.22,
-      "🦀": 0.28
-    },
-    "hamiltonian": {
-      "🌊": {
-        "🪸": [
-          0.35,
-          0.4
-        ],
-        "🐠": [
-          0.25,
-          -0.3
-        ],
-        "🦀": 0.4
-      },
-      "🪸": {
-        "🌊": [
-          0.35,
-          -0.4
-        ],
-        "🦀": 0.45,
-        "🐠": 0.5
-      },
-      "🐠": {
-        "🌊": [
-          0.25,
-          0.3
-        ],
-        "🪸": 0.5,
-        "🦀": -0.25
-      },
-      "🦀": {
-        "🌊": 0.4,
-        "🪸": 0.45,
-        "🐠": -0.25
-      }
-    },
-    "drivers": {
-      "🌊": {
-        "type": "sine",
-        "frequency": 0.08,
-        "amplitude": 0.5,
-        "phase": 0.0
-      }
-    },
     "alignment_couplings": {
       "🌊": {
         "🌙": 0.4,
@@ -7121,22 +4666,29 @@
         "☀": 0.15
       }
     },
-    "sig": [
+    "cloud": [
       "🌊",
       "🪸",
       "🦀",
-      "🐠"
+      "🐠",
+      "💧",
+      "🌙"
     ],
     "icons": [
+      {
+        "name": "Tide",
+        "pole_0": "🌊",
+        "pole_1": "🐠"
+      },
       {
         "name": "Reef",
         "pole_0": "🪸",
         "pole_1": "🦀"
       },
       {
-        "name": "Tide",
-        "pole_0": "🌊",
-        "pole_1": "🐠"
+        "name": "Lunar",
+        "pole_0": "💧",
+        "pole_1": "🌙"
       }
     ]
   },
@@ -7154,61 +4706,9 @@
         "🔢": 0.15
       }
     },
-    "decoherence_coupling": {
-      "📐": 0.15,
-      "🔬": 0.35,
-      "🔭": 0.25
-    },
     "description": "Elite mathematicians mapping the deep curvatures of probability-space. They observe the simulation's boundaries with a crystalline, unblinking focus that edges toward the absolute. Their equations describe curvatures that shouldn't exist. Their instruments detect patterns at the edge of perception. The ones who return from their calculations have answers. The ones who don't have found something that doesn't allow return.",
-    "hamiltonian": {
-      "🧮": {
-        "📐": 0.65,
-        "🔭": 0.45,
-        "🔬": 0.4,
-        "🧲": -0.3
-      },
-      "📐": {
-        "🧮": 0.65,
-        "🔭": 0.5,
-        "🧲": -0.28
-      },
-      "🔭": {
-        "🧮": 0.45,
-        "📐": 0.5,
-        "🔬": 0.35
-      },
-      "🔬": {
-        "🧮": 0.4,
-        "🔭": 0.35,
-        "🧲": 0.25
-      },
-      "🧲": {
-        "🧮": -0.3,
-        "📐": -0.28,
-        "🔬": 0.25
-      }
-    },
-    "measurement_behavior": {
-      "🔬": {
-        "collapses": true,
-        "inverts": false,
-        "strength": 0.3
-      },
-      "🔭": {
-        "collapses": true,
-        "inverts": false,
-        "strength": 0.2
-      }
-    },
     "name": "The Vitreous Scrutiny",
     "ring": "third",
-    "self_energies": {
-      "🧮": 0.28,
-      "📐": 0.3,
-      "🔭": 0.25,
-      "🔬": 0.22,
-      "🧲": -0.1
-    },
     "tags": [
       "observation",
       "mathematics",
@@ -7231,12 +4731,13 @@
       1
     ],
     "motto": "The curve is the only truth.",
-    "sig": [
+    "cloud": [
       "🔬",
       "🧲",
       "📐",
       "🧮",
-      "🔭"
+      "🔭",
+      "🔍"
     ],
     "icons": [
       {
@@ -7248,6 +4749,11 @@
         "name": "Far Sight",
         "pole_0": "🔭",
         "pole_1": "🔬"
+      },
+      {
+        "name": "Lens",
+        "pole_0": "🧲",
+        "pole_1": "🔍"
       }
     ]
   },
@@ -7262,43 +4768,8 @@
       }
     },
     "description": "Traveling repair crews in battered vans full of salvaged parts. They fix what others throw away, know every back road between settlements, and trade gossip as readily as gaskets. Not glamorous work, but a Tinker Team showing up means your harvest won't rot because the cooling unit died. They take payment in food, fuel, or future favors.",
-    "hamiltonian": {
-      "♻️": {
-        "🗑": 0.5,
-        "🧰": 0.3,
-        "🪛": 0.4,
-        "🔌": -0.2
-      },
-      "🔌": {
-        "🚐": 0.3,
-        "🧰": 0.4,
-        "🪛": 0.6,
-        "♻️": -0.2
-      },
-      "🚐": {
-        "🔌": 0.3,
-        "🧰": 0.4
-      },
-      "🧰": {
-        "♻️": 0.3,
-        "🔌": 0.4,
-        "🪛": 0.5
-      },
-      "🪛": {
-        "♻️": 0.4,
-        "🔌": 0.6,
-        "🧰": 0.5
-      }
-    },
     "name": "Tinker Team",
     "ring": "center",
-    "self_energies": {
-      "♻️": 0.05,
-      "🔌": 0.1,
-      "🚐": 0.2,
-      "🧰": 0.25,
-      "🪛": 0.15
-    },
     "tags": [
       "repair",
       "salvage",
@@ -7321,12 +4792,13 @@
       0
     ],
     "motto": "If it's broke, we're coming.",
-    "sig": [
+    "cloud": [
       "🧰",
       "🪛",
       "🔌",
       "♻️",
-      "🚐"
+      "🚐",
+      "⚙"
     ],
     "icons": [
       {
@@ -7338,6 +4810,11 @@
         "name": "Circuit",
         "pole_0": "🔌",
         "pole_1": "♻️"
+      },
+      {
+        "name": "Drive",
+        "pole_0": "🚐",
+        "pole_1": "⚙"
       }
     ]
   },
@@ -7367,30 +4844,6 @@
     ],
     "ring": "second",
     "motto": "Everyone has a price. We know yours.",
-    "self_energies": {
-      "🗝": 0.4,
-      "💰": 0.28,
-      "🕵️": 0.22,
-      "💀": -0.25
-    },
-    "hamiltonian": {
-      "💰": {
-        "🗝": 0.58,
-        "💀": -0.25
-      },
-      "🗝": {
-        "💰": 0.58,
-        "🕵️": 0.52
-      },
-      "🕵️": {
-        "🗝": 0.52,
-        "💀": -0.38
-      },
-      "💀": {
-        "🕵️": -0.38,
-        "💰": -0.25
-      }
-    },
     "alignment_couplings": {
       "💰": {
         "🏚": -0.15,
@@ -7401,7 +4854,7 @@
         "🔮": 0.2
       }
     },
-    "sig": [
+    "cloud": [
       "🗝",
       "🕵️",
       "💀",
@@ -7435,48 +4888,8 @@
       }
     },
     "description": "A covert sisterhood that moves through every level of society - servants, courtiers, merchants, magistrates. They share information, protect their own, and occasionally arrange for problems to solve themselves. Not assassins, though they know some. Not spies, though they see everything. More like... a mutual aid society that operates in the shadows. The 🧿 marks their sight. The 🪞 marks their true faces - hidden even from each other.",
-    "hamiltonian": {
-      "👤": {
-        "🕵️": 0.5,
-        "🤫": 0.7,
-        "🪞": 0.4,
-        "🧷": -0.16
-      },
-      "🕵️": {
-        "👤": 0.5,
-        "🤫": 0.6,
-        "🧿": 0.5
-      },
-      "🤫": {
-        "👤": 0.7,
-        "🕵️": 0.6,
-        "🧷": 0.4,
-        "🪞": -0.24
-      },
-      "🧷": {
-        "👤": -0.16,
-        "🤫": 0.4
-      },
-      "🧿": {
-        "🕵️": 0.5,
-        "🪞": 0.5
-      },
-      "🪞": {
-        "👤": 0.4,
-        "🧿": 0.5,
-        "🤫": -0.24
-      }
-    },
     "name": "Veiled Sisters",
     "ring": "second",
-    "self_energies": {
-      "👤": 0.15,
-      "🕵️": 0.15,
-      "🤫": 0.2,
-      "🧷": 0.2,
-      "🧿": 0.15,
-      "🪞": 0.1
-    },
     "tags": [
       "covert",
       "network",
@@ -7499,7 +4912,7 @@
       0
     ],
     "motto": "What is hidden, we protect. What is seen, we arranged.",
-    "sig": [
+    "cloud": [
       "👤",
       "🤫",
       "🕵️",
@@ -7512,6 +4925,16 @@
         "name": "Reflection",
         "pole_0": "🪞",
         "pole_1": "👤"
+      },
+      {
+        "name": "Whisper",
+        "pole_0": "🤫",
+        "pole_1": "🕵️"
+      },
+      {
+        "name": "Ward",
+        "pole_0": "🧷",
+        "pole_1": "🧿"
       }
     ]
   },
@@ -7539,43 +4962,8 @@
       }
     },
     "description": "The green rhythm of growth and decay. Seeds become grass or trees, grain returns to earth.",
-    "hamiltonian": {
-      "🌱": {
-        "🌲": 0.4,
-        "🌾": 0.3,
-        "🌿": 0.6
-      },
-      "🌲": {
-        "🌱": -0.2,
-        "🍂": 0.2,
-        "🌾": -0.2
-      },
-      "🌾": {
-        "🌱": 0.3,
-        "🍂": 0.5,
-        "🌲": -0.2
-      },
-      "🌿": {
-        "🌱": 0.6,
-        "🌾": 0.4,
-        "🍂": 0.4
-      },
-      "🍂": {
-        "🌱": 0.5,
-        "🌲": 0.2,
-        "🌾": 0.5,
-        "🌿": 0.4
-      }
-    },
     "name": "Verdant Pulse",
     "ring": "center",
-    "self_energies": {
-      "🌱": 0.05,
-      "🌲": 0.3,
-      "🌾": 0.1,
-      "🌿": 0.1,
-      "🍂": -0.05
-    },
     "tags": [
       "flora",
       "producer",
@@ -7597,23 +4985,39 @@
       0
     ],
     "motto": "Grow, wither, return.",
-    "sig": [
+    "cloud": [
       "🌱",
       "🌿",
       "🌾",
+      "🍂",
       "🌲",
-      "🍂"
+      "🪵"
     ],
     "icons": [
+      {
+        "name": "Seedling",
+        "pole_0": "🌱",
+        "pole_1": "🌿"
+      },
       {
         "name": "Succession",
         "pole_0": "🌱",
         "pole_1": "🌲"
       },
       {
+        "name": "Harvest",
+        "pole_0": "🌾",
+        "pole_1": "🍂"
+      },
+      {
         "name": "Humus",
         "pole_0": "🍂",
         "pole_1": "🌿"
+      },
+      {
+        "name": "Timber",
+        "pole_0": "🌲",
+        "pole_1": "🪵"
       }
     ]
   },
@@ -7631,50 +5035,8 @@
       }
     },
     "description": "Sovereigns of abandoned territories - regions where settlements failed, where probability destabilized, where the Carrion Throne withdrew. They maintain documentation for places that no longer exist, collect taxes from citizens who are probably dead, and preserve the fiction that the void is merely unoccupied imperial space. Some believe they're mad. Some believe they're the only ones who understand what the void actually is.",
-    "drivers": {
-      "🕰": {
-        "amplitude": 0.06,
-        "frequency": 0.1,
-        "phase": 0.0,
-        "type": "sine"
-      }
-    },
-    "hamiltonian": {
-      "♟": {
-        "⚜": -0.22,
-        "⚫": 0.4,
-        "🕰": 0.4
-      },
-      "⚜": {
-        "♟": -0.22,
-        "⚫": 0.5,
-        "🕰": -0.2
-      },
-      "⚫": {
-        "♟": 0.4,
-        "⚜": 0.5,
-        "🕰": [
-          0.300000011920929,
-          0.5
-        ]
-      },
-      "🕰": {
-        "♟": 0.4,
-        "⚜": -0.2,
-        "⚫": [
-          0.300000011920929,
-          -0.5
-        ]
-      }
-    },
     "name": "Void Emperors",
     "ring": "third",
-    "self_energies": {
-      "♟": 0.2,
-      "⚜": 0.25,
-      "⚫": 0.35,
-      "🕰": 0.15
-    },
     "tags": [
       "void",
       "administration",
@@ -7697,7 +5059,7 @@
       1
     ],
     "motto": "Even emptiness requires administration.",
-    "sig": [
+    "cloud": [
       "⚫",
       "⚜",
       "♟",
@@ -7742,34 +5104,8 @@
     ],
     "ring": "fourth",
     "motto": "Please hold.",
-    "self_energies": {
-      "👥": 0.05,
-      "⛓": 0.2,
-      "💸": -0.15,
-      "💀": 0.1
-    },
-    "hamiltonian": {
-      "👥": {
-        "⛓": 0.7,
-        "💸": 0.5,
-        "💀": -0.22
-      },
-      "⛓": {
-        "👥": 0.7,
-        "💸": 0.4
-      },
-      "💸": {
-        "👥": 0.5,
-        "⛓": 0.4,
-        "💀": 0.3
-      },
-      "💀": {
-        "👥": -0.22,
-        "💸": 0.3
-      }
-    },
     "alignment_couplings": {},
-    "sig": [
+    "cloud": [
       "👥",
       "⛓",
       "💸",
@@ -7814,59 +5150,13 @@
     ],
     "ring": "second",
     "motto": "Even the void deserves a song.",
-    "self_energies": {
-      "🎸": 0.2,
-      "🎼": 0.25,
-      "💫": 0.15,
-      "🏮": 0.2
-    },
-    "hamiltonian": {
-      "🎸": {
-        "🎼": 0.6,
-        "🏮": 0.3,
-        "💫": [
-          0.3,
-          0.4
-        ]
-      },
-      "🎼": {
-        "🎸": 0.6,
-        "🏮": 0.4,
-        "💫": [
-          0.5,
-          0.3
-        ]
-      },
-      "🏮": {
-        "🎸": 0.3,
-        "🎼": 0.4
-      },
-      "💫": {
-        "🎸": [
-          0.3,
-          -0.4
-        ],
-        "🎼": [
-          0.5,
-          -0.3
-        ]
-      }
-    },
-    "drivers": {
-      "💫": {
-        "type": "sine",
-        "frequency": 0.4,
-        "amplitude": 0.15,
-        "phase": 1.57
-      }
-    },
     "alignment_couplings": {
       "💫": {
         "🌑": 0.3,
         "🕳": 0.25
       }
     },
-    "sig": [
+    "cloud": [
       "🎸",
       "🎼",
       "💫",
@@ -7900,64 +5190,8 @@
       }
     },
     "description": "Masters of volcanic processes who harvest crystals from cooling magma. They read the earth's fire and know when to mine.",
-    "drivers": {
-      "🌋": {
-        "amplitude": 0.7,
-        "frequency": 0.011,
-        "phase": 0.0,
-        "type": "pulse"
-      }
-    },
-    "hamiltonian": {
-      "✨": {
-        "🌫": 0.2,
-        "💎": 0.25,
-        "🔥": 0.35
-      },
-      "🌋": {
-        "🌫": 0.3,
-        "🔥": 0.4,
-        "🪨": 0.2
-      },
-      "🌫": {
-        "✨": 0.2,
-        "🌋": 0.3,
-        "🔥": 0.3,
-        "⚡": 0.25
-      },
-      "💎": {
-        "✨": 0.25,
-        "🪨": 0.3,
-        "🔥": -0.2,
-        "⚡": 0.3
-      },
-      "🔥": {
-        "✨": 0.35,
-        "🌋": 0.4,
-        "🌫": 0.3,
-        "🪨": 0.2,
-        "💎": -0.2
-      },
-      "🪨": {
-        "🌋": 0.2,
-        "💎": 0.3,
-        "🔥": 0.2
-      },
-      "⚡": {
-        "💎": 0.15
-      }
-    },
     "name": "Volcanic Foundry",
     "ring": "second",
-    "self_energies": {
-      "✨": 0.3,
-      "🌋": 0.0,
-      "🌫": 0.1,
-      "💎": 0.5,
-      "🔥": 0.3,
-      "🪨": -0.2,
-      "⚡": 0.15
-    },
     "tags": [
       "volcanic",
       "mining",
@@ -7981,20 +5215,57 @@
       1
     ],
     "motto": "In fire, crystal.",
-    "sig": [
+    "cloud": [
       "🌋",
       "🔥",
       "🪨",
       "💎",
       "🌫",
-      "✨",
-      "⚡"
+      "💠",
+      "⚡",
+      "🏜",
+      "⬜"
     ],
     "icons": [
       {
+        "name": "Magma",
+        "pole_0": "🌋",
+        "pole_1": "🔥"
+      },
+      {
+        "name": "Crystal",
+        "pole_0": "💎",
+        "pole_1": "💠"
+      },
+      {
         "name": "Ash",
         "pole_0": "🌫",
+        "pole_1": "🪨"
+      },
+      {
+        "name": "Charge",
+        "pole_0": "⚡",
+        "pole_1": "🏜"
+      },
+      {
+        "name": "Glass",
+        "pole_0": "🏜",
+        "pole_1": "⬜"
+      },
+      {
+        "name": "Forge",
+        "pole_0": "🪨",
+        "pole_1": "💎"
+      },
+      {
+        "name": "Kiln",
+        "pole_0": "🌫",
         "pole_1": "✨"
+      },
+      {
+        "name": "Ore",
+        "pole_0": "💎",
+        "pole_1": "⛏"
       }
     ]
   },
@@ -8024,45 +5295,6 @@
     ],
     "ring": "third",
     "motto": "To see is to decide.",
-    "self_energies": {
-      "🌀": 0.0,
-      "🐙": 0.3,
-      "✨": 0.35,
-      "👁": 0.25,
-      "🌋": 0.0
-    },
-    "hamiltonian": {
-      "🌀": {
-        "🐙": 0.5,
-        "✨": 0.45,
-        "👁": 0.35,
-        "🌋": 0.25
-      },
-      "🐙": {
-        "🌀": 0.5,
-        "✨": 0.3,
-        "🦀": 0.55
-      },
-      "✨": {
-        "🌀": 0.45,
-        "🐙": 0.3,
-        "👁": 0.4
-      },
-      "👁": {
-        "🌀": 0.35,
-        "✨": 0.4,
-        "🕳": 0.25
-      },
-      "🦀": {
-        "🐙": 0.55
-      },
-      "🌋": {
-        "🌀": 0.2
-      },
-      "🕳": {
-        "👁": 0.15
-      }
-    },
     "alignment_couplings": {
       "🌀": {
         "🌙": 0.25
@@ -8075,12 +5307,13 @@
         "🌑": 0.1
       }
     },
-    "sig": [
+    "cloud": [
       "🌀",
       "🐙",
       "✨",
       "👁",
-      "🌋"
+      "🌋",
+      "🌊"
     ],
     "icons": [
       {
@@ -8092,6 +5325,11 @@
         "name": "Sight",
         "pole_0": "👁",
         "pole_1": "✨"
+      },
+      {
+        "name": "Surge",
+        "pole_0": "🌋",
+        "pole_1": "🌊"
       }
     ]
   },
@@ -8104,32 +5342,6 @@
       }
     },
     "description": "The great destroyer and renewer. Burns hot, leaves fertility behind.",
-    "hamiltonian": {
-      "🔥": {
-        "🌬": 0.6,
-        "🌲": -0.4,
-        "🌿": -0.35,
-        "🍂": 0.7,
-        "🌱": -0.4
-      },
-      "🌲": {
-        "🔥": 0.3
-      },
-      "🌿": {
-        "🔥": 0.4
-      },
-      "🍂": {
-        "🔥": 0.6,
-        "🌱": 0.4
-      },
-      "🌱": {
-        "🍂": 0.2,
-        "🔥": -0.2
-      },
-      "🌬": {
-        "🔥": 0.6
-      }
-    },
     "name": "Wildfire",
     "ring": "second",
     "tags": [
@@ -8154,7 +5366,7 @@
       0
     ],
     "motto": "Burn to renew.",
-    "sig": [
+    "cloud": [
       "🔥",
       "🌿",
       "🌲",
@@ -8162,17 +5374,16 @@
       "🌬",
       "🌱"
     ],
-    "self_energies": {
-      "🌱": 0.1,
-      "🍂": 0.0,
-      "🔥": 0.35,
-      "🌬": 0.1
-    },
     "icons": [
       {
         "name": "Burn",
         "pole_0": "🔥",
         "pole_1": "🍂"
+      },
+      {
+        "name": "Wind",
+        "pole_0": "🌲",
+        "pole_1": "🌬"
       },
       {
         "name": "Renewal",
@@ -8197,46 +5408,8 @@
       }
     },
     "description": "They read probability in fermentation - bubble patterns, rise timing, the behavior of cultures. But they're not passive seers. They understand that observation shapes outcome, so they *prepare* the substrate. The quest they give you, the marriage they arrange, the rumor they plant - these are initial conditions. By the time causality propagates, their preferred eigenstate has already won. They smell like fresh bread and speak in conditional futures. They are running state management on the quantum computer that underlies reality.",
-    "hamiltonian": {
-      "🫙": {
-        "⛪": 0.55,
-        "🧪": 0.52,
-        "🥖": 0.6,
-        "🍞": 0.5,
-        "💨": -0.22
-      },
-      "⛪": {
-        "🫙": 0.55,
-        "🥖": 0.42,
-        "🍞": -0.14
-      },
-      "🧪": {
-        "🫙": 0.52
-      },
-      "🥖": {
-        "🫙": 0.6,
-        "⛪": 0.42,
-        "🍞": 0.45
-      },
-      "🍞": {
-        "🫙": 0.5,
-        "🥖": 0.45,
-        "⛪": -0.14
-      },
-      "💨": {
-        "🫙": -0.22
-      }
-    },
     "name": "Yeast Prophets",
     "ring": "third",
-    "self_energies": {
-      "🫙": 0.38,
-      "⛪": 0.3,
-      "💨": 0.22,
-      "🧪": 0.18,
-      "🥖": 0.14,
-      "🍞": 0.1
-    },
     "tags": [
       "fermentation",
       "mystic",
@@ -8259,7 +5432,7 @@
       1
     ],
     "motto": "The bread rises as the future wills.",
-    "sig": [
+    "cloud": [
       "🍞",
       "🥖",
       "🧪",
@@ -8277,6 +5450,11 @@
         "name": "Ferment",
         "pole_0": "🧪",
         "pole_1": "🫙"
+      },
+      {
+        "name": "Sacrament",
+        "pole_0": "🥖",
+        "pole_1": "⛪"
       }
     ]
   },
@@ -8292,48 +5470,7 @@
       "labor"
     ],
     "motto": "From ore to edge.",
-    "hamiltonian": {
-      "🔥": {
-        "🔧": 0.5,
-        "🔨": 0.4
-      },
-      "🔧": {
-        "🔥": 0.5,
-        "🔨": 0.6,
-        "⚙": 0.3
-      },
-      "🔨": {
-        "🔥": 0.4,
-        "🔧": 0.6,
-        "🔩": 0.4
-      },
-      "🪨": {
-        "🔧": 0.4,
-        "🔨": 0.3
-      },
-      "🔩": {
-        "🔨": 0.4,
-        "⚙": 0.4
-      },
-      "⚙": {
-        "🔧": 0.3,
-        "🔩": 0.4
-      },
-      "🔌": {
-        "🔧": -0.25,
-        "🔨": -0.2
-      }
-    },
-    "self_energies": {
-      "🔥": 0.25,
-      "🔧": 0.3,
-      "🔨": 0.25,
-      "🪨": 0.1,
-      "🔩": 0.15,
-      "⚙": 0.2,
-      "🔌": 0.05
-    },
-    "sig": [
+    "cloud": [
       "🔧",
       "🔨",
       "🔥",
@@ -8379,12 +5516,13 @@
     "ring": "third",
     "domain": "Infrastructure",
     "motto": "One lamp lit, five hearts beat.",
-    "sig": [
+    "cloud": [
       "🌉",
       "🪔",
       "📯",
       "🗼",
-      "🏁"
+      "🏁",
+      "🔥"
     ],
     "bits": [
       1,
@@ -8406,54 +5544,22 @@
       "infrastructure",
       "topological"
     ],
-    "self_energies": {
-      "🌉": 0.0,
-      "🪔": 0.0,
-      "📯": 0.0,
-      "🗼": 0.0,
-      "🏁": 0.0
-    },
-    "hamiltonian": {
-      "🌉": {
-        "🪔": 0.3
-      },
-      "🪔": {
-        "🌉": 0.3,
-        "📯": 0.8
-      },
-      "📯": {
-        "🪔": 0.8,
-        "🗼": 0.3
-      },
-      "🗼": {
-        "📯": 0.3,
-        "🏁": 0.8
-      },
-      "🏁": {
-        "🗼": 0.8
-      }
-    },
     "alignment_couplings": {},
     "icons": [
       {
         "name": "Crossing",
         "pole_0": "🌉",
-        "pole_1": "🪔"
+        "pole_1": "🔥"
       },
       {
-        "name": "Relay",
-        "pole_0": "📯",
+        "name": "Beacon",
+        "pole_0": "🪔",
         "pole_1": "🗼"
       },
       {
-        "name": "Keep",
-        "pole_0": "🏁",
+        "name": "Signal",
+        "pole_0": "📯",
         "pole_1": "🏁"
-      },
-      {
-        "name": "Relay",
-        "pole_0": "🪔",
-        "pole_1": "📯"
       }
     ]
   },
@@ -8463,10 +5569,11 @@
     "ring": "third",
     "domain": "Chronology",
     "motto": "Forward is the only sand.",
-    "sig": [
+    "cloud": [
       "⌛",
       "⏳",
-      "⏰"
+      "⏰",
+      "⚙"
     ],
     "bits": [
       1,
@@ -8488,43 +5595,6 @@
       "ring",
       "chronology"
     ],
-    "self_energies": {
-      "⌛": 0.0,
-      "⏳": 0.0,
-      "⏰": 0.0
-    },
-    "hamiltonian": {
-      "⌛": {
-        "⏳": [
-          0.6062177826491071,
-          0.3499999999999999
-        ],
-        "⏰": [
-          0.6062177826491071,
-          -0.3499999999999999
-        ]
-      },
-      "⏳": {
-        "⌛": [
-          0.6062177826491071,
-          -0.3499999999999999
-        ],
-        "⏰": [
-          0.6062177826491071,
-          0.3499999999999999
-        ]
-      },
-      "⏰": {
-        "⏳": [
-          0.6062177826491071,
-          -0.3499999999999999
-        ],
-        "⌛": [
-          0.6062177826491071,
-          0.3499999999999999
-        ]
-      }
-    },
     "alignment_couplings": {},
     "icons": [
       {
@@ -8533,9 +5603,9 @@
         "pole_1": "⏳"
       },
       {
-        "name": "Ringing",
+        "name": "Mechanism",
         "pole_0": "⏰",
-        "pole_1": "⏰"
+        "pole_1": "⚙"
       }
     ]
   },
@@ -8545,10 +5615,11 @@
     "ring": "second",
     "domain": "Emission",
     "motto": "The rainbow waits for a whisper.",
-    "sig": [
+    "cloud": [
       "🌟",
       "🌈",
-      "💥"
+      "💥",
+      "❄️"
     ],
     "bits": [
       1,
@@ -8570,20 +5641,6 @@
       "emission",
       "optics"
     ],
-    "self_energies": {
-      "🌟": 0.0,
-      "🌈": 0.0,
-      "💥": 0.5
-    },
-    "hamiltonian": {
-      "🌟": {
-        "🌈": 0.15
-      },
-      "🌈": {
-        "🌟": 0.15
-      },
-      "💥": {}
-    },
     "alignment_couplings": {},
     "icons": [
       {
@@ -8594,7 +5651,7 @@
       {
         "name": "Pump",
         "pole_0": "💥",
-        "pole_1": "💥"
+        "pole_1": "❄️"
       }
     ]
   },
@@ -8604,9 +5661,11 @@
     "ring": "third",
     "domain": "Threshold",
     "motto": "The same sky, two answers.",
-    "sig": [
+    "cloud": [
       "🌕",
-      "🌘"
+      "🌘",
+      "🍂",
+      "🌙"
     ],
     "bits": [
       0,
@@ -8627,20 +5686,17 @@
       "phase",
       "threshold"
     ],
-    "self_energies": {
-      "🌕": 0.1,
-      "🌘": 0.1
-    },
-    "hamiltonian": {
-      "🌕": {},
-      "🌘": {}
-    },
     "alignment_couplings": {},
     "icons": [
       {
-        "name": "Faces",
+        "name": "Phases",
         "pole_0": "🌕",
         "pole_1": "🌘"
+      },
+      {
+        "name": "Harvest",
+        "pole_0": "🌙",
+        "pole_1": "🍂"
       }
     ]
   },
@@ -8650,11 +5706,13 @@
     "ring": "third",
     "domain": "Memory",
     "motto": "Two ledgers. Two silences.",
-    "sig": [
+    "cloud": [
       "📕",
       "🔑",
       "📗",
-      "📓"
+      "📓",
+      "📜",
+      "💰"
     ],
     "bits": [
       1,
@@ -8676,18 +5734,6 @@
       "latch",
       "independent"
     ],
-    "self_energies": {
-      "📕": 0.1,
-      "🔑": 0.1,
-      "📗": 0.1,
-      "📓": 0.1
-    },
-    "hamiltonian": {
-      "📕": {},
-      "🔑": {},
-      "📗": {},
-      "📓": {}
-    },
     "alignment_couplings": {},
     "icons": [
       {
@@ -8699,6 +5745,11 @@
         "name": "Green Book",
         "pole_0": "📗",
         "pole_1": "📓"
+      },
+      {
+        "name": "Ledger",
+        "pole_0": "📜",
+        "pole_1": "💰"
       }
     ]
   },
@@ -8708,10 +5759,11 @@
     "ring": "third",
     "domain": "Ecology",
     "motto": "Someone above. Someone below. Forever.",
-    "sig": [
+    "cloud": [
       "🦋",
       "🕷",
-      "🐛"
+      "🐛",
+      "🌱"
     ],
     "bits": [
       1,
@@ -8732,27 +5784,673 @@
       "cycle",
       "predator-prey"
     ],
-    "self_energies": {
-      "🦋": 0.0,
-      "🕷": 0.0,
-      "🐛": 0.0
-    },
-    "hamiltonian": {
-      "🦋": {},
-      "🕷": {},
-      "🐛": {}
-    },
     "alignment_couplings": {},
     "icons": [
+      {
+        "name": "Metamorphosis",
+        "pole_0": "🐛",
+        "pole_1": "🦋"
+      },
+      {
+        "name": "Web",
+        "pole_0": "🕷",
+        "pole_1": "🌱"
+      },
       {
         "name": "Above",
         "pole_0": "🦋",
         "pole_1": "🕷"
+      }
+    ]
+  },
+  {
+    "name": "The Demos",
+    "description": "Subsistence farmers — the smallest viable faction, two atoms wide. People grow wheat; wheat feeds people. The starter player faction: the player is born into this circuit and learns by harvesting from the larger world.",
+    "domain": "Subsistence",
+    "tags": [
+      "farming",
+      "starter",
+      "player_faction",
+      "civic"
+    ],
+    "bits": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      0
+    ],
+    "ring": "center",
+    "motto": "Wheat for the body, body for the wheat.",
+    "invested_hats": [
+      "spark",
+      "icon",
+      "merchant",
+      "captain",
+      "ace",
+      "operator",
+      "druid"
+    ],
+    "governing_biome_slots": {
+      "T": "StarterForest",
+      "Y": "Village"
+    },
+    "icons": [
+      {
+        "name": "Subsistence",
+        "pole_0": "👥",
+        "pole_1": "🌾"
+      }
+    ],
+    "neighborhoods": [
+      {
+        "biome": "StarterForest",
+        "signature": [{"name": "Subsistence", "pole_0": "👥", "pole_1": "🌾"}]
       },
       {
-        "name": "Below",
-        "pole_0": "🐛",
-        "pole_1": "🕷"
+        "biome": "Village",
+        "signature": [{"name": "Subsistence", "pole_0": "👥", "pole_1": "🌾"}]
+      }
+    ]
+  },
+  {
+    "name": "orphaned_icons",
+    "description": "Catalog of biome-local icons awaiting faction assignment or icon-cloud integration.",
+    "ring": "outer",
+    "bits": [],
+    "tags": [
+      "internal",
+      "catalog"
+    ],
+    "icons": [
+      {
+        "name": "Remnant",
+        "pole_0": "🏺",
+        "pole_1": "🪨"
+      },
+      {
+        "name": "Antimatter",
+        "pole_0": "⚫",
+        "pole_1": "✨"
+      },
+      {
+        "name": "Annihilation",
+        "pole_0": "💥",
+        "pole_1": "🌀"
+      },
+      {
+        "name": "Singularity",
+        "pole_0": "🕳",
+        "pole_1": "⚡"
+      },
+      {
+        "name": "Hive",
+        "pole_0": "🐝",
+        "pole_1": "🫙"
+      },
+      {
+        "name": "Record",
+        "pole_0": "📒",
+        "pole_1": "📋"
+      },
+      {
+        "name": "Measure",
+        "pole_0": "🧮",
+        "pole_1": "⚖"
+      },
+      {
+        "name": "Pyre",
+        "pole_0": "🔥",
+        "pole_1": "⚫"
+      },
+      {
+        "name": "Nobility",
+        "pole_0": "⚜",
+        "pole_1": "🩸"
+      },
+      {
+        "name": "Violence",
+        "pole_0": "💥",
+        "pole_1": "🩸"
+      },
+      {
+        "name": "Aftermath",
+        "pole_0": "💀",
+        "pole_1": "⚱"
+      },
+      {
+        "name": "Harvest",
+        "pole_0": "🌾",
+        "pole_1": "🍄"
+      },
+      {
+        "name": "Authority",
+        "pole_0": "⚜",
+        "pole_1": "⚖"
+      },
+      {
+        "name": "Extraction",
+        "pole_0": "👥",
+        "pole_1": "💰"
+      },
+      {
+        "name": "Voice",
+        "pole_0": "🔊",
+        "pole_1": "🗣"
+      },
+      {
+        "name": "Broadcast",
+        "pole_0": "🎵",
+        "pole_1": "🧩"
+      },
+      {
+        "name": "Archive",
+        "pole_0": "🗃",
+        "pole_1": "♟"
+      },
+      {
+        "name": "Reckoning",
+        "pole_0": "💀",
+        "pole_1": "📖"
+      },
+      {
+        "name": "Medicine",
+        "pole_0": "💉",
+        "pole_1": "💊"
+      },
+      {
+        "name": "Cryogenic",
+        "pole_0": "❄",
+        "pole_1": "⚙"
+      },
+      {
+        "name": "Access",
+        "pole_0": "👥",
+        "pole_1": "🗝"
+      },
+      {
+        "name": "Sacrifice",
+        "pole_0": "🩸",
+        "pole_1": "🚀"
+      },
+      {
+        "name": "Capital",
+        "pole_0": "💰",
+        "pole_1": "⚙"
+      },
+      {
+        "name": "Demolition",
+        "pole_0": "🧨",
+        "pole_1": "💥"
+      },
+      {
+        "name": "Burning",
+        "pole_0": "🧱",
+        "pole_1": "🔥"
+      },
+      {
+        "name": "Vigil",
+        "pole_0": "🕸",
+        "pole_1": "🕯"
+      },
+      {
+        "name": "Silence",
+        "pole_0": "🔇",
+        "pole_1": "🌑"
+      },
+      {
+        "name": "Vertigo",
+        "pole_0": "💫",
+        "pole_1": "🌀"
+      },
+      {
+        "name": "Authority",
+        "pole_0": "🚔",
+        "pole_1": "🔓"
+      },
+      {
+        "name": "Compliance",
+        "pole_0": "⛓",
+        "pole_1": "📋"
+      },
+      {
+        "name": "Fading",
+        "pole_0": "🦅",
+        "pole_1": "🥀"
+      },
+      {
+        "name": "Phase",
+        "pole_0": "🧊",
+        "pole_1": "🔥"
+      },
+      {
+        "name": "Scale",
+        "pole_0": "💧",
+        "pole_1": "🌊"
+      },
+      {
+        "name": "Cycle",
+        "pole_0": "🫧",
+        "pole_1": "🌿"
+      },
+      {
+        "name": "Kingdom",
+        "pole_0": "🍄",
+        "pole_1": "🦠"
+      },
+      {
+        "name": "Bath",
+        "pole_0": "🌧",
+        "pole_1": "🧫"
+      },
+      {
+        "name": "Crown",
+        "pole_0": "👑",
+        "pole_1": "⚜"
+      },
+      {
+        "name": "Decline",
+        "pole_0": "📜",
+        "pole_1": "🥀"
+      },
+      {
+        "name": "Transit",
+        "pole_0": "🛶",
+        "pole_1": "🪝"
+      },
+      {
+        "name": "Domain",
+        "pole_0": "💧",
+        "pole_1": "⚓"
+      },
+      {
+        "name": "Cargo",
+        "pole_0": "🌾",
+        "pole_1": "🏜"
+      },
+      {
+        "name": "Dock",
+        "pole_0": "🪣",
+        "pole_1": "🪨"
+      },
+      {
+        "name": "Apiary",
+        "pole_0": "🍯",
+        "pole_1": "🐝"
+      },
+      {
+        "name": "Mirage",
+        "pole_0": "🌠",
+        "pole_1": "🫥"
+      },
+      {
+        "name": "Crossing",
+        "pole_0": "🌉",
+        "pole_1": "🪔"
+      },
+      {
+        "name": "Relay",
+        "pole_0": "📯",
+        "pole_1": "🗼"
+      },
+      {
+        "name": "Contraband",
+        "pole_0": "🏁",
+        "pole_1": "🧂"
+      },
+      {
+        "name": "Inversion",
+        "pole_0": "💥",
+        "pole_1": "🌟"
+      },
+      {
+        "name": "Lasing",
+        "pole_0": "✨",
+        "pole_1": "🌈"
+      },
+      {
+        "name": "Force",
+        "pole_0": "🧲",
+        "pole_1": "⚡"
+      },
+      {
+        "name": "Field",
+        "pole_0": "🌀",
+        "pole_1": "📡"
+      },
+      {
+        "name": "Currency",
+        "pole_0": "💰",
+        "pole_1": "💳"
+      },
+      {
+        "name": "Goods",
+        "pole_0": "📦",
+        "pole_1": "🏷️"
+      },
+      {
+        "name": "Exchange",
+        "pole_0": "💱",
+        "pole_1": "🕴️"
+      },
+      {
+        "name": "Drive",
+        "pole_0": "💨",
+        "pole_1": "🏭"
+      },
+      {
+        "name": "Grinding",
+        "pole_0": "⚙",
+        "pole_1": "🌾"
+      },
+      {
+        "name": "Flour",
+        "pole_0": "🔨",
+        "pole_1": "🧺"
+      },
+      {
+        "name": "Darkness",
+        "pole_0": "🕯",
+        "pole_1": "🌑"
+      },
+      {
+        "name": "Mutualism",
+        "pole_0": "🦋",
+        "pole_1": "🌸"
+      },
+      {
+        "name": "Predation",
+        "pole_0": "🕷",
+        "pole_1": "🐛"
+      },
+      {
+        "name": "Anchoring",
+        "pole_0": "⚫",
+        "pole_1": "📍"
+      },
+      {
+        "name": "Ward",
+        "pole_0": "🧿",
+        "pole_1": "🏮"
+      },
+      {
+        "name": "Offering",
+        "pole_0": "🕯",
+        "pole_1": "⚱"
+      },
+      {
+        "name": "Impact",
+        "pole_0": "🛸",
+        "pole_1": "💥"
+      },
+      {
+        "name": "Trajectory",
+        "pole_0": "🚀",
+        "pole_1": "⭐"
+      },
+      {
+        "name": "Predation",
+        "pole_0": "🐑",
+        "pole_1": "🐺"
+      },
+      {
+        "name": "Harvest",
+        "pole_0": "🥣",
+        "pole_1": "🫙"
+      },
+      {
+        "name": "Commons",
+        "pole_0": "🤲",
+        "pole_1": "🌾"
+      },
+      {
+        "name": "Circuit",
+        "pole_0": "🔌",
+        "pole_1": "⚡"
+      },
+      {
+        "name": "Form",
+        "pole_0": "🩰",
+        "pole_1": "🎸"
+      },
+      {
+        "name": "Spark",
+        "pole_0": "💫",
+        "pole_1": "🔊"
+      },
+      {
+        "name": "Manifesto",
+        "pole_0": "📜",
+        "pole_1": "🗣"
+      },
+      {
+        "name": "Tradecraft",
+        "pole_0": "⛓",
+        "pole_1": "🔓"
+      },
+      {
+        "name": "Orbit",
+        "pole_0": "🛰",
+        "pole_1": "⭐"
+      },
+      {
+        "name": "Waste",
+        "pole_0": "♻️",
+        "pole_1": "🗑"
+      },
+      {
+        "name": "Labor",
+        "pole_0": "🧤",
+        "pole_1": "🏭"
+      },
+      {
+        "name": "Ruin",
+        "pole_0": "🚧",
+        "pole_1": "🧱"
+      },
+      {
+        "name": "Relic",
+        "pole_0": "📿",
+        "pole_1": "💀"
+      },
+      {
+        "name": "Pale",
+        "pole_0": "🪸",
+        "pole_1": "🪵"
+      },
+      {
+        "name": "Orange",
+        "pole_0": "🌰",
+        "pole_1": "🫚"
+      },
+      {
+        "name": "Power",
+        "pole_0": "⚡",
+        "pole_1": "🔋"
+      },
+      {
+        "name": "Fleet",
+        "pole_0": "🚀",
+        "pole_1": "🛸"
+      },
+      {
+        "name": "Signal",
+        "pole_0": "📡",
+        "pole_1": "✨"
+      },
+      {
+        "name": "Subsistence",
+        "pole_0": "👥",
+        "pole_1": "🌾"
+      },
+      {
+        "name": "Hub",
+        "pole_0": "⚫",
+        "pole_1": "⭐"
+      },
+      {
+        "name": "Edge",
+        "pole_0": "🕳",
+        "pole_1": "🌠"
+      },
+      {
+        "name": "Observer",
+        "pole_0": "🔭",
+        "pole_1": "🕰"
+      },
+      {
+        "name": "Tide",
+        "pole_0": "🌊",
+        "pole_1": "🪨"
+      },
+      {
+        "name": "Current",
+        "pole_0": "🌀",
+        "pole_1": "🦀"
+      },
+      {
+        "name": "Depth",
+        "pole_0": "🐙",
+        "pole_1": "🪸"
+      },
+      {
+        "name": "Shimmer",
+        "pole_0": "✨",
+        "pole_1": "🐠"
+      },
+      {
+        "name": "Oracle",
+        "pole_0": "👁",
+        "pole_1": "📜"
+      },
+      {
+        "name": "Flow",
+        "pole_0": "📊",
+        "pole_1": "💱"
+      },
+      {
+        "name": "Snare",
+        "pole_0": "🪤",
+        "pole_1": "🪝"
+      },
+      {
+        "name": "Prey",
+        "pole_0": "🐇",
+        "pole_1": "🦴"
+      },
+      {
+        "name": "WindMill",
+        "pole_0": "⚙",
+        "pole_1": "💨"
+      },
+      {
+        "name": "Commerce",
+        "pole_0": "🧺",
+        "pole_1": "💰"
+      },
+      {
+        "name": "Ward",
+        "pole_0": "🧿",
+        "pole_1": "🪢"
+      },
+      {
+        "name": "Vessel",
+        "pole_0": "🫖",
+        "pole_1": "🏮"
+      },
+      {
+        "name": "Garment",
+        "pole_0": "👘",
+        "pole_1": "🧷"
+      },
+      {
+        "name": "Cycle",
+        "pole_0": "⌛",
+        "pole_1": "⏰"
+      },
+      {
+        "name": "Witness",
+        "pole_0": "⏳",
+        "pole_1": "🕰"
+      },
+      {
+        "name": "Labor",
+        "pole_0": "🪓",
+        "pole_1": "🪵"
+      },
+      {
+        "name": "Gearwork",
+        "pole_0": "⚙",
+        "pole_1": "🧰"
+      },
+      {
+        "name": "Relay",
+        "pole_0": "🪔",
+        "pole_1": "📯"
+      },
+      {
+        "name": "Summit",
+        "pole_0": "🌫",
+        "pole_1": "🗻"
+      }
+    ]
+  },
+  {
+    "name": "Salt Runners",
+    "description": "Itinerant traders of salt, water, and locked cargo who run the coastal channels between dispersed port-towns. They thread the brackish channels that bigger fleets won't navigate, paid in pickled silence and the occasional unmarked key.",
+    "ring": "third",
+    "tags": [
+      "coastal",
+      "commerce",
+      "shipping",
+      "smuggling"
+    ],
+    "domain": "Criminal",
+    "bits": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      1,
+      1,
+      0,
+      0,
+      0
+    ],
+    "motto": "The tide forgives nothing twice.",
+    "cloud": [
+      "🧂",
+      "🛶",
+      "💧",
+      "⛓",
+      "🔓",
+      "🔍"
+    ],
+    "icons": [
+      {
+        "name": "Cargo",
+        "pole_0": "🧂",
+        "pole_1": "🛶"
+      },
+      {
+        "name": "Channel",
+        "pole_0": "💧",
+        "pole_1": "⛓"
+      },
+      {
+        "name": "Tradecraft",
+        "pole_0": "🔓",
+        "pole_1": "🔍"
       }
     ]
   }

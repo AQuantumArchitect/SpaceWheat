@@ -51,8 +51,8 @@ EOF
 
 echo -e "${BLUE}Phase 1: Launching game and verifying boot...${NC}"
 
-# Start game in headless mode with test script
-timeout 120 $GODOT_BIN --headless --no-window "$PROJECT_DIR/scenes/FarmView.tscn" 2>&1 | tee -a "$LOG_FILE" &
+# Start game through the canonical Main -> AppRoot -> GameRoot boot path.
+timeout 120 $GODOT_BIN --headless --no-window "$PROJECT_DIR/scenes/Main.tscn" 2>&1 | tee -a "$LOG_FILE" &
 GAME_PID=$!
 
 # Give game time to boot

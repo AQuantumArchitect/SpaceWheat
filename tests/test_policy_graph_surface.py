@@ -21,33 +21,23 @@ def test_policy_graph_module_exists_with_jsonl_surface() -> None:
     assert "static func action_limits_for_action(" in src
 
 
-def test_policy_projector_exists_with_shared_candidate_and_reward_logic() -> None:
-    src = _read("Core/AI/PolicyStateProjector.gd")
-    assert "class_name PolicyStateProjector" in src
-    assert "static func build_candidates(" in src
-    assert "static func compute_reward_components(" in src
-    assert "static func quest_pressure(" in src
-    assert "static func choose_channel_drain_target(" in src
-    assert "static func _offer_milk_metrics(" in src
-    assert "static func webway_offer_value(" in src
-    assert "milk_distance_gain" in src
-    assert "milk_cascade_gain" in src
-    assert "webway_gain" in src
-    assert "max_rerolls" in src
-    assert "milk_corridor_weight" in src
+def test_policy_graph_runtime_exposes_graph_and_action_limit_helpers() -> None:
+    src = _read("🍄/🎛️/policy_graph_runtime.py")
+    assert "DEFAULT_GRAPH_PATH = POLICY_GRAPH_ROOT / \"default.jsonl\"" in src
+    assert "def profile_graph_path(" in src
+    assert "def load_graph_lines(" in src
+    assert "def load_resolved_graph(" in src
+    assert "def action_limits_for_action_from_graph(" in src
+    assert "def action_limits_for_action(" in src
 
 
-def test_both_policy_engines_use_shared_projector_and_graph() -> None:
-    qfp = _read("Core/AI/QuantumFiberPolicy.gd")
-    pqr = _read("Core/AI/PolicyQuantumRegister.gd")
-    for src in (qfp, pqr):
-        assert 'const PolicyGraph = preload("res://Core/AI/PolicyGraph.gd")' in src
-        assert 'const PolicyStateProjector = preload("res://Core/AI/PolicyStateProjector.gd")' in src
-        assert "PolicyGraph.load_resolved_graph(" in src
-        assert "PolicyStateProjector.build_candidates(" in src
-        assert "PolicyStateProjector.compute_reward_components(" in src
-        assert "func get_policy_graph()" in src
-        assert "func apply_policy_graph_lines(" in src
+def test_milk_hunt_runner_uses_shared_policy_graph_runtime() -> None:
+    runner = _read("🍄/🎛️/milk_hunt_runner.py")
+    assert "from policy_graph_runtime import (" in runner
+    assert "runtime_policy_graph_path" in runner
+    assert "action_limits_for_action_from_graph" in runner
+    assert '_run_turn(turn, "policy_graph")' in runner
+    assert 'effective_policy_graph_path = str(runtime_policy_graph_path(hunter_profile, "ucb"))' in runner
 
 
 def test_profile_graphs_exist_for_primary_profiles() -> None:
@@ -71,36 +61,44 @@ def test_default_policy_graph_exposes_milk_progress_weights() -> None:
     assert '"path":"action_priors.quest_cycle.milk_cascade_gain"' in text
     assert '"path":"action_priors.quest_cycle.prior_milk_distance_gain"' in text
     assert '"path":"action_priors.quest_cycle.prior_milk_cascade_gain"' in text
-    assert '"path":"action_priors.lock_offer.milk_distance_gain"' in text
-    assert '"path":"action_priors.lock_offer.milk_cascade_gain"' in text
 
 
 def test_game_state_and_rig_listener_persist_policy_graph() -> None:
     gs = _read("Core/GameState/GameState.gd")
     serializer = _read("Core/GameState/GameStateSerializer.gd")
     sidecar = _read("Core/GameState/SaveStore.gd")
-    listener = _read("Tests/rig_listener.gd")
+    seed = _read("🍄/🎛️/milk_hunt_seed_save.py")
+    listener = _read("Rig/rig_listener.gd")
     assert '@export var policy_graph_path: String = "res://Core/Config/PolicyGraph/default.jsonl"' in gs
     assert "@export var policy_graph_jsonl: Array[String] = []" in gs
     assert 'state.policy_graph_jsonl = pgraph.duplicate()' in serializer
     assert 'state.policy_graph_path = str(current_state.policy_graph_path)' in serializer
     assert '"policy_graph_path": state.policy_graph_path' in sidecar
     assert '"policy_graph_jsonl": state.policy_graph_jsonl' in sidecar
-    assert 'gsm.current_state.policy_graph_jsonl = PolicyGraph.snapshot_to_graph_lines(graph_snapshot)' in listener
-    assert "policy.apply_policy_graph_lines(graph_lines)" in listener
+    assert 'payload["policy_graph_path"] = policy_graph_path_value' in seed
+    assert 'payload["policy_graph_jsonl"] = policy_graph_jsonl_value' in seed
+    assert 'var policy_graph_path = str(cmd.get("policy_graph_path", ""))' in listener
+    assert 'gsm.current_state.policy_graph_path = policy_graph_path' in listener
+    assert 'var policy_graph_jsonl = cmd.get("policy_graph_jsonl", [])' in listener
+    assert 'gsm.current_state.policy_graph_jsonl = typed_lines' in listener
     assert '"known_emojis": state.get_known_emojis(),' not in sidecar
 
 
 def test_snapshot_service_owns_policy_state_projection() -> None:
     snapshot = _read("Core/Instrumentation/SnapshotService.gd")
-    listener = _read("Tests/rig_listener.gd")
-    assert "func build_policy_state(cmd: Dictionary = {}) -> Dictionary:" in snapshot
-    assert "func build_policy_state_lightweight(cmd: Dictionary = {}) -> Dictionary:" in snapshot
-    assert "_annotate_offer_discovery_affinity(offers)" in snapshot
-    assert "_snapshot_service.build_policy_state_lightweight(cmd)" in listener
+    listener = _read("Rig/rig_listener.gd")
+    assert "func get_policy_snapshot(" in snapshot
+    assert "func open_semantic_map_panel(" not in snapshot
+    assert "func open_vocabulary_panel(" not in snapshot
+    assert "func build_policy_state(cmd: Dictionary = {}) -> Dictionary:" not in snapshot
+    assert "func build_policy_state_lightweight(cmd: Dictionary = {}) -> Dictionary:" not in snapshot
+    assert "func _annotate_offer_discovery_affinity(offers: Array) -> Array:" not in snapshot
+    assert "instrument.get_policy_snapshot(" in snapshot
+    assert "func _get_policy_snapshot(include_offers: bool = true, include_grid: bool = true) -> Dictionary:" in listener
+    assert "var bundled = _instrument.get_policy_snapshot(include_offers, include_grid)" in listener
 
 
-def test_seed_path_and_runner_lock_policy_use_canonical_policy_graph() -> None:
+def test_seed_path_and_runner_use_canonical_policy_graph() -> None:
     seed = _read("🍄/🎛️/milk_hunt_seed_save.py")
     runner = _read("🍄/🎛️/milk_hunt_runner.py")
     helper = _read("🍄/🎛️/policy_graph_runtime.py")
@@ -111,30 +109,10 @@ def test_seed_path_and_runner_lock_policy_use_canonical_policy_graph() -> None:
     assert '_run_turn(turn, "policy_graph")' in runner
     assert "def action_limits_for_action_from_graph(" in helper
     assert "DEFAULT_GRAPH_PATH = POLICY_GRAPH_ROOT / \"default.jsonl\"" in helper
-    assert 'get_cfg_bool(cfg, "profile_lock_strategy")' not in runner
-    assert "MILK_HUNT_PROFILE_LOCK_STRATEGY" not in runner
-    assert "--profile-lock-strategy" not in runner
-    assert "--lock-offer-gate" in runner
-    assert "action_gate_policies" in runner
-    assert "action_gate_lock_offer_actions" in runner
     assert "def _evaluate_action_gate(" in runner
     assert "def _heuristic_best_offer_index(" in runner
     assert "fallback_python_policy" not in runner
     assert not (ROOT / "🍄" / "🎛️" / "milk_hunt_fallback_policy.py").exists()
-
-
-def test_quantum_register_policy_uses_parametric_policy_graph() -> None:
-    src = _read("Core/AI/PolicyQuantumRegister.gd")
-    ppg = _read("Core/AI/ParametricPolicyGraph.gd")
-    assert 'const ParametricPolicyGraph = preload("res://Core/AI/ParametricPolicyGraph.gd")' in src
-    assert "_ppg = ParametricPolicyGraph.new()" in src
-    assert "_ppg.observe_outcome(action_name, reward_components)" in src
-    assert "_ppg.resolve_graph(_policy_graph)" in src
-    assert "class_name ParametricPolicyGraph" in ppg
-    assert "func resolve_graph(raw_graph: Dictionary) -> Dictionary:" in ppg
-    assert "func observe_outcome(action_name: String, reward_components: Dictionary) -> void:" in ppg
-    assert "func export_state() -> Dictionary:" in ppg
-    assert "func load_state(state: Dictionary) -> void:" in ppg
 
 
 def test_quest_runtime_no_longer_uses_solo_vocab_discovery_fallback() -> None:

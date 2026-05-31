@@ -1,8 +1,6 @@
 class_name DualEmojiQubit
 extends Resource
 
-const ComplexMatrix = preload("res://Core/QuantumSubstrate/ComplexMatrix.gd")
-const Complex = preload("res://Core/QuantumSubstrate/Complex.gd")
 
 ## DualEmojiQubit - Stateless Projection Lens
 ##
@@ -23,26 +21,22 @@ const Complex = preload("res://Core/QuantumSubstrate/Complex.gd")
 @export var south_emoji: String = ""
 
 ## ========================================
-## State References (Model B)
+## State References
 ## ========================================
 
 var register_id: int = -1  # Logical qubit ID in quantum computer
 var parent_biome: Node = null  # BiomeBase that owns quantum state
-
-# Legacy: QuantumBath reference (deprecated, for backward compat)
-var bath: RefCounted = null  # QuantumBath reference (if using old bath mode)
 var plot_position: Vector2i = Vector2i.ZERO
 
 ## ========================================
-## Computed Properties (Model B - from quantum computer)
+## Computed Properties (from quantum computer)
 ## ========================================
 
 ## Helper: Get probability marginal from quantum computer
 func _get_marginal_from_computer() -> Dictionary:
-	"""Query marginal from parent biome's quantum computer.
+	# Query marginal from parent biome's quantum computer.
 
-	Model C: Uses get_population() and get_coherence() directly.
-	"""
+	# Model C: Uses get_population() and get_coherence() directly.
 	if not parent_biome:
 		return {}
 
@@ -70,10 +64,6 @@ var theta: float:
 	get:
 		var marginal = _get_marginal_from_computer()
 		if marginal.is_empty():
-			# Fallback to legacy bath if available
-			if bath:
-				var proj = bath.project_onto_axis(north_emoji, south_emoji)
-				return proj.get("theta", PI / 2.0)
 			return PI / 2.0
 
 		var p0 = marginal.get("p_north", 0.5)
@@ -89,10 +79,6 @@ var phi: float:
 	get:
 		var marginal = _get_marginal_from_computer()
 		if marginal.is_empty():
-			# Fallback to legacy bath
-			if bath:
-				var proj = bath.project_onto_axis(north_emoji, south_emoji)
-				return proj.get("phi", 0.0)
 			return 0.0
 
 		var coh = marginal.get("coherence", Complex.zero())
@@ -107,9 +93,6 @@ var radius: float:
 	get:
 		var marginal = _get_marginal_from_computer()
 		if marginal.is_empty():
-			if bath:
-				var proj = bath.project_onto_axis(north_emoji, south_emoji)
-				return proj.get("radius", 0.0)
 			return 0.0
 
 		var p0 = marginal.get("p_north", 0.0)
@@ -128,9 +111,6 @@ var purity: float:
 	get:
 		var marginal = _get_marginal_from_computer()
 		if marginal.is_empty():
-			if bath:
-				var proj = bath.project_onto_axis(north_emoji, south_emoji)
-				return proj.get("purity", 0.5)
 			return 0.5
 
 		# Compute Tr(ρ²) from marginal
@@ -147,9 +127,6 @@ var subspace_probability: float:
 	get:
 		var marginal = _get_marginal_from_computer()
 		if marginal.is_empty():
-			if bath:
-				var proj = bath.project_onto_axis(north_emoji, south_emoji)
-				return proj.get("p_subspace", 0.0)
 			return 0.0
 
 		return marginal.get("p_subspace", 0.0)
@@ -172,10 +149,6 @@ var order: float:
 			return 0.0
 		var marginal = _get_marginal_from_computer()
 		if marginal.is_empty():
-			# Fallback to legacy bath
-			if bath:
-				var coherence = bath.get_coherence(north_emoji, south_emoji)
-				return coherence.abs() / subspace_probability
 			return 0.0
 		var coh = marginal.get("coherence", Complex.zero())
 		return coh.abs() / subspace_probability
@@ -220,7 +193,7 @@ func get_rho_subspace_norm() -> ComplexMatrix:
 	return rho_norm
 
 ## ========================================
-## Entanglement Tracking (preserved from legacy)
+## Entanglement Tracking (carried from earlier implementation)
 ## ========================================
 
 var entangled_pair: Resource = null
@@ -239,27 +212,23 @@ var entanglement_graph: Dictionary = {}
 ## Constructor
 ## ========================================
 
-func _init(north: String = "", south: String = "", _unused_theta: float = PI/2, bath_ref: RefCounted = null):
+func _init(north: String = "", south: String = "", _unused_theta: float = PI/2):
 	north_emoji = north
 	south_emoji = south
-	bath = bath_ref
 	berry_phase = 0.0
 
 ## ========================================
 ## Projection Methods
 ## ========================================
 
-## Get full projection data from bath
 func get_projection() -> Dictionary:
-	if not bath:
-		return {
-			"theta": PI / 2.0,
-			"phi": 0.0,
-			"radius": 0.0,
-			"purity": 0.5,
-			"valid": false
-		}
-	return bath.project_onto_axis(north_emoji, south_emoji)
+	return {
+		"theta": theta,
+		"phi": phi,
+		"radius": radius,
+		"purity": purity,
+		"valid": parent_biome != null
+	}
 
 ## Get Bloch vector
 func get_bloch_vector() -> Vector3:
@@ -281,7 +250,7 @@ func get_semantic_state() -> String:
 ## Probability Methods
 ## ========================================
 
-## Get north amplitude magnitude (for backwards compatibility)
+## Get north amplitude magnitude for older callers
 func get_north_amplitude() -> float:
 	return cos(theta / 2.0)
 
@@ -321,16 +290,15 @@ func measure() -> String:
 
 ## Inspect qubit WITHOUT collapsing state (INSPECT operation)
 func inspect() -> Dictionary:
-	"""Non-destructive inspection of measurement probabilities.
+	# Non-destructive inspection of measurement probabilities.
 
-	Returns probabilities without affecting quantum state.
+	# Returns probabilities without affecting quantum state.
 
-	Returns:
-		Dictionary with:
-		- "north": Probability in north basis
-		- "south": Probability in south basis
-		- "total": Total probability in subspace
-	"""
+	# Returns:
+	# Dictionary with:
+	# - "north": Probability in north basis
+	# - "south": Probability in south basis
+	# - "total": Total probability in subspace
 	# Model C: Inspect via parent_biome's quantum computer
 	if parent_biome and register_id >= 0:
 		var qc = parent_biome.quantum_computer
@@ -345,15 +313,14 @@ func inspect() -> Dictionary:
 
 ## Batch measure entire entangled component (Phase 3 - Spooky Action at Distance)
 func batch_measure() -> Dictionary:
-	"""Measure entire entangled component when one qubit is measured.
+	# Measure entire entangled component when one qubit is measured.
 
-	Model C: Uses entanglement_graph to find connected qubits.
-	Implements "spooky action at a distance": all qubits in component are measured.
+	# Model C: Uses entanglement_graph to find connected qubits.
+	# Implements "spooky action at a distance": all qubits in component are measured.
 
-	Returns:
-		Dictionary mapping qubit positions to outcomes (legacy format)
-		For single qubit: returns self outcome in {"0": outcome} format
-	"""
+	# Returns:
+	# Dictionary mapping qubit positions to outcomes
+	# For single qubit: returns self outcome in {"0": outcome} format
 	# Model C: Measure this qubit via measure_axis
 	if parent_biome and north_emoji != "" and south_emoji != "":
 		var qc = parent_biome.quantum_computer
@@ -437,9 +404,9 @@ func _to_string() -> String:
 ## ========================================
 ## DEPRECATED METHODS REMOVED
 ## ========================================
-## All quantum operations now handled by QuantumBath using proper:
-## - Unitary gates: bath.apply_unitary_1q(), bath.apply_unitary_2q()
-## - Evolution: bath.evolve() with Hamiltonian + Lindblad
-## - State manipulation: bath methods only
+## All quantum operations now flow through QuantumComputer / RegisterMap:
+## - Unitary gates: apply_gate(), apply_gate_2q()
+## - Evolution: evolve() with Hamiltonian + Lindblad
+## - State manipulation: density-matrix methods on the register substrate
 ##
 ## DualEmojiQubit is now a pure projection lens (read-only)

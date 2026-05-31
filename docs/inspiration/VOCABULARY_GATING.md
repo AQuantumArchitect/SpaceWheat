@@ -6,7 +6,7 @@ A player who knows certain emojis can access certain factions — naturally.
 ## The Mechanism
 
 Each faction has a **signature vocabulary** (4-5 thematic emojis).
-A player can access a faction only if their known-pairs set contains
+A player can access a faction only if their known-icons set contains
 at least one emoji from that faction's signature.
 
 No menu. No unlock screen. Just overlap math.

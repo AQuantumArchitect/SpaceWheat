@@ -16,7 +16,6 @@ extends SceneTree
 ##
 ## Run: godot --headless -s tests/market_view_geometry.gd
 
-const MarketView = preload("res://Core/Markets/MarketView.gd")
 
 const TOL: float = 1e-6
 

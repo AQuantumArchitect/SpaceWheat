@@ -5,17 +5,13 @@ extends Node
 ##
 ## Held as a child Node on the GameStateManager autoload. State (phase,
 ## pending_boot, session_load_slot, current_state, current_scenario_id, active_farm)
-## remains on GSM so existing back-references keep working; this helper carries
+## remains on GSM so existing back-references keep working; this node carries
 ## the operations. Mirrors the BootManager → SessionLoader/WorldBuilder/RuntimeMount
 ## split.
 ##
 ## Signals farm_ready and session_ending live on GSM (forwarded) so external
 ## listeners don't have to care about the split.
 
-const GameState = preload("res://Core/GameState/GameState.gd")
-const SaveStore = preload("res://Core/GameState/SaveStore.gd")
-const Farm = preload("res://Core/Farm.gd")
-const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
 enum SessionPhase { IDLE, BOOTING, RUNNING, RESTARTING, QUITTING }
 
@@ -200,7 +196,7 @@ func request_application_quit(reset_singletons: bool = true) -> void:
 	var tree = get_tree()
 	if tree:
 		await tree.process_frame
-		var music = InstrumentLocator.resolve_music_manager(self)
+		var music = get_node_or_null("/root/MusicManager")
 		if music and music.has_method("reset"):
 			music.reset()
 		await tree.process_frame
@@ -227,31 +223,31 @@ func reset_runtime_singletons() -> void:
 	_gsm._milk_autosave_done = false
 	_gsm.last_milk_autosave_path = ""
 
-	var boot_mgr = InstrumentLocator.resolve_root_node(self, "/root/BootManager")
+	var boot_mgr = get_node_or_null("/root/BootManager")
 	if boot_mgr and boot_mgr.has_method("reset"):
 		boot_mgr.reset()
 
-	var abm = InstrumentLocator.resolve_active_biome_manager(self)
+	var abm = get_node_or_null("/root/ActiveBiomeManager")
 	if abm and abm.has_method("reset"):
 		abm.reset()
 
-	var obs = InstrumentLocator.resolve_observation_frame(self)
+	var obs = get_node_or_null("/root/ObservationFrame")
 	if obs and obs.has_method("reset"):
 		obs.reset()
 
-	var music = InstrumentLocator.resolve_music_manager(self)
+	var music = get_node_or_null("/root/MusicManager")
 	if music and music.has_method("reset"):
 		music.reset()
 
-	var act = InstrumentLocator.resolve_action_chain_tracker(self)
+	var act = get_node_or_null("/root/ActionChainTracker")
 	if act and act.has_method("reset"):
 		act.reset()
 
-	var sfx = InstrumentLocator.resolve_sfx_registry(self)
+	var sfx = get_node_or_null("/root/SFXRegistry")
 	if sfx and sfx.has_method("reset"):
 		sfx.reset()
 
-	var story_engine = InstrumentLocator.resolve_root_node(self, "/root/StoryEngine")
+	var story_engine = get_node_or_null("/root/StoryEngine")
 	if story_engine and story_engine.has_method("reset"):
 		story_engine.reset()
 
@@ -278,7 +274,7 @@ func request_restart() -> void:
 	await restart_into(target_slot)
 
 
-func request_fresh_restart(reset_progress: bool = true, scenario_id: String = "") -> void:
+func request_fresh_restart(_reset_progress: bool = true, scenario_id: String = "") -> void:
 	if _gsm.phase == SessionPhase.RESTARTING or _gsm.phase == SessionPhase.QUITTING:
 		return
 	_gsm.last_active_slot = -1

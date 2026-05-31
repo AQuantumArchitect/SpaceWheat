@@ -8,8 +8,6 @@ extends RefCounted
 ## Performance Optimization: Skip evolution for biomes with no bound terminals
 ## ("Out of sight, out of mind" - don't evolve unpopulated biomes)
 
-const VerboseHelper = preload("res://Core/Config/VerboseHelper.gd")
-const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 const BiomeDeterministicStepperClass = preload("res://Core/Environment/BiomeDeterministicStepper.gd")
 
 func _log(level: String, category: String, emoji: String, message: String) -> void:
@@ -177,6 +175,7 @@ var biome_last_escalation_time: Dictionary = {}  # biome_name -> float (msec tim
 var biome_paused: Dictionary = {}         # biome_name -> bool (no peeked terminals, skip evolution)
 var biome_manual_paused: Dictionary = {}  # biome_name -> bool (explicit user/debug pause)
 var biome_evolution_counts: Dictionary = {}  # biome_name -> int (cumulative evolution steps, for music ghost timer)
+var _degenerate_warned_at: Dictionary = {}   # biome_name -> last warn time_ms (throttle: one warning per 5s per biome)
 var _packet_queue: Array = []             # Pending synchronous native packet requests
 var _active_packet_request: Dictionary = {}
 
@@ -229,7 +228,6 @@ var _evolution_tick_count: int = 0
 var _avg_batch_time_ms: float = 10.0
 var _avg_frame_time_ms: float = 16.67
 var _last_frame_time: int = 0
-var _physics_frame_counter: int = 0
 
 
 func _notification(what: int) -> void:
@@ -459,16 +457,14 @@ func register_biome(biome) -> void:
 	if not _is_valid_biome(biome):
 		return
 
+	var biome_name = _get_biome_name(biome)
 	if biomes.has(biome):
-		var biome_name = _get_biome_name(biome)
 		_claim_batched_evolution(biome)
 		_log("debug", "batcher", "ℹ️", "Biome '%s' already registered (idempotent)" % biome_name)
 		return
 
 	biomes.append(biome)
 	_claim_batched_evolution(biome)
-
-	var biome_name = _get_biome_name(biome)
 
 	# Initialize per-biome buffered native output (empty until primed)
 	var lookahead_buffer = _ensure_lookahead_buffer(biome_name)
@@ -618,7 +614,7 @@ func _register_and_prime_biome(biome) -> void:
 
 	var qc = biome.quantum_computer
 	var dim = qc.register_map.dim()
-	var num_qubits = qc.register_map.num_qubits
+	var _num_qubits = qc.register_map.num_qubits
 	var biome_name = _get_biome_name(biome)
 
 	# Check if biome is already registered with engine (by TestBootManager or other caller)
@@ -681,7 +677,7 @@ func _await_lookahead_engine() -> void:
 	var start_ms = Time.get_ticks_msec()
 	while Time.get_ticks_msec() - start_ms < LOOKAHEAD_INIT_TIMEOUT_MS:
 		if ClassDB.class_exists("MultiBiomeLookaheadEngine"):
-			await _create_lookahead_engine_deferred()
+			_create_lookahead_engine_deferred()
 			_lookahead_init_started = false
 			return
 		await tree.process_frame
@@ -1001,6 +997,8 @@ func physics_process(delta: float):
 			_log_debug("[BiomeEvolutionBatcher] C++ LOOKAHEAD ACTIVE: %d-phrame buffer (%.1fs @ %dHz)" % [
 				LOOKAHEAD_STEPS, LOOKAHEAD_STEPS * LOOKAHEAD_DT, _PC.PHRAME_HZ
 			])
+		elif not _engine_ready:
+			_log_debug("[BiomeEvolutionBatcher] C++ lookahead awaiting engine initialization")
 		else:
 			push_warning("[BiomeEvolutionBatcher] C++ lookahead NOT active. Evolution will stall until engine initializes.")
 
@@ -1248,11 +1246,14 @@ func _get_biome_rho_status(biome_name: String, biome) -> Dictionary:
 	# to return stale zero-trace native data. Instead, build the packed array directly
 	# and call _from_packed() to sync both _packed_cache and native backend.
 	if dim > 0 and rho_packed.size() >= dim * dim * 2:
-		var tr = 0.0
+		var trace = 0.0
 		for i in range(dim):
-			tr += rho_packed[i * (dim + 1) * 2]
-		if is_nan(tr) or tr < 1e-10:
-			push_warning("BiomeEvolutionBatcher: degenerate rho for '%s' (tr=%.6f), reinitializing to mixed state" % [biome_name, tr])
+			trace += rho_packed[i * (dim + 1) * 2]
+		if is_nan(trace) or trace < 1e-10:
+			var now_ms := Time.get_ticks_msec()
+			if now_ms - _degenerate_warned_at.get(biome_name, 0) > 5000:
+				_degenerate_warned_at[biome_name] = now_ms
+				push_warning("BiomeEvolutionBatcher: degenerate rho for '%s' (tr=%.6f), reinitializing to mixed state" % [biome_name, trace])
 			var fresh_packed = PackedFloat64Array()
 			fresh_packed.resize(dim * dim * 2)
 			var diag_val = 1.0 / float(dim)
@@ -1293,6 +1294,8 @@ func _reregister_biome_by_name(biome_name: String) -> void:
 	if not _is_valid_biome(biome):
 		biome_pending_reregister.erase(biome_name)
 		return
+
+	_log("info", "REREGISTER", "🔁", "%s: re-registering with C++ lookahead engine (H/L mutation flushed)" % biome_name)
 
 	var old_id = _biome_engine_ids.get(biome_name, -1)
 	if old_id >= 0:
@@ -1364,7 +1367,7 @@ func _biome_has_peeked_terminals(biome) -> bool:
 	return true
 
 
-func _should_trigger_biome_refill(biome_name: String, depth: int, rho_valid: bool = true) -> bool:
+func _should_trigger_biome_refill(biome_name: String, _depth: int, rho_valid: bool = true) -> bool:
 	# Check if a SINGLE biome needs refill (time-based thresholds).
 	#
 	# Decouples refill thresholds from batch size to avoid starvation lock-in.
@@ -1721,6 +1724,23 @@ func _queue_hybrid_packet():
 	_log("trace", "REFILL", "🔄", "Global packet: batch=%d (max), %d/%d biomes active (engine_count=%d)" % [
 		max_batch_size, active_count, biomes.size(), engine_biome_count
 	])
+
+
+## Force the C++ lookahead engine to re-register this biome on the next refill,
+## picking up the current GDScript H + L. Call after any in-place mutation of
+## `qc.hamiltonian` or `qc.lindblad_operators` that does NOT change dim — those
+## mutations are otherwise invisible to the C++ twin (which only auto-detects
+## dim mismatches at BiomeEvolutionBatcher.gd:629).
+func mark_for_reregister(biome_name: String) -> void:
+	if biome_name == "":
+		return
+	biome_pending_reregister[biome_name] = true
+	if not lookahead_enabled:
+		# Pending flag will sit until lookahead activates. Surface this so the
+		# caller knows their H/L mutation may not propagate to the C++ engine
+		# until the next refill (which won't happen in bench/headless modes).
+		_log("warn", "REREGISTER", "⚠️", "%s: marked for re-register but lookahead disabled — will sit pending" % biome_name)
+	invalidate_biome_buffer(biome_name)
 
 
 func invalidate_biome_buffer(biome_name: String):
@@ -2972,7 +2992,7 @@ func get_performance_metrics() -> Dictionary:
 		"buffer_state": _get_effective_buffer_state_name(),
 		"fib_index": _get_effective_fib_index(),
 		"adaptive_batch_size": adaptive_batch_size,
-		"batch_size": adaptive_batch_size,  # Alias for VisualBubbleTest compatibility
+		"batch_size": adaptive_batch_size,  # Alias for VisualBubbleTest
 		"batches_per_refill": 1,  # Always 1 in adaptive mode (variable size per batch)
 		"coast_target": coast_target,
 		"emergency_refill": _has_emergency_refill(),
@@ -3031,10 +3051,10 @@ func _queue_adaptive_packet(biome_rhos: Array, active_flags_arr: Array, packet_s
 		# Also guard zero-trace rhos: C++ crashes on degenerate density matrices
 		var dim_i = _biome_engine_dims.get(_engine_id_to_biome.get(i, ""), -1)
 		if dim_i > 0 and rho.size() >= dim_i * dim_i * 2:
-			var tr = 0.0
+			var trace = 0.0
 			for k in range(dim_i):
-				tr += rho[k * (dim_i + 1) * 2]
-			if tr < 1e-10:
+				trace += rho[k * (dim_i + 1) * 2]
+			if trace < 1e-10:
 				var biome_name = _engine_id_to_biome.get(i, "unknown")
 				push_warning("BiomeEvolutionBatcher: Active biome '%s' has zero-trace rho. Marking inactive for this packet." % biome_name)
 				active_flags_arr[i] = false
@@ -3190,9 +3210,9 @@ func _merge_packet_result(packet_request: Dictionary, result: Dictionary) -> voi
 
 	lookahead_refills += 1
 	var depth_after = _get_minimum_buffer_depth()
-	var num_steps = packet_request.get("num_steps", 0)
+	var _num_steps = packet_request.get("num_steps", 0)
 	var is_emergency = packet_request.get("is_emergency", false)
-	var pkt_type = "EMERGENCY" if is_emergency else "BATCH"
+	var _pkt_type = "EMERGENCY" if is_emergency else "BATCH"
 
 	_log("trace", "PACKET", "✓", "Complete: %.1fms, depth %d→%d, state=%s" % [
 		packet_time_ms, depth_before, depth_after, _get_effective_buffer_state_name()

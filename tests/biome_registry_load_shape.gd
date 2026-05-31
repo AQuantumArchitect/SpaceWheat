@@ -1,12 +1,12 @@
 extends SceneTree
 
-## Smoke test: BiomeRegistry load shape after the thrash + tag fix.
+## Smoke test: BiomeRegistry load shape after the bare-biome / neighborhood split.
 ## Run: godot --headless --script tests/biome_registry_load_shape.gd
 ##
 ## Pins invariants that cleanup work might silently break:
-##  - Single-file load (faction_biomes.json removed; biomes.json is canonical)
-##  - 60 world_biome + 97 faction_biome (one per faction)
-##  - Every faction_biome carries the "faction_biome" tag
+##  - biomes.json loads into bare biome records
+##  - bare records keep terrain/discovery metadata but no live icons[]
+##  - neighborhood loadouts are preserved separately for faction discovery
 ##  - Internal records (`_`-prefix) excluded from `get_exportable_biomes`
 ##  - All exportable biomes pass `validate()`
 
@@ -22,22 +22,25 @@ func _init():
 	var all = reg.get_all()
 	var exportable = reg.get_exportable_biomes()
 
-	var by_kind: Dictionary = {}
+	# Tag-based neighborhood classification: the kind field + is_*_biome
+	# predicates are gone post-layer-split. Tags are the canonical signal.
+	var neighborhood_count := 0
 	for b in all:
-		var k = b.kind if b.kind else "world_biome"
-		by_kind[k] = by_kind.get(k, 0) + 1
-	print("  load: %d total, kinds=%s" % [all.size(), by_kind])
+		if "neighborhood" in b.tags:
+			neighborhood_count += 1
+	print("  load: %d total, %d neighborhoods, %d untagged" % [all.size(), neighborhood_count, all.size() - neighborhood_count])
 
 	_check(all.size() >= 150, "loaded a substantial biome set (>=150)")
-	_check(by_kind.get("world_biome", 0) >= 50, "world_biome count >= 50")
-	_check(by_kind.get("faction_biome", 0) >= 90, "faction_biome count >= 90")
+	_check(all.size() - neighborhood_count >= 100, "untagged biome count >= 100")
+	_check(neighborhood_count >= 1, "neighborhood count >= 1")
 
-	# Tag consistency
-	var untagged: Array = []
+	# Neighborhoods should keep a loadout.
+	var neighborhoods_with_missing_loadout: Array = []
 	for b in all:
-		if b.kind == "faction_biome" and not (b.tags is Array and b.tags.has("faction_biome")):
-			untagged.append(b.name)
-	_check(untagged.is_empty(), "every faction_biome carries `faction_biome` tag (offenders=%s)" % [untagged])
+		if "neighborhood" in b.tags:
+			if not (b.get_neighborhood_icons() is Array and not b.get_neighborhood_icons().is_empty()):
+				neighborhoods_with_missing_loadout.append(b.name)
+	_check(neighborhoods_with_missing_loadout.is_empty(), "neighborhoods keep a loadout (offenders=%s)" % [neighborhoods_with_missing_loadout])
 
 	# Exportable filter
 	var leaked_internal: Array = []
@@ -50,13 +53,13 @@ func _init():
 	# Validate exportable
 	_check(reg.validate_exportable(), "all exportable biomes validate()")
 
-	# Faction-biomes are identity-shaped: empty atom_components by design
-	var fb_with_components: Array = []
+	# Neighborhoods may carry atom_components for dissipation; bare biomes
+	# still validate with the same rules.
+	var neighborhoods_with_components: Array = []
 	for b in all:
-		if b.kind == "faction_biome" and b.atom_components is Dictionary and not b.atom_components.is_empty():
-			fb_with_components.append(b.name)
-	# Soft check — print only, don't fail (some faction-biomes may carry components legitimately)
-	print("  info: %d faction-biomes carry non-empty atom_components" % fb_with_components.size())
+		if "neighborhood" in b.tags and b.atom_components is Dictionary and not b.atom_components.is_empty():
+			neighborhoods_with_components.append(b.name)
+	print("  info: %d neighborhoods carry non-empty atom_components" % neighborhoods_with_components.size())
 
 	print("\nResult: %d passed, %d failed" % [passed, failed])
 	quit(0 if failed == 0 else 1)

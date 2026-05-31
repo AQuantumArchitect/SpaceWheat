@@ -5,6 +5,7 @@ import select
 import signal
 import subprocess
 import time
+import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -13,7 +14,8 @@ from milk_hunt_paths import APP_NAME, rig_queue_file, rig_results_file, runner_r
 
 def _read_heartbeat(xdg: Optional[Path] = None) -> Optional[float]:
     """Read Godot heartbeat timestamp. Returns unix time or None if stale/missing."""
-    hb_path = user_dir(xdg=xdg) / "rig" / "heartbeat"
+    override = os.environ.get("RIG_HEARTBEAT_WSL_PATH", "").strip()
+    hb_path = Path(override) if override else (user_dir(xdg=xdg) / "rig" / "heartbeat")
     try:
         text = hb_path.read_text().strip()
         lines = text.split("\n")
@@ -27,7 +29,8 @@ def _read_heartbeat_ext(xdg: Optional[Path] = None) -> dict:
 
     Returns empty dict on any read error.
     """
-    hb_path = user_dir(xdg=xdg) / "rig" / "heartbeat"
+    override = os.environ.get("RIG_HEARTBEAT_WSL_PATH", "").strip()
+    hb_path = Path(override) if override else (user_dir(xdg=xdg) / "rig" / "heartbeat")
     try:
         lines = hb_path.read_text().strip().split("\n")
         out: dict = {"timestamp": float(lines[0])}
@@ -62,7 +65,30 @@ def _pid_looks_like_rig_listener(pid: int) -> bool:
     cmdline = _pid_cmdline(pid)
     if not cmdline:
         return False
-    return ("godot" in cmdline) and ("tests/rig_listener.gd" in cmdline)
+    return ("godot" in cmdline) and ("rig/rig_listener.gd" in cmdline)
+
+
+def _is_windows_runtime_target(env: Optional[Dict[str, str]] = None) -> bool:
+    source = os.environ if env is None else env
+    raw = str(source.get("RIG_RUNTIME_TARGET", "")).strip().lower()
+    return raw in {"windows", "win"}
+
+
+def _wsl_to_windows_path(path: Path) -> str:
+    resolved = str(path.resolve())
+    if resolved.startswith("/mnt/") and len(resolved) > 6:
+        drive = resolved[5].upper()
+        tail = resolved[6:].replace("/", "\\")
+        return f"{drive}:{tail}"
+    if resolved.startswith("/"):
+        return "\\\\wsl.localhost\\Ubuntu" + resolved.replace("/", "\\")
+    return resolved.replace("/", "\\")
+
+
+def _shared_windows_lane_root(project_root: Path, token: str) -> tuple[Path, str]:
+    wsl_root = project_root / ".godot_windows_rig" / token
+    win_root = _wsl_to_windows_path(wsl_root)
+    return wsl_root, win_root
 
 
 class RigClient:
@@ -72,6 +98,7 @@ class RigClient:
         self.runner_root = runner_root(from_file=root_from_file)
         self.project_root = self.runner_root.parent.parent
         self.start_script = self.runner_root / "\U0001F7E2.sh"
+        self.start_script_windows = self.runner_root / "windows_rig_listener.bat"
         self.queue_script = self.runner_root / "\u270D\ufe0f.sh"
         self.queue_file = rig_queue_file(xdg=self.xdg_root, app_name=self.app_name)
         self.results_file = rig_results_file(xdg=self.xdg_root, app_name=self.app_name)
@@ -123,6 +150,9 @@ class RigClient:
 
     @staticmethod
     def _bridge_sentinel_path(xdg: Optional[Path] = None) -> Path:
+        override = os.environ.get("RIG_BRIDGE_SENTINEL_WSL_PATH", "").strip()
+        if override:
+            return Path(override)
         return user_dir(xdg=xdg) / "rig" / "bridge_ready"
 
     @staticmethod
@@ -133,7 +163,7 @@ class RigClient:
         if xdg is None:
             try:
                 proc = subprocess.run(
-                    ["pgrep", "-f", "Tests/rig_listener.gd"],
+                    ["pgrep", "-f", "Rig/rig_listener.gd"],
                     capture_output=True,
                     text=True,
                     check=False,
@@ -160,6 +190,8 @@ class RigClient:
     def _bridge_sentinel_is_ready(xdg: Optional[Path] = None) -> bool:
         sentinel = RigClient._bridge_sentinel_path(xdg=xdg)
         if sentinel.exists():
+            if str(os.environ.get("RIG_TRUST_SENTINEL", "")).strip().lower() in {"1", "true", "yes", "on"}:
+                return True
             try:
                 pid = int(sentinel.read_text().strip())
                 if pid > 0 and _pid_alive(pid) and _pid_looks_like_rig_listener(pid):
@@ -201,6 +233,8 @@ class RigClient:
         env = os.environ.copy()
         env["XDG_ROOT"] = str(self.xdg_root)
         os.environ["XDG_ROOT"] = str(self.xdg_root)
+        env["PROJECT_ROOT"] = str(self.project_root)
+        env["PROJECT_ROOT_WIN"] = _wsl_to_windows_path(self.project_root)
         if load_slot is not None:
             env["RIG_LOAD_SLOT"] = str(load_slot)
         env["RIG_SCENARIO"] = scenario_id
@@ -215,6 +249,40 @@ class RigClient:
             for key, value in extra_env.items():
                 if key and value is not None:
                     env[str(key)] = str(value)
+
+        runtime_target = str(env.get("RIG_RUNTIME_TARGET", os.environ.get("RIG_RUNTIME_TARGET", ""))).strip().lower()
+        if runtime_target in {"windows", "win"}:
+            godot_windows_path = str(env.get("GODOT_WINDOWS_PATH", "")).strip()
+            if godot_windows_path.startswith("/"):
+                env["GODOT_WINDOWS_PATH"] = _wsl_to_windows_path(Path(godot_windows_path))
+            lane_name = env.get("SW_RIG_LANE", Path(self.xdg_root).name)
+            shared_root_wsl, shared_root_win = _shared_windows_lane_root(self.project_root, str(lane_name))
+            shared_root_wsl.mkdir(parents=True, exist_ok=True)
+            rig_dir_wsl = shared_root_wsl / "rig"
+            rig_dir_wsl.mkdir(parents=True, exist_ok=True)
+
+            self.queue_file = rig_dir_wsl / "queue.jsonl"
+            self.results_file = rig_dir_wsl / "results.jsonl"
+            self._queue_writer = None
+            self._results_offset = 0
+            self._results_partial = ""
+            self._results_by_turn.clear()
+            self._results_by_request.clear()
+            self._latest_result_turn = -1
+            self._request_seq = 0
+
+            env["RIG_SHARED_ROOT_WSL"] = str(shared_root_wsl)
+            env["RIG_SHARED_ROOT_WINDOWS"] = shared_root_win
+            env["RIG_QUEUE_PATH"] = shared_root_win + "\\rig\\queue.jsonl"
+            env["RIG_RESULT_PATH"] = shared_root_win + "\\rig\\results.jsonl"
+            env["RIG_BRIDGE_SENTINEL_PATH"] = shared_root_win + "\\rig\\bridge_ready"
+            env["RIG_HEARTBEAT_PATH"] = shared_root_win + "\\rig\\heartbeat"
+            env["RIG_TRUST_SENTINEL"] = "1"
+            env["RIG_BRIDGE_SENTINEL_WSL_PATH"] = str(rig_dir_wsl / "bridge_ready")
+            env["RIG_HEARTBEAT_WSL_PATH"] = str(rig_dir_wsl / "heartbeat")
+            os.environ["RIG_TRUST_SENTINEL"] = "1"
+            os.environ["RIG_BRIDGE_SENTINEL_WSL_PATH"] = str(rig_dir_wsl / "bridge_ready")
+            os.environ["RIG_HEARTBEAT_WSL_PATH"] = str(rig_dir_wsl / "heartbeat")
 
         mode = (listener_stdout or "file").strip().lower()
         stdout_target: Any = subprocess.PIPE
@@ -233,14 +301,40 @@ class RigClient:
             log_handle = open(log_path, "a", encoding="utf-8")
             stdout_target = log_handle
 
-        proc = subprocess.Popen(
-            [str(self.start_script)],
-            cwd=str(self.project_root),
-            stdout=stdout_target,
-            stderr=subprocess.STDOUT,
-            text=True,
-            env=env,
-        )
+        cmd = [str(self.start_script)]
+        if runtime_target in {"windows", "win"}:
+            godot_windows_path = str(env.get("GODOT_WINDOWS_PATH", "")).strip()
+            if not godot_windows_path:
+                raise RuntimeError(
+                    "GODOT_WINDOWS_PATH is required for Windows rig launches. "
+                    "Use a Godot 4.5+ Windows binary."
+                )
+            cmd = ["cmd.exe", "/C", "start", "", "/B", godot_windows_path]
+            if display_mode == "headless":
+                cmd.append("--headless")
+            rendering_driver = str(env.get("RIG_RENDERING_DRIVER", "")).strip()
+            if rendering_driver:
+                cmd.extend(["--rendering-driver", rendering_driver])
+            cmd.extend(["--path", env["PROJECT_ROOT_WIN"], "--script", "Rig/rig_listener.gd"])
+
+        if runtime_target in {"windows", "win"}:
+            proc = subprocess.Popen(
+                cmd,
+                cwd=str(self.project_root),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                env=env,
+            )
+        else:
+            proc = subprocess.Popen(
+                cmd,
+                cwd=str(self.project_root),
+                stdout=stdout_target,
+                stderr=subprocess.STDOUT,
+                text=True,
+                env=env,
+            )
         if log_handle is not None:
             log_handle.close()
         return proc
@@ -253,16 +347,22 @@ class RigClient:
             if RigClient._bridge_sentinel_is_ready(xdg=xdg):
                 seen.append("[rig] ready via bridge sentinel")
                 return seen
-            if proc.poll() is not None:
-                break
+            exited = proc.poll() is not None
             if not proc.stdout:
+                if exited:
+                    time.sleep(0.1)
+                    continue
                 time.sleep(0.1)
                 continue
             readable, _, _ = select.select([proc.stdout], [], [], 0.1)
             if not readable:
+                if exited:
+                    time.sleep(0.1)
                 continue
             line = proc.stdout.readline()
             if not line:
+                if exited:
+                    time.sleep(0.1)
                 continue
             line = line.rstrip("\n")
             seen.append(line)

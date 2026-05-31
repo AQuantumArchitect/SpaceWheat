@@ -45,13 +45,12 @@ func clear() -> void:
 
 
 func register_axis(qubit_index: int, north_emoji: String, south_emoji: String) -> void:
-	"""Register a qubit axis with its pole labels.
+	# Register a qubit axis with its pole labels.
 
-	Args:
-	    qubit_index: Qubit number (0, 1, 2, ...)
-	    north_emoji: Label for |0⟩ state
-	    south_emoji: Label for |1⟩ state
-	"""
+	# Args:
+	# qubit_index: Qubit number (0, 1, 2, ...)
+	# north_emoji: Label for |0⟩ state
+	# south_emoji: Label for |1⟩ state
 
 	# Validate orthogonality
 	assert(north_emoji != south_emoji,
@@ -82,37 +81,36 @@ func register_axis(qubit_index: int, north_emoji: String, south_emoji: String) -
 
 
 func has(emoji: String) -> bool:
-	"""Check if emoji is registered."""
+	# Check if emoji is registered.
 	return coordinates.has(emoji)
 
 
 func qubit(emoji: String) -> int:
-	"""Get qubit index for emoji, or -1 if not found."""
+	# Get qubit index for emoji, or -1 if not found.
 	return coordinates.get(emoji, {}).get("qubit", -1)
 
 
 func pole(emoji: String) -> int:
-	"""Get pole (0=NORTH, 1=SOUTH) for emoji, or -1 if not found."""
+	# Get pole (0=NORTH, 1=SOUTH) for emoji, or -1 if not found.
 	return coordinates.get(emoji, {}).get("pole", -1)
 
 
 func axis(qubit_index: int) -> Dictionary:
-	"""Get {north: emoji, south: emoji} for qubit."""
+	# Get {north: emoji, south: emoji} for qubit.
 	return axes.get(qubit_index, {})
 
 
 func dim() -> int:
-	"""Hilbert space dimension (2^num_qubits)."""
+	# Hilbert space dimension (2^num_qubits).
 	return 1 << num_qubits
 
 
 func basis_to_emojis(index: int) -> Array[String]:
-	"""Convert basis state index to array of emojis.
+	# Convert basis state index to array of emojis.
 
-	Example (3 qubits):
-	    basis_to_emojis(0) → ["🔥", "💧", "💨"]  # |000⟩
-	    basis_to_emojis(7) → ["❄️", "🏜️", "🌾"]  # |111⟩
-	"""
+	# Example (3 qubits):
+	# basis_to_emojis(0) → ["🔥", "💧", "💨"]  # |000⟩
+	# basis_to_emojis(7) → ["❄️", "🏜️", "🌾"]  # |111⟩
 	var result: Array[String] = []
 
 	# Bounds check
@@ -133,12 +131,11 @@ func basis_to_emojis(index: int) -> Array[String]:
 
 
 func emojis_to_basis(emojis: Array[String]) -> int:
-	"""Convert array of emojis to basis state index.
+	# Convert array of emojis to basis state index.
 
-	Example (3 qubits):
-	    emojis_to_basis(["🔥", "💧", "💨"]) → 0  # |000⟩
-	    emojis_to_basis(["❄️", "🏜️", "🌾"]) → 7  # |111⟩
-	"""
+	# Example (3 qubits):
+	# emojis_to_basis(["🔥", "💧", "💨"]) → 0  # |000⟩
+	# emojis_to_basis(["❄️", "🏜️", "🌾"]) → 7  # |111⟩
 	var index = 0
 
 	for q in range(num_qubits):
@@ -154,7 +151,7 @@ func emojis_to_basis(emojis: Array[String]) -> int:
 
 
 func _to_string() -> String:
-	"""Debug representation."""
+	# Debug representation.
 	var s = "RegisterMap(%d qubits, %dD):\n" % [num_qubits, dim()]
 
 	for q in range(num_qubits):

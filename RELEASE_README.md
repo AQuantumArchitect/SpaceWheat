@@ -55,47 +55,43 @@ For detailed instructions, see [BUILDING.md](https://github.com/AQuantumArchitec
 - `launch.sh` - Convenient launcher script
 - `README.md` - This file
 
-### Web Release (if available)
-- `SpaceWheat.html` - Entry point
-- `SpaceWheat.js` - JavaScript runtime
-- `SpaceWheat.wasm` - WebAssembly binary
-- `SpaceWheat.pck` - Game data
-
-Serve with: `python3 -m http.server 8000` and visit http://localhost:8000/SpaceWheat.html
+### Web Release (experimental only)
+- Web export exists as an exploratory path, not the primary shipping lane.
+- Current repo status is documented in `docs/release/ITCH_STATUS.md` and `docs/EXPORT_HEALTH.md`.
 
 ---
 
 ## 🔧 System Requirements
 
-### Minimum (GDScript Mode)
+### Minimum
 - **OS:** Linux, Windows 10+, macOS 10.13+
 - **CPU:** Dual-core 2.0 GHz
 - **RAM:** 2 GB
 - **GPU:** OpenGL 3.3 / Vulkan support
 - **Storage:** 500 MB
 
-### Recommended (Native C++ Mode)
-- **OS:** Linux (Ubuntu 20.04+, Fedora 35+, etc.)
+### Recommended
+- **OS:** Linux or Windows
 - **CPU:** Quad-core 2.5 GHz
 - **RAM:** 4 GB
 - **GPU:** Dedicated GPU with Vulkan support
 - **Storage:** 1 GB
 
-**Note:** Native C++ extension provides 10-100× better performance than GDScript fallback mode.
+**Note:** Native C++ extension provides 10-100× better performance than the pure GDScript path.
 
 ---
 
 ## 🎯 Performance Modes
 
-### Native C++ Mode (Linux only in this release)
-- ✅ **Best performance:** 60 FPS with 100+ quantum nodes
-- ✅ **Fast simulation:** Real-time quantum evolution
-- ✅ **Recommended for:** Full gameplay experience
+### Native C++ Mode (desktop shipping path)
+- ✅ **Best performance:** native desktop runtime
+- ✅ **Fast simulation:** real-time quantum evolution
+- ✅ **Recommended for:** Linux and Windows desktop builds
 
-### GDScript Fallback Mode (All platforms)
-- ⚠️ **Slower:** 6-30 FPS with ~20 quantum nodes
-- ⚠️ **Playable but limited**
-- ℹ️ **Used by:** Web builds, Windows builds without C++ compilation
+### Pure GDScript Mode
+- ⚠️ slower than the desktop native path
+- ⚠️ useful for debugging and exploratory runtime paths
+- ℹ️ currently most relevant to experimental web/export scenarios
 
 ---
 
@@ -216,7 +212,7 @@ SpaceWheat is open source. See LICENSE file for details.
 We welcome contributions! See [CONTRIBUTING.md](https://github.com/AQuantumArchitect/SpaceWheat/blob/main/CONTRIBUTING.md) for guidelines.
 
 **Especially needed:**
-- Windows native build improvements
+- Windows export smoke automation polish
 - macOS support
 - Web Assembly optimization
 - Documentation improvements
@@ -240,7 +236,8 @@ We welcome contributions! See [CONTRIBUTING.md](https://github.com/AQuantumArchi
 - ✅ Multiple biomes with unique properties
 - ✅ Quest system
 - ✅ Linux native C++ extension
-- ⚠️ Windows/Web use GDScript fallback (slower)
+- ✅ Windows desktop native DLL path
+- ⚠️ Web remains experimental
 - 🚧 Still in alpha - expect bugs!
 
 ---

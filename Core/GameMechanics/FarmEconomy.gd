@@ -6,11 +6,8 @@ extends Node
 ## Conversion rates defined in EconomyConstants.gd
 ## Example: 50 wheat = 500 🌾-credits
 
-const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
-const QuestRewards = preload("res://Core/Quests/QuestRewards.gd")
-const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
-@onready var _verbose = InstrumentLocator.resolve_verbose_config(self)
+@onready var _verbose = get_node_or_null("/root/VerboseConfig")
 
 signal resource_changed(emoji: String, new_amount: int)
 signal resource_mutated(emoji: String, delta: float, reason: String, new_amount: float)
@@ -20,7 +17,6 @@ signal purchase_failed(reason: String)
 
 var emoji_credits: Dictionary = {}
 var total_wheat_harvested: int = 0
-var imperium_icon = null
 var resource_mutation_log: Array = []
 var _economy_overrides: Dictionary = {}
 var _balance_profile_id: String = "default"
@@ -50,11 +46,11 @@ func _print_resources():
 ## ============================================================================
 
 func add_resource(emoji: String, credits_amount, reason: String = "") -> void:
-	"""Add emoji-credits to any resource
+	# Add emoji-credits to any resource
 
-	Note: Vocabulary bonus now applied in action phase (ProbeActions).
-	This keeps bonus calculation transparent and trackable at the source.
-	"""
+	# Note: Signature bonus now applied in action phase (ProbeActions).
+	# This keeps bonus calculation transparent and trackable at the source.
+	emoji = EmojiUtil.normalize(emoji)
 	if not emoji_credits.has(emoji):
 		emoji_credits[emoji] = 0
 
@@ -70,41 +66,16 @@ func add_resource(emoji: String, credits_amount, reason: String = "") -> void:
 		if _verbose: _verbose.info("economy", "+", "%d %s-credits (%d units) from %s" % [final_amount, emoji, quantum_units, reason])
 
 
-func _get_vocabulary_purity_multiplier(emoji: String) -> float:
-	"""Get purity multiplier for vocabulary match.
-
-	If emoji is in player's vocabulary: 2x multiplier, squared = 4.0x bonus
-	Otherwise: 1.0x (no bonus, but still allowed)
-	"""
-	var gsm = InstrumentLocator.resolve_game_state_manager(self)
-	if not gsm:
-		return 1.0
-
-
-	var is_in_vocabulary = false
-
-	# Prefer centralized vocabulary resolution when available
-	if gsm.has_method("get_player_vocab_emojis"):
-		var known_emojis = gsm.get_player_vocab_emojis()
-		is_in_vocabulary = emoji in known_emojis
-
-	# Purity bonus: 2x before squaring = 4x total
-	if is_in_vocabulary:
-		return 2.0 * 2.0  # Squared multiplier
-	else:
-		return 1.0  # Always allow, just no bonus
-
-
 func _resource_allowed_by_iconmap(emoji: String) -> bool:
-	"""Only allow gains for emojis present in the current IconMap vocabulary."""
-	var gsm = InstrumentLocator.resolve_game_state_manager(self)
+	# Only allow gains for emojis present in the current IconMap signature.
+	var gsm = get_node_or_null("/root/GameStateManager")
 	if not gsm or not gsm.has_method("get_active_farm"):
 		return true
 	var farm = gsm.get_active_farm()
 	if not farm or not ("biome_evolution_batcher" in farm):
 		return true
 	var batcher = farm.biome_evolution_batcher
-	if not batcher or not batcher.has_method("get_global_icon_map"):
+	if not batcher:
 		return true
 	var icon_map = batcher.get_global_icon_map()
 	if icon_map.is_empty():
@@ -112,7 +83,8 @@ func _resource_allowed_by_iconmap(emoji: String) -> bool:
 	var by_emoji = icon_map.get("by_emoji", {})
 	return by_emoji.has(emoji)
 func remove_resource(emoji: String, credits_amount, reason: String = "") -> bool:
-	"""Remove emoji-credits from a resource. Returns false if insufficient. Supports float amounts."""
+	# Remove emoji-credits from a resource. Returns false if insufficient. Supports float amounts.
+	emoji = EmojiUtil.normalize(emoji)
 	if not can_afford_resource(emoji, credits_amount):
 		purchase_failed.emit("Not enough %s! Need %.2f, have %.2f" % [emoji, credits_amount, get_resource(emoji)])
 		return false
@@ -128,7 +100,8 @@ func remove_resource(emoji: String, credits_amount, reason: String = "") -> bool
 
 
 func set_resource(emoji: String, credits_amount, reason: String = "") -> void:
-	"""Set emoji-credits directly (bypasses gain gate). Supports float amounts."""
+	# Set emoji-credits directly (bypasses gain gate). Supports float amounts.
+	emoji = EmojiUtil.normalize(emoji)
 	if not emoji_credits.has(emoji):
 		emoji_credits[emoji] = 0
 	var before = float(emoji_credits[emoji])
@@ -140,47 +113,49 @@ func set_resource(emoji: String, credits_amount, reason: String = "") -> void:
 
 
 func get_resource(emoji: String):
-	"""Get emoji-credits for any resource (supports float amounts)"""
-	return emoji_credits.get(emoji, 0)
+	# Get emoji-credits for any resource (supports float amounts)
+	return emoji_credits.get(EmojiUtil.normalize(emoji), 0)
 
 
 func get_resource_units(emoji: String) -> int:
-	"""Get resource in quantum units (credits / 10)"""
+	# Get resource in quantum units (credits / 10)
 	return get_resource(emoji) / _q2c()
 
 
 func get_all_resources() -> Dictionary:
-	"""Get all emoji-credits as dictionary. Returns copy to prevent mutation."""
+	# Get all emoji-credits as dictionary. Returns copy to prevent mutation.
 	return emoji_credits.duplicate()
 
 
 func can_afford_resource(emoji: String, credits_amount) -> bool:
-	"""Check if player has enough emoji-credits (supports float amounts)"""
-	return get_resource(emoji) >= credits_amount
+	# Check if player has enough emoji-credits (supports float amounts)
+	return get_resource(EmojiUtil.normalize(emoji)) >= credits_amount
 
 
 func can_afford_cost(cost: Dictionary) -> bool:
-	"""Check if player can afford a multi-resource cost
+	# Check if player can afford a multi-resource cost
 
-	cost format: {"🌾": 10, "👥": 5} meaning 10 wheat-credits + 5 labor-credits
-	"""
+	# cost format: {"🌾": 10, "👥": 5} meaning 10 wheat-credits + 5 labor-credits
 	for emoji in cost.keys():
-		if not can_afford_resource(emoji, cost[emoji]):
+		if not can_afford_resource(EmojiUtil.normalize(emoji), cost[emoji]):
 			return false
 	return true
 
 
 func spend_cost(cost: Dictionary, reason: String = "") -> bool:
-	"""Spend a multi-resource cost. Atomic: all or nothing."""
+	# Spend a multi-resource cost. Atomic: all or nothing.
 	if not can_afford_cost(cost):
 		var missing = _get_missing_resources(cost)
 		purchase_failed.emit("Cannot afford: " + missing)
 		return false
 
 	for emoji in cost.keys():
-		emoji_credits[emoji] -= cost[emoji]
-		_emit_resource_change(emoji)
-		_record_resource_mutation(emoji, -float(cost[emoji]), reason if reason != "" else "spend_cost")
+		var norm_emoji = EmojiUtil.normalize(emoji)
+		if not emoji_credits.has(norm_emoji):
+			emoji_credits[norm_emoji] = 0
+		emoji_credits[norm_emoji] -= cost[emoji]
+		_emit_resource_change(norm_emoji)
+		_record_resource_mutation(norm_emoji, -float(cost[emoji]), reason if reason != "" else "spend_cost")
 
 	if reason != "":
 		if _verbose: _verbose.info("economy", "💸", "Spent %s on %s" % [_format_cost(cost), reason])
@@ -188,18 +163,18 @@ func spend_cost(cost: Dictionary, reason: String = "") -> bool:
 
 
 func receive_pop_yield(emoji: String, quantum_energy: float, reason: String = "pop") -> int:
-	"""Convert quantum energy from pop to emoji-credits
+	# Convert quantum energy from pop to emoji-credits
 
-	1 quantum energy = 1 credit (direct mass mapping)
-	Returns: number of credits added
-	"""
+	# 1 quantum energy = 1 credit (direct mass mapping)
+	# Returns: number of credits added
+	emoji = EmojiUtil.normalize(emoji)
 	var credits_amount = int(quantum_energy * _q2c())
 	add_resource(emoji, credits_amount, reason)
 	return credits_amount
 
 
 func _emit_resource_change(emoji: String) -> void:
-	"""Emit universal resource_changed signal"""
+	# Emit universal resource_changed signal
 	var amount = emoji_credits.get(emoji, 0)
 	resource_changed.emit(emoji, amount)
 
@@ -247,11 +222,10 @@ func _format_cost(cost: Dictionary) -> String:
 ## ============================================================================
 
 func apply_economy_overrides(config: Dictionary) -> Dictionary:
-	"""Store economy overrides from a world state config.
+	# Store economy overrides from a world state config.
 
-	config may contain keys: action_costs, gate_costs, quest_rewards, production, economy_variables.
-	Returns a summary of what was applied.
-	"""
+	# config may contain keys: action_costs, gate_costs, quest_rewards, production, economy_variables.
+	# Returns a summary of what was applied.
 	_economy_overrides = config.duplicate(true)
 	_balance_profile_id = str(_economy_overrides.get("profile_id", "default"))
 	_economy_variables = {
@@ -290,14 +264,14 @@ func get_economy_variables() -> Dictionary:
 	return _economy_variables.duplicate(true)
 
 
-func get_economy_variable(name: String, default_value = null):
-	if _economy_variables.has(name):
-		return _economy_variables[name]
+func get_economy_variable(_name: String, default_value = null):
+	if _economy_variables.has(_name):
+		return _economy_variables[_name]
 	return default_value
 
 
 func get_overridden_action_cost(action: String, context: Dictionary = {}) -> Dictionary:
-	"""Get action cost, checking overrides first, then EconomyConstants."""
+	# Get action cost, checking overrides first, then EconomyConstants.
 	var normalized_action = EconomyConstants.normalize_action_id(action)
 	var overrides = _economy_overrides.get("action_costs", {})
 	if overrides is Dictionary and overrides.has(normalized_action):
@@ -308,7 +282,7 @@ func get_overridden_action_cost(action: String, context: Dictionary = {}) -> Dic
 
 
 func get_overridden_gate_cost(gate_name: String) -> Dictionary:
-	"""Get gate cost, checking overrides first, then EconomyConstants."""
+	# Get gate cost, checking overrides first, then EconomyConstants.
 	var overrides = _economy_overrides.get("gate_costs", {})
 	if overrides is Dictionary and overrides.has(gate_name):
 		var cost = overrides[gate_name]
@@ -318,45 +292,45 @@ func get_overridden_gate_cost(gate_name: String) -> Dictionary:
 
 
 func get_action_cost(action: String, context: Dictionary = {}) -> Dictionary:
-	"""Canonical runtime action-cost lookup (overrides + defaults)."""
+	# Canonical runtime action-cost lookup (overrides + defaults).
 	return get_overridden_action_cost(action, context)
 
 
 func get_gate_cost(gate_name: String) -> Dictionary:
-	"""Canonical runtime gate-cost lookup (overrides + defaults)."""
+	# Canonical runtime gate-cost lookup (overrides + defaults).
 	return get_overridden_gate_cost(gate_name)
 
 
 func preflight_action(action: String, context: Dictionary = {}) -> Dictionary:
-	"""Affordability check for an action using effective runtime costs."""
+	# Affordability check for an action using effective runtime costs.
 	return EconomyConstants.preflight_cost(get_action_cost(action, context), self)
 
 
 func commit_action(action: String, context: Dictionary = {}, reason: String = "") -> bool:
-	"""Spend action cost using effective runtime costs."""
+	# Spend action cost using effective runtime costs.
 	var normalized_action = EconomyConstants.normalize_action_id(action)
 	var spend_reason = reason if reason != "" else normalized_action
 	return EconomyConstants.commit_cost(get_action_cost(normalized_action, context), self, spend_reason)
 
 
 func preflight_gate(gate_name: String) -> Dictionary:
-	"""Affordability check for a gate using effective runtime costs."""
+	# Affordability check for a gate using effective runtime costs.
 	return EconomyConstants.preflight_cost(get_gate_cost(gate_name), self)
 
 
 func commit_gate(gate_name: String, reason: String = "") -> bool:
-	"""Spend gate cost using effective runtime costs."""
+	# Spend gate cost using effective runtime costs.
 	var spend_reason = reason if reason != "" else gate_name
 	return EconomyConstants.commit_cost(get_gate_cost(gate_name), self, spend_reason)
 
 
 func preflight_cost(cost: Dictionary) -> Dictionary:
-	"""Affordability check for an arbitrary cost dictionary."""
+	# Affordability check for an arbitrary cost dictionary.
 	return EconomyConstants.preflight_cost(cost, self)
 
 
 func commit_cost(cost: Dictionary, reason: String = "") -> bool:
-	"""Spend an arbitrary cost dictionary."""
+	# Spend an arbitrary cost dictionary.
 	return EconomyConstants.commit_cost(cost, self, reason)
 
 
@@ -386,7 +360,7 @@ func fulfill_quota(wheat_required: int) -> bool:
 ## ============================================================================
 
 func get_stats() -> Dictionary:
-	"""Get economic statistics"""
+	# Get economic statistics
 	return {
 		# Statistics
 		"total_wheat_harvested": total_wheat_harvested,
@@ -396,13 +370,13 @@ func get_stats() -> Dictionary:
 
 
 func reset_harvest_counter():
-	"""Reset harvest counter (called when contract completes)"""
+	# Reset harvest counter (called when contract completes)
 	total_wheat_harvested = 0
 	if _verbose: _verbose.debug("economy", "📊", "Harvest counter reset")
 
 
 func print_stats():
-	"""Debug: Print economic stats (uses if _verbose: _verbose.debug)"""
+	# Debug: Print economic stats (uses if _verbose: _verbose.debug)
 	if _verbose: _verbose.debug("economy", "📊", "=== FARM ECONOMY (Emoji-Credits) ===")
 	for emoji in emoji_credits:
 		var credits_val = emoji_credits[emoji]

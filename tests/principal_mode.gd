@@ -10,7 +10,6 @@ extends SceneTree
 ##
 ## Run: godot --headless -s tests/principal_mode.gd
 
-const FactionDensityMatrix = preload("res://Core/Factions/FactionDensityMatrix.gd")
 
 const TOL: float = 1e-6
 

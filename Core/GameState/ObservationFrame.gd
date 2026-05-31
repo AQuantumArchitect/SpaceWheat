@@ -20,12 +20,8 @@ var BIOME_ORDER: Array[String] = ["StarterForest", "Village"]
 ## Current neutral index in BIOME_ORDER
 var neutral_index: int = 0
 
-const BiomeRegistry = preload("res://Core/Biomes/BiomeRegistry.gd")
-const BiomeIconCache = preload("res://Core/Biomes/BiomeIconCache.gd")
-const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
 var _biome_registry: BiomeRegistry = null
-var _icon_cache: BiomeIconCache = null
 
 ## Signals
 signal frame_shifted(old_biome: String, new_biome: String, direction: int)
@@ -133,9 +129,9 @@ func get_neutral_index() -> int:
 
 
 func _load_unlocked_biomes() -> void:
-	"""Load unlocked biomes from GameState"""
+	# Load unlocked biomes from GameState
 	_refresh_loadable_biomes()
-	var gsm = InstrumentLocator.resolve_game_state_manager(self)
+	var gsm = get_node_or_null("/root/GameStateManager")
 	if gsm and gsm.current_state and "unlocked_biomes" in gsm.current_state:
 		var unlocked = gsm.current_state.unlocked_biomes
 		# Clamp unlocked biomes to loadable list (keeps save data sane)
@@ -146,26 +142,52 @@ func _load_unlocked_biomes() -> void:
 			if neutral_index >= BIOME_ORDER.size():
 				neutral_index = 0
 
-	# Refresh unexplored pool against loadable list
+	# Refresh unexplored pool against loadable list. Biomes flagged
+	# `discoverable=false` are skipped — they're loadable but cannot appear in
+	# the captain-hat draw (used today only for opt-out; default is true).
 	if gsm and gsm.current_state and "unexplored_biome_pool" in gsm.current_state:
 		var pool = gsm.current_state.unexplored_biome_pool
 		var refreshed: Array[String] = []
-		# Preserve existing order where possible
+		# Preserve existing order where possible — but drop entries that are no
+		# longer discoverable (defensive against JSON edits between sessions).
 		for biome_name in pool:
-			if biome_name in ALL_BIOMES and biome_name not in BIOME_ORDER and biome_name not in refreshed:
+			if (
+				biome_name in ALL_BIOMES
+				and biome_name not in BIOME_ORDER
+				and biome_name not in refreshed
+				and _is_biome_discoverable(biome_name)
+			):
 				refreshed.append(biome_name)
-		# Add any missing loadable biomes
+		# Add any missing discoverable biomes.
 		for biome_name in ALL_BIOMES:
-			if biome_name not in BIOME_ORDER and biome_name not in refreshed:
+			if (
+				biome_name not in BIOME_ORDER
+				and biome_name not in refreshed
+				and _is_biome_discoverable(biome_name)
+			):
 				refreshed.append(biome_name)
 		gsm.current_state.unexplored_biome_pool = refreshed
 
 
-func unlock_biome(biome_name: String) -> bool:
-	"""Add a biome to the unlocked list
+## True iff the biome's spec has `discoverable: true` (default true when the
+## field is absent — preserves pre-cutover behavior for bare biomes).
+func _is_biome_discoverable(biome_name: String) -> bool:
+	if _biome_registry == null:
+		_biome_registry = BiomeRegistry.get_shared()
+	if _biome_registry == null:
+		return true
+	var spec = _biome_registry.get_by_name(biome_name)
+	if spec == null:
+		return true
+	if "discoverable" in spec:
+		return bool(spec.discoverable)
+	return true
 
-	Returns true if biome was newly unlocked, false if already unlocked
-	"""
+
+func unlock_biome(biome_name: String) -> bool:
+	# Add a biome to the unlocked list
+	#
+	# Returns true if biome was newly unlocked, false if already unlocked
 	if biome_name in BIOME_ORDER:
 		return false  # Already unlocked
 
@@ -176,7 +198,7 @@ func unlock_biome(biome_name: String) -> bool:
 	BIOME_ORDER.append(biome_name)
 
 	# Persist to GameState
-	var gsm = InstrumentLocator.resolve_game_state_manager(self)
+	var gsm = get_node_or_null("/root/GameStateManager")
 	if gsm and gsm.current_state:
 		gsm.current_state.unlocked_biomes = BIOME_ORDER.duplicate()
 		# Remove from unexplored pool
@@ -190,7 +212,7 @@ func unlock_biome(biome_name: String) -> bool:
 
 
 func lock_biome(biome_name: String) -> bool:
-	"""Remove a biome from the unlocked list and return it to the unexplored pool."""
+	# Remove a biome from the unlocked list and return it to the unexplored pool.
 	if biome_name == "" or biome_name not in BIOME_ORDER:
 		return false
 	if biome_name == "StarterForest" or biome_name == "Village":
@@ -209,7 +231,7 @@ func lock_biome(biome_name: String) -> bool:
 	elif removed_index <= neutral_index:
 		neutral_index = max(0, neutral_index - 1)
 
-	var gsm = InstrumentLocator.resolve_game_state_manager(self)
+	var gsm = get_node_or_null("/root/GameStateManager")
 	if gsm and gsm.current_state:
 		gsm.current_state.unlocked_biomes = BIOME_ORDER.duplicate()
 		var pool: Array[String] = []
@@ -227,23 +249,23 @@ func lock_biome(biome_name: String) -> bool:
 
 
 func get_unlocked_biomes() -> Array[String]:
-	"""Get list of unlocked biomes"""
+	# Get list of unlocked biomes
 	return BIOME_ORDER.duplicate()
 
 
 func get_explored_biomes() -> Array[String]:
-	"""Alias for unlocked biomes (preferred terminology)."""
+	# Alias for unlocked biomes (preferred terminology).
 	return get_unlocked_biomes()
 
 
 func get_loadable_biomes() -> Array[String]:
-	"""Get biomes that are valid/loadable (icon build succeeded)."""
+	# Get biomes that are valid/loadable (icon build succeeded).
 	_refresh_loadable_biomes()
 	return ALL_BIOMES.duplicate()
 
 
 func get_unexplored_biomes() -> Array[String]:
-	"""Get list of biomes not yet unlocked"""
+	# Get list of biomes not yet unlocked
 	var unexplored: Array[String] = []
 	for biome in ALL_BIOMES:
 		if biome not in BIOME_ORDER:
@@ -258,26 +280,17 @@ func reset() -> void:
 
 
 func _refresh_loadable_biomes() -> void:
-	"""Build icon sets for biomes and refresh the loadable biome list."""
+	# Build icon sets for biomes and refresh the loadable biome list.
 	if _biome_registry == null:
-		_biome_registry = BiomeRegistry.new()
-	if _icon_cache == null:
-		_icon_cache = BiomeIconCache.new()
+		_biome_registry = BiomeRegistry.get_shared()
 
 	var loadable: Array[String] = []
 	for biome in _biome_registry.get_all():
 		if not biome:
 			continue
-		var name = biome.name
-		if name.begins_with("_"):
+		var _name = biome.name
+		if _name.begins_with("_"):
 			continue  # Skip internal/debug biomes (e.g. _orphan_lindblads)
-		# Build icons (cached) to validate biome is loadable
-		var icons = _icon_cache.get_icons_for_biome(name)
-		if icons.size() > 0:
-			loadable.append(name)
-
-	# Fallback to defaults if nothing built
-	if loadable.is_empty():
-		loadable = ["StarterForest", "Village"]
+		loadable.append(_name)
 
 	ALL_BIOMES = loadable

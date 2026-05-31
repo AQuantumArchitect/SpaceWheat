@@ -1,7 +1,7 @@
 class_name Faction
 extends RefCounted
 
-const AffinityGraphCls = preload("res://Core/Affinity/AffinityGraph.gd")
+const AlignmentGraphCls = preload("res://Core/Alignment/AlignmentGraph.gd")
 
 ## Faction: A closed dynamical system over 3-7 signature emojis
 ##
@@ -25,8 +25,9 @@ var domain: String = ""
 var ring: String = "center"  # "center", "second", "third", "outer"
 var motto: String = ""
 
-## The ONLY emojis this faction speaks (3-7 ideal)
-var signature: Array = []
+## The atoms (emojis) this faction physically touches (3-7 ideal, no duplicates).
+## Vocabulary note: this is a *cloud* (set of atoms), NOT a "signature" (set of icons).
+var cloud: Array = []
 
 ## 12-bit axial tag in conceptual space (see data/faction_lore.json axial_spine).
 ## Axes: Random/Deterministic, Material/Mystical, Common/Elite, Local/Cosmic,
@@ -34,41 +35,15 @@ var signature: Array = []
 ## Consumptive/Providing, Monochrome/Prismatic, Emergent/Imposed, Scattered/Focused.
 ##
 ## `bits` is the *initial corner* — load-time configuration. The live axial
-## stance lives on `affinity` (an AffinityGraph initialized at |bits⟩⟨bits|).
+## stance lives on `alignment` (an AlignmentGraph initialized at |bits⟩⟨bits|).
 ## Consumers should read via `get_axial_bits()` so future evolution shows up.
 var bits: PackedByteArray = PackedByteArray()
 
-## Live 12-qubit affinity substrate. At load time this is the corner state
+## Live 12-qubit alignment substrate. At load time this is the corner state
 ## |bits⟩⟨bits|; future phases will let it rotate / mix under settlement and
-## inter-faction dynamics. See Core/Affinity/AffinityGraph.gd.
-var affinity = null
-
-## ========================================
-## Hamiltonian Terms (Unitary Evolution)
-## ========================================
-
-## Self-energies for signature emojis
-## {emoji: float}
-var self_energies: Dictionary = {}
-
-## Hamiltonian couplings WITHIN signature
-## {source_emoji: {target_emoji: float}}
-## Both source and target MUST be in signature
-var hamiltonian: Dictionary = {}
-
-## Driver configuration for time-dependent self-energy
-## {emoji: {type: "cosine"|"sine"|"pulse", freq: float, phase: float, amp: float}}
-var drivers: Dictionary = {}
-
-
-## Measurement behavior: how this emoji responds to measurement/observation
-## {emoji: {inverts: bool}}
-## If inverts=true, measuring this emoji collapses to the OPPOSITE pole of its axis
-## Example: On axis (🧤, 🗑), measuring 🧤 → collapses to 🗑
-##          On axis (🧤, 💀), measuring 🧤 → collapses to 💀
-## Use to "sneak mass" into a basis state - the refugee appears as its opposite
-## This is a quantum mask: measurement reveals what's hidden beneath
-var measurement_behavior: Dictionary = {}
+## inter-faction dynamics. See Core/Alignment/AlignmentGraph.gd. Affinity
+## with another faction = overlap(self.alignment, other.alignment).
+var alignment = null
 
 ## ========================================
 ## Alignment Couplings (Parametric Effects)
@@ -94,49 +69,85 @@ var alignment_couplings: Dictionary = {}
 var tags: Array = []
 
 ## ========================================
+## Authority Tree (data layer — no gating yet)
+## ========================================
+
+## Hats (archetype frames) this faction has invested in. Frame_id constants
+## live in Core/GameState/ToolConfig.gd FRAME_IDS. An attached player may
+## only switch to hats this faction has invested in (gating lands later).
+## The Demos has all 7 by default, matching the current "everyone can do
+## everything" runtime.
+var invested_hats: Array = []
+
+## Per-faction governance of TYUIOP biome slots. Maps slot_key (T/Y/U/I/O/P)
+## → biome_name. An attached player may only switch to biomes their faction
+## governs (gating lands later). The Demos governs all currently-unlocked
+## biome slots in the current runtime.
+var governing_biome_slots: Dictionary = {}
+
+## Authored neighborhoods — (biome, signature) pairs this faction has
+## explicitly configured. Each entry: {biome: String, signature: [{name, pole_0, pole_1}]}.
+## When compose_neighborhood encounters one of these biomes, it uses the
+## authored signature instead of running the inducer.
+var neighborhoods: Array = []
+
+## ========================================
 ## Methods
 ## ========================================
 
-## Check if this faction speaks an emoji
+## Check if this faction speaks an emoji (i.e., the emoji is in its cloud).
 func speaks(emoji: String) -> bool:
-	return emoji in signature
+	return emoji in cloud
 
 
-## Canonical axial-bits accessor. Reads through the AffinityGraph so future
+## Canonical axial-bits accessor. Reads through the AlignmentGraph so future
 ## evolution surfaces correctly; falls back to raw `bits` only when the
-## substrate hasn't been built yet (e.g. mid-load from legacy saves).
+## substrate hasn't been built (e.g. partial fixture without 12 bits authored).
 func get_axial_bits() -> PackedByteArray:
-	if affinity != null:
-		return affinity.principal_bits()
+	if alignment != null:
+		return alignment.principal_bits()
 	return bits
 
 
-func _rebuild_affinity_from_bits() -> void:
-	if bits.size() != AffinityGraphCls.AXIS_COUNT:
-		# Defer; load_from_dict for legacy/partial data may leave this empty.
-		affinity = null
+func _rebuild_alignment_from_bits() -> void:
+	if bits.size() != AlignmentGraphCls.AXIS_COUNT:
+		alignment = null
 		return
-	affinity = AffinityGraphCls.from_corner(bits)
+	alignment = AlignmentGraphCls.from_corner(bits)
 
-## Get all emojis this faction contributes to.
-## Factions are Hamiltonian-only; the signature is the full set.
+## Get all atoms (emojis) in this faction's cloud.
 func get_all_emojis() -> Array:
-	return signature.duplicate()
+	return cloud.duplicate()
 
-## Validate that all couplings stay within signature
+## Returns true if this faction has invested in the named hat (frame_id from
+## ToolConfig.FRAME_IDS). Read-only authority-tree query; gating not yet wired.
+func has_invested_hat(frame_id: String) -> bool:
+	return frame_id in invested_hats
+
+
+## Returns the biome name this faction governs at the given TYUIOP slot key,
+## or "" if not governed. Read-only authority-tree query; gating not yet wired.
+func biome_at_slot(slot_key: String) -> String:
+	return String(governing_biome_slots.get(slot_key, ""))
+
+
+## Validate that the cloud contains no empty or duplicate atoms.
 func validate() -> bool:
 	var valid = true
-	
-	# Check hamiltonian couplings
-	for source in hamiltonian:
-		if source not in signature:
-			push_error("Faction %s: hamiltonian source %s not in signature" % [name, source])
+
+	var seen_cloud: Dictionary = {}
+	for emoji in cloud:
+		var key := str(emoji)
+		if key == "":
+			push_error("Faction %s: cloud contains an empty emoji entry" % name)
 			valid = false
-		for target in hamiltonian[source]:
-			if target not in signature:
-				push_error("Faction %s: hamiltonian target %s not in signature" % [name, target])
-				valid = false
-	
+			continue
+		if seen_cloud.has(key):
+			push_error("Faction %s: cloud contains duplicate emoji %s" % [name, key])
+			valid = false
+			continue
+		seen_cloud[key] = true
+
 	return valid
 
 ## Get this faction's contribution to a specific Icon
@@ -144,20 +155,17 @@ func get_icon_contribution(emoji: String) -> Dictionary:
 	if not speaks(emoji):
 		return {}
 
-	var contribution = {
+	# H/self-energy/drivers/measurement_behavior live in icons.json via
+	# IconRegistry — not on factions. Faction-side parametric input is just
+	# alignment_couplings (cross-emoji story modulation).
+	return {
 		"faction": name,
-		"self_energy": self_energies.get(emoji, 0.0),
-		"hamiltonian_couplings": hamiltonian.get(emoji, {}),
-		"driver": drivers.get(emoji, {}),
 		"alignment_couplings": alignment_couplings.get(emoji, {}),
-		"measurement_behavior": measurement_behavior.get(emoji, {}),
 	}
-
-	return contribution
 
 ## Debug representation
 func _to_string() -> String:
-	return "Faction<%s>[%s](%d emojis)" % [name, ring, signature.size()]
+	return "Faction<%s>[%s](%d atoms)" % [name, ring, cloud.size()]
 
 
 ## ========================================
@@ -170,23 +178,9 @@ func to_dict() -> Dictionary:
 		"name": name,
 		"description": description,
 		"ring": ring,
-		"signature": signature,
+		"cloud": cloud,
 		"tags": tags,
 	}
-
-	# Only include non-empty fields
-	if not self_energies.is_empty():
-		data["self_energies"] = self_energies
-
-	if not hamiltonian.is_empty():
-		# Convert Vector2 to [real, imag] arrays for JSON
-		data["hamiltonian"] = _serialize_hamiltonian(hamiltonian)
-
-	if not drivers.is_empty():
-		data["drivers"] = drivers
-
-	if not measurement_behavior.is_empty():
-		data["measurement_behavior"] = measurement_behavior
 
 	if not alignment_couplings.is_empty():
 		data["alignment_couplings"] = alignment_couplings
@@ -196,29 +190,32 @@ func to_dict() -> Dictionary:
 
 ## Load faction from dictionary (JSON import)
 func load_from_dict(data: Dictionary) -> void:
-	name = data.get("name", "")
-	description = data.get("description", "")
-	domain = data.get("domain", "")
-	ring = data.get("ring", "center")
-	motto = data.get("motto", "")
-	# Normalize variation selectors so "⚙️" and "⚙" resolve to the same key
-	signature = EmojiUtil.normalize_array(_coerce_string_array(data.get("signature", data.get("sig", []))))
+	name = _coerce_string(data.get("name", ""))
+	description = _coerce_string(data.get("description", ""))
+	domain = _coerce_string(data.get("domain", ""))
+	ring = _coerce_string(data.get("ring", "center"), "center")
+	motto = _coerce_string(data.get("motto", ""))
+	# Normalize variation selectors so "⚙️" and "⚙" resolve to the same key.
+	cloud = EmojiUtil.normalize_array(_coerce_string_array(data.get("cloud", [])))
 	tags = _coerce_string_array(data.get("tags", []))
 	var raw_bits = data.get("bits", [])
 	bits = PackedByteArray()
 	if raw_bits is Array:
 		for b in raw_bits:
 			bits.append(1 if int(b) != 0 else 0)
-	_rebuild_affinity_from_bits()
+	_rebuild_alignment_from_bits()
 
-	self_energies = EmojiUtil.normalize_keys(data.get("self_energies", {}))
-
-	# Convert [real, imag] arrays back to Vector2, normalize emoji keys
-	hamiltonian = _deserialize_hamiltonian(EmojiUtil.normalize_nested_keys(data.get("hamiltonian", {})))
-
-	drivers = EmojiUtil.normalize_keys(data.get("drivers", {}))
-	measurement_behavior = EmojiUtil.normalize_keys(data.get("measurement_behavior", {}))
 	alignment_couplings = EmojiUtil.normalize_nested_keys(data.get("alignment_couplings", {}))
+
+	invested_hats = _coerce_string_array(data.get("invested_hats", []))
+	governing_biome_slots = data.get("governing_biome_slots", {}) if data.get("governing_biome_slots") is Dictionary else {}
+	neighborhoods = data.get("neighborhoods", []) if data.get("neighborhoods") is Array else []
+
+
+func _coerce_string(value, default_value: String = "") -> String:
+	if value == null:
+		return default_value
+	return str(value)
 
 
 func _coerce_string_array(value) -> Array:
@@ -229,34 +226,6 @@ func _coerce_string_array(value) -> Array:
 		# Avoid splitting into codepoints (emoji graphemes can be multi-codepoint).
 		return [value]
 	return []
-
-
-## Helper: Serialize hamiltonian (convert Vector2 to [real, imag])
-func _serialize_hamiltonian(h: Dictionary) -> Dictionary:
-	var result: Dictionary = {}
-	for source in h:
-		result[source] = {}
-		for target in h[source]:
-			var value = h[source][target]
-			if value is Vector2:
-				result[source][target] = [value.x, value.y]
-			else:
-				result[source][target] = value
-	return result
-
-
-## Helper: Deserialize hamiltonian (convert [real, imag] to Vector2)
-func _deserialize_hamiltonian(h: Dictionary) -> Dictionary:
-	var result: Dictionary = {}
-	for source in h:
-		result[source] = {}
-		for target in h[source]:
-			var value = h[source][target]
-			if value is Array and value.size() == 2:
-				result[source][target] = Vector2(value[0], value[1])
-			else:
-				result[source][target] = value
-	return result
 
 
 ## Create faction from dictionary (static factory)

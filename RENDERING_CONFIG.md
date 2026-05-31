@@ -60,7 +60,7 @@ The resulting Windows build will use **native Vulkan with hardware GPU accelerat
 
 ## C++ Native Extensions
 
-Rendering is done in **GDScript only** (as of migration 2025-02-02):
+Rendering is done in **GDScript only**:
 - `Core/Visualization/BatchedBubbleRenderer.gd`
 - `Core/Visualization/GeometryBatcher.gd`
 - `Core/Visualization/EmojiAtlasBatcher.gd`

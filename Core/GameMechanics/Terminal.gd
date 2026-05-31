@@ -1,7 +1,6 @@
 class_name Terminal
 extends RefCounted
 
-const GridSentinel = preload("res://Core/GameState/GridSentinel.gd")
 
 ## Terminal - Generic probe into the quantum soup (v2 Architecture)
 ##
@@ -151,16 +150,15 @@ func mark_measured(outcome: String, probability: float = 0.0, purity: float = 1.
 ## Release the quantum register while keeping the measurement snapshot
 ## This allows the register to be explored and measured again by another terminal
 func release_register() -> void:
-	"""Free the quantum register but keep measurement data on terminal.
+	# Free the quantum register but keep measurement data on terminal.
 
-	After MEASURE:
-	- Register becomes available for another terminal to bind to
-	- This terminal keeps its measurement result (outcome + probability)
-	- Terminal stays on the grid showing the frozen measurement
+	# After MEASURE:
+	# - Register becomes available for another terminal to bind to
+	# - This terminal keeps its measurement result (outcome + probability)
+	# - Terminal stays on the grid showing the frozen measurement
 
-	This enables multiple measurements of the same quantum axis by chunking
-	probability across multiple measurement cycles.
-	"""
+	# This enables multiple measurements of the same quantum axis by chunking
+	# probability across multiple measurement cycles.
 	if not is_bound:
 		return
 
@@ -175,7 +173,7 @@ func release_register() -> void:
 
 
 func clear_measurement() -> void:
-	"""Clear the measured state while remaining bound."""
+	# Clear the measured state while remaining bound.
 	if not is_measured:
 		return
 

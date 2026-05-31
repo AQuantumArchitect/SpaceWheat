@@ -104,7 +104,7 @@ def _scan_pipe(root: Path) -> int:
             "run_name": run.get("run_name", ""),
             "exit_code": run.get("exit_code", None),
             "found_milk_pair": bool(run.get("found_milk_pair", False)),
-            "known_pairs_count": int(run.get("known_pairs_count", 0) or 0),
+            "known_icons_count": int(run.get("known_icons_count", 0) or 0),
             "milk_pair_index": run.get("milk_pair_index", None),
             "steps": int(run.get("steps", run.get("turns_executed", 0) or 0) or 0),
             "turns_executed": int(run.get("turns_executed", 0) or 0),

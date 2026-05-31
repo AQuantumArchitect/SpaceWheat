@@ -1,11 +1,40 @@
 class_name QuantumEdgeRenderer
 extends RefCounted
 
-const GridSentinel = preload("res://Core/GameState/GridSentinel.gd")
 
 # Debug flags
 var _debug_batcher_checked: bool = false
 var _debug_draw_checked: bool = false
+
+# ============================================================================
+# RENDER CACHES — avoid recomputing expensive data every frame
+#
+# MI web:         MI values change at ~10 Hz (lookahead phrame rate).
+#                 Cache qubit pairs + color/width; rebuild every MI_CACHE_STRIDE frames.
+#                 Positions are live (read from node.position each frame).
+#
+# H coupling web: Hamiltonian couplings are STATIC after biome load.
+#                 Cache emoji pairs + color/width per biome_name; rebuild when biomes change.
+#
+# Lindblad arrows: Rates are nearly static. Cache at LINDBLAD_CACHE_STRIDE frames (~1 Hz).
+# Motion policy: topology, width, and alpha are stable readouts unless a
+# gameplay event or recomputed projection changes the underlying state.
+# ============================================================================
+
+## MI web cache: [{node_a, node_b, color, width}]
+var _mi_pair_cache: Array = []
+var _mi_cache_frame: int = -1000
+const MI_CACHE_STRIDE: int = 6      # Rebuild every 6 frames ≈ 10 Hz at 60 fps
+
+## H coupling cache: {biome_name -> [{src, tgt, color, width}]}
+## "src"/"tgt" are emoji strings; positions looked up live from emoji_positions dict.
+var _h_coupling_cache: Dictionary = {}
+var _h_cache_biome_key: int = 0  # hash of biome names to detect additions/removals
+
+## Lindblad cache: {biome_name -> [{src, tgt, rate, color}]}
+var _lindblad_cache: Dictionary = {}
+var _lindblad_cache_frame: int = -1000
+const LINDBLAD_CACHE_STRIDE: int = 60  # Rebuild every 60 frames ≈ 1 Hz at 60 fps
 
 ## Quantum Edge Renderer
 ##
@@ -20,19 +49,18 @@ var _debug_draw_checked: bool = false
 ## - Entanglement Clusters: Multi-body entangled groups
 ##
 ## REDESIGNED:
-## - Food Web as Linked Orbits (was arrows, now knot topology)
+## - Food Web as Linked Orbits (was arrows, now stable knot topology)
 ##
 ## PLOT TETHERS (UI grounding):
 ## - Plot anchor dots + tethers for farm-linked bubbles
 
 
 func draw(graph: Node2D, ctx: Dictionary) -> void:
-	"""Draw all quantum edge visualizations.
+	# Draw all quantum edge visualizations.
 
-	Args:
-	    graph: The QuantumForceGraph node
-	    ctx: Context dictionary
-	"""
+	# Args:
+	# graph: The QuantumForceGraph node
+	# ctx: Context dictionary
 	# Order matters: back to front
 
 	# 0. Plot anchors + tethers (UI grounding for farm-linked bubbles)
@@ -61,7 +89,7 @@ func draw(graph: Node2D, ctx: Dictionary) -> void:
 
 
 func _draw_plot_tethers(graph: Node2D, ctx: Dictionary) -> void:
-	"""Draw tethers from quantum bubbles to their plot anchors."""
+	# Draw tethers from quantum bubbles to their plot anchors.
 	var quantum_nodes = ctx.get("quantum_nodes", [])
 	var plot_positions = ctx.get("all_plot_positions", {})
 	var plot_tether_colors = ctx.get("plot_tether_colors", {})
@@ -69,8 +97,6 @@ func _draw_plot_tethers(graph: Node2D, ctx: Dictionary) -> void:
 
 	if plot_positions.is_empty():
 		return
-
-	var drawn_anchors: Dictionary = {}
 
 	for node in quantum_nodes:
 		if not node.visible or not node.has_farm_tether:
@@ -92,17 +118,6 @@ func _draw_plot_tethers(graph: Node2D, ctx: Dictionary) -> void:
 		else:
 			_draw_dashed_line(graph, anchor_pos, node.position, line_color, 1.5, 6.0, 4.0)
 
-		# Anchor dot (draw once per plot)
-		if not drawn_anchors.has(node.grid_position):
-			drawn_anchors[node.grid_position] = true
-			var base = Color(0.08, 0.08, 0.1, 0.7)
-			var glow = Color(0.9, 0.9, 1.0, 0.6)
-			if batcher:
-				batcher.add_circle(anchor_pos, 7.0, base)
-				batcher.add_circle(anchor_pos, 3.0, glow)
-			else:
-				graph.draw_circle(anchor_pos, 7.0, base)
-				graph.draw_circle(anchor_pos, 3.0, glow)
 
 
 # ============================================================================
@@ -110,42 +125,59 @@ func _draw_plot_tethers(graph: Node2D, ctx: Dictionary) -> void:
 # ============================================================================
 
 func _draw_mutual_information_web(graph: Node2D, ctx: Dictionary) -> void:
-	"""Draw lines between ALL bubble pairs showing mutual information.
+	# Draw lines between ALL bubble pairs showing mutual information.
 
-	This is the key physics-grounded correlation visualization:
-	- Opacity/color scales with I(A:B) mutual information
-	- Shows full correlation structure at a glance
-	- Entangled pairs appear connected, independent pairs fade
+	# This is the key physics-grounded correlation visualization:
+	# - Opacity/color scales with I(A:B) mutual information
+	# - Shows full correlation structure at a glance
+	# - Entangled pairs appear connected, independent pairs fade
 
-	Physics: I(A:B) = S(A) + S(B) - S(AB) quantifies total correlations.
-	"""
+	# Physics: I(A:B) = S(A) + S(B) - S(AB) quantifies total correlations.
+
+	# CACHED: MI values update at ~10 Hz (lookahead phrame rate), so we rebuild
+	# the pair list every MI_CACHE_STRIDE frames. Each frame we just read current
+	# node positions — no per-pair viz_cache queries.
 	var quantum_nodes = ctx.get("quantum_nodes", [])
 	var biomes = ctx.get("biomes", {})
-	var force_system = ctx.get("force_system")
 	var active_biome = ctx.get("active_biome", "")
 	var batcher = ctx.get("geometry_batcher")
 
-	# Debug: check batcher value
+	# Debug: check batcher value (once)
 	if not _debug_batcher_checked:
-		print("[EdgeRenderer] Batcher: %s | null: %s | truthy: %s" % [str(batcher), batcher == null, not not batcher])
+		VerboseHelper.debug("viz", "edge", "Geometry batcher=%s null=%s active=%s" % [str(batcher), batcher == null, not not batcher])
 		_debug_batcher_checked = true
 
-	# Get visible nodes
-	var visible_nodes: Array = []
-	for node in quantum_nodes:
-		if node.visible and _is_active_node(node):
-			visible_nodes.append(node)
+	# Rebuild cache every MI_CACHE_STRIDE frames
+	var current_frame = Engine.get_process_frames()
+	if current_frame - _mi_cache_frame >= MI_CACHE_STRIDE:
+		_rebuild_mi_pair_cache(quantum_nodes, biomes, active_biome)
+		_mi_cache_frame = current_frame
 
 	if not _debug_draw_checked:
-		print("[EdgeRenderer] visible_nodes count: %d" % visible_nodes.size())
+		VerboseHelper.debug("viz", "edge", "visible_nodes=%d mi_pairs_cached=%d" % [quantum_nodes.size(), _mi_pair_cache.size()])
 		_debug_draw_checked = true
 
-	if visible_nodes.size() < 2:
-		return
+	# Draw cached pairs using live node positions
+	for pair in _mi_pair_cache:
+		var node_a = pair.node_a
+		var node_b = pair.node_b
+		if not is_instance_valid(node_a) or not is_instance_valid(node_b):
+			continue
+		if batcher:
+			batcher.add_line(node_a.position, node_b.position, pair.color, pair.width)
+		else:
+			graph.draw_line(node_a.position, node_b.position, pair.color, pair.width, true)
 
-	# Group by biome (MI only defined within same quantum computer)
+
+func _rebuild_mi_pair_cache(quantum_nodes: Array, biomes: Dictionary, active_biome: String) -> void:
+	# Rebuild MI pair cache. Called at ~10 Hz, not every frame.
+	_mi_pair_cache.clear()
+
+	# Collect visible active nodes per biome
 	var nodes_by_biome: Dictionary = {}
-	for node in visible_nodes:
+	for node in quantum_nodes:
+		if not node.visible or not _is_active_node(node):
+			continue
 		var biome_name = node.biome_name if node else ""
 		if biome_name.is_empty():
 			continue
@@ -155,50 +187,35 @@ func _draw_mutual_information_web(graph: Node2D, ctx: Dictionary) -> void:
 			nodes_by_biome[biome_name] = []
 		nodes_by_biome[biome_name].append(node)
 
-	# Draw MI lines within each biome
 	for biome_name in nodes_by_biome:
 		var biome = biomes.get(biome_name)
 		if not biome or not biome.viz_cache:
 			continue
 		var biome_nodes = nodes_by_biome[biome_name]
+		if biome_nodes.size() < 2:
+			continue
 
 		for i in range(biome_nodes.size()):
 			for j in range(i + 1, biome_nodes.size()):
 				var node_a = biome_nodes[i]
 				var node_b = biome_nodes[j]
 
-				# Get mutual information
-				var mi = 0.0
-				if force_system:
-					mi = force_system.get_quantum_coupling_strength(node_a, node_b)
-				else:
-					# Fallback: use cached MI from payload
-					var qubit_a = _get_qubit_index(node_a, biome)
-					var qubit_b = _get_qubit_index(node_b, biome)
-					if qubit_a >= 0 and qubit_b >= 0:
-						mi = biome.viz_cache.get_mutual_information(qubit_a, qubit_b)
+				var qubit_a = _get_qubit_index(node_a, biome)
+				var qubit_b = _get_qubit_index(node_b, biome)
+				if qubit_a < 0 or qubit_b < 0:
+					continue
 
-				if mi < 0.001:  # Lowered threshold to show weak correlations
-					continue  # Skip uncorrelated pairs
+				var mi = biome.viz_cache.get_mutual_information(qubit_a, qubit_b)
+				if mi < 0.001:
+					continue
 
-				# Alpha scales with MI (max MI = 2 for single qubits)
-				# Boost visibility for weak correlations
-				var alpha = clampf(mi / 0.5, 0.10, 0.7)  # More visible at low MI
-
-				# Color: orange-gold for correlations
-				var color = Color(0.9, 0.6, 0.2, alpha)
-
-				# Line width scales with MI
-				var width = 1.0 + mi * 1.5
-
-				if not _debug_draw_checked:
-					print("[EdgeRenderer] About to draw MI line, batcher=%s" % batcher)
-					_debug_draw_checked = true
-
-				if batcher:
-					batcher.add_line(node_a.position, node_b.position, color, width)
-				else:
-					graph.draw_line(node_a.position, node_b.position, color, width, true)
+				var alpha = clampf(mi / 0.5, 0.10, 0.7)
+				_mi_pair_cache.append({
+					"node_a": node_a,
+					"node_b": node_b,
+					"color": Color(0.9, 0.6, 0.2, alpha),
+					"width": 1.0 + mi * 1.5
+				})
 
 
 # ============================================================================
@@ -206,14 +223,12 @@ func _draw_mutual_information_web(graph: Node2D, ctx: Dictionary) -> void:
 # ============================================================================
 
 func _draw_entanglement_lines(graph: Node2D, ctx: Dictionary) -> void:
-	"""Draw entanglement connections between quantum nodes.
+	# Draw entanglement connections between quantum nodes.
 
-	WIDTH ENCODING: Edge width proportional to entanglement strength
-	PULSING ANIMATION: Pulse rate proportional to interaction strength
-	"""
+	# WIDTH ENCODING: Edge width proportional to entanglement strength
+	# Visual grammar: this is a stable state readout, not an ambient pulse.
 	var quantum_nodes = ctx.get("quantum_nodes", [])
 	var node_by_plot_id = ctx.get("node_by_plot_id", {})
-	var time_accumulator = ctx.get("time_accumulator", 0.0)
 	var batcher = ctx.get("geometry_batcher")
 
 	var drawn_pairs = {}
@@ -237,16 +252,10 @@ func _draw_entanglement_lines(graph: Node2D, ctx: Dictionary) -> void:
 
 			# Get entanglement strength
 			var entanglement_strength = node.plot.entangled_plots.get(partner_id, 0.5)
-			var base_line_width = 1.0 + entanglement_strength * 5.0
-
-			# Pulsing animation
 			var interaction_strength = _get_interaction_strength(node, partner_node)
-			var phase = time_accumulator * 2.0 * (1.0 + interaction_strength)
-			var pulse = (sin(phase) + 1.0) / 2.0
-			var pulse_factor = 0.5 + pulse * 0.5
 
-			var alpha = (0.5 + entanglement_strength * 0.5) * pulse_factor
-			var pulsed_width = base_line_width * pulse_factor
+			var line_width = 1.0 + entanglement_strength * 5.0
+			var alpha = 0.5 + entanglement_strength * 0.5
 
 			# Vibrant cyan
 			var base_color = Color(0.2, 0.9, 1.0)
@@ -264,17 +273,18 @@ func _draw_entanglement_lines(graph: Node2D, ctx: Dictionary) -> void:
 			core_color.a = alpha * 0.95
 
 			if batcher:
-				batcher.add_line(node.position, partner_node.position, glow_outer, pulsed_width * 3.5)
-				batcher.add_line(node.position, partner_node.position, glow_mid, pulsed_width * 2.0)
-				batcher.add_line(node.position, partner_node.position, core_color, pulsed_width)
+				batcher.add_line(node.position, partner_node.position, glow_outer, line_width * 3.5)
+				batcher.add_line(node.position, partner_node.position, glow_mid, line_width * 2.0)
+				batcher.add_line(node.position, partner_node.position, core_color, line_width)
 			else:
-				graph.draw_line(node.position, partner_node.position, glow_outer, pulsed_width * 3.5, true)
-				graph.draw_line(node.position, partner_node.position, glow_mid, pulsed_width * 2.0, true)
-				graph.draw_line(node.position, partner_node.position, core_color, pulsed_width, true)
+				graph.draw_line(node.position, partner_node.position, glow_outer, line_width * 3.5, true)
+				graph.draw_line(node.position, partner_node.position, glow_mid, line_width * 2.0, true)
+				graph.draw_line(node.position, partner_node.position, core_color, line_width, true)
 
 			# Midpoint indicator
 			var mid_point = (node.position + partner_node.position) / 2
-			var indicator_size = (8.0 + interaction_strength * 4.0) * pulse_factor
+			var indicator_size = 8.0 + interaction_strength * 4.0
+			var show_indicator = interaction_strength >= 0.0
 
 			var glow_color = base_color
 			glow_color.a = alpha * 0.4
@@ -282,12 +292,13 @@ func _draw_entanglement_lines(graph: Node2D, ctx: Dictionary) -> void:
 			var core_indicator = Color(0.8, 1.0, 1.0)
 			core_indicator.a = alpha * 0.95
 
-			if batcher:
-				batcher.add_circle(mid_point, indicator_size * 1.8, glow_color)
-				batcher.add_circle(mid_point, indicator_size * 0.8, core_indicator)
-			else:
-				graph.draw_circle(mid_point, indicator_size * 1.8, glow_color)
-				graph.draw_circle(mid_point, indicator_size * 0.8, core_indicator)
+			if show_indicator:
+				if batcher:
+					batcher.add_circle(mid_point, indicator_size * 1.8, glow_color)
+					batcher.add_circle(mid_point, indicator_size * 0.8, core_indicator)
+				else:
+					graph.draw_circle(mid_point, indicator_size * 1.8, glow_color)
+					graph.draw_circle(mid_point, indicator_size * 0.8, core_indicator)
 
 
 # ============================================================================
@@ -295,15 +306,13 @@ func _draw_entanglement_lines(graph: Node2D, ctx: Dictionary) -> void:
 # ============================================================================
 
 func _draw_food_web_as_knot(graph: Node2D, ctx: Dictionary) -> void:
-	"""Draw predation/escape relationships as linked orbit topology.
+	# Draw predation/escape relationships as linked orbit topology.
 
-	Knot theory: Linking number encodes relationship strength.
-	Food relationships visualized as orbit curves that link/unlink.
+	# Knot theory: Linking number encodes relationship strength.
+	# Food relationships visualized as orbit curves that link/unlink.
 
-	This replaces the simple arrow visualization with topologically meaningful curves.
-	"""
+	# This replaces the simple arrow visualization with topologically meaningful curves.
 	var quantum_nodes = ctx.get("quantum_nodes", [])
-	var time_accumulator = ctx.get("time_accumulator", 0.0)
 	var batcher = ctx.get("geometry_batcher")
 
 	# Find forest nodes
@@ -335,7 +344,7 @@ func _draw_food_web_as_knot(graph: Node2D, ctx: Dictionary) -> void:
 			var prey_emoji = prey_node.emoji_north
 
 			if prey_emoji in prey_targets:
-				_draw_linked_orbits(graph, predator_node, prey_node, 0.7, time_accumulator, Color(1.0, 0.4, 0.2, 0.5), batcher)
+				_draw_linked_orbits(graph, predator_node, prey_node, 0.7, Color(1.0, 0.4, 0.2, 0.5), batcher)
 
 		# Get escape targets
 		var escape_targets = pred_qubit.get_graph_targets("🏃")
@@ -349,15 +358,14 @@ func _draw_food_web_as_knot(graph: Node2D, ctx: Dictionary) -> void:
 			var threat_emoji = threat_node.emoji_north
 
 			if threat_emoji in escape_targets:
-				_draw_linked_orbits(graph, predator_node, threat_node, 0.4, time_accumulator, Color(0.3, 0.7, 1.0, 0.4), batcher)
+				_draw_linked_orbits(graph, predator_node, threat_node, 0.4, Color(0.3, 0.7, 1.0, 0.4), batcher)
 
 
-func _draw_linked_orbits(graph: Node2D, node_a, node_b, coupling: float, time: float, color: Color, batcher = null) -> void:
-	"""Draw two linked orbit curves representing the relationship.
+func _draw_linked_orbits(graph: Node2D, node_a, node_b, coupling: float, color: Color, batcher = null) -> void:
+	# Draw two linked orbit curves representing the relationship.
 
-	The linking number (how many times curves wind around each other)
-	encodes the relationship strength.
-	"""
+	# The linking number (how many times curves wind around each other)
+	# encodes the relationship strength. The curve is stable; graph changes move it.
 	var center = (node_a.position + node_b.position) / 2
 	var distance = node_a.position.distance_to(node_b.position)
 	var direction = (node_b.position - node_a.position).normalized()
@@ -374,7 +382,7 @@ func _draw_linked_orbits(graph: Node2D, node_a, node_b, coupling: float, time: f
 	# Draw intertwined orbits
 	for orbit in range(2):
 		var orbit_center = center + direction * (orbit * 2 - 1) * orbit_radius * 0.3
-		var phase_offset = orbit * PI + time * 0.5
+		var phase_offset = orbit * PI
 
 		var prev_point = Vector2.ZERO
 		for i in range(num_segments + 1):
@@ -385,7 +393,6 @@ func _draw_linked_orbits(graph: Node2D, node_a, node_b, coupling: float, time: f
 
 			if i > 0:
 				var segment_color = color
-				segment_color.a = color.a * (0.5 + 0.5 * sin(t * 2 + time * 3))
 				if batcher:
 					batcher.add_line(prev_point, point, segment_color, 1.5)
 				else:
@@ -398,11 +405,10 @@ func _draw_linked_orbits(graph: Node2D, node_a, node_b, coupling: float, time: f
 # COHERENCE WEB
 # ============================================================================
 
-func _draw_coherence_web(graph: Node2D, ctx: Dictionary) -> void:
-	"""Draw thin lines showing all quantum correlations (off-diagonal ρ[i,j]).
+func _draw_coherence_web(_graph: Node2D, _ctx: Dictionary) -> void:
+	# Draw thin lines showing all quantum correlations (off-diagonal ρ[i,j]).
 
-	Disabled: coherence pair metrics are not provided by native viz cache.
-	"""
+	# Disabled: coherence pair metrics are not provided by native viz cache.
 	return
 
 
@@ -411,13 +417,20 @@ func _draw_coherence_web(graph: Node2D, ctx: Dictionary) -> void:
 # ============================================================================
 
 func _draw_hamiltonian_coupling_web(graph: Node2D, ctx: Dictionary) -> void:
-	"""Draw green dashed lines showing Hamiltonian (unitary) couplings."""
+	# Draw green dashed lines showing Hamiltonian (unitary) couplings.
+
+	# CACHED: H couplings are static after biome load — cache once per biome.
+	# Each frame only rebuilds the emoji→position map (O(N)), then draws from cache.
 	var quantum_nodes = ctx.get("quantum_nodes", [])
 	var biomes = ctx.get("biomes", {})
 	var active_biome = ctx.get("active_biome", "")
 	var batcher = ctx.get("geometry_batcher")
 
-	var drawn_pairs: Dictionary = {}
+	# Invalidate H cache when biome set changes (new biome loaded, etc.)
+	var biome_key = hash(biomes.keys())
+	if biome_key != _h_cache_biome_key:
+		_h_coupling_cache.clear()
+		_h_cache_biome_key = biome_key
 
 	for biome_name in biomes:
 		if active_biome != "" and biome_name != active_biome:
@@ -426,44 +439,65 @@ func _draw_hamiltonian_coupling_web(graph: Node2D, ctx: Dictionary) -> void:
 		if not biome or not biome.viz_cache or not biome.viz_cache.has_metadata():
 			continue
 
+		# Build static cache for this biome if missing
+		if not _h_coupling_cache.has(biome_name):
+			_rebuild_h_coupling_cache(biome_name, biome)
+
+		# Build live emoji→position map (O(N) per biome, must be per-frame for moving nodes)
 		var emoji_positions: Dictionary = {}
 		for node in quantum_nodes:
 			if node.biome_name == biome_name and node.emoji_north != "":
 				emoji_positions[node.emoji_north] = node.position
 
-		if not biome.viz_cache or not biome.viz_cache.has_metadata():
-			continue
-
-		for emoji in biome.viz_cache.get_emojis():
-			var couplings = biome.viz_cache.get_hamiltonian_couplings(emoji)
-
-			var source_pos = emoji_positions.get(emoji, Vector2.ZERO)
-			if source_pos == Vector2.ZERO:
+		# Draw cached pairs using live positions
+		for pair in _h_coupling_cache.get(biome_name, []):
+			var source_pos = emoji_positions.get(pair.src, Vector2.ZERO)
+			var target_pos = emoji_positions.get(pair.tgt, Vector2.ZERO)
+			if source_pos == Vector2.ZERO or target_pos == Vector2.ZERO:
 				continue
+			if batcher:
+				batcher.add_dashed_line(source_pos, target_pos, pair.color, pair.width, 10.0, 6.0)
+			else:
+				_draw_dashed_line(graph, source_pos, target_pos, pair.color, pair.width, 10.0, 6.0)
 
-			for target_emoji in couplings:
-				var strength = couplings[target_emoji]
-				if abs(strength) < 0.001:
-					continue
 
-				var target_pos = emoji_positions.get(target_emoji, Vector2.ZERO)
-				if target_pos == Vector2.ZERO:
-					continue
+func _rebuild_h_coupling_cache(biome_name: String, biome) -> void:
+	# Build static H coupling pairs for a biome. Called once per biome load.
+	var pairs: Array = []
+	var drawn_pairs: Dictionary = {}
 
-				var pair_key = [emoji, target_emoji]
-				pair_key.sort()
-				var key_str = "%s_%s" % [pair_key[0], pair_key[1]]
-				if drawn_pairs.has(key_str):
-					continue
-				drawn_pairs[key_str] = true
+	for emoji in biome.viz_cache.get_emojis():
+		var couplings = biome.viz_cache.get_hamiltonian_couplings(emoji)
+		for target_emoji in couplings:
+			var strength = _coupling_magnitude(couplings[target_emoji])
+			if strength < 0.001:
+				continue
+			var sorted = [emoji, target_emoji]
+			sorted.sort()
+			var key_str = "%s_%s" % [sorted[0], sorted[1]]
+			if drawn_pairs.has(key_str):
+				continue
+			drawn_pairs[key_str] = true
+			pairs.append({
+				"src": emoji,
+				"tgt": target_emoji,
+				"color": Color(0.3, 0.9, 0.4, 0.4),
+				"width": clampf(strength * 2.0 + 1.0, 1.0, 3.0)
+			})
 
-				var color = Color(0.3, 0.9, 0.4, 0.4)
-				var line_width = clampf(abs(strength) * 2.0 + 1.0, 1.0, 3.0)
+	_h_coupling_cache[biome_name] = pairs
 
-				if batcher:
-					batcher.add_dashed_line(source_pos, target_pos, color, line_width, 10.0, 6.0)
-				else:
-					_draw_dashed_line(graph, source_pos, target_pos, color, line_width, 10.0, 6.0)
+
+func _coupling_magnitude(value) -> float:
+	if value is float or value is int:
+		return absf(float(value))
+	if value is Vector2:
+		return value.length()
+	if value is Complex:
+		return value.abs()
+	if value is String and value.is_valid_float():
+		return absf(value.to_float())
+	return 0.0
 
 
 # ============================================================================
@@ -471,13 +505,44 @@ func _draw_hamiltonian_coupling_web(graph: Node2D, ctx: Dictionary) -> void:
 # ============================================================================
 
 func _draw_lindblad_flow_arrows(graph: Node2D, ctx: Dictionary) -> void:
-	"""Draw curved arrows showing Lindblad energy transfer network."""
+	# Draw curved arrows showing Lindblad energy transfer network.
+
+	# CACHED: Lindblad rates are nearly static. Rebuild cache at ~1 Hz.
+	# Each frame only rebuilds emoji→position maps (O(N)) then draws cached pairs.
 	var quantum_nodes = ctx.get("quantum_nodes", [])
 	var biomes = ctx.get("biomes", {})
 	var active_biome = ctx.get("active_biome", "")
-	var time_accumulator = ctx.get("time_accumulator", 0.0)
 	var layout_calculator = ctx.get("layout_calculator")
 	var batcher = ctx.get("geometry_batcher")
+
+	# Rebuild Lindblad cache every LINDBLAD_CACHE_STRIDE frames (~1 Hz)
+	var current_frame = Engine.get_process_frames()
+	if current_frame - _lindblad_cache_frame >= LINDBLAD_CACHE_STRIDE:
+		_rebuild_lindblad_cache(biomes, active_biome, layout_calculator)
+		_lindblad_cache_frame = current_frame
+
+	for biome_name in _lindblad_cache:
+		# Build live emoji→position map (O(N), must be per-frame)
+		var emoji_positions: Dictionary = {}
+		var biome_center: Vector2 = Vector2.ZERO
+		if layout_calculator:
+			var oval = layout_calculator.get_biome_oval(biome_name)
+			biome_center = oval.get("center", Vector2.ZERO)
+		for node in quantum_nodes:
+			if node.biome_name == biome_name and node.emoji_north != "":
+				emoji_positions[node.emoji_north] = node.position
+
+		for pair in _lindblad_cache[biome_name]:
+			var source_pos = emoji_positions.get(pair.src, biome_center)
+			var target_pos = emoji_positions.get(pair.tgt, Vector2.ZERO)
+			if target_pos == Vector2.ZERO:
+				continue
+			_draw_flow_arrow(graph, source_pos, target_pos, pair.rate, pair.color, batcher)
+
+
+func _rebuild_lindblad_cache(biomes: Dictionary, active_biome: String, _layout_calculator) -> void:
+	# Rebuild Lindblad arrow cache. Called at ~1 Hz.
+	_lindblad_cache.clear()
 
 	for biome_name in biomes:
 		if active_biome != "" and biome_name != active_biome:
@@ -486,39 +551,26 @@ func _draw_lindblad_flow_arrows(graph: Node2D, ctx: Dictionary) -> void:
 		if not biome or not biome.viz_cache or not biome.viz_cache.has_metadata():
 			continue
 
-		var oval = layout_calculator.get_biome_oval(biome_name) if layout_calculator else {}
-		if oval.is_empty():
-			continue
-
-		var biome_center = oval.get("center", Vector2.ZERO)
-
-		var emoji_positions: Dictionary = {}
-		for node in quantum_nodes:
-			if node.biome_name == biome_name and node.emoji_north != "":
-				emoji_positions[node.emoji_north] = node.position
-
-		if not biome.viz_cache or not biome.viz_cache.has_metadata():
-			continue
-
+		var pairs: Array = []
 		for emoji in biome.viz_cache.get_emojis():
 			var outgoing = biome.viz_cache.get_lindblad_outgoing(emoji)
-
-			var source_pos = emoji_positions.get(emoji, biome_center)
-
 			for target_emoji in outgoing:
 				var rate = outgoing[target_emoji]
 				if rate < 0.001:
 					continue
+				pairs.append({
+					"src": emoji,
+					"tgt": target_emoji,
+					"rate": rate,
+					"color": Color(1.0, 0.5, 0.2, 0.5)
+				})
 
-				var target_pos = emoji_positions.get(target_emoji, Vector2.ZERO)
-				if target_pos == Vector2.ZERO:
-					continue
-
-				_draw_flow_arrow(graph, source_pos, target_pos, rate, Color(1.0, 0.5, 0.2, 0.5), time_accumulator, batcher)
+		if not pairs.is_empty():
+			_lindblad_cache[biome_name] = pairs
 
 
-func _draw_flow_arrow(graph: Node2D, from_pos: Vector2, to_pos: Vector2, rate: float, color: Color, time: float, batcher = null) -> void:
-	"""Draw a curved flow arrow."""
+func _draw_flow_arrow(graph: Node2D, from_pos: Vector2, to_pos: Vector2, rate: float, color: Color, batcher = null) -> void:
+	# Draw a curved flow arrow as a stable dissipative readout.
 	var direction = (to_pos - from_pos).normalized()
 	var distance = from_pos.distance_to(to_pos)
 
@@ -530,7 +582,6 @@ func _draw_flow_arrow(graph: Node2D, from_pos: Vector2, to_pos: Vector2, rate: f
 	var control = from_pos.lerp(to_pos, 0.5) + curve_offset
 
 	var arrow_width = clampf(rate * 3.0 + 1.0, 1.0, 4.0)
-	var flow_phase = fmod(time * 2.0, 1.0)
 
 	var segments = 12
 	var prev_point = from_pos
@@ -538,13 +589,7 @@ func _draw_flow_arrow(graph: Node2D, from_pos: Vector2, to_pos: Vector2, rate: f
 		var t = float(i) / float(segments)
 		var p = (1 - t) * (1 - t) * from_pos + 2 * (1 - t) * t * control + t * t * to_pos
 
-		var segment_alpha = color.a
-		var flow_t = fmod(flow_phase + float(i) / float(segments), 1.0)
-		if flow_t > 0.7:
-			segment_alpha *= 1.5
-
 		var seg_color = color
-		seg_color.a = segment_alpha
 		if batcher:
 			batcher.add_line(prev_point, p, seg_color, arrow_width)
 		else:
@@ -570,7 +615,7 @@ func _draw_flow_arrow(graph: Node2D, from_pos: Vector2, to_pos: Vector2, rate: f
 # ============================================================================
 
 func _draw_entanglement_clusters(graph: Node2D, ctx: Dictionary) -> void:
-	"""Draw convex hull glow around multi-body entangled groups."""
+	# Draw convex hull glow around multi-body entangled groups.
 	var quantum_nodes = ctx.get("quantum_nodes", [])
 	var node_by_plot_id = ctx.get("node_by_plot_id", {})
 	var batcher = ctx.get("geometry_batcher")
@@ -650,7 +695,7 @@ func _draw_entanglement_clusters(graph: Node2D, ctx: Dictionary) -> void:
 # ============================================================================
 
 func _draw_dashed_line(graph: Node2D, from: Vector2, to: Vector2, color: Color, width: float, dash: float, gap: float) -> void:
-	"""Draw a dashed line."""
+	# Draw a dashed line.
 	var direction = (to - from).normalized()
 	var distance = from.distance_to(to)
 	var current = 0.0
@@ -663,18 +708,18 @@ func _draw_dashed_line(graph: Node2D, from: Vector2, to: Vector2, color: Color, 
 
 
 func _get_interaction_strength(node_a, node_b) -> float:
-	"""Get interaction strength from node purity values.
-
-	Model C: Uses node.energy which already contains purity Tr(ρ²).
-	"""
-	# Model C: node.energy is already set to purity by QuantumNodeManager
-	var purity_a = node_a.energy if node_a and node_a.energy > 0 else 0.5
-	var purity_b = node_b.energy if node_b and node_b.energy > 0 else 0.5
+	# Get interaction strength from node purity values.
+	if not node_a or not node_b:
+		return -1.0
+	var purity_a = node_a.purity
+	var purity_b = node_b.purity
+	if purity_a < 0.0 or purity_b < 0.0:
+		return -1.0
 	return sqrt(purity_a * purity_b)
 
 
 func _is_active_node(node) -> bool:
-	"""Check if node should be included in edge calculations."""
+	# Check if node should be included in edge calculations.
 	if not node:
 		return false
 	if node.has_farm_tether and not node.emoji_north.is_empty():
@@ -685,7 +730,7 @@ func _is_active_node(node) -> bool:
 
 
 func _get_qubit_index(node, biome) -> int:
-	"""Get qubit index for a node using cached viz metadata."""
+	# Get qubit index for a node using cached viz metadata.
 	if not node or not biome:
 		return -1
 

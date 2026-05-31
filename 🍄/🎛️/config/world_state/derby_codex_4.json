@@ -6,6 +6,6 @@
   "resources": {"👥": 160, "🌾": 180, "🍞": 145, "❄️": 100, "🌱": 120, "⚙": 70, "🔥": 55},
   "unlocked_biomes": ["StarterForest", "Village", "FungalNetworks", "CoralReef", "WildHill"],
   "active_biome": "FungalNetworks",
-  "known_pairs": [{"north": "🌾", "south": "👥"}, {"north": "🍄", "south": "🌾"}, {"north": "🌱", "south": "🍞"}],
+  "known_icons": [{"north": "🌾", "south": "👥"}, {"north": "🍄", "south": "🌾"}, {"north": "🌱", "south": "🍞"}],
   "strict_biome_economy": true
 }

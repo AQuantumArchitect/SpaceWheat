@@ -1,6 +1,5 @@
 extends Node
 
-const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
 ## Global logging configuration with category-based filtering and log levels
 ##
@@ -37,7 +36,7 @@ const LEVEL_NAMES = ["ERROR", "WARN", "INFO", "DEBUG", "TRACE"]
 # Default log level per category
 var category_levels = {
 	"ui": LogLevel.INFO,
-	"input": LogLevel.INFO,      # INFO for testing migration
+	"input": LogLevel.INFO,      # INFO for input-layer diagnostics
 	"quantum": LogLevel.INFO,
 	"farm": LogLevel.INFO,
 	"economy": LogLevel.INFO,
@@ -148,7 +147,7 @@ func _ensure_log_path():
 
 
 func _init_file_logging():
-	"""Initialize file logging - create log directory and file"""
+	# Initialize file logging - create log directory and file
 	if not enable_file_logging:
 		return
 
@@ -182,13 +181,13 @@ func _init_file_logging():
 
 
 func _enable_all_verbose():
-	"""Enable all categories at TRACE level (for --verbose flag)"""
+	# Enable all categories at TRACE level (for --verbose flag)
 	for category in category_levels.keys():
 		category_levels[category] = LogLevel.TRACE
 
 
 func _notification(what: int):
-	"""Flush log buffer on exit"""
+	# Flush log buffer on exit
 	if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_PREDELETE:
 		_flush_file()
 		if _log_file:
@@ -199,27 +198,27 @@ func _notification(what: int):
 # ============================================================================
 
 func error(category: String, emoji: String, message: String) -> void:
-	"""Log error message (always shown unless category disabled)"""
+	# Log error message (always shown unless category disabled)
 	_log(category, LogLevel.ERROR, emoji, message)
 
 
 func warn(category: String, emoji: String, message: String) -> void:
-	"""Log warning message"""
+	# Log warning message
 	_log(category, LogLevel.WARN, emoji, message)
 
 
 func info(category: String, emoji: String, message: String) -> void:
-	"""Log info message (default level for most categories)"""
+	# Log info message (default level for most categories)
 	_log(category, LogLevel.INFO, emoji, message)
 
 
 func debug(category: String, emoji: String, message: String) -> void:
-	"""Log debug message (detailed tracing)"""
+	# Log debug message (detailed tracing)
 	_log(category, LogLevel.DEBUG, emoji, message)
 
 
 func trace(category: String, emoji: String, message: String) -> void:
-	"""Log trace message (extremely verbose)"""
+	# Log trace message (extremely verbose)
 	_log(category, LogLevel.TRACE, emoji, message)
 
 
@@ -244,7 +243,7 @@ func t(cat: String, emoji: String, msg: String) -> void:
 # ============================================================================
 
 func set_category_level(category: String, level: LogLevel) -> void:
-	"""Set log level for a specific category"""
+	# Set log level for a specific category
 	if not category_levels.has(category):
 		push_warning("Unknown logging category: %s" % category)
 		return
@@ -254,7 +253,7 @@ func set_category_level(category: String, level: LogLevel) -> void:
 
 
 func set_category_enabled(category: String, enabled: bool) -> void:
-	"""Enable or disable a category entirely"""
+	# Enable or disable a category entirely
 	if not category_enabled.has(category):
 		push_warning("Unknown logging category: %s" % category)
 		return
@@ -264,12 +263,12 @@ func set_category_enabled(category: String, enabled: bool) -> void:
 
 
 func get_category_level(category: String) -> LogLevel:
-	"""Get current log level for a category"""
+	# Get current log level for a category
 	return category_levels.get(category, LogLevel.INFO)
 
 
 func get_all_categories() -> Array[String]:
-	"""Get list of all available categories"""
+	# Get list of all available categories
 	var cats: Array[String] = []
 	for cat in category_levels.keys():
 		cats.append(cat)
@@ -277,10 +276,9 @@ func get_all_categories() -> Array[String]:
 
 
 func apply_runtime_profile(profile_name: String, category_overrides: String = "") -> Dictionary:
-	"""Apply a named profile and optional per-category overrides.
+	# Apply a named profile and optional per-category overrides.
 
-	Used by rig tooling and can be reused by in-game debug controls.
-	"""
+	# Used by rig tooling and can be reused by in-game debug controls.
 	var profile = profile_name.strip_edges().to_lower()
 	if profile == "":
 		profile = "quiet"
@@ -376,8 +374,8 @@ func _parse_runtime_log_level(level_name: String) -> int:
 			return -1
 
 static func safe_is_verbose(subsystem: String = "") -> bool:
-	"""Safe category-level check that works even if VerboseConfig isn't initialized."""
-	var config = InstrumentLocator.resolve_verbose_config_main_loop()
+	# Safe category-level check that works even if VerboseConfig isn't initialized.
+	var config = (Engine.get_main_loop().root.get_node_or_null("/root/VerboseConfig") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 	if not is_instance_valid(config):
 		return false
 
@@ -388,7 +386,7 @@ static func safe_is_verbose(subsystem: String = "") -> bool:
 
 
 static func safe_allows(category: String, level: int) -> bool:
-	var config = InstrumentLocator.resolve_verbose_config_main_loop()
+	var config = (Engine.get_main_loop().root.get_node_or_null("/root/VerboseConfig") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 	if not is_instance_valid(config):
 		return false
 	if not config.is_node_ready():
@@ -397,7 +395,7 @@ static func safe_allows(category: String, level: int) -> bool:
 
 
 func is_verbose(subsystem: String = "") -> bool:
-	"""Return true when a category is configured for DEBUG or TRACE output."""
+	# Return true when a category is configured for DEBUG or TRACE output.
 	return allows(subsystem, LogLevel.DEBUG)
 
 
@@ -414,7 +412,7 @@ func allows(category: String, level: int) -> bool:
 # ============================================================================
 
 func _log(category: String, level: LogLevel, emoji: String, message: String) -> void:
-	"""Internal logging method - routes to console and/or file"""
+	# Internal logging method - routes to console and/or file
 	# Early exit: check if we should log this
 	if not _should_log(category, level):
 		return
@@ -443,7 +441,7 @@ func _log(category: String, level: LogLevel, emoji: String, message: String) -> 
 
 
 func _should_log(category: String, level: LogLevel) -> bool:
-	"""Check if a message should be logged based on category and level"""
+	# Check if a message should be logged based on category and level
 	# Check if category is enabled
 	if not category_enabled.get(category, true):
 		return false
@@ -459,7 +457,7 @@ func _should_log(category: String, level: LogLevel) -> bool:
 
 
 func _output_console(level: LogLevel, formatted: String) -> void:
-	"""Output to console using appropriate function"""
+	# Output to console using appropriate function
 	match level:
 		LogLevel.ERROR:
 			push_error(formatted)
@@ -470,7 +468,7 @@ func _output_console(level: LogLevel, formatted: String) -> void:
 
 
 func _output_file(formatted: String) -> void:
-	"""Output to log file with buffering"""
+	# Output to log file with buffering
 	if not _log_file:
 		return
 
@@ -482,7 +480,7 @@ func _output_file(formatted: String) -> void:
 
 
 func _flush_file() -> void:
-	"""Write buffered log messages to file"""
+	# Write buffered log messages to file
 	if not _log_file or _log_buffer.is_empty():
 		return
 

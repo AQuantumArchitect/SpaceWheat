@@ -1,148 +1,22 @@
 class_name HamiltonianBuilder
 extends RefCounted
 
-## Build Hamiltonian from Icons, filtered by RegisterMap
+## Build Hamiltonian from icon resources, filtered by RegisterMap
 ##
-## Icons define GLOBAL physics: {emoji: {target_emoji: Complex}}
-## RegisterMap defines LOCAL coordinates: {emoji: {qubit, pole}}
+## Icons define GLOBAL physics (from icons.json via IconRegistry).
+## RegisterMap defines LOCAL coordinates: {emoji: {qubit, pole}}.
 ## Only couplings where BOTH emojis have coordinates are included.
 ##
-## This allows the same Icon definitions to be reused across biomes
+## This allows the same icon definitions to be reused across biomes
 ## with different register configurations.
 
-const ComplexMatrix = preload("res://Core/QuantumSubstrate/ComplexMatrix.gd")
-const Complex = preload("res://Core/QuantumSubstrate/Complex.gd")
-const RegisterMap = preload("res://Core/QuantumSubstrate/RegisterMap.gd")
-
-
-static func build(icons: Dictionary, register_map: RegisterMap, verbose = null, time: float = 0.0) -> ComplexMatrix:
-	"""Build Hamiltonian matrix from Icons dictionary.
-
-	Args:
-	    icons: Dictionary[emoji] → Icon (containing hamiltonian_couplings)
-	    register_map: This biome's RegisterMap
-	    verbose: Optional VerboseConfig for logging (default: print to console)
-	    time: Current simulation time for time-dependent drivers (default: 0.0)
-
-	Returns:
-	    Hermitian matrix H of dimension 2^(num_qubits)
-	"""
-	var dim = register_map.dim()
-	var num_qubits = register_map.num_qubits
-	var H = ComplexMatrix.zeros(dim)
-
-	# Statistics tracking
-	var stats = {
-		"self_energies_added": 0,
-		"couplings_added": 0,
-		"couplings_skipped": 0
-	}
-
-	if verbose:
-		verbose.info("quantum", "🔨", "Building Hamiltonian: %d qubits (%dD)" % [num_qubits, dim])
-	else:
-		print("🔨 Building Hamiltonian: %d qubits (%dD)..." % [num_qubits, dim])
-
-	for source_emoji in icons:
-		var icon = icons[source_emoji]
-
-		# Skip if source not in this biome
-		if not register_map.has(source_emoji):
-			continue
-
-		var source_q = register_map.qubit(source_emoji)
-		var source_p = register_map.pole(source_emoji)
-
-		# --- Self-energy: diagonal term ---
-		# Use time-dependent get_self_energy(time) to support driver oscillations
-		var energy = icon.get_self_energy(time)
-		if abs(energy) > 1e-10:
-			var energy_complex = Complex.new(energy, 0.0)
-			_add_self_energy(H, source_q, source_p, energy_complex, num_qubits)
-			stats.self_energies_added += 1
-			if verbose:
-				verbose.debug("quantum-build", "✓", "%s self-energy: %.3f" % [source_emoji, energy])
-			else:
-				print("  ✓ %s self-energy: %.3f" % [source_emoji, energy])
-
-		# --- Couplings: emoji → float (coupling strength) ---
-		if icon.hamiltonian_couplings:
-			for target_emoji in icon.hamiltonian_couplings:
-				# Filter: skip if target not in this biome
-				if not register_map.has(target_emoji):
-					stats.couplings_skipped += 1
-					if verbose:
-						verbose.debug("quantum-build", "⚠️", "%s→%s skipped (no coordinate)" % [source_emoji, target_emoji])
-					continue
-
-				var target_q = register_map.qubit(target_emoji)
-				var target_p = register_map.pole(target_emoji)
-				var strength = icon.hamiltonian_couplings[target_emoji]
-
-				# Convert to Complex for matrix operations
-				# strength can be: float (real), Vector2 (complex: x=real, y=imag), or Complex
-				var coupling: Complex
-				if strength is float:
-					coupling = Complex.new(strength, 0.0)
-				elif strength is Vector2:
-					coupling = Complex.new(strength.x, strength.y)
-				elif strength is Complex:
-					coupling = strength
-				else:
-					push_warning("HamiltonianBuilder: unexpected coupling type: %s" % typeof(strength))
-					continue
-
-				_add_coupling(H, source_q, source_p, target_q, target_p, coupling, num_qubits)
-				stats.couplings_added += 1
-
-				var strength_label = _format_strength_label(strength)
-				if verbose:
-					verbose.debug("quantum-build", "✓", "%s→%s coupling: %s" % [source_emoji, target_emoji, strength_label])
-				else:
-					print("  ✓ %s→%s coupling: %s" % [source_emoji, target_emoji, strength_label])
-
-	# Ensure Hermiticity: H = (H + H†)/2
-	H = _hermitianize(H)
-
-	# Print summary
-	if verbose:
-		verbose.info("quantum", "✅",
-			"Hamiltonian built: %dx%d | Added: %d self-energies + %d couplings | Skipped: %d couplings" % [
-				dim, dim,
-				stats.self_energies_added,
-				stats.couplings_added,
-				stats.couplings_skipped
-			])
-	else:
-		print("🔨 Hamiltonian built: %dx%d (added: %d self-energies + %d couplings, skipped: %d)" % [
-			dim, dim,
-			stats.self_energies_added,
-			stats.couplings_added,
-			stats.couplings_skipped
-		])
-
-	return H
-
-
-static func _format_strength_label(strength) -> String:
-	"""Format coupling strength for logs (supports float, Vector2, Complex)."""
-	if strength is float or strength is int:
-		return "%.3f" % float(strength)
-	if strength is Vector2:
-		var re = float(strength.x)
-		var im = float(strength.y)
-		return "%.3f%+.3fi" % [re, im]
-	if strength is Complex:
-		return "%.3f%+.3fi" % [strength.re, strength.im]
-	return str(strength)
 
 
 static func _add_self_energy(H: ComplexMatrix, qubit: int, pole: int,
 							  energy: Complex, num_qubits: int) -> void:
-	"""Add diagonal term for states where qubit is in pole state.
+	# Add diagonal term for states where qubit is in pole state.
 
-	For each basis state |i⟩ where qubit = pole, add energy to H[i,i].
-	"""
+	# For each basis state |i⟩ where qubit = pole, add energy to H[i,i].
 	var dim = 1 << num_qubits
 	var shift = num_qubits - 1 - qubit
 
@@ -157,12 +31,11 @@ static func _add_coupling(H: ComplexMatrix,
 						   q_a: int, p_a: int,
 						   q_b: int, p_b: int,
 						   coupling: Complex, num_qubits: int) -> void:
-	"""Add off-diagonal coupling between two qubit-pole pairs.
+	# Add off-diagonal coupling between two qubit-pole pairs.
 
-	Cases:
-	    - Same qubit, different poles: σ_x rotation (|0⟩↔|1⟩)
-	    - Different qubits: Conditional transition (correlated flip)
-	"""
+	# Cases:
+	# - Same qubit, different poles: σ_x rotation (|0⟩↔|1⟩)
+	# - Different qubits: Conditional transition (correlated flip)
 	var dim = 1 << num_qubits
 
 	if q_a == q_b:
@@ -196,45 +69,142 @@ static func _add_coupling(H: ComplexMatrix,
 
 
 static func _hermitianize(H: ComplexMatrix) -> ComplexMatrix:
-	"""Return (H + H†)/2 to ensure Hermiticity.
+	# Return (H + H†)/2 to ensure Hermiticity.
 
-	This corrects any numerical errors from asymmetric coupling additions.
-	"""
+	# This corrects any numerical errors from asymmetric coupling additions.
 	var H_dag = H.conjugate_transpose()
 	return H.add(H_dag).scale_real(0.5)
 
 
-static func get_driven_icons(icons: Dictionary, register_map: RegisterMap) -> Array:
-	"""Extract icons with time-dependent drivers for efficient updates.
+## Build Hamiltonian directly from an Array[Icon] (icon-cloud biomes).
+## Icons are first-class qubit entities: each icon IS one qubit.
+## Reuses all existing helpers (_add_self_energy, _add_coupling, _hermitianize).
+static func build_from_icons(icons: Array, register_map: RegisterMap,
+		verbose = null, time: float = 0.0) -> ComplexMatrix:
+	var dim = register_map.dim()
+	var num_qubits = register_map.num_qubits
+	var H = ComplexMatrix.zeros(dim)
 
-	Returns an array of dictionaries with the info needed to update
-	Hamiltonian diagonal terms without full rebuild:
-	[{emoji, qubit, pole, icon_ref, driver_type, base_energy}, ...]
+	var stats = {"self_energies": 0, "rabi": 0, "cross": 0, "skipped": 0}
 
-	This enables efficient time-dependent evolution by updating only
-	the driven diagonal terms instead of rebuilding the full Hamiltonian.
-	"""
-	var driven = []
+	if verbose:
+		verbose.info("quantum", "🔨", "Building H from %d icons (%dD)" % [icons.size(), dim])
 
-	for source_emoji in icons:
-		var icon = icons[source_emoji]
-
-		# Skip if source not in this biome
-		if not register_map.has(source_emoji):
+	for icon in icons:
+		if not register_map.has(icon.pole_0) or not register_map.has(icon.pole_1):
+			stats.skipped += 1
 			continue
+		var q = register_map.qubit(icon.pole_0)
 
-		# Check if this icon has a time-dependent driver
-		if icon.self_energy_driver == "" or icon.self_energy_driver == null:
+		# σ_z self-energies (diagonal)
+		var e0 := _get_pole_energy(icon, 0, time)
+		var e1 := _get_pole_energy(icon, 1, time)
+		if abs(e0) > 1e-10:
+			_add_self_energy(H, q, 0, Complex.new(e0, 0.0), num_qubits)
+			stats.self_energies += 1
+		if abs(e1) > 1e-10:
+			_add_self_energy(H, q, 1, Complex.new(e1, 0.0), num_qubits)
+			stats.self_energies += 1
+
+		# σ_x rabi coupling (off-diagonal, pole_0 ↔ pole_1 on same qubit)
+		if abs(icon.rabi_coupling) > 1e-10:
+			_add_coupling(H, q, 0, q, 1, Complex.new(icon.rabi_coupling, 0.0), num_qubits)
+			stats.rabi += 1
+
+		# Cross-icon couplings (both poles of source → target pole)
+		var cross_couplings := _get_cross_couplings(icon)
+		for target in cross_couplings:
+			if not register_map.has(target):
+				stats.skipped += 1
+				continue
+			var tq = register_map.qubit(target)
+			var tp = register_map.pole(target)
+			var v = cross_couplings[target]
+			var c: Complex
+			if v is Vector2:
+				c = Complex.new(v.x, v.y)
+			elif v is Complex:
+				c = v
+			else:
+				c = Complex.new(float(v), 0.0)
+			_add_coupling(H, q, 0, tq, tp, c, num_qubits)
+			_add_coupling(H, q, 1, tq, tp, c, num_qubits)
+			stats.cross += 1
+
+	H = _hermitianize(H)
+
+	if verbose:
+		verbose.info("quantum", "✅", "H from icons: %d self-energies + %d rabi + %d cross | skipped: %d" % [
+			stats.self_energies, stats.rabi, stats.cross, stats.skipped])
+	else:
+		VerboseHelper.info("quantum", "build", "H from icons: %d qubits, %d SE + %d rabi + %d cross" % [
+			icons.size(), stats.self_energies, stats.rabi, stats.cross])
+	return H
+
+
+## Extract driven icon configs from Array[Icon].
+## Returns array of driver dicts for set_driven_icons().
+static func get_driven_icons(icons: Array, register_map: RegisterMap) -> Array:
+	var driven := []
+	for icon in icons:
+		var driver := _get_driver_dict(icon)
+		if driver.is_empty() or not driver.has("type"):
 			continue
-
-		# This icon has a driver - store its config
+		if not register_map.has(icon.pole_0):
+			continue
 		driven.append({
-			"emoji": source_emoji,
-			"qubit": register_map.qubit(source_emoji),
-			"pole": register_map.pole(source_emoji),
-			"icon_ref": icon,  # Reference to Icon for get_self_energy(time)
-			"driver_type": icon.self_energy_driver,
-			"base_energy": icon.self_energy
+			"emoji": icon.pole_0,
+			"qubit": register_map.qubit(icon.pole_0),
+			"pole": 0,
+			"icon_ref": icon,
+			"driver_type": str(driver.get("type", "")),
+			"base_energy": _get_pole_energy(icon, 0, 0.0),
+			"freq": float(driver.get("freq", 0.0)),
+			"phase": float(driver.get("phase", 0.0)),
+			"amp": float(driver.get("amp", 1.0)),
 		})
-
 	return driven
+
+
+static func _get_cross_couplings(icon) -> Dictionary:
+	if icon == null:
+		return {}
+	var couplings = icon.get("hamiltonian_couplings")
+	if couplings is Dictionary:
+		return couplings
+	couplings = icon.get("cross_couplings")
+	return couplings if couplings is Dictionary else {}
+
+
+static func _get_driver_dict(icon) -> Dictionary:
+	if icon == null:
+		return {}
+	var driver = icon.get("driver")
+	if driver == null:
+		driver = {}
+	if driver is Dictionary and not driver.is_empty():
+		return driver
+	var driver_type = str(icon.get("self_energy_driver"))
+	if driver_type == "":
+		return {}
+	return {
+		"type": driver_type,
+		"freq": float(icon.get("driver_frequency")),
+		"phase": float(icon.get("driver_phase")),
+		"amp": float(icon.get("driver_amplitude"))
+	}
+
+
+static func _get_pole_energy(icon, pole: int, time: float) -> float:
+	if icon == null:
+		return 0.0
+	if icon.has_method("get_pole_energy"):
+		return float(icon.get_pole_energy(pole, time))
+	var key := "self_energy_0" if pole == 0 else "self_energy_1"
+	var direct = icon.get(key)
+	if direct != null:
+		return float(direct)
+	if pole == 0 and icon.has_method("get_self_energy"):
+		return float(icon.get_self_energy(time))
+	var base = icon.get("self_energy")
+	return float(base) if base != null else 0.0

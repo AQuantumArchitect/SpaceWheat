@@ -8,9 +8,6 @@ extends Node
 ## what the tool row and action row should display.
 
 const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
-const ProbeActions = preload("res://Core/Actions/ProbeActions.gd")
-const ActionCostRuntime = preload("res://Core/GameMechanics/ActionCostRuntime.gd")
-const GridSentinel = preload("res://Core/GameState/GridSentinel.gd")
 
 var action_bar_manager = null
 var overlay_stack = null
@@ -24,13 +21,12 @@ var _observed_overlays: Array = []
 const ACTION_KEYS = ["Q", "E", "R", "F"]
 
 
-const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
 func setup(action_bar_mgr, stack_mgr, overlay_mgr = null) -> void:
 	action_bar_manager = action_bar_mgr
 	overlay_stack = stack_mgr
 	if overlay_stack and overlay_stack.has_signal("stack_changed"):
-		InstrumentLocator.safe_connect(overlay_stack.stack_changed, refresh)
+		InstrumentLocator._safe_connect(overlay_stack.stack_changed, refresh)
 
 	_connect_toolbar_inputs()
 	if overlay_mgr:
@@ -40,14 +36,19 @@ func setup(action_bar_mgr, stack_mgr, overlay_mgr = null) -> void:
 
 
 func reset() -> void:
-	"""Reset runtime UI context references for shutdown or restart."""
+	# Reset runtime UI context references for shutdown or restart.
 	if overlay_stack and overlay_stack.has_signal("stack_changed"):
-		InstrumentLocator.safe_disconnect(overlay_stack.stack_changed, refresh)
+		InstrumentLocator._safe_disconnect(overlay_stack.stack_changed, refresh)
 	if quantum_input:
 		for sig_name in ["frame_changed", "frame_mode_changed", "submenu_changed", "action_performed"]:
 			var cb = Callable(self, "_on_" + sig_name)
 			if quantum_input.has_signal(sig_name):
-				InstrumentLocator.safe_disconnect(Signal(quantum_input, sig_name), cb)
+				InstrumentLocator._safe_disconnect(Signal(quantum_input, sig_name), cb)
+		if action_bar_manager:
+			var tool_row = action_bar_manager.get_tool_row()
+			if tool_row and tool_row.has_signal("frame_selected"):
+				InstrumentLocator._safe_disconnect(tool_row.frame_selected,
+						Callable(quantum_input, "_select_frame_hat"))
 	action_bar_manager = null
 	overlay_stack = null
 	overlay_manager = null
@@ -59,8 +60,8 @@ func reset() -> void:
 	_observed_overlays.clear()
 
 
-func bind_overlay_manager(manager) -> void:
-	overlay_manager = manager
+func bind_overlay_manager(overlay_mgr) -> void:
+	overlay_manager = overlay_mgr
 	if not overlay_manager or not overlay_manager.has_method("get_registered_overlays"):
 		return
 
@@ -68,11 +69,11 @@ func bind_overlay_manager(manager) -> void:
 		_observe_overlay(overlay_manager.get_overlay(overlay_name))
 
 
-func bind_quantum_input(input_handler) -> void:
-	if quantum_input == input_handler or not input_handler:
+func bind_quantum_input(instrument_input) -> void:
+	if quantum_input == instrument_input or not instrument_input:
 		return
 
-	quantum_input = input_handler
+	quantum_input = instrument_input
 	current_frame = _resolve_current_frame()
 
 	for pair in [
@@ -82,7 +83,16 @@ func bind_quantum_input(input_handler) -> void:
 		["action_performed", _on_action_performed],
 	]:
 		if quantum_input.has_signal(pair[0]):
-			InstrumentLocator.safe_connect(Signal(quantum_input, pair[0]), pair[1])
+			InstrumentLocator._safe_connect(Signal(quantum_input, pair[0]), pair[1])
+
+	# Wire ToolSelectionRow → QII (the single write authority for frame state).
+	# Keyboard hat keys (4-0) already go through QII._unhandled_key_input;
+	# button clicks now take the same path so both use identical logic.
+	if action_bar_manager:
+		var tool_row = action_bar_manager.get_tool_row()
+		if tool_row and tool_row.has_signal("frame_selected"):
+			InstrumentLocator._safe_connect(tool_row.frame_selected,
+					Callable(quantum_input, "_select_frame_hat"))
 
 	refresh()
 
@@ -96,9 +106,9 @@ func bind_farm_ui(farm_ui: Control) -> void:
 	var plot_grid = current_farm_ui.plot_grid_display if "plot_grid_display" in current_farm_ui else null
 
 	if plot_grid and plot_grid.has_signal("selection_count_changed"):
-		InstrumentLocator.safe_connect(plot_grid.selection_count_changed, _on_selection_count_changed)
+		InstrumentLocator._safe_connect(plot_grid.selection_count_changed, _on_selection_count_changed)
 	if farm and farm.economy and farm.economy.has_signal("resource_changed"):
-		InstrumentLocator.safe_connect(farm.economy.resource_changed, _on_resource_changed)
+		InstrumentLocator._safe_connect(farm.economy.resource_changed, _on_resource_changed)
 
 	refresh()
 
@@ -115,12 +125,11 @@ func _connect_toolbar_inputs() -> void:
 	if not action_bar_manager:
 		return
 
-	var tool_row = action_bar_manager.get_tool_row()
-	if tool_row and tool_row.has_signal("frame_selected"):
-		InstrumentLocator.safe_connect(tool_row.frame_selected, _on_frame_button_selected)
+	# frame_selected is wired to QII._select_frame_hat in bind_quantum_input
+	# (QII is the single write authority for frame state — needs to exist first)
 	var action_row = action_bar_manager.get_action_row()
 	if action_row and action_row.has_signal("action_pressed"):
-		InstrumentLocator.safe_connect(action_row.action_pressed, _on_action_pressed)
+		InstrumentLocator._safe_connect(action_row.action_pressed, _on_action_pressed)
 
 
 func _observe_overlay(overlay) -> void:
@@ -128,9 +137,9 @@ func _observe_overlay(overlay) -> void:
 		return
 
 	_observed_overlays.append(overlay)
-	for sig_name in ["selection_changed", "action_performed", "slot_selection_changed", "action_labels_changed"]:
+	for sig_name in ["action_performed", "slot_selection_changed", "action_labels_changed"]:
 		if overlay.has_signal(sig_name):
-			InstrumentLocator.safe_connect(Signal(overlay, sig_name), _refresh_from_overlay_signal)
+			InstrumentLocator._safe_connect(Signal(overlay, sig_name), _refresh_from_overlay_signal)
 
 
 func _refresh_action_availability() -> void:
@@ -143,36 +152,9 @@ func _resolve_current_frame() -> String:
 	return ToolConfig.get_current_frame()
 
 
-func _on_frame_button_selected(frame_name: String) -> void:
-	ToolConfig.select_frame(frame_name)
-	current_frame = frame_name
-
-	if current_farm_ui and current_farm_ui.has_method("_on_frame_selected"):
-		current_farm_ui._on_frame_selected(frame_name)
-
-	if quantum_input and quantum_input.has_signal("frame_changed"):
-		quantum_input.frame_changed.emit(frame_name)
-	else:
-		current_submenu_name = ""
-		current_submenu_actions = {}
-		refresh()
-
-
 func _on_action_pressed(action_key: String) -> void:
 	if not quantum_input:
 		return
-
-	if action_key == "F":
-		# F is no longer a mode-cycle key (Tab handles cycling). The on-screen
-		# F button only fires when the active frame defines an explicit F
-		# action; pagination inside a submenu still routes through F here.
-		if quantum_input.has_method("_cycle_submenu_page") and quantum_input.is_in_submenu():
-			quantum_input._cycle_submenu_page()
-			return
-		if quantum_input.has_method("_perform_action"):
-			quantum_input._perform_action(action_key)
-		return
-
 	if quantum_input.has_method("_perform_action"):
 		quantum_input._perform_action(action_key)
 
@@ -181,11 +163,13 @@ func _on_frame_changed(frame_name: String) -> void:
 	current_frame = frame_name
 	current_submenu_name = ""
 	current_submenu_actions = {}
+	if current_farm_ui and current_farm_ui.has_method("_on_frame_selected"):
+		current_farm_ui._on_frame_selected(frame_name)
 	refresh()
 
 
-func _on_frame_mode_changed(_frame: String, _mode_idx: int, _mode_label: String) -> void:
-	current_frame = _resolve_current_frame()
+func _on_frame_mode_changed(frame_name: String, _mode_idx: int, _mode_label: String) -> void:
+	current_frame = frame_name
 	refresh()
 
 
@@ -220,7 +204,7 @@ func _build_action_projection() -> Dictionary:
 	}
 
 	var top_overlay = overlay_stack.get_top() if overlay_stack else null
-	if top_overlay:
+	if top_overlay and overlay_stack.size() > 1 and not top_overlay.get("is_transparent_overlay", false):
 		projection.context = "overlay"
 		projection.actions = _build_overlay_actions(top_overlay)
 		return projection
@@ -241,7 +225,7 @@ func _build_frame_actions(frame_name: String) -> Dictionary:
 		var action_info = ToolConfig.get_action(frame_name, action_key)
 		actions[action_key] = _project_action_info(action_info)
 
-	if frame_name == ToolConfig.FRAME_SCIENTIST and ToolConfig.get_frame_mode_name(frame_name) == "probe":
+	if frame_name == ToolConfig.FRAME_ACE and ToolConfig.get_frame_mode_name(frame_name) == "probe":
 		_apply_probe_preview(actions)
 
 	_apply_runtime_state(actions)
@@ -268,18 +252,9 @@ func _build_submenu_actions() -> Dictionary:
 func _build_overlay_actions(overlay: Control) -> Dictionary:
 	var actions: Dictionary = {}
 	for action_key in ACTION_KEYS:
-		var info: Dictionary = {}
-		if overlay.has_method("get_action_info"):
-			info = overlay.get_action_info(action_key)
-		elif overlay.has_method("get_action_labels"):
-			var labels = overlay.get_action_labels()
-			info = {
-				"label": str(labels.get(action_key, "-")),
-				"emoji": "",
-				"icon": "",
-				"disabled": false,
-				"action": ""
-			}
+		var info = overlay.get_action_info(action_key)
+		if not (info is Dictionary):
+			info = {}
 		actions[action_key] = _project_action_info(info)
 		actions[action_key].available = not bool(actions[action_key].get("disabled", false))
 	return actions
@@ -296,6 +271,7 @@ func _project_action_info(action_info: Dictionary) -> Dictionary:
 		"cost": {},
 		"shift_label": str(action_info.get("shift_label", "")),
 		"shift_action": str(action_info.get("shift_action", "")),
+		"destructive": bool(action_info.get("destructive", false)),
 	}
 
 
@@ -397,9 +373,9 @@ func _get_cost_for_action(action_info: Dictionary) -> Dictionary:
 
 func _get_cost_for_action_name(action_name: String, action_info: Dictionary) -> Dictionary:
 	match action_name:
-		"inject_vocabulary":
-			var pair = action_info.get("icon", {})
-			return _get_runtime_action_cost(action_name, {"south_emoji": pair.get("south", "")})
+		"inject_icon":
+			var icon = action_info.get("icon", {})
+			return _get_runtime_action_cost(action_name, {"south_emoji": icon.get("south", "")})
 		"drain", "pump":
 			var pair = _resolve_selected_axis_pair()
 			if pair.is_empty():

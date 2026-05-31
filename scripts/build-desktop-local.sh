@@ -8,19 +8,36 @@ set -euo pipefail
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+source "$SCRIPT_DIR/lib/windows_desktop_deploy.sh"
 GODOT_BIN="${GODOT_BIN:-godot}"
 OUTPUT_ROOT="${OUTPUT_ROOT:-$PROJECT_DIR/releases/local}"
+GODOT_EXPORT_CONFIG_HOME="${GODOT_EXPORT_CONFIG_HOME:-$PROJECT_DIR/.build/xdg-config}"
+GODOT_EXPORT_DATA_HOME="${GODOT_EXPORT_DATA_HOME:-${XDG_DATA_HOME:-$HOME/.local/share}}"
 BUILD_NATIVE=true
 INSTALL_TEMPLATES=false
 CLEAN_NATIVE=false
 SKIP_EXPORT=false
 COPY_TO_WINDOWS=false
-WINDOWS_STAGE_ROOT="${WINDOWS_STAGE_ROOT:-/mnt/c/Games/SpaceWheat Builds}"
+WINDOWS_STAGE_OUT="${WINDOWS_STAGE_OUT:-${WINDOWS_STAGE_ROOT:-$(sw_windows_stage_root)}/windows-native}"
 
 log() { echo -e "\n\033[1;34m▶ $1\033[0m"; }
 success() { echo -e "\033[1;32m✓ $1\033[0m"; }
 warn() { echo -e "\033[1;33m⚠ $1\033[0m"; }
 error() { echo -e "\033[1;31m✗ $1\033[0m" >&2; exit 1; }
+
+sanitize_godot_export_state() {
+    local extension_cache="$PROJECT_DIR/.godot/extension_list.cfg"
+    if [ -f "$extension_cache" ]; then
+        rm -f "$extension_cache"
+    fi
+}
+
+run_godot_export() {
+    mkdir -p "$GODOT_EXPORT_CONFIG_HOME"
+    XDG_CONFIG_HOME="$GODOT_EXPORT_CONFIG_HOME" \
+    XDG_DATA_HOME="$GODOT_EXPORT_DATA_HOME" \
+        "$GODOT_BIN" --headless "$@"
+}
 
 show_help() {
     cat << 'EOF'
@@ -35,7 +52,7 @@ Options:
   --clean-native           Rebuild godot-cpp/native artifacts
   --skip-export            Stop after native build
   --install-templates      Install Godot export templates if missing
-  --copy-to-windows        Copy exported folders to /mnt/c/Games/SpaceWheat Builds
+  --copy-to-windows        Copy the Windows export into the Windows staging folder
   --godot-bin PATH         Godot executable (default: godot)
   --help                   Show this help
 
@@ -111,26 +128,71 @@ fi
 WINDOWS_OUT="$OUTPUT_ROOT/windows-native"
 LINUX_OUT="$OUTPUT_ROOT/linux-native"
 
+log "Sanitizing Godot export state"
+sanitize_godot_export_state
+
 log "Exporting desktop builds"
 rm -rf "$WINDOWS_OUT" "$LINUX_OUT"
 mkdir -p "$WINDOWS_OUT" "$LINUX_OUT"
 
 cd "$PROJECT_DIR"
-"$GODOT_BIN" --headless --export-release "Windows Desktop" "$WINDOWS_OUT/SpaceWheat.exe"
-"$GODOT_BIN" --headless --export-release "Linux Desktop" "$LINUX_OUT/SpaceWheat.x86_64"
+run_godot_export --export-release "Windows Desktop" "$WINDOWS_OUT/SpaceWheat.exe"
+run_godot_export --export-release "Linux Desktop" "$LINUX_OUT/SpaceWheat.x86_64"
 
 success "Windows export ready: $WINDOWS_OUT/SpaceWheat.exe"
 success "Linux export ready: $LINUX_OUT/SpaceWheat.x86_64"
 
-if [ "$COPY_TO_WINDOWS" = true ]; then
-    if [ ! -d /mnt/c ]; then
-        error "/mnt/c is not available; cannot copy to Windows filesystem."
+if [ ! -f "$LINUX_OUT/launch.sh" ]; then
+    cat > "$LINUX_OUT/launch.sh" << 'LAUNCH'
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")"
+
+if grep -qiE '(microsoft|wsl)' /proc/version 2>/dev/null; then
+    runtime_dir="/run/user/$(id -u)"
+    if [ -d "$runtime_dir" ] && [ -S "$runtime_dir/wayland-0" ]; then
+        export XDG_RUNTIME_DIR="$runtime_dir"
+    elif [ -d "/mnt/wslg/runtime-dir" ]; then
+        export XDG_RUNTIME_DIR="/mnt/wslg/runtime-dir"
     fi
-    log "Copying builds to Windows filesystem"
-    mkdir -p "$WINDOWS_STAGE_ROOT/windows-native" "$WINDOWS_STAGE_ROOT/linux-native"
-    cp -f "$WINDOWS_OUT"/* "$WINDOWS_STAGE_ROOT/windows-native/"
-    cp -f "$LINUX_OUT"/* "$WINDOWS_STAGE_ROOT/linux-native/"
-    success "Copied builds to $WINDOWS_STAGE_ROOT"
+
+    : "${WAYLAND_DISPLAY:=wayland-0}"
+    export WAYLAND_DISPLAY
+    if [ "${SW_FORCE_X11:-0}" = "1" ]; then
+        : "${DISPLAY:=:0}"
+        export DISPLAY
+    elif [ -n "${DISPLAY:-}" ]; then
+        export DISPLAY
+    else
+        unset DISPLAY
+    fi
+
+    audio_driver="${SW_FORCE_AUDIO_DRIVER:-}"
+    if [ -z "$audio_driver" ] && [ -S "/mnt/wslg/PulseServer" ] && command -v pactl >/dev/null 2>&1; then
+        if timeout 1s pactl -s "unix:/mnt/wslg/PulseServer" info >/dev/null 2>&1; then
+            export PULSE_SERVER="unix:/mnt/wslg/PulseServer"
+            audio_driver="PulseAudio"
+        fi
+    fi
+    if [ -z "$audio_driver" ]; then
+        audio_driver="Dummy"
+    fi
+
+    exec ./SpaceWheat.x86_64 --audio-driver "$audio_driver" "$@"
+fi
+
+exec ./SpaceWheat.x86_64 "$@"
+LAUNCH
+    chmod +x "$LINUX_OUT/launch.sh"
+fi
+
+if [ "$COPY_TO_WINDOWS" = true ]; then
+    log "Refreshing Windows staging folder"
+    if sw_windows_deploy_tree "$WINDOWS_OUT" "$WINDOWS_STAGE_OUT" 0; then
+        success "Windows staging folder refreshed: $WINDOWS_STAGE_OUT"
+    else
+        warn "Windows staging folder refresh failed"
+    fi
 fi
 
 echo ""

@@ -9,11 +9,11 @@ extends RefCounted
 ##   var dynamics = tracker.get_dynamics()  # 0.0 = stable, 1.0 = volatile
 
 class ObservableSnapshot:
-	"""Single timestamped measurement of quantum observables"""
+	# Single timestamped measurement of quantum observables
 	var timestamp: float = 0.0  # Time.get_ticks_msec()
-	var purity: float = 0.5
-	var entropy: float = 0.5
-	var coherence: float = 0.0
+	var purity: float = -1.0
+	var entropy: float = -1.0
+	var coherence: float = -1.0
 
 # Ring buffer of recent snapshots (last N samples)
 var history: Array = []  # Array of ObservableSnapshot
@@ -25,11 +25,10 @@ var last_snapshot_time: float = 0.0
 
 
 func add_snapshot(obs: Dictionary) -> void:
-	"""Record current observables with throttling
+	# Record current observables with throttling
 
-	Args:
-		obs: Dictionary with keys "purity", "entropy", "coherence"
-	"""
+	# Args:
+	# obs: Dictionary with keys "purity", "entropy", "coherence"
 	var now = Time.get_ticks_msec()
 
 	# Throttle: skip if too soon after last snapshot
@@ -40,9 +39,9 @@ func add_snapshot(obs: Dictionary) -> void:
 
 	var snapshot = ObservableSnapshot.new()
 	snapshot.timestamp = now
-	snapshot.purity = obs.get("purity", 0.5)
-	snapshot.entropy = obs.get("entropy", 0.5)
-	snapshot.coherence = obs.get("coherence", 0.0)
+	snapshot.purity = float(obs.get("purity", -1.0))
+	snapshot.entropy = float(obs.get("entropy", -1.0))
+	snapshot.coherence = float(obs.get("coherence", -1.0))
 
 	history.append(snapshot)
 
@@ -52,13 +51,12 @@ func add_snapshot(obs: Dictionary) -> void:
 
 
 func get_dynamics() -> float:
-	"""Calculate evolution rate: average change per second across all observables
+	# Calculate evolution rate: average change per second across all observables
 
-	Returns:
-		float in [0, 1]: 0 = stable (slow changes), 1 = volatile (rapid fluctuations)
-	"""
+	# Returns:
+	# float in [0, 1]: 0 = stable (slow changes), 1 = volatile (rapid fluctuations)
 	if history.size() < 2:
-		return 0.5  # Not enough data - neutral
+		return -1.0  # Not enough data yet
 
 	var total_rate = 0.0
 	var count = 0
@@ -71,6 +69,10 @@ func get_dynamics() -> float:
 		var dt = (curr.timestamp - prev.timestamp) / 1000.0  # Convert to seconds
 		if dt < 0.01:  # Skip if too close (< 10ms)
 			continue
+		if prev.purity < 0.0 or prev.entropy < 0.0 or prev.coherence < 0.0:
+			continue
+		if curr.purity < 0.0 or curr.entropy < 0.0 or curr.coherence < 0.0:
+			continue
 
 		# Calculate change rates for each observable
 		var dpurity = abs(curr.purity - prev.purity) / dt
@@ -81,7 +83,7 @@ func get_dynamics() -> float:
 		count += 1
 
 	if count == 0:
-		return 0.5
+		return -1.0
 
 	# Average rate of change, normalized to [0, 1]
 	# Calibration: 0.5 change/sec is "medium" dynamics
@@ -91,8 +93,10 @@ func get_dynamics() -> float:
 
 
 func get_stability_label() -> String:
-	"""Human-readable dynamics description for UI display"""
+	# Human-readable dynamics description for UI display
 	var d = get_dynamics()
+	if d < 0.0:
+		return "Unknown"
 
 	if d < 0.2:
 		return "Stable (slow changes)"
@@ -105,49 +109,58 @@ func get_stability_label() -> String:
 
 
 func get_average_purity() -> float:
-	"""Get average purity from recent history"""
+	# Get average purity from recent history
 	if history.is_empty():
-		return 0.5
+		return -1.0
 
 	var sum = 0.0
+	var count = 0.0
 	for snapshot in history:
-		sum += snapshot.purity
+		if snapshot.purity >= 0.0:
+			sum += snapshot.purity
+			count += 1.0
 
-	return sum / history.size()
+	return sum / count if count > 0.0 else -1.0
 
 
 func get_average_entropy() -> float:
-	"""Get average entropy from recent history"""
+	# Get average entropy from recent history
 	if history.is_empty():
-		return 0.5
+		return -1.0
 
 	var sum = 0.0
+	var count = 0.0
 	for snapshot in history:
-		sum += snapshot.entropy
+		if snapshot.entropy >= 0.0:
+			sum += snapshot.entropy
+			count += 1.0
 
-	return sum / history.size()
+	return sum / count if count > 0.0 else -1.0
 
 
 func get_average_coherence() -> float:
-	"""Get average coherence from recent history"""
+	# Get average coherence from recent history
 	if history.is_empty():
-		return 0.0
+		return -1.0
 
 	var sum = 0.0
+	var count = 0.0
 	for snapshot in history:
-		sum += snapshot.coherence
+		if snapshot.coherence >= 0.0:
+			sum += snapshot.coherence
+			count += 1.0
 
-	return sum / history.size()
+	return sum / count if count > 0.0 else -1.0
 
 
 func clear_history() -> void:
-	"""Reset tracker (useful for biome switches or major state changes)"""
+	# Reset tracker (useful for biome switches or major state changes)
 	history.clear()
 	last_snapshot_time = 0.0
 
 
 func get_history_duration() -> float:
-	"""Get time span of current history in seconds"""
+	# Get time span of current history in seconds
 	if history.size() < 2:
 		return 0.0
 

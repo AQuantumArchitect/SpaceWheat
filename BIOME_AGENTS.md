@@ -6,6 +6,10 @@ toolkit. It is NOT a general onboarding guide for the Godot game, rendering,
 UI, or game logic. If you are working on anything outside `Core/Biomes/`,
 `Core/Factions/`, or `tools/`, stop here — you want a different doc.
 
+> 🍄 **Playing the game as an agent?** You want `🍄/README.txt` and
+> `🍄/🗺️_ARCHITECTURE.md` instead — that's the milk-hunt rig, arena system,
+> and full data-flow map for LLM agents that play SpaceWheat headlessly.
+
 Scope:
 - ✅ Read and mutate `Core/Biomes/data/biomes.json`
 - ✅ Read and add to `Core/Factions/data/factions.json`
@@ -14,6 +18,12 @@ Scope:
 - ❌ Don't touch `Core/Boot/`, `Core/Audio/`, `Core/Diagnostics/`, or any
   subsystem that isn't Biomes or Factions
 - ❌ Don't modify the bundled cache or its builder
+
+---
+
+## Player faction
+The player IS the faction "The Demos" (biome `TheDemos`). See `🍄/PLAYER_FACTION.md` for
+identity, physics, and authoring rules.
 
 ---
 
@@ -38,9 +48,12 @@ Two layers, different jobs:
   basis states the simulator integrates. They are the keys of every H, L,
   `self_energies`, `atom_components`, faction `sig`, biome `emojis`. ~227 unique.
 - **Pair-icons** (`{name, pole_0, pole_1}` like `{Combat, ⚔, ⚱}`) are the
-  *named* two-state axes the player ever sees by name. They live in faction
-  `icons[]` and biome `icons[]`, registered in `IconLexicon`. ~166 pairs /
-  ~160 names. Every faction now carries pair-icons.
+  *named* two-state axes the player ever sees by name. They are owned by
+  **factions** (`icons[]`), registered in `IconLexicon`. ~166 pairs / ~160
+  names. **Biomes do NOT own icons** — a biome is a cloud of atoms + Lindblad L.
+  The icons a biome hosts are *inferred from its `native_factions`* at
+  neighborhood-realization time (`Biome.get_neighborhood_icons()`); pole-pairing
+  is a neighborhood concern, never a biome property.
 
 The word "icon" is reserved for pair-icons. The single-emoji-keyed Lindblad
 spec on each biome is `atom_components` (formerly `icon_components`).
@@ -114,10 +127,17 @@ Each biome has:
 }
 ```
 
-Lindblad operator types (on each emoji):
-- `decay: {rate, target}` — `√rate · |target⟩⟨emoji|`. Target outside biome = drain to sink.
-- `lindblad_outgoing: {target: rate}` — same, multiple targets.
-- `lindblad_incoming: {source: rate}` — `√rate · |emoji⟩⟨source|`. Source "🗑" = external pump.
+Lindblad operator types (on each emoji). Two ecological readings of these edges:
+**sink-decay** (target/source is the sink `🗑` — population leaves the biome,
+lowering entropy) vs the **webway** (non-sink inter-atom edges — population
+recirculates across the atom cloud, holding entropy up). See
+`docs/glossary/webway.md`.
+- `decay: {rate, target}` — `√rate · |target⟩⟨emoji|`. Target `🗑` = sink-decay;
+  target = another in-cloud atom = a webway edge.
+- `lindblad_outgoing: {target: rate}` — same, multiple targets (webway when non-sink).
+- `lindblad_incoming: {source: rate}` — `√rate · |emoji⟩⟨source|`. Source `🗑` =
+  external **pump** (the only edge that raises population from outside); other
+  source = a webway edge. A biome with no pump and a net-draining webway → `S → 0`.
 - `gated_lindblad_source: [{target, gate, rate, power, inverse}]` —
   rate-modulated jump from `emoji` to `target`, where effective rate = `rate · ρ_gate^power`. This is the **nonlinearity** that makes bistability, tristability, oscillators, and gradient memories possible.
 
@@ -207,6 +227,56 @@ Seed-dependent multi-atom    Village (again — 10+ distinct asymptotic states)
 
 ---
 
+## Where physics actually lives (parallel authorities)
+
+The runtime carries multiple computation paths. When debugging or extending,
+know which one you're touching.
+
+**Canonical authorities (build-time write, run-time read):**
+- **Hamiltonian** — `icons.json` via `IconRegistry.get_icon_physics_by_pair`,
+  composed by `HamiltonianBuilder.build_from_icons`. Lives on
+  `quantum_computer.hamiltonian`.
+- **Lindblad / decay** — `biome.atom_components` (in biomes.json), composed
+  by `LindbladBuilder.build_from_atoms`. Lives on
+  `quantum_computer.lindblad_operators`.
+
+**Live-evolution authorities (every tick):**
+- `QuantumComputer.evolve(dt)` — canonical Lindblad master equation integrator
+  (GDScript). Reads H + L from above.
+- **`MultiBiomeLookaheadEngine` (C++)** — *silent twin*. Holds its OWN copy of
+  H + L, registered via `BiomeEvolutionBatcher._register_biome_with_engine`.
+  Computes 13-step lookahead in the background; results are played back into
+  `density_matrix` by `BiomeEvolutionBatcher._apply_buffered_step`. **For
+  batched biomes (the default) this is the production tick path** — GDScript
+  `evolve()` is bypassed. Any in-place mutation of H or L MUST call
+  `BiomeEvolutionBatcher.mark_for_reregister(name)` or the C++ engine replays
+  stale physics. (Dim changes auto-detect; same-dim H mutations don't.)
+- `FactionDensityMatrix` (`QuantumMythosEngine` C++) — separate 12-qubit
+  emoji-basis engine. Independent H + L. Drives factions / market lattice /
+  story flags. **Read-only from biomes** — does not write back.
+
+**Discrete event mutators (intentional, scoped):**
+- Gates (`apply_gate`, `apply_gate_2q`)
+- Measurement / collapse / drain (`_project_qubit`, `drain_qubit`,
+  `BiomeDensityMatrixMutator.collapse_register`,
+  `ProbeActions._drain_register`)
+- Boot/load: `initialize_*`, `GameStateSerializer` density hydration
+
+**Mirror caches (UI may read these, NOT the live QC):**
+- `viz_cache` (per biome) — populated by lookahead snapshots
+- Bloch / MI / purity buffers in `BiomeLookaheadBuffer`
+- `force_graph_engine.cpp` particle layout (visual layout only)
+
+**Authority discipline for biome-crafters:**
+- Never edit `faction.hamiltonian` / `faction.self_energies` expecting biome
+  H to change. Those feed `FactionDensityMatrix` only.
+- Edit icons.json to change H. Edit `biome.atom_components` to change L.
+- After any in-place H mutation (e.g. `inject_coupling`), confirm
+  `BiomeEvolutionBatcher.mark_for_reregister` is called — otherwise the C++
+  twin will keep emitting old physics.
+
+---
+
 ## Open to-dos
 
 - **Genuine time-crystal / clean limit-cycle demo** — MothGarden works but
@@ -245,6 +315,8 @@ Seed-dependent multi-atom    Village (again — 10+ distinct asymptotic states)
   runtime consumers. Read if a mutation behaves unexpectedly and you suspect
   a runtime convention you don't know about.
 - `README.md` at repo root (if present).
+
+**Emoji SVG sync:** when adding new emojis to `biomes.json` or `factions.json`, run `python3 🍄/🛠️/sync_emoji_pipeline.py` from the project root. It derives the full required set from game data, downloads missing twemoji SVGs, and rebuilds `Assets/emoji_svg/emoji_index.json` with normalized keys. Text-fallback warnings at boot are the symptom that this needs re-running.
 
 **Runtime requirements:**
 - Python 3, numpy.

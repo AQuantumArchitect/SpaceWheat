@@ -18,7 +18,7 @@
         "BioticFlux"
     ],
     "active_biome": "Village",
-    "known_pairs": [
+    "known_icons": [
         {
             "north": "🌾",
             "south": "👥"

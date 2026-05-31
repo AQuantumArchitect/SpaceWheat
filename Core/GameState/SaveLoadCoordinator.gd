@@ -11,9 +11,6 @@ extends RefCounted
 ## Held as a RefCounted member of GameStateManager (constructor-injected with
 ## a back-reference to GSM for state access).
 
-const GameState = preload("res://Core/GameState/GameState.gd")
-const SaveStore = preload("res://Core/GameState/SaveStore.gd")
-const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
 var _gsm: Node = null
 var _verbose = null
@@ -121,8 +118,10 @@ func load_and_apply(slot: int) -> bool:
 	# autoloads + active_farm don't carry stale state across the boundary.
 	# Pre-session: lighter headless path used by tools and tests.
 	if _gsm.active_farm:
-		var boot_mgr = InstrumentLocator.resolve_root_node(_gsm, "/root/BootManager")
+		_gsm.phase = SessionLifecycle.SessionPhase.BOOTING
+		var boot_mgr = (Engine.get_main_loop().root.get_node_or_null("/root/BootManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 		if boot_mgr == null:
+			_gsm.phase = SessionLifecycle.SessionPhase.IDLE
 			push_warning("SaveLoadCoordinator.load_and_apply: BootManager autoload missing")
 			return false
 		var peek := peek_save_slot(slot)
@@ -130,9 +129,17 @@ func load_and_apply(slot: int) -> bool:
 		if peek and bool(peek.get("exists", false)):
 			scenario_for_boot = str(peek.get("scenario", _gsm.current_scenario_id))
 		await _gsm.session_lifecycle.shutdown_session(true, false)
-		var farm = await boot_mgr.boot_core(slot, scenario_for_boot, false, null)
+		var boot_request := {
+			"slot": slot,
+			"scenario_id": scenario_for_boot,
+			"headless": false,
+		}
+		var farm = await boot_mgr.boot_session(boot_request, null)
 		if farm:
 			_gsm.last_active_slot = slot
+			_gsm.phase = SessionLifecycle.SessionPhase.RUNNING
+		else:
+			_gsm.phase = SessionLifecycle.SessionPhase.IDLE
 		return farm != null
 
 	# Pre-session with AppRoot: route through the proper boot pipeline so
@@ -141,32 +148,43 @@ func load_and_apply(slot: int) -> bool:
 	var tree = Engine.get_main_loop()
 	var app_roots = tree.get_nodes_in_group("app_root") if tree else []
 	if not app_roots.is_empty():
+		_gsm.phase = SessionLifecycle.SessionPhase.BOOTING
 		_gsm.last_active_slot = slot
 		await _gsm.session_lifecycle.restart_into(slot)
+		_gsm.phase = SessionLifecycle.SessionPhase.RUNNING
 		return true
 
 	# Headless / test path (no AppRoot, no active_farm): direct apply.
+	_gsm.phase = SessionLifecycle.SessionPhase.BOOTING
 	var state = load_game_state(slot)
 	if not state:
+		_gsm.phase = SessionLifecycle.SessionPhase.IDLE
 		return false
 	await _attach_state_to_fresh_farm(state)
 	_gsm.last_active_slot = slot
+	_gsm.phase = SessionLifecycle.SessionPhase.RUNNING
 	return true
 
 
 func load_and_apply_path(save_path: String) -> bool:
 	if _gsm.active_farm:
+		_gsm.phase = SessionLifecycle.SessionPhase.BOOTING
 		var state_pre := load_game_state_by_path(save_path)
 		if not state_pre:
+			_gsm.phase = SessionLifecycle.SessionPhase.IDLE
 			return false
 		await _gsm.session_lifecycle.shutdown_session(true, false)
 		await _attach_state_to_fresh_farm(state_pre)
+		_gsm.phase = SessionLifecycle.SessionPhase.RUNNING
 		return true
 
+	_gsm.phase = SessionLifecycle.SessionPhase.BOOTING
 	var state = load_game_state_by_path(save_path)
 	if not state:
+		_gsm.phase = SessionLifecycle.SessionPhase.IDLE
 		return false
 	await _attach_state_to_fresh_farm(state)
+	_gsm.phase = SessionLifecycle.SessionPhase.RUNNING
 	return true
 
 
@@ -175,10 +193,25 @@ func _attach_state_to_fresh_farm(state: GameState) -> void:
 	# restore (bath await + ρ + viz_cache), THEN return so the caller's
 	# `bool` reflects actual readiness instead of "we kicked off the work."
 	# Mid-session loads with an existing farm go through boot_core above.
+	if _verbose and state and state.known_icons is Array:
+		_verbose.info("save", "📖", "Loaded save signature has %d known icon(s)" % state.known_icons.size())
 	_gsm.active_farm = _gsm.session_lifecycle.create_farm()
 	_gsm.current_state = state
 	_gsm.current_scenario_id = state.scenario_id
+	await _gsm.session_lifecycle.await_farm_ready(_gsm.active_farm)
+	var tree = Engine.get_main_loop() if Engine.get_main_loop() is SceneTree else null
+	var boot_mgr = tree.root.get_node_or_null("/root/BootManager") if tree and tree.root else null
+	if boot_mgr and boot_mgr.has_method("boot_initial_biomes"):
+		var biome_boot = await boot_mgr.boot_initial_biomes(_gsm.active_farm, state)
+		if not bool(biome_boot.get("success", false)):
+			push_warning("SaveLoadCoordinator: initial biome boot failed during load: %s" % biome_boot.get("message", "unknown error"))
+		elif _gsm.active_farm and _gsm.active_farm.has_method("finalize_initial_biome_boot"):
+			_gsm.active_farm.finalize_initial_biome_boot()
 	await _gsm._apply_loaded_state_deferred(state)
+	if _gsm.active_farm and _gsm.active_farm.has_method("set_known_icons") and state.known_icons is Array:
+		_gsm.active_farm.set_known_icons(state.known_icons)
+	if _gsm.active_farm and "active_icon_slots" in _gsm.active_farm and state.active_icon_slots is Array:
+		_gsm.active_farm.active_icon_slots = (state.active_icon_slots as Array).duplicate()
 
 
 func find_best_save_slot() -> int:

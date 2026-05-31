@@ -4,10 +4,6 @@ extends SceneTree
 ## Focus: SR⊗QR boat tension, QR⊗Harbor control surface, SR⊗Harbor evasion
 ## Run: godot --headless --quit --script tests/harbor_cluster_lab.gd
 
-const BiomeBuilder = preload("res://Core/Biomes/BiomeBuilder.gd")
-const BiomeRegistry = preload("res://Core/Biomes/BiomeRegistry.gd")
-const FactionDensityMatrix = preload("res://Core/Factions/FactionDensityMatrix.gd")
-const MarketLattice = preload("res://Core/Markets/MarketLattice.gd")
 
 const SIM_SECONDS: float = 20.0
 const STEP_SECONDS: float = 0.5

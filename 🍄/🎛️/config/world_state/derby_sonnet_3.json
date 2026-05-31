@@ -6,6 +6,6 @@
   "resources": {"👥": 85, "🌾": 20, "🍞": 250, "❄️": 180, "🌱": 10, "⚙": 15, "🔥": 5},
   "unlocked_biomes": ["Village", "ArcticShelf"],
   "active_biome": "Village",
-  "known_pairs": [{"north": "❄️", "south": "🍞"}],
+  "known_icons": [{"north": "❄️", "south": "🍞"}],
   "strict_biome_economy": true
 }

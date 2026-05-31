@@ -47,13 +47,13 @@ static func make_predicate_edge(from_id: String, to_id: String):
 	return e
 
 
-static func make_action_edge(from_id: String, to_id: String, signature: Dictionary, condition: Dictionary = {}):
+static func make_action_edge(from_id: String, to_id: String, signature: Dictionary, cond: Dictionary = {}):
 	var e = load("res://Core/Story/StoryEdge.gd").new()
 	e.kind = KIND_ACTION
 	e.from_node = from_id
 	e.to_node = to_id
 	e.action_signature = signature.duplicate(true)
-	e.condition = condition.duplicate(true)
+	e.condition = cond.duplicate(true)
 	var sig_tag = "%s/%s" % [str(signature.get("hat", "")), str(signature.get("verb", ""))]
 	e.id = "%s━[%s]→%s" % [from_id, sig_tag, to_id]
 	return e

@@ -9,8 +9,9 @@ without patching core game code first.
 
 Cross-Reference
 ---------------
+- 🗺️ Full architecture & data flow: `🍄/🗺️_ARCHITECTURE.md`  ← START HERE
 - Repo-wide operational memory: `MEMORY.md`
-- Use `MEMORY.md` for release/build notes and the high-level `🍄` folder map.
+- Biome/faction physics work: `BIOME_AGENTS.md`
 - Use this file for the lane-local quick start and artifact rules.
 
 Quick Start (2 minutes)
@@ -34,7 +35,7 @@ Core Paths
 - Milk hunt entry: `🍄/🎛️/🥛🏃.sh`
 - Runner implementation: `🍄/🎛️/milk_hunt_runner.py`
 - Runner policy graphs: `Core/Config/PolicyGraph/`
-- Runner policy projector: `Core/AI/PolicyStateProjector.gd`
+- Runner policy runtime helpers: `🍄/🎛️/policy_graph_runtime.py`
 - Save/profile seeding: `🍄/🎛️/milk_hunt_seed_save.py`
 - Shared world-state configs: `🍄/🎛️/config/world_state/`
 - Shared strategy configs: `🍄/🎛️/config/strategy/`
@@ -42,7 +43,7 @@ Core Paths
 
 How This Connects To Main Game
 ------------------------------
-- Headless actions route through `Tests/rig_listener.gd`.
+- Headless actions route through `Rig/rig_listener.gd`.
 - Game state ownership remains in the core game save/load systems.
 - Profiles/scenarios should be represented as save state inputs, not ad-hoc patches.
 

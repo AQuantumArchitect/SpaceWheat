@@ -1,16 +1,12 @@
 class_name EntanglementManager
 extends RefCounted
 
-const GridSentinel = preload("res://Core/GameState/GridSentinel.gd")
 
 ## EntanglementManager - Multi-qubit entanglement and quantum operations
 ##
 ## Extracted from FarmGrid.gd as part of decomposition.
 ## Handles entanglement creation/removal, cluster management, and auto-infrastructure.
 
-const EntangledPair = preload("res://Core/QuantumSubstrate/EntangledPair.gd")
-const EntangledCluster = preload("res://Core/QuantumSubstrate/EntangledCluster.gd")
-const QuantumGateLibrary = preload("res://Core/QuantumSubstrate/QuantumGateLibrary.gd")
 
 # Signals
 signal entanglement_created(from: Vector2i, to: Vector2i)
@@ -27,13 +23,13 @@ var _verbose = null
 
 
 func set_dependencies(plot_manager, biome_routing) -> void:
-	"""Inject component dependencies."""
+	# Inject component dependencies.
 	_plot_manager = plot_manager
 	_biome_routing = biome_routing
 
 
 func set_verbose(verbose_ref) -> void:
-	"""Set verbose logger reference."""
+	# Set verbose logger reference.
 	_verbose = verbose_ref
 
 
@@ -42,20 +38,19 @@ func set_verbose(verbose_ref) -> void:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 func create_entanglement(pos_a: Vector2i, pos_b: Vector2i, bell_type: String = "phi_plus") -> bool:
-	"""Create entanglement between two plots (PLOT INFRASTRUCTURE MODEL)
+	# Create entanglement between two plots (PLOT INFRASTRUCTURE MODEL)
 
-	NEW: Entanglement is plot-level infrastructure (like gates)
-	- Plots remember entanglement links even after harvest/replant
-	- When planting in an entangled plot, quantum states auto-entangle
+	# NEW: Entanglement is plot-level infrastructure (like gates)
+	# - Plots remember entanglement links even after harvest/replant
+	# - When planting in an entangled plot, quantum states auto-entangle
 
-	Args:
-		pos_a: Position of first plot
-		pos_b: Position of second plot
-		bell_type: Type of Bell state (used when both plots are planted)
+	# Args:
+	# pos_a: Position of first plot
+	# pos_b: Position of second plot
+	# bell_type: Type of Bell state (used when both plots are planted)
 
-	Returns:
-		true if entanglement infrastructure created successfully
-	"""
+	# Returns:
+	# true if entanglement infrastructure created successfully
 	if not _plot_manager.is_valid_position(pos_a) or not _plot_manager.is_valid_position(pos_b):
 		return false
 
@@ -124,20 +119,19 @@ func create_entanglement(pos_a: Vector2i, pos_b: Vector2i, bell_type: String = "
 
 
 func create_triplet_entanglement(pos_a: Vector2i, pos_b: Vector2i, pos_c: Vector2i) -> bool:
-	"""Create triple entanglement (3-qubit Bell state) for kitchen measurement
+	# Create triple entanglement (3-qubit Bell state) for kitchen measurement
 
-	This marks three plots as a potential kitchen measurement target.
-	The spatial arrangement of the plots determines the Bell state type:
-	- Horizontal/Vertical/Diagonal → GHZ state
-	- L-shape → W state
-	- T-shape → Cluster state
+	# This marks three plots as a potential kitchen measurement target.
+	# The spatial arrangement of the plots determines the Bell state type:
+	# - Horizontal/Vertical/Diagonal → GHZ state
+	# - L-shape → W state
+	# - T-shape → Cluster state
 
-	Args:
-		pos_a, pos_b, pos_c: Positions of the three plots
+	# Args:
+	# pos_a, pos_b, pos_c: Positions of the three plots
 
-	Returns:
-		true if triplet entanglement infrastructure created successfully
-	"""
+	# Returns:
+	# true if triplet entanglement infrastructure created successfully
 	if not _plot_manager.is_valid_position(pos_a) or not _plot_manager.is_valid_position(pos_b) or not _plot_manager.is_valid_position(pos_c):
 		return false
 
@@ -184,7 +178,7 @@ func create_triplet_entanglement(pos_a: Vector2i, pos_b: Vector2i, pos_c: Vector
 
 
 func remove_entanglement(pos_a: Vector2i, pos_b: Vector2i) -> void:
-	"""Remove entanglement between two plots"""
+	# Remove entanglement between two plots
 	var plot_a = _plot_manager.get_plot(pos_a)
 	var plot_b = _plot_manager.get_plot(pos_b)
 
@@ -209,7 +203,7 @@ func remove_entanglement(pos_a: Vector2i, pos_b: Vector2i) -> void:
 
 
 func are_plots_entangled(pos_a: Vector2i, pos_b: Vector2i) -> bool:
-	"""Check if two plots are entangled"""
+	# Check if two plots are entangled
 	var plot_a = _plot_manager.get_plot(pos_a)
 	var plot_b = _plot_manager.get_plot(pos_b)
 
@@ -224,7 +218,7 @@ func are_plots_entangled(pos_a: Vector2i, pos_b: Vector2i) -> bool:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 func _create_quantum_entanglement(pos_a: Vector2i, pos_b: Vector2i, _bell_type: String = "phi_plus") -> bool:
-	"""Create quantum state entanglement (internal helper) - Model C: apply CNOT gate"""
+	# Create quantum state entanglement (internal helper) - Model C: apply CNOT gate
 	var plot_a = _plot_manager.get_plot(pos_a)
 	var plot_b = _plot_manager.get_plot(pos_b)
 
@@ -285,7 +279,7 @@ func _create_quantum_entanglement(pos_a: Vector2i, pos_b: Vector2i, _bell_type: 
 # ═══════════════════════════════════════════════════════════════════════════════
 
 func update_cluster_gameplay_connections(cluster) -> void:
-	"""Update WheatPlot.entangled_plots for all qubits in cluster (for topology)"""
+	# Update WheatPlot.entangled_plots for all qubits in cluster (for topology)
 	var plot_ids = cluster.get_all_plot_ids()
 
 	# Each plot should be connected to all others in cluster
@@ -304,11 +298,10 @@ func update_cluster_gameplay_connections(cluster) -> void:
 
 
 func handle_cluster_collapse(cluster) -> void:
-	"""Handle measurement cascade when cluster is measured.
+	# Handle measurement cascade when cluster is measured.
 
-	Model C: Clear gameplay entanglement tracking. Quantum state collapse
-	is handled by biome.quantum_computer measurement.
-	"""
+	# Model C: Clear gameplay entanglement tracking. Quantum state collapse
+	# is handled by biome.quantum_computer measurement.
 	var plot_ids = cluster.get_all_plot_ids()
 
 	for plot_id in plot_ids:
@@ -323,7 +316,7 @@ func handle_cluster_collapse(cluster) -> void:
 
 
 func clear_plot_entanglements(plot) -> void:
-	"""Clear all entanglements for a plot (called during harvest/measurement)."""
+	# Clear all entanglements for a plot (called during harvest/measurement).
 	for partner_id in plot.entangled_plots.keys():
 		var partner_pos = _plot_manager.find_plot_by_id(partner_id)
 		if partner_pos != GridSentinel.INVALID_POSITION:

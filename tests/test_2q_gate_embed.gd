@@ -3,9 +3,6 @@ extends SceneTree
 ## Minimal unit test for 2-qubit gate embedding
 ## Run: godot --headless --script tests/test_2q_gate_embed.gd
 
-const ComplexMatrix = preload("res://Core/QuantumSubstrate/ComplexMatrix.gd")
-const Complex = preload("res://Core/QuantumSubstrate/Complex.gd")
-const QuantumGateLibrary = preload("res://Core/QuantumSubstrate/QuantumGateLibrary.gd")
 
 var passed = 0
 var failed = 0
@@ -39,7 +36,7 @@ func _init():
 
 
 func test_cnot_matrix_contents():
-	"""Verify CNOT matrix has correct entries."""
+	# Verify CNOT matrix has correct entries.
 	print("\n[CNOT Matrix Contents]")
 
 	var cnot = QuantumGateLibrary.get_gate("CNOT")["matrix"]
@@ -55,7 +52,7 @@ func test_cnot_matrix_contents():
 
 
 func test_embed_2q_identity_2qubit():
-	"""Embed identity in 2-qubit system should be identity."""
+	# Embed identity in 2-qubit system should be identity.
 	print("\n[Embed Identity in 2-Qubit System]")
 
 	var I2 = ComplexMatrix.identity(4)  # 2-qubit identity
@@ -72,7 +69,7 @@ func test_embed_2q_identity_2qubit():
 
 
 func test_embed_2q_cnot_2qubit():
-	"""Embed CNOT in 2-qubit system should be CNOT itself."""
+	# Embed CNOT in 2-qubit system should be CNOT itself.
 	print("\n[Embed CNOT in 2-Qubit System]")
 
 	var cnot = QuantumGateLibrary.get_gate("CNOT")["matrix"]
@@ -89,7 +86,7 @@ func test_embed_2q_cnot_2qubit():
 
 
 func test_embed_2q_cnot_3qubit():
-	"""Embed CNOT(0,1) in 3-qubit system."""
+	# Embed CNOT(0,1) in 3-qubit system.
 	print("\n[Embed CNOT(0,1) in 3-Qubit System]")
 
 	var cnot = QuantumGateLibrary.get_gate("CNOT")["matrix"]
@@ -138,7 +135,7 @@ func test_embed_2q_cnot_3qubit():
 
 
 func test_apply_cnot_to_state():
-	"""Apply embedded CNOT to |100⟩ state, should get |110⟩."""
+	# Apply embedded CNOT to |100⟩ state, should get |110⟩.
 	print("\n[Apply CNOT to |100⟩ State]")
 
 	var cnot = QuantumGateLibrary.get_gate("CNOT")["matrix"]
@@ -163,7 +160,7 @@ func test_apply_cnot_to_state():
 
 
 func test_full_density_matrix_cnot():
-	"""Test full quantum computer workflow with CNOT."""
+	# Test full quantum computer workflow with CNOT.
 	print("\n[Full QuantumComputer CNOT Test - 3 qubits]")
 
 	var QC = load("res://Core/QuantumSubstrate/QuantumComputer.gd")
@@ -242,7 +239,7 @@ func test_full_density_matrix_cnot():
 
 
 func test_5qubit_cnot():
-	"""Test CNOT on 5-qubit system (matches StarterForestBiome size)."""
+	# Test CNOT on 5-qubit system (matches StarterForestBiome size).
 	print("\n[Full QuantumComputer CNOT Test - 5 qubits]")
 
 	var QC = load("res://Core/QuantumSubstrate/QuantumComputer.gd")
@@ -298,7 +295,7 @@ func test_5qubit_cnot():
 
 
 func test_cz_gate():
-	"""Test CZ gate: applies -1 phase when both qubits are |1⟩."""
+	# Test CZ gate: applies -1 phase when both qubits are |1⟩.
 	print("\n[CZ Gate Test]")
 
 	var QC = load("res://Core/QuantumSubstrate/QuantumComputer.gd")
@@ -352,7 +349,7 @@ func test_cz_gate():
 
 
 func test_swap_gate():
-	"""Test SWAP gate: exchanges states of two qubits."""
+	# Test SWAP gate: exchanges states of two qubits.
 	print("\n[SWAP Gate Test]")
 
 	var QC = load("res://Core/QuantumSubstrate/QuantumComputer.gd")
@@ -387,15 +384,14 @@ func test_swap_gate():
 
 
 func test_5qubit_uniform_superposition_invariance():
-	"""Test that uniform superposition is INVARIANT under X and CNOT.
+	# Test that uniform superposition is INVARIANT under X and CNOT.
 
-	PHYSICS NOTE: This is CORRECT quantum behavior!
-	- X|+⟩ = |+⟩ (Pauli X leaves |+⟩ state unchanged)
-	- CNOT on |+⟩⊗|+⟩ permutes but preserves the overall density matrix
+	# PHYSICS NOTE: This is CORRECT quantum behavior!
+	# - X|+⟩ = |+⟩ (Pauli X leaves |+⟩ state unchanged)
+	# - CNOT on |+⟩⊗|+⟩ permutes but preserves the overall density matrix
 
-	This explains why biomes starting in uniform superposition don't
-	visibly change under single-gate operations.
-	"""
+	# This explains why biomes starting in uniform superposition don't
+	# visibly change under single-gate operations.
 	print("\n[5-Qubit Uniform Superposition Invariance (Expected)]")
 
 	var QC = load("res://Core/QuantumSubstrate/QuantumComputer.gd")
@@ -458,7 +454,7 @@ func test_5qubit_uniform_superposition_invariance():
 # ============================================================================
 
 func _embed_2q_unitary(U: ComplexMatrix, idx_a: int, idx_b: int, num_qubits: int) -> ComplexMatrix:
-	"""Copy of QuantumComputer._embed_2q_unitary for direct testing."""
+	# Copy of QuantumComputer._embed_2q_unitary for direct testing.
 	var total_dim = 1 << num_qubits
 	var result = ComplexMatrix.new(total_dim)
 
@@ -493,7 +489,7 @@ func _embed_2q_unitary(U: ComplexMatrix, idx_a: int, idx_b: int, num_qubits: int
 
 
 func _decompose_basis_msb(basis: int, num_qubits: int) -> Array[int]:
-	"""Decompose basis index to qubit values (MSB convention)."""
+	# Decompose basis index to qubit values (MSB convention).
 	var qubits: Array[int] = []
 	for i in range(num_qubits):
 		var bit_pos = num_qubits - 1 - i
@@ -502,7 +498,7 @@ func _decompose_basis_msb(basis: int, num_qubits: int) -> Array[int]:
 
 
 func _snapshot(dm: ComplexMatrix) -> Array:
-	"""Copy density matrix to array."""
+	# Copy density matrix to array.
 	var snapshot = []
 	for i in range(dm.n):
 		for j in range(dm.n):

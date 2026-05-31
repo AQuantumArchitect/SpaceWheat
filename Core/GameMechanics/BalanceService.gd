@@ -6,12 +6,6 @@ extends RefCounted
 ## Ownership remains with runtime/headless systems (FarmEconomy + QuestRewards).
 ## UI overlays should call this service and never hardcode constants.
 
-const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
-const ActionIds = preload("res://Core/GameMechanics/ActionIds.gd")
-const QuestRewards = preload("res://Core/Quests/QuestRewards.gd")
-const BalanceConfig = preload("res://Core/GameMechanics/BalanceConfig.gd")
-const FarmVariableGraph = preload("res://Core/GameMechanics/FarmVariableGraph.gd")
-const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
 const ACTION_CATALOG: Array[String] = [
 	"explore",
@@ -20,12 +14,11 @@ const ACTION_CATALOG: Array[String] = [
 	"reap",
 	"discover_biome",
 	"remove_biome",
-	"inject_vocabulary",
-	"remove_vocabulary",
+	"inject_icon",
+	"remove_icon",
 	"lindblad_pump",
 	"lindblad_drain",
 	"quest_reroll",
-	"quest_lock",
 ]
 
 
@@ -251,7 +244,7 @@ static func _get_economy(farm: Node):
 static func _get_current_state(farm: Node):
 	if not farm:
 		return null
-	var gsm = InstrumentLocator.resolve_game_state_manager(farm)
+	var gsm = (Engine.get_main_loop().root.get_node_or_null("/root/GameStateManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 	if not gsm:
 		return null
 	if not ("current_state" in gsm):

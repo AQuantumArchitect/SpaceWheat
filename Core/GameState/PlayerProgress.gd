@@ -4,16 +4,12 @@ extends Node
 ## PlayerProgress — owns persistent player state for GameStateManager.
 ##
 ## Held as a child Node on the GameStateManager autoload. Custodian of:
-##   - discover_pair flow + faction-unlock detection
+##   - discover_icon flow + faction-unlock detection
 ##   - milk autosave (first 🍼 discovery autosaves to a dedicated slot)
 ##
-## Signals emoji_discovered / pair_discovered / factions_unlocked live on GSM
+## Signals emoji_discovered / icon_discovered / factions_unlocked live on GSM
 ## (forwarded) so existing listeners don't break.
 
-const FactionDatabase = preload("res://Core/Quests/FactionDatabase.gd")
-const SaveStore = preload("res://Core/GameState/SaveStore.gd")
-const GameState = preload("res://Core/GameState/GameState.gd")
-const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
 const MILK_EMOJI := "🍼"
 const MILK_AUTOSAVE_SLOT := 2
@@ -28,44 +24,37 @@ func _init(gsm: Node = null, verbose = null) -> void:
 	name = "PlayerProgress"
 
 
-func discover_pair(north: String, south: String) -> void:
+func discover_icon(north: String, south: String) -> void:
 	# Player learns a icon (plantable qubit axis). Forwards to the active
 	# Farm (canonical icon owner) and emits unlock signals via GSM.
 	var old_emojis = get_signature_emojis()
 
 	var farm = _gsm.get_active_farm()
 	var added = false
-	if farm and farm.has_method("discover_pair"):
-		added = farm.discover_pair(north, south)
+	if farm and farm.has_method("discover_icon"):
+		added = farm.discover_icon(north, south)
 	elif _gsm.current_state:
-		for pair in _gsm.current_state.known_pairs:
-			if pair.get("north") == north and pair.get("south") == south:
+		for icon in _gsm.current_state.known_icons:
+			if icon.get("north") == north and icon.get("south") == south:
 				return
-		_gsm.current_state.known_pairs.append({"north": north, "south": south})
+		_gsm.current_state.known_icons.append({"north": north, "south": south})
 		added = true
 
 	if not added:
 		return
 
-	if north not in old_emojis:
-		_gsm.emoji_discovered.emit(north)
-	if south not in old_emojis:
-		_gsm.emoji_discovered.emit(south)
-
-	_gsm.pair_discovered.emit(north, south)
 	if _verbose:
-		var pair_count = get_signature_icons().size()
-		_verbose.info("quest", "📖", "Discovered pair: %s/%s (signature: %d pairs)" % [north, south, pair_count])
+		var icon_count = get_signature_icons().size()
+		_verbose.info("quest", "📖", "Discovered icon: %s/%s (signature: %d icons)" % [north, south, icon_count])
 
 	if _gsm.current_state:
-		_gsm.current_state.known_pairs = get_signature_icons()
+		_gsm.current_state.known_icons = get_signature_icons()
 
 	var new_emojis = get_signature_emojis()
 	for emoji in [north, south]:
 		if emoji not in old_emojis:
 			var newly_accessible = check_newly_accessible_factions(emoji, old_emojis, new_emojis)
 			if newly_accessible.size() > 0:
-				_gsm.factions_unlocked.emit(newly_accessible)
 				if _verbose:
 					_verbose.info("quest", "🔓", "Unlocked %d new faction(s)!" % newly_accessible.size())
 					for faction in newly_accessible:
@@ -103,7 +92,7 @@ func handle_milk_autosave(north: String, south: String) -> void:
 		_verbose.warn("save", "🥛", "Milk icon autosave file failed: %s" % milk_path)
 
 
-func check_newly_accessible_factions(new_emoji: String, old_emojis: Array, new_emojis: Array) -> Array:
+func check_newly_accessible_factions(_new_emoji: String, old_emojis: Array, new_emojis: Array) -> Array:
 	var newly_accessible = []
 	for faction in FactionDatabase.get_all():
 		var faction_vocab = FactionDatabase.get_faction_vocabulary(faction)
@@ -127,17 +116,17 @@ func get_accessible_factions() -> Array:
 
 func get_signature_icons() -> Array:
 	var farm = _gsm.get_active_farm()
-	if farm and farm.has_method("get_known_pairs"):
-		return farm.get_known_pairs()
+	if farm and farm.has_method("get_known_icons"):
+		return farm.get_known_icons()
 	if _gsm.current_state:
-		return _gsm.current_state.known_pairs.duplicate(true)
+		return _gsm.current_state.known_icons.duplicate(true)
 	return []
 
 
 func get_signature_emojis() -> Array:
 	var farm = _gsm.get_active_farm()
-	if farm and farm.has_method("get_known_pairs"):
-		return GameState.derive_known_emojis_from_pairs(farm.get_known_pairs())
+	if farm and farm.has_method("get_known_icons"):
+		return GameState.derive_known_emojis_from_icons(farm.get_known_icons())
 	if _gsm.current_state:
-		return GameState.derive_known_emojis_from_pairs(_gsm.current_state.known_pairs)
+		return GameState.derive_known_emojis_from_icons(_gsm.current_state.known_icons)
 	return []

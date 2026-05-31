@@ -17,14 +17,6 @@ extends RefCounted
 ##   - External pump (sun) replenishes drained population over time
 ##   - Creates sustainable farming loop: grow → harvest → regrow
 
-const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
-const ActionCostRuntime = preload("res://Core/GameMechanics/ActionCostRuntime.gd")
-const VerboseHelper = preload("res://Core/Config/VerboseHelper.gd")
-const BalanceService = preload("res://Core/GameMechanics/BalanceService.gd")
-const GameState = preload("res://Core/GameState/GameState.gd")
-const FactionAffinity = preload("res://Core/Factions/FactionAffinity.gd")
-const PhysicsCostScaling = preload("res://Core/GameMechanics/PhysicsCostScaling.gd")
-const HamiltonianConfig = preload("res://Core/Config/HamiltonianConfig.gd")
 
 
 ## ============================================================================
@@ -138,7 +130,7 @@ static func action_explore(terminal_pool, biome, economy = null, register_id: in
 		}
 
 	# 7. Probability-at-binding — no longer drives selection, but reported for
-	#    telemetry/UI and kept as `probability` in the result for compatibility.
+	#    telemetry/UI and kept as `probability` in the result.
 	var probability = 0.0
 	if biome.has_method("get_register_probability"):
 		probability = float(biome.get_register_probability(resolved_register))
@@ -270,7 +262,7 @@ static func action_measure(terminal, biome, economy = null, farm = null) -> Dict
 	#    pole's population. Coherences decay as √(1-η) (Lindblad T₂ relationship).
 	var was_entangled = _check_entanglement(register_id, biome)
 	var drain_eta = _resolve_drain_fraction(biome, measured_purity, farm)
-	var drain_success = _drain_register(biome, register_id, is_north, drain_eta)
+	var _drain_success = _drain_register(biome, register_id, is_north, drain_eta)
 
 	# 5. Mark terminal as measured and free the register.
 	_finalize_measurement_terminal(terminal, outcome, recorded_probability, snapshot)
@@ -344,7 +336,7 @@ static func _drain_register(biome, register_id: int, is_north: bool, eta: float)
 	return true
 
 
-static func _resolve_drain_fraction(biome, purity: float, farm = null) -> float:
+static func _resolve_drain_fraction(_biome, purity: float, farm = null) -> float:
 	# Compute measurement drain fraction η = base_drain × purity.
 
 	# Pure states (purity≈1) yield full base drain — more extractable, more fragile.
@@ -484,11 +476,12 @@ static func _resolve_pop_reward_context(terminal, farm = null) -> Dictionary:
 		bloch_r = clampf(float(biome.viz_cache.get_bloch(register_id).get("r", 0.5)), 0.0, 1.0)
 
 	var affinity = FactionAffinity.get_affinity(resource, farm)
-	var purity_q = 0.5 * (1.0 + bloch_r * bloch_r)
-	var p_clipped = clampf(p_emoji, HamiltonianConfig.P_MIN, 1.0 - HamiltonianConfig.P_MIN)
-	var reward_quantum = round(1.0 / p_clipped)
-	var credits = reward_quantum * HamiltonianConfig.QUANTUM_CLASSICAL_RATIO
-	var resource_amount = maxi(int(credits), 1)
+	# Boltzmann scarcity: reward = surprisal energy E = −kT·log p (EnergyPricing).
+	# Rare outcome → bigger reward, bounded and smooth (no 1/p singularity).
+	var kT = EnergyPricing.biome_temperature(biome, farm)
+	var reward_quantum = round(EnergyPricing.surprisal_energy(p_emoji, kT))
+	var affinity_bonus = 1.0 + HamiltonianConfig.AFFINITY_REWARD_MAX * affinity
+	var resource_amount = maxi(int(reward_quantum * affinity_bonus), 1)
 
 	return {
 		"biome": biome,
@@ -500,9 +493,8 @@ static func _resolve_pop_reward_context(terminal, farm = null) -> Dictionary:
 		"p_emoji": p_emoji,
 		"bloch_r": bloch_r,
 		"affinity": affinity,
-		"purity_q": purity_q,
 		"reward_quantum": reward_quantum,
-		"credits": credits,
+		"credits": reward_quantum,  # kT is the anchor now; no separate QC conversion
 		"resource_amount": resource_amount
 	}
 
@@ -520,7 +512,7 @@ static func _advance_reap_cycles(farm, active_biomes: Array, reap_cycles: int) -
 	return _manual_fast_forward_biomes(active_biomes, reap_cycles)
 
 
-static func _collect_reap_rewards(active_biomes: Array, economy, flux_to_credits: float, reap_base_yield: float, known_emojis: Array) -> Dictionary:
+static func _collect_reap_rewards(active_biomes: Array, economy, farm, flux_to_credits: float) -> Dictionary:
 	var flux_totals: Dictionary = {}
 	var icon_totals: Dictionary = {}
 	var total_flux_credits = 0
@@ -545,24 +537,43 @@ static func _collect_reap_rewards(active_biomes: Array, economy, flux_to_credits
 		if qc.has_method("reset_sink_flux"):
 			qc.reset_sink_flux()
 
-		var mass_map = _resolve_mass_map_for_biome(biome)
-		var by_emoji: Dictionary = mass_map.get("by_emoji", {})
-		var total_mass = float(mass_map.get("total", 0.0))
-		if total_mass <= 0.0:
+		# Entropy bank: total extractable energy this reap = kT·S(biome). The
+		# biome's von Neumann entropy IS its bank balance — you cannot extract more
+		# than the disorder it holds. Distribute the budget across emojis by
+		# surprisal energy density (rare populations are worth more), then drain the
+		# reaped poles so S falls. The sun-pump refills S between reaps.
+		var S: float = qc.get_entropy()
+		var kT: float = EnergyPricing.biome_temperature(biome, farm)
+		var budget: float = kT * S
+		if budget <= 0.0:
 			continue
-		for emoji in by_emoji.keys():
-			var mass = float(by_emoji.get(emoji, 0.0))
-			if mass <= 0.0:
-				continue
-			var mass_fraction = mass / total_mass
-			var purity = _resolve_emoji_purity(biome, emoji)
-			var purity_bonus = (1.0 + purity) if emoji in known_emojis else purity
-			var credits = int(mass_fraction * reap_base_yield * purity_bonus)
+		var pops: Dictionary = qc.get_all_populations() if qc.has_method("get_all_populations") else {}
+		var weights: Dictionary = {}
+		var wsum: float = 0.0
+		for emoji in pops.keys():
+			var p: float = clampf(float(pops[emoji]), 0.0, 1.0)
+			var w: float = EnergyPricing.surprisal_energy(p, kT) * p  # energy density
+			if w > 0.0:
+				weights[emoji] = w
+				wsum += w
+		if wsum <= 0.0:
+			continue
+		var paid_here: int = 0
+		for emoji in weights.keys():
+			var share: float = float(weights[emoji]) / wsum
+			var credits: int = int(round(budget * share))
 			if credits <= 0:
 				continue
-			economy.add_resource(emoji, credits, "reap_iconmap")
+			economy.add_resource(emoji, credits, "reap_entropy")
 			icon_totals[emoji] = icon_totals.get(emoji, 0) + credits
 			total_icon_credits += credits
+			paid_here += credits
+			# Spend the bank: drain the reaped pole so populations concentrate and S drops.
+			if qc.has(emoji):
+				var eta: float = clampf(share, 0.0, HamiltonianConfig.ETA_HARD_CAP)
+				qc.drain_qubit(qc.qubit(emoji), qc.pole(emoji), eta)
+		_log("info", "🌾", "🌾", "Reap bank %s: kT·S=%.1f paid=%d (S=%.3f)" % [
+			biome.get_biome_type() if biome.has_method("get_biome_type") else "?", budget, paid_here, S])
 
 	return {
 		"flux_totals": flux_totals,
@@ -636,10 +647,7 @@ static func action_reap(farm, economy = null) -> Dictionary:
 	var fast_forward_result = _advance_reap_cycles(farm, active_biomes, reap_cycles)
 
 	var flux_to_credits = float(BalanceService.get_tuning_value(farm, "flux_to_credits", 1.0))
-	var reap_base_yield = float(BalanceService.get_tuning_value(farm, "reap_base_yield", 50.0))
-	var known_pairs: Array = farm.get_known_pairs() if farm and farm.has_method("get_known_pairs") else []
-	var known_emojis: Array = GameState.derive_known_emojis_from_pairs(known_pairs)
-	var reap_result = _collect_reap_rewards(active_biomes, economy, flux_to_credits, reap_base_yield, known_emojis)
+	var reap_result = _collect_reap_rewards(active_biomes, economy, farm, flux_to_credits)
 	var flux_totals: Dictionary = reap_result.get("flux_totals", {})
 	var icon_totals: Dictionary = reap_result.get("icon_totals", {})
 	var total_flux_credits = int(reap_result.get("total_flux_credits", 0))
@@ -721,7 +729,6 @@ static func _prepare_pop_result(terminal, terminal_pool, economy = null, farm = 
 	var p_emoji = float(reward_ctx.get("p_emoji", 0.0))
 	var bloch_r = float(reward_ctx.get("bloch_r", 0.5))
 	var affinity = float(reward_ctx.get("affinity", 0.0))
-	var purity_q = float(reward_ctx.get("purity_q", 0.5))
 	var reward_quantum = int(reward_ctx.get("reward_quantum", 1))
 	var credits = int(reward_ctx.get("credits", 1))
 	var resource_amount = maxi(int(reward_ctx.get("resource_amount", credits)), 1)
@@ -751,7 +758,6 @@ static func _prepare_pop_result(terminal, terminal_pool, economy = null, farm = 
 		"recorded_probability": recorded_prob,
 		"p_emoji": p_emoji,
 		"bloch_r": bloch_r,
-		"purity_q": purity_q,
 		"affinity": affinity,
 		"reward_quantum": reward_quantum,
 		"credits": credits,

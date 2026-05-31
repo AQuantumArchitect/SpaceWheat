@@ -4,8 +4,6 @@ extends RefCounted
 ## Serializes quantum operators (ComplexMatrix) to/from Dictionary
 ## Used by OperatorCache to save/load cached operators
 
-const Complex = preload("res://Core/QuantumSubstrate/Complex.gd")
-const ComplexMatrix = preload("res://Core/QuantumSubstrate/ComplexMatrix.gd")
 
 ## Convert ComplexMatrix to saveable Dictionary
 static func serialize_matrix(matrix: ComplexMatrix) -> Dictionary:

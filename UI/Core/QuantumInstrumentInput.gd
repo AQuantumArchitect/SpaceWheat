@@ -19,15 +19,14 @@ extends Node
 ##   T Y U I O P   = Biome selection (6 spindle slots — direct-pick)
 ##   G H J K L ;   = Homerow plot selection (up to 6 plots — direct-pick)
 ##
-##   W/S = move WASD cursor layer: W=up (toward frame row), S=down (toward plot row)
-##   A/D = step within current layer: frame→cycle hat, biome→cycle biome, plot→cycle plot
+##   W/S = move WASD cursor layer: W=up (toward surface row), S=down (toward plot row)
+##   A/D = step within current layer: surface→cycle overlay, frame→cycle hat, biome→cycle biome, plot→cycle plot
 ##
 ##   Q/E/R/F = the primary action quartet.
 ##   Q = screw-out: less / remove / retreat
 ##   E = pause + inspect + expand (also fires frame-defined inspect verb if present)
 ##   R = screw-in: more / add / advance
-##   F = play + flatten (also fires frame-defined F verb when one is declared;
-##       Spark uses this as an overload: F sparks south AND unpauses)
+##   F = play + flatten (also fires frame-defined F verb when one is declared)
 ##
 ##   - = Decrease stride and sim speed together
 ##   = = Increase stride and sim speed together
@@ -36,20 +35,13 @@ extends Node
 
 # Preloads
 const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
-const InputBindingRegistry = preload("res://UI/Core/InputBindingRegistry.gd")
-const GridSentinel = preload("res://Core/GameState/GridSentinel.gd")
-const ActionValidator = preload("res://UI/Core/ActionValidator.gd")
 const GranularityController = preload("res://Core/Utilities/GranularityController.gd")
-const GateSelectionSubmenu = preload("res://UI/Core/Submenus/GateSelectionSubmenu.gd")
-const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
-const ChipResolverRegistry = preload("res://Core/UI/ChipResolverRegistry.gd")
-const ChipContext = preload("res://Core/UI/ChipContext.gd")
 
 # Access autoloads safely
-@onready var _verbose = InstrumentLocator.resolve_verbose_config(self)
-@onready var _observation_frame = InstrumentLocator.resolve_observation_frame(self)
-@onready var _chain_tracker = InstrumentLocator.resolve_action_chain_tracker(self)
-@onready var _active_biome_mgr = InstrumentLocator.resolve_active_biome_manager(self)
+@onready var _verbose = get_node_or_null("/root/VerboseConfig")
+@onready var _observation_frame = get_node_or_null("/root/ObservationFrame")
+@onready var _chain_tracker = get_node_or_null("/root/ActionChainTracker")
+@onready var _active_biome_mgr = get_node_or_null("/root/ActiveBiomeManager")
 
 # Instrument reference (game mechanics API, injected by BootManager)
 var _instrument  # QuantumInstrument
@@ -64,14 +56,7 @@ var current_selection: Dictionary = {"plot_idx": -1, "biome": "", "subspace_idx"
 var _current_submenu: Dictionary = {}  # Local UI cache for signal emission
 var _in_submenu: bool = false  # Local UI cache for signal emission
 var _submenu_page: int = 0  # Local UI cache for signal emission
-
-## WASD cursor layer on the selection cylinder:
-##   0 = frame hat ring (4-0)
-##   1 = biome ring   (TYUIOP)
-##   2 = plot ring    (GHJKL;)
-##   3 = surface ring (ZXCVBNM)
-## W/S rotates between rings (wraps); A/D steps around the active ring.
-var cursor_layer: int = 2
+var _confirm_pending: Dictionary = {}  # {action, emoji, label} — awaiting QF confirm
 
 # Signals
 signal action_performed(action: String, result: Dictionary)
@@ -82,9 +67,8 @@ signal frame_changed(frame: String)
 signal frame_mode_changed(frame: String, mode_index: int, mode_label: String)
 signal submenu_changed(submenu_name: String, submenu_actions: Dictionary)
 signal plot_checked(grid_pos: Vector2i, is_checked: bool)  # Multi-select checkbox toggled
-## Cylinder bottom-ring step. Emitted when A/D fires on cursor_layer=3
-## (the ZXCVBNM surface ring). PlayerShell listens and dispatches to
-## _cycle_menu_overlay (existing surface-cycle logic).
+## Cylinder outer-ring step. Emitted when A/D fires on layer=0 (ZXCVBNM surface ring).
+## PlayerShell listens and dispatches to _cycle_menu_overlay.
 signal surface_ring_step_requested(delta: int)
 
 # Actions that modify density matrix at phrame 0 (require buffer invalidation)
@@ -97,8 +81,8 @@ const BUFFER_INVALIDATING_ACTIONS: Array[String] = [
 	"drain", "transfer", "pump",
 	# Operator frame: entangling gates
 	"measure", "build_gate", "remove_gates",
-# Icon frame: vocabulary injection/removal (adds/removes qubits via icon assignment)
-	"inject_vocabulary", "remove_vocabulary"
+# Icon frame: icon injection/removal (adds/removes qubits via icon assignment)
+	"inject_icon", "remove_icon"
 ]
 
 
@@ -166,6 +150,10 @@ func _unhandled_key_input(event: InputEvent) -> void:
 
 	var key = _keycode_to_string(event.keycode)
 
+	# Any key other than F cancels a pending confirm-chord.
+	if not _confirm_pending.is_empty() and key != "F":
+		_confirm_pending = {}
+
 	# Auto-close submenu when any non-action key is pressed
 	if _instrument.is_in_submenu() and key not in ["Q", "E", "R", "F"]:
 		_close_submenu()
@@ -209,6 +197,13 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 
+	# Apostrophe: bulk select / clear toggle on the active biome's plots.
+	# Empty selection → check every register; non-empty → clear all checks.
+	if key == "'":
+		_toggle_bulk_check_active_biome()
+		get_viewport().set_input_as_handled()
+		return
+
 	# Action keys
 	match key:
 		"Q", "E", "R":
@@ -221,11 +216,13 @@ func _unhandled_key_input(event: InputEvent) -> void:
 					_perform_action(key)
 			get_viewport().set_input_as_handled()
 		"F":
-			# F = "drill out / cancel pending" (keyboard-grammar refactor).
-			# Mode cycling moved to Tab + direct keys 1/2/3; F now closes any
-			# open submenu/picker, otherwise dispatches a frame-defined F verb
-			# if one exists, otherwise no-op.
-			if _instrument.is_in_submenu():
+			# F = confirm a pending QF destructive action, or close submenu,
+			# or dispatch a frame-defined F verb if one exists.
+			if not _confirm_pending.is_empty():
+				var pending := _confirm_pending.duplicate()
+				_confirm_pending = {}
+				_run_action(pending["action"], pending.get("emoji", ""), pending.get("label", ""))
+			elif _instrument.is_in_submenu():
 				_close_submenu()
 			else:
 				var f_action = ToolConfig.get_action(ToolConfig.get_current_frame(), "F")
@@ -307,7 +304,9 @@ func _handle_subspace_row_input(event: InputEvent) -> bool:
 
 func _select_frame_hat(frame_name: String) -> void:
 	# Select an archetype frame (hat row 4-0). Empty string = Ace.
-	ToolConfig.select_frame(frame_name)
+	if not ToolConfig.select_frame(frame_name):
+		_verbose.warn("input", "⚠️", "Ignored invalid frame selection '%s'" % frame_name)
+		return
 	frame_changed.emit(frame_name)
 
 	if frame_name == ToolConfig.FRAME_NULL:
@@ -350,12 +349,12 @@ func _on_mode_changed(frame_name: String, mode_index: int) -> void:
 func _build_context_dict() -> Dictionary:
 	# Build context dictionary for headless state operations.
 	var biome = _get_current_biome()
-	var position = _instrument.last_selected_position
+	var grid_pos = _instrument.last_selected_position
 
 	return {
 		"farm": farm,
 		"biome": biome,
-		"position": position,
+		"position": grid_pos,
 		"economy": farm.economy if farm else null,
 		"selection": _instrument.checked_plots  # Use headless state
 	}
@@ -513,12 +512,12 @@ func _handle_submenu_action(action_key: String) -> void:
 	var action = action_data.get("action", "")
 
 	# Handle icon_injection submenu actions
-	if action == "inject_vocabulary":
+	if action == "inject_icon":
 		var icon = action_data.get("icon", {})
 		var label = action_data.get("label", "")
 		if not icon.is_empty():
 			_verbose.info("input", "📋", "You selected: %s - injecting..." % label)
-			_execute_inject_vocabulary(icon)
+			_execute_inject_icon(icon)
 
 	# Handle gate_selection submenu actions
 	elif action == "build_gate":
@@ -531,7 +530,7 @@ func _handle_submenu_action(action_key: String) -> void:
 	_close_submenu()
 
 
-func _execute_inject_vocabulary(icon: Dictionary) -> void:
+func _execute_inject_icon(icon: Dictionary) -> void:
 	# Execute signature injection with user-selected pair.
 
 	# Args:
@@ -540,7 +539,7 @@ func _execute_inject_vocabulary(icon: Dictionary) -> void:
 	if not biome:
 		_verbose.warn("input", "+", "No biome for icon injection")
 		return
-	var result = MacroActions.dispatch(_instrument, MacroActions.KIND_INJECT_VOCABULARY_PAIR, {
+	var result = MacroActions.dispatch(_instrument, MacroActions.KIND_INJECT_ICON_PAIR, {
 		"biome_name": biome.get_biome_type(),
 		"icon": icon,
 	})
@@ -553,13 +552,13 @@ func _execute_inject_vocabulary(icon: Dictionary) -> void:
 		])
 
 		# Invalidate buffer (icon injection adds qubits, modifies density matrix)
-		_invalidate_biome_buffer_for_action("inject_vocabulary")
+		_invalidate_biome_buffer_for_action("inject_icon")
 
 		# Phase 2: notify the story substrate that the player faction's
 		# socialites engaged with these emojis.
 		_notify_story_engine([icon.get("north", ""), icon.get("south", "")], "inject")
 
-		action_performed.emit("inject_vocabulary", {
+		action_performed.emit("inject_icon", {
 			"success": true,
 			"north_emoji": icon.get("north", ""),
 			"south_emoji": icon.get("south", ""),
@@ -568,7 +567,7 @@ func _execute_inject_vocabulary(icon: Dictionary) -> void:
 		})
 	else:
 		_verbose.warn("input", "+", "Icon injection failed: %s" % result.get("message", result.get("error", "unknown")))
-		action_performed.emit("inject_vocabulary", result)
+		action_performed.emit("inject_icon", result)
 
 
 # =============================================================================
@@ -622,9 +621,9 @@ func _execute_toggle_berry_track() -> Dictionary:
 	return {"success": true, "tracking": true, "qubit": qid}
 
 
-func _execute_incorporate_vocabulary() -> Dictionary:
-	# Harvest the focused qubit's vocab pair into the player's signature.
-	# Routes through the same canonical Farm.discover_pair path as inject so
+func _execute_incorporate_icon() -> Dictionary:
+	# Harvest the focused qubit's icon into the player's signature.
+	# Routes through the same canonical Farm.discover_icon path as inject so
 	# downstream sync to GameState happens identically.
 	var biome = _get_current_biome()
 	if biome == null:
@@ -647,7 +646,7 @@ func _execute_incorporate_vocabulary() -> Dictionary:
 		return {"success": false, "error": "axis_missing_emoji"}
 	var icon = {"north": north, "south": south}
 	var biome_name = biome.get_biome_type() if biome.has_method("get_biome_type") else biome.name
-	var result = MacroActions.dispatch(_instrument, MacroActions.KIND_INJECT_VOCABULARY_PAIR, {
+	var result = MacroActions.dispatch(_instrument, MacroActions.KIND_INJECT_ICON_PAIR, {
 		"biome_name": biome_name,
 		"icon": icon,
 	})
@@ -656,7 +655,7 @@ func _execute_incorporate_vocabulary() -> Dictionary:
 		_verbose.info("input", "🧬", "Incorporated %s/%s from qubit %d" % [north, south, qid])
 		# Phase 2: trajectory + conv-H memory entry for the incorporation.
 		_notify_story_engine([north, south], "incorporate")
-		action_performed.emit("incorporate_vocabulary", {
+		action_performed.emit("incorporate_icon", {
 			"success": true,
 			"north_emoji": north,
 			"south_emoji": south,
@@ -665,7 +664,7 @@ func _execute_incorporate_vocabulary() -> Dictionary:
 		})
 	else:
 		_verbose.warn("input", "🧬", "Incorporate failed: %s" % result.get("message", result.get("error", "unknown")))
-		action_performed.emit("incorporate_vocabulary", result)
+		action_performed.emit("incorporate_icon", result)
 	return result
 
 
@@ -800,6 +799,7 @@ func _select_plot(plot_idx: int, key: String) -> void:
 		"subspace_idx": -1
 	}
 	_instrument.current_plot_idx = plot_idx
+	_instrument.last_plot_idx = plot_idx
 	_instrument.current_biome = biome_name
 	_instrument.last_selected_position = target_grid_pos
 
@@ -808,6 +808,12 @@ func _select_plot(plot_idx: int, key: String) -> void:
 	if plot_grid_display and farm and target_grid_pos.x >= 0:
 		plot_grid_display.set_selected_plot(target_grid_pos)
 		_verbose.debug("input", "~", "Visual selection: %s" % target_grid_pos)
+
+	# Auto-bind: selecting a plot surfaces its terminal (the old "Explore" verb,
+	# now folded into selection). Free and best-effort — the bind is just looking;
+	# you pay energy at Harvest (Q) / Plant (R), not to select.
+	if _instrument and target_grid_pos.x >= 0:
+		_instrument.action_explore(biome_name, target_grid_pos)
 
 	selection_changed.emit(plot_idx, biome_name)
 	_verbose.debug("input", "~", "Plot %d in %s" % [plot_idx, biome_name])
@@ -834,16 +840,24 @@ func step_active_plot(delta: int) -> void:
 	_select_plot(new_idx, key_label)
 
 
-func change_cursor_layer(delta: int) -> void:
-	# Spin the cylinder: rotate the WASD cursor between the 4 rings.
-	# W = -1 (outwards); S = +1 (inwards). Wraps via posmod — the
-	# cylinder is closed so S past the bottom ring (ZXCVBNM) returns
-	# to the outer ring (4-0), and vice versa.
-	# TODO: wire visual feedback so the player can see which ring the
-	# cursor is on (currently only a verbose log).
-	cursor_layer = posmod(cursor_layer + delta, 4)
-	var layer_name: String = (["frame", "biome", "plot", "surface"] as Array)[cursor_layer]
-	_verbose.debug("input", "~", "WASD ring → %s" % layer_name)
+## Called by PlayerShell when WASD cursor enters the plot ring (layer 3).
+## Auto-selects plot 0 if no plot is currently selected; keeps existing selection if one is set.
+func enter_plot_ring() -> void:
+	if not _instrument:
+		return
+	if int(_instrument.current_plot_idx) >= 0:
+		return
+	_select_plot(0, "enter")
+
+
+## Called by PlayerShell when WASD cursor leaves the plot ring.
+## Clears the active plot — plot selection is only valid while on the plot ring.
+func leave_plot_ring() -> void:
+	if _instrument:
+		_instrument.current_plot_idx = -1
+	current_selection["plot_idx"] = -1
+	if plot_grid_display and plot_grid_display.has_method("clear_selection"):
+		plot_grid_display.clear_selection()
 
 
 func cycle_frame_hat(delta: int) -> void:
@@ -854,17 +868,18 @@ func cycle_frame_hat(delta: int) -> void:
 	_verbose.debug("input", "~", "Frame → %s" % ToolConfig.get_current_frame())
 
 
-func step_active_layer(delta: int) -> void:
-	# A/D crawl dispatched by cursor_layer.
-	# 0 (frame)   → cycle_frame_hat              → frame_changed
-	# 1 (biome)   → cycle biome                  → biome_switched
-	# 2 (plot)    → step_active_plot             → selection_changed
-	# 3 (surface) → surface_ring_step_requested  → PlayerShell cycles the
-	#                                              top-level menu overlay
-	match cursor_layer:
+func step_active_layer(layer: int, delta: int) -> void:
+	# A/D crawl dispatched by PlayerShell's cursor_layer.
+	# 0 (surface) → surface_ring_step_requested  → PlayerShell cycles overlay
+	# 1 (frame)   → cycle_frame_hat              → frame_changed
+	# 2 (biome)   → cycle biome                  → biome_switched
+	# 3 (plot)    → step_active_plot             → selection_changed
+	match layer:
 		0:
-			cycle_frame_hat(delta)
+			surface_ring_step_requested.emit(delta)
 		1:
+			cycle_frame_hat(delta)
+		2:
 			if not _active_biome_mgr:
 				return
 			var old_biome: String = _active_biome_mgr.get_active_biome()
@@ -874,10 +889,8 @@ func step_active_layer(delta: int) -> void:
 				_active_biome_mgr.cycle_prev()
 			var new_biome: String = _active_biome_mgr.get_active_biome()
 			biome_switched.emit(old_biome, new_biome)
-		2:
-			step_active_plot(delta)
 		3:
-			surface_ring_step_requested.emit(delta)
+			step_active_plot(delta)
 
 
 ## ============================================================================
@@ -897,12 +910,12 @@ func _toggle_check_at_plot_idx(plot_idx: int) -> void:
 
 
 func toggle_check(grid_pos: Vector2i) -> void:
-	# Toggle checkmark for multi-select at given grid position.
+	# Toggle checkmark for multi-select at given grid grid_pos.
 
 	# Args:
-	# grid_pos: Grid position to toggle (Vector2i(plot_idx, biome_row))
+	# grid_pos: Grid grid_pos to toggle (Vector2i(plot_idx, biome_row))
 	if grid_pos.x < 0 or grid_pos.y < 0:
-		return  # Invalid position
+		return  # Invalid grid_pos
 
 	var was_checked = grid_pos in _instrument.checked_plots
 
@@ -925,6 +938,30 @@ func clear_all_checks() -> void:
 		plot_checked.emit(pos, false)
 	_instrument.checked_plots.clear()
 	_verbose.debug("input", "☐", "Cleared all checkmarks")
+
+
+func _toggle_bulk_check_active_biome() -> void:
+	# Apostrophe (`'`) handler: toggle bulk-check across the active biome's
+	# registers. If anything is checked → clear all. If nothing is checked
+	# → check every register.
+	if _instrument.checked_plots.size() > 0:
+		clear_all_checks()
+		return
+	if not _active_biome_mgr:
+		return
+	var biome_name: String = _active_biome_mgr.get_active_biome()
+	if biome_name == "":
+		return
+	var register_count: int = _get_active_biome_register_count()
+	for plot_idx in range(register_count):
+		var grid_pos: Vector2i = _get_grid_position_for(plot_idx, biome_name)
+		if grid_pos.x < 0:
+			continue
+		if grid_pos in _instrument.checked_plots:
+			continue
+		_instrument.checked_plots.append(grid_pos)
+		plot_checked.emit(grid_pos, true)
+	_verbose.debug("input", "☑", "Bulk-checked %d plots in %s" % [_instrument.checked_plots.size(), biome_name])
 
 
 func _clear_checks_and_cycle_biome() -> void:
@@ -981,6 +1018,12 @@ func _select_subspace(subspace_idx: int, key: String) -> void:
 ## ACTION EXECUTION
 ## ============================================================================
 
+## Public entry point for action invocation from non-keyboard sources (button tap, touch).
+## Mirrors the keyboard path in _input() for Q/E/R/F.
+func invoke_action(action_key: String) -> void:
+	_perform_action(action_key)
+
+
 func _perform_action(action_key: String) -> void:
 	# Execute the action mapped to Q/E/R for the current archetype frame.
 
@@ -1019,6 +1062,19 @@ func _perform_action(action_key: String) -> void:
 			action_info.get("label", action_name),
 			_get_block_reason(action_name)
 		])
+		return
+
+	if action_info.get("destructive", false):
+		_confirm_pending = {
+			"action": action_name,
+			"emoji": emoji,
+			"label": action_info.get("label", action_name),
+		}
+		var shell := _resolve_player_shell()
+		if shell and shell.has_method("show_hint"):
+			shell.show_hint(
+				"[color=#ff9966]⚠ %s[/color]  —  press [b]F[/b] to confirm, any other key cancels" \
+				% action_info.get("label", action_name), 3)
 		return
 
 	_run_action(action_name, emoji if emoji != "" else action_name, action_info.get("label", action_name))
@@ -1164,7 +1220,7 @@ func _get_gate_name_for_action(action_name: String) -> String:
 
 
 func _get_biome_for_position(pos: Vector2i):
-	# Get biome for a grid position.
+	# Get biome for a grid grid_pos.
 	if not farm or not farm.grid:
 		return null
 	var biome_name = farm.get_biome_for_row(pos.y) if farm.has_method("get_biome_for_row") else ""
@@ -1174,7 +1230,7 @@ func _get_biome_for_position(pos: Vector2i):
 
 
 func _get_qubit_for_position(pos: Vector2i, biome) -> int:
-	# Get qubit index for a grid position via plot/terminal binding.
+	# Get qubit index for a grid grid_pos via plot/terminal binding.
 	if not farm or not farm.grid:
 		return -1
 
@@ -1448,22 +1504,22 @@ func _execute_action(action_name: String) -> Dictionary:
 			result = _instrument.action_remove_gates(positions)
 		"toggle_berry_track":
 			result = _execute_toggle_berry_track()
-		"incorporate_vocabulary":
-			result = _execute_incorporate_vocabulary()
-		"inject_vocabulary":
-			result = MacroActions.dispatch(_instrument, MacroActions.KIND_INJECT_VOCABULARY, {"biome_name": biome_name})
+		"incorporate_icon":
+			result = _execute_incorporate_icon()
+		"inject_icon":
+			result = MacroActions.dispatch(_instrument, MacroActions.KIND_INJECT_ICON, {"biome_name": biome_name})
 		"discover_biome":
 			result = MacroActions.dispatch(_instrument, MacroActions.KIND_DISCOVER_BIOME)
 			if result.get("success", false):
 				_select_frame_hat(ToolConfig.FRAME_ACE)
 		"cycle_biome", "toggle_view":
 			result = _instrument.action_cycle_biome()
-		"remove_vocabulary":
-			result = MacroActions.dispatch(_instrument, MacroActions.KIND_REMOVE_VOCABULARY, {"biome_name": biome_name, "grid_pos": grid_pos})
+		"remove_icon":
+			result = MacroActions.dispatch(_instrument, MacroActions.KIND_REMOVE_ICON, {"biome_name": biome_name, "grid_pos": grid_pos})
 			if result.get("success", false):
 				# Phase 2: emojis withdrawn from social fabric — tell the substrate.
-				var pair: Dictionary = result.get("removed_pair", {})
-				_notify_story_engine([pair.get("north", ""), pair.get("south", "")], "remove")
+				var icon: Dictionary = result.get("removed_icon", {})
+				_notify_story_engine([icon.get("north", ""), icon.get("south", "")], "remove")
 		"remove_biome":
 			result = MacroActions.dispatch(_instrument, MacroActions.KIND_REMOVE_BIOME)
 		"inspect_qubit":
@@ -1640,7 +1696,7 @@ func _get_current_biome():
 
 
 func _get_grid_position() -> Vector2i:
-	# Convert current selection to grid position.
+	# Convert current selection to grid grid_pos.
 	var plot_idx = _instrument.current_plot_idx if _instrument.current_plot_idx >= 0 else 0
 	var biome_name = _instrument.current_biome if _instrument.current_biome != "" else ""
 
@@ -1648,7 +1704,7 @@ func _get_grid_position() -> Vector2i:
 
 
 func _get_grid_position_for(plot_idx: int, biome_name: String) -> Vector2i:
-	# Convert plot + biome selection to a grid position.
+	# Convert plot + biome selection to a grid grid_pos.
 	var biome_row = farm.get_biome_row(biome_name) if farm and farm.has_method("get_biome_row") else 0
 	return Vector2i(plot_idx, biome_row)
 
@@ -1703,7 +1759,7 @@ func _get_current_biome_row() -> int:
 
 
 func _set_selection_for_grid_pos(grid_pos: Vector2i) -> void:
-	# Update current_selection to match the specified grid position.
+	# Update current_selection to match the specified grid grid_pos.
 	if not farm:
 		return
 	var biome_name = farm.get_biome_for_row(grid_pos.y) if farm.has_method("get_biome_for_row") else ""
@@ -2056,7 +2112,7 @@ func _increase_resolution() -> void:
 
 
 func _persist_runtime_timescale(stride: Variant, quantum_time_scale: Variant) -> void:
-	var gsm = InstrumentLocator.resolve_game_state_manager(self)
+	var gsm = get_node_or_null("/root/GameStateManager")
 	if not gsm or not gsm.current_state:
 		return
 	if stride != null:
@@ -2066,6 +2122,6 @@ func _persist_runtime_timescale(stride: Variant, quantum_time_scale: Variant) ->
 
 
 func _persist_runtime_resolution(max_evolution_dt: float) -> void:
-	var gsm = InstrumentLocator.resolve_game_state_manager(self)
+	var gsm = get_node_or_null("/root/GameStateManager")
 	if gsm and gsm.current_state:
 		gsm.current_state.max_evolution_dt = max_evolution_dt

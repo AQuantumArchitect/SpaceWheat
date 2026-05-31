@@ -3,7 +3,7 @@ extends Node
 
 class TestResult:
 	var passed: bool = false
-	var name: String = ""
+	var display_name: String = ""
 	var message: String = ""
 
 	func _init(test_name: String, success: bool, msg: String = ""):

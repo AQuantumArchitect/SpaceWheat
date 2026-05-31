@@ -11,18 +11,10 @@ extends RefCounted
 ## Validates, executes, and emits signals for every gameplay action.
 ## Holds selection state (biome, plot, checked plots) shared across adapters.
 
-const ProbeActions = preload("res://Core/Actions/ProbeActions.gd")
 const GateActionHandler = preload("res://Core/Instrumentation/Handlers/GateActionHandler.gd")
 const LindbladHandler = preload("res://Core/Instrumentation/Handlers/LindbladHandler.gd")
-const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
-const ActionCostRuntime = preload("res://Core/GameMechanics/ActionCostRuntime.gd")
-const PhysicsConfig = preload("res://Core/Config/PhysicsConfig.gd")
 const GranularityController = preload("res://Core/Utilities/GranularityController.gd")
 const GameStateSerializerClass = preload("res://Core/GameState/GameStateSerializer.gd")
-const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
-const BalanceService = preload("res://Core/GameMechanics/BalanceService.gd")
-const VerboseHelper = preload("res://Core/Config/VerboseHelper.gd")
-const GridSentinel = preload("res://Core/GameState/GridSentinel.gd")
 const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
 
 const DEFAULT_TIMESCALE_OBJECTIVE: Dictionary = {
@@ -39,7 +31,6 @@ const DEFAULT_TIMESCALE_OBJECTIVE: Dictionary = {
 # ============================================================================
 
 signal action_performed(action: String, result: Dictionary)
-signal selection_changed(plot_idx: int, biome: String)
 signal plot_check_changed(position: Vector2i, is_checked: bool)
 
 # ============================================================================
@@ -54,6 +45,7 @@ var terminal_pool = null
 ## Selection state (absorbed from QuantumInstrumentState)
 var current_biome: String = ""
 var current_plot_idx: int = 0
+var last_plot_idx: int = -1  # persists across leave_plot_ring; read by BiomeInspectorOverlay
 var last_selected_position: Vector2i = GridSentinel.INVALID_POSITION
 var checked_plots: Array[Vector2i] = []
 
@@ -70,7 +62,7 @@ var _timescale_objective: Dictionary = DEFAULT_TIMESCALE_OBJECTIVE.duplicate(tru
 var _verbose = null
 
 # ============================================================================
-# GATE DISPATCH TABLE (moved from legacy snapshot bridge)
+# GATE DISPATCH TABLE (moved from snapshot bridge)
 # ============================================================================
 
 const _GATE_DISPATCH: Dictionary = {
@@ -101,7 +93,7 @@ const _GATE_DISPATCH: Dictionary = {
 func setup(farm_ref: Node) -> void:
 	farm = farm_ref
 	_log("info", "instrument", "🎛️", "QuantumInstrument initialized (farm=%s)" % [
-		farm_ref.name if farm_ref else "null"
+		str(farm_ref.name) if farm_ref else "null"
 	])
 
 
@@ -116,8 +108,6 @@ func select_plot(plot_idx: int, biome_name: String, position: Vector2i) -> Dicti
 	current_biome = biome_name
 	last_selected_position = position
 	var changed = old_idx != plot_idx or old_biome != biome_name
-	if changed:
-		selection_changed.emit(plot_idx, biome_name)
 	return {
 		"selection_changed": changed,
 		"old_idx": old_idx,
@@ -166,13 +156,13 @@ func enter_submenu(name: String, context: Dictionary) -> Dictionary:
 	submenu_page = 0
 	current_submenu_name = name
 	if name == "icon_injection":
-		var IconInjectionSubmenu = load("res://UI/Core/Submenus/IconInjectionSubmenu.gd")
-		current_submenu_data = IconInjectionSubmenu.generate_submenu(
+		var icon_injection_scene = load("res://UI/Core/Submenus/IconInjectionSubmenu.gd")
+		current_submenu_data = icon_injection_scene.generate_submenu(
 			context.biome, context.farm, submenu_page
 		)
 	elif name == "gate_selection":
-		var GateSelectionSubmenu = load("res://UI/Core/Submenus/GateSelectionSubmenu.gd")
-		current_submenu_data = GateSelectionSubmenu.generate_submenu(
+		var gate_selection_scene = load("res://UI/Core/Submenus/GateSelectionSubmenu.gd")
+		current_submenu_data = gate_selection_scene.generate_submenu(
 			context.biome, context.farm, checked_plots, submenu_page
 		)
 	else:
@@ -209,7 +199,8 @@ func is_in_submenu() -> bool:
 
 func set_frame(frame_name: String) -> Dictionary:
 	var old_frame = current_frame
-	ToolConfig.select_frame(frame_name)
+	if not ToolConfig.select_frame(frame_name):
+		return {"frame": old_frame, "changed": false, "error": "invalid_frame"}
 	current_frame = ToolConfig.get_current_frame()
 	return {"frame": current_frame, "changed": old_frame != current_frame}
 
@@ -288,7 +279,15 @@ func action_spark_north(positions: Array[Vector2i]) -> Dictionary:
 	if not guard.is_empty(): return guard
 	var context: Dictionary = {}
 	if not positions.is_empty():
-		context["north_emoji"] = LindbladHandler._resolve_north_emoji(farm, positions[0])
+		var north_emoji = LindbladHandler._resolve_north_emoji(farm, positions[0])
+		context["north_emoji"] = north_emoji
+		# Invest-cost symmetry: charge the surprisal of the target pole. Forcing an
+		# improbable north costs more (cost-side twin of the harvest reward).
+		var biome = farm.grid.get_biome_for_plot(positions[0]) if farm and farm.grid else null
+		if biome and biome.quantum_computer and north_emoji != "":
+			var kT = EnergyPricing.biome_temperature(biome, farm)
+			var p_target = clampf(float(biome.quantum_computer.get_population(north_emoji)), 0.0, 1.0)
+			context["invest_units"] = EnergyPricing.invest_units(p_target, kT)
 	var gate = preflight_action_cost("spark_north", context)
 	if not gate.get("ok", true):
 		return {"success": false, "error": "insufficient_resources",
@@ -504,7 +503,7 @@ func action_remove_gates(positions: Array[Vector2i]) -> Dictionary:
 # GROUP 4: META ACTIONS
 # ============================================================================
 
-func action_inject_vocabulary(biome_name: String) -> Dictionary:
+func action_inject_icon(biome_name: String) -> Dictionary:
 	if not farm:
 		return {"success": false, "error": "no_farm", "message": "Farm not initialized"}
 
@@ -521,14 +520,14 @@ func action_inject_vocabulary(biome_name: String) -> Dictionary:
 			"message": "Biome is at max capacity (%d qubits)" % max_qubits
 		}
 
-	var candidate_pairs = _collect_injectable_pairs(farm, biome)
-	var pair = _pick_injectable_pair(candidate_pairs, biome)
-	if pair.is_empty():
-		return {"success": false, "error": "no_available_pair", "message": "No injectable icon for this biome"}
-	return action_inject_vocabulary_pair(biome_name, pair)
+	var candidate_icons = _collect_injectable_icons(farm, biome)
+	var icon = _pick_injectable_icon(candidate_icons, biome)
+	if icon.is_empty():
+		return {"success": false, "error": "no_available_icon", "message": "No injectable icon for this biome"}
+	return action_inject_icon_pair(biome_name, icon)
 
 
-func action_inject_vocabulary_pair(biome_name: String, pair: Dictionary) -> Dictionary:
+func action_inject_icon_pair(biome_name: String, icon: Dictionary) -> Dictionary:
 	if not farm:
 		return {"success": false, "error": "no_farm", "message": "Farm not initialized"}
 
@@ -538,10 +537,10 @@ func action_inject_vocabulary_pair(biome_name: String, pair: Dictionary) -> Dict
 	if not biome.viz_cache or not biome.viz_cache.has_metadata():
 		return {"success": false, "error": "viz_unavailable", "message": "Biome visualization data not ready"}
 
-	var north_emoji = str(pair.get("north", ""))
-	var south_emoji = str(pair.get("south", ""))
+	var north_emoji = str(icon.get("north", ""))
+	var south_emoji = str(icon.get("south", ""))
 	if north_emoji == "" or south_emoji == "" or north_emoji == south_emoji:
-		return {"success": false, "error": "invalid_pair", "message": "Invalid icon"}
+		return {"success": false, "error": "invalid_icon", "message": "Invalid icon"}
 	if biome.viz_cache.get_qubit(north_emoji) >= 0:
 		return {"success": false, "error": "already_in_biome", "message": "%s already in biome" % north_emoji}
 	if biome.viz_cache.get_qubit(south_emoji) >= 0:
@@ -557,7 +556,7 @@ func action_inject_vocabulary_pair(biome_name: String, pair: Dictionary) -> Dict
 		}
 
 	var context = {"south_emoji": south_emoji}
-	var gate = preflight_action_cost("inject_vocabulary", context)
+	var gate = preflight_action_cost("inject_icon", context)
 	if not gate.get("ok", true):
 		return {
 			"success": false,
@@ -567,19 +566,19 @@ func action_inject_vocabulary_pair(biome_name: String, pair: Dictionary) -> Dict
 
 	var result = biome.expand_quantum_system(north_emoji, south_emoji)
 	if result.get("success", false):
-		if not bool(commit_action_cost("inject_vocabulary", context, "inject_vocabulary").get("ok", false)):
+		if not bool(commit_action_cost("inject_icon", context, "inject_icon").get("ok", false)):
 			return {"success": false, "error": "cost_commit_failed", "message": "Icon injection failed: unable to spend cost."}
-		if farm and farm.has_method("discover_pair"):
-			farm.discover_pair(north_emoji, south_emoji)
+		if farm and farm.has_method("discover_icon"):
+			farm.discover_icon(north_emoji, south_emoji)
 		result["north_emoji"] = north_emoji
 		result["south_emoji"] = south_emoji
 		result["cost"] = gate.get("cost", {})
 
-	action_performed.emit("inject_vocabulary", result)
+	action_performed.emit("inject_icon", result)
 	return result
 
 
-func action_remove_vocabulary(biome_name: String, grid_pos: Vector2i) -> Dictionary:
+func action_remove_icon(biome_name: String, grid_pos: Vector2i) -> Dictionary:
 	if not farm:
 		return {"success": false, "error": "no_farm", "message": "Farm not initialized"}
 
@@ -594,16 +593,16 @@ func action_remove_vocabulary(biome_name: String, grid_pos: Vector2i) -> Diction
 		return {"success": false, "error": "minimum_reached", "message": "Cannot remove last icon"}
 
 	var target_qubit = rm.num_qubits - 1
-	var pair_to_remove = {}
-	var _vocab_plot = farm.grid.get_plot(grid_pos) if farm and farm.grid else null
-	var terminal = _vocab_plot.terminal if _vocab_plot else null
+	var icon_to_remove = {}
+	var _icon_plot = farm.grid.get_plot(grid_pos) if farm and farm.grid else null
+	var terminal = _icon_plot.terminal if _icon_plot else null
 	var biome_type = biome.get_biome_type() if biome.has_method("get_biome_type") else biome.name
 	if terminal and terminal.is_bound and terminal.bound_biome_name == biome_type:
 		target_qubit = terminal.bound_register_id
-	pair_to_remove = _get_pair_for_qubit(rm, target_qubit)
+	icon_to_remove = _get_icon_for_qubit(rm, target_qubit)
 
-	var removal_context = {"north_emoji": pair_to_remove.get("north", ""), "south_emoji": pair_to_remove.get("south", "")}
-	var cost_gate = preflight_action_cost("remove_vocabulary", removal_context)
+	var removal_context = {"north_emoji": icon_to_remove.get("north", ""), "south_emoji": icon_to_remove.get("south", "")}
+	var cost_gate = preflight_action_cost("remove_icon", removal_context)
 	if not cost_gate.get("ok", true):
 		var cost = cost_gate.get("cost", {})
 		return {
@@ -612,23 +611,30 @@ func action_remove_vocabulary(biome_name: String, grid_pos: Vector2i) -> Diction
 			"message": "Need %d %s to remove signature." % [cost.values()[0], cost.keys()[0]] if not cost.is_empty() else "Insufficient resources"
 		}
 
-	if pair_to_remove.is_empty():
-		return {"success": false, "error": "no_pair_found", "message": "Could not find icon to remove"}
+	if icon_to_remove.is_empty():
+		return {"success": false, "error": "no_icon_found", "message": "Could not find icon to remove"}
 
 	_unbind_terminals_for_register(biome, target_qubit)
 
-	var result = _shrink_quantum_system(biome, target_qubit, pair_to_remove)
+	var result = _shrink_quantum_system(biome, target_qubit, icon_to_remove)
 
 	if result.get("success", false):
-		if not bool(commit_action_cost("remove_vocabulary", removal_context, "remove_vocabulary").get("ok", false)):
+		if not bool(commit_action_cost("remove_icon", removal_context, "remove_icon").get("ok", false)):
 			return {"success": false, "error": "cost_commit_failed", "message": "Remove signature failed: unable to spend cost."}
 		_reindex_bound_terminals(biome, target_qubit)
 		_log("info", "instrument", "-", "Removed icon %s/%s from %s" % [
-			pair_to_remove.get("north", "?"), pair_to_remove.get("south", "?"), biome_name
+			icon_to_remove.get("north", "?"), icon_to_remove.get("south", "?"), biome_name
 		])
 
-	action_performed.emit("remove_vocabulary", result)
+	action_performed.emit("remove_icon", result)
 	return result
+
+
+func action_set_active_icon_slot(slot_idx: int, icon_idx: int) -> void:
+	if not farm or not farm.has_method("set_active_icon_slot"):
+		return
+	farm.set_active_icon_slot(slot_idx, icon_idx)
+	action_performed.emit("set_active_icon_slot", {"slot": slot_idx, "icon": icon_idx})
 
 
 func action_discover_biome() -> Dictionary:
@@ -707,13 +713,6 @@ func quest_accept_by_id(quest_id: int) -> Dictionary:
 	var qm = _resolve_quest_manager()
 	if not qm:
 		return {"ok": false, "accepted": false, "error": "no_quest_manager", "quest_id": quest_id}
-	if qm.has_method("accept_locked_offer"):
-		var accepted_locked = qm.accept_locked_offer(quest_id)
-		if accepted_locked:
-			var locked_result = {"ok": true, "accepted": true, "quest_id": quest_id, "locked": true}
-			action_performed.emit("accept_quest", locked_result)
-			_notify_quest_projection("accept_quest_locked", {"quest_id": quest_id})
-			return locked_result
 	var quest: Dictionary = {}
 	if qm.has_method("get_quest_by_id"):
 		quest = qm.get_quest_by_id(quest_id)
@@ -771,65 +770,6 @@ func quest_claim(quest_id: int) -> Dictionary:
 	action_performed.emit("claim_quest", result)
 	if claimed:
 		_notify_quest_projection("claim_quest", {"quest_id": quest_id})
-	return result
-
-
-func quest_lock_offer(quest_data: Dictionary) -> Dictionary:
-	var qm = _resolve_quest_manager()
-	if not qm or not qm.has_method("lock_offer"):
-		return {"ok": false, "locked": false, "error": "lock_unavailable"}
-	var gate = preflight_action_cost("quest_lock")
-	if not bool(gate.get("ok", false)):
-		return {
-			"ok": false,
-			"locked": false,
-			"error": "insufficient_resources",
-			"cost": gate.get("cost", {})
-		}
-	var locked = qm.lock_offer(quest_data)
-	var quest_id = int(quest_data.get("id", -1))
-	if locked:
-		var spend = commit_action_cost("quest_lock", {}, "quest_lock")
-		if not bool(spend.get("ok", false)):
-			if qm.has_method("unlock_offer"):
-				qm.unlock_offer(quest_id)
-			locked = false
-	var result = {"ok": locked, "locked": locked, "quest_id": quest_id, "cost": gate.get("cost", {})}
-	action_performed.emit("lock_offer", result)
-	if locked:
-		_notify_quest_projection("lock_offer", {"quest_id": quest_id})
-	return result
-
-
-func quest_unlock_offer(quest_id: int) -> Dictionary:
-	var qm = _resolve_quest_manager()
-	if not qm or not qm.has_method("unlock_offer"):
-		return {"ok": false, "unlocked": false, "error": "unlock_unavailable", "quest_id": quest_id}
-	var unlocked = qm.unlock_offer(quest_id)
-	var result = {"ok": unlocked, "unlocked": unlocked, "quest_id": quest_id}
-	action_performed.emit("unlock_offer", result)
-	if unlocked:
-		_notify_quest_projection("unlock_offer", {"quest_id": quest_id})
-	return result
-
-
-func quest_locked_offers() -> Dictionary:
-	var qm = _resolve_quest_manager()
-	if not qm or not qm.has_method("get_locked_offers"):
-		return {"ok": false, "offers": [], "error": "locked_offers_unavailable"}
-	var offers = qm.get_locked_offers()
-	return {"ok": true, "offers": offers if offers is Array else []}
-
-
-func quest_accept_locked(quest_id: int) -> Dictionary:
-	var qm = _resolve_quest_manager()
-	if not qm or not qm.has_method("accept_locked_offer"):
-		return {"ok": false, "accepted": false, "error": "accept_locked_unavailable", "quest_id": quest_id}
-	var accepted = qm.accept_locked_offer(quest_id)
-	var result = {"ok": accepted, "accepted": accepted, "quest_id": quest_id}
-	action_performed.emit("accept_locked", result)
-	if accepted:
-		_notify_quest_projection("accept_locked", {"quest_id": quest_id})
 	return result
 
 
@@ -1001,17 +941,17 @@ func get_policy_snapshot(include_offers: bool = true, include_grid: bool = true)
 	if not (resources is Dictionary):
 		resources = {}
 
-	var known_pairs = get_known_vocab_pairs()
-	if not (known_pairs is Array):
-		known_pairs = []
+	var known_icons = get_known_icons()
+	if not (known_icons is Array):
+		known_icons = []
 
 	var active_quests = get_active_quests()
 	if not (active_quests is Array):
 		active_quests = []
 
-	var locked_offers = get_locked_offers()
-	if not (locked_offers is Array):
-		locked_offers = []
+	var story_offers = get_story_offers()
+	if not (story_offers is Array):
+		story_offers = []
 
 	var offers: Array = []
 	if include_offers:
@@ -1036,10 +976,10 @@ func get_policy_snapshot(include_offers: bool = true, include_grid: bool = true)
 	return {
 		"resources": resources,
 		"resource_snapshot": resource_snapshot if resource_snapshot is Dictionary else {},
-		"known_pairs": known_pairs,
+		"known_icons": known_icons,
 		"offers": offers,
 		"active_quests": active_quests,
-		"locked_offers": locked_offers,
+		"story_offers": story_offers,
 		"grid": grid_snapshot,
 		"biomes": biomes,
 	}
@@ -1052,9 +992,9 @@ func get_active_quests() -> Array:
 	return []
 
 
-func get_known_vocab_pairs() -> Array:
-	if farm and farm.has_method("get_known_pairs"):
-		return farm.get_known_pairs()
+func get_known_icons() -> Array:
+	if farm and farm.has_method("get_known_icons"):
+		return farm.get_known_icons()
 	return []
 
 
@@ -1067,10 +1007,10 @@ func get_quest_offers_for_current_biome() -> Array:
 	return []
 
 
-func get_locked_offers() -> Array:
-	var locked_result = quest_locked_offers()
-	if locked_result is Dictionary and bool(locked_result.get("ok", false)):
-		var offers = locked_result.get("offers", [])
+func get_story_offers() -> Array:
+	var qm = _resolve_quest_manager()
+	if qm and qm.has_method("get_story_offers"):
+		var offers = qm.get_story_offers()
 		if offers is Array:
 			return offers
 	return []
@@ -1101,7 +1041,7 @@ func get_grid_snapshot() -> Dictionary:
 
 
 # ============================================================================
-# GATE DISPATCH API (moved from legacy snapshot bridge)
+# GATE DISPATCH API (moved from snapshot bridge)
 # ============================================================================
 
 func gate_inject(gate_name: String, positions: Array[Vector2i]) -> Dictionary:
@@ -1386,20 +1326,20 @@ func configure_seed_state(cmd: Dictionary) -> Dictionary:
 	if not gsm or not gsm.current_state:
 		return {"ok": false, "error": "no_game_state"}
 
-	# Clear all quests before applying seed state — prevents locked offers from
-	# previous runs (loaded via save slot) from polluting a fresh character seed.
+	# Clear all quests before applying seed state — prevents pending story offers
+	# from previous runs (loaded via save slot) from polluting a fresh character seed.
 	if cmd.get("clear_quests", false):
 		var qm = _resolve_quest_manager()
 		if qm and qm.has_method("clear_all_quests"):
 			qm.clear_all_quests()
 			out["quests_cleared"] = true
 
-	var known_pairs = _sanitize_known_pairs(cmd.get("known_pairs", []))
-	if not known_pairs.is_empty():
-		if farm and farm.has_method("set_known_pairs"):
-			farm.set_known_pairs(known_pairs)
-		gsm.current_state.known_pairs = known_pairs.duplicate(true)
-		out["known_pairs"] = known_pairs
+	var known_icons = _sanitize_known_icons(cmd.get("known_icons", []))
+	if not known_icons.is_empty():
+		if farm and farm.has_method("set_known_icons"):
+			farm.set_known_icons(known_icons)
+		gsm.current_state.known_icons = known_icons.duplicate(true)
+		out["known_icons"] = known_icons
 
 	var unlocked_biomes = _sanitize_biomes(cmd.get("unlocked_biomes", []))
 	if not unlocked_biomes.is_empty():
@@ -1778,11 +1718,11 @@ func _resolve_terminal_for_harvest(grid_pos: Vector2i) -> RefCounted:
 	return null
 
 
-func _pick_injectable_pair(pairs: Array, biome) -> Dictionary:
-	for i in range(pairs.size() - 1, -1, -1):
-		var pair = pairs[i]
-		var north = pair.get("north", "")
-		var south = pair.get("south", "")
+func _pick_injectable_icon(icons: Array, biome) -> Dictionary:
+	for i in range(icons.size() - 1, -1, -1):
+		var icon = icons[i]
+		var north = icon.get("north", "")
+		var south = icon.get("south", "")
 		if north == "" or south == "":
 			continue
 		if biome.viz_cache and biome.viz_cache.has_metadata() and biome.viz_cache.get_qubit(north) >= 0:
@@ -1793,7 +1733,7 @@ func _pick_injectable_pair(pairs: Array, biome) -> Dictionary:
 	return {}
 
 
-func _get_pair_for_qubit(register_map, qubit_index: int) -> Dictionary:
+func _get_icon_for_qubit(register_map, qubit_index: int) -> Dictionary:
 	var north = ""
 	var south = ""
 	for emoji in register_map.coordinates.keys():
@@ -1829,11 +1769,11 @@ func _reindex_bound_terminals(biome, removed_qubit: int) -> void:
 			terminal.bound_register_id -= 1
 
 
-func _shrink_quantum_system(biome, qubit_to_remove: int, pair: Dictionary) -> Dictionary:
+func _shrink_quantum_system(biome, qubit_to_remove: int, icon: Dictionary) -> Dictionary:
 	var qc = biome.quantum_computer
 	var rm = qc.register_map
-	var north = pair.get("north", "")
-	var south = pair.get("south", "")
+	var north = icon.get("north", "")
+	var south = icon.get("south", "")
 	var old_dim = rm.dim()
 	var old_num_qubits = rm.num_qubits
 
@@ -1940,19 +1880,25 @@ func _rebuild_operators_after_shrink(biome) -> void:
 	var BiomeRegistryCls = load("res://Core/Biomes/BiomeRegistry.gd")
 	var verbose_ref = _get_verbose()
 
-	# Load biome def so we rebuild from icons[] with full cloud (Lindblad) data.
+	# Load biome def so we rebuild H from the neighborhood loadout and L from atom_components.
 	var biome_def = null
 	if qc and qc.biome_name != "":
 		biome_def = BiomeRegistryCls.new().get_by_name(qc.biome_name)
 
 	var biome_icons: Array = []
+	var atom_components: Dictionary = {}
 	if biome_def != null:
-		biome_icons = BiomeBuilderCls._build_biome_icon_list(biome_def)
+		biome_icons = BiomeBuilderCls._build_neighborhood_icon_list(biome_def)
+		var ac = biome_def.atom_components if "atom_components" in biome_def else null
+		if ac is Dictionary:
+			atom_components = ac
 	else:
-		# Fallback: reconstruct minimal icons from register_map axes (no cloud data).
-		var IconAtlasCls = load("res://Core/Factions/IconAtlas.gd")
+		# Fallback: reconstruct icons from register_map axes; atom_components stays empty.
+		var IconRegistryCls = load("res://Core/Factions/IconRegistry.gd")
 		var IconCls = load("res://Core/QuantumSubstrate/Icon.gd")
-		var lexicon = IconAtlasCls.new()
+		var lexicon = (Engine.get_main_loop().root.get_node_or_null("/root/IconRegistry") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
+		if lexicon == null:
+			lexicon = IconRegistryCls.new()  # test harness fallback
 		for q in range(qc.register_map.num_qubits):
 			var axis = qc.register_map.axes.get(q, {})
 			var north: String = str(axis.get("north", ""))
@@ -1962,13 +1908,19 @@ func _rebuild_operators_after_shrink(biome) -> void:
 			var physics = lexicon.get_icon_physics_by_pair(north, south)
 			var rec = lexicon.find_icon_by_pair(north, south)
 			var iname: String = str(rec.get("name", north)) if not rec.is_empty() else north
-			biome_icons.append(IconCls.from_pair_physics(iname, north, south, physics, {}, 1.0))
+			biome_icons.append(IconCls.from_pair_physics(iname, north, south, physics, 1.0))
 
 	qc.hamiltonian = HamBuilder.build_from_icons(biome_icons, qc.register_map, verbose_ref)
-	var lindblad_result = LindBuilder.build_from_icon_clouds(biome_icons, qc.register_map, verbose_ref)
+	var lindblad_result = LindBuilder.build_from_atoms(atom_components, qc.register_map, verbose_ref)
 	qc.lindblad_operators = lindblad_result.get("operators", [])
 	var driven_configs = HamBuilder.get_driven_icons(biome_icons, qc.register_map)
 	qc.set_driven_icons(driven_configs)
+
+	# Same-dim H/L mutation — must tell the C++ lookahead engine to re-register
+	# or it'll keep replaying the pre-shrink operators (silent de-sync).
+	var local_farm = InstrumentLocator.resolve_active_farm_main_loop()
+	if local_farm and local_farm.biome_evolution_batcher and local_farm.biome_evolution_batcher.has_method("mark_for_reregister"):
+		local_farm.biome_evolution_batcher.mark_for_reregister(qc.biome_name)
 
 
 ## Return observation_stride for a biome with a safe default.
@@ -1996,17 +1948,17 @@ static func _sanitize_biomes(raw) -> Array[String]:
 	return out
 
 
-## Deduplicate and validate a raw known_pairs array from RPC input.
-## Static so rig_listener can call QuantumInstrument._sanitize_known_pairs() without an instance.
-static func _sanitize_known_pairs(raw) -> Array:
+## Deduplicate and validate a raw known_icons array from RPC input.
+## Static so rig_listener can call QuantumInstrument._sanitize_known_icons() without an instance.
+static func _sanitize_known_icons(raw) -> Array:
 	var out: Array = []
 	var seen: Dictionary = {}
 	if raw is Array:
-		for pair in raw:
-			if not (pair is Dictionary):
+		for icon in raw:
+			if not (icon is Dictionary):
 				continue
-			var north = str(pair.get("north", ""))
-			var south = str(pair.get("south", ""))
+			var north = str(icon.get("north", ""))
+			var south = str(icon.get("south", ""))
 			if north == "" or south == "" or north == south:
 				continue
 			var key = "%s|%s" % [north, south]
@@ -2017,24 +1969,24 @@ static func _sanitize_known_pairs(raw) -> Array:
 	return out
 
 
-# ============================================================================
-# INJECTABLE PAIR HELPERS (inlined from removed IconUtils)
-# ============================================================================
+	# ============================================================================
+	# INJECTABLE ICON HELPERS (inlined from removed IconUtils)
+	# ============================================================================
 
-func _collect_known_pairs(farm_ref) -> Array:
-	if farm_ref and farm_ref.has_method("get_known_pairs"):
-		return farm_ref.get_known_pairs()
+func _collect_known_icons(farm_ref) -> Array:
+	if farm_ref and farm_ref.has_method("get_known_icons"):
+		return farm_ref.get_known_icons()
 	return []
 
-func _collect_injectable_pairs(farm_ref, biome = null) -> Array:
-	var known = _collect_known_pairs(farm_ref)
+func _collect_injectable_icons(farm_ref, biome = null) -> Array:
+	var known = _collect_known_icons(farm_ref)
 	var filtered: Array = []
 	var seen: Dictionary = {}
-	for pair in known:
-		if not (pair is Dictionary):
+	for icon in known:
+		if not (icon is Dictionary):
 			continue
-		var north = str(pair.get("north", ""))
-		var south = str(pair.get("south", ""))
+		var north = str(icon.get("north", ""))
+		var south = str(icon.get("south", ""))
 		if north == "" or south == "" or north == south:
 			continue
 		if biome and biome.viz_cache and biome.viz_cache.has_metadata():

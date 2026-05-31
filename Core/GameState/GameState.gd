@@ -24,7 +24,7 @@ extends Resource
 @export var quantum_time_scale: float = 0.5  # Simulation speed multiplier (0.001-16.0) - Half real-time so day/night cycle is ~50s
 @export var observation_stride: int = 1  # Observation stride (0=locked, 1=normal, 2+=fast forward)
 # max_evolution_dt removed — derived from BiomeCharacteristics continuity sweep, not player state
-@export var save_version: int = 3  # v3 (Phase III): adds player_affinity (12-qubit AffinityGraph); backward-compatible with v1/v2 (substrate re-initialized to |+⟩^⊗12)
+@export var save_version: int = 3  # v3 (Phase III): adds player_alignment (12-qubit AlignmentGraph); v1/v2 reinitialize the substrate to |+⟩^⊗12
 @export var advanced_mode_enabled: bool = false  # Enables advanced workbench controls in UI/tools
 
 ## Grid Dimensions (for variable-sized farms)
@@ -37,24 +37,20 @@ extends Resource
 @export var tributes_paid: int = 0
 @export var tributes_failed: int = 0
 
-## Known Pairs - persisted copy of player signature (canonical in Farm)
-## Each pair is {north: String, south: String}
+## Known Icons - persisted copy of the player's signature (canonical in Farm)
+## Each icon is {north: String, south: String}
 ## These are the actual plantable qubit axes the player has learned
-## Starter pair: 🌾/👥 (wheat/people - the farming foundation)
-@export var known_pairs: Array = [
+## Starter icon: 🌾/👥 (wheat/people - the farming foundation)
+@export var known_icons: Array = [
 	{"north": "🌾", "south": "👥"}
 ]
 
-## Active icon slots — 3 indices into known_pairs. The player faction's active
-## expression voice. Defaults to [0,1,2]; clamped to known_pairs size on load.
+## Active icon slots — 3 indices into known_icons. The player faction's active
+## expression voice. Defaults to [0,1,2]; clamped to known_icons size on load.
 ## Tunable via Z surface Self tab icon picker.
 @export var active_icon_slots: Array = [0, 1, 2]
 
-## Locked Quest Offers — pinned offers that persist across offer cycles
-## Each entry is a full quest_data Dictionary with status="locked"
-@export var locked_quest_offers: Array = []
-
-## DERIVED: known_emojis is computed from known_pairs for compatibility with old saves/tools.
+## DERIVED: known_emojis is computed from known_icons.
 ## Live code should not write this field directly. Use get_known_emojis() for reads.
 @export var known_emojis: Array = []
 
@@ -67,7 +63,7 @@ extends Resource
 ##   "steps": int
 ## }
 @export var atom_map_snapshot: Dictionary = {}
-@export var atom_map_snapshot_source: String = ""  # "batcher_global" | "derived_from_pairs"
+@export var atom_map_snapshot_source: String = ""  # "batcher_global" | "derived_from_icons"
 @export var atom_map_snapshot_time: int = 0
 
 ## Runtime controller policy state (headless/UI automation brain memory)
@@ -99,13 +95,20 @@ extends Resource
 ## Per-faction multi-channel standings (v2). Empty dict → all zero on load.
 ## Format: {faction_name: {trust, debt, attention, access, legitimacy, entanglement}}
 ## See Core/Factions/FactionStanding.gd for the channel semantics.
-## v1 saves load with this empty (no migration needed; consumers must tolerate empty).
+## v1 saves leave this empty; consumers must tolerate absence.
 @export var faction_standings: Dictionary = {}
 
-## Player AffinityGraph serialization (v3). Empty dict → farm re-initializes to
+## Player AlignmentGraph serialization (v3). Empty dict → farm re-initializes to
 ## |+⟩^⊗12 (uniform superposition; player has no preferred axial pole yet).
-## Format: AffinityGraph.to_dict() output ({version, axis_count, weights, kets}).
-@export var player_affinity: Dictionary = {}
+## Format: AlignmentGraph.to_dict() output ({version, axis_count, weights, kets}).
+@export var player_alignment: Dictionary = {}
+
+## Faction the player is currently attached to. Default scenario pins to
+## "The Demos"; other scenarios may pin to a different faction; free play
+## (no scenario) leaves this as "The Demos" unless the player detaches via
+## the Z surface. Empty string = detached (no faction is being mutated by
+## player trade).
+@export var player_faction_name: String = "The Demos"
 
 ## Unlocked Biomes - loaded exactly from save/scenario state.
 @export var unlocked_biomes: Array[String] = []
@@ -123,13 +126,13 @@ extends Resource
 @export var selected_plot_positions: Array = []  # Array of Vector2i
 
 
-static func derive_known_emojis_from_pairs(pairs: Array) -> Array:
+static func derive_known_emojis_from_icons(icons: Array) -> Array:
 	var emojis: Array = []
-	for pair in pairs:
-		if not (pair is Dictionary):
+	for icon in icons:
+		if not (icon is Dictionary):
 			continue
-		var north = str(pair.get("north", ""))
-		var south = str(pair.get("south", ""))
+		var north = str(icon.get("north", ""))
+		var south = str(icon.get("south", ""))
 		if north != "" and north not in emojis:
 			emojis.append(north)
 		if south != "" and south not in emojis:
@@ -137,18 +140,50 @@ static func derive_known_emojis_from_pairs(pairs: Array) -> Array:
 	return emojis
 
 
-## Get known emojis (derived from known_pairs)
-## This is the canonical compatibility read for the player's signature.
+## Get known emojis (derived from known_icons).
 func get_known_emojis() -> Array:
-	return derive_known_emojis_from_pairs(known_pairs)
+	return derive_known_emojis_from_icons(known_icons)
 
 
-## Get the pair containing a given emoji (returns null if not found)
-func get_pair_for_emoji(emoji: String) -> Variant:
-	for pair in known_pairs:
-		if pair.get("north", "") == emoji or pair.get("south", "") == emoji:
-			return pair
+## Get the icon containing a given emoji (returns null if not found)
+func get_icon_for_emoji(emoji: String) -> Variant:
+	for icon in known_icons:
+		if icon.get("north", "") == emoji or icon.get("south", "") == emoji:
+			return icon
 	return null
+
+
+func get_known_icons() -> Array:
+	return known_icons
+
+
+func _set(property: StringName, value) -> bool:
+	if property == "known_icons":
+		known_icons = _normalize_known_icons(value)
+		return true
+	return false
+
+
+func _get(property: StringName):
+	if property == "known_icons":
+		return known_icons
+	return null
+
+
+static func _normalize_known_icons(raw) -> Array:
+	var out: Array = []
+	if raw is Array:
+		for icon in raw:
+			if not (icon is Dictionary):
+				continue
+			var north = str(icon.get("north", ""))
+			var south = str(icon.get("south", ""))
+			if north == "" or south == "" or north == south:
+				continue
+			out.append({"north": north, "south": south})
+	if out.is_empty():
+		return [{"north": "🌾", "south": "👥"}]
+	return out
 
 ## Quest Board - Multi-Page Memory System
 @export var quest_pages: Dictionary = {}
@@ -157,7 +192,7 @@ func get_pair_for_emoji(emoji: String) -> Variant:
 #   1: [slot0_dict, slot1_dict, slot2_dict, slot3_dict],
 #   ...
 # }
-# Each slot_dict: {quest_id, offered_quest, faction, is_locked, state}
+# Each slot_dict: {quest_id, offered_quest, faction, state}
 
 @export var quest_board_current_page: int = 0
 
@@ -225,35 +260,7 @@ func get_pair_for_emoji(emoji: String) -> Variant:
 # Example: "(0, 0)" → "Market", "(2, 0)" → "BioticFlux"
 
 func _init():
-	# Initialize with default values
-	scenario_id = "new_game_easy"
-	save_timestamp = Time.get_unix_time_from_system()
-	game_time = 0.0
-
-	# Initialize empty plot grid (default 6x1, customizable per farm)
-	plots.clear()
-	for y in range(grid_height):
-		for x in range(grid_width):
-			plots.append({
-				"position": Vector2i(x, y),
-				"type_name": "wheat",
-				"is_planted": false,
-				"has_been_measured": false,
-				"theta_frozen": false,
-				"entangled_with": [],
-				"persistent_gates": [],
-				"lindblad_pump_active": false,
-				"lindblad_drain_active": false,
-				"lindblad_pump_rate": 0.5,
-				"lindblad_drain_rate": 0.5
-			})
-
-	# Initialize typed arrays properly (Godot 4 requirement)
-	active_contracts.clear()
-
-	# Player signature is initialized in the @export default above
-	# 🌾 (Wheat) and 👥 (People) are the starter emojis
-	# These match faction signatures and seed initial faction conversations
+	save_timestamp = int(Time.get_unix_time_from_system())
 	ensure_balance_workbench_defaults()
 	ensure_policy_state_defaults()
 
@@ -298,6 +305,20 @@ func get_save_display_name() -> String:
 
 const BALANCE_SCHEMA_VERSION: int = 2
 
+func set_balance_config_value(path: Array, value: Variant) -> void:
+	if path.is_empty():
+		return
+	if not (balance_workbench_config is Dictionary):
+		balance_workbench_config = {}
+	var node := balance_workbench_config
+	for i in range(path.size() - 1):
+		var key = path[i]
+		if typeof(node.get(key)) != TYPE_DICTIONARY:
+			node[key] = {}
+		node = node[key]
+	node[path[-1]] = value
+
+
 func ensure_balance_workbench_defaults() -> bool:
 	var defaults = _default_balance_workbench_config()
 	if not (balance_workbench_config is Dictionary):
@@ -339,7 +360,7 @@ func ensure_balance_workbench_defaults() -> bool:
 		economy_variables = {}
 	for key in ["quantum_to_credits", "max_biome_qubits"]:
 		if not economy_variables.has(key):
-			economy_variables[key] = defaults.get("economy_variables", {}).get(key, 1.0 if key == "quantum_to_credits" else 12)
+			economy_variables[key] = defaults.get("economy_variables", {}).get(key, 1.0 if key == "quantum_to_credits" else 12.0)
 	return migrating
 
 
@@ -391,12 +412,11 @@ func _default_balance_workbench_config() -> Dictionary:
 			"reap": "Season change: fast-forward, collect sink flux, and broad harvest across active biomes.",
 			"discover_biome": "Long-term expansion unlock; increases future terminal surface area.",
 			"remove_biome": "Liquidates one non-core biome from its live quantum state and frees the slot.",
-			"inject_vocabulary": "Converts known pairs into biome terminals and new learning options.",
-			"remove_vocabulary": "Emergency rollback action; expensive by design.",
+			"inject_icon": "Converts known icons into biome terminals and new learning options.",
+			"remove_icon": "Emergency rollback action; expensive by design.",
 			"lindblad_pump": "Raises local population/energy; setup cost for stronger harvest curves.",
 			"lindblad_drain": "Removes unstable population; useful for stabilizing noisy plots.",
-			"quest_reroll": "Short-horizon quest quality control.",
-			"quest_lock": "Preserves high-value quest offers for later claim timing."
+			"quest_reroll": "Short-horizon quest quality control."
 		},
 		"quest_reward_notes": {
 			"resource_reward_base_ratio": "Global scaler on quest resource payout budget.",

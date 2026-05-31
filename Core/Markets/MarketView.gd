@@ -3,7 +3,7 @@ extends RefCounted
 
 ## MarketView — the player's geometric lens onto the market.
 ##
-## ContractMarket is independent of any one character; it bids on the world
+## MarketLattice is independent of any one character; it bids on the world
 ## supply ledger. MarketView projects those offers through the player's own
 ## inventory to produce a *view* — the same offers, sorted/annotated by how
 ## the player relates to them.
@@ -38,6 +38,7 @@ enum SortMode {
 	COMFORT,    ## descending (share - depth) — easiest to fulfill first
 	STRETCH,    ## ascending  (share - depth) — most challenging first
 	MAGNITUDE,  ## descending quantity        — biggest raw deals first
+	TENSION,    ## descending pair tension    — most contested manifold pairs first
 }
 
 
@@ -72,6 +73,8 @@ static func sort_view(offers: Array, inventory: Dictionary, mode: int = SortMode
 			out.sort_custom(func(a, b): return float(a.get("view_comfort", 0.0)) < float(b.get("view_comfort", 0.0)))
 		SortMode.MAGNITUDE:
 			out.sort_custom(func(a, b): return float(a.get("quantity", 0.0)) > float(b.get("quantity", 0.0)))
+		SortMode.TENSION:
+			out.sort_custom(func(a, b): return float(a.get("tension", 0.0)) > float(b.get("tension", 0.0)))
 	return out
 
 

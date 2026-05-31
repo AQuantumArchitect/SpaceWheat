@@ -13,7 +13,7 @@
     "💰": 2,
     "🦅": 1
   },
-  "known_pairs": [
+  "known_icons": [
     {
       "north": "💳",
       "south": "💰"
@@ -40,7 +40,7 @@
       "graph_jsonl": [
         "{\"op\":\"set\",\"path\":\"profile_id\",\"value\":\"village_diplomat_fib\"}",
         "{\"op\":\"set\",\"path\":\"action_priors.quest_cycle.base\",\"value\":2.3}",
-        "{\"op\":\"set\",\"path\":\"action_priors.lock_offer.base\",\"value\":0.7}",
+        "{\"op\":\"set\",\"path\":\"action_priors.quest_cycle.base\",\"value\":0.7}",
         "{\"op\":\"set\",\"path\":\"reward_terms.active_quest\",\"value\":6.5}"
       ]
     }

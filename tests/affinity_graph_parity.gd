@@ -4,18 +4,18 @@ extends SceneTree
 ##
 ## Run:  godot --headless --quit --script tests/affinity_graph_parity.gd
 ##
-## Verifies AffinityGraph corner-state behaviour matches the existing
+## Verifies AlignmentGraph corner-state behaviour matches the existing
 ## Faction.bits encoding bit-for-bit, plus invariants on rotation, mixing,
 ## and serialization.
 
-const AG = preload("res://Core/Affinity/AffinityGraph.gd")
+const AG = preload("res://Core/Alignment/AlignmentGraph.gd")
 
 var _failed: int = 0
 var _passed: int = 0
 
 
 func _init() -> void:
-	print("=== AffinityGraph parity ===")
+	print("=== AlignmentGraph parity ===")
 	_t_corner_round_trip()
 	_t_diagonal_one_hot()
 	_t_partial_trace_corner()

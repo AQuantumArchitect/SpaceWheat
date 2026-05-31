@@ -11,35 +11,65 @@ extends "res://UI/Core/Surface.gd"
 ##
 ## Frames:
 ##   Network  — biome×biome tensor edges (where stories live)
-##   Bridges  — factions admitted to multiple biomes (lateral structure)
-##   Selector — browseable biome atlas (no scope change)
+##   Bridges  — admitted-faction bridges + bell gates + dissipation links
+##              (G/H/J sub-paginator within the frame)
+##   Selector — TYUIOP slot-binding editor (frame-local TYUIOP override)
 ##   Live     — biomes ranked by recent chatter activity
+##   Whole    — active biome's whole-biome summary
+##   Matrix   — active biome's density matrix ρ
 ##
 ## Keyboard grammar (matches KEYBOARD_GRAMMAR.md):
-##   T Y U I  = direct-jump to the four frames
-##   GHJKL;   = pick the focused row within the frame
-##   Q ←      = screw out / retreat (clear pending C scope on Network)
-##   E ↓      = pause + inspect inline detail (does NOT leave N)
-##   R →      = screw in / drill into a deeper surface (open B; advance to C)
-##   F ↑      = flatten any open E-snapshot
+##   T Y U I O P = direct-jump to the six frames (Selector overrides TYUIOP)
+##   GHJKL;      = pick the focused row within the frame
+##   Q ←         = screw out / retreat (clear pending C scope; clear slot on Selector)
+##   E ↓         = pause + inspect inline detail (does NOT leave N)
+##   R →         = screw in / advance (open contracts; bind slot on Selector)
+##   F ↑         = flatten any open E-snapshot
 ##
-## B owns the in-biome math; M owns the biome×faction field.
+## N now carries the in-biome math views (Whole, Matrix) absorbed from B.
+## M owns the biome×faction field.
 
-const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
-const BiomeRegistry = preload("res://Core/Biomes/BiomeRegistry.gd")
 const MarketLatticeCls = preload("res://Core/Markets/MarketLattice.gd")
-const FactionBiomeMap = preload("res://Core/Biomes/FactionBiomeMap.gd")
 
 const FRAME_MAP := "map"
 const FRAME_BRIDGES := "bridges"
 const FRAME_NETWORK := "network"
 const FRAME_LIVE := "live"
+const FRAME_WHOLE := "whole"
+const FRAME_MATRIX := "matrix"
 
 const FRAME_LABELS_LOCAL := {
 	FRAME_MAP: "Selector",
 	FRAME_BRIDGES: "Bridges",
 	FRAME_NETWORK: "Network",
 	FRAME_LIVE: "Live",
+	FRAME_WHOLE: "Whole",
+	FRAME_MATRIX: "Matrix",
+}
+
+# Visible tab row — TYUIOP slots: Network, Bridges, Selector, Live, Whole, Matrix.
+const TAB_ROW := [
+	{"key": "T", "frame": FRAME_NETWORK, "name": "Network"},
+	{"key": "Y", "frame": FRAME_BRIDGES, "name": "Bridges"},
+	{"key": "U", "frame": FRAME_MAP,     "name": "Selector"},
+	{"key": "I", "frame": FRAME_LIVE,    "name": "Live"},
+	{"key": "O", "frame": FRAME_WHOLE,   "name": "Whole"},
+	{"key": "P", "frame": FRAME_MATRIX,  "name": "Matrix"},
+]
+
+# Bridges sub-sections — paged via G/H/J on the home row.
+const BRIDGES_SECTION_BRIDGES := 0
+const BRIDGES_SECTION_GATES := 1
+const BRIDGES_SECTION_LINKS := 2
+const BRIDGES_SECTION_KEYCODES := {
+	KEY_G: BRIDGES_SECTION_BRIDGES,
+	KEY_H: BRIDGES_SECTION_GATES,
+	KEY_J: BRIDGES_SECTION_LINKS,
+}
+const BRIDGES_SECTION_LABELS := {
+	BRIDGES_SECTION_BRIDGES: "Bridges",
+	BRIDGES_SECTION_GATES: "Bell gates",
+	BRIDGES_SECTION_LINKS: "Dissipation links",
 }
 
 # Network-frame layout
@@ -54,17 +84,13 @@ const NETWORK_MAX_VISIBLE: int = 6
 const SLOT_KEYCODES := {
 	KEY_T: 0, KEY_Y: 1, KEY_U: 2, KEY_I: 3, KEY_O: 4, KEY_P: 5,
 }
-
-const COLOR_HEADER := Color(0.85, 0.92, 1.0)
-const COLOR_BODY := Color(0.7, 0.78, 0.88)
 const COLOR_MUTED := Color(0.55, 0.6, 0.7)
 const COLOR_HIGHLIGHT := Color(1.0, 0.95, 0.7)
 const COLOR_CARD_BG := Color(0.15, 0.17, 0.22, 0.85)
 const COLOR_CARD_BORDER_IDLE := Color(0.35, 0.4, 0.5, 0.6)
-const COLOR_CARD_BORDER_ACTIVE := Color(0.9, 0.85, 0.4, 0.9)
 const COLOR_BRIDGE_FACTION := Color(0.95, 0.85, 0.5)
 const COLOR_BRIDGE_BIOMES := Color(0.7, 0.85, 1.0)
-# Faction-edge gradient endpoints. Single-touch faction edges render at
+# Neighborhood edge gradient endpoints. Single-touch neighborhood edges render at
 # COLOR_EDGE_LAVENDER; bridge order k pulls toward COLOR_EDGE_AMBER along
 # _bridge_intensity(k). Used by row, header, and detail-panel renderers.
 const COLOR_EDGE_LAVENDER := Color(0.85, 0.65, 1.0)
@@ -73,7 +99,8 @@ const COLOR_EDGE_AMBER := Color(1.0, 0.78, 0.45)
 var _frame_label: Label
 var _hint_label: Label
 var _body_box: VBoxContainer
-
+var _tab_row_box: HBoxContainer = null
+var _tab_labels: Dictionary = {}
 
 func _init() -> void:
 	overlay_name = "inspector"
@@ -82,19 +109,28 @@ func _init() -> void:
 	panel_title = "📡 Network"
 	panel_size_mode = PanelSizeMode.MEDIUM
 	panel_border_color = Color(0.3, 0.5, 0.7, 0.8)
-	navigation_mode = NavigationMode.CALLBACK
+	navigation_mode = NavigationMode.NONE
 	content_spacing = 8
 	surface_id = "N"
-	frame_ids = [FRAME_NETWORK, FRAME_BRIDGES, FRAME_MAP, FRAME_LIVE]
+	frame_ids = [FRAME_NETWORK, FRAME_BRIDGES, FRAME_MAP, FRAME_LIVE, FRAME_WHOLE, FRAME_MATRIX]
 	frame_id = FRAME_NETWORK
-	action_labels = {"Q": "—", "E": "Inspect", "R": "Open contracts", "F": "—"}
-
+	# Initial labels — _update_action_labels() will enrich these on first render.
+	set_action_info("Q", {"label": "—"})
+	set_action_info("E", {"label": "Inspect", "emoji": "🔬", "hint": "Inspect the selected connection detail"})
+	set_action_info("R", {"label": "Open contracts", "emoji": "📜", "hint": "Open faction contracts for this connection"})
+	set_action_info("F", {"label": "—"})
 
 func _build_content(container: Control) -> void:
 	_frame_label = Label.new()
 	_frame_label.add_theme_font_size_override("font_size", 16)
-	_frame_label.add_theme_color_override("font_color", COLOR_HEADER)
+	_frame_label.add_theme_color_override("font_color", UIStyleFactory.COLOR_HEADER)
 	container.add_child(_frame_label)
+
+	_build_tab_row(container)
+
+	var sep := HSeparator.new()
+	sep.add_theme_color_override("color", Color(0.3, 0.4, 0.5, 0.4))
+	container.add_child(sep)
 
 	_hint_label = Label.new()
 	_hint_label.add_theme_font_size_override("font_size", 11)
@@ -109,8 +145,37 @@ func _build_content(container: Control) -> void:
 	container.add_child(_body_box)
 
 	_refresh_label()
+	_refresh_tab_row()
 	_rebuild_body()
 
+func _build_tab_row(container: Control) -> void:
+	_tab_row_box = HBoxContainer.new()
+	_tab_row_box.alignment = BoxContainer.ALIGNMENT_CENTER
+	_tab_row_box.add_theme_constant_override("separation", 18)
+	container.add_child(_tab_row_box)
+	_tab_labels.clear()
+	for entry in TAB_ROW:
+		var lbl := Label.new()
+		lbl.add_theme_font_size_override("font_size", 14)
+		_tab_row_box.add_child(lbl)
+		_tab_labels[str(entry.get("key", ""))] = lbl
+
+func _refresh_tab_row() -> void:
+	if _tab_labels.is_empty():
+		return
+	for entry in TAB_ROW:
+		var key_str := str(entry.get("key", ""))
+		var fid := str(entry.get("frame", ""))
+		var name_str := str(entry.get("name", ""))
+		var lbl: Label = _tab_labels.get(key_str, null)
+		if lbl == null:
+			continue
+		if fid == frame_id:
+			lbl.text = "[%s] %s" % [key_str, name_str.to_upper()]
+			lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_TAB_ACTIVE)
+		else:
+			lbl.text = "[%s] %s" % [key_str, name_str]
+			lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_TAB_IDLE)
 
 func _on_activated() -> void:
 	super._on_activated()
@@ -120,42 +185,71 @@ func _on_activated() -> void:
 	if frame_id == FRAME_NETWORK:
 		_update_pending_pair_scope()
 
-
 func _on_frame_changed(_new_frame_id: String, _prev_frame_id: String) -> void:
 	_network_detail_open = false
 	_refresh_label()
+	_refresh_tab_row()
 	_update_action_labels()
 	_rebuild_body()
 
-
 func _update_action_labels() -> void:
-	var labels: Dictionary
 	if frame_id == FRAME_NETWORK:
-		# E shows "—" once detail is open (E only opens; F flattens).
-		var e_label := "—" if _network_detail_open else "Inspect"
-		var f_label := "Flatten" if _network_detail_open else "—"
-		var r_label := "Open contracts" if (_network_selected >= 0 and _network_selected < _network_edges.size()) else "—"
-		labels = {"Q": "—", "E": e_label, "R": r_label, "F": f_label}
+		var e_open := _network_detail_open
+		var r_has := _network_selected >= 0 and _network_selected < _network_edges.size()
+		set_action_info("Q", {"label": "—"})
+		set_action_info("E", {
+			"label": "—" if e_open else "Inspect",
+			"emoji": "" if e_open else "🔬",
+			"hint": "Inspect the selected connection detail",
+		})
+		set_action_info("R", {
+			"label": "Open contracts" if r_has else "—",
+			"emoji": "📜" if r_has else "",
+			"hint": "Open faction contracts for this connection",
+		})
+		set_action_info("F", {
+			"label": "Flatten" if e_open else "—",
+			"emoji": "✕" if e_open else "",
+			"hint": "Collapse the detail view",
+		})
 	elif frame_id == FRAME_LIVE:
-		var r_label := "Open biome" if _live_selected < _live_sorted_biomes.size() else "—"
-		labels = {"Q": "—", "E": "—", "R": r_label, "F": "—"}
+		var r_has := _live_selected < _live_sorted_biomes.size()
+		set_action_info("Q", {"label": "—"})
+		set_action_info("E", {"label": "—"})
+		set_action_info("R", {
+			"label": "Activate" if r_has else "—",
+			"emoji": "⚡" if r_has else "",
+			"hint": "Set as active biome for the play surface",
+		})
+		set_action_info("F", {"label": "—"})
 	elif frame_id == FRAME_MAP:
 		var has_cursor := _map_biome_idx >= 0 and _map_biome_idx < _map_unlocked_biomes.size()
-		var q_label := "Clear slot"
-		var r_label := "Bind to slot" if has_cursor else "—"
-		labels = {"Q": q_label, "E": "—", "R": r_label, "F": "—"}
+		set_action_info("Q", {
+			"label": "Clear slot",
+			"emoji": "✕",
+			"hint": "Remove biome from this selector slot",
+		})
+		set_action_info("E", {"label": "—"})
+		set_action_info("R", {
+			"label": "Bind to slot" if has_cursor else "—",
+			"emoji": "📌" if has_cursor else "",
+			"hint": "Assign selected biome to this selector slot",
+		})
+		set_action_info("F", {"label": "—"})
 	else:
-		labels = {"Q": "—", "E": "—", "R": "—", "F": "—"}
-	action_labels = labels
+		# FRAME_BRIDGES, FRAME_WHOLE, FRAME_MATRIX — no active QERF verbs yet
+		set_action_info("Q", {"label": "—"})
+		set_action_info("E", {"label": "—"})
+		set_action_info("R", {"label": "—"})
+		set_action_info("F", {"label": "—"})
 	action_labels_changed.emit()
-
 
 func _refresh_label() -> void:
 	if _frame_label:
 		var idx := frame_ids.find(frame_id)
 		var total := frame_ids.size()
 		var page_text := "%d/%d" % [idx + 1 if idx >= 0 else 1, total if total > 0 else 1]
-		var subtitle := "TYUI jump · [ / ] cycle"
+		var subtitle := "TYUIOP jump · [ / ] cycle"
 		if frame_id == FRAME_NETWORK and _network_selected >= 0 and _network_selected < _network_edges.size():
 			var edge: Dictionary = _network_edges[_network_selected]
 			var edge_b := str(edge.get("b", ""))
@@ -177,14 +271,17 @@ func _refresh_label() -> void:
 			FRAME_NETWORK:
 				_hint_label.text = _network_hint_text()
 			FRAME_BRIDGES:
-				_hint_label.text = "Bridges show which factions are admitted across multiple biomes."
+				_hint_label.text = "G bridges · H gates · J links  — three views of inter-qubit & inter-biome structure."
 			FRAME_MAP:
 				_hint_label.text = "Map binds biomes to TYUIOP keys — press the slot key (T..P), pick a biome (G..;), R binds, Q clears. [/] leaves Map."
 			FRAME_LIVE:
 				_hint_label.text = "Ranked by recent chatter activity. E opens the biome inspector."
+			FRAME_WHOLE:
+				_hint_label.text = "Whole-biome summary for the active biome — purity, qubits, harvest, dissipation."
+			FRAME_MATRIX:
+				_hint_label.text = "Density matrix ρ for the active biome — diagonal = populations, off-diagonal = coherences."
 			_:
 				_hint_label.text = ""
-
 
 func _rebuild_body() -> void:
 	if _body_box == null:
@@ -196,9 +293,10 @@ func _rebuild_body() -> void:
 		FRAME_BRIDGES: _build_bridges_view()
 		FRAME_MAP:     _build_map_view()
 		FRAME_LIVE:    _build_live_view()
+		FRAME_WHOLE:   _build_whole_view()
+		FRAME_MATRIX:  _build_matrix_view()
 		_:             _build_stub_view()
 	_refresh_label()
-
 
 # =============================================================================
 # SELECTOR — biome cards / pair-scope handoff page
@@ -267,13 +365,12 @@ func _build_map_view() -> void:
 		return
 
 	var visible_count: int = mini(_map_unlocked_biomes.size(), NETWORK_HOMEROW.size())
-	var page_start: int = (_map_biome_idx / NETWORK_HOMEROW.size()) * NETWORK_HOMEROW.size()
+	var page_start: int = int(float(_map_biome_idx) / float(NETWORK_HOMEROW.size())) * NETWORK_HOMEROW.size()
 	var page_end: int = mini(page_start + NETWORK_HOMEROW.size(), _map_unlocked_biomes.size())
 	visible_count = page_end - page_start
 	for i in range(visible_count):
 		var idx: int = page_start + i
 		_body_box.add_child(_make_map_biome_row(idx, NETWORK_HOMEROW[i], biomes, abm))
-
 
 func _make_map_slot_row(slot_idx: int, abm) -> Control:
 	var hbox := HBoxContainer.new()
@@ -284,7 +381,7 @@ func _make_map_slot_row(slot_idx: int, abm) -> Control:
 	var key_lbl := Label.new()
 	key_lbl.text = "[%s]" % slot_key
 	key_lbl.add_theme_font_size_override("font_size", 12)
-	key_lbl.add_theme_color_override("font_color", COLOR_KEY_CHIP if is_target else COLOR_MUTED)
+	key_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_KEY_CHIP if is_target else COLOR_MUTED)
 	key_lbl.custom_minimum_size = Vector2(40, 0)
 	hbox.add_child(key_lbl)
 	var name_lbl := Label.new()
@@ -295,12 +392,11 @@ func _make_map_slot_row(slot_idx: int, abm) -> Control:
 	elif bound == "":
 		name_lbl.add_theme_color_override("font_color", COLOR_MUTED)
 	else:
-		name_lbl.add_theme_color_override("font_color", COLOR_HEADER)
+		name_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_HEADER)
 	hbox.add_child(name_lbl)
 	return hbox
 
-
-func _make_map_biome_row(idx: int, slot_key: String, biomes: Dictionary, abm) -> Control:
+func _make_map_biome_row(idx: int, slot_key: String, _biomes: Dictionary, abm) -> Control:
 	var hbox := HBoxContainer.new()
 	hbox.add_theme_constant_override("separation", 10)
 	var is_selected := (idx == _map_biome_idx)
@@ -311,14 +407,14 @@ func _make_map_biome_row(idx: int, slot_key: String, biomes: Dictionary, abm) ->
 	var key_lbl := Label.new()
 	key_lbl.text = "[%s]" % slot_key
 	key_lbl.add_theme_font_size_override("font_size", 12)
-	key_lbl.add_theme_color_override("font_color", COLOR_KEY_CHIP if is_selected else COLOR_MUTED)
+	key_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_KEY_CHIP if is_selected else COLOR_MUTED)
 	key_lbl.custom_minimum_size = Vector2(28, 0)
 	hbox.add_child(key_lbl)
 	var name_lbl := Label.new()
 	var marker := "▸ " if is_selected else "  "
 	name_lbl.text = "%s%s" % [marker, biome_name]
 	name_lbl.add_theme_font_size_override("font_size", 13)
-	name_lbl.add_theme_color_override("font_color", COLOR_HIGHLIGHT if is_selected else COLOR_HEADER)
+	name_lbl.add_theme_color_override("font_color", COLOR_HIGHLIGHT if is_selected else UIStyleFactory.COLOR_HEADER)
 	name_lbl.custom_minimum_size = Vector2(220, 0)
 	hbox.add_child(name_lbl)
 	if bound_to >= 0:
@@ -330,12 +426,10 @@ func _make_map_biome_row(idx: int, slot_key: String, biomes: Dictionary, abm) ->
 		hbox.add_child(bound_lbl)
 	return hbox
 
-
 func _map_make_spacer(h: int) -> Control:
 	var c := Control.new()
 	c.custom_minimum_size = Vector2(0, h)
 	return c
-
 
 func _resolve_abm():
 	# Resolve the ActiveBiomeManager autoload — used by the Map frame.
@@ -347,7 +441,6 @@ func _resolve_abm():
 	if Engine.get_main_loop() and Engine.get_main_loop().root:
 		return Engine.get_main_loop().root.get_node_or_null("ActiveBiomeManager")
 	return null
-
 
 func _ensure_slot_signal_wired() -> void:
 	if _map_slot_signal_connected:
@@ -361,19 +454,29 @@ func _ensure_slot_signal_wired() -> void:
 		abm.slot_assignment_changed.connect(_on_slot_assignment_changed)
 	_map_slot_signal_connected = true
 
-
 func _on_slot_assignment_changed(_slot_idx: int, _biome_name: String) -> void:
 	if frame_id == FRAME_MAP and is_active:
 		_rebuild_body()
-
-
-
 
 # =============================================================================
 # BRIDGES — factions admitted to multiple biomes (lateral structure)
 # =============================================================================
 
 func _build_bridges_view() -> void:
+	var section_label: String = BRIDGES_SECTION_LABELS.get(_bridges_section, "Bridges")
+	var hdr := Label.new()
+	hdr.text = "[%s]  ·  G bridges · H gates · J links" % section_label
+	hdr.add_theme_font_size_override("font_size", 13)
+	hdr.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
+	_body_box.add_child(hdr)
+
+	match _bridges_section:
+		BRIDGES_SECTION_BRIDGES: _build_bridges_section_factions()
+		BRIDGES_SECTION_GATES:   _build_bridges_section_gates()
+		BRIDGES_SECTION_LINKS:   _build_bridges_section_links()
+		_:                       _build_bridges_section_factions()
+
+func _build_bridges_section_factions() -> void:
 	var biomes := _get_all_biomes()
 	if biomes.is_empty():
 		var empty := Label.new()
@@ -419,7 +522,6 @@ func _build_bridges_view() -> void:
 	for entry in bridges:
 		_body_box.add_child(_make_bridge_row(entry.faction, entry.biomes))
 
-
 func _make_bridge_row(faction_name: String, biomes_for_faction: Array) -> Control:
 	var hbox := HBoxContainer.new()
 	hbox.add_theme_constant_override("separation", 10)
@@ -458,6 +560,186 @@ func _make_bridge_row(faction_name: String, biomes_for_faction: Array) -> Contro
 
 	return hbox
 
+func _build_bridges_section_gates() -> void:
+	var active = _resolve_active_biome_obj()
+	if active == null:
+		_body_box.add_child(_bridges_muted("No active biome — cannot list bell gates."))
+		return
+	var gates: Array = active.bell_gates if "bell_gates" in active else []
+	if gates.is_empty():
+		_body_box.add_child(_bridges_muted("No bell gates recorded in the active biome."))
+		return
+	var sub := Label.new()
+	sub.text = "Bell-gate history for %s — local entanglement structure." % _bridges_active_biome_name()
+	sub.add_theme_font_size_override("font_size", 11)
+	sub.add_theme_color_override("font_color", COLOR_MUTED)
+	sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_body_box.add_child(sub)
+	var shown := 0
+	for gate in gates:
+		if shown >= 12:
+			_body_box.add_child(_bridges_muted("+ %d more" % (gates.size() - shown)))
+			break
+		var gate_arr: Array = gate if gate is Array else []
+		var labels: Array[String] = []
+		for pos in gate_arr:
+			labels.append(str(pos))
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+		var lbl_l := Label.new()
+		lbl_l.text = "gate %d" % (shown + 1)
+		lbl_l.add_theme_font_size_override("font_size", 12)
+		lbl_l.add_theme_color_override("font_color", COLOR_MUTED)
+		lbl_l.custom_minimum_size = Vector2(80, 0)
+		row.add_child(lbl_l)
+		var lbl_r := Label.new()
+		lbl_r.text = ", ".join(labels) if not labels.is_empty() else "—"
+		lbl_r.add_theme_font_size_override("font_size", 12)
+		lbl_r.add_theme_color_override("font_color", Color(0.3, 0.9, 0.6, 0.85))
+		row.add_child(lbl_r)
+		_body_box.add_child(row)
+		shown += 1
+
+func _build_bridges_section_links() -> void:
+	var active = _resolve_active_biome_obj()
+	if active == null or active.viz_cache == null:
+		_body_box.add_child(_bridges_muted("No active biome — cannot list dissipation links."))
+		return
+	var vc = active.viz_cache
+	var sub := Label.new()
+	sub.text = "Live dissipation links for %s — outgoing Lindblad channels." % _bridges_active_biome_name()
+	sub.add_theme_font_size_override("font_size", 11)
+	sub.add_theme_color_override("font_color", COLOR_MUTED)
+	sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_body_box.add_child(sub)
+	var shown := 0
+	var total := 0
+	for source in vc.get_emojis():
+		var outgoing = vc.get_lindblad_outgoing(source)
+		for target in outgoing:
+			total += 1
+			if shown >= 16:
+				continue
+			var row := HBoxContainer.new()
+			row.add_theme_constant_override("separation", 8)
+			var lbl_l := Label.new()
+			lbl_l.text = "%s → %s" % [str(source), str(target)]
+			lbl_l.add_theme_font_size_override("font_size", 12)
+			lbl_l.add_theme_color_override("font_color", COLOR_BRIDGE_BIOMES)
+			lbl_l.custom_minimum_size = Vector2(140, 0)
+			row.add_child(lbl_l)
+			var lbl_r := Label.new()
+			lbl_r.text = "γ=%.4f" % float(outgoing[target])
+			lbl_r.add_theme_font_size_override("font_size", 12)
+			lbl_r.add_theme_color_override("font_color", Color(0.9, 0.4, 0.3, 0.85))
+			row.add_child(lbl_r)
+			_body_box.add_child(row)
+			shown += 1
+	if total == 0:
+		_body_box.add_child(_bridges_muted("No live dissipation channels in this biome."))
+	elif total > shown:
+		_body_box.add_child(_bridges_muted("+ %d more" % (total - shown)))
+
+func _bridges_muted(text: String) -> Label:
+	var lbl := Label.new()
+	lbl.text = text
+	lbl.add_theme_font_size_override("font_size", 12)
+	lbl.add_theme_color_override("font_color", COLOR_MUTED)
+	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	return lbl
+
+func _resolve_active_biome_obj():
+	var _biome_name := _get_active_biome_name()
+	if name == "":
+		return null
+	var biomes := _get_all_biomes()
+	return biomes.get(name, null)
+
+func _bridges_active_biome_name() -> String:
+	var _biome_name := _get_active_biome_name()
+	return str(name) if name != "" else "(none)"
+
+# =============================================================================
+# WHOLE — biome summary (migrated from B)
+# =============================================================================
+
+func _build_whole_view() -> void:
+	var active = _resolve_active_biome_obj()
+	if active == null:
+		_body_box.add_child(_bridges_muted("No active biome to summarize."))
+		return
+	var farm = InstrumentLocator.resolve_active_farm(self)
+	var grid = farm.grid if farm != null and "grid" in farm else null
+	var data := BiomeInspectionController.get_biome_data(active, grid)
+	var detail := BiomeInspectionController.get_quantum_detail(active)
+	var projections: Array = BiomeInspectionController.get_active_projections(active, grid)
+	var hdr := Label.new()
+	hdr.text = "%s · whole-biome summary" % _bridges_active_biome_name()
+	hdr.add_theme_font_size_override("font_size", 14)
+	hdr.add_theme_color_override("font_color", Color(0.9, 0.85, 0.5))
+	_body_box.add_child(hdr)
+	_body_box.add_child(_whole_kv("mode", str(data.get("quantum_mode", "—"))))
+	var purity := float(data.get("purity", -1.0))
+	_body_box.add_child(_whole_kv("purity", "—" if purity < 0.0 else "%.1f%%" % (purity * 100.0)))
+	_body_box.add_child(_whole_kv("qubits", "%d  ·  dim %d" % [int(detail.get("num_qubits", 0)), int(detail.get("dimension", 0))]))
+	_body_box.add_child(_whole_kv("active plots", "%d" % projections.size()))
+	var ent_components: int = int(detail.get("entanglement", {}).get("num_components", 0))
+	_body_box.add_child(_whole_kv("entanglement", "%d component(s)" % ent_components))
+	var pred: Dictionary = data.get("harvest_prediction", {})
+	if not pred.is_empty():
+		_body_box.add_child(_whole_kv("harvest", "%s %d%% · %s %d%%" % [
+			str(pred.get("top_emoji", "?")), int(pred.get("top_percent", 0)),
+			str(pred.get("second_emoji", "?")), int(pred.get("second_percent", 0)),
+		]))
+	var admitted: Array = active.get_admitted_factions() if active.has_method("get_admitted_factions") else []
+	if not admitted.is_empty():
+		_body_box.add_child(_whole_kv("admitted factions", ", ".join(admitted)))
+	# Dissipation + gate counts.
+	var dissipation_count := 0
+	if active.viz_cache != null:
+		for source in active.viz_cache.get_emojis():
+			dissipation_count += active.viz_cache.get_lindblad_outgoing(source).size()
+	_body_box.add_child(_whole_kv("dissipation", "%d live terms" % dissipation_count))
+	var gate_count: int = active.bell_gates.size() if "bell_gates" in active else 0
+	_body_box.add_child(_whole_kv("gate history", "%d bell gate(s)" % gate_count))
+
+func _whole_kv(label_text: String, value_text: String) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var lbl := Label.new()
+	lbl.text = label_text
+	lbl.add_theme_font_size_override("font_size", 12)
+	lbl.add_theme_color_override("font_color", COLOR_MUTED)
+	lbl.custom_minimum_size = Vector2(140, 0)
+	row.add_child(lbl)
+	var val := Label.new()
+	val.text = value_text if value_text != "" else "—"
+	val.add_theme_font_size_override("font_size", 12)
+	val.add_theme_color_override("font_color", UIStyleFactory.COLOR_BODY)
+	val.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	val.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	row.add_child(val)
+	return row
+
+# =============================================================================
+# MATRIX — density matrix view (migrated from B)
+# =============================================================================
+
+func _build_matrix_view() -> void:
+	var active = _resolve_active_biome_obj()
+	if active == null:
+		_body_box.add_child(_bridges_muted("No active biome — density matrix unavailable."))
+		return
+	if _state_views == null:
+		_state_views = BiomeStateViews.new()
+		_matrix_view_node = _state_views.build_matrix_view()
+	if _matrix_view_node and _matrix_view_node.get_parent():
+		_matrix_view_node.get_parent().remove_child(_matrix_view_node)
+	_state_views.set_biome(active)
+	_state_views.update_view(FRAME_MATRIX)
+	if _matrix_view_node:
+		_body_box.add_child(_matrix_view_node)
 
 func _index_factions_by_biome(biomes: Dictionary) -> Dictionary:
 	# Faction signature gate: faction admitted to biome iff it owns an icon whose
@@ -465,7 +747,6 @@ func _index_factions_by_biome(biomes: Dictionary) -> Dictionary:
 	if biomes.is_empty():
 		return {}
 	return FactionBiomeMap.index_factions_to_biomes_by_signature(biomes)
-
 
 func _admitted_faction_names(biome) -> Array:
 	if biome == null:
@@ -475,14 +756,12 @@ func _admitted_faction_names(biome) -> Array:
 		return biome.get_admitted_factions()
 	return FactionBiomeMap.factions_for_biome_by_signature(biome)
 
-
 func _resolve_faction_registry():
 	# Prefer the farm-owned shared registry so runtime mutations are visible.
 	var farm = InstrumentLocator.resolve_active_farm(self)
 	if farm != null and "faction_density" in farm and farm.faction_density != null and farm.faction_density.has_method("get_registry"):
 		return farm.faction_density.get_registry()
 	return null
-
 
 # =============================================================================
 # DATA RESOLVERS
@@ -496,13 +775,11 @@ func _get_all_biomes() -> Dictionary:
 		return farm.grid.get_all_biomes()
 	return {}
 
-
 func _get_active_biome_name() -> String:
-	var abm = InstrumentLocator.resolve_active_biome_manager(self)
+	var abm = (Engine.get_main_loop().root.get_node_or_null("/root/ActiveBiomeManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 	if abm and abm.has_method("get_active_biome"):
 		return str(abm.get_active_biome())
 	return ""
-
 
 # =============================================================================
 # NETWORK — biome ⊗ biome trade edges, ranked by tension × shared_count
@@ -523,6 +800,12 @@ var _map_target_slot: int = 0
 var _map_unlocked_biomes: Array = []  # cached during _build_map_view
 var _map_slot_signal_connected: bool = false
 
+# Bridges sub-section paginator (G=bridges, H=gates, J=links).
+var _bridges_section: int = BRIDGES_SECTION_BRIDGES
+
+# Matrix frame state-views helper (built lazily on first _build_matrix_view).
+var _state_views: BiomeStateViews = null
+var _matrix_view_node: Control = null
 
 func _build_network_view() -> void:
 	_network_edges = _compute_network_edges()
@@ -542,7 +825,7 @@ func _build_network_view() -> void:
 			live_count += 1
 	var mean_bridge_order: float = (bridge_order_sum / float(faction_count)) if faction_count > 0 else 1.0
 	var hdr := Label.new()
-	hdr.text = "Tensor edges: %d live pairs · %d faction edges (★)  ·  mean bridge order ⟨k⟩ = %.2f" % [
+	hdr.text = "Tensor edges: %d live pairs · %d neighborhood edges (★)  ·  mean bridge order ⟨k⟩ = %.2f" % [
 		live_count, faction_count, mean_bridge_order
 	]
 	hdr.add_theme_font_size_override("font_size", 14)
@@ -550,7 +833,7 @@ func _build_network_view() -> void:
 	_body_box.add_child(hdr)
 
 	var sub := Label.new()
-	sub.text = "GHJKL; pick edge  ·  E inline inspect  ·  R open contract board  ·  ★ color shifts toward amber as faction signature spans more live biomes"
+	sub.text = "GHJKL; pick edge  ·  E inline inspect  ·  R open contract board  ·  ★ color shifts toward amber as a neighborhood's installed signature spans more live biomes"
 	sub.add_theme_font_size_override("font_size", 11)
 	sub.add_theme_color_override("font_color", COLOR_MUTED)
 	sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -571,8 +854,8 @@ func _build_network_view() -> void:
 	spacer.custom_minimum_size = Vector2(0, 4)
 	_body_box.add_child(spacer)
 
-	var visible: int = int(min(_network_edges.size(), NETWORK_MAX_VISIBLE))
-	for i in range(visible):
+	var _visible_count: int = int(min(_network_edges.size(), NETWORK_MAX_VISIBLE))
+	for i in range(_visible_count):
 		_body_box.add_child(_make_network_row(_network_edges[i], NETWORK_HOMEROW[i], i == _network_selected))
 
 	if _network_detail_open and _network_selected < _network_edges.size():
@@ -581,7 +864,6 @@ func _build_network_view() -> void:
 	# Keep pending pair scope in sync with the current selection so C always
 	# opens to the highest-tension edge even when the user hasn't visited N.
 	_update_pending_pair_scope()
-
 
 func _build_network_summary_card(live_count: int, faction_count: int) -> Control:
 	var panel := PanelContainer.new()
@@ -616,7 +898,6 @@ func _build_network_summary_card(live_count: int, faction_count: int) -> Control
 
 	return panel
 
-
 func _build_network_selection_card() -> Control:
 	var panel := PanelContainer.new()
 	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -639,12 +920,12 @@ func _build_network_selection_card() -> Control:
 	var title := Label.new()
 	title.text = "Selection"
 	title.add_theme_font_size_override("font_size", 13)
-	title.add_theme_color_override("font_color", COLOR_HEADER)
+	title.add_theme_color_override("font_color", UIStyleFactory.COLOR_HEADER)
 	vbox.add_child(title)
 
 	var body := Label.new()
 	body.add_theme_font_size_override("font_size", 12)
-	body.add_theme_color_override("font_color", COLOR_BODY)
+	body.add_theme_color_override("font_color", UIStyleFactory.COLOR_BODY)
 	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	if _network_selected >= 0 and _network_selected < _network_edges.size():
 		var edge: Dictionary = _network_edges[_network_selected]
@@ -661,7 +942,6 @@ func _build_network_selection_card() -> Control:
 	vbox.add_child(hint)
 
 	return panel
-
 
 func _make_summary_block(title_text: String, value_text: String) -> Control:
 	var box := VBoxContainer.new()
@@ -683,7 +963,6 @@ func _make_summary_block(title_text: String, value_text: String) -> Control:
 
 	return box
 
-
 func _network_relation_summary(edge: Dictionary) -> String:
 	var edge_b := str(edge.get("b", ""))
 	if bool(edge.get("faction_edge", false)):
@@ -695,7 +974,6 @@ func _network_relation_summary(edge: Dictionary) -> String:
 		shared_list.size(),
 		float(edge.get("tension", 0.0)),
 	]
-
 
 func _network_hint_text() -> String:
 	if _network_selected < 0 or _network_selected >= _network_edges.size():
@@ -709,7 +987,6 @@ func _network_hint_text() -> String:
 		edge_b,
 	]
 
-
 func _make_network_row(edge: Dictionary, key_label: String, is_selected: bool) -> Control:
 	var hbox := HBoxContainer.new()
 	hbox.add_theme_constant_override("separation", 10)
@@ -717,14 +994,14 @@ func _make_network_row(edge: Dictionary, key_label: String, is_selected: bool) -
 	var key_lbl := Label.new()
 	key_lbl.text = "[%s]" % key_label
 	key_lbl.add_theme_font_size_override("font_size", 12)
-	key_lbl.add_theme_color_override("font_color", COLOR_KEY_CHIP if is_selected else COLOR_MUTED)
+	key_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_KEY_CHIP if is_selected else COLOR_MUTED)
 	key_lbl.custom_minimum_size = Vector2(28, 0)
 	hbox.add_child(key_lbl)
 
 	var pair_lbl := Label.new()
 	var is_faction: bool = bool(edge.get("faction_edge", false))
 	var bridge_count: int = int(edge.get("bridge_count", 1))
-	# Badge: ★ for any faction-biome edge. Bridge order shows as a smooth
+	# Badge: ★ for any neighborhood edge. Bridge order shows as a smooth
 	# color lerp, not a separate glyph — no categorical step.
 	var prefix: String = "★" if is_faction else ""
 	pair_lbl.text = "%s ⊗ %s%s" % [edge.a, prefix, edge.b]
@@ -755,7 +1032,7 @@ func _make_network_row(edge: Dictionary, key_label: String, is_selected: bool) -
 		drift_glyph = " ↑" if drift > 0.01 else (" ↓" if drift < -0.01 else " →")
 	tension_lbl.text = "tension %.3f%s" % [edge.tension, drift_glyph]
 	tension_lbl.add_theme_font_size_override("font_size", 12)
-	tension_lbl.add_theme_color_override("font_color", COLOR_BODY)
+	tension_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_BODY)
 	tension_lbl.custom_minimum_size = Vector2(100, 0)
 	hbox.add_child(tension_lbl)
 
@@ -768,11 +1045,7 @@ func _make_network_row(edge: Dictionary, key_label: String, is_selected: bool) -
 		hbox.add_child(aff_lbl)
 
 	return hbox
-
-
-const COLOR_KEY_CHIP := Color(0.55, 0.85, 1.0, 0.95)
 const COLOR_DETAIL_BG := Color(0.08, 0.10, 0.14, 0.92)
-
 
 func _make_network_detail_panel(edge: Dictionary) -> Control:
 	var panel := PanelContainer.new()
@@ -803,7 +1076,7 @@ func _make_network_detail_panel(edge: Dictionary) -> Control:
 	vbox.add_child(header)
 
 	# Bridge mediator: list the other live biomes this faction's signature
-	# also touches. Stories on the tensor edge through this faction-biome
+	# also touches. Stories on the tensor edge through this neighborhood
 	# can flow between any pair of partners listed here. Threshold k>1 is
 	# data-derived (a faction touching only one live biome has no partners
 	# to list), not a categorical step in the scoring.
@@ -824,7 +1097,7 @@ func _make_network_detail_panel(edge: Dictionary) -> Control:
 	var tension_lbl := Label.new()
 	tension_lbl.text = "  tension: %.4f    shared axes: %d" % [edge.tension, edge.shared.size()]
 	tension_lbl.add_theme_font_size_override("font_size", 12)
-	tension_lbl.add_theme_color_override("font_color", COLOR_BODY)
+	tension_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_BODY)
 	vbox.add_child(tension_lbl)
 
 	# Per-shared-emoji marginals from both sides.
@@ -833,7 +1106,7 @@ func _make_network_detail_panel(edge: Dictionary) -> Control:
 	var marg_b_dict: Dictionary = {}
 	if is_faction:
 		var br = BiomeRegistry.get_shared()
-		for fb in br.get_biomes_by_tag("faction_biome"):
+		for fb in br.get_biomes_by_tag("neighborhood"):
 			if fb.name == str(edge.b):
 				marg_b_dict = MarketLatticeCls._static_marginals_from_spec(fb)
 				break
@@ -902,7 +1175,6 @@ func _make_network_detail_panel(edge: Dictionary) -> Control:
 
 	return panel
 
-
 ## Edge salience as a multiplicative composition of five smooth, continuous
 ## factors — no flat bonuses, no categorical steps. Each factor is bounded or
 ## monotonic in its underlying geometric quantity:
@@ -934,7 +1206,6 @@ static func _edge_score(
 		affinity_factor = 0.75 + 0.5 * clampf(affinity, 0.0, 1.0)
 	return tension_signal * richness * bridge_factor * drift_factor * affinity_factor
 
-
 ## Bridge intensity as a continuous saturation of bridge_count. Returns 0 at
 ## k=1 (no bridge), ~0.29 at k=2, ~0.42 at k=3, asymptotic to 1. Smooth across
 ## all integers; used for color-lerping the row badge so the 1→2 transition
@@ -943,12 +1214,10 @@ static func _bridge_intensity(bridge_count: int) -> float:
 	var k := float(maxi(1, bridge_count))
 	return 1.0 - 1.0 / sqrt(k)
 
-
 ## Faction-edge color along the lavender→amber gradient. k=1 sits at lavender
 ## (single-touch), higher k pulls toward amber along _bridge_intensity.
 static func _faction_edge_color(bridge_count: int) -> Color:
 	return COLOR_EDGE_LAVENDER.lerp(COLOR_EDGE_AMBER, _bridge_intensity(bridge_count))
-
 
 func _compute_network_edges() -> Array:
 	var biomes := _get_all_biomes()
@@ -1003,16 +1272,16 @@ func _compute_network_edges() -> Array:
 				"faction_edge": false,
 			})
 
-	# Faction-biome edges. Emit (live_biome ↔ faction_biome) for every live
-	# biome whose qubit register shares at least one atom with the faction
-	# signature. When a single faction's signature touches 2+ live biomes,
-	# both sides of that faction are "bridge" edges — the faction_biome is
-	# a tensor mediator between physical biomes that don't share atoms
-	# directly. This is where inter-biome stories anchor.
+	# Neighborhood edges. Emit (live_biome ↔ neighborhood) for every live
+	# biome whose qubit register shares at least one atom with the neighborhood
+	# signature. When a single signature touches 2+ live biomes, both sides of
+	# that neighborhood state are "bridge" edges — the neighborhood is a tensor
+	# mediator between physical biomes that don't share atoms directly. This is
+	# where inter-biome stories anchor.
 	var br = BiomeRegistry.get_shared()
-	for fb in br.get_biomes_by_tag("faction_biome"):
+	for fb in br.get_biomes_by_tag("neighborhood"):
 		var marg_fb: Dictionary = MarketLatticeCls._static_marginals_from_spec(fb)
-		# First pass per faction-biome: collect which live biomes it touches.
+		# First pass per neighborhood: collect which live biomes it touches.
 		var touched: Array = []  # [{biome, shared, tension}]
 		for bname in bnames:
 			var marg_live: Dictionary = marg_cache.get(bname, {})
@@ -1046,12 +1315,11 @@ func _compute_network_edges() -> Array:
 	edges.sort_custom(func(x, y): return float(x.score) > float(y.score))
 	return edges
 
-
 func _compute_biome_affinity_score(biome_a, biome_b) -> float:
 	if biome_a == null or biome_b == null:
 		return 0.0
-	var aff_a = biome_a.affinity if "affinity" in biome_a else null
-	var aff_b = biome_b.affinity if "affinity" in biome_b else null
+	var aff_a = biome_a.alignment if "affinity" in biome_a else null
+	var aff_b = biome_b.alignment if "affinity" in biome_b else null
 	if aff_a != null and aff_b != null and aff_a.has_method("overlap"):
 		return clampf(float(aff_a.overlap(aff_b)), 0.0, 1.0)
 	const FBM = preload("res://Core/Biomes/FactionBiomeMap.gd")
@@ -1064,7 +1332,6 @@ func _compute_biome_affinity_score(biome_a, biome_b) -> float:
 		if fb.has(f):
 			shared += 1
 	return float(shared) / float(maxi(fa.size(), fb.size()))
-
 
 func _emoji_marginals_for_biome(biome) -> Dictionary:
 	var out: Dictionary = {}
@@ -1085,8 +1352,12 @@ func _emoji_marginals_for_biome(biome) -> Dictionary:
 			out[south] = p1
 	return out
 
-
 func _on_unhandled_key(keycode: int, _event) -> bool:
+	# Bridges sub-section paginator: G/H/J pick which sub-list renders.
+	if frame_id == FRAME_BRIDGES and BRIDGES_SECTION_KEYCODES.has(keycode):
+		_bridges_section = int(BRIDGES_SECTION_KEYCODES[keycode])
+		_rebuild_body()
+		return true
 	if NETWORK_KEYCODES.has(keycode):
 		var idx: int = int(NETWORK_KEYCODES[keycode])
 		if frame_id == FRAME_NETWORK:
@@ -1121,7 +1392,6 @@ func _on_unhandled_key(keycode: int, _event) -> bool:
 	# Defer to base Surface for TYUIOP frame-jumping on every other frame.
 	return super._on_unhandled_key(keycode, _event)
 
-
 func _on_action_q() -> void:
 	# Map frame: Q = screw-out / clear the target TYUIOP slot.
 	if frame_id == FRAME_MAP:
@@ -1129,7 +1399,6 @@ func _on_action_q() -> void:
 		if abm != null and abm.has_method("clear_slot"):
 			abm.clear_slot(_map_target_slot)
 		# Body rebuilds on slot_assignment_changed signal.
-
 
 func _on_action_e() -> void:
 	# E = pause + inspect inline. Only opens panels; never closes them (F flattens).
@@ -1141,7 +1410,6 @@ func _on_action_e() -> void:
 			_update_action_labels()
 			_rebuild_body()
 
-
 func _on_action_r() -> void:
 	# R = screw in. On Network: open contracts. On Live: drill into B. On Map:
 	# bind the cursor biome to the target TYUIOP slot (commit the binding).
@@ -1150,14 +1418,14 @@ func _on_action_r() -> void:
 		if _network_selected < 0 or _network_selected >= _network_edges.size():
 			return
 		_update_pending_pair_scope()
-		var om = _resolve_overlay_manager()
-		if om != null and om.has_method("show_overlay"):
-			om.show_overlay("contracts")
-		elif om != null and om.has_method("toggle_overlay"):
-			om.toggle_overlay("contracts")
+		var pair_scope_host = _resolve_pending_pair_scope_host()
+		if pair_scope_host != null and pair_scope_host.has_method("show_overlay"):
+			pair_scope_host.show_overlay("contracts")
+		elif pair_scope_host != null and pair_scope_host.has_method("toggle_overlay"):
+			pair_scope_host.toggle_overlay("contracts")
 	elif frame_id == FRAME_LIVE:
 		if _live_selected < _live_sorted_biomes.size():
-			_handoff_to_biome_inspector(str(_live_sorted_biomes[_live_selected]))
+			_activate_biome(str(_live_sorted_biomes[_live_selected]))
 	elif frame_id == FRAME_MAP:
 		if _map_biome_idx < 0 or _map_biome_idx >= _map_unlocked_biomes.size():
 			return
@@ -1167,7 +1435,6 @@ func _on_action_r() -> void:
 			abm.set_slot_assignment(_map_target_slot, biome_name)
 		# Body rebuilds on slot_assignment_changed signal.
 
-
 func _on_action_f() -> void:
 	if frame_id == FRAME_NETWORK and _network_detail_open:
 		_network_detail_open = false
@@ -1176,24 +1443,21 @@ func _on_action_f() -> void:
 	# When detail is not open, F is global play — PlayerShell peek already handled it.
 	# Do NOT call _drill_out() — F is never "back."
 
-
 func _update_pending_pair_scope() -> void:
 	if _network_selected < 0 or _network_selected >= _network_edges.size():
 		return
 	var edge: Dictionary = _network_edges[_network_selected]
-	var om = _resolve_overlay_manager()
-	if om != null and om.has_method("set_pending_pair_scope"):
-		om.set_pending_pair_scope(str(edge.a), str(edge.b))
+	var pair_scope_host = _resolve_pending_pair_scope_host()
+	if pair_scope_host != null and pair_scope_host.has_method("set_pending_pair_scope"):
+		pair_scope_host.set_pending_pair_scope(str(edge.a), str(edge.b))
 
-
-func _resolve_overlay_manager():
+func _resolve_pending_pair_scope_host():
 	var n: Node = self
 	while n != null:
 		if n.has_method("set_pending_pair_scope"):
 			return n
 		n = n.get_parent()
 	return null
-
 
 func _build_live_view() -> void:
 	var se = get_node_or_null("/root/StoryEngine")
@@ -1238,7 +1502,7 @@ func _build_live_view() -> void:
 	_body_box.add_child(hdr)
 
 	var sub := Label.new()
-	sub.text = "GHJKL; pick biome  ·  R drill into B (biome inspector)"
+	sub.text = "GHJKL; pick biome  ·  R activate (sets the live biome)"
 	sub.add_theme_font_size_override("font_size", 11)
 	sub.add_theme_color_override("font_color", COLOR_MUTED)
 	sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -1260,22 +1524,21 @@ func _build_live_view() -> void:
 		)
 	_update_action_labels()
 
-
-func _make_live_row(biome_name: String, entry: Dictionary, is_selected: bool, key_label: String, is_active: bool) -> Control:
+func _make_live_row(biome_name: String, entry: Dictionary, is_selected: bool, key_label: String, overlay_active: bool) -> Control:
 	var hbox := HBoxContainer.new()
 	hbox.add_theme_constant_override("separation", 10)
 
 	var key_lbl := Label.new()
 	key_lbl.text = "[%s]" % key_label
 	key_lbl.add_theme_font_size_override("font_size", 12)
-	key_lbl.add_theme_color_override("font_color", COLOR_KEY_CHIP if is_selected else COLOR_MUTED)
+	key_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_KEY_CHIP if is_selected else COLOR_MUTED)
 	key_lbl.custom_minimum_size = Vector2(28, 0)
 	hbox.add_child(key_lbl)
 
 	var name_lbl := Label.new()
-	name_lbl.text = ("● " if is_active else "  ") + biome_name
+	name_lbl.text = ("● " if overlay_active else "  ") + biome_name
 	name_lbl.add_theme_font_size_override("font_size", 13)
-	name_lbl.add_theme_color_override("font_color", COLOR_HIGHLIGHT if is_selected else COLOR_HEADER)
+	name_lbl.add_theme_color_override("font_color", COLOR_HIGHLIGHT if is_selected else UIStyleFactory.COLOR_HEADER)
 	name_lbl.custom_minimum_size = Vector2(200, 0)
 	hbox.add_child(name_lbl)
 
@@ -1304,26 +1567,20 @@ func _make_live_row(biome_name: String, entry: Dictionary, is_selected: bool, ke
 
 	return hbox
 
-
-func _handoff_to_biome_inspector(biome_name: String) -> void:
-	var biomes := _get_all_biomes()
-	var biome = biomes.get(biome_name, null)
-	if biome == null:
+func _activate_biome(biome_name: String) -> void:
+	# R on Live: make this biome the active one. B (and any other biome-anchored
+	# UI) follows via ABM's active_biome_changed signal — no direct overlay poke.
+	if biome_name == "":
 		return
-	var om = _resolve_overlay_manager()
-	if om == null or not om.has_method("open_overlay"):
-		return
-	if "biome_inspector" in om and om.biome_inspector != null and om.biome_inspector.has_method("set_biome"):
-		om.biome_inspector.set_biome(biome)
-	om.open_overlay("biome_detail")
-
+	var abm = _resolve_abm()
+	if abm != null and abm.has_method("set_active_biome"):
+		abm.set_active_biome(biome_name)
 
 func _build_stub_view() -> void:
 	var note := Label.new()
 	note.text = "Frame '%s' not implemented." % FRAME_LABELS_LOCAL.get(frame_id, frame_id)
 	note.add_theme_color_override("font_color", COLOR_MUTED)
 	_body_box.add_child(note)
-
 
 # =============================================================================
 # SURFACE CONTRACT
@@ -1376,7 +1633,6 @@ func get_visible_data() -> Dictionary:
 		payload["faction_count"] = faction_to_biomes.size()
 	return payload
 
-
 func get_transitions() -> Array:
 	return [
 		{"surface_id": "farm", "reason": "return to live instrument"},
@@ -1385,14 +1641,12 @@ func get_transitions() -> Array:
 		{"surface_id": "C", "reason": "biome's market offers"},
 	]
 
-
 func _network_live_count() -> int:
 	var count: int = 0
 	for edge in _network_edges:
 		if not bool(edge.get("faction_edge", false)):
 			count += 1
 	return count
-
 
 func _network_faction_count() -> int:
 	var count: int = 0

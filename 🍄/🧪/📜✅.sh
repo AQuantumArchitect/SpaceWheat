@@ -20,7 +20,7 @@ sw_prepare_runtime_env "headless"
 prepare_godot_user_dir
 
 set +e
-timeout 45s godot --audio-driver "${SW_GODOT_AUDIO_DRIVER:-Dummy}" --headless --path . --quit >"${LOG_FILE}" 2>&1
+timeout 45s sw_godot --headless --path . --quit >"${LOG_FILE}" 2>&1
 EXIT_CODE=$?
 set -e
 

@@ -23,7 +23,6 @@ extends RefCounted
 ##   contains stale states. This module ensures buffer invalidation happens
 ##   atomically with gate application.
 
-const QuantumGateLibrary = preload("res://Core/QuantumSubstrate/QuantumGateLibrary.gd")
 
 
 ## ============================================================================
@@ -31,26 +30,25 @@ const QuantumGateLibrary = preload("res://Core/QuantumSubstrate/QuantumGateLibra
 ## ============================================================================
 
 static func inject_gate_batch(gate_ops: Array, farm = null) -> Dictionary:
-	"""Apply multiple gates in order, invalidate buffer ONCE at end.
+	# Apply multiple gates in order, invalidate buffer ONCE at end.
 
-	Args:
-		gate_ops: Array of gate operations, each is a Dictionary:
-			{
-				biome: BiomeBase,
-				qubit: int,
-				gate_name: String (e.g., "H", "X", "Rx"),
-				gate_matrix: ComplexMatrix (optional, if not using gate_name)
-			}
-		farm: Farm reference for batcher access
+	# Args:
+	# gate_ops: Array of gate operations, each is a Dictionary:
+	# {
+	# biome: BiomeBase,
+	# qubit: int,
+	# gate_name: String (e.g., "H", "X", "Rx"),
+	# gate_matrix: ComplexMatrix (optional, if not using gate_name)
+	# }
+	# farm: Farm reference for batcher access
 
-	Returns:
-		Dictionary with:
-			- success: bool (true if any gate succeeded)
-			- applied_count: int
-			- failed_count: int
-			- results: Array of per-gate results
-			- order: Array of qubit indices in application order
-	"""
+	# Returns:
+	# Dictionary with:
+	# - success: bool (true if any gate succeeded)
+	# - applied_count: int
+	# - failed_count: int
+	# - results: Array of per-gate results
+	# - order: Array of qubit indices in application order
 	if gate_ops.is_empty():
 		return {"success": false, "error": "empty_batch", "applied_count": 0}
 
@@ -111,19 +109,18 @@ static func inject_gate_batch(gate_ops: Array, farm = null) -> Dictionary:
 
 
 static func inject_named_gate_batch(biome, qubits: Array, gate_name: String, farm = null) -> Dictionary:
-	"""Apply the same named gate to multiple qubits in order.
+	# Apply the same named gate to multiple qubits in order.
 
-	Convenience wrapper for inject_gate_batch when applying same gate to multiple qubits.
+	# Convenience wrapper for inject_gate_batch when applying same gate to multiple qubits.
 
-	Args:
-		biome: Biome containing the quantum computer
-		qubits: Array of qubit indices in application order
-		gate_name: Gate name (H, X, Y, Z, Rx, Ry, Rz, etc.)
-		farm: Farm reference for batcher access
+	# Args:
+	# biome: Biome containing the quantum computer
+	# qubits: Array of qubit indices in application order
+	# gate_name: Gate name (H, X, Y, Z, Rx, Ry, Rz, etc.)
+	# farm: Farm reference for batcher access
 
-	Returns:
-		Same as inject_gate_batch
-	"""
+	# Returns:
+	# Same as inject_gate_batch
 	var gate_ops: Array = []
 	for qubit in qubits:
 		gate_ops.append({
@@ -136,17 +133,16 @@ static func inject_named_gate_batch(biome, qubits: Array, gate_name: String, far
 
 
 static func inject_gate(biome, qubit: int, gate_matrix, farm = null) -> Dictionary:
-	"""Apply a 1-qubit gate and invalidate lookahead buffer.
+	# Apply a 1-qubit gate and invalidate lookahead buffer.
 
-	Args:
-		biome: Biome containing the quantum computer
-		qubit: Target qubit index
-		gate_matrix: 2x2 ComplexMatrix unitary
-		farm: Farm reference for batcher access (optional, extracted from biome if null)
+	# Args:
+	# biome: Biome containing the quantum computer
+	# qubit: Target qubit index
+	# gate_matrix: 2x2 ComplexMatrix unitary
+	# farm: Farm reference for batcher access (optional, extracted from biome if null)
 
-	Returns:
-		Dictionary with success/error
-	"""
+	# Returns:
+	# Dictionary with success/error
 	if not biome or not biome.quantum_computer:
 		return {"success": false, "error": "no_quantum_computer"}
 
@@ -168,18 +164,17 @@ static func inject_gate(biome, qubit: int, gate_matrix, farm = null) -> Dictiona
 
 
 static func inject_gate_2q(biome, qubit_a: int, qubit_b: int, gate_matrix, farm = null) -> Dictionary:
-	"""Apply a 2-qubit gate and invalidate lookahead buffer.
+	# Apply a 2-qubit gate and invalidate lookahead buffer.
 
-	Args:
-		biome: Biome containing the quantum computer
-		qubit_a: First qubit (control for CNOT)
-		qubit_b: Second qubit (target for CNOT)
-		gate_matrix: 4x4 ComplexMatrix unitary
-		farm: Farm reference for batcher access (optional)
+	# Args:
+	# biome: Biome containing the quantum computer
+	# qubit_a: First qubit (control for CNOT)
+	# qubit_b: Second qubit (target for CNOT)
+	# gate_matrix: 4x4 ComplexMatrix unitary
+	# farm: Farm reference for batcher access (optional)
 
-	Returns:
-		Dictionary with success/error
-	"""
+	# Returns:
+	# Dictionary with success/error
 	if not biome or not biome.quantum_computer:
 		return {"success": false, "error": "no_quantum_computer"}
 
@@ -202,17 +197,16 @@ static func inject_gate_2q(biome, qubit_a: int, qubit_b: int, gate_matrix, farm 
 
 
 static func inject_named_gate(biome, qubit: int, gate_name: String, farm = null) -> Dictionary:
-	"""Apply a named gate from the library and invalidate lookahead.
+	# Apply a named gate from the library and invalidate lookahead.
 
-	Args:
-		biome: Biome containing the quantum computer
-		qubit: Target qubit index
-		gate_name: Gate name (H, X, Y, Z, S, T, Rx, Ry, Rz, etc.)
-		farm: Farm reference for batcher access
+	# Args:
+	# biome: Biome containing the quantum computer
+	# qubit: Target qubit index
+	# gate_name: Gate name (H, X, Y, Z, S, T, Rx, Ry, Rz, etc.)
+	# farm: Farm reference for batcher access
 
-	Returns:
-		Dictionary with success/error
-	"""
+	# Returns:
+	# Dictionary with success/error
 	var gate_lib = QuantumGateLibrary.new()
 	if not gate_lib.GATES.has(gate_name):
 		return {"success": false, "error": "unknown_gate", "gate": gate_name}
@@ -227,18 +221,17 @@ static func inject_named_gate(biome, qubit: int, gate_name: String, farm = null)
 
 
 static func inject_named_gate_2q(biome, qubit_a: int, qubit_b: int, gate_name: String, farm = null) -> Dictionary:
-	"""Apply a named 2-qubit gate from the library and invalidate lookahead.
+	# Apply a named 2-qubit gate from the library and invalidate lookahead.
 
-	Args:
-		biome: Biome containing the quantum computer
-		qubit_a: First qubit
-		qubit_b: Second qubit
-		gate_name: Gate name (CNOT, CZ, SWAP, etc.)
-		farm: Farm reference for batcher access
+	# Args:
+	# biome: Biome containing the quantum computer
+	# qubit_a: First qubit
+	# qubit_b: Second qubit
+	# gate_name: Gate name (CNOT, CZ, SWAP, etc.)
+	# farm: Farm reference for batcher access
 
-	Returns:
-		Dictionary with success/error
-	"""
+	# Returns:
+	# Dictionary with success/error
 	var gate_lib = QuantumGateLibrary.new()
 	if not gate_lib.GATES.has(gate_name):
 		return {"success": false, "error": "unknown_gate", "gate": gate_name}
@@ -252,11 +245,10 @@ static func inject_named_gate_2q(biome, qubit_a: int, qubit_b: int, gate_name: S
 	return result
 
 
-static func _invalidate_lookahead(biome, farm = null) -> void:
-	"""Notify the evolution batcher that lookahead buffer is stale.
+static func _invalidate_lookahead(_biome, farm = null) -> void:
+	# Notify the evolution batcher that lookahead buffer is stale.
 
-	Called after any gate injection to force refill of pre-computed frames.
-	"""
+	# Called after any gate injection to force refill of pre-computed frames.
 	var batcher = null
 
 	# Try to get batcher from farm

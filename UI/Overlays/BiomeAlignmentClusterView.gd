@@ -1,8 +1,7 @@
-class_name BiomeAffinityClusterView
+class_name BiomeAlignmentClusterView
 extends Control
 
-const FactionAxes = preload("res://Core/Factions/FactionAxes.gd")
-const AffinityGraphCls = preload("res://Core/Affinity/AffinityGraph.gd")
+const AlignmentGraphCls = preload("res://Core/Alignment/AlignmentGraph.gd")
 
 const MAX_FACTIONS: int = 12
 const MAX_BIOMES: int = 8
@@ -23,7 +22,7 @@ const COLOR_TEXT := Color(0.90, 0.93, 0.98)
 var _farm: Node = null
 var _biome = null
 var _biome_name: String = ""
-var _center_affinity = null
+var _center_alignment = null
 var _center_bits: Array = []
 var _center_color: Color = COLOR_CENTER
 var _center_label: String = ""
@@ -56,17 +55,17 @@ func get_cluster_snapshot() -> Dictionary:
 	return _snapshot.duplicate(true)
 
 
-func set_view_state(zoom: float, rotation_degrees: float) -> void:
+func set_view_state(zoom: float, rot_deg: float) -> void:
 	_view_zoom = clampf(zoom, 0.72, 1.55)
-	_view_rotation_degrees = fposmod(rotation_degrees, 360.0)
+	_view_rotation_degrees = fposmod(rot_deg, 360.0)
 	if not _center_node.is_empty():
 		_layout_nodes()
 		_build_snapshot()
 		queue_redraw()
 
 
-func set_highlight_name(name: String) -> void:
-	_highlight_name = name
+func set_highlight_name(_name: String) -> void:
+	_highlight_name = _name
 	queue_redraw()
 
 
@@ -96,7 +95,7 @@ func _notification(what: int) -> void:
 
 
 func _rebuild() -> void:
-	_center_affinity = _live_biome_affinity(_biome, _farm)
+	_center_alignment = _live_biome_alignment(_biome, _farm)
 	_center_bits = _biome_bits(_biome)
 	_center_color = _biome_color(_biome)
 	_center_label = _display_biome_name(_biome_name, _biome)
@@ -340,8 +339,8 @@ func _draw_bubbles(nodes: Array) -> void:
 func _faction_score(faction) -> float:
 	if faction == null:
 		return 0.0
-	if _center_affinity != null and faction.affinity != null:
-		return clampf(float(faction.affinity.overlap(_center_affinity)), 0.0, 1.0)
+	if _center_alignment != null and faction.alignment != null:
+		return clampf(float(faction.alignment.overlap(_center_alignment)), 0.0, 1.0)
 	var faction_bits := _bits_to_array(faction.get_axial_bits() if faction.has_method("get_axial_bits") else [])
 	return _axial_overlap(faction_bits, _center_bits)
 
@@ -360,9 +359,9 @@ func _biome_score(biome) -> float:
 		other_name = str(biome.name)
 	if not _biome_name.is_empty() and other_name == _biome_name:
 		return 1.0
-	var other_affinity = _live_biome_affinity(biome, _farm)
-	if _center_affinity != null and other_affinity != null:
-		return clampf(float(_center_affinity.overlap(other_affinity)), 0.0, 1.0)
+	var other_alignment = _live_biome_alignment(biome, _farm)
+	if _center_alignment != null and other_alignment != null:
+		return clampf(float(_center_alignment.overlap(other_alignment)), 0.0, 1.0)
 	var other_bits := _biome_bits(biome)
 	return _axial_overlap(other_bits, _center_bits)
 
@@ -370,26 +369,26 @@ func _biome_score(biome) -> float:
 func _pair_score(faction, biome) -> float:
 	if faction == null or biome == null:
 		return 0.0
-	if faction.affinity != null:
-		var other_affinity = _live_biome_affinity(biome, _farm)
-		if other_affinity != null:
-			return clampf(float(faction.affinity.overlap(other_affinity)), 0.0, 1.0)
+	if faction.alignment != null:
+		var other_alignment = _live_biome_alignment(biome, _farm)
+		if other_alignment != null:
+			return clampf(float(faction.alignment.overlap(other_alignment)), 0.0, 1.0)
 	var faction_bits := _bits_to_array(faction.get_axial_bits() if faction.has_method("get_axial_bits") else [])
 	var biome_bits := _biome_bits(biome)
 	return _axial_overlap(faction_bits, biome_bits)
 
 
-func _live_biome_affinity(biome, farm) -> Object:
+func _live_biome_alignment(biome, farm) -> Object:
 	if biome == null or farm == null:
 		return null
-	if not biome.has_method("get_signature_pairs"):
+	if not biome.has_method("get_neighborhood_signature_icons"):
 		return null
-	var pairs: Array = biome.get_signature_pairs()
+	var pairs: Array = biome.get_neighborhood_signature_icons()
 	if pairs.is_empty():
 		return null
-	var lex = farm._ensure_icon_lexicon() if farm.has_method("_ensure_icon_lexicon") else null
-	if lex == null and "icon_lexicon" in farm:
-		lex = farm.icon_lexicon
+	var lex = farm._ensure_icon_atlas() if farm.has_method("_ensure_icon_atlas") else null
+	if lex == null and "icon_atlas" in farm:
+		lex = farm.icon_atlas
 	if lex == null:
 		return null
 	var density = farm.faction_density if "faction_density" in farm else null
@@ -400,20 +399,19 @@ func _live_biome_affinity(biome, farm) -> Object:
 		return null
 	var owners: Array = []
 	for pair in pairs:
-		var icon: Dictionary = lex.find_icon_by_pair(str(pair.pole_0), str(pair.pole_1))
-		var owner: String = str(icon.get("owner_faction", "")) if not icon.is_empty() else ""
-		if owner != "":
-			owners.append(owner)
+		var biome_owner: String = lex.get_primary_faction_for_pair(str(pair.pole_0), str(pair.pole_1))
+		if biome_owner != "":
+			owners.append(biome_owner)
 	if owners.is_empty():
 		return null
 	var first_f = registry.get_by_name(owners[0])
-	if first_f == null or first_f.affinity == null:
+	if first_f == null or first_f.alignment == null:
 		return null
-	var bg = AffinityGraphCls.from_dict(first_f.affinity.to_dict())
+	var bg = AlignmentGraphCls.from_dict(first_f.alignment.to_dict())
 	for i in range(1, owners.size()):
 		var f = registry.get_by_name(owners[i])
-		if f != null and f.affinity != null:
-			bg.lindblad_jump_toward(f.affinity, 1.0 / float(i + 1))
+		if f != null and f.alignment != null:
+			bg.lindblad_jump_toward(f.alignment, 1.0 / float(i + 1))
 	return bg
 
 
@@ -421,12 +419,12 @@ func _biome_bits(biome) -> Array:
 	var out: Array = []
 	if biome == null:
 		return out
-	var live_affinity = biome.affinity if "affinity" in biome else null
+	var live_affinity = biome.alignment if "affinity" in biome else null
 	if live_affinity != null and live_affinity.has_method("principal_bits"):
 		var packed: PackedByteArray = live_affinity.principal_bits()
 		for bit in packed:
 			out.append(float(bit))
-		if out.size() == AffinityGraphCls.AXIS_COUNT:
+		if out.size() == AlignmentGraphCls.AXIS_COUNT:
 			return out
 	var native := _biome_native_factions()
 	if native.is_empty():

@@ -19,7 +19,7 @@ A player-triggered mechanic: spend quantum coherence (off-diagonal density matri
 - The `regime` string is used for colour coding (`get_regime_color`); a biome HUD showing the regime live would be low-cost and high-readability.
 
 ## Connections
-- **QuantumInstrument action dispatch** — Sparks would be a new action type (alongside probe, drain, measure); the frame-hat that unlocks it is TBD.
+- **QuantumInstrument action dispatch** — Sparks are a live action type alongside probe, drain, and measure; the frame-hat is Spark.
 - **ProbeActions** — existing action dispatch; Spark extraction is a natural sibling action.
 - **BiomeBase quantum state / QuantumComputer** — `extract_spark` needs `qc.density_matrix`, `qc.register_map`, and `qc.get_population`. All already on QuantumComputer.
 - **Story flags** — a `first_spark` flag could fire a narrative beat explaining the coherence/population tradeoff as in-world lore.

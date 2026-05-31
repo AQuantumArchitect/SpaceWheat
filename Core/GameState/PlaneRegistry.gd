@@ -12,8 +12,9 @@ extends RefCounted
 ##   probe       — reveal / measure / extract
 ##     frames: explore | measure | harvest
 ##
-## Tool 4 ("Meta") is a separate tool group, not a plane — its structural
-## actions live in `Core/GameState/MacroActions.gd`.
+## The Captain, Icon, and Operator frames handle what was formerly called "Meta"
+## (biome lifecycle, icon injection, gate building) — not physics planes. Their
+## structural actions live in `Core/GameState/MacroActions.gd`.
 
 # =============================================================================
 # PLANES
@@ -217,25 +218,15 @@ static func cycle_frame(plane_id: String, current_frame_id: String, step: int = 
 	return frames[posmod(idx + step, frames.size())]
 
 
-## Map active tool group selection to surface plane.
-## Returns empty string for unknown or macro groups (4 = meta, owned by M).
-static func plane_id_from_tool_group(group_num: int) -> String:
-	match group_num:
-		1: return PLANE_COHERENT
-		2: return PLANE_DISSIPATIVE
-		3: return PLANE_PROBE
-		_: return ""
-
-
 ## Map active archetype frame to surface plane (post 2026-04-28 redistribution).
 ## - Druid / Operator → coherent (unitary gates + entangling-gate craft)
 ## - Spark → dissipative (Lindblad drain / transfer / pump)
-## - Scientist → probe (explore / measure / harvest)
-## - Icon / Captain / Socialite → "" (meta / quest layer, owned by M / C)
-## - Ace ("") → ""
+## - Ace → probe (explore / measure / harvest)
+## - Icon / Captain / Merchant → "" (meta / quest layer, owned by M / C)
+## - Null hat ("") → ""
 static func plane_id_from_frame(frame_name: String) -> String:
 	match frame_name:
 		"druid", "operator": return PLANE_COHERENT
 		"spark": return PLANE_DISSIPATIVE
-		"scientist": return PLANE_PROBE
+		"ace": return PLANE_PROBE
 		_: return ""

@@ -14,8 +14,6 @@ extends RefCounted
 ##
 ## Pure builder; no view-side concerns. BootManager owns orchestration; WorldBuilder owns materialization.
 
-const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
-const BiomeBuilder = preload("res://Core/Biomes/BiomeBuilder.gd")
 
 var _biome_registry  # Shared with SessionLoader
 var _verbose         # Injected from BootManager (VerboseConfig)
@@ -108,7 +106,7 @@ func sync_biome_progression_autoloads(state) -> void:
 	var active_biome := str(state.active_biome_name)
 
 	# RefCounted has no Node scope; resolve via main loop where available.
-	var observation_frame = InstrumentLocator.resolve_observation_frame_main_loop()
+	var observation_frame = (Engine.get_main_loop().root.get_node_or_null("/root/ObservationFrame") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 	if observation_frame:
 		if "BIOME_ORDER" in observation_frame:
 			observation_frame.BIOME_ORDER = loaded.duplicate()
@@ -117,7 +115,7 @@ func sync_biome_progression_autoloads(state) -> void:
 		if observation_frame.has_method("set_neutral_biome"):
 			observation_frame.set_neutral_biome(active_biome)
 
-	var active_biome_manager = InstrumentLocator.resolve_main_loop_root_node("/root/ActiveBiomeManager")
+	var active_biome_manager = (Engine.get_main_loop().root.get_node_or_null("/root/ActiveBiomeManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 	if active_biome_manager:
 		if active_biome_manager.has_method("set_biome_order"):
 			active_biome_manager.set_biome_order(loaded)
@@ -137,20 +135,20 @@ func stage_core_systems(farm: Node) -> void:
 	var has_biomes = farm.grid.has_biomes()
 	assert(has_biomes, "BootManager: no biomes loaded - boot aborted")
 
-	# Verify EmojiPhysicsRegistry is available and fully loaded
-	var icon_registry = InstrumentLocator.resolve_icon_registry_main_loop()
-	assert(icon_registry != null, "EmojiPhysicsRegistry not found! Autoloads not initialized.")
+	# Verify IconRegistry is available and fully loaded
+	var icon_registry = (Engine.get_main_loop().root.get_node_or_null("/root/IconRegistry") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
+	assert(icon_registry != null, "IconRegistry not found! Autoloads not initialized.")
 
-	# Wait for EmojiPhysicsRegistry to finish loading if needed
+	# Wait for IconRegistry to finish loading if needed
 	if icon_registry.atoms.size() == 0:
-		push_warning("EmojiPhysicsRegistry not fully loaded yet, waiting...")
+		push_warning("IconRegistry not fully loaded yet, waiting...")
 		# RefCounted can't await get_tree(); rely on caller having allowed a frame to elapse.
 		# In practice the registry initializes via autoload _ready before BootManager runs.
 
-	_verbose.info("boot", "✓", "EmojiPhysicsRegistry ready (%d icons)" % icon_registry.atoms.size())
+	_verbose.info("boot", "✓", "IconRegistry ready (%d icons)" % icon_registry.atoms.size())
 
-	# CRITICAL: Rebuild biome quantum operators now that EmojiPhysicsRegistry is guaranteed ready.
-	# Biomes may have initialized before EmojiPhysicsRegistry loaded all icons.
+	# CRITICAL: Rebuild biome quantum operators now that IconRegistry is guaranteed ready.
+	# Biomes may have initialized before IconRegistry loaded all icons.
 	if has_biomes:
 		if should_rebuild_biome_operators(farm):
 			_verbose.info("boot", "🔧", "Rebuilding biome quantum operators...")
@@ -173,7 +171,7 @@ func stage_core_systems(farm: Node) -> void:
 				_verbose.warn("boot", "⚠️", "Biome '%s' is null - skipping" % biome_name)
 				continue
 			if not biome.quantum_computer:
-				_verbose.warn("boot", "⚠️", "Biome '%s' has no quantum_computer" % biome_name)
+				_verbose.warn("boot", "⚠️", "Biome '%s' has no quantum_computer after rebuild" % biome_name)
 				continue
 			_verbose.info("boot", "✓", "Biome '%s' verified" % biome_name)
 	else:
@@ -201,7 +199,7 @@ func stage_core_systems(farm: Node) -> void:
 	# NOTE: Music moved to Stage 3E - runs after all UI is ready
 
 	# Story substrate: session-scope, populated here rather than at autoload boot.
-	var story_engine = InstrumentLocator.resolve_main_loop_root_node("/root/StoryEngine")
+	var story_engine = (Engine.get_main_loop().root.get_node_or_null("/root/StoryEngine") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 	if story_engine and story_engine.has_method("start_for_session"):
 		story_engine.start_for_session()
 
@@ -304,17 +302,41 @@ func load_biome(biome_name: String, farm: Node) -> Dictionary:
 
 	# ====== STEP 5: REBUILD OPERATORS ======
 	# CRITICAL: Must happen BEFORE batcher registration.
-	# EmojiPhysicsRegistry should be ready by this point (checked in Stage 3A).
-	var icon_registry = InstrumentLocator.resolve_icon_registry_main_loop()
+	# IconRegistry should be ready by this point (checked in Stage 3A).
+	var icon_registry = (Engine.get_main_loop().root.get_node_or_null("/root/IconRegistry") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 	if icon_registry and biome.has_method("rebuild_quantum_operators"):
 		biome.rebuild_quantum_operators()
 		_verbose.debug("boot", "✓", "Rebuilt operators for '%s'" % biome_name)
 	elif not icon_registry:
-		_verbose.warn("boot", "⚠️", "EmojiPhysicsRegistry not available for '%s'" % biome_name)
+		_verbose.warn("boot", "⚠️", "IconRegistry not available for '%s'" % biome_name)
 
-	# Verify quantum computer initialized
-	if not biome.quantum_computer:
-		_verbose.warn("boot", "⚠️", "Biome '%s' has no quantum_computer after operator rebuild" % biome_name)
+	# Verify quantum substrate is actually populated. Neighborhood biomes (any biome
+	# whose spec has a neighborhood icon loadout) MUST end up with a non-null QC
+	# and Hamiltonian — otherwise they tick on a dead substrate and the parallel
+	# lookahead engine replays stale physics. Empty L is OK only when the biome
+	# has no atom_components.
+	var spec = biome.get_meta("biome_def", null)
+	var spec_icons: Array = []
+	var atoms: Dictionary = {}
+	if spec != null:
+		if spec is Dictionary:
+			atoms = spec.get("atom_components", {})
+		else:
+			if spec.has_method("get_neighborhood_icons"):
+				spec_icons = spec.get_neighborhood_icons()
+			if "atom_components" in spec and spec.atom_components is Dictionary:
+				atoms = spec.atom_components
+	var has_icons: bool = spec_icons is Array and not (spec_icons as Array).is_empty()
+	if has_icons:
+		if not biome.quantum_computer or not biome.quantum_computer.hamiltonian:
+			push_error("Biome '%s' built with icons[] but has no Hamiltonian — silent dead-substrate drift" % biome_name)
+		else:
+			var has_atoms: bool = atoms is Dictionary and not (atoms as Dictionary).is_empty()
+			if has_atoms and biome.quantum_computer.lindblad_operators.is_empty():
+				push_error("Biome '%s' has atom_components but zero Lindblad operators built" % biome_name)
+	elif not biome.quantum_computer:
+		# Data-store biome with no icons — null QC is expected, no warning.
+		pass
 
 	# ====== STEP 6: REGISTER WITH BATCHER ======
 	if farm.biome_evolution_batcher and farm.biome_evolution_batcher.has_method("register_biome"):

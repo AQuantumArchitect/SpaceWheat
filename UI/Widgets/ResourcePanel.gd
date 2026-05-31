@@ -6,9 +6,6 @@ extends HBoxContainer
 ## Shows all emoji resources with their quantum unit values
 ## Supports arbitrary resources via emoji keys - no hardcoding needed!
 
-const FarmEconomy = preload("res://Core/GameMechanics/FarmEconomy.gd")
-const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
-const EmojiDisplay = preload("res://UI/Core/EmojiDisplay.gd")
 
 # Layout manager reference (for dynamic scaling)
 var layout_manager: Node  # Will be UILayoutManager instance
@@ -34,7 +31,7 @@ func _ready():
 
 
 func _draw():
-	"""Draw sci-fi styled background directly on the HBoxContainer."""
+	# Draw sci-fi styled background directly on the HBoxContainer.
 	# Dark blue-gray background (semi-transparent for sci-fi look)
 	var bg_color = Color(0.1, 0.15, 0.22, 0.9)  # Slightly lighter, more visible
 	draw_rect(Rect2(Vector2.ZERO, size), bg_color)
@@ -44,17 +41,16 @@ func _draw():
 	draw_line(Vector2(0, size.y - 1), Vector2(size.x, size.y - 1), border_color, 2.0)
 
 
-func set_layout_manager(manager: Node):
-	"""Set the layout manager reference for dynamic scaling"""
-	layout_manager = manager
+func set_layout_manager(layout_mgr: Node):
+	# Set the layout manager reference for dynamic scaling
+	layout_manager = layout_mgr
 
 
 func connect_to_economy(economy: Node) -> void:
-	"""Connect to economy's universal resource_changed signal
+	# Connect to economy's universal resource_changed signal
 
-	This is the ONLY way ResourcePanel gets data - directly from the simulation engine.
-	Graphics layer (ResourcePanel) does NOT store state, only displays it.
-	"""
+	# This is the ONLY way ResourcePanel gets data - directly from the simulation engine.
+	# Graphics layer (ResourcePanel) does NOT store state, only displays it.
 	if not economy:
 		print("⚠️  ResourcePanel: economy is null, cannot connect signals")
 		return
@@ -80,7 +76,7 @@ func connect_to_economy(economy: Node) -> void:
 
 
 func _on_resource_changed(emoji: String, credits_amount: int) -> void:
-	"""Handle universal resource_changed signal from economy"""
+	# Handle universal resource_changed signal from economy
 	# Only create display if amount > 0 (hide zero-value resources)
 	if credits_amount > 0:
 		_ensure_display_exists(emoji)
@@ -94,7 +90,7 @@ func _on_resource_changed(emoji: String, credits_amount: int) -> void:
 
 
 func _ensure_display_exists(emoji: String) -> void:
-	"""Ensure a display exists for this emoji resource"""
+	# Ensure a display exists for this emoji resource
 	if resource_displays.has(emoji):
 		return
 
@@ -133,7 +129,7 @@ func _ensure_display_exists(emoji: String) -> void:
 
 
 func _update_display(emoji: String, units: int) -> void:
-	"""Update the display for an emoji resource"""
+	# Update the display for an emoji resource
 	if not resource_displays.has(emoji):
 		return
 
@@ -148,7 +144,7 @@ func _update_display(emoji: String, units: int) -> void:
 
 
 func _sort_displays() -> void:
-	"""Sort resource displays by units (descending), ties broken by update_order (most recent first)"""
+	# Sort resource displays by units (descending), ties broken by update_order (most recent first)
 	if not resources_hbox:
 		return
 
@@ -177,11 +173,10 @@ func _sort_displays() -> void:
 
 
 func _bubble_sort_resource(emoji: String) -> void:
-	"""Bubble sort a single resource to its correct position.
+	# Bubble sort a single resource to its correct position.
 
-	This is more efficient than full sort - only moves the changed item.
-	Sort order: highest units first, ties broken by most recently updated.
-	"""
+	# This is more efficient than full sort - only moves the changed item.
+	# Sort order: highest units first, ties broken by most recently updated.
 	if not resources_hbox or not resource_displays.has(emoji):
 		return
 
@@ -243,7 +238,7 @@ func _bubble_sort_resource(emoji: String) -> void:
 
 
 func _find_emoji_for_container(container: Node) -> String:
-	"""Find the emoji key for a given container node"""
+	# Find the emoji key for a given container node
 	for emoji in resource_displays.keys():
 		if resource_displays[emoji]["container"] == container:
 			return emoji
@@ -272,7 +267,7 @@ func _create_ui():
 
 
 func get_snapshot() -> Dictionary:
-	"""Return structured snapshot of visible resources."""
+	# Return structured snapshot of visible resources.
 	var resources: Dictionary = {}
 	for emoji in resource_displays.keys():
 		var data = resource_displays[emoji]

@@ -1,50 +1,45 @@
 class_name QuantumForceGraph
 extends Node2D
 
-const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
 ## Quantum Force Graph - Coordinator
 ##
 ## Physics-grounded visualization of quantum states.
 ## Delegates work to focused component classes:
 ##
-## - QuantumForceSystem: Physics-based position forces
 ## - QuantumBubbleRenderer: Individual bubble drawing
 ## - QuantumEdgeRenderer: Relationship lines (MI web, entanglement, etc.)
 ## - QuantumRegionRenderer: Background regions and heatmaps
 ## - QuantumInfraRenderer: Gate infrastructure
-## - QuantumEffectsRenderer: Particles, attractors, life cycle effects
+## - QuantumEffectsRenderer: Entanglement particles, deaths, coherence strikes
 ## - TouchInputManager: User input (tap/swipe/drag) via autoload singleton
 ## - QuantumNodeManager: Node lifecycle and visual updates
 ##
 ## Visual Channel → Physics Data Mapping:
-## - Position (radial): Purity Tr(ρ²) - pure states at center
+## - Position (radial): Bloch/subspace radius - pure states spread outward
 ## - Position (angular): Phase arg(ρ_01) - same-phase qubits cluster
 ## - Position (distance): Mutual Info I(A:B) - entangled bubbles cluster
 ## - Emoji opacity: P(n)/mass, P(s)/mass - measurement probability
 ## - Color hue: arg(ρ_01) - coherence phase
 ## - Color saturation: |ρ_01| - coherence magnitude
-## - Glow intensity: Tr(ρ²) - purity
+## - Glow intensity: |ρ_01| / Berry phase - coherence and history
 ## - Pulse rate: |ρ_01| + berry_phase - stability
 
 
 # Preload component scripts
-const ForceSystemScript = preload("res://Core/Visualization/QuantumForceSystem.gd")
 # Use batched renderer (falls back to GDScript if native unavailable)
 const BubbleRendererScript = preload("res://Core/Visualization/BatchedBubbleRenderer.gd")
 const EdgeRendererScript = preload("res://Core/Visualization/QuantumEdgeRenderer.gd")
 const RegionRendererScript = preload("res://Core/Visualization/QuantumRegionRenderer.gd")
+const ProjectionBuilderScript = preload("res://Core/Visualization/QuantumProjectionBuilder.gd")
+const ProjectionFieldRendererScript = preload("res://Core/Visualization/QuantumProjectionFieldRenderer.gd")
 const InfraRendererScript = preload("res://Core/Visualization/QuantumInfraRenderer.gd")
 const EffectsRendererScript = preload("res://Core/Visualization/QuantumEffectsRenderer.gd")
 const NodeManagerScript = preload("res://Core/Visualization/QuantumNodeManager.gd")
-const QuantumNode = preload("res://Core/Visualization/QuantumNode.gd")
-const BiomeLayoutCalculator = preload("res://Core/Visualization/BiomeLayoutCalculator.gd")
 const GeometryBatcherScript = preload("res://Core/Visualization/GeometryBatcher.gd")
-const NestedForceOptimizerScript = preload("res://Core/Visualization/NestedForceOptimizer.gd")
-const GridSentinel = preload("res://Core/GameState/GridSentinel.gd")
 
 # Logging
-@onready var _verbose = InstrumentLocator.resolve_verbose_config(self)
+@onready var _verbose = get_node_or_null("/root/VerboseConfig")
 
 
 # Signals
@@ -55,16 +50,17 @@ signal chain_swiped(positions: Array)  # Array[Vector2i] from drag chain
 
 
 # Component instances (untyped to avoid class_name dependency)
-var force_system
 var bubble_renderer
 var edge_renderer
 var region_renderer
+var projection_builder
+var projection_renderer
 var infra_renderer
 var effects_renderer
 var node_manager
 
 # Autoload references
-@onready var _touch_input_manager = InstrumentLocator.resolve_touch_input_manager(self)
+@onready var _touch_input_manager = get_node_or_null("/root/TouchInputManager")
 
 # Drag chain state (for chain swipe gesture)
 var _drag_chain: Array = []  # QuantumNode chain during swipe
@@ -74,6 +70,7 @@ var quantum_nodes: Array = []
 var node_by_plot_id: Dictionary = {}
 var quantum_nodes_by_grid_pos: Dictionary = {}
 var all_plot_positions: Dictionary = {}
+var _pgd_positions: Dictionary = {}  # Plot-box screen positions from PlotGridDisplay; survives rebuild_nodes()
 var sun_qubit_node: QuantumNode = null
 
 var biomes: Dictionary = {}
@@ -93,8 +90,8 @@ var biome_evolution_batcher = null
 var emoji_atlas_batcher = null  # Pre-built emoji atlas for GPU-accelerated rendering
 var bubble_atlas_batcher = null  # Pre-built bubble atlas for GPU-accelerated rendering
 var geometry_batcher = null  # Unified batcher for edges/effects/regions/infra
-var nested_force_optimizer = null  # Two-level hierarchical force graph (biome clusters + inner bubbles)
 var lookahead_offset: int = 0  # 0 = render current frame; set >0 to preview lookahead
+var projection_payloads: Dictionary = {}
 
 var center_position: Vector2 = Vector2.ZERO
 var graph_radius: float = 250.0
@@ -118,6 +115,7 @@ var _perf_samples: Dictionary = {
 	"draw_canvas_item": [],
 	"draw_geom_begin": [],
 	"draw_region": [],
+	"draw_projection": [],
 	"draw_infra": [],
 	"draw_edge": [],
 	"draw_effects": [],
@@ -128,14 +126,14 @@ var _perf_samples: Dictionary = {
 }
 var _perf_report_interval: int = 300  # Report every N frames (less noise)
 
-# Legacy compatibility properties
+# Projection-state properties
 var lock_dimensions: bool = false  # Used by BathQuantumVisualizationController
 
 # Particle storage
 var entanglement_particles: Array = []
-var life_cycle_effects: Dictionary = {"spawns": [], "deaths": [], "strikes": []}
+var life_cycle_effects: Dictionary = {"deaths": [], "strikes": []}
 
-# Tether colors (for backward compatibility)
+# Per-plot tether colors
 var plot_tether_colors: Dictionary = {}
 
 # Constants
@@ -149,16 +147,16 @@ const REDRAW_STRIDE_IDLE = 2
 
 func _ready():
 	_initialize_components()
-	_connect_to_active_biome_manager()
+	_connect_to_active_biome_router()
 
 
 func _exit_tree() -> void:
 	teardown()
 
 
-func _connect_to_active_biome_manager():
-	"""Connect to ActiveBiomeManager for biome filtering optimization."""
-	var abm = InstrumentLocator.resolve_active_biome_manager(self)
+func _connect_to_active_biome_router():
+	# Connect to ActiveBiomeManager for biome filtering optimization.
+	var abm = get_node_or_null("/root/ActiveBiomeManager")
 	if abm:
 		# Initialize with current active biome
 		active_biome = abm.active_biome
@@ -168,24 +166,21 @@ func _connect_to_active_biome_manager():
 
 
 func _on_active_biome_changed(new_biome: String, _old_biome: String):
-	"""Handle biome switching - update active_biome for force system optimization."""
+	# Handle biome switching - update active_biome for force system optimization.
 	set_active_biome(new_biome)
 
 
 func _initialize_components():
-	"""Create and configure all component instances."""
-	force_system = ForceSystemScript.new()
+	# Create and configure all component instances.
 	bubble_renderer = BubbleRendererScript.new()
 	edge_renderer = EdgeRendererScript.new()
 	region_renderer = RegionRendererScript.new()
+	projection_builder = ProjectionBuilderScript.new()
+	projection_renderer = ProjectionFieldRendererScript.new()
 	infra_renderer = InfraRendererScript.new()
 	effects_renderer = EffectsRendererScript.new()
 	node_manager = NodeManagerScript.new()
 	geometry_batcher = GeometryBatcherScript.new()
-
-	# Default: tether force off (visuals only)
-	if "enable_plot_tether_force" in force_system:
-		force_system.enable_plot_tether_force = false
 
 	_connect_touch_input_signals()
 
@@ -194,7 +189,7 @@ func _initialize_components():
 
 
 func _connect_touch_input_signals() -> void:
-	"""Connect touch input manager signals once."""
+	# Connect touch input manager signals once.
 	if not _touch_input_manager:
 		return
 	if not _touch_input_manager.tap_detected.is_connected(_on_touch_tap):
@@ -214,6 +209,7 @@ func _process(delta: float):
 
 	# GATE: Skip all rendering if no bubbles exist
 	if quantum_nodes.is_empty():
+		projection_payloads = {}
 		return
 
 	# GATE: Check for active terminal bubbles (explored, not measured)
@@ -244,25 +240,17 @@ func _process(delta: float):
 	var nodes_with_batched_pos = _apply_batched_force_positions(ctx)
 	var t5 = Time.get_ticks_usec()
 
-	# Update nested force graph (two-level: biome clusters + inner bubble positions)
-	if nested_force_optimizer:
-		# Sync: ensure all bubbles are registered (catches save/load and any missed registrations)
-		_sync_bubbles_to_nested_optimizer()
-		var mi_cache = _build_mi_cache()
-
-		# Scale force graph delta based on quantum evolution granularity
-		# Slower quantum evolution (larger dt) → slower force graph for visual interest
-		var force_delta = _get_scaled_force_delta(delta)
-		nested_force_optimizer.update(force_delta, mi_cache, center_position)
-	else:
-		# Fallback: flat skating rink forces if nested optimizer not initialized
-		_apply_skating_rink_forces(delta)
-		_integrate_velocities(delta, nodes_with_batched_pos)
+	# Force-graph integration (skating rink — nested optimizer was a stub, deleted 2026-05-09).
+	_apply_skating_rink_forces(delta)
+	_integrate_velocities(delta, nodes_with_batched_pos)
 
 	# GATE: Only update particles if we have active bubbles
 	if has_active:
 		effects_renderer.update_particles(delta, ctx)
 	var t6 = Time.get_ticks_usec()
+
+	# Rebuild projection payloads once per frame from the updated node state.
+	_update_projection_payloads()
 
 	# Redraw every frame when actively rendering gameplay bubbles.
 	# In idle/no-active states we can safely throttle to reduce overhead.
@@ -308,19 +296,23 @@ func _draw():
 	region_renderer.draw(self, ctx)
 	var t_region = Time.get_ticks_usec()
 
-	# 2. Gate infrastructure
+	# 2. Semantic projection fields
+	projection_renderer.draw(self, ctx)
+	var t_projection = Time.get_ticks_usec()
+
+	# 3. Gate infrastructure
 	infra_renderer.draw(self, ctx)
 	var t_infra = Time.get_ticks_usec()
 
-	# 3. Edge relationships
+	# 4. Edge relationships
 	edge_renderer.draw(self, ctx)
 	var t_edge = Time.get_ticks_usec()
 
-	# 4. Effects
+	# 5. Effects
 	effects_renderer.draw(self, ctx)
 	var t_effects = Time.get_ticks_usec()
 
-	# 5. Quantum bubbles
+	# 6. Quantum bubbles
 	bubble_renderer.draw(self, ctx)
 	var t_bubble = Time.get_ticks_usec()
 
@@ -328,7 +320,7 @@ func _draw():
 	geometry_batcher.flush()
 	var t_flush = Time.get_ticks_usec()
 
-	# 6. Sun qubit
+	# 7. Sun qubit
 	bubble_renderer.draw_sun_qubit(self, ctx)
 	var t_sun = Time.get_ticks_usec()
 
@@ -343,7 +335,8 @@ func _draw():
 	_perf_samples["draw_canvas_item"].append(t_canvas - t_ctx)  # GPU stall?
 	_perf_samples["draw_geom_begin"].append(t_geom_begin - t_canvas)
 	_perf_samples["draw_region"].append(t_region - t_geom_begin)
-	_perf_samples["draw_infra"].append(t_infra - t_region)
+	_perf_samples["draw_projection"].append(t_projection - t_region)
+	_perf_samples["draw_infra"].append(t_infra - t_projection)
 	_perf_samples["draw_edge"].append(t_edge - t_infra)
 	_perf_samples["draw_effects"].append(t_effects - t_edge)
 	_perf_samples["draw_bubble"].append(t_bubble - t_effects)
@@ -353,14 +346,13 @@ func _draw():
 
 
 func _has_active_terminal_bubbles() -> bool:
-	"""Check if any terminal bubbles are actively explored (not measured).
-
-	Used to gate animations, particles, and music.
-	A bubble is "active" if it has a farm_tether AND is not measured.
-
-	Returns:
-		true if at least one bubble is bound and not measured
-	"""
+	# Check if any terminal bubbles are actively explored (not measured).
+	#
+	# Used to gate animations, particles, and music.
+	# A bubble is "active" if it has a farm_tether AND is not measured.
+	#
+	# Returns:
+	# true if at least one bubble is bound and not measured
 	for node in quantum_nodes:
 		if node.has_farm_tether and node.terminal:
 			# Must be bound AND not measured (frozen state)
@@ -370,7 +362,7 @@ func _has_active_terminal_bubbles() -> bool:
 
 
 func _build_context() -> Dictionary:
-	"""Build the shared context dictionary for all components."""
+	# Build the shared context dictionary for all components.
 	_context_cache["quantum_nodes"] = quantum_nodes
 	_context_cache["node_by_plot_id"] = node_by_plot_id
 	_context_cache["quantum_nodes_by_grid_pos"] = quantum_nodes_by_grid_pos
@@ -386,6 +378,7 @@ func _build_context() -> Dictionary:
 	_context_cache["emoji_atlas_batcher"] = emoji_atlas_batcher
 	_context_cache["bubble_atlas_batcher"] = bubble_atlas_batcher
 	_context_cache["geometry_batcher"] = geometry_batcher
+	_context_cache["projection_payloads"] = projection_payloads
 	_context_cache["lookahead_offset"] = lookahead_offset
 	_context_cache["biotic_flux_biome"] = biotic_flux_biome
 	_context_cache["biotic_icon"] = biotic_icon
@@ -398,7 +391,6 @@ func _build_context() -> Dictionary:
 	_context_cache["entanglement_particles"] = entanglement_particles
 	_context_cache["life_cycle_effects"] = life_cycle_effects
 	_context_cache["plot_tether_colors"] = plot_tether_colors
-	_context_cache["force_system"] = force_system
 	_context_cache["particle_life"] = PARTICLE_LIFE
 	_context_cache["particle_speed"] = PARTICLE_SPEED
 	_context_cache["particle_size"] = PARTICLE_SIZE
@@ -410,11 +402,10 @@ func _build_context() -> Dictionary:
 # ============================================================================
 
 func setup_standalone(bubble_defs: Array) -> void:
-	"""Minimal setup for testing — create bubbles without biomes or farm.
-
-	Each dict in bubble_defs:
-		{grid_pos: Vector2i, screen_pos: Vector2, radius: float, emoji_north: String, emoji_south: String}
-	"""
+	# Minimal setup for testing — create bubbles without biomes or farm.
+	#
+	# Each dict in bubble_defs:
+	# {grid_pos: Vector2i, screen_pos: Vector2, radius: float, emoji_north: String, emoji_south: String}
 	for def in bubble_defs:
 		var node = QuantumNode.new(null, def.screen_pos, def.grid_pos, center_position)
 		node.radius = def.get("radius", 20.0)
@@ -431,14 +422,13 @@ func setup_standalone(bubble_defs: Array) -> void:
 
 
 func setup(p_biomes: Dictionary, p_farm_grid = null, p_terminal_pool = null, _p_skip_bubbles: bool = false):
-	"""Initialize the quantum force graph.
-
-	Args:
-	    p_biomes: Dictionary of biome_name → BiomeBase
-	    p_farm_grid: Optional FarmGrid reference
-	    p_terminal_pool: Optional TerminalPool reference
-	    _p_skip_bubbles: Deprecated (kept for API compat, ignored)
-	"""
+	# Initialize the quantum force graph.
+	#
+	# Args:
+	# p_biomes: Dictionary of biome_name → BiomeBase
+	# p_farm_grid: Optional FarmGrid reference
+	# p_terminal_pool: Optional TerminalPool reference
+	# _p_skip_bubbles: Deprecated; ignored
 	biomes = p_biomes
 	farm_grid = p_farm_grid
 	terminal_pool = p_terminal_pool
@@ -453,7 +443,7 @@ func setup(p_biomes: Dictionary, p_farm_grid = null, p_terminal_pool = null, _p_
 	# Find special biomes
 	for biome_name in biomes:
 		var biome = biomes[biome_name]
-		if biome.has_method("get_sun_visualization"):
+		if biome_name == "BioticFlux":
 			biotic_flux_biome = biome
 		if "biotic_icon" in biome:
 			biotic_icon = biome.biotic_icon
@@ -465,26 +455,13 @@ func setup(p_biomes: Dictionary, p_farm_grid = null, p_terminal_pool = null, _p_
 	# Update layout
 	update_layout(true)
 
-	# Initialize nested force optimizer (two-level: biome clusters + inner bubbles)
-	nested_force_optimizer = NestedForceOptimizerScript.new()
-	var biome_array = []
-	for biome_name in biomes:
-		biome_array.append(biomes[biome_name])
-	nested_force_optimizer.initialize(biome_array)
-
-	# Seed meta positions from layout calculator (use biome oval centers if available)
-	if layout_calculator:
-		for biome_name in biomes:
-			var oval = layout_calculator.get_biome_oval(biome_name)
-			if not oval.is_empty():
-				nested_force_optimizer.meta_positions[biome_name] = oval.get("center", center_position)
-
 	# Create nodes from quantum registers (first-class architecture)
 	rebuild_nodes()
+	_update_projection_payloads()
 
 
 func rebuild_nodes():
-	"""Rebuild all quantum nodes from current biomes and farm grid."""
+	# Rebuild all quantum nodes from current biomes and farm grid.
 	var ctx = _build_context()
 	quantum_nodes = node_manager.create_quantum_nodes(ctx)
 
@@ -498,17 +475,14 @@ func rebuild_nodes():
 		if node.grid_position != GridSentinel.INVALID_POSITION:
 			quantum_nodes_by_grid_pos[node.grid_position] = node
 			all_plot_positions[node.grid_position] = node.classical_anchor
-		# Register with nested force optimizer
-		if nested_force_optimizer and node.biome_name:
-			nested_force_optimizer.register_bubble(node, node.biome_name, center_position)
+	_update_projection_payloads()
 
 
 func create_all_register_bubbles():
-	"""Create bubbles for ALL quantum registers in all biomes.
-
-	Used by visual tests to populate the force graph without terminal bindings.
-	Replaces the single test bubble with one bubble per qubit per biome.
-	"""
+	# Create bubbles for ALL quantum registers in all biomes.
+	#
+	# Used by visual tests to populate the force graph without terminal bindings.
+	# Replaces the single test bubble with one bubble per qubit per biome.
 	# Clear existing nodes
 	quantum_nodes.clear()
 	node_by_plot_id.clear()
@@ -522,9 +496,7 @@ func create_all_register_bubbles():
 		quantum_nodes.append(node)
 		if node.plot_id:
 			node_by_plot_id[node.plot_id] = node
-		# Register with nested force optimizer
-		if nested_force_optimizer and node.biome_name:
-			nested_force_optimizer.register_bubble(node, node.biome_name, center_position)
+	_update_projection_payloads()
 
 	queue_redraw()
 
@@ -541,7 +513,7 @@ var plot_grid_display_ref = null
 var selected_plot_positions: Dictionary = {}  # Vector2i -> true
 
 func connect_to_farm(farm: Node) -> void:
-	"""Connect directly to farm signals (replaces BathQuantumVisualizationController)"""
+	# Connect directly to farm signals (replaces BathQuantumVisualizationController)
 	if _verbose:
 		_verbose.debug("viz", "🔗", "QuantumForceGraph connecting to farm signals")
 	farm_ref = farm
@@ -567,21 +539,20 @@ func connect_to_farm(farm: Node) -> void:
 		biome_evolution_batcher = farm.biome_evolution_batcher
 
 
-func _on_terminal_bound(position: Vector2i, terminal_id: String, emoji_pair: Dictionary) -> void:
-	"""Handle terminal bound event - create bubble when a terminal is bound.
-
-	Bindings can come from live EXPLORE actions or from save/scenario restore.
-	"""
+func _on_terminal_bound(grid_pos: Vector2i, terminal_id: String, emoji_pair: Dictionary) -> void:
+	# Handle terminal bound event - create bubble when a terminal is bound.
+	#
+	# Bindings can come from live EXPLORE actions or from save/scenario restore.
 	var north_emoji = emoji_pair.get("north", "?")
 	var south_emoji = emoji_pair.get("south", "?")
 
 	if _verbose:
-		_verbose.debug("viz", "📍", "Terminal bound at %s: %s/%s" % [position, north_emoji, south_emoji])
+		_verbose.debug("viz", "📍", "Terminal bound at %s: %s/%s" % [grid_pos, north_emoji, south_emoji])
 
 	if not farm_ref or not farm_ref.grid:
 		return
 
-	var biome_name = farm_ref.grid.get_plot_biome_assignment(position)
+	var biome_name = farm_ref.grid.get_plot_biome_assignment(grid_pos)
 	if biome_name.is_empty():
 		# Fallback: Try to get biome from terminal's bound_biome_name
 		var terminal_temp = farm_ref.terminal_pool.get_terminal(terminal_id) if farm_ref.terminal_pool else null
@@ -590,52 +561,45 @@ func _on_terminal_bound(position: Vector2i, terminal_id: String, emoji_pair: Dic
 		else:
 			return
 
-	var plot = farm_ref.grid.get_plot(position)
+	var plot = farm_ref.grid.get_plot(grid_pos)
 	var terminal = plot.terminal if plot else null
 	if not terminal and farm_ref.terminal_pool:
 		terminal = farm_ref.terminal_pool.get_terminal(terminal_id)
 
-	_create_bubble_for_terminal(biome_name, position, north_emoji, south_emoji, plot, terminal)
+	_create_bubble_for_terminal(biome_name, grid_pos, north_emoji, south_emoji, plot, terminal)
 	queue_redraw()
 
 
-func _on_terminal_measured(position: Vector2i, terminal_id: String, outcome: String, probability: float) -> void:
-	"""Handle terminal measured event - freeze bubble completely.
-
-	Measured bubbles become static: no physics, no evolution updates, no visual changes.
-	Just a frozen bubble with a cyan ring showing the collapsed outcome.
-	"""
+func _on_terminal_measured(grid_pos: Vector2i, terminal_id: String, outcome: String, probability: float) -> void:
+	# Handle terminal measured event - freeze bubble completely.
+	#
+	# Measured bubbles become static: no physics, no evolution updates, no visual changes.
+	# Just a frozen bubble with a cyan ring showing the collapsed outcome.
 	if _verbose:
-		_verbose.debug("viz", "📏", "Terminal %s measured at %s → %s (p=%.2f)" % [terminal_id, position, outcome, probability])
+		_verbose.debug("viz", "📏", "Terminal %s measured at %s → %s (p=%.2f)" % [terminal_id, grid_pos, outcome, probability])
 
-	var bubble = quantum_nodes_by_grid_pos.get(position)
+	var bubble = quantum_nodes_by_grid_pos.get(grid_pos)
 	if bubble:
 		# Ensure bubble has terminal reference
 		if not bubble.terminal and farm_ref and farm_ref.grid:
-			var measured_plot = farm_ref.grid.get_plot(position)
+			var measured_plot = farm_ref.grid.get_plot(grid_pos)
 			if measured_plot:
 				bubble.terminal = measured_plot.terminal
 
-		# Freeze position for measurement visualization
+		# Freeze grid_pos for measurement visualization
 		if bubble.terminal:
 			bubble.frozen_anchor = bubble.position
 			bubble.terminal.frozen_position = bubble.position
 
-		# Zero velocity in the nested force optimizer so it stops dead
-		if nested_force_optimizer and bubble.biome_name:
-			var inner = nested_force_optimizer.biome_graphs.get(bubble.biome_name)
-			if inner:
-				inner.local_velocities[bubble.get_instance_id()] = Vector2.ZERO
-
 		queue_redraw()
 
 
-func _on_terminal_released(position: Vector2i, terminal_id: String, credits_earned: int) -> void:
-	"""Handle terminal released event - remove terminal bubble."""
+func _on_terminal_released(grid_pos: Vector2i, terminal_id: String, credits_earned: int) -> void:
+	# Handle terminal released event - remove terminal bubble.
 	if _verbose:
-		_verbose.debug("viz", "💰", "Terminal %s released at %s (+%d credits)" % [terminal_id, position, credits_earned])
+		_verbose.debug("viz", "💰", "Terminal %s released at %s (+%d credits)" % [terminal_id, grid_pos, credits_earned])
 
-	var bubble = quantum_nodes_by_grid_pos.get(position)
+	var bubble = quantum_nodes_by_grid_pos.get(grid_pos)
 	if not bubble:
 		return
 
@@ -643,12 +607,8 @@ func _on_terminal_released(position: Vector2i, terminal_id: String, credits_earn
 	if not bubble.has_farm_tether:
 		return
 
-	# Unregister from nested force optimizer
-	if nested_force_optimizer and bubble.biome_name:
-		nested_force_optimizer.unregister_bubble(bubble, bubble.biome_name)
-
 	# Remove terminal bubble from all registries
-	quantum_nodes_by_grid_pos.erase(position)
+	quantum_nodes_by_grid_pos.erase(grid_pos)
 	quantum_nodes.erase(bubble)
 	if bubble.plot_id:
 		node_by_plot_id.erase(bubble.plot_id)
@@ -657,7 +617,7 @@ func _on_terminal_released(position: Vector2i, terminal_id: String, credits_earn
 
 
 func _on_biome_loaded(biome_name: String, biome_ref) -> void:
-	"""Handle dynamically loaded biome - register for visualization"""
+	# Handle dynamically loaded biome - register for visualization
 	biomes[biome_name] = biome_ref
 	update_layout(true)
 	queue_redraw()
@@ -666,17 +626,13 @@ func _on_biome_loaded(biome_name: String, biome_ref) -> void:
 
 
 func _on_biome_removed(biome_name: String) -> void:
-	"""CASCADE CLEANUP: Remove ALL nodes for removed biome (no exceptions)"""
+	# CASCADE CLEANUP: Remove ALL nodes for removed biome (no exceptions)
 	var removed_count = 0
 	var i = quantum_nodes.size() - 1
 
 	while i >= 0:
 		var node = quantum_nodes[i]
 		if node.biome_name == biome_name:
-			# Unregister from nested force optimizer
-			if nested_force_optimizer:
-				nested_force_optimizer.unregister_bubble(node, biome_name)
-
 			# Remove from all registries
 			if node.plot_id:
 				node_by_plot_id.erase(node.plot_id)
@@ -704,7 +660,7 @@ func _on_biome_removed(biome_name: String) -> void:
 
 
 func _create_bubble_for_terminal(biome_name: String, grid_pos: Vector2i, north_emoji: String, south_emoji: String, plot = null, terminal = null) -> void:
-	"""Create a bubble for a terminal (direct node creation)"""
+	# Create a bubble for a terminal (direct node creation)
 	if not biomes.has(biome_name):
 		return
 
@@ -715,20 +671,10 @@ func _create_bubble_for_terminal(biome_name: String, grid_pos: Vector2i, north_e
 	if not layout_calculator:
 		return
 
-	# Determine initial position (scatter around biome oval)
-	var initial_pos = center_position
-	var oval = layout_calculator.get_biome_oval(biome_name)
-	if not oval.is_empty():
-		var center = oval.get("center", center_position)
-		var semi_a = oval.get("semi_a", 100.0)
-		var semi_b = oval.get("semi_b", 60.0)
-		var angle = randf() * TAU
-		initial_pos = center + Vector2(
-			semi_a * cos(angle) * 0.7,
-			semi_b * sin(angle) * 0.7
-		)
+	# Spawn at the plot-box screen position; fall back to biome center
+	var initial_pos = _pgd_positions.get(grid_pos, center_position)
 
-	# Remove old bubble at this position if exists
+	# Remove old bubble at this grid_pos if exists
 	if quantum_nodes_by_grid_pos.has(grid_pos):
 		var old_bubble = quantum_nodes_by_grid_pos[grid_pos]
 		if old_bubble:
@@ -746,7 +692,7 @@ func _create_bubble_for_terminal(biome_name: String, grid_pos: Vector2i, north_e
 	bubble.has_farm_tether = true
 	bubble.is_terminal_bubble = true
 	bubble.terminal = terminal
-	bubble.biome_resolver = func(name: String): return biomes.get(name, null)
+	bubble.biome_resolver = func(node_name: String): return biomes.get(node_name, null)
 
 	# Store register_id so we can restore boot bubble on POP
 	if terminal and terminal.bound_register_id >= 0:
@@ -755,19 +701,14 @@ func _create_bubble_for_terminal(biome_name: String, grid_pos: Vector2i, north_e
 	# Add to tracking
 	quantum_nodes.append(bubble)
 	quantum_nodes_by_grid_pos[grid_pos] = bubble
-	all_plot_positions[grid_pos] = bubble.position
+	if not all_plot_positions.has(grid_pos):
+		all_plot_positions[grid_pos] = bubble.position
 
 	if plot and bubble.plot_id:
 		node_by_plot_id[bubble.plot_id] = bubble
 
-	# Register with nested force optimizer
-	if nested_force_optimizer:
-		nested_force_optimizer.register_bubble(bubble, biome_name, center_position)
-		if _verbose:
-			_verbose.debug("viz", "🎈", "Terminal bubble registered: %s in %s" % [grid_pos, biome_name])
-	else:
-		if _verbose:
-			_verbose.warn("viz", "⚠️", "Cannot register bubble - nested_force_optimizer is null")
+	if _verbose:
+		_verbose.debug("viz", "🎈", "Terminal bubble registered: %s in %s" % [grid_pos, biome_name])
 
 	# Start spawn animation
 	bubble.start_spawn_animation(time_accumulator)
@@ -776,29 +717,28 @@ func _create_bubble_for_terminal(biome_name: String, grid_pos: Vector2i, north_e
 	bubble.visible = true
 
 
-func _on_plot_selection_changed(position: Vector2i, is_selected: bool) -> void:
-	"""Handle plot selection - show/hide bubble based on selection state"""
+func _on_plot_selection_changed(grid_pos: Vector2i, is_selected: bool) -> void:
+	# Handle plot selection - show/hide bubble based on selection state
 	if is_selected:
-		selected_plot_positions[position] = true
+		selected_plot_positions[grid_pos] = true
 	else:
-		selected_plot_positions.erase(position)
+		selected_plot_positions.erase(grid_pos)
 
-	if quantum_nodes_by_grid_pos.has(position):
-		var bubble = quantum_nodes_by_grid_pos[position]
+	if quantum_nodes_by_grid_pos.has(grid_pos):
+		var bubble = quantum_nodes_by_grid_pos[grid_pos]
 		if bubble and not bubble.has_farm_tether:
 			bubble.visible = is_selected
 			queue_redraw()
 
 
 func register_biome(biome_name: String, biome):
-	"""Register a new biome dynamically and rebuild nodes.
-
-	Use this when creating biomes after initial setup (e.g., in tests).
-
-	Args:
-	    biome_name: Name of the biome
-	    biome: BiomeBase instance
-	"""
+	# Register a new biome dynamically and rebuild nodes.
+	#
+	# Use this when creating biomes after initial setup (e.g., in tests).
+	#
+	# Args:
+	# biome_name: Name of the biome
+	# biome: BiomeBase instance
 	if not biomes:
 		biomes = {}
 	biomes[biome_name] = biome
@@ -809,13 +749,13 @@ func register_biome(biome_name: String, biome):
 
 	# Apply biome filter
 	node_manager.filter_nodes_for_biome(quantum_nodes, _get_filter_biome())
+	_update_projection_payloads()
 
 
 func add_nodes_for_biome(biome_name: String, biome) -> void:
-	"""Add nodes for a single biome without rebuilding existing nodes.
-
-	Use this for incremental updates when toggling biomes on.
-	"""
+	# Add nodes for a single biome without rebuilding existing nodes.
+	#
+	# Use this for incremental updates when toggling biomes on.
 	if not biomes:
 		biomes = {}
 	biomes[biome_name] = biome
@@ -841,15 +781,15 @@ func add_nodes_for_biome(biome_name: String, biome) -> void:
 		if node.grid_position != GridSentinel.INVALID_POSITION:
 			quantum_nodes_by_grid_pos[node.grid_position] = node
 			all_plot_positions[node.grid_position] = node.classical_anchor
+	_update_projection_payloads()
 
 	print("  [ForceGraph] Added %d nodes for %s" % [new_nodes.size(), biome_name])
 
 
 func remove_nodes_for_biome(biome_name: String) -> void:
-	"""Remove nodes for a single biome without rebuilding everything.
-
-	Use this for incremental updates when toggling biomes off.
-	"""
+	# Remove nodes for a single biome without rebuilding everything.
+	#
+	# Use this for incremental updates when toggling biomes off.
 	# Remove nodes matching this biome
 	var removed_count = 0
 	var i = quantum_nodes.size() - 1
@@ -878,7 +818,7 @@ func remove_nodes_for_biome(biome_name: String) -> void:
 
 
 func update_layout(force_rebuild: bool = false):
-	"""Recompute layout from viewport size."""
+	# Recompute layout from viewport size.
 	var viewport = get_viewport()
 	if not viewport:
 		return
@@ -896,22 +836,55 @@ func update_layout(force_rebuild: bool = false):
 		layout_calculator.update_node_positions(quantum_nodes)
 
 
-func set_active_biome(biome_name: String):
-	"""Set the active biome for single-biome view.
+func _update_projection_payloads() -> void:
+	# Build semantic projection payloads once per frame from cached node/state.
+	projection_payloads = {}
+	if not projection_builder or biomes.is_empty() or quantum_nodes.is_empty():
+		return
 
-	Args:
-	    biome_name: Name of biome to show, or "" for all biomes
-	"""
+	var nodes_by_biome: Dictionary = {}
+	for node in quantum_nodes:
+		if not node or not node.visible:
+			continue
+		var biome_name: String = node.biome_name if node.biome_name != "" else ""
+		if biome_name.is_empty():
+			continue
+		if active_biome != "" and biome_name != active_biome:
+			continue
+		if not nodes_by_biome.has(biome_name):
+			nodes_by_biome[biome_name] = []
+		nodes_by_biome[biome_name].append(node)
+
+	for biome_name in nodes_by_biome:
+		var biome = biomes.get(biome_name, null)
+		if not biome or not biome.viz_cache:
+			continue
+		var biome_nodes: Array = nodes_by_biome[biome_name]
+		if biome_nodes.is_empty():
+			continue
+		var anchor_emoji := ""
+		var first_node = biome_nodes[0]
+		if first_node and first_node.emoji_north != "":
+			anchor_emoji = first_node.emoji_north
+		elif first_node and first_node.emoji_south != "":
+			anchor_emoji = first_node.emoji_south
+		projection_payloads[biome_name] = projection_builder.build_self_energy_projection_from_cache(
+			biome_nodes,
+			biome.viz_cache,
+			anchor_emoji,
+			time_accumulator
+		)
+
+
+func set_active_biome(biome_name: String):
+	# Set the active biome for single-biome view.
+	#
+	# Args:
+	# biome_name: Name of biome to show, or "" for all biomes
 	active_biome = biome_name
 	node_manager.filter_nodes_for_biome(quantum_nodes, _get_filter_biome())
 	update_layout(true)
 	biome_selected.emit(biome_name)
-
-
-func set_plot_tether_force_enabled(enabled: bool) -> void:
-	"""Toggle plot tether physics (visuals remain in edge renderer)."""
-	if "enable_plot_tether_force" in force_system:
-		force_system.enable_plot_tether_force = enabled
 
 
 func _get_filter_biome() -> String:
@@ -919,12 +892,12 @@ func _get_filter_biome() -> String:
 
 
 func get_node_at_position(pos: Vector2) -> QuantumNode:
-	"""Get quantum node at screen position."""
+	# Get quantum node at screen grid_pos.
 	return get_bubble_at_screen_pos(pos)
 
 
 func get_bubble_at_screen_pos(screen_pos: Vector2) -> QuantumNode:
-	"""Hit-test bubbles at screen position with touch-friendly expanded radius."""
+	# Hit-test bubbles at screen grid_pos with touch-friendly expanded radius.
 	for node in quantum_nodes:
 		if not node.visible:
 			continue
@@ -934,13 +907,8 @@ func get_bubble_at_screen_pos(screen_pos: Vector2) -> QuantumNode:
 	return null
 
 
-func highlight_node(_node: QuantumNode):
-	"""Highlight a quantum node (placeholder - visual effects handled by rendering)."""
-	pass
-
-
 func get_stats() -> Dictionary:
-	"""Get graph statistics."""
+	# Get graph statistics.
 	var active_nodes = 0
 	var total_entanglements = 0
 	for node in quantum_nodes:
@@ -955,7 +923,7 @@ func get_stats() -> Dictionary:
 
 
 func get_perf_averages() -> Dictionary:
-	"""Get averaged performance data for external profiling displays."""
+	# Get averaged performance data for external profiling displays.
 	var avg = {}
 	for key in _perf_samples:
 		var samples = _perf_samples[key]
@@ -970,26 +938,26 @@ func get_perf_averages() -> Dictionary:
 
 
 func get_bubble_renderer():
-	"""Get the bubble renderer for stats access."""
+	# Get the bubble renderer for stats access.
 	return bubble_renderer
 
 
 func set_emoji_atlas_batcher(atlas_batcher):
-	"""Set the pre-built emoji atlas batcher for GPU-accelerated emoji rendering."""
+	# Set the pre-built emoji atlas batcher for GPU-accelerated emoji rendering.
 	emoji_atlas_batcher = atlas_batcher
 	if bubble_renderer and bubble_renderer.has_method("set_emoji_atlas_batcher"):
 		bubble_renderer.set_emoji_atlas_batcher(atlas_batcher)
 
 
 func set_bubble_atlas_batcher(atlas_batcher):
-	"""Set the pre-built bubble atlas batcher for GPU-accelerated bubble rendering."""
+	# Set the pre-built bubble atlas batcher for GPU-accelerated bubble rendering.
 	bubble_atlas_batcher = atlas_batcher
 	if bubble_renderer and bubble_renderer.has_method("set_bubble_atlas_batcher"):
 		bubble_renderer.set_bubble_atlas_batcher(atlas_batcher)
 
 
 func teardown() -> void:
-	"""Release visualization resources and disconnect runtime signal owners."""
+	# Release visualization resources and disconnect runtime signal owners.
 	if _touch_input_manager:
 		if _touch_input_manager.tap_detected.is_connected(_on_touch_tap):
 			_touch_input_manager.tap_detected.disconnect(_on_touch_tap)
@@ -1000,9 +968,10 @@ func teardown() -> void:
 		if _touch_input_manager.drag_ended.is_connected(_on_drag_end):
 			_touch_input_manager.drag_ended.disconnect(_on_drag_end)
 
-	var abm = InstrumentLocator.resolve_active_biome_manager(self)
-	if abm and abm.has_signal("active_biome_changed") and abm.active_biome_changed.is_connected(_on_active_biome_changed):
-		abm.active_biome_changed.disconnect(_on_active_biome_changed)
+	if is_inside_tree():
+		var abm = get_node_or_null("/root/ActiveBiomeManager")
+		if abm and abm.has_signal("active_biome_changed") and abm.active_biome_changed.is_connected(_on_active_biome_changed):
+			abm.active_biome_changed.disconnect(_on_active_biome_changed)
 
 	if farm_ref:
 		if farm_ref.has_signal("terminal_bound") and farm_ref.terminal_bound.is_connected(_on_terminal_bound):
@@ -1029,8 +998,10 @@ func teardown() -> void:
 	node_by_plot_id.clear()
 	quantum_nodes_by_grid_pos.clear()
 	all_plot_positions.clear()
+	_pgd_positions.clear()
+	projection_payloads = {}
 	entanglement_particles.clear()
-	life_cycle_effects = {"spawns": [], "deaths": [], "strikes": []}
+	life_cycle_effects = {"deaths": [], "strikes": []}
 	plot_tether_colors.clear()
 	_context_cache.clear()
 	sun_qubit_node = null
@@ -1042,18 +1013,18 @@ func teardown() -> void:
 	emoji_atlas_batcher = null
 	bubble_atlas_batcher = null
 	geometry_batcher = null
-	nested_force_optimizer = null
 	bubble_renderer = null
 	edge_renderer = null
+	projection_builder = null
+	projection_renderer = null
 	region_renderer = null
 	infra_renderer = null
 	effects_renderer = null
 	node_manager = null
-	force_system = null
 
 
 func print_snapshot(reason: String = ""):
-	"""Print debug snapshot of graph state."""
+	# Print debug snapshot of graph state.
 	if not DEBUG_MODE:
 		return
 	var stats = get_stats()
@@ -1067,12 +1038,13 @@ func print_snapshot(reason: String = ""):
 
 
 func add_life_cycle_effect(effect_type: String, effect_data: Dictionary):
-	"""Add a life cycle effect (spawn, death, strike).
-
-	Args:
-	    effect_type: "spawns", "deaths", or "strikes"
-	    effect_data: Effect data with position, color, etc.
-	"""
+	# Add a life cycle effect (death or strike).
+	#
+	# Args:
+	# effect_type: "deaths" or "strikes"
+	# effect_data: Effect data with grid_pos, color, etc.
+	if effect_type == "spawns":
+		return
 	if not life_cycle_effects.has(effect_type):
 		life_cycle_effects[effect_type] = []
 	effect_data["time"] = 0.0
@@ -1080,23 +1052,23 @@ func add_life_cycle_effect(effect_type: String, effect_data: Dictionary):
 
 
 func set_plot_tether_color(grid_pos: Vector2i, color: Color):
-	"""Set custom tether color for a plot (legacy compatibility)."""
+	# Set a custom tether color for a plot.
 	plot_tether_colors[grid_pos] = color
 
 
 func update_plot_positions(plot_positions: Dictionary, biome_name: String = "") -> void:
-	"""Update plot anchors from PlotGridDisplay (screen-space coordinates).
-
-	Args:
-		plot_positions: Dictionary of Vector2i -> Vector2 (screen position)
-		biome_name: Optional biome name for logging/context
-	"""
+	# Update plot anchors from PlotGridDisplay (screen-space coordinates).
+	#
+	# Args:
+	# plot_positions: Dictionary of Vector2i -> Vector2 (screen grid_pos)
+	# biome_name: Optional biome name for logging/context
 	if plot_positions.is_empty():
 		return
 
 	# Update global cache
 	for grid_pos in plot_positions.keys():
 		all_plot_positions[grid_pos] = plot_positions[grid_pos]
+		_pgd_positions[grid_pos] = plot_positions[grid_pos]
 
 	# Update node anchors
 	for node in quantum_nodes:
@@ -1106,7 +1078,7 @@ func update_plot_positions(plot_positions: Dictionary, biome_name: String = "") 
 			continue
 		var anchor_pos = plot_positions[node.grid_position]
 		node.classical_anchor = anchor_pos
-		# Keep measured nodes frozen at the new anchor position
+		# Keep measured nodes frozen at the new anchor grid_pos
 		var is_measured = node.is_terminal_measured()
 		if is_measured:
 			node.frozen_anchor = anchor_pos
@@ -1134,20 +1106,20 @@ func _unhandled_input(event):
 
 
 func _on_pool_terminal_bound(_terminal: RefCounted, _register_id: int):
-	"""Handle terminal binding from TerminalPool.
-	No-op: Farm.terminal_bound signal handles bubble creation directly."""
+	# Handle terminal binding from TerminalPool.
+	# No-op: Farm.terminal_bound signal handles bubble creation directly.
 	pass
 
 
 func _on_pool_terminal_unbound(_terminal: RefCounted):
-	"""Handle terminal unbinding from TerminalPool.
-	No-op: Farm.terminal_released signal handles bubble removal directly."""
+	# Handle terminal unbinding from TerminalPool.
+	# No-op: Farm.terminal_released signal handles bubble removal directly.
 	pass
 
 
-func _on_touch_tap(position: Vector2) -> void:
-	"""Handle tap from TouchInputManager — hit-test bubbles."""
-	var node = get_bubble_at_screen_pos(position)
+func _on_touch_tap(grid_pos: Vector2) -> void:
+	# Handle tap from TouchInputManager — hit-test bubbles.
+	var node = get_bubble_at_screen_pos(grid_pos)
 	if not node or node.grid_position == GridSentinel.INVALID_POSITION:
 		return
 
@@ -1161,25 +1133,25 @@ func _on_touch_tap(position: Vector2) -> void:
 		_touch_input_manager.consume_current_tap()
 
 
-func _on_drag_start(position: Vector2) -> void:
-	"""Handle drag start from TouchInputManager — begin chain tracking."""
+func _on_drag_start(grid_pos: Vector2) -> void:
+	# Handle drag start from TouchInputManager — begin chain tracking.
 	_drag_chain.clear()
-	var node = get_bubble_at_screen_pos(position)
+	var node = get_bubble_at_screen_pos(grid_pos)
 	if node:
 		_drag_chain.append(node)
 
 
-func _on_drag_move(position: Vector2) -> void:
-	"""Handle drag move from TouchInputManager — extend chain."""
+func _on_drag_move(grid_pos: Vector2) -> void:
+	# Handle drag move from TouchInputManager — extend chain.
 	if _drag_chain.is_empty():
 		return
-	var node = get_bubble_at_screen_pos(position)
+	var node = get_bubble_at_screen_pos(grid_pos)
 	if node and node != _drag_chain.back():
 		_drag_chain.append(node)
 
 
 func _on_drag_end(_start_pos: Vector2, _end_pos: Vector2) -> void:
-	"""Handle drag end from TouchInputManager — emit chain if 2+ bubbles."""
+	# Handle drag end from TouchInputManager — emit chain if 2+ bubbles.
 	if _drag_chain.size() < 2:
 		_drag_chain.clear()
 		return
@@ -1192,20 +1164,19 @@ func _on_drag_end(_start_pos: Vector2, _end_pos: Vector2) -> void:
 
 
 func _apply_batched_force_positions(ctx: Dictionary) -> Dictionary:
-	"""Apply pre-computed force positions from BiomeEvolutionBatcher buffers.
-
-	Replaces synchronous force calculation with buffered position reads + interpolation.
-	Force positions are computed at 10Hz in C++ alongside evolution, then consumed
-	here at 60 FPS with smooth interpolation.
-
-	Returns: Dictionary of node_id → true for nodes that got batched positions
-	"""
+	# Apply pre-computed force positions from BiomeEvolutionBatcher buffers.
+	#
+	# Replaces synchronous force calculation with buffered grid_pos reads + interpolation.
+	# Force positions are computed at 10Hz in C++ alongside evolution, then consumed
+	# here at 60 FPS with smooth interpolation.
+	#
+	# Returns: Dictionary of node_id → true for nodes that got batched positions
 	var nodes_with_batched_pos: Dictionary = {}
 	var biome_batcher = ctx.get("biome_batcher")
 	if not biome_batcher:
 		return nodes_with_batched_pos
 
-	# Group nodes by biome for batch position lookup
+	# Group nodes by biome for batch grid_pos lookup
 	var nodes_by_biome: Dictionary = {}
 	for node in quantum_nodes:
 		if not node or not node.biome_name:
@@ -1225,7 +1196,7 @@ func _apply_batched_force_positions(ctx: Dictionary) -> Dictionary:
 		# Map positions to nodes by register_id (qubit index)
 		# Force positions are indexed by qubit ID, nodes may be in different order
 		for node in biome_nodes:
-			# Measured bubbles are frozen — don't overwrite position from batcher
+			# Measured bubbles are frozen — don't overwrite grid_pos from batcher
 			if node.is_terminal_measured():
 				continue
 			# Use register_id directly (all nodes have this set from quantum state)
@@ -1238,7 +1209,7 @@ func _apply_batched_force_positions(ctx: Dictionary) -> Dictionary:
 
 
 func _extract_qubit_index(plot_id: String) -> int:
-	"""Extract qubit index from plot_id (e.g., 'forest_q2' → 2)."""
+	# Extract qubit index from plot_id (e.g., 'forest_q2' → 2).
 	if "_q" not in plot_id:
 		return -1
 	var parts = plot_id.split("_q")
@@ -1252,7 +1223,7 @@ func _extract_qubit_index(plot_id: String) -> int:
 # ============================================================================
 
 func _print_perf_report():
-	"""Print detailed performance breakdown with averages."""
+	# Print detailed performance breakdown with averages.
 	var fps = Engine.get_frames_per_second()
 
 	# Calculate averages
@@ -1307,7 +1278,10 @@ func _print_perf_report():
 	print("\n🎨 _draw() breakdown (avg | P95):")
 	print("   ├─ Context + Canvas:  %5.2fms | %5.2fms  ← Dict + get_canvas_item()" % [avg["draw_context"] + avg["draw_canvas_item"], p95["draw_context"] + p95["draw_canvas_item"]])
 	print("   ├─ Geom Setup:        %5.2fms | %5.2fms  ← batcher.begin()" % [avg["draw_geom_begin"], p95["draw_geom_begin"]])
-	print("   ├─ Renderers:         %5.2fms | %5.2fms  ← region+infra+edge+effects" % [avg["draw_region"] + avg["draw_infra"] + avg["draw_edge"] + avg["draw_effects"], p95["draw_region"] + p95["draw_infra"] + p95["draw_edge"] + p95["draw_effects"]])
+	print("   ├─ Region render:     %5.2fms | %5.2fms" % [avg["draw_region"], p95["draw_region"]])
+	print("   ├─ Projection field:  %5.2fms | %5.2fms" % [avg["draw_projection"], p95["draw_projection"]])
+	print("   ├─ Infra + edges:     %5.2fms | %5.2fms" % [avg["draw_infra"] + avg["draw_edge"], p95["draw_infra"] + p95["draw_edge"]])
+	print("   ├─ Effects:           %5.2fms | %5.2fms" % [avg["draw_effects"], p95["draw_effects"]])
 	print("   ├─ Bubble renderer:   %5.2fms | %5.2fms  ← BubbleAtlasBatcher" % [avg["draw_bubble"], p95["draw_bubble"]])
 	print("   ├─ Geometry flush:    %5.2fms | %5.2fms  ← RenderingServer call" % [avg["draw_flush"], p95["draw_flush"]])
 	print("   ├─ Sun qubit:         %5.2fms | %5.2fms  ← draw_sun_qubit()" % [avg["draw_sun"], p95["draw_sun"]])
@@ -1349,7 +1323,7 @@ func _print_perf_report():
 # ============================================================================
 
 func _draw_debug_overlay():
-	"""Draw debug information overlay."""
+	# Draw debug information overlay.
 	var font = ThemeDB.fallback_font
 	var stats = get_stats()
 
@@ -1369,7 +1343,7 @@ func _draw_debug_overlay():
 
 
 func _build_mi_cache() -> Dictionary:
-	"""Build mutual information cache per biome for nested force optimizer."""
+	# Build mutual information cache per biome for nested force optimizer.
 	var mi_cache: Dictionary = {}
 	for biome_name in biomes:
 		var biome = biomes[biome_name]
@@ -1381,22 +1355,21 @@ func _build_mi_cache() -> Dictionary:
 
 
 func _get_scaled_force_delta(delta: float) -> float:
-	"""Scale force graph delta based on quantum evolution granularity.
-
-	Slower quantum evolution (larger dt) → slower force graph movement.
-	Uses minimum dt across all loaded biomes (fastest biome drives the animation).
-	4th-root scaling keeps slow biomes more visually alive than sqrt did.
-
-	Reference: dt=0.02s → scale=1.0 (full speed)
-	           dt=1.0s  → scale=0.376 (2.7× slower, was 7× with sqrt)
-	           dt=100s  → scale=0.133 (clamped to MIN_SCALE=0.1)
-
-	Args:
-		delta: Raw frame delta from _process()
-
-	Returns:
-		Scaled delta for force graph physics
-	"""
+	# Scale force graph delta based on quantum evolution granularity.
+	#
+	# Slower quantum evolution (larger dt) → slower force graph movement.
+	# Uses minimum dt across all loaded biomes (fastest biome drives the animation).
+	# 4th-root scaling keeps slow biomes more visually alive than sqrt did.
+	#
+	# Reference: dt=0.02s → scale_val=1.0 (full speed)
+	# dt=1.0s  → scale_val=0.376 (2.7× slower, was 7× with sqrt)
+	# dt=100s  → scale_val=0.133 (clamped to MIN_SCALE=0.1)
+	#
+	# Args:
+	# delta: Raw frame delta from _process()
+	#
+	# Returns:
+	# Scaled delta for force graph physics
 	const REFERENCE_DT = 0.02  # Baseline evolution dt (default for fast biomes)
 	const MIN_SCALE = 0.1      # Was 0.002 — raised so slow biomes stay animated
 
@@ -1412,62 +1385,20 @@ func _get_scaled_force_delta(delta: float) -> float:
 
 	# 4th-root scaling: softer than sqrt, keeps slow biomes more animated
 	# pow(x, 0.25) = sqrt(sqrt(x))
-	var scale = pow(REFERENCE_DT / min_dt, 0.25)
-	scale = max(scale, MIN_SCALE)
+	var scale_val = pow(REFERENCE_DT / min_dt, 0.25)
+	scale_val = max(scale_val, MIN_SCALE)
 
-	return delta * scale
-
-
-func _sync_bubbles_to_nested_optimizer() -> void:
-	"""Ensure all quantum_nodes are registered with nested force optimizer.
-
-	This catches bubbles that were created via:
-	- Save/load (QuantumNodeManager.create_quantum_nodes before save loaded)
-	- Dynamic biome additions
-	- Any other path that bypasses terminal_bound signal
-	"""
-	if not nested_force_optimizer:
-		return
-
-	var registered_count = 0
-	for node in quantum_nodes:
-		if not node:
-			continue
-
-		# Get biome name from node
-		var biome_name = node.biome_name if node.biome_name else ""
-
-		# If no biome_name on node, skip (can't register without biome assignment)
-		if biome_name.is_empty():
-			continue
-
-		# Check if already registered in any biome's inner graph
-		var already_registered = false
-		for bname in nested_force_optimizer.biome_graphs:
-			var inner = nested_force_optimizer.biome_graphs[bname]
-			if node in inner.bubbles:
-				already_registered = true
-				break
-
-		if not already_registered:
-			# register_bubble() creates the inner graph if needed
-			nested_force_optimizer.register_bubble(node, biome_name, center_position)
-			registered_count += 1
-
-	# Log sync results if bubbles were registered
-	if registered_count > 0 and _verbose:
-		_verbose.debug("viz", "🔄", "Synced %d bubbles to nested optimizer" % registered_count)
+	return delta * scale_val
 
 
 func _apply_skating_rink_forces(delta: float) -> void:
-	"""Apply forces to position bubbles on biome ovals (moved from BathQuantumVisualizationController)
-
-	RADIAL ENCODING: ring_distance ← purity Tr(ρ²)
-	- Pure states (purity=1.0) → center of oval (ring=0.3)
-	- Mixed states (purity=1/N) → edge of oval (ring=0.85)
-
-	ANGULAR ENCODING: phi ← grid position hash (spread bubbles evenly)
-	"""
+	# Apply forces to grid_pos bubbles on biome ovals (moved from BathQuantumVisualizationController)
+	#
+	# RADIAL ENCODING: ring_distance ← biome purity
+	# - This affects layout placement only, not bubble body radius.
+	# - Higher-purity biomes sit deeper in the oval; mixed biomes sit closer to the edge.
+	#
+	# ANGULAR ENCODING: phi ← grid grid_pos hash (spread bubbles evenly)
 	if not layout_calculator:
 		return
 
@@ -1521,10 +1452,10 @@ func _apply_skating_rink_forces(delta: float) -> void:
 			# ANGULAR POSITION: spread bubbles around oval
 			var phi = 0.0
 			if bubble.has_farm_tether and not bubble.plot:
-				# Terminal bubbles: spread around oval based on grid position hash
+				# Terminal bubbles: spread around oval based on grid grid_pos hash
 				phi = (bubble.grid_position.x * 1.618 + bubble.grid_position.y * 2.718) * TAU
 			elif bubble.plot:
-				# Plot bubbles: use grid position for spread
+				# Plot bubbles: use grid grid_pos for spread
 				phi = (bubble.grid_position.x * 2.236 + bubble.grid_position.y * 1.414) * TAU
 
 			var target_pos = center + Vector2(
@@ -1544,17 +1475,16 @@ func _apply_skating_rink_forces(delta: float) -> void:
 
 
 func _integrate_velocities(delta: float, nodes_with_batched_pos: Dictionary) -> void:
-	"""Integrate velocities into positions for nodes without batched positions.
-
-	Nodes get positions from either:
-	1. Batched force system (quantum physics simulation) - if available
-	2. Velocity integration (skating rink forces) - fallback
-
-	Args:
-		delta: Time step
-		nodes_with_batched_pos: Dictionary of node_id → true for nodes that got batched positions
-	"""
-	const DRAG = 0.92  # Match QuantumForceSystem damping
+	# Integrate velocities into positions for nodes without batched positions.
+	#
+	# Nodes get positions from either:
+	# 1. Batched force system (quantum physics simulation) - if available
+	# 2. Velocity integration (skating rink forces) - fallback
+	#
+	# Args:
+	# delta: Time step
+	# nodes_with_batched_pos: Dictionary of node_id → true for nodes that got batched positions
+	const DRAG = 0.92  # Empirical damping; previously matched QuantumForceSystem (stub deleted 2026-05-09).
 
 	for bubble in quantum_nodes:
 		# Skip measured bubbles (frozen in place)
@@ -1565,7 +1495,7 @@ func _integrate_velocities(delta: float, nodes_with_batched_pos: Dictionary) -> 
 		# Apply drag to all bubbles
 		bubble.velocity *= DRAG
 
-		# Integrate velocity ONLY if this node didn't get a batched position
+		# Integrate velocity ONLY if this node didn't get a batched grid_pos
 		# Batched positions are authoritative (quantum physics), velocity is fallback (visual layout)
 		if not nodes_with_batched_pos.has(bubble.get_instance_id()):
 			bubble.position += bubble.velocity * delta

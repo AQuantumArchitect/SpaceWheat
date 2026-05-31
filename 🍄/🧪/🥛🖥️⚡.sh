@@ -58,7 +58,7 @@ if [[ "${PREP_STARTER_SAVE}" == "1" ]]; then
   LOAD_SLOT="${STARTER_SAVE_SLOT}"
 fi
 
-for pid in $(pgrep -f "Tests/rig_listener.gd" || true); do
+for pid in $(pgrep -f "Rig/rig_listener.gd" || true); do
   kill "${pid}" || true
 done
 
@@ -66,7 +66,7 @@ echo "[run] Launching visual rig listener (windowed, D3D12 GPU)..." | tee -a "${
 (
   cd "${PROJECT_ROOT}"
   sw_prepare_runtime_env "interactive"
-  sw_godot --path . --rendering-method "${RENDERING_METHOD}" --script Tests/rig_listener.gd
+  sw_godot --path . --rendering-method "${RENDERING_METHOD}" --script Rig/rig_listener.gd
 ) >"${LISTENER_LOG}" 2>&1 &
 LISTENER_PID=$!
 

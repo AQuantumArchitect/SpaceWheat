@@ -1,8 +1,8 @@
 extends SceneTree
 
 const GameStateManager = preload("res://Core/GameState/GameStateManager.gd")
+const BootManager = preload("res://Core/Boot/BootManager.gd")
 const EXPORT_TARGET = "llm_inbox/pop_rework/live_icon_map.json"
-const ProbeActions = preload("res://Core/Actions/ProbeActions.gd")
 
 func _init():
 	call_deferred("_run_export")
@@ -11,8 +11,9 @@ func _run_export() -> void:
 	print("starting live icon map export")
 	var gsm = _ensure_gsm()
 	print("game state manager prepared")
-	var farm = await gsm.start_session(0, "default")
-	print("start_session returned")
+	var boot_manager = _ensure_boot_manager()
+	var farm = await boot_manager.boot_session({"slot": -1, "scenario_id": "new_game_easy", "headless": true}, null)
+	print("boot_session returned")
 	await create_timer(1.0).timeout
 	print("farm looked ready after delay")
 	var batcher = await _wait_for_batcher(farm, 30.0)
@@ -44,6 +45,15 @@ func _ensure_gsm() -> Node:
 		root.add_child(gsm)
 	return gsm
 
+func _ensure_boot_manager() -> Node:
+	var root = get_root()
+	var boot_manager = root.get_node_or_null("/root/BootManager")
+	if not boot_manager:
+		boot_manager = BootManager.new()
+		boot_manager.name = "BootManager"
+		root.add_child(boot_manager)
+	return boot_manager
+
 func _wait_for_batcher(farm: Node, timeout_seconds: float):
 	var attempts = max(1, int(timeout_seconds / 0.25) + 1)
 	for _i in range(attempts):
@@ -70,7 +80,7 @@ func _wait_for_map(batcher: Object, timeout_seconds: float) -> Dictionary:
 func _spin_up_terminal(farm: Node) -> void:
 	if not farm:
 		return
-	var biome = farm.starter_forest_biome
+	var biome = farm.grid.get_biome("StarterForest") if farm.grid else null
 	var terminal_pool = farm.terminal_pool
 	if not biome or not terminal_pool:
 		return

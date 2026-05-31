@@ -4,8 +4,6 @@ extends RefCounted
 ## BalanceConfig - Runtime/default balance profile resolver.
 ## Canonical profile lives in GameState.balance_workbench_config.
 
-const LEGACY_DEFAULT_CONFIG_PATH := "res://config/balance/workbench_default.json"
-
 const DEFAULTS: Dictionary = {
 	"profile_id": "default",
 	"display_name": "Default Runtime Balance",
@@ -16,14 +14,36 @@ const DEFAULTS: Dictionary = {
 		"max_biome_qubits": 12
 	},
 	"tuning": {
-		"pop_base_yield_scale": 100.0,
-		"reap_base_yield": 50.0,
+		"pop_base_yield_scale": 13.0,
+		"reap_base_yield": 8.0,
 		"reap_evolution_cycles": 13,
 		"flux_to_credits": 1.0,
 		"reap_cost_sequence": [1, 1, 2, 3, 5, 8, 13, 21],
-		"reap_starting_tokens": 6
+		"reap_starting_tokens": 6,
+		"measurement_drain_base": 0.15
+	},
+	# Physics balance — controls how quantum dynamics feel to the player.
+	# Hamiltonian drives fast visible oscillation (seconds).
+	# Lindblad drives slow irreversible flow (minutes).
+	# The ratio H/L determines whether the player sees lively oscillation
+	# (high ratio) or sluggish drift (low ratio).
+	"physics": {
+		# Global multiplier for all Lindblad rates from biomes.json.
+		# Rates were baked at the intended scale into biomes.json.
+		# Keep at 1.0 — adjust individual rates in the JSON if needed.
+		"lindblad_rate_scale": 1.0,
 	}
 }
+
+
+## Convenience accessor for physics balance parameters.
+static func get_physics(config: Dictionary = {}) -> Dictionary:
+	var defaults = DEFAULTS.get("physics", {})
+	var overrides = config.get("physics", {})
+	var result = defaults.duplicate(true)
+	for key in overrides.keys():
+		result[key] = overrides[key]
+	return result
 
 
 static func load_default_config(state = null) -> Dictionary:

@@ -4,10 +4,6 @@ extends SceneTree
 ##   Village, HearthKeepers (bees now), Woodlot, Harbor (sand added), VolcanicFoundry
 ## Run: godot --headless --quit --script tests/five_biome_lab.gd
 
-const BiomeBuilder = preload("res://Core/Biomes/BiomeBuilder.gd")
-const BiomeRegistry = preload("res://Core/Biomes/BiomeRegistry.gd")
-const FactionDensityMatrix = preload("res://Core/Factions/FactionDensityMatrix.gd")
-const MarketLattice = preload("res://Core/Markets/MarketLattice.gd")
 
 const SIM_SECONDS: float = 15.0
 const STEP_SECONDS: float = 0.5

@@ -66,7 +66,7 @@ def _ppg_prior_path(name: str) -> Path:
 
 def save_ppg_prior(client: RigClient, turn: int, name: str) -> int:
     """Extract PPG state from currently loaded character and persist it."""
-    result = client.run_turn(turn, "export_ppg_state", timeout_s=10.0)
+    result = client.run_turn(turn, "export_policy_state", timeout_s=10.0)
     turn += 1
     if not result.get("ok", False):
         return turn  # no PPG or error
@@ -108,9 +108,9 @@ def inject_ppg_prior(client: RigClient, turn: int, name: str) -> int:
     _safe_print(f"  [ppg] loading prior for {name} (steps={step_count})")
 
     # Use policy_debug_snapshot to verify policy is loaded, then
-    # inject PPG state via set_ppg_state IPC action
+    # inject PPG state via set_policy_state IPC action
     result = client.run_turn(
-        turn, "set_ppg_state", timeout_s=10.0,
+        turn, "set_policy_state", timeout_s=10.0,
         ppg_state=prior,
     )
     turn += 1
@@ -179,7 +179,7 @@ def seed_character(client: RigClient, turn: int, name: str) -> int:
 
     # Build seed payload
     seed_payload: Dict[str, Any] = {
-        "known_pairs": world.get("known_pairs", []),
+        "known_icons": world.get("known_icons", []),
         "unlocked_biomes": world.get("unlocked_biomes", ["StarterForest", "Village"]),
         "unexplored_biomes": world.get("unexplored_biomes", []),
         "active_biome": world.get("active_biome", "Village"),
@@ -222,7 +222,7 @@ def run_character_round(
     max_loops: int,
     policy_actions_per_loop: int = 6,
 ) -> tuple[int, Dict[str, Any]]:
-    """Load character save, run policy_step loops, save back."""
+    """Load character save, run quest_cycle_step loops, save back."""
     save = _save_path(name)
 
     # Load from save
@@ -230,23 +230,23 @@ def run_character_round(
     turn += 1
     if not result.get("loaded", False):
         _safe_print(f"  [{name}] load FAILED: {result.get('error', '?')}")
-        return turn, {"ok": False, "error": "load_failed", "loops": 0, "pairs": 0}
+        return turn, {"ok": False, "error": "load_failed", "loops": 0, "icons": 0}
 
     # Apply policy graph
     character = get_character(name)
     policy_cfg = resolve_character_policy(character, POLICY)
     if policy_cfg.get("policy_graph_path"):
-        client.run_turn(turn, "policy_graph_load", timeout_s=10.0, path=policy_cfg["policy_graph_path"])
+        client.run_turn(turn, "policy_graph_read", timeout_s=10.0, path=policy_cfg["policy_graph_path"])
         turn += 1
     if policy_cfg.get("policy_graph_jsonl"):
-        client.run_turn(turn, "policy_graph_apply", timeout_s=10.0, lines=policy_cfg["policy_graph_jsonl"])
+        client.run_turn(turn, "policy_graph_patch", timeout_s=10.0, lines=policy_cfg["policy_graph_jsonl"])
         turn += 1
 
     # Take initial snapshot
     snap = client.run_turn(turn, "policy_snapshot", timeout_s=10.0)
     turn += 1
     snap_data = snap.get("policy_snapshot", snap)
-    initial_pairs = len(snap_data.get("known_pairs", []))
+    initial_icons = len(snap_data.get("known_icons", []))
 
     # Run policy loops
     found_milk = False
@@ -265,7 +265,7 @@ def run_character_round(
     for loop_idx in range(max_loops):
         for step_idx in range(policy_actions_per_loop):
             result = client.run_turn(
-                turn, "policy_step",
+                turn, "quest_cycle_step",
                 timeout_s=300.0,
                 execute=True,
                 include_state=True,
@@ -278,10 +278,10 @@ def run_character_round(
             if not result.get("ok", False):
                 continue
 
-            # Check for milk via policy_step's pre-computed contains_milk_pair flag.
-            # post_state is nested under result["policy_step"], NOT at top level.
-            policy_step_data = result.get("policy_step", {})
-            if policy_step_data.get("contains_milk_pair"):
+            # Check for milk via quest_cycle_step's pre-computed contains_milk_pair flag.
+            # post_state is nested under result["quest_cycle_step"], NOT at top level.
+            quest_cycle_step_data = result.get("quest_cycle_step", {})
+            if quest_cycle_step_data.get("contains_milk_pair"):
                 found_milk = True
 
             if found_milk:
@@ -290,11 +290,11 @@ def run_character_round(
         if found_milk:
             break
 
-    # Final snapshot for pair count
+    # Final snapshot for icon count
     final_snap = client.run_turn(turn, "policy_snapshot", timeout_s=10.0)
     turn += 1
     final_snap_data = final_snap.get("policy_snapshot", final_snap)
-    final_pairs = len(final_snap_data.get("known_pairs", []))
+    final_icons = len(final_snap_data.get("known_icons", []))
 
     # Extract and persist PPG state before saving
     turn = save_ppg_prior(client, turn, name)
@@ -307,8 +307,8 @@ def run_character_round(
         "ok": True,
         "found_milk": found_milk,
         "loops": loops_completed,
-        "pairs": final_pairs,
-        "pairs_learned": final_pairs - initial_pairs,
+        "icons": final_icons,
+        "icons_learned": final_icons - initial_icons,
         "steps": steps,
     }
 
@@ -369,7 +369,7 @@ def main() -> int:
         if skip in milk_found:
             milk_found[skip] = True
     cumulative_loops: Dict[str, int] = {name: 0 for name in CHARACTERS}
-    cumulative_pairs: Dict[str, int] = {name: 0 for name in CHARACTERS}
+    cumulative_icons: Dict[str, int] = {name: 0 for name in CHARACTERS}
     cumulative_time: Dict[str, float] = {name: 0.0 for name in CHARACTERS}
     start_round_idx = max(0, args.start_round - 1)
 
@@ -406,13 +406,13 @@ def main() -> int:
             elapsed = time.time() - t0
 
             cumulative_loops[name] += result.get("loops", 0)
-            cumulative_pairs[name] = max(cumulative_pairs[name], result.get("pairs", 0))
+            cumulative_icons[name] = max(cumulative_icons[name], result.get("icons", 0))
             cumulative_time[name] += elapsed
 
             if result.get("found_milk"):
                 milk_found[name] = True
                 _safe_print(
-                    f"  [{name}] MILK! loops={result['loops']} pairs={result['pairs']} "
+                    f"  [{name}] MILK! loops={result['loops']} icons={result['icons']} "
                     f"time={elapsed:.0f}s (cumulative: {cumulative_loops[name]} loops)"
                 )
             elif not result.get("ok"):
@@ -422,8 +422,8 @@ def main() -> int:
                 )
             else:
                 _safe_print(
-                    f"  [{name}] no milk  loops={result['loops']} pairs={result['pairs']} "
-                    f"(+{result.get('pairs_learned', 0)}) time={elapsed:.0f}s"
+                    f"  [{name}] no milk  loops={result['loops']} icons={result['icons']} "
+                    f"(+{result.get('icons_learned', 0)}) time={elapsed:.0f}s"
                 )
 
     # Cleanup
@@ -434,13 +434,13 @@ def main() -> int:
     _safe_print(f"\n{'=' * 72}")
     _safe_print("  FIBONACCI MILK HUNT — FINAL SCORECARD")
     _safe_print("=" * 72)
-    _safe_print(f"\n {'Name':<30} {'Milk':<5} {'Loops':>6} {'Pairs':>6} {'Time':>8}")
+    _safe_print(f"\n {'Name':<30} {'Milk':<5} {'Loops':>6} {'Icons':>6} {'Time':>8}")
     _safe_print("  " + "-" * 58)
     for name in CHARACTERS:
         milk_str = "YES" if milk_found[name] else "no"
         _safe_print(
             f"  {name:<30} {milk_str:<5} {cumulative_loops[name]:>6} "
-            f"{cumulative_pairs[name]:>6} {cumulative_time[name]:>7.0f}s"
+            f"{cumulative_icons[name]:>6} {cumulative_time[name]:>7.0f}s"
         )
     _safe_print("  " + "-" * 58)
     _safe_print(f"  Result: {milk_count}/{len(CHARACTERS)} milk in {total_elapsed:.0f}s total")
@@ -459,7 +459,7 @@ def main() -> int:
             name: {
                 "found_milk": milk_found[name],
                 "cumulative_loops": cumulative_loops[name],
-                "cumulative_pairs": cumulative_pairs[name],
+                "cumulative_icons": cumulative_icons[name],
                 "cumulative_time_s": round(cumulative_time[name], 1),
             }
             for name in CHARACTERS

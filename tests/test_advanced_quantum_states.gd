@@ -4,7 +4,6 @@ extends SceneTree
 ## Tests: Phase gates, rotation gates, GHZ states, W states, sequential operations
 ## Run: godot --headless --script tests/test_advanced_quantum_states.gd
 
-const GateInjector = preload("res://Core/QuantumSubstrate/GateInjector.gd")
 
 var passed = 0
 var failed = 0
@@ -45,11 +44,15 @@ func _init():
 
 
 func setup_test_environment() -> bool:
-	"""Create a real biome with quantum computer."""
+	# Create a real biome with quantum computer.
 	print("\n[Setup: Real Biome + Quantum Computer]")
 
-	var StarterForestBiome = load("res://Core/Environment/StarterForestBiome.gd")
-	biome = StarterForestBiome.new()
+	var BiomeBuilder = load("res://Core/Biomes/BiomeBuilder.gd")
+	var result = BiomeBuilder.build_from_registry("StarterForest", root, {"skip_tree_add": true})
+	if not result.success:
+		print("  ✗ Failed to build biome: %s" % result.error)
+		return false
+	biome = result.biome_node
 	biome.name = "TestBiome"
 	root.add_child(biome)
 
@@ -64,14 +67,13 @@ func setup_test_environment() -> bool:
 
 
 func test_s_gate_phase():
-	"""S gate (phase gate) S|+⟩ should create |+i⟩ = (|0⟩+i|1⟩)/√2
+	# S gate (phase gate) S|+⟩ should create |+i⟩ = (|0⟩+i|1⟩)/√2
 
-	Expected after H then S:
-	- ρ[0,0] = 0.5
-	- ρ[16,16] = 0.5
-	- ρ[0,16] should have imaginary part (Im = 0.5)
-	- ρ[16,0] should have imaginary part (Im = -0.5, conjugate)
-	"""
+	# Expected after H then S:
+	# - ρ[0,0] = 0.5
+	# - ρ[16,16] = 0.5
+	# - ρ[0,16] should have imaginary part (Im = 0.5)
+	# - ρ[16,0] should have imaginary part (Im = -0.5, conjugate)
 	print("\n[S Gate Phase: S|+⟩ = (|0⟩+i|1⟩)/√2]")
 
 	var qc = biome.quantum_computer
@@ -112,14 +114,13 @@ func test_s_gate_phase():
 
 
 func test_t_gate_phase():
-	"""T gate (π/8 gate) rotates phase by π/4
+	# T gate (π/8 gate) rotates phase by π/4
 
-	After H then T: (|0⟩+e^(iπ/4)|1⟩)/√2
+	# After H then T: (|0⟩+e^(iπ/4)|1⟩)/√2
 
-	Expected:
-	- ρ[0,0] = 0.5, ρ[16,16] = 0.5
-	- ρ[0,16] = (cos(π/4) + i·sin(π/4))/2 ≈ 0.354 + 0.354i
-	"""
+	# Expected:
+	# - ρ[0,0] = 0.5, ρ[16,16] = 0.5
+	# - ρ[0,16] = (cos(π/4) + i·sin(π/4))/2 ≈ 0.354 + 0.354i
 	print("\n[T Gate Phase: T|+⟩ = (|0⟩+e^(iπ/4)|1⟩)/√2]")
 
 	var qc = biome.quantum_computer
@@ -150,12 +151,11 @@ func test_t_gate_phase():
 
 
 func test_rotation_gates():
-	"""Test Rx, Ry, Rz rotation gates with specific angles
+	# Test Rx, Ry, Rz rotation gates with specific angles
 
-	Rx(π/2)|0⟩ = (|0⟩-i|1⟩)/√2
-	Ry(π/2)|0⟩ = (|0⟩+|1⟩)/√2
-	Rz(π/2)|+⟩ = rotates phase
-	"""
+	# Rx(π/2)|0⟩ = (|0⟩-i|1⟩)/√2
+	# Ry(π/2)|0⟩ = (|0⟩+|1⟩)/√2
+	# Rz(π/2)|+⟩ = rotates phase
 	print("\n[Rotation Gates: Rx, Ry, Rz]")
 
 	# Test Rx(π/2)
@@ -191,15 +191,14 @@ func test_rotation_gates():
 
 
 func test_ghz_3qubit_state():
-	"""GHZ state on 3 qubits: |GHZ⟩ = (|000⟩+|111⟩)/√2
+	# GHZ state on 3 qubits: |GHZ⟩ = (|000⟩+|111⟩)/√2
 
-	Prepare via: H(0), CNOT(0,1), CNOT(0,2)
+	# Prepare via: H(0), CNOT(0,1), CNOT(0,2)
 
-	Expected:
-	- ρ[0,0] = 0.5 (|00000⟩, qubits 0,1,2 are 000)
-	- ρ[28,28] = 0.5 (|11100⟩, qubits 0,1,2 are 111)
-	- ρ[0,28] = 0.5 (coherence)
-	"""
+	# Expected:
+	# - ρ[0,0] = 0.5 (|00000⟩, qubits 0,1,2 are 000)
+	# - ρ[28,28] = 0.5 (|11100⟩, qubits 0,1,2 are 111)
+	# - ρ[0,28] = 0.5 (coherence)
 	print("\n[GHZ 3-Qubit State: |GHZ⟩ = (|000⟩+|111⟩)/√2]")
 
 	var qc = biome.quantum_computer
@@ -244,13 +243,12 @@ func test_ghz_3qubit_state():
 
 
 func test_w_3qubit_state():
-	"""W state: |W⟩ = (|001⟩+|010⟩+|100⟩)/√3
+	# W state: |W⟩ = (|001⟩+|010⟩+|100⟩)/√3
 
-	W state is harder to prepare, requires specific rotation angles.
-	For testing, we'll verify a simpler superposition state instead.
+	# W state is harder to prepare, requires specific rotation angles.
+	# For testing, we'll verify a simpler superposition state instead.
 
-	Create: X(2), H(2) → (|0⟩|0⟩|0⟩ + |0⟩|0⟩|1⟩)/√2 on last qubit
-	"""
+	# Create: X(2), H(2) → (|0⟩|0⟩|0⟩ + |0⟩|0⟩|1⟩)/√2 on last qubit
 	print("\n[W-like Superposition: Testing multi-basis state]")
 
 	var qc = biome.quantum_computer
@@ -279,13 +277,12 @@ func test_w_3qubit_state():
 
 
 func test_sequential_operations_order():
-	"""Verify gate order matters: S·H ≠ H·S
+	# Verify gate order matters: S·H ≠ H·S
 
-	S·H|0⟩ = S|+⟩ = |+i⟩ = (|0⟩+i|1⟩)/√2 (imaginary coherence)
-	H·S|0⟩ = H|0⟩ = |+⟩ = (|0⟩+|1⟩)/√2 (real coherence)
+	# S·H|0⟩ = S|+⟩ = |+i⟩ = (|0⟩+i|1⟩)/√2 (imaginary coherence)
+	# H·S|0⟩ = H|0⟩ = |+⟩ = (|0⟩+|1⟩)/√2 (real coherence)
 
-	These have different coherence phases!
-	"""
+	# These have different coherence phases!
 	print("\n[Sequential Operations: Gate order matters]")
 
 	var qc = biome.quantum_computer
@@ -320,10 +317,9 @@ func test_sequential_operations_order():
 
 
 func test_gate_commutation():
-	"""Test that Z and X anti-commute: ZX = -XZ
+	# Test that Z and X anti-commute: ZX = -XZ
 
-	But test gates that DO commute: Z and I, or Z gates on different qubits
-	"""
+	# But test gates that DO commute: Z and I, or Z gates on different qubits
 	print("\n[Gate Commutation: Z(0)·X(1) = X(1)·Z(0)]")
 
 	var qc = biome.quantum_computer
@@ -349,10 +345,9 @@ func test_gate_commutation():
 
 
 func test_controlled_hadamard():
-	"""Controlled-Hadamard simulation: CNOT·(I⊗H)·CNOT
+	# Controlled-Hadamard simulation: CNOT·(I⊗H)·CNOT
 
-	Creates: if control=0: target unchanged, if control=1: target gets H
-	"""
+	# Creates: if control=0: target unchanged, if control=1: target gets H
 	print("\n[Controlled-Hadamard: Simulated via CNOT·H·CNOT]")
 
 	var qc = biome.quantum_computer
@@ -379,11 +374,10 @@ func test_controlled_hadamard():
 
 
 func test_toffoli_like_sequence():
-	"""Test 3-gate sequence that mimics partial Toffoli behavior
+	# Test 3-gate sequence that mimics partial Toffoli behavior
 
-	Toffoli (CCNOT): flips target if both controls are |1⟩
-	We test: X(0), X(1), then CNOT(0,2), verify qubit 2 flipped
-	"""
+	# Toffoli (CCNOT): flips target if both controls are |1⟩
+	# We test: X(0), X(1), then CNOT(0,2), verify qubit 2 flipped
 	print("\n[Toffoli-like Sequence: Multi-control simulation]")
 
 	var qc = biome.quantum_computer
@@ -412,14 +406,13 @@ func test_toffoli_like_sequence():
 
 
 func test_bell_basis_states():
-	"""Test all 4 Bell basis states:
-	|Φ+⟩ = (|00⟩+|11⟩)/√2  (H, CNOT)
-	|Φ-⟩ = (|00⟩-|11⟩)/√2  (H, CNOT, Z on control)
-	|Ψ+⟩ = (|01⟩+|10⟩)/√2  (H, CNOT, X on target)
-	|Ψ-⟩ = (|01⟩-|10⟩)/√2  (H, CNOT, X on target, Z on control)
+	# Test all 4 Bell basis states:
+	# |Φ+⟩ = (|00⟩+|11⟩)/√2  (H, CNOT)
+	# |Φ-⟩ = (|00⟩-|11⟩)/√2  (H, CNOT, Z on control)
+	# |Ψ+⟩ = (|01⟩+|10⟩)/√2  (H, CNOT, X on target)
+	# |Ψ-⟩ = (|01⟩-|10⟩)/√2  (H, CNOT, X on target, Z on control)
 
-	We'll test |Φ-⟩ to verify the minus sign appears in coherences
-	"""
+	# We'll test |Φ-⟩ to verify the minus sign appears in coherences
 	print("\n[Bell Basis: |Φ-⟩ = (|00⟩-|11⟩)/√2]")
 
 	var qc = biome.quantum_computer
@@ -456,7 +449,7 @@ func test_bell_basis_states():
 # ============================================================================
 
 func _create_rx_gate(theta: float):
-	"""Create Rx(θ) rotation gate."""
+	# Create Rx(θ) rotation gate.
 	var ComplexMatrix = load("res://Core/QuantumSubstrate/ComplexMatrix.gd")
 	var Complex = load("res://Core/QuantumSubstrate/Complex.gd")
 	var rx = ComplexMatrix.new(2)
@@ -472,7 +465,7 @@ func _create_rx_gate(theta: float):
 
 
 func _create_ry_gate(theta: float):
-	"""Create Ry(θ) rotation gate."""
+	# Create Ry(θ) rotation gate.
 	var ComplexMatrix = load("res://Core/QuantumSubstrate/ComplexMatrix.gd")
 	var Complex = load("res://Core/QuantumSubstrate/Complex.gd")
 	var ry = ComplexMatrix.new(2)
@@ -488,7 +481,7 @@ func _create_ry_gate(theta: float):
 
 
 func _snapshot_density_matrix(dm) -> Array:
-	"""Copy density matrix elements to array for comparison."""
+	# Copy density matrix elements to array for comparison.
 	var snapshot = []
 	for i in range(dm.n):
 		for j in range(dm.n):
@@ -498,7 +491,7 @@ func _snapshot_density_matrix(dm) -> Array:
 
 
 func _matrices_equal(dm1: Array, dm2: Array, epsilon: float = 1e-10) -> bool:
-	"""Check if two density matrix snapshots are equal."""
+	# Check if two density matrix snapshots are equal.
 	if dm1.size() != dm2.size():
 		return false
 
@@ -512,7 +505,7 @@ func _matrices_equal(dm1: Array, dm2: Array, epsilon: float = 1e-10) -> bool:
 
 
 func assert_approx(actual: float, expected: float, msg: String):
-	"""Assert two floats are approximately equal."""
+	# Assert two floats are approximately equal.
 	if abs(actual - expected) < EPSILON:
 		passed += 1
 		print("  ✓ %s" % msg)

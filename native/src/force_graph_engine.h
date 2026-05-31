@@ -33,7 +33,7 @@ public:
      *
      * @param positions Current node positions (PackedVector2Array)
      * @param bloch_packet Bloch sphere data from quantum evolution
-     *                     Format: [p0,p1,x,y,z,r,θ,φ] per qubit (stride=8)
+     *                     Format: [p0,p1,x,y,z,r,θ,φ,r_xy] per qubit (stride=9)
      * @param mi_values Mutual information array (upper triangular)
      * @param biome_center Center position of biome (Vector2)
      * @param dt Timestep for integration

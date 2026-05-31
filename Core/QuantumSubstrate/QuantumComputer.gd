@@ -1,19 +1,13 @@
 class_name QuantumComputer
 extends Resource
 
-## Central quantum state manager for one biome (Model C Architecture)
+## Central quantum state core for one biome (Model C Architecture)
 ##
 ## The QuantumComputer is the ONLY owner of quantum state for the biome.
 ## Uses a single density_matrix with RegisterMap for emoji↔qubit coordination.
 ## Entanglement tracked via entanglement_graph metadata (adjacency lists).
 
-const Complex = preload("res://Core/QuantumSubstrate/Complex.gd")
-const ComplexMatrix = preload("res://Core/QuantumSubstrate/ComplexMatrix.gd")
-# SparseMatrix deprecated - sparse optimization now handled by native C++ backend
-const QuantumGateLibrary = preload("res://Core/QuantumSubstrate/QuantumGateLibrary.gd")
-const RegisterMap = preload("res://Core/QuantumSubstrate/RegisterMap.gd")
-const BerryPhaseRegister = preload("res://Core/QuantumSubstrate/BerryPhaseRegister.gd")
-const VerboseHelper = preload("res://Core/Config/VerboseHelper.gd")
+# Sparse-matrix optimization is now handled by the native C++ backend.
 
 func _log(level: String, category: String, emoji: String, message: String) -> void:
 	VerboseHelper.log(level, category, emoji, message)
@@ -46,8 +40,6 @@ var sparse_lindblad_operators: Array = []     # Array of SparseMatrix (auto-conv
 ## Format: {qubit_pair_index: mi_value} where index = i * num_qubits + j (upper triangular)
 ## Access via get_cached_mutual_information(qubit_a, qubit_b)
 var _cached_mi_values: PackedFloat64Array = PackedFloat64Array()
-var _mi_compute_enabled: bool = true          # Set false to disable MI computation
-var _mi_last_compute_frame: int = -1          # Frame when MI was last computed
 
 ## Time-dependent driver configurations (set via set_driven_icons)
 ## Format: [{emoji, qubit, pole, icon_ref, driver_type, base_energy}, ...]
@@ -120,9 +112,42 @@ func clear() -> void:
 		berry_register.clear()
 	sink_flux_per_emoji.clear()
 	_cached_mi_values = PackedFloat64Array()
-	_mi_last_compute_frame = -1
 	phase_lnn = null
 	_purity_cache = -1.0
+
+
+func restore_register_map_from_axes(axes_data: Array) -> bool:
+	# Rebuild the RegisterMap from serialized axis data.
+	#
+	# This is used by save/load so a restored density_matrix is not left
+	# stranded on a zero-qubit register_map.
+	if register_map == null:
+		register_map = RegisterMap.new()
+	elif register_map.has_method("clear"):
+		register_map.clear()
+
+	var restored_any := false
+	for axis_data in axes_data:
+		if not (axis_data is Dictionary):
+			continue
+		var qubit_raw = axis_data.get("qubit", -1)
+		var north_raw = axis_data.get("north", "")
+		var south_raw = axis_data.get("south", "")
+		if not str(qubit_raw).is_valid_int():
+			continue
+		var qubit_index := int(qubit_raw)
+		var north_emoji := str(north_raw)
+		var south_emoji := str(south_raw)
+		if north_emoji == "" or south_emoji == "":
+			continue
+		register_map.register_axis(qubit_index, north_emoji, south_emoji)
+		_ensure_entanglement_node(qubit_index)
+		_ensure_register_infra(qubit_index)
+		restored_any = true
+
+	if restored_any:
+		_log("debug", "quantum", "🧩", "Restored register map from %d serialized axes" % axes_data.size())
+	return restored_any
 
 
 func _ensure_entanglement_node(reg_id: int) -> void:
@@ -344,7 +369,7 @@ func get_marginal_density_matrix(_comp, reg_id: int) -> ComplexMatrix:
 
 	return result
 
-func get_marginal_probability_subspace(_comp, reg_id: int, basis_labels: Array[String]) -> float:
+func get_marginal_probability_subspace(_comp, reg_id: int, _basis_labels: Array[String]) -> float:
 	# Get total probability in subspace spanned by two basis states.
 
 	# Used for plots with (north_emoji, south_emoji) basis.
@@ -413,8 +438,8 @@ func get_attractor_state() -> Dictionary:
 		var prob: float = re * re + im * im
 		for q in range(nq):
 			var shift := nq - 1 - q
-			var pole := (i >> shift) & 1
-			qubit_marginals[q][pole] += prob
+			var pole_idx := (i >> shift) & 1
+			qubit_marginals[q][pole_idx] += prob
 
 	# Build emoji-keyed output
 	var out: Dictionary = {}
@@ -800,7 +825,7 @@ func get_qubit_for_emoji(emoji: String) -> int:
 func get_emoji_pair_for_qubit(qubit_index: int) -> Dictionary:
 	# Get {north, south} emoji pair for a qubit.
 
-	# Migration helper: use this to get axis emojis from qubit index.
+	# Migration bridge: use this to get axis emojis from qubit index.
 
 	# Args:
 	# qubit_index: Qubit to look up (0 to num_qubits-1)
@@ -814,7 +839,7 @@ func get_emoji_pair_for_qubit(qubit_index: int) -> Dictionary:
 ## GATE APPLICATION (Model C: RegisterMap-based)
 ## ============================================================================
 
-func apply_gate(qubit: int, U: ComplexMatrix) -> bool:
+func apply_gate(qubit_idx: int, U: ComplexMatrix) -> bool:
 	# Apply 1-qubit unitary gate to the density matrix.
 
 	# Model C (RegisterMap): Operates on the top-level density_matrix directly.
@@ -823,7 +848,7 @@ func apply_gate(qubit: int, U: ComplexMatrix) -> bool:
 	# Operation: ρ' = (I⊗...⊗U⊗...⊗I) ρ (I⊗...⊗U†⊗...⊗I)
 
 	# Args:
-	# qubit: Qubit index (0 to num_qubits-1)
+	# qubit_idx: Qubit index (0 to num_qubits-1)
 	# U: 2×2 unitary gate matrix
 
 	# Returns:
@@ -833,12 +858,12 @@ func apply_gate(qubit: int, U: ComplexMatrix) -> bool:
 		return false
 
 	var num_qubits = register_map.num_qubits
-	if qubit < 0 or qubit >= num_qubits:
-		push_error("apply_gate: qubit %d out of range [0, %d)" % [qubit, num_qubits])
+	if qubit_idx < 0 or qubit_idx >= num_qubits:
+		push_error("apply_gate: qubit %d out of range [0, %d)" % [qubit_idx, num_qubits])
 		return false
 
 	# Embed 1Q gate into full Hilbert space
-	var embedded_U = _embed_1q_unitary(U, qubit, num_qubits)
+	var embedded_U = _embed_1q_unitary(U, qubit_idx, num_qubits)
 
 	# Apply gate: ρ' = U ρ U†
 	var rho_new = embedded_U.mul(density_matrix).mul(embedded_U.conjugate_transpose())
@@ -895,46 +920,46 @@ func apply_gate_2q(qubit_a: int, qubit_b: int, U: ComplexMatrix) -> bool:
 # HIGH-LEVEL GATE CONVENIENCE METHODS
 # ============================================================================
 
-func apply_pauli_x(qubit: int) -> bool:
+func apply_pauli_x(qubit_idx: int) -> bool:
 	# Apply Pauli-X (NOT/bit-flip) gate to a qubit.
 	var X = QuantumGateLibrary.get_gate("X")["matrix"]
-	return apply_gate(qubit, X)
+	return apply_gate(qubit_idx, X)
 
 
-func apply_hadamard(qubit: int) -> bool:
+func apply_hadamard(qubit_idx: int) -> bool:
 	# Apply Hadamard gate to create superposition.
 	var H = QuantumGateLibrary.get_gate("H")["matrix"]
-	return apply_gate(qubit, H)
+	return apply_gate(qubit_idx, H)
 
 
-func apply_pauli_y(qubit: int) -> bool:
+func apply_pauli_y(qubit_idx: int) -> bool:
 	# Apply Pauli-Y gate.
 	var Y = QuantumGateLibrary.get_gate("Y")["matrix"]
-	return apply_gate(qubit, Y)
+	return apply_gate(qubit_idx, Y)
 
 
-func apply_pauli_z(qubit: int) -> bool:
+func apply_pauli_z(qubit_idx: int) -> bool:
 	# Apply Pauli-Z (phase-flip) gate.
 	var Z = QuantumGateLibrary.get_gate("Z")["matrix"]
-	return apply_gate(qubit, Z)
+	return apply_gate(qubit_idx, Z)
 
 
-func apply_ry(qubit: int, theta: float = PI / 4.0) -> bool:
+func apply_ry(qubit_idx: int, theta: float = PI / 4.0) -> bool:
 	# Apply Ry rotation gate with angle theta (default π/4).
 	var Ry = QuantumGateLibrary._ry_gate(theta)
-	return apply_gate(qubit, Ry)
+	return apply_gate(qubit_idx, Ry)
 
 
-func apply_rx(qubit: int, theta: float = PI / 4.0) -> bool:
+func apply_rx(qubit_idx: int, theta: float = PI / 4.0) -> bool:
 	# Apply Rx rotation gate with angle theta (default π/4).
 	var Rx = QuantumGateLibrary._rx_gate(theta)
-	return apply_gate(qubit, Rx)
+	return apply_gate(qubit_idx, Rx)
 
 
-func apply_rz(qubit: int, theta: float = PI / 4.0) -> bool:
+func apply_rz(qubit_idx: int, theta: float = PI / 4.0) -> bool:
 	# Apply Rz rotation gate with angle theta (default π/4).
 	var Rz = QuantumGateLibrary._rz_gate(theta)
-	return apply_gate(qubit, Rz)
+	return apply_gate(qubit_idx, Rz)
 
 
 func apply_perturbation(strength: float = 0.8) -> Dictionary:
@@ -1122,8 +1147,8 @@ func measure_axis(north_emoji: String, south_emoji: String) -> String:
 		return north_emoji  # Default
 
 	# Sample outcome
-	var rand = randf()
-	var outcome_pole = 0 if (rand < p_north / p_total) else 1
+	var rnd = randf()
+	var outcome_pole = 0 if (rnd < p_north / p_total) else 1
 	var outcome_emoji = north_emoji if outcome_pole == 0 else south_emoji
 
 	# Project density matrix onto outcome
@@ -1336,11 +1361,11 @@ func _apply_lindblad_1q(qubit_index: int, from_pole: int, to_pole: int,
 			add_sink_flux(source_emoji, drained)
 
 
-func _emoji_for_qubit_pole(qubit_index: int, pole: int) -> String:
+func _emoji_for_qubit_pole(qubit_index: int, pole_str: int) -> String:
 	var axis = register_map.axis(qubit_index)
 	if axis.is_empty():
 		return ""
-	return str(axis.get("north", "")) if pole == 0 else str(axis.get("south", ""))
+	return str(axis.get("north", "")) if pole_str == 0 else str(axis.get("south", ""))
 
 
 func _renormalize() -> void:
@@ -1456,6 +1481,8 @@ func _reinitialize_mixed_state() -> void:
 	if dim == 0:
 		return
 
+	push_warning("⚠️ Quantum %s: hard reinit to I/d (state lost — coherence-dependent gameplay will read flat)" % biome_name)
+
 	# Set to ρ = I/d (uniform distribution over all basis states)
 	var diag_val = 1.0 / float(dim)
 	for i in range(dim):
@@ -1498,6 +1525,7 @@ func _recover_to_steady_state() -> void:
 
 	# Renormalize populations (or fall back to I/d if all zero)
 	if pop_sum < 1e-12:
+		push_warning("⚠️ Quantum %s: steady-state recovery hit zero populations — falling back to I/d" % biome_name)
 		var diag_val = 1.0 / float(dim)
 		for i in range(dim):
 			populations[i] = diag_val
@@ -1585,14 +1613,14 @@ func evolve(dt: float, max_dt: float = 0.02, lnn: Object = null) -> void:
 
 	# Args:
 	# dt: Time step (in game seconds, actual evolution timestep)
-	# max_dt: Unused (kept for API compatibility)
+	# max_dt: Unused (kept on the API surface)
 	# lnn: Optional LiquidNeuralNet for phase modulation in phasic shadow
 	# If provided, applies learned phase shifts to density matrix diagonal
 
 	# Requires:
 	# - density_matrix initialized (via initialize_basis or allocate_axis)
-	# - hamiltonian set (via HamiltonianBuilder.build)
-	# - lindblad_operators set (via LindbladBuilder.build)
+	# - hamiltonian set (via HamiltonianBuilder.build_from_icons)
+	# - lindblad_operators set (via LindbladBuilder.build_from_atoms)
 	if density_matrix == null:
 		return  # Not initialized yet
 
@@ -1624,6 +1652,11 @@ func evolve(dt: float, max_dt: float = 0.02, lnn: Object = null) -> void:
 		_evolve_step(step_dt)
 		if lnn:
 			_apply_phase_lnn(lnn)
+
+	# Evolution mutated ρ — invalidate the purity cache (gates/drain already do
+	# this, but the evolution loop did not, so get_purity()/get_entropy() were
+	# returning the stale init value while marginals evolved live).
+	_purity_cache = -1.0
 
 	var t1 = Time.get_ticks_usec()
 	if Engine.get_process_frames() % 60 == 0:
@@ -1756,6 +1789,43 @@ func _evolve_step(dt: float) -> void:
 
 	# Renormalize to maintain Tr(ρ) = 1 (numerical stability)
 	_renormalize()
+
+
+## Hilbert-space dimension (2^num_qubits) of this biome's density matrix.
+## Used by EnergyPricing.biome_temperature to normalize entropy — must match the
+## `density_matrix.n` that get_entropy()/get_purity() use (NOT `.dimension()`,
+## which returns the inner `_matrix.n` and can diverge, clamping s_norm to 1).
+func get_dimension() -> int:
+	return int(density_matrix.n) if density_matrix else 0
+
+
+## Entropy of this biome's state — the extractable-energy "bank" in the reap
+## conservation model (yield ≤ kT·S), and the basis for kT.
+##
+## Shannon entropy of the LIVE basis-state populations (the diagonal of ρ):
+## S = −Σ pᵢ log pᵢ, read via `density_matrix.get_diagonal_real` — the SAME live
+## source `get_marginal` trusts. The native evolution engine
+## (`MultiBiomeLookaheadEngine`) writes the diagonal back here, but does NOT
+## refresh the full packed copy `_to_packed()` uses — so `get_purity()`/Tr(ρ²)
+## (and any entropy derived from it) read stale, pinned at the init value while
+## populations evolve. Diagonal entropy is the population-spread the economy
+## actually prices on, tracks the live evolution, and is 0 when concentrated /
+## log(dim) when uniform.
+func get_entropy() -> float:
+	if density_matrix == null:
+		return 0.0
+	var dim = density_matrix.n
+	var trace := 0.0
+	for i in range(dim):
+		trace += density_matrix.get_diagonal_real(i)
+	if trace < 1e-12:
+		return 0.0
+	var s := 0.0
+	for i in range(dim):
+		var p = density_matrix.get_diagonal_real(i) / trace
+		if p > 1e-14:
+			s -= p * log(p)
+	return s
 
 
 func get_purity() -> float:
@@ -2509,8 +2579,8 @@ func update_driven_self_energies(time: float) -> void:
 
 	for cfg in driven_icons:
 		var icon = cfg.icon_ref
-		var qubit = cfg.qubit
-		var pole = cfg.pole
+		var qubit_idx = cfg.qubit
+		var pole_str = cfg.pole
 
 		# Get time-dependent energy from icon
 		var old_energy = cfg.get("cached_energy", cfg.base_energy)
@@ -2528,11 +2598,11 @@ func update_driven_self_energies(time: float) -> void:
 
 		# Calculate the delta to add to Hamiltonian diagonal
 		var delta = new_energy - old_energy
-		var shift = num_qubits - 1 - qubit
+		var shift = num_qubits - 1 - qubit_idx
 
 		# Update all basis states where this qubit is in the target pole
 		for i in range(dim):
-			if ((i >> shift) & 1) == pole:
+			if ((i >> shift) & 1) == pole_str:
 				var current = hamiltonian.get_element(i, i)
 				hamiltonian.set_element(i, i, Complex.new(current.re + delta, current.im))
 

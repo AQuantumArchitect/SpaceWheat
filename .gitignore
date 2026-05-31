@@ -12,7 +12,6 @@ archive/
 
 # Test workspace (large local scratch area)
 Tests/
-!Tests/rig_listener.gd
 
 # Editor-specific files
 .vscode/
@@ -40,6 +39,12 @@ releases/
 
 # Native build artifacts
 native/bin/
+!native/bin/
+!native/bin/linux/
+!native/bin/windows/
+!native/bin/linux/libquantummatrix.linux.template_release.x86_64.so
+!native/bin/windows/libquantummatrix.windows.template_release.x86_64.dll
+!native/bin/windows/libquantummatrix.windows.template_debug.x86_64.dll
 native/lib/*.a
 native/lib/*.so
 native/src/*.o
@@ -103,3 +108,9 @@ build_web/
 # 🍄 curated artifacts explicitly kept in git
 !🍄/artifacts_whitelist/
 !🍄/artifacts_whitelist/**
+📦_emoji_research/
+.venv/
+
+# Transient rig/build scratch (runtime artifacts, not source)
+.build/
+.godot_windows_rig/

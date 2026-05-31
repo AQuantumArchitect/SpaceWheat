@@ -11,10 +11,6 @@ extends SceneTree
 ## standing up the entire boot sequence.
 
 const MC = preload("res://Core/Markets/Contract.gd")
-const MarketBiasSources = preload("res://Core/Markets/MarketBiasSources.gd")
-const PriceModel = preload("res://Core/Markets/PriceModel.gd")
-const MarketLattice = preload("res://Core/Markets/MarketLattice.gd")
-const HamiltonianConfig = preload("res://Core/Config/HamiltonianConfig.gd")
 
 var _failed: int = 0
 var _passed: int = 0
@@ -78,23 +74,27 @@ func _t_price_determinism() -> void:
 
 
 func _t_price_at_neutral() -> void:
-	# At P=0.5 with neutral standings, price = 1/0.5 × QC_RATIO × 1.0 = 20.0
+	# Boltzmann: at P=0.5 with neutral standings, price = surprisal −kT·log p.
+	# Null farm → kT = MARKET_TEMPERATURE_BASE (no biome entropy term).
 	var c = _make_contract()
 	var price: float = PriceModel.price_contract(c, null)
-	_check(abs(price - 20.0) < 0.01,
-		"price at neutral P=0.5 ≈ 20 classical (got %.4f)" % price)
+	var kT: float = float(EconomyConstants.MARKET_TEMPERATURE_BASE)
+	var expected: float = EnergyPricing.surprisal_energy(0.5, kT)
+	_check(abs(price - expected) < 0.01,
+		"price at neutral P=0.5 ≈ %.4f classical (got %.4f)" % [expected, price])
 
 
 func _t_price_at_extremes() -> void:
-	# Synthesize a contract whose composed P is forced toward extremes by
-	# directly testing the inversion formula on known inputs.
-	# At p=0.99: price = 1/0.99 × 10 ≈ 10.1; at p=0.01: price = 1/0.01 × 10 = 1000.
-	var p_high: float = 1.0 / 0.99 * HamiltonianConfig.QUANTUM_CLASSICAL_RATIO
-	var p_low: float = 1.0 / 0.01 * HamiltonianConfig.QUANTUM_CLASSICAL_RATIO
-	_check(abs(p_high - 10.10) < 0.05,
-		"hand-computed price at P=0.99 ≈ 10.1 (got %.4f)" % p_high)
-	_check(abs(p_low - 1000.0) < 0.5,
-		"hand-computed price at P=0.01 = 1000 (got %.4f)" % p_low)
+	# Surprisal pricing on known inputs: price = −kT·log p. Bounded, no 1/p cliff.
+	var kT: float = float(EconomyConstants.MARKET_TEMPERATURE_BASE)
+	var p_high: float = EnergyPricing.surprisal_energy(0.99, kT)
+	var p_low: float = EnergyPricing.surprisal_energy(0.01, kT)
+	var expected_high: float = EnergyPricing.surprisal_energy(0.99, kT)
+	var expected_low: float = EnergyPricing.surprisal_energy(0.01, kT)
+	_check(abs(p_high - expected_high) < 0.05,
+		"hand-computed price at P=0.99 ≈ %.4f (got %.4f)" % [expected_high, p_high])
+	_check(abs(p_low - expected_low) < 0.5,
+		"hand-computed price at P=0.01 = %.4f (got %.4f)" % [expected_low, p_low])
 
 
 func _t_implied_marginal_in_range() -> void:

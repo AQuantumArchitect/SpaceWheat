@@ -6,14 +6,29 @@ extends RefCounted
 ## Mirrors FactionRegistry but for biomes.
 ## Provides O(1) lookup by name, emoji, and tag via pre-built indexes.
 ##
-## Usage:
-##   var registry = BiomeRegistry.new()
-##   var biomes = registry.get_all()
-##   var forest = registry.get_by_name("StarterForest")
-##   var emojis = registry.get_emojis_for_biome("StarterForest")
+## Usage (preferred — shared cache):
+##   var biomes = BiomeRegistry.get_shared().get_all()
+##   var forest = BiomeRegistry.get_shared().get_by_name("StarterForest")
+##
+## Tests/tools may still `BiomeRegistry.new()` for isolation. Production code
+## should use `get_shared()` so canonical mutations propagate engine-wide.
 
-const Biome = preload("res://Core/Biomes/Biome.gd")
-const JSON_PATH = "res://Core/Biomes/data/biomes_merged.json"
+const JSON_PATH = "res://Core/Biomes/data/biomes.json"
+
+# Process-wide shared instance. Engine code should access via `get_shared()`.
+static var _shared = null
+
+## Return the process-wide shared registry, building it on first access.
+## Use this from engine/UI code so canonical mutations are visible everywhere.
+static func get_shared() -> BiomeRegistry:
+	if _shared == null:
+		_shared = load("res://Core/Biomes/BiomeRegistry.gd").new()
+	return _shared
+
+## Drop the shared instance (forces a fresh load on next `get_shared()`).
+## For tests and save-slot transitions where biomes.json has changed on disk.
+static func reset_shared() -> void:
+	_shared = null
 
 # Biome storage
 var _biomes: Array = []
@@ -40,33 +55,44 @@ func load_biomes() -> bool:
 	_name_index.clear()
 	_emoji_index.clear()
 	_tag_index.clear()
+	_factions_for_biome_cache.clear()
 
-	var file = FileAccess.open(JSON_PATH, FileAccess.READ)
-	if not file:
-		push_error("BiomeRegistry: Could not open %s" % JSON_PATH)
+	if not _load_biomes_from(JSON_PATH, true):
 		return false
-
-	var json = JSON.new()
-	var err = json.parse(file.get_as_text())
-	file.close()
-
-	if err != OK:
-		push_error("BiomeRegistry: JSON parse error at line %d: %s" % [json.get_error_line(), json.get_error_message()])
-		return false
-
-	var data = json.data
-	if not data is Array:
-		push_error("BiomeRegistry: Expected array at root of JSON")
-		return false
-
-	# Load each biome
-	for biome_data in data:
-		var biome = Biome.from_dict(biome_data)
-		_biomes.append(biome)
 
 	_build_indexes()
 	_loaded = true
 
+	return true
+
+
+## Load biomes from a single JSON file. If `required` is false, missing file
+## is treated as empty.
+func _load_biomes_from(path: String, required: bool) -> bool:
+	if not FileAccess.file_exists(path):
+		if required:
+			push_error("BiomeRegistry: Required file missing: %s" % path)
+			return false
+		return true
+	var file = FileAccess.open(path, FileAccess.READ)
+	if not file:
+		if required:
+			push_error("BiomeRegistry: Could not open %s" % path)
+			return false
+		return true
+	var json = JSON.new()
+	var err = json.parse(file.get_as_text())
+	file.close()
+	if err != OK:
+		push_error("BiomeRegistry: JSON parse error in %s line %d: %s" % [path, json.get_error_line(), json.get_error_message()])
+		return false
+	var data = json.data
+	if not data is Array:
+		push_error("BiomeRegistry: Expected array at root of %s" % path)
+		return false
+	for biome_data in data:
+		var biome = Biome.from_dict(biome_data)
+		_biomes.append(biome)
 	return true
 
 
@@ -76,17 +102,22 @@ func _build_indexes() -> void:
 		# Name index
 		_name_index[biome.name] = biome
 
-		# Emoji index
+		# Emoji index (skip plain-ASCII strings like "everything")
 		for emoji in biome.emojis:
+			if emoji.is_empty() or emoji.is_valid_identifier():
+				continue  # Not a real emoji
 			if not _emoji_index.has(emoji):
 				_emoji_index[emoji] = []
 			_emoji_index[emoji].append(biome)
 
 		# Tag index
 		for tag in biome.tags:
-			if not _tag_index.has(tag):
-				_tag_index[tag] = []
-			_tag_index[tag].append(biome)
+			var norm_tag := _normalize_tag(tag)
+			if norm_tag == "":
+				continue
+			if not _tag_index.has(norm_tag):
+				_tag_index[norm_tag] = []
+			_tag_index[norm_tag].append(biome)
 
 
 ## ========================================
@@ -96,6 +127,32 @@ func _build_indexes() -> void:
 ## Get all biomes
 func get_all() -> Array:
 	return _biomes
+
+
+## Mutate canonical biome by adding an icon pair (atoms-as-canonical path).
+## Updates the live `Biome` instance and the `_emoji_index` so subsequent
+## queries reflect the new basis. The biome's primed Lindblad terms with
+## endpoints in the new pair will activate on next substrate rebuild.
+##
+## Returns true on success. Caller is responsible for triggering the substrate
+## rebuild (typically via BiomeBase.add_atom_pair → expand_quantum_system).
+func add_atom_pair_to_biome(biome_name: String, north: String, south: String, icon_name: String = "") -> bool:
+	var biome = _name_index.get(biome_name, null)
+	if biome == null:
+		return false
+	var ok: bool = biome.add_atom_pair(north, south, icon_name)
+	if not ok:
+		return false
+	_factions_for_biome_cache.erase(biome_name)
+	# Update emoji index for the two new atoms.
+	for emoji in [north, south]:
+		if emoji.is_empty() or emoji.is_valid_identifier():
+			continue
+		if not _emoji_index.has(emoji):
+			_emoji_index[emoji] = []
+		if not _emoji_index[emoji].has(biome):
+			_emoji_index[emoji].append(biome)
+	return true
 
 
 ## Get biomes intended for player-facing runtime/export use.
@@ -116,6 +173,24 @@ func get_by_name(biome_name: String) -> Biome:
 	return _name_index.get(biome_name, null)
 
 
+## Get faction names that have presence in a biome (signature ∩ atoms).
+## Replaces the deleted faction roster field — computed from physics.
+## Lazy cache; invalidate via reset_shared() on registry rebuild.
+const _FactionBiomeMap = preload("res://Core/Biomes/FactionBiomeMap.gd")
+var _factions_for_biome_cache: Dictionary = {}
+
+func get_factions_for_biome(biome_name: String) -> Array:
+	# Faction signature gate. IconRegistry owns the authority via FactionBiomeMap.
+	var biome = _name_index.get(biome_name, null)
+	if biome == null:
+		return []
+	if _factions_for_biome_cache.has(biome_name):
+		return _factions_for_biome_cache[biome_name]
+	var result: Array = _FactionBiomeMap.factions_for_biome_by_signature(biome)
+	_factions_for_biome_cache[biome_name] = result
+	return result
+
+
 ## Find all biomes that contain a given emoji
 func get_biomes_for_emoji(emoji: String) -> Array:
 	return _emoji_index.get(emoji, [])
@@ -123,7 +198,7 @@ func get_biomes_for_emoji(emoji: String) -> Array:
 
 ## Get all biomes with a given tag
 func get_biomes_by_tag(tag: String) -> Array:
-	return _tag_index.get(tag, [])
+	return _tag_index.get(_normalize_tag(tag), [])
 
 
 ## Get all unique emojis across all biomes
@@ -144,6 +219,9 @@ func get_emoji_distribution() -> Dictionary:
 ## ========================================
 ## Debug Utilities
 ## ========================================
+
+static func _normalize_tag(tag) -> String:
+	return str(tag)
 
 ## Print summary of all biomes
 func debug_print_all() -> void:

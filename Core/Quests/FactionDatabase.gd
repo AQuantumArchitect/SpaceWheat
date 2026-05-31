@@ -7,8 +7,6 @@ extends RefCounted
 ## This class provides the dict-shaped API the quest system depends on plus
 ## vocabulary helpers that operate on those dicts.
 
-const FactionAxes     = preload("res://Core/Factions/FactionAxes.gd")
-const FactionRegistry = preload("res://Core/Factions/FactionRegistry.gd")
 
 static var _cache: Array = []
 
@@ -18,7 +16,7 @@ static var _cache: Array = []
 static func get_all() -> Array:
 	if not _cache.is_empty():
 		return _cache
-	var reg := FactionRegistry.new()
+	var reg := FactionRegistry.get_shared()
 	for faction in reg.get_all():
 		_cache.append({
 			"name":        faction.name,
@@ -26,7 +24,7 @@ static func get_all() -> Array:
 			"domain":      faction.domain,
 			"ring":        faction.ring,
 			"motto":       faction.motto,
-			"sig":         Array(faction.signature),
+			"sig":         Array(faction.cloud),
 			"bits":        Array(faction.bits),
 		})
 	return _cache

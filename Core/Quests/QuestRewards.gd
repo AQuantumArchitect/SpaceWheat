@@ -4,14 +4,6 @@ extends RefCounted
 ## Quest Reward System
 ## Handles reward generation and icon teaching for completed quests
 
-const FactionDatabase = preload("res://Core/Quests/FactionDatabase.gd")
-const IconPairing = preload("res://Core/Quests/IconPairing.gd")
-const FactionRegistry = preload("res://Core/Factions/FactionRegistry.gd")
-const EmojiPhysicsRegistry = preload("res://Core/QuantumSubstrate/EmojiPhysicsRegistry.gd")
-const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
-
-static var _faction_registry_cache = null
-static var _faction_dynamic_cache: Dictionary = {}
 
 const RESOURCE_REWARD_MIN_TOTAL: int = 1
 const RESOURCE_REWARD_MAX_TOTAL: int = 55
@@ -42,15 +34,15 @@ class IconModification:
 		BOOST_SELF_ENERGY,  # Increase self-energy (stability)
 	}
 
-	var type: Type
+	var quest_type: Type
 	var icon_emoji: String = ""
 	var parameters: Dictionary = {}  # Type-specific params
 
 	func _init():
-		type = Type.MODIFY_COUPLING
+		quest_type = Type.MODIFY_COUPLING
 
 	func _to_string() -> String:
-		return "IconMod<%s>[%s]" % [Type.keys()[type], icon_emoji]
+		return "IconMod<%s>[%s]" % [Type.keys()[quest_type], icon_emoji]
 
 
 class QuestReward:
@@ -59,14 +51,14 @@ class QuestReward:
 	var resource_rewards: Dictionary = {}  # {emoji: credits} primary payout
 	var learned_emojis: Array[String] = []  # Emojis player learned (both north and south)
 	var learned_pairs: Array = []  # Array of {north, south, weight, probability} - paired icon
-	var reputation_gain: int = 0  # Legacy scalar (kept for save-file compat); see standing_deltas
+	var reputation_gain: int = 0  # Scalar kept for save files; see standing_deltas
 	var bonus_multiplier: float = 1.0  # From alignment
 	var icon_modifications: Array = []  # Array[IconModification] - physics changes
 	var faction_name: String = ""  # Which faction owns this reward (for standing application)
 	var standing_deltas: Dictionary = {}  # Per-channel deltas to apply on grant. Keys: trust/debt/attention/access/legitimacy/entanglement
 
 
-static func generate_reward(quest: Dictionary, bath, player_vocab: Array) -> QuestReward:
+static func generate_reward(quest: Dictionary, _bath, player_vocab: Array) -> QuestReward:
 	# Generate rewards for quest completion
 
 	# Uses PRE-ROLLED icon from quest creation time (not rolled now).
@@ -151,10 +143,6 @@ static func _standing_deltas_for_quest(quest: Dictionary, success: bool) -> Dict
 				return {"trust": 0.04, "entanglement": 0.08, "legitimacy": 0.03}
 			8, 9:  # PREVENT_DECOHERENCE, COLLAPSE_DELIBERATELY — careful work
 				return {"trust": 0.05, "legitimacy": 0.04}
-			10:  # STEER_TO_ATTRACTOR — guide biome to eigenstate
-				return {"trust": 0.06, "legitimacy": 0.05, "entanglement": 0.04}
-			11:  # HEAL_ATTRACTOR — restore biome after perturbation
-				return {"trust": 0.05, "legitimacy": 0.04, "access": 0.03}
 			_:
 				return {"trust": 0.03, "attention": 0.01}
 	else:
@@ -164,8 +152,6 @@ static func _standing_deltas_for_quest(quest: Dictionary, success: bool) -> Dict
 				return {"debt": 0.06, "attention": 0.03, "trust": -0.02}
 			4, 7:  # entanglement-flavored failures leave residue
 				return {"debt": 0.05, "attention": 0.04, "entanglement": 0.03}
-			10, 11:  # attractor quests — failure is costly
-				return {"debt": 0.05, "attention": 0.04, "trust": -0.02}
 			_:
 				return {"debt": 0.04, "attention": 0.04, "trust": -0.01}
 
@@ -187,7 +173,7 @@ static func estimate_resource_rewards(quest: Dictionary, faction: Dictionary = {
 	return _build_resource_reward_plan(quest, faction, true, icon_map)
 
 
-static func compute_market_projection(quest: Dictionary, icon_map: Dictionary = {}, tuning: Dictionary = {}) -> Dictionary:
+static func compute_market_projection(quest: Dictionary, icon_map: Dictionary = {}, _tuning: Dictionary = {}) -> Dictionary:
 	# Compute read-only market projection (no dynamic cost multiplier by default).
 	if quest.is_empty():
 		return {}
@@ -235,7 +221,7 @@ static func _build_resource_reward_plan(quest: Dictionary, faction: Dictionary, 
 	if resolved_icon_map.is_empty():
 		return {}
 	var profile := _compute_interference_reward_profile(faction_dynamic, resolved_icon_map)
-	var total_budget := _compute_fibonacci_reward_budget(quest, profile, deterministic)
+	var total_budget := _compute_surprisal_reward_budget(quest, profile, deterministic)
 
 	if profile.get("weights", {}).is_empty():
 		return {}
@@ -305,11 +291,11 @@ static func _apply_reward_tuning(rewards: Dictionary, quest: Dictionary) -> Dict
 static func _get_faction_dynamic_data(faction_name: String, fallback_signature: Array) -> Dictionary:
 	var signature: Array = fallback_signature.duplicate()
 	if faction_name != "":
-		var registry = _get_faction_registry()
+		var registry = FactionRegistry.get_shared()
 		if registry:
 			var faction_obj = registry.get_by_name(faction_name)
-			if faction_obj and faction_obj.signature is Array and not faction_obj.signature.is_empty():
-				signature = faction_obj.signature.duplicate()
+			if faction_obj and faction_obj.cloud is Array and not faction_obj.cloud.is_empty():
+				signature = faction_obj.cloud.duplicate()
 
 	if signature.is_empty():
 		return {
@@ -334,17 +320,8 @@ static func _get_faction_dynamic_data(faction_name: String, fallback_signature: 
 	}
 
 
-static func _get_faction_registry():
-	if _faction_registry_cache == null:
-		_faction_registry_cache = FactionRegistry.new()
-	return _faction_registry_cache
-
-
 static func _get_icon_registry():
-	var icon_registry = InstrumentLocator.resolve_icon_registry_main_loop()
-	if icon_registry != null and icon_registry.has_method("get_signature_physics"):
-		return icon_registry
-	var local_registry = EmojiPhysicsRegistry.new()
+	var local_registry = (Engine.get_main_loop().root.get_node_or_null("/root/IconRegistry") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 	if local_registry.has_method("rebuild_from_icons"):
 		local_registry.rebuild_from_icons()
 	return local_registry
@@ -408,7 +385,6 @@ static func _compute_interference_reward_profile(faction_data: Dictionary, icon_
 		p[i] = float(p[i]) / p_total
 
 	var self_energies = faction_data.get("self_energies", {})
-	var lindblad_outgoing = faction_data.get("lindblad_outgoing", {})
 	var weights: Dictionary = {}
 	var total = 0.0
 	var interference_sum = 0.0
@@ -427,12 +403,7 @@ static func _compute_interference_reward_profile(faction_data: Dictionary, icon_
 		for j in range(n):
 			coupling_mass += abs(float(h[e][j])) * float(p[j])
 		var self_term = max(0.0, float(self_energies.get(emoji, 0.0))) * float(p[e]) * 0.5
-		var lind_term = 0.0
-		var outgoing_map = lindblad_outgoing.get(emoji, {})
-		if outgoing_map is Dictionary:
-			for target in outgoing_map.keys():
-				lind_term += abs(float(outgoing_map[target])) * 0.15
-		var raw = max(0.0001, tensor_energy + coupling_mass + self_term + lind_term)
+		var raw = max(0.0001, tensor_energy + coupling_mass + self_term)
 		weights[emoji] = raw
 		total += raw
 		interference_sum += tensor_energy
@@ -491,80 +462,21 @@ static func _build_uniform_icon_map(emojis: Array) -> Dictionary:
 	}
 
 
-static func _compute_fibonacci_reward_budget(quest: Dictionary, profile: Dictionary, deterministic: bool) -> int:
-	var q = max(1.0, float(quest.get("quantity", 1.0)))
-	var bracket = _fibonacci_bracket_for_quantity(q)
-	var low = float(bracket.get("low", 1.0))
-	var high = float(bracket.get("high", 2.0))
-	var min_reward = int(bracket.get("min_reward", 1))
-	var max_reward = int(bracket.get("max_reward", 2))
-
-	var interference = max(0.0, float(profile.get("interference_strength", 0.0)))
-	var signed = tanh(interference * 0.2)  # bounded [0, 1)
-	# Net-negative resource trade: return 55-70% of cost in faction emojis.
-	# The value is diversification and inventory steering, not raw profit.
-	var mean = q * (0.55 + 0.15 * signed)
-	mean = clamp(mean, float(min_reward), float(max_reward))
-
-	var amount = int(round(mean))
+static func _compute_surprisal_reward_budget(quest: Dictionary, _profile: Dictionary, deterministic: bool) -> int:
+	# Bounty = surprisal energy of the quest's target state (QuestEnergy):
+	# rarer goal → bigger reward. The same E = −kT·log p law that prices harvest
+	# and markets. kT_base is representative (biome-specific kT applies at live
+	# market pricing); tune via JSONL tuning.market_temperature. The interference
+	# profile no longer sets the budget — it only steers WHICH emojis pay out
+	# (see _build_resource_reward_plan).
+	var kT := float(EconomyConstants.MARKET_TEMPERATURE_BASE)
+	var budget := QuestEnergy.target_energy(quest, kT)
+	var amount := maxi(1, int(round(budget)))
 	if not deterministic:
-		var sigma = max(0.45, float(max_reward - min_reward) * 0.18)
-		var z = (randf() + randf() + randf() + randf() - 2.0) / 0.57735026919
-		amount = int(round(mean + sigma * z))
-	amount = int(clamp(amount, min_reward, max_reward))
-
-	# Guardrail: never exceed 75% of cost (rewards are trades, not profits).
-	var ceiling = max(1, int(ceil(q * 0.75)))
-	amount = min(amount, ceiling)
-
-	# Low-volume quest rewards should be intentionally small.
-	if q <= 3.0:
-		amount = min(amount, max_reward)
-		amount = max(1, amount)
-	elif q <= 5.0:
-		amount = max(2, min(amount, max_reward))
-
+		# ±15% surprisal jitter (zero-mean) for non-deterministic offers.
+		var z := (randf() + randf() + randf() + randf() - 2.0) / 0.57735026919
+		amount = maxi(1, int(round(budget + 0.15 * budget * z)))
 	return amount
-
-
-static func _fibonacci_bracket_for_quantity(quantity: float) -> Dictionary:
-	var q = max(1.0, quantity)
-	var fib = [1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144]
-	var low = 1
-	var high = 2
-	var idx = 0
-	for i in range(fib.size() - 1):
-		if q >= float(fib[i]) and q < float(fib[i + 1]):
-			low = fib[i]
-			high = fib[i + 1]
-			idx = i
-			break
-		if q >= float(fib[fib.size() - 1]):
-			low = fib[fib.size() - 2]
-			high = fib[fib.size() - 1]
-			idx = fib.size() - 2
-
-	# Exact examples requested for low volumes.
-	if q <= 1.0:
-		return {"low": 1, "high": 1, "min_reward": 1, "max_reward": 2}
-	if q < 2.0:
-		return {"low": 1, "high": 2, "min_reward": 1, "max_reward": 3}
-	if q < 3.0:
-		return {"low": 2, "high": 3, "min_reward": 1, "max_reward": 5}
-	if q < 5.0:
-		return {"low": 3, "high": 5, "min_reward": 2, "max_reward": 8}
-	if q < 8.0:
-		return {"low": 5, "high": 8, "min_reward": 2, "max_reward": 13}
-
-	var max_idx = min(idx + 2, fib.size() - 1)
-	var max_reward = fib[max_idx]
-	var min_reward = max(2, int(round(float(low) * 0.35)))
-	return {
-		"low": low,
-		"high": high,
-		"min_reward": min_reward,
-		"max_reward": max_reward
-	}
 
 
 static func _compute_total_resource_budget(quest: Dictionary, dominant_eigenvalue: float) -> int:
@@ -714,19 +626,15 @@ static func select_vocabulary_reward(faction: Dictionary, bath, player_vocab: Ar
 	if unknown.is_empty():
 		return ""  # No signature to teach
 
-	# Get bath probabilities for unknown emojis (quantum-informed selection!)
-	if bath and bath.get("_density_matrix"):
-		var density_matrix = bath._density_matrix
-		var emoji_list = density_matrix.emoji_list
+	# Get biome probabilities for unknown emojis (quantum-informed selection!)
+	if bath and bath.viz_cache:
 		var probs = []
 		var indices = []
 
 		for i in range(unknown.size()):
 			var emoji = unknown[i]
-			var idx = emoji_list.find(emoji)
-
-			if idx >= 0:
-				var prob = density_matrix.get_probability_by_index(idx)
+			var prob = bath.get_emoji_probability(emoji)
+			if prob >= 0.0:
 				probs.append(prob)
 				indices.append(i)
 
@@ -789,7 +697,7 @@ static func format_reward_text(reward: QuestReward) -> String:
 	return "\n".join(lines)
 
 
-static func preview_possible_rewards(quest: Dictionary, player_vocab: Array) -> String:
+static func preview_possible_rewards(quest: Dictionary, _player_vocab: Array) -> String:
 	# Preview what rewards will be earned (shows pre-rolled pair)
 
 	# No universal 💰 currency - just icons from quantum physics.
@@ -980,7 +888,6 @@ static func should_grant_icon_modification(quest: Dictionary) -> bool:
 	var quest_type = quest.get("type", 0)
 
 	# Quantum mechanics quests always grant modifications
-	const QuestTypes = preload("res://Core/Quests/QuestTypes.gd")
 	if quest_type in [
 		QuestTypes.Type.ACHIEVE_EIGENSTATE,
 		QuestTypes.Type.MAINTAIN_COHERENCE,

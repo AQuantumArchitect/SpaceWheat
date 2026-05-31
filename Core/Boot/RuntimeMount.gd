@@ -13,7 +13,6 @@ extends RefCounted
 ##
 ## RefCounted; takes farm/shell/quantum_viz Nodes as parameters from the orchestrator.
 
-const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 const PerfOptimizer = preload("res://Core/Settings/PerformanceOptimizer.gd")
 
 var _verbose  # Injected from BootManager (VerboseConfig)
@@ -246,35 +245,35 @@ func stage_ui(farm: Node, shell: Node, quantum_viz: Node, world_builder) -> void
 	farm_ui.setup_farm(farm)
 	_verbose.info("boot", "✓", "farm_ui.setup_farm() complete")
 
-	# Create and inject QuantumInstrumentInput (single input system)
+	# Create and inject QuantumInstrumentInput (single input projection)
 	_verbose.info("boot", "🔍", "Creating QuantumInstrumentInput...")
-	var input_handler = Node.new()
+	var instrument_input = Node.new()
 	var QuantumInstrumentScript = load("res://UI/Core/QuantumInstrumentInput.gd")
-	input_handler.set_script(QuantumInstrumentScript)
-	input_handler.name = "QuantumInstrumentInput"
+	instrument_input.set_script(QuantumInstrumentScript)
+	instrument_input.name = "QuantumInstrumentInput"
 	_verbose.info("boot", "🔍", "Adding QuantumInstrumentInput to shell (triggers _ready)...")
-	shell.add_child(input_handler)
+	shell.add_child(instrument_input)
 	_verbose.info("boot", "✓", "QuantumInstrumentInput added to tree")
 
 	# Inject dependencies
-	input_handler.inject_farm(farm)
+	instrument_input.inject_farm(farm)
 	if plot_grid_display:
-		input_handler.inject_plot_grid_display(plot_grid_display)
+		instrument_input.inject_plot_grid_display(plot_grid_display)
 
 		# Connect multi-select checkbox signal to PlotGridDisplay
-		input_handler.plot_checked.connect(plot_grid_display.set_plot_checked)
+		instrument_input.plot_checked.connect(plot_grid_display.set_plot_checked)
 		_verbose.info("boot", "✓", "Multi-select checkbox signals connected")
-	farm_ui.input_handler = input_handler
+	farm_ui.instrument_input = instrument_input
 
-	# CRITICAL: Connect input_handler signals to action bar AFTER input_handler exists
-	# (farm_setup_complete fires too early, before input_handler is created)
+	# CRITICAL: Connect instrument_input signals to action bar AFTER instrument_input exists
+	# (farm_setup_complete fires too early, before instrument_input is created)
 	if shell.has_method("connect_to_quantum_input"):
 		shell.connect_to_quantum_input()
 		_verbose.info("boot", "✓", "QuantumInstrumentInput connected to action bars")
 
 	var instrument = world_builder.ensure_quantum_instrument(farm)
 	shell.quantum_instrument = instrument
-	input_handler.inject_instrument(instrument)
+	instrument_input.inject_instrument(instrument)
 	_verbose.info("boot", "🎛️", "QuantumInstrument ready (unified game mechanics API)")
 
 	# Mount FarmSurface — the live instrument's snapshot contract.
@@ -282,10 +281,10 @@ func stage_ui(farm: Node, shell: Node, quantum_viz: Node, world_builder) -> void
 	var farm_surface = FarmSurfaceScript.new()
 	farm_surface.name = "FarmSurface"
 	shell.add_child(farm_surface)
-	var abm = InstrumentLocator.resolve_main_loop_root_node("/root/ActiveBiomeManager")
+	var abm = (Engine.get_main_loop().root.get_node_or_null("/root/ActiveBiomeManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 	farm_surface.bind(instrument, abm)
 	if farm_surface.has_method("bind_tool_input"):
-		farm_surface.bind_tool_input(input_handler)
+		farm_surface.bind_tool_input(instrument_input)
 	farm_surface.mount()
 	if "farm_surface" in shell:
 		shell.farm_surface = farm_surface
@@ -305,30 +304,31 @@ func stage_ui(farm: Node, shell: Node, quantum_viz: Node, world_builder) -> void
 
 
 func stage_music() -> void:
-	# Stage 3E: Music system check (no auto-play - Layer 1 design).
-	# Music starts in SILENCE; biome changes trigger music via ActiveBiomeManager signal.
+	# Stage 3E: Seed initial music track.
 	_verbose.info("boot", "📍", "Stage 3E: Music")
 
-	var music = InstrumentLocator.resolve_music_manager_main_loop()
+	var music = (Engine.get_main_loop().root.get_node_or_null("/root/MusicManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 	if not music:
 		_verbose.warn("boot", "⚠️", "MusicManager not found - skipping music")
 		return
 
-	# Layer 1: Game starts in silence
-	# Music will play when biome changes (via ActiveBiomeManager.active_biome_changed signal)
-	_verbose.info("boot", "🔇", "Music ready - starts silent (Layer 1: biome changes trigger music)")
+	var abm = (Engine.get_main_loop().root.get_node_or_null("/root/ActiveBiomeManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
+	var active_biome: String = abm.get_active_biome() if abm and abm.has_method("get_active_biome") else ""
+	if not active_biome.is_empty():
+		music.play_biome_track(active_biome)
+		_verbose.info("boot", "🎵", "Music started: %s" % active_biome)
+	else:
+		_verbose.info("boot", "🔇", "No active biome — music starts silent")
 
 
 func collect_all_emojis(biomes: Dictionary) -> Array:
 	# Extract ALL unique emojis for atlas building.
-	# Uses EmojiRegistry to get emojis from BiomeRegistry + FactionRegistry,
-	# plus runtime emojis from currently loaded biomes.
-	const EmojiRegistry = preload("res://Core/Biomes/EmojiRegistry.gd")
-	var emoji_registry = EmojiRegistry.new()
-
+	# Uses IconRegistry.build_emoji_universe() to get emojis from BiomeRegistry +
+	# FactionRegistry, plus runtime emojis from currently loaded biomes.
+	var icon_registry = (Engine.get_main_loop().root.get_node_or_null("/root/IconRegistry") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 	# Start with all emojis from BiomeRegistry + FactionRegistry
 	var unique_emojis: Dictionary = {}
-	for emoji in emoji_registry.get_all_emojis():
+	for emoji in icon_registry.build_emoji_universe():
 		unique_emojis[emoji] = true
 
 	# Also include runtime emojis from currently loaded biomes
@@ -358,15 +358,16 @@ func collect_all_emojis(biomes: Dictionary) -> Array:
 		# Get all emojis from register map coordinates
 		if "coordinates" in register_map:
 			for emoji in register_map.coordinates.keys():
-				unique_emojis[emoji] = true
+				if not emoji.is_valid_ascii():
+					unique_emojis[emoji] = true
 
 		# Also get from axes (north/south poles)
 		if "axes" in register_map:
 			for axis_id in register_map.axes:
 				var axis = register_map.axes[axis_id]
-				if axis.has("north"):
+				if axis.has("north") and not axis.north.is_valid_ascii():
 					unique_emojis[axis.north] = true
-				if axis.has("south"):
+				if axis.has("south") and not axis.south.is_valid_ascii():
 					unique_emojis[axis.south] = true
 
 	return unique_emojis.keys()

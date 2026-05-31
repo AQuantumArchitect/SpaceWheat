@@ -10,9 +10,6 @@ extends RefCounted
 ##
 ## Pure-data; no Node side effects. BootManager constructs one and delegates.
 
-const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
-const BiomeRegistry = preload("res://Core/Biomes/BiomeRegistry.gd")
-const SaveStore = preload("res://Core/GameState/SaveStore.gd")
 
 var _biome_registry  # BiomeRegistry — shared with WorldBuilder
 

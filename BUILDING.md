@@ -21,8 +21,8 @@ scons platform=linux target=template_release -j$(nproc)
 cd ../native
 make -j$(nproc)
 
-# Run with Godot
-godot --path . project.godot
+# Run the current game entry scene
+godot --path .
 ```
 
 ---
@@ -119,14 +119,15 @@ make -j$(nproc)
 #### Windows (Visual Studio):
 ```bash
 cd native
-# TODO: Add Windows build commands
-# For now, the game runs in GDScript fallback mode
+# Visual Studio support is not the checked-in native path yet.
+# Build godot-cpp with MSVC if needed, but use the MinGW lane below for the
+# actual SpaceWheat DLL until an MSVC-native build file lands in-repo.
 ```
 
 #### Windows (MinGW):
 ```bash
 cd native
-# TODO: Add MinGW build commands
+make -f Makefile.windows -j$(nproc)
 ```
 
 #### macOS:
@@ -151,54 +152,44 @@ godot --path . project.godot
 exports\SpaceWheat.exe
 
 # Web
-cd exports && python3 -m http.server 8000
+cd exports && python3 ../scripts/serve-web-local.py . --port 8000
 # Visit http://localhost:8000/SpaceWheat.html
 ```
 
 ---
 
-## GDScript Fallback Mode
-
-If you can't build the C++ extension, SpaceWheat will automatically fall back to GDScript implementation. This is **10-100× slower** but works without compilation.
-
-**Performance comparison:**
-- **C++ Native:** 60 FPS, handles 100+ quantum nodes
-- **GDScript:** 6-30 FPS, handles ~10-20 quantum nodes
-
-**To use GDScript mode:** Simply skip step 3 (building native extension). Godot will automatically use the GDScript implementation.
-
----
-
 ## Exporting Release Builds
 
-### Linux Export
+### Current Desktop Workflow
 ```bash
-# Using automated script
-./scripts/build-release.sh --platform linux --install
+./scripts/build-desktop-local.sh --install-templates
+./scripts/package-desktop-builds.sh --version v0.1.0
+./scripts/deploy-windows-desktop.sh
+./scripts/build-web-local.sh --install-templates
+```
 
-# Manual export
+**Note:** Export presets are configured in `export_presets.cfg`.
+
+- Windows desktop exports ship with the native DLL path and should be deployed through the shared desktop workflow.
+- Web export is currently experimental, but the preset is now wired for native WASM GDExtension loading.
+- The remaining gap is browser/runtime validation, not basic extension-path configuration.
+
+### Manual Exports
+
+Linux:
+```bash
 godot --headless --export-release "Linux Desktop" exports/SpaceWheat.x86_64
 ```
 
-### Windows Export
+Windows:
 ```bash
-# Using automated script
-./scripts/build-release.sh --platform windows --install
-
-# Manual export
 godot --headless --export-release "Windows Desktop" exports/SpaceWheat.exe
 ```
 
-### Web Export
+Web:
 ```bash
-# Using automated script
-./scripts/build-release.sh --platform web
-
-# Manual export
 godot --headless --export-release "Web" exports/SpaceWheat.html
 ```
-
-**Note:** Export presets are configured in `export_presets.cfg`. Web and Windows exports currently use GDScript fallback (no native extension).
 
 ---
 
@@ -237,12 +228,12 @@ scons platform=windows target=template_release use_mingw=yes
 2. `quantum_matrix.gdextension` points to correct paths
 3. Godot console shows: "GDExtension loaded successfully" (not "falling back to GDScript")
 
-**Debug:** Open Godot editor and check Output console for errors.
+**Debug:** Open the project with `./scripts/launch-linux-editor.sh` and, if you want a saved log, add `--log-file /tmp/spacewheat-linux-editor.log`.
 
 ### Game runs but is very slow
-**Likely cause:** Running in GDScript fallback mode (no native extension loaded)
+**Likely causes:** Native extension failed to load, or the renderer fell back to a software path
 
-**Solution:** Build the native extension (step 3) and verify it loads.
+**Solution:** Build the native extension (step 3), verify it loads, and confirm the runtime is not using a software renderer.
 
 ### Export fails with "Export preset not found"
 **Solution:** Open the project in Godot Editor once to generate export presets, or copy `export_presets.cfg` from repository.
@@ -307,7 +298,7 @@ export LIBGL_ALWAYS_SOFTWARE=1
 - Visual Studio 2019+ with C++ Desktop Development
 - OR MinGW-w64 (lighter alternative)
 
-**Without C++ build tools:** Game runs in GDScript fallback mode (10-100× slower)
+**Without C++ build tools:** The project can still boot in the pure GDScript path, but Windows shipping now expects the native DLL path.
 
 ### macOS
 
@@ -467,4 +458,4 @@ SpaceWheat is open source. See [LICENSE](LICENSE) for details.
 
 **Last Updated:** 2026-02-11
 **Godot Version:** 4.5.stable
-**Supported Platforms:** Linux (full), Windows (GDScript fallback), Web (GDScript fallback)
+**Supported Platforms:** Linux desktop, Windows desktop, experimental Web export

@@ -24,21 +24,21 @@ var hover_color: Color = Color(1.2, 1.2, 1.2)
 var pressed_color: Color = Color(0.6, 0.6, 0.6)
 
 
-func set_layout_manager(manager: Node) -> void:
-	"""Set layout manager for scaling"""
-	layout_manager = manager
+func set_layout_manager(layout_mgr: Node) -> void:
+	# Set layout manager for scaling
+	layout_manager = layout_mgr
 
 
 func _ready() -> void:
-	"""Initialize button appearance and behavior"""
-	var scale = layout_manager.scale_factor if layout_manager else 1.0
+	# Initialize button appearance and behavior
+	var scale_val = layout_manager.scale_factor if layout_manager else 1.0
 	var font_size = layout_manager.get_scaled_font_size(18) if layout_manager else 18
 
 	# Load button texture
 	btn_texture = load(BTN_TEXTURE_PATH)
 
 	# Large size for touch accessibility
-	custom_minimum_size = Vector2(70 * scale, 50 * scale)
+	custom_minimum_size = Vector2(70 * scale_val, 50 * scale_val)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 
 	# TextureRect for button background
@@ -75,7 +75,7 @@ func _ready() -> void:
 
 
 func _on_gui_input(event: InputEvent) -> void:
-	"""Handle input on button."""
+	# Handle input on button.
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_LEFT:
 			if event.pressed:
@@ -87,10 +87,10 @@ func _on_gui_input(event: InputEvent) -> void:
 
 
 func _on_mouse_entered() -> void:
-	"""Handle mouse hover."""
+	# Handle mouse hover.
 	texture_rect.modulate = hover_color
 
 
 func _on_mouse_exited() -> void:
-	"""Handle mouse exit."""
+	# Handle mouse exit.
 	texture_rect.modulate = normal_color

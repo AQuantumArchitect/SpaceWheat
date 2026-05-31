@@ -6,9 +6,6 @@ extends Resource
 ## Provides validation to catch configuration errors early
 
 # Preload config classes
-const PlotConfig = preload("res://Core/GameState/PlotConfig.gd")
-const KeyboardLayoutConfig = preload("res://Core/GameState/KeyboardLayoutConfig.gd")
-const GridSentinel = preload("res://Core/GameState/GridSentinel.gd")
 
 @export var grid_width: int = 6
 @export var grid_height: int = 2
@@ -28,9 +25,9 @@ func validate() -> Dictionary:
 		return {"success": false, "errors": errors}
 
 	# Validate plot count
-	var expected_plot_count = grid_width * grid_height
+	var _expected_plot_count = grid_width * grid_height
 	var active_plots = plots.filter(func(p): return p.is_active).size()
-	print("📊 GridConfig validation: %d/%d plots active" % [active_plots, plots.size()])
+	VerboseHelper.info("farm", "grid", "GridConfig validation: %d/%d plots active" % [active_plots, plots.size()])
 
 	# Validate plot positions
 	var position_set = {}
@@ -68,18 +65,18 @@ func validate() -> Dictionary:
 
 
 func is_position_valid(pos: Vector2i) -> bool:
-	"""Check if position is within grid bounds"""
+	# Check if position is within grid bounds
 	return pos.x >= 0 and pos.x < grid_width and pos.y >= 0 and pos.y < grid_height
 
 
 func has_active_plot_at(pos: Vector2i) -> bool:
-	"""Check if there's an active plot at this position"""
+	# Check if there's an active plot at this position
 	var plot = get_plot_at(pos)
 	return plot != null and plot.is_active
 
 
 func get_plot_at(pos: Vector2i):
-	"""Get PlotConfig for a position (returns null if no plot or inactive)"""
+	# Get PlotConfig for a position (returns null if no plot or inactive)
 	for plot in plots:
 		if plot.position == pos:
 			return plot
@@ -87,7 +84,7 @@ func get_plot_at(pos: Vector2i):
 
 
 func get_all_active_plots() -> Array[PlotConfig]:
-	"""Get all active plots in grid order"""
+	# Get all active plots in grid order
 	var active = plots.filter(func(p): return p.is_active)
 	# Sort by position: y-major (rows), then x-major (columns)
 	active.sort_custom(func(a, b):
@@ -99,17 +96,15 @@ func get_all_active_plots() -> Array[PlotConfig]:
 
 
 func get_biome_for_plot(pos: Vector2i) -> String:
-	"""Get biome name assigned to a plot position"""
+	# Get biome name assigned to a plot position
 	return biome_assignments.get(pos, "")
 
 
 func print_summary() -> void:
-	"""Print human-readable summary of configuration"""
-	print("\n" + "=".repeat(60))
-	print("🔧 GridConfig Summary")
-	print("=".repeat(60))
-	print("Grid size: %dx%d (%d total plots)" % [grid_width, grid_height, grid_width * grid_height])
-	print("\nKeyboard Layout:")
+	# Print human-readable summary of configuration
+	VerboseHelper.info("farm", "grid", "GridConfig Summary")
+	VerboseHelper.info("farm", "grid", "Grid size: %dx%d (%d total plots)" % [grid_width, grid_height, grid_width * grid_height])
+	VerboseHelper.info("farm", "grid", "Keyboard Layout:")
 
 	# Group by row
 	var by_row = {}
@@ -126,9 +121,9 @@ func print_summary() -> void:
 		var row_items = by_row[row]
 		row_items.sort_custom(func(a, b): return a.pos.x < b.pos.x)
 		var labels = row_items.map(func(item): return item.label).join("/")
-		print("  Row %d: %s" % [row, labels])
+		VerboseHelper.info("farm", "grid", "Row %d: %s" % [row, labels])
 
-	print("\nPlot Assignments:")
+	VerboseHelper.info("farm", "grid", "Plot Assignments:")
 	var plot_summary = {}
 	for plot in get_all_active_plots():
 		var biome = get_biome_for_plot(plot.position)
@@ -141,6 +136,4 @@ func print_summary() -> void:
 	for biome in biome_keys:
 		var labels = plot_summary[biome] as Array
 		labels.sort()
-		print("  %s: %s" % [biome, ", ".join(labels)])
-
-	print("=".repeat(60) + "\n")
+		VerboseHelper.info("farm", "grid", "%s: %s" % [biome, ", ".join(labels)])

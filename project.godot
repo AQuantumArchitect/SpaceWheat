@@ -12,7 +12,7 @@ config_version=5
 
 config/name="SpaceWheat - Quantum Farm"
 config/description="Quantum farming game with tomato conspiracies"
-run/main_scene="res://scenes/FarmView.tscn"
+run/main_scene="res://scenes/Main.tscn"
 config/features=PackedStringArray("4.5")
 
 [autoload]
@@ -20,21 +20,23 @@ config/features=PackedStringArray("4.5")
 VerboseConfig="*res://Core/Config/VerboseConfig.gd"
 UIPerformanceTracker="*res://Core/Debug/UIPerformanceTracker.gd"
 BootManager="*res://Core/Boot/BootManager.gd"
-IconRegistry="*res://Core/QuantumSubstrate/IconRegistry.gd"
-VisualAssetRegistry="*res://Core/QuantumSubstrate/VisualAssetRegistry.gd"
+IconRegistry="*res://Core/Factions/IconRegistry.gd"
 GameStateManager="*res://Core/GameState/GameStateManager.gd"
 TouchInputManager="*res://UI/Input/TouchInputManager.gd"
 ActiveBiomeManager="*res://Core/GameState/ActiveBiomeManager.gd"
 MusicManager="*res://Core/Audio/MusicManager.gd"
 ObservationFrame="*res://Core/GameState/ObservationFrame.gd"
 ActionChainTracker="*res://Core/GameState/ActionChainTracker.gd"
-RealityMidwife="*res://Core/GameState/RealityMidwife.gd"
-PlayerVocabulary="*res://Core/Quantum/PlayerVocabulary.gd"
+SFXRegistry="*res://Core/Audio/SFXRegistry.gd"
+SurfaceRegistry="*res://UI/Core/SurfaceRegistry.gd"
+StoryEngine="*res://Core/Story/StoryEngine.gd"
+PlayerEventLog="*res://Core/Story/PlayerEventLog.gd"
+PlayerEventBridge="*res://Core/Story/PlayerEventBridge.gd"
 
 [display]
 
-window/size/viewport_width=960
-window/size/viewport_height=540
+window/size/viewport_width=1280
+window/size/viewport_height=720
 window/size/initial_position_type=2
 window/stretch/mode="canvas_items"
 window/vsync/vsync_mode=0
@@ -181,4 +183,4 @@ toggle_help={
 
 [physics]
 
-common/physics_ticks_per_second=6
+common/physics_ticks_per_second=10

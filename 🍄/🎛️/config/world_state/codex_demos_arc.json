@@ -1,0 +1,41 @@
+{
+  "name": "codex_demos_arc",
+  "description": "Codex personal Demos profile for repeated quest-arc playtests from the player faction start.",
+  "scenario_id": "demos_normal",
+  "resource_mode": "set",
+  "resources": {
+    "👥": 360,
+    "🌾": 360,
+    "🍞": 150,
+    "❄️": 110,
+    "🌱": 80,
+    "⚙": 80,
+    "🔥": 80,
+    "🪵": 70,
+    "💧": 70,
+    "📜": 50
+  },
+  "unlocked_biomes": [
+    "StarterForest",
+    "Village",
+    "Woodlot",
+    "FreshwaterSpring"
+  ],
+  "active_biome": "Village",
+  "known_icons": [
+    {
+      "north": "🌾",
+      "south": "👥"
+    },
+    {
+      "north": "🪵",
+      "south": "🌾"
+    },
+    {
+      "north": "💧",
+      "south": "🌾"
+    }
+  ],
+  "strict_biome_economy": true,
+  "economy_overrides": {}
+}

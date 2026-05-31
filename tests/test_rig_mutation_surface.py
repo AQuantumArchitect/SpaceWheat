@@ -2,10 +2,9 @@ from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-RIG_LISTENER = PROJECT_ROOT / "Tests" / "rig_listener.gd"
+RIG_LISTENER = PROJECT_ROOT / "Rig" / "rig_listener.gd"
 SNAPSHOT_SERVICE = PROJECT_ROOT / "Core" / "Instrumentation" / "SnapshotService.gd"
 QUANTUM_INSTRUMENT = PROJECT_ROOT / "Core" / "Instrumentation" / "QuantumInstrument.gd"
-SNAPSHOT_BUILDER = PROJECT_ROOT / "Core" / "Instrumentation" / "PolicySnapshotBuilder.gd"
 
 
 def test_rig_listener_does_not_use_snapshot_for_mutations() -> None:
@@ -18,9 +17,6 @@ def test_rig_listener_does_not_use_snapshot_for_mutations() -> None:
         "_snapshot_service.complete_quest(",
         "_snapshot_service.complete_or_claim_quest(",
         "_snapshot_service.claim_quest(",
-        "_snapshot_service.lock_offer(",
-        "_snapshot_service.unlock_offer(",
-        "_snapshot_service.accept_locked_offer(",
         "_snapshot_service.configure_economy(",
         "_snapshot_service.patch_balance(",
         "_snapshot_service.reset_balance_to_default(",
@@ -44,9 +40,6 @@ def test_snapshot_service_has_no_mutation_api_methods() -> None:
         "func complete_quest(",
         "func complete_or_claim_quest(",
         "func claim_quest(",
-        "func lock_offer(",
-        "func unlock_offer(",
-        "func accept_locked_offer(",
         "func gate_inject(",
         "func lindblad_pump(",
         "func lindblad_drain(",
@@ -68,19 +61,11 @@ def test_snapshot_service_has_no_mutation_api_methods() -> None:
         assert pattern not in src, f"SnapshotService should stay read-only: {pattern}"
 
 
-def test_snapshot_service_exposes_policy_snapshot_read_api() -> None:
+def test_snapshot_service_exposes_ui_snapshot_read_api() -> None:
     src = SNAPSHOT_SERVICE.read_text(encoding="utf-8")
-    assert "func get_policy_snapshot(" in src
-    assert "PolicySnapshotBuilder.build(self, include_offers, include_grid)" in src
-
-
-def test_snapshot_service_prefers_instrument_read_surface_when_available() -> None:
-    src = SNAPSHOT_SERVICE.read_text(encoding="utf-8")
-    assert 'if instrument and instrument.has_method("get_resource_snapshot")' in src
-    assert 'if instrument and instrument.has_method("get_grid_snapshot")' in src
-    assert 'if instrument and instrument.has_method("get_active_quests")' in src
-    assert 'if instrument and instrument.has_method("get_known_vocab_pairs")' in src
-    assert 'if instrument and instrument.has_method("get_biome_positions")' in src
+    assert "func get_overlay_snapshot(" in src
+    assert "func get_full_ui_snapshot(" in src
+    assert "open_icon_panel()" in src
 
 
 def test_rig_listener_has_quantum_instrument_guard() -> None:
@@ -91,43 +76,39 @@ def test_rig_listener_has_quantum_instrument_guard() -> None:
 def test_quantum_instrument_exposes_policy_snapshot_bundle() -> None:
     src = QUANTUM_INSTRUMENT.read_text(encoding="utf-8")
     assert "func get_policy_snapshot(" in src
-    assert "PolicySnapshotBuilder.build(self, include_offers, include_grid)" in src
+    assert '"known_icons": known_icons' in src
 
 
 def test_rig_listener_exposes_policy_graph_actions() -> None:
     src = RIG_LISTENER.read_text(encoding="utf-8")
-    assert '"policy_graph"' in src
-    assert '"policy_graph_apply"' in src
-    assert '"policy_graph_load"' in src
-    assert "policy.get_policy_graph()" in src
-    assert "policy.apply_policy_graph_lines(lines)" in src
+    assert '"policy_snapshot"' in src
 
 
 def test_rig_listener_uses_discover_biome_only_and_exposes_quest_reroll_feedback() -> None:
     src = RIG_LISTENER.read_text(encoding="utf-8")
     assert '"discover_biome"' in src
     assert '"explore_biome"' not in src
-    assert "max_rerolls" in src
-    assert "rerolls_spent" in src
+    assert '"offer_quests"' in src
+    assert '"accept_offer"' in src
+    assert '"complete_quest"' in src
+    assert '"complete_or_claim"' in src
+    assert '"claim_quest"' in src
+    assert '"vocabulary"|"semantic_map"' not in src
 
 
-def test_policy_snapshot_builder_has_expected_bundle_keys() -> None:
-    src = SNAPSHOT_BUILDER.read_text(encoding="utf-8")
+def test_policy_snapshot_bundle_has_expected_keys() -> None:
+    src = QUANTUM_INSTRUMENT.read_text(encoding="utf-8")
     assert '"resources": resources' in src
-    assert '"known_pairs": known_pairs if known_pairs is Array else []' in src
-    assert '"offers": offers if offers is Array else []' in src
-    assert '"active_quests": active_quests if active_quests is Array else []' in src
-    assert '"locked_offers": locked_offers if locked_offers is Array else []' in src
+    assert '"known_icons": known_icons' in src
+    assert '"offers": offers' in src
+    assert '"active_quests": active_quests' in src
+    assert '"story_offers": story_offers' in src
 
 
 def test_rig_listener_uses_policy_snapshot_bundle_for_policy_state() -> None:
     listener = RIG_LISTENER.read_text(encoding="utf-8")
-    snapshot = SNAPSHOT_SERVICE.read_text(encoding="utf-8")
-    assert "func _build_policy_state(cmd: Dictionary = {}) -> Dictionary:" in listener
-    assert "_snapshot_service.build_policy_state_lightweight(cmd)" in listener
-    assert "func build_policy_state(cmd: Dictionary = {}) -> Dictionary:" in snapshot
-    assert "get_policy_snapshot(true, true)" in snapshot
-    assert "_annotate_offer_discovery_affinity(offers)" in snapshot
+    assert "func _get_policy_snapshot(include_offers: bool = true, include_grid: bool = true) -> Dictionary:" in listener
+    assert "var bundled = _instrument.get_policy_snapshot(include_offers, include_grid)" in listener
 
 
 def test_seed_state_mutation_can_set_policy_graph_path() -> None:

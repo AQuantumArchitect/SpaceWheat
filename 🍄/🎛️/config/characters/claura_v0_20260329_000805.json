@@ -13,7 +13,7 @@
     "⚙": 2,
     "🦅": 1
   },
-  "known_pairs": [
+  "known_icons": [
     {
       "north": "🌾",
       "south": "🌱"
@@ -45,7 +45,7 @@
         "{\"op\": \"set\", \"path\": \"action_priors.time_skip.base\", \"value\": 0.5}",
         "{\"op\": \"set\", \"path\": \"action_priors.quest_cycle.milk_distance_gain\", \"value\": 55.16}",
         "{\"op\": \"set\", \"path\": \"action_priors.quest_cycle.milk_cascade_gain\", \"value\": 23.64}",
-        "{\"op\": \"set\", \"path\": \"action_priors.lock_offer.milk_distance_gain\", \"value\": 4.92}",
+        "{\"op\": \"set\", \"path\": \"action_priors.quest_cycle.milk_distance_gain\", \"value\": 4.92}",
         "{\"op\": \"set\", \"path\": \"action_priors.quest_cycle.unknown_vocab\", \"value\": 2.11}"
       ]
     }

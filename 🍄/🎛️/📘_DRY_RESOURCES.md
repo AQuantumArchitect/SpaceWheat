@@ -217,7 +217,7 @@ Already uses template via BootManager:
 
 ```gdscript
 # Loads template by default
-_farm = await boot_manager.boot_core(-1, "default", is_headless)
+_farm = await boot_manager.boot_session({"slot": -1, "scenario_id": "default", "headless": is_headless}, null)
 ```
 
 ---

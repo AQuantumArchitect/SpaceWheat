@@ -129,7 +129,7 @@ static func decrease_stride(biomes: Array) -> Dictionary:
 	if current_stride <= 1:
 		new_stride = 0
 	else:
-		new_stride = maxi(current_stride / 2, 1)
+		new_stride = maxi(int(float(current_stride) / 2.0), 1)
 
 	var biome_count = 0
 	for biome in biomes:

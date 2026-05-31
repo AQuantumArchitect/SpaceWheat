@@ -4,27 +4,21 @@ extends RefCounted
 ##
 ## Top of the keyboard hierarchy is now the **archetype hat row** (4-0).
 ## Each hat picks a frame; 1/2/3 picks a sub-mode within that frame; QERF
-## remains the axial verb cross. See `docs/ARCHETYPE_FRAMES.md`.
+## is the four-chip primary action row. See `docs/ARCHETYPE_FRAMES.md`.
 ##
-## | Hat | Archetype  | Live wiring                                    |
+## | Hat | Frame      | Live wiring                                    |
 ## |-----|------------|------------------------------------------------|
 ## |  4  | Spark      | Pole shift (spend pole emoji → shove qubit)    |
 ## |  5  | Icon       | Icon injection (player faction signature)      |
-## |  6  | Socialite  | Faction contracts (drain/transfer/pump)        |
+## |  6  | Merchant   | Faction contracts (drain/transfer/pump)        |
 ## |  7  | Captain    | Biomes lifecycle (discover / cull)             |
-## |  8  | Scientist  | Measure / probe (explore / measure / pop)      |
+## |  8  | Ace        | Measure / probe (explore / measure / pop)      |
 ## |  9  | Operator   | Gate building (build / inspect / break)        |
 ## |  0  | Druid      | Unitary (X/Y/Z rotations, Hadamard)            |
 ##
-## Ace = no hat pressed = default toolkit (currently routed to Scientist).
+## No hat pressed = Ace (default probe toolkit).
 ##
-## ## Migration shape
-##
-## Internally archetype-frame-keyed. Externally exposes BOTH the new
-## String-keyed API (`select_frame`, `get_frame`, `get_action(frame, key)`…)
-## AND the legacy int-keyed API (`select_group(int)`, `get_action(int, key)`…)
-## as transitional compat shims that translate via `GROUP_TO_FRAME`. The
-## shims will be retired as callsites migrate to the frame API.
+## String-keyed API: `select_frame`, `get_frame`, `get_action(frame, key)`…
 
 # =============================================================================
 # FRAME IDS
@@ -32,25 +26,25 @@ extends RefCounted
 
 const FRAME_SPARK := "spark"
 const FRAME_ICON := "icon"
-const FRAME_SOCIALITE := "socialite"
+const FRAME_MERCHANT := "merchant"   # faction contracts
 const FRAME_CAPTAIN := "captain"
-const FRAME_SCIENTIST := "scientist"
+const FRAME_ACE := "ace"             # probe / measure / harvest
 const FRAME_OPERATOR := "operator"
 const FRAME_DRUID := "druid"
-const FRAME_ACE := ""  # null hat — default toolkit
+const FRAME_NULL := ""               # no hat selected
 
 const FRAME_IDS: Array = [
-	FRAME_SPARK, FRAME_ICON, FRAME_SOCIALITE, FRAME_CAPTAIN,
-	FRAME_SCIENTIST, FRAME_OPERATOR, FRAME_DRUID,
+	FRAME_SPARK, FRAME_ICON, FRAME_MERCHANT, FRAME_CAPTAIN,
+	FRAME_ACE, FRAME_OPERATOR, FRAME_DRUID,
 ]
 
 ## Top-row hat keys → archetype frame.
 const HAT_KEY_TO_FRAME: Dictionary = {
 	"4": FRAME_SPARK,
 	"5": FRAME_ICON,
-	"6": FRAME_SOCIALITE,
+	"6": FRAME_MERCHANT,
 	"7": FRAME_CAPTAIN,
-	"8": FRAME_SCIENTIST,
+	"8": FRAME_ACE,
 	"9": FRAME_OPERATOR,
 	"0": FRAME_DRUID,
 }
@@ -59,17 +53,16 @@ const HAT_KEY_TO_FRAME: Dictionary = {
 # RUNTIME STATE
 # =============================================================================
 
-## Current archetype frame. Empty string = Ace (no hat = default toolkit).
-static var current_frame: String = FRAME_SCIENTIST
+## Current archetype frame. Empty string (FRAME_NULL) = no hat selected.
+static var current_frame: String = FRAME_ACE
 
-## Sub-mode index within each frame (selected by 1/2/3 in the new grammar,
-## or by 5-0 in the legacy grammar — both routes write through here).
+## Sub-mode index within each frame (selected by 1/2/3 in the new grammar).
 static var frame_mode_indices: Dictionary = {
 	FRAME_SPARK: 0,
 	FRAME_ICON: 0,
-	FRAME_SOCIALITE: 0,
+	FRAME_MERCHANT: 0,
 	FRAME_CAPTAIN: 0,
-	FRAME_SCIENTIST: 0,
+	FRAME_ACE: 0,
 	FRAME_OPERATOR: 0,
 	FRAME_DRUID: 0,
 }
@@ -90,24 +83,22 @@ const ARCHETYPE_FRAMES: Dictionary = {
 		"emoji": "⚡",
 		"icon": "res://Assets/UI/Tools/Lindblad/Lindblad.svg",
 		"time_scale": "dissipative",
-		"description": "Casting moment — spend a pole emoji to shift the qubit toward that pole",
+		"description": "Energy dyad (Lindblad jolt) — Q discharges south (out), R charges north (invest). Both fire while paused or playing.",
 		"modes": ["shift"],
 		"mode_labels": ["⚡"],
 		"mode_emojis": ["⚡"],
 		"pauses_sim": false,
-		"held_context": true,
 		"actions": {
 			"shift": {
 				"Q": {"action": "spark_south", "label": "S.Pole", "emoji": "↓",
 					  "icon": "res://Assets/UI/Tools/Lindblad/Decay.svg",
-					  "hint": "Spend 1× south-pole emoji — jolt qubit toward its south pole"},
-				"E": {"action": "", "label": "-", "emoji": "",
-					  "icon": "",
-					  "hint": "Pause — preview pole costs in the action bar",
+					  "hint": "Spend 1× south-pole emoji — jolt qubit toward south pole (fires while paused or playing)"},
+				"E": {"action": "", "label": "Pause", "emoji": "⏸", "icon": "",
+					  "hint": "Pause — global side-effect only (no tool action)",
 					  "disabled": true},
 				"R": {"action": "spark_north", "label": "N.Pole", "emoji": "↑",
 					  "icon": "res://Assets/UI/Tools/Lindblad/Drive.svg",
-					  "hint": "Spend 1× north-pole emoji — jolt qubit toward its north pole"}
+					  "hint": "Spend 1× north-pole emoji — jolt qubit toward north pole (fires while paused or playing)"}
 			}
 		}
 	},
@@ -129,76 +120,77 @@ const ARCHETYPE_FRAMES: Dictionary = {
 		"pauses_sim": true,
 		"actions": {
 			"inject": {
-				"Q": {"action": "remove_vocabulary", "label": "Trim Icon", "emoji": "-",
+				"Q": {"action": "remove_icon", "label": "Trim Icon", "emoji": "−",
 					  "icon": "res://Assets/UI/Biome/BiomeClear.svg",
-					  "hint": "Remove an icon from the active biome"},
-				"E": {"action": "", "label": "-", "emoji": "",
-					  "icon": "",
-					  "hint": "Reserved",
-					  "disabled": true},
-				"R": {"action": "inject_vocabulary", "label": "Add Icon", "emoji": "+",
+					  "hint": "Remove an icon from the active biome", "destructive": true},
+				"E": {"action": "inspect_qubit", "label": "Inspect", "emoji": "🔍", "icon": "",
+					  "hint": "Open qubit detail view — zooms into this qubit in the V surface"},
+				"R": {"action": "inject_icon", "label": "Add Icon", "emoji": "+",
 					  "icon": "res://Assets/UI/Biome/BiomeAssign.svg",
-					  "hint": "Inject an icon (dual-emoji qubit from your signature) into the active biome",
-					  "submenu": "icon_injection"}
+					  "hint": "Empty plot: inject icon. Tracked + ripe: incorporate icon into your signature.",
+					  "submenu": "icon_injection",
+					  "chip_resolver": "icon.r_state"},
+				"F": {"action": "toggle_berry_track", "label": "Track", "emoji": "⌖", "icon": "",
+					  "hint": "Toggle Berry-phase tracking on the focused icon. Press again to stop. Also fires Play."}
 			}
 		}
 	},
 
 	# =========================================================================
-	# SOCIALITE (S, C, F) — faction networking. Sets up Lindbladian
+	# MERCHANT (S, C, F) — faction networking. Sets up Lindbladian
 	# drain/transfer/pump as abstracted faction contracts with other factions
-	# (treaties, brokerages, tribute). Costs use social resources: basket 🧺,
+	# (import/broker/export). Costs use social resources: basket 🧺,
 	# handshake 🤝, scroll 📜. F=Tip is live across all sub-modes.
 	# Sub-modes (1/2/3): thermal / dephase / damp — flavor only, same verbs.
 	# =========================================================================
-	FRAME_SOCIALITE: {
-		"name": "Socialite",
+	FRAME_MERCHANT: {
+		"name": "Merchant",
 		"emoji": "🤝",
 		"icon": "res://Assets/UI/Icon/Icon.svg",
 		"time_scale": "discrete",
-		"description": "Faction networking — drain/transfer/pump as contracts (treaty/broker/tribute)",
+		"description": "Energy dyad (faction contracts) — Q sells/exports (extract), R buys/imports (invest), E brokers (read order book). Price = −kT·log p.",
 		"modes": ["thermal", "dephase", "damp"],
 		"mode_labels": ["~", ".", "|"],
 		"mode_emojis": ["🌡", "💨", "🌊"],
 		"pauses_sim": true,
 		"actions": {
 			"thermal": {
-				"Q": {"action": "drain", "label": "Treaty", "emoji": "🧺",
+				"Q": {"action": "drain", "label": "Export", "emoji": "📤",
 					  "icon": "res://Assets/UI/Tools/Lindblad/Decay.svg",
-					  "hint": "Thermal treaty — drain population to a faction partner (costs 🧺 + south-pole)"},
+					  "hint": "Thermal export — local population flows out to a faction partner (costs 🧺 + south-pole)"},
 				"E": {"action": "transfer", "label": "Broker", "emoji": "🤝",
 					  "icon": "res://Assets/UI/Tools/Lindblad/Transfer.svg",
 					  "hint": "Thermal brokerage — transfer population between two plots (costs 🤝 + poles)"},
-				"R": {"action": "pump", "label": "Tribute", "emoji": "📜",
+				"R": {"action": "pump", "label": "Import", "emoji": "📥",
 					  "icon": "res://Assets/UI/Tools/Lindblad/Drive.svg",
-					  "hint": "Thermal tribute — pump energy into the quantum state (costs 📜 + north-pole)"},
-				"F": {"action": "socialite_hint", "label": "Tip", "emoji": "💬",
+					  "hint": "Thermal import — local population rises as a faction partner contributes (costs 📜 + north-pole)"},
+				"F": {"action": "merchant_hint", "label": "Tip", "emoji": "💬",
 					  "icon": "", "hint": "Whisper a hint to the player"}
 			},
 			"dephase": {
-				"Q": {"action": "drain", "label": "Treaty", "emoji": "🧺",
+				"Q": {"action": "drain", "label": "Export", "emoji": "📤",
 					  "icon": "res://Assets/UI/Tools/Lindblad/Decay.svg",
-					  "hint": "Dephasing treaty — drain coherence (costs 🧺 + south-pole)"},
+					  "hint": "Dephasing export — local coherence flows out to a faction partner (costs 🧺 + south-pole)"},
 				"E": {"action": "transfer", "label": "Broker", "emoji": "🤝",
 					  "icon": "res://Assets/UI/Tools/Lindblad/Transfer.svg",
 					  "hint": "Dephasing brokerage — transfer coherence between plots (costs 🤝 + poles)"},
-				"R": {"action": "pump", "label": "Tribute", "emoji": "📜",
+				"R": {"action": "pump", "label": "Import", "emoji": "📥",
 					  "icon": "res://Assets/UI/Tools/Lindblad/Drive.svg",
-					  "hint": "Dephasing tribute — pump energy via phase noise (costs 📜 + north-pole)"},
-				"F": {"action": "socialite_hint", "label": "Tip", "emoji": "💬",
+					  "hint": "Dephasing import — local coherence rises via partner phase contribution (costs 📜 + north-pole)"},
+				"F": {"action": "merchant_hint", "label": "Tip", "emoji": "💬",
 					  "icon": "", "hint": "Whisper a hint to the player"}
 			},
 			"damp": {
-				"Q": {"action": "drain", "label": "Treaty", "emoji": "🧺",
+				"Q": {"action": "drain", "label": "Export", "emoji": "📤",
 					  "icon": "res://Assets/UI/Tools/Lindblad/Decay.svg",
-					  "hint": "Amplitude-damping treaty — drain population to vacuum (costs 🧺 + south-pole)"},
+					  "hint": "Amplitude-damping export — local population drains to vacuum (costs 🧺 + south-pole)"},
 				"E": {"action": "transfer", "label": "Broker", "emoji": "🤝",
 					  "icon": "res://Assets/UI/Tools/Lindblad/Transfer.svg",
 					  "hint": "Amplitude-damping brokerage — transfer to vacuum mode (costs 🤝 + poles)"},
-				"R": {"action": "pump", "label": "Tribute", "emoji": "📜",
+				"R": {"action": "pump", "label": "Import", "emoji": "📥",
 					  "icon": "res://Assets/UI/Tools/Lindblad/Drive.svg",
-					  "hint": "Amplitude-damping tribute — counter-rotate back toward excited (costs 📜 + north-pole)"},
-				"F": {"action": "socialite_hint", "label": "Tip", "emoji": "💬",
+					  "hint": "Amplitude-damping import — counter-rotate back toward excited (costs 📜 + north-pole)"},
+				"F": {"action": "merchant_hint", "label": "Tip", "emoji": "💬",
 					  "icon": "", "hint": "Whisper a hint to the player"}
 			}
 		}
@@ -222,11 +214,11 @@ const ARCHETYPE_FRAMES: Dictionary = {
 			"biomes": {
 				"Q": {"action": "remove_biome", "label": "Cull Biome", "emoji": "💀",
 					  "icon": "res://Assets/UI/Biome/BiomeClear.svg",
-					  "hint": "Liquidate the active biome from its live quantum state and return it to the unexplored pool"},
-				"E": {"action": "", "label": "-", "emoji": "",
-					  "icon": "",
-					  "hint": "Reserved",
-					  "disabled": true},
+					  "hint": "Liquidate the active biome from its live quantum state and return it to the unexplored pool",
+					  "destructive": true},
+				"E": {"action": "forecast_biome_discovery", "label": "Compass", "emoji": "🧭",
+					  "icon": "res://Assets/UI/Science/Explore.svg",
+					  "hint": "Read the discovery compass — see which unexplored biomes your affinity is pulling toward"},
 				"R": {"action": "discover_biome", "label": "Add Biome", "emoji": "🗺️",
 					  "icon": "res://Assets/UI/Science/Explore.svg",
 					  "hint": "Discover and load a new biome into the spindle"}
@@ -235,38 +227,41 @@ const ARCHETYPE_FRAMES: Dictionary = {
 	},
 
 	# =========================================================================
-	# SCIENTIST (W, C, P) — audit / discovery. Now holds the probe sub-mode
-	# only; the gate sub-mode moved to Operator (9).
+	# ACE (S, C, P) — the energy dyad. The default/wanderer archetype, now the
+	# primary economic loop: Q extracts energy (Harvest, reward = −kT·log p),
+	# R invests energy (Plant, injects population), E reads the price (Measure,
+	# collapses + pauses). Selecting a plot auto-binds its terminal, so the old
+	# "Explore" verb is gone — you pay to extract/invest, not to look.
 	# =========================================================================
-	FRAME_SCIENTIST: {
-		"name": "Scientist",
+	FRAME_ACE: {
+		"name": "Ace",
 		"emoji": "O",
 		"icon": "res://Assets/UI/Science/Measure.svg",
 		"time_scale": "discrete",
-		"description": "Probe — explore, measure, harvest",
+		"description": "Energy dyad — Q harvests (extract), R plants (invest), E measures (read price)",
 		"modes": ["probe"],
 		"mode_labels": ["?"],
 		"mode_emojis": ["?"],
 		"pauses_sim": true,
 		"actions": {
 			"probe": {
-				"Q": {"action": "explore", "label": "Explore", "emoji": "?",
-					  "icon": "res://Assets/UI/Science/Explore.svg",
-					  "hint": "Bind terminal (dig DOWN)"},
+				"Q": {"action": "pop", "label": "Harvest", "emoji": "^",
+					  "icon": "res://Assets/UI/Science/Pop-Harvest.svg",
+					  "hint": "Extract energy from the selected plot — reward = surprisal −kT·log p (rare outcome pays more). Ends the session.",
+					  "shift_action": "pop", "shift_label": "Mass Harvest", "destructive": true},
 				"E": {"action": "measure", "label": "Measure", "emoji": "!",
 					  "icon": "res://Assets/UI/Science/Measure.svg",
-					  "hint": "Collapse state (observe)"},
-				"R": {"action": "pop", "label": "Pop", "emoji": "^",
-					  "icon": "res://Assets/UI/Science/Pop-Harvest.svg",
-					  "hint": "Pop terminal (auto-measures if only explored)",
-					  "shift_action": "pop", "shift_label": "Mass Pop"}
+					  "hint": "Read the price — collapse the state to a classical outcome (pauses the sim)"},
+				"R": {"action": "spark_north", "label": "Plant", "emoji": "v",
+					  "icon": "res://Assets/UI/Tools/Lindblad/Drive.svg",
+					  "hint": "Invest energy into the selected plot — jolt population toward the north pole (spend 1× north-pole emoji)"}
 			}
 		}
 	},
 
 	# =========================================================================
-	# OPERATOR (W, Q, F) — topology craft. Holds gate-building actions
-	# (formerly Scientist.gate): build / inspect / break entangling gates.
+	# OPERATOR (W, Q, F) — topology craft. Holds gate-building actions:
+	# build / inspect / break entangling gates.
 	# =========================================================================
 	FRAME_OPERATOR: {
 		"name": "Operator",
@@ -282,7 +277,7 @@ const ARCHETYPE_FRAMES: Dictionary = {
 			"gate": {
 				"Q": {"action": "remove_gates", "label": "Break", "emoji": "X",
 					  "icon": "res://Assets/UI/Biome/BiomeClear.svg",
-					  "hint": "Break entanglement"},
+					  "hint": "Break entanglement", "destructive": true},
 				"E": {"action": "inspect", "label": "Inspect", "emoji": "[]",
 					  "icon": "res://Assets/UI/Science/Explore.svg",
 					  "hint": "Inspect entanglement"},
@@ -350,30 +345,34 @@ const ARCHETYPE_FRAMES: Dictionary = {
 # RESOLUTION HELPER
 # =============================================================================
 
-## Resolve a frame identifier to an archetype frame name (String passthrough).
-static func resolve_frame(frame_or_group) -> String:
-	if frame_or_group is String:
-		return frame_or_group
-	return ""
-
-
 # =============================================================================
-# FRAME MANAGEMENT (new String-keyed API)
+# FRAME MANAGEMENT
 # =============================================================================
 
-static func select_frame(frame_name: String) -> void:
-	"""Select an archetype frame by name. Empty string = Ace (no hat)."""
-	if frame_name == FRAME_ACE or ARCHETYPE_FRAMES.has(frame_name):
+static func select_frame(frame_name: String) -> bool:
+	# Select an archetype frame by name. Empty string (FRAME_NULL) = no hat.
+	if frame_name == FRAME_NULL or ARCHETYPE_FRAMES.has(frame_name):
 		current_frame = frame_name
+		return true
+	push_error("ToolConfig: invalid frame '%s'" % frame_name)
+	return false
+
+
+static func cycle_frame(delta: int) -> void:
+	# Step through FRAME_IDS by ±1, wrapping. Used by WASD layer crawl (A/D on frame layer).
+	var idx := FRAME_IDS.find(current_frame)
+	if idx < 0:
+		idx = 0
+	select_frame(FRAME_IDS[wrapi(idx + delta, 0, FRAME_IDS.size())])
 
 
 static func get_current_frame() -> String:
-	"""Get the active archetype frame name. Empty string = Ace."""
+	# Get the active archetype frame name. Empty string = Ace.
 	return current_frame
 
 
 static func get_frame(frame_name: String) -> Dictionary:
-	"""Get an archetype frame definition."""
+	# Get an archetype frame definition.
 	return ARCHETYPE_FRAMES.get(frame_name, {})
 
 
@@ -402,12 +401,12 @@ static func get_frame_time_scale(frame_name: String) -> String:
 
 
 # =============================================================================
-# SUB-MODE MANAGEMENT (1/2/3 in the new grammar, 5-0 in the legacy grammar)
+# SUB-MODE MANAGEMENT (1/2/3)
 # =============================================================================
 
 static func cycle_frame_mode(frame_name: String) -> int:
-	"""Cycle to the next sub-mode within a frame. Returns the new index, or
-	-1 if the frame has fewer than 2 modes."""
+	# Cycle to the next sub-mode within a frame. Returns the new index, or
+	# -1 if the frame has fewer than 2 modes.
 	var def := get_frame(frame_name)
 	var modes: Array = def.get("modes", [])
 	if modes.size() < 2:
@@ -419,8 +418,8 @@ static func cycle_frame_mode(frame_name: String) -> int:
 
 
 static func set_frame_mode(frame_name: String, mode_index: int) -> int:
-	"""Direct-jump to a specific sub-mode by index. Returns the index applied,
-	or -1 if out of range."""
+	# Direct-jump to a specific sub-mode by index. Returns the index applied,
+	# or -1 if out of range.
 	var def := get_frame(frame_name)
 	var modes: Array = def.get("modes", [])
 	if mode_index < 0 or mode_index >= modes.size():
@@ -468,58 +467,54 @@ static func reset_frame_modes() -> void:
 
 
 # =============================================================================
-# ACTION ACCESS — accepts String (frame name) OR int (legacy group num)
+# ACTION ACCESS
 # =============================================================================
 
-static func get_action(frame_or_group, key: String) -> Dictionary:
-	"""Get action definition for a frame and key (Q/E/R/F).
+static func get_action(frame: String, key: String) -> Dictionary:
+	# Get action definition for a frame and key (Q/E/R/F).
 
-	F is NOT auto-filled with mode-cycle info — mode cycling lives on Tab.
-	If a frame wants to bind F to something specific (e.g. Socialite hint),
-	it declares an explicit F slot under its current sub-mode. Otherwise
-	F returns {} and the action bar shows it sitting unused."""
-	var frame_name := resolve_frame(frame_or_group)
-	var def := get_frame(frame_name)
+	# F is NOT auto-filled with mode-cycle info — mode cycling lives on Tab.
+	# If a frame wants to bind F to something specific (e.g. Merchant hint),
+	# it declares an explicit F slot under its current sub-mode. Otherwise
+	# F returns {} and the action bar shows it sitting unused.
+	var def := get_frame(frame)
 	if def.is_empty():
 		return {}
-
-	var mode_name := get_frame_mode_name(frame_name)
-
+	var mode_name := get_frame_mode_name(frame)
 	var mode_actions: Dictionary = def.get("actions", {}).get(mode_name, {})
 	if mode_actions.is_empty():
-		# Fall back to flat actions dict if a frame doesn't nest by mode.
 		return def.get("actions", {}).get(key, {})
 	return mode_actions.get(key, {})
 
 
-static func get_action_label(frame_or_group, key: String) -> String:
-	return get_action(frame_or_group, key).get("label", "")
+static func get_action_label(frame: String, key: String) -> String:
+	return get_action(frame, key).get("label", "")
 
 
-static func get_action_emoji(frame_or_group, key: String) -> String:
-	return get_action(frame_or_group, key).get("emoji", "")
+static func get_action_emoji(frame: String, key: String) -> String:
+	return get_action(frame, key).get("emoji", "")
 
 
-static func get_action_name(frame_or_group, key: String) -> String:
-	return get_action(frame_or_group, key).get("action", "")
+static func get_action_name(frame: String, key: String) -> String:
+	return get_action(frame, key).get("action", "")
 
 
-static func get_action_icon(frame_or_group, key: String) -> String:
-	return get_action(frame_or_group, key).get("icon", "")
+static func get_action_icon(frame: String, key: String) -> String:
+	return get_action(frame, key).get("icon", "")
 
 
-static func get_all_actions(frame_or_group) -> Dictionary:
+static func get_all_actions(frame: String) -> Dictionary:
 	var actions := {
-		"Q": get_action(frame_or_group, "Q"),
-		"E": get_action(frame_or_group, "E"),
-		"R": get_action(frame_or_group, "R"),
+		"Q": get_action(frame, "Q"),
+		"E": get_action(frame, "E"),
+		"R": get_action(frame, "R"),
 	}
-	var f_action := get_action(frame_or_group, "F")
+	var f_action := get_action(frame, "F")
 	if not f_action.is_empty():
 		actions["F"] = f_action
 	return actions
 
 
-static func has_explicit_f_action(frame_or_group) -> bool:
-	"""True when the frame declares an explicit F action in its current sub-mode."""
-	return not get_action(frame_or_group, "F").is_empty()
+static func has_explicit_f_action(frame: String) -> bool:
+	# True when the frame declares an explicit F action in its current sub-mode.
+	return not get_action(frame, "F").is_empty()

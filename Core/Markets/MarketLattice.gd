@@ -13,13 +13,6 @@ extends RefCounted
 ##
 ## Lifecycle: open → owned → exercised | expired
 
-const MarketContract = preload("res://Core/Markets/Contract.gd")
-const MarketBiasSources = preload("res://Core/Markets/MarketBiasSources.gd")
-const PriceModel = preload("res://Core/Markets/PriceModel.gd")
-const HamiltonianConfig = preload("res://Core/Config/HamiltonianConfig.gd")
-const VerboseHelper = preload("res://Core/Config/VerboseHelper.gd")
-const QuantumRounding = preload("res://Core/QuantumSubstrate/QuantumRounding.gd")
-const BiomeRegistry = preload("res://Core/Biomes/BiomeRegistry.gd")
 
 var _farm = null                          # weak ref; market doesn't own farm
 var _contracts: Dictionary = {}           # id → MarketContract
@@ -46,7 +39,7 @@ func clear() -> void:
 # ---------------- offer generation ----------------
 
 func propose_offers(biome, n: int = 1) -> Array:
-	# Generate n new offers for the given biome, one per native faction or
+	# Generate n new offers for the given biome, one per admitted faction or
 	# emoji-axial pair found in biome.qc. Each offer's price is substrate-derived.
 	if biome == null or _farm == null:
 		return []
@@ -203,10 +196,12 @@ func propose_pair_offers(biome_a, biome_b, n: int = 6) -> Array:
 		var cost_emoji: String = _pick_cost_emoji(emoji, settle_biome_name, name_a, name_b, marg_a, marg_b)
 		var expiry: int = _current_phrame + HamiltonianConfig.CONTRACT_DEFAULT_EXPIRY_PHRAMES
 		var c = MarketContract.make(emoji, faction_name, settle_biome_name, pole, _current_phrame, 0.0, expiry, cost_emoji, 0.0)
-		# Price = base 1/p × QC_RATIO × (1 + tension), denominated in cost_emoji.
-		var p_clipped: float = clampf(0.5 if not entry.shared else 0.5 * (float(entry.p_a) + float(entry.p_b)),
-			HamiltonianConfig.P_MIN, 1.0 - HamiltonianConfig.P_MIN)
-		var price: float = (1.0 / p_clipped) * HamiltonianConfig.QUANTUM_CLASSICAL_RATIO * (1.0 + float(entry.tension))
+		# Price = base surprisal −kT·log p_avg + cross-biome arbitrage energy.
+		var p_avg: float = 0.5 if not entry.shared else 0.5 * (float(entry.p_a) + float(entry.p_b))
+		var settle_biome = biome_a if settle_qc == qc_a else biome_b
+		var kT: float = EnergyPricing.biome_temperature(settle_biome, _farm)
+		var arb: float = _arbitrage_energy(float(entry.p_a), float(entry.p_b), kT) if entry.shared else 0.0
+		var price: float = EnergyPricing.surprisal_energy(p_avg, kT) + arb
 		c.price_paid = price
 		c.cost_amount = price
 		# Stash tensor-mode metadata for the UI.
@@ -220,12 +215,12 @@ func propose_pair_offers(biome_a, biome_b, n: int = 6) -> Array:
 	return offers
 
 
-# ---------------- faction-biome tensor offers ----------------
+# ---------------- neighborhood tensor offers ----------------
 
-## For the live biome in player focus, find all faction-biomes that share ≥1
+## For the live biome in player focus, find all neighborhoods that share ≥1
 ## emoji and emit pair-style offers using Lindblad-steady-state marginals for
-## the faction side (no live QC required on the faction-biome).
-func propose_faction_biome_offers(biome, n: int = 6) -> Array:
+## the neighborhood side (no live QC required on the neighborhood).
+func propose_neighborhood_offers(biome, n: int = 6) -> Array:
 	if biome == null or _farm == null:
 		return []
 	var biome_name: String = _biome_name(biome)
@@ -237,10 +232,10 @@ func propose_faction_biome_offers(biome, n: int = 6) -> Array:
 		return []
 
 	var br = BiomeRegistry.get_shared()
-	var faction_biomes: Array = br.get_biomes_by_tag("faction_biome")
+	var neighborhoods: Array = br.get_biomes_by_tag("neighborhood")
 
 	var scored: Array = []
-	for fb in faction_biomes:
+	for fb in neighborhoods:
 		var marg_fb: Dictionary = _static_marginals_from_spec(fb)
 		for emoji in marg_live.keys():
 			if not marg_fb.has(emoji):
@@ -250,9 +245,10 @@ func propose_faction_biome_offers(biome, n: int = 6) -> Array:
 			var tension: float = abs(p_live - p_fb)
 			scored.append({
 				"emoji": emoji,
-				"fb_name": fb.name,
+				"rb_name": fb.name,
 				"marg_fb": marg_fb,
 				"p_live": p_live,
+				"p_fb": p_fb,
 				"tension": tension,
 				"score": (tension + 0.05) * (0.5 + 0.5 * (p_live + p_fb)),
 			})
@@ -268,13 +264,14 @@ func propose_faction_biome_offers(biome, n: int = 6) -> Array:
 		var pole: int = qc.pole(emoji) if qc.has_method("pole") else 1
 		var cost_emoji: String = _pick_faction_cost_emoji(emoji, entry.marg_fb)
 		var expiry: int = _current_phrame + HamiltonianConfig.CONTRACT_DEFAULT_EXPIRY_PHRAMES
-		var c = MarketContract.make(emoji, str(entry.fb_name), biome_name, pole,
+		var c = MarketContract.make(emoji, str(entry.rb_name), biome_name, pole,
 				_current_phrame, 0.0, expiry, cost_emoji, 0.0)
-		var p_clipped: float = clampf(p_live, HamiltonianConfig.P_MIN, 1.0 - HamiltonianConfig.P_MIN)
-		c.price_paid = (1.0 / p_clipped) * HamiltonianConfig.QUANTUM_CLASSICAL_RATIO * (1.0 + float(entry.tension))
+		var kT: float = EnergyPricing.biome_temperature(biome, _farm)
+		var arb: float = _arbitrage_energy(p_live, float(entry.p_fb), kT)
+		c.price_paid = EnergyPricing.surprisal_energy(p_live, kT) + arb
 		c.cost_amount = c.price_paid
 		c.set_meta("pair_a", biome_name)
-		c.set_meta("pair_b", str(entry.fb_name))
+		c.set_meta("pair_b", str(entry.rb_name))
 		c.set_meta("tension", float(entry.tension))
 		c.set_meta("shared", true)
 		register_offer(c)
@@ -283,9 +280,9 @@ func propose_faction_biome_offers(biome, n: int = 6) -> Array:
 	return offers
 
 
-## Return the name of the faction-biome with the highest tension against `biome`.
-## Returns "" if no faction-biomes exist or biome has no QC.
-func best_faction_biome_name(biome) -> String:
+## Return the name of the neighborhood with the highest tension against `biome`.
+## Returns "" if no neighborhoods exist or biome has no QC.
+func best_neighborhood_name(biome) -> String:
 	if biome == null:
 		return ""
 	var qc = biome.quantum_computer if "quantum_computer" in biome else null
@@ -297,7 +294,7 @@ func best_faction_biome_name(biome) -> String:
 	var br = BiomeRegistry.get_shared()
 	var best_name: String = ""
 	var best_score: float = -1.0
-	for fb in br.get_biomes_by_tag("faction_biome"):
+	for fb in br.get_biomes_by_tag("neighborhood"):
 		var marg_fb: Dictionary = _static_marginals_from_spec(fb)
 		var score: float = 0.0
 		for emoji in marg_live.keys():
@@ -310,9 +307,9 @@ func best_faction_biome_name(biome) -> String:
 	return best_name
 
 
-## Like propose_faction_biome_offers but scoped to one specific faction-biome by name.
-func propose_faction_biome_offers_scoped(biome, fb_name: String, n: int = 6) -> Array:
-	if biome == null or _farm == null or fb_name == "":
+## Like propose_neighborhood_offers but scoped to one specific neighborhood by name.
+func propose_neighborhood_offers_scoped(biome, neighborhood_name: String, n: int = 6) -> Array:
+	if biome == null or _farm == null or neighborhood_name == "":
 		return []
 	var biome_name: String = _biome_name(biome)
 	var qc = biome.quantum_computer if "quantum_computer" in biome else null
@@ -324,8 +321,8 @@ func propose_faction_biome_offers_scoped(biome, fb_name: String, n: int = 6) -> 
 
 	var br = BiomeRegistry.get_shared()
 	var fb_spec = null
-	for fb in br.get_biomes_by_tag("faction_biome"):
-		if fb.name == fb_name:
+	for fb in br.get_biomes_by_tag("neighborhood"):
+		if fb.name == neighborhood_name:
 			fb_spec = fb
 			break
 	if fb_spec == null:
@@ -341,9 +338,10 @@ func propose_faction_biome_offers_scoped(biome, fb_name: String, n: int = 6) -> 
 		var tension: float = abs(p_live - p_fb)
 		scored.append({
 			"emoji": emoji,
-			"fb_name": fb_name,
+		"fb_name": neighborhood_name,
 			"marg_fb": marg_fb,
 			"p_live": p_live,
+			"p_fb": p_fb,
 			"tension": tension,
 			"score": (tension + 0.05) * (0.5 + 0.5 * (p_live + p_fb)),
 		})
@@ -359,13 +357,14 @@ func propose_faction_biome_offers_scoped(biome, fb_name: String, n: int = 6) -> 
 		var pole: int = qc.pole(emoji) if qc.has_method("pole") else 1
 		var cost_emoji: String = _pick_faction_cost_emoji(emoji, entry.marg_fb)
 		var expiry: int = _current_phrame + HamiltonianConfig.CONTRACT_DEFAULT_EXPIRY_PHRAMES
-		var c = MarketContract.make(emoji, fb_name, biome_name, pole,
+		var c = MarketContract.make(emoji, neighborhood_name, biome_name, pole,
 				_current_phrame, 0.0, expiry, cost_emoji, 0.0)
-		var p_clipped: float = clampf(p_live, HamiltonianConfig.P_MIN, 1.0 - HamiltonianConfig.P_MIN)
-		c.price_paid = (1.0 / p_clipped) * HamiltonianConfig.QUANTUM_CLASSICAL_RATIO * (1.0 + float(entry.tension))
+		var kT: float = EnergyPricing.biome_temperature(biome, _farm)
+		var arb: float = _arbitrage_energy(p_live, float(entry.p_fb), kT)
+		c.price_paid = EnergyPricing.surprisal_energy(p_live, kT) + arb
 		c.cost_amount = c.price_paid
 		c.set_meta("pair_a", biome_name)
-		c.set_meta("pair_b", fb_name)
+		c.set_meta("pair_b", neighborhood_name)
 		c.set_meta("tension", float(entry.tension))
 		c.set_meta("shared", true)
 		register_offer(c)
@@ -409,6 +408,17 @@ func best_live_tension_pair(biomes_dict: Dictionary) -> Dictionary:
 	return best
 
 
+## Arbitrage energy between two biomes' marginals for the SAME good:
+## kT·|log(p_x/p_y)| = |surprisal_x − surprisal_y|. The energy you'd gain moving
+## the good from the cheap biome to the dear one. Zero when they agree; additive
+## premium on top of the base surprisal (log bundles add). Replaces the old
+## (1 + |p_x − p_y|) multiplier. Cross-biome only (no joint state → not MI).
+static func _arbitrage_energy(p_x: float, p_y: float, kT: float) -> float:
+	var px: float = clampf(p_x, EnergyPricing.P_FLOOR, 1.0)
+	var py: float = clampf(p_y, EnergyPricing.P_FLOOR, 1.0)
+	return kT * absf(log(px) - log(py))
+
+
 static func _static_marginals_from_spec(biome_spec) -> Dictionary:
 	## Steady-state marginals from a Biome spec's atom_components + icons.
 	## For a decay cycle, p[atom] ∝ 1/rate_out (flux-balance on each node).
@@ -425,6 +435,29 @@ static func _static_marginals_from_spec(biome_spec) -> Dictionary:
 			for t in comp["lindblad_outgoing"].keys():
 				rate_out += float(comp["lindblad_outgoing"][t])
 		atom_pop[atom] = 1.0 / rate_out if rate_out > 0.0 else 1.0
+	var icons: Array = biome_spec.get_neighborhood_icons() if biome_spec.has_method("get_neighborhood_icons") else []
+	if atom_pop.is_empty():
+		var rate_by_emoji: Dictionary = {}
+		for icon in icons:
+			if not icon is Dictionary:
+				continue
+			var cloud = icon.get("cloud", {})
+			if not cloud is Dictionary:
+				continue
+			for emoji in cloud:
+				var terms = cloud[emoji]
+				if not terms is Dictionary:
+					continue
+				var r: float = 0.0
+				if terms.has("lindblad_outgoing") and terms["lindblad_outgoing"] is Dictionary:
+					for t in terms["lindblad_outgoing"].keys():
+						r += float(terms["lindblad_outgoing"][t])
+				if terms.has("decay") and terms["decay"] is Dictionary:
+					r += float(terms["decay"].get("rate", 0.0))
+				rate_by_emoji[emoji] = rate_by_emoji.get(emoji, 0.0) + r
+		for emoji in rate_by_emoji:
+			var r = rate_by_emoji[emoji]
+			atom_pop[emoji] = 1.0 / r if r > 0.0 else 1.0
 	var total: float = 0.0
 	for v in atom_pop.values():
 		total += float(v)
@@ -433,7 +466,6 @@ static func _static_marginals_from_spec(biome_spec) -> Dictionary:
 	for a in atom_pop.keys():
 		atom_pop[a] = float(atom_pop[a]) / total
 	var marg: Dictionary = {}
-	var icons: Array = biome_spec.icons if "icons" in biome_spec else []
 	for icon in icons:
 		if not icon is Dictionary:
 			continue
@@ -497,8 +529,7 @@ func _emoji_marginals(qc) -> Dictionary:
 
 
 func _resolve_pair_issuer(emoji: String, biome_a, biome_b, registry) -> String:
-	# Faction signature gate: faction admitted iff it owns an icon in the biome's register.
-	const FactionBiomeMap = preload("res://Core/Biomes/FactionBiomeMap.gd")
+	# Signature gate: faction admitted iff it owns an icon in the biome's register.
 	for biome in [biome_a, biome_b]:
 		if biome == null:
 			continue
@@ -519,7 +550,7 @@ func _resolve_pair_issuer(emoji: String, biome_a, biome_b, registry) -> String:
 	return "Unknown"
 
 
-func _pick_cost_emoji(deliverable: String, settle_name: String, name_a: String, name_b: String,
+func _pick_cost_emoji(deliverable: String, settle_name: String, name_a: String, _name_b: String,
 		marg_a: Dictionary, marg_b: Dictionary) -> String:
 	# Default: pay in the deliverable itself (self-cover, simplest semantics).
 	# Tensor variant: prefer the opposite biome's most-populated emoji != deliverable.
@@ -590,7 +621,7 @@ func exercise(contract_id: int) -> Dictionary:
 	var qc = biome.quantum_computer if "quantum_computer" in biome else null
 	if qc == null or not qc.has(c.resource):
 		# Biome doesn't host this emoji as a register — caller can fall back to
-		# legacy classical-only path.
+		# the classical-only path.
 		c.status = MarketContract.STATUS_EXERCISED
 		return {"ok": false, "error": "biome_lacks_qubit", "resource": c.resource}
 
@@ -617,10 +648,9 @@ func exercise(contract_id: int) -> Dictionary:
 		outcome_emoji = str(pair.get("south", "")) if other_pole == 1 else str(pair.get("north", ""))
 		p_outcome = 1.0 - pre_marginal
 
-	# Reward: 1/p in quantum units, × QC_RATIO for classical.
-	var p_clipped: float = clampf(p_outcome, HamiltonianConfig.P_MIN, 1.0 - HamiltonianConfig.P_MIN)
-	var reward_quantum: float = round(1.0 / p_clipped)
-	var classical_reward: int = int(reward_quantum * HamiltonianConfig.QUANTUM_CLASSICAL_RATIO)
+	# Reward: surprisal energy −kT·log p (EnergyPricing), bounded and smooth.
+	var kT: float = EnergyPricing.biome_temperature(biome, _farm)
+	var classical_reward: int = int(round(EnergyPricing.surprisal_energy(p_outcome, kT)))
 	if _farm.economy:
 		_farm.economy.add_resource(outcome_emoji, classical_reward, "contract_exercise")
 
@@ -639,7 +669,7 @@ func exercise(contract_id: int) -> Dictionary:
 	c.status = MarketContract.STATUS_EXERCISED
 
 	# Inter-faction substrate: notify StoryEngine so the player faction's
-	# AffinityGraph mixes (Lindblad jump) toward the seller faction's posture.
+	# AlignmentGraph mixes (Lindblad jump) toward the seller faction's posture.
 	# Player → seller only; seller unchanged. Standings are NOT touched here.
 	var story_engine = null
 	var main_loop = Engine.get_main_loop()
@@ -653,7 +683,7 @@ func exercise(contract_id: int) -> Dictionary:
 		"contract_id": c.id,
 		"outcome": outcome_emoji,
 		"p_outcome": p_outcome,
-		"reward_quantum": reward_quantum,
+		"reward_quantum": classical_reward,  # kT is the anchor now; no separate QC conversion
 		"classical_reward": classical_reward,
 		"theta_total": theta_total,
 	}

@@ -1,13 +1,12 @@
 class_name ActionPreviewRow
 extends HBoxContainer
 
-## Physical keyboard layout UI - Middle row with QERF action preview buttons
-## Displays what Q/E/R/F actions will do based on selected tool or overlay
+## Physical keyboard layout UI - Middle row with the Q/E/R/F action quartet
+## Displays what each primary action chip will do based on selected tool or overlay
 ## Buttons use BtnBtmMidl.svg (identical styling to 1234 tool buttons)
 ## Uses BtnBtmMidl.svg from Assets/UI/Chrome for sci-fi aesthetic
 
 const LindbladHandler = preload("res://Core/Instrumentation/Handlers/LindbladHandler.gd")
-const EmojiDisplay = preload("res://UI/Core/EmojiDisplay.gd")
 
 # Button texture path (matches ToolSelectionRow)
 const BTN_TEXTURE_PATH = "res://Assets/UI/Chrome/BtnBtmMidl.svg"
@@ -24,6 +23,7 @@ var button_color: Color = Color(1.0, 1.0, 1.0)  # Normal state (texture's natura
 var hover_color: Color = Color(1.2, 1.2, 1.2)  # Slightly brighter on hover
 var disabled_color: Color = Color(0.3, 0.3, 0.3)  # Dark for disabled
 var enabled_color: Color = Color(0.5, 1.0, 0.5)  # Green tint for available actions
+var destructive_color: Color = Color(1.0, 0.55, 0.1)  # Amber — irreversible action (QF confirm required)
 var pressed_color: Color = Color(0.6, 0.6, 0.6)  # Darker when pressed
 
 # Layout manager for scaling
@@ -38,20 +38,16 @@ signal action_pressed(action_key: String)
 
 
 func _ready():
-	# Z-index: ActionBarLayer(50) + 4 = 54 total (below tool selection at 55)
-	z_index = 4
+	# Escape ActionBarLayer's z and sit above all overlays (max ~53).
+	z_as_relative = false
+	z_index = 60
 
 	# Load button texture (matches ToolSelectionRow)
 	btn_texture = load(BTN_TEXTURE_PATH)
 	if not btn_texture:
 		push_warning("ActionPreviewRow: Could not load button texture from %s" % BTN_TEXTURE_PATH)
 
-	# Container setup (matches ToolSelectionRow)
 	add_theme_constant_override("separation", 8)
-	add_theme_constant_override("margin_left", 8)
-	add_theme_constant_override("margin_right", 8)
-	add_theme_constant_override("margin_top", 4)
-	add_theme_constant_override("margin_bottom", 4)
 
 	# Allow keyboard input to pass through, but buttons can still receive clicks
 	mouse_filter = MOUSE_FILTER_PASS
@@ -73,7 +69,7 @@ func _ready():
 
 
 func render_projection(projection: Dictionary) -> void:
-	"""Render a fully projected Q/E/R/F action state."""
+	# Render a fully projected Q/E/R/F action state.
 	current_projection = projection.duplicate(true)
 	current_tool = int(current_projection.get("tool", current_tool))
 	current_submenu = str(current_projection.get("submenu_name", ""))
@@ -84,13 +80,8 @@ func render_projection(projection: Dictionary) -> void:
 		_apply_button_projection(action_key, action_info)
 
 
-func refresh_projection() -> void:
-	"""Repaint the last projection."""
-	render_projection(current_projection)
-
-
 func set_layout_manager(mgr) -> void:
-	"""Set layout manager for responsive scaling"""
+	# Set layout manager for responsive scaling
 	layout_manager = mgr
 	if layout_manager:
 		scale_factor = layout_manager.scale_factor
@@ -101,7 +92,7 @@ func set_layout_manager(mgr) -> void:
 # ============================================================================
 
 func get_snapshot() -> Dictionary:
-	"""Return structured snapshot of current action button state."""
+	# Return structured snapshot of current action button state.
 	var actions: Dictionary = {}
 	for key in ACTION_KEYS:
 		if not action_buttons.has(key):
@@ -112,7 +103,7 @@ func get_snapshot() -> Dictionary:
 
 
 func debug_layout() -> String:
-	"""Return detailed layout debug information for F3 display"""
+	# Return detailed layout debug information for F3 display
 	var debug_text = ""
 	debug_text += "ActionPreviewRow (Q/E/R/F toolbar):\n"
 	debug_text += "  Position: (%.0f, %.0f)\n" % [position.x, position.y]
@@ -133,16 +124,15 @@ func debug_layout() -> String:
 
 
 func _create_action_button(action_key: String) -> Dictionary:
-	"""Create an action button with texture background, icon glyph, and text label.
-	Matches the styling of ToolSelectionRow buttons (BtnBtmMidl.svg).
+	# Create an action button with texture background, icon glyph, and text label.
+	# Matches the styling of ToolSelectionRow buttons (BtnBtmMidl.svg).
 
-	Returns a Dictionary with:
-	- container: The root Control node
-	- texture: The TextureRect for button background
-	- icon: The TextureRect for action icon glyph
-	- label: The Label for button text
-	- disabled: bool tracking disabled state
-	"""
+	# Returns a Dictionary with:
+	# - container: The root Control node
+	# - texture: The TextureRect for button background
+	# - icon: The TextureRect for action icon glyph
+	# - label: The Label for button text
+	# - disabled: bool tracking disabled state
 	# Container to hold texture, icon, and label
 	var container = Control.new()
 	container.name = "ActionBtn_%s" % action_key
@@ -330,28 +320,21 @@ func _build_cost_entries(container: HBoxContainer, cost: Dictionary) -> void:
 		container.add_child(entry)
 
 func _on_action_button_input(event: InputEvent, action_key: String) -> void:
-	"""Handle input on action button container."""
 	var btn_data = action_buttons.get(action_key)
 	if not btn_data or btn_data.disabled:
 		return
 
-	if event is InputEventMouseButton:
-		if event.button_index == MOUSE_BUTTON_LEFT:
-			if event.pressed:
-				# Visual feedback on press
-				btn_data.texture.modulate = pressed_color
-			else:
-				# Restore color and emit action on release
-				_update_single_button_color(action_key)
-				action_pressed.emit(action_key)
-
-	# Accept the event so it doesn't propagate
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		if event.pressed:
+			btn_data.texture.modulate = pressed_color
+		else:
+			_update_single_button_color(action_key)
+			action_pressed.emit(action_key)
 		get_viewport().set_input_as_handled()
 
 
 func _on_action_button_hover(action_key: String, is_hovering: bool) -> void:
-	"""Handle mouse hover on action button."""
+	# Handle mouse hover on action button.
 	var btn_data = action_buttons.get(action_key)
 	if not btn_data or btn_data.disabled:
 		return
@@ -367,7 +350,7 @@ func _on_action_button_hover(action_key: String, is_hovering: bool) -> void:
 
 
 func _update_single_button_color(action_key: String) -> void:
-	"""Update a single button's color based on its current state."""
+	# Update a single button's color based on its current state.
 	var btn_data = action_buttons.get(action_key)
 	if not btn_data:
 		return
@@ -383,6 +366,8 @@ func _update_single_button_color(action_key: String) -> void:
 func _resolve_button_color(btn_data: Dictionary) -> Color:
 	if btn_data.get("disabled", false):
 		return disabled_color
+	if btn_data.get("destructive", false):
+		return destructive_color  # amber — even when available, warns before QF confirm
 	if btn_data.get("available", false):
 		return enabled_color
 	return button_color

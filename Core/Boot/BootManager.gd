@@ -1,12 +1,19 @@
 extends Node
 
-## BootManager - Manages the boot sequence - ensures proper initialization order
-## Available globally as autoload singleton
-## Core boot happens before UI; UI can be attached later.
+## BootManager — orchestrator for the boot sequence.
+##
+## Available globally as autoload singleton. Owns top-level boot ordering, awaits, and
+## signal emission. Delegates the actual work to three RefCounted helpers:
+##   - SessionLoader: state hydration / biome name resolution / loadability checks
+##   - WorldBuilder:  Farm/biome materialization, operator rebuild, simulation start
+##   - RuntimeMount:  visualization, UI mount, music check
+##
+## Public API surface: reset(), boot_session(), boot_runtime(),
+## boot_initial_biomes(), load_biome(), plus signals
+## core_systems_ready / visualization_ready / ui_ready / game_ready.
 
-# Access autoloads safely
-@onready var _verbose = InstrumentLocator.resolve_verbose_config(self)
-const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
+@onready var _verbose = get_node_or_null("/root/VerboseConfig")
+const PerfOptimizer = preload("res://Core/Settings/PerformanceOptimizer.gd")
 
 signal core_systems_ready
 signal visualization_ready
@@ -14,45 +21,25 @@ signal ui_ready
 signal game_ready
 
 var _core_booted: bool = false
-
-
-func _notification(what: int) -> void:
-	if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_PREDELETE:
-		# Free static GPU resources to avoid RenderingDevice RID leak warnings.
-		_cleanup_gpu_shared_resources(load("res://Core/Visualization/GPUForceCalculatorV2.gd"))
-		_cleanup_gpu_shared_resources(load("res://Core/Visualization/GPUForceCalculator.gd"))
 var _ui_booted: bool = false
 var _booted: bool = false  # Full boot (core + UI)
+var _simulation_booted: bool = false
 var is_ready: bool = false  # Public flag for checking boot completion
-var _current_stage: String = ""
 var _boot_start_ms: int = 0
 
 # Registries for O(1) lookups
 var _biome_registry = null  # BiomeRegistry (lazy-loaded)
 
-# Performance optimization (class-level const)
-const PerfOptimizer = preload("res://Core/Settings/PerformanceOptimizer.gd")
-const BiomeRegistry = preload("res://Core/Biomes/BiomeRegistry.gd")
-const SaveStore = preload("res://Core/GameState/SaveStore.gd")
+# Helpers (constructed in _ready)
+var _session_loader: SessionLoader
+var _world_builder: WorldBuilder
+var _runtime_mount: RuntimeMount
 
 
-func _cleanup_gpu_shared_resources(calc_class) -> void:
-	if not calc_class:
-		return
-	if not calc_class.get("_shared_rd") or not calc_class._shared_rd:
-		return
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_PREDELETE:
+		pass  # Cleanup handled by individual components
 
-	if calc_class.get("_shared_pipeline") and calc_class._shared_pipeline.is_valid():
-		calc_class._shared_rd.free_rid(calc_class._shared_pipeline)
-		calc_class._shared_pipeline = RID()
-	if calc_class.get("_shared_shader") and calc_class._shared_shader.is_valid():
-		calc_class._shared_rd.free_rid(calc_class._shared_shader)
-		calc_class._shared_shader = RID()
-
-	calc_class._shared_rd.free()
-	calc_class._shared_rd = null
-	if calc_class.get("_shader_compiled") != null:
-		calc_class._shader_compiled = false
 
 ## Autoload singleton - ready to use as global
 func _ready() -> void:
@@ -64,6 +51,22 @@ func _ready() -> void:
 	# Pre-load BiomeRegistry for fast lookups
 	_biome_registry = BiomeRegistry.new()
 	_verbose.debug("boot", "📚", "BiomeRegistry initialized (%d biomes)" % _biome_registry.get_all().size())
+
+	# Construct helpers
+	_session_loader = SessionLoader.new(_biome_registry)
+	_world_builder = WorldBuilder.new(_biome_registry, _verbose)
+	_runtime_mount = RuntimeMount.new(_verbose)
+
+
+func reset() -> void:
+	# Reset all boot flags so a new session can boot cleanly.
+	# Called by GameStateManager._reset_runtime_singletons() between sessions.
+	_core_booted = false
+	_ui_booted = false
+	_booted = false
+	_simulation_booted = false
+	is_ready = false
+	_boot_start_ms = 0
 
 
 func _mark_boot_start_if_needed() -> void:
@@ -81,106 +84,129 @@ func _boot_timing(message: String) -> void:
 	_verbose.info("boot", "⏱", "T+%dms %s" % [_boot_elapsed_ms(), message])
 
 
-func _biome_operators_look_valid(biome) -> bool:
-	if not biome:
-		return false
-	var qc = biome.get("quantum_computer")
-	if not qc:
-		return false
-	var h = qc.get("hamiltonian")
-	if not h:
-		return false
-	if h.has_method("dimension") and int(h.dimension()) <= 0:
-		return false
-	return true
+## Canonical boot entrypoint.
+## Accepts a normalized boot request dictionary and an optional farm parent.
+## Public boot forms are handled directly by boot_session() and boot_runtime().
+func boot_session(request: Dictionary = {}, farm_parent: Node = null) -> Node:
+	# Boot core systems and ensure Farm exists (no UI).
+	if not (request is Dictionary):
+		push_error("BootManager.boot_session expects a Dictionary boot request")
+		return null
+	var boot_request := SaveStore.normalize_boot_request(request)
+	var request_slot := int(boot_request.get("slot", -1))
+	var request_scenario := str(boot_request.get("scenario_id", SaveStore.DEFAULT_SCENARIO_ID))
+	var request_headless := bool(boot_request.get("headless", false))
 
-
-func _should_rebuild_biome_operators(farm: Node) -> bool:
-	var force_rebuild = OS.get_environment("SW_FORCE_OPERATOR_REBUILD").to_lower() in ["1", "true", "yes", "on"]
-	if force_rebuild:
-		return true
-	var skip_rebuild = OS.get_environment("SW_SKIP_OPERATOR_REBUILD").to_lower() in ["1", "true", "yes", "on"]
-	if skip_rebuild:
-		return false
-	if not farm or not farm.grid or not farm.grid.has_biomes():
-		return false
-	for biome_name in farm.grid.get_biome_names():
-		var biome = farm.grid.get_biome(biome_name)
-		if not _biome_operators_look_valid(biome):
-			return true
-	return false
-
-## Main boot sequence entry point - call after farm and shell are created
-func boot_core(load_slot: int = -1, scenario_id: String = SaveStore.DEFAULT_SCENARIO_ID, headless: bool = false) -> Node:
-	"""Boot core systems and ensure Farm exists (no UI)."""
-	var gsm = InstrumentLocator.resolve_game_state_manager(self)
+	var gsm = get_node_or_null("/root/GameStateManager")
 	if _core_booted:
 		return gsm.get_active_farm() if gsm and gsm.has_method("get_active_farm") else null
 
 	_mark_boot_start_if_needed()
 	_verbose.info("boot", "🚀", "======================================================================")
-	_verbose.info("boot", "🚀", "BOOT CORE STARTING")
+	_verbose.info("boot", "🚀", "BOOT SESSION STARTING")
 	_verbose.info("boot", "🚀", "======================================================================")
-	_boot_timing("boot_core start")
+	_boot_timing("boot_session start")
 
 	if not gsm:
 		push_warning("BootManager: GameStateManager not found")
 		return null
 
-	var farm = await gsm.start_session(load_slot, scenario_id)
+	var farm = await gsm.session_lifecycle.start_session(request_slot, request_scenario, true, farm_parent, false)
 	if not farm:
 		push_warning("BootManager: Farm not available after start_session")
 		return null
 	_boot_timing("session started")
 
-	# Stage 3A: Core Systems
-	_stage_core_systems(farm)
-	_boot_timing("core systems initialized")
+	var biome_boot = boot_initial_biomes(farm, gsm.current_state)
+	if not bool(biome_boot.get("success", false)):
+		push_warning("BootManager: initial biome boot failed: %s" % biome_boot.get("message", "unknown error"))
+		return null
+	_boot_timing("initial biomes loaded")
 
-	# Stage 3D: Start Simulation (core runs even without UI)
-	_stage_start_simulation(farm)
-	_boot_timing("simulation started")
+	if farm.has_method("finalize_initial_biome_boot") and not farm.finalize_initial_biome_boot():
+		push_warning("BootManager: Farm initial biome finalization failed")
+		return null
+	_boot_timing("farm biome boot finalized")
+
+	# session_lifecycle is the canonical boot-finalizer: it applies state THEN
+	# emits farm_ready. Bypassing it (calling apply_state_to_game directly)
+	# would skip the signal and leave FarmView un-refreshed.
+	await gsm.session_lifecycle.complete_session_boot(farm)
+	_boot_timing("session state applied")
+
+	# Stage 3A: Core Systems
+	_world_builder.stage_core_systems(farm)
+	_boot_timing("core systems initialized")
+	core_systems_ready.emit()
+
+	# Core gameplay API must exist even without UI so headless runners and exports
+	# can drive real actions through the same surface as the player.
+	_world_builder.ensure_quantum_instrument(farm)
+	_boot_timing("instrument ready")
+
+	# Stage 3D: Start Simulation
+	# Headless and non-GameRoot boots need the simulation immediately.
+	# GameRoot-based boots defer this until UI is mounted so physics does not race
+	# the headed bootstrap and emit lookahead warnings while the view stack is still
+	# coming online.
+	if request_headless or farm_parent == null:
+		_start_simulation(farm)
 
 	_core_booted = true
 
 	# Headless or no UI expected → finalize boot here
-	if headless:
+	if request_headless:
 		_booted = true
 		is_ready = true
-		_verbose.info("boot", "✅", "BOOT CORE COMPLETE (headless) - GAME READY")
+		_verbose.info("boot", "✅", "BOOT COMPLETE (headless) - GAME READY")
 		_boot_timing("headless game ready")
 		game_ready.emit()
 
 	return farm
 
 
-func boot_ui(farm: Node, shell: Node, quantum_viz: Node) -> void:
-	"""Boot visualization + UI after core is ready."""
+func boot_initial_biomes(farm: Node, state = null) -> Dictionary:
+	# Delegates to WorldBuilder; kept as public API for orchestration callers.
+	return _world_builder.boot_initial_biomes(farm, state, _session_loader)
+
+
+## Canonical runtime/UI mount entrypoint.
+func boot_runtime(farm: Node, shell: Node, quantum_viz: Node = null) -> void:
+	# Boot visualization + UI after core is ready.
+
 	if _ui_booted:
 		return
 	if not farm:
-		push_warning("BootManager: boot_ui called with null farm")
+		push_warning("BootManager: boot_runtime called with null farm")
+		return
+	if not shell:
+		push_warning("BootManager: boot_runtime called with null shell")
 		return
 
 	_mark_boot_start_if_needed()
 	_verbose.info("boot", "🚀", "======================================================================")
-	_verbose.info("boot", "🚀", "BOOT UI STARTING")
+	_verbose.info("boot", "🚀", "BOOT RUNTIME STARTING")
 	_verbose.info("boot", "🚀", "======================================================================")
-	_boot_timing("boot_ui start")
+	_boot_timing("boot_runtime start")
 
 	# Stage 3B: Visualization
-	_stage_visualization(farm, quantum_viz)
+	_runtime_mount.stage_visualization(farm, quantum_viz)
 	_boot_timing("visualization initialized")
+	visualization_ready.emit()
 
 	# Stage 3C: UI (async - must await to ensure QuantumInstrumentInput is created)
-	await _stage_ui(farm, shell, quantum_viz)
+	_runtime_mount.stage_ui(farm, shell, quantum_viz, _world_builder)
 	_boot_timing("ui initialized")
+	ui_ready.emit()
 
 	_ui_booted = true
 
+	if not _simulation_booted:
+		_start_simulation(farm)
+
 	if _core_booted:
 		# Stage 3E: Music (cherry on top - after all UI is ready)
-		_stage_music(farm)
+		_runtime_mount.stage_music()
 
 		_booted = true
 		is_ready = true  # Set flag before emitting signal
@@ -190,579 +216,22 @@ func boot_ui(farm: Node, shell: Node, quantum_viz: Node) -> void:
 		_boot_timing("full game ready")
 		game_ready.emit()
 
-## Stage 3A: Initialize core systems
-func _stage_core_systems(farm: Node) -> void:
-	_current_stage = "CORE_SYSTEMS"
-	_verbose.info("boot", "📍", "Stage 3A: Core Systems")
 
-	# Verify required components (hard failures - these are critical)
-	assert(farm != null, "Farm is null!")
-	assert(farm.grid != null, "Farm.grid is null!")
-
-	# Boot requires at least one real biome runtime.
-	var has_biomes = farm.grid.has_biomes()
-	assert(has_biomes, "BootManager: no biomes loaded - boot aborted")
-
-	# Verify IconRegistry is available and fully loaded
-	var icon_registry = InstrumentLocator.resolve_icon_registry(self)
-	assert(icon_registry != null, "IconRegistry not found! Autoloads not initialized.")
-
-	# Wait for IconRegistry to finish loading if needed
-	if icon_registry.icons.size() == 0:
-		push_warning("IconRegistry not fully loaded yet, waiting...")
-		await get_tree().process_frame
-
-	_verbose.info("boot", "✓", "IconRegistry ready (%d icons)" % icon_registry.icons.size())
-
-	# CRITICAL: Rebuild biome quantum operators now that IconRegistry is guaranteed ready
-	# Biomes may have initialized before IconRegistry loaded all icons
-	if has_biomes:
-		if _should_rebuild_biome_operators(farm):
-			_verbose.info("boot", "🔧", "Rebuilding biome quantum operators...")
-			if farm.has_method("rebuild_all_biome_operators"):
-				farm.rebuild_all_biome_operators()
-			else:
-				# Fallback: rebuild each biome directly
-				for biome_name in farm.grid.get_biome_names():
-					var biome = farm.grid.get_biome(biome_name)
-					if biome and biome.has_method("rebuild_quantum_operators"):
-						biome.rebuild_quantum_operators()
-			_verbose.info("boot", "✓", "All biome operators rebuilt")
-		else:
-			_verbose.info("boot", "✓", "Biome quantum operators already valid; skipping rebuild")
-
-		# Verify all biomes initialized correctly
-		for biome_name in farm.grid.get_biome_names():
-			var biome = farm.grid.get_biome(biome_name)
-			if not biome:
-				_verbose.warn("boot", "⚠️", "Biome '%s' is null - skipping" % biome_name)
-				continue
-			if not biome.quantum_computer:
-				_verbose.warn("boot", "⚠️", "Biome '%s' has no quantum_computer" % biome_name)
-				continue
-			_verbose.info("boot", "✓", "Biome '%s' verified" % biome_name)
-	else:
-		_verbose.info("boot", "⏭️", "Skipping biome operations (no biomes)")
-
-	# Any additional farm finalization
-	if farm.has_method("finalize_setup"):
-		farm.finalize_setup()
-
-	# Prime lookahead buffers so viz_cache is populated before visualization starts.
-	if ("biome_evolution_batcher" in farm) and farm.biome_evolution_batcher:
-		if farm.biome_evolution_batcher.has_method("prime_lookahead_buffers"):
-			farm.biome_evolution_batcher.prime_lookahead_buffers()
-			_verbose.info("boot", "✓", "Lookahead buffers primed")
-
-	# NOTE: Music moved to Stage 3E (_stage_music) - runs after all UI is ready
-
-	_verbose.info("boot", "✓", "Core systems ready")
-	core_systems_ready.emit()
-
-## Stage 3B: Initialize visualization
-func _stage_visualization(farm: Node, quantum_viz: Node) -> void:
-	_current_stage = "VISUALIZATION"
-	_verbose.info("boot", "📍", "Stage 3B: Visualization")
-	var is_headless = DisplayServer.get_name() == "headless"
-
-	if not quantum_viz:
-		if is_headless:
-			_verbose.info("boot", "ℹ️", "Headless rig: QuantumViz unavailable (expected)")
-		else:
-			_verbose.warn("boot", "⚠️", "QuantumViz is null - skipping visualization")
-		visualization_ready.emit()
+func _start_simulation(farm: Node) -> void:
+	if _simulation_booted or not farm:
 		return
-
-	# Register biomes with QuantumForceGraph (direct - no controller middleman)
-	# QuantumForceGraph now handles visualization directly
-	if not quantum_viz.layout_calculator:
-		if is_headless:
-			_verbose.info("boot", "ℹ️", "Headless rig: layout calculator unavailable (expected)")
-		else:
-			_verbose.warn("boot", "⚠️", "BiomeLayoutCalculator not created - visualization disabled")
-		visualization_ready.emit()
-		return
-
-	_verbose.info("boot", "✓", "QuantumForceGraph created")
-	_verbose.info("boot", "✓", "BiomeLayoutCalculator ready")
-	_verbose.info("boot", "✓", "Layout positions computed")
-
-	# Collect biomes for setup
-	var biomes = {}
-	if farm.biome_enabled:
-		if farm.biotic_flux_biome:
-			biomes["BioticFlux"] = farm.biotic_flux_biome
-		if farm.stellar_forges_biome:
-			biomes["StellarForges"] = farm.stellar_forges_biome
-		if farm.fungal_networks_biome:
-			biomes["FungalNetworks"] = farm.fungal_networks_biome
-		if farm.volcanic_worlds_biome:
-			biomes["VolcanicWorlds"] = farm.volcanic_worlds_biome
-		if farm.starter_forest_biome:
-			biomes["StarterForest"] = farm.starter_forest_biome
-		if farm.village_biome:
-			biomes["Village"] = farm.village_biome
-
-	# Quantum visualization setup (direct QuantumForceGraph - no controller)
-	# Register biomes with graph
-	if biomes.size() > 0:
-		_verbose.info("boot", "💭", "Setting up quantum visualization...")
-		for biome_name in biomes:
-			quantum_viz.biomes[biome_name] = biomes[biome_name]
-
-		# Initialize layout and setup
-		quantum_viz.update_layout(true)
-		var farm_grid = farm.grid if "grid" in farm else null
-		var terminal_pool = farm.terminal_pool if "terminal_pool" in farm else null
-		quantum_viz.setup(biomes, farm_grid, terminal_pool)
-
-		# Wire farm signals → QuantumForceGraph so new explores create bubbles
-		# (setup() only creates initial nodes; connect_to_farm() handles live bindings)
-		if quantum_viz.has_method("connect_to_farm"):
-			quantum_viz.connect_to_farm(farm)
-
-		# Recalculate positions and re-register with nested force optimizer
-		# This ensures bubbles have correct positions before physics starts
-		if quantum_viz.quantum_nodes.size() > 0:
-			for node in quantum_viz.quantum_nodes:
-				if node and node.biome_name and quantum_viz.layout_calculator:
-					var new_pos = quantum_viz.layout_calculator.get_parametric_position(
-						node.biome_name, node.parametric_t, node.parametric_ring
-					)
-					node.position = new_pos
-					node.classical_anchor = new_pos
-
-			# Re-register with nested optimizer using corrected positions
-			if quantum_viz.nested_force_optimizer:
-				for node in quantum_viz.quantum_nodes:
-					if node and node.biome_name:
-						quantum_viz.nested_force_optimizer.unregister_bubble(node, node.biome_name)
-						quantum_viz.nested_force_optimizer.register_bubble(node, node.biome_name, quantum_viz.center_position)
-				_verbose.info("boot", "🔄", "Re-registered %d bubbles with correct positions" % quantum_viz.quantum_nodes.size())
-
-		_verbose.info("boot", "✓", "Quantum viz ready")
-
-	# Pre-compile GPU shaders before creating force graph (requires Vulkan RenderingDevice)
-	var _rd_check = RenderingServer.create_local_rendering_device()
-	var _has_rd = _rd_check != null
-	if _rd_check:
-		_rd_check.free()
-	if biomes.size() > 0 and _has_rd:
-		_verbose.info("boot", "🔧", "Pre-compiling GPU compute shaders...")
-		var GPUForceCalculatorClass = load("res://Core/Visualization/GPUForceCalculator.gd")
-		var compile_result = GPUForceCalculatorClass.pre_compile_shader()
-		if compile_result.success:
-			_verbose.info("boot", "✓", "Shader compiled on %s (%.0fms)" % [
-				compile_result.device_name,
-				compile_result.duration_ms
-			])
-		else:
-			_verbose.warn("boot", "⚠️", "Shader compilation failed: %s" % compile_result.message)
-	elif biomes.size() > 0:
-		_verbose.info("boot", "ℹ️", "OpenGL mode — force physics via C++ (no GPU compute shaders)")
-
-	if biomes.size() > 0:
-		_verbose.info("boot", "🎨", "Building emoji atlas...")
-
-		# Collect all emojis (biomes JSON + factions JSON + runtime from loaded biomes)
-		var all_emojis = _collect_all_emojis(biomes)
-		_verbose.info("boot", "🎨", "  Total unique: %d emojis" % all_emojis.size())
-
-		# Build atlas with graceful fallback (skip in headless mode)
-		var EmojiAtlasBatcherClass = load("res://Core/Visualization/EmojiAtlasBatcher.gd")
-		var atlas_batcher = EmojiAtlasBatcherClass.new()
-
-		# Check if we're in headless mode (can't render emojis without viewport)
-		if is_headless:
-			_verbose.info("boot", "ℹ️", "Headless mode detected - skipping atlas build (text fallback)")
-		else:
-			# Try to build atlas, but don't fail if it errors
-			_verbose.info("boot", "🎨", "  Attempting atlas build (may take 10-30 seconds)...")
-			atlas_batcher.build_atlas_cached(all_emojis, quantum_viz)
-			if atlas_batcher._atlas_built:
-				_verbose.info("boot", "✓", "Emoji atlas ready (%d emojis)" % atlas_batcher._emoji_uvs.size())
-			else:
-				_verbose.warn("boot", "⚠️", "Atlas build failed - using text fallback for all emojis")
-
-		# Pass atlas to quantum viz (even if empty - will use text fallback)
-		if quantum_viz.has_method("set_emoji_atlas_batcher"):
-			quantum_viz.set_emoji_atlas_batcher(atlas_batcher)
-
-		# Build bubble shape atlas for GPU-accelerated bubble rendering
-		_verbose.info("boot", "🔮", "Building bubble atlas...")
-		var BubbleAtlasBatcherClass = load("res://Core/Visualization/BubbleAtlasBatcher.gd")
-		var bubble_atlas = BubbleAtlasBatcherClass.new()
-		if bubble_atlas.build_atlas():
-			_verbose.info("boot", "✓", "Bubble atlas ready (%d templates)" % bubble_atlas._template_uvs.size())
-
-			# Software renderer detected — keep HIGH quality for visual fidelity
-			if PerfOptimizer.detect_software_renderer():
-				_verbose.info("boot", "🖥️", "Software renderer detected — keeping HIGH quality")
-
-			# Pass atlas to the quantum viz graph for use by bubble renderer
-			if quantum_viz.has_method("set_bubble_atlas_batcher"):
-				quantum_viz.set_bubble_atlas_batcher(bubble_atlas)
-		else:
-			_verbose.warn("boot", "⚠️", "Bubble atlas build failed - using C++ fallback")
-
-	# Initial explored terminals are now sourced from save/scenario state
-	# (GameStateSerializer plot restore), not hardcoded boot-time auto-explore.
-
-	visualization_ready.emit()
-
-## Stage 3C: Initialize UI
-func _stage_ui(farm: Node, shell: Node, quantum_viz: Node) -> void:
-	_current_stage = "UI"
-	_verbose.info("boot", "📍", "Stage 3C: UI Initialization")
-
-	# Verify shell is a PlayerShell with expected methods
-	if not shell.has_method("load_farm_ui"):
-		push_error("BootManager: shell is not a PlayerShell! Type: %s, Script: %s" % [
-			shell.get_class(),
-			shell.get_script().resource_path if shell.get_script() else "no script"
-		])
-		return
-
-	# Load and instantiate FarmUI scene
-	_verbose.info("boot", "🔍", "Loading FarmUI.tscn...")
-	var farm_ui_scene = load("res://UI/FarmUI.tscn")
-	assert(farm_ui_scene != null, "FarmUI.tscn not found!")
-
-	_verbose.info("boot", "🔍", "Instantiating FarmUI...")
-	var farm_ui = farm_ui_scene.instantiate() as Control
-	assert(farm_ui != null, "FarmUI failed to instantiate!")
-	_verbose.info("boot", "✓", "FarmUI instantiated")
-
-	# INJECT DEPENDENCIES BEFORE ADD_CHILD
-	# This allows PlotGridDisplay._ready() to have all dependencies available,
-	# creating tiles synchronously during tree entry (cleaner boot sequence).
-	var plot_grid_display = farm_ui.get_node("PlotGridDisplay")
-	if plot_grid_display:
-		# Inject in order: farm → grid_config → layout_calculator → biomes
-		# Tiles are created when biomes is injected (last dependency)
-		plot_grid_display.inject_farm(farm)
-		plot_grid_display.inject_grid_config(farm.grid_config)
-
-		# Layout calculator may not exist if no biomes were loaded
-		if quantum_viz and quantum_viz.layout_calculator:
-			if plot_grid_display.has_method("inject_layout_calculator"):
-				plot_grid_display.inject_layout_calculator(quantum_viz.layout_calculator)
-		else:
-			if DisplayServer.get_name() == "headless":
-				_verbose.info("boot", "ℹ️", "Headless rig: no layout_calculator (fallback tile positions)")
-			else:
-				_verbose.warn("boot", "⚠️", "No layout_calculator available - tiles will use fallback positioning")
-
-		if farm.grid and farm.grid.has_biomes():
-			plot_grid_display.inject_biomes(farm.grid.get_all_biomes())
-			_verbose.info("boot", "✓", "PlotGridDisplay dependencies pre-injected")
-		else:
-			_verbose.warn("boot", "⚠️", "No biomes to inject - PlotGridDisplay will have no tiles")
-
-		# Wire plot positions to QuantumForceGraph for tethering
-		if quantum_viz and plot_grid_display.has_signal("plot_positions_changed"):
-			if not plot_grid_display.plot_positions_changed.is_connected(quantum_viz.update_plot_positions):
-				plot_grid_display.plot_positions_changed.connect(quantum_viz.update_plot_positions)
-				_verbose.info("boot", "📡", "PlotGridDisplay connected to QuantumForceGraph anchors")
-
-	# NOW add to tree - _ready() runs with all dependencies available
-	_verbose.info("boot", "🔍", "Mounting FarmUI in shell (triggers _ready)...")
-	shell.load_farm_ui(farm_ui)
-	_verbose.info("boot", "✓", "FarmUI mounted in shell")
-
-	# Set farm reference in PlayerShell (needed for quest board)
-	shell.farm = farm
-	_verbose.info("boot", "✓", "Farm reference set in PlayerShell")
-
-	# Setup remaining FarmUI parts (ResourcePanel wiring, signal connections)
-	# PlotGridDisplay injection is idempotent - guards prevent double tile creation
-	_verbose.info("boot", "🔍", "Calling farm_ui.setup_farm()...")
-	farm_ui.setup_farm(farm)
-	_verbose.info("boot", "✓", "farm_ui.setup_farm() complete")
-
-	# Create and inject QuantumInstrumentInput (single input system)
-	# Uses the new musical instrument spindle interface for tool groups + fractal navigation
-	_verbose.info("boot", "🔍", "Creating QuantumInstrumentInput...")
-	var input_handler = Node.new()
-	var QuantumInstrumentScript = load("res://UI/Core/QuantumInstrumentInput.gd")
-	input_handler.set_script(QuantumInstrumentScript)
-	input_handler.name = "QuantumInstrumentInput"
-	_verbose.info("boot", "🔍", "Adding QuantumInstrumentInput to shell (triggers _ready)...")
-	shell.add_child(input_handler)
-	_verbose.info("boot", "✓", "QuantumInstrumentInput added to tree")
-
-	# Inject dependencies
-	input_handler.inject_farm(farm)
-	if plot_grid_display:
-		input_handler.inject_plot_grid_display(plot_grid_display)
-
-		# Connect multi-select checkbox signal to PlotGridDisplay
-		input_handler.plot_checked.connect(plot_grid_display.set_plot_checked)
-		_verbose.info("boot", "✓", "Multi-select checkbox signals connected")
-	farm_ui.input_handler = input_handler
-
-	# CRITICAL: Connect input_handler signals to action bar AFTER input_handler exists
-	# (farm_setup_complete fires too early, before input_handler is created)
-	if shell.has_method("connect_to_quantum_input"):
-		shell.connect_to_quantum_input()
-		_verbose.info("boot", "✓", "QuantumInstrumentInput connected to action bars")
-
-	# Create QuantumInstrument (unified game mechanics API)
-	var QuantumInstrumentClass = load("res://Core/Instrumentation/QuantumInstrument.gd")
-	var instrument = QuantumInstrumentClass.new()
-	instrument.setup(farm)
-	farm.set_instrument(instrument)
-	shell.quantum_instrument = instrument
-	input_handler.inject_instrument(instrument)
-	_verbose.info("boot", "🎛️", "QuantumInstrument ready (unified game mechanics API)")
-
-	# Create SnapshotService for diagnostics/state snapshots shared by UI + headless runners
-	const SnapshotServiceClass = preload("res://Core/Instrumentation/SnapshotService.gd")
-	var snapshot_service = SnapshotServiceClass.new()
-	snapshot_service.name = "SnapshotService"
-	shell.add_child(snapshot_service)
-	shell.snapshot_service = snapshot_service
-	snapshot_service.setup(farm, shell)
-	snapshot_service.inject_instrument(instrument)
-	_verbose.info("boot", "🎛️", "SnapshotService ready (diagnostics + rig snapshots)")
-
-	_verbose.info("boot", "✓", "QuantumInstrumentInput created (Musical Spindle)")
-
-	ui_ready.emit()
-
-## Stage 3D: Start simulation
-func _stage_start_simulation(farm: Node) -> void:
-	_current_stage = "START_SIMULATION"
-	_verbose.info("boot", "📍", "Stage 3D: Start Simulation")
-
-	# Enable farm processing
-	farm.set_process(true)
-	if farm.has_method("enable_simulation"):
-		farm.enable_simulation()
-	_verbose.info("boot", "✓", "Farm simulation enabled")
-
-	# Enable input processing
-	# (done separately to avoid input during boot)
-	_verbose.info("boot", "✓", "Input system enabled")
-	_verbose.info("boot", "✓", "Ready to accept player input")
-
-
-## Stage 3E: Music system check (no auto-play - Layer 1 design)
-##
-## Music starts in SILENCE. Biome changes trigger music via ActiveBiomeManager signal.
-## This avoids hardcoded boot-time music selection.
-func _stage_music(_farm: Node) -> void:
-	_current_stage = "MUSIC"
-	_verbose.info("boot", "📍", "Stage 3E: Music")
-
-	var music = InstrumentLocator.resolve_music_manager(self)
-	if not music:
-		_verbose.warn("boot", "⚠️", "MusicManager not found - skipping music")
-		return
-
-	# Layer 1: Game starts in silence
-	# Music will play when biome changes (via ActiveBiomeManager.active_biome_changed signal)
-	_verbose.info("boot", "🔇", "Music ready - starts silent (Layer 1: biome changes trigger music)")
+	_world_builder.stage_start_simulation(farm)
+	_simulation_booted = true
+	_boot_timing("simulation started")
 
 
 ## ============================================================================
 ## UNIFIED BIOME LOADING - Used by both boot and lazy-load paths
 ## ============================================================================
+##
+## Public delegator. Called by:
+## - BootManager.boot_initial_biomes() during boot (via WorldBuilder)
+## - Farm.discover_biome() at runtime (discover_biome action)
 
 func load_biome(biome_name: String, farm: Node) -> Dictionary:
-	"""Unified biome loading - single source of truth for boot and runtime.
-
-	Called by:
-	- Farm._ready() during boot (for all unlocked biomes)
-	- Farm.discover_biome() at runtime (discover_biome action)
-
-	Ensures consistent order:
-	1. Load script & instantiate
-	2. Register with grid
-	3. Assign plots from GridConfig
-	4. Rebuild quantum operators (if IconRegistry ready)
-	5. Register with batcher
-	6. Emit signals
-
-	Args:
-		biome_name: String like "BioticFlux", "Village", etc
-		farm: Farm instance (has grid, batcher, grid_config)
-
-	Returns:
-		{
-			success: bool,
-			biome_name: String,
-			biome_ref: Object (if success),
-			already_loaded: bool (if already loaded),
-			message: String (if error)
-		}
-	"""
-	# ====== PRE-CONDITION CHECKS ======
-	if not farm:
-		return {
-			"success": false,
-			"error": "farm_null",
-			"message": "Farm not provided"
-		}
-
-	if not farm.grid:
-		return {
-			"success": false,
-			"error": "grid_null",
-			"message": "Farm.grid not initialized"
-		}
-
-	if not farm.grid_config:
-		return {
-			"success": false,
-			"error": "grid_config_null",
-			"message": "Farm.grid_config not initialized"
-		}
-
-	# ====== CHECK IF ALREADY LOADED ======
-	if farm.grid.has_biome(biome_name):
-		var existing_biome = farm.grid.get_biome(biome_name)
-		if existing_biome:
-			_verbose.debug("boot", "ℹ️", "Biome '%s' already loaded (idempotent)" % biome_name)
-			return {
-				"success": true,
-				"biome_name": biome_name,
-				"biome_ref": existing_biome,
-				"already_loaded": true
-			}
-
-	# ====== STEP 1: LOAD & INSTANTIATE FROM REGISTRY ======
-	const BiomeBuilder = preload("res://Core/Biomes/BiomeBuilder.gd")
-	var biome = null
-	var result = BiomeBuilder.build_from_registry(biome_name, farm.grid, {"skip_tree_add": true})
-
-	if result.success:
-		biome = result.biome_node
-		_verbose.debug("boot", "🔧", "Built '%s' from BiomeRegistry" % biome_name)
-	else:
-		_verbose.error("boot", "❌", "BiomeBuilder failed: %s" % result.error)
-
-	if not biome:
-		_verbose.error("boot", "❌", "Failed to load biome: %s" % biome_name)
-		return {
-			"success": false,
-			"error": "load_failed",
-			"message": "Could not load biome for '%s'" % biome_name
-		}
-
-	# Registry-built biomes are created off-tree. They still need a real owner so
-	# _exit_tree() runs and the runtime graph is released on session shutdown.
-	if biome.get_parent() == null:
-		farm.add_child(biome)
-		_verbose.debug("boot", "🌱", "Attached '%s' to Farm scene tree" % biome_name)
-
-	# ====== STEP 2: REGISTER WITH GRID ======
-	farm.grid.register_biome(biome_name, biome)
-	biome.grid = farm.grid
-	_verbose.debug("boot", "✓", "Registered '%s' with grid" % biome_name)
-
-	# ====== STEP 2.5: UPDATE GRID CONFIG ======
-	if farm.has_method("refresh_grid_for_biomes"):
-		farm.refresh_grid_for_biomes()
-		_verbose.debug("boot", "📐", "Grid refreshed for loaded biomes")
-
-	# ====== STEP 3: ASSIGN PLOTS FROM GridConfig ======
-	if farm.grid and farm.grid_config and farm.grid.has_method("assign_plot_to_biome"):
-		for pos in farm.grid_config.biome_assignments:
-			if farm.grid_config.biome_assignments[pos] == biome_name:
-				farm.grid.assign_plot_to_biome(pos, biome_name)
-	_verbose.debug("boot", "✓", "Assigned plots for '%s'" % biome_name)
-
-	# ====== STEP 4: STORE METADATA ======
-	farm.set_meta(biome_name.to_lower() + "_biome", biome)
-
-	# ====== STEP 5: REBUILD OPERATORS ======
-	# CRITICAL: Must happen BEFORE batcher registration
-	# IconRegistry should be ready by this point (checked in Stage 3A)
-	var icon_registry = InstrumentLocator.resolve_icon_registry(self)
-	if icon_registry and biome.has_method("rebuild_quantum_operators"):
-		biome.rebuild_quantum_operators()
-		_verbose.debug("boot", "✓", "Rebuilt operators for '%s'" % biome_name)
-	elif not icon_registry:
-		_verbose.warn("boot", "⚠️", "IconRegistry not available for '%s'" % biome_name)
-
-	# Verify quantum computer initialized
-	if not biome.quantum_computer:
-		_verbose.warn("boot", "⚠️", "Biome '%s' has no quantum_computer after operator rebuild" % biome_name)
-
-	# ====== STEP 6: REGISTER WITH BATCHER ======
-	if farm.biome_evolution_batcher and farm.biome_evolution_batcher.has_method("register_biome"):
-		farm.biome_evolution_batcher.register_biome(biome)
-		_verbose.debug("boot", "✓", "Registered '%s' with batcher" % biome_name)
-	else:
-		_verbose.warn("boot", "⚠️", "Batcher not available for '%s'" % biome_name)
-
-	# ====== STEP 7: EMIT SIGNALS ======
-	if farm.has_signal("biome_loaded"):
-		farm.biome_loaded.emit(biome_name, biome)
-
-	_verbose.info("boot", "✓", "Biome loaded: %s" % biome_name)
-	return {
-		"success": true,
-		"biome_name": biome_name,
-		"biome_ref": biome,
-		"already_loaded": false
-	}
-
-
-## Helper: Collect all unique emojis from all sources
-func _collect_all_emojis(biomes: Dictionary) -> Array:
-	"""Extract ALL unique emojis for atlas building.
-
-	Uses EmojiRegistry to get emojis from BiomeRegistry + FactionRegistry,
-	plus runtime emojis from currently loaded biomes.
-
-	Returns an array of unique emoji strings for atlas building.
-	"""
-	const EmojiRegistry = preload("res://Core/Biomes/EmojiRegistry.gd")
-	var emoji_registry = EmojiRegistry.new()
-
-	# Start with all emojis from BiomeRegistry + FactionRegistry
-	var unique_emojis: Dictionary = {}
-	for emoji in emoji_registry.get_all_emojis():
-		unique_emojis[emoji] = true
-
-	# Also include runtime emojis from currently loaded biomes
-	for biome_name in biomes:
-		var biome = biomes[biome_name]
-		if not biome:
-			continue
-
-		# PRIMARY SOURCE: Use viz_cache.get_emojis() if available (most complete)
-		if biome.has_method("get_emoji_pair_for_qubit") or (biome.has_meta("viz_cache") or "viz_cache" in biome):
-			if biome.viz_cache and biome.viz_cache.has_method("get_emojis"):
-				var biome_emojis = biome.viz_cache.get_emojis()
-				if biome_emojis:
-					for emoji in biome_emojis:
-						unique_emojis[emoji] = true
-					continue  # Got emojis from viz_cache, skip to next biome
-
-		# FALLBACK: Use quantum_computer register_map
-		if not biome.quantum_computer:
-			continue
-
-		var qc = biome.quantum_computer
-		var register_map = qc.register_map
-		if not register_map:
-			continue
-
-		# Get all emojis from register map coordinates
-		if "coordinates" in register_map:
-			for emoji in register_map.coordinates.keys():
-				unique_emojis[emoji] = true
-
-		# Also get from axes (north/south poles)
-		if "axes" in register_map:
-			for axis_id in register_map.axes:
-				var axis = register_map.axes[axis_id]
-				if axis.has("north"):
-					unique_emojis[axis.north] = true
-				if axis.has("south"):
-					unique_emojis[axis.south] = true
-
-	return unique_emojis.keys()
+	return _world_builder.load_biome(biome_name, farm)

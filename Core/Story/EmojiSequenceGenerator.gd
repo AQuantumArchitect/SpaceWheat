@@ -2,7 +2,7 @@ extends RefCounted
 
 ## EmojiSequenceGenerator — Markov walk over an emoji vocabulary.
 ##
-## Inputs: a ConversationHamiltonian.build_for_socialite() output (a dict with
+## Inputs: a StoryEngine.compose_socialite_voice() output (a dict with
 ## `initial` distribution and `transitions` matrix).
 ## Output: Array[String] of K emojis sampled by Markov walk.
 ##

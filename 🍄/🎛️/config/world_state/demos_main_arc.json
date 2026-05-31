@@ -1,0 +1,41 @@
+{
+  "name": "demos_main_arc",
+  "description": "The Demos main-quest arc staging seed. Village plus upstream biome hooks for repeated quest playtests.",
+  "scenario_id": "demos_normal",
+  "resource_mode": "set",
+  "resources": {
+    "👥": 420,
+    "🌾": 420,
+    "🍞": 180,
+    "❄️": 120,
+    "🌱": 90,
+    "⚙": 90,
+    "🔥": 90,
+    "🪵": 80,
+    "💧": 80,
+    "📜": 60
+  },
+  "unlocked_biomes": [
+    "StarterForest",
+    "Village",
+    "Woodlot",
+    "FreshwaterSpring"
+  ],
+  "active_biome": "Village",
+  "known_icons": [
+    {
+      "north": "🌾",
+      "south": "👥"
+    },
+    {
+      "north": "🪵",
+      "south": "🌾"
+    },
+    {
+      "north": "💧",
+      "south": "🌾"
+    }
+  ],
+  "strict_biome_economy": true,
+  "economy_overrides": {}
+}

@@ -193,6 +193,7 @@ def build_batch_cmd(
     output_dir: Path,
     strict_biome_economy: bool,
     reuse_listener: bool,
+    archive_rig_data: bool = False,
     profile_save: Optional[str] = None,
     extra_args: Optional[Iterable[str]] = None,
 ) -> List[str]:
@@ -220,6 +221,7 @@ def build_batch_cmd(
     ]
     cmd.append("--strict-biome-economy" if strict_biome_economy else "--no-strict-biome-economy")
     cmd.append("--reuse-listener" if reuse_listener else "--no-reuse-listener")
+    cmd.append("--archive-rig-data" if archive_rig_data else "--no-archive-rig-data")
     if profile_save:
         cmd += ["--profile-save", profile_save]
     if extra_args:

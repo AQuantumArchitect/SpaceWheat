@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-gate_architect_probe.py — StarterForest Hamiltonian inspector
+gate_architect_probe.py — Biome Hamiltonian inspector
 
-Loads Core/Config/Hamiltonians/starterforest.jsonl, builds the 32×32 Hamiltonian
+Loads Core/Config/Hamiltonians/<biome>.jsonl, builds the Hamiltonian matrix
 in Python/numpy, and reports:
 
   1. Eigenspectrum — energy levels, gaps, degeneracies
   2. Rabi map     — effective coupling and period for every emoji pair
   3. Gate effect  — what each gate does to each qubit starting from |uniform⟩
-  4. Resonance    — when the driven ☀ axis crosses resonance with 🌙 (Landau-Zener)
+  4. Resonance    — when driven axes cross resonance (Landau-Zener)
   5. Reachability — which basis states are most reachable from uniform superposition
 
 Usage:
@@ -83,33 +83,55 @@ def _set_nested(d: dict, path_str: str, value):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Hamiltonian builder (mirrors HamiltonianBuilder.gd logic)
+# Biome axis loader — reads emojis from biomes_merged.json
 # ══════════════════════════════════════════════════════════════════════════════
 
-# StarterForest register: (qubit_index, pole: 0=north 1=south)
-AXES = [
-    ("☀", "🌙"),   # Q0 celestial
-    ("🐺", "🐇"),  # Q1 predator-prey
-    ("🦅", "🦌"),  # Q2 apex-grazer
-    ("🌲", "🍂"),  # Q3 growth-decay
-    ("🌱", "🌿"),  # Q4 ground-growth
-]
+BIOMES_MERGED = REPO_ROOT / "Core" / "Biomes" / "data" / "biomes_merged.json"
 
-NUM_QUBITS = len(AXES)
-DIM = 2 ** NUM_QUBITS  # 32
 
-EMOJI_MAP: dict[str, tuple[int, int]] = {}  # emoji → (qubit, pole)
-for _q, (_n, _s) in enumerate(AXES):
-    EMOJI_MAP[_n] = (_q, 0)
-    EMOJI_MAP[_s] = (_q, 1)
+def load_axes_for_biome(biome_name: str) -> list[tuple[str, str]]:
+    """Load qubit axes (north, south) pairs from biomes_merged.json."""
+    with open(BIOMES_MERGED, "r", encoding="utf-8") as f:
+        biomes = json.load(f)
+    for entry in biomes:
+        if not isinstance(entry, dict):
+            continue
+        if entry.get("name", "").lower() == biome_name.lower():
+            emojis = entry.get("emojis", [])
+            if len(emojis) < 2 or len(emojis) % 2 != 0:
+                raise ValueError(f"Biome '{biome_name}' has {len(emojis)} emojis (need even)")
+            return [(emojis[i], emojis[i + 1]) for i in range(0, len(emojis), 2)]
+    raise ValueError(f"Biome '{biome_name}' not found in {BIOMES_MERGED}")
 
-EMOJI_NAMES = {
-    "☀": "Sun", "🌙": "Moon",
-    "🐺": "Wolf", "🐇": "Rabbit",
-    "🦅": "Eagle", "🦌": "Deer",
-    "🌲": "Tree", "🍂": "Leaves",
-    "🌱": "Sprout", "🌿": "Herb",
-}
+
+def _build_emoji_map(axes: list[tuple[str, str]]) -> dict[str, tuple[int, int]]:
+    """Build emoji → (qubit, pole) mapping from axes list."""
+    m: dict[str, tuple[int, int]] = {}
+    for q, (n, s) in enumerate(axes):
+        m[n] = (q, 0)
+        m[s] = (q, 1)
+    return m
+
+
+# Module-level defaults (overwritten by configure_biome before analysis)
+AXES: list[tuple[str, str]] = []
+NUM_QUBITS: int = 0
+DIM: int = 0
+EMOJI_MAP: dict[str, tuple[int, int]] = {}
+
+
+def configure_biome(biome_name: str) -> None:
+    """Set module-level AXES/NUM_QUBITS/DIM/EMOJI_MAP for a biome."""
+    global AXES, NUM_QUBITS, DIM, EMOJI_MAP
+    AXES = load_axes_for_biome(biome_name)
+    NUM_QUBITS = len(AXES)
+    DIM = 2 ** NUM_QUBITS
+    EMOJI_MAP = _build_emoji_map(AXES)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Hamiltonian builder (mirrors HamiltonianBuilder.gd logic)
+# ══════════════════════════════════════════════════════════════════════════════
 
 
 def build_hamiltonian(profile: dict, time: float = 0.0) -> np.ndarray:
@@ -572,6 +594,7 @@ def main():
                         help="Output JSON instead of human-readable report")
     args = parser.parse_args()
 
+    configure_biome(args.biome)
     profile = load_hamiltonian_jsonl(args.biome)
     H = build_hamiltonian(profile, time=0.0)
 

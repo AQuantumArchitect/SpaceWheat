@@ -107,6 +107,6 @@ def action_limits_for_action_from_graph(graph: Dict[str, Any], action_name: str)
     return out
 
 
-def action_limits_for_action(profile_id: str = "default", policy_kind: str = "ucb", action_name: str = "lock_offer", extra_lines: Iterable[str] | None = None) -> Dict[str, Any]:
+def action_limits_for_action(profile_id: str = "default", policy_kind: str = "ucb", action_name: str = "quest_cycle", extra_lines: Iterable[str] | None = None) -> Dict[str, Any]:
     graph = load_resolved_graph(profile_id=profile_id, policy_kind=policy_kind, extra_lines=extra_lines)
     return action_limits_for_action_from_graph(graph, action_name)

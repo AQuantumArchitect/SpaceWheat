@@ -11,20 +11,12 @@ class_name PlayerShell
 extends Control
 
 # Access autoload safely (avoids compile-time errors)
-@onready var _verbose = InstrumentLocator.resolve_verbose_config(self)
+@onready var _verbose = get_node_or_null("/root/VerboseConfig")
 
-const OverlayManager = preload("res://UI/Managers/OverlayManager.gd")
-const OverlayStackManager = preload("res://UI/Managers/OverlayStackManager.gd")
-const UIContextController = preload("res://UI/Managers/UIContextController.gd")
-const MenuRegistry = preload("res://UI/Core/MenuRegistry.gd")
-const QuestManager = preload("res://Core/Quests/QuestManager.gd")
-const LoggerConfigPanel = preload("res://UI/Overlays/LoggerConfigPanel.gd")
-const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 # QuantumHUDPanel REMOVED - content merged into InspectorOverlay (N key)
 const QuantumModeStatusIndicator = preload("res://UI/Widgets/QuantumModeStatusIndicator.gd")
 const MenuSelectionRowClass = preload("res://UI/Widgets/MenuSelectionRow.gd")
 const FpsDisplay = preload("res://UI/HUD/FpsDisplay.gd")
-const HintToast = preload("res://UI/Widgets/HintToast.gd")
 
 var current_farm_ui = null  # FarmUI instance (from scene)
 var overlay_manager = null
@@ -37,11 +29,12 @@ var layout_manager: Node = null  # UILayoutManager
 var logger_config_panel = null  # Logger configuration UI
 var snapshot_service = null  # Snapshot/diagnostics node (set by BootManager)
 var quantum_instrument = null  # Unified action interface (set by BootManager)
-var input_handler = null  # Projection of current_farm_ui.input_handler for diagnostics/tests
+var instrument_input = null  # Projection of current_farm_ui.instrument_input for diagnostics/tests
+var cursor_layer: int = 2  ## 0=surface 1=frame 2=biome 3=plot. PlayerShell is the canonical owner.
 var advanced_mode_enabled: bool = false
 # quantum_hud_panel REMOVED - content merged into InspectorOverlay (N key)
 var quantum_mode_indicator: QuantumModeStatusIndicator = null  # Current quantum mode display
-var menu_row: MenuSelectionRowClass = null  # Top bar — ZXCVBNM menu launcher
+var menu_row: MenuSelectionRowClass = null  # Bottom-stack ZXCVBNM ring (owned by ActionBarManager)
 var fps_display: Control = null  # Top-left FPS projection display
 var _hint_toast_stack: VBoxContainer = null  # Bottom-right stack of ephemeral hint toasts
 var _quest_biome_connected: bool = false
@@ -49,6 +42,8 @@ var _overlay_open_frame: Dictionary = {}  # overlay_name -> Engine frame opened
 
 ## Unified Overlay Stack Management (replaces modal_stack)
 var overlay_stack: OverlayStackManager = null
+## Permanent bottom-of-stack sentinel. Makes gameplay a navigable surface-ring position.
+var farm_view: FarmView = null
 
 ## Global pause flag — driven by E (pause) / F (resume) peek in _input.
 ## See UI/Core/KEYBOARD_GRAMMAR.md "Mechanics — side-effect peek".
@@ -85,6 +80,34 @@ func _input(event: InputEvent) -> void:
 
 	var stack_size = overlay_stack.size() if overlay_stack else 0
 	_verbose.debug("input", "⌨️", "PlayerShell._input() KEY: %s, overlay_stack: %d" % [event.keycode, stack_size])
+
+	# Early-pierce: ring navigation always fires before overlay routing so
+	# cursor_layer is always consistent when A/D or overlays run.
+	# W/S spin the cylinder (consumed). A/D step within the active ring (consumed).
+	# Direct-pick keys (ZXCVBNM/4-0/TYUIOP/GHJKL;) anchor the ring WITHOUT
+	# consuming — overlays and QII still receive the event for item selection.
+	if event is InputEventKey and event.pressed and not event.echo:
+		var kc = event.keycode
+		if kc == KEY_W or kc == KEY_S:
+			if _any_menu_open():
+				_set_cursor_layer(0)  # stay pinned to surface ring while an overlay is open
+			else:
+				_set_cursor_layer(posmod(cursor_layer + (1 if kc == KEY_S else -1), 4))
+			_mark_input_handled()
+			return
+		if kc == KEY_A or kc == KEY_D:
+			_step_active_layer(-1 if kc == KEY_A else 1)
+			_mark_input_handled()
+			return
+		if kc in [KEY_Z, KEY_X, KEY_C, KEY_V, KEY_B, KEY_N, KEY_M]:
+			_set_cursor_layer(0)
+		elif kc in [KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9, KEY_0]:
+			_set_cursor_layer(1)
+		elif kc in [KEY_T, KEY_Y, KEY_U, KEY_I, KEY_O, KEY_P]:
+			_set_cursor_layer(2)
+		elif kc in [KEY_G, KEY_H, KEY_J, KEY_K, KEY_L, KEY_SEMICOLON]:
+			_set_cursor_layer(3)
+		# Direct-pick anchors do NOT mark as handled.
 
 	# LAYER 1: Overlay input (highest priority) - uses unified OverlayStackManager
 	if overlay_stack and not overlay_stack.is_empty():
@@ -186,8 +209,8 @@ func _handle_shell_action(event: InputEvent) -> bool:
 		return true
 
 	# , / . are reserved per KEYBOARD_GRAMMAR.md "Selection layer (4 rings)" —
-	# the cylinder's bottom ring (ZXCVBNM) is reachable via WASD spin to
-	# cursor_layer=3 + A/D, so ,/. would only duplicate that gesture.
+	# the cylinder's outer ring (ZXCVBNM) is reachable via WASD spin to
+	# cursor_layer=0 + A/D, so ,/. would only duplicate that gesture.
 	# Intentionally unhandled.
 
 	# - / = — simulation granularity / speed. Stubbed: claims the keys
@@ -217,41 +240,63 @@ func _handle_shell_action(event: InputEvent) -> bool:
 		_cycle_frame_hat(1)
 		return true
 
-	# WASD — crawl the 3-layer grid (frame / biome / plot rows).
-	#   W/S = move cursor layer up/down (frame ↑ … plot ↓)
-	#   A/D = step left/right within the current layer
-	# Biome cycling reuses the same path as [ / ]; frame cycling reuses
-	# select_frame. Both are dispatched by QII.step_active_layer.
-	if keycode == KEY_A:
-		_step_active_layer(-1)
-		return true
-	if keycode == KEY_D:
-		_step_active_layer(1)
-		return true
-	if keycode == KEY_W:
-		_change_cursor_layer(-1)
-		return true
-	if keycode == KEY_S:
-		_change_cursor_layer(1)
-		return true
+	# WASD is handled by the early-pierce block in _input() — not here.
 
 	return false
 
 
 func _step_active_layer(delta: int) -> void:
-	if input_handler and input_handler.has_method("step_active_layer"):
-		input_handler.step_active_layer(delta)
+	if instrument_input and instrument_input.has_method("step_active_layer"):
+		instrument_input.step_active_layer(cursor_layer, delta)
 
 
 func _change_cursor_layer(delta: int) -> void:
-	if input_handler and input_handler.has_method("change_cursor_layer"):
-		input_handler.change_cursor_layer(delta)
+	_set_cursor_layer(posmod(cursor_layer + delta, 4))
+
+
+## Route a tapped/clicked action key (Q/E/R/F) to the same handler as the keyboard path.
+## Connected to ActionPreviewRow.action_pressed for touch/mouse parity.
+func _route_action_key(action_key: String) -> void:
+	# Overlay first — mirrors the keyboard fallthrough order.
+	if overlay_stack and not overlay_stack.is_empty():
+		var top = overlay_stack.get_top()
+		if top and top.has_method("handle_action") and top.handle_action(action_key):
+			return
+	# No overlay — route to instrument actions (gameplay Q/E/R/F).
+	if instrument_input and instrument_input.has_method("invoke_action"):
+		instrument_input.invoke_action(action_key)
+
+
+## Paint amber ring and plot tile visuals for the given layer. Call directly for
+## initial paint at boot (bypasses the idempotency guard in _set_cursor_layer).
+func _paint_cursor_layer(layer: int) -> void:
+	if action_bar_manager and action_bar_manager.has_method("set_active_cursor_layer"):
+		action_bar_manager.set_active_cursor_layer(layer)
+	var pgd = current_farm_ui.plot_grid_display if current_farm_ui and "plot_grid_display" in current_farm_ui else null
+	if pgd and pgd.has_method("set_active_ring"):
+		pgd.set_active_ring(layer == 3)
+
+
+## Single mutation point for cursor_layer. Also drives plot ring enter/leave lifecycle.
+func _set_cursor_layer(layer: int) -> void:
+	if cursor_layer == layer:
+		return
+	var old_layer := cursor_layer
+	cursor_layer = layer
+	_paint_cursor_layer(layer)
+	# Plot ring lifecycle: entering → auto-select plot 0; leaving → clear selection.
+	if old_layer != 3 and layer == 3 and instrument_input:
+		if instrument_input.has_method("enter_plot_ring"):
+			instrument_input.enter_plot_ring()
+	elif old_layer == 3 and layer != 3 and instrument_input:
+		if instrument_input.has_method("leave_plot_ring"):
+			instrument_input.leave_plot_ring()
 
 
 func _cycle_frame_hat(delta: int) -> void:
 	# Used by TAB and by step_active_layer when WASD cursor is on the frame layer.
-	if input_handler and input_handler.has_method("cycle_frame_hat"):
-		input_handler.cycle_frame_hat(delta)
+	if instrument_input and instrument_input.has_method("cycle_frame_hat"):
+		instrument_input.cycle_frame_hat(delta)
 
 
 # =============================================================================
@@ -260,7 +305,9 @@ func _cycle_frame_hat(delta: int) -> void:
 
 func _any_menu_open() -> bool:
 	# Check if any menu (shell or farm) is currently open.
-	if overlay_stack and not overlay_stack.is_empty():
+	# size() > 1 because FarmView is the permanent bottom (index 0) — it
+	# doesn't count as "a menu open."
+	if overlay_stack and overlay_stack.size() > 1:
 		return true
 	if overlay_manager and overlay_manager.quantum_config_ui and overlay_manager.quantum_config_ui.visible:
 		return true
@@ -280,6 +327,7 @@ func _open_escape_menu() -> void:
 	_close_all_menus()
 	if overlay_manager:
 		overlay_manager.open_overlay("escape_menu")
+	_set_cursor_layer(0)
 
 
 func _toggle_shell_menu(menu_name: String) -> void:
@@ -295,6 +343,8 @@ func _toggle_shell_menu(menu_name: String) -> void:
 
 		"controls":
 			overlay_manager.toggle_overlay("controls")
+
+	_set_cursor_layer(0)
 
 
 func _toggle_farm_overlay(overlay_name: String) -> void:
@@ -323,12 +373,12 @@ func _toggle_farm_overlay(overlay_name: String) -> void:
 		_overlay_open_frame[overlay_name] = Engine.get_process_frames()
 	else:
 		_overlay_open_frame.erase(overlay_name)
+	_set_cursor_layer(0)
+
 
 func _cycle_menu_overlay(delta: int) -> void:
-	# Cycle to the previous/next top-level menu (, and . keys).
-
-	# Mirrors the [ / ] biome-cycle pattern. If no top-level menu is currently
-	# open, the first (delta>0) or last (delta<0) menu opens for discoverability.
+	# Cycle the surface ring: A/D on cursor_layer 0 (ZXCVBNM).
+	# Includes "play" (FarmView) at index 0 — the full ring now wraps.
 	if not overlay_manager or not overlay_stack:
 		return
 
@@ -336,30 +386,31 @@ func _cycle_menu_overlay(delta: int) -> void:
 	if menus.is_empty():
 		return
 
-	var current_idx := -1
-	for i in range(menus.size()):
-		var entry_name = str(menus[i].get("overlay_name", ""))
-		if entry_name == "" or not overlay_manager.has_overlay(entry_name):
-			continue
-		var entry_overlay = overlay_manager.get_overlay(entry_name)
-		if entry_overlay and overlay_stack.has_overlay(entry_overlay):
-			current_idx = i
-			break
+	# FarmView at top → play (index 0). Otherwise find the open registered overlay.
+	var current_idx := 0
+	var top = overlay_stack.get_top()
+	if top and top != farm_view:
+		for i in range(menus.size()):
+			var entry_name = str(menus[i].get("overlay_name", ""))
+			if entry_name == "" or not overlay_manager.has_overlay(entry_name):
+				continue
+			if overlay_manager.get_overlay(entry_name) == top:
+				current_idx = i
+				break
 
 	var n = menus.size()
-	var next_idx: int = 0 if delta > 0 else n - 1
-	if current_idx >= 0:
-		next_idx = (current_idx + delta + n) % n
-
+	var next_idx = (current_idx + delta + n) % n
 	var next_entry = menus[next_idx]
-	var next_name = str(next_entry.get("overlay_name", ""))
 	var next_group = str(next_entry.get("menu_group", ""))
-	if next_name == "":
-		return
-	if next_group == "game":
-		_toggle_farm_overlay(next_name)
-	else:
-		_toggle_shell_menu(next_name)
+	var next_name  = str(next_entry.get("overlay_name", ""))
+
+	match next_group:
+		"play":
+			overlay_manager.close_all_overlays()
+		"game":
+			_toggle_farm_overlay(next_name)
+		_:
+			_toggle_shell_menu(next_name)
 
 
 func _ready() -> void:
@@ -381,6 +432,14 @@ func _ready() -> void:
 	add_child(overlay_stack)
 	_verbose.info("ui", "✅", "OverlayStackManager created")
 
+	# Push FarmView as the permanent bottom of the stack. Makes gameplay a
+	# navigable surface-ring position. Never popped; never registered with
+	# overlay_manager (so toggle_overlay radio logic ignores it).
+	farm_view = FarmView.new()
+	add_child(farm_view)
+	overlay_stack.push(farm_view)
+	_verbose.info("ui", "🌾", "FarmView pushed as permanent stack base")
+
 	# Get reference to containers from scene
 	farm_ui_container = get_node("FarmUIContainer")
 	var overlay_layer = get_node("OverlayLayer")
@@ -399,7 +458,6 @@ func _ready() -> void:
 	_verbose.info("ui", "✅", "ActionBarLayer sized for action bar creation: %.0f × %.0f" % [viewport_size.x, viewport_size.y])
 
 	# Create and initialize UILayoutManager
-	const UILayoutManager = preload("res://UI/Managers/UILayoutManager.gd")
 	layout_manager = UILayoutManager.new()
 	add_child(layout_manager)
 
@@ -409,16 +467,21 @@ func _ready() -> void:
 	_verbose.info("ui", "✅", "Quest manager created")
 
 	# Subscribe to PlayerEventLog so importance-2+ entries spawn toasts.
-	if not PlayerEventLog.event_added.is_connected(_on_player_event_added):
-		PlayerEventLog.event_added.connect(_on_player_event_added)
+	var player_event_log = get_node_or_null("/root/PlayerEventLog")
+	if player_event_log and not player_event_log.event_added.is_connected(_on_player_event_added):
+		player_event_log.event_added.connect(_on_player_event_added)
 
 	# ═══════════════════════════════════════════════════════════════
 	# CREATE ACTION BARS DIRECTLY IN ActionBarLayer
 	# ═══════════════════════════════════════════════════════════════
-	const ActionBarManager = preload("res://UI/Managers/ActionBarManager.gd")
 	action_bar_manager = ActionBarManager.new()
 	action_bar_manager.set_layout_manager(layout_manager)
 	action_bar_manager.create_action_bars(action_bar_layer)
+
+	# Wire action chip taps → same handlers as keyboard Q/E/R/F.
+	var apr = action_bar_manager.get_action_row()
+	if apr and apr.has_signal("action_pressed"):
+		apr.action_pressed.connect(_route_action_key)
 
 	_verbose.info("ui", "✅", "Action bars created")
 	# ═══════════════════════════════════════════════════════════════
@@ -456,14 +519,14 @@ func _ready() -> void:
 	overlay_layer.add_child(quantum_mode_indicator)
 	_verbose.info("ui", "✅", "Quantum mode indicator created")
 
-	# Create top menu row (ZXCVBNM overlay launcher — same chrome as bottom rows)
-	menu_row = MenuSelectionRowClass.new()
-	menu_row.name = "MenuSelectionRow"
-	if layout_manager and menu_row.has_method("set_layout_manager"):
-		menu_row.set_layout_manager(layout_manager)
-	menu_row.set_overlay_manager(overlay_manager)
-	overlay_layer.add_child(menu_row)
-	_verbose.info("ui", "✅", "Menu row created (ZXCVBNM launcher)")
+	# MenuSelectionRow now lives at the bottom of the cylinder stack — owned
+	# by ActionBarManager alongside the other 3 selection rings. Wire its
+	# overlay_manager here so it can dispatch overlay toggles on click.
+	if action_bar_manager and action_bar_manager.has_method("get_menu_row"):
+		var menu_widget = action_bar_manager.get_menu_row()
+		if menu_widget and menu_widget.has_method("set_overlay_manager"):
+			menu_widget.set_overlay_manager(overlay_manager)
+		menu_row = menu_widget
 
 	# Create FPS display (top-left projection display)
 	fps_display = FpsDisplay.new()
@@ -537,7 +600,7 @@ func _resolve_advanced_mode() -> bool:
 		return true
 	if env_mode in ["0", "false", "no", "off"]:
 		return false
-	var gsm = InstrumentLocator.resolve_game_state_manager(self)
+	var gsm = get_node_or_null("/root/GameStateManager")
 	if gsm and "current_state" in gsm and gsm.current_state:
 		if "advanced_mode_enabled" in gsm.current_state:
 			return bool(gsm.current_state.advanced_mode_enabled)
@@ -552,7 +615,7 @@ func _apply_top_strip_layout() -> void:
 	var top_offset = 54.0
 	var side_inset = 200.0
 	var indicator_size = Vector2(200, 40)
-	var menu_row_height = 55.0
+	var _menu_row_height = 55.0
 
 	if layout_manager:
 		if layout_manager.has_method("get_resource_bar_height") and layout_manager.has_method("get_top_strip_gap"):
@@ -562,21 +625,13 @@ func _apply_top_strip_layout() -> void:
 		if layout_manager.has_method("get_quantum_indicator_size"):
 			indicator_size = layout_manager.get_quantum_indicator_size()
 		if layout_manager.has_method("get_action_row_height"):
-			menu_row_height = layout_manager.get_action_row_height()
+			_menu_row_height = layout_manager.get_action_row_height()
 
 	if quantum_mode_indicator:
 		quantum_mode_indicator.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 		quantum_mode_indicator.offset_left = -side_inset
 		quantum_mode_indicator.offset_top = top_offset
 		quantum_mode_indicator.custom_minimum_size = indicator_size
-
-	if menu_row:
-		menu_row.set_anchors_preset(Control.PRESET_TOP_WIDE)
-		menu_row.offset_top = top_offset
-		menu_row.offset_bottom = top_offset + menu_row_height
-		menu_row.offset_left = 10
-		menu_row.offset_right = -10
-		menu_row.custom_minimum_size = Vector2(0, menu_row_height)
 
 	if fps_display:
 		fps_display.set_anchors_preset(Control.PRESET_TOP_RIGHT)
@@ -605,7 +660,7 @@ func clear_farm_ui() -> void:
 	if current_farm_ui and is_instance_valid(current_farm_ui):
 		current_farm_ui.queue_free()
 	current_farm_ui = null
-	input_handler = null
+	instrument_input = null
 	farm = null
 	if farm_ui_container:
 		for child in farm_ui_container.get_children():
@@ -635,9 +690,9 @@ func load_farm_ui(farm_ui: Control) -> void:
 		if layout_manager and farm_ui.has_method("inject_layout_manager"):
 			farm_ui.inject_layout_manager(layout_manager)
 
-	# Note: farm_setup_complete fires before input_handler is created.
+	# Note: farm_setup_complete fires before instrument_input is created.
 	# The actual connection is done by BootManager calling connect_to_quantum_input() later.
-	# We don't connect here anymore to avoid the "input_handler not ready" warning.
+	# We don't connect here anymore to avoid the "instrument_input not ready" warning.
 	if not farm_ui.has_signal("farm_setup_complete"):
 		push_error("FarmUI missing farm_setup_complete signal!")
 	else:
@@ -646,22 +701,25 @@ func load_farm_ui(farm_ui: Control) -> void:
 func connect_to_quantum_input() -> void:
 	# Connect to QuantumInstrumentInput after it's created.
 
-	# Called by BootManager after input_handler is created and injected into farm_ui.
+	# Called by BootManager after instrument_input is created and injected into farm_ui.
 	# Wires the Musical Spindle input system to the UI components.
 	var farm_ui = current_farm_ui
-	if not farm_ui or not farm_ui.input_handler:
-		push_warning("connect_to_quantum_input called but input_handler not ready!")
+	if not farm_ui or not farm_ui.instrument_input:
+		push_warning("connect_to_quantum_input called but instrument_input not ready!")
 		return
 
-	var input_handler = farm_ui.input_handler
-	self.input_handler = input_handler
+	var local_instrument_input = farm_ui.instrument_input
+	self.instrument_input = local_instrument_input
 
-	# Cylinder bottom-ring step: when WASD A/D fires on cursor_layer=3
+	# Cylinder outer-ring step: when WASD A/D fires on cursor_layer=0
 	# (the ZXCVBNM surface ring), QII emits surface_ring_step_requested
 	# and we route it to the existing menu-overlay cycle.
-	if input_handler.has_signal("surface_ring_step_requested"):
-		if not input_handler.surface_ring_step_requested.is_connected(_cycle_menu_overlay):
-			input_handler.surface_ring_step_requested.connect(_cycle_menu_overlay)
+	if local_instrument_input.has_signal("surface_ring_step_requested"):
+		if not local_instrument_input.surface_ring_step_requested.is_connected(_cycle_menu_overlay):
+			local_instrument_input.surface_ring_step_requested.connect(_cycle_menu_overlay)
+
+	# Initial paint: _set_cursor_layer has an idempotency guard so use the helper directly.
+	_paint_cursor_layer(cursor_layer)
 
 	# Connect quest_manager to economy (CRITICAL for quest completion!)
 	if quest_manager and farm_ui.farm and farm_ui.farm.economy:
@@ -673,7 +731,7 @@ func connect_to_quantum_input() -> void:
 		quest_manager.connect_to_farm(farm_ui.farm)
 
 	if ui_context_controller:
-		ui_context_controller.bind_quantum_input(input_handler)
+		ui_context_controller.bind_quantum_input(instrument_input)
 		ui_context_controller.bind_farm_ui(farm_ui)
 		_verbose.info("ui", "✔", "UIContextController bound to QuantumInstrumentInput")
 
@@ -684,13 +742,13 @@ func _connect_quest_manager_to_biomes(farm_ui: Control) -> void:
 	if not quest_manager or not farm_ui or not farm_ui.farm:
 		return
 
-	var input_handler = farm_ui.input_handler
-	if not input_handler:
+	var local_instrument_input = farm_ui.instrument_input
+	if not local_instrument_input:
 		push_warning("_connect_quest_manager_to_biomes called before QuantumInstrumentInput ready")
 		return
 
 	var farm_ref = farm_ui.farm
-	var abm = InstrumentLocator.resolve_active_biome_manager(self)
+	var abm = get_node_or_null("/root/ActiveBiomeManager")
 
 	if abm and abm.has_signal("active_biome_changed"):
 		var biome_callable = Callable(self, "_handle_active_biome_change").bind(farm_ref)

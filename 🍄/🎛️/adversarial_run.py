@@ -128,7 +128,7 @@ def extract_step_stats(summary: Dict[str, Any]) -> Dict[str, Any]:
         for a in actions:
             short = {"quest_cycle": "Q", "probe_cycle": "P", "lindblad_drain": "D",
                      "time_skip": "T", "discover_biome": "X", "victory_lap_partial": "V",
-                     "lock_offer": "L", "channel_drain": "C"}.get(a, "?")
+                     "quest_cycle": "L", "lindblad_drain": "C"}.get(a, "?")
             compressed.append(short)
         loop_sequences.append((loop_num, "".join(compressed)))
 
@@ -252,7 +252,7 @@ def main() -> None:
         # Extract results
         found_milk = summary.get("found_milk", False)
         loops = summary.get("loops_completed", "?")
-        pairs = summary.get("known_pairs_count", 0)
+        icons = summary.get("known_icons_count", 0)
         action_pct = summary.get("policy_action_pct", {})
 
         if found_milk:
@@ -260,7 +260,7 @@ def main() -> None:
 
         milk_str = "MILK!" if found_milk else "no milk"
         quest_pct = action_pct.get("quest_cycle", 0) * 100
-        print(f"[cycle {cycle_num}] {milk_str}  loops={loops}  pairs={pairs}  quest={quest_pct:.0f}%  ({elapsed:.1f}s)")
+        print(f"[cycle {cycle_num}] {milk_str}  loops={loops}  icons={icons}  quest={quest_pct:.0f}%  ({elapsed:.1f}s)")
 
         # Step-level stats
         step_stats = extract_step_stats(summary)
@@ -274,7 +274,7 @@ def main() -> None:
         extra = {
             "found_milk": found_milk,
             "loops_completed": loops,
-            "known_pairs_count": pairs,
+            "known_icons_count": icons,
             "profile": args.profile,
             "policy": args.policy,
             "elapsed_s": round(elapsed, 1),
@@ -292,7 +292,7 @@ def main() -> None:
             "cycle": cycle_num,
             "found_milk": found_milk,
             "loops": loops,
-            "pairs": pairs,
+            "icons": icons,
             "quest_pct": round(quest_pct, 1),
             "kl": round(kl, 4),
             "mutations": len(mutations),
@@ -307,11 +307,11 @@ def main() -> None:
     print(f"{'='*60}")
     print(f"[adversarial] SUMMARY: {args.cycles} cycles, {victories} victories")
     print()
-    print(f"{'Cycle':>6s} {'Milk':>6s} {'Loops':>6s} {'Pairs':>6s} {'Quest%':>7s} {'KL':>8s} {'Muts':>5s} {'Accept':>7s} {'InstCmp':>8s} {'AvgRwd':>7s} {'Time':>6s}")
+    print(f"{'Cycle':>6s} {'Milk':>6s} {'Loops':>6s} {'Icons':>6s} {'Quest%':>7s} {'KL':>8s} {'Muts':>5s} {'Accept':>7s} {'InstCmp':>8s} {'AvgRwd':>7s} {'Time':>6s}")
     print("-" * 80)
     for r in results:
         milk_s = "YES" if r["found_milk"] else "no"
-        print(f"{r['cycle']:>6d} {milk_s:>6s} {r['loops']:>6} {r['pairs']:>6d} {r['quest_pct']:>6.1f}% {r['kl']:>8.4f} {r['mutations']:>5d} {r['accept_rate']:>6.0%} {r['instant_complete']:>7.0%} {r['avg_reward']:>+6.1f} {r['elapsed_s']:>5.1f}s")
+        print(f"{r['cycle']:>6d} {milk_s:>6s} {r['loops']:>6} {r['icons']:>6d} {r['quest_pct']:>6.1f}% {r['kl']:>8.4f} {r['mutations']:>5d} {r['accept_rate']:>6.0%} {r['instant_complete']:>7.0%} {r['avg_reward']:>+6.1f} {r['elapsed_s']:>5.1f}s")
 
     # Show final knob deltas
     defaults = FibonacciAdversary()

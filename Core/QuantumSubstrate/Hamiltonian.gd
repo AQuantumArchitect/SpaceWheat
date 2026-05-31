@@ -1,8 +1,6 @@
 class_name Hamiltonian
 extends RefCounted
 
-const Complex = preload("res://Core/QuantumSubstrate/Complex.gd")
-const ComplexMatrix = preload("res://Core/QuantumSubstrate/ComplexMatrix.gd")
 
 ## Hamiltonian: The energy operator for unitary evolution
 ##

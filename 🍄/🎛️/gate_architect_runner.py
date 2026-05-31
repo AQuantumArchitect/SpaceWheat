@@ -111,7 +111,7 @@ def _extract_populations(pmap: dict) -> dict:
     """Extract emoji → float population dict from probability_map response.
 
     The response nests data as: pmap["map"]["by_emoji"] → {emoji: float, ...}
-    Falls back to pmap["populations"] for legacy formats.
+    Falls back to pmap["populations"] for older formats.
     """
     if not isinstance(pmap, dict):
         return {}
@@ -121,10 +121,6 @@ def _extract_populations(pmap: dict) -> dict:
         by_emoji = m.get("by_emoji", {})
         if isinstance(by_emoji, dict):
             return {k: float(v) for k, v in by_emoji.items() if isinstance(v, (int, float))}
-    # Legacy fallback
-    pops = pmap.get("populations", pmap)
-    if isinstance(pops, dict):
-        return {k: float(v) for k, v in pops.items() if isinstance(v, (int, float))}
     return {}
 
 

@@ -141,10 +141,10 @@ const FACTION_TO_VOICE = {
 # =============================================================================
 
 static func get_voice(faction_name: String) -> Dictionary:
-	"""Get voice template for faction"""
+	# Get voice template for faction
 	var voice_key = FACTION_TO_VOICE.get(faction_name, "guild")
 	return FACTION_VOICE[voice_key]
 
 static func get_all_voices() -> Dictionary:
-	"""Get all voice templates"""
+	# Get all voice templates
 	return FACTION_VOICE.duplicate()

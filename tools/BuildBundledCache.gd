@@ -7,8 +7,6 @@ extends SceneTree
 ## Usage:
 ##   godot --headless --path . --script tools/BuildBundledCache.gd
 
-const BiomeRegistry = preload("res://Core/Biomes/BiomeRegistry.gd")
-const OperatorCache = preload("res://Core/QuantumSubstrate/OperatorCache.gd")
 
 var _registry: BiomeRegistry = null
 var _exportable_biomes: Array[String] = []
@@ -50,9 +48,13 @@ func _run() -> void:
 		_fail("BootManager autoload not found")
 		return
 
-	var farm = await boot.boot_core(-1, "default", true)
+	var farm = await boot.boot_session({
+		"slot": -1,
+		"scenario_id": "default",
+		"headless": true,
+	}, null)
 	if not farm:
-		_fail("boot_core() did not return a farm")
+		_fail("boot_session() did not return a farm")
 		return
 	print("  ✓ Core boot complete")
 

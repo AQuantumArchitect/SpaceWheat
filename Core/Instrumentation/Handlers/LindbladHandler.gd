@@ -1,6 +1,6 @@
 extends RefCounted
 
-## LindbladHandler - Static instrumentation handler for Lindblad operations.
+## LindbladHandler - Static instrumentation dispatcher for Lindblad operations.
 ##
 ## Follows ProbeActions pattern:
 ## - Static methods only
@@ -11,8 +11,6 @@ const PULSE_RATE = 1.0
 const PULSE_DT = 0.5
 const PERSISTENT_RATE = 0.5
 const DRAIN_GEAR_EMOJI = "⚙"
-const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
-const ActionCostRuntime = preload("res://Core/GameMechanics/ActionCostRuntime.gd")
 
 
 static func get_preview_cost(action_name: String, axis_pair: Dictionary = {}) -> Dictionary:
@@ -23,12 +21,16 @@ static func get_preview_cost(action_name: String, axis_pair: Dictionary = {}) ->
 	})
 
 
-static func _get_lindblad_cost(action_name: String, north_emoji: String, south_emoji: String) -> Dictionary:
+static func _get_lindblad_cost(action_name: String, north_emoji: String, south_emoji: String, invest_units: int = 0) -> Dictionary:
 	var normalized = EconomyConstants.normalize_action_id(action_name)
-	return EconomyConstants.get_lindblad_injection_cost(normalized, {
+	var ctx := {
 		"north_emoji": north_emoji,
 		"south_emoji": south_emoji
-	})
+	}
+	# Invest-cost symmetry (pump): surprisal cost in the north pole, if supplied.
+	if invest_units > 0:
+		ctx["invest_units"] = invest_units
+	return EconomyConstants.get_lindblad_injection_cost(normalized, ctx)
 
 
 static func _preflight_lindblad_cost(
@@ -36,12 +38,13 @@ static func _preflight_lindblad_cost(
 	action_name: String,
 	north_emoji: String,
 	south_emoji: String,
-	insufficient: Dictionary
+	insufficient: Dictionary,
+	invest_units: int = 0
 ) -> Dictionary:
 	if not farm or not farm.economy:
 		return {}
 
-	var cost = _get_lindblad_cost(action_name, north_emoji, south_emoji)
+	var cost = _get_lindblad_cost(action_name, north_emoji, south_emoji, invest_units)
 	var gate = ActionCostRuntime.preflight_cost(farm.economy, cost)
 	if not gate.get("ok", true):
 		for emoji in cost.keys():
@@ -109,7 +112,7 @@ static func _project_register_for_position(farm, biome, pos: Vector2i) -> int:
 
 
 static func _resolve_axis_binding(farm, pos: Vector2i, biome) -> Dictionary:
-	"""Resolve axis+register for a plot without mutating plot binding state."""
+	# Resolve axis+register for a plot without mutating plot binding state.
 	var north = ""
 	var south = ""
 	var register_id = -1
@@ -151,8 +154,56 @@ static func _get_register_infra(biome, register_id: int) -> Dictionary:
 	return biome.quantum_computer._ensure_register_infra(register_id)
 
 
+## Install the inverse persistent Lindblad flag on TheDemos (player neighborhood)
+## so every Merchant transfer is conservation-paired.
+##
+##   kind = "pump":  player drained from B → TheDemos pumps the same emoji (mass arrives)
+##   kind = "drain": player pumped to B    → TheDemos drains the same emoji (mass departs)
+##
+## No-ops silently if TheDemos doesn't have the emoji as a qubit (golden-cut
+## simplification — we don't expand TheDemos's signature here). Caller gets
+## a diagnostic dict either way for trajectory logging.
+static func _install_demos_inverse(farm, emoji: String, kind: String, rate: float) -> Dictionary:
+	if not farm or not farm.grid or emoji == "":
+		return {"installed": false, "reason": "bad_args", "emoji": emoji, "kind": kind}
+	var demos = farm.grid.get_biome("TheDemos") if farm.grid.has_method("get_biome") else null
+	if demos == null or demos.quantum_computer == null:
+		return {"installed": false, "reason": "no_demos", "emoji": emoji, "kind": kind}
+	if not demos.quantum_computer.has(emoji):
+		return {"installed": false, "reason": "emoji_not_in_demos_qc", "emoji": emoji, "kind": kind}
+	var demos_qid: int = int(demos.quantum_computer.qubit(emoji))
+	var infra = _get_register_infra(demos, demos_qid)
+	if infra.is_empty():
+		return {"installed": false, "reason": "no_infra", "emoji": emoji, "kind": kind}
+
+	if kind == "pump":
+		infra["lindblad_pump_active"] = true
+		infra["lindblad_pump_rate"] = rate
+		infra["lindblad_harvest_visible"] = true
+	elif kind == "drain":
+		infra["lindblad_drain_active"] = true
+		infra["lindblad_drain_rate"] = rate
+		infra["lindblad_harvest_visible"] = true
+	else:
+		return {"installed": false, "reason": "unknown_kind", "kind": kind}
+
+	# Trajectory log entry — unified observation across all merchant moves.
+	var main_loop = Engine.get_main_loop()
+	if main_loop and main_loop is SceneTree:
+		var story_engine = main_loop.root.get_node_or_null("/root/StoryEngine")
+		if story_engine != null and story_engine.has_method("note_market_action"):
+			story_engine.note_market_action({
+				"kind": "merchant_" + kind,
+				"emoji": emoji,
+				"target_biome": "TheDemos",
+				"rate": rate,
+			})
+
+	return {"installed": true, "kind": kind, "emoji": emoji, "rate": rate, "demos_qubit": demos_qid}
+
+
 static func _resolve_qubit_index(biome, emoji: String) -> int:
-	"""Resolve qubit index from viz_cache metadata."""
+	# Resolve qubit index from viz_cache metadata.
 	if not biome or emoji == "":
 		return -1
 	if biome.viz_cache and biome.viz_cache.has_metadata():
@@ -167,10 +218,9 @@ static func _resolve_qubit_index(biome, emoji: String) -> int:
 ## ============================================================================
 
 static func lindblad_drive(farm, positions: Array[Vector2i]) -> Dictionary:
-	"""Apply Lindblad drive to increase population on selected plots.
+	# Apply Lindblad drive to increase population on selected plots.
 
-	Drive operation pumps population into the target state.
-	"""
+	# Drive operation pumps population into the target state.
 	if not farm or not farm.grid:
 		return {
 			"success": false,
@@ -217,10 +267,9 @@ static func lindblad_drive(farm, positions: Array[Vector2i]) -> Dictionary:
 
 
 static func lindblad_decay(farm, positions: Array[Vector2i]) -> Dictionary:
-	"""Apply Lindblad decay to decrease population on selected plots.
+	# Apply Lindblad decay to decrease population on selected plots.
 
-	Decay operation removes population from the target state.
-	"""
+	# Decay operation removes population from the target state.
 	if not farm or not farm.grid:
 		return {
 			"success": false,
@@ -270,7 +319,7 @@ static func lindblad_decay(farm, positions: Array[Vector2i]) -> Dictionary:
 
 static func enable_persistent_drive(farm, positions: Array[Vector2i],
 		rate: float = PERSISTENT_RATE) -> Dictionary:
-	"""Enable continuous Lindblad drive on selected plots."""
+	# Enable continuous Lindblad drive on selected plots.
 	if not farm or not farm.grid:
 		return {
 			"success": false,
@@ -326,12 +375,18 @@ static func enable_persistent_drive(farm, positions: Array[Vector2i],
 			already_active += 1
 			continue
 
+		# Invest-cost symmetry: pump (R/import) charges the surprisal of the target
+		# north pole — forcing an improbable pole costs more (twin of harvest reward).
+		var pump_units := EnergyPricing.invest_units(
+			clampf(float(biome.quantum_computer.get_marginal(qubit_idx, 0)), 0.0, 1.0),
+			EnergyPricing.biome_temperature(biome, farm))
 		var cost = _preflight_lindblad_cost(
 			farm,
 			EconomyConstants.normalize_action_id("lindblad_pump"),
 			north_emoji,
 			south_emoji,
-			insufficient
+			insufficient,
+			pump_units
 		)
 		if cost.is_empty():
 			continue
@@ -346,6 +401,11 @@ static func enable_persistent_drive(farm, positions: Array[Vector2i],
 		charged_count += 1
 		success_count += 1
 		driven_emojis[north_emoji] = driven_emojis.get(north_emoji, 0) + 1
+
+		# Lindbladian conservation pair: pumping into this biome's emoji
+		# means mass flows OUT of TheDemos for the same emoji. Install the
+		# inverse drain flag on TheDemos.
+		_install_demos_inverse(farm, north_emoji, "drain", rate)
 
 	var result = {
 		"success": success_count > 0,
@@ -379,7 +439,7 @@ static func enable_persistent_drive(farm, positions: Array[Vector2i],
 
 static func enable_persistent_decay(farm, positions: Array[Vector2i],
 		rate: float = PERSISTENT_RATE) -> Dictionary:
-	"""Enable continuous Lindblad decay on selected plots."""
+	# Enable continuous Lindblad decay on selected plots.
 	if not farm or not farm.grid:
 		return {
 			"success": false,
@@ -458,6 +518,11 @@ static func enable_persistent_decay(farm, positions: Array[Vector2i],
 		success_count += 1
 		decayed_emojis[north_emoji] = decayed_emojis.get(north_emoji, 0) + 1
 
+		# Lindbladian conservation pair: the mass leaving this biome's emoji
+		# arrives at TheDemos. Install the inverse pump flag on TheDemos so
+		# the player faction physically gains what was drained.
+		_install_demos_inverse(farm, north_emoji, "pump", rate)
+
 	var result = {
 		"success": success_count > 0,
 		"decayed_count": success_count,
@@ -489,10 +554,9 @@ static func enable_persistent_decay(farm, positions: Array[Vector2i],
 
 
 static func lindblad_transfer(farm, positions: Array[Vector2i]) -> Dictionary:
-	"""Transfer population between two selected plots.
+	# Transfer population between two selected plots.
 
-	Requires exactly 2 plots. Transfers from first to second.
-	"""
+	# Requires exactly 2 plots. Transfers from first to second.
 	if not farm or not farm.grid:
 		return {
 			"success": false,
@@ -554,10 +618,9 @@ static func lindblad_transfer(farm, positions: Array[Vector2i]) -> Dictionary:
 
 
 static func pump_to_wheat(farm, positions: Array[Vector2i]) -> Dictionary:
-	"""Establish pump channel from south to wheat.
+	# Establish pump channel from south to wheat.
 
-	Creates Lindblad pump operator for population transfer.
-	"""
+	# Creates Lindblad pump operator for population transfer.
 	if not farm or not farm.grid:
 		return {
 			"success": false,
@@ -600,7 +663,7 @@ static func pump_to_wheat(farm, positions: Array[Vector2i]) -> Dictionary:
 
 
 static func _resolve_north_emoji(farm, pos: Vector2i) -> String:
-	"""Resolve north emoji from plot (delegates to terminal when attached)."""
+	# Resolve north emoji from plot (delegates to terminal when attached).
 	var plot = farm.grid.get_plot(pos) if farm and farm.grid else null
 	if plot and plot.is_active():
 		return plot.north_emoji if plot.north_emoji else ""
@@ -608,7 +671,7 @@ static func _resolve_north_emoji(farm, pos: Vector2i) -> String:
 
 
 static func _resolve_south_emoji(farm, pos: Vector2i) -> String:
-	"""Resolve south emoji from plot."""
+	# Resolve south emoji from plot.
 	var plot = farm.grid.get_plot(pos) if farm and farm.grid else null
 	if plot and plot.is_active():
 		return plot.south_emoji if plot.south_emoji else ""

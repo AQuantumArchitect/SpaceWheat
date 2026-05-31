@@ -2,8 +2,13 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$ROOT_DIR/scripts/lib/godot_runtime_env.sh"
 OUT_DIR="${1:-$ROOT_DIR/🍄/🎛️/.godot_tmp/render_profiles_$(date +%Y%m%d_%H%M%S)}"
 mkdir -p "$OUT_DIR"
+PROFILE_HOME="${PROFILE_HOME:-$OUT_DIR/runtime_home}"
+PROFILE_CONFIG_HOME="${PROFILE_CONFIG_HOME:-$OUT_DIR/runtime_config}"
+PROFILE_DATA_HOME="${PROFILE_DATA_HOME:-$OUT_DIR/runtime_data}"
+mkdir -p "$PROFILE_HOME" "$PROFILE_CONFIG_HOME" "$PROFILE_DATA_HOME"
 
 WARMUP_FRAMES="${PROFILE_WARMUP_FRAMES:-90}"
 SAMPLE_FRAMES="${PROFILE_SAMPLE_FRAMES:-240}"
@@ -48,7 +53,7 @@ run_case() {
 	echo "mode=$mode dense_terminals=$dense_terminals multi_biomes=$multi_biomes expanded=${expanded_biomes}x${expanded_terminals_per_biome}"
 	echo "============================================================"
 
-	local cmd=(godot --path "$ROOT_DIR")
+	local cmd=(sw_godot --path "$ROOT_DIR")
 	if [ -n "$RENDERING_DRIVER" ]; then
 		cmd+=(--rendering-driver "$RENDERING_DRIVER")
 	fi
@@ -68,6 +73,9 @@ run_case() {
 	)
 
 	set +e
+	HOME="$PROFILE_HOME" \
+	XDG_CONFIG_HOME="$PROFILE_CONFIG_HOME" \
+	XDG_DATA_HOME="$PROFILE_DATA_HOME" \
 	"${cmd[@]}" 2>&1 | tee "$log_path"
 	local status=${PIPESTATUS[0]}
 	set -e
@@ -92,6 +100,8 @@ if [ -n "$REQUESTED_CASES" ]; then
 	echo "requested cases: $REQUESTED_CASES"
 fi
 echo
+
+sw_prepare_runtime_env "interactive"
 
 run_case "00_dormant" "dormant" 0 0
 run_case "01_single" "single" 1 1

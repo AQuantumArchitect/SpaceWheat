@@ -3,7 +3,7 @@ extends RefCounted
 
 ## ABSTRACT QUANTUM MACHINERY
 ## Matches faction state-shape preferences against biome observables
-## NO game-specific content - works with any QuantumBath!
+## NO game-specific content - works with any QuantumComputer-backed substrate.
 ##
 ## 12-Bit Faction Encoding (from faction classification):
 ##   [0]: Random(0) ↔ Deterministic(1)
@@ -26,24 +26,24 @@ extends RefCounted
 # ============================================================================
 
 class BiomeObservables:
-	"""Abstract quantum observables from any bath"""
-	var purity: float = 0.5       # Tr(rho^2) in [1/N, 1]
-	var entropy: float = 0.5      # Normalized to [0, 1]
-	var coherence: float = 0.0    # Sum of |rho_ij|^2 for i!=j, in [0, 1]
-	var distribution_shape: int = 2  # 0=peaked, 1=bimodal, 2=spread, 3=uniform
-	var scale: float = 0.5        # Total probability mass (activity level)
-	var dynamics: float = 0.5     # Evolution rate (how fast state changes)
+	# Abstract quantum observables from any register substrate
+	var purity: float = -1.0       # Tr(rho^2) in [1/N, 1]
+	var entropy: float = -1.0      # Normalized to [0, 1]
+	var coherence: float = -1.0    # Sum of |rho_ij|^2 for i!=j, in [0, 1]
+	var distribution_shape: int = -1  # 0=peaked, 1=bimodal, 2=spread, 3=uniform
+	var scale: float = -1.0        # Total probability mass (activity level)
+	var dynamics: float = -1.0     # Evolution rate (how fast state changes)
 
 
 class QuestParameters:
-	"""Abstract quest parameters - game applies theming"""
-	var alignment: float = 0.5    # How well matched [0, 1]
-	var intensity: float = 0.5    # Derived from scale preferences
-	var complexity: float = 0.5   # Derived from entropy x coherence
-	var urgency: float = 0.0      # Derived from dynamics preference
-	var variety: float = 0.5      # Derived from distribution shape
+	# Abstract quest parameters - game applies theming
+	var alignment: float = -1.0    # How well matched [0, 1], -1 = unknown
+	var intensity: float = -1.0    # Derived from scale preferences
+	var complexity: float = -1.0   # Derived from entropy x coherence
+	var urgency: float = -1.0      # Derived from dynamics preference
+	var variety: float = -1.0      # Derived from distribution shape
 	var basis_weights: Array = [] # Probability weights for each basis state
-	var available_emojis: Array = []  # Vocabulary constraint (faction ∩ player)
+	var available_emojis: Array = []  # Signature constraint (faction ∩ player)
 	var operator_weights: Dictionary = {}  # Quest type distribution from faction bits (Born rule sampling)
 
 
@@ -51,33 +51,28 @@ class QuestParameters:
 # CORE MACHINERY
 # ============================================================================
 
-static func extract_observables(bath, biome = null) -> BiomeObservables:
-	"""Extract abstract observables from ANY QuantumBath
+static func extract_observables(substrate, biome = null) -> BiomeObservables:
+	# Extract abstract observables from a biome or QuantumComputer.
 
-	Args:
-		bath: QuantumBath instance
-		biome: Optional biome reference for dynamics tracking
-	"""
+	# Args:
+	# substrate: BiomeBase, QuantumComputer, or density wrapper
+	# biome: Optional biome reference for dynamics tracking
 	var obs = BiomeObservables.new()
+	var state_source = _resolve_state_source(substrate, biome)
+	var density_matrix = _resolve_density_matrix(state_source)
 
-	if bath == null:
+	if state_source == null or density_matrix == null:
 		return obs
 
-	if not bath.has_method("get_purity"):
-		return obs
-
-	var density_matrix = bath.get("_density_matrix")
-	if density_matrix == null:
-		return obs
-
-	# Purity: Tr(rho^2)
-	obs.purity = bath.get_purity()
+	obs.purity = _get_purity(state_source, density_matrix)
 
 	# Entropy: -log(purity) normalized to [0, 1]
-	var dim = density_matrix.dimension()
+	var dim = _density_dim(density_matrix)
 	var max_entropy = log(dim) if dim > 1 else 1.0
 	if obs.purity > 0 and max_entropy > 0:
 		obs.entropy = clamp(-log(obs.purity) / max_entropy, 0.0, 1.0)
+	else:
+		obs.entropy = -1.0
 
 	# Coherence: sum of off-diagonal magnitudes squared
 	obs.coherence = _calculate_coherence(density_matrix)
@@ -92,93 +87,108 @@ static func extract_observables(bath, biome = null) -> BiomeObservables:
 	if biome and "dynamics_tracker" in biome and biome.dynamics_tracker:
 		obs.dynamics = biome.dynamics_tracker.get_dynamics()
 	else:
-		obs.dynamics = 0.5  # Fallback for neutral dynamics
+		obs.dynamics = -1.0
 
 	return obs
 
 
 static func compute_alignment(faction_bits: Array, obs: BiomeObservables) -> float:
-	"""Core alignment computation - NO game-specific content!
+	# Core alignment computation - NO game-specific content!
 
-	faction_bits[0-1]: purity preference
-	faction_bits[2-3]: entropy preference
-	faction_bits[4-5]: coherence preference
-	faction_bits[6-7]: distribution shape preference
-	faction_bits[8-9]: scale preference
-	faction_bits[10-11]: dynamics preference
+	# faction_bits[0-1]: purity preference
+	# faction_bits[2-3]: entropy preference
+	# faction_bits[4-5]: coherence preference
+	# faction_bits[6-7]: distribution shape preference
+	# faction_bits[8-9]: scale preference
+	# faction_bits[10-11]: dynamics preference
 
-	Uses HYBRID approach: weighted average of individual matches
-	This gives better gameplay values (0.2-0.9) instead of tiny products (0.001-0.01)
-	"""
+	# Uses HYBRID approach: weighted average of individual matches
+	# This gives better gameplay values (0.2-0.9) instead of tiny products (0.001-0.01)
 	if faction_bits.size() < 12:
-		return 0.5  # Neutral alignment if not enough bits
+		return -1.0  # Not enough preference data to score honestly
 
 	var total_score = 0.0
 	var total_weight = 0.0
 
 	# Purity alignment (bits 0-1) - WEIGHT: 2.0 (most important)
 	var purity_pref = _bits_to_range(faction_bits[0], faction_bits[1])
-	var purity_match = _gaussian_match(purity_pref, obs.purity, 0.4)
-	total_score += purity_match * 2.0
-	total_weight += 2.0
+	if _is_known_observable(obs.purity):
+		var purity_match = _gaussian_match(purity_pref, obs.purity, 0.4)
+		total_score += purity_match * 2.0
+		total_weight += 2.0
 
 	# Entropy alignment (bits 2-3) - WEIGHT: 2.0 (most important)
 	var entropy_pref = _bits_to_range(faction_bits[2], faction_bits[3])
-	var entropy_match = _gaussian_match(entropy_pref, obs.entropy, 0.4)
-	total_score += entropy_match * 2.0
-	total_weight += 2.0
+	if _is_known_observable(obs.entropy):
+		var entropy_match = _gaussian_match(entropy_pref, obs.entropy, 0.4)
+		total_score += entropy_match * 2.0
+		total_weight += 2.0
 
 	# Coherence alignment (bits 4-5) - WEIGHT: 1.5
 	var coherence_pref = _bits_to_range(faction_bits[4], faction_bits[5])
-	var coherence_match = _gaussian_match(coherence_pref, obs.coherence, 0.4)
-	total_score += coherence_match * 1.5
-	total_weight += 1.5
+	if _is_known_observable(obs.coherence):
+		var coherence_match = _gaussian_match(coherence_pref, obs.coherence, 0.4)
+		total_score += coherence_match * 1.5
+		total_weight += 1.5
 
 	# Distribution shape alignment (bits 6-7) - WEIGHT: 1.0
 	var shape_pref = faction_bits[6] * 2 + faction_bits[7]
-	var shape_match = 1.0 if shape_pref == obs.distribution_shape else 0.3
-	total_score += shape_match * 1.0
-	total_weight += 1.0
+	if obs.distribution_shape >= 0:
+		var shape_match = 1.0 if shape_pref == obs.distribution_shape else 0.3
+		total_score += shape_match * 1.0
+		total_weight += 1.0
 
 	# Scale alignment (bits 8-9) - WEIGHT: 1.0
 	var scale_pref = _bits_to_range(faction_bits[8], faction_bits[9])
-	var scale_match = _gaussian_match(scale_pref, obs.scale, 0.4)
-	total_score += scale_match * 1.0
-	total_weight += 1.0
+	if _is_known_observable(obs.scale):
+		var scale_match = _gaussian_match(scale_pref, obs.scale, 0.4)
+		total_score += scale_match * 1.0
+		total_weight += 1.0
 
 	# Dynamics alignment (bits 10-11) - WEIGHT: 0.5 (least important, often 0.5)
 	var dynamics_pref = _bits_to_range(faction_bits[10], faction_bits[11])
-	var dynamics_match = _gaussian_match(dynamics_pref, obs.dynamics, 0.4)
-	total_score += dynamics_match * 0.5
-	total_weight += 0.5
+	if _is_known_observable(obs.dynamics):
+		var dynamics_match = _gaussian_match(dynamics_pref, obs.dynamics, 0.4)
+		total_score += dynamics_match * 0.5
+		total_weight += 0.5
 
 	# Weighted average: gives values in [0, 1] range
-	return total_score / total_weight
+	return total_score / total_weight if total_weight > 0.0 else -1.0
 
 
-static func generate_quest_parameters(faction_bits: Array, obs: BiomeObservables, bath) -> QuestParameters:
-	"""Generate abstract quest parameters from faction x biome"""
+static func generate_quest_parameters(faction_bits: Array, obs: BiomeObservables, substrate) -> QuestParameters:
+	# Generate abstract quest parameters from faction x biome
 	var params = QuestParameters.new()
 
 	# Core alignment
 	params.alignment = compute_alignment(faction_bits, obs)
+	if params.alignment < 0.0:
+		params.alignment = 0.0
 
 	# Intensity: scale preference x biome scale
 	var scale_pref = _bits_to_range(faction_bits[8], faction_bits[9]) if faction_bits.size() >= 10 else 0.5
-	params.intensity = scale_pref * obs.scale
+	params.intensity = scale_pref * obs.scale if _is_known_observable(obs.scale) else 0.0
 
 	# Complexity: entropy x coherence (high of both = complex)
-	params.complexity = obs.entropy * 0.5 + obs.coherence * 0.5
+	var complexity_sum = 0.0
+	var complexity_count = 0.0
+	if _is_known_observable(obs.entropy):
+		complexity_sum += obs.entropy
+		complexity_count += 1.0
+	if _is_known_observable(obs.coherence):
+		complexity_sum += obs.coherence
+		complexity_count += 1.0
+	params.complexity = complexity_sum / complexity_count if complexity_count > 0.0 else 0.0
 
 	# Urgency: from dynamics preference
 	var dynamics_pref = _bits_to_range(faction_bits[10], faction_bits[11]) if faction_bits.size() >= 12 else 0.5
-	params.urgency = dynamics_pref * obs.dynamics
+	params.urgency = dynamics_pref * obs.dynamics if _is_known_observable(obs.dynamics) else 0.0
 
 	# Variety: from distribution shape
-	params.variety = float(obs.distribution_shape) / 3.0
+	params.variety = float(obs.distribution_shape) / 3.0 if obs.distribution_shape >= 0 else 0.0
 
-	# Basis weights: probability distribution from bath
-	params.basis_weights = _get_basis_weights(bath)
+	# Basis weights: probability distribution from the register substrate
+	params.basis_weights = _get_basis_weights(substrate)
 
 	# Operator weights: quest type probability distribution from faction bits
 	# Born rule sampling over operator structures (amplitude/coherence/ratio/multi)
@@ -187,48 +197,88 @@ static func generate_quest_parameters(faction_bits: Array, obs: BiomeObservables
 	return params
 
 
-static func sample_basis_index(params: QuestParameters) -> int:
-	"""Sample from probability distribution - returns INDEX (not game content!)"""
-	if params.basis_weights.is_empty():
-		return 0
-
-	var roll = randf()
-	var cumulative = 0.0
-
-	for i in range(params.basis_weights.size()):
-		cumulative += params.basis_weights[i]
-		if roll <= cumulative:
-			return i
-
-	return params.basis_weights.size() - 1
-
-
 # ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
 
+static func _resolve_state_source(substrate, biome = null):
+	var source = substrate if substrate != null else biome
+	if source == null:
+		return null
+	if "quantum_computer" in source and source.quantum_computer:
+		return source.quantum_computer
+	return source
+
+
+static func _resolve_density_matrix(state_source):
+	if state_source == null:
+		return null
+	if "density_matrix" in state_source and state_source.density_matrix:
+		return state_source.density_matrix
+	if state_source.has_method("get_density_matrix"):
+		return state_source.get_density_matrix()
+	return null
+
+
+static func _get_purity(state_source, density_matrix) -> float:
+	if state_source and state_source.has_method("get_purity"):
+		return clampf(float(state_source.get_purity()), 0.0, 1.0)
+	if density_matrix and density_matrix.has_method("get_purity"):
+		return clampf(float(density_matrix.get_purity()), 0.0, 1.0)
+	return -1.0
+
+
+static func _density_dim(density_matrix) -> int:
+	if density_matrix == null:
+		return 0
+	if density_matrix.has_method("dimension"):
+		return int(density_matrix.dimension())
+	if "n" in density_matrix:
+		return int(density_matrix.n)
+	return 0
+
+
+static func _density_matrix_view(density_matrix):
+	if density_matrix != null and density_matrix.has_method("get_matrix"):
+		var matrix = density_matrix.get_matrix()
+		if matrix:
+			return matrix
+	return density_matrix
+
+
+static func _basis_probability(density_matrix, index: int) -> float:
+	if density_matrix == null:
+		return 0.0
+	if density_matrix.has_method("get_probability_by_index"):
+		return clampf(float(density_matrix.get_probability_by_index(index)), 0.0, 1.0)
+	if density_matrix.has_method("get_diagonal_real"):
+		return clampf(float(density_matrix.get_diagonal_real(index)), 0.0, 1.0)
+	if density_matrix.has_method("get_element"):
+		return clampf(float(density_matrix.get_element(index, index).re), 0.0, 1.0)
+	return 0.0
+
 static func _bits_to_range(bit0: int, bit1: int) -> float:
-	"""Convert 2 bits to [0, 1] range: 00->0.125, 01->0.375, 10->0.625, 11->0.875"""
+	# Convert 2 bits to [0, 1] range: 00->0.125, 01->0.375, 10->0.625, 11->0.875
 	var value = bit0 * 2 + bit1  # 0, 1, 2, or 3
 	return (value + 0.5) / 4.0
 
 
 static func _gaussian_match(preference: float, actual: float, sigma: float = 0.3) -> float:
-	"""Gaussian similarity: high when preference ~= actual"""
+	# Gaussian similarity: high when preference ~= actual
 	var diff = preference - actual
 	return exp(-(diff * diff) / (2.0 * sigma * sigma))
 
 
 static func _calculate_coherence(density_matrix) -> float:
-	"""Calculate total off-diagonal magnitude squared"""
+	# Calculate total off-diagonal magnitude squared
 	if density_matrix == null:
-		return 0.0
+		return -1.0
 
-	var dim = density_matrix.dimension()
+	var dim = _density_dim(density_matrix)
 	if dim < 2:
 		return 0.0
 
-	var mat = density_matrix.get_matrix()
+	var mat = _density_matrix_view(density_matrix)
 	if mat == null:
 		return 0.0
 
@@ -247,15 +297,15 @@ static func _calculate_coherence(density_matrix) -> float:
 
 
 static func _classify_distribution(density_matrix) -> int:
-	"""Classify probability distribution shape: 0=peaked, 1=bimodal, 2=spread, 3=uniform"""
+	# Classify probability distribution shape: 0=peaked, 1=bimodal, 2=spread, 3=uniform
 	if density_matrix == null:
-		return 2
+		return -1
 
 	var probs = []
-	var dim = density_matrix.dimension()
+	var dim = _density_dim(density_matrix)
 
 	for i in range(dim):
-		probs.append(density_matrix.get_probability_by_index(i))
+		probs.append(_basis_probability(density_matrix, i))
 
 	probs.sort()
 	probs.reverse()  # Descending order
@@ -279,7 +329,7 @@ static func _classify_distribution(density_matrix) -> int:
 
 
 static func _calculate_variance(probs: Array) -> float:
-	"""Calculate variance of probability distribution"""
+	# Calculate variance of probability distribution
 	if probs.is_empty():
 		return 0.0
 
@@ -294,39 +344,40 @@ static func _calculate_variance(probs: Array) -> float:
 
 
 static func _calculate_scale(density_matrix) -> float:
-	"""Calculate total 'active' probability mass"""
+	# Calculate total 'active' probability mass
 	if density_matrix == null:
-		return 0.5
+		return -1.0
 
 	# Sum probabilities above threshold
 	var active_mass = 0.0
-	var dim = density_matrix.dimension()
+	var dim = _density_dim(density_matrix)
 	var threshold = 0.05
 
 	for i in range(dim):
-		var prob = density_matrix.get_probability_by_index(i)
+		var prob = _basis_probability(density_matrix, i)
 		if prob > threshold:
 			active_mass += prob
 
 	return clamp(active_mass, 0.0, 1.0)
 
 
-static func _get_basis_weights(bath) -> Array:
-	"""Get probability weights for all basis states"""
+static func _get_basis_weights(substrate) -> Array:
+	# Get probability weights for all basis states
 	var weights = []
+	var state_source = _resolve_state_source(substrate)
 
-	if bath == null:
+	if state_source == null:
 		return [1.0]  # Single uniform weight
 
-	var density_matrix = bath.get("_density_matrix")
+	var density_matrix = _resolve_density_matrix(state_source)
 	if density_matrix == null:
 		return [1.0]
 
-	var dim = density_matrix.dimension()
+	var dim = _density_dim(density_matrix)
 	var total = 0.0
 
 	for i in range(dim):
-		var prob = density_matrix.get_probability_by_index(i)
+		var prob = _basis_probability(density_matrix, i)
 		weights.append(prob)
 		total += prob
 
@@ -338,12 +389,16 @@ static func _get_basis_weights(bath) -> Array:
 	return weights
 
 
+static func _is_known_observable(value: float) -> bool:
+	return value >= 0.0
+
+
 # ============================================================================
 # DEBUG / UTILITY
 # ============================================================================
 
 static func describe_preferences(faction_bits: Array) -> String:
-	"""Human-readable description of faction preferences from bits"""
+	# Human-readable description of faction preferences from bits
 	if faction_bits.size() < 12:
 		return "insufficient bits"
 
@@ -383,17 +438,17 @@ static func describe_preferences(faction_bits: Array) -> String:
 
 
 static func describe_observables(obs: BiomeObservables) -> String:
-	"""Human-readable description of biome observables"""
+	# Human-readable description of biome observables
 	var parts = []
-	parts.append("purity: %.2f" % obs.purity)
-	parts.append("entropy: %.2f" % obs.entropy)
-	parts.append("coherence: %.2f" % obs.coherence)
+	parts.append("purity: " + ("—" if obs.purity < 0.0 else "%.2f" % obs.purity))
+	parts.append("entropy: " + ("—" if obs.entropy < 0.0 else "%.2f" % obs.entropy))
+	parts.append("coherence: " + ("—" if obs.coherence < 0.0 else "%.2f" % obs.coherence))
 
 	var shape_names = ["peaked", "bimodal", "spread", "uniform"]
 	parts.append("shape: " + shape_names[obs.distribution_shape])
 
-	parts.append("scale: %.2f" % obs.scale)
-	parts.append("dynamics: %.2f" % obs.dynamics)
+	parts.append("scale: " + ("—" if obs.scale < 0.0 else "%.2f" % obs.scale))
+	parts.append("dynamics: " + ("—" if obs.dynamics < 0.0 else "%.2f" % obs.dynamics))
 
 	return ", ".join(parts)
 
@@ -403,13 +458,12 @@ static func describe_observables(obs: BiomeObservables) -> String:
 # ============================================================================
 
 static func calculate_operator_weights(faction_bits: Array) -> Dictionary:
-	"""Calculate continuous weights for different operator types
+	# Calculate continuous weights for different operator types
 
-	Accepts int or float values in [0,1] - prepares for future continuous distributions!
+	# Accepts int or float values in [0,1] - prepares for future continuous distributions!
 
-	Returns:
-		Dictionary with probability weights for quest structures
-	"""
+	# Returns:
+	# Dictionary with probability weights for quest structures
 
 	# Convert to floats (works with int 0/1 or float values)
 	var material_mystical = float(faction_bits[1]) if faction_bits.size() > 1 else 0.0  # diagonal vs off-diagonal
@@ -452,225 +506,4 @@ static func calculate_operator_weights(faction_bits: Array) -> Dictionary:
 		"multi": 0.25,
 		"selectivity": 0.5,
 		"target_mode": 0.5,
-	}
-
-
-static func sample_operator_structure(weights: Dictionary) -> String:
-	"""Sample quest structure from probability distribution (Born rule)
-
-	This is the ONLY stochastic step - sampling from continuous probabilities
-	"""
-
-	var roll = randf()
-	var cumulative = 0.0
-
-	# Cumulative probability sampling
-	cumulative += weights.get("amplitude", 0.0)
-	if roll < cumulative:
-		return "amplitude"
-
-	cumulative += weights.get("coherence", 0.0)
-	if roll < cumulative:
-		return "coherence"
-
-	cumulative += weights.get("ratio", 0.0)
-	if roll < cumulative:
-		return "ratio"
-
-	return "multi"
-
-
-static func generate_measurement_operator(structure: String, weights: Dictionary, bath) -> Dictionary:
-	"""Generate measurement operator M̂ based on sampled structure
-
-	Returns operator specification (weights, not discrete quest type!)
-	"""
-
-	match structure:
-		"amplitude":
-			return _generate_amplitude_operator(bath, weights.get("selectivity", 0.5))
-		"coherence":
-			return _generate_coherence_operator(bath, weights.get("selectivity", 0.5))
-		"ratio":
-			return _generate_ratio_operator(bath, weights.get("selectivity", 0.5))
-		"multi":
-			return _generate_multi_operator(bath, weights)
-		_:
-			return _generate_amplitude_operator(bath, 0.5)
-
-
-static func _generate_amplitude_operator(bath, selectivity: float) -> Dictionary:
-	"""Generate diagonal operator: M̂ = Σᵢ wᵢ |i⟩⟨i|
-
-	Args:
-		selectivity ∈ [0,1]:
-			0.0 = scattered (uniform weights)
-			1.0 = focused (peaked on dominant emoji)
-
-	Returns continuous operator weights (ready for float bits!)
-	"""
-
-	if bath == null or bath._density_matrix == null:
-		return {"type": "amplitude", "weights": [1.0], "dominant_index": 0}
-
-	var dim = bath._density_matrix.dimension()
-	var weights = []
-
-	# Get current probabilities from bath
-	for i in range(dim):
-		weights.append(bath._density_matrix.get_probability_by_index(i))
-
-	# Apply selectivity via power law (SMOOTH function, not if/then!)
-	# selectivity = 0.0 → exponent = 1.0 (uniform)
-	# selectivity = 1.0 → exponent = 4.0 (very peaked)
-	var exponent = 1.0 + selectivity * 3.0
-
-	for i in range(weights.size()):
-		weights[i] = pow(weights[i], exponent)
-
-	# Normalize
-	var total = 0.0
-	for w in weights:
-		total += w
-
-	if total > 0:
-		for i in range(weights.size()):
-			weights[i] /= total
-
-	# Find dominant emoji index (for human description)
-	var max_idx = 0
-	var max_weight = weights[0]
-	for i in range(1, weights.size()):
-		if weights[i] > max_weight:
-			max_weight = weights[i]
-			max_idx = i
-
-	return {
-		"type": "amplitude",
-		"weights": weights,
-		"dominant_index": max_idx,
-		"dominant_weight": max_weight,
-	}
-
-
-static func _generate_coherence_operator(bath, selectivity: float) -> Dictionary:
-	"""Generate off-diagonal operator: M̂ = Σᵢ≠ⱼ wᵢⱼ |i⟩⟨j|
-
-	Returns coherence weights for off-diagonal elements
-	"""
-
-	if bath == null or bath._density_matrix == null:
-		return {"type": "coherence", "total_coherence": 0.0}
-
-	var dim = bath._density_matrix.dimension()
-	var coherences = []
-	var pairs = []
-
-	# Extract off-diagonal magnitudes |ρ_ij|
-	for i in range(dim):
-		for j in range(i + 1, dim):
-			var element = bath._density_matrix.get_matrix().get_element(i, j)
-			var magnitude = sqrt(element.re * element.re + element.im * element.im)
-			coherences.append(magnitude)
-			pairs.append([i, j])
-
-	# Apply selectivity
-	var exponent = 1.0 + selectivity * 2.0
-	for i in range(coherences.size()):
-		coherences[i] = pow(coherences[i], exponent)
-
-	# Normalize
-	var total = 0.0
-	for c in coherences:
-		total += c
-
-	if total > 0:
-		for i in range(coherences.size()):
-			coherences[i] /= total
-
-	# Find dominant pair
-	var max_idx = 0
-	var max_coherence = coherences[0] if coherences.size() > 0 else 0.0
-	for i in range(1, coherences.size()):
-		if coherences[i] > max_coherence:
-			max_coherence = coherences[i]
-			max_idx = i
-
-	var dominant_pair = pairs[max_idx] if pairs.size() > max_idx else [0, 1]
-
-	return {
-		"type": "coherence",
-		"coherences": coherences,
-		"pairs": pairs,
-		"dominant_pair": dominant_pair,
-		"total_coherence": total,
-	}
-
-
-static func _generate_ratio_operator(bath, selectivity: float) -> Dictionary:
-	"""Generate ratio operator: Tr(M̂_A ρ) / Tr(M̂_B ρ) = target_ratio
-
-	Picks two emojis to compare based on selectivity
-	"""
-
-	if bath == null or bath._density_matrix == null:
-		return {"type": "ratio", "emoji_A_index": 0, "emoji_B_index": 1}
-
-	var dim = bath._density_matrix.dimension()
-
-	# Get probabilities
-	var probs = []
-	for i in range(dim):
-		probs.append(bath._density_matrix.get_probability_by_index(i))
-
-	# Apply selectivity sharpening
-	var exponent = 1.0 + selectivity * 3.0
-	var sharpened = []
-	for p in probs:
-		sharpened.append(pow(p, exponent))
-
-	# Normalize
-	var total = 0.0
-	for s in sharpened:
-		total += s
-	if total > 0:
-		for i in range(sharpened.size()):
-			sharpened[i] /= total
-
-	# Pick top 2 emojis for ratio
-	var sorted_indices = range(dim)
-	sorted_indices.sort_custom(func(a, b): return sharpened[a] > sharpened[b])
-
-	var emoji_A_index = sorted_indices[0] if sorted_indices.size() > 0 else 0
-	var emoji_B_index = sorted_indices[1] if sorted_indices.size() > 1 else 0
-
-	# Calculate current ratio
-	var current_ratio = 1.0
-	if probs[emoji_B_index] > 0.001:
-		current_ratio = probs[emoji_A_index] / probs[emoji_B_index]
-
-	return {
-		"type": "ratio",
-		"emoji_A_index": emoji_A_index,
-		"emoji_B_index": emoji_B_index,
-		"current_ratio": current_ratio,
-	}
-
-
-static func _generate_multi_operator(bath, weights: Dictionary) -> Dictionary:
-	"""Generate multi-observable operator (combination)
-
-	Combines multiple observables based on prismatic preference
-	"""
-
-	# For now, combine amplitude and coherence
-	var amp_op = _generate_amplitude_operator(bath, weights.get("selectivity", 0.5))
-	var coh_op = _generate_coherence_operator(bath, weights.get("selectivity", 0.5))
-
-	return {
-		"type": "multi",
-		"amplitude_component": amp_op,
-		"coherence_component": coh_op,
-		"weight_amplitude": 0.5,
-		"weight_coherence": 0.5,
 	}

@@ -40,6 +40,34 @@ const COLOR_TEXT_HIGHLIGHT = Color(1.0, 0.9, 0.3)  # Gold
 ## Selection highlight
 const COLOR_SELECTION = Color(1.0, 0.9, 0.0)
 
+# =============================================================================
+# OVERLAY INTERACTION PALETTE (single source for tab/item/card chrome)
+# =============================================================================
+
+## Navigation chrome — tabs and item lists (identical across all overlay files)
+const COLOR_TAB_ACTIVE  = COLOR_TEXT_HIGHLIGHT   ## Color(1.0, 0.9, 0.3) — gold active state
+const COLOR_TAB_IDLE    = Color(0.6, 0.7, 0.85, 0.85)
+const COLOR_ITEM_IDLE   = Color(0.75, 0.82, 0.92, 0.9)
+const COLOR_ITEM_EMPTY  = Color(0.45, 0.5, 0.6, 0.75)
+const COLOR_KEY_CHIP    = Color(0.55, 0.85, 1.0, 0.95)
+const COLOR_VALUE       = Color(0.95, 0.95, 0.8, 1.0)
+const COLOR_VERB_ACTIVE = Color(0.95, 0.75, 0.35, 1.0)
+
+## Card/panel chrome — identical across BiomeInspector, MapMeta, QubitAtlas
+const COLOR_CARD_BG            = Color(0.12, 0.14, 0.18, 0.9)
+const COLOR_CARD_BORDER        = Color(0.25, 0.35, 0.45, 0.6)
+const COLOR_CARD_BORDER_ACTIVE = Color(0.92, 0.85, 0.42, 0.95)
+
+## Quantum axis bars — identical in BiomeInspector and QubitAtlas
+const COLOR_BAR_BG    = Color(0.15, 0.15, 0.2, 0.8)
+const COLOR_BAR_NORTH = Color(0.3, 0.55, 0.85, 0.9)
+const COLOR_BAR_SOUTH = Color(0.85, 0.4, 0.25, 0.9)
+
+## General overlay text — shared body copy and muted/hint text
+const COLOR_HEADER = Color(0.88, 0.93, 0.98)       ## section/card header text (near-white blue)
+const COLOR_BODY   = Color(0.72, 0.8, 0.9)         ## standard overlay body text
+const COLOR_MUTED  = Color(0.55, 0.6, 0.7, 0.85)  ## hint/secondary text (identical RGB in 6 files)
+
 
 # =============================================================================
 # SPACING CONSTANTS
@@ -59,6 +87,21 @@ const HBOX_SPACING_RELAXED = 16
 # PANEL STYLES
 # =============================================================================
 
+static func create_card_style(
+	bg_color: Color = COLOR_CARD_BG,
+	border_color: Color = COLOR_CARD_BORDER,
+	corner_radius: int = 6,
+	content_margin: int = 8
+) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = bg_color
+	style.border_color = border_color
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(corner_radius)
+	style.set_content_margin_all(content_margin)
+	return style
+
+
 static func create_panel_style(
 	bg_color: Color = COLOR_PANEL_BG,
 	border_color: Color = COLOR_PANEL_BORDER,
@@ -66,7 +109,8 @@ static func create_panel_style(
 	corner_radius: int = 12,
 	content_margin: int = 16
 ) -> StyleBoxFlat:
-	"""Create a standard panel StyleBoxFlat."""
+	# # Create a standard panel StyleBoxFlat.
+
 	var style = StyleBoxFlat.new()
 	style.bg_color = bg_color
 	style.border_color = border_color
@@ -84,7 +128,8 @@ static func create_slot_style(
 	content_margin_h: int = 8,
 	content_margin_v: int = 4
 ) -> StyleBoxFlat:
-	"""Create a card/slot StyleBoxFlat (smaller margins, subtle border)."""
+	# # Create a card/slot StyleBoxFlat (smaller margins, subtle border).
+
 	var style = StyleBoxFlat.new()
 	style.bg_color = bg_color
 	style.border_color = border_color
@@ -98,7 +143,8 @@ static func create_slot_style(
 
 
 static func create_selection_style(base_style: StyleBoxFlat, selection_color: Color = COLOR_SELECTION) -> StyleBoxFlat:
-	"""Create a copy of a style with selection highlight border."""
+	# # Create a copy of a style with selection highlight border.
+
 	var style = base_style.duplicate()
 	style.border_color = selection_color
 	style.border_width_left = 5
@@ -113,7 +159,8 @@ static func create_selection_style(base_style: StyleBoxFlat, selection_color: Co
 # =============================================================================
 
 static func create_button_style_normal(bg_color: Color) -> StyleBoxFlat:
-	"""Create normal button state style."""
+	# # Create normal button state style.
+
 	var style = StyleBoxFlat.new()
 	style.bg_color = bg_color
 	style.border_color = Color(0.7, 0.7, 0.7, 0.8)
@@ -127,7 +174,8 @@ static func create_button_style_normal(bg_color: Color) -> StyleBoxFlat:
 
 
 static func create_button_style_hover(bg_color: Color) -> StyleBoxFlat:
-	"""Create hover button state style (lightened, expanded)."""
+	# # Create hover button state style (lightened, expanded).
+
 	var style = StyleBoxFlat.new()
 	style.bg_color = bg_color.lightened(0.2)
 	style.border_color = Color(0.9, 0.9, 0.9, 1.0)
@@ -141,7 +189,8 @@ static func create_button_style_hover(bg_color: Color) -> StyleBoxFlat:
 
 
 static func create_button_style_pressed(bg_color: Color) -> StyleBoxFlat:
-	"""Create pressed button state style (darkened)."""
+	# # Create pressed button state style (darkened).
+
 	var style = StyleBoxFlat.new()
 	style.bg_color = bg_color.darkened(0.2)
 	style.border_color = Color(0.5, 0.5, 0.5, 0.8)
@@ -160,7 +209,8 @@ static func create_styled_button(
 	min_size: Vector2 = Vector2(300, 36),
 	font_size: int = 16
 ) -> Button:
-	"""Create a fully-styled button with normal/hover/pressed states."""
+	# # Create a fully-styled button with normal/hover/pressed states.
+
 	var btn = Button.new()
 	btn.text = text
 	btn.custom_minimum_size = min_size
@@ -182,7 +232,8 @@ static func create_title_label(
 	font_size: int = 20,
 	color: Color = COLOR_TEXT_TITLE
 ) -> Label:
-	"""Create a styled title label."""
+	# # Create a styled title label.
+
 	var label = Label.new()
 	label.text = text
 	label.add_theme_font_size_override("font_size", font_size)
@@ -195,7 +246,8 @@ static func create_subtitle_label(
 	font_size: int = 14,
 	color: Color = COLOR_TEXT_SUBTITLE
 ) -> Label:
-	"""Create a styled subtitle label."""
+	# # Create a styled subtitle label.
+
 	var label = Label.new()
 	label.text = text
 	label.add_theme_font_size_override("font_size", font_size)
@@ -208,7 +260,8 @@ static func create_muted_label(
 	font_size: int = 12,
 	color: Color = COLOR_TEXT_MUTED
 ) -> Label:
-	"""Create a muted/hint label."""
+	# # Create a muted/hint label.
+
 	var label = Label.new()
 	label.text = text
 	label.add_theme_font_size_override("font_size", font_size)
@@ -221,7 +274,8 @@ static func create_muted_label(
 # =============================================================================
 
 static func get_alignment_color(alignment: float) -> Color:
-	"""Get background color based on alignment score (0.0 - 1.0)."""
+	# # Get background color based on alignment score (0.0 - 1.0).
+
 	if alignment > 0.7:
 		return COLOR_ALIGN_HIGH
 	elif alignment > 0.5:
@@ -233,7 +287,8 @@ static func get_alignment_color(alignment: float) -> Color:
 
 
 static func get_alignment_text_color(alignment: float) -> Color:
-	"""Get text color based on alignment score."""
+	# # Get text color based on alignment score.
+
 	if alignment > 0.7:
 		return Color(0.5, 1.0, 0.5)  # Bright green
 	elif alignment > 0.5:
@@ -249,14 +304,16 @@ static func get_alignment_text_color(alignment: float) -> Color:
 # =============================================================================
 
 static func create_vbox(separation: int = VBOX_SPACING_NORMAL) -> VBoxContainer:
-	"""Create VBoxContainer with standard separation."""
+	# # Create VBoxContainer with standard separation.
+
 	var vbox = VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", separation)
 	return vbox
 
 
 static func create_hbox(separation: int = HBOX_SPACING_NORMAL) -> HBoxContainer:
-	"""Create HBoxContainer with standard separation."""
+	# # Create HBoxContainer with standard separation.
+
 	var hbox = HBoxContainer.new()
 	hbox.add_theme_constant_override("separation", separation)
 	return hbox
@@ -267,7 +324,8 @@ static func create_hbox(separation: int = HBOX_SPACING_NORMAL) -> HBoxContainer:
 # =============================================================================
 
 static func create_modal_dimmer(color: Color = COLOR_MODAL_DIMMER) -> ColorRect:
-	"""Create a full-screen dimmer background for modal dialogs."""
+	# # Create a full-screen dimmer background for modal dialogs.
+
 	var dimmer = ColorRect.new()
 	dimmer.color = color
 	dimmer.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -281,13 +339,12 @@ static func create_centered_panel(
 	bg_color: Color = COLOR_PANEL_BG,
 	border_color: Color = COLOR_PANEL_BORDER
 ) -> PanelContainer:
-	"""Create a centered panel container for modal dialogs.
+	# # Create a centered panel container for modal dialogs.
+		# Args:
+	# # panel_size: Size of the panel (width, height)
+		# bg_color: Background color
+		# border_color: Border color
 
-	Args:
-		panel_size: Size of the panel (width, height)
-		bg_color: Background color
-		border_color: Border color
-	"""
 	var panel = PanelContainer.new()
 	panel.custom_minimum_size = panel_size
 	panel.add_theme_stylebox_override("panel", create_panel_style(bg_color, border_color))
@@ -318,10 +375,9 @@ static func apply_selection_border(
 	selection_color: Color = COLOR_SELECTION,
 	border_width: int = 4
 ) -> void:
-	"""Apply or remove selection border from a control.
+	# Apply or remove selection border from a control.
+	# Works with controls that have a StyleBoxFlat "normal" or "panel" override.
 
-	Works with controls that have a StyleBoxFlat "normal" or "panel" override.
-	"""
 	var style: StyleBoxFlat = null
 
 	# Try to get existing style
@@ -346,10 +402,9 @@ static func apply_selection_modulate(
 	selected: bool,
 	highlight_color: Color = Color(1.3, 1.3, 1.0)
 ) -> void:
-	"""Apply or remove selection highlight via modulate.
+	# # Apply or remove selection highlight via modulate.
+		# Simpler alternative to border-based selection.
 
-	Simpler alternative to border-based selection.
-	"""
 	if selected:
 		control.modulate = highlight_color
 	else:
@@ -366,7 +421,8 @@ static func create_menu_button(
 	min_size: Vector2 = Vector2(300, 50),
 	font_size: int = 20
 ) -> Button:
-	"""Create a menu-style button (larger than standard buttons)."""
+	# # Create a menu-style button (larger than standard buttons).
+
 	return create_styled_button(text, bg_color, min_size, font_size)
 
 
@@ -375,7 +431,8 @@ static func create_menu_button(
 # =============================================================================
 
 static func create_hud_label(text: String, color: Color, font_size: int = 0) -> Label:
-	"""Create a HUD label (expand-fill, left-aligned). Pass font_size=0 to skip override."""
+	# # Create a HUD label (expand-fill, left-aligned). Pass font_size=0 to skip override.
+
 	var label = Label.new()
 	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -387,7 +444,8 @@ static func create_hud_label(text: String, color: Color, font_size: int = 0) -> 
 
 
 static func create_hud_separator() -> HSeparator:
-	"""Create a subtle HUD separator line."""
+	# # Create a subtle HUD separator line.
+
 	var sep = HSeparator.new()
 	var style = StyleBoxFlat.new()
 	style.bg_color = Color(0.4, 0.4, 0.4, 0.3)
@@ -396,7 +454,8 @@ static func create_hud_separator() -> HSeparator:
 
 
 static func get_speed_fraction(speed: float) -> String:
-	"""Convert a decimal time-scale value to a human-readable fraction string."""
+	# # Convert a decimal time-scale value to a human-readable fraction string.
+
 	var lookup = {
 		0.03125: "1/32",
 		0.0625: "1/16",
@@ -416,7 +475,8 @@ static func get_speed_fraction(speed: float) -> String:
 
 
 static func get_physics_fps_from_farm(farm_node) -> float:
-	"""Get physics frames-per-second from a farm's biome_evolution_batcher."""
+	# # Get physics frames-per-second from a farm's biome_evolution_batcher.
+
 	if not farm_node:
 		return 0.0
 	if "biome_evolution_batcher" in farm_node:
@@ -427,7 +487,8 @@ static func get_physics_fps_from_farm(farm_node) -> float:
 
 
 static func get_simulation_speed(farm_node) -> float:
-	"""Get quantum time scale from the first available biome."""
+	# # Get quantum time scale from the first available biome.
+
 	if farm_node and "grid" in farm_node and farm_node.grid:
 		for biome in farm_node.grid.get_all_biomes().values():
 			if not biome:
@@ -447,7 +508,8 @@ static func create_slot_button(
 	min_size: Vector2 = Vector2(550, 80),
 	font_size: int = 18
 ) -> Button:
-	"""Create a slot-style button for save slots, quest slots, etc."""
+	# # Create a slot-style button for save slots, quest slots, etc.
+
 	var btn = Button.new()
 	btn.text = text
 	btn.custom_minimum_size = min_size
@@ -474,7 +536,8 @@ static func create_section_header(
 	font_size: int = 13,
 	color: Color = COLOR_TEXT_SUBTITLE
 ) -> Label:
-	"""Create a left-aligned section header label."""
+	# # Create a left-aligned section header label.
+
 	var label = Label.new()
 	label.text = text
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -492,10 +555,9 @@ static func create_stat_bar(
 	bar_height: int = 14,
 	font_size: int = 12
 ) -> HBoxContainer:
-	"""Create a compact labeled progress bar for stats.
+	# # Create a compact labeled progress bar for stats.
+		# Returns HBox: [Label] [ColorRect bg > ColorRect fill] [Label percent]
 
-	Returns HBox: [Label] [ColorRect bg > ColorRect fill] [Label percent]
-	"""
 	var hbox = HBoxContainer.new()
 	hbox.add_theme_constant_override("separation", 6)
 
@@ -532,7 +594,8 @@ static func create_stat_bar(
 
 
 static func update_stat_bar(bar: HBoxContainer, value: float) -> void:
-	"""Update a stat bar's fill width and percentage text."""
+	# # Update a stat bar's fill width and percentage text.
+
 	if not bar or bar.get_child_count() < 3:
 		return
 
@@ -560,10 +623,9 @@ static func create_hud_scaffold(
 	separation: int = 4,
 	corner_radius: int = 6
 ) -> Dictionary:
-	"""Create the standard HUD scaffold: PanelContainer > MarginContainer > VBoxContainer.
+	# # Create the standard HUD scaffold: PanelContainer > MarginContainer > VBoxContainer.
+		# Returns {"panel": PanelContainer, "margin": MarginContainer, "vbox": VBoxContainer}
 
-	Returns {"panel": PanelContainer, "margin": MarginContainer, "vbox": VBoxContainer}
-	"""
 	var panel = PanelContainer.new()
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
@@ -590,3 +652,22 @@ static func create_hud_scaffold(
 	panel.add_child(margin)
 
 	return {"panel": panel, "margin": margin, "vbox": vbox}
+
+
+static func get_slice_rate_from_farm(farm_node) -> Dictionary:
+	if not farm_node or not ("biome_evolution_batcher" in farm_node):
+		return {"slices": 0.0, "biomes": 0}
+	var batcher = farm_node.biome_evolution_batcher
+	if not batcher:
+		return {"slices": 0.0, "biomes": 0}
+	var phz: float = 0.0
+	if "physics_frames_per_second" in batcher:
+		phz = float(batcher.physics_frames_per_second)
+	var biome_count: int = 0
+	if farm_node.has_method("get_all_biomes"):
+		biome_count = farm_node.get_all_biomes().size()
+	return {"slices": phz, "biomes": biome_count}
+
+
+static func get_step_dt_per_biome(_farm_node) -> Dictionary:
+	return {}

@@ -1,7 +1,6 @@
 class_name LoggerConfigPanel
 extends "res://UI/Core/OverlayBase.gd"
 
-const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
 ## Logger Configuration Panel
 ## Runtime UI for configuring log categories and levels.
@@ -43,17 +42,12 @@ func _init():
 	use_scroll_container = false
 	navigation_mode = NavigationMode.NONE
 	overlay_tier = 11  # Info-tier overlay, below buttons and above gameplay
-	action_labels = {
-		"Q": "",
-		"E": "",
-		"R": "Reset Defaults",
-		"F": ""
-	}
+	set_action_info("R", {"label": "Reset Defaults"})
 
 
 func _build_content(container: Control) -> void:
-	"""Build logger config UI inside OverlayBase panel."""
-	var _verbose = InstrumentLocator.resolve_verbose_config(self)
+	# Build logger config UI inside OverlayBase panel.
+	var _verbose = get_node_or_null("/root/VerboseConfig")
 	if not _verbose:
 		var err = Label.new()
 		err.text = "VerboseConfig not available"
@@ -99,7 +93,7 @@ func _build_content(container: Control) -> void:
 
 
 func _create_output_options(parent: Control, _verbose: Node) -> void:
-	"""Create output toggles (console, file, timestamps)"""
+	# Create output toggles (console, file, timestamps)
 	var output_hbox = HBoxContainer.new()
 	output_hbox.alignment = BoxContainer.ALIGNMENT_CENTER
 	output_hbox.add_theme_constant_override("separation", 20)
@@ -128,7 +122,7 @@ func _create_output_options(parent: Control, _verbose: Node) -> void:
 
 
 func _create_category_controls(categories_vbox: VBoxContainer, _verbose: Node) -> void:
-	"""Create checkbox + dropdown for each category"""
+	# Create checkbox + dropdown for each category
 	var categories = _verbose.get_all_categories()
 	categories.sort()  # Alphabetical order
 
@@ -168,7 +162,7 @@ func _create_category_controls(categories_vbox: VBoxContainer, _verbose: Node) -
 
 
 func _create_buttons(parent: Control) -> void:
-	"""Create action buttons at bottom"""
+	# Create action buttons at bottom
 	var button_hbox = HBoxContainer.new()
 	button_hbox.alignment = BoxContainer.ALIGNMENT_CENTER
 	button_hbox.add_theme_constant_override("separation", 15)
@@ -216,8 +210,8 @@ func _on_category_level_changed(category: String, level_idx: int, _verbose: Node
 
 
 func _on_reset_pressed() -> void:
-	"""Reset all categories to default levels"""
-	var _verbose = InstrumentLocator.resolve_verbose_config(self)
+	# Reset all categories to default levels
+	var _verbose = get_node_or_null("/root/VerboseConfig")
 	if not _verbose:
 		return
 
@@ -245,12 +239,12 @@ func _on_reset_pressed() -> void:
 
 
 func _on_action_r() -> void:
-	"""R = Reset to defaults."""
+	# R = Reset to defaults.
 	_on_reset_pressed()
 
 
 func _refresh_ui(_verbose: Node) -> void:
-	"""Update UI controls to match current VerboseConfig state"""
+	# Update UI controls to match current VerboseConfig state
 	for category in category_checkboxes.keys():
 		var checkbox = category_checkboxes[category]
 		checkbox.button_pressed = _verbose.category_enabled.get(category, true)
@@ -271,8 +265,8 @@ func _refresh_ui(_verbose: Node) -> void:
 # ============================================================================
 
 func get_snapshot() -> Dictionary:
-	"""Return all currently-displayed state as structured data."""
-	var _verbose = InstrumentLocator.resolve_verbose_config(self)
+	# Return all currently-displayed state as structured data.
+	var _verbose = get_node_or_null("/root/VerboseConfig")
 	if not _verbose:
 		return {"error": "verbose_config_unavailable"}
 

@@ -1,6 +1,16 @@
 # SpaceWheat Farm Variable Graph (default)
+# balance_schema_version: 2
 {"op":"set","path":"profile_id","value":"default"}
 {"op":"set","path":"economy_variables.quantum_to_credits","value":1.0}
 {"op":"set","path":"economy_variables.max_biome_qubits","value":12}
 {"op":"set","path":"quest_rewards.resource_reward_base_ratio","value":0.4}
 {"op":"set","path":"quest_rewards.resource_reward_random_range","value":0.2}
+{"op":"set","path":"tuning.pop_base_yield_scale","value":13.0}
+{"op":"set","path":"tuning.reap_base_yield","value":8.0}
+{"op":"set","path":"tuning.reap_evolution_cycles","value":13}
+{"op":"set","path":"tuning.flux_to_credits","value":1.0}
+{"op":"set","path":"tuning.measurement_drain_base","value":0.15}
+{"op":"set","path":"tuning.market_temperature","value":10.0}
+{"op":"set","path":"tuning.market_temperature_entropy_gain","value":1.0}
+{"op":"set","path":"tuning.reap_starting_tokens","value":6}
+{"op":"set","path":"tuning.reap_cost_sequence","value":[1,1,2,3,5,8,13,21]}

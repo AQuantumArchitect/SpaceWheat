@@ -3,10 +3,9 @@ extends Control
 ## FpsDisplay — always-visible projection HUD: top-left corner.
 ## Timer-driven (signal push), never polls in _process.
 
-const UIStyleFactory = preload("res://UI/Core/UIStyleFactory.gd")
-const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
 var _fps_label: Label
+var _dt_label: Label
 
 
 func _ready() -> void:
@@ -33,6 +32,19 @@ func _update_fps() -> void:
 	else:
 		_fps_label.text = "FPS %d" % fps
 
+	# Per-biome substep dt
+	var dt_map := UIStyleFactory.get_step_dt_per_biome(farm)
+	if dt_map.is_empty():
+		_dt_label.text = ""
+		_dt_label.visible = false
+	else:
+		var parts: Array[String] = []
+		for biome_name in dt_map:
+			var dt_ms: float = float(dt_map[biome_name])
+			parts.append("%s %.1fms" % [biome_name, dt_ms])
+		_dt_label.text = "dt: " + " | ".join(parts)
+		_dt_label.visible = true
+
 
 func _build_ui() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -48,4 +60,9 @@ func _build_ui() -> void:
 	_fps_label = UIStyleFactory.create_hud_label("FPS --", UIStyleFactory.COLOR_TEXT_SUBTITLE, 11)
 	vbox.add_child(_fps_label)
 
+	_dt_label = UIStyleFactory.create_hud_label("", UIStyleFactory.COLOR_TEXT_SUBTITLE, 10)
+	_dt_label.visible = false
+	vbox.add_child(_dt_label)
+
+	panel.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(panel)

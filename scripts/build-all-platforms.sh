@@ -13,6 +13,7 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 NATIVE_DIR="$PROJECT_DIR/native"
 GODOT_CPP_DIR="$PROJECT_DIR/godot-cpp"
+source "$SCRIPT_DIR/lib/native_build_state.sh"
 
 # Options
 DO_CLEAN=false
@@ -31,6 +32,12 @@ show_help() {
 SpaceWheat Multi-Platform Native Builder
 
 Builds C++ extensions for Linux, Windows (MinGW cross-compile), and Web (Emscripten).
+
+Important:
+  - Linux and Windows outputs are part of the current desktop shipping path.
+  - The current Web export preset has extensions support enabled, but the
+    browser/runtime lane is still experimental until there is a real smoke
+    and performance validation path.
 
 Usage:
   ./scripts/build-all-platforms.sh [OPTIONS]
@@ -122,8 +129,10 @@ log "Building godot-cpp..."
 
 cd "$GODOT_CPP_DIR"
 
+GODOT_CPP_INPUTS=(SConstruct src include gen)
+
 if [ "$LINUX_ONLY" = true ]; then
-    if [ ! -f "bin/libgodot-cpp.linux.template_release.x86_64.a" ] || [ "$DO_CLEAN" = true ]; then
+    if [ "$DO_CLEAN" = true ] || sw_output_is_stale "bin/libgodot-cpp.linux.template_release.x86_64.a" "${GODOT_CPP_INPUTS[@]}"; then
         log "Building godot-cpp for Linux..."
         scons platform=linux target=template_release -j$(nproc)
         success "godot-cpp Linux built"
@@ -133,7 +142,7 @@ if [ "$LINUX_ONLY" = true ]; then
 fi
 
 if [ "$WINDOWS_ONLY" = true ]; then
-    if [ ! -f "bin/libgodot-cpp.windows.template_release.x86_64.a" ] || [ "$DO_CLEAN" = true ]; then
+    if [ "$DO_CLEAN" = true ] || sw_output_is_stale "bin/libgodot-cpp.windows.template_release.x86_64.a" "${GODOT_CPP_INPUTS[@]}"; then
         log "Building godot-cpp for Windows..."
         scons platform=windows target=template_release use_mingw=yes -j$(nproc)
         success "godot-cpp Windows built"
@@ -143,7 +152,7 @@ if [ "$WINDOWS_ONLY" = true ]; then
 fi
 
 if [ "$WEB_ONLY" = true ]; then
-    if [ ! -f "bin/libgodot-cpp.web.template_release.wasm32.a" ] || [ "$DO_CLEAN" = true ]; then
+    if [ "$DO_CLEAN" = true ] || sw_output_is_stale "bin/libgodot-cpp.web.template_release.wasm32.a" "${GODOT_CPP_INPUTS[@]}"; then
         log "Building godot-cpp for Web..."
         # Ensure Emscripten is activated
         if [ -f "$HOME/emsdk/emsdk_env.sh" ]; then
@@ -170,13 +179,27 @@ if [ "$WINDOWS_ONLY" = true ] && [ -f "$GODOT_CPP_DIR/bin/libgodot-cpp.windows.t
        "$NATIVE_DIR/lib/libgodot-cpp.windows.template_release.x86_64.a"
 fi
 
+if [ "$WEB_ONLY" = true ] && [ -f "$GODOT_CPP_DIR/bin/libgodot-cpp.web.template_release.wasm32.a" ]; then
+    cp "$GODOT_CPP_DIR/bin/libgodot-cpp.web.template_release.wasm32.a" \
+       "$NATIVE_DIR/lib/libgodot-cpp.web.template_release.wasm32.a"
+fi
+
 # Build SpaceWheat extensions
 cd "$NATIVE_DIR"
 
+NATIVE_INPUTS=(src include Makefile Makefile.windows)
+
 if [ "$LINUX_ONLY" = true ]; then
     log "Building Linux extension..."
-    make clean >/dev/null 2>&1 || true
-    make -j$(nproc)
+    if [ "$DO_CLEAN" = true ] || sw_output_is_stale "bin/linux/libquantummatrix.linux.template_release.x86_64.so" "${NATIVE_INPUTS[@]}" "lib/libgodot-cpp.linux.template_release.x86_64.a"; then
+        make clean >/dev/null 2>&1 || true
+        make -j$(nproc)
+    else
+        success "Linux extension already built (cached)"
+    fi
+    if command -v strip >/dev/null 2>&1; then
+        strip --strip-unneeded bin/linux/libquantummatrix.linux.template_release.x86_64.so || true
+    fi
     if [ -f "bin/linux/libquantummatrix.linux.template_release.x86_64.so" ]; then
         SIZE=$(ls -lh bin/linux/libquantummatrix.linux.template_release.x86_64.so | awk '{print $5}')
         success "Linux extension built ($SIZE)"
@@ -187,7 +210,15 @@ fi
 
 if [ "$WINDOWS_ONLY" = true ]; then
     log "Building Windows extension..."
-    make -f Makefile.windows -j$(nproc)
+    if [ "$DO_CLEAN" = true ] || sw_output_is_stale "bin/windows/libquantummatrix.windows.template_release.x86_64.dll" "${NATIVE_INPUTS[@]}" "lib/libgodot-cpp.windows.template_release.x86_64.a"; then
+        make -f Makefile.windows -j$(nproc)
+    else
+        success "Windows extension already built (cached)"
+    fi
+    if command -v x86_64-w64-mingw32-strip >/dev/null 2>&1; then
+        x86_64-w64-mingw32-strip --strip-unneeded bin/windows/libquantummatrix.windows.template_release.x86_64.dll || true
+        x86_64-w64-mingw32-strip --strip-unneeded bin/windows/libquantummatrix.windows.template_debug.x86_64.dll || true
+    fi
 
     if [ -f "bin/windows/libquantummatrix.windows.template_release.x86_64.dll" ]; then
         SIZE=$(ls -lh bin/windows/libquantummatrix.windows.template_release.x86_64.dll | awk '{print $5}')
@@ -206,18 +237,21 @@ if [ "$WEB_ONLY" = true ]; then
         source "$HOME/emsdk/emsdk_env.sh"
     fi
 
-    emcc -std=c++17 -O3 -s SIDE_MODULE=1 -s EXPORT_ALL=1 \
+    if [ "$DO_CLEAN" = true ] || sw_output_is_stale "bin/web/libquantummatrix.wasm" "${NATIVE_INPUTS[@]}" "lib/libgodot-cpp.web.template_release.wasm32.a"; then
+        em++ -std=c++17 -O3 -s SIDE_MODULE=1 -s EXPORT_ALL=1 \
         -I./include \
         -I./include/godot_cpp \
         -I./include/gdextension \
-        -DWEB_ENABLED -DGDEXTENSION \
-        src/*.cpp \
+        -DWEB_ENABLED -DGDEXTENSION -DSPACEWHEAT_WITH_GODOT -DSPACEWHEAT_WEB_BUILD \
+        src/*.cpp src/*/*.cpp \
+        ./lib/libgodot-cpp.web.template_release.wasm32.a \
         -o bin/web/libquantummatrix.wasm
+    fi
 
     if [ -f "bin/web/libquantummatrix.wasm" ]; then
         SIZE=$(ls -lh bin/web/libquantummatrix.wasm | awk '{print $5}')
         success "Web extension built ($SIZE)"
-        warn "IMPORTANT: Test web build thoroughly - Eigen may have WASM compatibility issues"
+        warn "Web extension build is enabled, but browser/runtime validation is still required before release."
     else
         error "Web build failed"
     fi
@@ -264,7 +298,7 @@ if [ "$WINDOWS_ONLY" = true ] || [ "$WEB_ONLY" = true ]; then
         echo "     wine releases/windows/game.exe"
     fi
     if [ "$WEB_ONLY" = true ]; then
-        echo "     python3 -m http.server -d releases/web 8000"
+        echo "     python3 scripts/serve-web-local.py releases/web --port 8000"
     fi
     echo ""
 fi

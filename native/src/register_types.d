@@ -299,10 +299,7 @@ src/register_types.o: src/register_types.cpp src/register_types.h \
  src/multi_biome_lookahead_engine.h src/liquid_neural_net.h \
  src/force_graph_engine.h src/parametric_selector_native.h \
  src/quantum_mythos_engine.h src/mythos_graph_core.h src/axial_manifold.h \
- src/complex_matrix.h src/emoji_graph_types.h src/hermitian_eigensolver.h \
- src/market/quantum_contract_engine.h src/market/contract_market_core.h \
- src/market/market_types.h src/market/axial_field.h \
- src/market/graph_math.h src/market/eigen_market_signal.h
+ src/complex_matrix.h src/emoji_graph_types.h src/hermitian_eigensolver.h
 src/register_types.h:
 include/godot_cpp/core/class_db.hpp:
 include/gdextension/gdextension_interface.h:
@@ -656,9 +653,3 @@ src/axial_manifold.h:
 src/complex_matrix.h:
 src/emoji_graph_types.h:
 src/hermitian_eigensolver.h:
-src/market/quantum_contract_engine.h:
-src/market/contract_market_core.h:
-src/market/market_types.h:
-src/market/axial_field.h:
-src/market/graph_math.h:
-src/market/eigen_market_signal.h:

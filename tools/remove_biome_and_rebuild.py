@@ -14,8 +14,6 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
-import merge_biomes
-
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "Core" / "Biomes" / "data"
@@ -52,7 +50,7 @@ def _validate_registry_shape(rows: List[Dict[str, Any]]) -> List[str]:
         else:
             names.add(name)
 
-        # Legacy buckets like "_orphan_lindblads" intentionally do not follow full biome schema.
+        # Underscore-prefixed buckets like "_orphan_lindblads" intentionally do not follow full biome schema.
         if name.startswith("_"):
             continue
 
@@ -73,7 +71,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--write", action="store_true", help="Persist changes to source + merged files")
     parser.add_argument(
-        "--keep-legacy-merged-only",
+        "--keep-merged-only",
         action="store_true",
         help="Keep entries that only exist in current merged file (default merge behavior)",
     )
@@ -115,22 +113,13 @@ def main() -> int:
         )
         return 1
 
-    # Temporarily patch source data in memory and rebuild merged.
-    old_base = merge_biomes.BASE_PATH
-    old_extra = merge_biomes.EXTRA_PATH
-    old_merged = merge_biomes.MERGED_PATH
-    merge_biomes.BASE_PATH = BASE_PATH
-    merge_biomes.EXTRA_PATH = EXTRA_PATH
-    merge_biomes.MERGED_PATH = MERGED_PATH
-
-    # Build merged from prospective source states.
-    # We cannot inject directly into merge_biomes without writing, so emulate its logic here.
+    # Build merged from the prospective source states directly.
     source_map = {str(r.get("name", "")).strip(): r for r in changed_base if str(r.get("name", "")).strip()}
     source_map.update({str(r.get("name", "")).strip(): r for r in changed_extra if str(r.get("name", "")).strip()})
     existing_merged = _load_list(MERGED_PATH) if MERGED_PATH.exists() else []
     merged_map = {str(r.get("name", "")).strip(): r for r in existing_merged if str(r.get("name", "")).strip()}
     extras_only = {name: row for name, row in merged_map.items() if name not in source_map}
-    if not args.keep_legacy_merged_only:
+    if not args.keep_merged_only:
         # Default for removal tooling: if we removed biome from sources, remove it from merged too.
         extras_only.pop(biome_name, None)
     final_by_name = dict(extras_only)
@@ -168,13 +157,9 @@ def main() -> int:
     if args.write:
         _write_list(BASE_PATH, changed_base)
         _write_list(EXTRA_PATH, changed_extra)
-        merge_biomes.write_merged(ordered)
+        _write_list(MERGED_PATH, ordered)
 
     print(json.dumps(report, ensure_ascii=False, indent=2))
-
-    merge_biomes.BASE_PATH = old_base
-    merge_biomes.EXTRA_PATH = old_extra
-    merge_biomes.MERGED_PATH = old_merged
 
     return 0 if not errors else 3
 

@@ -3,13 +3,16 @@ CXXFLAGS = -std=c++17 -O2 \
            -I./include \
            -I./include/godot_cpp \
            -I./include/gdextension \
-           -DWINDOWS_ENABLED -DGDEXTENSION
+           -DWINDOWS_ENABLED -DGDEXTENSION -DSPACEWHEAT_WITH_GODOT \
+           -pthread
 
 LDFLAGS = -shared -static-libgcc -static-libstdc++ \
-          ./lib/libgodot-cpp.windows.template_release.x86_64.a
+          ./lib/libgodot-cpp.windows.template_release.x86_64.a \
+          -pthread
 
-SOURCES = $(wildcard src/*.cpp)
+SOURCES = $(wildcard src/*.cpp) $(wildcard src/*/*.cpp)
 OBJECTS = $(SOURCES:.cpp=.obj)
+DEPFILES = $(OBJECTS:.obj=.d)
 TARGET = bin/windows/libquantummatrix.windows.template_release.x86_64.dll
 DEBUG_TARGET = bin/windows/libquantummatrix.windows.template_debug.x86_64.dll
 
@@ -32,9 +35,11 @@ $(DEBUG_TARGET): $(TARGET)
 
 %.obj: %.cpp
 	@echo "Compiling $< for Windows..."
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -MMD -MP -c $< -o $@
 
 clean:
-	rm -f src/*.obj bin/windows/*.dll
+	rm -f src/*.obj src/*/*.obj src/*.d src/*/*.d bin/windows/*.dll
 
 .PHONY: all clean
+
+-include $(DEPFILES)

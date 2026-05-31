@@ -13,10 +13,10 @@ extends Node
 ## - Tier-based priority (higher tier closes lower tier overlays)
 ##
 ## Tiers:
-##   Z_TIER_HUD (50)      - ActionBar, ToolSelection (not managed by stack)
-##   Z_TIER_INFO (11)     - Inspector, Controls, Vocabulary
+##   Z_TIER_HUD (50)      - reference only; ActionBarLayer=20, QERF z_as_relative=false z=60
+##   Z_TIER_INFO (11)     - Inspector, Controls, Signature
 ##   Z_TIER_MODAL (14)    - QuestBoard, BiomeInspector
-##   Z_TIER_SYSTEM (18)   - EscapeMenu, SaveLoadMenu
+##   Z_TIER_SYSTEM (18)   - EscapeMenu
 
 signal overlay_pushed(overlay: Control)
 signal overlay_popped(overlay: Control)
@@ -37,12 +37,11 @@ var overlay_stack: Array[Control] = []
 # =============================================================================
 
 func push(overlay: Control) -> void:
-	"""Push an overlay onto the stack.
+	# Push an overlay onto the stack.
 
-	- Higher tier overlays close lower tier overlays first
-	- Assigns z-index based on tier + stack position
-	- Calls activate() if overlay implements it
-	"""
+	# - Higher tier overlays close lower tier overlays first
+	# - Assigns z-index based on tier + stack position
+	# - Calls activate() if overlay implements it
 	if overlay in overlay_stack:
 		# Already on stack - bring to top
 		overlay_stack.erase(overlay)
@@ -75,11 +74,10 @@ func push(overlay: Control) -> void:
 
 
 func pop() -> Control:
-	"""Pop the top overlay from the stack.
+	# Pop the top overlay from the stack.
 
-	- Calls deactivate() if overlay implements it
-	- Returns the popped overlay, or null if stack was empty
-	"""
+	# - Calls deactivate() if overlay implements it
+	# - Returns the popped overlay, or null if stack was empty
 	if overlay_stack.is_empty():
 		return null
 
@@ -98,10 +96,9 @@ func pop() -> Control:
 
 
 func pop_overlay(overlay: Control) -> bool:
-	"""Pop a specific overlay from the stack (if present).
+	# Pop a specific overlay from the stack (if present).
 
-	Returns true if overlay was found and removed.
-	"""
+	# Returns true if overlay was found and removed.
 	var idx = overlay_stack.find(overlay)
 	if idx < 0:
 		return false
@@ -126,11 +123,10 @@ func pop_overlay(overlay: Control) -> bool:
 
 
 func dismiss_overlay(overlay: Control) -> bool:
-	"""Remove an overlay from the stack without calling deactivate().
+	# Remove an overlay from the stack without calling deactivate().
 
-	Used when an overlay has already closed itself and the stack only needs to
-	forget it.
-	"""
+	# Used when an overlay has already closed itself and the stack only needs to
+	# forget it.
 	var idx = overlay_stack.find(overlay)
 	if idx < 0:
 		return false
@@ -142,28 +138,28 @@ func dismiss_overlay(overlay: Control) -> bool:
 
 
 func close_all() -> void:
-	"""Close all overlays on the stack."""
+	# Close all overlays on the stack.
 	while not overlay_stack.is_empty():
 		pop()
 
 
 func get_top() -> Control:
-	"""Get the topmost overlay, or null if stack is empty."""
+	# Get the topmost overlay, or null if stack is empty.
 	return overlay_stack[-1] if not overlay_stack.is_empty() else null
 
 
 func is_empty() -> bool:
-	"""Check if overlay stack is empty."""
+	# Check if overlay stack is empty.
 	return overlay_stack.is_empty()
 
 
 func has_overlay(overlay: Control) -> bool:
-	"""Check if a specific overlay is on the stack."""
+	# Check if a specific overlay is on the stack.
 	return overlay in overlay_stack
 
 
 func size() -> int:
-	"""Get number of overlays on stack."""
+	# Get number of overlays on stack.
 	return overlay_stack.size()
 
 
@@ -172,10 +168,9 @@ func size() -> int:
 # =============================================================================
 
 func route_input(event: InputEvent) -> bool:
-	"""Route input to the top overlay.
+	# Route input to the top overlay.
 
-	Returns true if input was consumed by an overlay.
-	"""
+	# Returns true if input was consumed by an overlay.
 	var top = get_top()
 	if top and top.has_method("handle_input"):
 		return top.handle_input(event)
@@ -183,10 +178,9 @@ func route_input(event: InputEvent) -> bool:
 
 
 func handle_escape() -> bool:
-	"""Handle ESC key - closes top overlay.
+	# Handle ESC key - closes top overlay.
 
-	Returns true if an overlay was closed.
-	"""
+	# Returns true if an overlay was closed.
 	if not overlay_stack.is_empty():
 		pop()
 		return true
@@ -198,11 +192,10 @@ func handle_escape() -> bool:
 # =============================================================================
 
 func get_overlay_tier(overlay: Control) -> int:
-	"""Get the z-index tier for an overlay.
+	# Get the z-index tier for an overlay.
 
-	Overlays can implement get_overlay_tier() or have overlay_tier property.
-	Falls back to name-based detection.
-	"""
+	# Overlays can implement get_overlay_tier() or have overlay_tier property.
+	# Falls back to name-based detection.
 	# Method takes priority
 	if overlay.has_method("get_overlay_tier"):
 		return overlay.get_overlay_tier()
@@ -212,7 +205,7 @@ func get_overlay_tier(overlay: Control) -> int:
 		return overlay.overlay_tier
 
 	# Fallback: detect from name
-	var overlay_name = overlay.name if overlay.name else ""
+	var overlay_name = str(overlay.name) if overlay.name else ""
 
 	if "Escape" in overlay_name or "SaveLoad" in overlay_name:
 		return Z_TIER_SYSTEM
@@ -223,7 +216,7 @@ func get_overlay_tier(overlay: Control) -> int:
 
 
 func is_system_overlay_active() -> bool:
-	"""Check if any SYSTEM tier overlay is active (EscapeMenu, SaveLoad)."""
+	# Check if any SYSTEM tier overlay is active (EscapeMenu, SaveLoad).
 	for overlay in overlay_stack:
 		if get_overlay_tier(overlay) >= Z_TIER_SYSTEM:
 			return true
@@ -231,7 +224,7 @@ func is_system_overlay_active() -> bool:
 
 
 func is_modal_overlay_active() -> bool:
-	"""Check if any MODAL tier or higher overlay is active."""
+	# Check if any MODAL tier or higher overlay is active.
 	for overlay in overlay_stack:
 		if get_overlay_tier(overlay) >= Z_TIER_MODAL:
 			return true
@@ -243,7 +236,7 @@ func is_modal_overlay_active() -> bool:
 # =============================================================================
 
 func toggle(overlay: Control) -> void:
-	"""Toggle an overlay - push if not on stack, pop if on stack."""
+	# Toggle an overlay - push if not on stack, pop if on stack.
 	if has_overlay(overlay):
 		pop_overlay(overlay)
 	else:
@@ -255,15 +248,15 @@ func toggle(overlay: Control) -> void:
 # =============================================================================
 
 func get_stack_info() -> String:
-	"""Get debug info about current stack state."""
+	# Get debug info about current stack state.
 	if overlay_stack.is_empty():
 		return "Stack: [empty]"
 
 	var info = "Stack (%d): " % overlay_stack.size()
 	var names = []
 	for overlay in overlay_stack:
-		var name = overlay.name if overlay.name else "?"
+		var _name = str(overlay.name) if overlay.name else "?"
 		var tier = get_overlay_tier(overlay)
-		names.append("%s(T%d)" % [name, tier])
+		names.append("%s(T%d)" % [_name, tier])
 
 	return info + " → ".join(names)

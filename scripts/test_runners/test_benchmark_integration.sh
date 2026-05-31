@@ -1,23 +1,18 @@
 #!/bin/bash
-# Test the integrated compute benchmark system
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+OUT_DIR="${1:-/tmp/spacewheat_runtime_benchmark_$(date +%Y%m%d_%H%M%S)}"
 
 echo "========================================================================="
-echo "INTEGRATED COMPUTE BENCHMARK TEST"
+echo "RUNTIME WORKLOAD BENCHMARK TEST"
 echo "========================================================================="
-echo ""
-echo "This will:"
-echo "  1. Boot the visual test"
-echo "  2. Run GPU vs CPU benchmark (with 100 nodes, 10 iterations)"
-echo "  3. Select the fastest backend"
-echo "  4. Show results before starting visualization"
-echo ""
-echo "========================================================================="
-echo ""
+echo
+echo "This wrapper now profiles the production runtime workload ladder."
+echo "The old integrated compute benchmark path no longer exists."
+echo
 
-cd /home/tehcr33d/ws/SpaceWheat
-
-export DISPLAY=:0
-export MESA_LOADER_DRIVER_OVERRIDE=zink
-
-# Run test and capture benchmark output
-godot VisualBubbleTest.tscn 2>&1 | grep --line-buffered -E "BENCHMARK|ComputeSelector|GPU|CPU|Winner|Recommendation|iteration"
+PROFILE_WARMUP_FRAMES="${PROFILE_WARMUP_FRAMES:-60}" \
+PROFILE_SAMPLE_FRAMES="${PROFILE_SAMPLE_FRAMES:-120}" \
+PROFILE_WORKLOAD_CASES="${PROFILE_WORKLOAD_CASES:-00_dormant 01_single 03_dense_4 07_multi_4}" \
+bash "$ROOT_DIR/scripts/profile-render-workload.sh" "$OUT_DIR"

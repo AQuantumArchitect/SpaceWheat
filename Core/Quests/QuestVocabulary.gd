@@ -164,7 +164,7 @@ const QUANTITIES = {
 # =============================================================================
 
 static func get_quantity_word(amount: int) -> String:
-	"""Get quantity word for given amount"""
+	# Get quantity word for given amount
 	var thresholds = [1, 2, 3, 5, 8, 13]
 	for threshold in thresholds:
 		if amount <= threshold:
@@ -172,7 +172,7 @@ static func get_quantity_word(amount: int) -> String:
 	return QUANTITIES[13]["word"]
 
 static func get_quantity_emoji(amount: int) -> String:
-	"""Get quantity emoji for given amount"""
+	# Get quantity emoji for given amount
 	var thresholds = [1, 2, 3, 5, 8, 13]
 	for threshold in thresholds:
 		if amount <= threshold:

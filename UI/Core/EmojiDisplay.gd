@@ -2,11 +2,10 @@
 extends Control
 class_name EmojiDisplay
 
-const TieredEmojiRegistry = preload("res://Core/Visualization/TieredEmojiRegistry.gd")
 
 ## EmojiDisplay: Unified emoji/glyph display component
 ##
-## Automatically uses SVG glyph if available via TieredEmojiRegistry,
+## Automatically uses SVG glyph if available via EmojiRegistry,
 ## falls back to emoji text if no glyph exists.
 ##
 ## Usage:
@@ -21,7 +20,7 @@ const TieredEmojiRegistry = preload("res://Core/Visualization/TieredEmojiRegistr
 ##   Priority 3: Text fallback (system font)
 ##
 ## This keeps emoji strings as source of truth while enabling
-## gradual migration to custom glyphs.
+## custom glyph support.
 
 @export var emoji: String = "":
 	set(value):
@@ -46,7 +45,7 @@ var label: Label
 var _ready_called: bool = false
 
 # Tiered emoji registry (lazy initialization)
-var _tiered_emoji_registry = null
+var _emoji_registry = null
 
 # Warning flag (to avoid spam)
 var _has_warned_fallback: Dictionary = {}  # emoji → bool
@@ -59,7 +58,7 @@ func _ready():
 
 
 func _create_children():
-	"""Create child nodes for texture and text display."""
+	# Create child nodes for texture and text display.
 	if texture_rect != null:
 		return  # Already created
 
@@ -81,7 +80,7 @@ func _create_children():
 
 
 func _update_display():
-	"""Update display based on current emoji value."""
+	# Update display based on current emoji value.
 	if not _ready_called or not is_inside_tree():
 		return
 
@@ -95,13 +94,12 @@ func _update_display():
 		label.visible = false
 		return
 
-	# Initialize tiered emoji registry if needed
-	if not _tiered_emoji_registry:
-		_tiered_emoji_registry = TieredEmojiRegistry.shared()
+	if not _emoji_registry:
+		_emoji_registry = EmojiRegistry.shared()
 
 	# Try to load SVG glyph from tiered registry (Priority 1 & 2)
 	var texture: Texture2D = null
-	texture = _tiered_emoji_registry.get_texture(emoji)
+	texture = _emoji_registry.get_texture(emoji)
 
 	if texture:
 		# Use SVG glyph (Priority 1: Hand-crafted or Priority 2: Twemoji)
@@ -128,9 +126,8 @@ func _update_display():
 
 
 func set_opacity(opacity: float) -> void:
-	"""Set opacity for quantum superposition blending.
+	# Set opacity for quantum superposition blending.
 
-	Used by PlotTile for dual-emoji display with weighted opacity.
-	"""
+	# Used by PlotTile for dual-emoji display with weighted opacity.
 	modulate_color = Color(modulate_color.r, modulate_color.g, modulate_color.b, opacity)
 	_update_display()

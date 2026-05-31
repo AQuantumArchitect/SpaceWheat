@@ -1,0 +1,7982 @@
+[
+  {
+    "name": "Void",
+    "pole_0": "🕳",
+    "pole_1": "🪐",
+    "self_energy_0": 0.35,
+    "self_energy_1": 0.1,
+    "rabi_coupling": 0.5,
+    "hamiltonian_couplings": {
+      "⚫": [
+        1.1,
+        -0.5
+      ],
+      "🌀": 1.1,
+      "⚡": -0.25
+    },
+    "energy_couplings": {
+      "⭐": 0.2
+    }
+  },
+  {
+    "name": "Singularity",
+    "pole_0": "🌀",
+    "pole_1": "⚫",
+    "self_energy_0": 0.2,
+    "self_energy_1": 0.4,
+    "rabi_coupling": 0.5,
+    "hamiltonian_couplings": {
+      "🕳": 1.2999999999999998,
+      "🪐": [
+        0.9,
+        0.5
+      ],
+      "☀": -0.3
+    },
+    "energy_couplings": {
+      "🌊": 0.15,
+      "☀": -0.3,
+      "🌑": 0.35
+    }
+  },
+  {
+    "name": "Radiance",
+    "pole_0": "☀",
+    "pole_1": "⚡",
+    "self_energy_0": 0.5,
+    "self_energy_1": 0.1,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "⚫": -0.3,
+      "🕳": -0.15
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Salvage",
+    "pole_0": "🦴",
+    "pole_1": "💰",
+    "self_energy_0": 0.2,
+    "self_energy_1": 0.3,
+    "rabi_coupling": 0.4,
+    "hamiltonian_couplings": {
+      "👥": -0.05000000000000002,
+      "💉": 0.28,
+      "🔧": 0.6
+    },
+    "energy_couplings": {
+      "🏛": -0.15,
+      "💀": 0.1
+    }
+  },
+  {
+    "name": "Repair",
+    "pole_0": "🔧",
+    "pole_1": "💉",
+    "self_energy_0": 0.15,
+    "self_energy_1": 0.15,
+    "rabi_coupling": 0.4,
+    "hamiltonian_couplings": {
+      "⚙": 0.4,
+      "🦴": 0.8,
+      "💰": -0.22,
+      "🧪": 0.4
+    },
+    "energy_couplings": {
+      "🦠": -0.2
+    }
+  },
+  {
+    "name": "Cleansing",
+    "pole_0": "⚔",
+    "pole_1": "🧯",
+    "self_energy_0": 0.15,
+    "self_energy_1": 0.2,
+    "rabi_coupling": 0.22,
+    "hamiltonian_couplings": {
+      "⚱": 0.5,
+      "🩹": -0.3,
+      "🌫": 0.48,
+      "🔥": 0.25
+    },
+    "energy_couplings": {
+      "🔥": -0.15
+    }
+  },
+  {
+    "name": "Aftermath",
+    "pole_0": "⚱",
+    "pole_1": "🌫",
+    "self_energy_0": 0.3,
+    "self_energy_1": 0.22,
+    "rabi_coupling": 0.6,
+    "hamiltonian_couplings": {
+      "⚔": 0.5,
+      "🩹": 0.45,
+      "🔥": 0.35,
+      "🧯": 0.48
+    },
+    "energy_couplings": {
+      "🌱": 0.2,
+      "💀": 0.25,
+      "💨": 0.15
+    }
+  },
+  {
+    "name": "Ember",
+    "pole_0": "🩹",
+    "pole_1": "🔥",
+    "self_energy_0": 0.12,
+    "self_energy_1": 0.15,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "⚱": 0.8,
+      "⚔": -0.3,
+      "🧯": 0.25
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Predation",
+    "pole_0": "🦅",
+    "pole_1": "🩸",
+    "self_energy_0": 0.2,
+    "self_energy_1": 0.1,
+    "rabi_coupling": 0.4,
+    "hamiltonian_couplings": {
+      "⚜": 1.1,
+      "👥": 0.39999999999999997,
+      "💀": 0.9,
+      "⚖": -0.22
+    },
+    "energy_couplings": {
+      "☀": 0.1,
+      "🐇": 0.2,
+      "🌙": 0.1,
+      "💀": 0.15
+    }
+  },
+  {
+    "name": "Heritage",
+    "pole_0": "🏰",
+    "pole_1": "📜",
+    "self_energy_0": 0.5,
+    "self_energy_1": 0.15,
+    "rabi_coupling": 0.6,
+    "hamiltonian_couplings": {
+      "⚖": 1.0,
+      "⚜": 1.4,
+      "🦅": 0.4,
+      "🏢": 0.4
+    },
+    "energy_couplings": {
+      "🏛": 0.25,
+      "🔥": -0.35,
+      "🏢": 0.15
+    }
+  },
+  {
+    "name": "Nobility",
+    "pole_0": "⚜",
+    "pole_1": "👥",
+    "self_energy_0": 0.4,
+    "self_energy_1": 0.02,
+    "rabi_coupling": 0.28,
+    "hamiltonian_couplings": {
+      "⚖": 1.2999999999999998,
+      "🏰": 0.8,
+      "📜": 0.6,
+      "🦅": 0.39999999999999997,
+      "🩸": 1.25
+    },
+    "energy_couplings": {
+      "🏚": -0.25,
+      "🏛": 0.3,
+      "🔥": -0.2
+    }
+  },
+  {
+    "name": "Commerce",
+    "pole_0": "⚖",
+    "pole_1": "💰",
+    "self_energy_0": 0.25,
+    "self_energy_1": 0.0,
+    "rabi_coupling": 0.3,
+    "hamiltonian_couplings": {
+      "⚜": 0.7,
+      "👥": 0.6,
+      "📜": 0.5,
+      "🩸": -0.22
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Navigation",
+    "pole_0": "🧭",
+    "pole_1": "📍",
+    "self_energy_0": 0.22,
+    "self_energy_1": 0.12,
+    "rabi_coupling": 0.55,
+    "hamiltonian_couplings": {
+      "🔭": 0.55,
+      "🗺": -0.42000000000000004
+    },
+    "energy_couplings": {
+      "⛰": 0.1,
+      "🌀": -0.15
+    }
+  },
+  {
+    "name": "Exploration",
+    "pole_0": "🗺",
+    "pole_1": "🔭",
+    "self_energy_0": 0.4,
+    "self_energy_1": 0.3,
+    "rabi_coupling": 0.6,
+    "hamiltonian_couplings": {
+      "🧭": 0.35000000000000003,
+      "📍": -0.22
+    },
+    "energy_couplings": {
+      "📡": 0.1,
+      "🌙": 0.15,
+      "🌠": 0.2
+    }
+  },
+  {
+    "name": "Charting",
+    "pole_0": "🗺",
+    "pole_1": "🧭",
+    "self_energy_0": 0.28,
+    "self_energy_1": 0.3,
+    "rabi_coupling": 0.55,
+    "hamiltonian_couplings": {
+      "📍": -0.3,
+      "🔭": [
+        0.7,
+        0.45
+      ]
+    },
+    "energy_couplings": {
+      "📡": 0.1,
+      "⛰": 0.1,
+      "🌀": -0.15
+    }
+  },
+  {
+    "name": "Sighting",
+    "pole_0": "🔭",
+    "pole_1": "📍",
+    "self_energy_0": 0.22,
+    "self_energy_1": -0.2,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🗺": [
+        0.0,
+        -0.45
+      ],
+      "🧭": 0.4
+    },
+    "energy_couplings": {
+      "🌙": 0.15,
+      "🌠": 0.2
+    }
+  },
+  {
+    "name": "Solar",
+    "pole_0": "☀",
+    "pole_1": "🌙",
+    "self_energy_0": 1.0,
+    "self_energy_1": 0.8,
+    "rabi_coupling": 0.4,
+    "hamiltonian_couplings": {
+      "⛰": 0.3,
+      "🌬": 0.7,
+      "💧": 0.2,
+      "🔥": 0.7,
+      "🌱": 0.30,
+      "🌿": 0.20
+    },
+    "energy_couplings": {},
+    "driver": {
+      "amp": 1.0,
+      "freq": 0.04,
+      "phase": 0.0,
+      "type": "cosine"
+    }
+  },
+  {
+    "name": "Elemental",
+    "pole_0": "🔥",
+    "pole_1": "💧",
+    "self_energy_0": 0.6,
+    "self_energy_1": 0.3,
+    "rabi_coupling": 0.4,
+    "hamiltonian_couplings": {
+      "☀": 0.39999999999999997,
+      "⛰": 0.7,
+      "🌬": 1.1,
+      "🌙": 0.5
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Geostorm",
+    "pole_0": "⛰",
+    "pole_1": "🌬",
+    "self_energy_0": 0.2,
+    "self_energy_1": 0.1,
+    "rabi_coupling": 0.5,
+    "hamiltonian_couplings": {
+      "☀": 0.7,
+      "💧": 1.0,
+      "🔥": 0.8,
+      "🌙": 0.3
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Revolt",
+    "pole_0": "✊",
+    "pole_1": "🚩",
+    "self_energy_0": 0.35,
+    "self_energy_1": 0.25,
+    "rabi_coupling": 0.65,
+    "hamiltonian_couplings": {
+      "⚔": -0.25,
+      "🩸": 0.25,
+      "🔥": 0.5
+    },
+    "energy_couplings": {
+      "⛓": 0.25,
+      "🏛": -0.2,
+      "👥": 0.15
+    }
+  },
+  {
+    "name": "Blaze",
+    "pole_0": "🔥",
+    "pole_1": "🧨",
+    "self_energy_0": 0.22,
+    "self_energy_1": 0.08,
+    "rabi_coupling": 0.7,
+    "hamiltonian_couplings": {
+      "🚩": 0.5,
+      "⚔": 0.45
+    },
+    "energy_couplings": {
+      "💧": -0.3,
+      "💨": 0.25
+    }
+  },
+  {
+    "name": "Sacrifice",
+    "pole_0": "⚔",
+    "pole_1": "🩸",
+    "self_energy_0": 0.15,
+    "self_energy_1": 0.15,
+    "rabi_coupling": 0.4,
+    "hamiltonian_couplings": {
+      "🔥": 0.45,
+      "✊": 0.0
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Mend",
+    "pole_0": "💉",
+    "pole_1": "🦴",
+    "self_energy_0": 0.22,
+    "self_energy_1": 0.22,
+    "rabi_coupling": 0.65,
+    "hamiltonian_couplings": {
+      "⚙️": -0.25,
+      "🔧": -0.25
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Fitting",
+    "pole_0": "⚙️",
+    "pole_1": "🔧",
+    "self_energy_0": 0.18,
+    "self_energy_1": 0.18,
+    "rabi_coupling": 0.65,
+    "hamiltonian_couplings": {
+      "💉": -0.5
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Resonance",
+    "pole_0": "🎶",
+    "pole_1": "🔔",
+    "self_energy_0": 0.2,
+    "self_energy_1": 0.2,
+    "rabi_coupling": 0.6,
+    "hamiltonian_couplings": {
+      "🕯": 0.4,
+      "🫥": [
+        0.9,
+        0.4
+      ],
+      "🕸": -0.25,
+      "🪦": 0.4,
+      "🌑": -0.3
+    },
+    "energy_couplings": {
+      "🔇": -0.25
+    }
+  },
+  {
+    "name": "Absence",
+    "pole_0": "🫥",
+    "pole_1": "🕯",
+    "self_energy_0": -0.1,
+    "self_energy_1": 0.2,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🎶": [
+        0.9,
+        -0.4
+      ],
+      "🔔": 0.4,
+      "🪦": 0.95
+    },
+    "energy_couplings": {
+      "☀": -0.2,
+      "🌑": 0.25
+    }
+  },
+  {
+    "name": "Mortality",
+    "pole_0": "🕰",
+    "pole_1": "🪦",
+    "self_energy_0": 0.1,
+    "self_energy_1": 0.3,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🗃": 1.1,
+      "📖": 0.31999999999999995
+    },
+    "energy_couplings": {},
+    "driver": {
+      "type": "sine",
+      "frequency": 0.05,
+      "amplitude": 0.15,
+      "phase": 0.0
+    }
+  },
+  {
+    "name": "Archive",
+    "pole_0": "🗃",
+    "pole_1": "📖",
+    "self_energy_0": 0.2,
+    "self_energy_1": 0.4,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🕰": 0.27,
+      "🪦": 1.15
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Underground",
+    "pole_0": "🌱",
+    "pole_1": "⛏",
+    "self_energy_0": -0.05,
+    "self_energy_1": 0.3,
+    "rabi_coupling": 0.35,
+    "hamiltonian_couplings": {
+      "🪨": 0.38,
+      "🪤": 0.7
+    },
+    "energy_couplings": {
+      "☀": -0.15,
+      "🌙": 0.1,
+      "💧": 0.15,
+      "⚙": 0.1
+    }
+  },
+  {
+    "name": "Snare",
+    "pole_0": "🪨",
+    "pole_1": "🪤",
+    "self_energy_0": 0.25,
+    "self_energy_1": 0.18,
+    "rabi_coupling": 0.35,
+    "hamiltonian_couplings": {
+      "⛏": 1.0,
+      "🌱": 0.07999999999999999
+    },
+    "energy_couplings": {
+      "⛰": 0.2
+    }
+  },
+  {
+    "name": "Pressure",
+    "pole_0": "⭐",
+    "pole_1": "🕳",
+    "self_energy_0": -0.4,
+    "self_energy_1": 0.4,
+    "rabi_coupling": 0.514782,
+    "hamiltonian_couplings": {
+      "⚱": 1.05,
+      "🫧": 0.08000000000000002
+    },
+    "energy_couplings": {
+      "☀": -0.15,
+      "🌠": 0.2,
+      "⚫": 0.3,
+      "🌑": 0.25
+    }
+  },
+  {
+    "name": "Drowning",
+    "pole_0": "🫧",
+    "pole_1": "⚱",
+    "self_energy_0": 0.15,
+    "self_energy_1": 0.25,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "⭐": 0.3,
+      "🕳": 0.8300000000000001
+    },
+    "energy_couplings": {
+      "💀": 0.2
+    }
+  },
+  {
+    "name": "Debt",
+    "pole_0": "💸",
+    "pole_1": "⛓",
+    "self_energy_0": -0.35,
+    "self_energy_1": 0.15,
+    "rabi_coupling": 0.3,
+    "hamiltonian_couplings": {
+      "💀": 0.75,
+      "👥": 0.10000000000000003,
+      "💰": -0.65
+    },
+    "energy_couplings": {
+      "💰": -0.25,
+      "🏛": 0.15,
+      "🔥": -0.1
+    }
+  },
+  {
+    "name": "Liberation",
+    "pole_0": "👥",
+    "pole_1": "💀",
+    "self_energy_0": -0.1,
+    "self_energy_1": 0.1,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "⛓": 0.9500000000000001,
+      "💸": -0.10000000000000003
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Signal",
+    "pole_0": "📡",
+    "pole_1": "📶",
+    "self_energy_0": 0.28,
+    "self_energy_1": 0.12,
+    "rabi_coupling": 0.62,
+    "hamiltonian_couplings": {
+      "💾": 0.5,
+      "🧩": -0.2
+    },
+    "energy_couplings": {
+      "⛰": -0.15,
+      "📡": 0.2
+    }
+  },
+  {
+    "name": "Cache",
+    "pole_0": "💾",
+    "pole_1": "🧩",
+    "self_energy_0": 0.3,
+    "self_energy_1": 0.38,
+    "rabi_coupling": 0.42,
+    "hamiltonian_couplings": {
+      "📡": 0.5,
+      "📶": -0.2
+    },
+    "energy_couplings": {
+      "❄": 0.1,
+      "🔥": -0.3
+    }
+  },
+  {
+    "name": "Clearing",
+    "pole_0": "🪓",
+    "pole_1": "🔥",
+    "self_energy_0": 0.2,
+    "self_energy_1": 0.2,
+    "rabi_coupling": 0.3,
+    "hamiltonian_couplings": {
+      "⚔": 0.5,
+      "⛓": -0.4,
+      "✊": 0.4,
+      "🧨": 1.0,
+      "🌾": 0.4
+    },
+    "energy_couplings": {
+      "🌬": 0.25,
+      "💧": -0.3
+    }
+  },
+  {
+    "name": "Unleash",
+    "pole_0": "⛓",
+    "pole_1": "👥",
+    "self_energy_0": -0.1,
+    "self_energy_1": 0.0,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "⚔": 0.5,
+      "🧨": 0.6,
+      "🪓": -0.4,
+      "✊": -0.2
+    },
+    "energy_couplings": {
+      "⚖": 0.2
+    }
+  },
+  {
+    "name": "Strike",
+    "pole_0": "⚔",
+    "pole_1": "🧨",
+    "self_energy_0": 0.15,
+    "self_energy_1": 0.1,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "⛓": 1.1,
+      "✊": 0.4,
+      "🪓": 0.8,
+      "🔥": 0.7
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Land",
+    "pole_0": "✊",
+    "pole_1": "🌾",
+    "self_energy_0": 0.25,
+    "self_energy_1": 0.1,
+    "rabi_coupling": 0.35,
+    "hamiltonian_couplings": {
+      "⚔": 0.4,
+      "🪓": 0.8,
+      "⛓": -0.5
+    },
+    "energy_couplings": {
+      "🏚": 0.15,
+      "🏛": -0.25
+    }
+  },
+  {
+    "name": "Tissue",
+    "pole_0": "🫀",
+    "pole_1": "🧬",
+    "self_energy_0": 0.28,
+    "self_energy_1": 0.3,
+    "rabi_coupling": 0.45,
+    "hamiltonian_couplings": {
+      "🩸": 0.7,
+      "🧵": -0.47,
+      "🧫": 0.65,
+      "🦴": 0.3
+    },
+    "energy_couplings": {
+      "💀": -0.2,
+      "🔬": 0.2,
+      "🦠": 0.15
+    }
+  },
+  {
+    "name": "Culture",
+    "pole_0": "🩸",
+    "pole_1": "🧫",
+    "self_energy_0": 0.18,
+    "self_energy_1": 0.22,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🫀": 0.7,
+      "🧵": 0.6,
+      "🧬": 0.65,
+      "🦴": 0.22
+    },
+    "energy_couplings": {
+      "⚔": 0.15
+    }
+  },
+  {
+    "name": "Structure",
+    "pole_0": "🧵",
+    "pole_1": "🦴",
+    "self_energy_0": 0.12,
+    "self_energy_1": 0.15,
+    "rabi_coupling": 0.45,
+    "hamiltonian_couplings": {
+      "🧫": 0.52,
+      "🩸": 0.3,
+      "🧬": 0.07999999999999999,
+      "🫀": -0.25
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Mechanism",
+    "pole_0": "⚙",
+    "pole_1": "🔩",
+    "self_energy_0": 0.2,
+    "self_energy_1": 0.1,
+    "rabi_coupling": 0.5,
+    "hamiltonian_couplings": {
+      "🏷️": 0.5,
+      "🛠": 1.1,
+      "🧰": 0.4,
+      "⚡": 0.15,
+      "💎": 0.15
+    },
+    "energy_couplings": {
+      "🏷️": 0.2,
+      "💧": -0.1
+    }
+  },
+  {
+    "name": "Toolset",
+    "pole_0": "🛠",
+    "pole_1": "🧰",
+    "self_energy_0": 0.15,
+    "self_energy_1": 0.2,
+    "rabi_coupling": 0.6,
+    "hamiltonian_couplings": {
+      "⚙": 1.0,
+      "🔩": 0.9,
+      "🪨": -0.1
+    },
+    "energy_couplings": {
+      "🏷️": 0.15
+    }
+  },
+  {
+    "name": "Electrify",
+    "pole_0": "💎",
+    "pole_1": "⚡",
+    "self_energy_0": 0.1,
+    "self_energy_1": 0.1,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🔩": 0.25,
+      "⚙": 0.3
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Material",
+    "pole_0": "🪨",
+    "pole_1": "🏷️",
+    "self_energy_0": 0.0,
+    "self_energy_1": 0.25,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🛠": 0.09999999999999998,
+      "⚙": 0.5
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Investment",
+    "pole_0": "🌱",
+    "pole_1": "💰",
+    "self_energy_0": 0.05,
+    "self_energy_1": 0.38,
+    "rabi_coupling": 0.32,
+    "hamiltonian_couplings": {
+      "🍞": 0.58,
+      "🧺": 0.5,
+      "🏛": 0.2,
+      "🏚": -0.15
+    },
+    "energy_couplings": {
+      "🏚": -0.15,
+      "🏛": 0.2
+    }
+  },
+  {
+    "name": "Stores",
+    "pole_0": "🍞",
+    "pole_1": "🧺",
+    "self_energy_0": 0.15,
+    "self_energy_1": 0.22,
+    "rabi_coupling": 0.55,
+    "hamiltonian_couplings": {
+      "💰": 1.08
+    },
+    "energy_couplings": {
+      "💧": -0.1,
+      "🔥": -0.25
+    }
+  },
+  {
+    "name": "Stability",
+    "pole_0": "🏛",
+    "pole_1": "🏚",
+    "self_energy_0": 0.2,
+    "self_energy_1": -0.18,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "💰": 0.05000000000000002
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Hearth",
+    "pole_0": "🔥",
+    "pole_1": "❄️",
+    "self_energy_0": 0.8,
+    "self_energy_1": -0.3,
+    "rabi_coupling": 0.8,
+    "hamiltonian_couplings": {
+      "🍞": 0.5,
+      "💧": 0.5,
+      "🐝": 0.15,
+      "🌱": -0.3
+    },
+    "energy_couplings": {},
+    "driver": {
+      "amp": 1.0,
+      "freq": 0.0666666666666667,
+      "phase": 0.0,
+      "type": "sine"
+    }
+  },
+  {
+    "name": "Water",
+    "pole_0": "💧",
+    "pole_1": "🏜️",
+    "self_energy_0": -0.1,
+    "self_energy_1": 0.0,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "❄️": 0.3,
+      "🍞": 0.15000000000000002,
+      "🔥": 0.5,
+      "👥": 0.3
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Kitchen",
+    "pole_0": "🫖",
+    "pole_1": "🥣",
+    "self_energy_0": 0.35,
+    "self_energy_1": 0.22,
+    "rabi_coupling": 0.5,
+    "hamiltonian_couplings": {
+      "🌿": 1.05,
+      "🧿": [
+        0.25,
+        0.3
+      ],
+      "🕯": 0.27,
+      "🌾": 0.2
+    },
+    "energy_couplings": {
+      "💧": 0.2,
+      "🔥": 0.15
+    }
+  },
+  {
+    "name": "Ward",
+    "pole_0": "🕯",
+    "pole_1": "🧿",
+    "self_energy_0": 0.28,
+    "self_energy_1": 0.3,
+    "rabi_coupling": 0.390512,
+    "hamiltonian_couplings": {
+      "🫖": [
+        0.7,
+        -0.3
+      ],
+      "🥣": -0.18,
+      "🌿": -0.22
+    },
+    "energy_couplings": {
+      "💨": -0.15,
+      "🔥": 0.2,
+      "🔮": 0.2
+    }
+  },
+  {
+    "name": "Forage",
+    "pole_0": "🌿",
+    "pole_1": "🌾",
+    "self_energy_0": 0.2,
+    "self_energy_1": 0.1,
+    "rabi_coupling": 0.35,
+    "hamiltonian_couplings": {
+      "🫖": 0.6,
+      "🥣": 0.65,
+      "🧿": -0.22
+    },
+    "energy_couplings": {
+      "🌱": 0.15,
+      "💧": 0.1
+    }
+  },
+  {
+    "name": "Inheritance",
+    "pole_0": "🧬",
+    "pole_1": "🧫",
+    "self_energy_0": 0.35,
+    "self_energy_1": 0.25,
+    "rabi_coupling": 0.5,
+    "hamiltonian_couplings": {
+      "🔬": 1.2999999999999998,
+      "🕳": 0.07,
+      "⚗️": -0.22,
+      "🧪": 0.6
+    },
+    "energy_couplings": {
+      "🌱": 0.15
+    }
+  },
+  {
+    "name": "Probe",
+    "pole_0": "🔬",
+    "pole_1": "🕳",
+    "self_energy_0": 0.3,
+    "self_energy_1": -0.15,
+    "rabi_coupling": 0.45,
+    "hamiltonian_couplings": {
+      "🧪": 0.5,
+      "🧫": 0.42,
+      "🧬": 1.1
+    },
+    "energy_couplings": {
+      "🏛": 0.1,
+      "⚫": 0.25,
+      "🌑": 0.15
+    }
+  },
+  {
+    "name": "Synthesis",
+    "pole_0": "🧪",
+    "pole_1": "⚗️",
+    "self_energy_0": 0.2,
+    "self_energy_1": 0.2,
+    "rabi_coupling": 0.7,
+    "hamiltonian_couplings": {
+      "🔬": 0.5,
+      "🧫": 0.6,
+      "🧬": -0.22
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Decadence",
+    "pole_0": "🍷",
+    "pole_1": "🌹",
+    "self_energy_0": 0.3,
+    "self_energy_1": 0.45,
+    "rabi_coupling": 0.55,
+    "hamiltonian_couplings": {
+      "🪞": 1.0,
+      "⚖": -0.66
+    },
+    "energy_couplings": {
+      "⚜": 0.2,
+      "🌑": 0.1,
+      "🔥": 0.1,
+      "☀": 0.1,
+      "🏛": 0.15,
+      "💧": 0.15
+    }
+  },
+  {
+    "name": "Reflection",
+    "pole_0": "🪞",
+    "pole_1": "⚖",
+    "self_energy_0": 0.25,
+    "self_energy_1": -0.25,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🌹": 0.21999999999999997,
+      "🍷": 0.12
+    },
+    "energy_couplings": {
+      "🌙": 0.15
+    }
+  },
+  {
+    "name": "Decree",
+    "pole_0": "📜",
+    "pole_1": "🖋",
+    "self_energy_0": 0.15,
+    "self_energy_1": 0.2,
+    "rabi_coupling": 0.58,
+    "hamiltonian_couplings": {
+      "🗃": -0.4,
+      "⛓": 0.62
+    },
+    "energy_couplings": {
+      "⚜": 0.2,
+      "🏛": 0.15
+    }
+  },
+  {
+    "name": "Binding",
+    "pole_0": "🗃",
+    "pole_1": "⛓",
+    "self_energy_0": -0.2,
+    "self_energy_1": 0.3,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "📜": -0.4,
+      "🖋": 0.62
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Practice",
+    "pole_0": "🧘",
+    "pole_1": "📿",
+    "self_energy_0": 0.28,
+    "self_energy_1": 0.22,
+    "rabi_coupling": 0.5,
+    "hamiltonian_couplings": {
+      "🗝": 0.4,
+      "⛪": 1.0
+    },
+    "energy_couplings": {
+      "🤫": 0.15
+    },
+    "driver": {
+      "amplitude": 0.1,
+      "frequency": 0.15,
+      "phase": 0.0,
+      "type": "sine"
+    }
+  },
+  {
+    "name": "Sentinel",
+    "pole_0": "🤖",
+    "pole_1": "🛡",
+    "self_energy_0": 0.22,
+    "self_energy_1": 0.12,
+    "rabi_coupling": 0.4,
+    "hamiltonian_couplings": {
+      "⛪": -0.04999999999999999,
+      "🗝": 0.55
+    },
+    "energy_couplings": {
+      "⚙": 0.25,
+      "🔌": 0.2
+    }
+  },
+  {
+    "name": "Confession",
+    "pole_0": "⛪",
+    "pole_1": "🗝",
+    "self_energy_0": 0.35,
+    "self_energy_1": 0.15,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "📿": 0.6,
+      "🤖": 0.30000000000000004,
+      "🧘": 0.8,
+      "🛡": 0.2
+    },
+    "energy_couplings": {
+      "🕯": 0.2
+    }
+  },
+  {
+    "name": "Guard",
+    "pole_0": "⚔",
+    "pole_1": "🛡",
+    "self_energy_0": 0.2,
+    "self_energy_1": 0.4,
+    "rabi_coupling": 0.6,
+    "hamiltonian_couplings": {
+      "🐑": 0.4,
+      "🛸": 0.4
+    },
+    "energy_couplings": {
+      "⚔": 0.2,
+      "🐺": -0.15
+    }
+  },
+  {
+    "name": "Patrol",
+    "pole_0": "🐑",
+    "pole_1": "🛸",
+    "self_energy_0": 0.14,
+    "self_energy_1": 0.28,
+    "rabi_coupling": 0.48,
+    "hamiltonian_couplings": {
+      "🛡": 1.02,
+      "⚔": -0.22,
+      "🌾": 0.45,
+      "🧭": 0.58
+    },
+    "energy_couplings": {
+      "🐺": -0.3,
+      "🛡": 0.25
+    },
+    "driver": {
+      "amplitude": 0.06,
+      "frequency": 0.3,
+      "phase": 1.57,
+      "type": "sine"
+    }
+  },
+  {
+    "name": "Pasture",
+    "pole_0": "🧭",
+    "pole_1": "🌾",
+    "self_energy_0": 0.25,
+    "self_energy_1": 0.1,
+    "rabi_coupling": 0.2,
+    "hamiltonian_couplings": {
+      "🛸": 0.58,
+      "🐑": 0.45
+    },
+    "energy_couplings": {
+      "🗺": 0.15
+    },
+    "driver": {
+      "amplitude": 0.08,
+      "frequency": 0.3,
+      "phase": 0.0,
+      "type": "sine"
+    }
+  },
+  {
+    "name": "Allotment",
+    "pole_0": "💧",
+    "pole_1": "⚖",
+    "self_energy_0": 0.5,
+    "self_energy_1": 0.6,
+    "rabi_coupling": 0.6,
+    "hamiltonian_couplings": {
+      "🌱": 1.0,
+      "🔥": -0.6,
+      "🪣": 0.9,
+      "🌧": 0.4,
+      "📜": 0.3
+    },
+    "energy_couplings": {
+      "☀": -0.1,
+      "🌙": 0.15,
+      "🏛": 0.2,
+      "🏰": 0.1
+    }
+  },
+  {
+    "name": "Furrow",
+    "pole_0": "🌱",
+    "pole_1": "🪣",
+    "self_energy_0": 0.35,
+    "self_energy_1": 0.2,
+    "rabi_coupling": 0.4,
+    "hamiltonian_couplings": {
+      "💧": 1.0,
+      "⚖": 0.5,
+      "🌾": 0.45
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Hush",
+    "pole_0": "🔇",
+    "pole_1": "🤫",
+    "self_energy_0": 0.2,
+    "self_energy_1": 0.35,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "📵": 0.35,
+      "🛑": -0.28,
+      "🕯": 0.2,
+      "🧘": 0.7
+    },
+    "energy_couplings": {
+      "📡": -0.25,
+      "🔊": -0.35,
+      "🗣": -0.3
+    }
+  },
+  {
+    "name": "Embargo",
+    "pole_0": "🛑",
+    "pole_1": "📵",
+    "self_energy_0": -0.22,
+    "self_energy_1": 0.1,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🔇": 0.06999999999999995
+    },
+    "energy_couplings": {
+      "📶": -0.25
+    }
+  },
+  {
+    "name": "Vigil",
+    "pole_0": "🧘",
+    "pole_1": "🕯",
+    "self_energy_0": 0.55,
+    "self_energy_1": 0.08,
+    "rabi_coupling": 0.3,
+    "hamiltonian_couplings": {
+      "🤫": 0.7,
+      "🔇": 0.2
+    },
+    "energy_couplings": {
+      "🌑": 0.2
+    }
+  },
+  {
+    "name": "Power",
+    "pole_0": "🔋",
+    "pole_1": "⚙",
+    "self_energy_0": 0.3,
+    "self_energy_1": 0.15,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "⚡": 0.8,
+      "🔌": 1.1,
+      "🏭": 0.5
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Circuit",
+    "pole_0": "🔌",
+    "pole_1": "☀",
+    "self_energy_0": 0.1,
+    "self_energy_1": 0.0,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "⚙": 0.4,
+      "⚡": 0.85,
+      "🔋": 0.7,
+      "💧": -0.3
+    },
+    "energy_couplings": {
+      "💧": -0.2
+    },
+    "driver": {
+      "amp": 0.5,
+      "freq": 1.0,
+      "phase": 0.0,
+      "type": "sine"
+    }
+  },
+  {
+    "name": "Storm",
+    "pole_0": "⚡",
+    "pole_1": "🌋",
+    "self_energy_0": 0.2,
+    "self_energy_1": 0.0,
+    "rabi_coupling": 0.25,
+    "hamiltonian_couplings": {
+      "🔋": 0.8,
+      "🔌": 0.5,
+      "🔥": 0.2,
+      "🌫": 0.15,
+      "☀": 0.1
+    },
+    "energy_couplings": {
+      "☀": 0.1,
+      "🌬": 0.1,
+      "💧": 0.15
+    }
+  },
+  {
+    "name": "Heat",
+    "pole_0": "🔥",
+    "pole_1": "🌫",
+    "self_energy_0": 0.0,
+    "self_energy_1": 0.0,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "⚡": 0.75
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Bond",
+    "pole_0": "🪢",
+    "pole_1": "📿",
+    "self_energy_0": 0.3,
+    "self_energy_1": 0.25,
+    "rabi_coupling": 0.5,
+    "hamiltonian_couplings": {
+      "🗝": 0.4,
+      "🧵": 0.8999999999999999,
+      "🔔": 0.4,
+      "🪡": -0.2
+    },
+    "energy_couplings": {
+      "⛓": 0.2,
+      "✊": -0.15,
+      "🕯": 0.15
+    }
+  },
+  {
+    "name": "Thread",
+    "pole_0": "🧵",
+    "pole_1": "🪡",
+    "self_energy_0": 0.15,
+    "self_energy_1": 0.15,
+    "rabi_coupling": 0.5,
+    "hamiltonian_couplings": {
+      "📿": 0.09999999999999998,
+      "🪢": 1.0,
+      "🗝": -0.25
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Tithe",
+    "pole_0": "🔔",
+    "pole_1": "🗝",
+    "self_energy_0": 0.2,
+    "self_energy_1": 0.2,
+    "rabi_coupling": 0.4,
+    "hamiltonian_couplings": {
+      "📿": 0.4,
+      "🪢": 0.4,
+      "🧵": -0.25
+    },
+    "energy_couplings": {
+      "🎵": 0.1
+    }
+  },
+  {
+    "name": "Lantern",
+    "pole_0": "🏮",
+    "pole_1": "🕯",
+    "self_energy_0": 0.42,
+    "self_energy_1": 0.16,
+    "rabi_coupling": 0.55,
+    "hamiltonian_couplings": {
+      "🔦": 0.15000000000000002,
+      "🧿": 0.6499999999999999
+    },
+    "energy_couplings": {
+      "🌑": 0.25,
+      "🔥": 0.15,
+      "💨": -0.2
+    },
+    "driver": {
+      "amplitude": 0.1,
+      "frequency": 0.5,
+      "phase": 0.0,
+      "type": "pulse"
+    }
+  },
+  {
+    "name": "Illuminate",
+    "pole_0": "🧿",
+    "pole_1": "🔦",
+    "self_energy_0": 0.28,
+    "self_energy_1": 0.16,
+    "rabi_coupling": 0.3,
+    "hamiltonian_couplings": {
+      "🏮": 0.9,
+      "🕯": -0.10000000000000003
+    },
+    "energy_couplings": {
+      "🔮": 0.15,
+      "🌑": 0.2,
+      "🔋": 0.2
+    },
+    "driver": {
+      "amplitude": 0.12,
+      "frequency": 0.7,
+      "phase": 0.78,
+      "type": "pulse"
+    }
+  },
+  {
+    "name": "Masque",
+    "pole_0": "🎭",
+    "pole_1": "💃",
+    "self_energy_0": 0.35,
+    "self_energy_1": 0.2,
+    "rabi_coupling": 0.5,
+    "hamiltonian_couplings": {
+      "🩸": 0.6,
+      "😂": 0.55,
+      "🌹": 0.45,
+      "📋": -0.42,
+      "🍷": 0.5
+    },
+    "energy_couplings": {
+      "🌙": 0.15,
+      "☀": -0.1
+    }
+  },
+  {
+    "name": "Revelry",
+    "pole_0": "🍷",
+    "pole_1": "😂",
+    "self_energy_0": 0.25,
+    "self_energy_1": 0.4,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🩸": 0.8500000000000001,
+      "💃": 0.5,
+      "🌹": 0.35,
+      "🎭": 0.55,
+      "📋": -0.3
+    },
+    "energy_couplings": {
+      "🩸": 0.2
+    }
+  },
+  {
+    "name": "Levy",
+    "pole_0": "💰",
+    "pole_1": "⚖",
+    "self_energy_0": 0.3,
+    "self_energy_1": 0.25,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "👥": 0.4,
+      "📒": 1.1,
+      "📘": 0.75,
+      "🚔": 0.5
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Writ",
+    "pole_0": "📒",
+    "pole_1": "🚔",
+    "self_energy_0": 0.2,
+    "self_energy_1": 0.15,
+    "rabi_coupling": 0.4,
+    "hamiltonian_couplings": {
+      "💰": 0.6,
+      "💸": 0.25,
+      "📘": 0.5,
+      "⚖": 0.5,
+      "👥": 0.5
+    },
+    "energy_couplings": {
+      "🏛": 0.2,
+      "🔥": -0.25,
+      "⚖": 0.15,
+      "🏚": -0.2
+    }
+  },
+  {
+    "name": "Record",
+    "pole_0": "📘",
+    "pole_1": "💸",
+    "self_energy_0": 0.1,
+    "self_energy_1": 0.2,
+    "rabi_coupling": 0.28,
+    "hamiltonian_couplings": {
+      "💰": 0.3,
+      "👥": -0.2,
+      "📒": 0.25
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Swarm",
+    "pole_0": "🦗",
+    "pole_1": "🐜",
+    "self_energy_0": 0.1,
+    "self_energy_1": 0.15,
+    "rabi_coupling": 0.6,
+    "hamiltonian_couplings": {
+      "♻️": 1.0,
+      "🧫": 0.4,
+      "🌾": -0.55,
+      "🌱": -0.2,
+      "🌬": 0.5,
+      "🦠": 0.3
+    },
+    "energy_couplings": {
+      "🌱": 0.25,
+      "🌾": 0.35
+    }
+  },
+  {
+    "name": "Gale",
+    "pole_0": "⚔",
+    "pole_1": "🌬",
+    "self_energy_0": 0.05,
+    "self_energy_1": 0.12,
+    "rabi_coupling": 0.35,
+    "hamiltonian_couplings": {
+      "🐜": 0.3,
+      "🦗": 0.9
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Decompose",
+    "pole_0": "♻️",
+    "pole_1": "🧫",
+    "self_energy_0": 0.2,
+    "self_energy_1": 0.1,
+    "rabi_coupling": 0.4,
+    "hamiltonian_couplings": {
+      "🐜": 0.5,
+      "🦗": 0.9,
+      "🦠": 0.5
+    },
+    "energy_couplings": {
+      "🍂": 0.2
+    }
+  },
+  {
+    "name": "Blight",
+    "pole_0": "🦠",
+    "pole_1": "🌾",
+    "self_energy_0": -0.05,
+    "self_energy_1": -0.08,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🐜": 0.3,
+      "🧫": 0.5,
+      "🦗": -0.15
+    },
+    "energy_couplings": {
+      "🧬": 0.15
+    }
+  },
+  {
+    "name": "Knot",
+    "pole_0": "🪢",
+    "pole_1": "🪡",
+    "self_energy_0": 0.38,
+    "self_energy_1": 0.22,
+    "rabi_coupling": 0.4,
+    "hamiltonian_couplings": {
+      "🧵": [
+        0.95,
+        -0.25
+      ],
+      "👘": [
+        0.8,
+        0.3
+      ]
+    },
+    "energy_couplings": {
+      "⛓": 0.2,
+      "📿": 0.15
+    }
+  },
+  {
+    "name": "Weave",
+    "pole_0": "🧵",
+    "pole_1": "👘",
+    "self_energy_0": 0.18,
+    "self_energy_1": 0.3,
+    "rabi_coupling": 0.5,
+    "hamiltonian_couplings": {
+      "🪢": [
+        0.6499999999999999,
+        -0.04999999999999999
+      ],
+      "🪡": 1.1
+    },
+    "energy_couplings": {
+      "🎭": 0.15
+    }
+  },
+  {
+    "name": "Sentiment",
+    "pole_0": "🐂",
+    "pole_1": "🐻",
+    "self_energy_0": 0.5,
+    "self_energy_1": -0.2,
+    "rabi_coupling": 0.7,
+    "hamiltonian_couplings": {
+      "🏛️": 0.3,
+      "💰": 0.4,
+      "🏚️": 0.3,
+      "📦": -0.25
+    },
+    "energy_couplings": {},
+    "driver": {
+      "amp": 0.8,
+      "freq": 0.0333333333333333,
+      "phase": 0.0,
+      "type": "sine"
+    }
+  },
+  {
+    "name": "Treasury",
+    "pole_0": "🏛️",
+    "pole_1": "💰",
+    "self_energy_0": 0.2,
+    "self_energy_1": 0.1,
+    "rabi_coupling": 0.3,
+    "hamiltonian_couplings": {
+      "🏚️": -0.4,
+      "🐂": 0.5,
+      "📦": 0.6
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Exchange",
+    "pole_0": "📦",
+    "pole_1": "🏚️",
+    "self_energy_0": 0.0,
+    "self_energy_1": -0.1,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🐻": 0.15000000000000002,
+      "💰": 0.6,
+      "🏛️": -0.4
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Reference",
+    "pole_0": "📘",
+    "pole_1": "📐",
+    "self_energy_0": 0.38,
+    "self_energy_1": 0.12,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "📊": 0.55,
+      "📋": 0.10000000000000003,
+      "🧮": 0.65,
+      "⚖": 0.3
+    },
+    "energy_couplings": {
+      "⚖": 0.15,
+      "🔥": -0.25,
+      "🏚": -0.2,
+      "🏛": 0.25
+    }
+  },
+  {
+    "name": "Scale",
+    "pole_0": "📋",
+    "pole_1": "⚖",
+    "self_energy_0": 0.18,
+    "self_energy_1": 0.1,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "📘": 0.4,
+      "📐": 0.0,
+      "📊": 0.4
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Calculus",
+    "pole_0": "🧮",
+    "pole_1": "📊",
+    "self_energy_0": 0.22,
+    "self_energy_1": 0.3,
+    "rabi_coupling": 0.6,
+    "hamiltonian_couplings": {
+      "📐": 0.65,
+      "📘": 0.55,
+      "⚖": 0.4
+    },
+    "energy_couplings": {
+      "💰": 0.1
+    }
+  },
+  {
+    "name": "Memory",
+    "pole_0": "📼",
+    "pole_1": "🧩",
+    "self_energy_0": 0.12,
+    "self_energy_1": 0.2,
+    "rabi_coupling": 0.35,
+    "hamiltonian_couplings": {
+      "💾": 0.18000000000000002,
+      "💰": -0.2,
+      "🔮": 0.45
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Repository",
+    "pole_0": "💾",
+    "pole_1": "🗝",
+    "self_energy_0": 0.3,
+    "self_energy_1": 0.32,
+    "rabi_coupling": 0.45,
+    "hamiltonian_couplings": {
+      "🧩": 0.4,
+      "📼": -0.22,
+      "🔮": 0.3,
+      "💰": 0.55
+    },
+    "energy_couplings": {
+      "📡": 0.15,
+      "🔥": -0.3,
+      "🔓": -0.15
+    }
+  },
+  {
+    "name": "Foresight",
+    "pole_0": "💰",
+    "pole_1": "🔮",
+    "self_energy_0": 0.25,
+    "self_energy_1": 0.3,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🗝": 0.55,
+      "📼": 0.25,
+      "💾": 0.3
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Memorial",
+    "pole_0": "🫥",
+    "pole_1": "🪦",
+    "self_energy_0": -0.1,
+    "self_energy_1": -0.05,
+    "rabi_coupling": 0.5,
+    "hamiltonian_couplings": {
+      "🕸": 0.25,
+      "🌑": 0.95,
+      "🕯": 0.5
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Hollow",
+    "pole_0": "🕸",
+    "pole_1": "🌑",
+    "self_energy_0": 0.15,
+    "self_energy_1": -0.1,
+    "rabi_coupling": 0.55,
+    "hamiltonian_couplings": {
+      "🫥": 0.8500000000000001,
+      "🕯": 0.3,
+      "🪦": 0.35
+    },
+    "energy_couplings": {
+      "🕷": 0.2,
+      "☀": -0.3,
+      "🌙": 0.25
+    }
+  },
+  {
+    "name": "Labor",
+    "pole_0": "👥",
+    "pole_1": "🍞",
+    "self_energy_0": 0.05,
+    "self_energy_1": 0.12,
+    "rabi_coupling": 0.45,
+    "hamiltonian_couplings": {
+      "🏭": 0.35000000000000003
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Factory",
+    "pole_0": "⚙",
+    "pole_1": "🏭",
+    "self_energy_0": 0.2,
+    "self_energy_1": 0.28,
+    "rabi_coupling": 0.65,
+    "hamiltonian_couplings": {
+      "💨": 1.12,
+      "🔨": 0.5,
+      "💧": 0.5,
+      "🔥": 0.38,
+      "⚡": 0.45,
+      "🍞": 0.55,
+      "👥": -0.2
+    },
+    "energy_couplings": {
+      "💧": 0.15,
+      "🌬": 0.1,
+      "🔥": -0.2
+    }
+  },
+  {
+    "name": "Mill",
+    "pole_0": "💨",
+    "pole_1": "🔨",
+    "self_energy_0": 0.25,
+    "self_energy_1": 0.15,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "⚙": 1.1,
+      "🏭": 0.52
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Course",
+    "pole_0": "🧱",
+    "pole_1": "🏛",
+    "self_energy_0": 0.28,
+    "self_energy_1": 0.52,
+    "rabi_coupling": 0.6,
+    "hamiltonian_couplings": {
+      "📐": 0.27,
+      "🏺": 0.55
+    },
+    "energy_couplings": {
+      "💧": -0.1,
+      "🔥": -0.15,
+      "⛰": 0.2,
+      "🏚": -0.3
+    }
+  },
+  {
+    "name": "Plumb",
+    "pole_0": "📐",
+    "pole_1": "🏺",
+    "self_energy_0": 0.38,
+    "self_energy_1": 0.35,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🏛": 1.07,
+      "🧱": -0.25
+    },
+    "energy_couplings": {
+      "🧮": 0.15
+    }
+  },
+  {
+    "name": "Translation",
+    "pole_0": "🌿",
+    "pole_1": "🦠",
+    "self_energy_0": 0.28,
+    "self_energy_1": 0.2,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🧿": [
+        0.07,
+        0.35
+      ],
+      "🧫": 0.6
+    },
+    "energy_couplings": {
+      "🍄": 0.25,
+      "💧": 0.2,
+      "🧬": 0.15
+    }
+  },
+  {
+    "name": "Witness",
+    "pole_0": "🧫",
+    "pole_1": "🧿",
+    "self_energy_0": 0.24,
+    "self_energy_1": 0.22,
+    "rabi_coupling": 0.360555,
+    "hamiltonian_couplings": {
+      "🦠": [
+        0.85,
+        -0.35
+      ],
+      "🌿": -0.18
+    },
+    "energy_couplings": {
+      "🔮": 0.15
+    }
+  },
+  {
+    "name": "Moon-Mycelium",
+    "pole_0": "🌙",
+    "pole_1": "🍄",
+    "self_energy_0": 0.28,
+    "self_energy_1": 0.15,
+    "rabi_coupling": 0.65,
+    "hamiltonian_couplings": {
+      "💀": [
+        0.12,
+        -0.3
+      ],
+      "🍂": [
+        0.4,
+        0.3
+      ],
+      "🌱": 0.3,
+      "💧": 0.25
+    },
+    "energy_couplings": {
+      "☀": -0.35,
+      "🌙": 0.4,
+      "💧": 0.35
+    }
+  },
+  {
+    "name": "Death-Decay",
+    "pole_0": "🍂",
+    "pole_1": "💀",
+    "self_energy_0": 0.05,
+    "self_energy_1": -0.22,
+    "rabi_coupling": 0.424264,
+    "hamiltonian_couplings": {
+      "🍄": [
+        0.8,
+        0.0
+      ],
+      "🌱": 0.35,
+      "🌙": -0.28
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Regrowth",
+    "pole_0": "🌱",
+    "pole_1": "💧",
+    "self_energy_0": 0.08,
+    "self_energy_1": 0.05,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🍄": 0.55,
+      "🍂": 0.35
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Crossing",
+    "pole_0": "🚪",
+    "pole_1": "🗝",
+    "self_energy_0": 0.08,
+    "self_energy_1": 0.35,
+    "rabi_coupling": 0.67082,
+    "hamiltonian_couplings": {
+      "🚧": -0.35,
+      "📋": 0.3,
+      "🛂": -0.22,
+      "🔐": 0.5
+    },
+    "energy_couplings": {
+      "🏚": -0.1,
+      "🏛": 0.15
+    },
+    "driver": {
+      "amp": 0.3,
+      "freq": 0.1,
+      "phase": 0.0,
+      "type": "sine"
+    }
+  },
+  {
+    "name": "Manifest",
+    "pole_0": "🛂",
+    "pole_1": "📋",
+    "self_energy_0": 0.28,
+    "self_energy_1": 0.15,
+    "rabi_coupling": 0.6,
+    "hamiltonian_couplings": {
+      "🚧": 0.9500000000000001,
+      "🗝": -0.22,
+      "🚪": 0.3
+    },
+    "energy_couplings": {
+      "📘": 0.15
+    }
+  },
+  {
+    "name": "Sealed",
+    "pole_0": "🚧",
+    "pole_1": "🔐",
+    "self_energy_0": 0.22,
+    "self_energy_1": 0.12,
+    "rabi_coupling": 0.25,
+    "hamiltonian_couplings": {
+      "🚪": -0.35,
+      "🛂": 0.55,
+      "📋": 0.4,
+      "🗝": 0.5
+    },
+    "energy_couplings": {
+      "👥": -0.05,
+      "🚢": -0.1
+    }
+  },
+  {
+    "name": "Discipline",
+    "pole_0": "⛓",
+    "pole_1": "🪨",
+    "self_energy_0": 0.1,
+    "self_energy_1": 0.35,
+    "rabi_coupling": 0.5,
+    "hamiltonian_couplings": {
+      "📘": 0.7,
+      "🕴️": 0.5,
+      "🧱": 0.6
+    },
+    "energy_couplings": {
+      "🏭": 0.2,
+      "👥": -0.15,
+      "🏚": -0.2,
+      "🏛": 0.25
+    }
+  },
+  {
+    "name": "Foreman",
+    "pole_0": "🧱",
+    "pole_1": "🕴️",
+    "self_energy_0": 0.25,
+    "self_energy_1": 0.2,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "📘": 0.9,
+      "🪨": 0.6,
+      "⚡": -0.15,
+      "🔩": 0.3,
+      "⛓": 0.5,
+      "⚙": -0.25
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Doctrine",
+    "pole_0": "📘",
+    "pole_1": "⚡",
+    "self_energy_0": 0.3,
+    "self_energy_1": 0.0,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "⛓": 0.4,
+      "🕴️": 0.5,
+      "🧱": 0.30000000000000004,
+      "🪨": 0.3
+    },
+    "energy_couplings": {
+      "⚖": 0.15
+    }
+  },
+  {
+    "name": "Arbitration",
+    "pole_0": "⚔",
+    "pole_1": "💱",
+    "self_energy_0": 0.2,
+    "self_energy_1": 0.25,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🐉": 0.9,
+      "🛡": 0.8,
+      "🩸": 0.2,
+      "👑": 0.3
+    },
+    "energy_couplings": {
+      "⛓": 0.15,
+      "💰": 0.2
+    }
+  },
+  {
+    "name": "Wyrm",
+    "pole_0": "🐉",
+    "pole_1": "🩸",
+    "self_energy_0": 0.35,
+    "self_energy_1": 0.15,
+    "rabi_coupling": 0.6,
+    "hamiltonian_couplings": {
+      "⚔": 0.9,
+      "💱": 0.35000000000000003,
+      "🛡": -0.55,
+      "👑": 0.45
+    },
+    "energy_couplings": {
+      "❄": -0.15,
+      "🔥": 0.3,
+      "⚖": 0.15
+    }
+  },
+  {
+    "name": "Sovereignty",
+    "pole_0": "🛡",
+    "pole_1": "👑",
+    "self_energy_0": 0.2,
+    "self_energy_1": 0.2,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "⚔": 0.5,
+      "💱": 0.6,
+      "🩸": -0.35,
+      "🐉": 0.25
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Pack",
+    "pole_0": "🐺",
+    "pole_1": "🦌",
+    "self_energy_0": -0.35,
+    "self_energy_1": 0.20,
+    "rabi_coupling": 0.5,
+    "hamiltonian_couplings": {
+      "🐇": 0.20,
+      "🦅": 0.20,
+      "🌾": -0.25,
+      "🐑": 0.3
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Raptor",
+    "pole_0": "🦅",
+    "pole_1": "🐇",
+    "self_energy_0": -0.30,
+    "self_energy_1": 0.20,
+    "rabi_coupling": 0.5,
+    "hamiltonian_couplings": {
+      "🐺": 0.25,
+      "🦌": 0.15,
+      "🐑": -0.18
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Cycle",
+    "pole_0": "💀",
+    "pole_1": "🌱",
+    "self_energy_0": -0.30,
+    "self_energy_1": 0.20,
+    "rabi_coupling": 0.35,
+    "hamiltonian_couplings": {
+      "🐇": 0.15,
+      "🐺": 0.15,
+      "🦅": 0.15,
+      "🦌": 0.15
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Pastoral",
+    "pole_0": "🌾",
+    "pole_1": "🐑",
+    "self_energy_0": 0.0,
+    "self_energy_1": 0.02,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🐺": 0.15,
+      "🦅": -0.18
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Pathogen",
+    "pole_0": "🦠",
+    "pole_1": "🩸",
+    "self_energy_0": -0.05,
+    "self_energy_1": -0.05,
+    "rabi_coupling": 0.55,
+    "hamiltonian_couplings": {
+      "🌾": -0.32,
+      "🐇": -0.3,
+      "🐝": -0.28,
+      "💀": 0.92
+    },
+    "energy_couplings": {
+      "🌬": -0.2,
+      "🌾": 0.25,
+      "🐇": 0.3,
+      "🐝": 0.35
+    }
+  },
+  {
+    "name": "Host",
+    "pole_0": "🐇",
+    "pole_1": "🌾",
+    "self_energy_0": 0.0,
+    "self_energy_1": 0.0,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🦠": -0.62
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Vector",
+    "pole_0": "🐝",
+    "pole_1": "💀",
+    "self_energy_0": -0.15,
+    "self_energy_1": 0.15,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🦠": 0.24,
+      "🩸": 0.4
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Forager",
+    "pole_0": "🐝",
+    "pole_1": "🌿",
+    "self_energy_0": 0.55,
+    "self_energy_1": 0.14,
+    "rabi_coupling": 0.55,
+    "hamiltonian_couplings": {
+      "🌾": 0.6,
+      "🌱": 0.4
+    },
+    "energy_couplings": {
+      "☀": 0.15,
+      "💧": -0.1
+    }
+  },
+  {
+    "name": "Pollination",
+    "pole_0": "🌾",
+    "pole_1": "🌱",
+    "self_energy_0": 0.18,
+    "self_energy_1": 0.08,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🐝": 1.0
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Diagnosis",
+    "pole_0": "🩺",
+    "pole_1": "🚫",
+    "self_energy_0": 0.2,
+    "self_energy_1": 0.3,
+    "rabi_coupling": 0.4,
+    "hamiltonian_couplings": {
+      "🧪": 0.4,
+      "🧬": 0.3,
+      "🦗": 0.5
+    },
+    "energy_couplings": {
+      "👥": 0.1,
+      "💀": -0.15,
+      "🦗": -0.25,
+      "🦠": -0.35
+    }
+  },
+  {
+    "name": "Contagion",
+    "pole_0": "🦗",
+    "pole_1": "🧬",
+    "self_energy_0": -0.1,
+    "self_energy_1": 0.15,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🚫": 0.5,
+      "🧪": 0.9,
+      "🧫": 0.8,
+      "🩺": 0.3
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Colony",
+    "pole_0": "🧪",
+    "pole_1": "🧫",
+    "self_energy_0": 0.2,
+    "self_energy_1": 0.25,
+    "rabi_coupling": 0.6,
+    "hamiltonian_couplings": {
+      "🦗": 0.7,
+      "🧬": 1.0
+    },
+    "energy_couplings": {
+      "🦠": 0.1
+    }
+  },
+  {
+    "name": "Mooring",
+    "pole_0": "⚓",
+    "pole_1": "🪝",
+    "self_energy_0": 0.3,
+    "self_energy_1": 0.1,
+    "rabi_coupling": 0.5,
+    "hamiltonian_couplings": {
+      "💰": 0.09999999999999998,
+      "🚢": 1.1,
+      "💧": -0.22,
+      "📋": 0.1
+    },
+    "energy_couplings": {
+      "🏛": 0.15
+    }
+  },
+  {
+    "name": "Cargo",
+    "pole_0": "🚢",
+    "pole_1": "💰",
+    "self_energy_0": 0.7,
+    "self_energy_1": 0.6,
+    "rabi_coupling": 0.5,
+    "hamiltonian_couplings": {
+      "⚓": 0.39999999999999997,
+      "💧": 0.3,
+      "🪝": 0.4,
+      "📋": 0.2
+    },
+    "energy_couplings": {
+      "🌬": 0.1,
+      "💧": 0.2
+    }
+  },
+  {
+    "name": "Birth",
+    "pole_0": "🍼",
+    "pole_1": "✨",
+    "self_energy_0": 0.2,
+    "self_energy_1": 0.25,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🤲": [
+        0.7500000059604639,
+        0.300000011920929
+      ],
+      "🌠": 0.5,
+      "💫": 0.6,
+      "⚡": 0.2
+    },
+    "energy_couplings": {
+      "⚫": 0.2,
+      "🌑": 0.25
+    }
+  },
+  {
+    "name": "Reception",
+    "pole_0": "🤲",
+    "pole_1": "💫",
+    "self_energy_0": 0.25,
+    "self_energy_1": 0.2,
+    "rabi_coupling": 0.4,
+    "hamiltonian_couplings": {
+      "✨": [
+        1.000000005960464,
+        -0.300000011920929
+      ],
+      "🌠": 1.0,
+      "🍼": 0.35,
+      "⚡": 0.25
+    },
+    "energy_couplings": {
+      "👶": 0.2
+    }
+  },
+  {
+    "name": "Spark",
+    "pole_0": "🌠",
+    "pole_1": "⚡",
+    "self_energy_0": 0.3,
+    "self_energy_1": 0.1,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "✨": 0.5,
+      "💫": 0.5,
+      "🤲": 0.5
+    },
+    "energy_couplings": {
+      "🌙": 0.2,
+      "🔭": 0.15
+    }
+  },
+  {
+    "name": "Mesh",
+    "pole_0": "🧩",
+    "pole_1": "🗺",
+    "self_energy_0": 0.18,
+    "self_energy_1": 0.2,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "📡": 0.8999999999999999,
+      "🔗": 0.35,
+      "🧭": -0.22
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Chain",
+    "pole_0": "🧭",
+    "pole_1": "🔗",
+    "self_energy_0": 0.22,
+    "self_energy_1": 0.08,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "📡": 0.78,
+      "🗺": -0.22,
+      "🧩": 0.35
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Dance",
+    "pole_0": "💃",
+    "pole_1": "🎼",
+    "self_energy_0": 0.32,
+    "self_energy_1": 0.25,
+    "rabi_coupling": 0.640312,
+    "hamiltonian_couplings": {
+      "🩰": [
+        0.8500000000000001,
+        0.0
+      ],
+      "📡": -0.24,
+      "🔊": 0.6,
+      "🎶": 0.5
+    },
+    "energy_couplings": {
+      "⚖": 0.2,
+      "🌀": -0.25,
+      "🎵": 0.2
+    },
+    "driver": {
+      "amplitude": 0.1,
+      "frequency": 0.5,
+      "phase": 0.0,
+      "type": "sine"
+    }
+  },
+  {
+    "name": "Rhythm",
+    "pole_0": "🩰",
+    "pole_1": "🎶",
+    "self_energy_0": 0.25,
+    "self_energy_1": 0.1,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "💃": [
+        0.55,
+        -0.35
+      ],
+      "🎼": [
+        0.8,
+        0.35
+      ],
+      "🔊": 0.14999999999999997
+    },
+    "energy_couplings": {},
+    "driver": {
+      "amplitude": 0.08,
+      "frequency": 0.5,
+      "phase": 0.0,
+      "type": "sine"
+    }
+  },
+  {
+    "name": "Amplify",
+    "pole_0": "📡",
+    "pole_1": "🔊",
+    "self_energy_0": 0.18,
+    "self_energy_1": 0.2,
+    "rabi_coupling": 0.5,
+    "hamiltonian_couplings": {
+      "💃": -0.24,
+      "🎼": 0.6,
+      "🩰": -0.2,
+      "🎶": 0.35
+    },
+    "energy_couplings": {
+      "🔇": -0.3
+    }
+  },
+  {
+    "name": "Ascent",
+    "pole_0": "🚀",
+    "pole_1": "⚙",
+    "self_energy_0": 0.35,
+    "self_energy_1": 0.15,
+    "rabi_coupling": 0.5,
+    "hamiltonian_couplings": {
+      "⚡": 0.4,
+      "📋": 0.5,
+      "🔬": 0.8999999999999999,
+      "🌫": -0.25,
+      "🔥": -0.2
+    },
+    "energy_couplings": {
+      "🌌": 0.2,
+      "🔥": -0.15
+    }
+  },
+  {
+    "name": "Specification",
+    "pole_0": "📋",
+    "pole_1": "🔬",
+    "self_energy_0": 0.2,
+    "self_energy_1": 0.25,
+    "rabi_coupling": 0.4,
+    "hamiltonian_couplings": {
+      "🚀": 1.2,
+      "🧪": 0.3,
+      "💎": 0.15
+    },
+    "energy_couplings": {
+      "🏛": 0.15
+    }
+  },
+  {
+    "name": "Exhaust",
+    "pole_0": "💎",
+    "pole_1": "🌫",
+    "self_energy_0": 0.15,
+    "self_energy_1": 0.0,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🔬": 0.25,
+      "🚀": -0.15
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Bloom",
+    "pole_0": "🌹",
+    "pole_1": "🥀",
+    "self_energy_0": 0.35,
+    "self_energy_1": -0.1,
+    "rabi_coupling": 0.32,
+    "hamiltonian_couplings": {
+      "🌺": 0.55,
+      "💀": 0.15000000000000002,
+      "⚔": 0.5
+    },
+    "energy_couplings": {
+      "☀": 0.2,
+      "🩸": 0.15,
+      "🌙": 0.1,
+      "💀": 0.2
+    }
+  },
+  {
+    "name": "Thorn",
+    "pole_0": "🌺",
+    "pole_1": "⚔",
+    "self_energy_0": 0.2,
+    "self_energy_1": 0.3,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🌹": 0.55,
+      "💀": 0.45,
+      "🥀": 0.5
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Consecration",
+    "pole_0": "🕯",
+    "pole_1": "🔥",
+    "self_energy_0": 0.25,
+    "self_energy_1": 0.35,
+    "rabi_coupling": 0.6,
+    "hamiltonian_couplings": {
+      "⛪": 1.0,
+      "🪵": 0.5,
+      "🍂": 0.2
+    },
+    "energy_couplings": {
+      "🌑": 0.15,
+      "☀": 0.15,
+      "💧": -0.25,
+      "💨": 0.2
+    }
+  },
+  {
+    "name": "Quench",
+    "pole_0": "🪵",
+    "pole_1": "🧯",
+    "self_energy_0": 0.15,
+    "self_energy_1": 0.2,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🔥": 0.9,
+      "🕯": 0.3,
+      "🍂": 0.2,
+      "⛪": 0.3
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Temple",
+    "pole_0": "⛪",
+    "pole_1": "🍂",
+    "self_energy_0": 0.3,
+    "self_energy_1": 0.0,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🔥": 1.1,
+      "🕯": 0.5,
+      "🧯": 0.3,
+      "🪵": 0.3
+    },
+    "energy_couplings": {
+      "📿": 0.15
+    }
+  },
+  {
+    "name": "Shell",
+    "pole_0": "🐚",
+    "pole_1": "🧂",
+    "self_energy_0": -0.1,
+    "self_energy_1": 0.3,
+    "rabi_coupling": 0.4,
+    "hamiltonian_couplings": {
+      "🪨": 0.24999999999999997,
+      "📜": 0.8,
+      "🌿": -0.3
+    },
+    "energy_couplings": {
+      "☀": 0.3,
+      "💧": -0.4
+    }
+  },
+  {
+    "name": "Inscription",
+    "pole_0": "🪨",
+    "pole_1": "📜",
+    "self_energy_0": 0.15,
+    "self_energy_1": 0.2,
+    "rabi_coupling": 0.15,
+    "hamiltonian_couplings": {
+      "🧂": 0.6499999999999999,
+      "🐚": 0.4
+    },
+    "energy_couplings": {
+      "☀": 0.2,
+      "🌙": -0.25
+    }
+  },
+  {
+    "name": "Channel",
+    "pole_0": "🛶",
+    "pole_1": "💧",
+    "self_energy_0": 0.35,
+    "self_energy_1": 0.2,
+    "rabi_coupling": 0.4,
+    "hamiltonian_couplings": {
+      "🕵️": 0.4,
+      "🧂": 1.0,
+      "⛓": -0.2
+    },
+    "energy_couplings": {
+      "💧": 0.3,
+      "🌧": 0.2
+    }
+  },
+  {
+    "name": "Contraband",
+    "pole_0": "🧂",
+    "pole_1": "🔓",
+    "self_energy_0": 0.4,
+    "self_energy_1": 0.25,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "💧": 0.4,
+      "🛶": 0.8999999999999999,
+      "⛓": 0.7,
+      "🕵️": 0.5
+    },
+    "energy_couplings": {
+      "🗝": -0.2,
+      "🚧": 0.25
+    }
+  },
+  {
+    "name": "Surveillance",
+    "pole_0": "🕵️",
+    "pole_1": "⛓",
+    "self_energy_0": 0.15,
+    "self_energy_1": -0.3,
+    "rabi_coupling": 0.22,
+    "hamiltonian_couplings": {
+      "🔓": 1.2,
+      "🛶": 0.10000000000000003
+    },
+    "energy_couplings": {
+      "🌑": 0.15
+    }
+  },
+  {
+    "name": "Cavalry",
+    "pole_0": "🏇",
+    "pole_1": "🌱",
+    "self_energy_0": 0.18,
+    "self_energy_1": 0.08,
+    "rabi_coupling": 0.25,
+    "hamiltonian_couplings": {
+      "⚔": 0.20000000000000007,
+      "🛡": 0.95
+    },
+    "energy_couplings": {
+      "🐺": -0.15
+    }
+  },
+  {
+    "name": "Yarn",
+    "pole_0": "🧵",
+    "pole_1": "🧶",
+    "self_energy_0": 0.1,
+    "self_energy_1": 0.12,
+    "rabi_coupling": 0.4,
+    "hamiltonian_couplings": {
+      "👘": 0.9,
+      "📡": -0.48,
+      "🪡": 1.2,
+      "🪢": 0.4
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Splice",
+    "pole_0": "🪡",
+    "pole_1": "🪢",
+    "self_energy_0": 0.15,
+    "self_energy_1": 0.08,
+    "rabi_coupling": 0.35,
+    "hamiltonian_couplings": {
+      "👘": 0.6,
+      "🧵": 1.1,
+      "🧶": 0.5
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Frequency",
+    "pole_0": "📡",
+    "pole_1": "👘",
+    "self_energy_0": -0.05,
+    "self_energy_1": 0.25,
+    "rabi_coupling": 0.5,
+    "hamiltonian_couplings": {
+      "🧵": 0.2,
+      "🧶": -0.18,
+      "🪡": 0.6
+    },
+    "energy_couplings": {
+      "🕵️": 0.15,
+      "🌹": 0.2,
+      "👥": 0.1
+    }
+  },
+  {
+    "name": "Research",
+    "pole_0": "🧪",
+    "pole_1": "🧬",
+    "self_energy_0": -0.18,
+    "self_energy_1": 0.42,
+    "rabi_coupling": 0.35,
+    "hamiltonian_couplings": {
+      "🔬": 0.8500000000000001,
+      "🌱": 0.16999999999999998,
+      "🧫": 0.6
+    },
+    "energy_couplings": {
+      "❄": 0.3,
+      "🔥": -0.35
+    }
+  },
+  {
+    "name": "Cultivation",
+    "pole_0": "🌱",
+    "pole_1": "🌾",
+    "self_energy_0": 0.1,
+    "self_energy_1": 0.1,
+    "rabi_coupling": 0.4,
+    "hamiltonian_couplings": {
+      "🧬": 0.45,
+      "🧪": -0.28,
+      "🧫": 0.25
+    },
+    "energy_couplings": {
+      "💧": 0.1
+    }
+  },
+  {
+    "name": "Lab",
+    "pole_0": "🧫",
+    "pole_1": "🔬",
+    "self_energy_0": 0.28,
+    "self_energy_1": 0.22,
+    "rabi_coupling": 0.45,
+    "hamiltonian_couplings": {
+      "🧬": 1.15,
+      "🌾": 0.25,
+      "🧪": 0.3
+    },
+    "energy_couplings": {
+      "🦠": -0.25
+    }
+  },
+  {
+    "name": "Observation",
+    "pole_0": "🔭",
+    "pole_1": "📡",
+    "self_energy_0": 0.42,
+    "self_energy_1": 0.15,
+    "rabi_coupling": 0.35,
+    "hamiltonian_couplings": {
+      "🌠": 0.65,
+      "🛰": 1.05
+    },
+    "energy_couplings": {
+      "☀": -0.2,
+      "🌙": 0.3
+    }
+  },
+  {
+    "name": "Seed",
+    "pole_0": "🌠",
+    "pole_1": "🛰",
+    "self_energy_0": 0.22,
+    "self_energy_1": 0.25,
+    "rabi_coupling": 0.35,
+    "hamiltonian_couplings": {
+      "🔭": 1.15,
+      "🌙": -0.5,
+      "📡": 0.55
+    },
+    "energy_couplings": {
+      "🌌": 0.2,
+      "⚡": 0.15
+    }
+  },
+  {
+    "name": "Forgework",
+    "pole_0": "☀",
+    "pole_1": "⚙",
+    "self_energy_0": 0.4,
+    "self_energy_1": 0.25,
+    "rabi_coupling": 0.5,
+    "hamiltonian_couplings": {
+      "🌀": 1.2999999999999998,
+      "🚀": 0.8999999999999999,
+      "⚡": 0.4,
+      "🌙": -0.35
+    },
+    "energy_couplings": {
+      "☀": 0.35,
+      "🌙": -0.2,
+      "🛠": 0.1
+    },
+    "driver": {
+      "amp": 0.6,
+      "freq": 0.05,
+      "phase": 0.0,
+      "type": "sine"
+    }
+  },
+  {
+    "name": "Orbit",
+    "pole_0": "🌀",
+    "pole_1": "🌙",
+    "self_energy_0": 0.2,
+    "self_energy_1": -0.1,
+    "rabi_coupling": 0.2,
+    "hamiltonian_couplings": {
+      "⚙": 0.6,
+      "☀": 0.35,
+      "🚀": 0.5
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Accelerate",
+    "pole_0": "🚀",
+    "pole_1": "⚡",
+    "self_energy_0": 0.3,
+    "self_energy_1": 0.15,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "⚙": 0.6,
+      "🌀": 0.5,
+      "☀": 0.35
+    },
+    "energy_couplings": {
+      "🔬": 0.15
+    }
+  },
+  {
+    "name": "Toll",
+    "pole_0": "🚀",
+    "pole_1": "💰",
+    "self_energy_0": -0.2,
+    "self_energy_1": 0.35,
+    "rabi_coupling": 0.35,
+    "hamiltonian_couplings": {
+      "🏢": 0.3,
+      "🛂": 0.15000000000000002
+    },
+    "energy_couplings": {},
+    "driver": {
+      "type": "pulse",
+      "frequency": 0.08,
+      "amplitude": 0.5,
+      "phase": 0.0
+    }
+  },
+  {
+    "name": "Berth",
+    "pole_0": "🏢",
+    "pole_1": "🛂",
+    "self_energy_0": 0.3,
+    "self_energy_1": 0.2,
+    "rabi_coupling": 0.45,
+    "hamiltonian_couplings": {
+      "💰": 1.15,
+      "🚀": -0.7
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Herd",
+    "pole_0": "🐇",
+    "pole_1": "🦌",
+    "self_energy_0": 0.08,
+    "self_energy_1": 0.05,
+    "rabi_coupling": 0.2,
+    "hamiltonian_couplings": {
+      "🌿": 1.17,
+      "🌾": 0.75
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Tone",
+    "pole_0": "🎵",
+    "pole_1": "🔊",
+    "self_energy_0": 0.2,
+    "self_energy_1": 0.15,
+    "rabi_coupling": 0.8,
+    "hamiltonian_couplings": {
+      "📡": 0.9,
+      "💎": 0.25,
+      "🔨": 0.5,
+      "❄": 0.3,
+      "🔇": -0.45
+    },
+    "energy_couplings": {
+      "⛪": 0.15,
+      "💃": 0.25,
+      "🔇": -0.3
+    },
+    "driver": {
+      "amp": 0.35,
+      "freq": 0.5,
+      "phase": 0.0,
+      "type": "sine"
+    }
+  },
+  {
+    "name": "Forge",
+    "pole_0": "🔨",
+    "pole_1": "⚙",
+    "self_energy_0": 0.2,
+    "self_energy_1": 0.15,
+    "rabi_coupling": 0.6,
+    "hamiltonian_couplings": {
+      "🔊": 0.8
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Silence",
+    "pole_0": "🔇",
+    "pole_1": "❄",
+    "self_energy_0": 0.1,
+    "self_energy_1": -0.1,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🔊": -0.25
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Broadcast",
+    "pole_0": "💎",
+    "pole_1": "📡",
+    "self_energy_0": 0.1,
+    "self_energy_1": 0.1,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🎵": 0.6000000000000001,
+      "🔊": 0.5
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Mirror",
+    "pole_0": "🪞",
+    "pole_1": "🔍",
+    "self_energy_0": 0.22,
+    "self_energy_1": 0.12,
+    "rabi_coupling": 0.6,
+    "hamiltonian_couplings": {
+      "💎": 0.8500000000000001,
+      "💰": 0.09999999999999998,
+      "🫧": 0.4,
+      "🧊": 0.55
+    },
+    "energy_couplings": {
+      "☀": 0.1,
+      "🌑": -0.15
+    }
+  },
+  {
+    "name": "Cold Coin",
+    "pole_0": "💎",
+    "pole_1": "🧊",
+    "self_energy_0": 0.35,
+    "self_energy_1": 0.2,
+    "rabi_coupling": 0.5,
+    "hamiltonian_couplings": {
+      "🔍": 1.0,
+      "🪞": 0.4,
+      "💰": 0.2
+    },
+    "energy_couplings": {
+      "⛰": 0.15,
+      "❄": 0.3,
+      "🔥": -0.35
+    }
+  },
+  {
+    "name": "Clarity",
+    "pole_0": "💰",
+    "pole_1": "🫧",
+    "self_energy_0": 0.28,
+    "self_energy_1": 0.05,
+    "rabi_coupling": 0.3,
+    "hamiltonian_couplings": {
+      "🔍": 0.35,
+      "🪞": 0.15000000000000002,
+      "💎": 0.5,
+      "🧊": -0.3
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Closed Loop",
+    "pole_0": "🫙",
+    "pole_1": "♻️",
+    "self_energy_0": 0.35,
+    "self_energy_1": 0.22,
+    "rabi_coupling": 0.3,
+    "hamiltonian_couplings": {
+      "🌿": 0.38,
+      "💧": 0.65
+    },
+    "energy_couplings": {
+      "⛰": 0.1
+    }
+  },
+  {
+    "name": "Sustain",
+    "pole_0": "🌿",
+    "pole_1": "💧",
+    "self_energy_0": 0.25,
+    "self_energy_1": 0.18,
+    "rabi_coupling": 0.38,
+    "hamiltonian_couplings": {
+      "🫙": 0.6,
+      "♻️": 0.43000000000000005
+    },
+    "energy_couplings": {
+      "☀": 0.15,
+      "🌙": 0.05,
+      "🔥": -0.2
+    }
+  },
+  {
+    "name": "Edict",
+    "pole_0": "📜",
+    "pole_1": "⚖",
+    "self_energy_0": 0.15,
+    "self_energy_1": 0.2,
+    "rabi_coupling": 0.5,
+    "hamiltonian_couplings": {
+      "🏰": 0.4,
+      "📋": 0.35,
+      "💳": 0.15000000000000002,
+      "👥": -0.18
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Filing",
+    "pole_0": "📋",
+    "pole_1": "💳",
+    "self_energy_0": 0.2,
+    "self_energy_1": 0.25,
+    "rabi_coupling": 0.6,
+    "hamiltonian_couplings": {
+      "⚖": 0.9,
+      "📜": -0.4,
+      "👥": 0.6
+    },
+    "energy_couplings": {
+      "🏛": 0.25,
+      "💧": -0.15,
+      "🔥": -0.3,
+      "🧤": -0.2
+    }
+  },
+  {
+    "name": "Slip-Frequency",
+    "pole_0": "📻",
+    "pole_1": "📶",
+    "self_energy_0": 0.16,
+    "self_energy_1": 0.22,
+    "rabi_coupling": 0.55,
+    "hamiltonian_couplings": {
+      "🗣": 0.5,
+      "📡": 0.65
+    },
+    "energy_couplings": {
+      "⚡": 0.15,
+      "📡": 0.2,
+      "🔇": -0.25
+    },
+    "driver": {
+      "amp": 0.4,
+      "freq": 0.15,
+      "phase": 0.0,
+      "type": "pulse"
+    }
+  },
+  {
+    "name": "Casting",
+    "pole_0": "📡",
+    "pole_1": "🗣",
+    "self_energy_0": 0.35,
+    "self_energy_1": 0.08,
+    "rabi_coupling": 0.32,
+    "hamiltonian_couplings": {
+      "📶": 0.65,
+      "📻": 0.5
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Ritual",
+    "pole_0": "🕯",
+    "pole_1": "🧵",
+    "self_energy_0": 0.2,
+    "self_energy_1": 0.2,
+    "rabi_coupling": 0.8544,
+    "hamiltonian_couplings": {
+      "🏮": [
+        0.900000011920929,
+        0.200000002980232
+      ],
+      "🪡": 0.5
+    },
+    "energy_couplings": {
+      "🌑": 0.2,
+      "🔥": 0.2,
+      "🪢": 0.15
+    },
+    "driver": {
+      "amplitude": 0.08,
+      "frequency": 0.25,
+      "phase": 0.0,
+      "type": "cosine"
+    }
+  },
+  {
+    "name": "Flame",
+    "pole_0": "🪡",
+    "pole_1": "🏮",
+    "self_energy_0": 0.15,
+    "self_energy_1": 0.25,
+    "rabi_coupling": 0.22,
+    "hamiltonian_couplings": {
+      "🕯": 0.8999999999999999,
+      "🧵": [
+        0.800000011920929,
+        -0.200000002980232
+      ]
+    },
+    "energy_couplings": {
+      "🌙": 0.1,
+      "🔥": 0.15
+    }
+  },
+  {
+    "name": "Distant Eye",
+    "pole_0": "🔭",
+    "pole_1": "⚫",
+    "self_energy_0": 0.25,
+    "self_energy_1": 0.3,
+    "rabi_coupling": 0.640312,
+    "hamiltonian_couplings": {
+      "⚖": 0.9,
+      "🌠": [
+        1.000000005960464,
+        0.300000011920929
+      ]
+    },
+    "energy_couplings": {
+      "🔬": 0.15,
+      "🌑": 0.25,
+      "🕳": 0.3
+    }
+  },
+  {
+    "name": "Imposed Order",
+    "pole_0": "🌠",
+    "pole_1": "⚖",
+    "self_energy_0": 0.2,
+    "self_energy_1": 0.3,
+    "rabi_coupling": 0.22,
+    "hamiltonian_couplings": {
+      "⚫": [
+        0.900000005960464,
+        -0.300000011920929
+      ],
+      "🔭": 1.0
+    },
+    "energy_couplings": {
+      "🏛": 0.2
+    },
+    "measurement_behavior": {
+      "collapses": true,
+      "inverts": false,
+      "strength": 0.4
+    }
+  },
+  {
+    "name": "Gleaning",
+    "pole_0": "🧤",
+    "pole_1": "🌾",
+    "self_energy_0": 0.0,
+    "self_energy_1": 0.1,
+    "rabi_coupling": 0.35,
+    "hamiltonian_couplings": {
+      "💀": 0.6000000000000001,
+      "🗑": 0.6
+    },
+    "energy_couplings": {
+      "🏰": -0.25,
+      "📜": -0.15,
+      "🗑": 0.3
+    },
+    "measurement_behavior": {
+      "inverts": true
+    }
+  },
+  {
+    "name": "Carrion",
+    "pole_0": "💀",
+    "pole_1": "🗑",
+    "self_energy_0": -0.15,
+    "self_energy_1": -0.1,
+    "rabi_coupling": 0.3,
+    "hamiltonian_couplings": {
+      "⚫": 0.5,
+      "🧤": 1.0,
+      "🌾": 0.2
+    },
+    "energy_couplings": {
+      "⚫": 0.2,
+      "🌑": 0.1
+    }
+  },
+  {
+    "name": "Mandate",
+    "pole_0": "💊",
+    "pole_1": "📦",
+    "self_energy_0": 0.3,
+    "self_energy_1": 0.15,
+    "rabi_coupling": 0.6,
+    "hamiltonian_couplings": {
+      "🚛": 1.1,
+      "🧪": 1.1,
+      "📜": -0.16
+    },
+    "energy_couplings": {
+      "👥": 0.15,
+      "💀": -0.2,
+      "🩺": 0.15
+    }
+  },
+  {
+    "name": "Distribution",
+    "pole_0": "🧪",
+    "pole_1": "🚛",
+    "self_energy_0": 0.2,
+    "self_energy_1": 0.2,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "💊": 1.1,
+      "📦": 1.1,
+      "📜": -0.22
+    },
+    "energy_couplings": {
+      "🏛": 0.1,
+      "🚧": -0.15
+    }
+  },
+  {
+    "name": "Tide",
+    "pole_0": "🌊",
+    "pole_1": "🐠",
+    "self_energy_0": 0.15,
+    "self_energy_1": 0.22,
+    "rabi_coupling": 0.390512,
+    "hamiltonian_couplings": {
+      "🪸": [
+        0.85,
+        0.4
+      ],
+      "🦀": 0.15000000000000002,
+      "🌙": 0.4,
+      "💧": 0.55
+    },
+    "energy_couplings": {
+      "🌙": 0.4,
+      "☀": -0.1
+    },
+    "driver": {
+      "type": "sine",
+      "frequency": 0.08,
+      "amplitude": 0.5,
+      "phase": 0.0
+    }
+  },
+  {
+    "name": "Reef",
+    "pole_0": "🪸",
+    "pole_1": "🦀",
+    "self_energy_0": 0.25,
+    "self_energy_1": 0.28,
+    "rabi_coupling": 0.45,
+    "hamiltonian_couplings": {
+      "🌊": [
+        0.75,
+        -0.4
+      ],
+      "🐠": 0.25
+    },
+    "energy_couplings": {
+      "☀": 0.15
+    }
+  },
+  {
+    "name": "Lunar",
+    "pole_0": "💧",
+    "pole_1": "🌙",
+    "self_energy_0": 0.12,
+    "self_energy_1": 0.18,
+    "rabi_coupling": 0.3,
+    "hamiltonian_couplings": {
+      "🌊": 0.9500000000000001,
+      "🌕": 0.7,
+      "🪸": 0.2
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Curvature",
+    "pole_0": "📐",
+    "pole_1": "🧮",
+    "self_energy_0": 0.3,
+    "self_energy_1": 0.28,
+    "rabi_coupling": 0.65,
+    "hamiltonian_couplings": {
+      "🔭": 0.95,
+      "🧲": -0.5800000000000001,
+      "🔬": 0.4
+    },
+    "energy_couplings": {
+      "🔢": 0.15
+    }
+  },
+  {
+    "name": "Far Sight",
+    "pole_0": "🔭",
+    "pole_1": "🔬",
+    "self_energy_0": 0.25,
+    "self_energy_1": 0.22,
+    "rabi_coupling": 0.35,
+    "hamiltonian_couplings": {
+      "🧮": 0.8500000000000001,
+      "📐": 0.5,
+      "🔍": 0.85,
+      "🧲": 0.25
+    },
+    "energy_couplings": {
+      "🌑": 0.15,
+      "🌠": 0.25,
+      "🦠": 0.15,
+      "🧬": 0.2
+    },
+    "measurement_behavior": {
+      "collapses": true,
+      "inverts": false,
+      "strength": 0.3
+    }
+  },
+  {
+    "name": "Lens",
+    "pole_0": "🧲",
+    "pole_1": "🔍",
+    "self_energy_0": -0.1,
+    "self_energy_1": 0.12,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🧮": -0.3,
+      "📐": -0.28,
+      "🔬": 0.75,
+      "🔭": 0.35
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Maintenance",
+    "pole_0": "🪛",
+    "pole_1": "🧰",
+    "self_energy_0": 0.15,
+    "self_energy_1": 0.25,
+    "rabi_coupling": 0.5,
+    "hamiltonian_couplings": {
+      "♻️": 0.7,
+      "🔌": 1.0,
+      "⚙": 0.45
+    },
+    "energy_couplings": {
+      "🏚": -0.1,
+      "🏛": 0.15
+    }
+  },
+  {
+    "name": "Loop",
+    "pole_0": "🔌",
+    "pole_1": "♻️",
+    "self_energy_0": 0.1,
+    "self_energy_1": 0.05,
+    "rabi_coupling": 0.2,
+    "hamiltonian_couplings": {
+      "🚐": 0.3,
+      "🧰": 0.7,
+      "🪛": 1.0,
+      "⚙": 0.3,
+      "🗑": 0.5
+    },
+    "energy_couplings": {
+      "🗑": 0.25
+    }
+  },
+  {
+    "name": "Drive",
+    "pole_0": "🚐",
+    "pole_1": "⚙",
+    "self_energy_0": 0.2,
+    "self_energy_1": 0.1,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🔌": 0.6,
+      "🧰": 0.4,
+      "🪛": 0.45
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Leverage",
+    "pole_0": "🗝",
+    "pole_1": "💰",
+    "self_energy_0": 0.4,
+    "self_energy_1": 0.28,
+    "rabi_coupling": 0.58,
+    "hamiltonian_couplings": {
+      "🕵️": 0.52,
+      "💀": -0.25
+    },
+    "energy_couplings": {
+      "🏚": -0.15,
+      "🏛": 0.2
+    }
+  },
+  {
+    "name": "Shadow",
+    "pole_0": "🕵️",
+    "pole_1": "💀",
+    "self_energy_0": 0.22,
+    "self_energy_1": -0.25,
+    "rabi_coupling": 0.38,
+    "hamiltonian_couplings": {
+      "🗝": 0.52,
+      "💰": -0.25
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Double",
+    "pole_0": "🪞",
+    "pole_1": "👤",
+    "self_energy_0": 0.1,
+    "self_energy_1": 0.15,
+    "rabi_coupling": 0.4,
+    "hamiltonian_couplings": {
+      "🧿": 0.5,
+      "🤫": 0.45999999999999996,
+      "🕵️": 0.5,
+      "🧷": -0.16
+    },
+    "energy_couplings": {
+      "☀": -0.2,
+      "🌑": 0.25
+    }
+  },
+  {
+    "name": "Whisper",
+    "pole_0": "🤫",
+    "pole_1": "🕵️",
+    "self_energy_0": 0.2,
+    "self_energy_1": 0.15,
+    "rabi_coupling": 0.6,
+    "hamiltonian_couplings": {
+      "👤": 1.2,
+      "🧷": 0.4,
+      "🪞": -0.24,
+      "🧿": 0.5
+    },
+    "energy_couplings": {
+      "🔇": 0.25,
+      "🔊": -0.3
+    }
+  },
+  {
+    "name": "Clasp",
+    "pole_0": "🧷",
+    "pole_1": "🧿",
+    "self_energy_0": 0.2,
+    "self_energy_1": 0.15,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "👤": -0.16,
+      "🤫": 0.4,
+      "🕵️": 0.5,
+      "🪞": 0.5
+    },
+    "energy_couplings": {
+      "🔮": 0.2
+    }
+  },
+  {
+    "name": "Seedling",
+    "pole_0": "🌱",
+    "pole_1": "🌿",
+    "self_energy_0": 0.05,
+    "self_energy_1": 0.1,
+    "rabi_coupling": 0.6,
+    "hamiltonian_couplings": {
+      "🌲": 0.4,
+      "🌾": 0.7,
+      "🍂": 0.4
+    },
+    "energy_couplings": {
+      "☀": 0.1,
+      "⛰": 0.02,
+      "💧": 0.06
+    }
+  },
+  {
+    "name": "Harvest",
+    "pole_0": "🌾",
+    "pole_1": "🍂",
+    "self_energy_0": 0.1,
+    "self_energy_1": -0.05,
+    "rabi_coupling": 0.5,
+    "hamiltonian_couplings": {
+      "🌱": 0.8,
+      "🌲": 0.0,
+      "🌿": 0.4
+    },
+    "energy_couplings": {
+      "☀": 0.08,
+      "⛰": 0.04,
+      "💧": 0.05
+    }
+  },
+  {
+    "name": "Timber",
+    "pole_0": "🌲",
+    "pole_1": "🪵",
+    "self_energy_0": 0.3,
+    "self_energy_1": -0.05,
+    "rabi_coupling": 0.35,
+    "hamiltonian_couplings": {
+      "🌱": -0.2,
+      "🍂": 0.2,
+      "🌾": -0.2
+    },
+    "energy_couplings": {
+      "☀": 0.04,
+      "⛰": 0.05,
+      "💧": 0.03
+    }
+  },
+  {
+    "name": "Abandoned Crown",
+    "pole_0": "⚫",
+    "pole_1": "⚜",
+    "self_energy_0": 0.35,
+    "self_energy_1": 0.25,
+    "rabi_coupling": 0.5,
+    "hamiltonian_couplings": {
+      "♟": 0.18000000000000002,
+      "🕰": [
+        0.100000011920929,
+        0.5
+      ]
+    },
+    "energy_couplings": {
+      "✨": -0.2,
+      "🕳": 0.35,
+      "👑": 0.15
+    }
+  },
+  {
+    "name": "Slow Reign",
+    "pole_0": "♟",
+    "pole_1": "🕰",
+    "self_energy_0": 0.2,
+    "self_energy_1": 0.15,
+    "rabi_coupling": 0.4,
+    "hamiltonian_couplings": {
+      "⚜": -0.42000000000000004,
+      "⚫": [
+        0.7000000119209291,
+        -0.5
+      ]
+    },
+    "energy_couplings": {
+      "⏳": 0.2
+    },
+    "driver": {
+      "amplitude": 0.06,
+      "frequency": 0.1,
+      "phase": 0.0,
+      "type": "sine"
+    }
+  },
+  {
+    "name": "Processing",
+    "pole_0": "👥",
+    "pole_1": "⛓",
+    "self_energy_0": 0.05,
+    "self_energy_1": 0.2,
+    "rabi_coupling": 0.7,
+    "hamiltonian_couplings": {
+      "💸": 0.9,
+      "💀": -0.22
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Discount",
+    "pole_0": "💸",
+    "pole_1": "💀",
+    "self_energy_0": -0.15,
+    "self_energy_1": 0.1,
+    "rabi_coupling": 0.3,
+    "hamiltonian_couplings": {
+      "👥": 0.28,
+      "⛓": 0.4
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Lyric",
+    "pole_0": "🎸",
+    "pole_1": "🎼",
+    "self_energy_0": 0.2,
+    "self_energy_1": 0.25,
+    "rabi_coupling": 0.6,
+    "hamiltonian_couplings": {
+      "🏮": 0.7,
+      "💫": [
+        0.8,
+        0.7
+      ]
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Luminary",
+    "pole_0": "💫",
+    "pole_1": "🏮",
+    "self_energy_0": 0.15,
+    "self_energy_1": 0.2,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🎸": [
+        0.6,
+        -0.4
+      ],
+      "🎼": [
+        0.9,
+        -0.3
+      ]
+    },
+    "energy_couplings": {
+      "🌑": 0.3,
+      "🕳": 0.25
+    },
+    "driver": {
+      "type": "sine",
+      "frequency": 0.4,
+      "amplitude": 0.15,
+      "phase": 1.57
+    }
+  },
+  {
+    "name": "Magma",
+    "pole_0": "🌋",
+    "pole_1": "🔥",
+    "self_energy_0": 0.0,
+    "self_energy_1": 0.3,
+    "rabi_coupling": 0.4,
+    "hamiltonian_couplings": {
+      "🌫": 0.6,
+      "🪨": 0.4,
+      "✨": 0.35,
+      "💎": -0.2
+    },
+    "energy_couplings": {
+      "🔥": 0.25,
+      "🪨": 0.1,
+      "☀": 0.2,
+      "🌙": -0.1
+    },
+    "driver": {
+      "amplitude": 0.7,
+      "frequency": 0.011,
+      "phase": 0.0,
+      "type": "pulse"
+    }
+  },
+  {
+    "name": "Crystal",
+    "pole_0": "💎",
+    "pole_1": "💠",
+    "self_energy_0": 0.5,
+    "self_energy_1": 0.3,
+    "rabi_coupling": 0.25,
+    "hamiltonian_couplings": {
+      "🪨": 0.3,
+      "🔥": 0.14999999999999997,
+      "⚡": 0.3,
+      "🌫": 0.2
+    },
+    "energy_couplings": {
+      "💠": 0.15
+    }
+  },
+  {
+    "name": "Ash",
+    "pole_0": "🌫",
+    "pole_1": "🪨",
+    "self_energy_0": 0.1,
+    "self_energy_1": -0.2,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "✨": 0.2,
+      "🌋": 0.5,
+      "🔥": 0.5,
+      "⚡": 0.25,
+      "🏜": 0.15,
+      "💎": 0.3
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Charge",
+    "pole_0": "⚡",
+    "pole_1": "🏜",
+    "self_energy_0": 0.15,
+    "self_energy_1": -0.05,
+    "rabi_coupling": 0.5,
+    "hamiltonian_couplings": {
+      "💎": 0.15
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Spiral",
+    "pole_0": "🌀",
+    "pole_1": "🐙",
+    "self_energy_0": 0.0,
+    "self_energy_1": 0.3,
+    "rabi_coupling": 0.5,
+    "hamiltonian_couplings": {
+      "✨": 0.75,
+      "👁": 0.35,
+      "🌋": 0.25,
+      "🌊": 0.75,
+      "🦀": 0.55
+    },
+    "energy_couplings": {
+      "🌙": 0.25,
+      "🌑": 0.1
+    }
+  },
+  {
+    "name": "Sight",
+    "pole_0": "👁",
+    "pole_1": "✨",
+    "self_energy_0": 0.25,
+    "self_energy_1": 0.35,
+    "rabi_coupling": 0.4,
+    "hamiltonian_couplings": {
+      "🌀": 0.8,
+      "🕳": 0.25,
+      "🐙": 0.3
+    },
+    "energy_couplings": {
+      "🌙": 0.2,
+      "☀": -0.15
+    }
+  },
+  {
+    "name": "Surge",
+    "pole_0": "🌋",
+    "pole_1": "🌊",
+    "self_energy_0": 0.0,
+    "self_energy_1": 0.1,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🌀": 0.6000000000000001,
+      "🐙": 0.35
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Burn",
+    "pole_0": "🔥",
+    "pole_1": "🍂",
+    "self_energy_0": 0.35,
+    "self_energy_1": 0.0,
+    "rabi_coupling": 0.7,
+    "hamiltonian_couplings": {
+      "🌬": 0.6,
+      "🌲": -0.4,
+      "🌿": -0.35,
+      "🌱": 0.0
+    },
+    "energy_couplings": {
+      "🌬": 0.3,
+      "🍂": 0.4,
+      "💧": -0.5
+    }
+  },
+  {
+    "name": "Wind",
+    "pole_0": "🌲",
+    "pole_1": "🌬",
+    "self_energy_0": 0.0,
+    "self_energy_1": 0.1,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🔥": 0.8999999999999999
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Renewal",
+    "pole_0": "🌿",
+    "pole_1": "🌱",
+    "self_energy_0": 0.0,
+    "self_energy_1": 0.1,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🔥": 0.2,
+      "🍂": 0.2
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Rising",
+    "pole_0": "🍞",
+    "pole_1": "💨",
+    "self_energy_0": 0.1,
+    "self_energy_1": 0.22,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🫙": 0.28,
+      "🥖": 0.45,
+      "⛪": -0.14
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Ferment",
+    "pole_0": "🧪",
+    "pole_1": "🫙",
+    "self_energy_0": 0.18,
+    "self_energy_1": 0.38,
+    "rabi_coupling": 0.52,
+    "hamiltonian_couplings": {
+      "⛪": 0.55,
+      "🥖": 0.6,
+      "🍞": 0.5,
+      "💨": -0.22
+    },
+    "energy_couplings": {
+      "🍄": 0.15,
+      "❄": -0.25,
+      "🌙": 0.1,
+      "🔥": 0.15
+    }
+  },
+  {
+    "name": "Sacrament",
+    "pole_0": "🥖",
+    "pole_1": "⛪",
+    "self_energy_0": 0.14,
+    "self_energy_1": 0.3,
+    "rabi_coupling": 0.42,
+    "hamiltonian_couplings": {
+      "🫙": 1.15,
+      "🍞": 0.31
+    },
+    "energy_couplings": {
+      "🌙": 0.2,
+      "💀": 0.05
+    }
+  },
+  {
+    "name": "Cinder",
+    "pole_0": "🔥",
+    "pole_1": "🪨",
+    "self_energy_0": 0.25,
+    "self_energy_1": 0.1,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🔧": 0.9,
+      "🔨": 0.7
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Tools",
+    "pole_0": "🔧",
+    "pole_1": "🔨",
+    "self_energy_0": 0.3,
+    "self_energy_1": 0.25,
+    "rabi_coupling": 0.6,
+    "hamiltonian_couplings": {
+      "🔥": 0.9,
+      "⚙": 0.3,
+      "🔩": 0.4
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Bridge",
+    "pole_0": "🌉",
+    "pole_1": "🔥",
+    "self_energy_0": 0.05,
+    "self_energy_1": 0.35,
+    "rabi_coupling": 0.2,
+    "hamiltonian_couplings": {
+      "🪔": 0.95,
+      "🗼": 0.35
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Beacon",
+    "pole_0": "🪔",
+    "pole_1": "🗼",
+    "self_energy_0": 0.25,
+    "self_energy_1": 0.18,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🌉": 0.3,
+      "📯": 1.1,
+      "🔥": 1.0,
+      "🏁": 0.8
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Fanfare",
+    "pole_0": "📯",
+    "pole_1": "🏁",
+    "self_energy_0": 0.15,
+    "self_energy_1": 0.1,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🪔": 0.8,
+      "🗼": 1.1
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Waiting",
+    "pole_0": "⌛",
+    "pole_1": "⏳",
+    "self_energy_0": 0.0,
+    "self_energy_1": 0.0,
+    "rabi_coupling": 0.7,
+    "hamiltonian_couplings": {
+      "⏰": [
+        1.2124355652982142,
+        0.0
+      ],
+      "⚙": 1.0
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Clockwork",
+    "pole_0": "⏰",
+    "pole_1": "⚙",
+    "self_energy_0": 0.0,
+    "self_energy_1": 0.2,
+    "rabi_coupling": 0.6,
+    "hamiltonian_couplings": {
+      "⏳": [
+        1.056217782649107,
+        -0.3499999999999999
+      ],
+      "⌛": [
+        1.1562177826491071,
+        0.3499999999999999
+      ]
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Cavity",
+    "pole_0": "🌟",
+    "pole_1": "🌈",
+    "self_energy_0": 0.25,
+    "self_energy_1": 0.15,
+    "rabi_coupling": 0.15,
+    "hamiltonian_couplings": {
+      "💥": 1.0,
+      "❄️": 0.9
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Pump",
+    "pole_0": "💥",
+    "pole_1": "❄️",
+    "self_energy_0": 0.5,
+    "self_energy_1": 0.1,
+    "rabi_coupling": 0.3,
+    "hamiltonian_couplings": {
+      "🌟": 0.95,
+      "🌈": 0.9500000000000001
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Phases",
+    "pole_0": "🌕",
+    "pole_1": "🌘",
+    "self_energy_0": 0.28,
+    "self_energy_1": 0.1,
+    "rabi_coupling": 0.55,
+    "hamiltonian_couplings": {
+      "🌙": 1.2999999999999998,
+      "🍂": 0.55
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Moonfall",
+    "pole_0": "🌙",
+    "pole_1": "🍂",
+    "self_energy_0": 0.22,
+    "self_energy_1": -0.05,
+    "rabi_coupling": 0.4,
+    "hamiltonian_couplings": {
+      "🌕": 1.0499999999999998,
+      "🌘": 0.8
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Red Book",
+    "pole_0": "📕",
+    "pole_1": "🔑",
+    "self_energy_0": 0.1,
+    "self_energy_1": 0.2,
+    "rabi_coupling": 0.5,
+    "hamiltonian_couplings": {
+      "📓": 0.4,
+      "💰": 0.2,
+      "📜": 0.45
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Green Book",
+    "pole_0": "📗",
+    "pole_1": "📓",
+    "self_energy_0": 0.25,
+    "self_energy_1": 0.05,
+    "rabi_coupling": 0.55,
+    "hamiltonian_couplings": {
+      "💰": 0.6,
+      "📜": 0.4,
+      "📕": 0.4
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Ledger",
+    "pole_0": "📜",
+    "pole_1": "💰",
+    "self_energy_0": 0.12,
+    "self_energy_1": 0.18,
+    "rabi_coupling": 0.55,
+    "hamiltonian_couplings": {
+      "🔑": 0.45,
+      "📗": 1.0,
+      "📕": 0.2
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Metamorphosis",
+    "pole_0": "🐛",
+    "pole_1": "🦋",
+    "self_energy_0": 0.05,
+    "self_energy_1": 0.2,
+    "rabi_coupling": 0.7,
+    "hamiltonian_couplings": {
+      "🌱": 1.05,
+      "🕷": -0.43
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Web",
+    "pole_0": "🕷",
+    "pole_1": "🌱",
+    "self_energy_0": 0.1,
+    "self_energy_1": 0.15,
+    "rabi_coupling": 0.22,
+    "hamiltonian_couplings": {
+      "🐛": 0.37000000000000005,
+      "🦋": 0.25
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Succession",
+    "pole_0": "🌱",
+    "pole_1": "🌲",
+    "self_energy_0": 0.05,
+    "self_energy_1": 0.1,
+    "rabi_coupling": 0.3,
+    "hamiltonian_couplings": {
+      "🍂": 0.4,
+      "🌿": 0.2
+    },
+    "energy_couplings": {
+      "☀": 0.08,
+      "⛰": 0.03,
+      "💧": 0.05
+    },
+    "driver": {},
+    "measurement_behavior": {}
+  },
+  {
+    "name": "Humus",
+    "pole_0": "🍂",
+    "pole_1": "🌿",
+    "self_energy_0": 0.20,
+    "self_energy_1": 0.40,
+    "rabi_coupling": 0.25,
+    "hamiltonian_couplings": {
+      "🌱": 0.20,
+      "🍄": 0.15
+    },
+    "energy_couplings": {
+      "☀": 0.05,
+      "⛰": 0.02,
+      "💧": 0.07
+    },
+    "driver": {},
+    "measurement_behavior": {}
+  },
+  {
+    "name": "Mycelium",
+    "pole_0": "🍄",
+    "pole_1": "💀",
+    "self_energy_0": 0.1,
+    "self_energy_1": -0.05,
+    "rabi_coupling": 0.45,
+    "hamiltonian_couplings": {
+      "🍂": 0.5,
+      "🌱": 0.3
+    },
+    "energy_couplings": {
+      "☀": -0.32,
+      "🌙": 0.38,
+      "💧": 0.28
+    },
+    "driver": {},
+    "measurement_behavior": {}
+  },
+  {
+    "name": "Remnant",
+    "pole_0": "🏺",
+    "pole_1": "🪨",
+    "self_energy_0": 0.35,
+    "self_energy_1": 0.65,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "⛏": 0.5,
+      "🪤": 0.35,
+      "🌱": -0.22,
+      "🛠": -0.2,
+      "🏛": 0.55,
+      "⛓": 0.5,
+      "📘": 0.3,
+      "🧱": 0.6,
+      "🧂": 0.35,
+      "🐚": -0.1,
+      "📜": -0.15,
+      "🌋": 0.2,
+      "💎": 0.3,
+      "🔥": 0.2,
+      "🔧": 0.4,
+      "🔨": 0.3
+    },
+    "energy_couplings": {
+      "⛰": 0.2,
+      "🏚": -0.2,
+      "🏛": 0.25,
+      "☀": 0.2,
+      "🌙": -0.25
+    }
+  },
+  {
+    "name": "Antimatter",
+    "pole_0": "⚫",
+    "pole_1": "✨",
+    "self_energy_0": 1.05,
+    "self_energy_1": 1.1,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🕳": 0.7,
+      "🌀": 0.95,
+      "🪐": [
+        0.4,
+        0.5
+      ],
+      "☀": -0.3,
+      "🌠": [
+        0.900000005960464,
+        0.300000011920929
+      ],
+      "💫": 0.6,
+      "🤲": [
+        0.400000005960464,
+        0.300000011920929
+      ],
+      "⚡": 0.2,
+      "💎": 0.75,
+      "💰": 0.4,
+      "⚖": 0.5,
+      "🔭": [
+        0.5,
+        -0.400000005960464
+      ],
+      "♟": 0.4,
+      "⚜": 0.5,
+      "🕰": [
+        0.300000011920929,
+        0.5
+      ],
+      "🌫": 0.2,
+      "🔥": 0.35,
+      "🐙": 0.3,
+      "👁": 0.4
+    },
+    "energy_couplings": {
+      "☀": -0.15,
+      "🌑": 0.25,
+      "⚫": 0.2,
+      "🕳": 0.35,
+      "✨": -0.2,
+      "🌙": 0.2
+    }
+  },
+  {
+    "name": "Annihilation",
+    "pole_0": "💥",
+    "pole_1": "🌀",
+    "self_energy_0": 0.5,
+    "self_energy_1": 0.4,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "⚫": 0.5,
+      "🕳": 0.6,
+      "🪐": 0.5,
+      "⚙": 0.6,
+      "☀": 0.7,
+      "🚀": 0.5,
+      "🌙": 0.2,
+      "🐙": 0.5,
+      "✨": 0.45,
+      "👁": 0.35,
+      "🌋": 0.25,
+      "🌊": 0.4,
+      "🌟": 0.6,
+      "🌈": 0.4,
+      "❄️": -0.3
+    },
+    "energy_couplings": {
+      "🌊": 0.15,
+      "🌙": 0.25
+    }
+  },
+  {
+    "name": "Rupture",
+    "pole_0": "🕳",
+    "pole_1": "⚡",
+    "self_energy_0": 0.6,
+    "self_energy_1": 0.9,
+    "rabi_coupling": 0.25,
+    "hamiltonian_couplings": {
+      "⚫": 0.7,
+      "🌀": 0.6,
+      "🪐": 0.5,
+      "⚱": 0.45,
+      "🫧": 0.38,
+      "⭐": [
+        0.25,
+        -0.45
+      ],
+      "⚙": 0.75,
+      "🔬": 0.3,
+      "🧬": 0.4,
+      "🧫": -0.18,
+      "🔋": 0.8,
+      "🔌": 0.5,
+      "🔥": 0.2,
+      "🌫": 0.15,
+      "☀": 0.30000000000000004,
+      "🧱": -0.1,
+      "💎": 0.3,
+      "🏜": 0.5,
+      "👁": 0.15
+    },
+    "energy_couplings": {
+      "⭐": 0.2,
+      "⚫": 0.25,
+      "🌑": 0.15,
+      "☀": 0.1,
+      "🌬": 0.1,
+      "💧": 0.15
+    }
+  },
+  {
+    "name": "Hive",
+    "pole_0": "🐝",
+    "pole_1": "🫙",
+    "self_energy_0": 0.1,
+    "self_energy_1": 0.73,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🍯": 0.55,
+      "🦠": -0.28,
+      "🌾": 0.6,
+      "🌿": 1.15,
+      "🌱": 0.4,
+      "♻️": -0.3,
+      "⛪": 0.55,
+      "🧪": 0.52,
+      "🥖": 0.6,
+      "🍞": 0.5,
+      "💨": -0.22
+    },
+    "energy_couplings": {
+      "☀": 0.15,
+      "💧": -0.1,
+      "⛰": 0.1,
+      "❄": -0.25,
+      "🌙": 0.1,
+      "🔥": 0.15
+    }
+  },
+  {
+    "name": "Logbook",
+    "pole_0": "📒",
+    "pole_1": "📋",
+    "self_energy_0": 0.2,
+    "self_energy_1": 0.43,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🎭": -0.42,
+      "😂": -0.3,
+      "💰": 0.6,
+      "💸": 0.25,
+      "📘": 0.9,
+      "🚔": 0.4,
+      "📐": -0.3,
+      "🚪": 0.3,
+      "🚧": 0.4,
+      "🛂": 0.6,
+      "🛶": 0.4,
+      "🔬": 0.4,
+      "🚀": 0.6,
+      "⚖": 0.5,
+      "💳": 0.6,
+      "📜": -0.15
+    },
+    "energy_couplings": {
+      "🏛": 0.25,
+      "🔥": -0.3,
+      "💧": -0.15
+    }
+  },
+  {
+    "name": "Measure",
+    "pole_0": "🧮",
+    "pole_1": "⚖",
+    "self_energy_0": 0.5,
+    "self_energy_1": 1.45,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "⚜": 0.7,
+      "👥": 0.42,
+      "📜": 1.3,
+      "🩸": -0.22,
+      "💰": 0.3,
+      "🌹": -0.38,
+      "🍷": -0.28,
+      "💧": 0.6,
+      "🪣": 0.4,
+      "🌱": 0.5,
+      "📒": 0.5,
+      "📘": 0.6,
+      "🚔": 0.5,
+      "📐": 1.6,
+      "📊": 1.0,
+      "💳": 0.4,
+      "📋": 0.5,
+      "⚫": 0.5,
+      "🔭": 0.8500000000000001,
+      "🌠": -0.22,
+      "🔬": 0.4,
+      "🧲": -0.3
+    },
+    "energy_couplings": {
+      "🏛": 0.2,
+      "🏰": 0.1,
+      "💰": 0.1,
+      "🔢": 0.15
+    },
+    "measurement_behavior": {
+      "collapses": true,
+      "inverts": false,
+      "strength": 0.4
+    }
+  },
+  {
+    "name": "Pyre",
+    "pole_0": "🔥",
+    "pole_1": "⚫",
+    "self_energy_0": 3.57,
+    "self_energy_1": 1.05,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🕳": 0.7,
+      "🌀": 0.5,
+      "🪐": [
+        0.4,
+        0.5
+      ],
+      "☀": 0.39999999999999997,
+      "⚱": 0.35,
+      "🧯": 0.25,
+      "⛰": 0.3,
+      "🌬": 1.1,
+      "💧": -0.2,
+      "🚩": 0.5,
+      "⚔": 0.45,
+      "🧨": 1.4,
+      "🪓": 0.3,
+      "❄️": 0.8,
+      "🍞": 0.5,
+      "🐝": 0.15,
+      "⚡": 0.4,
+      "⚙": 0.38,
+      "⛪": 0.5,
+      "🕯": 0.6,
+      "🪵": 0.5,
+      "🍂": 0.8999999999999999,
+      "⚖": 0.5,
+      "🌠": [
+        0.400000005960464,
+        0.300000011920929
+      ],
+      "🔭": [
+        0.5,
+        -0.400000005960464
+      ],
+      "♟": 0.4,
+      "⚜": 0.5,
+      "🕰": [
+        0.300000011920929,
+        0.5
+      ],
+      "✨": 0.35,
+      "🌋": 0.4,
+      "🌫": 0.3,
+      "🪨": 0.2,
+      "💎": -0.2,
+      "🌲": -0.4,
+      "🌿": -0.35,
+      "🌱": -0.4,
+      "🔧": 0.5,
+      "🔨": 0.4,
+      "🪔": 0.65,
+      "🗼": 0.35,
+      "🌉": -0.2
+    },
+    "energy_couplings": {
+      "☀": 0.2,
+      "🌑": 0.25,
+      "💧": -0.5,
+      "💨": 0.2,
+      "🌬": 0.3,
+      "🕳": 0.35,
+      "✨": -0.2,
+      "🌙": -0.1,
+      "🍂": 0.4
+    },
+    "driver": {
+      "amp": 1.0,
+      "freq": 0.0666666666666667,
+      "phase": 0.0,
+      "type": "sine"
+    }
+  },
+  {
+    "name": "Bloodline",
+    "pole_0": "⚜",
+    "pole_1": "🩸",
+    "self_energy_0": 0.65,
+    "self_energy_1": 0.63,
+    "rabi_coupling": 0.65,
+    "hamiltonian_couplings": {
+      "⚖": 0.48,
+      "🏰": 0.8,
+      "👥": 0.31999999999999995,
+      "📜": 0.6,
+      "🦅": 0.6,
+      "💀": 0.8,
+      "⚔": 0.8,
+      "✊": 0.25,
+      "🫀": 0.7,
+      "🧵": 0.3,
+      "🎭": 0.6,
+      "🍷": 0.45,
+      "😂": 0.4,
+      "🐉": 0.6,
+      "💱": -0.2,
+      "🛡": -0.35,
+      "🦠": 0.55,
+      "♟": -0.22,
+      "⚫": 0.5,
+      "🕰": -0.2
+    },
+    "energy_couplings": {
+      "🏚": -0.25,
+      "🏛": 0.3,
+      "🔥": -0.2,
+      "🌙": 0.1,
+      "💀": 0.15,
+      "⚔": 0.15,
+      "⚖": 0.15,
+      "👑": 0.15
+    }
+  },
+  {
+    "name": "Violence",
+    "pole_0": "💥",
+    "pole_1": "🩸",
+    "self_energy_0": 0.5,
+    "self_energy_1": 0.63,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "⚖": -0.22,
+      "⚜": 0.5,
+      "👥": 0.6,
+      "💀": 0.8,
+      "⚔": 0.8,
+      "✊": 0.25,
+      "🫀": 0.7,
+      "🧵": 0.3,
+      "🎭": 0.6,
+      "🍷": 0.45,
+      "😂": 0.4,
+      "🐉": 0.6,
+      "💱": -0.2,
+      "🛡": -0.35,
+      "🦠": 0.55,
+      "🌟": 0.6,
+      "🌈": 0.4,
+      "❄️": -0.3
+    },
+    "energy_couplings": {
+      "🌙": 0.1,
+      "💀": 0.15,
+      "⚔": 0.15,
+      "⚖": 0.15
+    }
+  },
+  {
+    "name": "Vestige",
+    "pole_0": "💀",
+    "pole_1": "⚱",
+    "self_energy_0": -0.57,
+    "self_energy_1": 0.55,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🌫": 0.6,
+      "⚔": 0.95,
+      "🩹": 0.45,
+      "🔥": 0.35,
+      "⭐": 0.6,
+      "🕳": 0.45,
+      "⛓": 0.4,
+      "💸": 0.6499999999999999,
+      "🍄": [
+        0.4,
+        0.3
+      ],
+      "🍂": [
+        0.3,
+        -0.3
+      ],
+      "🌙": -0.28,
+      "🐇": 0.4,
+      "🐺": 0.3,
+      "🦅": 0.3,
+      "🦌": 0.4,
+      "🌱": 0.35,
+      "🦠": 0.52,
+      "🩸": 0.4,
+      "🥀": 0.4,
+      "🌹": -0.25,
+      "⚫": 0.5,
+      "🗑": -0.3,
+      "🧤": 0.4,
+      "🌾": 0.2,
+      "🕵️": -0.38,
+      "💰": -0.25,
+      "👥": -0.22
+    },
+    "energy_couplings": {
+      "🌱": 0.2,
+      "💀": 0.2,
+      "⚫": 0.2,
+      "🌑": 0.1
+    }
+  },
+  {
+    "name": "Spore",
+    "pole_0": "🌾",
+    "pole_1": "🍄",
+    "self_energy_0": 1.45,
+    "self_energy_1": 0.15,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "✊": 0.35,
+      "🪓": 0.4,
+      "🌿": 0.35,
+      "🥣": 0.2,
+      "🐑": 0.45,
+      "🧭": 0.2,
+      "🪣": 0.45,
+      "⚖": 0.1,
+      "🦗": -0.15,
+      "🌙": 0.65,
+      "🍂": [
+        0.9,
+        0.3
+      ],
+      "💀": [
+        0.6000000000000001,
+        -0.3
+      ],
+      "🌱": 1.0,
+      "💧": 0.25,
+      "🐺": -0.15,
+      "🦠": -0.32,
+      "🐝": 0.6,
+      "🧫": 0.25,
+      "🐇": 0.35,
+      "🦌": 0.4,
+      "🧤": 0.35,
+      "🌲": -0.2,
+      "👥": [
+        0.0,
+        0.5
+      ]
+    },
+    "energy_couplings": {
+      "🛶": 0.2,
+      "☀": 0.08,
+      "🌙": 0.4,
+      "💧": 0.05,
+      "⛰": 0.04
+    }
+  },
+  {
+    "name": "Dominion",
+    "pole_0": "⚜",
+    "pole_1": "⚖",
+    "self_energy_0": 0.65,
+    "self_energy_1": 1.45,
+    "rabi_coupling": 0.7,
+    "hamiltonian_couplings": {
+      "🏰": 0.8,
+      "👥": 0.13999999999999996,
+      "📜": 1.9000000000000001,
+      "🦅": 0.6,
+      "🩸": 0.43000000000000005,
+      "💰": 0.3,
+      "🌹": -0.38,
+      "🍷": -0.28,
+      "💧": 0.6,
+      "🪣": 0.4,
+      "🌱": 0.5,
+      "📒": 0.5,
+      "📘": 0.6,
+      "🚔": 0.5,
+      "📊": 0.4,
+      "📐": 0.3,
+      "💳": 0.4,
+      "📋": 0.5,
+      "⚫": 1.0,
+      "🔭": 0.4,
+      "🌠": -0.22,
+      "♟": -0.22,
+      "🕰": -0.2
+    },
+    "energy_couplings": {
+      "🏚": -0.25,
+      "🏛": 0.2,
+      "🔥": -0.2,
+      "🏰": 0.1,
+      "👑": 0.15
+    },
+    "measurement_behavior": {
+      "collapses": true,
+      "inverts": false,
+      "strength": 0.4
+    }
+  },
+  {
+    "name": "Extraction",
+    "pole_0": "👥",
+    "pole_1": "💰",
+    "self_energy_0": 0.22,
+    "self_energy_1": 3.32,
+    "rabi_coupling": 0.65,
+    "hamiltonian_couplings": {
+      "🦴": 0.2,
+      "💉": -0.22,
+      "⚖": 0.6200000000000001,
+      "⚜": -0.28,
+      "🩸": 0.6,
+      "🦅": -0.2,
+      "⛓": 1.25,
+      "💸": -0.6000000000000001,
+      "✊": 0.3,
+      "🍞": 1.63,
+      "🧺": 0.5,
+      "🌱": 0.32,
+      "🏛": 0.2,
+      "🏚": -0.15,
+      "💧": 0.3,
+      "📒": 0.6,
+      "📘": 0.15,
+      "🏛️": 0.2,
+      "🐂": 0.3,
+      "📦": 0.6,
+      "🗝": 1.13,
+      "📼": -0.2,
+      "🏭": -0.2,
+      "⚓": -0.2,
+      "🚢": 0.5,
+      "📋": 0.2,
+      "🏢": 0.6,
+      "🛂": 0.55,
+      "🚀": 0.35,
+      "🔍": 0.35,
+      "🪞": -0.25,
+      "💎": 1.2,
+      "🧊": -0.3,
+      "🫧": 0.3,
+      "✨": 0.4,
+      "💀": -0.47,
+      "📗": 0.6,
+      "📜": 0.55,
+      "📕": 0.2,
+      "🌾": [
+        0.0,
+        -0.5
+      ]
+    },
+    "energy_couplings": {
+      "🏚": -0.15,
+      "🏛": 0.2
+    }
+  },
+  {
+    "name": "Voice",
+    "pole_0": "🔊",
+    "pole_1": "🗣",
+    "self_energy_0": 0.35,
+    "self_energy_1": 0.08,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🎼": 0.6,
+      "📡": 0.6799999999999999,
+      "🩰": -0.2,
+      "🎶": 0.35,
+      "🎵": 0.8,
+      "🔨": 0.5,
+      "❄": 0.3,
+      "🔇": -0.45,
+      "📻": 0.5
+    },
+    "energy_couplings": {
+      "🔇": -0.3
+    }
+  },
+  {
+    "name": "Tune",
+    "pole_0": "🎵",
+    "pole_1": "🧩",
+    "self_energy_0": 0.2,
+    "self_energy_1": 0.76,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "💾": 0.8200000000000001,
+      "📶": -0.2,
+      "📼": 0.35,
+      "📡": 0.88,
+      "🔗": 0.35,
+      "🔊": 0.8,
+      "💎": 0.25
+    },
+    "energy_couplings": {
+      "⛪": 0.15,
+      "💃": 0.25
+    },
+    "driver": {
+      "amp": 0.35,
+      "freq": 0.5,
+      "phase": 0.0,
+      "type": "sine"
+    }
+  },
+  {
+    "name": "Chronicle",
+    "pole_0": "🗃",
+    "pole_1": "♟",
+    "self_energy_0": 0.0,
+    "self_energy_1": 0.2,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🕰": 0.9500000000000001,
+      "🪦": 0.55,
+      "📜": -0.4,
+      "⚜": -0.22,
+      "⚫": 0.4
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Reckoning",
+    "pole_0": "💀",
+    "pole_1": "📖",
+    "self_energy_0": -0.57,
+    "self_energy_1": 0.4,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🪦": 0.6,
+      "🕰": -0.28,
+      "⛓": 0.4,
+      "💸": 0.6499999999999999,
+      "🍄": [
+        0.4,
+        0.3
+      ],
+      "🍂": [
+        0.3,
+        -0.3
+      ],
+      "🌙": -0.28,
+      "🐇": 0.4,
+      "🐺": 0.3,
+      "🦅": 0.3,
+      "🦌": 0.4,
+      "🌱": 0.35,
+      "🦠": 0.52,
+      "🩸": 0.4,
+      "⚔": 0.45,
+      "🥀": 0.4,
+      "🌹": -0.25,
+      "⚫": 0.5,
+      "🗑": -0.3,
+      "🧤": 0.4,
+      "🌾": 0.2,
+      "🕵️": -0.38,
+      "💰": -0.25,
+      "👥": -0.22
+    },
+    "energy_couplings": {
+      "⚫": 0.2,
+      "🌑": 0.1
+    }
+  },
+  {
+    "name": "Medicine",
+    "pole_0": "💉",
+    "pole_1": "💊",
+    "self_energy_0": 0.37,
+    "self_energy_1": 0.3,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "💰": -0.22,
+      "🔧": 0.15000000000000002,
+      "🦴": 1.15,
+      "🧪": 1.1,
+      "⚙️": -0.25,
+      "📦": 0.6,
+      "🚛": 0.4,
+      "📜": -0.16
+    },
+    "energy_couplings": {
+      "🦠": -0.2,
+      "👥": 0.15,
+      "💀": -0.2,
+      "🩺": 0.15
+    }
+  },
+  {
+    "name": "Cryogenic",
+    "pole_0": "❄",
+    "pole_1": "⚙",
+    "self_energy_0": -0.1,
+    "self_energy_1": 1.7,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🏷️": 0.5,
+      "🔩": 1.4500000000000002,
+      "🛠": 0.6,
+      "🧰": 0.4,
+      "⚡": 0.6,
+      "🍞": 0.35,
+      "💨": 0.8,
+      "🏭": 1.15,
+      "🔌": 0.7,
+      "🔨": 1.1,
+      "💧": 0.5,
+      "🔥": 0.38,
+      "🕴️": -0.25,
+      "🔬": 0.3,
+      "🚀": 1.1,
+      "🌀": 0.6,
+      "☀": 0.5,
+      "🔊": 0.5,
+      "🪛": 0.45,
+      "🔧": 0.3,
+      "⌛": 0.55,
+      "⏰": 0.6,
+      "⏳": 0.45
+    },
+    "energy_couplings": {
+      "🏷️": 0.2,
+      "💧": -0.05,
+      "🛠": 0.1
+    }
+  },
+  {
+    "name": "Access",
+    "pole_0": "👥",
+    "pole_1": "🗝",
+    "self_energy_0": 0.22,
+    "self_energy_1": 1.42,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "💰": 1.38,
+      "🦴": -0.2,
+      "⚖": 0.42,
+      "⚜": -0.28,
+      "🩸": 0.6,
+      "🦅": -0.2,
+      "⛓": 1.25,
+      "💸": 0.04999999999999999,
+      "✊": 0.3,
+      "🍞": 1.05,
+      "💧": 0.3,
+      "🤖": 0.55,
+      "🧘": 0.4,
+      "🔔": 0.4,
+      "🪢": 0.4,
+      "🧵": -0.25,
+      "💾": 0.45,
+      "🏭": -0.2,
+      "🚪": [
+        0.6,
+        0.3
+      ],
+      "🛂": -0.22,
+      "🔐": 0.5,
+      "🕵️": 0.52,
+      "💀": -0.22,
+      "🌾": [
+        0.0,
+        -0.5
+      ]
+    },
+    "energy_couplings": {
+      "🔓": -0.15,
+      "🏚": -0.1,
+      "🏛": 0.15
+    }
+  },
+  {
+    "name": "Martyr",
+    "pole_0": "🩸",
+    "pole_1": "🚀",
+    "self_energy_0": 0.63,
+    "self_energy_1": 0.45,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "⚖": -0.22,
+      "⚜": 0.5,
+      "👥": 0.6,
+      "💀": 0.8,
+      "⚔": 0.8,
+      "✊": 0.25,
+      "🫀": 0.7,
+      "🧵": 0.3,
+      "🎭": 0.6,
+      "🍷": 0.45,
+      "😂": 0.4,
+      "🐉": 0.6,
+      "💱": -0.2,
+      "🛡": -0.35,
+      "🦠": 0.55,
+      "⚙": 1.1,
+      "⚡": 0.4,
+      "📋": 0.5,
+      "🔬": 0.6,
+      "🌫": -0.25,
+      "🔥": -0.2,
+      "🌀": 0.5,
+      "☀": 0.15,
+      "💰": 0.35,
+      "🏢": -0.3,
+      "🛂": -0.4
+    },
+    "energy_couplings": {
+      "🌙": 0.1,
+      "💀": 0.15,
+      "⚔": 0.15,
+      "⚖": 0.15,
+      "🌌": 0.2,
+      "🔥": -0.15,
+      "🔬": 0.15
+    },
+    "driver": {
+      "type": "pulse",
+      "frequency": 0.08,
+      "amplitude": 0.5,
+      "phase": 0.0
+    }
+  },
+  {
+    "name": "Capital",
+    "pole_0": "💰",
+    "pole_1": "⚙",
+    "self_energy_0": 3.32,
+    "self_energy_1": 1.7,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "💉": -0.22,
+      "🦴": 0.4,
+      "👥": 0.55,
+      "⚖": 0.2,
+      "💸": -0.65,
+      "🏷️": 0.5,
+      "🔩": 1.4500000000000002,
+      "🛠": 0.6,
+      "🧰": 0.4,
+      "⚡": 0.6,
+      "🍞": 0.9299999999999999,
+      "🧺": 0.5,
+      "🌱": 0.32,
+      "🏛": 0.2,
+      "🏚": -0.15,
+      "💨": 0.8,
+      "🏭": 1.15,
+      "🔌": 0.7,
+      "📒": 0.6,
+      "📘": 0.15,
+      "🏛️": 0.2,
+      "🐂": 0.3,
+      "📦": 0.6,
+      "🗝": 1.13,
+      "📼": -0.2,
+      "🔨": 1.1,
+      "💧": 0.5,
+      "🔥": 0.38,
+      "🕴️": -0.25,
+      "⚓": -0.2,
+      "🚢": 0.5,
+      "📋": 0.2,
+      "🔬": 0.3,
+      "🚀": 1.4500000000000002,
+      "🌀": 0.6,
+      "☀": 0.5,
+      "🏢": 0.6,
+      "🛂": 0.55,
+      "🔊": 0.3,
+      "🔍": 0.35,
+      "🪞": -0.25,
+      "💎": 1.2,
+      "🧊": -0.3,
+      "🫧": 0.3,
+      "✨": 0.4,
+      "🪛": 0.45,
+      "💀": -0.25,
+      "🔧": 0.3,
+      "⌛": 0.55,
+      "⏰": 0.6,
+      "⏳": 0.45,
+      "📗": 0.6,
+      "📜": 0.55,
+      "📕": 0.2
+    },
+    "energy_couplings": {
+      "🏷️": 0.2,
+      "💧": -0.05,
+      "🏚": -0.15,
+      "🏛": 0.2,
+      "🛠": 0.1
+    }
+  },
+  {
+    "name": "Demolition",
+    "pole_0": "🧨",
+    "pole_1": "💥",
+    "self_energy_0": 0.18,
+    "self_energy_1": 0.5,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🔥": 1.4,
+      "⛓": 0.6,
+      "🪓": 0.3,
+      "🌟": 0.6,
+      "🌈": 0.4,
+      "❄️": -0.3
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Burning",
+    "pole_0": "🧱",
+    "pole_1": "🔥",
+    "self_energy_0": 0.53,
+    "self_energy_1": 3.57,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "⚱": 0.35,
+      "🧯": 0.25,
+      "☀": 0.7,
+      "⛰": 0.3,
+      "🌬": 1.1,
+      "💧": -0.2,
+      "🚩": 0.5,
+      "⚔": 0.45,
+      "🧨": 1.4,
+      "🪓": 0.3,
+      "❄️": 0.8,
+      "🍞": 0.5,
+      "🐝": 0.15,
+      "⚡": 0.25,
+      "⚙": 0.38,
+      "🏛": 0.6,
+      "📐": -0.25,
+      "📘": 0.4,
+      "🪨": 0.8,
+      "🔩": 0.3,
+      "⛪": 0.5,
+      "🕯": 0.6,
+      "🪵": 0.5,
+      "🍂": 0.8999999999999999,
+      "✨": 0.35,
+      "🌋": 0.4,
+      "🌫": 0.3,
+      "💎": -0.2,
+      "🌲": -0.4,
+      "🌿": -0.35,
+      "🌱": -0.4,
+      "🔧": 0.5,
+      "🔨": 0.4,
+      "🪔": 0.65,
+      "🗼": 0.35,
+      "🌉": -0.2
+    },
+    "energy_couplings": {
+      "💧": -0.5,
+      "💨": 0.2,
+      "🌬": 0.3,
+      "🔥": -0.15,
+      "☀": 0.2,
+      "🌙": -0.1,
+      "🍂": 0.4
+    },
+    "driver": {
+      "amp": 1.0,
+      "freq": 0.0666666666666667,
+      "phase": 0.0,
+      "type": "sine"
+    }
+  },
+  {
+    "name": "Cobweb",
+    "pole_0": "🕸",
+    "pole_1": "🕯",
+    "self_energy_0": 0.15,
+    "self_energy_1": 1.17,
+    "rabi_coupling": 0.3,
+    "hamiltonian_couplings": {
+      "🎶": 0.15000000000000002,
+      "🪦": 0.30000000000000004,
+      "🫖": 0.45,
+      "🧿": [
+        0.6,
+        -0.25
+      ],
+      "🥣": -0.18,
+      "🧘": 0.3,
+      "🔇": 0.2,
+      "🏮": 1.15,
+      "🔦": -0.4,
+      "🫥": 0.4,
+      "🌑": 0.55,
+      "⛪": 0.5,
+      "🔥": 0.6,
+      "🧵": [
+        0.8,
+        0.300000011920929
+      ]
+    },
+    "energy_couplings": {
+      "💨": -0.2,
+      "🔥": 0.2,
+      "🕷": 0.2,
+      "🌑": 0.2
+    },
+    "driver": {
+      "amplitude": 0.08,
+      "frequency": 0.25,
+      "phase": 0.0,
+      "type": "cosine"
+    }
+  },
+  {
+    "name": "Null",
+    "pole_0": "🔇",
+    "pole_1": "🌑",
+    "self_energy_0": 0.3,
+    "self_energy_1": -0.1,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🔔": -0.3,
+      "📵": 0.35,
+      "🛑": -0.28,
+      "🕯": 0.2,
+      "🕸": 0.55,
+      "🫥": 0.45,
+      "🪦": 0.5,
+      "🔊": -0.45
+    },
+    "energy_couplings": {
+      "📡": -0.25,
+      "🔊": -0.35,
+      "☀": -0.3,
+      "🌙": 0.25,
+      "💀": 0.15,
+      "🔮": 0.2
+    }
+  },
+  {
+    "name": "Vertigo",
+    "pole_0": "💫",
+    "pole_1": "🌀",
+    "self_energy_0": 0.35,
+    "self_energy_1": 0.4,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "⚫": 0.5,
+      "🕳": 0.6,
+      "🪐": 0.5,
+      "✨": 1.05,
+      "🌠": 0.5,
+      "🤲": 0.4,
+      "⚡": 0.25,
+      "⚙": 0.6,
+      "☀": 0.7,
+      "🚀": 0.5,
+      "🌙": 0.2,
+      "🎸": [
+        0.3,
+        -0.4
+      ],
+      "🎼": [
+        0.5,
+        -0.3
+      ],
+      "🐙": 0.5,
+      "👁": 0.35,
+      "🌋": 0.25,
+      "🌊": 0.4
+    },
+    "energy_couplings": {
+      "🌊": 0.15,
+      "🌑": 0.3,
+      "🕳": 0.25,
+      "🌙": 0.25
+    },
+    "driver": {
+      "type": "sine",
+      "frequency": 0.4,
+      "amplitude": 0.15,
+      "phase": 1.57
+    }
+  },
+  {
+    "name": "Enforcement",
+    "pole_0": "🚔",
+    "pole_1": "🔓",
+    "self_energy_0": 0.15,
+    "self_energy_1": 0.25,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "⚖": 0.5,
+      "👥": 0.5,
+      "📒": 0.4,
+      "⛓": 0.7,
+      "🕵️": 0.5,
+      "🛶": 0.3
+    },
+    "energy_couplings": {
+      "⚖": 0.15,
+      "🏚": -0.2,
+      "🗝": -0.2,
+      "🚧": 0.25
+    }
+  },
+  {
+    "name": "Compliance",
+    "pole_0": "⛓",
+    "pole_1": "📋",
+    "self_energy_0": 0.35,
+    "self_energy_1": 0.43,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "👥": 1.25,
+      "💀": 0.4,
+      "💸": 0.10000000000000003,
+      "⚔": 0.5,
+      "🧨": 0.6,
+      "🪓": -0.4,
+      "✊": -0.5,
+      "🖋": 0.62,
+      "🎭": -0.42,
+      "😂": -0.3,
+      "📘": 0.8,
+      "📐": -0.3,
+      "🚪": 0.3,
+      "🚧": 0.4,
+      "🛂": 0.6,
+      "🕴️": 0.5,
+      "🪨": 0.5,
+      "🛶": 0.10000000000000003,
+      "🔬": 0.4,
+      "🚀": 0.6,
+      "🔓": 0.7,
+      "🕵️": -0.22,
+      "⚖": 0.5,
+      "💳": 0.6,
+      "📜": -0.15
+    },
+    "energy_couplings": {
+      "🏛": 0.25,
+      "🔥": -0.3,
+      "⚖": 0.2,
+      "🏭": 0.2,
+      "👥": -0.15,
+      "💧": -0.15
+    }
+  },
+  {
+    "name": "Fading",
+    "pole_0": "🦅",
+    "pole_1": "🥀",
+    "self_energy_0": 0.17,
+    "self_energy_1": -0.1,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "⚜": 0.6,
+      "👥": -0.2,
+      "💀": 0.9,
+      "🩸": 0.4,
+      "🐇": 0.5,
+      "🐺": 0.2,
+      "🦌": 0.3,
+      "🐑": -0.18,
+      "⚔": 0.5,
+      "🌹": -0.32
+    },
+    "energy_couplings": {
+      "☀": 0.1,
+      "🐇": 0.2,
+      "🌙": 0.1,
+      "💀": 0.2
+    }
+  },
+  {
+    "name": "Phase",
+    "pole_0": "🧊",
+    "pole_1": "🔥",
+    "self_energy_0": 0.2,
+    "self_energy_1": 3.57,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "⚱": 0.35,
+      "🧯": 0.25,
+      "☀": 0.7,
+      "⛰": 0.3,
+      "🌬": 1.1,
+      "💧": -0.2,
+      "🚩": 0.5,
+      "⚔": 0.45,
+      "🧨": 1.4,
+      "🪓": 0.3,
+      "❄️": 0.8,
+      "🍞": 0.5,
+      "🐝": 0.15,
+      "⚡": 0.4,
+      "⚙": 0.38,
+      "⛪": 0.5,
+      "🕯": 0.6,
+      "🪵": 0.5,
+      "🍂": 0.8999999999999999,
+      "🔍": 0.55,
+      "💎": 0.3,
+      "💰": -0.3,
+      "✨": 0.35,
+      "🌋": 0.4,
+      "🌫": 0.3,
+      "🪨": 0.2,
+      "🌲": -0.4,
+      "🌿": -0.35,
+      "🌱": -0.4,
+      "🔧": 0.5,
+      "🔨": 0.4,
+      "🪔": 0.65,
+      "🗼": 0.35,
+      "🌉": -0.2
+    },
+    "energy_couplings": {
+      "💧": -0.5,
+      "💨": 0.2,
+      "🌬": 0.3,
+      "☀": 0.2,
+      "❄": 0.3,
+      "🔥": -0.35,
+      "🌙": -0.1,
+      "🍂": 0.4
+    },
+    "driver": {
+      "amp": 1.0,
+      "freq": 0.0666666666666667,
+      "phase": 0.0,
+      "type": "sine"
+    }
+  },
+  {
+    "name": "Swell",
+    "pole_0": "💧",
+    "pole_1": "🌊",
+    "self_energy_0": 1.25,
+    "self_energy_1": 0.25,
+    "rabi_coupling": 0.55,
+    "hamiltonian_couplings": {
+      "☀": -0.3,
+      "⛰": 0.4,
+      "🌙": 1.2,
+      "🌬": 0.6,
+      "🔥": -0.8,
+      "❄️": 0.3,
+      "🍞": 0.5,
+      "🏜️": 0.0,
+      "👥": 0.3,
+      "⚖": 0.6,
+      "🌱": 0.5,
+      "🪣": 0.5,
+      "🌧": 0.4,
+      "🔌": -0.3,
+      "⚙": 0.5,
+      "🍄": 0.25,
+      "🪝": -0.22,
+      "🛶": 0.4,
+      "🧂": 0.4,
+      "♻️": 0.65,
+      "🌿": 0.38,
+      "🪸": [
+        0.35,
+        0.4
+      ],
+      "🐠": [
+        0.25,
+        -0.3
+      ],
+      "🦀": 0.4,
+      "🌀": 0.4,
+      "🐙": 0.35
+    },
+    "energy_couplings": {
+      "☀": -0.1,
+      "🌙": 0.4,
+      "🌧": 0.2,
+      "🔥": -0.2
+    },
+    "driver": {
+      "type": "sine",
+      "frequency": 0.08,
+      "amplitude": 0.5,
+      "phase": 0.0
+    }
+  },
+  {
+    "name": "Sprout",
+    "pole_0": "🫧",
+    "pole_1": "🌿",
+    "self_energy_0": 0.2,
+    "self_energy_1": 1.17,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "⭐": -0.3,
+      "🕳": 0.38,
+      "🫖": 0.6,
+      "🥣": 0.45,
+      "🧿": -0.4,
+      "🌾": 0.75,
+      "🐝": 0.55,
+      "🧂": -0.3,
+      "🐇": 0.55,
+      "🦌": 0.62,
+      "💰": 0.3,
+      "🪞": 0.4,
+      "🫙": 0.6,
+      "♻️": -0.22,
+      "💧": 0.38,
+      "🌱": 0.6,
+      "🍂": 0.4,
+      "🔥": 0.4
+    },
+    "energy_couplings": {
+      "🌱": 0.15,
+      "💧": 0.06,
+      "🍄": 0.25,
+      "☀": 0.1,
+      "🌙": 0.05,
+      "⛰": 0.02
+    }
+  },
+  {
+    "name": "Kingdom",
+    "pole_0": "🍄",
+    "pole_1": "🦠",
+    "self_energy_0": 0.15,
+    "self_energy_1": 0.1,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🐜": 0.3,
+      "🧫": 1.1,
+      "🧿": [
+        0.25,
+        0.35
+      ],
+      "🌙": 0.65,
+      "🍂": [
+        0.4,
+        0.3
+      ],
+      "💀": [
+        0.92,
+        -0.3
+      ],
+      "🌱": 0.3,
+      "💧": 0.25,
+      "🌾": -0.32,
+      "🐇": -0.3,
+      "🐝": -0.28,
+      "🩸": 0.55
+    },
+    "energy_couplings": {
+      "🧬": 0.15,
+      "☀": -0.35,
+      "🌙": 0.4,
+      "💧": 0.35,
+      "🌬": -0.2,
+      "🌾": 0.25,
+      "🐇": 0.3,
+      "🐝": 0.35
+    }
+  },
+  {
+    "name": "Bath",
+    "pole_0": "🌧",
+    "pole_1": "🧫",
+    "self_energy_0": 0.3,
+    "self_energy_1": 1.34,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🧬": 2.25,
+      "🧵": 0.3,
+      "🦴": 0.22,
+      "🔬": 1.05,
+      "🧪": 1.2,
+      "🕳": -0.18,
+      "💧": 0.4,
+      "♻️": 0.4,
+      "🦗": 0.7,
+      "🦠": 1.1,
+      "🧿": [
+        0.2,
+        -0.3
+      ],
+      "🌾": 0.25
+    },
+    "energy_couplings": {
+      "🦠": -0.25
+    }
+  },
+  {
+    "name": "Crown",
+    "pole_0": "👑",
+    "pole_1": "⚜",
+    "self_energy_0": 0.2,
+    "self_energy_1": 0.65,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "⚖": 0.7,
+      "🏰": 0.8,
+      "👥": -0.28,
+      "📜": 0.6,
+      "🦅": 0.6,
+      "🩸": 0.65,
+      "🐉": 0.45,
+      "💱": 0.3,
+      "♟": -0.22,
+      "⚫": 0.5,
+      "🕰": -0.2
+    },
+    "energy_couplings": {
+      "🏚": -0.25,
+      "🏛": 0.3,
+      "🔥": -0.2,
+      "👑": 0.15
+    }
+  },
+  {
+    "name": "Decline",
+    "pole_0": "📜",
+    "pole_1": "🥀",
+    "self_energy_0": 0.77,
+    "self_energy_1": -0.1,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "⚖": 1.0,
+      "⚜": 0.6,
+      "🏢": 0.4,
+      "🏰": 1.0,
+      "🖋": 0.58,
+      "🗃": -0.4,
+      "⚔": 0.5,
+      "💀": 0.4,
+      "🌹": -0.32,
+      "🧂": 0.3,
+      "🐚": 0.5,
+      "🪨": -0.15,
+      "📋": -0.15,
+      "💳": -0.25,
+      "💊": -0.16,
+      "🚛": -0.22,
+      "🔑": 0.45,
+      "💰": 0.55,
+      "📗": 0.4
+    },
+    "energy_couplings": {
+      "🏢": 0.15,
+      "⚜": 0.3,
+      "🏛": 0.15,
+      "🌙": 0.1,
+      "💀": 0.2
+    }
+  },
+  {
+    "name": "Transit",
+    "pole_0": "🛶",
+    "pole_1": "🪝",
+    "self_energy_0": 0.55,
+    "self_energy_1": 0.1,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "📋": 0.5,
+      "💰": 0.44999999999999996,
+      "⚓": 0.5,
+      "🚢": 0.4,
+      "💧": 0.18000000000000002,
+      "🕵️": 0.4,
+      "🧂": 0.6,
+      "⛓": -0.2
+    },
+    "energy_couplings": {
+      "💧": 0.3
+    }
+  },
+  {
+    "name": "Domain",
+    "pole_0": "💧",
+    "pole_1": "⚓",
+    "self_energy_0": 1.25,
+    "self_energy_1": 0.3,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "☀": -0.3,
+      "⛰": 0.4,
+      "🌙": 0.8,
+      "🌬": 0.6,
+      "🔥": -0.8,
+      "❄️": 0.3,
+      "🍞": 0.5,
+      "🏜️": 0.0,
+      "👥": 0.3,
+      "⚖": 0.6,
+      "🌱": 0.5,
+      "🪣": 0.5,
+      "🌧": 0.4,
+      "🔌": -0.3,
+      "⚙": 0.5,
+      "🍄": 0.25,
+      "🪝": 0.28,
+      "💰": -0.2,
+      "🚢": 0.7,
+      "🛶": 0.4,
+      "🧂": 0.4,
+      "♻️": 0.65,
+      "🌿": 0.38,
+      "🌊": 0.55
+    },
+    "energy_couplings": {
+      "☀": -0.1,
+      "🌙": 0.15,
+      "🏛": 0.15,
+      "🌧": 0.2,
+      "🔥": -0.2
+    }
+  },
+  {
+    "name": "Haul",
+    "pole_0": "🌾",
+    "pole_1": "🏜",
+    "self_energy_0": 1.45,
+    "self_energy_1": -0.05,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "✊": 0.35,
+      "🪓": 0.4,
+      "🌿": 0.35,
+      "🥣": 0.2,
+      "🐑": 0.45,
+      "🧭": 0.2,
+      "🪣": 0.45,
+      "⚖": 0.1,
+      "🦗": -0.15,
+      "🐺": -0.15,
+      "🦠": -0.32,
+      "🐝": 0.6,
+      "🌱": 0.7,
+      "🧫": 0.25,
+      "🐇": 0.35,
+      "🦌": 0.4,
+      "🧤": 0.35,
+      "💀": 0.2,
+      "🍂": 0.5,
+      "🌲": -0.2,
+      "⚡": 0.5,
+      "👥": [
+        0.0,
+        0.5
+      ]
+    },
+    "energy_couplings": {
+      "🛶": 0.2,
+      "☀": 0.08,
+      "⛰": 0.04,
+      "💧": 0.05
+    }
+  },
+  {
+    "name": "Dock",
+    "pole_0": "🪣",
+    "pole_1": "🪨",
+    "self_energy_0": 0.2,
+    "self_energy_1": 0.65,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "⛏": 0.5,
+      "🪤": 0.35,
+      "🌱": 0.18000000000000002,
+      "🛠": -0.2,
+      "🌾": 0.45,
+      "💧": 0.5,
+      "⛓": 0.5,
+      "📘": 0.3,
+      "🧱": 0.6,
+      "🧂": 0.35,
+      "🐚": -0.1,
+      "📜": -0.15,
+      "🌋": 0.2,
+      "💎": 0.3,
+      "🔥": 0.2,
+      "🔧": 0.4,
+      "🔨": 0.3
+    },
+    "energy_couplings": {
+      "⛰": 0.2,
+      "🏚": -0.2,
+      "🏛": 0.25,
+      "☀": 0.2,
+      "🌙": -0.25
+    }
+  },
+  {
+    "name": "Apiary",
+    "pole_0": "🍯",
+    "pole_1": "🐝",
+    "self_energy_0": 0.5,
+    "self_energy_1": 0.1,
+    "rabi_coupling": 0.55,
+    "hamiltonian_couplings": {
+      "🍞": 0.2,
+      "🦠": -0.28,
+      "🌾": 0.6,
+      "🌿": 0.55,
+      "🌱": 0.4
+    },
+    "energy_couplings": {
+      "☀": 0.15,
+      "💧": -0.1
+    }
+  },
+  {
+    "name": "Mirage",
+    "pole_0": "🌠",
+    "pole_1": "🫥",
+    "self_energy_0": 0.72,
+    "self_energy_1": -0.2,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🎶": [
+        0.5,
+        -0.4
+      ],
+      "🔔": 0.4,
+      "🪦": 1.0,
+      "🕸": 0.4,
+      "🌑": 0.45,
+      "✨": 0.5,
+      "💫": 0.5,
+      "🤲": 0.5,
+      "🔭": 1.25,
+      "🌙": -0.22,
+      "🛰": 0.35,
+      "⚫": [
+        0.400000005960464,
+        -0.300000011920929
+      ],
+      "⚖": -0.22
+    },
+    "energy_couplings": {
+      "☀": -0.2,
+      "🌑": 0.25,
+      "🌙": 0.2,
+      "🔭": 0.15,
+      "🌌": 0.2
+    },
+    "driver": {
+      "type": "pulse",
+      "frequency": 0.05,
+      "amplitude": 0.5,
+      "phase": 0.0
+    }
+  },
+  {
+    "name": "Viaduct",
+    "pole_0": "🌉",
+    "pole_1": "🪔",
+    "self_energy_0": 0.05,
+    "self_energy_1": 0.25,
+    "rabi_coupling": 0.3,
+    "hamiltonian_couplings": {
+      "🔥": 0.45,
+      "📯": 0.8
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Tower",
+    "pole_0": "📯",
+    "pole_1": "🗼",
+    "self_energy_0": 0.15,
+    "self_energy_1": 0.18,
+    "rabi_coupling": 0.3,
+    "hamiltonian_couplings": {
+      "🪔": 0.8,
+      "🏁": 0.8,
+      "🔥": 0.35
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Checkpoint",
+    "pole_0": "🏁",
+    "pole_1": "🧂",
+    "self_energy_0": 0.1,
+    "self_energy_1": 0.7,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🐚": 0.4,
+      "🪨": 0.35,
+      "📜": 0.3,
+      "🌿": -0.3,
+      "💧": 0.4,
+      "🛶": 0.6,
+      "🗼": 0.8
+    },
+    "energy_couplings": {
+      "☀": 0.3,
+      "💧": -0.4
+    }
+  },
+  {
+    "name": "Inversion",
+    "pole_0": "💥",
+    "pole_1": "🌟",
+    "self_energy_0": 0.5,
+    "self_energy_1": 0.25,
+    "rabi_coupling": 0.6,
+    "hamiltonian_couplings": {
+      "🌈": 0.55,
+      "❄️": 0.04999999999999999
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Lasing",
+    "pole_0": "✨",
+    "pole_1": "🌈",
+    "self_energy_0": 1.1,
+    "self_energy_1": 0.15,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🌠": 0.5,
+      "💫": 0.6,
+      "🤲": [
+        0.400000005960464,
+        0.300000011920929
+      ],
+      "⚡": 0.2,
+      "💎": 0.75,
+      "💰": 0.4,
+      "🌫": 0.2,
+      "🔥": 0.35,
+      "🌀": 0.45,
+      "🐙": 0.3,
+      "👁": 0.4,
+      "🌟": 0.15,
+      "❄️": 0.55,
+      "💥": 0.4
+    },
+    "energy_couplings": {
+      "⚫": 0.2,
+      "🌑": 0.25,
+      "🌙": 0.2,
+      "☀": -0.15
+    }
+  },
+  {
+    "name": "Force",
+    "pole_0": "🧲",
+    "pole_1": "⚡",
+    "self_energy_0": -0.1,
+    "self_energy_1": 0.9,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🕳": -0.15,
+      "⚙": 0.75,
+      "🔋": 0.8,
+      "🔌": 0.5,
+      "🔥": 0.2,
+      "🌫": 0.15,
+      "☀": 0.30000000000000004,
+      "🧱": -0.1,
+      "💎": 0.3,
+      "🧮": -0.3,
+      "📐": -0.28,
+      "🔬": 0.25,
+      "🏜": 0.5
+    },
+    "energy_couplings": {
+      "☀": 0.1,
+      "🌬": 0.1,
+      "💧": 0.15
+    }
+  },
+  {
+    "name": "Field",
+    "pole_0": "🌀",
+    "pole_1": "📡",
+    "self_energy_0": 0.4,
+    "self_energy_1": 1.36,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "⚫": 0.5,
+      "🕳": 0.6,
+      "🪐": 0.5,
+      "📶": 1.8199999999999998,
+      "💾": 0.5,
+      "🗺": 0.42,
+      "🧩": 0.48,
+      "🧭": 0.38,
+      "🔗": 0.4,
+      "🔊": 1.0,
+      "💃": -0.24,
+      "👘": 0.5,
+      "🧵": -0.3,
+      "🧶": -0.18,
+      "🔭": 0.35,
+      "🛰": 0.55,
+      "⚙": 0.6,
+      "☀": 0.7,
+      "🚀": 0.5,
+      "🌙": 0.2,
+      "🎵": 0.4,
+      "🗣": -0.32,
+      "🐙": 0.5,
+      "✨": 0.45,
+      "👁": 0.35,
+      "🌋": 0.25,
+      "🌊": 0.4
+    },
+    "energy_couplings": {
+      "🌊": 0.15,
+      "⚡": 0.2,
+      "💧": -0.15,
+      "🕵️": 0.15,
+      "🌙": 0.25
+    }
+  },
+  {
+    "name": "Currency",
+    "pole_0": "💰",
+    "pole_1": "💳",
+    "self_energy_0": 3.32,
+    "self_energy_1": 0.25,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "💉": -0.22,
+      "🦴": 0.4,
+      "👥": 1.15,
+      "⚖": 0.6000000000000001,
+      "💸": -0.65,
+      "🍞": 0.58,
+      "🧺": 0.5,
+      "🌱": 0.32,
+      "🏛": 0.2,
+      "🏚": -0.15,
+      "📒": 0.6,
+      "📘": 0.15,
+      "🏛️": 0.2,
+      "🐂": 0.3,
+      "📦": 0.6,
+      "🗝": 1.13,
+      "📼": -0.2,
+      "⚓": -0.2,
+      "🚢": 0.5,
+      "📋": 0.8,
+      "🏢": 0.6,
+      "🛂": 0.55,
+      "🚀": 0.35,
+      "🔍": 0.35,
+      "🪞": -0.25,
+      "💎": 1.2,
+      "🧊": -0.3,
+      "🫧": 0.3,
+      "✨": 0.4,
+      "📜": 0.30000000000000004,
+      "💀": -0.25,
+      "📗": 0.6,
+      "📕": 0.2
+    },
+    "energy_couplings": {
+      "🏚": -0.15,
+      "🏛": 0.2,
+      "🧤": -0.2
+    }
+  },
+  {
+    "name": "Goods",
+    "pole_0": "📦",
+    "pole_1": "🏷️",
+    "self_energy_0": 0.15,
+    "self_energy_1": 0.25,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "⚙": 0.5,
+      "🛠": 0.3,
+      "🐻": -0.25,
+      "💰": 0.6,
+      "💊": 0.6,
+      "🚛": 0.7,
+      "🧪": 0.4
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Barter",
+    "pole_0": "💱",
+    "pole_1": "🕴️",
+    "self_energy_0": 0.25,
+    "self_energy_1": 0.2,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "⛓": 0.5,
+      "📘": 0.5,
+      "⚙": -0.25,
+      "🐉": 0.4,
+      "🛡": 0.3,
+      "🩸": -0.2,
+      "👑": 0.3
+    },
+    "energy_couplings": {
+      "⛓": 0.15,
+      "💰": 0.2
+    }
+  },
+  {
+    "name": "Draft",
+    "pole_0": "💨",
+    "pole_1": "🏭",
+    "self_energy_0": 0.57,
+    "self_energy_1": 0.28,
+    "rabi_coupling": 0.52,
+    "hamiltonian_couplings": {
+      "🍞": 0.9500000000000001,
+      "⚙": 1.45,
+      "👥": -0.2,
+      "🫙": -0.22
+    },
+    "energy_couplings": {
+      "🌬": 0.1,
+      "💧": 0.15,
+      "🔥": -0.2
+    }
+  },
+  {
+    "name": "Grinding",
+    "pole_0": "⚙",
+    "pole_1": "🌾",
+    "self_energy_0": 1.7,
+    "self_energy_1": 1.45,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "✊": 0.35,
+      "🪓": 0.4,
+      "🏷️": 0.5,
+      "🔩": 1.4500000000000002,
+      "🛠": 0.6,
+      "🧰": 0.4,
+      "⚡": 0.6,
+      "🍞": 0.35,
+      "💨": 0.8,
+      "🌿": 0.35,
+      "🥣": 0.2,
+      "🐑": 0.45,
+      "🧭": 0.2,
+      "🪣": 0.45,
+      "⚖": 0.1,
+      "🏭": 1.15,
+      "🔌": 0.7,
+      "🦗": -0.15,
+      "🔨": 1.1,
+      "💧": 0.5,
+      "🔥": 0.38,
+      "🕴️": -0.25,
+      "🐺": -0.15,
+      "🦠": -0.32,
+      "🐝": 0.6,
+      "🔬": 0.3,
+      "🚀": 1.1,
+      "🌱": 0.7,
+      "🧫": 0.25,
+      "🌀": 0.6,
+      "☀": 0.5,
+      "🐇": 0.35,
+      "🦌": 0.4,
+      "🔊": 0.3,
+      "🧤": 0.35,
+      "💀": 0.2,
+      "🪛": 0.45,
+      "🍂": 0.5,
+      "🌲": -0.2,
+      "🔧": 0.3,
+      "⌛": 0.55,
+      "⏰": 0.6,
+      "⏳": 0.45,
+      "👥": [
+        0.0,
+        0.5
+      ]
+    },
+    "energy_couplings": {
+      "🏷️": 0.2,
+      "💧": 0.05,
+      "🛶": 0.2,
+      "🛠": 0.1,
+      "☀": 0.08,
+      "⛰": 0.04
+    }
+  },
+  {
+    "name": "Flour",
+    "pole_0": "🔨",
+    "pole_1": "🧺",
+    "self_energy_0": 0.6,
+    "self_energy_1": 0.22,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "💰": 0.5,
+      "🍞": 0.55,
+      "⚙": 1.1,
+      "🔊": 0.5,
+      "🔥": 0.4,
+      "🔧": 0.6,
+      "🔩": 0.4
+    },
+    "energy_couplings": {
+      "💧": -0.1,
+      "🔥": -0.25
+    }
+  },
+  {
+    "name": "Darkness",
+    "pole_0": "🕯",
+    "pole_1": "🌑",
+    "self_energy_0": 1.17,
+    "self_energy_1": -0.1,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🎶": 0.4,
+      "🪦": 0.95,
+      "🔔": -0.3,
+      "🫖": 0.45,
+      "🧿": [
+        0.6,
+        -0.25
+      ],
+      "🥣": -0.18,
+      "🧘": 0.3,
+      "🔇": 0.2,
+      "🏮": 1.15,
+      "🔦": -0.4,
+      "🕸": 0.55,
+      "🫥": 0.45,
+      "⛪": 0.5,
+      "🔥": 0.6,
+      "🧵": [
+        0.8,
+        0.300000011920929
+      ]
+    },
+    "energy_couplings": {
+      "💨": -0.2,
+      "🔥": 0.2,
+      "☀": -0.3,
+      "🌙": 0.25,
+      "🌑": 0.2,
+      "💀": 0.15,
+      "🔮": 0.2
+    },
+    "driver": {
+      "amplitude": 0.08,
+      "frequency": 0.25,
+      "phase": 0.0,
+      "type": "cosine"
+    }
+  },
+  {
+    "name": "Mutualism",
+    "pole_0": "🦋",
+    "pole_1": "🌸",
+    "self_energy_0": 0.2,
+    "self_energy_1": 0.0,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🐛": 0.7,
+      "🌱": 0.5,
+      "🕷": -0.25
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Entangle",
+    "pole_0": "🕷",
+    "pole_1": "🐛",
+    "self_energy_0": 0.1,
+    "self_energy_1": 0.05,
+    "rabi_coupling": 0.18,
+    "hamiltonian_couplings": {
+      "🌱": 0.77,
+      "🦋": 0.44999999999999996
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Anchoring",
+    "pole_0": "⚫",
+    "pole_1": "📍",
+    "self_energy_0": 1.05,
+    "self_energy_1": -0.08,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🕳": 0.7,
+      "🌀": 0.5,
+      "🪐": [
+        0.4,
+        0.5
+      ],
+      "☀": -0.3,
+      "🧭": 0.55,
+      "🗺": -0.52,
+      "⚖": 0.5,
+      "🌠": [
+        0.400000005960464,
+        0.300000011920929
+      ],
+      "🔭": [
+        0.5,
+        -0.400000005960464
+      ],
+      "♟": 0.4,
+      "⚜": 0.5,
+      "🕰": [
+        0.300000011920929,
+        0.5
+      ]
+    },
+    "energy_couplings": {
+      "☀": -0.3,
+      "🌑": 0.25,
+      "🕳": 0.35,
+      "✨": -0.2
+    }
+  },
+  {
+    "name": "Shrine",
+    "pole_0": "🧿",
+    "pole_1": "🏮",
+    "self_energy_0": 0.95,
+    "self_energy_1": 0.87,
+    "rabi_coupling": 0.35,
+    "hamiltonian_couplings": {
+      "🫖": [
+        0.25,
+        -0.3
+      ],
+      "🕯": [
+        1.75,
+        0.25
+      ],
+      "🌿": -0.4,
+      "🔦": 0.8500000000000001,
+      "🦠": [
+        0.25,
+        -0.35
+      ],
+      "🧫": [
+        0.2,
+        0.3
+      ],
+      "🧵": [
+        0.300000011920929,
+        -0.200000002980232
+      ],
+      "🪡": -0.22,
+      "🕵️": 0.5,
+      "🪞": 0.5,
+      "🎸": 0.3,
+      "🎼": 0.4
+    },
+    "energy_couplings": {
+      "🔮": 0.2,
+      "🌑": 0.25,
+      "🔥": 0.15,
+      "🌙": 0.1
+    },
+    "driver": {
+      "amplitude": 0.1,
+      "frequency": 0.5,
+      "phase": 0.0,
+      "type": "pulse"
+    }
+  },
+  {
+    "name": "Offering",
+    "pole_0": "🕯",
+    "pole_1": "⚱",
+    "self_energy_0": 1.17,
+    "self_energy_1": 0.55,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🌫": 0.6,
+      "⚔": 0.5,
+      "🩹": 0.45,
+      "🔥": 0.95,
+      "🎶": 0.4,
+      "🪦": 0.45,
+      "⭐": 0.6,
+      "🕳": 0.45,
+      "🫖": 0.45,
+      "🧿": [
+        0.6,
+        -0.25
+      ],
+      "🥣": -0.18,
+      "🧘": 0.3,
+      "🔇": 0.2,
+      "🏮": 1.15,
+      "🔦": -0.4,
+      "⛪": 0.5,
+      "🧵": [
+        0.8,
+        0.300000011920929
+      ]
+    },
+    "energy_couplings": {
+      "🌱": 0.2,
+      "💀": 0.2,
+      "💨": -0.2,
+      "🔥": 0.2,
+      "🌑": 0.2
+    },
+    "driver": {
+      "amplitude": 0.08,
+      "frequency": 0.25,
+      "phase": 0.0,
+      "type": "cosine"
+    }
+  },
+  {
+    "name": "Impact",
+    "pole_0": "🛸",
+    "pole_1": "💥",
+    "self_energy_0": 0.28,
+    "self_energy_1": 0.5,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🧭": 0.58,
+      "🐑": 0.48,
+      "🛡": 0.4,
+      "🌟": 0.6,
+      "🌈": 0.4,
+      "❄️": -0.3
+    },
+    "energy_couplings": {},
+    "driver": {
+      "amplitude": 0.06,
+      "frequency": 0.3,
+      "phase": 1.57,
+      "type": "sine"
+    }
+  },
+  {
+    "name": "Trajectory",
+    "pole_0": "🚀",
+    "pole_1": "⭐",
+    "self_energy_0": 0.45,
+    "self_energy_1": -0.4,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "⚱": 0.6,
+      "🫧": -0.3,
+      "🕳": [
+        0.25,
+        0.45
+      ],
+      "⚙": 1.1,
+      "⚡": 0.4,
+      "📋": 0.5,
+      "🔬": 0.6,
+      "🌫": -0.25,
+      "🔥": -0.2,
+      "🌀": 0.5,
+      "☀": 0.15,
+      "💰": 0.35,
+      "🏢": -0.3,
+      "🛂": -0.4
+    },
+    "energy_couplings": {
+      "☀": -0.15,
+      "🌠": 0.2,
+      "🌌": 0.2,
+      "🔥": -0.15,
+      "🔬": 0.15
+    },
+    "driver": {
+      "type": "pulse",
+      "frequency": 0.08,
+      "amplitude": 0.5,
+      "phase": 0.0
+    }
+  },
+  {
+    "name": "Pursuit",
+    "pole_0": "🐑",
+    "pole_1": "🐺",
+    "self_energy_0": 0.16,
+    "self_energy_1": -0.05,
+    "rabi_coupling": 0.3,
+    "hamiltonian_couplings": {
+      "🛡": 0.62,
+      "🛸": 0.48,
+      "⚔": -0.22,
+      "🌾": 0.2,
+      "🦅": 0.020000000000000018,
+      "🐇": 0.6,
+      "🦌": 0.5
+    },
+    "energy_couplings": {
+      "🐺": -0.3,
+      "🛡": 0.25
+    }
+  },
+  {
+    "name": "Larder",
+    "pole_0": "🥣",
+    "pole_1": "🫙",
+    "self_energy_0": 0.22,
+    "self_energy_1": 0.73,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🫖": 0.5,
+      "🌿": 1.05,
+      "🕯": -0.18,
+      "🌾": 0.2,
+      "♻️": -0.3,
+      "⛪": 0.55,
+      "🧪": 0.52,
+      "🥖": 0.6,
+      "🍞": 0.5,
+      "💨": -0.22
+    },
+    "energy_couplings": {
+      "⛰": 0.1,
+      "❄": -0.25,
+      "🌙": 0.1,
+      "🔥": 0.15
+    }
+  },
+  {
+    "name": "Commons",
+    "pole_0": "🤲",
+    "pole_1": "🌾",
+    "self_energy_0": 0.25,
+    "self_energy_1": 1.45,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "✊": 0.35,
+      "🪓": 0.4,
+      "🌿": 0.35,
+      "🥣": 0.2,
+      "🐑": 0.45,
+      "🧭": 0.2,
+      "🪣": 0.45,
+      "⚖": 0.1,
+      "🦗": -0.15,
+      "🐺": -0.15,
+      "🦠": -0.32,
+      "🐝": 0.6,
+      "✨": [
+        0.400000005960464,
+        -0.300000011920929
+      ],
+      "🌠": 0.5,
+      "💫": 0.4,
+      "🍼": 0.35,
+      "🌱": 0.7,
+      "🧫": 0.25,
+      "🐇": 0.35,
+      "🦌": 0.4,
+      "🧤": 0.35,
+      "💀": 0.2,
+      "🍂": 0.5,
+      "🌲": -0.2,
+      "👥": [
+        0.0,
+        0.5
+      ]
+    },
+    "energy_couplings": {
+      "🛶": 0.2,
+      "👶": 0.2,
+      "☀": 0.08,
+      "⛰": 0.04,
+      "💧": 0.05
+    }
+  },
+  {
+    "name": "Socket",
+    "pole_0": "🔌",
+    "pole_1": "⚡",
+    "self_energy_0": 0.25,
+    "self_energy_1": 0.9,
+    "rabi_coupling": 0.5,
+    "hamiltonian_couplings": {
+      "🕳": -0.15,
+      "⚙": 1.45,
+      "🔋": 1.5,
+      "💧": -0.3,
+      "🔥": 0.2,
+      "🌫": 0.15,
+      "☀": 0.30000000000000004,
+      "🧱": -0.1,
+      "💎": 0.3,
+      "🚐": 0.3,
+      "🧰": 0.4,
+      "🪛": 0.6,
+      "♻️": -0.2,
+      "🏜": 0.5,
+      "🔧": -0.25,
+      "🔨": -0.2
+    },
+    "energy_couplings": {
+      "💧": 0.15,
+      "☀": 0.1,
+      "🌬": 0.1
+    },
+    "driver": {
+      "amp": 0.5,
+      "freq": 1.0,
+      "phase": 0.0,
+      "type": "sine"
+    }
+  },
+  {
+    "name": "Form",
+    "pole_0": "🩰",
+    "pole_1": "🎸",
+    "self_energy_0": 0.25,
+    "self_energy_1": 0.2,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "💃": [
+        0.55,
+        -0.35
+      ],
+      "🎼": [
+        0.8999999999999999,
+        0.35
+      ],
+      "🔊": -0.2,
+      "🏮": 0.3,
+      "💫": [
+        0.3,
+        0.4
+      ]
+    },
+    "energy_couplings": {},
+    "driver": {
+      "amplitude": 0.08,
+      "frequency": 0.5,
+      "phase": 0.0,
+      "type": "sine"
+    }
+  },
+  {
+    "name": "Flash",
+    "pole_0": "💫",
+    "pole_1": "🔊",
+    "self_energy_0": 0.35,
+    "self_energy_1": 0.35,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "✨": 0.6,
+      "🌠": 0.5,
+      "🤲": 0.4,
+      "⚡": 0.25,
+      "🎼": [
+        1.1,
+        -0.3
+      ],
+      "📡": 1.0,
+      "🩰": -0.2,
+      "🎶": 0.35,
+      "🎵": 0.8,
+      "🔨": 0.5,
+      "❄": 0.3,
+      "🔇": -0.45,
+      "🎸": [
+        0.3,
+        -0.4
+      ]
+    },
+    "energy_couplings": {
+      "🔇": -0.3,
+      "🌑": 0.3,
+      "🕳": 0.25
+    },
+    "driver": {
+      "type": "sine",
+      "frequency": 0.4,
+      "amplitude": 0.15,
+      "phase": 1.57
+    }
+  },
+  {
+    "name": "Manifesto",
+    "pole_0": "📜",
+    "pole_1": "🗣",
+    "self_energy_0": 0.77,
+    "self_energy_1": 0.08,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "⚖": 1.0,
+      "⚜": 0.6,
+      "🏢": 0.4,
+      "🏰": 1.0,
+      "🖋": 0.58,
+      "🗃": -0.4,
+      "🧂": 0.3,
+      "🐚": 0.5,
+      "🪨": -0.15,
+      "📋": -0.15,
+      "💳": -0.25,
+      "📻": 0.5,
+      "📡": -0.32,
+      "💊": -0.16,
+      "🚛": -0.22,
+      "🔑": 0.45,
+      "💰": 0.55,
+      "📗": 0.4
+    },
+    "energy_couplings": {
+      "🏢": 0.15,
+      "⚜": 0.3,
+      "🏛": 0.15
+    }
+  },
+  {
+    "name": "Tradecraft",
+    "pole_0": "⛓",
+    "pole_1": "🔓",
+    "self_energy_0": 0.35,
+    "self_energy_1": 0.25,
+    "rabi_coupling": 0.7,
+    "hamiltonian_couplings": {
+      "👥": 1.25,
+      "💀": 0.4,
+      "💸": 0.10000000000000003,
+      "⚔": 0.5,
+      "🧨": 0.6,
+      "🪓": -0.4,
+      "✊": -0.5,
+      "🖋": 0.62,
+      "📘": 0.4,
+      "🕴️": 0.5,
+      "🪨": 0.5,
+      "🛶": 0.0,
+      "🕵️": 0.28
+    },
+    "energy_couplings": {
+      "🏛": 0.15,
+      "🔥": -0.1,
+      "⚖": 0.2,
+      "🏭": 0.2,
+      "👥": -0.15,
+      "🗝": -0.2,
+      "🚧": 0.25
+    }
+  },
+  {
+    "name": "Satellite",
+    "pole_0": "🛰",
+    "pole_1": "⭐",
+    "self_energy_0": 0.25,
+    "self_energy_1": -0.4,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "⚱": 0.6,
+      "🫧": -0.3,
+      "🕳": [
+        0.25,
+        0.45
+      ],
+      "🔭": 0.5,
+      "📡": 0.55,
+      "🌙": -0.28,
+      "🌠": 0.35
+    },
+    "energy_couplings": {
+      "☀": -0.15,
+      "🌠": 0.2,
+      "⚡": 0.15
+    }
+  },
+  {
+    "name": "Waste",
+    "pole_0": "♻️",
+    "pole_1": "🗑",
+    "self_energy_0": 0.47,
+    "self_energy_1": -0.1,
+    "rabi_coupling": 0.5,
+    "hamiltonian_couplings": {
+      "🐜": 0.5,
+      "🦗": 0.5,
+      "🧫": 0.4,
+      "💧": 0.65,
+      "🫙": -0.3,
+      "🌿": -0.22,
+      "💀": -0.3,
+      "🧤": 0.6,
+      "🧰": 0.3,
+      "🪛": 0.4,
+      "🔌": -0.2
+    },
+    "energy_couplings": {
+      "🍂": 0.2,
+      "🗑": 0.25
+    }
+  },
+  {
+    "name": "Toil",
+    "pole_0": "🧤",
+    "pole_1": "🏭",
+    "self_energy_0": 0.0,
+    "self_energy_1": 0.28,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "💨": 0.52,
+      "⚙": 0.65,
+      "🍞": 0.55,
+      "👥": -0.2,
+      "💀": 0.4,
+      "🗑": 0.6,
+      "🌾": 0.35
+    },
+    "energy_couplings": {
+      "🌬": 0.1,
+      "💧": 0.15,
+      "🔥": -0.2,
+      "🏰": -0.25,
+      "📜": -0.15,
+      "🗑": 0.3
+    },
+    "measurement_behavior": {
+      "inverts": true
+    }
+  },
+  {
+    "name": "Ruin",
+    "pole_0": "🚧",
+    "pole_1": "🧱",
+    "self_energy_0": 0.22,
+    "self_energy_1": 0.53,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🏛": 0.6,
+      "📐": -0.25,
+      "🚪": -0.35,
+      "🛂": 0.55,
+      "📋": 0.4,
+      "🔐": 0.25,
+      "📘": 0.4,
+      "🪨": 0.6,
+      "⚡": -0.15,
+      "🔩": 0.3
+    },
+    "energy_couplings": {
+      "💧": -0.1,
+      "🔥": -0.15,
+      "👥": -0.05,
+      "🚢": -0.1
+    }
+  },
+  {
+    "name": "Relic",
+    "pole_0": "📿",
+    "pole_1": "💀",
+    "self_energy_0": 0.47,
+    "self_energy_1": -0.57,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "⛓": 0.4,
+      "💸": 0.6499999999999999,
+      "⛪": 0.6,
+      "🧘": 0.5,
+      "🔔": 0.4,
+      "🧵": 0.3,
+      "🪢": 0.5,
+      "🪡": -0.2,
+      "🍄": [
+        0.4,
+        0.3
+      ],
+      "🍂": [
+        0.3,
+        -0.3
+      ],
+      "🌙": -0.28,
+      "🐇": 0.4,
+      "🐺": 0.3,
+      "🦅": 0.3,
+      "🦌": 0.4,
+      "🌱": 0.35,
+      "🦠": 0.52,
+      "🩸": 0.4,
+      "⚔": 0.45,
+      "🥀": 0.4,
+      "🌹": -0.25,
+      "⚫": 0.5,
+      "🗑": -0.3,
+      "🧤": 0.4,
+      "🌾": 0.2,
+      "🕵️": -0.38,
+      "💰": -0.25,
+      "👥": -0.22
+    },
+    "energy_couplings": {
+      "🕯": 0.15,
+      "⚫": 0.2,
+      "🌑": 0.1
+    }
+  },
+  {
+    "name": "Pale",
+    "pole_0": "🪸",
+    "pole_1": "🪵",
+    "self_energy_0": 0.25,
+    "self_energy_1": 0.1,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🔥": 0.5,
+      "🕯": 0.3,
+      "🍂": 0.2,
+      "🌊": [
+        0.35,
+        -0.4
+      ],
+      "🦀": 0.45,
+      "🐠": 0.5,
+      "🌲": 0.35
+    },
+    "energy_couplings": {
+      "☀": 0.15
+    }
+  },
+  {
+    "name": "Orange",
+    "pole_0": "🌰",
+    "pole_1": "🫚",
+    "self_energy_0": 0.0,
+    "self_energy_1": 0.0,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {},
+    "energy_couplings": {}
+  },
+  {
+    "name": "Accumulate",
+    "pole_0": "⚡",
+    "pole_1": "🔋",
+    "self_energy_0": 0.9,
+    "self_energy_1": 0.3,
+    "rabi_coupling": 0.8,
+    "hamiltonian_couplings": {
+      "🕳": -0.15,
+      "⚙": 0.75,
+      "🔌": 1.2,
+      "🔥": 0.2,
+      "🌫": 0.15,
+      "☀": 0.30000000000000004,
+      "🧱": -0.1,
+      "💎": 0.3,
+      "🏜": 0.5
+    },
+    "energy_couplings": {
+      "☀": 0.1,
+      "🌬": 0.1,
+      "💧": 0.15
+    }
+  },
+  {
+    "name": "Fleet",
+    "pole_0": "🚀",
+    "pole_1": "🛸",
+    "self_energy_0": 0.45,
+    "self_energy_1": 0.28,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🧭": 0.58,
+      "🐑": 0.48,
+      "🛡": 0.4,
+      "⚙": 1.1,
+      "⚡": 0.4,
+      "📋": 0.5,
+      "🔬": 0.6,
+      "🌫": -0.25,
+      "🔥": -0.2,
+      "🌀": 0.5,
+      "☀": 0.15,
+      "💰": 0.35,
+      "🏢": -0.3,
+      "🛂": -0.4
+    },
+    "energy_couplings": {
+      "🌌": 0.2,
+      "🔥": -0.15,
+      "🔬": 0.15
+    },
+    "driver": {
+      "amplitude": 0.06,
+      "frequency": 0.3,
+      "phase": 1.57,
+      "type": "sine"
+    }
+  },
+  {
+    "name": "Glimmer",
+    "pole_0": "📡",
+    "pole_1": "✨",
+    "self_energy_0": 1.36,
+    "self_energy_1": 1.1,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "📶": 1.8199999999999998,
+      "💾": 0.5,
+      "🌠": 0.5,
+      "💫": 0.6,
+      "🤲": [
+        0.400000005960464,
+        0.300000011920929
+      ],
+      "⚡": 0.2,
+      "🗺": 0.42,
+      "🧩": 0.48,
+      "🧭": 0.38,
+      "🔗": 0.4,
+      "🔊": 1.0,
+      "💃": -0.24,
+      "👘": 0.5,
+      "🧵": -0.3,
+      "🧶": -0.18,
+      "🔭": 0.35,
+      "🛰": 0.55,
+      "🎵": 0.4,
+      "💎": 0.75,
+      "💰": 0.4,
+      "🗣": -0.32,
+      "🌫": 0.2,
+      "🔥": 0.35,
+      "🌀": 0.45,
+      "🐙": 0.3,
+      "👁": 0.4
+    },
+    "energy_couplings": {
+      "⚫": 0.2,
+      "🌑": 0.25,
+      "⚡": 0.2,
+      "💧": -0.15,
+      "🕵️": 0.15,
+      "🌙": 0.2,
+      "☀": -0.15
+    }
+  },
+  {
+    "name": "Subsistence",
+    "pole_0": "👥",
+    "pole_1": "🌾",
+    "self_energy_0": 0.22,
+    "self_energy_1": 1.45,
+    "rabi_coupling": 0.5,
+    "hamiltonian_couplings": {
+      "💰": 0.25,
+      "🦴": -0.2,
+      "⚖": 0.52,
+      "⚜": -0.28,
+      "🩸": 0.6,
+      "🦅": -0.2,
+      "⛓": 1.25,
+      "💸": 0.04999999999999999,
+      "✊": 0.6499999999999999,
+      "🪓": 0.4,
+      "🍞": 1.05,
+      "💧": 0.3,
+      "🌿": 0.35,
+      "🥣": 0.2,
+      "🐑": 0.45,
+      "🧭": 0.2,
+      "🪣": 0.45,
+      "🦗": -0.15,
+      "🏭": -0.2,
+      "🐺": -0.15,
+      "🦠": -0.32,
+      "🐝": 0.6,
+      "🌱": 0.7,
+      "🧫": 0.25,
+      "🐇": 0.35,
+      "🦌": 0.4,
+      "🧤": 0.35,
+      "💀": -0.01999999999999999,
+      "🍂": 0.5,
+      "🌲": -0.2
+    },
+    "energy_couplings": {
+      "🛶": 0.2,
+      "☀": 0.08,
+      "⛰": 0.04,
+      "💧": 0.05
+    }
+  },
+  {
+    "name": "Hub",
+    "pole_0": "⚫",
+    "pole_1": "⭐",
+    "self_energy_0": 1.05,
+    "self_energy_1": -0.4,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🕳": [
+        0.95,
+        0.45
+      ],
+      "🌀": 0.5,
+      "🪐": [
+        0.4,
+        0.5
+      ],
+      "☀": -0.3,
+      "⚱": 0.6,
+      "🫧": -0.3,
+      "⚖": 0.5,
+      "🌠": [
+        0.400000005960464,
+        0.300000011920929
+      ],
+      "🔭": [
+        0.5,
+        -0.400000005960464
+      ],
+      "♟": 0.4,
+      "⚜": 0.5,
+      "🕰": [
+        0.300000011920929,
+        0.5
+      ]
+    },
+    "energy_couplings": {
+      "☀": -0.15,
+      "🌑": 0.25,
+      "🌠": 0.2,
+      "🕳": 0.35,
+      "✨": -0.2
+    }
+  },
+  {
+    "name": "Edge",
+    "pole_0": "🕳",
+    "pole_1": "🌠",
+    "self_energy_0": 0.6,
+    "self_energy_1": 0.72,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "⚫": [
+        1.100000005960464,
+        -0.300000011920929
+      ],
+      "🌀": 0.6,
+      "🪐": 0.5,
+      "⚡": -0.25,
+      "⚱": 0.45,
+      "🫧": 0.38,
+      "⭐": [
+        0.25,
+        -0.45
+      ],
+      "🔬": 0.3,
+      "🧬": 0.4,
+      "🧫": -0.18,
+      "✨": 0.5,
+      "💫": 0.5,
+      "🤲": 0.5,
+      "🔭": 1.25,
+      "🌙": -0.22,
+      "🛰": 0.35,
+      "⚖": -0.22,
+      "👁": 0.15
+    },
+    "energy_couplings": {
+      "⭐": 0.2,
+      "⚫": 0.25,
+      "🌑": 0.15,
+      "🌙": 0.2,
+      "🔭": 0.15,
+      "🌌": 0.2
+    },
+    "driver": {
+      "type": "pulse",
+      "frequency": 0.05,
+      "amplitude": 0.5,
+      "phase": 0.0
+    }
+  },
+  {
+    "name": "Observer",
+    "pole_0": "🔭",
+    "pole_1": "🕰",
+    "self_energy_0": 1.44,
+    "self_energy_1": 0.25,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🧭": 0.9500000000000001,
+      "🗺": [
+        0.8999999999999999,
+        -0.45
+      ],
+      "🗃": 0.55,
+      "📖": -0.28,
+      "🌠": 1.25,
+      "🛰": 0.5,
+      "📡": 0.35,
+      "⚖": 0.4,
+      "⚫": [
+        0.800000011920929,
+        -0.09999999403953602
+      ],
+      "🧮": 0.45,
+      "📐": 0.5,
+      "🔬": 0.35,
+      "🔍": 0.35,
+      "♟": 0.4,
+      "⚜": -0.2
+    },
+    "energy_couplings": {
+      "🌙": 0.3,
+      "🌠": 0.25,
+      "☀": -0.2,
+      "🔬": 0.15,
+      "🌑": 0.15,
+      "⏳": 0.2
+    },
+    "driver": {
+      "type": "sine",
+      "frequency": 0.05,
+      "amplitude": 0.15,
+      "phase": 0.0
+    },
+    "measurement_behavior": {
+      "collapses": true,
+      "inverts": false,
+      "strength": 0.2
+    }
+  },
+  {
+    "name": "Surf",
+    "pole_0": "🌊",
+    "pole_1": "🪨",
+    "self_energy_0": 0.25,
+    "self_energy_1": 0.65,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "⛏": 0.5,
+      "🪤": 0.35,
+      "🌱": -0.22,
+      "🛠": -0.2,
+      "⛓": 0.5,
+      "📘": 0.3,
+      "🧱": 0.6,
+      "🧂": 0.35,
+      "🐚": -0.1,
+      "📜": -0.15,
+      "🪸": [
+        0.35,
+        0.4
+      ],
+      "🐠": [
+        0.25,
+        -0.3
+      ],
+      "🦀": 0.4,
+      "🌙": 0.4,
+      "💧": 0.55,
+      "🌋": 0.2,
+      "💎": 0.3,
+      "🔥": 0.2,
+      "🌀": 0.4,
+      "🐙": 0.35,
+      "🔧": 0.4,
+      "🔨": 0.3
+    },
+    "energy_couplings": {
+      "⛰": 0.2,
+      "🏚": -0.2,
+      "🏛": 0.25,
+      "☀": -0.1,
+      "🌙": 0.4
+    },
+    "driver": {
+      "type": "sine",
+      "frequency": 0.08,
+      "amplitude": 0.5,
+      "phase": 0.0
+    }
+  },
+  {
+    "name": "Current",
+    "pole_0": "🌀",
+    "pole_1": "🦀",
+    "self_energy_0": 0.4,
+    "self_energy_1": 0.28,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "⚫": 0.5,
+      "🕳": 0.6,
+      "🪐": 0.5,
+      "⚙": 0.6,
+      "☀": 0.7,
+      "🚀": 0.5,
+      "🌙": 0.2,
+      "🌊": 0.8,
+      "🪸": 0.45,
+      "🐠": -0.25,
+      "🐙": 1.05,
+      "✨": 0.45,
+      "👁": 0.35,
+      "🌋": 0.25
+    },
+    "energy_couplings": {
+      "🌊": 0.15,
+      "🌙": 0.25
+    }
+  },
+  {
+    "name": "Depth",
+    "pole_0": "🐙",
+    "pole_1": "🪸",
+    "self_energy_0": 0.3,
+    "self_energy_1": 0.25,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🌊": [
+        0.7,
+        -0.4
+      ],
+      "🦀": 1.0,
+      "🐠": 0.5,
+      "🌀": 0.5,
+      "✨": 0.3
+    },
+    "energy_couplings": {
+      "☀": 0.15,
+      "🌑": 0.1
+    }
+  },
+  {
+    "name": "Shimmer",
+    "pole_0": "✨",
+    "pole_1": "🐠",
+    "self_energy_0": 1.1,
+    "self_energy_1": 0.22,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🌠": 0.5,
+      "💫": 0.6,
+      "🤲": [
+        0.400000005960464,
+        0.300000011920929
+      ],
+      "⚡": 0.2,
+      "💎": 0.75,
+      "💰": 0.4,
+      "🌊": [
+        0.25,
+        0.3
+      ],
+      "🪸": 0.5,
+      "🦀": -0.25,
+      "🌫": 0.2,
+      "🔥": 0.35,
+      "🌀": 0.45,
+      "🐙": 0.3,
+      "👁": 0.4
+    },
+    "energy_couplings": {
+      "⚫": 0.2,
+      "🌑": 0.25,
+      "🌙": 0.2,
+      "☀": -0.15
+    }
+  },
+  {
+    "name": "Oracle",
+    "pole_0": "👁",
+    "pole_1": "📜",
+    "self_energy_0": 0.25,
+    "self_energy_1": 0.77,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "⚖": 1.0,
+      "⚜": 0.6,
+      "🏢": 0.4,
+      "🏰": 1.0,
+      "🖋": 0.58,
+      "🗃": -0.4,
+      "🧂": 0.3,
+      "🐚": 0.5,
+      "🪨": -0.15,
+      "📋": -0.15,
+      "💳": -0.25,
+      "💊": -0.16,
+      "🚛": -0.22,
+      "🌀": 0.35,
+      "✨": 0.4,
+      "🕳": 0.25,
+      "🔑": 0.45,
+      "💰": 0.55,
+      "📗": 0.4
+    },
+    "energy_couplings": {
+      "🏢": 0.15,
+      "⚜": 0.3,
+      "🏛": 0.15
+    }
+  },
+  {
+    "name": "Flow",
+    "pole_0": "📊",
+    "pole_1": "💱",
+    "self_energy_0": 0.3,
+    "self_energy_1": 0.25,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🧮": 0.6,
+      "📘": 0.55,
+      "⚖": 0.4,
+      "🐉": 0.4,
+      "🛡": 0.3,
+      "🩸": -0.2,
+      "👑": 0.3
+    },
+    "energy_couplings": {
+      "⛓": 0.15,
+      "💰": 0.2
+    }
+  },
+  {
+    "name": "Trap",
+    "pole_0": "🪤",
+    "pole_1": "🪝",
+    "self_energy_0": 0.18,
+    "self_energy_1": 0.1,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "⛏": 0.4,
+      "🪨": 0.35,
+      "🌱": 0.3,
+      "⚓": 0.5,
+      "💰": 0.3,
+      "🚢": 0.4,
+      "💧": -0.22,
+      "📋": 0.1
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Prey",
+    "pole_0": "🐇",
+    "pole_1": "🦴",
+    "self_energy_0": 0.1,
+    "self_energy_1": 0.57,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "👥": -0.2,
+      "💉": 1.15,
+      "💰": 0.4,
+      "🔧": 0.6,
+      "🧵": 0.45,
+      "🧬": 0.3,
+      "🧫": 0.22,
+      "🐺": 0.6,
+      "🦅": 0.5,
+      "🦠": -0.3,
+      "🌿": 0.55,
+      "🦌": -0.2,
+      "🌾": 0.35
+    },
+    "energy_couplings": {
+      "🏛": -0.15,
+      "💀": 0.1
+    }
+  },
+  {
+    "name": "WindMill",
+    "pole_0": "⚙",
+    "pole_1": "💨",
+    "self_energy_0": 1.7,
+    "self_energy_1": 0.57,
+    "rabi_coupling": 0.8,
+    "hamiltonian_couplings": {
+      "🏷️": 0.5,
+      "🔩": 1.4500000000000002,
+      "🛠": 0.6,
+      "🧰": 0.4,
+      "⚡": 0.6,
+      "🍞": 0.75,
+      "🏭": 1.67,
+      "🔌": 0.7,
+      "🔨": 1.1,
+      "💧": 0.5,
+      "🔥": 0.38,
+      "🕴️": -0.25,
+      "🔬": 0.3,
+      "🚀": 1.1,
+      "🌀": 0.6,
+      "☀": 0.5,
+      "🔊": 0.3,
+      "🪛": 0.45,
+      "🫙": -0.22,
+      "🔧": 0.3,
+      "⌛": 0.55,
+      "⏰": 0.6,
+      "⏳": 0.45
+    },
+    "energy_couplings": {
+      "🏷️": 0.2,
+      "💧": -0.05,
+      "🛠": 0.1
+    }
+  },
+  {
+    "name": "Market",
+    "pole_0": "🧺",
+    "pole_1": "💰",
+    "self_energy_0": 0.22,
+    "self_energy_1": 3.32,
+    "rabi_coupling": 0.5,
+    "hamiltonian_couplings": {
+      "💉": -0.22,
+      "🦴": 0.4,
+      "👥": 0.55,
+      "⚖": 0.2,
+      "💸": -0.65,
+      "🍞": 1.13,
+      "🌱": 0.32,
+      "🏛": 0.2,
+      "🏚": -0.15,
+      "📒": 0.6,
+      "📘": 0.15,
+      "🏛️": 0.2,
+      "🐂": 0.3,
+      "📦": 0.6,
+      "🗝": 1.13,
+      "📼": -0.2,
+      "⚓": -0.2,
+      "🚢": 0.5,
+      "📋": 0.2,
+      "🏢": 0.6,
+      "🛂": 0.55,
+      "🚀": 0.35,
+      "🔍": 0.35,
+      "🪞": -0.25,
+      "💎": 1.2,
+      "🧊": -0.3,
+      "🫧": 0.3,
+      "✨": 0.4,
+      "💀": -0.25,
+      "📗": 0.6,
+      "📜": 0.55,
+      "📕": 0.2
+    },
+    "energy_couplings": {
+      "💧": -0.1,
+      "🔥": -0.25,
+      "🏚": -0.15,
+      "🏛": 0.2
+    }
+  },
+  {
+    "name": "Summit",
+    "pole_0": "🌫",
+    "pole_1": "🗻",
+    "self_energy_0": 0.32,
+    "self_energy_1": 1.1,
+    "rabi_coupling": 0.2,
+    "hamiltonian_couplings": {
+      "⚱": 0.6,
+      "🧯": 0.48,
+      "⚡": 0.8,
+      "🌠": 0.5,
+      "💫": 0.6,
+      "🤲": [
+        0.400000005960464,
+        0.300000011920929
+      ],
+      "🚀": -0.15,
+      "💎": 0.75,
+      "💰": 0.4,
+      "🌋": 0.3,
+      "🔥": 0.6499999999999999,
+      "🏜": 0.15,
+      "🌀": 0.45,
+      "🐙": 0.3,
+      "👁": 0.4
+    },
+    "energy_couplings": {
+      "💨": 0.15,
+      "⚫": 0.2,
+      "🌑": 0.25,
+      "🌙": 0.2,
+      "☀": -0.15
+    }
+  },
+  {
+    "name": "Tether",
+    "pole_0": "🧿",
+    "pole_1": "🪢",
+    "self_energy_0": 0.95,
+    "self_energy_1": 0.76,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🫖": [
+        0.25,
+        -0.3
+      ],
+      "🕯": [
+        0.6,
+        0.25
+      ],
+      "🌿": -0.4,
+      "📿": 0.5,
+      "🗝": 0.4,
+      "🧵": [
+        1.35,
+        -0.25
+      ],
+      "🏮": 0.35,
+      "🔦": 0.3,
+      "👘": [
+        0.3,
+        0.3
+      ],
+      "🪡": 0.75,
+      "🦠": [
+        0.25,
+        -0.35
+      ],
+      "🧫": [
+        0.2,
+        0.3
+      ],
+      "🕵️": 0.5,
+      "🪞": 0.5
+    },
+    "energy_couplings": {
+      "🔮": 0.2,
+      "⛓": 0.2,
+      "✊": -0.15,
+      "📿": 0.15
+    }
+  },
+  {
+    "name": "Vessel",
+    "pole_0": "🫖",
+    "pole_1": "🏮",
+    "self_energy_0": 0.35,
+    "self_energy_1": 0.87,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🌿": 0.6,
+      "🥣": 0.5,
+      "🧿": [
+        0.6,
+        0.3
+      ],
+      "🕯": 1.6,
+      "🔦": 0.55,
+      "🧵": [
+        0.300000011920929,
+        -0.200000002980232
+      ],
+      "🪡": -0.22,
+      "🎸": 0.3,
+      "🎼": 0.4
+    },
+    "energy_couplings": {
+      "💧": 0.2,
+      "🔥": 0.15,
+      "🌑": 0.25,
+      "🌙": 0.1
+    },
+    "driver": {
+      "amplitude": 0.1,
+      "frequency": 0.5,
+      "phase": 0.0,
+      "type": "pulse"
+    }
+  },
+  {
+    "name": "Garment",
+    "pole_0": "👘",
+    "pole_1": "🧷",
+    "self_energy_0": 0.55,
+    "self_energy_1": 0.2,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🧵": 1.0,
+      "🪢": [
+        0.3,
+        -0.3
+      ],
+      "🪡": 1.1,
+      "📡": 0.5,
+      "👤": -0.16,
+      "🤫": 0.4
+    },
+    "energy_couplings": {
+      "🎭": 0.15,
+      "🌹": 0.2,
+      "👥": 0.1
+    }
+  },
+  {
+    "name": "Interval",
+    "pole_0": "⌛",
+    "pole_1": "⏰",
+    "self_energy_0": 0.0,
+    "self_energy_1": 0.0,
+    "rabi_coupling": 0.7,
+    "hamiltonian_couplings": {
+      "⏳": [
+        1.2124355652982142,
+        0.0
+      ],
+      "⚙": 1.15
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Epoch",
+    "pole_0": "⏳",
+    "pole_1": "🕰",
+    "self_energy_0": 0.0,
+    "self_energy_1": 0.25,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "🗃": 0.55,
+      "📖": -0.28,
+      "♟": 0.4,
+      "⚜": -0.2,
+      "⚫": [
+        0.300000011920929,
+        -0.5
+      ],
+      "⌛": [
+        0.6062177826491071,
+        -0.3499999999999999
+      ],
+      "⏰": [
+        0.6062177826491071,
+        0.3499999999999999
+      ],
+      "⚙": 0.45
+    },
+    "energy_couplings": {
+      "⏳": 0.2
+    },
+    "driver": {
+      "type": "sine",
+      "frequency": 0.05,
+      "amplitude": 0.15,
+      "phase": 0.0
+    }
+  },
+  {
+    "name": "Lumber",
+    "pole_0": "🪓",
+    "pole_1": "🪵",
+    "self_energy_0": 0.2,
+    "self_energy_1": 0.1,
+    "rabi_coupling": 0.0,
+    "hamiltonian_couplings": {
+      "⚔": 0.5,
+      "⛓": -0.4,
+      "✊": 0.4,
+      "🧨": 0.3,
+      "🌾": 0.4,
+      "🔥": 0.5,
+      "🕯": 0.3,
+      "🍂": 0.2,
+      "🌲": 0.35
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Gearwork",
+    "pole_0": "⚙",
+    "pole_1": "🧰",
+    "self_energy_0": 1.7,
+    "self_energy_1": 0.45,
+    "rabi_coupling": 0.4,
+    "hamiltonian_couplings": {
+      "🏷️": 0.5,
+      "🔩": 1.85,
+      "🛠": 1.2,
+      "⚡": 0.6,
+      "🍞": 0.35,
+      "💨": 0.8,
+      "🏭": 1.15,
+      "🔌": 1.1,
+      "🔨": 1.1,
+      "💧": 0.5,
+      "🔥": 0.38,
+      "🕴️": -0.25,
+      "🔬": 0.3,
+      "🚀": 1.1,
+      "🌀": 0.6,
+      "☀": 0.5,
+      "🔊": 0.3,
+      "🪛": 0.95,
+      "♻️": 0.3,
+      "🔧": 0.3,
+      "⌛": 0.55,
+      "⏰": 0.6,
+      "⏳": 0.45
+    },
+    "energy_couplings": {
+      "🏷️": 0.2,
+      "💧": -0.05,
+      "🛠": 0.1,
+      "🏚": -0.1,
+      "🏛": 0.15
+    }
+  },
+  {
+    "name": "Lamppost",
+    "pole_0": "🪔",
+    "pole_1": "📯",
+    "self_energy_0": 0.25,
+    "self_energy_1": 0.15,
+    "rabi_coupling": 0.8,
+    "hamiltonian_couplings": {
+      "🌉": 0.3,
+      "🔥": 0.65,
+      "🗼": 0.3
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Bread",
+    "pole_0": "🍞",
+    "pole_1": "👥",
+    "self_energy_0": 0.0,
+    "self_energy_1": 0.0,
+    "rabi_coupling": 0.6,
+    "hamiltonian_couplings": {
+      "💧": 0.8,
+      "🔥": 0.4,
+      "🏜️": -0.2
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Glass",
+    "pole_0": "🏜",
+    "pole_1": "⬜",
+    "self_energy_0": -0.05,
+    "self_energy_1": 0.15,
+    "rabi_coupling": 0.4,
+    "hamiltonian_couplings": {
+      "💠": 0.2,
+      "🔥": 0.3,
+      "🌫": 0.15
+    },
+    "energy_couplings": {},
+    "driver": {},
+    "measurement_behavior": {}
+  },
+  {
+    "name": "Gem",
+    "pole_0": "💎",
+    "pole_1": "💍",
+    "self_energy_0": 0.55,
+    "self_energy_1": 0.2,
+    "rabi_coupling": 0.5,
+    "hamiltonian_couplings": {
+      "💰": 0.8,
+      "📜": 0.3
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Vault",
+    "pole_0": "💰",
+    "pole_1": "🔒",
+    "self_energy_0": 0.5,
+    "self_energy_1": -0.2,
+    "rabi_coupling": 0.1,
+    "hamiltonian_couplings": {
+      "📜": 0.6,
+      "💎": 0.4
+    },
+    "energy_couplings": {
+      "🗝": -0.6
+    }
+  },
+  {
+    "name": "Charter",
+    "pole_0": "📜",
+    "pole_1": "🪙",
+    "self_energy_0": 0.4,
+    "self_energy_1": 0.05,
+    "rabi_coupling": 0.2,
+    "hamiltonian_couplings": {
+      "💎": 0.3,
+      "💰": 0.25
+    },
+    "energy_couplings": {}
+  }
+]

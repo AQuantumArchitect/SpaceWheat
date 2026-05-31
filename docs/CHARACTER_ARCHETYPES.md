@@ -1,7 +1,7 @@
 # Character Archetypes — The 8-Vertex Cube
 
-A cosmology of 8 archetypes arranged on a 3-axis cube. Replaces the older
-7-archetype scaffolding doc whose physics no longer matches the game.
+A cosmology of 8 archetypes arranged on a 3-axis cube. This is the current
+cube vocabulary used by the live frame stack.
 
 ## Axes
 
@@ -163,38 +163,21 @@ archetypes:
 The cube gives the design vocabulary; specific NPCs occupy weighted
 combinations of vertices.
 
-## Naming candidates (still in flux)
+## Current naming
 
-- **Flow ↔ Pulse** is the current axis name. Alternates considered:
-  Eternal/Instant (too narrow — only captures time), Conform/Disrupt
-  (too narrow — only captures stance), Persist/Pulse (similar feel),
-  Hold/Strike (more physical). Flow/Pulse covers both senses.
-- **(W, C, P)** was "Scientist"; renamed to **Merchant** (2026-04-29).
-  Alternates considered: Surveyor, Cartographer, Empiricist, Auditor.
-  Merchant was chosen to better fit the frontier-economy setting and
-  aligns with the hat-6 probe/trade frame.
-- **Socialite** (S, C, F) remains the lore-cube vertex name for the
-  player's relational-presence archetype. Note: the gameplay frame on
-  hat key 6 was renamed from Socialite to **Merchant**, but the cube
-  vertex itself retains Socialite — the player's always-on social
-  presence is a distinct concept from the NPC economic pulse actor.
+- **Flow ↔ Pulse** is the current axis name.
+- **(W, C, P)** is **Merchant**: the faction-economy vertex on the World face.
+- **(S, C, F)** is **Socialite**: the player's relational-presence vertex on the Self face.
 
-## Status
+## Runtime note
 
-- Decided 2026-04-27. The 7-archetype scaffolding doc (Captain, Ace,
-  Spark, Operator, Druid, Icon, Socialite — pre-Merchant) is
-  superseded.
-- Mechanical wiring is open. The cube is a design vocabulary, not yet
-  a runtime type system. Engine-side type-tagging of game objects with
-  cube vertices is a future build target.
-- The keyboard mapping (4567890 = archetype hat-keys) is settled at 7
-  frames; the null hat (`FRAME_NULL`) has no key. Ace (hat 8) is now
-  the probe frame; Merchant (hat 6) is the faction-contract frame.
+The cube is a design vocabulary. The live hat row is defined in
+`Core/GameState/ToolConfig.gd` and uses 7 frames on keys `4 5 6 7 8 9 0`.
 
 ## Related
 
 - `UI/Core/KEYBOARD_GRAMMAR.md` — input layer design
 - `UI/Core/SURFACE_MANIFEST.md` — surface inventory
 - `BIOME_AGENTS.md` — Captain/Operator territory (biomes + factions)
-- `🍄/🎛️/` — lab tooling (previously "Scientist territory"; vocation now Merchant in cube)
+- `🍄/🎛️/` — lab tooling
 - `Core/QuantumSubstrate/QuantumGateLibrary.gd` — Druid territory (gates)
