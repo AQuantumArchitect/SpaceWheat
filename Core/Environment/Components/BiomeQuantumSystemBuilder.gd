@@ -106,7 +106,7 @@ func expand_quantum_system(north_emoji: String, south_emoji: String) -> Dictiona
 	# 9. Rebuild H from icons.json; rebuild L from biome.atom_components.
 	# Primed terms whose endpoints are now in basis activate automatically.
 	quantum_computer.hamiltonian = HamBuilder.build_from_icons(biome_icons, quantum_computer.register_map, verbose)
-	var lindblad_result = LindBuilder.build_from_atoms(atom_components, quantum_computer.register_map, verbose)
+	var lindblad_result = LindBuilder.build_from_atoms(atom_components, quantum_computer.register_map, verbose, quantum_computer.biome_name)
 	quantum_computer.lindblad_operators = lindblad_result.get("operators", [])
 
 	# 9b. Extract and set time-dependent driver configurations.
@@ -221,7 +221,7 @@ func build_operators_from_icons(biome_name: String, biome_icons: Array, atoms: D
 	quantum_computer.hamiltonian = HamBuilder.build_from_icons(
 			biome_icons, quantum_computer.register_map, verbose)
 	var lindblad_result = LindBuilder.build_from_atoms(
-			atom_components, quantum_computer.register_map, verbose)
+			atom_components, quantum_computer.register_map, verbose, biome_name)
 	quantum_computer.lindblad_operators = lindblad_result.get("operators", [])
 	driven = HamBuilder.get_driven_icons(biome_icons, quantum_computer.register_map)
 	quantum_computer.set_driven_icons(driven)

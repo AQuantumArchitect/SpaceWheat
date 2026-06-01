@@ -32,7 +32,7 @@ static func _get_rate_scale() -> float:
 ## absent from register_map are *primed*: their terms stay in data, no operator emitted.
 ##
 ## `decay {rate, target}` is treated as a transfer (same |target⟩⟨source| jump op shape).
-static func build_from_atoms(atom_components: Dictionary, register_map: RegisterMap, verbose = null) -> Dictionary:
+static func build_from_atoms(atom_components: Dictionary, register_map: RegisterMap, verbose = null, label: String = "") -> Dictionary:
 	var operators: Array = []
 	var num_qubits = register_map.num_qubits
 
@@ -41,6 +41,14 @@ static func build_from_atoms(atom_components: Dictionary, register_map: Register
 		"incoming_added": 0, "incoming_skipped": 0,
 		"decay_added":    0, "decay_skipped":    0,
 	}
+
+	# Track the directed transfer graph of *active* (in-basis) jumps so we can flag
+	# population sinks: an atom that receives transfers but never emits one is an
+	# absorbing pure state — population piles there, S → 0, and the reap bank
+	# collapses. A pump (e.g. 🗑→🌲) gives the sink an out-edge, so it's correctly
+	# NOT flagged; a closed webway cycle (every node emits) is likewise fine.
+	var src_atoms: Dictionary = {}
+	var dst_atoms: Dictionary = {}
 
 	if verbose:
 		verbose.info("quantum", "🔨", "Lindblad from atoms: %d qubits" % num_qubits)
@@ -96,6 +104,8 @@ static func build_from_atoms(atom_components: Dictionary, register_map: Register
 				operators.append(_build_jump(source_q, source_p, target_q, target_p, amp, num_qubits))
 				stats.outgoing_added += 1
 				emitted[source_emoji + "→" + target_emoji] = true
+				src_atoms[source_emoji] = true
+				dst_atoms[target_emoji] = true
 
 		# --- Decay (treated as outgoing transfer) ---
 		var decay = component.get("decay", {})
@@ -115,6 +125,8 @@ static func build_from_atoms(atom_components: Dictionary, register_map: Register
 					operators.append(_build_jump(source_q, source_p, dt_q, dt_p, amp, num_qubits))
 					stats.decay_added += 1
 					emitted[source_emoji + "→" + dt_emoji] = true
+					src_atoms[source_emoji] = true
+					dst_atoms[dt_emoji] = true
 
 	# Second pass: incoming (dedup against emitted outgoing/decay)
 	for receiver_emoji in atom_components.keys():
@@ -146,6 +158,8 @@ static func build_from_atoms(atom_components: Dictionary, register_map: Register
 			var amp = Complex.new(sqrt(abs(rate)), 0.0)
 			operators.append(_build_jump(src_q, src_p, receiver_q, receiver_p, amp, num_qubits))
 			stats.incoming_added += 1
+			src_atoms[src_emoji] = true
+			dst_atoms[receiver_emoji] = true
 
 	if verbose:
 		verbose.info("quantum", "✅",
@@ -154,6 +168,19 @@ static func build_from_atoms(atom_components: Dictionary, register_map: Register
 				stats.outgoing_added, stats.incoming_added, stats.decay_added,
 				stats.outgoing_skipped + stats.incoming_skipped + stats.decay_skipped
 			])
+
+	# Lint: any atom that receives a transfer but emits none is a population sink
+	# with no refill path — S decays → 0 and the reap bank collapses. Surface it so
+	# the biome can be authored with a pump (lindblad_incoming from 🗑) or a
+	# balancing webway edge. Non-blocking diagnostic; no operator/data change.
+	if not operators.is_empty():
+		var sinks: Array = []
+		for atom in dst_atoms.keys():
+			if not src_atoms.has(atom):
+				sinks.append(atom)
+		if not sinks.is_empty():
+			var who: String = label if label != "" else "(%d-op biome)" % operators.size()
+			push_warning("LindbladBuilder: %s has population sink(s) %s with no outflow (no refill path) — S will decay → 0 and the reap bank collapses. Add a pump (lindblad_incoming from 🗑) or a balancing webway edge." % [who, " ".join(sinks)])
 
 	return {"operators": operators}
 

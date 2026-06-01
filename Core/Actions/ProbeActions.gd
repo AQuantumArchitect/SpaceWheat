@@ -537,16 +537,16 @@ static func _collect_reap_rewards(active_biomes: Array, economy, farm, flux_to_c
 		if qc.has_method("reset_sink_flux"):
 			qc.reset_sink_flux()
 
-		# Entropy bank: total extractable energy this reap = kT·S(biome). The
-		# biome's von Neumann entropy IS its bank balance — you cannot extract more
-		# than the disorder it holds. Distribute the budget across emojis by
-		# surprisal energy density (rare populations are worth more), then drain the
-		# reaped poles so S falls. The sun-pump refills S between reaps.
-		var S: float = qc.get_entropy()
+		# Entropy bank: the biome's entropy S IS its bank balance, but you only earn
+		# credits for the disorder you actually CONSUME this reap — payout = kT·ΔS,
+		# where ΔS is the entropy the drains remove. The surprisal shares decide which
+		# poles pay out and how the drain intensity is distributed (rare populations
+		# are worth more). The bank refills only as the biome's webway/pump regenerates
+		# S between reaps; a near-pure (cold) biome yields ≈0 until it does.
+		var S0: float = qc.get_entropy()
 		var kT: float = EnergyPricing.biome_temperature(biome, farm)
-		var budget: float = kT * S
-		if budget <= 0.0:
-			continue
+		if kT * S0 <= 0.0:
+			continue  # cold biome: no bank to extract until refilled
 		var pops: Dictionary = qc.get_all_populations() if qc.has_method("get_all_populations") else {}
 		var weights: Dictionary = {}
 		var wsum: float = 0.0
@@ -558,22 +558,28 @@ static func _collect_reap_rewards(active_biomes: Array, economy, farm, flux_to_c
 				wsum += w
 		if wsum <= 0.0:
 			continue
+		# Drain pass: spend the bank by concentrating the reaped poles, each sized by
+		# its surprisal share. Bracket with S0/S1 so the payout matches what we consumed.
+		for emoji in weights.keys():
+			if qc.has(emoji):
+				var eta: float = clampf(float(weights[emoji]) / wsum, 0.0, HamiltonianConfig.ETA_HARD_CAP)
+				qc.drain_qubit(qc.qubit(emoji), qc.pole(emoji), eta)
+		var S1: float = qc.get_entropy()
+		# Conserved payout: energy out = kT·(entropy consumed). Distribute by share.
+		var payout: float = kT * maxf(0.0, S0 - S1)
 		var paid_here: int = 0
 		for emoji in weights.keys():
 			var share: float = float(weights[emoji]) / wsum
-			var credits: int = int(round(budget * share))
+			var credits: int = int(round(payout * share))
 			if credits <= 0:
 				continue
 			economy.add_resource(emoji, credits, "reap_entropy")
 			icon_totals[emoji] = icon_totals.get(emoji, 0) + credits
 			total_icon_credits += credits
 			paid_here += credits
-			# Spend the bank: drain the reaped pole so populations concentrate and S drops.
-			if qc.has(emoji):
-				var eta: float = clampf(share, 0.0, HamiltonianConfig.ETA_HARD_CAP)
-				qc.drain_qubit(qc.qubit(emoji), qc.pole(emoji), eta)
-		_log("info", "🌾", "🌾", "Reap bank %s: kT·S=%.1f paid=%d (S=%.3f)" % [
-			biome.get_biome_type() if biome.has_method("get_biome_type") else "?", budget, paid_here, S])
+		_log("info", "🌾", "🌾", "Reap bank %s: kT=%.1f S %.3f→%.3f ΔS=%.3f payout=%.1f paid=%d" % [
+			biome.get_biome_type() if biome.has_method("get_biome_type") else "?",
+			kT, S0, S1, S0 - S1, payout, paid_here])
 
 	return {
 		"flux_totals": flux_totals,

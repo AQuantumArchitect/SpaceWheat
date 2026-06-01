@@ -1920,7 +1920,7 @@ func _rebuild_operators_after_shrink(biome) -> void:
 			biome_icons.append(IconCls.from_pair_physics(iname, north, south, physics, 1.0))
 
 	qc.hamiltonian = HamBuilder.build_from_icons(biome_icons, qc.register_map, verbose_ref)
-	var lindblad_result = LindBuilder.build_from_atoms(atom_components, qc.register_map, verbose_ref)
+	var lindblad_result = LindBuilder.build_from_atoms(atom_components, qc.register_map, verbose_ref, qc.biome_name)
 	qc.lindblad_operators = lindblad_result.get("operators", [])
 	var driven_configs = HamBuilder.get_driven_icons(biome_icons, qc.register_map)
 	qc.set_driven_icons(driven_configs)

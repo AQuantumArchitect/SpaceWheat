@@ -55,6 +55,23 @@ func _to_packed() -> PackedFloat64Array:
 		_packed_valid = true
 		return _packed_cache
 
+	# _data is authoritative: it was freshly mutated in-place via set_element
+	# (which clears _packed_cache and marks _packed_valid=false) but the native
+	# backend was NOT updated. We must rebuild from _data and PUSH it to native —
+	# otherwise the stale native copy below would silently discard the mutation
+	# (e.g. drain_qubit's partial measurement vanishing on renormalize_trace).
+	if _data_valid and not _packed_valid:
+		var fresh = PackedFloat64Array()
+		fresh.resize(n * n * 2)
+		for i in range(n * n):
+			fresh[i * 2] = _data[i].re
+			fresh[i * 2 + 1] = _data[i].im
+		_packed_cache = fresh
+		_packed_valid = true
+		if _native_available and _native_backend != null:
+			_native_backend.from_packed(fresh, n)
+		return fresh
+
 	# Native path: get from native backend if available
 	if _native_available and _native_backend != null:
 		var native_packed: PackedFloat64Array = _native_backend.to_packed()
@@ -1033,6 +1050,12 @@ func renormalize_trace() -> void:
 	_packed_valid = true
 	_data_valid = false
 	_data = []
+	# Keep the native backend in lock-step with the normalized result — otherwise
+	# a set_element-based mutation (e.g. drain_qubit) that we just rebuilt into
+	# packed would leave native holding the stale/un-normalized copy, and the next
+	# evolve would silently replay it.
+	if _native_available and _native_backend != null:
+		_native_backend.from_packed(p, n)
 
 #endregion
 

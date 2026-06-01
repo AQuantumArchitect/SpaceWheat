@@ -471,6 +471,34 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 					})
 			result["entropy_snapshot"] = rows
 
+		"reap_probe":
+			# Conservation probe: for each biome, bracket the REAL reap-bank
+			# extraction with S before/after and confirm the entropy-bank payout
+			# (credits) ≈ kT·ΔS. Exercises ProbeActions._collect_reap_rewards
+			# directly (mutates live state — rig only). expected vs credits should
+			# match within rounding; a near-pure biome pays ≈0 (dS≈0).
+			var probe_rows: Array = []
+			if _farm and "grid" in _farm and _farm.grid and _farm.grid.has_biomes():
+				var f2c: float = float(BalanceService.get_tuning_value(_farm, "flux_to_credits", 1.0))
+				for bkey in _farm.grid.get_biome_names():
+					var biome = _farm.grid.get_biome(str(bkey))
+					if not biome or not biome.quantum_computer:
+						continue
+					var qc = biome.quantum_computer
+					if not qc.has_method("get_entropy"):
+						continue
+					var S0: float = float(qc.get_entropy())
+					var kT: float = float(EnergyPricing.biome_temperature(biome, _farm))
+					var rr: Dictionary = ProbeActions._collect_reap_rewards([biome], _farm.economy, _farm, f2c)
+					var S1: float = float(qc.get_entropy())
+					var dS: float = S0 - S1
+					probe_rows.append({
+						"biome": str(bkey), "S0": S0, "S1": S1, "dS": dS, "kT": kT,
+						"expected": kT * dS, "credits": int(rr.get("total_icon_credits", 0)),
+						"flux_credits": int(rr.get("total_flux_credits", 0))
+					})
+			result["reap_probe"] = probe_rows
+
 		"offer_quests":
 			var offers: Array = []
 			var offer_result = _instrument.quest_offer_all()
