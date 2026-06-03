@@ -559,64 +559,6 @@ static func enable_persistent_decay(farm, positions: Array[Vector2i],
 	return result
 
 
-static func lindblad_transfer(farm, positions: Array[Vector2i]) -> Dictionary:
-	# Transfer population between two selected plots.
-
-	# Requires exactly 2 plots. Transfers from first to second.
-	if not farm or not farm.grid:
-		return {
-			"success": false,
-			"error": "farm_not_ready",
-			"message": "Farm not loaded"
-		}
-
-	if positions.size() != 2:
-		return {
-			"success": false,
-			"error": "need_two_positions",
-			"message": "Select exactly 2 plots"
-		}
-
-	var pos_from = positions[0]
-	var pos_to = positions[1]
-
-	var biome = farm.grid.get_biome_for_plot(pos_from)
-	if not biome or not biome.quantum_computer:
-		return {
-			"success": false,
-			"error": "no_quantum_computer",
-			"message": "No quantum computer"
-		}
-
-	var plot_from = farm.grid.get_plot(pos_from)
-	var plot_to = farm.grid.get_plot(pos_to)
-	var emoji_from = plot_from.north_emoji if (plot_from and plot_from.is_active()) else ""
-	var emoji_to = plot_to.north_emoji if (plot_to and plot_to.is_active()) else ""
-
-	if emoji_from == "" or emoji_to == "":
-		return {
-			"success": false,
-			"error": "missing_emojis",
-			"message": "Both plots must have bound terminals"
-		}
-
-	if _resolve_qubit_index(biome, emoji_from) < 0 or _resolve_qubit_index(biome, emoji_to) < 0:
-		return {
-			"success": false,
-			"error": "emojis_not_in_register",
-			"message": "Emojis not in register"
-		}
-
-	# Transfer population
-	var transfer_amount = 0.15  # Transfer 15% of population
-	biome.quantum_computer.transfer_population(emoji_from, emoji_to, transfer_amount, 0.0)
-
-	return {
-		"success": true,
-		"from_emoji": emoji_from,
-		"to_emoji": emoji_to,
-		"transfer_amount": transfer_amount
-	}
 
 
 # NOTE: reset_to_pure/reset_to_mixed removed (2026-01)

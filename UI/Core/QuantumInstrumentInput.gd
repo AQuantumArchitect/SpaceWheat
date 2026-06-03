@@ -78,7 +78,7 @@ const BUFFER_INVALIDATING_ACTIONS: Array[String] = [
 	# Spark frame: instant pole shifts (strong one-shot drive/decay)
 	"spark_north", "spark_south",
 	# Merchant frame: persistent Lindbladian contracts
-	"drain", "transfer", "pump",
+	"drain", "pump",
 	# Operator frame: entangling gates
 	"measure", "build_gate", "remove_gates",
 # Icon frame: icon injection/removal (adds/removes qubits via icon assignment)
@@ -1477,8 +1477,6 @@ func _execute_action(action_name: String) -> Dictionary:
 			result = _instrument.action_drain(positions)
 			if result.get("success", false):
 				_refresh_plot_tiles(positions)
-		"transfer":
-			result = _instrument.action_transfer(positions)
 		"pump":
 			result = _instrument.action_pump(positions)
 			if result.get("success", false):

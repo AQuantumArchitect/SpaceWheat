@@ -111,9 +111,6 @@ const LINDBLAD_PUMP_SCROLL_COST: int = 4   # 📜 tribute contract
 const LINDBLAD_PUMP_NORTH_COST: int = 21   # north pole resource staked in pact
 const LINDBLAD_DRAIN_BASKET_COST: int = 4  # 🧺 village-basket treaty
 const LINDBLAD_DRAIN_SOUTH_COST: int = 8   # south pole emoji extracted by treaty
-const LINDBLAD_TRANSFER_HANDSHAKE_COST: int = 2  # 🤝 brokered exchange
-const LINDBLAD_TRANSFER_SOURCE_COST: int = 13    # source (north) emoji
-const LINDBLAD_TRANSFER_DRAIN_COST: int = 8      # destination (south) emoji
 
 ## Transitional aliases for older cost names still used by some callers/tests.
 const LINDBLAD_DRAIN_GEAR_COST: int = LINDBLAD_DRAIN_BASKET_COST
@@ -209,17 +206,6 @@ static func get_lindblad_injection_cost(action: String = ActionIds.LINDBLAD_PUMP
 		var south_emoji = str(context.get("south_emoji", ""))
 		if south_emoji != "":
 			cost[south_emoji] = int(context.get("drive_units", LINDBLAD_DRAIN_SOUTH_COST))
-		return cost
-
-	# Transfer: 2 🤝 + 13× source (north) + 8× destination (south)
-	if normalized_action == "lindblad_transfer":
-		var north = str(context.get("north_emoji", ""))
-		var south = str(context.get("south_emoji", ""))
-		cost["🤝"] = LINDBLAD_TRANSFER_HANDSHAKE_COST
-		if north != "":
-			cost[north] = LINDBLAD_TRANSFER_SOURCE_COST
-		if south != "" and south != north:
-			cost[south] = LINDBLAD_TRANSFER_DRAIN_COST
 		return cost
 
 	# Pump (charge north): flat 📜 social fee + surprisal drive cost in the north
@@ -335,7 +321,7 @@ static func get_action_cost(action: String, context: Dictionary = {}) -> Diction
 		return get_icon_injection_cost(context.get("south_emoji", ""))
 	if normalized_action == "remove_icon" and (context.has("north_emoji") or context.has("south_emoji")):
 		return get_icon_removal_cost(context.get("north_emoji", ""), context.get("south_emoji", ""))
-	if normalized_action in [ActionIds.LINDBLAD_PUMP, ActionIds.LINDBLAD_DRAIN, "lindblad_transfer"]:
+	if normalized_action in [ActionIds.LINDBLAD_PUMP, ActionIds.LINDBLAD_DRAIN]:
 		return get_lindblad_injection_cost(normalized_action, context)
 	if normalized_action in [ActionIds.SPARK_NORTH, ActionIds.SPARK_SOUTH]:
 		return get_spark_cost(normalized_action, context)

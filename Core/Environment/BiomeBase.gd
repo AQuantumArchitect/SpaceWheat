@@ -32,7 +32,6 @@ var _bell_gate_tracker: BiomeBellGateTracker
 var _quantum_observer: BiomeQuantumObserver
 var _gate_operations: BiomeGateOperations
 var _system_builder: BiomeQuantumSystemBuilder
-var _density_mutator: BiomeDensityMatrixMutator
 var viz_cache: QuantumVizCache = QuantumVizCache.new()
 ## Per-biome cache of `Icon` instances keyed by emoji. Populated on demand from
 ## `IconRegistry` (the canonical icon physics source). Editing entries here does
@@ -150,7 +149,6 @@ func _ready() -> void:
 	_quantum_observer = BiomeQuantumObserver.new()
 	_gate_operations = BiomeGateOperations.new()
 	_system_builder = BiomeQuantumSystemBuilder.new()
-	_density_mutator = BiomeDensityMatrixMutator.new()
 
 	# Forward signals from components FIRST (before _initialize_bath emits signals)
 	_bell_gate_tracker.bell_gate_created.connect(_on_bell_gate_created)
@@ -165,7 +163,6 @@ func _ready() -> void:
 	if quantum_computer:
 		_quantum_observer.set_quantum_computer(quantum_computer)
 		_quantum_observer.set_viz_cache(viz_cache)
-		_density_mutator.set_quantum_computer(quantum_computer)
 
 	# Attractor tracking disabled (semantic layer stripped)
 
@@ -189,8 +186,6 @@ func _exit_tree() -> void:
 		_resource_registry.clear()
 	if _quantum_observer and _quantum_observer.has_method("set_quantum_computer"):
 		_quantum_observer.set_quantum_computer(null)
-	if _density_mutator and _density_mutator.has_method("set_quantum_computer"):
-		_density_mutator.set_quantum_computer(null)
 	if _gate_operations and _gate_operations.has_method("set_dependencies"):
 		_gate_operations.set_dependencies(null, null, null, null)
 	if _system_builder and _system_builder.has_method("set_dependencies"):
@@ -208,7 +203,6 @@ func _exit_tree() -> void:
 	_quantum_observer = null
 	_gate_operations = null
 	_system_builder = null
-	_density_mutator = null
 	viz_cache = null
 	time_tracker = null
 
@@ -869,17 +863,6 @@ func add_atom_pair(north_emoji: String, south_emoji: String, icon_name: String =
 func inject_coupling(emoji_a: String, emoji_b: String, strength: float) -> Dictionary:
 	_wire_component_dependencies()
 	return _system_builder.inject_coupling(emoji_a, emoji_b, strength)
-
-
-# ============================================================================
-# FACADE: Density Matrix Mutator Methods
-# ============================================================================
-
-func collapse_register(register_id: int, is_north: bool) -> void:
-	_density_mutator.collapse_register(register_id, is_north)
-
-func drain_register_probability(register_id: int, is_north: bool, drain_factor: float) -> void:
-	_density_mutator.drain_register_probability(register_id, is_north, drain_factor)
 
 
 # ============================================================================

@@ -153,7 +153,7 @@ Right-hand rule. Curl the fingers of your right hand around a screw.
 The energy dyad makes this physical on the three energy-touching hats
 (Ace, Merchant, Spark): **Q extracts energy** from the field (reward =
 surprisal `−kT·log p` — rare outcomes pay more), **R invests energy**
-into it. **E reads the price** (Measure / Broker — collapse + pause).
+into it. **E reads the price** (Measure — collapse + pause).
 One scarcity law on both poles; selecting a plot auto-binds its terminal,
 so there is no separate "Explore" verb.
 
@@ -273,7 +273,7 @@ still exists and the row still has four slots. Source of truth:
 |----|-----------|--------------------------|---------------|-----------------------|---------------|------------------|
 | 4  | Spark     | shift (single)           | Spark S (out) | Cost preview (pause)  | Spark N (in)  | (global F)       |
 | 5  | Icon      | inject (single)          | Trim Icon     | (open picker; pause)  | Add Icon      | Track            |
-| 6  | Merchant  | thermal / dephase / damp | Sell 📤       | Broker 🤝             | Buy 📥        | Tip 💬           |
+| 6  | Merchant  | thermal / dephase / damp | Sell 📤       | Read Price !          | Buy 📥        | Tip 💬           |
 | 7  | Captain   | biomes (single)          | Cull          | Compass               | Discover      | (global F)       |
 | 8  | Ace       | probe (single)           | Harvest       | Measure               | Plant         | (global F)       |
 | 9  | Operator  | gate (single)            | Break gate    | Inspect               | Build gate    | (global F)       |

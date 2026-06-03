@@ -1382,7 +1382,7 @@ func _guide_four_tools() -> void:
 	_body_box.add_child(_make_section_header("the seven archetype frames (4-0)"))
 	_body_box.add_child(_make_action_row("4", "Spark",     "Lindbladian jolt (energy dyad): Q discharges south, R charges north."))
 	_body_box.add_child(_make_action_row("5", "Icon",      "Inject a dual-emoji qubit from the neighborhood's installed signature."))
-	_body_box.add_child(_make_action_row("6", "Merchant", "Faction contracts (energy dyad): Q=Sell, E=Broker, R=Buy, F=Tip. Price = −kT·log p."))
+	_body_box.add_child(_make_action_row("6", "Merchant", "Faction contracts (energy dyad): Q=Sell, E=Read Price, R=Buy, F=Tip. Price = −kT·log p."))
 	_body_box.add_child(_make_action_row("7", "Captain",   "Biome lifecycle: Q=cull, R=discover."))
 	_body_box.add_child(_make_action_row("8", "Ace", "Energy dyad: Q=harvest (extract), E=measure (price), R=plant (invest)."))
 	_body_box.add_child(_make_action_row("9", "Operator",  "Gate building: Q=break, E=inspect, R=gate."))

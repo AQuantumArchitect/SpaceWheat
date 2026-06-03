@@ -155,12 +155,8 @@ static func _can_execute_tool_action(
 
 		"drain", "pump":
 			return true  # Available if plots selected
-		"transfer":
-			return selected_plots.size() == 2  # Transfer needs exactly 2 plots
 		"lindblad_drive", "lindblad_decay":
 			return true  # Available if plots selected
-		"lindblad_transfer":
-			return selected_plots.size() == 2  # Transfer needs exactly 2 plots
 
 		# ═══════════════════════════════════════════════════════════════
 		# TOOL 4 META / SYSTEM ACTIONS

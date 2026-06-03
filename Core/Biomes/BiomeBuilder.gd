@@ -320,12 +320,10 @@ static func _initialize_biome_components(biome, quantum_computer) -> void:
 	biome._quantum_observer = BiomeQuantumObserver.new()
 	biome._gate_operations = BiomeGateOperations.new()
 	biome._system_builder = BiomeQuantumSystemBuilder.new()
-	biome._density_mutator = BiomeDensityMatrixMutator.new()
 
 	# Wire quantum_computer to components that need it
 	if quantum_computer:
 		biome._quantum_observer.set_quantum_computer(quantum_computer)
-		biome._density_mutator.set_quantum_computer(quantum_computer)
 
 	# Set flag to prevent double-initialization in _ready()
 	biome._is_initialized = true

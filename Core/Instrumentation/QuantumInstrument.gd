@@ -343,23 +343,6 @@ func action_drain(positions: Array[Vector2i]) -> Dictionary:
 	return result
 
 
-func action_transfer(positions: Array[Vector2i]) -> Dictionary:
-	var guard = _action_guard(positions)
-	if not guard.is_empty(): return guard
-	var context: Dictionary = {}
-	if positions.size() >= 2:
-		context["north_emoji"] = LindbladHandler._resolve_north_emoji(farm, positions[0])
-		context["south_emoji"] = LindbladHandler._resolve_north_emoji(farm, positions[1])
-	var gate = preflight_action_cost("lindblad_transfer", context)
-	if not gate.get("ok", true):
-		return {"success": false, "error": "insufficient_resources", "message": gate.get("message", "Cannot afford transfer"), "cost": gate.get("cost", {})}
-	var result = LindbladHandler.lindblad_transfer(farm, positions)
-	action_performed.emit("transfer", result)
-	if result.get("success", false):
-		commit_action_cost("lindblad_transfer", context, "lindblad_transfer")
-	return result
-
-
 func action_pump(positions: Array[Vector2i]) -> Dictionary:
 	var guard = _action_guard(positions)
 	if not guard.is_empty(): return guard

@@ -54,7 +54,7 @@ right. Spark and Druid bookend the set.
 |-----------|--------------------------|----------------|---------------------------|---------------|--------------------|
 | Spark     | shift                    | —              | Pause (transparent)       | N.Pole (↑1×)  | S.Pole (↓1×) ⚡ overload |
 | Icon      | inject                   | Trim icon      | Pause (transparent)       | Add icon      | Play (transparent) |
-| Merchant  | thermal / dephase / damp | Import 📥      | Broker 🤝                 | Export 📤     | Tip 💬             |
+| Merchant  | thermal / dephase / damp | Import 📥      | Read Price !              | Export 📤     | Tip 💬             |
 | Captain   | biomes                   | Cull           | Compass (discover peek)   | Add Biome     | —                  |
 | Ace       | probe                    | Explore        | Measure                   | Pop           | —                  |
 | Operator  | gate                     | Break gate     | Inspect                   | Build gate    | —                  |

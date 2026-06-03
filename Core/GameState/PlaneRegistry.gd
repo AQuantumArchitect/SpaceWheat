@@ -118,8 +118,8 @@ const PLANE_ACTIONS := {
 			"target_type": "plot",
 			"enabled": true,
 			"cost": {},
-			"label": "Xfer",
-			"action": "transfer",
+			"label": "Price",
+			"action": "measure",
 		},
 		{
 			"action_id": "r",
