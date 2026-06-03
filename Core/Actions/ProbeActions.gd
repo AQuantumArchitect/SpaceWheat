@@ -548,35 +548,66 @@ static func _collect_reap_rewards(active_biomes: Array, economy, farm, flux_to_c
 		if kT * S0 <= 0.0:
 			continue  # cold biome: no bank to extract until refilled
 		var pops: Dictionary = qc.get_all_populations() if qc.has_method("get_all_populations") else {}
-		var weights: Dictionary = {}
-		var wsum: float = 0.0
+		# Two weightings over the populated poles:
+		#  • drain weight = surprisal (improbability): we extract order by suppressing
+		#    the SURPRISING tail (high −kT·log p) and leaving the mode, so the state
+		#    concentrates and S actually falls. Weighting by energy DENSITY (surprisal·p)
+		#    instead drains the mode hardest → flattens → ΔS≈0 → reap pays nothing.
+		#  • payout weight = energy density (surprisal·p): the credits flow where rarity
+		#    AND population coincide (realizable value).
+		var drain_w: Dictionary = {}
+		var drain_sum: float = 0.0
+		var pay_w: Dictionary = {}
+		var pay_sum: float = 0.0
 		for emoji in pops.keys():
 			var p: float = clampf(float(pops[emoji]), 0.0, 1.0)
-			var w: float = EnergyPricing.surprisal_energy(p, kT) * p  # energy density
-			if w > 0.0:
-				weights[emoji] = w
-				wsum += w
-		if wsum <= 0.0:
+			if p <= 0.0:
+				continue
+			var sur: float = EnergyPricing.surprisal_energy(p, kT)  # improbability
+			if sur > 0.0:
+				drain_w[emoji] = sur
+				drain_sum += sur
+				pay_w[emoji] = sur * p  # energy density
+				pay_sum += sur * p
+		if drain_sum <= 0.0 or pay_sum <= 0.0:
 			continue
-		# Drain pass: spend the bank by concentrating the reaped poles, each sized by
-		# its surprisal share. Bracket with S0/S1 so the payout matches what we consumed.
-		for emoji in weights.keys():
+		# Drain pass: concentrate toward the mode by suppressing the improbable poles.
+		# Bracket with S0/S1 so the payout matches the entropy actually consumed.
+		for emoji in drain_w.keys():
 			if qc.has(emoji):
-				var eta: float = clampf(float(weights[emoji]) / wsum, 0.0, HamiltonianConfig.ETA_HARD_CAP)
+				var eta: float = clampf(float(drain_w[emoji]) / drain_sum, 0.0, HamiltonianConfig.ETA_HARD_CAP)
 				qc.drain_qubit(qc.qubit(emoji), qc.pole(emoji), eta)
 		var S1: float = qc.get_entropy()
-		# Conserved payout: energy out = kT·(entropy consumed). Distribute by share.
+		# Conserved payout: energy out = kT·(entropy consumed).
 		var payout: float = kT * maxf(0.0, S0 - S1)
+		var total_int: int = int(round(payout))
 		var paid_here: int = 0
-		for emoji in weights.keys():
-			var share: float = float(weights[emoji]) / wsum
-			var credits: int = int(round(payout * share))
-			if credits <= 0:
-				continue
-			economy.add_resource(emoji, credits, "reap_entropy")
-			icon_totals[emoji] = icon_totals.get(emoji, 0) + credits
-			total_icon_credits += credits
-			paid_here += credits
+		if total_int > 0:
+			# Largest-remainder (Hamilton) apportionment by energy-density share, so the
+			# integer credits sum EXACTLY to round(payout). A naive per-emoji
+			# round(payout·share) makes a small payout split many ways round each share
+			# to 0 — and the whole reward silently vanishes.
+			var alloc: Dictionary = {}
+			var rema: Array = []
+			var floor_sum: int = 0
+			for emoji in pay_w.keys():
+				var exact: float = float(total_int) * (float(pay_w[emoji]) / pay_sum)
+				var fl: int = int(floor(exact))
+				alloc[emoji] = fl
+				floor_sum += fl
+				rema.append({"emoji": emoji, "frac": exact - float(fl)})
+			rema.sort_custom(func(a, b): return a["frac"] > b["frac"])
+			var leftover: int = total_int - floor_sum
+			for i in range(mini(leftover, rema.size())):
+				alloc[rema[i]["emoji"]] += 1
+			for emoji in alloc.keys():
+				var credits: int = int(alloc[emoji])
+				if credits <= 0:
+					continue
+				economy.add_resource(emoji, credits, "reap_entropy")
+				icon_totals[emoji] = icon_totals.get(emoji, 0) + credits
+				total_icon_credits += credits
+				paid_here += credits
 		_log("info", "🌾", "🌾", "Reap bank %s: kT=%.1f S %.3f→%.3f ΔS=%.3f payout=%.1f paid=%d" % [
 			biome.get_biome_type() if biome.has_method("get_biome_type") else "?",
 			kT, S0, S1, S0 - S1, payout, paid_here])
