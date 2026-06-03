@@ -382,6 +382,16 @@ func _create_overlays(parent: Control) -> void:
 	register_overlay("map_meta", map_meta_overlay)
 	_setup_visibility_processing(map_meta_overlay)
 
+	# Neighborhood Graph — GraphEdit cluster view of the active biome's reservoir.
+	# No top-level keybind yet (ZXCVBNM is full + in flux); reachable as a menu
+	# button via MenuRegistry (keycode -1). Assign a key when the keymap settles.
+	var neighborhood_graph_overlay = NeighborhoodGraphOverlay.new()
+	if layout_manager and neighborhood_graph_overlay.has_method("set_layout_manager"):
+		neighborhood_graph_overlay.set_layout_manager(layout_manager)
+	parent.add_child(neighborhood_graph_overlay)
+	register_overlay("neighborhood_graph", neighborhood_graph_overlay)
+	_setup_visibility_processing(neighborhood_graph_overlay)
+
 	_verbose.info("ui", "📊", "Overlay stack created with %d overlays" % overlays.size())
 
 

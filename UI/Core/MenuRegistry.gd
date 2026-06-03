@@ -92,6 +92,19 @@ const TOP_LEVEL_MENUS := [
 		"button_emoji": "🗺",
 		"touch_button": true,
 	},
+	{
+		# No keyboard binding yet — the ZXCVBNM menu row is full and in flux.
+		# Reachable as a menu button (keycode -1); assign a key once the keymap settles.
+		"id": "neighborhood_graph",
+		"overlay_name": "neighborhood_graph",
+		"keycode": -1,
+		"key_label": "",
+		"display_name": "Neighborhood Graph",
+		"description": "Cluster graph of the active biome's reservoir",
+		"menu_group": "game",
+		"button_emoji": "🕸",
+		"touch_button": true,
+	},
 ]
 
 const DEBUG_MENUS := [
