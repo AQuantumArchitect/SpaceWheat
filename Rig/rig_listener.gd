@@ -317,6 +317,7 @@ func _requires_snapshot_service(action: String) -> bool:
 
 func _requires_quantum_instrument(action: String) -> bool:
 	return action in [
+		"reservoir_sweep",
 		"offer_quests",
 		"accept_offer",
 		"accept_quest",
@@ -498,6 +499,61 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 						"flux_credits": int(rr.get("total_flux_credits", 0))
 					})
 			result["reap_probe"] = probe_rows
+
+		"reservoir_sweep":
+			# Map the broad graph's reservoir REGIME across (H-coupling × L-rate)
+			# scales — the edge-of-chaos dial. Per grid point: retune the global
+			# physics knobs, rebuild every biome's operators at that regime, reset to
+			# ground, evolve, then read learning/intelligence metrics:
+			#   richness     = mean von-Neumann-style entropy  (dynamic range)
+			#   integration  = mean pairwise mutual information (information sharing)
+			#   order        = mean purity                      (1=frozen, low=lively)
+			# One boot; the canonical regime is restored at the end. Offline tool.
+			var h_scales: Array = cmd.get("h_scales", [0.5, 1.0, 2.0])
+			var l_scales: Array = cmd.get("l_scales", [0.5, 1.0, 2.0])
+			var sweep_phrames: int = int(cmd.get("phrames", 600))
+			var sweep_rows: Array = []
+			if _farm and "grid" in _farm and _farm.grid and _farm.grid.has_biomes():
+				var BalanceCfg = load("res://Core/GameMechanics/BalanceConfig.gd")
+				var bnames: Array = []
+				for bk in _farm.grid.get_biome_names():
+					bnames.append(str(bk))
+				for hs in h_scales:
+					for ls in l_scales:
+						BalanceCfg.set_physics_override({
+							"hamiltonian_coupling_scale": float(hs),
+							"lindblad_rate_scale": float(ls),
+						})
+						_reservoir_rebuild_all(bnames)
+						_perform_time_skip(sweep_phrames, -1.0)
+						var per: Array = []
+						var agg_s := 0.0
+						var agg_p := 0.0
+						var agg_mi := 0.0
+						var cnt := 0
+						for bn in bnames:
+							var biome = _farm.grid.get_biome(bn)
+							if not biome or not biome.quantum_computer:
+								continue
+							var qc = biome.quantum_computer
+							var s_val := float(qc.get_entropy()) if qc.has_method("get_entropy") else 0.0
+							var pur := float(qc.get_purity()) if qc.has_method("get_purity") else 0.0
+							var mi := _mean_mutual_information(qc)
+							per.append({"biome": bn, "S": s_val, "purity": pur, "mi": mi})
+							agg_s += s_val
+							agg_p += pur
+							agg_mi += mi
+							cnt += 1
+						var inv := 1.0 / float(maxi(cnt, 1))
+						sweep_rows.append({
+							"h": float(hs), "l": float(ls),
+							"richness": agg_s * inv, "integration": agg_mi * inv, "order": agg_p * inv,
+							"biomes": per,
+						})
+				# Restore the canonical regime so the session isn't left retuned.
+				BalanceCfg.clear_physics_override()
+				_reservoir_rebuild_all(bnames)
+			result["reservoir_sweep"] = sweep_rows
 
 		"offer_quests":
 			var offers: Array = []
@@ -1321,6 +1377,39 @@ func _perform_time_skip(phrames: int, delta: float) -> Dictionary:
 	if _instrument and _instrument.has_method("time_skip"):
 		return _instrument.time_skip(phrames, delta)
 	return {"ok": false, "error": "no_quantum_instrument"}
+
+
+## Rebuild every named biome's H+L operators from canonical (picking up the current
+## BalanceConfig physics override) and reset it to ground. The reservoir-sweep retune
+## primitive — reuses the instrument's canonical-rebuild path.
+func _reservoir_rebuild_all(biome_names: Array) -> void:
+	if _instrument == null or not _instrument.has_method("_rebuild_operators_after_shrink"):
+		return
+	for bn in biome_names:
+		var biome = _farm.grid.get_biome(str(bn)) if (_farm and _farm.grid) else null
+		if biome and biome.quantum_computer:
+			_instrument._rebuild_operators_after_shrink(biome)
+			if biome.quantum_computer.has_method("initialize_ground_state"):
+				biome.quantum_computer.initialize_ground_state()
+
+
+## Mean pairwise mutual information across a biome's qubits — the reservoir's
+## "integration" (how much its parts share information). 0 for <2 qubits.
+func _mean_mutual_information(qc) -> float:
+	if not qc.has_method("get_mutual_information"):
+		return 0.0
+	var nq := 0
+	if "register_map" in qc and qc.register_map:
+		nq = int(qc.register_map.num_qubits)
+	if nq < 2:
+		return 0.0
+	var total := 0.0
+	var pairs := 0
+	for i in range(nq):
+		for j in range(i + 1, nq):
+			total += float(qc.get_mutual_information(i, j))
+			pairs += 1
+	return total / float(maxi(pairs, 1))
 
 
 func _parse_wait_threshold(raw) -> Dictionary:

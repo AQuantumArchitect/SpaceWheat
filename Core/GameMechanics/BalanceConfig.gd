@@ -41,11 +41,28 @@ const DEFAULTS: Dictionary = {
 }
 
 
+## Runtime override for physics knobs (set by the reservoir sweep / tuning tools).
+## Merged on top of DEFAULTS, under any explicit config passed to get_physics —
+## so parametric retuning (e.g. hamiltonian_coupling_scale, lindblad_rate_scale)
+## takes effect on the next operator rebuild without editing the constant.
+static var _physics_override: Dictionary = {}
+
+
+static func set_physics_override(overrides) -> void:
+	_physics_override = overrides.duplicate(true) if overrides is Dictionary else {}
+
+
+static func clear_physics_override() -> void:
+	_physics_override = {}
+
+
 ## Convenience accessor for physics balance parameters.
+## Precedence: DEFAULTS < live override < explicit `config.physics`.
 static func get_physics(config: Dictionary = {}) -> Dictionary:
-	var defaults = DEFAULTS.get("physics", {})
+	var result = DEFAULTS.get("physics", {}).duplicate(true)
+	for key in _physics_override.keys():
+		result[key] = _physics_override[key]
 	var overrides = config.get("physics", {})
-	var result = defaults.duplicate(true)
 	for key in overrides.keys():
 		result[key] = overrides[key]
 	return result
