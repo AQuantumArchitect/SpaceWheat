@@ -10,6 +10,15 @@ extends RefCounted
 ## This allows the same icon definitions to be reused across biomes
 ## with different register configurations.
 
+const _BalanceConfig = preload("res://Core/GameMechanics/BalanceConfig.gd")
+
+
+## Global coupling scale — the symmetric partner to LindbladBuilder's rate scale.
+## Multiplies every off-diagonal H coupling (rabi + cross-icon), so the coherent/
+## dissipative regime is one parametric knob over the authored values. 1.0 = identity.
+static func _get_coupling_scale() -> float:
+	return float(_BalanceConfig.get_physics().get("hamiltonian_coupling_scale", 1.0))
+
 
 
 static func _add_self_energy(H: ComplexMatrix, qubit: int, pole: int,
@@ -86,6 +95,7 @@ static func build_from_icons(icons: Array, register_map: RegisterMap,
 	var H = ComplexMatrix.zeros(dim)
 
 	var stats = {"self_energies": 0, "rabi": 0, "cross": 0, "skipped": 0}
+	var h_scale := _get_coupling_scale()
 
 	if verbose:
 		verbose.info("quantum", "🔨", "Building H from %d icons (%dD)" % [icons.size(), dim])
@@ -108,7 +118,7 @@ static func build_from_icons(icons: Array, register_map: RegisterMap,
 
 		# σ_x rabi coupling (off-diagonal, pole_0 ↔ pole_1 on same qubit)
 		if abs(icon.rabi_coupling) > 1e-10:
-			_add_coupling(H, q, 0, q, 1, Complex.new(icon.rabi_coupling, 0.0), num_qubits)
+			_add_coupling(H, q, 0, q, 1, Complex.new(icon.rabi_coupling * h_scale, 0.0), num_qubits)
 			stats.rabi += 1
 
 		# Cross-icon couplings (both poles of source → target pole)
@@ -127,6 +137,8 @@ static func build_from_icons(icons: Array, register_map: RegisterMap,
 				c = v
 			else:
 				c = Complex.new(float(v), 0.0)
+			if h_scale != 1.0:
+				c = Complex.new(c.re * h_scale, c.im * h_scale)
 			_add_coupling(H, q, 0, tq, tp, c, num_qubits)
 			_add_coupling(H, q, 1, tq, tp, c, num_qubits)
 			stats.cross += 1

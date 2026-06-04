@@ -32,6 +32,11 @@ const DEFAULTS: Dictionary = {
 		# Rates were baked at the intended scale into biomes.json.
 		# Keep at 1.0 — adjust individual rates in the JSON if needed.
 		"lindblad_rate_scale": 1.0,
+		# Global multiplier for all Hamiltonian off-diagonal couplings (rabi +
+		# cross-icon) from icons.json — the symmetric partner to lindblad_rate_scale.
+		# Together they set the coherent/dissipative (H/L) regime parametrically,
+		# without touching the per-icon authored values. 1.0 = identity (no change).
+		"hamiltonian_coupling_scale": 1.0,
 	}
 }
 
