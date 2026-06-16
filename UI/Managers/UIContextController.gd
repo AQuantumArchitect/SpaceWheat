@@ -204,10 +204,15 @@ func _build_action_projection() -> Dictionary:
 	}
 
 	var top_overlay = overlay_stack.get_top() if overlay_stack else null
-	if top_overlay and overlay_stack.size() > 1 and not top_overlay.get("is_transparent_overlay", false):
-		projection.context = "overlay"
-		projection.actions = _build_overlay_actions(top_overlay)
-		return projection
+	if top_overlay and overlay_stack.size() > 1:
+		# `is_transparent_overlay` is a plain bool var present only on some overlays
+		# (e.g. BiomeInspectorOverlay). Object.get() takes ONE arg, so probe the
+		# property's existence with `in` before reading it — never .get(name, default).
+		var transparent: bool = ("is_transparent_overlay" in top_overlay) and bool(top_overlay.is_transparent_overlay)
+		if not transparent:
+			projection.context = "overlay"
+			projection.actions = _build_overlay_actions(top_overlay)
+			return projection
 
 	if current_submenu_name != "":
 		projection.context = "submenu"
@@ -268,7 +273,10 @@ func _project_action_info(action_info: Dictionary) -> Dictionary:
 		"icon": str(action_info.get("icon", "")),
 		"disabled": bool(action_info.get("disabled", false)),
 		"available": false,
-		"cost": {},
+		# Carry through a producer-supplied cost (e.g. the icon-injection submenu prices
+		# each option as it builds it). Single cost authority: whoever holds the payload
+		# computes the cost; the controller preserves it rather than re-deriving.
+		"cost": action_info.get("cost", {}) if (action_info.get("cost") is Dictionary) else {},
 		"shift_label": str(action_info.get("shift_label", "")),
 		"shift_action": str(action_info.get("shift_action", "")),
 		"destructive": bool(action_info.get("destructive", false)),
@@ -294,7 +302,11 @@ func _apply_runtime_state(actions: Dictionary) -> void:
 			action_info.disabled = f_action_name == ""
 		else:
 			action_info.available = runtime_availability.get(action_key, false)
-		action_info.cost = _get_cost_for_action(action_info)
+		# Only derive a cost here when the producer didn't already supply one — don't
+		# re-derive from data the projection has reshaped (the source of the inject_icon
+		# String/Dictionary confusion). Single cost authority: producer prices, we keep.
+		if (action_info.get("cost", {}) as Dictionary).is_empty():
+			action_info.cost = _get_cost_for_action(action_info)
 		actions[action_key] = action_info
 
 
@@ -374,8 +386,13 @@ func _get_cost_for_action(action_info: Dictionary) -> Dictionary:
 func _get_cost_for_action_name(action_name: String, action_info: Dictionary) -> Dictionary:
 	match action_name:
 		"inject_icon":
-			var icon = action_info.get("icon", {})
-			return _get_runtime_action_cost(action_name, {"south_emoji": icon.get("south", "")})
+			# Payload-specific cost: it depends on the chosen icon's south emoji, which
+			# only exists once an icon is selected in the icon-injection submenu. That
+			# submenu prices each option as it builds it and the cost is preserved through
+			# projection. At the frame/chip level no icon is selected, so there is nothing
+			# to price — return empty rather than reaching into the "icon" field, which at
+			# this layer is the button's SVG path (String), not an icon record.
+			return {}
 		"drain", "pump":
 			var pair = _resolve_selected_axis_pair()
 			if pair.is_empty():

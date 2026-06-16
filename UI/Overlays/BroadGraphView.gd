@@ -32,8 +32,12 @@ func _init() -> void:
 func populate(broad) -> void:
 	_broad = broad
 	clear_connections()
+	# Free only the GraphNodes we added — NOT every child. GraphEdit keeps an internal,
+	# non-internal `connection_layer` child; queue_free-ing it corrupts the GraphEdit
+	# ("connections_layer is missing" on the next scroll/redraw).
 	for child in get_children():
-		child.queue_free()
+		if child is GraphNode:
+			child.queue_free()
 	_selectable.clear()
 	_name_to_node.clear()
 	if _broad == null:
