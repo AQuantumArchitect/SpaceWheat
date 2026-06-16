@@ -298,7 +298,15 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 		)
 		graph_applied = bool(load_result.get("ok", false))
 	if not graph_applied:
-		BalanceService.reset_to_default(farm)
+		# No save-specific graph → load the canonical default.jsonl as the base economy
+		# defaults (single source of truth). BalanceConfig.DEFAULTS is the code-level
+		# fallback only if the file is missing/unreadable. Layering:
+		#   BalanceConfig.DEFAULTS  <  default.jsonl (canonical)  <  save deltas.
+		var def_result = BalanceService.load_farm_variable_graph_file(
+			farm, FarmVariableGraph.DEFAULT_GRAPH_PATH, "default_graph"
+		)
+		if not bool(def_result.get("ok", false)):
+			BalanceService.reset_to_default(farm)
 
 	if farm.has_method("set_reap_count"):
 		farm.set_reap_count(int(state.reap_count))
