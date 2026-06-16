@@ -420,13 +420,20 @@ static func _arbitrage_energy(p_x: float, p_y: float, kT: float) -> float:
 
 
 static func _static_marginals_from_spec(biome_spec) -> Dictionary:
-	## Steady-state marginals from a Biome spec's atom_components + icons.
-	## For a decay cycle, p[atom] ∝ 1/rate_out (flux-balance on each node).
+	## Prior marginals from a Biome spec's atom_components + icons, used to price offers
+	## for biomes without a live QC. Open system: steady-state of the decay cycle,
+	## p[atom] ∝ 1/rate_out (flux-balance per node). Closed system: there is no steady
+	## state (the state oscillates unitarily), so the only honest prior is uniform —
+	## every atom equally weighted, giving ≈0.5 marginals until the biome is measured.
+	var closed: bool = not BalanceConfig.dissipative_enabled()
 	var atom_pop: Dictionary = {}
 	var components: Dictionary = biome_spec.atom_components if "atom_components" in biome_spec else {}
 	for atom in components.keys():
 		var comp = components[atom]
 		if not comp is Dictionary:
+			continue
+		if closed:
+			atom_pop[atom] = 1.0  # uniform prior — no dissipative steady state
 			continue
 		var rate_out: float = 0.0
 		if comp.has("decay") and comp["decay"] is Dictionary:
@@ -457,7 +464,7 @@ static func _static_marginals_from_spec(biome_spec) -> Dictionary:
 				rate_by_emoji[emoji] = rate_by_emoji.get(emoji, 0.0) + r
 		for emoji in rate_by_emoji:
 			var r = rate_by_emoji[emoji]
-			atom_pop[emoji] = 1.0 / r if r > 0.0 else 1.0
+			atom_pop[emoji] = 1.0 if closed else (1.0 / r if r > 0.0 else 1.0)
 	var total: float = 0.0
 	for v in atom_pop.values():
 		total += float(v)
@@ -654,9 +661,12 @@ func exercise(contract_id: int) -> Dictionary:
 	if _farm.economy:
 		_farm.economy.add_resource(outcome_emoji, classical_reward, "contract_exercise")
 
-	# Biome decoheres from market activity. eta scales with the contract's
-	# weight in this biome's economy; capped at ETA_HARD_CAP.
-	if biome.has_method("apply_atomic_drain"):
+	# Collapse on exercise. Closed system: a full projective (von Neumann) collapse —
+	# measurement is the only irreversible act, and the qubit re-spreads under H. Open
+	# system (DLC): a partial atomic drain whose η scales with the contract's weight.
+	if not BalanceConfig.dissipative_enabled():
+		qc.project_qubit(qubit_idx, outcome_pole)
+	elif biome.has_method("apply_atomic_drain"):
 		var eta: float = clampf(p_outcome * 0.1, 0.0, HamiltonianConfig.ETA_HARD_CAP)
 		biome.apply_atomic_drain(c.resource, outcome_pole, eta)
 

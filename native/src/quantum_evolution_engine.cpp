@@ -83,6 +83,8 @@ void QuantumEvolutionEngine::_bind_methods() {
                          &QuantumEvolutionEngine::add_lindblad_triplets);
     ClassDB::bind_method(D_METHOD("clear_operators"),
                          &QuantumEvolutionEngine::clear_operators);
+    ClassDB::bind_method(D_METHOD("set_coherent", "on"),
+                         &QuantumEvolutionEngine::set_coherent);
     ClassDB::bind_method(D_METHOD("finalize"),
                          &QuantumEvolutionEngine::finalize);
 
@@ -130,13 +132,20 @@ void QuantumEvolutionEngine::_bind_methods() {
 }
 
 QuantumEvolutionEngine::QuantumEvolutionEngine()
-    : m_dim(0), m_finalized(false), m_has_hamiltonian(false) {}
+    : m_dim(0), m_finalized(false), m_has_hamiltonian(false),
+      m_coherent(true), m_eig_valid(false), m_U_dt(-1.0), m_U_valid(false) {}
 
 QuantumEvolutionEngine::~QuantumEvolutionEngine() {}
 
 void QuantumEvolutionEngine::set_dimension(int dim) {
     m_dim = dim;
     m_finalized = false;
+    m_eig_valid = false;
+    m_U_valid = false;
+}
+
+void QuantumEvolutionEngine::set_coherent(bool on) {
+    m_coherent = on;  // gate only — does not change H or the eigendecomposition
 }
 
 void QuantumEvolutionEngine::set_hamiltonian(const PackedFloat64Array& H_packed) {
@@ -171,6 +180,8 @@ void QuantumEvolutionEngine::set_hamiltonian(const PackedFloat64Array& H_packed)
 
     m_has_hamiltonian = true;
     m_finalized = false;
+    m_eig_valid = false;  // H changed → eigendecomposition + propagator stale
+    m_U_valid = false;
 }
 
 void QuantumEvolutionEngine::add_lindblad_triplets(const PackedFloat64Array& triplets) {
@@ -211,6 +222,8 @@ void QuantumEvolutionEngine::clear_operators() {
     m_hamiltonian.resize(0, 0);
     m_has_hamiltonian = false;
     m_finalized = false;
+    m_eig_valid = false;
+    m_U_valid = false;
 }
 
 void QuantumEvolutionEngine::finalize() {
@@ -238,7 +251,44 @@ void QuantumEvolutionEngine::finalize() {
         m_temp_buffer = Eigen::MatrixXcd::Zero(m_dim, m_dim);
     }
 
+    // Eigendecompose the Hermitian H once: H = VΛV†. This powers the exact unitary
+    // propagator U = exp(-iH·dt) = V·diag(e^{-iλdt})·V† used in the no-dissipation path.
+    m_eig_valid = false;
+    m_U_valid = false;
+    if (m_has_hamiltonian && m_dim > 0) {
+        Eigen::MatrixXcd H_dense(m_hamiltonian);
+        H_dense = 0.5 * (H_dense + H_dense.adjoint());  // symmetrize for numerical safety
+        Eigen::SelfAdjointEigenSolver<Eigen::MatrixXcd> es(H_dense);
+        if (es.info() == Eigen::Success) {
+            m_eig_vecs = es.eigenvectors();
+            m_eig_vals = es.eigenvalues();
+            m_eig_valid = true;
+        }
+    }
+
     m_finalized = true;
+}
+
+bool QuantumEvolutionEngine::can_unitary() const {
+    // Exact unitary applies only when the dynamics ARE unitary: coherent generator on,
+    // a Hamiltonian present and eigendecomposed, and NO dissipators.
+    return m_coherent && m_has_hamiltonian && m_eig_valid && m_lindblads.empty();
+}
+
+const Eigen::MatrixXcd& QuantumEvolutionEngine::propagator_for(double dt) {
+    if (m_U_valid && m_U_dt == dt) {
+        return m_U;
+    }
+    // U = V · diag(e^{-iλ·dt}) · V†
+    Eigen::VectorXcd phase(m_dim);
+    for (int k = 0; k < m_dim; k++) {
+        double a = -m_eig_vals(k) * dt;
+        phase(k) = std::complex<double>(std::cos(a), std::sin(a));
+    }
+    m_U = m_eig_vecs * phase.asDiagonal() * m_eig_vecs.adjoint();
+    m_U_dt = dt;
+    m_U_valid = true;
+    return m_U;
 }
 
 int QuantumEvolutionEngine::get_dimension() const {
@@ -259,13 +309,33 @@ PackedFloat64Array QuantumEvolutionEngine::evolve_step(const PackedFloat64Array&
         return rho_data;  // Return unchanged
     }
 
+    // PRECONDITION: ρ must be a dim×dim complex matrix (2·dim² packed floats). Without this
+    // check a mis-sized ρ (e.g. another biome's state handed to this engine) would make
+    // unpack_dense read past the buffer → heap overread / SIGSEGV. Validate, never overread.
+    const int64_t expected = static_cast<int64_t>(2) * m_dim * m_dim;
+    if (rho_data.size() != expected) {
+        UtilityFunctions::push_warning(
+            "QuantumEvolutionEngine::evolve_step: ρ size mismatch (got ", rho_data.size(),
+            ", expected ", expected, " for dim ", m_dim, ") — returning unchanged.");
+        return rho_data;
+    }
+
+    // EXACT UNITARY PATH (coherent, no dissipation): ρ → U ρ U†, U = exp(-iH·dt).
+    // Purity-exact (r=1), no Euler error, no enforce clamp. See can_unitary().
+    if (can_unitary()) {
+        Eigen::MatrixXcd rho_u = unpack_dense(rho_data);
+        const Eigen::MatrixXcd& U = propagator_for(static_cast<double>(dt));
+        rho_u = U * rho_u * U.adjoint();
+        return pack_dense(rho_u);
+    }
+
     Eigen::MatrixXcd rho = unpack_dense(rho_data);
     Eigen::MatrixXcd drho = Eigen::MatrixXcd::Zero(m_dim, m_dim);
 
     // =========================================================================
-    // Term 1: Hamiltonian evolution -i[H, ρ]
+    // Term 1: Hamiltonian evolution -i[H, ρ]  (coherent generator)
     // =========================================================================
-    if (m_has_hamiltonian) {
+    if (m_coherent && m_has_hamiltonian) {
         // [H, ρ] = Hρ - ρH
         Eigen::MatrixXcd commutator = m_hamiltonian * rho - rho * m_hamiltonian;
         drho += std::complex<double>(0.0, -1.0) * commutator;
@@ -306,6 +376,15 @@ PackedFloat64Array QuantumEvolutionEngine::evolve(const PackedFloat64Array& rho_
         return rho_data;
     }
 
+    // PRECONDITION: ρ must match this engine's dimension (see evolve_step). Never overread.
+    const int64_t expected = static_cast<int64_t>(2) * m_dim * m_dim;
+    if (rho_data.size() != expected) {
+        UtilityFunctions::push_warning(
+            "QuantumEvolutionEngine::evolve: ρ size mismatch (got ", rho_data.size(),
+            ", expected ", expected, " for dim ", m_dim, ") — returning unchanged.");
+        return rho_data;
+    }
+
     // =========================================================================
     // Adaptive Euler with analytic step size from purity constraint.
     //
@@ -316,6 +395,15 @@ PackedFloat64Array QuantumEvolutionEngine::evolve(const PackedFloat64Array& rho_
     // When dynamics are fast (large ||D||), h shrinks. Near steady-state, h
     // grows to max_dt. No rejected steps, no fixed granularity.
     // =========================================================================
+    // EXACT UNITARY PATH (coherent, no dissipation): one exact step ρ → U ρ U† over the
+    // whole interval — U = exp(-iH·dt) is exact for any dt, so no substepping is needed.
+    if (can_unitary()) {
+        Eigen::MatrixXcd rho_u = unpack_dense(rho_data);
+        const Eigen::MatrixXcd& U = propagator_for(static_cast<double>(dt));
+        rho_u = U * rho_u * U.adjoint();
+        return pack_dense(rho_u);
+    }
+
     const float max_step = (max_dt > 0.0f) ? max_dt : dt;
     const float min_step = 1e-6f;
 
@@ -326,7 +414,7 @@ PackedFloat64Array QuantumEvolutionEngine::evolve(const PackedFloat64Array& rho_
         // Compute dρ/dt = -i[H,ρ] + Σ D[L](ρ)
         Eigen::MatrixXcd drho = Eigen::MatrixXcd::Zero(m_dim, m_dim);
 
-        if (m_has_hamiltonian) {
+        if (m_coherent && m_has_hamiltonian) {
             Eigen::MatrixXcd comm = m_hamiltonian * rho - rho * m_hamiltonian;
             drho += std::complex<double>(0.0, -1.0) * comm;
         }

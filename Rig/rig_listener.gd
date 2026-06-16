@@ -511,6 +511,16 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			# One boot; the canonical regime is restored at the end. Offline tool.
 			var h_scales: Array = cmd.get("h_scales", [0.5, 1.0, 2.0])
 			var l_scales: Array = cmd.get("l_scales", [0.5, 1.0, 2.0])
+			# Optional generator-switch overrides — probe any of the four physics quadrants
+			# (coherent × dissipative). Default: leave the live config untouched.
+			var sweep_coherent = cmd.get("coherent", null)
+			var sweep_dissipative = cmd.get("dissipative", null)
+			var diss_on: bool = (bool(sweep_dissipative) if sweep_dissipative != null else BalanceConfig.dissipative_enabled())
+			# Dissipative OFF: no Lindblad operators are built, so lindblad_rate_scale is inert —
+			# the L axis just repeats the same regime. Collapse it to a single point ⇒ a 1D scan
+			# over hamiltonian_coupling_scale. Expect order≈1 (pure), richness tracking H.
+			if not diss_on:
+				l_scales = [1.0]
 			var sweep_phrames: int = int(cmd.get("phrames", 600))
 			var sweep_rows: Array = []
 			if _farm and "grid" in _farm and _farm.grid and _farm.grid.has_biomes():
@@ -520,10 +530,15 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 					bnames.append(str(bk))
 				for hs in h_scales:
 					for ls in l_scales:
-						BalanceCfg.set_physics_override({
+						var ov := {
 							"hamiltonian_coupling_scale": float(hs),
 							"lindblad_rate_scale": float(ls),
-						})
+						}
+						if sweep_coherent != null:
+							ov["coherent_dynamics"] = bool(sweep_coherent)
+						if sweep_dissipative != null:
+							ov["dissipative_dynamics"] = bool(sweep_dissipative)
+						BalanceCfg.set_physics_override(ov)
 						_reservoir_rebuild_all(bnames)
 						_perform_time_skip(sweep_phrames, -1.0)
 						var per: Array = []
@@ -1089,6 +1104,24 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 						int(key_cmd.get("settle_frames", 2))
 					))
 				result["key_sequence"] = {"count": steps.size(), "steps": steps}
+
+		"screenshot":
+			# Capture the rendered viewport to a PNG (headed mode only — headless has no
+			# render target). Returns the globalized absolute path for the caller to read.
+			var shot_path = str(cmd.get("path", "user://rig/shot.png"))
+			await process_frame
+			await process_frame
+			var vp = get_root()
+			var img = vp.get_texture().get_image() if (vp and vp.get_texture()) else null
+			if img == null:
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_render_target"}
+			else:
+				var err = img.save_png(shot_path)
+				result["screenshot"] = {
+					"path": shot_path,
+					"abs": ProjectSettings.globalize_path(shot_path),
+					"saved": err == OK, "w": img.get_width(), "h": img.get_height(),
+				}
 
 		"stop":
 			result["stopped"] = true

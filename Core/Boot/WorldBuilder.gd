@@ -331,8 +331,10 @@ func load_biome(biome_name: String, farm: Node) -> Dictionary:
 		if not biome.quantum_computer or not biome.quantum_computer.hamiltonian:
 			push_error("Biome '%s' built with icons[] but has no Hamiltonian — silent dead-substrate drift" % biome_name)
 		else:
+			# In a closed system no Lindblad operators are built — empty L is the
+			# intended state, not drift. Only flag the open-system invariant.
 			var has_atoms: bool = atoms is Dictionary and not (atoms as Dictionary).is_empty()
-			if has_atoms and biome.quantum_computer.lindblad_operators.is_empty():
+			if has_atoms and BalanceConfig.dissipative_enabled() and biome.quantum_computer.lindblad_operators.is_empty():
 				push_error("Biome '%s' has atom_components but zero Lindblad operators built" % biome_name)
 	elif not biome.quantum_computer:
 		# Data-store biome with no icons — null QC is expected, no warning.

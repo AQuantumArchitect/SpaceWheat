@@ -877,10 +877,12 @@ func time_skip_phrames(phrames: int, delta: float = PhysicsConfig.PHRAME_DT) -> 
 
 	var evolved_steps = 0
 	var skipped_steps = 0
+	var evolve_mode = "?"   # which engine actually evolved: "native" (C++) or "direct" (GDScript ref)
 	if biome_evolution_batcher and biome_evolution_batcher.has_method("run_time_skip_cycles"):
 		var direct_result = biome_evolution_batcher.run_time_skip_cycles(steps, dt)
 		evolved_steps = int(direct_result.get("evolved_steps", 0))
 		skipped_steps = int(direct_result.get("skipped_biomes", 0))
+		evolve_mode = str(direct_result.get("mode", "?"))
 		if debug_time_skip:
 			_log_debug("[TIME_SKIP] direct_result=%s" % str(direct_result))
 	elif biome_evolution_batcher and biome_evolution_batcher.has_method("run_additional_cycles"):
@@ -913,7 +915,8 @@ func time_skip_phrames(phrames: int, delta: float = PhysicsConfig.PHRAME_DT) -> 
 		"phrames": steps,
 		"delta": dt,
 		"evolved_steps": evolved_steps,
-		"skipped_steps": skipped_steps
+		"skipped_steps": skipped_steps,
+		"evolve_mode": evolve_mode
 	}
 
 

@@ -26,10 +26,14 @@ struct MultiBiomeLookaheadEngine::AsyncJobState {
 void MultiBiomeLookaheadEngine::_bind_methods() {
     ClassDB::bind_method(D_METHOD("register_biome", "dim", "H_packed", "lindblad_triplets", "num_qubits"),
                          &MultiBiomeLookaheadEngine::register_biome);
+    ClassDB::bind_method(D_METHOD("reregister_biome", "biome_id", "dim", "H_packed", "lindblad_triplets", "num_qubits"),
+                         &MultiBiomeLookaheadEngine::reregister_biome);
     ClassDB::bind_method(D_METHOD("set_biome_metadata", "biome_id", "metadata"),
                          &MultiBiomeLookaheadEngine::set_biome_metadata);
     ClassDB::bind_method(D_METHOD("set_biome_couplings", "biome_id", "couplings"),
                          &MultiBiomeLookaheadEngine::set_biome_couplings);
+    ClassDB::bind_method(D_METHOD("set_biome_coherent", "biome_id", "on"),
+                         &MultiBiomeLookaheadEngine::set_biome_coherent);
     ClassDB::bind_method(D_METHOD("clear_biomes"),
                          &MultiBiomeLookaheadEngine::clear_biomes);
     ClassDB::bind_method(D_METHOD("get_biome_count"),
@@ -179,6 +183,50 @@ int MultiBiomeLookaheadEngine::register_biome(int dim, const PackedFloat64Array&
     return biome_id;
 }
 
+bool MultiBiomeLookaheadEngine::reregister_biome(int biome_id, int dim,
+        const PackedFloat64Array& H_packed, const Array& lindblad_triplets, int num_qubits) {
+    if (biome_id < 0 || biome_id >= static_cast<int>(m_engines.size())) {
+        UtilityFunctions::push_warning("MultiBiomeLookaheadEngine: reregister_biome invalid id ", biome_id);
+        return false;
+    }
+
+    // Build a fresh engine with the new operators and REPLACE the slot in place. The
+    // biome's id (and thus its rho-array slot + LNN/metadata/position slots) stays stable.
+    Ref<QuantumEvolutionEngine> engine;
+    engine.instantiate();
+    engine->set_dimension(dim);
+    if (H_packed.size() > 0) {
+        engine->set_hamiltonian(H_packed);
+    }
+    for (int i = 0; i < lindblad_triplets.size(); i++) {
+        PackedFloat64Array triplets = lindblad_triplets[i];
+        if (triplets.size() > 0) {
+            engine->add_lindblad_triplets(triplets);
+        }
+    }
+    engine->finalize();
+
+    m_engines[biome_id] = engine;          // REPLACE — id stable, no orphan
+    m_num_qubits[biome_id] = num_qubits;
+
+    // Keep force-graph positions if the qubit count is unchanged; otherwise re-seed.
+    if (static_cast<int>(m_node_positions[biome_id].size()) != num_qubits) {
+        PackedVector2Array positions;
+        positions.resize(num_qubits);
+        Vector2 center = m_biome_centers[biome_id];
+        for (int i = 0; i < num_qubits; i++) {
+            float angle = (float(i) / float(num_qubits)) * 2.0f * 3.14159f;
+            positions[i] = center + Vector2(std::cos(angle) * 80.0f, std::sin(angle) * 80.0f);
+        }
+        m_node_positions[biome_id] = positions;
+    }
+
+    UtilityFunctions::print_verbose("MultiBiomeLookaheadEngine: Re-registered biome ", biome_id,
+                                    " in place (dim=", dim, ", lindblad_ops=",
+                                    static_cast<int>(lindblad_triplets.size()), ")");
+    return true;
+}
+
 void MultiBiomeLookaheadEngine::clear_biomes() {
     cancel_lookahead_job(true);
 
@@ -217,6 +265,16 @@ void MultiBiomeLookaheadEngine::set_biome_couplings(int biome_id, const Dictiona
         return;
     }
     m_couplings[biome_id] = couplings;
+}
+
+void MultiBiomeLookaheadEngine::set_biome_coherent(int biome_id, bool on) {
+    if (biome_id < 0 || biome_id >= static_cast<int>(m_engines.size())) {
+        UtilityFunctions::push_warning("MultiBiomeLookaheadEngine: Invalid biome_id for set_coherent ", biome_id);
+        return;
+    }
+    if (m_engines[biome_id].is_valid()) {
+        m_engines[biome_id]->set_coherent(on);
+    }
 }
 
 void MultiBiomeLookaheadEngine::set_biome_center(int biome_id, Vector2 center) {
@@ -481,6 +539,23 @@ Dictionary MultiBiomeLookaheadEngine::_evolve_all_lookahead_impl(
     for (int biome_id = 0; biome_id < num_biomes; biome_id++) {
         PackedFloat64Array rho_packed = biome_rhos[biome_id];
 
+        // DIMENSION GUARD: the rho slot ↔ engine mapping is by index, so a caller that
+        // builds the rho array in a different order than registration would hand an engine
+        // a wrong-sized ρ → overread (and garbage bloch/MI downstream). Skip + warn rather
+        // than trust the index coupling. (The engine also guards internally.)
+        if (!rho_packed.is_empty()) {
+            const Ref<QuantumEvolutionEngine>& guard_eng = m_engines[biome_id];
+            int guard_dim = guard_eng.is_valid() ? guard_eng->get_dimension() : 0;
+            int64_t guard_expected = static_cast<int64_t>(2) * guard_dim * guard_dim;
+            if (guard_dim <= 0 || rho_packed.size() != guard_expected) {
+                UtilityFunctions::push_warning(
+                    "MultiBiomeLookaheadEngine: ρ for biome_id ", biome_id, " size ",
+                    rho_packed.size(), " != expected ", guard_expected, " (engine dim ",
+                    guard_dim, ") — skipping (rho/engine order mismatch?).");
+                rho_packed = PackedFloat64Array();  // treat as skip (empty)
+            }
+        }
+
         bool is_zero = rho_packed.is_empty();
         if (!is_zero) {
             bool all_zeros = true;
@@ -570,6 +645,23 @@ MultiBiomeLookaheadEngine::_evolve_all_lookahead_raw(
 
     for (int biome_id = 0; biome_id < num_biomes; biome_id++) {
         PackedFloat64Array rho_packed = biome_rhos[biome_id];
+
+        // DIMENSION GUARD: the rho slot ↔ engine mapping is by index, so a caller that
+        // builds the rho array in a different order than registration would hand an engine
+        // a wrong-sized ρ → overread (and garbage bloch/MI downstream). Skip + warn rather
+        // than trust the index coupling. (The engine also guards internally.)
+        if (!rho_packed.is_empty()) {
+            const Ref<QuantumEvolutionEngine>& guard_eng = m_engines[biome_id];
+            int guard_dim = guard_eng.is_valid() ? guard_eng->get_dimension() : 0;
+            int64_t guard_expected = static_cast<int64_t>(2) * guard_dim * guard_dim;
+            if (guard_dim <= 0 || rho_packed.size() != guard_expected) {
+                UtilityFunctions::push_warning(
+                    "MultiBiomeLookaheadEngine: ρ for biome_id ", biome_id, " size ",
+                    rho_packed.size(), " != expected ", guard_expected, " (engine dim ",
+                    guard_dim, ") — skipping (rho/engine order mismatch?).");
+                rho_packed = PackedFloat64Array();  // treat as skip (empty)
+            }
+        }
 
         bool is_zero = rho_packed.is_empty();
         if (!is_zero) {

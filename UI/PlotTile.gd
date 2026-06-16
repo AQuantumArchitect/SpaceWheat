@@ -563,6 +563,11 @@ func _update_entanglement_display():
 
 func _update_lindblad_indicator() -> void:
 	# Update persistent Lindblad pump/drain indicator.
+	# Closed (unitary) system: there are no pump/drain channels, so the indicator is
+	# always blank. Re-enabled by the open-quantum DLC.
+	if not BalanceConfig.dissipative_enabled():
+		lindblad_indicator.text = ""
+		return
 	if plot_ui_data == null or not plot_ui_data.get("is_planted", false):
 		lindblad_indicator.text = ""
 		return

@@ -50,6 +50,16 @@ public:
                        const Array& lindblad_triplets, int num_qubits);
 
     /**
+     * REPLACE an existing biome's engine in place (stable id), rebuilding its operators.
+     * Use for runtime H/L changes (gate inject, mode switch, icon learn) instead of a
+     * fresh register_biome() — appending would orphan the old engine and break the
+     * rho-slot ↔ engine-id mapping (the rho would be evolved by a stale engine). Returns
+     * false if biome_id is out of range.
+     */
+    bool reregister_biome(int biome_id, int dim, const PackedFloat64Array& H_packed,
+                          const Array& lindblad_triplets, int num_qubits);
+
+    /**
      * Clear all registered biomes (for reinitialization).
      */
     void clear_biomes();
@@ -167,6 +177,13 @@ public:
      * This is returned verbatim in evolve_* results.
      */
     void set_biome_couplings(int biome_id, const Dictionary& couplings);
+
+    /**
+     * Gate the coherent −i[H,ρ] term for one biome's engine (the two-axis switch).
+     * off = pure-Lindbladian (H ignored). Dissipation is gated by whether Lindblad
+     * operators were registered. Default on.
+     */
+    void set_biome_coherent(int biome_id, bool on);
 
     /**
      * Update the biome center used for force-graph physics (purity radial,

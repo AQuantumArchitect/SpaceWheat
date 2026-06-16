@@ -196,7 +196,12 @@ func build_operators_from_icons(biome_name: String, biome_icons: Array, atoms: D
 			JSON.stringify(icon.hamiltonian_couplings),
 			"%s/%.6f/%.6f/%.6f" % [icon.self_energy_driver, icon.driver_frequency, icon.driver_phase, icon.driver_amplitude]
 		])
-	var cache_key := biome_name + "_icons_" + "|".join(icon_sigs).md5_text() + "_atoms_" + JSON.stringify(atom_components).md5_text()
+	# The dissipative switch is part of the key: with it off no Lindblad operators are
+	# built, so a coherent-only cache entry must never be served when dissipation is on
+	# (or vice versa). Coherent state doesn't change which operators are built (H is always
+	# constructed), so only the dissipative flag gates the operator set.
+	var diss := "L1" if BalanceConfig.dissipative_enabled() else "L0"
+	var cache_key := biome_name + "_icons_" + "|".join(icon_sigs).md5_text() + "_atoms_" + JSON.stringify(atom_components).md5_text() + "_" + diss
 
 	var cache = OperatorCache.get_instance()
 	var cached_ops = cache.try_load(biome_name, cache_key)

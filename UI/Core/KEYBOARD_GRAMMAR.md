@@ -150,12 +150,22 @@ Right-hand rule. Curl the fingers of your right hand around a screw.
   draining, **extracting** (Harvest / Sell / Spark-south). "Quit" lives
   on Q: unscrew yourself from the session.
 
-The energy dyad makes this physical on the three energy-touching hats
-(Ace, Merchant, Spark): **Q extracts energy** from the field (reward =
-surprisal `−kT·log p` — rare outcomes pay more), **R invests energy**
-into it. **E reads the price** (Measure — collapse + pause).
-One scarcity law on both poles; selecting a plot auto-binds its terminal,
-so there is no separate "Explore" verb.
+The energy dyad makes this physical on the energy-touching hats:
+**Q extracts energy** from the field (reward = surprisal `−kT·log p` —
+rare outcomes pay more), **R invests energy** into it. **E reads the
+price** (Measure — collapse + pause). One scarcity law on both poles;
+selecting a plot auto-binds its terminal, so there is no separate
+"Explore" verb.
+
+> **Closed (unitary) system (default).** Measure/pop is now a **full
+> projective collapse** — measurement is the only irreversible act, and
+> the Hamiltonian re-spreads the collapsed qubit over the following ticks
+> (time + H is the "pump"). There is **no pump/drain**, so the **Spark**
+> (4) and **Merchant** (6) hats — pure Lindblad-drive tools — are
+> **disabled** (greyed out; their actions return inert). Ace's **R = Plant**
+> (a population drive) is likewise inert. The open-quantum DLC
+> (`system_mode = "open"`) re-enables all of them. See
+> `docs/CLOSED_SYSTEM.md`.
 
 #### The session is the axis, not the target
 
@@ -182,10 +192,12 @@ Q/R to "previous / next item" is conflating depth with selection — fix
 the binding, not the doc.
 
 **Allowed exception — 2D viewport view-control.** When a surface frame
-*is* a continuous 2D viewport (currently only M's Atlas page renders a
-biome × faction cluster), Q/R may adjust orbit / pan / zoom locally —
-the screw metaphor still applies (R = zoom in / pull closer; Q = zoom
-out / push away). List-stepping on Q/R remains forbidden everywhere.
+*is* a continuous 2D viewport (M's Atlas page renders a biome × faction
+cluster; M's Graph page embeds a `GraphEdit` of the broad federation /
+neighborhood cluster), Q/R may adjust orbit / pan / zoom locally — the
+screw metaphor still applies (R = zoom in / pull closer; Q = zoom out /
+push away). The Graph page also lets `GraphEdit` own drag/scroll pan
+directly. List-stepping on Q/R remains forbidden everywhere.
 
 ### E ↕ F — the time axis
 
@@ -301,7 +313,7 @@ the ring is now closed: ... M → FarmView → X → Z → C → V → B → N �
 | **V** | vocab atlas | Atoms, icons, signatures, affinities, relations — context-free, stripped of biome-local execution. |
 | **B** | biome microscope | `supports` (single — pure visual overlay; keys forward to surface beneath). The magnifier lens. |
 | **N** | Lindbladian network | Network / Bridges (G/H/J: bridges/gates/links) / Selector (TYUIOP slot binding) / Live (chatter) / Whole / Matrix. |
-| **M** | global map | Biome × faction map. Cross-biome / cluster-scale views. Atlas page allows Q/R for orbit / zoom (2D viewport exception). |
+| **M** | global map | Biome × faction map. Cross-biome / cluster-scale views. `T`Vectors `Y`Eigenstate `U`Drift `I`Bits `O`Atlas `P`Graph. Atlas page allows Q/R for orbit / zoom (2D viewport exception). **`P` Graph** = the BroadGraph: a whole-world federation `GraphEdit` (one node per live biome, shared-vocabulary seams) — `GHJKL;`/`W·S` pick a biome, `E` drills into its neighborhood cluster (live population bars, coherent/webway/sink edges, 🌐 ports), `F` returns to the federation. |
 
 `N → C` is a deliberate two-step loop. N's Network frame selects a
 relation and seeds scope; C consumes the pending scope on open and shows

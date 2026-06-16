@@ -2015,10 +2015,16 @@ const _BALANCE_SETTING_DEFS := [
 	{"id": "max_biome_qubits",        "label": "Max biome qubits",   "category": "Physics", "value_path": ["economy_variables", "max_biome_qubits"],   "kind": "int",         "step": 1,    "min": 4,    "max": 24,     "default": 12},
 ]
 
+# Knobs that only do something in the open (Lindbladian) system — hidden when closed.
+const _OPEN_ONLY_SETTING_IDS := ["lindblad_rate_scale", "measurement_drain_base", "flux_to_credits"]
+
 func _ensure_balance_settings_loaded() -> void:
 	if _balance_settings.is_empty():
 		_balance_settings = []
+		var closed: bool = not BalanceConfig.dissipative_enabled()
 		for d in _BALANCE_SETTING_DEFS:
+			if closed and str(d.get("id", "")) in _OPEN_ONLY_SETTING_IDS:
+				continue  # dead knob in the closed system
 			_balance_settings.append(d.duplicate(true))
 	_balance_setting_idx = clampi(_balance_setting_idx, 0, max(0, _balance_settings.size() - 1))
 	var page_size: int = ITEM_KEYS.size()

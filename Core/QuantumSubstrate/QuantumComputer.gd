@@ -36,6 +36,15 @@ var _lindblad_cache_valid: bool = false
 var sparse_hamiltonian = null                 # SparseMatrix (auto-converted if sparse)
 var sparse_lindblad_operators: Array = []     # Array of SparseMatrix (auto-converted)
 
+## CLOSED-SYSTEM unitary propagator cache. In the closed (unitary) system, evolution is
+## the EXACT map ρ → U ρ U† with U = exp(−iH·dt) — purity-conserving to machine precision
+## (no Euler drift). U depends only on (H, dt); it is rebuilt when H is reassigned (ref
+## changes), mutated in place (_unitary_dirty), or dt changes. Static-H biomes reuse one U.
+var _unitary_cache = null                     # ComplexMatrix U = exp(−iH·dt)
+var _unitary_cache_dt: float = -1.0
+var _unitary_cache_h = null                   # the hamiltonian instance U was built from
+var _unitary_dirty: bool = false              # set when H is mutated in place
+
 ## CACHED MUTUAL INFORMATION (computed in C++ during evolution at 5Hz)
 ## Format: {qubit_pair_index: mi_value} where index = i * num_qubits + j (upper triangular)
 ## Access via get_cached_mutual_information(qubit_a, qubit_b)
@@ -720,18 +729,76 @@ func initialize_thermal(beta: float) -> void:
 	var neg_beta_H = hamiltonian.scale_real(-beta)
 	density_matrix = neg_beta_H.expm()
 	density_matrix.renormalize_trace()
+	_purity_cache = -1.0  # state changed — don't serve a stale purity
 	_log("debug", "quantum", "🌡️", "Initialized to thermal state β=%.1f (dim=%d)" % [beta, register_map.dim()])
 
 
 func initialize_ground_state() -> void:
-	# Initialize to the Hamiltonian ground state via Gibbs state at β=20.
-
-	# Gives ecologically correct initial populations for StarterForest:
-	# 🦅 eagle ~2%,  🐺 wolf ~16%,  🌱 seedling ~26%,  🍂 litter ~20%
-	# vs uniform superposition which starts everything at 50%.
-
-	# Falls back to uniform superposition if H is not yet built.
+	# Closed (unitary) system: start in the EXACT Hamiltonian ground state |g⟩ (the
+	# lowest-energy eigenvector), ρ = |g⟩⟨g| — a pure state (r = 1), which the unitary
+	# kernel then preserves for all time. Open (dissipative) system: the ecological Gibbs
+	# state ρ ∝ exp(−βH) at β=20 is the correct MIXED starting point (eagle ~2%, wolf ~16%,
+	# …). Falls back to uniform superposition if H is not yet built.
+	if BalanceConfig.is_closed_system() and hamiltonian != null:
+		if _init_pure_ground_state():
+			return
 	initialize_thermal(20.0)
+	if BalanceConfig.is_closed_system():
+		_collapse_to_dominant_eigenstate()  # fallback: purify the thermal state
+
+
+## Set ρ = |g⟩⟨g| where |g⟩ is the lowest-energy eigenvector of H (the pure ground state).
+## |g⟩ is the DOMINANT (largest-eigenvalue) eigenvector of −H, so we reuse the one
+## eigensolver. Returns false if it's unavailable (caller falls back to thermal+purify).
+func _init_pure_ground_state() -> bool:
+	if hamiltonian == null:
+		return false
+	return _set_pure_state_from_dominant_eigenvector(hamiltonian.scale_real(-1.0))
+
+
+## ρ → |v₀⟩⟨v₀|, where v₀ is the dominant eigenvector of the Hermitian `source` matrix.
+## A rank-1 projector ⇒ Tr(ρ²) = 1 exactly. Returns false if the eigensolver is
+## unavailable (state left untouched rather than crashing).
+func _set_pure_state_from_dominant_eigenvector(source) -> bool:
+	if source == null or register_map == null:
+		return false
+	var dim := register_map.dim()
+	if dim <= 0:
+		return false
+	if not _bloch_engine:
+		_bloch_engine = QuantumEvolutionEngine.new()
+	if not _bloch_engine:
+		return false
+	var packed: PackedFloat64Array = source._to_packed()
+	if packed.size() != dim * dim * 2:
+		return false
+	if _bloch_engine.get_dimension() != dim:
+		_bloch_engine.set_dimension(dim)
+	var result = _bloch_engine.compute_eigenstates(packed)
+	if result.is_empty() or result.has("error") or not result.has("dominant_eigenvector"):
+		return false
+	var v: PackedFloat64Array = result["dominant_eigenvector"]
+	if v.size() != dim * 2:
+		return false
+	# ρ_ij = v_i · conj(v_j). Rank-1 projector ⇒ Tr(ρ²) = 1 (v is normalized).
+	var rho = ComplexMatrix.zeros(dim)
+	for i in range(dim):
+		var vi_re := v[i * 2]
+		var vi_im := v[i * 2 + 1]
+		for j in range(dim):
+			var vj_re := v[j * 2]
+			var vj_im := v[j * 2 + 1]
+			rho.set_element(i, j, Complex.new(vi_re * vj_re + vi_im * vj_im, vi_im * vj_re - vi_re * vj_im))
+	density_matrix = rho
+	_purity_cache = -1.0
+	return true
+
+
+## Fallback purify: collapse the CURRENT ρ onto its own dominant eigenvector. Used when
+## the direct H-ground init can't run (e.g. eigensolver returns nothing).
+func _collapse_to_dominant_eigenstate() -> void:
+	if density_matrix != null:
+		_set_pure_state_from_dominant_eigenvector(density_matrix)
 
 
 # Delegate RegisterMap queries
@@ -1470,6 +1537,11 @@ func load_packed_state(rho_packed: PackedFloat64Array, dim: int, already_normali
 	density_matrix._from_packed(rho_packed, dim)
 	if not already_normalized:
 		_renormalize()
+	# The state changed — invalidate the purity cache. Without this, get_purity() returns a
+	# STALE value after a C++ writeback (the cache was only refreshed by evolve()). Shipping
+	# closed mode masked it (always pure ⇒ stale 1.0 is coincidentally right); dissipative
+	# modes exposed it as "purity stuck at 1.0 despite mixing".
+	_purity_cache = -1.0
 
 
 func _reinitialize_mixed_state() -> void:
@@ -1638,6 +1710,31 @@ func evolve(dt: float, max_dt: float = 0.02, lnn: Object = null) -> void:
 	var total_dt = maxf(0.0, dt)
 	if total_dt <= 0.0:
 		return
+
+	# COHERENT KERNEL — closed (unitary) system: evolve by the EXACT propagator
+	# ρ → U ρ U†, U = exp(−iH·dt). Each step is a unitary similarity, so Tr(ρ²) and Tr(ρ)
+	# are conserved to machine precision — r = 1 holds exactly, with no Euler drift, no
+	# dissipator branch, and no renormalize-as-crutch. (Phase-LNN modulation, if ever
+	# enabled, falls through to the legacy integrator below.)
+	if BalanceConfig.is_closed_system() and lnn == null and hamiltonian != null:
+		if driven_icons.is_empty():
+			# Static H: one exact step over the whole interval (U cached + reused).
+			elapsed_time += total_dt
+			_evolve_unitary(total_dt)
+		else:
+			# Time-dependent H (sun/moon drivers): subcycle and rebuild U from the
+			# instantaneous H each substep. Still exactly unitary per substep ⇒ purity exact.
+			var sub_dt = maxf(0.000001, max_dt if max_dt > 0.0 else total_dt)
+			var n_sub = maxi(1, int(ceili(total_dt / sub_dt)))
+			var dt_each = total_dt / float(n_sub)
+			for _i in range(n_sub):
+				elapsed_time += dt_each
+				update_driven_self_energies(elapsed_time)  # mutates H in place
+				_unitary_dirty = true                       # H changed ⇒ rebuild U
+				_evolve_unitary(dt_each)
+		_purity_cache = -1.0
+		return
+
 	var substep_max_dt = maxf(0.000001, max_dt if max_dt > 0.0 else total_dt)
 	var substeps = maxi(1, int(ceili(total_dt / substep_max_dt)))
 	var step_dt = total_dt / float(substeps)
@@ -1663,6 +1760,33 @@ func evolve(dt: float, max_dt: float = 0.02, lnn: Object = null) -> void:
 		_log("trace", "quantum", "⏱️", "QC Evolve Trace (substeps=%d, dt=%.4f, max_dt=%.4f): Total %d us" % [
 			substeps, total_dt, substep_max_dt, t1 - t0
 		])
+
+
+## Exact unitary evolution: ρ ← U ρ U†, U = exp(−iH·dt). The closed-system kernel.
+## Unitary similarity preserves Tr(ρ²) and Tr(ρ) exactly, so a pure state stays pure
+## (r = 1) for all time — no integrator drift. Used only by the closed-mode fast path
+## in evolve() (static H, no LNN).
+func _evolve_unitary(dt: float) -> void:
+	var U = _unitary_for(dt)
+	if U == null:
+		return
+	density_matrix = U.mul(density_matrix).mul(U.dagger())
+
+
+## Build (or reuse) the propagator U = exp(−iH·dt). Cached per (H instance, dt): rebuilt
+## when H is reassigned (ref changes), mutated in place (_unitary_dirty), or dt changes.
+func _unitary_for(dt: float):
+	if hamiltonian == null:
+		return null
+	if (not _unitary_dirty) and _unitary_cache != null and _unitary_cache_h == hamiltonian \
+			and absf(_unitary_cache_dt - dt) < 1e-12:
+		return _unitary_cache
+	# U = exp(−i·dt·H). H is Hermitian ⇒ −i·dt·H is anti-Hermitian ⇒ U is unitary.
+	_unitary_cache = hamiltonian.scale(Complex.new(0.0, -dt)).expm()
+	_unitary_cache_h = hamiltonian
+	_unitary_cache_dt = dt
+	_unitary_dirty = false
+	return _unitary_cache
 
 
 func _evolve_step(dt: float) -> void:
@@ -1721,16 +1845,21 @@ func _evolve_step(dt: float) -> void:
 	var drho = ComplexMatrix.zeros(dim)
 
 	# -------------------------------------------------------------------------
-	# Term 1: Hamiltonian evolution -i[H, ρ]
+	# Term 1: Hamiltonian evolution -i[H, ρ]  (coherent generator)
+	# Gated by the coherent switch so pure-Lindbladian mode (H off, L on) runs the
+	# dissipator alone. (Pure-coherent never reaches here — it takes the exact unitary
+	# fast-path in evolve(). This Euler path serves full-open, pure-dissipative, driven,
+	# and phase-LNN cases.)
 	# -------------------------------------------------------------------------
-	if use_sparse_evolution and sparse_hamiltonian != null:
-		# SPARSE path: 10-50x faster commutator
-		var comm = sparse_hamiltonian.commutator_with_dense(density_matrix)
-		drho = drho.add(comm.scale_neg_i())
-	elif hamiltonian != null:
-		# Dense packed path: fused commutator + scale by -i
-		var comm = hamiltonian.commutator(density_matrix)
-		drho = drho.add(comm.scale_neg_i())
+	if BalanceConfig.coherent_enabled():
+		if use_sparse_evolution and sparse_hamiltonian != null:
+			# SPARSE path: 10-50x faster commutator
+			var comm = sparse_hamiltonian.commutator_with_dense(density_matrix)
+			drho = drho.add(comm.scale_neg_i())
+		elif hamiltonian != null:
+			# Dense packed path: fused commutator + scale by -i
+			var comm = hamiltonian.commutator(density_matrix)
+			drho = drho.add(comm.scale_neg_i())
 
 	# -------------------------------------------------------------------------
 	# Term 2: Lindblad dissipation Σ_k (L_k ρ L_k† - ½{L_k†L_k, ρ})
@@ -2403,6 +2532,9 @@ func _add_zz_coupling_to_hamiltonian(qubit_a: int, qubit_b: int, J: float) -> vo
 		# Add to diagonal of Hamiltonian
 		var current = hamiltonian.get_element(i, i)
 		hamiltonian.set_element(i, i, Complex.new(current.re + zz_value, current.im))
+
+	# H mutated in place → the closed-system propagator cache is stale.
+	_unitary_dirty = true
 
 	# Update sparse Hamiltonian if in use
 	if sparse_hamiltonian != null:

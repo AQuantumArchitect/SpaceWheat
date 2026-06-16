@@ -34,6 +34,7 @@ public:
     void set_hamiltonian(const PackedFloat64Array& H_packed);
     void add_lindblad_triplets(const PackedFloat64Array& triplets);
     void clear_operators();
+    void set_coherent(bool on);  // gate the -i[H,ρ] term (off = pure Lindbladian)
     void finalize();  // Precompute all cached values
 
     // Query methods
@@ -110,6 +111,19 @@ private:
     Eigen::SparseMatrix<std::complex<double>, Eigen::RowMajor> m_hamiltonian;
     bool m_has_hamiltonian;
 
+    // Coherent generator switch. When false the -i[H,ρ] term is skipped (pure Lindbladian).
+    bool m_coherent;
+
+    // EXACT UNITARY PROPAGATOR (coherent + no dissipation): U = exp(-iH·dt) built from the
+    // eigendecomposition of the Hermitian H, H = VΛV† ⇒ U = V·diag(e^{-iλdt})·V†. This is
+    // purity-exact (r=1 by construction) — no Euler integration, no enforce_density_matrix.
+    Eigen::MatrixXcd m_eig_vecs;  // V (columns = eigenvectors of H)
+    Eigen::VectorXd  m_eig_vals;  // λ (real eigenvalues of H)
+    bool m_eig_valid;
+    Eigen::MatrixXcd m_U;         // cached propagator for m_U_dt
+    double m_U_dt;
+    bool m_U_valid;
+
     // Sparse Lindblad operators
     std::vector<Eigen::SparseMatrix<std::complex<double>, Eigen::RowMajor>> m_lindblads;
 
@@ -129,6 +143,10 @@ private:
     // Helper methods
     Eigen::MatrixXcd unpack_dense(const PackedFloat64Array& data) const;
     PackedFloat64Array pack_dense(const Eigen::MatrixXcd& mat) const;
+
+    // Exact-unitary path: eligible when coherent, has H, eigendecomposition valid, no Lindblad.
+    bool can_unitary() const;
+    const Eigen::MatrixXcd& propagator_for(double dt);  // builds/caches U = exp(-iH·dt)
 
     // MI computation helpers (original)
     Eigen::MatrixXcd partial_trace_single(const Eigen::MatrixXcd& rho, int qubit, int num_qubits) const;

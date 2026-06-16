@@ -48,6 +48,13 @@ right. Spark and Druid bookend the set.
 | `9` | Operator  | (World, Q, F)  | Gate building (build / inspect / break)    |
 | `0` | Druid     | (World, Q, P)  | Unitary (X/Y/Z rotations, Hadamard)        |
 
+> **Closed (unitary) system (default):** **Spark** (4) and **Merchant** (6)
+> are pure Lindblad-drive tools (jolt / drain / pump) and are **disabled** —
+> greyed out, unselectable, actions inert — because a closed system has no
+> pump/drain. Ace's **R = Plant** (a drive) is inert for the same reason.
+> The open-quantum DLC (`system_mode = "open"`) re-enables them. See
+> `docs/CLOSED_SYSTEM.md`.
+
 ## Frame wiring
 
 | Frame     | Sub-modes                | Q              | E (pause + inspect)       | R             | F                  |

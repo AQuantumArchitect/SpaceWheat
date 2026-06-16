@@ -257,12 +257,20 @@ static func action_measure(terminal, biome, economy = null, farm = null) -> Dict
 	var is_north: bool = bool(outcome_ctx.get("is_north", true))
 	var recorded_probability = outcome_prob
 
-	# 4. Ensemble drain: extract a fraction of population instead of full collapse.
-	#    The player sees a pure result, but the biome only loses η of the measured
-	#    pole's population. Coherences decay as √(1-η) (Lindblad T₂ relationship).
+	# 4. Collapse the measured axis.
+	#    Closed system (default): a full projective (von Neumann) collapse — the only
+	#    irreversible act in a unitary world. The qubit pins to the outcome pole; the
+	#    Hamiltonian re-spreads it over the following ticks (time + H is the new pump).
+	#    Open system (DLC): a partial ensemble drain (weak measurement) of η, with
+	#    coherences decaying as √(1-η), leaving structure for sustainable re-measurement.
 	var was_entangled = _check_entanglement(register_id, biome)
-	var drain_eta = _resolve_drain_fraction(biome, measured_purity, farm)
-	var _drain_success = _drain_register(biome, register_id, is_north, drain_eta)
+	var closed: bool = not BalanceConfig.dissipative_enabled()
+	var drain_eta: float = 1.0
+	if closed:
+		_project_register(biome, register_id, is_north)
+	else:
+		drain_eta = _resolve_drain_fraction(biome, measured_purity, farm)
+		_drain_register(biome, register_id, is_north, drain_eta)
 
 	# 5. Mark terminal as measured and free the register.
 	_finalize_measurement_terminal(terminal, outcome, recorded_probability, snapshot)
@@ -282,7 +290,8 @@ static func action_measure(terminal, biome, economy = null, farm = null) -> Dict
 		"recorded_probability": recorded_probability,
 		"was_entangled": was_entangled,
 		"drain_eta": drain_eta,
-		"ensemble_drain": true,
+		"ensemble_drain": not closed,
+		"projective_collapse": closed,
 		"register_id": register_id
 	}
 
@@ -352,9 +361,9 @@ static func _resolve_drain_fraction(_biome, purity: float, farm = null) -> float
 static func _auto_measure_for_pop(terminal, farm) -> Dictionary:
 	# Auto-measure a bound terminal so it can be popped directly.
 
-	# Born-samples from the live density matrix, applies ensemble drain,
-	# and marks the terminal as measured — collapsing explore→measure→pop
-	# into explore→pop.
+	# Born-samples from the live density matrix, collapses the axis (projective in
+	# the closed system, ensemble drain in the open-system DLC), and marks the
+	# terminal as measured — collapsing explore→measure→pop into explore→pop.
 	var biome = _resolve_biome_from_terminal(farm, terminal)
 	if not biome or not biome.quantum_computer:
 		return {"success": false, "error": "no_biome", "message": "Cannot auto-measure: biome unavailable.", "blocked": true}
@@ -376,10 +385,14 @@ static func _auto_measure_for_pop(terminal, farm) -> Dictionary:
 	if biome.viz_cache:
 		bloch_r_pre = clampf(float(biome.viz_cache.get_bloch(register_id).get("r", 0.5)), 0.0, 1.0)
 
-	# Ensemble drain (partial extraction, not full collapse)
-	var purity = biome.get_purity() if biome.has_method("get_purity") else 0.5
-	var drain_eta = _resolve_drain_fraction(biome, purity, farm)
-	_drain_register(biome, register_id, is_north, drain_eta)
+	# Collapse the measured axis — closed: full projective collapse (von Neumann);
+	# open (DLC): partial ensemble drain. Mirrors action_measure.
+	if not BalanceConfig.dissipative_enabled():
+		_project_register(biome, register_id, is_north)
+	else:
+		var purity = biome.get_purity() if biome.has_method("get_purity") else 0.5
+		var drain_eta = _resolve_drain_fraction(biome, purity, farm)
+		_drain_register(biome, register_id, is_north, drain_eta)
 
 	# Mark terminal as measured — player sees pure collapsed state.
 	# Store r so _prepare_pop_result can read per-qubit Bloch radius.
@@ -513,6 +526,12 @@ static func _advance_reap_cycles(farm, active_biomes: Array, reap_cycles: int) -
 
 
 static func _collect_reap_rewards(active_biomes: Array, economy, farm, flux_to_credits: float) -> Dictionary:
+	# Closed system: measurement IS the economy. Reap is a seasonal mass-measurement,
+	# not an entropy drain — see _closed_reap_rewards. The open-system flux + entropy
+	# bank below is the DLC path.
+	if not BalanceConfig.dissipative_enabled():
+		return _closed_reap_rewards(active_biomes, economy, farm)
+
 	var flux_totals: Dictionary = {}
 	var icon_totals: Dictionary = {}
 	var total_flux_credits = 0
@@ -617,6 +636,52 @@ static func _collect_reap_rewards(active_biomes: Array, economy, farm, flux_to_c
 		"icon_totals": icon_totals,
 		"total_flux_credits": total_flux_credits,
 		"total_icon_credits": total_icon_credits
+	}
+
+
+## Closed-system reap: a seasonal mass-measurement. Born-sample + projectively collapse
+## every register of each active biome and pay surprisal (−kT·log p) for the collapsed
+## pole, floored at 1 resource. There is no sink flux, no entropy bank, and crucially no
+## drain — draining would mix the state and break the r = 1 (pure) invariant. The
+## Hamiltonian re-spreads the collapsed qubits over the following season (time + H is the
+## pump). Born sampling reuses the deterministic per-(biome, register, time) seed so reap
+## is save-load reproducible, like _sample_born_outcome.
+static func _closed_reap_rewards(active_biomes: Array, economy, farm) -> Dictionary:
+	var icon_totals: Dictionary = {}
+	var total_icon_credits := 0
+	for biome in active_biomes:
+		if not biome or not biome.quantum_computer:
+			continue
+		var qc = biome.quantum_computer
+		var kT: float = EnergyPricing.biome_temperature(biome, farm)
+		var nq: int = qc.register_map.num_qubits
+		var seed_biome: String = str(biome.biome_name) if "biome_name" in biome else ""
+		var seed_ms: int = int((biome.elapsed_time if "elapsed_time" in biome else 0.0) * 1000.0)
+		for q in range(nq):
+			var axis: Dictionary = qc.register_map.axis(q)
+			if axis.is_empty():
+				continue
+			var north_p: float = clampf(qc.get_marginal(q, 0), 0.0, 1.0)
+			var rng := RandomNumberGenerator.new()
+			rng.seed = hash([seed_biome, q, seed_ms])
+			var is_north: bool = rng.randf() < north_p
+			var pole: int = 0 if is_north else 1
+			var emoji: String = str(axis.get("north", "")) if is_north else str(axis.get("south", ""))
+			var p: float = north_p if is_north else (1.0 - north_p)
+			qc.project_qubit(q, pole)   # full projective collapse — stays pure (r=1)
+			if emoji == "":
+				continue
+			var reward: int = maxi(1, int(round(EnergyPricing.surprisal_energy(p, kT))))
+			economy.add_resource(emoji, reward, "reap_measure")
+			icon_totals[emoji] = icon_totals.get(emoji, 0) + reward
+			total_icon_credits += reward
+		_log("info", "🌾", "🌾", "Closed reap %s: kT=%.1f mass-measured %d registers" % [
+			biome.get_biome_type() if biome.has_method("get_biome_type") else "?", kT, nq])
+	return {
+		"flux_totals": {},
+		"icon_totals": icon_totals,
+		"total_flux_credits": 0,
+		"total_icon_credits": total_icon_credits,
 	}
 
 

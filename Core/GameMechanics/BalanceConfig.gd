@@ -28,14 +28,23 @@ const DEFAULTS: Dictionary = {
 	# The ratio H/L determines whether the player sees lively oscillation
 	# (high ratio) or sluggish drift (low ratio).
 	"physics": {
-		# Global multiplier for all Lindblad rates from biomes.json.
-		# Rates were baked at the intended scale into biomes.json.
-		# Keep at 1.0 — adjust individual rates in the JSON if needed.
+		# TWO INDEPENDENT PHYSICS GENERATORS — the master switches. The quantum state
+		# evolves under the Lindblad master equation dρ/dt = −i[H,ρ] + Σ_k D[L_k]ρ; each
+		# generator is gated on/off independently for clean isolation:
+		#   coherent_dynamics    → the −i[H,ρ] term  (Hamiltonian / unitary evolution)
+		#   dissipative_dynamics → the Σ D[L_k] term (Lindblad pump / drain / decay)
+		# The game ships COHERENT-ONLY (the closed, unitary system): every bubble stays
+		# pure (r = 1) forever and H alone re-spreads a collapsed qubit (time + H is the
+		# pump). Turn dissipative on for the open-quantum DLC. Turn coherent off to study
+		# pure Lindbladian relaxation. The point of the switches is that the game runs
+		# correctly in the ABSENCE of either generator. See docs/CLOSED_SYSTEM.md.
+		"coherent_dynamics": true,
+		"dissipative_dynamics": false,
+		# Global multiplier for all Lindblad rates from biomes.json. Only bites when
+		# dissipative_dynamics = true. Rates were baked at the intended scale in the JSON.
 		"lindblad_rate_scale": 1.0,
-		# Global multiplier for all Hamiltonian off-diagonal couplings (rabi +
-		# cross-icon) from icons.json — the symmetric partner to lindblad_rate_scale.
-		# Together they set the coherent/dissipative (H/L) regime parametrically,
-		# without touching the per-icon authored values. 1.0 = identity (no change).
+		# Global multiplier for all Hamiltonian off-diagonal couplings (rabi + cross-icon)
+		# from icons.json — the one physical dial of the closed system. 1.0 = identity.
 		"hamiltonian_coupling_scale": 1.0,
 	}
 }
@@ -66,6 +75,27 @@ static func get_physics(config: Dictionary = {}) -> Dictionary:
 	for key in overrides.keys():
 		result[key] = overrides[key]
 	return result
+
+
+## Is the coherent (Hamiltonian / unitary von-Neumann) generator active? Default true.
+static func coherent_enabled(config: Dictionary = {}) -> bool:
+	return bool(get_physics(config).get("coherent_dynamics", true))
+
+
+## Is the dissipative (Lindblad pump/drain/decay) generator active? Default false.
+## This is THE predicate for every open-system mechanism: Lindblad operators, weak/drain
+## measurement, the entropy-bank reap, the Spark/Merchant tools, drain/pump actions, and
+## the dissipative UI readouts. Flip it on for the open-quantum DLC.
+static func dissipative_enabled(config: Dictionary = {}) -> bool:
+	return bool(get_physics(config).get("dissipative_dynamics", false))
+
+
+## "Closed system" = pure unitary: coherent on, dissipative off. The default game.
+## Used for the exact-unitary evolution kernel and the pure ground-state init — the
+## places that specifically require r = 1. Honours get_physics precedence
+## (DEFAULTS < live override < explicit config), so tuning tools can flip it freely.
+static func is_closed_system(config: Dictionary = {}) -> bool:
+	return coherent_enabled(config) and not dissipative_enabled(config)
 
 
 static func load_default_config(state = null) -> Dictionary:

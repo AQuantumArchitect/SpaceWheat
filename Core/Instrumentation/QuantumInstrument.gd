@@ -274,7 +274,19 @@ func action_hadamard(positions: Array[Vector2i]) -> Dictionary:
 # ============================================================================
 # Strong one-shot Lindblad pulse costing 1× pole emoji. No persistent channel.
 
+## Closed (unitary) system: every Lindblad drive — spark, drain, pump — is disabled.
+## Applying any of them would mix the state and break the r = 1 (pure) invariant. The
+## open-quantum DLC (system_mode = "open") re-enables them. Returns an inert blocked
+## result so callers (any frame, incl. Ace "Plant") get a clean no-op.
+func _closed_system_blocked(verb: String) -> Dictionary:
+	return {
+		"success": false, "blocked": true, "error": "closed_system",
+		"message": "%s is unavailable in the closed (unitary) system." % verb,
+	}
+
+
 func action_spark_north(positions: Array[Vector2i]) -> Dictionary:
+	if not BalanceConfig.dissipative_enabled(): return _closed_system_blocked("Spark/Plant")
 	var guard = _action_guard(positions)
 	if not guard.is_empty(): return guard
 	var context: Dictionary = {}
@@ -302,6 +314,7 @@ func action_spark_north(positions: Array[Vector2i]) -> Dictionary:
 
 
 func action_spark_south(positions: Array[Vector2i]) -> Dictionary:
+	if not BalanceConfig.dissipative_enabled(): return _closed_system_blocked("Spark")
 	var guard = _action_guard(positions)
 	if not guard.is_empty(): return guard
 	var context: Dictionary = {}
@@ -335,6 +348,7 @@ func action_spark_south(positions: Array[Vector2i]) -> Dictionary:
 # ============================================================================
 
 func action_drain(positions: Array[Vector2i]) -> Dictionary:
+	if not BalanceConfig.dissipative_enabled(): return _closed_system_blocked("Merchant export (drain)")
 	var guard = _action_guard(positions)
 	if not guard.is_empty(): return guard
 
@@ -344,6 +358,7 @@ func action_drain(positions: Array[Vector2i]) -> Dictionary:
 
 
 func action_pump(positions: Array[Vector2i]) -> Dictionary:
+	if not BalanceConfig.dissipative_enabled(): return _closed_system_blocked("Merchant import (pump)")
 	var guard = _action_guard(positions)
 	if not guard.is_empty(): return guard
 
@@ -1059,6 +1074,10 @@ func gate_inject(gate_name: String, positions: Array[Vector2i]) -> Dictionary:
 func lindblad_pump(positions: Array[Vector2i]) -> Dictionary:
 	if not farm:
 		return {"ok": false, "error": "no_farm"}
+	# Closed (unitary) system: installing a persistent Lindblad channel would mix the
+	# state and break the r=1 invariant. Block the rig/API entry point too (mirrors
+	# action_pump). Re-enabled by the open-quantum DLC.
+	if not BalanceConfig.dissipative_enabled(): return _closed_system_blocked("lindblad_pump")
 	# Rig/API pump should install persistent channels (same semantics as player action_pump).
 	var result = LindbladHandler.enable_persistent_drive(farm, positions)
 	action_performed.emit("lindblad_pump", result)
@@ -1069,6 +1088,8 @@ func lindblad_pump(positions: Array[Vector2i]) -> Dictionary:
 func lindblad_drain(positions: Array[Vector2i]) -> Dictionary:
 	if not farm:
 		return {"ok": false, "error": "no_farm"}
+	# Closed (unitary) system: blocked (mirrors action_drain) — see lindblad_pump.
+	if not BalanceConfig.dissipative_enabled(): return _closed_system_blocked("lindblad_drain")
 	# Rig/API drain should install persistent channels (same semantics as player action_drain).
 	var result = LindbladHandler.enable_persistent_decay(farm, positions)
 	action_performed.emit("lindblad_drain", result)

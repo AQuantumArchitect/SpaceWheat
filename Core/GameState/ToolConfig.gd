@@ -349,9 +349,36 @@ const ARCHETYPE_FRAMES: Dictionary = {
 # FRAME MANAGEMENT
 # =============================================================================
 
+## Spark and Merchant are pure Lindblad-drive tools (jolt / drain / pump). They are
+## hidden in the closed (unitary) system and re-appear in the open-quantum DLC. The
+## frame definitions stay in ARCHETYPE_FRAMES — only their availability is gated.
+const _CLOSED_HIDDEN_FRAMES: Array = [FRAME_SPARK, FRAME_MERCHANT]
+
+
+static func is_frame_available(frame_name: String) -> bool:
+	if frame_name in _CLOSED_HIDDEN_FRAMES and not BalanceConfig.dissipative_enabled():
+		return false
+	return true
+
+
+## Frames selectable in the current system mode, in FRAME_IDS order.
+static func available_frame_ids() -> Array:
+	var out: Array = []
+	for fid in FRAME_IDS:
+		if is_frame_available(fid):
+			out.append(fid)
+	return out
+
+
 static func select_frame(frame_name: String) -> bool:
 	# Select an archetype frame by name. Empty string (FRAME_NULL) = no hat.
-	if frame_name == FRAME_NULL or ARCHETYPE_FRAMES.has(frame_name):
+	# Frames hidden in the current system mode (Spark/Merchant when closed) are refused.
+	if frame_name == FRAME_NULL:
+		current_frame = frame_name
+		return true
+	if ARCHETYPE_FRAMES.has(frame_name):
+		if not is_frame_available(frame_name):
+			return false
 		current_frame = frame_name
 		return true
 	push_error("ToolConfig: invalid frame '%s'" % frame_name)
@@ -359,11 +386,15 @@ static func select_frame(frame_name: String) -> bool:
 
 
 static func cycle_frame(delta: int) -> void:
-	# Step through FRAME_IDS by ±1, wrapping. Used by WASD layer crawl (A/D on frame layer).
-	var idx := FRAME_IDS.find(current_frame)
+	# Step through the available frames by ±1, wrapping (skips Spark/Merchant when closed).
+	# Used by WASD layer crawl (A/D on frame layer).
+	var ids := available_frame_ids()
+	if ids.is_empty():
+		return
+	var idx := ids.find(current_frame)
 	if idx < 0:
 		idx = 0
-	select_frame(FRAME_IDS[wrapi(idx + delta, 0, FRAME_IDS.size())])
+	select_frame(ids[wrapi(idx + delta, 0, ids.size())])
 
 
 static func get_current_frame() -> String:

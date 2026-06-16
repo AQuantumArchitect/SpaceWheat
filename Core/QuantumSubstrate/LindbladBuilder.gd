@@ -33,6 +33,16 @@ static func _get_rate_scale() -> float:
 ##
 ## `decay {rate, target}` is treated as a transfer (same |target⟩⟨source| jump op shape).
 static func build_from_atoms(atom_components: Dictionary, register_map: RegisterMap, verbose = null, label: String = "") -> Dictionary:
+	# Dissipative generator OFF → build no Lindblad operators at all. This makes both the
+	# GDScript evolution and the C++ engine (which feeds on qc.lindblad_operators) purely
+	# coherent, so the closed system stays pure (r = 1). The atom_components L data is left
+	# untouched in biomes.json — dormant content, re-activated by the dissipative switch
+	# (the open-quantum DLC). See docs/CLOSED_SYSTEM.md.
+	if not _BalanceConfig.dissipative_enabled():
+		if verbose:
+			verbose.debug("quantum", "🔒", "Dissipative dynamics off: no Lindblad operators built%s" % ((" for " + label) if label != "" else ""))
+		return {"operators": []}
+
 	var operators: Array = []
 	var num_qubits = register_map.num_qubits
 

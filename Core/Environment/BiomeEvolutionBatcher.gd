@@ -81,7 +81,7 @@ var terminal_pool = null
 var farm_ref = null
 
 # Stage 2: Lookahead engine and buffers
-var lookahead_engine = null  # MultiBiomeLookaheadEngine (C++)
+var lookahead_engine = null  # EvolutionBackend (NativeBackend wraps the C++ MultiBiomeLookaheadEngine)
 var lookahead_enabled: bool = false
 var lookahead_accumulator: float = 0.0
 var _lookahead_init_started: bool = false
@@ -355,13 +355,16 @@ func initialize(biome_array: Array, p_terminal_pool = null, p_farm = null):
 
 	_log_debug("BiomeEvolutionBatcher: Registered %d biomes for batch evolution" % biomes.size())
 
-	# Try to initialize Stage 2 lookahead engine
-	if ENABLE_LOOKAHEAD and not _disable_lookahead_env:
+	# The C++ backend is the CANONICAL evolver — always set it up when the native lib is
+	# available, INDEPENDENT of the lookahead-buffering flag. `_disable_lookahead_env` now
+	# gates ONLY the live N-phrame BUFFERING (applied via `lookahead_enabled` below); the
+	# backend still evolves time-skip (the deterministic stepper's native cycle) and the
+	# direct live step. The mixed-dim crash that originally forced this flag is fixed
+	# (Phase 2), so "re-enable when fixed" (per 🟢.sh) is satisfied.
+	if ENABLE_LOOKAHEAD:
 		_setup_lookahead_engine()
-	elif _disable_lookahead_env:
-		lookahead_enabled = false
-		lookahead_engine = null
-		_log_debug("  Lookahead disabled by environment flag(s) - native evolution stalled")
+	if _disable_lookahead_env:
+		_log_debug("  Lookahead BUFFERING disabled by env flag — backend still evolves (time-skip + direct).")
 
 	if lookahead_enabled:
 		_log_debug("  Mode: C++ batched lookahead (%d phrames × %.1fs = %.1fs buffer)" % [
@@ -597,6 +600,12 @@ func _register_native_biome(biome) -> int:
 	_biome_engine_dims[biome_name] = dim
 	_sync_biome_structure_payload(biome, biome_id)
 
+	# Wire the coherent generator switch into the C++ engine (two-axis isolation). The
+	# dissipative switch is implicit: L operators are only built/registered when dissipation
+	# is on. Together these make all four physics quadrants correct through the native engine.
+	if lookahead_engine.has_method("set_biome_coherent"):
+		lookahead_engine.set_biome_coherent(biome_id, BalanceConfig.coherent_enabled())
+
 	if use_phase_lnn and lookahead_engine.has_method("enable_biome_lnn"):
 		var hidden_size = max(4, dim / LNN_HIDDEN_DIVISOR)
 		lookahead_engine.enable_biome_lnn(biome_id, hidden_size)
@@ -636,7 +645,7 @@ func _register_and_prime_biome(biome) -> void:
 	if biome_id >= 0:
 		_sync_biome_structure_payload(biome, biome_id)
 
-	lookahead_enabled = (lookahead_engine.get_biome_count() > 0)
+	lookahead_enabled = (lookahead_engine.get_biome_count() > 0) and not _disable_lookahead_env
 	lookahead_accumulator = LOOKAHEAD_DT * LOOKAHEAD_STEPS
 
 	# Apply cached biome center (set by update_layout before or after engine init)
@@ -656,8 +665,8 @@ func _register_and_prime_biome(biome) -> void:
 
 
 func _setup_lookahead_engine():
-	# Set up the native MultiBiomeLookaheadEngine if available.
-	if ClassDB.class_exists("MultiBiomeLookaheadEngine"):
+	# Set up the evolution backend (NativeBackend → C++ MultiBiomeLookaheadEngine) if available.
+	if NativeBackend.native_available():
 		call_deferred("_create_lookahead_engine_deferred")
 		return
 
@@ -676,7 +685,7 @@ func _await_lookahead_engine() -> void:
 
 	var start_ms = Time.get_ticks_msec()
 	while Time.get_ticks_msec() - start_ms < LOOKAHEAD_INIT_TIMEOUT_MS:
-		if ClassDB.class_exists("MultiBiomeLookaheadEngine"):
+		if NativeBackend.native_available():
 			_create_lookahead_engine_deferred()
 			_lookahead_init_started = false
 			return
@@ -687,9 +696,12 @@ func _await_lookahead_engine() -> void:
 
 
 func _create_lookahead_engine_deferred() -> void:
-	lookahead_engine = ClassDB.instantiate("MultiBiomeLookaheadEngine")
+	# Acquire the evolution backend through the abstraction (NativeBackend wraps the C++
+	# engine; Web/Torch backends drop in here later). The batcher drives it through the
+	# EvolutionBackend contract — duck-typed, so existing lookahead_engine.* calls forward.
+	lookahead_engine = EvolutionBackend.create()
 	if not lookahead_engine:
-		push_warning("[BiomeEvolutionBatcher] Failed to instantiate the C++ lookahead engine. Evolution remains stalled.")
+		push_warning("[BiomeEvolutionBatcher] No evolution backend available. Evolution remains stalled.")
 		return
 	if _disable_mi_env and lookahead_engine.has_method("set_enable_mi"):
 		lookahead_engine.set_enable_mi(false)
@@ -737,9 +749,11 @@ func _create_lookahead_engine_deferred() -> void:
 		if biome_id >= 0:
 			registered_biomes.append(biome)
 
-	# Mark engine as ready BEFORE priming (so new biomes can register immediately)
+	# Mark engine as ready BEFORE priming (so new biomes can register immediately).
+	# _engine_ready = backend present & registered (drives native time-skip);
+	# lookahead_enabled = live N-phrame BUFFERING (gated by the env flag, separately).
 	_engine_ready = true
-	lookahead_enabled = (lookahead_engine.get_biome_count() > 0)
+	lookahead_enabled = (lookahead_engine.get_biome_count() > 0) and not _disable_lookahead_env
 	lookahead_accumulator = LOOKAHEAD_DT * LOOKAHEAD_STEPS
 
 	# Apply any oval centers that QuantumForceGraph pushed before the engine was ready.
@@ -775,16 +789,24 @@ func _prime_all_biomes_native(biomes_to_prime: Array) -> void:
 
 	_log_debug("  Priming %d biomes with %d-phrame lookahead..." % [biomes_to_prime.size(), LOOKAHEAD_STEPS])
 
-	# Collect current density matrices for all biomes
-	var biome_rhos: Array = []
+	# Collect density matrices in ENGINE-ID ORDER. The native engine maps biome_rhos[id]
+	# → m_engines[id] by index, so the array MUST be ordered by registration id, not by
+	# the biomes_to_prime list order — otherwise a biome's ρ lands on another biome's engine
+	# (wrong dimension → skipped/garbage). Non-primed / unregistered slots get an empty ρ
+	# (the engine skips empties). Mirrors the emergency/hybrid-refill paths.
+	var prime_by_name: Dictionary = {}
 	for biome in biomes_to_prime:
-		var qc = biome.quantum_computer
+		prime_by_name[_get_biome_name(biome)] = biome
+	var engine_count: int = lookahead_engine.get_biome_count()
+	var biome_rhos: Array = []
+	for engine_id in range(engine_count):
+		var biome_name: String = _engine_id_to_biome.get(engine_id, "")
+		var pb = prime_by_name.get(biome_name, null)
+		var qc = pb.quantum_computer if pb else null
 		if qc and qc.density_matrix:
 			biome_rhos.append(qc.density_matrix._to_packed())
 		else:
-			# Skip calculation - empty array signals C++ to skip this biome
-			# (C++ should check if array is empty before unpacking)
-			biome_rhos.append(PackedFloat64Array())
+			biome_rhos.append(PackedFloat64Array())  # not in this prime batch → skip
 
 	var actual_dt = _get_packet_dt_for_biomes(biomes_to_prime)
 
@@ -801,9 +823,13 @@ func _prime_all_biomes_native(biomes_to_prime: Array) -> void:
 	var mi_steps = evo_result.get("mi_steps", [])
 	var evo_position_steps = evo_result.get("position_steps", [])
 
-	for i in range(biomes_to_prime.size()):
-		var biome = biomes_to_prime[i]
-		var biome_name = _get_biome_name(biome)
+	# Distribute results by ENGINE-ID (results[id] came from m_engines[id]). Only the
+	# biomes actually in this prime batch get their buffers filled.
+	for i in range(engine_count):
+		var biome_name: String = _engine_id_to_biome.get(i, "")
+		var biome = prime_by_name.get(biome_name, null)
+		if biome == null:
+			continue
 		var lookahead_buffer = _ensure_lookahead_buffer(biome_name)
 
 		# Fill buffers with evolution results
@@ -1003,10 +1029,14 @@ func physics_process(delta: float):
 			push_warning("[BiomeEvolutionBatcher] C++ lookahead NOT active. Evolution will stall until engine initializes.")
 
 	if lookahead_enabled:
+		# Live buffering on: consume the N-phrame buffer + refill via the backend.
 		_physics_process_lookahead(delta)
-	else:
-		_log_debug("[BiomeEvolutionBatcher] C++ lookahead not active — using GDScript fallback")
-		return
+	elif _engine_ready and _deterministic_stepper:
+		# Buffering off but the backend is present: evolve directly through the C++ backend,
+		# one phrame this tick (no N-phrame buffer). This replaces the old no-op "GDScript
+		# fallback" — GDScript quantum compute is deprecated; the machinery always evolves.
+		_deterministic_stepper.run_time_skip_cycles(1, delta)
+	# else: backend not ready yet — biomes wait for engine init (no GDScript compute).
 
 
 func _physics_process_lookahead(delta: float):
@@ -1295,12 +1325,38 @@ func _reregister_biome_by_name(biome_name: String) -> void:
 		biome_pending_reregister.erase(biome_name)
 		return
 
-	_log("info", "REREGISTER", "🔁", "%s: re-registering with C++ lookahead engine (H/L mutation flushed)" % biome_name)
-
 	var old_id = _biome_engine_ids.get(biome_name, -1)
+	var qc = biome.quantum_computer
+
+	# IN-PLACE replace (stable id) — the canonical path for runtime H/L changes. Appending a
+	# fresh engine would orphan the old slot and break the rho-slot ↔ engine-id mapping, so
+	# the rho would keep being evolved by the STALE engine (the bug that made a runtime
+	# dissipation-ON switch not actually apply L). Replacing at the same id keeps everything
+	# consistent: run_native_biome_cycle reads _biome_engine_ids[name] → the updated engine.
+	if old_id >= 0 and lookahead_engine and lookahead_engine.has_method("reregister_biome") and qc and qc.register_map:
+		_log("info", "REREGISTER", "🔁", "%s: re-registering in place (id=%d, H/L mutation flushed)" % [biome_name, old_id])
+		var dim = qc.register_map.dim()
+		var num_qubits = qc.register_map.num_qubits
+		var H_packed = qc.hamiltonian._to_packed() if qc.hamiltonian else PackedFloat64Array()
+		var lindblad_triplets: Array = []
+		for L in qc.lindblad_operators:
+			if L:
+				lindblad_triplets.append(_matrix_to_triplets(L))
+		if lookahead_engine.reregister_biome(old_id, dim, H_packed, lindblad_triplets, num_qubits):
+			_biome_engine_dims[biome_name] = dim
+			_sync_biome_structure_payload(biome, old_id)
+			if lookahead_engine.has_method("set_biome_coherent"):
+				lookahead_engine.set_biome_coherent(old_id, BalanceConfig.coherent_enabled())
+			invalidate_biome_buffer(biome_name)
+			biome_dirty[biome_name] = false
+			biome_pending_reregister.erase(biome_name)
+			return
+		_log("warn", "REREGISTER", "⚠️", "%s: in-place re-register failed — falling back to append path." % biome_name)
+
+	# Fallback (no prior id, or backend lacks reregister): orphan old slot + append fresh.
+	_log("info", "REREGISTER", "🔁", "%s: re-registering (append path)" % biome_name)
 	if old_id >= 0:
 		_engine_id_to_biome[old_id] = ""
-
 	_biome_engine_ids[biome_name] = -1
 	_biome_engine_dims.erase(biome_name)
 	_register_and_prime_biome(biome)
@@ -2322,6 +2378,11 @@ func run_additional_cycles(cycles: int, biome_names: Array = []) -> Dictionary:
 func run_time_skip_cycles(cycles: int, dt: float = LOOKAHEAD_DT, biome_names: Array = []) -> Dictionary:
 	if _deterministic_stepper == null:
 		return {"success": false, "error": "no_stepper", "evolved_steps": 0}
+	# Propagate any pending operator changes (gate inject, mode switch, icon learn) to the
+	# C++ backend BEFORE evolving. Without this, the time-skip / buffering-off path leaves
+	# the C++ engine with stale H/L (the silent twin) — only the live buffering refill
+	# processed re-registers before. Now the canonical native path picks them up too.
+	_process_pending_reregisters()
 	return _deterministic_stepper.run_time_skip_cycles(cycles, dt, biome_names)
 
 
@@ -3037,8 +3098,10 @@ func _queue_adaptive_packet(biome_rhos: Array, active_flags_arr: Array, packet_s
 	if biome_rhos.is_empty():
 		return
 
-	# Validate: C++ bug - it doesn't check active_flags before unpacking rhos
-	# Block empty rhos and zero-trace rhos (both will SIGABRT in C++)
+	# Defense-in-depth: skip empty / zero-trace rhos before the native call. The C++ engine
+	# now validates dimensions internally (Phase 2 guards in QuantumEvolutionEngine /
+	# MultiBiomeLookaheadEngine), so this is no longer the sole safety net — but catching
+	# degenerate states here keeps results clean and avoids needless native round-trips.
 	for i in range(mini(biome_rhos.size(), active_flags_arr.size())):
 		if not active_flags_arr[i]:
 			continue

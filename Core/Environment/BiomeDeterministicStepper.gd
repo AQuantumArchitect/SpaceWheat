@@ -315,6 +315,12 @@ func run_time_skip_cycles(cycles: int, dt: float = -1.0, biome_names: Array = []
 	}
 
 
+## DEPRECATED for production — GDScript quantum compute. This runs the slow GDScript
+## `QuantumComputer.evolve()` (the exact-unitary REFERENCE kernel). It is now only reached
+## when NO native backend is available (degraded fallback) and serves as the correctness
+## oracle the C++ backend is validated against (Tests/test_engine_equivalence.gd). The
+## canonical evolver is the C++ backend via run_native_biome_cycle(). Do not route the live
+## game or time-skip here when a backend exists.
 func run_direct_biome_cycle(biome, dt: float, max_dt_override: float = -1.0) -> void:
 	if batcher == null or not batcher._is_valid_biome(biome):
 		return
