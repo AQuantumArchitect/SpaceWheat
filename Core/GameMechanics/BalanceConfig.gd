@@ -4,59 +4,98 @@ extends RefCounted
 ## BalanceConfig - Runtime/default balance profile resolver.
 ## Canonical profile lives in GameState.balance_workbench_config.
 
-const DEFAULTS: Dictionary = {
+# ── SINGLE SOURCE OF TRUTH for every scalar balance knob ───────────────────────────
+# One row per tunable: its default value AND its board edit-metadata live here together.
+# DEFAULTS and the in-game balance board are both DERIVED from this list, so adding or
+# retuning a knob is a one-line change in ONE place (no more editing DEFAULTS + the board
+# + default.jsonl separately). `root` places it in the config tree (tuning /
+# economy_variables / physics). `board:false` keeps it out of the editor (e.g. arrays).
+# `open_only:true` hides it in the closed (Hamiltonian-only) system. The economy roots
+# (tuning / economy_variables) are mirrored in Core/Config/FarmVariableGraph/default.jsonl
+# (the canonical runtime source, loaded at boot); physics knobs live here only.
+const TUNABLES: Array = [
+	# root, key, default, board metadata
+	{"root": "tuning", "key": "pop_base_yield_scale", "default": 13.0, "label": "Pop yield scale", "category": "Yield", "kind": "float", "step": 0.5, "min": 0.5, "max": 50.0},
+	{"root": "tuning", "key": "reap_base_yield", "default": 8.0, "label": "Reap base yield", "category": "Yield", "kind": "float", "step": 0.5, "min": 0.5, "max": 50.0},
+	{"root": "tuning", "key": "reap_evolution_cycles", "default": 13, "label": "Reap evolve cycles", "category": "Physics", "kind": "int", "step": 1, "min": 1, "max": 60},
+	{"root": "tuning", "key": "flux_to_credits", "default": 1.0, "label": "Flux → credits", "category": "Economy", "kind": "float", "step": 0.1, "min": 0.1, "max": 10.0, "open_only": true},
+	{"root": "tuning", "key": "reap_cost_sequence", "default": [1, 1, 2, 3, 5, 8, 13, 21], "board": false},
+	{"root": "tuning", "key": "reap_starting_tokens", "default": 6, "label": "Reap start tokens", "category": "Yield", "kind": "int", "step": 1, "min": 0, "max": 30},
+	{"root": "tuning", "key": "measurement_drain_base", "default": 0.15, "label": "Measurement drain", "category": "Yield", "kind": "float", "step": 0.05, "min": 0.0, "max": 1.0, "open_only": true},
+	# Market scarcity temperature kT (Boltzmann E = −kT·log p).
+	{"root": "tuning", "key": "market_temperature", "default": 10.0, "label": "Market kT", "category": "Market", "kind": "float", "step": 0.5, "min": 1.0, "max": 30.0},
+	{"root": "tuning", "key": "market_temperature_entropy_gain", "default": 1.0, "label": "Market kT entropy gain", "category": "Market", "kind": "float", "step": 0.1, "min": 0.0, "max": 5.0},
+	# Vocabulary-reward multiplier — the escape from the resource spiral. Knowing an icon
+	# boosts its harvest: mult = (r + (knows ? vocab_r_bonus : 0)) ^ exponent; closed (r=1)
+	# → known ×4 / unknown ×1; open (r<1) → a curve. See ProbeActions._vocab_reward_multiplier.
+	{"root": "tuning", "key": "vocab_r_bonus", "default": 1.0, "label": "Vocab r-bonus", "category": "Vocab", "kind": "float", "step": 0.25, "min": 0.0, "max": 4.0},
+	{"root": "tuning", "key": "vocab_reward_exponent", "default": 2.0, "label": "Vocab exponent", "category": "Vocab", "kind": "float", "step": 0.25, "min": 1.0, "max": 4.0},
+	{"root": "economy_variables", "key": "quantum_to_credits", "default": 1.0, "label": "Quantum → credits", "category": "Economy", "kind": "float", "step": 0.1, "min": 0.1, "max": 10.0},
+	{"root": "economy_variables", "key": "max_biome_qubits", "default": 12, "label": "Max biome qubits", "category": "Physics", "kind": "int", "step": 1, "min": 4, "max": 24},
+	# Physics scalars (the H/L dials). lindblad_rate_scale only bites when dissipative;
+	# hamiltonian_coupling_scale is the one physical dial of the closed system (1.0 = identity).
+	{"root": "physics", "key": "lindblad_rate_scale", "default": 1.0, "label": "Lindblad rate", "category": "Physics", "kind": "float", "step": 0.1, "min": 0.1, "max": 5.0, "open_only": true},
+	{"root": "physics", "key": "hamiltonian_coupling_scale", "default": 1.0, "label": "Hamiltonian coupling", "category": "Physics", "kind": "float", "step": 0.1, "min": 0.1, "max": 5.0},
+]
+
+# Structural defaults that are NOT scalar knobs (the H/L master switches + note blocks).
+# The two generators are gated independently for clean isolation: coherent_dynamics →
+# −i[H,ρ] (unitary), dissipative_dynamics → Σ D[L_k] (Lindblad). The game ships
+# COHERENT-ONLY (closed/unitary, r=1 forever; time+H is the pump). See docs/CLOSED_SYSTEM.md.
+const _STRUCTURAL: Dictionary = {
 	"profile_id": "default",
 	"display_name": "Default Runtime Balance",
 	"action_roi_notes": {},
 	"quest_reward_notes": {},
-	"economy_variables": {
-		"quantum_to_credits": 1.0,
-		"max_biome_qubits": 12
-	},
-	"tuning": {
-		"pop_base_yield_scale": 13.0,
-		"reap_base_yield": 8.0,
-		"reap_evolution_cycles": 13,
-		"flux_to_credits": 1.0,
-		"reap_cost_sequence": [1, 1, 2, 3, 5, 8, 13, 21],
-		"reap_starting_tokens": 6,
-		"measurement_drain_base": 0.15,
-		# Market scarcity temperature kT (Boltzmann E = −kT·log p). Were const-only in
-		# EconomyConstants + JSONL; now defaulted here too so the board can surface them.
-		"market_temperature": 10.0,
-		"market_temperature_entropy_gain": 1.0,
-		# Vocabulary-reward multiplier: knowing an icon boosts its harvest. The escape
-		# from the resource spiral. mult = (r + (knows ? vocab_r_bonus : 0)) ^ exponent;
-		# closed (r=1) → known ×4 / unknown ×1; open (r<1) → a curve. See ProbeActions.
-		"vocab_r_bonus": 1.0,
-		"vocab_reward_exponent": 2.0
-	},
-	# Physics balance — controls how quantum dynamics feel to the player.
-	# Hamiltonian drives fast visible oscillation (seconds).
-	# Lindblad drives slow irreversible flow (minutes).
-	# The ratio H/L determines whether the player sees lively oscillation
-	# (high ratio) or sluggish drift (low ratio).
-	"physics": {
-		# TWO INDEPENDENT PHYSICS GENERATORS — the master switches. The quantum state
-		# evolves under the Lindblad master equation dρ/dt = −i[H,ρ] + Σ_k D[L_k]ρ; each
-		# generator is gated on/off independently for clean isolation:
-		#   coherent_dynamics    → the −i[H,ρ] term  (Hamiltonian / unitary evolution)
-		#   dissipative_dynamics → the Σ D[L_k] term (Lindblad pump / drain / decay)
-		# The game ships COHERENT-ONLY (the closed, unitary system): every bubble stays
-		# pure (r = 1) forever and H alone re-spreads a collapsed qubit (time + H is the
-		# pump). Turn dissipative on for the open-quantum DLC. Turn coherent off to study
-		# pure Lindbladian relaxation. The point of the switches is that the game runs
-		# correctly in the ABSENCE of either generator. See docs/CLOSED_SYSTEM.md.
+	"physics_switches": {
 		"coherent_dynamics": true,
 		"dissipative_dynamics": false,
-		# Global multiplier for all Lindblad rates from biomes.json. Only bites when
-		# dissipative_dynamics = true. Rates were baked at the intended scale in the JSON.
-		"lindblad_rate_scale": 1.0,
-		# Global multiplier for all Hamiltonian off-diagonal couplings (rabi + cross-icon)
-		# from icons.json — the one physical dial of the closed system. 1.0 = identity.
-		"hamiltonian_coupling_scale": 1.0,
-	}
+	},
 }
+
+## DEFAULTS is DERIVED from TUNABLES + _STRUCTURAL — never hand-maintained.
+static var DEFAULTS: Dictionary = _build_defaults()
+
+
+static func _build_defaults() -> Dictionary:
+	var d: Dictionary = {
+		"profile_id": _STRUCTURAL["profile_id"],
+		"display_name": _STRUCTURAL["display_name"],
+		"action_roi_notes": {},
+		"quest_reward_notes": {},
+		"economy_variables": {},
+		"tuning": {},
+		"physics": _STRUCTURAL["physics_switches"].duplicate(true),
+	}
+	for t in TUNABLES:
+		var root := str(t["root"])
+		if not d.has(root):
+			d[root] = {}
+		d[root][str(t["key"])] = t["default"]
+	return d
+
+
+## Board rows for the in-game balance editor, derived from TUNABLES (one source).
+## ControlsOverlay consumes this instead of a hand-maintained list. `value_path` is the
+## dotted config location; `open_only` rows are filtered out in the closed system.
+static func board_specs() -> Array:
+	var specs: Array = []
+	for t in TUNABLES:
+		if not bool(t.get("board", true)):
+			continue
+		specs.append({
+			"id": str(t["key"]),
+			"label": str(t.get("label", t["key"])),
+			"category": str(t.get("category", "Tuning")),
+			"value_path": [str(t["root"]), str(t["key"])],
+			"kind": str(t.get("kind", "float")),
+			"step": t.get("step", 1.0),
+			"min": t.get("min", 0.0),
+			"max": t.get("max", 100.0),
+			"default": t["default"],
+			"open_only": bool(t.get("open_only", false)),
+		})
+	return specs
 
 
 ## Runtime override for physics knobs (set by the reservoir sweep / tuning tools).

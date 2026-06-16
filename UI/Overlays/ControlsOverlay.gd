@@ -2002,32 +2002,18 @@ func _cycle_balance_biome(step: int) -> void:
 # through GameState.balance_workbench_config (defaults from BalanceConfig).
 # music_volume rides alongside as a non-config tunable handled directly via
 # MusicManager.
-const _BALANCE_SETTING_DEFS := [
-	{"id": "music_volume",            "label": "Music volume",       "category": "Audio",   "value_path": [],                                          "kind": "music_pct",   "step": 5,    "min": 0,    "max": 100,    "default": 70},
-	{"id": "pop_base_yield_scale",    "label": "Pop yield scale",    "category": "Yield",   "value_path": ["tuning", "pop_base_yield_scale"],          "kind": "float",       "step": 0.5,  "min": 0.5,  "max": 50.0,   "default": 13.0},
-	{"id": "reap_base_yield",         "label": "Reap base yield",    "category": "Yield",   "value_path": ["tuning", "reap_base_yield"],               "kind": "float",       "step": 0.5,  "min": 0.5,  "max": 50.0,   "default": 8.0},
-	{"id": "flux_to_credits",         "label": "Flux → credits",     "category": "Economy", "value_path": ["tuning", "flux_to_credits"],               "kind": "float",       "step": 0.1,  "min": 0.1,  "max": 10.0,   "default": 1.0},
-	{"id": "lindblad_rate_scale",     "label": "Lindblad rate",      "category": "Physics", "value_path": ["physics", "lindblad_rate_scale"],          "kind": "float",       "step": 0.1,  "min": 0.1,  "max": 5.0,    "default": 1.0},
-	{"id": "quantum_to_credits",      "label": "Quantum → credits",  "category": "Economy", "value_path": ["economy_variables", "quantum_to_credits"], "kind": "float",       "step": 0.1,  "min": 0.1,  "max": 10.0,   "default": 1.0},
-	{"id": "measurement_drain_base",  "label": "Measurement drain",  "category": "Yield",   "value_path": ["tuning", "measurement_drain_base"],        "kind": "float",       "step": 0.05, "min": 0.0,  "max": 1.0,    "default": 0.15},
-	{"id": "reap_evolution_cycles",   "label": "Reap evolve cycles", "category": "Physics", "value_path": ["tuning", "reap_evolution_cycles"],         "kind": "int",         "step": 1,    "min": 1,    "max": 60,     "default": 13},
-	{"id": "reap_starting_tokens",    "label": "Reap start tokens",  "category": "Yield",   "value_path": ["tuning", "reap_starting_tokens"],          "kind": "int",         "step": 1,    "min": 0,    "max": 30,     "default": 6},
-	{"id": "max_biome_qubits",        "label": "Max biome qubits",   "category": "Physics", "value_path": ["economy_variables", "max_biome_qubits"],   "kind": "int",         "step": 1,    "min": 4,    "max": 24,     "default": 12},
-	{"id": "vocab_r_bonus",           "label": "Vocab r-bonus",      "category": "Vocab",   "value_path": ["tuning", "vocab_r_bonus"],                 "kind": "float",       "step": 0.25, "min": 0.0,  "max": 4.0,    "default": 1.0},
-	{"id": "vocab_reward_exponent",   "label": "Vocab exponent",     "category": "Vocab",   "value_path": ["tuning", "vocab_reward_exponent"],         "kind": "float",       "step": 0.25, "min": 1.0,  "max": 4.0,    "default": 2.0},
-	{"id": "market_temperature",      "label": "Market kT",          "category": "Market",  "value_path": ["tuning", "market_temperature"],            "kind": "float",       "step": 0.5,  "min": 1.0,  "max": 30.0,   "default": 10.0},
-	{"id": "market_temperature_entropy_gain", "label": "Market kT entropy gain", "category": "Market", "value_path": ["tuning", "market_temperature_entropy_gain"], "kind": "float", "step": 0.1, "min": 0.0, "max": 5.0, "default": 1.0},
-]
-
-# Knobs that only do something in the open (Lindbladian) system — hidden when closed.
-const _OPEN_ONLY_SETTING_IDS := ["lindblad_rate_scale", "measurement_drain_base", "flux_to_credits"]
+# The audio row isn't a balance-config knob (no value_path); kept here. Every
+# economy/physics knob is DERIVED from BalanceConfig.TUNABLES via board_specs() — the
+# single source of truth — so the board never duplicates defaults/metadata. open_only
+# rows (Lindbladian-only) are filtered out in the closed system.
+const _MUSIC_ROW := {"id": "music_volume", "label": "Music volume", "category": "Audio", "value_path": [], "kind": "music_pct", "step": 5, "min": 0, "max": 100, "default": 70}
 
 func _ensure_balance_settings_loaded() -> void:
 	if _balance_settings.is_empty():
-		_balance_settings = []
+		_balance_settings = [_MUSIC_ROW.duplicate(true)]
 		var closed: bool = not BalanceConfig.dissipative_enabled()
-		for d in _BALANCE_SETTING_DEFS:
-			if closed and str(d.get("id", "")) in _OPEN_ONLY_SETTING_IDS:
+		for d in BalanceConfig.board_specs():
+			if closed and bool(d.get("open_only", false)):
 				continue  # dead knob in the closed system
 			_balance_settings.append(d.duplicate(true))
 	_balance_setting_idx = clampi(_balance_setting_idx, 0, max(0, _balance_settings.size() - 1))
