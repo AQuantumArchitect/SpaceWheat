@@ -228,6 +228,12 @@ static func get_reap_cost_sequence(farm: Node = null) -> Array:
 
 
 static func get_reap_cost(farm: Node, reap_count: int) -> Dictionary:
+	# Closed (Hamiltonian-only) system: reaping is free — nothing depletes. The 🍼
+	# escalating reap fee is an open-system pressure valve; in a closed unitary world
+	# reap is just a mass projective read (state stays pure, H re-spreads). See the
+	# matching gate in EconomyConstants.get_action_cost.
+	if not BalanceConfig.dissipative_enabled():
+		return {}
 	var sequence = get_reap_cost_sequence(farm)
 	if sequence.is_empty():
 		return {EconomyConstants.MIDWIFE_EMOJI: 1}
