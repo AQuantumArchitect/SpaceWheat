@@ -1573,21 +1573,22 @@ func _keycode_from_name(key_name: String) -> int:
 
 
 func _route_rig_key_event(event: InputEventKey) -> void:
-	# Synthetic rig input should traverse the same shell/overlay/input stack in
-	# both headed and headless modes. Relying on parse_input_event alone is not
-	# stable for modal overlay navigation in headed WSL sessions.
+	# Inject through the engine's real dispatch (push_input) so the whole live tree sees
+	# the event exactly as a hardware key would: PlayerShell._input → overlay stack →
+	# Farm._unhandled_input → QuantumInstrumentInput._unhandled_key_input.
+	#
+	# This replaces hand-routing (_shell._input + _unhandled_key_input called directly and
+	# gated on Viewport.is_input_handled()). That flag is only RESET inside push_input();
+	# calling the handlers directly left it stuck `true` after the first consumed key, so
+	# every later QII action (hat switch, measure, …) short-circuited before reaching QII.
+	# push_input() resets it per event and dispatches in the correct order, in both headed
+	# and headless modes (the synchronous push_input is not the async Input.parse_input_event
+	# the earlier note warned about).
 	var viewport: Viewport = root
-	if _shell and _shell.has_method("_input"):
+	if viewport:
+		viewport.push_input(event, true)
+	elif _shell and _shell.has_method("_input"):
 		_shell._input(event)
-		if viewport and viewport.is_input_handled():
-			return
-	var qinput = _resolve_quantum_input()
-	if qinput and qinput.has_method("_unhandled_key_input"):
-		qinput._unhandled_key_input(event)
-		if viewport and viewport.is_input_handled():
-			return
-	if qinput and qinput.has_method("_input"):
-		qinput._input(event)
 
 
 func _push_key_event(keycode: int, pressed: bool, shift: bool = false) -> bool:
