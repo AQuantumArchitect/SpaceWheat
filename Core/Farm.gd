@@ -1337,8 +1337,8 @@ func _liquidate_biome_resources(biome_name: String, biome) -> Dictionary:
 	if not biome or not biome.quantum_computer or not economy:
 		return out
 
-	var flux_to_credits = float(BalanceService.get_tuning_value(self, "flux_to_credits", 1.0))
-	var removal_base_yield = float(BalanceService.get_tuning_value(self, "reap_base_yield", 50.0)) * 0.5
+	var flux_to_credits = float(BalanceService.get_tuning_value(self, "flux_to_credits"))
+	var removal_base_yield = float(BalanceService.get_tuning_value(self, "reap_base_yield")) * 0.5
 	var qc = biome.quantum_computer
 
 	var fluxes: Dictionary = qc.get_all_sink_fluxes() if qc.has_method("get_all_sink_fluxes") else {}

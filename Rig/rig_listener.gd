@@ -493,7 +493,7 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			# match within rounding; a near-pure biome pays ≈0 (dS≈0).
 			var probe_rows: Array = []
 			if _farm and "grid" in _farm and _farm.grid and _farm.grid.has_biomes():
-				var f2c: float = float(BalanceService.get_tuning_value(_farm, "flux_to_credits", 1.0))
+				var f2c: float = float(BalanceService.get_tuning_value(_farm, "flux_to_credits"))
 				for bkey in _farm.grid.get_biome_names():
 					var biome = _farm.grid.get_biome(str(bkey))
 					if not biome or not biome.quantum_computer:

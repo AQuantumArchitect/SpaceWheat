@@ -20,10 +20,9 @@ var total_wheat_harvested: int = 0
 var resource_mutation_log: Array = []
 var _economy_overrides: Dictionary = {}
 var _balance_profile_id: String = "default"
-var _economy_variables: Dictionary = {
-	"quantum_to_credits": EconomyConstants.QUANTUM_TO_CREDITS,
-	"max_biome_qubits": EconomyConstants.MAX_BIOME_QUBITS
-}
+# Populated from the loaded config (default.jsonl) in apply_economy_overrides — no
+# code-default seed. Empty until the canonical config loads.
+var _economy_variables: Dictionary = {}
 
 const MAX_RESOURCE_MUTATION_LOG: int = 400
 
@@ -228,10 +227,10 @@ func apply_economy_overrides(config: Dictionary) -> Dictionary:
 	# Returns a summary of what was applied.
 	_economy_overrides = config.duplicate(true)
 	_balance_profile_id = str(_economy_overrides.get("profile_id", "default"))
-	_economy_variables = {
-		"quantum_to_credits": EconomyConstants.QUANTUM_TO_CREDITS,
-		"max_biome_qubits": EconomyConstants.MAX_BIOME_QUBITS
-	}
+	# No code-default seed: economy_variables come from the canonical config (default.jsonl).
+	# validate_config_complete() fails loudly at boot if any are missing.
+	_economy_variables = {}
+	BalanceService.validate_config_complete(_economy_overrides)
 	var applied: Dictionary = {}
 	for key in ["action_costs", "gate_costs", "quest_rewards", "production", "economy_variables"]:
 		if _economy_overrides.has(key) and _economy_overrides[key] is Dictionary:
@@ -264,10 +263,12 @@ func get_economy_variables() -> Dictionary:
 	return _economy_variables.duplicate(true)
 
 
-func get_economy_variable(_name: String, default_value = null):
+func get_economy_variable(_name: String):
+	# Single source: the loaded config. No code-default — missing = honestly broken.
 	if _economy_variables.has(_name):
 		return _economy_variables[_name]
-	return default_value
+	push_error("FarmEconomy.get_economy_variable: '%s' absent from the loaded config (default.jsonl incomplete). No code-default by design." % _name)
+	return null
 
 
 func get_overridden_action_cost(action: String, context: Dictionary = {}) -> Dictionary:
@@ -335,11 +336,11 @@ func commit_cost(cost: Dictionary, reason: String = "") -> bool:
 
 
 func get_max_biome_qubits() -> int:
-	return int(get_economy_variable("max_biome_qubits", EconomyConstants.MAX_BIOME_QUBITS))
+	return int(get_economy_variable("max_biome_qubits"))
 
 
 func get_quantum_to_credits_value() -> float:
-	return float(get_economy_variable("quantum_to_credits", EconomyConstants.QUANTUM_TO_CREDITS))
+	return float(get_economy_variable("quantum_to_credits"))
 
 
 ## ============================================================================

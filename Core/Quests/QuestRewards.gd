@@ -17,7 +17,11 @@ const QUEST_REWARD_TUNING_DEFAULTS: Dictionary = {
 	,
 	"biome_novelty_multiplier": 1.10,
 	"icon_novelty_multiplier": 1.10,
-	"novelty_multiplier_cap": 1.20
+	"novelty_multiplier_cap": 1.20,
+	# Representative kT for quest-reward SIZING (rarer goal → bigger bounty). Live market
+	# pricing uses the biome's own kT; this is the offer-sizing anchor. Canonical value in
+	# default.jsonl (quest_rewards.reward_kT).
+	"reward_kT": 10.0
 }
 
 static var _quest_reward_tuning_overrides: Dictionary = {}
@@ -469,7 +473,7 @@ static func _compute_surprisal_reward_budget(quest: Dictionary, _profile: Dictio
 	# market pricing); tune via JSONL tuning.market_temperature. The interference
 	# profile no longer sets the budget — it only steers WHICH emojis pay out
 	# (see _build_resource_reward_plan).
-	var kT := float(EconomyConstants.MARKET_TEMPERATURE_BASE)
+	var kT := float(get_reward_tuning().get("reward_kT", 10.0))
 	var budget := QuestEnergy.target_energy(quest, kT)
 	var amount := maxi(1, int(round(budget)))
 	if not deterministic:

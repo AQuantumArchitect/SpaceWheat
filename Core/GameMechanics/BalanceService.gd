@@ -211,22 +211,44 @@ static func load_farm_variable_graph_file(farm: Node, path: String, source: Stri
 	return applied
 
 
-static func get_tuning_value(farm: Node, key: String, default_value):
-	var config = BalanceConfig.load_default_config(_get_current_state(farm))
-	var tuning = config.get("tuning", {}).duplicate(true)
+static func get_tuning_value(farm: Node, key: String):
+	# Single source of truth: the loaded economy config (default.jsonl + save deltas).
+	# NO code-default fallback — if a tuning key is missing, the config is incomplete and
+	# the game is in an honestly-broken state, so we say so loudly. (validate_config_complete()
+	# catches this at boot; this is the per-read belt-and-suspenders.)
 	var economy = _get_economy(farm)
 	if economy and economy.has_method("get_economy_overrides"):
-		var overrides = economy.get_economy_overrides()
-		var override_tuning = overrides.get("tuning", {})
-		if override_tuning is Dictionary:
-			for tuning_key in override_tuning.keys():
-				tuning[str(tuning_key)] = override_tuning[tuning_key]
-	return tuning.get(key, default_value)
+		var tuning = economy.get_economy_overrides().get("tuning", {})
+		if tuning is Dictionary and tuning.has(key):
+			return tuning[key]
+	push_error("BalanceService.get_tuning_value: tuning key '%s' absent from the loaded config — default.jsonl is incomplete (or the economy isn't loaded). No code-default by design." % key)
+	return null
 
 
 static func get_reap_cost_sequence(farm: Node = null) -> Array:
-	var sequence = get_tuning_value(farm, "reap_cost_sequence", EconomyConstants.REAP_COST_SEQUENCE)
-	return sequence if sequence is Array else EconomyConstants.REAP_COST_SEQUENCE
+	var sequence = get_tuning_value(farm, "reap_cost_sequence")
+	if not (sequence is Array):
+		push_error("BalanceService.get_reap_cost_sequence: reap_cost_sequence missing/invalid in config.")
+		return []
+	return sequence
+
+
+## Boot honesty check: every tuning / economy_variables knob the code declares (BalanceConfig
+## .TUNABLES) MUST be present in the loaded config. Missing keys mean default.jsonl is
+## incomplete — fail LOUDLY rather than papering over with a silent default. Returns the list
+## of missing "root.key" paths (empty = healthy).
+static func validate_config_complete(config: Dictionary) -> Array:
+	var missing: Array = []
+	for t in BalanceConfig.TUNABLES:
+		var root := str(t["root"])
+		if root != "tuning" and root != "economy_variables":
+			continue  # physics scalars live in BalanceConfig, not the JSONL economy config
+		var block = config.get(root, {})
+		if not (block is Dictionary) or not block.has(str(t["key"])):
+			missing.append("%s.%s" % [root, str(t["key"])])
+	if not missing.is_empty():
+		push_error("BalanceService: economy config is INCOMPLETE — missing %s. default.jsonl must define every tunable; the game runs only when the config is whole." % str(missing))
+	return missing
 
 
 static func get_reap_cost(farm: Node, reap_count: int) -> Dictionary:

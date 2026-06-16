@@ -8,28 +8,17 @@ extends RefCounted
 ## No universal currency - all resources are [emoji]-credits.
 
 ## ===========================================
-## QUANTUM ↔ CLASSICAL CONVERSION
+## ECONOMY VALUES ARE DATA, not code
 ## ===========================================
+## quantum_to_credits, max_biome_qubits, market_temperature(+entropy_gain),
+## reap_cost_sequence and every tuning knob live ONLY in the canonical
+## Core/Config/FarmVariableGraph/default.jsonl (loaded at boot, validated complete by
+## BalanceService.validate_config_complete). There are NO code-default constants for them —
+## a missing key is an honest hard failure, not a silent fallback. Code holds only logic:
+## the conversion/cost FORMULAS below and structural symbols.
 
-## Base conversion rate: 1 quantum mass = 1 classical credit (direct mapping)
-## IconMap mass (accumulated probability over ~13 steps) maps directly to credits
-const QUANTUM_TO_CREDITS: float = 1.0
-
-## Boltzmann market temperature (kT) for the E = −kT·log p scarcity law
-## (EnergyPricing). The single dimensional anchor for every reward/price/cost —
-## it replaced the old QUANTUM_CLASSICAL_RATIO. MARKET_TEMPERATURE_BASE is the
-## cold-biome floor; a biome's effective kT rises with its mixedness (entropy)
-## by ENTROPY_GAIN. Both are overridable via FarmVariableGraph JSONL
-## (tuning.market_temperature, tuning.market_temperature_entropy_gain) so the
-## Biome Lab can sweep them empirically.
-const MARKET_TEMPERATURE_BASE: float = 10.0
-const MARKET_TEMPERATURE_ENTROPY_GAIN: float = 1.0
-
-## Reality Midwife token emoji (display + economy tracking)
+## Reality Midwife token emoji (a symbol, not a tunable number).
 const MIDWIFE_EMOJI: String = "🍼"
-
-# Reap season cost progression (Fibonacci)
-const REAP_COST_SEQUENCE: Array[int] = [1, 1, 2, 3, 5, 8, 13, 21]
 
 ## ===========================================
 ## ACTION / GATE / ROTATION COSTS — DATA, not code
@@ -60,8 +49,8 @@ const LINDBLAD_DRAIN_SOUTH_COST: int = 8   # south pole emoji extracted by treat
 ## Spark pole-shift cost: just the pole emoji itself (no fee).
 const SPARK_POLE_COST: int = 1
 
-## Hard cap on biome qubits (enforced by actions, not by the quantum computer)
-const MAX_BIOME_QUBITS: int = 12
+## max_biome_qubits is loaded config (economy_variables.max_biome_qubits in default.jsonl),
+## not a code constant — read via get_max_biome_qubits(economy).
 
 ## ===========================================
 ## PLANT TYPE → EMOJI PAIR MAPPING
@@ -91,23 +80,19 @@ const PLANT_TYPE_EMOJIS: Dictionary = {
 ## ===========================================
 
 static func get_quantum_to_credits(economy = null) -> float:
-	# Get conversion rate, allowing save-driven economy variable overrides.
-	var fallback = QUANTUM_TO_CREDITS
+	# quantum_to_credits is loaded config (economy_variables), not a code constant.
 	if economy and economy.has_method("get_economy_variable"):
-		var value = float(economy.get_economy_variable("quantum_to_credits", fallback))
-		if value > 0.0:
-			return value
-	return fallback
+		return float(economy.get_economy_variable("quantum_to_credits"))
+	push_error("get_quantum_to_credits: no economy supplied — value is loaded config, no code default.")
+	return 1.0
 
 
 static func get_max_biome_qubits(economy = null) -> int:
-	# Get max biome qubit cap, allowing save-driven economy variable overrides.
-	var fallback = MAX_BIOME_QUBITS
+	# max_biome_qubits is loaded config (economy_variables), not a code constant.
 	if economy and economy.has_method("get_economy_variable"):
-		var value = int(economy.get_economy_variable("max_biome_qubits", fallback))
-		if value > 0:
-			return value
-	return fallback
+		return int(economy.get_economy_variable("max_biome_qubits"))
+	push_error("get_max_biome_qubits: no economy supplied — value is loaded config, no code default.")
+	return 0
 
 
 static func quantum_to_credits(probability: float, economy = null) -> int:

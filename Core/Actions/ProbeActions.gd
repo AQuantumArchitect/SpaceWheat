@@ -353,10 +353,10 @@ static func _resolve_drain_fraction(_biome, purity: float, farm = null) -> float
 	# Pure states (purity≈1) yield full base drain — more extractable, more fragile.
 	# Mixed states (purity≈0.25) yield minimal drain — less information, less disruption.
 	# This naturally connects quantum information theory to game economy.
-	var base_drain = 0.15  # Default: 15% at full purity
+	# Open-system only (drain); the closed game never reaches here. Config-sourced, no default.
+	var base_drain = 0.15
 	if farm:
-		base_drain = float(BalanceService.get_tuning_value(
-			farm, "measurement_drain_base", 0.15))
+		base_drain = float(BalanceService.get_tuning_value(farm, "measurement_drain_base"))
 	return clampf(base_drain * clampf(purity, 0.0, 1.0), 0.0, 1.0)
 
 
@@ -481,8 +481,8 @@ static func _finalize_measurement_terminal(terminal, outcome: String, recorded_p
 static func _vocab_reward_multiplier(emoji: String, bloch_r: float, farm = null) -> float:
 	if farm == null or emoji == "":
 		return 1.0
-	var bonus: float = float(BalanceService.get_tuning_value(farm, "vocab_r_bonus", 1.0))
-	var exponent: float = float(BalanceService.get_tuning_value(farm, "vocab_reward_exponent", 2.0))
+	var bonus: float = float(BalanceService.get_tuning_value(farm, "vocab_r_bonus"))
+	var exponent: float = float(BalanceService.get_tuning_value(farm, "vocab_reward_exponent"))
 	var knows: bool = farm.has_method("get_known_emojis") and (emoji in farm.get_known_emojis())
 	var eff_r: float = clampf(bloch_r, 0.0, 1.0) + (bonus if knows else 0.0)
 	return pow(eff_r, exponent)
@@ -765,7 +765,7 @@ static func action_reap(farm, economy = null) -> Dictionary:
 			"message": "Reap failed: unable to spend cost."
 		}
 
-	var reap_cycles = int(BalanceService.get_tuning_value(farm, "reap_evolution_cycles", 13))
+	var reap_cycles = int(BalanceService.get_tuning_value(farm, "reap_evolution_cycles"))
 	reap_cycles = maxi(reap_cycles, 0)
 	var active_biome_names: Array = []
 	for biome in active_biomes:
@@ -774,7 +774,7 @@ static func action_reap(farm, economy = null) -> Dictionary:
 
 	var fast_forward_result = _advance_reap_cycles(farm, active_biomes, reap_cycles)
 
-	var flux_to_credits = float(BalanceService.get_tuning_value(farm, "flux_to_credits", 1.0))
+	var flux_to_credits = float(BalanceService.get_tuning_value(farm, "flux_to_credits"))
 	var reap_result = _collect_reap_rewards(active_biomes, economy, farm, flux_to_credits)
 	var flux_totals: Dictionary = reap_result.get("flux_totals", {})
 	var icon_totals: Dictionary = reap_result.get("icon_totals", {})

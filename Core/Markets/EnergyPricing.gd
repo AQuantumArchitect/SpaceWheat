@@ -51,11 +51,12 @@ static func drive_units(p_pole: float, kT: float) -> int:
 ## init value while the state evolves). Both kT and the reap bank now track the
 ## same live diagonal.
 static func biome_temperature(biome, farm = null) -> float:
-	var t_base: float = EconomyConstants.MARKET_TEMPERATURE_BASE
-	var t_gain: float = EconomyConstants.MARKET_TEMPERATURE_ENTROPY_GAIN
-	if farm:
-		t_base = float(BalanceService.get_tuning_value(farm, "market_temperature", t_base))
-		t_gain = float(BalanceService.get_tuning_value(farm, "market_temperature_entropy_gain", t_gain))
+	if farm == null:
+		push_error("EnergyPricing.biome_temperature requires a farm — market_temperature is loaded config, not a code constant.")
+		return 0.0
+	# Single source: the loaded config. No code-default fallback.
+	var t_base: float = float(BalanceService.get_tuning_value(farm, "market_temperature"))
+	var t_gain: float = float(BalanceService.get_tuning_value(farm, "market_temperature_entropy_gain"))
 	var s_norm: float = 0.0
 	var qc = biome.quantum_computer if biome and "quantum_computer" in biome else null
 	if qc and qc.has_method("get_entropy") and qc.has_method("get_dimension"):
