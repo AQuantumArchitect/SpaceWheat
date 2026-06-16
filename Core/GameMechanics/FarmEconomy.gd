@@ -282,13 +282,13 @@ func get_overridden_action_cost(action: String, context: Dictionary = {}) -> Dic
 
 
 func get_overridden_gate_cost(gate_name: String) -> Dictionary:
-	# Get gate cost, checking overrides first, then EconomyConstants.
+	# Gate costs are DATA — sourced ONLY from the canonical JSONL (no code-default fallback).
 	var overrides = _economy_overrides.get("gate_costs", {})
 	if overrides is Dictionary and overrides.has(gate_name):
 		var cost = overrides[gate_name]
 		if cost is Dictionary:
 			return cost
-	return EconomyConstants.get_gate_cost(gate_name)
+	return {}
 
 
 func get_action_cost(action: String, context: Dictionary = {}) -> Dictionary:

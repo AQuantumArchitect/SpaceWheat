@@ -55,11 +55,13 @@ static func get_snapshot(farm: Node) -> Dictionary:
 		else:
 			action_costs[normalized] = EconomyConstants.get_action_cost(normalized, {})
 
-	for gate_name in EconomyConstants.GATE_COSTS.keys():
+	# Gate names come from the canonical config (overrides.gate_costs), not a code table.
+	var gate_names: Array = []
+	if overrides.has("gate_costs") and overrides["gate_costs"] is Dictionary:
+		gate_names = overrides["gate_costs"].keys()
+	for gate_name in gate_names:
 		if economy and economy.has_method("get_overridden_gate_cost"):
 			gate_costs[gate_name] = economy.get_overridden_gate_cost(gate_name)
-		else:
-			gate_costs[gate_name] = EconomyConstants.get_gate_cost(gate_name)
 
 	return {
 		"profile_id": profile_id,

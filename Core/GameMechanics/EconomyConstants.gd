@@ -32,69 +32,14 @@ const MIDWIFE_EMOJI: String = "🍼"
 const REAP_COST_SEQUENCE: Array[int] = [1, 1, 2, 3, 5, 8, 13, 21]
 
 ## ===========================================
-## ACTION COSTS (Classical Resources as Sink)
+## ACTION / GATE / ROTATION COSTS — DATA, not code
 ## ===========================================
-## All costs are in raw credits (the numbers stored in emoji_credits).
-## Unified table: action_name → cost dictionary
-
-const ACTION_COSTS: Dictionary = {
-	"explore": {},              # Bind a terminal — free; auto-binds on plot select (you pay to extract/invest, not to look)
-	"measure": {"❄️": 1},       # Measure (3E) - cold/ice
-	"pop": {"👥": 1},           # Targeted terminal extraction
-	"reap": {MIDWIFE_EMOJI: 1}, # Seasonal reap (actual cost resolved by sequence)
-	"quest_reroll": {"🐇": 1},   # Reroll quest slot
-	"discover_biome": {"🦅": 21}, # Scout new biome
-	"remove_biome": {"💀": 34},  # Cull biome: pay skulls, then liquidate the biome's live state
-	"remove_icon": {"🐺": 13}, # Remove icon base cost (N+S pole costs added dynamically)
-	"lindblad_pump": {"📜": 4},   # Merchant tribute contract; +north pole emoji added dynamically
-	"lindblad_drain": {"🧺": 4},  # Merchant treaty / village basket; +south pole emoji added dynamically
-	"spark_north": {},            # Spark pole shift — cost is 1× north pole emoji, added dynamically
-	"spark_south": {}             # Spark pole shift — cost is 1× south pole emoji, added dynamically
-	# icon_injection and remove_icon are dynamic - use get_action_cost()
-}
-
-## ===========================================
-## QUANTUM GATE COSTS
-## ===========================================
-## All quantum gate operations cost resources from starter biomes.
-## Costs are in emoji-credits (1 emoji = base cost).
-
-const GATE_COSTS: Dictionary = {
-	# Pauli gates - fundamental bit/phase flips
-	"pauli_x": {"☀": 1},        # Sun - bit flip (most common)
-	"pauli_y": {"🌙": 1},        # Moon - bit+phase flip
-	"pauli_z": {"🍂": 1},        # Detritus - phase flip only
-
-	# Other single-qubit gates
-	"hadamard": {"🔥": 1},       # Fire - superposition
-	"s_gate": {"🌀": 1},         # Vortex - π/2 phase rotation
-	"t_gate": {"🌿": 1},         # Herb - π/8 phase
-
-	# Two-qubit gates - entanglement and control
-	"cnot": {"🍄": 1},           # Mushroom - entanglement (mycelial networks)
-	"cz": {"🦌": 1},             # Deer - controlled-phase
-	"swap": {"⚖": 1},           # Scales - equal exchange (village commerce, 1-hop via 💰)
-}
-
-## ===========================================
-## UNITARY ROTATION COSTS
-## ===========================================
-## Continuous Bloch sphere rotations (Group 1). One cost per click.
-
-const ROTATION_COSTS: Dictionary = {
-	"rotate_up":   {"⛰": 1},    # Mountain - ascending/north pole (1-hop via ☀/Celestial Archons)
-	"rotate_down": {"🏜": 1},    # Desert - descending/south pole (1-hop via ❄/Hearth Keepers)
-}
-
-## ===========================================
-## GATE-MODE ACTION COSTS
-## ===========================================
-## Gate-mode instrument actions (inspect, remove_gates). Not per-gate costs.
-
-const GATE_ACTION_COSTS: Dictionary = {
-	"inspect":      {"🔬": 1},   # Microscope - observe entanglement (1-hop via ⚙/Rocketwright)
-	"remove_gates": {"⚔": 1},   # Sword - break bonds (1-hop via 🔥/Children of the Ember)
-}
+## Every FIXED cost now lives in the canonical Core/Config/FarmVariableGraph/default.jsonl
+## (action_costs.* and gate_costs.*), loaded at boot and read via FarmEconomy's
+## get_overridden_action_cost / get_overridden_gate_cost. There is deliberately NO static
+## cost table here — code holds only the DYNAMIC cost formulas below (inject / remove_icon /
+## spark / lindblad), whose cost depends on runtime context. One source of truth, no
+## code-default fallback fighting the JSONL.
 
 ## Icon injection dynamic costs
 const ICON_INJECTION_SOUTH_COST: int = 13
@@ -324,20 +269,17 @@ static func get_action_cost(action: String, context: Dictionary = {}) -> Diction
 	var normalized_action = normalize_action_id(action)
 	if normalized_action == ActionIds.INJECT_ICON:
 		return get_icon_injection_cost(context.get("south_emoji", ""))
-	if normalized_action == "remove_icon" and (context.has("north_emoji") or context.has("south_emoji")):
+	if normalized_action == "remove_icon":
+		# Always dynamic: get_icon_removal_cost("","") returns the base, context adds poles.
 		return get_icon_removal_cost(context.get("north_emoji", ""), context.get("south_emoji", ""))
 	if normalized_action in [ActionIds.LINDBLAD_PUMP, ActionIds.LINDBLAD_DRAIN]:
 		return get_lindblad_injection_cost(normalized_action, context)
 	if normalized_action in [ActionIds.SPARK_NORTH, ActionIds.SPARK_SOUTH]:
 		return get_spark_cost(normalized_action, context)
-	if ACTION_COSTS.has(normalized_action):
-		return ACTION_COSTS[normalized_action]
-	if GATE_COSTS.has(normalized_action):
-		return GATE_COSTS[normalized_action]
-	if ROTATION_COSTS.has(normalized_action):
-		return ROTATION_COSTS[normalized_action]
-	if GATE_ACTION_COSTS.has(normalized_action):
-		return GATE_ACTION_COSTS[normalized_action]
+	# Static costs are DATA — they live ONLY in the canonical FarmVariableGraph JSONL
+	# (read via FarmEconomy.get_overridden_action_cost). This function returns only the
+	# DYNAMIC/computed costs above; everything else is honestly {} here — no code-default
+	# table fighting the JSONL.
 	return {}
 
 
@@ -348,8 +290,9 @@ static func get_gate_cost(gate_name: String) -> Dictionary:
 	# gate_name: Gate name (pauli_x, pauli_y, pauli_z, hadamard, s_gate, t_gate, cnot, cz, swap)
 
 	# Returns:
-	# Dictionary of {emoji: amount} costs
-	return GATE_COSTS.get(gate_name, {})
+	# Dictionary of {emoji: amount} costs — gate costs are DATA, sourced ONLY from the
+	# canonical JSONL via FarmEconomy.get_overridden_gate_cost. No code-default here.
+	return {}
 
 
 static func preflight_action(action: String, economy, context: Dictionary = {}) -> Dictionary:

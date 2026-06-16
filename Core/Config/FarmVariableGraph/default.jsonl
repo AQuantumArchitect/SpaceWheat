@@ -27,7 +27,6 @@
 {"op":"set","path":"action_costs.quest_reroll.🐇","value":1}
 {"op":"set","path":"action_costs.discover_biome.🦅","value":21}
 {"op":"set","path":"action_costs.remove_biome.💀","value":34}
-{"op":"set","path":"action_costs.remove_icon.🐺","value":13}
 {"op":"set","path":"action_costs.rotate_up.⛰","value":1}
 {"op":"set","path":"action_costs.rotate_down.🏜","value":1}
 {"op":"set","path":"action_costs.inspect.🔬","value":1}
