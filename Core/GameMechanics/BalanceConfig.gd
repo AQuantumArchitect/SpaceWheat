@@ -20,7 +20,16 @@ const DEFAULTS: Dictionary = {
 		"flux_to_credits": 1.0,
 		"reap_cost_sequence": [1, 1, 2, 3, 5, 8, 13, 21],
 		"reap_starting_tokens": 6,
-		"measurement_drain_base": 0.15
+		"measurement_drain_base": 0.15,
+		# Market scarcity temperature kT (Boltzmann E = −kT·log p). Were const-only in
+		# EconomyConstants + JSONL; now defaulted here too so the board can surface them.
+		"market_temperature": 10.0,
+		"market_temperature_entropy_gain": 1.0,
+		# Vocabulary-reward multiplier: knowing an icon boosts its harvest. The escape
+		# from the resource spiral. mult = (r + (knows ? vocab_r_bonus : 0)) ^ exponent;
+		# closed (r=1) → known ×4 / unknown ×1; open (r<1) → a curve. See ProbeActions.
+		"vocab_r_bonus": 1.0,
+		"vocab_reward_exponent": 2.0
 	},
 	# Physics balance — controls how quantum dynamics feel to the player.
 	# Hamiltonian drives fast visible oscillation (seconds).

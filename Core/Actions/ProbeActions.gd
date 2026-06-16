@@ -221,7 +221,9 @@ static func action_measure(terminal, biome, economy = null, farm = null) -> Dict
 	# Scale by pair affinity — unfamiliar factions cost more to collapse.
 	var pair_affinity = FactionAffinity.get_pair_affinity(
 		terminal.north_emoji, terminal.south_emoji, farm)
-	var base_measure_cost = EconomyConstants.get_action_cost("measure", {})
+	# Override-aware: route through ActionCostRuntime so balance-board action_cost
+	# overrides actually reach measure (EconomyConstants is the fallback inside it).
+	var base_measure_cost = ActionCostRuntime.get_action_cost(farm, "measure", {})
 	var scaled_measure_cost = PhysicsCostScaling.scale_measure_cost(
 		base_measure_cost, pair_affinity)
 	var measure_cost_gate = _preflight_cost(economy, scaled_measure_cost)
@@ -860,7 +862,7 @@ static func _prepare_pop_result(terminal, terminal_pool, economy = null, farm = 
 	var resource_amount = maxi(int(reward_ctx.get("resource_amount", credits)), 1)
 
 	if economy:
-		var base_cost = EconomyConstants.get_action_cost("pop", {})
+		var base_cost = ActionCostRuntime.get_action_cost(farm, "pop", {})
 		var scaled_cost = PhysicsCostScaling.scale_pop_cost(base_cost, p_emoji, bloch_r)
 		var pop_cost_gate = _preflight_cost(economy, scaled_cost)
 		if not pop_cost_gate.get("ok", true):

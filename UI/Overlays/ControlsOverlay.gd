@@ -2013,6 +2013,10 @@ const _BALANCE_SETTING_DEFS := [
 	{"id": "reap_evolution_cycles",   "label": "Reap evolve cycles", "category": "Physics", "value_path": ["tuning", "reap_evolution_cycles"],         "kind": "int",         "step": 1,    "min": 1,    "max": 60,     "default": 13},
 	{"id": "reap_starting_tokens",    "label": "Reap start tokens",  "category": "Yield",   "value_path": ["tuning", "reap_starting_tokens"],          "kind": "int",         "step": 1,    "min": 0,    "max": 30,     "default": 6},
 	{"id": "max_biome_qubits",        "label": "Max biome qubits",   "category": "Physics", "value_path": ["economy_variables", "max_biome_qubits"],   "kind": "int",         "step": 1,    "min": 4,    "max": 24,     "default": 12},
+	{"id": "vocab_r_bonus",           "label": "Vocab r-bonus",      "category": "Vocab",   "value_path": ["tuning", "vocab_r_bonus"],                 "kind": "float",       "step": 0.25, "min": 0.0,  "max": 4.0,    "default": 1.0},
+	{"id": "vocab_reward_exponent",   "label": "Vocab exponent",     "category": "Vocab",   "value_path": ["tuning", "vocab_reward_exponent"],         "kind": "float",       "step": 0.25, "min": 1.0,  "max": 4.0,    "default": 2.0},
+	{"id": "market_temperature",      "label": "Market kT",          "category": "Market",  "value_path": ["tuning", "market_temperature"],            "kind": "float",       "step": 0.5,  "min": 1.0,  "max": 30.0,   "default": 10.0},
+	{"id": "market_temperature_entropy_gain", "label": "Market kT entropy gain", "category": "Market", "value_path": ["tuning", "market_temperature_entropy_gain"], "kind": "float", "step": 0.1, "min": 0.0, "max": 5.0, "default": 1.0},
 ]
 
 # Knobs that only do something in the open (Lindbladian) system — hidden when closed.
@@ -2068,6 +2072,18 @@ func _balance_setting_set_value(setting: Dictionary, value: Variant) -> void:
 		return
 	if gsm.current_state.has_method("set_balance_config_value"):
 		gsm.current_state.set_balance_config_value(path, value)
+	# Apply LIVE to the running economy too — not just the saved config — so board edits
+	# take effect immediately. Builds the same nested patch the rig balance_patch uses and
+	# routes it through BalanceService.apply_patch → FarmEconomy overrides.
+	var farm = InstrumentLocator.resolve_active_farm(self)
+	if farm:
+		var patch: Dictionary = {}
+		var cursor: Dictionary = patch
+		for i in range(path.size() - 1):
+			cursor[str(path[i])] = {}
+			cursor = cursor[str(path[i])]
+		cursor[str(path[path.size() - 1])] = value
+		BalanceService.apply_patch(farm, patch)
 
 func _balance_setting_format(setting: Dictionary) -> String:
 	var kind: String = str(setting.get("kind", "float"))
