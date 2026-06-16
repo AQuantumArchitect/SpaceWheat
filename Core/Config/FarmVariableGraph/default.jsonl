@@ -18,3 +18,26 @@
 {"op":"set","path":"tuning.reap_cost_sequence","value":[1,1,2,3,5,8,13,21]}
 {"op":"set","path":"tuning.vocab_r_bonus","value":1.0}
 {"op":"set","path":"tuning.vocab_reward_exponent","value":2.0}
+# Static action + gate costs — the canonical home for every fixed cost. Dynamic costs
+# (inject_icon / spark / lindblad — computed from context) stay as formulas in code.
+{"op":"set","path":"action_costs.explore","value":{}}
+{"op":"set","path":"action_costs.measure.❄️","value":1}
+{"op":"set","path":"action_costs.pop.👥","value":1}
+{"op":"set","path":"action_costs.reap.🍼","value":1}
+{"op":"set","path":"action_costs.quest_reroll.🐇","value":1}
+{"op":"set","path":"action_costs.discover_biome.🦅","value":21}
+{"op":"set","path":"action_costs.remove_biome.💀","value":34}
+{"op":"set","path":"action_costs.remove_icon.🐺","value":13}
+{"op":"set","path":"action_costs.rotate_up.⛰","value":1}
+{"op":"set","path":"action_costs.rotate_down.🏜","value":1}
+{"op":"set","path":"action_costs.inspect.🔬","value":1}
+{"op":"set","path":"action_costs.remove_gates.⚔","value":1}
+{"op":"set","path":"gate_costs.pauli_x.☀","value":1}
+{"op":"set","path":"gate_costs.pauli_y.🌙","value":1}
+{"op":"set","path":"gate_costs.pauli_z.🍂","value":1}
+{"op":"set","path":"gate_costs.hadamard.🔥","value":1}
+{"op":"set","path":"gate_costs.s_gate.🌀","value":1}
+{"op":"set","path":"gate_costs.t_gate.🌿","value":1}
+{"op":"set","path":"gate_costs.cnot.🍄","value":1}
+{"op":"set","path":"gate_costs.cz.🦌","value":1}
+{"op":"set","path":"gate_costs.swap.⚖","value":1}
