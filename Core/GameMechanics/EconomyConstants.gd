@@ -57,11 +57,6 @@ const LINDBLAD_PUMP_NORTH_COST: int = 21   # north pole resource staked in pact
 const LINDBLAD_DRAIN_BASKET_COST: int = 4  # 🧺 village-basket treaty
 const LINDBLAD_DRAIN_SOUTH_COST: int = 8   # south pole emoji extracted by treaty
 
-## Transitional aliases for older cost names still used by some callers/tests.
-const LINDBLAD_DRAIN_GEAR_COST: int = LINDBLAD_DRAIN_BASKET_COST
-const LINDBLAD_PUMP_WIND_COST: int = LINDBLAD_PUMP_SCROLL_COST
-const LINDBLAD_PUMP_SPARK_COST: int = SPARK_POLE_COST
-
 ## Spark pole-shift cost: just the pole emoji itself (no fee).
 const SPARK_POLE_COST: int = 1
 
