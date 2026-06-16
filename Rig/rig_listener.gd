@@ -71,7 +71,11 @@ extends SceneTree
 ##
 ## Future actions can be added to the match statement in _execute_command().
 
-const PlayerShellScene = preload("res://UI/PlayerShell.tscn")
+# PlayerShell.tscn is loaded at RUNTIME (in _bootstrap), not preloaded here: a
+# parse-time preload would eagerly compile the whole UI tree (OverlayManager →
+# BiomeInspectorOverlay) before the autoloads register, and BiomeInspectorOverlay
+# references the `IconRegistry` autoload — yielding "Identifier not found" at compile
+# time. Runtime load() defers compilation until after boot_session wires autoloads.
 const QuantumInstrumentClass = preload("res://Core/Instrumentation/QuantumInstrument.gd")
 const BiomeAlignmentCalc = preload("res://Core/Quantum/BiomeAlignmentCalculator.gd")
 const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
@@ -140,36 +144,45 @@ func _bootstrap() -> void:
 		"scenario_id": scenario_id,
 		"headless": is_headless,
 	}
-	_farm = await boot_manager.boot_session(boot_request, null)
-	if not _farm:
-		print("❌ Farm failed to boot; cannot start rig")
-		return
-
-	# Create a FarmView container so paths like /root/FarmView/PlayerShell resolve.
-	var farm_view = Node.new()
-	farm_view.name = "FarmView"
-	get_root().add_child(farm_view)
-
-	if not PlayerShellScene:
-		print("❌ PlayerShell.tscn missing; cannot start rig")
-		return
-
-	_shell = PlayerShellScene.instantiate()
-	farm_view.add_child(_shell)
-
-	# Create visualization when running with display (viz = outflow)
-	var quantum_viz = null
-	if not _is_headless:
-		quantum_viz = QuantumForceGraph.new()
-		farm_view.add_child(quantum_viz)
-		quantum_viz.top_level = true
-		quantum_viz.position = Vector2.ZERO
-		quantum_viz.z_index = 100
-
-	# boot_runtime wires biomes → quantum_viz via _stage_visualization.
-	# Farm signals (terminal_bound, etc.) already connected by boot_runtime's
-	# connect_to_farm() call — no extra wiring needed.
-	await boot_manager.boot_runtime(_farm, _shell, quantum_viz)
+	if is_headless:
+		# Headless test path: hand-mount PlayerShell + boot_runtime so command
+		# execution (snapshots, instrument) works with no render target. The real
+		# game's headless boot (GameRoot) deliberately SKIPS boot_runtime, so we can't
+		# reuse it here — the rig needs UI/instrument staged even without a display.
+		_farm = await boot_manager.boot_session(boot_request, null)
+		if not _farm:
+			print("❌ Farm failed to boot; cannot start rig")
+			return
+		# A "FarmView" container so paths like /root/FarmView/PlayerShell resolve.
+		var farm_view := Node.new()
+		farm_view.name = "FarmView"
+		get_root().add_child(farm_view)
+		var PlayerShellScene = load("res://UI/PlayerShell.tscn")
+		if not PlayerShellScene:
+			print("❌ PlayerShell.tscn missing; cannot start rig")
+			return
+		_shell = PlayerShellScene.instantiate()
+		farm_view.add_child(_shell)
+		# boot_runtime wires biomes → viz and connects farm signals; no viz headless.
+		await boot_manager.boot_runtime(_farm, _shell, null)
+	else:
+		# Headed path: boot the REAL game (AppRoot → GameRoot → FarmView.tscn +
+		# QuantumForceGraph), exactly as a player session — the farm-world renders and
+		# there is no parallel/synthetic FarmView. The rig then drives the same
+		# PlayerShell a human would. This keeps one boot path, not two.
+		var AppRootClass = load("res://scenes/AppRoot.gd")
+		var app_root = AppRootClass.new()
+		app_root.name = "AppRoot"
+		get_root().add_child(app_root)
+		# Let AppRoot._ready construct the PlayerShell + title before we boot.
+		await process_frame
+		await process_frame
+		await app_root.start_game(boot_request)
+		_shell = app_root.get_player_shell()
+		_farm = app_root.game_root.farm if (app_root.game_root and is_instance_valid(app_root.game_root)) else null
+		if not _farm or not _shell:
+			print("❌ Real boot did not yield farm/shell; cannot start rig")
+			return
 
 	_on_ready()
 

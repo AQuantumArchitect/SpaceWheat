@@ -20,9 +20,12 @@ export XDG_CONFIG_HOME="$XDG_ROOT"
 export APPLICATION_NAME
 export GODOT_USER_DIR
 export DISABLE_VERBOSE_FILE_LOGGING=1
-export RIG_DISABLE_LOOKAHEAD=1  # C++ MultiBiomeLookaheadEngine crashes on mixed qubit dims (6D+4D); re-enable when fixed
-export RIG_DISABLE_MI=1
-export RIG_DISABLE_FORCE=1
+# Mixed-dim crash fixed (per-biome dim guards + in-place reregister); default stays
+# off for stable rig runs, but honor an external override so the C++ engine can be
+# exercised live (RIG_DISABLE_LOOKAHEAD=0).
+export RIG_DISABLE_LOOKAHEAD="${RIG_DISABLE_LOOKAHEAD:-1}"
+export RIG_DISABLE_MI="${RIG_DISABLE_MI:-1}"
+export RIG_DISABLE_FORCE="${RIG_DISABLE_FORCE:-1}"
 RIG_DISPLAY_MODE="${RIG_DISPLAY_MODE:-headless}"
 RIG_RENDERING_DRIVER="${RIG_RENDERING_DRIVER:-}"
 if [ "$RIG_DISPLAY_MODE" = "headed" ]; then
