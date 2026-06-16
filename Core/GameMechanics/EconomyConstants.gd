@@ -317,14 +317,10 @@ static func get_action_cost(action: String, context: Dictionary = {}) -> Diction
 	# Returns:
 	# Dictionary of {emoji: amount} costs
 	#
-	# Closed (Hamiltonian-only) system: NOTHING depletes. Action costs (measure ❄️,
-	# pop 👥, reap 🍼, explore, discover, …) are open-system holdovers — in a closed
-	# unitary world measuring is just observing the state (the Hamiltonian re-spreads
-	# it for free), and the −kT·log p energy is the REWARD, not a fee. Charging them
-	# dead-ends the loop (non-renewable fuels with no source in a coherent biome). So
-	# every action is free here; costs return only in the open-quantum DLC.
-	if not BalanceConfig.dissipative_enabled():
-		return {}
+	# Inventory costs are REAL in both systems — spending resources is the game (only the
+	# QUANTUM state never depletes; it's unitary, r=1). The escape from the resource spiral
+	# is the vocabulary-reward multiplier (knowing an icon boosts its harvest), not free
+	# actions. Costs are tunable via the FarmVariableGraph board.
 	var normalized_action = normalize_action_id(action)
 	if normalized_action == ActionIds.INJECT_ICON:
 		return get_icon_injection_cost(context.get("south_emoji", ""))

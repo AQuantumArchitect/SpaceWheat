@@ -466,6 +466,26 @@ static func _finalize_measurement_terminal(terminal, outcome: String, recorded_p
 	terminal.release_register()
 
 
+## Vocabulary-reward multiplier — knowing an icon boosts the resources you extract from it.
+## This is the escape from the resource spiral: plant your vocab (The Demos = 🌾👥) in the
+## Village, harvest 👥, and because you KNOW 👥 you net positive and farm forever.
+##
+## Quantum-derived "purity" curve: add the vocab bonus to the Bloch radius BEFORE the purity
+## calc (purity ≈ r^exp), so it reads as a static bonus when pure and a curve when mixed:
+##   mult = (bloch_r + (knows ? vocab_r_bonus : 0)) ^ vocab_reward_exponent
+##   • Closed (r=1):  unknown → 1^2 = 1×,   known → (1+1)^2 = 4×  ("4× flat for pure values")
+##   • Open  (r<1):   unknown → r^2 (<1),   known → (r+1)^2       (a smooth curve)
+## Both params are tunable via the FarmVariableGraph board (tuning.vocab_r_bonus / _exponent).
+static func _vocab_reward_multiplier(emoji: String, bloch_r: float, farm = null) -> float:
+	if farm == null or emoji == "":
+		return 1.0
+	var bonus: float = float(BalanceService.get_tuning_value(farm, "vocab_r_bonus", 1.0))
+	var exponent: float = float(BalanceService.get_tuning_value(farm, "vocab_reward_exponent", 2.0))
+	var knows: bool = farm.has_method("get_known_emojis") and (emoji in farm.get_known_emojis())
+	var eff_r: float = clampf(bloch_r, 0.0, 1.0) + (bonus if knows else 0.0)
+	return pow(eff_r, exponent)
+
+
 static func _resolve_pop_reward_context(terminal, farm = null) -> Dictionary:
 	if not terminal:
 		return {}
@@ -494,7 +514,8 @@ static func _resolve_pop_reward_context(terminal, farm = null) -> Dictionary:
 	var kT = EnergyPricing.biome_temperature(biome, farm)
 	var reward_quantum = round(EnergyPricing.surprisal_energy(p_emoji, kT))
 	var affinity_bonus = 1.0 + HamiltonianConfig.AFFINITY_REWARD_MAX * affinity
-	var resource_amount = maxi(int(reward_quantum * affinity_bonus), 1)
+	var vocab_mult = _vocab_reward_multiplier(resource, bloch_r, farm)
+	var resource_amount = maxi(int(round(reward_quantum * affinity_bonus * vocab_mult)), 1)
 
 	return {
 		"biome": biome,
@@ -671,7 +692,10 @@ static func _closed_reap_rewards(active_biomes: Array, economy, farm) -> Diction
 			qc.project_qubit(q, pole)   # full projective collapse — stays pure (r=1)
 			if emoji == "":
 				continue
-			var reward: int = maxi(1, int(round(EnergyPricing.surprisal_energy(p, kT))))
+			# Vocab-reward multiplier: the collapsed pole is pure (r=1), so knowing the
+			# emoji pays the "4× flat for pure values" (×1 if unknown). Same helper as pop.
+			var vocab_mult: float = _vocab_reward_multiplier(emoji, 1.0, farm)
+			var reward: int = maxi(1, int(round(EnergyPricing.surprisal_energy(p, kT) * vocab_mult)))
 			economy.add_resource(emoji, reward, "reap_measure")
 			icon_totals[emoji] = icon_totals.get(emoji, 0) + reward
 			total_icon_credits += reward
