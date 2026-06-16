@@ -14,6 +14,10 @@ extends "res://UI/Core/Surface.gd"
 ## and I's target. T/U/I share a focused axis (GHJKL; → 0–5, W/S → 6–11).
 
 const AlignmentGraphCls = preload("res://Core/Alignment/AlignmentGraph.gd")
+const BroadGraphRef = preload("res://Core/QuantumSubstrate/BroadGraph.gd")
+const NeighborhoodGraphRef = preload("res://Core/QuantumSubstrate/NeighborhoodGraph.gd")
+const BroadGraphViewRef = preload("res://UI/Overlays/BroadGraphView.gd")
+const NeighborhoodGraphViewRef = preload("res://UI/Overlays/NeighborhoodGraphView.gd")
 
 # =============================================================================
 # FRAMES + KEY GRAMMAR
@@ -24,6 +28,7 @@ const FRAME_EIGEN := "eigen"
 const FRAME_DRIFT := "drift"
 const FRAME_BITS := "bits"
 const FRAME_ATLAS := "atlas"
+const FRAME_GRAPH := "graph"
 
 const FRAME_LABELS_LOCAL := {
 	FRAME_VECTORS: "Vectors",
@@ -31,6 +36,7 @@ const FRAME_LABELS_LOCAL := {
 	FRAME_DRIFT: "Drift",
 	FRAME_BITS: "Bits",
 	FRAME_ATLAS: "Atlas",
+	FRAME_GRAPH: "Graph",
 }
 
 const TAB_ROW := [
@@ -39,6 +45,7 @@ const TAB_ROW := [
 	{"key": "U", "frame": FRAME_DRIFT,   "name": "Drift"},
 	{"key": "I", "frame": FRAME_BITS,    "name": "Bits"},
 	{"key": "O", "frame": FRAME_ATLAS,   "name": "Atlas"},
+	{"key": "P", "frame": FRAME_GRAPH,   "name": "Graph"},
 ]
 
 const ITEM_KEYS := ["G", "H", "J", "K", "L", ";"]
@@ -101,6 +108,13 @@ var _atlas_selectable_nodes: Array = []
 var _atlas_detail_open: bool = false
 var _cluster_snapshot: Dictionary = {}
 
+# Graph (P) — BroadGraph federation + neighborhood drill-down.
+var _graph_zoom: String = "broad"        # "broad" or a biome name (drilled in)
+var _broad = null                        # cached BroadGraph (rebuilt on biome change)
+var _graph_selectable: Array = []        # biome names, keyboard selection order
+var _graph_selected_idx: int = -1
+var _graph_broad_view = null             # live BroadGraphView ref (highlight without re-render)
+
 # Cached per-render
 var _faction_roster: Array = []        # Array[Faction], stable order
 
@@ -125,7 +139,7 @@ func _init() -> void:
 	content_spacing = 8
 	navigation_mode = NavigationMode.NONE
 	surface_id = "M"
-	frame_ids = [FRAME_VECTORS, FRAME_EIGEN, FRAME_DRIFT, FRAME_BITS, FRAME_ATLAS]
+	frame_ids = [FRAME_VECTORS, FRAME_EIGEN, FRAME_DRIFT, FRAME_BITS, FRAME_ATLAS, FRAME_GRAPH]
 	frame_id = FRAME_VECTORS
 	# Initial labels — _update_action_labels() sets frame-specific richness on first render.
 	set_action_info("Q", {"label": "—"})
@@ -211,7 +225,8 @@ func _on_active_biome_changed(new_biome: String, _old_biome: String) -> void:
 	if farm and farm.grid and farm.grid.has_method("get_biome"):
 		_active_biome = farm.grid.get_biome(new_biome)
 	context_id = new_biome
-	if frame_id == FRAME_ATLAS:
+	_broad = null  # the live-biome set may have changed — rebuild federation lazily
+	if frame_id == FRAME_ATLAS or frame_id == FRAME_GRAPH:
 		_rebuild()
 
 func _on_frame_changed(_new_frame_id: String, _prev_frame_id: String) -> void:
@@ -219,6 +234,10 @@ func _on_frame_changed(_new_frame_id: String, _prev_frame_id: String) -> void:
 	# Only Atlas-local state resets on its tab return.
 	if _new_frame_id == FRAME_ATLAS:
 		_atlas_detail_open = false
+	if _new_frame_id == FRAME_GRAPH:
+		# Always enter the graph at the broad federation level.
+		_graph_zoom = "broad"
+		_graph_selected_idx = -1
 	_update_action_labels()
 	_rebuild()
 
@@ -229,6 +248,31 @@ func _on_frame_changed(_new_frame_id: String, _prev_frame_id: String) -> void:
 func _on_unhandled_key(keycode: int, _event: InputEvent) -> bool:
 	if super._on_unhandled_key(keycode, _event):
 		return true
+
+	# Graph keeps its own key grammar: broad → GHJKL;/W/S move the biome cursor;
+	# neighborhood drill-down has no per-key selection (F returns to broad).
+	if frame_id == FRAME_GRAPH:
+		if _graph_zoom != "broad":
+			return false
+		if _graph_selectable.is_empty():
+			return false
+		var moved := false
+		if ITEM_BY_KEYCODE.has(keycode):
+			var idx: int = int(ITEM_BY_KEYCODE[keycode])
+			if idx < _graph_selectable.size():
+				_graph_selected_idx = idx
+				moved = true
+		elif keycode == KEY_W:
+			_graph_selected_idx = maxi(0, _graph_selected_idx - 1)
+			moved = true
+		elif keycode == KEY_S:
+			_graph_selected_idx = mini(_graph_selectable.size() - 1, _graph_selected_idx + 1)
+			moved = true
+		if moved:
+			_apply_graph_highlight()
+			_update_action_labels()
+			return true
+		return false
 
 	# Atlas keeps its own key grammar (G/H/J/K/L/; selects nodes).
 	if frame_id == FRAME_ATLAS:
@@ -322,6 +366,16 @@ func _on_action_e() -> void:
 				_atlas_detail_open = not _atlas_detail_open
 				_update_action_labels()
 				_render_body()
+		FRAME_GRAPH:
+			if _graph_zoom == "broad":
+				# Drill into the selected biome's neighborhood cluster.
+				if _graph_selected_idx >= 0 and _graph_selected_idx < _graph_selectable.size():
+					_graph_zoom = str(_graph_selectable[_graph_selected_idx])
+					_update_action_labels()
+					_render_body()
+			else:
+				# Already drilled in — E makes this the active biome for the play surface.
+				_activate_biome(_graph_zoom)
 
 func _on_action_r() -> void:
 	if frame_id == FRAME_ATLAS:
@@ -330,6 +384,12 @@ func _on_action_r() -> void:
 func _on_action_f() -> void:
 	if frame_id == FRAME_ATLAS and _atlas_detail_open:
 		_atlas_detail_open = false
+		_update_action_labels()
+		_render_body()
+		return
+	if frame_id == FRAME_GRAPH and _graph_zoom != "broad":
+		# Back out of the neighborhood drill-down to the broad federation.
+		_graph_zoom = "broad"
 		_update_action_labels()
 		_render_body()
 		return
@@ -411,6 +471,7 @@ func _render_body() -> void:
 		FRAME_DRIFT:   _build_drift_body()
 		FRAME_BITS:    _build_bits_body()
 		FRAME_ATLAS:   _build_atlas_body()
+		FRAME_GRAPH:   _build_graph_body()
 
 func _update_action_labels() -> void:
 	match frame_id:
@@ -462,6 +523,22 @@ func _update_action_labels() -> void:
 				"emoji": "✕" if f_open else "",
 				"hint": "Close the atlas detail panel" if f_open else "",
 			})
+		FRAME_GRAPH:
+			if _graph_zoom == "broad":
+				var can_drill := _graph_selected_idx >= 0 and _graph_selected_idx < _graph_selectable.size()
+				set_action_info("Q", {"label": "—"})
+				set_action_info("E", {
+					"label": "Drill in" if can_drill else "—",
+					"emoji": "🔬" if can_drill else "",
+					"hint": "Open the selected biome's neighborhood cluster" if can_drill else "Select a biome with GHJKL;",
+				})
+				set_action_info("R", {"label": "—"})
+				set_action_info("F", {"label": "—"})
+			else:
+				set_action_info("Q", {"label": "—"})
+				set_action_info("E", {"label": "Activate", "emoji": "⚡", "hint": "Set this biome active for the play surface"})
+				set_action_info("R", {"label": "—"})
+				set_action_info("F", {"label": "Back", "emoji": "↩", "hint": "Return to the broad federation graph"})
 		_:
 			set_action_info("Q", {"label": "—"})
 			set_action_info("E", {"label": "—"})
@@ -481,6 +558,10 @@ func _hint_text_for_frame() -> String:
 			return "GHJKL; pick axis · W/S page · pick faction via Y · Eigenstate"
 		FRAME_ATLAS:
 			return "GHJKL; pick node · Q/R adjust orbit · E inspect / activate biome"
+		FRAME_GRAPH:
+			if _graph_zoom == "broad":
+				return "Whole-world federation · GHJKL; / W·S pick biome · E drill into its cluster"
+			return "%s cluster · drag/scroll to pan · E activate biome · F back to federation" % _graph_zoom
 	return ""
 
 # =============================================================================
@@ -1167,6 +1248,109 @@ func _adjust_atlas_view(direction: int) -> void:
 	_atlas_zoom = clampf(_atlas_zoom + (ATLAS_ZOOM_STEP * float(direction)), ATLAS_MIN_ZOOM, ATLAS_MAX_ZOOM)
 	_atlas_rotation_degrees = fposmod(_atlas_rotation_degrees + (ATLAS_ROTATION_STEP * float(direction)), 360.0)
 	_render_body()
+
+# =============================================================================
+# P — GRAPH BODY (BroadGraph federation ⟷ neighborhood drill-down)
+# =============================================================================
+
+func _build_graph_body() -> void:
+	_graph_broad_view = null
+	_body_box.add_child(_build_graph_status_card())
+
+	if _graph_zoom == "broad":
+		if _broad == null:
+			_broad = BroadGraphRef.build(null, null, null, _live_biome_filter())
+		var view = BroadGraphViewRef.new()
+		view.custom_minimum_size = Vector2(640, 520)
+		_body_box.add_child(view)
+		view.populate(_broad)
+		_graph_broad_view = view
+		_graph_selectable = view.get_selectable_biomes()
+		if _graph_selected_idx >= _graph_selectable.size():
+			_graph_selected_idx = -1
+		if _graph_selected_idx < 0 and not _graph_selectable.is_empty():
+			# Default the cursor to the active biome if it's in the federation.
+			var ai: int = _graph_selectable.find(_biome_name())
+			_graph_selected_idx = ai if ai >= 0 else 0
+		if _graph_selected_idx >= 0:
+			view.set_highlight(str(_graph_selectable[_graph_selected_idx]))
+	else:
+		var nview = NeighborhoodGraphViewRef.new()
+		nview.custom_minimum_size = Vector2(640, 520)
+		_body_box.add_child(nview)
+		var canonical = _canonical_biome(_graph_zoom)
+		if canonical != null:
+			nview.populate(NeighborhoodGraphRef.from_biome(canonical))
+		nview.set_live_source(_live_qc_for(_graph_zoom))
+
+
+func _build_graph_status_card() -> Control:
+	var card := PanelContainer.new()
+	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.09, 0.11, 0.16, 0.95)
+	style.border_color = COLOR_CARD_BORDER
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(4)
+	style.content_margin_left = 10
+	style.content_margin_right = 10
+	style.content_margin_top = 8
+	style.content_margin_bottom = 8
+	card.add_theme_stylebox_override("panel", style)
+
+	var body := Label.new()
+	body.add_theme_font_size_override("font_size", 12)
+	body.add_theme_color_override("font_color", UIStyleFactory.COLOR_BODY)
+	if _graph_zoom == "broad":
+		var bcount: int = _broad.biome_count() if _broad != null else 0
+		var ecount: int = _broad.edge_count() if _broad != null else 0
+		var qcount: int = _broad.total_qubits() if _broad != null else 0
+		var sel: String = str(_graph_selectable[_graph_selected_idx]) if (_graph_selected_idx >= 0 and _graph_selected_idx < _graph_selectable.size()) else "—"
+		body.text = "Federation · biomes %d · seams %d · qubits %d · ▶ %s" % [bcount, ecount, qcount, sel]
+	else:
+		body.text = "%s · neighborhood cluster (live)" % _graph_zoom
+	card.add_child(body)
+	return card
+
+
+## Highlight the selected biome node without rebuilding the whole body.
+func _apply_graph_highlight() -> void:
+	if _graph_broad_view != null and is_instance_valid(_graph_broad_view) \
+			and _graph_selected_idx >= 0 and _graph_selected_idx < _graph_selectable.size():
+		_graph_broad_view.set_highlight(str(_graph_selectable[_graph_selected_idx]))
+
+
+## Live/unlocked biomes — the realistic, cheap federation scope (vs all ~160).
+func _live_biome_filter() -> Array:
+	var abm = (Engine.get_main_loop().root.get_node_or_null("/root/ActiveBiomeManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
+	if abm and abm.has_method("get_biome_order"):
+		var order: Array = abm.get_biome_order()
+		if not order.is_empty():
+			return order
+	var active := _biome_name()
+	return [active] if active != "" else []
+
+
+## Canonical Biome data (source of truth for cluster topology).
+func _canonical_biome(biome_name: String):
+	if biome_name == "":
+		return null
+	var reg = load("res://Core/Biomes/BiomeRegistry.gd")
+	if reg != null and reg.has_method("get_shared"):
+		var shared = reg.get_shared()
+		if shared != null and shared.has_method("get_by_name"):
+			return shared.get_by_name(biome_name)
+	return null
+
+
+## Live QuantumComputer for a biome's population bars (null if not instantiated).
+func _live_qc_for(biome_name: String):
+	if farm and farm.grid and farm.grid.has_method("get_biome"):
+		var b = farm.grid.get_biome(biome_name)
+		if b != null and "quantum_computer" in b:
+			return b.quantum_computer
+	return null
+
 
 func _activate_biome(biome_name: String) -> void:
 	# E on Atlas (biome node): make this biome the active one. The live
