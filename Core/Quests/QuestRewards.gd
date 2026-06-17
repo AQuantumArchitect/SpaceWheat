@@ -480,19 +480,6 @@ static func _compute_surprisal_reward_budget(quest: Dictionary, _profile: Dictio
 	return amount
 
 
-static func _compute_total_resource_budget(quest: Dictionary, dominant_eigenvalue: float) -> int:
-	var quantity = max(0.0, float(quest.get("quantity", 0.0)))
-	var multiplier = clamp(float(quest.get("reward_multiplier", 1.0)), 1.0, 2.0)
-	var quest_type = int(quest.get("type", 0))
-
-	var base = max(10.0, quantity * 0.85 + 8.0)
-	var eigen_boost = clamp(1.0 + dominant_eigenvalue * 0.6, 1.0, 2.5)
-	var type_scale = 1.0 if quest_type == 0 else 0.75
-
-	var raw_total = base * multiplier * eigen_boost * _reward_base_ratio() * type_scale
-	return int(clamp(round(raw_total), _reward_min_total(), _reward_max_total()))
-
-
 static func set_reward_tuning_overrides(overrides: Dictionary) -> void:
 	# Quest tuning comes ONLY from the canonical config (default.jsonl quest_rewards.*).
 	# Validate completeness loudly — a missing key is an honest failure, not a default.
@@ -520,16 +507,6 @@ static func reset_reward_tuning() -> void:
 	_quest_reward_tuning_overrides = {}
 
 
-static func _reward_min_total() -> int:
-	var raw = get_reward_tuning().get("resource_reward_min_total")
-	return max(1, int(raw))
-
-
-static func _reward_max_total() -> int:
-	var raw = get_reward_tuning().get("resource_reward_max_total")
-	return max(_reward_min_total(), int(raw))
-
-
 static func _reward_min_per_emoji() -> int:
 	var raw = get_reward_tuning().get("resource_reward_min_per_emoji")
 	return max(1, int(raw))
@@ -543,11 +520,6 @@ static func _reward_min_per_emoji_for_quantity(quantity: float) -> int:
 	if quantity <= 21.0:
 		return 3
 	return _reward_min_per_emoji()
-
-
-static func _reward_base_ratio() -> float:
-	var raw = get_reward_tuning().get("resource_reward_base_ratio")
-	return max(0.05, float(raw))
 
 
 static func _pick_reward_emojis(weights: Dictionary, count: int, deterministic: bool) -> Array:
