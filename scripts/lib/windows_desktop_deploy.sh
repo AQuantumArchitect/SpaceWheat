@@ -1,32 +1,9 @@
 #!/usr/bin/env bash
 
 # Shared helpers for staging and deploying Windows desktop exports.
-
-sw_is_wsl() {
-  grep -qiE "(microsoft|wsl)" /proc/version 2>/dev/null
-}
-
-sw_wsl_to_windows_path() {
-  local path="$1"
-  local distro="${WSL_DISTRO_NAME:-Ubuntu}"
-  local drive tail
-
-  case "$path" in
-    /mnt/[a-zA-Z]/*)
-      drive="${path:5:1}"
-      tail="${path:7}"
-      tail="${tail//\//\\}"
-      printf '%s\n' "${drive^^}:\\${tail}"
-      ;;
-    /*)
-      tail="${path//\//\\}"
-      printf '%s\n' "\\\\wsl.localhost\\${distro}${tail}"
-      ;;
-    *)
-      printf '%s\n' "$path"
-      ;;
-  esac
-}
+# sw_is_wsl / sw_wsl_to_windows_path are defined once in godot_runtime_env.sh — source
+# that rather than duplicating them here.
+. "${BASH_SOURCE%/*}/godot_runtime_env.sh"
 
 sw_windows_fs_available() {
   [ -d /mnt/c ]

@@ -245,3 +245,47 @@ sw_godot() {
     command "$(sw_godot_bin)" "${args[@]}"
   fi
 }
+
+
+# Write the canonical WSL-aware Linux launcher into an export dir. Single source for
+# both build-desktop-local.sh and build-linux-release.sh (the launcher was duplicated,
+# and the release copy was a brittle one-liner with no WSL display/audio handling).
+sw_write_linux_launcher() {
+  local out_dir="$1"
+  local exe="${2:-SpaceWheat.x86_64}"
+  cat > "${out_dir}/launch.sh" <<LAUNCH
+#!/usr/bin/env bash
+set -euo pipefail
+cd "\$(dirname "\$0")"
+
+if grep -qiE '(microsoft|wsl)' /proc/version 2>/dev/null; then
+    runtime_dir="/run/user/\$(id -u)"
+    if [ -d "\$runtime_dir" ] && [ -S "\$runtime_dir/wayland-0" ]; then
+        export XDG_RUNTIME_DIR="\$runtime_dir"
+    elif [ -d "/mnt/wslg/runtime-dir" ]; then
+        export XDG_RUNTIME_DIR="/mnt/wslg/runtime-dir"
+    fi
+    : "\${WAYLAND_DISPLAY:=wayland-0}"
+    export WAYLAND_DISPLAY
+    if [ "\${SW_FORCE_X11:-0}" = "1" ]; then
+        : "\${DISPLAY:=:0}"; export DISPLAY
+    elif [ -n "\${DISPLAY:-}" ]; then
+        export DISPLAY
+    else
+        unset DISPLAY
+    fi
+    audio_driver="\${SW_FORCE_AUDIO_DRIVER:-}"
+    if [ -z "\$audio_driver" ] && [ -S "/mnt/wslg/PulseServer" ] && command -v pactl >/dev/null 2>&1; then
+        if timeout 1s pactl -s "unix:/mnt/wslg/PulseServer" info >/dev/null 2>&1; then
+            export PULSE_SERVER="unix:/mnt/wslg/PulseServer"
+            audio_driver="PulseAudio"
+        fi
+    fi
+    [ -z "\$audio_driver" ] && audio_driver="Dummy"
+    exec ./${exe} --audio-driver "\$audio_driver" "\$@"
+fi
+
+exec ./${exe} "\$@"
+LAUNCH
+  chmod +x "${out_dir}/launch.sh"
+}

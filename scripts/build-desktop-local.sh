@@ -143,47 +143,7 @@ success "Windows export ready: $WINDOWS_OUT/SpaceWheat.exe"
 success "Linux export ready: $LINUX_OUT/SpaceWheat.x86_64"
 
 if [ ! -f "$LINUX_OUT/launch.sh" ]; then
-    cat > "$LINUX_OUT/launch.sh" << 'LAUNCH'
-#!/usr/bin/env bash
-set -euo pipefail
-cd "$(dirname "$0")"
-
-if grep -qiE '(microsoft|wsl)' /proc/version 2>/dev/null; then
-    runtime_dir="/run/user/$(id -u)"
-    if [ -d "$runtime_dir" ] && [ -S "$runtime_dir/wayland-0" ]; then
-        export XDG_RUNTIME_DIR="$runtime_dir"
-    elif [ -d "/mnt/wslg/runtime-dir" ]; then
-        export XDG_RUNTIME_DIR="/mnt/wslg/runtime-dir"
-    fi
-
-    : "${WAYLAND_DISPLAY:=wayland-0}"
-    export WAYLAND_DISPLAY
-    if [ "${SW_FORCE_X11:-0}" = "1" ]; then
-        : "${DISPLAY:=:0}"
-        export DISPLAY
-    elif [ -n "${DISPLAY:-}" ]; then
-        export DISPLAY
-    else
-        unset DISPLAY
-    fi
-
-    audio_driver="${SW_FORCE_AUDIO_DRIVER:-}"
-    if [ -z "$audio_driver" ] && [ -S "/mnt/wslg/PulseServer" ] && command -v pactl >/dev/null 2>&1; then
-        if timeout 1s pactl -s "unix:/mnt/wslg/PulseServer" info >/dev/null 2>&1; then
-            export PULSE_SERVER="unix:/mnt/wslg/PulseServer"
-            audio_driver="PulseAudio"
-        fi
-    fi
-    if [ -z "$audio_driver" ]; then
-        audio_driver="Dummy"
-    fi
-
-    exec ./SpaceWheat.x86_64 --audio-driver "$audio_driver" "$@"
-fi
-
-exec ./SpaceWheat.x86_64 "$@"
-LAUNCH
-    chmod +x "$LINUX_OUT/launch.sh"
+    sw_write_linux_launcher "$LINUX_OUT"   # shared helper in godot_runtime_env.sh
 fi
 
 if [ "$COPY_TO_WINDOWS" = true ]; then

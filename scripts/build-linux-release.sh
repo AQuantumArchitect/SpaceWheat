@@ -15,7 +15,10 @@
 #   5. Creates tarball in releases/linux/
 #   6. Optionally installs to ~/games/SpaceWheat/
 
-set -e
+set -euo pipefail
+
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+source "$SCRIPT_DIR/lib/godot_runtime_env.sh"   # sw_write_linux_launcher, sw_godot_bin
 
 # ─────────────────────────────────────────────────────────────
 # Configuration
@@ -23,16 +26,17 @@ set -e
 REPO_URL="git@github.com:AQuantumArchitect/SpaceWheat.git"
 BUILD_DIR="$HOME/ws/tmp/SpaceWheat-build"
 GODOT_CPP_CACHE="$HOME/ws/tmp/godot-cpp-cache"
-RELEASE_DIR="$HOME/ws/SpaceWheat/releases/linux"
+RELEASE_DIR="$(dirname "$SCRIPT_DIR")/releases/linux"
 INSTALL_DIR="$HOME/games/SpaceWheat"
-GODOT_BIN="${GODOT_BIN:-godot}"
+GODOT_BIN="$(sw_godot_bin)"
 
 # Defaults
-VERSION="v0.1.0"
+VERSION="v0.2.0"
 DO_INSTALL=false
 DO_CLEAN=false
 SKIP_CPP=false
 SKIP_EXPORT=false
+SKIP_CACHE=false
 VERBOSE=false
 
 # ─────────────────────────────────────────────────────────────
@@ -52,13 +56,17 @@ USAGE:
     build-linux-release.sh [OPTIONS]
 
 OPTIONS:
-    --version, -v VERSION   Set release version (default: v0.1.0)
+    --version, -v VERSION   Set release version (default: v0.2.0)
     --install, -i           Install to ~/games/SpaceWheat after build
     --clean, -c             Force rebuild of godot-cpp (normally cached)
     --skip-cpp              Skip C++ build (use existing binaries)
     --skip-export           Skip Godot export (use existing export)
+    --skip-cache            Skip the bundled-cache rebuild (ship the repo's cache as-is)
     --verbose               Show detailed output
     --help, -h              Show this help message
+
+NOTE: produces a LINUX release only. For Windows/cross-platform builds use
+      build-desktop-local.sh + package-desktop-builds.sh.
 
 EXAMPLES:
     # Basic build
@@ -107,6 +115,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --skip-export)
             SKIP_EXPORT=true
+            shift
+            ;;
+        --skip-cache)
+            SKIP_CACHE=true
             shift
             ;;
         --verbose)
@@ -202,18 +214,29 @@ else
     make clean 2>/dev/null || true
     make -j$(nproc)
 
-    SO_FILE=$(ls -1 bin/linux/*.so 2>/dev/null | grep -v debug | head -1)
-    SO_SIZE=$(du -h "$SO_FILE" | cut -f1)
-    success "C++ extension built: $SO_SIZE"
+    SO_FILE=$(ls -1 bin/linux/*.so 2>/dev/null | grep -v debug | head -1 || true)
+    { [ -n "$SO_FILE" ] && [ -f "$SO_FILE" ]; } || error "C++ build produced no .so in native/bin/linux/"
+    success "C++ extension built: $(du -h "$SO_FILE" | cut -f1)"
 fi
 
 # ─────────────────────────────────────────────────────────────
-# Step 4: Rebuild bundled operator cache
+# Step 4: Refresh bundled operator cache (best-effort)
 # ─────────────────────────────────────────────────────────────
-log "Rebuilding bundled operator cache..."
-cd "$BUILD_DIR"
-$GODOT_BIN --headless --path . --script tools/BuildBundledCache.gd
-success "Bundled operator cache refreshed"
+# The repo ships a committed BundledCache/ (regenerated from the editor when operators
+# change) and the export includes it. The headless rebuild boots a full session, which
+# can't complete headless (FarmView game_ready never fires), so a failure here must NOT
+# abort the release — the committed cache is shipped instead. --skip-cache skips it.
+if [ "$SKIP_CACHE" = true ]; then
+    warn "Skipping bundled-cache rebuild (--skip-cache); shipping the repo's committed cache."
+else
+    log "Refreshing bundled operator cache (best-effort)..."
+    cd "$BUILD_DIR"
+    if timeout 300 "$GODOT_BIN" --headless --path . --script tools/BuildBundledCache.gd; then
+        success "Bundled operator cache refreshed"
+    else
+        warn "Bundled-cache rebuild didn't complete headless — shipping the repo's committed cache (correct, just not refreshed)."
+    fi
+fi
 
 # ─────────────────────────────────────────────────────────────
 # Step 5: Export game with Godot
@@ -230,22 +253,22 @@ else
     cd "$BUILD_DIR"
     mkdir -p "$EXPORT_DIR"
 
-    # Copy export preset from dev repo
-    EXPORT_PRESET_SOURCE="$HOME/ws/SpaceWheat/export_presets.cfg"
-    if [ -f "$EXPORT_PRESET_SOURCE" ]; then
-        cp "$EXPORT_PRESET_SOURCE" "$BUILD_DIR/"
-        debug "Copied export_presets.cfg from dev repo"
-    else
-        error "export_presets.cfg not found at $EXPORT_PRESET_SOURCE"
-    fi
+    # The fresh clone already contains export_presets.cfg — use it directly. (The old
+    # path copied it from a dev checkout under $HOME, which doesn't exist on a clean host.)
+    [ -f "$BUILD_DIR/export_presets.cfg" ] || error "export_presets.cfg not found in the cloned repo"
 
-    # Import project first (generates .godot folder)
+    # Isolate Godot's config/data under the build dir (no global ~/.config pollution) and
+    # drop the stale extension list so the export resolves the freshly-built .so.
+    export XDG_CONFIG_HOME="$BUILD_DIR/.build/xdg-config"
+    export XDG_DATA_HOME="$BUILD_DIR/.build/xdg-data"
+    mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME"
+    rm -f "$BUILD_DIR/.godot/extension_list.cfg"
+
     debug "Importing project..."
-    timeout 60 $GODOT_BIN --headless --import . 2>/dev/null || true
+    timeout 120 "$GODOT_BIN" --headless --import . 2>/dev/null || true
 
-    # Export
     debug "Running export..."
-    $GODOT_BIN --headless --export-release "Linux Desktop" "$EXPORT_DIR/SpaceWheat.x86_64" 2>&1 | grep -v "^$" || true
+    "$GODOT_BIN" --headless --export-release "Linux Desktop" "$EXPORT_DIR/SpaceWheat.x86_64" 2>&1 | grep -v "^$" || true
 
     if [ ! -f "$EXPORT_DIR/SpaceWheat.x86_64" ]; then
         error "Export failed - SpaceWheat.x86_64 not created. Check export preset."
@@ -258,14 +281,9 @@ fi
 log "Packaging C++ extension with export..."
 cp "$BUILD_DIR/native/bin/linux/"*.so "$EXPORT_DIR/" 2>/dev/null || warn "No .so files to copy"
 
-# Add launch script if not present
+# WSL-aware launcher (shared helper in godot_runtime_env.sh; was a brittle one-liner).
 if [ ! -f "$EXPORT_DIR/launch.sh" ]; then
-    cat > "$EXPORT_DIR/launch.sh" << 'LAUNCH'
-#!/bin/bash
-cd "$(dirname "$0")"
-./SpaceWheat.x86_64 "$@"
-LAUNCH
-    chmod +x "$EXPORT_DIR/launch.sh"
+    sw_write_linux_launcher "$EXPORT_DIR"
 fi
 
 # ─────────────────────────────────────────────────────────────
