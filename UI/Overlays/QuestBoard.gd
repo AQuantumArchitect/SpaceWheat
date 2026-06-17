@@ -416,6 +416,8 @@ func _on_action_r() -> void:
 			_accept_selected()  # commit the offer onto the run
 		FRAME_COMMITMENTS:
 			_complete_selected()  # commit the quest's reward forward
+		FRAME_ARC:
+			_accept_selected_arc()  # accept the arc/tutorial quest into active
 		_:
 			pass
 
@@ -632,7 +634,7 @@ func _current_verb_labels() -> Dictionary:
 			var rows := _arc_rows()
 			if _selected_index >= 0 and _selected_index < rows.size():
 				if str(rows[_selected_index].get("kind", "")) == "arc_quest":
-					return {"Q": "Acknowledge", "E": "Refresh", "R": "—", "F": "—"}
+					return {"Q": "Dismiss", "E": "Refresh", "R": "Accept", "F": "—"}
 			return {"Q": "—", "E": "Refresh", "R": "—", "F": "—"}
 	return {"Q": "—", "E": "—", "R": "—", "F": "—"}
 
@@ -1131,7 +1133,7 @@ func _make_commitment_row(quest: Dictionary, key_str: String, selected: bool) ->
 	hbox.add_child(faction_lbl)
 
 	var ask_lbl := Label.new()
-	ask_lbl.text = "%s × %d" % [str(quest.get("resource", "?")), int(quest.get("quantity", 0))]
+	ask_lbl.text = _commitment_ask_text(quest)
 	ask_lbl.add_theme_font_size_override("font_size", 16)
 	ask_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_VALUE)
 	ask_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1153,6 +1155,28 @@ func _make_commitment_row(quest: Dictionary, key_str: String, selected: bool) ->
 			tail_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
 			vbox.add_child(tail_lbl)
 
+	# Active non-delivery quests: soft progress bar — watching it fill IS the teaching.
+	if not is_history:
+		var prog := float(quest.get("progress", quest.get("predicate_score", 0.0)))
+		var qt = quest.get("type", 0)
+		var qti := int(qt) if (typeof(qt) == TYPE_INT or typeof(qt) == TYPE_FLOAT) else int(QuestTypes.Type.DELIVERY)
+		if qti != int(QuestTypes.Type.DELIVERY) and prog > 0.0:
+			var filled := int(round(clampf(prog, 0.0, 1.0) * 10.0))
+			var bar := Label.new()
+			bar.text = "    [%s%s] %d%%" % ["█".repeat(filled), "░".repeat(10 - filled), int(round(prog * 100.0))]
+			bar.add_theme_font_size_override("font_size", 11)
+			bar.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
+			vbox.add_child(bar)
+
+	# Tutorial hint sub-line (Act-0 onboarding — tells the player exactly what to do).
+	var hint := str(quest.get("tutorial_hint", ""))
+	if hint != "":
+		var hint_lbl := Label.new()
+		hint_lbl.text = "    💡 " + hint
+		hint_lbl.add_theme_font_size_override("font_size", 10)
+		hint_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
+		vbox.add_child(hint_lbl)
+
 	# Tooltip: faction-card summary so hovering shows who's behind the contract.
 	var farm = InstrumentLocator.resolve_active_farm(self)
 	var card_tip: String = _faction_card_tooltip(str(quest.get("faction", "")), farm)
@@ -1160,6 +1184,20 @@ func _make_commitment_row(quest: Dictionary, key_str: String, selected: bool) ->
 		row.tooltip_text = card_tip
 
 	return row
+
+## The "ask" line for a commitment row: delivery shows resource×qty; quantum quests show the
+## steerable objective (observable → target) so the player sees what they're aiming the state at.
+func _commitment_ask_text(quest: Dictionary) -> String:
+	var t = quest.get("type", QuestTypes.Type.DELIVERY)
+	var ti := int(t) if (typeof(t) == TYPE_INT or typeof(t) == TYPE_FLOAT) else int(QuestTypes.Type.DELIVERY)
+	if ti == int(QuestTypes.Type.DELIVERY):
+		return "%s × %d" % [str(quest.get("resource", "?")), int(quest.get("quantity", 0))]
+	if quest.has("observable"):
+		return "%s → %.2f" % [str(quest.get("observable", "?")), float(quest.get("target", 0.0))]
+	if quest.has("target_coherence"):
+		return "coherence → %.2f" % float(quest.get("target_coherence", 0.0))
+	return QuestTypes.get_type_name(ti)
+
 
 ## Compact reward-payload summary for history rows.
 func _format_reward_summary(rewards) -> String:
@@ -1231,7 +1269,7 @@ func _arc_rows() -> Array:
 		return rows
 	if quest_manager.has_method("get_story_offers"):
 		for q in quest_manager.get_story_offers():
-			if q is Dictionary and str(q.get("category", "")) == "ARC":
+			if q is Dictionary and str(q.get("category", "")) in ["ARC", "TUTORIAL"]:
 				rows.append({"kind": "arc_quest", "data": q})
 
 	if not quest_manager.has_method("get_all_story_flags"):
@@ -1361,7 +1399,7 @@ func _make_arc_row(entry: Dictionary, key_str: String, selected: bool) -> Contro
 		body_lbl.clip_text = not selected
 		top_hbox.add_child(body_lbl)
 		if selected:
-			var hint_str: String = str(data.get("hint", ""))
+			var hint_str: String = str(data.get("hint", data.get("tutorial_hint", "")))
 			if hint_str != "":
 				var hint_lbl := Label.new()
 				hint_lbl.text = "    hint: %s" % hint_str
@@ -1755,6 +1793,22 @@ func _abandon_selected() -> void:
 	if quest_manager.has_method("fail_quest"):
 		quest_manager.fail_quest(qid, "player_action")
 		quest_abandoned.emit(qid)
+
+## Accept the selected arc/tutorial offer into active quests (R in the Arc tab). Without this,
+## arc and tutorial offers could only be dismissed, never worked on — they would dead-end.
+func _accept_selected_arc() -> void:
+	if quest_manager == null:
+		return
+	var rows: Array = _arc_rows()
+	if _selected_index < 0 or _selected_index >= rows.size():
+		return
+	var entry: Dictionary = rows[_selected_index]
+	if str(entry.get("kind", "")) != "arc_quest":
+		return
+	var data: Dictionary = entry.get("data", {})
+	if quest_manager.has_method("accept_quest") and quest_manager.accept_quest(data):
+		_render_all()
+
 
 func _acknowledge_selected_arc() -> void:
 	if quest_manager == null:
