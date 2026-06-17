@@ -165,7 +165,11 @@ func _refresh_unfired_flags(farm) -> void:
 			_unfired_flags.append(flag)
 
 
-## Story-flag firing threshold: _evaluate_flag_predicates() must reach this.
+## Story-flag firing threshold. Firing is governed by the SAME soft continuous geometry the
+## Arc tab displays: a flag fires when smooth_and over its predicates' soft_gate scores reaches
+## this value. (Replaces the old hard per-predicate firing path — soft continuous geometry is
+## always >>> hard rules. A consequence: wide-width predicates fire at high confidence, a touch
+## past their nominal threshold; this constant is the single dial for earlier/later firing.)
 const FLAG_FIRE_THRESHOLD: float = 0.85
 
 
@@ -177,7 +181,7 @@ func _evaluate_story_flags() -> void:
 		return
 	for flag in _unfired_flags.duplicate():
 		var predicates = flag.get("predicates", [])
-		if _evaluate_flag_fire_predicates(predicates, farm) >= FLAG_FIRE_THRESHOLD:
+		if _evaluate_flag_predicates(predicates, farm) >= FLAG_FIRE_THRESHOLD:
 			_fire_story_flag(flag, farm)
 
 
@@ -191,20 +195,6 @@ func _evaluate_flag_predicates(predicates: Array, farm) -> float:
 		if not (pred is Dictionary):
 			return 0.0
 		scores.append(_check_flag_predicate(pred, farm))
-	return QuestMath.smooth_and(scores)
-
-
-func _evaluate_flag_fire_predicates(predicates: Array, farm) -> float:
-	## Returns a hard-threshold confidence score for actual story-flag firing.
-	## The Arc tab keeps the soft projection; firing should happen at the
-	## threshold, not after overshoot.
-	if predicates.is_empty():
-		return 0.0
-	var scores: Array = []
-	for pred in predicates:
-		if not (pred is Dictionary):
-			return 0.0
-		scores.append(_check_flag_predicate_fire(pred, farm))
 	return QuestMath.smooth_and(scores)
 
 
@@ -308,105 +298,6 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 			# Requires a ~1% positive trend to score 0.5; flat = ~0.4.
 			var trend: float = biome.predict_purity(steps) - biome.get_purity()
 			return QuestMath.soft_gate(trend, 0.01, 0.02)
-		_:
-			return 0.0
-
-
-func _check_flag_predicate_fire(pred: Dictionary, farm) -> float:
-	## Returns 1.0 when a predicate is fully satisfied, 0.0 otherwise.
-	## This is used for one-shot story-flag firing.
-	var kind := str(pred.get("type", ""))
-	match kind:
-		"story_flag_set":
-			return 1.0 if farm.story_flags_fired.has(str(pred.get("id", ""))) else 0.0
-		"biome_evolving":
-			if farm.grid == null:
-				return 0.0
-			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
-			return 1.0 if (biome != null and biome.get("quantum_computer") != null) else 0.0
-		"berry_consumed_count_gte":
-			if farm.grid == null:
-				return 0.0
-			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
-			if biome == null or biome.get("quantum_computer") == null:
-				return 0.0
-			var count := float(biome.quantum_computer.berry_register.get_consumed_count())
-			return 1.0 if count >= float(pred.get("value", 0)) else 0.0
-		"berry_total_phase_gte":
-			if farm.grid == null:
-				return 0.0
-			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
-			if biome == null or biome.get("quantum_computer") == null:
-				return 0.0
-			var phase: float = biome.quantum_computer.berry_register.get_consumed_phase()
-			return 1.0 if phase >= float(pred.get("value", 0.0)) else 0.0
-		"standing_gte":
-			var standing = farm.faction_standings.get(str(pred.get("faction", "")))
-			if standing == null:
-				return 0.0
-			var channel: String = str(pred.get("channel", "trust"))
-			var current := float(standing.to_dict().get(channel, 0.0))
-			return 1.0 if current >= float(pred.get("value", 0.0)) else 0.0
-		"biome_state_gte":
-			if farm.grid == null:
-				return 0.0
-			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
-			if biome == null or biome.get("quantum_computer") == null:
-				return 0.0
-			var atom := str(pred.get("atom", ""))
-			var reg = biome.quantum_computer.register_map
-			if reg == null or not reg.coordinates.has(atom):
-				return 0.0
-			var coord: Dictionary = reg.coordinates[atom]
-			var qubit := int(coord.get("qubit", -1))
-			var pole := int(coord.get("pole", 0))
-			if qubit < 0:
-				return 0.0
-			var snap: Dictionary = biome.viz_cache.get_snapshot(qubit)
-			var marginal: float = float(snap.get("p1" if pole == 1 else "p0", 0.0))
-			return 1.0 if marginal >= float(pred.get("value", 0.0)) else 0.0
-		"signature_size_gte":
-			return 1.0 if float(farm.known_icons.size()) >= float(pred.get("value", 0)) else 0.0
-		"atom_count_gte":
-			if farm.grid == null:
-				return 0.0
-			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
-			if biome == null or biome.get("quantum_computer") == null:
-				return 0.0
-			var count := float(biome.quantum_computer.register_map.coordinates.size())
-			return 1.0 if count >= float(pred.get("value", 0)) else 0.0
-		"atom_in_biome":
-			if farm.grid == null:
-				return 0.0
-			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
-			if biome == null or biome.get("quantum_computer") == null:
-				return 0.0
-			return 1.0 if biome.quantum_computer.register_map.coordinates.has(str(pred.get("atom", ""))) else 0.0
-		"biome_attractor_emoji_gte":
-			if farm.grid == null:
-				return 0.0
-			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
-			if biome == null or not biome.has_method("get_attractor_state"):
-				return 0.0
-			var attractor: Dictionary = biome.get_attractor_state()
-			return 1.0 if float(attractor.get(str(pred.get("emoji", "")), 0.0)) >= float(pred.get("value", 0.5)) else 0.0
-		"biome_eigenvalue_gap_gte":
-			if farm.grid == null:
-				return 0.0
-			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
-			if biome == null or not biome.has_method("get_attractor_state"):
-				return 0.0
-			var attractor: Dictionary = biome.get_attractor_state()
-			return 1.0 if float(attractor.get("eigenvalue_gap", 0.0)) >= float(pred.get("value", 0.15)) else 0.0
-		"biome_purity_trending":
-			if farm.grid == null:
-				return 0.0
-			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
-			if biome == null or not biome.has_method("predict_purity"):
-				return 0.0
-			var steps := int(pred.get("steps", 5))
-			var trend: float = biome.predict_purity(steps) - biome.get_purity()
-			return 1.0 if trend >= 0.01 else 0.0
 		_:
 			return 0.0
 
