@@ -208,18 +208,18 @@ func validate() -> bool:
 		else:
 			seen_emojis[emoji] = true
 
-	# Check atom_components reference valid emojis
+	# atom_components keys should normally be declared emojis. This is a WARNING, not an error
+	# (unlike missing icon poles above, which is malformed) because an auxiliary/primed term may
+	# legitimately reference an emoji not yet realized in this biome's basis.
 	for emoji in atom_components:
 		if emoji not in emojis:
 			push_warning("Biome %s: auxiliary icon_component %s is not in emojis list" % [name, emoji])
 
-	# Check hamiltonian targets are in biome
-	for emoji in atom_components:
-		var component = atom_components[emoji]
-		var h = component.get("hamiltonian", {})
-		for target in h:
-			if target not in emojis:
-				push_warning("Biome %s: hamiltonian from %s to %s (external target OK)" % [name, emoji, target])
+	# A Hamiltonian coupling whose target isn't in this biome's emojis is an EXTERNAL
+	# (cross-biome) coupling — valid by design, not a problem — so it's accepted silently.
+	# (A push_warning here was self-contradictory: it flagged "(external target OK)" as a
+	# warning, spamming the log. If typo-detection on targets is wanted later, validate against
+	# the global emoji registry — Biome.validate has no registry handle today.)
 
 	return valid
 

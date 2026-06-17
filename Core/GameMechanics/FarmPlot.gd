@@ -58,10 +58,11 @@ func get_semantic_emoji() -> String:
 ## Growth & Evolution
 
 
-func grow(_delta: float, _biome = null) -> float:
-	# Quantum evolution is handled by the parent biome's quantum computer;
-	# this method exists only as a per-frame hook for future plot logic.
-	return 0.0
+func grow(_delta: float, _biome = null) -> void:
+	# Quantum evolution is handled by the parent biome's quantum computer; this method is an
+	# intentional per-frame hook reserved for future plot logic. It returns nothing (was a
+	# misleading `-> float` returning a constant 0.0 that no caller read).
+	pass
 
 
 ## Entanglement

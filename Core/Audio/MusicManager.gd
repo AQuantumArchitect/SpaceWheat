@@ -7,6 +7,18 @@ extends Node
 ## - Volume control with persistence
 ## - Dual AudioStreamPlayer for smooth crossfading
 ##
+## Track-selection authority (these are LAYERED, not competing paths):
+##   1. Base, on biome change: _on_biome_changed() → play_biome_track().
+##        Layer 1 — direct BIOME_TRACKS[biome] lookup (authoritative when present).
+##        Layer 4 — parametric _select_track_for_biome_vector(), only if iconmap_mode_enabled
+##                  AND no direct mapping. Fallback: entropy_garden.
+##   2. Continuous refinement, within a biome: _evaluate_iconmap_decision() may switch the
+##      track based on accumulated quantum/IconMap state — gated by iconmap_mode_enabled and
+##      damped by ICONMAP_HYSTERESIS so it doesn't thrash. This refines (2) on top of (1).
+##   3. play_icon_track() — explicit icon-driven entry, same iconmap-similarity machinery.
+##   The single switch is iconmap_mode_enabled: OFF ⇒ only Layer 1 direct mapping is used;
+##   ON ⇒ the parametric/refinement layers are live above the direct mapping.
+##
 ## Usage:
 ##   MusicManager.play_biome_track("BioticFlux")
 ##   MusicManager.set_volume(0.8)
