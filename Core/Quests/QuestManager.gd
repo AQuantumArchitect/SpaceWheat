@@ -352,15 +352,7 @@ func offer_story_quest(quest_def: Dictionary, source_flag: String) -> int:
 		return -1
 	var quest_id := next_quest_id
 	next_quest_id += 1
-	var q: Dictionary = {
-		"id": quest_id,
-		"category": "ARC",
-		"source_flag": source_flag,
-		"status": "story",
-		"expires": false,
-		"offered_at": Time.get_ticks_msec(),
-	}
-	q.merge(quest_def)
+	var q := QuestPipeline.from_story_def(quest_def, source_flag, quest_id)
 	story_offers[quest_id] = q
 	if not _announced_offers.has(quest_id):
 		_announced_offers[quest_id] = true
@@ -792,51 +784,14 @@ func _offer_from_market_lattice(biome) -> Array:
 	var lattice = farm.get_market_lattice()
 	if lattice == null:
 		return []
-	# propose_offers returns MarketContract RefCounted objects.
+	# propose_offers returns MarketContract RefCounted objects; the pipeline projects each into
+	# a canonical delivery quest (incl. the icon-pair vocab reward derivation).
 	var contracts = lattice.propose_offers(biome, 196)
 	var quests: Array = []
 	for c in contracts:
-		if c == null:
-			continue
-		var quest: Dictionary = {}
-		if c.has_method("to_quest_offer_dict"):
-			quest = c.to_quest_offer_dict()
-		elif c is Dictionary:
-			quest = c.duplicate(true)
-		if quest.is_empty():
-			continue
-		quest["type"] = QuestTypes.Type.DELIVERY
-		quest["time_limit"] = 120.0
-		# Derive vocab reward from the icon pair that contains this resource emoji.
-		# The contract's resource is one pole of an icon; find the other pole so
-		# completing the delivery teaches the player that axis.
-		var reward_n := ""
-		var reward_s := ""
-		var res_emoji: String = str(quest.get("resource", ""))
-		if res_emoji != "" and biome != null:
-			var bname: String = ""
-			if biome.has_method("get_biome_type"): bname = str(biome.get_biome_type())
-			if bname == "": bname = str(biome.name) if "name" in biome else ""
-			var breg = BiomeRegistry.get_shared()
-			var bdef = breg.get_by_name(bname) if bname != "" else null
-			var loadout: Array = []
-			if bdef:
-				if bdef.has_method("get_neighborhood_icons"):
-					loadout = bdef.get_neighborhood_icons()
-			if not loadout.is_empty():
-				for icon in loadout:
-					var p0: String = str(icon.get("pole_0", ""))
-					var p1: String = str(icon.get("pole_1", ""))
-					if p0 == res_emoji or p1 == res_emoji:
-						reward_n = p0
-						reward_s = p1
-						break
-		quest["reward_north"] = reward_n
-		quest["reward_south"] = reward_s
-		quest["reward_vocab_north"] = reward_n
-		quest["reward_vocab_south"] = reward_s
-		quest["reward_multiplier"] = 1.0
-		quests.append(quest)
+		var quest := QuestPipeline.from_market_contract(c, biome)
+		if not quest.is_empty():
+			quests.append(quest)
 	return quests
 
 # =============================================================================
