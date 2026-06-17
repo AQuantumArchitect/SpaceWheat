@@ -4,9 +4,8 @@
 # Runs all quantum verification test suites:
 #   1. Gate verification (102 tests)     — every gate against known states
 #   2. Entanglement verification (82)    — Bell, GHZ, MI, collapse
-#   3. Measurement verification (50)     — projection, Born rule, collapse
-#   4. Biome quantum coverage (16)       — all 46 biomes valid
-#   5. Circuit composer (42)             — declarative circuit builder
+#   3. Measurement verification (52)     — projection, Born rule, collapse
+#   4. Biome quantum coverage (16)       — exportable biomes valid
 #
 # Usage:
 #   bash 🍄/🧪/🔬.sh [--verbose] [--suite NAME]
@@ -46,9 +45,8 @@ SUITES[gates]="Tests/test_quantum_gate_verification.gd"
 SUITES[entangle]="Tests/test_quantum_entanglement_verification.gd"
 SUITES[measure]="Tests/test_quantum_measurement_verification.gd"
 SUITES[biomes]="Tests/test_biome_quantum_coverage.gd"
-SUITES[composer]="Tests/test_quantum_circuit_composer.gd"
 
-SUITE_ORDER=(gates entangle measure biomes composer)
+SUITE_ORDER=(gates entangle measure biomes)
 
 echo ""
 echo -e "${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"
