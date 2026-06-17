@@ -48,9 +48,13 @@ func _run() -> void:
 		_fail("BootManager autoload not found")
 		return
 
+	# Use the canonical default scenario (new_game_easy), not a hardcoded "default" that
+	# maps to res://Scenarios/default.tres — which doesn't exist, so boot_session returned
+	# no farm and the cache rebuild always failed. The scenario only needs to yield a valid
+	# farm; the exportable biomes are loaded explicitly in step 5.
 	var farm = await boot.boot_session({
 		"slot": -1,
-		"scenario_id": "default",
+		"scenario_id": SaveStore.DEFAULT_SCENARIO_ID,
 		"headless": true,
 	}, null)
 	if not farm:
@@ -159,6 +163,8 @@ func _verify_bundled_cache() -> Dictionary:
 	var extras: Array[String] = []
 	for biome_name in manifest.keys():
 		var text := str(biome_name)
+		if text.begins_with("__"):
+			continue  # meta entries (e.g. __schema__ version marker) — not biomes
 		if text not in _exportable_biomes:
 			extras.append(text)
 
