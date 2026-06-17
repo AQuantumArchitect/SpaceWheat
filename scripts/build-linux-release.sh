@@ -2,18 +2,21 @@
 # build-linux-release.sh - Build and package SpaceWheat Linux release
 #
 # Usage:
-#   ./scripts/build-linux-release.sh                    # Build latest (v0.1.0)
-#   ./scripts/build-linux-release.sh --version v0.2.0   # Build specific version
+#   ./scripts/build-linux-release.sh                    # Build the default version
+#   ./scripts/build-linux-release.sh --version v0.3.0   # Build a specific version
 #   ./scripts/build-linux-release.sh --install          # Build + install to games folder
 #   ./scripts/build-linux-release.sh --clean            # Force rebuild godot-cpp
 #
-# This script:
-#   1. Clones fresh repo to build directory
+# This script (Linux only):
+#   1. Clones a fresh repo to the build directory
 #   2. Builds godot-cpp (cached unless --clean)
-#   3. Builds C++ extension
-#   4. Exports game via Godot headless
-#   5. Creates tarball in releases/linux/
-#   6. Optionally installs to ~/games/SpaceWheat/
+#   3. Builds the C++ extension
+#   4. Warms Godot's import + class cache (double import; a cold clone can't compile)
+#   5. Refreshes the bundled operator cache (best-effort; ships the repo's cache otherwise)
+#   6. Exports the game via Godot headless
+#   7. Smoke-tests the exported binary and REFUSES to ship if it boots with errors
+#   8. Creates the tarball in releases/linux/
+#   9. Optionally installs to ~/games/SpaceWheat/
 
 set -euo pipefail
 
@@ -219,8 +222,36 @@ else
     success "C++ extension built: $(du -h "$SO_FILE" | cut -f1)"
 fi
 
+EXPORT_DIR="$BUILD_DIR/export/SpaceWheat"
+
 # ─────────────────────────────────────────────────────────────
-# Step 4: Refresh bundled operator cache (best-effort)
+# Step 4: Warm Godot's import + global class cache
+# ─────────────────────────────────────────────────────────────
+# A fresh clone has no .godot, so the first compile pass can't resolve class_name /
+# autoload symbols ("Could not find type X"). Import TWICE: pass 1 registers class_names
+# into global_script_class_cache.cfg, pass 2 compiles cleanly against it. Isolate Godot's
+# config/data under the build dir (no global ~/.config pollution); drop the stale
+# extension list so the export resolves the freshly-built .so.
+if [ "$SKIP_EXPORT" != true ]; then
+    log "Warming Godot import + class cache..."
+    cd "$BUILD_DIR"
+    [ -f "$BUILD_DIR/export_presets.cfg" ] || error "export_presets.cfg not found in the cloned repo"
+    # Isolate only CONFIG (editor settings) under the build dir. DATA_HOME must stay at the
+    # real data home — that's where the export TEMPLATES live (godot/export_templates/...);
+    # isolating it would make the export fail with "No export template found".
+    export XDG_CONFIG_HOME="$BUILD_DIR/.build/xdg-config"
+    export XDG_DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
+    mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME"
+    rm -f "$BUILD_DIR/.godot/extension_list.cfg"
+    timeout 180 "$GODOT_BIN" --headless --import . >/dev/null 2>&1 || true
+    timeout 180 "$GODOT_BIN" --headless --import . >/dev/null 2>&1 || true
+    [ -f "$BUILD_DIR/.godot/global_script_class_cache.cfg" ] \
+        || error "Class cache not generated after import — the clone can't compile its scripts. Aborting."
+    success "Class cache warm"
+fi
+
+# ─────────────────────────────────────────────────────────────
+# Step 5: Refresh bundled operator cache (best-effort)
 # ─────────────────────────────────────────────────────────────
 # The repo ships a committed BundledCache/ (regenerated from the editor when operators
 # change) and the export includes it. The headless rebuild boots a full session, which
@@ -239,41 +270,17 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────
-# Step 5: Export game with Godot
+# Step 6: Export game with Godot (cache warmed above)
 # ─────────────────────────────────────────────────────────────
-EXPORT_DIR="$BUILD_DIR/export/SpaceWheat"
-
 if [ "$SKIP_EXPORT" = true ]; then
     warn "Skipping Godot export (--skip-export)"
-    if [ ! -d "$EXPORT_DIR" ]; then
-        error "No existing export found. Remove --skip-export."
-    fi
+    [ -d "$EXPORT_DIR" ] || error "No existing export found. Remove --skip-export."
 else
     log "Exporting game with Godot..."
     cd "$BUILD_DIR"
     mkdir -p "$EXPORT_DIR"
-
-    # The fresh clone already contains export_presets.cfg — use it directly. (The old
-    # path copied it from a dev checkout under $HOME, which doesn't exist on a clean host.)
-    [ -f "$BUILD_DIR/export_presets.cfg" ] || error "export_presets.cfg not found in the cloned repo"
-
-    # Isolate Godot's config/data under the build dir (no global ~/.config pollution) and
-    # drop the stale extension list so the export resolves the freshly-built .so.
-    export XDG_CONFIG_HOME="$BUILD_DIR/.build/xdg-config"
-    export XDG_DATA_HOME="$BUILD_DIR/.build/xdg-data"
-    mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME"
-    rm -f "$BUILD_DIR/.godot/extension_list.cfg"
-
-    debug "Importing project..."
-    timeout 120 "$GODOT_BIN" --headless --import . 2>/dev/null || true
-
-    debug "Running export..."
     "$GODOT_BIN" --headless --export-release "Linux Desktop" "$EXPORT_DIR/SpaceWheat.x86_64" 2>&1 | grep -v "^$" || true
-
-    if [ ! -f "$EXPORT_DIR/SpaceWheat.x86_64" ]; then
-        error "Export failed - SpaceWheat.x86_64 not created. Check export preset."
-    fi
-
+    [ -f "$EXPORT_DIR/SpaceWheat.x86_64" ] || error "Export failed — SpaceWheat.x86_64 not created. Check export preset."
     success "Game exported"
 fi
 
@@ -287,7 +294,24 @@ if [ ! -f "$EXPORT_DIR/launch.sh" ]; then
 fi
 
 # ─────────────────────────────────────────────────────────────
-# Step 6: Create tarball
+# Step 7: Smoke-test the exported build — never ship a broken release
+# ─────────────────────────────────────────────────────────────
+# Boot the actual exported binary (with its bundled .so) headless and refuse to package
+# if it logs any SCRIPT ERROR / ERROR: — this catches a cold/broken export, a missing
+# extension, or an incomplete economy config (which hard-fails at boot by design).
+if [ "$SKIP_EXPORT" != true ]; then
+    log "Smoke-testing the exported build..."
+    smoke_log=$(timeout 60 "$EXPORT_DIR/SpaceWheat.x86_64" --headless --audio-driver Dummy --quit 2>&1 || true)
+    smoke_errors=$(printf '%s\n' "$smoke_log" | grep -cE "SCRIPT ERROR|ERROR:" || true)
+    if [ "${smoke_errors:-0}" -ne 0 ]; then
+        printf '%s\n' "$smoke_log" | grep -E "SCRIPT ERROR|ERROR:" | head -10
+        error "Exported build boots with ${smoke_errors} error(s) — refusing to ship a broken release."
+    fi
+    success "Exported build boots clean (0 errors)"
+fi
+
+# ─────────────────────────────────────────────────────────────
+# Step 8: Create tarball
 # ─────────────────────────────────────────────────────────────
 log "Creating release tarball..."
 mkdir -p "$RELEASE_DIR"
@@ -300,7 +324,7 @@ TARBALL_SIZE=$(du -h "$TARBALL" | cut -f1)
 success "Release created: $TARBALL ($TARBALL_SIZE)"
 
 # ─────────────────────────────────────────────────────────────
-# Step 7: Install (optional)
+# Step 9: Install (optional)
 # ─────────────────────────────────────────────────────────────
 if [ "$DO_INSTALL" = true ]; then
     log "Installing to $INSTALL_DIR..."
