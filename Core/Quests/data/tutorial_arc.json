@@ -1,0 +1,71 @@
+{
+  "_doc": "Act-0 onboarding chain. A linear sequence of pipeline quests; the loader links each step to unlock the next (chain_unlocks). Each step teaches ONE mechanic; completion is a SOFT predicate (unified vocabulary) the player watches fill — the progress bar is the teacher. Authored body/hint are preserved by the pipeline (voice never clobbers them).",
+  "steps": [
+    {
+      "tutorial_step": 0,
+      "tutorial_teaches": "core_loop",
+      "faction": "Hearth Keepers",
+      "biome": "StarterForest",
+      "body": "The forest is asleep. Wake it: plant a qubit, measure it, then harvest what collapses.",
+      "tutorial_hint": "R = plant · E = measure · Q = harvest. Do it once in the StarterForest.",
+      "state_predicates": [
+        {"type": "berry_consumed_count_gte", "biome": "StarterForest", "value": 1}
+      ]
+    },
+    {
+      "tutorial_step": 1,
+      "tutorial_teaches": "vocabulary",
+      "faction": "Hearth Keepers",
+      "biome": "StarterForest",
+      "body": "Each harvest can teach you a new word — an icon. Your vocabulary is your power here.",
+      "tutorial_hint": "Keep harvesting. Completing a contract or harvesting teaches a new icon pair; your signature grows.",
+      "state_predicates": [
+        {"type": "signature_size_gte", "value": 3}
+      ]
+    },
+    {
+      "tutorial_step": 2,
+      "tutorial_teaches": "reap_season",
+      "faction": "Hearth Keepers",
+      "biome": "StarterForest",
+      "body": "Time is the pump. Reap the season — fast-forward, let the Hamiltonian work, and gather the yield.",
+      "tutorial_hint": "Reap (season change) once to advance time and collect across the biome.",
+      "state_predicates": [
+        {"type": "gate_sequence_contains", "gate": "time_skip", "count": 1}
+      ]
+    },
+    {
+      "tutorial_step": 3,
+      "tutorial_teaches": "superposition",
+      "faction": "Hearth Keepers",
+      "biome": "StarterForest",
+      "body": "A qubit need not pick a side. Superpose it — spread it across both poles — and the forest shimmers between states.",
+      "tutorial_hint": "Apply a Hadamard gate to raise this biome's coherence past ~0.3. Watch the bar fill.",
+      "state_predicates": [
+        {"type": "coherence_at_least", "value": 0.3}
+      ]
+    },
+    {
+      "tutorial_step": 4,
+      "tutorial_teaches": "contracts",
+      "faction": "Millwright's Union",
+      "biome": "StarterForest",
+      "type": "DELIVERY",
+      "resource": "🌾",
+      "quantity": 2,
+      "body": "The Millwright's Union is buying. Accept their contract and deliver 2× 🌾 from your stores.",
+      "tutorial_hint": "Open the quest board, accept the contract, then complete it when you hold enough 🌾."
+    },
+    {
+      "tutorial_step": 5,
+      "tutorial_teaches": "vocab_escape",
+      "faction": "Hearth Keepers",
+      "biome": "Village",
+      "body": "You are The Demos. Plant your vocabulary in the Village and harvest its people — because you KNOW them, every harvest pays more than it costs. This is how the spiral breaks.",
+      "tutorial_hint": "Grow your signature to 4+. Harvesting icons you KNOW (like 👥 in the Village) yields up to ×4 — net positive forever.",
+      "state_predicates": [
+        {"type": "signature_size_gte", "value": 4}
+      ]
+    }
+  ]
+}

@@ -45,6 +45,7 @@ var current_biome: Node = null  # For tracking non-delivery quest progress
 var _state_projection: QuestStateProjectionService = QuestStateProjectionService.new()
 var _story_flags: Array = []    # All flag definitions loaded from story_flags.json
 var _unfired_flags: Array = []  # Subset not yet in farm.story_flags_fired
+var _tutorial_steps: Array = [] # Act-0 onboarding chain (tutorial_arc.json), linked into a chain
 
 # =============================================================================
 # CONFIGURATION
@@ -61,6 +62,7 @@ const AUTO_FAIL_ON_RESOURCE_SHORTAGE: bool = true
 func _ready() -> void:
 	set_physics_process(true)  # Enable for quest tracking
 	_load_story_flags()
+	_load_tutorial_arc()
 
 func _physics_process(delta: float) -> void:
 	var t0 = Time.get_ticks_usec()
@@ -76,9 +78,9 @@ func _physics_process(delta: float) -> void:
 		# Skip quests already ready to claim
 		if quest.get("status") == "ready":
 			continue
-		if _state_projection and quest.get("state_predicates", []) is Array:
-			var predicates = quest.get("state_predicates", [])
-			var pred_score := _state_projection.evaluate_all(predicates)
+		var qpreds = quest.get("state_predicates", [])
+		if qpreds is Array and not qpreds.is_empty():
+			var pred_score := _evaluate_quest_state_predicates(qpreds)
 			quest["predicate_score"] = pred_score
 			if pred_score >= QuestStateProjectionService.COMPLETION_THRESHOLD:
 				var quest_id = int(quest.get("id", -1))
@@ -132,6 +134,7 @@ func connect_to_biome(biome: Node) -> void:
 
 func connect_to_farm(farm: Node) -> void:
 	_refresh_unfired_flags(farm)
+	maybe_start_tutorial(farm)
 	var story_engine = get_node_or_null("/root/StoryEngine")
 	if story_engine != null and story_engine.has_method("connect_to_farm_and_quests"):
 		story_engine.connect_to_farm_and_quests(farm, self)
@@ -165,6 +168,40 @@ func _refresh_unfired_flags(farm) -> void:
 			_unfired_flags.append(flag)
 
 
+## Load the Act-0 onboarding chain and link each step to unlock the next (linear chain via
+## chain_unlocks; dicts are references, so the nesting is built in one pass).
+func _load_tutorial_arc() -> void:
+	var path := "res://Core/Quests/data/tutorial_arc.json"
+	var f := FileAccess.open(path, FileAccess.READ)
+	if f == null:
+		push_warning("QuestManager: tutorial_arc.json not found at %s" % path)
+		return
+	var parsed = JSON.parse_string(f.get_as_text())
+	f.close()
+	var steps: Array = []
+	if parsed is Dictionary and parsed.get("steps", null) is Array:
+		steps = parsed["steps"]
+	elif parsed is Array:
+		steps = parsed
+	for i in steps.size():
+		steps[i]["chain_unlocks"] = [steps[i + 1]] if i + 1 < steps.size() else []
+	_tutorial_steps = steps
+
+
+## Offer the first Act-0 quest on a fresh game. Gated by a persisted marker in story_flags_fired
+## ("tutorial_seen") so it never re-offers on a loaded save. Completing each step unlocks the next
+## via _process_chain_unlocks. New games start with this empty; the marker survives save/load.
+func maybe_start_tutorial(farm) -> void:
+	if farm == null or _tutorial_steps.is_empty():
+		return
+	if not ("story_flags_fired" in farm):
+		return
+	if farm.story_flags_fired.has("tutorial_seen"):
+		return
+	farm.story_flags_fired["tutorial_seen"] = Engine.get_physics_frames()
+	offer_tutorial_quest(_tutorial_steps[0])
+
+
 ## Story-flag firing threshold. Firing is governed by the SAME soft continuous geometry the
 ## Arc tab displays: a flag fires when smooth_and over its predicates' soft_gate scores reaches
 ## this value. (Replaces the old hard per-predicate firing path — soft continuous geometry is
@@ -195,6 +232,41 @@ func _evaluate_flag_predicates(predicates: Array, farm) -> float:
 		if not (pred is Dictionary):
 			return 0.0
 		scores.append(_check_flag_predicate(pred, farm))
+	return QuestMath.smooth_and(scores)
+
+
+## Predicate types handled by _check_flag_predicate (state-outcome vocabulary). Quest completion
+## (below) accepts these PLUS the QuestStateProjectionService observable/action vocabulary, so the
+## tutorial + arc + market quests all draw from one unified predicate language.
+const FLAG_PREDICATE_TYPES := [
+	"story_flag_set", "biome_evolving", "berry_consumed_count_gte", "berry_total_phase_gte",
+	"standing_gte", "biome_state_gte", "signature_size_gte", "atom_count_gte", "atom_in_biome",
+	"biome_attractor_emoji_gte", "biome_eigenvalue_gap_gte", "biome_purity_trending",
+]
+
+
+## Unified per-predicate score for QUEST completion: flag-vocabulary predicates (state outcomes)
+## resolve via _check_flag_predicate; everything else via the state-projection service (observables
+## + recorded action history). Soft continuous geometry throughout.
+func _quest_predicate_score(pred: Dictionary, farm) -> float:
+	var t := str(pred.get("type", ""))
+	if t in FLAG_PREDICATE_TYPES:
+		return _check_flag_predicate(pred, farm) if farm != null else 0.0
+	if _state_projection:
+		return _state_projection.evaluate_predicate(pred)
+	return 0.0
+
+
+## smooth_and over a quest's state_predicates using the unified vocabulary. Empty → 0.0.
+func _evaluate_quest_state_predicates(predicates: Array) -> float:
+	if predicates.is_empty():
+		return 0.0
+	var farm = _get_active_farm()
+	var scores: Array = []
+	for pred in predicates:
+		if not (pred is Dictionary):
+			return 0.0
+		scores.append(_quest_predicate_score(pred, farm))
 	return QuestMath.smooth_and(scores)
 
 
