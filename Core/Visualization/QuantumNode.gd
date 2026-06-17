@@ -380,53 +380,6 @@ func update_from_quantum_state(batcher = null):
 				rad_to_deg(coh_phase), purity, coh_magnitude, north_prob + south_prob])
 
 
-func get_entangled_partner_ids() -> Array:
-	# Get list of plot IDs this node is entangled with.
-	# Entanglement is owned by the biome QuantumComputer/RegisterMap substrate.
-	# Plot IDs are only a UI projection and are not yet reverse-mapped here.
-	if not plot or not plot.parent_biome:
-		return []
-
-	return []
-
-
-func apply_force(force: Vector2, delta: float):
-	# Apply a force to this node, scaled by inverse mass for realism
-
-	# Physics: acceleration = force / mass
-	# Here: mass = combined probability (north + south opacity)
-	# High probability states (mass near 1.0) are heavy and resist forces
-	# Low probability states (mass near 0.0) are light and easily moved
-	# This creates quantum-mechanical inertia!
-	# Mass = total probability in this measurement subspace
-	var probability_mass = emoji_north_opacity + emoji_south_opacity
-	probability_mass = clampf(probability_mass, 0.1, 1.0)  # Min mass to avoid division by zero
-
-	# Acceleration = force / mass (Newton's 2nd law)
-	var acceleration = force / probability_mass
-	velocity += acceleration * delta
-
-
-func apply_quadratic_drag(impulse: float):
-	# Apply quadratic drag proportional to velocity squared
-
-	# Quadratic drag: F_drag = -β * v * |v|
-	# This creates realistic air resistance where drag increases with speed.
-	# The impulse coefficient is linked to quantum coherence for physics grounding.
-
-	# Implementation: v_new = v_old * (1 - impulse * |v|)
-	var speed = velocity.length()
-	if speed < 1.0:
-		return  # Skip for very slow velocities to avoid numerical issues
-
-	# Quadratic damping factor: (1 - impulse * speed)
-	# Higher speed = more damping
-	var damping_factor = 1.0 - impulse * speed
-	damping_factor = clampf(damping_factor, 0.1, 1.0)  # Prevent over-damping or reversal
-
-	velocity *= damping_factor
-
-
 func update_position(delta: float):
 	# Update position from velocity
 	position += velocity * delta
@@ -440,16 +393,6 @@ func update_position(delta: float):
 			position_history.remove_at(0)
 
 
-func get_glow_alpha() -> float:
-	# Get glow halo alpha based on coherence / phase energy.
-	#
-	# Purity is now a dedicated ring channel; the body glow should not be the
-	# only place purity appears.
-
-	# NOTE: Ambient pulse is not a supported bubble-body channel. See QuantumVisualGrammar.
-	return 0.3 + clampf(coherence, 0.0, 1.0) * 0.5
-
-
 func _test_log(_level: String, emoji: String, message: String) -> void:
 	# Log test/debug messages with [TEST] prefix to VerboseConfig if available.
 	var tree = Engine.get_main_loop()
@@ -458,14 +401,6 @@ func _test_log(_level: String, emoji: String, message: String) -> void:
 	var verbose = (Engine.get_main_loop().root.get_node_or_null("/root/VerboseConfig") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 	if verbose:
 		verbose.trace("test", emoji, message)
-
-
-func get_pulse_rate() -> float:
-	# Pulse rate used by graph-style renderers.
-
-	# New bubble renderers should not use this for body size or alpha breathing.
-	var berry_rate = 0.5 + clampf(berry_phase * 0.2, 0.0, 2.5)
-	return berry_rate
 
 
 # ============================================================================
