@@ -76,10 +76,10 @@ extends Resource
 @export var balance_workbench_config: Dictionary = {}
 @export var farm_variable_graph_path: String = "res://Core/Config/FarmVariableGraph/default.jsonl"  # Optional source path used to seed this state.
 @export var farm_variable_graph_jsonl: Array[String] = []  # Canonical tunable parameter graph rows.
-@export var economy_variables: Dictionary = {
-	"quantum_to_credits": 1.0,
-	"max_biome_qubits": 12
-}
+# Transient seed only: the runtime source is FarmEconomy (loaded from default.jsonl) and this
+# is overwritten by the runtime mirror at serialize time. Derived from the single BalanceConfig
+# spec (no re-hardcoded literal) and re-seeded by ensure_balance_workbench_defaults().
+@export var economy_variables: Dictionary = BalanceConfig.DEFAULTS.get("economy_variables", {}).duplicate(true)
 @export var reap_count: int = 0
 
 ## FactionDensityMatrix serialization: {faction_name: float} summing to 1.0.
@@ -360,7 +360,7 @@ func ensure_balance_workbench_defaults() -> bool:
 		economy_variables = {}
 	for key in ["quantum_to_credits", "max_biome_qubits"]:
 		if not economy_variables.has(key):
-			economy_variables[key] = defaults.get("economy_variables", {}).get(key, 1.0 if key == "quantum_to_credits" else 12.0)
+			economy_variables[key] = defaults.get("economy_variables", {}).get(key, BalanceConfig.DEFAULTS["economy_variables"][key])
 	return migrating
 
 
@@ -392,19 +392,11 @@ func _default_balance_workbench_config() -> Dictionary:
 		"balance_schema_version": BALANCE_SCHEMA_VERSION,
 		"profile_id": "default",
 		"display_name": "Default Runtime Balance",
-		"tuning": {
-			"pop_base_yield_scale": 13.0,
-			"reap_base_yield": 8.0,
-			"reap_evolution_cycles": 13,
-			"flux_to_credits": 1.0,
-			"reap_cost_sequence": [1, 1, 2, 3, 5, 8, 13, 21],
-			"reap_starting_tokens": 6,
-			"measurement_drain_base": 0.15
-		},
-		"economy_variables": {
-			"quantum_to_credits": 1.0,
-			"max_biome_qubits": 12
-		},
+		# Numeric tuning + economy_variables are NOT hardcoded here — they derive from
+		# BalanceConfig.DEFAULTS (built from the single TUNABLES spec, mirrored in
+		# default.jsonl), so there is no third copy to drift out of sync.
+		"tuning": BalanceConfig.DEFAULTS.get("tuning", {}).duplicate(true),
+		"economy_variables": BalanceConfig.DEFAULTS.get("economy_variables", {}).duplicate(true),
 		"action_roi_notes": {
 			"explore": "Unlocks one terminal cycle; prerequisite for measure/pop.",
 			"measure": "Collapses state and unlocks deterministic harvest paths.",
