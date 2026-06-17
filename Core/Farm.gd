@@ -1764,13 +1764,6 @@ func get_state() -> Dictionary:
 
 ## Private Helpers - Biome Access
 
-func _get_plot_biome(pos: Vector2i):
-	# Get biome for plot grid_pos. Returns null if biomes disabled or not found.
-	if grid:
-		return grid.get_biome_for_plot(pos)
-	return null
-
-
 func _ensure_iconregistry() -> void:
 	# Ensure IconRegistry exists in harnesses that bypass normal autoload boot.
 
@@ -1801,37 +1794,6 @@ func _ensure_iconregistry() -> void:
 		icon_registry._ready()
 		if _verbose:
 			_verbose.info("test", "✓", "Headless mode: IconRegistry initialized with %d icons" % icon_registry.atoms.size())
-
-
-## Private Helpers - Resource & Economy Management
-## Now uses FarmEconomy's unified emoji-credits API
-
-func _can_afford_cost(cost: Dictionary) -> bool:
-	# Check if player can afford emoji-credits cost.
-	return economy.can_afford_cost(cost)
-
-
-func _get_missing_resources(cost: Dictionary) -> String:
-	# Get human-readable list of missing resources.
-	var missing = []
-	for emoji in cost.keys():
-		var need = cost[emoji]
-		var have = economy.get_resource(emoji)
-		if have < need:
-			var shortfall = (need - have) / EconomyConstants.get_quantum_to_credits(economy)
-			missing.append("%d more %s" % [shortfall, emoji])
-	return ", ".join(missing)
-
-
-func _spend_resources(cost: Dictionary, action: String) -> void:
-	# Deduct emoji-credits from economy.
-	economy.spend_cost(cost, action)
-
-
-func _refund_resources(cost: Dictionary) -> void:
-	# Return emoji-credits to player (failed operation).
-	for emoji in cost.keys():
-		economy.add_resource(emoji, cost[emoji], "refund")
 
 
 func _emit_state_changed() -> void:
