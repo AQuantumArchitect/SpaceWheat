@@ -8,7 +8,7 @@ import json
 import copy
 from pathlib import Path
 
-ROOT = Path("/home/primearchitect/ws/SpaceWheat")
+ROOT = Path(__file__).resolve().parents[1]
 FACTIONS_PATH = ROOT / "Core/Factions/data/factions.json"
 BIOMES_PATH = ROOT / "Core/Biomes/data/biomes.json"
 

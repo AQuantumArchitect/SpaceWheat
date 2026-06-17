@@ -6,7 +6,7 @@
 #   --count   print total count only
 # Default: gdlint only
 
-cd /home/primearchitect/ws/SpaceWheat
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 VENV=".venv/bin/gdlint"
 
 case "$1" in

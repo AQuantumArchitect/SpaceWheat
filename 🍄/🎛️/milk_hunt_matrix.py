@@ -34,7 +34,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path("/home/tehcr33d/ws/SpaceWheat/🍄/🎛️/logs/milk_batches"),
+        default=Path(__file__).resolve().parent / "logs/milk_batches",
         help="Directory for logs and summaries",
     )
     return parser

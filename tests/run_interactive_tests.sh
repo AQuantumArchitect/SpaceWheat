@@ -3,7 +3,7 @@
 # Interactive Test Runner for Phase 6 v2 Overlays
 # Runs the game with keyboard input simulation and captures results
 
-PROJECT_DIR="/home/tehcr33d/ws/SpaceWheat"
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 GODOT_BIN="godot"
 LOG_FILE="/tmp/phase6_interactive_test_$(date +%s).log"
 TEST_OUTPUT_FILE="${PROJECT_DIR}/llm_outbox/TEST_RUN_RESULTS_$(date +%Y%m%d_%H%M%S).md"

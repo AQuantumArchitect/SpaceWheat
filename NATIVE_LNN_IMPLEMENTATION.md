@@ -143,7 +143,7 @@ l2_reg = 0.0001      # Regularization to prevent weight explosion
 
 ### Compilation
 ```bash
-cd /home/tehcr33d/ws/SpaceWheat/native
+cd <repo>/native
 scons -j4
 # Output: bin/libquantummatrix.linux.template_debug.x86_64
 ```

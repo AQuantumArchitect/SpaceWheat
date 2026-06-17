@@ -1179,7 +1179,6 @@ func _input(event: InputEvent) -> void:
 	# - Track InputEventScreenTouch with .index for multi-finger support
 	# - Monitor position changes in _process() for drag motion
 	# - Detect tap vs drag based on movement distance and time
-	# See: /home/tehcr33d/ws/SpaceWheat/llm_outbox/TOUCH_CODE_AUDIT.md
 
 
 func _on_touch_tap(grid_pos: Vector2) -> void:

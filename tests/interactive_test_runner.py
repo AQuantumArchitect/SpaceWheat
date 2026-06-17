@@ -15,7 +15,7 @@ from pathlib import Path
 
 class InteractiveTestRunner:
     def __init__(self):
-        self.project_dir = "/home/tehcr33d/ws/SpaceWheat"
+        self.project_dir = str(Path(__file__).resolve().parents[1])
         self.godot_bin = "godot"
         self.game_process = None
         self.test_results = []
