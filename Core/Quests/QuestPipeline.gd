@@ -58,6 +58,43 @@ static func from_story_def(quest_def: Dictionary, source_flag: String, quest_id:
 	return q
 
 
+## Build a canonical, voiced QUANTUM quest (non-delivery, untimed) of `type_id` with its
+## type-specific fields (observable/target/comparison, delta/direction, target_coherence, …).
+## These teach the player to READ and STEER the quantum state — the heart of the game. The
+## existing _update_*_quest trackers complete them via soft_gate once accepted.
+static func quantum_quest(type_id: int, faction: String, biome_name: String, fields: Dictionary, quest_id: int) -> Dictionary:
+	var q := Quest.make(Quest.SOURCE_MARKET, {
+		"id": quest_id,
+		"status": Quest.STATUS_OFFERED,
+		"type": type_id,
+		"faction": faction,
+		"biome": biome_name,
+		"biome_name": biome_name,
+		"time_limit": -1.0,   # untimed — steer at your own pace
+		"quantity": 1,
+	})
+	for k in fields:
+		q[str(k)] = fields[k]
+	QuestVoice.apply(q)
+	return q
+
+
+## Physics-derived suggestion: in the CLOSED system, coherence is the canonical steerable
+## observable (purity≡1, entropy≡0 are degenerate). Offer a SHAPE_ACHIEVE coherence quest only
+## when there's headroom to raise it (don't ask for what's already true). Deterministic — no RNG.
+## Returns {} if coherence is already high. Caller supplies the live coherence reading.
+static func suggest_quantum_quest(biome_name: String, faction: String, coherence: float, quest_id: int) -> Dictionary:
+	if coherence >= 0.65:
+		return {}
+	var target := clampf(coherence + 0.15, 0.2, 0.85)
+	return quantum_quest(QuestTypes.Type.SHAPE_ACHIEVE, faction, biome_name, {
+		"observable": "coherence",
+		"target": target,
+		"comparison": ">",
+		"tutorial_hint": "Raise coherence past %.2f — superpose the biome's qubits (Hadamard, then let H evolve)." % target,
+	}, quest_id)
+
+
 ## TUTORIAL source: build a canonical Act-0 onboarding quest from an authored spec. Like
 ## from_story_def but tagged tutorial (category TUTORIAL). Authored body/hint are preserved.
 static func from_tutorial_def(quest_def: Dictionary, quest_id: int) -> Dictionary:

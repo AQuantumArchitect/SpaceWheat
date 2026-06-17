@@ -69,23 +69,45 @@ static func _verb_for(quest: Dictionary) -> String:
 	return "deliver"  # legacy string type (authored story quests)
 
 
-## Apply faction voice to a quest IN PLACE: sets body/full_text from the faction archetype + the
-## quest's resource/quantity/biome. Skips quests that already carry authored text (story/tutorial),
-## so authored beats are never clobbered.
+## Apply faction voice to a quest IN PLACE: sets body/full_text from the faction archetype.
+## Delivery quests read resource/quantity; quantum quests read observable/target. Skips quests
+## that already carry authored text (story/tutorial), so authored beats are never clobbered.
 static func apply(quest: Dictionary) -> void:
-	# Authored sources keep their text.
 	if str(quest.get("source", "")) != Quest.SOURCE_MARKET:
 		return
 	var faction := str(quest.get("faction", ""))
 	var v := get_voice(faction)
-	var verb := _verb_for(quest)
-	var resource := str(quest.get("resource", ""))
-	var qty := int(quest.get("quantity", 1))
-	var biome := str(quest.get("biome", quest.get("biome_name", "")))
 	var prefix := str(v.get("prefix", ""))
 	var suffix := str(v.get("suffix", ""))
 	var who := faction if faction != "" else "A faction"
-	quest["body"] = "%s %s %d× %s %s" % [prefix, verb, qty, resource, suffix]
-	quest["full_text"] = "%s %s seek %d× %s from %s — %s %s" % [
-		prefix, who, qty, resource, biome, verb, suffix
-	]
+	var biome := str(quest.get("biome", quest.get("biome_name", "")))
+	var t = quest.get("type", QuestTypes.Type.DELIVERY)
+	var ti := int(t) if (typeof(t) == TYPE_INT or typeof(t) == TYPE_FLOAT) else QuestTypes.Type.DELIVERY
+	if ti == QuestTypes.Type.DELIVERY:
+		var resource := str(quest.get("resource", ""))
+		var qty := int(quest.get("quantity", 1))
+		quest["body"] = "%s deliver %d× %s %s" % [prefix, qty, resource, suffix]
+		quest["full_text"] = "%s %s seek %d× %s from %s — deliver %s" % [prefix, who, qty, resource, biome, suffix]
+	else:
+		var verb := str(TYPE_VERB.get(ti, "tend"))
+		var obj := _quantum_object(quest, ti)
+		quest["body"] = "%s %s %s %s" % [prefix, verb, obj, suffix]
+		quest["full_text"] = "%s %s call you to %s %s in %s — %s" % [prefix, who, verb, obj, biome, suffix]
+
+
+## Phrase a quantum quest's objective from its type-specific fields.
+static func _quantum_object(quest: Dictionary, ti: int) -> String:
+	match ti:
+		QuestTypes.Type.SHAPE_ACHIEVE, QuestTypes.Type.SHAPE_MAINTAIN:
+			var cmp := "past" if str(quest.get("comparison", ">")) != "<" else "below"
+			return "%s %s %.2f" % [str(quest.get("observable", "coherence")), cmp, float(quest.get("target", 0.7))]
+		QuestTypes.Type.EVOLUTION:
+			return "%s by %+.2f" % [str(quest.get("observable", "coherence")), float(quest.get("delta", 0.2))]
+		QuestTypes.Type.ENTANGLEMENT:
+			return "coherence past %.2f" % float(quest.get("target_coherence", 0.6))
+		QuestTypes.Type.MAINTAIN_COHERENCE:
+			return "coherence above %.2f" % float(quest.get("target_coherence", quest.get("target", 0.5)))
+		QuestTypes.Type.ACHIEVE_EIGENSTATE:
+			return "a dominant eigenstate"
+		_:
+			return "the quantum state"

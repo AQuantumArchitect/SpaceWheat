@@ -506,6 +506,22 @@ func offer_all_faction_quests(biome) -> Array:
 		if not _announced_offers.has(quest["id"]):
 			_announced_offers[quest["id"]] = true
 			quest_offered.emit(quest)
+
+	# One physics-derived quantum quest alongside the deliveries — teaches reading/steering the
+	# state (closed-safe: targets coherence, which is steerable; never purity). Deterministic.
+	if not quests.is_empty():
+		var obs := get_biome_observables(biome)
+		var coh := float(obs.get("coherence", 0.0))
+		var fac := str(quests[0].get("faction", ""))
+		var bn := str(quests[0].get("biome_name", quests[0].get("biome", "")))
+		var qq := QuestPipeline.suggest_quantum_quest(bn, fac, coh, next_quest_id)
+		if not qq.is_empty():
+			next_quest_id += 1
+			qq["offered_at"] = now_ms
+			quests.append(qq)
+			if not _announced_offers.has(qq["id"]):
+				_announced_offers[qq["id"]] = true
+				quest_offered.emit(qq)
 	return quests
 
 
