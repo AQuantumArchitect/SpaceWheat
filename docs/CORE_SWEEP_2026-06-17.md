@@ -11,6 +11,27 @@ preload-by-path, autoloads, `.tscn`, and string/`has_method` calls) — agents w
 - Removed 5 dead vestigial methods from `QuantumNode` (`13473d9`).
 - Deleted dead `DensityMatrix.gd` (346 LOC) + `BiomeUtilities.create_qubit/format_debug_info`
   + `QuestRewards._compute_total_resource_budget` & its 3 orphaned helpers (`173e386`).
+- Removed Farm.gd's 5 dead economy-facade helpers (`730bbeb`).
+
+## ✅ Items 3–7 + doc wrinkles — RESOLVED (2026-06-17, follow-up)
+- **Item 4** (`1c958bc`): measurement now hard-fails honestly when collapse fails (returns
+  `collapse_failed` before finalizing/charging) instead of faking success. No live-behavior change.
+- **Item 3** (`090a289`): gate-cost `{}`=free made explicit — `gate_costs` is an intentionally
+  sparse table (only 9 of ~17 gates priced), so missing=free is by design, not a fallback lie.
+  No behavior change. (Owner: price the other gates in default.jsonl if they should cost.)
+- **Item 6** (`b2e2a19`): GameState's three hardcoded copies of tuning/economy_variables defaults
+  now derive from the single `BalanceConfig` spec. Fixed a latent gap (workbench defaults were
+  missing `market_temperature`/`vocab_*`). Runtime source unchanged.
+- **Item 5** (`c21ab24`): story-flag firing now uses the SAME soft continuous geometry the Arc
+  tab shows (per "soft continuous geometry >>> hard rules"). Deleted the duplicate hard
+  predicate path (−110 LOC). Firing = soft `smooth_and` ≥ `FLAG_FIRE_THRESHOLD` (0.85, the dial).
+  Nuance: wide-width predicates fire at high confidence (a touch past nominal). story_arc test passes.
+- **Item 7 + doc wrinkles** (`c667a34`): documented MusicManager's layered selection authority
+  (no refactor — sensitive layer); removed Biome.validate's self-contradictory "(external target
+  OK)" warning + documented the warn-vs-error asymmetry; FarmPlot.grow() `-> float`(const 0.0) →
+  honest `-> void`. Core/Documentation/ confirmed live.
+
+### Original item descriptions (for reference) below.
 
 ---
 
