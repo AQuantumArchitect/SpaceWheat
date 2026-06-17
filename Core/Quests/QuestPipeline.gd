@@ -36,7 +36,9 @@ static func from_market_contract(contract, biome) -> Dictionary:
 	raw["reward_vocab_north"] = pair[0]
 	raw["reward_vocab_south"] = pair[1]
 	raw["reward_multiplier"] = 1.0
-	return Quest.normalize(raw, Quest.SOURCE_MARKET)
+	var quest := Quest.normalize(raw, Quest.SOURCE_MARKET)
+	QuestVoice.apply(quest)  # faction-voiced body/full_text (replaces the bland projection line)
+	return quest
 
 
 ## STORY source: build a canonical story/arc quest from a story_flags.json arc_quest def.
@@ -51,6 +53,21 @@ static func from_story_def(quest_def: Dictionary, source_flag: String, quest_id:
 		"offered_at": Time.get_ticks_msec(),
 	})
 	# Merge the authored arc_quest fields verbatim (type may be a legacy string here; preserved).
+	for k in quest_def:
+		q[str(k)] = quest_def[k]
+	return q
+
+
+## TUTORIAL source: build a canonical Act-0 onboarding quest from an authored spec. Like
+## from_story_def but tagged tutorial (category TUTORIAL). Authored body/hint are preserved.
+static func from_tutorial_def(quest_def: Dictionary, quest_id: int) -> Dictionary:
+	var q := Quest.make(Quest.SOURCE_TUTORIAL, {
+		"id": quest_id,
+		"category": "TUTORIAL",
+		"status": Quest.STATUS_STORY,
+		"expires": false,
+		"offered_at": Time.get_ticks_msec(),
+	})
 	for k in quest_def:
 		q[str(k)] = quest_def[k]
 	return q

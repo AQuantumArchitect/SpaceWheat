@@ -360,6 +360,21 @@ func offer_story_quest(quest_def: Dictionary, source_flag: String) -> int:
 	return quest_id
 
 
+## Offer a tutorial-chain quest (Act-0 onboarding). Parallel to offer_story_quest; routes through
+## the pipeline's tutorial source. Used by _process_chain_unlocks for linear tutorial progression.
+func offer_tutorial_quest(quest_def: Dictionary) -> int:
+	if quest_def.is_empty():
+		return -1
+	var quest_id := next_quest_id
+	next_quest_id += 1
+	var q := QuestPipeline.from_tutorial_def(quest_def, quest_id)
+	story_offers[quest_id] = q
+	if not _announced_offers.has(quest_id):
+		_announced_offers[quest_id] = true
+		quest_offered.emit(q)
+	return quest_id
+
+
 ## True if any story or active quest has source_flag == flag_id (for save/load restore check).
 func has_quest_for_flag(flag_id: String) -> bool:
 	for q in story_offers.values():
@@ -642,6 +657,23 @@ func _finalize_quest_completion(quest_id: int, quest: Dictionary, reward, grante
 	_stop_quest_timer(quest_id)
 	quest_completed.emit(quest_id, _build_reward_payload(reward, granted_resources))
 	active_quests_changed.emit()
+	_process_chain_unlocks(quest)
+
+
+## On completion, offer any quests this one unlocks (linear tutorial chains, arc branches).
+## chain_unlocks is an Array of quest spec dicts; each spec's "source" routes it (tutorial default).
+func _process_chain_unlocks(quest: Dictionary) -> void:
+	var unlocks = quest.get("chain_unlocks", [])
+	if not (unlocks is Array):
+		return
+	for spec in unlocks:
+		if not (spec is Dictionary) or spec.is_empty():
+			continue
+		var src := str(spec.get("source", Quest.SOURCE_TUTORIAL))
+		if src == Quest.SOURCE_STORY:
+			offer_story_quest(spec, str(quest.get("source_flag", "")))
+		else:
+			offer_tutorial_quest(spec)
 
 
 func complete_quest(quest_id: int) -> bool:
