@@ -128,6 +128,39 @@ Direct `BIOME_TRACKS` lookup / parametric vector match (Layer 4) / iconmap-simil
 
 ---
 
+## 📋 Appendix: dead private functions (0-ref-by-name across the whole repo)
+
+A systematic scan of every `func _name` in Core (excl. Visualization + the dead quest cluster
++ Godot virtuals). These have **zero by-name references anywhere** — and since private functions
+can only be called by name, that means dead. Caveat learned this pass: the scan can *under*count
+(e.g. Farm.gd's `_get_missing_resources` had a by-name ref that actually resolved to FarmEconomy's
+same-named copy — it was dead too), so it's a safe-but-conservative list. **Before removing each,
+check (a) it doesn't orphan a field/other private (cascade), and (b) it isn't recent in-dev not
+yet wired.** All inert (private + uncalled) so harmless to leave.
+
+Already removed this pass: `_can_afford_cost`, `_spend_resources`, `_refund_resources`,
+`_get_plot_biome`, `_get_missing_resources` (Farm.gd).
+
+Still present, verified dead-by-name:
+- `Core/Farm.gd`: `_get_loadable_biomes` (calls `_get_explored_biomes` → check that doesn't go dead too)
+- `Core/Environment/BiomeEvolutionBatcher.gd`: `_accumulate_sink_flux_from_couplings`, `_biome_has_peeked_terminals`, `_get_engine_id_for_biome`
+- `Core/QuantumSubstrate/QuantumComputer.gd`: `_project_component_state`
+- `Core/Actions/ProbeActions.gd`: `_looks_like_farm`, `_resolve_terminal_purity`, `_save_density_matrices`
+- `Core/GameMechanics/FarmEconomy.gd`: `_print_resources`, `_resource_allowed_by_iconmap`
+- `Core/GameMechanics/FarmGrid.gd`: `_find_plot_by_id`
+- `Core/Quests/QuestManager.gd`: `_apply_market_projection`
+- `Core/Quests/IconPairing.gd`: `_apply_resource_bias`, `_roll_north_pole`, `_roll_south_pole_constrained`
+- `Core/Factions/IconRegistry.gd`: `_merge_row_couplings`
+- `Core/Biomes/Biome.gd`: `_normalize_icon_poles`
+- `Core/Biomes/BiomeBuilder.gd`: `_get_verbose_config`
+- `Core/Environment/BiomeBase.gd`: `_project_faction_standings_to_scalars`
+- `Core/Alignment/AlignmentGraph.gd`: `_index_to_bits`
+- `Core/Instrumentation/Handlers/LindbladHandler.gd`: `_resolve_axis_pair`
+
+Note the `IconPairing` trio (`_roll_north_pole`/`_roll_south_pole_constrained`/`_apply_resource_bias`)
+looks like an abandoned RNG-based icon-pairing path — consistent with the project's "no RNG in
+exploration; biomes are crafted not random" invariant. Likely a clean sub-cluster to remove together.
+
 ### Bottom line
 The Core is **cleaner than feared** — no economy-layer lies survived your consolidation, and
 the architecture (closed-system, primed operators, faction-signature physics) is internally
