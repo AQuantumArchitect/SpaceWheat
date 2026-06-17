@@ -8,6 +8,9 @@
 {"op":"set","path":"quest_rewards.resource_reward_min_per_emoji","value":1}
 {"op":"set","path":"quest_rewards.resource_reward_base_ratio","value":0.4}
 {"op":"set","path":"quest_rewards.reward_kT","value":10.0}
+{"op":"set","path":"quest_rewards.biome_novelty_multiplier","value":1.10}
+{"op":"set","path":"quest_rewards.icon_novelty_multiplier","value":1.10}
+{"op":"set","path":"quest_rewards.novelty_multiplier_cap","value":1.20}
 {"op":"set","path":"tuning.pop_base_yield_scale","value":13.0}
 {"op":"set","path":"tuning.reap_base_yield","value":8.0}
 {"op":"set","path":"tuning.reap_evolution_cycles","value":13}

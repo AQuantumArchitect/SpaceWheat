@@ -5,24 +5,21 @@ extends RefCounted
 ## Handles reward generation and icon teaching for completed quests
 
 
-const RESOURCE_REWARD_MIN_TOTAL: int = 1
-const RESOURCE_REWARD_MAX_TOTAL: int = 55
-const RESOURCE_REWARD_MIN_PER_EMOJI: int = 1
-const RESOURCE_REWARD_BASE_RATIO: float = 0.25
-const QUEST_REWARD_TUNING_DEFAULTS: Dictionary = {
-	"resource_reward_min_total": RESOURCE_REWARD_MIN_TOTAL,
-	"resource_reward_max_total": RESOURCE_REWARD_MAX_TOTAL,
-	"resource_reward_min_per_emoji": RESOURCE_REWARD_MIN_PER_EMOJI,
-	"resource_reward_base_ratio": RESOURCE_REWARD_BASE_RATIO
-	,
-	"biome_novelty_multiplier": 1.10,
-	"icon_novelty_multiplier": 1.10,
-	"novelty_multiplier_cap": 1.20,
-	# Representative kT for quest-reward SIZING (rarer goal → bigger bounty). Live market
-	# pricing uses the biome's own kT; this is the offer-sizing anchor. Canonical value in
-	# default.jsonl (quest_rewards.reward_kT).
-	"reward_kT": 10.0
-}
+## Quest-reward tuning is DATA — every value lives ONLY in default.jsonl (quest_rewards.*),
+## pushed in via set_reward_tuning_overrides at economy load. NO code-default values here;
+## this is just the manifest of required keys, validated complete (hard-fail if any missing).
+## reward_kT = representative kT for quest-reward SIZING (rarer goal → bigger bounty; live
+## market pricing uses the biome's own kT).
+const QUEST_REWARD_TUNING_KEYS: Array = [
+	"resource_reward_min_total",
+	"resource_reward_max_total",
+	"resource_reward_min_per_emoji",
+	"resource_reward_base_ratio",
+	"biome_novelty_multiplier",
+	"icon_novelty_multiplier",
+	"novelty_multiplier_cap",
+	"reward_kT",
+]
 
 static var _quest_reward_tuning_overrides: Dictionary = {}
 
@@ -278,10 +275,10 @@ static func _apply_reward_tuning(rewards: Dictionary, quest: Dictionary) -> Dict
 	# Additive novelty bonuses, capped to prevent runaway generosity.
 	var multiplier = 1.0
 	if bool(quest.get("biome_new", false)):
-		multiplier += float(tuning.get("biome_novelty_multiplier", 1.10)) - 1.0
+		multiplier += float(tuning.get("biome_novelty_multiplier")) - 1.0
 	if bool(quest.get("contains_new_vocab", false)):
-		multiplier += float(tuning.get("icon_novelty_multiplier", 1.10)) - 1.0
-	var cap = float(tuning.get("novelty_multiplier_cap", 1.20))
+		multiplier += float(tuning.get("icon_novelty_multiplier")) - 1.0
+	var cap = float(tuning.get("novelty_multiplier_cap"))
 	multiplier = min(multiplier, cap)
 	if multiplier <= 1.0:
 		return rewards
@@ -473,7 +470,7 @@ static func _compute_surprisal_reward_budget(quest: Dictionary, _profile: Dictio
 	# market pricing); tune via JSONL tuning.market_temperature. The interference
 	# profile no longer sets the budget — it only steers WHICH emojis pay out
 	# (see _build_resource_reward_plan).
-	var kT := float(get_reward_tuning().get("reward_kT", 10.0))
+	var kT := float(get_reward_tuning().get("reward_kT"))
 	var budget := QuestEnergy.target_energy(quest, kT)
 	var amount := maxi(1, int(round(budget)))
 	if not deterministic:
@@ -497,19 +494,26 @@ static func _compute_total_resource_budget(quest: Dictionary, dominant_eigenvalu
 
 
 static func set_reward_tuning_overrides(overrides: Dictionary) -> void:
+	# Quest tuning comes ONLY from the canonical config (default.jsonl quest_rewards.*).
+	# Validate completeness loudly — a missing key is an honest failure, not a default.
 	_quest_reward_tuning_overrides = {}
 	if not (overrides is Dictionary):
+		push_error("QuestRewards: quest_rewards config block missing — default.jsonl incomplete.")
 		return
-	for key in QUEST_REWARD_TUNING_DEFAULTS.keys():
+	var missing: Array = []
+	for key in QUEST_REWARD_TUNING_KEYS:
 		if overrides.has(key):
 			_quest_reward_tuning_overrides[key] = overrides[key]
+		else:
+			missing.append(key)
+	if not missing.is_empty():
+		push_error("QuestRewards: quest_rewards config INCOMPLETE — missing %s. default.jsonl must define every quest-reward key." % str(missing))
 
 
 static func get_reward_tuning() -> Dictionary:
-	var out = QUEST_REWARD_TUNING_DEFAULTS.duplicate(true)
-	for key in _quest_reward_tuning_overrides.keys():
-		out[key] = _quest_reward_tuning_overrides[key]
-	return out
+	# Loaded config only — no code-default merge. set_reward_tuning_overrides validated
+	# completeness (loud error) at load, so readers can trust the keys are present.
+	return _quest_reward_tuning_overrides.duplicate(true)
 
 
 static func reset_reward_tuning() -> void:
@@ -517,17 +521,17 @@ static func reset_reward_tuning() -> void:
 
 
 static func _reward_min_total() -> int:
-	var raw = get_reward_tuning().get("resource_reward_min_total", RESOURCE_REWARD_MIN_TOTAL)
+	var raw = get_reward_tuning().get("resource_reward_min_total")
 	return max(1, int(raw))
 
 
 static func _reward_max_total() -> int:
-	var raw = get_reward_tuning().get("resource_reward_max_total", RESOURCE_REWARD_MAX_TOTAL)
+	var raw = get_reward_tuning().get("resource_reward_max_total")
 	return max(_reward_min_total(), int(raw))
 
 
 static func _reward_min_per_emoji() -> int:
-	var raw = get_reward_tuning().get("resource_reward_min_per_emoji", RESOURCE_REWARD_MIN_PER_EMOJI)
+	var raw = get_reward_tuning().get("resource_reward_min_per_emoji")
 	return max(1, int(raw))
 
 
@@ -542,7 +546,7 @@ static func _reward_min_per_emoji_for_quantity(quantity: float) -> int:
 
 
 static func _reward_base_ratio() -> float:
-	var raw = get_reward_tuning().get("resource_reward_base_ratio", RESOURCE_REWARD_BASE_RATIO)
+	var raw = get_reward_tuning().get("resource_reward_base_ratio")
 	return max(0.05, float(raw))
 
 
