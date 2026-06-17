@@ -268,11 +268,21 @@ static func action_measure(terminal, biome, economy = null, farm = null) -> Dict
 	var was_entangled = _check_entanglement(register_id, biome)
 	var closed: bool = not BalanceConfig.dissipative_enabled()
 	var drain_eta: float = 1.0
+	var collapse_ok: bool
 	if closed:
-		_project_register(biome, register_id, is_north)
+		collapse_ok = _project_register(biome, register_id, is_north)
 	else:
 		drain_eta = _resolve_drain_fraction(biome, measured_purity, farm)
-		_drain_register(biome, register_id, is_north, drain_eta)
+		collapse_ok = _drain_register(biome, register_id, is_north, drain_eta)
+	if not collapse_ok:
+		# Honest failure: the quantum state was NOT collapsed (no quantum_computer, or
+		# missing project/drain). Don't finalize the terminal or charge the cost — a
+		# fabricated "success" with an unchanged state is exactly the lie we forbid.
+		return {
+			"success": false,
+			"error": "collapse_failed",
+			"message": "Measurement collapse failed: biome quantum state unavailable."
+		}
 
 	# 5. Mark terminal as measured and free the register.
 	_finalize_measurement_terminal(terminal, outcome, recorded_probability, snapshot)
@@ -389,12 +399,16 @@ static func _auto_measure_for_pop(terminal, farm) -> Dictionary:
 
 	# Collapse the measured axis — closed: full projective collapse (von Neumann);
 	# open (DLC): partial ensemble drain. Mirrors action_measure.
+	var collapse_ok: bool
 	if not BalanceConfig.dissipative_enabled():
-		_project_register(biome, register_id, is_north)
+		collapse_ok = _project_register(biome, register_id, is_north)
 	else:
 		var purity = biome.get_purity() if biome.has_method("get_purity") else 0.5
 		var drain_eta = _resolve_drain_fraction(biome, purity, farm)
-		_drain_register(biome, register_id, is_north, drain_eta)
+		collapse_ok = _drain_register(biome, register_id, is_north, drain_eta)
+	if not collapse_ok:
+		# Honest failure: state not collapsed — don't fake a measured terminal.
+		return {"success": false, "error": "collapse_failed", "auto_measured": false}
 
 	# Mark terminal as measured — player sees pure collapsed state.
 	# Store r so _prepare_pop_result can read per-qubit Bloch radius.
