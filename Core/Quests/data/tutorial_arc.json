@@ -65,6 +65,28 @@
       "tutorial_hint": "Grow your signature to 4+. Harvesting icons you KNOW (like 👥 in the Village) yields up to ×4 — net positive forever.",
       "state_predicates": [
         {"type": "signature_size_gte", "value": 4}
+      ],
+      "chain_branch": [
+        {
+          "when": {"type": "standing_gte", "faction": "Hearth Keepers", "channel": "trust", "value": 0.15},
+          "unlock": {
+            "source": "story",
+            "faction": "Hearth Keepers",
+            "biome": "StarterForest",
+            "body": "The Hearth Keepers trust you. The forest's deeper rhythms open — walk the Druid's Loop and let the canopy speak.",
+            "tutorial_hint": "Your path leans to the forest. Build coherence and berry-phase with the Hearth Keepers."
+          }
+        },
+        {
+          "when": {"type": "standing_gte", "faction": "Millwright's Union", "channel": "trust", "value": 0.15},
+          "unlock": {
+            "source": "story",
+            "faction": "Millwright's Union",
+            "biome": "Village",
+            "body": "The Millwright's Union counts you an ally. The mill wants to run — feed it lumber and watch ⚙ rise.",
+            "tutorial_hint": "Your path leans to the mill. Drive the Village's ⚙ attractor with the Millwright's Union."
+          }
+        }
       ]
     }
   ]

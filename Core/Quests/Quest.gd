@@ -102,8 +102,8 @@ static func defaults() -> Dictionary:
 
 		# ── Chain / branching (rebuild) ──
 		"chain_prereqs": [],                # quest/flag ids that must be done first
-		"chain_unlocks": [],               # quest specs (or flag ids) unlocked on completion
-		"chain_branch": {},                # {condition: unlock} faction-siding branches
+		"chain_unlocks": [],               # quest specs unlocked on completion (linear chain)
+		"chain_branch": [],                # [{when: predicate, unlock: spec}] faction-siding branches
 
 		# ── Tutorial (rebuild) ──
 		"tutorial_teaches": "",             # mechanic id this quest introduces

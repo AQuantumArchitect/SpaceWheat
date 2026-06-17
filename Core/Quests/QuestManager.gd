@@ -746,9 +746,10 @@ func _finalize_quest_completion(quest_id: int, quest: Dictionary, reward, grante
 	quest_completed.emit(quest_id, _build_reward_payload(reward, granted_resources))
 	active_quests_changed.emit()
 	_process_chain_unlocks(quest)
+	_process_chain_branch(quest)
 
 
-## On completion, offer any quests this one unlocks (linear tutorial chains, arc branches).
+## On completion, offer any quests this one unlocks (linear tutorial chains, arc continuations).
 ## chain_unlocks is an Array of quest spec dicts; each spec's "source" routes it (tutorial default).
 func _process_chain_unlocks(quest: Dictionary) -> void:
 	var unlocks = quest.get("chain_unlocks", [])
@@ -757,11 +758,38 @@ func _process_chain_unlocks(quest: Dictionary) -> void:
 	for spec in unlocks:
 		if not (spec is Dictionary) or spec.is_empty():
 			continue
-		var src := str(spec.get("source", Quest.SOURCE_TUTORIAL))
-		if src == Quest.SOURCE_STORY:
-			offer_story_quest(spec, str(quest.get("source_flag", "")))
-		else:
-			offer_tutorial_quest(spec)
+		_offer_chain_spec(spec, quest)
+
+
+## Faction-siding branch: pick the branch whose condition scores HIGHEST (soft continuous
+## geometry — the player's standing/state picks the path), and offer its unlock. chain_branch is
+## [{when: <predicate>, unlock: <quest spec>}]. Only branches if the best score clears 0.5.
+func _process_chain_branch(quest: Dictionary) -> void:
+	var branches = quest.get("chain_branch", [])
+	if not (branches is Array) or branches.is_empty():
+		return
+	var farm = _get_active_farm()
+	var best_score := -1.0
+	var best_unlock = null
+	for br in branches:
+		if not (br is Dictionary):
+			continue
+		var cond = br.get("when", {})
+		var score := _quest_predicate_score(cond, farm) if cond is Dictionary else 0.0
+		if score > best_score:
+			best_score = score
+			best_unlock = br.get("unlock", null)
+	if best_unlock is Dictionary and not best_unlock.is_empty() and best_score >= 0.5:
+		_offer_chain_spec(best_unlock, quest)
+
+
+## Offer a chain/branch spec, routing by its "source" (tutorial default, story explicit).
+func _offer_chain_spec(spec: Dictionary, parent_quest: Dictionary) -> void:
+	var src := str(spec.get("source", Quest.SOURCE_TUTORIAL))
+	if src == Quest.SOURCE_STORY:
+		offer_story_quest(spec, str(parent_quest.get("source_flag", "")))
+	else:
+		offer_tutorial_quest(spec)
 
 
 func complete_quest(quest_id: int) -> bool:
