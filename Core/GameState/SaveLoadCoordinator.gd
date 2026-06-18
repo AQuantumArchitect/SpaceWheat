@@ -78,17 +78,6 @@ func peek_save_slot(slot: int) -> Dictionary:
 	return info
 
 
-func load_new_game_template() -> GameState:
-	var project_path = SaveStore.SCENARIO_DIR + SaveStore.NEW_GAME_TEMPLATE
-	var has_project = ResourceLoader.exists(project_path)
-	var state = SaveStore.load_new_game_template()
-	if state and has_project and _verbose:
-		_verbose.info("save", "📂", "Loaded new game template from: " + project_path)
-	elif _verbose:
-		_verbose.warn("save", "⚠", "Default scenario not found: " + project_path)
-	return _gsm._hydrate_state_defaults(state)
-
-
 func load_game_state(slot: int) -> GameState:
 	var state = SaveStore.load_state(slot)
 	if state:

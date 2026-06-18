@@ -17,7 +17,7 @@ func _run() -> void:
 		quit(2)
 		return
 
-	var state = gsm.save_load.load_new_game_template()
+	var state = gsm.save_load.new_game()
 	if state == null:
 		printerr("no state")
 		quit(3)

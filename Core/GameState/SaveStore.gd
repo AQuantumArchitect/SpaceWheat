@@ -8,7 +8,6 @@ extends RefCounted
 const SAVE_DIR = "user://saves/"
 const NUM_SAVE_SLOTS = 3
 const SCENARIO_DIR = "res://Scenarios/"
-const NEW_GAME_TEMPLATE = "new_game_easy.tres"
 const DEFAULT_SCENARIO_ID = "new_game_easy"
 const SAVE_ARTIFACT_INDEX_FILE = "emoji_save_index.json"
 const EMOJI_SIDECAR_SUFFIX = ".json"
@@ -221,10 +220,6 @@ static func load_scenario(scenario_id: String) -> GameState:
 		return ResourceLoader.load(scenario_path).duplicate()
 	push_error("Scenario not found: %s" % scenario_path)
 	return null
-
-
-static func load_new_game_template() -> GameState:
-	return load_scenario(DEFAULT_SCENARIO_ID)
 
 
 static func _write_save_artifacts(state: GameState, slot: int, canonical_path: String) -> void:
