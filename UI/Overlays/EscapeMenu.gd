@@ -71,9 +71,12 @@ const ITEM_BY_KEYCODE := {
 
 const NUM_KEEP_SLOTS := 3
 
-# Ordered list of playable scenarios shown in the New tab.
+# The scenario a fresh player drops into when there's no save to continue: "The Demos" (the
+# guided tutorial). Distinct from SaveStore.DEFAULT_SCENARIO_ID ("new_game_easy"), which is the
+# bare code-level fallback when no scenario id is supplied at all.
 const DEFAULT_RUN_SCENARIO_ID := "demos_normal"
 
+# Ordered list of playable scenarios shown in the New tab.
 const SCENARIO_LIST := [
 	{"id": "demos_normal",  "label": "The Demos",      "desc": "guided tutorial demo"},
 	{"id": "new_game_easy", "label": "Easy Farm",      "desc": "open starter scenario"},
