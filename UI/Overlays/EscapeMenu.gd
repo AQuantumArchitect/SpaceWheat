@@ -75,8 +75,8 @@ const NUM_KEEP_SLOTS := 3
 const DEFAULT_RUN_SCENARIO_ID := "demos_normal"
 
 const SCENARIO_LIST := [
-	{"id": "demos_normal",  "label": "The Demos",      "desc": "default start"},
-	{"id": "new_game_easy", "label": "Easy Farm",      "desc": "starter scenario"},
+	{"id": "demos_normal",  "label": "The Demos",      "desc": "guided tutorial demo"},
+	{"id": "new_game_easy", "label": "Easy Farm",      "desc": "open starter scenario"},
 ]
 const FRAME_RUN := "run"
 const FRAME_SAVE_LOAD := "save_load"
