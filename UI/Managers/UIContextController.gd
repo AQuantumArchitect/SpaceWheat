@@ -272,6 +272,7 @@ func _project_action_info(action_info: Dictionary) -> Dictionary:
 		"emoji": str(action_info.get("emoji", "")),
 		"icon": str(action_info.get("icon", "")),
 		"disabled": bool(action_info.get("disabled", false)),
+		"dlc_locked": bool(action_info.get("dlc_locked", false)),
 		"available": false,
 		# Carry through a producer-supplied cost (e.g. the icon-injection submenu prices
 		# each option as it builds it). Single cost authority: whoever holds the payload
@@ -283,12 +284,32 @@ func _project_action_info(action_info: Dictionary) -> Dictionary:
 	}
 
 
+## Verbs that are pure Lindblad drive — meaningless in the closed (unitary) system.
+## In closed/shipping mode they render disabled with a 🔒 open-quantum tag (DLC teaser)
+## instead of looking live and returning an inert no-op. Mirrors the runtime guard in
+## QuantumInstrument._closed_system_blocked.
+const CLOSED_BLOCKED_ACTIONS := [
+	"spark_north", "spark_south", "drain", "pump", "lindblad_pump", "lindblad_drain",
+]
+
+
 func _apply_runtime_state(actions: Dictionary) -> void:
 	var runtime_availability = _resolve_runtime_availability()
+	var closed_mode := not BalanceConfig.dissipative_enabled()
 	for action_key in ACTION_KEYS:
 		if not actions.has(action_key):
 			continue
 		var action_info: Dictionary = actions[action_key]
+		# Closed-mode honesty: open-quantum-only verbs render as a locked DLC teaser.
+		if closed_mode and str(action_info.get("action", "")) in CLOSED_BLOCKED_ACTIONS:
+			action_info.disabled = true
+			action_info.available = false
+			action_info.cost = {}
+			action_info.dlc_locked = true
+			if not str(action_info.get("label", "")).begins_with("🔒"):
+				action_info.label = "🔒 " + str(action_info.get("label", ""))
+			actions[action_key] = action_info
+			continue
 		if bool(action_info.get("disabled", false)):
 			action_info.available = false
 			action_info.cost = {}
@@ -343,33 +364,21 @@ func _apply_probe_preview(actions: Dictionary) -> void:
 	if not biome:
 		return
 
+	# R = Strike: preview the live odds you're about to collapse (top QC probability).
 	var explore_preview = ProbeActions.get_explore_preview(farm.terminal_pool, biome)
-	if explore_preview.can_explore and not explore_preview.top_probabilities.is_empty() and actions.has("Q"):
+	if explore_preview.can_explore and not explore_preview.top_probabilities.is_empty() and actions.has("R"):
 		var top = explore_preview.top_probabilities[0]
-		actions["Q"].label = "Explore (%s %.0f%%)" % [top.get("emoji", "?"), top.get("probability", 0.0) * 100.0]
-		actions["Q"].emoji = "🔍"
-		actions["Q"].icon = ""
+		actions["R"].label = "Strike (%s %.0f%%)" % [top.get("emoji", "?"), top.get("probability", 0.0) * 100.0]
 
+	# Q = Extract: preview the collapsed outcome that's ready to cash out.
 	var biome_name = biome.get_biome_type() if biome.has_method("get_biome_type") else ""
-	var active_terminals = []
-	for terminal in farm.terminal_pool.get_active_terminals():
-		if terminal.bound_biome_name == biome_name:
-			active_terminals.append(terminal)
-	if not active_terminals.is_empty() and actions.has("E"):
-		var active_terminal = active_terminals[0]
-		actions["E"].label = "Measure (%s)" % str(active_terminal.north_emoji if active_terminal.north_emoji else "?")
-		actions["E"].emoji = "👁️"
-		actions["E"].icon = ""
-
 	var measured_terminals = []
 	for terminal in farm.terminal_pool.get_measured_terminals():
 		if terminal.bound_biome_name == biome_name:
 			measured_terminals.append(terminal)
-	if not measured_terminals.is_empty() and actions.has("R"):
+	if not measured_terminals.is_empty() and actions.has("Q"):
 		var measured_terminal = measured_terminals[0]
-		actions["R"].label = "Pop (%s)" % str(measured_terminal.measured_outcome if measured_terminal.measured_outcome else "?")
-		actions["R"].emoji = "✂️"
-		actions["R"].icon = ""
+		actions["Q"].label = "Extract (%s)" % str(measured_terminal.measured_outcome if measured_terminal.measured_outcome else "?")
 
 
 func _get_cost_for_action(action_info: Dictionary) -> Dictionary:

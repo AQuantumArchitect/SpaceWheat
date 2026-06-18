@@ -414,6 +414,17 @@ func action_measure(grid_pos: Vector2i) -> Dictionary:
 	var _plot = farm.grid.get_plot(grid_pos) if farm.grid else null
 	var terminal = _plot.terminal if _plot else null
 	if not terminal:
+		# Strike-time bind: measuring surfaces the terminal it needs. Selection no
+		# longer auto-binds (crawl is free, view renders from the QC) — the strike
+		# is what creates the apparatus. plot_idx ≡ register_id.
+		var bind_biome := str(farm.grid.get_plot_biome_assignment(grid_pos)) if farm.grid else ""
+		if bind_biome != "":
+			var bind := action_explore(bind_biome, grid_pos)
+			if not bind.get("success", false):
+				return bind
+			_plot = farm.grid.get_plot(grid_pos) if farm.grid else null
+			terminal = _plot.terminal if _plot else null
+	if not terminal:
 		return {"success": false, "error": "no_terminal", "message": "No terminal at selection", "blocked": true}
 	if not terminal.can_measure():
 		return {"success": false, "error": "cannot_measure", "message": "Terminal not ready to measure", "blocked": true}

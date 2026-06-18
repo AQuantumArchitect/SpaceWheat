@@ -227,34 +227,42 @@ const ARCHETYPE_FRAMES: Dictionary = {
 	},
 
 	# =========================================================================
-	# ACE (S, C, P) — the energy dyad. The default/wanderer archetype, now the
-	# primary economic loop: Q extracts energy (Harvest, reward = −kT·log p),
-	# R invests energy (Plant, injects population), E reads the price (Measure,
-	# collapses + pauses). Selecting a plot auto-binds its terminal, so the old
-	# "Explore" verb is gone — you pay to extract/invest, not to look.
+	# ACE — the player-character vantage. The ONLY hat that works in every mode
+	# (open/closed/classical/quantum) because it uses the one universal operation:
+	# measurement. You watch the substrate spin and scrub time (E pause / F
+	# fast-forward), then STRIKE (R) to collapse a register into a classical
+	# outcome, and EXTRACT (Q) the reward. Selection is a free, transient cursor
+	# move — the strike binds the terminal it needs (view renders from the QC).
+	# The energy dyad (Plant/invest) was open-system-only; it lives on Spark (DLC).
+	# R is a resolve() seam: today it collapses + rewards, later it dispatches into
+	# the biome's mini-game (collapsed state = context, score = reward).
 	# =========================================================================
 	FRAME_ACE: {
 		"name": "Ace",
 		"emoji": "O",
 		"icon": "res://Assets/UI/Science/Measure.svg",
 		"time_scale": "discrete",
-		"description": "Energy dyad — Q harvests (extract), R plants (invest), E measures (read price)",
+		"description": "Player vantage — E pauses / F fast-forwards (scrub the odds), R strikes (collapse), Q extracts the reward",
 		"modes": ["probe"],
 		"mode_labels": ["?"],
 		"mode_emojis": ["?"],
 		"pauses_sim": true,
 		"actions": {
 			"probe": {
-				"Q": {"action": "pop", "label": "Harvest", "emoji": "^",
+				"Q": {"action": "pop", "label": "Extract", "emoji": "^",
 					  "icon": "res://Assets/UI/Science/Pop-Harvest.svg",
-					  "hint": "Extract energy from the selected plot — reward = surprisal −kT·log p (rare outcome pays more). Ends the session.",
-					  "shift_action": "pop", "shift_label": "Mass Harvest", "destructive": true},
-				"E": {"action": "measure", "label": "Measure", "emoji": "!",
+					  "hint": "Cash out — pull the realized reward off a collapsed register into inventory. Reward = surprisal −kT·log p (rare collapse pays more).",
+					  "shift_action": "pop", "shift_label": "Mass Extract", "destructive": true},
+				"E": {"action": "", "label": "Pause", "emoji": "⏸",
+					  "icon": "",
+					  "hint": "Pause — freeze time to read the odds (global side-effect; no tool verb)",
+					  "disabled": true},
+				"R": {"action": "measure", "label": "Strike", "emoji": "!",
 					  "icon": "res://Assets/UI/Science/Measure.svg",
-					  "hint": "Read the price — collapse the state to a classical outcome (pauses the sim)"},
-				"R": {"action": "spark_north", "label": "Plant", "emoji": "v",
-					  "icon": "res://Assets/UI/Tools/Lindblad/Drive.svg",
-					  "hint": "Invest energy into the selected plot — jolt population toward the north pole (spend 1× north-pole emoji)"}
+					  "hint": "Strike — collapse the selected register to one classical outcome (resolve the biome). The strike binds the terminal it needs."},
+				"F": {"action": "fast_forward", "label": "Fast-Fwd", "emoji": "⏩",
+					  "icon": "",
+					  "hint": "Fast-forward — let the Hamiltonian spin the odds (advance time). Also resumes play."}
 			}
 		}
 	},

@@ -37,6 +37,9 @@ extends Node
 const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
 const GranularityController = preload("res://Core/Utilities/GranularityController.gd")
 
+## Ace F (Fast-Forward) advances the closed evolution by this many phrames per press.
+const ACE_FAST_FORWARD_PHRAMES := 4
+
 # Access autoloads safely
 @onready var _verbose = get_node_or_null("/root/VerboseConfig")
 @onready var _observation_frame = get_node_or_null("/root/ObservationFrame")
@@ -51,7 +54,6 @@ var farm  # Farm instance
 var plot_grid_display  # PlotGridDisplay reference for visual selection
 
 # Selection state (current plot/biome/subspace selection)
-var current_selection: Dictionary = {"plot_idx": -1, "biome": "", "subspace_idx": -1}
 
 var _current_submenu: Dictionary = {}  # Local UI cache for signal emission
 var _in_submenu: bool = false  # Local UI cache for signal emission
@@ -595,7 +597,7 @@ func _build_chip_context() -> ChipContext:
 	# wants to reason about the focused qubit's contextual state.
 	var biome = _get_current_biome()
 	var qc = biome.quantum_computer if biome else null
-	var qid: int = int(current_selection.get("plot_idx", -1))
+	var qid: int = int(_instrument.current_plot_idx) if _instrument else -1
 	return ChipContext.new(qc, qid)
 
 
@@ -608,7 +610,7 @@ func _execute_toggle_berry_track() -> Dictionary:
 	var qc = biome.quantum_computer
 	if qc == null or qc.berry_register == null:
 		return {"success": false, "error": "no_quantum_computer"}
-	var qid: int = int(current_selection.get("plot_idx", -1))
+	var qid: int = int(_instrument.current_plot_idx) if _instrument else -1
 	if qid < 0 or qid >= qc.register_map.num_qubits:
 		_verbose.info("input", "⌖", "No focused qubit to track")
 		return {"success": false, "error": "no_qubit"}
@@ -631,7 +633,7 @@ func _execute_incorporate_icon() -> Dictionary:
 	var qc = biome.quantum_computer
 	if qc == null or qc.berry_register == null:
 		return {"success": false, "error": "no_quantum_computer"}
-	var qid: int = int(current_selection.get("plot_idx", -1))
+	var qid: int = int(_instrument.current_plot_idx) if _instrument else -1
 	if qid < 0 or qid >= qc.register_map.num_qubits:
 		return {"success": false, "error": "no_qubit"}
 	if not qc.berry_register.is_ripe(qid):
@@ -735,17 +737,34 @@ func _select_biome(biome_idx: int, key: String) -> void:
 
 	var old_biome = _active_biome_mgr.get_active_biome()
 
-	# Switch active biome
+	# Switch active biome, then repoint the Focus (same slot, keep checks, no action).
 	_active_biome_mgr.set_active_biome(new_biome)
+	_apply_biome_switch(old_biome, new_biome, key)
 
-	# Update current selection to reflect new biome
+
+func _apply_biome_switch(old_biome: String, new_biome: String, key: String) -> void:
+	# Centralized biome switch. Updates the Focus biome and repoints the cursor to
+	# the SAME slot letter (G/H/J/K/L/;) in the new biome, clamped to its register
+	# count. Keeps the multi-select checkboxes and fires NO action — selection is a
+	# free, transient cursor move. Shared by the TYUIOP direct-pick and the WASD
+	# biome-ring crawl, so the Focus never goes stale on a switch.
 	_instrument.current_biome = new_biome
-
-	# Record in chain tracker
+	var reg_count := _get_active_biome_register_count()
+	if reg_count > 0:
+		var slot := int(_instrument.current_plot_idx)
+		if slot < 0:
+			slot = 0
+		slot = clampi(slot, 0, reg_count - 1)
+		_instrument.current_plot_idx = slot
+		var gp := _get_grid_position_for(slot, new_biome)
+		_instrument.last_selected_position = gp
+		if plot_grid_display and gp.x >= 0:
+			plot_grid_display.set_selected_plot(gp)
+		selection_changed.emit(slot, new_biome)
+	else:
+		_instrument.current_plot_idx = -1
 	if _chain_tracker:
 		_chain_tracker.record_observation(key, -1, new_biome, 0)
-
-	# Emit signal
 	biome_switched.emit(old_biome, new_biome)
 	_verbose.info("input", "~", "Biome: %s → %s" % [old_biome, new_biome])
 
@@ -792,12 +811,11 @@ func _select_plot(plot_idx: int, key: String) -> void:
 		_verbose.debug("input", "~", "Plot %d in %s remains highlighted" % [plot_idx, biome_name])
 		return
 
-	# First tap on a different plot moves the highlight there.
-	current_selection = {
-		"plot_idx": plot_idx,
-		"biome": biome_name,
-		"subspace_idx": -1
-	}
+	# First tap on a different plot moves the highlight (Focus) there. The
+	# instrument fields are the single source of truth for the selection — no
+	# shadow dict. Selection is a free, transient cursor move: it does NOT bind a
+	# terminal or fire any action (the live bubble already renders from the QC;
+	# the terminal is created at strike-time by Measure). plot_idx ≡ register_id.
 	_instrument.current_plot_idx = plot_idx
 	_instrument.last_plot_idx = plot_idx
 	_instrument.current_biome = biome_name
@@ -808,12 +826,6 @@ func _select_plot(plot_idx: int, key: String) -> void:
 	if plot_grid_display and farm and target_grid_pos.x >= 0:
 		plot_grid_display.set_selected_plot(target_grid_pos)
 		_verbose.debug("input", "~", "Visual selection: %s" % target_grid_pos)
-
-	# Auto-bind: selecting a plot surfaces its terminal (the old "Explore" verb,
-	# now folded into selection). Free and best-effort — the bind is just looking;
-	# you pay energy at Harvest (Q) / Plant (R), not to select.
-	if _instrument and target_grid_pos.x >= 0:
-		_instrument.action_explore(biome_name, target_grid_pos)
 
 	selection_changed.emit(plot_idx, biome_name)
 	_verbose.debug("input", "~", "Plot %d in %s" % [plot_idx, biome_name])
@@ -855,7 +867,6 @@ func enter_plot_ring() -> void:
 func leave_plot_ring() -> void:
 	if _instrument:
 		_instrument.current_plot_idx = -1
-	current_selection["plot_idx"] = -1
 	if plot_grid_display and plot_grid_display.has_method("clear_selection"):
 		plot_grid_display.clear_selection()
 
@@ -888,7 +899,7 @@ func step_active_layer(layer: int, delta: int) -> void:
 			else:
 				_active_biome_mgr.cycle_prev()
 			var new_biome: String = _active_biome_mgr.get_active_biome()
-			biome_switched.emit(old_biome, new_biome)
+			_apply_biome_switch(old_biome, new_biome, "D" if delta > 0 else "A")
 		3:
 			step_active_plot(delta)
 
@@ -982,8 +993,8 @@ func _clear_checks_and_cycle_biome() -> void:
 	if plot_grid_display:
 		plot_grid_display.set_selected_plot(GridSentinel.INVALID_POSITION)
 
-	# Reset current selection state
-	current_selection = {"plot_idx": -1, "biome": "", "subspace_idx": -1}
+	# Reset current selection state (instrument is the single source of truth)
+	_instrument.current_plot_idx = -1
 	_instrument.last_selected_position = GridSentinel.INVALID_POSITION
 
 	# Reset quantum simulation (if farm has reset method)
@@ -1102,7 +1113,10 @@ func _perform_shift_key_action(action_key: String) -> void:
 	var symbol = "⇧%s" % action_key
 	var log_label = action_info.get("shift_label", action_info.get("label", action_name))
 
-	var original_selection = current_selection.duplicate()
+	var original_selection := {
+		"plot_idx": int(_instrument.current_plot_idx),
+		"biome": str(_instrument.current_biome),
+	}
 
 	# Use checked plots instead of entire homerow (ORDER PRESERVED from selection)
 	var positions = _instrument.checked_plots.duplicate()
@@ -1488,6 +1502,9 @@ func _execute_action(action_name: String) -> Dictionary:
 				result = _instrument.action_explore(biome_name, positions[0])
 		"measure":
 			result = _instrument.action_measure(grid_pos)
+		"fast_forward":
+			# Ace F — let H spin the odds forward (advance the closed evolution).
+			result = _instrument.time_skip(ACE_FAST_FORWARD_PHRAMES)
 		"reap":
 			result = _instrument.action_reap()
 		"pop":
@@ -1757,28 +1774,19 @@ func _get_current_biome_row() -> int:
 
 
 func _set_selection_for_grid_pos(grid_pos: Vector2i) -> void:
-	# Update current_selection to match the specified grid grid_pos.
+	# Point the Focus (instrument fields) at the specified grid pos. Used by the
+	# shift-batch loop to walk checked plots; the instrument is the single source.
 	if not farm:
 		return
 	var biome_name = farm.get_biome_for_row(grid_pos.y) if farm.has_method("get_biome_for_row") else ""
-	current_selection = {
-		"plot_idx": grid_pos.x,
-		"biome": biome_name,
-		"subspace_idx": -1
-	}
 	_instrument.current_plot_idx = grid_pos.x
 	_instrument.current_biome = biome_name
 
 
 func _restore_selection(previous_selection: Dictionary) -> void:
-	# Restore the selection state and refresh visual highlight.
-	if previous_selection and previous_selection.has("plot_idx"):
-		current_selection = previous_selection.duplicate()
-	else:
-		current_selection = {"plot_idx": -1, "biome": "", "subspace_idx": -1}
-
-	_instrument.current_plot_idx = int(current_selection.get("plot_idx", -1))
-	_instrument.current_biome = str(current_selection.get("biome", ""))
+	# Restore the Focus from a {plot_idx, biome} snapshot and refresh the highlight.
+	_instrument.current_plot_idx = int(previous_selection.get("plot_idx", -1))
+	_instrument.current_biome = str(previous_selection.get("biome", ""))
 
 	if plot_grid_display and farm and _instrument.current_plot_idx >= 0:
 		var grid_pos = _get_grid_position()
@@ -1833,13 +1841,17 @@ func _keycode_to_string(keycode: int) -> String:
 ## ============================================================================
 
 func get_current_selection() -> Dictionary:
-	# Get current plot selection.
-	return current_selection.duplicate()
+	# Derive the current selection from the instrument (the single Focus source).
+	return {
+		"plot_idx": int(_instrument.current_plot_idx) if _instrument else -1,
+		"biome": str(_instrument.current_biome) if _instrument else "",
+		"subspace_idx": -1,
+	}
 
 
 func can_execute_action(action_key: String) -> bool:
 	# Check if action can succeed with current selection (for UI highlighting).
-	if current_selection.get("plot_idx", -1) < 0:
+	if (int(_instrument.current_plot_idx) if _instrument else -1) < 0:
 		return false
 	if not farm:
 		return false
@@ -1894,7 +1906,6 @@ func set_active_selection(plot_idx: int, biome_name: String) -> void:
 	# Called from glass overlays when the user navigates qubit cards with WASD.
 	# Updates instrument state so subsequent dispatch_action() fires on the
 	# correct qubit.
-	current_selection = {"plot_idx": plot_idx, "biome": biome_name, "subspace_idx": -1}
 	if _instrument:
 		_instrument.current_plot_idx = plot_idx
 		_instrument.current_biome = biome_name

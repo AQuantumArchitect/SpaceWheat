@@ -550,6 +550,23 @@ func _get_biome_register_count(biome_name: String) -> int:
 	return 0
 
 
+func _resolve_live_register(pos: Vector2i) -> Dictionary:
+	# Resolve the live QC register at this grid pos (plot_idx ≡ register_id).
+	# Returns {"biome": BiomeBase, "register_id": int} when the position maps to a
+	# live qubit in a realized biome, else {} — lets the view render the bubble
+	# straight from the quantum_computer with no terminal bound.
+	var biome_name := grid_config.get_biome_for_plot(pos) if grid_config else ""
+	if biome_name == "" or not biomes.has(biome_name):
+		return {}
+	var biome = biomes[biome_name]
+	if not biome or not biome.quantum_computer or not biome.quantum_computer.register_map:
+		return {}
+	var register_id := pos.x
+	if register_id < 0 or register_id >= biome.quantum_computer.register_map.num_qubits:
+		return {}
+	return {"biome": biome, "register_id": register_id}
+
+
 func _clear_selection_for_other_biomes(active_biome: String) -> void:
 	# Clear selections for plots not in the active biome
 	var cleared_count = 0
@@ -770,9 +787,9 @@ func update_tile_from_farm(pos: Vector2i) -> void:
 	var plot = farm.grid.get_plot(pos)
 	var terminal = plot.terminal if plot else null
 
-	if not plot and not terminal:
-		# Truly empty plot - no plot object and no terminal
-		_verbose.debug("ui", "⚠️", "update_tile_from_farm(%s): plot is null/empty and no terminal" % pos)
+	if not plot and not terminal and _resolve_live_register(pos).is_empty():
+		# Truly empty - no plot, no terminal, and not a live QC register
+		_verbose.debug("ui", "⚠️", "update_tile_from_farm(%s): empty (no plot/terminal/live register)" % pos)
 		var tile = tiles[pos]
 		tile.set_plot_data(null, pos, -1)
 		return
@@ -799,13 +816,17 @@ func _transform_plot_to_ui_data(pos: Vector2i, plot, terminal = null) -> Diction
 		entangled_list = plot.entangled_plots.keys()
 
 	var terminal_active = terminal and (terminal.is_bound or terminal.is_measured)
+	# Live QC register (plot_idx ≡ register_id): the bubble renders straight from
+	# the quantum_computer even with NO terminal — watching the substrate is free.
+	# A terminal only overlays the collapsed outcome after a strike (Measure).
+	var live := _resolve_live_register(pos)
 	var memory = plot.get_measurement_memory() if plot and plot.has_method("get_measurement_memory") else {}
-	var memory_visible = not terminal_active and bool(memory.get("has_memory", false))
+	var memory_visible = not terminal_active and live.is_empty() and bool(memory.get("has_memory", false))
 
 	var ui_data = {
 		"position": pos,
-		# Single source of truth for v2 terminals: terminal state overrides plot state
-		"is_planted": terminal_active if terminal_active else (plot and plot.is_active()),
+		# Source priority: terminal (measured overlay) > live QC register > plot state.
+		"is_planted": terminal_active or (not live.is_empty()) or (plot and plot.is_active()),
 		"type_name": plot.plot_type_name if plot else "terminal",
 		"north_emoji": "",
 		"south_emoji": "",
@@ -859,6 +880,25 @@ func _transform_plot_to_ui_data(pos: Vector2i, plot, terminal = null) -> Diction
 
 			ui_data["north_probability"] = north_prob
 			ui_data["south_probability"] = south_prob
+
+	# CASE 1b: Live QC register, no terminal — the default "watch the substrate"
+	# view. Emoji axis + probabilities come straight from the biome's quantum_computer.
+	elif not live.is_empty():
+		var lbiome = live["biome"]
+		var reg_id: int = int(live["register_id"])
+		var ax: Dictionary = lbiome.quantum_computer.register_map.axis(reg_id)
+		var n_emoji := str(ax.get("north", ""))
+		var s_emoji := str(ax.get("south", ""))
+		ui_data["north_emoji"] = n_emoji
+		ui_data["south_emoji"] = s_emoji
+		var n_prob: float = lbiome.get_emoji_probability(n_emoji)
+		var s_prob: float = lbiome.get_emoji_probability(s_emoji)
+		var tot := n_prob + s_prob
+		if tot > 0.0:
+			n_prob /= tot
+			s_prob /= tot
+		ui_data["north_probability"] = n_prob
+		ui_data["south_probability"] = s_prob
 
 	# CASE 2: Traditional planted plot (no terminal, or terminal doesn't override)
 	elif plot and plot.is_active() and plot.parent_biome and plot.bath_subplot_id >= 0:
