@@ -150,21 +150,24 @@ Right-hand rule. Curl the fingers of your right hand around a screw.
   draining, **extracting** (Harvest / Sell / Spark-south). "Quit" lives
   on Q: unscrew yourself from the session.
 
-The energy dyad makes this physical on the energy-touching hats:
-**Q extracts energy** from the field (reward = surprisal `−kT·log p` —
-rare outcomes pay more), **R invests energy** into it. **E reads the
-price** (Measure — collapse + pause). One scarcity law on both poles;
-selecting a plot auto-binds its terminal, so there is no separate
-"Explore" verb.
+**Ace is the player-character vantage** (see *Hats and frames*). It is the
+one hat that works in every mode, because it uses the only operation all
+modes share: **measurement**. You watch the substrate spin and scrub time
+(**E** pause / **F** fast-forward to read the odds), then **R = Strike**
+collapses the selected register to one classical outcome (the irreversible
+act), and **Q = Extract** cashes out the realized reward (surprisal
+`−kT·log p` — a rare collapse pays more). Selection is a free, transient
+cursor move that renders the live bubble straight from the QC; the **strike**
+binds the terminal it needs, so there is no separate "Explore" verb and no
+cost to look.
 
-> **Closed (unitary) system (default).** Measure/pop is now a **full
-> projective collapse** — measurement is the only irreversible act, and
-> the Hamiltonian re-spreads the collapsed qubit over the following ticks
-> (time + H is the "pump"). There is **no pump/drain**, so the **Spark**
-> (4) and **Merchant** (6) hats — pure Lindblad-drive tools — are
-> **disabled** (greyed out; their actions return inert). Ace's **R = Plant**
-> (a population drive) is likewise inert. The open-quantum DLC
-> (`system_mode = "open"`) re-enables all of them. See
+> **Closed (unitary) system (default).** Measurement is the only irreversible
+> act; the Hamiltonian re-spreads the collapsed qubit over the following ticks.
+> There is **no pump/drain**, so the **Spark** (4) and **Merchant** (6) hats —
+> pure Lindblad-drive tools — render **disabled with a 🔒 open-quantum tag**
+> (DLC teaser; their actions return inert). **Plant** (the population drive) is
+> gone from Ace entirely — it lives only on Spark. The open-quantum DLC
+> (`system_mode = "open"`) re-enables the drive hats. See
 > `docs/CLOSED_SYSTEM.md`.
 
 #### The session is the axis, not the target
@@ -283,13 +286,17 @@ still exists and the row still has four slots. Source of truth:
 
 | Hat | Frame    | Sub-mode (1/2/3 active?)  | Q (out/less)  | E (pause + inspect)   | R (in/more)   | F (play/flatten) |
 |----|-----------|--------------------------|---------------|-----------------------|---------------|------------------|
-| 4  | Spark     | shift (single)           | Spark S (out) | Cost preview (pause)  | Spark N (in)  | (global F)       |
+| 4  | Spark🔒   | shift (single)           | Spark S (out) | Cost preview (pause)  | Spark N (in)  | (global F)       |
 | 5  | Icon      | inject (single)          | Trim Icon     | (open picker; pause)  | Add Icon      | Track            |
-| 6  | Merchant  | thermal / dephase / damp | Sell 📤       | Read Price !          | Buy 📥        | Tip 💬           |
+| 6  | Merchant  | thermal / dephase / damp | Sell 📤🔒     | Read Price !          | Buy 📥🔒      | Tip 💬           |
 | 7  | Captain   | biomes (single)          | Cull          | Compass               | Discover      | (global F)       |
-| 8  | Ace       | probe (single)           | Harvest       | Measure               | Plant         | (global F)       |
+| 8  | Ace       | probe (single)           | Extract       | Pause ⏸               | Strike !      | Fast-Fwd ⏩      |
 | 9  | Operator  | gate (single)            | Break gate    | Inspect               | Build gate    | (global F)       |
 | 0  | Druid     | X / Y / Z                | rot−          | Hadamard              | rot+          | (global F)       |
+
+🔒 = open-quantum DLC only; renders disabled (greyed + 🔒) in the closed (default) build.
+Ace's **E = Pause** and **F = Fast-Fwd** are the time-scrub pair (E freezes to read the
+odds, F advances so H spins them); **R = Strike** is the collapse, **Q = Extract** the cash-out.
 
 F is handled globally by PlayerShell — frames don't define a per-mode F
 verb. The only way a per-frame F appears is if a frame has a verb that

@@ -44,16 +44,16 @@ right. Spark and Druid bookend the set.
 | `5` | Icon      | (Self, Q, F)   | Icon injection (faction-signature qubits)            |
 | `6` | Merchant  | (Self, C, F)   | Faction contracts (drain=treaty / transfer=broker / pump=tribute) |
 | `7` | Captain   | (World, C, F)  | Biome lifecycle (discover / cull)          |
-| `8` | Ace       | (Self, C, P)   | Probe (explore / measure / pop)            |
+| `8` | Ace       | (Self, C, P)   | Player vantage (extract / pause / strike / fast-fwd) |
 | `9` | Operator  | (World, Q, F)  | Gate building (build / inspect / break)    |
 | `0` | Druid     | (World, Q, P)  | Unitary (X/Y/Z rotations, Hadamard)        |
 
 > **Closed (unitary) system (default):** **Spark** (4) and **Merchant** (6)
 > are pure Lindblad-drive tools (jolt / drain / pump) and are **disabled** —
 > greyed out, unselectable, actions inert — because a closed system has no
-> pump/drain. Ace's **R = Plant** (a drive) is inert for the same reason.
-> The open-quantum DLC (`system_mode = "open"`) re-enables them. See
-> `docs/CLOSED_SYSTEM.md`.
+> pump/drain. **Plant** is gone from Ace entirely (it was a drive) — it lives
+> only on Spark. The open-quantum DLC (`system_mode = "open"`) re-enables the
+> drive hats. See `docs/CLOSED_SYSTEM.md`.
 
 ## Frame wiring
 
@@ -63,7 +63,7 @@ right. Spark and Druid bookend the set.
 | Icon      | inject                   | Trim icon      | Pause (transparent)       | Add icon      | Play (transparent) |
 | Merchant  | thermal / dephase / damp | Import 📥      | Read Price !              | Export 📤     | Tip 💬             |
 | Captain   | biomes                   | Cull           | Compass (discover peek)   | Add Biome     | —                  |
-| Ace       | probe                    | Explore        | Measure                   | Pop           | —                  |
+| Ace       | probe                    | Extract        | Pause ⏸                   | Strike !      | Fast-Fwd ⏩        |
 | Operator  | gate                     | Break gate     | Inspect                   | Build gate    | —                  |
 | Druid     | X / Y / Z                | rot−           | Hadamard                  | rot+          | —                  |
 
@@ -76,7 +76,7 @@ right. Spark and Druid bookend the set.
 - **Icon** handles icon injection.
 - **Merchant** handles faction contracts.
 - **Captain** handles biome lifecycle.
-- **Ace** handles probe / measure / pop.
+- **Ace** is the player vantage: extract / pause / strike / fast-forward.
 - **Operator** handles gate building.
 - **Druid** handles unitary gates.
 
