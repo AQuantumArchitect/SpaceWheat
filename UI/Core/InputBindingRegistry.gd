@@ -38,6 +38,9 @@ const KEY_LABEL_TO_KEYCODE := {
 	"Space": KEY_SPACE,
 	"-": KEY_MINUS,
 	"=": KEY_EQUAL,
+	# Digit row: sub-mode (1/2/3) + archetype hats (4-0).
+	"0": KEY_0, "1": KEY_1, "2": KEY_2, "3": KEY_3, "4": KEY_4,
+	"5": KEY_5, "6": KEY_6, "7": KEY_7, "8": KEY_8, "9": KEY_9,
 }
 
 const BIOME_ROW := {
@@ -177,6 +180,20 @@ static func get_quest_slot_entries() -> Array[Dictionary]:
 
 static func get_keycode_for_label(key_label: String) -> int:
 	return int(KEY_LABEL_TO_KEYCODE.get(key_label, 0))
+
+
+## Single source for keycode → label decoding. Built once from KEY_LABEL_TO_KEYCODE
+## (digit/punct/row keys) + ACTION_KEYCODES (Q/E/R/F). Replaces the duplicate
+## QuantumInstrumentInput._keycode_to_string match table.
+static var _keycode_to_label_cache: Dictionary = {}
+
+static func get_label_for_keycode(keycode: int) -> String:
+	if _keycode_to_label_cache.is_empty():
+		for label in KEY_LABEL_TO_KEYCODE:
+			_keycode_to_label_cache[int(KEY_LABEL_TO_KEYCODE[label])] = label
+		for label in ACTION_KEYCODES:
+			_keycode_to_label_cache[int(ACTION_KEYCODES[label])] = label
+	return str(_keycode_to_label_cache.get(keycode, ""))
 
 
 static func get_action_keycode(action_key: String) -> int:

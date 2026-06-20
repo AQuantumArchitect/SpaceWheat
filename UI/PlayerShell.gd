@@ -213,19 +213,9 @@ func _handle_shell_action(event: InputEvent) -> bool:
 	# cursor_layer=0 + A/D, so ,/. would only duplicate that gesture.
 	# Intentionally unhandled.
 
-	# - / = — simulation granularity / speed. Stubbed: claims the keys
-	# (so they don't fall through to unrelated handlers) and logs the
-	# intent. Wiring to a real time-scale modifier is a separate ticket;
-	# the per-biome quantum_time_scale pipeline doesn't have a global
-	# multiplier hook yet.
-	if keycode == KEY_MINUS:
-		if _verbose:
-			_verbose.info("input", "🐢", "sim slow (stub — wiring pending)")
-		return true
-	if keycode == KEY_EQUAL:
-		if _verbose:
-			_verbose.info("input", "🐇", "sim fast (stub — wiring pending)")
-		return true
+	# - / = (and Shift variants) — simulation stride/speed + resolution. Owned by
+	# QII._unhandled_key_input → GranularityController; PlayerShell must NOT claim
+	# them here or it shadows the real handler (the keys would go dead). Fall through.
 
 	# [ / ] are reserved per KEYBOARD_GRAMMAR.md — WASD already crawls the
 	# whole 4-0 / TYUIOP / GHJKL; selection block, so a separate cycle

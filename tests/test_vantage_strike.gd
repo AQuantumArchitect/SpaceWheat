@@ -46,6 +46,13 @@ func _run() -> void:
 		ace_actions[k] = str(ToolConfig.get_action("ace", k).get("action", ""))
 	_check("spark_north" not in ace_actions.values(), "Plant (spark_north) removed from Ace")
 
+	# --- L4: single keycode→label decoder lives in InputBindingRegistry ---
+	print("[Decode] InputBindingRegistry.get_label_for_keycode:")
+	_check(InputBindingRegistry.get_label_for_keycode(KEY_Q) == "Q", "KEY_Q → 'Q'")
+	_check(InputBindingRegistry.get_label_for_keycode(KEY_4) == "4", "KEY_4 → '4' (hat)")
+	_check(InputBindingRegistry.get_label_for_keycode(KEY_MINUS) == "-", "KEY_MINUS → '-' (time control)")
+	_check(InputBindingRegistry.get_label_for_keycode(KEY_APOSTROPHE) == "'", "KEY_APOSTROPHE → \"'\"")
+
 	# --- Boot a farm with StarterForest ---
 	var gsm = root.get_node_or_null("/root/GameStateManager")
 	if gsm == null:

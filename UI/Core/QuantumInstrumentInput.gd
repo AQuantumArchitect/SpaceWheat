@@ -150,7 +150,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	if event.echo:
 		return
 
-	var key = _keycode_to_string(event.keycode)
+	var key = InputBindingRegistry.get_label_for_keycode(event.keycode)
 
 	# Any key other than F cancels a pending confirm-chord.
 	if not _confirm_pending.is_empty() and key != "F":
@@ -1793,45 +1793,6 @@ func _restore_selection(previous_selection: Dictionary) -> void:
 		if grid_pos.x >= 0:
 			plot_grid_display.set_selected_plot(grid_pos)
 			_instrument.last_selected_position = grid_pos
-
-
-func _keycode_to_string(keycode: int) -> String:
-	# Convert keycode to string representation.
-	match keycode:
-		KEY_0: return "0"
-		KEY_1: return "1"
-		KEY_2: return "2"
-		KEY_3: return "3"
-		KEY_4: return "4"
-		KEY_5: return "5"
-		KEY_6: return "6"
-		KEY_7: return "7"
-		KEY_8: return "8"
-		KEY_9: return "9"
-		KEY_Q: return "Q"
-		KEY_E: return "E"
-		KEY_R: return "R"
-		KEY_F: return "F"
-		KEY_T: return "T"
-		KEY_Y: return "Y"
-		KEY_U: return "U"
-		KEY_I: return "I"
-		KEY_O: return "O"
-		KEY_P: return "P"
-		KEY_H: return "H"
-		KEY_G: return "G"
-		KEY_J: return "J"
-		KEY_K: return "K"
-		KEY_L: return "L"
-		KEY_SEMICOLON: return ";"
-		KEY_APOSTROPHE: return "'"
-		KEY_M: return "M"
-		KEY_COMMA: return ","
-		KEY_PERIOD: return "."
-		KEY_SLASH: return "/"
-		KEY_MINUS: return "-"
-		KEY_EQUAL: return "="
-		_: return ""
 
 
 
