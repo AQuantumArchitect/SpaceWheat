@@ -44,6 +44,22 @@ func _get_native():
 		_native_backend = ClassDB.instantiate("QuantumMatrixNative")
 	return _native_backend
 
+## The native backend (QuantumMatrixNative, Eigen) is the SINGLE compute authority —
+## there is no GDScript matrix-math twin. Returns the backend loaded with this matrix's
+## current value, ready for an op. For an empty (n==0) matrix returns null (callers
+## return the trivial result). If native is genuinely unavailable for n>0 that's a fatal
+## misconfiguration — the game requires the C++ extension (cd native && make) — so we
+## fail LOUD rather than silently diverging into a parallel GDScript computation.
+func _compute_kernel(op_name: String):
+	if n == 0:
+		return null
+	var native = _get_native()
+	if native == null:
+		push_error("ComplexMatrix.%s: native backend unavailable — it is the single compute authority. Build the C++ extension: cd native && make." % op_name)
+		return null
+	native.from_packed(_to_packed(), n)
+	return native
+
 ## Return the authoritative packed store (the single source of truth). Kept as a
 ## method for API stability across the many call sites; it now simply guarantees the
 ## buffer is sized and hands it back — no representation reconciliation, no drift.
@@ -176,12 +192,6 @@ func _from_packed_auto(packed_data) -> void:
 
 #endregion
 
-## Sync current matrix to native backend
-func _sync_to_native() -> void:
-	var native = _get_native()
-	if native and n > 0:
-		native.from_packed(_to_packed(), n)
-
 ## Create result matrix from packed native output
 func _result_from_packed(packed: PackedFloat64Array, dim: int):
 	var result = load("res://Core/QuantumSubstrate/ComplexMatrix.gd").new(dim)
@@ -282,30 +292,12 @@ func get_heatmap_colors(max_dim: int = 0) -> PackedColorArray:
 
 	# Computed in C++ (QuantumMatrixNative.heatmap_colors) to avoid GDScript
 	# per-cell sqrt/atan2/HSV overhead.  max_dim caps to the first NxN block.
-	_ensure_packed_sized()
-	var native = _get_native()
-	if native:
-		native.from_packed(_packed_cache, n)
-		return native.heatmap_colors(max_dim)
-	# GDScript fallback — should rarely run (native unavailable).
-	var dim: int = mini(max_dim, n) if max_dim > 0 else n
-	var colors := PackedColorArray()
-	colors.resize(dim * dim)
-	for i in range(dim):
-		for j in range(dim):
-			var idx := (i * n + j) * 2
-			var re: float = _packed_cache[idx]
-			var im: float = _packed_cache[idx + 1]
-			var mag: float = sqrt(re * re + im * im)
-			var m: float = sqrt(maxf(mag, 0.0))
-			if i == j:
-				var v: float = 0.12 + 0.88 * m
-				colors[i * dim + j] = Color(v, v, v, 1.0)
-			else:
-				var phase: float = atan2(im, re)
-				var hue: float = fmod(phase / TAU + 1.0, 1.0)
-				colors[i * dim + j] = Color.from_hsv(hue, m, 0.15 + 0.85 * m, 1.0)
-	return colors
+	if n == 0:
+		return PackedColorArray()
+	var native = _compute_kernel("heatmap_colors")
+	if native == null:
+		return PackedColorArray()
+	return native.heatmap_colors(max_dim)
 
 
 func set_element(i: int, j: int, value):
@@ -326,169 +318,71 @@ func add(other):
 	if other.n != n:
 		push_error("Matrix dimension mismatch in add: %d vs %d" % [n, other.n])
 		return load("res://Core/QuantumSubstrate/ComplexMatrix.gd").new(n)
-	var native = _get_native()
-	if native:
-		var self_packed = _to_packed()
-		var other_packed = other._to_packed()
-		native.from_packed(self_packed, n)
-		var result_packed = native.add(other_packed, n)
-		return _self().from_packed_direct(result_packed, n)
-	# GDScript fallback
-	var a = _to_packed()
-	var b = other._to_packed()
-	var total = n * n * 2
-	var r = PackedFloat64Array()
-	r.resize(total)
-	for i in range(total):
-		r[i] = a[i] + b[i]
-	return _self().from_packed_direct(r, n)
+	if n == 0:
+		return _self().zeros(0)
+	var native = _compute_kernel("add")
+	if native == null:
+		return _self().zeros(n)
+	return _self().from_packed_direct(native.add(other._to_packed(), n), n)
 
 func sub(other):
 	if other.n != n:
 		push_error("Matrix dimension mismatch in sub: %d vs %d" % [n, other.n])
 		return load("res://Core/QuantumSubstrate/ComplexMatrix.gd").new(n)
-	var native = _get_native()
-	if native:
-		var self_packed = _to_packed()
-		var other_packed = other._to_packed()
-		native.from_packed(self_packed, n)
-		var result_packed = native.sub(other_packed, n)
-		return _self().from_packed_direct(result_packed, n)
-	# GDScript fallback
-	var a = _to_packed()
-	var b = other._to_packed()
-	var total = n * n * 2
-	var r = PackedFloat64Array()
-	r.resize(total)
-	for i in range(total):
-		r[i] = a[i] - b[i]
-	return _self().from_packed_direct(r, n)
+	if n == 0:
+		return _self().zeros(0)
+	var native = _compute_kernel("sub")
+	if native == null:
+		return _self().zeros(n)
+	return _self().from_packed_direct(native.sub(other._to_packed(), n), n)
 
 func mul(other):
 	if other.n != n:
 		push_error("Matrix dimension mismatch in mul: %d vs %d" % [n, other.n])
 		return load("res://Core/QuantumSubstrate/ComplexMatrix.gd").new(n)
-
-	# Use native acceleration if available
-	var native = _get_native()
-	if native:
-		var expected = n * n * 2
-		var self_packed = _to_packed()
-		var other_packed = other._to_packed()
-		if self_packed.size() >= expected and other_packed.size() >= expected:
-			native.from_packed(self_packed, n)
-			var result_packed = native.mul(other_packed, n)
-			return _result_from_packed(result_packed, n)
-		push_warning("ComplexMatrix.mul: invalid packed payload (self=%d other=%d expected=%d), falling back to GDScript" % [
-			self_packed.size(), other_packed.size(), expected
-		])
-
-	# PackedFloat64Array path: O(n³) but zero object allocation
-	return _mul_packed(other)
-
-
-func _mul_packed(other):
-	var a = _to_packed()
-	var b = other._to_packed()
-	var dim = n
-	var total = dim * dim * 2
-	var r = PackedFloat64Array()
-	r.resize(total)
-	# r is zero-initialized by resize
-	for i in range(dim):
-		var i_off = i * dim
-		for k in range(dim):
-			var ik2 = (i_off + k) * 2
-			var a_re = a[ik2]
-			var a_im = a[ik2 + 1]
-			if a_re == 0.0 and a_im == 0.0:
-				continue
-			var k_off = k * dim
-			for j in range(dim):
-				var kj2 = (k_off + j) * 2
-				var b_re = b[kj2]
-				var b_im = b[kj2 + 1]
-				var ij2 = (i_off + j) * 2
-				# (a_re + a_im*i) * (b_re + b_im*i) = (a_re*b_re - a_im*b_im) + (a_re*b_im + a_im*b_re)*i
-				r[ij2] += a_re * b_re - a_im * b_im
-				r[ij2 + 1] += a_re * b_im + a_im * b_re
-	return _self().from_packed_direct(r, dim)
+	if n == 0:
+		return _self().zeros(0)
+	var native = _compute_kernel("mul")
+	if native == null:
+		return _self().zeros(n)
+	return _result_from_packed(native.mul(other._to_packed(), n), n)
 
 func scale(s):
-	var native = _get_native()
-	if native:
-		native.from_packed(_to_packed(), n)
-		var result_packed = native.scale(s.re, s.im, n)
-		return _self().from_packed_direct(result_packed, n)
-	# GDScript fallback: (a+bi)(c+di) = (ac-bd)+(ad+bc)i
-	var a = _to_packed()
-	var total = n * n
-	var r = PackedFloat64Array()
-	r.resize(total * 2)
-	var s_re = s.re
-	var s_im = s.im
-	for i in range(total):
-		var i2 = i * 2
-		var a_re = a[i2]
-		var a_im = a[i2 + 1]
-		r[i2] = a_re * s_re - a_im * s_im
-		r[i2 + 1] = a_re * s_im + a_im * s_re
-	return _self().from_packed_direct(r, n)
+	if n == 0:
+		return _self().zeros(0)
+	var native = _compute_kernel("scale")
+	if native == null:
+		return _self().zeros(n)
+	return _self().from_packed_direct(native.scale(s.re, s.im, n), n)
 
 ## Fast scale by -i: (re, im) → (im, -re).
 func scale_neg_i():
-	var native = _get_native()
-	if native:
-		native.from_packed(_to_packed(), n)
-		var result_packed = native.scale(0.0, -1.0, n)
-		return _self().from_packed_direct(result_packed, n)
-	# GDScript fallback
-	var a = _to_packed()
-	var total = n * n * 2
-	var r = PackedFloat64Array()
-	r.resize(total)
-	for i in range(0, total, 2):
-		r[i] = a[i + 1]
-		r[i + 1] = -a[i]
-	return _self().from_packed_direct(r, n)
+	if n == 0:
+		return _self().zeros(0)
+	var native = _compute_kernel("scale_neg_i")
+	if native == null:
+		return _self().zeros(n)
+	return _self().from_packed_direct(native.scale(0.0, -1.0, n), n)
 
 func scale_real(s: float):
-	var native = _get_native()
-	if native:
-		native.from_packed(_to_packed(), n)
-		var result_packed = native.scale(s, 0.0, n)
-		return _self().from_packed_direct(result_packed, n)
-	# GDScript fallback
-	var a = _to_packed()
-	var total = n * n * 2
-	var r = PackedFloat64Array()
-	r.resize(total)
-	for i in range(total):
-		r[i] = a[i] * s
-	return _self().from_packed_direct(r, n)
+	if n == 0:
+		return _self().zeros(0)
+	var native = _compute_kernel("scale_real")
+	if native == null:
+		return _self().zeros(n)
+	return _self().from_packed_direct(native.scale(s, 0.0, n), n)
 
 #endregion
 
 #region Linear Algebra Operations
 
 func dagger():
-	var native = _get_native()
-	if native:
-		native.from_packed(_to_packed(), n)
-		var result_packed = native.dagger(n)
-		return _self().from_packed_direct(result_packed, n)
-	# GDScript fallback
-	var a = _to_packed()
-	var dim = n
-	var r = PackedFloat64Array()
-	r.resize(dim * dim * 2)
-	for i in range(dim):
-		for j in range(dim):
-			var src = (i * dim + j) * 2
-			var dst = (j * dim + i) * 2
-			r[dst] = a[src]        # re
-			r[dst + 1] = -a[src + 1]  # -im (conjugate)
-	return _self().from_packed_direct(r, dim)
+	if n == 0:
+		return _self().zeros(0)
+	var native = _compute_kernel("dagger")
+	if native == null:
+		return _self().zeros(n)
+	return _self().from_packed_direct(native.dagger(n), n)
 
 func trace():
 	# Fast path: read directly from packed data
@@ -551,13 +445,12 @@ func compute_energy_split() -> Dictionary:
 
 func commutator(other):
 	# [A, B] = AB - BA
-	var native = _get_native()
-	if native:
-		native.from_packed(_to_packed(), n)
-		var result_packed = native.commutator(other._to_packed(), n)
-		return _self().from_packed_direct(result_packed, n)
-	# GDScript fallback via mul
-	return mul(other).sub(other.mul(self))
+	if n == 0:
+		return _self().zeros(0)
+	var native = _compute_kernel("commutator")
+	if native == null:
+		return _self().zeros(n)
+	return _self().from_packed_direct(native.commutator(other._to_packed(), n), n)
 
 func anticommutator(other):
 	# {A, B} = AB + BA — no native method, decompose via native mul + native add
@@ -579,61 +472,13 @@ static func outer_product(ket: Array, bra: Array):
 #region Matrix Exponential (Padé Approximation)
 
 func expm():
-	# Use native acceleration if available (Eigen's optimized Padé approximation)
-	var native = _get_native()
-	if native:
-		_sync_to_native()
-		var result_packed = native.expm()
-		return _result_from_packed(result_packed, n)
-
-	# Fallback: pure GDScript Padé [6/6] approximation with scaling and squaring
-	# exp(A) = exp(A/2^k)^(2^k) where k chosen so ||A/2^k|| < 1
-
-	# Find scaling factor
-	var norm = _one_norm()
-	var k = max(0, int(ceil(log(norm) / log(2.0))))
-	var scaled = scale_real(1.0 / pow(2.0, k))
-
-	# Padé [6/6] approximation
-	var pade = _pade_6_6(scaled)
-
-	# Square k times: (exp(A/2^k))^(2^k)
-	for i in range(k):
-		pade = pade.mul(pade)
-
-	return pade
-
-func _pade_6_6(A):
-	# Padé [6/6] coefficients
-	var c = [1.0, 0.5, 0.117857142857143, 0.019841269841270, 0.002480158730159, 0.000198412698412698, 0.000008267195767196]
-
-	var I = load("res://Core/QuantumSubstrate/ComplexMatrix.gd").identity(n)
-	var A2 = A.mul(A)
-	var A4 = A2.mul(A2)
-	var A6 = A2.mul(A4)
-
-	# Numerator: U = A(c1*I + c3*A^2 + c5*A^4)
-	var U = I.scale_real(c[1]).add(A2.scale_real(c[3])).add(A4.scale_real(c[5]))
-	U = A.mul(U)
-
-	# Denominator: V = c0*I + c2*A^2 + c4*A^4 + c6*A^6
-	var V = I.scale_real(c[0]).add(A2.scale_real(c[2])).add(A4.scale_real(c[4])).add(A6.scale_real(c[6]))
-
-	# exp(A) ≈ (V - U)^(-1) (V + U)
-	var numerator = V.add(U)
-	var denominator = V.sub(U)
-
-	return denominator.inverse().mul(numerator)
-
-func _one_norm() -> float:
-	# ||A||_1 = max column sum
-	var max_sum = 0.0
-	for j in range(n):
-		var col_sum = 0.0
-		for i in range(n):
-			col_sum += get_element(i, j).abs()
-		max_sum = max(max_sum, col_sum)
-	return max_sum
+	# Matrix exponential — Eigen's Padé approximation in the native backend.
+	if n == 0:
+		return _self().zeros(0)
+	var native = _compute_kernel("expm")
+	if native == null:
+		return _self().identity(n)
+	return _result_from_packed(native.expm(), n)
 
 func frobenius_norm() -> float:
 	# ||A||_F = sqrt(Σ|A_ij|²) = sqrt(Tr(A†A))
@@ -649,161 +494,33 @@ func frobenius_norm() -> float:
 #region Matrix Inverse (Gauss-Jordan)
 
 func inverse():
+	# Matrix inverse — Eigen's LU decomposition in the native backend.
 	if n == 0:
 		return load("res://Core/QuantumSubstrate/ComplexMatrix.gd").new(0)
-
-	# Use native acceleration if available (Eigen's LU decomposition)
-	var native = _get_native()
-	if native:
-		_sync_to_native()
-		var result_packed = native.inverse()
-		return _result_from_packed(result_packed, n)
-
-	# Fallback: pure GDScript Gauss-Jordan elimination
-	# Create augmented matrix [A | I]
-	var aug = []
-	for i in range(n):
-		var row = []
-		for j in range(n):
-			row.append(get_element(i, j))
-		for j in range(n):
-			row.append(Complex.one() if i == j else Complex.zero())
-		aug.append(row)
-
-	# Gauss-Jordan elimination
-	for pivot in range(n):
-		# Find pivot
-		var max_row = pivot
-		var max_val = aug[pivot][pivot].abs()
-		for i in range(pivot + 1, n):
-			if aug[i][pivot].abs() > max_val:
-				max_val = aug[i][pivot].abs()
-				max_row = i
-
-		if max_val < 1e-14:
-			push_error("Matrix is singular, cannot invert")
-			return load("res://Core/QuantumSubstrate/ComplexMatrix.gd").identity(n)
-
-		# Swap rows
-		if max_row != pivot:
-			var temp = aug[pivot]
-			aug[pivot] = aug[max_row]
-			aug[max_row] = temp
-
-		# Scale pivot row
-		var pivot_val = aug[pivot][pivot]
-		for j in range(2 * n):
-			aug[pivot][j] = aug[pivot][j].div(pivot_val)
-
-		# Eliminate column
-		for i in range(n):
-			if i != pivot:
-				var factor = aug[i][pivot]
-				for j in range(2 * n):
-					aug[i][j] = aug[i][j].sub(factor.mul(aug[pivot][j]))
-
-	# Extract inverse from right half
-	var inv = load("res://Core/QuantumSubstrate/ComplexMatrix.gd").new(n)
-	for i in range(n):
-		for j in range(n):
-			inv.set_element(i, j, aug[i][j + n])
-
-	return inv
+	var native = _compute_kernel("inverse")
+	if native == null:
+		return _self().identity(n)
+	return _result_from_packed(native.inverse(), n)
 
 #endregion
 
 #region Eigenvalue Decomposition (Jacobi for Hermitian)
 
 func eigensystem() -> Dictionary:
-	# Returns { "eigenvalues": Array[float], "eigenvectors": ComplexMatrix }
-
+	# Returns { "eigenvalues": Array[float], "eigenvectors": ComplexMatrix }.
+	# Eigen's SelfAdjointEigenSolver in the native backend (the single authority).
 	if not is_hermitian():
 		push_warning("eigensystem() called on non-Hermitian matrix - results may be unreliable")
-
-	# Use native acceleration if available (Eigen's SelfAdjointEigenSolver)
-	var native = _get_native()
-	if native:
-		_sync_to_native()
-		var result = native.eigensystem()
-		return {
-			"eigenvalues": result["eigenvalues"],
-			"eigenvectors": _result_from_packed(result["eigenvectors"], n)
-		}
-
-	# Fallback: pure GDScript Jacobi iteration for Hermitian matrices
-	# Initialize: V = I, A = self
-	var V = load("res://Core/QuantumSubstrate/ComplexMatrix.gd").identity(n)
-	var A = duplicate()
-
-	var max_iterations = 50 * n * n
-	var tolerance = 1e-12
-
-	for iteration in range(max_iterations):
-		# Find largest off-diagonal element
-		var max_val = 0.0
-		var p = 0
-		var q = 1
-		for i in range(n):
-			for j in range(i + 1, n):
-				var val = A.get_element(i, j).abs()
-				if val > max_val:
-					max_val = val
-					p = i
-					q = j
-
-		# Converged?
-		if max_val < tolerance:
-			break
-
-		# Compute Givens rotation
-		var app = A.get_element(p, p).re
-		var aqq = A.get_element(q, q).re
-		var apq = A.get_element(p, q)
-
-		var theta = 0.5 * atan2(2.0 * apq.abs(), aqq - app)
-		var c = cos(theta)
-		var s = sin(theta)
-
-		# Apply rotation to A and V
-		_apply_jacobi_rotation(A, V, p, q, c, s)
-
-	# Extract eigenvalues (diagonal of A)
-	var eigenvalues = []
-	for i in range(n):
-		eigenvalues.append(A.get_element(i, i).re)
-
+	if n == 0:
+		return {"eigenvalues": [], "eigenvectors": _self().zeros(0)}
+	var native = _compute_kernel("eigensystem")
+	if native == null:
+		return {"eigenvalues": [], "eigenvectors": _self().identity(n)}
+	var result = native.eigensystem()
 	return {
-		"eigenvalues": eigenvalues,
-		"eigenvectors": V  # Columns are eigenvectors
+		"eigenvalues": result["eigenvalues"],
+		"eigenvectors": _result_from_packed(result["eigenvectors"], n)
 	}
-
-func _apply_jacobi_rotation(A, V, p: int, q: int, c: float, s: float) -> void:
-	# Apply Givens rotation to A and accumulate in V
-	for i in range(n):
-		if i != p and i != q:
-			var aip = A.get_element(i, p)
-			var aiq = A.get_element(i, q)
-			A.set_element(i, p, Complex.new(c * aip.re - s * aiq.re, c * aip.im - s * aiq.im))
-			A.set_element(i, q, Complex.new(s * aip.re + c * aiq.re, s * aip.im + c * aiq.im))
-			A.set_element(p, i, A.get_element(i, p).conjugate())
-			A.set_element(q, i, A.get_element(i, q).conjugate())
-
-	# Update eigenvectors
-	for i in range(n):
-		var vip = V.get_element(i, p)
-		var viq = V.get_element(i, q)
-		V.set_element(i, p, Complex.new(c * vip.re - s * viq.re, c * vip.im - s * viq.im))
-		V.set_element(i, q, Complex.new(s * vip.re + c * viq.re, s * vip.im + c * viq.im))
-
-	# Update diagonal
-	var app = A.get_element(p, p).re
-	var aqq = A.get_element(q, q).re
-	var apq = A.get_element(p, q)
-
-	A.set_element(p, p, Complex.new(c*c*app - 2*c*s*apq.re + s*s*aqq, 0.0))
-	A.set_element(q, q, Complex.new(s*s*app + 2*c*s*apq.re + c*c*aqq, 0.0))
-	A.set_element(p, q, Complex.zero())
-	A.set_element(q, p, Complex.zero())
 
 #endregion
 
