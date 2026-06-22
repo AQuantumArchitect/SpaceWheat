@@ -80,13 +80,20 @@ func _physics_process(delta: float) -> void:
 			continue
 		var qpreds = quest.get("state_predicates", [])
 		if qpreds is Array and not qpreds.is_empty():
+			# state_predicates are the AUTHORITATIVE (physics-driven) completion path:
+			# a quest carrying them is scored purely on its physics observables, and
+			# type-specific tracking is SKIPPED (the `continue` below) so it can't
+			# trivially auto-complete — e.g. a default SHAPE_ACHIEVE checks purity>0.7,
+			# which is always true in the closed system (purity≡1). This is what makes
+			# "physics-driven story quests" (familiarity with a set of emojis/icons)
+			# first-class, distinct from DELIVER/market contracts that reward resources.
 			var pred_score := _evaluate_quest_state_predicates(qpreds)
 			quest["predicate_score"] = pred_score
 			if pred_score >= QuestStateProjectionService.COMPLETION_THRESHOLD:
 				var quest_id = int(quest.get("id", -1))
 				if quest_id >= 0:
 					mark_quest_ready(quest_id, "state_predicates")
-					continue
+			continue
 
 		var quest_type = quest.get("type", QuestTypes.Type.DELIVERY)
 

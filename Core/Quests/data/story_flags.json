@@ -113,12 +113,18 @@
       }
     },
     "arc_quest": {
-      "type": "DELIVER",
-      "body": "Apprentice to the Mill — bring the Millwright's Union grain and they will teach you the windmill (💨/🔨).",
-      "hint": "Deliver 🍞 to the Millwright's Union to LEARN the Mill icon, then PLANT it in the Village to wake the gears.",
+      "type": 1,
+      "category": "ARC",
+      "body": "Apprentice to the Mill — show the Millwright's Union you know the Village's grain and gears, and they will teach you the windmill (💨/🔨).",
+      "hint": "Become FAMILIAR with the Village: Berry-track its registers, ripen them, and incorporate. Once you've worked its grain-and-gear rhythm, claim the Mill — then PLANT it in the Village to wake the gears.",
       "faction": "Millwright's Union",
-      "resource": "🍞",
-      "quantity": 5,
+      "state_predicates": [
+        {
+          "type": "berry_consumed_count_gte",
+          "biome": "Village",
+          "value": 3
+        }
+      ],
       "reward_north": "💨",
       "reward_south": "🔨",
       "reward_icon_north": "💨",
