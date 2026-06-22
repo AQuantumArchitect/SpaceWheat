@@ -165,6 +165,12 @@ func _bootstrap() -> void:
 		farm_view.add_child(_shell)
 		# boot_runtime wires biomes → viz and connects farm signals; no viz headless.
 		await boot_manager.boot_runtime(_farm, _shell, null)
+		# In the real game AppRoot calls set_farm_attached(true) once the farm world
+		# is live; the rig hand-mounts the shell, so it must play that role — without
+		# it _toggle_farm_overlay refuses to open game overlays (C/V/B/N) and keyboard
+		# quest-board driving is impossible.
+		if _shell.has_method("set_farm_attached"):
+			_shell.set_farm_attached(true)
 	else:
 		# Headed path: boot the REAL game (AppRoot → GameRoot → FarmView.tscn +
 		# QuantumForceGraph), exactly as a player session — the farm-world renders and
