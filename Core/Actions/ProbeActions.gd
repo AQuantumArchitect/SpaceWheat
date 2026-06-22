@@ -512,11 +512,16 @@ static func _resolve_pop_reward_context(terminal, farm = null) -> Dictionary:
 	var terminal_id = terminal.terminal_id
 	var biome_name = terminal.measured_biome_name
 
-	var p_emoji = 0.0
-	if biome and biome.quantum_computer and biome.quantum_computer.has_method("get_population"):
+	# Surprisal reward MUST use the strike-time outcome probability (recorded at
+	# MEASURE), not the live post-collapse population. After a projective collapse the
+	# measured outcome's population is ≈1 by construction, so reading it gave every
+	# pop surprisal ≈ 0 → reward floored to 1, while the concentration cost (∝ p·r)
+	# maxed out — min reward + max cost on every strike (#125). recorded_probability
+	# is exactly "how rare was this collapse"; that is the Boltzmann price basis.
+	# (Live population only as a fallback when no recorded probability exists.)
+	var p_emoji = clampf(recorded_prob, 0.0, 1.0)
+	if recorded_prob <= 0.0 and biome and biome.quantum_computer and biome.quantum_computer.has_method("get_population"):
 		p_emoji = clampf(float(biome.quantum_computer.get_population(resource)), 0.0, 1.0)
-	else:
-		p_emoji = maxf(recorded_prob, 0.0)
 
 	var bloch_r := 0.5
 	if terminal.measured_snapshot.has("r"):
