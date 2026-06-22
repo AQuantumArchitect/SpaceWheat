@@ -44,114 +44,24 @@ func _get_native():
 		_native_backend = ClassDB.instantiate("QuantumMatrixNative")
 	return _native_backend
 
-## Marshal GDScript data to PackedFloat64Array for native (DENSE)
+## Return the authoritative packed store (the single source of truth). Kept as a
+## method for API stability across the many call sites; it now simply guarantees the
+## buffer is sized and hands it back — no representation reconciliation, no drift.
 func _to_packed() -> PackedFloat64Array:
-	# Fast path: packed data is authoritative (hot-path result)
-	if _packed_valid and _packed_cache.size() >= n * n * 2:
-		return _packed_cache
-
-	# Fast path: return cached packed data if _data hasn't been modified
-	if _packed_cache.size() >= n * n * 2 and not _data_valid:
-		_packed_valid = true
-		return _packed_cache
-
-	# _data is authoritative: it was freshly mutated in-place via set_element
-	# (which clears _packed_cache and marks _packed_valid=false) but the native
-	# backend was NOT updated. We must rebuild from _data and PUSH it to native —
-	# otherwise the stale native copy below would silently discard the mutation
-	# (e.g. drain_qubit's partial measurement vanishing on renormalize_trace).
-	if _data_valid and not _packed_valid:
-		var fresh = PackedFloat64Array()
-		fresh.resize(n * n * 2)
-		for i in range(n * n):
-			fresh[i * 2] = _data[i].re
-			fresh[i * 2 + 1] = _data[i].im
-		_packed_cache = fresh
-		_packed_valid = true
-		if _native_available and _native_backend != null:
-			_native_backend.from_packed(fresh, n)
-		return fresh
-
-	# Native path: get from native backend if available
-	if _native_available and _native_backend != null:
-		var native_packed: PackedFloat64Array = _native_backend.to_packed()
-		if native_packed.size() >= n * n * 2:
-			_packed_valid = true
-			return native_packed
-		# Native cache is stale/empty: rebuild from authoritative GDScript data.
-		_ensure_data_valid()
-		var rebuilt = PackedFloat64Array()
-		rebuilt.resize(n * n * 2)
-		for i in range(n * n):
-			rebuilt[i * 2] = _data[i].re
-			rebuilt[i * 2 + 1] = _data[i].im
-		_packed_cache = rebuilt
-		_packed_valid = true
-		_native_backend.from_packed(rebuilt, n)
-		return rebuilt
-
-	# Fallback: marshal from _data
-	_ensure_packed_valid()
+	_ensure_packed_sized()
 	return _packed_cache
 
-## Unmarshal PackedFloat64Array back to GDScript (DENSE)
-## Uses native backend when available for O(1) load, lazy-populates _data on access
+## Load a packed buffer as this matrix's value. The buffer becomes the store directly.
 func _from_packed(packed: PackedFloat64Array, dim: int) -> void:
 	n = dim
 	_packed_cache = packed
-	_packed_valid = true
-	_data_valid = false
-	_data = []
+	_ensure_packed_sized()
 
-	# Fast path: use native backend, defer _data population
-	if _native_available:
-		var native = _get_native()
-		if native:
-			native.from_packed(packed, dim)
-			_data_valid = false  # _data will be populated lazily if needed
-			return
-
-	# Fallback: populate _data immediately (slow but always works)
-	_populate_data_from_packed()
-
-## Internal: populate _data array from _packed_cache (GDScript fallback)
-func _populate_data_from_packed() -> void:
-	_data = []
-	for i in range(n * n):
-		_data.append(Complex.new(_packed_cache[i * 2], _packed_cache[i * 2 + 1]))
-	_data_valid = true
-
-## Ensure _data is valid (lazy population from native/packed cache)
-func _ensure_data_valid() -> void:
-	if _data_valid:
-		return
-	if _packed_cache.size() >= n * n * 2:
-		_populate_data_from_packed()
-	elif n > 0:
-		# No packed cache either — initialize zeros
-		_data = []
-		for i in range(n * n):
-			_data.append(Complex.zero())
-		_data_valid = true
-
-## Ensure _packed_cache is valid (lazy marshal from _data)
-func _ensure_packed_valid() -> void:
-	if _packed_valid and _packed_cache.size() >= n * n * 2:
-		return
-	if _packed_cache.size() >= n * n * 2 and not _data_valid:
-		# Packed is newer than data (e.g. from native backend)
-		_packed_valid = true
-		return
-	# Marshal from _data
-	_ensure_data_valid()
-	var total = n * n
-	var packed = PackedFloat64Array()
-	packed.resize(total * 2)
-	for i in range(total):
-		packed[i * 2] = _data[i].re
-		packed[i * 2 + 1] = _data[i].im
-	_packed_cache = packed
-	_packed_valid = true
+## Guarantee the packed store is allocated to n*n*2 (zero-filled). The ONLY invariant
+## the store needs — there is nothing else to keep in sync.
+func _ensure_packed_sized() -> void:
+	if _packed_cache.size() < n * n * 2:
+		_packed_cache.resize(n * n * 2)
 
 #region Sparse Matrix Transfer (CSR Format)
 
@@ -162,22 +72,20 @@ const SPARSITY_THRESHOLD: float = 1e-12
 func get_sparsity_ratio() -> float:
 	if n <= 0:
 		return 0.0
-	_ensure_data_valid()
-	var nonzero_count = 0
 	var total = n * n
-	for i in range(total):
-		if i < _data.size() and _data[i].abs() > SPARSITY_THRESHOLD:
-			nonzero_count += 1
-	return float(nonzero_count) / float(total) if total > 0 else 0.0
+	return float(count_nonzeros()) / float(total) if total > 0 else 0.0
 
-## Count non-zero elements
+## Count non-zero elements (reads the single packed store).
 func count_nonzeros() -> int:
 	if n <= 0:
 		return 0
-	_ensure_data_valid()
+	_ensure_packed_sized()
 	var count = 0
+	var thresh_sq = SPARSITY_THRESHOLD * SPARSITY_THRESHOLD
 	for i in range(n * n):
-		if i < _data.size() and _data[i].abs() > SPARSITY_THRESHOLD:
+		var re = _packed_cache[i * 2]
+		var im = _packed_cache[i * 2 + 1]
+		if re * re + im * im > thresh_sq:
 			count += 1
 	return count
 
@@ -217,9 +125,8 @@ func _to_packed_csr() -> Dictionary:
 ## Unmarshal from CSR format
 func _from_packed_csr(csr_data: Dictionary) -> void:
 	n = csr_data.dim
-	_data = []
-	for i in range(n * n):
-		_data.append(Complex.zero())
+	_packed_cache = PackedFloat64Array()
+	_packed_cache.resize(n * n * 2)  # zero-filled
 
 	var row_ptr = csr_data.row_ptr
 	var col_idx = csr_data.col_idx
@@ -292,29 +199,25 @@ func _result_from_packed(packed: PackedFloat64Array, dim: int):
 ## - Quantum: dagger (Hermitian conjugate), commutator, expm (matrix exponential)
 
 var n: int = 0  # Dimension
-var _data: Array = []  # Flat array: element (i,j) at index i*n + j (LAZY — only populated on demand)
-var _packed_cache: PackedFloat64Array = PackedFloat64Array()  # Native packed data cache
-var _data_valid: bool = true  # True if _data is in sync with _packed_cache
-var _packed_valid: bool = false  # True if _packed_cache is authoritative (hot-path results)
+## THE single authoritative store: dense row-major [re, im] pairs; element (i,j)
+## lives at index (i*n + j)*2. There is no second representation — the old _data
+## Array[Complex] and the _data_valid/_packed_valid flags (the source of read drift)
+## are gone. Bulk compute delegates to the native backend, loaded FROM this buffer
+## per op; the backend is a stateless compute kernel, never a parallel store.
+var _packed_cache: PackedFloat64Array = PackedFloat64Array()
 
 func _init(dimension: int = 0):
 	_check_native()
 	n = dimension
-	_data = []
 	_packed_cache = PackedFloat64Array()
-	_data_valid = true
-	_packed_valid = false
-	for i in range(n * n):
-		_data.append(Complex.zero())
+	_packed_cache.resize(n * n * 2)  # PackedFloat64Array is zero-initialized by resize
 
 ## Create a matrix directly from packed data (fast — no Complex allocation)
 static func from_packed_direct(packed: PackedFloat64Array, dimension: int):
 	var m = load("res://Core/QuantumSubstrate/ComplexMatrix.gd").new(0)
 	m.n = dimension
 	m._packed_cache = packed
-	m._packed_valid = true
-	m._data_valid = false
-	m._data = []
+	m._ensure_packed_sized()
 	return m
 
 ## Create zero matrix of given dimension (packed-primary — no Complex allocation)
@@ -360,21 +263,16 @@ func get_element(i: int, j: int):
 	if i < 0 or i >= n or j < 0 or j >= n:
 		push_error("ComplexMatrix index out of bounds: (%d, %d) for %dx%d matrix" % [i, j, n, n])
 		return Complex.zero()
-	_ensure_data_valid()
-	return _data[i * n + j]
+	_ensure_packed_sized()
+	var idx = (i * n + j) * 2
+	return Complex.new(_packed_cache[idx], _packed_cache[idx + 1])
 
-## Fast path for reading diagonal real values without populating _data
-## Used by get_marginal() to avoid O(n²) object creation
+## Read a diagonal real value (a population) straight from the packed store.
 func get_diagonal_real(i: int) -> float:
 	if i < 0 or i >= n:
 		return 0.0
-	# Fast path: read directly from packed cache
-	if _packed_cache.size() >= n * n * 2:
-		var idx = (i * n + i) * 2  # Diagonal element (i,i) real part
-		return _packed_cache[idx]
-	# Fallback: use _data
-	_ensure_data_valid()
-	return _data[i * n + i].re
+	_ensure_packed_sized()
+	return _packed_cache[(i * n + i) * 2]
 
 func get_heatmap_colors(max_dim: int = 0) -> PackedColorArray:
 	# Return per-cell colors for a density matrix heatmap.
@@ -384,7 +282,7 @@ func get_heatmap_colors(max_dim: int = 0) -> PackedColorArray:
 
 	# Computed in C++ (QuantumMatrixNative.heatmap_colors) to avoid GDScript
 	# per-cell sqrt/atan2/HSV overhead.  max_dim caps to the first NxN block.
-	_ensure_packed_valid()
+	_ensure_packed_sized()
 	var native = _get_native()
 	if native:
 		native.from_packed(_packed_cache, n)
@@ -414,11 +312,11 @@ func set_element(i: int, j: int, value):
 	if i < 0 or i >= n or j < 0 or j >= n:
 		push_error("ComplexMatrix index out of bounds: (%d, %d) for %dx%d matrix" % [i, j, n, n])
 		return
-	_ensure_data_valid()
-	_data[i * n + j] = value
-	# Invalidate packed cache since _data changed
-	_packed_cache = PackedFloat64Array()
-	_packed_valid = false
+	# Write straight into the single packed store — no _data, no invalidation dance.
+	_ensure_packed_sized()
+	var idx = (i * n + j) * 2
+	_packed_cache[idx] = value.re
+	_packed_cache[idx + 1] = value.im
 
 #endregion
 
@@ -1040,22 +938,12 @@ func renormalize_trace() -> void:
 			push_warning("Cannot renormalize: trace is essentially zero")
 		return
 
-	# Scale all elements by 1/|trace| — packed path, no Complex allocation
+	# Scale all elements by 1/|trace| in place on the single packed store. No second
+	# representation to reconcile — the old _data/native lock-step dance is gone.
+	_ensure_packed_sized()
 	var s = 1.0 / tr_val
-	var p = _to_packed()
-	var total = n * n * 2
-	for i in range(total):
-		p[i] *= s
-	_packed_cache = p
-	_packed_valid = true
-	_data_valid = false
-	_data = []
-	# Keep the native backend in lock-step with the normalized result — otherwise
-	# a set_element-based mutation (e.g. drain_qubit) that we just rebuilt into
-	# packed would leave native holding the stale/un-normalized copy, and the next
-	# evolve would silently replay it.
-	if _native_available and _native_backend != null:
-		_native_backend.from_packed(p, n)
+	for i in range(n * n * 2):
+		_packed_cache[i] *= s
 
 #endregion
 

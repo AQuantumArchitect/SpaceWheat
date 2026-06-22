@@ -1486,9 +1486,6 @@ func _renormalize() -> void:
 		_last_renorm_scale = 0.0
 		# Write back clipped state before recovery
 		density_matrix._packed_cache = p
-		density_matrix._packed_valid = true
-		density_matrix._data_valid = false
-		density_matrix._data = []
 		_recover_to_steady_state()
 		return
 
@@ -1532,9 +1529,6 @@ func _renormalize() -> void:
 
 	# Write packed data back as authoritative
 	density_matrix._packed_cache = p
-	density_matrix._packed_valid = true
-	density_matrix._data_valid = false
-	density_matrix._data = []
 	_purity_cache = -1.0
 
 
@@ -1670,9 +1664,6 @@ func _apply_phase_lnn(lnn: Object) -> void:
 		p[idx + 1] = magnitude * sin(new_phase)
 
 	density_matrix._packed_cache = p
-	density_matrix._packed_valid = true
-	density_matrix._data_valid = false
-	density_matrix._data = []
 
 	# Invalidate caches since we modified the state
 	_purity_cache = -1.0
@@ -2586,13 +2577,11 @@ func set_hamiltonian(H: ComplexMatrix) -> void:
 		sparse_hamiltonian = null
 		return
 
-	# Sparsity check (simplified - native engine handles actual sparse ops)
-	var nnz = 0
+	# Sparsity check (simplified - native engine handles actual sparse ops).
+	# Reads the matrix's single packed store via the canonical API (was reaching
+	# into the now-removed H._data array directly).
 	var total = H.n * H.n
-	for i in range(total):
-		var c = H._data[i]
-		if c.re * c.re + c.im * c.im > 1e-24:
-			nnz += 1
+	var nnz = H.count_nonzeros()
 	var sparsity = 1.0 - (float(nnz) / float(total)) if total > 0 else 0.0
 
 	if sparsity > 0.5:
