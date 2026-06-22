@@ -91,6 +91,7 @@ var phi_raw: float = 0.0  # Raw phi for force calculations
 # Season constants - imported from shared source
 const SEASON_ANGLES = VisualizationConstants.SEASON_ANGLES
 const SEASON_COLORS = VisualizationConstants.SEASON_COLORS
+const _BalanceConfig = preload("res://Core/GameMechanics/BalanceConfig.gd")
 
 # Animation properties
 var visual_scale: float = 0.0  # Animated scale (0 to 1)
@@ -265,8 +266,19 @@ func apply_quantum_snapshot(snap: Dictionary, smooth_radius: bool = false) -> bo
 	energy = purity  # Legacy alias retained for older renderers/tools
 	coherence = coh_magnitude
 
-	var r_bloch = snap.get("r_bloch", 0.0)
-	var target_radius = lerpf(MIN_RADIUS, MAX_RADIUS, r_bloch)
+	# Radius channel = Bloch/subspace radius — an OPEN-system mixedness encoding
+	# (dissipation shrinks the reduced state). In the closed (unitary) system the
+	# contract is "r = 1 forever" (see docs/CLOSED_SYSTEM.md), so bubbles render at
+	# full size; the per-qubit reduced radius still dips under entanglement, but the
+	# closed system has no dissipative mixedness to show, so we don't shrink for it.
+	# (Without this, a missing/entangled r_bloch defaulted toward 0 → MIN_RADIUS →
+	# every bubble tiny once the open-system radius driver was removed — #119.)
+	var target_radius: float
+	if _BalanceConfig.is_closed_system():
+		target_radius = MAX_RADIUS
+	else:
+		var r_bloch = snap.get("r_bloch", 0.0)
+		target_radius = lerpf(MIN_RADIUS, MAX_RADIUS, r_bloch)
 	radius = lerpf(radius, target_radius, 0.15) if smooth_radius else target_radius
 
 	berry_phase = coh_magnitude * TAU
