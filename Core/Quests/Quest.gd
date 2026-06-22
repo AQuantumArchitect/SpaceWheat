@@ -89,9 +89,9 @@ static func defaults() -> Dictionary:
 		"cost_amount": 0.0,
 
 		# ── Faction context ──
-		"faction_signature": [],
+		"faction_cloud": [],
 		"biome_new": false,
-		"contains_new_vocab": false,
+		"contains_new_icon": false,
 
 		# ── Pipeline parameters (FactionStateMatcher-derived) ──
 		"_alignment": 0.0,

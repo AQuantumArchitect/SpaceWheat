@@ -54,10 +54,10 @@ func _load_world_into_engine() -> void:
 		var bits := PackedFloat64Array()
 		for b in f.get_axial_bits():
 			bits.push_back(float(b))
-		var sig := PackedStringArray()
+		var cloud := PackedStringArray()
 		for e in f.cloud:
-			sig.push_back(str(e))
-		_engine.add_faction(str(f.name), bits, sig)
+			cloud.push_back(str(e))
+		_engine.add_faction(str(f.name), bits, cloud)
 	_engine.faction_initialize_uniform()
 	# Compose the emoji-basis Hamiltonian so the eigensolver has something to
 	# work with when consumers (MarketLattice projections, N menu) ask for

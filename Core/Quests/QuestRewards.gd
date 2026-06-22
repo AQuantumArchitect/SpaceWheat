@@ -59,7 +59,7 @@ class QuestReward:
 	var standing_deltas: Dictionary = {}  # Per-channel deltas to apply on grant. Keys: trust/debt/attention/access/legitimacy/entanglement
 
 
-static func generate_reward(quest: Dictionary, _bath, player_vocab: Array) -> QuestReward:
+static func generate_reward(quest: Dictionary, _bath, player_cloud: Array) -> QuestReward:
 	# Generate rewards for quest completion
 
 	# Uses PRE-ROLLED icon from quest creation time (not rolled now).
@@ -68,7 +68,7 @@ static func generate_reward(quest: Dictionary, _bath, player_vocab: Array) -> Qu
 	# Args:
 	# quest: Completed quest data (with reward_north/south)
 	# bath: Current biome quantum bath
-	# player_vocab: Player's known emojis
+	# player_cloud: Player's known emojis
 
 	# Returns:
 	# QuestReward with signature (no universal 💰 currency!)
@@ -92,7 +92,7 @@ static func generate_reward(quest: Dictionary, _bath, player_vocab: Array) -> Qu
 		if pre_rolled_resources is Dictionary and not pre_rolled_resources.is_empty():
 			reward.resource_rewards = _sanitize_resource_rewards(pre_rolled_resources)
 		else:
-			var reward_icon_map := _build_uniform_icon_map(player_vocab)
+			var reward_icon_map := _build_uniform_icon_map(player_cloud)
 			if reward_icon_map.is_empty():
 				reward_icon_map = _build_uniform_icon_map(_quest_reward_emojis(quest, faction_dict))
 			reward.resource_rewards = _build_resource_reward_plan(quest, faction_dict, false, reward_icon_map)
@@ -186,8 +186,8 @@ static func compute_market_projection(quest: Dictionary, icon_map: Dictionary = 
 		return {}
 
 	var faction_name = quest.get("faction", "")
-	var signature = quest.get("faction_signature", [])
-	var faction_dynamic = _get_faction_dynamic_data(faction_name, signature)
+	var cloud = quest.get("faction_cloud", [])
+	var faction_dynamic = _get_faction_dynamic_data(faction_name, cloud)
 	var resolved_icon_map := _resolve_reward_icon_map(quest, faction_dynamic, icon_map if icon_map is Dictionary else {})
 	if resolved_icon_map.is_empty():
 		return {}
@@ -215,8 +215,8 @@ static func compute_market_projection(quest: Dictionary, icon_map: Dictionary = 
 
 static func _build_resource_reward_plan(quest: Dictionary, faction: Dictionary, deterministic: bool, icon_map: Dictionary = {}) -> Dictionary:
 	var faction_name = quest.get("faction", faction.get("name", ""))
-	var signature = quest.get("faction_signature", faction.get("cloud", []))
-	var faction_dynamic = _get_faction_dynamic_data(faction_name, signature)
+	var cloud = quest.get("faction_cloud", faction.get("cloud", []))
+	var faction_dynamic = _get_faction_dynamic_data(faction_name, cloud)
 
 	var resolved_icon_map := _resolve_reward_icon_map(quest, faction_dynamic, icon_map)
 	if resolved_icon_map.is_empty():
@@ -276,7 +276,7 @@ static func _apply_reward_tuning(rewards: Dictionary, quest: Dictionary) -> Dict
 	var multiplier = 1.0
 	if bool(quest.get("biome_new", false)):
 		multiplier += float(tuning.get("biome_novelty_multiplier")) - 1.0
-	if bool(quest.get("contains_new_vocab", false)):
+	if bool(quest.get("contains_new_icon", false)):
 		multiplier += float(tuning.get("icon_novelty_multiplier")) - 1.0
 	var cap = float(tuning.get("novelty_multiplier_cap"))
 	multiplier = min(multiplier, cap)
@@ -332,24 +332,24 @@ static func _compute_interference_reward_profile(faction_data: Dictionary, icon_
 	# Tensor-like interference map between faction icon physics and player IconMap.
 
 	# We collapse an interference tensor T[e,i,j] where:
-	# - e: reward emoji candidate (faction signature)
-	# - i,j: player "mode" indices on the same signature basis
+	# - e: reward emoji candidate (faction cloud)
+	# - i,j: player "mode" indices on the same cloud basis
 	# - T[e,i,j] ~ |H_f[e,j]| * p_i * |p_j - p_i|
 
 	# This boosts reward weight where faction couplings and player mass gradients
 	# constructively interfere.
-	var signature = faction_data.get("cloud", [])
-	if signature.is_empty():
+	var cloud = faction_data.get("cloud", [])
+	if cloud.is_empty():
 		return {"weights": {}, "interference_strength": 0.0}
 	var by_emoji: Dictionary = icon_map.get("by_emoji", {})
 	if by_emoji.is_empty():
 		return {"weights": {}, "interference_strength": 0.0}
 
 	var index_by_emoji: Dictionary = {}
-	for i in range(signature.size()):
-		index_by_emoji[signature[i]] = i
+	for i in range(cloud.size()):
+		index_by_emoji[cloud[i]] = i
 
-	var n = signature.size()
+	var n = cloud.size()
 	var h: Array = []
 	for i in range(n):
 		var row: Array = []
@@ -376,7 +376,7 @@ static func _compute_interference_reward_profile(faction_data: Dictionary, icon_
 
 	var p: Array = []
 	var p_total = 0.0
-	for emoji in signature:
+	for emoji in cloud:
 		var mass = max(0.0, float(by_emoji.get(emoji, 0.0)))
 		p.append(mass)
 		p_total += mass
@@ -391,7 +391,7 @@ static func _compute_interference_reward_profile(faction_data: Dictionary, icon_
 	var interference_sum = 0.0
 
 	for e in range(n):
-		var emoji = signature[e]
+		var emoji = cloud[e]
 		var tensor_energy = 0.0
 		for i in range(n):
 			for j in range(n):
@@ -423,8 +423,8 @@ static func _resolve_reward_icon_map(quest: Dictionary, faction_data: Dictionary
 	if icon_map is Dictionary and icon_map.has("by_emoji"):
 		var by_emoji = icon_map.get("by_emoji", {})
 		if by_emoji is Dictionary and not by_emoji.is_empty():
-			var signature = faction_data.get("cloud", [])
-			for emoji in signature:
+			var cloud = faction_data.get("cloud", [])
+			for emoji in cloud:
 				if by_emoji.has(str(emoji)):
 					return icon_map
 	var source: Array = _quest_reward_emojis(quest, faction_data)
@@ -438,9 +438,9 @@ static func _quest_reward_emojis(quest: Dictionary, faction_data: Dictionary) ->
 	var available = quest.get("available_emojis", [])
 	if available is Array and not available.is_empty():
 		return available.duplicate()
-	var signature = quest.get("faction_signature", faction_data.get("cloud", []))
-	if signature is Array and not signature.is_empty():
-		return signature.duplicate()
+	var cloud = quest.get("faction_cloud", faction_data.get("cloud", []))
+	if cloud is Array and not cloud.is_empty():
+		return cloud.duplicate()
 	return out
 
 
@@ -576,35 +576,35 @@ static func _hamiltonian_magnitude(value) -> float:
 	return 0.0
 
 
-static func select_vocabulary_reward(faction: Dictionary, bath, player_vocab: Array) -> String:
-	# Choose which emoji from faction signature to teach
+static func select_reward_emoji(faction: Dictionary, bath, player_cloud: Array) -> String:
+	# Choose which emoji from the faction cloud to teach
 
 	# Strategy:
-	# 1. Get faction signature signature
+	# 1. Get the faction cloud
 	# 2. Filter to emojis player doesn't know
 	# 3. Get bath probabilities for unknown emojis (quantum-weighted!)
 	# 4. Sample weighted by probability
 	# 5. Fallback to random if no probabilities
 
 	# Args:
-	# faction: Faction dictionary with signature
+	# faction: Faction dictionary with cloud
 	# bath: QuantumBath with probability distribution
-	# player_vocab: Player's known emojis
+	# player_cloud: Player's known emojis
 
 	# Returns:
 	# Emoji string to teach, or "" if none available
-	# Faction data uses "sig" key (short for signature)
-	var signature = faction.get("cloud", [])
+	# Faction data uses the "cloud" key (the faction's atoms)
+	var cloud = faction.get("cloud", [])
 
-	# Filter to unknown signature
+	# Filter to emojis not yet in the player's cloud
 	var unknown = []
-	for emoji in signature:
-		if emoji not in player_vocab:
+	for emoji in cloud:
+		if emoji not in player_cloud:
 			unknown.append(emoji)
 
 	# Already know everything?
 	if unknown.is_empty():
-		return ""  # No signature to teach
+		return ""  # No cloud to teach
 
 	# Get biome probabilities for unknown emojis (quantum-informed selection!)
 	if bath and bath.viz_cache:
@@ -668,7 +668,7 @@ static func format_reward_text(reward: QuestReward) -> String:
 		for emoji in reward.learned_emojis:
 			lines.append("📖 Learned: %s (solo)" % emoji)
 	else:
-		lines.append("📖 (No new signature)")
+		lines.append("📖 (No new cloud)")
 
 	# Icon modifications
 	for mod in reward.icon_modifications:
@@ -677,7 +677,7 @@ static func format_reward_text(reward: QuestReward) -> String:
 	return "\n".join(lines)
 
 
-static func preview_possible_rewards(quest: Dictionary, _player_vocab: Array) -> String:
+static func preview_possible_rewards(quest: Dictionary, _player_cloud: Array) -> String:
 	# Preview what rewards will be earned (shows pre-rolled pair)
 
 	# No universal 💰 currency - just icons from quantum physics.
@@ -701,7 +701,7 @@ static func preview_possible_rewards(quest: Dictionary, _player_vocab: Array) ->
 		else:
 			lines.append("📖 Learn: %s (solo)" % north)
 	else:
-		lines.append("📖 (No new signature)")
+		lines.append("📖 (No new cloud)")
 
 	return "\n".join(lines)
 
@@ -723,7 +723,7 @@ static func generate_icon_modification(faction: Dictionary, quest: Dictionary) -
 	var faction_name = faction.get("name", "Unknown")
 	var faction_sig = faction.get("cloud", [])
 
-	# Pick an emoji from faction signature for modification
+	# Pick an emoji from the faction cloud for modification
 	var target_emoji = quest.get("resource", "")
 	if target_emoji.is_empty() and faction_sig.size() > 0:
 		target_emoji = faction_sig[randi() % faction_sig.size()]

@@ -35,7 +35,7 @@ The fusion is the whole plan: **one pipeline that is economy + narrative spine +
 | `FactionStateMatcher` (LIVE) | **KEEP — the gem** | 12-bit faction prefs → quantum observables → `(alignment, complexity, intensity, urgency, variety)`. Makes "story IS the physics" literal. |
 | Non-delivery quest types (impl, never spawn) | **REVIVE** | SHAPE_ACHIEVE / EVOLUTION / MAINTAIN_COHERENCE / ENTANGLEMENT — the teaching tools for reading/steering state. |
 | `QuestTheming` complexity→type, resonance gate, Fibonacci quantities | **EXTRACT then delete** | Port the thresholds/ideas into the pipeline. |
-| `FactionVoices` (10 voices) | **EXTRACT as palette, proceduralize** | Seed; then derive voice per faction from signature/bits (not static 10-for-32). |
+| `FactionVoices` (10 voices) | **EXTRACT as palette, proceduralize** | Seed; then derive voice per faction from cloud/bits (not static 10-for-32). |
 | `QuestVocabulary` (18 verbs + bit-affinity) | **EXTRACT, generalize** | Verb-by-faction-axiom selection is good; generalize beyond delivery. |
 | `QuestGenerator` composition template | **EXTRACT** | prefix + (adverb verb qty adjective resource @location urgency) + suffix. |
 | `BiomeLocations` static table | **DISCARD** | Proceduralize from biome state, or drop. |
@@ -123,7 +123,7 @@ siding.
 - Tutorial must not feel like rails in a sandbox — soft gates + "suggested, not forced" framing.
 - Branching narrative scales authoring cost — keep the authored spine tight; lean on procedural sides.
 - Reviving quest types: do NOT reintroduce hard rules (use the soft predicates).
-- Fix the `.cloud`/`FactionDatabase` key mismatch when porting theming (use `signature`/`all`).
+- FactionDatabase faction dicts expose the atom set under the `cloud` key (was the misnamed `sig`); use `cloud`/`all` from get_faction_cloud() when porting theming.
 
 ## Open questions for the next planning pass
 - Exact Act-0 quest list + the precise mechanic each teaches (storyboard the first 30 minutes).

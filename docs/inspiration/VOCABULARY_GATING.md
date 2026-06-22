@@ -1,13 +1,17 @@
-# Vocabulary Gating — Organic Faction Tech Tree
+# Cloud Gating — Organic Faction Tech Tree
 
-No artificial locks. Faction access emerges from emoji vocabulary overlap.
+> **Terminology (canonical):** the word "vocabulary" is retired. A faction's set
+> of emojis is its **cloud** (atoms); a set of icons is a **signature**. This
+> mechanism gates on **cloud overlap** (shared emojis). See `docs/glossary/`.
+
+No artificial locks. Faction access emerges from emoji **cloud** overlap.
 A player who knows certain emojis can access certain factions — naturally.
 
 ## The Mechanism
 
-Each faction has a **signature vocabulary** (4-5 thematic emojis).
-A player can access a faction only if their known-icons set contains
-at least one emoji from that faction's signature.
+Each faction has a **cloud** (4-5 thematic atoms/emojis).
+A player can access a faction only if the emojis of their known icons (their own
+cloud) overlap at least one emoji in that faction's cloud.
 
 No menu. No unlock screen. Just overlap math.
 
