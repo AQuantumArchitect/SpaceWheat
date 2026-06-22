@@ -587,6 +587,27 @@ func get_observable_phase(emoji: String) -> float:
 	var bloch = _get_bloch_for_emoji(emoji)
 	return bloch.get("phi", 0.0) if not bloch.is_empty() else 0.0
 
+## Project the canonical quantum state (ρ) into the viz cache — the ONE place a
+## discrete state change becomes a readable projection. The evolution ticks already
+## refresh the cache every frame; call this after a mutation that BYPASSES the tick
+## (gate inject, measure) so the bubbles reflect the new state immediately — crucially
+## while the sim is PAUSED (Ace frame), when no tick will otherwise refresh them. The
+## cache is a pure derived projection of ρ; this keeps it from lagging into a stale read.
+func refresh_viz_projection() -> void:
+	if quantum_computer == null or viz_cache == null:
+		return
+	if not quantum_computer.has_method("export_bloch_packet"):
+		return
+	var num_qubits: int = quantum_computer.register_map.num_qubits if quantum_computer.register_map else 0
+	if num_qubits <= 0:
+		return
+	var packet: PackedFloat64Array = quantum_computer.export_bloch_packet()
+	if packet.size() > 0:
+		viz_cache.update_from_bloch_packet(packet, num_qubits)
+	if quantum_computer.has_method("get_purity"):
+		viz_cache.update_purity(quantum_computer.get_purity())
+
+
 func get_emoji_probability(emoji: String) -> float:
 	if not viz_cache:
 		return -1.0

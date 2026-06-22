@@ -716,6 +716,25 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 						bt_started.append(qi)
 				result["tracked"] = bt_started
 
+		"viz_bloch":
+			# Diagnostic: read the viz cache's per-qubit z (population proxy) AND the live
+			# qc's z, so a driver can verify the projection isn't stale after a discrete
+			# mutation (gate) with no evolution tick. They should match.
+			var vb_name: String = str(cmd.get("biome", "StarterForest"))
+			var vb_biome = _farm.grid.get_biome(vb_name) if _farm and _farm.grid else null
+			if vb_biome == null or not ("quantum_computer" in vb_biome) or vb_biome.quantum_computer == null:
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_biome_or_qc"}
+			else:
+				var vb_qc = vb_biome.quantum_computer
+				var vb_n: int = vb_qc.register_map.num_qubits if vb_qc.register_map else 0
+				var live_packet: PackedFloat64Array = vb_qc.export_bloch_packet() if vb_qc.has_method("export_bloch_packet") else PackedFloat64Array()
+				var per: Array = []
+				for qi in range(vb_n):
+					var cache_z: float = float(vb_biome.viz_cache.get_bloch(qi).get("z", 999.0)) if vb_biome.viz_cache else 999.0
+					var live_z: float = live_packet[qi * 9 + 4] if live_packet.size() > qi * 9 + 4 else 999.0
+					per.append({"qubit": qi, "cache_z": cache_z, "live_z": live_z})
+				result["qubits"] = per
+
 		"berry_state":
 			# Read per-qubit Berry-phase state (accumulated/ripe) + consumed totals.
 			var bs_name: String = str(cmd.get("biome", "StarterForest"))

@@ -489,10 +489,12 @@ func action_build_gate(positions: Array[Vector2i]) -> Dictionary:
 
 	if positions.size() == 2:
 		var result = GateActionHandler.create_bell_pair(farm, positions)
+		_refresh_viz_for_positions(positions)
 		action_performed.emit("build_gate", result)
 		return result
 	elif positions.size() > 2:
 		var result = GateActionHandler.cluster(farm, positions)
+		_refresh_viz_for_positions(positions)
 		action_performed.emit("build_gate", result)
 		return result
 	else:
@@ -512,6 +514,7 @@ func action_inspect(positions: Array[Vector2i]) -> Dictionary:
 func action_remove_gates(positions: Array[Vector2i]) -> Dictionary:
 	return _cost_action("remove_gates", positions, func():
 		var result = GateActionHandler.disentangle(farm, positions)
+		_refresh_viz_for_positions(positions)
 		action_performed.emit("remove_gates", result)
 		return result
 	)
@@ -1075,11 +1078,30 @@ func gate_inject(gate_name: String, positions: Array[Vector2i]) -> Dictionary:
 		return {"ok": false, "success": false, "error": "insufficient_resources", "message": cost_check.get("message", "Cannot afford %s" % gate_name), "cost": cost_check.get("cost", {})}
 	var result = gate_callable.call(farm, positions)
 	result["gate"] = gate_name
+	_refresh_viz_for_positions(positions)  # gate mutates ρ outside the tick — re-project now
 	action_performed.emit("gate_inject", result)
 	_notify_quest_projection("gate_inject:%s" % gate_name, result)
 	if result.get("success", false) or result.get("ok", false):
 		commit_action_cost(gate_name, {}, gate_name)
 	return result
+
+
+## Re-project the canonical state into the viz cache for every biome touched by these
+## positions. A gate mutates ρ directly (not via the evolution tick), so without this the
+## bubbles would show stale state until the next tick — which never comes while the sim is
+## paused. Routes through BiomeBase.refresh_viz_projection (the single ρ→viz projection).
+func _refresh_viz_for_positions(positions) -> void:
+	if not farm or not farm.grid:
+		return
+	var seen: Dictionary = {}
+	for pos in positions:
+		var bname: String = str(farm.grid.get_plot_biome_assignment(pos)) if farm.grid.has_method("get_plot_biome_assignment") else ""
+		if bname == "" or seen.has(bname):
+			continue
+		seen[bname] = true
+		var biome = farm.grid.get_biome(bname)
+		if biome and biome.has_method("refresh_viz_projection"):
+			biome.refresh_viz_projection()
 
 
 func lindblad_pump(positions: Array[Vector2i]) -> Dictionary:
