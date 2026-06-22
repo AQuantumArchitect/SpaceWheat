@@ -856,6 +856,13 @@ func complete_quest(quest_id: int) -> bool:
 	var player_icons2 = _get_signature_emojis()
 	var reward = QuestRewards.generate_reward(quest, null, player_icons2)
 	_grant_icon_rewards(reward, faction_name)
+	# Grant the coupling-tied RESOURCE reward — the market's payout. This is how a
+	# DELIVER contract hands back resources the player's biome can't POP (e.g. 🔨 from
+	# Millwright's Union). Previously only the exercise-outcome + icons were granted, so
+	# the planned resource reward was computed and silently dropped.
+	var plan_granted = _grant_resource_rewards(reward, faction_name)
+	for plan_emoji in plan_granted:
+		granted_resources[plan_emoji] = int(granted_resources.get(plan_emoji, 0)) + int(plan_granted[plan_emoji])
 	_apply_standing_deltas(faction_name, reward.standing_deltas if reward else {})
 
 	_finalize_quest_completion(quest_id, quest, reward, granted_resources)

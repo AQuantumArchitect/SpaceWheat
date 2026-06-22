@@ -15,9 +15,14 @@ extends RefCounted
 ## identical and flow through the same completion path + UI.
 
 
-## MARKET source: project a live MarketContract into a canonical delivery quest, deriving the
-## icon-pair vocab reward from the biome's neighborhood loadout so completing the delivery teaches
-## that axis. (Relocated from QuestManager._offer_from_market_lattice — same logic, now canonical.)
+## MARKET source: project a live MarketContract into a canonical delivery quest.
+##
+## DELIVER/market contracts reward RESOURCES tied to the OFFERING faction's Hamiltonian
+## couplings — so the market can hand back resources the player's own biome can't POP
+## (its whole purpose: access to scarce vocabulary like 🔨). Icon-teaching is NOT the
+## market's job — that lives in the physics-driven STORY quests (familiarity → icon).
+## The resource plan is pre-rolled here so the offer advertises exactly what completion
+## grants (generate_reward consumes a pre-rolled reward_resources verbatim).
 static func from_market_contract(contract, biome) -> Dictionary:
 	if contract == null:
 		return {}
@@ -30,12 +35,17 @@ static func from_market_contract(contract, biome) -> Dictionary:
 		return {}
 	raw["type"] = QuestTypes.Type.DELIVERY
 	raw["time_limit"] = 120.0
-	var pair := _vocab_pair_for_resource(str(raw.get("resource", "")), biome)
-	raw["reward_north"] = pair[0]
-	raw["reward_south"] = pair[1]
-	raw["reward_icon_north"] = pair[0]
-	raw["reward_icon_south"] = pair[1]
 	raw["reward_multiplier"] = 1.0
+	# No icon reward — market quests pay in resources, derived from the faction's
+	# coupling-cloud (can include resources the player has no mass in yet).
+	raw.erase("reward_north")
+	raw.erase("reward_south")
+	raw.erase("reward_icon_north")
+	raw.erase("reward_icon_south")
+	var faction_dict := FactionDatabase.get_faction_by_name(str(raw.get("faction", "")))
+	var planned := QuestRewards.plan_resource_rewards(raw, faction_dict)
+	if not planned.is_empty():
+		raw["reward_resources"] = planned
 	var quest := Quest.normalize(raw, Quest.SOURCE_MARKET)
 	QuestVoice.apply(quest)  # faction-voiced body/full_text (replaces the bland projection line)
 	return quest
@@ -109,26 +119,3 @@ static func from_tutorial_def(quest_def: Dictionary, quest_id: int) -> Dictionar
 		q[str(k)] = quest_def[k]
 	return q
 
-
-## Find the icon pair (north, south) whose pole contains `res_emoji` in the biome's loadout.
-## Returns ["", ""] if none found.
-static func _vocab_pair_for_resource(res_emoji: String, biome) -> Array:
-	if res_emoji == "" or biome == null:
-		return ["", ""]
-	var bname: String = ""
-	if biome.has_method("get_biome_type"):
-		bname = str(biome.get_biome_type())
-	if bname == "" and "name" in biome:
-		bname = str(biome.name)
-	if bname == "":
-		return ["", ""]
-	var breg = BiomeRegistry.get_shared()
-	var bdef = breg.get_by_name(bname) if bname != "" else null
-	if bdef == null or not bdef.has_method("get_neighborhood_icons"):
-		return ["", ""]
-	for icon in bdef.get_neighborhood_icons():
-		var p0: String = str(icon.get("pole_0", ""))
-		var p1: String = str(icon.get("pole_1", ""))
-		if p0 == res_emoji or p1 == res_emoji:
-			return [p0, p1]
-	return ["", ""]

@@ -252,16 +252,18 @@ static func _build_resource_reward_plan(quest: Dictionary, faction: Dictionary, 
 
 	var rewards: Dictionary = {}
 	var remaining = total_budget
-	var min_per_emoji = _reward_min_per_emoji_for_quantity(quantity)
+	# Every rewarded resource must be a POSITIVE integer — you can't be "rewarded" 0
+	# or a negative quantity. (The old remaining-budget clamp could drive late slots
+	# negative when the budget was thin relative to the selected count.)
+	var min_per_emoji = maxi(1, int(_reward_min_per_emoji_for_quantity(quantity)))
 	for i in range(selected.size()):
 		var emoji = selected[i]
-		var amount = min_per_emoji
+		var amount: int
 		if i == selected.size() - 1:
-			amount = max(min_per_emoji, remaining)
+			amount = maxi(min_per_emoji, int(remaining))
 		else:
 			var ratio = float(weights.get(emoji, 0.0)) / selected_weight_total
-			amount = max(min_per_emoji, int(round(total_budget * ratio)))
-			amount = min(amount, remaining - (selected.size() - i - 1) * min_per_emoji)
+			amount = maxi(min_per_emoji, int(round(total_budget * ratio)))
 		rewards[emoji] = amount
 		remaining -= amount
 
