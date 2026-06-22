@@ -60,6 +60,13 @@ var _in_submenu: bool = false  # Local UI cache for signal emission
 var _submenu_page: int = 0  # Local UI cache for signal emission
 var _confirm_pending: Dictionary = {}  # {action, emoji, label} — awaiting QF confirm
 
+## WASD crawl ring: 0=surface 1=frame 2=biome 3=plot. Owned HERE, co-located with
+## current_plot_idx (on _instrument) so the two can never desync — entering/leaving
+## the plot ring (layer 3) is the same mutation that selects/clears the plot. The
+## PlayerShell forwards the raw W/S/A/D + direct-pick keys and paints from the
+## cursor_layer_changed signal; it no longer holds its own copy of this state.
+var cursor_layer: int = 2
+
 # Signals
 signal action_performed(action: String, result: Dictionary)
 signal selection_changed(plot_idx: int, biome: String)
@@ -72,6 +79,10 @@ signal plot_checked(grid_pos: Vector2i, is_checked: bool)  # Multi-select checkb
 ## Cylinder outer-ring step. Emitted when A/D fires on layer=0 (ZXCVBNM surface ring).
 ## PlayerShell listens and dispatches to _cycle_menu_overlay.
 signal surface_ring_step_requested(delta: int)
+## Emitted whenever cursor_layer changes. PlayerShell connects this to repaint the
+## active ring (action bar + plot grid). Keeps the painter (PlayerShell, which holds
+## the chrome refs) decoupled from the owner (QII, which holds the state).
+signal cursor_layer_changed(layer: int)
 
 # Actions that modify density matrix at phrame 0 (require buffer invalidation)
 const BUFFER_INVALIDATING_ACTIONS: Array[String] = [
@@ -212,6 +223,19 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 
+	# Selection rows (formerly the separate _unhandled_input path): direct-pick a
+	# biome (TYUIOP), plot (GHJKL;), or subspace (M,./). Disjoint from the QERF
+	# quartet below, so order here is just precedence, not collision avoidance.
+	if _handle_biome_row_input(event):
+		get_viewport().set_input_as_handled()
+		return
+	if _handle_plot_row_input(event):
+		get_viewport().set_input_as_handled()
+		return
+	if _handle_subspace_row_input(event):
+		get_viewport().set_input_as_handled()
+		return
+
 	# Action keys
 	match key:
 		"Q", "E", "R":
@@ -239,71 +263,47 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 
 
-func _unhandled_input(event: InputEvent) -> void:
-	# Handle InputMap actions for biome/plot/subspace selection.
-
-	# Uses `_unhandled_input` (not `_input`) so that any overlay that consumes
-	# an event via `Viewport.set_input_as_handled()` — e.g. the X system menu
-	# while it's open — reliably shields gameplay selection. This is the
-	# standard Godot pattern for gameplay-layer input that should defer to UI.
-	if _handle_biome_row_input(event):
-		get_viewport().set_input_as_handled()
-		return
-
-	if _handle_plot_row_input(event):
-		get_viewport().set_input_as_handled()
-		return
-
-
-	if _handle_subspace_row_input(event):
-		get_viewport().set_input_as_handled()
-		return
-
+# The biome/plot/subspace selection rows used to live in a SECOND input callback
+# (`_unhandled_input`, InputMap-action driven) that raced `_unhandled_key_input`
+# by Godot priority. They are now decoded by raw keycode (via InputBindingRegistry,
+# the same shared ring source S3 introduced) and dispatched from the single
+# `_unhandled_key_input` path — one decode, one explicit precedence. Each helper
+# takes the live event so Shift state and consume signalling stay local.
 
 func _handle_biome_row_input(event: InputEvent) -> bool:
-	for i in range(InputBindingRegistry.BIOME_ACTIONS.size()):
-		if not event.is_action_pressed(InputBindingRegistry.BIOME_ACTIONS[i]):
-			continue
-
-		var key_label = InputBindingRegistry.BIOME_ACTIONS[i]
-		if _active_biome_mgr:
-			var slot_key = _active_biome_mgr.get_slot_key(i)
-			if slot_key != "":
-				key_label = slot_key
-
-		_select_biome(i, key_label)
-		return true
-
-	return false
+	var i: int = InputBindingRegistry.biome_index_for_keycode(event.keycode)
+	if i < 0:
+		return false
+	var key_label: String = InputBindingRegistry.BIOME_ACTIONS[i]
+	if _active_biome_mgr:
+		var slot_key = _active_biome_mgr.get_slot_key(i)
+		if slot_key != "":
+			key_label = slot_key
+	_select_biome(i, key_label)
+	return true
 
 
 func _handle_plot_row_input(event: InputEvent) -> bool:
-	for i in range(InputBindingRegistry.HOMEROW_ACTIONS.size()):
-		if not event.is_action_pressed(InputBindingRegistry.HOMEROW_ACTIONS[i]):
-			continue
-
-		if event.is_shift_pressed():
-			# Shift+GHJKL; — toggle checkbox without moving highlight
-			_toggle_check_at_plot_idx(i)
-		else:
-			# Plain GHJKL; — move highlight only (re-press on current plot toggles check)
-			_select_plot(i, InputBindingRegistry.HOMEROW_ACTIONS[i])
-		return true
-
-	return false
-
-
+	# 6 plot slots (G H J K L ;) — the 7th ring keycode (') is bulk-select, not a plot.
+	var i: int = InputBindingRegistry.plot_index_for_keycode(event.keycode, 6)
+	if i < 0:
+		return false
+	if event.is_shift_pressed():
+		# Shift+GHJKL; — toggle checkbox without moving highlight
+		_toggle_check_at_plot_idx(i)
+	else:
+		# Plain GHJKL; — move highlight only (re-press on current plot toggles check)
+		_select_plot(i, InputBindingRegistry.HOMEROW_ACTIONS[i])
+	return true
 
 
 func _handle_subspace_row_input(event: InputEvent) -> bool:
-	for i in range(InputBindingRegistry.SUBSPACE_ACTIONS.size()):
-		if not event.is_action_pressed(InputBindingRegistry.SUBSPACE_ACTIONS[i]):
-			continue
-
-		_select_subspace(i, InputBindingRegistry.SUBSPACE_ACTIONS[i])
-		return true
-
-	return false
+	var key := InputBindingRegistry.get_label_for_keycode(event.keycode)
+	var i: int = int(InputBindingRegistry.SUBSPACE_ROW.get(key, -1))
+	if i < 0:
+		return false
+	_select_subspace(i, key)
+	return true
 
 
 ## ============================================================================
@@ -856,6 +856,61 @@ func step_active_plot(delta: int) -> void:
 	var new_idx := wrapi(current_idx + delta, 0, register_count)
 	var key_label := "D" if delta > 0 else "A"
 	_select_plot(new_idx, key_label)
+
+
+## Single mutation point for cursor_layer (the WASD crawl ring). Idempotent.
+## Drives the plot-ring enter/leave lifecycle so cursor_layer==3 ⇔ a plot is
+## selected, then emits cursor_layer_changed for PlayerShell to repaint. This is
+## the one place the ring state changes — PlayerShell forwards here instead of
+## holding its own copy.
+func set_cursor_layer(layer: int) -> void:
+	layer = clampi(layer, 0, 3)
+	if cursor_layer == layer:
+		return
+	var old_layer := cursor_layer
+	cursor_layer = layer
+	# Plot ring lifecycle: entering → auto-select plot 0; leaving → clear selection.
+	if old_layer != 3 and layer == 3:
+		enter_plot_ring()
+	elif old_layer == 3 and layer != 3:
+		leave_plot_ring()
+	cursor_layer_changed.emit(layer)
+
+
+## Step the ring by ±delta (wraps across all 4 layers). Used by W/S spin.
+func change_cursor_layer(delta: int) -> void:
+	set_cursor_layer(posmod(cursor_layer + delta, 4))
+
+
+## ESCAPE: unwind exactly ONE gameplay level, innermost first. Returns true if it
+## consumed the ESC (so PlayerShell does NOT then open the system menu); false when
+## there's nothing left to unwind and ESC should fall through to the system menu.
+## Order: open submenu → pending destructive confirm → plot-ring selection.
+## (Overlay-stack unwinding is handled by PlayerShell before this is reached.)
+func try_escape_unwind() -> bool:
+	# 1. A submenu is the innermost modal — close it first.
+	if _instrument and _instrument.is_in_submenu():
+		_close_submenu()
+		return true
+	# 2. A pending destructive confirm — cancel it (loud, same as a non-F key).
+	if not _confirm_pending.is_empty():
+		var cancelled_label := str(_confirm_pending.get("label", "action"))
+		_confirm_pending = {}
+		var shell := _resolve_player_shell()
+		if shell and shell.has_method("show_hint"):
+			shell.show_hint("[color=#88aabb]%s cancelled[/color]" % cancelled_label, 2)
+		return true
+	# 3. The plot ring — step up to the biome ring; the leave_plot_ring lifecycle
+	#    clears the selection.
+	if cursor_layer == 3:
+		set_cursor_layer(2)
+		return true
+	# 3b. A plot is still selected while off the plot ring (e.g. kept across a biome
+	#     switch) — set_cursor_layer would no-op, so deselect directly.
+	if _instrument and int(_instrument.current_plot_idx) >= 0:
+		leave_plot_ring()
+		return true
+	return false
 
 
 ## Called by PlayerShell when WASD cursor enters the plot ring (layer 3).

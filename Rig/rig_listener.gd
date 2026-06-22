@@ -1241,6 +1241,22 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 		"full_snapshot":
 			result["snapshot"] = _snapshot_service.get_full_ui_snapshot() if _snapshot_service else {}
 
+		"instrument_state":
+			# Diagnostic: read back the dispatch result (cursor ring + selection +
+			# modal state) so a driver can verify input routing after key presses.
+			var qi = _resolve_quantum_input()
+			if qi == null:
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_quantum_input"}
+			else:
+				var inst = qi._instrument if ("_instrument" in qi) else null
+				result["cursor_layer"] = int(qi.cursor_layer) if ("cursor_layer" in qi) else -1
+				result["current_plot_idx"] = int(inst.current_plot_idx) if inst else -999
+				result["current_biome"] = str(inst.current_biome) if inst else ""
+				result["in_submenu"] = (inst and inst.has_method("is_in_submenu") and inst.is_in_submenu())
+				var cp = qi._confirm_pending if ("_confirm_pending" in qi) else {}
+				result["confirm_pending"] = not cp.is_empty()
+				result["confirm_label"] = str(cp.get("label", ""))
+
 		"press_key":
 			var keycode = _extract_keycode(cmd)
 			if keycode == KEY_UNKNOWN:
