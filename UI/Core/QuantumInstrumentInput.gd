@@ -663,16 +663,25 @@ func _execute_incorporate_icon() -> Dictionary:
 	var gsm = get_node_or_null("/root/GameStateManager")
 	if gsm == null or gsm.player_progress == null:
 		return {"success": false, "error": "no_player_progress"}
+	# Two distinct effects, decoupled:
+	#  • Harvest (consume): the qubit traced signed solid angle around its Bloch
+	#    sphere and returned ripe — that physics event ALWAYS happens on a ripe
+	#    incorporate. It bumps the per-biome berry counters (count + total phase)
+	#    that story beats read, and erases the entry so re-harvesting requires a
+	#    fresh track→ripen cycle (the ripening IS the cost — no spam).
+	#  • Learn (discover): grows the player signature only if the pair is NEW.
+	# A register whose icon you already know still yields harvestable phase.
 	var added: bool = gsm.player_progress.discover_icon(north, south)
-	if not added:
-		_verbose.info("input", "🧬", "Icon %s/%s already in signature (or north collides)" % [north, south])
-		return {"success": false, "error": "already_in_signature", "north_emoji": north, "south_emoji": south}
 	qc.berry_register.consume(qid)
-	_verbose.info("input", "🧬", "Incorporated %s/%s from qubit %d into signature" % [north, south, qid])
-	# Phase 2: trajectory + conv-H memory entry for the incorporation.
-	_notify_story_engine([north, south], "incorporate")
+	if added:
+		_verbose.info("input", "🧬", "Incorporated %s/%s from qubit %d into signature" % [north, south, qid])
+		# Phase 2: trajectory + conv-H memory entry for the new incorporation.
+		_notify_story_engine([north, south], "incorporate")
+	else:
+		_verbose.info("input", "🧬", "Re-harvested %s/%s (already in signature) — phase counted" % [north, south])
 	var result := {
 		"success": true,
+		"new_icon": added,
 		"north_emoji": north,
 		"south_emoji": south,
 		"qubit": qid,
