@@ -201,7 +201,22 @@ func build_operators_from_icons(biome_name: String, biome_icons: Array, atoms: D
 	# (or vice versa). Coherent state doesn't change which operators are built (H is always
 	# constructed), so only the dissipative flag gates the operator set.
 	var diss := "L1" if BalanceConfig.dissipative_enabled() else "L0"
-	var cache_key := biome_name + "_icons_" + "|".join(icon_sigs).md5_text() + "_atoms_" + JSON.stringify(atom_components).md5_text() + "_" + diss
+	# The cache key MUST reflect every input to HamiltonianBuilder.build_from_icons.
+	# Beyond the icon physics + atoms + dissipative flag, two inputs were historically
+	# missing and caused the dead-substrate bug (see #118 root cause): the register-map
+	# LAYOUT (an icon whose poles aren't in the map is skipped → an empty/zero H baked
+	# under a mismatched layout was served verbatim under a correct one) and the global
+	# hamiltonian_coupling_scale (it multiplies every off-diagonal coupling). Both are now
+	# in the key, so an entry built under a different layout/scale simply doesn't match.
+	var reg_sig: String = quantum_computer.register_map.signature() if quantum_computer.register_map else ""
+	var h_scale := float(BalanceConfig.get_physics().get("hamiltonian_coupling_scale", 1.0))
+	var h_scale_tag := "_hs%.6f" % h_scale
+	var cache_key: String = biome_name \
+		+ "_icons_" + "|".join(icon_sigs).md5_text() \
+		+ "_atoms_" + JSON.stringify(atom_components).md5_text() \
+		+ "_reg_" + reg_sig.md5_text() \
+		+ h_scale_tag \
+		+ "_" + diss
 
 	var cache = OperatorCache.get_instance()
 	var cached_ops = cache.try_load(biome_name, cache_key)
@@ -209,24 +224,6 @@ func build_operators_from_icons(biome_name: String, biome_icons: Array, atoms: D
 	var LindBuilder = load("res://Core/QuantumSubstrate/LindbladBuilder.gd")
 
 	var driven: Array = []
-
-	# Poisoned-cache guard. A cache entry whose Hamiltonian is all-zero while the
-	# icons carry real physics (self-energy / rabi) is a dead-substrate lie — it
-	# freezes every qubit, killing Berry-phase ripening and the whole progression
-	# loop. (The shipped BundledCache was baked entirely zero-H during a broken
-	# realization era.) Reject such hits and rebuild from the live icons so a stale
-	# or poisoned cache can never silently serve an inert physics again.
-	if not cached_ops.is_empty():
-		var icon_physics_mag := 0.0
-		for _ic in biome_icons:
-			icon_physics_mag += absf(float(_ic.self_energy_0)) + absf(float(_ic.self_energy_1)) + absf(float(_ic.rabi_coupling))
-		var cached_h = cached_ops.get("hamiltonian", null)
-		var cached_h_norm := 0.0
-		if cached_h and cached_h.has_method("frobenius_norm"):
-			cached_h_norm = cached_h.frobenius_norm()
-		if icon_physics_mag > 1e-9 and cached_h_norm < 1e-9:
-			push_warning("OperatorCache: rejected zero-Hamiltonian hit for '%s' (icons carry physics |se+rabi|=%.3f) — rebuilding from live icons." % [biome_name, icon_physics_mag])
-			cached_ops = {}
 
 	if not cached_ops.is_empty():
 		quantum_computer.hamiltonian = cached_ops.hamiltonian

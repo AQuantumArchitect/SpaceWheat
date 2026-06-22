@@ -15,7 +15,10 @@ extends RefCounted
 ##   1 — initial format (icon poles only).
 ##   2 — added hash(atom_components) suffix (Round 2, 2026-05-08).
 ##   3 — folded full icon physics fields into key (Round 7, 2026-05-08).
-const SCHEMA_VERSION: int = 3
+##   4 — added register-map layout signature + hamiltonian_coupling_scale (#118,
+##       2026-06-22). The missing register layout was the dead-substrate root cause:
+##       a zero-H baked under a mismatched layout was served under a correct one.
+const SCHEMA_VERSION: int = 4
 const SCHEMA_KEY: String = "__schema__"
 
 # User cache (runtime, modifiable)

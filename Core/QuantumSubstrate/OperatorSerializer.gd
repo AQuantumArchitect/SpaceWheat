@@ -5,19 +5,31 @@ extends RefCounted
 ## Used by OperatorCache to save/load cached operators
 
 
-## Convert ComplexMatrix to saveable Dictionary
+## Convert ComplexMatrix to saveable Dictionary.
+##
+## CRITICAL: read the matrix through `_to_packed()`, NOT the raw `_data` array.
+## After the packed-matrix optimization, a freshly built/derived matrix (e.g. the
+## output of HamiltonianBuilder's `_hermitianize` → add/scale) keeps its values in
+## the PackedFloat64Array / native backend, leaving the legacy `_data` Complex array
+## empty. Iterating `_data` directly serialized an all-zero Hamiltonian (`{"data":[],
+## "n":N}`) — the dead-substrate bug (#118) that froze every qubit. `_to_packed()`
+## canonically pulls from native → packed regardless of which backend is live.
 static func serialize_matrix(matrix: ComplexMatrix) -> Dictionary:
 	if not matrix:
 		return {}
 
+	var n: int = matrix.n
 	var data = {
-		"n": matrix.n,  # Dimension (n×n square matrix)
+		"n": n,  # Dimension (n×n square matrix)
 		"data": []
 	}
 
-	# Serialize complex numbers as [re, im] pairs
-	for c in matrix._data:  # Note: _data is the internal array
-		data.data.append([c.re, c.im])
+	# Dense [re, im] pairs, read from the authoritative packed representation.
+	var packed: PackedFloat64Array = matrix._to_packed()
+	var count: int = n * n
+	if packed.size() >= count * 2:
+		for idx in range(count):
+			data.data.append([packed[idx * 2], packed[idx * 2 + 1]])
 
 	return data
 
