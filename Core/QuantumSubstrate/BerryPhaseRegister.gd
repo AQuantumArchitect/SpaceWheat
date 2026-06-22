@@ -48,7 +48,10 @@ func integrate_step(packed: PackedFloat64Array, num_qubits: int) -> void:
 		return
 	if packed.is_empty() or num_qubits <= 0:
 		return
-	var stride := 8
+	# QuantumComputer.export_bloch_packet() layout is stride-9 per qubit:
+	# [p0, p1, x, y, z, r, theta, phi, r_xy]. (Was 8 before the packed-matrix
+	# optimization added a field; the stale 8 misaligned every qubit past #0.)
+	var stride := 9
 	if packed.size() < num_qubits * stride:
 		return
 	var to_remove: Array = []

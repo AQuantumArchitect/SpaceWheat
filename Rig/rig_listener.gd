@@ -695,6 +695,161 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				result["flags_fired"] = farm.story_flags_fired.duplicate() if "story_flags_fired" in farm else {}
 				result["story_log"] = farm.story_log.duplicate(true) if "story_log" in farm else []
 
+		"berry_track":
+			# Start Berry-phase tracking on qubit(s) of a biome (test harness for the
+			# incorporation loop, bypassing the Icon-hat keypress ritual).
+			var bt_name: String = str(cmd.get("biome", "StarterForest"))
+			var bt_biome = _farm.grid.get_biome(bt_name) if _farm and _farm.grid else null
+			if bt_biome == null or not ("quantum_computer" in bt_biome) or bt_biome.quantum_computer == null:
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_biome_or_qc"}
+			else:
+				var bt_qc = bt_biome.quantum_computer
+				var bt_n: int = bt_qc.register_map.num_qubits if bt_qc.register_map else 0
+				var bt_qubit = cmd.get("qubit", -1)
+				var bt_started: Array = []
+				if int(bt_qubit) >= 0:
+					bt_qc.berry_register.start_tracking(int(bt_qubit))
+					bt_started.append(int(bt_qubit))
+				else:
+					for qi in range(bt_n):
+						bt_qc.berry_register.start_tracking(qi)
+						bt_started.append(qi)
+				result["tracked"] = bt_started
+
+		"berry_state":
+			# Read per-qubit Berry-phase state (accumulated/ripe) + consumed totals.
+			var bs_name: String = str(cmd.get("biome", "StarterForest"))
+			var bs_biome = _farm.grid.get_biome(bs_name) if _farm and _farm.grid else null
+			if bs_biome == null or not ("quantum_computer" in bs_biome) or bs_biome.quantum_computer == null:
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_biome_or_qc"}
+			else:
+				var bs_qc = bs_biome.quantum_computer
+				var bs_n: int = bs_qc.register_map.num_qubits if bs_qc.register_map else 0
+				var br = bs_qc.berry_register
+				var per: Array = []
+				for qi in range(bs_n):
+					per.append({
+						"qubit": qi,
+						"tracked": br.is_tracked(qi),
+						"phase": br.get_phase(qi),
+						"ripe": br.is_ripe(qi),
+						"threshold": br.get_ripe_threshold(qi),
+					})
+				result["qubits"] = per
+				result["consumed_count"] = br.get_consumed_count()
+				result["consumed_phase"] = br.get_consumed_phase()
+
+		"realization_debug":
+			# Pinpoint why a biome's H is empty: emojis basis, native_factions, per-faction
+			# registry icons (with poles), and the final realized neighborhood icon list.
+			var rd_name: String = str(cmd.get("biome", "StarterForest"))
+			var rd_biome = _farm.grid.get_biome(rd_name) if _farm and _farm.grid else null
+			if rd_biome == null:
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_biome"}
+			else:
+				result["emojis"] = rd_biome.emojis if "emojis" in rd_biome else []
+				var nf = rd_biome.get_native_factions() if rd_biome.has_method("get_native_factions") else []
+				result["native_factions"] = nf
+				var reg = get_root().get_node_or_null("IconRegistry")
+				var per_fac: Dictionary = {}
+				if reg:
+					for fname in nf:
+						var ics = reg.get_icons_for_faction(str(fname))
+						var brief: Array = []
+						for ic in ics:
+							if ic is Dictionary:
+								brief.append("%s/%s" % [str(ic.get("pole_0", "")), str(ic.get("pole_1", ""))])
+						per_fac[str(fname)] = brief
+				result["registry_icons_per_faction"] = per_fac
+				# Also query the registry DIRECTLY for any explicitly-requested factions,
+				# independent of what the runtime biome reports — separates "registry empty"
+				# from "biome data not transferred to runtime".
+				var probe_facs = cmd.get("probe_factions", [])
+				var direct: Dictionary = {}
+				if reg and probe_facs is Array:
+					for fname in probe_facs:
+						var ics2 = reg.get_icons_for_faction(str(fname))
+						var brief2: Array = []
+						for ic in ics2:
+							if ic is Dictionary:
+								brief2.append("%s/%s" % [str(ic.get("pole_0", "")), str(ic.get("pole_1", ""))])
+						direct[str(fname)] = brief2
+				result["registry_direct_query"] = direct
+				# Compare the canonical BiomeRegistry record vs this runtime/grid biome:
+				# if registry has native_factions/emojis but runtime doesn't, the build
+				# pipeline drops them (fix = thread through); if registry is ALSO empty,
+				# the loader is broken.
+				var breg = get_root().get_node_or_null("BiomeRegistry")
+				if breg == null:
+					var BR = load("res://Core/Biomes/BiomeRegistry.gd")
+					if BR and BR.has_method("get_shared"):
+						breg = BR.get_shared()
+				if breg and breg.has_method("get_by_name"):
+					var canon = breg.get_by_name(rd_name)
+					if canon:
+						result["registry_biome_native_factions"] = canon.get_native_factions() if canon.has_method("get_native_factions") else (canon.native_factions if "native_factions" in canon else "n/a")
+						result["registry_biome_emojis"] = canon.emojis if "emojis" in canon else "n/a"
+						result["runtime_vs_registry_same_object"] = (canon == rd_biome)
+					else:
+						result["registry_biome_native_factions"] = "get_by_name->null"
+				if rd_biome.has_method("get_neighborhood_icons"):
+					var nbh = rd_biome.get_neighborhood_icons()
+					var nbh_brief: Array = []
+					for e in nbh:
+						if e is Dictionary:
+							nbh_brief.append("%s/%s" % [str(e.get("pole_0", "")), str(e.get("pole_1", ""))])
+					result["realized_neighborhood_icons"] = nbh_brief
+				# Decisive: for the CANONICAL biome's realized pairs, does the registry
+				# return non-zero Hamiltonian physics (se0/se1/rabi)? Zero ⇒ physics never
+				# reached H ⇒ the real H≡0 cause.
+				var canon_for_phys = breg.get_by_name(rd_name) if (breg and breg.has_method("get_by_name")) else null
+				if canon_for_phys and canon_for_phys.has_method("get_neighborhood_icons") and reg and reg.has_method("get_icon_physics_by_pair"):
+					var phys_report: Array = []
+					for e in canon_for_phys.get_neighborhood_icons():
+						if not (e is Dictionary):
+							continue
+						var pp0 := str(e.get("pole_0", ""))
+						var pp1 := str(e.get("pole_1", ""))
+						var ph = reg.get_icon_physics_by_pair(pp0, pp1)
+						phys_report.append("%s/%s se0=%.4f se1=%.4f rabi=%.4f hc=%d" % [
+							pp0, pp1,
+							float(ph.get("self_energy_0", 0.0)), float(ph.get("self_energy_1", 0.0)),
+							float(ph.get("rabi_coupling", 0.0)),
+							(ph.get("hamiltonian_couplings", {}) as Dictionary).size() if ph.get("hamiltonian_couplings", {}) is Dictionary else 0])
+					result["canonical_realized_physics"] = phys_report
+
+		"hamiltonian_stats":
+			# Does this biome's H actually drive dynamics? Report total / off-diagonal /
+			# diagonal-spread norms. Off-diagonal ~0 + tiny spread ⇒ no precession ⇒ the
+			# Berry mechanic can never ripen (the real campaign blocker).
+			var hs_name: String = str(cmd.get("biome", "StarterForest"))
+			var hs_biome = _farm.grid.get_biome(hs_name) if _farm and _farm.grid else null
+			var hs_qc = hs_biome.quantum_computer if (hs_biome and "quantum_computer" in hs_biome) else null
+			var H = hs_qc.hamiltonian if hs_qc else null
+			if H == null:
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_hamiltonian"}
+			else:
+				var hs_n: int = int(H.n)
+				var total_sq := 0.0
+				var offdiag_sq := 0.0
+				var dmin := INF
+				var dmax := -INF
+				for i in range(hs_n):
+					for j in range(hs_n):
+						var mag: float = H.get_element(i, j).abs()
+						total_sq += mag * mag
+						if i != j:
+							offdiag_sq += mag * mag
+						else:
+							dmin = min(dmin, H.get_element(i, j).re)
+							dmax = max(dmax, H.get_element(i, j).re)
+				result["dim"] = hs_n
+				result["frobenius"] = sqrt(total_sq)
+				result["offdiagonal_norm"] = sqrt(offdiag_sq)
+				result["diag_min"] = dmin if dmin != INF else 0.0
+				result["diag_max"] = dmax if dmax != -INF else 0.0
+				result["diag_spread"] = (dmax - dmin) if (dmax != -INF and dmin != INF) else 0.0
+
 		"inject_icon":
 			var biome_name = str(cmd.get("biome", ""))
 			if biome_name != "":

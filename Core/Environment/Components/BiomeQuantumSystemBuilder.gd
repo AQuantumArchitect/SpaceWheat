@@ -210,6 +210,24 @@ func build_operators_from_icons(biome_name: String, biome_icons: Array, atoms: D
 
 	var driven: Array = []
 
+	# Poisoned-cache guard. A cache entry whose Hamiltonian is all-zero while the
+	# icons carry real physics (self-energy / rabi) is a dead-substrate lie — it
+	# freezes every qubit, killing Berry-phase ripening and the whole progression
+	# loop. (The shipped BundledCache was baked entirely zero-H during a broken
+	# realization era.) Reject such hits and rebuild from the live icons so a stale
+	# or poisoned cache can never silently serve an inert physics again.
+	if not cached_ops.is_empty():
+		var icon_physics_mag := 0.0
+		for _ic in biome_icons:
+			icon_physics_mag += absf(float(_ic.self_energy_0)) + absf(float(_ic.self_energy_1)) + absf(float(_ic.rabi_coupling))
+		var cached_h = cached_ops.get("hamiltonian", null)
+		var cached_h_norm := 0.0
+		if cached_h and cached_h.has_method("frobenius_norm"):
+			cached_h_norm = cached_h.frobenius_norm()
+		if icon_physics_mag > 1e-9 and cached_h_norm < 1e-9:
+			push_warning("OperatorCache: rejected zero-Hamiltonian hit for '%s' (icons carry physics |se+rabi|=%.3f) — rebuilding from live icons." % [biome_name, icon_physics_mag])
+			cached_ops = {}
+
 	if not cached_ops.is_empty():
 		quantum_computer.hamiltonian = cached_ops.hamiltonian
 		quantum_computer.lindblad_operators = cached_ops.lindblad_operators
