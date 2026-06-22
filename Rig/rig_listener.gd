@@ -1287,6 +1287,26 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				result["confirm_pending"] = not cp.is_empty()
 				result["confirm_label"] = str(cp.get("label", ""))
 
+		"submenu_state":
+			# Diagnostic: read the open submenu (e.g. icon_injection) so a driver can find
+			# which Q/E/R slot (and page) holds a given icon before selecting it.
+			var qis = _resolve_quantum_input()
+			if qis == null:
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_quantum_input"}
+			else:
+				var inst2 = qis._instrument if ("_instrument" in qis) else null
+				result["in_submenu"] = (inst2 and inst2.has_method("is_in_submenu") and inst2.is_in_submenu())
+				result["submenu_page"] = int(qis._submenu_page) if ("_submenu_page" in qis) else 0
+				var sm = qis._current_submenu if ("_current_submenu" in qis) else {}
+				var acts = sm.get("actions", {}) if sm is Dictionary else {}
+				var slots: Dictionary = {}
+				for slot_key in ["Q", "E", "R"]:
+					if acts.has(slot_key):
+						var a = acts[slot_key]
+						var ic = a.get("icon", {}) if a is Dictionary else {}
+						slots[slot_key] = {"label": str(a.get("label", "")), "north": str(ic.get("north", "")), "south": str(ic.get("south", ""))}
+				result["slots"] = slots
+
 		"press_key":
 			var keycode = _extract_keycode(cmd)
 			if keycode == KEY_UNKNOWN:

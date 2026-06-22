@@ -808,9 +808,12 @@ func _select_plot(plot_idx: int, key: String) -> void:
 	if farm and farm.grid_config and plot_idx >= farm.grid_config.grid_width:
 		_verbose.debug("input", "•", "Plot %d outside grid width %d" % [plot_idx, farm.grid_config.grid_width])
 		return
-	var register_count = _get_active_biome_register_count()
-	if register_count > 0 and plot_idx >= register_count:
-		_verbose.debug("input", "•", "Plot %d exceeds registers (%d)" % [plot_idx, register_count])
+	# Allow focusing an EMPTY plot the biome owns (assigned plots ≥ registers): an
+	# empty plot is where you PLANT (inject) a new icon — Icon-R there opens the
+	# injection submenu. Only reject plots the biome doesn't own at all.
+	var plot_count = _get_active_biome_plot_count()
+	if plot_count > 0 and plot_idx >= plot_count:
+		_verbose.debug("input", "•", "Plot %d exceeds biome plots (%d)" % [plot_idx, plot_count])
 		return
 
 	# Get current active biome
@@ -1813,6 +1816,17 @@ func _get_active_biome_register_count() -> int:
 	if biome and biome.quantum_computer and biome.quantum_computer.register_map:
 		return biome.quantum_computer.register_map.num_qubits
 	return 0
+
+
+func _get_active_biome_plot_count() -> int:
+	# Number of grid plots the active biome owns (≥ register count — the extra,
+	# register-less plots are empty slots where new icons can be planted/injected).
+	if not farm or not farm.grid or not _active_biome_mgr:
+		return 0
+	var biome_name = _active_biome_mgr.get_active_biome()
+	if biome_name == "" or not farm.grid.has_method("get_plot_positions_for_biome"):
+		return 0
+	return farm.grid.get_plot_positions_for_biome(biome_name).size()
 
 
 func _get_selected_positions() -> Array[Vector2i]:
