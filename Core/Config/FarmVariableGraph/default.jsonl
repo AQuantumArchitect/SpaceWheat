@@ -20,8 +20,8 @@
 {"op":"set","path":"tuning.market_temperature_entropy_gain","value":1.0}
 {"op":"set","path":"tuning.reap_starting_tokens","value":6}
 {"op":"set","path":"tuning.reap_cost_sequence","value":[1,1,2,3,5,8,13,21]}
-{"op":"set","path":"tuning.vocab_r_bonus","value":1.0}
-{"op":"set","path":"tuning.vocab_reward_exponent","value":2.0}
+{"op":"set","path":"tuning.signature_r_bonus","value":1.0}
+{"op":"set","path":"tuning.signature_reward_exponent","value":2.0}
 # Static action + gate costs — the canonical home for every fixed cost. Dynamic costs
 # (inject_icon / spark / lindblad — computed from context) stay as formulas in code.
 {"op":"set","path":"action_costs.explore","value":{}}

@@ -215,7 +215,7 @@ static func compute_market_projection(quest: Dictionary, icon_map: Dictionary = 
 
 static func _build_resource_reward_plan(quest: Dictionary, faction: Dictionary, deterministic: bool, icon_map: Dictionary = {}) -> Dictionary:
 	var faction_name = quest.get("faction", faction.get("name", ""))
-	var signature = quest.get("faction_signature", faction.get("sig", faction.get("signature", [])))
+	var signature = quest.get("faction_signature", faction.get("cloud", []))
 	var faction_dynamic = _get_faction_dynamic_data(faction_name, signature)
 
 	var resolved_icon_map := _resolve_reward_icon_map(quest, faction_dynamic, icon_map)
@@ -338,7 +338,7 @@ static func _compute_interference_reward_profile(faction_data: Dictionary, icon_
 
 	# This boosts reward weight where faction couplings and player mass gradients
 	# constructively interfere.
-	var signature = faction_data.get("sig", [])
+	var signature = faction_data.get("cloud", [])
 	if signature.is_empty():
 		return {"weights": {}, "interference_strength": 0.0}
 	var by_emoji: Dictionary = icon_map.get("by_emoji", {})
@@ -423,7 +423,7 @@ static func _resolve_reward_icon_map(quest: Dictionary, faction_data: Dictionary
 	if icon_map is Dictionary and icon_map.has("by_emoji"):
 		var by_emoji = icon_map.get("by_emoji", {})
 		if by_emoji is Dictionary and not by_emoji.is_empty():
-			var signature = faction_data.get("sig", [])
+			var signature = faction_data.get("cloud", [])
 			for emoji in signature:
 				if by_emoji.has(str(emoji)):
 					return icon_map
@@ -438,7 +438,7 @@ static func _quest_reward_emojis(quest: Dictionary, faction_data: Dictionary) ->
 	var available = quest.get("available_emojis", [])
 	if available is Array and not available.is_empty():
 		return available.duplicate()
-	var signature = quest.get("faction_signature", faction_data.get("sig", faction_data.get("signature", [])))
+	var signature = quest.get("faction_signature", faction_data.get("cloud", []))
 	if signature is Array and not signature.is_empty():
 		return signature.duplicate()
 	return out
@@ -594,7 +594,7 @@ static func select_vocabulary_reward(faction: Dictionary, bath, player_vocab: Ar
 	# Returns:
 	# Emoji string to teach, or "" if none available
 	# Faction data uses "sig" key (short for signature)
-	var signature = faction.get("sig", faction.get("signature", []))
+	var signature = faction.get("cloud", [])
 
 	# Filter to unknown signature
 	var unknown = []
@@ -721,7 +721,7 @@ static func generate_icon_modification(faction: Dictionary, quest: Dictionary) -
 	# IconModification with faction-appropriate changes
 	var mod = IconModification.new()
 	var faction_name = faction.get("name", "Unknown")
-	var faction_sig = faction.get("sig", faction.get("signature", []))
+	var faction_sig = faction.get("cloud", [])
 
 	# Pick an emoji from faction signature for modification
 	var target_emoji = quest.get("resource", "")

@@ -59,8 +59,8 @@ func discover_icon(north: String, south: String) -> bool:
 				if _verbose:
 					_verbose.info("quest", "🔓", "Unlocked %d new faction(s)!" % newly_accessible.size())
 					for faction in newly_accessible:
-						var sig = faction.get("sig", [])
-						_verbose.info("quest", "-", "%s %s" % ["".join(sig.slice(0, 3)), faction.get("name", "?")])
+						var cloud = faction.get("cloud", [])
+						_verbose.info("quest", "-", "%s %s" % ["".join(cloud.slice(0, 3)), faction.get("name", "?")])
 
 	if MILK_EMOJI in new_emojis and MILK_EMOJI not in old_emojis:
 		handle_milk_autosave(north, south)
@@ -98,9 +98,9 @@ func handle_milk_autosave(north: String, south: String) -> void:
 func check_newly_accessible_factions(_new_emoji: String, old_emojis: Array, new_emojis: Array) -> Array:
 	var newly_accessible = []
 	for faction in FactionDatabase.get_all():
-		var faction_vocab = FactionDatabase.get_faction_vocabulary(faction)
-		var old_overlap = FactionDatabase.get_vocabulary_overlap(faction_vocab.all, old_emojis)
-		var new_overlap = FactionDatabase.get_vocabulary_overlap(faction_vocab.all, new_emojis)
+		var faction_cloud = FactionDatabase.get_faction_cloud(faction)
+		var old_overlap = FactionDatabase.get_cloud_overlap(faction_cloud.all, old_emojis)
+		var new_overlap = FactionDatabase.get_cloud_overlap(faction_cloud.all, new_emojis)
 		if old_overlap.is_empty() and not new_overlap.is_empty():
 			newly_accessible.append(faction)
 	return newly_accessible
@@ -110,8 +110,8 @@ func get_accessible_factions() -> Array:
 	var accessible = []
 	var known_emojis = get_signature_emojis()
 	for faction in FactionDatabase.get_all():
-		var faction_vocab = FactionDatabase.get_faction_vocabulary(faction)
-		var overlap = FactionDatabase.get_vocabulary_overlap(faction_vocab.all, known_emojis)
+		var faction_cloud = FactionDatabase.get_faction_cloud(faction)
+		var overlap = FactionDatabase.get_cloud_overlap(faction_cloud.all, known_emojis)
 		if not overlap.is_empty():
 			accessible.append(faction)
 	return accessible
