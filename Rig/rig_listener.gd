@@ -682,6 +682,11 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				active = []
 			result["quests"] = active if full else _slim_active_quests(active)
 
+		"story_offers":
+			# Pending story arc-quest offers (separate from market offers).
+			var sqm = _resolve_quest_manager()
+			result["story_offers"] = sqm.get_story_offers() if sqm and sqm.has_method("get_story_offers") else []
+
 		"known_icons":
 			var icons = _instrument.get_known_icons() if _instrument else []
 			result["icons"] = icons if icons is Array else []

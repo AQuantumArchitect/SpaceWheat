@@ -112,7 +112,18 @@
         "trust": 0.04
       }
     },
-    "arc_quest": null
+    "arc_quest": {
+      "type": "DELIVER",
+      "body": "Apprentice to the Mill — bring the Millwright's Union grain and they will teach you the windmill (💨/🔨).",
+      "hint": "Deliver 🍞 to the Millwright's Union to LEARN the Mill icon, then PLANT it in the Village to wake the gears.",
+      "faction": "Millwright's Union",
+      "resource": "🍞",
+      "quantity": 5,
+      "reward_north": "💨",
+      "reward_south": "🔨",
+      "reward_icon_north": "💨",
+      "reward_icon_south": "🔨"
+    }
   },
   {
     "id": "lumber_flows",
