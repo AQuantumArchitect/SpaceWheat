@@ -549,21 +549,23 @@ func rebuild_from_icons() -> void:
 	_reload_all()
 
 
-func get_signature_physics(signature: Array) -> Dictionary:
+## Physics over a CLOUD (set of atoms): per-atom self-energy + Hamiltonian
+## couplings. Returns {cloud, self_energies, hamiltonian}.
+func get_cloud_physics(cloud: Array) -> Dictionary:
 	var out: Dictionary = {
-		"sig": [],
+		"cloud": [],
 		"self_energies": {},
 		"hamiltonian": {},
 	}
-	if signature.is_empty():
+	if cloud.is_empty():
 		return out
 	var seen: Dictionary = {}
-	for raw_emoji in signature:
+	for raw_emoji in cloud:
 		var emoji := str(raw_emoji)
 		if emoji == "" or seen.has(emoji):
 			continue
 		seen[emoji] = true
-		out["sig"].append(emoji)
+		out["cloud"].append(emoji)
 		var atom = get_atom(emoji)
 		if atom == null:
 			continue

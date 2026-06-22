@@ -136,8 +136,8 @@ def _format_game_state(
         for i, o in enumerate(offers[:4]):
             faction = o.get("faction", "?")
             reward = o.get("reward_resources", o.get("reward", "?"))
-            vocab_n = o.get("reward_vocab_north", "")
-            vocab_s = o.get("reward_vocab_south", "")
+            vocab_n = o.get("reward_icon_north", "")
+            vocab_s = o.get("reward_icon_south", "")
             vocab_info = f" vocab={vocab_n}/{vocab_s}" if (vocab_n or vocab_s) else ""
             lines.append(f"  {i+1}. [{faction}] reward={reward}{vocab_info}")
     else:

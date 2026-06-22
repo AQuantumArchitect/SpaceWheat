@@ -106,8 +106,8 @@ static func generate_reward(quest: Dictionary, _bath, player_vocab: Array) -> Qu
 			reward.learned_pairs.append({
 				"north": north,
 				"south": south,
-				"weight": quest.get("reward_vocab_weight", 0.0),
-				"probability": quest.get("reward_vocab_probability", 0.0)
+				"weight": quest.get("reward_icon_weight", 0.0),
+				"probability": quest.get("reward_icon_probability", 0.0)
 			})
 		else:
 			# Single emoji (no connections found at creation time)
@@ -289,32 +289,32 @@ static func _apply_reward_tuning(rewards: Dictionary, quest: Dictionary) -> Dict
 	return rewards
 
 
-static func _get_faction_dynamic_data(faction_name: String, fallback_signature: Array) -> Dictionary:
-	var signature: Array = fallback_signature.duplicate()
+static func _get_faction_dynamic_data(faction_name: String, fallback_cloud: Array) -> Dictionary:
+	var cloud: Array = fallback_cloud.duplicate()
 	if faction_name != "":
 		var registry = FactionRegistry.get_shared()
 		if registry:
 			var faction_obj = registry.get_by_name(faction_name)
 			if faction_obj and faction_obj.cloud is Array and not faction_obj.cloud.is_empty():
-				signature = faction_obj.cloud.duplicate()
+				cloud = faction_obj.cloud.duplicate()
 
-	if signature.is_empty():
+	if cloud.is_empty():
 		return {
-			"sig": [],
+			"cloud": [],
 			"hamiltonian": {},
 			"self_energies": {},
 			"lindblad_outgoing": {}
 		}
 
 	var icon_registry = _get_icon_registry()
-	if icon_registry != null and icon_registry.has_method("get_signature_physics"):
-		var live_physics: Dictionary = icon_registry.get_signature_physics(signature)
+	if icon_registry != null and icon_registry.has_method("get_cloud_physics"):
+		var live_physics: Dictionary = icon_registry.get_cloud_physics(cloud)
 		if not live_physics.is_empty():
-			live_physics["sig"] = signature.duplicate()
+			live_physics["cloud"] = cloud.duplicate()
 			return live_physics
 
 	return {
-		"sig": signature.duplicate(),
+		"cloud": cloud.duplicate(),
 		"hamiltonian": {},
 		"self_energies": {},
 		"lindblad_outgoing": {}

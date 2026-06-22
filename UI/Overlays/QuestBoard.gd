@@ -1507,12 +1507,12 @@ func _faction_card_tooltip(quest_name: String, farm) -> String:
 	if not bool(card.get("present", false)):
 		return ""
 	var standing: float = float(card.get("standing", 0.0))
-	var sig_arr: Array = card.get("signature", [])
+	var cloud_arr: Array = card.get("cloud", [])
 	var biomes_arr: Array = card.get("biomes_of_presence", [])
 	var lines: Array[String] = []
 	lines.append("%s  ·  standing %+.2f" % [quest_name, standing])
-	if not sig_arr.is_empty():
-		lines.append("speaks: " + " ".join(sig_arr))
+	if not cloud_arr.is_empty():
+		lines.append("speaks: " + " ".join(cloud_arr))
 	if not biomes_arr.is_empty():
 		lines.append("biomes: " + ", ".join(biomes_arr))
 	return "\n".join(lines)

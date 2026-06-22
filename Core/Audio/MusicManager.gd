@@ -1456,7 +1456,7 @@ func _rebuild_cache() -> void:
 				emoji_set[emoji] = true
 
 	for faction in factions:
-		for emoji in faction.get("signature", []):
+		for emoji in faction.get("cloud", []):
 			if not emoji.is_empty() and not emoji.is_valid_identifier():
 				emoji_set[emoji] = true
 		for emoji in faction.get("hamiltonian", {}).keys():
@@ -1482,17 +1482,17 @@ func _rebuild_cache() -> void:
 	var emoji_aggregates: Dictionary = {}  # emoji -> {emojis: Set, weights: Dict}
 
 	for faction in factions:
-		var signature: Array = faction.get("signature", [])
+		var cloud: Array = faction.get("cloud", [])
 		var hamiltonian: Dictionary = faction.get("hamiltonian", {})
 		var _self_energies: Dictionary = faction.get("self_energies", {})
 
-		# Each emoji in the signature gets associated with all other emojis in this faction
-		for emoji in signature:
+		# Each emoji in the cloud gets associated with all other emojis in this faction
+		for emoji in cloud:
 			if not emoji_aggregates.has(emoji):
 				emoji_aggregates[emoji] = {"emojis": {}, "weights": {}}
 
-			# Add all signature emojis
-			for other in signature:
+			# Add all cloud emojis
+			for other in cloud:
 				emoji_aggregates[emoji]["emojis"][other] = true
 				var weight: float = emoji_aggregates[emoji]["weights"].get(other, 0.0)
 				emoji_aggregates[emoji]["weights"][other] = weight + 1.0

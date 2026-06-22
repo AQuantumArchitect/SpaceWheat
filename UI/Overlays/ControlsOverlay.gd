@@ -705,14 +705,14 @@ func _render_faction_card(farm, faction_name: String) -> void:
 	if not bool(card.get("present", false)):
 		return
 
-	var signature: Array = card.get("signature", [])
-	if not signature.is_empty():
+	var cloud: Array = card.get("cloud", [])
+	if not cloud.is_empty():
 		_body_box.add_child(_make_spacer(4))
-		var sig_lbl := Label.new()
-		sig_lbl.text = "signature  " + " ".join(signature)
-		sig_lbl.add_theme_font_size_override("font_size", 11)
-		sig_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
-		_body_box.add_child(sig_lbl)
+		var cloud_lbl := Label.new()
+		cloud_lbl.text = "cloud  " + " ".join(cloud)
+		cloud_lbl.add_theme_font_size_override("font_size", 11)
+		cloud_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
+		_body_box.add_child(cloud_lbl)
 
 	var affinity: Array = card.get("affinity", [])
 	if not affinity.is_empty():
@@ -1743,9 +1743,9 @@ func _self_inspect_text() -> String:
 		return ""
 	var lines: Array[String] = []
 	lines.append("%s · standing %+.2f" % [spot, float(card.get("standing", 0.0))])
-	var sig: Array = card.get("signature", [])
-	if not sig.is_empty():
-		lines.append("speaks: " + " ".join(sig))
+	var cloud: Array = card.get("cloud", [])
+	if not cloud.is_empty():
+		lines.append("speaks: " + " ".join(cloud))
 	var bio: Array = card.get("biomes_of_presence", [])
 	if not bio.is_empty():
 		lines.append("biomes: " + ", ".join(bio))

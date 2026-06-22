@@ -62,8 +62,8 @@ static func from_biome(biome, icon_registry = null, faction_registry = null) -> 
 
 	# --- Coherent edges (undirected H) + per-node self-energy, from icon physics ---
 	var ir = icon_registry if icon_registry != null else g._resolve_icon_registry()
-	if ir != null and ir.has_method("get_signature_physics"):
-		var phys: Dictionary = ir.get_signature_physics(signature)
+	if ir != null and ir.has_method("get_cloud_physics"):
+		var phys: Dictionary = ir.get_cloud_physics(signature)
 		var self_e: Dictionary = phys.get("self_energies", {})
 		for n in g.nodes:
 			n["self_energy"] = float(self_e.get(n["north"], 0.0)) + float(self_e.get(n["south"], 0.0))

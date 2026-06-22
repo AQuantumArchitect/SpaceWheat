@@ -30,7 +30,7 @@ var _pending_pair_scope: Array = []  # [biome_a_name, biome_b_name] passed from 
 # Active overlay is tracked by OverlayStackManager
 var inspector_overlay = null  # Density matrix inspector
 var controls_overlay = null  # Keyboard controls reference
-var vocabulary_overlay = null  # QubitAtlasOverlay
+var atlas_overlay = null  # QubitAtlasOverlay
 
 # Reference to unified overlay stack (set by PlayerShell)
 var overlay_stack = null  # OverlayStackManager
@@ -358,13 +358,13 @@ func _create_overlays(parent: Control) -> void:
 	_setup_visibility_processing(controls_overlay)
 
 	# Atom Atlas (V — atoms / icons / signature / affinity)
-	vocabulary_overlay = QubitAtlasOverlay.new()
-	vocabulary_overlay.z_index = 11
+	atlas_overlay = QubitAtlasOverlay.new()
+	atlas_overlay.z_index = 11
 	if layout_manager:
-		vocabulary_overlay.set_layout_manager(layout_manager)
-	parent.add_child(vocabulary_overlay)
-	register_overlay("atlas", vocabulary_overlay)
-	_setup_visibility_processing(vocabulary_overlay)
+		atlas_overlay.set_layout_manager(layout_manager)
+	parent.add_child(atlas_overlay)
+	register_overlay("atlas", atlas_overlay)
+	_setup_visibility_processing(atlas_overlay)
 
 	# Register existing overlays that already implement OverlayBase methods
 	if quest_board:

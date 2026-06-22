@@ -42,7 +42,7 @@ func _load_world_into_engine() -> void:
 	var lexicon = (Engine.get_main_loop().root.get_node_or_null("/root/IconRegistry") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 	var seen_emojis: Dictionary = {}
 	for f in _registry.get_all():
-		var derived_se: Dictionary = lexicon.get_signature_physics(f.cloud).get("self_energies", {})
+		var derived_se: Dictionary = lexicon.get_cloud_physics(f.cloud).get("self_energies", {})
 		for emoji in f.cloud:
 			if seen_emojis.has(emoji):
 				continue

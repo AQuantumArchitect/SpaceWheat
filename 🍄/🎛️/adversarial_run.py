@@ -115,8 +115,8 @@ def extract_step_stats(summary: Dict[str, Any]) -> Dict[str, Any]:
                 quest_accepted += 1
             if ev.get("completed_after_accept"):
                 quest_completed_after += 1
-            north = ev.get("accepted_offer_reward_vocab_north", "")
-            south = ev.get("accepted_offer_reward_vocab_south", "")
+            north = ev.get("accepted_offer_reward_icon_north", "")
+            south = ev.get("accepted_offer_reward_icon_south", "")
             if north or south:
                 quest_novel_vocab += 1
 

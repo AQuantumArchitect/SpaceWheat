@@ -55,10 +55,10 @@ static func defaults() -> Dictionary:
 		# ── Icon / vocabulary reward ──
 		"reward_north": "",
 		"reward_south": "",
-		"reward_vocab_north": "",
-		"reward_vocab_south": "",
-		"reward_vocab_weight": 0.0,
-		"reward_vocab_probability": 0.0,
+		"reward_icon_north": "",
+		"reward_icon_south": "",
+		"reward_icon_weight": 0.0,
+		"reward_icon_probability": 0.0,
 
 		# ── Resource reward ──
 		"reward_resources": {},

@@ -33,8 +33,8 @@ static func from_market_contract(contract, biome) -> Dictionary:
 	var pair := _vocab_pair_for_resource(str(raw.get("resource", "")), biome)
 	raw["reward_north"] = pair[0]
 	raw["reward_south"] = pair[1]
-	raw["reward_vocab_north"] = pair[0]
-	raw["reward_vocab_south"] = pair[1]
+	raw["reward_icon_north"] = pair[0]
+	raw["reward_icon_south"] = pair[1]
 	raw["reward_multiplier"] = 1.0
 	var quest := Quest.normalize(raw, Quest.SOURCE_MARKET)
 	QuestVoice.apply(quest)  # faction-voiced body/full_text (replaces the bland projection line)
