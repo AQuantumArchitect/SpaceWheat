@@ -24,9 +24,10 @@ func _init(gsm: Node = null, verbose = null) -> void:
 	name = "PlayerProgress"
 
 
-func discover_icon(north: String, south: String) -> void:
+func discover_icon(north: String, south: String) -> bool:
 	# Player learns a icon (plantable qubit axis). Forwards to the active
 	# Farm (canonical icon owner) and emits unlock signals via GSM.
+	# Returns true iff the pair was newly added to the signature.
 	var old_emojis = get_signature_emojis()
 
 	var farm = _gsm.get_active_farm()
@@ -36,12 +37,12 @@ func discover_icon(north: String, south: String) -> void:
 	elif _gsm.current_state:
 		for icon in _gsm.current_state.known_icons:
 			if icon.get("north") == north and icon.get("south") == south:
-				return
+				return false
 		_gsm.current_state.known_icons.append({"north": north, "south": south})
 		added = true
 
 	if not added:
-		return
+		return false
 
 	if _verbose:
 		var icon_count = get_signature_icons().size()
@@ -63,6 +64,8 @@ func discover_icon(north: String, south: String) -> void:
 
 	if MILK_EMOJI in new_emojis and MILK_EMOJI not in old_emojis:
 		handle_milk_autosave(north, south)
+
+	return true
 
 
 func handle_milk_autosave(north: String, south: String) -> void:

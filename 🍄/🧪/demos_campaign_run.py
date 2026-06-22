@@ -192,12 +192,13 @@ def incorporate_round(c, round_idx, ripen_phrames=900):
         press(c, "F", settle=3, label=f"track_{pk}")     # toggle Berry track + play
     # 2) ripen — let the Hamiltonian spin the qubits toward 2π
     snap(c, "time_skip", phrames=ripen_phrames, timeout_s=180)
-    # 3) incorporate every (hopefully ripe) register
-    press(c, "5", settle=1, label="icon_hat2")            # re-enter Icon frame
+    # 3) incorporate every (hopefully ripe) register.
+    #    Already on the Icon hat from step 1 — do NOT re-press '5'! Re-pressing the
+    #    active hat key TOGGLES IT OFF (back to Ace/null), so R would resolve in the
+    #    null frame and never reach incorporate. Just select + R on the Icon hat.
     for pk in PLOT_KEYS:
         press(c, pk, settle=2, label=f"jsel_{pk}")
-        press(c, "R", settle=4, label=f"incorporate_{pk}")  # incorporate if ripe (else opens submenu)
-        press(c, "F", settle=3, label=f"close_or_track_{pk}")  # F closes submenu if open (else re-tracks; harmless)
+        press(c, "R", settle=4, label=f"incorporate_{pk}")  # ripe → incorporate into signature
 
 
 def write_report():

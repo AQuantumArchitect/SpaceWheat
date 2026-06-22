@@ -652,27 +652,33 @@ func _execute_incorporate_icon() -> Dictionary:
 	var south: String = str(axis.get("south", ""))
 	if north == "" or south == "":
 		return {"success": false, "error": "axis_missing_emoji"}
-	var icon = {"north": north, "south": south}
-	var biome_name = biome.get_biome_type() if biome.has_method("get_biome_type") else biome.name
-	var result = MacroActions.dispatch(_instrument, MacroActions.KIND_INJECT_ICON_PAIR, {
-		"biome_name": biome_name,
-		"icon": icon,
-	})
-	if result.get("success", false):
-		qc.berry_register.consume(qid)
-		_verbose.info("input", "🧬", "Incorporated %s/%s from qubit %d" % [north, south, qid])
-		# Phase 2: trajectory + conv-H memory entry for the incorporation.
-		_notify_story_engine([north, south], "incorporate")
-		action_performed.emit("incorporate_icon", {
-			"success": true,
-			"north_emoji": north,
-			"south_emoji": south,
-			"qubit": qid,
-			"biome": biome.name,
-		})
-	else:
-		_verbose.warn("input", "🧬", "Incorporate failed: %s" % result.get("message", result.get("error", "unknown")))
-		action_performed.emit("incorporate_icon", result)
+	# Incorporate = harvest a ripe, tracked register's icon into the PLAYER's
+	# signature. This is NOT biome injection (the qubit already exists in the
+	# biome by definition), so it must NOT route through inject_icon_pair — that
+	# path adds a *new* qubit, charges the inject cost, and rejects emojis already
+	# in the biome ("already_in_biome"), which is always true here. Route through
+	# the canonical player-progress path: grows known_icons (the signature_size
+	# story flags gate on), fires faction-unlock signals, syncs GameState. The
+	# Berry-phase ripening IS the cost — no resource charge.
+	var gsm = get_node_or_null("/root/GameStateManager")
+	if gsm == null or gsm.player_progress == null:
+		return {"success": false, "error": "no_player_progress"}
+	var added: bool = gsm.player_progress.discover_icon(north, south)
+	if not added:
+		_verbose.info("input", "🧬", "Icon %s/%s already in signature (or north collides)" % [north, south])
+		return {"success": false, "error": "already_in_signature", "north_emoji": north, "south_emoji": south}
+	qc.berry_register.consume(qid)
+	_verbose.info("input", "🧬", "Incorporated %s/%s from qubit %d into signature" % [north, south, qid])
+	# Phase 2: trajectory + conv-H memory entry for the incorporation.
+	_notify_story_engine([north, south], "incorporate")
+	var result := {
+		"success": true,
+		"north_emoji": north,
+		"south_emoji": south,
+		"qubit": qid,
+		"biome": biome.name,
+	}
+	action_performed.emit("incorporate_icon", result)
 	return result
 
 
