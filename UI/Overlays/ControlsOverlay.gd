@@ -52,16 +52,9 @@ const TAB_BY_KEYCODE := {
 }
 
 # Left-to-right slot keys (same convention as X).
+# 7-slot item labels (G-; plus '); keycode→slot via
+# InputBindingRegistry.plot_index_for_keycode(kc, 7) (shared ring source).
 const ITEM_KEYS := ["G", "H", "J", "K", "L", ";", "'"]
-const ITEM_BY_KEYCODE := {
-	KEY_G: 0,
-	KEY_H: 1,
-	KEY_J: 2,
-	KEY_K: 3,
-	KEY_L: 4,
-	KEY_SEMICOLON: 5,
-	KEY_APOSTROPHE: 6,
-}
 
 const FRAME_SELF    := "self"
 const FRAME_STORY   := "story"
@@ -1853,8 +1846,9 @@ func _on_unhandled_key(keycode: int, _event: InputEvent) -> bool:
 	if TAB_BY_KEYCODE.has(keycode):
 		_show_tab(int(TAB_BY_KEYCODE[keycode]))
 		return true
-	if ITEM_BY_KEYCODE.has(keycode):
-		_select_item_in_tab(int(ITEM_BY_KEYCODE[keycode]))
+	var ctrl_item := InputBindingRegistry.plot_index_for_keycode(keycode, ITEM_KEYS.size())
+	if ctrl_item >= 0:
+		_select_item_in_tab(ctrl_item)
 		return true
 	# Icon slot selection (1/2/3) on Story tab — the player's 3 expression icons.
 	if _current_tab == Tab.STORY:
@@ -1886,9 +1880,8 @@ func _on_unhandled_key(keycode: int, _event: InputEvent) -> bool:
 				_self_picker_slot = 2
 				_refresh_body()
 				return true
-	for kc in ITEM_BY_KEYCODE.keys():
-		if kc == keycode:
-			return true
+	if InputBindingRegistry.plot_index_for_keycode(keycode, ITEM_KEYS.size()) >= 0:
+		return true
 	for kc in TAB_BY_KEYCODE.keys():
 		if kc == keycode:
 			return true

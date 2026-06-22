@@ -199,9 +199,7 @@ func _refresh_tab_row() -> void:
 			lbl.text = "[%s] %s" % [key_str, name_str]
 			lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_TAB_IDLE)
 
-const ITEM_BY_KEYCODE := {
-	KEY_G: 0, KEY_H: 1, KEY_J: 2, KEY_K: 3, KEY_L: 4, KEY_SEMICOLON: 5,
-}
+# Plot-ring keycode→slot via InputBindingRegistry.plot_index_for_keycode (shared source).
 
 # Direct-jump tab via T/Y/U/I/O; GHJKL; selects within current frame.
 func _on_unhandled_key(keycode: int, _event: InputEvent) -> bool:
@@ -214,8 +212,8 @@ func _on_unhandled_key(keycode: int, _event: InputEvent) -> bool:
 			_refresh_action_labels()
 			_rebuild_display()
 		return true
-	if ITEM_BY_KEYCODE.has(keycode):
-		var slot: int = int(ITEM_BY_KEYCODE[keycode])
+	var slot: int = InputBindingRegistry.plot_index_for_keycode(keycode, 6)
+	if slot >= 0:
 		if _selected_idx != slot:
 			_selected_idx = slot
 			_rebuild_display()

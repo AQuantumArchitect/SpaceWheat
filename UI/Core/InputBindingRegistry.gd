@@ -70,6 +70,28 @@ const SUBSPACE_ROW := {
 
 const BIOME_ACTIONS := ["biome_0", "biome_1", "biome_2", "biome_3", "biome_4", "biome_5"]
 const HOMEROW_ACTIONS := ["plot_0", "plot_1", "plot_2", "plot_3", "plot_4", "plot_5"]
+
+# ── Canonical ring keycodes (single source for overlays + Surface) ───────────
+# The plot/item ring is G H J K L ; with an optional 7th slot ' (apostrophe) used
+# by ControlsOverlay's wider tabs. The biome ring is T Y U I O P. Overlays used to
+# each re-hardcode an ITEM_BY_KEYCODE map; they now read these.
+const PLOT_ROW_KEYCODES: Array = [KEY_G, KEY_H, KEY_J, KEY_K, KEY_L, KEY_SEMICOLON, KEY_APOSTROPHE]
+const BIOME_ROW_KEYCODES: Array = [KEY_T, KEY_Y, KEY_U, KEY_I, KEY_O, KEY_P]
+
+## Index of a plot-ring keycode within the first `slots` positions, or -1.
+## `slots` keeps callers honest about their item count (6 = G-; , 7 = + apostrophe),
+## so a 6-item menu never treats ' as a phantom 7th selector.
+static func plot_index_for_keycode(keycode: int, slots: int = 6) -> int:
+	var i: int = PLOT_ROW_KEYCODES.find(keycode)
+	return i if (i >= 0 and i < slots) else -1
+
+## The plot-ring keycodes a caller responds to, sliced to its item count.
+static func plot_keycodes(slots: int = 6) -> Array:
+	return PLOT_ROW_KEYCODES.slice(0, slots)
+
+## Index of a biome-ring keycode (T Y U I O P), or -1.
+static func biome_index_for_keycode(keycode: int) -> int:
+	return BIOME_ROW_KEYCODES.find(keycode)
 const SUBSPACE_ACTIONS := ["subspace_0", "subspace_1", "subspace_2", "subspace_3"]
 const TOOL_GROUP_KEYS := ["1", "2", "3", "4"]
 const ACTION_KEYS := ["Q", "E", "R", "F"]

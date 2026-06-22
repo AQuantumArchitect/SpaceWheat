@@ -59,15 +59,9 @@ const DEV_ACTIONS := [
 # GHJKL; — the homerow "slot" row, left-to-right for readability.
 # (HOMEROW_KEYS is indexed right-to-left, ;=0; we deliberately diverge in X
 # so slot 1 is G, slot 2 is H, etc. — the menu reads left-to-right.)
+# Item labels (G-;) for display. Keycode→slot lookups go through
+# InputBindingRegistry.plot_index_for_keycode (single shared ring source).
 const ITEM_KEYS := ["G", "H", "J", "K", "L", ";"]
-const ITEM_BY_KEYCODE := {
-	KEY_G: 0,
-	KEY_H: 1,
-	KEY_J: 2,
-	KEY_K: 3,
-	KEY_L: 4,
-	KEY_SEMICOLON: 5,
-}
 
 const NUM_KEEP_SLOTS := 3
 
@@ -898,8 +892,8 @@ func _on_unhandled_key(keycode: int, _event: InputEvent) -> bool:
 		return true
 
 	# Item selection within the active tab — GHJKL;.
-	if ITEM_BY_KEYCODE.has(keycode):
-		var slot := int(ITEM_BY_KEYCODE[keycode])
+	var slot := InputBindingRegistry.plot_index_for_keycode(keycode, ITEM_KEYS.size())
+	if slot >= 0:
 		_select_item_in_tab(slot)
 		return true
 
@@ -909,9 +903,8 @@ func _on_unhandled_key(keycode: int, _event: InputEvent) -> bool:
 	return false
 
 func _is_consumed_keyboard_row(keycode: int) -> bool:
-	for kc in ITEM_BY_KEYCODE.keys():
-		if kc == keycode:
-			return true
+	if InputBindingRegistry.plot_index_for_keycode(keycode, ITEM_KEYS.size()) >= 0:
+		return true
 	for kc in TAB_BY_KEYCODE.keys():
 		if kc == keycode:
 			return true

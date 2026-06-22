@@ -152,9 +152,15 @@ func _unhandled_key_input(event: InputEvent) -> void:
 
 	var key = InputBindingRegistry.get_label_for_keycode(event.keycode)
 
-	# Any key other than F cancels a pending confirm-chord.
+	# Any key other than F cancels a pending confirm-chord — but say so out loud
+	# (silent cancels ate actions and confused the harvest loop). Only destructive
+	# verbs (Trim/Cull/Break) arm the chord now; safe verbs fire immediately.
 	if not _confirm_pending.is_empty() and key != "F":
+		var cancelled_label := str(_confirm_pending.get("label", "action"))
 		_confirm_pending = {}
+		var shell := _resolve_player_shell()
+		if shell and shell.has_method("show_hint"):
+			shell.show_hint("[color=#88aabb]%s cancelled[/color]" % cancelled_label, 2)
 
 	# Auto-close submenu when any non-action key is pressed
 	if _instrument.is_in_submenu() and key not in ["Q", "E", "R", "F"]:

@@ -49,9 +49,7 @@ const TAB_ROW := [
 ]
 
 const ITEM_KEYS := ["G", "H", "J", "K", "L", ";"]
-const ITEM_BY_KEYCODE := {
-	KEY_G: 0, KEY_H: 1, KEY_J: 2, KEY_K: 3, KEY_L: 4, KEY_SEMICOLON: 5,
-}
+# Plot-ring keycode→slot via InputBindingRegistry.plot_index_for_keycode (shared source).
 
 # Eigenstate sort modes — selected automatically from pinned-faction state.
 # SYSTEM ranks by alignment with the joint principal axis (used when detached).
@@ -257,8 +255,8 @@ func _on_unhandled_key(keycode: int, _event: InputEvent) -> bool:
 		if _graph_selectable.is_empty():
 			return false
 		var moved := false
-		if ITEM_BY_KEYCODE.has(keycode):
-			var idx: int = int(ITEM_BY_KEYCODE[keycode])
+		var idx: int = InputBindingRegistry.plot_index_for_keycode(keycode, 6)
+		if idx >= 0:
 			if idx < _graph_selectable.size():
 				_graph_selected_idx = idx
 				moved = true
@@ -276,8 +274,8 @@ func _on_unhandled_key(keycode: int, _event: InputEvent) -> bool:
 
 	# Atlas keeps its own key grammar (G/H/J/K/L/; selects nodes).
 	if frame_id == FRAME_ATLAS:
-		if ITEM_BY_KEYCODE.has(keycode):
-			var idx: int = int(ITEM_BY_KEYCODE[keycode])
+		var idx: int = InputBindingRegistry.plot_index_for_keycode(keycode, 6)
+		if idx >= 0:
 			if idx < _atlas_selectable_nodes.size():
 				_atlas_selected_idx = idx
 				_atlas_selected_name = str(_atlas_selectable_nodes[idx].get("name", ""))
@@ -288,8 +286,8 @@ func _on_unhandled_key(keycode: int, _event: InputEvent) -> bool:
 		return false
 
 	# Affinity tabs share axis selection (T, U, I) and roster selection (Y).
-	if ITEM_BY_KEYCODE.has(keycode):
-		var slot: int = int(ITEM_BY_KEYCODE[keycode])
+	var slot: int = InputBindingRegistry.plot_index_for_keycode(keycode, 6)
+	if slot >= 0:
 		match frame_id:
 			FRAME_EIGEN:
 				var page_offset: int = _eigen_page * ITEM_KEYS.size()

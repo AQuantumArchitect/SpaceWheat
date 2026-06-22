@@ -36,10 +36,8 @@ const TAB_ROW := [
 	{"key": "I", "frame": FRAME_ARC,         "name": "Arc"},
 ]
 
+# Item labels (G-;); keycode→slot via InputBindingRegistry.plot_index_for_keycode.
 const ITEM_KEYS := ["G", "H", "J", "K", "L", ";"]
-const ITEM_BY_KEYCODE := {
-	KEY_G: 0, KEY_H: 1, KEY_J: 2, KEY_K: 3, KEY_L: 4, KEY_SEMICOLON: 5,
-}
 const MAX_VISIBLE_ITEMS: int = 6
 const MARKET_FETCH_LIMIT: int = 24
 
@@ -358,9 +356,9 @@ func _on_unhandled_key(keycode: int, event: InputEvent) -> bool:
 	if super._on_unhandled_key(keycode, event):
 		_on_frame_changed_local()
 		return true
-	if ITEM_BY_KEYCODE.has(keycode):
-		var idx: int = int(ITEM_BY_KEYCODE[keycode])
-		_select(idx)
+	var item_idx := InputBindingRegistry.plot_index_for_keycode(keycode, ITEM_KEYS.size())
+	if item_idx >= 0:
+		_select(item_idx)
 		return true
 	if frame_id == FRAME_MARKET and MARKET_SORT_BY_KEY.has(keycode):
 		_market_sort_mode = int(MARKET_SORT_BY_KEY[keycode])

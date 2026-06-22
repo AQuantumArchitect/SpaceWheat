@@ -252,7 +252,7 @@ const ARCHETYPE_FRAMES: Dictionary = {
 				"Q": {"action": "pop", "label": "Extract", "emoji": "^",
 					  "icon": "res://Assets/UI/Science/Pop-Harvest.svg",
 					  "hint": "Cash out — pull the realized reward off a collapsed register into inventory. Reward = surprisal −kT·log p (rare collapse pays more).",
-					  "shift_action": "pop", "shift_label": "Mass Extract", "destructive": true},
+					  "shift_action": "pop", "shift_label": "Mass Extract"},
 				"E": {"action": "", "label": "Pause", "emoji": "⏸",
 					  "icon": "",
 					  "hint": "Pause — freeze time to read the odds (global side-effect; no tool verb)",

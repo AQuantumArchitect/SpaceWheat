@@ -840,8 +840,30 @@ func _transform_plot_to_ui_data(pos: Vector2i, plot, terminal = null) -> Diction
 		"memory_probability": float(memory.get("probability", 0.0)),
 		"entangled_plots": entangled_list,
 		"lindblad_pump_active": plot and plot.lindblad_pump_active,
-		"lindblad_drain_active": plot and plot.lindblad_drain_active
+		"lindblad_drain_active": plot and plot.lindblad_drain_active,
+		# Berry-phase ripeness — the incorporate cue. Surfaced on the bubble so the
+		# player can see a tracked register filling toward 2π and glowing when ripe.
+		"berry_tracked": false,
+		"berry_phase": 0.0,
+		"berry_threshold": TAU,
+		"berry_ripe": false,
 	}
+
+	# Read Berry state from whichever biome owns this register (plot_idx ≡ register_id,
+	# so the register is pos.x). Works whether the view is live-QC or terminal-bound.
+	var berry_biome = null
+	if not live.is_empty():
+		berry_biome = live["biome"]
+	elif terminal_active:
+		berry_biome = biomes.get(terminal.bound_biome_name, null)
+	if berry_biome and berry_biome.quantum_computer and berry_biome.quantum_computer.berry_register:
+		var br = berry_biome.quantum_computer.berry_register
+		var qid := int(pos.x)
+		if br.is_tracked(qid):
+			ui_data["berry_tracked"] = true
+			ui_data["berry_phase"] = br.get_phase(qid)
+			ui_data["berry_threshold"] = br.get_ripe_threshold(qid)
+			ui_data["berry_ripe"] = br.is_ripe(qid)
 
 	# CASE 1: Terminal-bound or measured (from EXPLORE/MEASURE) - takes priority for emoji display
 	if terminal_active:
@@ -936,6 +958,14 @@ func refresh_all_tiles() -> void:
 	for pos in tiles.keys():
 		update_tile_from_farm(pos)
 	_verbose.info("ui", "✅", "PlotGridDisplay: All %d tiles refreshed" % tiles.size())
+
+
+func _refresh_live_tiles() -> void:
+	# Quiet ~5 Hz refresh so live-QC bubbles + Berry ripeness rings stay current.
+	# update_tile_from_farm early-returns on truly empty tiles, so this only does
+	# real work for live registers / planted / terminal-bound plots.
+	for pos in tiles.keys():
+		update_tile_from_farm(pos)
 
 
 
@@ -1317,6 +1347,7 @@ func _get_plot_at_screen_position(screen_pos: Vector2) -> Vector2i:
 
 var _time_accumulator: float = 0.0
 var _check_connections_timer: float = 0.0
+var _live_refresh_timer: float = 0.0  # throttle for live substrate/ripeness refresh
 var _biome_router_connected: bool = false  # Track if we've done initial biome router setup
 
 
@@ -1363,6 +1394,15 @@ func _process(delta: float) -> void:
 		if _has_visual_connections():
 			queue_redraw()
 	var t4 = Time.get_ticks_usec()
+
+	# Live substrate refresh: the view-from-QC bubbles (probabilities) and the Berry
+	# ripeness rings only change when tiles are re-read from farm state. Nothing else
+	# drives that on a tick, so the substrate would look frozen between events. Refresh
+	# at ~5 Hz so probabilities drift and ripeness fills visibly during play/fast-forward.
+	_live_refresh_timer += delta
+	if _live_refresh_timer >= 0.2:
+		_live_refresh_timer = 0.0
+		_refresh_live_tiles()
 	
 	if Engine.get_process_frames() % 60 == 0:
 		_verbose.trace("ui", "⏱️", "PGD Process Trace: Total %d us (Sync: %d, Rejection: %d, Cleanup: %d, Connections: %d)" % [t4 - t0, t1 - t0, t2 - t1, t3 - t2, t4 - t3])

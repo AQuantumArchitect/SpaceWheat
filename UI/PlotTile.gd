@@ -70,6 +70,12 @@ const COLOR_PCB_EDGE_DARK = Color(0.08, 0.08, 0.08)   # Edge shadow
 const COLOR_ENTANGLEMENT_RING = Color(0.0, 1.0, 1.0, 0.8)  # Bright cyan
 const COLOR_ENTANGLEMENT_GLOW = Color(0.0, 1.0, 1.0, 0.3)  # Faint cyan glow
 
+# Berry-phase ripeness ring: a register being tracked fills an arc toward 2π;
+# when ripe (incorporate-ready) it closes into a bright violet ring + glow.
+const COLOR_BERRY_FILL = Color(0.6, 0.4, 1.0, 0.7)    # Violet, accumulating
+const COLOR_BERRY_RIPE = Color(0.85, 0.6, 1.0, 0.95)  # Bright violet, ripe
+const COLOR_BERRY_GLOW = Color(0.7, 0.45, 1.0, 0.35)  # Faint violet glow
+
 # Reference to territory router (set by FarmView)
 var territory_router = null
 
@@ -481,6 +487,10 @@ func _draw():
 		if entangled_count > 0:
 			_draw_entanglement_ring_inline(rect, entangled_count)
 
+	# Berry-phase ripeness ring — the incorporate cue (drawn for any tracked register).
+	if plot_ui_data and plot_ui_data.get("berry_tracked", false):
+		_draw_berry_ring_inline(rect)
+
 
 func _draw_pcb_edges(rect: Rect2):
 	# Draw beveled metallic edges like a PCB component
@@ -607,6 +617,31 @@ func _draw_entanglement_ring_inline(rect: Rect2, entangled_count: int):
 
 	var bright_color = COLOR_ENTANGLEMENT_RING.lerp(COLOR_ENTANGLEMENT_GLOW, 0.35)
 	draw_arc(center, ring_radius, 0, TAU, 16, bright_color, 2.0)
+
+
+func _draw_berry_ring_inline(rect: Rect2):
+	# Berry-phase ripeness cue: an arc that fills from the top (−π/2) clockwise in
+	# proportion to |accumulated phase| / ripe threshold. While accumulating it's a
+	# violet fill; once ripe it closes to a full bright ring + glow ("incorporate now").
+	var phase: float = absf(float(plot_ui_data.get("berry_phase", 0.0)))
+	var threshold: float = float(plot_ui_data.get("berry_threshold", TAU))
+	if threshold <= 0.0:
+		threshold = TAU
+	var ripe: bool = bool(plot_ui_data.get("berry_ripe", false))
+	var frac: float = clampf(phase / threshold, 0.0, 1.0)
+
+	var center = rect.get_center()
+	var ring_radius = min(rect.size.x, rect.size.y) / 2.0 - 4
+	var start_angle := -PI / 2.0  # 12 o'clock
+
+	if ripe:
+		# Closed, bright, with a glow halo — unmissable "ready to incorporate".
+		draw_circle(center, ring_radius + 2, COLOR_BERRY_GLOW)
+		draw_arc(center, ring_radius, 0, TAU, 32, COLOR_BERRY_RIPE, 3.0)
+	elif frac > 0.0:
+		# Faint full track + bright partial fill showing progress toward 2π.
+		draw_arc(center, ring_radius, 0, TAU, 32, COLOR_BERRY_GLOW, 1.0)
+		draw_arc(center, ring_radius, start_angle, start_angle + TAU * frac, 32, COLOR_BERRY_FILL, 2.5)
 
 
 ## Public API
