@@ -13,11 +13,15 @@ QERF keeps its axial-verb semantics.
 - `1 2 3` selects a sub-mode within that frame.
 - `T Y U I O P` selects biome slots.
 - `G H J K L ;` selects plot slots.
-- `W A S D` moves within the biome × plot lattice.
+- `W A S D` moves within the biome × plot lattice (W/S spin rings, A/D step).
 - `Q E R F` is the verb cross.
-- `[` `]` `,` `.` cycles frame/menu rings.
 - `Z X C V B N M` opens the top-level menu ring.
-- `ESC` unwinds.
+- `ESC` unwinds one level (overlay → submenu → pending confirm → plot
+  deselect → system menu).
+
+> `[` `]` `,` `.` are **reserved no-ops** — WASD already crawls the whole
+> ring cylinder, so a separate cycle pair gains nothing. Canonical bindings:
+> `UI/Core/InputBindingRegistry.gd`; full grammar: `UI/Core/KEYBOARD_GRAMMAR.md`.
 
 ## The keyboard stack
 
@@ -26,11 +30,11 @@ QERF keeps its axial-verb semantics.
 1 2 3           sub-mode within current archetype frame
 T Y U I O P     biome slot row
 G H J K L ;     plot slot row
-W A S D         crawl ±1 in biome × plot
+W A S D         crawl: W/S spin rings, A/D step ±1 around the active ring
 Q E R F         verb cross — Q/R item, E pause+inspect, F play+continue
-[ ]   , .       frame / menu-ring cycling
 Z X C V B N M   top-level menu ring
-ESC             unwind
+ESC             unwind one level (overlay → submenu → confirm → deselect → menu)
+[ ] , .         reserved no-ops (WASD already covers the whole cylinder)
 ```
 
 ## Hat assignments
