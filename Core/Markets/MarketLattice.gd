@@ -93,7 +93,14 @@ func propose_offers(biome, n: int = 1) -> Array:
 			speakers = names
 		if speakers.is_empty():
 			continue
-		var faction_name: String = str(speakers[0])
+		# Pick a RANDOM speaker, not always speakers[0]: multiple factions speak a
+		# given biome emoji, and the OFFERING faction determines the reward pool (its
+		# cloud / Hamiltonian couplings). Always taking [0] shut some factions out
+		# entirely — e.g. Millwright's Union (cloud ⚙/🍞/👥/🔨/💨/🏭) never offered
+		# Village contracts, so 🔨 (needed to plant the Mill) was unobtainable. Random
+		# selection gives every speaker a turn; re-rolling the market (E refresh) cycles
+		# them, so scarce coupling-resources stay reachable.
+		var faction_name: String = str(speakers[randi() % speakers.size()])
 		var expiry: int = _current_phrame + HamiltonianConfig.CONTRACT_DEFAULT_EXPIRY_PHRAMES
 		# Cost emoji defaults to the resource itself (commodity-to-commodity: pay
 		# upfront in the deliverable; receive measured outcome on exercise).
