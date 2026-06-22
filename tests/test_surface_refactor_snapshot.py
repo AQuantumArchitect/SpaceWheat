@@ -224,9 +224,6 @@ def test_boot_callers_use_canonical_request_path() -> None:
             "boot_session(boot_request, null)",
             "boot_runtime(_farm, _shell, quantum_viz)",
         ],
-        "tools/BuildBundledCache.gd": [
-            "boot_session({",
-        ],
         "tools/export_live_icon_map_live.gd": [
             "boot_session({",
         ],

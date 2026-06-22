@@ -132,6 +132,11 @@ var biome_last_good_bloch: Dictionary = {}  # biome_name -> PackedFloat64Array
 var biome_last_good_purity: Dictionary = {}  # biome_name -> float
 var biome_dirty: Dictionary = {}  # biome_name -> bool (buffer invalidated)
 var biome_pending_reregister: Dictionary = {}  # biome_name -> bool
+## The physics_signature the C++ engine's H/L copy was (re)registered FROM, per biome.
+## The engine holds its own copy of the operators; this records which build it came from
+## so drift between the live builders and the engine's copy can be DETECTED (signature
+## mismatch) rather than relying on a caller remembering to mark_for_reregister.
+var _biome_registered_signature: Dictionary = {}  # biome_name -> String
 
 # Signal for user action (invalidates lookahead)
 signal user_action_detected
@@ -284,6 +289,7 @@ func _teardown_runtime_state() -> void:
 	biome_last_good_purity.clear()
 	biome_dirty.clear()
 	biome_pending_reregister.clear()
+	_biome_registered_signature.clear()
 
 	biome_buffer_states.clear()
 	biome_fib_indices.clear()
@@ -598,6 +604,8 @@ func _register_native_biome(biome) -> int:
 	_biome_engine_ids[biome_name] = biome_id
 	_engine_id_to_biome[biome_id] = biome_name
 	_biome_engine_dims[biome_name] = dim
+	# Record the physics fingerprint this engine copy was built from (drift anchor).
+	_biome_registered_signature[biome_name] = str(qc.physics_signature)
 	_sync_biome_structure_payload(biome, biome_id)
 
 	# Wire the coherent generator switch into the C++ engine (two-axis isolation). The
@@ -1306,17 +1314,45 @@ func _get_biome_rho_status(biome_name: String, biome) -> Dictionary:
 
 
 func _process_pending_reregisters() -> void:
-	if biome_pending_reregister.is_empty():
-		return
 	if lookahead_engine == null:
 		return
 	if not _active_packet_request.is_empty() or not _packet_queue.is_empty():
+		return
+
+	# Catch SILENT drift: if a biome's live operators were rebuilt (new physics_signature)
+	# without anyone flagging it, the engine's copy is stale. Comparing signatures flags it
+	# here, so the C++ copy can't diverge from the builders unnoticed.
+	_flag_drifted_engine_signatures()
+
+	if biome_pending_reregister.is_empty():
 		return
 
 	var pending_names = biome_pending_reregister.keys()
 	for biome_name in pending_names:
 		if biome_pending_reregister.get(biome_name, false):
 			_reregister_biome_by_name(biome_name)
+
+
+## Flag any registered biome whose LIVE physics signature no longer matches the one its
+## C++ engine copy was registered from. This is the traceability check that makes the
+## "silent twin" impossible: the engine's H/L copy is provably either in sync or flagged
+## to re-sync — drift never goes unnoticed just because a mutator forgot to mark dirty.
+func _flag_drifted_engine_signatures() -> void:
+	for biome_name in _biome_engine_ids.keys():
+		if int(_biome_engine_ids.get(biome_name, -1)) < 0:
+			continue
+		if biome_pending_reregister.get(biome_name, false):
+			continue  # already queued
+		var biome = _get_biome_by_name(biome_name)
+		if not _is_valid_biome(biome) or not biome.quantum_computer:
+			continue
+		var live_sig: String = str(biome.quantum_computer.physics_signature)
+		var reg_sig: String = str(_biome_registered_signature.get(biome_name, ""))
+		if live_sig == "" or reg_sig == "":
+			continue  # not enough info to assert drift
+		if live_sig != reg_sig:
+			_log("warn", "REREGISTER", "🧭", "%s: engine physics drift (live signature != registered) — flushing the stale C++ copy" % biome_name)
+			biome_pending_reregister[biome_name] = true
 
 
 func _reregister_biome_by_name(biome_name: String) -> void:
@@ -1344,6 +1380,7 @@ func _reregister_biome_by_name(biome_name: String) -> void:
 				lindblad_triplets.append(_matrix_to_triplets(L))
 		if lookahead_engine.reregister_biome(old_id, dim, H_packed, lindblad_triplets, num_qubits):
 			_biome_engine_dims[biome_name] = dim
+			_biome_registered_signature[biome_name] = str(qc.physics_signature)
 			_sync_biome_structure_payload(biome, old_id)
 			if lookahead_engine.has_method("set_biome_coherent"):
 				lookahead_engine.set_biome_coherent(old_id, BalanceConfig.coherent_enabled())

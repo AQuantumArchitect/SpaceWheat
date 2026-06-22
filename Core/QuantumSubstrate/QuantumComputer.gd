@@ -26,6 +26,14 @@ var berry_register: BerryPhaseRegister = BerryPhaseRegister.new()
 var hamiltonian: ComplexMatrix = null         # H matrix (Hermitian, dim×dim)
 var lindblad_operators: Array = []            # Array of L_k matrices (ComplexMatrix)
 
+## Traceability anchor: a complete fingerprint of every input that determined H+L
+## (icon physics, atom_components, register layout, coupling scale, dissipative flag),
+## stamped by BiomeQuantumSystemBuilder at build time. Lets a derived copy of the
+## operators (e.g. the C++ engine's) PROVE it matches the source rather than trusting
+## a manual dirty-flag. Empty until operators are built. NOT a cache key — there is
+## no operator cache; the builders are the single authority for derived physics.
+var physics_signature: String = ""
+
 ## CACHED Lindblad pre-computations (rebuilt when operators change)
 ## L_dag[k] = L_k†,  Ldag_L[k] = L_k† L_k — saves 2 matmuls per operator per substep
 var _lindblad_L_dag: Array = []              # Array of L_k† (ComplexMatrix)
