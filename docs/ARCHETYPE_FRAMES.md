@@ -45,7 +45,7 @@ right. Spark and Druid bookend the set.
 | Key | Archetype | Cube coords    | Live wiring                                          |
 |-----|-----------|----------------|------------------------------------------------------|
 | `4` | Spark     | (Self, Q, P)   | Pole shift (spend pole emoji → one-shot shove)       |
-| `5` | Icon      | (Self, Q, F)   | Icon injection (faction-signature qubits)            |
+| `5` | Icon      | (Self, Q, F)   | Signature growth: F-track a qubit's Berry phase → ripen → R-incorporate into your signature (empty plot: R injects) |
 | `6` | Merchant  | (Self, C, F)   | Faction contracts (drain=treaty / transfer=broker / pump=tribute) |
 | `7` | Captain   | (World, C, F)  | Biome lifecycle (discover / cull)          |
 | `8` | Ace       | (Self, C, P)   | Player vantage (extract / pause / strike / fast-fwd) |
@@ -64,7 +64,7 @@ right. Spark and Druid bookend the set.
 | Frame     | Sub-modes                | Q              | E (pause + inspect)       | R             | F                  |
 |-----------|--------------------------|----------------|---------------------------|---------------|--------------------|
 | Spark     | shift                    | —              | Pause (transparent)       | N.Pole (↑1×)  | S.Pole (↓1×) ⚡ overload |
-| Icon      | inject                   | Trim icon      | Pause (transparent)       | Add icon      | Play (transparent) |
+| Icon      | inject                   | Trim icon      | Inspect qubit             | Add icon / **Incorporate** (tracked+ripe) | **Track** ⌖ (Berry phase) |
 | Merchant  | thermal / dephase / damp | Import 📥      | Read Price !              | Export 📤     | Tip 💬             |
 | Captain   | biomes                   | Cull           | Compass (discover peek)   | Add Biome     | —                  |
 | Ace       | probe                    | Extract        | Pause ⏸                   | Strike !      | Fast-Fwd ⏩        |
@@ -77,7 +77,14 @@ right. Spark and Druid bookend the set.
 `ARCHETYPE_FRAMES`.
 
 - **Spark** handles pole shifts.
-- **Icon** handles icon injection.
+- **Icon** is the signature-growth loop. **F** toggles Berry-phase tracking on
+  the focused qubit (and resumes play); under the live Hamiltonian an excited
+  qubit traces solid angle until it ripens (phase → 2π). **R** on a tracked+ripe
+  qubit *incorporates* its icon into the player's signature (grows `known_icons`,
+  the source story flags gate on) — this is harvesting an already-realized
+  register, NOT biome injection, so it routes through `player_progress.discover_icon`,
+  not `inject_icon_pair`. On an empty plot, **R** injects a new icon into the biome.
+  The Berry-phase ripening is the cost; incorporate charges no resources.
 - **Merchant** handles faction contracts.
 - **Captain** handles biome lifecycle.
 - **Ace** is the player vantage: extract / pause / strike / fast-forward.
