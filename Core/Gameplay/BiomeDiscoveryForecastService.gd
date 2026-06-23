@@ -23,6 +23,13 @@ const AlignmentGraphCls = preload("res://Core/Alignment/AlignmentGraph.gd")
 ## genuine exploration at session start (uniform superposition → equal overlap).
 const FLOOR = 0.05
 
+## Quest/market pressure boost. A biome that an UNFIRED story beat or an active quest
+## requires (e.g. lumber_flows needs Woodlot, spring_connects needs FreshwaterSpring) is
+## strongly favoured in the captain-hat draw — the narrative pulls discovery toward the
+## next biome it needs, instead of a flat random reveal. Large relative to FLOOR+overlap
+## (≤ ~1.05) so a pressured biome dominates the curated pool. Tunable via configure().
+const PRESSURE_BOOST = 3.0
+
 ## Mutable overrides for rig/test configure_discovery.
 static var _weights: Dictionary = {}
 
@@ -42,15 +49,43 @@ static func compute_weights(farm, unexplored: Array) -> Array[float]:
 
 	var player_alignment = farm.player_alignment if "player_alignment" in farm else null
 	var w_floor = _w("floor", FLOOR)
+	var w_pressure = _w("pressure_boost", PRESSURE_BOOST)
+	var pressured := _biomes_under_pressure(farm)
 
 	for biome_name in unexplored:
 		var biome_alignment = _biome_alignment_from_name(biome_name, farm)
 		var alignment := 0.0
 		if player_alignment != null and biome_alignment != null:
 			alignment = player_alignment.overlap(biome_alignment)
-		weights.append(w_floor + alignment)
+		var pressure: float = w_pressure if pressured.has(biome_name) else 0.0
+		weights.append(w_floor + alignment + pressure)
 
 	return weights
+
+
+## Biomes an UNFIRED story beat or active quest requires — discovery is pulled toward them
+## (quest/market pressure). Reads biome references from unfired-flag predicates + active quests.
+static func _biomes_under_pressure(farm) -> Dictionary:
+	var pressured: Dictionary = {}
+	# QuestManager is shell-owned (not an autoload), so resolve via the farm/shell chain.
+	var qm = InstrumentLocator.resolve_quest_manager(farm, farm)
+	if qm == null:
+		return pressured
+	var fired: Dictionary = farm.story_flags_fired if "story_flags_fired" in farm else {}
+	if qm.has_method("get_all_story_flags"):
+		for flag in qm.get_all_story_flags():
+			if not (flag is Dictionary) or fired.has(str(flag.get("id", ""))):
+				continue
+			for pred in flag.get("predicates", []):
+				if pred is Dictionary and str(pred.get("biome", "")) != "":
+					pressured[str(pred["biome"])] = true
+	if "active_quests" in qm and qm.active_quests is Dictionary:
+		for q in qm.active_quests.values():
+			if q is Dictionary:
+				var b := str(q.get("biome", q.get("biome_name", "")))
+				if b != "":
+					pressured[b] = true
+	return pressured
 
 
 static func _biome_alignment_from_name(biome_name: String, farm) -> Object:

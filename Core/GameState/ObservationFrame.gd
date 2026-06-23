@@ -158,14 +158,18 @@ func _load_unlocked_biomes() -> void:
 				and _is_biome_discoverable(biome_name)
 			):
 				refreshed.append(biome_name)
-		# Add any missing discoverable biomes.
-		for biome_name in ALL_BIOMES:
-			if (
-				biome_name not in BIOME_ORDER
-				and biome_name not in refreshed
-				and _is_biome_discoverable(biome_name)
-			):
-				refreshed.append(biome_name)
+		# A CURATED pool (non-empty) is authoritative — the scenario hand-picked which
+		# biomes this campaign can discover (e.g. "The Demos" → its island subset). Only
+		# auto-fill the full catalog when the pool came up empty (sandbox / uncurated),
+		# so curation isn't silently buried under all ~150 loadable biomes.
+		if refreshed.is_empty():
+			for biome_name in ALL_BIOMES:
+				if (
+					biome_name not in BIOME_ORDER
+					and biome_name not in refreshed
+					and _is_biome_discoverable(biome_name)
+				):
+					refreshed.append(biome_name)
 		gsm.current_state.unexplored_biome_pool = refreshed
 
 
@@ -265,7 +269,22 @@ func get_loadable_biomes() -> Array[String]:
 
 
 func get_unexplored_biomes() -> Array[String]:
-	# Get list of biomes not yet unlocked
+	# Biomes available to the captain-hat draw. A CURATED pool (the scenario's
+	# hand-picked subset, e.g. "The Demos" → its island) is authoritative; only fall
+	# back to the full catalog when no pool is curated (sandbox). Previously this always
+	# returned ALL_BIOMES − unlocked, so curation was ignored and the campaign's required
+	# biomes were 2 needles in ~150.
+	var gsm = get_node_or_null("/root/GameStateManager")
+	if gsm and gsm.current_state and "unexplored_biome_pool" in gsm.current_state:
+		var pool = gsm.current_state.unexplored_biome_pool
+		if pool != null and not pool.is_empty():
+			var curated: Array[String] = []
+			for entry in pool:
+				var bn := str(entry)
+				if bn in ALL_BIOMES and bn not in BIOME_ORDER and bn not in curated:
+					curated.append(bn)
+			if not curated.is_empty():
+				return curated
 	var unexplored: Array[String] = []
 	for biome in ALL_BIOMES:
 		if biome not in BIOME_ORDER:
