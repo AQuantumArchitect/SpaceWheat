@@ -706,6 +706,94 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				result["flags_fired"] = farm.story_flags_fired.duplicate() if "story_flags_fired" in farm else {}
 				result["story_log"] = farm.story_log.duplicate(true) if "story_log" in farm else []
 
+		"board_state":
+			# Read the LIVE QuestBoard overlay's market state to pinpoint why keyboard
+			# accept returns nothing: frame, pool size, selection, status note.
+			var bs_om = _resolve_overlay_manager()
+			var bs_board = bs_om.get_overlay("quests") if bs_om and bs_om.has_method("get_overlay") else null
+			if bs_board == null:
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_quest_board"}
+			else:
+				result["visible"] = bool(bs_board.visible)
+				result["frame_id"] = str(bs_board.frame_id) if ("frame_id" in bs_board) else "?"
+				result["offer_pool_size"] = (bs_board._offer_pool.size() if ("_offer_pool" in bs_board) else -1)
+				result["selected_index"] = (int(bs_board._selected_index) if ("_selected_index" in bs_board) else -999)
+				result["market_status_note"] = (str(bs_board._market_status_note) if ("_market_status_note" in bs_board) else "")
+				result["nb_name"] = (str(bs_board._nb_name) if ("_nb_name" in bs_board) else "")
+				result["pair"] = [(str(bs_board._pair_a_name) if ("_pair_a_name" in bs_board) else ""), (str(bs_board._pair_b_name) if ("_pair_b_name" in bs_board) else "")]
+
+		"board_market":
+			# Read-only: replicate QuestBoard._refresh_pool's KEYBOARD market scoping
+			# (best tension pair → propose_pair_offers, else neighborhood-scoped) and run
+			# each contract through QuestPipeline.from_market_contract, so we see EXACTLY
+			# what the keyboard player's market shows — incl. reward_resources (🔨 etc.).
+			var bm_name: String = str(cmd.get("biome", "Village"))
+			var bm_farm = _farm
+			if bm_farm == null or not bm_farm.has_method("get_market_lattice"):
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_farm_or_lattice"}
+			else:
+				var bm_lattice = bm_farm.get_market_lattice()
+				var bm_biome = bm_farm.grid.get_biome(bm_name) if bm_farm.grid else null
+				if bm_lattice == null or bm_biome == null:
+					result = {"ok": false, "turn": turn_id, "action": action, "error": "no_lattice_or_biome"}
+				else:
+					var all_biomes: Dictionary = bm_farm.grid.get_all_biomes() if bm_farm.grid.has_method("get_all_biomes") else {}
+					var best_pair: Dictionary = bm_lattice.best_live_tension_pair(all_biomes)
+					var raw_contracts: Array = []
+					var scope := ""
+					if not best_pair.is_empty():
+						var ba = all_biomes.get(str(best_pair.get("a", "")), null)
+						var bb = all_biomes.get(str(best_pair.get("b", "")), null)
+						if ba != null and bb != null:
+							raw_contracts = bm_lattice.propose_pair_offers(ba, bb, 24)
+							scope = "pair:%s×%s" % [best_pair.get("a", ""), best_pair.get("b", "")]
+					if raw_contracts.is_empty():
+						var nb := str(bm_lattice.best_neighborhood_name(bm_biome))
+						if nb != "":
+							raw_contracts = bm_lattice.propose_neighborhood_offers_scoped(bm_biome, nb, 24)
+							scope = "neighborhood:%s" % nb
+					var bm_offers: Array = []
+					for rc in raw_contracts:
+						var q: Dictionary = QuestPipeline.from_market_contract(rc, bm_biome)
+						if q.is_empty():
+							continue
+						bm_offers.append({
+							"faction": q.get("faction", ""),
+							"resource": q.get("resource", ""),
+							"quantity": q.get("quantity", 0),
+							"reward_resources": q.get("reward_resources", {}),
+						})
+					result["scope"] = scope
+					result["count"] = bm_offers.size()
+					result["offers"] = bm_offers
+
+		"flag_progress":
+			# Read-only: per-predicate + combined smooth_and score for a named story flag,
+			# exactly as the C-surface Arc tab shows it. The instrument for driving an arc
+			# beat to its FLAG_FIRE_THRESHOLD (0.85) without forcing the flag.
+			var fp_qm = _resolve_quest_manager()
+			var fp_id: String = str(cmd.get("id", ""))
+			if fp_qm == null or not fp_qm.has_method("get_all_story_flags"):
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_quest_manager"}
+			else:
+				var fp_flag: Dictionary = {}
+				for f in fp_qm.get_all_story_flags():
+					if str(f.get("id", "")) == fp_id:
+						fp_flag = f
+						break
+				if fp_flag.is_empty():
+					result = {"ok": false, "turn": turn_id, "action": action, "error": "unknown_flag", "id": fp_id}
+				else:
+					var fp_preds: Array = fp_flag.get("predicates", [])
+					var fp_scored: Array = []
+					for p in fp_preds:
+						fp_scored.append({"pred": p, "score": fp_qm.evaluate_predicate_score(p)})
+					result["id"] = fp_id
+					result["fired"] = (_farm != null and "story_flags_fired" in _farm and _farm.story_flags_fired.has(fp_id))
+					result["combined"] = fp_qm.evaluate_flag_score(fp_flag)
+					result["threshold"] = fp_qm.FLAG_FIRE_THRESHOLD
+					result["predicates"] = fp_scored
+
 		"berry_track":
 			# Start Berry-phase tracking on qubit(s) of a biome (test harness for the
 			# incorporation loop, bypassing the Icon-hat keypress ritual).

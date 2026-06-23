@@ -1655,15 +1655,17 @@ func _resolve_live_biome(bname: String):
 	return null
 
 func _adapt_contracts_for_view(contracts: Array) -> Array:
+	# Route every contract through the ONE canonical construction path so the
+	# keyboard market is identical to the offer_all_faction_quests pool: DELIVER
+	# contracts pre-roll coupling-tied RESOURCE rewards (incl. scarce ones like 🔨)
+	# and get faction-voiced text. Previously this only called to_quest_offer_dict(),
+	# so the board market silently lacked reward_resources — the player could never
+	# earn scarce resources by keyboard even though the rig pool had them.
 	var out: Array = []
 	for c in contracts:
 		if c == null:
 			continue
-		var quest: Dictionary = {}
-		if c.has_method("to_quest_offer_dict"):
-			quest = c.to_quest_offer_dict()
-		elif c is Dictionary:
-			quest = c.duplicate(true)
+		var quest: Dictionary = QuestPipeline.from_market_contract(c, current_biome)
 		if quest.is_empty():
 			continue
 		out.append(quest)
@@ -1747,6 +1749,30 @@ func _ensure_biome() -> void:
 	var abm = (Engine.get_main_loop().root.get_node_or_null("/root/ActiveBiomeManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 	if abm and abm.has_method("get_active_biome_node"):
 		current_biome = abm.get_active_biome_node()
+	if current_biome != null:
+		return
+	# Fallback: resolve the active farm's current biome directly (same source the
+	# OverlayManager uses on open). Without this, opening the board when
+	# ActiveBiomeManager isn't tracking a node left current_biome null, so the market
+	# bailed with "no current neighborhood" and keyboard accept captured nothing.
+	var farm = InstrumentLocator.resolve_active_farm(self)
+	if farm == null:
+		return
+	var bname := ""
+	# Most reliable focus signal: the instrument's selected biome (set by the biome-row
+	# keys in both live play and headless drive).
+	var inst = InstrumentLocator.resolve_quantum_instrument(self)
+	if inst and "current_biome" in inst:
+		bname = str(inst.current_biome)
+	var obs = farm.observation_frame if "observation_frame" in farm else null
+	if bname == "" and obs and obs.has_method("get_neutral_biome"):
+		bname = str(obs.get_neutral_biome())
+	if bname == "" and farm.has_method("get_current_biome"):
+		var b = farm.get_current_biome()
+		if b and "biome_name" in b:
+			bname = str(b.biome_name)
+	if bname != "" and farm.grid and farm.grid.has_biome(bname):
+		current_biome = farm.grid.get_biome(bname)
 
 # =============================================================================
 # VERB DISPATCHERS

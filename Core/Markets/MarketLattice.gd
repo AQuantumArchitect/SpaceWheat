@@ -354,6 +354,8 @@ func propose_neighborhood_offers_scoped(biome, neighborhood_name: String, n: int
 		})
 	scored.sort_custom(func(x, y): return float(x.score) > float(y.score))
 
+	var nb_fdm = _farm.faction_density if "faction_density" in _farm else null
+	var nb_registry = nb_fdm.get_registry() if nb_fdm != null else null
 	var offers: Array = []
 	var taken: int = 0
 	for entry in scored:
@@ -364,7 +366,14 @@ func propose_neighborhood_offers_scoped(biome, neighborhood_name: String, n: int
 		var pole: int = qc.pole(emoji) if qc.has_method("pole") else 1
 		var cost_emoji: String = _pick_faction_cost_emoji(emoji, entry.marg_fb)
 		var expiry: int = _current_phrame + HamiltonianConfig.CONTRACT_DEFAULT_EXPIRY_PHRAMES
-		var c = MarketContract.make(emoji, neighborhood_name, biome_name, pole,
+		# Issuer is a CANONICAL faction that speaks this emoji (not the neighborhood
+		# key): the offering faction's coupling-cloud is the reward pool. Using the
+		# raw neighborhood name (e.g. "HearthKeepers") broke FactionDatabase lookup,
+		# collapsing rewards to a degenerate deliver-X-get-X and shutting out every
+		# faction but one. Per-emoji speaker resolution restores multi-faction variety
+		# and makes scarce coupling-resources (🔨) reachable from the keyboard market.
+		var issuer: String = _resolve_neighborhood_issuer(emoji, biome, nb_registry)
+		var c = MarketContract.make(emoji, issuer, biome_name, pole,
 				_current_phrame, 0.0, expiry, cost_emoji, 0.0)
 		var kT: float = EnergyPricing.biome_temperature(biome, _farm)
 		var arb: float = _arbitrage_energy(p_live, float(entry.p_fb), kT)
@@ -540,6 +549,30 @@ func _emoji_marginals(qc) -> Dictionary:
 		if south != "":
 			out[south] = p1
 	return out
+
+
+func _resolve_neighborhood_issuer(emoji: String, biome, registry) -> String:
+	# Canonical faction that (a) is admitted to the live biome by signature and
+	# (b) speaks this emoji. Random pick among qualifiers so re-rolls (E refresh)
+	# cycle factions — every speaker gets a turn, so scarce coupling-resources stay
+	# reachable. Falls back to any registry faction speaking the emoji.
+	var qualifiers: Array = []
+	if biome != null:
+		for fname in FactionBiomeMap.factions_for_biome_by_signature(biome):
+			if registry == null:
+				continue
+			var f = registry.get_by_name(str(fname))
+			if f != null and f.has_method("speaks") and f.speaks(emoji):
+				qualifiers.append(str(fname))
+	if not qualifiers.is_empty():
+		return str(qualifiers[randi() % qualifiers.size()])
+	if registry != null and registry.has_method("get_factions_for_emoji"):
+		var fs = registry.get_factions_for_emoji(emoji)
+		if fs is Array and not fs.is_empty():
+			var f0 = fs[randi() % fs.size()]
+			if f0 != null and "name" in f0:
+				return str(f0.name)
+	return "Unknown"
 
 
 func _resolve_pair_issuer(emoji: String, biome_a, biome_b, registry) -> String:
