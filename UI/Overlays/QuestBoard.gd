@@ -420,7 +420,25 @@ func _on_action_r() -> void:
 			pass
 
 func _on_action_f() -> void:
-	pass
+	# F = pin/unpin a commitment. A locked commitment never expires, so you can accept a
+	# contract you can't yet afford, go gather the deliverable, and come back to turn it in.
+	match frame_id:
+		FRAME_COMMITMENTS:
+			_toggle_lock_selected()
+		_:
+			pass
+
+func _toggle_lock_selected() -> void:
+	if quest_manager == null or not quest_manager.has_method("set_quest_locked"):
+		return
+	var rows: Array = _commitments_rows()
+	if _selected_index < 0 or _selected_index >= rows.size():
+		return
+	var qid: int = int(rows[_selected_index].get("id", -1))
+	if qid < 0:
+		return
+	quest_manager.set_quest_locked(qid, not quest_manager.is_quest_locked(qid))
+	_render_all()
 
 # =============================================================================
 # INSPECT TEXT — what E pops up as a toast (OverlayBase calls get_inspect_text).
@@ -627,7 +645,12 @@ func _current_verb_labels() -> Dictionary:
 		FRAME_MARKET:
 			return {"Q": "—", "E": "Refresh", "R": "Accept", "F": "—"}
 		FRAME_COMMITMENTS:
-			return {"Q": "Abandon", "E": "—", "R": "Complete", "F": "—"}
+			var f_label := "Lock"
+			var crows := _commitments_rows()
+			if quest_manager and quest_manager.has_method("is_quest_locked") and _selected_index >= 0 and _selected_index < crows.size():
+				if quest_manager.is_quest_locked(int(crows[_selected_index].get("id", -1))):
+					f_label = "Unlock"
+			return {"Q": "Abandon", "E": "—", "R": "Complete", "F": f_label}
 		FRAME_ARC:
 			var rows := _arc_rows()
 			if _selected_index >= 0 and _selected_index < rows.size():

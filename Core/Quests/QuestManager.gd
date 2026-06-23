@@ -1069,8 +1069,32 @@ func _stop_quest_timer(quest_id: int) -> void:
 func _on_quest_timeout(quest_id: int) -> void:
 	# Handle quest timer expiration
 	if active_quests.has(quest_id):
+		# Locked commitments never expire — the player pinned them to go gather the
+		# deliverable and come back. (Defensive: locking also stops the timer.)
+		if bool(active_quests[quest_id].get("locked", false)):
+			return
 		fail_quest(quest_id, "timeout")
 		quest_expired.emit(quest_id)
+
+
+## Pin/unpin a commitment. A locked commitment never expires, so the player can accept a
+## contract they can't yet afford, go gather the deliverable, and come back to turn it in.
+## Returns the new locked state (false if the quest isn't active).
+func set_quest_locked(quest_id: int, locked: bool) -> bool:
+	if not active_quests.has(quest_id):
+		return false
+	active_quests[quest_id]["locked"] = locked
+	if locked:
+		_stop_quest_timer(quest_id)            # pinned → countdown halted
+	else:
+		var tl: float = float(active_quests[quest_id].get("time_limit", -1))
+		if tl > 0 and not quest_timers.has(quest_id):
+			_start_quest_timer(quest_id, tl)   # un-pinned → resume the clock
+	active_quests_changed.emit()
+	return locked
+
+func is_quest_locked(quest_id: int) -> bool:
+	return active_quests.has(quest_id) and bool(active_quests[quest_id].get("locked", false))
 
 func get_quest_time_remaining(quest_id: int) -> float:
 	# Get seconds remaining on quest timer
