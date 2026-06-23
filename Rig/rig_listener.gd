@@ -706,6 +706,23 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				result["flags_fired"] = farm.story_flags_fired.duplicate() if "story_flags_fired" in farm else {}
 				result["story_log"] = farm.story_log.duplicate(true) if "story_log" in farm else []
 
+		"biome_slots":
+			# Read-only: the TYUIOP slot → biome mapping. grid_snapshot lists biomes in a
+			# different (sorted) order, so a driver must use THIS to press the right biome key.
+			var bsl_abm = get_root().get_node_or_null("/root/ActiveBiomeManager")
+			if bsl_abm == null:
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_active_biome_manager"}
+			else:
+				var bsl_slots: Array = []
+				var n_slots: int = InputBindingRegistry.get_biome_keys().size()
+				for si in range(n_slots):
+					var bn := str(bsl_abm.get_biome_for_slot(si)) if bsl_abm.has_method("get_biome_for_slot") else ""
+					var sk := str(bsl_abm.get_slot_key(si)) if bsl_abm.has_method("get_slot_key") else ""
+					if bn != "":
+						bsl_slots.append({"slot": si, "key": sk, "biome": bn})
+				result["slots"] = bsl_slots
+				result["active"] = str(bsl_abm.get_active_biome()) if bsl_abm.has_method("get_active_biome") else ""
+
 		"board_visible":
 			# Read-only: the live QuestBoard market's SORTED visible offers (the order the plot
 			# keys G-; select), each tagged with reward_resources + affordability. Lets a smart
