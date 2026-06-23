@@ -706,6 +706,35 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				result["flags_fired"] = farm.story_flags_fired.duplicate() if "story_flags_fired" in farm else {}
 				result["story_log"] = farm.story_log.duplicate(true) if "story_log" in farm else []
 
+		"board_visible":
+			# Read-only: the live QuestBoard market's SORTED visible offers (the order the plot
+			# keys G-; select), each tagged with reward_resources + affordability. Lets a smart
+			# driving heuristic pick the keyboard index of an affordable, wanted-reward contract
+			# instead of blindly accepting all (which jams the 5-slot commitment cap).
+			var bv_om = _resolve_overlay_manager()
+			var bv_board = bv_om.get_overlay("quests") if bv_om and bv_om.has_method("get_overlay") else null
+			if bv_board == null:
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_quest_board"}
+			else:
+				var bv_pool: Array = bv_board._offer_pool if ("_offer_pool" in bv_board) else []
+				var bv_inv: Dictionary = bv_board._get_inventory() if bv_board.has_method("_get_inventory") else {}
+				var bv_mode: int = int(bv_board._market_sort_mode) if ("_market_sort_mode" in bv_board) else 0
+				var bv_visible: Array = MarketView.sort_view(bv_pool, bv_inv, bv_mode)
+				var bv_out: Array = []
+				for vi in range(bv_visible.size()):
+					var vo = bv_visible[vi]
+					var vr := str(vo.get("resource", ""))
+					var vq := int(vo.get("quantity", 0))
+					bv_out.append({
+						"index": vi,
+						"faction": str(vo.get("faction", "")),
+						"resource": vr,
+						"quantity": vq,
+						"reward_resources": vo.get("reward_resources", {}),
+						"affordable": float(bv_inv.get(vr, 0.0)) >= float(vq),
+					})
+				result["visible"] = bv_out
+
 		"board_state":
 			# Read the LIVE QuestBoard overlay's market state to pinpoint why keyboard
 			# accept returns nothing: frame, pool size, selection, status note.
