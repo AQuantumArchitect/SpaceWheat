@@ -8,6 +8,11 @@ extends Resource
 
 
 const SQRT2 = 1.4142135623730951
+## Golden angle 2π/φ² = π(3−√5) ≈ 137.507°. The Druid steps the Bloch sphere by this
+## instead of a clean π/4: successive presses never retrace the same point and spread
+## quasi-uniformly around the circle (phyllotaxis), so harvesting solid angle feels organic
+## rather than mechanical — and the irrational fraction of 2π keeps Berry phase accumulating.
+const GOLDEN_ANGLE := 2.399963229728653
 
 ## Gate registry: maps gate_name → {arity, matrix, description}
 static var GATES: Dictionary = {}
@@ -109,6 +114,16 @@ static func _init_gates() -> void:
 		"description": "Rz rotation (π/4)",
 		"requires_unmeasured": true
 	}
+
+	# Golden-angle rotations — the Druid's organic step (see GOLDEN_ANGLE). Distinct from the
+	# clean π/4 Rx/Ry/Rz so "normal gates" keep their standard semantics. +/− variants let the
+	# Druid step both ways around the Bloch circle (rotate_up / rotate_down).
+	GATES["RxΦ"] = {"arity": 1, "matrix": _rx_gate(GOLDEN_ANGLE), "description": "Rx golden-angle (+)", "requires_unmeasured": true}
+	GATES["RyΦ"] = {"arity": 1, "matrix": _ry_gate(GOLDEN_ANGLE), "description": "Ry golden-angle (+)", "requires_unmeasured": true}
+	GATES["RzΦ"] = {"arity": 1, "matrix": _rz_gate(GOLDEN_ANGLE), "description": "Rz golden-angle (+)", "requires_unmeasured": true}
+	GATES["RxΦ-"] = {"arity": 1, "matrix": _rx_gate(-GOLDEN_ANGLE), "description": "Rx golden-angle (−)", "requires_unmeasured": true}
+	GATES["RyΦ-"] = {"arity": 1, "matrix": _ry_gate(-GOLDEN_ANGLE), "description": "Ry golden-angle (−)", "requires_unmeasured": true}
+	GATES["RzΦ-"] = {"arity": 1, "matrix": _rz_gate(-GOLDEN_ANGLE), "description": "Rz golden-angle (−)", "requires_unmeasured": true}
 
 	# ========== 2-QUBIT GATES ==========
 

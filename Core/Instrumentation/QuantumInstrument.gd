@@ -250,11 +250,11 @@ func action_rotate(positions: Array[Vector2i], direction: int) -> Dictionary:
 	return _cost_action(action_name, positions, func():
 		var axis = ToolConfig.get_frame_mode_name(ToolConfig.FRAME_DRUID)
 		if axis == "": axis = "X"
+		# The Druid steps in golden-angle increments (not a clean π/4): organic, never-retracing
+		# Bloch coverage that keeps Berry phase accumulating. direction sets +/− around the axis.
 		var result: Dictionary
 		match axis:
-			"X": result = GateActionHandler.apply_rx_gate(farm, positions)
-			"Y": result = GateActionHandler.apply_ry_gate(farm, positions)
-			"Z": result = GateActionHandler.apply_rz_gate(farm, positions)
+			"X", "Y", "Z": result = GateActionHandler.apply_golden_gate(farm, positions, axis, direction)
 			_: result = {"success": true, "axis": axis, "direction": direction}
 		action_performed.emit(action_name, result)
 		return result

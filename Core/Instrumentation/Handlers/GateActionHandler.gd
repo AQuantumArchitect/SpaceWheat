@@ -108,6 +108,15 @@ static func apply_rz_gate(farm, positions: Array[Vector2i]) -> Dictionary:
 	return _apply_gate_batch(farm, positions, "Rz", "Rz-gate")
 
 
+## Golden-angle rotations — the Druid's organic Bloch-sphere step. `direction >= 0` steps +φ,
+## `< 0` steps −φ (so rotate_up / rotate_down trace opposite ways around the circle).
+static func apply_golden_gate(farm, positions: Array[Vector2i], axis: String, direction: int) -> Dictionary:
+	# Library keys are "RxΦ"/"RyΦ"/"RzΦ" (+) and "...Φ-" (−); axis arrives as "X"/"Y"/"Z".
+	var base := "R" + axis.to_lower() + "Φ"
+	var gate_name := base if direction >= 0 else base + "-"
+	return _apply_gate_batch(farm, positions, gate_name, "%s golden-angle" % axis)
+
+
 ## ============================================================================
 ## TWO-QUBIT GATE OPERATIONS
 ## ============================================================================
