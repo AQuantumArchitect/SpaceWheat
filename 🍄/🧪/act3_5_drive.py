@@ -494,9 +494,52 @@ def main():
                 if isinstance(b, int) and b >= 2 and "ledger_opens" in flags():
                     break
 
+        # ============ ACT 6: empire_starved -> island_free (the ending) ============
+        print("\n== ACT6: starve the ledger (drain 📜 below threshold) ==")
+
+        def bl_z():
+            # Per-qubit Bloch z for BloodLedger (z = p0 - p1; high z => south pole drained).
+            rows = go("viz_bloch", biome="BloodLedger").get("qubits", [])
+            return {int(r.get("qubit", -1)): round(float(r.get("cache_z", 9)), 3) for r in rows}
+
+        if "BloodLedger" in grid() and "ledger_opens" in flags():
+            rd = go("realization_debug", biome="BloodLedger")
+            print("  realized:", rd.get("canonical_realized_physics"))
+            goto_biome("BloodLedger")
+            print(f"  berry={berry('BloodLedger')}  baseline z={bl_z()}")
+            print(f"  baseline {fprog('empire_starved')}")
+            for rnd in range(1, 11):
+                # Steer toward the 🏰 pole then collapse there: Druid excite (E) loads the
+                # register, Ace measure (R)+pop (Q) projects it; sample 📜 right after.
+                ensure_hat("0")
+                for pk in PLOT:
+                    press(pk, 2); press("E", 2)
+                go("time_skip", phrames=120)
+                ensure_hat("8")
+                for pk in PLOT:
+                    press(pk, 2); press("R", 3); press("Q", 3)
+                go("time_skip", phrames=200)
+                print(f"  [drain {rnd}] z={bl_z()} | {fprog('empire_starved')}")
+                if "empire_starved" in flags():
+                    break
+            for rnd in range(1, 6):
+                print(f"  [free {rnd}] {fprog('island_free')}")
+                if "island_free" in flags():
+                    break
+                go("time_skip", phrames=400)
+        else:
+            print("  (BloodLedger/ledger_opens not reached — ending skipped)")
+
+        # ============ B3: village_identity divergent branches ============
+        print("\n== B3: village path branches (fire on which atom you built) ==")
+        for fid in ("village_path_commons", "village_path_industrial", "village_path_artisan",
+                    "village_path_watched", "village_path_cemetery"):
+            print("  ", fprog(fid))
+
         # ============ RESULT ============
         print("\n== RESULT ==")
-        for fid in ("mill_wakes", "mill_master", "island_lives", "village_identity", "ledger_opens"):
+        for fid in ("mill_wakes", "mill_master", "island_lives", "village_identity",
+                    "ledger_opens", "empire_starved", "island_free"):
             print("  ", fprog(fid))
         print("  flags:", sorted(flags().keys()))
     finally:

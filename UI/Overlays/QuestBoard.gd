@@ -398,6 +398,33 @@ func _commitments_inspect_text() -> String:
 		]
 	return card_tip
 
+## The Demos' four-movement spine, derived from a flag's act (single source = act):
+## Vocabulary -> The Village -> The Island & its People -> The Empire & the Escape.
+func _chapter_for_act(act: int) -> String:
+	if act <= 1:
+		return "Chapter I — Vocabulary"
+	elif act <= 3:
+		return "Chapter II — The Village"
+	elif act == 4:
+		return "Chapter III — The Island & Its People"
+	return "Chapter IV — The Empire & The Escape"
+
+## Current chapter = the furthest act the player has fired into (else the opening).
+func _current_chapter_label() -> String:
+	var farm = InstrumentLocator.resolve_active_farm(self)
+	var max_act := 0
+	if farm != null and "story_flags_fired" in farm and quest_manager != null \
+			and quest_manager.has_method("get_all_story_flags"):
+		for flag in quest_manager.get_all_story_flags():
+			if farm.story_flags_fired.has(str(flag.get("id", ""))):
+				max_act = max(max_act, int(flag.get("act", 0)))
+	return "The Demos · %s" % _chapter_for_act(max_act)
+
+func _make_arc_chapter_header() -> Control:
+	var lbl := _make_muted_label(_current_chapter_label(), 12)
+	lbl.add_theme_color_override("font_color", Color(0.78, 0.72, 0.45, 0.95))
+	return lbl
+
 func _arc_inspect_text() -> String:
 	var rows: Array = _arc_rows()
 	if _selected_index < 0 or _selected_index >= rows.size():
@@ -414,7 +441,8 @@ func _arc_inspect_text() -> String:
 	var flag: Dictionary = entry.get("flag", {})
 	var lines: Array[String] = []
 	var _biome_name := str(flag.get("display_name", flag.get("id", "?")))
-	lines.append("%s · act %d" % [name, int(flag.get("act", 0))])
+	lines.append("%s · act %d" % [_biome_name, int(flag.get("act", 0))])
+	lines.append("The Demos · %s" % _chapter_for_act(int(flag.get("act", 0))))
 	if kind == "flag_fired":
 		lines.append("✓ FIRED")
 		return "\n".join(lines)
@@ -1174,6 +1202,7 @@ func _build_arc_body() -> void:
 	if rows.is_empty():
 		_body_box.add_child(_make_muted_label("no story flags loaded", 12))
 		return
+	_body_box.add_child(_make_arc_chapter_header())
 	for i in range(MAX_VISIBLE_ITEMS):
 		if i < rows.size():
 			_body_box.add_child(_make_arc_row(rows[i], ITEM_KEYS[i], i == _selected_index))
@@ -1411,6 +1440,8 @@ func _predicate_summary(pred: Dictionary) -> String:
 			return "standing %s.%s ≥ %.2f" % [str(pred.get("faction", "")), str(pred.get("channel", "trust")), tgt]
 		"biome_state_gte":
 			return "%s.%s ≥ %.2f" % [str(pred.get("biome", "")), str(pred.get("atom", "")), tgt]
+		"biome_state_lte":
+			return "%s.%s ≤ %.2f" % [str(pred.get("biome", "")), str(pred.get("atom", "")), tgt]
 		"biome_evolving":
 			return "%s evolving" % str(pred.get("biome", ""))
 		"story_flag_set":

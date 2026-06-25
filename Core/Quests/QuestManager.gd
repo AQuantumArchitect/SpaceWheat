@@ -247,7 +247,7 @@ func _evaluate_flag_predicates(predicates: Array, farm) -> float:
 ## tutorial + arc + market quests all draw from one unified predicate language.
 const FLAG_PREDICATE_TYPES := [
 	"story_flag_set", "biome_evolving", "berry_consumed_count_gte", "berry_total_phase_gte",
-	"standing_gte", "biome_state_gte", "signature_size_gte", "atom_count_gte", "atom_in_biome",
+	"standing_gte", "biome_state_gte", "biome_state_lte", "signature_size_gte", "atom_count_gte", "atom_in_biome",
 	"atom_diversity_gte", "biome_attractor_emoji_gte", "biome_eigenvalue_gap_gte", "biome_purity_trending",
 ]
 
@@ -291,8 +291,14 @@ func _evaluate_quest_state_predicates(predicates: Array) -> float:
 ## Public: the value the player must actually reach for `pred` to fire. soft_gate is only
 ## 0.5 at the stated `value`; it crosses FLAG_FIRE_THRESHOLD near value + width·atanh(2·t−1).
 func predicate_fire_target(pred: Dictionary) -> float:
-	var w: float = float(PREDICATE_SOFT_WIDTH.get(str(pred.get("type", "")), 0.05))
-	return QuestMath.fire_value(float(pred.get("value", 0.0)), w, FLAG_FIRE_THRESHOLD)
+	var t := str(pred.get("type", ""))
+	var w: float = float(PREDICATE_SOFT_WIDTH.get(t, 0.05))
+	var center := float(pred.get("value", 0.0))
+	var target := QuestMath.fire_value(center, w, FLAG_FIRE_THRESHOLD)
+	if t.ends_with("_lte"):
+		# "at most" predicates fire BELOW center — mirror the soft_gate offset.
+		return 2.0 * center - target
+	return target
 
 
 func _check_flag_predicate(pred: Dictionary, farm) -> float:
@@ -349,6 +355,26 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 			var snap: Dictionary = biome.viz_cache.get_snapshot(qubit)
 			var marginal: float = float(snap.get("p1" if pole == 1 else "p0", 0.0))
 			return QuestMath.soft_gate(marginal, float(pred.get("value", 0.0)))
+		"biome_state_lte":
+			# "at most" mirror of biome_state_gte — score rises as the atom's marginal falls
+			# BELOW value (e.g. draining 📜 below the ledger's autocatalytic threshold).
+			if farm.grid == null:
+				return 0.0
+			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
+			if biome == null or biome.get("quantum_computer") == null:
+				return 0.0
+			var atom := str(pred.get("atom", ""))
+			var reg = biome.quantum_computer.register_map
+			if reg == null or not reg.coordinates.has(atom):
+				return 0.0
+			var coord: Dictionary = reg.coordinates[atom]
+			var qubit := int(coord.get("qubit", -1))
+			var pole := int(coord.get("pole", 0))
+			if qubit < 0:
+				return 0.0
+			var snap: Dictionary = biome.viz_cache.get_snapshot(qubit)
+			var marginal: float = float(snap.get("p1" if pole == 1 else "p0", 0.0))
+			return QuestMath.soft_gate_inv(marginal, float(pred.get("value", 0.0)))
 		"signature_size_gte":
 			return QuestMath.soft_gate(float(farm.known_icons.size()), float(pred.get("value", 0)), PREDICATE_SOFT_WIDTH["signature_size_gte"])
 		"atom_count_gte":

@@ -166,7 +166,18 @@
     "arc_quest": {
       "type": "DELIVER",
       "body": "Close the Timber Circuit — add 🪵 to Village so the lumber flow can land.",
-      "hint": "🪵 is arriving but has nowhere to settle"
+      "hint": "🪵 is arriving but has nowhere to settle",
+      "state_predicates": [
+        {
+          "type": "atom_in_biome",
+          "biome": "Village",
+          "atom": "🪵"
+        }
+      ],
+      "reward_north": "🪵",
+      "reward_south": "🪓",
+      "reward_icon_north": "🪵",
+      "reward_icon_south": "🪓"
     }
   },
   {
@@ -199,7 +210,18 @@
     "arc_quest": {
       "type": "DELIVER",
       "body": "Thread the Spring — route 💧 into the Village hearth so the spring's flow couples into the mill pond.",
-      "hint": "The spring's outflow is physically coupling into Village's Lindblad runtime. It's waiting on you."
+      "hint": "The spring's outflow is physically coupling into Village's Lindblad runtime. It's waiting on you.",
+      "state_predicates": [
+        {
+          "type": "atom_in_biome",
+          "biome": "Village",
+          "atom": "💧"
+        }
+      ],
+      "reward_north": "💧",
+      "reward_south": "🌊",
+      "reward_icon_north": "💧",
+      "reward_icon_south": "🌊"
     }
   },
   {
@@ -372,6 +394,207 @@
     "arc_quest": null
   },
   {
+    "id": "village_path_commons",
+    "display_name": "Village Path — The Blessed Commons",
+    "act": 5,
+    "arc_beat": "Spring water reaches every hearth before it reaches any ledger. Bread is shared before it is sold, and the mill pond never runs dry. This is the Blessed Commons — the gentlest village the island can grow, and the hardest for anything upstream to tax. The Hearth Keepers tend it alongside you.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "village_identity"
+      },
+      {
+        "type": "atom_in_biome",
+        "biome": "Village",
+        "atom": "💧"
+      }
+    ],
+    "standing_grants": {
+      "Hearth Keepers": {
+        "trust": 0.15,
+        "legitimacy": 0.08
+      }
+    },
+    "arc_quest": {
+      "type": "DELIVER",
+      "body": "Hold the Commons — keep working the village's grain-and-water rhythm so it stays the people's own.",
+      "hint": "A shared village answers to the hands that tend it, not the ledger upstream.",
+      "state_predicates": [
+        {
+          "type": "berry_consumed_count_gte",
+          "biome": "Village",
+          "value": 5
+        }
+      ],
+      "reward_north": "💧",
+      "reward_south": "🌱",
+      "reward_icon_north": "💧",
+      "reward_icon_south": "🌱"
+    }
+  },
+  {
+    "id": "village_path_industrial",
+    "display_name": "Village Path — The Manufactory",
+    "act": 5,
+    "arc_beat": "Factory and chains both. The mill became a manufactory; automation displaced the labor that fed it, and bondage captured the displaced. Output climbs while the people who make it own less of it each season. This is the Industrial path — the darkest the island offers, and the Void Serfs are already counting heads.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "village_identity"
+      },
+      {
+        "type": "atom_in_biome",
+        "biome": "Village",
+        "atom": "🏭"
+      }
+    ],
+    "standing_grants": {
+      "Millwright's Union": {
+        "legitimacy": 0.12,
+        "attention": 0.1
+      },
+      "Void Serfs": {
+        "entanglement": 0.15,
+        "debt": 0.1
+      }
+    },
+    "arc_quest": {
+      "type": "DELIVER",
+      "body": "Feed the Manufactory — keep the works running, whatever it costs the hands that turn them.",
+      "hint": "Productivity has a price, and someone downstream is paying it.",
+      "state_predicates": [
+        {
+          "type": "berry_consumed_count_gte",
+          "biome": "Village",
+          "value": 5
+        }
+      ],
+      "reward_north": "🏭",
+      "reward_south": "⛓",
+      "reward_icon_north": "🏭",
+      "reward_icon_south": "⛓"
+    }
+  },
+  {
+    "id": "village_path_artisan",
+    "display_name": "Village Path — The Artisan Guild",
+    "act": 5,
+    "arc_beat": "Craft and seedlings. The blacksmith works iron the village can actually use, and the Granary Guilds put coin behind growth instead of extraction. Nothing here is automated away; nothing here is owned by anyone upstream. This is the Artisan Guild path — slower than the factory, and it keeps its people.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "village_identity"
+      },
+      {
+        "type": "atom_in_biome",
+        "biome": "Village",
+        "atom": "🔨"
+      }
+    ],
+    "standing_grants": {
+      "Millwright's Union": {
+        "trust": 0.1
+      },
+      "Granary Guilds": {
+        "trust": 0.12,
+        "legitimacy": 0.08
+      }
+    },
+    "arc_quest": {
+      "type": "DELIVER",
+      "body": "Keep the Forge Honest — sustain craft and growth together so neither starves the other.",
+      "hint": "Made things and grown things, in the same hands. That is the whole of it.",
+      "state_predicates": [
+        {
+          "type": "berry_consumed_count_gte",
+          "biome": "Village",
+          "value": 5
+        }
+      ],
+      "reward_north": "🔨",
+      "reward_south": "🌱",
+      "reward_icon_north": "🔨",
+      "reward_icon_south": "🌱"
+    }
+  },
+  {
+    "id": "village_path_watched",
+    "display_name": "Village Path — The Eagle's Gaze",
+    "act": 5,
+    "arc_beat": "The eagle is perched on the mill. Whatever your village became, something upstream is now aware of it — counting its coin, weighing its people, deciding what it is owed. The empire does not announce itself; it watches first. The Carrion Throne has marked your island on a map you have never seen.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "village_identity"
+      },
+      {
+        "type": "atom_in_biome",
+        "biome": "Village",
+        "atom": "🦅"
+      }
+    ],
+    "standing_grants": {
+      "Carrion Throne": {
+        "attention": 0.2
+      }
+    },
+    "arc_quest": {
+      "type": "DELIVER",
+      "body": "Read the Watcher — learn what the eagle wants before it decides to take it.",
+      "hint": "Attention from a throne is never idle. Follow its gaze upstream.",
+      "state_predicates": [
+        {
+          "type": "berry_consumed_count_gte",
+          "biome": "Village",
+          "value": 5
+        }
+      ],
+      "reward_north": "🦅",
+      "reward_south": "🩸",
+      "reward_icon_north": "🦅",
+      "reward_icon_south": "🩸"
+    }
+  },
+  {
+    "id": "village_path_cemetery",
+    "display_name": "Village Path — The Cemetery",
+    "act": 5,
+    "arc_beat": "The village has a cemetery now. Death and labor share an axis — the worked and the buried counted in the same ledger. The Void Serfs have a foothold: where the dead pile up, debt and bondage are never far behind. Tend this village carefully, or it will tend itself into the ground.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "village_identity"
+      },
+      {
+        "type": "atom_in_biome",
+        "biome": "Village",
+        "atom": "💀"
+      }
+    ],
+    "standing_grants": {
+      "Void Serfs": {
+        "entanglement": 0.15,
+        "debt": 0.12
+      }
+    },
+    "arc_quest": {
+      "type": "DELIVER",
+      "body": "Bury the Dead Honestly — keep the village alive enough that the cemetery does not outgrow it.",
+      "hint": "Death and labor on one axis is a debt the living pay. Watch which way it tips.",
+      "state_predicates": [
+        {
+          "type": "berry_consumed_count_gte",
+          "biome": "Village",
+          "value": 5
+        }
+      ],
+      "reward_north": "💀",
+      "reward_south": "💸",
+      "reward_icon_north": "💀",
+      "reward_icon_south": "💸"
+    }
+  },
+  {
     "id": "ledger_opens",
     "display_name": "The Ledger Opens",
     "act": 5,
@@ -399,7 +622,71 @@
     "arc_quest": {
       "type": "DELIVER",
       "body": "Starve the Ledger — drain 📜 below the autocatalytic threshold, then cut the Village tribute pipeline.",
-      "hint": "Something is receiving the coin and people your village produces. Follow the tribute upstream."
+      "hint": "Something is receiving the coin and people your village produces. Follow the tribute upstream.",
+      "state_predicates": [
+        {
+          "type": "biome_state_lte",
+          "biome": "BloodLedger",
+          "atom": "📜",
+          "value": 0.2
+        }
+      ],
+      "reward_north": "📜",
+      "reward_south": "🗑",
+      "reward_icon_north": "📜",
+      "reward_icon_south": "🗑"
     }
+  },
+  {
+    "id": "empire_starved",
+    "display_name": "The Ledger Goes Quiet",
+    "act": 6,
+    "arc_beat": "📜 fell below the line where it could rewrite itself. The authority that lived in the documents had nothing left to cite. The tribute pipeline from Village still runs — coin and people — but the thing upstream that was eating them has stopped answering. For the first time, the flow has nowhere to go but back to you.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "ledger_opens"
+      },
+      {
+        "type": "berry_consumed_count_gte",
+        "biome": "BloodLedger",
+        "value": 4
+      },
+      {
+        "type": "biome_state_lte",
+        "biome": "BloodLedger",
+        "atom": "📜",
+        "value": 0.5
+      }
+    ],
+    "standing_grants": {
+      "Carrion Throne": {
+        "debt": 0.2,
+        "legitimacy": -0.1
+      }
+    },
+    "arc_quest": null
+  },
+  {
+    "id": "island_free",
+    "display_name": "The Demos — Free",
+    "act": 6,
+    "arc_beat": "No coin leaves the island now. The forest still feeds the woodlot, the woodlot still feeds the hearth, the spring still feeds the mill — but the loop closes on itself, and what it makes, it keeps. You were never a player moving pieces on someone else's board. You were a people, learning the language of your own ground, until you could say the one sentence that mattered: this is ours. The Demos are free.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "empire_starved"
+      },
+      {
+        "type": "atom_diversity_gte",
+        "value": 18
+      },
+      {
+        "type": "signature_size_gte",
+        "value": 16
+      }
+    ],
+    "standing_grants": {},
+    "arc_quest": null
   }
 ]
