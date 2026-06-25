@@ -113,7 +113,7 @@ func _finalize_biome_evolution_batcher() -> void:
 var biome_enabled: bool = false
 
 # Dynamic grid sizing
-const DEFAULT_PLOTS_PER_BIOME = 4
+const DEFAULT_PLOTS_PER_BIOME = 6  # canonical ring: G H J K L ; = 6 icons / 12 atoms
 const MAX_PLOTS_PER_BIOME = 7  # J K L ; ' H G
 const LINDBLAD_TIMESCALE_BASE_DT = 0.02
 const LINDBLAD_TIMESCALE_CAP = 4096.0
@@ -1294,7 +1294,9 @@ func _get_max_biome_plot_count(biome_names: Array[String]) -> int:
 				max_count = count2
 	if max_count <= 0:
 		max_count = DEFAULT_PLOTS_PER_BIOME
-	return min(max_count, MAX_PLOTS_PER_BIOME)
+	# Floor at the full ring so every biome always has empty injection slots up to 6 qubits;
+	# cap at MAX_PLOTS_PER_BIOME. (grid_width = max(current qubits) alone is circular.)
+	return clampi(max_count, DEFAULT_PLOTS_PER_BIOME, MAX_PLOTS_PER_BIOME)
 
 
 func _get_loaded_biome_ref(biome_name: String):

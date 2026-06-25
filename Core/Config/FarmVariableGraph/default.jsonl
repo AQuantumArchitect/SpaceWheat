@@ -2,7 +2,7 @@
 # balance_schema_version: 2
 {"op":"set","path":"profile_id","value":"default"}
 {"op":"set","path":"economy_variables.quantum_to_credits","value":1.0}
-{"op":"set","path":"economy_variables.max_biome_qubits","value":12}
+{"op":"set","path":"economy_variables.max_biome_qubits","value":6}
 {"op":"set","path":"quest_rewards.resource_reward_min_total","value":1}
 {"op":"set","path":"quest_rewards.resource_reward_max_total","value":55}
 {"op":"set","path":"quest_rewards.resource_reward_min_per_emoji","value":1}

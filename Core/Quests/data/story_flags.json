@@ -321,7 +321,7 @@
     "id": "village_identity",
     "display_name": "Your Village — A Character",
     "act": 4,
-    "arc_beat": "Your village has its sixth qubit. It will behave accordingly.",
+    "arc_beat": "Your village has its sixth qubit, and the island around it has grown varied — many kinds of atom now live across your biome slots. Village is built out; the island has range. It will behave accordingly.",
     "conditional_beat": [
       {
         "atom": "💧",
@@ -352,7 +352,11 @@
       {
         "type": "atom_count_gte",
         "biome": "Village",
-        "value": 12
+        "value": 8
+      },
+      {
+        "type": "atom_diversity_gte",
+        "value": 16
       },
       {
         "type": "signature_size_gte",

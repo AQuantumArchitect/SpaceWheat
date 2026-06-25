@@ -154,6 +154,16 @@ func set_checked_plots(positions: Array) -> void:
 ## INPUT HANDLING
 ## ============================================================================
 
+## True when a live submenu or a pending destructive confirm owns the E/F keys
+## (submenu slot-select uses E; the destructive-confirm chord uses F). PlayerShell's
+## toast grammar (F flatten / E pause-decay) must YIELD E/F to this context, or the
+## confirm chord and the inject submenu's E-slot can never receive their key.
+func owns_ef_keys() -> bool:
+	if not _confirm_pending.is_empty():
+		return true
+	return _instrument != null and _instrument.is_in_submenu()
+
+
 func _unhandled_key_input(event: InputEvent) -> void:
 	# Handle keyboard input for the quantum instrument.
 	if not event is InputEventKey or not event.pressed:
@@ -1348,6 +1358,15 @@ func _run_action(action_name: String, log_symbol: String, action_label: String) 
 		_invalidate_biome_buffer_for_action(action_name)
 
 	_log_action_result(action_name, log_symbol, action_label, result)
+
+	# A4: surface gated failures (cost / cap / blocked) — these used to no-op silently, so a
+	# player who can't afford an inject (4×south + 10🌱) or a cull (34💀) got no feedback.
+	if not bool(result.get("success", true)):
+		var err := str(result.get("error", ""))
+		if bool(result.get("blocked", false)) or err in ["insufficient_funds", "qubit_cap_reached", "cost_commit_failed", "no_available_icon"]:
+			var shell := _resolve_player_shell()
+			if shell and shell.has_method("show_hint"):
+				shell.show_hint("[color=#ff9966]✗ %s[/color]" % str(result.get("message", action_label + " blocked")), 3)
 	return result
 
 

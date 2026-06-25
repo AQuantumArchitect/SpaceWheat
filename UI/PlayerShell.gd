@@ -183,9 +183,12 @@ func _handle_shell_action(event: InputEvent) -> bool:
 	var keycode = event.keycode
 
 	# Toast grammar: F flattens topmost toast, E pauses its decay.
-	# Only intercepts when a toast is live; falls through to normal F/E otherwise.
+	# Only intercepts when a toast is live AND no modal context (open submenu / pending
+	# destructive confirm) needs E/F — otherwise the toast would eat the very keys the
+	# inject submenu's E-slot and the Cull/Trim/Break confirm chord require.
 	var top_toast := _topmost_toast()
-	if top_toast != null:
+	var modal_owns_ef: bool = instrument_input != null and instrument_input.has_method("owns_ef_keys") and bool(instrument_input.owns_ef_keys())
+	if top_toast != null and not modal_owns_ef:
 		if keycode == KEY_F:
 			top_toast.flatten()
 			return true

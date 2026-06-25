@@ -248,8 +248,19 @@ func _evaluate_flag_predicates(predicates: Array, farm) -> float:
 const FLAG_PREDICATE_TYPES := [
 	"story_flag_set", "biome_evolving", "berry_consumed_count_gte", "berry_total_phase_gte",
 	"standing_gte", "biome_state_gte", "signature_size_gte", "atom_count_gte", "atom_in_biome",
-	"biome_attractor_emoji_gte", "biome_eigenvalue_gap_gte", "biome_purity_trending",
+	"atom_diversity_gte", "biome_attractor_emoji_gte", "biome_eigenvalue_gap_gte", "biome_purity_trending",
 ]
+
+## Per-type soft_gate widths — SINGLE SOURCE, read by both _check_flag_predicate below and
+## predicate_fire_target. Types not listed use QuestMath.soft_gate's default 0.05.
+const PREDICATE_SOFT_WIDTH := {
+	"berry_consumed_count_gte": 1.5,
+	"berry_total_phase_gte": 0.1,
+	"signature_size_gte": 2.0,
+	"atom_count_gte": 1.5,
+	"atom_diversity_gte": 2.0,
+	"biome_eigenvalue_gap_gte": 0.02,
+}
 
 
 ## Unified per-predicate score for QUEST completion: flag-vocabulary predicates (state outcomes)
@@ -277,6 +288,13 @@ func _evaluate_quest_state_predicates(predicates: Array) -> float:
 	return QuestMath.smooth_and(scores)
 
 
+## Public: the value the player must actually reach for `pred` to fire. soft_gate is only
+## 0.5 at the stated `value`; it crosses FLAG_FIRE_THRESHOLD near value + width·atanh(2·t−1).
+func predicate_fire_target(pred: Dictionary) -> float:
+	var w: float = float(PREDICATE_SOFT_WIDTH.get(str(pred.get("type", "")), 0.05))
+	return QuestMath.fire_value(float(pred.get("value", 0.0)), w, FLAG_FIRE_THRESHOLD)
+
+
 func _check_flag_predicate(pred: Dictionary, farm) -> float:
 	## Returns a continuous confidence score in [0, 1] for each predicate type.
 	## Structural predicates (flag set, biome exists) return 1.0 or 0.0 exactly.
@@ -297,7 +315,7 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 			if biome == null or biome.get("quantum_computer") == null:
 				return 0.0
 			var count := float(biome.quantum_computer.berry_register.get_consumed_count())
-			return QuestMath.soft_gate(count, float(pred.get("value", 0)), 1.5)
+			return QuestMath.soft_gate(count, float(pred.get("value", 0)), PREDICATE_SOFT_WIDTH["berry_consumed_count_gte"])
 		"berry_total_phase_gte":
 			if farm.grid == null:
 				return 0.0
@@ -305,7 +323,7 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 			if biome == null or biome.get("quantum_computer") == null:
 				return 0.0
 			var phase: float = biome.quantum_computer.berry_register.get_consumed_phase()
-			return QuestMath.soft_gate(phase, float(pred.get("value", 0.0)), 0.1)
+			return QuestMath.soft_gate(phase, float(pred.get("value", 0.0)), PREDICATE_SOFT_WIDTH["berry_total_phase_gte"])
 		"standing_gte":
 			var standing = farm.faction_standings.get(str(pred.get("faction", "")))
 			if standing == null:
@@ -332,7 +350,7 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 			var marginal: float = float(snap.get("p1" if pole == 1 else "p0", 0.0))
 			return QuestMath.soft_gate(marginal, float(pred.get("value", 0.0)))
 		"signature_size_gte":
-			return QuestMath.soft_gate(float(farm.known_icons.size()), float(pred.get("value", 0)), 2.0)
+			return QuestMath.soft_gate(float(farm.known_icons.size()), float(pred.get("value", 0)), PREDICATE_SOFT_WIDTH["signature_size_gte"])
 		"atom_count_gte":
 			if farm.grid == null:
 				return 0.0
@@ -340,7 +358,7 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 			if biome == null or biome.get("quantum_computer") == null:
 				return 0.0
 			var count := float(biome.quantum_computer.register_map.coordinates.size())
-			return QuestMath.soft_gate(count, float(pred.get("value", 0)), 1.5)
+			return QuestMath.soft_gate(count, float(pred.get("value", 0)), PREDICATE_SOFT_WIDTH["atom_count_gte"])
 		"atom_in_biome":
 			if farm.grid == null:
 				return 0.0
@@ -348,6 +366,20 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 			if biome == null or biome.get("quantum_computer") == null:
 				return 0.0
 			return 1.0 if biome.quantum_computer.register_map.coordinates.has(str(pred.get("atom", ""))) else 0.0
+		"atom_diversity_gte":
+			# Distinct atom emojis across ALL loaded biomes — rewards spreading a varied
+			# ecology over the island's biome slots, not over-stuffing one biome (which the
+			# per-biome plot cap forbids anyway). Union of every biome's register coordinates.
+			if farm.grid == null:
+				return 0.0
+			var seen: Dictionary = {}
+			for bname in farm.grid.get_biome_names():
+				var b = farm.grid.get_biome(str(bname))
+				if b == null or b.get("quantum_computer") == null or b.quantum_computer.register_map == null:
+					continue
+				for atom in b.quantum_computer.register_map.coordinates.keys():
+					seen[str(atom)] = true
+			return QuestMath.soft_gate(float(seen.size()), float(pred.get("value", 0)), PREDICATE_SOFT_WIDTH["atom_diversity_gte"])
 		"biome_attractor_emoji_gte":
 			if farm.grid == null:
 				return 0.0
@@ -365,7 +397,7 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 				return 0.0
 			var attractor: Dictionary = biome.get_attractor_state()
 			return QuestMath.soft_gate(attractor.get("eigenvalue_gap", 0.0),
-					float(pred.get("value", 0.15)), 0.02)
+					float(pred.get("value", 0.15)), PREDICATE_SOFT_WIDTH["biome_eigenvalue_gap_gte"])
 		"biome_purity_trending":
 			if farm.grid == null:
 				return 0.0

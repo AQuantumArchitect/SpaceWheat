@@ -697,6 +697,35 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			var icons = _instrument.get_known_icons() if _instrument else []
 			result["icons"] = icons if icons is Array else []
 
+		"atom_diversity":
+			# Distinct atom emojis across all loaded biomes + per-biome breakdown — used to
+			# calibrate village_identity's atom_diversity_gte threshold empirically.
+			if _farm == null or _farm.grid == null:
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_grid"}
+			else:
+				var ad_seen: Dictionary = {}
+				var ad_per: Dictionary = {}
+				for ad_name in _farm.grid.get_biome_names():
+					var ad_b = _farm.grid.get_biome(str(ad_name))
+					if ad_b == null or not ("quantum_computer" in ad_b) or ad_b.quantum_computer == null or ad_b.quantum_computer.register_map == null:
+						continue
+					var ad_keys = ad_b.quantum_computer.register_map.coordinates.keys()
+					ad_per[str(ad_name)] = ad_keys.size()
+					for ad_atom in ad_keys:
+						ad_seen[str(ad_atom)] = true
+				result["distinct"] = ad_seen.size()
+				result["atoms"] = ad_seen.keys()
+				result["per_biome"] = ad_per
+
+		"confirm_state":
+			# Read QII._confirm_pending so a rig driver can see whether a destructive
+			# verb (Cull/Trim/Break) armed its Q→F confirm chord, and the active biome.
+			var ci = _shell.instrument_input if _shell and "instrument_input" in _shell else null
+			result["pending"] = (ci._confirm_pending.duplicate() if ci != null and "_confirm_pending" in ci and ci._confirm_pending != null else {})
+			var cf_abm = get_root().get_node_or_null("/root/ActiveBiomeManager")
+			result["active_biome"] = str(cf_abm.get_active_biome()) if cf_abm and cf_abm.has_method("get_active_biome") else ""
+			result["current_frame"] = str(ToolConfig.get_current_frame()) if ToolConfig else ""
+
 		"story_flags":
 			var farm = _farm
 			if farm == null:

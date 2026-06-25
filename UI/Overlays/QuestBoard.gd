@@ -447,6 +447,12 @@ func _manifold_inspect_text() -> String:
 # =============================================================================
 
 func _render_all() -> void:
+	# A5: keep the selection valid after a row is removed (accept/claim/abandon shrink the
+	# list, so a stale _selected_index would highlight the wrong row or nothing). Clamp to
+	# the live row count → the cursor lands on the next/last item, not off the end.
+	var _rc := _current_row_count()
+	if _rc > 0:
+		_selected_index = clampi(_selected_index, 0, _rc - 1)
 	_refresh_status()
 	_refresh_tab_row()
 	_refresh_body()
@@ -1385,31 +1391,40 @@ func _make_arc_row(entry: Dictionary, key_str: String, selected: bool) -> Contro
 
 	return row
 
+## The threshold a predicate displays is the REAL fire target (soft_gate is only 0.5 at the
+## raw `value`; it fires higher). predicate_fire_target inverts the soft-gate so the player
+## sees the number they must actually reach.
 func _predicate_summary(pred: Dictionary) -> String:
 	var t := str(pred.get("type", "?"))
+	var tgt: float = float(pred.get("value", 0.0))
+	if quest_manager and quest_manager.has_method("predicate_fire_target"):
+		tgt = quest_manager.predicate_fire_target(pred)
+	var itgt: int = int(ceil(tgt))
 	match t:
 		"signature_size_gte":
-			return "signature ≥ %d" % int(pred.get("value", 0))
+			return "signature ≥ %d" % itgt
 		"berry_consumed_count_gte":
-			return "berries[%s] ≥ %d" % [str(pred.get("biome", "")), int(pred.get("value", 0))]
+			return "berries[%s] ≥ %d" % [str(pred.get("biome", "")), itgt]
 		"berry_total_phase_gte":
-			return "phase[%s] ≥ %.2f" % [str(pred.get("biome", "")), float(pred.get("value", 0.0))]
+			return "phase[%s] ≥ %.2f" % [str(pred.get("biome", "")), tgt]
 		"standing_gte":
-			return "standing %s.%s ≥ %.2f" % [str(pred.get("faction", "")), str(pred.get("channel", "trust")), float(pred.get("value", 0.0))]
+			return "standing %s.%s ≥ %.2f" % [str(pred.get("faction", "")), str(pred.get("channel", "trust")), tgt]
 		"biome_state_gte":
-			return "%s.%s ≥ %.2f" % [str(pred.get("biome", "")), str(pred.get("atom", "")), float(pred.get("value", 0.0))]
+			return "%s.%s ≥ %.2f" % [str(pred.get("biome", "")), str(pred.get("atom", "")), tgt]
 		"biome_evolving":
 			return "%s evolving" % str(pred.get("biome", ""))
 		"story_flag_set":
 			return "flag '%s' set" % str(pred.get("id", ""))
 		"atom_count_gte":
-			return "%s atoms ≥ %d" % [str(pred.get("biome", "")), int(pred.get("value", 0))]
+			return "%s atoms ≥ %d" % [str(pred.get("biome", "")), itgt]
+		"atom_diversity_gte":
+			return "atom diversity ≥ %d" % itgt
 		"atom_in_biome":
 			return "%s ∋ %s" % [str(pred.get("biome", "")), str(pred.get("atom", ""))]
 		"biome_attractor_emoji_gte":
-			return "%s attractor[%s] ≥ %.2f" % [str(pred.get("biome", "")), str(pred.get("emoji", "")), float(pred.get("value", 0.0))]
+			return "%s attractor[%s] ≥ %.2f" % [str(pred.get("biome", "")), str(pred.get("emoji", "")), tgt]
 		"biome_eigenvalue_gap_gte":
-			return "%s gap ≥ %.2f" % [str(pred.get("biome", "")), float(pred.get("value", 0.0))]
+			return "%s gap ≥ %.2f" % [str(pred.get("biome", "")), tgt]
 		"biome_purity_trending":
 			return "%s purity↑" % str(pred.get("biome", ""))
 		_:
@@ -1452,7 +1467,8 @@ func _predicate_value_tooltip(pred: Dictionary, score: float) -> String:
 			var current: int = 0
 			if farm and farm.has_method("get_known_emojis"):
 				current = farm.get_known_emojis().size()
-			return "%s\ncurrent: %d   ·   need: %d   ·   gap: %d" % [head, current, threshold, max(0, threshold - current)]
+			var fire_sig: int = int(ceil(quest_manager.predicate_fire_target(pred))) if quest_manager and quest_manager.has_method("predicate_fire_target") else threshold
+			return "%s\ncurrent: %d   ·   need: %d   ·   gap: %d" % [head, current, fire_sig, max(0, fire_sig - current)]
 
 		"berry_consumed_count_gte", "berry_total_phase_gte":
 			var biome_name: String = str(pred.get("biome", ""))
@@ -1464,7 +1480,8 @@ func _predicate_value_tooltip(pred: Dictionary, score: float) -> String:
 			if t == "berry_consumed_count_gte":
 				var threshold_c: int = int(pred.get("value", 0))
 				var current_c: int = berry.get_consumed_count() if berry.has_method("get_consumed_count") else 0
-				return "%s\ncurrent: %d   ·   need: %d" % [head, current_c, threshold_c]
+				var fire_c: int = int(ceil(quest_manager.predicate_fire_target(pred))) if quest_manager and quest_manager.has_method("predicate_fire_target") else threshold_c
+				return "%s\ncurrent: %d   ·   need: %d" % [head, current_c, fire_c]
 			else:
 				var threshold_p: float = float(pred.get("value", 0.0))
 				var current_p: float = berry.get_consumed_phase() if berry.has_method("get_consumed_phase") else 0.0
@@ -1774,6 +1791,19 @@ func _acknowledge_selected_arc() -> void:
 # =============================================================================
 # HELPERS
 # =============================================================================
+
+func _current_row_count() -> int:
+	# Row count for the ACTIVE frame (the list _selected_index indexes into).
+	match frame_id:
+		FRAME_MARKET:
+			return MarketView.sort_view(_offer_pool, _get_inventory(), _market_sort_mode).size()
+		FRAME_COMMITMENTS:
+			return _commitments_rows().size()
+		FRAME_ARC:
+			return _arc_rows().size()
+		_:
+			return MAX_VISIBLE_ITEMS
+
 
 func _select(idx: int) -> void:
 	_selected_index = clampi(idx, 0, MAX_VISIBLE_ITEMS - 1)

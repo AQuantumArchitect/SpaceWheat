@@ -32,7 +32,7 @@ const TUNABLES: Array = [
 	{"root": "tuning", "key": "signature_r_bonus", "default": 1.0, "label": "Signature r-bonus", "category": "Signature", "kind": "float", "step": 0.25, "min": 0.0, "max": 4.0},
 	{"root": "tuning", "key": "signature_reward_exponent", "default": 2.0, "label": "Signature exponent", "category": "Signature", "kind": "float", "step": 0.25, "min": 1.0, "max": 4.0},
 	{"root": "economy_variables", "key": "quantum_to_credits", "default": 1.0, "label": "Quantum → credits", "category": "Economy", "kind": "float", "step": 0.1, "min": 0.1, "max": 10.0},
-	{"root": "economy_variables", "key": "max_biome_qubits", "default": 12, "label": "Max biome qubits", "category": "Physics", "kind": "int", "step": 1, "min": 4, "max": 24},
+	{"root": "economy_variables", "key": "max_biome_qubits", "default": 6, "label": "Max biome qubits", "category": "Physics", "kind": "int", "step": 1, "min": 4, "max": 24},
 	# Physics scalars (the H/L dials). lindblad_rate_scale only bites when dissipative;
 	# hamiltonian_coupling_scale is the one physical dial of the closed system (1.0 = identity).
 	{"root": "physics", "key": "lindblad_rate_scale", "default": 1.0, "label": "Lindblad rate", "category": "Physics", "kind": "float", "step": 0.1, "min": 0.1, "max": 5.0, "open_only": true},
