@@ -1410,14 +1410,6 @@ func _get_biome_by_name(biome_name: String):
 	return null
 
 
-func _get_engine_id_for_biome(biome_name: String) -> int:
-	# Get C++ engine ID for a biome by name. Returns -1 if not found.
-	for engine_id in _engine_id_to_biome:
-		if _engine_id_to_biome[engine_id] == biome_name:
-			return engine_id
-	return -1
-
-
 func _update_biome_pause_states():
 	# Refresh the cached activity ledger on demand.
 	_refresh_runtime_activity()
@@ -1431,33 +1423,6 @@ func _poll_runtime_activity(delta: float) -> void:
 	_activity_poll_accumulator += delta
 	if _activity_poll_accumulator >= ACTIVITY_POLL_INTERVAL:
 		_refresh_runtime_activity(true)
-
-
-func _biome_has_peeked_terminals(biome) -> bool:
-	# Check if biome has any peeked terminals (bubbles to render).
-	#
-	# Returns false if no terminals are peeked (biome should be paused).
-	if not _is_valid_biome(biome):
-		return false
-
-	var qc = biome.quantum_computer
-	var num_qubits = qc.register_map.num_qubits if qc.register_map else 0
-
-	# Check if any qubits have been peeked
-	for i in range(num_qubits):
-		# Check via quantum computer's peek tracking
-		# (Assumes QC has peeked state tracking - if not, check terminal_pool instead)
-		var qubit_data = qc.get_qubit_data(i) if qc.has_method("get_qubit_data") else null
-		if qubit_data and qubit_data.get("peeked", false):
-			return true
-
-	# Fallback: check via terminal_pool if biome has bound terminals
-	if terminal_pool and terminal_pool.has_method("get_biome_peek_count"):
-		var peek_count = terminal_pool.get_biome_peek_count(biome.get_biome_type())
-		return peek_count > 0
-
-	# Default: assume active if we can't determine (safe fallback)
-	return true
 
 
 func _should_trigger_biome_refill(biome_name: String, _depth: int, rho_valid: bool = true) -> bool:
@@ -2653,23 +2618,6 @@ func _post_evolution_update(biome):
 		"VolcanicWorlds":
 			if biome.has_method("_update_eruption_state"):
 				biome._update_eruption_state()
-
-
-func _accumulate_sink_flux_from_couplings(biome, dt: float) -> void:
-	# Accumulate Lindblad sink flux using native coupling rates and live state.
-	if dt <= 0.0 or not _is_valid_biome(biome):
-		return
-	var qc = biome.quantum_computer
-	if not qc or not qc.has_method("accumulate_sink_flux_from_rates"):
-		return
-	var biome_name = _get_biome_name(biome)
-	var lookahead_buffer = _get_lookahead_buffer(biome_name)
-	var payload = lookahead_buffer.couplings if lookahead_buffer else {}
-	if payload.is_empty():
-		return
-	var sink_fluxes = payload.get("sink_fluxes", {})
-	if sink_fluxes is Dictionary and not sink_fluxes.is_empty():
-		qc.accumulate_sink_flux_from_rates(sink_fluxes, dt)
 
 
 func signal_user_action():

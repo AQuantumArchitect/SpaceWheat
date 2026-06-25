@@ -31,19 +31,6 @@ func _ready():
 	if _verbose: _verbose.info("economy", "⚛️", "Emoji-Credits Economy ready (quantum mass = credits, 1:1 mapping)")
 
 
-func _print_resources():
-	var output = ""
-	var q2c = _q2c()
-	for emoji in emoji_credits:
-		var quantum_units = emoji_credits[emoji] / q2c
-		output += "%s: %d  " % [emoji, quantum_units]
-	if _verbose: _verbose.debug("economy", "📊", output)
-
-
-## ============================================================================
-## UNIFIED API - Primary methods for all resource operations
-## ============================================================================
-
 func add_resource(emoji: String, credits_amount, reason: String = "") -> void:
 	# Add emoji-credits to any resource
 
@@ -65,22 +52,6 @@ func add_resource(emoji: String, credits_amount, reason: String = "") -> void:
 		if _verbose: _verbose.info("economy", "+", "%d %s-credits (%d units) from %s" % [final_amount, emoji, quantum_units, reason])
 
 
-func _resource_allowed_by_iconmap(emoji: String) -> bool:
-	# Only allow gains for emojis present in the current IconMap signature.
-	var gsm = get_node_or_null("/root/GameStateManager")
-	if not gsm or not gsm.has_method("get_active_farm"):
-		return true
-	var farm = gsm.get_active_farm()
-	if not farm or not ("biome_evolution_batcher" in farm):
-		return true
-	var batcher = farm.biome_evolution_batcher
-	if not batcher:
-		return true
-	var icon_map = batcher.get_global_icon_map()
-	if icon_map.is_empty():
-		return true
-	var by_emoji = icon_map.get("by_emoji", {})
-	return by_emoji.has(emoji)
 func remove_resource(emoji: String, credits_amount, reason: String = "") -> bool:
 	# Remove emoji-credits from a resource. Returns false if insufficient. Supports float amounts.
 	emoji = EmojiUtil.normalize(emoji)

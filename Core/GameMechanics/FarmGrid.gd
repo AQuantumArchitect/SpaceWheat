@@ -28,7 +28,6 @@ signal visualization_changed()
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # COMPONENTS (internal)
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -262,11 +261,6 @@ func get_plot_count() -> int:
 func is_valid_position(grid_pos: Vector2i) -> bool:
 	# Check if grid_pos is within grid bounds
 	return _plot_manager.is_valid_position(grid_pos)
-
-
-func _find_plot_by_id(plot_id: String) -> Vector2i:
-	# Find grid grid_pos of a plot by its ID
-	return _plot_manager.find_plot_by_id(plot_id)
 
 
 func is_plot_empty(grid_pos: Vector2i) -> bool:

@@ -697,19 +697,6 @@ func _get_global_icon_map() -> Dictionary:
 	return {}
 
 
-func _apply_market_projection(quest: Dictionary) -> void:
-	if quest.is_empty():
-		return
-	var icon_map = _get_global_icon_map()
-	var projection = QuestRewards.compute_market_projection(quest, icon_map)
-	if projection.is_empty():
-		return
-	quest["market_projection"] = projection
-
-# =============================================================================
-# QUEST ACCEPTANCE
-# =============================================================================
-
 func accept_quest(quest_data: Dictionary) -> bool:
 	# Accept an offered quest
 

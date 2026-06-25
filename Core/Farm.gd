@@ -1266,15 +1266,6 @@ func _is_biome_loaded(biome_name: String) -> bool:
 	return grid != null and grid.get_biome(biome_name) != null
 
 
-func _get_loadable_biomes() -> Array[String]:
-	# Get loadable biomes (icon build succeeded).
-	var observation_frame = get_node_or_null("/root/ObservationFrame")
-	if observation_frame and observation_frame.has_method("get_loadable_biomes"):
-		return observation_frame.get_loadable_biomes()
-	# Fallback to explored list if loadable list not available
-	return _get_explored_biomes()
-
-
 func _get_max_biome_plot_count(biome_names: Array[String]) -> int:
 	# Compute max plot count across biome layouts (fallback to DEFAULT_PLOTS_PER_BIOME).
 	var max_count = 0

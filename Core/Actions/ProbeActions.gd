@@ -18,7 +18,6 @@ extends RefCounted
 ##   - Creates sustainable farming loop: grow → harvest → regrow
 
 
-
 ## ============================================================================
 ## EXPLORE ACTION — Bind terminal to a specific register
 ## ============================================================================
@@ -975,12 +974,6 @@ static func action_clear_all(terminal_pool, farm = null, economy = null) -> Dict
 	}
 
 
-static func _looks_like_farm(value) -> bool:
-	if value == null:
-		return false
-	return ("grid" in value) and ("terminal_pool" in value)
-
-
 static func _resolve_biome_from_terminal(farm, terminal):
 	if not farm or not terminal:
 		return null
@@ -988,18 +981,6 @@ static func _resolve_biome_from_terminal(farm, terminal):
 		return null
 	var biome_name = terminal.measured_biome_name if terminal.measured_biome_name != "" else terminal.bound_biome_name
 	return farm.grid.get_biome(biome_name)
-
-
-static func _resolve_terminal_purity(terminal, farm = null) -> float:
-	if not terminal:
-		return 0.0
-	var purity = float(terminal.measured_purity)
-	var biome = _resolve_biome_from_terminal(farm, terminal)
-	if biome and biome.viz_cache and terminal.measured_register_id >= 0:
-		var snap = biome.viz_cache.get_snapshot(terminal.measured_register_id)
-		if snap.has("purity"):
-			purity = float(snap.get("purity", purity))
-	return clampf(purity, 0.0, 1.0)
 
 
 static func _resolve_mass_map_for_biome(biome) -> Dictionary:
@@ -1129,34 +1110,6 @@ static func _format_cost(cost: Dictionary) -> String:
 		parts.append("%s×%d" % [str(emoji), int(cost[emoji])])
 	return " ".join(parts)
 
-
-static func _save_density_matrices(biome) -> Dictionary:
-	if not biome:
-		return {}
-
-	var snapshot = {
-		"timestamp": Time.get_ticks_msec(),
-		"biome_type": biome.get_biome_type()
-	}
-
-	# Try to get density matrix from biome
-	if biome.has_method("get_density_matrix"):
-		var dm = biome.get_density_matrix()
-		if dm and dm.has_method("serialize"):
-			snapshot["density_matrix"] = dm.serialize()
-		elif dm and dm.has_method("get_state"):
-			snapshot["density_matrix"] = dm.get_state()
-
-	# Try to get register states
-	if biome.has_method("get_register_probabilities"):
-		snapshot["probabilities"] = biome.get_register_probabilities()
-
-	return snapshot
-
-
-## ============================================================================
-## UTILITY FUNCTIONS
-## ============================================================================
 
 static func get_explore_preview(terminal_pool, biome) -> Dictionary:
 	var available_terminals = terminal_pool.get_unbound_count()

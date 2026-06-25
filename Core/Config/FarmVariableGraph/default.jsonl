@@ -3,10 +3,7 @@
 {"op":"set","path":"profile_id","value":"default"}
 {"op":"set","path":"economy_variables.quantum_to_credits","value":1.0}
 {"op":"set","path":"economy_variables.max_biome_qubits","value":6}
-{"op":"set","path":"quest_rewards.resource_reward_min_total","value":1}
-{"op":"set","path":"quest_rewards.resource_reward_max_total","value":55}
 {"op":"set","path":"quest_rewards.resource_reward_min_per_emoji","value":1}
-{"op":"set","path":"quest_rewards.resource_reward_base_ratio","value":0.4}
 {"op":"set","path":"quest_rewards.reward_kT","value":10.0}
 {"op":"set","path":"quest_rewards.biome_novelty_multiplier","value":1.10}
 {"op":"set","path":"quest_rewards.icon_novelty_multiplier","value":1.10}

@@ -11,10 +11,7 @@ extends RefCounted
 ## reward_kT = representative kT for quest-reward SIZING (rarer goal → bigger bounty; live
 ## market pricing uses the biome's own kT).
 const QUEST_REWARD_TUNING_KEYS: Array = [
-	"resource_reward_min_total",
-	"resource_reward_max_total",
 	"resource_reward_min_per_emoji",
-	"resource_reward_base_ratio",
 	"biome_novelty_multiplier",
 	"icon_novelty_multiplier",
 	"novelty_multiplier_cap",
