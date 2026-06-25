@@ -68,6 +68,32 @@ func discover_icon(north: String, south: String) -> bool:
 	return true
 
 
+func discorporate_icon(north: String, south: String) -> bool:
+	# Player forgets (discorporates) a known icon. Inverse of discover_icon;
+	# forwards to the active Farm (canonical owner). Returns true iff removed.
+	var farm = _gsm.get_active_farm()
+	var removed = false
+	if farm and farm.has_method("discorporate_icon"):
+		removed = farm.discorporate_icon(north, south)
+	elif _gsm.current_state:
+		var ki: Array = _gsm.current_state.known_icons
+		if ki.size() > 1:
+			for i in range(ki.size()):
+				if ki[i].get("north") == north and ki[i].get("south") == south:
+					ki.remove_at(i)
+					removed = true
+					break
+	if not removed:
+		return false
+	if _gsm.current_state:
+		_gsm.current_state.known_icons = get_signature_icons()
+	if _verbose:
+		_verbose.info("quest", "📖", "Discorporated icon: %s/%s (signature: %d icons)" % [north, south, get_signature_icons().size()])
+	if _gsm.has_signal("icon_forgotten"):
+		_gsm.emit_signal("icon_forgotten", north, south)
+	return true
+
+
 func handle_milk_autosave(north: String, south: String) -> void:
 	if _gsm._milk_autosave_done:
 		return

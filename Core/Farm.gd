@@ -437,6 +437,28 @@ func discover_icon(north: String, south: String) -> bool:
 	return true
 
 
+func discorporate_icon(north: String, south: String) -> bool:
+	# Remove a known icon from the signature — the inverse of discover_icon.
+	# The signature keeps at least one voice; the last pair cannot be discorporated.
+	if north == "" or south == "":
+		return false
+	var idx := -1
+	for i in range(known_icons.size()):
+		if known_icons[i].get("north", "") == north and known_icons[i].get("south", "") == south:
+			idx = i
+			break
+	if idx < 0:
+		return false
+	if known_icons.size() <= 1:
+		return false  # never empty the signature
+	known_icons.remove_at(idx)
+	for sidx in range(active_icon_slots.size()):
+		if int(active_icon_slots[sidx]) >= known_icons.size():
+			active_icon_slots[sidx] = max(0, known_icons.size() - 1)
+	_sync_current_state_signature()
+	return true
+
+
 func _ensure_icon_atlas() -> IconRegistry:
 	if icon_atlas == null:
 		icon_atlas = get_node_or_null("/root/IconRegistry")
