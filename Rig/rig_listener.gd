@@ -767,6 +767,43 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				result["market_status_note"] = (str(bs_board._market_status_note) if ("_market_status_note" in bs_board) else "")
 				result["nb_name"] = (str(bs_board._nb_name) if ("_nb_name" in bs_board) else "")
 				result["pair"] = [(str(bs_board._pair_a_name) if ("_pair_a_name" in bs_board) else ""), (str(bs_board._pair_b_name) if ("_pair_b_name" in bs_board) else "")]
+				# The biome the board actually scoped to (the live current_biome it used).
+				var bs_cb = bs_board.current_biome if ("current_biome" in bs_board) else null
+				result["current_biome"] = (str(bs_cb.name) if bs_cb != null and "name" in bs_cb else "<null>")
+
+		"nb_probe":
+			var nbp_name: String = str(cmd.get("biome", "Village"))
+			var nbp_farm = _farm
+			if nbp_farm == null or not nbp_farm.has_method("get_market_lattice"):
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_farm_or_lattice"}
+			else:
+				var nbp_lattice = nbp_farm.get_market_lattice()
+				var nbp_biome = nbp_farm.grid.get_biome(nbp_name) if nbp_farm.grid else null
+				if nbp_lattice == null or nbp_biome == null:
+					result = {"ok": false, "turn": turn_id, "action": action, "error": "no_lattice_or_biome", "biome": nbp_name}
+				else:
+					var nbp_qc = nbp_biome.quantum_computer if "quantum_computer" in nbp_biome else null
+					result["biome"] = nbp_name
+					result["has_qc"] = nbp_qc != null
+					result["num_qubits"] = (nbp_qc.register_map.num_qubits if nbp_qc != null and nbp_qc.register_map != null else -1)
+					result["best_neighborhood"] = str(nbp_lattice.best_neighborhood_name(nbp_biome))
+					var nbp_abm = get_root().get_node_or_null("/root/ActiveBiomeManager")
+					result["active"] = str(nbp_abm.get_active_biome()) if nbp_abm and nbp_abm.has_method("get_active_biome") else ""
+					# Admitted factions (signature gate) + whether the target faction is among them.
+					var nbp_admitted: Array = FactionBiomeMap.factions_for_biome_by_signature(nbp_biome)
+					result["admitted_factions"] = nbp_admitted
+					var nbp_target := str(cmd.get("faction", ""))
+					if nbp_target != "":
+						result["target_admitted"] = nbp_admitted.has(nbp_target)
+						var nbp_reg = get_root().get_node_or_null("IconRegistry")
+						var nbp_freg = nbp_farm.faction_density.get_registry() if "faction_density" in nbp_farm and nbp_farm.faction_density != null else null
+						if nbp_freg != null and nbp_freg.has_method("get_by_name"):
+							var tf = nbp_freg.get_by_name(nbp_target)
+							var spoken: Array = []
+							for em in ["🍞", "⚙", "🪵", "🔥", "❄", "🌱"]:
+								if tf != null and tf.has_method("speaks") and tf.speaks(em):
+									spoken.append(em)
+							result["target_speaks"] = spoken
 
 		"board_market":
 			# Read-only: replicate QuestBoard._refresh_pool's KEYBOARD market scoping

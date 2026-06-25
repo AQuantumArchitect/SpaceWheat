@@ -290,28 +290,76 @@ func propose_neighborhood_offers(biome, n: int = 6) -> Array:
 ## Return the name of the neighborhood with the highest tension against `biome`.
 ## Returns "" if no neighborhoods exist or biome has no QC.
 func best_neighborhood_name(biome) -> String:
+	# A neighborhood is the faction-cluster a biome belongs to — a STABLE membership fact,
+	# not a property of the oscillating quantum state. We rank neighborhood specs by how many
+	# factions they share with the biome's own factions: identity (native_factions) anchors
+	# the cluster, and signature-admitted factions (what the player has incorporated) get
+	# extra weight, so your incorporations shape which cluster you fall into. The market's
+	# *prices* stay raw downstream (tension vs the live state); only membership is stabilized.
+	#
+	# Ranking by live-state tension (the old behavior) made the neighborhood oscillate with
+	# the unitary evolution — Village flipped HearthKeepers→VolcanicFoundry mid-swing and the
+	# factions that would deal with you flipped too. Membership must not breathe with the qubits.
 	if biome == null:
 		return ""
-	var qc = biome.quantum_computer if "quantum_computer" in biome else null
-	if qc == null:
+	var biome_factions := _real_faction_set(_native_factions_of(biome))
+	if biome_factions.is_empty():
 		return ""
-	var marg_live: Dictionary = _emoji_marginals(qc)
-	if marg_live.is_empty():
-		return ""
+	var admitted: Dictionary = {}
+	for f in FactionBiomeMap.factions_for_biome_by_signature(biome):
+		admitted[str(f)] = true
 	var br = BiomeRegistry.get_shared()
 	var best_name: String = ""
-	var best_score: float = -1.0
+	var best_score: float = 0.0
 	for fb in br.get_biomes_by_tag("neighborhood"):
-		var marg_fb: Dictionary = _static_marginals_from_spec(fb)
+		var spec_factions := _real_faction_set(_native_factions_of(fb))
 		var score: float = 0.0
-		for emoji in marg_live.keys():
-			if marg_fb.has(emoji):
-				var tension: float = abs(float(marg_live[emoji]) - float(marg_fb[emoji]))
-				score += (tension + 0.05) * (0.5 + 0.5 * (float(marg_live[emoji]) + float(marg_fb[emoji])))
+		for f in spec_factions.keys():
+			if biome_factions.has(f):
+				score += 2.0 if admitted.has(f) else 1.0
 		if score > best_score:
 			best_score = score
 			best_name = fb.name
 	return best_name
+
+
+## Native factions of a biome/spec as a {name: true} set, dropping the orphaned_icons
+## catch-all (it lives in nearly every biome, so it would flatten the overlap ranking).
+func _real_faction_set(raw: Array) -> Dictionary:
+	var out: Dictionary = {}
+	for f in raw:
+		var name := str(f)
+		if name != "" and name != "orphaned_icons":
+			out[name] = true
+	return out
+
+
+func _native_factions_of(biome) -> Array:
+	if biome == null:
+		return []
+	var nf: Array = []
+	if biome.has_method("get_native_factions"):
+		nf = biome.get_native_factions()
+	if nf.is_empty() and "native_factions" in biome and biome.native_factions is Array:
+		nf = biome.native_factions
+	if not nf.is_empty():
+		return nf
+	# Live biome NODES don't carry native_factions (only the canonical registry spec does);
+	# resolve by name so membership uses the authored identity, not the bare runtime node.
+	var bname := str(biome.name) if "name" in biome else ""
+	if bname == "":
+		return []
+	var br = BiomeRegistry.get_shared()
+	if br == null or not br.has_method("get_by_name"):
+		return []
+	var spec = br.get_by_name(bname)
+	if spec == null or spec == biome:
+		return []
+	if spec.has_method("get_native_factions"):
+		return spec.get_native_factions()
+	if "native_factions" in spec and spec.native_factions is Array:
+		return spec.native_factions
+	return []
 
 
 ## Like propose_neighborhood_offers but scoped to one specific neighborhood by name.

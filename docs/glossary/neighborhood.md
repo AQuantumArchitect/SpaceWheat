@@ -25,6 +25,23 @@ persisted to disk (future work: persist authored neighborhoods in `factions.json
 `AuthorityAdapter.compose_neighborhood(faction, biomes, parent_node)` returns the full
 list of a faction's computed neighborhoods as a decorated dictionary.
 
+**The player's neighborhood:** because the player IS a faction ("The Demos"), The
+Demos' neighborhood is simply the biomes it has installed itself into — i.e. the
+**currently-explored biomes**. A faction's neighborhood grows by the discrete acts of
+reaching/incorporating, never by the continuous quantum evolution underneath.
+
+**Membership is stable; only prices are chaotic.** A neighborhood is a *membership*
+fact — which factions/biomes are coupled under a governing faction — and it changes
+only on discrete events (discovery, incorporation, faction shift), never with the
+oscillating unitary state. The market scopes to this stable cluster:
+`MarketLattice.best_neighborhood_name(biome)` ranks neighborhood specs by **shared
+factions** with the biome's native identity (signature-admitted factions weighted
+extra), NOT by live-state tension. The *prices/opportunities* within the neighborhood
+ride the raw oscillating tension — that volatility is intentional (an opportunity/timing
+surface), but it must live in the deal, never in the door. (Earlier, ranking by live
+tension made a biome's neighborhood flip mid-oscillation — e.g. Village
+HearthKeepers→VolcanicFoundry — making needed factions unreachable. Fixed 2026-06-24.)
+
 **What neighborhood is NOT:** it is not a graph-theoretic relation between icons.
 The phrase "icon neighborhood" (previously used in this codebase) is retired - icon
 graph relations are siblings and siblings-via-cloud. See `IconRelations.gd`.

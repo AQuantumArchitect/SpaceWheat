@@ -149,106 +149,6 @@ func set_biome(biome: Node) -> void:
 		if visible:
 			_render_all()
 
-## Auto-edge bootstrap. An "edge" can be:
-##   - pinned-faction ↔ best partner  (when the player is attached and the
-##                                     pinned faction's biome is live)
-##   - live ↔ live                     (two simulated biomes — best_live_tension_pair)
-##   - live ↔ neighborhood          (live anchor × a static neighborhood spec)
-##
-## Priority is pinned-faction first (player-as-faction frame), then live↔live,
-## then live↔neighborhood.
-func _ensure_auto_edge() -> void:
-	if _is_pair_scope_active():
-		return
-	var farm = InstrumentLocator.resolve_active_farm(self)
-	if farm == null or not farm.has_method("_ensure_market_lattice"):
-		return
-	var lattice = farm._ensure_market_lattice()
-	if lattice == null:
-		return
-	var all_biomes: Dictionary = farm.grid.get_all_biomes() if farm.grid and farm.grid.has_method("get_all_biomes") else {}
-
-	# 1. Pinned-neighborhood anchor (only when attached AND its biome is live).
-	#    Reinforces the player-as-faction frame: side A is "you" by default.
-	var pinned_name: String = _resolve_pinned_neighborhood_name(farm, all_biomes)
-	if pinned_name != "":
-		var pinned_biome = all_biomes.get(pinned_name, null)
-		if pinned_biome != null:
-			var partner: String = _best_partner_for(lattice, pinned_biome, all_biomes, pinned_name)
-			if partner != "":
-				_pair_a_name = pinned_name
-				_pair_b_name = partner
-				_nb_auto_scoped = true
-				return
-
-	# 2. Live ↔ live edge.
-	if all_biomes.size() >= 2:
-		var best_pair: Dictionary = lattice.best_live_tension_pair(all_biomes)
-		if not best_pair.is_empty():
-			_pair_a_name = str(best_pair.get("a", ""))
-			_pair_b_name = str(best_pair.get("b", ""))
-			_nb_auto_scoped = true
-			return
-
-	# 3. Live ↔ neighborhood edge — anchor on current_biome (or any live biome).
-	var anchor = current_biome
-	if anchor == null and not all_biomes.is_empty():
-		anchor = all_biomes.values()[0]
-	if anchor == null:
-		return
-	var neighborhood_name: String = lattice.best_neighborhood_name(anchor)
-	if neighborhood_name == "":
-		return
-	var anchor_name: String = str(anchor.name) if "name" in anchor else ""
-	if anchor.has_method("get_biome_type"):
-		anchor_name = anchor.get_biome_type()
-	if anchor_name == "":
-		return
-	_pair_a_name = anchor_name
-	_pair_b_name = neighborhood_name
-	_nb_auto_scoped = true
-
-## When the player is attached to a faction, return the live neighborhood name
-## owned by that faction (if any). Otherwise empty.
-func _resolve_pinned_neighborhood_name(farm, all_biomes: Dictionary) -> String:
-	if farm == null or not farm.has_method("get_pinned_faction_name"):
-		return ""
-	var pname: String = farm.get_pinned_faction_name()
-	if pname == "":
-		return ""
-	# A faction's neighborhood is the live biome whose data spec carries `faction == pname`.
-	var br = BiomeRegistry.get_shared()
-	if br == null:
-		return ""
-	for bname in all_biomes.keys():
-		var spec = br.get_by_name(str(bname))
-		if spec != null and "faction" in spec and str(spec.faction) == pname:
-			return str(bname)
-	return ""
-
-## Pick the best non-self partner for the given anchor biome. Tries
-## highest-tension live partner via `best_live_tension_pair` over the subset;
-## falls back to the highest-tension neighborhood partner.
-func _best_partner_for(lattice, anchor_biome, all_biomes: Dictionary, anchor_name: String) -> String:
-	var subset: Dictionary = {}
-	for bname in all_biomes.keys():
-		if str(bname) != anchor_name:
-			subset[bname] = all_biomes[bname]
-	# Live↔live partner
-	if not subset.is_empty():
-		var pool: Dictionary = subset.duplicate()
-		pool[anchor_name] = anchor_biome
-		var best_pair: Dictionary = lattice.best_live_tension_pair(pool)
-		if not best_pair.is_empty():
-			var a := str(best_pair.get("a", ""))
-			var b := str(best_pair.get("b", ""))
-			if a == anchor_name and b != "":
-				return b
-			if b == anchor_name and a != "":
-				return a
-	# Neighborhood partner
-	return lattice.best_neighborhood_name(anchor_biome)
-
 # =============================================================================
 # UI BUILD
 # =============================================================================
@@ -1612,6 +1512,8 @@ func _refresh_pool() -> void:
 		_market_status_note = "market unavailable: neighborhood lattice required"
 		return
 
+	# Explicit pair scope — opt-in only (OverlayManager / neighborhood-graph hands the board a
+	# specific live↔live edge via set_pair_scope). The auto-scope below never sets these fields.
 	if _is_pair_scope_active():
 		var biome_a = _resolve_live_biome(_pair_a_name)
 		var biome_b = _resolve_live_biome(_pair_b_name)
@@ -1631,38 +1533,37 @@ func _refresh_pool() -> void:
 		_market_status_note = "market unavailable: no current neighborhood"
 		return
 
-	var all_biomes: Dictionary = farm.grid.get_all_biomes() if farm.grid and farm.grid.has_method("get_all_biomes") else {}
-	var best_pair: Dictionary = lattice.best_live_tension_pair(all_biomes)
-	if not best_pair.is_empty():
-		_pair_a_name = str(best_pair.get("a", ""))
-		_pair_b_name = str(best_pair.get("b", ""))
-		_nb_name = ""
-		_nb_auto_scoped = false
-		var biome_a = _resolve_live_biome(_pair_a_name)
-		var biome_b = _resolve_live_biome(_pair_b_name)
-		if biome_a == null or biome_b == null:
-			_market_status_note = "pair market unavailable: live biome missing"
+	# Neighborhood-primary: ONE market across the active biome's neighborhood. This is the
+	# market the player sees wherever they stand — the local faction offers (Millwright /
+	# Hearth / …). It is NOT overridden by a live↔live tension pair just because a second
+	# biome happens to be evolving; that cross-biome edge is opt-in (set_pair_scope) or the
+	# fallback below when the active biome has no neighborhood at all.
+	_nb_name = lattice.best_neighborhood_name(current_biome)
+	_nb_auto_scoped = _nb_name != ""
+	if _nb_name != "":
+		var raw: Array = lattice.propose_neighborhood_offers_scoped(current_biome, _nb_name, MARKET_FETCH_LIMIT)
+		if raw.is_empty():
+			_market_status_note = "market empty: no neighborhood offers for %s" % _nb_name
 			return
-		var pair_offers: Array = lattice.propose_pair_offers(biome_a, biome_b, MARKET_FETCH_LIMIT)
-		if pair_offers.is_empty():
-			_market_status_note = "pair market empty: no offers for %s × %s" % [_pair_a_name, _pair_b_name]
-			return
-		_offer_pool = _adapt_contracts_for_view(pair_offers)
+		_offer_pool = _adapt_contracts_for_view(raw)
 		MarketView.annotate(_offer_pool, _get_inventory())
 		return
 
-	_nb_name = lattice.best_neighborhood_name(current_biome)
-	_nb_auto_scoped = _nb_name != ""
-	if _nb_name == "":
-		_market_status_note = "market unavailable: no neighborhood partner"
-		return
-
-	var raw: Array = lattice.propose_neighborhood_offers_scoped(current_biome, _nb_name, MARKET_FETCH_LIMIT)
-	if raw.is_empty():
-		_market_status_note = "market empty: no neighborhood offers for %s" % _nb_name
-		return
-	_offer_pool = _adapt_contracts_for_view(raw)
-	MarketView.annotate(_offer_pool, _get_inventory())
+	# Fallback: the active biome has no neighborhood spec — fall back to the highest-tension
+	# live↔live edge so the board is never empty. Uses local vars only; does NOT pin a
+	# persistent pair scope (so a neighborhood reappearing isn't shadowed by a stale pair).
+	var all_biomes: Dictionary = farm.grid.get_all_biomes() if farm.grid and farm.grid.has_method("get_all_biomes") else {}
+	var best_pair: Dictionary = lattice.best_live_tension_pair(all_biomes)
+	if not best_pair.is_empty():
+		var fb_a = _resolve_live_biome(str(best_pair.get("a", "")))
+		var fb_b = _resolve_live_biome(str(best_pair.get("b", "")))
+		if fb_a != null and fb_b != null:
+			var fb_offers: Array = lattice.propose_pair_offers(fb_a, fb_b, MARKET_FETCH_LIMIT)
+			if not fb_offers.is_empty():
+				_offer_pool = _adapt_contracts_for_view(fb_offers)
+				MarketView.annotate(_offer_pool, _get_inventory())
+				return
+	_market_status_note = "market unavailable: no neighborhood partner"
 
 func _is_pair_scope_active() -> bool:
 	return _pair_a_name != "" and _pair_b_name != ""
@@ -1767,26 +1668,24 @@ func _get_inventory() -> Dictionary:
 	return farm.economy.get_all_resources()
 
 func _ensure_biome() -> void:
-	if current_biome != null:
-		return
-	var abm = (Engine.get_main_loop().root.get_node_or_null("/root/ActiveBiomeManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
-	if abm and abm.has_method("get_active_biome_node"):
-		current_biome = abm.get_active_biome_node()
-	if current_biome != null:
-		return
-	# Fallback: resolve the active farm's current biome directly (same source the
-	# OverlayManager uses on open). Without this, opening the board when
-	# ActiveBiomeManager isn't tracking a node left current_biome null, so the market
-	# bailed with "no current neighborhood" and keyboard accept captured nothing.
+	# The neighborhood market follows the player: ALWAYS re-resolve to the ACTIVE biome
+	# (where the player currently stands) so switching biomes re-scopes the board. A sticky
+	# current_biome was pinning the market to whatever biome was first touched, which left
+	# the player seeing one biome's neighborhood market everywhere.
 	var farm = InstrumentLocator.resolve_active_farm(self)
 	if farm == null:
 		return
+	# Primary focus signal: the ActiveBiomeManager's active biome (the biome-row TYUIOP keys
+	# drive this in both live play and headless drive). Re-resolve every refresh.
 	var bname := ""
-	# Most reliable focus signal: the instrument's selected biome (set by the biome-row
-	# keys in both live play and headless drive).
-	var inst = InstrumentLocator.resolve_quantum_instrument(self)
-	if inst and "current_biome" in inst:
-		bname = str(inst.current_biome)
+	var abm = (Engine.get_main_loop().root.get_node_or_null("/root/ActiveBiomeManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
+	if abm and abm.has_method("get_active_biome"):
+		bname = str(abm.get_active_biome())
+	# Fallbacks: instrument's selected biome, then the farm's neutral/current biome.
+	if bname == "":
+		var inst = InstrumentLocator.resolve_quantum_instrument(self)
+		if inst and "current_biome" in inst:
+			bname = str(inst.current_biome)
 	var obs = farm.observation_frame if "observation_frame" in farm else null
 	if bname == "" and obs and obs.has_method("get_neutral_biome"):
 		bname = str(obs.get_neutral_biome())

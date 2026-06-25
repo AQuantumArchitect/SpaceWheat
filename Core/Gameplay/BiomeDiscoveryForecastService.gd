@@ -27,8 +27,9 @@ const FLOOR = 0.05
 ## requires (e.g. lumber_flows needs Woodlot, spring_connects needs FreshwaterSpring) is
 ## strongly favoured in the captain-hat draw — the narrative pulls discovery toward the
 ## next biome it needs, instead of a flat random reveal. Large relative to FLOOR+overlap
-## (≤ ~1.05) so a pressured biome dominates the curated pool. Tunable via configure().
-const PRESSURE_BOOST = 3.0
+## (≤ ~1.05) so a pressured biome dominates the curated pool decisively (~85% of draw mass
+## per pressured biome, vs an overlap-only biome at ~1.05). Tunable via configure().
+const PRESSURE_BOOST = 6.0
 
 ## Mutable overrides for rig/test configure_discovery.
 static var _weights: Dictionary = {}
@@ -65,6 +66,12 @@ static func compute_weights(farm, unexplored: Array) -> Array[float]:
 
 ## Biomes an UNFIRED story beat or active quest requires — discovery is pulled toward them
 ## (quest/market pressure). Reads biome references from unfired-flag predicates + active quests.
+##
+## Only the NEXT-REACHABLE beats exert pressure: a flag contributes its biomes only once all
+## of its story_flag_set prerequisites have already fired. This keeps the discovery pull focused
+## on the act the player is actually in (Woodlot/FreshwaterSpring during Act-2) instead of every
+## future act tugging at once — far-future biomes (e.g. BloodLedger via ledger_opens) stay quiet
+## until their prerequisite beats fire, then inherit the pull. The narrative spine routes discovery.
 static func _biomes_under_pressure(farm) -> Dictionary:
 	var pressured: Dictionary = {}
 	# QuestManager is shell-owned (not an autoload), so resolve via the farm/shell chain.
@@ -75,6 +82,16 @@ static func _biomes_under_pressure(farm) -> Dictionary:
 	if qm.has_method("get_all_story_flags"):
 		for flag in qm.get_all_story_flags():
 			if not (flag is Dictionary) or fired.has(str(flag.get("id", ""))):
+				continue
+			# Gate behind prerequisites: a beat whose precursor flags haven't fired is not yet
+			# reachable, so it must not pull discovery away from the current act's biomes.
+			var reachable := true
+			for pred in flag.get("predicates", []):
+				if pred is Dictionary and str(pred.get("type", "")) == "story_flag_set":
+					if not fired.has(str(pred.get("id", ""))):
+						reachable = false
+						break
+			if not reachable:
 				continue
 			for pred in flag.get("predicates", []):
 				if pred is Dictionary and str(pred.get("biome", "")) != "":
