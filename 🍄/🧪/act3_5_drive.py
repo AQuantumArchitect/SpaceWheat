@@ -494,39 +494,35 @@ def main():
                 if isinstance(b, int) and b >= 2 and "ledger_opens" in flags():
                     break
 
-        # ============ ACT 6: empire_starved -> island_free (the ending) ============
-        print("\n== ACT6: starve the ledger (drain 📜 below threshold) ==")
+        # ============ ACT 6: rigid empire vs plural island — the closed-native ending ====
+        # The physics: a concentrated biome (the empire) has a WIDE H-gap (one dominant mode
+        # it rigidly imposes); a diverse built island has a SMALL gap (many modes coexisting).
+        # empire_imposes: ledger_opens + BloodLedger H-gap >= 0.6 (rigid monoculture — RECOGNIZED).
+        # island_free:    empire_imposes + Village H-gap <= 0.45 (plural, many-voiced, free) +
+        #                 diversity + signature. Freedom = irreducible plurality, not stillness.
+        print("\n== ACT6: rigid empire vs plural island (empire_imposes -> island_free) ==")
 
-        def bl_z():
-            # Per-qubit Bloch z for BloodLedger (z = p0 - p1; high z => south pole drained).
-            rows = go("viz_bloch", biome="BloodLedger").get("qubits", [])
-            return {int(r.get("qubit", -1)): round(float(r.get("cache_z", 9)), 3) for r in rows}
+        def gap(bn):
+            r = go("energy_variance", biome=bn)
+            return float(r.get("h_gap", -1.0)), float(r.get("var_h", -1.0))
 
         if "BloodLedger" in grid() and "ledger_opens" in flags():
-            rd = go("realization_debug", biome="BloodLedger")
-            print("  realized:", rd.get("canonical_realized_physics"))
-            goto_biome("BloodLedger")
-            print(f"  berry={berry('BloodLedger')}  baseline z={bl_z()}")
-            print(f"  baseline {fprog('empire_starved')}")
-            for rnd in range(1, 11):
-                # Steer toward the 🏰 pole then collapse there: Druid excite (E) loads the
-                # register, Ace measure (R)+pop (Q) projects it; sample 📜 right after.
-                ensure_hat("0")
-                for pk in PLOT:
-                    press(pk, 2); press("E", 2)
-                go("time_skip", phrames=120)
-                ensure_hat("8")
-                for pk in PLOT:
-                    press(pk, 2); press("R", 3); press("Q", 3)
-                go("time_skip", phrames=200)
-                print(f"  [drain {rnd}] z={bl_z()} | {fprog('empire_starved')}")
-                if "empire_starved" in flags():
+            bl_g, bl_v = gap("BloodLedger")
+            vg_g, vg_v = gap("Village")
+            # MEASURE — empire should read a WIDE gap (rigid); the built island a SMALL one (plural).
+            print(f"  MEASURE BloodLedger: H-gap={bl_g:.4f}  Var(H)={bl_v:.4f}   (rigid ⟺ gap ≥ 0.60)")
+            print(f"  MEASURE Village:     H-gap={vg_g:.4f}  Var(H)={vg_v:.4f}   (plural ⟺ gap ≤ 0.45)")
+            print(f"  baseline {fprog('empire_imposes')}")
+            for rnd in range(1, 6):
+                print(f"  [impose {rnd}] {fprog('empire_imposes')}")
+                if "empire_imposes" in flags():
                     break
+                go("time_skip", phrames=200)
             for rnd in range(1, 6):
                 print(f"  [free {rnd}] {fprog('island_free')}")
                 if "island_free" in flags():
                     break
-                go("time_skip", phrames=400)
+                go("time_skip", phrames=300)
         else:
             print("  (BloodLedger/ledger_opens not reached — ending skipped)")
 
@@ -539,7 +535,7 @@ def main():
         # ============ RESULT ============
         print("\n== RESULT ==")
         for fid in ("mill_wakes", "mill_master", "island_lives", "village_identity",
-                    "ledger_opens", "empire_starved", "island_free"):
+                    "ledger_opens", "empire_imposes", "island_free"):
             print("  ", fprog(fid))
         print("  flags:", sorted(flags().keys()))
     finally:

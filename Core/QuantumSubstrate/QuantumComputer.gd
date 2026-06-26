@@ -1995,6 +1995,105 @@ func get_purity() -> float:
 	return _purity_cache
 
 
+func get_energy_variance() -> float:
+	# Energy variance Var(H) = ⟨H²⟩ − ⟨H⟩² = Tr(ρH²) − Tr(ρH)².
+	#
+	# This is the closed-system measure of how RESTLESS a biome is:
+	#   Var(H) = 0   ⟺ the state is an eigenstate of H ⟺ it never changes
+	#                  (a perfectly STABLE attractor — eternal stillness).
+	#   Var(H) large ⟺ a broad superposition of energies ⟺ the marginals
+	#                  swing widely (a CHAOTIC / restless biome).
+	#
+	# Var(H) is a CONSTANT OF MOTION under unitary evolution: ⟨H⟩ and ⟨H²⟩ are
+	# both conserved, so a biome's restlessness is an invariant set by its
+	# COMPOSITION (which icons make up its H) — not something that drifts in
+	# time. A stable biome stays stable forever. This is why "the Demos are
+	# free" can mean "the island holds a low-Var(H) attractor that recurs
+	# eternally," with no dissipation required.
+	#
+	# Representation-agnostic (works on the packed ρ, valid pure or mixed).
+	# O(dim³); called only by the energy-variance quest predicate (not a
+	# per-frame path). dim ≤ 64 here. If it ever becomes hot, a pure-state
+	# fast path exists: Var = ‖H|ψ⟩‖² − ⟨H⟩² is O(dim²).
+	if density_matrix == null or hamiltonian == null:
+		return 0.0
+	var dim := int(density_matrix.n)
+	if dim <= 0 or int(hamiltonian.n) != dim:
+		return 0.0
+	var rho := density_matrix._to_packed()
+	var H := hamiltonian._to_packed()
+	var need := dim * dim * 2
+	if rho.size() < need or H.size() < need:
+		return 0.0
+	# Single pass: form M = ρ·H per element on the fly, accumulating
+	#   ⟨H⟩  = Re Tr(ρH)  = Σ_i Re(M_ii)
+	#   ⟨H²⟩ = Re Tr(ρH²) = Re Tr(M·H) = Σ_ij Re(M_ij · H_ji)
+	var exp_h := 0.0
+	var exp_h2 := 0.0
+	for i in range(dim):
+		for j in range(dim):
+			var mre := 0.0
+			var mim := 0.0
+			for k in range(dim):
+				var aidx := (i * dim + k) * 2
+				var bidx := (k * dim + j) * 2
+				var a := rho[aidx]
+				var b := rho[aidx + 1]
+				var c := H[bidx]
+				var d := H[bidx + 1]
+				mre += a * c - b * d
+				mim += a * d + b * c
+			if i == j:
+				exp_h += mre
+			var jidx := (j * dim + i) * 2
+			# Re( M_ij · H_ji )
+			exp_h2 += mre * H[jidx] - mim * H[jidx + 1]
+	var variance := exp_h2 - exp_h * exp_h
+	return variance if variance > 0.0 else 0.0
+
+
+func get_hamiltonian_spectral_gap() -> float:
+	# H's own spectral gap E₁ − E₀ (gap between the two LOWEST Hamiltonian
+	# eigenvalues) — the closed-native, STATE-INDEPENDENT measure of how strong a
+	# biome's dominant attractor is:
+	#   large gap ⟺ the ground state is well-isolated ⟺ one dominant configuration
+	#               the biome rigidly prefers (STABLE / a strong strange attractor).
+	#   small gap ⟺ near-degenerate competing modes ⟺ the biome can't pick a single
+	#               rest state (CHAOTIC / restless).
+	#
+	# Unlike Var(H) (which is 0 in any eigenstate, e.g. the freshly-initialized
+	# ground state), the gap is a pure function of H = a pure function of the biome's
+	# COMPOSITION (which icons make up its Hamiltonian). It does not move under
+	# unitary evolution (H is fixed) — so a biome composed to a wide gap is stable
+	# forever. This is the HONEST version of the old ρ-eigenvalue_gap predicate, which
+	# read the density matrix's gap (degenerate ≡ 1 for a pure closed state).
+	#
+	# Reuses the one eigensolver: the gap of H is the gap of −H's two TOP eigenvalues
+	# (E₁−E₀ = (−E₀)−(−E₁)), and compute_eigenstates returns them dominant-first.
+	if hamiltonian == null or register_map == null:
+		return 0.0
+	var dim := register_map.dim()
+	if dim <= 1:
+		return 0.0
+	if not _bloch_engine:
+		_bloch_engine = QuantumEvolutionEngine.new()
+	if not _bloch_engine:
+		return 0.0
+	var packed: PackedFloat64Array = hamiltonian.scale_real(-1.0)._to_packed()
+	if packed.size() != dim * dim * 2:
+		return 0.0
+	if _bloch_engine.get_dimension() != dim:
+		_bloch_engine.set_dimension(dim)
+	var result = _bloch_engine.compute_eigenstates(packed)
+	if result.is_empty() or result.has("error"):
+		return 0.0
+	var eigs: PackedFloat64Array = result.get("eigenvalues", PackedFloat64Array())
+	if eigs.size() < 2:
+		return 0.0
+	var dom: float = float(result.get("dominant_eigenvalue", eigs[0]))
+	return absf(dom - eigs[1])
+
+
 # ============================================================================
 # MUTUAL INFORMATION: Physics-grounded correlation measure
 # ============================================================================

@@ -1454,6 +1454,14 @@ func _predicate_summary(pred: Dictionary) -> String:
 			return "%s ∋ %s" % [str(pred.get("biome", "")), str(pred.get("atom", ""))]
 		"biome_attractor_emoji_gte":
 			return "%s attractor[%s] ≥ %.2f" % [str(pred.get("biome", "")), str(pred.get("emoji", "")), tgt]
+		"biome_spectral_gap_gte":
+			return "%s stable (gap ≥ %.2f)" % [str(pred.get("biome", "")), tgt]
+		"biome_spectral_gap_lte":
+			return "%s chaotic (gap ≤ %.2f)" % [str(pred.get("biome", "")), tgt]
+		"biome_energy_variance_gte":
+			return "%s restless ≥ %.2f" % [str(pred.get("biome", "")), tgt]
+		"biome_energy_variance_lte":
+			return "%s settled ≤ %.2f" % [str(pred.get("biome", "")), tgt]
 		"biome_eigenvalue_gap_gte":
 			return "%s gap ≥ %.2f" % [str(pred.get("biome", "")), tgt]
 		"biome_purity_trending":
@@ -1535,6 +1543,28 @@ func _predicate_value_tooltip(pred: Dictionary, score: float) -> String:
 			if farm and "story_flags_fired" in farm and farm.story_flags_fired is Dictionary:
 				fired = farm.story_flags_fired.has(fid)
 			return "%s\n%s" % [head, "fired ✓" if fired else "not yet fired"]
+
+		"biome_spectral_gap_gte", "biome_spectral_gap_lte":
+			var biome_name_g: String = str(pred.get("biome", ""))
+			var biome_g = _resolve_live_biome(biome_name_g)
+			var qc_g = biome_g.quantum_computer if biome_g and "quantum_computer" in biome_g else null
+			if qc_g == null or not qc_g.has_method("get_hamiltonian_spectral_gap"):
+				return "%s\n(biome '%s' not loaded)" % [head, biome_name_g]
+			var cur_g: float = float(qc_g.get_hamiltonian_spectral_gap())
+			var thr_g: float = float(pred.get("value", 0.0))
+			var word_g := "stable" if t == "biome_spectral_gap_gte" else "chaotic"
+			return "%s\nH-gap: %.3f   ·   %s threshold: %.3f" % [head, cur_g, word_g, thr_g]
+
+		"biome_energy_variance_gte", "biome_energy_variance_lte":
+			var biome_name_v: String = str(pred.get("biome", ""))
+			var biome_v = _resolve_live_biome(biome_name_v)
+			var qc_v = biome_v.quantum_computer if biome_v and "quantum_computer" in biome_v else null
+			if qc_v == null or not qc_v.has_method("get_energy_variance"):
+				return "%s\n(biome '%s' not loaded)" % [head, biome_name_v]
+			var cur_v: float = float(qc_v.get_energy_variance())
+			var thr_v: float = float(pred.get("value", 0.0))
+			var word_v := "restless" if t == "biome_energy_variance_gte" else "settled"
+			return "%s\nVar(H): %.3f   ·   %s threshold: %.3f" % [head, cur_v, word_v, thr_v]
 
 		_:
 			return "%s\nscore: %.2f / 1.00" % [head, score]

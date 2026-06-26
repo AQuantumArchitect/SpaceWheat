@@ -943,6 +943,12 @@ func time_skip_phrames(phrames: int, delta: float = PhysicsConfig.PHRAME_DT) -> 
 
 
 func _process_lindblad_effects(delta: float) -> void:
+	# Persistent Lindblad pump/drain (the Spark/Merchant frames) is OPEN-SYSTEM ONLY.
+	# The closed system has no dissipation — hard-gate here so the live game can never
+	# run this path even if a stray register flag survives from an open save / DLC toggle.
+	# (Previously this relied only on Spark/Merchant being frame-hidden in closed mode.)
+	if not BalanceConfig.dissipative_enabled():
+		return
 	# Apply persistent Lindblad pump/drain effects from the Spark/Merchant frames.
 	if not grid:
 		return

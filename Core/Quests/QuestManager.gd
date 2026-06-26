@@ -248,7 +248,19 @@ func _evaluate_flag_predicates(predicates: Array, farm) -> float:
 const FLAG_PREDICATE_TYPES := [
 	"story_flag_set", "biome_evolving", "berry_consumed_count_gte", "berry_total_phase_gte",
 	"standing_gte", "biome_state_gte", "biome_state_lte", "signature_size_gte", "atom_count_gte", "atom_in_biome",
-	"atom_diversity_gte", "biome_attractor_emoji_gte", "biome_eigenvalue_gap_gte", "biome_purity_trending",
+	"atom_diversity_gte", "biome_attractor_emoji_gte",
+	# Closed-native chaos↔stability vocabulary:
+	#   biome_spectral_gap_*  — H's own gap E₁−E₀ (composition-intrinsic, state-independent,
+	#                           conserved): large = one dominant attractor (STABLE identity),
+	#                           small = near-degenerate competing modes (CHAOTIC). The finale rides this.
+	#   biome_energy_variance_* — Var(H)=⟨H²⟩−⟨H⟩² (state-relative restlessness; 0 in an eigenstate,
+	#                           rises when the state is disturbed). Available; not on the spine.
+	"biome_spectral_gap_gte", "biome_spectral_gap_lte",
+	"biome_energy_variance_gte", "biome_energy_variance_lte",
+	# biome_eigenvalue_gap_gte / biome_purity_trending are OPEN-SYSTEM ONLY (degenerate in the
+	# closed system: ρ is pure → eigenvalue gap ≡ 1, purity ≡ 1). Kept for the open DLC; the
+	# closed campaign must NOT gate on them — use biome_spectral_gap_* for chaos↔stability.
+	"biome_eigenvalue_gap_gte", "biome_purity_trending",
 ]
 
 ## Per-type soft_gate widths — SINGLE SOURCE, read by both _check_flag_predicate below and
@@ -260,6 +272,14 @@ const PREDICATE_SOFT_WIDTH := {
 	"atom_count_gte": 1.5,
 	"atom_diversity_gte": 2.0,
 	"biome_eigenvalue_gap_gte": 0.02,
+	# H-gap scale is O(0.1–0.3) (rig: StarterForest 0.21, Village 0.25); width is the
+	# chaos↔stability transition band. Starting estimate — co-tuned with thresholds on the rig.
+	"biome_spectral_gap_gte": 0.03,
+	"biome_spectral_gap_lte": 0.03,
+	# Var(H) scale depends on the biome's H (self-energies ~0.2–0.5, rabi ~0.3–0.6); width is
+	# the disturbance band. Starting estimate — co-tuned with thresholds on the rig.
+	"biome_energy_variance_gte": 0.1,
+	"biome_energy_variance_lte": 0.1,
 }
 
 
@@ -375,6 +395,48 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 			var snap: Dictionary = biome.viz_cache.get_snapshot(qubit)
 			var marginal: float = float(snap.get("p1" if pole == 1 else "p0", 0.0))
 			return QuestMath.soft_gate_inv(marginal, float(pred.get("value", 0.0)))
+		"biome_spectral_gap_gte":
+			# "stable / strong attractor" — score rises as H's gap E₁−E₀ climbs above value.
+			# Composition-intrinsic (set by which icons make up H), state-independent, conserved:
+			# a wide gap = one dominant configuration the biome rigidly holds = a settled identity.
+			if farm.grid == null:
+				return 0.0
+			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
+			if biome == null or biome.get("quantum_computer") == null:
+				return 0.0
+			var g_gte: float = float(biome.quantum_computer.get_hamiltonian_spectral_gap())
+			return QuestMath.soft_gate(g_gte, float(pred.get("value", 0.0)), PREDICATE_SOFT_WIDTH["biome_spectral_gap_gte"])
+		"biome_spectral_gap_lte":
+			# "chaotic / near-degenerate" — score rises as H's gap falls below value (competing
+			# modes, no single rest configuration). The empire's restlessness is this, by composition.
+			if farm.grid == null:
+				return 0.0
+			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
+			if biome == null or biome.get("quantum_computer") == null:
+				return 0.0
+			var g_lte: float = float(biome.quantum_computer.get_hamiltonian_spectral_gap())
+			return QuestMath.soft_gate_inv(g_lte, float(pred.get("value", 0.0)), PREDICATE_SOFT_WIDTH["biome_spectral_gap_lte"])
+		"biome_energy_variance_gte":
+			# "restless / chaotic" — score rises as Var(H) = ⟨H²⟩−⟨H⟩² climbs above value.
+			# Var(H) is the closed-native chaos measure (a broad energy superposition swings
+			# the marginals wildly); conserved under evolution, set by the biome's composition.
+			if farm.grid == null:
+				return 0.0
+			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
+			if biome == null or biome.get("quantum_computer") == null:
+				return 0.0
+			var v_gte: float = float(biome.quantum_computer.get_energy_variance())
+			return QuestMath.soft_gate(v_gte, float(pred.get("value", 0.0)), PREDICATE_SOFT_WIDTH["biome_energy_variance_gte"])
+		"biome_energy_variance_lte":
+			# "settled / stable" — score rises as Var(H) falls below value (the state nears an
+			# H-eigenstate: eternal stillness). The closed-native "stable attractor" goal.
+			if farm.grid == null:
+				return 0.0
+			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
+			if biome == null or biome.get("quantum_computer") == null:
+				return 0.0
+			var v_lte: float = float(biome.quantum_computer.get_energy_variance())
+			return QuestMath.soft_gate_inv(v_lte, float(pred.get("value", 0.0)), PREDICATE_SOFT_WIDTH["biome_energy_variance_lte"])
 		"signature_size_gte":
 			return QuestMath.soft_gate(float(farm.known_icons.size()), float(pred.get("value", 0)), PREDICATE_SOFT_WIDTH["signature_size_gte"])
 		"atom_count_gte":

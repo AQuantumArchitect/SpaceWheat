@@ -969,6 +969,24 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				result["consumed_count"] = br.get_consumed_count()
 				result["consumed_phase"] = br.get_consumed_phase()
 
+		"energy_variance":
+			# Closed-native chaos↔stability readout: Var(H) = ⟨H²⟩−⟨H⟩² (restless vs settled),
+			# alongside the OPEN-system relaxation quantities (ρ eigenvalue gap, purity) so a
+			# probe can show they're degenerate in the closed system (gap≡1, purity≡1) while
+			# Var(H) actually discriminates.
+			var ev_name: String = str(cmd.get("biome", "StarterForest"))
+			var ev_biome = _farm.grid.get_biome(ev_name) if _farm and _farm.grid else null
+			if ev_biome == null or not ("quantum_computer" in ev_biome) or ev_biome.quantum_computer == null:
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_biome_or_qc"}
+			else:
+				var ev_qc = ev_biome.quantum_computer
+				result["var_h"] = ev_qc.get_energy_variance() if ev_qc.has_method("get_energy_variance") else -1.0
+				result["h_gap"] = ev_qc.get_hamiltonian_spectral_gap() if ev_qc.has_method("get_hamiltonian_spectral_gap") else -1.0
+				result["purity"] = ev_qc.get_purity() if ev_qc.has_method("get_purity") else -1.0
+				var attr: Dictionary = ev_biome.get_attractor_state() if ev_biome.has_method("get_attractor_state") else {}
+				result["eigenvalue_gap"] = attr.get("eigenvalue_gap", -1.0)
+				result["attractor_emojis"] = attr.get("emojis", [])
+
 		"realization_debug":
 			# Pinpoint why a biome's H is empty: emojis basis, native_factions, per-faction
 			# registry icons (with poles), and the final realized neighborhood icon list.

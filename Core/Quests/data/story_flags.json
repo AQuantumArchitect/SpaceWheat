@@ -17,7 +17,7 @@
     "id": "forest_evolving",
     "display_name": "The Forest Stirs",
     "act": 1,
-    "arc_beat": "Sunlight reached the canopy. The food chain is now running — trees absorbing light, rabbits at the edges, wolves in the clearing. Anderson transport is live, but the forest has only spoken to you once. Listen longer.",
+    "arc_beat": "Sunlight reached the canopy. The forest is oscillating now — trees, rabbits, and wolves trading amplitude back and forth in a coherent rhythm that never runs down. Anderson transport is live, but the forest has only spoken to you once. Listen longer.",
     "predicates": [
       {
         "type": "biome_evolving",
@@ -135,7 +135,7 @@
     "id": "lumber_flows",
     "display_name": "Upstream Wakes — Woodlot",
     "act": 2,
-    "arc_beat": "The managed woodlot is felling trees and sending lumber downstream. The Millwright's Union is watching what arrives. Timber is piling up at the village gate, and you've started learning the woodlot's vocabulary directly from its qubits.",
+    "arc_beat": "The woodlot has woken, and its oscillation is finding the same rhythm as the village's. The Millwright's Union can feel the two biomes starting to keep time. 🪵 wants a place in the village's Hamiltonian so the two can phase-lock, and you've started learning the woodlot's vocabulary directly from its qubits.",
     "predicates": [
       {
         "type": "biome_evolving",
@@ -165,8 +165,8 @@
     },
     "arc_quest": {
       "type": "DELIVER",
-      "body": "Close the Timber Circuit — add 🪵 to Village so the lumber flow can land.",
-      "hint": "🪵 is arriving but has nowhere to settle",
+      "body": "Couple the Woodlot — add 🪵 to Village so woodlot and village share one rhythm.",
+      "hint": "🪵 has no place in the village's Hamiltonian yet — the two biomes can't phase-lock",
       "state_predicates": [
         {
           "type": "atom_in_biome",
@@ -184,7 +184,7 @@
     "id": "spring_connects",
     "display_name": "Upstream Wakes — Spring",
     "act": 2,
-    "arc_beat": "Ice wells up from deep stone, melts, and flows downstream. The Hearth Keepers see you tending the watershed. The spring's outflow is now physically coupling into Village's Lindblad runtime — the mill pond could exist; it's waiting on you.",
+    "arc_beat": "The spring oscillates in deep stone, ice and meltwater trading place in a steady cycle. The Hearth Keepers see you tending the watershed. The spring's rhythm is ready to couple into the village's Hamiltonian — the mill pond could exist; it's waiting on you.",
     "predicates": [
       {
         "type": "biome_evolving",
@@ -209,8 +209,8 @@
     },
     "arc_quest": {
       "type": "DELIVER",
-      "body": "Thread the Spring — route 💧 into the Village hearth so the spring's flow couples into the mill pond.",
-      "hint": "The spring's outflow is physically coupling into Village's Lindblad runtime. It's waiting on you.",
+      "body": "Couple the Spring — add 💧 to the Village hearth so the spring's rhythm phase-locks with the mill pond.",
+      "hint": "The spring's oscillation is ready to couple into the village's Hamiltonian. It's waiting on you.",
       "state_predicates": [
         {
           "type": "atom_in_biome",
@@ -383,11 +383,6 @@
       {
         "type": "signature_size_gte",
         "value": 14
-      },
-      {
-        "type": "biome_eigenvalue_gap_gte",
-        "biome": "Village",
-        "value": 0.12
       }
     ],
     "standing_grants": {},
@@ -397,7 +392,7 @@
     "id": "village_path_commons",
     "display_name": "Village Path — The Blessed Commons",
     "act": 5,
-    "arc_beat": "Spring water reaches every hearth before it reaches any ledger. Bread is shared before it is sold, and the mill pond never runs dry. This is the Blessed Commons — the gentlest village the island can grow, and the hardest for anything upstream to tax. The Hearth Keepers tend it alongside you.",
+    "arc_beat": "Spring and grain in every hearth — you built 💧 into the village, gentle vocabulary that keeps its spectrum dense and many-voiced. This is the Blessed Commons — the most plural shape the island can hold, and the hardest for the monolith upstream to ever collapse into a single answer. The Hearth Keepers tend it alongside you.",
     "predicates": [
       {
         "type": "story_flag_set",
@@ -461,7 +456,7 @@
     "arc_quest": {
       "type": "DELIVER",
       "body": "Feed the Manufactory — keep the works running, whatever it costs the hands that turn them.",
-      "hint": "Productivity has a price, and someone downstream is paying it.",
+      "hint": "Productivity has a price, and the hands that turn the works are paying it.",
       "state_predicates": [
         {
           "type": "berry_consumed_count_gte",
@@ -502,7 +497,7 @@
     },
     "arc_quest": {
       "type": "DELIVER",
-      "body": "Keep the Forge Honest — sustain craft and growth together so neither starves the other.",
+      "body": "Keep the Forge Honest — sustain craft and growth together so neither crowds the other out.",
       "hint": "Made things and grown things, in the same hands. That is the whole of it.",
       "state_predicates": [
         {
@@ -521,7 +516,7 @@
     "id": "village_path_watched",
     "display_name": "Village Path — The Eagle's Gaze",
     "act": 5,
-    "arc_beat": "The eagle is perched on the mill. Whatever your village became, something upstream is now aware of it — counting its coin, weighing its people, deciding what it is owed. The empire does not announce itself; it watches first. The Carrion Throne has marked your island on a map you have never seen.",
+    "arc_beat": "The eagle is perched on the mill — you built 🦅 into the village itself. That is the empire's own vocabulary: a single heavy mode that widens your village's gap and pulls its many voices toward one imposed shape. The Carrion Throne does not reach for you; its rigidity is simply in you now, and a village carrying it drifts toward the empire's one answer.",
     "predicates": [
       {
         "type": "story_flag_set",
@@ -540,8 +535,8 @@
     },
     "arc_quest": {
       "type": "DELIVER",
-      "body": "Read the Watcher — learn what the eagle wants before it decides to take it.",
-      "hint": "Attention from a throne is never idle. Follow its gaze upstream.",
+      "body": "Read the Watcher — learn how the eagle's heavy mode widens your village's gap and pulls its many voices toward a single imposed shape.",
+      "hint": "You built the empire's own vocabulary into your home. Read how its rigidity collapses your plurality.",
       "state_predicates": [
         {
           "type": "berry_consumed_count_gte",
@@ -598,7 +593,7 @@
     "id": "ledger_opens",
     "display_name": "The Ledger Opens",
     "act": 5,
-    "arc_beat": "The empire was always here. You were feeding it. BloodLedger is evolving and you have started reading its qubits directly. The cross-biome flow from Village to BloodLedger — coin and people — has been running since you first built commerce. The empire does not announce itself. It is already present in the physics.",
+    "arc_beat": "The empire was always here, folded into the physics next door. BloodLedger is evolving, and you have started reading its qubits directly. Its spectrum has one overwhelming mode behind a gap so wide the state has no choice but to fall into a single configuration and hold it. The Carrion Throne is not chaos — it is the opposite of chaos. It is one shape, imposed, admitting no other. You are beginning to see it.",
     "predicates": [
       {
         "type": "story_flag_set",
@@ -621,37 +616,35 @@
     },
     "arc_quest": {
       "type": "DELIVER",
-      "body": "Starve the Ledger — drain 📜 below the autocatalytic threshold, then cut the Village tribute pipeline.",
-      "hint": "Something is receiving the coin and people your village produces. Follow the tribute upstream.",
+      "body": "Read the Ledger's Monolith — evolve BloodLedger and read its qubits until you can see its spectrum: one dominant mode behind a wide gap, a single configuration it rigidly holds and allows nothing else.",
+      "hint": "The empire is not a storm. It is one shape that permits no other. Read its oscillations and find the gap that swallows every alternative.",
       "state_predicates": [
         {
-          "type": "biome_state_lte",
+          "type": "biome_spectral_gap_gte",
           "biome": "BloodLedger",
-          "atom": "📜",
-          "value": 0.55
+          "value": 0.6
         }
       ],
       "reward_north": "📜",
-      "reward_south": "🗑",
+      "reward_south": "🏰",
       "reward_icon_north": "📜",
-      "reward_icon_south": "🗑"
+      "reward_icon_south": "🏰"
     }
   },
   {
-    "id": "empire_starved",
-    "display_name": "The Ledger Goes Quiet",
+    "id": "empire_imposes",
+    "display_name": "The Ledger Imposes One Shape",
     "act": 6,
-    "arc_beat": "📜 fell below the line where it could rewrite itself. The authority that lived in the documents had nothing left to cite. The tribute pipeline from Village still runs — coin and people — but the thing upstream that was eating them has stopped answering. For the first time, the flow has nowhere to go but back to you.",
+    "arc_beat": "Now you see it whole. BloodLedger's spectrum is a single dominant mode behind a wide gap — one configuration the system is forced into and cannot leave. The Carrion Throne is not a ruler you can argue with, and not a chaos you can outlast; it is one answer, imposed on everything it touches, for as long as it exists. There is nothing to negotiate here. There is only whether your island stays many — or collapses into one.",
     "predicates": [
       {
         "type": "story_flag_set",
         "id": "ledger_opens"
       },
       {
-        "type": "biome_state_lte",
+        "type": "biome_spectral_gap_gte",
         "biome": "BloodLedger",
-        "atom": "📜",
-        "value": 0.55
+        "value": 0.6
       }
     ],
     "standing_grants": {
@@ -666,11 +659,16 @@
     "id": "island_free",
     "display_name": "The Demos — Free",
     "act": 6,
-    "arc_beat": "No coin leaves the island now. The forest still feeds the woodlot, the woodlot still feeds the hearth, the spring still feeds the mill — but the loop closes on itself, and what it makes, it keeps. You were never a player moving pieces on someone else's board. You were a people, learning the language of your own ground, until you could say the one sentence that mattered: this is ours. The Demos are free.",
+    "arc_beat": "Your island never collapsed. Where the empire holds one shape, Village holds many — a dense spectrum of modes that coexist, none able to rule the others, all of them in motion at once. Because nothing here dissipates, that plurality never decays into a single answer; the island stays many, and stays moving, forever. The empire still imposes its one shape upstream; it always will. But the island is not one shape. It is a people — many voices the ground holds at once, and no throne can collapse them to a single configuration. This is ours. The Demos are free.",
     "predicates": [
       {
         "type": "story_flag_set",
-        "id": "empire_starved"
+        "id": "empire_imposes"
+      },
+      {
+        "type": "biome_spectral_gap_lte",
+        "biome": "Village",
+        "value": 0.45
       },
       {
         "type": "atom_diversity_gte",
