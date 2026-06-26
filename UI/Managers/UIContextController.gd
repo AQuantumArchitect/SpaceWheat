@@ -395,13 +395,14 @@ func _get_cost_for_action(action_info: Dictionary) -> Dictionary:
 func _get_cost_for_action_name(action_name: String, action_info: Dictionary) -> Dictionary:
 	match action_name:
 		"inject_icon":
-			# Payload-specific cost: it depends on the chosen icon's south emoji, which
-			# only exists once an icon is selected in the icon-injection submenu. That
-			# submenu prices each option as it builds it and the cost is preserved through
-			# projection. At the frame/chip level no icon is selected, so there is nothing
-			# to price — return empty rather than reaching into the "icon" field, which at
-			# this layer is the button's SVG path (String), not an icon record.
-			return {}
+			# The per-icon south-pole cost (4×south) only resolves once an icon is selected in
+			# the injection submenu (which prices each option, preserved through projection).
+			# But the FLAT base cost (sprouts) is known WITHOUT a selection — surface it at the
+			# frame level so the player can SEE that inserting vocab costs resources instead of
+			# a blank chip. Pass no context → the economy returns the base injection cost
+			# (get_icon_injection_cost("") = {🌱:N}); the full per-icon cost still shows in the
+			# submenu. Empty south avoids the old "icon"-field String/Dictionary confusion.
+			return _get_runtime_action_cost("inject_icon")
 		"drain", "pump":
 			var pair = _resolve_selected_axis_pair()
 			if pair.is_empty():
