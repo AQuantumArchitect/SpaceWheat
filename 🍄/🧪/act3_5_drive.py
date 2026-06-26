@@ -421,6 +421,20 @@ def main():
             press(vk); go("time_skip", phrames=120)
         print("  ", fprog("island_lives"))
 
+        # Branch-divergence reachability check (FINDING 2026-06-26): only village_path_artisan
+        # auto-fires, because the Mill mechanically plants 🔨 into Village. The other branches
+        # gate on a specific EMOJI in Village (💧/🏭/🦅/💀). commons needs 💧 — reachable in
+        # principle (FreshwaterSpring realizes 💧-bearing icons like 🌿/💧, 🔥/💧), but ONLY if
+        # you deliberately track+incorporate the 💧 qubit, then plant it before the 6-plot ring
+        # saturates. The generic incorporate() doesn't target 💧, so commons stays dormant.
+        # Best-effort: if a 💧-bearing icon is already known, plant it to demonstrate commons.
+        spring = next((i for i in known() if "💧" in (i.get("north", ""), i.get("south", ""))), None)
+        if spring:
+            plant_icon(vk, spring["north"], spring["south"], "spring 💧 (commons)")
+            press(vk); go("time_skip", phrames=120)
+        else:
+            print("  (no 💧-bearing icon known → village_path_commons unreachable this run)")
+
         print("\n== ACT4: village_identity (Village built + cross-biome atom diversity) ==")
         # predicates: [island_lives, atom_count Village>=8, atom_diversity>=N, signature>=14, gap>=0.12]
         # Reframed (owner): a biome's plot grid caps it at 5 qubits/10 atoms, so the old
@@ -528,6 +542,15 @@ def main():
 
         # ============ B3: village_identity divergent branches ============
         print("\n== B3: village path branches (fire on which atom you built) ==")
+        # What atoms actually ended up in Village (drives which paths can fire) + its H-gap
+        # (does a coherent, diverse build stay plural?).
+        vatoms = []
+        vrm = go("realization_debug", biome="Village")
+        try:
+            vqc = go("energy_variance", biome="Village")
+            print(f"  Village: H-gap={vqc.get('h_gap', -1):.4f} (plural ⟺ ≤0.45)  atoms_emojis={vrm.get('emojis')}")
+        except Exception as e:
+            print(f"  Village readout error: {e}")
         for fid in ("village_path_commons", "village_path_industrial", "village_path_artisan",
                     "village_path_watched", "village_path_cemetery"):
             print("  ", fprog(fid))
