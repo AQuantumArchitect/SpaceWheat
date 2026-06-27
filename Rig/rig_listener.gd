@@ -1557,6 +1557,18 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 					))
 				result["key_sequence"] = {"count": steps.size(), "steps": steps}
 
+		"set_window_size":
+			# Resize the headed window so we can verify responsive layout at various
+			# resolutions (the action bar / hat rows reflow on the window's resized signal).
+			var ww := int(cmd.get("w", 1280))
+			var wh := int(cmd.get("h", 720))
+			DisplayServer.window_set_size(Vector2i(ww, wh))
+			await process_frame
+			await process_frame
+			await process_frame
+			var got := DisplayServer.window_get_size()
+			result["window_size"] = {"w": got.x, "h": got.y}
+
 		"screenshot":
 			# Capture the rendered viewport to a PNG (headed mode only — headless has no
 			# render target). Returns the globalized absolute path for the caller to read.
