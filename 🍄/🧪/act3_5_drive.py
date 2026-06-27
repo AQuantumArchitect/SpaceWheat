@@ -41,7 +41,8 @@ def main():
     c = RigClient()
     c.clear_rig_files(preserve_live_sentinel=False)
     _la = os.environ.get("RIG_DISABLE_LOOKAHEAD", "0")
-    proc = c.start_listener(scenario_id="demos_normal", display_mode="headless",
+    _display = os.environ.get("RIG_DISPLAY_MODE", "headless")
+    proc = c.start_listener(scenario_id="demos_normal", display_mode=_display,
                             extra_env={"RIG_DISABLE_LOOKAHEAD": _la})
 
     def go(a, **k):
@@ -53,6 +54,14 @@ def main():
             seq = [seq]
         for k in seq:
             c.run_turn(t(), "press_key", key=k, settle_frames=s, timeout_s=25)
+
+    # Story-beat screenshots — only when RIG_SHOTS=1 (headed). No-op headless.
+    _shots_on = os.environ.get("RIG_SHOTS", "0") == "1"
+    def shot(name):
+        if not _shots_on:
+            return
+        sh = go("screenshot", path="user://rig/beat_%s.png" % name).get("screenshot", {})
+        print("  SHOT %-16s saved=%s -> %s" % (name, sh.get("saved"), sh.get("abs")))
 
     def flags():
         return go("story_flags").get("flags_fired", {}) or {}
@@ -537,6 +546,11 @@ def main():
                 if "island_free" in flags():
                     break
                 go("time_skip", phrames=300)
+            # Story-beat captures: the finale mechanic made legible (B microscope on the
+            # rigid empire vs the plural island) + the Arc spine in its fired end state.
+            goto_biome("BloodLedger"); press("G", 3); press("B", 5); shot("b_bloodledger_rigid"); press("B", 3)
+            goto_biome("Village"); press("G", 3); press("B", 5); shot("b_village_plural"); press("B", 3)
+            press("C", 4); press("I", 3); shot("arc_final"); press("C", 3)
         else:
             print("  (BloodLedger/ledger_opens not reached — ending skipped)")
 
