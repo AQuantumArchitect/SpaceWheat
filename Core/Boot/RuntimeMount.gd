@@ -27,7 +27,7 @@ func stage_visualization(farm: Node, quantum_viz: Node) -> void:
 	# Returns silently on early-out paths (headless, null viz); orchestrator emits the
 	# `visualization_ready` signal regardless, matching original behavior.
 	_verbose.info("boot", "📍", "Stage 3B: Visualization")
-	var is_headless = DisplayServer.get_name() == "headless"
+	var is_headless = RuntimeEnv.is_headless()
 
 	if not quantum_viz:
 		if is_headless:
@@ -147,7 +147,7 @@ func stage_visualization(farm: Node, quantum_viz: Node) -> void:
 
 
 func resolve_bubble_quality(bubble_atlas) -> int:
-	var override := OS.get_environment("SW_BUBBLE_QUALITY").strip_edges().to_lower()
+	var override := RuntimeEnv.bubble_quality_override()
 	match override:
 		"low":
 			return bubble_atlas.GraphicsQuality.LOW
@@ -213,7 +213,7 @@ func stage_ui(farm: Node, shell: Node, quantum_viz: Node, world_builder) -> void
 			if plot_grid_display.has_method("inject_layout_calculator"):
 				plot_grid_display.inject_layout_calculator(quantum_viz.layout_calculator)
 		else:
-			if DisplayServer.get_name() == "headless":
+			if RuntimeEnv.is_headless():
 				_verbose.info("boot", "ℹ️", "Headless rig: no layout_calculator (fallback tile positions)")
 			else:
 				_verbose.warn("boot", "⚠️", "No layout_calculator available - tiles will use fallback positioning")

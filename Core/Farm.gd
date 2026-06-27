@@ -889,8 +889,8 @@ func time_skip_phrames(phrames: int, delta: float = PhysicsConfig.PHRAME_DT) -> 
 	# Advance farm physics/evolution synchronously for deterministic headless rig control.
 	var steps = max(0, int(phrames))
 	var dt = max(0.000001, float(delta))
-	var debug_time_skip = OS.get_environment("RIG_DEBUG_TIMESKIP").to_lower() in ["1", "true", "yes", "on"]
-	var skip_lindblad = OS.get_environment("RIG_TIME_SKIP_SKIP_LINDBLAD").to_lower() in ["1", "true", "yes", "on"]
+	var debug_time_skip = RuntimeEnv.debug_timeskip()
+	var skip_lindblad = RuntimeEnv.time_skip_skip_lindblad()
 	if steps <= 0:
 		return {"ok": true, "phrames": 0, "delta": dt}
 
@@ -1092,10 +1092,7 @@ func _accumulate_lindblad_harvest_infra(qc, register_id: int, emoji: String, dra
 
 
 func _is_rainbow_drain_mode() -> bool:
-	var raw = OS.get_environment("SW_RAINBOW_DRAIN_MODE").strip_edges().to_lower()
-	if raw == "":
-		return RAINBOW_DRAIN_MODE_DEFAULT
-	return raw in ["1", "true", "yes", "on"]
+	return RuntimeEnv.flag("SW_RAINBOW_DRAIN_MODE", RAINBOW_DRAIN_MODE_DEFAULT)
 
 
 func _harvest_rainbow_sink_flux(active_drain_biomes: Dictionary) -> void:

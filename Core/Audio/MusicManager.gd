@@ -1291,7 +1291,7 @@ func _load_volume_preference() -> void:
 
 
 func _is_headless() -> bool:
-	return OS.has_feature("headless") or DisplayServer.get_name() == "headless"
+	return RuntimeEnv.is_headless()
 
 
 ## ============================================================================

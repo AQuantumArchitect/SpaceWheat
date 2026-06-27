@@ -39,11 +39,9 @@ func biome_operators_look_valid(biome) -> bool:
 
 
 func should_rebuild_biome_operators(farm: Node) -> bool:
-	var force_rebuild = OS.get_environment("SW_FORCE_OPERATOR_REBUILD").to_lower() in ["1", "true", "yes", "on"]
-	if force_rebuild:
+	if RuntimeEnv.force_operator_rebuild():
 		return true
-	var skip_rebuild = OS.get_environment("SW_SKIP_OPERATOR_REBUILD").to_lower() in ["1", "true", "yes", "on"]
-	if skip_rebuild:
+	if RuntimeEnv.skip_operator_rebuild():
 		return false
 	if not farm or not farm.grid or not farm.grid.has_biomes():
 		return false

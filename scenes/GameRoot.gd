@@ -72,7 +72,7 @@ func _maybe_show_welcome(farm, shell) -> void:
 	# Rig automation skips the blocking splash (RIG_SKIP_WELCOME=1, set by rig_client). Treat
 	# it as already-onboarded so headed automation matches headless: begin the tutorial now,
 	# no modal in the way. Set RIG_SKIP_WELCOME=0 to exercise the splash itself.
-	if OS.get_environment("RIG_SKIP_WELCOME") == "1":
+	if RuntimeEnv.skip_welcome():
 		var qm = shell.quest_manager if "quest_manager" in shell else null
 		if qm != null and qm.has_method("maybe_start_tutorial"):
 			qm.maybe_start_tutorial(farm)

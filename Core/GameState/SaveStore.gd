@@ -36,7 +36,7 @@ static func normalize_boot_request(request: Dictionary) -> Dictionary:
 	return {
 		"slot": int(request.get("slot", -1)),
 		"scenario_id": sid,
-		"headless": bool(request.get("headless", DisplayServer.get_name() == "headless")),
+		"headless": bool(request.get("headless", RuntimeEnv.is_headless())),
 	}
 
 

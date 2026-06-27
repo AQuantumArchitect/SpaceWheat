@@ -16,43 +16,6 @@ func _log(level: String, category: String, emoji: String, message: String) -> vo
 func _log_debug(message: String) -> void:
 	_log("debug", "biome", "batch", message)
 
-func _env_truthy(raw: String) -> bool:
-	var val = raw.strip_edges().to_lower()
-	return val in ["1", "true", "yes", "on"]
-
-func _env_flag(key: String, default_value: bool = false) -> bool:
-	var raw = OS.get_environment(key)
-	if raw == "":
-		return default_value
-	return _env_truthy(raw)
-
-func _env_float(key: String, default_value: float) -> float:
-	var raw = OS.get_environment(key)
-	if raw == "":
-		return default_value
-	if not raw.is_valid_float():
-		return default_value
-	return raw.to_float()
-
-func _env_int(key: String, default_value: int) -> int:
-	var raw = OS.get_environment(key)
-	if raw == "":
-		return default_value
-	if not raw.is_valid_int():
-		return default_value
-	return raw.to_int()
-
-func _rig_flags_enabled(headless: bool) -> bool:
-	# Only honor rig flags in headless, unless explicitly overridden.
-	if _env_flag("SW_DISABLE_HEADLESS_GUARD", false):
-		return true
-	return headless
-
-func _resolve_flag(rig_key: String, global_key: String, rig_enabled: bool) -> bool:
-	if _env_flag(global_key, false):
-		return true
-	return rig_enabled and _env_flag(rig_key, false)
-
 
 const _PC = preload("res://Core/Config/PhysicsConfig.gd")
 
@@ -330,19 +293,19 @@ func initialize(biome_array: Array, p_terminal_pool = null, p_farm = null):
 	else:
 		_deterministic_stepper.bind_batcher(self)
 
-	# Resolve runtime flags once per session.
-	_headless_env = DisplayServer.get_name() == "headless"
-	var rig_enabled = _rig_flags_enabled(_headless_env)
-	_disable_lookahead_env = _resolve_flag("RIG_DISABLE_LOOKAHEAD", "SW_DISABLE_LOOKAHEAD", rig_enabled)
-	_disable_mi_env = _resolve_flag("RIG_DISABLE_MI", "SW_DISABLE_MI", rig_enabled)
-	_disable_force_env = _resolve_flag("RIG_DISABLE_FORCE_GRAPH", "SW_DISABLE_FORCE", rig_enabled) \
-		or _resolve_flag("RIG_DISABLE_FORCE", "SW_DISABLE_FORCE", rig_enabled)
-	_packet_pacing_delay_ms = max(0, _env_int("SW_PACKET_PACING_DELAY_MS", 0))
-	_max_packet_steps = max(1, _env_int("SW_MAX_PACKET_STEPS", FIB_SEQUENCE[FIB_SEQUENCE.size() - 1]))
+	# Resolve runtime flags once per session — all via the single RuntimeEnv authority
+	# (which owns the headless-guard: RIG_* flags are honored only headless, so a HEADED
+	# rig runs the player's exact physics — lookahead + MI + force).
+	_headless_env = RuntimeEnv.is_headless()
+	_disable_lookahead_env = RuntimeEnv.disable_lookahead()
+	_disable_mi_env = RuntimeEnv.disable_mi()
+	_disable_force_env = RuntimeEnv.disable_force()
+	_packet_pacing_delay_ms = max(0, RuntimeEnv.env_int("SW_PACKET_PACING_DELAY_MS", 0))
+	_max_packet_steps = max(1, RuntimeEnv.env_int("SW_MAX_PACKET_STEPS", FIB_SEQUENCE[FIB_SEQUENCE.size() - 1]))
 	# Godot already drives Farm._physics_process at PhysicsConfig.PHYSICS_TICKS_HZ.
 	# A second wall-clock phrame cap drops jittery 99ms physics ticks and lowers PhHz.
 	var default_hz = 0.0
-	_max_phrame_hz_cap = max(0.0, _env_float("SW_MAX_PHRAME_HZ", default_hz))
+	_max_phrame_hz_cap = max(0.0, RuntimeEnv.env_float("SW_MAX_PHRAME_HZ", default_hz))
 	if _max_phrame_hz_cap > 0.0:
 		_min_phrame_interval_ms = 1000.0 / _max_phrame_hz_cap
 	else:

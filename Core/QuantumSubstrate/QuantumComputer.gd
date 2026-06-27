@@ -101,8 +101,7 @@ var _sparse_evolution_enabled_cached: int = -1  # -1 unknown, 0 false, 1 true
 
 func _sparse_evolution_enabled() -> bool:
 	if _sparse_evolution_enabled_cached < 0:
-		var raw = OS.get_environment("SW_ENABLE_SPARSE_EVOLVE").to_lower()
-		_sparse_evolution_enabled_cached = 1 if raw in ["1", "true", "yes", "on"] else 0
+		_sparse_evolution_enabled_cached = 1 if RuntimeEnv.sparse_evolve() else 0
 	return _sparse_evolution_enabled_cached == 1
 
 func _init(name: String = ""):

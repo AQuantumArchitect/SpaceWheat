@@ -137,7 +137,7 @@ func _bootstrap() -> void:
 		print("❌ BootManager not found; cannot start rig")
 		return
 
-	var is_headless = DisplayServer.get_name() == "headless"
+	var is_headless = RuntimeEnv.is_headless()
 	_is_headless = is_headless
 	var load_slot = int(OS.get_environment("RIG_LOAD_SLOT")) if OS.get_environment("RIG_LOAD_SLOT") != "" else -1
 	var scenario_id = OS.get_environment("RIG_SCENARIO") if OS.get_environment("RIG_SCENARIO") != "" else SaveStore.DEFAULT_SCENARIO_ID
@@ -187,7 +187,7 @@ func _bootstrap() -> void:
 		await process_frame
 		_app_root = app_root
 		_pending_boot_request = boot_request
-		if OS.get_environment("RIG_DRIVE_TITLE") == "1":
+		if RuntimeEnv.drive_title():
 			# Leave the title screen up and let the rig drive the real player path
 			# (title → F opens the X menu → start → welcome). _on_ready only needs the
 			# shell (built in AppRoot._ready); _farm is resolved by `start_from_title`.
@@ -2258,7 +2258,4 @@ func _parse_positions(raw_positions, biome_name: String) -> Array[Vector2i]:
 
 
 func _allow_rig_resource_injection() -> bool:
-	var raw = OS.get_environment("RIG_ALLOW_RESOURCE_INJECTION").to_lower()
-	if raw == "":
-		return true
-	return raw in ["1", "true", "yes", "on"]
+	return RuntimeEnv.allow_resource_injection()

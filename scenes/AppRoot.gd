@@ -103,7 +103,7 @@ func get_player_shell() -> Node:
 
 func _maybe_auto_start() -> void:
 	var request = _peek_pending_boot_request()
-	var should_start := DisplayServer.get_name() == "headless" or bool(request.get("_pending", false))
+	var should_start := RuntimeEnv.is_headless() or bool(request.get("_pending", false))
 	if should_start:
 		await start_game(_consume_pending_boot_request())
 
@@ -115,13 +115,13 @@ func _peek_pending_boot_request() -> Dictionary:
 			"_pending": true,
 			"slot": gsm.pending_boot.slot,
 			"scenario_id": gsm.pending_boot.scenario_id,
-			"headless": DisplayServer.get_name() == "headless",
+			"headless": RuntimeEnv.is_headless(),
 		}
 	return {
 		"_pending": false,
 		"slot": -1,
 		"scenario_id": SaveStore.DEFAULT_SCENARIO_ID,
-		"headless": DisplayServer.get_name() == "headless",
+		"headless": RuntimeEnv.is_headless(),
 	}
 
 

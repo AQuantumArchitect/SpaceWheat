@@ -586,10 +586,10 @@ func is_farm_attached() -> bool:
 
 
 func _resolve_advanced_mode() -> bool:
-	var env_mode = OS.get_environment("SPACEWHEAT_ADVANCED_MODE").strip_edges().to_lower()
-	if env_mode in ["1", "true", "yes", "on"]:
+	var env_mode := RuntimeEnv.advanced_mode_tristate()
+	if env_mode == 1:
 		return true
-	if env_mode in ["0", "false", "no", "off"]:
+	if env_mode == 0:
 		return false
 	var gsm = get_node_or_null("/root/GameStateManager")
 	if gsm and "current_state" in gsm and gsm.current_state:

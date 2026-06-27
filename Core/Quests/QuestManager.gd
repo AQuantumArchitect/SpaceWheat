@@ -144,7 +144,7 @@ func connect_to_farm(farm: Node) -> void:
 	# Onboarding: headed games show the welcome splash, and DISMISSING it begins the tutorial
 	# (so tutorial_seen fires from a human action, not at boot). Headless (rig/tests) has no
 	# splash to dismiss, so begin immediately — preserving existing headless behavior.
-	if DisplayServer.get_name() == "headless":
+	if RuntimeEnv.is_headless():
 		maybe_start_tutorial(farm)
 	var story_engine = get_node_or_null("/root/StoryEngine")
 	if story_engine != null and story_engine.has_method("connect_to_farm_and_quests"):

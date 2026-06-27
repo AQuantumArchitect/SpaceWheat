@@ -193,8 +193,8 @@ func run_time_skip_cycles(cycles: int, dt: float = -1.0, biome_names: Array = []
 		}
 
 	var target_dt = maxf(0.000001, dt if dt > 0.0 else batcher.LOOKAHEAD_DT)
-	var debug_time_skip = batcher._env_flag("RIG_DEBUG_TIMESKIP", false)
-	var require_activity = batcher._env_flag("RIG_TIME_SKIP_REQUIRE_ACTIVITY", false)
+	var debug_time_skip = RuntimeEnv.debug_timeskip()
+	var require_activity = RuntimeEnv.time_skip_require_activity()
 	var requested: Dictionary = {}
 	for biome_name in biome_names:
 		var key = str(biome_name)
