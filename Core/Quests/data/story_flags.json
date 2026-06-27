@@ -344,7 +344,7 @@
     "id": "village_identity",
     "display_name": "Your Village — A Character",
     "act": 4,
-    "arc_beat": "Your village has its sixth qubit, and the island around it has grown varied — many kinds of atom now live across your biome slots. Village is built out; the island has range. It will behave accordingly.",
+    "arc_beat": "Your village has its sixth qubit, and the island around it has grown varied — many kinds of atom now live across your biome slots. Village is built out; the island has range. And what you built it FROM is what it becomes: the six atoms in its ring are its character. Water (💧) makes a commons; the forge (🔨) an artisan town; the factory (🏭) a manufactory; the skull (💀) a cemetery; the eagle (🦅) draws the empire's eye. Build deliberately — the village you compose is the village you get.",
     "conditional_beat": [
       {
         "atom": "💧",
