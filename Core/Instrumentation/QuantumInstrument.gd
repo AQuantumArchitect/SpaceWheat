@@ -594,6 +594,8 @@ func action_inject_icon_pair(biome_name: String, icon: Dictionary) -> Dictionary
 		result["north_emoji"] = north_emoji
 		result["south_emoji"] = south_emoji
 		result["cost"] = gate.get("cost", {})
+		# The player faction's socialites engaged these emojis — tell the story substrate.
+		_notify_story([north_emoji, south_emoji], "inject")
 
 	action_performed.emit("inject_icon", result)
 	return result
@@ -646,6 +648,8 @@ func action_remove_icon(biome_name: String, grid_pos: Vector2i) -> Dictionary:
 		_log("info", "instrument", "-", "Removed icon %s/%s from %s" % [
 			icon_to_remove.get("north", "?"), icon_to_remove.get("south", "?"), biome_name
 		])
+		# Emojis withdrawn from the social fabric — tell the story substrate.
+		_notify_story([icon_to_remove.get("north", ""), icon_to_remove.get("south", "")], "remove")
 
 	action_performed.emit("remove_icon", result)
 	return result

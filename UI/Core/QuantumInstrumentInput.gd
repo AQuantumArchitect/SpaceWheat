@@ -572,10 +572,7 @@ func _execute_inject_icon(icon: Dictionary) -> void:
 		# Invalidate buffer (icon injection adds qubits, modifies density matrix)
 		_invalidate_biome_buffer_for_action("inject_icon")
 
-		# Phase 2: notify the story substrate that the player faction's
-		# socialites engaged with these emojis.
-		_notify_story_engine([icon.get("north", ""), icon.get("south", "")], "inject")
-
+		# (story notification now fires inside QuantumInstrument.action_inject_icon_pair)
 		action_performed.emit("inject_icon", {
 			"success": true,
 			"north_emoji": icon.get("north", ""),
@@ -586,26 +583,6 @@ func _execute_inject_icon(icon: Dictionary) -> void:
 	else:
 		_verbose.warn("input", "+", "Icon injection failed: %s" % result.get("message", result.get("error", "unknown")))
 		action_performed.emit("inject_icon", result)
-
-
-# =============================================================================
-# PHASE 2: STORY ENGINE NOTIFICATION
-# =============================================================================
-# Icon-hat actions are the player faction's socialite interface; report the
-# emojis touched into the trajectory + conversation Hamiltonian memory so
-# NPC chatter responds to player moves.
-
-func _notify_story_engine(emojis: Array, kind: String) -> void:
-	var clean: Array = []
-	for e in emojis:
-		var s := str(e)
-		if s != "":
-			clean.append(s)
-	if clean.is_empty():
-		return
-	var story_engine = get_tree().root.get_node_or_null("/root/StoryEngine")
-	if story_engine != null and story_engine.has_method("note_player_action"):
-		story_engine.note_player_action(clean, kind)
 
 
 func _build_chip_context() -> ChipContext:
@@ -1582,10 +1559,7 @@ func _execute_action(action_name: String) -> Dictionary:
 			result = _instrument.action_cycle_biome()
 		"remove_icon":
 			result = MacroActions.dispatch(_instrument, MacroActions.KIND_REMOVE_ICON, {"biome_name": biome_name, "grid_pos": grid_pos})
-			if result.get("success", false):
-				# Phase 2: emojis withdrawn from social fabric — tell the substrate.
-				var icon: Dictionary = result.get("removed_icon", {})
-				_notify_story_engine([icon.get("north", ""), icon.get("south", "")], "remove")
+			# (story notification now fires inside QuantumInstrument.action_remove_icon)
 		"remove_biome":
 			result = MacroActions.dispatch(_instrument, MacroActions.KIND_REMOVE_BIOME)
 		"inspect_qubit":
