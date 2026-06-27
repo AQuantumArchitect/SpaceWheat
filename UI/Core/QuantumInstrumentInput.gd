@@ -640,63 +640,16 @@ func _execute_toggle_berry_track() -> Dictionary:
 
 
 func _execute_incorporate_icon() -> Dictionary:
-	# Harvest the focused qubit's icon into the player's signature.
-	# Routes through the same canonical Farm.discover_icon path as inject so
-	# downstream sync to GameState happens identically.
-	var biome = _get_current_biome()
-	if biome == null:
-		return {"success": false, "error": "no_biome"}
-	var qc = biome.quantum_computer
-	if qc == null or qc.berry_register == null:
-		return {"success": false, "error": "no_quantum_computer"}
-	var qid: int = int(_instrument.current_plot_idx) if _instrument else -1
-	if qid < 0 or qid >= qc.register_map.num_qubits:
-		return {"success": false, "error": "no_qubit"}
-	if not qc.berry_register.is_ripe(qid):
-		_verbose.info("input", "🧬", "Qubit %d not ripe yet" % qid)
-		return {"success": false, "error": "not_ripe"}
-	var axis = qc.register_map.axis(qid)
-	if axis == null or axis.is_empty():
-		return {"success": false, "error": "no_axis"}
-	var north: String = str(axis.get("north", ""))
-	var south: String = str(axis.get("south", ""))
-	if north == "" or south == "":
-		return {"success": false, "error": "axis_missing_emoji"}
-	# Incorporate = harvest a ripe, tracked register's icon into the PLAYER's
-	# signature. This is NOT biome injection (the qubit already exists in the
-	# biome by definition), so it must NOT route through inject_icon_pair — that
-	# path adds a *new* qubit, charges the inject cost, and rejects emojis already
-	# in the biome ("already_in_biome"), which is always true here. Route through
-	# the canonical player-progress path: grows known_icons (the signature_size
-	# story flags gate on), fires faction-unlock signals, syncs GameState. The
-	# Berry-phase ripening IS the cost — no resource charge.
-	var gsm = get_node_or_null("/root/GameStateManager")
-	if gsm == null or gsm.player_progress == null:
-		return {"success": false, "error": "no_player_progress"}
-	# Two distinct effects, decoupled:
-	#  • Harvest (consume): the qubit traced signed solid angle around its Bloch
-	#    sphere and returned ripe — that physics event ALWAYS happens on a ripe
-	#    incorporate. It bumps the per-biome berry counters (count + total phase)
-	#    that story beats read, and erases the entry so re-harvesting requires a
-	#    fresh track→ripen cycle (the ripening IS the cost — no spam).
-	#  • Learn (discover): grows the player signature only if the pair is NEW.
-	# A register whose icon you already know still yields harvestable phase.
-	var added: bool = gsm.player_progress.discover_icon(north, south)
-	qc.berry_register.consume(qid)
-	if added:
-		_verbose.info("input", "🧬", "Incorporated %s/%s from qubit %d into signature" % [north, south, qid])
-		# Phase 2: trajectory + conv-H memory entry for the new incorporation.
-		_notify_story_engine([north, south], "incorporate")
-	else:
-		_verbose.info("input", "🧬", "Re-harvested %s/%s (already in signature) — phase counted" % [north, south])
-	var result := {
-		"success": true,
-		"new_icon": added,
-		"north_emoji": north,
-		"south_emoji": south,
-		"qubit": qid,
-		"biome": biome.name,
-	}
+	# Thin adapter: Icon-hat R harvests the focused qubit's icon into the player's
+	# signature. All three coupled effects (learn + harvest + story) happen atomically
+	# behind the engine seam — see QuantumInstrument.action_incorporate. The UI only
+	# translates the keypress into the command and mirrors the result for display.
+	if _instrument == null:
+		return {"success": false, "error": "no_instrument"}
+	var result: Dictionary = _instrument.action_incorporate()
+	# Mirror on the QII signal too, for UI listeners (the engine emits its own). Same
+	# double-emit pattern as inject_icon. Incorporate does NOT touch the biome ρ, so no
+	# lookahead-buffer invalidation (it only consumes a berry entry + grows the signature).
 	action_performed.emit("incorporate_icon", result)
 	return result
 

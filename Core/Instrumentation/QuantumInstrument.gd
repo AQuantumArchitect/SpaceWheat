@@ -651,6 +651,81 @@ func action_remove_icon(biome_name: String, grid_pos: Vector2i) -> Dictionary:
 	return result
 
 
+func action_incorporate(qubit_idx: int = -1) -> Dictionary:
+	# Harvest the focused qubit's icon into the PLAYER's signature. This is the engine
+	# command for Icon-hat R: it does the THREE coupled effects atomically here, behind the
+	# one seam, so no input adapter (keyboard/bot/touch) can do them piecemeal or forget one:
+	#   • Learn (bookkeeping): grow the signature via player_progress.discover_icon — which
+	#     forwards to the canonical farm.discover_icon AND fires faction-unlock signals + GSM
+	#     sync (the story-flag gates read signature_size, so this MUST be the player_progress
+	#     path, not bare farm.discover_icon).
+	#   • Harvest (physics): consume the ripe Berry-phase entry (bumps per-biome berry counters
+	#     story beats read; erases the entry so re-harvest needs a fresh track→ripen cycle).
+	#   • Tell the story (narrative): note the incorporation into the trajectory + conv-H memory.
+	# The ripening IS the cost — no resource charge. qubit_idx<0 uses the focused plot.
+	if not farm:
+		return {"success": false, "error": "no_farm"}
+	var biome_name := current_biome
+	if biome_name == "":
+		var abm = _get_autoload("ActiveBiomeManager")
+		if abm and abm.has_method("get_active_biome"):
+			biome_name = abm.get_active_biome()
+	var biome = _resolve_biome(biome_name)
+	if biome == null:
+		return {"success": false, "error": "no_biome"}
+	var qc = biome.quantum_computer
+	if qc == null or qc.berry_register == null:
+		return {"success": false, "error": "no_quantum_computer"}
+	var qid: int = qubit_idx if qubit_idx >= 0 else int(current_plot_idx)
+	if qid < 0 or qid >= qc.register_map.num_qubits:
+		return {"success": false, "error": "no_qubit"}
+	if not qc.berry_register.is_ripe(qid):
+		return {"success": false, "error": "not_ripe"}
+	var axis = qc.register_map.axis(qid)
+	if axis == null or axis.is_empty():
+		return {"success": false, "error": "no_axis"}
+	var north: String = str(axis.get("north", ""))
+	var south: String = str(axis.get("south", ""))
+	if north == "" or south == "":
+		return {"success": false, "error": "axis_missing_emoji"}
+	var gsm = _get_autoload("GameStateManager")
+	if gsm == null or gsm.player_progress == null:
+		return {"success": false, "error": "no_player_progress"}
+	var added: bool = gsm.player_progress.discover_icon(north, south)
+	qc.berry_register.consume(qid)
+	if added:
+		_log("info", "instrument", "🧬", "Incorporated %s/%s from qubit %d into signature" % [north, south, qid])
+		_notify_story([north, south], "incorporate")
+	else:
+		_log("info", "instrument", "🧬", "Re-harvested %s/%s (already in signature) — phase counted" % [north, south])
+	var result := {
+		"success": true,
+		"new_icon": added,
+		"north_emoji": north,
+		"south_emoji": south,
+		"qubit": qid,
+		"biome": biome.name,
+	}
+	action_performed.emit("incorporate_icon", result)
+	return result
+
+
+## Report emojis the player touched into the story substrate (trajectory + conversation-H
+## memory) so NPC chatter responds. Lives here, behind the action seam, so EVERY input source
+## triggers it identically — the UI no longer has to remember to call it.
+func _notify_story(emojis: Array, kind: String) -> void:
+	var clean: Array = []
+	for e in emojis:
+		var s := str(e)
+		if s != "":
+			clean.append(s)
+	if clean.is_empty():
+		return
+	var story_engine = _get_autoload("StoryEngine")
+	if story_engine != null and story_engine.has_method("note_player_action"):
+		story_engine.note_player_action(clean, kind)
+
+
 func action_set_active_icon_slot(slot_idx: int, icon_idx: int) -> void:
 	if not farm or not farm.has_method("set_active_icon_slot"):
 		return
