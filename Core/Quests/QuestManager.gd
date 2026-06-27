@@ -141,7 +141,11 @@ func connect_to_biome(biome: Node) -> void:
 
 func connect_to_farm(farm: Node) -> void:
 	_refresh_unfired_flags(farm)
-	maybe_start_tutorial(farm)
+	# Onboarding: headed games show the welcome splash, and DISMISSING it begins the tutorial
+	# (so tutorial_seen fires from a human action, not at boot). Headless (rig/tests) has no
+	# splash to dismiss, so begin immediately — preserving existing headless behavior.
+	if DisplayServer.get_name() == "headless":
+		maybe_start_tutorial(farm)
 	var story_engine = get_node_or_null("/root/StoryEngine")
 	if story_engine != null and story_engine.has_method("connect_to_farm_and_quests"):
 		story_engine.connect_to_farm_and_quests(farm, self)

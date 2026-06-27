@@ -66,8 +66,8 @@ const ITEM_KEYS := ["G", "H", "J", "K", "L", ";"]
 const NUM_KEEP_SLOTS := 3
 
 # The scenario a fresh player drops into when there's no save to continue: "The Demos" (the
-# guided tutorial). Distinct from SaveStore.DEFAULT_SCENARIO_ID ("new_game_easy"), which is the
-# bare code-level fallback when no scenario id is supplied at all.
+# guided tutorial). Kept in sync with SaveStore.DEFAULT_SCENARIO_ID so the menu default, a
+# bare `godot` launch, headless boot, and the rig all load the same canonical starting world.
 const DEFAULT_RUN_SCENARIO_ID := "demos_normal"
 
 # Ordered list of playable scenarios shown in the New tab.

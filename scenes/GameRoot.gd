@@ -59,8 +59,29 @@ func start(request: Dictionary = {}) -> Node:
 	await boot_mgr.boot_runtime(farm, player_shell, quantum_viz)
 	farm_view.finalize_runtime_mount(false)
 
+	_maybe_show_welcome(farm, player_shell)
 	_mark_started()
 	return farm
+
+
+## First-run onboarding: show the welcome / how-to-play splash once, before the player has
+## been onboarded (tutorial_seen unset). Dismissing it begins the tutorial (WelcomeOverlay).
+func _maybe_show_welcome(farm, shell) -> void:
+	if farm == null or shell == null or not ("story_flags_fired" in farm):
+		return
+	# Rig automation skips the blocking splash (RIG_SKIP_WELCOME=1, set by rig_client). Treat
+	# it as already-onboarded so headed automation matches headless: begin the tutorial now,
+	# no modal in the way. Set RIG_SKIP_WELCOME=0 to exercise the splash itself.
+	if OS.get_environment("RIG_SKIP_WELCOME") == "1":
+		var qm = shell.quest_manager if "quest_manager" in shell else null
+		if qm != null and qm.has_method("maybe_start_tutorial"):
+			qm.maybe_start_tutorial(farm)
+		return
+	if farm.story_flags_fired.has("tutorial_seen"):
+		return
+	var om = shell.overlay_manager if "overlay_manager" in shell else null
+	if om != null and om.has_method("open_overlay"):
+		om.open_overlay("welcome")
 
 
 func teardown_visuals() -> void:

@@ -31,6 +31,7 @@ var _pending_pair_scope: Array = []  # [biome_a_name, biome_b_name] passed from 
 var inspector_overlay = null  # Density matrix inspector
 var controls_overlay = null  # Keyboard controls reference
 var atlas_overlay = null  # QubitAtlasOverlay
+var welcome_overlay = null  # First-run welcome / how-to-play splash
 
 # Reference to unified overlay stack (set by PlayerShell)
 var overlay_stack = null  # OverlayStackManager
@@ -356,6 +357,14 @@ func _create_overlays(parent: Control) -> void:
 	parent.add_child(controls_overlay)
 	register_overlay("controls", controls_overlay)
 	_setup_visibility_processing(controls_overlay)
+
+	# Welcome / how-to-play splash (shown once on first run by GameRoot; dismiss begins tutorial)
+	welcome_overlay = WelcomeOverlay.new()
+	welcome_overlay.z_index = 14  # modal tier, above info overlays
+	if layout_manager:
+		welcome_overlay.set_layout_manager(layout_manager)
+	parent.add_child(welcome_overlay)
+	register_overlay("welcome", welcome_overlay)
 
 	# Atom Atlas (V — atoms / icons / signature / affinity)
 	atlas_overlay = QubitAtlasOverlay.new()

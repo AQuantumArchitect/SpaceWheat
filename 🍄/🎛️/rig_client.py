@@ -239,6 +239,9 @@ class RigClient:
             env["RIG_LOAD_SLOT"] = str(load_slot)
         env["RIG_SCENARIO"] = scenario_id
         env["RIG_DISPLAY_MODE"] = str(display_mode or "headless")
+        # Automation skips the first-run welcome splash by default (it would block headed
+        # driving). A probe testing the splash passes extra_env={"RIG_SKIP_WELCOME": "0"}.
+        env["RIG_SKIP_WELCOME"] = "1"
         if allow_resource_injection is not None:
             env["RIG_ALLOW_RESOURCE_INJECTION"] = "1" if allow_resource_injection else "0"
         if rig_log_profile:

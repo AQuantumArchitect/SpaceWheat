@@ -1,0 +1,79 @@
+class_name WelcomeOverlay
+extends "res://UI/Core/OverlayBase.gd"
+
+## Welcome / how-to-play splash — shown ONCE on a fresh game (first run, before tutorial_seen).
+## Points the player at the X → Guide tab for the full instructions. Dismissing it (F = Begin,
+## or ESC) is the human ACTION that begins the tutorial: tutorial_seen fires on dismiss, not at
+## boot — matching the principle that flags fire from human action.
+
+const _ROWS := [
+	"You are The Demos — a people learning the quantum language of your own ground.",
+	"",
+	"THE LOOP   ·   select a plot on the ring  [ G H J K L ; ]   then act with  [ Q E R F ].",
+	"Harvesting teaches you icons. Icons are your vocabulary — and your power here.",
+	"",
+	"TOOLS   ·   the number row  [ 4 – 0 ]  switches hats  (Icon · Ace · Captain · Operator · Druid …).",
+	"MENUS   ·   [ Z X C V B N M ]  open your top-level surfaces  (story · market · map · microscope).",
+	"",
+	"New here?   Press  X  for the Playthrough surface, then the  Guide  tab  ( O )  — the full how-to-play.",
+	"Open  B  on any biome to see how it behaves (rigid vs. plural), and  C  for your story + contracts.",
+	"",
+	"Press  F  to begin.",
+]
+
+
+func _init() -> void:
+	name = "WelcomeOverlay"
+	overlay_name = "welcome"
+	panel_title = "🌾  Welcome to SpaceWheat"
+	panel_title_size = 24
+	panel_size_mode = PanelSizeMode.MEDIUM
+	panel_border_color = Color(0.40, 0.70, 0.50, 0.9)
+	show_dimmer = true
+	dimmer_color = Color(0, 0, 0, 0.82)
+	use_scroll_container = false
+	navigation_mode = NavigationMode.NONE
+	overlay_tier = 18  # system/modal tier — above gameplay and info overlays
+	action_labels = {"Q": "", "E": "", "R": "", "F": "Begin"}
+
+
+func _build_content(container: Control) -> void:
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 6)
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	container.add_child(box)
+	for row in _ROWS:
+		var lbl := Label.new()
+		lbl.text = str(row)
+		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		var emphasis := str(row).begins_with("THE LOOP") or str(row).begins_with("TOOLS") \
+			or str(row).begins_with("MENUS") or str(row) == "Press  F  to begin."
+		lbl.add_theme_font_size_override("font_size", 15 if emphasis else 13)
+		lbl.add_theme_color_override("font_color",
+			Color(0.85, 0.95, 0.88) if emphasis else Color(0.78, 0.82, 0.88))
+		box.add_child(lbl)
+
+
+# F = Begin → close the splash (which fires _on_deactivated → begins the tutorial).
+func _on_action_f() -> void:
+	var ps := _find_player_shell()
+	if ps != null and "overlay_manager" in ps and ps.overlay_manager != null \
+			and ps.overlay_manager.has_method("close_overlay"):
+		ps.overlay_manager.close_overlay()
+	else:
+		deactivate()
+
+
+# Any dismiss (F or ESC) begins the tutorial — the human action that fires tutorial_seen.
+# Idempotent: maybe_start_tutorial guards on tutorial_seen, so re-entry is harmless.
+func _on_deactivated() -> void:
+	var ps := _find_player_shell()
+	var qm = null
+	if ps != null and "quest_manager" in ps and ps.quest_manager != null:
+		qm = ps.quest_manager
+	else:
+		qm = get_node_or_null("/root/QuestManager")
+	var farm = InstrumentLocator.resolve_active_farm(self) if InstrumentLocator else null
+	if qm != null and qm.has_method("maybe_start_tutorial") and farm != null:
+		qm.maybe_start_tutorial(farm)
