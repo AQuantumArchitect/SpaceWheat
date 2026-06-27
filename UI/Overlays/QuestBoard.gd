@@ -2052,5 +2052,6 @@ func _scope_source_label() -> String:
 func _scope_mode_label() -> String:
 	var counterparty := _scope_counterparty_name()
 	if counterparty == "":
-		return "current biome"
+		# Neighborhood-auto-scoped market = the live biome trading with its neighborhood.
+		return "live ↔ neighborhood" if _nb_auto_scoped else "current biome"
 	return "%s × %s" % [str(current_biome.name) if current_biome and "name" in current_biome else "—", counterparty]

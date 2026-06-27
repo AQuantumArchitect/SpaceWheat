@@ -316,13 +316,21 @@ func _evaluate_quest_state_predicates(predicates: Array) -> float:
 ## 0.5 at the stated `value`; it crosses FLAG_FIRE_THRESHOLD near value + width·atanh(2·t−1).
 func predicate_fire_target(pred: Dictionary) -> float:
 	var t := str(pred.get("type", ""))
-	var w: float = float(PREDICATE_SOFT_WIDTH.get(t, 0.05))
+	var w: float = _pred_width(pred, t)
 	var center := float(pred.get("value", 0.0))
 	var target := QuestMath.fire_value(center, w, FLAG_FIRE_THRESHOLD)
 	if t.ends_with("_lte"):
 		# "at most" predicates fire BELOW center — mirror the soft_gate offset.
 		return 2.0 * center - target
 	return target
+
+
+## Soft-gate width for a predicate: a per-instance `width` override (campaign-pacing knob)
+## falling back to the per-type default in PREDICATE_SOFT_WIDTH, then to QuestMath's 0.05.
+## Lets a single beat fire crisply (e.g. first_breath at the first incorporation) without
+## moving the global width that other flags of the same type rely on.
+func _pred_width(pred: Dictionary, t: String) -> float:
+	return float(pred.get("width", PREDICATE_SOFT_WIDTH.get(t, 0.05)))
 
 
 func _check_flag_predicate(pred: Dictionary, farm) -> float:
@@ -442,7 +450,7 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 			var v_lte: float = float(biome.quantum_computer.get_energy_variance())
 			return QuestMath.soft_gate_inv(v_lte, float(pred.get("value", 0.0)), PREDICATE_SOFT_WIDTH["biome_energy_variance_lte"])
 		"signature_size_gte":
-			return QuestMath.soft_gate(float(farm.known_icons.size()), float(pred.get("value", 0)), PREDICATE_SOFT_WIDTH["signature_size_gte"])
+			return QuestMath.soft_gate(float(farm.known_icons.size()), float(pred.get("value", 0)), _pred_width(pred, "signature_size_gte"))
 		"atom_count_gte":
 			if farm.grid == null:
 				return 0.0

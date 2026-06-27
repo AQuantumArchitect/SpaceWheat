@@ -222,7 +222,8 @@ def test_boot_callers_use_canonical_request_path() -> None:
         ],
         "Rig/rig_listener.gd": [
             "boot_session(boot_request, null)",
-            "boot_runtime(_farm, _shell, quantum_viz)",
+            # Headless rig has no render target → boot_runtime is called with null viz.
+            "boot_runtime(_farm, _shell, null)",
         ],
         "tools/export_live_icon_map_live.gd": [
             "boot_session({",
