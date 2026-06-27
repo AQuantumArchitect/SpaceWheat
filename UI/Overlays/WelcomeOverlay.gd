@@ -55,8 +55,27 @@ func _build_content(container: Control) -> void:
 		box.add_child(lbl)
 
 
-# F = Begin → close the splash (which fires _on_deactivated → begins the tutorial).
+# ANY key dismisses the welcome (standard "press any key" splash) so the player is never
+# trapped. Consume that one press cleanly (no fall-through → no double-pop on ESC); the next
+# press plays normally. Without this, the modal ate Q/E/R until F was pressed — which read as
+# "actions are blocked / frame selection prevents changing frames."
+func handle_input(event: InputEvent) -> bool:
+	if not is_active:
+		return false
+	if event is InputEventKey and event.pressed and not event.echo:
+		_dismiss()
+		return true
+	return false
+
+
+# Tap path (action-bar chip): F = Begin → dismiss.
 func _on_action_f() -> void:
+	_dismiss()
+
+
+func _dismiss() -> void:
+	if not is_active:
+		return
 	var ps := _find_player_shell()
 	if ps != null and "overlay_manager" in ps and ps.overlay_manager != null \
 			and ps.overlay_manager.has_method("close_overlay"):

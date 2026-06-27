@@ -100,6 +100,8 @@ var _shell = null
 var _snapshot_service = null
 var _instrument = null  # QuantumInstrument
 var _farm = null
+var _app_root = null  # headed real-boot root, kept for RIG_DRIVE_TITLE deferred start
+var _pending_boot_request: Dictionary = {}
 var _last_offers: Array = []
 var _is_headless: bool = true
 var _turn_log_enabled: bool = true
@@ -183,12 +185,23 @@ func _bootstrap() -> void:
 		# Let AppRoot._ready construct the PlayerShell + title before we boot.
 		await process_frame
 		await process_frame
-		await app_root.start_game(boot_request)
-		_shell = app_root.get_player_shell()
-		_farm = app_root.game_root.farm if (app_root.game_root and is_instance_valid(app_root.game_root)) else null
-		if not _farm or not _shell:
-			print("❌ Real boot did not yield farm/shell; cannot start rig")
-			return
+		_app_root = app_root
+		_pending_boot_request = boot_request
+		if OS.get_environment("RIG_DRIVE_TITLE") == "1":
+			# Leave the title screen up and let the rig drive the real player path
+			# (title → F opens the X menu → start → welcome). _on_ready only needs the
+			# shell (built in AppRoot._ready); _farm is resolved by `start_from_title`.
+			_shell = app_root.get_player_shell()
+			if not _shell:
+				print("❌ Title boot did not yield shell; cannot start rig")
+				return
+		else:
+			await app_root.start_game(boot_request)
+			_shell = app_root.get_player_shell()
+			_farm = app_root.game_root.farm if (app_root.game_root and is_instance_valid(app_root.game_root)) else null
+			if not _farm or not _shell:
+				print("❌ Real boot did not yield farm/shell; cannot start rig")
+				return
 
 	_on_ready()
 
@@ -1585,6 +1598,35 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 					"path": shot_path,
 					"abs": ProjectSettings.globalize_path(shot_path),
 					"saved": err == OK, "w": img.get_width(), "h": img.get_height(),
+				}
+
+		"start_from_title":
+			# RIG_DRIVE_TITLE companion: drive the real title→start path. Optionally press
+			# `keys` first (e.g. ["F","F"] = open the X menu + start the default scenario,
+			# exactly the player's "F twice"). Then ensure the game actually booted — if the
+			# menu path didn't start it, call start_game directly (the same entrypoint the
+			# EscapeMenu uses), so the welcome appears either way. Finally resolve farm+shell.
+			if _app_root == null:
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_app_root"}
+			else:
+				var keys = cmd.get("keys", [])
+				if keys is Array:
+					for k in keys:
+						var kc = _extract_keycode({"key": str(k)})
+						if kc != KEY_UNKNOWN:
+							await _press_key(kc, false, int(cmd.get("settle_frames", 8)))
+				if not (_app_root.game_root and is_instance_valid(_app_root.game_root)):
+					await _app_root.start_game(_pending_boot_request)
+				_shell = _app_root.get_player_shell()
+				_farm = _app_root.game_root.farm if (_app_root.game_root and is_instance_valid(_app_root.game_root)) else null
+				if _shell and _shell.has_method("set_farm_attached"):
+					_shell.set_farm_attached(true)
+				if _shell:
+					_snapshot_service = InstrumentLocator.resolve_snapshot_service(_shell)
+					_instrument = InstrumentLocator.resolve_quantum_instrument(_shell)
+				result["start_from_title"] = {
+					"farm": _farm != null, "shell": _shell != null,
+					"game_root": _app_root.game_root != null,
 				}
 
 		"stop":
