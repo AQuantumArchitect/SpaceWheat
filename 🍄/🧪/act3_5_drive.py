@@ -42,8 +42,16 @@ def main():
     c.clear_rig_files(preserve_live_sentinel=False)
     _la = os.environ.get("RIG_DISABLE_LOOKAHEAD", "0")
     _display = os.environ.get("RIG_DISPLAY_MODE", "headless")
+    # Title mode (headed gallery): boot to the REAL title screen and drive the player's
+    # title → start → welcome path, instead of the rig's direct start_game. Off by default
+    # so the headless regression keeps its fast direct boot.
+    _drive_title = os.environ.get("RIG_DRIVE_TITLE", "0") == "1"
+    _boot_env = {"RIG_DISABLE_LOOKAHEAD": _la}
+    if _drive_title:
+        _boot_env["RIG_DRIVE_TITLE"] = "1"
+        _boot_env["RIG_SKIP_WELCOME"] = "0"  # show the welcome so we can verify it
     proc = c.start_listener(scenario_id="demos_normal", display_mode=_display,
-                            extra_env={"RIG_DISABLE_LOOKAHEAD": _la})
+                            extra_env=_boot_env)
 
     def go(a, **k):
         k.pop("timeout_s", None)
@@ -343,8 +351,59 @@ def main():
         print(f"  Mill learned: {is_mill_known()}")
         return is_mill_known()
 
+    def boot_via_title():
+        """Drive the real player boot: title → (F opens X menu) → start → welcome → dismiss,
+        screenshotting each. start_from_title presses F then guarantees the boot (start_game
+        fallback) and resolves farm+shell, so the welcome appears exactly as a player sees it."""
+        shot("00_title")
+        st = go("start_from_title", keys=["F"], settle_frames=10)
+        info = st.get("start_from_title", {})
+        print("  start_from_title:", info)
+        shot("01_welcome")
+        # The user's bug: a non-F key was eaten by the welcome modal. Prove ANY key dismisses
+        # it now — press a frame key (5). Then the farm is live and playable.
+        press("5", 6)
+        shot("02_after_dismiss_play")
+        return bool(info.get("farm"))
+
+    def gallery():
+        """Screenshot EVERY panel at the rich end-state: all 7 hats, then each top-level
+        surface and its tabs. ESC between so overlays don't stack."""
+        print("\n== PANEL GALLERY (every panel) ==")
+        press(["ESCAPE", "ESCAPE"], 2)
+        goto_biome("Village"); press("G", 2)  # a populated plot so panels have content
+        # Hats — action bar per frame.
+        for k, nm in [("4", "hat4_spark"), ("5", "hat5_icon"), ("6", "hat6_merchant"),
+                      ("7", "hat7_captain"), ("8", "hat8_ace"), ("9", "hat9_operator"),
+                      ("0", "hat0_druid")]:
+            press(k, 3); shot("g_%s" % nm)
+        press("8", 2)  # back to Ace
+        # Surfaces + their tabs (TYUIOP). ESC after each surface.
+        surfaces = [
+            ("Z", "sys_system", []),
+            ("X", "x_playthrough", [("T", "self"), ("Y", "story"), ("I", "balance"), ("O", "guide")]),
+            ("C", "c_quests", [("T", "manifold"), ("Y", "market"), ("U", "commitments"), ("I", "arc")]),
+            ("V", "v_atlas", []),
+            ("B", "b_microscope", []),
+            ("N", "n_inspector", []),
+            ("M", "m_map", []),
+            ("BRACKETLEFT", "nbhd_graph", []),
+        ]
+        for skey, sname, tabs in surfaces:
+            press(["ESCAPE", "ESCAPE"], 2)
+            press(skey, 5)
+            shot("g_%s" % sname)
+            for tkey, tname in tabs:
+                press(tkey, 5); shot("g_%s_%s" % (sname, tname))
+            press("ESCAPE", 3)
+        press(["ESCAPE", "ESCAPE"], 2)
+        print("  gallery complete")
+
     try:
         c.wait_for_ready(proc, timeout_s=180)
+        if _drive_title:
+            print("== BOOT VIA TITLE (real player path) ==")
+            boot_via_title()
         print("READY grid:", grid())
         print("known@start:", [f"{i.get('north')}/{i.get('south')}" for i in known()])
 
@@ -575,6 +634,10 @@ def main():
                     "ledger_opens", "empire_imposes", "island_free"):
             print("  ", fprog(fid))
         print("  flags:", sorted(flags().keys()))
+
+        # ============ PANEL GALLERY — screenshot every panel (headed + RIG_SHOTS) ============
+        if _shots_on:
+            gallery()
     finally:
         go("stop")
         c.terminate_listener(proc)
