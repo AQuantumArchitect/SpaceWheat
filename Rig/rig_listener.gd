@@ -132,11 +132,6 @@ func _bootstrap() -> void:
 	_bridge_sentinel_path = _resolve_rig_path("RIG_BRIDGE_SENTINEL_PATH", _bridge_sentinel_path)
 	_heartbeat_path = _resolve_rig_path("RIG_HEARTBEAT_PATH", _heartbeat_path)
 
-	var boot_manager = get_root().get_node_or_null("BootManager")
-	if not boot_manager:
-		print("❌ BootManager not found; cannot start rig")
-		return
-
 	var is_headless = RuntimeEnv.is_headless()
 	_is_headless = is_headless
 	var load_slot = int(OS.get_environment("RIG_LOAD_SLOT")) if OS.get_environment("RIG_LOAD_SLOT") != "" else -1
@@ -146,64 +141,58 @@ func _bootstrap() -> void:
 		"scenario_id": scenario_id,
 		"headless": is_headless,
 	}
-	if is_headless:
-		# Headless test path: hand-mount PlayerShell + boot_runtime so command
-		# execution (snapshots, instrument) works with no render target. The real
-		# game's headless boot (GameRoot) deliberately SKIPS boot_runtime, so we can't
-		# reuse it here — the rig needs UI/instrument staged even without a display.
-		_farm = await boot_manager.boot_session(boot_request, null)
-		if not _farm:
-			print("❌ Farm failed to boot; cannot start rig")
+	# ONE boot path for player and rig alike: bring up the real AppRoot and let it boot
+	# AppRoot → GameRoot → the app-owned PlayerShell (headless or headed). The rig then
+	# drives keys into the SAME shell a human would — no parallel hand-mounted shell.
+	var AppRootClass = load("res://scenes/AppRoot.gd")
+	var app_root = AppRootClass.new()
+	app_root.name = "AppRoot"
+	get_root().add_child(app_root)
+	_app_root = app_root
+	_pending_boot_request = boot_request
+
+	if RuntimeEnv.drive_title():
+		# Leave the title up; the rig drives the real player path (title → F opens the X
+		# menu → start → welcome) via the `start_from_title` action. The shell already
+		# exists from AppRoot._ready; _farm is resolved by start_from_title.
+		await process_frame
+		await process_frame
+		_shell = app_root.get_player_shell()
+		if not _shell:
+			print("❌ Title boot did not yield shell; cannot start rig")
 			return
-		# A "FarmView" container so paths like /root/FarmView/PlayerShell resolve.
-		var farm_view := Node.new()
-		farm_view.name = "FarmView"
-		get_root().add_child(farm_view)
-		var PlayerShellScene = load("res://UI/PlayerShell.tscn")
-		if not PlayerShellScene:
-			print("❌ PlayerShell.tscn missing; cannot start rig")
-			return
-		_shell = PlayerShellScene.instantiate()
-		farm_view.add_child(_shell)
-		# boot_runtime wires biomes → viz and connects farm signals; no viz headless.
-		await boot_manager.boot_runtime(_farm, _shell, null)
-		# In the real game AppRoot calls set_farm_attached(true) once the farm world
-		# is live; the rig hand-mounts the shell, so it must play that role — without
-		# it _toggle_farm_overlay refuses to open game overlays (C/V/B/N) and keyboard
-		# quest-board driving is impossible.
-		if _shell.has_method("set_farm_attached"):
-			_shell.set_farm_attached(true)
 	else:
-		# Headed path: boot the REAL game (AppRoot → GameRoot → FarmView.tscn +
-		# QuantumForceGraph), exactly as a player session — the farm-world renders and
-		# there is no parallel/synthetic FarmView. The rig then drives the same
-		# PlayerShell a human would. This keeps one boot path, not two.
-		var AppRootClass = load("res://scenes/AppRoot.gd")
-		var app_root = AppRootClass.new()
-		app_root.name = "AppRoot"
-		get_root().add_child(app_root)
-		# Let AppRoot._ready construct the PlayerShell + title before we boot.
-		await process_frame
-		await process_frame
-		_app_root = app_root
-		_pending_boot_request = boot_request
-		if RuntimeEnv.drive_title():
-			# Leave the title screen up and let the rig drive the real player path
-			# (title → F opens the X menu → start → welcome). _on_ready only needs the
-			# shell (built in AppRoot._ready); _farm is resolved by `start_from_title`.
-			_shell = app_root.get_player_shell()
-			if not _shell:
-				print("❌ Title boot did not yield shell; cannot start rig")
-				return
-		else:
-			await app_root.start_game(boot_request)
-			_shell = app_root.get_player_shell()
-			_farm = app_root.game_root.farm if (app_root.game_root and is_instance_valid(app_root.game_root)) else null
-			if not _farm or not _shell:
-				print("❌ Real boot did not yield farm/shell; cannot start rig")
-				return
+		# Request a boot exactly like the player's "New game" menu does: set pending so
+		# AppRoot._maybe_auto_start drives the real start_game with the rig's scenario
+		# (auto-starts headless; the pending flag also triggers it headed). Then await
+		# the shared shell + farm. AppRoot itself calls set_farm_attached(true).
+		var gsm = get_root().get_node_or_null("GameStateManager")
+		if gsm and gsm.pending_boot:
+			gsm.pending_boot.requested = true
+			gsm.pending_boot.slot = load_slot
+			gsm.pending_boot.scenario_id = scenario_id
+		if not await _await_real_boot(app_root):
+			print("❌ Real boot did not yield farm/shell; cannot start rig")
+			return
+		_shell = app_root.get_player_shell()
+		_farm = app_root.game_root.farm if (app_root.game_root and is_instance_valid(app_root.game_root)) else null
+		if not _farm or not _shell:
+			print("❌ Real boot did not yield farm/shell; cannot start rig")
+			return
 
 	_on_ready()
+
+
+func _await_real_boot(app_root) -> bool:
+	# Wait for AppRoot's auto-start to finish booting GameRoot → farm. Bounded so a
+	# broken boot fails loudly instead of hanging the rig forever.
+	var max_frames := 3000  # ~50s @ 60Hz; a healthy boot completes in well under 1s
+	for _i in range(max_frames):
+		var gr = app_root.game_root if (app_root and "game_root" in app_root) else null
+		if gr and is_instance_valid(gr) and gr._started and gr.farm != null:
+			return true
+		await process_frame
+	return false
 
 
 func _on_ready() -> void:

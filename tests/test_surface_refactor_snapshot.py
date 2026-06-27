@@ -220,11 +220,6 @@ def test_boot_callers_use_canonical_request_path() -> None:
         "Core/GameState/SaveLoadCoordinator.gd": [
             "boot_session(boot_request, null)",
         ],
-        "Rig/rig_listener.gd": [
-            "boot_session(boot_request, null)",
-            # Headless rig has no render target → boot_runtime is called with null viz.
-            "boot_runtime(_farm, _shell, null)",
-        ],
         "tools/export_live_icon_map_live.gd": [
             "boot_session({",
         ],
@@ -236,6 +231,25 @@ def test_boot_callers_use_canonical_request_path() -> None:
         src = _read(rel_path)
         for token in tokens:
             assert token in src, f"{rel_path} missing {token}"
+
+
+def test_rig_boots_through_approot_not_a_parallel_shell() -> None:
+    # The rig and a human player share ONE boot path and ONE PlayerShell: the rig brings up
+    # the real AppRoot and lets it boot AppRoot → GameRoot → the app-owned shell, then drives
+    # keys into that same shell. It must NOT hand-mount a parallel PlayerShell or call the
+    # engine boot directly (that was the divergence that hid the welcome-trap bug).
+    src = _read("Rig/rig_listener.gd")
+    assert 'AppRootClass = load("res://scenes/AppRoot.gd")' in src
+    assert "app_root.get_player_shell()" in src
+    assert "func _await_real_boot(" in src
+    # No parallel boot: the rig delegates to AppRoot, never the engine boot calls itself.
+    assert "boot_session(" not in src
+    assert "boot_runtime(" not in src
+    assert 'PlayerShellScene' not in src  # no hand-mounted shell
+    # GameRoot stages the shell + instrument on ONE path (no headless early-return that
+    # skips boot_runtime — that skip is what forced the rig to hand-mount).
+    gr = _read("scenes/GameRoot.gd")
+    assert "if bool(boot_request.headless):\n\t\tfarm_view.finalize_runtime_mount(true)" not in gr
 
 
 def test_authority_adapter_exposes_access_tree_api() -> None:
