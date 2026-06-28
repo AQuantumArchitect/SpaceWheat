@@ -25,6 +25,23 @@ extends RefCounted
 const TOP_COUPLINGS_N: int = 3
 
 
+## Scalar magnitude of a Hamiltonian coupling value. icons.json stores these as a
+## MIX of real couplings (float/int) and complex couplings as [re, im] arrays (also
+## Vector2 once merged) — so a bare float() throws "Nonexistent 'float' constructor"
+## on the arrays. Convention matches NeighborhoodGraph._coupling_magnitude / Icon.gd:
+## complex → sqrt(re² + im²).
+static func _coupling_magnitude(v) -> float:
+	if v is float or v is int:
+		return absf(float(v))
+	if v is Vector2:
+		return v.length()
+	if v is Array and v.size() >= 2:
+		return sqrt(float(v[0]) * float(v[0]) + float(v[1]) * float(v[1]))
+	if v is Array and v.size() == 1:
+		return absf(float(v[0]))
+	return 0.0
+
+
 static func gather(emoji: String, farm) -> Dictionary:
 	var out: Dictionary = {
 		"emoji": emoji,
@@ -75,7 +92,7 @@ static func gather(emoji: String, farm) -> Dictionary:
 				couplings.append({
 					"from": emoji,
 					"to": str(to_emoji),
-					"weight": float(hc[to_emoji]),
+					"weight": _coupling_magnitude(hc[to_emoji]),
 				})
 		couplings.sort_custom(func(a, b): return absf(float(a.weight)) > absf(float(b.weight)))
 		out["atom_summary"] = {
