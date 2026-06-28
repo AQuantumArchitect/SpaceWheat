@@ -305,6 +305,21 @@ def test_quest_manager_is_market_only_for_delivery_completion() -> None:
         assert token in src, token
 
 
+def test_app_root_boot_is_single_instance() -> None:
+    # Two GameRoots = two FarmUIs / two action bars stacked (a dead instance over a live
+    # one: stuck on Ace, captions frozen, input swallowed). The boot pipeline must be
+    # single-instance: a re-entrancy guard that both start_game and restart_from_pending_boot
+    # take, held across restart's null-game_root await window.
+    src = _read("scenes/AppRoot.gd")
+    assert "var _booting" in src, "AppRoot must declare a _booting re-entrancy guard"
+    # start_game refuses to start while a boot is in progress.
+    sg = src[src.index("func start_game("):src.index("func restart_from_pending_boot(")]
+    assert "if _booting:" in sg and "_booting = true" in sg, "start_game must take the guard"
+    # restart holds the guard across the teardown (so the null-game_root frames can't be raced).
+    rs = src[src.index("func restart_from_pending_boot("):src.index("func return_to_title(")]
+    assert "if _booting:" in rs and "_booting = true" in rs, "restart must take the guard first"
+
+
 def test_app_root_warms_shell_before_title_card() -> None:
     src = _read("scenes/AppRoot.gd")
     for token in [

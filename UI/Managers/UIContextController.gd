@@ -36,9 +36,17 @@ func setup(action_bar_mgr, stack_mgr, overlay_mgr = null) -> void:
 
 
 func reset() -> void:
-	# Reset runtime UI context references for shutdown or restart.
-	if overlay_stack and overlay_stack.has_signal("stack_changed"):
-		InstrumentLocator._safe_disconnect(overlay_stack.stack_changed, refresh)
+	# Clear ONLY the per-GAME bindings so a fresh boot can rebind cleanly via
+	# bind_quantum_input(). The shell-persistent infrastructure — action_bar_manager,
+	# overlay_stack, overlay_manager (and the stack_changed / overlay observations) — is
+	# created once in setup() at shell construction and PRESERVED across restarts (see
+	# PlayerShell.clear_farm_ui: "action bars, layout manager are all preserved").
+	#
+	# Previously this nulled action_bar_manager/overlay_stack/overlay_manager, but only
+	# setup() restores them and the restart path calls bind_quantum_input (not setup) — so
+	# after a menu/restart boot action_bar_manager stayed null, refresh() early-returned, and
+	# the action bar never repainted off frame_changed: the bar froze on Ace while the hat
+	# (and the model) changed underneath. That was the "stuck on Ace, can't change hats" bug.
 	if quantum_input:
 		for sig_name in ["frame_changed", "frame_mode_changed", "submenu_changed", "action_performed"]:
 			var cb = Callable(self, "_on_" + sig_name)
@@ -49,15 +57,11 @@ func reset() -> void:
 			if tool_row and tool_row.has_signal("frame_selected"):
 				InstrumentLocator._safe_disconnect(tool_row.frame_selected,
 						Callable(quantum_input, "_select_frame_hat"))
-	action_bar_manager = null
-	overlay_stack = null
-	overlay_manager = null
 	quantum_input = null
 	current_farm_ui = null
 	current_frame = ToolConfig.get_current_frame()
 	current_submenu_name = ""
 	current_submenu_actions.clear()
-	_observed_overlays.clear()
 
 
 func bind_overlay_manager(overlay_mgr) -> void:

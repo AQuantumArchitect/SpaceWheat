@@ -9,6 +9,15 @@ const PlayerShellScene = preload("res://UI/PlayerShell.tscn")
 var game_root = null
 var player_shell = null
 
+# Re-entrancy guard for the boot pipeline. start_game() and restart_from_pending_boot()
+# both create a GameRoot, and restart_from_pending_boot() nulls game_root then awaits two
+# frames before start_game() runs — a window in which a SECOND trigger (a second
+# continue/start key, _maybe_auto_start, another restart) would pass the bare
+# `game_root == null` check and boot a duplicate GameRoot. Two GameRoots = two FarmUIs +
+# two action bars stacked: one dead instance on top (stuck on Ace, captions never change,
+# input swallowed) over a live one. This flag makes the pipeline single-instance.
+var _booting: bool = false
+
 var _title_layer: Control = null
 var _title_hint: Label = null
 
@@ -53,9 +62,14 @@ func _input(event: InputEvent) -> void:
 
 
 func start_game(request: Dictionary = {}) -> void:
+	if _booting:
+		if _verbose:
+			_verbose.warn("boot", "⛔", "start_game ignored — a boot is already in progress")
+		return
 	if game_root and is_instance_valid(game_root):
 		return
 
+	_booting = true
 	var boot_request = SaveStore.normalize_boot_request(request)
 	_begin_loading()
 
@@ -68,9 +82,17 @@ func start_game(request: Dictionary = {}) -> void:
 	# action bars, biome tab bar, FPS readout, etc. become visible.
 	if player_shell and is_instance_valid(player_shell) and player_shell.has_method("set_farm_attached"):
 		player_shell.set_farm_attached(true)
+	_booting = false
 
 
 func restart_from_pending_boot() -> void:
+	if _booting:
+		if _verbose:
+			_verbose.warn("boot", "⛔", "restart_from_pending_boot ignored — a boot is already in progress")
+		return
+	# Hold the guard across the whole teardown — the two awaited frames below leave
+	# game_root null, which is exactly the window a duplicate boot would slip through.
+	_booting = true
 	if game_root and is_instance_valid(game_root):
 		game_root.queue_free()
 		game_root = null
@@ -81,6 +103,9 @@ func restart_from_pending_boot() -> void:
 			player_shell.set_farm_attached(false)
 		if player_shell.has_method("clear_farm_ui"):
 			player_shell.clear_farm_ui()
+	# Release immediately before start_game re-takes it — no await between, so the
+	# handoff is atomic (start_game sets _booting = true synchronously at entry).
+	_booting = false
 	await start_game(_consume_pending_boot_request())
 
 
