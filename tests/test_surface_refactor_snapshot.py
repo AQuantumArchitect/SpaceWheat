@@ -212,13 +212,12 @@ def test_boot_manager_exposes_canonical_request_entrypoints() -> None:
 
 
 def test_boot_callers_use_canonical_request_path() -> None:
+    # GameRoot is the ONE runtime caller of boot_session + boot_runtime; the export tools
+    # are the only other (headless, AppRoot-free) callers.
     callers = {
         "scenes/GameRoot.gd": [
             "boot_session(boot_request, self)",
             "boot_runtime(farm, player_shell, quantum_viz)",
-        ],
-        "Core/GameState/SaveLoadCoordinator.gd": [
-            "boot_session(boot_request, null)",
         ],
         "tools/export_live_icon_map_live.gd": [
             "boot_session({",
@@ -231,6 +230,17 @@ def test_boot_callers_use_canonical_request_path() -> None:
         src = _read(rel_path)
         for token in tokens:
             assert token in src, f"{rel_path} missing {token}"
+
+
+def test_save_load_routes_through_single_boot_authority() -> None:
+    # SaveLoadCoordinator.load_and_apply must NOT re-implement boot by calling
+    # BootManager.boot_session() directly (a partial pipeline with no GameRoot / boot_runtime
+    # / AppRoot guard — the long-standing save/load dual-boot). When an AppRoot exists it
+    # routes through restart_into() → AppRoot.start_game → GameRoot, the canonical path.
+    src = _read("Core/GameState/SaveLoadCoordinator.gd")
+    sla = src[src.index("func load_and_apply("):src.index("func load_and_apply_path(")]
+    assert "boot_session(" not in sla, "load_and_apply must not call boot_session directly"
+    assert "restart_into(slot)" in sla, "load_and_apply must route through restart_into"
 
 
 def test_rig_boots_through_approot_not_a_parallel_shell() -> None:
