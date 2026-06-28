@@ -74,7 +74,14 @@ sw_windows_deploy_tree() {
     return 1
   }
 
-  if sw_windows_can_use_cmd; then
+  # cmd.exe copy only works when the SOURCE is on a Windows-visible drive (/mnt/*).
+  # A WSL-home source resolves to a \\wsl.localhost\... UNC path that cmd.exe cannot
+  # read ("UNC paths are not supported") — in that case fall through to the cp path,
+  # which copies WSL → /mnt/c fine and also writes the launcher.
+  local source_is_winfs=0
+  case "$source_root" in /mnt/*) source_is_winfs=1 ;; esac
+
+  if sw_windows_can_use_cmd && [ "$source_is_winfs" = "1" ]; then
     local source_win target_win
 
     source_win="$(sw_wsl_to_windows_path "$source_root")"
@@ -89,6 +96,10 @@ sw_windows_deploy_tree() {
     sw_windows_copy_file_via_windows \
       "${source_win}\\libquantummatrix.windows.template_release.x86_64.dll" \
       "${target_win}\\libquantummatrix.windows.template_release.x86_64.dll" || return $?
+
+    if [ "$create_launcher" = "1" ]; then
+      sw_windows_write_launcher "$target_root"
+    fi
   else
     rm -rf "$target_root"
     mkdir -p "$target_root"
