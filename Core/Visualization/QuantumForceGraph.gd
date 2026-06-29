@@ -1342,18 +1342,6 @@ func _draw_debug_overlay():
 			HORIZONTAL_ALIGNMENT_CENTER, -1, 8, Color(0, 1, 1, 0.7))
 
 
-func _build_mi_cache() -> Dictionary:
-	# Build mutual information cache per biome for nested force optimizer.
-	var mi_cache: Dictionary = {}
-	for biome_name in biomes:
-		var biome = biomes[biome_name]
-		if biome and biome.quantum_computer and biome.quantum_computer.has_cached_mi():
-			mi_cache[biome_name] = biome.quantum_computer._cached_mi_values
-		else:
-			mi_cache[biome_name] = PackedFloat64Array()
-	return mi_cache
-
-
 func _get_scaled_force_delta(delta: float) -> float:
 	# Scale force graph delta based on quantum evolution granularity.
 	#
