@@ -580,16 +580,13 @@ func _on_terminal_measured(grid_pos: Vector2i, terminal_id: String, outcome: Str
 
 	var bubble = quantum_nodes_by_grid_pos.get(grid_pos)
 	if bubble:
-		# Ensure bubble has terminal reference
+		# Ensure bubble has terminal reference so the force/integrate loops can
+		# read is_terminal_measured() and skip it — that IS the freeze; the node
+		# holds its current position. (No write back into the terminal.)
 		if not bubble.terminal and farm_ref and farm_ref.grid:
 			var measured_plot = farm_ref.grid.get_plot(grid_pos)
 			if measured_plot:
 				bubble.terminal = measured_plot.terminal
-
-		# Freeze grid_pos for measurement visualization
-		if bubble.terminal:
-			bubble.frozen_anchor = bubble.position
-			bubble.terminal.frozen_position = bubble.position
 
 		queue_redraw()
 
@@ -1079,9 +1076,7 @@ func update_plot_positions(plot_positions: Dictionary, biome_name: String = "") 
 		var anchor_pos = plot_positions[node.grid_position]
 		node.classical_anchor = anchor_pos
 		# Keep measured nodes frozen at the new anchor grid_pos
-		var is_measured = node.is_terminal_measured()
-		if is_measured:
-			node.frozen_anchor = anchor_pos
+		if node.is_terminal_measured():
 			node.position = anchor_pos
 
 	if _verbose:

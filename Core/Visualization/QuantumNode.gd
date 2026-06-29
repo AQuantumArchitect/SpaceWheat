@@ -68,9 +68,6 @@ var is_terminal_bubble: bool = false
 # This decouples QuantumNode from scene tree for biome lookup
 var biome_resolver: Callable = Callable()
 
-# V2 Architecture: Frozen anchor position (set on MEASURE, used for snapping)
-var frozen_anchor: Vector2 = Vector2.ZERO
-
 # Lifeless mode - no quantum data available, should not wiggle
 var is_lifeless: bool = false
 
