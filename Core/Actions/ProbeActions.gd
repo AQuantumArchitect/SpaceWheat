@@ -195,18 +195,20 @@ static func action_measure(terminal, biome, economy = null, farm = null) -> Dict
 
 	# 2. Validate terminal can be measured
 	if not terminal.can_measure():
-		if not terminal.is_bound:
-			return {
-				"success": false,
-				"error": "not_bound",
-				"message": "Terminal is not bound. Use EXPLORE first.",
-				"blocked": true
-			}
+		# Check measured BEFORE bound: a measured terminal releases its register
+		# (is_bound→false), so the bound check would otherwise mislabel it "not bound".
 		if terminal.is_measured:
 			return {
 				"success": false,
 				"error": "already_measured",
 				"message": "Terminal already measured. Use R to pop.",
+				"blocked": true
+			}
+		if not terminal.is_bound:
+			return {
+				"success": false,
+				"error": "not_bound",
+				"message": "Terminal is not bound. Use EXPLORE first.",
 				"blocked": true
 			}
 		return {

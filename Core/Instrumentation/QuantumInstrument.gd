@@ -426,10 +426,13 @@ func action_measure(grid_pos: Vector2i) -> Dictionary:
 			terminal = _plot.terminal if _plot else null
 	if not terminal:
 		return {"success": false, "error": "no_terminal", "message": "No terminal at selection", "blocked": true}
-	if not terminal.can_measure():
-		return {"success": false, "error": "cannot_measure", "message": "Terminal not ready to measure", "blocked": true}
 
-	var biome_name = terminal.bound_biome_name
+	# Resolve the biome from whichever binding the terminal carries (bound OR already
+	# measured) so the call reaches the single measure authority. ProbeActions.action_measure
+	# is that authority — it validates can_measure() and returns the precise verdict
+	# (not_bound / already_measured→pop / cannot_measure). We do NOT re-check it here:
+	# a duplicate gate upstream only shadowed those richer messages with a vague one.
+	var biome_name = terminal.bound_biome_name if terminal.bound_biome_name != "" else terminal.measured_biome_name
 	if biome_name == "":
 		return {"success": false, "error": "no_biome", "message": "Terminal not bound to biome", "blocked": true}
 	var biome = _resolve_biome(biome_name)
