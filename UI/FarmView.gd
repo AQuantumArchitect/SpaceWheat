@@ -176,6 +176,7 @@ func _on_quantum_node_clicked(grid_pos: Vector2i, button_index: int) -> void:
 		else:
 			if _verbose:
 				_verbose.warn("ui", "⚠️", "Explore failed: %s" % result.get("message", "unknown"))
+			_toast_action_failure(result)
 		return
 
 	if not terminal.is_measured:
@@ -188,6 +189,7 @@ func _on_quantum_node_clicked(grid_pos: Vector2i, button_index: int) -> void:
 		else:
 			if _verbose:
 				_verbose.warn("ui", "⚠️", "Measure failed: %s" % result.get("message", "unknown"))
+			_toast_action_failure(result)
 	else:
 		var result = farm.instrument.action_pop(grid_pos)
 		if result.success:
@@ -199,6 +201,16 @@ func _on_quantum_node_clicked(grid_pos: Vector2i, button_index: int) -> void:
 		else:
 			if _verbose:
 				_verbose.warn("ui", "⚠️", "Pop failed: %s" % result.get("message", "unknown"))
+			_toast_action_failure(result)
+
+
+func _toast_action_failure(result: Dictionary) -> void:
+	# Player-facing feedback for a failed tap action — surface the message as a toast,
+	# not just a console warning. Mirrors the keyboard path (QuantumInstrumentInput).
+	var msg := str(result.get("message", ""))
+	if msg == "" or not shell or not shell.has_method("show_hint"):
+		return
+	shell.show_hint("[color=#ff9966]✗ %s[/color]" % msg, 3)
 
 
 func _on_chain_swiped(positions: Array) -> void:

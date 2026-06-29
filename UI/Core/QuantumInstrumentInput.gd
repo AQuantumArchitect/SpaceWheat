@@ -1289,14 +1289,17 @@ func _run_action(action_name: String, log_symbol: String, action_label: String) 
 
 	_log_action_result(action_name, log_symbol, action_label, result)
 
-	# A4: surface gated failures (cost / cap / blocked) — these used to no-op silently, so a
-	# player who can't afford an inject (4×south + 10🌱) or a cull (34💀) got no feedback.
+	# Surface EVERY failed action to the player as a toast — feedback is never gated.
+	# (The old allowlist of error codes both missed cases and was buggy: it checked
+	# "insufficient_funds" while ProbeActions returns "insufficient_resources", so cost
+	# failures like "Need ❄️ to measure" never showed.) If a started action fails and
+	# carries a message, the player sees it.
 	if not bool(result.get("success", true)):
-		var err := str(result.get("error", ""))
-		if bool(result.get("blocked", false)) or err in ["insufficient_funds", "qubit_cap_reached", "cost_commit_failed", "no_available_icon"]:
+		var msg := str(result.get("message", action_label + " blocked"))
+		if msg != "":
 			var shell := _resolve_player_shell()
 			if shell and shell.has_method("show_hint"):
-				shell.show_hint("[color=#ff9966]✗ %s[/color]" % str(result.get("message", action_label + " blocked")), 3)
+				shell.show_hint("[color=#ff9966]✗ %s[/color]" % msg, 3)
 	return result
 
 

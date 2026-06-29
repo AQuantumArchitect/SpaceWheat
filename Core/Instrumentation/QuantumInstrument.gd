@@ -734,7 +734,9 @@ func _notify_story(emojis: Array, kind: String) -> void:
 
 
 func action_set_active_icon_slot(slot_idx: int, icon_idx: int) -> void:
-	if not farm or not farm.has_method("set_active_icon_slot"):
+	# Farm.set_active_icon_slot is a guaranteed method; the has_method() guard was dead
+	# duck-typing that could only silently swallow this player command. Trust the type.
+	if not farm:
 		return
 	farm.set_active_icon_slot(slot_idx, icon_idx)
 	action_performed.emit("set_active_icon_slot", {"slot": slot_idx, "icon": icon_idx})
@@ -1089,16 +1091,15 @@ func get_policy_snapshot(include_offers: bool = true, include_grid: bool = true)
 
 
 func get_active_quests() -> Array:
+	# QuestManager.get_active_quests is a guaranteed method; trust the resolved type.
+	# Absence (no quest manager yet) is the only real branch → empty.
 	var qm = _resolve_quest_manager()
-	if qm and qm.has_method("get_active_quests"):
-		return qm.get_active_quests()
-	return []
+	return qm.get_active_quests() if qm else []
 
 
 func get_known_icons() -> Array:
-	if farm and farm.has_method("get_known_icons"):
-		return farm.get_known_icons()
-	return []
+	# Farm.get_known_icons is a guaranteed method; trust the type, don't duck-check it.
+	return farm.get_known_icons() if farm else []
 
 
 func get_quest_offers_for_current_biome() -> Array:
