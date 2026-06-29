@@ -875,9 +875,7 @@ func _draw_data_rings(pos: Vector2, effective_radius: float, anim_alpha: float,
 	# Uncertainty ring
 	var mass = p_north + p_south
 	if mass > 0.001:
-		var p_n = p_north / mass
-		var p_s = p_south / mass
-		var uncertainty = 2.0 * sqrt(p_n * p_s)
+		var uncertainty = VisualizationConstants.uncertainty(p_north, p_south)
 
 		if uncertainty > 0.05:
 			var ring_radius = effective_radius * 1.15
@@ -1012,20 +1010,7 @@ func draw_phi_arc_and_wedge(pos: Vector2, radius: float, phi_raw: float,
 		return
 
 	# Blend season colors based on projections to get dominant color
-	var r_proj = season_projections[0] if season_projections.size() > 0 else 0.33
-	var g_proj = season_projections[1] if season_projections.size() > 1 else 0.33
-	var b_proj = season_projections[2] if season_projections.size() > 2 else 0.33
-
-	var blended_color = (
-		VisualizationConstants.SEASON_COLORS[0] * r_proj +
-		VisualizationConstants.SEASON_COLORS[1] * g_proj +
-		VisualizationConstants.SEASON_COLORS[2] * b_proj
-	)
-
-	# Normalize to prevent oversaturation
-	var total_proj = r_proj + g_proj + b_proj
-	if total_proj > 0.01:
-		blended_color = blended_color / total_proj
+	var blended_color = VisualizationConstants.blend_season_color(season_projections)
 
 	# === 1. PHI ARC (at bubble edge) ===
 	# Small arc showing current phi position

@@ -245,14 +245,11 @@ func apply_quantum_snapshot(snap: Dictionary, smooth_radius: bool = false) -> bo
 
 	var coh_magnitude = snap.get("r_xy", 0.0) * 0.5
 	var coh_phase = snap.get("phi", 0.0)
-	var hue = (coh_phase + PI) / TAU
-	color = Color.from_hsv(hue, coh_magnitude * 0.8, 0.9, 0.8)
+	color = VisualizationConstants.phase_to_hsv(coh_phase, coh_magnitude)
 
 	var old_phi = phi_raw
 	phi_raw = coh_phase
-	for i in range(3):
-		var angle_diff = phi_raw - SEASON_ANGLES[i]
-		season_projections[i] = (1.0 + cos(angle_diff)) * 0.5 * coh_magnitude
+	season_projections = VisualizationConstants.season_projections(phi_raw, coh_magnitude)
 
 	var delta_phi = phi_raw - old_phi
 	while delta_phi > PI:

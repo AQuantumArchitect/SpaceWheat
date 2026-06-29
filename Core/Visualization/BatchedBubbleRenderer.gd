@@ -203,9 +203,7 @@ func _draw_with_atlas(graph: Node2D, ctx: Dictionary) -> void:
 					var r_xy = snap.get("r_xy", 0.0)
 					interpolated_coherence = r_xy * 0.5
 					# Update season projections from interpolated phi
-					for i in range(3):
-						var angle_diff = interpolated_phi - node.SEASON_ANGLES[i]
-						node.season_projections[i] = (1.0 + cos(angle_diff)) * 0.5 * interpolated_coherence
+					node.season_projections = VisualizationConstants.season_projections(interpolated_phi, interpolated_coherence)
 
 		# Get bubble parameters
 		var anim_scale = node.visual_scale
@@ -230,7 +228,7 @@ func _draw_with_atlas(graph: Node2D, ctx: Dictionary) -> void:
 		var shadow_influence = _shadow_influences.get(node.get_instance_id(), {})
 
 		# Compute phi-driven color from season projections
-		var phi_color = _compute_phi_color(node)
+		var phi_color = VisualizationConstants.blend_season_color(node.season_projections)
 		# Blend phi color with original (70% phi, 30% original for stability)
 		var base_color = phi_color.lerp(node.color, 0.3)
 
@@ -505,44 +503,6 @@ func get_renderer_type() -> String:
 	if _use_atlas:
 		return "atlas"
 	return "unavailable"
-
-
-func _compute_phi_color(node) -> Color:
-	# Compute bubble interior color driven by phi and season projections.
-
-	# Blends the three season colors (Red/Green/Blue at 0°/120°/240°)
-	# based on how strongly phi projects onto each season basis.
-
-	# Args:
-	# node: QuantumNode with season_projections array
-
-	# Returns:
-	# Color blended from season projections (defaults to neutral gray if no data)
-	var projections: Array = node.season_projections
-	if projections.size() < 3:
-		# No season data - return neutral gray
-		return Color(0.5, 0.5, 0.5)
-
-	var r_proj = projections[0]
-	var g_proj = projections[1]
-	var b_proj = projections[2]
-
-	# Blend season colors weighted by projections
-	var blended_color = (
-		VisualizationConstants.SEASON_COLORS[0] * r_proj +
-		VisualizationConstants.SEASON_COLORS[1] * g_proj +
-		VisualizationConstants.SEASON_COLORS[2] * b_proj
-	)
-
-	# Normalize by total projection
-	var total_proj = r_proj + g_proj + b_proj
-	if total_proj > 0.01:
-		blended_color = blended_color / total_proj
-	else:
-		# No projections - default to neutral
-		blended_color = Color(0.5, 0.5, 0.5)
-
-	return blended_color
 
 
 func compact_buffer() -> void:
