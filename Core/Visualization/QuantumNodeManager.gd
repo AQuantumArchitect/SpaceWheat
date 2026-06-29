@@ -482,12 +482,13 @@ func _update_terminal_visuals_from_buffer(
 
 	var biome = biomes.get(node.terminal.bound_biome_name, null)
 	if not biome or not biome.viz_cache:
+		_warn_unresolved(node, "biome/viz_cache absent for '%s'" % node.terminal.bound_biome_name)
 		_set_node_fallback(node)
 		return
 
 	if node.terminal.bound_register_id < 0:
-		# Keep the bubble legible even if the register binding has not been
-		# restored yet. The terminal still carries the emoji pair.
+		# Binding not yet carrying a register — legitimately not-yet-resolvable
+		# (e.g. restore in flight). Stay legible; this is absence, not failure.
 		_set_node_fallback(node)
 		return
 
@@ -503,7 +504,20 @@ func _update_terminal_visuals_from_buffer(
 	if node.apply_quantum_snapshot(snap, true):
 		return
 
+	# A bound terminal with a valid register that STILL can't resolve a snapshot is a
+	# real bug, not a dead bubble — say so once, loudly, instead of silently ghosting it.
+	_warn_unresolved(node, "empty snapshot for register %d in '%s' (lookahead=%s)" % [
+		node.terminal.bound_register_id, node.terminal.bound_biome_name, str(use_lookahead)])
 	_set_node_fallback(node)
+
+
+func _warn_unresolved(node, reason: String) -> void:
+	if node.resolve_warned:
+		return
+	node.resolve_warned = true
+	var verbose = _get_verbose()
+	if verbose:
+		verbose.warn("viz", "🫧", "Bound terminal bubble unresolved → lifeless: %s" % reason)
 
 
 func _get_visual_snapshot(

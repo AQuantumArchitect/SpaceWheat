@@ -96,6 +96,11 @@ var visual_alpha: float = 0.0  # Animated alpha (0 to 1)
 var spawn_time: float = 0.0    # Time when node was created
 var is_spawning: bool = false  # Currently animating in
 
+# One-shot guard so a bound bubble that fails to resolve its quantum state
+# screams ONCE in the log instead of either spamming every frame or (worse)
+# silently going lifeless. Absence is fine; a started-but-unresolvable bubble is a bug.
+var resolve_warned: bool = false
+
 # Visibility (for single-biome filtering - not a Node2D so we manage manually)
 var visible: bool = true
 
@@ -197,9 +202,13 @@ func apply_lifeless_visual(emojis_dict: Dictionary = {}) -> void:
 
 
 func apply_measured_visual(measured_outcome: String = "", north_value: String = "", south_value: String = "") -> void:
-	# Apply a frozen measured visual state.
+	# Apply a frozen measured visual state. A measured bubble is a static readout —
+	# it must be fully visible on its own, NOT wait on the spawn fade-in (which never
+	# completes once the terminal is measured). Force full scale/alpha here.
 	is_lifeless = false
 	is_spawning = false
+	visual_scale = 1.0
+	visual_alpha = 1.0
 	if north_value != "":
 		emoji_north = north_value
 	if south_value != "":

@@ -231,9 +231,12 @@ func _process(delta: float):
 	node_manager.update_node_visuals(quantum_nodes, ctx)
 	var t3 = Time.get_ticks_usec()
 
-	# GATE: Only run animations and particles if we have active (not measured) bubbles
-	if has_active:
-		node_manager.update_animations(quantum_nodes, time_accumulator, delta)
+	# Animations are cosmetic (spawn fade-in, measured-freeze) and MUST run for any
+	# bubble that exists — they drive visual_scale 0→1, which is what makes a bubble
+	# appear at all. Gating them behind "active (bound, unmeasured) terminals" left
+	# every freshly-measured bubble stuck at visual_scale=0 → invisible. The
+	# quantum_nodes.is_empty() gate above already short-circuits the no-bubble case.
+	node_manager.update_animations(quantum_nodes, time_accumulator, delta)
 	var t4 = Time.get_ticks_usec()
 
 	# Update physics forces - BATCHED from evolution packets
