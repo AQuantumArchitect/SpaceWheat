@@ -168,6 +168,8 @@ func _connect_to_active_biome_router():
 func _on_active_biome_changed(new_biome: String, _old_biome: String):
 	# Handle biome switching - update active_biome for force system optimization.
 	set_active_biome(new_biome)
+	# Newly-active biome may have just realized its registers — make sure they own bubbles.
+	_ensure_register_bubbles()
 
 
 func _initialize_components():
@@ -207,7 +209,13 @@ func _process(delta: float):
 	time_accumulator += delta
 	frame_count += 1
 
-	# GATE: Skip all rendering if no bubbles exist
+	# Register-first lazy seed: on a fresh boot the biome's viz_cache has no metadata at
+	# setup() time, so the field would otherwise stay empty until a strike. Once viz is
+	# populated, seed the live register bubbles. Cheap no-op once the field is seeded.
+	if quantum_nodes.is_empty():
+		_ensure_register_bubbles()
+
+	# GATE: Skip all rendering if no bubbles exist (viz_cache still not ready)
 	if quantum_nodes.is_empty():
 		projection_payloads = {}
 		return
@@ -464,21 +472,64 @@ func setup(p_biomes: Dictionary, p_farm_grid = null, p_terminal_pool = null, _p_
 
 
 func rebuild_nodes():
-	# Rebuild all quantum nodes from current biomes and farm grid.
-	var ctx = _build_context()
-	quantum_nodes = node_manager.create_quantum_nodes(ctx)
-
-	# Rebuild lookup dictionaries from created nodes
+	# Register-first rebuild: one persistent live bubble per ASSIGNED plot slot. The
+	# bubble belongs to the register, not to a terminal — it renders live from viz_cache
+	# and is always present. MEASURE flips the bubble in place (frozen + cyan ring);
+	# HARVEST clears it back to live. This is the fix for "R spawns a new measured
+	# bubble / transmutes the others / Q clears everything": there is now exactly ONE
+	# bubble per register and the verbs are overlays on it.
+	quantum_nodes.clear()
 	node_by_plot_id.clear()
 	quantum_nodes_by_grid_pos.clear()
 	all_plot_positions.clear()
-	for node in quantum_nodes:
+
+	_ensure_register_bubbles()
+
+	# Restore the measured-overlay for any terminals already measured (save / scenario
+	# restore): re-attach them to the matching register bubble so the frozen readout
+	# survives a reload.
+	if terminal_pool and terminal_pool.has_method("get_all_terminals"):
+		for terminal in terminal_pool.get_all_terminals():
+			if terminal and terminal.is_measured and terminal.grid_position != GridSentinel.INVALID_POSITION:
+				var b = quantum_nodes_by_grid_pos.get(terminal.grid_position)
+				if b:
+					b.terminal = terminal
+					b.is_terminal_bubble = true
+	_update_projection_payloads()
+
+
+func _ensure_register_bubbles() -> void:
+	# Idempotent seeder: make sure every assigned plot slot whose biome has a populated
+	# viz_cache owns a live register bubble. Safe to call repeatedly — it only ADDS
+	# bubbles for slots that don't have one yet, so it never disturbs a measured overlay.
+	# Called lazily from _process (viz_cache isn't ready at setup() on a fresh boot) and
+	# on biome load / active-biome change so newly-realized registers get their bubble.
+	var grid = farm_grid if farm_grid else (farm_ref.grid if farm_ref else null)
+	if not grid or not grid.has_method("get_plot_biome_assignments"):
+		return
+	var assignments: Dictionary = grid.get_plot_biome_assignments()
+	var added := 0
+	for grid_pos in assignments.keys():
+		if quantum_nodes_by_grid_pos.has(grid_pos):
+			continue
+		var biome_name := str(assignments[grid_pos])
+		if biome_name == "" or not biomes.has(biome_name):
+			continue
+		var biome = biomes.get(biome_name)
+		var register_id := int(grid_pos.x)
+		var node = node_manager.build_register_node(biome_name, biome, register_id, grid_pos, biomes, layout_calculator)
+		if not node:
+			continue
+		quantum_nodes.append(node)
+		quantum_nodes_by_grid_pos[grid_pos] = node
 		if node.plot_id:
 			node_by_plot_id[node.plot_id] = node
-		if node.grid_position != GridSentinel.INVALID_POSITION:
-			quantum_nodes_by_grid_pos[node.grid_position] = node
-			all_plot_positions[node.grid_position] = node.classical_anchor
-	_update_projection_payloads()
+		all_plot_positions[grid_pos] = node.classical_anchor
+		added += 1
+	if added > 0:
+		queue_redraw()
+		if _verbose:
+			_verbose.debug("viz", "🫧", "Seeded %d register bubbles (register-first)" % added)
 
 
 func create_all_register_bubbles():
@@ -542,77 +593,51 @@ func connect_to_farm(farm: Node) -> void:
 		biome_evolution_batcher = farm.biome_evolution_batcher
 
 
-func _on_terminal_bound(grid_pos: Vector2i, terminal_id: String, emoji_pair: Dictionary) -> void:
-	# Handle terminal bound event - create bubble when a terminal is bound.
-	#
-	# Bindings can come from live EXPLORE actions or from save/scenario restore.
-	var north_emoji = emoji_pair.get("north", "?")
-	var south_emoji = emoji_pair.get("south", "?")
-
+func _on_terminal_bound(grid_pos: Vector2i, terminal_id: String, _emoji_pair: Dictionary) -> void:
+	# Register-first: EXPLORE (binding) does NOT spawn a bubble — the live register
+	# bubble already exists at this slot. We only ensure it's there (covers a biome
+	# realized by interaction before the lazy seed caught it). MEASURE does the flip.
 	if _verbose:
-		_verbose.debug("viz", "📍", "Terminal bound at %s: %s/%s" % [grid_pos, north_emoji, south_emoji])
-
-	if not farm_ref or not farm_ref.grid:
-		return
-
-	var biome_name = farm_ref.grid.get_plot_biome_assignment(grid_pos)
-	if biome_name.is_empty():
-		# Fallback: Try to get biome from terminal's bound_biome_name
-		var terminal_temp = farm_ref.terminal_pool.get_terminal(terminal_id) if farm_ref.terminal_pool else null
-		if terminal_temp and not terminal_temp.bound_biome_name.is_empty():
-			biome_name = terminal_temp.bound_biome_name
-		else:
-			return
-
-	var plot = farm_ref.grid.get_plot(grid_pos)
-	var terminal = plot.terminal if plot else null
-	if not terminal and farm_ref.terminal_pool:
-		terminal = farm_ref.terminal_pool.get_terminal(terminal_id)
-
-	_create_bubble_for_terminal(biome_name, grid_pos, north_emoji, south_emoji, plot, terminal)
+		_verbose.debug("viz", "📍", "Terminal bound at %s (register-first: ensure bubble)" % grid_pos)
+	_ensure_register_bubbles()
 	queue_redraw()
 
 
 func _on_terminal_measured(grid_pos: Vector2i, terminal_id: String, outcome: String, probability: float) -> void:
-	# Handle terminal measured event - freeze bubble completely.
-	#
-	# Measured bubbles become static: no physics, no evolution updates, no visual changes.
-	# Just a frozen bubble with a cyan ring showing the collapsed outcome.
+	# Flip the EXISTING register bubble at this slot into its measured overlay: attach
+	# the terminal and route it through the terminal-visual updater, which paints the
+	# frozen collapsed readout + cyan ring (apply_measured_visual). No new bubble.
 	if _verbose:
 		_verbose.debug("viz", "📏", "Terminal %s measured at %s → %s (p=%.2f)" % [terminal_id, grid_pos, outcome, probability])
 
 	var bubble = quantum_nodes_by_grid_pos.get(grid_pos)
-	if bubble:
-		# Ensure bubble has terminal reference so the force/integrate loops can
-		# read is_terminal_measured() and skip it — that IS the freeze; the node
-		# holds its current position. (No write back into the terminal.)
-		if not bubble.terminal and farm_ref and farm_ref.grid:
-			var measured_plot = farm_ref.grid.get_plot(grid_pos)
-			if measured_plot:
-				bubble.terminal = measured_plot.terminal
-
-		queue_redraw()
+	if not bubble:
+		_ensure_register_bubbles()
+		bubble = quantum_nodes_by_grid_pos.get(grid_pos)
+	if not bubble:
+		return
+	if not bubble.terminal and farm_ref and farm_ref.grid:
+		var measured_plot = farm_ref.grid.get_plot(grid_pos)
+		if measured_plot:
+			bubble.terminal = measured_plot.terminal
+	# Route through _update_terminal_visuals_from_buffer so the measured readout is drawn.
+	bubble.is_terminal_bubble = true
+	queue_redraw()
 
 
 func _on_terminal_released(grid_pos: Vector2i, terminal_id: String, credits_earned: int) -> void:
-	# Handle terminal released event - remove terminal bubble.
+	# HARVEST: clear the measured overlay but KEEP the register bubble. It returns to
+	# live (the register re-spreads under H over the next ticks). Erasing it here was
+	# the terminal-first behavior that left the field empty after every harvest.
 	if _verbose:
-		_verbose.debug("viz", "💰", "Terminal %s released at %s (+%d credits)" % [terminal_id, grid_pos, credits_earned])
+		_verbose.debug("viz", "💰", "Terminal %s harvested at %s (+%d) — bubble back to live" % [terminal_id, grid_pos, credits_earned])
 
 	var bubble = quantum_nodes_by_grid_pos.get(grid_pos)
 	if not bubble:
 		return
-
-	# Only remove TERMINAL bubbles (has_farm_tether=true)
-	if not bubble.has_farm_tether:
-		return
-
-	# Remove terminal bubble from all registries
-	quantum_nodes_by_grid_pos.erase(grid_pos)
-	quantum_nodes.erase(bubble)
-	if bubble.plot_id:
-		node_by_plot_id.erase(bubble.plot_id)
-
+	bubble.terminal = null
+	bubble.is_terminal_bubble = false
+	bubble.is_lifeless = false
 	queue_redraw()
 
 
@@ -620,6 +645,7 @@ func _on_biome_loaded(biome_name: String, biome_ref) -> void:
 	# Handle dynamically loaded biome - register for visualization
 	biomes[biome_name] = biome_ref
 	update_layout(true)
+	_ensure_register_bubbles()
 	queue_redraw()
 	if _verbose:
 		_verbose.debug("viz", "🧭", "Dynamic biome registered for viz: %s" % biome_name)
@@ -659,76 +685,16 @@ func _on_biome_removed(biome_name: String) -> void:
 	queue_redraw()
 
 
-func _create_bubble_for_terminal(biome_name: String, grid_pos: Vector2i, north_emoji: String, south_emoji: String, plot = null, terminal = null) -> void:
-	# Create a bubble for a terminal (direct node creation)
-	if not biomes.has(biome_name):
-		return
-
-	var biome = biomes.get(biome_name)
-	if not biome or not biome.viz_cache or not biome.viz_cache.has_metadata():
-		return
-
-	if not layout_calculator:
-		return
-
-	# Spawn at the plot-box screen position; fall back to biome center
-	var initial_pos = _pgd_positions.get(grid_pos, center_position)
-
-	# Remove old bubble at this grid_pos if exists
-	if quantum_nodes_by_grid_pos.has(grid_pos):
-		var old_bubble = quantum_nodes_by_grid_pos[grid_pos]
-		if old_bubble:
-			var idx = quantum_nodes.find(old_bubble)
-			if idx >= 0:
-				quantum_nodes.remove_at(idx)
-			if old_bubble.plot_id and node_by_plot_id.has(old_bubble.plot_id):
-				node_by_plot_id.erase(old_bubble.plot_id)
-
-	# Create bubble
-	var bubble = QuantumNode.new(plot, initial_pos, grid_pos, center_position)
-	bubble.biome_name = biome_name
-	bubble.emoji_north = north_emoji
-	bubble.emoji_south = south_emoji
-	bubble.has_farm_tether = true
-	bubble.is_terminal_bubble = true
-	bubble.terminal = terminal
-	bubble.biome_resolver = func(node_name: String): return biomes.get(node_name, null)
-
-	# Store register_id so we can restore boot bubble on POP
-	if terminal and terminal.bound_register_id >= 0:
-		bubble.register_id = terminal.bound_register_id
-
-	# Add to tracking
-	quantum_nodes.append(bubble)
-	quantum_nodes_by_grid_pos[grid_pos] = bubble
-	if not all_plot_positions.has(grid_pos):
-		all_plot_positions[grid_pos] = bubble.position
-
-	if plot and bubble.plot_id:
-		node_by_plot_id[bubble.plot_id] = bubble
-
-	if _verbose:
-		_verbose.debug("viz", "🎈", "Terminal bubble registered: %s in %s" % [grid_pos, biome_name])
-
-	# Start spawn animation
-	bubble.start_spawn_animation(time_accumulator)
-
-	# Terminal bubbles (explored plots) are always visible
-	bubble.visible = true
-
-
 func _on_plot_selection_changed(grid_pos: Vector2i, is_selected: bool) -> void:
-	# Handle plot selection - show/hide bubble based on selection state
+	# Register-first: every assigned register owns a persistent, always-visible bubble.
+	# Selection now only TRACKS the cursor (for highlight/targeting) — it no longer gates
+	# visibility (the old model hid every unselected pure-quantum bubble, which is the
+	# opposite of "bubbles all the time").
 	if is_selected:
 		selected_plot_positions[grid_pos] = true
 	else:
 		selected_plot_positions.erase(grid_pos)
-
-	if quantum_nodes_by_grid_pos.has(grid_pos):
-		var bubble = quantum_nodes_by_grid_pos[grid_pos]
-		if bubble and not bubble.has_farm_tether:
-			bubble.visible = is_selected
-			queue_redraw()
+	queue_redraw()
 
 
 func register_biome(biome_name: String, biome):
@@ -1443,6 +1409,11 @@ func _apply_skating_rink_forces(delta: float) -> void:
 			elif bubble.plot:
 				# Plot bubbles: use grid grid_pos for spread
 				phi = (bubble.grid_position.x * 2.236 + bubble.grid_position.y * 1.414) * TAU
+			elif bubble.register_id >= 0:
+				# Register-first bubbles (no plot, no farm tether): spread around the oval
+				# by their grid column ≡ register, same hash terminals used. Without this they
+				# ALL fall through to phi=0 → identical target → collapse into one cluster.
+				phi = (bubble.grid_position.x * 1.618 + bubble.grid_position.y * 2.718) * TAU
 
 			var target_pos = center + Vector2(
 				semi_a * cos(phi) * ring_distance,
