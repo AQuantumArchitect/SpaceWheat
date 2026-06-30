@@ -6,8 +6,8 @@
     "arc_beat": "You did something. A qubit you steered around its Bloch sphere came back to where it started, signed solid angle in tow, and you incorporated what it traced. The world does not move without you turning a wheel. This is the first wheel.",
     "predicates": [
       {
-        "type": "signature_size_gte",
-        "value": 1.5,
+        "type": "signature_growth_gte",
+        "value": 0.5,
         "width": 0.4
       }
     ],

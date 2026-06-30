@@ -45,6 +45,7 @@ var current_biome: Node = null  # For tracking non-delivery quest progress
 var _state_projection: QuestStateProjectionService = QuestStateProjectionService.new()
 var _story_flags: Array = []    # All flag definitions loaded from story_flags.json
 var _unfired_flags: Array = []  # Subset not yet in farm.story_flags_fired
+var _signature_baseline: int = -1  # Seeded signature size snapshot (-1 = not captured)
 var _tutorial_steps: Array = [] # Act-0 onboarding chain (tutorial_arc.json), linked into a chain
 
 # =============================================================================
@@ -251,7 +252,7 @@ func _evaluate_flag_predicates(predicates: Array, farm) -> float:
 ## tutorial + arc + market quests all draw from one unified predicate language.
 const FLAG_PREDICATE_TYPES := [
 	"story_flag_set", "biome_evolving", "berry_consumed_count_gte", "berry_total_phase_gte",
-	"standing_gte", "biome_state_gte", "biome_state_lte", "signature_size_gte", "atom_count_gte", "atom_in_biome",
+	"standing_gte", "biome_state_gte", "biome_state_lte", "signature_size_gte", "signature_growth_gte", "atom_count_gte", "atom_in_biome",
 	"atom_diversity_gte", "biome_attractor_emoji_gte",
 	# Closed-native chaos↔stability vocabulary:
 	#   biome_spectral_gap_*  — H's own gap E₁−E₀ (composition-intrinsic, state-independent,
@@ -331,6 +332,15 @@ func predicate_fire_target(pred: Dictionary) -> float:
 ## moving the global width that other flags of the same type rely on.
 func _pred_width(pred: Dictionary, t: String) -> float:
 	return float(pred.get("width", PREDICATE_SOFT_WIDTH.get(t, 0.05)))
+
+
+func _signature_baseline_size(farm) -> int:
+	# Lazily snapshot the seeded signature size the first time a farm is evaluated —
+	# this runs from frame 1, before any player incorporation, so it captures the
+	# scenario's starting signature. -1 sentinel = not yet captured.
+	if _signature_baseline < 0:
+		_signature_baseline = farm.known_icons.size() if farm and "known_icons" in farm else 0
+	return _signature_baseline
 
 
 func _check_flag_predicate(pred: Dictionary, farm) -> float:
@@ -451,6 +461,13 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 			return QuestMath.soft_gate_inv(v_lte, float(pred.get("value", 0.0)), PREDICATE_SOFT_WIDTH["biome_energy_variance_lte"])
 		"signature_size_gte":
 			return QuestMath.soft_gate(float(farm.known_icons.size()), float(pred.get("value", 0)), _pred_width(pred, "signature_size_gte"))
+		"signature_growth_gte":
+			# Growth of the signature PAST the seeded boot baseline — i.e. how many icons
+			# the player has actually incorporated THIS run. The scenario's starting
+			# signature (e.g. The Demos) is the baseline, so this reads 0 at boot and only
+			# crosses on a real incorporation. This is what makes first_breath fire from a
+			# human action instead of from the seeded start (#5).
+			return QuestMath.soft_gate(float(maxi(0, farm.known_icons.size() - _signature_baseline_size(farm))), float(pred.get("value", 0)), _pred_width(pred, "signature_growth_gte"))
 		"atom_count_gte":
 			if farm.grid == null:
 				return 0.0

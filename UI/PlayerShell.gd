@@ -123,6 +123,19 @@ func _input(event: InputEvent) -> void:
 			_mark_input_handled()
 			return
 
+		# Bleed-through guard (one input authority). When a real menu is open above
+		# the farm base, that menu owns the gameplay action keys. If its surface did
+		# not claim the key, swallow it here so it can NOT fall through to the
+		# main-game dispatcher and fire a phantom strike / plot-select / hat-switch.
+		# Transparent magnifier overlays (B / BiomeInspector) are the explicit
+		# exception: they pass QERF through to the plot beneath by design. ESC and
+		# ring navigation (ZXCVBNM / WSAD) are never gameplay-action keys, so
+		# back-out and surface-switching keep working while a menu is up.
+		if _any_menu_open() and not _overlay_is_transparent(top_overlay) and _is_gameplay_action_key(event.keycode):
+			_verbose.debug("input", "🚧", "Swallowed gameplay key %d — menu open, not a menu action" % event.keycode)
+			_mark_input_handled()
+			return
+
 	# LAYER 2: Shell actions
 	if _handle_shell_action(event):
 		_mark_input_handled()
@@ -303,6 +316,30 @@ func _any_menu_open() -> bool:
 	if overlay_manager and overlay_manager.quantum_config_ui and overlay_manager.quantum_config_ui.visible:
 		return true
 	return false
+
+
+## Keys that drive the live farm loop. While a (non-transparent) menu is open
+## these must never leak past the menu into the main-game dispatcher.
+## QERF = item axis · GHJKL; = plot select · TYUIOP = biome select ·
+## 4-0 = hat frames · 1/2/3 = sub-mode. ZXCVBNM/WSAD/ESC are deliberately absent
+## (ring navigation + back-out stay live with a menu up).
+const _GAMEPLAY_ACTION_KEYS: Array = [
+	KEY_Q, KEY_E, KEY_R, KEY_F,
+	KEY_G, KEY_H, KEY_J, KEY_K, KEY_L, KEY_SEMICOLON,
+	KEY_T, KEY_Y, KEY_U, KEY_I, KEY_O, KEY_P,
+	KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9, KEY_0,
+	KEY_1, KEY_2, KEY_3,
+]
+
+
+func _is_gameplay_action_key(kc: int) -> bool:
+	return kc in _GAMEPLAY_ACTION_KEYS
+
+
+func _overlay_is_transparent(ov) -> bool:
+	# A magnifier-only surface (e.g. BiomeInspector / B) declares itself transparent
+	# so its keys pass through to the gameplay beneath instead of being swallowed.
+	return ov != null and "is_transparent_overlay" in ov and ov.is_transparent_overlay
 
 
 func _close_all_menus() -> void:

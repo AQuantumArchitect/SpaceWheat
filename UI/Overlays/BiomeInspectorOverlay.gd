@@ -34,6 +34,7 @@ var is_transparent_overlay: bool = true
 
 # State
 var _selected_idx := -1
+var _refresh_accum := 0.0
 var farm: Node = null
 var _active_biome: Node = null
 
@@ -106,7 +107,7 @@ func _on_activated() -> void:
 	_resolve_biome()
 	if _active_biome and _active_biome.has_method("get_biome_type"):
 		context_id = _active_biome.get_biome_type()
-	_selected_idx = _read_instrument_plot_idx()
+	_selected_idx = _resolve_plot_idx()
 	if _selected_idx >= 0:
 		set_object_focus(_selected_idx, "plot")
 	else:
@@ -124,16 +125,35 @@ func _read_instrument_plot_idx() -> int:
 	var idx = instrument.get("last_plot_idx")
 	return int(idx) if idx != null else -1
 
-func _process(_delta: float) -> void:
+func _resolve_plot_idx() -> int:
+	# B is a microscope — it should always be pointed at a plot. When the
+	# instrument has no explicit selection yet (fresh boot → last_plot_idx = -1),
+	# default to the active biome's first plot rather than a "select a plot"
+	# placeholder, so opening B pops straight to per-plot detail.
+	var idx := _read_instrument_plot_idx()
+	if idx >= 0:
+		return idx
+	return 0 if _get_num_qubits() > 0 else -1
+
+func _process(delta: float) -> void:
 	if not visible or not is_active:
 		return
-	var live_idx := _read_instrument_plot_idx()
+	var live_idx := _resolve_plot_idx()
 	if live_idx != _selected_idx:
 		_selected_idx = live_idx
 		if _selected_idx >= 0:
 			set_object_focus(_selected_idx, "plot")
 		else:
 			clear_object_focus()
+		_rebuild()
+		_refresh_accum = 0.0
+		return
+	# Keep the microscope live even when the plot doesn't change: marginals,
+	# purity and Var(H) evolve continuously, and QERF acted on the plot beneath
+	# should be reflected here. Throttled rebuild (~4 Hz) keeps it cheap.
+	_refresh_accum += delta
+	if _refresh_accum >= 0.25:
+		_refresh_accum = 0.0
 		_rebuild()
 
 func _resolve_biome() -> void:

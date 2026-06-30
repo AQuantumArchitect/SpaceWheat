@@ -37,13 +37,13 @@ def _wait_for_story_flag(rig, flag_id: str, *, timeout_s: float = 12.0):
 
 def test_story_flags_fire_from_action_not_boot() -> None:
     # Principle: story flags fire as a RESULT of human action, never at a fresh boot.
-    # Run on the SHIPPED DEFAULT scenario (demos_normal), which boots with a single starter
-    # icon (🌾/👥, signature size 1). first_breath gates on signature_size_gte 1.5 width 0.4,
-    # which under soft geometry crosses the 0.85 fire threshold at signature size 2 — so it
-    # must NOT fire at boot (sig 1) and only fires once the player incorporates their first
-    # icon (sig 1→2). (new_game_easy hands you 2 icons up front, so it legitimately fires at
-    # its boot — that scenario can't test the invariant.) The forest beats below then fire
-    # from a real action (consuming berries).
+    # Run on the SHIPPED DEFAULT scenario (demos_normal). first_breath now gates on
+    # signature_GROWTH past the seeded boot baseline (signature_growth_gte 0.5 width 0.4),
+    # NOT an absolute size — so it reads 0 at boot for ANY scenario (1 seeded icon or 5) and
+    # only crosses once the player incorporates one MORE this run. This is scenario-proof:
+    # the old absolute signature_size_gte 1.5 fired at boot for any start with ≥2 icons
+    # (e.g. new_game_easy, or a Demos start with a 2-icon signature). The forest beats below
+    # then fire from a real action (consuming berries).
     RigClient = _load_rig_client()
     if shutil.which("godot") is None:
         pytest.skip("godot not available on PATH")
