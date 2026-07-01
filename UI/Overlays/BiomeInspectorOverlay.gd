@@ -122,14 +122,19 @@ func _read_instrument_plot_idx() -> int:
 	var instrument = qi_input.get("_instrument")
 	if instrument == null:
 		return -1
+	# The ACTIVE plot is the live cursor (current_plot_idx), not the persisted
+	# last_plot_idx — B should mirror whatever plot the player is actually on.
+	# Fall back to last_plot_idx (survives leaving the plot ring) then -1.
+	var cur = instrument.get("current_plot_idx")
+	if cur != null and int(cur) >= 0:
+		return int(cur)
 	var idx = instrument.get("last_plot_idx")
 	return int(idx) if idx != null else -1
 
 func _resolve_plot_idx() -> int:
-	# B is a microscope — it should always be pointed at a plot. When the
-	# instrument has no explicit selection yet (fresh boot → last_plot_idx = -1),
-	# default to the active biome's first plot rather than a "select a plot"
-	# placeholder, so opening B pops straight to per-plot detail.
+	# B is a microscope — it should always be pointed at the ACTIVE plot. Only when
+	# the instrument reports no plot at all do we fall back to the biome's first
+	# plot (so B never shows an empty "select a plot" placeholder).
 	var idx := _read_instrument_plot_idx()
 	if idx >= 0:
 		return idx

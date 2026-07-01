@@ -71,6 +71,7 @@ var node_by_plot_id: Dictionary = {}
 var quantum_nodes_by_grid_pos: Dictionary = {}
 var all_plot_positions: Dictionary = {}
 var _pgd_positions: Dictionary = {}  # Plot-box screen positions from PlotGridDisplay; survives rebuild_nodes()
+var _carousel_angle: float = 0.0  # Biome-carousel rotation (rad); eases so the active biome faces front
 var sun_qubit_node: QuantumNode = null
 
 var biomes: Dictionary = {}
@@ -247,13 +248,14 @@ func _process(delta: float):
 	node_manager.update_animations(quantum_nodes, time_accumulator, delta)
 	var t4 = Time.get_ticks_usec()
 
-	# Update physics forces - BATCHED from evolution packets
-	var nodes_with_batched_pos = _apply_batched_force_positions(ctx)
+	# Force-directed layout: each biome is its OWN cluster (bubbles interact only with
+	# their own biome's bubbles → emergent per-biome grouping), and the clusters ride a
+	# turntable that rotates the ACTIVE biome to the front on biome-cycle. GDScript owns
+	# viz layout here; the C++ batched force positions are retired for the farm graph
+	# (they can't know the carousel, and drove the amorphous centre-blob).
+	_apply_biome_cluster_forces(delta)
 	var t5 = Time.get_ticks_usec()
-
-	# Force-graph integration (skating rink — nested optimizer was a stub, deleted 2026-05-09).
-	_apply_skating_rink_forces(delta)
-	_integrate_velocities(delta, nodes_with_batched_pos)
+	_integrate_velocities(delta, {})
 
 	# GATE: Only update particles if we have active bubbles
 	if has_active:
@@ -1127,59 +1129,8 @@ func _on_drag_end(_start_pos: Vector2, _end_pos: Vector2) -> void:
 	_drag_chain.clear()
 
 
-func _apply_batched_force_positions(ctx: Dictionary) -> Dictionary:
-	# Apply pre-computed force positions from BiomeEvolutionBatcher buffers.
-	#
-	# Replaces synchronous force calculation with buffered grid_pos reads + interpolation.
-	# Force positions are computed at 10Hz in C++ alongside evolution, then consumed
-	# here at 60 FPS with smooth interpolation.
-	#
-	# Returns: Dictionary of node_id → true for nodes that got batched positions
-	var nodes_with_batched_pos: Dictionary = {}
-	var biome_batcher = ctx.get("biome_batcher")
-	if not biome_batcher:
-		return nodes_with_batched_pos
-
-	# Group nodes by biome for batch grid_pos lookup
-	var nodes_by_biome: Dictionary = {}
-	for node in quantum_nodes:
-		if not node or not node.biome_name:
-			continue
-		if not nodes_by_biome.has(node.biome_name):
-			nodes_by_biome[node.biome_name] = []
-		nodes_by_biome[node.biome_name].append(node)
-
-	# Apply interpolated positions per biome
-	for biome_name in nodes_by_biome:
-		var biome_nodes = nodes_by_biome[biome_name]
-		var interpolated_positions = biome_batcher.get_interpolated_force_positions(biome_name)
-
-		if interpolated_positions.is_empty():
-			continue
-
-		# Map positions to nodes by register_id (qubit index)
-		# Force positions are indexed by qubit ID, nodes may be in different order
-		for node in biome_nodes:
-			# Measured bubbles are frozen — don't overwrite grid_pos from batcher
-			if node.is_terminal_measured():
-				continue
-			# Use register_id directly (all nodes have this set from quantum state)
-			var qubit_idx = node.register_id
-			if qubit_idx >= 0 and qubit_idx < interpolated_positions.size():
-				node.position = interpolated_positions[qubit_idx]
-				nodes_with_batched_pos[node.get_instance_id()] = true
-
-	return nodes_with_batched_pos
-
-
-func _extract_qubit_index(plot_id: String) -> int:
-	# Extract qubit index from plot_id (e.g., 'forest_q2' → 2).
-	if "_q" not in plot_id:
-		return -1
-	var parts = plot_id.split("_q")
-	if parts.size() < 2:
-		return -1
-	return int(parts[1])
+# (C++ batched force positions retired 2026-06-30 — the farm graph layout is now owned
+# by _apply_biome_cluster_forces in GDScript, which the C++ engine can't know about.)
 
 
 # ============================================================================
@@ -1343,18 +1294,17 @@ func _get_scaled_force_delta(delta: float) -> float:
 	return delta * scale_val
 
 
-func _apply_skating_rink_forces(delta: float) -> void:
-	# Apply forces to grid_pos bubbles on biome ovals (moved from BathQuantumVisualizationController)
-	#
-	# RADIAL ENCODING: ring_distance ← biome purity
-	# - This affects layout placement only, not bubble body radius.
-	# - Higher-purity biomes sit deeper in the oval; mixed biomes sit closer to the edge.
-	#
-	# ANGULAR ENCODING: phi ← grid grid_pos hash (spread bubbles evenly)
+func _apply_biome_cluster_forces(delta: float) -> void:
+	# Biome-cluster carousel layout. Each biome's bubbles interact ONLY with their own
+	# biome's bubbles (mutual repulsion so they spread + mutual-information attraction so
+	# entangled qubits draw together + a soft spring to the cluster centre so the group
+	# stays cohesive). No cross-biome forces → each biome emerges as its own cluster.
+	# The cluster CENTRES ride a turntable: the ACTIVE biome eases to the front
+	# (bottom-centre, full size); other live biomes arc up and back (smaller). Cycling
+	# the active biome rotates the turntable so the relevant cluster comes to the front.
 	if not layout_calculator:
 		return
 
-	# Group nodes by biome
 	var nodes_by_biome: Dictionary = {}
 	for node in quantum_nodes:
 		if not node.biome_name:
@@ -1362,73 +1312,75 @@ func _apply_skating_rink_forces(delta: float) -> void:
 		if not nodes_by_biome.has(node.biome_name):
 			nodes_by_biome[node.biome_name] = []
 		nodes_by_biome[node.biome_name].append(node)
+	if nodes_by_biome.is_empty():
+		return
 
-	for biome_name in nodes_by_biome:
-		var bubbles = nodes_by_biome[biome_name]
-		if bubbles.is_empty():
-			continue
+	var biome_list: Array = nodes_by_biome.keys()
+	biome_list.sort()  # stable ordering → stable carousel slots
+	var n := biome_list.size()
+	var center: Vector2 = layout_calculator.graph_center
 
-		var oval = layout_calculator.get_biome_oval(biome_name)
-		if oval.is_empty():
-			continue
+	# Ease the turntable so the active biome's slot rotates to the front (angle 0).
+	var active_idx := biome_list.find(active_biome)
+	if active_idx < 0:
+		active_idx = 0
+	var target_angle := -TAU * float(active_idx) / float(maxi(n, 1))
+	_carousel_angle = lerp_angle(_carousel_angle, target_angle, clampf(delta * 5.0, 0.0, 1.0))
 
-		var center = oval.get("center", Vector2.ZERO)
-		var semi_a = oval.get("semi_a", 100.0)
-		var semi_b = oval.get("semi_b", 60.0)
+	var reach: float = minf(center.x, center.y)
+	var turntable_rx: float = reach * 0.60
+	var turntable_ry: float = reach * 0.26
+	# Bias the whole turntable DOWN into the play area so the back cluster clears the top
+	# tab bar and the front cluster clears the bottom action bar.
+	var play_center: Vector2 = Vector2(center.x, center.y + reach * 0.18)
 
-		# Get biome's purity for radial positioning
-		var biome = biomes.get(biome_name)
-		var biome_purity = 0.5  # Default mid-purity
-		if biome and ("viz_cache" in biome):
-			var purity = biome.viz_cache.get_purity()
-			if purity >= 0.0:
-				biome_purity = purity
-
-		# RADIAL POSITION: ring_distance ← purity (constant for all bubbles in this biome)
-		var min_purity = 0.125  # 1/8 for 3-qubit system
-		var purity_normalized = clampf((biome_purity - min_purity) / (1.0 - min_purity), 0.0, 1.0)
-		var ring_distance = 0.85 - purity_normalized * 0.55  # 0.85 (mixed) to 0.30 (pure)
-
-		for bubble in bubbles:
-			# Skip bubbles that aren't visualizing quantum state
-			# Allow: plot bubbles, terminal bubbles (farm_tether), register bubbles (register_id >= 0)
-			var is_quantum_bubble = bubble.plot or bubble.has_farm_tether or bubble.register_id >= 0
-			if not is_quantum_bubble:
-				continue
-
-			# MEASURED BUBBLES: Freeze in place - no skating rink forces
-			if bubble.is_terminal_measured():
-				bubble.velocity = Vector2.ZERO
-				continue
-
-			# ANGULAR POSITION: spread bubbles around oval
-			var phi = 0.0
-			if bubble.has_farm_tether and not bubble.plot:
-				# Terminal bubbles: spread around oval based on grid grid_pos hash
-				phi = (bubble.grid_position.x * 1.618 + bubble.grid_position.y * 2.718) * TAU
-			elif bubble.plot:
-				# Plot bubbles: use grid grid_pos for spread
-				phi = (bubble.grid_position.x * 2.236 + bubble.grid_position.y * 1.414) * TAU
-			elif bubble.register_id >= 0:
-				# Register-first bubbles (no plot, no farm tether): spread around the oval
-				# by their grid column ≡ register, same hash terminals used. Without this they
-				# ALL fall through to phi=0 → identical target → collapse into one cluster.
-				phi = (bubble.grid_position.x * 1.618 + bubble.grid_position.y * 2.718) * TAU
-
-			var target_pos = center + Vector2(
-				semi_a * cos(phi) * ring_distance,
-				semi_b * sin(phi) * ring_distance
+	for i in range(n):
+		var bname: String = biome_list[i]
+		var cluster_nodes: Array = nodes_by_biome[bname]
+		var cluster_center: Vector2 = play_center
+		var depth: float = 1.0
+		if n > 1:
+			var ang := TAU * float(i) / float(n) + _carousel_angle
+			depth = cos(ang)  # +1 front (lower, larger), -1 back (higher, smaller)
+			cluster_center = Vector2(
+				play_center.x + sin(ang) * turntable_rx,
+				play_center.y + depth * turntable_ry
 			)
+		var depth_scale: float = 0.55 + 0.45 * (depth * 0.5 + 0.5)  # 1.0 front → 0.55 back
+		_apply_intra_biome_forces(bname, cluster_nodes, cluster_center, depth_scale, delta)
 
-			# Apply force toward target
-			var to_target = target_pos - bubble.position
-			var distance = to_target.length()
 
-			if distance > 1.0:
-				var force_dir = to_target.normalized()
-				var skating_rink_strength = 150.0
-				var force_magnitude = skating_rink_strength * min(distance / 50.0, 2.0)
-				bubble.velocity += force_dir * force_magnitude * delta
+func _apply_intra_biome_forces(biome_name: String, nodes: Array, cluster_center: Vector2, scale: float, delta: float) -> void:
+	# Spread nodes within one biome cluster via repulsion + MI attraction + centre spring.
+	var biome = biomes.get(biome_name)
+	var qc = biome.quantum_computer if (biome and "quantum_computer" in biome) else null
+	var spread: float = 68.0 * scale            # desired node separation
+	var k_center: float = 2.7                   # spring toward cluster centre (keeps clusters tight)
+	var k_rep: float = spread * spread * 4.0    # repulsion (inverse-square)
+	var k_mi: float = 3.2                        # mutual-information attraction
+	for a in nodes:
+		var is_quantum_bubble: bool = a.plot or a.has_farm_tether or a.register_id >= 0
+		if not is_quantum_bubble:
+			continue
+		# MEASURED bubbles freeze in place (they're a static readout).
+		if a.is_terminal_measured():
+			a.velocity = Vector2.ZERO
+			continue
+		var force: Vector2 = (cluster_center - a.position) * k_center
+		for b in nodes:
+			if b == a:
+				continue
+			var d: Vector2 = a.position - b.position
+			var dist: float = maxf(d.length(), 6.0)
+			var dir: Vector2 = d / dist
+			# Repulsion — capped so overlapping bubbles don't explode.
+			force += dir * minf(k_rep / (dist * dist), 170.0)
+			# Mutual-information attraction — entangled qubits draw together.
+			if qc and a.register_id >= 0 and b.register_id >= 0 and qc.has_method("get_mutual_information"):
+				var mi: float = float(qc.get_mutual_information(a.register_id, b.register_id))
+				if mi > 0.03:
+					force -= dir * mi * k_mi * clampf(dist - spread, -spread, dist) * 0.05
+		a.velocity += force * delta
 
 
 func _integrate_velocities(delta: float, nodes_with_batched_pos: Dictionary) -> void:
@@ -1443,6 +1395,14 @@ func _integrate_velocities(delta: float, nodes_with_batched_pos: Dictionary) -> 
 	# nodes_with_batched_pos: Dictionary of node_id → true for nodes that got batched positions
 	const DRAG = 0.92  # Empirical damping; previously matched QuantumForceSystem (stub deleted 2026-05-09).
 
+	# Play-area bounds — keep every bubble clear of the top tab-bar chrome and the bottom
+	# action bar no matter what the force balance does (a hard backstop against stragglers).
+	var vp: Vector2 = cached_viewport_size if cached_viewport_size.x > 1.0 else Vector2(1280, 720)
+	var min_x: float = 44.0
+	var max_x: float = vp.x - 44.0
+	var min_y: float = vp.y * 0.42   # below the biome tab bar
+	var max_y: float = vp.y * 0.90   # above the action bar
+
 	for bubble in quantum_nodes:
 		# Skip measured bubbles (frozen in place)
 		if bubble.is_terminal_measured():
@@ -1456,3 +1416,11 @@ func _integrate_velocities(delta: float, nodes_with_batched_pos: Dictionary) -> 
 		# Batched positions are authoritative (quantum physics), velocity is fallback (visual layout)
 		if not nodes_with_batched_pos.has(bubble.get_instance_id()):
 			bubble.position += bubble.velocity * delta
+			# Clamp into the play area; zero the velocity component that hit the wall so
+			# bubbles settle against it instead of jittering.
+			if bubble.position.x < min_x or bubble.position.x > max_x:
+				bubble.position.x = clampf(bubble.position.x, min_x, max_x)
+				bubble.velocity.x = 0.0
+			if bubble.position.y < min_y or bubble.position.y > max_y:
+				bubble.position.y = clampf(bubble.position.y, min_y, max_y)
+				bubble.velocity.y = 0.0
