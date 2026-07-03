@@ -55,9 +55,16 @@ func choose_next_topic(graph) -> String:
 	return candidates[candidates.size() - 1]
 
 
-## Whether to chatter this tick. Tunable by caller via threshold.
-func should_chatter(node_activity: float = 0.5) -> bool:
-	return randf() < (chattiness * 0.4 + node_activity * 0.3)
+## Whether to chatter this tick. Three soft, continuous terms — no thresholds,
+## no special cases:
+##   chattiness    — personality floor (fixed per socialite)
+##   node_activity — narrative attention (density on the topic node)
+##   liveliness    — QUANTUM state of the biome about to be voiced: the spread of
+##                   its measurement distribution. A settled biome (→0) speaks
+##                   rarely; a biome in rich superposition (→1) babbles.
+## Liveliness is the dominant term, so cadence genuinely breathes with the physics.
+func should_chatter(node_activity: float = 0.5, liveliness: float = 0.5) -> bool:
+	return randf() < (chattiness * 0.3 + node_activity * 0.2 + liveliness * 0.4)
 
 
 ## Fallback emoji bag — used if the canonical story composer returns nothing

@@ -68,6 +68,43 @@ static func sample_basis_with_marginals(biome) -> Dictionary:
 	return {"emojis": emojis, "marginals": marginals}
 
 
+## Liveliness — Shannon entropy of the biome's measurement distribution,
+## normalized to [0, 1]. This IS the diversity of what a biome can say: the
+## spread of the exact distribution chatter samples from. A biome collapsed to
+## one basis state → 0 (says one thing, quietly); a biome in rich superposition
+## → 1 (babbles variously).
+##
+## NO SPECIAL CASES: we deliberately do NOT use von Neumann entropy or purity —
+## those are degenerate (≈constant) in the closed-system default where ρ is pure.
+## Measurement entropy stays live even for a pure state, because superposition
+## still spreads the basis-state outcomes.
+static func measurement_liveliness(biome) -> float:
+	if biome == null or biome.quantum_computer == null:
+		return 0.0
+	var qc = biome.quantum_computer
+	if not qc.has_method("get_basis_state_probabilities"):
+		return 0.0
+	var states: Array = qc.get_basis_state_probabilities()
+	if states.size() <= 1:
+		return 0.0
+	var total: float = 0.0
+	for s in states:
+		total += float(s.get("probability", 0.0))
+	if total <= 0.0:
+		return 0.0
+	var h: float = 0.0
+	for s in states:
+		var p: float = float(s.get("probability", 0.0)) / total
+		if p > 0.0:
+			h -= p * log(p)
+	# Normalize by max entropy log(N) → [0, 1]. Robust to whether the QC reports
+	# the full 2^n basis or only the non-negligible states.
+	var max_h: float = log(float(states.size()))
+	if max_h <= 0.0:
+		return 0.0
+	return clampf(h / max_h, 0.0, 1.0)
+
+
 ## Sample a single qubit's marginal — one emoji (north or south).
 static func sample_qubit_marginal(biome, qid: int) -> String:
 	if biome == null or biome.quantum_computer == null or qid < 0:
