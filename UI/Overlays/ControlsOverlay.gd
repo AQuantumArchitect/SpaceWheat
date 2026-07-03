@@ -7,8 +7,8 @@ extends "res://UI/Core/Surface.gd"
 ## are in this playthrough, what's happened, what to do.
 ##
 ## Keyboard grammar matches the rest of the game (and Z):
-##   TYUIO  = tabs (Self / Story / · / · / Guide), top row
-##           (U/I slots intentionally empty — live quest pipeline lives on C)
+##   TYUIO  = tabs (Self / Story / · / Arc / Guide), top row
+##           (U slot intentionally empty — live quest pipeline lives on C)
 ##   GHJKL; = items within the active tab, same row as plot slots
 ##   [ / ]  = cycle tabs (surface frame cycle)
 ##   , / .  = cycle top-level menus
@@ -21,7 +21,7 @@ extends "res://UI/Core/Surface.gd"
 ##   1/2/3  = sub-mode within the active tab (icon slot, picker target)
 ##   Z/ESC  = close
 ##
-## frame_ids = [self, story, guide] — one per tab.
+## frame_ids = [self, story, arc, guide] — one per tab.
 
 const ToolConfig      = preload("res://Core/GameState/ToolConfig.gd")
 
@@ -29,19 +29,21 @@ const ToolConfig      = preload("res://Core/GameState/ToolConfig.gd")
 # TABS / FRAMES
 # =============================================================================
 
-enum Tab { SELF, STORY, GUIDE }
+enum Tab { SELF, STORY, ARC, GUIDE }
 
 const TAB_ROW := [
 	{"key": "T", "tab": Tab.SELF,    "name": "Self",    "frame": "self"},
 	{"key": "Y", "tab": Tab.STORY,   "name": "Story",   "frame": "story"},
-	# U/I slots intentionally empty — live quest pipeline lives on C (QuestBoard).
+	# U slot intentionally empty — live quest pipeline lives on C (QuestBoard).
+	{"key": "I", "tab": Tab.ARC,     "name": "Arc",     "frame": "arc"},
 	{"key": "O", "tab": Tab.GUIDE,   "name": "Guide",   "frame": "guide"},
 ]
 
 const TAB_BY_KEYCODE := {
 	KEY_T: Tab.SELF,
 	KEY_Y: Tab.STORY,
-	# KEY_U / KEY_I intentionally empty (quest pipeline → C)
+	# KEY_U intentionally empty (quest pipeline → C)
+	KEY_I: Tab.ARC,
 	KEY_O: Tab.GUIDE,
 }
 
@@ -52,18 +54,27 @@ const ITEM_KEYS := ["G", "H", "J", "K", "L", ";", "'"]
 
 const FRAME_SELF    := "self"
 const FRAME_STORY   := "story"
+const FRAME_ARC     := "arc"
 const FRAME_GUIDE   := "guide"
 
 const TAB_TO_FRAME := {
 	Tab.SELF:    FRAME_SELF,
 	Tab.STORY:   FRAME_STORY,
+	Tab.ARC:     FRAME_ARC,
 	Tab.GUIDE:   FRAME_GUIDE,
 }
 const FRAME_TO_TAB := {
 	FRAME_SELF:    Tab.SELF,
 	FRAME_STORY:   Tab.STORY,
+	FRAME_ARC:     Tab.ARC,
 	FRAME_GUIDE:   Tab.GUIDE,
 }
+
+# Arc tab (I) — the Demos story spine: fired/unfired story flags + arc-quest offers.
+const MAX_VISIBLE_ITEMS := 6
+const COLOR_ARC_FIRED := Color(0.5, 0.75, 0.55, 0.85)
+const COLOR_ARC_UNFIRED := Color(0.85, 0.7, 0.4, 0.95)
+const COLOR_ARC_HEADER := Color(0.7, 0.6, 0.85, 0.95)
 
 # Guide tab: 7 sections, GHJKL;' selects which. The Verbs section absorbs
 # what used to live on Z's I tab — the 7-hat × QERF reference.
@@ -108,6 +119,10 @@ var _self_picker_slot: int = 0     # which active slot (0/1/2) is being rebound
 var _self_picker_icon: int = 0     # cursor into known_icons (GHJKL; navigates)
 var _self_picker_page: int = 0     # page of known_icons (6 per page)
 
+# Arc tab state.
+var _arc_selected_idx: int = 0        # GHJKL; cursor into the visible arc rows
+var _arc_signal_connected: bool = false
+
 # UI refs.
 var _status_line: Label = null
 var _tab_row_box: HBoxContainer = null
@@ -128,7 +143,7 @@ func _init() -> void:
 	use_scroll_container = true
 	content_spacing = 8
 	surface_id = "X"
-	frame_ids = [FRAME_SELF, FRAME_STORY, FRAME_GUIDE]
+	frame_ids = [FRAME_SELF, FRAME_STORY, FRAME_ARC, FRAME_GUIDE]
 	frame_id = TAB_TO_FRAME.get(_current_tab, FRAME_SELF)
 
 # =============================================================================
@@ -213,6 +228,7 @@ func _refresh_body() -> void:
 	match _current_tab:
 		Tab.SELF:    _build_self_body()
 		Tab.STORY:   _build_story_body()
+		Tab.ARC:     _build_arc_body()
 		Tab.GUIDE:   _build_guide_body()
 
 # =============================================================================
@@ -1539,6 +1555,8 @@ func get_inspect_text() -> String:
 			return _story_inspect_text()
 		Tab.SELF:
 			return _self_inspect_text()
+		Tab.ARC:
+			return _arc_inspect_text()
 		_:
 			return ""
 
@@ -1582,6 +1600,7 @@ func _self_inspect_text() -> String:
 func _on_action_q() -> void:
 	match _current_tab:
 		Tab.STORY:   _story_apply_verb("R")  # Q label "Harmonize" → engine R (player aligns toward target)
+		Tab.ARC:     _acknowledge_selected_arc()  # Q = dismiss the arc-quest beat
 		_: pass
 
 func _on_action_e() -> void:
@@ -1589,12 +1608,15 @@ func _on_action_e() -> void:
 		Tab.STORY:
 			_story_inspect_open = not _story_inspect_open  # E = pause + inspect (toggle panel)
 			_refresh_body()
+		Tab.ARC:
+			_refresh_body()  # E = refresh the arc timeline
 		_:
 			pass
 
 func _on_action_r() -> void:
 	match _current_tab:
 		Tab.STORY:   _story_apply_verb("E")  # R label "Express" → engine E (strong commit / mass shift)
+		Tab.ARC:     _accept_selected_arc()  # R = accept the arc/tutorial quest into active
 		Tab.SELF:
 			# R = screw in = commit: assign cursor's icon to the selected icon slot.
 			var farm = InstrumentLocator.resolve_active_farm(self)
@@ -1634,6 +1656,350 @@ func _story_apply_verb(verb: String) -> void:
 	_refresh_body()
 
 # =============================================================================
+# BODY: ARC — the Demos story spine (fired/unfired flags + arc-quest offers).
+# Moved from C/QuestBoard: this is a narrative view and reads next to Story.
+# =============================================================================
+
+# Arc resolves its quest manager lazily (like the farm), matching how every
+# other read on this surface goes through InstrumentLocator — no injected member.
+func _arc_quest_manager():
+	return InstrumentLocator.resolve_quest_manager(self, InstrumentLocator.resolve_active_farm(self))
+
+func _ensure_arc_signal() -> void:
+	if _arc_signal_connected:
+		return
+	var qm = _arc_quest_manager()
+	if qm and qm.has_signal("story_flag_fired") and not qm.story_flag_fired.is_connected(_on_arc_flag_changed):
+		qm.story_flag_fired.connect(_on_arc_flag_changed)
+		_arc_signal_connected = true
+
+func _on_arc_flag_changed(_flag_id: String, _flag: Dictionary) -> void:
+	if _current_tab == Tab.ARC:
+		_refresh_body()
+
+func _build_arc_body() -> void:
+	var rows: Array = _arc_rows()
+	if rows.is_empty():
+		_body_box.add_child(_make_muted_label("no story flags loaded", 12))
+		return
+	_body_box.add_child(_make_arc_chapter_header())
+	for i in range(MAX_VISIBLE_ITEMS):
+		if i < rows.size():
+			_body_box.add_child(_make_arc_row(rows[i], ITEM_KEYS[i], i == _arc_selected_idx))
+		else:
+			_body_box.add_child(_make_empty_row(ITEM_KEYS[i]))
+	if rows.size() > MAX_VISIBLE_ITEMS:
+		_body_box.add_child(_make_muted_label("… %d more arc beats not shown" % (rows.size() - MAX_VISIBLE_ITEMS), 10))
+	_body_box.add_child(_make_spacer(6))
+	_body_box.add_child(_make_muted_label("Q dismiss  ·  R accept  ·  E refresh  ·  GHJKL; pick", 11))
+
+## Builds Arc tab rows: arc-quest offers first, then unfired flags (by score
+## desc), then fired flags. (The manifold "on-edge" boost lives on C; X has no
+## edge scope, so rows sort purely by score then fired-state.)
+func _arc_rows() -> Array:
+	var rows: Array = []
+	var qm = _arc_quest_manager()
+	if qm == null:
+		return rows
+	if qm.has_method("get_story_offers"):
+		for q in qm.get_story_offers():
+			if q is Dictionary and str(q.get("category", "")) in ["ARC", "TUTORIAL"]:
+				rows.append({"kind": "arc_quest", "data": q})
+
+	if not qm.has_method("get_all_story_flags"):
+		return rows
+
+	var farm = InstrumentLocator.resolve_active_farm(self)
+	var fired_set: Dictionary = {}
+	if farm != null and "story_flags_fired" in farm:
+		fired_set = farm.story_flags_fired
+
+	var unfired: Array = []
+	var fired: Array = []
+	for flag in qm.get_all_story_flags():
+		var fid := str(flag.get("id", ""))
+		if fired_set.has(fid):
+			fired.append({"kind": "flag_fired", "flag": flag})
+		else:
+			var pred_scores: Array = []
+			for pred in flag.get("predicates", []):
+				if pred is Dictionary:
+					pred_scores.append({"pred": pred, "score": qm.evaluate_predicate_score(pred)})
+			unfired.append({
+				"kind": "flag_unfired",
+				"flag": flag,
+				"score": qm.evaluate_flag_score(flag),
+				"pred_scores": pred_scores,
+			})
+
+	var by_score = func(a, b): return float(a.score) > float(b.score)
+	unfired.sort_custom(by_score)
+	for u in unfired: rows.append(u)
+	for f in fired: rows.append(f)
+	return rows
+
+func _make_arc_row(entry: Dictionary, key_str: String, selected: bool) -> Control:
+	var kind := str(entry.get("kind", ""))
+	var row := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.set_corner_radius_all(3)
+	sb.content_margin_left = 8
+	sb.content_margin_right = 8
+	sb.content_margin_top = 4
+	sb.content_margin_bottom = 4
+	sb.border_width_top = 1
+	sb.border_width_right = 1
+	sb.border_width_bottom = 1
+	sb.border_width_left = 4 if selected else 1
+	if kind == "arc_quest":
+		sb.bg_color = Color(0.08, 0.12, 0.10, 0.92) if not selected else Color(0.12, 0.20, 0.14, 0.95)
+		sb.border_color = Color(0.3, 0.6, 0.4, 0.6) if not selected else Color(0.5, 0.9, 0.55, 0.95)
+	elif kind == "flag_fired":
+		sb.bg_color = Color(0.08, 0.10, 0.10, 0.85) if not selected else Color(0.12, 0.16, 0.14, 0.95)
+		sb.border_color = Color(0.3, 0.5, 0.4, 0.45) if not selected else COLOR_ARC_FIRED
+	else:
+		sb.bg_color = Color(0.10, 0.10, 0.13, 0.85) if not selected else Color(0.18, 0.16, 0.10, 0.95)
+		sb.border_color = Color(0.5, 0.45, 0.35, 0.5) if not selected else COLOR_ARC_UNFIRED
+	row.add_theme_stylebox_override("panel", sb)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 2)
+	row.add_child(vbox)
+
+	var top_hbox := HBoxContainer.new()
+	top_hbox.add_theme_constant_override("separation", 10)
+	vbox.add_child(top_hbox)
+	top_hbox.add_child(_make_key_chip(key_str))
+
+	if kind == "arc_quest":
+		var data: Dictionary = entry.get("data", {})
+		var badge := Label.new()
+		badge.text = "[QUEST]"
+		badge.add_theme_font_size_override("font_size", 11)
+		badge.add_theme_color_override("font_color", Color(0.5, 0.9, 0.55, 0.95))
+		badge.custom_minimum_size = Vector2(60, 0)
+		top_hbox.add_child(badge)
+		var body_lbl := Label.new()
+		body_lbl.text = str(data.get("body", str(data.get("source_flag", "campaign quest"))))
+		body_lbl.add_theme_font_size_override("font_size", 12)
+		body_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_TAB_ACTIVE if selected else UIStyleFactory.COLOR_ITEM_IDLE)
+		body_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		body_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART if selected else TextServer.AUTOWRAP_OFF
+		body_lbl.clip_text = not selected
+		top_hbox.add_child(body_lbl)
+		if selected:
+			var hint_str: String = str(data.get("hint", data.get("tutorial_hint", "")))
+			if hint_str != "":
+				var hint_lbl := Label.new()
+				hint_lbl.text = "    hint: %s" % hint_str
+				hint_lbl.add_theme_font_size_override("font_size", 11)
+				hint_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
+				hint_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+				vbox.add_child(hint_lbl)
+		return row
+
+	var flag: Dictionary = entry.get("flag", {})
+	var act_n: int = int(flag.get("act", 0))
+	var act_lbl := Label.new()
+	act_lbl.text = "act %d" % act_n
+	act_lbl.add_theme_font_size_override("font_size", 11)
+	act_lbl.add_theme_color_override("font_color", COLOR_ARC_HEADER)
+	act_lbl.custom_minimum_size = Vector2(48, 0)
+	top_hbox.add_child(act_lbl)
+
+	var name_lbl := Label.new()
+	name_lbl.text = str(flag.get("display_name", flag.get("id", "?")))
+	name_lbl.add_theme_font_size_override("font_size", 13)
+	name_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_TAB_ACTIVE if selected else UIStyleFactory.COLOR_ITEM_IDLE)
+	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top_hbox.add_child(name_lbl)
+
+	if kind == "flag_fired":
+		var fired_lbl := Label.new()
+		fired_lbl.text = "✓ FIRED"
+		fired_lbl.add_theme_font_size_override("font_size", 11)
+		fired_lbl.add_theme_color_override("font_color", COLOR_ARC_FIRED)
+		top_hbox.add_child(fired_lbl)
+		return row
+
+	# Unfired — show score + per-predicate breakdown.
+	var score: float = float(entry.get("score", 0.0))
+	var score_lbl := Label.new()
+	score_lbl.text = "%.2f / 0.85 %s" % [score, _ratio_bar(score / 0.85, 6)]
+	score_lbl.add_theme_font_size_override("font_size", 11)
+	score_lbl.add_theme_color_override("font_color", _score_color(score))
+	top_hbox.add_child(score_lbl)
+
+	if selected:
+		var pred_scores: Array = entry.get("pred_scores", [])
+		for ps in pred_scores:
+			var pred: Dictionary = ps.get("pred", {})
+			var ps_score: float = float(ps.get("score", 0.0))
+			var pred_lbl := Label.new()
+			pred_lbl.text = "    %s · %.2f %s" % [_predicate_summary(pred), ps_score, _ratio_bar(ps_score, 5)]
+			pred_lbl.add_theme_font_size_override("font_size", 10)
+			pred_lbl.add_theme_color_override("font_color", _score_color(ps_score))
+			vbox.add_child(pred_lbl)
+
+	return row
+
+func _make_arc_chapter_header() -> Control:
+	var lbl := _make_muted_label(_current_chapter_label(), 12)
+	lbl.add_theme_color_override("font_color", Color(0.78, 0.72, 0.45, 0.95))
+	return lbl
+
+## The Demos' four-movement spine, derived from a flag's act (single source = act).
+func _chapter_for_act(act: int) -> String:
+	if act <= 1:
+		return "Chapter I — Vocabulary"
+	elif act <= 3:
+		return "Chapter II — The Village"
+	elif act == 4:
+		return "Chapter III — The Island & Its People"
+	return "Chapter IV — The Empire & The Escape"
+
+## Current chapter = the furthest act the player has fired into (else the opening).
+func _current_chapter_label() -> String:
+	var farm = InstrumentLocator.resolve_active_farm(self)
+	var qm = _arc_quest_manager()
+	var max_act := 0
+	if farm != null and "story_flags_fired" in farm and qm != null and qm.has_method("get_all_story_flags"):
+		for flag in qm.get_all_story_flags():
+			if farm.story_flags_fired.has(str(flag.get("id", ""))):
+				max_act = max(max_act, int(flag.get("act", 0)))
+	return "The Demos · %s" % _chapter_for_act(max_act)
+
+func _arc_inspect_text() -> String:
+	var rows: Array = _arc_rows()
+	if _arc_selected_idx < 0 or _arc_selected_idx >= rows.size():
+		return ""
+	var entry: Dictionary = rows[_arc_selected_idx]
+	var kind := str(entry.get("kind", ""))
+	if kind == "arc_quest":
+		var data: Dictionary = entry.get("data", {})
+		var body := str(data.get("body", str(data.get("source_flag", "campaign quest"))))
+		var hint := str(data.get("hint", ""))
+		if hint == "":
+			return body
+		return "%s\nhint: %s" % [body, hint]
+	var flag: Dictionary = entry.get("flag", {})
+	var lines: Array[String] = []
+	lines.append("%s · act %d" % [str(flag.get("display_name", flag.get("id", "?"))), int(flag.get("act", 0))])
+	lines.append("The Demos · %s" % _chapter_for_act(int(flag.get("act", 0))))
+	if kind == "flag_fired":
+		lines.append("✓ FIRED")
+		return "\n".join(lines)
+	# unfired — show predicate summaries
+	for ps in entry.get("pred_scores", []):
+		lines.append("· %s · %.2f" % [_predicate_summary(ps.get("pred", {})), float(ps.get("score", 0.0))])
+	return "\n".join(lines)
+
+## Accept the selected arc/tutorial offer into active quests (R). Without this,
+## arc offers could only be dismissed, never worked on — they would dead-end.
+func _accept_selected_arc() -> void:
+	var qm = _arc_quest_manager()
+	if qm == null:
+		return
+	var rows: Array = _arc_rows()
+	if _arc_selected_idx < 0 or _arc_selected_idx >= rows.size():
+		return
+	var entry: Dictionary = rows[_arc_selected_idx]
+	if str(entry.get("kind", "")) != "arc_quest":
+		return
+	var data: Dictionary = entry.get("data", {})
+	if qm.has_method("accept_quest") and qm.accept_quest(data):
+		_refresh_body()
+
+func _acknowledge_selected_arc() -> void:
+	var qm = _arc_quest_manager()
+	if qm == null:
+		return
+	var rows: Array = _arc_rows()
+	if _arc_selected_idx < 0 or _arc_selected_idx >= rows.size():
+		return
+	var entry: Dictionary = rows[_arc_selected_idx]
+	if str(entry.get("kind", "")) != "arc_quest":
+		return
+	var qid: int = int(entry.get("data", {}).get("id", -1))
+	if qid >= 0 and qm.has_method("dismiss_story_offer"):
+		qm.dismiss_story_offer(qid)
+	_refresh_body()
+
+## Short one-line predicate description showing the REAL fire target (predicate_fire_target
+## inverts the soft-gate so the number shown is the one the player must actually reach).
+func _predicate_summary(pred: Dictionary) -> String:
+	var t := str(pred.get("type", "?"))
+	var tgt: float = float(pred.get("value", 0.0))
+	var qm = _arc_quest_manager()
+	if qm and qm.has_method("predicate_fire_target"):
+		tgt = qm.predicate_fire_target(pred)
+	var itgt: int = int(ceil(tgt))
+	match t:
+		"signature_size_gte":
+			return "signature ≥ %d" % itgt
+		"berry_consumed_count_gte":
+			return "berries[%s] ≥ %d" % [str(pred.get("biome", "")), itgt]
+		"berry_total_phase_gte":
+			return "phase[%s] ≥ %.2f" % [str(pred.get("biome", "")), tgt]
+		"standing_gte":
+			return "standing %s.%s ≥ %.2f" % [str(pred.get("faction", "")), str(pred.get("channel", "trust")), tgt]
+		"biome_state_gte":
+			return "%s.%s ≥ %.2f" % [str(pred.get("biome", "")), str(pred.get("atom", "")), tgt]
+		"biome_state_lte":
+			return "%s.%s ≤ %.2f" % [str(pred.get("biome", "")), str(pred.get("atom", "")), tgt]
+		"biome_evolving":
+			return "%s evolving" % str(pred.get("biome", ""))
+		"story_flag_set":
+			return "flag '%s' set" % str(pred.get("id", ""))
+		"atom_count_gte":
+			return "%s atoms ≥ %d" % [str(pred.get("biome", "")), itgt]
+		"atom_diversity_gte":
+			return "atom diversity ≥ %d" % itgt
+		"atom_in_biome":
+			return "%s ∋ %s" % [str(pred.get("biome", "")), str(pred.get("atom", ""))]
+		"biome_attractor_emoji_gte":
+			return "%s attractor[%s] ≥ %.2f" % [str(pred.get("biome", "")), str(pred.get("emoji", "")), tgt]
+		"biome_spectral_gap_gte":
+			return "%s stable (gap ≥ %.2f)" % [str(pred.get("biome", "")), tgt]
+		"biome_spectral_gap_lte":
+			return "%s chaotic (gap ≤ %.2f)" % [str(pred.get("biome", "")), tgt]
+		"biome_energy_variance_gte":
+			return "%s restless ≥ %.2f" % [str(pred.get("biome", "")), tgt]
+		"biome_energy_variance_lte":
+			return "%s settled ≤ %.2f" % [str(pred.get("biome", "")), tgt]
+		"biome_eigenvalue_gap_gte":
+			return "%s gap ≥ %.2f" % [str(pred.get("biome", "")), tgt]
+		"biome_purity_trending":
+			return "%s purity↑" % str(pred.get("biome", ""))
+		_:
+			return t
+
+func _ratio_bar(ratio: float, length: int) -> String:
+	var filled: int = clampi(int(round(clampf(ratio, 0.0, 1.0) * float(length))), 0, length)
+	var bar := ""
+	for i in range(length):
+		bar += "▮" if i < filled else "▯"
+	return bar
+
+func _score_color(score: float) -> Color:
+	if score >= 0.85:
+		return Color(0.5, 0.9, 0.55, 1.0)
+	if score >= 0.5:
+		return Color(0.85, 0.85, 0.5, 1.0)
+	return UIStyleFactory.COLOR_MUTED
+
+func _make_empty_row(key_str: String) -> Control:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	row.add_child(_make_key_chip(key_str))
+	var lbl := Label.new()
+	lbl.text = "—"
+	lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_ITEM_EMPTY)
+	lbl.add_theme_font_size_override("font_size", 12)
+	row.add_child(lbl)
+	return row
+
+# =============================================================================
 # SURFACE WIRING
 # =============================================================================
 
@@ -1650,6 +2016,8 @@ func _show_tab(tab: int) -> void:
 		if tab == Tab.STORY:
 			# Reset edge cursor when entering Story; ui_focus stays as last override (or argmax).
 			_story_edge_idx = 0
+		if tab == Tab.ARC:
+			_ensure_arc_signal()  # live-refresh the timeline when a beat fires while open
 	_render_all()
 
 func _on_frame_changed(new_frame_id: String, _prev_frame_id: String) -> void:
@@ -1709,6 +2077,12 @@ func _on_unhandled_key(keycode: int, _event: InputEvent) -> bool:
 
 func _select_item_in_tab(slot: int) -> void:
 	match _current_tab:
+		Tab.ARC:
+			# GHJKL; selects an arc beat (only the first MAX_VISIBLE_ITEMS are shown).
+			var rows: Array = _arc_rows()
+			if slot < MAX_VISIBLE_ITEMS and slot < rows.size() and _arc_selected_idx != slot:
+				_arc_selected_idx = slot
+				_refresh_body()
 		Tab.GUIDE:
 			if slot < GUIDE_ITEMS.size() and _guide_item != slot:
 				_guide_item = slot
