@@ -1779,10 +1779,18 @@ func _get_active_biome_plot_count() -> int:
 
 
 func _get_selected_positions() -> Array[Vector2i]:
-	# Get array of selected positions (currently just single selection).
+	# Single-plot action target. On the plot ring, use the live cursor. Off the ring
+	# — e.g. right after jumping to the frame layer to pick a hat, which runs
+	# leave_plot_ring() and clears current_plot_idx — fall back to the last-focused
+	# register so the natural "highlight a plot → switch to Druid → Hadamard it" flow
+	# still lands on the qubit you were looking at instead of silently no-opping.
+	# Register-first: there is always a focused qubit. This mirrors _get_grid_position()'s
+	# off-ring fallback, so plot-targeted gates behave like measure (which never no-ops off-ring).
 	var positions: Array[Vector2i] = []
 	if _instrument.current_plot_idx >= 0:
 		positions.append(_get_grid_position())
+	elif _instrument.last_selected_position != GridSentinel.INVALID_POSITION:
+		positions.append(_instrument.last_selected_position)
 	return positions
 
 
