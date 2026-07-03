@@ -7,8 +7,8 @@ extends "res://UI/Core/Surface.gd"
 ## are in this playthrough, what's happened, what to do.
 ##
 ## Keyboard grammar matches the rest of the game (and Z):
-##   TYUIO  = tabs (Self / Story / · / Balance / Guide), top row
-##           (U slot intentionally empty — live quest pipeline lives on C)
+##   TYUIO  = tabs (Self / Story / · / · / Guide), top row
+##           (U/I slots intentionally empty — live quest pipeline lives on C)
 ##   GHJKL; = items within the active tab, same row as plot slots
 ##   [ / ]  = cycle tabs (surface frame cycle)
 ##   , / .  = cycle top-level menus
@@ -21,11 +21,7 @@ extends "res://UI/Core/Surface.gd"
 ##   1/2/3  = sub-mode within the active tab (icon slot, picker target)
 ##   Z/ESC  = close
 ##
-## Note: Balance tab uses Q/R to shift biome scope (rather than W/S which
-## is taken by action cycling, and A/D which the shell consumes for tab
-## cycling). Treated as scope-axis depth, not item navigation.
-##
-## frame_ids = [self, story, balance, guide] — one per tab.
+## frame_ids = [self, story, guide] — one per tab.
 
 const ToolConfig      = preload("res://Core/GameState/ToolConfig.gd")
 
@@ -33,21 +29,19 @@ const ToolConfig      = preload("res://Core/GameState/ToolConfig.gd")
 # TABS / FRAMES
 # =============================================================================
 
-enum Tab { SELF, STORY, BALANCE, GUIDE }
+enum Tab { SELF, STORY, GUIDE }
 
 const TAB_ROW := [
 	{"key": "T", "tab": Tab.SELF,    "name": "Self",    "frame": "self"},
 	{"key": "Y", "tab": Tab.STORY,   "name": "Story",   "frame": "story"},
-	# U slot intentionally empty — live quest pipeline lives on C (QuestBoard).
-	{"key": "I", "tab": Tab.BALANCE, "name": "Balance", "frame": "balance"},
+	# U/I slots intentionally empty — live quest pipeline lives on C (QuestBoard).
 	{"key": "O", "tab": Tab.GUIDE,   "name": "Guide",   "frame": "guide"},
 ]
 
 const TAB_BY_KEYCODE := {
 	KEY_T: Tab.SELF,
 	KEY_Y: Tab.STORY,
-	# KEY_U intentionally empty (quest pipeline → C)
-	KEY_I: Tab.BALANCE,
+	# KEY_U / KEY_I intentionally empty (quest pipeline → C)
 	KEY_O: Tab.GUIDE,
 }
 
@@ -58,19 +52,16 @@ const ITEM_KEYS := ["G", "H", "J", "K", "L", ";", "'"]
 
 const FRAME_SELF    := "self"
 const FRAME_STORY   := "story"
-const FRAME_BALANCE := "balance"
 const FRAME_GUIDE   := "guide"
 
 const TAB_TO_FRAME := {
 	Tab.SELF:    FRAME_SELF,
 	Tab.STORY:   FRAME_STORY,
-	Tab.BALANCE: FRAME_BALANCE,
 	Tab.GUIDE:   FRAME_GUIDE,
 }
 const FRAME_TO_TAB := {
 	FRAME_SELF:    Tab.SELF,
 	FRAME_STORY:   Tab.STORY,
-	FRAME_BALANCE: Tab.BALANCE,
 	FRAME_GUIDE:   Tab.GUIDE,
 }
 
@@ -117,17 +108,6 @@ var _self_picker_slot: int = 0     # which active slot (0/1/2) is being rebound
 var _self_picker_icon: int = 0     # cursor into known_icons (GHJKL; navigates)
 var _self_picker_page: int = 0     # page of known_icons (6 per page)
 
-# Experimental chatter state (mirrors EscapeMenu.gd; refreshed on demand).
-var _balance_action_idx: int = 0  # still used by the read-only action inspector
-var _balance_setting_idx: int = 0  # GHJKL; cursor into _balance_settings
-var _balance_setting_page: int = 0
-var _balance_settings: Array = []  # Array of {id, label, category, value_path, kind, step, min, max, default}
-var _balance_biome_idx: int = 0
-var _balance_snapshot: Dictionary = {}
-var _balance_action_keys: Array[String] = []
-var _balance_biomes: Array[String] = []
-var _balance_projection: Dictionary = {}
-
 # UI refs.
 var _status_line: Label = null
 var _tab_row_box: HBoxContainer = null
@@ -148,7 +128,7 @@ func _init() -> void:
 	use_scroll_container = true
 	content_spacing = 8
 	surface_id = "X"
-	frame_ids = [FRAME_SELF, FRAME_STORY, FRAME_BALANCE, FRAME_GUIDE]
+	frame_ids = [FRAME_SELF, FRAME_STORY, FRAME_GUIDE]
 	frame_id = TAB_TO_FRAME.get(_current_tab, FRAME_SELF)
 
 # =============================================================================
@@ -233,7 +213,6 @@ func _refresh_body() -> void:
 	match _current_tab:
 		Tab.SELF:    _build_self_body()
 		Tab.STORY:   _build_story_body()
-		Tab.BALANCE: _build_balance_body()
 		Tab.GUIDE:   _build_guide_body()
 
 # =============================================================================
@@ -1178,157 +1157,6 @@ func _on_story_trajectory(_from: String, to_node: String, _edge: String) -> void
 		_refresh_body()
 
 # =============================================================================
-# BODY: BALANCE — experimental action cost / timescale inspector.
-# =============================================================================
-
-func _build_balance_body() -> void:
-	_refresh_balance_snapshot()
-	_ensure_balance_settings_loaded()
-
-	# === SETTINGS LIST (Q − value · E reset · R + value · GHJKL; pick) ===
-	_body_box.add_child(_make_section_header("settings"))
-	var page_size: int = ITEM_KEYS.size()
-	var page_start: int = _balance_setting_page * page_size
-	var page_end: int = mini(page_start + page_size, _balance_settings.size())
-	for i in range(page_start, page_end):
-		_body_box.add_child(_make_balance_setting_row(i, i - page_start))
-	var page_count: int = max(1, int(ceil(float(_balance_settings.size()) / float(page_size))))
-	if page_count > 1:
-		_body_box.add_child(_make_muted_label(
-			"Q − value  ·  R + value  ·  E reset  ·  GHJKL; pick  ·  A/D page (%d/%d)" % [
-				_balance_setting_page + 1, page_count], 11))
-	else:
-		_body_box.add_child(_make_muted_label(
-			"Q − value  ·  R + value  ·  E reset  ·  GHJKL; pick", 11))
-	_body_box.add_child(_make_spacer(6))
-
-	# === BELOW: read-only action-cost inspector (kept for context) ===
-	if _balance_snapshot.is_empty():
-		_body_box.add_child(_make_muted_label("(action cost inspector unavailable — no active farm)", 11))
-		return
-	_body_box.add_child(_make_section_header("profile"))
-	var profile_id := str(_balance_snapshot.get("profile_id", "default"))
-	var profile_name := str(_balance_snapshot.get("profile_display_name", profile_id))
-	_body_box.add_child(_make_kv_row("id", profile_id))
-	_body_box.add_child(_make_kv_row("name", profile_name))
-
-	_body_box.add_child(_make_spacer(4))
-	_body_box.add_child(_make_section_header("actions"))
-
-	if _balance_action_keys.is_empty():
-		_body_box.add_child(_make_muted_label("no actions configured.", 12))
-	else:
-		var total := _balance_action_keys.size()
-		var act_page_size := ITEM_KEYS.size()
-		var act_page := int(float(_balance_action_idx) / float(act_page_size))
-		var start := act_page * act_page_size
-		var end: int = mini(start + act_page_size, total)
-		for i in range(start, end):
-			_body_box.add_child(_make_balance_action_row(i, i - start))
-		var pages := int(ceil(float(total) / float(act_page_size)))
-		_body_box.add_child(_make_muted_label(
-			"action (%d/%d, p%d/%d) — read-only inspector" % [_balance_action_idx + 1, total, act_page + 1, pages],
-			11,
-		))
-
-	_body_box.add_child(_make_spacer(4))
-	_body_box.add_child(_make_section_header("selected action detail"))
-	if _balance_action_idx < _balance_action_keys.size():
-		var action: String = _balance_action_keys[_balance_action_idx]
-		var costs: Dictionary = _balance_snapshot.get("action_costs", {})
-		_body_box.add_child(_make_kv_row("cost", _format_cost(costs.get(action, {}))))
-		var roi_notes: Dictionary = _balance_snapshot.get("roi_notes", {})
-		_body_box.add_child(_make_kv_row("roi", str(roi_notes.get(action, "—"))))
-
-	var quest: Dictionary = _balance_snapshot.get("quest_rewards", {})
-	var quest_ratio = quest.get("resource_reward_base_ratio", null)
-	if quest_ratio != null:
-		_body_box.add_child(_make_kv_row("quest reward ratio", "%.2f" % float(quest_ratio)))
-
-	if not _balance_biomes.is_empty():
-		_body_box.add_child(_make_spacer(4))
-		_body_box.add_child(_make_section_header("timescale"))
-		var biome_name: String = _balance_biomes[_balance_biome_idx]
-		_body_box.add_child(_make_kv_row(
-			"biome",
-			"%s  (%d/%d)" % [biome_name, _balance_biome_idx + 1, _balance_biomes.size()],
-		))
-		if bool(_balance_projection.get("ok", false)):
-			var stride := int(_balance_projection.get("recommended_stride", -1))
-			var dt := float(_balance_projection.get("recommended_dt", -1.0))
-			var top := str(_balance_projection.get("top_emoji", ""))
-			var top_p := float(_balance_projection.get("top_probability", 0.0))
-			if stride >= 0 and dt > 0.0:
-				_body_box.add_child(_make_kv_row("recommend", "stride %d  dt %.4f" % [stride, dt]))
-			if top != "":
-				_body_box.add_child(_make_kv_row("top target", "%s  p=%.3f" % [top, top_p]))
-		else:
-			_body_box.add_child(_make_muted_label("projection unavailable", 11))
-
-	_body_box.add_child(_make_spacer(4))
-	_body_box.add_child(_make_muted_label("read-only. write ops stay in the experimental chatter page.", 10))
-
-func _make_balance_setting_row(idx: int, slot_idx: int) -> Control:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 10)
-	var key_str: String = ITEM_KEYS[slot_idx] if slot_idx < ITEM_KEYS.size() else "?"
-	row.add_child(_make_key_chip(key_str))
-
-	var setting: Dictionary = _balance_settings[idx]
-	var cat_lbl := Label.new()
-	cat_lbl.text = str(setting.get("category", ""))
-	cat_lbl.add_theme_font_size_override("font_size", 11)
-	cat_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
-	cat_lbl.custom_minimum_size = Vector2(70, 0)
-	row.add_child(cat_lbl)
-
-	var name_lbl := Label.new()
-	name_lbl.text = str(setting.get("label", setting.get("id", "—")))
-	name_lbl.add_theme_font_size_override("font_size", 13)
-	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(name_lbl)
-
-	var value_lbl := Label.new()
-	value_lbl.text = _balance_setting_format(setting)
-	value_lbl.add_theme_font_size_override("font_size", 13)
-	value_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_VALUE)
-	row.add_child(value_lbl)
-
-	var selected := idx == _balance_setting_idx
-	var c := UIStyleFactory.COLOR_TAB_ACTIVE if selected else UIStyleFactory.COLOR_ITEM_IDLE
-	name_lbl.add_theme_color_override("font_color", c)
-	if selected:
-		name_lbl.text = "▸ " + name_lbl.text
-	return row
-
-func _make_balance_action_row(idx: int, slot_idx: int) -> Control:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 10)
-	var key_str: String = ITEM_KEYS[slot_idx] if slot_idx < ITEM_KEYS.size() else "?"
-	row.add_child(_make_key_chip(key_str))
-
-	var action_name: String = _balance_action_keys[idx]
-	var name_lbl := Label.new()
-	name_lbl.text = action_name
-	name_lbl.add_theme_font_size_override("font_size", 13)
-	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(name_lbl)
-
-	var costs: Dictionary = _balance_snapshot.get("action_costs", {})
-	var cost_lbl := Label.new()
-	cost_lbl.text = _format_cost(costs.get(action_name, {}))
-	cost_lbl.add_theme_font_size_override("font_size", 12)
-	cost_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_VALUE)
-	row.add_child(cost_lbl)
-
-	var selected := idx == _balance_action_idx
-	var c := UIStyleFactory.COLOR_TAB_ACTIVE if selected else UIStyleFactory.COLOR_ITEM_IDLE
-	name_lbl.add_theme_color_override("font_color", c)
-	if selected:
-		name_lbl.text = "▸ " + name_lbl.text
-	return row
-
-# =============================================================================
 # BODY: GUIDE — pick a section with GHJKL, see prose.
 # =============================================================================
 
@@ -1753,14 +1581,11 @@ func _self_inspect_text() -> String:
 
 func _on_action_q() -> void:
 	match _current_tab:
-		Tab.BALANCE: _nudge_balance_setting(-1)  # Q = − value
 		Tab.STORY:   _story_apply_verb("R")  # Q label "Harmonize" → engine R (player aligns toward target)
 		_: pass
 
 func _on_action_e() -> void:
 	match _current_tab:
-		Tab.BALANCE:
-			_reset_balance_setting()  # E = reset selected tunable to default
 		Tab.STORY:
 			_story_inspect_open = not _story_inspect_open  # E = pause + inspect (toggle panel)
 			_refresh_body()
@@ -1769,7 +1594,6 @@ func _on_action_e() -> void:
 
 func _on_action_r() -> void:
 	match _current_tab:
-		Tab.BALANCE: _nudge_balance_setting(1)  # R = + value
 		Tab.STORY:   _story_apply_verb("E")  # R label "Express" → engine E (strong commit / mass shift)
 		Tab.SELF:
 			# R = screw in = commit: assign cursor's icon to the selected icon slot.
@@ -1823,8 +1647,6 @@ func _show_tab(tab: int) -> void:
 		frame_id = target_frame
 		frame_changed.emit(target_frame, prev)
 		_emit_snapshot()
-		if tab == Tab.BALANCE:
-			_refresh_balance_snapshot()
 		if tab == Tab.STORY:
 			# Reset edge cursor when entering Story; ui_focus stays as last override (or argmax).
 			_story_edge_idx = 0
@@ -1834,8 +1656,6 @@ func _on_frame_changed(new_frame_id: String, _prev_frame_id: String) -> void:
 	var target_tab: int = FRAME_TO_TAB.get(new_frame_id, Tab.SELF)
 	if _current_tab != target_tab:
 		_current_tab = target_tab
-		if _current_tab == Tab.BALANCE:
-			_refresh_balance_snapshot()
 		_render_all()
 
 # =============================================================================
@@ -1889,13 +1709,6 @@ func _on_unhandled_key(keycode: int, _event: InputEvent) -> bool:
 
 func _select_item_in_tab(slot: int) -> void:
 	match _current_tab:
-		Tab.BALANCE:
-			_ensure_balance_settings_loaded()
-			var page_size := ITEM_KEYS.size()
-			var global_idx := _balance_setting_page * page_size + slot
-			if global_idx < _balance_settings.size() and _balance_setting_idx != global_idx:
-				_balance_setting_idx = global_idx
-				_refresh_body()
 		Tab.GUIDE:
 			if slot < GUIDE_ITEMS.size() and _guide_item != slot:
 				_guide_item = slot
@@ -1953,206 +1766,11 @@ func _on_navigate(direction: Vector2i) -> void:
 			_self_picker_page = clampi(_self_picker_page + step, 0, max_page)
 			_self_picker_icon = clampi(_self_picker_icon, _self_picker_page * page_size, mini((_self_picker_page + 1) * page_size, icons.size()) - 1)
 			_refresh_body()
-		Tab.BALANCE:
-			# A/D pages the settings list when there are more entries than
-			# GHJKL; can show in one row.
-			_ensure_balance_settings_loaded()
-			var page_size: int = ITEM_KEYS.size()
-			var max_page: int = max(0, int(float(_balance_settings.size() - 1) / float(page_size)))
-			_balance_setting_page = clampi(_balance_setting_page + step, 0, max_page)
-			_balance_setting_idx = clampi(_balance_setting_idx,
-				_balance_setting_page * page_size,
-				mini((_balance_setting_page + 1) * page_size, _balance_settings.size()) - 1)
-			_refresh_body()
 		Tab.GUIDE:
 			_guide_item = wrapi(_guide_item + step, 0, GUIDE_ITEMS.size())
 			_refresh_body()
 		_:
 			pass
-
-# =============================================================================
-# BALANCE DATA
-# =============================================================================
-
-func _cycle_balance_action(step: int) -> void:
-	if _balance_action_keys.is_empty():
-		return
-	_balance_action_idx = posmod(_balance_action_idx + step, _balance_action_keys.size())
-	_refresh_body()
-
-func _cycle_balance_biome(step: int) -> void:
-	if _balance_biomes.is_empty():
-		return
-	_balance_biome_idx = posmod(_balance_biome_idx + step, _balance_biomes.size())
-	_refresh_balance_projection()
-	_refresh_body()
-
-# =============================================================================
-# BALANCE — settings tunables (Q − value / R + value / E reset)
-# =============================================================================
-
-# Static catalog of tunables Balance exposes. value_path is read/written
-# through GameState.balance_workbench_config (defaults from BalanceConfig).
-# music_volume rides alongside as a non-config tunable handled directly via
-# MusicManager.
-# The audio row isn't a balance-config knob (no value_path); kept here. Every
-# economy/physics knob is DERIVED from BalanceConfig.TUNABLES via board_specs() — the
-# single source of truth — so the board never duplicates defaults/metadata. open_only
-# rows (Lindbladian-only) are filtered out in the closed system.
-const _MUSIC_ROW := {"id": "music_volume", "label": "Music volume", "category": "Audio", "value_path": [], "kind": "music_pct", "step": 5, "min": 0, "max": 100, "default": 70}
-
-func _ensure_balance_settings_loaded() -> void:
-	if _balance_settings.is_empty():
-		_balance_settings = [_MUSIC_ROW.duplicate(true)]
-		var closed: bool = not BalanceConfig.dissipative_enabled()
-		for d in BalanceConfig.board_specs():
-			if closed and bool(d.get("open_only", false)):
-				continue  # dead knob in the closed system
-			_balance_settings.append(d.duplicate(true))
-	_balance_setting_idx = clampi(_balance_setting_idx, 0, max(0, _balance_settings.size() - 1))
-	var page_size: int = ITEM_KEYS.size()
-	var max_page: int = max(0, int(float(_balance_settings.size() - 1) / float(page_size)))
-	_balance_setting_page = clampi(_balance_setting_page, 0, max_page)
-
-func _balance_setting_value(setting: Dictionary) -> Variant:
-	var kind: String = str(setting.get("kind", "float"))
-	if kind == "music_pct":
-		var music = get_node_or_null("/root/MusicManager")
-		if music and music.has_method("get_volume"):
-			return int(round(float(music.get_volume()) * 100.0))
-		return int(setting.get("default", 70))
-	var path: Array = setting.get("value_path", [])
-	if path.is_empty():
-		return setting.get("default", 0.0)
-	var gsm = (Engine.get_main_loop().root.get_node_or_null("/root/GameStateManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
-	if gsm and "balance_workbench_config" in gsm:
-		var cfg = gsm.balance_workbench_config
-		if typeof(cfg) == TYPE_DICTIONARY:
-			var node = cfg
-			for key in path:
-				if typeof(node) != TYPE_DICTIONARY or not node.has(key):
-					return setting.get("default", 0.0)
-				node = node[key]
-			return node
-	return setting.get("default", 0.0)
-
-func _balance_setting_set_value(setting: Dictionary, value: Variant) -> void:
-	var kind: String = str(setting.get("kind", "float"))
-	if kind == "music_pct":
-		var music = get_node_or_null("/root/MusicManager")
-		if music and music.has_method("set_volume"):
-			music.set_volume(clampf(float(value) / 100.0, 0.0, 1.0))
-		return
-	var path: Array = setting.get("value_path", [])
-	if path.is_empty():
-		return
-	var gsm = get_node_or_null("/root/GameStateManager")
-	if not gsm or not ("current_state" in gsm) or not gsm.current_state:
-		return
-	if gsm.current_state.has_method("set_balance_config_value"):
-		gsm.current_state.set_balance_config_value(path, value)
-	# Apply LIVE to the running economy too — not just the saved config — so board edits
-	# take effect immediately. Builds the same nested patch the rig balance_patch uses and
-	# routes it through BalanceService.apply_patch → FarmEconomy overrides.
-	var farm = InstrumentLocator.resolve_active_farm(self)
-	if farm:
-		var patch: Dictionary = {}
-		var cursor: Dictionary = patch
-		for i in range(path.size() - 1):
-			cursor[str(path[i])] = {}
-			cursor = cursor[str(path[i])]
-		cursor[str(path[path.size() - 1])] = value
-		BalanceService.apply_patch(farm, patch)
-
-func _balance_setting_format(setting: Dictionary) -> String:
-	var kind: String = str(setting.get("kind", "float"))
-	var v = _balance_setting_value(setting)
-	match kind:
-		"music_pct":
-			return "%d%%" % int(v)
-		"int":
-			return "%d" % int(v)
-		"float":
-			return "%.2f" % float(v)
-		_:
-			return str(v)
-
-func _nudge_balance_setting(direction: int) -> void:
-	_ensure_balance_settings_loaded()
-	if _balance_settings.is_empty():
-		return
-	var setting: Dictionary = _balance_settings[_balance_setting_idx]
-	var kind: String = str(setting.get("kind", "float"))
-	var step: float = float(setting.get("step", 1.0))
-	var lo = setting.get("min", 0.0)
-	var hi = setting.get("max", 100.0)
-	var current = _balance_setting_value(setting)
-	var next
-	match kind:
-		"music_pct", "int":
-			next = clampi(int(current) + direction * int(step), int(lo), int(hi))
-		_:
-			next = clampf(float(current) + direction * step, float(lo), float(hi))
-	_balance_setting_set_value(setting, next)
-	_refresh_body()
-
-func _reset_balance_setting() -> void:
-	_ensure_balance_settings_loaded()
-	if _balance_settings.is_empty():
-		return
-	var setting: Dictionary = _balance_settings[_balance_setting_idx]
-	_balance_setting_set_value(setting, setting.get("default", 0.0))
-	_refresh_body()
-
-func _refresh_balance_snapshot() -> void:
-	var farm = InstrumentLocator.resolve_active_farm(self)
-	if not farm:
-		_balance_snapshot = {}
-		_balance_action_keys = []
-		_balance_biomes = []
-		_balance_projection = {}
-		return
-	_balance_snapshot = BalanceService.get_snapshot(farm)
-	var keys: Array[String] = []
-	var costs: Dictionary = _balance_snapshot.get("action_costs", {})
-	for k in costs.keys():
-		keys.append(str(k))
-	keys.sort()
-	_balance_action_keys = keys
-	if _balance_action_idx >= _balance_action_keys.size():
-		_balance_action_idx = 0
-
-	_balance_biomes = []
-	if "grid" in farm and farm.grid and farm.grid.has_method("get_biome_names"):
-		for n in farm.grid.get_biome_names():
-			_balance_biomes.append(str(n))
-		_balance_biomes.sort()
-	if _balance_biome_idx >= _balance_biomes.size():
-		_balance_biome_idx = 0
-	_refresh_balance_projection()
-
-func _refresh_balance_projection() -> void:
-	_balance_projection = {}
-	if _balance_biomes.is_empty():
-		return
-	var biome_name: String = _balance_biomes[_balance_biome_idx]
-	var inst = InstrumentLocator.resolve_quantum_instrument(self)
-	if not inst:
-		return
-	if inst.has_method("recommend_timescale"):
-		_balance_projection = inst.recommend_timescale(biome_name, 8)
-	if _balance_projection.is_empty() and inst.has_method("get_timescale_projection"):
-		_balance_projection = inst.get_timescale_projection(biome_name, 8)
-
-func _format_cost(cost: Dictionary) -> String:
-	if cost.is_empty():
-		return "(none)"
-	var parts: Array[String] = []
-	var keys = cost.keys()
-	keys.sort()
-	for emoji in keys:
-		parts.append("%s%d" % [str(emoji), int(cost[emoji])])
-	return " ".join(parts)
 
 # =============================================================================
 # SURFACE CONTRACT
@@ -2164,13 +1782,6 @@ func get_visible_data() -> Dictionary:
 		"frame_label": str(TAB_ROW[_current_tab].get("name", "")) if _current_tab < TAB_ROW.size() else "",
 		"guide_section": str(GUIDE_ITEMS[_guide_item].get("id", "")) if _current_tab == Tab.GUIDE else "",
 	}
-	if _current_tab == Tab.BALANCE and not _balance_snapshot.is_empty():
-		payload["balance"] = {
-			"profile_id": _balance_snapshot.get("profile_id", ""),
-			"selected_action": _balance_action_keys[_balance_action_idx] if _balance_action_idx < _balance_action_keys.size() else "",
-			"selected_biome": _balance_biomes[_balance_biome_idx] if _balance_biome_idx < _balance_biomes.size() else "",
-			"projection_ok": bool(_balance_projection.get("ok", false)),
-		}
 	return payload
 
 func get_transitions() -> Array:

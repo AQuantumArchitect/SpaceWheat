@@ -77,7 +77,7 @@ static func _build_defaults() -> Dictionary:
 
 
 ## Board rows for the in-game balance editor, derived from TUNABLES (one source).
-## ControlsOverlay consumes this instead of a hand-maintained list. `value_path` is the
+## EscapeMenu's Balance tab consumes this instead of a hand-maintained list. `value_path` is the
 ## dotted config location; `open_only` rows are filtered out in the closed system.
 static func board_specs() -> Array:
 	var specs: Array = []
