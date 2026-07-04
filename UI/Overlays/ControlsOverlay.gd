@@ -658,7 +658,7 @@ func _build_our_faction_view(farm) -> void:
 		_body_box.add_child(_make_muted_label("the demos biome not loaded.", 11))
 		return
 	var qc = biome.quantum_computer
-	var icons: Array = biome.icons if "icons" in biome else []
+	var icons: Array = IconRegistry.get_icons_for_faction("The Demos")
 	if icons.is_empty() or qc == null or not qc.get("register_map"):
 		_body_box.add_child(_make_muted_label("the demos has no icons yet.", 11))
 		return

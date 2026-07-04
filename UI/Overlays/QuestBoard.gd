@@ -116,7 +116,7 @@ func _init() -> void:
 	navigation_mode = NavigationMode.NONE
 	surface_id = "C"
 	frame_ids = [FRAME_MANIFOLD, FRAME_MARKET, FRAME_COMMITMENTS]
-	frame_id = FRAME_MANIFOLD
+	frame_id = FRAME_MARKET
 	action_labels = {"Q": "—", "E": "Refresh", "R": "—", "F": "—"}
 
 # =============================================================================
