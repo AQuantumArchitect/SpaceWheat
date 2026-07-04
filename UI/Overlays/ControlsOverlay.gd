@@ -541,7 +541,7 @@ func _make_standing_row(cells: Array, color: Color, is_header: bool) -> HBoxCont
 func _build_lexicon_section(farm) -> void:
 	_body_box.add_child(_make_section_header("lexicon"))
 	if farm == null:
-		_body_box.add_child(_make_muted_label("(farm not loaded)", 11))
+		_body_box.add_child(_make_muted_label("no named icons discovered yet — complete quests to learn faction vocabulary", 11))
 		return
 
 	var lex = null
@@ -591,7 +591,7 @@ func _build_lexicon_section(farm) -> void:
 func _build_icon_picker(farm) -> void:
 	_body_box.add_child(_make_section_header("icons · expression"))
 	if farm == null or not farm.has_method("get_known_icons"):
-		_body_box.add_child(_make_muted_label("(farm not loaded)", 11))
+		_body_box.add_child(_make_muted_label("incorporate icons to unlock expression slots", 11))
 		return
 	var icons: Array = farm.get_known_icons()
 	var slots: Array = farm.active_icon_slots if "active_icon_slots" in farm else [0,1,2]
