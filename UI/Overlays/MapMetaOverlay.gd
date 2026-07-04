@@ -392,7 +392,34 @@ func get_inspect_text() -> String:
 			return _eigen_inspect_text()
 		FRAME_GRAPH:
 			return _graph_inspect_text()
+		FRAME_BITS:
+			return _bits_inspect_text()
 	return ""
+
+
+## E on a Bits row: the focused axis, spoken — name, authored description,
+## numbers, and the canon stance word.
+func _bits_inspect_text() -> String:
+	var fb = _get_faction_by_name(_selected_faction_b)
+	if fb == null:
+		fb = _get_pinned_faction()
+	if fb == null or fb.alignment == null:
+		return ""
+	if _selected_axis < 0 or _selected_axis >= AlignmentGraphCls.AXIS_COUNT:
+		return ""
+	var ag = fb.alignment
+	var pt: Dictionary = ag.partial_trace_axis(_selected_axis)
+	var p0 := float(pt.get("p0", 0.0))
+	var p1 := float(pt.get("p1", 0.0))
+	var off: Vector2 = pt.get("off", Vector2.ZERO)
+	var lines: Array[String] = []
+	lines.append("%s — %s" % [FactionAxes.axis_name(_selected_axis), str(fb.name)])
+	var desc := FactionAxes.axis_description(_selected_axis)
+	if desc != "":
+		lines.append(desc)
+	lines.append("p₀=%.2f · p₁=%.2f · |c|=%.2f — %s" % [p0, p1, off.length(),
+			_axis_stance(_selected_axis, p0, p1, off.length())])
+	return "\n".join(lines)
 
 
 func _eigen_inspect_text() -> String:
@@ -545,7 +572,11 @@ func _update_action_labels() -> void:
 			set_action_info("F", {"label": "—"})
 		FRAME_BITS:
 			set_action_info("Q", {"label": "—"})
-			set_action_info("E", {"label": "—"})
+			set_action_info("E", {
+				"label": "Inspect",
+				"emoji": "🔬",
+				"hint": "Read the focused axis — name, meaning, canon stance",
+			})
 			set_action_info("R", {"label": "—"})
 			set_action_info("F", {"label": "—"})
 		FRAME_ATLAS:
@@ -1046,7 +1077,32 @@ func _make_bits_axis_row(axis_i: int, ag, key_str: String, selected: bool) -> Co
 	coh_lbl.add_theme_color_override("font_color", COLOR_PHASE)
 	coh_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hbox.add_child(coh_lbl)
+
+	# Canon stance word — the numbers, read aloud (same family as the soul gloss).
+	var stance_lbl := Label.new()
+	stance_lbl.text = _axis_stance(axis_i, p0, p1, coh_mag)
+	stance_lbl.add_theme_font_size_override("font_size", 11)
+	stance_lbl.add_theme_color_override("font_color", COLOR_HILITE if selected else COLOR_MUTED)
+	stance_lbl.custom_minimum_size = Vector2(150, 0)
+	hbox.add_child(stance_lbl)
 	return row
+
+
+## Canon words for one axis of a 12-axis alignment state — the same family as
+## the soul gloss. "Woven" wins when off-diagonal coherence carries the axis
+## (a superposed stance is not the same as a torn one); otherwise the leading
+## pole's label with commitment strength.
+func _axis_stance(axis_i: int, p0: float, p1: float, coh_mag: float) -> String:
+	if coh_mag >= 0.35:
+		return "woven %s↔%s" % [FactionAxes.pole_emoji(axis_i, 0), FactionAxes.pole_emoji(axis_i, 1)]
+	var lead_bit := 0 if p0 >= p1 else 1
+	var lead_p := maxf(p0, p1)
+	var word := FactionAxes.pole_label(axis_i, lead_bit)
+	if lead_p >= 0.75:
+		return "resolved: %s" % word
+	if lead_p >= 0.6:
+		return "leaning %s" % word
+	return "torn"
 
 # =============================================================================
 # O — ATLAS BODY (preserved; cluster visualization)

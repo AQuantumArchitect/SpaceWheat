@@ -14,17 +14,60 @@ extends RefCounted
 ## derivation source: they encode state-preferences, not diction — 20% agreement with
 ## the authored map vs 83% for domain identity.)
 
+## Each archetype carries a phrase bank (variant 0 = the classic line; kept as
+## "prefix"/"suffix" too for any single-phrase consumer). Selection is a stable
+## content hash — no RNG, same quest reads the same forever.
 const VOICES := {
-	"imperial":  {"prefix": "By imperial decree:", "suffix": "for the Throne.", "tone": "absolute"},
-	"guild":     {"prefix": "The Guild requires:", "suffix": "as per contract.", "tone": "collective"},
-	"mystic":    {"prefix": "The mysteries demand:", "suffix": "so it is written.", "tone": "mystical"},
-	"merchant":  {"prefix": "A profitable venture:", "suffix": "payment upon delivery.", "tone": "mercantile"},
-	"militant":  {"prefix": "Orders:", "suffix": "for honor.", "tone": "military"},
-	"scavenger": {"prefix": "Opportunity:", "suffix": "finders keepers.", "tone": "opportunistic"},
-	"horror":    {"prefix": "IT WHISPERS:", "suffix": "or be consumed.", "tone": "eldritch"},
-	"defensive": {"prefix": "For our protection:", "suffix": "for the community.", "tone": "protective"},
-	"cosmic":    {"prefix": "The cosmos requires:", "suffix": "across all dimensions.", "tone": "transcendent"},
-	"entity":    {"prefix": "EXISTENCE DEMANDS:", "suffix": "THUS IT SHALL BE.", "tone": "absolute_cosmic"},
+	"imperial": {
+		"prefix": "By imperial decree:", "suffix": "for the Throne.", "tone": "absolute",
+		"prefixes": ["By imperial decree:", "The Throne wills it:", "Let the edict read:"],
+		"suffixes": ["for the Throne.", "so the empire endures.", "the ledger of rule remembers."],
+	},
+	"guild": {
+		"prefix": "The Guild requires:", "suffix": "as per contract.", "tone": "collective",
+		"prefixes": ["The Guild requires:", "Work order, countersigned:", "The rolls have need:"],
+		"suffixes": ["as per contract.", "paid on completion, as always.", "the union thanks you."],
+	},
+	"mystic": {
+		"prefix": "The mysteries demand:", "suffix": "so it is written.", "tone": "mystical",
+		"prefixes": ["The mysteries demand:", "It was foretold you would be asked:", "The silence between states requests:"],
+		"suffixes": ["so it is written.", "the pattern will remember.", "ask not why; the wheel knows."],
+	},
+	"merchant": {
+		"prefix": "A profitable venture:", "suffix": "payment upon delivery.", "tone": "mercantile",
+		"prefixes": ["A profitable venture:", "Opportunity, priced to move:", "Between us — a healthy margin:"],
+		"suffixes": ["payment upon delivery.", "buyer assumes the risk.", "profit is proof."],
+	},
+	"militant": {
+		"prefix": "Orders:", "suffix": "for honor.", "tone": "military",
+		"prefixes": ["Orders:", "Directive, effective immediately:", "The line holds if you hold it:"],
+		"suffixes": ["for honor.", "dismissed.", "no excuses accepted."],
+	},
+	"scavenger": {
+		"prefix": "Opportunity:", "suffix": "finders keepers.", "tone": "opportunistic",
+		"prefixes": ["Opportunity:", "Word is there's salvage:", "Saw it first, telling you second:"],
+		"suffixes": ["finders keepers.", "before someone else does.", "strip it clean."],
+	},
+	"horror": {
+		"prefix": "IT WHISPERS:", "suffix": "or be consumed.", "tone": "eldritch",
+		"prefixes": ["IT WHISPERS:", "THE DARK BENEATH ASKS:", "A MOUTH OPENS IN THE WORLD:"],
+		"suffixes": ["or be consumed.", "IT IS ALREADY LISTENING.", "refusal is also an answer."],
+	},
+	"defensive": {
+		"prefix": "For our protection:", "suffix": "for the community.", "tone": "protective",
+		"prefixes": ["For our protection:", "The walls ask little:", "So the children sleep:"],
+		"suffixes": ["for the community.", "we keep what we keep.", "quietly, if you can."],
+	},
+	"cosmic": {
+		"prefix": "The cosmos requires:", "suffix": "across all dimensions.", "tone": "transcendent",
+		"prefixes": ["The cosmos requires:", "Along every worldline at once:", "The spiral arm requests:"],
+		"suffixes": ["across all dimensions.", "as above, so below.", "the geometry thanks you."],
+	},
+	"entity": {
+		"prefix": "EXISTENCE DEMANDS:", "suffix": "THUS IT SHALL BE.", "tone": "absolute_cosmic",
+		"prefixes": ["EXISTENCE DEMANDS:", "THE SUBSTRATE REQUIRES:", "BE ADVISED, INSTANCE:"],
+		"suffixes": ["THUS IT SHALL BE.", "COMPLIANCE IS STRUCTURE.", "IT WAS ALWAYS SO."],
+	},
 }
 
 const FACTION_TO_VOICE := {
@@ -236,10 +279,16 @@ static func apply(quest: Dictionary) -> void:
 		return
 	var faction := str(quest.get("faction", ""))
 	var v := get_voice(faction)
-	var prefix := str(v.get("prefix", ""))
-	var suffix := str(v.get("suffix", ""))
-	var who := faction if faction != "" else "A faction"
 	var biome := str(quest.get("biome", quest.get("biome_name", "")))
+	# Stable content hash (market ids are stamped after voicing, so the id can't
+	# seed this): same quest content → same phrasing forever; different quests →
+	# different bank variants. Prefix and suffix are decorrelated.
+	var seed_i: int = absi(hash("%s|%s|%s|%s" % [faction,
+			str(quest.get("resource", quest.get("observable", ""))),
+			str(quest.get("quantity", 0)), biome]))
+	var prefix := _variant(v, "prefixes", "prefix", seed_i)
+	var suffix := _variant(v, "suffixes", "suffix", seed_i / 7)
+	var who := faction if faction != "" else "A faction"
 	var t = quest.get("type", QuestTypes.Type.DELIVERY)
 	var ti := int(t) if (typeof(t) == TYPE_INT or typeof(t) == TYPE_FLOAT) else QuestTypes.Type.DELIVERY
 	if ti == QuestTypes.Type.DELIVERY:
@@ -252,6 +301,15 @@ static func apply(quest: Dictionary) -> void:
 		var obj := _quantum_object(quest, ti)
 		quest["body"] = "%s %s %s %s" % [prefix, verb, obj, suffix]
 		quest["full_text"] = "%s %s call you to %s %s in %s — %s" % [prefix, who, verb, obj, biome, suffix]
+
+
+## Deterministic phrase-bank pick: bank[seed % size], falling back to the
+## single-phrase key when an archetype carries no bank.
+static func _variant(v: Dictionary, bank_key: String, single_key: String, seed_i: int) -> String:
+	var bank = v.get(bank_key, [])
+	if bank is Array and not bank.is_empty():
+		return str(bank[seed_i % bank.size()])
+	return str(v.get(single_key, ""))
 
 
 ## Phrase a quantum quest's objective from its type-specific fields.

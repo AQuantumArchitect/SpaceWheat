@@ -54,3 +54,14 @@ static func pole_emoji(index: int, bit: int) -> String:
 	if axis.is_empty():
 		return ""
 	return str(axis.get("pole_0" if bit == 0 else "pole_1", ""))
+
+
+static func pole_label(index: int, bit: int) -> String:
+	var axis = get_axis(index)
+	if axis.is_empty():
+		return ""
+	return str(axis.get("label_0" if bit == 0 else "label_1", ""))
+
+
+static func axis_description(index: int) -> String:
+	return str(get_axis(index).get("description", ""))
