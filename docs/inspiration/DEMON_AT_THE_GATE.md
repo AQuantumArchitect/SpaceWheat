@@ -57,6 +57,21 @@ switches on:
 - **The Zeno defense** (watching to keep, not to spend) completes the triad: measurement
   as income, measurement as competition, measurement as shelter.
 
+## The demon decoheres
+
+One more inversion, already true in the shipped build: the *world* is closed, but the
+*demon is not*. The player's faction alignment is a density matrix over 12-qubit concept
+space (`FactionDensityMatrix` → native `QuantumMythosEngine`), and `Farm` applies
+Lindblad decay to it every tick with τ = 300 s. Left alone for five minutes, the
+player's identity relaxes — coherent superpositions of allegiance fade unless renewed by
+action (settlement rotations, icon-learning, contract exercise all rotate it back).
+
+The enclave never forgets. The demon does. Every claim about the Bath being "outside"
+is therefore already false in v0 — the one open system in the enclave walked in through
+the front door and is holding the controller. When Act 2 opens the world, it won't be
+introducing dissipation; it will be revealing that the player has been shedding
+coherence into the world all along.
+
 ## Why this matters for the art piece
 
 The pitch "a game that teaches open quantum systems" undersells what is actually here.

@@ -598,14 +598,25 @@ func offer_all_faction_quests(biome) -> Array:
 			_announced_offers[quest["id"]] = true
 			quest_offered.emit(quest)
 
-	# One physics-derived quantum quest alongside the deliveries — teaches reading/steering the
-	# state (closed-safe: targets coherence, which is steerable; never purity). Deterministic.
+	# One physics-derived quantum quest alongside the deliveries — a two-rung curriculum
+	# ladder, closed-safe and deterministic:
+	#   rung 1 (coherence): offered while there's coherence headroom — learn to superpose.
+	#   rung 2 (entanglement): once coherence is mastered (rung 1 returns {}), ask for
+	#   correlation — max pairwise MI via the standard SHAPE_ACHIEVE tracker.
+	# Never both at once: quest volume stays constant as the player climbs.
 	if not quests.is_empty():
 		var obs := get_biome_observables(biome)
 		var coh := float(obs.get("coherence", 0.0))
 		var fac := str(quests[0].get("faction", ""))
 		var bn := str(quests[0].get("biome_name", quests[0].get("biome", "")))
 		var qq := QuestPipeline.suggest_quantum_quest(bn, fac, coh, next_quest_id)
+		if qq.is_empty():
+			var max_mi := float(obs.get("max_mutual_information", -1.0))
+			var nq: int = 0
+			var qc = biome.get("quantum_computer")
+			if qc != null and qc.register_map != null:
+				nq = qc.register_map.num_qubits
+			qq = QuestPipeline.suggest_entanglement_quest(bn, fac, max_mi, nq, next_quest_id)
 		if not qq.is_empty():
 			next_quest_id += 1
 			qq["offered_at"] = now_ms
@@ -654,10 +665,25 @@ func get_biome_observables(biome) -> Dictionary:
 	# Get current biome quantum observables for UI display
 	var obs = FactionStateMatcher.extract_observables(null, biome)
 
+	# Entanglement observable: max pairwise MI in bits (Bell = 2.0). Native cache
+	# only — the GDScript fallback re-eigensolves per pair, too hot for trackers
+	# that poll every physics frame. −1.0 = unknown (no cache), which the
+	# _is_known_observable_value guard (>= 0) filters, so SHAPE quests on this
+	# observable idle honestly instead of reading "zero entanglement".
+	var max_mi := -1.0
+	var qc = biome.get("quantum_computer")
+	if qc != null and qc.has_method("has_cached_mi") and qc.has_cached_mi():
+		max_mi = 0.0
+		var n: int = qc.register_map.num_qubits
+		for i in range(n):
+			for j in range(i + 1, n):
+				max_mi = maxf(max_mi, qc.get_cached_mutual_information(i, j))
+
 	return {
 		"purity": obs.purity,
 		"entropy": obs.entropy,
 		"coherence": obs.coherence,
+		"max_mutual_information": max_mi,
 		"distribution_shape": obs.distribution_shape,
 		"scale": obs.scale,
 		"dynamics": obs.dynamics,

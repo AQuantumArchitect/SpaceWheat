@@ -1193,7 +1193,11 @@ func _commitment_ask_text(quest: Dictionary) -> String:
 	if ti == int(QuestTypes.Type.DELIVERY):
 		return "%s × %d" % [str(quest.get("resource", "?")), int(quest.get("quantity", 0))]
 	if quest.has("observable"):
-		return "%s → %.2f" % [str(quest.get("observable", "?")), float(quest.get("target", 0.0))]
+		var obs_label := str(quest.get("observable", "?"))
+		# Player-facing names for internal observable keys.
+		if obs_label == "max_mutual_information":
+			obs_label = "entanglement (MI)"
+		return "%s → %.2f" % [obs_label, float(quest.get("target", 0.0))]
 	if quest.has("target_coherence"):
 		return "coherence → %.2f" % float(quest.get("target_coherence", 0.0))
 	return QuestTypes.get_type_name(ti)

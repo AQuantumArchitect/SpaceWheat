@@ -41,7 +41,7 @@ Core engines (see `src/` for the full set — 25 files, ~6,600 lines total):
 | `quantum_matrix_native.cpp` | General matrix ops |
 | `force_graph_engine.cpp` | Bubble layout physics (MI-driven clustering) |
 | `liquid_neural_net.cpp` | Phase modulation (disabled by default) |
-| `quantum_mythos_engine.cpp` / `mythos_graph_core.cpp` | Experimental graph substrate |
+| `quantum_mythos_engine.cpp` / `mythos_graph_core.cpp` | Faction-alignment substrate: the player's concept state as a density matrix over 12-qubit faction space (production — `FactionDensityMatrix` asserts on it) |
 | `register_types.cpp` | GDExtension registration |
 
 ## Classes Exposed to GDScript

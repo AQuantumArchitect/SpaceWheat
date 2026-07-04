@@ -38,4 +38,12 @@ things decay, dephase, and forget on their own. The story plants that door at
 `edge_of_the_enclave` (Act 5) and v0 does not open it. See
 `docs/inspiration/OPEN_SYSTEM_ACT2.md` for what happens when it opens.
 
+**The one exception, and it is deliberate canon:** the enclave's law binds the *world*,
+not the player. The player's identity — their alignment density matrix over 12-qubit
+faction concept-space (`FactionDensityMatrix`, native `QuantumMythosEngine`) — undergoes
+live Lindblad decay every tick (`Farm.apply_lindblad_decay`, τ = 300 s). The biomes never
+forget; *you* do, unless you keep choosing. The only open quantum system inside the
+enclave is the player's own soul — which is to say: the Bath was never outside the walls.
+It came in with you.
+
 Verification: `tests/test_closed_system.gd` (the enclave's law, as assertions).

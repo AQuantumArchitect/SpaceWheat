@@ -95,6 +95,23 @@ static func suggest_quantum_quest(biome_name: String, faction: String, coherence
 	}, quest_id)
 
 
+## Physics-derived suggestion, rung two of the quantum curriculum: entanglement. Offered
+## when coherence is already mastered (see the call site's ladder) and the biome has
+## correlation headroom. Uses the standard SHAPE_ACHIEVE tracker on the
+## max_mutual_information observable (bits; Bell pair = 2.0). Deterministic — no RNG.
+## max_mi < 0 means the observable is unavailable (no native MI cache) → no offer.
+static func suggest_entanglement_quest(biome_name: String, faction: String, max_mi: float, num_qubits: int, quest_id: int) -> Dictionary:
+	if num_qubits < 2 or max_mi < 0.0 or max_mi >= 0.65:
+		return {}
+	var target := clampf(max_mi + 0.4, 0.5, 1.5)
+	return quantum_quest(QuestTypes.Type.SHAPE_ACHIEVE, faction, biome_name, {
+		"observable": "max_mutual_information",
+		"target": target,
+		"comparison": ">",
+		"tutorial_hint": "Weave two qubits — a Bell or CNOT gate in the Operator frame — and push mutual information past %.2f. Watch the thread between the bubbles." % target,
+	}, quest_id)
+
+
 ## TUTORIAL source: build a canonical Act-0 onboarding quest from an authored spec. Like
 ## from_story_def but tagged tutorial (category TUTORIAL). Authored body/hint are preserved.
 static func from_tutorial_def(quest_def: Dictionary, quest_id: int) -> Dictionary:
