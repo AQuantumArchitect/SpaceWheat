@@ -1,8 +1,10 @@
 # The Open System — Act 2 Design Notes
 
-**Status: seed bank.** v0 ships closed (`docs/CLOSED_SYSTEM.md`). This document holds the
-design thinking for the day the dissipative switch (`BalanceConfig.dissipative_enabled`)
-comes back on — so that day starts from a diagnosis, not a blank page.
+**Status: seed bank → PROMOTED (2026-07-04).** The campaign built from these seeds is
+`docs/OPEN_CAMPAIGN.md` ("What Fades") — owner-directed: the endgame leaves the player
+in the full 162-biome world with open and closed dynamics coexisting. The post-mortem,
+laws, and seam below remain the authoritative diagnosis; the campaign doc carries the
+chapters and the implementation ladder. v0 ships closed (`docs/CLOSED_SYSTEM.md`).
 
 ---
 
