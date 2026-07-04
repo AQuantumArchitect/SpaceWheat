@@ -1546,8 +1546,46 @@ func _predicate_summary(pred: Dictionary) -> String:
 			return "entanglement (MI) ≥ %.2f" % float(pred.get("value", 0.5))
 		"gate_sequence_contains":
 			return "%s ×%d" % [str(pred.get("gate", "?")), int(pred.get("count", 1))]
+		"gate_order":
+			# The braid word, spelled as the player will drill it: "H → CNOT".
+			var word: Array = pred.get("gates", [])
+			var pretty: Array[String] = []
+			for g in word:
+				pretty.append(_gate_glyph(str(g)))
+			return "in order: %s" % " → ".join(pretty)
+		"dynamics_at_most":
+			return "stillness — motion ≤ %.2f" % float(pred.get("value", 0.2))
+		"dynamics_at_least":
+			return "breathing — motion ≥ %.2f" % float(pred.get("value", 0.25))
+		"attractor_emoji_gte":
+			return "deep state[%s] ≥ %.2f" % [str(pred.get("emoji", "")), float(pred.get("value", 0.5))]
+		"eigenvalue_gap_gte":
+			return "compass gap ≥ %.2f" % float(pred.get("value", 0.1))
 		_:
 			return t
+
+
+## Short display glyph for a gate dispatch name ("hadamard" → "H").
+func _gate_glyph(gate_name: String) -> String:
+	match gate_name.strip_edges().to_lower():
+		"hadamard": return "H"
+		"cnot": return "CNOT"
+		"cz": return "CZ"
+		"swap": return "SWAP"
+		"bell": return "Bell"
+		"ghz": return "GHZ"
+		"cluster": return "Cluster"
+		"pauli_x": return "X"
+		"pauli_y": return "Y"
+		"pauli_z": return "Z"
+		"s_gate": return "S"
+		"t_gate": return "T"
+		"sdg": return "S†"
+		"tdg": return "T†"
+		"rx": return "Rx"
+		"ry": return "Ry"
+		"rz": return "Rz"
+		_: return gate_name.to_upper()
 
 ## Tooltip for a predicate row — reports the *current* measured value alongside
 ## the threshold. Returns multi-line text. When a value can't be read (missing

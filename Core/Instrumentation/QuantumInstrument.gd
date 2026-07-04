@@ -265,6 +265,10 @@ func action_hadamard(positions: Array[Vector2i]) -> Dictionary:
 	return _cost_action("hadamard", positions, func():
 		var result = GateActionHandler.apply_hadamard(farm, positions)
 		action_performed.emit("hadamard", result)
+		# Recorded under the gate_inject namespace so quest gate predicates
+		# (gate_sequence_contains / gate_order) see Druid-frame Hadamards the
+		# same as Operator-frame gates — physically it IS a gate injection.
+		_notify_quest_projection("gate_inject:hadamard", result)
 		return result
 	)
 

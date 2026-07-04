@@ -89,9 +89,15 @@ The narrative layer is computed from the quantum state, not bolted on:
   12-qubit faction concept-space, decaying toward the mixed state (τ = 300 s) unless
   choices keep renewing it — the one open system inside the enclave's walls. The M
   overlay reads it back: `You · Tr(ρ²) = 0.85 — resolved`.
+- **A topology campaign runs through the acts.** "What Survives"
+  (`docs/TOPOLOGY_CAMPAIGN.md`) teaches four genuine topological/geometric invariants
+  as story arcs: Berry phase (the solid angle a loop encloses), the conserved spectrum
+  (with an in-game eigenstate compass 🧭), SSH edge protection (a lantern chain whose
+  bridge cannot go dark — real chiral symmetry, authored as icon data), and gate
+  non-commutativity (braid words drilled by an imperial guard).
 - **A canonical glossary** (`docs/glossary/`) defines the world's physics vocabulary —
-  enclave, measurement, berry, webway, resonance — and is projected live into the
-  in-game Guide.
+  enclave, measurement, berry, webway, resonance, invariant — and is projected live
+  into the in-game Guide.
 
 ### Visualization
 

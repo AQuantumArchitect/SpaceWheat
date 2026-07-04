@@ -255,6 +255,9 @@ const FACTION_WHISPER_OVERRIDES := {
 	"measure": {
 		"Measure Scribes": "Every glance is an entry in the ledger. The ledger is the world.",
 	},
+	"webway": {
+		"Lamplighters": "The fog channels are shut, and good riddance. A lamp that cannot gutter burns honest — what the pattern holds, it holds forever.",
+	},
 }
 
 

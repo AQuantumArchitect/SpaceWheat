@@ -2,7 +2,15 @@
 
 > Campaign plan, 2026-07. Descends from `docs/inspiration/EXOTIC_TOPOLOGY.md` (the
 > six-tier aspiration), audited here against the shipped engine and reframed for the
-> enclave's closed-system canon. Status: **planning → phased implementation**.
+> enclave's closed-system canon.
+>
+> **Status: all four chapters SHIPPED (2026-07-04, owner-approved).** Seven story
+> flags (`loop_remembers`, `pond_depths`, `pond_breathes`, `chain_ends`,
+> `chain_flipped`, `braid_order`, `braid_word`) across acts 1–4; `gate_order` +
+> `dynamics_at_most` / `dynamics_at_least` predicates; the eigenstate compass (🧭)
+> on the Graph frame's status card + E-inspect; population motion in the dynamics
+> tracker; `docs/glossary/invariant.md`. One plan-to-reality correction below:
+> Chapter 3 needed **no new biome** — Lanternfall already existed.
 
 ## The thesis
 
@@ -40,6 +48,11 @@ computes it but **no UI surface reads it**. Chapter 2 gives it one.
 
 Each chapter teaches one invariant, through one mechanic, in one faction's voice, by
 breaking one lie the player might believe.
+
+*(The ladders below are the design shapes. The shipped arcs compress each chapter to
+its sharpest one or two asks — flag ids in the status header — and move the remaining
+lessons into the beats, where the words are; the mechanics they describe all exist for
+procedural quests to reuse.)*
 
 ### Chapter 1 — The Loop Remembers *(Berry holonomy)*
 
@@ -101,31 +114,31 @@ breaking one lie the player might believe.
 
 - **Invariant:** the dimerization class of an alternating chain — winding number 0
   or 1. When weak-strong alternation puts the strong bonds *inside*, the ends host
-  protected edge modes; population parked there stays. Flip the pattern and the same
-  atoms, the same icons, the same total coupling leak everything they're given.
+  protected edge modes; population parked there stays. The bulk is on the wrong side
+  of every weak-strong wall and disperses everything it's given.
 - **The lie it breaks:** "protection lives in things." It lives in the *pattern
   between* things.
-- **Physics:** the icon cross-coupling is a two-qubit flip-flip (XX-type) term —
-  in the low-excitation sector, hopping. A six-qubit chain with alternating |v| < |w|
-  is the SSH model as icon data. Twelve atoms per chain biome sits inside the shipped
-  envelope (biomes up to 13 atoms exist today).
-- **Machinery:** `HamiltonianBuilder.build_from_icons` (exists), per-atom
-  `population:` observables (exist), duration trackers (exist), Icon frame planting
-  (exists). **Needed: authored content only** — a dimer icon family (strong-bond and
-  weak-bond icon species), one chain biome ("Loomrow"), and the quest arc.
-- **Quest ladder:**
-  1. *Plant the chain* — install the dimer icons in alternation (icon-installed
-     predicates).
-  2. *The edge holds* — inject population at an end atom; hold it above threshold
-     for a season (`population:` + duration bank).
-  3. *The middle leaks* — inject at the center; watch it disperse
-     (`biome_state_lte` on the center atom).
-  4. *Flip the pattern* — replant shifted by one bond. Same icons, other winding
-     class. Now the edge leaks too — and the player learns the protection was never
-     in the atoms.
+- **The plan met reality and reality was ahead of it.** The draft called for
+  authoring a new chain biome ("Loomrow"). The implementation audit found the stage
+  already built and *better*: **Lanternfall** — five lanterns on the coast
+  (🌉 🪔 📯 🗼 🏁), native faction the **Lamplighters** ("topological patience…
+  scholars of the order call it chiral symmetry"), alternating icon couplings in
+  `icons.json` (Beacon: 🪔→📯 at 1.1 vs 🪔→🌉 at 0.3), a biome description that
+  already narrates the protected zero mode at the bridge, and a standing physics
+  assay (`tools/ssh_assay.py`, with a beautiful pedagogical header). Per the
+  rehabilitation-over-duplication rule, the chapter stages there.
+- **Shipped quest ladder** (`chain_ends` → `chain_flipped`, act 3):
+  1. *Keep the Bridge Lit* — hold 🌉 above 45% while the chain runs
+     (`biome_state_gte`); the zero mode does the holding once you feed the ends.
+  2. *The Middle Cannot Hold* — settle 📯 (mid-chain) under 25% while 🌉 still
+     holds 35%: the bulk-vs-edge contrast enacted as a single composed ask.
+  The beats carry the winding-number lesson: count the pattern, not the lamps.
+- **Voice:** the Lamplighters themselves (guild-class), including an authored
+  webway whisper override — the chapter's faction speaks in its own words.
 - **Validation note for the testing bots:** one headless scene proving edge-mode
-  pinning through the real `build_from_icons` path (not this plan's job; flagged).
-- **Voice:** guild — infrastructure, pattern, load-bearing bonds.
+  pinning through the real `build_from_icons` path on Lanternfall's realized
+  register (flagged; the SSH assay validates the authored data layer, not the
+  icon-built runtime H).
 
 ### Chapter 4 — The Braid Cares About Order *(non-commutativity)*
 
@@ -159,18 +172,14 @@ Three tiers stay sealed with reasons, recorded in `docs/inspiration/OPEN_SYSTEM_
   quasi-periodicity is a theorem in the enclave. Strange attractors arrive with
   dissipation, and dissipation arrives with Act 2.
 
-## The implementation ladder (cheapest first)
+## The implementation ladder — as shipped (2026-07-04)
 
-| Phase | Work | Touches |
-|-------|------|---------|
-| **A — data only** | Chapters 1–2 quest arcs as story-flag beats + quests riding live predicates | `Core/Quests/data/` |
-| **B — small code** | Eigenstate-compass E-inspect line; `gate_order` predicate; optional population term in dynamics snapshots | `MapMetaOverlay`/biome status card, `QuestStateProjectionService`, `BiomeBase._track_dynamics` |
-| **C — authored content** | Dimer icon family, the Loomrow chain biome, Chapter 3 arc | `icons.json`, `biomes.json`, quest data |
-| **D — weave** | Chapter beats into the act structure (chapter *n* gates on act *n*), whisper lines per chapter voice, candidate glossary entry: **invariant** (the campaign's one new canon word) | `story_flags.json`, `QuestVoice`, `docs/glossary/` |
-
-Phases A and B are a normal cultivation cycle each. Phase C is the first time the
-campaign asks for new *world* (one biome, ~4 icons) rather than new words about the
-existing world.
+| Phase | Work | Landed in |
+|-------|------|-----------|
+| **A — data** | All four chapter arcs: 7 story flags with beats + arc quests, acts 1–4 | `Core/Quests/data/story_flags.json` |
+| **B — small code** | `gate_order` (ordered-subsequence braid predicate) + `dynamics_at_most` / `dynamics_at_least`; eigenstate compass 🧭 (status card + E-inspect, with the conservation-law line); population motion in dynamics snapshots (in the enclave purity/entropy are frozen — populations carry the breathing); Druid-frame Hadamard recorded into the gate history; predicate summaries + gate glyphs on the quest board | `QuestStateProjectionService`, `MapMetaOverlay`, `BiomeBase` + `BiomeDynamicsTracker`, `QuantumInstrument`, `QuestBoard` |
+| **C — authored content** | *Cancelled as planned, replaced by rehabilitation:* Lanternfall + Lamplighters + alternating icon couplings already existed. Chapter 3 stages on them; a Lamplighters webway whisper override was the only new authored voice | `story_flags.json`, `QuestVoice` |
+| **D — weave** | `docs/glossary/invariant.md` (the campaign's one new canon word), INDEX + in-game Guide featured strip, this status pass | `docs/glossary/`, `ControlsOverlay` |
 
 ## How it sits in the game
 

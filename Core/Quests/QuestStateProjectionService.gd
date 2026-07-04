@@ -101,6 +101,40 @@ func evaluate_predicate(predicate: Dictionary) -> float:
 					hits += 1.0
 			# Smooth over ±1.5 hits so "just short" isn't a cliff
 			return QuestMath.soft_gate(hits, min_count, 1.5)
+		"gate_order":
+			# The braid teacher: ordered subsequence match over the action history.
+			# {"type": "gate_order", "gates": ["hadamard", "cnot"]} scores the
+			# fraction of the word spelled IN ORDER (each history row consumes at
+			# most one step). Where gate_sequence_contains counts, this one reads —
+			# non-commuting operations are words, not sets (docs/TOPOLOGY_CAMPAIGN.md,
+			# Chapter 4). Progress bar = how much of the braid word is spelled.
+			var word: Array = predicate.get("gates", [])
+			if not (word is Array) or word.is_empty():
+				return 0.0
+			var step := 0
+			for row in _action_history:
+				if step >= word.size():
+					break
+				var action_name := str(row.get("action", "")).to_lower()
+				if action_name.find(str(word[step]).strip_edges().to_lower()) >= 0:
+					step += 1
+			return float(step) / float(word.size())
+		"dynamics_at_most":
+			# Stillness teacher: the biome's evolution rate (BiomeDynamicsTracker,
+			# 0 = still, 1 = storming). In the enclave purity and entropy are frozen,
+			# so all motion this sees is coherence + population sloshing — which is
+			# exactly the motion the player can quiet. Unknown (-1) scores 0: you
+			# cannot claim stillness before the pond has been watched.
+			var d := float(str(_last_observables.get("dynamics", "-1")))
+			if d < 0.0:
+				return 0.0
+			return QuestMath.soft_gate_inv(d, float(predicate.get("value", 0.2)), 0.08)
+		"dynamics_at_least":
+			# Breathing teacher: falling twin of dynamics_at_most.
+			var d := float(str(_last_observables.get("dynamics", "-1")))
+			if d < 0.0:
+				return 0.0
+			return QuestMath.soft_gate(d, float(predicate.get("value", 0.25)), 0.08)
 		"mutual_information_at_least":
 			# Entanglement teacher: max pairwise MI in the active biome, in bits
 			# (Bell pair = 2.0, product state = 0). Wider gate (±0.1) than the

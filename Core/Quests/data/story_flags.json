@@ -88,6 +88,35 @@
     }
   },
   {
+    "id": "loop_remembers",
+    "display_name": "What Survives I — The Loop Remembers",
+    "act": 1,
+    "arc_beat": "Ask what you actually harvested from those loops. Not sunlight. Not moonlight. The qubit came back to the exact state it left — every population restored, every coherence rewound — and still it paid you. What it paid was the area of the walk itself: the solid angle the loop enclosed on its sphere. Two roads from the same door to the same door carry different sky, and walk a loop backward and the world subtracts what it gave. The old texts have a name for a number that forgets everything about a journey except its shape: an invariant. It is the first of four. The enclave forbids decay; it cannot forbid shape.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "forest_communion"
+      },
+      {
+        "type": "berry_consumed_count_gte",
+        "biome": "StarterForest",
+        "value": 7
+      }
+    ],
+    "standing_grants": {
+      "Hearth Keepers": {
+        "trust": 0.05
+      }
+    },
+    "arc_quest": {
+      "body": "The Long Way Home — ripeness opens at 2π, but nothing stops a longer walk. Push the forest's banked phase past three hemispheres before you pick.",
+      "hint": "Track a qubit and let the Hamiltonian carry it in wide arcs — harvest late. The phase you keep is the shape you walked; walk more shape.",
+      "state_predicates": [
+        {"type": "berry_total_phase_gte", "biome": "StarterForest", "value": 18.85}
+      ]
+    }
+  },
+  {
     "id": "village_stirs",
     "display_name": "The Village Stirs",
     "act": 1,
@@ -190,6 +219,57 @@
     }
   },
   {
+    "id": "pond_depths",
+    "display_name": "What Survives II — The Pond Holds Its Depths",
+    "act": 2,
+    "arc_beat": "The spring never stops moving — ice welling, foam breaking, water finding water. But open the compass (🧭, on the Graph frame) and read what is under the churn: the depths. The eigenvalues of the spring's density matrix. Watch them while the surface storms, and watch them not move. Every coupling, every rotation, every Hamiltonian hour stirs the surface and leaves the depths exactly as they were — that is the enclave's deepest conservation. The spectrum is the second invariant. Exactly one thing in this world reaches it: you, looking.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "spring_connects"
+      },
+      {
+        "type": "berry_consumed_count_gte",
+        "biome": "FreshwaterSpring",
+        "value": 2
+      }
+    ],
+    "standing_grants": {
+      "Hearth Keepers": {
+        "trust": 0.06
+      }
+    },
+    "arc_quest": {
+      "body": "Still the Pond — steer the spring toward one deep state and quiet the surface: compass gap past 0.35 while the motion reads under 0.2.",
+      "hint": "Stand in the spring and press E on the Graph frame to read its compass (🧭). Measurement deepens the gap; stillness follows when the state settles near an eigenstate of H.",
+      "state_predicates": [
+        {"type": "biome_eigenvalue_gap_gte", "biome": "FreshwaterSpring", "value": 0.35},
+        {"type": "dynamics_at_most", "value": 0.2}
+      ]
+    }
+  },
+  {
+    "id": "pond_breathes",
+    "display_name": "What Survives II — Make It Breathe",
+    "act": 2,
+    "arc_beat": "You stilled it; now wake it — without touching the depths. Superpose two energies and the surface acquires a pulse at exactly their difference: a breath whose rhythm the spectrum chose, not you. It can breathe forever; nothing in the enclave damps it. And listen for what is missing. The pond can sit still, it can breathe, it can storm on many rhythms at once — but it can never fall into a rhythm and be *held* there. No basins. No settling. No true chaos. That kind of motion needs a world that leaks, and someday, past the horizon, you will farm one.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "pond_depths"
+      }
+    ],
+    "standing_grants": {},
+    "arc_quest": {
+      "body": "Make It Breathe — put coherence back on the spring and let the surface run while the depths hold: coherence past 0.35 with motion above 0.25.",
+      "hint": "Rotate qubits off their poles (Druid frame) to superpose energies — the pulse is the energy gap. Watch the compass while you do it: the depths never move.",
+      "state_predicates": [
+        {"type": "coherence_at_least", "value": 0.35},
+        {"type": "dynamics_at_least", "value": 0.25}
+      ]
+    }
+  },
+  {
     "id": "mill_wakes",
     "display_name": "The Mill Runs",
     "act": 3,
@@ -269,6 +349,64 @@
       }
     },
     "arc_quest": null
+  },
+  {
+    "id": "chain_ends",
+    "display_name": "What Survives III — The Chain Protects Its Ends",
+    "act": 3,
+    "arc_beat": "On the coast, five lanterns stand in a row, and the Lamplighters spaced them in their alternating rhythm: close-far-close-far. Because the bonds alternate, the chain keeps a zero-energy mode pinned at the bridge — light that reaches 🌉 has nowhere left to go, and stays. The Lamplighters call it topological patience; their scholars call it chiral symmetry. Count the pattern, not the lamps: how many weak-strong walls stand between the bridge and the open water is an integer, and integers cannot change smoothly. That is what protection means here. The third invariant is the pattern's winding.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "mill_wakes"
+      },
+      {
+        "type": "biome_evolving",
+        "biome": "Lanternfall"
+      },
+      {
+        "type": "berry_consumed_count_gte",
+        "biome": "Lanternfall",
+        "value": 1
+      }
+    ],
+    "standing_grants": {
+      "Lamplighters": {
+        "trust": 0.08
+      }
+    },
+    "arc_quest": {
+      "body": "Keep the Bridge Lit — hold the bridge lantern 🌉 bright while the chain runs.",
+      "hint": "Feed the chain at its ends, not its middle. The zero mode lives on 🌉 — population that reaches it stays. Hold 🌉 above 45%.",
+      "state_predicates": [
+        {"type": "biome_state_gte", "biome": "Lanternfall", "atom": "🌉", "value": 0.45}
+      ]
+    }
+  },
+  {
+    "id": "chain_flipped",
+    "display_name": "What Survives III — The Middle Cannot Hold",
+    "act": 3,
+    "arc_beat": "Now try the horn. Pour the same care into 📯, mid-chain, and watch the chain refuse: whatever you park there walks off down the bonds within the hour. No zero mode lives in the bulk — the horn is on the wrong side of every weak-strong wall. Sit with what that means: same lamps, same oil, same light; only position in the pattern decides what survives. The protection was never in the atoms. It lives in the space between them.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "chain_ends"
+      }
+    ],
+    "standing_grants": {
+      "Lamplighters": {
+        "legitimacy": 0.06
+      }
+    },
+    "arc_quest": {
+      "body": "The Middle Cannot Hold — let the horn go dark and keep the bridge burning: settle 📯 under 25% while 🌉 still holds 35%.",
+      "hint": "Push 📯 bright first if you want to watch the bulk disperse it — then stop fighting the pattern. The chain keeps its ends, not its middle.",
+      "state_predicates": [
+        {"type": "biome_state_lte", "biome": "Lanternfall", "atom": "📯", "value": 0.25},
+        {"type": "biome_state_gte", "biome": "Lanternfall", "atom": "🌉", "value": 0.35}
+      ]
+    }
   },
   {
     "id": "island_lives",
@@ -378,6 +516,56 @@
       "hint": "The M overlay's Eigen tab shows You · Tr(ρ²). It decays toward the mixed state (τ=300s) unless your choices keep renewing it — learn icons, rotate settlements, work your factions. Hold it near 0.55.",
       "state_predicates": [
         {"type": "soul_purity_gte", "value": 0.55}
+      ]
+    }
+  },
+  {
+    "id": "braid_order",
+    "display_name": "What Survives IV — The Braid Cares About Order",
+    "act": 4,
+    "arc_beat": "The Scythe Provosts drill their recruits on two chores. Superpose, then couple — Hadamard, then CNOT — and you get the loom's thread: two qubits sharing one fate, more correlation than either holds alone. Run the same two chores backward and you get nothing shared at all. Same work, same tools, opposite worlds. A list of chores is a set; a drill is a word — and the enclave's operations do not commute. Order is the fourth invariant: it survives when everything it touched has been rotated away.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "village_identity"
+      }
+    ],
+    "standing_grants": {
+      "Scythe Provosts": {
+        "trust": 0.05
+      }
+    },
+    "arc_quest": {
+      "body": "Two Chores, One Thread — superpose then couple: Hadamard first, CNOT second, and push the pair's mutual information past 1 bit.",
+      "hint": "Druid frame: Hadamard the control. Operator frame: CNOT the pair. In that order — the other order makes something else entirely.",
+      "state_predicates": [
+        {"type": "gate_order", "gates": ["hadamard", "cnot"]},
+        {"type": "mutual_information_at_least", "value": 1.0}
+      ]
+    }
+  },
+  {
+    "id": "braid_word",
+    "display_name": "What Survives IV — The Long Braid",
+    "act": 4,
+    "arc_beat": "One more drill — the Provosts' favorite. SWAP, then CNOT, then SWAP: three moves that spell a fourth. What you built is the same CNOT with its roles braided — control become target, target become control — a gate that is not on your keyboard, conjured by wrapping one you had inside two you had. Every program the enclave will ever run is a braid word like this one. And the words do not commute; that is precisely why they can compute.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "braid_order"
+      }
+    ],
+    "standing_grants": {
+      "Scythe Provosts": {
+        "legitimacy": 0.05
+      }
+    },
+    "arc_quest": {
+      "body": "The Long Braid — spell the reversed coupling: SWAP, then CNOT, then SWAP, and hold the pair above 1 bit.",
+      "hint": "Operator frame, one pair, three moves in order. The word you spell is CNOT-with-roles-reversed — a gate you were never given.",
+      "state_predicates": [
+        {"type": "gate_order", "gates": ["swap", "cnot", "swap"]},
+        {"type": "mutual_information_at_least", "value": 1.0}
       ]
     }
   },

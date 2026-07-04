@@ -95,7 +95,7 @@ const GUIDE_ITEMS := [
 ]
 
 # Featured strip: world-canon first (the story the physics tells), structure after.
-const GLOSSARY_CANONICAL_TERMS := ["enclave", "measurement", "berry", "webway", "resonance", "biome", "faction", "icon"]
+const GLOSSARY_CANONICAL_TERMS := ["enclave", "measurement", "berry", "invariant", "webway", "resonance", "biome", "faction", "icon"]
 
 # =============================================================================
 # COLORS
@@ -1417,6 +1417,8 @@ func _guide_things_to_try() -> void:
 	_body_box.add_child(_make_body("Read a faction's mood: quest board (C) → E on any offer. Resonance is how the biome's live state sits with their axioms — court them by steering it."))
 	_body_box.add_child(_make_body("Watch yourself: M → Eigenstate shows You · Tr(ρ²). Idle five minutes and the fog reclaims you; act, and your identity resolves."))
 	_body_box.add_child(_make_body("See the loom: M → Graph → drill into a biome. Gold edges are the entanglement you wove; dark orange channels are the sealed webway, waiting for Act 2."))
+	_body_box.add_child(_make_body("Read the compass: same drill-down — 🧭 shows the biome's deep state and its gap. Evolve all you like, the depths never move; measure, and they jump. That's the campaign's second invariant."))
+	_body_box.add_child(_make_body("Spell a braid word: Hadamard then CNOT weaves a thread; CNOT then Hadamard weaves nothing. Same chores, opposite worlds — order is the point."))
 
 func _guide_quick_reference() -> void:
 	_body_box.add_child(_make_section_header("verbs"))

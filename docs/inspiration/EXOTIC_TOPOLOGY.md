@@ -5,8 +5,10 @@
 > Tiers 2–6 (strange attractors, topological pipes, Majorana bridges, anyonic braiding,
 > knot theory) are future work.
 
-> **Audited & promoted to a campaign plan, 2026-07** — see `docs/TOPOLOGY_CAMPAIGN.md`
-> ("What Survives"). Per-tier fates from that audit:
+> **Audited, promoted to a campaign, and SHIPPED, 2026-07** — see
+> `docs/TOPOLOGY_CAMPAIGN.md` ("What Survives"): four chapters live across acts 1–4,
+> staged on StarterForest, FreshwaterSpring, Lanternfall, and the Operator/Druid
+> frames. Per-tier fates from the audit:
 > - **Tier 0** shipped — it *is* the game's foundation.
 > - **Tier 1** shipped deeper than this doc claims: `BerryPhaseRegister` integrates true
 >   signed solid angle, with ripeness, harvest counters, story-flag predicates, and

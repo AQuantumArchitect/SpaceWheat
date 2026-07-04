@@ -1034,7 +1034,17 @@ func _track_dynamics() -> void:
 	var purity = quantum_computer.get_purity() if quantum_computer.has_method("get_purity") else -1.0
 	var entropy = _calculate_quantum_entropy()
 	var coherence = _calculate_quantum_coherence()
-	dynamics_tracker.add_snapshot({"purity": purity, "entropy": entropy, "coherence": coherence})
+	# Population motion: in the enclave purity and entropy are constants of the
+	# motion (unitary evolution), so without this the tracker only sees coherence
+	# slosh. Per-atom marginals are cheap (≤ atom count) and carry the breathing.
+	var populations: Array = []
+	if quantum_computer.register_map != null and quantum_computer.has_method("get_population"):
+		var atoms: Array = quantum_computer.register_map.coordinates.keys()
+		atoms.sort()
+		for atom in atoms:
+			populations.append(float(quantum_computer.get_population(str(atom))))
+	dynamics_tracker.add_snapshot({"purity": purity, "entropy": entropy,
+			"coherence": coherence, "populations": populations})
 
 func _calculate_quantum_entropy() -> float:
 	if not quantum_computer or not quantum_computer.density_matrix:

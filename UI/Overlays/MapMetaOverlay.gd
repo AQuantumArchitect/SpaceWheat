@@ -442,6 +442,10 @@ func _graph_inspect_text() -> String:
 	var lines: Array[String] = []
 	if _graph_neigh_view != null and is_instance_valid(_graph_neigh_view):
 		lines.append(str(_graph_neigh_view.inspect_text()))
+	var compass := _compass_line(_graph_zoom)
+	if compass != "":
+		lines.append(compass)
+		lines.append("The depths (the eigenvalues of ρ) are conserved — no unitary motion can change them. Exactly one act reaches them: measurement.")
 	if not BalanceConfig.dissipative_enabled():
 		var canonical = _canonical_biome(_graph_zoom)
 		if _biome_has_webway(canonical):
@@ -1452,6 +1456,18 @@ func _build_graph_status_card() -> Control:
 		body.text = "%s · neighborhood cluster (live%s)" % [_graph_zoom, seal]
 	vbox.add_child(body)
 
+	# The eigenstate compass: what the biome most IS right now, and how decidedly
+	# (dominant eigenstate of ρ + eigenvalue gap). Press E for the conservation law.
+	if _graph_zoom != "broad":
+		var compass := _compass_line(_graph_zoom)
+		if compass != "":
+			var cl := Label.new()
+			cl.text = compass
+			cl.add_theme_font_size_override("font_size", 11)
+			cl.add_theme_color_override("font_color", UIStyleFactory.COLOR_BODY)
+			cl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			vbox.add_child(cl)
+
 	# Standing at sealed channels, a native faction has something to say about
 	# them (QuestVoice.webway_whisper — words only, no mechanics).
 	if _graph_zoom != "broad" and not BalanceConfig.dissipative_enabled():
@@ -1510,6 +1526,32 @@ func _canonical_biome(biome_name: String):
 		if shared != null and shared.has_method("get_by_name"):
 			return shared.get_by_name(biome_name)
 	return null
+
+
+## The eigenstate compass — the biome's dominant eigenstate of ρ ("the deep
+## state": what this place most IS) and the eigenvalue gap (how decidedly).
+## The old design docs called for exactly this instrument (EXOTIC_TOPOLOGY.md
+## "observation tools"); the campaign's Pond chapter teaches what it reads.
+## Returns "" when no live QC / native eigensolver is available.
+func _compass_line(biome_name: String) -> String:
+	var qc = _live_qc_for(biome_name)
+	if qc == null or not qc.has_method("get_attractor_state"):
+		return ""
+	var attractor: Dictionary = qc.get_attractor_state()
+	if attractor.is_empty():
+		return ""
+	var order: Array = attractor.get("emojis", [])
+	if order.is_empty():
+		return ""
+	var top := str(order[0])
+	var p := float(attractor.get(top, 0.0))
+	var gap := float(attractor.get("eigenvalue_gap", 0.0))
+	var gloss := "torn between depths"
+	if gap >= 0.5:
+		gloss = "decided"
+	elif gap >= 0.2:
+		gloss = "leaning"
+	return "🧭 deep state: %s %.0f%% · gap %.2f — %s" % [top, p * 100.0, gap, gloss]
 
 
 ## Live QuantumComputer for a biome's population bars (null if not instantiated).
