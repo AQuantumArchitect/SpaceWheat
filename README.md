@@ -1,161 +1,91 @@
 # SpaceWheat
 
-A quantum farming simulator built on real physics. Grow crops, measure qubits, harvest probability.
+A quantum farming game where **the story is the physics**. Every plot is a real
+qubit; every biome is a small quantum computer evolving under its own Hamiltonian;
+every harvest is a projective measurement. The quantum mechanics aren't a
+metaphor — they're the engine.
 
-SpaceWheat is a game where every wheat field is a quantum register, every harvest is a projective measurement, and every season is Hamiltonian evolution. The quantum mechanics aren't a metaphor — they're the actual engine. You're playing a quantum computer that happens to look like a farm.
+## Start here
 
-## How It Works
+> **→ [`docs/GAME_CODEX.md`](docs/GAME_CODEX.md) is the single canonical source of
+> truth.** It holds the whole game — mental model, physics, controls, the core
+> loop, the campaign, and the honest open questions about elegance and fun — with
+> every claim pointing at the file that is the authority for it. Read it first.
 
-### The Quantum Foundation
+This README is only a doorway. The codex is the room.
 
-Each biome runs a **density matrix simulation** of its quantum state. A biome is a *cloud of atoms* (single emojis) under Lindblad dissipation; its qubit axes form when a faction's **icons** are installed over it (a neighborhood) — each icon pairs two atoms into a north pole (|0>) and a south pole (|1>). A wheat qubit might be sun/moon, a population qubit might be people/fire. Pole-pairing is a neighborhood/faction product, not a property of the biome itself. The state evolves under the induced Hamiltonian with the biome's Lindblad dissipation channels, and when you measure, Born's rule decides what you get.
+## The 60-second model
 
-This isn't approximate. The gate library implements all standard quantum gates with exact matrix definitions:
+- **Biome = quantum computer.** One pure-state density matrix `ρ` per biome,
+  evolving under an exact closed-system unitary `U = exp(−iH·dt)` (purity stays 1).
+  The open/Lindblad path exists but is **off by default** (it's DLC).
+- **Icons author the Hamiltonian.** An *icon* is a two-emoji qubit axis
+  (`Core/Factions/data/icons.json`). Planting icons adds qubits and their `H` terms.
+- **Factions are loadouts; biomes are scaffolds.** A faction supplies a *signature*
+  (a set of icons) that is *realized* into a bare biome at runtime.
+- **Story fires from physics.** Narrative beats trigger when soft continuous gates
+  over live observables (spectral gap, Var(H), signature growth, atom diversity,
+  berry phase) cross a threshold — not from scripted dialogue.
 
-- **Single-qubit**: X, Y, Z, H, S, T, S-dagger, T-dagger, Rx, Ry, Rz
-- **Two-qubit**: CNOT, CZ, SWAP
-- **State preparation**: Bell pairs, GHZ states
+## The core loop
 
-Every gate is verified against known quantum states (292 physics tests).
+1. **Measure** a qubit (Ace **E**): Born-sample it; it collapses to one emoji.
+2. **Harvest** (Ace **Q**): cash the outcome for resources — reward is the
+   surprisal `−kT·log p` (rarer = richer), with a bonus if the icon is in your
+   signature.
+3. **Track & Incorporate** (Icon **F** then **R**): let a qubit accumulate Berry
+   phase until it ripens, then incorporate its icon — your *signature* grows, and
+   story beats fire.
+4. Compose biomes by planting atoms; **Reap** to fast-forward evolution; trade on
+   the market. Win the campaign by composing a Village whose spectral gap stays
+   small — a plural island that physically cannot collapse into one shape.
 
-### The Four Tools
+## Controls in one breath
 
-Player actions are organized into four tool groups by time scale:
+One keyboard algebra: **SELECTION × ACTION**. Hats `4–0` pick a tool
+(Icon/Captain/Ace/Operator/Druid — Spark & Merchant are DLC), `1/2/3` pick a
+sub-mode, `TYUIOP` pick a biome, `GHJKL;` pick a plot, and the **QERF cross**
+(Q/R = extract/commit, E = pause+inspect, F = play+advance) acts on the focus.
+Overlays live on `Z X C V B N M`. Full grammar: `UI/Core/KEYBOARD_GRAMMAR.md`.
 
-| Key | Tool | What it does |
-|-----|------|-------------|
-| **1** | **Unitary** | Reversible quantum gates. Rotate qubits on the Bloch sphere, create superpositions with Hadamard. F-key cycles through X/Y/Z rotation axes. |
-| **2** | **Lindblad** | Dissipative operations. Drain energy out, pump energy in, transfer population between qubits. This is how the environment interacts with your quantum state. |
-| **3** | **Measure** | The core gameplay loop. Explore (bind a terminal), Measure (collapse the state), Pop (harvest credits). F-key switches to Gate mode for building entanglement. |
-| **4** | **Meta** | System-level operations. Add or remove vocabulary pairs, discover or cull biomes. |
+## Tech stack
 
-Within each tool, actions follow a consistent direction:
-- **Q** = in (bind, drill, navigate back)
-- **E** = select (observe, detail, interact with current item)
-- **R** = out (extract, advance, navigate forward)
-- **F** = cycle (switch mode, page, or view — always)
+- **Engine:** Godot 4.5 · **Language:** GDScript + native C++ GDExtension
+- **Quantum backend:** dense density-matrix simulator; closed-system **exact
+  unitary** propagator (eigendecomposition), Eigen-accelerated C++ lookahead as a
+  derived predictor. Open-system (Lindblad/GKSL) is a DLC path, off by default.
+- **Authority data:** `Core/Factions/data/{icons,factions,axes}.json`,
+  `Core/Biomes/data/biomes.json`, `Core/Quests/data/story_flags.json`
 
-### The Core Loop
-
-```
-EXPLORE (Q=in)  -->  MEASURE (E=select)  -->  POP (R=out)  -->  repeat
-      |                    |                       |
-  bind terminal       Born sample            harvest credits
-  to register         collapse state           free terminal
-```
-
-1. **Explore** binds one of your 12 terminals to a quantum register. The system favors high-probability states.
-2. **Measure** samples the qubit via Born's rule and collapses it. You see which emoji won and at what probability.
-3. **Pop** converts that probability into emoji-credits. Higher measurement probability = bigger payout.
-
-Between cycles, **Reap** runs Hamiltonian evolution across all biomes and does a batch harvest from the accumulated quantum dynamics.
-
-### Visualization
-
-Qubits appear as floating **bubbles** on each biome's oval. Each bubble displays its two emojis with opacity proportional to measurement probability — a 70/30 superposition literally shows one emoji bright and the other dim. Entangled qubits cluster together (driven by mutual information). Quantum phase is encoded as color rotation through RGB primaries.
-
-The inspector overlay (N key) shows the raw density matrix as a heatmap and probability bars per register.
-
-### Biomes
-
-46 biomes, each with a unique Hamiltonian, Lindblad configuration, and emoji palette. StarterForest has a day/night oscillation driving sun/moon populations. FungalNetworks has cross-coupled mushroom ecology. Each biome feels mechanically different because the quantum dynamics actually are different.
-
-Navigate biomes with T-Y-U-I-O-P (6 active slots). Select plots within a biome with J-K-L-;-'-H-G.
-
-### Economy
-
-All resources are **emoji-credits** — unified currency per emoji type. Measurements convert quantum probability to credits at 10:1. Completing quests teaches you vocabulary icons, and known icons earn a purity bonus during seasonal reaps.
-
-Quests are procedurally generated from faction data and reference specific emoji deliveries, pushing you to explore diverse biomes and quantum states.
-
-## Tech Stack
-
-- **Engine**: Godot 4.5
-- **Language**: GDScript + native C++ GDExtension
-- **Quantum backend**: Custom density matrix simulator with Eigen-accelerated native path
-- **Evolution**: First-order Euler integration with Lindblad master equation (GKSL form)
-- **Gate library**: 14 gates (11 single-qubit + 3 two-qubit) with exact unitary matrices
-
-### Native Acceleration
-
-The `libquantummatrix` C++ extension provides:
-- Dense matrix multiplication via Eigen
-- Mutual information computation at physics rate (5 Hz)
-- Lookahead evolution for the BiomeEvolutionBatcher
-- Pure GDScript execution when native isn't available
-
-## Testing
-
-292 quantum physics tests across 5 suites:
-
-| Suite | Tests | Coverage |
-|-------|-------|----------|
-| Gate Verification | 102 | Every gate against exact quantum states, purity conservation, inverses, Pauli algebra |
-| Entanglement | 82 | Bell/GHZ states, marginal purities, mutual information, measurement collapse |
-| Measurement | 50 | Projective measurement, Born statistics, idempotence, entangled collapse |
-| Biome Coverage | 16 | All 46 biomes: valid structure, QC setup, evolution stability |
-| Circuit Composer | 42 | Declarative builder, teleportation, Deutsch-Jozsa algorithm |
-
-Run them all:
-```bash
-bash 🍄/🧪/🔬.sh
-```
-
-Run a single suite:
-```bash
-bash 🍄/🧪/🔬.sh --suite gates
-bash 🍄/🧪/🔬.sh --suite entangle
-bash 🍄/🧪/🔬.sh --suite measure
-bash 🍄/🧪/🔬.sh --suite biomes
-bash 🍄/🧪/🔬.sh --suite composer
-```
-
-## Project Structure
-
-```
-Core/
-  QuantumSubstrate/    Quantum computer, gates, density matrix, circuit builder
-  Environment/         Biome implementations, evolution batcher
-  Biomes/              Biome registry + data (biomes_merged.json)
-  Config/Hamiltonians/ Per-biome Hamiltonian configurations (JSONL)
-  Actions/             Explore/Measure/Pop/Reap action handlers
-  GameMechanics/       Farm economy, grid, terminal pool
-  GameState/           Save/load, tool config, scenario builder
-  Instrumentation/     Action dispatch (QuantumInstrument)
-  Quests/              Quest generation, faction database
-  Visualization/       Bubble rendering, force graph, biome backgrounds
-UI/
-  Core/                Input handling (QuantumInstrumentInput), action validation
-  Overlays/            Controls, inspector, biome inspector
-  HUD/                 Performance display, bot status
-Tests/                 Physics verification suites + integration tests
-🍄/                    Automation lane (headless runners, test harnesses, batch tools)
-native/                C++ GDExtension (libquantummatrix)
-```
-
-## Building
-
-Requires Godot 4.5. Open the project in the WSL-aware editor launcher, or run headless:
+## Build, run, test
 
 ```bash
-./scripts/launch-linux-editor.sh
+./launch_game.sh                 # play (Linux, headed)
+./editor_launch.sh               # open in the Godot editor
+python3 -m pytest tests/ -q      # Python test suite (rig-driven + source contracts)
 ```
+- Native C++ extension: `cd native && scons` (see **[`BUILDING.md`](BUILDING.md)**).
+- Headless automation / LLM lane: `🍄/🎛️/🟢.sh` (docs in `🍄/README.txt`).
+- Boot-error gate (must print `0`):
+  `godot --headless --audio-driver Dummy --path . --quit 2>&1 | grep -cE "SCRIPT ERROR|Parse Error|ERROR: Failed to"`
 
-To save the editor boot log without copy/paste:
+## Project structure
 
-```bash
-./scripts/launch-linux-editor.sh --log-file /tmp/spacewheat-linux-editor.log
 ```
-
-Or run headless:
-
-```bash
-godot --headless --script Tests/test_quantum_gate_verification.gd
-```
-
-For native acceleration, build the C++ extension:
-```bash
-cd native && scons
+Core/          Engine + game logic (~55k LOC)
+  QuantumSubstrate/  QuantumComputer, HamiltonianBuilder, LindbladBuilder, gates
+  Factions/data/     icons.json (H), factions.json, axes.json
+  Biomes/data/       biomes.json (scaffolds + dormant L)
+  Quests/            QuestManager, story_flags.json (the campaign), soft-gate math
+  Story/             StoryEngine, socialite chatter (measurement-driven)
+  Markets/           EnergyPricing (Boltzmann), MarketLattice (contracts)
+  Actions/           Explore / Measure / Pop / Reap verbs
+UI/            Thin key-in / projection-out surfaces (~26k LOC)
+  Core/              QuantumInstrumentInput (input decoder), Surface, ToolConfig
+  Overlays/          EscapeMenu(Z), ControlsOverlay(X), QuestBoard(C), Atlas(V)...
+native/        C++ GDExtension (libquantummatrix) — derived predictor
+docs/          Documentation — start at GAME_CODEX.md
+🍄/            Automation lane (headless runners, rig, test harnesses)
 ```
 
 ## License
