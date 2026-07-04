@@ -2,7 +2,7 @@ from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-RIG_LISTENER = PROJECT_ROOT / "Rig" / "rig_listener.gd"
+RIG_LISTENER = PROJECT_ROOT / "🍄" / "🎛️" / "rig_listener.gd"
 RIG_CLIENT = PROJECT_ROOT / "🍄" / "🎛️" / "rig_client.py"
 
 

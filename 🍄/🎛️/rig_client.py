@@ -65,7 +65,7 @@ def _pid_looks_like_rig_listener(pid: int) -> bool:
     cmdline = _pid_cmdline(pid)
     if not cmdline:
         return False
-    return ("godot" in cmdline) and ("rig/rig_listener.gd" in cmdline)
+    return ("godot" in cmdline) and ("rig_listener.gd" in cmdline)
 
 
 def _is_windows_runtime_target(env: Optional[Dict[str, str]] = None) -> bool:
@@ -163,7 +163,7 @@ class RigClient:
         if xdg is None:
             try:
                 proc = subprocess.run(
-                    ["pgrep", "-f", "Rig/rig_listener.gd"],
+                    ["pgrep", "-f", "rig_listener.gd"],
                     capture_output=True,
                     text=True,
                     check=False,
@@ -318,7 +318,7 @@ class RigClient:
             rendering_driver = str(env.get("RIG_RENDERING_DRIVER", "")).strip()
             if rendering_driver:
                 cmd.extend(["--rendering-driver", rendering_driver])
-            cmd.extend(["--path", env["PROJECT_ROOT_WIN"], "--script", "Rig/rig_listener.gd"])
+            cmd.extend(["--path", env["PROJECT_ROOT_WIN"], "--script", "🍄/🎛️/rig_listener.gd"])
 
         if runtime_target in {"windows", "win"}:
             proc = subprocess.Popen(

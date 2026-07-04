@@ -18,7 +18,7 @@ extends RefCounted
 ## What does NOT live here (by design, not omission):
 ##  - Rig IPC plumbing (RIG_QUEUE_PATH, RIG_RESULT_PATH, RIG_QUEUE_POLL_MS, RIG_LOG_PROFILE,
 ##    RIG_SCENARIO, RIG_LOAD_SLOT, …) — the player never reads these, so they can't cause a
-##    rig-vs-player divergence; they stay in Rig/rig_listener.gd.
+##    rig-vs-player divergence; they stay in 🍄/🎛️/rig_listener.gd.
 ##  - VERBOSE_* logging gates — owned by Core/Config/VerboseConfig.gd (the logging authority).
 ##
 ## All accessors are static (callable from autoloads, static contexts like SaveStore, and the

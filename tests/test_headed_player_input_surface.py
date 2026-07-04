@@ -9,7 +9,7 @@ def _read(path: str) -> str:
 
 
 def test_rig_listener_exposes_player_input_backend_and_key_commands() -> None:
-    src = _read("Rig/rig_listener.gd")
+    src = _read("🍄/🎛️/rig_listener.gd")
     assert 'execution_backend?: "direct"|"player_input"|"auto"' not in src
     assert '"press_key":' in src
     assert '"key_sequence":' in src
@@ -44,8 +44,8 @@ def test_runner_batch_and_launcher_thread_display_backend_flags() -> None:
     assert "def clear_rig_files(self, preserve_live_sentinel: bool = True) -> None:" in client
     assert "if not preserve_live_sentinel or not self._bridge_sentinel_is_ready(self.xdg_root):" in client
     assert 'if [ "$RIG_DISPLAY_MODE" = "headed" ]; then' in launcher
-    assert 'sw_godot --rendering-driver "$RIG_RENDERING_DRIVER" --path . --script Rig/rig_listener.gd' in launcher
-    assert 'sw_godot --headless --path . --script Rig/rig_listener.gd' in launcher
+    assert 'sw_godot --rendering-driver "$RIG_RENDERING_DRIVER" --path . --script 🍄/🎛️/rig_listener.gd' in launcher
+    assert 'sw_godot --headless --path . --script 🍄/🎛️/rig_listener.gd' in launcher
 
 
 def test_derby_and_seed_save_accept_headed_player_input_flags() -> None:

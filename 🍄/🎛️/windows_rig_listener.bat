@@ -44,14 +44,14 @@ echo [windows_rig] godot=%GODOT_WINDOWS_PATH%
 echo [windows_rig] display=%RIG_DISPLAY_MODE%
 
 if /I "%RIG_DISPLAY_MODE%"=="headless" (
-  start "" /B "%GODOT_WINDOWS_PATH%" --headless --path "%PROJECT_ROOT_WIN%" --script Rig/rig_listener.gd
+  start "" /B "%GODOT_WINDOWS_PATH%" --headless --path "%PROJECT_ROOT_WIN%" --script 🍄/🎛️/rig_listener.gd
   exit /b %ERRORLEVEL%
 )
 
 if not "%RIG_RENDERING_DRIVER%"=="" (
-  start "" /B "%GODOT_WINDOWS_PATH%" --rendering-driver "%RIG_RENDERING_DRIVER%" --path "%PROJECT_ROOT_WIN%" --script Rig/rig_listener.gd
+  start "" /B "%GODOT_WINDOWS_PATH%" --rendering-driver "%RIG_RENDERING_DRIVER%" --path "%PROJECT_ROOT_WIN%" --script 🍄/🎛️/rig_listener.gd
   exit /b %ERRORLEVEL%
 )
 
-start "" /B "%GODOT_WINDOWS_PATH%" --path "%PROJECT_ROOT_WIN%" --script Rig/rig_listener.gd
+start "" /B "%GODOT_WINDOWS_PATH%" --path "%PROJECT_ROOT_WIN%" --script 🍄/🎛️/rig_listener.gd
 exit /b %ERRORLEVEL%

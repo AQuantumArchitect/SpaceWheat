@@ -248,7 +248,7 @@ def test_rig_boots_through_approot_not_a_parallel_shell() -> None:
     # the real AppRoot and lets it boot AppRoot → GameRoot → the app-owned shell, then drives
     # keys into that same shell. It must NOT hand-mount a parallel PlayerShell or call the
     # engine boot directly (that was the divergence that hid the welcome-trap bug).
-    src = _read("Rig/rig_listener.gd")
+    src = _read("🍄/🎛️/rig_listener.gd")
     assert 'AppRootClass = load("res://scenes/AppRoot.gd")' in src
     assert "app_root.get_player_shell()" in src
     assert "func _await_real_boot(" in src

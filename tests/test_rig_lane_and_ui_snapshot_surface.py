@@ -44,7 +44,7 @@ def test_snapshot_service_owns_ui_snapshot_registry() -> None:
 
 
 def test_rig_listener_is_thinner_and_uses_quantum_instrument_input() -> None:
-    src = _read("Rig/rig_listener.gd")
+    src = _read("🍄/🎛️/rig_listener.gd")
     assert "func _press_key(" in src
     assert "func _select_biome_via_input(" in src
     assert "func _select_plot_via_input(" in src

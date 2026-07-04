@@ -49,10 +49,10 @@ fi
 
 if [ "$RIG_DISPLAY_MODE" = "headed" ]; then
   if [ -n "$RIG_RENDERING_DRIVER" ]; then
-    sw_godot --rendering-driver "$RIG_RENDERING_DRIVER" --path . --script Rig/rig_listener.gd
+    sw_godot --rendering-driver "$RIG_RENDERING_DRIVER" --path . --script 🍄/🎛️/rig_listener.gd
   else
-    sw_godot --path . --script Rig/rig_listener.gd
+    sw_godot --path . --script 🍄/🎛️/rig_listener.gd
   fi
 else
-  sw_godot --headless --path . --script Rig/rig_listener.gd
+  sw_godot --headless --path . --script 🍄/🎛️/rig_listener.gd
 fi
