@@ -34,16 +34,21 @@ Main remaining risk:
 - exported Windows profiling from sandboxed WSL/Codex shells is still unreliable, so that lane is currently best validated from a real Windows-side process
 
 ### Web export
-Status: experimental
+Status: lane complete, first real run pending (2026-07-04)
 
 - A Web preset exists in `export_presets.cfg`.
-- The repo does not currently have a trusted automated browser/runtime smoke lane for the live game.
 - The current web preset is now wired for native WASM GDExtension loading.
+- A browser smoke lane now exists: `scripts/smoke-test-web-export.mjs`
+  (Chromium via playwright-core: crossOriginIsolated, canvas attach, measured
+  FPS + main-thread responsiveness, JSON verdict). Harness validated end-to-end
+  against a fixture bundle; see `docs/release/WEB_DOOR.md` for the lane, the
+  degradation policy (WASM-first, gallery-build fallback), and remaining gates.
 
 Main remaining risks:
-- no modern browser verification loop
-- no current performance confidence for the live game
-- stale docs overstate readiness
+- the smoke has not yet run against a real exported bundle (needs a machine
+  with Godot + web templates — three commands, documented in WEB_DOOR.md)
+- no published performance numbers yet for the live game (the smoke report is
+  the mechanism; the first real run produces the statement)
 
 ### itch.io desktop uploads
 Status: close, but manual
