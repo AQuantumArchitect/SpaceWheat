@@ -82,11 +82,16 @@ func _physics_process(delta: float) -> void:
 		if qpreds is Array and not qpreds.is_empty():
 			var pred_score := _evaluate_quest_state_predicates(qpreds)
 			quest["predicate_score"] = pred_score
+			quest["progress"] = pred_score
 			if pred_score >= QuestStateProjectionService.COMPLETION_THRESHOLD:
 				var quest_id = int(quest.get("id", -1))
 				if quest_id >= 0:
 					mark_quest_ready(quest_id, "state_predicates")
-					continue
+			# Predicates are the AUTHORITATIVE completion when present — never
+			# fall through to the type trackers, whose field defaults (e.g.
+			# observable "purity", ≡1 in the enclave) would self-complete a
+			# predicate-only quest instantly.
+			continue
 
 		var quest_type = quest.get("type", QuestTypes.Type.DELIVERY)
 
@@ -629,11 +634,12 @@ func offer_all_faction_quests(biome) -> Array:
 		var bn := str(quests[0].get("biome_name", quests[0].get("biome", "")))
 		var weights := _operator_weights_for(fac)
 		# Rung-1 flavors in the faction's taste order (amplitude = grow a
-		# population, coherence = superpose, ratio = commit a contested pair);
-		# unknown factions keep the original coherence-first curriculum.
-		var flavor_order: Array = ["coherence", "amplitude", "ratio"]
+		# population, coherence = superpose, ratio = commit a contested pair,
+		# multi = hold two threads at once); unknown factions keep the original
+		# coherence-first curriculum.
+		var flavor_order: Array = ["coherence", "amplitude", "ratio", "multi"]
 		if not weights.is_empty():
-			flavor_order = ["amplitude", "coherence", "ratio"]
+			flavor_order = ["amplitude", "coherence", "ratio", "multi"]
 			flavor_order.sort_custom(func(x, y): return float(weights.get(x, 0.0)) > float(weights.get(y, 0.0)))
 		var qq := {}
 		for flavor in flavor_order:
@@ -644,6 +650,8 @@ func offer_all_faction_quests(biome) -> Array:
 					qq = QuestPipeline.suggest_quantum_quest(bn, fac, coh, next_quest_id)
 				"ratio":
 					qq = _suggest_ratio_for(biome, bn, fac)
+				"multi":
+					qq = _suggest_multi_for(biome, bn, fac, coh)
 			if not qq.is_empty():
 				break
 		if qq.is_empty():
@@ -800,6 +808,29 @@ func _suggest_ratio_for(biome, biome_name: String, faction_name: String) -> Dict
 				best_b = present[j] if bal >= 0.5 else present[i]
 				best_bal = maxf(bal, 1.0 - bal)
 	return QuestPipeline.suggest_ratio_quest(biome_name, faction_name, best_a, best_b, best_bal, next_quest_id)
+
+
+## Multi-ask assembly (prismatic factions): same headroom pick as the amplitude
+## ask, composed with the biome's live coherence into a two-thread quest.
+func _suggest_multi_for(biome, biome_name: String, faction_name: String, coherence: float) -> Dictionary:
+	var qc = biome.get("quantum_computer")
+	if qc == null or qc.register_map == null or not qc.has_method("get_population"):
+		return {}
+	var registry = FactionRegistry.get_shared()
+	var fac = registry.get_by_name(faction_name) if registry != null else null
+	if fac == null or not ("cloud" in fac) or not (fac.cloud is Array):
+		return {}
+	var best_atom := ""
+	var best_m := 1.0
+	for e in fac.cloud:
+		var atom := str(e)
+		if not qc.register_map.coordinates.has(atom):
+			continue
+		var m := float(qc.get_population(atom))
+		if m < best_m:
+			best_m = m
+			best_atom = atom
+	return QuestPipeline.suggest_multi_quest(biome_name, faction_name, coherence, best_atom, best_m, next_quest_id)
 
 
 func record_quantum_action(action_name: String, payload: Dictionary = {}) -> void:

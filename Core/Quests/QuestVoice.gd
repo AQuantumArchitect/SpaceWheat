@@ -83,7 +83,7 @@ static func get_voice(faction_name: String) -> Dictionary:
 
 ## The faction's line about the sealed webway (falls back to the guild voice).
 static func webway_whisper(faction_name: String) -> String:
-	return str(WEBWAY_WHISPER.get(FACTION_TO_VOICE.get(faction_name, "guild"), ""))
+	return whisper("webway", faction_name)
 
 
 ## One line per voice archetype for the moment a Berry loop is INCORPORATED —
@@ -104,9 +104,44 @@ const BERRY_WHISPER := {
 }
 
 
+## One line per voice archetype for an IMPROBABLE measurement — the Born sample
+## landed on a thin branch (small p, big surprisal payout). The scar that taught
+## you most deserves a witness (docs/glossary/measurement.md).
+const MEASURE_WHISPER := {
+	"imperial":  "An unlikely writ, notarized by collapse. The Throne pays best for what it did not expect.",
+	"guild":     "Long odds, clean read. That's craft — or luck wearing craft's apron.",
+	"mystic":    "The improbable answered. You did not find it; it chose to be found.",
+	"merchant":  "A rare outcome is a rare good. Sell the story with it.",
+	"militant":  "Struck the narrow target. Wear the scar.",
+	"scavenger": "Everyone walked past that one. You looked. Finders keepers.",
+	"horror":    "IT WAS ALMOST NOT. NOW IT CANNOT BE UNKNOWN.",
+	"defensive": "The unlikely is where danger hides. You dragged it into the light — good.",
+	"cosmic":    "A thin branch of the wavefunction, and you stood on it as it became the trunk.",
+	"entity":    "AN IMPROBABILITY HAS BEEN COLLECTED. THE LEDGER SMILES.",
+}
+
+## The whisper registers: one voice line per archetype at each of the world's
+## speaking moments — the sealed channels, the closed loop, the improbable scar.
+const WHISPERS := {
+	"webway": WEBWAY_WHISPER,
+	"berry": BERRY_WHISPER,
+	"measure": MEASURE_WHISPER,
+}
+
+
+## Unified whisper access: the faction's archetype line in the given register
+## ("webway" | "berry" | "measure"). Guild-voiced fallback for unmapped factions;
+## "" for unknown registers.
+static func whisper(register: String, faction_name: String) -> String:
+	var table = WHISPERS.get(register, {})
+	if not (table is Dictionary):
+		return ""
+	return str(table.get(FACTION_TO_VOICE.get(faction_name, "guild"), ""))
+
+
 ## The faction's line for an incorporated Berry loop (guild-voiced fallback).
 static func berry_whisper(faction_name: String) -> String:
-	return str(BERRY_WHISPER.get(FACTION_TO_VOICE.get(faction_name, "guild"), ""))
+	return whisper("berry", faction_name)
 
 
 static func _verb_for(quest: Dictionary) -> String:
@@ -146,6 +181,11 @@ static func apply(quest: Dictionary) -> void:
 static func _quantum_object(quest: Dictionary, ti: int) -> String:
 	match ti:
 		QuestTypes.Type.SHAPE_ACHIEVE, QuestTypes.Type.SHAPE_MAINTAIN:
+			# Composed (multi) asks carry predicates, not a single observable.
+			if not quest.has("observable"):
+				var preds = quest.get("state_predicates", [])
+				if preds is Array and not preds.is_empty():
+					return "%d threads at once" % preds.size()
 			var cmp := "past" if str(quest.get("comparison", ">")) != "<" else "below"
 			var ob := str(quest.get("observable", "coherence"))
 			if ob == "max_mutual_information":

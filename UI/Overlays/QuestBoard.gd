@@ -1215,6 +1215,15 @@ func _commitment_ask_text(quest: Dictionary) -> String:
 		return "%s → %.2f" % [obs_label, float(quest.get("target", 0.0))]
 	if quest.has("target_coherence"):
 		return "coherence → %.2f" % float(quest.get("target_coherence", 0.0))
+	# Composed (multi) asks: predicates joined as threads of one weave.
+	var preds = quest.get("state_predicates", [])
+	if preds is Array and not preds.is_empty():
+		var parts: Array[String] = []
+		for p in preds:
+			if p is Dictionary:
+				parts.append(_predicate_summary(p))
+		if not parts.is_empty():
+			return " ∧ ".join(parts)
 	return QuestTypes.get_type_name(ti)
 
 
@@ -1526,6 +1535,17 @@ func _predicate_summary(pred: Dictionary) -> String:
 			return "%s gap ≥ %.2f" % [str(pred.get("biome", "")), float(pred.get("value", 0.0))]
 		"biome_purity_trending":
 			return "%s purity↑" % str(pred.get("biome", ""))
+		# Projection-service vocabulary (tutorial + composed multi asks).
+		"coherence_at_least":
+			return "coherence ≥ %.2f" % float(pred.get("value", 0.0))
+		"purity_at_least":
+			return "purity ≥ %.2f" % float(pred.get("value", 0.0))
+		"entropy_at_most":
+			return "entropy ≤ %.2f" % float(pred.get("value", 1.0))
+		"mutual_information_at_least":
+			return "entanglement (MI) ≥ %.2f" % float(pred.get("value", 0.5))
+		"gate_sequence_contains":
+			return "%s ×%d" % [str(pred.get("gate", "?")), int(pred.get("count", 1))]
 		_:
 			return t
 

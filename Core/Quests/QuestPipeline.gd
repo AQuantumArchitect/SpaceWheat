@@ -132,6 +132,26 @@ static func suggest_ratio_quest(biome_name: String, faction: String, atom_a: Str
 	}, quest_id)
 
 
+## Rung-1 sibling, the MULTI ask — the flavor prismatic factions prefer
+## (weights.multi from calculate_operator_weights): TWO observables held at
+## once, completed by state_predicates (geometric-mean smooth_and — neither
+## thread alone is enough). Keep the biome shimmering while growing an atom:
+## the first composed ask, teaching that objectives multiply, not add.
+## {} when either thread lacks headroom.
+static func suggest_multi_quest(biome_name: String, faction: String, coherence: float, atom: String, marginal: float, quest_id: int) -> Dictionary:
+	if atom == "" or marginal < 0.0 or marginal >= 0.5 or coherence < 0.0 or coherence >= 0.55:
+		return {}
+	var coh_t := clampf(coherence + 0.1, 0.15, 0.6)
+	var pop_t := clampf(marginal + 0.12, 0.15, 0.6)
+	return quantum_quest(QuestTypes.Type.SHAPE_ACHIEVE, faction, biome_name, {
+		"state_predicates": [
+			{"type": "coherence_at_least", "value": coh_t},
+			{"type": "biome_state_gte", "biome": biome_name, "atom": atom, "value": pop_t},
+		],
+		"tutorial_hint": "Two threads at once: keep the biome shimmering (coherence past %.2f) while growing %s past %.2f. The geometric mean judges — neither thread alone is enough." % [coh_t, atom, pop_t],
+	}, quest_id)
+
+
 ## Physics-derived suggestion, rung two of the quantum curriculum: entanglement. Offered
 ## when coherence is already mastered (see the call site's ladder) and the biome has
 ## correlation headroom. Uses the standard SHAPE_ACHIEVE tracker on the

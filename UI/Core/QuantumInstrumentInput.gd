@@ -670,16 +670,26 @@ func _execute_incorporate_icon() -> Dictionary:
 	return result
 
 
-## The moment a Berry loop is incorporated — a native faction marks it with one
-## line (QuestVoice.berry_whisper; words only, no mechanics). Toasted through
-## PlayerShell so the harvest moment is no longer mute. Fails silently headless.
-func _toast_berry_whisper(biome, north: String, south: String, phase: float) -> void:
+## Whisper plumbing — the world's speaking moments (QuestVoice registers), all
+## toasted through PlayerShell. Words only, no mechanics; fails silently
+## headless (no shell in the tree).
+
+## Toast one faction whisper: head line + attributed voice line.
+func _toast_whisper(head: String, speaker: String, line: String) -> void:
+	if line == "":
+		return
 	var ps: Node = self
 	while ps != null and not (ps is PlayerShell):
 		ps = ps.get_parent()
 	if ps == null or not ps.has_method("show_hint"):
 		return
-	var speaker := ""
+	ps.show_hint("%s\n💬 %s“%s”" % [head, ("%s — " % speaker) if speaker != "" else "", line], 2, "")
+
+
+## First native faction of the biome's canonical definition ("" if none).
+func _native_speaker_for(biome) -> String:
+	if biome == null:
+		return ""
 	var bname: String = biome.get_biome_type() if biome.has_method("get_biome_type") else str(biome.name)
 	var reg = load("res://Core/Biomes/BiomeRegistry.gd")
 	if reg != null and reg.has_method("get_shared"):
@@ -687,12 +697,31 @@ func _toast_berry_whisper(biome, north: String, south: String, phase: float) -> 
 		var canonical = shared.get_by_name(bname) if (shared != null and shared.has_method("get_by_name")) else null
 		if canonical != null and ("native_factions" in canonical) and canonical.native_factions is Array \
 				and not canonical.native_factions.is_empty():
-			speaker = str(canonical.native_factions[0])
-	var whisper := QuestVoice.berry_whisper(speaker)
-	if whisper == "":
+			return str(canonical.native_factions[0])
+	return ""
+
+
+## The moment a Berry loop is incorporated — the harvest is no longer mute.
+func _toast_berry_whisper(biome, north: String, south: String, phase: float) -> void:
+	var speaker := _native_speaker_for(biome)
+	_toast_whisper("🧬 %s/%s woven into your signature · Ω = %+.2f rad" % [north, south, phase],
+			speaker, QuestVoice.whisper("berry", speaker))
+
+
+## An IMPROBABLE Born outcome (p below this) is the scar that taught you most —
+## the surprisal payout law made audible (docs/glossary/measurement.md).
+const MEASURE_WHISPER_MAX_P := 0.10
+
+func _maybe_toast_measure_whisper(result: Dictionary) -> void:
+	if not result.get("success", false):
 		return
-	var head := "🧬 %s/%s woven into your signature · Ω = %+.2f rad" % [north, south, phase]
-	ps.show_hint("%s\n💬 %s“%s”" % [head, ("%s — " % speaker) if speaker != "" else "", whisper], 2, "")
+	var p := float(result.get("probability", 1.0))
+	if p <= 0.0 or p >= MEASURE_WHISPER_MAX_P:
+		return
+	var biome = _get_current_biome()
+	var speaker := _native_speaker_for(biome)
+	_toast_whisper("🎯 collapsed to %s against the odds — p = %.2f, paid in surprisal" % [str(result.get("outcome", "?")), p],
+			speaker, QuestVoice.whisper("measure", speaker))
 
 
 func _execute_build_gate(gate_type: String) -> void:
@@ -1515,6 +1544,7 @@ func _execute_action(action_name: String) -> Dictionary:
 				result = _instrument.action_explore(biome_name, positions[0])
 		"measure":
 			result = _instrument.action_measure(grid_pos)
+			_maybe_toast_measure_whisper(result)
 		"reap":
 			result = _instrument.action_reap()
 		"pop":
