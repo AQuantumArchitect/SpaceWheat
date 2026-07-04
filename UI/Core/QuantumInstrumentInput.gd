@@ -651,8 +651,10 @@ func _execute_incorporate_icon() -> Dictionary:
 		"icon": icon,
 	})
 	if result.get("success", false):
+		var berry_phase: float = qc.berry_register.get_phase(qid)
 		qc.berry_register.consume(qid)
 		_verbose.info("input", "🧬", "Incorporated %s/%s from qubit %d" % [north, south, qid])
+		_toast_berry_whisper(biome, north, south, berry_phase)
 		# Phase 2: trajectory + conv-H memory entry for the incorporation.
 		_notify_story_engine([north, south], "incorporate")
 		action_performed.emit("incorporate_icon", {
@@ -666,6 +668,31 @@ func _execute_incorporate_icon() -> Dictionary:
 		_verbose.warn("input", "🧬", "Incorporate failed: %s" % result.get("message", result.get("error", "unknown")))
 		action_performed.emit("incorporate_icon", result)
 	return result
+
+
+## The moment a Berry loop is incorporated — a native faction marks it with one
+## line (QuestVoice.berry_whisper; words only, no mechanics). Toasted through
+## PlayerShell so the harvest moment is no longer mute. Fails silently headless.
+func _toast_berry_whisper(biome, north: String, south: String, phase: float) -> void:
+	var ps: Node = self
+	while ps != null and not (ps is PlayerShell):
+		ps = ps.get_parent()
+	if ps == null or not ps.has_method("show_hint"):
+		return
+	var speaker := ""
+	var bname: String = biome.get_biome_type() if biome.has_method("get_biome_type") else str(biome.name)
+	var reg = load("res://Core/Biomes/BiomeRegistry.gd")
+	if reg != null and reg.has_method("get_shared"):
+		var shared = reg.get_shared()
+		var canonical = shared.get_by_name(bname) if (shared != null and shared.has_method("get_by_name")) else null
+		if canonical != null and ("native_factions" in canonical) and canonical.native_factions is Array \
+				and not canonical.native_factions.is_empty():
+			speaker = str(canonical.native_factions[0])
+	var whisper := QuestVoice.berry_whisper(speaker)
+	if whisper == "":
+		return
+	var head := "🧬 %s/%s woven into your signature · Ω = %+.2f rad" % [north, south, phase]
+	ps.show_hint("%s\n💬 %s“%s”" % [head, ("%s — " % speaker) if speaker != "" else "", whisper], 2, "")
 
 
 func _execute_build_gate(gate_type: String) -> void:

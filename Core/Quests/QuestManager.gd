@@ -628,14 +628,24 @@ func offer_all_faction_quests(biome) -> Array:
 		var fac := _most_resonant_faction(quests, resonance)
 		var bn := str(quests[0].get("biome_name", quests[0].get("biome", "")))
 		var weights := _operator_weights_for(fac)
-		var amplitude_first: bool = float(weights.get("amplitude", 0.0)) > float(weights.get("coherence", 0.0))
+		# Rung-1 flavors in the faction's taste order (amplitude = grow a
+		# population, coherence = superpose, ratio = commit a contested pair);
+		# unknown factions keep the original coherence-first curriculum.
+		var flavor_order: Array = ["coherence", "amplitude", "ratio"]
+		if not weights.is_empty():
+			flavor_order = ["amplitude", "coherence", "ratio"]
+			flavor_order.sort_custom(func(x, y): return float(weights.get(x, 0.0)) > float(weights.get(y, 0.0)))
 		var qq := {}
-		if amplitude_first:
-			qq = _suggest_amplitude_for(biome, bn, fac)
-		if qq.is_empty():
-			qq = QuestPipeline.suggest_quantum_quest(bn, fac, coh, next_quest_id)
-		if qq.is_empty() and not amplitude_first:
-			qq = _suggest_amplitude_for(biome, bn, fac)
+		for flavor in flavor_order:
+			match str(flavor):
+				"amplitude":
+					qq = _suggest_amplitude_for(biome, bn, fac)
+				"coherence":
+					qq = QuestPipeline.suggest_quantum_quest(bn, fac, coh, next_quest_id)
+				"ratio":
+					qq = _suggest_ratio_for(biome, bn, fac)
+			if not qq.is_empty():
+				break
 		if qq.is_empty():
 			var max_mi := float(obs.get("max_mutual_information", -1.0))
 			var nq: int = 0
@@ -750,6 +760,46 @@ func _suggest_amplitude_for(biome, biome_name: String, faction_name: String) -> 
 			best_m = m
 			best_atom = atom
 	return QuestPipeline.suggest_amplitude_quest(biome_name, faction_name, best_atom, best_m, next_quest_id)
+
+
+## Ratio-ask assembly: among the atoms this faction speaks that live in the
+## biome's register, find the most CONTESTED pair (populations nearest even)
+## and ask to commit it — atom A oriented as the current leader. {} when the
+## faction speaks fewer than two atoms here or every pair is already decided
+## (suggest_ratio_quest declines balances ≥ 0.62).
+func _suggest_ratio_for(biome, biome_name: String, faction_name: String) -> Dictionary:
+	var qc = biome.get("quantum_computer")
+	if qc == null or qc.register_map == null or not qc.has_method("get_population"):
+		return {}
+	var registry = FactionRegistry.get_shared()
+	var fac = registry.get_by_name(faction_name) if registry != null else null
+	if fac == null or not ("cloud" in fac) or not (fac.cloud is Array):
+		return {}
+	var present: Array = []
+	for e in fac.cloud:
+		var atom := str(e)
+		if qc.register_map.coordinates.has(atom):
+			present.append(atom)
+	if present.size() < 2:
+		return {}
+	var best_a := ""
+	var best_b := ""
+	var best_bal := -1.0
+	var best_dist := 1.0
+	for i in range(present.size()):
+		for j in range(i + 1, present.size()):
+			var pa := float(qc.get_population(present[i]))
+			var pb := float(qc.get_population(present[j]))
+			if pa + pb <= 1e-9:
+				continue
+			var bal := pa / (pa + pb)
+			var dist := absf(bal - 0.5)
+			if dist < best_dist:
+				best_dist = dist
+				best_a = present[i] if bal >= 0.5 else present[j]
+				best_b = present[j] if bal >= 0.5 else present[i]
+				best_bal = maxf(bal, 1.0 - bal)
+	return QuestPipeline.suggest_ratio_quest(biome_name, faction_name, best_a, best_b, best_bal, next_quest_id)
 
 
 func record_quantum_action(action_name: String, payload: Dictionary = {}) -> void:
@@ -1244,13 +1294,34 @@ func get_quest_time_remaining(quest_id: int) -> float:
 # QUEST TYPE TRACKING (non-delivery quests)
 # =============================================================================
 
+## Observable resolution for the SHAPE/EVOLUTION trackers. Flat keys read
+## directly from the observables dict; the DERIVED "balance:A/B" family (the
+## ratio-quest ask) is computed from the per-atom populations:
+##   balance = p_A / (p_A + p_B)  — 0.5 = even contest, 1.0 = A holds the pair.
+## Returns -1.0 (unknown) when either population is missing, so trackers idle
+## honestly instead of reading a fabricated zero.
+func _observable_value(obs: Dictionary, name: String) -> float:
+	if name.begins_with("balance:"):
+		var pair := name.trim_prefix("balance:").split("/")
+		if pair.size() != 2:
+			return -1.0
+		var key_a := "population:%s" % pair[0]
+		var key_b := "population:%s" % pair[1]
+		if not obs.has(key_a) or not obs.has(key_b):
+			return -1.0
+		var pa := float(obs.get(key_a, 0.0))
+		var pb := float(obs.get(key_b, 0.0))
+		return pa / (pa + pb) if (pa + pb) > 1e-9 else 0.5
+	return float(obs.get(name, 0.0))
+
+
 func _update_shape_achieve_quest(quest: Dictionary, _delta: float) -> void:
 	var observable_name = quest.get("observable", "purity")
 	var target_value := float(quest.get("target", 0.7))
 	var comparison = quest.get("comparison", ">")
 
 	var obs = get_biome_observables(current_biome)
-	var current_value := float(obs.get(observable_name, 0.0))
+	var current_value := _observable_value(obs, str(observable_name))
 	if not _is_known_observable_value(current_value):
 		return
 
@@ -1273,7 +1344,7 @@ func _update_shape_maintain_quest(quest: Dictionary, delta: float) -> void:
 	var required_duration := float(quest.get("duration", 30.0))
 
 	var obs = get_biome_observables(current_biome)
-	var current_value := float(obs.get(observable_name, 0.0))
+	var current_value := _observable_value(obs, str(observable_name))
 	if not _is_known_observable_value(current_value):
 		return
 
@@ -1302,7 +1373,7 @@ func _update_evolution_quest(quest: Dictionary, _delta: float) -> void:
 	var direction = quest.get("direction", "increase")
 
 	var obs = get_biome_observables(current_biome)
-	var current_value := float(obs.get(observable_name, 0.0))
+	var current_value := _observable_value(obs, str(observable_name))
 	if not _is_known_observable_value(current_value):
 		return
 

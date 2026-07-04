@@ -1208,6 +1208,10 @@ func _commitment_ask_text(quest: Dictionary) -> String:
 			obs_label = "entanglement (MI)"
 		elif obs_label.begins_with("population:"):
 			obs_label = "%s population" % obs_label.trim_prefix("population:")
+		elif obs_label.begins_with("balance:"):
+			var pr := obs_label.trim_prefix("balance:").split("/")
+			if pr.size() == 2:
+				obs_label = "%s over %s" % [pr[0], pr[1]]
 		return "%s → %.2f" % [obs_label, float(quest.get("target", 0.0))]
 	if quest.has("target_coherence"):
 		return "coherence → %.2f" % float(quest.get("target_coherence", 0.0))

@@ -86,6 +86,29 @@ static func webway_whisper(faction_name: String) -> String:
 	return str(WEBWAY_WHISPER.get(FACTION_TO_VOICE.get(faction_name, "guild"), ""))
 
 
+## One line per voice archetype for the moment a Berry loop is INCORPORATED —
+## the qubit walked a closed loop on its sphere, the signed solid angle ripened
+## past 2π, and the player wove the axis into their signature
+## (docs/glossary/berry.md). The harvest moment was mute; now it answers.
+const BERRY_WHISPER := {
+	"imperial":  "Another word annexed. The Throne's lexicon grows through you.",
+	"guild":     "A loop closed clean is a wheel trued. The word is yours.",
+	"mystic":    "You walked the circle and came back changed. That is the only way anyone learns anything.",
+	"merchant":  "A word earned is a word you can sell. Twice, if you're careful.",
+	"militant":  "Ground taken on the sphere is ground held. Mark it.",
+	"scavenger": "Picked clean off the curve itself. Nothing wasted — take the word and move.",
+	"horror":    "THE CIRCLE REMEMBERS BEING WALKED. NOW SO DO YOU.",
+	"defensive": "A word of your own is a wall of your own. Add it to the stockade.",
+	"cosmic":    "The sphere kept the angle; the angle became a name. Geometry is generous today.",
+	"entity":    "A HOLONOMY HAS BEEN FILED. THE LEXICON ACKNOWLEDGES YOU.",
+}
+
+
+## The faction's line for an incorporated Berry loop (guild-voiced fallback).
+static func berry_whisper(faction_name: String) -> String:
+	return str(BERRY_WHISPER.get(FACTION_TO_VOICE.get(faction_name, "guild"), ""))
+
+
 static func _verb_for(quest: Dictionary) -> String:
 	var t = quest.get("type", QuestTypes.Type.DELIVERY)
 	if typeof(t) == TYPE_INT or typeof(t) == TYPE_FLOAT:
@@ -129,6 +152,10 @@ static func _quantum_object(quest: Dictionary, ti: int) -> String:
 				ob = "entanglement"
 			elif ob.begins_with("population:"):
 				ob = "%s population" % ob.trim_prefix("population:")
+			elif ob.begins_with("balance:"):
+				var pr := ob.trim_prefix("balance:").split("/")
+				if pr.size() == 2:
+					ob = "%s over %s" % [pr[0], pr[1]]
 			return "%s %s %.2f" % [ob, cmp, float(quest.get("target", 0.7))]
 		QuestTypes.Type.EVOLUTION:
 			return "%s by %+.2f" % [str(quest.get("observable", "coherence")), float(quest.get("delta", 0.2))]

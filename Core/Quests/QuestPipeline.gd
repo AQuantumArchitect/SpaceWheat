@@ -113,6 +113,25 @@ static func suggest_amplitude_quest(biome_name: String, faction: String, atom: S
 	}, quest_id)
 
 
+## Rung-1 sibling, the RATIO ask — the flavor subtle/relational factions prefer
+## (weights.ratio from calculate_operator_weights). Hold one atom's population
+## above another's: SHAPE_ACHIEVE on the derived "balance:A/B" observable
+## (= p_A/(p_A+p_B); resolved by the tracker from the per-atom populations).
+## The caller picks the most CONTESTED pair the faction speaks (balance nearest
+## 0.5) and orients A = the current leader — the ask is to commit the tie.
+## {} when the pair is already decided or inputs are missing.
+static func suggest_ratio_quest(biome_name: String, faction: String, atom_a: String, atom_b: String, balance: float, quest_id: int) -> Dictionary:
+	if atom_a == "" or atom_b == "" or atom_a == atom_b or balance < 0.0 or balance >= 0.62:
+		return {}
+	var target := clampf(balance + 0.15, 0.55, 0.85)
+	return quantum_quest(QuestTypes.Type.SHAPE_ACHIEVE, faction, biome_name, {
+		"observable": "balance:%s/%s" % [atom_a, atom_b],
+		"target": target,
+		"comparison": ">",
+		"tutorial_hint": "The pair is contested. Keep %s above %s — push their balance past %.2f (measure %s down, or drive %s up)." % [atom_a, atom_b, target, atom_b, atom_a],
+	}, quest_id)
+
+
 ## Physics-derived suggestion, rung two of the quantum curriculum: entanglement. Offered
 ## when coherence is already mastered (see the call site's ladder) and the biome has
 ## correlation headroom. Uses the standard SHAPE_ACHIEVE tracker on the
