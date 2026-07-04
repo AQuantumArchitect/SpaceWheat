@@ -445,8 +445,12 @@ func _graph_inspect_text() -> String:
 	var compass := _compass_line(_graph_zoom)
 	if compass != "":
 		lines.append(compass)
-		lines.append("The depths (the eigenvalues of ρ) are conserved — no unitary motion can change them. Exactly one act reaches them: measurement.")
-	if not BalanceConfig.dissipative_enabled():
+		var wet := _regime_line(_graph_zoom)
+		if wet != "":
+			lines.append(wet)
+		else:
+			lines.append("The depths (the eigenvalues of ρ) are conserved — no unitary motion can change them. Exactly one act reaches them: measurement.")
+	if _biome_closed_here(_graph_zoom):
 		var canonical = _canonical_biome(_graph_zoom)
 		if _biome_has_webway(canonical):
 			var natives: Array = canonical.native_factions if ("native_factions" in canonical and canonical.native_factions is Array) else []
@@ -455,6 +459,15 @@ func _graph_inspect_text() -> String:
 			if whisper != "":
 				lines.append("💬 %s“%s”" % [("%s — " % speaker) if speaker != "" else "", whisper])
 	return "\n".join(lines)
+
+
+## Is the named biome effectively closed? Prefers the live QC's per-biome regime
+## (What Fades seam); falls back to the global switch.
+func _biome_closed_here(biome_name: String) -> bool:
+	var qc = _live_qc_for(biome_name)
+	if qc != null and qc.has_method("is_open_here"):
+		return not qc.is_open_here()
+	return not BalanceConfig.dissipative_enabled()
 
 
 func _on_action_r() -> void:
@@ -1417,10 +1430,12 @@ func _build_graph_body() -> void:
 		var nview = NeighborhoodGraphViewRef.new()
 		nview.custom_minimum_size = Vector2(640, 520)
 		_body_box.add_child(nview)
+		# Live source BEFORE populate: the webway draws in this biome's true
+		# regime (wet country LIVE, sealed elsewhere — What Fades seam).
+		nview.set_live_source(_live_qc_for(_graph_zoom))
 		var canonical = _canonical_biome(_graph_zoom)
 		if canonical != null:
 			nview.populate(NeighborhoodGraphRef.from_biome(canonical))
-		nview.set_live_source(_live_qc_for(_graph_zoom))
 		_graph_neigh_view = nview
 
 
@@ -1452,7 +1467,7 @@ func _build_graph_status_card() -> Control:
 		var sel: String = str(_graph_selectable[_graph_selected_idx]) if (_graph_selected_idx >= 0 and _graph_selected_idx < _graph_selectable.size()) else "—"
 		body.text = "Federation · biomes %d · seams %d · qubits %d · ▶ %s" % [bcount, ecount, qcount, sel]
 	else:
-		var seal := " · webway sealed" if not BalanceConfig.dissipative_enabled() else ""
+		var seal := " · webway sealed" if _biome_closed_here(_graph_zoom) else " · 🌊 wet country"
 		body.text = "%s · neighborhood cluster (live%s)" % [_graph_zoom, seal]
 	vbox.add_child(body)
 
@@ -1467,10 +1482,20 @@ func _build_graph_status_card() -> Control:
 			cl.add_theme_color_override("font_color", UIStyleFactory.COLOR_BODY)
 			cl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			vbox.add_child(cl)
+		# Wet-country passport (What Fades): this biome runs open — say so where
+		# the player is already reading.
+		var wet := _regime_line(_graph_zoom)
+		if wet != "":
+			var wl2 := Label.new()
+			wl2.text = wet
+			wl2.add_theme_font_size_override("font_size", 11)
+			wl2.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
+			wl2.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			vbox.add_child(wl2)
 
 	# Standing at sealed channels, a native faction has something to say about
 	# them (QuestVoice.webway_whisper — words only, no mechanics).
-	if _graph_zoom != "broad" and not BalanceConfig.dissipative_enabled():
+	if _graph_zoom != "broad" and _biome_closed_here(_graph_zoom):
 		var canonical = _canonical_biome(_graph_zoom)
 		if _biome_has_webway(canonical):
 			var natives: Array = canonical.native_factions if ("native_factions" in canonical and canonical.native_factions is Array) else []
@@ -1546,12 +1571,36 @@ func _compass_line(biome_name: String) -> String:
 	var top := str(order[0])
 	var p := float(attractor.get(top, 0.0))
 	var gap := float(attractor.get("eigenvalue_gap", 0.0))
+	# In wet country the compass is LITERAL: dissipation contracts toward the
+	# deep state, so the needle points where the biome is actually going.
+	if qc.has_method("is_open_here") and qc.is_open_here():
+		var pull := "falling in"
+		if gap >= 0.5:
+			pull = "already settling"
+		elif gap < 0.2:
+			pull = "drifting, basin shallow"
+		return "🧭 deep state: %s %.0f%% · gap %.2f — %s (wet country: the needle is destiny here)" % [top, p * 100.0, gap, pull]
 	var gloss := "torn between depths"
 	if gap >= 0.5:
 		gloss = "decided"
 	elif gap >= 0.2:
 		gloss = "leaning"
 	return "🧭 deep state: %s %.0f%% · gap %.2f — %s" % [top, p * 100.0, gap, gloss]
+
+
+## One-line thermodynamic passport for the biome's E-inspect card. "" when closed
+## country (the enclave's law is stated elsewhere — no need to restate the default).
+func _regime_line(biome_name: String) -> String:
+	var qc = _live_qc_for(biome_name)
+	if qc == null or not qc.has_method("is_open_here") or not qc.is_open_here():
+		return ""
+	var purity := -1.0
+	if qc.has_method("get_purity"):
+		purity = float(qc.get_purity())
+	var head := "🌊 wet country — the Bath drinks here. Phase fades first (T₂), population follows (T₁)."
+	if purity >= 0.0 and purity < 0.999:
+		return head + " Tr(ρ²) = %.3f and falling unless watched — measurement pins what it touches (Zeno)." % purity
+	return head + " What you do not watch, fades; measurement pins what it touches (Zeno)."
 
 
 ## Live QuantumComputer for a biome's population bars (null if not instantiated).

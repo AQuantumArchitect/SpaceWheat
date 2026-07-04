@@ -95,7 +95,7 @@ const GUIDE_ITEMS := [
 ]
 
 # Featured strip: world-canon first (the story the physics tells), structure after.
-const GLOSSARY_CANONICAL_TERMS := ["enclave", "measurement", "berry", "invariant", "webway", "resonance", "biome", "faction", "icon"]
+const GLOSSARY_CANONICAL_TERMS := ["enclave", "measurement", "berry", "invariant", "bath", "fading", "webway", "resonance", "biome", "faction", "icon"]
 
 # =============================================================================
 # COLORS
@@ -1381,7 +1381,7 @@ func _guide_core_loop() -> void:
 
 func _guide_four_tools() -> void:
 	_body_box.add_child(_make_section_header("the seven archetype frames (4-0)"))
-	_body_box.add_child(_make_action_row("4", "Spark",     "Lindbladian jolt — SEALED while the enclave holds (nothing pumps or drains in v0; Act 2 opens it)."))
+	_body_box.add_child(_make_action_row("4", "Spark",     "Lindbladian jolt — SEALED while the enclave holds. The endgame door (What Fades, act 8) opens it for good."))
 	_body_box.add_child(_make_action_row("5", "Icon",      "Inject a dual-emoji qubit from the neighborhood's installed signature."))
 	_body_box.add_child(_make_action_row("6", "Merchant", "Faction contracts (energy dyad): Q=Sell, E=Read Price, R=Buy, F=Tip. Price = −kT·log p."))
 	_body_box.add_child(_make_action_row("7", "Captain",   "Biome lifecycle: Q=cull, R=discover."))
@@ -1419,6 +1419,8 @@ func _guide_things_to_try() -> void:
 	_body_box.add_child(_make_body("See the loom: M → Graph → drill into a biome. Gold edges are the entanglement you wove; dark orange channels are the sealed webway, waiting for Act 2."))
 	_body_box.add_child(_make_body("Read the compass: same drill-down — 🧭 shows the biome's deep state and its gap. Evolve all you like, the depths never move; measure, and they jump. That's the campaign's second invariant."))
 	_body_box.add_child(_make_body("Spell a braid word: Hadamard then CNOT weaves a thread; CNOT then Hadamard weaves nothing. Same chores, opposite worlds — order is the point."))
+	_body_box.add_child(_make_body("Visit the wet country (post-story): some biomes run OPEN — the Bath drinks phase there and the world goes gray while nothing moves. Superpose something bright and stand witness."))
+	_body_box.add_child(_make_body("Keep a dying thing: in the wet country, measurement pins what it touches (Zeno). Watch the Lamplighters' horn — stop watching and the drain wins."))
 
 func _guide_quick_reference() -> void:
 	_body_box.add_child(_make_section_header("verbs"))

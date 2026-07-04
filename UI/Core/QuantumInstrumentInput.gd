@@ -675,6 +675,23 @@ func _execute_incorporate_icon() -> Dictionary:
 ## headless (no shell in the tree).
 
 ## Toast one faction whisper: head line + attributed voice line.
+## The rite's ceremony (What Fades, Chapter V): fires ONLY when the reap was paid
+## from wet country (sink flux + entropy bank, kT·ΔS) — the extraction was real.
+## Speaker: the active biome's native faction, same convention as berry whispers.
+func _maybe_toast_reap_whisper(result: Dictionary) -> void:
+	if not result.get("success", false):
+		return
+	var rite: int = int(result.get("rite_credits", 0))
+	if rite <= 0:
+		return
+	var biome = null
+	if farm and farm.grid and farm.grid.has_method("get_biome"):
+		biome = farm.grid.get_biome(_get_current_biome_name())
+	var speaker := _native_speaker_for(biome)
+	var line: String = QuestVoice.reap_whisper(speaker)
+	_toast_whisper("⚖️ the rite: +%d from the season's entropy bank (kT·ΔS)" % rite, speaker, line)
+
+
 func _toast_whisper(head: String, speaker: String, line: String) -> void:
 	if line == "":
 		return
@@ -1547,6 +1564,7 @@ func _execute_action(action_name: String) -> Dictionary:
 			_maybe_toast_measure_whisper(result)
 		"reap":
 			result = _instrument.action_reap()
+			_maybe_toast_reap_whisper(result)
 		"pop":
 			result = _instrument.action_pop(grid_pos)
 		"clear_all":

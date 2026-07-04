@@ -5,7 +5,19 @@
 > system dynamics."* Descends from `docs/inspiration/OPEN_SYSTEM_ACT2.md` (the seed
 > bank: post-mortem, laws, seam) — this document promotes those seeds to a campaign
 > the way `docs/TOPOLOGY_CAMPAIGN.md` promoted `EXOTIC_TOPOLOGY.md`.
-> Status: **design → phased implementation**.
+>
+> **Status: Phases 0–2 and 4–5 SHIPPED (2026-07-04, same day).** The per-biome
+> regime seam (`regime_override` on `QuantumComputer`, honored at the Lindblad build
+> gate, the evolve kernel, ground-state init, measurement style, and the reap split);
+> 10 wet landmarks + 5 inviolable island biomes stamped in `biomes.json`; eight story
+> flags across acts 6–8 (`the_crossing` → `the_door_stays_open`); story-driven
+> `regime_changes` / `physics_changes` applied on flag fire and re-derived on load;
+> the per-biome rite (`_open_reap_rewards`, kT·ΔS was already implemented — it needed
+> only the split) with its whisper register; `coherence_fell` + `purity_at_most`
+> predicates; wet-country E-inspect passport + literal compass; glossary **bath** +
+> **fading**. Remaining: Phase 3 (role-separation data reform — biome bots),
+> Phase 6 (Majorana — genuinely new machinery), verb-unseal-as-faction-rewards
+> (simplified: all open verbs unseal at the door), and threshold tuning in live play.
 
 ## The thesis
 

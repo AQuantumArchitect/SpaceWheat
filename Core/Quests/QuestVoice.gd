@@ -206,6 +206,11 @@ static func webway_whisper(faction_name: String) -> String:
 	return whisper("webway", faction_name)
 
 
+## The faction's line at the rite — the wet-country reap paid from the entropy bank.
+static func reap_whisper(faction_name: String) -> String:
+	return whisper("reap", faction_name)
+
+
 ## One line per voice archetype for the moment a Berry loop is INCORPORATED —
 ## the qubit walked a closed loop on its sphere, the signed solid angle ripened
 ## past 2π, and the player wove the axis into their signature
@@ -240,12 +245,32 @@ const MEASURE_WHISPER := {
 	"entity":    "AN IMPROBABILITY HAS BEEN COLLECTED. THE LEDGER SMILES.",
 }
 
+## One line per voice archetype for the RITE — the wet-country reap. v0 kept the
+## name "reap" as a placeholder and deliberately gave it no ceremony; this is the
+## harvest festival designed once, for the mechanic it honors: a season's
+## accumulated dissipation opened and paid from the entropy bank, kT·ΔS
+## (docs/OPEN_CAMPAIGN.md, Chapter V). Fires only when the extraction was real.
+const REAP_WHISPER := {
+	"imperial":  "The Throne taxes order. You have learned to tax its opposite. Do not imagine this goes unnoticed.",
+	"guild":     "kT by ΔS, paid in full. The oldest contract there is — signed before there were signatures.",
+	"mystic":    "What the world let go returns as coin. Entropy is only generosity, counted.",
+	"merchant":  "Disorder consumed, credit issued. The universe keeps this ledger itself — best counterparty you'll ever have.",
+	"militant":  "A season's decay, collected and spent. That is not loss. That is logistics.",
+	"scavenger": "Everything that leaked, everything that faded — we drink it back at year's end. Nothing is wasted twice.",
+	"horror":    "YOU ARE EATING THE FORGETTING ITSELF. CHEW SLOWLY.",
+	"defensive": "The harvest is what the year surrendered. Take it gently — it was order once.",
+	"cosmic":    "Stars have paid this tithe since the first light. Now you farm the field they burn in.",
+	"entity":    "A GRADIENT HAS BEEN SPENT. THE BANK ACKNOWLEDGES THE WITHDRAWAL.",
+}
+
 ## The whisper registers: one voice line per archetype at each of the world's
-## speaking moments — the sealed channels, the closed loop, the improbable scar.
+## speaking moments — the sealed channels, the closed loop, the improbable scar,
+## and the rite that opens the season's entropy bank.
 const WHISPERS := {
 	"webway": WEBWAY_WHISPER,
 	"berry": BERRY_WHISPER,
 	"measure": MEASURE_WHISPER,
+	"reap": REAP_WHISPER,
 }
 
 ## Authored per-faction whisper lines — checked BEFORE the archetype tables.

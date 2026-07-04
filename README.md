@@ -4,12 +4,16 @@ A quantum farming simulator built on real physics. Grow crops, measure qubits, h
 
 SpaceWheat is a game where every wheat field is a quantum register, every harvest is a projective measurement, and every season is Hamiltonian evolution. The quantum mechanics aren't a metaphor — they're the actual engine. You're playing a quantum computer that happens to look like a farm.
 
-**v0 ships as a closed quantum system** — in-fiction, *the enclave*: a world of pure
-unitary evolution where nothing decays, nothing leaks, and the player's measurements are
-the only irreversible acts. "Measurement IS the economy." The full dissipative machinery
-(Lindblad channels, decoherence, the open-systems curriculum) is authored, sealed behind
-a single flag, and reserved for the open-world expansion (`docs/CLOSED_SYSTEM.md`,
-`docs/inspiration/OPEN_SYSTEM_ACT2.md`).
+**The story begins in a closed quantum system** — in-fiction, *the enclave*: a world of
+pure unitary evolution where nothing decays, nothing leaks, and the player's measurements
+are the only irreversible acts. "Measurement IS the economy." The full dissipative
+machinery (Lindblad channels, decoherence, weak measurement) is authored throughout and
+wakes **per-biome**: the post-story campaign *What Fades* (`docs/OPEN_CAMPAIGN.md`)
+walks the player out of the enclave into the **wet country** — 64 biomes whose authored
+webways run live — and ends with the door open for good, leaving the full 162-biome
+world to explore with open and closed dynamics coexisting. The island the player grew up
+on stays closed forever: home is the thing the open world teaches you to miss
+(`docs/CLOSED_SYSTEM.md`, `docs/inspiration/OPEN_SYSTEM_ACT2.md`).
 
 ## How It Works
 
@@ -32,7 +36,7 @@ player wears:
 
 | Key | Frame | What it does |
 |-----|-------|-------------|
-| **4** | **Spark** | Lindbladian jolt — *sealed while the enclave holds* (v0); opens with the expansion. |
+| **4** | **Spark** | Lindbladian jolt — *sealed while the enclave holds*; the endgame door opens it. |
 | **5** | **Icon** | Inject a dual-emoji qubit from the neighborhood's installed signature. |
 | **6** | **Merchant** | Faction contracts: sell, read price, buy. Price = −kT·log p. |
 | **7** | **Captain** | Biome lifecycle: cull, discover. |
@@ -95,6 +99,12 @@ The narrative layer is computed from the quantum state, not bolted on:
   (with an in-game eigenstate compass 🧭), SSH edge protection (a lantern chain whose
   bridge cannot go dark — real chiral symmetry, authored as icon data), and gate
   non-commutativity (braid words drilled by an imperial guard).
+- **An open-systems campaign is the endgame.** "What Fades" (`docs/OPEN_CAMPAIGN.md`,
+  acts 6–8) walks out of the enclave: dephasing as *the world going gray while nothing
+  moves*, the quantum Zeno effect as *watching keeps*, literal attractors with
+  hysteresis, decoherence-tested topological protection, EIT dark states as shelter
+  built from interference — and the rite: a reap paid kT·ΔS from the season's entropy
+  bank. Maxwell's demon stops freelancing and opens a bank.
 - **A canonical glossary** (`docs/glossary/`) defines the world's physics vocabulary —
   enclave, measurement, berry, webway, resonance, invariant — and is projected live
   into the in-game Guide.

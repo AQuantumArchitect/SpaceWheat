@@ -21,6 +21,30 @@ func _log(level: String, category: String, emoji: String, message: String) -> vo
 
 @export var biome_name: String = ""
 
+## Per-biome thermodynamic regime — the What Fades seam (docs/OPEN_CAMPAIGN.md).
+## "" = inherit the global switches (BalanceConfig); "open" = this biome runs
+## dissipative even while the world is sealed (wet country: the Fallow, the
+## circuit shelf); "closed" = this biome stays unitary even after the door
+## opens (the island enclave — inviolable, owner decision 2026-07-04).
+## Honored at the three physics sites: the Lindblad build gate, the exact-unitary
+## evolve kernel, and ground-state init.
+var regime_override: String = ""
+
+
+## Is THIS biome's dissipative generator active? (per-biome regime, then global)
+func is_open_here() -> bool:
+	if regime_override == "open":
+		return true
+	if regime_override == "closed":
+		return false
+	return BalanceConfig.dissipative_enabled()
+
+
+## Is THIS biome purely unitary? (r = 1 exactly; exact-propagator kernel + pure init)
+func is_closed_here() -> bool:
+	return BalanceConfig.coherent_enabled() and not is_open_here()
+
+
 ## Model C (Analog Upgrade): RegisterMap-based architecture
 var register_map: RegisterMap = RegisterMap.new()
 var density_matrix: ComplexMatrix = null
@@ -746,11 +770,11 @@ func initialize_ground_state() -> void:
 	# kernel then preserves for all time. Open (dissipative) system: the ecological Gibbs
 	# state ρ ∝ exp(−βH) at β=20 is the correct MIXED starting point (eagle ~2%, wolf ~16%,
 	# …). Falls back to uniform superposition if H is not yet built.
-	if BalanceConfig.is_closed_system() and hamiltonian != null:
+	if is_closed_here() and hamiltonian != null:
 		if _init_pure_ground_state():
 			return
 	initialize_thermal(20.0)
-	if BalanceConfig.is_closed_system():
+	if is_closed_here():
 		_collapse_to_dominant_eigenstate()  # fallback: purify the thermal state
 
 
@@ -1724,7 +1748,7 @@ func evolve(dt: float, max_dt: float = 0.02, lnn: Object = null) -> void:
 	# are conserved to machine precision — r = 1 holds exactly, with no Euler drift, no
 	# dissipator branch, and no renormalize-as-crutch. (Phase-LNN modulation, if ever
 	# enabled, falls through to the legacy integrator below.)
-	if BalanceConfig.is_closed_system() and lnn == null and hamiltonian != null:
+	if is_closed_here() and lnn == null and hamiltonian != null:
 		if driven_icons.is_empty():
 			# Static H: one exact step over the whole interval (U cached + reused).
 			elapsed_time += total_dt

@@ -11,6 +11,11 @@ var _last_observables: Dictionary = {}
 var _action_history: Array = []
 var _last_biome = null  # Retained for on-demand predict_population calls
 
+## Per-biome coherence high-watermark — the witness for coherence_fell (What Fades:
+## the first quests that ask the player to LOSE something need proof there was
+## something to lose). Session-scoped; resets on load, which only delays the witness.
+var _coherence_watermark: Dictionary = {}
+
 
 func observe_biome(biome, delta: float = 0.0) -> Dictionary:
 	if biome == null:
@@ -20,6 +25,10 @@ func observe_biome(biome, delta: float = 0.0) -> Dictionary:
 	var biome_name = ""
 	if biome and biome.has_method("get"):
 		biome_name = str(biome.get("biome_name"))
+	if biome_name != "":
+		var mark := float(_coherence_watermark.get(biome_name, 0.0))
+		if float(obs.coherence) > mark:
+			_coherence_watermark[biome_name] = float(obs.coherence)
 	_last_observables = {
 		"biome": biome_name,
 		"purity": float(obs.purity),
@@ -83,6 +92,21 @@ func evaluate_predicate(predicate: Dictionary) -> float:
 		"purity_at_least":
 			var target := float(predicate.get("value", 0.0))
 			return QuestMath.soft_gate(float(_last_observables.get("purity", 0.0)), target)
+		"purity_at_most":
+			# What Fades: the first predicate where LOW purity is the goal — let the
+			# Bath in, watch Tr(ρ²) fall. Meaningless in the enclave (purity ≡ 1).
+			var target := float(predicate.get("value", 1.0))
+			return QuestMath.soft_gate_inv(float(_last_observables.get("purity", 1.0)), target)
+		"coherence_fell":
+			# The fading witness: proof the ACTIVE biome once held coherence at the
+			# high-water mark ("from") AND stands below "to" now. Asking a player to
+			# lose something only counts if they had it first.
+			var from := float(predicate.get("from", 0.3))
+			var to := float(predicate.get("to", 0.15))
+			var bname := str(_last_observables.get("biome", ""))
+			var had := QuestMath.soft_gate(float(_coherence_watermark.get(bname, 0.0)), from)
+			var lost := QuestMath.soft_gate_inv(float(_last_observables.get("coherence", 1.0)), to)
+			return QuestMath.smooth_and([had, lost])
 		"coherence_at_least":
 			var target := float(predicate.get("value", 0.0))
 			return QuestMath.soft_gate(float(_last_observables.get("coherence", 0.0)), target)

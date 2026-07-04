@@ -432,6 +432,9 @@ func action_measure(grid_pos: Vector2i) -> Dictionary:
 	var result = ProbeActions.action_measure(terminal, biome, economy, farm)
 	_emit_farm_action("measure", result, grid_pos)
 	action_performed.emit("measure", result)
+	# Quest-visible: the Zeno arc counts watching (gate_sequence_contains "measure").
+	# In the wet country, repeated measurement is how a state is KEPT.
+	_notify_quest_projection("measure", {"biome": biome_name, "success": result.get("success", false)})
 	return result
 
 
@@ -459,6 +462,8 @@ func action_reap() -> Dictionary:
 	var result = ProbeActions.action_reap(farm, economy)
 	_emit_farm_action("reap", result)
 	action_performed.emit("reap", result)
+	# Quest-visible: the Rite arc counts seasons reaped (gate_sequence_contains "reap").
+	_notify_quest_projection("reap", {"rite_credits": result.get("rite_credits", 0), "success": result.get("success", false)})
 	return result
 
 

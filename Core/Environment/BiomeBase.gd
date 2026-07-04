@@ -364,6 +364,41 @@ func _mark_lookahead_dirty() -> void:
 		farm.biome_evolution_batcher.mark_for_reregister(get_biome_type())
 
 
+## Runtime thermodynamic-regime change (What Fades, docs/OPEN_CAMPAIGN.md).
+## Story flags carry `regime_changes: {biome: "open"|"closed"}` — the Bath
+## reaching a coast is a narrative event, never a silent patch. Rebuilds this
+## biome's Lindblad operators under the new regime and re-registers with the
+## C++ lookahead engine. The density matrix is left as it stands: opening a
+## biome lets it start to fade from where it is; closing one keeps whatever
+## mixedness history already wrote (the enclave seals, it does not forgive).
+func set_regime(regime: String) -> void:
+	if quantum_computer == null:
+		return
+	if quantum_computer.regime_override == regime:
+		return
+	quantum_computer.regime_override = regime
+	rebuild_lindblad_for_regime()
+
+
+## Rebuild this biome's Lindblad operators under its CURRENT effective regime
+## and re-register with the C++ lookahead engine. Called by set_regime and by
+## the endgame door (global physics_changes → every live biome re-resolves).
+func rebuild_lindblad_for_regime() -> void:
+	if quantum_computer == null:
+		return
+	var verbose = (Engine.get_main_loop().root.get_node_or_null("/root/VerboseConfig") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
+	var LindBuilder = load("res://Core/QuantumSubstrate/LindbladBuilder.gd")
+	var lindblad_result = LindBuilder.build_from_atoms(
+			_get_atom_components(), quantum_computer.register_map, verbose,
+			get_biome_type(), quantum_computer.is_open_here())
+	# Canonical setter: sparse conversion + L†/L†L cache rebuild in one place.
+	quantum_computer.set_lindblad_operators(lindblad_result.get("operators", []))
+	_mark_lookahead_dirty()
+	_verbose_log("info", "biome", "🌊" if quantum_computer.is_open_here() else "🔒",
+			"Regime: %s is now %s" % [get_biome_type(),
+			"OPEN (the Bath has reached this country)" if quantum_computer.is_open_here() else "CLOSED (the enclave holds here)"])
+
+
 # ============================================================================
 # MAIN PROCESS LOOP
 # ============================================================================

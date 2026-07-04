@@ -619,5 +619,233 @@
     ],
     "standing_grants": {},
     "arc_quest": null
+  },
+  {
+    "id": "the_crossing",
+    "display_name": "What Fades — The Crossing",
+    "act": 6,
+    "arc_beat": "Past the horizon there is a country where the party never ends, and that is precisely what is wrong with it. GildedRot: wine, masks, roses in impossible colors — the aristocracy dancing above the grinding machine. Stand anywhere on that gilded floor and feel what the island never let you feel: the floor drinks. This is wet country. The Bath is not a monster and it is not a wall; it is the patient fact that everything here couples to everything it touches, and what couples, leaks. Notice who dances here anyway: the Carrion Throne keeps a house in the fading country. The empire of perfect order has always known where the exit was.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "edge_of_the_enclave"
+      },
+      {
+        "type": "biome_evolving",
+        "biome": "GildedRot"
+      }
+    ],
+    "standing_grants": {
+      "Carrion Throne": {
+        "attention": 0.08
+      }
+    },
+    "arc_quest": {
+      "body": "Bring Light In — carry something coherent into the gilded rot: superpose a qubit there and hold its coherence past 0.3.",
+      "hint": "Discover GildedRot (Captain frame), stand in it, and rotate a qubit off its poles (Druid frame). You are setting the table. What happens to bright things here is the next lesson.",
+      "state_predicates": [
+        {"type": "coherence_at_least", "value": 0.3}
+      ]
+    }
+  },
+  {
+    "id": "the_gray",
+    "display_name": "What Fades I — The Gray",
+    "act": 6,
+    "arc_beat": "Now watch what the wet country does to bright things. The populations do not move. The bubbles hang exactly where you left them. And the color drains anyway — coherence bleeding out through channels no population can see, the radius shrinking, the world going gray while nothing happens. This is dephasing: the Bath eats phase first (T₂), long before it touches substance (T₁). You have had a sense organ for this your whole life — purity as size, coherence as color — and the enclave never once let it fire. Grief is just the name for information leaving. The roses know: they wilt in season here, and their wilting accelerates their wilting.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "the_crossing"
+      },
+      {
+        "type": "berry_consumed_count_gte",
+        "biome": "GildedRot",
+        "value": 1
+      }
+    ],
+    "standing_grants": {
+      "Rose Wardens": {
+        "trust": 0.06
+      }
+    },
+    "arc_quest": {
+      "body": "Watch It Fade — hold coherence past 0.3 in the wet country, then stand witness while the Bath drinks it below 0.12, and let the biome gray to Tr(ρ²) ≤ 0.85.",
+      "hint": "The first ask in this world that you complete by LOSING. Superpose, then wait, watching the color drain. The E-inspect card on the Graph frame reads the fading live.",
+      "state_predicates": [
+        {"type": "coherence_fell", "from": 0.3, "to": 0.12},
+        {"type": "purity_at_most", "value": 0.85}
+      ]
+    }
+  },
+  {
+    "id": "watching_keeps",
+    "display_name": "What Fades II — Watching Keeps",
+    "act": 6,
+    "arc_beat": "On the coast of the wet country the Lamplighters keep one more station: a single lamp and a horn, bound by the guild's tightest link — and the horn is dying. Every breath it holds leaks to the open air, fast. The guild's remedy is not oil and it is not repair. It is attention. Measure the horn and it pins where your glance left it; measure it again before the Bath finishes its sip and it pins again. Watched unceasingly, it cannot die at all — the Zeno latch, the guild's oldest secret. Understand what has happened to your oldest verb: in the enclave, looking was the only way to spend. Out here, looking is the only way to keep.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "the_gray"
+      },
+      {
+        "type": "biome_evolving",
+        "biome": "ZenoLatch"
+      }
+    ],
+    "standing_grants": {
+      "Lamplighters": {
+        "trust": 0.1
+      }
+    },
+    "arc_quest": {
+      "body": "Keep the Horn — the Lamplighters' horn is dying into the open air. Watch it alive: measure it over and over, and hold 📯 above 35%.",
+      "hint": "Measurement pins what it touches. Stop watching and the drain wins within a breath. Six glances is a start; a vigil is better.",
+      "state_predicates": [
+        {"type": "gate_sequence_contains", "gate": "measure", "count": 6},
+        {"type": "biome_state_gte", "biome": "ZenoLatch", "atom": "📯", "value": 0.35}
+      ]
+    }
+  },
+  {
+    "id": "the_basin",
+    "display_name": "What Fades III — The Basin",
+    "act": 7,
+    "arc_beat": "The pond's promise comes due. In the enclave nothing could settle — no basins, no rest, motion forever. Here at the Shrine of Ashes the dead flow in and only memory flows out, and the urn remembers: push it past its threshold and it fills ITSELF, ash calling to ash, the latch closing behind you. This is what an attractor is when it is not a metaphor — a basin the world falls into and defends. The compass you learned on the spring is literal in wet country: the needle points where the biome is GOING, and it will get there without your permission. The Village kept three faces; the moth garden runs its wheel; the brittle dawn slows as it nears its edge. The wet country is not formless. It is a landscape of holes.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "watching_keeps"
+      },
+      {
+        "type": "biome_evolving",
+        "biome": "ShrineOfAshes"
+      }
+    ],
+    "standing_grants": {
+      "Brotherhood of Ash": {
+        "trust": 0.08
+      }
+    },
+    "arc_quest": {
+      "body": "Fill the Urn — push the shrine's urn ⚱ past its threshold and let the basin take over: hold ⚱ above 50% after your hands leave it.",
+      "hint": "Ash calls to ash — past the tipping point the urn fills itself (the gated channel feeds on its own population). Feel the moment the world stops needing you: that is hysteresis.",
+      "state_predicates": [
+        {"type": "biome_state_gte", "biome": "ShrineOfAshes", "atom": "⚱", "value": 0.5}
+      ]
+    }
+  },
+  {
+    "id": "the_chain_tested",
+    "display_name": "What Fades III — The Chain, Tested",
+    "act": 7,
+    "arc_beat": "The Bath has reached the coast. Lanternfall's fog channels — shut through the whole closed age — are open, and the chain the Lamplighters built is finally standing in the weather it was designed for. Watch the bulk lanterns gray like everything else in wet country. Then look at the bridge. The zero mode holds. Topological patience was never a parlor trick for a sealed world: the pattern's protection is protection FROM something, and the something has arrived. What the pattern holds, it holds even now.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "the_basin"
+      },
+      {
+        "type": "story_flag_set",
+        "id": "chain_ends"
+      }
+    ],
+    "standing_grants": {
+      "Lamplighters": {
+        "legitimacy": 0.1
+      }
+    },
+    "regime_changes": {
+      "Lanternfall": "open"
+    },
+    "arc_quest": {
+      "body": "The Bridge Holds — with the Bath drinking at Lanternfall, keep the bridge lantern 🌉 above 35% while the biome grays around it.",
+      "hint": "Feed the ends, trust the pattern. The bulk will fade — that is the point. The edge mode is on nobody's menu.",
+      "state_predicates": [
+        {"type": "biome_state_gte", "biome": "Lanternfall", "atom": "🌉", "value": 0.35},
+        {"type": "purity_at_most", "value": 0.9}
+      ]
+    }
+  },
+  {
+    "id": "hiding_in_the_light",
+    "display_name": "What Fades IV — Hiding in the Light",
+    "act": 7,
+    "arc_beat": "The Bath cannot eat what does not couple to it. In the Nulling Chamber the stargazers' telescope leaks — every lens loses photons to the void — and yet the Cartographers keep a signal alive in it indefinitely. Their trick is not shielding. It is interference: two couplings arriving with phases arranged so the paths into the drain cancel, and the light stands in a DARK STATE the drain cannot see. Hold that thought against everything the braid taught you: order, phase, engineered superposition — the loom's skills, turned to shelter. In wet country, the safest place to stand is a shape the Bath's eyes pass through. Elsewhere the same trick runs in reverse: the laser glint is a mode the Bath FEEDS, and the Wheel of Hours tells time by a current that never stops. Dissipation is not only an appetite. Managed, it is a garden.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "the_chain_tested"
+      },
+      {
+        "type": "biome_evolving",
+        "biome": "NullingChamber"
+      }
+    ],
+    "standing_grants": {
+      "Cartographers of the Impossible": {
+        "trust": 0.08
+      }
+    },
+    "arc_quest": {
+      "body": "The Dark State — the telescope 🔭 leaks to the void. Build the interference that hides it: hold 🔭 above 45% in spite of the drain.",
+      "hint": "You cannot outfeed the leak; you can only make the leak blind. Arrange the couplings so the paths into the drain cancel — the population that remains is standing in the dark state.",
+      "state_predicates": [
+        {"type": "biome_state_gte", "biome": "NullingChamber", "atom": "🔭", "value": 0.45}
+      ]
+    }
+  },
+  {
+    "id": "the_rite",
+    "display_name": "What Fades V — The Rite",
+    "act": 8,
+    "arc_beat": "Now the harvest festival the island never held. In the enclave, reap was a volley of glances — mass measurement, surprisal paid per collapse, the only economy a closed world can run. Out here the word recovers its old meaning. A season of wet-country farming accumulates dissipation: populations drained to sinks, order surrendered to the Bath, entropy pooling in every register like rain in a cistern. The rite opens the cistern. You are paid kT·ΔS — temperature times the disorder consumed — in the exact units the physics keeps its books. Understand what you have become, because the Throne understood it first: an entropy source in a world of perfect order was a curiosity. An entropy FARMER in a world that leaks is an industry. Maxwell's demon has stopped freelancing and opened a bank.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "hiding_in_the_light"
+      },
+      {
+        "type": "berry_consumed_count_gte",
+        "biome": "GildedRot",
+        "value": 3
+      }
+    ],
+    "standing_grants": {
+      "Carrion Throne": {
+        "attention": 0.15
+      },
+      "Millwright's Union": {
+        "legitimacy": 0.08
+      }
+    },
+    "arc_quest": {
+      "body": "Open the Bank — reap two seasons with wet country under cultivation, and be paid from the entropy the Bath poured in.",
+      "hint": "Stand your farms in the fading country, let a season's dissipation pool, then reap. The rite pays kT·ΔS — the whisper will tell you when the extraction was real.",
+      "state_predicates": [
+        {"type": "gate_sequence_contains", "gate": "reap", "count": 2}
+      ]
+    }
+  },
+  {
+    "id": "the_door_stays_open",
+    "display_name": "What Fades — The Door Stays Open",
+    "act": 8,
+    "arc_beat": "There is no seal anymore. The webways wake in every country that authored them — sixty-four biomes of pumps and drains and food-web flow, running the physics they were written for. The rest never authored a leak; they stay coherent by their own nature, enclaves born, not built. And the island — the island stays closed forever. Not because it must. Because it is home, and home is the thing the open world taught you to miss. The two irreversibilities are yours now: the scar you choose (measurement) and the fading you manage (the Bath). The invariants survive; everything else is negotiable. Farm accordingly.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "the_rite"
+      },
+      {
+        "type": "signature_size_gte",
+        "value": 18
+      }
+    ],
+    "standing_grants": {},
+    "physics_changes": {
+      "dissipative_dynamics": true
+    },
+    "arc_quest": null
   }
 ]

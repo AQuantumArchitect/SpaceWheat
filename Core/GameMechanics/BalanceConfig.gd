@@ -109,6 +109,15 @@ static func set_physics_override(overrides) -> void:
 	_physics_override = overrides.duplicate(true) if overrides is Dictionary else {}
 
 
+## Merge (rather than replace) physics overrides — the story-driven path.
+## What Fades flags carry `physics_changes` (e.g. the endgame door sets
+## dissipative_dynamics true); merging preserves any tuning overrides already
+## in force. Re-applied deterministically on load from fired story flags.
+static func merge_physics_override(changes: Dictionary) -> void:
+	for key in changes:
+		_physics_override[key] = changes[key]
+
+
 static func clear_physics_override() -> void:
 	_physics_override = {}
 

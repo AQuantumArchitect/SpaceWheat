@@ -1,6 +1,6 @@
 # The Glossary — one page of the canon web
 
-Fifteen terms, one dictionary between the physics and the story. Each entry is a
+Seventeen terms, one dictionary between the physics and the story. Each entry is a
 `.md` file with YAML frontmatter, loaded live into the in-game Guide (X → Guide →
 Glossary) by `Core/Documentation/GlossaryRegistry.gd`.
 
@@ -19,6 +19,8 @@ terms must exist. This INDEX file is deliberately excluded from the in-game load
 | [webway](webway.md) | A biome's Lindblad flow-graph — the food web. Authored everywhere, sealed in v0. |
 | [resonance](resonance.md) | How a faction's twelve axioms sit with a biome's live state, spoken as mood. |
 | [invariant](invariant.md) | A number that survives all smooth change — it cannot flow, only jump. |
+| [bath](bath.md) | The open world's patient appetite — everything that couples, leaks into it. |
+| [fading](fading.md) | What the Bath does — coherence drains, purity falls, color leaves first. |
 
 ## The Matter — what things are made of
 
@@ -46,6 +48,8 @@ Reading paths that teach the game in order:
 - **The physics story:** enclave → measurement → berry → webway → resonance
 - **The topology campaign:** berry → invariant — then play "What Survives"
   (`docs/TOPOLOGY_CAMPAIGN.md`), four invariants across acts 1–4
+- **The open campaign:** enclave → bath → fading — then play "What Fades"
+  (`docs/OPEN_CAMPAIGN.md`), the wet country across acts 6–8
 - **The matter stack:** atom → cloud → icon → (sibling, family)
 - **The authoring stack:** biome → neighborhood ← faction → signature
 - **The seam between them:** icons carry H onto biomes (neighborhood); the webway

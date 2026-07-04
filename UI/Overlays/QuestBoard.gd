@@ -1557,6 +1557,10 @@ func _predicate_summary(pred: Dictionary) -> String:
 			return "stillness — motion ≤ %.2f" % float(pred.get("value", 0.2))
 		"dynamics_at_least":
 			return "breathing — motion ≥ %.2f" % float(pred.get("value", 0.25))
+		"purity_at_most":
+			return "let it gray — Tr(ρ²) ≤ %.2f" % float(pred.get("value", 1.0))
+		"coherence_fell":
+			return "watch it fade — coherence %.2f → ≤ %.2f" % [float(pred.get("from", 0.3)), float(pred.get("to", 0.15))]
 		"attractor_emoji_gte":
 			return "deep state[%s] ≥ %.2f" % [str(pred.get("emoji", "")), float(pred.get("value", 0.5))]
 		"eigenvalue_gap_gte":

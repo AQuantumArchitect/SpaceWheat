@@ -65,6 +65,12 @@ var atom_components: Dictionary = {}
 
 var tags: Array = []
 
+## Thermodynamic regime (What Fades seam, docs/OPEN_CAMPAIGN.md):
+## "" = inherit global switches; "open" = wet country (dissipative while the
+## world is sealed); "closed" = inviolable enclave (unitary even after the
+## door opens). Story flags may change it at runtime via regime_changes.
+var regime: String = ""
+
 
 ## ========================================
 ## Methods
@@ -261,6 +267,7 @@ func load_from_dict(data: Dictionary) -> void:
 	emojis = EmojiUtil.normalize_array(data.get("emojis", []))
 	atom_components = _normalize_atom_components(data.get("atom_components", {}))
 	tags = _normalize_tags(data.get("tags", []))
+	regime = str(data.get("regime", ""))
 
 
 static func _normalize_tags(raw: Array) -> Array:

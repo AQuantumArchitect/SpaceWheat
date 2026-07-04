@@ -266,7 +266,7 @@ static func action_measure(terminal, biome, economy = null, farm = null) -> Dict
 	#    Open system (DLC): a partial ensemble drain (weak measurement) of η, with
 	#    coherences decaying as √(1-η), leaving structure for sustainable re-measurement.
 	var was_entangled = _check_entanglement(register_id, biome)
-	var closed: bool = not BalanceConfig.dissipative_enabled()
+	var closed: bool = not _biome_open_here(biome)
 	var drain_eta: float = 1.0
 	var collapse_ok: bool
 	if closed:
@@ -398,9 +398,9 @@ static func _auto_measure_for_pop(terminal, farm) -> Dictionary:
 		bloch_r_pre = clampf(float(biome.viz_cache.get_bloch(register_id).get("r", 0.5)), 0.0, 1.0)
 
 	# Collapse the measured axis — closed: full projective collapse (von Neumann);
-	# open (DLC): partial ensemble drain. Mirrors action_measure.
+	# open (wet country): partial ensemble drain. Mirrors action_measure.
 	var collapse_ok: bool
-	if not BalanceConfig.dissipative_enabled():
+	if not _biome_open_here(biome):
 		collapse_ok = _project_register(biome, register_id, is_north)
 	else:
 		var purity = biome.get_purity() if biome.has_method("get_purity") else 0.5
@@ -549,6 +549,18 @@ static func _resolve_pop_reward_context(terminal, farm = null) -> Dictionary:
 	}
 
 
+## Per-biome regime (What Fades seam): is this biome's dissipative generator live?
+## Wet-country biomes measure by weak drain and reap through the entropy bank;
+## closed biomes measure by projective collapse and reap by mass-measurement.
+static func _biome_open_here(biome) -> bool:
+	if biome == null or biome.get("quantum_computer") == null:
+		return BalanceConfig.dissipative_enabled()
+	var qc = biome.quantum_computer
+	if qc.has_method("is_open_here"):
+		return qc.is_open_here()
+	return BalanceConfig.dissipative_enabled()
+
+
 static func _advance_reap_cycles(farm, active_biomes: Array, reap_cycles: int) -> Dictionary:
 	if reap_cycles <= 0:
 		return {"success": true, "cycles": 0, "evolved_steps": 0}
@@ -563,12 +575,40 @@ static func _advance_reap_cycles(farm, active_biomes: Array, reap_cycles: int) -
 
 
 static func _collect_reap_rewards(active_biomes: Array, economy, farm, flux_to_credits: float) -> Dictionary:
-	# Closed system: measurement IS the economy. Reap is a seasonal mass-measurement,
-	# not an entropy drain — see _closed_reap_rewards. The open-system flux + entropy
-	# bank below is the DLC path.
-	if not BalanceConfig.dissipative_enabled():
+	# PER-BIOME regime split (What Fades, docs/OPEN_CAMPAIGN.md): each biome reaps
+	# in its own thermodynamic country. Closed biomes get the seasonal
+	# mass-measurement (measurement IS the economy — see _closed_reap_rewards);
+	# wet-country biomes get the RITE: sink flux + the entropy bank, payout kT·ΔS —
+	# the Lindbladian extraction v0 reserved for the day the extraction was real.
+	var closed_biomes: Array = []
+	var open_biomes: Array = []
+	for biome in active_biomes:
+		if biome and biome.quantum_computer and biome.quantum_computer.has_method("is_open_here") \
+				and biome.quantum_computer.is_open_here():
+			open_biomes.append(biome)
+		else:
+			closed_biomes.append(biome)
+	if open_biomes.is_empty():
 		return _closed_reap_rewards(active_biomes, economy, farm)
+	var closed_result: Dictionary = _closed_reap_rewards(closed_biomes, economy, farm) \
+			if not closed_biomes.is_empty() else {"flux_totals": {}, "icon_totals": {}, "total_flux_credits": 0, "total_icon_credits": 0}
+	var open_result: Dictionary = _open_reap_rewards(open_biomes, economy, farm, flux_to_credits)
+	# Merge: totals sum; per-emoji dicts accumulate.
+	var merged: Dictionary = {
+		"flux_totals": open_result.get("flux_totals", {}),
+		"icon_totals": closed_result.get("icon_totals", {}).duplicate(),
+		"total_flux_credits": int(open_result.get("total_flux_credits", 0)),
+		"total_icon_credits": int(closed_result.get("total_icon_credits", 0)) + int(open_result.get("total_icon_credits", 0)),
+		"rite_credits": int(open_result.get("rite_credits", 0)),
+	}
+	for emoji in open_result.get("icon_totals", {}):
+		merged["icon_totals"][emoji] = int(merged["icon_totals"].get(emoji, 0)) + int(open_result["icon_totals"][emoji])
+	return merged
 
+
+## The rite: sink flux + entropy bank over the WET biomes only. Payout = kT·ΔS —
+## paid from a season's accumulated dissipation, in the units the physics uses.
+static func _open_reap_rewards(active_biomes: Array, economy, farm, flux_to_credits: float) -> Dictionary:
 	var flux_totals: Dictionary = {}
 	var icon_totals: Dictionary = {}
 	var total_flux_credits = 0
@@ -672,7 +712,11 @@ static func _collect_reap_rewards(active_biomes: Array, economy, farm, flux_to_c
 		"flux_totals": flux_totals,
 		"icon_totals": icon_totals,
 		"total_flux_credits": total_flux_credits,
-		"total_icon_credits": total_icon_credits
+		"total_icon_credits": total_icon_credits,
+		# The rite's take: everything paid from wet country this season (sink flux
+		# + entropy bank). Drives the reap whisper — the ceremony fires only when
+		# the extraction was real.
+		"rite_credits": total_flux_credits + total_icon_credits,
 	}
 
 
@@ -812,6 +856,7 @@ static func action_reap(farm, economy = null) -> Dictionary:
 		"total_flux_credits": total_flux_credits,
 		"total_icon_credits": total_icon_credits,
 		"total_credits": total_flux_credits + total_icon_credits,
+		"rite_credits": int(reap_result.get("rite_credits", 0)),
 		"harvest_results": []
 	}
 

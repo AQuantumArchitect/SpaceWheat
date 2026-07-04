@@ -172,6 +172,11 @@ static func build_from_spec(
 
 	# Build quantum system (H + L)
 	var atom_components: Dictionary = _spec_get(biome_def, "atom_components", {})
+	# Per-biome thermodynamic regime (What Fades seam, docs/OPEN_CAMPAIGN.md):
+	# "open" = wet country (dissipative while the world is sealed),
+	# "closed" = inviolable enclave (unitary even after the door opens),
+	# "" = inherit the global switches.
+	build_options["regime"] = str(_spec_get(biome_def, "regime", ""))
 	var faction_standings = build_options.get("faction_standings", {})
 	var quantum_result = build_biome_quantum_system(
 		biome_name,
@@ -369,6 +374,9 @@ static func build_biome_quantum_system(
 	
 	# 1. Create QuantumComputer with register map
 	var qc = QuantumComputer.new(biome_name)
+	# Regime BEFORE operator build + ground init, so both honor the biome's
+	# thermodynamic country (wet → Lindblad operators + thermal init).
+	qc.regime_override = str(options.get("regime", ""))
 	var sys_builder = BiomeQuantumSystemBuilder.new()
 	sys_builder.quantum_computer = qc
 
