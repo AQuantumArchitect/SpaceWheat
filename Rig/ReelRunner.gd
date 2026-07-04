@@ -23,7 +23,8 @@ extends Node
 ##     {"gate": {"gate": "hadamard", "biome": "...", "positions": [[0,0]]}},
 ##     {"measure": {"position": [0,0]}},           — Born sample + collapse
 ##     {"reap": true},                             — the seasonal rite
-##     {"bridge": {"op": "build"|"braid"|"fuse", ...}}  — What Connects verbs
+##     {"bridge": {"op": "build"|"braid"|"fuse", ...}}, — What Connects verbs
+##     {"postcard": true}                          — self-documenting reel (G2)
 ##   ]}
 
 var farm: Node = null
@@ -139,6 +140,12 @@ func _do_step(step) -> void:
 	elif step.has("bridge"):
 		_do_bridge(step["bridge"] if step["bridge"] is Dictionary else {})
 		await _sleep(0.5)
+	elif step.has("postcard"):
+		# Reels can document themselves (PostcardCapture, G2).
+		var cap = get_tree().get_first_node_in_group("postcard_capture")
+		if cap != null and cap.has_method("capture"):
+			cap.capture()
+		await _sleep(1.0)
 
 
 func _do_bridge(cmd: Dictionary) -> void:

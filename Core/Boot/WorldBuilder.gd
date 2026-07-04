@@ -224,6 +224,10 @@ func stage_start_simulation(farm: Node) -> void:
 	# or --reel=path user arg). Any input exits the reel to live play.
 	ReelRunner.maybe_attach(farm)
 
+	# The Gallery: postcards — F12 captures the view with a physics watermark
+	# strip in the pixels + a sidecar certificate (user://postcards/).
+	PostcardCapture.maybe_attach(farm)
+
 
 func ensure_quantum_instrument(farm: Node):
 	# Create the core gameplay instrument once and share it with UI surfaces later.
