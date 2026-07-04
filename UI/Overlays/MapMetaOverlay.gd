@@ -450,6 +450,9 @@ func _graph_inspect_text() -> String:
 			lines.append(wet)
 		else:
 			lines.append("The depths (the eigenvalues of ρ) are conserved — no unitary motion can change them. Exactly one act reaches them: measurement.")
+	var knot := _knot_line(_graph_zoom)
+	if knot != "":
+		lines.append(knot)
 	if _biome_closed_here(_graph_zoom):
 		var canonical = _canonical_biome(_graph_zoom)
 		if _biome_has_webway(canonical):
@@ -1492,6 +1495,15 @@ func _build_graph_status_card() -> Control:
 			wl2.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
 			wl2.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			vbox.add_child(wl2)
+		# Knot card (What Connects): frozen loop records + the pair invariant.
+		var knot := _knot_line(_graph_zoom)
+		if knot != "":
+			var kl := Label.new()
+			kl.text = knot
+			kl.add_theme_font_size_override("font_size", 11)
+			kl.add_theme_color_override("font_color", UIStyleFactory.COLOR_BODY)
+			kl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			vbox.add_child(kl)
 
 	# Standing at sealed channels, a native faction has something to say about
 	# them (QuestVoice.webway_whisper — words only, no mechanics).
@@ -1601,6 +1613,25 @@ func _regime_line(biome_name: String) -> String:
 	if purity >= 0.0 and purity < 0.999:
 		return head + " Tr(ρ²) = %.3f and falling unless watched — measurement pins what it touches (Zeno)." % purity
 	return head + " What you do not watch, fades; measurement pins what it touches (Zeno)."
+
+
+## One-line knot card: frozen Berry loop records + the strongest pair invariant.
+## "" while the record is empty — the line appears the moment a first loop closes.
+func _knot_line(biome_name: String) -> String:
+	var qc = _live_qc_for(biome_name)
+	if qc == null or not ("berry_register" in qc) or qc.berry_register == null:
+		return ""
+	var loops: Array = qc.berry_register.frozen_loops()
+	if loops.is_empty():
+		return ""
+	if loops.size() == 1:
+		var omega := float(loops[0].get("omega", 0.0))
+		return "🪢 the record: 1 closed loop banked (Ω = %.2f) — close another and compare their turns." % omega
+	var w: int = KnotRegister.max_mutual_winding(loops)
+	if absi(w) >= 1:
+		return ("🪢 the record: %d closed loops — mutual winding %+d: LINKED. Nothing links on the sphere; " +
+			"the link lives one floor up, where the phase turns. (Any two answers of a qubit are linked circles — Hopf.)") % [loops.size(), w]
+	return "🪢 the record: %d closed loops — mutual winding 0: the dances pass without turning about each other." % loops.size()
 
 
 ## Live QuantumComputer for a biome's population bars (null if not instantiated).

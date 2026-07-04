@@ -1565,6 +1565,12 @@ func _predicate_summary(pred: Dictionary) -> String:
 			return "deep state[%s] ≥ %.2f" % [str(pred.get("emoji", "")), float(pred.get("value", 0.5))]
 		"eigenvalue_gap_gte":
 			return "compass gap ≥ %.2f" % float(pred.get("value", 0.1))
+		"frozen_loops_gte":
+			return "close %d berry loop%s" % [int(pred.get("count", 1)), "s" if int(pred.get("count", 1)) != 1 else ""]
+		"loops_linked":
+			return "🪢 link two loops — winding ≥ %d" % int(pred.get("value", 1))
+		"winding_gte":
+			return "🪢 mutual winding ≥ %d" % int(pred.get("value", 1))
 		_:
 			return t
 

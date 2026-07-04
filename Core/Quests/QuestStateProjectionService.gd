@@ -62,6 +62,13 @@ func observe_biome(biome, delta: float = 0.0) -> Dictionary:
 					best_pair = Vector2i(i, j)
 		_last_observables["max_mutual_information"] = best_mi
 		_last_observables["max_mi_pair"] = best_pair
+	# Knot observables: frozen Berry loop records + the strongest pair invariant
+	# (mutual winding — KnotRegister). The record is capped at FROZEN_LOOP_CAP,
+	# so the pair scan is trivially cheap at observe rate.
+	if qc != null and "berry_register" in qc and qc.berry_register != null:
+		var loops: Array = qc.berry_register.frozen_loops()
+		_last_observables["frozen_loops"] = loops.size()
+		_last_observables["max_mutual_winding"] = KnotRegister.max_mutual_winding(loops) if loops.size() >= 2 else 0
 	return _last_observables
 
 
@@ -143,6 +150,26 @@ func evaluate_predicate(predicate: Dictionary) -> float:
 				if action_name.find(str(word[step]).strip_edges().to_lower()) >= 0:
 					step += 1
 			return float(step) / float(word.size())
+		"frozen_loops_gte":
+			# The loop farmer: closed Berry walks banked in the active biome's
+			# record (BerryPhaseRegister freezes a loop when the walk returns to
+			# its seed vertex having enclosed real solid angle).
+			var target := maxf(1.0, float(predicate.get("count", 1)))
+			return QuestMath.soft_gate(float(_last_observables.get("frozen_loops", 0)), target, 0.75)
+		"loops_linked":
+			# The knot witness: two frozen loops whose mutual winding is nonzero —
+			# loop A turns about loop B's area axis. On the Bloch sphere nothing
+			# links; the invariant lives one floor up (the Berry lift), and this
+			# integer is its shadow (docs/ENGINE_FRONTIER.md, Machine 2).
+			var w := float(absi(int(_last_observables.get("max_mutual_winding", 0))))
+			var have := QuestMath.soft_gate(float(_last_observables.get("frozen_loops", 0)), 2.0, 0.75)
+			var linked := QuestMath.soft_gate(w, maxf(1.0, float(predicate.get("value", 1))), 0.5)
+			return QuestMath.smooth_and([have, linked])
+		"winding_gte":
+			# Graded knot: |mutual winding| of the strongest frozen pair — ±1 is
+			# a simple link, ±2 doubly wound.
+			var w := float(absi(int(_last_observables.get("max_mutual_winding", 0))))
+			return QuestMath.soft_gate(w, maxf(1.0, float(predicate.get("value", 1))), 0.75)
 		"dynamics_at_most":
 			# Stillness teacher: the biome's evolution rate (BiomeDynamicsTracker,
 			# 0 = still, 1 = storming). In the enclave purity and entropy are frozen,

@@ -332,7 +332,13 @@ static func _project_register(biome, register_id: int, is_north: bool) -> bool:
 		if live_prob < 1e-12:
 			# Flip to the opposite outcome which must have ~1.0 probability
 			outcome_pole = 1 - outcome_pole
-	return qc.project_qubit(register_id, outcome_pole)
+	var projected: bool = qc.project_qubit(register_id, outcome_pole)
+	if projected and qc.berry_register != null:
+		# Collapse cuts the Berry walk: no unitary path connects the jump, and
+		# entanglement makes the jump nonlocal within the biome — every tracked
+		# qubit re-seeds from the next evolved slice (partial loops forfeit).
+		qc.berry_register.reseed_tracked()
+	return projected
 
 
 static func _drain_register(biome, register_id: int, is_north: bool, eta: float) -> bool:
@@ -1114,6 +1120,8 @@ static func _manual_fast_forward_biomes(active_biomes: Array, cycles: int) -> Di
 				var packet = biome.quantum_computer.export_bloch_packet() if biome.quantum_computer.has_method("export_bloch_packet") else PackedFloat64Array()
 				var num_qubits = biome.quantum_computer.register_map.num_qubits if biome.quantum_computer.register_map else 0
 				if packet.size() > 0 and num_qubits > 0:
+					if biome.quantum_computer.berry_register != null:
+						biome.quantum_computer.berry_register.integrate_step(packet, num_qubits)
 					biome.viz_cache.update_from_bloch_packet(packet, num_qubits)
 				if biome.quantum_computer.has_method("get_purity"):
 					biome.viz_cache.update_purity(biome.quantum_computer.get_purity())
