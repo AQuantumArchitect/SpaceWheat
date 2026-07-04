@@ -88,6 +88,23 @@ opening a season's worth of accumulated dissipation and being paid from the entr
 bank, not from a volley of collapses. Design the harvest festival *once*, for the
 mechanic it actually honors.
 
+### Reserved: the topology tiers that need the door open (2026-07-04)
+
+The topology campaign (`docs/TOPOLOGY_CAMPAIGN.md`) ships four chapters inside the
+enclave — Berry loops, the conserved spectrum, SSH chains, braid order — and leaves
+three things here on purpose:
+
+- **Majorana bridges** (EXOTIC_TOPOLOGY tier 4): nonlocal inter-biome storage wants
+  bridge machinery the engine doesn't have, and its selling point — decoherence
+  resistance — is meaningless in a world with no decoherence. It becomes a *reward*
+  in Act 2: the first structure the player builds that the Bath cannot reach.
+- **Knot invariants** (tier 6): linking numbers over entanglement histories need a
+  braid-history graph. Farthest out; keep the dream.
+- **True chaos**: the enclave is quasi-periodic by theorem — no contraction, no
+  strange attractors. Chapter 2 teaches that absence honestly and points here. When
+  dissipation arrives, "storming" gains a basin to fall into, and the attractor
+  language the engine already speaks becomes literal.
+
 ## 5. The narrative arc — the enclave and the Bath
 
 The closed world now has an in-fiction name: **the enclave** — a bubble of perfect
