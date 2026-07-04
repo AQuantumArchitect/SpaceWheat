@@ -16,8 +16,9 @@
 > only the split) with its whisper register; `coherence_fell` + `purity_at_most`
 > predicates; wet-country E-inspect passport + literal compass; glossary **bath** +
 > **fading**. Remaining: Phase 3 (role-separation data reform — biome bots),
-> Phase 6 (Majorana — genuinely new machinery), verb-unseal-as-faction-rewards
-> (simplified: all open verbs unseal at the door), and threshold tuning in live play.
+> Phase 6 (Majorana — now planned as `docs/ENGINE_FRONTIER.md`, "What Connects"),
+> verb-unseal-as-faction-rewards (simplified: all open verbs unseal at the door),
+> and threshold tuning in live play.
 
 ## The thesis
 
@@ -185,8 +186,11 @@ engine owes the world it farms.
 
 The first structure the player builds that the Bath cannot reach: nonlocal storage
 split between two biomes. Needs genuinely new engine machinery (inter-biome bridge
-state) — scoped as its own project after Chapter V ships. Knot invariants remain
-in the seed bank.
+state) — **now planned in `docs/ENGINE_FRONTIER.md`** ("What Connects"): a
+standalone 2×2 ρ anchored to an atom in each biome, with protection *derived* as
+the product of the two ends' local noise rates — an island-anchored end makes the
+bridge immortal. Knot invariants are planned there too (Berry-loop path records +
+linking on the Hopf lift); they leave the seed bank together.
 
 ## The world between landmarks
 

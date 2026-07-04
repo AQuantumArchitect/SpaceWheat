@@ -21,8 +21,12 @@
 >   cross-couplings, so a dimerized SSH chain is pure data. Chapter 3, the crown.
 > - **Tier 5** demonstrable today with shipped gates; needs only an order-sensitive
 >   `gate_order` predicate. Chapter 4.
-> - **Tiers 4 & 6** (Majorana bridges, knots) and **true chaos** are reserved for the
->   open door — noted in `docs/inspiration/OPEN_SYSTEM_ACT2.md`.
+> - **Tiers 4 & 6** (Majorana bridges, knots) and **true chaos** were reserved for the
+>   open door — noted in `docs/inspiration/OPEN_SYSTEM_ACT2.md`. **The door is now open**
+>   ("What Fades" shipped) and both tiers are planned as engine work in
+>   `docs/ENGINE_FRONTIER.md` ("What Connects"): the bridge as a standalone 2×2 ρ with
+>   emergent Γ-product protection, the knot as Berry-loop path records + linking
+>   invariants on the Hopf lift. Chaos stays in the seed bank.
 
 A 6-tier progression from basic farming to reality engineering.
 Each tier introduces a new topological concept as a *gameplay mechanic.*

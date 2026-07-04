@@ -161,6 +161,10 @@ procedural quests to reuse.)*
 
 ## Reserved for the open door
 
+*(Update, 2026-07: the door is open — "What Fades" shipped — and tiers 4 & 6 are
+now planned as engine work in `docs/ENGINE_FRONTIER.md`, the "What Connects"
+seed. Chaos alone stays sealed.)*
+
 Three tiers stay sealed with reasons, recorded in `docs/inspiration/OPEN_SYSTEM_ACT2.md`:
 
 - **Majorana bridges (tier 4)** — nonlocal inter-biome storage needs bridge machinery
