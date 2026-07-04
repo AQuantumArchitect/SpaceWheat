@@ -1,6 +1,6 @@
 # The Glossary — one page of the canon web
 
-Nineteen terms, one dictionary between the physics and the story. Each entry is a
+Twenty terms, one dictionary between the physics and the story. Each entry is a
 `.md` file with YAML frontmatter, loaded live into the in-game Guide (X → Guide →
 Glossary) by `Core/Documentation/GlossaryRegistry.gd`.
 
@@ -23,6 +23,7 @@ terms must exist. This INDEX file is deliberately excluded from the in-game load
 | [fading](fading.md) | What the Bath does — coherence drains, purity falls, color leaves first. |
 | [knot](knot.md) | Two closed Berry walks that cannot be pulled apart — winding is why. |
 | [bridge](bridge.md) | One fermion split between two biomes — its parity lives in neither. |
+| [soul](soul.md) | Your identity as a density matrix — the one open system the enclave allows. |
 
 ## The Matter — what things are made of
 
@@ -54,6 +55,8 @@ Reading paths that teach the game in order:
   (`docs/OPEN_CAMPAIGN.md`), the wet country across acts 6–8
 - **The nonlocal campaign:** berry → knot, and bath → bridge — then play
   "What Connects" (`docs/CONNECT_CAMPAIGN.md`), interleaved through acts 5–7
+- **The self:** faction → soul → resonance — then press M → Eigenstate and
+  read who you are becoming
 - **The matter stack:** atom → cloud → icon → (sibling, family)
 - **The authoring stack:** biome → neighborhood ← faction → signature
 - **The seam between them:** icons carry H onto biomes (neighborhood); the webway

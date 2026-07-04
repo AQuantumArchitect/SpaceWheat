@@ -164,6 +164,10 @@ signal biome_removed(biome_name: String)
 
 signal plots_entangled(pos1: Vector2i, pos2: Vector2i, bell_state: String)
 signal standing_changed(faction: String, channel: String, delta: float, new_value: float)
+# The identity ρ crossed a purity band (FactionDensityMatrix.band_key):
+# resolving upward when learning concentrates the diagonal, blurring downward
+# when a learn spreads mass across factions (or kicked coherences fade, τ=300s).
+signal identity_band_changed(prev_band: String, new_band: String, purity: float, rising: bool)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -851,6 +855,7 @@ func _physics_process(delta: float) -> void:
 	# Diagonal untouched: affinity is preserved until the next pop event.
 	if faction_density:
 		faction_density.apply_lindblad_decay(delta)
+		_poll_identity_band(delta)
 
 	# Majorana bridges: each spans two biomes and decoheres only at the PRODUCT
 	# of its ends' local wet rates — a closed-country anchor makes it immortal
@@ -868,6 +873,48 @@ func _is_globally_paused() -> bool:
 	if _player_shell_cache and "paused" in _player_shell_cache:
 		return bool(_player_shell_cache.paused)
 	return false
+
+
+# ── identity band watch ──────────────────────────────────────────────────────
+var _identity_band: String = ""       # "" = not yet read (boot/load adopts silently)
+var _identity_band_accum: float = 0.0
+const IDENTITY_BAND_POLL_S: float = 1.0
+const IDENTITY_BAND_HYSTERESIS: float = 0.02
+
+
+func reset_identity_band_watch() -> void:
+	# Called after a save is applied so the first post-load reading adopts the
+	# loaded soul's band silently instead of whispering a phantom crossing.
+	_identity_band = ""
+	_identity_band_accum = 0.0
+
+
+func _poll_identity_band(delta: float) -> void:
+	# Watch the identity ρ's purity band and announce crossings — the soul's
+	# speaking moments (resolve / blur), voiced by whoever holds the most of
+	# the player (QuantumInstrumentInput._on_identity_band_changed).
+	_identity_band_accum += delta
+	if _identity_band_accum < IDENTITY_BAND_POLL_S:
+		return
+	_identity_band_accum = 0.0
+	var p: float = float(faction_density.get_purity())
+	var raw: String = FactionDensityMatrix.band_key(p)
+	if _identity_band == "":
+		_identity_band = raw
+		return
+	if raw == _identity_band:
+		return
+	# Hysteresis: acknowledge a crossing only clear of the boundary, so a pump
+	# landing right on a threshold doesn't stutter whispers.
+	var rising: bool = FactionDensityMatrix.band_rank(raw) > FactionDensityMatrix.band_rank(_identity_band)
+	var boundary: float = FactionDensityMatrix.band_floor(raw if rising else _identity_band)
+	if rising and p < boundary + IDENTITY_BAND_HYSTERESIS:
+		return
+	if not rising and p >= boundary - IDENTITY_BAND_HYSTERESIS:
+		return
+	var prev := _identity_band
+	_identity_band = raw
+	identity_band_changed.emit(prev, raw, p, rising)
 
 
 func time_skip_phrames(phrames: int, delta: float = PhysicsConfig.PHRAME_DT) -> Dictionary:

@@ -284,15 +284,50 @@ const BRIDGE_WHISPER := {
 	"entity":    "A NONLOCAL PARITY HAS BEEN LOCALIZED. THE SPAN IS RETIRED.",
 }
 
+## One line per voice archetype for the soul RESOLVING — the identity ρ
+## crossed a purity band upward (Farm.identity_band_changed, rising). Learning
+## concentrated the diagonal: of all the selves superposed, one is winning.
+const SELF_RESOLVE_WHISPER := {
+	"imperial":  "The Throne prefers its subjects legible. You are becoming a name it can write.",
+	"guild":     "A tool ground to one edge cuts. You are taking an edge.",
+	"mystic":    "The many yous are agreeing on something. Listen while they do.",
+	"merchant":  "A known buyer gets better prices. It pays to be somebody.",
+	"militant":  "A sharpened line holds. You are easier to follow now — and to command.",
+	"scavenger": "Less of you scattered about to lose. Good. Carry all of it.",
+	"horror":    "THE OTHER SELVES ARE GOING QUIET. ONLY YOU REMAIN. WAS THAT THE PLAN?",
+	"defensive": "A resolved soul is a wall with one gate. Easier to hold.",
+	"cosmic":    "Of all the lives superposed in you, this one is brightening.",
+	"entity":    "IDENTITY CONVERGENCE LOGGED. THE LEXICON KNOWS WHO IS READING.",
+}
+
+## One line per voice archetype for the soul BLURRING — the identity ρ crossed
+## a purity band downward. A learn spread your mass across factions, or kicked
+## coherences faded (τ = 300 s); either way, the superposition is reclaiming you.
+const SELF_FADE_WHISPER := {
+	"imperial":  "The Throne cannot tax what it cannot name. Decide who you are.",
+	"guild":     "An unswung hammer forgets its handle. Work, or blur.",
+	"mystic":    "You are becoming everyone again. There is peace in it, and no one left to feel it.",
+	"merchant":  "An unknown customer pays list price. Being no one is expensive.",
+	"militant":  "Your line is smearing. Reform it, or be overrun by your own maybes.",
+	"scavenger": "Bits of you are drifting off. Gather yourself before someone else does.",
+	"horror":    "YOU ARE FORGETTING WHICH ONE YOU WERE. THE OTHERS REMEMBER BEING YOU.",
+	"defensive": "The wall of you is thinning. Choose something, and shore it.",
+	"cosmic":    "The superposition reclaims you gently. Every unchosen life grows brighter.",
+	"entity":    "IDENTITY DISPERSAL DETECTED. RENEWAL ADVISED.",
+}
+
 ## The whisper registers: one voice line per archetype at each of the world's
 ## speaking moments — the sealed channels, the closed loop, the improbable scar,
-## the rite that opens the season's entropy bank, and the fusion that spends a span.
+## the rite that opens the season's entropy bank, the fusion that spends a span,
+## and the soul crossing a purity band in either direction.
 const WHISPERS := {
 	"webway": WEBWAY_WHISPER,
 	"berry": BERRY_WHISPER,
 	"measure": MEASURE_WHISPER,
 	"reap": REAP_WHISPER,
 	"bridge": BRIDGE_WHISPER,
+	"self_resolve": SELF_RESOLVE_WHISPER,
+	"self_fade": SELF_FADE_WHISPER,
 }
 
 ## Authored per-faction whisper lines — checked BEFORE the archetype tables.
@@ -324,6 +359,16 @@ static func whisper(register: String, faction_name: String) -> String:
 ## The faction's line for an incorporated Berry loop (guild-voiced fallback).
 static func berry_whisper(faction_name: String) -> String:
 	return whisper("berry", faction_name)
+
+
+## The dominant faction's line when the player's identity ρ resolves upward.
+static func self_resolve_whisper(faction_name: String) -> String:
+	return whisper("self_resolve", faction_name)
+
+
+## The dominant faction's line when the player's identity ρ blurs downward.
+static func self_fade_whisper(faction_name: String) -> String:
+	return whisper("self_fade", faction_name)
 
 
 static func _verb_for(quest: Dictionary) -> String:

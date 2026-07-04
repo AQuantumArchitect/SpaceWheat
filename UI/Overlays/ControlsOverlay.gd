@@ -95,7 +95,7 @@ const GUIDE_ITEMS := [
 ]
 
 # Featured strip: world-canon first (the story the physics tells), structure after.
-const GLOSSARY_CANONICAL_TERMS := ["enclave", "measurement", "berry", "invariant", "bath", "fading", "knot", "bridge", "webway", "resonance", "biome", "faction", "icon"]
+const GLOSSARY_CANONICAL_TERMS := ["enclave", "measurement", "berry", "invariant", "bath", "fading", "knot", "bridge", "soul", "webway", "resonance", "biome", "faction", "icon"]
 
 # =============================================================================
 # COLORS

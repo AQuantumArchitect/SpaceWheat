@@ -179,6 +179,126 @@ func get_principal_axis_projection() -> Array:
 
 
 ## ========================================
+## Identity vocabulary — who the player is becoming
+## (the soul's readback surface; see docs/glossary/soul.md)
+## ========================================
+
+# Purity bands for the identity ρ. The mixed floor for a ~90-faction support
+# is ≈ 1/n ≈ 0.011, so "resolved" is a deliberate life, not a default.
+# Index-aligned: BAND_THRESHOLDS[i] is the floor of BAND_KEYS[i]; the last
+# band ("smeared") has no floor.
+const BAND_THRESHOLDS := [0.8, 0.5, 0.2]
+const BAND_KEYS := ["resolved", "leaning", "torn", "smeared"]
+
+
+static func band_key(p: float) -> String:
+	for i in range(BAND_THRESHOLDS.size()):
+		if p >= float(BAND_THRESHOLDS[i]):
+			return String(BAND_KEYS[i])
+	return String(BAND_KEYS[BAND_KEYS.size() - 1])
+
+
+static func band_rank(key: String) -> int:
+	# Higher = more resolved. Unknown keys rank lowest.
+	var i: int = BAND_KEYS.find(key)
+	return (BAND_KEYS.size() - 1 - i) if i >= 0 else 0
+
+
+static func band_floor(key: String) -> float:
+	var i: int = BAND_KEYS.find(key)
+	if i < 0 or i >= BAND_THRESHOLDS.size():
+		return 0.0
+	return float(BAND_THRESHOLDS[i])
+
+
+func dominant_factions(k: int = 3) -> Array:
+	# Top-k factions by diagonal weight ρ[f,f]: who holds the most of you.
+	# Each row: {name, weight}.
+	var rows: Array = []
+	for n in _names:
+		rows.append({"name": n, "weight": float(get_weight(str(n)))})
+	rows.sort_custom(func(a, b): return float(a.weight) > float(b.weight))
+	return rows.slice(0, k)
+
+
+func decisive_axes(k: int = 3) -> Array:
+	# The concept axes where the dominant mode has actually chosen a pole:
+	# top-k by |p − 0.5|. Each row: {axis, bit, p, lean, emoji, label}.
+	var projection: Array = get_principal_axis_projection()
+	var rows: Array = []
+	for i in range(mini(projection.size(), AXIS_COUNT)):
+		var p: float = float(projection[i])
+		var bit: int = 1 if p >= 0.5 else 0
+		rows.append({
+			"axis": i, "bit": bit, "p": p,
+			"lean": absf(p - 0.5),
+			"emoji": FactionAxes.pole_emoji(i, bit),
+			"label": FactionAxes.pole_label(i, bit),
+		})
+	rows.sort_custom(func(a, b): return float(a.lean) > float(b.lean))
+	return rows.slice(0, k)
+
+
+func principal_graph() -> AlignmentGraph:
+	# Synthetic pure product state matching the dominant mode's axis marginals:
+	# ψ = ⊗_i (√(1−p_i)|0⟩ + √p_i|1⟩). The same construction the M overlay
+	# ranks factions with — here it is the shared identity-side handle for
+	# kinship() so every surface reads the player the same way.
+	var projection: Array = get_principal_axis_projection()
+	if projection.size() != AXIS_COUNT:
+		return null
+	var ket: Dictionary = {}
+	for idx in range(AlignmentGraph.DIM):
+		var amp: float = 1.0
+		for i in range(AXIS_COUNT):
+			var bit: int = (idx >> (AXIS_COUNT - 1 - i)) & 1
+			var p: float = clampf(float(projection[i]), 0.0, 1.0)
+			amp *= sqrt(p) if bit == 1 else sqrt(1.0 - p)
+			if amp == 0.0:
+				break
+		if amp > 0.0:
+			ket[idx] = Vector2(amp, 0.0)
+	if ket.is_empty():
+		return null
+	var g := AlignmentGraph.new()
+	g.weights = PackedFloat64Array([1.0])
+	g.kets = [ket]
+	return g
+
+
+func kinship(fac) -> float:
+	# How a faction sits with who you are becoming, as the GEOMETRIC MEAN of
+	# per-axis agreement: raw overlap between 12-axis product states is a
+	# product of per-axis overlaps (exponentially small for any disagreement),
+	# so the 12th root restores an interpretable scale — 1.0 = kin on every
+	# axis, 0.5 = undecided against them, 0.0 = opposed somewhere outright.
+	# Returns -1.0 when unreadable.
+	if fac == null or not ("alignment" in fac) or fac.alignment == null:
+		return -1.0
+	var g := principal_graph()
+	if g == null:
+		return -1.0
+	var ov: float = clampf(float(fac.alignment.overlap(g)), 0.0, 1.0)
+	if ov <= 0.0:
+		return 0.0
+	return pow(ov, 1.0 / float(AXIS_COUNT))
+
+
+static func kinship_gloss(x: float) -> String:
+	if x < 0.0:
+		return "unread"
+	if x >= 0.8:
+		return "kin"
+	if x >= 0.6:
+		return "warm"
+	if x >= 0.4:
+		return "acquainted"
+	if x >= 0.2:
+		return "distant"
+	return "opposed"
+
+
+## ========================================
 ## Save / load (v2 format: {version, names, data})
 ## ========================================
 

@@ -101,6 +101,9 @@ func _ready() -> void:
 func inject_farm(farm_ref) -> void:
 	# Inject farm reference for action execution.
 	farm = farm_ref
+	if farm != null and farm.has_signal("identity_band_changed") \
+			and not farm.identity_band_changed.is_connected(_on_identity_band_changed):
+		farm.identity_band_changed.connect(_on_identity_band_changed)
 	_verbose.info("input", "~", "Farm injected into QuantumInstrumentInput")
 
 
@@ -873,6 +876,23 @@ func _toast_berry_whisper(biome, north: String, south: String, phase: float) -> 
 	var speaker := _native_speaker_for(biome)
 	_toast_whisper("🧬 %s/%s woven into your signature · Ω = %+.2f rad" % [north, south, phase],
 			speaker, QuestVoice.whisper("berry", speaker))
+
+
+## The soul crossed a purity band (Farm.identity_band_changed): the identity ρ
+## resolved upward or blurred downward past 0.2 / 0.5 / 0.8. Speaker: whoever
+## holds the most of the player — the faction with the largest diagonal weight
+## marks the change in its own voice (docs/glossary/soul.md).
+func _on_identity_band_changed(prev_band: String, new_band: String, purity: float, rising: bool) -> void:
+	var speaker := ""
+	if farm != null and ("faction_density" in farm) and farm.faction_density != null \
+			and farm.faction_density.has_method("dominant_factions"):
+		var top: Array = farm.faction_density.dominant_factions(1)
+		if top.size() > 0:
+			speaker = str(top[0].get("name", ""))
+	var line: String = QuestVoice.self_resolve_whisper(speaker) if rising \
+			else QuestVoice.self_fade_whisper(speaker)
+	_toast_whisper("🧿 who you are: %s → %s · Tr(ρ²) = %.2f" % [prev_band, new_band, purity],
+			speaker, line)
 
 
 ## An IMPROBABLE Born outcome (p below this) is the scar that taught you most —

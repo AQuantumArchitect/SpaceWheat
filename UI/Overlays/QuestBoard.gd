@@ -456,6 +456,7 @@ func _market_inspect_text() -> String:
 		float(proj.get("alignment", 0.0)),
 		float(proj.get("directional_edge", 0.0)),
 	])
+	var farm = InstrumentLocator.resolve_active_farm(self)
 	# Faction↔biome resonance: how the faction's 12 axial preferences sit with
 	# this biome's live quantum observables (FactionStateMatcher). Physics-derived
 	# mood, not flavor dice.
@@ -465,11 +466,20 @@ func _market_inspect_text() -> String:
 		var prefs := str(offer.get("faction_preferences", ""))
 		if prefs != "":
 			lines.append("their axioms: %s" % prefs)
+	# Player↔faction kinship: how they sit with who YOU are becoming — geometric
+	# mean of per-axis agreement between your identity ρ's principal axes and
+	# their live alignment (FactionDensityMatrix.kinship; docs/glossary/soul.md).
+	if farm != null and ("faction_density" in farm) and farm.faction_density != null \
+			and farm.faction_density.has_method("kinship"):
+		var reg = farm.faction_density.get_registry()
+		var fac = reg.get_by_name(str(offer.get("faction", ""))) if reg != null else null
+		var kin: float = farm.faction_density.kinship(fac)
+		if kin >= 0.0:
+			lines.append("they and you: %.2f — %s" % [kin, FactionDensityMatrix.kinship_gloss(kin)])
 	var explanation = offer.get("market_explanation", [])
 	if explanation is Array:
 		for line in explanation:
 			lines.append(str(line))
-	var farm = InstrumentLocator.resolve_active_farm(self)
 	var card_tip: String = _faction_card_tooltip(str(offer.get("faction", "")), farm)
 	if card_tip != "":
 		lines.append("")

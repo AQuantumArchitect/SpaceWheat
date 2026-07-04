@@ -426,10 +426,26 @@ func _eigen_inspect_text() -> String:
 	var lines: Array[String] = []
 	if farm != null and ("faction_density" in farm) and farm.faction_density != null \
 			and farm.faction_density.has_method("get_purity"):
-		var p: float = float(farm.faction_density.get_purity())
+		var fd = farm.faction_density
+		var p: float = float(fd.get_purity())
 		lines.append("You · Tr(ρ²) = %.3f — %s" % [p, _soul_gloss(p)])
 		lines.append("Purity of your alignment density matrix: 1 = a committed identity; the mixed floor = a life not yet chosen.")
-		lines.append("It decays toward the mixed state (τ=300s) unless your choices keep renewing it — learn icons, rotate settlements, work your factions.")
+		if fd.has_method("decisive_axes"):
+			var parts: Array[String] = []
+			for row in fd.decisive_axes(3):
+				var conf: float = float(row.get("p", 0.5))
+				if int(row.get("bit", 1)) == 0:
+					conf = 1.0 - conf
+				parts.append("%s %s %.2f" % [str(row.get("emoji", "")), str(row.get("label", "")).to_lower(), conf])
+			if not parts.is_empty():
+				lines.append("becoming: %s" % " · ".join(parts))
+		if fd.has_method("dominant_factions"):
+			var names: Array[String] = []
+			for row in fd.dominant_factions(3):
+				names.append("%s %.2f" % [str(row.get("name", "?")), float(row.get("weight", 0.0))])
+			if not names.is_empty():
+				lines.append("who holds you: %s" % " · ".join(names))
+		lines.append("Only learning moves the committed mass — each new icon pumps its owner and everyone who speaks its poles. Coherences between selves fade on their own (τ=300s).")
 	return "\n".join(lines)
 
 
@@ -753,8 +769,9 @@ func _build_eigen_body() -> void:
 
 	# WHO AM I BECOMING — the player's concept state, read as physics. Purity of
 	# the alignment density matrix: 1 = a committed identity, low = smeared across
-	# many selves. Farm's τ=300s Lindblad decay drags it down between choices —
-	# the one open system in the enclave (see docs/glossary/enclave.md).
+	# many selves. Learning moves the committed mass (each icon pumps factions);
+	# coherences fade on their own (τ=300s) — the one open system in the enclave
+	# (docs/glossary/soul.md).
 	if farm != null and ("faction_density" in farm) and farm.faction_density != null \
 			and farm.faction_density.has_method("get_purity"):
 		var soul_purity: float = float(farm.faction_density.get_purity())
@@ -763,8 +780,14 @@ func _build_eigen_body() -> void:
 		soul_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		soul_lbl.add_theme_font_size_override("font_size", 12)
 		soul_lbl.add_theme_color_override("font_color", COLOR_HILITE)
-		soul_lbl.tooltip_text = "Purity of your alignment density matrix. It decays toward the mixed state (τ=300s) unless your choices keep renewing it."
+		soul_lbl.tooltip_text = "Purity of your alignment density matrix. Learning moves it — each new icon pumps its owner and everyone who speaks its poles; coherences fade on their own (τ=300s)."
 		_body_box.add_child(soul_lbl)
+		if farm.faction_density.has_method("decisive_axes"):
+			var parts: Array[String] = []
+			for row in farm.faction_density.decisive_axes(3):
+				parts.append("%s %s" % [str(row.get("emoji", "")), str(row.get("label", "")).to_lower()])
+			if not parts.is_empty():
+				_body_box.add_child(_make_muted_label("becoming: %s" % " · ".join(parts), 11))
 
 	# Sort mode is derived from pinned-faction state — no chord.
 	var sort_mode: int = EIGEN_SORT_SUBJECT if _get_pinned_faction() != null else EIGEN_SORT_SYSTEM
@@ -775,9 +798,16 @@ func _build_eigen_body() -> void:
 	mode_lbl.add_theme_color_override("font_color", COLOR_MUTED)
 	_body_box.add_child(mode_lbl)
 
+	if sort_mode == EIGEN_SORT_SUBJECT:
+		_build_eigen_body_subject()
+	else:
+		_build_eigen_body_system()
+
 
 ## Words for the purity of a soul. Bands are heuristic: the mixed-state floor for
 ## a ~90-faction support is ≈0.011, so anything near 1 is a deliberate life.
+## Band keys (and the crossing whispers) live in FactionDensityMatrix.band_key;
+## this is the display wording.
 func _soul_gloss(p: float) -> String:
 	if p >= 0.8:
 		return "resolved"
@@ -786,11 +816,6 @@ func _soul_gloss(p: float) -> String:
 	if p >= 0.2:
 		return "torn"
 	return "smeared across many selves"
-
-	if sort_mode == EIGEN_SORT_SUBJECT:
-		_build_eigen_body_subject()
-	else:
-		_build_eigen_body_system()
 
 ## Sort by alignment with the joint system's principal axis (synthetic-overlap).
 func _build_eigen_body_system() -> void:

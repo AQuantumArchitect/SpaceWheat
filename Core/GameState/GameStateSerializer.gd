@@ -319,6 +319,8 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 		var fd_state = state.faction_density if "faction_density" in state else {}
 		if fd_state is Dictionary:
 			farm.faction_density.deserialize(fd_state)
+		if farm.has_method("reset_identity_band_watch"):
+			farm.reset_identity_band_watch()
 
 	if "bridge_register" in farm and farm.bridge_register != null:
 		var bridge_state = state.bridges if "bridges" in state else {}
