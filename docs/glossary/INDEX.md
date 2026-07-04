@@ -61,3 +61,7 @@ Reading paths that teach the game in order:
   the whole thing through measurement and keeps what berry loops teach.
 
 Every `related:` reference resolves (the registry validates this on load).
+
+For the reader who wants the physics *without* the fiction — every concept, what
+the player does with it, and an honesty grade per claim — see
+[`docs/FOR_PHYSICISTS.md`](../FOR_PHYSICISTS.md).
