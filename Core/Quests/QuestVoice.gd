@@ -7,8 +7,12 @@ extends RefCounted
 ##
 ## Phase 1 applies this to MARKET quests (the bland ones). Story/tutorial quests keep their
 ## AUTHORED body/full_text — voicing only fills text that isn't already authored.
-## A faction not in the map falls back to the neutral "guild" voice (so new factions still read
-## sensibly); per-faction procedural voice from the signature can refine this later.
+## Voice resolution (archetype_for): the authored FACTION_TO_VOICE map wins; factions
+## outside it derive their archetype from identity (domain/ring/tags — see
+## DOMAIN_TO_VOICE), so all ~99 registry factions speak in character; "guild" is the
+## last resort, not the common case. (The 12 axial bits were tried and rejected as the
+## derivation source: they encode state-preferences, not diction — 20% agreement with
+## the authored map vs 83% for domain identity.)
 
 const VOICES := {
 	"imperial":  {"prefix": "By imperial decree:", "suffix": "for the Throne.", "tone": "absolute"},
@@ -42,6 +46,79 @@ const FACTION_TO_VOICE := {
 	"Resonance Dancers": "cosmic", "Causal Shepherds": "cosmic", "Empire Shepherds": "cosmic",
 	"Entropy Shepherds": "entity", "Void Emperors": "entity", "Reality Midwives": "entity",
 }
+
+## Domain → voice archetype for factions OUTSIDE the authored map (the plan's
+## "derive voice per faction" — the authored FACTION_TO_VOICE above always wins;
+## this rule covers the other ~60 registry factions so nobody defaults to the
+## bland guild voice by accident). Validated offline against the 35 authored
+## assignments: 29/35 agree; the 6 divergents are authored exceptions and the
+## authored row shadows them at runtime. Compound domains ("Imperial/Horror")
+## resolve by first matching segment; Civic and outer-ring Mystic get the
+## tag/ring refinements the authored set exhibits.
+const DOMAIN_TO_VOICE := {
+	"Commerce": "merchant", "Criminal": "merchant", "Intelligence": "merchant",
+	"Military": "militant", "Enforcement": "militant", "Security": "militant",
+	"Scavenger": "scavenger", "Navigation": "scavenger",
+	"Horror": "horror", "Dissolution": "horror", "Boundary": "horror",
+	"Predation": "horror", "Threshold": "horror",
+	"Mystic": "mystic", "Knowledge": "mystic", "Memory": "mystic",
+	"Infrastructure": "guild", "Administration": "guild", "Administrative": "guild",
+	"Science": "guild", "Industrial": "guild", "Deep-Math": "guild",
+	"Labor": "defensive", "Medicine": "defensive", "Ecology": "defensive", "Subsistence": "defensive",
+	"Art-Signal": "cosmic", "Chronology": "cosmic", "Emission": "cosmic",
+	"Aristocracy": "imperial", "Imperial": "imperial", "Executive": "imperial",
+}
+const IMPERIAL_TAGS := ["imperial", "authority", "aristocracy", "law", "edict", "politics"]
+const ENTITY_TAGS := ["void", "nothing", "creation", "emergence"]
+
+static var _archetype_cache: Dictionary = {}
+
+
+## Resolve a faction's voice archetype: authored map first, then derived from
+## its identity (domain/ring/tags via the registry), guild as the last resort.
+static func archetype_for(faction_name: String) -> String:
+	if FACTION_TO_VOICE.has(faction_name):
+		return str(FACTION_TO_VOICE[faction_name])
+	if _archetype_cache.has(faction_name):
+		return str(_archetype_cache[faction_name])
+	var arch := "guild"
+	var reg = FactionRegistry.get_shared()
+	var fac = reg.get_by_name(faction_name) if reg != null else null
+	if fac != null:
+		arch = archetype_from_identity(
+				str(fac.domain) if "domain" in fac else "",
+				str(fac.ring) if "ring" in fac else "center",
+				fac.tags if ("tags" in fac and fac.tags is Array) else [])
+	_archetype_cache[faction_name] = arch
+	return arch
+
+
+## Pure derivation (also directly testable headless): identity → archetype.
+static func archetype_from_identity(domain: String, ring: String, tags: Array) -> String:
+	var tagset := {}
+	for t in tags:
+		tagset[str(t)] = true
+	for seg_raw in domain.split("/"):
+		var seg := str(seg_raw).strip_edges()
+		if seg == "Mystic" and ring == "outer":
+			return "entity"
+		if seg == "Civic":
+			if ring == "outer" or _any_tag(tagset, IMPERIAL_TAGS):
+				return "imperial"
+			if _any_tag(tagset, ENTITY_TAGS):
+				return "entity"
+			return "defensive"
+		if DOMAIN_TO_VOICE.has(seg):
+			return str(DOMAIN_TO_VOICE[seg])
+	return "guild"
+
+
+static func _any_tag(tagset: Dictionary, list: Array) -> bool:
+	for t in list:
+		if tagset.has(str(t)):
+			return true
+	return false
+
 
 ## Quest type → an evocative verb for the voiced line.
 const TYPE_VERB := {
@@ -78,7 +155,7 @@ const WEBWAY_WHISPER := {
 
 
 static func get_voice(faction_name: String) -> Dictionary:
-	return VOICES.get(FACTION_TO_VOICE.get(faction_name, "guild"), VOICES["guild"])
+	return VOICES.get(archetype_for(faction_name), VOICES["guild"])
 
 
 ## The faction's line about the sealed webway (falls back to the guild voice).
@@ -136,7 +213,7 @@ static func whisper(register: String, faction_name: String) -> String:
 	var table = WHISPERS.get(register, {})
 	if not (table is Dictionary):
 		return ""
-	return str(table.get(FACTION_TO_VOICE.get(faction_name, "guild"), ""))
+	return str(table.get(archetype_for(faction_name), ""))
 
 
 ## The faction's line for an incorporated Berry loop (guild-voiced fallback).

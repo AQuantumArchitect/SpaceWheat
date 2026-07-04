@@ -31,7 +31,10 @@ The full path, in code:
 
 **Reap** is measurement at scale: the seasonal pass Born-samples and collapses every
 register in every active biome (`ProbeActions._closed_reap_rewards`), a harvest of
-scars priced by the same surprisal law.
+scars priced by the same surprisal law. This is a v0 placeholder identity — reap's
+true form is the Lindbladian extraction rite reserved for the open expansion
+(`docs/inspiration/OPEN_SYSTEM_ACT2.md`, "Reserved: reap"), and v0 deliberately
+builds no ceremony around it.
 
 **Honest failure** is part of the definition: if the collapse cannot actually be
 applied, the action reports failure and pays nothing (`ProbeActions`, "a fabricated

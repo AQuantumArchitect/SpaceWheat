@@ -76,6 +76,18 @@ zone:
 One authored quest around that loop teaches irreversibility, decay, and measurement
 backaction as a resource — using only Act-0 vocabulary. No new mechanics required.
 
+### Reserved: reap is the Lindbladian extraction rite (owner decision, 2026-07-04)
+
+**Reap belongs to the open world.** Its true identity is the Lindbladian extraction
+mechanic — sink flux plus the entropy-bank `kT·ΔS` drain — and that identity is
+*reserved for Act 2*. The v0 reap (seasonal mass-measurement: Born-sample + collapse
+every register, surprisal payout) keeps the name as a placeholder, but v0 deliberately
+invests **no ritual, celebration, or narrative weight** in it: no whisper register, no
+beat, no ceremony. The rite arrives when the extraction is real — when reaping means
+opening a season's worth of accumulated dissipation and being paid from the entropy
+bank, not from a volley of collapses. Design the harvest festival *once*, for the
+mechanic it actually honors.
+
 ## 5. The narrative arc — the enclave and the Bath
 
 The closed world now has an in-fiction name: **the enclave** — a bubble of perfect

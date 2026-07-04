@@ -1,7 +1,7 @@
 ---
 term: atom
 short_def: A single emoji. The smallest named unit of matter in the simulation.
-related: [cloud, icon, family]
+related: [cloud, icon, family, webway]
 since: 2026-05-09
 status: canonical
 ---

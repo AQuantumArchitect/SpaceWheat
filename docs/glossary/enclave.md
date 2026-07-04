@@ -1,7 +1,7 @@
 ---
 term: enclave
 short_def: The closed world of v0 — a bubble of perfect coherence where only measurement leaves a scar.
-related: [biome, webway, icon, cloud]
+related: [biome, webway, icon, cloud, measurement, berry, resonance]
 since: 2026-07-04
 status: canonical
 ---
