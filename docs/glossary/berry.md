@@ -1,6 +1,6 @@
 ---
 term: berry
-short_def: Geometric phase farmed as ripeness — the signed solid angle a qubit's Bloch vector encloses.
+short_def: Geometric phase farmed as ripeness — the solid angle a qubit's loop encloses.
 related: [enclave, icon, atom, measurement]
 since: 2026-07-04
 status: canonical

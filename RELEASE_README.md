@@ -8,7 +8,7 @@
 
 ## 🎮 About SpaceWheat
 
-SpaceWheat is a unique quantum farming simulation game where you cultivate crops using quantum mechanics principles. Manage quantum states, entanglement, and decoherence to maximize your harvest across different biomes.
+SpaceWheat is a quantum farming simulation built on a real density-matrix engine. You farm the enclave — a closed quantum world where evolution is exactly unitary, nothing decays, and your measurements are the only irreversible acts. Superpose, entangle, and collapse your way across biomes; every harvest is a Born sample paid in surprisal. (Decoherence and the open-systems world arrive with the expansion.)
 
 ---
 
@@ -194,30 +194,31 @@ Example prompts:
 
 ## 🎮 Gameplay Tips
 
-1. **Start with the tutorial** - Learn basic quantum mechanics
-2. **Measure carefully** - Measurement collapses quantum states
-3. **Use entanglement** - Link plots for coordinated effects
-4. **Manage decoherence** - Keep quantum states coherent
-5. **Explore biomes** - Each biome has unique quantum properties
+1. **Start with the tutorial** - It teaches one mechanic per step; the progress bar is the teacher
+2. **Measure carefully** - Collapse is the game's only irreversible act, and rare outcomes pay more
+3. **Use entanglement** - Weave qubits with Bell/CNOT gates, then watch a measurement snap both
+4. **Press E on everything** - E is inspect: quest offers reveal faction resonance, graph views explain themselves
+5. **Farm Berry loops** - Steer a tracked qubit in a closed circle; when it ripens, incorporate the axis
+6. **Explore biomes** - Each biome has unique quantum properties
 
 ---
 
 ## 📝 License
 
-SpaceWheat is open source. See LICENSE file for details.
+All rights reserved. Contact for licensing inquiries.
 
 ---
 
-## 🌟 Contributing
+## 🌟 Feedback
 
-We welcome contributions! See [CONTRIBUTING.md](https://github.com/AQuantumArchitect/SpaceWheat/blob/main/CONTRIBUTING.md) for guidelines.
+Bug reports and playtest notes are welcome via GitHub Issues.
 
-**Especially needed:**
-- Windows export smoke automation polish
-- macOS support
-- Web Assembly optimization
-- Documentation improvements
-- Bug reports and fixes
+**Especially useful:**
+- Windows export smoke reports
+- macOS build attempts
+- Web export findings
+- Documentation gaps
+- Balance/feel notes from real sessions
 
 ---
 

@@ -94,7 +94,8 @@ const GUIDE_ITEMS := [
 	{"id": "glossary", "title": "Glossary"},
 ]
 
-const GLOSSARY_CANONICAL_TERMS := ["biome", "signature", "neighborhood", "faction", "icon"]
+# Featured strip: world-canon first (the story the physics tells), structure after.
+const GLOSSARY_CANONICAL_TERMS := ["enclave", "measurement", "berry", "webway", "resonance", "biome", "faction", "icon"]
 
 # =============================================================================
 # COLORS
@@ -1380,7 +1381,7 @@ func _guide_core_loop() -> void:
 
 func _guide_four_tools() -> void:
 	_body_box.add_child(_make_section_header("the seven archetype frames (4-0)"))
-	_body_box.add_child(_make_action_row("4", "Spark",     "Lindbladian jolt (energy dyad): Q discharges south, R charges north."))
+	_body_box.add_child(_make_action_row("4", "Spark",     "Lindbladian jolt — SEALED while the enclave holds (nothing pumps or drains in v0; Act 2 opens it)."))
 	_body_box.add_child(_make_action_row("5", "Icon",      "Inject a dual-emoji qubit from the neighborhood's installed signature."))
 	_body_box.add_child(_make_action_row("6", "Merchant", "Faction contracts (energy dyad): Q=Sell, E=Read Price, R=Buy, F=Tip. Price = −kT·log p."))
 	_body_box.add_child(_make_action_row("7", "Captain",   "Biome lifecycle: Q=cull, R=discover."))
@@ -1395,8 +1396,9 @@ func _guide_four_tools() -> void:
 func _guide_biomes_economy() -> void:
 	_body_box.add_child(_make_section_header("biomes"))
 	_body_box.add_child(_make_body(
-		"Up to 6 biome slots on TYUIOP. Each biome is the full dissipative scaffold — different physics, "
-		+ "different feel. A neighborhood is an icon signature plus a biome. Plots live on GHJKL; "
+		"Up to 6 biome slots on TYUIOP. Each biome carries its own physics — the Hamiltonian "
+		+ "couplings run live; its webway (the authored Lindblad food web) is sealed while the "
+		+ "enclave holds. A neighborhood is an icon signature plus a biome. Plots live on GHJKL; "
 		+ "(left → right). The ' key toggles select-all."))
 	_body_box.add_child(_make_spacer(4))
 	_body_box.add_child(_make_section_header("economy"))
@@ -1411,6 +1413,10 @@ func _guide_things_to_try() -> void:
 	_body_box.add_child(_make_body("Hadamard everything: Druid (0) → E → measure. Repeat — watch 50/50 emerge."))
 	_body_box.add_child(_make_body("Open N: apply a Hadamard, watch off-diagonal terms appear; measure, watch them vanish."))
 	_body_box.add_child(_make_body("Build a GHZ: entangle A↔B, then B↔C. Measure any one — all collapse."))
+	_body_box.add_child(_make_body("Farm a Berry loop: track a qubit, steer it in a closed circle on its sphere, and when it ripens (Ω past 2π) incorporate the axis — a faction will mark the moment."))
+	_body_box.add_child(_make_body("Read a faction's mood: quest board (C) → E on any offer. Resonance is how the biome's live state sits with their axioms — court them by steering it."))
+	_body_box.add_child(_make_body("Watch yourself: M → Eigenstate shows You · Tr(ρ²). Idle five minutes and the fog reclaims you; act, and your identity resolves."))
+	_body_box.add_child(_make_body("See the loom: M → Graph → drill into a biome. Gold edges are the entanglement you wove; dark orange channels are the sealed webway, waiting for Act 2."))
 
 func _guide_quick_reference() -> void:
 	_body_box.add_child(_make_section_header("verbs"))

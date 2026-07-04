@@ -1,6 +1,6 @@
 ---
 term: resonance
-short_def: How a faction's twelve axioms sit with a biome's live quantum state — computed alignment, spoken as mood. Story IS the physics, per faction, per biome, per moment.
+short_def: How a faction's twelve axioms sit with a biome's live state, spoken as mood.
 related: [faction, biome, enclave, icon]
 since: 2026-07-04
 status: canonical

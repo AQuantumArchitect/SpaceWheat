@@ -1,6 +1,6 @@
 ---
 term: measurement
-short_def: The only irreversible act in the enclave — Born sample, projective collapse, surprisal payout. Measurement IS the economy.
+short_def: The enclave's one irreversible act: Born sample, collapse, surprisal payout.
 related: [enclave, berry, webway, atom, icon]
 since: 2026-07-04
 status: canonical

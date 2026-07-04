@@ -37,12 +37,18 @@ scarcity IS thermodynamic even when nothing dissipates.
 
 Candidate whispers that cost only words (quest bodies, beats, faction voice):
 
+- ~~A whisper at the improbable-outcome moment~~ — **germinated (2026-07-04):**
+  `QuestVoice.MEASURE_WHISPER` fires when a Born sample lands below p = 0.10, one
+  line per archetype ("the improbable answered — it chose to be found"). The scar
+  has a witness. Berry incorporation and the sealed webway got registers too.
+- ~~A late beat noting nothing in the enclave can be unwound~~ — **germinated:**
+  the `first_breath` beat now closes with "nothing leaked, nothing faded, nothing
+  was forgotten… only measurement leaves a scar — and the scar is yours."
 - A Measure Scribes line: *"Every glance is an entry in the ledger. The ledger is the
-  world."*
-- A late beat noting the player is the only thing in the enclave that cannot be
-  unwound.
+  world."* — still seed; would need an authored per-faction line slot.
 - The Carrion Throne's interest in the player reframed: an empire of order noticing a
-  new entropy source.
+  new entropy source. — still seed; `ledger_opens` grants Throne *attention* but the
+  framing is not yet spoken aloud.
 
 ## What the open game makes literal
 
