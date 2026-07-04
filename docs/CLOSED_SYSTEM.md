@@ -52,10 +52,12 @@ drives closed-system play.
 
 ## Verification
 
-- The gate lives at `LindbladBuilder.build_from_atoms` (closed → 0 operators, open →
-  rebuilt from the same data); `tests/test_drain_qubit.gd` covers the weak-measurement
-  drain invariants on the open path. (A dedicated headless gate test is still to be
-  written — the old `Tests/test_closed_system.gd` no longer exists.)
+- `tests/test_closed_system.gd` — headless gate test: closed → 0 operators; open
+  (via `BalanceConfig.set_physics_override`) → operators rebuilt from the same
+  `atom_components`; purity held at exactly 1 through `evolve()` and projective
+  measurement. Run: `bash 🍄/🧪/🔬.sh --suite closed`.
+  `tests/test_drain_qubit.gd` covers the weak-measurement drain invariants on the
+  open path.
 - Live purity/regeneration must be checked in the rig (`./🍄/🎛️/🟢.sh`): the native
   Eigen matrix backend only syncs ρ under a full game boot, so numeric evolution isn't
   drivable from an isolated `--script`. Pop an axis → one surprisal-priced resource; the

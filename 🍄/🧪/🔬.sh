@@ -7,6 +7,7 @@
 #   3. integration (22 tests) — gate application through the real biome pipeline
 #   4. embed       (63 tests) — 2-qubit gate embedding (CNOT/CZ/SWAP orderings)
 #   5. drain       (18 tests) — weak-measurement drain invariants (trace, purity, T2)
+#   6. closed      — closed-system gate: 0 operators closed / rebuilt open, purity exact
 #
 # Usage:
 #   bash 🍄/🧪/🔬.sh [--verbose] [--suite NAME]
@@ -47,8 +48,9 @@ SUITES[advanced]="tests/test_advanced_quantum_states.gd"
 SUITES[integration]="tests/test_gate_application_integration.gd"
 SUITES[embed]="tests/test_2q_gate_embed.gd"
 SUITES[drain]="tests/test_drain_qubit.gd"
+SUITES[closed]="tests/test_closed_system.gd"
 
-SUITE_ORDER=(gates advanced integration embed drain)
+SUITE_ORDER=(gates advanced integration embed drain closed)
 
 echo ""
 echo -e "${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"

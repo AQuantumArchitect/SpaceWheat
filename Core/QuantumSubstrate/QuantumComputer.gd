@@ -1684,8 +1684,9 @@ func evolve(dt: float, max_dt: float = 0.02, lnn: Object = null) -> void:
 	# Uses first-order Euler integration: ρ(t+dt) = ρ(t) + dt * dρ/dt
 
 	# Args:
-	# dt: Time step (in game seconds, actual evolution timestep)
-	# max_dt: Unused (kept on the API surface)
+	# dt: Total simulated time this call advances (game seconds)
+	# max_dt: Integrator substep ceiling — dt is subcycled into steps of at most
+	#         max_dt (driven-H closed path and the Euler path both honor it)
 	# lnn: Optional LiquidNeuralNet for phase modulation in phasic shadow
 	# If provided, applies learned phase shifts to density matrix diagonal
 

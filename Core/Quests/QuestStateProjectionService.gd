@@ -37,6 +37,22 @@ func observe_biome(biome, delta: float = 0.0) -> Dictionary:
 	if biome.has_method("predict_purity"):
 		_last_observables["predict_purity_5"]  = biome.predict_purity(5)
 		_last_observables["predict_purity_10"] = biome.predict_purity(10)
+	# Entanglement observable: max pairwise mutual information (bits; Bell pair = 2.0).
+	# Cache-only scan — the GDScript MI fallback re-eigensolves per pair, too hot for a
+	# per-frame observer. No native cache → observable absent (predicate scores 0).
+	var qc = biome.get("quantum_computer")
+	if qc != null and qc.has_method("has_cached_mi") and qc.has_cached_mi():
+		var n: int = qc.register_map.num_qubits
+		var best_mi := 0.0
+		var best_pair := Vector2i(-1, -1)
+		for i in range(n):
+			for j in range(i + 1, n):
+				var mi: float = qc.get_cached_mutual_information(i, j)
+				if mi > best_mi:
+					best_mi = mi
+					best_pair = Vector2i(i, j)
+		_last_observables["max_mutual_information"] = best_mi
+		_last_observables["max_mi_pair"] = best_pair
 	return _last_observables
 
 
@@ -85,6 +101,13 @@ func evaluate_predicate(predicate: Dictionary) -> float:
 					hits += 1.0
 			# Smooth over ±1.5 hits so "just short" isn't a cliff
 			return QuestMath.soft_gate(hits, min_count, 1.5)
+		"mutual_information_at_least":
+			# Entanglement teacher: max pairwise MI in the active biome, in bits
+			# (Bell pair = 2.0, product state = 0). Wider gate (±0.1) than the
+			# defaults because the MI scale runs 0–2, not 0–1.
+			var target := float(predicate.get("value", 0.5))
+			return QuestMath.soft_gate(
+				float(_last_observables.get("max_mutual_information", 0.0)), target, 0.1)
 		"attractor_emoji_gte":
 			var attractor: Dictionary = _last_observables.get("attractor", {})
 			return QuestMath.soft_gate(attractor.get(str(predicate.get("emoji", "")), 0.0),
