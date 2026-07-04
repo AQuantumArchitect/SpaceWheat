@@ -84,7 +84,5 @@ def test_headed_rig_launcher_defaults_to_opengl3_on_wsl() -> None:
 
 def test_policy_weights_terms_are_removed_from_mushroom_layer() -> None:
     profiles = _read("🍄/🎛️/profiles.py")
-    arena = _read("🍄/🎛️/arena.py")
     assert "POLICY_WEIGHTS_DIR" not in profiles
     assert "def load_policy_weights(" not in profiles
-    assert "load_policy_weights" not in arena

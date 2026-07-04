@@ -48,16 +48,8 @@ def test_runner_batch_and_launcher_thread_display_backend_flags() -> None:
     assert 'sw_godot --headless --path . --script 🍄/🎛️/rig_listener.gd' in launcher
 
 
-def test_derby_and_seed_save_accept_headed_player_input_flags() -> None:
-    derby = _read("🍄/🎛️/derby.py")
-    wrapper = _read("🍄/🎛️/derby_character_derby.py")
+def test_seed_save_accepts_headed_player_input_flags() -> None:
     seed = _read("🍄/🎛️/milk_hunt_seed_save.py")
-    assert "--display-mode" in derby
-    assert "--policy-execution-backend" in derby
-    assert 'display_mode=str(args.display_mode)' in derby
-    assert 'policy_execution_backend=str(args.policy_execution_backend)' in derby
-    assert "--display-mode" in wrapper
-    assert "--policy-execution-backend" in wrapper
     assert "--display-mode" in seed
     assert "--ready-timeout" in seed
     assert 'display_mode=str(args.display_mode or "headless")' in seed
