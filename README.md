@@ -2,6 +2,8 @@
 
 A quantum farming simulator built on real physics. Grow crops, measure qubits, harvest probability.
 
+![SpaceWheat titlecard](Assets/spacewheat_titlecard.png)
+
 SpaceWheat is a game where every wheat field is a quantum register, every harvest is a projective measurement, and every season is Hamiltonian evolution. The quantum mechanics aren't a metaphor — they're the actual engine. You're playing a quantum computer that happens to look like a farm.
 
 **The story begins in a closed quantum system** — in-fiction, *the enclave*: a world of
@@ -14,6 +16,11 @@ webways run live — and ends with the door open for good, leaving the full 162-
 world to explore with open and closed dynamics coexisting. The island the player grew up
 on stays closed forever: home is the thing the open world teaches you to miss
 (`docs/CLOSED_SYSTEM.md`, `docs/inspiration/OPEN_SYSTEM_ACT2.md`).
+
+> **Working physicist, educator, or skeptic?** [`docs/FOR_PHYSICISTS.md`](docs/FOR_PHYSICISTS.md)
+> is the five-minute ledger: every concept the game teaches, what the player
+> does with it, and an honesty grade per claim — exact, faithful, or
+> suggestive — plus how to verify each one yourself.
 
 ## How It Works
 
@@ -134,6 +141,35 @@ Navigate biomes with T-Y-U-I-O-P (6 active slots). Select plots within a biome w
 All resources are **emoji-credits** — unified currency per emoji type. Measurements convert quantum probability to credits at 10:1. Completing quests teaches you vocabulary icons, and known icons earn a purity bonus during seasonal reaps.
 
 Quests are procedurally generated from faction data and reference specific emoji deliveries, pushing you to explore diverse biomes and quantum states.
+
+## The Gallery
+
+The project documents itself in generated artifacts — rendered from live
+state or data truth, never hand-drawn:
+
+<p align="center">
+  <img src="docs/atlas/samples/StarterForest.svg" width="32%" alt="StarterForest atlas plate">
+  <img src="docs/atlas/samples/GildedRot.svg" width="32%" alt="GildedRot atlas plate">
+  <img src="docs/atlas/samples/Lanternfall.svg" width="32%" alt="Lanternfall atlas plate">
+</p>
+
+- **The atlas** — `python3 tools/atlas_plates.py` renders all 162 biomes as
+  SVG plates straight from `biomes.json` (the file the engine boots from) in
+  about a second, plus a contact sheet. A curated sixteen-plate exhibition
+  ships as one self-contained page — [`docs/gallery/index.html`](docs/gallery/index.html)
+  (`tools/gallery_exhibit.py`) — no external requests, hostable anywhere.
+- **Postcards** — F12 in-game captures the view with the physics watermark
+  rendered *into the pixels* (biome, act, Tr(ρ²), entanglement bits, phrame
+  count) plus a sidecar JSON certificate in `user://postcards/`. A postcard
+  and its save are a reproducible claim about a real quantum trajectory.
+- **Reels** — attract mode: `SW_REEL=Rig/reels/first_light.reel.json` (or
+  `godot -- --reel=…`) plays a data-driven demo through the rig's real action
+  surface; any input exits to live play.
+- **Recording** — Godot's movie mode turns a reel into portfolio footage:
+  `SW_REEL=Rig/reels/first_light.reel.json godot --write-movie reel.avi --fixed-fps 30`,
+  then ffmpeg to mp4/GIF.
+- **The web door** — build → static QA → real-Chromium smoke emitting a JSON
+  performance verdict: [`docs/release/WEB_DOOR.md`](docs/release/WEB_DOOR.md).
 
 ## Tech Stack
 
