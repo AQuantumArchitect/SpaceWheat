@@ -1481,6 +1481,10 @@ func _predicate_summary(pred: Dictionary) -> String:
 			return "standing %s.%s ≥ %.2f" % [str(pred.get("faction", "")), str(pred.get("channel", "trust")), float(pred.get("value", 0.0))]
 		"biome_state_gte":
 			return "%s.%s ≥ %.2f" % [str(pred.get("biome", "")), str(pred.get("atom", "")), float(pred.get("value", 0.0))]
+		"biome_state_lte":
+			return "%s.%s ≤ %.2f" % [str(pred.get("biome", "")), str(pred.get("atom", "")), float(pred.get("value", 0.0))]
+		"soul_purity_gte":
+			return "you · Tr(ρ²) ≥ %.2f" % float(pred.get("value", 0.5))
 		"biome_evolving":
 			return "%s evolving" % str(pred.get("biome", ""))
 		"story_flag_set":
@@ -1570,6 +1574,14 @@ func _predicate_value_tooltip(pred: Dictionary, score: float) -> String:
 			if farm and "story_flags_fired" in farm and farm.story_flags_fired is Dictionary:
 				fired = farm.story_flags_fired.has(fid)
 			return "%s\n%s" % [head, "fired ✓" if fired else "not yet fired"]
+
+		"soul_purity_gte":
+			var threshold_sp: float = float(pred.get("value", 0.5))
+			if farm and ("faction_density" in farm) and farm.faction_density != null \
+					and farm.faction_density.has_method("get_purity"):
+				var current_sp: float = float(farm.faction_density.get_purity())
+				return "%s\ncurrent: %.3f   ·   need: %.3f\nYour alignment purity decays toward the mixed state (τ=300s) unless your choices keep renewing it." % [head, current_sp, threshold_sp]
+			return "%s\n(alignment state unavailable)" % head
 
 		_:
 			return "%s\nscore: %.2f / 1.00" % [head, score]

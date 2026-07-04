@@ -358,6 +358,30 @@
     "arc_quest": null
   },
   {
+    "id": "island_stops_asking",
+    "display_name": "The Island Stops Asking",
+    "act": 4,
+    "arc_beat": "Every faction on the island keeps a picture of you — a smear of guesses about whose side you are on. For a long time the guesses disagreed, and the smear was the truth. No longer. Your alignment has climbed out of the mixed fog and stayed out: Tr(ρ²) reads a life being lived on purpose. The island has stopped asking who you are. It has started asking what you will do. But know the law you now live under — identity here is not a possession, it is an orbit you keep re-flying. Stand still five minutes and the fog files its claim.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "village_identity"
+      },
+      {
+        "type": "soul_purity_gte",
+        "value": 0.5
+      }
+    ],
+    "standing_grants": {},
+    "arc_quest": {
+      "body": "Stay Yourself — hold your alignment purity above the fog while the island watches.",
+      "hint": "The M overlay's Eigen tab shows You · Tr(ρ²). It decays toward the mixed state (τ=300s) unless your choices keep renewing it — learn icons, rotate settlements, work your factions. Hold it near 0.55.",
+      "state_predicates": [
+        {"type": "soul_purity_gte", "value": 0.55}
+      ]
+    }
+  },
+  {
     "id": "ledger_opens",
     "display_name": "The Ledger Opens",
     "act": 5,

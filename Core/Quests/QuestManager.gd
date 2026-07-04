@@ -242,6 +242,7 @@ const FLAG_PREDICATE_TYPES := [
 	"story_flag_set", "biome_evolving", "berry_consumed_count_gte", "berry_total_phase_gte",
 	"standing_gte", "biome_state_gte", "biome_state_lte", "signature_size_gte", "atom_count_gte",
 	"atom_in_biome", "biome_attractor_emoji_gte", "biome_eigenvalue_gap_gte", "biome_purity_trending",
+	"soul_purity_gte",
 ]
 
 
@@ -343,6 +344,17 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 			var snap: Dictionary = biome.viz_cache.get_snapshot(qubit)
 			var marginal: float = float(snap.get("p1" if pole == 1 else "p0", 0.0))
 			return QuestMath.soft_gate_inv(marginal, float(pred.get("value", 0.0)))
+		"soul_purity_gte":
+			# The player's OWN concept state: purity of the faction-alignment ρ — the
+			# enclave's one open system (τ=300s decay pulls it toward the mixed state
+			# unless choices keep renewing it; see docs/glossary/enclave.md). Starts
+			# maximally mixed (~1/n), so this can only fire through deliberate living.
+			# Width 0.1: identity resolves gradually — the Arc tab should feel it coming.
+			if not ("faction_density" in farm) or farm.faction_density == null \
+					or not farm.faction_density.has_method("get_purity"):
+				return 0.0
+			return QuestMath.soft_gate(float(farm.faction_density.get_purity()),
+					float(pred.get("value", 0.5)), 0.1)
 		"signature_size_gte":
 			return QuestMath.soft_gate(float(farm.known_icons.size()), float(pred.get("value", 0)), 2.0)
 		"atom_count_gte":

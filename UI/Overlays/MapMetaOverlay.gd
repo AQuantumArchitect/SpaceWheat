@@ -1335,7 +1335,8 @@ func _build_graph_status_card() -> Control:
 		var sel: String = str(_graph_selectable[_graph_selected_idx]) if (_graph_selected_idx >= 0 and _graph_selected_idx < _graph_selectable.size()) else "—"
 		body.text = "Federation · biomes %d · seams %d · qubits %d · ▶ %s" % [bcount, ecount, qcount, sel]
 	else:
-		body.text = "%s · neighborhood cluster (live)" % _graph_zoom
+		var seal := " · webway sealed" if not BalanceConfig.dissipative_enabled() else ""
+		body.text = "%s · neighborhood cluster (live%s)" % [_graph_zoom, seal]
 	card.add_child(body)
 	return card
 
