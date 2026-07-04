@@ -268,6 +268,30 @@ func _refresh_mi_edges(qc) -> void:
 			lbl.text = "◈ —"
 
 
+## One E-press worth of detail for the whole cluster view. Touch-first: E is the
+## canonical "more information" channel (QERF plane); hover tooltips are optional
+## desktop sugar and must never be the only home of a fact.
+func inspect_text() -> String:
+	var lines: Array[String] = []
+	if _graph != null and _graph.node_count() > 0:
+		lines.append("%s — %d-qubit neighborhood cluster" % [str(_graph.biome_name), _graph.node_count()])
+	var closed: bool = not BalanceConfig.dissipative_enabled()
+	lines.append("purple ━ coupling (H): authored, conservative — population sloshes, nothing is lost")
+	if closed:
+		lines.append("orange ━ webway (L): authored channels, SEALED — nothing flows while the enclave holds (Act 2 opens them)")
+	else:
+		lines.append("orange ━ webway (L): directed Lindblad flow")
+	lines.append("gold ━ entanglement: LIVE mutual information you wove (bits; a Bell pair reads 2.0)")
+	lines.append("◈ row on each node: its most-entangled partner right now")
+	if _live_qc != null and _live_qc.has_method("get_cached_max_mutual_information"):
+		var mi := float(_live_qc.get_cached_max_mutual_information())
+		if mi >= 0.0:
+			lines.append("strongest woven pair: %.2f bit" % mi)
+		else:
+			lines.append("(entanglement readout needs the native MI cache — none in this build)")
+	return "\n".join(lines)
+
+
 ## Fixed legend overlay (survives populate(), which only frees GraphNodes).
 func _update_legend(closed: bool) -> void:
 	if _legend == null:

@@ -1206,6 +1206,8 @@ func _commitment_ask_text(quest: Dictionary) -> String:
 		# Player-facing names for internal observable keys.
 		if obs_label == "max_mutual_information":
 			obs_label = "entanglement (MI)"
+		elif obs_label.begins_with("population:"):
+			obs_label = "%s population" % obs_label.trim_prefix("population:")
 		return "%s → %.2f" % [obs_label, float(quest.get("target", 0.0))]
 	if quest.has("target_coherence"):
 		return "coherence → %.2f" % float(quest.get("target_coherence", 0.0))

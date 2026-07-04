@@ -66,7 +66,7 @@
       "resource": "🌾",
       "quantity": 2,
       "body": "The Millwright's Union is buying. Accept their contract and deliver 2× 🌾 from your stores.",
-      "tutorial_hint": "Open the quest board, accept the contract, then complete it when you hold enough 🌾."
+      "tutorial_hint": "Open the quest board and press E on an offer first — every faction will tell you how this biome sits with its axioms (its resonance). Then accept the contract and complete it when you hold enough 🌾."
     },
     {
       "tutorial_step": 6,

@@ -113,6 +113,23 @@ func set_highlight(biome_name: String) -> void:
 			gn.set_selected(str(nm) == biome_name)
 
 
+## One E-press worth of detail for a federation node (touch-first: E is the
+## canonical "more information" channel; the node tooltip mirrors this).
+func inspect_text_for(biome_name: String) -> String:
+	if _broad == null or biome_name == "":
+		return ""
+	var neigh: Array = _broad.neighbors_of(biome_name) if _broad.has_method("neighbors_of") else []
+	var lines: Array[String] = [_neighbor_tooltip(biome_name, neigh)]
+	if _live_lookup.is_valid():
+		var qc = _live_lookup.call(biome_name)
+		if qc != null and qc.has_method("get_cached_max_mutual_information"):
+			var mi := float(qc.get_cached_max_mutual_information())
+			if mi >= 0.15:
+				lines.append("◈ strongest woven pair inside: %.2f bit — drill in (E) to see which qubits carry it" % mi)
+	lines.append("green ━ seams: shared atoms federate two clusters' vocabularies")
+	return "\n".join(lines)
+
+
 func _neighbor_tooltip(bname: String, neigh: Array) -> String:
 	if neigh.is_empty():
 		return "%s — no shared-vocabulary neighbors" % bname

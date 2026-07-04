@@ -95,6 +95,24 @@ static func suggest_quantum_quest(biome_name: String, faction: String, coherence
 	}, quest_id)
 
 
+## Rung-1 sibling, the AMPLITUDE ask — the flavor material/direct factions prefer
+## (QUEST_SYSTEM_PLAN stage 3 "type-select", chosen by the caller from
+## FactionStateMatcher.calculate_operator_weights). Push a specific atom's
+## population: SHAPE_ACHIEVE on the per-atom "population:<emoji>" observable
+## (get_biome_observables). The caller picks an atom the faction speaks and
+## supplies its current marginal; {} when there's no headroom to ask for.
+static func suggest_amplitude_quest(biome_name: String, faction: String, atom: String, marginal: float, quest_id: int) -> Dictionary:
+	if atom == "" or marginal < 0.0 or marginal >= 0.55:
+		return {}
+	var target := clampf(marginal + 0.15, 0.2, 0.7)
+	return quantum_quest(QuestTypes.Type.SHAPE_ACHIEVE, faction, biome_name, {
+		"observable": "population:%s" % atom,
+		"target": target,
+		"comparison": ">",
+		"tutorial_hint": "Grow %s past %.2f — rotate its axis toward that pole and let H carry it there." % [atom, target],
+	}, quest_id)
+
+
 ## Physics-derived suggestion, rung two of the quantum curriculum: entanglement. Offered
 ## when coherence is already mastered (see the call site's ladder) and the biome has
 ## correlation headroom. Uses the standard SHAPE_ACHIEVE tracker on the

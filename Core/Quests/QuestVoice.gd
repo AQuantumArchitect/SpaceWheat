@@ -124,7 +124,12 @@ static func _quantum_object(quest: Dictionary, ti: int) -> String:
 	match ti:
 		QuestTypes.Type.SHAPE_ACHIEVE, QuestTypes.Type.SHAPE_MAINTAIN:
 			var cmp := "past" if str(quest.get("comparison", ">")) != "<" else "below"
-			return "%s %s %.2f" % [str(quest.get("observable", "coherence")), cmp, float(quest.get("target", 0.7))]
+			var ob := str(quest.get("observable", "coherence"))
+			if ob == "max_mutual_information":
+				ob = "entanglement"
+			elif ob.begins_with("population:"):
+				ob = "%s population" % ob.trim_prefix("population:")
+			return "%s %s %.2f" % [ob, cmp, float(quest.get("target", 0.7))]
 		QuestTypes.Type.EVOLUTION:
 			return "%s by %+.2f" % [str(quest.get("observable", "coherence")), float(quest.get("delta", 0.2))]
 		QuestTypes.Type.ENTANGLEMENT:

@@ -114,6 +114,7 @@ var _broad = null                        # cached BroadGraph (rebuilt on biome c
 var _graph_selectable: Array = []        # biome names, keyboard selection order
 var _graph_selected_idx: int = -1
 var _graph_broad_view = null             # live BroadGraphView ref (highlight without re-render)
+var _graph_neigh_view = null             # live NeighborhoodGraphView ref (drill-down, E-inspect)
 
 # Cached per-render
 var _faction_roster: Array = []        # Array[Faction], stable order
@@ -376,6 +377,54 @@ func _on_action_e() -> void:
 			else:
 				# Already drilled in — E makes this the active biome for the play surface.
 				_activate_biome(_graph_zoom)
+
+# =============================================================================
+# INSPECT TEXT — what E pops up as a toast (OverlayBase calls get_inspect_text
+# right after _on_action_e). Touch-first: E is the canonical "more information"
+# channel of the QERF plane; hover tooltips only mirror what lives here.
+# Note the ordering: on Graph·broad, E drills in FIRST, so the toast explains
+# the cluster the player just entered.
+# =============================================================================
+
+func get_inspect_text() -> String:
+	match frame_id:
+		FRAME_EIGEN:
+			return _eigen_inspect_text()
+		FRAME_GRAPH:
+			return _graph_inspect_text()
+	return ""
+
+
+func _eigen_inspect_text() -> String:
+	var lines: Array[String] = []
+	if farm != null and ("faction_density" in farm) and farm.faction_density != null \
+			and farm.faction_density.has_method("get_purity"):
+		var p: float = float(farm.faction_density.get_purity())
+		lines.append("You · Tr(ρ²) = %.3f — %s" % [p, _soul_gloss(p)])
+		lines.append("Purity of your alignment density matrix: 1 = a committed identity; the mixed floor = a life not yet chosen.")
+		lines.append("It decays toward the mixed state (τ=300s) unless your choices keep renewing it — learn icons, rotate settlements, work your factions.")
+	return "\n".join(lines)
+
+
+func _graph_inspect_text() -> String:
+	if _graph_zoom == "broad":
+		if _graph_broad_view != null and is_instance_valid(_graph_broad_view) \
+				and _graph_selected_idx >= 0 and _graph_selected_idx < _graph_selectable.size():
+			return _graph_broad_view.inspect_text_for(str(_graph_selectable[_graph_selected_idx]))
+		return ""
+	var lines: Array[String] = []
+	if _graph_neigh_view != null and is_instance_valid(_graph_neigh_view):
+		lines.append(str(_graph_neigh_view.inspect_text()))
+	if not BalanceConfig.dissipative_enabled():
+		var canonical = _canonical_biome(_graph_zoom)
+		if _biome_has_webway(canonical):
+			var natives: Array = canonical.native_factions if ("native_factions" in canonical and canonical.native_factions is Array) else []
+			var speaker := str(natives[0]) if not natives.is_empty() else ""
+			var whisper := QuestVoice.webway_whisper(speaker)
+			if whisper != "":
+				lines.append("💬 %s“%s”" % [("%s — " % speaker) if speaker != "" else "", whisper])
+	return "\n".join(lines)
+
 
 func _on_action_r() -> void:
 	if frame_id == FRAME_ATLAS:
@@ -1282,6 +1331,7 @@ func _adjust_atlas_view(direction: int) -> void:
 
 func _build_graph_body() -> void:
 	_graph_broad_view = null
+	_graph_neigh_view = null
 	_body_box.add_child(_build_graph_status_card())
 
 	if _graph_zoom == "broad":
@@ -1311,6 +1361,7 @@ func _build_graph_body() -> void:
 		if canonical != null:
 			nview.populate(NeighborhoodGraphRef.from_biome(canonical))
 		nview.set_live_source(_live_qc_for(_graph_zoom))
+		_graph_neigh_view = nview
 
 
 func _build_graph_status_card() -> Control:
