@@ -1153,6 +1153,26 @@ func _predicate_summary(pred: Dictionary) -> String:
 			return t
 
 
+## Compact tooltip for a faction card: standing, cloud, biomes. Returns "" if
+## the faction is unknown or the farm is null.
+func _faction_card_tooltip(quest_name: String, farm) -> String:
+	if quest_name == "" or farm == null:
+		return ""
+	var card: Dictionary = FactionCard.gather(quest_name, farm)
+	if not bool(card.get("present", false)):
+		return ""
+	var standing: float = float(card.get("standing", 0.0))
+	var cloud_arr: Array = card.get("cloud", [])
+	var biomes_arr: Array = card.get("biomes_of_presence", [])
+	var lines: Array[String] = []
+	lines.append("%s  ·  standing %+.2f" % [quest_name, standing])
+	if not cloud_arr.is_empty():
+		lines.append("speaks: " + " ".join(cloud_arr))
+	if not biomes_arr.is_empty():
+		lines.append("biomes: " + ", ".join(biomes_arr))
+	return "\n".join(lines)
+
+
 ## Words for a faction's resonance with a biome — the alignment of its 12 axial
 ## preferences against the biome's live quantum observables, in [0, 1].
 func _resonance_gloss(a: float) -> String:
