@@ -65,14 +65,6 @@ var plot_biome_assignments: Dictionary:
 	get:
 		return _biome_routing.plot_biome_assignments if _biome_routing else {}
 
-var entangled_pairs: Array:
-	get:
-		return _entanglement.entangled_pairs if _entanglement else []
-
-var entangled_clusters: Array:
-	get:
-		return _entanglement.entangled_clusters if _entanglement else []
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # LIFECYCLE
 # ═══════════════════════════════════════════════════════════════════════════════

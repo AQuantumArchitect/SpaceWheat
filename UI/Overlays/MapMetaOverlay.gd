@@ -651,6 +651,21 @@ func _build_eigen_body() -> void:
 		_body_box.add_child(_make_muted_label("No factions in registry.", 12))
 		return
 
+	# WHO AM I BECOMING — the player's concept state, read as physics. Purity of
+	# the alignment density matrix: 1 = a committed identity, low = smeared across
+	# many selves. Farm's τ=300s Lindblad decay drags it down between choices —
+	# the one open system in the enclave (see docs/glossary/enclave.md).
+	if farm != null and ("faction_density" in farm) and farm.faction_density != null \
+			and farm.faction_density.has_method("get_purity"):
+		var soul_purity: float = float(farm.faction_density.get_purity())
+		var soul_lbl := Label.new()
+		soul_lbl.text = "You · Tr(ρ²)=%.3f — %s" % [soul_purity, _soul_gloss(soul_purity)]
+		soul_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		soul_lbl.add_theme_font_size_override("font_size", 12)
+		soul_lbl.add_theme_color_override("font_color", COLOR_HILITE)
+		soul_lbl.tooltip_text = "Purity of your alignment density matrix. It decays toward the mixed state (τ=300s) unless your choices keep renewing it."
+		_body_box.add_child(soul_lbl)
+
 	# Sort mode is derived from pinned-faction state — no chord.
 	var sort_mode: int = EIGEN_SORT_SUBJECT if _get_pinned_faction() != null else EIGEN_SORT_SYSTEM
 	var mode_lbl := Label.new()
@@ -659,6 +674,18 @@ func _build_eigen_body() -> void:
 	mode_lbl.add_theme_font_size_override("font_size", 11)
 	mode_lbl.add_theme_color_override("font_color", COLOR_MUTED)
 	_body_box.add_child(mode_lbl)
+
+
+## Words for the purity of a soul. Bands are heuristic: the mixed-state floor for
+## a ~90-faction support is ≈0.011, so anything near 1 is a deliberate life.
+func _soul_gloss(p: float) -> String:
+	if p >= 0.8:
+		return "resolved"
+	if p >= 0.5:
+		return "leaning"
+	if p >= 0.2:
+		return "torn"
+	return "smeared across many selves"
 
 	if sort_mode == EIGEN_SORT_SUBJECT:
 		_build_eigen_body_subject()

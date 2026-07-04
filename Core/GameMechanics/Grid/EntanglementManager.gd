@@ -12,9 +12,10 @@ extends RefCounted
 signal entanglement_created(from: Vector2i, to: Vector2i)
 signal entanglement_removed(from: Vector2i, to: Vector2i)
 
-# Entangled state tracking
-var entangled_pairs: Array = []  # Array of EntangledPair objects
-var entangled_clusters: Array = []  # Array of EntangledCluster objects
+# Entanglement state lives in the density matrix (Model C): the biome's
+# QuantumComputer owns it, and plot.entangled_plots carries the gameplay
+# topology. The old EntangledPair/EntangledCluster object model was retired
+# 2026-07-04 (never populated post-Model-C).
 
 # Component dependencies (injected via set_dependencies)
 var _plot_manager = null  # GridPlotManager
@@ -272,47 +273,6 @@ func _create_quantum_entanglement(pos_a: Vector2i, pos_b: Vector2i, _bell_type: 
 	plot_b.add_entanglement(plot_a.plot_id, 1.0)
 
 	return true
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# CLUSTER HELPERS - Multi-qubit state management
-# ═══════════════════════════════════════════════════════════════════════════════
-
-func update_cluster_gameplay_connections(cluster) -> void:
-	# Update WheatPlot.entangled_plots for all qubits in cluster (for topology)
-	var plot_ids = cluster.get_all_plot_ids()
-
-	# Each plot should be connected to all others in cluster
-	for plot_id in plot_ids:
-		var plot = _plot_manager.get_plot_by_id(plot_id)
-		if not plot:
-			continue
-
-		# Clear old connections, rebuild from cluster
-		plot.entangled_plots.clear()
-
-		# Add all other plots in cluster
-		for other_id in plot_ids:
-			if other_id != plot_id:
-				plot.entangled_plots[other_id] = 1.0  # Full strength
-
-
-func handle_cluster_collapse(cluster) -> void:
-	# Handle measurement cascade when cluster is measured.
-
-	# Model C: Clear gameplay entanglement tracking. Quantum state collapse
-	# is handled by biome.quantum_computer measurement.
-	var plot_ids = cluster.get_all_plot_ids()
-
-	for plot_id in plot_ids:
-		var plot = _plot_manager.get_plot_by_id(plot_id)
-		if plot:
-			plot.entangled_plots.clear()
-
-	entangled_clusters.erase(cluster)
-
-	if _verbose:
-		_verbose.info("quantum", "💥", "Cluster collapsed - %d qubits now separable" % plot_ids.size())
 
 
 func clear_plot_entanglements(plot) -> void:
