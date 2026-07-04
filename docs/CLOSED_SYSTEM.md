@@ -8,6 +8,15 @@ dissipators** (no pump, drain, or decay). Every bubble therefore stays **pure** 
 The earlier **open** system (Lindbladian pump/drain/decay, mixed states, entropy
 extraction) is preserved behind a single flag as the future **open-quantum DLC**.
 
+**In-fiction, this document is the law of the enclave.** The story and the physics
+speak one language, and the glossary is the dictionary between them:
+[enclave](glossary/enclave.md) (the closed world and its four-clause law),
+[webway](glossary/webway.md) (the authored Lindblad channels, sealed in v0),
+[measurement](glossary/measurement.md) (the single irreversible act — measurement IS
+the economy), [berry](glossary/berry.md) (geometric phase as harvest). When a quest
+beat, a tooltip, or a code comment needs a word for a physics fact, it should be one
+of these.
+
 ## The one switch
 
 `BalanceConfig.physics.system_mode` — `"closed"` (default) | `"open"`.
@@ -52,11 +61,19 @@ drives closed-system play.
 
 ## Verification
 
-- `Tests/test_closed_system.gd` — headless gate test (closed → 0 operators, open →
-  rebuilt from the same data).
+- `tests/test_closed_system.gd` — headless gate test: closed → 0 operators; open
+  (via `BalanceConfig.set_physics_override`) → operators rebuilt from the same
+  `atom_components`; purity held at exactly 1 through `evolve()` and projective
+  measurement. Run: `bash 🍄/🧪/🔬.sh --suite closed`.
+  `tests/test_drain_qubit.gd` covers the weak-measurement drain invariants on the
+  open path.
 - Live purity/regeneration must be checked in the rig (`./🍄/🎛️/🟢.sh`): the native
   Eigen matrix backend only syncs ρ under a full game boot, so numeric evolution isn't
   drivable from an isolated `--script`. Pop an axis → one surprisal-priced resource; the
   qubit pins then re-spreads under H; purity holds at 1.
 
 See memory `project_closed_system_migration.md` for the per-stage change log.
+
+Design notes for the eventual open-system return (Act 2) — including the post-mortem of
+why the first H+L attempt failed and the role-separation law that prevents a repeat —
+live in [docs/inspiration/OPEN_SYSTEM_ACT2.md](inspiration/OPEN_SYSTEM_ACT2.md).

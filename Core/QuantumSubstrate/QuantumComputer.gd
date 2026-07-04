@@ -6,6 +6,13 @@ extends Resource
 ## The QuantumComputer is the ONLY owner of quantum state for the biome.
 ## Uses a single density_matrix with RegisterMap for emoji↔qubit coordination.
 ## Entanglement tracked via entanglement_graph metadata (adjacency lists).
+##
+## In the shipped closed system this core IS the story's "enclave"
+## (docs/glossary/enclave.md): evolution is exact-unitary — ρ → UρU†, trace and
+## purity conserved to machine precision — the authored Lindblad webway is sealed
+## (docs/glossary/webway.md; LindbladBuilder builds zero operators), and projective
+## measurement is the single irreversible operation (docs/glossary/measurement.md —
+## measurement IS the economy).
 
 # Sparse-matrix optimization is now handled by the native C++ backend.
 
@@ -1682,8 +1689,9 @@ func evolve(dt: float, max_dt: float = 0.02, lnn: Object = null) -> void:
 	# Uses first-order Euler integration: ρ(t+dt) = ρ(t) + dt * dρ/dt
 
 	# Args:
-	# dt: Time step (in game seconds, actual evolution timestep)
-	# max_dt: Unused (kept on the API surface)
+	# dt: Total simulated time this call advances (game seconds)
+	# max_dt: Integrator substep ceiling — dt is subcycled into steps of at most
+	#         max_dt (driven-H closed path and the Euler path both honor it)
 	# lnn: Optional LiquidNeuralNet for phase modulation in phasic shadow
 	# If provided, applies learned phase shifts to density matrix diagonal
 
@@ -2166,6 +2174,20 @@ func get_cached_mutual_information(qubit_a: int, qubit_b: int) -> float:
 func has_cached_mi() -> bool:
 	# Check if MI cache is populated (native path is working).
 	return not _cached_mi_values.is_empty()
+
+
+func get_cached_max_mutual_information() -> float:
+	# Max pairwise MI (bits) across the register, from the native cache ONLY.
+	# Returns -1.0 (unknown) when the cache is empty rather than falling back to
+	# the per-pair eigensolve path — too hot for UI/tracker polling rates.
+	# The cache holds exactly the upper-triangular pairs, so max over the raw
+	# array IS the max over pairs.
+	if _cached_mi_values.is_empty():
+		return -1.0
+	var best := 0.0
+	for v in _cached_mi_values:
+		best = maxf(best, float(v))
+	return best
 
 
 func _entropy_of_marginal(qubit_index: int) -> float:

@@ -1,7 +1,7 @@
 ---
 term: cloud
 short_def: A set of atoms. Everything that "touches" a thing.
-related: [atom, icon, signature]
+related: [atom, icon, signature, webway]
 since: 2026-05-09
 status: canonical
 ---

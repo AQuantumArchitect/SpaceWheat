@@ -1,7 +1,7 @@
 ---
 term: biome
 short_def: A full dissipative scaffold - cloud of atoms + Lindblad physics + visual config.
-related: [atom, cloud, signature, neighborhood, faction]
+related: [atom, cloud, signature, neighborhood, faction, webway, enclave]
 since: 2026-05-09
 status: canonical
 ---
@@ -14,7 +14,9 @@ A biome is the full dissipative substrate of a location in the world. It provide
   the **sink-decay** layer (`decay`/edges to `🗑`, which lowers entropy) and the
   **[webway](webway.md)** layer (non-sink inter-atom edges that recirculate population
   and hold entropy up). Plus optional pumps (`lindblad_incoming` from `🗑`). This is
-  the biome's "L authority."
+  the biome's "L authority." **In v0 this entire layer is authored data with no
+  runtime physics** — the [enclave](enclave.md) seals it (`LindbladBuilder` builds
+  zero operators in closed mode); the channels are drawn dark in the graph views.
 - **Visual config** - color, label, plot layout.
 
 A biome does NOT carry coherent (Hamiltonian) dynamics of its own, and **a biome does

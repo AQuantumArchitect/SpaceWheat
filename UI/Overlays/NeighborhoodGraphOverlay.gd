@@ -84,3 +84,11 @@ func _canonical_biome(biome_name: String):
 		if shared != null and shared.has_method("get_by_name"):
 			return shared.get_by_name(biome_name)
 	return null
+
+
+## E-inspect (touch-first "more information" — OverlayBase toasts this on E):
+## the cluster legend, the sealed-webway law, and the live entanglement readout.
+func get_inspect_text() -> String:
+	if _view != null and is_instance_valid(_view) and _view.has_method("inspect_text"):
+		return str(_view.inspect_text())
+	return ""

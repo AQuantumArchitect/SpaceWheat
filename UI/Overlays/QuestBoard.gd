@@ -355,6 +355,15 @@ func _market_inspect_text() -> String:
 		float(proj.get("alignment", 0.0)),
 		float(proj.get("directional_edge", 0.0)),
 	])
+	# Faction↔biome resonance: how the faction's 12 axial preferences sit with
+	# this biome's live quantum observables (FactionStateMatcher). Physics-derived
+	# mood, not flavor dice.
+	if offer.has("faction_alignment"):
+		var res: float = float(offer.get("faction_alignment", 0.0))
+		lines.append("resonance %.2f — %s" % [res, _resonance_gloss(res)])
+		var prefs := str(offer.get("faction_preferences", ""))
+		if prefs != "":
+			lines.append("their axioms: %s" % prefs)
 	var explanation = offer.get("market_explanation", [])
 	if explanation is Array:
 		for line in explanation:
@@ -1068,10 +1077,41 @@ func _commitment_ask_text(quest: Dictionary) -> String:
 	if ti == int(QuestTypes.Type.DELIVERY):
 		return "%s × %d" % [str(quest.get("resource", "?")), int(quest.get("quantity", 0))]
 	if quest.has("observable"):
-		return "%s → %.2f" % [str(quest.get("observable", "?")), float(quest.get("target", 0.0))]
+		var obs_label := str(quest.get("observable", "?"))
+		# Player-facing names for internal observable keys.
+		if obs_label == "max_mutual_information":
+			obs_label = "entanglement (MI)"
+		elif obs_label.begins_with("population:"):
+			obs_label = "%s population" % obs_label.trim_prefix("population:")
+		elif obs_label.begins_with("balance:"):
+			var pr := obs_label.trim_prefix("balance:").split("/")
+			if pr.size() == 2:
+				obs_label = "%s over %s" % [pr[0], pr[1]]
+		return "%s → %.2f" % [obs_label, float(quest.get("target", 0.0))]
 	if quest.has("target_coherence"):
 		return "coherence → %.2f" % float(quest.get("target_coherence", 0.0))
+	# Composed (multi) asks: predicates joined as threads of one weave.
+	var preds = quest.get("state_predicates", [])
+	if preds is Array and not preds.is_empty():
+		var parts: Array[String] = []
+		for p in preds:
+			if p is Dictionary:
+				parts.append(_predicate_summary(p))
+		if not parts.is_empty():
+			return " ∧ ".join(parts)
 	return QuestTypes.get_type_name(ti)
+
+
+## Words for a faction's resonance with a biome — the alignment of its 12 axial
+## preferences against the biome's live quantum observables, in [0, 1].
+func _resonance_gloss(a: float) -> String:
+	if a >= 0.75:
+		return "this place sings to them"
+	if a >= 0.55:
+		return "at ease here"
+	if a >= 0.35:
+		return "wary of this place"
+	return "restless — the biome grates on their axioms"
 
 
 ## Compact reward-payload summary for history rows.
@@ -1113,6 +1153,280 @@ func _commitments_rows() -> Array:
 			rows.append(q)
 	return rows
 
+# =============================================================================
+# ARC BODY (I tab — story flags timeline)
+# =============================================================================
+
+func _build_arc_body() -> void:
+	var rows: Array = _arc_rows()
+	if rows.is_empty():
+		_body_box.add_child(_make_muted_label("no story flags loaded", 12))
+		return
+	for i in range(MAX_VISIBLE_ITEMS):
+		if i < rows.size():
+			_body_box.add_child(_make_arc_row(rows[i], ITEM_KEYS[i], i == _selected_index))
+		else:
+			_body_box.add_child(_make_empty_row(ITEM_KEYS[i]))
+	if rows.size() > MAX_VISIBLE_ITEMS:
+		_body_box.add_child(_make_muted_label("… %d more arc beats not shown" % (rows.size() - MAX_VISIBLE_ITEMS), 10))
+
+## Builds Arc tab rows. Order:
+##   1. Story arc offers (player can acknowledge to dismiss)
+##   2. On-edge unfired flags (relevant to current pair), score desc
+##   3. Off-edge unfired flags, score desc
+##   4. On-edge fired flags
+##   5. Off-edge fired flags
+##
+## Edge relevance is inferred from each flag's predicate biome fields.
+func _arc_rows() -> Array:
+	var rows: Array = []
+	if quest_manager == null:
+		return rows
+	if quest_manager.has_method("get_story_offers"):
+		for q in quest_manager.get_story_offers():
+			if q is Dictionary and str(q.get("category", "")) in ["ARC", "TUTORIAL"]:
+				rows.append({"kind": "arc_quest", "data": q})
+
+	if not quest_manager.has_method("get_all_story_flags"):
+		return rows
+
+	var farm = InstrumentLocator.resolve_active_farm(self)
+	var fired_set: Dictionary = {}
+	if farm != null and "story_flags_fired" in farm:
+		fired_set = farm.story_flags_fired
+
+	var edge_set: Dictionary = {}
+	if _pair_a_name != "":
+		edge_set[_pair_a_name] = true
+	if _pair_b_name != "":
+		edge_set[_pair_b_name] = true
+
+	var unfired_on: Array = []
+	var unfired_off: Array = []
+	var fired_on: Array = []
+	var fired_off: Array = []
+
+	for flag in quest_manager.get_all_story_flags():
+		var fid := str(flag.get("id", ""))
+		var biomes: Array = _flag_biomes(flag)
+		var on_edge: bool = false
+		if not edge_set.is_empty():
+			for b in biomes:
+				if edge_set.has(b):
+					on_edge = true
+					break
+		if fired_set.has(fid):
+			var entry := {"kind": "flag_fired", "flag": flag, "on_edge": on_edge}
+			if on_edge:
+				fired_on.append(entry)
+			else:
+				fired_off.append(entry)
+		else:
+			var score: float = quest_manager.evaluate_flag_score(flag)
+			var pred_scores: Array = []
+			for pred in flag.get("predicates", []):
+				if pred is Dictionary:
+					pred_scores.append({
+						"pred": pred,
+						"score": quest_manager.evaluate_predicate_score(pred),
+					})
+			var entry: Dictionary = {
+				"kind": "flag_unfired",
+				"flag": flag,
+				"score": score,
+				"pred_scores": pred_scores,
+				"on_edge": on_edge,
+			}
+			if on_edge:
+				unfired_on.append(entry)
+			else:
+				unfired_off.append(entry)
+
+	var by_score = func(a, b): return float(a.score) > float(b.score)
+	unfired_on.sort_custom(by_score)
+	unfired_off.sort_custom(by_score)
+
+	for u in unfired_on: rows.append(u)
+	for u in unfired_off: rows.append(u)
+	for f in fired_on: rows.append(f)
+	for f in fired_off: rows.append(f)
+	return rows
+
+## Biome names referenced by a flag's predicates. Used to determine whether
+## the flag "lives on" the active edge.
+func _flag_biomes(flag: Dictionary) -> Array:
+	var seen: Dictionary = {}
+	for pred in flag.get("predicates", []):
+		if not (pred is Dictionary):
+			continue
+		var b: String = str(pred.get("biome", ""))
+		if b != "":
+			seen[b] = true
+	return seen.keys()
+
+func _make_arc_row(entry: Dictionary, key_str: String, selected: bool) -> Control:
+	var kind := str(entry.get("kind", ""))
+	var row := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.set_corner_radius_all(3)
+	sb.content_margin_left = 8
+	sb.content_margin_right = 8
+	sb.content_margin_top = 4
+	sb.content_margin_bottom = 4
+	sb.border_width_top = 1
+	sb.border_width_right = 1
+	sb.border_width_bottom = 1
+	sb.border_width_left = 4 if selected else 1
+	if kind == "arc_quest":
+		sb.bg_color = Color(0.08, 0.12, 0.10, 0.92) if not selected else Color(0.12, 0.20, 0.14, 0.95)
+		sb.border_color = Color(0.3, 0.6, 0.4, 0.6) if not selected else Color(0.5, 0.9, 0.55, 0.95)
+	elif kind == "flag_fired":
+		sb.bg_color = Color(0.08, 0.10, 0.10, 0.85) if not selected else Color(0.12, 0.16, 0.14, 0.95)
+		sb.border_color = Color(0.3, 0.5, 0.4, 0.45) if not selected else COLOR_ARC_FIRED
+	else:
+		sb.bg_color = Color(0.10, 0.10, 0.13, 0.85) if not selected else Color(0.18, 0.16, 0.10, 0.95)
+		sb.border_color = Color(0.5, 0.45, 0.35, 0.5) if not selected else COLOR_ARC_UNFIRED
+	row.add_theme_stylebox_override("panel", sb)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 2)
+	row.add_child(vbox)
+
+	var top_hbox := HBoxContainer.new()
+	top_hbox.add_theme_constant_override("separation", 10)
+	vbox.add_child(top_hbox)
+	top_hbox.add_child(_make_key_chip(key_str, selected))
+
+	if kind == "arc_quest":
+		var data: Dictionary = entry.get("data", {})
+		var badge := Label.new()
+		badge.text = "[QUEST]"
+		badge.add_theme_font_size_override("font_size", 11)
+		badge.add_theme_color_override("font_color", Color(0.5, 0.9, 0.55, 0.95))
+		badge.custom_minimum_size = Vector2(60, 0)
+		top_hbox.add_child(badge)
+		var body_lbl := Label.new()
+		body_lbl.text = str(data.get("body", str(data.get("source_flag", "campaign quest"))))
+		body_lbl.add_theme_font_size_override("font_size", 12)
+		body_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_TAB_ACTIVE if selected else UIStyleFactory.COLOR_ITEM_IDLE)
+		body_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		body_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART if selected else TextServer.AUTOWRAP_OFF
+		body_lbl.clip_text = not selected
+		top_hbox.add_child(body_lbl)
+		if selected:
+			var hint_str: String = str(data.get("hint", data.get("tutorial_hint", "")))
+			if hint_str != "":
+				var hint_lbl := Label.new()
+				hint_lbl.text = "    hint: %s" % hint_str
+				hint_lbl.add_theme_font_size_override("font_size", 11)
+				hint_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
+				hint_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+				vbox.add_child(hint_lbl)
+		return row
+
+	var flag: Dictionary = entry.get("flag", {})
+	var act_n: int = int(flag.get("act", 0))
+	var act_lbl := Label.new()
+	act_lbl.text = "act %d" % act_n
+	act_lbl.add_theme_font_size_override("font_size", 11)
+	act_lbl.add_theme_color_override("font_color", COLOR_ARC_HEADER)
+	act_lbl.custom_minimum_size = Vector2(48, 0)
+	top_hbox.add_child(act_lbl)
+
+	var name_lbl := Label.new()
+	name_lbl.text = str(flag.get("display_name", flag.get("id", "?")))
+	name_lbl.add_theme_font_size_override("font_size", 13)
+	name_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_TAB_ACTIVE if selected else UIStyleFactory.COLOR_ITEM_IDLE)
+	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top_hbox.add_child(name_lbl)
+
+	if bool(entry.get("on_edge", false)):
+		var edge_badge := Label.new()
+		edge_badge.text = "⊗"
+		edge_badge.add_theme_font_size_override("font_size", 11)
+		edge_badge.add_theme_color_override("font_color", Color(0.5, 0.85, 0.95, 0.95))
+		edge_badge.tooltip_text = "on this edge"
+		top_hbox.add_child(edge_badge)
+
+	if kind == "flag_fired":
+		var fired_lbl := Label.new()
+		fired_lbl.text = "✓ FIRED"
+		fired_lbl.add_theme_font_size_override("font_size", 11)
+		fired_lbl.add_theme_color_override("font_color", COLOR_ARC_FIRED)
+		top_hbox.add_child(fired_lbl)
+		return row
+
+	# Unfired — show score + per-predicate breakdown.
+	var score: float = float(entry.get("score", 0.0))
+	var score_lbl := Label.new()
+	score_lbl.text = "%.2f / 0.85 %s" % [score, _ratio_bar(score / 0.85, 6)]
+	score_lbl.add_theme_font_size_override("font_size", 11)
+	score_lbl.add_theme_color_override("font_color", _score_color(score))
+	top_hbox.add_child(score_lbl)
+
+	if selected:
+		var pred_scores: Array = entry.get("pred_scores", [])
+		for ps in pred_scores:
+			var pred: Dictionary = ps.get("pred", {})
+			var ps_score: float = float(ps.get("score", 0.0))
+			var pred_lbl := Label.new()
+			pred_lbl.text = "    %s · %.2f %s" % [_predicate_summary(pred), ps_score, _ratio_bar(ps_score, 5)]
+			pred_lbl.add_theme_font_size_override("font_size", 10)
+			pred_lbl.add_theme_color_override("font_color", _score_color(ps_score))
+			pred_lbl.tooltip_text = _predicate_value_tooltip(pred, ps_score)
+			pred_lbl.mouse_filter = Control.MOUSE_FILTER_PASS
+			vbox.add_child(pred_lbl)
+
+	return row
+
+func _predicate_summary(pred: Dictionary) -> String:
+	var t := str(pred.get("type", "?"))
+	match t:
+		"signature_size_gte":
+			return "signature ≥ %d" % int(pred.get("value", 0))
+		"berry_consumed_count_gte":
+			return "berries[%s] ≥ %d" % [str(pred.get("biome", "")), int(pred.get("value", 0))]
+		"berry_total_phase_gte":
+			return "phase[%s] ≥ %.2f" % [str(pred.get("biome", "")), float(pred.get("value", 0.0))]
+		"standing_gte":
+			return "standing %s.%s ≥ %.2f" % [str(pred.get("faction", "")), str(pred.get("channel", "trust")), float(pred.get("value", 0.0))]
+		"biome_state_gte":
+			return "%s.%s ≥ %.2f" % [str(pred.get("biome", "")), str(pred.get("atom", "")), float(pred.get("value", 0.0))]
+		"biome_state_lte":
+			return "%s.%s ≤ %.2f" % [str(pred.get("biome", "")), str(pred.get("atom", "")), float(pred.get("value", 0.0))]
+		"soul_purity_gte":
+			return "you · Tr(ρ²) ≥ %.2f" % float(pred.get("value", 0.5))
+		"biome_evolving":
+			return "%s evolving" % str(pred.get("biome", ""))
+		"story_flag_set":
+			return "flag '%s' set" % str(pred.get("id", ""))
+		"atom_count_gte":
+			return "%s atoms ≥ %d" % [str(pred.get("biome", "")), int(pred.get("value", 0))]
+		"atom_in_biome":
+			return "%s ∋ %s" % [str(pred.get("biome", "")), str(pred.get("atom", ""))]
+		"biome_attractor_emoji_gte":
+			return "%s attractor[%s] ≥ %.2f" % [str(pred.get("biome", "")), str(pred.get("emoji", "")), float(pred.get("value", 0.0))]
+		"biome_eigenvalue_gap_gte":
+			return "%s gap ≥ %.2f" % [str(pred.get("biome", "")), float(pred.get("value", 0.0))]
+		"biome_purity_trending":
+			return "%s purity↑" % str(pred.get("biome", ""))
+		# Projection-service vocabulary (tutorial + composed multi asks).
+		"coherence_at_least":
+			return "coherence ≥ %.2f" % float(pred.get("value", 0.0))
+		"purity_at_least":
+			return "purity ≥ %.2f" % float(pred.get("value", 0.0))
+		"entropy_at_most":
+			return "entropy ≤ %.2f" % float(pred.get("value", 1.0))
+		"mutual_information_at_least":
+			return "entanglement (MI) ≥ %.2f" % float(pred.get("value", 0.5))
+		"gate_sequence_contains":
+			return "%s ×%d" % [str(pred.get("gate", "?")), int(pred.get("count", 1))]
+		_:
+			return t
+
+## Tooltip for a predicate row — reports the *current* measured value alongside
+## the threshold. Returns multi-line text. When a value can't be read (missing
+## biome, no farm, etc.) we fall back to the score-only summary.
 ## 3-line tooltip summarizing a faction's nature via FactionCard:
 ##   {name}  ·  standing {±0.NN}
 ##   speaks: {sig emojis}
@@ -1134,6 +1448,65 @@ func _faction_card_tooltip(quest_name: String, farm) -> String:
 	if not biomes_arr.is_empty():
 		lines.append("biomes: " + ", ".join(biomes_arr))
 	return "\n".join(lines)
+
+func _predicate_value_tooltip(pred: Dictionary, score: float) -> String:
+	var t := str(pred.get("type", "?"))
+	var farm = InstrumentLocator.resolve_active_farm(self)
+	var status := "fired ✓" if score >= 1.0 else ("close" if score >= 0.7 else "not yet")
+	var head := "%s   ·   %s" % [_predicate_summary(pred), status]
+
+	match t:
+		"signature_size_gte":
+			var threshold: int = int(pred.get("value", 0))
+			var current: int = 0
+			if farm and farm.has_method("get_known_emojis"):
+				current = farm.get_known_emojis().size()
+			return "%s\ncurrent: %d   ·   need: %d   ·   gap: %d" % [head, current, threshold, max(0, threshold - current)]
+
+		"berry_consumed_count_gte", "berry_total_phase_gte":
+			var biome_name: String = str(pred.get("biome", ""))
+			var biome = _resolve_live_biome(biome_name)
+			var qc = biome.quantum_computer if biome and "quantum_computer" in biome else null
+			var berry = qc.berry_register if qc and "berry_register" in qc else null
+			if berry == null:
+				return "%s\n(biome '%s' not loaded)" % [head, biome_name]
+			if t == "berry_consumed_count_gte":
+				var threshold_c: int = int(pred.get("value", 0))
+				var current_c: int = berry.get_consumed_count() if berry.has_method("get_consumed_count") else 0
+				return "%s\ncurrent: %d   ·   need: %d" % [head, current_c, threshold_c]
+			else:
+				var threshold_p: float = float(pred.get("value", 0.0))
+				var current_p: float = berry.get_consumed_phase() if berry.has_method("get_consumed_phase") else 0.0
+				return "%s\ncurrent: %.2f rad   ·   need: %.2f rad" % [head, current_p, threshold_p]
+
+		"standing_gte":
+			var fname: String = str(pred.get("faction", ""))
+			var ch: String = str(pred.get("channel", "trust"))
+			var threshold_s: float = float(pred.get("value", 0.0))
+			var current_s: float = 0.0
+			if farm and "faction_standings" in farm and farm.faction_standings is Dictionary:
+				var s = farm.faction_standings.get(fname, null)
+				if s != null and ch in s:
+					current_s = float(s.get(ch))
+			return "%s\ncurrent: %+.2f   ·   need: %+.2f" % [head, current_s, threshold_s]
+
+		"story_flag_set":
+			var fid: String = str(pred.get("id", ""))
+			var fired: bool = false
+			if farm and "story_flags_fired" in farm and farm.story_flags_fired is Dictionary:
+				fired = farm.story_flags_fired.has(fid)
+			return "%s\n%s" % [head, "fired ✓" if fired else "not yet fired"]
+
+		"soul_purity_gte":
+			var threshold_sp: float = float(pred.get("value", 0.5))
+			if farm and ("faction_density" in farm) and farm.faction_density != null \
+					and farm.faction_density.has_method("get_purity"):
+				var current_sp: float = float(farm.faction_density.get_purity())
+				return "%s\ncurrent: %.3f   ·   need: %.3f\nYour alignment purity decays toward the mixed state (τ=300s) unless your choices keep renewing it." % [head, current_sp, threshold_sp]
+			return "%s\n(alignment state unavailable)" % head
+
+		_:
+			return "%s\nscore: %.2f / 1.00" % [head, score]
 
 # =============================================================================
 # MARKET POOL + VIEW (preserved logic, sort uses _market_sort_mode)

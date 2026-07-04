@@ -15,10 +15,14 @@ extends GraphEdit
 
 const COLOR_NODE := Color(0.45, 0.65, 0.9)       # biome cluster node (blue)
 const COLOR_EDGE := Color(0.5, 0.75, 0.6)         # shared-vocabulary federation seam
+const COLOR_ENTANGLE := Color(1.0, 0.84, 0.25)    # live entanglement badge (gold)
 
 var _broad = null                          # BroadGraph (derived)
 var _selectable: Array = []                # ordered biome names (keyboard nav)
 var _name_to_node: Dictionary = {}         # biome_name -> GraphNode
+var _mi_labels: Dictionary = {}            # biome_name -> gold ◈ badge Label
+var _live_lookup := Callable()             # biome_name -> live QuantumComputer (host-supplied)
+var _refresh_accum := 0.0
 
 
 func _init() -> void:
@@ -28,6 +32,12 @@ func _init() -> void:
 	size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 
+## Host supplies biome_name → live QuantumComputer resolution; _process then pulls
+## a per-biome max-MI badge from the native cache (cache-only — no eigensolves).
+func set_live_lookup(lookup: Callable) -> void:
+	_live_lookup = lookup
+
+
 ## Render the whole-world federation graph (rebuilds all nodes + connections).
 func populate(broad) -> void:
 	_broad = broad
@@ -35,11 +45,16 @@ func populate(broad) -> void:
 	# Free only the GraphNodes we added — NOT every child. GraphEdit keeps an internal,
 	# non-internal `connection_layer` child; queue_free-ing it corrupts the GraphEdit
 	# ("connections_layer is missing" on the next scroll/redraw).
+	# remove_child BEFORE queue_free: the free is deferred, and while old same-named
+	# nodes are still in the tree the new ones get auto-renamed on add_child — every
+	# connect_node would then bind to a dying node and vanish at frame end.
 	for child in get_children():
 		if child is GraphNode:
+			remove_child(child)
 			child.queue_free()
 	_selectable.clear()
 	_name_to_node.clear()
+	_mi_labels.clear()
 	if _broad == null:
 		return
 
@@ -59,6 +74,14 @@ func populate(broad) -> void:
 		var nports := int(ng.ports.size()) if ng != null and "ports" in ng else 0
 		stat.text = "%dq · %d🌐" % [nq, nports]
 		gn.add_child(stat)
+		# Live entanglement badge — filled by _process when a live QC resolves.
+		var mi_lbl := Label.new()
+		mi_lbl.text = ""
+		mi_lbl.add_theme_font_size_override("font_size", 10)
+		mi_lbl.add_theme_color_override("font_color", COLOR_ENTANGLE)
+		mi_lbl.tooltip_text = "Strongest woven pair inside this cluster (mutual information, bits).\nDrill in to see which qubits carry it."
+		gn.add_child(mi_lbl)
+		_mi_labels[bname] = mi_lbl
 		# Single slot, enabled both sides so federation edges attach either direction.
 		gn.set_slot(0, true, 0, COLOR_EDGE, true, 0, COLOR_EDGE)
 
@@ -90,6 +113,23 @@ func set_highlight(biome_name: String) -> void:
 			gn.set_selected(str(nm) == biome_name)
 
 
+## One E-press worth of detail for a federation node (touch-first: E is the
+## canonical "more information" channel; the node tooltip mirrors this).
+func inspect_text_for(biome_name: String) -> String:
+	if _broad == null or biome_name == "":
+		return ""
+	var neigh: Array = _broad.neighbors_of(biome_name) if _broad.has_method("neighbors_of") else []
+	var lines: Array[String] = [_neighbor_tooltip(biome_name, neigh)]
+	if _live_lookup.is_valid():
+		var qc = _live_lookup.call(biome_name)
+		if qc != null and qc.has_method("get_cached_max_mutual_information"):
+			var mi := float(qc.get_cached_max_mutual_information())
+			if mi >= 0.15:
+				lines.append("◈ strongest woven pair inside: %.2f bit — drill in (E) to see which qubits carry it" % mi)
+	lines.append("green ━ seams: shared atoms federate two clusters' vocabularies")
+	return "\n".join(lines)
+
+
 func _neighbor_tooltip(bname: String, neigh: Array) -> String:
 	if neigh.is_empty():
 		return "%s — no shared-vocabulary neighbors" % bname
@@ -98,6 +138,25 @@ func _neighbor_tooltip(bname: String, neigh: Array) -> String:
 		var shared: Array = e.get("shared", [])
 		lines.append("  %s  ×%d  [%s]" % [str(e.get("biome", "")), int(e.get("weight", 0)), "".join(shared)])
 	return "\n".join(lines)
+
+
+## Refresh the gold ◈ badges from each live cluster's MI cache (0.5s cadence).
+func _process(delta: float) -> void:
+	if not visible or not _live_lookup.is_valid():
+		return
+	_refresh_accum += delta
+	if _refresh_accum < 0.5:
+		return
+	_refresh_accum = 0.0
+	for bname in _mi_labels.keys():
+		var lbl = _mi_labels[bname]
+		if lbl == null or not is_instance_valid(lbl):
+			continue
+		var qc = _live_lookup.call(str(bname))
+		var max_mi := -1.0
+		if qc != null and qc.has_method("get_cached_max_mutual_information"):
+			max_mi = float(qc.get_cached_max_mutual_information())
+		lbl.text = "◈ %.2f bit" % max_mi if max_mi >= 0.15 else ""
 
 
 ## Spread biome nodes around a ring so the federation reads as a graph, not a column.

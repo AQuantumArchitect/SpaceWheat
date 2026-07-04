@@ -1,7 +1,7 @@
 ---
 term: icon
 short_def: A named two-atom physics record. Provides H to a neighborhood.
-related: [atom, cloud, signature, sibling, family]
+related: [atom, cloud, signature, sibling, family, berry]
 since: 2026-05-09
 status: canonical
 ---

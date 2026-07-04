@@ -3,7 +3,7 @@
     "id": "first_breath",
     "display_name": "First Breath",
     "act": 0,
-    "arc_beat": "You did something. A qubit you steered around its Bloch sphere came back to where it started, signed solid angle in tow, and you incorporated what it traced. The world does not move without you turning a wheel. This is the first wheel.",
+    "arc_beat": "You did something. A qubit you steered around its Bloch sphere came back to where it started, signed solid angle in tow, and you incorporated what it traced. The world does not move without you turning a wheel. This is the first wheel. And notice what did NOT happen: nothing leaked, nothing faded, nothing was forgotten. The enclave holds. Here, only measurement leaves a scar — and the scar is yours.",
     "predicates": [
       {
         "type": "signature_growth_gte",
@@ -167,7 +167,7 @@
     "arc_quest": {
       "type": "DELIVER",
       "body": "Couple the Woodlot — add 🪵 to Village so woodlot and village share one rhythm.",
-      "hint": "🪵 has no place in the village's Hamiltonian yet — the two biomes can't phase-lock",
+      "hint": "🪵 is arriving but has nowhere to settle. Use the Meta tools to add 🪵 to the Village's vocabulary.",
       "state_predicates": [
         {
           "type": "atom_in_biome",
@@ -211,7 +211,7 @@
     "arc_quest": {
       "type": "DELIVER",
       "body": "Couple the Spring — add 💧 to the Village hearth so the spring's rhythm phase-locks with the mill pond.",
-      "hint": "The spring's oscillation is ready to couple into the village's Hamiltonian. It's waiting on you.",
+      "hint": "The mill pond could exist; it's waiting on you. Add 💧 to the Village's vocabulary.",
       "state_predicates": [
         {
           "type": "atom_in_biome",
@@ -388,6 +388,33 @@
     ],
     "standing_grants": {},
     "arc_quest": null
+  },
+  {
+    "id": "island_stops_asking",
+    "display_name": "The Island Stops Asking",
+    "act": 4,
+    "arc_beat": "Every faction on the island keeps a picture of you — a smear of guesses about whose side you are on. For a long time the guesses disagreed, and the smear was the truth. No longer. Your alignment has climbed out of the mixed fog and stayed out: Tr(ρ²) reads a life being lived on purpose. The island has stopped asking who you are. It has started asking what you will do. But know the law you now live under — identity here is not a possession, it is an orbit you keep re-flying. Stand still five minutes and the fog files its claim.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "village_identity"
+      },
+      {
+        "type": "soul_purity_gte",
+        "value": 0.5
+      }
+    ],
+    "standing_grants": {},
+    "arc_quest": {
+      "body": "Stay Yourself — hold your alignment purity above the fog while the island watches.",
+      "hint": "The M overlay's Eigen tab shows You · Tr(ρ²). It decays toward the mixed state (τ=300s) unless your choices keep renewing it — learn icons, rotate settlements, work your factions. Hold it near 0.55.",
+      "state_predicates": [
+        {
+          "type": "soul_purity_gte",
+          "value": 0.55
+        }
+      ]
+    }
   },
   {
     "id": "village_path_commons",
@@ -631,6 +658,24 @@
       "reward_icon_north": "📜",
       "reward_icon_south": "🏰"
     }
+  },
+  {
+    "id": "edge_of_the_enclave",
+    "display_name": "The Edge of the Enclave",
+    "act": 5,
+    "arc_beat": "You have turned every wheel on the island, and every wheel turned back. That is the enclave's law: nothing decays, nothing leaks, nothing is lost — every rotation can be unwound except the ones you chose to keep by looking. The old texts call this a closed system, and they say it is not the only kind. Somewhere past the horizon the world runs open: things fade there, things forget, color drains from things that stand still too long. The Bath is patient. One day you will farm it.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "ledger_opens"
+      },
+      {
+        "type": "signature_size_gte",
+        "value": 16
+      }
+    ],
+    "standing_grants": {},
+    "arc_quest": null
   },
   {
     "id": "empire_imposes",

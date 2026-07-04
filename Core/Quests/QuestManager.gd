@@ -90,10 +90,15 @@ func _physics_process(delta: float) -> void:
 			# first-class, distinct from DELIVER/market contracts that reward resources.
 			var pred_score := _evaluate_quest_state_predicates(qpreds)
 			quest["predicate_score"] = pred_score
+			quest["progress"] = pred_score
 			if pred_score >= QuestStateProjectionService.COMPLETION_THRESHOLD:
 				var quest_id = int(quest.get("id", -1))
 				if quest_id >= 0:
 					mark_quest_ready(quest_id, "state_predicates")
+			# Predicates are the AUTHORITATIVE completion when present — never
+			# fall through to the type trackers, whose field defaults (e.g.
+			# observable "purity", ≡1 in the enclave) would self-complete a
+			# predicate-only quest instantly.
 			continue
 
 		var quest_type = quest.get("type", QuestTypes.Type.DELIVERY)
@@ -254,6 +259,7 @@ const FLAG_PREDICATE_TYPES := [
 	"story_flag_set", "biome_evolving", "berry_consumed_count_gte", "berry_total_phase_gte",
 	"standing_gte", "biome_state_gte", "biome_state_lte", "signature_size_gte", "signature_growth_gte", "atom_count_gte", "atom_in_biome",
 	"atom_diversity_gte", "biome_attractor_emoji_gte",
+	"soul_purity_gte",
 	# Closed-native chaos↔stability vocabulary:
 	#   biome_spectral_gap_*  — H's own gap E₁−E₀ (composition-intrinsic, state-independent,
 	#                           conserved): large = one dominant attractor (STABLE identity),
@@ -398,7 +404,7 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 			var marginal: float = float(snap.get("p1" if pole == 1 else "p0", 0.0))
 			return QuestMath.soft_gate(marginal, float(pred.get("value", 0.0)))
 		"biome_state_lte":
-			# "at most" mirror of biome_state_gte — score rises as the atom's marginal falls
+			# "At most" twin of biome_state_gte — score rises as the atom's marginal falls
 			# BELOW value (e.g. draining 📜 below the ledger's autocatalytic threshold).
 			if farm.grid == null:
 				return 0.0
@@ -417,6 +423,17 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 			var snap: Dictionary = biome.viz_cache.get_snapshot(qubit)
 			var marginal: float = float(snap.get("p1" if pole == 1 else "p0", 0.0))
 			return QuestMath.soft_gate_inv(marginal, float(pred.get("value", 0.0)))
+		"soul_purity_gte":
+			# The player's OWN concept state: purity of the faction-alignment ρ — the
+			# enclave's one open system (τ=300s decay pulls it toward the mixed state
+			# unless choices keep renewing it; see docs/glossary/enclave.md). Starts
+			# maximally mixed (~1/n), so this can only fire through deliberate living.
+			# Width 0.1: identity resolves gradually — the Arc tab should feel it coming.
+			if not ("faction_density" in farm) or farm.faction_density == null \
+					or not farm.faction_density.has_method("get_purity"):
+				return 0.0
+			return QuestMath.soft_gate(float(farm.faction_density.get_purity()),
+					float(pred.get("value", 0.5)), 0.1)
 		"biome_spectral_gap_gte":
 			# "stable / strong attractor" — score rises as H's gap E₁−E₀ climbs above value.
 			# Composition-intrinsic (set by which icons make up H), state-independent, conserved:
@@ -735,14 +752,52 @@ func offer_all_faction_quests(biome) -> Array:
 			_announced_offers[quest["id"]] = true
 			quest_offered.emit(quest)
 
-	# One physics-derived quantum quest alongside the deliveries — teaches reading/steering the
-	# state (closed-safe: targets coherence, which is steerable; never purity). Deterministic.
+	# One physics-derived quantum quest alongside the deliveries — a curriculum
+	# ladder, closed-safe and deterministic. The companion faction is the offer
+	# pool's MOST RESONANT voice (highest alignment with this biome's state), and
+	# rung 1's flavor is personality-typed (QUEST_SYSTEM_PLAN stage 3): the
+	# faction's operator taste (calculate_operator_weights over its 12 axial bits)
+	# picks amplitude (push a population — material/direct factions) vs coherence
+	# (superpose — mystical ones), the other flavor as fallback.
+	#   rung 1 (amplitude | coherence): learn to steer marginals / to superpose.
+	#   rung 2 (entanglement): once rung 1 is mastered (returns {}), ask for
+	#   correlation — max pairwise MI via the standard SHAPE_ACHIEVE tracker.
+	# Never two at once: quest volume stays constant as the player climbs.
+	var resonance := _compute_faction_resonance(quests, biome)
 	if not quests.is_empty():
 		var obs := get_biome_observables(biome)
 		var coh := float(obs.get("coherence", 0.0))
-		var fac := str(quests[0].get("faction", ""))
+		var fac := _most_resonant_faction(quests, resonance)
 		var bn := str(quests[0].get("biome_name", quests[0].get("biome", "")))
-		var qq := QuestPipeline.suggest_quantum_quest(bn, fac, coh, next_quest_id)
+		var weights := _operator_weights_for(fac)
+		# Rung-1 flavors in the faction's taste order (amplitude = grow a
+		# population, coherence = superpose, ratio = commit a contested pair,
+		# multi = hold two threads at once); unknown factions keep the original
+		# coherence-first curriculum.
+		var flavor_order: Array = ["coherence", "amplitude", "ratio", "multi"]
+		if not weights.is_empty():
+			flavor_order = ["amplitude", "coherence", "ratio", "multi"]
+			flavor_order.sort_custom(func(x, y): return float(weights.get(x, 0.0)) > float(weights.get(y, 0.0)))
+		var qq := {}
+		for flavor in flavor_order:
+			match str(flavor):
+				"amplitude":
+					qq = _suggest_amplitude_for(biome, bn, fac)
+				"coherence":
+					qq = QuestPipeline.suggest_quantum_quest(bn, fac, coh, next_quest_id)
+				"ratio":
+					qq = _suggest_ratio_for(biome, bn, fac)
+				"multi":
+					qq = _suggest_multi_for(biome, bn, fac, coh)
+			if not qq.is_empty():
+				break
+		if qq.is_empty():
+			var max_mi := float(obs.get("max_mutual_information", -1.0))
+			var nq: int = 0
+			var qc = biome.get("quantum_computer")
+			if qc != null and qc.register_map != null:
+				nq = qc.register_map.num_qubits
+			qq = QuestPipeline.suggest_entanglement_quest(bn, fac, max_mi, nq, next_quest_id)
 		if not qq.is_empty():
 			next_quest_id += 1
 			qq["offered_at"] = now_ms
@@ -750,7 +805,169 @@ func offer_all_faction_quests(biome) -> Array:
 			if not _announced_offers.has(qq["id"]):
 				_announced_offers[qq["id"]] = true
 				quest_offered.emit(qq)
+
+	_stamp_faction_resonance(quests, resonance)
 	return quests
+
+
+## QUEST_SYSTEM_PLAN pipeline stage 2 — "parameterize(faction, biome)" — wired at
+## last: every offer carries the faction's live RESONANCE with the biome, i.e.
+## FactionStateMatcher.compute_alignment of the faction's 12 axial bits against
+## the biome's quantum observables (purity/entropy/coherence/shape/scale/dynamics).
+## In the enclave purity and entropy are pinned (1, 0) — canon, not accident:
+## order-loving factions are at home everywhere inside the walls; entropy-loving
+## ones stay restless until Act 2 opens the webway. Rewards remain canonical
+## (earnest-economy principle); resonance shapes voice + companion selection only.
+## Returns {faction_name: {alignment, prefs}} for the offer pool's factions.
+func _compute_faction_resonance(quests: Array, biome) -> Dictionary:
+	var cache: Dictionary = {}
+	if quests.is_empty() or biome == null:
+		return cache
+	var obs = FactionStateMatcher.extract_observables(null, biome)
+	var registry = FactionRegistry.get_shared()
+	if registry == null:
+		return cache
+	for quest in quests:
+		if not (quest is Dictionary):
+			continue
+		var fname := str(quest.get("faction", ""))
+		if fname == "" or cache.has(fname):
+			continue
+		var entry := {"alignment": -1.0, "prefs": ""}
+		var fac = registry.get_by_name(fname)
+		if fac != null and fac.has_method("get_axial_bits"):
+			var bits := Array(fac.get_axial_bits())
+			entry["alignment"] = FactionStateMatcher.compute_alignment(bits, obs)
+			entry["prefs"] = FactionStateMatcher.describe_preferences(bits)
+		cache[fname] = entry
+	return cache
+
+
+## Stamp computed resonance onto every offer whose faction is in the cache.
+func _stamp_faction_resonance(quests: Array, resonance: Dictionary) -> void:
+	for quest in quests:
+		if not (quest is Dictionary):
+			continue
+		var e: Dictionary = resonance.get(str(quest.get("faction", "")), {})
+		if not e.is_empty() and float(e.get("alignment", -1.0)) >= 0.0:
+			quest["faction_alignment"] = float(e["alignment"])
+			quest["faction_preferences"] = str(e["prefs"])
+
+
+## The offer pool's most biome-resonant faction — it gets to voice the quantum
+## companion quest. Falls back to the first offer's faction when resonance is
+## unknown (no registry, no bits).
+func _most_resonant_faction(quests: Array, resonance: Dictionary) -> String:
+	var fac := str(quests[0].get("faction", "")) if not quests.is_empty() else ""
+	var best := -1.0
+	for q in quests:
+		if not (q is Dictionary):
+			continue
+		var f := str(q.get("faction", ""))
+		var a := float(resonance.get(f, {}).get("alignment", -1.0))
+		if a > best:
+			best = a
+			fac = f
+	return fac
+
+
+## The faction's operator taste (QUEST_SYSTEM_PLAN stage 3): Born-rule weights
+## over quest structures (amplitude/coherence/ratio/multi) from its 12 axial
+## bits. Unknown faction → {} (caller treats as no preference).
+func _operator_weights_for(faction_name: String) -> Dictionary:
+	var registry = FactionRegistry.get_shared()
+	var fac = registry.get_by_name(faction_name) if registry != null else null
+	if fac == null or not fac.has_method("get_axial_bits"):
+		return {}
+	return FactionStateMatcher.calculate_operator_weights(Array(fac.get_axial_bits()))
+
+
+## Amplitude-ask assembly: among the atoms this faction speaks (its cloud) that
+## live in the biome's register, pick the one with the most headroom (lowest
+## population) and build the quest. {} when the faction speaks nothing here or
+## everything it speaks is already high — the ladder then falls to coherence.
+func _suggest_amplitude_for(biome, biome_name: String, faction_name: String) -> Dictionary:
+	var qc = biome.get("quantum_computer")
+	if qc == null or qc.register_map == null or not qc.has_method("get_population"):
+		return {}
+	var registry = FactionRegistry.get_shared()
+	var fac = registry.get_by_name(faction_name) if registry != null else null
+	if fac == null or not ("cloud" in fac) or not (fac.cloud is Array):
+		return {}
+	var best_atom := ""
+	var best_m := 1.0
+	for e in fac.cloud:
+		var atom := str(e)
+		if not qc.register_map.coordinates.has(atom):
+			continue
+		var m := float(qc.get_population(atom))
+		if m < best_m:
+			best_m = m
+			best_atom = atom
+	return QuestPipeline.suggest_amplitude_quest(biome_name, faction_name, best_atom, best_m, next_quest_id)
+
+
+## Ratio-ask assembly: among the atoms this faction speaks that live in the
+## biome's register, find the most CONTESTED pair (populations nearest even)
+## and ask to commit it — atom A oriented as the current leader. {} when the
+## faction speaks fewer than two atoms here or every pair is already decided
+## (suggest_ratio_quest declines balances ≥ 0.62).
+func _suggest_ratio_for(biome, biome_name: String, faction_name: String) -> Dictionary:
+	var qc = biome.get("quantum_computer")
+	if qc == null or qc.register_map == null or not qc.has_method("get_population"):
+		return {}
+	var registry = FactionRegistry.get_shared()
+	var fac = registry.get_by_name(faction_name) if registry != null else null
+	if fac == null or not ("cloud" in fac) or not (fac.cloud is Array):
+		return {}
+	var present: Array = []
+	for e in fac.cloud:
+		var atom := str(e)
+		if qc.register_map.coordinates.has(atom):
+			present.append(atom)
+	if present.size() < 2:
+		return {}
+	var best_a := ""
+	var best_b := ""
+	var best_bal := -1.0
+	var best_dist := 1.0
+	for i in range(present.size()):
+		for j in range(i + 1, present.size()):
+			var pa := float(qc.get_population(present[i]))
+			var pb := float(qc.get_population(present[j]))
+			if pa + pb <= 1e-9:
+				continue
+			var bal := pa / (pa + pb)
+			var dist := absf(bal - 0.5)
+			if dist < best_dist:
+				best_dist = dist
+				best_a = present[i] if bal >= 0.5 else present[j]
+				best_b = present[j] if bal >= 0.5 else present[i]
+				best_bal = maxf(bal, 1.0 - bal)
+	return QuestPipeline.suggest_ratio_quest(biome_name, faction_name, best_a, best_b, best_bal, next_quest_id)
+
+
+## Multi-ask assembly (prismatic factions): same headroom pick as the amplitude
+## ask, composed with the biome's live coherence into a two-thread quest.
+func _suggest_multi_for(biome, biome_name: String, faction_name: String, coherence: float) -> Dictionary:
+	var qc = biome.get("quantum_computer")
+	if qc == null or qc.register_map == null or not qc.has_method("get_population"):
+		return {}
+	var registry = FactionRegistry.get_shared()
+	var fac = registry.get_by_name(faction_name) if registry != null else null
+	if fac == null or not ("cloud" in fac) or not (fac.cloud is Array):
+		return {}
+	var best_atom := ""
+	var best_m := 1.0
+	for e in fac.cloud:
+		var atom := str(e)
+		if not qc.register_map.coordinates.has(atom):
+			continue
+		var m := float(qc.get_population(atom))
+		if m < best_m:
+			best_m = m
+			best_atom = atom
+	return QuestPipeline.suggest_multi_quest(biome_name, faction_name, coherence, best_atom, best_m, next_quest_id)
 
 
 func record_quantum_action(action_name: String, payload: Dictionary = {}) -> void:
@@ -791,15 +1008,32 @@ func get_biome_observables(biome) -> Dictionary:
 	# Get current biome quantum observables for UI display
 	var obs = FactionStateMatcher.extract_observables(null, biome)
 
-	return {
+	# Entanglement observable: max pairwise MI in bits (Bell = 2.0). Native cache
+	# only — the GDScript fallback re-eigensolves per pair, too hot for trackers
+	# that poll every physics frame. −1.0 = unknown (no cache), which the
+	# _is_known_observable_value guard (>= 0) filters, so SHAPE quests on this
+	# observable idle honestly instead of reading "zero entanglement".
+	var max_mi := -1.0
+	var qc = biome.get("quantum_computer")
+	if qc != null and qc.has_method("get_cached_max_mutual_information"):
+		max_mi = float(qc.get_cached_max_mutual_information())
+
+	var out := {
 		"purity": obs.purity,
 		"entropy": obs.entropy,
 		"coherence": obs.coherence,
+		"max_mutual_information": max_mi,
 		"distribution_shape": obs.distribution_shape,
 		"scale": obs.scale,
 		"dynamics": obs.dynamics,
 		"description": FactionStateMatcher.describe_observables(obs),
 	}
+	# Per-atom population observables ("population:🌾") — the amplitude quest
+	# family (SHAPE_ACHIEVE) reads these; cheap diagonal sums at tracker rate.
+	if qc != null and qc.register_map != null and qc.has_method("get_population"):
+		for atom in qc.register_map.coordinates.keys():
+			out["population:%s" % str(atom)] = float(qc.get_population(str(atom)))
+	return out
 
 
 func _get_global_icon_map() -> Dictionary:
@@ -1246,13 +1480,34 @@ func get_quest_time_remaining(quest_id: int) -> float:
 # QUEST TYPE TRACKING (non-delivery quests)
 # =============================================================================
 
+## Observable resolution for the SHAPE/EVOLUTION trackers. Flat keys read
+## directly from the observables dict; the DERIVED "balance:A/B" family (the
+## ratio-quest ask) is computed from the per-atom populations:
+##   balance = p_A / (p_A + p_B)  — 0.5 = even contest, 1.0 = A holds the pair.
+## Returns -1.0 (unknown) when either population is missing, so trackers idle
+## honestly instead of reading a fabricated zero.
+func _observable_value(obs: Dictionary, name: String) -> float:
+	if name.begins_with("balance:"):
+		var pair := name.trim_prefix("balance:").split("/")
+		if pair.size() != 2:
+			return -1.0
+		var key_a := "population:%s" % pair[0]
+		var key_b := "population:%s" % pair[1]
+		if not obs.has(key_a) or not obs.has(key_b):
+			return -1.0
+		var pa := float(obs.get(key_a, 0.0))
+		var pb := float(obs.get(key_b, 0.0))
+		return pa / (pa + pb) if (pa + pb) > 1e-9 else 0.5
+	return float(obs.get(name, 0.0))
+
+
 func _update_shape_achieve_quest(quest: Dictionary, _delta: float) -> void:
 	var observable_name = quest.get("observable", "purity")
 	var target_value := float(quest.get("target", 0.7))
 	var comparison = quest.get("comparison", ">")
 
 	var obs = get_biome_observables(current_biome)
-	var current_value := float(obs.get(observable_name, 0.0))
+	var current_value := _observable_value(obs, str(observable_name))
 	if not _is_known_observable_value(current_value):
 		return
 
@@ -1275,7 +1530,7 @@ func _update_shape_maintain_quest(quest: Dictionary, delta: float) -> void:
 	var required_duration := float(quest.get("duration", 30.0))
 
 	var obs = get_biome_observables(current_biome)
-	var current_value := float(obs.get(observable_name, 0.0))
+	var current_value := _observable_value(obs, str(observable_name))
 	if not _is_known_observable_value(current_value):
 		return
 
@@ -1304,7 +1559,7 @@ func _update_evolution_quest(quest: Dictionary, _delta: float) -> void:
 	var direction = quest.get("direction", "increase")
 
 	var obs = get_biome_observables(current_biome)
-	var current_value := float(obs.get(observable_name, 0.0))
+	var current_value := _observable_value(obs, str(observable_name))
 	if not _is_known_observable_value(current_value):
 		return
 

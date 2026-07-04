@@ -1,5 +1,11 @@
 # Native C++ Liquid Neural Network Implementation
 
+> **HISTORICAL DOCUMENT.** The LNN integration described below has been folded
+> into `QuantumComputer._apply_phase_lnn()` (GDScript) with the C++ side in
+> `native/src/liquid_neural_net.cpp`, and is disabled by default
+> (`ENABLE_PHASE_LNN = false`). Test paths referenced below (`Tests/…`) no
+> longer exist. Kept for design history.
+
 ## Summary
 
 Converted the GDScript Liquid Neural Net (LNN) to a native C++ implementation using Eigen3 for linear algebra. This provides **~5000x speedup** in forward pass computation for phase modulation during quantum evolution.

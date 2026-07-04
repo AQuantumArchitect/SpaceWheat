@@ -398,7 +398,9 @@ static func _is_known_observable(value: float) -> bool:
 # ============================================================================
 
 static func describe_preferences(faction_bits: Array) -> String:
-	# Human-readable description of faction preferences from bits
+	# Human-readable description of faction preferences from bits. Player-facing
+	# (the quest board's "their axioms:" line) — the words speak the game's canon
+	# (woven = entangled, still/storming = dynamics) rather than textbook labels.
 	if faction_bits.size() < 12:
 		return "insufficient bits"
 
@@ -406,17 +408,17 @@ static func describe_preferences(faction_bits: Array) -> String:
 
 	# Purity
 	var purity_val = faction_bits[0] * 2 + faction_bits[1]
-	var purity_names = ["chaos", "disorder", "order", "pure"]
+	var purity_names = ["chaos", "murk", "order", "crystal"]
 	parts.append("purity: " + purity_names[purity_val])
 
 	# Entropy
 	var entropy_val = faction_bits[2] * 2 + faction_bits[3]
-	var entropy_names = ["focused", "moderate", "diffuse", "uniform"]
+	var entropy_names = ["focused", "tempered", "diffuse", "uniform"]
 	parts.append("entropy: " + entropy_names[entropy_val])
 
 	# Coherence
 	var coherence_val = faction_bits[4] * 2 + faction_bits[5]
-	var coherence_names = ["classical", "slight-quantum", "quantum", "entangled"]
+	var coherence_names = ["classical", "tinged", "quantum", "woven"]
 	parts.append("coherence: " + coherence_names[coherence_val])
 
 	# Distribution
@@ -426,12 +428,12 @@ static func describe_preferences(faction_bits: Array) -> String:
 
 	# Scale
 	var scale_val = faction_bits[8] * 2 + faction_bits[9]
-	var scale_names = ["small", "medium", "large", "massive"]
+	var scale_names = ["sparse", "modest", "broad", "vast"]
 	parts.append("scale: " + scale_names[scale_val])
 
 	# Dynamics
 	var dyn_val = faction_bits[10] * 2 + faction_bits[11]
-	var dyn_names = ["stable", "moderate", "active", "volatile"]
+	var dyn_names = ["still", "breathing", "restless", "storming"]
 	parts.append("dynamics: " + dyn_names[dyn_val])
 
 	return ", ".join(parts)
@@ -445,7 +447,9 @@ static func describe_observables(obs: BiomeObservables) -> String:
 	parts.append("coherence: " + ("—" if obs.coherence < 0.0 else "%.2f" % obs.coherence))
 
 	var shape_names = ["peaked", "bimodal", "spread", "uniform"]
-	parts.append("shape: " + shape_names[obs.distribution_shape])
+	# -1 = unknown; a bare negative index would silently read "uniform" (arr[-1]).
+	var shape_known: bool = obs.distribution_shape >= 0 and obs.distribution_shape < shape_names.size()
+	parts.append("shape: " + (shape_names[obs.distribution_shape] if shape_known else "—"))
 
 	parts.append("scale: " + ("—" if obs.scale < 0.0 else "%.2f" % obs.scale))
 	parts.append("dynamics: " + ("—" if obs.dynamics < 0.0 else "%.2f" % obs.dynamics))

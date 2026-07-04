@@ -79,7 +79,7 @@ XDG_DATA_HOME=/tmp/spacewheat-runtime-data \
 
 For the fuller workflow, see:
 
-- [docs/release/DESKTOP_RELEASE_WORKFLOW.md](/home/primearchitect/ws/SpaceWheat/docs/release/DESKTOP_RELEASE_WORKFLOW.md)
+- [docs/release/DESKTOP_RELEASE_WORKFLOW.md](docs/release/DESKTOP_RELEASE_WORKFLOW.md)
 
 ## `🍄` Folder Map
 
@@ -87,15 +87,15 @@ For the fuller workflow, see:
 
 Read these first:
 
-- [`🍄/README.txt`](/home/primearchitect/ws/SpaceWheat/🍄/README.txt)
+- [`🍄/README.txt`](🍄/README.txt)
   - top-level purpose, quick-start commands, artifact policy
-- [`🍄/🎛️/📘.md`](/home/primearchitect/ws/SpaceWheat/🍄/🎛️/📘.md)
+- [`🍄/🎛️/📘.md`](🍄/🎛️/📘.md)
   - canonical live-rig / QA operator guide
-- [`🍄/🎛️/🧠🗺️.md`](/home/primearchitect/ws/SpaceWheat/🍄/🎛️/🧠🗺️.md)
+- [`🍄/🎛️/🧠🗺️.md`](🍄/🎛️/🧠🗺️.md)
   - rig intent, action surface, and planned extensions
-- [`🍄/🧪/README_🧬.md`](/home/primearchitect/ws/SpaceWheat/🍄/🧪/README_🧬.md)
+- [`🍄/🧪/README_🧬.md`](🍄/🧪/README_🧬.md)
   - focused biome stress-test wrapper and what it validates
-- [`🍄/artifacts_whitelist/README.txt`](/home/primearchitect/ws/SpaceWheat/🍄/artifacts_whitelist/README.txt)
+- [`🍄/artifacts_whitelist/README.txt`](🍄/artifacts_whitelist/README.txt)
   - only place under `🍄` where committed runtime artifacts belong
 
 Practical structure:

@@ -105,6 +105,80 @@ static func suggest_quantum_quest(biome_name: String, faction: String, coherence
 	}, quest_id)
 
 
+## Rung-1 sibling, the AMPLITUDE ask — the flavor material/direct factions prefer
+## (QUEST_SYSTEM_PLAN stage 3 "type-select", chosen by the caller from
+## FactionStateMatcher.calculate_operator_weights). Push a specific atom's
+## population: SHAPE_ACHIEVE on the per-atom "population:<emoji>" observable
+## (get_biome_observables). The caller picks an atom the faction speaks and
+## supplies its current marginal; {} when there's no headroom to ask for.
+static func suggest_amplitude_quest(biome_name: String, faction: String, atom: String, marginal: float, quest_id: int) -> Dictionary:
+	if atom == "" or marginal < 0.0 or marginal >= 0.55:
+		return {}
+	var target := clampf(marginal + 0.15, 0.2, 0.7)
+	return quantum_quest(QuestTypes.Type.SHAPE_ACHIEVE, faction, biome_name, {
+		"observable": "population:%s" % atom,
+		"target": target,
+		"comparison": ">",
+		"tutorial_hint": "Grow %s past %.2f — rotate its axis toward that pole and let H carry it there." % [atom, target],
+	}, quest_id)
+
+
+## Rung-1 sibling, the RATIO ask — the flavor subtle/relational factions prefer
+## (weights.ratio from calculate_operator_weights). Hold one atom's population
+## above another's: SHAPE_ACHIEVE on the derived "balance:A/B" observable
+## (= p_A/(p_A+p_B); resolved by the tracker from the per-atom populations).
+## The caller picks the most CONTESTED pair the faction speaks (balance nearest
+## 0.5) and orients A = the current leader — the ask is to commit the tie.
+## {} when the pair is already decided or inputs are missing.
+static func suggest_ratio_quest(biome_name: String, faction: String, atom_a: String, atom_b: String, balance: float, quest_id: int) -> Dictionary:
+	if atom_a == "" or atom_b == "" or atom_a == atom_b or balance < 0.0 or balance >= 0.62:
+		return {}
+	var target := clampf(balance + 0.15, 0.55, 0.85)
+	return quantum_quest(QuestTypes.Type.SHAPE_ACHIEVE, faction, biome_name, {
+		"observable": "balance:%s/%s" % [atom_a, atom_b],
+		"target": target,
+		"comparison": ">",
+		"tutorial_hint": "The pair is contested. Keep %s above %s — push their balance past %.2f (measure %s down, or drive %s up)." % [atom_a, atom_b, target, atom_b, atom_a],
+	}, quest_id)
+
+
+## Rung-1 sibling, the MULTI ask — the flavor prismatic factions prefer
+## (weights.multi from calculate_operator_weights): TWO observables held at
+## once, completed by state_predicates (geometric-mean smooth_and — neither
+## thread alone is enough). Keep the biome shimmering while growing an atom:
+## the first composed ask, teaching that objectives multiply, not add.
+## {} when either thread lacks headroom.
+static func suggest_multi_quest(biome_name: String, faction: String, coherence: float, atom: String, marginal: float, quest_id: int) -> Dictionary:
+	if atom == "" or marginal < 0.0 or marginal >= 0.5 or coherence < 0.0 or coherence >= 0.55:
+		return {}
+	var coh_t := clampf(coherence + 0.1, 0.15, 0.6)
+	var pop_t := clampf(marginal + 0.12, 0.15, 0.6)
+	return quantum_quest(QuestTypes.Type.SHAPE_ACHIEVE, faction, biome_name, {
+		"state_predicates": [
+			{"type": "coherence_at_least", "value": coh_t},
+			{"type": "biome_state_gte", "biome": biome_name, "atom": atom, "value": pop_t},
+		],
+		"tutorial_hint": "Two threads at once: keep the biome shimmering (coherence past %.2f) while growing %s past %.2f. The geometric mean judges — neither thread alone is enough." % [coh_t, atom, pop_t],
+	}, quest_id)
+
+
+## Physics-derived suggestion, rung two of the quantum curriculum: entanglement. Offered
+## when coherence is already mastered (see the call site's ladder) and the biome has
+## correlation headroom. Uses the standard SHAPE_ACHIEVE tracker on the
+## max_mutual_information observable (bits; Bell pair = 2.0). Deterministic — no RNG.
+## max_mi < 0 means the observable is unavailable (no native MI cache) → no offer.
+static func suggest_entanglement_quest(biome_name: String, faction: String, max_mi: float, num_qubits: int, quest_id: int) -> Dictionary:
+	if num_qubits < 2 or max_mi < 0.0 or max_mi >= 0.65:
+		return {}
+	var target := clampf(max_mi + 0.4, 0.5, 1.5)
+	return quantum_quest(QuestTypes.Type.SHAPE_ACHIEVE, faction, biome_name, {
+		"observable": "max_mutual_information",
+		"target": target,
+		"comparison": ">",
+		"tutorial_hint": "Weave two qubits — a Bell or CNOT gate in the Operator frame — and push mutual information past %.2f. Watch the thread between the bubbles." % target,
+	}, quest_id)
+
+
 ## TUTORIAL source: build a canonical Act-0 onboarding quest from an authored spec. Like
 ## from_story_def but tagged tutorial (category TUTORIAL). Authored body/hint are preserved.
 static func from_tutorial_def(quest_def: Dictionary, quest_id: int) -> Dictionary:

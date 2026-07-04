@@ -47,6 +47,18 @@
     },
     {
       "tutorial_step": 4,
+      "tutorial_teaches": "entanglement",
+      "faction": "Hearth Keepers",
+      "biome": "StarterForest",
+      "body": "A qubit alone is a wheel. Two qubits woven together are a loom — touch one and the other answers, however far apart they drift.",
+      "tutorial_hint": "Select two plots in the Operator frame and build a Bell or CNOT gate. Watch the thread between their bubbles thicken — push mutual information past 0.5.",
+      "state_predicates": [
+        {"type": "gate_sequence_contains", "gate": "gate_inject", "count": 1},
+        {"type": "mutual_information_at_least", "value": 0.5}
+      ]
+    },
+    {
+      "tutorial_step": 5,
       "tutorial_teaches": "contracts",
       "faction": "Millwright's Union",
       "biome": "StarterForest",
@@ -54,10 +66,10 @@
       "resource": "🌾",
       "quantity": 2,
       "body": "The Millwright's Union is buying. Accept their contract and deliver 2× 🌾 from your stores.",
-      "tutorial_hint": "Open the quest board, accept the contract, then complete it when you hold enough 🌾."
+      "tutorial_hint": "Open the quest board and press E on an offer first — every faction will tell you how this biome sits with its axioms (its resonance). Then accept the contract and complete it when you hold enough 🌾."
     },
     {
-      "tutorial_step": 5,
+      "tutorial_step": 6,
       "tutorial_teaches": "vocab_escape",
       "faction": "Hearth Keepers",
       "biome": "Village",

@@ -112,6 +112,7 @@ var _broad = null                        # cached BroadGraph (rebuilt on biome c
 var _graph_selectable: Array = []        # biome names, keyboard selection order
 var _graph_selected_idx: int = -1
 var _graph_broad_view = null             # live BroadGraphView ref (highlight without re-render)
+var _graph_neigh_view = null             # live NeighborhoodGraphView ref (drill-down, E-inspect)
 
 # Cached per-render
 var _faction_roster: Array = []        # Array[Faction], stable order
@@ -375,6 +376,81 @@ func _on_action_e() -> void:
 				# Already drilled in — E makes this the active biome for the play surface.
 				_activate_biome(_graph_zoom)
 
+# =============================================================================
+# INSPECT TEXT — what E pops up as a toast (OverlayBase calls get_inspect_text
+# right after _on_action_e). Touch-first: E is the canonical "more information"
+# channel of the QERF plane; hover tooltips only mirror what lives here.
+# Note the ordering: on Graph·broad, E drills in FIRST, so the toast explains
+# the cluster the player just entered.
+# =============================================================================
+
+func get_inspect_text() -> String:
+	match frame_id:
+		FRAME_EIGEN:
+			return _eigen_inspect_text()
+		FRAME_GRAPH:
+			return _graph_inspect_text()
+		FRAME_BITS:
+			return _bits_inspect_text()
+	return ""
+
+
+## E on a Bits row: the focused axis, spoken — name, authored description,
+## numbers, and the canon stance word.
+func _bits_inspect_text() -> String:
+	var fb = _get_faction_by_name(_selected_faction_b)
+	if fb == null:
+		fb = _get_pinned_faction()
+	if fb == null or fb.alignment == null:
+		return ""
+	if _selected_axis < 0 or _selected_axis >= AlignmentGraphCls.AXIS_COUNT:
+		return ""
+	var ag = fb.alignment
+	var pt: Dictionary = ag.partial_trace_axis(_selected_axis)
+	var p0 := float(pt.get("p0", 0.0))
+	var p1 := float(pt.get("p1", 0.0))
+	var off: Vector2 = pt.get("off", Vector2.ZERO)
+	var lines: Array[String] = []
+	lines.append("%s — %s" % [FactionAxes.axis_name(_selected_axis), str(fb.name)])
+	var desc := FactionAxes.axis_description(_selected_axis)
+	if desc != "":
+		lines.append(desc)
+	lines.append("p₀=%.2f · p₁=%.2f · |c|=%.2f — %s" % [p0, p1, off.length(),
+			_axis_stance(_selected_axis, p0, p1, off.length())])
+	return "\n".join(lines)
+
+
+func _eigen_inspect_text() -> String:
+	var lines: Array[String] = []
+	if farm != null and ("faction_density" in farm) and farm.faction_density != null \
+			and farm.faction_density.has_method("get_purity"):
+		var p: float = float(farm.faction_density.get_purity())
+		lines.append("You · Tr(ρ²) = %.3f — %s" % [p, _soul_gloss(p)])
+		lines.append("Purity of your alignment density matrix: 1 = a committed identity; the mixed floor = a life not yet chosen.")
+		lines.append("It decays toward the mixed state (τ=300s) unless your choices keep renewing it — learn icons, rotate settlements, work your factions.")
+	return "\n".join(lines)
+
+
+func _graph_inspect_text() -> String:
+	if _graph_zoom == "broad":
+		if _graph_broad_view != null and is_instance_valid(_graph_broad_view) \
+				and _graph_selected_idx >= 0 and _graph_selected_idx < _graph_selectable.size():
+			return _graph_broad_view.inspect_text_for(str(_graph_selectable[_graph_selected_idx]))
+		return ""
+	var lines: Array[String] = []
+	if _graph_neigh_view != null and is_instance_valid(_graph_neigh_view):
+		lines.append(str(_graph_neigh_view.inspect_text()))
+	if not BalanceConfig.dissipative_enabled():
+		var canonical = _canonical_biome(_graph_zoom)
+		if _biome_has_webway(canonical):
+			var natives: Array = canonical.native_factions if ("native_factions" in canonical and canonical.native_factions is Array) else []
+			var speaker := str(natives[0]) if not natives.is_empty() else ""
+			var whisper := QuestVoice.webway_whisper(speaker)
+			if whisper != "":
+				lines.append("💬 %s“%s”" % [("%s — " % speaker) if speaker != "" else "", whisper])
+	return "\n".join(lines)
+
+
 func _on_action_r() -> void:
 	if frame_id == FRAME_ATLAS:
 		_adjust_atlas_view(1)
@@ -494,7 +570,11 @@ func _update_action_labels() -> void:
 			set_action_info("F", {"label": "—"})
 		FRAME_BITS:
 			set_action_info("Q", {"label": "—"})
-			set_action_info("E", {"label": "—"})
+			set_action_info("E", {
+				"label": "Inspect",
+				"emoji": "🔬",
+				"hint": "Read the focused axis — name, meaning, canon stance",
+			})
 			set_action_info("R", {"label": "—"})
 			set_action_info("F", {"label": "—"})
 		FRAME_ATLAS:
@@ -649,6 +729,21 @@ func _build_eigen_body() -> void:
 		_body_box.add_child(_make_muted_label("No factions in registry.", 12))
 		return
 
+	# WHO AM I BECOMING — the player's concept state, read as physics. Purity of
+	# the alignment density matrix: 1 = a committed identity, low = smeared across
+	# many selves. Farm's τ=300s Lindblad decay drags it down between choices —
+	# the one open system in the enclave (see docs/glossary/enclave.md).
+	if farm != null and ("faction_density" in farm) and farm.faction_density != null \
+			and farm.faction_density.has_method("get_purity"):
+		var soul_purity: float = float(farm.faction_density.get_purity())
+		var soul_lbl := Label.new()
+		soul_lbl.text = "You · Tr(ρ²)=%.3f — %s" % [soul_purity, _soul_gloss(soul_purity)]
+		soul_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		soul_lbl.add_theme_font_size_override("font_size", 12)
+		soul_lbl.add_theme_color_override("font_color", COLOR_HILITE)
+		soul_lbl.tooltip_text = "Purity of your alignment density matrix. It decays toward the mixed state (τ=300s) unless your choices keep renewing it."
+		_body_box.add_child(soul_lbl)
+
 	# Sort mode is derived from pinned-faction state — no chord.
 	var sort_mode: int = EIGEN_SORT_SUBJECT if _get_pinned_faction() != null else EIGEN_SORT_SYSTEM
 	var mode_lbl := Label.new()
@@ -657,6 +752,18 @@ func _build_eigen_body() -> void:
 	mode_lbl.add_theme_font_size_override("font_size", 11)
 	mode_lbl.add_theme_color_override("font_color", COLOR_MUTED)
 	_body_box.add_child(mode_lbl)
+
+
+## Words for the purity of a soul. Bands are heuristic: the mixed-state floor for
+## a ~90-faction support is ≈0.011, so anything near 1 is a deliberate life.
+func _soul_gloss(p: float) -> String:
+	if p >= 0.8:
+		return "resolved"
+	if p >= 0.5:
+		return "leaning"
+	if p >= 0.2:
+		return "torn"
+	return "smeared across many selves"
 
 	if sort_mode == EIGEN_SORT_SUBJECT:
 		_build_eigen_body_subject()
@@ -968,7 +1075,32 @@ func _make_bits_axis_row(axis_i: int, ag, key_str: String, selected: bool) -> Co
 	coh_lbl.add_theme_color_override("font_color", COLOR_PHASE)
 	coh_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hbox.add_child(coh_lbl)
+
+	# Canon stance word — the numbers, read aloud (same family as the soul gloss).
+	var stance_lbl := Label.new()
+	stance_lbl.text = _axis_stance(axis_i, p0, p1, coh_mag)
+	stance_lbl.add_theme_font_size_override("font_size", 11)
+	stance_lbl.add_theme_color_override("font_color", COLOR_HILITE if selected else COLOR_MUTED)
+	stance_lbl.custom_minimum_size = Vector2(150, 0)
+	hbox.add_child(stance_lbl)
 	return row
+
+
+## Canon words for one axis of a 12-axis alignment state — the same family as
+## the soul gloss. "Woven" wins when off-diagonal coherence carries the axis
+## (a superposed stance is not the same as a torn one); otherwise the leading
+## pole's label with commitment strength.
+func _axis_stance(axis_i: int, p0: float, p1: float, coh_mag: float) -> String:
+	if coh_mag >= 0.35:
+		return "woven %s↔%s" % [FactionAxes.pole_emoji(axis_i, 0), FactionAxes.pole_emoji(axis_i, 1)]
+	var lead_bit := 0 if p0 >= p1 else 1
+	var lead_p := maxf(p0, p1)
+	var word := FactionAxes.pole_label(axis_i, lead_bit)
+	if lead_p >= 0.75:
+		return "resolved: %s" % word
+	if lead_p >= 0.6:
+		return "leaning %s" % word
+	return "torn"
 
 # =============================================================================
 # O — ATLAS BODY (preserved; cluster visualization)
@@ -1253,6 +1385,7 @@ func _adjust_atlas_view(direction: int) -> void:
 
 func _build_graph_body() -> void:
 	_graph_broad_view = null
+	_graph_neigh_view = null
 	_body_box.add_child(_build_graph_status_card())
 
 	if _graph_zoom == "broad":
@@ -1262,6 +1395,8 @@ func _build_graph_body() -> void:
 		view.custom_minimum_size = Vector2(640, 520)
 		_body_box.add_child(view)
 		view.populate(_broad)
+		# Live entanglement badges: resolve each federation node to its live QC.
+		view.set_live_lookup(_live_qc_for)
 		_graph_broad_view = view
 		_graph_selectable = view.get_selectable_biomes()
 		if _graph_selected_idx >= _graph_selectable.size():
@@ -1280,6 +1415,7 @@ func _build_graph_body() -> void:
 		if canonical != null:
 			nview.populate(NeighborhoodGraphRef.from_biome(canonical))
 		nview.set_live_source(_live_qc_for(_graph_zoom))
+		_graph_neigh_view = nview
 
 
 func _build_graph_status_card() -> Control:
@@ -1296,6 +1432,10 @@ func _build_graph_status_card() -> Control:
 	style.content_margin_bottom = 8
 	card.add_theme_stylebox_override("panel", style)
 
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 2)
+	card.add_child(vbox)
+
 	var body := Label.new()
 	body.add_theme_font_size_override("font_size", 12)
 	body.add_theme_color_override("font_color", UIStyleFactory.COLOR_BODY)
@@ -1306,9 +1446,38 @@ func _build_graph_status_card() -> Control:
 		var sel: String = str(_graph_selectable[_graph_selected_idx]) if (_graph_selected_idx >= 0 and _graph_selected_idx < _graph_selectable.size()) else "—"
 		body.text = "Federation · biomes %d · seams %d · qubits %d · ▶ %s" % [bcount, ecount, qcount, sel]
 	else:
-		body.text = "%s · neighborhood cluster (live)" % _graph_zoom
-	card.add_child(body)
+		var seal := " · webway sealed" if not BalanceConfig.dissipative_enabled() else ""
+		body.text = "%s · neighborhood cluster (live%s)" % [_graph_zoom, seal]
+	vbox.add_child(body)
+
+	# Standing at sealed channels, a native faction has something to say about
+	# them (QuestVoice.webway_whisper — words only, no mechanics).
+	if _graph_zoom != "broad" and not BalanceConfig.dissipative_enabled():
+		var canonical = _canonical_biome(_graph_zoom)
+		if _biome_has_webway(canonical):
+			var natives: Array = canonical.native_factions if ("native_factions" in canonical and canonical.native_factions is Array) else []
+			var speaker := str(natives[0]) if not natives.is_empty() else ""
+			var whisper := QuestVoice.webway_whisper(speaker)
+			if whisper != "":
+				var wl := Label.new()
+				wl.text = "💬 %s“%s”" % [("%s — " % speaker) if speaker != "" else "", whisper]
+				wl.add_theme_font_size_override("font_size", 11)
+				wl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
+				wl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+				wl.tooltip_text = "The webway: this biome's authored Lindblad channels, sealed while the enclave holds. See the dark orange edges below."
+				vbox.add_child(wl)
 	return card
+
+
+## Does the canonical biome author any Lindblad channels (webway/decay) at all?
+func _biome_has_webway(canonical) -> bool:
+	if canonical == null or not ("atom_components" in canonical) or not (canonical.atom_components is Dictionary):
+		return false
+	for k in canonical.atom_components.keys():
+		var comp = canonical.atom_components[k]
+		if comp is Dictionary and (comp.has("lindblad_outgoing") or comp.has("lindblad_incoming") or comp.has("decay")):
+			return true
+	return false
 
 
 ## Highlight the selected biome node without rebuilding the whole body.

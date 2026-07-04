@@ -14,14 +14,33 @@ extends GraphEdit
 ## Read/inspect only. The host supplies a derived [NeighborhoodGraph] via populate() and
 ## a live QuantumComputer via set_live_source(); this view never touches canonical data.
 ## Shared by the standalone 🕸 NeighborhoodGraphOverlay and the M · Graph drill-down.
+##
+## Three edge species, one per slot row (see docs/glossary/):
+##   row 0 · coherent (H)  — authored Hamiltonian couplings, purple
+##   row 1 · webway   (L)  — authored Lindblad flow, orange. SEALED in the closed
+##                           game: drawn dark, carries nothing (enclave.md) — the
+##                           walls are visible even when the drain is dry.
+##   row 2 · entanglement  — LIVE mutual information from the density matrix, gold.
+##                           Not authored: this is the loom the player actually wove
+##                           (gates + shared H evolution). Edge glow ∝ MI in bits;
+##                           a Bell pair saturates at 2.
 
 const COLOR_COHERENT := Color(0.6, 0.45, 0.9)   # Hamiltonian coupling (purple)
 const COLOR_WEBWAY := Color(0.95, 0.55, 0.25)   # Lindblad / webway flow (orange)
+const COLOR_WEBWAY_SEALED := Color(0.95, 0.55, 0.25, 0.22)  # closed mode: drawn, dormant
+const COLOR_ENTANGLE := Color(1.0, 0.84, 0.25)  # live mutual information (gold)
 const COLOR_PORT := Color(0.3, 0.8, 0.55)        # shared-vocabulary port (teal)
+
+## MI below this (bits) is treated as loom noise, not a woven edge. A Bell pair
+## reads 2.0; the CNOT/partial-entangle band the tutorial targets is 0.5–1.5.
+const MI_EDGE_MIN := 0.15
+const MI_FULL := 2.0    # bits at which the edge glow saturates (Bell pair)
 
 var _graph = null                        # NeighborhoodGraph (derived)
 var _live_qc = null                      # live QuantumComputer for population bars
-var _node_widgets: Dictionary = {}       # qubit -> {gnode, north_bar, south_bar, north, south}
+var _node_widgets: Dictionary = {}       # qubit -> {gnode, north_bar, south_bar, north, south, mi_label}
+var _mi_edges: Dictionary = {}           # "i|j" (i<j) -> true, live MI connections we own
+var _legend: RichTextLabel = null
 var _refresh_accum := 0.0
 
 
@@ -40,12 +59,26 @@ func populate(graph) -> void:
 	# Free only the GraphNodes we added — NOT every child. GraphEdit keeps an internal,
 	# non-internal `connection_layer` child; queue_free-ing it corrupts the GraphEdit
 	# ("connections_layer is missing" on the next scroll/redraw).
+	# remove_child BEFORE queue_free: the free is deferred, and while the old q0..qN
+	# are still in the tree the new same-named nodes would be auto-renamed on
+	# add_child — connect_node("q0", ...) would then bind to the dying node and every
+	# edge would silently vanish at frame end.
 	for child in get_children():
 		if child is GraphNode:
+			remove_child(child)
 			child.queue_free()
 	_node_widgets.clear()
+	_mi_edges.clear()
 	if _graph == null or _graph.node_count() == 0:
+		_update_legend(true)
 		return
+
+	# The webway (Lindblad flow + decay sink) is authored in every biome but SEALED
+	# in the closed game: no dissipators are built, nothing decays (see
+	# docs/glossary/enclave.md + webway.md). We draw it anyway — dark, dormant —
+	# so the player can see the channels the enclave is holding shut.
+	var closed: bool = not BalanceConfig.dissipative_enabled()
+	var webway_color: Color = COLOR_WEBWAY_SEALED if closed else COLOR_WEBWAY
 
 	var n: int = _graph.node_count()
 	for nd in _graph.nodes:
@@ -59,9 +92,18 @@ func populate(graph) -> void:
 		gn.add_child(north_row["row"])
 		var south_row = _make_pole_row(str(nd["south"]))
 		gn.add_child(south_row["row"])
-		# Row 0 = coherent (H) port (purple); Row 1 = webway (L) port (orange).
+		# Live-MI readout row: strongest woven partner, updated by _process.
+		var mi_lbl := Label.new()
+		mi_lbl.text = "◈ —"
+		mi_lbl.add_theme_font_size_override("font_size", 11)
+		mi_lbl.add_theme_color_override("font_color", COLOR_ENTANGLE)
+		mi_lbl.tooltip_text = "Mutual information with the most-entangled partner qubit (bits).\nNot authored — this is what you wove. A Bell pair reads 2.0."
+		gn.add_child(mi_lbl)
+		# Row 0 = coherent (H, purple); row 1 = webway (L, orange — sealed when
+		# closed); row 2 = entanglement (live MI, gold).
 		gn.set_slot(0, true, 0, COLOR_COHERENT, true, 0, COLOR_COHERENT)
-		gn.set_slot(1, true, 1, COLOR_WEBWAY, true, 1, COLOR_WEBWAY)
+		gn.set_slot(1, true, 1, webway_color, true, 1, webway_color)
+		gn.set_slot(2, true, 2, COLOR_ENTANGLE, true, 2, COLOR_ENTANGLE)
 
 		# Vocabulary-port badge: emojis shared with other factions → wider DAG.
 		var pts: Array = _graph.ports_for(q)
@@ -78,41 +120,44 @@ func populate(graph) -> void:
 		add_child(gn)
 		_node_widgets[q] = {
 			"gnode": gn, "north_bar": north_row["bar"], "south_bar": south_row["bar"],
-			"north": str(nd["north"]), "south": str(nd["south"]),
+			"north": str(nd["north"]), "south": str(nd["south"]), "mi_label": mi_lbl,
 		}
 
-	# Webway (Lindblad) flow and the decay sink only exist in the open system. In the
-	# closed (unitary) system there are no dissipators, so we draw coherent edges only.
-	var closed: bool = not BalanceConfig.dissipative_enabled()
-
-	# A single sink node collects decay→🗑 outflow (open system only).
+	# A single sink node collects decay→🗑 outflow. Sealed shut in the enclave.
 	var has_sink := false
 	for e in _graph.edges:
-		if not closed and str(e["kind"]) == "sink":
+		if str(e["kind"]) == "sink":
 			has_sink = true
 			break
 	if has_sink:
 		var sg := GraphNode.new()
 		sg.name = "sink"
-		sg.title = "🗑 sink"
+		sg.title = "🗑 sealed" if closed else "🗑 sink"
 		sg.position_offset = Vector2(360, 360)
 		var lbl := Label.new()
-		lbl.text = "decay"
+		lbl.text = "dry" if closed else "decay"
+		if closed:
+			lbl.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7, 0.6))
 		sg.add_child(lbl)
-		sg.set_slot(0, true, 1, COLOR_WEBWAY, false, 0, Color.WHITE)
+		sg.tooltip_text = ("The webway's drain. Sealed while the enclave holds: no dissipators are built, " +
+				"nothing leaks (docs/glossary/enclave.md). Act 2 opens it.") if closed else "Decay outflow — population leaving the cluster."
+		sg.set_slot(0, true, 1, webway_color, false, 0, Color.WHITE)
 		add_child(sg)
 
-	# Edges. Coherent uses port 0 (row 0); webway/sink use port 1 (row 1).
+	# Authored edges. Coherent uses port 0; webway/sink use port 1 (sealed = drawn
+	# dark). Live entanglement edges (port 2) are diffed in per _process tick.
 	for e in _graph.edges:
 		var from_name := "q%d" % int(e["from_qubit"])
 		var kind := str(e["kind"])
 		var to_q := int(e["to_qubit"])
 		if kind == "coherent" and to_q >= 0:
 			connect_node(from_name, 0, "q%d" % to_q, 0)
-		elif kind == "webway" and to_q >= 0 and not closed:
+		elif kind == "webway" and to_q >= 0:
 			connect_node(from_name, 1, "q%d" % to_q, 1)
 		elif kind == "sink" and has_sink:
 			connect_node(from_name, 1, "sink", 0)
+
+	_update_legend(closed)
 
 
 ## Supply the live biome's QuantumComputer; _process pulls populations from it.
@@ -169,3 +214,95 @@ func _process(delta: float) -> void:
 			w["north_bar"].value = clampf(float(qc.get_population(w["north"])) * 100.0, 0.0, 100.0)
 		if w["south_bar"]:
 			w["south_bar"].value = clampf(float(qc.get_population(w["south"])) * 100.0, 0.0, 100.0)
+	_refresh_mi_edges(qc)
+
+
+## Diff the gold entanglement edges against the LIVE mutual-information cache.
+## Cache-only on purpose: without the native MI cache we draw nothing rather than
+## trigger the expensive per-pair GDScript eigensolve fallback at UI rate.
+func _refresh_mi_edges(qc) -> void:
+	if not (qc.has_method("has_cached_mi") and qc.has_method("get_cached_mutual_information")):
+		return
+	var best_mi: Dictionary = {}      # qubit -> [mi, partner]
+	var want: Dictionary = {}         # "i|j" -> mi
+	if qc.has_cached_mi():
+		var n: int = _node_widgets.size()
+		if "register_map" in qc and qc.register_map != null:
+			n = mini(n, int(qc.register_map.num_qubits))
+		for i in range(n):
+			for j in range(i + 1, n):
+				var mi := float(qc.get_cached_mutual_information(i, j))
+				if mi >= MI_EDGE_MIN:
+					want["%d|%d" % [i, j]] = mi
+				for q in [i, j]:
+					var other: int = j if q == i else i
+					var cur: float = float(best_mi[q][0]) if best_mi.has(q) else 0.0
+					if mi > cur:
+						best_mi[q] = [mi, other]
+
+	# Drop edges that unwove; add the newly woven; set glow ∝ bits on the rest.
+	for key in _mi_edges.keys():
+		if not want.has(key):
+			var pq: PackedStringArray = str(key).split("|")
+			disconnect_node("q%s" % pq[0], 2, "q%s" % pq[1], 2)
+			_mi_edges.erase(key)
+	for key in want.keys():
+		var pq: PackedStringArray = str(key).split("|")
+		var a := "q%s" % pq[0]
+		var b := "q%s" % pq[1]
+		if not _mi_edges.has(key):
+			if not (has_node(NodePath(a)) and has_node(NodePath(b))):
+				continue
+			connect_node(a, 2, b, 2)
+			_mi_edges[key] = true
+		set_connection_activity(a, 2, b, 2, clampf(float(want[key]) / MI_FULL, 0.0, 1.0))
+
+	# Per-node readout: the strongest woven partner, in bits.
+	for q in _node_widgets.keys():
+		var lbl = _node_widgets[q].get("mi_label")
+		if lbl == null:
+			continue
+		if best_mi.has(q) and float(best_mi[q][0]) >= MI_EDGE_MIN:
+			lbl.text = "◈ %.2f bit ↔ q%d" % [float(best_mi[q][0]), int(best_mi[q][1])]
+		else:
+			lbl.text = "◈ —"
+
+
+## One E-press worth of detail for the whole cluster view. Touch-first: E is the
+## canonical "more information" channel (QERF plane); hover tooltips are optional
+## desktop sugar and must never be the only home of a fact.
+func inspect_text() -> String:
+	var lines: Array[String] = []
+	if _graph != null and _graph.node_count() > 0:
+		lines.append("%s — %d-qubit neighborhood cluster" % [str(_graph.biome_name), _graph.node_count()])
+	var closed: bool = not BalanceConfig.dissipative_enabled()
+	lines.append("purple ━ coupling (H): authored, conservative — population sloshes, nothing is lost")
+	if closed:
+		lines.append("orange ━ webway (L): authored channels, SEALED — nothing flows while the enclave holds (Act 2 opens them)")
+	else:
+		lines.append("orange ━ webway (L): directed Lindblad flow")
+	lines.append("gold ━ entanglement: LIVE mutual information you wove (bits; a Bell pair reads 2.0)")
+	lines.append("◈ row on each node: its most-entangled partner right now")
+	if _live_qc != null and _live_qc.has_method("get_cached_max_mutual_information"):
+		var mi := float(_live_qc.get_cached_max_mutual_information())
+		if mi >= 0.0:
+			lines.append("strongest woven pair: %.2f bit" % mi)
+		else:
+			lines.append("(entanglement readout needs the native MI cache — none in this build)")
+	return "\n".join(lines)
+
+
+## Fixed legend overlay (survives populate(), which only frees GraphNodes).
+func _update_legend(closed: bool) -> void:
+	if _legend == null:
+		_legend = RichTextLabel.new()
+		_legend.bbcode_enabled = true
+		_legend.fit_content = true
+		_legend.scroll_active = false
+		_legend.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_legend.custom_minimum_size = Vector2(300, 0)
+		_legend.set_anchors_preset(Control.PRESET_TOP_LEFT)
+		_legend.position = Vector2(8, 4)
+		add_child(_legend)
+	var webway_note := "webway (L · sealed)" if closed else "webway (L)"
+	_legend.text = "[color=#9973e6]━[/color] coupling (H)   [color=#f28c40]━[/color] %s   [color=#ffd643]━[/color] entanglement (live MI)" % webway_note
