@@ -77,16 +77,19 @@ const ARCHETYPE_FRAMES: Dictionary = {
 	# shove the qubit toward that pole (strong one-shot Lindblad drive/decay).
 	# No extra fees: the pole emoji IS the cost.
 	# Q = push toward south pole  |  R = push toward north pole
+	# Mode 2 (🌉 bridge): Majorana spans — nonlocal storage between two biomes
+	# (BridgeRegister; What Connects). R anchors, F braids, Q fuses, E inspects.
+	# Bridge verbs work in any regime — the span is the anti-Lindblad artifact.
 	# =========================================================================
 	FRAME_SPARK: {
 		"name": "Spark",
 		"emoji": "⚡",
 		"icon": "res://Assets/UI/Tools/Lindblad/Lindblad.svg",
 		"time_scale": "dissipative",
-		"description": "Energy dyad (Lindblad jolt) — Q discharges south (out), R charges north (invest). Both fire while paused or playing.",
-		"modes": ["shift"],
-		"mode_labels": ["⚡"],
-		"mode_emojis": ["⚡"],
+		"description": "Energy dyad (Lindblad jolt) — Q discharges south (out), R charges north (invest). Both fire while paused or playing. Mode 2: Majorana bridges.",
+		"modes": ["shift", "bridge"],
+		"mode_labels": ["⚡", "🌉"],
+		"mode_emojis": ["⚡", "🌉"],
 		"pauses_sim": false,
 		"actions": {
 			"shift": {
@@ -99,6 +102,19 @@ const ARCHETYPE_FRAMES: Dictionary = {
 				"R": {"action": "spark_north", "label": "N.Pole", "emoji": "↑",
 					  "icon": "res://Assets/UI/Tools/Lindblad/Drive.svg",
 					  "hint": "Spend 1× north-pole emoji — jolt qubit toward north pole (fires while paused or playing)"}
+			},
+			"bridge": {
+				"Q": {"action": "bridge_fuse", "label": "Fuse", "emoji": "⚛",
+					  "icon": "res://Assets/UI/Science/Measure.svg",
+					  "hint": "Fuse a bridge anchored here — Born-sample the joint parity, paid in surprisal. Reading the bridge spends it.",
+					  "destructive": true},
+				"E": {"action": "bridge_inspect", "label": "Inspect", "emoji": "🔍", "icon": "",
+					  "hint": "Read the bridge card — span, parity odds, live Γ (the product of both shores' wet rates), age, braids"},
+				"R": {"action": "bridge_anchor", "label": "Span", "emoji": "⚓",
+					  "icon": "res://Assets/UI/Biome/BiomeAssign.svg",
+					  "hint": "Anchor a span on the focused qubit. Anchor a second shore in another biome to raise the bridge."},
+				"F": {"action": "bridge_braid", "label": "Braid", "emoji": "🪢", "icon": "",
+					  "hint": "Braid the end-modes at this shore — S here, √X on the far shore. The braid alphabet is Clifford only."}
 			}
 		}
 	},

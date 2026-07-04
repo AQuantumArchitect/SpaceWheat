@@ -25,6 +25,7 @@ var known_icons: Array = []  # Player icons (canonical, farm-owned)
 var active_icon_slots: Array = [0, 1, 2]  # 3 indices into known_icons — the player's active expression voice
 var reap_count: int = 0  # Number of global seasonal reaps completed
 var faction_density: FactionDensityMatrix = FactionDensityMatrix.new()  # ρ over factions; drives affinity
+var bridge_register: BridgeRegister = BridgeRegister.new()  # Majorana bridges: nonlocal 2×2 registers spanning biome pairs (What Connects)
 var icon_atlas: IconRegistry = null  # Pair-Icon atlas (lazy-init on first use)
 var faction_standings: Dictionary = {}  # faction_name -> FactionStanding (6-channel rep; written by QuestManager, read by FactionAffinity)
 var story_log: Array = []              # Array[Dictionary] — fired story flag entries {id, act, display_name, arc_beat, fired_at}
@@ -850,6 +851,12 @@ func _physics_process(delta: float) -> void:
 	# Diagonal untouched: affinity is preserved until the next pop event.
 	if faction_density:
 		faction_density.apply_lindblad_decay(delta)
+
+	# Majorana bridges: each spans two biomes and decoheres only at the PRODUCT
+	# of its ends' local wet rates — a closed-country anchor makes it immortal
+	# (BridgeRegister; What Connects).
+	if bridge_register:
+		bridge_register.tick(delta, self)
 
 	# Lindblad pump/drain effects
 	_process_lindblad_effects(delta)

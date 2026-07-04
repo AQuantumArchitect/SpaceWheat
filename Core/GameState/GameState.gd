@@ -86,6 +86,11 @@ extends Resource
 ## Empty dict → farm re-initializes uniform on load.
 @export var faction_density: Dictionary = {}
 
+## Majorana bridge bank (BridgeRegister.to_dict): live nonlocal 2×2 registers
+## spanning biome pairs + lifetime counters (What Connects). Empty dict → no
+## bridges; additive field, older saves load clean.
+@export var bridges: Dictionary = {}
+
 ## Story flags and narrative log (v3+). story_flags_fired maps flag_id → phrame_index.
 ## story_log is an ordered Array of fired-flag entries shown in the Z/Y Story tab.
 ## Both are empty on new saves (no flags fired yet).

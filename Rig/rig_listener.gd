@@ -23,6 +23,10 @@ extends SceneTree
 ## - known_icons
 ## - story_flags — returns {flags_fired: {id→phrame}, story_log: [{id,act,arc_beat,...}]}
 ## - consume_berry: {biome?: String, count?: int, phase_each?: float} — rig-only: advance berry harvest counter
+## - bridge_build: {a: {biome, north, south}, b: {biome, north, south}} — raise a Majorana span
+## - bridge_braid: {id: int, end: "a"|"b"} — S at end a, √X at end b
+## - bridge_fuse: {id: int, roll?: float} — Born-sample joint parity (deterministic with roll)
+## - bridge_list — BridgeRegister.to_dict() snapshot
 ## - inject_icon: {biome: String, icon_index: int}
 ## - gate_inject: {gate: String, biome: String, positions: [[x,y],...]}
 ## - lindblad_pump: {biome: String, positions: [[x,y],...]}
@@ -342,6 +346,10 @@ func _requires_quantum_instrument(action: String) -> bool:
 		"resource_mutations",
 		"story_flags",
 		"consume_berry",
+		"bridge_build",
+		"bridge_braid",
+		"bridge_fuse",
+		"bridge_list",
 		"inject_icon",
 		"gate_inject",
 		"lindblad_pump",
@@ -721,6 +729,37 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 					berry.consume(qid)
 				result["consumed_count"] = berry.get_consumed_count()
 				result["consumed_phase"] = berry.get_consumed_phase()
+
+		"bridge_build":
+			# {a: {biome, north, south}, b: {biome, north, south}} — raise a span.
+			if _farm == null or not ("bridge_register" in _farm) or _farm.bridge_register == null:
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_bridge_register"}
+			else:
+				result["bridge_result"] = _farm.bridge_register.build(
+					cmd.get("a", {}) if cmd.get("a", {}) is Dictionary else {},
+					cmd.get("b", {}) if cmd.get("b", {}) is Dictionary else {})
+
+		"bridge_braid":
+			# {id: int, end: "a"|"b"} — S at end a, √X at end b.
+			if _farm == null or not ("bridge_register" in _farm) or _farm.bridge_register == null:
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_bridge_register"}
+			else:
+				result["braid_result"] = _farm.bridge_register.braid(int(cmd.get("id", -1)), str(cmd.get("end", "a")))
+
+		"bridge_fuse":
+			# {id: int, roll?: float} — Born-sample the parity; deterministic when
+			# the caller passes roll. Payout is the caller's business (rig-only).
+			if _farm == null or not ("bridge_register" in _farm) or _farm.bridge_register == null:
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_bridge_register"}
+			else:
+				var roll: float = float(cmd.get("roll", randf()))
+				result["fuse_result"] = _farm.bridge_register.fuse(int(cmd.get("id", -1)), roll)
+
+		"bridge_list":
+			if _farm == null or not ("bridge_register" in _farm) or _farm.bridge_register == null:
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_bridge_register"}
+			else:
+				result["bridges"] = _farm.bridge_register.to_dict()
 
 		"gate_inject":
 			var gate_name = str(cmd.get("gate", ""))

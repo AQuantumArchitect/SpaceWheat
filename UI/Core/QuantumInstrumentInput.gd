@@ -670,6 +670,150 @@ func _execute_incorporate_icon() -> Dictionary:
 	return result
 
 
+## ============================================================================
+## MAJORANA BRIDGE VERBS (Spark frame, 🌉 mode — BridgeRegister, What Connects)
+## R spans (two-step: near shore, then far shore in another biome), F braids,
+## Q fuses, E reads the card. Bridge ops never touch biome density matrices, so
+## no lookahead buffer invalidation is needed.
+## ============================================================================
+
+## The near shore awaiting its far shore. UI state only — never serialized.
+var _pending_bridge_anchor: Dictionary = {}
+
+
+func _bridge_anchor_here() -> Dictionary:
+	# {biome, north, south} for the focused qubit, or {} when nothing is focused.
+	var biome = _get_current_biome()
+	if biome == null:
+		return {}
+	var qc = biome.quantum_computer
+	if qc == null or qc.register_map == null:
+		return {}
+	var qid: int = int(current_selection.get("plot_idx", -1))
+	if qid < 0 or qid >= qc.register_map.num_qubits:
+		return {}
+	var axis = qc.register_map.axis(qid)
+	if axis == null or axis.is_empty():
+		return {}
+	var bname: String = biome.get_biome_type() if biome.has_method("get_biome_type") else str(biome.name)
+	return {"biome": bname, "north": str(axis.get("north", "")), "south": str(axis.get("south", ""))}
+
+
+func _execute_bridge_anchor() -> Dictionary:
+	if farm == null or not ("bridge_register" in farm) or farm.bridge_register == null:
+		return {"success": false, "error": "no_bridge_register"}
+	var here := _bridge_anchor_here()
+	if here.is_empty():
+		_verbose.info("input", "⚓", "No focused qubit to anchor")
+		_toast_note("⚓ focus a qubit first — the span needs an atom pair to hold")
+		return {"success": false, "error": "no_anchor"}
+	if _pending_bridge_anchor.is_empty() or str(_pending_bridge_anchor.get("biome", "")) == str(here.get("biome", "")):
+		_pending_bridge_anchor = here
+		_toast_note("⚓ near shore set: %s (%s/%s) — anchor a far shore in another biome" % [
+			str(here["biome"]), str(here["north"]), str(here["south"])])
+		action_performed.emit("bridge_anchor", {"success": true, "pending": true, "anchor": here})
+		return {"success": true, "pending": true}
+	var near: Dictionary = _pending_bridge_anchor
+	var result: Dictionary = farm.bridge_register.build(near, here)
+	if result.get("success", false):
+		_pending_bridge_anchor = {}
+		var ga: float = farm.bridge_register.end_rate_for(farm, str(near["biome"]), str(near["north"]), str(near["south"]))
+		var gb: float = farm.bridge_register.end_rate_for(farm, str(here["biome"]), str(here["north"]), str(here["south"]))
+		var g: float = BridgeRegister.KAPPA * ga * gb
+		var fate: String = "immortal — a shore is sealed" if g <= 0.0 \
+			else "fading at Γ = %.4f (second order — gentler than either shore alone)" % g
+		_toast_note("🌉 the bridge stands: %s ⇌ %s · %s" % [str(near["biome"]), str(here["biome"]), fate])
+	else:
+		_toast_note("🌉 %s" % str(result.get("message", result.get("error", "the span failed"))))
+	action_performed.emit("bridge_anchor", result)
+	return result
+
+
+func _execute_bridge_braid() -> Dictionary:
+	if farm == null or not ("bridge_register" in farm) or farm.bridge_register == null:
+		return {"success": false, "error": "no_bridge_register"}
+	var bname := _get_current_biome_name()
+	var spans: Array = farm.bridge_register.bridges_at(bname)
+	if spans.is_empty():
+		_toast_note("🪢 no bridge anchored in %s" % bname)
+		return {"success": false, "error": "no_bridge_here"}
+	var bridge: Dictionary = spans[0]
+	var end: String = "a" if str(bridge.get("biome_a", "")) == bname else "b"
+	var result: Dictionary = farm.bridge_register.braid(int(bridge.get("id", -1)), end)
+	if result.get("success", false):
+		var odds: Dictionary = result.get("odds", {})
+		var gate: String = "S" if end == "a" else "√X"
+		_toast_note("🪢 braid %s at %s — parity now %d%% even (the far shore speaks %s; the word's order matters)" % [
+			gate, bname, int(round(float(odds.get("even", 0.0)) * 100.0)), "√X" if end == "a" else "S"])
+	action_performed.emit("bridge_braid", result)
+	return result
+
+
+func _execute_bridge_fuse() -> Dictionary:
+	if farm == null or not ("bridge_register" in farm) or farm.bridge_register == null:
+		return {"success": false, "error": "no_bridge_register"}
+	var bname := _get_current_biome_name()
+	var spans: Array = farm.bridge_register.bridges_at(bname)
+	if spans.is_empty():
+		_toast_note("⚛ no bridge anchored in %s to fuse" % bname)
+		return {"success": false, "error": "no_bridge_here"}
+	var bridge: Dictionary = spans[0]
+	var result: Dictionary = farm.bridge_register.fuse(int(bridge.get("id", -1)), randf())
+	if not result.get("success", false):
+		return result
+	# Surprisal payout at the mean of the two shores' temperatures, split across
+	# both anchor atoms — the nonlocal harvest pays both shores at once.
+	var p: float = float(result.get("probability", 1.0))
+	var kt_a: float = EnergyPricing.biome_temperature(farm.grid.get_biome(str(result.get("biome_a", ""))), farm)
+	var kt_b: float = EnergyPricing.biome_temperature(farm.grid.get_biome(str(result.get("biome_b", ""))), farm)
+	var reward: int = maxi(1, int(round(EnergyPricing.surprisal_energy(p, (kt_a + kt_b) * 0.5))))
+	var half: int = maxi(1, int(round(reward * 0.5)))
+	if _instrument != null and _instrument.has_method("add_resource"):
+		_instrument.add_resource(str(result.get("north_a", "")), half, "bridge_fusion")
+		if reward - half > 0:
+			_instrument.add_resource(str(result.get("north_b", "")), reward - half, "bridge_fusion")
+	result["credits"] = reward
+	_toast_note("⚛ fusion: parity %s (p = %.2f) — +%d paid across both shores. The bridge is spent; looking closed it." % [
+		str(result.get("outcome", "?")), p, reward])
+	action_performed.emit("bridge_fuse", result)
+	return result
+
+
+func _execute_bridge_inspect() -> Dictionary:
+	if farm == null or not ("bridge_register" in farm) or farm.bridge_register == null:
+		return {"success": false, "error": "no_bridge_register"}
+	var bname := _get_current_biome_name()
+	var spans: Array = farm.bridge_register.bridges_at(bname)
+	if spans.is_empty():
+		if not _pending_bridge_anchor.is_empty():
+			_toast_note("⚓ pending near shore: %s (%s/%s) — anchor a far shore in another biome" % [
+				str(_pending_bridge_anchor.get("biome", "")),
+				str(_pending_bridge_anchor.get("north", "")),
+				str(_pending_bridge_anchor.get("south", ""))])
+			return {"success": true, "pending": true}
+		_toast_note("🌉 no bridge anchored in %s — Spark 🌉 R spans one" % bname)
+		return {"success": false, "error": "no_bridge_here"}
+	var bridge: Dictionary = spans[0]
+	var odds: Dictionary = farm.bridge_register.parity_odds(int(bridge.get("id", -1)))
+	var g: float = float(bridge.get("gamma", 0.0))
+	var fate: String = "immortal (a shore is sealed)" if g <= 0.0 else "Γ = %.4f — second-order fade" % g
+	_toast_note("🌉 %s ⇌ %s · parity %d%% even · coherence %.2f · %s · age %.0fs · braids %d" % [
+		str(bridge.get("biome_a", "")), str(bridge.get("biome_b", "")),
+		int(round(float(odds.get("even", 0.0)) * 100.0)), float(odds.get("coherence", 0.0)),
+		fate, float(bridge.get("age", 0.0)),
+		int(bridge.get("braids_a", 0)) + int(bridge.get("braids_b", 0))])
+	return {"success": true, "bridge": bridge, "odds": odds}
+
+
+## Plain mechanics note through the PlayerShell hint channel (no voice line).
+func _toast_note(head: String) -> void:
+	var ps: Node = self
+	while ps != null and not (ps is PlayerShell):
+		ps = ps.get_parent()
+	if ps != null and ps.has_method("show_hint"):
+		ps.show_hint(head, 2, "")
+
+
 ## Whisper plumbing — the world's speaking moments (QuestVoice registers), all
 ## toasted through PlayerShell. Words only, no mechanics; fails silently
 ## headless (no shell in the tree).
@@ -1579,6 +1723,14 @@ func _execute_action(action_name: String) -> Dictionary:
 			result = _execute_toggle_berry_track()
 		"incorporate_icon":
 			result = _execute_incorporate_icon()
+		"bridge_anchor":
+			result = _execute_bridge_anchor()
+		"bridge_braid":
+			result = _execute_bridge_braid()
+		"bridge_fuse":
+			result = _execute_bridge_fuse()
+		"bridge_inspect":
+			result = _execute_bridge_inspect()
 		"inject_icon":
 			result = MacroActions.dispatch(_instrument, MacroActions.KIND_INJECT_ICON, {"biome_name": biome_name})
 		"discover_biome":
