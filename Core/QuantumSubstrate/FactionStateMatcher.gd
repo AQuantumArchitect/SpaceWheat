@@ -94,66 +94,84 @@ static func extract_observables(substrate, biome = null) -> BiomeObservables:
 
 static func compute_alignment(faction_bits: Array, obs: BiomeObservables) -> float:
 	# Core alignment computation - NO game-specific content!
-
-	# faction_bits[0-1]: purity preference
-	# faction_bits[2-3]: entropy preference
-	# faction_bits[4-5]: coherence preference
-	# faction_bits[6-7]: distribution shape preference
-	# faction_bits[8-9]: scale preference
-	# faction_bits[10-11]: dynamics preference
-
-	# Uses HYBRID approach: weighted average of individual matches
-	# This gives better gameplay values (0.2-0.9) instead of tiny products (0.001-0.01)
-	if faction_bits.size() < 12:
+	#
+	# Weighted average of the per-channel fits — the breakdown IS the
+	# computation (see explain_alignment; the scalar is exactly the weighted
+	# mean of its rows, so readback can never drift from the score). Hybrid
+	# averaging keeps gameplay values in 0.2–0.9 instead of tiny products.
+	var rows := explain_alignment(faction_bits, obs)
+	if rows.is_empty():
 		return -1.0  # Not enough preference data to score honestly
 
-	var total_score = 0.0
-	var total_weight = 0.0
-
-	# Purity alignment (bits 0-1) - WEIGHT: 2.0 (most important)
-	var purity_pref = _bits_to_range(faction_bits[0], faction_bits[1])
-	if _is_known_observable(obs.purity):
-		var purity_match = _gaussian_match(purity_pref, obs.purity, 0.4)
-		total_score += purity_match * 2.0
-		total_weight += 2.0
-
-	# Entropy alignment (bits 2-3) - WEIGHT: 2.0 (most important)
-	var entropy_pref = _bits_to_range(faction_bits[2], faction_bits[3])
-	if _is_known_observable(obs.entropy):
-		var entropy_match = _gaussian_match(entropy_pref, obs.entropy, 0.4)
-		total_score += entropy_match * 2.0
-		total_weight += 2.0
-
-	# Coherence alignment (bits 4-5) - WEIGHT: 1.5
-	var coherence_pref = _bits_to_range(faction_bits[4], faction_bits[5])
-	if _is_known_observable(obs.coherence):
-		var coherence_match = _gaussian_match(coherence_pref, obs.coherence, 0.4)
-		total_score += coherence_match * 1.5
-		total_weight += 1.5
-
-	# Distribution shape alignment (bits 6-7) - WEIGHT: 1.0
-	var shape_pref = faction_bits[6] * 2 + faction_bits[7]
-	if obs.distribution_shape >= 0:
-		var shape_match = 1.0 if shape_pref == obs.distribution_shape else 0.3
-		total_score += shape_match * 1.0
-		total_weight += 1.0
-
-	# Scale alignment (bits 8-9) - WEIGHT: 1.0
-	var scale_pref = _bits_to_range(faction_bits[8], faction_bits[9])
-	if _is_known_observable(obs.scale):
-		var scale_match = _gaussian_match(scale_pref, obs.scale, 0.4)
-		total_score += scale_match * 1.0
-		total_weight += 1.0
-
-	# Dynamics alignment (bits 10-11) - WEIGHT: 0.5 (least important, often 0.5)
-	var dynamics_pref = _bits_to_range(faction_bits[10], faction_bits[11])
-	if _is_known_observable(obs.dynamics):
-		var dynamics_match = _gaussian_match(dynamics_pref, obs.dynamics, 0.4)
-		total_score += dynamics_match * 0.5
-		total_weight += 0.5
-
-	# Weighted average: gives values in [0, 1] range
+	var total_score := 0.0
+	var total_weight := 0.0
+	for r in rows:
+		if r.known:
+			total_score += float(r.fit) * float(r.weight)
+			total_weight += float(r.weight)
 	return total_score / total_weight if total_weight > 0.0 else -1.0
+
+
+## The resonance, decomposed: one row per axiom channel, same order and same
+## math as compute_alignment. Row keys: channel, weight, known (bool),
+## fit ∈ [0,1] (-1.0 when the observable is unknown), want / have (the canon
+## band words the quest board already speaks), want_value / have_value.
+##   faction_bits[0-1] purity · [2-3] entropy · [4-5] coherence ·
+##   [6-7] distribution shape · [8-9] scale · [10-11] dynamics
+static func explain_alignment(faction_bits: Array, obs: BiomeObservables) -> Array:
+	if faction_bits.size() < 12:
+		return []
+
+	var rows: Array = []
+
+	# Continuous channels, Gaussian fit (σ 0.4): the faction wants the
+	# observable near its 2-bit quartile; "have" bands the live value into the
+	# same canon vocabulary so want-vs-have reads as one language.
+	# (name, first bit, weight, band words, live observable)
+	var continuous := [
+		["purity", 0, 2.0, ["chaos", "murk", "order", "crystal"], obs.purity],
+		["entropy", 2, 2.0, ["focused", "tempered", "diffuse", "uniform"], obs.entropy],
+		["coherence", 4, 1.5, ["classical", "tinged", "quantum", "woven"], obs.coherence],
+	]
+	var tail := [
+		["scale", 8, 1.0, ["sparse", "modest", "broad", "vast"], obs.scale],
+		["dynamics", 10, 0.5, ["still", "breathing", "restless", "storming"], obs.dynamics],
+	]
+
+	for spec in continuous:
+		rows.append(_explain_continuous(spec, faction_bits))
+
+	# Distribution shape: discrete channel — exact class or 0.3 partial credit.
+	var shape_names := ["peaked", "bimodal", "spread", "uniform"]
+	var shape_pref: int = int(faction_bits[6]) * 2 + int(faction_bits[7])
+	var shape_known: bool = obs.distribution_shape >= 0
+	rows.append({
+		"channel": "distribution", "weight": 1.0, "known": shape_known,
+		"fit": (1.0 if shape_pref == obs.distribution_shape else 0.3) if shape_known else -1.0,
+		"want": shape_names[clampi(shape_pref, 0, 3)],
+		"have": shape_names[obs.distribution_shape] if (shape_known and obs.distribution_shape < 4) else "—",
+		"want_value": float(shape_pref), "have_value": float(obs.distribution_shape),
+	})
+
+	for spec in tail:
+		rows.append(_explain_continuous(spec, faction_bits))
+
+	return rows
+
+
+static func _explain_continuous(spec: Array, faction_bits: Array) -> Dictionary:
+	var b: int = int(spec[1])
+	var names: Array = spec[3]
+	var actual: float = float(spec[4])
+	var pref: float = _bits_to_range(faction_bits[b], faction_bits[b + 1])
+	var known := _is_known_observable(actual)
+	return {
+		"channel": spec[0], "weight": spec[2], "known": known,
+		"fit": _gaussian_match(pref, actual, 0.4) if known else -1.0,
+		"want": names[clampi(int(faction_bits[b]) * 2 + int(faction_bits[b + 1]), 0, 3)],
+		"have": names[clampi(int(actual * 4.0), 0, 3)] if known else "—",
+		"want_value": pref, "have_value": actual,
+	}
 
 
 static func generate_quest_parameters(faction_bits: Array, obs: BiomeObservables, substrate) -> QuestParameters:

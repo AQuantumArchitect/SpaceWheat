@@ -466,6 +466,23 @@ func _market_inspect_text() -> String:
 		var prefs := str(offer.get("faction_preferences", ""))
 		if prefs != "":
 			lines.append("their axioms: %s" % prefs)
+		# The scalar decomposed: the axiom that sings and the one that grates —
+		# explain_alignment rows, the same terms the resonance number averages.
+		var best: Dictionary = {}
+		var worst: Dictionary = {}
+		for r in offer.get("faction_axiom_rows", []):
+			if not (r is Dictionary) or not bool(r.get("known", false)):
+				continue
+			if best.is_empty() or float(r.fit) > float(best.fit):
+				best = r
+			if worst.is_empty() or float(r.fit) < float(worst.fit):
+				worst = r
+		if not best.is_empty():
+			lines.append("sings: %s — they want %s, it reads %s (%.2f)" % [
+					str(best.channel), str(best.want), str(best.have), float(best.fit)])
+		if not worst.is_empty() and str(worst.get("channel", "")) != str(best.get("channel", "")):
+			lines.append("grates: %s — they want %s, it reads %s (%.2f)" % [
+					str(worst.channel), str(worst.want), str(worst.have), float(worst.fit)])
 	# Player↔faction kinship: how they sit with who YOU are becoming — geometric
 	# mean of per-axis agreement between your identity ρ's principal axes and
 	# their live alignment (FactionDensityMatrix.kinship; docs/glossary/soul.md).

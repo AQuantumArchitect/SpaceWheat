@@ -743,12 +743,16 @@ func _compute_faction_resonance(quests: Array, biome) -> Dictionary:
 		var fname := str(quest.get("faction", ""))
 		if fname == "" or cache.has(fname):
 			continue
-		var entry := {"alignment": -1.0, "prefs": ""}
+		var entry := {"alignment": -1.0, "prefs": "", "axiom_rows": []}
 		var fac = registry.get_by_name(fname)
 		if fac != null and fac.has_method("get_axial_bits"):
 			var bits := Array(fac.get_axial_bits())
 			entry["alignment"] = FactionStateMatcher.compute_alignment(bits, obs)
 			entry["prefs"] = FactionStateMatcher.describe_preferences(bits)
+			# The scalar's own terms (explain_alignment): stamped beside it so
+			# the board can say WHICH axiom sings and which grates — same
+			# moment-in-time truth as the alignment number itself.
+			entry["axiom_rows"] = FactionStateMatcher.explain_alignment(bits, obs)
 		cache[fname] = entry
 	return cache
 
@@ -762,6 +766,7 @@ func _stamp_faction_resonance(quests: Array, resonance: Dictionary) -> void:
 		if not e.is_empty() and float(e.get("alignment", -1.0)) >= 0.0:
 			quest["faction_alignment"] = float(e["alignment"])
 			quest["faction_preferences"] = str(e["prefs"])
+			quest["faction_axiom_rows"] = e.get("axiom_rows", [])
 
 
 ## The offer pool's most biome-resonant faction — it gets to voice the quantum
