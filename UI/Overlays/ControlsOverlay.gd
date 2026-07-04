@@ -95,7 +95,7 @@ const GUIDE_ITEMS := [
 ]
 
 # Featured strip: world-canon first (the story the physics tells), structure after.
-const GLOSSARY_CANONICAL_TERMS := ["enclave", "measurement", "berry", "invariant", "bath", "fading", "webway", "resonance", "biome", "faction", "icon"]
+const GLOSSARY_CANONICAL_TERMS := ["enclave", "measurement", "berry", "invariant", "bath", "fading", "knot", "bridge", "webway", "resonance", "biome", "faction", "icon"]
 
 # =============================================================================
 # COLORS
@@ -1381,7 +1381,7 @@ func _guide_core_loop() -> void:
 
 func _guide_four_tools() -> void:
 	_body_box.add_child(_make_section_header("the seven archetype frames (4-0)"))
-	_body_box.add_child(_make_action_row("4", "Spark",     "Lindbladian jolt — SEALED while the enclave holds. The endgame door (What Fades, act 8) opens it for good."))
+	_body_box.add_child(_make_action_row("4", "Spark",     "Lindbladian jolt — SEALED while the enclave holds; the endgame door (What Fades, act 8) opens it for good. Mode 2 (🌉) is never sealed: Majorana bridges — R spans, F braids, Q fuses, E reads the card."))
 	_body_box.add_child(_make_action_row("5", "Icon",      "Inject a dual-emoji qubit from the neighborhood's installed signature."))
 	_body_box.add_child(_make_action_row("6", "Merchant", "Faction contracts (energy dyad): Q=Sell, E=Read Price, R=Buy, F=Tip. Price = −kT·log p."))
 	_body_box.add_child(_make_action_row("7", "Captain",   "Biome lifecycle: Q=cull, R=discover."))
@@ -1421,6 +1421,8 @@ func _guide_things_to_try() -> void:
 	_body_box.add_child(_make_body("Spell a braid word: Hadamard then CNOT weaves a thread; CNOT then Hadamard weaves nothing. Same chores, opposite worlds — order is the point."))
 	_body_box.add_child(_make_body("Visit the wet country (post-story): some biomes run OPEN — the Bath drinks phase there and the world goes gray while nothing moves. Superpose something bright and stand witness."))
 	_body_box.add_child(_make_body("Keep a dying thing: in the wet country, measurement pins what it touches (Zeno). Watch the Lamplighters' horn — stop watching and the drain wins."))
+	_body_box.add_child(_make_body("Bank a knot: track a forest qubit (Icon F) through TWO closed loops — the record keeps the walks, and the knot card reads their mutual winding. Nothing links on the sphere; the link lives one floor up."))
+	_body_box.add_child(_make_body("Raise a span: Spark 🌉 mode, R on a qubit here, R on a qubit in another biome — one fermion split between two shores. Anchor an end at home and the Bath can never touch it. Braid (F), then fuse (Q) — reading it spends it."))
 
 func _guide_quick_reference() -> void:
 	_body_box.add_child(_make_section_header("verbs"))

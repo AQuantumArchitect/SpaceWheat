@@ -22,11 +22,12 @@
 > - **Tier 5** demonstrable today with shipped gates; needs only an order-sensitive
 >   `gate_order` predicate. Chapter 4.
 > - **Tiers 4 & 6** (Majorana bridges, knots) and **true chaos** were reserved for the
->   open door — noted in `docs/inspiration/OPEN_SYSTEM_ACT2.md`. **The door is now open**
->   ("What Fades" shipped) and both tiers are planned as engine work in
->   `docs/ENGINE_FRONTIER.md` ("What Connects"): the bridge as a standalone 2×2 ρ with
->   emergent Γ-product protection, the knot as Berry-loop path records + linking
->   invariants on the Hopf lift. Chaos stays in the seed bank.
+>   open door — noted in `docs/inspiration/OPEN_SYSTEM_ACT2.md`. **Both tiers are now
+>   SHIPPED** as "What Connects" (`docs/CONNECT_CAMPAIGN.md`, via the
+>   `docs/ENGINE_FRONTIER.md` plan): the bridge as a standalone 2×2 ρ with emergent
+>   Γ-product protection (`BridgeRegister`), the knot as Berry-loop path records +
+>   mutual-winding invariants on the Berry lift (`KnotRegister`). All six tiers of
+>   this document are live. Chaos alone stays in the seed bank.
 
 A 6-tier progression from basic farming to reality engineering.
 Each tier introduces a new topological concept as a *gameplay mechanic.*

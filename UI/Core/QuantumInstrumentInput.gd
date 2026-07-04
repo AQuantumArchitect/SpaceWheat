@@ -773,8 +773,14 @@ func _execute_bridge_fuse() -> Dictionary:
 		if reward - half > 0:
 			_instrument.add_resource(str(result.get("north_b", "")), reward - half, "bridge_fusion")
 	result["credits"] = reward
-	_toast_note("⚛ fusion: parity %s (p = %.2f) — +%d paid across both shores. The bridge is spent; looking closed it." % [
-		str(result.get("outcome", "?")), p, reward])
+	var speaker := _native_speaker_for(_get_current_biome())
+	var line: String = QuestVoice.bridge_whisper(speaker)
+	if line != "":
+		_toast_whisper("⚛ fusion: parity %s (p = %.2f) — +%d paid across both shores" % [
+			str(result.get("outcome", "?")), p, reward], speaker, line)
+	else:
+		_toast_note("⚛ fusion: parity %s (p = %.2f) — +%d paid across both shores. The bridge is spent; looking closed it." % [
+			str(result.get("outcome", "?")), p, reward])
 	action_performed.emit("bridge_fuse", result)
 	return result
 

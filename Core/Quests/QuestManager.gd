@@ -248,6 +248,8 @@ const FLAG_PREDICATE_TYPES := [
 	"standing_gte", "biome_state_gte", "biome_state_lte", "signature_size_gte", "atom_count_gte",
 	"atom_in_biome", "biome_attractor_emoji_gte", "biome_eigenvalue_gap_gte", "biome_purity_trending",
 	"soul_purity_gte",
+	"bridge_built_gte", "bridge_braids_gte", "bridge_fused_gte",
+	"biome_frozen_loops_gte", "biome_loops_linked",
 ]
 
 
@@ -360,6 +362,51 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 				return 0.0
 			return QuestMath.soft_gate(float(farm.faction_density.get_purity()),
 					float(pred.get("value", 0.5)), 0.1)
+		"bridge_built_gte":
+			# What Connects: lifetime Majorana spans raised (farm-wide BridgeRegister).
+			if not ("bridge_register" in farm) or farm.bridge_register == null:
+				return 0.0
+			return QuestMath.soft_gate(float(farm.bridge_register.built_total),
+					maxf(1.0, float(pred.get("value", 1))), 0.75)
+		"bridge_braids_gte":
+			# Lifetime braid operations — the Clifford alphabet, drilled.
+			if not ("bridge_register" in farm) or farm.bridge_register == null:
+				return 0.0
+			return QuestMath.soft_gate(float(farm.bridge_register.braids_total),
+					maxf(1.0, float(pred.get("value", 1))), 1.0)
+		"bridge_fused_gte":
+			# Lifetime fusions — bridges read, collapsed, and spent.
+			if not ("bridge_register" in farm) or farm.bridge_register == null:
+				return 0.0
+			return QuestMath.soft_gate(float(farm.bridge_register.fused_total),
+					maxf(1.0, float(pred.get("value", 1))), 0.75)
+		"biome_frozen_loops_gte":
+			# Closed Berry walks banked in the NAMED biome's record (a loop record
+			# freezes when a tracked walk returns to its seed vertex having
+			# enclosed real solid angle — What Connects, Machine 2).
+			if farm.grid == null:
+				return 0.0
+			var loop_biome = farm.grid.get_biome(str(pred.get("biome", "")))
+			if loop_biome == null or loop_biome.get("quantum_computer") == null \
+					or loop_biome.quantum_computer.berry_register == null:
+				return 0.0
+			return QuestMath.soft_gate(float(loop_biome.quantum_computer.berry_register.frozen_loop_count()),
+					maxf(1.0, float(pred.get("count", 1))), 0.75)
+		"biome_loops_linked":
+			# Two frozen loops in the NAMED biome whose mutual winding is nonzero —
+			# the knot invariant (KnotRegister). Below two loops, halfway credit
+			# per banked loop so the Arc tab shows the road.
+			if farm.grid == null:
+				return 0.0
+			var knot_biome = farm.grid.get_biome(str(pred.get("biome", "")))
+			if knot_biome == null or knot_biome.get("quantum_computer") == null \
+					or knot_biome.quantum_computer.berry_register == null:
+				return 0.0
+			var frozen: Array = knot_biome.quantum_computer.berry_register.frozen_loops()
+			if frozen.size() < 2:
+				return QuestMath.soft_gate(float(frozen.size()), 2.0, 0.75) * 0.5
+			var winding := float(absi(KnotRegister.max_mutual_winding(frozen)))
+			return QuestMath.soft_gate(winding, maxf(1.0, float(pred.get("value", 1))), 0.5)
 		"signature_size_gte":
 			return QuestMath.soft_gate(float(farm.known_icons.size()), float(pred.get("value", 0)), 2.0)
 		"atom_count_gte":

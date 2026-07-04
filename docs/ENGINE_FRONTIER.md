@@ -1,5 +1,16 @@
 # The Last Machinery — engine frontier plan
 
+> **Status: Part I SHIPPED (2026-07-04, same day) — see `docs/CONNECT_CAMPAIGN.md`
+> for the ship record.** C0–C4 landed: loop records + the repaired Berry
+> integration seam (the audit's biggest find — `integrate_step` had NO live call
+> site; live Berry accumulation never ran until now), `KnotRegister`,
+> `BridgeRegister` with derived Γ-product protection, Spark 🌉 verbs, five
+> interleaved story flags (owner: interleave, blessed save touch, mechanics only),
+> glossary **knot** + **bridge**. Part II (The Gallery) is next: G1 reels are the
+> first rung; G4 (the web door) remains gated last.
+>
+> Original plan follows, kept for the audit trail and Part II.
+
 > **Status: PLANNED, 2026-07.** The two campaigns shipped: "What Survives"
 > (`TOPOLOGY_CAMPAIGN.md`, acts 1–4) taught the invariants; "What Fades"
 > (`OPEN_CAMPAIGN.md`, acts 6–8) opened the door. What remains are the two

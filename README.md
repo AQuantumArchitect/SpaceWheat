@@ -36,7 +36,7 @@ player wears:
 
 | Key | Frame | What it does |
 |-----|-------|-------------|
-| **4** | **Spark** | Lindbladian jolt — *sealed while the enclave holds*; the endgame door opens it. |
+| **4** | **Spark** | Lindbladian jolt — *sealed while the enclave holds*; the endgame door opens it. Mode 2 (🌉): Majorana bridges, never sealed. |
 | **5** | **Icon** | Inject a dual-emoji qubit from the neighborhood's installed signature. |
 | **6** | **Merchant** | Faction contracts: sell, read price, buy. Price = −kT·log p. |
 | **7** | **Captain** | Biome lifecycle: cull, discover. |
@@ -105,9 +105,17 @@ The narrative layer is computed from the quantum state, not bolted on:
   hysteresis, decoherence-tested topological protection, EIT dark states as shelter
   built from interference — and the rite: a reap paid kT·ΔS from the season's entropy
   bank. Maxwell's demon stops freelancing and opens a bank.
+- **A nonlocality campaign runs between them.** "What Connects"
+  (`docs/CONNECT_CAMPAIGN.md`, interleaved through acts 5–7) teaches what two systems
+  share that neither owns: Berry-loop **knots** (the record keeps the walks; mutual
+  winding is the integer — ripeness was the shadow of a knot all along) and **Majorana
+  bridges** — one fermion split between two biomes, decohering only at the *product* of
+  its ends' local noise, written by braiding (an honestly Clifford alphabet), read once
+  by fusion. Anchor an end on the island and the Bath can never touch it: home matters
+  mechanically, forever.
 - **A canonical glossary** (`docs/glossary/`) defines the world's physics vocabulary —
-  enclave, measurement, berry, webway, resonance, invariant — and is projected live
-  into the in-game Guide.
+  enclave, measurement, berry, webway, resonance, invariant, knot, bridge — and is
+  projected live into the in-game Guide.
 
 ### Visualization
 

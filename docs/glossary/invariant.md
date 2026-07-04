@@ -1,7 +1,7 @@
 ---
 term: invariant
 short_def: A number that survives all smooth change — it cannot flow, only jump.
-related: [berry, measurement, enclave]
+related: [berry, measurement, enclave, knot, bridge]
 since: 2026-07-04
 status: canonical
 ---

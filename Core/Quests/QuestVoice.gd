@@ -211,6 +211,10 @@ static func reap_whisper(faction_name: String) -> String:
 	return whisper("reap", faction_name)
 
 
+static func bridge_whisper(faction_name: String) -> String:
+	return whisper("bridge", faction_name)
+
+
 ## One line per voice archetype for the moment a Berry loop is INCORPORATED —
 ## the qubit walked a closed loop on its sphere, the signed solid angle ripened
 ## past 2π, and the player wove the axis into their signature
@@ -263,14 +267,32 @@ const REAP_WHISPER := {
 	"entity":    "A GRADIENT HAS BEEN SPENT. THE BANK ACKNOWLEDGES THE WITHDRAWAL.",
 }
 
+## One line per voice archetype for FUSION — the moment a Majorana bridge is
+## read. The joint parity lived between two biomes, in neither; reading it
+## collapses and spends the span (BridgeRegister; What Connects). The one
+## harvest whose crop was never in any field.
+const BRIDGE_WHISPER := {
+	"imperial":  "Storage the Throne cannot audit, spent the moment it is counted. The empire finds this... instructive.",
+	"guild":     "A span holds by standing on two shores at once. You read it, it fell. That was the price of the reading.",
+	"mystic":    "The answer lived between the places, in neither. You asked, and now it lives nowhere. Ask well next time.",
+	"merchant":  "Off-ledger holdings, redeemed at spot. No vault to rob — the vault was the distance itself.",
+	"militant":  "A supply line no siege can cut — until you use it. One shipment per bridge. Plan accordingly.",
+	"scavenger": "Hid it in the gap between two worlds. Even the Bath couldn't reach the gap. Clever. Gone now.",
+	"horror":    "IT WAS NEVER IN EITHER PLACE. YOU LOOKED, AND NOW IT IS NOT ANYWHERE.",
+	"defensive": "The safest store is the one that isn't anywhere. Was. Build another.",
+	"cosmic":    "Two shores, one fermion, no address. The universe permits the trick exactly once per bridge.",
+	"entity":    "A NONLOCAL PARITY HAS BEEN LOCALIZED. THE SPAN IS RETIRED.",
+}
+
 ## The whisper registers: one voice line per archetype at each of the world's
 ## speaking moments — the sealed channels, the closed loop, the improbable scar,
-## and the rite that opens the season's entropy bank.
+## the rite that opens the season's entropy bank, and the fusion that spends a span.
 const WHISPERS := {
 	"webway": WEBWAY_WHISPER,
 	"berry": BERRY_WHISPER,
 	"measure": MEASURE_WHISPER,
 	"reap": REAP_WHISPER,
+	"bridge": BRIDGE_WHISPER,
 }
 
 ## Authored per-faction whisper lines — checked BEFORE the archetype tables.

@@ -43,6 +43,7 @@ var _next_id: int = 1
 
 # Lifetime counters (serialized) — the flag predicates read these.
 var built_total: int = 0
+var braids_total: int = 0
 var fused_total: int = 0
 var fused_odd_total: int = 0
 
@@ -114,6 +115,7 @@ func braid(id: int, end: String) -> Dictionary:
 		# √X = ½ [[1+i, 1−i], [1−i, 1+i]]
 		u = [0.5, 0.5, 0.5, -0.5, 0.5, -0.5, 0.5, 0.5]
 		bridge["braids_b"] = int(bridge.get("braids_b", 0)) + 1
+	braids_total += 1
 	bridge["rho"] = _apply_unitary(bridge["rho"], u)
 	return {"success": true, "id": id, "end": end, "odds": parity_odds(id)}
 
@@ -217,6 +219,7 @@ func to_dict() -> Dictionary:
 	return {
 		"next_id": _next_id,
 		"built_total": built_total,
+		"braids_total": braids_total,
 		"fused_total": fused_total,
 		"fused_odd_total": fused_odd_total,
 		"bridges": rows,
@@ -227,6 +230,7 @@ func from_dict(data: Dictionary) -> void:
 	_bridges.clear()
 	_next_id = int(data.get("next_id", 1))
 	built_total = int(data.get("built_total", 0))
+	braids_total = int(data.get("braids_total", 0))
 	fused_total = int(data.get("fused_total", 0))
 	fused_odd_total = int(data.get("fused_odd_total", 0))
 	for row in data.get("bridges", []):

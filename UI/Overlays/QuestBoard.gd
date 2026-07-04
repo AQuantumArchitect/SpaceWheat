@@ -1571,6 +1571,16 @@ func _predicate_summary(pred: Dictionary) -> String:
 			return "🪢 link two loops — winding ≥ %d" % int(pred.get("value", 1))
 		"winding_gte":
 			return "🪢 mutual winding ≥ %d" % int(pred.get("value", 1))
+		"biome_frozen_loops_gte":
+			return "bank %d loop%s in %s" % [int(pred.get("count", 1)), "s" if int(pred.get("count", 1)) != 1 else "", str(pred.get("biome", "?"))]
+		"biome_loops_linked":
+			return "🪢 link loops in %s — winding ≥ %d" % [str(pred.get("biome", "?")), int(pred.get("value", 1))]
+		"bridge_built_gte":
+			return "🌉 raise %d span%s" % [int(pred.get("value", 1)), "s" if int(pred.get("value", 1)) != 1 else ""]
+		"bridge_braids_gte":
+			return "🪢 braid the span ×%d" % int(pred.get("value", 1))
+		"bridge_fused_gte":
+			return "⚛ fuse %d bridge%s" % [int(pred.get("value", 1)), "s" if int(pred.get("value", 1)) != 1 else ""]
 		_:
 			return t
 

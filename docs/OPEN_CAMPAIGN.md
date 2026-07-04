@@ -185,12 +185,12 @@ engine owes the world it farms.
 ### Capstone — The Bridge *(Majorana; reserved machinery, scoped separately)*
 
 The first structure the player builds that the Bath cannot reach: nonlocal storage
-split between two biomes. Needs genuinely new engine machinery (inter-biome bridge
-state) — **now planned in `docs/ENGINE_FRONTIER.md`** ("What Connects"): a
-standalone 2×2 ρ anchored to an atom in each biome, with protection *derived* as
-the product of the two ends' local noise rates — an island-anchored end makes the
-bridge immortal. Knot invariants are planned there too (Berry-loop path records +
-linking on the Hopf lift); they leave the seed bank together.
+split between two biomes. **Shipped as "What Connects"** (`docs/CONNECT_CAMPAIGN.md`,
+interleaved through acts 5–7 per the owner's call): `BridgeRegister` — a standalone
+2×2 ρ anchored to a qubit in each biome, protection *derived* as the product of the
+two ends' local noise rates, an island-anchored end immortal. Knot invariants
+shipped alongside (Berry-loop records + mutual winding on the Berry lift); the
+seed bank is empty of everything but chaos.
 
 ## The world between landmarks
 
