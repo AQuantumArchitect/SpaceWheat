@@ -220,6 +220,10 @@ func stage_start_simulation(farm: Node) -> void:
 	_verbose.info("boot", "✓", "Input system enabled")
 	_verbose.info("boot", "✓", "Ready to accept player input")
 
+	# The Gallery: attach an attract reel iff one was requested (SW_REEL env
+	# or --reel=path user arg). Any input exits the reel to live play.
+	ReelRunner.maybe_attach(farm)
+
 
 func ensure_quantum_instrument(farm: Node):
 	# Create the core gameplay instrument once and share it with UI surfaces later.

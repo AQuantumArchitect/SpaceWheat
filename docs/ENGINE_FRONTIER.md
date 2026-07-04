@@ -6,8 +6,11 @@
 > site; live Berry accumulation never ran until now), `KnotRegister`,
 > `BridgeRegister` with derived Γ-product protection, Spark 🌉 verbs, five
 > interleaved story flags (owner: interleave, blessed save touch, mechanics only),
-> glossary **knot** + **bridge**. Part II (The Gallery) is next: G1 reels are the
-> first rung; G4 (the web door) remains gated last.
+> glossary **knot** + **bridge**. **Part II first rung SHIPPED same day: G1 attract
+> reels** — `Rig/ReelRunner.gd` (boot with `SW_REEL=<path>` or `--reel=path`; any
+> input exits to live play; reels are JSON data — see
+> `Rig/reels/first_light.reel.json`, the enclave in ninety seconds). Remaining:
+> G2 postcards, G3 atlas plates, G5 grammar audit; G4 (the web door) gated last.
 >
 > Original plan follows, kept for the audit trail and Part II.
 
