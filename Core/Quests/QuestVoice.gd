@@ -248,11 +248,23 @@ const WHISPERS := {
 	"measure": MEASURE_WHISPER,
 }
 
+## Authored per-faction whisper lines — checked BEFORE the archetype tables.
+## The home for signature lines that belong to ONE faction, not its voice class.
+## Shape: register -> {faction_name: line}.
+const FACTION_WHISPER_OVERRIDES := {
+	"measure": {
+		"Measure Scribes": "Every glance is an entry in the ledger. The ledger is the world.",
+	},
+}
 
-## Unified whisper access: the faction's archetype line in the given register
-## ("webway" | "berry" | "measure"). Guild-voiced fallback for unmapped factions;
-## "" for unknown registers.
+
+## Unified whisper access: authored per-faction line first, then the faction's
+## archetype line in the given register ("webway" | "berry" | "measure").
+## Guild-voiced fallback for unmapped factions; "" for unknown registers.
 static func whisper(register: String, faction_name: String) -> String:
+	var overrides = FACTION_WHISPER_OVERRIDES.get(register, {})
+	if overrides is Dictionary and overrides.has(faction_name):
+		return str(overrides[faction_name])
 	var table = WHISPERS.get(register, {})
 	if not (table is Dictionary):
 		return ""

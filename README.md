@@ -133,7 +133,7 @@ Windows ship in `native/bin/`.
 
 ## Testing
 
-142 quantum physics tests across 4 suites (plus a weak-measurement suite):
+164 quantum physics tests across 6 suites (142 gate tests + weak-measurement + closed-system):
 
 | Suite | Tests | Coverage |
 |-------|-------|----------|
@@ -144,12 +144,12 @@ Windows ship in `native/bin/`.
 | Weak-Measurement Drain | 18 | Trace preservation, coherence decay (T₂), purity validity, η=0/1 limits |
 | Closed-System Gate | 4 | Closed → zero Lindblad operators; open override rebuilds them; purity/trace ≡ 1 through evolution and projective collapse |
 
-Run them all:
+Run the four gate suites (142 tests):
 ```bash
 bash run_quantum_gate_tests.sh
 ```
 
-Or through the 🍄 automation lane, with per-suite selection:
+Or run everything through the 🍄 automation lane, with per-suite selection:
 ```bash
 bash 🍄/🧪/🔬.sh
 bash 🍄/🧪/🔬.sh --suite gates
