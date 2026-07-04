@@ -62,3 +62,7 @@ drives closed-system play.
   qubit pins then re-spreads under H; purity holds at 1.
 
 See memory `project_closed_system_migration.md` for the per-stage change log.
+
+Design notes for the eventual open-system return (Act 2) — including the post-mortem of
+why the first H+L attempt failed and the role-separation law that prevents a repeat —
+live in [docs/inspiration/OPEN_SYSTEM_ACT2.md](inspiration/OPEN_SYSTEM_ACT2.md).

@@ -13,3 +13,4 @@ These are IDEAS — not implemented, not promised. Treat as a seed bank.
 | [EMOJI_TOPOLOGY_GRAPH.md](EMOJI_TOPOLOGY_GRAPH.md) | Pure-emoji relationship graph; knot theory as optimization; unified topology language |
 | [VOCABULARY_GATING.md](VOCABULARY_GATING.md) | Organic faction tech tree via emoji overlap; gateway emojis; signature-only quest vocab |
 | [FOREST_ECOSYSTEM.md](FOREST_ECOSYSTEM.md) | Markov chain ecology; predator-prey as entangled qubits; ecology IS the production function |
+| [OPEN_SYSTEM_ACT2.md](OPEN_SYSTEM_ACT2.md) | The open-system return: role-separation law (H conserves, L forgets), dephasing-first, Zeno as counterplay, the enclave narrative seam |

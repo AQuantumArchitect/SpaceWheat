@@ -240,8 +240,8 @@ func _evaluate_flag_predicates(predicates: Array, farm) -> float:
 ## tutorial + arc + market quests all draw from one unified predicate language.
 const FLAG_PREDICATE_TYPES := [
 	"story_flag_set", "biome_evolving", "berry_consumed_count_gte", "berry_total_phase_gte",
-	"standing_gte", "biome_state_gte", "signature_size_gte", "atom_count_gte", "atom_in_biome",
-	"biome_attractor_emoji_gte", "biome_eigenvalue_gap_gte", "biome_purity_trending",
+	"standing_gte", "biome_state_gte", "biome_state_lte", "signature_size_gte", "atom_count_gte",
+	"atom_in_biome", "biome_attractor_emoji_gte", "biome_eigenvalue_gap_gte", "biome_purity_trending",
 ]
 
 
@@ -324,6 +324,25 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 			var snap: Dictionary = biome.viz_cache.get_snapshot(qubit)
 			var marginal: float = float(snap.get("p1" if pole == 1 else "p0", 0.0))
 			return QuestMath.soft_gate(marginal, float(pred.get("value", 0.0)))
+		"biome_state_lte":
+			# "At most" twin of biome_state_gte — same marginal readout, falling gate.
+			if farm.grid == null:
+				return 0.0
+			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
+			if biome == null or biome.get("quantum_computer") == null:
+				return 0.0
+			var atom := str(pred.get("atom", ""))
+			var reg = biome.quantum_computer.register_map
+			if reg == null or not reg.coordinates.has(atom):
+				return 0.0
+			var coord: Dictionary = reg.coordinates[atom]
+			var qubit := int(coord.get("qubit", -1))
+			var pole := int(coord.get("pole", 0))
+			if qubit < 0:
+				return 0.0
+			var snap: Dictionary = biome.viz_cache.get_snapshot(qubit)
+			var marginal: float = float(snap.get("p1" if pole == 1 else "p0", 0.0))
+			return QuestMath.soft_gate_inv(marginal, float(pred.get("value", 0.0)))
 		"signature_size_gte":
 			return QuestMath.soft_gate(float(farm.known_icons.size()), float(pred.get("value", 0)), 2.0)
 		"atom_count_gte":

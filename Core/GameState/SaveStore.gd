@@ -127,12 +127,12 @@ static func load_state_by_path(save_path: String) -> GameState:
 	if not FileAccess.file_exists(path):
 		return null
 	var state = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE) as GameState
-	if state:
-		print("[SAVE][DEBUG] load_state_by_path known_icons:", state.known_icons.size())
 	if state and (not state.known_icons or state.known_icons.size() <= 1):
 		var recovered_known_icons = _extract_known_icons_from_resource_text(path)
 		if not recovered_known_icons.is_empty():
-			print("[SAVE][DEBUG] recovered known_icons from text:", recovered_known_icons.size())
+			# Deserializer returned empty known_icons but the .tres text has them —
+			# the _set/_get property quirk. Recover, and say so out loud.
+			push_warning("SaveStore: known_icons empty after deserialize; recovered %d from resource text" % recovered_known_icons.size())
 			state.known_icons = recovered_known_icons
 	return state
 

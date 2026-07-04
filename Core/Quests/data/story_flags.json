@@ -3,7 +3,7 @@
     "id": "first_breath",
     "display_name": "First Breath",
     "act": 0,
-    "arc_beat": "You did something. A qubit you steered around its Bloch sphere came back to where it started, signed solid angle in tow, and you incorporated what it traced. The world does not move without you turning a wheel. This is the first wheel.",
+    "arc_beat": "You did something. A qubit you steered around its Bloch sphere came back to where it started, signed solid angle in tow, and you incorporated what it traced. The world does not move without you turning a wheel. This is the first wheel. And notice what did NOT happen: nothing leaked, nothing faded, nothing was forgotten. The enclave holds. Here, only measurement leaves a scar — and the scar is yours.",
     "predicates": [
       {
         "type": "signature_size_gte",
@@ -147,9 +147,11 @@
       }
     },
     "arc_quest": {
-      "type": "DELIVER",
       "body": "Close the Timber Circuit — add 🪵 to Village so the lumber flow can land.",
-      "hint": "🪵 is arriving but has nowhere to settle"
+      "hint": "🪵 is arriving but has nowhere to settle. Use the Meta tools to add 🪵 to the Village's vocabulary.",
+      "state_predicates": [
+        {"type": "atom_in_biome", "biome": "Village", "atom": "🪵"}
+      ]
     }
   },
   {
@@ -180,9 +182,11 @@
       }
     },
     "arc_quest": {
-      "type": "DELIVER",
       "body": "Thread the Spring — route 💧 into the Village hearth so the spring's flow couples into the mill pond.",
-      "hint": "The spring's outflow is physically coupling into Village's Lindblad runtime. It's waiting on you."
+      "hint": "The mill pond could exist; it's waiting on you. Add 💧 to the Village's vocabulary.",
+      "state_predicates": [
+        {"type": "atom_in_biome", "biome": "Village", "atom": "💧"}
+      ]
     }
   },
   {
@@ -229,9 +233,12 @@
       }
     },
     "arc_quest": {
-      "type": "MAINTAIN_COHERENCE",
-      "body": "Hold Commerce — keep the mill running (⚙ > 5%) for 30 phrames.",
-      "hint": "Two attractors. You found the second one."
+      "body": "Hold Commerce — keep the mill turning: push ⚙ past 8% and hold the mill attractor above 40%.",
+      "hint": "Two attractors. You found the second one. Now make it the deeper one.",
+      "state_predicates": [
+        {"type": "biome_state_gte", "biome": "Village", "atom": "⚙", "value": 0.08},
+        {"type": "biome_attractor_emoji_gte", "biome": "Village", "emoji": "⚙", "value": 0.4}
+      ]
     }
   },
   {
@@ -376,9 +383,29 @@
       }
     },
     "arc_quest": {
-      "type": "DELIVER",
-      "body": "Starve the Ledger — drain 📜 below the autocatalytic threshold, then cut the Village tribute pipeline.",
-      "hint": "Something is receiving the coin and people your village produces. Follow the tribute upstream."
+      "body": "Starve the Ledger — measure 📜 down below the autocatalytic threshold and keep it starved.",
+      "hint": "Something is receiving the coin and people your village produces. Collapse the writ before it compounds — hold 📜 under 20%.",
+      "state_predicates": [
+        {"type": "biome_state_lte", "biome": "BloodLedger", "atom": "📜", "value": 0.2}
+      ]
     }
+  },
+  {
+    "id": "edge_of_the_enclave",
+    "display_name": "The Edge of the Enclave",
+    "act": 5,
+    "arc_beat": "You have turned every wheel on the island, and every wheel turned back. That is the enclave's law: nothing decays, nothing leaks, nothing is lost — every rotation can be unwound except the ones you chose to keep by looking. The old texts call this a closed system, and they say it is not the only kind. Somewhere past the horizon the world runs open: things fade there, things forget, color drains from things that stand still too long. The Bath is patient. One day you will farm it.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "ledger_opens"
+      },
+      {
+        "type": "signature_size_gte",
+        "value": 16
+      }
+    ],
+    "standing_grants": {},
+    "arc_quest": null
   }
 ]

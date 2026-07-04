@@ -257,48 +257,8 @@ func _on_icon_detail_panel_closed() -> void:
 
 # _create_keyboard_hint_button REMOVED
 # Z opens ControlsOverlay via PlayerShell, and M is the biome × faction map.
-
-
-func _create_touch_button_bar() -> Control:
-	# Create touch-friendly button bar for LEFT CENTER of screen.
-
-	var scale_val = layout_manager.scale_factor if layout_manager else 1.0
-
-	# VBoxContainer for buttons stacked vertically
-	var button_bar = VBoxContainer.new()
-	button_bar.name = "TouchButtonBar"
-	button_bar.add_theme_constant_override("separation", int(8 * scale_val))
-
-	# Position on LEFT CENTER of screen (aligned center vertically)
-	button_bar.layout_mode = 1  # Required for anchors in Godot 4
-	button_bar.anchor_left = 0.0  # Anchor to LEFT
-	button_bar.anchor_right = 0.0
-	button_bar.anchor_top = 0.5  # Center vertically
-	button_bar.anchor_bottom = 0.5
-	button_bar.offset_left = 10 * scale_val   # 10px from left edge
-	button_bar.offset_right = 80 * scale_val  # 70px wide
-	button_bar.offset_top = -150 * scale_val  # Center around middle (5 buttons)
-	button_bar.offset_bottom = 150 * scale_val
-	button_bar.grow_horizontal = Control.GROW_DIRECTION_END  # Grow rightward from left anchor
-	button_bar.grow_vertical = Control.GROW_DIRECTION_BOTH
-	button_bar.z_index = 4090  # Near Godot max (4096), above all UI elements
-	button_bar.mouse_filter = Control.MOUSE_FILTER_PASS  # Allow clicks through to children
-
-	var touch_entries = MenuRegistry.get_touch_button_menus()
-	for entry in touch_entries:
-		var button = PanelTouchButton.new()
-		button.set_layout_manager(layout_manager)
-		button.button_emoji = str(entry.get("button_emoji", ""))
-		button.keyboard_hint = "[%s]" % str(entry.get("key_label", ""))
-		var overlay_name = str(entry.get("overlay_name", ""))
-		button.button_activated.connect(func(): toggle_overlay(overlay_name))
-		button_bar.add_child(button)
-
-	var hints: Array[String] = []
-	for entry in touch_entries:
-		hints.append(str(entry.get("key_label", "")))
-	_verbose.info("ui", "📱", "Touch button bar created: %s on LEFT side" % "/".join(hints))
-	return button_bar
+# _create_touch_button_bar REMOVED — retired with the touch bar; touch routes
+# through TouchInputManager gestures now. (touch_button_bar var stays for null checks.)
 
 
 # ============================================================================
