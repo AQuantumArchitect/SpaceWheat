@@ -9,14 +9,8 @@ if "%PROJECT_ROOT%"=="" (
 
 set "GODOT_WINDOWS_PATH=%GODOT_WINDOWS_PATH%"
 if "%GODOT_WINDOWS_PATH%"=="" (
-  if exist "C:\Users\Luke Spooner\Downloads\Godot_v4.1.2-stable_win64_console.exe" (
-    set "GODOT_WINDOWS_PATH=C:\Users\Luke Spooner\Downloads\Godot_v4.1.2-stable_win64_console.exe"
-  ) else if exist "C:\Users\Luke Spooner\Downloads\Godot_v4.1.2-stable_win64.exe" (
-    set "GODOT_WINDOWS_PATH=C:\Users\Luke Spooner\Downloads\Godot_v4.1.2-stable_win64.exe"
-  ) else (
-    echo [windows_rig] GODOT_WINDOWS_PATH is required
-    exit /b 2
-  )
+  echo [windows_rig] GODOT_WINDOWS_PATH is required ^(path to godot .exe^)
+  exit /b 2
 )
 
 set "PROJECT_ROOT_WIN=%PROJECT_ROOT_WIN%"
