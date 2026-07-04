@@ -445,7 +445,9 @@ static func describe_observables(obs: BiomeObservables) -> String:
 	parts.append("coherence: " + ("—" if obs.coherence < 0.0 else "%.2f" % obs.coherence))
 
 	var shape_names = ["peaked", "bimodal", "spread", "uniform"]
-	parts.append("shape: " + shape_names[obs.distribution_shape])
+	# -1 = unknown; a bare negative index would silently read "uniform" (arr[-1]).
+	var shape_known: bool = obs.distribution_shape >= 0 and obs.distribution_shape < shape_names.size()
+	parts.append("shape: " + (shape_names[obs.distribution_shape] if shape_known else "—"))
 
 	parts.append("scale: " + ("—" if obs.scale < 0.0 else "%.2f" % obs.scale))
 	parts.append("dynamics: " + ("—" if obs.dynamics < 0.0 else "%.2f" % obs.dynamics))

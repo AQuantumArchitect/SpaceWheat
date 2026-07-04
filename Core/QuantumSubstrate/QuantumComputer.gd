@@ -2079,6 +2079,20 @@ func has_cached_mi() -> bool:
 	return not _cached_mi_values.is_empty()
 
 
+func get_cached_max_mutual_information() -> float:
+	# Max pairwise MI (bits) across the register, from the native cache ONLY.
+	# Returns -1.0 (unknown) when the cache is empty rather than falling back to
+	# the per-pair eigensolve path — too hot for UI/tracker polling rates.
+	# The cache holds exactly the upper-triangular pairs, so max over the raw
+	# array IS the max over pairs.
+	if _cached_mi_values.is_empty():
+		return -1.0
+	var best := 0.0
+	for v in _cached_mi_values:
+		best = maxf(best, float(v))
+	return best
+
+
 func _entropy_of_marginal(qubit_index: int) -> float:
 	# Compute von Neumann entropy S(ρ_A) = -Tr(ρ_A log ρ_A) of single-qubit marginal.
 

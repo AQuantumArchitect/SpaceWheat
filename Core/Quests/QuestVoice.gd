@@ -58,8 +58,32 @@ const TYPE_VERB := {
 }
 
 
+## One line per voice archetype about the SEALED webway — the dry Lindblad
+## channels drawn dark in the graph views (docs/glossary/webway.md). Words only,
+## no mechanics: surfaced where the player stands at the channels (M · Graph
+## drill-down). Each archetype tells you what it *wants* from Act 2 without a
+## single mechanic existing yet.
+const WEBWAY_WHISPER := {
+	"imperial":  "The Throne remembers when these rivers ran. They will run again — and the Throne will own the mouths.",
+	"guild":     "The channels once turned wheels without anyone's hand. Dry, not gone. Mind the difference.",
+	"mystic":    "The old flows sleep behind the seal. Do not pity them — sleep is also a keeping.",
+	"merchant":  "Dry channels still have carrying capacity. When they open, fortunes will move. Position yourself.",
+	"militant":  "A sealed gate is a defensible gate. Pray the enclave holds.",
+	"scavenger": "Dry riverbeds are roads. Walk them now, before the water remembers.",
+	"horror":    "IT REMEMBERS FLOWING. THE SEAL IS A PROMISE, NOT A WALL.",
+	"defensive": "The seal keeps more out than in. Do not ask what drank from the flow before.",
+	"cosmic":    "Channels are worldlines waiting for their arrow. Nothing here has direction — yet.",
+	"entity":    "STASIS IS A CHOICE. THE ENCLAVE CHOSE. WE WERE NOT CONSULTED.",
+}
+
+
 static func get_voice(faction_name: String) -> Dictionary:
 	return VOICES.get(FACTION_TO_VOICE.get(faction_name, "guild"), VOICES["guild"])
+
+
+## The faction's line about the sealed webway (falls back to the guild voice).
+static func webway_whisper(faction_name: String) -> String:
+	return str(WEBWAY_WHISPER.get(FACTION_TO_VOICE.get(faction_name, "guild"), ""))
 
 
 static func _verb_for(quest: Dictionary) -> String:

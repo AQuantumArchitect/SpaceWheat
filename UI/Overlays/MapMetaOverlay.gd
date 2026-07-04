@@ -1291,6 +1291,8 @@ func _build_graph_body() -> void:
 		view.custom_minimum_size = Vector2(640, 520)
 		_body_box.add_child(view)
 		view.populate(_broad)
+		# Live entanglement badges: resolve each federation node to its live QC.
+		view.set_live_lookup(_live_qc_for)
 		_graph_broad_view = view
 		_graph_selectable = view.get_selectable_biomes()
 		if _graph_selected_idx >= _graph_selectable.size():
@@ -1325,6 +1327,10 @@ func _build_graph_status_card() -> Control:
 	style.content_margin_bottom = 8
 	card.add_theme_stylebox_override("panel", style)
 
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 2)
+	card.add_child(vbox)
+
 	var body := Label.new()
 	body.add_theme_font_size_override("font_size", 12)
 	body.add_theme_color_override("font_color", UIStyleFactory.COLOR_BODY)
@@ -1337,8 +1343,36 @@ func _build_graph_status_card() -> Control:
 	else:
 		var seal := " · webway sealed" if not BalanceConfig.dissipative_enabled() else ""
 		body.text = "%s · neighborhood cluster (live%s)" % [_graph_zoom, seal]
-	card.add_child(body)
+	vbox.add_child(body)
+
+	# Standing at sealed channels, a native faction has something to say about
+	# them (QuestVoice.webway_whisper — words only, no mechanics).
+	if _graph_zoom != "broad" and not BalanceConfig.dissipative_enabled():
+		var canonical = _canonical_biome(_graph_zoom)
+		if _biome_has_webway(canonical):
+			var natives: Array = canonical.native_factions if ("native_factions" in canonical and canonical.native_factions is Array) else []
+			var speaker := str(natives[0]) if not natives.is_empty() else ""
+			var whisper := QuestVoice.webway_whisper(speaker)
+			if whisper != "":
+				var wl := Label.new()
+				wl.text = "💬 %s“%s”" % [("%s — " % speaker) if speaker != "" else "", whisper]
+				wl.add_theme_font_size_override("font_size", 11)
+				wl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
+				wl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+				wl.tooltip_text = "The webway: this biome's authored Lindblad channels, sealed while the enclave holds. See the dark orange edges below."
+				vbox.add_child(wl)
 	return card
+
+
+## Does the canonical biome author any Lindblad channels (webway/decay) at all?
+func _biome_has_webway(canonical) -> bool:
+	if canonical == null or not ("atom_components" in canonical) or not (canonical.atom_components is Dictionary):
+		return false
+	for k in canonical.atom_components.keys():
+		var comp = canonical.atom_components[k]
+		if comp is Dictionary and (comp.has("lindblad_outgoing") or comp.has("lindblad_incoming") or comp.has("decay")):
+			return true
+	return false
 
 
 ## Highlight the selected biome node without rebuilding the whole body.

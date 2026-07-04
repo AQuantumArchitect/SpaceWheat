@@ -456,6 +456,15 @@ func _market_inspect_text() -> String:
 		float(proj.get("alignment", 0.0)),
 		float(proj.get("directional_edge", 0.0)),
 	])
+	# Faction↔biome resonance: how the faction's 12 axial preferences sit with
+	# this biome's live quantum observables (FactionStateMatcher). Physics-derived
+	# mood, not flavor dice.
+	if offer.has("faction_alignment"):
+		var res: float = float(offer.get("faction_alignment", 0.0))
+		lines.append("resonance %.2f — %s" % [res, _resonance_gloss(res)])
+		var prefs := str(offer.get("faction_preferences", ""))
+		if prefs != "":
+			lines.append("their axioms: %s" % prefs)
 	var explanation = offer.get("market_explanation", [])
 	if explanation is Array:
 		for line in explanation:
@@ -1201,6 +1210,18 @@ func _commitment_ask_text(quest: Dictionary) -> String:
 	if quest.has("target_coherence"):
 		return "coherence → %.2f" % float(quest.get("target_coherence", 0.0))
 	return QuestTypes.get_type_name(ti)
+
+
+## Words for a faction's resonance with a biome — the alignment of its 12 axial
+## preferences against the biome's live quantum observables, in [0, 1].
+func _resonance_gloss(a: float) -> String:
+	if a >= 0.75:
+		return "this place sings to them"
+	if a >= 0.55:
+		return "at ease here"
+	if a >= 0.35:
+		return "wary of this place"
+	return "restless — the biome grates on their axioms"
 
 
 ## Compact reward-payload summary for history rows.

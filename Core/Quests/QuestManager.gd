@@ -636,7 +636,45 @@ func offer_all_faction_quests(biome) -> Array:
 			if not _announced_offers.has(qq["id"]):
 				_announced_offers[qq["id"]] = true
 				quest_offered.emit(qq)
+
+	_attach_faction_resonance(quests, biome)
 	return quests
+
+
+## QUEST_SYSTEM_PLAN pipeline stage 2 — "parameterize(faction, biome)" — wired at
+## last: every offer carries the faction's live RESONANCE with the biome, i.e.
+## FactionStateMatcher.compute_alignment of the faction's 12 axial bits against
+## the biome's quantum observables (purity/entropy/coherence/shape/scale/dynamics).
+## In the enclave purity and entropy are pinned (1, 0) — canon, not accident:
+## order-loving factions are at home everywhere inside the walls; entropy-loving
+## ones stay restless until Act 2 opens the webway. Display-only in v0: rewards
+## remain canonical (earnest-economy principle).
+func _attach_faction_resonance(quests: Array, biome) -> void:
+	if quests.is_empty() or biome == null:
+		return
+	var obs = FactionStateMatcher.extract_observables(null, biome)
+	var registry = FactionRegistry.get_shared()
+	if registry == null:
+		return
+	var cache: Dictionary = {}
+	for quest in quests:
+		if not (quest is Dictionary):
+			continue
+		var fname := str(quest.get("faction", ""))
+		if fname == "":
+			continue
+		if not cache.has(fname):
+			var entry := {"alignment": -1.0, "prefs": ""}
+			var fac = registry.get_by_name(fname)
+			if fac != null and fac.has_method("get_axial_bits"):
+				var bits := Array(fac.get_axial_bits())
+				entry["alignment"] = FactionStateMatcher.compute_alignment(bits, obs)
+				entry["prefs"] = FactionStateMatcher.describe_preferences(bits)
+			cache[fname] = entry
+		var e: Dictionary = cache[fname]
+		if float(e["alignment"]) >= 0.0:
+			quest["faction_alignment"] = float(e["alignment"])
+			quest["faction_preferences"] = str(e["prefs"])
 
 
 func record_quantum_action(action_name: String, payload: Dictionary = {}) -> void:
@@ -684,12 +722,8 @@ func get_biome_observables(biome) -> Dictionary:
 	# observable idle honestly instead of reading "zero entanglement".
 	var max_mi := -1.0
 	var qc = biome.get("quantum_computer")
-	if qc != null and qc.has_method("has_cached_mi") and qc.has_cached_mi():
-		max_mi = 0.0
-		var n: int = qc.register_map.num_qubits
-		for i in range(n):
-			for j in range(i + 1, n):
-				max_mi = maxf(max_mi, qc.get_cached_mutual_information(i, j))
+	if qc != null and qc.has_method("get_cached_max_mutual_information"):
+		max_mi = float(qc.get_cached_max_mutual_information())
 
 	return {
 		"purity": obs.purity,
