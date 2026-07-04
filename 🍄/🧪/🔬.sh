@@ -1,19 +1,20 @@
 #!/bin/bash
 # 🔬 Quantum Composer Test Suite — Full quantum physics verification
 #
-# Runs all quantum verification test suites:
-#   1. Gate verification (102 tests)     — every gate against known states
-#   2. Entanglement verification (82)    — Bell, GHZ, MI, collapse
-#   3. Measurement verification (52)     — projection, Born rule, collapse
-#   4. Biome quantum coverage (16)       — exportable biomes valid
+# Runs the quantum verification test suites (same set as run_quantum_gate_tests.sh):
+#   1. gates       (29 tests) — exact density-matrix elements after each gate
+#   2. advanced    (28 tests) — advanced quantum state preparation
+#   3. integration (22 tests) — gate application through the real biome pipeline
+#   4. embed       (63 tests) — 2-qubit gate embedding (CNOT/CZ/SWAP orderings)
+#   5. drain       (18 tests) — weak-measurement drain invariants (trace, purity, T2)
 #
 # Usage:
 #   bash 🍄/🧪/🔬.sh [--verbose] [--suite NAME]
 #
 # Examples:
 #   bash 🍄/🧪/🔬.sh                     # Run all suites
-#   bash 🍄/🧪/🔬.sh --suite gates       # Just gate tests
-#   bash 🍄/🧪/🔬.sh --suite entangle    # Just entanglement tests
+#   bash 🍄/🧪/🔬.sh --suite gates       # Just exact-state gate tests
+#   bash 🍄/🧪/🔬.sh --suite embed       # Just 2-qubit embedding tests
 
 set -e
 
@@ -41,12 +42,13 @@ NC='\033[0m'
 
 # ── Suite definitions ───────────────────────────────────────────────────
 declare -A SUITES
-SUITES[gates]="Tests/test_quantum_gate_verification.gd"
-SUITES[entangle]="Tests/test_quantum_entanglement_verification.gd"
-SUITES[measure]="Tests/test_quantum_measurement_verification.gd"
-SUITES[biomes]="Tests/test_biome_quantum_coverage.gd"
+SUITES[gates]="tests/test_gate_exact_states.gd"
+SUITES[advanced]="tests/test_advanced_quantum_states.gd"
+SUITES[integration]="tests/test_gate_application_integration.gd"
+SUITES[embed]="tests/test_2q_gate_embed.gd"
+SUITES[drain]="tests/test_drain_qubit.gd"
 
-SUITE_ORDER=(gates entangle measure biomes)
+SUITE_ORDER=(gates advanced integration embed drain)
 
 echo ""
 echo -e "${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"
@@ -73,12 +75,12 @@ run_suite() {
     TOTAL_SUITES=$((TOTAL_SUITES + 1))
 
     local output
-    output=$(timeout 60 godot --headless --script "$script" 2>&1)
-    local exit_code=$?
+    # `|| true`: a failing suite must not abort the runner (set -e) before the summary
+    output=$(timeout 60 godot --headless --script "$script" 2>&1 || true)
 
-    # Extract results line
+    # Extract results line — suites print "RESULTS: N passed, M failed"
     local results_line
-    results_line=$(echo "$output" | grep "📊 Results:" | tail -1)
+    results_line=$(echo "$output" | grep "RESULTS:" | tail -1)
 
     if [ -z "$results_line" ]; then
         echo -e "${RED}❌ $name: No results line found${NC}"
@@ -91,8 +93,8 @@ run_suite() {
 
     # Parse pass/fail counts
     local passed failed
-    passed=$(echo "$results_line" | grep -oP '\d+(?=/\d+ passed)')
-    failed=$(echo "$results_line" | grep -oP '\d+ failed' | grep -oP '\d+')
+    passed=$(echo "$results_line" | grep -oP '\d+(?= passed)')
+    failed=$(echo "$results_line" | grep -oP '\d+(?= failed)')
 
     if [ -z "$passed" ]; then passed=0; fi
     if [ -z "$failed" ]; then failed=0; fi

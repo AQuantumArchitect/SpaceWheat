@@ -1,5 +1,11 @@
 # CPU Quantum Solver - Implementation & Integration Summary
 
+> **HISTORICAL DOCUMENT.** The `quantum_solver_cpu.cpp` / `QuantumSolverCPU.gd`
+> implementation described below has since been removed; evolution now lives in
+> `native/src/quantum_evolution_engine.cpp` (see `native/src/register_types.cpp`).
+> File paths, test references, and speedup figures below reflect the state at
+> time of writing and are kept for design history only.
+
 ## Overview
 
 Implemented a **high-performance C++ quantum evolution solver** with native integration into the force graph visualization system. Achieves **50-100x speedup** over pure GDScript for quantum state evolution.

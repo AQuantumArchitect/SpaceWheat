@@ -384,11 +384,12 @@ Godot supports hot-reloading GDScript changes, but C++ changes require:
 ### Running Tests
 
 ```bash
-# Run all tests
-godot --headless --script Tests/test_runner.gd
+# Run the full quantum physics suite (142 tests)
+bash run_quantum_gate_tests.sh
 
-# Run specific test
-godot --headless --script Tests/test_quantum_computer.gd
+# Run a specific suite directly
+godot --headless --script tests/test_gate_exact_states.gd
+godot --headless --script tests/test_2q_gate_embed.gd
 ```
 
 ---

@@ -31,17 +31,18 @@ make clean && make -j$(nproc)
 
 ## What's Compiled
 
-| File | Lines | Purpose |
-|------|-------|---------|
-| `quantum_evolution_engine.cpp` | 1257 | Core Lindblad solver |
-| `multi_biome_lookahead_engine.cpp` | 869 | Batched multi-biome evolution |
-| `parametric_selector_native.cpp` | 475 | Music Layer 4/5 (100× speedup) |
-| `quantum_matrix_native.cpp` | 293 | General matrix ops |
-| `force_graph_engine.cpp` | 273 | Bubble physics |
-| `liquid_neural_net.cpp` | 180 | Phase modulation |
-| `register_types.cpp` | 63 | GDExtension registration |
+Core engines (see `src/` for the full set — 25 files, ~6,600 lines total):
 
-**Total:** 7 files, 3415 lines
+| File | Purpose |
+|------|---------|
+| `quantum_evolution_engine.cpp` | Core Lindblad solver (exact unitary propagator + adaptive Euler) |
+| `multi_biome_lookahead_engine.cpp` | Batched multi-biome evolution |
+| `parametric_selector_native.cpp` | Music Layer 4/5 parametric selection |
+| `quantum_matrix_native.cpp` | General matrix ops |
+| `force_graph_engine.cpp` | Bubble layout physics (MI-driven clustering) |
+| `liquid_neural_net.cpp` | Phase modulation (disabled by default) |
+| `quantum_mythos_engine.cpp` / `mythos_graph_core.cpp` | Experimental graph substrate |
+| `register_types.cpp` | GDExtension registration |
 
 ## Classes Exposed to GDScript
 

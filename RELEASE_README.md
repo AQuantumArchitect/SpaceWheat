@@ -89,9 +89,10 @@ For detailed instructions, see [BUILDING.md](https://github.com/AQuantumArchitec
 - ✅ **Recommended for:** Linux and Windows desktop builds
 
 ### Pure GDScript Mode
-- ⚠️ slower than the desktop native path
-- ⚠️ useful for debugging and exploratory runtime paths
-- ℹ️ currently most relevant to experimental web/export scenarios
+- ⚠️ matrix ops and gates fall back to GDScript; **continuous biome evolution
+  does not run without the native extension** (biomes stall rather than evolve)
+- ⚠️ useful for debugging and headless physics tests, not for playing
+- ℹ️ shipped desktop builds always include the native library
 
 ---
 
@@ -136,7 +137,7 @@ cd SpaceWheat
 
 ### Performance issues
 - **Check mode:** Look for "GDExtension loaded: QuantumMatrix" in logs
-- **If GDScript mode:** Build native extension for 10-100× speedup (see BUILDING.md)
+- **If GDScript mode:** Build the native extension (see BUILDING.md) — biome evolution requires it
 - **Lower settings:** Reduce quantum node count in game options
 
 ### "libGLEW.so.2.1: cannot open shared object file"

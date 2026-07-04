@@ -16,7 +16,7 @@ This isn't approximate. The gate library implements all standard quantum gates w
 - **Two-qubit**: CNOT, CZ, SWAP
 - **State preparation**: Bell pairs, GHZ states
 
-Every gate is verified against known quantum states (292 physics tests).
+Every gate is verified against known quantum states (142 physics tests).
 
 ### The Four Tools
 
@@ -58,7 +58,7 @@ The inspector overlay (N key) shows the raw density matrix as a heatmap and prob
 
 ### Biomes
 
-46 biomes, each with a unique Hamiltonian, Lindblad configuration, and emoji palette. StarterForest has a day/night oscillation driving sun/moon populations. FungalNetworks has cross-coupled mushroom ecology. Each biome feels mechanically different because the quantum dynamics actually are different.
+64 biomes, each with a unique Hamiltonian, Lindblad configuration, and emoji palette. StarterForest has a day/night oscillation driving sun/moon populations. FungalNetworks has cross-coupled mushroom ecology. Each biome feels mechanically different because the quantum dynamics actually are different.
 
 Navigate biomes with T-Y-U-I-O-P (6 active slots). Select plots within a biome with J-K-L-;-'-H-G.
 
@@ -82,32 +82,37 @@ The `libquantummatrix` C++ extension provides:
 - Dense matrix multiplication via Eigen
 - Mutual information computation at physics rate (5 Hz)
 - Lookahead evolution for the BiomeEvolutionBatcher
-- Pure GDScript execution when native isn't available
+
+Matrix operations and gates fall back to pure GDScript when the native library
+is absent (this is how the headless physics tests run), but continuous biome
+evolution requires the native extension — prebuilt binaries for Linux and
+Windows ship in `native/bin/`.
 
 ## Testing
 
-292 quantum physics tests across 5 suites:
+142 quantum physics tests across 4 suites (plus a weak-measurement suite):
 
 | Suite | Tests | Coverage |
 |-------|-------|----------|
-| Gate Verification | 102 | Every gate against exact quantum states, purity conservation, inverses, Pauli algebra |
-| Entanglement | 82 | Bell/GHZ states, marginal purities, mutual information, measurement collapse |
-| Measurement | 50 | Projective measurement, Born statistics, idempotence, entangled collapse |
-| Biome Coverage | 16 | All 46 biomes: valid structure, QC setup, evolution stability |
-| Circuit Composer | 42 | Declarative builder, teleportation, Deutsch-Jozsa algorithm |
+| Exact Quantum States | 29 | Every gate against exact density-matrix elements (H, X, Y, Z, CNOT, Bell, CZ, SWAP) |
+| Advanced Quantum States | 28 | Multi-gate state preparation and verification |
+| Gate Application Integration | 22 | Gates applied through the real biome/register pipeline |
+| 2-Qubit Gate Embedding | 63 | CNOT/CZ/SWAP embeddings across qubit orderings |
+| Weak-Measurement Drain | 18 | Trace preservation, coherence decay (T₂), purity validity, η=0/1 limits |
 
 Run them all:
 ```bash
-bash 🍄/🧪/🔬.sh
+bash run_quantum_gate_tests.sh
 ```
 
-Run a single suite:
+Or through the 🍄 automation lane, with per-suite selection:
 ```bash
+bash 🍄/🧪/🔬.sh
 bash 🍄/🧪/🔬.sh --suite gates
-bash 🍄/🧪/🔬.sh --suite entangle
-bash 🍄/🧪/🔬.sh --suite measure
-bash 🍄/🧪/🔬.sh --suite biomes
-bash 🍄/🧪/🔬.sh --suite composer
+bash 🍄/🧪/🔬.sh --suite advanced
+bash 🍄/🧪/🔬.sh --suite integration
+bash 🍄/🧪/🔬.sh --suite embed
+bash 🍄/🧪/🔬.sh --suite drain
 ```
 
 ## Project Structure
@@ -128,7 +133,7 @@ UI/
   Core/                Input handling (QuantumInstrumentInput), action validation
   Overlays/            Controls, inspector, biome inspector
   HUD/                 Performance display, bot status
-Tests/                 Physics verification suites + integration tests
+tests/                 Physics verification suites + integration tests
 🍄/                    Automation lane (headless runners, test harnesses, batch tools)
 native/                C++ GDExtension (libquantummatrix)
 ```
@@ -150,7 +155,7 @@ To save the editor boot log without copy/paste:
 Or run headless:
 
 ```bash
-godot --headless --script Tests/test_quantum_gate_verification.gd
+godot --headless --script tests/test_gate_exact_states.gd
 ```
 
 For native acceleration, build the C++ extension:
