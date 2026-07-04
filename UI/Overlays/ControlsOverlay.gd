@@ -654,20 +654,20 @@ func _build_our_faction_view(farm) -> void:
 	var biome = null
 	if farm and farm.grid and farm.grid.has_method("get_biome"):
 		biome = farm.grid.get_biome("TheDemos")
-	if biome == null or not biome.get("quantum_computer"):
-		_body_box.add_child(_make_muted_label("the demos biome not loaded.", 11))
-		return
-	var qc = biome.quantum_computer
+	# QC may be null on first open (farm still settling); degrade gracefully.
+	var qc = null
+	if biome != null and biome.get("quantum_computer") != null:
+		qc = biome.quantum_computer
 	var icons: Array = IconRegistry.get_icons_for_faction("The Demos")
-	if icons.is_empty() or qc == null or not qc.get("register_map"):
+	if icons.is_empty():
 		_body_box.add_child(_make_muted_label("the demos has no icons yet.", 11))
 		return
-	for q in range(min(icons.size(), int(qc.register_map.num_qubits))):
+	for q in range(icons.size()):
 		var icon: Dictionary = icons[q] if (icons[q] is Dictionary) else {}
 		var p0 := str(icon.get("pole_0", "?"))
 		var p1 := str(icon.get("pole_1", "?"))
 		var binding_name := str(icon.get("name", ""))
-		var m0: float = qc.get_marginal(q, 0) if qc.has_method("get_marginal") else 0.5
+		var m0: float = qc.get_marginal(q, 0) if (qc != null and qc.has_method("get_marginal")) else 0.5
 		var bias: float = clampf(1.0 - m0, 0.0, 1.0)  # how far toward pole_1
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 6)
