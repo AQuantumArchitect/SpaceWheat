@@ -1,6 +1,11 @@
-# 🍄 Agent Lab — Architecture & Data Flow
+# 🍄 The LLM Playzone — Architecture & Data Flow
 
-*How the LLM agents actually play SpaceWheat.*
+*How an LLM actually drives SpaceWheat, headlessly.*
+
+`🍄/` is the **single home** for playing the game from code: the Godot-side listener, its
+Python driver, the probes, and these docs all live here. There is **one primary rig** — a
+**keyboard rig**: you press the same keys a human presses, and read back the same UI/physics
+state a human sees.
 
 ---
 
@@ -8,210 +13,135 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                      🧠 LLM Agent Brain                         │
-│          (Claude / Codex / Gemma / whoever's playing)           │
-└─────────────────────┬───────────────────────────────────────────┘
-                      │ 🎮 decides an action
-                      ▼
+│                      🧠 LLM Agent Brain                          │
+│              (Claude / Codex / whoever is playing)               │
+└─────────────────────────┬───────────────────────────────────────┘
+                          │ decides a keypress or a read
+                          ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                  🎛️ Python Orchestration Layer                   │
-│                                                                 │
-│  arena.py ──────► milk_hunt_runner.py ──────► rig_client.py    │
-│     │                    │                         │            │
-│  (race/duel/         (one session,             (writes JSON     │
-│  matrix/design)      one agent)               to queue file)   │
-└─────────────────────────────────────────────────┬───────────────┘
-                                                  │ 📨 queue.jsonl
-                                                  ▼
+│              🎛️ rig_client.py  ·  class RigClient                │
+│   start_listener() · run_turn(turn, action, **params) · stop     │
+│   writes one JSON line to  ▶  user://rig/queue.jsonl              │
+│   reads the reply back from ◀  user://rig/results.jsonl          │
+└─────────────────────────────────────┬───────────────────────────┘
+                                      │ 📨 queue.jsonl / 📬 results.jsonl
+                                      ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                  🎮 Godot Game (Headless)                        │
+│         🎮 Godot game, headless (or headed for screenshots)      │
 │                                                                 │
-│  Rig/rig_listener.gd ──────► QuantumInstrument               │
-│          │                            │                         │
-│    polls queue.jsonl          executes real game actions        │
-│    writes results.jsonl       (explore / measure / pop /        │
-│                                quest / inject vocab / etc.)     │
-└─────────────────────────────────────────────────────────────────┘
-                                                  │ 📬 results.jsonl
-                                                  ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                  📊 Analysis & Mutation Layer                    │
+│   🍄/🎛️/rig_listener.gd   (extends SceneTree, run via --script)  │
+│      · boots the REAL game (AppRoot → PlayerShell)               │
+│      · polls queue.jsonl, dispatches each action                 │
+│      · writes the result + a heartbeat + a bridge_ready sentinel │
 │                                                                 │
-│  milk_hunt_summary.py ──► tissue_ledger.py ──► fibonacci_       │
-│          │                      │              adversary.py     │
-│    (score the run)       (track what          (mutate policy    │
-│                           worked)             costs for next)   │
-│                                │                                │
-│                          ppg_priors/ ◄──── policy_graph_        │
-│                         (persist the        runtime.py          │
-│                          learned weights)    (reads Core/Config/ │
-│                                              PolicyGraph/)      │
+│   press_key ─► QuantumInstrumentInput ─► the exact same input    │
+│               path a human keyboard drives                       │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
----
-
-## 🔄 One Full Loop
-
-```
-① 🌱 Seed save state
-   milk_hunt_seed_save.py --slot 2 --profile granary_scout
-   (loads a world-state profile into a Godot save file)
-
-② 🟢 Start the rig
-   🎛️/🟢.sh
-   (boots Godot headless, rig_listener.gd starts polling)
-
-③ 🎮 Run one agent session
-   🎛️/🥛🏃.sh --seed-slot 2 --runs 1 --max-loops 21
-   (milk_hunt_runner.py drives rig_client.py turn by turn)
-
-④ 🥛 Agent tries to find milk
-   Each turn:
-     agent decides → action JSON written to queue →
-     Godot executes → result JSON appended to results →
-     rig_client reads result → passes back to agent
-
-⑤ 📊 Score the run
-   milk_hunt_summary.py reads results.jsonl
-   → did agent find 🍼? how many turns? what resources left?
-
-⑥ 🧬 Mutate policy (tissue learning)
-   fibonacci_adversary.py reads the summary
-   → adjusts action costs/weights using Fibonacci-constrained values
-   → saves updated PPG priors to ppg_priors/
-
-⑦ 🔁 Next run starts with evolved policy
-   policy_graph_runtime.py reads Core/Config/PolicyGraph/ + ppg_priors/
-   → new session has harder/adapted economy
-```
+The listener runs the **real** game — no mock. Whatever the rig sees is what a player sees.
 
 ---
 
-## 🎮 Turn Format
+## 🚀 One Turn, End to End
 
-Every turn is a JSON dict sent to `queue.jsonl`:
+```python
+from rig_client import RigClient          # 🍄/🎛️/ is on sys.path
 
-```json
-{"turn": 7, "action": "probe_cycle", "params": {"biome": "StarterForest"}}
-{"turn": 8, "action": "complete_quest", "params": {"quest_id": 3}}
-{"turn": 9, "action": "inject_vocab", "params": {"north": "🌙", "south": "🍄"}}
+c = RigClient()
+c.clear_rig_files(preserve_live_sentinel=False)
+proc = c.start_listener(scenario_id="demos_normal")   # boots 🍄/🎛️/rig_listener.gd headless
+c.wait_for_ready(proc, timeout_s=300)
+
+c.run_turn(1, "press_key", key="5", settle_frames=5)  # press '5' → Icon hat, let 5 frames pass
+c.run_turn(2, "press_key", key="G", settle_frames=4)  # 'G' → select plot 0
+state = c.run_turn(3, "instrument_state")             # read back the cursor/hat/plot state
+bloch = c.run_turn(4, "viz_bloch", biome="StarterForest")  # per-qubit live Bloch-z
+
+c.run_turn(99, "stop"); c.terminate_listener(proc)
 ```
 
-The result comes back in `results.jsonl`:
+For a **headed** run (real pixels, WSL uses `opengl3`) pass `display_mode="headed"` and use the
+`screenshot` action → save a PNG under `user://rig/` and read it back. See
+`🍄/🧪/screenshot_probe.py` for the canonical pattern.
+
+---
+
+## 🎮 The Action Vocabulary (keyboard rig — primary)
+
+Every turn is one JSON dict on `queue.jsonl`; the reply is one dict on `results.jsonl`:
 
 ```json
-{"turn": 7, "ok": true, "outcome": "pop", "resource": "🌾", "amount": 42, "p": 0.31}
+{"turn": 3, "action": "press_key", "key": "G", "settle_frames": 4}
+{"turn": 3, "ok": true, "current_hat": "icon", "current_plot_idx": 0}
 ```
 
-**Supported actions** (non-exhaustive):
+**Drive the keyboard** (the whole game is reachable this way — nothing is rig-only):
 
-| 🎮 Action | What it does |
+| Action | What it does |
 |---|---|
-| `resource_snapshot` | 📸 See current wallet |
-| `known_vocab_pairs` | 📖 List discovered emoji pairs |
-| `offer_quests` | 📋 Show available quests |
-| `accept_offer` | ✅ Lock in a quest |
-| `complete_quest` | 🏆 Claim quest reward |
-| `probe_cycle` | 🔬 Explore → measure → pop one plot |
-| `inject_vocab` | 💉 Inject an icon into a biome |
-| `discover_biome` | 🗺️ Unlock a new biome |
-| `lindblad_drain` | 🌊 Apply Merchant drain to a plot |
-| `time_skip` | ⏩ Fast-forward N phrames |
-| `configure_seed_state` | 🌱 Set up starting resources |
+| `press_key` | 🎹 Press one key (`key`, optional `shift`, `settle_frames`) — hats `4–0`, sub-mode `1/2/3`, biomes `TYUIOP`, plots `GHJKL;`, the **QERF** cross, overlays `ZXCVBNM` |
+| `key_sequence` | ⌨️ Press several keys in order |
+| `start_from_title` | ▶️ Dismiss the title / welcome and enter play |
+
+**Read the state** (what a human would see on screen):
+
+| Action | Returns |
+|---|---|
+| `instrument_state` | 🎯 cursor layer, current hat / biome / plot / submenu |
+| `hud_snapshot` · `widget_snapshot` · `overlay_snapshot` · `full_snapshot` | 🖼️ rendered HUD / widget / overlay / everything |
+| `viz_bloch` · `probability_map` · `berry_state` | 🔬 per-qubit Bloch-z, Born probabilities, Berry phase |
+| `story_flags` · `story_offers` · `flag_progress` | 📖 fired/unfired narrative beats + soft-gate progress |
+| `board_state` · `board_market` | 📋 quest board + market offers |
+| `hamiltonian_stats` · `energy_variance` · `atom_diversity` · `entropy_snapshot` | ⚛️ live physics observables |
+| `screenshot` · `set_window_size` · `set_resolution` | 📸 headed capture + window control |
+
+**Lifecycle:** `ping`, `save_game` / `load_game`, `stop`. (The listener dispatches ~90 actions in
+all; the above are the ones a fresh driver needs. Grep `🍄/🎛️/rig_listener.gd` for the full set.)
 
 ---
 
-## 🏟️ Arena Modes
+## 🗂️ The Handshake Files (`user://rig/`)
 
-```
-arena.py  ──────┬──── 🏁 race   — N runners, 1 profile, Fibonacci loop ladder
-                │              (stops when 4/5 find 🍼)
-                │
-                ├──── 🏆 duel   — 2 lanes (e.g. "sonnet" vs "codex") in parallel
-                │              (head-to-head, same profile, N runs each)
-                │
-                ├──── 📊 matrix — M profiles × N runs each
-                │              (broad sweep, tissue learning after each)
-                │
-                └──── 🧬 design — LLM generates new character phenotype
-                               (arena validates, adds to config/characters/)
-```
+The Python side and Godot side rendezvous through four files under the Godot user dir
+(`$XDG_DATA_HOME/godot/app_userdata/SpaceWheat - Quantum Farm/rig/`; each rig lane gets a private
+`XDG_ROOT` so concurrent bots don't collide — see `🍄/🎛️/milk_hunt_paths.py`):
+
+- `queue.jsonl` — append one line per turn request (RigClient writes, listener reads).
+- `results.jsonl` — append one line per reply (listener writes, RigClient reads).
+- `bridge_ready` — sentinel with the Godot PID; `wait_for_bridge_sentinel()` blocks on it.
+- `heartbeat` — timestamp + idle/poll timings, so a slow turn extends its timeout instead of
+  failing (a stale heartbeat = a genuinely dead listener).
 
 ---
 
-## 🧬 Tissue Learning (Fibonacci Adversary)
+## 🥛 Secondary: the batch / campaign layer
 
-After every run, `fibonacci_adversary.py` mutates the policy:
+On top of the keyboard rig sits an optional **semantic** driver for long unattended campaigns and
+policy experiments — this is *not* the primary interface, just a convenience layer:
 
-```
-📊 run result
-    │
-    ▼
-🔢 Fibonacci sequence: [1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233]
-    │
-    ▼
-💰 Adjust action costs toward golden-ratio distribution
-   (expensive actions stay expensive; rare wins get cheaper)
-    │
-    ▼
-💾 Save to ppg_priors/{character}.json
-    │
-    ▼
-🔁 Next session: policy_graph_runtime.py merges
-   Core/Config/PolicyGraph/default.jsonl + ppg_priors/ → active policy
-```
+- `🍄/🎛️/milk_hunt_runner.py` — a high-level orchestrator: reads game state through
+  `policy_snapshot`-style actions, picks quests/actions by a strategy, drives many turns.
+- `🍄/🎛️/policy_graph_runtime.py` + `Core/AI/PolicyGraph.gd` (+ `Core/Config/PolicyGraph/`) — a
+  JSONL policy graph the runner and the game share.
+- `🍄/🎛️/milk_hunt_batch.py` / `milk_hunt_seed_save.py` / `milk_hunt_scan.py` — seed a save, run a
+  batch, scan the outputs.
 
-**What gets mutated:**
-`quest_cycle` 📋 · `probe_cycle` 🔬 · `lindblad_drain` 🌊 · `time_skip` ⏩
-`discover_biome` 🗺️ · `victory_lap_partial` 🏅 · `offer_quests` 📋 · `complete_or_claim` ✅
-
----
-
-## 🗂️ Config Files
-
-```
-🎛️/config/
-├── world_state/          🌍 ~20 starting economies
-│   ├── balanced_survival    300👥 300🌾 200🍞 — broad starter
-│   ├── probe_heavy          lots of ❄️ — measurement-focused
-│   ├── quest_push           quest rewards cranked up
-│   ├── injection_biased     pre-loaded for vocab injection
-│   └── derby_codex_1..5     🏆 derby lane configs
-│
-├── characters/           🎭 ~50 agent phenotypes
-│   ├── pioneer_fib          🏔️ 2 biomes, must expand
-│   ├── granary_scout_fib    🌾 food-chain specialist
-│   ├── village_diplomat_fib 🤝 faction contract focus
-│   ├── claura_v0_*          🤖 LLM-generated, timestamped
-│   └── winner_solar_*       🏆 evolved winners from past derbies
-│
-└── strategy/             🧠 2 files (default, strict)
-```
+Reach for this only when you want a scripted campaign; for interactive play and inspection, use the
+keyboard rig above.
 
 ---
 
 ## 🔗 How This Touches the Game
 
 ```
-🎛️/rig_client.py
-    │ reads/writes jsonl files
-    ▼
-Rig/rig_listener.gd         ← polls every 50ms
-    │ calls
-    ▼
-Core/Instrumentation/QuantumInstrument.gd    ← real game API
-    │ calls
-    ▼
-Core/Actions/ProbeActions.gd                 ← physics
-Core/Quests/QuestManager.gd                 ← quests
-Core/Biomes/BiomeRegistry.gd                ← biomes
-    │
-    ▼
-Core/Config/PolicyGraph/                     ← policy JSONL consumed by
-    │                                           policy_graph_runtime.py
-    ▼
-Core/AI/PolicyGraph.gd                       ← consumed by QuestManager + Python layer
+🍄/🎛️/rig_client.py              writes/reads jsonl
+        │
+🍄/🎛️/rig_listener.gd            boots AppRoot, polls the queue, dispatches actions
+        │
+UI/Core/QuantumInstrumentInput.gd   the real keyboard decoder (press_key lands here)
+        │
+Core/…                           real actions: measure / harvest / incorporate / reap / market
 ```
 
 ---
@@ -220,18 +150,18 @@ Core/AI/PolicyGraph.gd                       ← consumed by QuestManager + Pyth
 
 | Task | Command |
 |---|---|
-| 🎨 Add new emojis to game | Edit `biomes.json` or `factions.json`, then run `python3 🍄/🛠️/sync_emoji_pipeline.py` |
-| 🟢 Start the rig | `🍄/🎛️/🟢.sh` |
-| ✍️ Send one turn manually | `🍄/🎛️/✍️.sh '{"turn":1,"action":"resource_snapshot"}'` |
-| 🥛 Run milk hunt | `🍄/🎛️/🥛🏃.sh --runs 5 --max-loops 21` |
-| 🏟️ Run a derby | `python3 🍄/🎛️/arena.py duel --lane sonnet --lane codex --runs 10` |
-| 🔬 Native engine check | `🍄/⚙️🔍.sh` |
+| 🟢 Start the rig (headless) | `🍄/🎛️/🟢.sh` |
+| ✍️ Send one turn by hand | `🍄/🎛️/✍️.sh '{"turn":1,"action":"instrument_state"}'` |
+| 📸 Capture screenshots | `python3 🍄/🧪/screenshot_probe.py` |
+| 🧪 Run a probe | `python3 🍄/🧪/<name>_probe.py` |
+| 🎨 Sync emoji SVGs | `python3 🍄/🛠️/sync_emoji_pipeline.py` |
 | 🔨 Rebuild C++ native lib | `🍄/🔨✖.sh` |
 
 ---
 
 ## 📦 What's Not Here
 
-- `📦_emoji_research/` — Pre-consolidation emoji design work (Feb 2026). Gitignored. The live truth is `🎛️/config/emoji_registry.json`.
-- `ws/🍄/🧪/` — Sister sandbox *outside* this repo. Isolated biome physics experiments (village redesigns, eagle fixes). Not referenced here by design.
-- `🧪/` — Biome stress tests (buffer invalidation, force graph scaling). Run independently; see `🧪/README_🧬.md`.
+- `🍄/📦_emoji_research/` — pre-consolidation emoji design work (gitignored). Live truth is the
+  game's `icons.json` / `biomes.json`.
+- `🍄/🧪/*_🧬.md` — biome stress-test specs (buffer invalidation, force-graph scaling); run
+  independently, see `🍄/🧪/README_🧬.md`.

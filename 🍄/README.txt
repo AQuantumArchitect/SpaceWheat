@@ -1,85 +1,77 @@
-SpaceWheat LLM Collaboration Entry Point
-=======================================
+SpaceWheat — The LLM Playzone
+=============================
 
 Purpose
 -------
-This folder is the automation and test lane for LLM collaborators.
-Use it to run headless rig control, milk-hunt runners, and batch scans
-without patching core game code first.
+This folder (🍄/) is the single home for driving SpaceWheat headlessly from code.
+The Godot-side listener, its Python driver, the probes, and the docs all live here.
+There is one primary rig: a KEYBOARD rig — you press the same keys a human presses
+and read back the same UI/physics state a human sees. It runs the REAL game, not a mock.
 
-Cross-Reference
----------------
-- 🗺️ Full architecture & data flow: `🍄/🗺️_ARCHITECTURE.md`  ← START HERE
+Start Here
+----------
+- 🗺️ Full architecture & data flow: `🍄/🗺️_ARCHITECTURE.md`  ← READ THIS FIRST
+- Game mental model / physics / controls: `docs/GAME_CODEX.md`
 - Repo-wide operational memory: `MEMORY.md`
 - Biome/faction physics work: `BIOME_AGENTS.md`
-- Use this file for the lane-local quick start and artifact rules.
 
-Quick Start (2 minutes)
------------------------
-1) Start live headless rig listener:
-   ./🍄/🎛️/🟢.sh
+Quick Start (keyboard rig)
+--------------------------
+1) Start the live headless listener:
+     ./🍄/🎛️/🟢.sh
 
-2) Send one turn:
-   ./🍄/🎛️/✍️.sh '{"turn":1,"action":"resource_snapshot"}'
+2) Send one turn by hand (JSON in, JSON out):
+     ./🍄/🎛️/✍️.sh '{"turn":1,"action":"instrument_state"}'
 
-3) Run one milk-hunt run:
-   ./🍄/🎛️/🥛🏃.sh --runs 1 --max-loops 21
+3) Or drive it from Python (the normal way):
 
-4) Scan latest run outputs:
-   ./🍄/🎛️/🥛🏃.sh scan results
+     from rig_client import RigClient          # 🍄/🎛️/ on sys.path
+     c = RigClient()
+     c.clear_rig_files(preserve_live_sentinel=False)
+     proc = c.start_listener(scenario_id="demos_normal")
+     c.wait_for_ready(proc, timeout_s=300)
+     c.run_turn(1, "press_key", key="5", settle_frames=5)   # Icon hat
+     c.run_turn(2, "instrument_state")                      # read state back
+     c.run_turn(99, "stop"); c.terminate_listener(proc)
+
+4) Run a ready-made probe (headed screenshots, UI health, etc.):
+     python3 🍄/🧪/screenshot_probe.py
+     python3 🍄/🧪/ui_health_probe.py
 
 Core Paths
 ----------
-- Rig launcher: `🍄/🎛️/🟢.sh`
-- Turn writer: `🍄/🎛️/✍️.sh`
-- Milk hunt entry: `🍄/🎛️/🥛🏃.sh`
-- Runner implementation: `🍄/🎛️/milk_hunt_runner.py`
-- Runner policy graphs: `Core/Config/PolicyGraph/`
-- Runner policy runtime helpers: `🍄/🎛️/policy_graph_runtime.py`
-- Save/profile seeding: `🍄/🎛️/milk_hunt_seed_save.py`
-- Shared world-state configs: `🍄/🎛️/config/world_state/`
-- Shared strategy configs: `🍄/🎛️/config/strategy/`
-- Headless test set: `🍄/🧪/`
+- Listener (Godot side):   `🍄/🎛️/rig_listener.gd`   (run via --script; boots the real game)
+- Python driver:           `🍄/🎛️/rig_client.py`      (class RigClient)
+- Path/lane helpers:       `🍄/🎛️/milk_hunt_paths.py`  (private XDG lane per bot)
+- Launcher / turn writer:  `🍄/🎛️/🟢.sh` · `🍄/🎛️/✍️.sh`
+- Probes:                  `🍄/🧪/`
+- Emoji-pipeline tooling:  `🍄/🛠️/`
 
-How This Connects To Main Game
-------------------------------
-- Headless actions route through `Rig/rig_listener.gd`.
-- Game state ownership remains in the core game save/load systems.
-- Profiles/scenarios should be represented as save state inputs, not ad-hoc patches.
+The Handshake
+-------------
+RigClient and the listener rendezvous through JSONL files under the Godot user dir
+(user://rig/): queue.jsonl (requests), results.jsonl (replies), bridge_ready (PID
+sentinel), heartbeat (liveness). Each rig lane claims a private XDG_ROOT so concurrent
+bots never share a queue.
 
-Artifact Policy
----------------
-Runtime artifacts are ignored by default:
-- `🍄/logs/`
-- `🍄/🎛️/logs/`
-- `🍄/🎛️/🧾/`
-- `🍄/🎛️/.godot*`
-- `🍄/🎛️/__pycache__/`
-
-If you need to commit a representative run artifact, place it in:
-- `🍄/artifacts_whitelist/`
-
-Do not commit bulk run outputs anywhere else in `🍄`.
+Secondary: batch / campaign layer
+---------------------------------
+For long unattended campaigns or policy experiments there's an optional semantic driver
+on top of the keyboard rig — NOT the primary interface:
+  - `🍄/🎛️/milk_hunt_runner.py`     high-level orchestrator (strategy-driven turns)
+  - `🍄/🎛️/policy_graph_runtime.py`  + `Core/AI/PolicyGraph.gd` (shared JSONL policy graph)
+  - `🍄/🎛️/milk_hunt_{batch,seed_save,scan}.py`  seed → batch → scan
+Reach for this only when scripting a campaign; for interactive play, use the keyboard rig.
 
 LLM Operating Rules
 -------------------
-- Prefer wrappers in `🍄/🎛️/` over direct ad-hoc commands.
-- Always claim a private rig lane (`XDG_ROOT`) per bot/session; do not share the default lane in a crowded workspace.
-- Keep run outputs in existing log/result paths; do not invent new output roots.
-- For reproducibility, seed saves via `milk_hunt_seed_save.py` before batch runs.
-- Use frame-based waits/time-skip actions (in-game steps), not wall-clock sleep logic.
-- Keep config edits in `🍄/🎛️/config/` and avoid hardcoding constants in scripts.
+- Prefer the wrappers in `🍄/🎛️/` and existing probes over ad-hoc commands.
+- Claim a private rig lane (XDG_ROOT / SW_RIG_LANE) per bot; don't share the default lane.
+- Use frame-based waits (settle_frames / time-skip actions), not wall-clock sleeps.
+- Always `stop` + terminate the listener when done; `pkill -f rig_listener.gd` clears strays.
 
-Recommended First Validation Pass
----------------------------------
-1) Verify rig boot:
-   ./🍄/🎛️/🟢.sh
-2) Verify turn round-trip:
-   ./🍄/🎛️/✍️.sh '{"turn":2,"action":"known_vocab_pairs"}'
-3) Verify one seeded run:
-   python3 🍄/🎛️/milk_hunt_seed_save.py --slot 2 --profile granary_scout
-   ./🍄/🎛️/🥛🏃.sh --seed-slot 2 --runs 1 --max-loops 21
-4) Verify scan:
-   ./🍄/🎛️/🥛🏃.sh scan results
-
-If these four checks pass, the lane is ready for larger experiment batches.
+Artifact Policy
+---------------
+Runtime artifacts are gitignored: `🍄/logs/`, `🍄/🎛️/logs/`, `🍄/🎛️/__pycache__/`, `🍄/🎛️/.godot*`.
+Commit a representative run artifact only under `🍄/artifacts_whitelist/`. Do not commit bulk
+run outputs anywhere else in `🍄`.
