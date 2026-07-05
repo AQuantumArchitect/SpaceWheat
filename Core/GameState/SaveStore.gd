@@ -8,7 +8,11 @@ extends RefCounted
 const SAVE_DIR = "user://saves/"
 const NUM_SAVE_SLOTS = 3
 const SCENARIO_DIR = "res://Scenarios/"
-const DEFAULT_SCENARIO_ID = "new_game_easy"
+# "The Demos" is the canonical game — the campaign (story flags, the Demos arc) is built
+# for it, and it's what the menu defaults to (EscapeMenu.DEFAULT_RUN_SCENARIO_ID). Keep this
+# in sync with that so `godot`, headless boot, and the rig all load the same starting world.
+# "new_game_easy" (Easy Farm) remains a selectable alternate in the NEW menu.
+const DEFAULT_SCENARIO_ID = "demos_normal"
 const SAVE_ARTIFACT_INDEX_FILE = "emoji_save_index.json"
 const EMOJI_SIDECAR_SUFFIX = ".json"
 
@@ -32,7 +36,7 @@ static func normalize_boot_request(request: Dictionary) -> Dictionary:
 	return {
 		"slot": int(request.get("slot", -1)),
 		"scenario_id": sid,
-		"headless": bool(request.get("headless", DisplayServer.get_name() == "headless")),
+		"headless": bool(request.get("headless", RuntimeEnv.is_headless())),
 	}
 
 

@@ -30,7 +30,7 @@ echo "🌡️  Entropy & Market Lab — scenario=$SCENARIO"
 echo "    (rig harness; standalone --script labs are deprecated — see header)"
 
 RIG_SCENARIO="$SCENARIO" RIG_QUEUE_PATH="$Q" RIG_RESULT_PATH="$R" \
-  sw_godot --headless --path . --script Rig/rig_listener.gd > "$B" 2>&1 &
+  sw_godot --headless --path . --script 🍄/🎛️/rig_listener.gd > "$B" 2>&1 &
 RIG_PID=$!
 
 cleanup() { kill -9 "$RIG_PID" 2>/dev/null; rm -f "$Q" "$R" "$B"; }

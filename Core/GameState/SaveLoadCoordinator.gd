@@ -103,47 +103,27 @@ func load_game_state_by_path(save_path: String) -> GameState:
 
 
 func load_and_apply(slot: int) -> bool:
-	# Mid-session: tear the live session down and re-boot via BootManager so
-	# autoloads + active_farm don't carry stale state across the boundary.
-	# Pre-session: lighter headless path used by tools and tests.
-	if _gsm.active_farm:
-		_gsm.phase = SessionLifecycle.SessionPhase.BOOTING
-		var boot_mgr = (Engine.get_main_loop().root.get_node_or_null("/root/BootManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
-		if boot_mgr == null:
-			_gsm.phase = SessionLifecycle.SessionPhase.IDLE
-			push_warning("SaveLoadCoordinator.load_and_apply: BootManager autoload missing")
-			return false
-		var peek := peek_save_slot(slot)
-		var scenario_for_boot: String = str(_gsm.current_scenario_id)
-		if peek and bool(peek.get("exists", false)):
-			scenario_for_boot = str(peek.get("scenario", _gsm.current_scenario_id))
-		await _gsm.session_lifecycle.shutdown_session(true, false)
-		var boot_request := {
-			"slot": slot,
-			"scenario_id": scenario_for_boot,
-			"headless": false,
-		}
-		var farm = await boot_mgr.boot_session(boot_request, null)
-		if farm:
-			_gsm.last_active_slot = slot
-			_gsm.phase = SessionLifecycle.SessionPhase.RUNNING
-		else:
-			_gsm.phase = SessionLifecycle.SessionPhase.IDLE
-		return farm != null
-
-	# Pre-session with AppRoot: route through the proper boot pipeline so
-	# GameRoot, BootManager, and PlayerShell all participate. restart_into()
-	# is safe at the title screen (shutdown_session is a no-op with no farm).
+	# SINGLE boot authority. Whenever an AppRoot exists (the real game, mid-session OR at
+	# the title), loading routes through restart_into() → AppRoot.start_game → GameRoot →
+	# boot_session + boot_runtime — the exact path menu-new and menu-continue use.
+	# restart_into() runs shutdown_session first (a no-op pre-session), so one branch
+	# covers both. Previously the mid-session branch invoked the low-level BootManager core
+	# boot DIRECTLY (no GameRoot, no boot_runtime, no AppRoot guard) — a second, partial boot
+	# pipeline that diverged from the canonical one and left the UI unbound. That was the
+	# long-standing "save/load duplicated the boot sequence" bug.
 	var tree = Engine.get_main_loop()
 	var app_roots = tree.get_nodes_in_group("app_root") if tree else []
 	if not app_roots.is_empty():
 		_gsm.phase = SessionLifecycle.SessionPhase.BOOTING
+		var peek := peek_save_slot(slot)
+		if peek and bool(peek.get("exists", false)):
+			_gsm.current_scenario_id = str(peek.get("scenario", _gsm.current_scenario_id))
 		_gsm.last_active_slot = slot
 		await _gsm.session_lifecycle.restart_into(slot)
 		_gsm.phase = SessionLifecycle.SessionPhase.RUNNING
 		return true
 
-	# Headless / test path (no AppRoot, no active_farm): direct apply.
+	# Headless / test path (no AppRoot): direct apply, no GameRoot to route through.
 	_gsm.phase = SessionLifecycle.SessionPhase.BOOTING
 	var state = load_game_state(slot)
 	if not state:

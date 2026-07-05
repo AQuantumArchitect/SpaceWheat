@@ -24,9 +24,10 @@ func _init(gsm: Node = null, verbose = null) -> void:
 	name = "PlayerProgress"
 
 
-func discover_icon(north: String, south: String) -> void:
+func discover_icon(north: String, south: String) -> bool:
 	# Player learns a icon (plantable qubit axis). Forwards to the active
 	# Farm (canonical icon owner) and emits unlock signals via GSM.
+	# Returns true iff the pair was newly added to the signature.
 	var old_emojis = get_signature_emojis()
 
 	var farm = _gsm.get_active_farm()
@@ -36,12 +37,12 @@ func discover_icon(north: String, south: String) -> void:
 	elif _gsm.current_state:
 		for icon in _gsm.current_state.known_icons:
 			if icon.get("north") == north and icon.get("south") == south:
-				return
+				return false
 		_gsm.current_state.known_icons.append({"north": north, "south": south})
 		added = true
 
 	if not added:
-		return
+		return false
 
 	if _verbose:
 		var icon_count = get_signature_icons().size()
@@ -58,11 +59,39 @@ func discover_icon(north: String, south: String) -> void:
 				if _verbose:
 					_verbose.info("quest", "🔓", "Unlocked %d new faction(s)!" % newly_accessible.size())
 					for faction in newly_accessible:
-						var sig = faction.get("sig", [])
-						_verbose.info("quest", "-", "%s %s" % ["".join(sig.slice(0, 3)), faction.get("name", "?")])
+						var cloud = faction.get("cloud", [])
+						_verbose.info("quest", "-", "%s %s" % ["".join(cloud.slice(0, 3)), faction.get("name", "?")])
 
 	if MILK_EMOJI in new_emojis and MILK_EMOJI not in old_emojis:
 		handle_milk_autosave(north, south)
+
+	return true
+
+
+func discorporate_icon(north: String, south: String) -> bool:
+	# Player forgets (discorporates) a known icon. Inverse of discover_icon;
+	# forwards to the active Farm (canonical owner). Returns true iff removed.
+	var farm = _gsm.get_active_farm()
+	var removed = false
+	if farm and farm.has_method("discorporate_icon"):
+		removed = farm.discorporate_icon(north, south)
+	elif _gsm.current_state:
+		var ki: Array = _gsm.current_state.known_icons
+		if ki.size() > 1:
+			for i in range(ki.size()):
+				if ki[i].get("north") == north and ki[i].get("south") == south:
+					ki.remove_at(i)
+					removed = true
+					break
+	if not removed:
+		return false
+	if _gsm.current_state:
+		_gsm.current_state.known_icons = get_signature_icons()
+	if _verbose:
+		_verbose.info("quest", "📖", "Discorporated icon: %s/%s (signature: %d icons)" % [north, south, get_signature_icons().size()])
+	if _gsm.has_signal("icon_forgotten"):
+		_gsm.emit_signal("icon_forgotten", north, south)
+	return true
 
 
 func handle_milk_autosave(north: String, south: String) -> void:
@@ -95,9 +124,9 @@ func handle_milk_autosave(north: String, south: String) -> void:
 func check_newly_accessible_factions(_new_emoji: String, old_emojis: Array, new_emojis: Array) -> Array:
 	var newly_accessible = []
 	for faction in FactionDatabase.get_all():
-		var faction_vocab = FactionDatabase.get_faction_vocabulary(faction)
-		var old_overlap = FactionDatabase.get_vocabulary_overlap(faction_vocab.all, old_emojis)
-		var new_overlap = FactionDatabase.get_vocabulary_overlap(faction_vocab.all, new_emojis)
+		var faction_cloud = FactionDatabase.get_faction_cloud(faction)
+		var old_overlap = FactionDatabase.get_cloud_overlap(faction_cloud.all, old_emojis)
+		var new_overlap = FactionDatabase.get_cloud_overlap(faction_cloud.all, new_emojis)
 		if old_overlap.is_empty() and not new_overlap.is_empty():
 			newly_accessible.append(faction)
 	return newly_accessible
@@ -107,8 +136,8 @@ func get_accessible_factions() -> Array:
 	var accessible = []
 	var known_emojis = get_signature_emojis()
 	for faction in FactionDatabase.get_all():
-		var faction_vocab = FactionDatabase.get_faction_vocabulary(faction)
-		var overlap = FactionDatabase.get_vocabulary_overlap(faction_vocab.all, known_emojis)
+		var faction_cloud = FactionDatabase.get_faction_cloud(faction)
+		var overlap = FactionDatabase.get_cloud_overlap(faction_cloud.all, known_emojis)
 		if not overlap.is_empty():
 			accessible.append(faction)
 	return accessible

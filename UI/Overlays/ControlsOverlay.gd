@@ -7,7 +7,7 @@ extends "res://UI/Core/Surface.gd"
 ## are in this playthrough, what's happened, what to do.
 ##
 ## Keyboard grammar matches the rest of the game (and Z):
-##   TYUIO  = tabs (Self / Story / · / Balance / Guide), top row
+##   TYUIO  = tabs (Self / Story / · / Arc / Guide), top row
 ##           (U slot intentionally empty — live quest pipeline lives on C)
 ##   GHJKL; = items within the active tab, same row as plot slots
 ##   [ / ]  = cycle tabs (surface frame cycle)
@@ -21,11 +21,7 @@ extends "res://UI/Core/Surface.gd"
 ##   1/2/3  = sub-mode within the active tab (icon slot, picker target)
 ##   Z/ESC  = close
 ##
-## Note: Balance tab uses Q/R to shift biome scope (rather than W/S which
-## is taken by action cycling, and A/D which the shell consumes for tab
-## cycling). Treated as scope-axis depth, not item navigation.
-##
-## frame_ids = [self, story, balance, guide] — one per tab.
+## frame_ids = [self, story, arc, guide] — one per tab.
 
 const ToolConfig      = preload("res://Core/GameState/ToolConfig.gd")
 
@@ -33,13 +29,13 @@ const ToolConfig      = preload("res://Core/GameState/ToolConfig.gd")
 # TABS / FRAMES
 # =============================================================================
 
-enum Tab { SELF, STORY, BALANCE, GUIDE }
+enum Tab { SELF, STORY, ARC, GUIDE }
 
 const TAB_ROW := [
 	{"key": "T", "tab": Tab.SELF,    "name": "Self",    "frame": "self"},
 	{"key": "Y", "tab": Tab.STORY,   "name": "Story",   "frame": "story"},
 	# U slot intentionally empty — live quest pipeline lives on C (QuestBoard).
-	{"key": "I", "tab": Tab.BALANCE, "name": "Balance", "frame": "balance"},
+	{"key": "I", "tab": Tab.ARC,     "name": "Arc",     "frame": "arc"},
 	{"key": "O", "tab": Tab.GUIDE,   "name": "Guide",   "frame": "guide"},
 ]
 
@@ -47,39 +43,38 @@ const TAB_BY_KEYCODE := {
 	KEY_T: Tab.SELF,
 	KEY_Y: Tab.STORY,
 	# KEY_U intentionally empty (quest pipeline → C)
-	KEY_I: Tab.BALANCE,
+	KEY_I: Tab.ARC,
 	KEY_O: Tab.GUIDE,
 }
 
 # Left-to-right slot keys (same convention as X).
+# 7-slot item labels (G-; plus '); keycode→slot via
+# InputBindingRegistry.plot_index_for_keycode(kc, 7) (shared ring source).
 const ITEM_KEYS := ["G", "H", "J", "K", "L", ";", "'"]
-const ITEM_BY_KEYCODE := {
-	KEY_G: 0,
-	KEY_H: 1,
-	KEY_J: 2,
-	KEY_K: 3,
-	KEY_L: 4,
-	KEY_SEMICOLON: 5,
-	KEY_APOSTROPHE: 6,
-}
 
 const FRAME_SELF    := "self"
 const FRAME_STORY   := "story"
-const FRAME_BALANCE := "balance"
+const FRAME_ARC     := "arc"
 const FRAME_GUIDE   := "guide"
 
 const TAB_TO_FRAME := {
 	Tab.SELF:    FRAME_SELF,
 	Tab.STORY:   FRAME_STORY,
-	Tab.BALANCE: FRAME_BALANCE,
+	Tab.ARC:     FRAME_ARC,
 	Tab.GUIDE:   FRAME_GUIDE,
 }
 const FRAME_TO_TAB := {
 	FRAME_SELF:    Tab.SELF,
 	FRAME_STORY:   Tab.STORY,
-	FRAME_BALANCE: Tab.BALANCE,
+	FRAME_ARC:     Tab.ARC,
 	FRAME_GUIDE:   Tab.GUIDE,
 }
+
+# Arc tab (I) — the Demos story spine: fired/unfired story flags + arc-quest offers.
+const MAX_VISIBLE_ITEMS := 6
+const COLOR_ARC_FIRED := Color(0.5, 0.75, 0.55, 0.85)
+const COLOR_ARC_UNFIRED := Color(0.85, 0.7, 0.4, 0.95)
+const COLOR_ARC_HEADER := Color(0.7, 0.6, 0.85, 0.95)
 
 # Guide tab: 7 sections, GHJKL;' selects which. The Verbs section absorbs
 # what used to live on Z's I tab — the 7-hat × QERF reference.
@@ -125,16 +120,9 @@ var _self_picker_slot: int = 0     # which active slot (0/1/2) is being rebound
 var _self_picker_icon: int = 0     # cursor into known_icons (GHJKL; navigates)
 var _self_picker_page: int = 0     # page of known_icons (6 per page)
 
-# Experimental chatter state (mirrors EscapeMenu.gd; refreshed on demand).
-var _balance_action_idx: int = 0  # still used by the read-only action inspector
-var _balance_setting_idx: int = 0  # GHJKL; cursor into _balance_settings
-var _balance_setting_page: int = 0
-var _balance_settings: Array = []  # Array of {id, label, category, value_path, kind, step, min, max, default}
-var _balance_biome_idx: int = 0
-var _balance_snapshot: Dictionary = {}
-var _balance_action_keys: Array[String] = []
-var _balance_biomes: Array[String] = []
-var _balance_projection: Dictionary = {}
+# Arc tab state.
+var _arc_selected_idx: int = 0        # GHJKL; cursor into the visible arc rows
+var _arc_signal_connected: bool = false
 
 # UI refs.
 var _status_line: Label = null
@@ -156,7 +144,7 @@ func _init() -> void:
 	use_scroll_container = true
 	content_spacing = 8
 	surface_id = "X"
-	frame_ids = [FRAME_SELF, FRAME_STORY, FRAME_BALANCE, FRAME_GUIDE]
+	frame_ids = [FRAME_SELF, FRAME_STORY, FRAME_ARC, FRAME_GUIDE]
 	frame_id = TAB_TO_FRAME.get(_current_tab, FRAME_SELF)
 
 # =============================================================================
@@ -241,7 +229,7 @@ func _refresh_body() -> void:
 	match _current_tab:
 		Tab.SELF:    _build_self_body()
 		Tab.STORY:   _build_story_body()
-		Tab.BALANCE: _build_balance_body()
+		Tab.ARC:     _build_arc_body()
 		Tab.GUIDE:   _build_guide_body()
 
 # =============================================================================
@@ -541,7 +529,7 @@ func _make_standing_row(cells: Array, color: Color, is_header: bool) -> HBoxCont
 func _build_lexicon_section(farm) -> void:
 	_body_box.add_child(_make_section_header("lexicon"))
 	if farm == null:
-		_body_box.add_child(_make_muted_label("(farm not loaded)", 11))
+		_body_box.add_child(_make_muted_label("no named icons discovered yet — complete quests to learn faction vocabulary", 11))
 		return
 
 	var lex = null
@@ -591,7 +579,7 @@ func _build_lexicon_section(farm) -> void:
 func _build_icon_picker(farm) -> void:
 	_body_box.add_child(_make_section_header("icons · expression"))
 	if farm == null or not farm.has_method("get_known_icons"):
-		_body_box.add_child(_make_muted_label("(farm not loaded)", 11))
+		_body_box.add_child(_make_muted_label("incorporate icons to unlock expression slots", 11))
 		return
 	var icons: Array = farm.get_known_icons()
 	var slots: Array = farm.active_icon_slots if "active_icon_slots" in farm else [0,1,2]
@@ -654,20 +642,20 @@ func _build_our_faction_view(farm) -> void:
 	var biome = null
 	if farm and farm.grid and farm.grid.has_method("get_biome"):
 		biome = farm.grid.get_biome("TheDemos")
-	if biome == null or not biome.get("quantum_computer"):
-		_body_box.add_child(_make_muted_label("the demos biome not loaded.", 11))
-		return
-	var qc = biome.quantum_computer
-	var icons: Array = biome.icons if "icons" in biome else []
-	if icons.is_empty() or qc == null or not qc.get("register_map"):
+	# QC may be null on first open (farm still settling); degrade gracefully.
+	var qc = null
+	if biome != null and biome.get("quantum_computer") != null:
+		qc = biome.quantum_computer
+	var icons: Array = IconRegistry.get_icons_for_faction("The Demos")
+	if icons.is_empty():
 		_body_box.add_child(_make_muted_label("the demos has no icons yet.", 11))
 		return
-	for q in range(min(icons.size(), int(qc.register_map.num_qubits))):
+	for q in range(icons.size()):
 		var icon: Dictionary = icons[q] if (icons[q] is Dictionary) else {}
 		var p0 := str(icon.get("pole_0", "?"))
 		var p1 := str(icon.get("pole_1", "?"))
 		var binding_name := str(icon.get("name", ""))
-		var m0: float = qc.get_marginal(q, 0) if qc.has_method("get_marginal") else 0.5
+		var m0: float = qc.get_marginal(q, 0) if (qc != null and qc.has_method("get_marginal")) else 0.5
 		var bias: float = clampf(1.0 - m0, 0.0, 1.0)  # how far toward pole_1
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 6)
@@ -700,14 +688,14 @@ func _render_faction_card(farm, faction_name: String) -> void:
 	if not bool(card.get("present", false)):
 		return
 
-	var signature: Array = card.get("signature", [])
-	if not signature.is_empty():
+	var cloud: Array = card.get("cloud", [])
+	if not cloud.is_empty():
 		_body_box.add_child(_make_spacer(4))
-		var sig_lbl := Label.new()
-		sig_lbl.text = "signature  " + " ".join(signature)
-		sig_lbl.add_theme_font_size_override("font_size", 11)
-		sig_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
-		_body_box.add_child(sig_lbl)
+		var cloud_lbl := Label.new()
+		cloud_lbl.text = "cloud  " + " ".join(cloud)
+		cloud_lbl.add_theme_font_size_override("font_size", 11)
+		cloud_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
+		_body_box.add_child(cloud_lbl)
 
 	var affinity: Array = card.get("affinity", [])
 	if not affinity.is_empty():
@@ -1173,157 +1161,6 @@ func _on_story_trajectory(_from: String, to_node: String, _edge: String) -> void
 		_refresh_body()
 
 # =============================================================================
-# BODY: BALANCE — experimental action cost / timescale inspector.
-# =============================================================================
-
-func _build_balance_body() -> void:
-	_refresh_balance_snapshot()
-	_ensure_balance_settings_loaded()
-
-	# === SETTINGS LIST (Q − value · E reset · R + value · GHJKL; pick) ===
-	_body_box.add_child(_make_section_header("settings"))
-	var page_size: int = ITEM_KEYS.size()
-	var page_start: int = _balance_setting_page * page_size
-	var page_end: int = mini(page_start + page_size, _balance_settings.size())
-	for i in range(page_start, page_end):
-		_body_box.add_child(_make_balance_setting_row(i, i - page_start))
-	var page_count: int = max(1, int(ceil(float(_balance_settings.size()) / float(page_size))))
-	if page_count > 1:
-		_body_box.add_child(_make_muted_label(
-			"Q − value  ·  R + value  ·  E reset  ·  GHJKL; pick  ·  A/D page (%d/%d)" % [
-				_balance_setting_page + 1, page_count], 11))
-	else:
-		_body_box.add_child(_make_muted_label(
-			"Q − value  ·  R + value  ·  E reset  ·  GHJKL; pick", 11))
-	_body_box.add_child(_make_spacer(6))
-
-	# === BELOW: read-only action-cost inspector (kept for context) ===
-	if _balance_snapshot.is_empty():
-		_body_box.add_child(_make_muted_label("(action cost inspector unavailable — no active farm)", 11))
-		return
-	_body_box.add_child(_make_section_header("profile"))
-	var profile_id := str(_balance_snapshot.get("profile_id", "default"))
-	var profile_name := str(_balance_snapshot.get("profile_display_name", profile_id))
-	_body_box.add_child(_make_kv_row("id", profile_id))
-	_body_box.add_child(_make_kv_row("name", profile_name))
-
-	_body_box.add_child(_make_spacer(4))
-	_body_box.add_child(_make_section_header("actions"))
-
-	if _balance_action_keys.is_empty():
-		_body_box.add_child(_make_muted_label("no actions configured.", 12))
-	else:
-		var total := _balance_action_keys.size()
-		var act_page_size := ITEM_KEYS.size()
-		var act_page := int(float(_balance_action_idx) / float(act_page_size))
-		var start := act_page * act_page_size
-		var end: int = mini(start + act_page_size, total)
-		for i in range(start, end):
-			_body_box.add_child(_make_balance_action_row(i, i - start))
-		var pages := int(ceil(float(total) / float(act_page_size)))
-		_body_box.add_child(_make_muted_label(
-			"action (%d/%d, p%d/%d) — read-only inspector" % [_balance_action_idx + 1, total, act_page + 1, pages],
-			11,
-		))
-
-	_body_box.add_child(_make_spacer(4))
-	_body_box.add_child(_make_section_header("selected action detail"))
-	if _balance_action_idx < _balance_action_keys.size():
-		var action: String = _balance_action_keys[_balance_action_idx]
-		var costs: Dictionary = _balance_snapshot.get("action_costs", {})
-		_body_box.add_child(_make_kv_row("cost", _format_cost(costs.get(action, {}))))
-		var roi_notes: Dictionary = _balance_snapshot.get("roi_notes", {})
-		_body_box.add_child(_make_kv_row("roi", str(roi_notes.get(action, "—"))))
-
-	var quest: Dictionary = _balance_snapshot.get("quest_rewards", {})
-	var quest_ratio = quest.get("resource_reward_base_ratio", null)
-	if quest_ratio != null:
-		_body_box.add_child(_make_kv_row("quest reward ratio", "%.2f" % float(quest_ratio)))
-
-	if not _balance_biomes.is_empty():
-		_body_box.add_child(_make_spacer(4))
-		_body_box.add_child(_make_section_header("timescale"))
-		var biome_name: String = _balance_biomes[_balance_biome_idx]
-		_body_box.add_child(_make_kv_row(
-			"biome",
-			"%s  (%d/%d)" % [biome_name, _balance_biome_idx + 1, _balance_biomes.size()],
-		))
-		if bool(_balance_projection.get("ok", false)):
-			var stride := int(_balance_projection.get("recommended_stride", -1))
-			var dt := float(_balance_projection.get("recommended_dt", -1.0))
-			var top := str(_balance_projection.get("top_emoji", ""))
-			var top_p := float(_balance_projection.get("top_probability", 0.0))
-			if stride >= 0 and dt > 0.0:
-				_body_box.add_child(_make_kv_row("recommend", "stride %d  dt %.4f" % [stride, dt]))
-			if top != "":
-				_body_box.add_child(_make_kv_row("top target", "%s  p=%.3f" % [top, top_p]))
-		else:
-			_body_box.add_child(_make_muted_label("projection unavailable", 11))
-
-	_body_box.add_child(_make_spacer(4))
-	_body_box.add_child(_make_muted_label("read-only. write ops stay in the experimental chatter page.", 10))
-
-func _make_balance_setting_row(idx: int, slot_idx: int) -> Control:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 10)
-	var key_str: String = ITEM_KEYS[slot_idx] if slot_idx < ITEM_KEYS.size() else "?"
-	row.add_child(_make_key_chip(key_str))
-
-	var setting: Dictionary = _balance_settings[idx]
-	var cat_lbl := Label.new()
-	cat_lbl.text = str(setting.get("category", ""))
-	cat_lbl.add_theme_font_size_override("font_size", 11)
-	cat_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
-	cat_lbl.custom_minimum_size = Vector2(70, 0)
-	row.add_child(cat_lbl)
-
-	var name_lbl := Label.new()
-	name_lbl.text = str(setting.get("label", setting.get("id", "—")))
-	name_lbl.add_theme_font_size_override("font_size", 13)
-	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(name_lbl)
-
-	var value_lbl := Label.new()
-	value_lbl.text = _balance_setting_format(setting)
-	value_lbl.add_theme_font_size_override("font_size", 13)
-	value_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_VALUE)
-	row.add_child(value_lbl)
-
-	var selected := idx == _balance_setting_idx
-	var c := UIStyleFactory.COLOR_TAB_ACTIVE if selected else UIStyleFactory.COLOR_ITEM_IDLE
-	name_lbl.add_theme_color_override("font_color", c)
-	if selected:
-		name_lbl.text = "▸ " + name_lbl.text
-	return row
-
-func _make_balance_action_row(idx: int, slot_idx: int) -> Control:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 10)
-	var key_str: String = ITEM_KEYS[slot_idx] if slot_idx < ITEM_KEYS.size() else "?"
-	row.add_child(_make_key_chip(key_str))
-
-	var action_name: String = _balance_action_keys[idx]
-	var name_lbl := Label.new()
-	name_lbl.text = action_name
-	name_lbl.add_theme_font_size_override("font_size", 13)
-	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(name_lbl)
-
-	var costs: Dictionary = _balance_snapshot.get("action_costs", {})
-	var cost_lbl := Label.new()
-	cost_lbl.text = _format_cost(costs.get(action_name, {}))
-	cost_lbl.add_theme_font_size_override("font_size", 12)
-	cost_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_VALUE)
-	row.add_child(cost_lbl)
-
-	var selected := idx == _balance_action_idx
-	var c := UIStyleFactory.COLOR_TAB_ACTIVE if selected else UIStyleFactory.COLOR_ITEM_IDLE
-	name_lbl.add_theme_color_override("font_color", c)
-	if selected:
-		name_lbl.text = "▸ " + name_lbl.text
-	return row
-
-# =============================================================================
 # BODY: GUIDE — pick a section with GHJKL, see prose.
 # =============================================================================
 
@@ -1383,8 +1220,8 @@ func _guide_four_tools() -> void:
 func _guide_biomes_economy() -> void:
 	_body_box.add_child(_make_section_header("biomes"))
 	_body_box.add_child(_make_body(
-		"Up to 6 biome slots on TYUIOP. Each biome carries its own physics — the Hamiltonian "
-		+ "couplings run live; its webway (the authored Lindblad food web) is sealed while the "
+		"Up to 6 biome slots on TYUIOP. Each biome carries its own physics — the coherent "
+		+ "couplings run live; its webway (the authored food web) is sealed while the "
 		+ "enclave holds. A neighborhood is an icon signature plus a biome. Plots live on GHJKL; "
 		+ "(left → right). The ' key toggles select-all."))
 	_body_box.add_child(_make_spacer(4))
@@ -1718,6 +1555,8 @@ func get_inspect_text() -> String:
 			return _story_inspect_text()
 		Tab.SELF:
 			return _self_inspect_text()
+		Tab.ARC:
+			return _arc_inspect_text()
 		_:
 			return ""
 
@@ -1750,9 +1589,9 @@ func _self_inspect_text() -> String:
 		return ""
 	var lines: Array[String] = []
 	lines.append("%s · standing %+.2f" % [spot, float(card.get("standing", 0.0))])
-	var sig: Array = card.get("signature", [])
-	if not sig.is_empty():
-		lines.append("speaks: " + " ".join(sig))
+	var cloud: Array = card.get("cloud", [])
+	if not cloud.is_empty():
+		lines.append("speaks: " + " ".join(cloud))
 	var bio: Array = card.get("biomes_of_presence", [])
 	if not bio.is_empty():
 		lines.append("biomes: " + ", ".join(bio))
@@ -1760,24 +1599,24 @@ func _self_inspect_text() -> String:
 
 func _on_action_q() -> void:
 	match _current_tab:
-		Tab.BALANCE: _nudge_balance_setting(-1)  # Q = − value
 		Tab.STORY:   _story_apply_verb("R")  # Q label "Harmonize" → engine R (player aligns toward target)
+		Tab.ARC:     _acknowledge_selected_arc()  # Q = dismiss the arc-quest beat
 		_: pass
 
 func _on_action_e() -> void:
 	match _current_tab:
-		Tab.BALANCE:
-			_reset_balance_setting()  # E = reset selected tunable to default
 		Tab.STORY:
 			_story_inspect_open = not _story_inspect_open  # E = pause + inspect (toggle panel)
 			_refresh_body()
+		Tab.ARC:
+			_refresh_body()  # E = refresh the arc timeline
 		_:
 			pass
 
 func _on_action_r() -> void:
 	match _current_tab:
-		Tab.BALANCE: _nudge_balance_setting(1)  # R = + value
 		Tab.STORY:   _story_apply_verb("E")  # R label "Express" → engine E (strong commit / mass shift)
+		Tab.ARC:     _accept_selected_arc()  # R = accept the arc/tutorial quest into active
 		Tab.SELF:
 			# R = screw in = commit: assign cursor's icon to the selected icon slot.
 			var farm = InstrumentLocator.resolve_active_farm(self)
@@ -1817,6 +1656,407 @@ func _story_apply_verb(verb: String) -> void:
 	_refresh_body()
 
 # =============================================================================
+# BODY: ARC — the Demos story spine (fired/unfired flags + arc-quest offers).
+# Moved from C/QuestBoard: this is a narrative view and reads next to Story.
+# =============================================================================
+
+# Arc resolves its quest manager lazily (like the farm), matching how every
+# other read on this surface goes through InstrumentLocator — no injected member.
+func _arc_quest_manager():
+	return InstrumentLocator.resolve_quest_manager(self, InstrumentLocator.resolve_active_farm(self))
+
+func _ensure_arc_signal() -> void:
+	if _arc_signal_connected:
+		return
+	var qm = _arc_quest_manager()
+	if qm and qm.has_signal("story_flag_fired") and not qm.story_flag_fired.is_connected(_on_arc_flag_changed):
+		qm.story_flag_fired.connect(_on_arc_flag_changed)
+		_arc_signal_connected = true
+
+func _on_arc_flag_changed(_flag_id: String, _flag: Dictionary) -> void:
+	if _current_tab == Tab.ARC:
+		_refresh_body()
+
+func _build_arc_body() -> void:
+	var rows: Array = _arc_rows()
+	if rows.is_empty():
+		_body_box.add_child(_make_muted_label("no story flags loaded", 12))
+		return
+	_body_box.add_child(_make_arc_chapter_header())
+	for i in range(MAX_VISIBLE_ITEMS):
+		if i < rows.size():
+			_body_box.add_child(_make_arc_row(rows[i], ITEM_KEYS[i], i == _arc_selected_idx))
+		else:
+			_body_box.add_child(_make_empty_row(ITEM_KEYS[i]))
+	if rows.size() > MAX_VISIBLE_ITEMS:
+		_body_box.add_child(_make_muted_label("… %d more arc beats not shown" % (rows.size() - MAX_VISIBLE_ITEMS), 10))
+	_body_box.add_child(_make_spacer(6))
+	_body_box.add_child(_make_muted_label("Q dismiss  ·  R accept  ·  E refresh  ·  GHJKL; pick", 11))
+
+## Builds Arc tab rows: arc-quest offers first, then unfired flags (by score
+## desc), then fired flags. (The manifold "on-edge" boost lives on C; X has no
+## edge scope, so rows sort purely by score then fired-state.)
+func _arc_rows() -> Array:
+	var rows: Array = []
+	var qm = _arc_quest_manager()
+	if qm == null:
+		return rows
+	if qm.has_method("get_story_offers"):
+		for q in qm.get_story_offers():
+			if q is Dictionary and str(q.get("category", "")) in ["ARC", "TUTORIAL"]:
+				rows.append({"kind": "arc_quest", "data": q})
+
+	if not qm.has_method("get_all_story_flags"):
+		return rows
+
+	var farm = InstrumentLocator.resolve_active_farm(self)
+	var fired_set: Dictionary = {}
+	if farm != null and "story_flags_fired" in farm:
+		fired_set = farm.story_flags_fired
+
+	var unfired: Array = []
+	var fired: Array = []
+	for flag in qm.get_all_story_flags():
+		var fid := str(flag.get("id", ""))
+		if fired_set.has(fid):
+			fired.append({"kind": "flag_fired", "flag": flag})
+		else:
+			var pred_scores: Array = []
+			for pred in flag.get("predicates", []):
+				if pred is Dictionary:
+					pred_scores.append({"pred": pred, "score": qm.evaluate_predicate_score(pred)})
+			unfired.append({
+				"kind": "flag_unfired",
+				"flag": flag,
+				"score": qm.evaluate_flag_score(flag),
+				"pred_scores": pred_scores,
+			})
+
+	var by_score = func(a, b): return float(a.score) > float(b.score)
+	unfired.sort_custom(by_score)
+	for u in unfired: rows.append(u)
+	for f in fired: rows.append(f)
+	return rows
+
+func _make_arc_row(entry: Dictionary, key_str: String, selected: bool) -> Control:
+	var kind := str(entry.get("kind", ""))
+	var row := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.set_corner_radius_all(3)
+	sb.content_margin_left = 8
+	sb.content_margin_right = 8
+	sb.content_margin_top = 4
+	sb.content_margin_bottom = 4
+	sb.border_width_top = 1
+	sb.border_width_right = 1
+	sb.border_width_bottom = 1
+	sb.border_width_left = 4 if selected else 1
+	if kind == "arc_quest":
+		sb.bg_color = Color(0.08, 0.12, 0.10, 0.92) if not selected else Color(0.12, 0.20, 0.14, 0.95)
+		sb.border_color = Color(0.3, 0.6, 0.4, 0.6) if not selected else Color(0.5, 0.9, 0.55, 0.95)
+	elif kind == "flag_fired":
+		sb.bg_color = Color(0.08, 0.10, 0.10, 0.85) if not selected else Color(0.12, 0.16, 0.14, 0.95)
+		sb.border_color = Color(0.3, 0.5, 0.4, 0.45) if not selected else COLOR_ARC_FIRED
+	else:
+		sb.bg_color = Color(0.10, 0.10, 0.13, 0.85) if not selected else Color(0.18, 0.16, 0.10, 0.95)
+		sb.border_color = Color(0.5, 0.45, 0.35, 0.5) if not selected else COLOR_ARC_UNFIRED
+	row.add_theme_stylebox_override("panel", sb)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 2)
+	row.add_child(vbox)
+
+	var top_hbox := HBoxContainer.new()
+	top_hbox.add_theme_constant_override("separation", 10)
+	vbox.add_child(top_hbox)
+	top_hbox.add_child(_make_key_chip(key_str))
+
+	if kind == "arc_quest":
+		var data: Dictionary = entry.get("data", {})
+		var badge := Label.new()
+		badge.text = "[QUEST]"
+		badge.add_theme_font_size_override("font_size", 11)
+		badge.add_theme_color_override("font_color", Color(0.5, 0.9, 0.55, 0.95))
+		badge.custom_minimum_size = Vector2(60, 0)
+		top_hbox.add_child(badge)
+		var body_lbl := Label.new()
+		body_lbl.text = str(data.get("body", str(data.get("source_flag", "campaign quest"))))
+		body_lbl.add_theme_font_size_override("font_size", 12)
+		body_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_TAB_ACTIVE if selected else UIStyleFactory.COLOR_ITEM_IDLE)
+		body_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		body_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART if selected else TextServer.AUTOWRAP_OFF
+		body_lbl.clip_text = not selected
+		top_hbox.add_child(body_lbl)
+		if selected:
+			var hint_str: String = str(data.get("hint", data.get("tutorial_hint", "")))
+			if hint_str != "":
+				var hint_lbl := Label.new()
+				hint_lbl.text = "    hint: %s" % hint_str
+				hint_lbl.add_theme_font_size_override("font_size", 11)
+				hint_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
+				hint_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+				vbox.add_child(hint_lbl)
+		return row
+
+	var flag: Dictionary = entry.get("flag", {})
+	var act_n: int = int(flag.get("act", 0))
+	var act_lbl := Label.new()
+	act_lbl.text = "act %d" % act_n
+	act_lbl.add_theme_font_size_override("font_size", 11)
+	act_lbl.add_theme_color_override("font_color", COLOR_ARC_HEADER)
+	act_lbl.custom_minimum_size = Vector2(48, 0)
+	top_hbox.add_child(act_lbl)
+
+	var name_lbl := Label.new()
+	name_lbl.text = str(flag.get("display_name", flag.get("id", "?")))
+	name_lbl.add_theme_font_size_override("font_size", 13)
+	name_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_TAB_ACTIVE if selected else UIStyleFactory.COLOR_ITEM_IDLE)
+	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top_hbox.add_child(name_lbl)
+
+	if kind == "flag_fired":
+		var fired_lbl := Label.new()
+		fired_lbl.text = "✓ FIRED"
+		fired_lbl.add_theme_font_size_override("font_size", 11)
+		fired_lbl.add_theme_color_override("font_color", COLOR_ARC_FIRED)
+		top_hbox.add_child(fired_lbl)
+		return row
+
+	# Unfired — show score + per-predicate breakdown.
+	var score: float = float(entry.get("score", 0.0))
+	var score_lbl := Label.new()
+	score_lbl.text = "%.2f / 0.85 %s" % [score, _ratio_bar(score / 0.85, 6)]
+	score_lbl.add_theme_font_size_override("font_size", 11)
+	score_lbl.add_theme_color_override("font_color", _score_color(score))
+	top_hbox.add_child(score_lbl)
+
+	if selected:
+		var pred_scores: Array = entry.get("pred_scores", [])
+		for ps in pred_scores:
+			var pred: Dictionary = ps.get("pred", {})
+			var ps_score: float = float(ps.get("score", 0.0))
+			var pred_lbl := Label.new()
+			pred_lbl.text = "    %s · %.2f %s" % [_predicate_summary(pred), ps_score, _ratio_bar(ps_score, 5)]
+			pred_lbl.add_theme_font_size_override("font_size", 10)
+			pred_lbl.add_theme_color_override("font_color", _score_color(ps_score))
+			vbox.add_child(pred_lbl)
+
+	return row
+
+func _make_arc_chapter_header() -> Control:
+	var lbl := _make_muted_label(_current_chapter_label(), 12)
+	lbl.add_theme_color_override("font_color", Color(0.78, 0.72, 0.45, 0.95))
+	return lbl
+
+## The Demos' four-movement spine, derived from a flag's act (single source = act).
+func _chapter_for_act(act: int) -> String:
+	if act <= 1:
+		return "Chapter I — Vocabulary"
+	elif act <= 3:
+		return "Chapter II — The Village"
+	elif act == 4:
+		return "Chapter III — The Island & Its People"
+	return "Chapter IV — The Empire & The Escape"
+
+## Current chapter = the furthest act the player has fired into (else the opening).
+func _current_chapter_label() -> String:
+	var farm = InstrumentLocator.resolve_active_farm(self)
+	var qm = _arc_quest_manager()
+	var max_act := 0
+	if farm != null and "story_flags_fired" in farm and qm != null and qm.has_method("get_all_story_flags"):
+		for flag in qm.get_all_story_flags():
+			if farm.story_flags_fired.has(str(flag.get("id", ""))):
+				max_act = max(max_act, int(flag.get("act", 0)))
+	return "The Demos · %s" % _chapter_for_act(max_act)
+
+func _arc_inspect_text() -> String:
+	var rows: Array = _arc_rows()
+	if _arc_selected_idx < 0 or _arc_selected_idx >= rows.size():
+		return ""
+	var entry: Dictionary = rows[_arc_selected_idx]
+	var kind := str(entry.get("kind", ""))
+	if kind == "arc_quest":
+		var data: Dictionary = entry.get("data", {})
+		var body := str(data.get("body", str(data.get("source_flag", "campaign quest"))))
+		var hint := str(data.get("hint", ""))
+		if hint == "":
+			return body
+		return "%s\nhint: %s" % [body, hint]
+	var flag: Dictionary = entry.get("flag", {})
+	var lines: Array[String] = []
+	lines.append("%s · act %d" % [str(flag.get("display_name", flag.get("id", "?"))), int(flag.get("act", 0))])
+	lines.append("The Demos · %s" % _chapter_for_act(int(flag.get("act", 0))))
+	if kind == "flag_fired":
+		lines.append("✓ FIRED")
+		return "\n".join(lines)
+	# unfired — show predicate summaries
+	for ps in entry.get("pred_scores", []):
+		lines.append("· %s · %.2f" % [_predicate_summary(ps.get("pred", {})), float(ps.get("score", 0.0))])
+	return "\n".join(lines)
+
+## Accept the selected arc/tutorial offer into active quests (R). Without this,
+## arc offers could only be dismissed, never worked on — they would dead-end.
+func _accept_selected_arc() -> void:
+	var qm = _arc_quest_manager()
+	if qm == null:
+		return
+	var rows: Array = _arc_rows()
+	if _arc_selected_idx < 0 or _arc_selected_idx >= rows.size():
+		return
+	var entry: Dictionary = rows[_arc_selected_idx]
+	if str(entry.get("kind", "")) != "arc_quest":
+		return
+	var data: Dictionary = entry.get("data", {})
+	if qm.has_method("accept_quest") and qm.accept_quest(data):
+		_refresh_body()
+
+func _acknowledge_selected_arc() -> void:
+	var qm = _arc_quest_manager()
+	if qm == null:
+		return
+	var rows: Array = _arc_rows()
+	if _arc_selected_idx < 0 or _arc_selected_idx >= rows.size():
+		return
+	var entry: Dictionary = rows[_arc_selected_idx]
+	if str(entry.get("kind", "")) != "arc_quest":
+		return
+	var qid: int = int(entry.get("data", {}).get("id", -1))
+	if qid >= 0 and qm.has_method("dismiss_story_offer"):
+		qm.dismiss_story_offer(qid)
+	_refresh_body()
+
+## Short one-line predicate description showing the REAL fire target (predicate_fire_target
+## inverts the soft-gate so the number shown is the one the player must actually reach).
+func _predicate_summary(pred: Dictionary) -> String:
+	var t := str(pred.get("type", "?"))
+	var tgt: float = float(pred.get("value", 0.0))
+	var qm = _arc_quest_manager()
+	if qm and qm.has_method("predicate_fire_target"):
+		tgt = qm.predicate_fire_target(pred)
+	var itgt: int = int(ceil(tgt))
+	match t:
+		"signature_size_gte":
+			return "signature ≥ %d" % itgt
+		"berry_consumed_count_gte":
+			return "berries[%s] ≥ %d" % [str(pred.get("biome", "")), itgt]
+		"berry_total_phase_gte":
+			return "phase[%s] ≥ %.2f" % [str(pred.get("biome", "")), tgt]
+		"standing_gte":
+			return "standing %s.%s ≥ %.2f" % [str(pred.get("faction", "")), str(pred.get("channel", "trust")), tgt]
+		"biome_state_gte":
+			return "%s.%s ≥ %.2f" % [str(pred.get("biome", "")), str(pred.get("atom", "")), tgt]
+		"biome_state_lte":
+			return "%s.%s ≤ %.2f" % [str(pred.get("biome", "")), str(pred.get("atom", "")), tgt]
+		"biome_evolving":
+			return "%s evolving" % str(pred.get("biome", ""))
+		"story_flag_set":
+			return "flag '%s' set" % str(pred.get("id", ""))
+		"atom_count_gte":
+			return "%s atoms ≥ %d" % [str(pred.get("biome", "")), itgt]
+		"atom_diversity_gte":
+			return "atom diversity ≥ %d" % itgt
+		"atom_in_biome":
+			return "%s ∋ %s" % [str(pred.get("biome", "")), str(pred.get("atom", ""))]
+		"biome_attractor_emoji_gte":
+			return "%s attractor[%s] ≥ %.2f" % [str(pred.get("biome", "")), str(pred.get("emoji", "")), tgt]
+		"biome_spectral_gap_gte":
+			return "%s stable (gap ≥ %.2f)" % [str(pred.get("biome", "")), tgt]
+		"biome_spectral_gap_lte":
+			return "%s chaotic (gap ≤ %.2f)" % [str(pred.get("biome", "")), tgt]
+		"biome_energy_variance_gte":
+			return "%s restless ≥ %.2f" % [str(pred.get("biome", "")), tgt]
+		"biome_energy_variance_lte":
+			return "%s settled ≤ %.2f" % [str(pred.get("biome", "")), tgt]
+		"biome_eigenvalue_gap_gte":
+			return "%s gap ≥ %.2f" % [str(pred.get("biome", "")), tgt]
+		"biome_purity_trending":
+			return "%s purity↑" % str(pred.get("biome", ""))
+		"gate_order":
+			# The braid word, spelled as the player will drill it: "H → CNOT".
+			var word: Array = pred.get("gates", [])
+			var pretty: Array[String] = []
+			for g in word:
+				pretty.append(_gate_glyph(str(g)))
+			return "in order: %s" % " → ".join(pretty)
+		"dynamics_at_most":
+			return "stillness — motion ≤ %.2f" % float(pred.get("value", 0.2))
+		"dynamics_at_least":
+			return "breathing — motion ≥ %.2f" % float(pred.get("value", 0.25))
+		"purity_at_most":
+			return "let it gray — Tr(ρ²) ≤ %.2f" % float(pred.get("value", 1.0))
+		"coherence_fell":
+			return "watch it fade — coherence %.2f → ≤ %.2f" % [float(pred.get("from", 0.3)), float(pred.get("to", 0.15))]
+		"attractor_emoji_gte":
+			return "deep state[%s] ≥ %.2f" % [str(pred.get("emoji", "")), float(pred.get("value", 0.5))]
+		"eigenvalue_gap_gte":
+			return "compass gap ≥ %.2f" % float(pred.get("value", 0.1))
+		"frozen_loops_gte":
+			return "close %d berry loop%s" % [int(pred.get("count", 1)), "s" if int(pred.get("count", 1)) != 1 else ""]
+		"loops_linked":
+			return "🪢 link two loops — winding ≥ %d" % int(pred.get("value", 1))
+		"winding_gte":
+			return "🪢 mutual winding ≥ %d" % int(pred.get("value", 1))
+		"biome_frozen_loops_gte":
+			return "bank %d loop%s in %s" % [int(pred.get("count", 1)), "s" if int(pred.get("count", 1)) != 1 else "", str(pred.get("biome", "?"))]
+		"biome_loops_linked":
+			return "🪢 link loops in %s — winding ≥ %d" % [str(pred.get("biome", "?")), int(pred.get("value", 1))]
+		"bridge_built_gte":
+			return "🌉 raise %d span%s" % [int(pred.get("value", 1)), "s" if int(pred.get("value", 1)) != 1 else ""]
+		"bridge_braids_gte":
+			return "🪢 braid the span ×%d" % int(pred.get("value", 1))
+		"bridge_fused_gte":
+			return "⚛ fuse %d bridge%s" % [int(pred.get("value", 1)), "s" if int(pred.get("value", 1)) != 1 else ""]
+		_:
+			return t
+
+## Short display glyph for a gate dispatch name ("hadamard" → "H").
+func _gate_glyph(gate_name: String) -> String:
+	match gate_name.strip_edges().to_lower():
+		"hadamard": return "H"
+		"cnot": return "CNOT"
+		"cz": return "CZ"
+		"swap": return "SWAP"
+		"bell": return "Bell"
+		"ghz": return "GHZ"
+		"cluster": return "Cluster"
+		"pauli_x": return "X"
+		"pauli_y": return "Y"
+		"pauli_z": return "Z"
+		"s_gate": return "S"
+		"t_gate": return "T"
+		"sdg": return "S†"
+		"tdg": return "T†"
+		"rx": return "Rx"
+		"ry": return "Ry"
+		"rz": return "Rz"
+		_: return gate_name.to_upper()
+
+func _ratio_bar(ratio: float, length: int) -> String:
+	var filled: int = clampi(int(round(clampf(ratio, 0.0, 1.0) * float(length))), 0, length)
+	var bar := ""
+	for i in range(length):
+		bar += "▮" if i < filled else "▯"
+	return bar
+
+func _score_color(score: float) -> Color:
+	if score >= 0.85:
+		return Color(0.5, 0.9, 0.55, 1.0)
+	if score >= 0.5:
+		return Color(0.85, 0.85, 0.5, 1.0)
+	return UIStyleFactory.COLOR_MUTED
+
+func _make_empty_row(key_str: String) -> Control:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	row.add_child(_make_key_chip(key_str))
+	var lbl := Label.new()
+	lbl.text = "—"
+	lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_ITEM_EMPTY)
+	lbl.add_theme_font_size_override("font_size", 12)
+	row.add_child(lbl)
+	return row
+
+# =============================================================================
 # SURFACE WIRING
 # =============================================================================
 
@@ -1830,19 +2070,17 @@ func _show_tab(tab: int) -> void:
 		frame_id = target_frame
 		frame_changed.emit(target_frame, prev)
 		_emit_snapshot()
-		if tab == Tab.BALANCE:
-			_refresh_balance_snapshot()
 		if tab == Tab.STORY:
 			# Reset edge cursor when entering Story; ui_focus stays as last override (or argmax).
 			_story_edge_idx = 0
+		if tab == Tab.ARC:
+			_ensure_arc_signal()  # live-refresh the timeline when a beat fires while open
 	_render_all()
 
 func _on_frame_changed(new_frame_id: String, _prev_frame_id: String) -> void:
 	var target_tab: int = FRAME_TO_TAB.get(new_frame_id, Tab.SELF)
 	if _current_tab != target_tab:
 		_current_tab = target_tab
-		if _current_tab == Tab.BALANCE:
-			_refresh_balance_snapshot()
 		_render_all()
 
 # =============================================================================
@@ -1853,8 +2091,9 @@ func _on_unhandled_key(keycode: int, _event: InputEvent) -> bool:
 	if TAB_BY_KEYCODE.has(keycode):
 		_show_tab(int(TAB_BY_KEYCODE[keycode]))
 		return true
-	if ITEM_BY_KEYCODE.has(keycode):
-		_select_item_in_tab(int(ITEM_BY_KEYCODE[keycode]))
+	var ctrl_item := InputBindingRegistry.plot_index_for_keycode(keycode, ITEM_KEYS.size())
+	if ctrl_item >= 0:
+		_select_item_in_tab(ctrl_item)
 		return true
 	# Icon slot selection (1/2/3) on Story tab — the player's 3 expression icons.
 	if _current_tab == Tab.STORY:
@@ -1886,9 +2125,8 @@ func _on_unhandled_key(keycode: int, _event: InputEvent) -> bool:
 				_self_picker_slot = 2
 				_refresh_body()
 				return true
-	for kc in ITEM_BY_KEYCODE.keys():
-		if kc == keycode:
-			return true
+	if InputBindingRegistry.plot_index_for_keycode(keycode, ITEM_KEYS.size()) >= 0:
+		return true
 	for kc in TAB_BY_KEYCODE.keys():
 		if kc == keycode:
 			return true
@@ -1896,12 +2134,11 @@ func _on_unhandled_key(keycode: int, _event: InputEvent) -> bool:
 
 func _select_item_in_tab(slot: int) -> void:
 	match _current_tab:
-		Tab.BALANCE:
-			_ensure_balance_settings_loaded()
-			var page_size := ITEM_KEYS.size()
-			var global_idx := _balance_setting_page * page_size + slot
-			if global_idx < _balance_settings.size() and _balance_setting_idx != global_idx:
-				_balance_setting_idx = global_idx
+		Tab.ARC:
+			# GHJKL; selects an arc beat (only the first MAX_VISIBLE_ITEMS are shown).
+			var rows: Array = _arc_rows()
+			if slot < MAX_VISIBLE_ITEMS and slot < rows.size() and _arc_selected_idx != slot:
+				_arc_selected_idx = slot
 				_refresh_body()
 		Tab.GUIDE:
 			if slot < GUIDE_ITEMS.size() and _guide_item != slot:
@@ -1960,206 +2197,11 @@ func _on_navigate(direction: Vector2i) -> void:
 			_self_picker_page = clampi(_self_picker_page + step, 0, max_page)
 			_self_picker_icon = clampi(_self_picker_icon, _self_picker_page * page_size, mini((_self_picker_page + 1) * page_size, icons.size()) - 1)
 			_refresh_body()
-		Tab.BALANCE:
-			# A/D pages the settings list when there are more entries than
-			# GHJKL; can show in one row.
-			_ensure_balance_settings_loaded()
-			var page_size: int = ITEM_KEYS.size()
-			var max_page: int = max(0, int(float(_balance_settings.size() - 1) / float(page_size)))
-			_balance_setting_page = clampi(_balance_setting_page + step, 0, max_page)
-			_balance_setting_idx = clampi(_balance_setting_idx,
-				_balance_setting_page * page_size,
-				mini((_balance_setting_page + 1) * page_size, _balance_settings.size()) - 1)
-			_refresh_body()
 		Tab.GUIDE:
 			_guide_item = wrapi(_guide_item + step, 0, GUIDE_ITEMS.size())
 			_refresh_body()
 		_:
 			pass
-
-# =============================================================================
-# BALANCE DATA
-# =============================================================================
-
-func _cycle_balance_action(step: int) -> void:
-	if _balance_action_keys.is_empty():
-		return
-	_balance_action_idx = posmod(_balance_action_idx + step, _balance_action_keys.size())
-	_refresh_body()
-
-func _cycle_balance_biome(step: int) -> void:
-	if _balance_biomes.is_empty():
-		return
-	_balance_biome_idx = posmod(_balance_biome_idx + step, _balance_biomes.size())
-	_refresh_balance_projection()
-	_refresh_body()
-
-# =============================================================================
-# BALANCE — settings tunables (Q − value / R + value / E reset)
-# =============================================================================
-
-# Static catalog of tunables Balance exposes. value_path is read/written
-# through GameState.balance_workbench_config (defaults from BalanceConfig).
-# music_volume rides alongside as a non-config tunable handled directly via
-# MusicManager.
-# The audio row isn't a balance-config knob (no value_path); kept here. Every
-# economy/physics knob is DERIVED from BalanceConfig.TUNABLES via board_specs() — the
-# single source of truth — so the board never duplicates defaults/metadata. open_only
-# rows (Lindbladian-only) are filtered out in the closed system.
-const _MUSIC_ROW := {"id": "music_volume", "label": "Music volume", "category": "Audio", "value_path": [], "kind": "music_pct", "step": 5, "min": 0, "max": 100, "default": 70}
-
-func _ensure_balance_settings_loaded() -> void:
-	if _balance_settings.is_empty():
-		_balance_settings = [_MUSIC_ROW.duplicate(true)]
-		var closed: bool = not BalanceConfig.dissipative_enabled()
-		for d in BalanceConfig.board_specs():
-			if closed and bool(d.get("open_only", false)):
-				continue  # dead knob in the closed system
-			_balance_settings.append(d.duplicate(true))
-	_balance_setting_idx = clampi(_balance_setting_idx, 0, max(0, _balance_settings.size() - 1))
-	var page_size: int = ITEM_KEYS.size()
-	var max_page: int = max(0, int(float(_balance_settings.size() - 1) / float(page_size)))
-	_balance_setting_page = clampi(_balance_setting_page, 0, max_page)
-
-func _balance_setting_value(setting: Dictionary) -> Variant:
-	var kind: String = str(setting.get("kind", "float"))
-	if kind == "music_pct":
-		var music = get_node_or_null("/root/MusicManager")
-		if music and music.has_method("get_volume"):
-			return int(round(float(music.get_volume()) * 100.0))
-		return int(setting.get("default", 70))
-	var path: Array = setting.get("value_path", [])
-	if path.is_empty():
-		return setting.get("default", 0.0)
-	var gsm = (Engine.get_main_loop().root.get_node_or_null("/root/GameStateManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
-	if gsm and "balance_workbench_config" in gsm:
-		var cfg = gsm.balance_workbench_config
-		if typeof(cfg) == TYPE_DICTIONARY:
-			var node = cfg
-			for key in path:
-				if typeof(node) != TYPE_DICTIONARY or not node.has(key):
-					return setting.get("default", 0.0)
-				node = node[key]
-			return node
-	return setting.get("default", 0.0)
-
-func _balance_setting_set_value(setting: Dictionary, value: Variant) -> void:
-	var kind: String = str(setting.get("kind", "float"))
-	if kind == "music_pct":
-		var music = get_node_or_null("/root/MusicManager")
-		if music and music.has_method("set_volume"):
-			music.set_volume(clampf(float(value) / 100.0, 0.0, 1.0))
-		return
-	var path: Array = setting.get("value_path", [])
-	if path.is_empty():
-		return
-	var gsm = get_node_or_null("/root/GameStateManager")
-	if not gsm or not ("current_state" in gsm) or not gsm.current_state:
-		return
-	if gsm.current_state.has_method("set_balance_config_value"):
-		gsm.current_state.set_balance_config_value(path, value)
-	# Apply LIVE to the running economy too — not just the saved config — so board edits
-	# take effect immediately. Builds the same nested patch the rig balance_patch uses and
-	# routes it through BalanceService.apply_patch → FarmEconomy overrides.
-	var farm = InstrumentLocator.resolve_active_farm(self)
-	if farm:
-		var patch: Dictionary = {}
-		var cursor: Dictionary = patch
-		for i in range(path.size() - 1):
-			cursor[str(path[i])] = {}
-			cursor = cursor[str(path[i])]
-		cursor[str(path[path.size() - 1])] = value
-		BalanceService.apply_patch(farm, patch)
-
-func _balance_setting_format(setting: Dictionary) -> String:
-	var kind: String = str(setting.get("kind", "float"))
-	var v = _balance_setting_value(setting)
-	match kind:
-		"music_pct":
-			return "%d%%" % int(v)
-		"int":
-			return "%d" % int(v)
-		"float":
-			return "%.2f" % float(v)
-		_:
-			return str(v)
-
-func _nudge_balance_setting(direction: int) -> void:
-	_ensure_balance_settings_loaded()
-	if _balance_settings.is_empty():
-		return
-	var setting: Dictionary = _balance_settings[_balance_setting_idx]
-	var kind: String = str(setting.get("kind", "float"))
-	var step: float = float(setting.get("step", 1.0))
-	var lo = setting.get("min", 0.0)
-	var hi = setting.get("max", 100.0)
-	var current = _balance_setting_value(setting)
-	var next
-	match kind:
-		"music_pct", "int":
-			next = clampi(int(current) + direction * int(step), int(lo), int(hi))
-		_:
-			next = clampf(float(current) + direction * step, float(lo), float(hi))
-	_balance_setting_set_value(setting, next)
-	_refresh_body()
-
-func _reset_balance_setting() -> void:
-	_ensure_balance_settings_loaded()
-	if _balance_settings.is_empty():
-		return
-	var setting: Dictionary = _balance_settings[_balance_setting_idx]
-	_balance_setting_set_value(setting, setting.get("default", 0.0))
-	_refresh_body()
-
-func _refresh_balance_snapshot() -> void:
-	var farm = InstrumentLocator.resolve_active_farm(self)
-	if not farm:
-		_balance_snapshot = {}
-		_balance_action_keys = []
-		_balance_biomes = []
-		_balance_projection = {}
-		return
-	_balance_snapshot = BalanceService.get_snapshot(farm)
-	var keys: Array[String] = []
-	var costs: Dictionary = _balance_snapshot.get("action_costs", {})
-	for k in costs.keys():
-		keys.append(str(k))
-	keys.sort()
-	_balance_action_keys = keys
-	if _balance_action_idx >= _balance_action_keys.size():
-		_balance_action_idx = 0
-
-	_balance_biomes = []
-	if "grid" in farm and farm.grid and farm.grid.has_method("get_biome_names"):
-		for n in farm.grid.get_biome_names():
-			_balance_biomes.append(str(n))
-		_balance_biomes.sort()
-	if _balance_biome_idx >= _balance_biomes.size():
-		_balance_biome_idx = 0
-	_refresh_balance_projection()
-
-func _refresh_balance_projection() -> void:
-	_balance_projection = {}
-	if _balance_biomes.is_empty():
-		return
-	var biome_name: String = _balance_biomes[_balance_biome_idx]
-	var inst = InstrumentLocator.resolve_quantum_instrument(self)
-	if not inst:
-		return
-	if inst.has_method("recommend_timescale"):
-		_balance_projection = inst.recommend_timescale(biome_name, 8)
-	if _balance_projection.is_empty() and inst.has_method("get_timescale_projection"):
-		_balance_projection = inst.get_timescale_projection(biome_name, 8)
-
-func _format_cost(cost: Dictionary) -> String:
-	if cost.is_empty():
-		return "(none)"
-	var parts: Array[String] = []
-	var keys = cost.keys()
-	keys.sort()
-	for emoji in keys:
-		parts.append("%s%d" % [str(emoji), int(cost[emoji])])
-	return " ".join(parts)
 
 # =============================================================================
 # SURFACE CONTRACT
@@ -2171,13 +2213,6 @@ func get_visible_data() -> Dictionary:
 		"frame_label": str(TAB_ROW[_current_tab].get("name", "")) if _current_tab < TAB_ROW.size() else "",
 		"guide_section": str(GUIDE_ITEMS[_guide_item].get("id", "")) if _current_tab == Tab.GUIDE else "",
 	}
-	if _current_tab == Tab.BALANCE and not _balance_snapshot.is_empty():
-		payload["balance"] = {
-			"profile_id": _balance_snapshot.get("profile_id", ""),
-			"selected_action": _balance_action_keys[_balance_action_idx] if _balance_action_idx < _balance_action_keys.size() else "",
-			"selected_biome": _balance_biomes[_balance_biome_idx] if _balance_biome_idx < _balance_biomes.size() else "",
-			"projection_ok": bool(_balance_projection.get("ok", false)),
-		}
 	return payload
 
 func get_transitions() -> Array:

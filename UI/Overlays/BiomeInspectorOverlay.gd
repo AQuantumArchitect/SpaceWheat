@@ -34,6 +34,7 @@ var is_transparent_overlay: bool = true
 
 # State
 var _selected_idx := -1
+var _refresh_accum := 0.0
 var farm: Node = null
 var _active_biome: Node = null
 
@@ -106,11 +107,7 @@ func _on_activated() -> void:
 	_resolve_biome()
 	if _active_biome and _active_biome.has_method("get_biome_type"):
 		context_id = _active_biome.get_biome_type()
-	_selected_idx = _read_instrument_plot_idx()
-	if _selected_idx < 0 and _get_num_qubits() > 0:
-		# Auto-focus the first plot — an empty microscope teaches nothing,
-		# and first-time players don't know GHJKL; passes through the overlay.
-		_selected_idx = 0
+	_selected_idx = _resolve_plot_idx()
 	if _selected_idx >= 0:
 		set_object_focus(_selected_idx, "plot")
 	else:
@@ -125,19 +122,43 @@ func _read_instrument_plot_idx() -> int:
 	var instrument = qi_input.get("_instrument")
 	if instrument == null:
 		return -1
+	# The ACTIVE plot is the live cursor (current_plot_idx), not the persisted
+	# last_plot_idx — B should mirror whatever plot the player is actually on.
+	# Fall back to last_plot_idx (survives leaving the plot ring) then -1.
+	var cur = instrument.get("current_plot_idx")
+	if cur != null and int(cur) >= 0:
+		return int(cur)
 	var idx = instrument.get("last_plot_idx")
 	return int(idx) if idx != null else -1
 
-func _process(_delta: float) -> void:
+func _resolve_plot_idx() -> int:
+	# B is a microscope — it should always be pointed at the ACTIVE plot. Only when
+	# the instrument reports no plot at all do we fall back to the biome's first
+	# plot (so B never shows an empty "select a plot" placeholder).
+	var idx := _read_instrument_plot_idx()
+	if idx >= 0:
+		return idx
+	return 0 if _get_num_qubits() > 0 else -1
+
+func _process(delta: float) -> void:
 	if not visible or not is_active:
 		return
-	var live_idx := _read_instrument_plot_idx()
+	var live_idx := _resolve_plot_idx()
 	if live_idx != _selected_idx:
 		_selected_idx = live_idx
 		if _selected_idx >= 0:
 			set_object_focus(_selected_idx, "plot")
 		else:
 			clear_object_focus()
+		_rebuild()
+		_refresh_accum = 0.0
+		return
+	# Keep the microscope live even when the plot doesn't change: marginals,
+	# purity and Var(H) evolve continuously, and QERF acted on the plot beneath
+	# should be reflected here. Throttled rebuild (~4 Hz) keeps it cheap.
+	_refresh_accum += delta
+	if _refresh_accum >= 0.25:
+		_refresh_accum = 0.0
 		_rebuild()
 
 func _resolve_biome() -> void:
@@ -270,6 +291,10 @@ func _build_active_plot_view() -> void:
 		_content_box.add_child(_muted_label(
 			"Biome has no qubits to inspect.", 13))
 		return
+
+	# Biome-level math — how this whole biome behaves (shown regardless of plot selection).
+	_build_biome_physics_section()
+
 	if _selected_idx < 0 or _selected_idx >= nq:
 		_content_box.add_child(_muted_label(
 			"No plot highlighted.\nGHJKL; works while this overlay is open — pick a plot without closing it.", 13))
@@ -287,11 +312,10 @@ func _build_active_plot_view() -> void:
 		var axis: Dictionary = vc.get_axis(_selected_idx)
 		north = str(axis.get("north", "?"))
 		south = str(axis.get("south", "?"))
-	if qc:
-		var marg_n: Dictionary = qc.get_marginal(_selected_idx, 0) if qc.has_method("get_marginal") else {}
-		var marg_s: Dictionary = qc.get_marginal(_selected_idx, 1) if qc.has_method("get_marginal") else {}
-		p_north = float(marg_n.get("p", 0.5))
-		p_south = float(marg_s.get("p", 0.5))
+	if qc and qc.has_method("get_marginal"):
+		# get_marginal(qubit, pole) returns a FLOAT probability (pole 0 = north, 1 = south).
+		p_north = float(qc.get_marginal(_selected_idx, 0))
+		p_south = float(qc.get_marginal(_selected_idx, 1))
 	current_emoji = north if p_north >= p_south else south
 
 	# Live strip — biome-local marginals + purity + entanglement count.
@@ -430,6 +454,68 @@ func _render_icon_card(card: Dictionary) -> void:
 			coup_lbl.add_theme_font_size_override("font_size", 11)
 			coup_lbl.add_theme_color_override("font_color", COLOR_MUTED)
 			_content_box.add_child(coup_lbl)
+
+func _build_biome_physics_section() -> void:
+	# The closed-native "how does this biome work" math: its Hamiltonian's spectral gap
+	# (rigid one-mode attractor vs plural many-mode) and energy variance Var(H) (how far the
+	# live state sits from a stationary eigenstate). These are exactly the quantities the
+	# campaign's finale reads — the player can watch their island become plural here.
+	var qc = _active_biome.quantum_computer if _active_biome else null
+	if not qc:
+		return
+	var body := _make_card_panel(_content_box, "How this biome behaves",
+		"Closed-system character — set by composition, conserved under evolution")
+
+	if qc.has_method("get_hamiltonian_spectral_gap"):
+		var gap: float = qc.get_hamiltonian_spectral_gap()
+		var gap_word: String
+		var gap_color: Color
+		if gap >= 0.6:
+			gap_word = "rigid — one dominant mode imposed"
+			gap_color = COLOR_LINDBLAD
+		elif gap <= 0.45:
+			gap_word = "plural — many modes coexist"
+			gap_color = COLOR_ENTANGLE
+		else:
+			gap_word = "between — settling toward one mode"
+			gap_color = UIStyleFactory.COLOR_BODY
+		body.add_child(_make_kv_row("H-gap  E₁−E₀", "%.3f   ·   %s" % [gap, gap_word], gap_color))
+		# Visual gap bar — wide gap fills the bar (rigid); narrow = plural.
+		body.add_child(_make_ratio_bar(clampf(gap, 0.0, 1.0), gap_color))
+
+	if qc.has_method("get_energy_variance"):
+		var v: float = qc.get_energy_variance()
+		var v_word := "settled — near a stationary eigenstate" if v < 0.05 else "restless — broad energy spread, marginals swing"
+		body.add_child(_make_kv_row("Var(H)", "%.3f   ·   %s" % [v, v_word]))
+
+	body.add_child(_make_kv_row("qubits", "%d  (atoms %d)" % [_get_num_qubits(), _get_num_qubits() * 2]))
+
+
+func _make_ratio_bar(ratio: float, fill_color: Color) -> Control:
+	var bar := PanelContainer.new()
+	var bg := StyleBoxFlat.new()
+	bg.bg_color = UIStyleFactory.COLOR_BAR_BG
+	bg.set_corner_radius_all(3)
+	bar.add_theme_stylebox_override("panel", bg)
+	bar.custom_minimum_size = Vector2(0, BAR_HEIGHT)
+	bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var inner := HBoxContainer.new()
+	inner.add_theme_constant_override("separation", 0)
+	inner.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	inner.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	bar.add_child(inner)
+	var fill := ColorRect.new()
+	fill.color = fill_color
+	fill.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	fill.size_flags_stretch_ratio = maxf(ratio, 0.02)
+	inner.add_child(fill)
+	var rest := ColorRect.new()
+	rest.color = Color(0, 0, 0, 0)
+	rest.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rest.size_flags_stretch_ratio = maxf(1.0 - ratio, 0.02)
+	inner.add_child(rest)
+	return bar
+
 
 func _build_entanglement_section() -> void:
 	if not _active_biome:

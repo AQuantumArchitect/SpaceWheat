@@ -5,7 +5,12 @@ extends RefCounted
 ##
 ## Data lives in Core/Factions/data/factions.json (single source of truth).
 ## This class provides the dict-shaped API the quest system depends on plus
-## vocabulary helpers that operate on those dicts.
+## cloud helpers that operate on those dicts.
+##
+## Vocabulary note: a faction's "cloud" is its set of ATOMS (emojis). The dict
+## key is "cloud" (NOT "sig"/"signature" — those mean a set of icons, which is a
+## different concept owned via IconRegistry.get_icons_for_faction). The term
+## "vocabulary" is retired in favour of cloud (emojis) / signature (icons).
 
 
 static var _cache: Array = []
@@ -24,7 +29,7 @@ static func get_all() -> Array:
 			"domain":      faction.domain,
 			"ring":        faction.ring,
 			"motto":       faction.motto,
-			"sig":         Array(faction.cloud),
+			"cloud":       Array(faction.cloud),
 			"bits":        Array(faction.bits),
 		})
 	return _cache
@@ -57,14 +62,14 @@ static func get_factions_by_domain(domain: String) -> Array:
 	return result
 
 
-## ── Vocabulary helpers ───────────────────────────────────────────────────────
+## ── Cloud helpers ────────────────────────────────────────────────────────────
 
 static func get_faction_emoji(faction: Dictionary) -> String:
-	var sig = faction.get("sig", [])
-	return sig[0] if sig.size() > 0 else "❓"
+	var cloud = faction.get("cloud", [])
+	return cloud[0] if cloud.size() > 0 else "❓"
 
-static func get_faction_signature_string(faction: Dictionary) -> String:
-	return "".join(faction.get("sig", []))
+static func get_faction_cloud_string(faction: Dictionary) -> String:
+	return "".join(faction.get("cloud", []))
 
 static func _get_axial_emojis(bits: Array) -> Array:
 	var result: Array = []
@@ -75,19 +80,21 @@ static func _get_axial_emojis(bits: Array) -> Array:
 			result.append(emoji)
 	return result
 
-static func get_faction_vocabulary(faction: Dictionary) -> Dictionary:
-	var signature: Array = faction.get("sig", faction.get("signature", []))
+## The faction's full atom cloud: its authored cloud plus the axial atoms its
+## alignment bits imply. Returns {cloud, axial, all} — all sets of emojis.
+static func get_faction_cloud(faction: Dictionary) -> Dictionary:
+	var cloud: Array = faction.get("cloud", [])
 	var axial: Array = _get_axial_emojis(faction.get("bits", []))
-	var all := signature.duplicate()
+	var all := cloud.duplicate()
 	for emoji in axial:
 		if emoji not in all:
 			all.append(emoji)
-	return {"signature": signature, "axial": axial, "all": all}
+	return {"cloud": cloud, "axial": axial, "all": all}
 
-static func get_vocabulary_overlap(icon_a: Array, icon_b: Array) -> Array:
+static func get_cloud_overlap(cloud_a: Array, cloud_b: Array) -> Array:
 	var result: Array = []
-	for emoji in icon_a:
-		if emoji in icon_b and emoji not in result:
+	for emoji in cloud_a:
+		if emoji in cloud_b and emoji not in result:
 			result.append(emoji)
 	return result
 

@@ -35,7 +35,15 @@ def _wait_for_story_flag(rig, flag_id: str, *, timeout_s: float = 12.0):
     raise AssertionError(f"timed out waiting for story flag {flag_id}: {last_row}")
 
 
-def test_first_breath_fires_on_fresh_boot() -> None:
+def test_story_flags_fire_from_action_not_boot() -> None:
+    # Principle: story flags fire as a RESULT of human action, never at a fresh boot.
+    # Run on the SHIPPED DEFAULT scenario (demos_normal). first_breath now gates on
+    # signature_GROWTH past the seeded boot baseline (signature_growth_gte 0.5 width 0.4),
+    # NOT an absolute size — so it reads 0 at boot for ANY scenario (1 seeded icon or 5) and
+    # only crosses once the player incorporates one MORE this run. This is scenario-proof:
+    # the old absolute signature_size_gte 1.5 fired at boot for any start with ≥2 icons
+    # (e.g. new_game_easy, or a Demos start with a 2-icon signature). The forest beats below
+    # then fire from a real action (consuming berries).
     RigClient = _load_rig_client()
     if shutil.which("godot") is None:
         pytest.skip("godot not available on PATH")
@@ -48,7 +56,7 @@ def test_first_breath_fires_on_fresh_boot() -> None:
     try:
         proc = rig.start_listener(
             load_slot=None,
-            scenario_id="new_game_easy",
+            scenario_id="demos_normal",
             allow_resource_injection=True,
             listener_stdout="null",
             rig_log_profile="quiet",
@@ -56,19 +64,21 @@ def test_first_breath_fires_on_fresh_boot() -> None:
         )
         assert RigClient.wait_for_bridge_sentinel(timeout_s=60.0, xdg=rig.xdg_root), "rig listener not ready"
 
-        story_row = _wait_for_story_flag(rig, "first_breath", timeout_s=20.0)
-        flags_fired = story_row.get("flags_fired", {})
-        assert "first_breath" in flags_fired, story_row
-        story_log = story_row.get("story_log", [])
-        assert any(str(entry.get("id", "")) == "first_breath" for entry in story_log), story_row
+        # No action taken yet → first_breath must NOT have fired at boot.
+        boot_row = rig.run_turn(1, "story_flags", timeout_s=30.0)
+        assert boot_row.get("ok", False), boot_row
+        assert "first_breath" not in boot_row.get("flags_fired", {}), boot_row
 
-        turn = 99
+        # Positive half: the flag fires FROM the action. forest_evolving gates on
+        # biome_evolving(StarterForest) + berry_consumed_count_gte 1, which under soft
+        # geometry needs ~2.3 berries to cross the 0.85 fire threshold — so consume a few.
+        # (The full forest→village→empire chain is covered end-to-end by act3_5_drive.py.)
         berry_row = rig.run_turn(
-            turn,
+            99,
             "consume_berry",
             timeout_s=30.0,
             biome="StarterForest",
-            count=1,
+            count=4,
             phase_each=3.14159,
         )
         assert berry_row.get("ok", False), berry_row
@@ -77,44 +87,6 @@ def test_first_breath_fires_on_fresh_boot() -> None:
         assert "forest_evolving" in flags_fired, story_row
         story_log = story_row.get("story_log", [])
         assert any(str(entry.get("id", "")) == "forest_evolving" for entry in story_log), story_row
-
-        for _ in range(4):
-            turn += 1
-            berry_row = rig.run_turn(
-                turn,
-                "consume_berry",
-                timeout_s=30.0,
-                biome="StarterForest",
-                count=1,
-                phase_each=3.14159,
-            )
-            assert berry_row.get("ok", False), berry_row
-
-        turn += 1
-        story_row = _wait_for_story_flag(rig, "forest_communion", timeout_s=20.0)
-        flags_fired = story_row.get("flags_fired", {})
-        assert "forest_communion" in flags_fired, story_row
-
-        turn += 1
-        offers_row = rig.run_turn(turn, "offer_quests", timeout_s=30.0)
-        assert offers_row.get("ok", False), offers_row
-        offers = offers_row.get("offers", [])
-        assert isinstance(offers, list), offers_row
-        assert not any(str(offer.get("source_flag", "")) == "forest_communion" for offer in offers), offers_row
-
-        turn += 1
-        village_row = rig.run_turn(
-            turn,
-            "consume_berry",
-            timeout_s=30.0,
-            biome="Village",
-            count=1,
-            phase_each=3.14159,
-        )
-        assert village_row.get("ok", False), village_row
-        story_row = _wait_for_story_flag(rig, "village_stirs", timeout_s=20.0)
-        flags_fired = story_row.get("flags_fired", {})
-        assert "village_stirs" in flags_fired, story_row
     finally:
         RigClient.terminate_listener(proc, timeout_s=5.0)
         shutil.rmtree(xdg_root, ignore_errors=True)

@@ -109,6 +109,7 @@ var _frame_stub_label: Label = null  # shown for frames without a builder yet
 var _dynamic_box: VBoxContainer = null  # per-frame body (cleared on rebuild)
 var _detail_box: VBoxContainer = null   # IconCard drill-in for selected item
 var _selected_idx: int = 0              # per current frame's selected item index
+var _bookmarks: Dictionary = {}         # session pins: "north|south" -> true
 
 func _init():
 	overlay_name = "icon"
@@ -127,7 +128,7 @@ func _init():
 	# Forget/Bookmark (TODOs); other frames are honest empty. Pagination on
 	# Lexicon/Hints lives on A/D. Default labels match the Lexicon frame
 	# since FRAME_LEXICON is the starting frame.
-	push_action_label_strings({"Q": "—", "E": "inspect ▾", "R": "—", "F": "—"})  # Q/R stay blank until Forget/Bookmark are wired — dead chips teach the player the buttons lie
+	push_action_label_strings({"Q": "Discorporate", "E": "inspect ▾", "R": "Bookmark", "F": "—"})
 
 func _build_content(container: Control) -> void:
 	_biome_registry = BiomeRegistry.new()
@@ -199,9 +200,7 @@ func _refresh_tab_row() -> void:
 			lbl.text = "[%s] %s" % [key_str, name_str]
 			lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_TAB_IDLE)
 
-const ITEM_BY_KEYCODE := {
-	KEY_G: 0, KEY_H: 1, KEY_J: 2, KEY_K: 3, KEY_L: 4, KEY_SEMICOLON: 5,
-}
+# Plot-ring keycode→slot via InputBindingRegistry.plot_index_for_keycode (shared source).
 
 # Direct-jump tab via T/Y/U/I/O; GHJKL; selects within current frame.
 func _on_unhandled_key(keycode: int, _event: InputEvent) -> bool:
@@ -214,8 +213,8 @@ func _on_unhandled_key(keycode: int, _event: InputEvent) -> bool:
 			_refresh_action_labels()
 			_rebuild_display()
 		return true
-	if ITEM_BY_KEYCODE.has(keycode):
-		var slot: int = int(ITEM_BY_KEYCODE[keycode])
+	var slot: int = InputBindingRegistry.plot_index_for_keycode(keycode, 6)
+	if slot >= 0:
 		if _selected_idx != slot:
 			_selected_idx = slot
 			_rebuild_display()
@@ -233,22 +232,83 @@ func _on_unhandled_key(keycode: int, _event: InputEvent) -> bool:
 	return false
 
 func _on_action_q() -> void:
-	# TODO (post-launch): V/Q "Forget" — un-learn the selected known_icon.
-	# The chip reads "—" until then; a dead chip must also be a SILENT one.
-	pass
+	# Discorporate (un-incorporate) the selected known icon — the inverse of the
+	# Icon-hat R "Incorporate". Lexicon/Affinity only; the last voice is protected.
+	if frame_id != FRAME_LEXICON and frame_id != FRAME_AFFINITY:
+		return
+	var pair := _selected_pair_for_frame()
+	var north := str(pair.get("north", ""))
+	var south := str(pair.get("south", ""))
+	if north == "" or not bool(pair.get("known", false)):
+		_flash("Discorporate: select an incorporated icon")
+		return
+	var gsm = _gsm_node()
+	if gsm == null or gsm.player_progress == null:
+		return
+	if not gsm.player_progress.discorporate_icon(north, south):
+		_flash("Can't discorporate %s/%s — your last voice stays" % [north, south])
+		return
+	_bookmarks.erase(north + "|" + south)
+	_notify_story("discorporate", north, south)
+	_refresh_data()
+	_selected_idx = 0
+	_rebuild_display()
+	_flash("Discorporated %s / %s" % [north, south])
 
 func _on_action_r() -> void:
-	# TODO (post-launch): V/R "Bookmark" — pin the selected icon.
-	# The chip reads "—" until then; silent no-op, no log spam.
-	pass
+	# Bookmark (pin) the selected icon — a player-side favorites mark (★ on the
+	# card). Session-scoped for now; persistence can layer in later.
+	if frame_id != FRAME_LEXICON and frame_id != FRAME_AFFINITY:
+		return
+	var pair := _selected_pair_for_frame()
+	var north := str(pair.get("north", ""))
+	var south := str(pair.get("south", ""))
+	if north == "":
+		return
+	var key := north + "|" + south
+	if _bookmarks.has(key):
+		_bookmarks.erase(key)
+		_flash("Unbookmarked %s / %s" % [north, south])
+	else:
+		_bookmarks[key] = true
+		_flash("★ Bookmarked %s / %s" % [north, south])
+	_rebuild_display()
 
 func _on_action_f() -> void:
 	pass  # V is read-only — nothing to flatten or page-advance here.
 
+## (north, south, known) for the selected item on the Lexicon/Affinity frames.
+func _selected_pair_for_frame() -> Dictionary:
+	match frame_id:
+		FRAME_LEXICON:
+			var items: Array = _get_display_items()
+			var idx: int = _current_page * CARDS_PER_PAGE + _selected_idx
+			if idx >= 0 and idx < items.size():
+				return {"north": str(items[idx].get("north", "")), "south": str(items[idx].get("south", "")), "known": bool(items[idx].get("known", false))}
+		FRAME_AFFINITY:
+			if _selected_idx >= 0 and _selected_idx < _known_icons.size():
+				var ic = _known_icons[_selected_idx]
+				return {"north": str(ic.get("north", "")), "south": str(ic.get("south", "")), "known": true}
+	return {}
+
+func _gsm_node():
+	return (Engine.get_main_loop().root.get_node_or_null("/root/GameStateManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
+
+func _notify_story(kind: String, north: String, south: String) -> void:
+	var se = (Engine.get_main_loop().root.get_node_or_null("/root/StoryEngine") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
+	if se != null and se.has_method("note_player_action"):
+		se.note_player_action([north, south], kind)
+
+func _flash(msg: String) -> void:
+	var ps: Node = _find_player_shell()
+	if ps != null and ps.has_method("show_hint"):
+		ps.show_hint(msg, 2, "")
+
 func _refresh_action_labels() -> void:
-	# Q/R stay blank until Forget/Bookmark are wired — advertised verbs that
-	# do nothing teach the player the buttons lie.
-	push_action_label_strings({"Q": "—", "E": "inspect ▾", "R": "—", "F": "—"})
+	if frame_id == FRAME_LEXICON or frame_id == FRAME_AFFINITY:
+		push_action_label_strings({"Q": "Discorporate", "E": "inspect ▾", "R": "Bookmark", "F": "—"})
+	else:
+		push_action_label_strings({"Q": "—", "E": "inspect ▾", "R": "—", "F": "—"})
 
 func _process(_delta: float) -> void:
 	if not visible or not is_active:
@@ -260,9 +320,12 @@ func _process(_delta: float) -> void:
 # =============================================================================
 
 func _refresh_data() -> void:
-	var gsm = (Engine.get_main_loop().root.get_node_or_null("/root/GameStateManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
-	if gsm and gsm.has_method("get_player_icons"):
-		_known_icons = gsm.get_player_icons()
+	# Known icons come from the active Farm (canonical signature owner). (The old
+	# gsm.get_player_icons() call was dead — no such method exists — so this view
+	# silently showed 0 known icons; surfaced while wiring V/Q Discorporate.)
+	var farm = InstrumentLocator.resolve_active_farm(self)
+	if farm != null and farm.has_method("get_known_icons"):
+		_known_icons = farm.get_known_icons()
 	else:
 		_known_icons = []
 
@@ -949,6 +1012,13 @@ func _build_known_card_content(vbox: VBoxContainer, item: Dictionary) -> void:
 	bottom.alignment = BoxContainer.ALIGNMENT_CENTER
 	bottom.add_theme_constant_override("separation", 6)
 	vbox.add_child(bottom)
+
+	if _bookmarks.has(String(item.north) + "|" + String(item.south)):
+		var star := Label.new()
+		star.text = "★"
+		star.add_theme_font_size_override("font_size", BADGE_SIZE)
+		star.add_theme_color_override("font_color", COLOR_YIELD)
+		bottom.add_child(star)
 
 	var biome_label = Label.new()
 	biome_label.text = _short_biome_name(item.biome)

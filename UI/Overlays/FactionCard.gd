@@ -7,8 +7,8 @@ extends RefCounted
 ## Returns a Dictionary the caller renders with its own layout primitives.
 ##
 ## Sections returned:
-##   signature           Array[String] — emojis the faction speaks
-##   affinity            Array[{emoji, value}] — per-signature-emoji affinity ∈[0,1]
+##   cloud               Array[String] — the faction's atoms (emojis it touches)
+##   affinity            Array[{emoji, value}] — per-cloud-emoji affinity ∈[0,1]
 ##   biomes_of_presence  Array[String] — biome names where faction is admitted (signature gate)
 ##   alignment_top       Array[{from, to, weight}] — top alignment couplings by |weight|
 ##   standing            float — faction standing scalar ∈[-1,1] (0.0 if no entry)
@@ -20,7 +20,7 @@ const ALIGNMENT_TOP_N: int = 3
 static func gather(faction_name: String, farm) -> Dictionary:
 	var out: Dictionary = {
 		"faction_name": faction_name,
-		"signature": [],
+		"cloud": [],
 		"affinity": [],
 		"biomes_of_presence": [],
 		"alignment_top": [],
@@ -37,10 +37,10 @@ static func gather(faction_name: String, farm) -> Dictionary:
 		return out
 	out["present"] = true
 
-	var signature: Array = faction.cloud if "cloud" in faction and faction.cloud is Array else []
-	out["signature"] = signature.duplicate()
+	var cloud: Array = faction.cloud if "cloud" in faction and faction.cloud is Array else []
+	out["cloud"] = cloud.duplicate()
 
-	for emoji in signature:
+	for emoji in cloud:
 		out["affinity"].append({
 			"emoji": str(emoji),
 			"value": FactionAffinity.get_affinity(str(emoji), farm),

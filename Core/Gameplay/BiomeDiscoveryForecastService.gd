@@ -23,6 +23,14 @@ const AlignmentGraphCls = preload("res://Core/Alignment/AlignmentGraph.gd")
 ## genuine exploration at session start (uniform superposition → equal overlap).
 const FLOOR = 0.05
 
+## Quest/market pressure boost. A biome that an UNFIRED story beat or an active quest
+## requires (e.g. lumber_flows needs Woodlot, spring_connects needs FreshwaterSpring) is
+## strongly favoured in the captain-hat draw — the narrative pulls discovery toward the
+## next biome it needs, instead of a flat random reveal. Large relative to FLOOR+overlap
+## (≤ ~1.05) so a pressured biome dominates the curated pool decisively (~85% of draw mass
+## per pressured biome, vs an overlap-only biome at ~1.05). Tunable via configure().
+const PRESSURE_BOOST = 6.0
+
 ## Mutable overrides for rig/test configure_discovery.
 static var _weights: Dictionary = {}
 
@@ -35,18 +43,6 @@ static func _w(key: String, default: float) -> float:
 
 # ---------------------------------------------------------------------------
 
-## The one authored exception to pure-overlap routing: when the story stands
-## at a door that a SPECIFIC biome opens, the horizon leans toward it. Today
-## that is exactly one edge — edge_of_the_enclave fired → GildedRot (the
-## crossing into wet country, act 6) — because gating a campaign act on an
-## untargetable uniform roll over ~150 biomes can starve the story for
-## sessions. The lean is a weight boost, not a scripted pick: exploration
-## stays random, the door just glows.
-const STORY_LEANS: Array = [
-	{"flag": "edge_of_the_enclave", "until_flag": "the_crossing", "biome": "GildedRot", "boost": 1.5},
-]
-
-
 static func compute_weights(farm, unexplored: Array) -> Array[float]:
 	var weights: Array[float] = []
 	if not farm:
@@ -54,37 +50,59 @@ static func compute_weights(farm, unexplored: Array) -> Array[float]:
 
 	var player_alignment = farm.player_alignment if "player_alignment" in farm else null
 	var w_floor = _w("floor", FLOOR)
-	var leans := _active_story_leans(farm)
+	var w_pressure = _w("pressure_boost", PRESSURE_BOOST)
+	var pressured := _biomes_under_pressure(farm)
 
 	for biome_name in unexplored:
 		var biome_alignment = _biome_alignment_from_name(biome_name, farm)
 		var alignment := 0.0
 		if player_alignment != null and biome_alignment != null:
 			alignment = player_alignment.overlap(biome_alignment)
-		weights.append(w_floor + alignment + float(leans.get(biome_name, 0.0)))
+		var pressure: float = w_pressure if pressured.has(biome_name) else 0.0
+		weights.append(w_floor + alignment + pressure)
 
 	return weights
 
 
-static func _active_story_leans(farm) -> Dictionary:
-	# {biome_name: boost} for every lean whose opening flag has fired and
-	# whose closing flag has not. Reads the farm's fired-flag set directly
-	# (the same record StoryEngine re-derives world state from on load);
-	# no farm or no record → no leans, pure overlap routing.
-	var out: Dictionary = {}
-	if not farm or not ("story_flags_fired" in farm) or farm.story_flags_fired == null:
-		return out
-	var fired = farm.story_flags_fired
-	for lean in STORY_LEANS:
-		if not fired.has(str(lean.get("flag", ""))):
-			continue
-		var until := str(lean.get("until_flag", ""))
-		if until != "" and fired.has(until):
-			continue
-		var biome := str(lean.get("biome", ""))
-		if biome != "":
-			out[biome] = maxf(float(out.get(biome, 0.0)), float(lean.get("boost", 0.0)))
-	return out
+## Biomes an UNFIRED story beat or active quest requires — discovery is pulled toward them
+## (quest/market pressure). Reads biome references from unfired-flag predicates + active quests.
+##
+## Only the NEXT-REACHABLE beats exert pressure: a flag contributes its biomes only once all
+## of its story_flag_set prerequisites have already fired. This keeps the discovery pull focused
+## on the act the player is actually in (Woodlot/FreshwaterSpring during Act-2) instead of every
+## future act tugging at once — far-future biomes (e.g. BloodLedger via ledger_opens) stay quiet
+## until their prerequisite beats fire, then inherit the pull. The narrative spine routes discovery.
+static func _biomes_under_pressure(farm) -> Dictionary:
+	var pressured: Dictionary = {}
+	# QuestManager is shell-owned (not an autoload), so resolve via the farm/shell chain.
+	var qm = InstrumentLocator.resolve_quest_manager(farm, farm)
+	if qm == null:
+		return pressured
+	var fired: Dictionary = farm.story_flags_fired if "story_flags_fired" in farm else {}
+	if qm.has_method("get_all_story_flags"):
+		for flag in qm.get_all_story_flags():
+			if not (flag is Dictionary) or fired.has(str(flag.get("id", ""))):
+				continue
+			# Gate behind prerequisites: a beat whose precursor flags haven't fired is not yet
+			# reachable, so it must not pull discovery away from the current act's biomes.
+			var reachable := true
+			for pred in flag.get("predicates", []):
+				if pred is Dictionary and str(pred.get("type", "")) == "story_flag_set":
+					if not fired.has(str(pred.get("id", ""))):
+						reachable = false
+						break
+			if not reachable:
+				continue
+			for pred in flag.get("predicates", []):
+				if pred is Dictionary and str(pred.get("biome", "")) != "":
+					pressured[str(pred["biome"])] = true
+	if "active_quests" in qm and qm.active_quests is Dictionary:
+		for q in qm.active_quests.values():
+			if q is Dictionary:
+				var b := str(q.get("biome", q.get("biome_name", "")))
+				if b != "":
+					pressured[b] = true
+	return pressured
 
 
 static func _biome_alignment_from_name(biome_name: String, farm) -> Object:

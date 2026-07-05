@@ -65,7 +65,7 @@ def _pid_looks_like_rig_listener(pid: int) -> bool:
     cmdline = _pid_cmdline(pid)
     if not cmdline:
         return False
-    return ("godot" in cmdline) and ("rig/rig_listener.gd" in cmdline)
+    return ("godot" in cmdline) and ("rig_listener.gd" in cmdline)
 
 
 def _is_windows_runtime_target(env: Optional[Dict[str, str]] = None) -> bool:
@@ -163,7 +163,7 @@ class RigClient:
         if xdg is None:
             try:
                 proc = subprocess.run(
-                    ["pgrep", "-f", "Rig/rig_listener.gd"],
+                    ["pgrep", "-f", "rig_listener.gd"],
                     capture_output=True,
                     text=True,
                     check=False,
@@ -239,6 +239,9 @@ class RigClient:
             env["RIG_LOAD_SLOT"] = str(load_slot)
         env["RIG_SCENARIO"] = scenario_id
         env["RIG_DISPLAY_MODE"] = str(display_mode or "headless")
+        # Automation skips the first-run welcome splash by default (it would block headed
+        # driving). A probe testing the splash passes extra_env={"RIG_SKIP_WELCOME": "0"}.
+        env["RIG_SKIP_WELCOME"] = "1"
         if allow_resource_injection is not None:
             env["RIG_ALLOW_RESOURCE_INJECTION"] = "1" if allow_resource_injection else "0"
         if rig_log_profile:
@@ -298,6 +301,13 @@ class RigClient:
                 else self.runner_root / "logs" / "rig_listener.log"
             )
             log_path.parent.mkdir(parents=True, exist_ok=True)
+            # Rotate instead of appending forever: an unbounded append log has
+            # ballooned to tens of MB across sessions. Keep one .prev generation.
+            try:
+                if log_path.exists() and log_path.stat().st_size > 5 * 1024 * 1024:
+                    log_path.replace(log_path.with_suffix(log_path.suffix + ".prev"))
+            except OSError:
+                pass
             log_handle = open(log_path, "a", encoding="utf-8")
             stdout_target = log_handle
 
@@ -315,7 +325,7 @@ class RigClient:
             rendering_driver = str(env.get("RIG_RENDERING_DRIVER", "")).strip()
             if rendering_driver:
                 cmd.extend(["--rendering-driver", rendering_driver])
-            cmd.extend(["--path", env["PROJECT_ROOT_WIN"], "--script", "Rig/rig_listener.gd"])
+            cmd.extend(["--path", env["PROJECT_ROOT_WIN"], "--script", "🍄/🎛️/rig_listener.gd"])
 
         if runtime_target in {"windows", "win"}:
             proc = subprocess.Popen(

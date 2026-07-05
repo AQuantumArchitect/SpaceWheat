@@ -40,27 +40,52 @@ func start(request: Dictionary = {}) -> Node:
 		_starting = false
 		return null
 
-	_mount_farm_view(bool(boot_request.headless))
-	if bool(boot_request.headless):
-		farm_view.finalize_runtime_mount(true)
-		_mark_started()
-		return farm
+	var headless := bool(boot_request.headless)
+	_mount_farm_view(headless)
 
 	player_shell = _resolve_player_shell()
 	if player_shell == null:
-		push_error("GameRoot: PlayerShell not available — AppRoot must construct it before start()")
-		_starting = false
-		return null
+		# Bare boot with no shell (a non-AppRoot headless smoke that never built one):
+		# finalize the farm world and stop — there is nothing to drive.
+		farm_view.finalize_runtime_mount(headless)
+		_mark_started()
+		return farm
 
-	_mount_quantum_visualization()
-	farm_view.attach_runtime(farm, player_shell, quantum_viz, false)
-	farm_view.prepare_runtime_visuals(false)
+	# ONE boot path, headless or headed: stage the shell + instrument against the SAME
+	# app-owned PlayerShell a human drives, so the rig shares the real UI instead of
+	# hand-mounting a parallel one. The visualization is the only headed-exclusive step
+	# (no render target headless); boot_runtime + FarmView no-op the viz wiring there.
+	if not headless:
+		_mount_quantum_visualization()
+	farm_view.attach_runtime(farm, player_shell, quantum_viz, headless)
+	farm_view.prepare_runtime_visuals(headless)
 
 	await boot_mgr.boot_runtime(farm, player_shell, quantum_viz)
-	farm_view.finalize_runtime_mount(false)
+	farm_view.finalize_runtime_mount(headless)
 
+	_maybe_show_welcome(farm, player_shell)
 	_mark_started()
 	return farm
+
+
+## First-run onboarding: show the welcome / how-to-play splash once, before the player has
+## been onboarded (tutorial_seen unset). Dismissing it begins the tutorial (WelcomeOverlay).
+func _maybe_show_welcome(farm, shell) -> void:
+	if farm == null or shell == null or not ("story_flags_fired" in farm):
+		return
+	# Rig automation skips the blocking splash (RIG_SKIP_WELCOME=1, set by rig_client). Treat
+	# it as already-onboarded so headed automation matches headless: begin the tutorial now,
+	# no modal in the way. Set RIG_SKIP_WELCOME=0 to exercise the splash itself.
+	if RuntimeEnv.skip_welcome():
+		var qm = shell.quest_manager if "quest_manager" in shell else null
+		if qm != null and qm.has_method("maybe_start_tutorial"):
+			qm.maybe_start_tutorial(farm)
+		return
+	if farm.story_flags_fired.has("tutorial_seen"):
+		return
+	var om = shell.overlay_manager if "overlay_manager" in shell else null
+	if om != null and om.has_method("open_overlay"):
+		om.open_overlay("welcome")
 
 
 func teardown_visuals() -> void:

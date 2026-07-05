@@ -45,6 +45,7 @@ var current_biome: Node = null  # For tracking non-delivery quest progress
 var _state_projection: QuestStateProjectionService = QuestStateProjectionService.new()
 var _story_flags: Array = []    # All flag definitions loaded from story_flags.json
 var _unfired_flags: Array = []  # Subset not yet in farm.story_flags_fired
+var _signature_baseline: int = -1  # Seeded signature size snapshot (-1 = not captured)
 var _tutorial_steps: Array = [] # Act-0 onboarding chain (tutorial_arc.json), linked into a chain
 
 # =============================================================================
@@ -80,6 +81,13 @@ func _physics_process(delta: float) -> void:
 			continue
 		var qpreds = quest.get("state_predicates", [])
 		if qpreds is Array and not qpreds.is_empty():
+			# state_predicates are the AUTHORITATIVE (physics-driven) completion path:
+			# a quest carrying them is scored purely on its physics observables, and
+			# type-specific tracking is SKIPPED (the `continue` below) so it can't
+			# trivially auto-complete — e.g. a default SHAPE_ACHIEVE checks purity>0.7,
+			# which is always true in the closed system (purity≡1). This is what makes
+			# "physics-driven story quests" (familiarity with a set of emojis/icons)
+			# first-class, distinct from DELIVER/market contracts that reward resources.
 			var pred_score := _evaluate_quest_state_predicates(qpreds)
 			quest["predicate_score"] = pred_score
 			quest["progress"] = pred_score
@@ -139,7 +147,11 @@ func connect_to_biome(biome: Node) -> void:
 
 func connect_to_farm(farm: Node) -> void:
 	_refresh_unfired_flags(farm)
-	maybe_start_tutorial(farm)
+	# Onboarding: headed games show the welcome splash, and DISMISSING it begins the tutorial
+	# (so tutorial_seen fires from a human action, not at boot). Headless (rig/tests) has no
+	# splash to dismiss, so begin immediately — preserving existing headless behavior.
+	if RuntimeEnv.is_headless():
+		maybe_start_tutorial(farm)
 	var story_engine = get_node_or_null("/root/StoryEngine")
 	if story_engine != null and story_engine.has_method("connect_to_farm_and_quests"):
 		story_engine.connect_to_farm_and_quests(farm, self)
@@ -245,12 +257,43 @@ func _evaluate_flag_predicates(predicates: Array, farm) -> float:
 ## tutorial + arc + market quests all draw from one unified predicate language.
 const FLAG_PREDICATE_TYPES := [
 	"story_flag_set", "biome_evolving", "berry_consumed_count_gte", "berry_total_phase_gte",
-	"standing_gte", "biome_state_gte", "biome_state_lte", "signature_size_gte", "atom_count_gte",
-	"atom_in_biome", "biome_attractor_emoji_gte", "biome_eigenvalue_gap_gte", "biome_purity_trending",
+	"standing_gte", "biome_state_gte", "biome_state_lte", "signature_size_gte", "signature_growth_gte", "atom_count_gte", "atom_in_biome",
+	"atom_diversity_gte", "biome_attractor_emoji_gte",
 	"soul_purity_gte",
 	"bridge_built_gte", "bridge_braids_gte", "bridge_fused_gte",
 	"biome_frozen_loops_gte", "biome_loops_linked",
+	# Closed-native chaos↔stability vocabulary:
+	#   biome_spectral_gap_*  — H's own gap E₁−E₀ (composition-intrinsic, state-independent,
+	#                           conserved): large = one dominant attractor (STABLE identity),
+	#                           small = near-degenerate competing modes (CHAOTIC). The finale rides this.
+	#   biome_energy_variance_* — Var(H)=⟨H²⟩−⟨H⟩² (state-relative restlessness; 0 in an eigenstate,
+	#                           rises when the state is disturbed). Available; not on the spine.
+	"biome_spectral_gap_gte", "biome_spectral_gap_lte",
+	"biome_energy_variance_gte", "biome_energy_variance_lte",
+	# biome_eigenvalue_gap_gte / biome_purity_trending are OPEN-SYSTEM ONLY (degenerate in the
+	# closed system: ρ is pure → eigenvalue gap ≡ 1, purity ≡ 1). Kept for the open DLC; the
+	# closed campaign must NOT gate on them — use biome_spectral_gap_* for chaos↔stability.
+	"biome_eigenvalue_gap_gte", "biome_purity_trending",
 ]
+
+## Per-type soft_gate widths — SINGLE SOURCE, read by both _check_flag_predicate below and
+## predicate_fire_target. Types not listed use QuestMath.soft_gate's default 0.05.
+const PREDICATE_SOFT_WIDTH := {
+	"berry_consumed_count_gte": 1.5,
+	"berry_total_phase_gte": 0.1,
+	"signature_size_gte": 2.0,
+	"atom_count_gte": 1.5,
+	"atom_diversity_gte": 2.0,
+	"biome_eigenvalue_gap_gte": 0.02,
+	# H-gap scale is O(0.1–0.3) (rig: StarterForest 0.21, Village 0.25); width is the
+	# chaos↔stability transition band. Starting estimate — co-tuned with thresholds on the rig.
+	"biome_spectral_gap_gte": 0.03,
+	"biome_spectral_gap_lte": 0.03,
+	# Var(H) scale depends on the biome's H (self-energies ~0.2–0.5, rabi ~0.3–0.6); width is
+	# the disturbance band. Starting estimate — co-tuned with thresholds on the rig.
+	"biome_energy_variance_gte": 0.1,
+	"biome_energy_variance_lte": 0.1,
+}
 
 
 ## Unified per-predicate score for QUEST completion: flag-vocabulary predicates (state outcomes)
@@ -278,6 +321,36 @@ func _evaluate_quest_state_predicates(predicates: Array) -> float:
 	return QuestMath.smooth_and(scores)
 
 
+## Public: the value the player must actually reach for `pred` to fire. soft_gate is only
+## 0.5 at the stated `value`; it crosses FLAG_FIRE_THRESHOLD near value + width·atanh(2·t−1).
+func predicate_fire_target(pred: Dictionary) -> float:
+	var t := str(pred.get("type", ""))
+	var w: float = _pred_width(pred, t)
+	var center := float(pred.get("value", 0.0))
+	var target := QuestMath.fire_value(center, w, FLAG_FIRE_THRESHOLD)
+	if t.ends_with("_lte"):
+		# "at most" predicates fire BELOW center — mirror the soft_gate offset.
+		return 2.0 * center - target
+	return target
+
+
+## Soft-gate width for a predicate: a per-instance `width` override (campaign-pacing knob)
+## falling back to the per-type default in PREDICATE_SOFT_WIDTH, then to QuestMath's 0.05.
+## Lets a single beat fire crisply (e.g. first_breath at the first incorporation) without
+## moving the global width that other flags of the same type rely on.
+func _pred_width(pred: Dictionary, t: String) -> float:
+	return float(pred.get("width", PREDICATE_SOFT_WIDTH.get(t, 0.05)))
+
+
+func _signature_baseline_size(farm) -> int:
+	# Lazily snapshot the seeded signature size the first time a farm is evaluated —
+	# this runs from frame 1, before any player incorporation, so it captures the
+	# scenario's starting signature. -1 sentinel = not yet captured.
+	if _signature_baseline < 0:
+		_signature_baseline = farm.known_icons.size() if farm and "known_icons" in farm else 0
+	return _signature_baseline
+
+
 func _check_flag_predicate(pred: Dictionary, farm) -> float:
 	## Returns a continuous confidence score in [0, 1] for each predicate type.
 	## Structural predicates (flag set, biome exists) return 1.0 or 0.0 exactly.
@@ -298,7 +371,7 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 			if biome == null or biome.get("quantum_computer") == null:
 				return 0.0
 			var count := float(biome.quantum_computer.berry_register.get_consumed_count())
-			return QuestMath.soft_gate(count, float(pred.get("value", 0)), 1.5)
+			return QuestMath.soft_gate(count, float(pred.get("value", 0)), PREDICATE_SOFT_WIDTH["berry_consumed_count_gte"])
 		"berry_total_phase_gte":
 			if farm.grid == null:
 				return 0.0
@@ -306,7 +379,7 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 			if biome == null or biome.get("quantum_computer") == null:
 				return 0.0
 			var phase: float = biome.quantum_computer.berry_register.get_consumed_phase()
-			return QuestMath.soft_gate(phase, float(pred.get("value", 0.0)), 0.1)
+			return QuestMath.soft_gate(phase, float(pred.get("value", 0.0)), PREDICATE_SOFT_WIDTH["berry_total_phase_gte"])
 		"standing_gte":
 			var standing = farm.faction_standings.get(str(pred.get("faction", "")))
 			if standing == null:
@@ -333,7 +406,8 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 			var marginal: float = float(snap.get("p1" if pole == 1 else "p0", 0.0))
 			return QuestMath.soft_gate(marginal, float(pred.get("value", 0.0)))
 		"biome_state_lte":
-			# "At most" twin of biome_state_gte — same marginal readout, falling gate.
+			# "At most" twin of biome_state_gte — score rises as the atom's marginal falls
+			# BELOW value (e.g. draining 📜 below the ledger's autocatalytic threshold).
 			if farm.grid == null:
 				return 0.0
 			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
@@ -407,8 +481,57 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 				return QuestMath.soft_gate(float(frozen.size()), 2.0, 0.75) * 0.5
 			var winding := float(absi(KnotRegister.max_mutual_winding(frozen)))
 			return QuestMath.soft_gate(winding, maxf(1.0, float(pred.get("value", 1))), 0.5)
+		"biome_spectral_gap_gte":
+			# "stable / strong attractor" — score rises as H's gap E₁−E₀ climbs above value.
+			# Composition-intrinsic (set by which icons make up H), state-independent, conserved:
+			# a wide gap = one dominant configuration the biome rigidly holds = a settled identity.
+			if farm.grid == null:
+				return 0.0
+			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
+			if biome == null or biome.get("quantum_computer") == null:
+				return 0.0
+			var g_gte: float = float(biome.quantum_computer.get_hamiltonian_spectral_gap())
+			return QuestMath.soft_gate(g_gte, float(pred.get("value", 0.0)), PREDICATE_SOFT_WIDTH["biome_spectral_gap_gte"])
+		"biome_spectral_gap_lte":
+			# "chaotic / near-degenerate" — score rises as H's gap falls below value (competing
+			# modes, no single rest configuration). The empire's restlessness is this, by composition.
+			if farm.grid == null:
+				return 0.0
+			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
+			if biome == null or biome.get("quantum_computer") == null:
+				return 0.0
+			var g_lte: float = float(biome.quantum_computer.get_hamiltonian_spectral_gap())
+			return QuestMath.soft_gate_inv(g_lte, float(pred.get("value", 0.0)), PREDICATE_SOFT_WIDTH["biome_spectral_gap_lte"])
+		"biome_energy_variance_gte":
+			# "restless / chaotic" — score rises as Var(H) = ⟨H²⟩−⟨H⟩² climbs above value.
+			# Var(H) is the closed-native chaos measure (a broad energy superposition swings
+			# the marginals wildly); conserved under evolution, set by the biome's composition.
+			if farm.grid == null:
+				return 0.0
+			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
+			if biome == null or biome.get("quantum_computer") == null:
+				return 0.0
+			var v_gte: float = float(biome.quantum_computer.get_energy_variance())
+			return QuestMath.soft_gate(v_gte, float(pred.get("value", 0.0)), PREDICATE_SOFT_WIDTH["biome_energy_variance_gte"])
+		"biome_energy_variance_lte":
+			# "settled / stable" — score rises as Var(H) falls below value (the state nears an
+			# H-eigenstate: eternal stillness). The closed-native "stable attractor" goal.
+			if farm.grid == null:
+				return 0.0
+			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
+			if biome == null or biome.get("quantum_computer") == null:
+				return 0.0
+			var v_lte: float = float(biome.quantum_computer.get_energy_variance())
+			return QuestMath.soft_gate_inv(v_lte, float(pred.get("value", 0.0)), PREDICATE_SOFT_WIDTH["biome_energy_variance_lte"])
 		"signature_size_gte":
-			return QuestMath.soft_gate(float(farm.known_icons.size()), float(pred.get("value", 0)), 2.0)
+			return QuestMath.soft_gate(float(farm.known_icons.size()), float(pred.get("value", 0)), _pred_width(pred, "signature_size_gte"))
+		"signature_growth_gte":
+			# Growth of the signature PAST the seeded boot baseline — i.e. how many icons
+			# the player has actually incorporated THIS run. The scenario's starting
+			# signature (e.g. The Demos) is the baseline, so this reads 0 at boot and only
+			# crosses on a real incorporation. This is what makes first_breath fire from a
+			# human action instead of from the seeded start (#5).
+			return QuestMath.soft_gate(float(maxi(0, farm.known_icons.size() - _signature_baseline_size(farm))), float(pred.get("value", 0)), _pred_width(pred, "signature_growth_gte"))
 		"atom_count_gte":
 			if farm.grid == null:
 				return 0.0
@@ -416,7 +539,7 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 			if biome == null or biome.get("quantum_computer") == null:
 				return 0.0
 			var count := float(biome.quantum_computer.register_map.coordinates.size())
-			return QuestMath.soft_gate(count, float(pred.get("value", 0)), 1.5)
+			return QuestMath.soft_gate(count, float(pred.get("value", 0)), PREDICATE_SOFT_WIDTH["atom_count_gte"])
 		"atom_in_biome":
 			if farm.grid == null:
 				return 0.0
@@ -424,6 +547,20 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 			if biome == null or biome.get("quantum_computer") == null:
 				return 0.0
 			return 1.0 if biome.quantum_computer.register_map.coordinates.has(str(pred.get("atom", ""))) else 0.0
+		"atom_diversity_gte":
+			# Distinct atom emojis across ALL loaded biomes — rewards spreading a varied
+			# ecology over the island's biome slots, not over-stuffing one biome (which the
+			# per-biome plot cap forbids anyway). Union of every biome's register coordinates.
+			if farm.grid == null:
+				return 0.0
+			var seen: Dictionary = {}
+			for bname in farm.grid.get_biome_names():
+				var b = farm.grid.get_biome(str(bname))
+				if b == null or b.get("quantum_computer") == null or b.quantum_computer.register_map == null:
+					continue
+				for atom in b.quantum_computer.register_map.coordinates.keys():
+					seen[str(atom)] = true
+			return QuestMath.soft_gate(float(seen.size()), float(pred.get("value", 0)), PREDICATE_SOFT_WIDTH["atom_diversity_gte"])
 		"biome_attractor_emoji_gte":
 			if farm.grid == null:
 				return 0.0
@@ -441,7 +578,7 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 				return 0.0
 			var attractor: Dictionary = biome.get_attractor_state()
 			return QuestMath.soft_gate(attractor.get("eigenvalue_gap", 0.0),
-					float(pred.get("value", 0.15)), 0.02)
+					float(pred.get("value", 0.15)), PREDICATE_SOFT_WIDTH["biome_eigenvalue_gap_gte"])
 		"biome_purity_trending":
 			if farm.grid == null:
 				return 0.0
@@ -963,19 +1100,6 @@ func _get_global_icon_map() -> Dictionary:
 	return {}
 
 
-func _apply_market_projection(quest: Dictionary) -> void:
-	if quest.is_empty():
-		return
-	var icon_map = _get_global_icon_map()
-	var projection = QuestRewards.compute_market_projection(quest, icon_map)
-	if projection.is_empty():
-		return
-	quest["market_projection"] = projection
-
-# =============================================================================
-# QUEST ACCEPTANCE
-# =============================================================================
-
 func accept_quest(quest_data: Dictionary) -> bool:
 	# Accept an offered quest
 
@@ -1154,6 +1278,13 @@ func complete_quest(quest_id: int) -> bool:
 	var player_icons2 = _get_signature_emojis()
 	var reward = QuestRewards.generate_reward(quest, null, player_icons2)
 	_grant_icon_rewards(reward, faction_name)
+	# Grant the coupling-tied RESOURCE reward — the market's payout. This is how a
+	# DELIVER contract hands back resources the player's biome can't POP (e.g. 🔨 from
+	# Millwright's Union). Previously only the exercise-outcome + icons were granted, so
+	# the planned resource reward was computed and silently dropped.
+	var plan_granted = _grant_resource_rewards(reward, faction_name)
+	for plan_emoji in plan_granted:
+		granted_resources[plan_emoji] = int(granted_resources.get(plan_emoji, 0)) + int(plan_granted[plan_emoji])
 	_apply_standing_deltas(faction_name, reward.standing_deltas if reward else {})
 
 	_finalize_quest_completion(quest_id, quest, reward, granted_resources)
@@ -1360,8 +1491,32 @@ func _stop_quest_timer(quest_id: int) -> void:
 func _on_quest_timeout(quest_id: int) -> void:
 	# Handle quest timer expiration
 	if active_quests.has(quest_id):
+		# Locked commitments never expire — the player pinned them to go gather the
+		# deliverable and come back. (Defensive: locking also stops the timer.)
+		if bool(active_quests[quest_id].get("locked", false)):
+			return
 		fail_quest(quest_id, "timeout")
 		quest_expired.emit(quest_id)
+
+
+## Pin/unpin a commitment. A locked commitment never expires, so the player can accept a
+## contract they can't yet afford, go gather the deliverable, and come back to turn it in.
+## Returns the new locked state (false if the quest isn't active).
+func set_quest_locked(quest_id: int, locked: bool) -> bool:
+	if not active_quests.has(quest_id):
+		return false
+	active_quests[quest_id]["locked"] = locked
+	if locked:
+		_stop_quest_timer(quest_id)            # pinned → countdown halted
+	else:
+		var tl: float = float(active_quests[quest_id].get("time_limit", -1))
+		if tl > 0 and not quest_timers.has(quest_id):
+			_start_quest_timer(quest_id, tl)   # un-pinned → resume the clock
+	active_quests_changed.emit()
+	return locked
+
+func is_quest_locked(quest_id: int) -> bool:
+	return active_quests.has(quest_id) and bool(active_quests[quest_id].get("locked", false))
 
 func get_quest_time_remaining(quest_id: int) -> float:
 	# Get seconds remaining on quest timer

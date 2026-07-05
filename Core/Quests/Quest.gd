@@ -55,10 +55,10 @@ static func defaults() -> Dictionary:
 		# ── Icon / vocabulary reward ──
 		"reward_north": "",
 		"reward_south": "",
-		"reward_vocab_north": "",
-		"reward_vocab_south": "",
-		"reward_vocab_weight": 0.0,
-		"reward_vocab_probability": 0.0,
+		"reward_icon_north": "",
+		"reward_icon_south": "",
+		"reward_icon_weight": 0.0,
+		"reward_icon_probability": 0.0,
 
 		# ── Resource reward ──
 		"reward_resources": {},
@@ -89,9 +89,9 @@ static func defaults() -> Dictionary:
 		"cost_amount": 0.0,
 
 		# ── Faction context ──
-		"faction_signature": [],
+		"faction_cloud": [],
 		"biome_new": false,
-		"contains_new_vocab": false,
+		"contains_new_icon": false,
 
 		# ── Pipeline parameters (FactionStateMatcher-derived) ──
 		"_alignment": 0.0,

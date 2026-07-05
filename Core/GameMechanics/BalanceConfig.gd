@@ -25,13 +25,14 @@ const TUNABLES: Array = [
 	# Market scarcity temperature kT (Boltzmann E = −kT·log p).
 	{"root": "tuning", "key": "market_temperature", "default": 10.0, "label": "Market kT", "category": "Market", "kind": "float", "step": 0.5, "min": 1.0, "max": 30.0},
 	{"root": "tuning", "key": "market_temperature_entropy_gain", "default": 1.0, "label": "Market kT entropy gain", "category": "Market", "kind": "float", "step": 0.1, "min": 0.0, "max": 5.0},
-	# Vocabulary-reward multiplier — the escape from the resource spiral. Knowing an icon
-	# boosts its harvest: mult = (r + (knows ? vocab_r_bonus : 0)) ^ exponent; closed (r=1)
-	# → known ×4 / unknown ×1; open (r<1) → a curve. See ProbeActions._vocab_reward_multiplier.
-	{"root": "tuning", "key": "vocab_r_bonus", "default": 1.0, "label": "Vocab r-bonus", "category": "Vocab", "kind": "float", "step": 0.25, "min": 0.0, "max": 4.0},
-	{"root": "tuning", "key": "vocab_reward_exponent", "default": 2.0, "label": "Vocab exponent", "category": "Vocab", "kind": "float", "step": 0.25, "min": 1.0, "max": 4.0},
+	# Incorporation-reward multiplier — the escape from the resource spiral. Harvesting a
+	# register whose ICON is in your signature boosts its yield:
+	# mult = (r + (incorporated ? signature_r_bonus : 0)) ^ exponent; closed (r=1)
+	# → incorporated ×4 / not ×1; open (r<1) → a curve. See ProbeActions._incorporation_reward_multiplier.
+	{"root": "tuning", "key": "signature_r_bonus", "default": 1.0, "label": "Signature r-bonus", "category": "Signature", "kind": "float", "step": 0.25, "min": 0.0, "max": 4.0},
+	{"root": "tuning", "key": "signature_reward_exponent", "default": 2.0, "label": "Signature exponent", "category": "Signature", "kind": "float", "step": 0.25, "min": 1.0, "max": 4.0},
 	{"root": "economy_variables", "key": "quantum_to_credits", "default": 1.0, "label": "Quantum → credits", "category": "Economy", "kind": "float", "step": 0.1, "min": 0.1, "max": 10.0},
-	{"root": "economy_variables", "key": "max_biome_qubits", "default": 12, "label": "Max biome qubits", "category": "Physics", "kind": "int", "step": 1, "min": 4, "max": 24},
+	{"root": "economy_variables", "key": "max_biome_qubits", "default": 6, "label": "Max biome qubits", "category": "Physics", "kind": "int", "step": 1, "min": 4, "max": 24},
 	# Physics scalars (the H/L dials). lindblad_rate_scale only bites when dissipative;
 	# hamiltonian_coupling_scale is the one physical dial of the closed system (1.0 = identity).
 	{"root": "physics", "key": "lindblad_rate_scale", "default": 1.0, "label": "Lindblad rate", "category": "Physics", "kind": "float", "step": 0.1, "min": 0.1, "max": 5.0, "open_only": true},
@@ -76,7 +77,7 @@ static func _build_defaults() -> Dictionary:
 
 
 ## Board rows for the in-game balance editor, derived from TUNABLES (one source).
-## ControlsOverlay consumes this instead of a hand-maintained list. `value_path` is the
+## EscapeMenu's Balance tab consumes this instead of a hand-maintained list. `value_path` is the
 ## dotted config location; `open_only` rows are filtered out in the closed system.
 static func board_specs() -> Array:
 	var specs: Array = []

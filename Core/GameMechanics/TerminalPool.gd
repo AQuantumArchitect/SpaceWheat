@@ -157,7 +157,6 @@ func release_terminal(terminal: RefCounted) -> void:
 	terminal.north_emoji = ""
 	terminal.south_emoji = ""
 	terminal.grid_position = GridSentinel.INVALID_POSITION
-	terminal.frozen_position = Vector2.ZERO
 	terminal_unbound.emit(terminal)
 	if old_pos != GridSentinel.INVALID_POSITION:
 		terminal_unbound_at.emit(old_pos, old_id)

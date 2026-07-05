@@ -250,11 +250,11 @@ func action_rotate(positions: Array[Vector2i], direction: int) -> Dictionary:
 	return _cost_action(action_name, positions, func():
 		var axis = ToolConfig.get_frame_mode_name(ToolConfig.FRAME_DRUID)
 		if axis == "": axis = "X"
+		# The Druid steps in golden-angle increments (not a clean π/4): organic, never-retracing
+		# Bloch coverage that keeps Berry phase accumulating. direction sets +/− around the axis.
 		var result: Dictionary
 		match axis:
-			"X": result = GateActionHandler.apply_rx_gate(farm, positions)
-			"Y": result = GateActionHandler.apply_ry_gate(farm, positions)
-			"Z": result = GateActionHandler.apply_rz_gate(farm, positions)
+			"X", "Y", "Z": result = GateActionHandler.apply_golden_gate(farm, positions, axis, direction)
 			_: result = {"success": true, "axis": axis, "direction": direction}
 		action_performed.emit(action_name, result)
 		return result
@@ -472,15 +472,25 @@ func action_measure(grid_pos: Vector2i) -> Dictionary:
 	var _plot = farm.grid.get_plot(grid_pos) if farm.grid else null
 	var terminal = _plot.terminal if _plot else null
 	if not terminal:
+		# Strike-time bind: measuring surfaces the terminal it needs. Selection no
+		# longer auto-binds (crawl is free, view renders from the QC) — the strike
+		# is what creates the apparatus. plot_idx ≡ register_id.
+		var bind_biome := str(farm.grid.get_plot_biome_assignment(grid_pos)) if farm.grid else ""
+		if bind_biome != "":
+			var bind := action_explore(bind_biome, grid_pos)
+			if not bind.get("success", false):
+				return bind
+			_plot = farm.grid.get_plot(grid_pos) if farm.grid else null
+			terminal = _plot.terminal if _plot else null
+	if not terminal:
 		return {"success": false, "error": "no_terminal", "message": "No terminal at selection", "blocked": true}
-	if not terminal.can_measure():
-		# Say WHY: the two not-ready states need opposite advice, and the
-		# generic line was shadowing ProbeActions' specific toasts forever.
-		if terminal.is_measured:
-			return {"success": false, "error": "already_measured", "message": "Already measured — Q harvests it.", "blocked": true}
-		return {"success": false, "error": "not_bound", "message": "Nothing to measure — select a plot first (G H J K L ;).", "blocked": true}
 
-	var biome_name = terminal.bound_biome_name
+	# Resolve the biome from whichever binding the terminal carries (bound OR already
+	# measured) so the call reaches the single measure authority. ProbeActions.action_measure
+	# is that authority — it validates can_measure() and returns the precise verdict
+	# (not_bound / already_measured→pop / cannot_measure). We do NOT re-check it here:
+	# a duplicate gate upstream only shadowed those richer messages with a vague one.
+	var biome_name = terminal.bound_biome_name if terminal.bound_biome_name != "" else terminal.measured_biome_name
 	if biome_name == "":
 		return {"success": false, "error": "no_biome", "message": "Terminal not bound to biome", "blocked": true}
 	var biome = _resolve_biome(biome_name)
@@ -545,10 +555,12 @@ func action_build_gate(positions: Array[Vector2i]) -> Dictionary:
 
 	if positions.size() == 2:
 		var result = GateActionHandler.create_bell_pair(farm, positions)
+		_refresh_viz_for_positions(positions)
 		action_performed.emit("build_gate", result)
 		return result
 	elif positions.size() > 2:
 		var result = GateActionHandler.cluster(farm, positions)
+		_refresh_viz_for_positions(positions)
 		action_performed.emit("build_gate", result)
 		return result
 	else:
@@ -568,6 +580,7 @@ func action_inspect(positions: Array[Vector2i]) -> Dictionary:
 func action_remove_gates(positions: Array[Vector2i]) -> Dictionary:
 	return _cost_action("remove_gates", positions, func():
 		var result = GateActionHandler.disentangle(farm, positions)
+		_refresh_viz_for_positions(positions)
 		action_performed.emit("remove_gates", result)
 		return result
 	)
@@ -647,6 +660,8 @@ func action_inject_icon_pair(biome_name: String, icon: Dictionary) -> Dictionary
 		result["north_emoji"] = north_emoji
 		result["south_emoji"] = south_emoji
 		result["cost"] = gate.get("cost", {})
+		# The player faction's socialites engaged these emojis — tell the story substrate.
+		_notify_story([north_emoji, south_emoji], "inject")
 
 	action_performed.emit("inject_icon", result)
 	return result
@@ -699,13 +714,92 @@ func action_remove_icon(biome_name: String, grid_pos: Vector2i) -> Dictionary:
 		_log("info", "instrument", "-", "Removed icon %s/%s from %s" % [
 			icon_to_remove.get("north", "?"), icon_to_remove.get("south", "?"), biome_name
 		])
+		# Emojis withdrawn from the social fabric — tell the story substrate.
+		_notify_story([icon_to_remove.get("north", ""), icon_to_remove.get("south", "")], "remove")
 
 	action_performed.emit("remove_icon", result)
 	return result
 
 
+func action_incorporate(qubit_idx: int = -1) -> Dictionary:
+	# Harvest the focused qubit's icon into the PLAYER's signature. This is the engine
+	# command for Icon-hat R: it does the THREE coupled effects atomically here, behind the
+	# one seam, so no input adapter (keyboard/bot/touch) can do them piecemeal or forget one:
+	#   • Learn (bookkeeping): grow the signature via player_progress.discover_icon — which
+	#     forwards to the canonical farm.discover_icon AND fires faction-unlock signals + GSM
+	#     sync (the story-flag gates read signature_size, so this MUST be the player_progress
+	#     path, not bare farm.discover_icon).
+	#   • Harvest (physics): consume the ripe Berry-phase entry (bumps per-biome berry counters
+	#     story beats read; erases the entry so re-harvest needs a fresh track→ripen cycle).
+	#   • Tell the story (narrative): note the incorporation into the trajectory + conv-H memory.
+	# The ripening IS the cost — no resource charge. qubit_idx<0 uses the focused plot.
+	if not farm:
+		return {"success": false, "error": "no_farm"}
+	var biome_name := current_biome
+	if biome_name == "":
+		var abm = _get_autoload("ActiveBiomeManager")
+		if abm and abm.has_method("get_active_biome"):
+			biome_name = abm.get_active_biome()
+	var biome = _resolve_biome(biome_name)
+	if biome == null:
+		return {"success": false, "error": "no_biome"}
+	var qc = biome.quantum_computer
+	if qc == null or qc.berry_register == null:
+		return {"success": false, "error": "no_quantum_computer"}
+	var qid: int = qubit_idx if qubit_idx >= 0 else int(current_plot_idx)
+	if qid < 0 or qid >= qc.register_map.num_qubits:
+		return {"success": false, "error": "no_qubit"}
+	if not qc.berry_register.is_ripe(qid):
+		return {"success": false, "error": "not_ripe"}
+	var axis = qc.register_map.axis(qid)
+	if axis == null or axis.is_empty():
+		return {"success": false, "error": "no_axis"}
+	var north: String = str(axis.get("north", ""))
+	var south: String = str(axis.get("south", ""))
+	if north == "" or south == "":
+		return {"success": false, "error": "axis_missing_emoji"}
+	var gsm = _get_autoload("GameStateManager")
+	if gsm == null or gsm.player_progress == null:
+		return {"success": false, "error": "no_player_progress"}
+	var added: bool = gsm.player_progress.discover_icon(north, south)
+	qc.berry_register.consume(qid)
+	if added:
+		_log("info", "instrument", "🧬", "Incorporated %s/%s from qubit %d into signature" % [north, south, qid])
+		_notify_story([north, south], "incorporate")
+	else:
+		_log("info", "instrument", "🧬", "Re-harvested %s/%s (already in signature) — phase counted" % [north, south])
+	var result := {
+		"success": true,
+		"new_icon": added,
+		"north_emoji": north,
+		"south_emoji": south,
+		"qubit": qid,
+		"biome": biome.name,
+	}
+	action_performed.emit("incorporate_icon", result)
+	return result
+
+
+## Report emojis the player touched into the story substrate (trajectory + conversation-H
+## memory) so NPC chatter responds. Lives here, behind the action seam, so EVERY input source
+## triggers it identically — the UI no longer has to remember to call it.
+func _notify_story(emojis: Array, kind: String) -> void:
+	var clean: Array = []
+	for e in emojis:
+		var s := str(e)
+		if s != "":
+			clean.append(s)
+	if clean.is_empty():
+		return
+	var story_engine = _get_autoload("StoryEngine")
+	if story_engine != null and story_engine.has_method("note_player_action"):
+		story_engine.note_player_action(clean, kind)
+
+
 func action_set_active_icon_slot(slot_idx: int, icon_idx: int) -> void:
-	if not farm or not farm.has_method("set_active_icon_slot"):
+	# Farm.set_active_icon_slot is a guaranteed method; the has_method() guard was dead
+	# duck-typing that could only silently swallow this player command. Trust the type.
+	if not farm:
 		return
 	farm.set_active_icon_slot(slot_idx, icon_idx)
 	action_performed.emit("set_active_icon_slot", {"slot": slot_idx, "icon": icon_idx})
@@ -1060,16 +1154,15 @@ func get_policy_snapshot(include_offers: bool = true, include_grid: bool = true)
 
 
 func get_active_quests() -> Array:
+	# QuestManager.get_active_quests is a guaranteed method; trust the resolved type.
+	# Absence (no quest manager yet) is the only real branch → empty.
 	var qm = _resolve_quest_manager()
-	if qm and qm.has_method("get_active_quests"):
-		return qm.get_active_quests()
-	return []
+	return qm.get_active_quests() if qm else []
 
 
 func get_known_icons() -> Array:
-	if farm and farm.has_method("get_known_icons"):
-		return farm.get_known_icons()
-	return []
+	# Farm.get_known_icons is a guaranteed method; trust the type, don't duck-check it.
+	return farm.get_known_icons() if farm else []
 
 
 func get_quest_offers_for_current_biome() -> Array:
@@ -1131,11 +1224,30 @@ func gate_inject(gate_name: String, positions: Array[Vector2i]) -> Dictionary:
 		return {"ok": false, "success": false, "error": "insufficient_resources", "message": cost_check.get("message", "Cannot afford %s" % gate_name), "cost": cost_check.get("cost", {})}
 	var result = gate_callable.call(farm, positions)
 	result["gate"] = gate_name
+	_refresh_viz_for_positions(positions)  # gate mutates ρ outside the tick — re-project now
 	action_performed.emit("gate_inject", result)
 	_notify_quest_projection("gate_inject:%s" % gate_name, result)
 	if result.get("success", false) or result.get("ok", false):
 		commit_action_cost(gate_name, {}, gate_name)
 	return result
+
+
+## Re-project the canonical state into the viz cache for every biome touched by these
+## positions. A gate mutates ρ directly (not via the evolution tick), so without this the
+## bubbles would show stale state until the next tick — which never comes while the sim is
+## paused. Routes through BiomeBase.refresh_viz_projection (the single ρ→viz projection).
+func _refresh_viz_for_positions(positions) -> void:
+	if not farm or not farm.grid:
+		return
+	var seen: Dictionary = {}
+	for pos in positions:
+		var bname: String = str(farm.grid.get_plot_biome_assignment(pos)) if farm.grid.has_method("get_plot_biome_assignment") else ""
+		if bname == "" or seen.has(bname):
+			continue
+		seen[bname] = true
+		var biome = farm.grid.get_biome(bname)
+		if biome and biome.has_method("refresh_viz_projection"):
+			biome.refresh_viz_projection()
 
 
 func lindblad_pump(positions: Array[Vector2i]) -> Dictionary:

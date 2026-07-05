@@ -113,6 +113,12 @@ func expand_quantum_system(north_emoji: String, south_emoji: String) -> Dictiona
 	var driven_configs = HamBuilder.get_driven_icons(biome_icons, quantum_computer.register_map)
 	quantum_computer.set_driven_icons(driven_configs)
 
+	# Re-stamp the physics signature: this path also rebuilds H+L from authored data, so the
+	# fingerprint must track it or the engine-drift anchor would lie after an icon inject.
+	# (In-place runtime edits — inject_coupling / gates — are out of the authored-derivation
+	# signature's scope by design; those re-sync via the coupling_updated → reregister path.)
+	quantum_computer.physics_signature = _compute_physics_signature(quantum_computer.biome_name, biome_icons)
+
 	# Reset to ground state after expanding basis (preserves ecological biases)
 	quantum_computer.initialize_ground_state()
 
@@ -172,10 +178,11 @@ func inject_coupling(emoji_a: String, emoji_b: String, strength: float) -> Dicti
 
 
 # ============================================================================
-# Operator Building with Caching
+# Operator Building (single authority — no cache)
 # ============================================================================
 
-## Build H from Array[Icon] (icons.json physics) and L from atom_components, with caching.
+## Build H from Array[Icon] (icons.json physics) and L from atom_components, on demand.
+## The builders are the SOLE authority for derived physics; there is no operator cache.
 func build_operators_from_icons(biome_name: String, biome_icons: Array, atoms: Dictionary = {}) -> void:
 	if not quantum_computer:
 		push_error("build_operators_from_icons: quantum_computer not set")
@@ -184,10 +191,35 @@ func build_operators_from_icons(biome_name: String, biome_icons: Array, atoms: D
 	if not atoms.is_empty():
 		atom_components = atoms
 	var verbose = (Engine.get_main_loop().root.get_node_or_null("/root/VerboseConfig") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
-	# Cache key MUST reflect every input that affects H or L. If it doesn't,
-	# editing icons.json physics fields silently serves stale operators.
-	# Always include atom_components signature (even when empty) so the first
-	# transition to non-empty atoms misses the cache instead of hitting it.
+
+	var HamBuilder = load("res://Core/QuantumSubstrate/HamiltonianBuilder.gd")
+	var LindBuilder = load("res://Core/QuantumSubstrate/LindbladBuilder.gd")
+
+	# Build on demand. The builders ARE the single authority for derived physics —
+	# there is NO operator cache. Building H+L from icons is sub-millisecond per biome
+	# (measured mean 0.69 ms across all 161 biomes; worst 19 ms), so a persisted cache
+	# saved trivial work while shipping a SECOND, hand-baked authority that could — and
+	# did (#118) — disagree with the live builders and poison the whole substrate.
+	# Removing it makes a stale/poisoned operator state unrepresentable.
+	quantum_computer.hamiltonian = HamBuilder.build_from_icons(
+			biome_icons, quantum_computer.register_map, verbose)
+	var lindblad_result = LindBuilder.build_from_atoms(
+			atom_components, quantum_computer.register_map, verbose, biome_name,
+			quantum_computer.is_open_here())
+	quantum_computer.lindblad_operators = lindblad_result.get("operators", [])
+	quantum_computer.set_driven_icons(HamBuilder.get_driven_icons(biome_icons, quantum_computer.register_map))
+
+	# Traceability: stamp the physics signature — a complete fingerprint of every input
+	# that determined H+L. Lets any holder of this QuantumComputer trace its operators
+	# back to their exact source, and lets a derived copy prove it is in sync.
+	quantum_computer.physics_signature = _compute_physics_signature(biome_name, biome_icons)
+
+
+## Complete fingerprint of the inputs that determine this biome's H+L: icon physics
+## (poles, self-energies, rabi, cross-couplings, driver) + atom_components + register
+## layout + global coupling scale + dissipative flag. The single canonical physics
+## identity for a built biome — the traceability anchor, NOT a cache key.
+func _compute_physics_signature(biome_name: String, biome_icons: Array) -> String:
 	var icon_sigs: PackedStringArray = []
 	for icon in biome_icons:
 		icon_sigs.append("%s|%s|se0=%.6f|se1=%.6f|rabi=%.6f|hc=%s|drv=%s" % [
@@ -196,43 +228,14 @@ func build_operators_from_icons(biome_name: String, biome_icons: Array, atoms: D
 			JSON.stringify(icon.hamiltonian_couplings),
 			"%s/%.6f/%.6f/%.6f" % [icon.self_energy_driver, icon.driver_frequency, icon.driver_phase, icon.driver_amplitude]
 		])
-	# The EFFECTIVE dissipative state is part of the key: with it off no Lindblad
-	# operators are built, so a coherent-only cache entry must never be served when
-	# dissipation is on (or vice versa). Per-biome regime (What Fades seam) folds in
-	# here — a wet-country biome keys L1 while the sealed world keys L0.
+	var reg_sig: String = quantum_computer.register_map.signature() if quantum_computer.register_map else ""
+	var h_scale := float(BalanceConfig.get_physics().get("hamiltonian_coupling_scale", 1.0))
+	# Per-biome regime (What Fades seam) is part of the identity: a wet-country
+	# biome signs L1 while the sealed world signs L0, even under the same globals.
 	var diss := "L1" if quantum_computer.is_open_here() else "L0"
-	var cache_key := biome_name + "_icons_" + "|".join(icon_sigs).md5_text() + "_atoms_" + JSON.stringify(atom_components).md5_text() + "_" + diss
-
-	var cache = OperatorCache.get_instance()
-	var cached_ops = cache.try_load(biome_name, cache_key)
-	var HamBuilder = load("res://Core/QuantumSubstrate/HamiltonianBuilder.gd")
-	var LindBuilder = load("res://Core/QuantumSubstrate/LindbladBuilder.gd")
-
-	var driven: Array = []
-
-	if not cached_ops.is_empty():
-		quantum_computer.hamiltonian = cached_ops.hamiltonian
-		quantum_computer.lindblad_operators = cached_ops.lindblad_operators
-		driven = HamBuilder.get_driven_icons(biome_icons, quantum_computer.register_map)
-		quantum_computer.set_driven_icons(driven)
-		if verbose:
-			verbose.info("cache", "✅", "Operator cache HIT: %s" % biome_name)
-		return
-
-	if verbose:
-		verbose.info("cache", "🔨", "Operator cache MISS: building %s" % biome_name)
-	var start_time = Time.get_ticks_msec()
-
-	quantum_computer.hamiltonian = HamBuilder.build_from_icons(
-			biome_icons, quantum_computer.register_map, verbose)
-	var lindblad_result = LindBuilder.build_from_atoms(
-			atom_components, quantum_computer.register_map, verbose, biome_name,
-			quantum_computer.is_open_here())
-	quantum_computer.lindblad_operators = lindblad_result.get("operators", [])
-	driven = HamBuilder.get_driven_icons(biome_icons, quantum_computer.register_map)
-	quantum_computer.set_driven_icons(driven)
-
-	var elapsed = Time.get_ticks_msec() - start_time
-	if verbose:
-		verbose.info("cache", "💾", "Operators built in %d ms — caching" % elapsed)
-	cache.save(biome_name, cache_key, quantum_computer.hamiltonian, quantum_computer.lindblad_operators)
+	return biome_name \
+		+ "_icons_" + "|".join(icon_sigs).md5_text() \
+		+ "_atoms_" + JSON.stringify(atom_components).md5_text() \
+		+ "_reg_" + reg_sig.md5_text() \
+		+ ("_hs%.6f" % h_scale) \
+		+ "_" + diss

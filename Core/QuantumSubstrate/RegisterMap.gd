@@ -105,6 +105,19 @@ func dim() -> int:
 	return 1 << num_qubits
 
 
+## Deterministic signature of the emoji→qubit→pole layout. This is a real INPUT to
+## HamiltonianBuilder.build_from_icons (an icon whose poles aren't in this map is
+## skipped, contributing nothing), so it must be part of any operator-cache key —
+## otherwise an H baked under one register layout can be served under another.
+## Ordered by qubit index so the string is stable across runs.
+func signature() -> String:
+	var parts: PackedStringArray = []
+	for q in range(num_qubits):
+		var ax: Dictionary = axes.get(q, {})
+		parts.append("%d:%s|%s" % [q, str(ax.get("north", "")), str(ax.get("south", ""))])
+	return ";".join(parts)
+
+
 func basis_to_emojis(index: int) -> Array[String]:
 	# Convert basis state index to array of emojis.
 

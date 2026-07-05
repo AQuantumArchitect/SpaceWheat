@@ -193,8 +193,8 @@ func run_time_skip_cycles(cycles: int, dt: float = -1.0, biome_names: Array = []
 		}
 
 	var target_dt = maxf(0.000001, dt if dt > 0.0 else batcher.LOOKAHEAD_DT)
-	var debug_time_skip = batcher._env_flag("RIG_DEBUG_TIMESKIP", false)
-	var require_activity = batcher._env_flag("RIG_TIME_SKIP_REQUIRE_ACTIVITY", false)
+	var debug_time_skip = RuntimeEnv.debug_timeskip()
+	var require_activity = RuntimeEnv.time_skip_require_activity()
 	var requested: Dictionary = {}
 	for biome_name in biome_names:
 		var key = str(biome_name)
@@ -334,15 +334,7 @@ func run_direct_biome_cycle(biome, dt: float, max_dt_override: float = -1.0) -> 
 	var max_dt = max_dt_override if max_dt_override > 0.0 else get_base_max_dt(biome)
 	biome.quantum_computer.evolve(sim_dt, max_dt, null)
 
-	if biome.viz_cache:
-		var packet = biome.quantum_computer.export_bloch_packet() if biome.quantum_computer.has_method("export_bloch_packet") else PackedFloat64Array()
-		var num_qubits = biome.quantum_computer.register_map.num_qubits if biome.quantum_computer.register_map else 0
-		if packet.size() > 0 and num_qubits > 0:
-			if biome.quantum_computer.berry_register != null:
-				biome.quantum_computer.berry_register.integrate_step(packet, num_qubits)
-			biome.viz_cache.update_from_bloch_packet(packet, num_qubits)
-	if biome.quantum_computer.has_method("get_purity"):
-		biome.viz_cache.update_purity(biome.quantum_computer.get_purity())
+	_accumulate_post_evolution(biome)
 
 	batcher._post_evolution_update(biome)
 
@@ -386,15 +378,32 @@ func run_native_biome_cycle(biome, dt: float, max_dt_override: float = -1.0) -> 
 		var final_rho = results[results.size() - 1]
 		if final_rho is PackedFloat64Array and final_rho.size() > 0:
 			qc.load_packed_state(final_rho, dim, true)
-	if biome.viz_cache:
-		var packet = qc.export_bloch_packet() if qc.has_method("export_bloch_packet") else PackedFloat64Array()
-		var num_qubits = qc.register_map.num_qubits if qc.register_map else 0
-		if packet.size() > 0 and num_qubits > 0:
-			if qc.berry_register != null:
-				qc.berry_register.integrate_step(packet, num_qubits)
-			biome.viz_cache.update_from_bloch_packet(packet, num_qubits)
-		if qc.has_method("get_purity"):
-			biome.viz_cache.update_purity(qc.get_purity())
+	_accumulate_post_evolution(biome)
 
 	batcher._post_evolution_update(biome)
 	batcher.biome_evolution_counts[biome_name] = batcher.biome_evolution_counts.get(biome_name, 0) + 1
+
+
+## Post-evolution Bloch-packet fan-out: accumulate Berry phase on tracked qubits
+## (path-integrate the slice the Bloch vectors just traced) AND refresh the viz cache.
+## Both evolution cycles (direct + native) funnel here so the Berry integrator can
+## never silently fall out of the loop again — its absence made every tracked qubit
+## un-ripenable, which dead-ended the entire icon-incorporation / vocabulary arc.
+func _accumulate_post_evolution(biome) -> void:
+	var qc = biome.quantum_computer
+	if qc == null or not qc.has_method("export_bloch_packet"):
+		return
+	var num_qubits = qc.register_map.num_qubits if qc.register_map else 0
+	if num_qubits <= 0:
+		return
+	var packet = qc.export_bloch_packet()
+	if packet.size() == 0:
+		return
+	# Berry phase: integrate the solid angle this slice traced (no-op if nothing tracked).
+	if qc.berry_register:
+		qc.berry_register.integrate_step(packet, num_qubits)
+	# Visualization mirror.
+	if biome.viz_cache:
+		biome.viz_cache.update_from_bloch_packet(packet, num_qubits)
+		if qc.has_method("get_purity"):
+			biome.viz_cache.update_purity(qc.get_purity())

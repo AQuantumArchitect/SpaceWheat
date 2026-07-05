@@ -108,14 +108,13 @@ def test_c_surface_stays_on_contract_board_pages() -> None:
     src = _read("UI/Overlays/QuestBoard.gd")
     _assert_in_order(
         src,
-        ["FRAME_MANIFOLD", "FRAME_MARKET", "FRAME_COMMITMENTS", "FRAME_ARC"],
+        ["FRAME_MANIFOLD", "FRAME_MARKET", "FRAME_COMMITMENTS"],
         "C frame_ids",
     )
     for token in [
         "Manifold",
         "Market",
         "Commitments",
-        "Arc",
         "scope_mode",
         "scope_source",
         "scope_counterparty",
@@ -129,11 +128,11 @@ def test_c_surface_stays_on_contract_board_pages() -> None:
 
 def test_z_surface_reads_as_personal_mirror() -> None:
     src = _read("UI/Overlays/ControlsOverlay.gd")
-    _assert_in_order(src, ["FRAME_SELF", "FRAME_STORY", "FRAME_BALANCE", "FRAME_GUIDE"], "Z frame_ids")
+    _assert_in_order(src, ["FRAME_SELF", "FRAME_STORY", "FRAME_ARC", "FRAME_GUIDE"], "Z frame_ids")
     for token in [
         "Self",
         "Story",
-        "Balance",
+        "Arc",
         "Guide",
         "Biomes, Neighborhoods & Economy",
         "Verbs (per hat)",
@@ -149,11 +148,12 @@ def test_z_surface_reads_as_personal_mirror() -> None:
 
 def test_x_surface_is_system_menu() -> None:
     src = _read("UI/Overlays/EscapeMenu.gd")
-    _assert_in_order(src, ["FRAME_RUN", "FRAME_SAVE_LOAD", "FRAME_NEW_GAME", "FRAME_DEV"], "X frame_ids")
+    _assert_in_order(src, ["FRAME_RUN", "FRAME_SAVE_LOAD", "FRAME_NEW_GAME", "FRAME_BALANCE", "FRAME_DEV"], "X frame_ids")
     for token in [
         "Now",
         "Save",
         "New",
+        "Balance",
         "Dev",
         "demos_normal",
         "new_game_easy",

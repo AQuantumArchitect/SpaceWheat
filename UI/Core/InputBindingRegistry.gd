@@ -38,6 +38,9 @@ const KEY_LABEL_TO_KEYCODE := {
 	"Space": KEY_SPACE,
 	"-": KEY_MINUS,
 	"=": KEY_EQUAL,
+	# Digit row: sub-mode (1/2/3) + archetype hats (4-0).
+	"0": KEY_0, "1": KEY_1, "2": KEY_2, "3": KEY_3, "4": KEY_4,
+	"5": KEY_5, "6": KEY_6, "7": KEY_7, "8": KEY_8, "9": KEY_9,
 }
 
 const BIOME_ROW := {
@@ -67,6 +70,28 @@ const SUBSPACE_ROW := {
 
 const BIOME_ACTIONS := ["biome_0", "biome_1", "biome_2", "biome_3", "biome_4", "biome_5"]
 const HOMEROW_ACTIONS := ["plot_0", "plot_1", "plot_2", "plot_3", "plot_4", "plot_5"]
+
+# ── Canonical ring keycodes (single source for overlays + Surface) ───────────
+# The plot/item ring is G H J K L ; with an optional 7th slot ' (apostrophe) used
+# by ControlsOverlay's wider tabs. The biome ring is T Y U I O P. Overlays used to
+# each re-hardcode an ITEM_BY_KEYCODE map; they now read these.
+const PLOT_ROW_KEYCODES: Array = [KEY_G, KEY_H, KEY_J, KEY_K, KEY_L, KEY_SEMICOLON, KEY_APOSTROPHE]
+const BIOME_ROW_KEYCODES: Array = [KEY_T, KEY_Y, KEY_U, KEY_I, KEY_O, KEY_P]
+
+## Index of a plot-ring keycode within the first `slots` positions, or -1.
+## `slots` keeps callers honest about their item count (6 = G-; , 7 = + apostrophe),
+## so a 6-item menu never treats ' as a phantom 7th selector.
+static func plot_index_for_keycode(keycode: int, slots: int = 6) -> int:
+	var i: int = PLOT_ROW_KEYCODES.find(keycode)
+	return i if (i >= 0 and i < slots) else -1
+
+## The plot-ring keycodes a caller responds to, sliced to its item count.
+static func plot_keycodes(slots: int = 6) -> Array:
+	return PLOT_ROW_KEYCODES.slice(0, slots)
+
+## Index of a biome-ring keycode (T Y U I O P), or -1.
+static func biome_index_for_keycode(keycode: int) -> int:
+	return BIOME_ROW_KEYCODES.find(keycode)
 const SUBSPACE_ACTIONS := ["subspace_0", "subspace_1", "subspace_2", "subspace_3"]
 const TOOL_GROUP_KEYS := ["1", "2", "3", "4"]
 const ACTION_KEYS := ["Q", "E", "R", "F"]
@@ -179,6 +204,20 @@ static func get_quest_slot_entries() -> Array[Dictionary]:
 
 static func get_keycode_for_label(key_label: String) -> int:
 	return int(KEY_LABEL_TO_KEYCODE.get(key_label, 0))
+
+
+## Single source for keycode → label decoding. Built once from KEY_LABEL_TO_KEYCODE
+## (digit/punct/row keys) + ACTION_KEYCODES (Q/E/R/F). Replaces the duplicate
+## QuantumInstrumentInput._keycode_to_string match table.
+static var _keycode_to_label_cache: Dictionary = {}
+
+static func get_label_for_keycode(keycode: int) -> String:
+	if _keycode_to_label_cache.is_empty():
+		for label in KEY_LABEL_TO_KEYCODE:
+			_keycode_to_label_cache[int(KEY_LABEL_TO_KEYCODE[label])] = label
+		for label in ACTION_KEYCODES:
+			_keycode_to_label_cache[int(ACTION_KEYCODES[label])] = label
+	return str(_keycode_to_label_cache.get(keycode, ""))
 
 
 static func get_action_keycode(action_key: String) -> int:

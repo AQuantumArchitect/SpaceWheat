@@ -751,10 +751,11 @@ func _capture_single_biome_state(biome: Node, _biome_name: String) -> Dictionary
 				"hamiltonian_couplings":ic.hamiltonian_couplings.duplicate() if "hamiltonian_couplings" in ic else {},
 			}
 		state_dict["icons"] = icon_snap
-		# Physics signature — lets the load path detect H drift between save
-		# and load (e.g. icons.json edits). L lives on biome.atom_components
-		# and has its own drift detection.
-		state_dict["physics_signature"] = _physics_signature_from_snap(icon_snap)
+		# Physics signature — lets the load path detect H/L drift between save and
+		# load (e.g. icons.json/biomes.json edits). Uses the ONE canonical fingerprint
+		# the builder stamps on the QuantumComputer (the same identity the C++ engine
+		# drift check uses) — not a second, separately-computed signature.
+		state_dict["physics_signature"] = str(biome.quantum_computer.physics_signature) if biome.quantum_computer else ""
 
 	# Snapshot register axes so Python lab can reconstruct RegisterMap.
 	if biome.quantum_computer and biome.quantum_computer.register_map:
@@ -895,53 +896,18 @@ func _warn_for_physics_drift(farm: Node, biome_states: Dictionary) -> void:
 		var state = biome_states[biome_name]
 		if not (state is Dictionary) or not state.has("physics_signature"):
 			continue
-		var biome = farm.grid.get_biome(str(biome_name))
-		if not biome or not ("icons" in biome) or not (biome.icons is Dictionary):
-			continue
 		var saved_sig = str(state["physics_signature"])
-		var current_snap: Dictionary = {}
-		for emoji in biome.icons:
-			var ic = biome.icons[emoji]
-			if not ic:
-				continue
-			current_snap[emoji] = {
-				"self_energy":          ic.self_energy if "self_energy" in ic else 0.0,
-				"driver":               ic.self_energy_driver if "self_energy_driver" in ic else "",
-				"driver_frequency":     ic.driver_frequency if "driver_frequency" in ic else 0.0,
-				"driver_phase":         ic.driver_phase if "driver_phase" in ic else 0.0,
-				"driver_amplitude":     ic.driver_amplitude if "driver_amplitude" in ic else 1.0,
-				"hamiltonian_couplings":ic.hamiltonian_couplings.duplicate() if "hamiltonian_couplings" in ic else {},
-			}
-		var current_sig = _physics_signature_from_snap(current_snap)
-		if saved_sig != current_sig:
-			push_warning("Biome '%s' physics drift on load: saved signature %s != current %s — restored ρ will evolve under different H/L than at save time" % [biome_name, saved_sig, current_sig])
-
-
-func _physics_signature_from_snap(icon_snap: Dictionary) -> String:
-	# Stable hash of the live icon physics snapshot used to detect drift
-	# between save-time and load-time operators.
-	if icon_snap.is_empty():
-		return ""
-	var emojis: Array = icon_snap.keys()
-	emojis.sort()
-	var parts: Array[String] = []
-	for emoji in emojis:
-		var ic = icon_snap.get(emoji, {})
-		if not (ic is Dictionary):
+		if saved_sig == "":
 			continue
-		var h_couplings = ic.get("hamiltonian_couplings", {})
-		var driver = str(ic.get("driver", ""))
-		parts.append("%s|%.6f|%s|%s|%s|%.6f|%s|%s" % [
-			str(emoji),
-			float(ic.get("self_energy", 0.0)),
-			driver,
-			str(ic.get("driver_frequency", 0.0)),
-			str(ic.get("driver_phase", 0.0)),
-			float(ic.get("driver_amplitude", 1.0)),
-			JSON.stringify(h_couplings if h_couplings is Dictionary else {}),
-			JSON.stringify(ic.get("measurement_behavior", {})),
-		])
-	return "|".join(parts).md5_text()
+		var biome = farm.grid.get_biome(str(biome_name))
+		if not biome or not biome.quantum_computer:
+			continue
+		# Compare the ONE canonical fingerprint the builder stamped on the rebuilt
+		# biome to the one saved with it. Same identity used for engine-drift detection
+		# — no second, separately-computed signature to fall out of agreement with.
+		var current_sig = str(biome.quantum_computer.physics_signature)
+		if current_sig != "" and saved_sig != current_sig:
+			push_warning("Biome '%s' physics drift on load: saved signature %s != current %s — restored ρ will evolve under different H/L than at save time" % [biome_name, saved_sig, current_sig])
 
 
 func _migrate_plot_infra_to_register(farm: Node, state: GameState) -> void:

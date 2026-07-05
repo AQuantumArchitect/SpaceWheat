@@ -16,43 +16,6 @@ func _log(level: String, category: String, emoji: String, message: String) -> vo
 func _log_debug(message: String) -> void:
 	_log("debug", "biome", "batch", message)
 
-func _env_truthy(raw: String) -> bool:
-	var val = raw.strip_edges().to_lower()
-	return val in ["1", "true", "yes", "on"]
-
-func _env_flag(key: String, default_value: bool = false) -> bool:
-	var raw = OS.get_environment(key)
-	if raw == "":
-		return default_value
-	return _env_truthy(raw)
-
-func _env_float(key: String, default_value: float) -> float:
-	var raw = OS.get_environment(key)
-	if raw == "":
-		return default_value
-	if not raw.is_valid_float():
-		return default_value
-	return raw.to_float()
-
-func _env_int(key: String, default_value: int) -> int:
-	var raw = OS.get_environment(key)
-	if raw == "":
-		return default_value
-	if not raw.is_valid_int():
-		return default_value
-	return raw.to_int()
-
-func _rig_flags_enabled(headless: bool) -> bool:
-	# Only honor rig flags in headless, unless explicitly overridden.
-	if _env_flag("SW_DISABLE_HEADLESS_GUARD", false):
-		return true
-	return headless
-
-func _resolve_flag(rig_key: String, global_key: String, rig_enabled: bool) -> bool:
-	if _env_flag(global_key, false):
-		return true
-	return rig_enabled and _env_flag(rig_key, false)
-
 
 const _PC = preload("res://Core/Config/PhysicsConfig.gd")
 
@@ -132,6 +95,11 @@ var biome_last_good_bloch: Dictionary = {}  # biome_name -> PackedFloat64Array
 var biome_last_good_purity: Dictionary = {}  # biome_name -> float
 var biome_dirty: Dictionary = {}  # biome_name -> bool (buffer invalidated)
 var biome_pending_reregister: Dictionary = {}  # biome_name -> bool
+## The physics_signature the C++ engine's H/L copy was (re)registered FROM, per biome.
+## The engine holds its own copy of the operators; this records which build it came from
+## so drift between the live builders and the engine's copy can be DETECTED (signature
+## mismatch) rather than relying on a caller remembering to mark_for_reregister.
+var _biome_registered_signature: Dictionary = {}  # biome_name -> String
 
 # Signal for user action (invalidates lookahead)
 signal user_action_detected
@@ -284,6 +252,7 @@ func _teardown_runtime_state() -> void:
 	biome_last_good_purity.clear()
 	biome_dirty.clear()
 	biome_pending_reregister.clear()
+	_biome_registered_signature.clear()
 
 	biome_buffer_states.clear()
 	biome_fib_indices.clear()
@@ -324,19 +293,19 @@ func initialize(biome_array: Array, p_terminal_pool = null, p_farm = null):
 	else:
 		_deterministic_stepper.bind_batcher(self)
 
-	# Resolve runtime flags once per session.
-	_headless_env = DisplayServer.get_name() == "headless"
-	var rig_enabled = _rig_flags_enabled(_headless_env)
-	_disable_lookahead_env = _resolve_flag("RIG_DISABLE_LOOKAHEAD", "SW_DISABLE_LOOKAHEAD", rig_enabled)
-	_disable_mi_env = _resolve_flag("RIG_DISABLE_MI", "SW_DISABLE_MI", rig_enabled)
-	_disable_force_env = _resolve_flag("RIG_DISABLE_FORCE_GRAPH", "SW_DISABLE_FORCE", rig_enabled) \
-		or _resolve_flag("RIG_DISABLE_FORCE", "SW_DISABLE_FORCE", rig_enabled)
-	_packet_pacing_delay_ms = max(0, _env_int("SW_PACKET_PACING_DELAY_MS", 0))
-	_max_packet_steps = max(1, _env_int("SW_MAX_PACKET_STEPS", FIB_SEQUENCE[FIB_SEQUENCE.size() - 1]))
+	# Resolve runtime flags once per session — all via the single RuntimeEnv authority
+	# (which owns the headless-guard: RIG_* flags are honored only headless, so a HEADED
+	# rig runs the player's exact physics — lookahead + MI + force).
+	_headless_env = RuntimeEnv.is_headless()
+	_disable_lookahead_env = RuntimeEnv.disable_lookahead()
+	_disable_mi_env = RuntimeEnv.disable_mi()
+	_disable_force_env = RuntimeEnv.disable_force()
+	_packet_pacing_delay_ms = max(0, RuntimeEnv.env_int("SW_PACKET_PACING_DELAY_MS", 0))
+	_max_packet_steps = max(1, RuntimeEnv.env_int("SW_MAX_PACKET_STEPS", FIB_SEQUENCE[FIB_SEQUENCE.size() - 1]))
 	# Godot already drives Farm._physics_process at PhysicsConfig.PHYSICS_TICKS_HZ.
 	# A second wall-clock phrame cap drops jittery 99ms physics ticks and lowers PhHz.
 	var default_hz = 0.0
-	_max_phrame_hz_cap = max(0.0, _env_float("SW_MAX_PHRAME_HZ", default_hz))
+	_max_phrame_hz_cap = max(0.0, RuntimeEnv.env_float("SW_MAX_PHRAME_HZ", default_hz))
 	if _max_phrame_hz_cap > 0.0:
 		_min_phrame_interval_ms = 1000.0 / _max_phrame_hz_cap
 	else:
@@ -598,6 +567,8 @@ func _register_native_biome(biome) -> int:
 	_biome_engine_ids[biome_name] = biome_id
 	_engine_id_to_biome[biome_id] = biome_name
 	_biome_engine_dims[biome_name] = dim
+	# Record the physics fingerprint this engine copy was built from (drift anchor).
+	_biome_registered_signature[biome_name] = str(qc.physics_signature)
 	_sync_biome_structure_payload(biome, biome_id)
 
 	# Wire the coherent generator switch into the C++ engine (two-axis isolation). The
@@ -1306,17 +1277,45 @@ func _get_biome_rho_status(biome_name: String, biome) -> Dictionary:
 
 
 func _process_pending_reregisters() -> void:
-	if biome_pending_reregister.is_empty():
-		return
 	if lookahead_engine == null:
 		return
 	if not _active_packet_request.is_empty() or not _packet_queue.is_empty():
+		return
+
+	# Catch SILENT drift: if a biome's live operators were rebuilt (new physics_signature)
+	# without anyone flagging it, the engine's copy is stale. Comparing signatures flags it
+	# here, so the C++ copy can't diverge from the builders unnoticed.
+	_flag_drifted_engine_signatures()
+
+	if biome_pending_reregister.is_empty():
 		return
 
 	var pending_names = biome_pending_reregister.keys()
 	for biome_name in pending_names:
 		if biome_pending_reregister.get(biome_name, false):
 			_reregister_biome_by_name(biome_name)
+
+
+## Flag any registered biome whose LIVE physics signature no longer matches the one its
+## C++ engine copy was registered from. This is the traceability check that makes the
+## "silent twin" impossible: the engine's H/L copy is provably either in sync or flagged
+## to re-sync — drift never goes unnoticed just because a mutator forgot to mark dirty.
+func _flag_drifted_engine_signatures() -> void:
+	for biome_name in _biome_engine_ids.keys():
+		if int(_biome_engine_ids.get(biome_name, -1)) < 0:
+			continue
+		if biome_pending_reregister.get(biome_name, false):
+			continue  # already queued
+		var biome = _get_biome_by_name(biome_name)
+		if not _is_valid_biome(biome) or not biome.quantum_computer:
+			continue
+		var live_sig: String = str(biome.quantum_computer.physics_signature)
+		var reg_sig: String = str(_biome_registered_signature.get(biome_name, ""))
+		if live_sig == "" or reg_sig == "":
+			continue  # not enough info to assert drift
+		if live_sig != reg_sig:
+			_log("warn", "REREGISTER", "🧭", "%s: engine physics drift (live signature != registered) — flushing the stale C++ copy" % biome_name)
+			biome_pending_reregister[biome_name] = true
 
 
 func _reregister_biome_by_name(biome_name: String) -> void:
@@ -1344,6 +1343,7 @@ func _reregister_biome_by_name(biome_name: String) -> void:
 				lindblad_triplets.append(_matrix_to_triplets(L))
 		if lookahead_engine.reregister_biome(old_id, dim, H_packed, lindblad_triplets, num_qubits):
 			_biome_engine_dims[biome_name] = dim
+			_biome_registered_signature[biome_name] = str(qc.physics_signature)
 			_sync_biome_structure_payload(biome, old_id)
 			if lookahead_engine.has_method("set_biome_coherent"):
 				lookahead_engine.set_biome_coherent(old_id, BalanceConfig.coherent_enabled())
@@ -1373,14 +1373,6 @@ func _get_biome_by_name(biome_name: String):
 	return null
 
 
-func _get_engine_id_for_biome(biome_name: String) -> int:
-	# Get C++ engine ID for a biome by name. Returns -1 if not found.
-	for engine_id in _engine_id_to_biome:
-		if _engine_id_to_biome[engine_id] == biome_name:
-			return engine_id
-	return -1
-
-
 func _update_biome_pause_states():
 	# Refresh the cached activity ledger on demand.
 	_refresh_runtime_activity()
@@ -1394,33 +1386,6 @@ func _poll_runtime_activity(delta: float) -> void:
 	_activity_poll_accumulator += delta
 	if _activity_poll_accumulator >= ACTIVITY_POLL_INTERVAL:
 		_refresh_runtime_activity(true)
-
-
-func _biome_has_peeked_terminals(biome) -> bool:
-	# Check if biome has any peeked terminals (bubbles to render).
-	#
-	# Returns false if no terminals are peeked (biome should be paused).
-	if not _is_valid_biome(biome):
-		return false
-
-	var qc = biome.quantum_computer
-	var num_qubits = qc.register_map.num_qubits if qc.register_map else 0
-
-	# Check if any qubits have been peeked
-	for i in range(num_qubits):
-		# Check via quantum computer's peek tracking
-		# (Assumes QC has peeked state tracking - if not, check terminal_pool instead)
-		var qubit_data = qc.get_qubit_data(i) if qc.has_method("get_qubit_data") else null
-		if qubit_data and qubit_data.get("peeked", false):
-			return true
-
-	# Fallback: check via terminal_pool if biome has bound terminals
-	if terminal_pool and terminal_pool.has_method("get_biome_peek_count"):
-		var peek_count = terminal_pool.get_biome_peek_count(biome.get_biome_type())
-		return peek_count > 0
-
-	# Default: assume active if we can't determine (safe fallback)
-	return true
 
 
 func _should_trigger_biome_refill(biome_name: String, _depth: int, rho_valid: bool = true) -> bool:
@@ -2630,23 +2595,6 @@ func _post_evolution_update(biome):
 		"VolcanicWorlds":
 			if biome.has_method("_update_eruption_state"):
 				biome._update_eruption_state()
-
-
-func _accumulate_sink_flux_from_couplings(biome, dt: float) -> void:
-	# Accumulate Lindblad sink flux using native coupling rates and live state.
-	if dt <= 0.0 or not _is_valid_biome(biome):
-		return
-	var qc = biome.quantum_computer
-	if not qc or not qc.has_method("accumulate_sink_flux_from_rates"):
-		return
-	var biome_name = _get_biome_name(biome)
-	var lookahead_buffer = _get_lookahead_buffer(biome_name)
-	var payload = lookahead_buffer.couplings if lookahead_buffer else {}
-	if payload.is_empty():
-		return
-	var sink_fluxes = payload.get("sink_fluxes", {})
-	if sink_fluxes is Dictionary and not sink_fluxes.is_empty():
-		qc.accumulate_sink_flux_from_rates(sink_fluxes, dt)
 
 
 func signal_user_action():

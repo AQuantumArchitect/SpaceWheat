@@ -68,9 +68,6 @@ var is_terminal_bubble: bool = false
 # This decouples QuantumNode from scene tree for biome lookup
 var biome_resolver: Callable = Callable()
 
-# V2 Architecture: Frozen anchor position (set on MEASURE, used for snapping)
-var frozen_anchor: Vector2 = Vector2.ZERO
-
 # Lifeless mode - no quantum data available, should not wiggle
 var is_lifeless: bool = false
 
@@ -91,12 +88,18 @@ var phi_raw: float = 0.0  # Raw phi for force calculations
 # Season constants - imported from shared source
 const SEASON_ANGLES = VisualizationConstants.SEASON_ANGLES
 const SEASON_COLORS = VisualizationConstants.SEASON_COLORS
+const _BalanceConfig = preload("res://Core/GameMechanics/BalanceConfig.gd")
 
 # Animation properties
 var visual_scale: float = 0.0  # Animated scale (0 to 1)
 var visual_alpha: float = 0.0  # Animated alpha (0 to 1)
 var spawn_time: float = 0.0    # Time when node was created
 var is_spawning: bool = false  # Currently animating in
+
+# One-shot guard so a bound bubble that fails to resolve its quantum state
+# screams ONCE in the log instead of either spamming every frame or (worse)
+# silently going lifeless. Absence is fine; a started-but-unresolvable bubble is a bug.
+var resolve_warned: bool = false
 
 # Visibility (for single-biome filtering - not a Node2D so we manage manually)
 var visible: bool = true
@@ -199,9 +202,13 @@ func apply_lifeless_visual(emojis_dict: Dictionary = {}) -> void:
 
 
 func apply_measured_visual(measured_outcome: String = "", north_value: String = "", south_value: String = "") -> void:
-	# Apply a frozen measured visual state.
+	# Apply a frozen measured visual state. A measured bubble is a static readout —
+	# it must be fully visible on its own, NOT wait on the spawn fade-in (which never
+	# completes once the terminal is measured). Force full scale/alpha here.
 	is_lifeless = false
 	is_spawning = false
+	visual_scale = 1.0
+	visual_alpha = 1.0
 	if north_value != "":
 		emoji_north = north_value
 	if south_value != "":
@@ -244,14 +251,11 @@ func apply_quantum_snapshot(snap: Dictionary, smooth_radius: bool = false) -> bo
 
 	var coh_magnitude = snap.get("r_xy", 0.0) * 0.5
 	var coh_phase = snap.get("phi", 0.0)
-	var hue = (coh_phase + PI) / TAU
-	color = Color.from_hsv(hue, coh_magnitude * 0.8, 0.9, 0.8)
+	color = VisualizationConstants.phase_to_hsv(coh_phase, coh_magnitude)
 
 	var old_phi = phi_raw
 	phi_raw = coh_phase
-	for i in range(3):
-		var angle_diff = phi_raw - SEASON_ANGLES[i]
-		season_projections[i] = (1.0 + cos(angle_diff)) * 0.5 * coh_magnitude
+	season_projections = VisualizationConstants.season_projections(phi_raw, coh_magnitude)
 
 	var delta_phi = phi_raw - old_phi
 	while delta_phi > PI:
@@ -265,8 +269,19 @@ func apply_quantum_snapshot(snap: Dictionary, smooth_radius: bool = false) -> bo
 	energy = purity  # Legacy alias retained for older renderers/tools
 	coherence = coh_magnitude
 
-	var r_bloch = snap.get("r_bloch", 0.0)
-	var target_radius = lerpf(MIN_RADIUS, MAX_RADIUS, r_bloch)
+	# Radius channel = Bloch/subspace radius — an OPEN-system mixedness encoding
+	# (dissipation shrinks the reduced state). In the closed (unitary) system the
+	# contract is "r = 1 forever" (see docs/CLOSED_SYSTEM.md), so bubbles render at
+	# full size; the per-qubit reduced radius still dips under entanglement, but the
+	# closed system has no dissipative mixedness to show, so we don't shrink for it.
+	# (Without this, a missing/entangled r_bloch defaulted toward 0 → MIN_RADIUS →
+	# every bubble tiny once the open-system radius driver was removed — #119.)
+	var target_radius: float
+	if _BalanceConfig.is_closed_system():
+		target_radius = MAX_RADIUS
+	else:
+		var r_bloch = snap.get("r_bloch", 0.0)
+		target_radius = lerpf(MIN_RADIUS, MAX_RADIUS, r_bloch)
 	radius = lerpf(radius, target_radius, 0.15) if smooth_radius else target_radius
 
 	berry_phase = coh_magnitude * TAU

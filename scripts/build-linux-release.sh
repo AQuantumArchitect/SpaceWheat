@@ -12,11 +12,10 @@
 #   2. Builds godot-cpp (cached unless --clean)
 #   3. Builds the C++ extension
 #   4. Warms Godot's import + class cache (double import; a cold clone can't compile)
-#   5. Refreshes the bundled operator cache (best-effort; ships the repo's cache otherwise)
-#   6. Exports the game via Godot headless
-#   7. Smoke-tests the exported binary and REFUSES to ship if it boots with errors
-#   8. Creates the tarball in releases/linux/
-#   9. Optionally installs to ~/games/SpaceWheat/
+#   5. Exports the game via Godot headless
+#   6. Smoke-tests the exported binary and REFUSES to ship if it boots with errors
+#   7. Creates the tarball in releases/linux/
+#   8. Optionally installs to ~/games/SpaceWheat/
 
 set -euo pipefail
 
@@ -39,7 +38,6 @@ DO_INSTALL=false
 DO_CLEAN=false
 SKIP_CPP=false
 SKIP_EXPORT=false
-SKIP_CACHE=false
 VERBOSE=false
 
 # ─────────────────────────────────────────────────────────────
@@ -64,7 +62,6 @@ OPTIONS:
     --clean, -c             Force rebuild of godot-cpp (normally cached)
     --skip-cpp              Skip C++ build (use existing binaries)
     --skip-export           Skip Godot export (use existing export)
-    --skip-cache            Skip the bundled-cache rebuild (ship the repo's cache as-is)
     --verbose               Show detailed output
     --help, -h              Show this help message
 
@@ -118,10 +115,6 @@ while [[ $# -gt 0 ]]; do
             ;;
         --skip-export)
             SKIP_EXPORT=true
-            shift
-            ;;
-        --skip-cache)
-            SKIP_CACHE=true
             shift
             ;;
         --verbose)
@@ -251,27 +244,11 @@ if [ "$SKIP_EXPORT" != true ]; then
 fi
 
 # ─────────────────────────────────────────────────────────────
-# Step 5: Refresh bundled operator cache (best-effort)
+# Step 5: Export game with Godot (cache warmed above)
 # ─────────────────────────────────────────────────────────────
-# The repo ships a committed BundledCache/ (regenerated from the editor when operators
-# change) and the export includes it. The headless rebuild boots a full session, which
-# can't complete headless (FarmView game_ready never fires), so a failure here must NOT
-# abort the release — the committed cache is shipped instead. --skip-cache skips it.
-if [ "$SKIP_CACHE" = true ]; then
-    warn "Skipping bundled-cache rebuild (--skip-cache); shipping the repo's committed cache."
-else
-    log "Refreshing bundled operator cache (best-effort)..."
-    cd "$BUILD_DIR"
-    if timeout 300 "$GODOT_BIN" --headless --path . --script tools/BuildBundledCache.gd; then
-        success "Bundled operator cache refreshed"
-    else
-        warn "Bundled-cache rebuild didn't complete headless — shipping the repo's committed cache (correct, just not refreshed)."
-    fi
-fi
-
-# ─────────────────────────────────────────────────────────────
-# Step 6: Export game with Godot (cache warmed above)
-# ─────────────────────────────────────────────────────────────
+# (No operator-cache step: operators are built on demand from icons.json/biomes.json
+# at biome realization — ~0.7 ms/biome — so there is no bundled cache to refresh. The
+# builders are the single authority for derived physics.)
 if [ "$SKIP_EXPORT" = true ]; then
     warn "Skipping Godot export (--skip-export)"
     [ -d "$EXPORT_DIR" ] || error "No existing export found. Remove --skip-export."
@@ -294,7 +271,7 @@ if [ ! -f "$EXPORT_DIR/launch.sh" ]; then
 fi
 
 # ─────────────────────────────────────────────────────────────
-# Step 7: Smoke-test the exported build — never ship a broken release
+# Step 6: Smoke-test the exported build — never ship a broken release
 # ─────────────────────────────────────────────────────────────
 # Boot the actual exported binary (with its bundled .so) headless and refuse to package
 # if it logs any SCRIPT ERROR / ERROR: — this catches a cold/broken export, a missing
@@ -311,7 +288,7 @@ if [ "$SKIP_EXPORT" != true ]; then
 fi
 
 # ─────────────────────────────────────────────────────────────
-# Step 8: Create tarball
+# Step 7: Create tarball
 # ─────────────────────────────────────────────────────────────
 log "Creating release tarball..."
 mkdir -p "$RELEASE_DIR"
@@ -324,7 +301,7 @@ TARBALL_SIZE=$(du -h "$TARBALL" | cut -f1)
 success "Release created: $TARBALL ($TARBALL_SIZE)"
 
 # ─────────────────────────────────────────────────────────────
-# Step 9: Install (optional)
+# Step 8: Install (optional)
 # ─────────────────────────────────────────────────────────────
 if [ "$DO_INSTALL" = true ]; then
     log "Installing to $INSTALL_DIR..."

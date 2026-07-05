@@ -92,7 +92,7 @@ func _ready():
 
 func _detect_input_mode():
 	# Detect if device supports touch input
-	is_touch_device = OS.has_feature("touchscreen")
+	is_touch_device = RuntimeEnv.is_touch()
 
 	# Additional detection for HTML5 export
 	if OS.get_name() == "HTML5":

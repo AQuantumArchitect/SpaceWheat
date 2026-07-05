@@ -9,14 +9,8 @@ if "%PROJECT_ROOT%"=="" (
 
 set "GODOT_WINDOWS_PATH=%GODOT_WINDOWS_PATH%"
 if "%GODOT_WINDOWS_PATH%"=="" (
-  if exist "C:\Users\Luke Spooner\Downloads\Godot_v4.1.2-stable_win64_console.exe" (
-    set "GODOT_WINDOWS_PATH=C:\Users\Luke Spooner\Downloads\Godot_v4.1.2-stable_win64_console.exe"
-  ) else if exist "C:\Users\Luke Spooner\Downloads\Godot_v4.1.2-stable_win64.exe" (
-    set "GODOT_WINDOWS_PATH=C:\Users\Luke Spooner\Downloads\Godot_v4.1.2-stable_win64.exe"
-  ) else (
-    echo [windows_rig] GODOT_WINDOWS_PATH is required
-    exit /b 2
-  )
+  echo [windows_rig] GODOT_WINDOWS_PATH is required ^(path to godot .exe^)
+  exit /b 2
 )
 
 set "PROJECT_ROOT_WIN=%PROJECT_ROOT_WIN%"
@@ -44,14 +38,14 @@ echo [windows_rig] godot=%GODOT_WINDOWS_PATH%
 echo [windows_rig] display=%RIG_DISPLAY_MODE%
 
 if /I "%RIG_DISPLAY_MODE%"=="headless" (
-  start "" /B "%GODOT_WINDOWS_PATH%" --headless --path "%PROJECT_ROOT_WIN%" --script Rig/rig_listener.gd
+  start "" /B "%GODOT_WINDOWS_PATH%" --headless --path "%PROJECT_ROOT_WIN%" --script 🍄/🎛️/rig_listener.gd
   exit /b %ERRORLEVEL%
 )
 
 if not "%RIG_RENDERING_DRIVER%"=="" (
-  start "" /B "%GODOT_WINDOWS_PATH%" --rendering-driver "%RIG_RENDERING_DRIVER%" --path "%PROJECT_ROOT_WIN%" --script Rig/rig_listener.gd
+  start "" /B "%GODOT_WINDOWS_PATH%" --rendering-driver "%RIG_RENDERING_DRIVER%" --path "%PROJECT_ROOT_WIN%" --script 🍄/🎛️/rig_listener.gd
   exit /b %ERRORLEVEL%
 )
 
-start "" /B "%GODOT_WINDOWS_PATH%" --path "%PROJECT_ROOT_WIN%" --script Rig/rig_listener.gd
+start "" /B "%GODOT_WINDOWS_PATH%" --path "%PROJECT_ROOT_WIN%" --script 🍄/🎛️/rig_listener.gd
 exit /b %ERRORLEVEL%

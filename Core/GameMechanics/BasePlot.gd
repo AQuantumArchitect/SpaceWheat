@@ -269,9 +269,11 @@ func _get_infra_field(field: String, default = null):
 
 
 func _set_infra_field(field: String, value) -> void:
-	if bound_register_id < 0: return
+	if bound_register_id < 0: return  # not bound → nothing to write (legitimate absence)
 	var qc = _resolve_quantum_computer()
-	if not qc: return
+	if not qc:
+		push_warning("BasePlot: infra write '%s' DROPPED — register %d is bound but no quantum_computer resolved (plot %s)" % [field, bound_register_id, str(grid_position)])
+		return
 	qc.set_register_infra_field(bound_register_id, field, value)
 
 # ============================================================================
@@ -392,9 +394,11 @@ func remove_entanglement(partner_id: String) -> void:
 
 func add_persistent_gate(gate_type: String, linked_plots: Array[Vector2i] = []) -> void:
 	# Add a persistent gate to this plot. Gates survive harvest/replant.
-	if bound_register_id < 0: return
+	if bound_register_id < 0: return  # not bound → nothing to gate (legitimate absence)
 	var qc = _resolve_quantum_computer()
-	if not qc: return
+	if not qc:
+		push_warning("BasePlot: persistent gate '%s' DROPPED — register %d is bound but no quantum_computer resolved (plot %s)" % [gate_type, bound_register_id, str(grid_position)])
+		return
 	qc.add_persistent_gate_to_register(bound_register_id, gate_type, [])
 	_log("debug", "farm", "🔧", "Added persistent gate '%s' to plot %s (linked: %d plots)" % [gate_type, grid_position, linked_plots.size()])
 

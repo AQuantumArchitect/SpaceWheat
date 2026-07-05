@@ -114,7 +114,7 @@ func _finalize_biome_evolution_batcher() -> void:
 var biome_enabled: bool = false
 
 # Dynamic grid sizing
-const DEFAULT_PLOTS_PER_BIOME = 4
+const DEFAULT_PLOTS_PER_BIOME = 6  # canonical ring: G H J K L ; = 6 icons / 12 atoms
 const MAX_PLOTS_PER_BIOME = 7  # J K L ; ' H G
 const LINDBLAD_TIMESCALE_BASE_DT = 0.02
 const LINDBLAD_TIMESCALE_CAP = 4096.0
@@ -443,6 +443,28 @@ func discover_icon(north: String, south: String) -> bool:
 	known_icons.append({"north": north, "south": south})
 	_sync_current_state_signature()
 	_pump_for_icon(north, south)
+	return true
+
+
+func discorporate_icon(north: String, south: String) -> bool:
+	# Remove a known icon from the signature — the inverse of discover_icon.
+	# The signature keeps at least one voice; the last pair cannot be discorporated.
+	if north == "" or south == "":
+		return false
+	var idx := -1
+	for i in range(known_icons.size()):
+		if known_icons[i].get("north", "") == north and known_icons[i].get("south", "") == south:
+			idx = i
+			break
+	if idx < 0:
+		return false
+	if known_icons.size() <= 1:
+		return false  # never empty the signature
+	known_icons.remove_at(idx)
+	for sidx in range(active_icon_slots.size()):
+		if int(active_icon_slots[sidx]) >= known_icons.size():
+			active_icon_slots[sidx] = max(0, known_icons.size() - 1)
+	_sync_current_state_signature()
 	return true
 
 
@@ -928,8 +950,8 @@ func time_skip_phrames(phrames: int, delta: float = PhysicsConfig.PHRAME_DT) -> 
 	# Advance farm physics/evolution synchronously for deterministic headless rig control.
 	var steps = max(0, int(phrames))
 	var dt = max(0.000001, float(delta))
-	var debug_time_skip = OS.get_environment("RIG_DEBUG_TIMESKIP").to_lower() in ["1", "true", "yes", "on"]
-	var skip_lindblad = OS.get_environment("RIG_TIME_SKIP_SKIP_LINDBLAD").to_lower() in ["1", "true", "yes", "on"]
+	var debug_time_skip = RuntimeEnv.debug_timeskip()
+	var skip_lindblad = RuntimeEnv.time_skip_skip_lindblad()
 	if steps <= 0:
 		return {"ok": true, "phrames": 0, "delta": dt}
 
@@ -983,6 +1005,12 @@ func time_skip_phrames(phrames: int, delta: float = PhysicsConfig.PHRAME_DT) -> 
 
 
 func _process_lindblad_effects(delta: float) -> void:
+	# Persistent Lindblad pump/drain (the Spark/Merchant frames) is OPEN-SYSTEM ONLY.
+	# The closed system has no dissipation — hard-gate here so the live game can never
+	# run this path even if a stray register flag survives from an open save / DLC toggle.
+	# (Previously this relied only on Spark/Merchant being frame-hidden in closed mode.)
+	if not BalanceConfig.dissipative_enabled():
+		return
 	# Apply persistent Lindblad pump/drain effects from the Spark/Merchant frames.
 	if not grid:
 		return
@@ -1199,10 +1227,7 @@ func _accumulate_lindblad_harvest_infra(qc, register_id: int, emoji: String, dra
 
 
 func _is_rainbow_drain_mode() -> bool:
-	var raw = OS.get_environment("SW_RAINBOW_DRAIN_MODE").strip_edges().to_lower()
-	if raw == "":
-		return RAINBOW_DRAIN_MODE_DEFAULT
-	return raw in ["1", "true", "yes", "on"]
+	return RuntimeEnv.flag("SW_RAINBOW_DRAIN_MODE", RAINBOW_DRAIN_MODE_DEFAULT)
 
 
 func _harvest_rainbow_sink_flux(active_drain_biomes: Dictionary) -> void:
@@ -1401,15 +1426,6 @@ func _is_biome_loaded(biome_name: String) -> bool:
 	return grid != null and grid.get_biome(biome_name) != null
 
 
-func _get_loadable_biomes() -> Array[String]:
-	# Get loadable biomes (icon build succeeded).
-	var observation_frame = get_node_or_null("/root/ObservationFrame")
-	if observation_frame and observation_frame.has_method("get_loadable_biomes"):
-		return observation_frame.get_loadable_biomes()
-	# Fallback to explored list if loadable list not available
-	return _get_explored_biomes()
-
-
 func _get_max_biome_plot_count(biome_names: Array[String]) -> int:
 	# Compute max plot count across biome layouts (fallback to DEFAULT_PLOTS_PER_BIOME).
 	var max_count = 0
@@ -1429,7 +1445,9 @@ func _get_max_biome_plot_count(biome_names: Array[String]) -> int:
 				max_count = count2
 	if max_count <= 0:
 		max_count = DEFAULT_PLOTS_PER_BIOME
-	return min(max_count, MAX_PLOTS_PER_BIOME)
+	# Floor at the full ring so every biome always has empty injection slots up to 6 qubits;
+	# cap at MAX_PLOTS_PER_BIOME. (grid_width = max(current qubits) alone is circular.)
+	return clampi(max_count, DEFAULT_PLOTS_PER_BIOME, MAX_PLOTS_PER_BIOME)
 
 
 func _get_loaded_biome_ref(biome_name: String):

@@ -25,7 +25,7 @@ known_icons = [{
 "north": "🌾",
 "south": "👥"
 }]
-unlocked_biomes = Array[String](["StarterForest", "Village"])
+unlocked_biomes = Array[String](["StarterForest", "Village", "TheDemos"])
 unexplored_biome_pool = ["FreshwaterSpring", "Woodlot", "Harbor", "PowerStation", "MarketDistrict", "Workshop", "ColdLab", "StellarForges", "CyberDebtMegacity", "BloodLedger", "BureaucraticAbyss", "RevolutionSquare", "VolcanicWorlds", "DemolitionSite", "AshPatch"]
 active_biome_name = "StarterForest"
 grid_width = 6

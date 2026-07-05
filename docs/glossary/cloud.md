@@ -19,6 +19,13 @@ A cloud is a set of atoms (emojis). Things have clouds:
 Clouds are computed in `Core/Factions/IconRelations.gd` (`cloud_of`, `union_of_clouds`).
 The cloud is a `Dictionary[atom → true]` for O(1) membership checks.
 
-**Anti-pattern:** do not call `Faction.signature` (the atom-array field on
-disk) a cloud — that field is a misnomer. In code, read the faction's cloud as
+A faction's atom set is the correctly-named `cloud` field (`"cloud"` in
+`factions.json`, `Faction.cloud` in `Faction.gd`). Its *derived* cloud — everything
+the faction's signature icons touch — is
 `IconRelations.union_of_clouds(IconRegistry.get_icons_for_faction(name))`.
+
+**Anti-pattern:** do NOT call an atom set a "signature" — a signature is a set of
+*icons* (see [signature](signature.md)). The quest system (`IconPairing`,
+`QuestRewards`, `FactionDensityMatrix`) historically used `signature`-flavoured names
+for what are really clouds (atom sets); read such names as clouds and prefer the
+`cloud`/atom vocabulary when touching them.

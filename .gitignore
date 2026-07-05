@@ -114,3 +114,7 @@ build_web/
 # Transient rig/build scratch (runtime artifacts, not source)
 .build/
 .godot_windows_rig/
+
+# Rig screenshot artifacts
+🍄/🧪/demo_shots/
+🍄/🧪/playthrough_shots/

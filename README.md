@@ -1,6 +1,9 @@
 # SpaceWheat
 
-A quantum farming simulator built on real physics. Grow crops, measure qubits, harvest probability.
+A quantum farming game where **the story is the physics**. Every plot is a real
+qubit; every biome is a small quantum computer evolving under its own Hamiltonian;
+every harvest is a projective measurement. The quantum mechanics aren't a
+metaphor — they're the engine.
 
 ![SpaceWheat titlecard](Assets/spacewheat_titlecard.png)
 
@@ -26,20 +29,41 @@ on stays closed forever: home is the thing the open world teaches you to miss
 > is the five-minute ledger: every concept the game teaches, what the player
 > does with it, and an honesty grade per claim — exact, faithful, or
 > suggestive — plus how to verify each one yourself.
+>
+> **Building or modding?** [`docs/GAME_CODEX.md`](docs/GAME_CODEX.md) is the
+> single canonical source of truth — mental model, physics, controls, the core
+> loop, the campaign — with every claim pointing at the file that is the
+> authority for it.
 
 ## How It Works
 
-### The Quantum Foundation
+This README is only a doorway. The codex is the room.
 
 Each biome runs a **density matrix simulation** of its quantum state. A biome is a *cloud of atoms* (single emojis); its qubit axes form when a faction's **icons** are installed over it (a neighborhood) — each icon pairs two atoms into a north pole (|0>) and a south pole (|1>). A wheat qubit might be sun/moon, a population qubit might be people/fire. Pole-pairing is a neighborhood/faction product, not a property of the biome itself. The state evolves under the induced Hamiltonian — exactly, via the unitary propagator U = exp(−iH·dt), purity conserved to machine precision — and when you measure, Born's rule decides what you get. Each biome also authors a Lindblad flow-graph (its *webway*, the food web); in v0 those channels are drawn in the graph views but sealed: zero dissipators are built while the enclave holds.
 
-This isn't approximate. The gate library implements all standard quantum gates with exact matrix definitions:
+- **Biome = quantum computer.** One pure-state density matrix `ρ` per biome,
+  evolving under an exact closed-system unitary `U = exp(−iH·dt)` (purity stays 1).
+  The open/Lindblad path exists but is **off by default** (it's DLC).
+- **Icons author the Hamiltonian.** An *icon* is a two-emoji qubit axis
+  (`Core/Factions/data/icons.json`). Planting icons adds qubits and their `H` terms.
+- **Factions are loadouts; biomes are scaffolds.** A faction supplies a *signature*
+  (a set of icons) that is *realized* into a bare biome at runtime.
+- **Story fires from physics.** Narrative beats trigger when soft continuous gates
+  over live observables (spectral gap, Var(H), signature growth, atom diversity,
+  berry phase) cross a threshold — not from scripted dialogue.
 
-- **Single-qubit**: X, Y, Z, H, S, T, S-dagger, T-dagger, Rx, Ry, Rz
-- **Two-qubit**: CNOT, CZ, SWAP
-- **State preparation**: Bell pairs, GHZ states
+## The core loop
 
-Every gate is verified against known quantum states (142 physics tests).
+1. **Measure** a qubit (Ace **E**): Born-sample it; it collapses to one emoji.
+2. **Harvest** (Ace **Q**): cash the outcome for resources — reward is the
+   surprisal `−kT·log p` (rarer = richer), with a bonus if the icon is in your
+   signature.
+3. **Track & Incorporate** (Icon **F** then **R**): let a qubit accumulate Berry
+   phase until it ripens, then incorporate its icon — your *signature* grows, and
+   story beats fire.
+4. Compose biomes by planting atoms; **Reap** to fast-forward evolution; trade on
+   the market. Win the campaign by composing a Village whose spectral gap stays
+   small — a plural island that physically cannot collapse into one shape.
 
 ### The Seven Frames
 
@@ -52,7 +76,7 @@ player wears:
 | **5** | **Icon** | Inject a dual-emoji qubit from the neighborhood's installed signature. |
 | **6** | **Merchant** | Standing contracts with the Bath (wet ground): thermal / dephase / damp channels; export, order book, import, settle. Price = −kT·log p. |
 | **7** | **Captain** | Biome lifecycle: cull, discover. |
-| **8** | **Ace** | The default toolkit — the plant/measure/harvest energy dyad. |
+| **8** | **Ace** | The player vantage — measurement is the verb: Extract (Q), Pause (E), Strike (R), Fast-Fwd (F). |
 | **9** | **Operator** | Gate building: Bell, CNOT, CZ, SWAP, GHZ, cluster. |
 | **0** | **Druid** | Unitary rotations + Hadamard (X/Y/Z axes on 1/2/3). |
 
@@ -66,22 +90,23 @@ keyboard, with **E as the universal "inspect / more information"**):
 ### The Core Loop
 
 ```
-PLANT (R)  -->  MEASURE (E)  -->  HARVEST (Q)  -->  repeat
-    |               |                  |
- invest energy   Born sample       surprisal payout
-                collapse state     E = −kT·log p
+STRIKE (R)  -->  EXTRACT (Q)  -->  FAST-FWD (F)  -->  repeat
+    |                |                  |
+ Born sample     surprisal payout   H respreads
+ collapse state  E = −kT·log p      the odds
 ```
 
-1. **Plant** invests energy — jolt population toward the pole you want.
-2. **Measure** samples the qubit via Born's rule and collapses it — the game's single
+1. **Strike** samples the qubit via Born's rule and collapses it — the game's single
    irreversible act, seeded deterministically so a save-load replays the same universe.
-3. **Harvest** pays the *surprisal* of what you learned: improbable outcomes pay more
+2. **Extract** pays the *surprisal* of what you learned: improbable outcomes pay more
    because you learned more. The player is Maxwell's demon on a payroll
    (`docs/inspiration/DEMON_AT_THE_GATE.md`).
+3. **Fast-forward** lets the Hamiltonian spin the odds back up. (Plant — the population
+   drive — lives on the Spark hat and fires only where the ground runs open.)
 
-Selecting a plot auto-binds its terminal. Time + Hamiltonian is the pump: after a
-collapse, the couplings rotate the pinned qubit back into superposition — nothing else
-refills it, because nothing else needs to.
+Selection is a free cursor move; the strike binds the terminal it needs. Time +
+Hamiltonian is the pump: after a collapse, the couplings rotate the pinned qubit back
+into superposition — nothing else refills it, because nothing else needs to.
 
 ### The Story Is the Physics
 
@@ -167,11 +192,11 @@ state or data truth, never hand-drawn:
   rendered *into the pixels* (biome, act, Tr(ρ²), entanglement bits, phrame
   count) plus a sidecar JSON certificate in `user://postcards/`. A postcard
   and its save are a reproducible claim about a real quantum trajectory.
-- **Reels** — attract mode: `SW_REEL=Rig/reels/first_light.reel.json` (or
+- **Reels** — attract mode: `SW_REEL=🍄/🎛️/reels/first_light.reel.json` (or
   `godot -- --reel=…`) plays a data-driven demo through the rig's real action
   surface; any input exits to live play.
 - **Recording** — Godot's movie mode turns a reel into portfolio footage:
-  `SW_REEL=Rig/reels/first_light.reel.json godot --write-movie reel.avi --fixed-fps 30`,
+  `SW_REEL=🍄/🎛️/reels/first_light.reel.json godot --write-movie reel.avi --fixed-fps 30`,
   then ffmpeg to mp4/GIF.
 - **The web door** — build → static QA → real-Chromium smoke emitting a JSON
   performance verdict: [`docs/release/WEB_DOOR.md`](docs/release/WEB_DOOR.md).
@@ -253,24 +278,32 @@ native/                C++ GDExtension (libquantummatrix)
 Requires Godot 4.5. Open the project in the WSL-aware editor launcher, or run headless:
 
 ```bash
-./scripts/launch-linux-editor.sh
+./launch_game.sh                 # play (Linux, headed)
+./editor_launch.sh               # open in the Godot editor
+python3 -m pytest tests/ -q      # Python test suite (rig-driven + source contracts)
 ```
+- Native C++ extension: `cd native && scons` (see **[`BUILDING.md`](BUILDING.md)**).
+- Headless automation / LLM lane: `🍄/🎛️/🟢.sh` (docs in `🍄/README.txt`).
+- Boot-error gate (must print `0`):
+  `godot --headless --audio-driver Dummy --path . --quit 2>&1 | grep -cE "SCRIPT ERROR|Parse Error|ERROR: Failed to"`
 
-To save the editor boot log without copy/paste:
+## Project structure
 
-```bash
-./scripts/launch-linux-editor.sh --log-file /tmp/spacewheat-linux-editor.log
 ```
-
-Or run headless:
-
-```bash
-godot --headless --script tests/test_gate_exact_states.gd
-```
-
-For native acceleration, build the C++ extension:
-```bash
-cd native && scons
+Core/          Engine + game logic (~55k LOC)
+  QuantumSubstrate/  QuantumComputer, HamiltonianBuilder, LindbladBuilder, gates
+  Factions/data/     icons.json (H), factions.json, axes.json
+  Biomes/data/       biomes.json (scaffolds + dormant L)
+  Quests/            QuestManager, story_flags.json (the campaign), soft-gate math
+  Story/             StoryEngine, socialite chatter (measurement-driven)
+  Markets/           EnergyPricing (Boltzmann), MarketLattice (contracts)
+  Actions/           Explore / Measure / Pop / Reap verbs
+UI/            Thin key-in / projection-out surfaces (~26k LOC)
+  Core/              QuantumInstrumentInput (input decoder), Surface, ToolConfig
+  Overlays/          EscapeMenu(Z), ControlsOverlay(X), QuestBoard(C), Atlas(V)...
+native/        C++ GDExtension (libquantummatrix) — derived predictor
+docs/          Documentation — start at GAME_CODEX.md
+🍄/            Automation lane (headless runners, rig, test harnesses)
 ```
 
 ## License

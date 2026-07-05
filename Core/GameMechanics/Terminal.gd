@@ -60,10 +60,6 @@ var measured_register_id: int = -1
 var measured_biome_name: String = ""
 var measured_snapshot: Dictionary = {}
 
-## Frozen screen position (set on MEASURE, used by visualization)
-## When measured, bubble should snap to this position instead of floating
-var frozen_position: Vector2 = Vector2.ZERO
-
 
 func _init(id: String = ""):
 	terminal_id = id if id else "T_%d" % randi()
@@ -86,7 +82,6 @@ func bind_to_register(register_id: int, biome_name: String, emoji_pair: Dictiona
 	measured_register_id = -1
 	measured_biome_name = ""
 	measured_snapshot.clear()
-	frozen_position = Vector2.ZERO
 
 	# Store emoji pair if provided
 	if emoji_pair.has("north"):
@@ -122,7 +117,6 @@ func unbind() -> void:
 	north_emoji = ""
 	south_emoji = ""
 	grid_position = GridSentinel.INVALID_POSITION
-	frozen_position = Vector2.ZERO
 
 	unbound.emit()
 	state_changed.emit(self)
@@ -185,7 +179,6 @@ func clear_measurement() -> void:
 	measured_biome_name = ""
 	measured_snapshot.clear()
 	current_emoji = north_emoji if north_emoji != "" else "?"
-	frozen_position = Vector2.ZERO
 	state_changed.emit(self)
 
 

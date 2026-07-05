@@ -550,6 +550,23 @@ func _get_biome_register_count(biome_name: String) -> int:
 	return 0
 
 
+func _resolve_live_register(pos: Vector2i) -> Dictionary:
+	# Resolve the live QC register at this grid pos (plot_idx ≡ register_id).
+	# Returns {"biome": BiomeBase, "register_id": int} when the position maps to a
+	# live qubit in a realized biome, else {} — lets the view render the bubble
+	# straight from the quantum_computer with no terminal bound.
+	var biome_name := grid_config.get_biome_for_plot(pos) if grid_config else ""
+	if biome_name == "" or not biomes.has(biome_name):
+		return {}
+	var biome = biomes[biome_name]
+	if not biome or not biome.quantum_computer or not biome.quantum_computer.register_map:
+		return {}
+	var register_id := pos.x
+	if register_id < 0 or register_id >= biome.quantum_computer.register_map.num_qubits:
+		return {}
+	return {"biome": biome, "register_id": register_id}
+
+
 func _clear_selection_for_other_biomes(active_biome: String) -> void:
 	# Clear selections for plots not in the active biome
 	var cleared_count = 0
@@ -770,9 +787,9 @@ func update_tile_from_farm(pos: Vector2i) -> void:
 	var plot = farm.grid.get_plot(pos)
 	var terminal = plot.terminal if plot else null
 
-	if not plot and not terminal:
-		# Truly empty plot - no plot object and no terminal
-		_verbose.debug("ui", "⚠️", "update_tile_from_farm(%s): plot is null/empty and no terminal" % pos)
+	if not plot and not terminal and _resolve_live_register(pos).is_empty():
+		# Truly empty - no plot, no terminal, and not a live QC register
+		_verbose.debug("ui", "⚠️", "update_tile_from_farm(%s): empty (no plot/terminal/live register)" % pos)
 		var tile = tiles[pos]
 		tile.set_plot_data(null, pos, -1)
 		return
@@ -799,13 +816,17 @@ func _transform_plot_to_ui_data(pos: Vector2i, plot, terminal = null) -> Diction
 		entangled_list = plot.entangled_plots.keys()
 
 	var terminal_active = terminal and (terminal.is_bound or terminal.is_measured)
+	# Live QC register (plot_idx ≡ register_id): the bubble renders straight from
+	# the quantum_computer even with NO terminal — watching the substrate is free.
+	# A terminal only overlays the collapsed outcome after a strike (Measure).
+	var live := _resolve_live_register(pos)
 	var memory = plot.get_measurement_memory() if plot and plot.has_method("get_measurement_memory") else {}
-	var memory_visible = not terminal_active and bool(memory.get("has_memory", false))
+	var memory_visible = not terminal_active and live.is_empty() and bool(memory.get("has_memory", false))
 
 	var ui_data = {
 		"position": pos,
-		# Single source of truth for v2 terminals: terminal state overrides plot state
-		"is_planted": terminal_active if terminal_active else (plot and plot.is_active()),
+		# Source priority: terminal (measured overlay) > live QC register > plot state.
+		"is_planted": terminal_active or (not live.is_empty()) or (plot and plot.is_active()),
 		"type_name": plot.plot_type_name if plot else "terminal",
 		"north_emoji": "",
 		"south_emoji": "",
@@ -819,8 +840,30 @@ func _transform_plot_to_ui_data(pos: Vector2i, plot, terminal = null) -> Diction
 		"memory_probability": float(memory.get("probability", 0.0)),
 		"entangled_plots": entangled_list,
 		"lindblad_pump_active": plot and plot.lindblad_pump_active,
-		"lindblad_drain_active": plot and plot.lindblad_drain_active
+		"lindblad_drain_active": plot and plot.lindblad_drain_active,
+		# Berry-phase ripeness — the incorporate cue. Surfaced on the bubble so the
+		# player can see a tracked register filling toward 2π and glowing when ripe.
+		"berry_tracked": false,
+		"berry_phase": 0.0,
+		"berry_threshold": TAU,
+		"berry_ripe": false,
 	}
+
+	# Read Berry state from whichever biome owns this register (plot_idx ≡ register_id,
+	# so the register is pos.x). Works whether the view is live-QC or terminal-bound.
+	var berry_biome = null
+	if not live.is_empty():
+		berry_biome = live["biome"]
+	elif terminal_active:
+		berry_biome = biomes.get(terminal.bound_biome_name, null)
+	if berry_biome and berry_biome.quantum_computer and berry_biome.quantum_computer.berry_register:
+		var br = berry_biome.quantum_computer.berry_register
+		var qid := int(pos.x)
+		if br.is_tracked(qid):
+			ui_data["berry_tracked"] = true
+			ui_data["berry_phase"] = br.get_phase(qid)
+			ui_data["berry_threshold"] = br.get_ripe_threshold(qid)
+			ui_data["berry_ripe"] = br.is_ripe(qid)
 
 	# CASE 1: Terminal-bound or measured (from EXPLORE/MEASURE) - takes priority for emoji display
 	if terminal_active:
@@ -860,6 +903,25 @@ func _transform_plot_to_ui_data(pos: Vector2i, plot, terminal = null) -> Diction
 			ui_data["north_probability"] = north_prob
 			ui_data["south_probability"] = south_prob
 
+	# CASE 1b: Live QC register, no terminal — the default "watch the substrate"
+	# view. Emoji axis + probabilities come straight from the biome's quantum_computer.
+	elif not live.is_empty():
+		var lbiome = live["biome"]
+		var reg_id: int = int(live["register_id"])
+		var ax: Dictionary = lbiome.quantum_computer.register_map.axis(reg_id)
+		var n_emoji := str(ax.get("north", ""))
+		var s_emoji := str(ax.get("south", ""))
+		ui_data["north_emoji"] = n_emoji
+		ui_data["south_emoji"] = s_emoji
+		var n_prob: float = lbiome.get_emoji_probability(n_emoji)
+		var s_prob: float = lbiome.get_emoji_probability(s_emoji)
+		var tot := n_prob + s_prob
+		if tot > 0.0:
+			n_prob /= tot
+			s_prob /= tot
+		ui_data["north_probability"] = n_prob
+		ui_data["south_probability"] = s_prob
+
 	# CASE 2: Traditional planted plot (no terminal, or terminal doesn't override)
 	elif plot and plot.is_active() and plot.parent_biome and plot.bath_subplot_id >= 0:
 		var emojis = plot.get_plot_emojis()
@@ -896,6 +958,14 @@ func refresh_all_tiles() -> void:
 	for pos in tiles.keys():
 		update_tile_from_farm(pos)
 	_verbose.info("ui", "✅", "PlotGridDisplay: All %d tiles refreshed" % tiles.size())
+
+
+func _refresh_live_tiles() -> void:
+	# Quiet ~5 Hz refresh so live-QC bubbles + Berry ripeness rings stay current.
+	# update_tile_from_farm early-returns on truly empty tiles, so this only does
+	# real work for live registers / planted / terminal-bound plots.
+	for pos in tiles.keys():
+		update_tile_from_farm(pos)
 
 
 
@@ -1277,6 +1347,7 @@ func _get_plot_at_screen_position(screen_pos: Vector2) -> Vector2i:
 
 var _time_accumulator: float = 0.0
 var _check_connections_timer: float = 0.0
+var _live_refresh_timer: float = 0.0  # throttle for live substrate/ripeness refresh
 var _biome_router_connected: bool = false  # Track if we've done initial biome router setup
 
 
@@ -1323,6 +1394,15 @@ func _process(delta: float) -> void:
 		if _has_visual_connections():
 			queue_redraw()
 	var t4 = Time.get_ticks_usec()
+
+	# Live substrate refresh: the view-from-QC bubbles (probabilities) and the Berry
+	# ripeness rings only change when tiles are re-read from farm state. Nothing else
+	# drives that on a tick, so the substrate would look frozen between events. Refresh
+	# at ~5 Hz so probabilities drift and ripeness fills visibly during play/fast-forward.
+	_live_refresh_timer += delta
+	if _live_refresh_timer >= 0.2:
+		_live_refresh_timer = 0.0
+		_refresh_live_tiles()
 	
 	if Engine.get_process_frames() % 60 == 0:
 		_verbose.trace("ui", "⏱️", "PGD Process Trace: Total %d us (Sync: %d, Rejection: %d, Cleanup: %d, Connections: %d)" % [t4 - t0, t1 - t0, t2 - t1, t3 - t2, t4 - t3])

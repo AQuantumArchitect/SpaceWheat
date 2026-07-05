@@ -27,19 +27,16 @@ signal quest_abandoned(quest_id: int)
 const FRAME_MANIFOLD := "manifold"
 const FRAME_MARKET := "market"
 const FRAME_COMMITMENTS := "commitments"
-const FRAME_ARC := "arc"
 
 const TAB_ROW := [
 	{"key": "T", "frame": FRAME_MANIFOLD,    "name": "Manifold"},
 	{"key": "Y", "frame": FRAME_MARKET,      "name": "Market"},
 	{"key": "U", "frame": FRAME_COMMITMENTS, "name": "Commitments"},
-	{"key": "I", "frame": FRAME_ARC,         "name": "Arc"},
+	# Arc (I) moved to X / ControlsOverlay — the story spine reads next to Story.
 ]
 
+# Item labels (G-;); keycode→slot via InputBindingRegistry.plot_index_for_keycode.
 const ITEM_KEYS := ["G", "H", "J", "K", "L", ";"]
-const ITEM_BY_KEYCODE := {
-	KEY_G: 0, KEY_H: 1, KEY_J: 2, KEY_K: 3, KEY_L: 4, KEY_SEMICOLON: 5,
-}
 const MAX_VISIBLE_ITEMS: int = 6
 const MARKET_FETCH_LIMIT: int = 24
 
@@ -71,9 +68,6 @@ const COMMITMENTS_VIEW_LABELS := {
 const COLOR_COMFORT_POS := Color(0.5, 0.9, 0.55, 1.0)
 const COLOR_COMFORT_NEG := Color(0.95, 0.55, 0.5, 1.0)
 const COLOR_COMFORT_MID := Color(0.85, 0.85, 0.6, 1.0)
-const COLOR_ARC_FIRED := Color(0.5, 0.75, 0.55, 0.85)
-const COLOR_ARC_UNFIRED := Color(0.85, 0.7, 0.4, 0.95)
-const COLOR_ARC_HEADER := Color(0.7, 0.6, 0.85, 0.95)
 
 # =============================================================================
 # STATE
@@ -121,8 +115,8 @@ func _init() -> void:
 	overlay_tier = 14
 	navigation_mode = NavigationMode.NONE
 	surface_id = "C"
-	frame_ids = [FRAME_MANIFOLD, FRAME_MARKET, FRAME_COMMITMENTS, FRAME_ARC]
-	frame_id = FRAME_MANIFOLD
+	frame_ids = [FRAME_MANIFOLD, FRAME_MARKET, FRAME_COMMITMENTS]
+	frame_id = FRAME_MARKET
 	action_labels = {"Q": "—", "E": "Refresh", "R": "—", "F": "—"}
 
 # =============================================================================
@@ -136,12 +130,6 @@ func set_quest_manager(quest_mgr: Node) -> void:
 			quest_manager.quest_offered.connect(_on_quest_pool_changed)
 		if quest_manager.has_signal("active_quests_changed") and not quest_manager.active_quests_changed.is_connected(_on_quest_pool_changed):
 			quest_manager.active_quests_changed.connect(_on_quest_pool_changed)
-		if quest_manager.has_signal("story_flag_fired") and not quest_manager.story_flag_fired.is_connected(_on_story_flag_changed):
-			quest_manager.story_flag_fired.connect(_on_story_flag_changed)
-
-func _on_story_flag_changed(_flag_id: String, _flag: Dictionary) -> void:
-	if frame_id == FRAME_ARC:
-		_render_all()
 
 func set_biome(biome: Node) -> void:
 	if biome != current_biome:
@@ -150,106 +138,6 @@ func set_biome(biome: Node) -> void:
 		_selected_index = 0
 		if visible:
 			_render_all()
-
-## Auto-edge bootstrap. An "edge" can be:
-##   - pinned-faction ↔ best partner  (when the player is attached and the
-##                                     pinned faction's biome is live)
-##   - live ↔ live                     (two simulated biomes — best_live_tension_pair)
-##   - live ↔ neighborhood          (live anchor × a static neighborhood spec)
-##
-## Priority is pinned-faction first (player-as-faction frame), then live↔live,
-## then live↔neighborhood.
-func _ensure_auto_edge() -> void:
-	if _is_pair_scope_active():
-		return
-	var farm = InstrumentLocator.resolve_active_farm(self)
-	if farm == null or not farm.has_method("_ensure_market_lattice"):
-		return
-	var lattice = farm._ensure_market_lattice()
-	if lattice == null:
-		return
-	var all_biomes: Dictionary = farm.grid.get_all_biomes() if farm.grid and farm.grid.has_method("get_all_biomes") else {}
-
-	# 1. Pinned-neighborhood anchor (only when attached AND its biome is live).
-	#    Reinforces the player-as-faction frame: side A is "you" by default.
-	var pinned_name: String = _resolve_pinned_neighborhood_name(farm, all_biomes)
-	if pinned_name != "":
-		var pinned_biome = all_biomes.get(pinned_name, null)
-		if pinned_biome != null:
-			var partner: String = _best_partner_for(lattice, pinned_biome, all_biomes, pinned_name)
-			if partner != "":
-				_pair_a_name = pinned_name
-				_pair_b_name = partner
-				_nb_auto_scoped = true
-				return
-
-	# 2. Live ↔ live edge.
-	if all_biomes.size() >= 2:
-		var best_pair: Dictionary = lattice.best_live_tension_pair(all_biomes)
-		if not best_pair.is_empty():
-			_pair_a_name = str(best_pair.get("a", ""))
-			_pair_b_name = str(best_pair.get("b", ""))
-			_nb_auto_scoped = true
-			return
-
-	# 3. Live ↔ neighborhood edge — anchor on current_biome (or any live biome).
-	var anchor = current_biome
-	if anchor == null and not all_biomes.is_empty():
-		anchor = all_biomes.values()[0]
-	if anchor == null:
-		return
-	var neighborhood_name: String = lattice.best_neighborhood_name(anchor)
-	if neighborhood_name == "":
-		return
-	var anchor_name: String = str(anchor.name) if "name" in anchor else ""
-	if anchor.has_method("get_biome_type"):
-		anchor_name = anchor.get_biome_type()
-	if anchor_name == "":
-		return
-	_pair_a_name = anchor_name
-	_pair_b_name = neighborhood_name
-	_nb_auto_scoped = true
-
-## When the player is attached to a faction, return the live neighborhood name
-## owned by that faction (if any). Otherwise empty.
-func _resolve_pinned_neighborhood_name(farm, all_biomes: Dictionary) -> String:
-	if farm == null or not farm.has_method("get_pinned_faction_name"):
-		return ""
-	var pname: String = farm.get_pinned_faction_name()
-	if pname == "":
-		return ""
-	# A faction's neighborhood is the live biome whose data spec carries `faction == pname`.
-	var br = BiomeRegistry.get_shared()
-	if br == null:
-		return ""
-	for bname in all_biomes.keys():
-		var spec = br.get_by_name(str(bname))
-		if spec != null and "faction" in spec and str(spec.faction) == pname:
-			return str(bname)
-	return ""
-
-## Pick the best non-self partner for the given anchor biome. Tries
-## highest-tension live partner via `best_live_tension_pair` over the subset;
-## falls back to the highest-tension neighborhood partner.
-func _best_partner_for(lattice, anchor_biome, all_biomes: Dictionary, anchor_name: String) -> String:
-	var subset: Dictionary = {}
-	for bname in all_biomes.keys():
-		if str(bname) != anchor_name:
-			subset[bname] = all_biomes[bname]
-	# Live↔live partner
-	if not subset.is_empty():
-		var pool: Dictionary = subset.duplicate()
-		pool[anchor_name] = anchor_biome
-		var best_pair: Dictionary = lattice.best_live_tension_pair(pool)
-		if not best_pair.is_empty():
-			var a := str(best_pair.get("a", ""))
-			var b := str(best_pair.get("b", ""))
-			if a == anchor_name and b != "":
-				return b
-			if b == anchor_name and a != "":
-				return a
-	# Neighborhood partner
-	return lattice.best_neighborhood_name(anchor_biome)
 
 # =============================================================================
 # UI BUILD
@@ -358,9 +246,9 @@ func _on_unhandled_key(keycode: int, event: InputEvent) -> bool:
 	if super._on_unhandled_key(keycode, event):
 		_on_frame_changed_local()
 		return true
-	if ITEM_BY_KEYCODE.has(keycode):
-		var idx: int = int(ITEM_BY_KEYCODE[keycode])
-		_select(idx)
+	var item_idx := InputBindingRegistry.plot_index_for_keycode(keycode, ITEM_KEYS.size())
+	if item_idx >= 0:
+		_select(item_idx)
 		return true
 	if frame_id == FRAME_MARKET and MARKET_SORT_BY_KEY.has(keycode):
 		_market_sort_mode = int(MARKET_SORT_BY_KEY[keycode])
@@ -390,8 +278,6 @@ func _on_action_q() -> void:
 	match frame_id:
 		FRAME_COMMITMENTS:
 			_abandon_selected()  # leave the commitment behind
-		FRAME_ARC:
-			_acknowledge_selected_arc()  # dismiss the beat
 		_:
 			pass
 
@@ -404,8 +290,6 @@ func _on_action_e() -> void:
 		FRAME_MARKET:
 			_refresh_pool()
 			_render_all()
-		FRAME_ARC:
-			_render_all()
 		_:
 			pass
 
@@ -416,13 +300,29 @@ func _on_action_r() -> void:
 			_accept_selected()  # commit the offer onto the run
 		FRAME_COMMITMENTS:
 			_complete_selected()  # commit the quest's reward forward
-		FRAME_ARC:
-			_accept_selected_arc()  # accept the arc/tutorial quest into active
 		_:
 			pass
 
 func _on_action_f() -> void:
-	pass
+	# F = pin/unpin a commitment. A locked commitment never expires, so you can accept a
+	# contract you can't yet afford, go gather the deliverable, and come back to turn it in.
+	match frame_id:
+		FRAME_COMMITMENTS:
+			_toggle_lock_selected()
+		_:
+			pass
+
+func _toggle_lock_selected() -> void:
+	if quest_manager == null or not quest_manager.has_method("set_quest_locked"):
+		return
+	var rows: Array = _commitments_rows()
+	if _selected_index < 0 or _selected_index >= rows.size():
+		return
+	var qid: int = int(rows[_selected_index].get("id", -1))
+	if qid < 0:
+		return
+	quest_manager.set_quest_locked(qid, not quest_manager.is_quest_locked(qid))
+	_render_all()
 
 # =============================================================================
 # INSPECT TEXT — what E pops up as a toast (OverlayBase calls get_inspect_text).
@@ -432,7 +332,6 @@ func get_inspect_text() -> String:
 	match frame_id:
 		FRAME_MARKET:      return _market_inspect_text()
 		FRAME_COMMITMENTS: return _commitments_inspect_text()
-		FRAME_ARC:         return _arc_inspect_text()
 		FRAME_MANIFOLD:    return _manifold_inspect_text()
 		_:                 return ""
 
@@ -456,7 +355,6 @@ func _market_inspect_text() -> String:
 		float(proj.get("alignment", 0.0)),
 		float(proj.get("directional_edge", 0.0)),
 	])
-	var farm = InstrumentLocator.resolve_active_farm(self)
 	# Faction↔biome resonance: how the faction's 12 axial preferences sit with
 	# this biome's live quantum observables (FactionStateMatcher). Physics-derived
 	# mood, not flavor dice.
@@ -486,17 +384,19 @@ func _market_inspect_text() -> String:
 	# Player↔faction kinship: how they sit with who YOU are becoming — geometric
 	# mean of per-axis agreement between your identity ρ's principal axes and
 	# their live alignment (FactionDensityMatrix.kinship; docs/glossary/soul.md).
-	if farm != null and ("faction_density" in farm) and farm.faction_density != null \
-			and farm.faction_density.has_method("kinship"):
-		var reg = farm.faction_density.get_registry()
+	var kin_farm = InstrumentLocator.resolve_active_farm(self)
+	if kin_farm != null and ("faction_density" in kin_farm) and kin_farm.faction_density != null \
+			and kin_farm.faction_density.has_method("kinship"):
+		var reg = kin_farm.faction_density.get_registry()
 		var fac = reg.get_by_name(str(offer.get("faction", ""))) if reg != null else null
-		var kin: float = farm.faction_density.kinship(fac)
+		var kin: float = kin_farm.faction_density.kinship(fac)
 		if kin >= 0.0:
 			lines.append("they and you: %.2f — %s" % [kin, FactionDensityMatrix.kinship_gloss(kin)])
 	var explanation = offer.get("market_explanation", [])
 	if explanation is Array:
 		for line in explanation:
 			lines.append(str(line))
+	var farm = InstrumentLocator.resolve_active_farm(self)
 	var card_tip: String = _faction_card_tooltip(str(offer.get("faction", "")), farm)
 	if card_tip != "":
 		lines.append("")
@@ -517,34 +417,6 @@ func _commitments_inspect_text() -> String:
 			int(quest.get("quantity", 0)),
 		]
 	return card_tip
-
-func _arc_inspect_text() -> String:
-	var rows: Array = _arc_rows()
-	if _selected_index < 0 or _selected_index >= rows.size():
-		return ""
-	var entry: Dictionary = rows[_selected_index]
-	var kind := str(entry.get("kind", ""))
-	if kind == "arc_quest":
-		var data: Dictionary = entry.get("data", {})
-		var body := str(data.get("body", str(data.get("source_flag", "campaign quest"))))
-		var hint := str(data.get("hint", ""))
-		if hint == "":
-			return body
-		return "%s\nhint: %s" % [body, hint]
-	var flag: Dictionary = entry.get("flag", {})
-	var lines: Array[String] = []
-	var _biome_name := str(flag.get("display_name", flag.get("id", "?")))
-	lines.append("%s · act %d" % [name, int(flag.get("act", 0))])
-	if kind == "flag_fired":
-		lines.append("✓ FIRED")
-		return "\n".join(lines)
-	# unfired — show predicate values
-	var pred_scores: Array = entry.get("pred_scores", [])
-	for ps in pred_scores:
-		var pred: Dictionary = ps.get("pred", {})
-		var pscore: float = float(ps.get("score", 0.0))
-		lines.append("· " + _predicate_value_tooltip(pred, pscore).replace("\n", "  ·  "))
-	return "\n".join(lines)
 
 func _manifold_inspect_text() -> String:
 	if current_biome == null or current_biome.quantum_computer == null:
@@ -567,6 +439,12 @@ func _manifold_inspect_text() -> String:
 # =============================================================================
 
 func _render_all() -> void:
+	# A5: keep the selection valid after a row is removed (accept/claim/abandon shrink the
+	# list, so a stale _selected_index would highlight the wrong row or nothing). Clamp to
+	# the live row count → the cursor lands on the next/last item, not off the end.
+	var _rc := _current_row_count()
+	if _rc > 0:
+		_selected_index = clampi(_selected_index, 0, _rc - 1)
 	_refresh_status()
 	_refresh_tab_row()
 	_refresh_body()
@@ -578,9 +456,9 @@ func _refresh_close_hint() -> void:
 		return
 	if frame_id == FRAME_MARKET:
 		var sort_label := str(MARKET_SORT_LABELS.get(_market_sort_mode, "?"))
-		_close_hint.text = "ESC close  ·  T Y U I tabs  ·  [1] Comfort↓  [2] Magnitude↓  [3] Tension↓  ·  active: %s" % sort_label
+		_close_hint.text = "ESC close  ·  T Y U tabs  ·  [1] Comfort↓  [2] Magnitude↓  [3] Tension↓  ·  active: %s" % sort_label
 	else:
-		_close_hint.text = "ESC close   ·   T Y U I tabs"
+		_close_hint.text = "ESC close   ·   T Y U tabs"
 
 func _refresh_status() -> void:
 	if not _status_line:
@@ -635,7 +513,6 @@ func _refresh_body() -> void:
 		FRAME_MANIFOLD:    _build_manifold_body()
 		FRAME_MARKET:      _build_market_body()
 		FRAME_COMMITMENTS: _build_commitments_body()
-		FRAME_ARC:         _build_arc_body()
 
 func _refresh_verb_chips() -> void:
 	if _verb_chip_cells.is_empty():
@@ -665,13 +542,12 @@ func _current_verb_labels() -> Dictionary:
 		FRAME_MARKET:
 			return {"Q": "—", "E": "Refresh", "R": "Accept", "F": "—"}
 		FRAME_COMMITMENTS:
-			return {"Q": "Abandon", "E": "—", "R": "Complete", "F": "—"}
-		FRAME_ARC:
-			var rows := _arc_rows()
-			if _selected_index >= 0 and _selected_index < rows.size():
-				if str(rows[_selected_index].get("kind", "")) == "arc_quest":
-					return {"Q": "Dismiss", "E": "Refresh", "R": "Accept", "F": "—"}
-			return {"Q": "—", "E": "Refresh", "R": "—", "F": "—"}
+			var f_label := "Lock"
+			var crows := _commitments_rows()
+			if quest_manager and quest_manager.has_method("is_quest_locked") and _selected_index >= 0 and _selected_index < crows.size():
+				if quest_manager.is_quest_locked(int(crows[_selected_index].get("id", -1))):
+					f_label = "Unlock"
+			return {"Q": "Abandon", "E": "—", "R": "Complete", "F": f_label}
 	return {"Q": "—", "E": "—", "R": "—", "F": "—"}
 
 # =============================================================================
@@ -1254,283 +1130,6 @@ func _commitment_ask_text(quest: Dictionary) -> String:
 	return QuestTypes.get_type_name(ti)
 
 
-## Words for a faction's resonance with a biome — the alignment of its 12 axial
-## preferences against the biome's live quantum observables, in [0, 1].
-func _resonance_gloss(a: float) -> String:
-	if a >= 0.75:
-		return "this place sings to them"
-	if a >= 0.55:
-		return "at ease here"
-	if a >= 0.35:
-		return "wary of this place"
-	return "restless — the biome grates on their axioms"
-
-
-## Compact reward-payload summary for history rows.
-func _format_reward_summary(rewards) -> String:
-	if not (rewards is Dictionary):
-		return ""
-	var parts: Array[String] = []
-	var resource_rewards = rewards.get("resource_rewards", {})
-	if resource_rewards is Dictionary:
-		for k in resource_rewards:
-			parts.append("%s×%d" % [str(k), int(resource_rewards[k])])
-	var learned_pairs = rewards.get("learned_pairs", [])
-	if learned_pairs is Array:
-		for p in learned_pairs:
-			if p is Dictionary:
-				parts.append("%s/%s" % [str(p.get("north", "?")), str(p.get("south", "?"))])
-	return "→ " + ", ".join(parts) if not parts.is_empty() else ""
-
-func _commitments_rows() -> Array:
-	var rows: Array = []
-	if _commitments_view == "history":
-		if quest_manager:
-			if "completed_quests" in quest_manager and quest_manager.completed_quests is Array:
-				for q in quest_manager.completed_quests:
-					rows.append(q)
-			if "failed_quests" in quest_manager and quest_manager.failed_quests is Array:
-				for q in quest_manager.failed_quests:
-					rows.append(q)
-		# Newest first by terminal timestamp.
-		rows.sort_custom(func(a, b):
-			var ta: int = int(a.get("completed_at", a.get("failed_at", 0)))
-			var tb: int = int(b.get("completed_at", b.get("failed_at", 0)))
-			return ta > tb
-		)
-		return rows
-	# Default "active" view.
-	if quest_manager and "active_quests" in quest_manager and quest_manager.active_quests is Dictionary:
-		for q in quest_manager.active_quests.values():
-			rows.append(q)
-	return rows
-
-# =============================================================================
-# ARC BODY (I tab — story flags timeline)
-# =============================================================================
-
-func _build_arc_body() -> void:
-	var rows: Array = _arc_rows()
-	if rows.is_empty():
-		_body_box.add_child(_make_muted_label("no story flags loaded", 12))
-		return
-	for i in range(MAX_VISIBLE_ITEMS):
-		if i < rows.size():
-			_body_box.add_child(_make_arc_row(rows[i], ITEM_KEYS[i], i == _selected_index))
-		else:
-			_body_box.add_child(_make_empty_row(ITEM_KEYS[i]))
-	if rows.size() > MAX_VISIBLE_ITEMS:
-		_body_box.add_child(_make_muted_label("… %d more arc beats not shown" % (rows.size() - MAX_VISIBLE_ITEMS), 10))
-
-## Builds Arc tab rows. Order:
-##   1. Story arc offers (player can acknowledge to dismiss)
-##   2. On-edge unfired flags (relevant to current pair), score desc
-##   3. Off-edge unfired flags, score desc
-##   4. On-edge fired flags
-##   5. Off-edge fired flags
-##
-## Edge relevance is inferred from each flag's predicate biome fields.
-func _arc_rows() -> Array:
-	var rows: Array = []
-	if quest_manager == null:
-		return rows
-	if quest_manager.has_method("get_story_offers"):
-		for q in quest_manager.get_story_offers():
-			if q is Dictionary and str(q.get("category", "")) in ["ARC", "TUTORIAL"]:
-				rows.append({"kind": "arc_quest", "data": q})
-
-	if not quest_manager.has_method("get_all_story_flags"):
-		return rows
-
-	var farm = InstrumentLocator.resolve_active_farm(self)
-	var fired_set: Dictionary = {}
-	if farm != null and "story_flags_fired" in farm:
-		fired_set = farm.story_flags_fired
-
-	var edge_set: Dictionary = {}
-	if _pair_a_name != "":
-		edge_set[_pair_a_name] = true
-	if _pair_b_name != "":
-		edge_set[_pair_b_name] = true
-
-	var unfired_on: Array = []
-	var unfired_off: Array = []
-	var fired_on: Array = []
-	var fired_off: Array = []
-
-	for flag in quest_manager.get_all_story_flags():
-		var fid := str(flag.get("id", ""))
-		var biomes: Array = _flag_biomes(flag)
-		var on_edge: bool = false
-		if not edge_set.is_empty():
-			for b in biomes:
-				if edge_set.has(b):
-					on_edge = true
-					break
-		if fired_set.has(fid):
-			var entry := {"kind": "flag_fired", "flag": flag, "on_edge": on_edge}
-			if on_edge:
-				fired_on.append(entry)
-			else:
-				fired_off.append(entry)
-		else:
-			var score: float = quest_manager.evaluate_flag_score(flag)
-			var pred_scores: Array = []
-			for pred in flag.get("predicates", []):
-				if pred is Dictionary:
-					pred_scores.append({
-						"pred": pred,
-						"score": quest_manager.evaluate_predicate_score(pred),
-					})
-			var entry: Dictionary = {
-				"kind": "flag_unfired",
-				"flag": flag,
-				"score": score,
-				"pred_scores": pred_scores,
-				"on_edge": on_edge,
-			}
-			if on_edge:
-				unfired_on.append(entry)
-			else:
-				unfired_off.append(entry)
-
-	var by_score = func(a, b): return float(a.score) > float(b.score)
-	unfired_on.sort_custom(by_score)
-	unfired_off.sort_custom(by_score)
-
-	for u in unfired_on: rows.append(u)
-	for u in unfired_off: rows.append(u)
-	for f in fired_on: rows.append(f)
-	for f in fired_off: rows.append(f)
-	return rows
-
-## Biome names referenced by a flag's predicates. Used to determine whether
-## the flag "lives on" the active edge.
-func _flag_biomes(flag: Dictionary) -> Array:
-	var seen: Dictionary = {}
-	for pred in flag.get("predicates", []):
-		if not (pred is Dictionary):
-			continue
-		var b: String = str(pred.get("biome", ""))
-		if b != "":
-			seen[b] = true
-	return seen.keys()
-
-func _make_arc_row(entry: Dictionary, key_str: String, selected: bool) -> Control:
-	var kind := str(entry.get("kind", ""))
-	var row := PanelContainer.new()
-	var sb := StyleBoxFlat.new()
-	sb.set_corner_radius_all(3)
-	sb.content_margin_left = 8
-	sb.content_margin_right = 8
-	sb.content_margin_top = 4
-	sb.content_margin_bottom = 4
-	sb.border_width_top = 1
-	sb.border_width_right = 1
-	sb.border_width_bottom = 1
-	sb.border_width_left = 4 if selected else 1
-	if kind == "arc_quest":
-		sb.bg_color = Color(0.08, 0.12, 0.10, 0.92) if not selected else Color(0.12, 0.20, 0.14, 0.95)
-		sb.border_color = Color(0.3, 0.6, 0.4, 0.6) if not selected else Color(0.5, 0.9, 0.55, 0.95)
-	elif kind == "flag_fired":
-		sb.bg_color = Color(0.08, 0.10, 0.10, 0.85) if not selected else Color(0.12, 0.16, 0.14, 0.95)
-		sb.border_color = Color(0.3, 0.5, 0.4, 0.45) if not selected else COLOR_ARC_FIRED
-	else:
-		sb.bg_color = Color(0.10, 0.10, 0.13, 0.85) if not selected else Color(0.18, 0.16, 0.10, 0.95)
-		sb.border_color = Color(0.5, 0.45, 0.35, 0.5) if not selected else COLOR_ARC_UNFIRED
-	row.add_theme_stylebox_override("panel", sb)
-
-	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 2)
-	row.add_child(vbox)
-
-	var top_hbox := HBoxContainer.new()
-	top_hbox.add_theme_constant_override("separation", 10)
-	vbox.add_child(top_hbox)
-	top_hbox.add_child(_make_key_chip(key_str, selected))
-
-	if kind == "arc_quest":
-		var data: Dictionary = entry.get("data", {})
-		var badge := Label.new()
-		badge.text = "[QUEST]"
-		badge.add_theme_font_size_override("font_size", 11)
-		badge.add_theme_color_override("font_color", Color(0.5, 0.9, 0.55, 0.95))
-		badge.custom_minimum_size = Vector2(60, 0)
-		top_hbox.add_child(badge)
-		var body_lbl := Label.new()
-		body_lbl.text = str(data.get("body", str(data.get("source_flag", "campaign quest"))))
-		body_lbl.add_theme_font_size_override("font_size", 12)
-		body_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_TAB_ACTIVE if selected else UIStyleFactory.COLOR_ITEM_IDLE)
-		body_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		body_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART if selected else TextServer.AUTOWRAP_OFF
-		body_lbl.clip_text = not selected
-		top_hbox.add_child(body_lbl)
-		if selected:
-			var hint_str: String = str(data.get("hint", data.get("tutorial_hint", "")))
-			if hint_str != "":
-				var hint_lbl := Label.new()
-				hint_lbl.text = "    hint: %s" % hint_str
-				hint_lbl.add_theme_font_size_override("font_size", 11)
-				hint_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
-				hint_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-				vbox.add_child(hint_lbl)
-		return row
-
-	var flag: Dictionary = entry.get("flag", {})
-	var act_n: int = int(flag.get("act", 0))
-	var act_lbl := Label.new()
-	act_lbl.text = "act %d" % act_n
-	act_lbl.add_theme_font_size_override("font_size", 11)
-	act_lbl.add_theme_color_override("font_color", COLOR_ARC_HEADER)
-	act_lbl.custom_minimum_size = Vector2(48, 0)
-	top_hbox.add_child(act_lbl)
-
-	var name_lbl := Label.new()
-	name_lbl.text = str(flag.get("display_name", flag.get("id", "?")))
-	name_lbl.add_theme_font_size_override("font_size", 13)
-	name_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_TAB_ACTIVE if selected else UIStyleFactory.COLOR_ITEM_IDLE)
-	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	top_hbox.add_child(name_lbl)
-
-	if bool(entry.get("on_edge", false)):
-		var edge_badge := Label.new()
-		edge_badge.text = "⊗"
-		edge_badge.add_theme_font_size_override("font_size", 11)
-		edge_badge.add_theme_color_override("font_color", Color(0.5, 0.85, 0.95, 0.95))
-		edge_badge.tooltip_text = "on this edge"
-		top_hbox.add_child(edge_badge)
-
-	if kind == "flag_fired":
-		var fired_lbl := Label.new()
-		fired_lbl.text = "✓ FIRED"
-		fired_lbl.add_theme_font_size_override("font_size", 11)
-		fired_lbl.add_theme_color_override("font_color", COLOR_ARC_FIRED)
-		top_hbox.add_child(fired_lbl)
-		return row
-
-	# Unfired — show score + per-predicate breakdown.
-	var score: float = float(entry.get("score", 0.0))
-	var score_lbl := Label.new()
-	score_lbl.text = "%.2f / 0.85 %s" % [score, _ratio_bar(score / 0.85, 6)]
-	score_lbl.add_theme_font_size_override("font_size", 11)
-	score_lbl.add_theme_color_override("font_color", _score_color(score))
-	top_hbox.add_child(score_lbl)
-
-	if selected:
-		var pred_scores: Array = entry.get("pred_scores", [])
-		for ps in pred_scores:
-			var pred: Dictionary = ps.get("pred", {})
-			var ps_score: float = float(ps.get("score", 0.0))
-			var pred_lbl := Label.new()
-			pred_lbl.text = "    %s · %.2f %s" % [_predicate_summary(pred), ps_score, _ratio_bar(ps_score, 5)]
-			pred_lbl.add_theme_font_size_override("font_size", 10)
-			pred_lbl.add_theme_color_override("font_color", _score_color(ps_score))
-			pred_lbl.tooltip_text = _predicate_value_tooltip(pred, ps_score)
-			pred_lbl.mouse_filter = Control.MOUSE_FILTER_PASS
-			vbox.add_child(pred_lbl)
-
-	return row
-
 func _predicate_summary(pred: Dictionary) -> String:
 	var t := str(pred.get("type", "?"))
 	match t:
@@ -1560,9 +1159,14 @@ func _predicate_summary(pred: Dictionary) -> String:
 			return "%s attractor[%s] ≥ %.2f" % [str(pred.get("biome", "")), str(pred.get("emoji", "")), float(pred.get("value", 0.0))]
 		"biome_eigenvalue_gap_gte":
 			return "%s gap ≥ %.2f" % [str(pred.get("biome", "")), float(pred.get("value", 0.0))]
-		"biome_purity_trending":
-			return "%s purity↑" % str(pred.get("biome", ""))
-		# Projection-service vocabulary (tutorial + composed multi asks).
+		"biome_spectral_gap_gte":
+			return "%s gap ≥ %.2f" % [str(pred.get("biome", "")), float(pred.get("value", 0.0))]
+		"biome_spectral_gap_lte":
+			return "%s gap ≤ %.2f" % [str(pred.get("biome", "")), float(pred.get("value", 0.0))]
+		"biome_energy_variance_gte":
+			return "%s Var(H) ≥ %.2f" % [str(pred.get("biome", "")), float(pred.get("value", 0.0))]
+		"biome_energy_variance_lte":
+			return "%s Var(H) ≤ %.2f" % [str(pred.get("biome", "")), float(pred.get("value", 0.0))]
 		"coherence_at_least":
 			return "coherence ≥ %.2f" % float(pred.get("value", 0.0))
 		"purity_at_least":
@@ -1634,14 +1238,9 @@ func _gate_glyph(gate_name: String) -> String:
 		"rz": return "Rz"
 		_: return gate_name.to_upper()
 
-## Tooltip for a predicate row — reports the *current* measured value alongside
-## the threshold. Returns multi-line text. When a value can't be read (missing
-## biome, no farm, etc.) we fall back to the score-only summary.
-## 3-line tooltip summarizing a faction's nature via FactionCard:
-##   {name}  ·  standing {±0.NN}
-##   speaks: {sig emojis}
-##   biomes: {biomes_of_presence}
-## Returns "" if the faction can't be resolved.
+
+## Compact tooltip for a faction card: standing, cloud, biomes. Returns "" if
+## the faction is unknown or the farm is null.
 func _faction_card_tooltip(quest_name: String, farm) -> String:
 	if quest_name == "" or farm == null:
 		return ""
@@ -1649,74 +1248,67 @@ func _faction_card_tooltip(quest_name: String, farm) -> String:
 	if not bool(card.get("present", false)):
 		return ""
 	var standing: float = float(card.get("standing", 0.0))
-	var sig_arr: Array = card.get("signature", [])
+	var cloud_arr: Array = card.get("cloud", [])
 	var biomes_arr: Array = card.get("biomes_of_presence", [])
 	var lines: Array[String] = []
 	lines.append("%s  ·  standing %+.2f" % [quest_name, standing])
-	if not sig_arr.is_empty():
-		lines.append("speaks: " + " ".join(sig_arr))
+	if not cloud_arr.is_empty():
+		lines.append("speaks: " + " ".join(cloud_arr))
 	if not biomes_arr.is_empty():
 		lines.append("biomes: " + ", ".join(biomes_arr))
 	return "\n".join(lines)
 
-func _predicate_value_tooltip(pred: Dictionary, score: float) -> String:
-	var t := str(pred.get("type", "?"))
-	var farm = InstrumentLocator.resolve_active_farm(self)
-	var status := "fired ✓" if score >= 1.0 else ("close" if score >= 0.7 else "not yet")
-	var head := "%s   ·   %s" % [_predicate_summary(pred), status]
 
-	match t:
-		"signature_size_gte":
-			var threshold: int = int(pred.get("value", 0))
-			var current: int = 0
-			if farm and farm.has_method("get_known_emojis"):
-				current = farm.get_known_emojis().size()
-			return "%s\ncurrent: %d   ·   need: %d   ·   gap: %d" % [head, current, threshold, max(0, threshold - current)]
+## Words for a faction's resonance with a biome — the alignment of its 12 axial
+## preferences against the biome's live quantum observables, in [0, 1].
+func _resonance_gloss(a: float) -> String:
+	if a >= 0.75:
+		return "this place sings to them"
+	if a >= 0.55:
+		return "at ease here"
+	if a >= 0.35:
+		return "wary of this place"
+	return "restless — the biome grates on their axioms"
 
-		"berry_consumed_count_gte", "berry_total_phase_gte":
-			var biome_name: String = str(pred.get("biome", ""))
-			var biome = _resolve_live_biome(biome_name)
-			var qc = biome.quantum_computer if biome and "quantum_computer" in biome else null
-			var berry = qc.berry_register if qc and "berry_register" in qc else null
-			if berry == null:
-				return "%s\n(biome '%s' not loaded)" % [head, biome_name]
-			if t == "berry_consumed_count_gte":
-				var threshold_c: int = int(pred.get("value", 0))
-				var current_c: int = berry.get_consumed_count() if berry.has_method("get_consumed_count") else 0
-				return "%s\ncurrent: %d   ·   need: %d" % [head, current_c, threshold_c]
-			else:
-				var threshold_p: float = float(pred.get("value", 0.0))
-				var current_p: float = berry.get_consumed_phase() if berry.has_method("get_consumed_phase") else 0.0
-				return "%s\ncurrent: %.2f rad   ·   need: %.2f rad" % [head, current_p, threshold_p]
 
-		"standing_gte":
-			var fname: String = str(pred.get("faction", ""))
-			var ch: String = str(pred.get("channel", "trust"))
-			var threshold_s: float = float(pred.get("value", 0.0))
-			var current_s: float = 0.0
-			if farm and "faction_standings" in farm and farm.faction_standings is Dictionary:
-				var s = farm.faction_standings.get(fname, null)
-				if s != null and ch in s:
-					current_s = float(s.get(ch))
-			return "%s\ncurrent: %+.2f   ·   need: %+.2f" % [head, current_s, threshold_s]
+## Compact reward-payload summary for history rows.
+func _format_reward_summary(rewards) -> String:
+	if not (rewards is Dictionary):
+		return ""
+	var parts: Array[String] = []
+	var resource_rewards = rewards.get("resource_rewards", {})
+	if resource_rewards is Dictionary:
+		for k in resource_rewards:
+			parts.append("%s×%d" % [str(k), int(resource_rewards[k])])
+	var learned_pairs = rewards.get("learned_pairs", [])
+	if learned_pairs is Array:
+		for p in learned_pairs:
+			if p is Dictionary:
+				parts.append("%s/%s" % [str(p.get("north", "?")), str(p.get("south", "?"))])
+	return "→ " + ", ".join(parts) if not parts.is_empty() else ""
 
-		"story_flag_set":
-			var fid: String = str(pred.get("id", ""))
-			var fired: bool = false
-			if farm and "story_flags_fired" in farm and farm.story_flags_fired is Dictionary:
-				fired = farm.story_flags_fired.has(fid)
-			return "%s\n%s" % [head, "fired ✓" if fired else "not yet fired"]
-
-		"soul_purity_gte":
-			var threshold_sp: float = float(pred.get("value", 0.5))
-			if farm and ("faction_density" in farm) and farm.faction_density != null \
-					and farm.faction_density.has_method("get_purity"):
-				var current_sp: float = float(farm.faction_density.get_purity())
-				return "%s\ncurrent: %.3f   ·   need: %.3f\nYour alignment purity decays toward the mixed state (τ=300s) unless your choices keep renewing it." % [head, current_sp, threshold_sp]
-			return "%s\n(alignment state unavailable)" % head
-
-		_:
-			return "%s\nscore: %.2f / 1.00" % [head, score]
+func _commitments_rows() -> Array:
+	var rows: Array = []
+	if _commitments_view == "history":
+		if quest_manager:
+			if "completed_quests" in quest_manager and quest_manager.completed_quests is Array:
+				for q in quest_manager.completed_quests:
+					rows.append(q)
+			if "failed_quests" in quest_manager and quest_manager.failed_quests is Array:
+				for q in quest_manager.failed_quests:
+					rows.append(q)
+		# Newest first by terminal timestamp.
+		rows.sort_custom(func(a, b):
+			var ta: int = int(a.get("completed_at", a.get("failed_at", 0)))
+			var tb: int = int(b.get("completed_at", b.get("failed_at", 0)))
+			return ta > tb
+		)
+		return rows
+	# Default "active" view.
+	if quest_manager and "active_quests" in quest_manager and quest_manager.active_quests is Dictionary:
+		for q in quest_manager.active_quests.values():
+			rows.append(q)
+	return rows
 
 # =============================================================================
 # MARKET POOL + VIEW (preserved logic, sort uses _market_sort_mode)
@@ -1739,6 +1331,8 @@ func _refresh_pool() -> void:
 		_market_status_note = "market unavailable: neighborhood lattice required"
 		return
 
+	# Explicit pair scope — opt-in only (OverlayManager / neighborhood-graph hands the board a
+	# specific live↔live edge via set_pair_scope). The auto-scope below never sets these fields.
 	if _is_pair_scope_active():
 		var biome_a = _resolve_live_biome(_pair_a_name)
 		var biome_b = _resolve_live_biome(_pair_b_name)
@@ -1758,38 +1352,37 @@ func _refresh_pool() -> void:
 		_market_status_note = "market unavailable: no current neighborhood"
 		return
 
-	var all_biomes: Dictionary = farm.grid.get_all_biomes() if farm.grid and farm.grid.has_method("get_all_biomes") else {}
-	var best_pair: Dictionary = lattice.best_live_tension_pair(all_biomes)
-	if not best_pair.is_empty():
-		_pair_a_name = str(best_pair.get("a", ""))
-		_pair_b_name = str(best_pair.get("b", ""))
-		_nb_name = ""
-		_nb_auto_scoped = false
-		var biome_a = _resolve_live_biome(_pair_a_name)
-		var biome_b = _resolve_live_biome(_pair_b_name)
-		if biome_a == null or biome_b == null:
-			_market_status_note = "pair market unavailable: live biome missing"
+	# Neighborhood-primary: ONE market across the active biome's neighborhood. This is the
+	# market the player sees wherever they stand — the local faction offers (Millwright /
+	# Hearth / …). It is NOT overridden by a live↔live tension pair just because a second
+	# biome happens to be evolving; that cross-biome edge is opt-in (set_pair_scope) or the
+	# fallback below when the active biome has no neighborhood at all.
+	_nb_name = lattice.best_neighborhood_name(current_biome)
+	_nb_auto_scoped = _nb_name != ""
+	if _nb_name != "":
+		var raw: Array = lattice.propose_neighborhood_offers_scoped(current_biome, _nb_name, MARKET_FETCH_LIMIT)
+		if raw.is_empty():
+			_market_status_note = "market empty: no neighborhood offers for %s" % _nb_name
 			return
-		var pair_offers: Array = lattice.propose_pair_offers(biome_a, biome_b, MARKET_FETCH_LIMIT)
-		if pair_offers.is_empty():
-			_market_status_note = "pair market empty: no offers for %s × %s" % [_pair_a_name, _pair_b_name]
-			return
-		_offer_pool = _adapt_contracts_for_view(pair_offers)
+		_offer_pool = _adapt_contracts_for_view(raw)
 		MarketView.annotate(_offer_pool, _get_inventory())
 		return
 
-	_nb_name = lattice.best_neighborhood_name(current_biome)
-	_nb_auto_scoped = _nb_name != ""
-	if _nb_name == "":
-		_market_status_note = "market unavailable: no neighborhood partner"
-		return
-
-	var raw: Array = lattice.propose_neighborhood_offers_scoped(current_biome, _nb_name, MARKET_FETCH_LIMIT)
-	if raw.is_empty():
-		_market_status_note = "market empty: no neighborhood offers for %s" % _nb_name
-		return
-	_offer_pool = _adapt_contracts_for_view(raw)
-	MarketView.annotate(_offer_pool, _get_inventory())
+	# Fallback: the active biome has no neighborhood spec — fall back to the highest-tension
+	# live↔live edge so the board is never empty. Uses local vars only; does NOT pin a
+	# persistent pair scope (so a neighborhood reappearing isn't shadowed by a stale pair).
+	var all_biomes: Dictionary = farm.grid.get_all_biomes() if farm.grid and farm.grid.has_method("get_all_biomes") else {}
+	var best_pair: Dictionary = lattice.best_live_tension_pair(all_biomes)
+	if not best_pair.is_empty():
+		var fb_a = _resolve_live_biome(str(best_pair.get("a", "")))
+		var fb_b = _resolve_live_biome(str(best_pair.get("b", "")))
+		if fb_a != null and fb_b != null:
+			var fb_offers: Array = lattice.propose_pair_offers(fb_a, fb_b, MARKET_FETCH_LIMIT)
+			if not fb_offers.is_empty():
+				_offer_pool = _adapt_contracts_for_view(fb_offers)
+				MarketView.annotate(_offer_pool, _get_inventory())
+				return
+	_market_status_note = "market unavailable: no neighborhood partner"
 
 func _is_pair_scope_active() -> bool:
 	return _pair_a_name != "" and _pair_b_name != ""
@@ -1805,15 +1398,17 @@ func _resolve_live_biome(bname: String):
 	return null
 
 func _adapt_contracts_for_view(contracts: Array) -> Array:
+	# Route every contract through the ONE canonical construction path so the
+	# keyboard market is identical to the offer_all_faction_quests pool: DELIVER
+	# contracts pre-roll coupling-tied RESOURCE rewards (incl. scarce ones like 🔨)
+	# and get faction-voiced text. Previously this only called to_quest_offer_dict(),
+	# so the board market silently lacked reward_resources — the player could never
+	# earn scarce resources by keyboard even though the rig pool had them.
 	var out: Array = []
 	for c in contracts:
 		if c == null:
 			continue
-		var quest: Dictionary = {}
-		if c.has_method("to_quest_offer_dict"):
-			quest = c.to_quest_offer_dict()
-		elif c is Dictionary:
-			quest = c.duplicate(true)
+		var quest: Dictionary = QuestPipeline.from_market_contract(c, current_biome)
 		if quest.is_empty():
 			continue
 		out.append(quest)
@@ -1875,14 +1470,6 @@ func _selected_label_for_tab() -> String:
 			if _selected_index < 0 or _selected_index >= rows.size():
 				return ""
 			return "%s × %d" % [str(rows[_selected_index].get("resource", "?")), int(rows[_selected_index].get("quantity", 0))]
-		FRAME_ARC:
-			var rows: Array = _arc_rows()
-			if _selected_index < 0 or _selected_index >= rows.size():
-				return ""
-			var entry: Dictionary = rows[_selected_index]
-			if str(entry.get("kind", "")) == "arc_quest":
-				return str(entry.get("data", {}).get("source_flag", "arc quest"))
-			return str(entry.get("flag", {}).get("display_name", ""))
 	return ""
 
 func _get_inventory() -> Dictionary:
@@ -1892,11 +1479,33 @@ func _get_inventory() -> Dictionary:
 	return farm.economy.get_all_resources()
 
 func _ensure_biome() -> void:
-	if current_biome != null:
+	# The neighborhood market follows the player: ALWAYS re-resolve to the ACTIVE biome
+	# (where the player currently stands) so switching biomes re-scopes the board. A sticky
+	# current_biome was pinning the market to whatever biome was first touched, which left
+	# the player seeing one biome's neighborhood market everywhere.
+	var farm = InstrumentLocator.resolve_active_farm(self)
+	if farm == null:
 		return
+	# Primary focus signal: the ActiveBiomeManager's active biome (the biome-row TYUIOP keys
+	# drive this in both live play and headless drive). Re-resolve every refresh.
+	var bname := ""
 	var abm = (Engine.get_main_loop().root.get_node_or_null("/root/ActiveBiomeManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
-	if abm and abm.has_method("get_active_biome_node"):
-		current_biome = abm.get_active_biome_node()
+	if abm and abm.has_method("get_active_biome"):
+		bname = str(abm.get_active_biome())
+	# Fallbacks: instrument's selected biome, then the farm's neutral/current biome.
+	if bname == "":
+		var inst = InstrumentLocator.resolve_quantum_instrument(self)
+		if inst and "current_biome" in inst:
+			bname = str(inst.current_biome)
+	var obs = farm.observation_frame if "observation_frame" in farm else null
+	if bname == "" and obs and obs.has_method("get_neutral_biome"):
+		bname = str(obs.get_neutral_biome())
+	if bname == "" and farm.has_method("get_current_biome"):
+		var b = farm.get_current_biome()
+		if b and "biome_name" in b:
+			bname = str(b.biome_name)
+	if bname != "" and farm.grid and farm.grid.has_biome(bname):
+		current_biome = farm.grid.get_biome(bname)
 
 # =============================================================================
 # VERB DISPATCHERS
@@ -1942,40 +1551,20 @@ func _abandon_selected() -> void:
 		quest_manager.fail_quest(qid, "player_action")
 		quest_abandoned.emit(qid)
 
-## Accept the selected arc/tutorial offer into active quests (R in the Arc tab). Without this,
-## arc and tutorial offers could only be dismissed, never worked on — they would dead-end.
-func _accept_selected_arc() -> void:
-	if quest_manager == null:
-		return
-	var rows: Array = _arc_rows()
-	if _selected_index < 0 or _selected_index >= rows.size():
-		return
-	var entry: Dictionary = rows[_selected_index]
-	if str(entry.get("kind", "")) != "arc_quest":
-		return
-	var data: Dictionary = entry.get("data", {})
-	if quest_manager.has_method("accept_quest") and quest_manager.accept_quest(data):
-		_render_all()
-
-
-func _acknowledge_selected_arc() -> void:
-	if quest_manager == null:
-		return
-	var rows: Array = _arc_rows()
-	if _selected_index < 0 or _selected_index >= rows.size():
-		return
-	var entry: Dictionary = rows[_selected_index]
-	if str(entry.get("kind", "")) != "arc_quest":
-		return
-	var data: Dictionary = entry.get("data", {})
-	var qid: int = int(data.get("id", -1))
-	if qid >= 0 and quest_manager.has_method("dismiss_story_offer"):
-		quest_manager.dismiss_story_offer(qid)
-	_render_all()
-
 # =============================================================================
 # HELPERS
 # =============================================================================
+
+func _current_row_count() -> int:
+	# Row count for the ACTIVE frame (the list _selected_index indexes into).
+	match frame_id:
+		FRAME_MARKET:
+			return MarketView.sort_view(_offer_pool, _get_inventory(), _market_sort_mode).size()
+		FRAME_COMMITMENTS:
+			return _commitments_rows().size()
+		_:
+			return MAX_VISIBLE_ITEMS
+
 
 func _select(idx: int) -> void:
 	_selected_index = clampi(idx, 0, MAX_VISIBLE_ITEMS - 1)
@@ -2049,13 +1638,6 @@ func _tension_color(tension: float) -> Color:
 		return Color(0.95, 0.75, 0.35, 1.0)
 	return UIStyleFactory.COLOR_MUTED
 
-func _score_color(score: float) -> Color:
-	if score >= 0.85:
-		return COLOR_COMFORT_POS
-	if score >= 0.5:
-		return Color(0.85, 0.85, 0.5, 1.0)
-	return UIStyleFactory.COLOR_MUTED
-
 func _status_color(status: String) -> Color:
 	match status:
 		"ready": return Color(0.5, 1.0, 0.5)
@@ -2109,10 +1691,6 @@ func get_snapshot() -> Dictionary:
 					"state": str(rows[i].get("status", "active")),
 					"quest_id": int(rows[i].get("id", -1)),
 				})
-		FRAME_ARC:
-			var rows: Array = _arc_rows()
-			for i in range(rows.size()):
-				slots.append({"index": i, "kind": str(rows[i].get("kind", ""))})
 		FRAME_MANIFOLD:
 			_ensure_biome()
 			if current_biome != null:
@@ -2163,5 +1741,6 @@ func _scope_source_label() -> String:
 func _scope_mode_label() -> String:
 	var counterparty := _scope_counterparty_name()
 	if counterparty == "":
-		return "current biome"
+		# Neighborhood-auto-scoped market = the live biome trading with its neighborhood.
+		return "live ↔ neighborhood" if _nb_auto_scoped else "current biome"
 	return "%s × %s" % [str(current_biome.name) if current_biome and "name" in current_biome else "—", counterparty]

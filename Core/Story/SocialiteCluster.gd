@@ -93,17 +93,22 @@ func tick(graph) -> Array:
 					"from_node": prev_node,
 					"to_node": next_node,
 				})
-		# Decide whether to chatter
-		var topic_activity: float = 0.5
-		if graph != null:
-			topic_activity = float(graph.density.get(s.current_topic_node, 0.5))
-		if not s.should_chatter(topic_activity):
-			continue
-		# Pick a biome to measure: physics-derived faction↔biome map.
+		# Pick a biome to measure FIRST: physics-derived faction↔biome map.
+		# Its quantum liveliness (measurement-distribution spread) drives BOTH
+		# which biome gets voiced (diversity) and whether the socialite speaks
+		# at all (cadence) — chatter now breathes with the physics.
 		var registry = _ensure_registry()
 		var biomes_dict: Dictionary = farm.grid.get_all_biomes() if (farm != null and farm.grid != null and farm.grid.has_method("get_all_biomes")) else {}
 		var native_biomes: Array = FactionBiomeMap.biomes_for_faction(s.faction, biomes_dict, registry) if (registry != null and not biomes_dict.is_empty()) else []
-		var picked_biome = _pick_biome_from_names(native_biomes, biomes_dict)
+		var pick: Dictionary = _pick_biome_from_names(native_biomes, biomes_dict)
+		var picked_biome = pick.get("biome", null)
+		var liveliness: float = float(pick.get("liveliness", 0.0))
+		# Decide whether to chatter — now quantum-state-aware.
+		var topic_activity: float = 0.5
+		if graph != null:
+			topic_activity = float(graph.density.get(s.current_topic_node, 0.5))
+		if not s.should_chatter(topic_activity, liveliness):
+			continue
 		var emojis: Array = []
 		var marginals: Array = []
 		var biome_label := ""
@@ -135,13 +140,38 @@ func tick(graph) -> Array:
 	return events
 
 
-## Pick a biome from a list of native biome names (uniform random).
-## Returns the biome instance from biomes_dict, or null if none/empty.
-func _pick_biome_from_names(names: Array, biomes_dict: Dictionary):
+## Pick a biome from a list of native biome names, weighted by quantum
+## liveliness — the biome with the most to say is more likely to be voiced
+## (diversity from state). A small floor keeps quiet biomes reachable so the
+## selection stays raw (weighted, not gated). Returns {biome, liveliness} — the
+## winner's liveliness rides along so the caller reuses it for cadence without
+## recomputing. Returns {biome: null, liveliness: 0.0} if none/empty.
+func _pick_biome_from_names(names: Array, biomes_dict: Dictionary) -> Dictionary:
 	if names.is_empty() or biomes_dict.is_empty():
-		return null
-	var idx := randi() % names.size()
-	return biomes_dict.get(str(names[idx]), null)
+		return {"biome": null, "liveliness": 0.0}
+	var biomes: Array = []
+	var lives: Array = []
+	var weights: Array = []
+	var total := 0.0
+	for name in names:
+		var b = biomes_dict.get(str(name), null)
+		if b == null:
+			continue
+		var live: float = BiomeMeasurementSampler.measurement_liveliness(b)
+		var w: float = 0.1 + live   # floor keeps a settled biome reachable
+		biomes.append(b)
+		lives.append(live)
+		weights.append(w)
+		total += w
+	if biomes.is_empty() or total <= 0.0:
+		return {"biome": null, "liveliness": 0.0}
+	var r := randf() * total
+	var acc := 0.0
+	for i in range(biomes.size()):
+		acc += weights[i]
+		if r <= acc:
+			return {"biome": biomes[i], "liveliness": lives[i]}
+	return {"biome": biomes[biomes.size() - 1], "liveliness": lives[biomes.size() - 1]}
 
 
 func _biome_name_of(biome) -> String:

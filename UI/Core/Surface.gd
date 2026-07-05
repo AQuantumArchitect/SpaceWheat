@@ -234,16 +234,13 @@ func _on_object_focus_changed(_new_focus: Dictionary, _prev_focus: Dictionary) -
 # TYUIOP DIRECT-JUMP TO FRAMES
 # =============================================================================
 
-## TYUIOP keycodes in order — index i maps to frame_ids[i].
-## Surfaces with more than 6 pages fall back to `[ ]` cycling for the rest.
-const TYUIOP_KEYCODES: Array = [KEY_T, KEY_Y, KEY_U, KEY_I, KEY_O, KEY_P]
-
-
 ## Default unhandled-key handler: TYUIOP direct-jump to the frame at that
-## index. Subclasses that override this should call `super._on_unhandled_key`
+## index (biome-row keycodes come from InputBindingRegistry, the shared ring
+## source). Surfaces with more than 6 pages fall back to `[ ]` cycling for the
+## rest. Subclasses that override this should call `super._on_unhandled_key`
 ## first to preserve the direct-jump behavior, then handle their own keys.
 func _on_unhandled_key(keycode: int, _event: InputEvent) -> bool:
-	var idx: int = TYUIOP_KEYCODES.find(keycode)
+	var idx: int = InputBindingRegistry.biome_index_for_keycode(keycode)
 	if idx >= 0 and idx < frame_ids.size():
 		set_frame(frame_ids[idx])
 		return true

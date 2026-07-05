@@ -132,8 +132,8 @@ Nothing above needs to be taken on faith:
 1. **The test suites** — 164 physics tests against exact matrix elements:
    `bash run_quantum_gate_tests.sh` (or per-suite via `bash 🍄/🧪/🔬.sh`).
 2. **The rig** — a deterministic headless JSON control surface
-   (`Rig/rig_listener.gd`): script a preparation, evolve, measure with a fixed
-   roll, and check the numbers yourself. Reels (`Rig/reels/`) are worked
+   (`🍄/🎛️/rig_listener.gd`): script a preparation, evolve, measure with a fixed
+   roll, and check the numbers yourself. Reels (`🍄/🎛️/reels/`) are worked
    examples.
 3. **The assays** — standalone Python ports validating the authored physics
    with no engine in the loop: `tools/ssh_assay.py`, `zeno_assay.py`,

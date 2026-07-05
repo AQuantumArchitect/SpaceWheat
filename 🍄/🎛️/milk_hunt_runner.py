@@ -728,7 +728,7 @@ def _quest_reward_score(
             score += progress * strategy.deficit_progress
 
     # Injecting newly learned vocab needs 100 of the south-pole resource.
-    south = str(offer.get("reward_vocab_south", "") or "")
+    south = str(offer.get("reward_icon_south", "") or "")
     if south:
         before_need = max(0.0, 100.0 - current_resources.get(south, 0.0))
         after_need = max(0.0, 100.0 - after.get(south, 0.0))
@@ -761,8 +761,8 @@ def _heuristic_best_offer_index(
     best_score = -10**9
     for i in indices:
         offer = offers[i]
-        n = str(offer.get("reward_vocab_north", "") or "")
-        s = str(offer.get("reward_vocab_south", "") or "")
+        n = str(offer.get("reward_icon_north", "") or "")
+        s = str(offer.get("reward_icon_south", "") or "")
         faction = str(offer.get("faction", "") or "")
         score = 0
         if n and n not in known_symbols:
@@ -2387,11 +2387,11 @@ def main() -> int:
                     if isinstance(execution, dict) and executed_action == "quest_cycle":
                         event["accepted"] = bool(execution.get("accepted", False))
                         event["completed_after_accept"] = bool(execution.get("completed_after_accept", False))
-                        event["accepted_offer_reward_vocab_north"] = str(
-                            execution.get("accepted_offer_reward_vocab_north", "") or ""
+                        event["accepted_offer_reward_icon_north"] = str(
+                            execution.get("accepted_offer_reward_icon_north", "") or ""
                         )
-                        event["accepted_offer_reward_vocab_south"] = str(
-                            execution.get("accepted_offer_reward_vocab_south", "") or ""
+                        event["accepted_offer_reward_icon_south"] = str(
+                            execution.get("accepted_offer_reward_icon_south", "") or ""
                         )
                     _append_policy_decision(event)
 
@@ -2510,8 +2510,8 @@ def main() -> int:
                             )
 
                     if isinstance(execution, dict) and executed_action == "quest_cycle":
-                        if str(execution.get("accepted_offer_reward_vocab_north", "")) == MILK or str(
-                            execution.get("accepted_offer_reward_vocab_south", "")
+                        if str(execution.get("accepted_offer_reward_icon_north", "")) == MILK or str(
+                            execution.get("accepted_offer_reward_icon_south", "")
                         ) == MILK:
                             found_offer = True
 
@@ -2783,8 +2783,8 @@ def main() -> int:
 
             milk_index = None
             for i, offer in enumerate(offers):
-                n = str(offer.get("reward_vocab_north", "") or "")
-                s = str(offer.get("reward_vocab_south", "") or "")
+                n = str(offer.get("reward_icon_north", "") or "")
+                s = str(offer.get("reward_icon_south", "") or "")
                 if n == MILK or s == MILK:
                     milk_index = i
                     last_milk_offer = offer

@@ -44,114 +44,40 @@ func _get_native():
 		_native_backend = ClassDB.instantiate("QuantumMatrixNative")
 	return _native_backend
 
-## Marshal GDScript data to PackedFloat64Array for native (DENSE)
+## The native backend (QuantumMatrixNative, Eigen) is the SINGLE compute authority —
+## there is no GDScript matrix-math twin. Returns the backend loaded with this matrix's
+## current value, ready for an op. For an empty (n==0) matrix returns null (callers
+## return the trivial result). If native is genuinely unavailable for n>0 that's a fatal
+## misconfiguration — the game requires the C++ extension (cd native && make) — so we
+## fail LOUD rather than silently diverging into a parallel GDScript computation.
+func _compute_kernel(op_name: String):
+	if n == 0:
+		return null
+	var native = _get_native()
+	if native == null:
+		push_error("ComplexMatrix.%s: native backend unavailable — it is the single compute authority. Build the C++ extension: cd native && make." % op_name)
+		return null
+	native.from_packed(_to_packed(), n)
+	return native
+
+## Return the authoritative packed store (the single source of truth). Kept as a
+## method for API stability across the many call sites; it now simply guarantees the
+## buffer is sized and hands it back — no representation reconciliation, no drift.
 func _to_packed() -> PackedFloat64Array:
-	# Fast path: packed data is authoritative (hot-path result)
-	if _packed_valid and _packed_cache.size() >= n * n * 2:
-		return _packed_cache
-
-	# Fast path: return cached packed data if _data hasn't been modified
-	if _packed_cache.size() >= n * n * 2 and not _data_valid:
-		_packed_valid = true
-		return _packed_cache
-
-	# _data is authoritative: it was freshly mutated in-place via set_element
-	# (which clears _packed_cache and marks _packed_valid=false) but the native
-	# backend was NOT updated. We must rebuild from _data and PUSH it to native —
-	# otherwise the stale native copy below would silently discard the mutation
-	# (e.g. drain_qubit's partial measurement vanishing on renormalize_trace).
-	if _data_valid and not _packed_valid:
-		var fresh = PackedFloat64Array()
-		fresh.resize(n * n * 2)
-		for i in range(n * n):
-			fresh[i * 2] = _data[i].re
-			fresh[i * 2 + 1] = _data[i].im
-		_packed_cache = fresh
-		_packed_valid = true
-		if _native_available and _native_backend != null:
-			_native_backend.from_packed(fresh, n)
-		return fresh
-
-	# Native path: get from native backend if available
-	if _native_available and _native_backend != null:
-		var native_packed: PackedFloat64Array = _native_backend.to_packed()
-		if native_packed.size() >= n * n * 2:
-			_packed_valid = true
-			return native_packed
-		# Native cache is stale/empty: rebuild from authoritative GDScript data.
-		_ensure_data_valid()
-		var rebuilt = PackedFloat64Array()
-		rebuilt.resize(n * n * 2)
-		for i in range(n * n):
-			rebuilt[i * 2] = _data[i].re
-			rebuilt[i * 2 + 1] = _data[i].im
-		_packed_cache = rebuilt
-		_packed_valid = true
-		_native_backend.from_packed(rebuilt, n)
-		return rebuilt
-
-	# Fallback: marshal from _data
-	_ensure_packed_valid()
+	_ensure_packed_sized()
 	return _packed_cache
 
-## Unmarshal PackedFloat64Array back to GDScript (DENSE)
-## Uses native backend when available for O(1) load, lazy-populates _data on access
+## Load a packed buffer as this matrix's value. The buffer becomes the store directly.
 func _from_packed(packed: PackedFloat64Array, dim: int) -> void:
 	n = dim
 	_packed_cache = packed
-	_packed_valid = true
-	_data_valid = false
-	_data = []
+	_ensure_packed_sized()
 
-	# Fast path: use native backend, defer _data population
-	if _native_available:
-		var native = _get_native()
-		if native:
-			native.from_packed(packed, dim)
-			_data_valid = false  # _data will be populated lazily if needed
-			return
-
-	# Fallback: populate _data immediately (slow but always works)
-	_populate_data_from_packed()
-
-## Internal: populate _data array from _packed_cache (GDScript fallback)
-func _populate_data_from_packed() -> void:
-	_data = []
-	for i in range(n * n):
-		_data.append(Complex.new(_packed_cache[i * 2], _packed_cache[i * 2 + 1]))
-	_data_valid = true
-
-## Ensure _data is valid (lazy population from native/packed cache)
-func _ensure_data_valid() -> void:
-	if _data_valid:
-		return
-	if _packed_cache.size() >= n * n * 2:
-		_populate_data_from_packed()
-	elif n > 0:
-		# No packed cache either — initialize zeros
-		_data = []
-		for i in range(n * n):
-			_data.append(Complex.zero())
-		_data_valid = true
-
-## Ensure _packed_cache is valid (lazy marshal from _data)
-func _ensure_packed_valid() -> void:
-	if _packed_valid and _packed_cache.size() >= n * n * 2:
-		return
-	if _packed_cache.size() >= n * n * 2 and not _data_valid:
-		# Packed is newer than data (e.g. from native backend)
-		_packed_valid = true
-		return
-	# Marshal from _data
-	_ensure_data_valid()
-	var total = n * n
-	var packed = PackedFloat64Array()
-	packed.resize(total * 2)
-	for i in range(total):
-		packed[i * 2] = _data[i].re
-		packed[i * 2 + 1] = _data[i].im
-	_packed_cache = packed
-	_packed_valid = true
+## Guarantee the packed store is allocated to n*n*2 (zero-filled). The ONLY invariant
+## the store needs — there is nothing else to keep in sync.
+func _ensure_packed_sized() -> void:
+	if _packed_cache.size() < n * n * 2:
+		_packed_cache.resize(n * n * 2)
 
 #region Sparse Matrix Transfer (CSR Format)
 
@@ -162,22 +88,20 @@ const SPARSITY_THRESHOLD: float = 1e-12
 func get_sparsity_ratio() -> float:
 	if n <= 0:
 		return 0.0
-	_ensure_data_valid()
-	var nonzero_count = 0
 	var total = n * n
-	for i in range(total):
-		if i < _data.size() and _data[i].abs() > SPARSITY_THRESHOLD:
-			nonzero_count += 1
-	return float(nonzero_count) / float(total) if total > 0 else 0.0
+	return float(count_nonzeros()) / float(total) if total > 0 else 0.0
 
-## Count non-zero elements
+## Count non-zero elements (reads the single packed store).
 func count_nonzeros() -> int:
 	if n <= 0:
 		return 0
-	_ensure_data_valid()
+	_ensure_packed_sized()
 	var count = 0
+	var thresh_sq = SPARSITY_THRESHOLD * SPARSITY_THRESHOLD
 	for i in range(n * n):
-		if i < _data.size() and _data[i].abs() > SPARSITY_THRESHOLD:
+		var re = _packed_cache[i * 2]
+		var im = _packed_cache[i * 2 + 1]
+		if re * re + im * im > thresh_sq:
 			count += 1
 	return count
 
@@ -217,9 +141,8 @@ func _to_packed_csr() -> Dictionary:
 ## Unmarshal from CSR format
 func _from_packed_csr(csr_data: Dictionary) -> void:
 	n = csr_data.dim
-	_data = []
-	for i in range(n * n):
-		_data.append(Complex.zero())
+	_packed_cache = PackedFloat64Array()
+	_packed_cache.resize(n * n * 2)  # zero-filled
 
 	var row_ptr = csr_data.row_ptr
 	var col_idx = csr_data.col_idx
@@ -269,12 +192,6 @@ func _from_packed_auto(packed_data) -> void:
 
 #endregion
 
-## Sync current matrix to native backend
-func _sync_to_native() -> void:
-	var native = _get_native()
-	if native and n > 0:
-		native.from_packed(_to_packed(), n)
-
 ## Create result matrix from packed native output
 func _result_from_packed(packed: PackedFloat64Array, dim: int):
 	var result = load("res://Core/QuantumSubstrate/ComplexMatrix.gd").new(dim)
@@ -292,29 +209,25 @@ func _result_from_packed(packed: PackedFloat64Array, dim: int):
 ## - Quantum: dagger (Hermitian conjugate), commutator, expm (matrix exponential)
 
 var n: int = 0  # Dimension
-var _data: Array = []  # Flat array: element (i,j) at index i*n + j (LAZY — only populated on demand)
-var _packed_cache: PackedFloat64Array = PackedFloat64Array()  # Native packed data cache
-var _data_valid: bool = true  # True if _data is in sync with _packed_cache
-var _packed_valid: bool = false  # True if _packed_cache is authoritative (hot-path results)
+## THE single authoritative store: dense row-major [re, im] pairs; element (i,j)
+## lives at index (i*n + j)*2. There is no second representation — the old _data
+## Array[Complex] and the _data_valid/_packed_valid flags (the source of read drift)
+## are gone. Bulk compute delegates to the native backend, loaded FROM this buffer
+## per op; the backend is a stateless compute kernel, never a parallel store.
+var _packed_cache: PackedFloat64Array = PackedFloat64Array()
 
 func _init(dimension: int = 0):
 	_check_native()
 	n = dimension
-	_data = []
 	_packed_cache = PackedFloat64Array()
-	_data_valid = true
-	_packed_valid = false
-	for i in range(n * n):
-		_data.append(Complex.zero())
+	_packed_cache.resize(n * n * 2)  # PackedFloat64Array is zero-initialized by resize
 
 ## Create a matrix directly from packed data (fast — no Complex allocation)
 static func from_packed_direct(packed: PackedFloat64Array, dimension: int):
 	var m = load("res://Core/QuantumSubstrate/ComplexMatrix.gd").new(0)
 	m.n = dimension
 	m._packed_cache = packed
-	m._packed_valid = true
-	m._data_valid = false
-	m._data = []
+	m._ensure_packed_sized()
 	return m
 
 ## Create zero matrix of given dimension (packed-primary — no Complex allocation)
@@ -360,21 +273,16 @@ func get_element(i: int, j: int):
 	if i < 0 or i >= n or j < 0 or j >= n:
 		push_error("ComplexMatrix index out of bounds: (%d, %d) for %dx%d matrix" % [i, j, n, n])
 		return Complex.zero()
-	_ensure_data_valid()
-	return _data[i * n + j]
+	_ensure_packed_sized()
+	var idx = (i * n + j) * 2
+	return Complex.new(_packed_cache[idx], _packed_cache[idx + 1])
 
-## Fast path for reading diagonal real values without populating _data
-## Used by get_marginal() to avoid O(n²) object creation
+## Read a diagonal real value (a population) straight from the packed store.
 func get_diagonal_real(i: int) -> float:
 	if i < 0 or i >= n:
 		return 0.0
-	# Fast path: read directly from packed cache
-	if _packed_cache.size() >= n * n * 2:
-		var idx = (i * n + i) * 2  # Diagonal element (i,i) real part
-		return _packed_cache[idx]
-	# Fallback: use _data
-	_ensure_data_valid()
-	return _data[i * n + i].re
+	_ensure_packed_sized()
+	return _packed_cache[(i * n + i) * 2]
 
 func get_heatmap_colors(max_dim: int = 0) -> PackedColorArray:
 	# Return per-cell colors for a density matrix heatmap.
@@ -384,41 +292,23 @@ func get_heatmap_colors(max_dim: int = 0) -> PackedColorArray:
 
 	# Computed in C++ (QuantumMatrixNative.heatmap_colors) to avoid GDScript
 	# per-cell sqrt/atan2/HSV overhead.  max_dim caps to the first NxN block.
-	_ensure_packed_valid()
-	var native = _get_native()
-	if native:
-		native.from_packed(_packed_cache, n)
-		return native.heatmap_colors(max_dim)
-	# GDScript fallback — should rarely run (native unavailable).
-	var dim: int = mini(max_dim, n) if max_dim > 0 else n
-	var colors := PackedColorArray()
-	colors.resize(dim * dim)
-	for i in range(dim):
-		for j in range(dim):
-			var idx := (i * n + j) * 2
-			var re: float = _packed_cache[idx]
-			var im: float = _packed_cache[idx + 1]
-			var mag: float = sqrt(re * re + im * im)
-			var m: float = sqrt(maxf(mag, 0.0))
-			if i == j:
-				var v: float = 0.12 + 0.88 * m
-				colors[i * dim + j] = Color(v, v, v, 1.0)
-			else:
-				var phase: float = atan2(im, re)
-				var hue: float = fmod(phase / TAU + 1.0, 1.0)
-				colors[i * dim + j] = Color.from_hsv(hue, m, 0.15 + 0.85 * m, 1.0)
-	return colors
+	if n == 0:
+		return PackedColorArray()
+	var native = _compute_kernel("heatmap_colors")
+	if native == null:
+		return PackedColorArray()
+	return native.heatmap_colors(max_dim)
 
 
 func set_element(i: int, j: int, value):
 	if i < 0 or i >= n or j < 0 or j >= n:
 		push_error("ComplexMatrix index out of bounds: (%d, %d) for %dx%d matrix" % [i, j, n, n])
 		return
-	_ensure_data_valid()
-	_data[i * n + j] = value
-	# Invalidate packed cache since _data changed
-	_packed_cache = PackedFloat64Array()
-	_packed_valid = false
+	# Write straight into the single packed store — no _data, no invalidation dance.
+	_ensure_packed_sized()
+	var idx = (i * n + j) * 2
+	_packed_cache[idx] = value.re
+	_packed_cache[idx + 1] = value.im
 
 #endregion
 
@@ -428,169 +318,71 @@ func add(other):
 	if other.n != n:
 		push_error("Matrix dimension mismatch in add: %d vs %d" % [n, other.n])
 		return load("res://Core/QuantumSubstrate/ComplexMatrix.gd").new(n)
-	var native = _get_native()
-	if native:
-		var self_packed = _to_packed()
-		var other_packed = other._to_packed()
-		native.from_packed(self_packed, n)
-		var result_packed = native.add(other_packed, n)
-		return _self().from_packed_direct(result_packed, n)
-	# GDScript fallback
-	var a = _to_packed()
-	var b = other._to_packed()
-	var total = n * n * 2
-	var r = PackedFloat64Array()
-	r.resize(total)
-	for i in range(total):
-		r[i] = a[i] + b[i]
-	return _self().from_packed_direct(r, n)
+	if n == 0:
+		return _self().zeros(0)
+	var native = _compute_kernel("add")
+	if native == null:
+		return _self().zeros(n)
+	return _self().from_packed_direct(native.add(other._to_packed(), n), n)
 
 func sub(other):
 	if other.n != n:
 		push_error("Matrix dimension mismatch in sub: %d vs %d" % [n, other.n])
 		return load("res://Core/QuantumSubstrate/ComplexMatrix.gd").new(n)
-	var native = _get_native()
-	if native:
-		var self_packed = _to_packed()
-		var other_packed = other._to_packed()
-		native.from_packed(self_packed, n)
-		var result_packed = native.sub(other_packed, n)
-		return _self().from_packed_direct(result_packed, n)
-	# GDScript fallback
-	var a = _to_packed()
-	var b = other._to_packed()
-	var total = n * n * 2
-	var r = PackedFloat64Array()
-	r.resize(total)
-	for i in range(total):
-		r[i] = a[i] - b[i]
-	return _self().from_packed_direct(r, n)
+	if n == 0:
+		return _self().zeros(0)
+	var native = _compute_kernel("sub")
+	if native == null:
+		return _self().zeros(n)
+	return _self().from_packed_direct(native.sub(other._to_packed(), n), n)
 
 func mul(other):
 	if other.n != n:
 		push_error("Matrix dimension mismatch in mul: %d vs %d" % [n, other.n])
 		return load("res://Core/QuantumSubstrate/ComplexMatrix.gd").new(n)
-
-	# Use native acceleration if available
-	var native = _get_native()
-	if native:
-		var expected = n * n * 2
-		var self_packed = _to_packed()
-		var other_packed = other._to_packed()
-		if self_packed.size() >= expected and other_packed.size() >= expected:
-			native.from_packed(self_packed, n)
-			var result_packed = native.mul(other_packed, n)
-			return _result_from_packed(result_packed, n)
-		push_warning("ComplexMatrix.mul: invalid packed payload (self=%d other=%d expected=%d), falling back to GDScript" % [
-			self_packed.size(), other_packed.size(), expected
-		])
-
-	# PackedFloat64Array path: O(n³) but zero object allocation
-	return _mul_packed(other)
-
-
-func _mul_packed(other):
-	var a = _to_packed()
-	var b = other._to_packed()
-	var dim = n
-	var total = dim * dim * 2
-	var r = PackedFloat64Array()
-	r.resize(total)
-	# r is zero-initialized by resize
-	for i in range(dim):
-		var i_off = i * dim
-		for k in range(dim):
-			var ik2 = (i_off + k) * 2
-			var a_re = a[ik2]
-			var a_im = a[ik2 + 1]
-			if a_re == 0.0 and a_im == 0.0:
-				continue
-			var k_off = k * dim
-			for j in range(dim):
-				var kj2 = (k_off + j) * 2
-				var b_re = b[kj2]
-				var b_im = b[kj2 + 1]
-				var ij2 = (i_off + j) * 2
-				# (a_re + a_im*i) * (b_re + b_im*i) = (a_re*b_re - a_im*b_im) + (a_re*b_im + a_im*b_re)*i
-				r[ij2] += a_re * b_re - a_im * b_im
-				r[ij2 + 1] += a_re * b_im + a_im * b_re
-	return _self().from_packed_direct(r, dim)
+	if n == 0:
+		return _self().zeros(0)
+	var native = _compute_kernel("mul")
+	if native == null:
+		return _self().zeros(n)
+	return _result_from_packed(native.mul(other._to_packed(), n), n)
 
 func scale(s):
-	var native = _get_native()
-	if native:
-		native.from_packed(_to_packed(), n)
-		var result_packed = native.scale(s.re, s.im, n)
-		return _self().from_packed_direct(result_packed, n)
-	# GDScript fallback: (a+bi)(c+di) = (ac-bd)+(ad+bc)i
-	var a = _to_packed()
-	var total = n * n
-	var r = PackedFloat64Array()
-	r.resize(total * 2)
-	var s_re = s.re
-	var s_im = s.im
-	for i in range(total):
-		var i2 = i * 2
-		var a_re = a[i2]
-		var a_im = a[i2 + 1]
-		r[i2] = a_re * s_re - a_im * s_im
-		r[i2 + 1] = a_re * s_im + a_im * s_re
-	return _self().from_packed_direct(r, n)
+	if n == 0:
+		return _self().zeros(0)
+	var native = _compute_kernel("scale")
+	if native == null:
+		return _self().zeros(n)
+	return _self().from_packed_direct(native.scale(s.re, s.im, n), n)
 
 ## Fast scale by -i: (re, im) → (im, -re).
 func scale_neg_i():
-	var native = _get_native()
-	if native:
-		native.from_packed(_to_packed(), n)
-		var result_packed = native.scale(0.0, -1.0, n)
-		return _self().from_packed_direct(result_packed, n)
-	# GDScript fallback
-	var a = _to_packed()
-	var total = n * n * 2
-	var r = PackedFloat64Array()
-	r.resize(total)
-	for i in range(0, total, 2):
-		r[i] = a[i + 1]
-		r[i + 1] = -a[i]
-	return _self().from_packed_direct(r, n)
+	if n == 0:
+		return _self().zeros(0)
+	var native = _compute_kernel("scale_neg_i")
+	if native == null:
+		return _self().zeros(n)
+	return _self().from_packed_direct(native.scale(0.0, -1.0, n), n)
 
 func scale_real(s: float):
-	var native = _get_native()
-	if native:
-		native.from_packed(_to_packed(), n)
-		var result_packed = native.scale(s, 0.0, n)
-		return _self().from_packed_direct(result_packed, n)
-	# GDScript fallback
-	var a = _to_packed()
-	var total = n * n * 2
-	var r = PackedFloat64Array()
-	r.resize(total)
-	for i in range(total):
-		r[i] = a[i] * s
-	return _self().from_packed_direct(r, n)
+	if n == 0:
+		return _self().zeros(0)
+	var native = _compute_kernel("scale_real")
+	if native == null:
+		return _self().zeros(n)
+	return _self().from_packed_direct(native.scale(s, 0.0, n), n)
 
 #endregion
 
 #region Linear Algebra Operations
 
 func dagger():
-	var native = _get_native()
-	if native:
-		native.from_packed(_to_packed(), n)
-		var result_packed = native.dagger(n)
-		return _self().from_packed_direct(result_packed, n)
-	# GDScript fallback
-	var a = _to_packed()
-	var dim = n
-	var r = PackedFloat64Array()
-	r.resize(dim * dim * 2)
-	for i in range(dim):
-		for j in range(dim):
-			var src = (i * dim + j) * 2
-			var dst = (j * dim + i) * 2
-			r[dst] = a[src]        # re
-			r[dst + 1] = -a[src + 1]  # -im (conjugate)
-	return _self().from_packed_direct(r, dim)
+	if n == 0:
+		return _self().zeros(0)
+	var native = _compute_kernel("dagger")
+	if native == null:
+		return _self().zeros(n)
+	return _self().from_packed_direct(native.dagger(n), n)
 
 func trace():
 	# Fast path: read directly from packed data
@@ -653,13 +445,12 @@ func compute_energy_split() -> Dictionary:
 
 func commutator(other):
 	# [A, B] = AB - BA
-	var native = _get_native()
-	if native:
-		native.from_packed(_to_packed(), n)
-		var result_packed = native.commutator(other._to_packed(), n)
-		return _self().from_packed_direct(result_packed, n)
-	# GDScript fallback via mul
-	return mul(other).sub(other.mul(self))
+	if n == 0:
+		return _self().zeros(0)
+	var native = _compute_kernel("commutator")
+	if native == null:
+		return _self().zeros(n)
+	return _self().from_packed_direct(native.commutator(other._to_packed(), n), n)
 
 func anticommutator(other):
 	# {A, B} = AB + BA — no native method, decompose via native mul + native add
@@ -681,61 +472,13 @@ static func outer_product(ket: Array, bra: Array):
 #region Matrix Exponential (Padé Approximation)
 
 func expm():
-	# Use native acceleration if available (Eigen's optimized Padé approximation)
-	var native = _get_native()
-	if native:
-		_sync_to_native()
-		var result_packed = native.expm()
-		return _result_from_packed(result_packed, n)
-
-	# Fallback: pure GDScript Padé [6/6] approximation with scaling and squaring
-	# exp(A) = exp(A/2^k)^(2^k) where k chosen so ||A/2^k|| < 1
-
-	# Find scaling factor
-	var norm = _one_norm()
-	var k = max(0, int(ceil(log(norm) / log(2.0))))
-	var scaled = scale_real(1.0 / pow(2.0, k))
-
-	# Padé [6/6] approximation
-	var pade = _pade_6_6(scaled)
-
-	# Square k times: (exp(A/2^k))^(2^k)
-	for i in range(k):
-		pade = pade.mul(pade)
-
-	return pade
-
-func _pade_6_6(A):
-	# Padé [6/6] coefficients
-	var c = [1.0, 0.5, 0.117857142857143, 0.019841269841270, 0.002480158730159, 0.000198412698412698, 0.000008267195767196]
-
-	var I = load("res://Core/QuantumSubstrate/ComplexMatrix.gd").identity(n)
-	var A2 = A.mul(A)
-	var A4 = A2.mul(A2)
-	var A6 = A2.mul(A4)
-
-	# Numerator: U = A(c1*I + c3*A^2 + c5*A^4)
-	var U = I.scale_real(c[1]).add(A2.scale_real(c[3])).add(A4.scale_real(c[5]))
-	U = A.mul(U)
-
-	# Denominator: V = c0*I + c2*A^2 + c4*A^4 + c6*A^6
-	var V = I.scale_real(c[0]).add(A2.scale_real(c[2])).add(A4.scale_real(c[4])).add(A6.scale_real(c[6]))
-
-	# exp(A) ≈ (V - U)^(-1) (V + U)
-	var numerator = V.add(U)
-	var denominator = V.sub(U)
-
-	return denominator.inverse().mul(numerator)
-
-func _one_norm() -> float:
-	# ||A||_1 = max column sum
-	var max_sum = 0.0
-	for j in range(n):
-		var col_sum = 0.0
-		for i in range(n):
-			col_sum += get_element(i, j).abs()
-		max_sum = max(max_sum, col_sum)
-	return max_sum
+	# Matrix exponential — Eigen's Padé approximation in the native backend.
+	if n == 0:
+		return _self().zeros(0)
+	var native = _compute_kernel("expm")
+	if native == null:
+		return _self().identity(n)
+	return _result_from_packed(native.expm(), n)
 
 func frobenius_norm() -> float:
 	# ||A||_F = sqrt(Σ|A_ij|²) = sqrt(Tr(A†A))
@@ -751,161 +494,33 @@ func frobenius_norm() -> float:
 #region Matrix Inverse (Gauss-Jordan)
 
 func inverse():
+	# Matrix inverse — Eigen's LU decomposition in the native backend.
 	if n == 0:
 		return load("res://Core/QuantumSubstrate/ComplexMatrix.gd").new(0)
-
-	# Use native acceleration if available (Eigen's LU decomposition)
-	var native = _get_native()
-	if native:
-		_sync_to_native()
-		var result_packed = native.inverse()
-		return _result_from_packed(result_packed, n)
-
-	# Fallback: pure GDScript Gauss-Jordan elimination
-	# Create augmented matrix [A | I]
-	var aug = []
-	for i in range(n):
-		var row = []
-		for j in range(n):
-			row.append(get_element(i, j))
-		for j in range(n):
-			row.append(Complex.one() if i == j else Complex.zero())
-		aug.append(row)
-
-	# Gauss-Jordan elimination
-	for pivot in range(n):
-		# Find pivot
-		var max_row = pivot
-		var max_val = aug[pivot][pivot].abs()
-		for i in range(pivot + 1, n):
-			if aug[i][pivot].abs() > max_val:
-				max_val = aug[i][pivot].abs()
-				max_row = i
-
-		if max_val < 1e-14:
-			push_error("Matrix is singular, cannot invert")
-			return load("res://Core/QuantumSubstrate/ComplexMatrix.gd").identity(n)
-
-		# Swap rows
-		if max_row != pivot:
-			var temp = aug[pivot]
-			aug[pivot] = aug[max_row]
-			aug[max_row] = temp
-
-		# Scale pivot row
-		var pivot_val = aug[pivot][pivot]
-		for j in range(2 * n):
-			aug[pivot][j] = aug[pivot][j].div(pivot_val)
-
-		# Eliminate column
-		for i in range(n):
-			if i != pivot:
-				var factor = aug[i][pivot]
-				for j in range(2 * n):
-					aug[i][j] = aug[i][j].sub(factor.mul(aug[pivot][j]))
-
-	# Extract inverse from right half
-	var inv = load("res://Core/QuantumSubstrate/ComplexMatrix.gd").new(n)
-	for i in range(n):
-		for j in range(n):
-			inv.set_element(i, j, aug[i][j + n])
-
-	return inv
+	var native = _compute_kernel("inverse")
+	if native == null:
+		return _self().identity(n)
+	return _result_from_packed(native.inverse(), n)
 
 #endregion
 
 #region Eigenvalue Decomposition (Jacobi for Hermitian)
 
 func eigensystem() -> Dictionary:
-	# Returns { "eigenvalues": Array[float], "eigenvectors": ComplexMatrix }
-
+	# Returns { "eigenvalues": Array[float], "eigenvectors": ComplexMatrix }.
+	# Eigen's SelfAdjointEigenSolver in the native backend (the single authority).
 	if not is_hermitian():
 		push_warning("eigensystem() called on non-Hermitian matrix - results may be unreliable")
-
-	# Use native acceleration if available (Eigen's SelfAdjointEigenSolver)
-	var native = _get_native()
-	if native:
-		_sync_to_native()
-		var result = native.eigensystem()
-		return {
-			"eigenvalues": result["eigenvalues"],
-			"eigenvectors": _result_from_packed(result["eigenvectors"], n)
-		}
-
-	# Fallback: pure GDScript Jacobi iteration for Hermitian matrices
-	# Initialize: V = I, A = self
-	var V = load("res://Core/QuantumSubstrate/ComplexMatrix.gd").identity(n)
-	var A = duplicate()
-
-	var max_iterations = 50 * n * n
-	var tolerance = 1e-12
-
-	for iteration in range(max_iterations):
-		# Find largest off-diagonal element
-		var max_val = 0.0
-		var p = 0
-		var q = 1
-		for i in range(n):
-			for j in range(i + 1, n):
-				var val = A.get_element(i, j).abs()
-				if val > max_val:
-					max_val = val
-					p = i
-					q = j
-
-		# Converged?
-		if max_val < tolerance:
-			break
-
-		# Compute Givens rotation
-		var app = A.get_element(p, p).re
-		var aqq = A.get_element(q, q).re
-		var apq = A.get_element(p, q)
-
-		var theta = 0.5 * atan2(2.0 * apq.abs(), aqq - app)
-		var c = cos(theta)
-		var s = sin(theta)
-
-		# Apply rotation to A and V
-		_apply_jacobi_rotation(A, V, p, q, c, s)
-
-	# Extract eigenvalues (diagonal of A)
-	var eigenvalues = []
-	for i in range(n):
-		eigenvalues.append(A.get_element(i, i).re)
-
+	if n == 0:
+		return {"eigenvalues": [], "eigenvectors": _self().zeros(0)}
+	var native = _compute_kernel("eigensystem")
+	if native == null:
+		return {"eigenvalues": [], "eigenvectors": _self().identity(n)}
+	var result = native.eigensystem()
 	return {
-		"eigenvalues": eigenvalues,
-		"eigenvectors": V  # Columns are eigenvectors
+		"eigenvalues": result["eigenvalues"],
+		"eigenvectors": _result_from_packed(result["eigenvectors"], n)
 	}
-
-func _apply_jacobi_rotation(A, V, p: int, q: int, c: float, s: float) -> void:
-	# Apply Givens rotation to A and accumulate in V
-	for i in range(n):
-		if i != p and i != q:
-			var aip = A.get_element(i, p)
-			var aiq = A.get_element(i, q)
-			A.set_element(i, p, Complex.new(c * aip.re - s * aiq.re, c * aip.im - s * aiq.im))
-			A.set_element(i, q, Complex.new(s * aip.re + c * aiq.re, s * aip.im + c * aiq.im))
-			A.set_element(p, i, A.get_element(i, p).conjugate())
-			A.set_element(q, i, A.get_element(i, q).conjugate())
-
-	# Update eigenvectors
-	for i in range(n):
-		var vip = V.get_element(i, p)
-		var viq = V.get_element(i, q)
-		V.set_element(i, p, Complex.new(c * vip.re - s * viq.re, c * vip.im - s * viq.im))
-		V.set_element(i, q, Complex.new(s * vip.re + c * viq.re, s * vip.im + c * viq.im))
-
-	# Update diagonal
-	var app = A.get_element(p, p).re
-	var aqq = A.get_element(q, q).re
-	var apq = A.get_element(p, q)
-
-	A.set_element(p, p, Complex.new(c*c*app - 2*c*s*apq.re + s*s*aqq, 0.0))
-	A.set_element(q, q, Complex.new(s*s*app + 2*c*s*apq.re + c*c*aqq, 0.0))
-	A.set_element(p, q, Complex.zero())
-	A.set_element(q, p, Complex.zero())
 
 #endregion
 
@@ -1040,22 +655,12 @@ func renormalize_trace() -> void:
 			push_warning("Cannot renormalize: trace is essentially zero")
 		return
 
-	# Scale all elements by 1/|trace| — packed path, no Complex allocation
+	# Scale all elements by 1/|trace| in place on the single packed store. No second
+	# representation to reconcile — the old _data/native lock-step dance is gone.
+	_ensure_packed_sized()
 	var s = 1.0 / tr_val
-	var p = _to_packed()
-	var total = n * n * 2
-	for i in range(total):
-		p[i] *= s
-	_packed_cache = p
-	_packed_valid = true
-	_data_valid = false
-	_data = []
-	# Keep the native backend in lock-step with the normalized result — otherwise
-	# a set_element-based mutation (e.g. drain_qubit) that we just rebuilt into
-	# packed would leave native holding the stale/un-normalized copy, and the next
-	# evolve would silently replay it.
-	if _native_available and _native_backend != null:
-		_native_backend.from_packed(p, n)
+	for i in range(n * n * 2):
+		_packed_cache[i] *= s
 
 #endregion
 

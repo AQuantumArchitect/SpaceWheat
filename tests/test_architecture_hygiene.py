@@ -10,7 +10,6 @@ SCAN_ROOTS = [
     ROOT / "docs",
     ROOT / "tests",
     ROOT / "native" / "src",
-    ROOT / "README.txt",
     ROOT / "🍄",
 ]
 

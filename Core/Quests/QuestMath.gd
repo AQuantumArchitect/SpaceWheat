@@ -24,6 +24,16 @@ static func soft_gate_inv(x: float, center: float, width: float = 0.05) -> float
 	return 1.0 - soft_gate(x, center, width)
 
 
+static func fire_value(center: float, width: float = 0.05, fire_threshold: float = 0.85) -> float:
+	## The x at which soft_gate(x, center, width) first reaches `fire_threshold` — i.e. the
+	## REAL target a "≥ center" predicate must hit to actually fire, since soft_gate is only
+	## 0.5 AT center. Inverse of soft_gate: x = center + width·atanh(2·fire − 1).
+	## (atanh hand-rolled — not guaranteed in GDScript's global scope.)
+	var f := clampf(fire_threshold, 0.5, 0.999)
+	var y := 2.0 * f - 1.0
+	return center + maxf(width, 1e-6) * 0.5 * log((1.0 + y) / (1.0 - y))
+
+
 static func smooth_and(scores: Array) -> float:
 	## Geometric mean of scores: ALL must be high for result to be high.
 	## Penalises weakest link without zeroing out on any single low score.

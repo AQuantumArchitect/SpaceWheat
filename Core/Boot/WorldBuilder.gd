@@ -39,11 +39,9 @@ func biome_operators_look_valid(biome) -> bool:
 
 
 func should_rebuild_biome_operators(farm: Node) -> bool:
-	var force_rebuild = OS.get_environment("SW_FORCE_OPERATOR_REBUILD").to_lower() in ["1", "true", "yes", "on"]
-	if force_rebuild:
+	if RuntimeEnv.force_operator_rebuild():
 		return true
-	var skip_rebuild = OS.get_environment("SW_SKIP_OPERATOR_REBUILD").to_lower() in ["1", "true", "yes", "on"]
-	if skip_rebuild:
+	if RuntimeEnv.skip_operator_rebuild():
 		return false
 	if not farm or not farm.grid or not farm.grid.has_biomes():
 		return false
@@ -344,6 +342,12 @@ func load_biome(biome_name: String, farm: Node) -> Dictionary:
 	if has_icons:
 		if not biome.quantum_computer or not biome.quantum_computer.hamiltonian:
 			push_error("Biome '%s' built with icons[] but has no Hamiltonian — silent dead-substrate drift" % biome_name)
+		elif biome.quantum_computer.hamiltonian.has_method("frobenius_norm") and biome.quantum_computer.hamiltonian.frobenius_norm() < 1e-9:
+			# A non-null but all-zero H is just as dead — U(t)=I, nothing evolves,
+			# Berry phase never ripens, the whole progression loop stalls. This is
+			# exactly the failure a poisoned operator cache produced; flag it loudly
+			# rather than ticking forever on an inert substrate.
+			push_error("Biome '%s' built with icons[] but Hamiltonian is all-zero — dead-substrate (likely a poisoned operator cache)" % biome_name)
 		else:
 			# In a closed biome no Lindblad operators are built — empty L is the
 			# intended state, not drift. Only flag the open-regime invariant

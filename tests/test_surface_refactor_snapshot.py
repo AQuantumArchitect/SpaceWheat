@@ -212,20 +212,12 @@ def test_boot_manager_exposes_canonical_request_entrypoints() -> None:
 
 
 def test_boot_callers_use_canonical_request_path() -> None:
+    # GameRoot is the ONE runtime caller of boot_session + boot_runtime; the export tools
+    # are the only other (headless, AppRoot-free) callers.
     callers = {
         "scenes/GameRoot.gd": [
             "boot_session(boot_request, self)",
             "boot_runtime(farm, player_shell, quantum_viz)",
-        ],
-        "Core/GameState/SaveLoadCoordinator.gd": [
-            "boot_session(boot_request, null)",
-        ],
-        "Rig/rig_listener.gd": [
-            "boot_session(boot_request, null)",
-            "boot_runtime(_farm, _shell, quantum_viz)",
-        ],
-        "tools/BuildBundledCache.gd": [
-            "boot_session({",
         ],
         "tools/export_live_icon_map_live.gd": [
             "boot_session({",
@@ -238,6 +230,36 @@ def test_boot_callers_use_canonical_request_path() -> None:
         src = _read(rel_path)
         for token in tokens:
             assert token in src, f"{rel_path} missing {token}"
+
+
+def test_save_load_routes_through_single_boot_authority() -> None:
+    # SaveLoadCoordinator.load_and_apply must NOT re-implement boot by calling
+    # BootManager.boot_session() directly (a partial pipeline with no GameRoot / boot_runtime
+    # / AppRoot guard — the long-standing save/load dual-boot). When an AppRoot exists it
+    # routes through restart_into() → AppRoot.start_game → GameRoot, the canonical path.
+    src = _read("Core/GameState/SaveLoadCoordinator.gd")
+    sla = src[src.index("func load_and_apply("):src.index("func load_and_apply_path(")]
+    assert "boot_session(" not in sla, "load_and_apply must not call boot_session directly"
+    assert "restart_into(slot)" in sla, "load_and_apply must route through restart_into"
+
+
+def test_rig_boots_through_approot_not_a_parallel_shell() -> None:
+    # The rig and a human player share ONE boot path and ONE PlayerShell: the rig brings up
+    # the real AppRoot and lets it boot AppRoot → GameRoot → the app-owned shell, then drives
+    # keys into that same shell. It must NOT hand-mount a parallel PlayerShell or call the
+    # engine boot directly (that was the divergence that hid the welcome-trap bug).
+    src = _read("🍄/🎛️/rig_listener.gd")
+    assert 'AppRootClass = load("res://scenes/AppRoot.gd")' in src
+    assert "app_root.get_player_shell()" in src
+    assert "func _await_real_boot(" in src
+    # No parallel boot: the rig delegates to AppRoot, never the engine boot calls itself.
+    assert "boot_session(" not in src
+    assert "boot_runtime(" not in src
+    assert 'PlayerShellScene' not in src  # no hand-mounted shell
+    # GameRoot stages the shell + instrument on ONE path (no headless early-return that
+    # skips boot_runtime — that skip is what forced the rig to hand-mount).
+    gr = _read("scenes/GameRoot.gd")
+    assert "if bool(boot_request.headless):\n\t\tfarm_view.finalize_runtime_mount(true)" not in gr
 
 
 def test_authority_adapter_exposes_access_tree_api() -> None:
@@ -291,6 +313,21 @@ def test_quest_manager_is_market_only_for_delivery_completion() -> None:
         "economy.remove_resource(",
     ]:
         assert token in src, token
+
+
+def test_app_root_boot_is_single_instance() -> None:
+    # Two GameRoots = two FarmUIs / two action bars stacked (a dead instance over a live
+    # one: stuck on Ace, captions frozen, input swallowed). The boot pipeline must be
+    # single-instance: a re-entrancy guard that both start_game and restart_from_pending_boot
+    # take, held across restart's null-game_root await window.
+    src = _read("scenes/AppRoot.gd")
+    assert "var _booting" in src, "AppRoot must declare a _booting re-entrancy guard"
+    # start_game refuses to start while a boot is in progress.
+    sg = src[src.index("func start_game("):src.index("func restart_from_pending_boot(")]
+    assert "if _booting:" in sg and "_booting = true" in sg, "start_game must take the guard"
+    # restart holds the guard across the teardown (so the null-game_root frames can't be raced).
+    rs = src[src.index("func restart_from_pending_boot("):src.index("func return_to_title(")]
+    assert "if _booting:" in rs and "_booting = true" in rs, "restart must take the guard first"
 
 
 def test_app_root_warms_shell_before_title_card() -> None:

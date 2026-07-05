@@ -36,9 +36,17 @@ func setup(action_bar_mgr, stack_mgr, overlay_mgr = null) -> void:
 
 
 func reset() -> void:
-	# Reset runtime UI context references for shutdown or restart.
-	if overlay_stack and overlay_stack.has_signal("stack_changed"):
-		InstrumentLocator._safe_disconnect(overlay_stack.stack_changed, refresh)
+	# Clear ONLY the per-GAME bindings so a fresh boot can rebind cleanly via
+	# bind_quantum_input(). The shell-persistent infrastructure — action_bar_manager,
+	# overlay_stack, overlay_manager (and the stack_changed / overlay observations) — is
+	# created once in setup() at shell construction and PRESERVED across restarts (see
+	# PlayerShell.clear_farm_ui: "action bars, layout manager are all preserved").
+	#
+	# Previously this nulled action_bar_manager/overlay_stack/overlay_manager, but only
+	# setup() restores them and the restart path calls bind_quantum_input (not setup) — so
+	# after a menu/restart boot action_bar_manager stayed null, refresh() early-returned, and
+	# the action bar never repainted off frame_changed: the bar froze on Ace while the hat
+	# (and the model) changed underneath. That was the "stuck on Ace, can't change hats" bug.
 	if quantum_input:
 		for sig_name in ["frame_changed", "frame_mode_changed", "submenu_changed", "action_performed"]:
 			var cb = Callable(self, "_on_" + sig_name)
@@ -49,15 +57,11 @@ func reset() -> void:
 			if tool_row and tool_row.has_signal("frame_selected"):
 				InstrumentLocator._safe_disconnect(tool_row.frame_selected,
 						Callable(quantum_input, "_select_frame_hat"))
-	action_bar_manager = null
-	overlay_stack = null
-	overlay_manager = null
 	quantum_input = null
 	current_farm_ui = null
 	current_frame = ToolConfig.get_current_frame()
 	current_submenu_name = ""
 	current_submenu_actions.clear()
-	_observed_overlays.clear()
 
 
 func bind_overlay_manager(overlay_mgr) -> void:
@@ -272,6 +276,7 @@ func _project_action_info(action_info: Dictionary) -> Dictionary:
 		"emoji": str(action_info.get("emoji", "")),
 		"icon": str(action_info.get("icon", "")),
 		"disabled": bool(action_info.get("disabled", false)),
+		"dlc_locked": bool(action_info.get("dlc_locked", false)),
 		"available": false,
 		# Carry through a producer-supplied cost (e.g. the icon-injection submenu prices
 		# each option as it builds it). Single cost authority: whoever holds the payload
@@ -283,12 +288,32 @@ func _project_action_info(action_info: Dictionary) -> Dictionary:
 	}
 
 
+## Verbs that are pure Lindblad drive — meaningless in the closed (unitary) system.
+## In closed/shipping mode they render disabled with a 🔒 open-quantum tag (DLC teaser)
+## instead of looking live and returning an inert no-op. Mirrors the runtime guard in
+## QuantumInstrument._closed_system_blocked.
+const CLOSED_BLOCKED_ACTIONS := [
+	"spark_north", "spark_south", "drain", "pump", "lindblad_pump", "lindblad_drain",
+]
+
+
 func _apply_runtime_state(actions: Dictionary) -> void:
 	var runtime_availability = _resolve_runtime_availability()
+	var closed_mode := not BalanceConfig.dissipative_enabled()
 	for action_key in ACTION_KEYS:
 		if not actions.has(action_key):
 			continue
 		var action_info: Dictionary = actions[action_key]
+		# Closed-mode honesty: open-quantum-only verbs render as a locked DLC teaser.
+		if closed_mode and str(action_info.get("action", "")) in CLOSED_BLOCKED_ACTIONS:
+			action_info.disabled = true
+			action_info.available = false
+			action_info.cost = {}
+			action_info.dlc_locked = true
+			if not str(action_info.get("label", "")).begins_with("🔒"):
+				action_info.label = "🔒 " + str(action_info.get("label", ""))
+			actions[action_key] = action_info
+			continue
 		if bool(action_info.get("disabled", false)):
 			action_info.available = false
 			action_info.cost = {}
@@ -343,33 +368,21 @@ func _apply_probe_preview(actions: Dictionary) -> void:
 	if not biome:
 		return
 
+	# R = Strike: preview the live odds you're about to collapse (top QC probability).
 	var explore_preview = ProbeActions.get_explore_preview(farm.terminal_pool, biome)
-	if explore_preview.can_explore and not explore_preview.top_probabilities.is_empty() and actions.has("Q"):
+	if explore_preview.can_explore and not explore_preview.top_probabilities.is_empty() and actions.has("R"):
 		var top = explore_preview.top_probabilities[0]
-		actions["Q"].label = "Explore (%s %.0f%%)" % [top.get("emoji", "?"), top.get("probability", 0.0) * 100.0]
-		actions["Q"].emoji = "🔍"
-		actions["Q"].icon = ""
+		actions["R"].label = "Strike (%s %.0f%%)" % [top.get("emoji", "?"), top.get("probability", 0.0) * 100.0]
 
+	# Q = Extract: preview the collapsed outcome that's ready to cash out.
 	var biome_name = biome.get_biome_type() if biome.has_method("get_biome_type") else ""
-	var active_terminals = []
-	for terminal in farm.terminal_pool.get_active_terminals():
-		if terminal.bound_biome_name == biome_name:
-			active_terminals.append(terminal)
-	if not active_terminals.is_empty() and actions.has("E"):
-		var active_terminal = active_terminals[0]
-		actions["E"].label = "Measure (%s)" % str(active_terminal.north_emoji if active_terminal.north_emoji else "?")
-		actions["E"].emoji = "👁️"
-		actions["E"].icon = ""
-
 	var measured_terminals = []
 	for terminal in farm.terminal_pool.get_measured_terminals():
 		if terminal.bound_biome_name == biome_name:
 			measured_terminals.append(terminal)
-	if not measured_terminals.is_empty() and actions.has("R"):
+	if not measured_terminals.is_empty() and actions.has("Q"):
 		var measured_terminal = measured_terminals[0]
-		actions["R"].label = "Pop (%s)" % str(measured_terminal.measured_outcome if measured_terminal.measured_outcome else "?")
-		actions["R"].emoji = "✂️"
-		actions["R"].icon = ""
+		actions["Q"].label = "Extract (%s)" % str(measured_terminal.measured_outcome if measured_terminal.measured_outcome else "?")
 
 
 func _get_cost_for_action(action_info: Dictionary) -> Dictionary:
@@ -386,13 +399,14 @@ func _get_cost_for_action(action_info: Dictionary) -> Dictionary:
 func _get_cost_for_action_name(action_name: String, action_info: Dictionary) -> Dictionary:
 	match action_name:
 		"inject_icon":
-			# Payload-specific cost: it depends on the chosen icon's south emoji, which
-			# only exists once an icon is selected in the icon-injection submenu. That
-			# submenu prices each option as it builds it and the cost is preserved through
-			# projection. At the frame/chip level no icon is selected, so there is nothing
-			# to price — return empty rather than reaching into the "icon" field, which at
-			# this layer is the button's SVG path (String), not an icon record.
-			return {}
+			# The per-icon south-pole cost (4×south) only resolves once an icon is selected in
+			# the injection submenu (which prices each option, preserved through projection).
+			# But the FLAT base cost (sprouts) is known WITHOUT a selection — surface it at the
+			# frame level so the player can SEE that inserting vocab costs resources instead of
+			# a blank chip. Pass no context → the economy returns the base injection cost
+			# (get_icon_injection_cost("") = {🌱:N}); the full per-icon cost still shows in the
+			# submenu. Empty south avoids the old "icon"-field String/Dictionary confusion.
+			return _get_runtime_action_cost("inject_icon")
 		"drain", "pump":
 			var pair = _resolve_selected_axis_pair()
 			if pair.is_empty():

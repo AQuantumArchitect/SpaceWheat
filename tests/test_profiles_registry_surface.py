@@ -29,11 +29,9 @@ def test_mushroom_callers_use_unified_profiles_module() -> None:
     seed = _read("🍄/🎛️/milk_hunt_seed_save.py")
     batch = _read("🍄/🎛️/milk_hunt_batch.py")
     runner = _read("🍄/🎛️/milk_hunt_runner.py")
-    manager = _read("🍄/🎛️/profile_save_manager.py")
     assert "from profiles import load, list_all" in seed
     assert "from profiles import load, get_profile_name_for_save, get_save_path, resolve_save_spec" in batch
     assert "from profiles import get_profile_name_for_save, get_save_path, resolve_save_spec" in runner
-    assert "from profiles import (" in manager
 
 
 def test_old_registry_modules_are_deleted() -> None:

@@ -68,7 +68,7 @@ def test_game_state_and_rig_listener_persist_policy_graph() -> None:
     serializer = _read("Core/GameState/GameStateSerializer.gd")
     sidecar = _read("Core/GameState/SaveStore.gd")
     seed = _read("🍄/🎛️/milk_hunt_seed_save.py")
-    listener = _read("Rig/rig_listener.gd")
+    listener = _read("🍄/🎛️/rig_listener.gd")
     assert '@export var policy_graph_path: String = "res://Core/Config/PolicyGraph/default.jsonl"' in gs
     assert "@export var policy_graph_jsonl: Array[String] = []" in gs
     assert 'state.policy_graph_jsonl = pgraph.duplicate()' in serializer
@@ -86,7 +86,7 @@ def test_game_state_and_rig_listener_persist_policy_graph() -> None:
 
 def test_snapshot_service_owns_policy_state_projection() -> None:
     snapshot = _read("Core/Instrumentation/SnapshotService.gd")
-    listener = _read("Rig/rig_listener.gd")
+    listener = _read("🍄/🎛️/rig_listener.gd")
     assert "func get_policy_snapshot(" in snapshot
     assert "func open_semantic_map_panel(" not in snapshot
     assert "func open_vocabulary_panel(" not in snapshot

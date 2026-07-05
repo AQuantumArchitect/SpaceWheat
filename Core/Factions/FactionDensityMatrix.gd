@@ -42,7 +42,7 @@ func _load_world_into_engine() -> void:
 	var lexicon = (Engine.get_main_loop().root.get_node_or_null("/root/IconRegistry") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 	var seen_emojis: Dictionary = {}
 	for f in _registry.get_all():
-		var derived_se: Dictionary = lexicon.get_signature_physics(f.cloud).get("self_energies", {})
+		var derived_se: Dictionary = lexicon.get_cloud_physics(f.cloud).get("self_energies", {})
 		for emoji in f.cloud:
 			if seen_emojis.has(emoji):
 				continue
@@ -54,10 +54,10 @@ func _load_world_into_engine() -> void:
 		var bits := PackedFloat64Array()
 		for b in f.get_axial_bits():
 			bits.push_back(float(b))
-		var sig := PackedStringArray()
+		var cloud := PackedStringArray()
 		for e in f.cloud:
-			sig.push_back(str(e))
-		_engine.add_faction(str(f.name), bits, sig)
+			cloud.push_back(str(e))
+		_engine.add_faction(str(f.name), bits, cloud)
 	_engine.faction_initialize_uniform()
 	# Compose the emoji-basis Hamiltonian so the eigensolver has something to
 	# work with when consumers (MarketLattice projections, N menu) ask for

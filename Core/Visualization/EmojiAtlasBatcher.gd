@@ -429,7 +429,7 @@ func build_atlas_cached(emoji_list: Array, parent_node: Node, font_size: int = 4
 		return
 
 	# Skip building in headless mode (can't render SubViewport without display)
-	var is_headless = DisplayServer.get_name() == "headless"
+	var is_headless = RuntimeEnv.is_headless()
 	if is_headless:
 		VerboseHelper.debug("viz", "atlas", "[EmojiAtlasBatcher] Headless mode - skipping atlas build")
 		_atlas_built = false

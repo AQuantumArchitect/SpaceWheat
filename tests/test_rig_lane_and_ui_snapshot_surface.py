@@ -44,7 +44,7 @@ def test_snapshot_service_owns_ui_snapshot_registry() -> None:
 
 
 def test_rig_listener_is_thinner_and_uses_quantum_instrument_input() -> None:
-    src = _read("Rig/rig_listener.gd")
+    src = _read("🍄/🎛️/rig_listener.gd")
     assert "func _press_key(" in src
     assert "func _select_biome_via_input(" in src
     assert "func _select_plot_via_input(" in src
@@ -84,7 +84,5 @@ def test_headed_rig_launcher_defaults_to_opengl3_on_wsl() -> None:
 
 def test_policy_weights_terms_are_removed_from_mushroom_layer() -> None:
     profiles = _read("🍄/🎛️/profiles.py")
-    arena = _read("🍄/🎛️/arena.py")
     assert "POLICY_WEIGHTS_DIR" not in profiles
     assert "def load_policy_weights(" not in profiles
-    assert "load_policy_weights" not in arena

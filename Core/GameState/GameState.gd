@@ -416,9 +416,6 @@ func _default_balance_workbench_config() -> Dictionary:
 			"quest_reroll": "Short-horizon quest quality control."
 		},
 		"quest_reward_notes": {
-			"resource_reward_base_ratio": "Global scaler on quest resource payout budget.",
-			"resource_reward_min_total": "Lower clamp for total payout.",
-			"resource_reward_max_total": "Upper clamp for total payout.",
 			"resource_reward_min_per_emoji": "Floor per resource emoji in split payouts."
 		}
 	}

@@ -2,7 +2,7 @@ class_name IconPairing
 extends RefCounted
 
 
-## Signature Pairing System (South-First Design)
+## Icon Pairing System (South-First Design) — pairs CLOUD atoms into an icon
 ##
 ## NEW ORDER: South pole is calculated FIRST, then North pole.
 ##
@@ -11,7 +11,7 @@ extends RefCounted
 ##
 ## 2. NORTH pole: Rolled second, based on connections to the South emoji.
 ##    This is the "discovery" side - players learn something new.
-##    North cannot be an emoji already in player's signature.
+##    North cannot be an emoji already in the player's cloud.
 ##
 ## The pair forms a qubit axis that can be planted in biomes.
 
@@ -83,7 +83,7 @@ static func _roll_south_pole(atom_registry) -> Dictionary:
 ## biome preferentially spend that biome's resources.
 const BIOME_AFFINITY_BOOST_DEFAULT := 1.5
 
-static func _roll_south_pole_from_signature(atom_registry, faction_signature: Array, biome_emojis: Array = [], biome_affinity_boost: float = BIOME_AFFINITY_BOOST_DEFAULT) -> Dictionary:
+static func _roll_south_pole_from_cloud(atom_registry, faction_cloud: Array, biome_emojis: Array = [], biome_affinity_boost: float = BIOME_AFFINITY_BOOST_DEFAULT) -> Dictionary:
 	# Roll south pole from faction signature, weighted by player inventory
 
 	# South pole can be known OR unknown to player.
@@ -92,7 +92,7 @@ static func _roll_south_pole_from_signature(atom_registry, faction_signature: Ar
 
 	# Args:
 	# atom_registry: IconRegistry for connection data
-	# faction_signature: Faction's signature emojis
+	# faction_cloud: the faction's cloud (its atoms/emojis)
 	# biome_emojis: Emojis native to the active biome (soft boost)
 
 	# Returns:
@@ -110,7 +110,7 @@ static func _roll_south_pole_from_signature(atom_registry, faction_signature: Ar
 
 	# Build weighted candidates from faction signature
 	var candidates = {}
-	for emoji in faction_signature:
+	for emoji in faction_cloud:
 		# Get player's inventory amount for this emoji (0 if none)
 		var amount = all_resources.get(emoji, 0)
 
@@ -159,158 +159,6 @@ static func _roll_south_pole_from_signature(atom_registry, faction_signature: Ar
 	}
 
 
-## Roll SOUTH pole - constrained to specific signature (for faction quests)
-static func _roll_south_pole_constrained(atom_registry, allowed_vocab: Array) -> Dictionary:
-	# Roll south pole from a constrained signature list (faction-specific)
-
-	# Similar to _roll_south_pole() but only considers emojis in allowed_vocab.
-	# Used for faction quests where south pole must come from faction signature.
-
-	# Args:
-	# atom_registry: IconRegistry for connection data
-	# allowed_vocab: Array of allowed emoji strings (e.g., faction signature)
-
-	# Returns:
-	# {south, weight, amount, connections} or {error, message}
-	var economy = _get_economy()
-	if not economy:
-		return {"error": "no_economy", "message": "Economy not available"}
-
-	# Get all resources
-	var all_resources = {}
-	if economy.has_method("get_all_resources"):
-		all_resources = economy.get_all_resources()
-	elif "emoji_credits" in economy:
-		all_resources = economy.emoji_credits
-
-	# Build weighted candidates from ALLOWED signature only
-	var candidates = {}
-	for emoji in allowed_vocab:
-		# Must have resources for this emoji
-		var amount = all_resources.get(emoji, 0)
-		if amount <= 0:
-			continue
-
-		# Must have connections (can be paired)
-		var connections = get_connection_weights(emoji, atom_registry)
-		if connections.is_empty():
-			continue
-
-		# Weight = power-law resource bias (preserves Fibonacci ratios)
-		var weight = pow(amount + 1.0, 0.65)
-		candidates[emoji] = {"weight": weight, "amount": amount, "connections": connections}
-
-	if candidates.is_empty():
-		return {"error": "no_resources", "message": "No resources available in allowed signature"}
-
-	# Weighted random selection
-	var total_weight = 0.0
-	for emoji in candidates:
-		total_weight += candidates[emoji].weight
-
-	var roll = randf() * total_weight
-	var cumulative = 0.0
-
-	for emoji in candidates:
-		cumulative += candidates[emoji].weight
-		if roll <= cumulative:
-			return {
-				"south": emoji,
-				"weight": candidates[emoji].weight,
-				"amount": candidates[emoji].amount,
-				"connections": candidates[emoji].connections
-			}
-
-	# Fallback
-	var first = candidates.keys()[0]
-	return {
-		"south": first,
-		"weight": candidates[first].weight,
-		"amount": candidates[first].amount,
-		"connections": candidates[first].connections
-	}
-
-
-## Roll NORTH pole - connected to South, excluding known signature
-static func _roll_north_pole(south_emoji: String, known_vocab: Array, atom_registry) -> Dictionary:
-	var connections = get_connection_weights(south_emoji, atom_registry)
-
-	if connections.is_empty():
-		return {"error": "no_connections", "message": "No connections for %s" % south_emoji}
-
-	# Filter out emojis already in player's signature
-	var filtered = {}
-	for target in connections:
-		if target not in known_vocab and target != south_emoji:
-			filtered[target] = connections[target]
-
-	if filtered.is_empty():
-		# All connections are known - allow any connection as fallback
-		push_warning("IconPairing: All connections for %s are known, using unfiltered" % south_emoji)
-		filtered = connections.duplicate()
-		# Still remove self
-		filtered.erase(south_emoji)
-
-	if filtered.is_empty():
-		return {"error": "no_valid_north", "message": "No valid north pole for %s" % south_emoji}
-
-	# Calculate total weight
-	var total_weight = 0.0
-	for target in filtered:
-		total_weight += filtered[target]["weight"]
-
-	if total_weight <= 0:
-		return {"error": "zero_weight", "message": "Zero total weight for north candidates"}
-
-	# Weighted random roll
-	var roll = randf() * total_weight
-	var cumulative = 0.0
-
-	for target in filtered:
-		cumulative += filtered[target]["weight"]
-		if roll <= cumulative:
-			return {
-				"north": target,
-				"weight": filtered[target]["weight"],
-				"probability": filtered[target]["weight"] / total_weight,
-				"connections": filtered
-			}
-
-	# Fallback
-	var first = filtered.keys()[0]
-	return {
-		"north": first,
-		"weight": filtered[first]["weight"],
-		"probability": filtered[first]["weight"] / total_weight,
-		"connections": filtered
-	}
-
-## Apply resource quantity bias to connection weights
-## Modifies weights in-place based on player's emoji-credit resources
-## Formula: weight *= (1.0 + log(1 + credits) / 3.0)
-##   0 credits → 1.0x (no bias)
-##   50 credits → ~1.6x
-##   500 credits → ~2.4x
-static func _apply_resource_bias(connections: Dictionary) -> void:
-	var economy = _get_economy()
-	if not economy or not economy.has_method("get_resource"):
-		return  # No economy available, skip bias
-
-	for target in connections:
-		var credits = economy.get_resource(target)
-
-		if credits <= 0:
-			continue  # No bias for resources player doesn't have
-
-		# Logarithmic bias using raw credit values
-		var bias_multiplier = 1.0 + log(1.0 + credits) / 3.0
-
-		# Apply bias to existing weight
-		connections[target]["weight"] *= bias_multiplier
-		connections[target]["resource_bias"] = bias_multiplier
-
-
-## Get FarmEconomy from scene tree
 static func _get_economy():
 	var active_farm = InstrumentLocator.resolve_active_farm_main_loop()
 	if active_farm:
@@ -318,31 +166,31 @@ static func _get_economy():
 	return null
 
 
-## Calculate signature connectivity: sum of connection weights to player's known emojis
+## Calculate cloud connectivity: sum of connection weights to player's known emojis
 ## Used for weighting North pole candidates by how well-connected they are to player's icon
-static func calculate_vocab_connectivity(emoji: String, player_vocab: Array, atom_registry) -> float:
+static func calculate_cloud_connectivity(emoji: String, player_cloud: Array, atom_registry) -> float:
 	# Calculate sum of connection weights from emoji to player's known signature
 
-	# Returns sum of (|H| + L_in + L_out) for all connections to player_vocab emojis.
+	# Returns sum of (|H| + L_in + L_out) for all connections to player_cloud emojis.
 
 	# Example:
 	# emoji 🔥 connected to:
 	# 🌾 (weight 0.5), 👥 (weight 0.8), ⚡ (weight 0.3)
-	# player_vocab = [🌾, 👥, 💰]
+	# player_cloud = [🌾, 👥, 💰]
 	# Returns: 0.5 + 0.8 = 1.3 (sum of weights to known emojis)
 
 	# Args:
 	# emoji: The emoji to check connectivity for
-	# player_vocab: Player's known emojis
+	# player_cloud: Player's known emojis
 	# atom_registry: IconRegistry for connection data
 
 	# Returns:
-	# Sum of connection weights to player_vocab (0.0 if no connections)
+	# Sum of connection weights to player_cloud (0.0 if no connections)
 	var connections = get_connection_weights(emoji, atom_registry)
 
 	var total_connectivity = 0.0
 	for target in connections:
-		if target in player_vocab:
+		if target in player_cloud:
 			total_connectivity += connections[target]["weight"]
 
 	return total_connectivity

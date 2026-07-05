@@ -14,6 +14,7 @@ extends Control
 @onready var _verbose = get_node_or_null("/root/VerboseConfig")
 
 # QuantumHUDPanel REMOVED - content merged into InspectorOverlay (N key)
+const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
 const QuantumModeStatusIndicator = preload("res://UI/Widgets/QuantumModeStatusIndicator.gd")
 const MenuSelectionRowClass = preload("res://UI/Widgets/MenuSelectionRow.gd")
 const FpsDisplay = preload("res://UI/HUD/FpsDisplay.gd")
@@ -30,7 +31,9 @@ var logger_config_panel = null  # Logger configuration UI
 var snapshot_service = null  # Snapshot/diagnostics node (set by BootManager)
 var quantum_instrument = null  # Unified action interface (set by BootManager)
 var instrument_input = null  # Projection of current_farm_ui.instrument_input for diagnostics/tests
-var cursor_layer: int = 2  ## 0=surface 1=frame 2=biome 3=plot. PlayerShell is the canonical owner.
+## cursor_layer (0=surface 1=frame 2=biome 3=plot) is owned by QII (the instrument),
+## co-located with current_plot_idx. PlayerShell forwards the raw ring keys and
+## paints from QII's cursor_layer_changed signal — it no longer holds the state.
 var advanced_mode_enabled: bool = false
 # quantum_hud_panel REMOVED - content merged into InspectorOverlay (N key)
 var quantum_mode_indicator: QuantumModeStatusIndicator = null  # Current quantum mode display
@@ -86,13 +89,15 @@ func _input(event: InputEvent) -> void:
 	# W/S spin the cylinder (consumed). A/D step within the active ring (consumed).
 	# Direct-pick keys (ZXCVBNM/4-0/TYUIOP/GHJKL;) anchor the ring WITHOUT
 	# consuming — overlays and QII still receive the event for item selection.
-	if event is InputEventKey and event.pressed and not event.echo:
+	# cursor_layer is owned by QII (the instrument); PlayerShell only forwards the
+	# raw keys here and paints from the cursor_layer_changed signal.
+	if event is InputEventKey and event.pressed and not event.echo and instrument_input:
 		var kc = event.keycode
 		if kc == KEY_W or kc == KEY_S:
 			if _any_menu_open():
-				_set_cursor_layer(0)  # stay pinned to surface ring while an overlay is open
+				instrument_input.set_cursor_layer(0)  # pin to surface ring while an overlay is open
 			else:
-				_set_cursor_layer(posmod(cursor_layer + (1 if kc == KEY_S else -1), 4))
+				instrument_input.change_cursor_layer(1 if kc == KEY_S else -1)
 			_mark_input_handled()
 			return
 		if kc == KEY_A or kc == KEY_D:
@@ -100,13 +105,13 @@ func _input(event: InputEvent) -> void:
 			_mark_input_handled()
 			return
 		if kc in [KEY_Z, KEY_X, KEY_C, KEY_V, KEY_B, KEY_N, KEY_M]:
-			_set_cursor_layer(0)
+			instrument_input.set_cursor_layer(0)
 		elif kc in [KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9, KEY_0]:
-			_set_cursor_layer(1)
+			instrument_input.set_cursor_layer(1)
 		elif kc in [KEY_T, KEY_Y, KEY_U, KEY_I, KEY_O, KEY_P]:
-			_set_cursor_layer(2)
+			instrument_input.set_cursor_layer(2)
 		elif kc in [KEY_G, KEY_H, KEY_J, KEY_K, KEY_L, KEY_SEMICOLON]:
-			_set_cursor_layer(3)
+			instrument_input.set_cursor_layer(3)
 		# Direct-pick anchors do NOT mark as handled.
 
 	# LAYER 1: Overlay input (highest priority) - uses unified OverlayStackManager
@@ -116,6 +121,19 @@ func _input(event: InputEvent) -> void:
 		var consumed = overlay_stack.route_input(event)
 		_verbose.debug("input", "→", "Overlay consumed: %s" % consumed)
 		if consumed:
+			_mark_input_handled()
+			return
+
+		# Bleed-through guard (one input authority). When a real menu is open above
+		# the farm base, that menu owns the gameplay action keys. If its surface did
+		# not claim the key, swallow it here so it can NOT fall through to the
+		# main-game dispatcher and fire a phantom strike / plot-select / hat-switch.
+		# Transparent magnifier overlays (B / BiomeInspector) are the explicit
+		# exception: they pass QERF through to the plot beneath by design. ESC and
+		# ring navigation (ZXCVBNM / WSAD) are never gameplay-action keys, so
+		# back-out and surface-switching keep working while a menu is up.
+		if _any_menu_open() and not _overlay_is_transparent(top_overlay) and _is_gameplay_action_key(event.keycode):
+			_verbose.debug("input", "🚧", "Swallowed gameplay key %d — menu open, not a menu action" % event.keycode)
 			_mark_input_handled()
 			return
 
@@ -178,25 +196,36 @@ func _handle_shell_action(event: InputEvent) -> bool:
 	# TAB: current-tool mode-cycle alias (only when no menu active)
 	var keycode = event.keycode
 
-	# Toast grammar: F flattens topmost toast, E pauses its decay.
-	# Only intercepts when a toast is live; falls through to normal F/E otherwise.
+	# Toast grammar: F flattens topmost toast, E pauses its decay — but ONLY when
+	# the key would otherwise be idle. A toast must never shadow a primary verb
+	# (anti-gating: no silent hindrance): not a modal's E/F (submenu slot, the
+	# Cull/Trim/Break confirm chord), and not a frame-declared E/F verb (Icon-F
+	# Track, Ace-F Fast-Fwd, Merchant-F Settle, …). The old form intercepted F
+	# whenever ANY toast was live, so the first Track/confirm press silently
+	# flattened a hint instead of acting ("press F twice" bug).
 	var top_toast := _topmost_toast()
-	if top_toast != null:
-		if keycode == KEY_F:
+	var modal_owns_ef: bool = instrument_input != null and instrument_input.has_method("owns_ef_keys") and bool(instrument_input.owns_ef_keys())
+	if top_toast != null and not modal_owns_ef:
+		if keycode == KEY_F and ToolConfig.get_action(ToolConfig.get_current_frame(), "F").is_empty():
 			top_toast.flatten()
 			return true
-		if keycode == KEY_E:
+		if keycode == KEY_E and ToolConfig.get_action(ToolConfig.get_current_frame(), "E").is_empty():
 			top_toast.pause_decay()
 			return true
 
-	# ESC - closes any menu, or opens escape menu if nothing open
+	# ESC unwinds ONE level, innermost first:
+	#   open overlay/menu → close it
+	#   else a gameplay modal (submenu → pending confirm → plot selection) → unwind it
+	#   else (nothing left) → open the system (escape) menu
 	if keycode == KEY_ESCAPE:
 		if _any_menu_open():
 			_close_all_menus()
 			return true
-		else:
-			_open_escape_menu()
+		if instrument_input and instrument_input.has_method("try_escape_unwind") \
+				and instrument_input.try_escape_unwind():
 			return true
+		_open_escape_menu()
+		return true
 
 	var menu_entry = MenuRegistry.get_menu_for_keycode(keycode)
 	if not menu_entry.is_empty():
@@ -213,19 +242,9 @@ func _handle_shell_action(event: InputEvent) -> bool:
 	# cursor_layer=0 + A/D, so ,/. would only duplicate that gesture.
 	# Intentionally unhandled.
 
-	# - / = — simulation granularity / speed. Stubbed: claims the keys
-	# (so they don't fall through to unrelated handlers) and logs the
-	# intent. Wiring to a real time-scale modifier is a separate ticket;
-	# the per-biome quantum_time_scale pipeline doesn't have a global
-	# multiplier hook yet.
-	if keycode == KEY_MINUS:
-		if _verbose:
-			_verbose.info("input", "🐢", "sim slow (stub — wiring pending)")
-		return true
-	if keycode == KEY_EQUAL:
-		if _verbose:
-			_verbose.info("input", "🐇", "sim fast (stub — wiring pending)")
-		return true
+	# - / = (and Shift variants) — simulation stride/speed + resolution. Owned by
+	# QII._unhandled_key_input → GranularityController; PlayerShell must NOT claim
+	# them here or it shadows the real handler (the keys would go dead). Fall through.
 
 	# [ / ] are reserved per KEYBOARD_GRAMMAR.md — WASD already crawls the
 	# whole 4-0 / TYUIOP / GHJKL; selection block, so a separate cycle
@@ -247,11 +266,14 @@ func _handle_shell_action(event: InputEvent) -> bool:
 
 func _step_active_layer(delta: int) -> void:
 	if instrument_input and instrument_input.has_method("step_active_layer"):
-		instrument_input.step_active_layer(cursor_layer, delta)
+		instrument_input.step_active_layer(instrument_input.cursor_layer, delta)
 
 
-func _change_cursor_layer(delta: int) -> void:
-	_set_cursor_layer(posmod(cursor_layer + delta, 4))
+## Pin the crawl ring to the surface layer (0). Used when a menu opens. No-op if
+## the instrument isn't wired yet (pre-boot).
+func _pin_cursor_surface() -> void:
+	if instrument_input and instrument_input.has_method("set_cursor_layer"):
+		instrument_input.set_cursor_layer(0)
 
 
 ## Route a tapped/clicked action key (Q/E/R/F) to the same handler as the keyboard path.
@@ -267,30 +289,16 @@ func _route_action_key(action_key: String) -> void:
 		instrument_input.invoke_action(action_key)
 
 
-## Paint amber ring and plot tile visuals for the given layer. Call directly for
-## initial paint at boot (bypasses the idempotency guard in _set_cursor_layer).
+## Paint amber ring and plot tile visuals for the given layer. Connected to QII's
+## cursor_layer_changed signal (and called once at boot for the initial paint). The
+## ring state + plot-ring lifecycle now live in QII.set_cursor_layer; this is purely
+## the render side.
 func _paint_cursor_layer(layer: int) -> void:
 	if action_bar_manager and action_bar_manager.has_method("set_active_cursor_layer"):
 		action_bar_manager.set_active_cursor_layer(layer)
 	var pgd = current_farm_ui.plot_grid_display if current_farm_ui and "plot_grid_display" in current_farm_ui else null
 	if pgd and pgd.has_method("set_active_ring"):
 		pgd.set_active_ring(layer == 3)
-
-
-## Single mutation point for cursor_layer. Also drives plot ring enter/leave lifecycle.
-func _set_cursor_layer(layer: int) -> void:
-	if cursor_layer == layer:
-		return
-	var old_layer := cursor_layer
-	cursor_layer = layer
-	_paint_cursor_layer(layer)
-	# Plot ring lifecycle: entering → auto-select plot 0; leaving → clear selection.
-	if old_layer != 3 and layer == 3 and instrument_input:
-		if instrument_input.has_method("enter_plot_ring"):
-			instrument_input.enter_plot_ring()
-	elif old_layer == 3 and layer != 3 and instrument_input:
-		if instrument_input.has_method("leave_plot_ring"):
-			instrument_input.leave_plot_ring()
 
 
 func _cycle_frame_hat(delta: int) -> void:
@@ -314,6 +322,30 @@ func _any_menu_open() -> bool:
 	return false
 
 
+## Keys that drive the live farm loop. While a (non-transparent) menu is open
+## these must never leak past the menu into the main-game dispatcher.
+## QERF = item axis · GHJKL; = plot select · TYUIOP = biome select ·
+## 4-0 = hat frames · 1/2/3 = sub-mode. ZXCVBNM/WSAD/ESC are deliberately absent
+## (ring navigation + back-out stay live with a menu up).
+const _GAMEPLAY_ACTION_KEYS: Array = [
+	KEY_Q, KEY_E, KEY_R, KEY_F,
+	KEY_G, KEY_H, KEY_J, KEY_K, KEY_L, KEY_SEMICOLON,
+	KEY_T, KEY_Y, KEY_U, KEY_I, KEY_O, KEY_P,
+	KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9, KEY_0,
+	KEY_1, KEY_2, KEY_3,
+]
+
+
+func _is_gameplay_action_key(kc: int) -> bool:
+	return kc in _GAMEPLAY_ACTION_KEYS
+
+
+func _overlay_is_transparent(ov) -> bool:
+	# A magnifier-only surface (e.g. BiomeInspector / B) declares itself transparent
+	# so its keys pass through to the gameplay beneath instead of being swallowed.
+	return ov != null and "is_transparent_overlay" in ov and ov.is_transparent_overlay
+
+
 func _close_all_menus() -> void:
 	# Close all open menus (shell and farm).
 	if overlay_manager:
@@ -327,7 +359,7 @@ func _open_escape_menu() -> void:
 	_close_all_menus()
 	if overlay_manager:
 		overlay_manager.open_overlay("escape_menu")
-	_set_cursor_layer(0)
+	_pin_cursor_surface()
 
 
 func _toggle_shell_menu(menu_name: String) -> void:
@@ -344,7 +376,7 @@ func _toggle_shell_menu(menu_name: String) -> void:
 		"controls":
 			overlay_manager.toggle_overlay("controls")
 
-	_set_cursor_layer(0)
+	_pin_cursor_surface()
 
 
 func _toggle_farm_overlay(overlay_name: String) -> void:
@@ -373,7 +405,7 @@ func _toggle_farm_overlay(overlay_name: String) -> void:
 		_overlay_open_frame[overlay_name] = Engine.get_process_frames()
 	else:
 		_overlay_open_frame.erase(overlay_name)
-	_set_cursor_layer(0)
+	_pin_cursor_surface()
 
 
 func _cycle_menu_overlay(delta: int) -> void:
@@ -595,10 +627,10 @@ func is_farm_attached() -> bool:
 
 
 func _resolve_advanced_mode() -> bool:
-	var env_mode = OS.get_environment("SPACEWHEAT_ADVANCED_MODE").strip_edges().to_lower()
-	if env_mode in ["1", "true", "yes", "on"]:
+	var env_mode := RuntimeEnv.advanced_mode_tristate()
+	if env_mode == 1:
 		return true
-	if env_mode in ["0", "false", "no", "off"]:
+	if env_mode == 0:
 		return false
 	var gsm = get_node_or_null("/root/GameStateManager")
 	if gsm and "current_state" in gsm and gsm.current_state:
@@ -718,8 +750,13 @@ func connect_to_quantum_input() -> void:
 		if not local_instrument_input.surface_ring_step_requested.is_connected(_cycle_menu_overlay):
 			local_instrument_input.surface_ring_step_requested.connect(_cycle_menu_overlay)
 
-	# Initial paint: _set_cursor_layer has an idempotency guard so use the helper directly.
-	_paint_cursor_layer(cursor_layer)
+	# QII owns cursor_layer; repaint the active ring whenever it changes.
+	if local_instrument_input.has_signal("cursor_layer_changed"):
+		if not local_instrument_input.cursor_layer_changed.is_connected(_paint_cursor_layer):
+			local_instrument_input.cursor_layer_changed.connect(_paint_cursor_layer)
+
+	# Initial paint for the instrument's starting layer (signal only fires on change).
+	_paint_cursor_layer(local_instrument_input.cursor_layer)
 
 	# Connect quest_manager to economy (CRITICAL for quest completion!)
 	if quest_manager and farm_ui.farm and farm_ui.farm.economy:

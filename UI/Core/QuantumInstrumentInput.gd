@@ -38,6 +38,9 @@ const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
 const LindbladHandler = preload("res://Core/Instrumentation/Handlers/LindbladHandler.gd")
 const GranularityController = preload("res://Core/Utilities/GranularityController.gd")
 
+## Ace F (Fast-Forward) advances the closed evolution by this many phrames per press.
+const ACE_FAST_FORWARD_PHRAMES := 4
+
 # Access autoloads safely
 @onready var _verbose = get_node_or_null("/root/VerboseConfig")
 @onready var _observation_frame = get_node_or_null("/root/ObservationFrame")
@@ -52,12 +55,18 @@ var farm  # Farm instance
 var plot_grid_display  # PlotGridDisplay reference for visual selection
 
 # Selection state (current plot/biome/subspace selection)
-var current_selection: Dictionary = {"plot_idx": -1, "biome": "", "subspace_idx": -1}
 
 var _current_submenu: Dictionary = {}  # Local UI cache for signal emission
 var _in_submenu: bool = false  # Local UI cache for signal emission
 var _submenu_page: int = 0  # Local UI cache for signal emission
 var _confirm_pending: Dictionary = {}  # {action, emoji, label} — awaiting QF confirm
+
+## WASD crawl ring: 0=surface 1=frame 2=biome 3=plot. Owned HERE, co-located with
+## current_plot_idx (on _instrument) so the two can never desync — entering/leaving
+## the plot ring (layer 3) is the same mutation that selects/clears the plot. The
+## PlayerShell forwards the raw W/S/A/D + direct-pick keys and paints from the
+## cursor_layer_changed signal; it no longer holds its own copy of this state.
+var cursor_layer: int = 2
 
 # Signals
 signal action_performed(action: String, result: Dictionary)
@@ -71,6 +80,10 @@ signal plot_checked(grid_pos: Vector2i, is_checked: bool)  # Multi-select checkb
 ## Cylinder outer-ring step. Emitted when A/D fires on layer=0 (ZXCVBNM surface ring).
 ## PlayerShell listens and dispatches to _cycle_menu_overlay.
 signal surface_ring_step_requested(delta: int)
+## Emitted whenever cursor_layer changes. PlayerShell connects this to repaint the
+## active ring (action bar + plot grid). Keeps the painter (PlayerShell, which holds
+## the chrome refs) decoupled from the owner (QII, which holds the state).
+signal cursor_layer_changed(layer: int)
 
 # Actions that modify density matrix at phrame 0 (require buffer invalidation)
 const BUFFER_INVALIDATING_ACTIONS: Array[String] = [
@@ -147,6 +160,16 @@ func set_checked_plots(positions: Array) -> void:
 ## INPUT HANDLING
 ## ============================================================================
 
+## True when a live submenu or a pending destructive confirm owns the E/F keys
+## (submenu slot-select uses E; the destructive-confirm chord uses F). PlayerShell's
+## toast grammar (F flatten / E pause-decay) must YIELD E/F to this context, or the
+## confirm chord and the inject submenu's E-slot can never receive their key.
+func owns_ef_keys() -> bool:
+	if not _confirm_pending.is_empty():
+		return true
+	return _instrument != null and _instrument.is_in_submenu()
+
+
 func _unhandled_key_input(event: InputEvent) -> void:
 	# Handle keyboard input for the quantum instrument.
 	if not event is InputEventKey or not event.pressed:
@@ -154,11 +177,17 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	if event.echo:
 		return
 
-	var key = _keycode_to_string(event.keycode)
+	var key = InputBindingRegistry.get_label_for_keycode(event.keycode)
 
-	# Any key other than F cancels a pending confirm-chord.
+	# Any key other than F cancels a pending confirm-chord — but say so out loud
+	# (silent cancels ate actions and confused the harvest loop). Only destructive
+	# verbs (Trim/Cull/Break) arm the chord now; safe verbs fire immediately.
 	if not _confirm_pending.is_empty() and key != "F":
+		var cancelled_label := str(_confirm_pending.get("label", "action"))
 		_confirm_pending = {}
+		var shell := _resolve_player_shell()
+		if shell and shell.has_method("show_hint"):
+			shell.show_hint("[color=#88aabb]%s cancelled[/color]" % cancelled_label, 2)
 
 	# Auto-close submenu when any non-action key is pressed
 	if _instrument.is_in_submenu() and key not in ["Q", "E", "R", "F"]:
@@ -210,6 +239,19 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 
+	# Selection rows (formerly the separate _unhandled_input path): direct-pick a
+	# biome (TYUIOP), plot (GHJKL;), or subspace (M,./). Disjoint from the QERF
+	# quartet below, so order here is just precedence, not collision avoidance.
+	if _handle_biome_row_input(event):
+		get_viewport().set_input_as_handled()
+		return
+	if _handle_plot_row_input(event):
+		get_viewport().set_input_as_handled()
+		return
+	if _handle_subspace_row_input(event):
+		get_viewport().set_input_as_handled()
+		return
+
 	# Action keys
 	match key:
 		"Q", "E", "R":
@@ -237,71 +279,47 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 
 
-func _unhandled_input(event: InputEvent) -> void:
-	# Handle InputMap actions for biome/plot/subspace selection.
-
-	# Uses `_unhandled_input` (not `_input`) so that any overlay that consumes
-	# an event via `Viewport.set_input_as_handled()` — e.g. the X system menu
-	# while it's open — reliably shields gameplay selection. This is the
-	# standard Godot pattern for gameplay-layer input that should defer to UI.
-	if _handle_biome_row_input(event):
-		get_viewport().set_input_as_handled()
-		return
-
-	if _handle_plot_row_input(event):
-		get_viewport().set_input_as_handled()
-		return
-
-
-	if _handle_subspace_row_input(event):
-		get_viewport().set_input_as_handled()
-		return
-
+# The biome/plot/subspace selection rows used to live in a SECOND input callback
+# (`_unhandled_input`, InputMap-action driven) that raced `_unhandled_key_input`
+# by Godot priority. They are now decoded by raw keycode (via InputBindingRegistry,
+# the same shared ring source S3 introduced) and dispatched from the single
+# `_unhandled_key_input` path — one decode, one explicit precedence. Each helper
+# takes the live event so Shift state and consume signalling stay local.
 
 func _handle_biome_row_input(event: InputEvent) -> bool:
-	for i in range(InputBindingRegistry.BIOME_ACTIONS.size()):
-		if not event.is_action_pressed(InputBindingRegistry.BIOME_ACTIONS[i]):
-			continue
-
-		var key_label = InputBindingRegistry.BIOME_ACTIONS[i]
-		if _active_biome_mgr:
-			var slot_key = _active_biome_mgr.get_slot_key(i)
-			if slot_key != "":
-				key_label = slot_key
-
-		_select_biome(i, key_label)
-		return true
-
-	return false
+	var i: int = InputBindingRegistry.biome_index_for_keycode(event.keycode)
+	if i < 0:
+		return false
+	var key_label: String = InputBindingRegistry.BIOME_ACTIONS[i]
+	if _active_biome_mgr:
+		var slot_key = _active_biome_mgr.get_slot_key(i)
+		if slot_key != "":
+			key_label = slot_key
+	_select_biome(i, key_label)
+	return true
 
 
 func _handle_plot_row_input(event: InputEvent) -> bool:
-	for i in range(InputBindingRegistry.HOMEROW_ACTIONS.size()):
-		if not event.is_action_pressed(InputBindingRegistry.HOMEROW_ACTIONS[i]):
-			continue
-
-		if event.is_shift_pressed():
-			# Shift+GHJKL; — toggle checkbox without moving highlight
-			_toggle_check_at_plot_idx(i)
-		else:
-			# Plain GHJKL; — move highlight only (re-press on current plot toggles check)
-			_select_plot(i, InputBindingRegistry.HOMEROW_ACTIONS[i])
-		return true
-
-	return false
-
-
+	# 6 plot slots (G H J K L ;) — the 7th ring keycode (') is bulk-select, not a plot.
+	var i: int = InputBindingRegistry.plot_index_for_keycode(event.keycode, 6)
+	if i < 0:
+		return false
+	if event.is_shift_pressed():
+		# Shift+GHJKL; — toggle checkbox without moving highlight
+		_toggle_check_at_plot_idx(i)
+	else:
+		# Plain GHJKL; — move highlight only (re-press on current plot toggles check)
+		_select_plot(i, InputBindingRegistry.HOMEROW_ACTIONS[i])
+	return true
 
 
 func _handle_subspace_row_input(event: InputEvent) -> bool:
-	for i in range(InputBindingRegistry.SUBSPACE_ACTIONS.size()):
-		if not event.is_action_pressed(InputBindingRegistry.SUBSPACE_ACTIONS[i]):
-			continue
-
-		_select_subspace(i, InputBindingRegistry.SUBSPACE_ACTIONS[i])
-		return true
-
-	return false
+	var key := InputBindingRegistry.get_label_for_keycode(event.keycode)
+	var i: int = int(InputBindingRegistry.SUBSPACE_ROW.get(key, -1))
+	if i < 0:
+		return false
+	_select_subspace(i, key)
+	return true
 
 
 ## ============================================================================
@@ -560,10 +578,7 @@ func _execute_inject_icon(icon: Dictionary) -> void:
 		# Invalidate buffer (icon injection adds qubits, modifies density matrix)
 		_invalidate_biome_buffer_for_action("inject_icon")
 
-		# Phase 2: notify the story substrate that the player faction's
-		# socialites engaged with these emojis.
-		_notify_story_engine([icon.get("north", ""), icon.get("south", "")], "inject")
-
+		# (story notification now fires inside QuantumInstrument.action_inject_icon_pair)
 		action_performed.emit("inject_icon", {
 			"success": true,
 			"north_emoji": icon.get("north", ""),
@@ -576,32 +591,12 @@ func _execute_inject_icon(icon: Dictionary) -> void:
 		action_performed.emit("inject_icon", result)
 
 
-# =============================================================================
-# PHASE 2: STORY ENGINE NOTIFICATION
-# =============================================================================
-# Icon-hat actions are the player faction's socialite interface; report the
-# emojis touched into the trajectory + conversation Hamiltonian memory so
-# NPC chatter responds to player moves.
-
-func _notify_story_engine(emojis: Array, kind: String) -> void:
-	var clean: Array = []
-	for e in emojis:
-		var s := str(e)
-		if s != "":
-			clean.append(s)
-	if clean.is_empty():
-		return
-	var story_engine = get_tree().root.get_node_or_null("/root/StoryEngine")
-	if story_engine != null and story_engine.has_method("note_player_action"):
-		story_engine.note_player_action(clean, kind)
-
-
 func _build_chip_context() -> ChipContext:
 	# Used by both _perform_action (dispatch resolution) and any UI mirror that
 	# wants to reason about the focused qubit's contextual state.
 	var biome = _get_current_biome()
 	var qc = biome.quantum_computer if biome else null
-	var qid: int = int(current_selection.get("plot_idx", -1))
+	var qid: int = int(_instrument.current_plot_idx) if _instrument else -1
 	return ChipContext.new(qc, qid)
 
 
@@ -614,7 +609,7 @@ func _execute_toggle_berry_track() -> Dictionary:
 	var qc = biome.quantum_computer
 	if qc == null or qc.berry_register == null:
 		return {"success": false, "error": "no_quantum_computer"}
-	var qid: int = int(current_selection.get("plot_idx", -1))
+	var qid: int = int(_instrument.current_plot_idx) if _instrument else -1
 	if qid < 0 or qid >= qc.register_map.num_qubits:
 		_verbose.info("input", "⌖", "No focused qubit to track")
 		return {"success": false, "error": "no_qubit"}
@@ -628,51 +623,17 @@ func _execute_toggle_berry_track() -> Dictionary:
 
 
 func _execute_incorporate_icon() -> Dictionary:
-	# Harvest the focused qubit's icon into the player's signature.
-	# Routes through the same canonical Farm.discover_icon path as inject so
-	# downstream sync to GameState happens identically.
-	var biome = _get_current_biome()
-	if biome == null:
-		return {"success": false, "error": "no_biome"}
-	var qc = biome.quantum_computer
-	if qc == null or qc.berry_register == null:
-		return {"success": false, "error": "no_quantum_computer"}
-	var qid: int = int(current_selection.get("plot_idx", -1))
-	if qid < 0 or qid >= qc.register_map.num_qubits:
-		return {"success": false, "error": "no_qubit"}
-	if not qc.berry_register.is_ripe(qid):
-		_verbose.info("input", "🧬", "Qubit %d not ripe yet" % qid)
-		return {"success": false, "error": "not_ripe"}
-	var axis = qc.register_map.axis(qid)
-	if axis == null or axis.is_empty():
-		return {"success": false, "error": "no_axis"}
-	var north: String = str(axis.get("north", ""))
-	var south: String = str(axis.get("south", ""))
-	if north == "" or south == "":
-		return {"success": false, "error": "axis_missing_emoji"}
-	var icon = {"north": north, "south": south}
-	var biome_name = BiomeBase.type_name(biome)
-	var result = MacroActions.dispatch(_instrument, MacroActions.KIND_INJECT_ICON_PAIR, {
-		"biome_name": biome_name,
-		"icon": icon,
-	})
-	if result.get("success", false):
-		var berry_phase: float = qc.berry_register.get_phase(qid)
-		qc.berry_register.consume(qid)
-		_verbose.info("input", "🧬", "Incorporated %s/%s from qubit %d" % [north, south, qid])
-		_toast_berry_whisper(biome, north, south, berry_phase)
-		# Phase 2: trajectory + conv-H memory entry for the incorporation.
-		_notify_story_engine([north, south], "incorporate")
-		action_performed.emit("incorporate_icon", {
-			"success": true,
-			"north_emoji": north,
-			"south_emoji": south,
-			"qubit": qid,
-			"biome": biome.name,
-		})
-	else:
-		_verbose.warn("input", "🧬", "Incorporate failed: %s" % result.get("message", result.get("error", "unknown")))
-		action_performed.emit("incorporate_icon", result)
+	# Thin adapter: Icon-hat R harvests the focused qubit's icon into the player's
+	# signature. All three coupled effects (learn + harvest + story) happen atomically
+	# behind the engine seam — see QuantumInstrument.action_incorporate. The UI only
+	# translates the keypress into the command and mirrors the result for display.
+	if _instrument == null:
+		return {"success": false, "error": "no_instrument"}
+	var result: Dictionary = _instrument.action_incorporate()
+	# Mirror on the QII signal too, for UI listeners (the engine emits its own). Same
+	# double-emit pattern as inject_icon. Incorporate does NOT touch the biome ρ, so no
+	# lookahead-buffer invalidation (it only consumes a berry entry + grows the signature).
+	action_performed.emit("incorporate_icon", result)
 	return result
 
 
@@ -695,7 +656,7 @@ func _bridge_anchor_here() -> Dictionary:
 	var qc = biome.quantum_computer
 	if qc == null or qc.register_map == null:
 		return {}
-	var qid: int = int(current_selection.get("plot_idx", -1))
+	var qid: int = int(_instrument.current_plot_idx) if _instrument else -1
 	if qid < 0 or qid >= qc.register_map.num_qubits:
 		return {}
 	var axis = qc.register_map.axis(qid)
@@ -990,17 +951,34 @@ func _select_biome(biome_idx: int, key: String) -> void:
 
 	var old_biome = _active_biome_mgr.get_active_biome()
 
-	# Switch active biome
+	# Switch active biome, then repoint the Focus (same slot, keep checks, no action).
 	_active_biome_mgr.set_active_biome(new_biome)
+	_apply_biome_switch(old_biome, new_biome, key)
 
-	# Update current selection to reflect new biome
+
+func _apply_biome_switch(old_biome: String, new_biome: String, key: String) -> void:
+	# Centralized biome switch. Updates the Focus biome and repoints the cursor to
+	# the SAME slot letter (G/H/J/K/L/;) in the new biome, clamped to its register
+	# count. Keeps the multi-select checkboxes and fires NO action — selection is a
+	# free, transient cursor move. Shared by the TYUIOP direct-pick and the WASD
+	# biome-ring crawl, so the Focus never goes stale on a switch.
 	_instrument.current_biome = new_biome
-
-	# Record in chain tracker
+	var reg_count := _get_active_biome_register_count()
+	if reg_count > 0:
+		var slot := int(_instrument.current_plot_idx)
+		if slot < 0:
+			slot = 0
+		slot = clampi(slot, 0, reg_count - 1)
+		_instrument.current_plot_idx = slot
+		var gp := _get_grid_position_for(slot, new_biome)
+		_instrument.last_selected_position = gp
+		if plot_grid_display and gp.x >= 0:
+			plot_grid_display.set_selected_plot(gp)
+		selection_changed.emit(slot, new_biome)
+	else:
+		_instrument.current_plot_idx = -1
 	if _chain_tracker:
 		_chain_tracker.record_observation(key, -1, new_biome, 0)
-
-	# Emit signal
 	biome_switched.emit(old_biome, new_biome)
 	_verbose.info("input", "~", "Biome: %s → %s" % [old_biome, new_biome])
 
@@ -1023,9 +1001,12 @@ func _select_plot(plot_idx: int, key: String) -> void:
 	if farm and farm.grid_config and plot_idx >= farm.grid_config.grid_width:
 		_verbose.debug("input", "•", "Plot %d outside grid width %d" % [plot_idx, farm.grid_config.grid_width])
 		return
-	var register_count = _get_active_biome_register_count()
-	if register_count > 0 and plot_idx >= register_count:
-		_verbose.debug("input", "•", "Plot %d exceeds registers (%d)" % [plot_idx, register_count])
+	# Allow focusing an EMPTY plot the biome owns (assigned plots ≥ registers): an
+	# empty plot is where you PLANT (inject) a new icon — Icon-R there opens the
+	# injection submenu. Only reject plots the biome doesn't own at all.
+	var plot_count = _get_active_biome_plot_count()
+	if plot_count > 0 and plot_idx >= plot_count:
+		_verbose.debug("input", "•", "Plot %d exceeds biome plots (%d)" % [plot_idx, plot_count])
 		return
 
 	# Get current active biome
@@ -1047,12 +1028,11 @@ func _select_plot(plot_idx: int, key: String) -> void:
 		_verbose.debug("input", "~", "Plot %d in %s remains highlighted" % [plot_idx, biome_name])
 		return
 
-	# First tap on a different plot moves the highlight there.
-	current_selection = {
-		"plot_idx": plot_idx,
-		"biome": biome_name,
-		"subspace_idx": -1
-	}
+	# First tap on a different plot moves the highlight (Focus) there. The
+	# instrument fields are the single source of truth for the selection — no
+	# shadow dict. Selection is a free, transient cursor move: it does NOT bind a
+	# terminal or fire any action (the live bubble already renders from the QC;
+	# the terminal is created at strike-time by Measure). plot_idx ≡ register_id.
 	_instrument.current_plot_idx = plot_idx
 	_instrument.last_plot_idx = plot_idx
 	_instrument.current_biome = biome_name
@@ -1063,12 +1043,6 @@ func _select_plot(plot_idx: int, key: String) -> void:
 	if plot_grid_display and farm and target_grid_pos.x >= 0:
 		plot_grid_display.set_selected_plot(target_grid_pos)
 		_verbose.debug("input", "~", "Visual selection: %s" % target_grid_pos)
-
-	# Auto-bind: selecting a plot surfaces its terminal (the old "Explore" verb,
-	# now folded into selection). Free and best-effort — the bind is just looking;
-	# you pay energy at Harvest (Q) / Plant (R), not to select.
-	if _instrument and target_grid_pos.x >= 0:
-		_instrument.action_explore(biome_name, target_grid_pos)
 
 	selection_changed.emit(plot_idx, biome_name)
 	_verbose.debug("input", "~", "Plot %d in %s" % [plot_idx, biome_name])
@@ -1095,6 +1069,61 @@ func step_active_plot(delta: int) -> void:
 	_select_plot(new_idx, key_label)
 
 
+## Single mutation point for cursor_layer (the WASD crawl ring). Idempotent.
+## Drives the plot-ring enter/leave lifecycle so cursor_layer==3 ⇔ a plot is
+## selected, then emits cursor_layer_changed for PlayerShell to repaint. This is
+## the one place the ring state changes — PlayerShell forwards here instead of
+## holding its own copy.
+func set_cursor_layer(layer: int) -> void:
+	layer = clampi(layer, 0, 3)
+	if cursor_layer == layer:
+		return
+	var old_layer := cursor_layer
+	cursor_layer = layer
+	# Plot ring lifecycle: entering → auto-select plot 0; leaving → clear selection.
+	if old_layer != 3 and layer == 3:
+		enter_plot_ring()
+	elif old_layer == 3 and layer != 3:
+		leave_plot_ring()
+	cursor_layer_changed.emit(layer)
+
+
+## Step the ring by ±delta (wraps across all 4 layers). Used by W/S spin.
+func change_cursor_layer(delta: int) -> void:
+	set_cursor_layer(posmod(cursor_layer + delta, 4))
+
+
+## ESCAPE: unwind exactly ONE gameplay level, innermost first. Returns true if it
+## consumed the ESC (so PlayerShell does NOT then open the system menu); false when
+## there's nothing left to unwind and ESC should fall through to the system menu.
+## Order: open submenu → pending destructive confirm → plot-ring selection.
+## (Overlay-stack unwinding is handled by PlayerShell before this is reached.)
+func try_escape_unwind() -> bool:
+	# 1. A submenu is the innermost modal — close it first.
+	if _instrument and _instrument.is_in_submenu():
+		_close_submenu()
+		return true
+	# 2. A pending destructive confirm — cancel it (loud, same as a non-F key).
+	if not _confirm_pending.is_empty():
+		var cancelled_label := str(_confirm_pending.get("label", "action"))
+		_confirm_pending = {}
+		var shell := _resolve_player_shell()
+		if shell and shell.has_method("show_hint"):
+			shell.show_hint("[color=#88aabb]%s cancelled[/color]" % cancelled_label, 2)
+		return true
+	# 3. The plot ring — step up to the biome ring; the leave_plot_ring lifecycle
+	#    clears the selection.
+	if cursor_layer == 3:
+		set_cursor_layer(2)
+		return true
+	# 3b. A plot is still selected while off the plot ring (e.g. kept across a biome
+	#     switch) — set_cursor_layer would no-op, so deselect directly.
+	if _instrument and int(_instrument.current_plot_idx) >= 0:
+		leave_plot_ring()
+		return true
+	return false
+
+
 ## Called by PlayerShell when WASD cursor enters the plot ring (layer 3).
 ## Auto-selects plot 0 if no plot is currently selected; keeps existing selection if one is set.
 func enter_plot_ring() -> void:
@@ -1110,7 +1139,6 @@ func enter_plot_ring() -> void:
 func leave_plot_ring() -> void:
 	if _instrument:
 		_instrument.current_plot_idx = -1
-	current_selection["plot_idx"] = -1
 	if plot_grid_display and plot_grid_display.has_method("clear_selection"):
 		plot_grid_display.clear_selection()
 
@@ -1143,7 +1171,7 @@ func step_active_layer(layer: int, delta: int) -> void:
 			else:
 				_active_biome_mgr.cycle_prev()
 			var new_biome: String = _active_biome_mgr.get_active_biome()
-			biome_switched.emit(old_biome, new_biome)
+			_apply_biome_switch(old_biome, new_biome, "D" if delta > 0 else "A")
 		3:
 			step_active_plot(delta)
 
@@ -1237,8 +1265,8 @@ func _clear_checks_and_cycle_biome() -> void:
 	if plot_grid_display:
 		plot_grid_display.set_selected_plot(GridSentinel.INVALID_POSITION)
 
-	# Reset current selection state
-	current_selection = {"plot_idx": -1, "biome": "", "subspace_idx": -1}
+	# Reset current selection state (instrument is the single source of truth)
+	_instrument.current_plot_idx = -1
 	_instrument.last_selected_position = GridSentinel.INVALID_POSITION
 
 	# Reset quantum simulation (if farm has reset method)
@@ -1357,7 +1385,10 @@ func _perform_shift_key_action(action_key: String) -> void:
 	var symbol = "⇧%s" % action_key
 	var log_label = action_info.get("shift_label", action_info.get("label", action_name))
 
-	var original_selection = current_selection.duplicate()
+	var original_selection := {
+		"plot_idx": int(_instrument.current_plot_idx),
+		"biome": str(_instrument.current_biome),
+	}
 
 	# Use checked plots instead of entire homerow (ORDER PRESERVED from selection)
 	var positions = _instrument.checked_plots.duplicate()
@@ -1510,6 +1541,18 @@ func _run_action(action_name: String, log_symbol: String, action_label: String) 
 		_invalidate_biome_buffer_for_action(action_name)
 
 	_log_action_result(action_name, log_symbol, action_label, result)
+
+	# Surface EVERY failed action to the player as a toast — feedback is never gated.
+	# (The old allowlist of error codes both missed cases and was buggy: it checked
+	# "insufficient_funds" while ProbeActions returns "insufficient_resources", so cost
+	# failures like "Need ❄️ to measure" never showed.) If a started action fails and
+	# carries a message, the player sees it.
+	if not bool(result.get("success", true)):
+		var msg := str(result.get("message", action_label + " blocked"))
+		if msg != "":
+			var shell := _resolve_player_shell()
+			if shell and shell.has_method("show_hint"):
+				shell.show_hint("[color=#ff9966]✗ %s[/color]" % msg, 3)
 	return result
 
 
@@ -1761,6 +1804,9 @@ func _execute_action(action_name: String) -> Dictionary:
 		"measure":
 			result = _instrument.action_measure(grid_pos)
 			_maybe_toast_measure_whisper(result)
+		"fast_forward":
+			# Ace F — let H spin the odds forward (advance the closed evolution).
+			result = _instrument.time_skip(ACE_FAST_FORWARD_PHRAMES)
 		"reap":
 			result = _instrument.action_reap()
 			_maybe_toast_reap_whisper(result)
@@ -1796,10 +1842,7 @@ func _execute_action(action_name: String) -> Dictionary:
 			result = _instrument.action_cycle_biome()
 		"remove_icon":
 			result = MacroActions.dispatch(_instrument, MacroActions.KIND_REMOVE_ICON, {"biome_name": biome_name, "grid_pos": grid_pos})
-			if result.get("success", false):
-				# Phase 2: emojis withdrawn from social fabric — tell the substrate.
-				var icon: Dictionary = result.get("removed_icon", {})
-				_notify_story_engine([icon.get("north", ""), icon.get("south", "")], "remove")
+			# (story notification now fires inside QuantumInstrument.action_remove_icon)
 		"remove_biome":
 			result = MacroActions.dispatch(_instrument, MacroActions.KIND_REMOVE_BIOME)
 		"inspect_qubit":
@@ -2036,11 +2079,30 @@ func _get_active_biome_register_count() -> int:
 	return 0
 
 
+func _get_active_biome_plot_count() -> int:
+	# Number of grid plots the active biome owns (≥ register count — the extra,
+	# register-less plots are empty slots where new icons can be planted/injected).
+	if not farm or not farm.grid or not _active_biome_mgr:
+		return 0
+	var biome_name = _active_biome_mgr.get_active_biome()
+	if biome_name == "" or not farm.grid.has_method("get_plot_positions_for_biome"):
+		return 0
+	return farm.grid.get_plot_positions_for_biome(biome_name).size()
+
+
 func _get_selected_positions() -> Array[Vector2i]:
-	# Get array of selected positions (currently just single selection).
+	# Single-plot action target. On the plot ring, use the live cursor. Off the ring
+	# — e.g. right after jumping to the frame layer to pick a hat, which runs
+	# leave_plot_ring() and clears current_plot_idx — fall back to the last-focused
+	# register so the natural "highlight a plot → switch to Druid → Hadamard it" flow
+	# still lands on the qubit you were looking at instead of silently no-opping.
+	# Register-first: there is always a focused qubit. This mirrors _get_grid_position()'s
+	# off-ring fallback, so plot-targeted gates behave like measure (which never no-ops off-ring).
 	var positions: Array[Vector2i] = []
 	if _instrument.current_plot_idx >= 0:
 		positions.append(_get_grid_position())
+	elif _instrument.last_selected_position != GridSentinel.INVALID_POSITION:
+		positions.append(_instrument.last_selected_position)
 	return positions
 
 
@@ -2071,73 +2133,25 @@ func _get_current_biome_row() -> int:
 
 
 func _set_selection_for_grid_pos(grid_pos: Vector2i) -> void:
-	# Update current_selection to match the specified grid grid_pos.
+	# Point the Focus (instrument fields) at the specified grid pos. Used by the
+	# shift-batch loop to walk checked plots; the instrument is the single source.
 	if not farm:
 		return
 	var biome_name = farm.get_biome_for_row(grid_pos.y) if farm.has_method("get_biome_for_row") else ""
-	current_selection = {
-		"plot_idx": grid_pos.x,
-		"biome": biome_name,
-		"subspace_idx": -1
-	}
 	_instrument.current_plot_idx = grid_pos.x
 	_instrument.current_biome = biome_name
 
 
 func _restore_selection(previous_selection: Dictionary) -> void:
-	# Restore the selection state and refresh visual highlight.
-	if previous_selection and previous_selection.has("plot_idx"):
-		current_selection = previous_selection.duplicate()
-	else:
-		current_selection = {"plot_idx": -1, "biome": "", "subspace_idx": -1}
-
-	_instrument.current_plot_idx = int(current_selection.get("plot_idx", -1))
-	_instrument.current_biome = str(current_selection.get("biome", ""))
+	# Restore the Focus from a {plot_idx, biome} snapshot and refresh the highlight.
+	_instrument.current_plot_idx = int(previous_selection.get("plot_idx", -1))
+	_instrument.current_biome = str(previous_selection.get("biome", ""))
 
 	if plot_grid_display and farm and _instrument.current_plot_idx >= 0:
 		var grid_pos = _get_grid_position()
 		if grid_pos.x >= 0:
 			plot_grid_display.set_selected_plot(grid_pos)
 			_instrument.last_selected_position = grid_pos
-
-
-func _keycode_to_string(keycode: int) -> String:
-	# Convert keycode to string representation.
-	match keycode:
-		KEY_0: return "0"
-		KEY_1: return "1"
-		KEY_2: return "2"
-		KEY_3: return "3"
-		KEY_4: return "4"
-		KEY_5: return "5"
-		KEY_6: return "6"
-		KEY_7: return "7"
-		KEY_8: return "8"
-		KEY_9: return "9"
-		KEY_Q: return "Q"
-		KEY_E: return "E"
-		KEY_R: return "R"
-		KEY_F: return "F"
-		KEY_T: return "T"
-		KEY_Y: return "Y"
-		KEY_U: return "U"
-		KEY_I: return "I"
-		KEY_O: return "O"
-		KEY_P: return "P"
-		KEY_H: return "H"
-		KEY_G: return "G"
-		KEY_J: return "J"
-		KEY_K: return "K"
-		KEY_L: return "L"
-		KEY_SEMICOLON: return ";"
-		KEY_APOSTROPHE: return "'"
-		KEY_M: return "M"
-		KEY_COMMA: return ","
-		KEY_PERIOD: return "."
-		KEY_SLASH: return "/"
-		KEY_MINUS: return "-"
-		KEY_EQUAL: return "="
-		_: return ""
 
 
 
@@ -2147,13 +2161,17 @@ func _keycode_to_string(keycode: int) -> String:
 ## ============================================================================
 
 func get_current_selection() -> Dictionary:
-	# Get current plot selection.
-	return current_selection.duplicate()
+	# Derive the current selection from the instrument (the single Focus source).
+	return {
+		"plot_idx": int(_instrument.current_plot_idx) if _instrument else -1,
+		"biome": str(_instrument.current_biome) if _instrument else "",
+		"subspace_idx": -1,
+	}
 
 
 func can_execute_action(action_key: String) -> bool:
 	# Check if action can succeed with current selection (for UI highlighting).
-	if current_selection.get("plot_idx", -1) < 0:
+	if (int(_instrument.current_plot_idx) if _instrument else -1) < 0:
 		return false
 	if not farm:
 		return false
@@ -2208,7 +2226,6 @@ func set_active_selection(plot_idx: int, biome_name: String) -> void:
 	# Called from glass overlays when the user navigates qubit cards with WASD.
 	# Updates instrument state so subsequent dispatch_action() fires on the
 	# correct qubit.
-	current_selection = {"plot_idx": plot_idx, "biome": biome_name, "subspace_idx": -1}
 	if _instrument:
 		_instrument.current_plot_idx = plot_idx
 		_instrument.current_biome = biome_name

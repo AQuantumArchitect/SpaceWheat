@@ -18,7 +18,6 @@ extends RefCounted
 ##   - Creates sustainable farming loop: grow → harvest → regrow
 
 
-
 ## ============================================================================
 ## EXPLORE ACTION — Bind terminal to a specific register
 ## ============================================================================
@@ -196,18 +195,20 @@ static func action_measure(terminal, biome, economy = null, farm = null) -> Dict
 
 	# 2. Validate terminal can be measured
 	if not terminal.can_measure():
-		if not terminal.is_bound:
-			return {
-				"success": false,
-				"error": "not_bound",
-				"message": "Terminal is not bound. Use EXPLORE first.",
-				"blocked": true
-			}
+		# Check measured BEFORE bound: a measured terminal releases its register
+		# (is_bound→false), so the bound check would otherwise mislabel it "not bound".
 		if terminal.is_measured:
 			return {
 				"success": false,
 				"error": "already_measured",
 				"message": "Already measured — Q harvests it.",
+				"blocked": true
+			}
+		if not terminal.is_bound:
+			return {
+				"success": false,
+				"error": "not_bound",
+				"message": "Nothing to measure — select a plot first (G H J K L ;).",
 				"blocked": true
 			}
 		return {
@@ -488,24 +489,39 @@ static func _finalize_measurement_terminal(terminal, outcome: String, recorded_p
 	terminal.release_register()
 
 
-## Vocabulary-reward multiplier — knowing an icon boosts the resources you extract from it.
-## This is the escape from the resource spiral: plant your vocab (The Demos = 🌾👥) in the
-## Village, harvest 👥, and because you KNOW 👥 you net positive and farm forever.
+## Incorporation-reward multiplier — harvesting a register whose ICON you have
+## incorporated into your faction signature boosts the yield. This is the escape
+## from the resource spiral: incorporate the Demos icon (🌾/👥), plant it in the
+## Village, and harvesting that register nets positive forever. The bonus is keyed
+## on SIGNATURE membership (does your signature contain this register's icon?), NOT
+## on emoji/cloud knowledge — knowing a stray emoji is not the same as owning the icon.
 ##
-## Quantum-derived "purity" curve: add the vocab bonus to the Bloch radius BEFORE the purity
+## Quantum-derived "purity" curve: add the bonus to the Bloch radius BEFORE the purity
 ## calc (purity ≈ r^exp), so it reads as a static bonus when pure and a curve when mixed:
-##   mult = (bloch_r + (knows ? vocab_r_bonus : 0)) ^ vocab_reward_exponent
-##   • Closed (r=1):  unknown → 1^2 = 1×,   known → (1+1)^2 = 4×  ("4× flat for pure values")
-##   • Open  (r<1):   unknown → r^2 (<1),   known → (r+1)^2       (a smooth curve)
-## Both params are tunable via the FarmVariableGraph board (tuning.vocab_r_bonus / _exponent).
-static func _vocab_reward_multiplier(emoji: String, bloch_r: float, farm = null) -> float:
-	if farm == null or emoji == "":
+##   mult = (bloch_r + (incorporated ? signature_r_bonus : 0)) ^ signature_reward_exponent
+##   • Closed (r=1):  not incorporated → 1^2 = 1×,  incorporated → (1+1)^2 = 4×
+##   • Open  (r<1):   not incorporated → r^2 (<1),  incorporated → (r+1)^2  (a smooth curve)
+## Both params are tunable via the FarmVariableGraph board
+## (tuning.signature_r_bonus / tuning.signature_reward_exponent).
+static func _incorporation_reward_multiplier(north: String, south: String, bloch_r: float, farm = null) -> float:
+	if farm == null:
 		return 1.0
-	var bonus: float = float(BalanceService.get_tuning_value(farm, "vocab_r_bonus"))
-	var exponent: float = float(BalanceService.get_tuning_value(farm, "vocab_reward_exponent"))
-	var knows: bool = farm.has_method("get_known_emojis") and (emoji in farm.get_known_emojis())
-	var eff_r: float = clampf(bloch_r, 0.0, 1.0) + (bonus if knows else 0.0)
+	var bonus: float = float(BalanceService.get_tuning_value(farm, "signature_r_bonus"))
+	var exponent: float = float(BalanceService.get_tuning_value(farm, "signature_reward_exponent"))
+	var incorporated: bool = _icon_in_signature(farm, north, south)
+	var eff_r: float = clampf(bloch_r, 0.0, 1.0) + (bonus if incorporated else 0.0)
 	return pow(eff_r, exponent)
+
+
+## True iff the icon (north/south pole-pair) is in the player's faction signature
+## (farm.known_icons). The harvest bonus rides incorporation, not emoji knowledge.
+static func _icon_in_signature(farm, north: String, south: String) -> bool:
+	if north == "" or south == "" or farm == null or not ("known_icons" in farm):
+		return false
+	for ic in farm.known_icons:
+		if str(ic.get("north", "")) == north and str(ic.get("south", "")) == south:
+			return true
+	return false
 
 
 static func _resolve_pop_reward_context(terminal, farm = null) -> Dictionary:
@@ -518,11 +534,16 @@ static func _resolve_pop_reward_context(terminal, farm = null) -> Dictionary:
 	var terminal_id = terminal.terminal_id
 	var biome_name = terminal.measured_biome_name
 
-	var p_emoji = 0.0
-	if biome and biome.quantum_computer and biome.quantum_computer.has_method("get_population"):
+	# Surprisal reward MUST use the strike-time outcome probability (recorded at
+	# MEASURE), not the live post-collapse population. After a projective collapse the
+	# measured outcome's population is ≈1 by construction, so reading it gave every
+	# pop surprisal ≈ 0 → reward floored to 1, while the concentration cost (∝ p·r)
+	# maxed out — min reward + max cost on every strike (#125). recorded_probability
+	# is exactly "how rare was this collapse"; that is the Boltzmann price basis.
+	# (Live population only as a fallback when no recorded probability exists.)
+	var p_emoji = clampf(recorded_prob, 0.0, 1.0)
+	if recorded_prob <= 0.0 and biome and biome.quantum_computer and biome.quantum_computer.has_method("get_population"):
 		p_emoji = clampf(float(biome.quantum_computer.get_population(resource)), 0.0, 1.0)
-	else:
-		p_emoji = maxf(recorded_prob, 0.0)
 
 	var bloch_r := 0.5
 	if terminal.measured_snapshot.has("r"):
@@ -536,8 +557,12 @@ static func _resolve_pop_reward_context(terminal, farm = null) -> Dictionary:
 	var kT = EnergyPricing.biome_temperature(biome, farm)
 	var reward_quantum = round(EnergyPricing.surprisal_energy(p_emoji, kT))
 	var affinity_bonus = 1.0 + HamiltonianConfig.AFFINITY_REWARD_MAX * affinity
-	var vocab_mult = _vocab_reward_multiplier(resource, bloch_r, farm)
-	var resource_amount = maxi(int(round(reward_quantum * affinity_bonus * vocab_mult)), 1)
+	# Harvest bonus rides on whether this register's ICON is in the player's signature.
+	var pop_axis: Dictionary = {}
+	if biome and biome.quantum_computer and biome.quantum_computer.register_map and register_id >= 0:
+		pop_axis = biome.quantum_computer.register_map.axis(register_id)
+	var sig_mult = _incorporation_reward_multiplier(str(pop_axis.get("north", "")), str(pop_axis.get("south", "")), bloch_r, farm)
+	var resource_amount = maxi(int(round(reward_quantum * affinity_bonus * sig_mult)), 1)
 
 	return {
 		"biome": biome,
@@ -758,10 +783,11 @@ static func _closed_reap_rewards(active_biomes: Array, economy, farm) -> Diction
 			qc.project_qubit(q, pole)   # full projective collapse — stays pure (r=1)
 			if emoji == "":
 				continue
-			# Vocab-reward multiplier: the collapsed pole is pure (r=1), so knowing the
-			# emoji pays the "4× flat for pure values" (×1 if unknown). Same helper as pop.
-			var vocab_mult: float = _vocab_reward_multiplier(emoji, 1.0, farm)
-			var reward: int = maxi(1, int(round(EnergyPricing.surprisal_energy(p, kT) * vocab_mult)))
+			# Incorporation-reward multiplier: the collapsed pole is pure (r=1), so an
+			# incorporated icon pays "4× flat for pure values" (×1 if not in signature).
+			# Same helper as pop — keyed on the register's icon, not the emoji.
+			var sig_mult: float = _incorporation_reward_multiplier(str(axis.get("north", "")), str(axis.get("south", "")), 1.0, farm)
+			var reward: int = maxi(1, int(round(EnergyPricing.surprisal_energy(p, kT) * sig_mult)))
 			economy.add_resource(emoji, reward, "reap_measure")
 			icon_totals[emoji] = icon_totals.get(emoji, 0) + reward
 			total_icon_credits += reward
@@ -1001,12 +1027,6 @@ static func action_clear_all(terminal_pool, farm = null, economy = null) -> Dict
 	}
 
 
-static func _looks_like_farm(value) -> bool:
-	if value == null:
-		return false
-	return ("grid" in value) and ("terminal_pool" in value)
-
-
 static func _resolve_biome_from_terminal(farm, terminal):
 	if not farm or not terminal:
 		return null
@@ -1014,18 +1034,6 @@ static func _resolve_biome_from_terminal(farm, terminal):
 		return null
 	var biome_name = terminal.measured_biome_name if terminal.measured_biome_name != "" else terminal.bound_biome_name
 	return farm.grid.get_biome(biome_name)
-
-
-static func _resolve_terminal_purity(terminal, farm = null) -> float:
-	if not terminal:
-		return 0.0
-	var purity = float(terminal.measured_purity)
-	var biome = _resolve_biome_from_terminal(farm, terminal)
-	if biome and biome.viz_cache and terminal.measured_register_id >= 0:
-		var snap = biome.viz_cache.get_snapshot(terminal.measured_register_id)
-		if snap.has("purity"):
-			purity = float(snap.get("purity", purity))
-	return clampf(purity, 0.0, 1.0)
 
 
 static func _resolve_mass_map_for_biome(biome) -> Dictionary:
@@ -1157,34 +1165,6 @@ static func _format_cost(cost: Dictionary) -> String:
 		parts.append("%s×%d" % [str(emoji), int(cost[emoji])])
 	return " ".join(parts)
 
-
-static func _save_density_matrices(biome) -> Dictionary:
-	if not biome:
-		return {}
-
-	var snapshot = {
-		"timestamp": Time.get_ticks_msec(),
-		"biome_type": biome.get_biome_type()
-	}
-
-	# Try to get density matrix from biome
-	if biome.has_method("get_density_matrix"):
-		var dm = biome.get_density_matrix()
-		if dm and dm.has_method("serialize"):
-			snapshot["density_matrix"] = dm.serialize()
-		elif dm and dm.has_method("get_state"):
-			snapshot["density_matrix"] = dm.get_state()
-
-	# Try to get register states
-	if biome.has_method("get_register_probabilities"):
-		snapshot["probabilities"] = biome.get_register_probabilities()
-
-	return snapshot
-
-
-## ============================================================================
-## UTILITY FUNCTIONS
-## ============================================================================
 
 static func get_explore_preview(terminal_pool, biome) -> Dictionary:
 	var available_terminals = terminal_pool.get_unbound_count()

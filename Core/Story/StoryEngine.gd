@@ -338,13 +338,13 @@ static func _apply_faction_voice(faction, weight: float, initial: Dictionary, tr
 	var cloud: Array = faction.cloud if "cloud" in faction and faction.cloud is Array else []
 	var icon_registry = _get_icon_registry()
 	var physics: Dictionary = {}
-	if icon_registry != null and icon_registry.has_method("get_signature_physics") and not cloud.is_empty():
-		physics = icon_registry.get_signature_physics(cloud)
-	var sig: Array = physics.get("sig", cloud)
+	if icon_registry != null and icon_registry.has_method("get_cloud_physics") and not cloud.is_empty():
+		physics = icon_registry.get_cloud_physics(cloud)
+	var physics_cloud: Array = physics.get("cloud", cloud)
 	var self_energies: Dictionary = physics.get("self_energies", {})
 	var hamiltonian: Dictionary = physics.get("hamiltonian", {})
 
-	for emoji in sig:
+	for emoji in physics_cloud:
 		var se: float = float(self_energies.get(emoji, 0.0))
 		var w: float = weight * (0.3 + abs(se))
 		initial[emoji] = float(initial.get(emoji, 0.0)) + w

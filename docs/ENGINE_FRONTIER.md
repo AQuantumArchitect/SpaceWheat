@@ -7,8 +7,8 @@
 > `BridgeRegister` with derived Γ-product protection, Spark 🌉 verbs, five
 > interleaved story flags (owner: interleave, blessed save touch, mechanics only),
 > glossary **knot** + **bridge**. **Part II SHIPPED G1–G4:** G1 attract reels
-> (`Rig/ReelRunner.gd`, `SW_REEL=<path>` / `--reel=path`, any input exits;
-> `Rig/reels/first_light.reel.json`); G2 postcards (`Rig/PostcardCapture.gd`,
+> (`🍄/🎛️/ReelRunner.gd`, `SW_REEL=<path>` / `--reel=path`, any input exits;
+> `🍄/🎛️/reels/first_light.reel.json`); G2 postcards (`🍄/🎛️/PostcardCapture.gd`,
 > F12 → watermark-in-pixels PNG + sidecar certificate, reel verb `postcard`);
 > G3 the atlas (`tools/atlas_plates.py` — all 162 biomes as SVG plates from data
 > truth + contact sheet; independently re-derives the What Fades geography;
@@ -188,7 +188,7 @@ already exists and was built for other reasons.
 
 | Machinery | State | Gallery use |
 |-----------|-------|-------------|
-| **The rig** (`Rig/rig_listener.gd`) | Headless persistent session executing a JSONL action queue — ~40 verbs incl. gates, pumps, time-skip, overlays, quest ops | An attract reel is *data, not code*: a queue file plus timing |
+| **The rig** (`🍄/🎛️/rig_listener.gd`) | Headless persistent session executing a JSONL action queue — ~40 verbs incl. gates, pumps, time-skip, overlays, quest ops | An attract reel is *data, not code*: a queue file plus timing |
 | **Deterministic measurement seeds** | Shipped — save-load replays the same universe | Postcards become **physics certificates**: every image reproducible from its seed |
 | **Headless assay pattern** (`tools/ssh_assay.py`) | Shipped (What Survives ch. 3) | The atlas plate generator follows it exactly |
 | **Visual grammar** (`QuantumVisualGrammar.gd`, one owner per channel) | Shipped; enforced (`VISUAL_MOTION_SCOUT.md`) | Wet country just made purity→radius and coherence→saturation vary *for the first time* — audit the newly live channels |

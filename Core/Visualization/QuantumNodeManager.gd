@@ -482,12 +482,13 @@ func _update_terminal_visuals_from_buffer(
 
 	var biome = biomes.get(node.terminal.bound_biome_name, null)
 	if not biome or not biome.viz_cache:
+		_warn_unresolved(node, "biome/viz_cache absent for '%s'" % node.terminal.bound_biome_name)
 		_set_node_fallback(node)
 		return
 
 	if node.terminal.bound_register_id < 0:
-		# Keep the bubble legible even if the register binding has not been
-		# restored yet. The terminal still carries the emoji pair.
+		# Binding not yet carrying a register — legitimately not-yet-resolvable
+		# (e.g. restore in flight). Stay legible; this is absence, not failure.
 		_set_node_fallback(node)
 		return
 
@@ -503,7 +504,20 @@ func _update_terminal_visuals_from_buffer(
 	if node.apply_quantum_snapshot(snap, true):
 		return
 
+	# A bound terminal with a valid register that STILL can't resolve a snapshot is a
+	# real bug, not a dead bubble — say so once, loudly, instead of silently ghosting it.
+	_warn_unresolved(node, "empty snapshot for register %d in '%s' (lookahead=%s)" % [
+		node.terminal.bound_register_id, node.terminal.bound_biome_name, str(use_lookahead)])
 	_set_node_fallback(node)
+
+
+func _warn_unresolved(node, reason: String) -> void:
+	if node.resolve_warned:
+		return
+	node.resolve_warned = true
+	var verbose = _get_verbose()
+	if verbose:
+		verbose.warn("viz", "🫧", "Bound terminal bubble unresolved → lifeless: %s" % reason)
 
 
 func _get_visual_snapshot(
@@ -590,6 +604,53 @@ func rebuild_from_biomes(biomes: Dictionary, ctx: Dictionary) -> Array:
 	# New array of QuantumNode instances
 	ctx["biomes"] = biomes
 	return create_quantum_nodes(ctx)
+
+
+func build_register_node(biome_name: String, biome, register_id: int, grid_pos: Vector2i, biomes: Dictionary, layout_calculator):
+	# Build ONE live register bubble pinned to a grid slot (column ≡ register_id ≡
+	# plot_idx). Register-first architecture: the bubble exists for the register itself
+	# and renders live from viz_cache, independent of any terminal binding. MEASURE
+	# later attaches a terminal as a frozen overlay; HARVEST detaches it back to live.
+	if not biome or not biome.viz_cache or not biome.viz_cache.has_metadata():
+		return null
+	if register_id < 0 or register_id >= biome.viz_cache.get_num_qubits():
+		return null
+
+	var anchor_pos = Vector2.ZERO
+	var center_pos = Vector2.ZERO
+	var parametric_t = 0.5
+	var parametric_ring = 0.7
+	if layout_calculator:
+		center_pos = layout_calculator.graph_center
+		# Co-locate with where a plot bubble would sit: same biome distribution, indexed
+		# by the grid column. Keeps the bubble spatially tied to its plot slot.
+		var positions = layout_calculator.distribute_nodes_in_biome(biome_name, 4)
+		if positions.size() > 0:
+			var idx = clampi(grid_pos.x, 0, positions.size() - 1)
+			var params = positions[idx]
+			parametric_t = params.get("t", 0.5)
+			parametric_ring = params.get("ring", 0.7)
+			anchor_pos = layout_calculator.get_parametric_position(biome_name, parametric_t, parametric_ring)
+
+	var node = QuantumNode.new(null, anchor_pos, grid_pos, center_pos)
+	node.biome_name = biome_name
+	node.register_id = register_id
+	node.plot_id = "%s_r%d" % [biome_name, register_id]
+	node.biome_resolver = func(name: String): return biomes.get(name, null)
+	node.parametric_t = parametric_t
+	node.parametric_ring = parametric_ring
+
+	var axis = biome.viz_cache.get_axis(register_id)
+	node.emoji_north = axis.get("north", "")
+	node.emoji_south = axis.get("south", "")
+
+	# Pure live register bubble: routed through the pure-quantum visual path until a
+	# terminal is attached at MEASURE. NOT farm-tethered, NOT a terminal bubble.
+	node.has_farm_tether = false
+	node.is_terminal_bubble = false
+	node.quantum_behavior = 0  # FLOATING (physics enabled)
+	node.visible = true
+	return node
 
 
 func create_all_register_bubbles(biomes: Dictionary, layout_calculator) -> Array:

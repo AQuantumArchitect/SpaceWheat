@@ -17,8 +17,9 @@ all describe bindings and any one of them can rot independently. See
 > - **`SELECTION`** = a position on a 4-ring selection cylinder
 >   (ZXCVBNM surface / 4-0 hat / TYUIOP biome / GHJKL; plot).
 > - **WASD** spins the cylinder; **row keys teleport** to a slot directly.
-> - **ESC** unwinds the overlay stack; **Z/X/C/V/B/N/M** teleports between
->   top-level surfaces.
+> - **ESC** unwinds **one level** at a time (open overlay → gameplay modal:
+>   submenu → pending confirm → plot deselect → finally the system menu);
+>   **Z/X/C/V/B/N/M** teleports between top-level surfaces.
 >
 > Eight keys (QERF + WASD) span four navigation axes. A fifth axis-selector
 > row (1/2/3) chooses which axis Q/R fires along.
@@ -150,23 +151,27 @@ Right-hand rule. Curl the fingers of your right hand around a screw.
   draining, **extracting** (Harvest / Sell / Spark-south). "Quit" lives
   on Q: unscrew yourself from the session.
 
-The energy dyad makes this physical on the energy-touching hats:
-**Q extracts energy** from the field (reward = surprisal `−kT·log p` —
-rare outcomes pay more), **R invests energy** into it. **E reads the
-price** (Measure — collapse + pause). One scarcity law on both poles;
-selecting a plot auto-binds its terminal, so there is no separate
-"Explore" verb.
+**Ace is the player-character vantage** (see *Hats and frames*). It is the
+one hat that works in every mode, because it uses the only operation all
+modes share: **measurement**. You watch the substrate spin and scrub time
+(**E** pause / **F** fast-forward to read the odds), then **R = Strike**
+collapses the selected register to one classical outcome (the irreversible
+act), and **Q = Extract** cashes out the realized reward (surprisal
+`−kT·log p` — a rare collapse pays more). Selection is a free, transient
+cursor move that renders the live bubble straight from the QC; the **strike**
+binds the terminal it needs, so there is no separate "Explore" verb and no
+cost to look.
 
-> **Regimes (openness is a place).** On closed ground measure/pop is a
+> **Regimes (openness is a place).** On closed ground measure/strike is a
 > **full projective collapse** — measurement is the only irreversible act,
 > and the Hamiltonian re-spreads the collapsed qubit over the following
 > ticks (time + H is the "pump"). Every hat is always selectable, but the
 > Lindblad **verbs** — Spark's jolt (4) and Merchant's contracts (6) —
 > refuse per-plot wherever the target biome's regime runs closed, and run
 > live wherever it leaks (the wet landmarks boot open before the endgame
-> door). Ace's **R = Plant** is a **coherent Rabi pulse** — unitary, legal
-> everywhere, and unable to purify: a faded plot needs measurement, or the
-> Spark. See `docs/CLOSED_SYSTEM.md`.
+> door). **Plant** (the population drive) is gone from Ace entirely — it
+> lives only on Spark; Ace is the measurement vantage (Extract / Pause /
+> Strike / Fast-Fwd). See `docs/CLOSED_SYSTEM.md`.
 
 #### The session is the axis, not the target
 
@@ -248,7 +253,7 @@ keys. The keyboard topology mirrors the grammar.
 |---|---|---|
 | **Q** | the *deepest* R-drill (one level) | screw-out is the inverse of R's screw-in |
 | **F** | any open E-snapshot | flatten is the inverse of E's expand |
-| **ESC** | the entire overlay | back-out the whole stack one level |
+| **ESC** | one level (overlay → submenu → confirm → plot deselect → system menu) | back-out one rung at a time |
 
 The closing key the player uses should match the axis the player opened
 with. The chips advertise both.
@@ -288,13 +293,29 @@ still exists and the row still has four slots. Source of truth:
 | 5  | Icon      | inject (single)          | Trim Icon     | (open picker; pause)  | Add Icon      | Track ⌖          |
 | 6  | Merchant  | thermal / dephase / damp | Export 📤     | Order book !          | Import 📥 (dephase: refused) | Settle ✔  |
 | 7  | Captain   | biomes (single)          | Cull          | Compass               | Discover      | (global F)       |
-| 8  | Ace       | probe (single)           | Harvest       | Measure               | Plant         | Reap ⌛ (season)  |
+| 8  | Ace       | probe (single)           | Extract       | Pause ⏸               | Strike !      | Fast-Fwd ⏩      |
 | 9  | Operator  | gate (single)            | Break gate    | Inspect               | Build gate    | (global F)       |
 | 0  | Druid     | X / Y / Z                | rot−          | Hadamard              | rot+          | (global F)       |
+
+🔒 = open-quantum DLC only; renders disabled (greyed + 🔒) in the closed (default) build.
+Ace's **E = Pause** and **F = Fast-Fwd** are the time-scrub pair (E freezes to read the
+odds, F advances so H spins them); **R = Strike** is the collapse, **Q = Extract** the cash-out.
 
 F is handled globally by PlayerShell — frames don't define a per-mode F
 verb. The only way a per-frame F appears is if a frame has a verb that
 genuinely wants to ride the play-axis, which is rare by design.
+
+### Ripeness cue (Icon hat: Track → incorporate)
+
+The Icon hat's **F = Track** starts a Berry-phase ritual on the selected
+register: the qubit must precess off-eigenstate to accumulate a 2π solid
+angle, after which **R incorporates** it (grows the signature). That
+progress is now *visible on the plot bubble itself* — a violet arc fills
+toward 2π while the register is tracked, and a distinct glow marks it
+**ripe — incorporate now**. The cue reads live (the grid refreshes the
+substrate a few times a second), so the player can see when a register is
+ready without opening a panel. It's a HUD affordance, not a key — but it's
+the feedback half of the Track/incorporate verbs.
 
 ---
 
@@ -329,9 +350,16 @@ fallback at a glance.
 
 There is no QERF "back" key. Two paths instead:
 
-- **ESC** closes the topmost overlay one level. Hit it enough times and
-  you're back in the main game. In the main game, ESC opens the system
-  menu (Z).
+- **ESC unwinds exactly one level**, innermost first. The order is:
+  1. an open **overlay** → close it;
+  2. else an open **submenu** (e.g. icon-injection, gate-select) → close it;
+  3. else a **pending destructive confirm** → cancel it (loud);
+  4. else a **selected plot** → deselect it (step the ring up to biome);
+  5. else (nothing left to unwind) → **open the system menu (Z)**.
+
+  Each ESC peels one layer, so you can always feel where you are. The
+  gameplay rungs (2–4) live in `QuantumInstrumentInput.try_escape_unwind()`;
+  PlayerShell handles the overlay rung and the final system-menu open.
 - **The ZXCVBNM ring teleports.** Each key abandons the current
   overlay and swaps to its surface unconditionally. No risk of being
   trapped in a deep stack. Also reachable via WASD spin.
@@ -340,43 +368,46 @@ There is no QERF "back" key. Two paths instead:
 
 ## Confirm chord
 
-When a dangerous or irreversible action triggers (quit, restart, full
-reset), the surface enters a **confirm state** rather than executing
-immediately. The principle: **the trigger key becomes the safe commit.**
+**Safe verbs fire immediately. Only genuinely destructive verbs arm a
+confirm.** The split is deliberate: making *every* Q-verb ask "are you
+sure?" trains the player to mash F reflexively, which defeats the guard
+on the verbs that actually matter.
+
+- **Safe / reversible** (Ace **Extract** — it only cashes out an
+  already-collapsed register; load/save slot menus; most navigation) →
+  **fire on the first press**, no confirm.
+- **Destructive / irreversible** (Trim icon, Cull biome, Break gate, and
+  the system verbs Quit / Restart / Reset) → **arm a confirm**: the verb
+  enters a pending state and waits.
 
 ```
-  trigger → confirm      safe commit   force commit   resume   cancel
-     Q    →  [screen]  :     Q          F              R        E
+  destructive verb → confirm     commit    cancel
+        Q          →  [pending] :   F       any other key (incl. ESC)
 ```
 
-| Pending action | Q             | E        | R        | F                    |
-|----------------|---------------|----------|----------|----------------------|
-| Quit           | save & quit   | cancel   | resume   | quit without saving  |
-| Restart        | save & restart| restart anyway | cancel | —              |
-| Full reset     | confirm reset | —        | cancel   | —                    |
-| Reset settings | confirm reset | —        | cancel   | —                    |
+When a destructive verb arms, a gold toast appears: *"⚠ <label> — press F
+to confirm, any other key cancels."* Then:
 
-Double-tap **Q** (QQ) is the *safe* version — same side, fast,
-comfortable, autosave first. The **QF chord** (Q then F) is the *force*
-version — left side to enter, right side to fire. Two distinct
-keystrokes in two different keyboard regions; the physical distance
-encodes the weight of the decision. The keyboard forces you to reach.
+- **F** commits the action.
+- **Any other key cancels** — and the cancel is **loud**: a teal
+  *"<label> cancelled"* toast fires, so a stray keypress never silently
+  eats the action (the old silent cancel confused the harvest loop).
+- **ESC** also cancels the pending confirm — it is the second rung of the
+  one-level ESC unwind (see *Going back*).
+- The toast auto-expires after ~5 s if the player does nothing.
 
-F as the force-commit key is grammatically consistent: F = forward =
-"push through without looking back." The dangerous choice and the play
-button are the same verb, applied to an irreversible decision.
+F as the commit key is grammatically consistent: F = forward = "push
+through without looking back." The dangerous choice and the play button
+are the same verb, applied to an irreversible decision. Entering on Q
+(left side) and committing on F (right side) puts the two keystrokes in
+different keyboard regions — the physical reach encodes the weight.
 
-F only appears on Quit because only Quit has a meaningful "force"
-variant. Full reset and reset settings have no pre-existing state to
-preserve, so there is nothing to skip.
-
-### Gameplay destructive actions (QF only)
-
-For irreversible gameplay Q-verbs (Harvest, Break gate, Cull biome, Trim
-icon), only the QF path applies — there is no QQ safe variant. Q
-enters a **pending state** (gold toast: "press F to confirm, any
-other key cancels"). F fires the action; any other key cancels silently.
-The toast auto-expires after ~5 s if the player does nothing.
+| System action | Q (enter)      | F (commit)           | other key |
+|---------------|----------------|----------------------|-----------|
+| Quit          | save & quit    | quit without saving  | cancel    |
+| Restart       | save & restart | restart anyway       | cancel    |
+| Full reset    | confirm reset  | —                    | cancel    |
+| Reset settings| confirm reset  | —                    | cancel    |
 
 ---
 
@@ -402,15 +433,38 @@ PlayerShell._input(event):
     elif f_pressed_this_event(event): _set_global_paused(false)
     # NO set_input_as_handled, NO return — keep going
 
-    # 2. Existing exclusive dispatch (unchanged):
+    # 2. Early-pierce ring nav: FORWARD the raw ring keys to QII, which
+    #    OWNS cursor_layer. W/S → instrument.change_cursor_layer; A/D →
+    #    step_active_layer; direct-pick (ZXCVBNM/4-0/TYUIOP/GHJKL;) →
+    #    instrument.set_cursor_layer (anchors the ring, does NOT consume).
+    # 3. Exclusive dispatch:
     if overlay_stack.route_input(event): consume → return
-    if _handle_shell_action(event):     consume → return
-    # else falls to Farm._unhandled_input → QII (Hadamard etc.)
+    if _handle_shell_action(event):     consume → return  # incl. ESC unwind
+    # else falls to QuantumInstrumentInput._unhandled_key_input (the one decoder)
 ```
 
 The pause flag is `paused: bool` on **PlayerShell** with a
 `paused_changed(is_paused)` signal. `Farm._physics_process` checks
 `_is_globally_paused()` first and short-circuits when true.
+
+### Dispatch ownership — one decoder, one cursor owner
+
+After the flatten sweep, input routing has a single owner per concern:
+
+- **PlayerShell** owns the overlay stack and shell actions, and *forwards*
+  the raw ring keys. It no longer holds cursor state; it paints the active
+  ring from QII's `cursor_layer_changed` signal.
+- **`QuantumInstrumentInput` (QII)** is the one gameplay decoder. It owns
+  `cursor_layer` **co-located with `current_plot_idx`**, so the crawl ring
+  and the plot selection can never desync — entering/leaving the plot ring
+  (layer 3) is the same mutation that selects/clears the plot, all routed
+  through `set_cursor_layer()`. A single `_unhandled_key_input` decodes every
+  gameplay key (hats, sub-mode, timescale, bulk, QERF, and the biome/plot/
+  subspace rows) in one explicit precedence — there is no second input method
+  racing it by Godot priority.
+- **All keycode↔slot decoding** comes from `InputBindingRegistry` (the shared
+  ring source); QII, the overlays, and Surface read it rather than each
+  re-hardcoding a row map.
 
 **Unpause discipline:** strict — only F unpauses. Other keys (Q, R,
 numbers, Tab, navigation) do not auto-unpause. Predictable; the
@@ -443,7 +497,7 @@ playtesters get stuck.
 
 | Key | Role |
 |---|---|
-| `ESC` | Close topmost overlay (back one level). At gameplay, opens Z (system menu). The only "back" key — F does not unwind. |
+| `ESC` | Unwind one level: overlay → submenu → pending confirm → plot deselect → (finally) opens Z (system menu). The only "back" key — F does not unwind. |
 | `Enter` / `Space` | Confirm / activate the selected item in menus. |
 | `Backspace` | Reserved (no binding). |
 | `F12` | Postcard — capture the view with the physics watermark + sidecar certificate (`user://postcards/`). |
@@ -503,11 +557,18 @@ The keyboard grammar lives in three places that drift independently:
 3. **`UI/Overlays/ControlsOverlay.gd`** — in-game help text the player
    reads.
 
-Long-term, ControlsOverlay's help text should auto-generate from
-`InputBindingRegistry` so there is no third manually-maintained list.
-TODO: remove the hand-written rows in `_build_keys_section` and have
-them read from `InputBindingRegistry.get_global_bindings()` plus the
-row tables. Until then, **any binding change must update all three.**
+**The row-keycode maps are now centralized (S3).** The plot ring
+(`PLOT_ROW_KEYCODES`), biome ring (`BIOME_ROW_KEYCODES`), and their
+keycode→index helpers live only in `InputBindingRegistry`; QII, Surface,
+EscapeMenu, QuestBoard, ControlsOverlay, MapMetaOverlay, and
+QubitAtlasOverlay all *read* that source instead of re-hardcoding an
+`ITEM_BY_KEYCODE`. So a ring change is made in one place.
+
+What still drifts: ControlsOverlay's hand-written *help text*. Long-term it
+should auto-generate from `InputBindingRegistry.get_global_bindings()` plus
+the row tables. TODO: remove the hand-written rows in `_build_keys_section`.
+Until then, **a binding change must still update this file + the help text**
+(the runtime ring map is already single-source).
 
 ---
 
