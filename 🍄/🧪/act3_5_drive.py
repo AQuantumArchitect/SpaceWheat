@@ -639,6 +639,7 @@ def main():
             def discover_target(target, tries=16):
                 for d in range(1, tries + 1):
                     if target in grid():
+                        core.add(target)   # story landmark: protect from later culls
                         return True
                     cullable = [b for b in grid() if b not in core and b != target]
                     if cullable:

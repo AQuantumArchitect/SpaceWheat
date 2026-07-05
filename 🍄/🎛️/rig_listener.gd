@@ -1345,6 +1345,28 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			if _farm and _farm.has_method("compute_discovery_forecast"):
 				result["discovery_forecast"] = _farm.compute_discovery_forecast()
 
+		"pressure_debug":
+			# Trace _biomes_under_pressure piece by piece against the LIVE farm/qm.
+			var pdq = InstrumentLocator.resolve_quest_manager(_farm, _farm)
+			result["qm_found"] = pdq != null
+			if pdq != null and _farm != null:
+				result["n_flags"] = pdq.get_all_story_flags().size() if pdq.has_method("get_all_story_flags") else -1
+				result["fired"] = _farm.story_flags_fired.keys() if "story_flags_fired" in _farm else []
+				var trace: Dictionary = {}
+				for fl in pdq.get_all_story_flags():
+					if not (fl is Dictionary):
+						continue
+					var fid := str(fl.get("id", ""))
+					if fid not in ["chain_ends", "the_crossing", "ledger_opens", "spring_connects"]:
+						continue
+					var row := {"unfired": not _farm.story_flags_fired.has(fid), "preds": []}
+					for pr in fl.get("predicates", []):
+						if pr is Dictionary:
+							row["preds"].append({"type": pr.get("type"), "id": pr.get("id", ""), "biome": pr.get("biome", "")})
+					trace[fid] = row
+				result["trace"] = trace
+				result["pressured"] = BiomeDiscoveryForecastService._biomes_under_pressure(_farm)
+
 		"discovery_forecast":
 			if _farm and _farm.has_method("compute_discovery_forecast"):
 				result["forecast"] = _farm.compute_discovery_forecast()
@@ -1479,6 +1501,7 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			else:
 				result["slot"] = slot
 				result["loaded"] = gsm.save_load.load_and_apply(slot)
+				_rebind_after_load(gsm)
 
 		"load_game_path":
 			var path = str(cmd.get("path", ""))
@@ -1492,6 +1515,7 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			else:
 				result["path"] = path
 				result["loaded"] = await gsm.save_load.load_and_apply_path(path)
+				_rebind_after_load(gsm)
 
 		"save_info":
 			var slot = int(cmd.get("slot", -1))
@@ -2288,3 +2312,15 @@ func _parse_positions(raw_positions, biome_name: String) -> Array[Vector2i]:
 
 func _allow_rig_resource_injection() -> bool:
 	return RuntimeEnv.allow_resource_injection()
+
+
+## A load swaps in a FRESH farm (SaveLoadCoordinator._attach_state_to_fresh_farm),
+## so every cached reference here goes stale — story_flags/discovery_forecast/etc.
+## would silently read the shut-down pre-load farm (empty flags, no pressure).
+## Rebind everything the way boot did.
+func _rebind_after_load(gsm) -> void:
+	if gsm and "active_farm" in gsm and gsm.active_farm:
+		_farm = gsm.active_farm
+	if _shell:
+		_instrument = InstrumentLocator.resolve_quantum_instrument(_shell)
+		_snapshot_service = InstrumentLocator.resolve_snapshot_service(_shell)
