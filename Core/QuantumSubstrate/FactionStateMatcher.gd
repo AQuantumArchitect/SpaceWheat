@@ -35,18 +35,6 @@ class BiomeObservables:
 	var dynamics: float = -1.0     # Evolution rate (how fast state changes)
 
 
-class QuestParameters:
-	# Abstract quest parameters - game applies theming
-	var alignment: float = -1.0    # How well matched [0, 1], -1 = unknown
-	var intensity: float = -1.0    # Derived from scale preferences
-	var complexity: float = -1.0   # Derived from entropy x coherence
-	var urgency: float = -1.0      # Derived from dynamics preference
-	var variety: float = -1.0      # Derived from distribution shape
-	var basis_weights: Array = [] # Probability weights for each basis state
-	var available_emojis: Array = []  # Signature constraint (faction ∩ player)
-	var operator_weights: Dictionary = {}  # Quest type distribution from faction bits (Born rule sampling)
-
-
 # ============================================================================
 # CORE MACHINERY
 # ============================================================================
@@ -172,47 +160,6 @@ static func _explain_continuous(spec: Array, faction_bits: Array) -> Dictionary:
 		"have": names[clampi(int(actual * 4.0), 0, 3)] if known else "—",
 		"want_value": pref, "have_value": actual,
 	}
-
-
-static func generate_quest_parameters(faction_bits: Array, obs: BiomeObservables, substrate) -> QuestParameters:
-	# Generate abstract quest parameters from faction x biome
-	var params = QuestParameters.new()
-
-	# Core alignment
-	params.alignment = compute_alignment(faction_bits, obs)
-	if params.alignment < 0.0:
-		params.alignment = 0.0
-
-	# Intensity: scale preference x biome scale
-	var scale_pref = _bits_to_range(faction_bits[8], faction_bits[9]) if faction_bits.size() >= 10 else 0.5
-	params.intensity = scale_pref * obs.scale if _is_known_observable(obs.scale) else 0.0
-
-	# Complexity: entropy x coherence (high of both = complex)
-	var complexity_sum = 0.0
-	var complexity_count = 0.0
-	if _is_known_observable(obs.entropy):
-		complexity_sum += obs.entropy
-		complexity_count += 1.0
-	if _is_known_observable(obs.coherence):
-		complexity_sum += obs.coherence
-		complexity_count += 1.0
-	params.complexity = complexity_sum / complexity_count if complexity_count > 0.0 else 0.0
-
-	# Urgency: from dynamics preference
-	var dynamics_pref = _bits_to_range(faction_bits[10], faction_bits[11]) if faction_bits.size() >= 12 else 0.5
-	params.urgency = dynamics_pref * obs.dynamics if _is_known_observable(obs.dynamics) else 0.0
-
-	# Variety: from distribution shape
-	params.variety = float(obs.distribution_shape) / 3.0 if obs.distribution_shape >= 0 else 0.0
-
-	# Basis weights: probability distribution from the register substrate
-	params.basis_weights = _get_basis_weights(substrate)
-
-	# Operator weights: quest type probability distribution from faction bits
-	# Born rule sampling over operator structures (amplitude/coherence/ratio/multi)
-	params.operator_weights = calculate_operator_weights(faction_bits)
-
-	return params
 
 
 # ============================================================================
@@ -377,34 +324,6 @@ static func _calculate_scale(density_matrix) -> float:
 			active_mass += prob
 
 	return clamp(active_mass, 0.0, 1.0)
-
-
-static func _get_basis_weights(substrate) -> Array:
-	# Get probability weights for all basis states
-	var weights = []
-	var state_source = _resolve_state_source(substrate)
-
-	if state_source == null:
-		return [1.0]  # Single uniform weight
-
-	var density_matrix = _resolve_density_matrix(state_source)
-	if density_matrix == null:
-		return [1.0]
-
-	var dim = _density_dim(density_matrix)
-	var total = 0.0
-
-	for i in range(dim):
-		var prob = _basis_probability(density_matrix, i)
-		weights.append(prob)
-		total += prob
-
-	# Renormalize
-	if total > 0:
-		for i in range(weights.size()):
-			weights[i] /= total
-
-	return weights
 
 
 static func _is_known_observable(value: float) -> bool:

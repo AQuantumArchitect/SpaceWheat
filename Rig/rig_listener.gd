@@ -86,7 +86,6 @@ const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
 # PlayerInputMacroRunner removed — macro input not available in headless mode
 
 signal action_executed(turn_id: int, action: String, result: Dictionary)
-signal bridge_idle()
 signal bridge_stopped()
 
 var _queue_path = "user://rig/queue.jsonl"

@@ -561,10 +561,6 @@ static func enable_persistent_decay(farm, positions: Array[Vector2i],
 
 
 
-# NOTE: reset_to_pure/reset_to_mixed removed (2026-01)
-# These called biome methods that no longer exist in Model C
-
-
 static func pump_to_wheat(farm, positions: Array[Vector2i]) -> Dictionary:
 	# Establish pump channel from south to wheat.
 

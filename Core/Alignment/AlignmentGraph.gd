@@ -57,18 +57,6 @@ static func from_uniform_superposition() -> RefCounted:
 	return g
 
 
-static func from_maximally_mixed() -> RefCounted:
-	# ρ = I/DIM as a rank-DIM mixture. Heavy; only use for tests.
-	var g = load("res://Core/Alignment/AlignmentGraph.gd").new()
-	var w := 1.0 / float(DIM)
-	g.weights = PackedFloat64Array()
-	g.kets = []
-	for i in range(DIM):
-		g.weights.append(w)
-		g.kets.append({i: Vector2(1.0, 0.0)})
-	return g
-
-
 # ---------------- bit helpers ----------------
 
 static func _bits_to_index(bits) -> int:

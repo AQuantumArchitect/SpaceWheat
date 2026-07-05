@@ -1675,27 +1675,3 @@ func clear_all_quests() -> void:
 	next_quest_id = 0
 	_announced_offers.clear()
 	active_quests_changed.emit()
-
-func print_quest_status() -> void:
-	# Print current quest state
-	print("🗂️ Quest Manager Status:")
-	print("  Active: %d" % active_quests.size())
-	print("  Completed: %d" % completed_quests.size())
-	print("  Failed: %d" % failed_quests.size())
-
-	if active_quests.size() > 0:
-		print("\n  Active Quests:")
-		for quest_id in active_quests.keys():
-			var quest = active_quests[quest_id]
-			var time_left = get_quest_time_remaining(quest_id)
-			var time_str = "∞" if time_left < 0 else "%ds" % int(time_left)
-			print("    #%d: %s - %s (%s)" % [
-				quest_id,
-				quest.get("faction", "Unknown"),
-				quest.get("body", quest.get("display", "???")),
-				time_str
-			])
-
-static func test_quest_lifecycle() -> void:
-	# Lifecycle smoke removed with the old offer surface.
-	print("🧪 QuestManager lifecycle smoke retired; use live lattice tests instead.")

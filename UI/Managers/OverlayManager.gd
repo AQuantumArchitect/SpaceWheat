@@ -165,12 +165,7 @@ func create_overlays(parent: Control) -> void:
 	_verbose.info("ui", "📋", "Quest Board created (C key)")
 	_setup_visibility_processing(quest_board)
 
-	# SimStatsOverlay REMOVED - merged into InspectorOverlay (N key)
-	# Performance stats now only visible when user presses N to open Inspector
-	# sim_stats_overlay = SimStatsOverlay.new()
-	# sim_stats_overlay.z_index = 4096  # Max z_index in Godot 4 (was 5000, exceeded limit)
-	# parent.add_child(sim_stats_overlay)
-	_verbose.info("ui", "⏱", "Simulation stats overlay removed - now in InspectorOverlay (N key)")
+	# SimStatsOverlay merged into InspectorOverlay (N key) — perf stats live there.
 
 	# Create Escape Menu
 	escape_menu = EscapeMenu.new()

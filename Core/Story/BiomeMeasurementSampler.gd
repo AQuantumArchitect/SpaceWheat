@@ -7,8 +7,7 @@ extends RefCounted
 ## Length emerges from biome topology, not from a parameter we set.
 ##
 ## Per design (NO SPECIAL CASES): the chatter is a substrate measurement,
-## not an invented Markov walk. Use this in place of EmojiSequenceGenerator
-## when a biome is available.
+## not an invented Markov walk.
 
 
 ## Sample one basis state from a biome's QC.

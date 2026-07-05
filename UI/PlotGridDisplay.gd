@@ -1331,8 +1331,8 @@ func _process(delta: float) -> void:
 	var tracker = get_node_or_null("/root/UIPerformanceTracker")
 	if tracker:
 		tracker.record_time("PlotGridDisplay._process", t4 - t0)
-	elif Engine.get_process_frames() % 300 == 0:
-		print("[PGD_DEBUG] UIPerformanceTracker not found!")
+	elif Engine.get_process_frames() % 300 == 0 and _verbose:
+		_verbose.trace("ui", "⏱️", "UIPerformanceTracker autoload not found")
 
 
 func _apply_viewport_culling() -> void:
