@@ -40,28 +40,32 @@ right. Spark and Druid bookend the set.
 
 | Key | Archetype | Cube coords    | Live wiring                                          |
 |-----|-----------|----------------|------------------------------------------------------|
-| `4` | Spark     | (Self, Q, P)   | Pole shift (spend pole emoji → one-shot shove)       |
+| `4` | Spark     | (Self, Q, P)   | One-shot Lindblad jolt (wet country) / 🌉 bridges     |
 | `5` | Icon      | (Self, Q, F)   | Icon injection (faction-signature qubits)            |
-| `6` | Merchant  | (Self, C, F)   | Faction contracts (drain=treaty / transfer=broker / pump=tribute) |
+| `6` | Merchant  | (Self, C, F)   | Standing Bath contracts: thermal / dephase / damp     |
 | `7` | Captain   | (World, C, F)  | Biome lifecycle (discover / cull)          |
 | `8` | Ace       | (Self, C, P)   | Energy dyad (plant / measure / harvest / reap) |
 | `9` | Operator  | (World, Q, F)  | Gate building (build / inspect / break)    |
 | `0` | Druid     | (World, Q, P)  | Unitary (X/Y/Z rotations, Hadamard)        |
 
-> **Regimes:** openness is a *place*, not a setting. On closed ground (the
-> enclave, and every biome whose regime runs closed) Spark's jolt mode and
-> Merchant's Lindblad drives sit greyed out — a closed system has no
-> pump/drain. The post-story **wet country** (per-biome `regime`,
-> `docs/OPEN_CAMPAIGN.md`) runs the same verbs live. Spark's 🌉 bridge
-> mode (mode 2) is **never** sealed. See `docs/CLOSED_SYSTEM.md`.
+> **Regimes:** openness is a *place*, not a setting — and the keyboard is
+> never sealed. Every hat is always selectable; the Lindblad **verbs**
+> (Spark's jolt, Merchant's contracts) refuse per-plot wherever the target
+> biome's regime runs closed (`is_open_here`), and run live wherever it
+> leaks — including the wet landmarks that boot open *before* the endgame
+> door. The island can never be mixed: `Farm`'s channel tick skips closed
+> ground by construction. Spark's 🌉 bridge mode is never sealed in any
+> regime. Ace's **Plant** is the counterpoint: a coherent Rabi pulse —
+> unitary, legal everywhere, and unable to purify (a fog needs measurement
+> or the Spark). See `docs/CLOSED_SYSTEM.md`.
 
 ## Frame wiring
 
 | Frame     | Sub-modes                | Q              | E (pause + inspect)       | R             | F                  |
 |-----------|--------------------------|----------------|---------------------------|---------------|--------------------|
-| Spark     | shift ⚡ / bridge 🌉      | S.Pole · Fuse  | Pause · Bridge card       | N.Pole · Span | — · Braid 🪢       |
+| Spark     | shift ⚡ / bridge 🌉      | S.Pole · Fuse  | Gauge 🔍 · Bridge card    | N.Pole · Span | — · Braid 🪢       |
 | Icon      | inject                   | Trim icon      | Inspect qubit             | Add icon (incorporate when ripe) | Track ⌖ |
-| Merchant  | thermal / dephase / damp | Export 📤      | Read Price !              | Import 📥     | Tip 💬             |
+| Merchant  | thermal ~ / dephase . / damp \| | Export 📤 | Order book !             | Import 📥 (dephase: refused) | Settle ✔ |
 | Captain   | biomes                   | Cull           | Compass (discover peek)   | Add Biome     | —                  |
 | Ace       | probe                    | Harvest        | Measure                   | Plant         | Reap ⌛ (season)   |
 | Operator  | gate                     | Break gate     | Inspect                   | Build gate    | —                  |
@@ -72,9 +76,12 @@ right. Spark and Druid bookend the set.
 `Core/GameState/ToolConfig.gd` owns the live frame map in
 `ARCHETYPE_FRAMES`.
 
-- **Spark** handles pole shifts.
+- **Spark** handles the one-shot jolt (wet country) and Majorana bridges.
 - **Icon** handles icon injection.
-- **Merchant** handles faction contracts.
+- **Merchant** handles standing Bath contracts — the sub-mode IS the
+  channel: thermal (detailed balance, keeps the field warm), dephase
+  (pure phase damping — export only; no contract sells phase back), damp
+  (one-way, pins and pays). F settles; E reads the real order book.
 - **Captain** handles biome lifecycle.
 - **Ace** handles the energy dyad: plant / measure / harvest / reap.
 - **Operator** handles gate building.

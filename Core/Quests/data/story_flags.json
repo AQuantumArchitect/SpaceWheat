@@ -804,6 +804,72 @@
     }
   },
   {
+    "id": "the_verbs_come_home",
+    "display_name": "What Fades — The Verbs Come Home",
+    "act": 7,
+    "arc_beat": "You kept the horn alive with nothing but attention, and the country noticed. The toolmakers' hats wake in your hands — not by decree, but by geography: the Spark's jolt and the Merchant's contracts were never sealed, only homeless, because a pump needs somewhere for the flow to GO. The enclave has no outside; the wet country is all outside. Stand on ground that leaks and the jolt fires — a one-shot kick of the very dissipation the Bath uses against you, turned to your hand. It can do the one thing no rotation can: make a faded thing pure again. Light grows; rain renews.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "watching_keeps"
+      }
+    ],
+    "standing_grants": {
+      "Millwright's Union": {
+        "trust": 0.06
+      }
+    },
+    "arc_quest": {
+      "body": "Rain on the Fields — jolt a wet-country qubit toward a pole with the Spark. One kick, paid in the pole's own emoji.",
+      "hint": "Spark hat (4), ⚡ mode: stand in the fading country, pick a plot, E reads the gauge (odds, kT, price), then R jolts north or Q jolts south. On the island the chips grey — the enclave holds.",
+      "state_predicates": [
+        {
+          "type": "gate_sequence_contains",
+          "gate": "spark",
+          "count": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "the_first_contract",
+    "display_name": "What Fades — The First Contract",
+    "act": 7,
+    "arc_beat": "The jolt is a hand on the wheel; a contract is a millrace. The Merchant's three channels are the Bath's own grammar, priced and signed: thermal contact leaves the field warm and the entropy bank breathing; pure dephasing sells your shimmer for heat — nothing lands in the wallet, but kT climbs and the season's rite pays the difference; amplitude damping pins the pole and pays hard, and cools the country toward purity as it does. The counterparty on every page is the environment itself — the one partner that cannot default, and cannot stop. The brokers of the fading country sign with a warning they give free of charge: a channel runs until you close it.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "the_verbs_come_home"
+      },
+      {
+        "type": "gate_sequence_contains",
+        "gate": "spark",
+        "count": 1
+      }
+    ],
+    "standing_grants": {
+      "Bone Merchants": {
+        "trust": 0.08
+      }
+    },
+    "arc_quest": {
+      "body": "Sign and Settle — open a standing export in wet country, let it pay, then close it yourself.",
+      "hint": "Merchant hat (6): 1/2/3 picks the channel (thermal ~ keeps the field warm · dephase . sells phase for heat · damp | pins and pays). E reads the order book, Q signs the export... and F settles it. A contract left open drinks forever.",
+      "state_predicates": [
+        {
+          "type": "gate_sequence_contains",
+          "gate": "drain",
+          "count": 1
+        },
+        {
+          "type": "gate_sequence_contains",
+          "gate": "settle",
+          "count": 1
+        }
+      ]
+    }
+  },
+  {
     "id": "the_basin",
     "display_name": "What Fades III — The Basin",
     "act": 7,

@@ -1359,7 +1359,7 @@ func _build_guide_body() -> void:
 func _guide_core_loop() -> void:
 	_body_box.add_child(_make_section_header("the core loop: R · E · Q"))
 	_body_box.add_child(_make_body("Press 8 to enter the Ace frame, then:"))
-	_body_box.add_child(_make_action_row("R", "Plant", "Invest energy — jolt population toward the north pole (screw in)."))
+	_body_box.add_child(_make_action_row("R", "Plant", "Invest energy — a coherent Rabi pulse swings the qubit toward its north pole (screw in). Unitary: works anywhere, but cannot purify a fog."))
 	_body_box.add_child(_make_action_row("E", "Measure", "Read the price — collapse the quantum state (Born rule)."))
 	_body_box.add_child(_make_action_row("Q", "Harvest", "Extract energy — reward = surprisal −kT·log p, rare pays more (screw out)."))
 	_body_box.add_child(_make_body(
@@ -1368,9 +1368,9 @@ func _guide_core_loop() -> void:
 
 func _guide_four_tools() -> void:
 	_body_box.add_child(_make_section_header("the seven archetype frames (4-0)"))
-	_body_box.add_child(_make_action_row("4", "Spark",     "Lindbladian jolt — SEALED while the enclave holds; the endgame door (What Fades, act 8) opens it for good. Mode 2 (🌉) is never sealed: Majorana bridges — R spans, F braids, Q fuses, E reads the card."))
+	_body_box.add_child(_make_action_row("4", "Spark",     "One-shot Lindblad jolt — fires only on open (wet) ground; on closed ground the chips grey (openness is a place). The dissipative kick that re-purifies. E reads the gauge. Mode 2 (🌉): Majorana bridges — R spans, F braids, Q fuses, E reads the card — never sealed, any regime."))
 	_body_box.add_child(_make_action_row("5", "Icon",      "Inject a dual-emoji qubit from the neighborhood's installed signature."))
-	_body_box.add_child(_make_action_row("6", "Merchant", "Faction contracts (energy dyad): Q=Export (sell out), E=Read Price, R=Import (buy in), F=Tip. Price = −kT·log p."))
+	_body_box.add_child(_make_action_row("6", "Merchant", "Standing contracts with the country you stand in (wet ground only). 1/2/3 picks the channel: thermal ~ (keeps the field warm) · dephase . (sells phase for heat; no buying it back) · damp | (pins and pays). Q=Export, E=order book, R=Import, F=Settle. Price = −kT·log p."))
 	_body_box.add_child(_make_action_row("7", "Captain",   "Biome lifecycle: Q=cull, E=compass, R=discover."))
 	_body_box.add_child(_make_action_row("8", "Ace", "Energy dyad: Q=harvest (extract), E=measure (price), R=plant (invest), F=reap the season."))
 	_body_box.add_child(_make_action_row("9", "Operator",  "Gate building: Q=break, E=inspect, R=gate."))

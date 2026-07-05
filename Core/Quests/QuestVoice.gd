@@ -215,6 +215,10 @@ static func bridge_whisper(faction_name: String) -> String:
 	return whisper("bridge", faction_name)
 
 
+static func trade_whisper(faction_name: String) -> String:
+	return whisper("trade", faction_name)
+
+
 ## One line per voice archetype for the moment a Berry loop is INCORPORATED —
 ## the qubit walked a closed loop on its sphere, the signed solid angle ripened
 ## past 2π, and the player wove the axis into their signature
@@ -284,6 +288,23 @@ const BRIDGE_WHISPER := {
 	"entity":    "A NONLOCAL PARITY HAS BEEN LOCALIZED. THE SPAN IS RETIRED.",
 }
 
+## One line per voice archetype for a CONTRACT OPENING — a standing Merchant
+## channel (thermal/dephase/damp) installed on a plot. The counterparty is the
+## Bath itself; the channel runs until settled (F). Fires once per install,
+## not per tick — contracts speak when signed, not while they flow.
+const TRADE_WHISPER := {
+	"imperial":  "The Throne licenses every tax farmer in its lands. You have opened a levy on the world itself. Expect an audit.",
+	"guild":     "A standing channel, rate fixed, paid on flow. Mind it — contracts run until settled.",
+	"mystic":    "You have opened a small mouth in the world, and it will drink until you close it.",
+	"merchant":  "Continuous delivery, the environment as counterparty. The one partner who never defaults.",
+	"militant":  "A supply line is a wound you cut on purpose. Guard it, and know when to close it.",
+	"scavenger": "A tap in the barrel. Steady drips fill jugs — and empty barrels. Watch the level.",
+	"horror":    "IT FLOWS NOW. IT DOES NOT KNOW HOW TO STOP. YOU ARE THE KNOWING.",
+	"defensive": "Every open channel is a door. You hold the key — settle it when the weather turns.",
+	"cosmic":    "All things exchange with the Bath in the end. You have merely set the rate.",
+	"entity":    "CHANNEL REGISTERED. FLOW UNTIL SETTLED. THE LEDGER LISTENS.",
+}
+
 ## One line per voice archetype for the soul RESOLVING — the identity ρ
 ## crossed a purity band upward (Farm.identity_band_changed, rising). Learning
 ## concentrated the diagonal: of all the selves superposed, one is winning.
@@ -326,6 +347,7 @@ const WHISPERS := {
 	"measure": MEASURE_WHISPER,
 	"reap": REAP_WHISPER,
 	"bridge": BRIDGE_WHISPER,
+	"trade": TRADE_WHISPER,
 	"self_resolve": SELF_RESOLVE_WHISPER,
 	"self_fade": SELF_FADE_WHISPER,
 }

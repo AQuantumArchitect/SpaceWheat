@@ -15,10 +15,27 @@
 > the per-biome rite (`_open_reap_rewards`, kT·ΔS was already implemented — it needed
 > only the split) with its whisper register; `coherence_fell` + `purity_at_most`
 > predicates; wet-country E-inspect passport + literal compass; glossary **bath** +
-> **fading**. Remaining: Phase 3 (role-separation data reform — biome bots),
-> Phase 6 (Majorana — now planned as `docs/ENGINE_FRONTIER.md`, "What Connects"),
-> verb-unseal-as-faction-rewards (simplified: all open verbs unseal at the door),
-> and threshold tuning in live play.
+> **fading**.
+>
+> **Update 2026-07-05 — the verbs came home by geography, not decree.** The
+> interim "all open verbs unseal at the door" simplification is retired: the
+> keyboard is never sealed. Every hat is always selectable and the Lindblad
+> verbs gate per-plot on `is_open_here()` — live in the wet landmarks from the
+> moment the player stands in them, refused on closed ground forever (the
+> island cannot be mixed, by construction: Farm's channel tick skips closed
+> biomes). Chapter V's verb beats now exist as two act-7 flags
+> (`the_verbs_come_home`, `the_first_contract`); Merchant's sub-modes are the
+> three canonical channels (thermal / dephase / damp — the pure-dephasing
+> kernel `apply_dephase` now exists, paying law #2's debt), F settles a
+> standing contract, E reads the real order book, and Ace's Plant is a
+> coherent Rabi pulse — legal everywhere, unable to purify (the Spark's jolt
+> is the dissipative counterpoint that can). Phase 6 (Majorana) shipped as
+> "What Connects" (`docs/CONNECT_CAMPAIGN.md`).
+> Remaining: Phase 3 (role-separation data reform — biome bots), the dead
+> `gated_lindblad_source` channels (61 authored self-feeding circuits in
+> `biomes.json` that `LindbladBuilder` does not yet read — Chapter III's
+> hysteresis beats need them), `PREVENT_DECOHERENCE` (tracker exists, no
+> generator emits it), and threshold tuning in live play.
 
 ## The thesis
 

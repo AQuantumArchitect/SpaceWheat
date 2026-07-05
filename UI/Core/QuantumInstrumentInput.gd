@@ -846,6 +846,20 @@ func _maybe_toast_reap_whisper(result: Dictionary) -> void:
 	_toast_whisper("⚖️ the rite: +%d from the season's entropy bank (kT·ΔS)" % rite, speaker, line)
 
 
+func _maybe_toast_trade_whisper(result: Dictionary, verb: String) -> void:
+	# A contract speaks when SIGNED (persistent channel installed), not while
+	# it flows. Speaker: the biome's native faction — the country you contract in.
+	if int(result.get("persistent_enabled", 0)) <= 0:
+		return
+	var biome = null
+	if farm and farm.grid and farm.grid.has_method("get_biome"):
+		biome = farm.grid.get_biome(_get_current_biome_name())
+	var speaker := _native_speaker_for(biome)
+	var line: String = QuestVoice.trade_whisper(speaker)
+	var kind := str(result.get("channel_kind", "damp"))
+	_toast_whisper("🤝 contract opened — %s %s channel · F settles" % [verb, kind], speaker, line)
+
+
 func _toast_whisper(head: String, speaker: String, line: String) -> void:
 	if line == "":
 		return
@@ -1722,10 +1736,12 @@ func _execute_action(action_name: String) -> Dictionary:
 			result = _instrument.action_drain(positions, _merchant_channel_kind())
 			if result.get("success", false):
 				_refresh_plot_tiles(positions)
+				_maybe_toast_trade_whisper(result, "📤 export")
 		"pump":
 			result = _instrument.action_pump(positions, _merchant_channel_kind())
 			if result.get("success", false):
 				_refresh_plot_tiles(positions)
+				_maybe_toast_trade_whisper(result, "📥 import")
 		"settle":
 			result = _instrument.action_settle(positions)
 			if result.get("success", false):

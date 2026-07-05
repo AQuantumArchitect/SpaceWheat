@@ -139,10 +139,14 @@ static func coherent_enabled(config: Dictionary = {}) -> bool:
 	return bool(get_physics(config).get("coherent_dynamics", true))
 
 
-## Is the dissipative (Lindblad pump/drain/decay) generator active? Default false.
-## This is THE predicate for every open-system mechanism: Lindblad operators, weak/drain
-## measurement, the entropy-bank reap, the Spark/Merchant tools, drain/pump actions, and
-## the dissipative UI readouts. Flip it on for the open-quantum DLC.
+## Is the dissipative (Lindblad pump/drain/decay) generator active GLOBALLY?
+## Default false; the endgame door (the_door_stays_open) flips it true. This is
+## the WORLD switch — the default regime for the 147 biomes that author no
+## explicit "regime". Per-biome truth (and every player verb: Spark jolt,
+## Merchant contracts, weak measurement, the reap split) goes through
+## QuantumComputer.is_open_here(), which honors regime_override FIRST and only
+## falls back to this switch. Openness is a place; this is the weather, not
+## the law.
 static func dissipative_enabled(config: Dictionary = {}) -> bool:
 	return bool(get_physics(config).get("dissipative_dynamics", false))
 

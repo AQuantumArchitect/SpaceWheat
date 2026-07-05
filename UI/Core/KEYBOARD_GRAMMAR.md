@@ -157,15 +157,16 @@ price** (Measure — collapse + pause). One scarcity law on both poles;
 selecting a plot auto-binds its terminal, so there is no separate
 "Explore" verb.
 
-> **Closed (unitary) system (default).** Measure/pop is now a **full
-> projective collapse** — measurement is the only irreversible act, and
-> the Hamiltonian re-spreads the collapsed qubit over the following ticks
-> (time + H is the "pump"). There is **no pump/drain**, so the **Spark**
-> (4) and **Merchant** (6) hats — pure Lindblad-drive tools — are
-> **disabled** (greyed out; their actions return inert). Ace's **R = Plant**
-> (a population drive) is likewise inert. The open-quantum DLC
-> (`system_mode = "open"`) re-enables all of them. See
-> `docs/CLOSED_SYSTEM.md`.
+> **Regimes (openness is a place).** On closed ground measure/pop is a
+> **full projective collapse** — measurement is the only irreversible act,
+> and the Hamiltonian re-spreads the collapsed qubit over the following
+> ticks (time + H is the "pump"). Every hat is always selectable, but the
+> Lindblad **verbs** — Spark's jolt (4) and Merchant's contracts (6) —
+> refuse per-plot wherever the target biome's regime runs closed, and run
+> live wherever it leaks (the wet landmarks boot open before the endgame
+> door). Ace's **R = Plant** is a **coherent Rabi pulse** — unitary, legal
+> everywhere, and unable to purify: a faded plot needs measurement, or the
+> Spark. See `docs/CLOSED_SYSTEM.md`.
 
 #### The session is the axis, not the target
 
@@ -283,9 +284,9 @@ still exists and the row still has four slots. Source of truth:
 
 | Hat | Frame    | Sub-mode (1/2/3 active?)  | Q (out/less)  | E (pause + inspect)   | R (in/more)   | F (play/flatten) |
 |----|-----------|--------------------------|---------------|-----------------------|---------------|------------------|
-| 4  | Spark     | shift ⚡ / bridge 🌉      | Spark S · Fuse | Cost · Bridge card   | Spark N · Span | (global F) · Braid 🪢 |
+| 4  | Spark     | shift ⚡ / bridge 🌉      | Spark S · Fuse | Gauge 🔍 · Bridge card | Spark N · Span | (global F) · Braid 🪢 |
 | 5  | Icon      | inject (single)          | Trim Icon     | (open picker; pause)  | Add Icon      | Track ⌖          |
-| 6  | Merchant  | thermal / dephase / damp | Export 📤     | Read Price !          | Import 📥     | Tip 💬           |
+| 6  | Merchant  | thermal / dephase / damp | Export 📤     | Order book !          | Import 📥 (dephase: refused) | Settle ✔  |
 | 7  | Captain   | biomes (single)          | Cull          | Compass               | Discover      | (global F)       |
 | 8  | Ace       | probe (single)           | Harvest       | Measure               | Plant         | Reap ⌛ (season)  |
 | 9  | Operator  | gate (single)            | Break gate    | Inspect               | Build gate    | (global F)       |

@@ -14,7 +14,8 @@ that's the `8` key). A toast names the doors; the Hearth Keepers have left
 you a chain of small asks on the quest board.
 
 1. Pick a plot: `G H J K L ;` (left to right).
-2. **R** plants — invest energy, jolt the qubit toward a pole.
+2. **R** plants — invest energy: a coherent pulse swings the qubit toward
+   its north pole.
 3. **E** measures — Born's rule picks an answer and the state collapses.
    This is the game's one irreversible act, and it pauses the sim so you
    can look around.
@@ -43,9 +44,9 @@ Four verbs, same directions on every surface:
 
 | Key | Hat | What it does |
 |-----|-----|--------------|
-| 4 | **Spark** | Lindbladian jolt (greyed on closed ground). Mode 2 (🌉): Majorana bridges — never sealed. |
+| 4 | **Spark** | One-shot Lindblad jolt — wet country only (chips grey on closed ground); the kick that can *re-purify*. **E** reads the gauge. Mode 2 (🌉): Majorana bridges — never sealed. |
 | 5 | **Icon** | Inject dual-emoji qubits; **F tracks** a qubit's walk, **R incorporates** it when ripe. |
-| 6 | **Merchant** | Faction contracts: Q exports, E reads the price, R imports. |
+| 6 | **Merchant** | Standing contracts with the Bath (wet country only). 1/2/3 picks the channel — thermal / dephase / damp. Q exports, E reads the order book, R imports, **F settles**. |
 | 7 | **Captain** | Biome lifecycle: cull, compass, discover. |
 | 8 | **Ace** | The default: plant / measure / harvest / **reap (F)**. |
 | 9 | **Operator** | Gate building: Bell, CNOT, CZ, SWAP, GHZ. |
