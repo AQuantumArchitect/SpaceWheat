@@ -35,6 +35,22 @@ political finale (`empire_imposes` → `island_free`) coexist as parallel arcs.
 6. **act3_5_drive pressed a tab that no longer exists** — Arc offers moved to X in the
    menu re-org; the drive's `C→I` was a no-op. Re-pointed to `X→I`.
 
+7. **THE LAUNCH BUG — the campaign doors were not in the deck.** The captain-hat
+   draw is restricted to the scenario's curated `unexplored_biome_pool`, and
+   `demos_normal`'s pool predated the trilogy campaign: GildedRot, Lanternfall,
+   ZenoLatch, ShrineOfAshes, NullingChamber — the biomes acts 3–8 gate on — were
+   not in it. The derived discovery pressure computed correctly and the compass
+   glowed, but for doors that could never be drawn. Found the only way it could
+   be found: by playing (32 pressured draws, zero landmarks, P ≈ 2e-7). Fixed in
+   the scenario (pool 15 → 20) and locked with
+   `tests/test_scenario_pool_covers_campaign.py`: every biome any story flag
+   references must be unlocked at boot or in the shipped pool.
+8. **Rig read a dead farm after loads** — `load_game_path` swaps in a fresh farm
+   but the listener kept its boot-time reference, so post-load reads (story
+   flags, forecasts) came from the shut-down farm. The game's save/load was
+   always correct; the rig now rebinds. (This false-flagged a "loads wipe
+   campaign progress" scare during diagnosis — disproven against the real farm.)
+
 ## Gaps closed (see docs/PRE_LAUNCH_GAPS.md)
 
 - **#6 (P0)**: `tests/test_title_boot_path.py` — title → welcome (any-key dismiss) →
