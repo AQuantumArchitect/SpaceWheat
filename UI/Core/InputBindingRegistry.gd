@@ -77,13 +77,15 @@ const MENU_MOVE_NEXT_KEYCODES := [KEY_DOWN, KEY_S]
 const MENU_PAGE_PREV_KEYCODES := [KEY_PAGEUP, KEY_LEFT, KEY_A, KEY_R]
 const MENU_PAGE_NEXT_KEYCODES := [KEY_PAGEDOWN, KEY_RIGHT, KEY_D, KEY_F]
 const GLOBAL_BINDINGS := [
-	{"key": "Tab", "label": "Cycle Alias", "description": "Legacy alias for the selected tool group's mode cycle"},
-	{"key": "Space", "label": "Pause", "description": "Pause or resume simulation evolution"},
-	{"key": "-", "label": "Time Down", "description": "Halve stride and sim speed together; stride 0 locks playback"},
-	{"key": "=", "label": "Time Up", "description": "Double stride and sim speed together"},
+	# Descriptions state what the RUNTIME does (PlayerShell is the authority);
+	# aspirational bindings are labeled reserved, not advertised as working.
+	{"key": "Tab", "label": "Cycle Hat", "description": "Advance the archetype frame (4-0)"},
+	{"key": "-", "label": "Time Down", "description": "Reserved — sim-speed wiring pending (PlayerShell stub)"},
+	{"key": "=", "label": "Time Up", "description": "Reserved — sim-speed wiring pending (PlayerShell stub)"},
 	{"key": "Shift+-", "label": "Resolution Down", "description": "Use finer substeps with a 10x smaller dt"},
 	{"key": "Shift+=", "label": "Resolution Up", "description": "Use coarser substeps with a 10x larger dt"},
 	{"key": "Shift+Q", "label": "Mass Harvest", "description": "Harvest (extract) all bound terminals in the checked set"},
+	{"key": "F12", "label": "Postcard", "description": "Capture the view with the physics watermark + sidecar certificate (user://postcards/)"},
 ]
 
 const OVERLAY_SHORTCUTS := {

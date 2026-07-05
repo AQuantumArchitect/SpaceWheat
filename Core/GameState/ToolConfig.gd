@@ -270,7 +270,10 @@ const ARCHETYPE_FRAMES: Dictionary = {
 					  "hint": "Read the price — collapse the state to a classical outcome (pauses the sim)"},
 				"R": {"action": "spark_north", "label": "Plant", "emoji": "v",
 					  "icon": "res://Assets/UI/Tools/Lindblad/Drive.svg",
-					  "hint": "Invest energy into the selected plot — jolt population toward the north pole (spend 1× north-pole emoji)"}
+					  "hint": "Invest energy into the selected plot — jolt population toward the north pole (spend 1× north-pole emoji)"},
+				"F": {"action": "reap", "label": "Reap", "emoji": "⌛", "icon": "",
+					  "hint": "Reap the season — run time forward across the farm and gather the yield (open country pays the rite: kT·ΔS from the entropy bank)",
+					  "destructive": true}
 			}
 		}
 	},

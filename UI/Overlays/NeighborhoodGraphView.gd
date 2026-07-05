@@ -140,8 +140,8 @@ func populate(graph) -> void:
 		if closed:
 			lbl.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7, 0.6))
 		sg.add_child(lbl)
-		sg.tooltip_text = ("The webway's drain. Sealed while the enclave holds: no dissipators are built, " +
-				"nothing leaks (docs/glossary/enclave.md). Act 2 opens it.") if closed else "Decay outflow — population leaving the cluster."
+		sg.tooltip_text = ("The webway's drain. Sealed here — this biome runs closed: no dissipators are built, " +
+				"nothing leaks (docs/glossary/enclave.md). The wet country runs the same channels live.") if closed else "Decay outflow — population leaving the cluster."
 		sg.set_slot(0, true, 1, webway_color, false, 0, Color.WHITE)
 		add_child(sg)
 

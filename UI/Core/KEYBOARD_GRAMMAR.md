@@ -260,10 +260,10 @@ with. The chips advertise both.
 the active hat. The choice is sticky. Frames with fewer sub-modes
 ignore unused slots. E/F is invariant — sub-mode does **not** remap E/F.
 
-Currently only two hats consume multi-mode: **Merchant** (1=thermal /
-2=dephase / 3=damp) and **Druid** (1=X / 2=Y / 3=Z). The other five
-hats (Spark, Icon, Captain, Ace, Operator) have a single sub-mode
-each, so 1/2/3 are no-ops on those.
+Three hats consume multi-mode: **Merchant** (1=thermal / 2=dephase /
+3=damp), **Druid** (1=X / 2=Y / 3=Z), and **Spark** (1=shift ⚡ /
+2=bridge 🌉 — Majorana spans). The other four hats (Icon, Captain,
+Ace, Operator) have a single sub-mode each, so 1/2/3 are no-ops there.
 
 Action-space size:
 
@@ -283,11 +283,11 @@ still exists and the row still has four slots. Source of truth:
 
 | Hat | Frame    | Sub-mode (1/2/3 active?)  | Q (out/less)  | E (pause + inspect)   | R (in/more)   | F (play/flatten) |
 |----|-----------|--------------------------|---------------|-----------------------|---------------|------------------|
-| 4  | Spark     | shift (single)           | Spark S (out) | Cost preview (pause)  | Spark N (in)  | (global F)       |
-| 5  | Icon      | inject (single)          | Trim Icon     | (open picker; pause)  | Add Icon      | Track            |
-| 6  | Merchant  | thermal / dephase / damp | Sell 📤       | Read Price !          | Buy 📥        | Tip 💬           |
+| 4  | Spark     | shift ⚡ / bridge 🌉      | Spark S · Fuse | Cost · Bridge card   | Spark N · Span | (global F) · Braid 🪢 |
+| 5  | Icon      | inject (single)          | Trim Icon     | (open picker; pause)  | Add Icon      | Track ⌖          |
+| 6  | Merchant  | thermal / dephase / damp | Export 📤     | Read Price !          | Import 📥     | Tip 💬           |
 | 7  | Captain   | biomes (single)          | Cull          | Compass               | Discover      | (global F)       |
-| 8  | Ace       | probe (single)           | Harvest       | Measure               | Plant         | (global F)       |
+| 8  | Ace       | probe (single)           | Harvest       | Measure               | Plant         | Reap ⌛ (season)  |
 | 9  | Operator  | gate (single)            | Break gate    | Inspect               | Build gate    | (global F)       |
 | 0  | Druid     | X / Y / Z                | rot−          | Hadamard              | rot+          | (global F)       |
 
@@ -428,9 +428,9 @@ playtesters get stuck.
 - **`'`** (apostrophe) toggles bulk select / clear all on the active
   biome's plots. Empty selection → check every register. Non-empty →
   clear all checks.
-- **`-` / `=`** = simulation time scale. `-` halves stride and sim
-  speed; `=` doubles them. Calls `GranularityController.decrease_time_scale`
-  / `increase_time_scale`.
+- **`-` / `=`** = simulation time scale — **wiring pending**: PlayerShell
+  currently stubs both (logs and returns). The GranularityController
+  hookup is planned; until it lands these keys do nothing.
 - **`Shift + -` / `Shift + =`** = simulation resolution (dt). Coarser /
   finer substeps, multiplicative jump.
 - **`Tab`** cycles the **hat** (4-0) — the same step WASD does when
@@ -445,6 +445,7 @@ playtesters get stuck.
 | `ESC` | Close topmost overlay (back one level). At gameplay, opens Z (system menu). The only "back" key — F does not unwind. |
 | `Enter` / `Space` | Confirm / activate the selected item in menus. |
 | `Backspace` | Reserved (no binding). |
+| `F12` | Postcard — capture the view with the physics watermark + sidecar certificate (`user://postcards/`). |
 | `[` / `]` | Reserved (no binding). WASD already crawls the whole selection block; `[/]` next to TYUIOP would gain no functionality. |
 | `,` / `.` | Reserved (no binding). With ZXCVBNM joining the cylinder, A/D on the bottom ring covers the same gesture. |
 | `` ` `` | Reserved (no binding). |

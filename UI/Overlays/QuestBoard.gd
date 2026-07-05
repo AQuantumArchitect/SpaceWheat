@@ -578,9 +578,9 @@ func _refresh_close_hint() -> void:
 		return
 	if frame_id == FRAME_MARKET:
 		var sort_label := str(MARKET_SORT_LABELS.get(_market_sort_mode, "?"))
-		_close_hint.text = "[X] close  ·  [ ] / ] cycle tab  ·  [1] Comfort↓  [2] Magnitude↓  [3] Tension↓  ·  active: %s" % sort_label
+		_close_hint.text = "ESC close  ·  T Y U I tabs  ·  [1] Comfort↓  [2] Magnitude↓  [3] Tension↓  ·  active: %s" % sort_label
 	else:
-		_close_hint.text = "[X] close   ·   [ ] / ] cycle tab"
+		_close_hint.text = "ESC close   ·   T Y U I tabs"
 
 func _refresh_status() -> void:
 	if not _status_line:

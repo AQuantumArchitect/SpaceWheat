@@ -228,6 +228,12 @@ func stage_start_simulation(farm: Node) -> void:
 	# strip in the pixels + a sidecar certificate (user://postcards/).
 	PostcardCapture.maybe_attach(farm)
 
+	# The signpost: one toast naming the doors. Without it the tutorial can sit
+	# unseen on the quest board — nothing else tells a new player to press C.
+	var shell = InstrumentLocator.resolve_player_shell(farm)
+	if shell != null and shell.has_method("show_hint"):
+		shell.show_hint("🌾 the forest is asleep — C quests · X guide · N inspector · M map", 2, "")
+
 
 func ensure_quantum_instrument(farm: Node):
 	# Create the core gameplay instrument once and share it with UI surfaces later.

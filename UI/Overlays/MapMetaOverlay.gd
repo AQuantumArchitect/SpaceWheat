@@ -681,7 +681,7 @@ func _build_vectors_body() -> void:
 	var fa = _get_pinned_faction()
 	var fb = _get_faction_by_name(_selected_faction_b)
 	if fa == null or fa.alignment == null or fb == null or fb.alignment == null:
-		_body_box.add_child(_make_muted_label("Pin a faction (Z) and pick another via Y · Eigenstate.", 12))
+		_body_box.add_child(_make_muted_label("No pinned faction this run — the pin is who you ARE (set by the scenario; The Demos by default). Pick a comparison faction via Y · Eigenstate.", 12))
 		return
 
 	var ov: float = fa.alignment.overlap(fb.alignment)
@@ -1524,7 +1524,7 @@ func _build_graph_status_card() -> Control:
 				wl.add_theme_font_size_override("font_size", 11)
 				wl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
 				wl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-				wl.tooltip_text = "The webway: this biome's authored Lindblad channels, sealed while the enclave holds. See the dark orange edges below."
+				wl.tooltip_text = "The webway: this biome's authored Lindblad channels — sealed here, where the country runs closed (dark orange edges below). In the wet country the same channels run live."
 				vbox.add_child(wl)
 	return card
 

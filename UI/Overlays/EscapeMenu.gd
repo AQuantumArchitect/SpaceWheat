@@ -227,7 +227,7 @@ func _build_verb_chips(container: Control) -> void:
 
 func _build_close_hint(container: Control) -> void:
 	_close_hint = Label.new()
-	_close_hint.text = "ESC close   ·   TYUI tabs   ·   GHJKL; items   ·   [ ] cycle frames"
+	_close_hint.text = "ESC close   ·   T Y U I tabs   ·   G H J K L ; items"
 	_close_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_close_hint.add_theme_font_size_override("font_size", 11)
 	_close_hint.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)

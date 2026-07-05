@@ -1,5 +1,5 @@
 {
-  "_doc": "Act-0 onboarding chain. A linear sequence of pipeline quests; the loader links each step to unlock the next (chain_unlocks). Each step teaches ONE mechanic; completion is a SOFT predicate (unified vocabulary) the player watches fill — the progress bar is the teacher. Authored body/hint are preserved by the pipeline (voice never clobbers them).",
+  "_doc": "Act-0 onboarding chain. A linear sequence of pipeline quests; the loader links each step to unlock the next (chain_unlocks). Each step teaches ONE mechanic; completion is a SOFT predicate (unified vocabulary) the player watches fill — the progress bar is the teacher. Authored body/hint are preserved by the pipeline (voice never clobbers them). Every hint names the real keys (ToolConfig is the authority); every gate fires on the mechanic its step teaches.",
   "steps": [
     {
       "tutorial_step": 0,
@@ -7,9 +7,9 @@
       "faction": "Hearth Keepers",
       "biome": "StarterForest",
       "body": "The forest is asleep. Wake it: plant a qubit, measure it, then harvest what collapses.",
-      "tutorial_hint": "R = plant · E = measure · Q = harvest. Do it once in the StarterForest.",
+      "tutorial_hint": "Ace is your starting hat (8). Pick a plot with G H J K L ; — then R plants, E measures (the collapse is the one irreversible act), Q harvests the surprise.",
       "state_predicates": [
-        {"type": "berry_consumed_count_gte", "biome": "StarterForest", "value": 1}
+        {"type": "gate_sequence_contains", "gate": "measure", "count": 1}
       ]
     },
     {
@@ -17,8 +17,8 @@
       "tutorial_teaches": "vocabulary",
       "faction": "Hearth Keepers",
       "biome": "StarterForest",
-      "body": "Each harvest can teach you a new word — an icon. Your vocabulary is your power here.",
-      "tutorial_hint": "Keep harvesting. Completing a contract or harvesting teaches a new icon pair; your signature grows.",
+      "body": "A qubit that walks a closed loop remembers the sky it swept. Ripeness is that memory — and a ripe pair can teach you a new word: an icon. Your vocabulary is your power here.",
+      "tutorial_hint": "Icon hat (5): press F on a planted plot to track its walk (⌖). When the loop has swept enough sky it ripens — press R to incorporate the word into your signature. Completing contracts teaches words too.",
       "state_predicates": [
         {"type": "signature_size_gte", "value": 3}
       ]
@@ -28,10 +28,10 @@
       "tutorial_teaches": "reap_season",
       "faction": "Hearth Keepers",
       "biome": "StarterForest",
-      "body": "Time is the pump. Reap the season — fast-forward, let the Hamiltonian work, and gather the yield.",
-      "tutorial_hint": "Reap (season change) once to advance time and collect across the biome.",
+      "body": "Time is the pump. Reap the season — let the Hamiltonian work, and gather the yield across the whole biome.",
+      "tutorial_hint": "Ace hat (8): press F to reap the season. Time runs forward, every plot settles, and the harvest lands at once.",
       "state_predicates": [
-        {"type": "gate_sequence_contains", "gate": "time_skip", "count": 1}
+        {"type": "gate_sequence_contains", "gate": "reap", "count": 1}
       ]
     },
     {
@@ -40,7 +40,7 @@
       "faction": "Hearth Keepers",
       "biome": "StarterForest",
       "body": "A qubit need not pick a side. Superpose it — spread it across both poles — and the forest shimmers between states.",
-      "tutorial_hint": "Apply a Hadamard gate to raise this biome's coherence past ~0.3. Watch the bar fill.",
+      "tutorial_hint": "Druid hat (0): press E to lay a Hadamard on the selected plot. Raise the biome's coherence past ~0.3 — watch the bar fill as the shimmer spreads.",
       "state_predicates": [
         {"type": "coherence_at_least", "value": 0.3}
       ]
@@ -51,7 +51,7 @@
       "faction": "Hearth Keepers",
       "biome": "StarterForest",
       "body": "A qubit alone is a wheel. Two qubits woven together are a loom — touch one and the other answers, however far apart they drift.",
-      "tutorial_hint": "Select two plots in the Operator frame and build a Bell or CNOT gate. Watch the thread between their bubbles thicken — push mutual information past 0.5.",
+      "tutorial_hint": "Operator hat (9): select two plots (G H J K L ;), press R and build a Bell or CNOT gate. Watch the gold thread between their bubbles thicken — push mutual information past 0.5.",
       "state_predicates": [
         {"type": "gate_sequence_contains", "gate": "gate_inject", "count": 1},
         {"type": "mutual_information_at_least", "value": 0.5}
@@ -66,7 +66,7 @@
       "resource": "🌾",
       "quantity": 2,
       "body": "The Millwright's Union is buying. Accept their contract and deliver 2× 🌾 from your stores.",
-      "tutorial_hint": "Open the quest board and press E on an offer first — every faction will tell you how this biome sits with its axioms (its resonance). Then accept the contract and complete it when you hold enough 🌾."
+      "tutorial_hint": "Open the quest board (C) and press E on an offer first — every faction will tell you how this biome sits with its axioms (its resonance), which axiom sings, and which grates. Then accept the contract and complete it when you hold enough 🌾."
     },
     {
       "tutorial_step": 6,

@@ -127,7 +127,7 @@ func _init():
 	# Forget/Bookmark (TODOs); other frames are honest empty. Pagination on
 	# Lexicon/Hints lives on A/D. Default labels match the Lexicon frame
 	# since FRAME_LEXICON is the starting frame.
-	push_action_label_strings({"Q": "Forget", "E": "inspect ▾", "R": "Bookmark", "F": "—"})
+	push_action_label_strings({"Q": "—", "E": "inspect ▾", "R": "—", "F": "—"})  # Q/R stay blank until Forget/Bookmark are wired — dead chips teach the player the buttons lie
 
 func _build_content(container: Control) -> void:
 	_biome_registry = BiomeRegistry.new()
@@ -255,7 +255,7 @@ func _on_action_f() -> void:
 
 func _refresh_action_labels() -> void:
 	if frame_id == FRAME_LEXICON or frame_id == FRAME_AFFINITY:
-		push_action_label_strings({"Q": "Forget", "E": "inspect ▾", "R": "Bookmark", "F": "—"})
+		push_action_label_strings({"Q": "—", "E": "inspect ▾", "R": "—", "F": "—"})  # Q/R stay blank until Forget/Bookmark are wired — dead chips teach the player the buttons lie
 	else:
 		push_action_label_strings({"Q": "—", "E": "inspect ▾", "R": "—", "F": "—"})
 

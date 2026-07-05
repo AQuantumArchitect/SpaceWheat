@@ -27,11 +27,11 @@ machinery and the `biomes.json` Lindblad authoring are **dormant**, not gone.
 
 ## What changes in closed mode
 
-| Concern | Open (DLC) | Closed (default) |
+| Concern | Open (the wet country) | Closed (the enclave) |
 |---|---|---|
 | Evolution | `−i[H,ρ] + Σ Lₖ·` | `−i[H,ρ]` only (purity conserved) |
 | Lindblad operators | built from `atom_components` | **none built** (`LindbladBuilder` returns `[]`) |
-| Measure / pop | weak ensemble drain (η) | **full projective collapse** (`project_qubit`) |
+| Measure / harvest | weak ensemble drain (η) | **full projective collapse** (`project_qubit`) |
 | Reap | sink flux + entropy-bank `kT·ΔS` (drain) | **seasonal mass-measurement**: Born-sample + collapse every register, surprisal payout |
 | Contract exercise | `apply_atomic_drain` | **projective collapse** |
 | Regeneration | external pump refills population | **the Hamiltonian** re-spreads a collapsed qubit (time + H *is* the pump) |
