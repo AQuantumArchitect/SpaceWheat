@@ -241,6 +241,47 @@ func _get_atom_components() -> Dictionary:
 	return {}
 
 
+## Parsed gated_lindblad_source rows: [{source, target, gate, rate, power,
+## inverse}], authored data only — parsed once (the rows are static; which
+## emojis are IN the register is resolved per tick by the consumer). These are
+## the nonlinear self-feeding channels (rate_eff = rate·ρ_gate^power) behind
+## the basins: bistables, the tristable, limit cycles. Consumed by
+## Farm._process_gated_channels on open ground.
+var _gated_channels_cache: Array = []
+var _gated_channels_parsed: bool = false
+
+func get_gated_lindblad_channels() -> Array:
+	if _gated_channels_parsed:
+		return _gated_channels_cache
+	_gated_channels_parsed = true
+	_gated_channels_cache = []
+	var atoms = _get_atom_components()
+	for source_emoji in atoms.keys():
+		var comp = atoms[source_emoji]
+		if not (comp is Dictionary):
+			continue
+		var gated = comp.get("gated_lindblad_source", [])
+		if not (gated is Array):
+			continue
+		for entry in gated:
+			if not (entry is Dictionary):
+				continue
+			var rate = float(entry.get("rate", 0.0))
+			var target = str(entry.get("target", ""))
+			var gate = str(entry.get("gate", ""))
+			if rate <= 0.0 or target == "" or gate == "":
+				continue
+			_gated_channels_cache.append({
+				"source": str(source_emoji),
+				"target": target,
+				"gate": gate,
+				"rate": rate,
+				"power": float(entry.get("power", 1.0)),
+				"inverse": bool(entry.get("inverse", false)),
+			})
+	return _gated_channels_cache
+
+
 func _get_base_icon(emoji: String):
 	# Get Icon from global registry (autoload, always valid in production).
 	var ml := Engine.get_main_loop()

@@ -54,7 +54,12 @@ static func build_from_atoms(atom_components: Dictionary, register_map: Register
 		"outgoing_added": 0, "outgoing_skipped": 0,
 		"incoming_added": 0, "incoming_skipped": 0,
 		"decay_added":    0, "decay_skipped":    0,
+		"dephase_added":  0, "dephase_skipped":  0,
 	}
+
+	# Pure dephasing accumulates per QUBIT (an axis has one phase to lose):
+	# atoms on either pole may declare `dephasing`; rates sum, one L_z emitted.
+	var dephase_rates: Dictionary = {}
 
 	# Track the directed transfer graph of *active* (in-basis) jumps so we can flag
 	# population sinks: an atom that receives transfers but never emits one is an
@@ -121,6 +126,27 @@ static func build_from_atoms(atom_components: Dictionary, register_map: Register
 				src_atoms[source_emoji] = true
 				dst_atoms[target_emoji] = true
 
+		# --- Pure dephasing (T₂ without T₁) ---
+		# `dephasing: rate` (number or {rate}) → L = √(rate·scale/2)·σ_z on the
+		# atom's qubit: coherences between its poles decay at rate·scale, the
+		# populations never move. The channel of law #2 — "the world goes gray
+		# while nothing moves" — as a static operator the native engine carries
+		# like any other. Invisible to the sink lint: dephasing has no arrows.
+		var dephasing = component.get("dephasing", null)
+		if dephasing != null:
+			var deph_rate: float = 0.0
+			if dephasing is Dictionary:
+				deph_rate = float(dephasing.get("rate", 0.0))
+			else:
+				deph_rate = float(dephasing)
+			if deph_rate > 0.0:
+				if not source_in:
+					stats.dephase_skipped += 1  # primed
+					if verbose:
+						verbose.debug("quantum", "primed", "dephasing %s (waiting for axis)" % source_emoji)
+				else:
+					dephase_rates[source_q] = float(dephase_rates.get(source_q, 0.0)) + deph_rate
+
 		# --- Decay (treated as outgoing transfer) ---
 		var decay = component.get("decay", {})
 		if decay is Dictionary and decay.has("rate"):
@@ -175,12 +201,20 @@ static func build_from_atoms(atom_components: Dictionary, register_map: Register
 			src_atoms[src_emoji] = true
 			dst_atoms[receiver_emoji] = true
 
+	# Emit one L_z per dephased qubit (summed rate).
+	for deph_q in dephase_rates.keys():
+		var total_rate: float = float(dephase_rates[deph_q]) * _get_rate_scale()
+		var deph_amp = Complex.new(sqrt(total_rate * 0.5), 0.0)
+		operators.append(_build_dephase(int(deph_q), deph_amp, num_qubits))
+		stats.dephase_added += 1
+
 	if verbose:
 		verbose.info("quantum", "✅",
-			"Atoms-Lindblad: %d ops | out:%d in:%d decay:%d | primed:%d" % [
+			"Atoms-Lindblad: %d ops | out:%d in:%d decay:%d dephase:%d | primed:%d" % [
 				operators.size(),
 				stats.outgoing_added, stats.incoming_added, stats.decay_added,
-				stats.outgoing_skipped + stats.incoming_skipped + stats.decay_skipped
+				stats.dephase_added,
+				stats.outgoing_skipped + stats.incoming_skipped + stats.decay_skipped + stats.dephase_skipped
 			])
 
 	# Lint: any atom that receives a transfer but emits none is a population sink
@@ -197,6 +231,21 @@ static func build_from_atoms(atom_components: Dictionary, register_map: Register
 			push_warning("LindbladBuilder: %s has population sink(s) %s with no outflow (no refill path) — S will decay → 0 and the reap bank collapses. Add a pump (lindblad_incoming from 🗑) or a balancing webway edge." % [who, " ".join(sinks)])
 
 	return {"operators": operators}
+
+
+static func _build_dephase(qubit: int, amplitude: Complex, num_qubits: int) -> ComplexMatrix:
+	# Build pure-dephasing operator L = amplitude · σ_z on one qubit.
+
+	# Diagonal in the computational basis: +amp where the qubit reads pole 0,
+	# −amp where it reads pole 1. D[L] kills coherences between the poles at
+	# rate 2·|amp|² and never touches a population — exact T₂ without T₁.
+	var dim = 1 << num_qubits
+	var L = ComplexMatrix.zeros(dim)
+	var shift = num_qubits - 1 - qubit
+	var neg_amp = amplitude.scale(-1.0)
+	for i in range(dim):
+		L.set_element(i, i, amplitude if ((i >> shift) & 1) == 0 else neg_amp)
+	return L
 
 
 static func _build_jump(from_q: int, from_p: int, to_q: int, to_p: int,

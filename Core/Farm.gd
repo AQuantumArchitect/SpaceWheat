@@ -870,6 +870,9 @@ func _physics_process(delta: float) -> void:
 	# Lindblad pump/drain effects
 	_process_lindblad_effects(delta)
 
+	# Authored nonlinear channels (the basins' hearts)
+	_process_gated_channels(delta)
+
 
 func _is_globally_paused() -> bool:
 	if _player_shell_cache == null or not is_instance_valid(_player_shell_cache):
@@ -961,6 +964,7 @@ func time_skip_phrames(phrames: int, delta: float = PhysicsConfig.PHRAME_DT) -> 
 			_log_debug("[TIME_SKIP] applying_lindblad_effects steps=%d" % steps)
 		for _i in range(steps):
 			_process_lindblad_effects(dt)
+			_process_gated_channels(dt)
 	else:
 		if debug_time_skip:
 			_log_debug("[TIME_SKIP] lindblad_effects_skipped")
@@ -1078,6 +1082,52 @@ func _process_lindblad_effects(delta: float) -> void:
 
 	if rainbow_mode and not harvestable_drain_biomes.is_empty():
 		_harvest_rainbow_sink_flux(harvestable_drain_biomes)
+
+
+func _process_gated_channels(delta: float) -> void:
+	# The basins' hearts: authored gated_lindblad_source rows — nonlinear
+	# self-feeding channels whose rate is rate·ρ_gate^power (inverse:
+	# rate·(1−ρ_gate^power)). These cannot live in the static operator list
+	# (the native engine consumes fixed rates), so they tick here as exact
+	# mean-field Kraus jumps — the same pattern as the player's standing
+	# channels. This is what makes the urn fill itself, the tide refuse to
+	# flip back, the wilt feed on wilt. Openness is a place: sealed ground
+	# never runs them. Validated headlessly by tools/channel_assay.py.
+	if not grid or not grid.has_biomes():
+		return
+	var rate_scale: float = float(BalanceConfig.get_physics().get("lindblad_rate_scale", 1.0))
+	for biome_name in grid.get_biome_names():
+		var biome = grid.get_biome(str(biome_name))
+		if not biome or not biome.quantum_computer:
+			continue
+		if not biome.has_method("get_gated_lindblad_channels"):
+			continue
+		var qc = biome.quantum_computer
+		if not qc.is_open_here():
+			continue
+		var channels: Array = biome.get_gated_lindblad_channels()
+		if channels.is_empty():
+			continue
+		var effective_delta = _get_lindblad_effective_delta_for_biome(biome, delta)
+		if effective_delta <= 0.0:
+			continue
+		for ch in channels:
+			var source = str(ch.get("source", ""))
+			var target = str(ch.get("target", ""))
+			var gate = str(ch.get("gate", ""))
+			if not (qc.has(source) and qc.has(target) and qc.has(gate)):
+				continue  # primed — waits for the axes, like the linear terms
+			var p_gate: float = clampf(float(qc.get_population(gate)), 0.0, 1.0)
+			var gate_val: float = pow(p_gate, float(ch.get("power", 1.0))) if p_gate > 0.0 else 0.0
+			if bool(ch.get("inverse", false)):
+				gate_val = maxf(0.0, 1.0 - gate_val)
+			var rate_eff: float = float(ch.get("rate", 0.0)) * rate_scale * gate_val
+			if rate_eff <= 0.0:
+				continue
+			qc.apply_jump_channel(
+				qc.qubit(source), qc.pole(source),
+				qc.qubit(target), qc.pole(target),
+				rate_eff, effective_delta)
 
 
 func _get_lindblad_effective_delta_for_biome(biome, frame_delta: float) -> float:
