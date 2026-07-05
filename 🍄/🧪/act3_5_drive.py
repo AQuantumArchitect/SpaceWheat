@@ -628,6 +628,86 @@ def main():
                     "village_path_watched", "village_path_cemetery"):
             print("  ", fprog(fid))
 
+        # ============ ACT 6-8: the wet country (endgame; ACT35_ENDGAME=1) ============
+        # The crossing into GildedRot, What Fades, and What Connects III-V. Discovery
+        # pressure CHAINS here by construction: each next-reachable flag names its biome
+        # in a predicate, so the Captain draw pulls Lanternfall -> GildedRot -> ZenoLatch
+        # -> ShrineOfAshes -> NullingChamber in story order, no hand-tuned leans.
+        if os.environ.get("ACT35_ENDGAME", "0") == "1":
+            print("\n== ACT6-8: the wet country (crossing -> rite -> door) ==")
+
+            def discover_target(target, tries=16):
+                for d in range(1, tries + 1):
+                    if target in grid():
+                        return True
+                    cullable = [b for b in grid() if b not in core and b != target]
+                    if cullable:
+                        cull(cullable[0])
+                    bridge("🦅", 80)
+                    ensure_hat("7"); press("R", 6)
+                    print(f"  discover {target} #{d}: grid={grid()}")
+                return target in grid()
+
+            def berries_to(target_biome, want, fid):
+                for rnd in range(1, 10):
+                    incorporate(ripen=900, bn=target_biome)
+                    b = berry(target_biome)
+                    print(f"  [{target_biome} {rnd}] berry={b} | {fprog(fid)}")
+                    if isinstance(b, int) and b >= want and fid in flags():
+                        return True
+                return fid in flags()
+
+            # chain_ends (act-3 trilogy prerequisite for the_chain_tested)
+            if discover_target("Lanternfall"):
+                berries_to("Lanternfall", 1, "chain_ends")
+
+            # the_crossing + the_gray: GildedRot is the wet-country door
+            if discover_target("GildedRot"):
+                go("time_skip", phrames=300)
+                print(f"  {fprog('the_crossing')}")
+                berries_to("GildedRot", 1, "the_gray")
+
+            # the_span / braid_alphabet / the_fusion: Majorana bridge across the map.
+            # Spark hat mode 2: R anchors near shore (StarterForest), R in another biome
+            # (GildedRot) raises the span; F braids; Q fuses (destructive: Q arms, F commits).
+            if "GildedRot" in grid():
+                ensure_hat("4"); press("2", 3)
+                press(biome_key("StarterForest")); press("G", 3); press("R", 5)
+                press(biome_key("GildedRot")); press("G", 3); press("R", 5)
+                print(f"  {fprog('the_span')}")
+                for _ in range(4):
+                    press("F", 4)                       # braid the span
+                print(f"  {fprog('braid_alphabet')}")
+                press("Q", 4); press("F", 5)            # fuse (arm + confirm)
+                press("1", 3)                           # back to shift mode
+                print(f"  {fprog('the_fusion')}")
+
+            # the_first_contract: a spark recorded in the gate sequence — jolt on wet ground
+            if "GildedRot" in grid():
+                press(biome_key("GildedRot")); ensure_hat("4"); press("1", 3)
+                press("G", 3); press("R", 5)             # spark north (legal: open ground)
+                print(f"  {fprog('the_first_contract')}")
+
+            # watching_keeps -> the_basin -> hiding_in_the_light: the wet landmarks
+            for target, fid in (("ZenoLatch", "watching_keeps"),
+                                ("ShrineOfAshes", "the_basin"),
+                                ("NullingChamber", "hiding_in_the_light")):
+                if discover_target(target):
+                    go("time_skip", phrames=300)
+                    print(f"  {fprog(fid)}")
+
+            # the_rite: three seasons of GildedRot berries; the_door_stays_open: sig>=18
+            berries_to("GildedRot", 3, "the_rite")
+            go("time_skip", phrames=300)
+            print(f"  {fprog('the_door_stays_open')}")
+
+            print("\n== ENDGAME RESULT ==")
+            for fid in ("chain_ends", "the_crossing", "the_gray", "the_span",
+                        "watching_keeps", "the_verbs_come_home", "the_first_contract",
+                        "the_basin", "the_chain_tested", "hiding_in_the_light",
+                        "braid_alphabet", "the_fusion", "the_rite", "the_door_stays_open"):
+                print("  ", fprog(fid))
+
         # ============ RESULT ============
         print("\n== RESULT ==")
         for fid in ("mill_wakes", "mill_master", "island_lives", "village_identity",

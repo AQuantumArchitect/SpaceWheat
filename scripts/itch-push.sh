@@ -11,7 +11,9 @@ set -euo pipefail
 ITCH_USER="${ITCH_USER:?set ITCH_USER (your itch.io username)}"
 ITCH_GAME="${ITCH_GAME:-spacewheat}"
 VERSION="${1:-}"
-DIST="$(dirname "$0")/../dist"
+# Packager output (package-desktop-builds.sh) is the default artifact source;
+# override with DIST=… if you stage elsewhere.
+DIST="${DIST:-$(dirname "$0")/../releases/packages}"
 
 command -v butler >/dev/null || { echo "butler not found — https://itch.io/docs/butler/"; exit 1; }
 
