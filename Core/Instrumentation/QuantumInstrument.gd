@@ -612,7 +612,7 @@ func action_remove_icon(biome_name: String, grid_pos: Vector2i) -> Dictionary:
 	var icon_to_remove = {}
 	var _icon_plot = farm.grid.get_plot(grid_pos) if farm and farm.grid else null
 	var terminal = _icon_plot.terminal if _icon_plot else null
-	var biome_type = biome.get_biome_type() if biome.has_method("get_biome_type") else biome.name
+	var biome_type = BiomeBase.type_name(biome)
 	if terminal and terminal.is_bound and terminal.bound_biome_name == biome_type:
 		target_qubit = terminal.bound_register_id
 	icon_to_remove = _get_icon_for_qubit(rm, target_qubit)
@@ -1773,7 +1773,7 @@ func _get_icon_for_qubit(register_map, qubit_index: int) -> Dictionary:
 func _unbind_terminals_for_register(biome, register_id: int) -> void:
 	if not terminal_pool:
 		return
-	var biome_name = biome.get_biome_type() if biome.has_method("get_biome_type") else biome.name
+	var biome_name = BiomeBase.type_name(biome)
 	for terminal in terminal_pool.get_all_terminals():
 		if terminal.is_bound and terminal.bound_biome_name == biome_name and terminal.bound_register_id == register_id:
 			_detach_terminal_from_plot(terminal)
@@ -1783,7 +1783,7 @@ func _unbind_terminals_for_register(biome, register_id: int) -> void:
 func _reindex_bound_terminals(biome, removed_qubit: int) -> void:
 	if not terminal_pool:
 		return
-	var biome_name = biome.get_biome_type() if biome.has_method("get_biome_type") else biome.name
+	var biome_name = BiomeBase.type_name(biome)
 	for terminal in terminal_pool.get_all_terminals():
 		if not terminal.is_bound or terminal.bound_biome_name != biome_name:
 			continue

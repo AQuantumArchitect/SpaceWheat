@@ -17,6 +17,17 @@ const _PC = preload("res://Core/Config/PhysicsConfig.gd")
 ## BiomeBase delegates to 7 composable components while keeping one façade
 ## for subclasses.
 
+
+## Canonical display/lookup name for any biome-ish node: the biome type when
+## the node exposes one, its node name otherwise. One home for the policy the
+## call sites used to each re-spell inline.
+static func type_name(biome) -> String:
+	if biome == null:
+		return ""
+	if biome.has_method("get_biome_type"):
+		return str(biome.get_biome_type())
+	return str(biome.name)
+
 # Component imports
 
 # Core imports

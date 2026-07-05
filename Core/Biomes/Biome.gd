@@ -85,6 +85,14 @@ func get_native_factions() -> Array:
 	return native_factions.duplicate()
 
 
+## The biome's speaking faction — first native, "" when the record names none.
+## One home for the whisper-speaker convention (toasts, graph cards).
+func first_native_faction() -> String:
+	if native_factions is Array and not native_factions.is_empty():
+		return str(native_factions[0])
+	return ""
+
+
 ## Returns the icons currently associated with this neighborhood record.
 ##
 ## The canonical icon authority lives on factions. This accessor keeps the

@@ -1776,6 +1776,8 @@ func _open_quest_board_via_input() -> Dictionary:
 
 
 
+## Sibling: ReelRunner._positions — intentionally divergent (arrays-only,
+## singular `position`, fallback on any empty parse). Divergence is by design.
 func _parse_positions(raw_positions, biome_name: String) -> Array[Vector2i]:
 	# Parse positions from JSON array [[x,y],...] or fall back to biome positions.
 	var positions: Array[Vector2i] = []

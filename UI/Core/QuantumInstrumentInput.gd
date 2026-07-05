@@ -648,7 +648,7 @@ func _execute_incorporate_icon() -> Dictionary:
 	if north == "" or south == "":
 		return {"success": false, "error": "axis_missing_emoji"}
 	var icon = {"north": north, "south": south}
-	var biome_name = biome.get_biome_type() if biome.has_method("get_biome_type") else biome.name
+	var biome_name = BiomeBase.type_name(biome)
 	var result = MacroActions.dispatch(_instrument, MacroActions.KIND_INJECT_ICON_PAIR, {
 		"biome_name": biome_name,
 		"icon": icon,
@@ -698,7 +698,7 @@ func _bridge_anchor_here() -> Dictionary:
 	var axis = qc.register_map.axis(qid)
 	if axis == null or axis.is_empty():
 		return {}
-	var bname: String = biome.get_biome_type() if biome.has_method("get_biome_type") else str(biome.name)
+	var bname: String = BiomeBase.type_name(biome)
 	return {"biome": bname, "north": str(axis.get("north", "")), "south": str(axis.get("south", ""))}
 
 
@@ -816,9 +816,7 @@ func _execute_bridge_inspect() -> Dictionary:
 
 ## Plain mechanics note through the PlayerShell hint channel (no voice line).
 func _toast_note(head: String) -> void:
-	var ps: Node = self
-	while ps != null and not (ps is PlayerShell):
-		ps = ps.get_parent()
+	var ps: Node = _resolve_player_shell()
 	if ps != null and ps.has_method("show_hint"):
 		ps.show_hint(head, 2, "")
 
@@ -848,9 +846,7 @@ func _maybe_toast_reap_whisper(result: Dictionary) -> void:
 func _toast_whisper(head: String, speaker: String, line: String) -> void:
 	if line == "":
 		return
-	var ps: Node = self
-	while ps != null and not (ps is PlayerShell):
-		ps = ps.get_parent()
+	var ps: Node = _resolve_player_shell()
 	if ps == null or not ps.has_method("show_hint"):
 		return
 	ps.show_hint("%s\n💬 %s“%s”" % [head, ("%s — " % speaker) if speaker != "" else "", line], 2, "")
@@ -860,14 +856,13 @@ func _toast_whisper(head: String, speaker: String, line: String) -> void:
 func _native_speaker_for(biome) -> String:
 	if biome == null:
 		return ""
-	var bname: String = biome.get_biome_type() if biome.has_method("get_biome_type") else str(biome.name)
+	var bname: String = BiomeBase.type_name(biome)
 	var reg = load("res://Core/Biomes/BiomeRegistry.gd")
 	if reg != null and reg.has_method("get_shared"):
 		var shared = reg.get_shared()
 		var canonical = shared.get_by_name(bname) if (shared != null and shared.has_method("get_by_name")) else null
-		if canonical != null and ("native_factions" in canonical) and canonical.native_factions is Array \
-				and not canonical.native_factions.is_empty():
-			return str(canonical.native_factions[0])
+		if canonical != null and canonical.has_method("first_native_faction"):
+			return canonical.first_native_faction()
 	return ""
 
 
@@ -1543,7 +1538,7 @@ func _invalidate_biome_buffer_for_action(action_name: String) -> void:
 		_verbose.debug("input", "🔄", "No biome to invalidate for %s" % action_name)
 		return
 
-	var biome_name = biome.get_biome_type() if biome.has_method("get_biome_type") else biome.name
+	var biome_name = BiomeBase.type_name(biome)
 
 	# Get batcher reference from farm
 	var batcher = farm.biome_evolution_batcher if farm and "biome_evolution_batcher" in farm else null

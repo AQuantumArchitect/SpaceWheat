@@ -162,6 +162,10 @@ func _do_bridge(cmd: Dictionary) -> void:
 			farm.bridge_register.fuse(int(cmd.get("id", 1)), randf())
 
 
+## Sibling: rig_listener._parse_positions — intentionally divergent, not slop:
+## that one also accepts {x,y} dicts and "(x,y)" strings and only falls back to
+## biome positions when the arg is absent; this one falls back whenever parsing
+## yields nothing and honors a singular `position` key.
 func _positions(d: Dictionary) -> Array[Vector2i]:
 	var out: Array[Vector2i] = []
 	var raw = d.get("positions", [])

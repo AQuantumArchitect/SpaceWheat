@@ -430,15 +430,9 @@ func _eigen_inspect_text() -> String:
 		var p: float = float(fd.get_purity())
 		lines.append("You · Tr(ρ²) = %.3f — %s" % [p, _soul_gloss(p)])
 		lines.append("Purity of your alignment density matrix: 1 = a committed identity; the mixed floor = a life not yet chosen.")
-		if fd.has_method("decisive_axes"):
-			var parts: Array[String] = []
-			for row in fd.decisive_axes(3):
-				var conf: float = float(row.get("p", 0.5))
-				if int(row.get("bit", 1)) == 0:
-					conf = 1.0 - conf
-				parts.append("%s %s %.2f" % [str(row.get("emoji", "")), str(row.get("label", "")).to_lower(), conf])
-			if not parts.is_empty():
-				lines.append("becoming: %s" % " · ".join(parts))
+		var parts: Array[String] = _becoming_parts(true)
+		if not parts.is_empty():
+			lines.append("becoming: %s" % " · ".join(parts))
 		if fd.has_method("dominant_factions"):
 			var names: Array[String] = []
 			for row in fd.dominant_factions(3):
@@ -472,8 +466,7 @@ func _graph_inspect_text() -> String:
 	if _biome_closed_here(_graph_zoom):
 		var canonical = _canonical_biome(_graph_zoom)
 		if _biome_has_webway(canonical):
-			var natives: Array = canonical.native_factions if ("native_factions" in canonical and canonical.native_factions is Array) else []
-			var speaker := str(natives[0]) if not natives.is_empty() else ""
+			var speaker := str(canonical.first_native_faction()) if canonical.has_method("first_native_faction") else ""
 			var whisper := QuestVoice.webway_whisper(speaker)
 			if whisper != "":
 				lines.append("💬 %s“%s”" % [("%s — " % speaker) if speaker != "" else "", whisper])
@@ -782,12 +775,9 @@ func _build_eigen_body() -> void:
 		soul_lbl.add_theme_color_override("font_color", COLOR_HILITE)
 		soul_lbl.tooltip_text = "Purity of your alignment density matrix. Learning moves it — each new icon pumps its owner and everyone who speaks its poles; coherences fade on their own (τ=300s)."
 		_body_box.add_child(soul_lbl)
-		if farm.faction_density.has_method("decisive_axes"):
-			var parts: Array[String] = []
-			for row in farm.faction_density.decisive_axes(3):
-				parts.append("%s %s" % [str(row.get("emoji", "")), str(row.get("label", "")).to_lower()])
-			if not parts.is_empty():
-				_body_box.add_child(_make_muted_label("becoming: %s" % " · ".join(parts), 11))
+		var becoming: Array[String] = _becoming_parts(false)
+		if not becoming.is_empty():
+			_body_box.add_child(_make_muted_label("becoming: %s" % " · ".join(becoming), 11))
 
 	# Sort mode is derived from pinned-faction state — no chord.
 	var sort_mode: int = EIGEN_SORT_SUBJECT if _get_pinned_faction() != null else EIGEN_SORT_SYSTEM
@@ -804,24 +794,50 @@ func _build_eigen_body() -> void:
 		_build_eigen_body_system()
 
 
-## Words for the purity of a soul. Bands are heuristic: the mixed-state floor for
-## a ~90-faction support is ≈0.011, so anything near 1 is a deliberate life.
-## Band keys (and the crossing whispers) live in FactionDensityMatrix.band_key;
-## this is the display wording.
+## Words for the purity of a soul. The band thresholds live in exactly one
+## place — FactionDensityMatrix.band_key (which also drives the crossing
+## whispers); this maps its keys to display wording.
+const SOUL_GLOSS_WORDS := {
+	"resolved": "resolved",
+	"leaning": "leaning",
+	"torn": "torn",
+	"smeared": "smeared across many selves",
+}
+
 func _soul_gloss(p: float) -> String:
-	if p >= 0.8:
-		return "resolved"
-	if p >= 0.5:
-		return "leaning"
-	if p >= 0.2:
-		return "torn"
-	return "smeared across many selves"
+	return str(SOUL_GLOSS_WORDS.get(FactionDensityMatrix.band_key(p), "?"))
+
+
+## "becoming:" fragments from the identity ρ's decisive axes — emoji + pole
+## label, optionally with the pole confidence. One home for both the E-inspect
+## text and the eigen body label.
+func _becoming_parts(with_confidence: bool) -> Array[String]:
+	var parts: Array[String] = []
+	if farm == null or not ("faction_density" in farm) or farm.faction_density == null \
+			or not farm.faction_density.has_method("decisive_axes"):
+		return parts
+	for row in farm.faction_density.decisive_axes(3):
+		var emoji := str(row.get("emoji", ""))
+		var label := str(row.get("label", "")).to_lower()
+		if with_confidence:
+			var conf: float = float(row.get("p", 0.5))
+			if int(row.get("bit", 1)) == 0:
+				conf = 1.0 - conf
+			parts.append("%s %s %.2f" % [emoji, label, conf])
+		else:
+			parts.append("%s %s" % [emoji, label])
+	return parts
 
 ## Sort by alignment with the joint system's principal axis (synthetic-overlap).
 func _build_eigen_body_system() -> void:
 	var projection: Array = _get_principal_axis_projection()
 	var principal_mode: Dictionary = _get_principal_mode()
-	var synthetic = _build_synthetic_eigen_graph(projection)
+	# The synthetic identity-side state lives in one home now:
+	# FactionDensityMatrix.principal_graph() (same construction, shared with kinship).
+	var synthetic = null
+	if farm != null and ("faction_density" in farm) and farm.faction_density != null \
+			and farm.faction_density.has_method("principal_graph"):
+		synthetic = farm.faction_density.principal_graph()
 
 	var ranked: Array = []
 	for f in _faction_roster:
@@ -1280,19 +1296,13 @@ func _get_faction_by_name(faction_search_name: String):
 
 func _get_principal_axis_projection() -> Array:
 	if farm == null or not ("faction_density" in farm) or farm.faction_density == null:
-		return _uniform_projection()
+		return FactionAxes.uniform_marginals()
 	if not farm.faction_density.has_method("get_principal_axis_projection"):
-		return _uniform_projection()
+		return FactionAxes.uniform_marginals()
 	var arr = farm.faction_density.get_principal_axis_projection()
 	if arr is Array and arr.size() == AlignmentGraphCls.AXIS_COUNT:
 		return arr
-	return _uniform_projection()
-
-func _uniform_projection() -> Array:
-	var out: Array = []
-	for i in range(AlignmentGraphCls.AXIS_COUNT):
-		out.append(0.5)
-	return out
+	return FactionAxes.uniform_marginals()
 
 func _get_principal_mode() -> Dictionary:
 	if farm == null or not ("faction_density" in farm) or farm.faction_density == null:
@@ -1300,35 +1310,6 @@ func _get_principal_mode() -> Dictionary:
 	if not farm.faction_density.has_method("get_principal_mode"):
 		return {}
 	return farm.faction_density.get_principal_mode()
-
-## Build a synthetic pure-state AlignmentGraph whose per-axis p₁ marginals match
-## the given 12-vector projection. The state is the product
-##   ψ = ⊗_i (sqrt(1 - p_i) |0⟩ + sqrt(p_i) |1⟩)
-## stored as a single rank-1 ket. Used to rank factions via overlap.
-func _build_synthetic_eigen_graph(projection: Array):
-	if projection.size() != AlignmentGraphCls.AXIS_COUNT:
-		return null
-	var dim: int = AlignmentGraphCls.DIM
-	var ket: Dictionary = {}
-	# For each basis index, amplitude = product over axes of (sqrt(p_i if bit_i else 1-p_i))
-	for idx in range(dim):
-		var amp: float = 1.0
-		for i in range(AlignmentGraphCls.AXIS_COUNT):
-			var bit_pos: int = AlignmentGraphCls.AXIS_COUNT - 1 - i
-			var bit: int = (idx >> bit_pos) & 1
-			var p: float = clampf(float(projection[i]), 0.0, 1.0)
-			var weight: float = sqrt(p) if bit == 1 else sqrt(1.0 - p)
-			amp *= weight
-			if amp == 0.0:
-				break
-		if amp > 0.0:
-			ket[idx] = Vector2(amp, 0.0)
-	if ket.is_empty():
-		return null
-	var g = AlignmentGraphCls.new()
-	g.weights = PackedFloat64Array([1.0])
-	g.kets = [ket]
-	return g
 
 # =============================================================================
 # HELPERS — render primitives
@@ -1535,8 +1516,7 @@ func _build_graph_status_card() -> Control:
 	if _graph_zoom != "broad" and _biome_closed_here(_graph_zoom):
 		var canonical = _canonical_biome(_graph_zoom)
 		if _biome_has_webway(canonical):
-			var natives: Array = canonical.native_factions if ("native_factions" in canonical and canonical.native_factions is Array) else []
-			var speaker := str(natives[0]) if not natives.is_empty() else ""
+			var speaker := str(canonical.first_native_faction()) if canonical.has_method("first_native_faction") else ""
 			var whisper := QuestVoice.webway_whisper(speaker)
 			if whisper != "":
 				var wl := Label.new()
