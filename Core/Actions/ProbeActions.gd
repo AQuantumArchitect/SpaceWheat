@@ -207,7 +207,7 @@ static func action_measure(terminal, biome, economy = null, farm = null) -> Dict
 			return {
 				"success": false,
 				"error": "already_measured",
-				"message": "Terminal already measured. Use R to pop.",
+				"message": "Already measured — Q harvests it.",
 				"blocked": true
 			}
 		return {
