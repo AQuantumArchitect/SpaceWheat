@@ -256,6 +256,11 @@ static func get_action_cost(action: String, context: Dictionary = {}) -> Diction
 		return get_lindblad_injection_cost(normalized_action, context)
 	if normalized_action in [ActionIds.SPARK_NORTH, ActionIds.SPARK_SOUTH]:
 		return get_spark_cost(normalized_action, context)
+	if normalized_action == "plant":
+		# Coherent Rabi pulse toward north — same work-priced stake as the
+		# spark (drive_units × north-pole emoji): coherent or dissipative,
+		# forcing an improbable pole is work.
+		return get_spark_cost(ActionIds.SPARK_NORTH, context)
 	# Static costs are DATA — they live ONLY in the canonical FarmVariableGraph JSONL
 	# (read via FarmEconomy.get_overridden_action_cost). This function returns only the
 	# DYNAMIC/computed costs above; everything else is honestly {} here — no code-default

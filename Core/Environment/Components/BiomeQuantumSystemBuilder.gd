@@ -106,7 +106,7 @@ func expand_quantum_system(north_emoji: String, south_emoji: String) -> Dictiona
 	# 9. Rebuild H from icons.json; rebuild L from biome.atom_components.
 	# Primed terms whose endpoints are now in basis activate automatically.
 	quantum_computer.hamiltonian = HamBuilder.build_from_icons(biome_icons, quantum_computer.register_map, verbose)
-	var lindblad_result = LindBuilder.build_from_atoms(atom_components, quantum_computer.register_map, verbose, quantum_computer.biome_name)
+	var lindblad_result = LindBuilder.build_from_atoms(atom_components, quantum_computer.register_map, verbose, quantum_computer.biome_name, quantum_computer.is_open_here())
 	quantum_computer.lindblad_operators = lindblad_result.get("operators", [])
 
 	# 9b. Extract and set time-dependent driver configurations.
@@ -196,11 +196,11 @@ func build_operators_from_icons(biome_name: String, biome_icons: Array, atoms: D
 			JSON.stringify(icon.hamiltonian_couplings),
 			"%s/%.6f/%.6f/%.6f" % [icon.self_energy_driver, icon.driver_frequency, icon.driver_phase, icon.driver_amplitude]
 		])
-	# The dissipative switch is part of the key: with it off no Lindblad operators are
-	# built, so a coherent-only cache entry must never be served when dissipation is on
-	# (or vice versa). Coherent state doesn't change which operators are built (H is always
-	# constructed), so only the dissipative flag gates the operator set.
-	var diss := "L1" if BalanceConfig.dissipative_enabled() else "L0"
+	# The EFFECTIVE dissipative state is part of the key: with it off no Lindblad
+	# operators are built, so a coherent-only cache entry must never be served when
+	# dissipation is on (or vice versa). Per-biome regime (What Fades seam) folds in
+	# here — a wet-country biome keys L1 while the sealed world keys L0.
+	var diss := "L1" if quantum_computer.is_open_here() else "L0"
 	var cache_key := biome_name + "_icons_" + "|".join(icon_sigs).md5_text() + "_atoms_" + JSON.stringify(atom_components).md5_text() + "_" + diss
 
 	var cache = OperatorCache.get_instance()
@@ -226,7 +226,8 @@ func build_operators_from_icons(biome_name: String, biome_icons: Array, atoms: D
 	quantum_computer.hamiltonian = HamBuilder.build_from_icons(
 			biome_icons, quantum_computer.register_map, verbose)
 	var lindblad_result = LindBuilder.build_from_atoms(
-			atom_components, quantum_computer.register_map, verbose, biome_name)
+			atom_components, quantum_computer.register_map, verbose, biome_name,
+			quantum_computer.is_open_here())
 	quantum_computer.lindblad_operators = lindblad_result.get("operators", [])
 	driven = HamBuilder.get_driven_icons(biome_icons, quantum_computer.register_map)
 	quantum_computer.set_driven_icons(driven)

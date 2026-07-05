@@ -135,6 +135,7 @@ func connect_to_farm_and_quests(farm, quest_manager) -> void:
 	if not quest_manager.quest_completed.is_connected(_on_arc_quest_completed):
 		quest_manager.quest_completed.connect(_on_arc_quest_completed)
 	_restore_arc_quests_after_load()
+	_reapply_world_changes_after_load()
 
 
 ## Receive a fired story flag: append beat, apply standing grants, offer arc quest,
@@ -160,8 +161,51 @@ func _on_story_flag_fired(flag_id: String, flag_data: Dictionary) -> void:
 	var arc_quest = flag_data.get("arc_quest")
 	if arc_quest is Dictionary and not arc_quest.is_empty() and _quest_manager != null:
 		_quest_manager.offer_story_quest(arc_quest.duplicate(), flag_id)
+	# World changes: per-biome regime + global physics (What Fades, docs/OPEN_CAMPAIGN.md).
+	_apply_world_changes(flag_data)
 	# Density collapse + trajectory (existing method)
 	on_flag_fired(flag_id)
+
+
+## Apply a flag's world changes. Two data-driven fields:
+##   regime_changes:  {biome_name: "open"|"closed"|""} — the Bath reaching a coast
+##                    is a narrative event, never a silent patch.
+##   physics_changes: {switch: value} — the endgame door (dissipative_dynamics true);
+##                    merged into the BalanceConfig override, then every live biome
+##                    re-resolves its effective regime and rebuilds L.
+## Both are re-applied deterministically on load from fired flags — no save fields.
+func _apply_world_changes(flag_data: Dictionary) -> void:
+	var regime_changes = flag_data.get("regime_changes", {})
+	if regime_changes is Dictionary and not regime_changes.is_empty() \
+			and _farm != null and _farm.grid != null:
+		for biome_name in regime_changes:
+			var biome = _farm.grid.get_biome(str(biome_name))
+			if biome != null and biome.has_method("set_regime"):
+				biome.set_regime(str(regime_changes[biome_name]))
+	var physics_changes = flag_data.get("physics_changes", {})
+	if physics_changes is Dictionary and not physics_changes.is_empty():
+		BalanceConfig.merge_physics_override(physics_changes)
+		# The global ground shifted — every live biome re-resolves its regime.
+		if _farm != null and _farm.grid != null and _farm.grid.has_method("get_biome_names"):
+			for bname in _farm.grid.get_biome_names():
+				var b = _farm.grid.get_biome(str(bname))
+				if b != null and b.has_method("rebuild_lindblad_for_regime"):
+					b.rebuild_lindblad_for_regime()
+
+
+## On load: re-derive the world's regime/physics state from fired flags, in
+## flag-file order (later flags win). Keeps the door and every story-driven
+## regime change durable without touching the save format.
+func _reapply_world_changes_after_load() -> void:
+	if _farm == null or _quest_manager == null:
+		return
+	for flag_data in _quest_manager._story_flags:
+		if not (flag_data is Dictionary):
+			continue
+		if not _farm.story_flags_fired.has(str(flag_data.get("id", ""))):
+			continue
+		if flag_data.has("regime_changes") or flag_data.has("physics_changes"):
+			_apply_world_changes(flag_data)
 
 
 func _resolve_arc_beat(flag_data: Dictionary) -> String:

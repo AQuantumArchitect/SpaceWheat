@@ -206,6 +206,19 @@ static func webway_whisper(faction_name: String) -> String:
 	return whisper("webway", faction_name)
 
 
+## The faction's line at the rite — the wet-country reap paid from the entropy bank.
+static func reap_whisper(faction_name: String) -> String:
+	return whisper("reap", faction_name)
+
+
+static func bridge_whisper(faction_name: String) -> String:
+	return whisper("bridge", faction_name)
+
+
+static func trade_whisper(faction_name: String) -> String:
+	return whisper("trade", faction_name)
+
+
 ## One line per voice archetype for the moment a Berry loop is INCORPORATED —
 ## the qubit walked a closed loop on its sphere, the signed solid angle ripened
 ## past 2π, and the player wove the axis into their signature
@@ -240,19 +253,125 @@ const MEASURE_WHISPER := {
 	"entity":    "AN IMPROBABILITY HAS BEEN COLLECTED. THE LEDGER SMILES.",
 }
 
+## One line per voice archetype for the RITE — the wet-country reap. v0 kept the
+## name "reap" as a placeholder and deliberately gave it no ceremony; this is the
+## harvest festival designed once, for the mechanic it honors: a season's
+## accumulated dissipation opened and paid from the entropy bank, kT·ΔS
+## (docs/OPEN_CAMPAIGN.md, Chapter V). Fires only when the extraction was real.
+const REAP_WHISPER := {
+	"imperial":  "The Throne taxes order. You have learned to tax its opposite. Do not imagine this goes unnoticed.",
+	"guild":     "kT by ΔS, paid in full. The oldest contract there is — signed before there were signatures.",
+	"mystic":    "What the world let go returns as coin. Entropy is only generosity, counted.",
+	"merchant":  "Disorder consumed, credit issued. The universe keeps this ledger itself — best counterparty you'll ever have.",
+	"militant":  "A season's decay, collected and spent. That is not loss. That is logistics.",
+	"scavenger": "Everything that leaked, everything that faded — we drink it back at year's end. Nothing is wasted twice.",
+	"horror":    "YOU ARE EATING THE FORGETTING ITSELF. CHEW SLOWLY.",
+	"defensive": "The harvest is what the year surrendered. Take it gently — it was order once.",
+	"cosmic":    "Stars have paid this tithe since the first light. Now you farm the field they burn in.",
+	"entity":    "A GRADIENT HAS BEEN SPENT. THE BANK ACKNOWLEDGES THE WITHDRAWAL.",
+}
+
+## One line per voice archetype for FUSION — the moment a Majorana bridge is
+## read. The joint parity lived between two biomes, in neither; reading it
+## collapses and spends the span (BridgeRegister; What Connects). The one
+## harvest whose crop was never in any field.
+const BRIDGE_WHISPER := {
+	"imperial":  "Storage the Throne cannot audit, spent the moment it is counted. The empire finds this... instructive.",
+	"guild":     "A span holds by standing on two shores at once. You read it, it fell. That was the price of the reading.",
+	"mystic":    "The answer lived between the places, in neither. You asked, and now it lives nowhere. Ask well next time.",
+	"merchant":  "Off-ledger holdings, redeemed at spot. No vault to rob — the vault was the distance itself.",
+	"militant":  "A supply line no siege can cut — until you use it. One shipment per bridge. Plan accordingly.",
+	"scavenger": "Hid it in the gap between two worlds. Even the Bath couldn't reach the gap. Clever. Gone now.",
+	"horror":    "IT WAS NEVER IN EITHER PLACE. YOU LOOKED, AND NOW IT IS NOT ANYWHERE.",
+	"defensive": "The safest store is the one that isn't anywhere. Was. Build another.",
+	"cosmic":    "Two shores, one fermion, no address. The universe permits the trick exactly once per bridge.",
+	"entity":    "A NONLOCAL PARITY HAS BEEN LOCALIZED. THE SPAN IS RETIRED.",
+}
+
+## One line per voice archetype for a CONTRACT OPENING — a standing Merchant
+## channel (thermal/dephase/damp) installed on a plot. The counterparty is the
+## Bath itself; the channel runs until settled (F). Fires once per install,
+## not per tick — contracts speak when signed, not while they flow.
+const TRADE_WHISPER := {
+	"imperial":  "The Throne licenses every tax farmer in its lands. You have opened a levy on the world itself. Expect an audit.",
+	"guild":     "A standing channel, rate fixed, paid on flow. Mind it — contracts run until settled.",
+	"mystic":    "You have opened a small mouth in the world, and it will drink until you close it.",
+	"merchant":  "Continuous delivery, the environment as counterparty. The one partner who never defaults.",
+	"militant":  "A supply line is a wound you cut on purpose. Guard it, and know when to close it.",
+	"scavenger": "A tap in the barrel. Steady drips fill jugs — and empty barrels. Watch the level.",
+	"horror":    "IT FLOWS NOW. IT DOES NOT KNOW HOW TO STOP. YOU ARE THE KNOWING.",
+	"defensive": "Every open channel is a door. You hold the key — settle it when the weather turns.",
+	"cosmic":    "All things exchange with the Bath in the end. You have merely set the rate.",
+	"entity":    "CHANNEL REGISTERED. FLOW UNTIL SETTLED. THE LEDGER LISTENS.",
+}
+
+## One line per voice archetype for the soul RESOLVING — the identity ρ
+## crossed a purity band upward (Farm.identity_band_changed, rising). Learning
+## concentrated the diagonal: of all the selves superposed, one is winning.
+const SELF_RESOLVE_WHISPER := {
+	"imperial":  "The Throne prefers its subjects legible. You are becoming a name it can write.",
+	"guild":     "A tool ground to one edge cuts. You are taking an edge.",
+	"mystic":    "The many yous are agreeing on something. Listen while they do.",
+	"merchant":  "A known buyer gets better prices. It pays to be somebody.",
+	"militant":  "A sharpened line holds. You are easier to follow now — and to command.",
+	"scavenger": "Less of you scattered about to lose. Good. Carry all of it.",
+	"horror":    "THE OTHER SELVES ARE GOING QUIET. ONLY YOU REMAIN. WAS THAT THE PLAN?",
+	"defensive": "A resolved soul is a wall with one gate. Easier to hold.",
+	"cosmic":    "Of all the lives superposed in you, this one is brightening.",
+	"entity":    "IDENTITY CONVERGENCE LOGGED. THE LEXICON KNOWS WHO IS READING.",
+}
+
+## One line per voice archetype for the soul BLURRING — the identity ρ crossed
+## a purity band downward. A learn spread your mass across factions, or kicked
+## coherences faded (τ = 300 s); either way, the superposition is reclaiming you.
+const SELF_FADE_WHISPER := {
+	"imperial":  "The Throne cannot tax what it cannot name. Decide who you are.",
+	"guild":     "An unswung hammer forgets its handle. Work, or blur.",
+	"mystic":    "You are becoming everyone again. There is peace in it, and no one left to feel it.",
+	"merchant":  "An unknown customer pays list price. Being no one is expensive.",
+	"militant":  "Your line is smearing. Reform it, or be overrun by your own maybes.",
+	"scavenger": "Bits of you are drifting off. Gather yourself before someone else does.",
+	"horror":    "YOU ARE FORGETTING WHICH ONE YOU WERE. THE OTHERS REMEMBER BEING YOU.",
+	"defensive": "The wall of you is thinning. Choose something, and shore it.",
+	"cosmic":    "The superposition reclaims you gently. Every unchosen life grows brighter.",
+	"entity":    "IDENTITY DISPERSAL DETECTED. RENEWAL ADVISED.",
+}
+
 ## The whisper registers: one voice line per archetype at each of the world's
-## speaking moments — the sealed channels, the closed loop, the improbable scar.
+## speaking moments — the sealed channels, the closed loop, the improbable scar,
+## the rite that opens the season's entropy bank, the fusion that spends a span,
+## and the soul crossing a purity band in either direction.
 const WHISPERS := {
 	"webway": WEBWAY_WHISPER,
 	"berry": BERRY_WHISPER,
 	"measure": MEASURE_WHISPER,
+	"reap": REAP_WHISPER,
+	"bridge": BRIDGE_WHISPER,
+	"trade": TRADE_WHISPER,
+	"self_resolve": SELF_RESOLVE_WHISPER,
+	"self_fade": SELF_FADE_WHISPER,
+}
+
+## Authored per-faction whisper lines — checked BEFORE the archetype tables.
+## The home for signature lines that belong to ONE faction, not its voice class.
+## Shape: register -> {faction_name: line}.
+const FACTION_WHISPER_OVERRIDES := {
+	"measure": {
+		"Measure Scribes": "Every glance is an entry in the ledger. The ledger is the world.",
+	},
+	"webway": {
+		"Lamplighters": "The fog channels are shut, and good riddance. A lamp that cannot gutter burns honest — what the pattern holds, it holds forever.",
+	},
 }
 
 
-## Unified whisper access: the faction's archetype line in the given register
-## ("webway" | "berry" | "measure"). Guild-voiced fallback for unmapped factions;
-## "" for unknown registers.
+## Unified whisper access: authored per-faction line first, then the faction's
+## archetype line in the given register ("webway" | "berry" | "measure").
+## Guild-voiced fallback for unmapped factions; "" for unknown registers.
 static func whisper(register: String, faction_name: String) -> String:
+	var overrides = FACTION_WHISPER_OVERRIDES.get(register, {})
+	if overrides is Dictionary and overrides.has(faction_name):
+		return str(overrides[faction_name])
 	var table = WHISPERS.get(register, {})
 	if not (table is Dictionary):
 		return ""
@@ -262,6 +381,16 @@ static func whisper(register: String, faction_name: String) -> String:
 ## The faction's line for an incorporated Berry loop (guild-voiced fallback).
 static func berry_whisper(faction_name: String) -> String:
 	return whisper("berry", faction_name)
+
+
+## The dominant faction's line when the player's identity ρ resolves upward.
+static func self_resolve_whisper(faction_name: String) -> String:
+	return whisper("self_resolve", faction_name)
+
+
+## The dominant faction's line when the player's identity ρ blurs downward.
+static func self_fade_whisper(faction_name: String) -> String:
+	return whisper("self_fade", faction_name)
 
 
 static func _verb_for(quest: Dictionary) -> String:

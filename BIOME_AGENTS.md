@@ -19,6 +19,13 @@ Scope:
   subsystem that isn't Biomes or Factions
 - ❌ Don't modify the bundled cache or its builder
 
+> **v0 seal note (2026-07):** the shipped game runs CLOSED — `LindbladBuilder`
+> builds zero operators, so the `atom_components` Lindblad authoring in this
+> guide (webway / decay / pumps) is dormant data at runtime until the open
+> expansion. Author it anyway: Act 2 inherits everything, and headless tooling
+> can exercise it via `BalanceConfig.set_physics_override({"dissipative_dynamics": true})`.
+> See `docs/CLOSED_SYSTEM.md` and `docs/glossary/webway.md`.
+
 ---
 
 ## Player faction

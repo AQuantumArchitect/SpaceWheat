@@ -1251,42 +1251,45 @@ func _print_perf_report():
 		else:
 			p95[key] = 0.0
 
-	print("\n" + "═".repeat(78))
-	print("🔬 GDSCRIPT PERFORMANCE BREAKDOWN - Frame %d (%.0f FPS)" % [frame_count, fps])
-	print("═".repeat(78))
+	# One perf_hud-routed message (the call site already gates on
+	# allows("perf_hud", DEBUG) — this just stops bypassing the logger).
+	var out: Array[String] = []
+	out.append("═".repeat(78))
+	out.append("🔬 GDSCRIPT PERFORMANCE BREAKDOWN - Frame %d (%.0f FPS)" % [frame_count, fps])
+	out.append("═".repeat(78))
 
 	# Frame budget
 	var frame_ms = 1000.0 / fps if fps > 0 else 100.0
 	var total_tracked = avg["process_total"] + avg["draw_total"]
 	var untracked = frame_ms - total_tracked
 
-	print("\n🎯 FRAME BUDGET: %.1fms/frame (target: 16.67ms)" % frame_ms)
-	print("   ├─ Tracked GDScript: %.2fms" % total_tracked)
-	print("   └─ Untracked (GPU wait, other): %.2fms" % maxf(0, untracked))
+	out.append("🎯 FRAME BUDGET: %.1fms/frame (target: 16.67ms)" % frame_ms)
+	out.append("   ├─ Tracked GDScript: %.2fms" % total_tracked)
+	out.append("   └─ Untracked (GPU wait, other): %.2fms" % maxf(0, untracked))
 
 	# _process breakdown
-	print("\n📊 _process() breakdown (avg | P95):")
-	print("   ├─ Viewport check:   %5.2fms | %5.2fms" % [avg["process_viewport"], p95["process_viewport"]])
-	print("   ├─ Build context:    %5.2fms | %5.2fms  ← Dictionary creation" % [avg["process_context"], p95["process_context"]])
-	print("   ├─ Update visuals:   %5.2fms | %5.2fms  ← node_manager loop" % [avg["process_visuals"], p95["process_visuals"]])
-	print("   ├─ Animations:       %5.2fms | %5.2fms" % [avg["process_animations"], p95["process_animations"]])
-	print("   ├─ Force positions:  %5.2fms | %5.2fms" % [avg["process_forces"], p95["process_forces"]])
-	print("   └─ Particles:        %5.2fms | %5.2fms" % [avg["process_particles"], p95["process_particles"]])
-	print("   TOTAL:               %5.2fms | %5.2fms" % [avg["process_total"], p95["process_total"]])
+	out.append("📊 _process() breakdown (avg | P95):")
+	out.append("   ├─ Viewport check:   %5.2fms | %5.2fms" % [avg["process_viewport"], p95["process_viewport"]])
+	out.append("   ├─ Build context:    %5.2fms | %5.2fms  ← Dictionary creation" % [avg["process_context"], p95["process_context"]])
+	out.append("   ├─ Update visuals:   %5.2fms | %5.2fms  ← node_manager loop" % [avg["process_visuals"], p95["process_visuals"]])
+	out.append("   ├─ Animations:       %5.2fms | %5.2fms" % [avg["process_animations"], p95["process_animations"]])
+	out.append("   ├─ Force positions:  %5.2fms | %5.2fms" % [avg["process_forces"], p95["process_forces"]])
+	out.append("   └─ Particles:        %5.2fms | %5.2fms" % [avg["process_particles"], p95["process_particles"]])
+	out.append("   TOTAL:               %5.2fms | %5.2fms" % [avg["process_total"], p95["process_total"]])
 
 	# _draw breakdown (consolidated sub-1ms, detailed GPU tracking)
-	print("\n🎨 _draw() breakdown (avg | P95):")
-	print("   ├─ Context + Canvas:  %5.2fms | %5.2fms  ← Dict + get_canvas_item()" % [avg["draw_context"] + avg["draw_canvas_item"], p95["draw_context"] + p95["draw_canvas_item"]])
-	print("   ├─ Geom Setup:        %5.2fms | %5.2fms  ← batcher.begin()" % [avg["draw_geom_begin"], p95["draw_geom_begin"]])
-	print("   ├─ Region render:     %5.2fms | %5.2fms" % [avg["draw_region"], p95["draw_region"]])
-	print("   ├─ Projection field:  %5.2fms | %5.2fms" % [avg["draw_projection"], p95["draw_projection"]])
-	print("   ├─ Infra + edges:     %5.2fms | %5.2fms" % [avg["draw_infra"] + avg["draw_edge"], p95["draw_infra"] + p95["draw_edge"]])
-	print("   ├─ Effects:           %5.2fms | %5.2fms" % [avg["draw_effects"], p95["draw_effects"]])
-	print("   ├─ Bubble renderer:   %5.2fms | %5.2fms  ← BubbleAtlasBatcher" % [avg["draw_bubble"], p95["draw_bubble"]])
-	print("   ├─ Geometry flush:    %5.2fms | %5.2fms  ← RenderingServer call" % [avg["draw_flush"], p95["draw_flush"]])
-	print("   ├─ Sun qubit:         %5.2fms | %5.2fms  ← draw_sun_qubit()" % [avg["draw_sun"], p95["draw_sun"]])
-	print("   └─ Debug + other:     %5.2fms | %5.2fms" % [avg.get("draw_debug", 0), p95.get("draw_debug", 0)])
-	print("   TOTAL:                %5.2fms | %5.2fms" % [avg["draw_total"], p95["draw_total"]])
+	out.append("🎨 _draw() breakdown (avg | P95):")
+	out.append("   ├─ Context + Canvas:  %5.2fms | %5.2fms  ← Dict + get_canvas_item()" % [avg["draw_context"] + avg["draw_canvas_item"], p95["draw_context"] + p95["draw_canvas_item"]])
+	out.append("   ├─ Geom Setup:        %5.2fms | %5.2fms  ← batcher.begin()" % [avg["draw_geom_begin"], p95["draw_geom_begin"]])
+	out.append("   ├─ Region render:     %5.2fms | %5.2fms" % [avg["draw_region"], p95["draw_region"]])
+	out.append("   ├─ Projection field:  %5.2fms | %5.2fms" % [avg["draw_projection"], p95["draw_projection"]])
+	out.append("   ├─ Infra + edges:     %5.2fms | %5.2fms" % [avg["draw_infra"] + avg["draw_edge"], p95["draw_infra"] + p95["draw_edge"]])
+	out.append("   ├─ Effects:           %5.2fms | %5.2fms" % [avg["draw_effects"], p95["draw_effects"]])
+	out.append("   ├─ Bubble renderer:   %5.2fms | %5.2fms  ← BubbleAtlasBatcher" % [avg["draw_bubble"], p95["draw_bubble"]])
+	out.append("   ├─ Geometry flush:    %5.2fms | %5.2fms  ← RenderingServer call" % [avg["draw_flush"], p95["draw_flush"]])
+	out.append("   ├─ Sun qubit:         %5.2fms | %5.2fms  ← draw_sun_qubit()" % [avg["draw_sun"], p95["draw_sun"]])
+	out.append("   └─ Debug + other:     %5.2fms | %5.2fms" % [avg.get("draw_debug", 0), p95.get("draw_debug", 0)])
+	out.append("   TOTAL:                %5.2fms | %5.2fms" % [avg["draw_total"], p95["draw_total"]])
 
 	# Identify bottleneck
 	var bottlenecks: Array = []
@@ -1302,20 +1305,22 @@ func _print_perf_report():
 		bottlenecks.append("🚨 untracked: %.1fms - GPU stall or vsync?" % untracked)
 
 	if bottlenecks.size() > 0:
-		print("\n⚠️  BOTTLENECKS DETECTED:")
+		out.append("⚠️  BOTTLENECKS DETECTED:")
 		for b in bottlenecks:
-			print("   %s" % b)
+			out.append("   %s" % b)
 	else:
-		print("\n✅ No major bottlenecks detected")
+		out.append("✅ No major bottlenecks detected")
 
 	# Node counts
 	var geom_stats = geometry_batcher.get_stats() if geometry_batcher else {}
-	print("\n📈 STATS: %d nodes | %d tris | %d draw calls" % [
+	out.append("📈 STATS: %d nodes | %d tris | %d draw calls" % [
 		quantum_nodes.size(),
 		geom_stats.get("triangle_count", 0),
 		geom_stats.get("draw_calls", 0)
 	])
-	print("═".repeat(78))
+	out.append("═".repeat(78))
+	if _verbose:
+		_verbose.debug("perf_hud", "🔬", "\n" + "\n".join(out))
 
 
 # ============================================================================

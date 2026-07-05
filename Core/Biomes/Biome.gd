@@ -65,6 +65,12 @@ var atom_components: Dictionary = {}
 
 var tags: Array = []
 
+## Thermodynamic regime (What Fades seam, docs/OPEN_CAMPAIGN.md):
+## "" = inherit global switches; "open" = wet country (dissipative while the
+## world is sealed); "closed" = inviolable enclave (unitary even after the
+## door opens). Story flags may change it at runtime via regime_changes.
+var regime: String = ""
+
 
 ## ========================================
 ## Methods
@@ -77,6 +83,14 @@ func get_all_emojis() -> Array:
 
 func get_native_factions() -> Array:
 	return native_factions.duplicate()
+
+
+## The biome's speaking faction — first native, "" when the record names none.
+## One home for the whisper-speaker convention (toasts, graph cards).
+func first_native_faction() -> String:
+	if native_factions is Array and not native_factions.is_empty():
+		return str(native_factions[0])
+	return ""
 
 
 ## Returns the icons currently associated with this neighborhood record.
@@ -261,6 +275,7 @@ func load_from_dict(data: Dictionary) -> void:
 	emojis = EmojiUtil.normalize_array(data.get("emojis", []))
 	atom_components = _normalize_atom_components(data.get("atom_components", {}))
 	tags = _normalize_tags(data.get("tags", []))
+	regime = str(data.get("regime", ""))
 
 
 static func _normalize_tags(raw: Array) -> Array:

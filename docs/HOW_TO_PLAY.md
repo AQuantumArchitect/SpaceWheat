@@ -1,57 +1,91 @@
 # How to Play SpaceWheat
 
-SpaceWheat is a keyboard-first quantum farming game. The live control grammar
-is documented in [UI/Core/KEYBOARD_GRAMMAR.md](../UI/Core/KEYBOARD_GRAMMAR.md)
-and the current frame stack is described in [docs/ARCHETYPE_FRAMES.md](ARCHETYPE_FRAMES.md).
+SpaceWheat is a keyboard-first quantum farming game. Every field is a real
+density matrix; planting, measuring, and harvesting are state preparation,
+Born-rule collapse, and getting paid for what you learned. This page is the
+first ten minutes; the full control grammar lives in
+[UI/Core/KEYBOARD_GRAMMAR.md](../UI/Core/KEYBOARD_GRAMMAR.md) and the frame
+reference in [docs/ARCHETYPE_FRAMES.md](ARCHETYPE_FRAMES.md).
 
-## Quick Start
+## The first sixty seconds
 
-1. Use `T Y U I O P` to pick a biome slot.
-2. Use `Q E R F` as the primary action quartet.
-3. Use `V` for vocabulary, `C` for contracts, `B` for biome inspection, `N` for the density-matrix inspector, and `M` for map/meta.
-4. Use `4 5 6 7 8 9 0` to select the active archetype frame.
+You wake in the **StarterForest** wearing the **Ace** hat (the default —
+that's the `8` key). A toast names the doors; the Hearth Keepers have left
+you a chain of small asks on the quest board.
 
-## The Core Loop
+1. Pick a plot: `G H J K L ;` (left to right).
+2. **R** plants — invest energy: a coherent pulse swings the qubit toward
+   its north pole.
+3. **E** measures — Born's rule picks an answer and the state collapses.
+   This is the game's one irreversible act, and it pauses the sim so you
+   can look around.
+4. **Q** harvests — you are paid the *surprisal* of the outcome,
+   −kT·log p. Rare answers pay more, because you learned more.
+5. **C** opens the quest board. The tutorial chain lives there — each step
+   teaches one mechanic and its progress bar fills as the live state
+   approaches the ask. The bar is the teacher.
 
-- `Q` reaches out or backs out, depending on the surface.
-- `E` inspects, expands, or measures.
-- `R` commits, adds, or pops.
-- `F` advances time, pages forward, or flattens back out.
+That's the core loop. Everything else in the game is a deepening of it.
 
-The exact meaning of each chip is surface-local, but the quartet is always the
-same. `QERF` is the current action grammar.
+## The verb grammar (QERF)
 
-## What You Actually Do
+Four verbs, same directions on every surface:
 
-- In the farm and biome views, you measure emoji qubits and harvest the
-  resulting credits.
-- In the contract and market views, you accept, complete, and settle live
-  offers.
-- In the vocab and icon views, you discover and inspect the active emoji pairs
-  that carry the current physics.
-- In the story view, you read the relationship and arc state that emerged from
-  those actions.
+- **Q** — screw out: less, remove, retreat, harvest, fuse.
+- **E** — pause + inspect: read the state, collapse it, or open detail.
+  **E is the universal "tell me more"** — press it on plots, offers,
+  factions, bridges, anything.
+- **R** — screw in: more, add, advance, plant, span.
+- **F** — play + flatten: close what E opened, advance time. In the Ace
+  hat, **F reaps the season** — time runs forward and the whole biome's
+  yield lands at once.
 
-## First 60 Seconds
+## The seven hats (number row 4–0)
 
-If you are new to the game:
+| Key | Hat | What it does |
+|-----|-----|--------------|
+| 4 | **Spark** | One-shot Lindblad jolt — wet country only (chips grey on closed ground); the kick that can *re-purify*. **E** reads the gauge. Mode 2 (🌉): Majorana bridges — never sealed. |
+| 5 | **Icon** | Inject dual-emoji qubits; **F tracks** a qubit's walk, **R incorporates** it when ripe. |
+| 6 | **Merchant** | Standing contracts with the Bath (wet country only). 1/2/3 picks the channel — thermal / dephase / damp. Q exports, E reads the order book, R imports, **F settles**. |
+| 7 | **Captain** | Biome lifecycle: cull, compass, discover. |
+| 8 | **Ace** | The default: plant / measure / harvest / **reap (F)**. |
+| 9 | **Operator** | Gate building: Bell, CNOT, CZ, SWAP, GHZ. |
+| 0 | **Druid** | Rotations + Hadamard (E); 1/2/3 pick the X/Y/Z axis. |
 
-1. Open a biome and watch the live density bubbles.
-2. Use the measure/pop flow to harvest a little value.
-3. Open `V` to see which emoji pairs are currently in scope.
-4. Open `C` to see the live contracts that the market is offering.
-5. Open `B` and `N` to inspect the current biome state and density matrix.
+Re-press the active hat to fall back to Ace. `Tab` cycles hats. `Shift` +
+Q/E/R applies the verb to every valid plot.
 
-That is enough to start seeing the game as a set of connected physics surfaces:
-biomes, icons, quests, market, and story.
+## The surfaces (letter row)
 
-## Current Runtime Model
+- **C** — quest board: offers, contracts, the tutorial chain. Press **E**
+  on any offer to read the faction's *resonance* with this biome — which
+  axiom sings, which grates, and how they sit with who *you* are becoming.
+- **V** — vocabulary atlas: the icons you know, and the ones you've seen.
+- **B** — biome inspector. **N** — the density matrix itself, as a heatmap.
+- **M** — map and meta: the world graph, the eigenstate compass 🧭, and
+  **You · Tr(ρ²)** — your own identity, read back as physics.
+- **X** — the Guide: an in-game version of all of this, plus the glossary
+  (twenty canonical terms) and a list of experiments to try.
+- **Z / ESC** — system menu: save, load, new run.
+- **F12** — postcard: captures the view with the physics watermark in the
+  pixels and a certificate JSON beside it (`user://postcards/`).
 
-- `IconRegistry` is the live icon atlas autoload.
-- `IconRegistry` is the runtime icon type and shared lookup model.
-- `StoryEngine` owns story composition and phase updates.
-- `QuestManager` owns quest lifecycle.
-- `MarketLattice` owns offer generation and settlement.
+## Navigation
 
-If a control or surface seems unclear, check the grammar and frame docs first.
-Those are the current sources of truth.
+`T Y U I O P` — biome slots. `G H J K L ;` — plots. `'` — select all
+plots. `W A S D` — spin the selection cylinder (frames / biomes / plots /
+surfaces).
+
+## Where it goes from here
+
+Wake the forest and the story takes over: loops that remember (ripeness is
+Berry phase), depths that never move (the spectrum), a chain that protects
+its ends, braids that care about order — and after the story's door opens,
+the **wet country**, where the Bath drinks phase and looking becomes the
+only way to keep. Ripe qubits teach you words; words make you somebody
+(watch your purity resolve in M → Eigenstate); being somebody changes how
+every faction treats you.
+
+If a claim in the game sounds too good to be physics, check
+[docs/FOR_PHYSICISTS.md](FOR_PHYSICISTS.md) — every concept is graded
+exact / faithful / suggestive, and the tests are one command away.

@@ -76,8 +76,9 @@ func populate(graph) -> void:
 	# The webway (Lindblad flow + decay sink) is authored in every biome but SEALED
 	# in the closed game: no dissipators are built, nothing decays (see
 	# docs/glossary/enclave.md + webway.md). We draw it anyway — dark, dormant —
-	# so the player can see the channels the enclave is holding shut.
-	var closed: bool = not BalanceConfig.dissipative_enabled()
+	# so the player can see the channels the enclave is holding shut. Wet-country
+	# biomes (What Fades regime seam) draw theirs LIVE.
+	var closed: bool = _closed_here()
 	var webway_color: Color = COLOR_WEBWAY_SEALED if closed else COLOR_WEBWAY
 
 	var n: int = _graph.node_count()
@@ -139,8 +140,8 @@ func populate(graph) -> void:
 		if closed:
 			lbl.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7, 0.6))
 		sg.add_child(lbl)
-		sg.tooltip_text = ("The webway's drain. Sealed while the enclave holds: no dissipators are built, " +
-				"nothing leaks (docs/glossary/enclave.md). Act 2 opens it.") if closed else "Decay outflow — population leaving the cluster."
+		sg.tooltip_text = ("The webway's drain. Sealed here — this biome runs closed: no dissipators are built, " +
+				"nothing leaks (docs/glossary/enclave.md). The wet country runs the same channels live.") if closed else "Decay outflow — population leaving the cluster."
 		sg.set_slot(0, true, 1, webway_color, false, 0, Color.WHITE)
 		add_child(sg)
 
@@ -161,8 +162,18 @@ func populate(graph) -> void:
 
 
 ## Supply the live biome's QuantumComputer; _process pulls populations from it.
+## Call BEFORE populate() so the webway draws in this biome's true regime.
 func set_live_source(qc) -> void:
 	_live_qc = qc
+
+
+## Per-biome regime (What Fades): the wet country draws its webway LIVE while
+## the rest of the world stays sealed. Falls back to the global switch when no
+## live QC is attached (canonical-data-only views).
+func _closed_here() -> bool:
+	if _live_qc != null and _live_qc.has_method("is_open_here"):
+		return not _live_qc.is_open_here()
+	return not BalanceConfig.dissipative_enabled()
 
 
 func _make_pole_row(emoji: String) -> Dictionary:
@@ -275,12 +286,12 @@ func inspect_text() -> String:
 	var lines: Array[String] = []
 	if _graph != null and _graph.node_count() > 0:
 		lines.append("%s — %d-qubit neighborhood cluster" % [str(_graph.biome_name), _graph.node_count()])
-	var closed: bool = not BalanceConfig.dissipative_enabled()
+	var closed: bool = _closed_here()
 	lines.append("purple ━ coupling (H): authored, conservative — population sloshes, nothing is lost")
 	if closed:
 		lines.append("orange ━ webway (L): authored channels, SEALED — nothing flows while the enclave holds (Act 2 opens them)")
 	else:
-		lines.append("orange ━ webway (L): directed Lindblad flow")
+		lines.append("orange ━ webway (L): LIVE directed Lindblad flow — this is wet country; the Bath drinks here")
 	lines.append("gold ━ entanglement: LIVE mutual information you wove (bits; a Bell pair reads 2.0)")
 	lines.append("◈ row on each node: its most-entangled partner right now")
 	if _live_qc != null and _live_qc.has_method("get_cached_max_mutual_information"):

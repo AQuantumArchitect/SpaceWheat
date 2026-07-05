@@ -5,6 +5,30 @@
 > Tiers 2–6 (strange attractors, topological pipes, Majorana bridges, anyonic braiding,
 > knot theory) are future work.
 
+> **Audited, promoted to a campaign, and SHIPPED, 2026-07** — see
+> `docs/TOPOLOGY_CAMPAIGN.md` ("What Survives"): four chapters live across acts 1–4,
+> staged on StarterForest, FreshwaterSpring, Lanternfall, and the Operator/Druid
+> frames. Per-tier fates from the audit:
+> - **Tier 0** shipped — it *is* the game's foundation.
+> - **Tier 1** shipped deeper than this doc claims: `BerryPhaseRegister` integrates true
+>   signed solid angle, with ripeness, harvest counters, story-flag predicates, and
+>   faction whispers. Campaign Chapter 1 adds the teaching arc.
+> - **Tier 2** was mostly built while nobody was looking: attractor state + eigenvalue
+>   gap, dynamics tracker, five quest predicates, duration trackers — the Village arc
+>   already uses them. Reframed honestly for the enclave (closed systems have no
+>   attractors; the spectrum is conserved) as Chapter 2, *The Pond Holds Its Depths*.
+> - **Tier 3** needs **no engine work**: H is built from icons, icons author
+>   cross-couplings, so a dimerized SSH chain is pure data. Chapter 3, the crown.
+> - **Tier 5** demonstrable today with shipped gates; needs only an order-sensitive
+>   `gate_order` predicate. Chapter 4.
+> - **Tiers 4 & 6** (Majorana bridges, knots) and **true chaos** were reserved for the
+>   open door — noted in `docs/inspiration/OPEN_SYSTEM_ACT2.md`. **Both tiers are now
+>   SHIPPED** as "What Connects" (`docs/CONNECT_CAMPAIGN.md`, via the
+>   `docs/ENGINE_FRONTIER.md` plan): the bridge as a standalone 2×2 ρ with emergent
+>   Γ-product protection (`BridgeRegister`), the knot as Berry-loop path records +
+>   mutual-winding invariants on the Berry lift (`KnotRegister`). All six tiers of
+>   this document are live. Chaos alone stays in the seed bank.
+
 A 6-tier progression from basic farming to reality engineering.
 Each tier introduces a new topological concept as a *gameplay mechanic.*
 

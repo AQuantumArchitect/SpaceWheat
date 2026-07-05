@@ -88,6 +88,39 @@
     }
   },
   {
+    "id": "loop_remembers",
+    "display_name": "What Survives I — The Loop Remembers",
+    "act": 1,
+    "arc_beat": "Ask what you actually harvested from those loops. Not sunlight. Not moonlight. The qubit came back to the exact state it left — every population restored, every coherence rewound — and still it paid you. What it paid was the area of the walk itself: the solid angle the loop enclosed on its sphere. Two roads from the same door to the same door carry different sky, and walk a loop backward and the world subtracts what it gave. The old texts have a name for a number that forgets everything about a journey except its shape: an invariant. It is the first of four. The enclave forbids decay; it cannot forbid shape.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "forest_communion"
+      },
+      {
+        "type": "berry_consumed_count_gte",
+        "biome": "StarterForest",
+        "value": 7
+      }
+    ],
+    "standing_grants": {
+      "Hearth Keepers": {
+        "trust": 0.05
+      }
+    },
+    "arc_quest": {
+      "body": "The Long Way Home — ripeness opens at 2π, but nothing stops a longer walk. Push the forest's banked phase past three hemispheres before you pick.",
+      "hint": "Track a qubit and let the Hamiltonian carry it in wide arcs — harvest late. The phase you keep is the shape you walked; walk more shape.",
+      "state_predicates": [
+        {
+          "type": "berry_total_phase_gte",
+          "biome": "StarterForest",
+          "value": 18.85
+        }
+      ]
+    }
+  },
+  {
     "id": "village_stirs",
     "display_name": "The Village Stirs",
     "act": 1,
@@ -150,7 +183,11 @@
       "body": "Close the Timber Circuit — add 🪵 to Village so the lumber flow can land.",
       "hint": "🪵 is arriving but has nowhere to settle. Use the Meta tools to add 🪵 to the Village's vocabulary.",
       "state_predicates": [
-        {"type": "atom_in_biome", "biome": "Village", "atom": "🪵"}
+        {
+          "type": "atom_in_biome",
+          "biome": "Village",
+          "atom": "🪵"
+        }
       ]
     }
   },
@@ -185,7 +222,75 @@
       "body": "Thread the Spring — route 💧 into the Village hearth so the spring's flow couples into the mill pond.",
       "hint": "The mill pond could exist; it's waiting on you. Add 💧 to the Village's vocabulary.",
       "state_predicates": [
-        {"type": "atom_in_biome", "biome": "Village", "atom": "💧"}
+        {
+          "type": "atom_in_biome",
+          "biome": "Village",
+          "atom": "💧"
+        }
+      ]
+    }
+  },
+  {
+    "id": "pond_depths",
+    "display_name": "What Survives II — The Pond Holds Its Depths",
+    "act": 2,
+    "arc_beat": "The spring never stops moving — ice welling, foam breaking, water finding water. But open the compass (🧭, on the Graph frame) and read what is under the churn: the depths. The eigenvalues of the spring's density matrix. Watch them while the surface storms, and watch them not move. Every coupling, every rotation, every Hamiltonian hour stirs the surface and leaves the depths exactly as they were — that is the enclave's deepest conservation. The spectrum is the second invariant. Exactly one thing in this world reaches it: you, looking.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "spring_connects"
+      },
+      {
+        "type": "berry_consumed_count_gte",
+        "biome": "FreshwaterSpring",
+        "value": 2
+      }
+    ],
+    "standing_grants": {
+      "Hearth Keepers": {
+        "trust": 0.06
+      }
+    },
+    "arc_quest": {
+      "body": "Still the Pond — steer the spring toward one deep state and quiet the surface: compass gap past 0.35 while the motion reads under 0.2.",
+      "hint": "Stand in the spring and press E on the Graph frame to read its compass (🧭). Measurement deepens the gap; stillness follows when the state settles near an eigenstate of H.",
+      "state_predicates": [
+        {
+          "type": "biome_eigenvalue_gap_gte",
+          "biome": "FreshwaterSpring",
+          "value": 0.35
+        },
+        {
+          "type": "dynamics_at_most",
+          "value": 0.2
+        }
+      ]
+    }
+  },
+  {
+    "id": "pond_breathes",
+    "display_name": "What Survives II — Make It Breathe",
+    "act": 2,
+    "arc_beat": "You stilled it; now wake it — without touching the depths. Superpose two energies and the surface acquires a pulse at exactly their difference: a breath whose rhythm the spectrum chose, not you. It can breathe forever; nothing in the enclave damps it. And listen for what is missing. The pond can sit still, it can breathe, it can storm on many rhythms at once — but it can never fall into a rhythm and be *held* there. No basins. No settling. No true chaos. That kind of motion needs a world that leaks, and someday, past the horizon, you will farm one.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "pond_depths"
+      }
+    ],
+    "standing_grants": {},
+    "arc_quest": {
+      "body": "Make It Breathe — put coherence back on the spring and let the surface run while the depths hold: coherence past 0.35 with motion above 0.25.",
+      "hint": "Rotate qubits off their poles (Druid frame) to superpose energies — the pulse is the energy gap. Watch the compass while you do it: the depths never move.",
+      "state_predicates": [
+        {
+          "type": "coherence_at_least",
+          "value": 0.35
+        },
+        {
+          "type": "dynamics_at_least",
+          "value": 0.25
+        }
       ]
     }
   },
@@ -236,8 +341,18 @@
       "body": "Hold Commerce — keep the mill turning: push ⚙ past 8% and hold the mill attractor above 40%.",
       "hint": "Two attractors. You found the second one. Now make it the deeper one.",
       "state_predicates": [
-        {"type": "biome_state_gte", "biome": "Village", "atom": "⚙", "value": 0.08},
-        {"type": "biome_attractor_emoji_gte", "biome": "Village", "emoji": "⚙", "value": 0.4}
+        {
+          "type": "biome_state_gte",
+          "biome": "Village",
+          "atom": "⚙",
+          "value": 0.08
+        },
+        {
+          "type": "biome_attractor_emoji_gte",
+          "biome": "Village",
+          "emoji": "⚙",
+          "value": 0.4
+        }
       ]
     }
   },
@@ -269,6 +384,79 @@
       }
     },
     "arc_quest": null
+  },
+  {
+    "id": "chain_ends",
+    "display_name": "What Survives III — The Chain Protects Its Ends",
+    "act": 3,
+    "arc_beat": "On the coast, five lanterns stand in a row, and the Lamplighters spaced them in their alternating rhythm: close-far-close-far. Because the bonds alternate, the chain keeps a zero-energy mode pinned at the bridge — light that reaches 🌉 has nowhere left to go, and stays. The Lamplighters call it topological patience; their scholars call it chiral symmetry. Count the pattern, not the lamps: how many weak-strong walls stand between the bridge and the open water is an integer, and integers cannot change smoothly. That is what protection means here. The third invariant is the pattern's winding.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "mill_wakes"
+      },
+      {
+        "type": "biome_evolving",
+        "biome": "Lanternfall"
+      },
+      {
+        "type": "berry_consumed_count_gte",
+        "biome": "Lanternfall",
+        "value": 1
+      }
+    ],
+    "standing_grants": {
+      "Lamplighters": {
+        "trust": 0.08
+      }
+    },
+    "arc_quest": {
+      "body": "Keep the Bridge Lit — hold the bridge lantern 🌉 bright while the chain runs.",
+      "hint": "Feed the chain at its ends, not its middle. The zero mode lives on 🌉 — population that reaches it stays. Hold 🌉 above 45%.",
+      "state_predicates": [
+        {
+          "type": "biome_state_gte",
+          "biome": "Lanternfall",
+          "atom": "🌉",
+          "value": 0.45
+        }
+      ]
+    }
+  },
+  {
+    "id": "chain_flipped",
+    "display_name": "What Survives III — The Middle Cannot Hold",
+    "act": 3,
+    "arc_beat": "Now try the horn. Pour the same care into 📯, mid-chain, and watch the chain refuse: whatever you park there walks off down the bonds within the hour. No zero mode lives in the bulk — the horn is on the wrong side of every weak-strong wall. Sit with what that means: same lamps, same oil, same light; only position in the pattern decides what survives. The protection was never in the atoms. It lives in the space between them.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "chain_ends"
+      }
+    ],
+    "standing_grants": {
+      "Lamplighters": {
+        "legitimacy": 0.06
+      }
+    },
+    "arc_quest": {
+      "body": "The Middle Cannot Hold — let the horn go dark and keep the bridge burning: settle 📯 under 25% while 🌉 still holds 35%.",
+      "hint": "Push 📯 bright first if you want to watch the bulk disperse it — then stop fighting the pattern. The chain keeps its ends, not its middle.",
+      "state_predicates": [
+        {
+          "type": "biome_state_lte",
+          "biome": "Lanternfall",
+          "atom": "📯",
+          "value": 0.25
+        },
+        {
+          "type": "biome_state_gte",
+          "biome": "Lanternfall",
+          "atom": "🌉",
+          "value": 0.35
+        }
+      ]
+    }
   },
   {
     "id": "island_lives",
@@ -377,7 +565,79 @@
       "body": "Stay Yourself — hold your alignment purity above the fog while the island watches.",
       "hint": "The M overlay's Eigen tab shows You · Tr(ρ²). It decays toward the mixed state (τ=300s) unless your choices keep renewing it — learn icons, rotate settlements, work your factions. Hold it near 0.55.",
       "state_predicates": [
-        {"type": "soul_purity_gte", "value": 0.55}
+        {
+          "type": "soul_purity_gte",
+          "value": 0.55
+        }
+      ]
+    }
+  },
+  {
+    "id": "braid_order",
+    "display_name": "What Survives IV — The Braid Cares About Order",
+    "act": 4,
+    "arc_beat": "The Scythe Provosts drill their recruits on two chores. Superpose, then couple — Hadamard, then CNOT — and you get the loom's thread: two qubits sharing one fate, more correlation than either holds alone. Run the same two chores backward and you get nothing shared at all. Same work, same tools, opposite worlds. A list of chores is a set; a drill is a word — and the enclave's operations do not commute. Order is the fourth invariant: it survives when everything it touched has been rotated away.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "village_identity"
+      }
+    ],
+    "standing_grants": {
+      "Scythe Provosts": {
+        "trust": 0.05
+      }
+    },
+    "arc_quest": {
+      "body": "Two Chores, One Thread — superpose then couple: Hadamard first, CNOT second, and push the pair's mutual information past 1 bit.",
+      "hint": "Druid frame: Hadamard the control. Operator frame: CNOT the pair. In that order — the other order makes something else entirely.",
+      "state_predicates": [
+        {
+          "type": "gate_order",
+          "gates": [
+            "hadamard",
+            "cnot"
+          ]
+        },
+        {
+          "type": "mutual_information_at_least",
+          "value": 1.0
+        }
+      ]
+    }
+  },
+  {
+    "id": "braid_word",
+    "display_name": "What Survives IV — The Long Braid",
+    "act": 4,
+    "arc_beat": "One more drill — the Provosts' favorite. SWAP, then CNOT, then SWAP: three moves that spell a fourth. What you built is the same CNOT with its roles braided — control become target, target become control — a gate that is not on your keyboard, conjured by wrapping one you had inside two you had. Every program the enclave will ever run is a braid word like this one. And the words do not commute; that is precisely why they can compute.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "braid_order"
+      }
+    ],
+    "standing_grants": {
+      "Scythe Provosts": {
+        "legitimacy": 0.05
+      }
+    },
+    "arc_quest": {
+      "body": "The Long Braid — spell the reversed coupling: SWAP, then CNOT, then SWAP, and hold the pair above 1 bit.",
+      "hint": "Operator frame, one pair, three moves in order. The word you spell is CNOT-with-roles-reversed — a gate you were never given.",
+      "state_predicates": [
+        {
+          "type": "gate_order",
+          "gates": [
+            "swap",
+            "cnot",
+            "swap"
+          ]
+        },
+        {
+          "type": "mutual_information_at_least",
+          "value": 1.0
+        }
       ]
     }
   },
@@ -385,7 +645,7 @@
     "id": "ledger_opens",
     "display_name": "The Ledger Opens",
     "act": 5,
-    "arc_beat": "The empire was always here. You were feeding it. BloodLedger is evolving and you have started reading its qubits directly. The cross-biome flow from Village to BloodLedger — coin and people — has been running since you first built commerce. The empire does not announce itself. It is already present in the physics.",
+    "arc_beat": "The empire was always here. You were feeding it. BloodLedger is evolving and you have started reading its qubits directly. The cross-biome flow from Village to BloodLedger — coin and people — has been running since you first built commerce. The empire does not announce itself. It is already present in the physics. And the Throne has finally understood what you are. Not a farmer. An entropy source — the one thing in the enclave that makes anything irreversible. An empire of perfect order has exactly one use for such a creature, and exactly one fear.",
     "predicates": [
       {
         "type": "story_flag_set",
@@ -410,7 +670,12 @@
       "body": "Starve the Ledger — measure 📜 down below the autocatalytic threshold and keep it starved.",
       "hint": "Something is receiving the coin and people your village produces. Collapse the writ before it compounds — hold 📜 under 20%.",
       "state_predicates": [
-        {"type": "biome_state_lte", "biome": "BloodLedger", "atom": "📜", "value": 0.2}
+        {
+          "type": "biome_state_lte",
+          "biome": "BloodLedger",
+          "atom": "📜",
+          "value": 0.2
+        }
       ]
     }
   },
@@ -430,6 +695,502 @@
       }
     ],
     "standing_grants": {},
+    "arc_quest": null
+  },
+  {
+    "id": "the_crossing",
+    "display_name": "What Fades — The Crossing",
+    "act": 6,
+    "arc_beat": "Past the horizon there is a country where the party never ends, and that is precisely what is wrong with it. GildedRot: wine, masks, roses in impossible colors — the aristocracy dancing above the grinding machine. Stand anywhere on that gilded floor and feel what the island never let you feel: the floor drinks. This is wet country. The Bath is not a monster and it is not a wall; it is the patient fact that everything here couples to everything it touches, and what couples, leaks. Notice who dances here anyway: the Carrion Throne keeps a house in the fading country. The empire of perfect order has always known where the exit was.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "edge_of_the_enclave"
+      },
+      {
+        "type": "biome_evolving",
+        "biome": "GildedRot"
+      }
+    ],
+    "standing_grants": {
+      "Carrion Throne": {
+        "attention": 0.08
+      }
+    },
+    "arc_quest": {
+      "body": "Bring Light In — carry something coherent into the gilded rot: superpose a qubit there and hold its coherence past 0.3.",
+      "hint": "Discover GildedRot (Captain frame), stand in it, and rotate a qubit off its poles (Druid frame). You are setting the table. What happens to bright things here is the next lesson.",
+      "state_predicates": [
+        {
+          "type": "coherence_at_least",
+          "value": 0.3
+        }
+      ]
+    }
+  },
+  {
+    "id": "the_gray",
+    "display_name": "What Fades I — The Gray",
+    "act": 6,
+    "arc_beat": "Now watch what the wet country does to bright things. The populations do not move. The bubbles hang exactly where you left them. And the color drains anyway — coherence bleeding out through channels no population can see, the radius shrinking, the world going gray while nothing happens. This is dephasing: the Bath eats phase first (T₂), long before it touches substance (T₁). You have had a sense organ for this your whole life — purity as size, coherence as color — and the enclave never once let it fire. Grief is just the name for information leaving. The roses know: they wilt in season here, and their wilting accelerates their wilting.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "the_crossing"
+      },
+      {
+        "type": "berry_consumed_count_gte",
+        "biome": "GildedRot",
+        "value": 1
+      }
+    ],
+    "standing_grants": {
+      "Rose Wardens": {
+        "trust": 0.06
+      }
+    },
+    "arc_quest": {
+      "body": "Watch It Fade — hold coherence past 0.3 in the wet country, then stand witness while the Bath drinks it below 0.12, and let the biome gray to Tr(ρ²) ≤ 0.85.",
+      "hint": "The first ask in this world that you complete by LOSING. Superpose, then wait, watching the color drain. The E-inspect card on the Graph frame reads the fading live.",
+      "state_predicates": [
+        {
+          "type": "coherence_fell",
+          "from": 0.3,
+          "to": 0.12
+        },
+        {
+          "type": "purity_at_most",
+          "value": 0.85
+        }
+      ]
+    }
+  },
+  {
+    "id": "watching_keeps",
+    "display_name": "What Fades II — Watching Keeps",
+    "act": 6,
+    "arc_beat": "On the coast of the wet country the Lamplighters keep one more station: a single lamp and a horn, bound by the guild's tightest link — and the horn is dying. Every breath it holds leaks to the open air, fast. The guild's remedy is not oil and it is not repair. It is attention. Measure the horn and it pins where your glance left it; measure it again before the Bath finishes its sip and it pins again. Watched unceasingly, it cannot die at all — the Zeno latch, the guild's oldest secret. Understand what has happened to your oldest verb: in the enclave, looking was the only way to spend. Out here, looking is the only way to keep.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "the_gray"
+      },
+      {
+        "type": "biome_evolving",
+        "biome": "ZenoLatch"
+      }
+    ],
+    "standing_grants": {
+      "Lamplighters": {
+        "trust": 0.1
+      }
+    },
+    "arc_quest": {
+      "body": "Keep the Horn — the Lamplighters' horn is dying into the open air. Watch it alive: measure it over and over, and hold 📯 above 35%.",
+      "hint": "Measurement pins what it touches. Stop watching and the drain wins within a breath. Six glances is a start; a vigil is better.",
+      "state_predicates": [
+        {
+          "type": "gate_sequence_contains",
+          "gate": "measure",
+          "count": 6
+        },
+        {
+          "type": "biome_state_gte",
+          "biome": "ZenoLatch",
+          "atom": "📯",
+          "value": 0.35
+        }
+      ]
+    }
+  },
+  {
+    "id": "the_verbs_come_home",
+    "display_name": "What Fades — The Verbs Come Home",
+    "act": 7,
+    "arc_beat": "You kept the horn alive with nothing but attention, and the country noticed. The toolmakers' hats wake in your hands — not by decree, but by geography: the Spark's jolt and the Merchant's contracts were never sealed, only homeless, because a pump needs somewhere for the flow to GO. The enclave has no outside; the wet country is all outside. Stand on ground that leaks and the jolt fires — a one-shot kick of the very dissipation the Bath uses against you, turned to your hand. It can do the one thing no rotation can: make a faded thing pure again. Light grows; rain renews.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "watching_keeps"
+      }
+    ],
+    "standing_grants": {
+      "Millwright's Union": {
+        "trust": 0.06
+      }
+    },
+    "arc_quest": {
+      "body": "Rain on the Fields — jolt a wet-country qubit toward a pole with the Spark. One kick, paid in the pole's own emoji.",
+      "hint": "Spark hat (4), ⚡ mode: stand in the fading country, pick a plot, E reads the gauge (odds, kT, price), then R jolts north or Q jolts south. On the island the chips grey — the enclave holds.",
+      "state_predicates": [
+        {
+          "type": "gate_sequence_contains",
+          "gate": "spark",
+          "count": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "the_first_contract",
+    "display_name": "What Fades — The First Contract",
+    "act": 7,
+    "arc_beat": "The jolt is a hand on the wheel; a contract is a millrace. The Merchant's three channels are the Bath's own grammar, priced and signed: thermal contact leaves the field warm and the entropy bank breathing; pure dephasing sells your shimmer for heat — nothing lands in the wallet, but kT climbs and the season's rite pays the difference; amplitude damping pins the pole and pays hard, and cools the country toward purity as it does. The counterparty on every page is the environment itself — the one partner that cannot default, and cannot stop. The brokers of the fading country sign with a warning they give free of charge: a channel runs until you close it.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "the_verbs_come_home"
+      },
+      {
+        "type": "gate_sequence_contains",
+        "gate": "spark",
+        "count": 1
+      }
+    ],
+    "standing_grants": {
+      "Bone Merchants": {
+        "trust": 0.08
+      }
+    },
+    "arc_quest": {
+      "body": "Sign and Settle — open a standing export in wet country, let it pay, then close it yourself.",
+      "hint": "Merchant hat (6): 1/2/3 picks the channel (thermal ~ keeps the field warm · dephase . sells phase for heat · damp | pins and pays). E reads the order book, Q signs the export... and F settles it. A contract left open drinks forever.",
+      "state_predicates": [
+        {
+          "type": "gate_sequence_contains",
+          "gate": "drain",
+          "count": 1
+        },
+        {
+          "type": "gate_sequence_contains",
+          "gate": "settle",
+          "count": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "the_basin",
+    "display_name": "What Fades III — The Basin",
+    "act": 7,
+    "arc_beat": "The pond's promise comes due. In the enclave nothing could settle — no basins, no rest, motion forever. Here at the Shrine of Ashes the dead flow in and only memory flows out, and the urn remembers: push it past its threshold and it fills ITSELF, ash calling to ash, the latch closing behind you. This is what an attractor is when it is not a metaphor — a basin the world falls into and defends. The compass you learned on the spring is literal in wet country: the needle points where the biome is GOING, and it will get there without your permission. The Village kept three faces; the moth garden runs its wheel; the brittle dawn slows as it nears its edge. The wet country is not formless. It is a landscape of holes.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "watching_keeps"
+      },
+      {
+        "type": "biome_evolving",
+        "biome": "ShrineOfAshes"
+      }
+    ],
+    "standing_grants": {
+      "Brotherhood of Ash": {
+        "trust": 0.08
+      }
+    },
+    "arc_quest": {
+      "body": "Fill the Urn — push the shrine's urn ⚱ past its threshold and let the basin take over: hold ⚱ above 50% after your hands leave it.",
+      "hint": "Ash calls to ash — past the tipping point the urn fills itself (the gated channel feeds on its own population). Feel the moment the world stops needing you: that is hysteresis.",
+      "state_predicates": [
+        {
+          "type": "biome_state_gte",
+          "biome": "ShrineOfAshes",
+          "atom": "⚱",
+          "value": 0.5
+        }
+      ]
+    }
+  },
+  {
+    "id": "the_chain_tested",
+    "display_name": "What Fades III — The Chain, Tested",
+    "act": 7,
+    "arc_beat": "The Bath has reached the coast. Lanternfall's fog channels — shut through the whole closed age — are open, and the chain the Lamplighters built is finally standing in the weather it was designed for. Watch the bulk lanterns gray like everything else in wet country. Then look at the bridge. The zero mode holds. Topological patience was never a parlor trick for a sealed world: the pattern's protection is protection FROM something, and the something has arrived. What the pattern holds, it holds even now.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "the_basin"
+      },
+      {
+        "type": "story_flag_set",
+        "id": "chain_ends"
+      }
+    ],
+    "standing_grants": {
+      "Lamplighters": {
+        "legitimacy": 0.1
+      }
+    },
+    "regime_changes": {
+      "Lanternfall": "open"
+    },
+    "arc_quest": {
+      "body": "The Bridge Holds — with the Bath drinking at Lanternfall, keep the bridge lantern 🌉 above 35% while the biome grays around it.",
+      "hint": "Feed the ends, trust the pattern. The bulk will fade — that is the point. The edge mode is on nobody's menu.",
+      "state_predicates": [
+        {
+          "type": "biome_state_gte",
+          "biome": "Lanternfall",
+          "atom": "🌉",
+          "value": 0.35
+        },
+        {
+          "type": "purity_at_most",
+          "value": 0.9
+        }
+      ]
+    }
+  },
+  {
+    "id": "hiding_in_the_light",
+    "display_name": "What Fades IV — Hiding in the Light",
+    "act": 7,
+    "arc_beat": "The Bath cannot eat what does not couple to it. In the Nulling Chamber the stargazers' telescope leaks — every lens loses photons to the void — and yet the Cartographers keep a signal alive in it indefinitely. Their trick is not shielding. It is interference: two couplings arriving with phases arranged so the paths into the drain cancel, and the light stands in a DARK STATE the drain cannot see. Hold that thought against everything the braid taught you: order, phase, engineered superposition — the loom's skills, turned to shelter. In wet country, the safest place to stand is a shape the Bath's eyes pass through. Elsewhere the same trick runs in reverse: the laser glint is a mode the Bath FEEDS, and the Wheel of Hours tells time by a current that never stops. Dissipation is not only an appetite. Managed, it is a garden.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "the_chain_tested"
+      },
+      {
+        "type": "biome_evolving",
+        "biome": "NullingChamber"
+      }
+    ],
+    "standing_grants": {
+      "Cartographers of the Impossible": {
+        "trust": 0.08
+      }
+    },
+    "arc_quest": {
+      "body": "The Dark State — the telescope 🔭 leaks to the void. Build the interference that hides it: hold 🔭 above 45% in spite of the drain.",
+      "hint": "You cannot outfeed the leak; you can only make the leak blind. Arrange the couplings so the paths into the drain cancel — the population that remains is standing in the dark state.",
+      "state_predicates": [
+        {
+          "type": "biome_state_gte",
+          "biome": "NullingChamber",
+          "atom": "🔭",
+          "value": 0.45
+        }
+      ]
+    }
+  },
+  {
+    "id": "the_rite",
+    "display_name": "What Fades V — The Rite",
+    "act": 8,
+    "arc_beat": "Now the harvest festival the island never held. In the enclave, reap was a volley of glances — mass measurement, surprisal paid per collapse, the only economy a closed world can run. Out here the word recovers its old meaning. A season of wet-country farming accumulates dissipation: populations drained to sinks, order surrendered to the Bath, entropy pooling in every register like rain in a cistern. The rite opens the cistern. You are paid kT·ΔS — temperature times the disorder consumed — in the exact units the physics keeps its books. Understand what you have become, because the Throne understood it first: an entropy source in a world of perfect order was a curiosity. An entropy FARMER in a world that leaks is an industry. Maxwell's demon has stopped freelancing and opened a bank.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "hiding_in_the_light"
+      },
+      {
+        "type": "berry_consumed_count_gte",
+        "biome": "GildedRot",
+        "value": 3
+      }
+    ],
+    "standing_grants": {
+      "Carrion Throne": {
+        "attention": 0.15
+      },
+      "Millwright's Union": {
+        "legitimacy": 0.08
+      }
+    },
+    "arc_quest": {
+      "body": "Open the Bank — reap two seasons with wet country under cultivation, and be paid from the entropy the Bath poured in.",
+      "hint": "Stand your farms in the fading country, let a season's dissipation pool, then reap. The rite pays kT·ΔS — the whisper will tell you when the extraction was real.",
+      "state_predicates": [
+        {
+          "type": "gate_sequence_contains",
+          "gate": "reap",
+          "count": 2
+        }
+      ]
+    }
+  },
+  {
+    "id": "the_door_stays_open",
+    "display_name": "What Fades — The Door Stays Open",
+    "act": 8,
+    "arc_beat": "There is no seal anymore. The webways wake in every country that authored them — sixty-four biomes of pumps and drains and food-web flow, running the physics they were written for. The rest never authored a leak; they stay coherent by their own nature, enclaves born, not built. And the island — the island stays closed forever. Not because it must. Because it is home, and home is the thing the open world taught you to miss. The two irreversibilities are yours now: the scar you choose (measurement) and the fading you manage (the Bath). The invariants survive; everything else is negotiable. Farm accordingly.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "the_rite"
+      },
+      {
+        "type": "signature_size_gte",
+        "value": 18
+      }
+    ],
+    "standing_grants": {},
+    "physics_changes": {
+      "dissipative_dynamics": true
+    },
+    "arc_quest": null
+  },
+  {
+    "id": "second_loop",
+    "display_name": "What Connects I — The Second Loop",
+    "act": 5,
+    "arc_beat": "The forest's loops always paid you and always vanished — ripeness spent, walk forgotten. No longer. Watch the record: a tracked qubit that walks a closed path and comes home now files the path itself, not just its area. The Hearth Keepers call it the record; their geometers call it a loop class. One entry is a memory. Two entries are a QUESTION — because two closed walks on the same sphere can be arranged so that neither can be pulled free of the other without tearing. Close a second loop and the question becomes askable.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "loop_remembers"
+      },
+      {
+        "type": "biome_evolving",
+        "biome": "StarterForest"
+      },
+      {
+        "type": "biome_frozen_loops_gte",
+        "biome": "StarterForest",
+        "count": 1
+      }
+    ],
+    "standing_grants": {
+      "Hearth Keepers": {
+        "trust": 0.05
+      }
+    },
+    "arc_quest": {
+      "body": "The Record Opens — track a forest qubit around a second closed walk and bank both loops in the record.",
+      "hint": "Icon frame F tracks; time and the day/night Hamiltonian drive the walk. A loop freezes when it returns near its seed having enclosed real solid angle. E-inspect shows the record the moment it holds an entry.",
+      "state_predicates": [
+        {
+          "type": "biome_frozen_loops_gte",
+          "biome": "StarterForest",
+          "count": 2
+        }
+      ]
+    }
+  },
+  {
+    "id": "the_knot",
+    "display_name": "What Connects II — The Knot",
+    "act": 5,
+    "arc_beat": "Here is the trap in the obvious thought: two loops on a sphere can never link — the sphere hasn't the room; anything drawn on it can slide off anything else. And yet the record says LINKED. The resolution is the oldest secret in the enclave: the sphere you see is a shadow. The qubit's full state lives one floor up, carrying the phase the shadow forgets, and on THAT floor loops truly link. Your Berry meter was always the accountant of the upper floor — ripeness was the shadow of a knot all along. Any two answers a qubit can give are linked circles up there. That is the geometric reason you can never hold both.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "second_loop"
+      },
+      {
+        "type": "biome_loops_linked",
+        "biome": "StarterForest",
+        "value": 1
+      }
+    ],
+    "standing_grants": {
+      "Hearth Keepers": {
+        "trust": 0.06
+      }
+    },
+    "arc_quest": {
+      "body": "Wind Twice — arrange two recorded loops whose mutual winding reaches 2: one walk that turns twice about the other's axis.",
+      "hint": "Drive one loop tight around the pole with Druid rotations, then walk the second qubit's loop around a different axis. The knot card (E-inspect) reads the pair's winding live.",
+      "state_predicates": [
+        {
+          "type": "biome_loops_linked",
+          "biome": "StarterForest",
+          "value": 2
+        }
+      ]
+    }
+  },
+  {
+    "id": "the_span",
+    "display_name": "What Connects III — The Span",
+    "act": 6,
+    "arc_beat": "You have seen what the wet country takes. Now build the first thing it cannot touch. Split one fermion between two shores — an anchor here, an anchor in the fading country — and the bit you store is their JOINT parity: readable at neither end alone, held by the pair. The Bath is patient, not omnipotent; it drinks only where it has a local handle, and a nonlocal parity offers none. Anchor one shore at home, where nothing leaks, and the span is immortal. The island the door could not open has become the strongest foundation in the open world. Home matters mechanically now, and forever.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "the_crossing"
+      },
+      {
+        "type": "bridge_built_gte",
+        "value": 1
+      }
+    ],
+    "standing_grants": {
+      "Millwright's Union": {
+        "trust": 0.08
+      }
+    },
+    "arc_quest": {
+      "body": "The Braid Alphabet — write into the span the only way a span can be written: braid its end-modes. Three braids, either shore.",
+      "hint": "Spark frame, 🌉 mode: F braids the shore you stand on — S here, √X on the far shore. Watch the parity odds move under the card (E).",
+      "state_predicates": [
+        {
+          "type": "bridge_braids_gte",
+          "value": 3
+        }
+      ]
+    }
+  },
+  {
+    "id": "braid_alphabet",
+    "display_name": "What Connects IV — The Braid Alphabet",
+    "act": 7,
+    "arc_beat": "The Provosts' drill returns with teeth. The span accepts no gates — no Hadamard, no rotation, nothing from your keyboard. Braiding its end-modes is the ONLY writing it understands, and braiding speaks exactly two letters: S on this shore, √X on the far one. The letters do not commute — you proved that with SWAP and CNOT long ago — so the braid WORD is the program, and some words can never be spelled at all. The scholars call the reachable ones Clifford; the Provosts call it an honest alphabet: small enough to drill, strong enough to matter, and protected by the same nonlocality that hides the bit.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "the_span"
+      },
+      {
+        "type": "story_flag_set",
+        "id": "braid_word"
+      },
+      {
+        "type": "bridge_braids_gte",
+        "value": 4
+      }
+    ],
+    "standing_grants": {
+      "Scythe Provosts": {
+        "legitimacy": 0.06
+      }
+    },
+    "arc_quest": {
+      "body": "Spell and Seal — work the span's parity away from certainty with the two-letter alphabet, then hold it unread through a season.",
+      "hint": "Alternate shores: S then √X spells what neither letter can alone. The card's parity odds are your progress bar. Do not fuse yet.",
+      "state_predicates": [
+        {
+          "type": "bridge_braids_gte",
+          "value": 6
+        }
+      ]
+    }
+  },
+  {
+    "id": "the_fusion",
+    "display_name": "What Connects V — The Fusion",
+    "act": 7,
+    "arc_beat": "Now collect. Fusion brings the two end-modes together and asks the only question the span can answer: even or odd. Born decides, surprisal pays — across BOTH shores at once, the one harvest whose crop was never in any field — and the bridge is gone, because reading it was localizing it, and localizing it handed the Bath the address. Every law of this world in one gesture: looking is paying, knowledge is extraction, and the demon's newest instrument obeys the demon's oldest rule. The Carrion Throne, which learned last season what an entropy farmer is worth, is now learning what UNREACHABLE STORAGE is worth. It will want the bridges. It cannot reach them. Neither fact will change.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "braid_alphabet"
+      },
+      {
+        "type": "bridge_fused_gte",
+        "value": 1
+      }
+    ],
+    "standing_grants": {
+      "Carrion Throne": {
+        "attention": 0.1
+      },
+      "Millwright's Union": {
+        "legitimacy": 0.06
+      }
+    },
     "arc_quest": null
   }
 ]

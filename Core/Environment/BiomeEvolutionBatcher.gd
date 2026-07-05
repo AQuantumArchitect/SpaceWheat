@@ -1959,6 +1959,15 @@ func _advance_all_buffers():
 			var cursor = lookahead_buffer.cursor if lookahead_buffer else 0
 			var skip_count = mini(stride - 1, buf.size() - cursor - 1)
 			if skip_count > 0:
+				# Berry walk stays faithful through fast-forward: integrate the
+				# skipped slices too (see BerryPhaseRegister.integrate_step —
+				# immediate no-op when nothing is tracked in this biome).
+				var qc = biome.quantum_computer if "quantum_computer" in biome else null
+				if qc != null and qc.berry_register != null:
+					var nq: int = int(lookahead_buffer.metadata.get("num_qubits", 0))
+					if nq > 0:
+						for s in range(skip_count):
+							qc.berry_register.integrate_step(buf[cursor + s], nq)
 				lookahead_buffer.cursor = cursor + skip_count
 
 		var had_data := _get_biome_depth(biome_name) > 0
@@ -2013,6 +2022,11 @@ func _apply_buffered_step(biome, apply_post: bool = true) -> void:
 		var bloch_steps = lookahead_buffer.bloch_steps
 		if cursor < bloch_steps.size():
 			var bloch_packet = bloch_steps[cursor]
+			# Berry walk: path-integrate geometric phase on the sim-side register.
+			# This is the live integration seam (with the stride-skip loop in
+			# _advance_all_buffers) — no-op unless qubits are tracked here.
+			if qc.berry_register != null:
+				qc.berry_register.integrate_step(bloch_packet, num_qubits)
 			if bloch_packet.size() > 0 and Engine.get_process_frames() % 120 == 0:
 				_log("debug", "test", "🧬", "Updating bloch for %s: packet size=%d, num_qubits=%d" % [
 					biome_name, bloch_packet.size(), num_qubits

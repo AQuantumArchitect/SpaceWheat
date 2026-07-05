@@ -1,8 +1,10 @@
 # The Open System — Act 2 Design Notes
 
-**Status: seed bank.** v0 ships closed (`docs/CLOSED_SYSTEM.md`). This document holds the
-design thinking for the day the dissipative switch (`BalanceConfig.dissipative_enabled`)
-comes back on — so that day starts from a diagnosis, not a blank page.
+**Status: seed bank → PROMOTED (2026-07-04).** The campaign built from these seeds is
+`docs/OPEN_CAMPAIGN.md` ("What Fades") — owner-directed: the endgame leaves the player
+in the full 162-biome world with open and closed dynamics coexisting. The post-mortem,
+laws, and seam below remain the authoritative diagnosis; the campaign doc carries the
+chapters and the implementation ladder. v0 ships closed (`docs/CLOSED_SYSTEM.md`).
 
 ---
 
@@ -87,6 +89,23 @@ beat, no ceremony. The rite arrives when the extraction is real — when reaping
 opening a season's worth of accumulated dissipation and being paid from the entropy
 bank, not from a volley of collapses. Design the harvest festival *once*, for the
 mechanic it actually honors.
+
+### Reserved: the topology tiers that need the door open (2026-07-04)
+
+The topology campaign (`docs/TOPOLOGY_CAMPAIGN.md`) ships four chapters inside the
+enclave — Berry loops, the conserved spectrum, SSH chains, braid order — and leaves
+three things here on purpose:
+
+- **Majorana bridges** (EXOTIC_TOPOLOGY tier 4): nonlocal inter-biome storage wants
+  bridge machinery the engine doesn't have, and its selling point — decoherence
+  resistance — is meaningless in a world with no decoherence. It becomes a *reward*
+  in Act 2: the first structure the player builds that the Bath cannot reach.
+- **Knot invariants** (tier 6): linking numbers over entanglement histories need a
+  braid-history graph. Farthest out; keep the dream.
+- **True chaos**: the enclave is quasi-periodic by theorem — no contraction, no
+  strange attractors. Chapter 2 teaches that absence honestly and points here. When
+  dissipation arrives, "storming" gains a basin to fall into, and the attractor
+  language the engine already speaks becomes literal.
 
 ## 5. The narrative arc — the enclave and the Bath
 

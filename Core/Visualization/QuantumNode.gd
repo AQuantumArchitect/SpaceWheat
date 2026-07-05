@@ -302,7 +302,9 @@ func update_from_quantum_state(batcher = null):
 	if biome_name != "" and biome_resolver.is_valid():
 		biome = biome_resolver.call(biome_name)
 		if not biome and register_id == 0:
-			print("    [LIFELESS] Biome '%s' not found via resolver" % biome_name)
+			var verbose = _get_verbose()
+			if verbose:
+				verbose.warn("viz", "🫥", "[LIFELESS] Biome '%s' not found via resolver" % biome_name)
 
 	elif terminal and terminal.is_bound:
 		if biome_resolver.is_valid() and terminal.bound_biome_name != "":

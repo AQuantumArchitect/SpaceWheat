@@ -1,5 +1,5 @@
-src/multi_biome_lookahead_engine.o: src/multi_biome_lookahead_engine.cpp \
- src/multi_biome_lookahead_engine.h \
+src/multi_biome_lookahead_engine.obj: \
+ src/multi_biome_lookahead_engine.cpp src/multi_biome_lookahead_engine.h \
  include/godot_cpp/classes/ref_counted.hpp \
  include/godot_cpp/classes/ref.hpp include/godot_cpp/core/defs.hpp \
  include/godot_cpp/classes/object.hpp \

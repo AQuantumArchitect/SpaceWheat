@@ -562,12 +562,6 @@ func filter_nodes_for_biome(_nodes: Array, _active_biome: String) -> void:
 	# Args:
 	# nodes: Array of QuantumNode instances
 	# active_biome: Name of active biome, or "" for all biomes
-	# DISABLED: Don't override selection-based visibility
-	# for node in nodes:
-	#	if active_biome == "":
-	#		node.visible = true
-	#	else:
-	#		node.visible = (node.biome_name == active_biome)
 	pass
 
 

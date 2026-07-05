@@ -338,6 +338,8 @@ func run_direct_biome_cycle(biome, dt: float, max_dt_override: float = -1.0) -> 
 		var packet = biome.quantum_computer.export_bloch_packet() if biome.quantum_computer.has_method("export_bloch_packet") else PackedFloat64Array()
 		var num_qubits = biome.quantum_computer.register_map.num_qubits if biome.quantum_computer.register_map else 0
 		if packet.size() > 0 and num_qubits > 0:
+			if biome.quantum_computer.berry_register != null:
+				biome.quantum_computer.berry_register.integrate_step(packet, num_qubits)
 			biome.viz_cache.update_from_bloch_packet(packet, num_qubits)
 	if biome.quantum_computer.has_method("get_purity"):
 		biome.viz_cache.update_purity(biome.quantum_computer.get_purity())
@@ -388,6 +390,8 @@ func run_native_biome_cycle(biome, dt: float, max_dt_override: float = -1.0) -> 
 		var packet = qc.export_bloch_packet() if qc.has_method("export_bloch_packet") else PackedFloat64Array()
 		var num_qubits = qc.register_map.num_qubits if qc.register_map else 0
 		if packet.size() > 0 and num_qubits > 0:
+			if qc.berry_register != null:
+				qc.berry_register.integrate_step(packet, num_qubits)
 			biome.viz_cache.update_from_bloch_packet(packet, num_qubits)
 		if qc.has_method("get_purity"):
 			biome.viz_cache.update_purity(qc.get_purity())

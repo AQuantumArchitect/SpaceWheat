@@ -1,6 +1,6 @@
 ---
 term: resonance
-short_def: How a faction's twelve axioms sit with a biome's live quantum state — computed alignment, spoken as mood. Story IS the physics, per faction, per biome, per moment.
+short_def: How a faction's twelve axioms sit with a biome's live state, spoken as mood.
 related: [faction, biome, enclave, icon]
 since: 2026-07-04
 status: canonical
@@ -21,7 +21,10 @@ speaks it as mood — *"this place sings to them"*, *"at ease here"*, *"wary of
 this place"*, *"restless — the biome grates on their axioms"* — beside the
 faction's axiom profile in canon words (`chaos / murk / order / crystal`,
 `classical / tinged / quantum / woven`, `still / breathing / restless /
-storming`).
+storming`). The mood is also decomposed: the same card names the axiom that
+**sings** and the one that **grates** — *they want murk, it reads crystal* —
+straight from `FactionStateMatcher.explain_alignment`, whose rows the scalar
+averages. The breakdown is the computation; it cannot drift from the score.
 
 ### The enclave's politics, for free
 

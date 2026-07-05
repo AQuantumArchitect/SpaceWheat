@@ -37,12 +37,22 @@ scarcity IS thermodynamic even when nothing dissipates.
 
 Candidate whispers that cost only words (quest bodies, beats, faction voice):
 
-- A Measure Scribes line: *"Every glance is an entry in the ledger. The ledger is the
-  world."*
-- A late beat noting the player is the only thing in the enclave that cannot be
-  unwound.
-- The Carrion Throne's interest in the player reframed: an empire of order noticing a
-  new entropy source.
+- ~~A whisper at the improbable-outcome moment~~ — **germinated (2026-07-04):**
+  `QuestVoice.MEASURE_WHISPER` fires when a Born sample lands below p = 0.10, one
+  line per archetype ("the improbable answered — it chose to be found"). The scar
+  has a witness. Berry incorporation and the sealed webway got registers too.
+- ~~A late beat noting nothing in the enclave can be unwound~~ — **germinated:**
+  the `first_breath` beat now closes with "nothing leaked, nothing faded, nothing
+  was forgotten… only measurement leaves a scar — and the scar is yours."
+- ~~A Measure Scribes line~~ — **germinated (2026-07-04):** the per-faction whisper
+  override slot exists now (`QuestVoice.FACTION_WHISPER_OVERRIDES`), and the Scribes
+  speak it at improbable collapses: *"Every glance is an entry in the ledger. The
+  ledger is the world."*
+- ~~The Carrion Throne noticing a new entropy source~~ — **germinated (2026-07-04):**
+  the `ledger_opens` beat now says it aloud: "the Throne has finally understood what
+  you are. Not a farmer. An entropy source — the one thing in the enclave that makes
+  anything irreversible. An empire of perfect order has exactly one use for such a
+  creature, and exactly one fear."
 
 ## What the open game makes literal
 

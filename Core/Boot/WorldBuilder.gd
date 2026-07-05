@@ -220,6 +220,20 @@ func stage_start_simulation(farm: Node) -> void:
 	_verbose.info("boot", "✓", "Input system enabled")
 	_verbose.info("boot", "✓", "Ready to accept player input")
 
+	# The Gallery: attach an attract reel iff one was requested (SW_REEL env
+	# or --reel=path user arg). Any input exits the reel to live play.
+	ReelRunner.maybe_attach(farm)
+
+	# The Gallery: postcards — F12 captures the view with a physics watermark
+	# strip in the pixels + a sidecar certificate (user://postcards/).
+	PostcardCapture.maybe_attach(farm)
+
+	# The signpost: one toast naming the doors. Without it the tutorial can sit
+	# unseen on the quest board — nothing else tells a new player to press C.
+	var shell = InstrumentLocator.resolve_player_shell(farm)
+	if shell != null and shell.has_method("show_hint"):
+		shell.show_hint("🌾 the forest is asleep — C quests · X guide · N inspector · M map", 2, "")
+
 
 func ensure_quantum_instrument(farm: Node):
 	# Create the core gameplay instrument once and share it with UI surfaces later.
@@ -331,11 +345,12 @@ func load_biome(biome_name: String, farm: Node) -> Dictionary:
 		if not biome.quantum_computer or not biome.quantum_computer.hamiltonian:
 			push_error("Biome '%s' built with icons[] but has no Hamiltonian — silent dead-substrate drift" % biome_name)
 		else:
-			# In a closed system no Lindblad operators are built — empty L is the
-			# intended state, not drift. Only flag the open-system invariant.
+			# In a closed biome no Lindblad operators are built — empty L is the
+			# intended state, not drift. Only flag the open-regime invariant
+			# (per-biome: wet country must have its operators; What Fades seam).
 			var has_atoms: bool = atoms is Dictionary and not (atoms as Dictionary).is_empty()
-			if has_atoms and BalanceConfig.dissipative_enabled() and biome.quantum_computer.lindblad_operators.is_empty():
-				push_error("Biome '%s' has atom_components but zero Lindblad operators built" % biome_name)
+			if has_atoms and biome.quantum_computer.is_open_here() and biome.quantum_computer.lindblad_operators.is_empty():
+				push_error("Biome '%s' is OPEN with atom_components but zero Lindblad operators built" % biome_name)
 	elif not biome.quantum_computer:
 		# Data-store biome with no icons — null QC is expected, no warning.
 		pass

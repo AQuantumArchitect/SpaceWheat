@@ -32,13 +32,17 @@ static func _get_rate_scale() -> float:
 ## absent from register_map are *primed*: their terms stay in data, no operator emitted.
 ##
 ## `decay {rate, target}` is treated as a transfer (same |target⟩⟨source| jump op shape).
-static func build_from_atoms(atom_components: Dictionary, register_map: RegisterMap, verbose = null, label: String = "") -> Dictionary:
+##
+## `force_open`: per-biome regime override (docs/OPEN_CAMPAIGN.md). Wet-country
+## biomes ("regime": "open" in biomes.json) build their operators even while the
+## world is sealed; the caller resolves the biome's effective regime.
+static func build_from_atoms(atom_components: Dictionary, register_map: RegisterMap, verbose = null, label: String = "", force_open: bool = false) -> Dictionary:
 	# Dissipative generator OFF → build no Lindblad operators at all. This makes both the
 	# GDScript evolution and the C++ engine (which feeds on qc.lindblad_operators) purely
 	# coherent, so the closed system stays pure (r = 1). The atom_components L data is left
 	# untouched in biomes.json — dormant content, re-activated by the dissipative switch
-	# (the open-quantum DLC). See docs/CLOSED_SYSTEM.md.
-	if not _BalanceConfig.dissipative_enabled():
+	# or per-biome by the What Fades regime seam (docs/CLOSED_SYSTEM.md, docs/OPEN_CAMPAIGN.md).
+	if not (_BalanceConfig.dissipative_enabled() or force_open):
 		if verbose:
 			verbose.debug("quantum", "🔒", "Dissipative dynamics off: no Lindblad operators built%s" % ((" for " + label) if label != "" else ""))
 		return {"operators": []}

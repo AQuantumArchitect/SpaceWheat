@@ -100,6 +100,8 @@ func capture_state_from_farm(farm: Node, current_state: GameState, scenario_id: 
 		state.reap_count = int(farm.reap_count)
 	if "faction_density" in farm and farm.faction_density != null:
 		state.faction_density = farm.faction_density.serialize()
+	if "bridge_register" in farm and farm.bridge_register != null:
+		state.bridges = farm.bridge_register.to_dict()
 	# Phase 2: faction_standings (6-channel rep). Convert FactionStanding records → dicts.
 	if "faction_standings" in farm and farm.faction_standings != null:
 		var standings_out: Dictionary = {}
@@ -317,6 +319,13 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 		var fd_state = state.faction_density if "faction_density" in state else {}
 		if fd_state is Dictionary:
 			farm.faction_density.deserialize(fd_state)
+		if farm.has_method("reset_identity_band_watch"):
+			farm.reset_identity_band_watch()
+
+	if "bridge_register" in farm and farm.bridge_register != null:
+		var bridge_state = state.bridges if "bridges" in state else {}
+		if bridge_state is Dictionary:
+			farm.bridge_register.from_dict(bridge_state)
 
 	# Phase 2: faction_standings — rebuild FactionStanding objects from saved dicts.
 	if "faction_standings" in farm:

@@ -35,6 +35,7 @@ extends Node
 
 # Preloads
 const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
+const LindbladHandler = preload("res://Core/Instrumentation/Handlers/LindbladHandler.gd")
 const GranularityController = preload("res://Core/Utilities/GranularityController.gd")
 
 # Access autoloads safely
@@ -77,8 +78,10 @@ const BUFFER_INVALIDATING_ACTIONS: Array[String] = [
 	"rotate_up", "rotate_down", "hadamard",
 	# Spark frame: instant pole shifts (strong one-shot drive/decay)
 	"spark_north", "spark_south",
-	# Merchant frame: persistent Lindbladian contracts
-	"drain", "pump",
+	# Ace frame: coherent Rabi preparation
+	"plant",
+	# Merchant frame: persistent Lindbladian contracts (settle stops them)
+	"drain", "pump", "settle",
 	# Operator frame: entangling gates
 	"measure", "build_gate", "remove_gates",
 # Icon frame: icon injection/removal (adds/removes qubits via icon assignment)
@@ -101,6 +104,9 @@ func _ready() -> void:
 func inject_farm(farm_ref) -> void:
 	# Inject farm reference for action execution.
 	farm = farm_ref
+	if farm != null and farm.has_signal("identity_band_changed") \
+			and not farm.identity_band_changed.is_connected(_on_identity_band_changed):
+		farm.identity_band_changed.connect(_on_identity_band_changed)
 	_verbose.info("input", "~", "Farm injected into QuantumInstrumentInput")
 
 
@@ -645,7 +651,7 @@ func _execute_incorporate_icon() -> Dictionary:
 	if north == "" or south == "":
 		return {"success": false, "error": "axis_missing_emoji"}
 	var icon = {"north": north, "south": south}
-	var biome_name = biome.get_biome_type() if biome.has_method("get_biome_type") else biome.name
+	var biome_name = BiomeBase.type_name(biome)
 	var result = MacroActions.dispatch(_instrument, MacroActions.KIND_INJECT_ICON_PAIR, {
 		"biome_name": biome_name,
 		"icon": icon,
@@ -670,17 +676,194 @@ func _execute_incorporate_icon() -> Dictionary:
 	return result
 
 
+## ============================================================================
+## MAJORANA BRIDGE VERBS (Spark frame, 🌉 mode — BridgeRegister, What Connects)
+## R spans (two-step: near shore, then far shore in another biome), F braids,
+## Q fuses, E reads the card. Bridge ops never touch biome density matrices, so
+## no lookahead buffer invalidation is needed.
+## ============================================================================
+
+## The near shore awaiting its far shore. UI state only — never serialized.
+var _pending_bridge_anchor: Dictionary = {}
+
+
+func _bridge_anchor_here() -> Dictionary:
+	# {biome, north, south} for the focused qubit, or {} when nothing is focused.
+	var biome = _get_current_biome()
+	if biome == null:
+		return {}
+	var qc = biome.quantum_computer
+	if qc == null or qc.register_map == null:
+		return {}
+	var qid: int = int(current_selection.get("plot_idx", -1))
+	if qid < 0 or qid >= qc.register_map.num_qubits:
+		return {}
+	var axis = qc.register_map.axis(qid)
+	if axis == null or axis.is_empty():
+		return {}
+	var bname: String = BiomeBase.type_name(biome)
+	return {"biome": bname, "north": str(axis.get("north", "")), "south": str(axis.get("south", ""))}
+
+
+func _execute_bridge_anchor() -> Dictionary:
+	if farm == null or not ("bridge_register" in farm) or farm.bridge_register == null:
+		return {"success": false, "error": "no_bridge_register"}
+	var here := _bridge_anchor_here()
+	if here.is_empty():
+		_verbose.info("input", "⚓", "No focused qubit to anchor")
+		_toast_note("⚓ focus a qubit first — the span needs an atom pair to hold")
+		return {"success": false, "error": "no_anchor"}
+	if _pending_bridge_anchor.is_empty() or str(_pending_bridge_anchor.get("biome", "")) == str(here.get("biome", "")):
+		_pending_bridge_anchor = here
+		_toast_note("⚓ near shore set: %s (%s/%s) — anchor a far shore in another biome" % [
+			str(here["biome"]), str(here["north"]), str(here["south"])])
+		action_performed.emit("bridge_anchor", {"success": true, "pending": true, "anchor": here})
+		return {"success": true, "pending": true}
+	var near: Dictionary = _pending_bridge_anchor
+	var result: Dictionary = farm.bridge_register.build(near, here)
+	if result.get("success", false):
+		_pending_bridge_anchor = {}
+		var ga: float = farm.bridge_register.end_rate_for(farm, str(near["biome"]), str(near["north"]), str(near["south"]))
+		var gb: float = farm.bridge_register.end_rate_for(farm, str(here["biome"]), str(here["north"]), str(here["south"]))
+		var g: float = BridgeRegister.KAPPA * ga * gb
+		var fate: String = "immortal — a shore is sealed" if g <= 0.0 \
+			else "fading at Γ = %.4f (second order — gentler than either shore alone)" % g
+		_toast_note("🌉 the bridge stands: %s ⇌ %s · %s" % [str(near["biome"]), str(here["biome"]), fate])
+	else:
+		_toast_note("🌉 %s" % str(result.get("message", result.get("error", "the span failed"))))
+	action_performed.emit("bridge_anchor", result)
+	return result
+
+
+func _execute_bridge_braid() -> Dictionary:
+	if farm == null or not ("bridge_register" in farm) or farm.bridge_register == null:
+		return {"success": false, "error": "no_bridge_register"}
+	var bname := _get_current_biome_name()
+	var spans: Array = farm.bridge_register.bridges_at(bname)
+	if spans.is_empty():
+		_toast_note("🪢 no bridge anchored in %s" % bname)
+		return {"success": false, "error": "no_bridge_here"}
+	var bridge: Dictionary = spans[0]
+	var end: String = "a" if str(bridge.get("biome_a", "")) == bname else "b"
+	var result: Dictionary = farm.bridge_register.braid(int(bridge.get("id", -1)), end)
+	if result.get("success", false):
+		var odds: Dictionary = result.get("odds", {})
+		var gate: String = "S" if end == "a" else "√X"
+		_toast_note("🪢 braid %s at %s — parity now %d%% even (the far shore speaks %s; the word's order matters)" % [
+			gate, bname, int(round(float(odds.get("even", 0.0)) * 100.0)), "√X" if end == "a" else "S"])
+	action_performed.emit("bridge_braid", result)
+	return result
+
+
+func _execute_bridge_fuse() -> Dictionary:
+	if farm == null or not ("bridge_register" in farm) or farm.bridge_register == null:
+		return {"success": false, "error": "no_bridge_register"}
+	var bname := _get_current_biome_name()
+	var spans: Array = farm.bridge_register.bridges_at(bname)
+	if spans.is_empty():
+		_toast_note("⚛ no bridge anchored in %s to fuse" % bname)
+		return {"success": false, "error": "no_bridge_here"}
+	var bridge: Dictionary = spans[0]
+	var result: Dictionary = farm.bridge_register.fuse(int(bridge.get("id", -1)), randf())
+	if not result.get("success", false):
+		return result
+	# Surprisal payout at the mean of the two shores' temperatures, split across
+	# both anchor atoms — the nonlocal harvest pays both shores at once.
+	var p: float = float(result.get("probability", 1.0))
+	var kt_a: float = EnergyPricing.biome_temperature(farm.grid.get_biome(str(result.get("biome_a", ""))), farm)
+	var kt_b: float = EnergyPricing.biome_temperature(farm.grid.get_biome(str(result.get("biome_b", ""))), farm)
+	var reward: int = maxi(1, int(round(EnergyPricing.surprisal_energy(p, (kt_a + kt_b) * 0.5))))
+	var half: int = maxi(1, int(round(reward * 0.5)))
+	if _instrument != null and _instrument.has_method("add_resource"):
+		_instrument.add_resource(str(result.get("north_a", "")), half, "bridge_fusion")
+		if reward - half > 0:
+			_instrument.add_resource(str(result.get("north_b", "")), reward - half, "bridge_fusion")
+	result["credits"] = reward
+	var speaker := _native_speaker_for(_get_current_biome())
+	var line: String = QuestVoice.bridge_whisper(speaker)
+	if line != "":
+		_toast_whisper("⚛ fusion: parity %s (p = %.2f) — +%d paid across both shores" % [
+			str(result.get("outcome", "?")), p, reward], speaker, line)
+	else:
+		_toast_note("⚛ fusion: parity %s (p = %.2f) — +%d paid across both shores. The bridge is spent; looking closed it." % [
+			str(result.get("outcome", "?")), p, reward])
+	action_performed.emit("bridge_fuse", result)
+	return result
+
+
+func _execute_bridge_inspect() -> Dictionary:
+	if farm == null or not ("bridge_register" in farm) or farm.bridge_register == null:
+		return {"success": false, "error": "no_bridge_register"}
+	var bname := _get_current_biome_name()
+	var spans: Array = farm.bridge_register.bridges_at(bname)
+	if spans.is_empty():
+		if not _pending_bridge_anchor.is_empty():
+			_toast_note("⚓ pending near shore: %s (%s/%s) — anchor a far shore in another biome" % [
+				str(_pending_bridge_anchor.get("biome", "")),
+				str(_pending_bridge_anchor.get("north", "")),
+				str(_pending_bridge_anchor.get("south", ""))])
+			return {"success": true, "pending": true}
+		_toast_note("🌉 no bridge anchored in %s — Spark 🌉 R spans one" % bname)
+		return {"success": false, "error": "no_bridge_here"}
+	var bridge: Dictionary = spans[0]
+	var odds: Dictionary = farm.bridge_register.parity_odds(int(bridge.get("id", -1)))
+	var g: float = float(bridge.get("gamma", 0.0))
+	var fate: String = "immortal (a shore is sealed)" if g <= 0.0 else "Γ = %.4f — second-order fade" % g
+	_toast_note("🌉 %s ⇌ %s · parity %d%% even · coherence %.2f · %s · age %.0fs · braids %d" % [
+		str(bridge.get("biome_a", "")), str(bridge.get("biome_b", "")),
+		int(round(float(odds.get("even", 0.0)) * 100.0)), float(odds.get("coherence", 0.0)),
+		fate, float(bridge.get("age", 0.0)),
+		int(bridge.get("braids_a", 0)) + int(bridge.get("braids_b", 0))])
+	return {"success": true, "bridge": bridge, "odds": odds}
+
+
+## Plain mechanics note through the PlayerShell hint channel (no voice line).
+func _toast_note(head: String) -> void:
+	var ps: Node = _resolve_player_shell()
+	if ps != null and ps.has_method("show_hint"):
+		ps.show_hint(head, 2, "")
+
+
 ## Whisper plumbing — the world's speaking moments (QuestVoice registers), all
 ## toasted through PlayerShell. Words only, no mechanics; fails silently
 ## headless (no shell in the tree).
 
 ## Toast one faction whisper: head line + attributed voice line.
+## The rite's ceremony (What Fades, Chapter V): fires ONLY when the reap was paid
+## from wet country (sink flux + entropy bank, kT·ΔS) — the extraction was real.
+## Speaker: the active biome's native faction, same convention as berry whispers.
+func _maybe_toast_reap_whisper(result: Dictionary) -> void:
+	if not result.get("success", false):
+		return
+	var rite: int = int(result.get("rite_credits", 0))
+	if rite <= 0:
+		return
+	var biome = null
+	if farm and farm.grid and farm.grid.has_method("get_biome"):
+		biome = farm.grid.get_biome(_get_current_biome_name())
+	var speaker := _native_speaker_for(biome)
+	var line: String = QuestVoice.reap_whisper(speaker)
+	_toast_whisper("⚖️ the rite: +%d from the season's entropy bank (kT·ΔS)" % rite, speaker, line)
+
+
+func _maybe_toast_trade_whisper(result: Dictionary, verb: String) -> void:
+	# A contract speaks when SIGNED (persistent channel installed), not while
+	# it flows. Speaker: the biome's native faction — the country you contract in.
+	if int(result.get("persistent_enabled", 0)) <= 0:
+		return
+	var biome = null
+	if farm and farm.grid and farm.grid.has_method("get_biome"):
+		biome = farm.grid.get_biome(_get_current_biome_name())
+	var speaker := _native_speaker_for(biome)
+	var line: String = QuestVoice.trade_whisper(speaker)
+	var kind := str(result.get("channel_kind", "damp"))
+	_toast_whisper("🤝 contract opened — %s %s channel · F settles" % [verb, kind], speaker, line)
+
+
 func _toast_whisper(head: String, speaker: String, line: String) -> void:
 	if line == "":
 		return
-	var ps: Node = self
-	while ps != null and not (ps is PlayerShell):
-		ps = ps.get_parent()
+	var ps: Node = _resolve_player_shell()
 	if ps == null or not ps.has_method("show_hint"):
 		return
 	ps.show_hint("%s\n💬 %s“%s”" % [head, ("%s — " % speaker) if speaker != "" else "", line], 2, "")
@@ -690,14 +873,13 @@ func _toast_whisper(head: String, speaker: String, line: String) -> void:
 func _native_speaker_for(biome) -> String:
 	if biome == null:
 		return ""
-	var bname: String = biome.get_biome_type() if biome.has_method("get_biome_type") else str(biome.name)
+	var bname: String = BiomeBase.type_name(biome)
 	var reg = load("res://Core/Biomes/BiomeRegistry.gd")
 	if reg != null and reg.has_method("get_shared"):
 		var shared = reg.get_shared()
 		var canonical = shared.get_by_name(bname) if (shared != null and shared.has_method("get_by_name")) else null
-		if canonical != null and ("native_factions" in canonical) and canonical.native_factions is Array \
-				and not canonical.native_factions.is_empty():
-			return str(canonical.native_factions[0])
+		if canonical != null and canonical.has_method("first_native_faction"):
+			return canonical.first_native_faction()
 	return ""
 
 
@@ -706,6 +888,23 @@ func _toast_berry_whisper(biome, north: String, south: String, phase: float) -> 
 	var speaker := _native_speaker_for(biome)
 	_toast_whisper("🧬 %s/%s woven into your signature · Ω = %+.2f rad" % [north, south, phase],
 			speaker, QuestVoice.whisper("berry", speaker))
+
+
+## The soul crossed a purity band (Farm.identity_band_changed): the identity ρ
+## resolved upward or blurred downward past 0.2 / 0.5 / 0.8. Speaker: whoever
+## holds the most of the player — the faction with the largest diagonal weight
+## marks the change in its own voice (docs/glossary/soul.md).
+func _on_identity_band_changed(prev_band: String, new_band: String, purity: float, rising: bool) -> void:
+	var speaker := ""
+	if farm != null and ("faction_density" in farm) and farm.faction_density != null \
+			and farm.faction_density.has_method("dominant_factions"):
+		var top: Array = farm.faction_density.dominant_factions(1)
+		if top.size() > 0:
+			speaker = str(top[0].get("name", ""))
+	var line: String = QuestVoice.self_resolve_whisper(speaker) if rising \
+			else QuestVoice.self_fade_whisper(speaker)
+	_toast_whisper("🧿 who you are: %s → %s · Tr(ρ²) = %.2f" % [prev_band, new_band, purity],
+			speaker, line)
 
 
 ## An IMPROBABLE Born outcome (p below this) is the scar that taught you most —
@@ -1356,7 +1555,7 @@ func _invalidate_biome_buffer_for_action(action_name: String) -> void:
 		_verbose.debug("input", "🔄", "No biome to invalidate for %s" % action_name)
 		return
 
-	var biome_name = biome.get_biome_type() if biome.has_method("get_biome_type") else biome.name
+	var biome_name = BiomeBase.type_name(biome)
 
 	# Get batcher reference from farm
 	var batcher = farm.biome_evolution_batcher if farm and "biome_evolution_batcher" in farm else null
@@ -1529,12 +1728,22 @@ func _execute_action(action_name: String) -> Dictionary:
 			result = _instrument.action_spark_south(positions)
 			if result.get("success", false):
 				_refresh_plot_tiles(positions)
-		"drain":
-			result = _instrument.action_drain(positions)
+		"plant":
+			result = _instrument.action_plant(positions)
 			if result.get("success", false):
 				_refresh_plot_tiles(positions)
+		"drain":
+			result = _instrument.action_drain(positions, _merchant_channel_kind())
+			if result.get("success", false):
+				_refresh_plot_tiles(positions)
+				_maybe_toast_trade_whisper(result, "📤 export")
 		"pump":
-			result = _instrument.action_pump(positions)
+			result = _instrument.action_pump(positions, _merchant_channel_kind())
+			if result.get("success", false):
+				_refresh_plot_tiles(positions)
+				_maybe_toast_trade_whisper(result, "📥 import")
+		"settle":
+			result = _instrument.action_settle(positions)
 			if result.get("success", false):
 				_refresh_plot_tiles(positions)
 		"explore":
@@ -1547,6 +1756,7 @@ func _execute_action(action_name: String) -> Dictionary:
 			_maybe_toast_measure_whisper(result)
 		"reap":
 			result = _instrument.action_reap()
+			_maybe_toast_reap_whisper(result)
 		"pop":
 			result = _instrument.action_pop(grid_pos)
 		"clear_all":
@@ -1561,6 +1771,14 @@ func _execute_action(action_name: String) -> Dictionary:
 			result = _execute_toggle_berry_track()
 		"incorporate_icon":
 			result = _execute_incorporate_icon()
+		"bridge_anchor":
+			result = _execute_bridge_anchor()
+		"bridge_braid":
+			result = _execute_bridge_braid()
+		"bridge_fuse":
+			result = _execute_bridge_fuse()
+		"bridge_inspect":
+			result = _execute_bridge_inspect()
 		"inject_icon":
 			result = MacroActions.dispatch(_instrument, MacroActions.KIND_INJECT_ICON, {"biome_name": biome_name})
 		"discover_biome":
@@ -1579,8 +1797,10 @@ func _execute_action(action_name: String) -> Dictionary:
 			result = MacroActions.dispatch(_instrument, MacroActions.KIND_REMOVE_BIOME)
 		"inspect_qubit":
 			result = _execute_inspect_qubit()
-		"merchant_hint":
-			result = _execute_merchant_hint()
+		"read_price":
+			result = _execute_read_price()
+		"jolt_inspect":
+			result = _execute_jolt_inspect()
 		"forecast_biome_discovery":
 			result = _execute_discovery_forecast()
 		_:
@@ -1588,19 +1808,6 @@ func _execute_action(action_name: String) -> Dictionary:
 			return {"success": false, "error": "unknown_action", "message": "Unknown action: %s" % action_name}
 
 	return result
-
-
-## Rotating pool of one-line hints the Merchant "Tip" verb whispers into
-## the corner toast. Lightweight by design — the quest layer can
-## replace this with context-aware lines later.
-const _MARKET_QUIP_TEMPLATES: Array[String] = [
-	"The market whispers: [b]%s[/b] is thin on the ground. Worth stocking up.",
-	"Scarce right now: [b]%s[/b]. A well-timed acquisition could pay off.",
-	"I'm hearing [b]%s[/b] is harder to come by than it looks. Just saying.",
-	"Low reserves on [b]%s[/b]. The smart money moves early.",
-]
-
-var _market_quip_idx: int = 0
 
 
 func _execute_inspect_qubit() -> Dictionary:
@@ -1617,15 +1824,93 @@ func _execute_inspect_qubit() -> Dictionary:
 	return {"success": true, "biome": biome_name, "plot_idx": plot_idx}
 
 
-func _execute_merchant_hint() -> Dictionary:
-	# Scan local biome emojis vs wallet; surface the most depleted as a toast tip.
+func _merchant_channel_kind() -> String:
+	# The Merchant sub-mode (1/2/3) IS the channel: thermal / dephase / damp.
+	var kind := ToolConfig.get_frame_mode_name(ToolConfig.FRAME_MERCHANT)
+	return kind if kind in ["thermal", "dephase", "damp"] else "damp"
+
+
+func _axis_gauge(pos: Vector2i) -> Dictionary:
+	# Shared readout behind the Spark gauge and the Merchant order book:
+	# axis pair, pole populations, live kT, surprisal unit prices, regime.
+	if not farm or not farm.grid:
+		return {}
+	var biome = farm.grid.get_biome_for_plot(pos)
+	if not biome or not biome.quantum_computer:
+		return {}
+	var pair: Dictionary = LindbladHandler._resolve_axis_pair(farm, pos)
+	var north := str(pair.get("north", ""))
+	var south := str(pair.get("south", ""))
+	if north == "" and south == "":
+		return {}
+	var qc = biome.quantum_computer
+	var kT: float = EnergyPricing.biome_temperature(biome, farm)
+	var p_n: float = clampf(float(qc.get_population(north)), 0.0, 1.0) if north != "" else 0.0
+	var p_s: float = clampf(float(qc.get_population(south)), 0.0, 1.0) if south != "" else 0.0
+	var bloch_r := -1.0
+	var binding: Dictionary = LindbladHandler._resolve_axis_binding(farm, pos, biome)
+	var reg := int(binding.get("register_id", -1))
+	if reg >= 0 and qc.has_method("export_bloch_packet"):
+		var packet: PackedFloat64Array = qc.export_bloch_packet()
+		if packet.size() >= (reg + 1) * 9:
+			bloch_r = packet[reg * 9 + 5]
+	return {
+		"biome": biome,
+		"biome_name": BiomeBase.type_name(biome),
+		"north": north, "south": south,
+		"p_north": p_n, "p_south": p_s,
+		"kT": kT,
+		"units_north": EnergyPricing.drive_units(p_n, kT) if north != "" else 0,
+		"units_south": EnergyPricing.drive_units(p_s, kT) if south != "" else 0,
+		"open": bool(qc.is_open_here()),
+		"bloch_r": bloch_r,
+	}
+
+
+func _execute_jolt_inspect() -> Dictionary:
+	# Spark ⚡ E — the jolt gauge: pole odds, Bloch radius, kT, cost each way.
 	var shell := _resolve_player_shell()
 	if not shell or not shell.has_method("show_hint"):
 		return {"success": false, "error": "no_player_shell", "message": "PlayerShell unavailable"}
+	var gauge := _axis_gauge(_get_grid_position())
+	if gauge.is_empty():
+		return {"success": false, "error": "no_axis", "message": "No plot with a live axis selected"}
+	var seal_txt := "" if bool(gauge.open) else " · [color=#8899aa]sealed — the enclave holds[/color]"
+	var r_txt := (" · r %.2f" % float(gauge.bloch_r)) if float(gauge.bloch_r) >= 0.0 else ""
+	var text := "[color=#ffe080]⚡ %s — jolt gauge[/color] · kT %.1f%s%s\n  ↑ %s p %.2f costs %d× %s · ↓ %s p %.2f costs %d× %s" % [
+		str(gauge.biome_name), float(gauge.kT), r_txt, seal_txt,
+		str(gauge.north), float(gauge.p_north), int(gauge.units_north), str(gauge.north),
+		str(gauge.south), float(gauge.p_south), int(gauge.units_south), str(gauge.south)]
+	shell.show_hint(text)
+	return {"success": true, "gauge": gauge}
 
-	var hint_text := _build_market_tip()
-	shell.show_hint("[color=#cfe6ff]🤝 Merchant:[/color] " + hint_text)
-	return {"success": true, "hint": hint_text}
+
+func _execute_read_price() -> Dictionary:
+	# Merchant E — the order book: pole odds, kT, unit prices both directions,
+	# and the native faction's standing factor. Read-only — prices are honest
+	# without touching ρ; the collapse verb stays with Ace.
+	var shell := _resolve_player_shell()
+	if not shell or not shell.has_method("show_hint"):
+		return {"success": false, "error": "no_player_shell", "message": "PlayerShell unavailable"}
+	var gauge := _axis_gauge(_get_grid_position())
+	if gauge.is_empty():
+		return {"success": false, "error": "no_axis", "message": "No plot with a live axis selected"}
+	var seal_txt := "" if bool(gauge.open) else " · [color=#8899aa]sealed — contracts need wet country[/color]"
+	var lines: PackedStringArray = []
+	lines.append("[color=#cfe6ff]🤝 %s — order book[/color] · kT %.1f%s" % [
+		str(gauge.biome_name), float(gauge.kT), seal_txt])
+	lines.append("  import 📥 %s: 4📜 + %d× %s · export 📤 stakes 4🧺 + %d× %s, pays as it drains" % [
+		str(gauge.north), int(gauge.units_north), str(gauge.north),
+		int(gauge.units_south), str(gauge.south)])
+	var faction := ""
+	var biome = gauge.get("biome", null)
+	if biome and biome.has_method("first_native_faction"):
+		faction = str(biome.first_native_faction())
+	if faction != "":
+		lines.append("  %s standing ×%.2f on contract prices" % [
+			faction, PriceModel.standing_factor(faction, farm)])
+	shell.show_hint("\n".join(lines))
+	return {"success": true, "gauge": gauge}
 
 
 func _execute_discovery_forecast() -> Dictionary:
@@ -1668,41 +1953,6 @@ func _execute_discovery_forecast() -> Dictionary:
 
 	shell.show_hint("\n".join(lines))
 	return {"success": true, "forecast": forecast}
-
-
-func _build_market_tip() -> String:
-	# Find the most depleted emoji among biome poles + merchant contract resources.
-	# Gather candidate emojis: all poles in active biomes
-	var candidates: Array[String] = []
-	if farm and farm.grid:
-		for biome_name in farm.grid.get_biome_names():
-			var biome = farm.grid.get_biome(biome_name)
-			if biome and biome.viz_cache:
-				for emoji in biome.viz_cache.get_emojis():
-					if emoji != "" and not candidates.has(emoji):
-						candidates.append(emoji)
-	# Also include the merchant contract tokens themselves
-	for token in ["🧺", "🤝", "📜"]:
-		if not candidates.has(token):
-			candidates.append(token)
-
-	if candidates.is_empty():
-		return "Nothing to report — the markets are quiet today."
-
-	# Find which candidate has the lowest balance in the wallet
-	var economy = ActionCostRuntime.resolve_economy(farm)
-	var wallet: Dictionary = economy.emoji_credits if economy and "emoji_credits" in economy else {}
-	var poorest_emoji := candidates[0]
-	var poorest_amount: float = float(wallet.get(poorest_emoji, 0))
-	for emoji in candidates:
-		var amount := float(wallet.get(emoji, 0))
-		if amount < poorest_amount:
-			poorest_amount = amount
-			poorest_emoji = emoji
-
-	var template: String = _MARKET_QUIP_TEMPLATES[_market_quip_idx % _MARKET_QUIP_TEMPLATES.size()]
-	_market_quip_idx += 1
-	return template % poorest_emoji
 
 
 func _resolve_player_shell() -> Node:

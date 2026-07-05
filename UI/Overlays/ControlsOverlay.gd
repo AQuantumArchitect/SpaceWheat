@@ -94,7 +94,8 @@ const GUIDE_ITEMS := [
 	{"id": "glossary", "title": "Glossary"},
 ]
 
-const GLOSSARY_CANONICAL_TERMS := ["biome", "signature", "neighborhood", "faction", "icon"]
+# Featured strip: world-canon first (the story the physics tells), structure after.
+const GLOSSARY_CANONICAL_TERMS := ["enclave", "measurement", "berry", "invariant", "bath", "fading", "knot", "bridge", "soul", "webway", "resonance", "biome", "faction", "icon"]
 
 # =============================================================================
 # COLORS
@@ -181,7 +182,7 @@ func _build_content(container: Control) -> void:
 	container.add_child(_body_box)
 
 	_close_hint = Label.new()
-	_close_hint.text = "ESC close   ·   TYUIO tabs   ·   GHJKL; items   ·   [ ] cycle frames"
+	_close_hint.text = "ESC close   ·   T Y I O tabs   ·   G H J K L ; items"
 	_close_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_close_hint.add_theme_font_size_override("font_size", 11)
 	_close_hint.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
@@ -369,7 +370,8 @@ func _build_self_body() -> void:
 			_body_box.add_child(_make_section_header("spotlight · %s" % spot))
 			_render_faction_card(farm, spot)
 
-	# Faction attachment (coming soon — UI shell only; no logic wired yet).
+	# Alignment panel — read-only: who you are pinned as, and how every other
+	# faction overlaps your alignment state.
 	_body_box.add_child(_make_spacer(8))
 	_render_faction_attachment_panel(farm)
 
@@ -377,18 +379,15 @@ func _build_self_body() -> void:
 	_body_box.add_child(_make_spacer(8))
 	_build_lexicon_section(farm)
 
-## Faction attachment panel (Phase B scaffolding — coming soon).
-## Renders the pinned faction + every other faction with overlap distance.
-## No logic wired: pressing A or D is a no-op. Cost preview is "??" until
-## the formula is calibrated.
-##
-## Cost = (1.0 - overlap) * scale * faction_standing_modifier.
-##   overlap comes from AlignmentGraph.overlap(); scale follows the calibrated attach/detach tuning.
-##   When detach lands, cost is paid in the player's most-abundant credit emoji.
+## Alignment panel — read-only. Renders the pinned faction (who you ARE, set
+## by the scenario) and every other faction ranked by overlap with your
+## alignment state. Attach/detach verbs are future work (tracked in
+## docs/DEADWOOD_2026-07-05.md era notes); until they land this panel shows
+## only what is true.
 func _render_faction_attachment_panel(farm) -> void:
-	_body_box.add_child(_make_section_header("faction attachment (coming soon)"))
+	_body_box.add_child(_make_section_header("alignment — who you stand nearest"))
 	if farm == null or not "player_alignment" in farm or farm.player_alignment == null:
-		_body_box.add_child(_make_muted_label("(player alignment not yet bound)", 11))
+		_body_box.add_child(_make_muted_label("(no player alignment in this run)", 11))
 		return
 	var pinned_name: String = farm.get_pinned_faction_name() if farm.has_method("get_pinned_faction_name") else ""
 	var registry = null
@@ -430,17 +429,6 @@ func _render_faction_attachment_panel(farm) -> void:
 		ov_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
 		ov_lbl.custom_minimum_size = Vector2(80, 0)
 		hbox.add_child(ov_lbl)
-		var cost_lbl := Label.new()
-		cost_lbl.text = "cost: ??"
-		cost_lbl.add_theme_font_size_override("font_size", 11)
-		cost_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
-		cost_lbl.custom_minimum_size = Vector2(64, 0)
-		hbox.add_child(cost_lbl)
-		var verb_lbl := Label.new()
-		verb_lbl.text = "[D] detach (coming soon)" if bool(row.is_pinned) else "[A] attach (coming soon)"
-		verb_lbl.add_theme_font_size_override("font_size", 11)
-		verb_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
-		hbox.add_child(verb_lbl)
 		_body_box.add_child(hbox)
 
 ## Returns the faction with the highest |scalar| standing, excluding "The Demos".
@@ -1371,7 +1359,7 @@ func _build_guide_body() -> void:
 func _guide_core_loop() -> void:
 	_body_box.add_child(_make_section_header("the core loop: R · E · Q"))
 	_body_box.add_child(_make_body("Press 8 to enter the Ace frame, then:"))
-	_body_box.add_child(_make_action_row("R", "Plant", "Invest energy — jolt population toward the north pole (screw in)."))
+	_body_box.add_child(_make_action_row("R", "Plant", "Invest energy — a coherent Rabi pulse swings the qubit toward its north pole (screw in). Unitary: works anywhere, but cannot purify a fog."))
 	_body_box.add_child(_make_action_row("E", "Measure", "Read the price — collapse the quantum state (Born rule)."))
 	_body_box.add_child(_make_action_row("Q", "Harvest", "Extract energy — reward = surprisal −kT·log p, rare pays more (screw out)."))
 	_body_box.add_child(_make_body(
@@ -1380,11 +1368,11 @@ func _guide_core_loop() -> void:
 
 func _guide_four_tools() -> void:
 	_body_box.add_child(_make_section_header("the seven archetype frames (4-0)"))
-	_body_box.add_child(_make_action_row("4", "Spark",     "Lindbladian jolt (energy dyad): Q discharges south, R charges north."))
+	_body_box.add_child(_make_action_row("4", "Spark",     "One-shot Lindblad jolt — fires only on open (wet) ground; on closed ground the chips grey (openness is a place). The dissipative kick that re-purifies. E reads the gauge. Mode 2 (🌉): Majorana bridges — R spans, F braids, Q fuses, E reads the card — never sealed, any regime."))
 	_body_box.add_child(_make_action_row("5", "Icon",      "Inject a dual-emoji qubit from the neighborhood's installed signature."))
-	_body_box.add_child(_make_action_row("6", "Merchant", "Faction contracts (energy dyad): Q=Sell, E=Read Price, R=Buy, F=Tip. Price = −kT·log p."))
-	_body_box.add_child(_make_action_row("7", "Captain",   "Biome lifecycle: Q=cull, R=discover."))
-	_body_box.add_child(_make_action_row("8", "Ace", "Energy dyad: Q=harvest (extract), E=measure (price), R=plant (invest)."))
+	_body_box.add_child(_make_action_row("6", "Merchant", "Standing contracts with the country you stand in (wet ground only). 1/2/3 picks the channel: thermal ~ (keeps the field warm) · dephase . (sells phase for heat; no buying it back) · damp | (pins and pays). Q=Export, E=order book, R=Import, F=Settle. Price = −kT·log p."))
+	_body_box.add_child(_make_action_row("7", "Captain",   "Biome lifecycle: Q=cull, E=compass, R=discover."))
+	_body_box.add_child(_make_action_row("8", "Ace", "Energy dyad: Q=harvest (extract), E=measure (price), R=plant (invest), F=reap the season."))
 	_body_box.add_child(_make_action_row("9", "Operator",  "Gate building: Q=break, E=inspect, R=gate."))
 	_body_box.add_child(_make_action_row("0", "Druid",     "Unitary rotations + Hadamard. 1/2/3 = X / Y / Z."))
 	_body_box.add_child(_make_spacer(4))
@@ -1395,8 +1383,9 @@ func _guide_four_tools() -> void:
 func _guide_biomes_economy() -> void:
 	_body_box.add_child(_make_section_header("biomes"))
 	_body_box.add_child(_make_body(
-		"Up to 6 biome slots on TYUIOP. Each biome is the full dissipative scaffold — different physics, "
-		+ "different feel. A neighborhood is an icon signature plus a biome. Plots live on GHJKL; "
+		"Up to 6 biome slots on TYUIOP. Each biome carries its own physics — the Hamiltonian "
+		+ "couplings run live; its webway (the authored Lindblad food web) is sealed while the "
+		+ "enclave holds. A neighborhood is an icon signature plus a biome. Plots live on GHJKL; "
 		+ "(left → right). The ' key toggles select-all."))
 	_body_box.add_child(_make_spacer(4))
 	_body_box.add_child(_make_section_header("economy"))
@@ -1411,6 +1400,16 @@ func _guide_things_to_try() -> void:
 	_body_box.add_child(_make_body("Hadamard everything: Druid (0) → E → measure. Repeat — watch 50/50 emerge."))
 	_body_box.add_child(_make_body("Open N: apply a Hadamard, watch off-diagonal terms appear; measure, watch them vanish."))
 	_body_box.add_child(_make_body("Build a GHZ: entangle A↔B, then B↔C. Measure any one — all collapse."))
+	_body_box.add_child(_make_body("Farm a Berry loop: track a qubit, steer it in a closed circle on its sphere, and when it ripens (Ω past 2π) incorporate the axis — a faction will mark the moment."))
+	_body_box.add_child(_make_body("Read a faction's mood: quest board (C) → E on any offer. Resonance is how the biome's live state sits with their axioms — court them by steering it."))
+	_body_box.add_child(_make_body("Watch yourself: M → Eigenstate shows You · Tr(ρ²). Idle five minutes and the fog reclaims you; act, and your identity resolves."))
+	_body_box.add_child(_make_body("See the loom: M → Graph → drill into a biome. Gold edges are the entanglement you wove; dark orange channels are the webway — sealed where the country runs closed, live where it runs wet."))
+	_body_box.add_child(_make_body("Read the compass: same drill-down — 🧭 shows the biome's deep state and its gap. Evolve all you like, the depths never move; measure, and they jump. That's the campaign's second invariant."))
+	_body_box.add_child(_make_body("Spell a braid word: Hadamard then CNOT weaves a thread; CNOT then Hadamard weaves nothing. Same chores, opposite worlds — order is the point."))
+	_body_box.add_child(_make_body("Visit the wet country (post-story): some biomes run OPEN — the Bath drinks phase there and the world goes gray while nothing moves. Superpose something bright and stand witness."))
+	_body_box.add_child(_make_body("Keep a dying thing: in the wet country, measurement pins what it touches (Zeno). Watch the Lamplighters' horn — stop watching and the drain wins."))
+	_body_box.add_child(_make_body("Bank a knot: track a forest qubit (Icon F) through TWO closed loops — the record keeps the walks, and the knot card reads their mutual winding. Nothing links on the sphere; the link lives one floor up."))
+	_body_box.add_child(_make_body("Raise a span: Spark 🌉 mode, R on a qubit here, R on a qubit in another biome — one fermion split between two shores. Anchor an end at home and the Bath can never touch it. Braid (F), then fuse (Q) — reading it spends it."))
 
 func _guide_quick_reference() -> void:
 	_body_box.add_child(_make_section_header("verbs"))
@@ -1419,10 +1418,11 @@ func _guide_quick_reference() -> void:
 	_body_box.add_child(_make_action_row("R", "Screw in",        "Commit / deeper / advance / resume"))
 	_body_box.add_child(_make_action_row("E ↓", "Drill in",     "Hadamard / Measure / open detail / open submenu"))
 	_body_box.add_child(_make_action_row("F ↑", "Flatten",      "Collapses whatever E opened. No-op if nothing is open."))
-	_body_box.add_child(_make_action_row("Tab", "Cycle mode",   "Advance the current frame's sub-mode (was F)"))
+	_body_box.add_child(_make_action_row("Tab", "Cycle hat",   "Advance the archetype frame (4-0)"))
 	_body_box.add_child(_make_action_row("1/2/3", "Pick sub-mode", "Direct sub-mode select within current frame"))
 	_body_box.add_child(_make_action_row("4-0", "Frame hat",    "Pick archetype frame; re-press toggles to Ace"))
 	_body_box.add_child(_make_action_row("WASD", "Spin cylinder", "W/S rotate between rings (frame/biome/plot/surface), A/D step around the active ring"))
+	_body_box.add_child(_make_action_row("F12", "Postcard",    "Capture the view with the physics watermark in the pixels + a certificate (user://postcards/)"))
 	_body_box.add_child(_make_spacer(4))
 	_body_box.add_child(_make_section_header("rows"))
 	_body_box.add_child(_make_action_row("4-0",         "Frames",  ""))

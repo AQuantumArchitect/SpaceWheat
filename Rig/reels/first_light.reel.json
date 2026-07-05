@@ -1,0 +1,26 @@
+{
+  "title": "First Light — the enclave in ninety seconds",
+  "loop": true,
+  "steps": [
+    { "caption": "This is a quantum computer that happens to look like a farm.", "secs": 5.0 },
+    { "focus_biome": "StarterForest" },
+    { "caption": "Every field is a density matrix. The sun and moon you see are one qubit's two poles.", "secs": 5.0 },
+    { "wait": 3.0 },
+    { "icon": { "biome": "StarterForest" } },
+    { "caption": "An icon plants an axis — two atoms paired into north and south.", "secs": 4.0 },
+    { "wait": 2.0 },
+    { "gate": { "gate": "hadamard", "biome": "StarterForest" } },
+    { "caption": "Hadamard. The qubit now holds both answers at once — watch the bubble split its light.", "secs": 5.0 },
+    { "wait": 4.0 },
+    { "measure": { "biome": "StarterForest" } },
+    { "caption": "Measurement. Born's rule decided; the state collapsed; the improbable pays more — you just learned something, and learning is the economy.", "secs": 6.0 },
+    { "wait": 3.0 },
+    { "caption": "Nothing here decays. Nothing leaks. The enclave holds — only measurement leaves a scar.", "secs": 5.0 },
+    { "wait": 2.0 },
+    { "reap": true },
+    { "caption": "The reap: a season's worth of glances, paid in surprisal. E = −kT·log p.", "secs": 5.0 },
+    { "wait": 4.0 },
+    { "caption": "Press any key to farm.", "secs": 4.0 },
+    { "wait": 6.0 }
+  ]
+}

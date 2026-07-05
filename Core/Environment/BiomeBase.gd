@@ -17,6 +17,17 @@ const _PC = preload("res://Core/Config/PhysicsConfig.gd")
 ## BiomeBase delegates to 7 composable components while keeping one façade
 ## for subclasses.
 
+
+## Canonical display/lookup name for any biome-ish node: the biome type when
+## the node exposes one, its node name otherwise. One home for the policy the
+## call sites used to each re-spell inline.
+static func type_name(biome) -> String:
+	if biome == null:
+		return ""
+	if biome.has_method("get_biome_type"):
+		return str(biome.get_biome_type())
+	return str(biome.name)
+
 # Component imports
 
 # Core imports
@@ -362,6 +373,41 @@ func _mark_lookahead_dirty() -> void:
 	var farm = InstrumentLocator.resolve_active_farm(self)
 	if farm and farm.biome_evolution_batcher and farm.biome_evolution_batcher.has_method("mark_for_reregister"):
 		farm.biome_evolution_batcher.mark_for_reregister(get_biome_type())
+
+
+## Runtime thermodynamic-regime change (What Fades, docs/OPEN_CAMPAIGN.md).
+## Story flags carry `regime_changes: {biome: "open"|"closed"}` — the Bath
+## reaching a coast is a narrative event, never a silent patch. Rebuilds this
+## biome's Lindblad operators under the new regime and re-registers with the
+## C++ lookahead engine. The density matrix is left as it stands: opening a
+## biome lets it start to fade from where it is; closing one keeps whatever
+## mixedness history already wrote (the enclave seals, it does not forgive).
+func set_regime(regime: String) -> void:
+	if quantum_computer == null:
+		return
+	if quantum_computer.regime_override == regime:
+		return
+	quantum_computer.regime_override = regime
+	rebuild_lindblad_for_regime()
+
+
+## Rebuild this biome's Lindblad operators under its CURRENT effective regime
+## and re-register with the C++ lookahead engine. Called by set_regime and by
+## the endgame door (global physics_changes → every live biome re-resolves).
+func rebuild_lindblad_for_regime() -> void:
+	if quantum_computer == null:
+		return
+	var verbose = (Engine.get_main_loop().root.get_node_or_null("/root/VerboseConfig") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
+	var LindBuilder = load("res://Core/QuantumSubstrate/LindbladBuilder.gd")
+	var lindblad_result = LindBuilder.build_from_atoms(
+			_get_atom_components(), quantum_computer.register_map, verbose,
+			get_biome_type(), quantum_computer.is_open_here())
+	# Canonical setter: sparse conversion + L†/L†L cache rebuild in one place.
+	quantum_computer.set_lindblad_operators(lindblad_result.get("operators", []))
+	_mark_lookahead_dirty()
+	_verbose_log("info", "biome", "🌊" if quantum_computer.is_open_here() else "🔒",
+			"Regime: %s is now %s" % [get_biome_type(),
+			"OPEN (the Bath has reached this country)" if quantum_computer.is_open_here() else "CLOSED (the enclave holds here)"])
 
 
 # ============================================================================
@@ -1034,7 +1080,17 @@ func _track_dynamics() -> void:
 	var purity = quantum_computer.get_purity() if quantum_computer.has_method("get_purity") else -1.0
 	var entropy = _calculate_quantum_entropy()
 	var coherence = _calculate_quantum_coherence()
-	dynamics_tracker.add_snapshot({"purity": purity, "entropy": entropy, "coherence": coherence})
+	# Population motion: in the enclave purity and entropy are constants of the
+	# motion (unitary evolution), so without this the tracker only sees coherence
+	# slosh. Per-atom marginals are cheap (≤ atom count) and carry the breathing.
+	var populations: Array = []
+	if quantum_computer.register_map != null and quantum_computer.has_method("get_population"):
+		var atoms: Array = quantum_computer.register_map.coordinates.keys()
+		atoms.sort()
+		for atom in atoms:
+			populations.append(float(quantum_computer.get_population(str(atom))))
+	dynamics_tracker.add_snapshot({"purity": purity, "entropy": entropy,
+			"coherence": coherence, "populations": populations})
 
 func _calculate_quantum_entropy() -> float:
 	if not quantum_computer or not quantum_computer.density_matrix:

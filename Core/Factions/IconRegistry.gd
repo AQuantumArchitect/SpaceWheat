@@ -272,15 +272,6 @@ func _register(record: Dictionary) -> void:
 		_by_name[icon_name].append(key)
 
 
-func get_all_icon_names() -> Array:
-	return _by_name.keys()
-
-
-func find_icon_by_name(icon_name: String) -> Dictionary:
-	var keys: Array = _by_name.get(icon_name, [])
-	return _by_pair.get(keys[0], {}) if not keys.is_empty() else {}
-
-
 ## Find an icon record by either of its pole emojis. Returns {} if not found.
 ## Cheap linear scan over icons; small set, called rarely.
 func find_icon_by_emoji(emoji: String) -> Dictionary:
@@ -309,20 +300,6 @@ func get_icons_by_name(_name: String) -> Array:
 	for k in keys:
 		out.append(_by_pair[k])
 	return out
-
-
-func get_icon(_name: String) -> Dictionary:
-	var icons = get_icons_by_name(_name)
-	return icons[0] if not icons.is_empty() else {}
-
-
-func get_icon_physics(icon_name: String) -> Dictionary:
-	var keys: Array = _by_name.get(icon_name, [])
-	for k in keys:
-		var record = _by_pair.get(k, {})
-		if record.has("self_energy_0"):
-			return _physics_from_record(record)
-	return {}
 
 
 func get_icon_physics_by_pair(pole_0: String, pole_1: String) -> Dictionary:
@@ -365,14 +342,6 @@ func get_icons_for_faction(faction_name: String) -> Array:
 	return out
 
 
-func get_icons_in_biome(biome_name: String) -> Array:
-	var keys = _by_biome.get(biome_name, [])
-	var out: Array = []
-	for k in keys:
-		out.append(_by_pair[k])
-	return out
-
-
 func register_anonymous(pole_0: String, pole_1: String) -> Dictionary:
 	var existing = find_icon_by_pair(pole_0, pole_1)
 	if not existing.is_empty():
@@ -387,24 +356,6 @@ func register_anonymous(pole_0: String, pole_1: String) -> Dictionary:
 	_register(record)
 	_anonymous_count += 1
 	return record
-
-
-func get_all_world_built() -> Array:
-	var out: Array = []
-	for key in _by_pair:
-		var r = _by_pair[key]
-		if not r.get("anonymous", false):
-			out.append(r)
-	return out
-
-
-func get_all_discovered() -> Array:
-	var out: Array = []
-	for key in _by_pair:
-		var r = _by_pair[key]
-		if r.get("anonymous", false):
-			out.append(r)
-	return out
 
 
 static func discovered_set_from_icons(icon: Array) -> Dictionary:
@@ -434,17 +385,6 @@ func filter_discovered_records(discovered: Dictionary) -> Array:
 		if r.get("anonymous", false):
 			continue
 		if is_icon_discovered(r["pole_0"], r["pole_1"], discovered):
-			out.append(r)
-	return out
-
-
-func filter_undiscovered_records(discovered: Dictionary) -> Array:
-	var out: Array = []
-	for key in _by_pair:
-		var r = _by_pair[key]
-		if r.get("anonymous", false):
-			continue
-		if not is_icon_discovered(r["pole_0"], r["pole_1"], discovered):
 			out.append(r)
 	return out
 
@@ -519,30 +459,8 @@ func get_all_atoms() -> Array:
 	return result
 
 
-func has_atom(emoji: String) -> bool:
-	return atoms.has(emoji)
-
-
 func get_atom(emoji: String):
 	return atoms.get(emoji, null)
-
-
-func get_atoms_by_tag(tag: String) -> Array:
-	var result: Array = []
-	for atom_variant in atoms.values():
-		var atom = atom_variant as IconScript
-		if atom and tag in atom.tags:
-			result.append(atom)
-	return result
-
-
-func get_atoms_by_trophic_level(level: int) -> Array:
-	var result: Array = []
-	for atom_variant in atoms.values():
-		var atom = atom_variant as IconScript
-		if atom and atom.trophic_level == level:
-			result.append(atom)
-	return result
 
 
 func rebuild_from_icons() -> void:

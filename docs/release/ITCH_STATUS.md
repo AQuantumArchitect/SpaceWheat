@@ -2,6 +2,13 @@
 
 Current itch.io readiness for SpaceWheat as of 2026-04-24.
 
+> **Update 2026-07-04:** the web channel's missing browser smoke lane now
+> exists — `scripts/smoke-test-web-export.mjs` (real Chromium: isolation,
+> canvas, measured FPS, responsiveness, JSON verdict), harness-validated
+> against a fixture. Lane, policy, and the remaining gates are documented in
+> `WEB_DOOR.md`. The five-point list below is now a lane, pending its first
+> run against a real bundle on a machine with Godot + web templates.
+
 ## Desktop channels
 
 Status: viable

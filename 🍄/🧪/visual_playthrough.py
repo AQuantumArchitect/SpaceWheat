@@ -143,10 +143,10 @@ def main():
         for hatkey, hatname in [("8", "ace"), ("0", "druid"), ("9", "operator"),
                                 ("7", "captain"), ("5", "icon")]:
             keys(c, f"hat_{hatname}", [hatkey])
-        # disabled hats — closed system
-        keys(c, "hat_spark_DISABLED", ["4"])
+        # Lindblad hats — always selectable; their verbs grey on closed ground
+        keys(c, "hat_spark_sealed_ground", ["4"])
         snap(c, "spark_policy", "policy_snapshot")
-        keys(c, "hat_merchant_DISABLED", ["6"])
+        keys(c, "hat_merchant_sealed_ground", ["6"])
         # Druid sub-modes
         keys(c, "druid_submodes", ["0", "1", "2", "3"])
 

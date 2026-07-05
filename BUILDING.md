@@ -1,5 +1,9 @@
 # Building SpaceWheat from Source
 
+> Fresh-Linux-machine walkthrough (installs Godot itself):
+> `docs/build/BUILD_LINUX.md`. Historical native-build notes:
+> `docs/build/NATIVE_BUILD.md`.
+
 This guide will help you build SpaceWheat locally. If you're working with an LLM assistant (like Claude, ChatGPT, etc.), they can help you through each step.
 
 ---

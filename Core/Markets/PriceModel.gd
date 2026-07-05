@@ -34,22 +34,25 @@ static func price_contract(contract, farm) -> float:
 	var kT: float = EnergyPricing.biome_temperature(biome, farm)
 	var price_classical: float = EnergyPricing.surprisal_energy(p_gozouta, kT)
 
-	# Standing modifier: legitimacy discounts (factor < 1), debt premiums (factor > 1).
-	# Use a soft-clip so extreme standings don't blow up the price.
+	price_classical *= standing_factor(contract.faction, farm)
+
+	return price_classical
+
+
+static func standing_factor(faction_name: String, farm) -> float:
+	# Standing modifier: legitimacy discounts (factor < 1), debt premiums
+	# (factor > 1); 1.0 at neutral. atan()/(PI/2) soft-clips to (0.5, 1.5) so
+	# extreme standings don't blow up the price. Shared by contract pricing
+	# and the Merchant order-book card.
 	var legitimacy: float = 0.0
 	var debt: float = 0.0
-	if farm != null and "faction_standings" in farm and farm.faction_standings != null:
-		var s = farm.faction_standings.get(contract.faction, null)
+	if farm != null and faction_name != "" and "faction_standings" in farm and farm.faction_standings != null:
+		var s = farm.faction_standings.get(faction_name, null)
 		if s != null:
 			legitimacy = float(s.legitimacy)
 			debt = float(s.debt)
-	# Standing factor: 1.0 at neutral, < 1 with high legitimacy, > 1 with debt.
-	# atan() / (PI/2) maps to (-1, 1); range factor (0.5, 1.5).
 	var net_standing: float = legitimacy - debt
-	var standing_factor: float = 1.0 - 0.5 * (atan(net_standing) / (PI * 0.5))
-	price_classical *= clampf(standing_factor, 0.1, 10.0)
-
-	return price_classical
+	return clampf(1.0 - 0.5 * (atan(net_standing) / (PI * 0.5)), 0.1, 10.0)
 
 
 static func implied_marginal(contract, farm) -> float:

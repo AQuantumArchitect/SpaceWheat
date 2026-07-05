@@ -1,5 +1,31 @@
 # Quest System Rebuild — Plan (2026-06-17)
 
+> **Status update (2026-07-04): substantially implemented.** This plan is now a
+> design→execution record, kept for the reasoning. Where things landed:
+>
+> - **Phase 0–1 shipped.** `QuestPipeline` is the single construction path; market,
+>   story, and tutorial quests share one schema, one soft-predicate completion path
+>   (`state_predicates` are authoritative — geometric-mean `smooth_and` against 0.85),
+>   and one board. `QuestVoice` voices all market quests.
+> - **Phase 2 shipped, personality-typed.** The quantum quest types generate live via a
+>   curriculum ladder whose rung-1 flavor is chosen by the faction's operator taste
+>   (`calculate_operator_weights`): amplitude (`population:<emoji>` observable),
+>   coherence, ratio (`balance:A/B`), multi (composed predicates) — entanglement
+>   (max MI, native-cache observable) as rung 2. UI shows live observable → target.
+> - **Phase 3 shipped.** Act-0 tutorial chain (7 steps, one mechanic each, soft-gated),
+>   including the entanglement step; the 5-act story-flag arc rides the same predicates.
+> - **The "gem" is wired** (stage 2 of the pipeline diagram): every offer carries the
+>   faction's live resonance (`docs/glossary/resonance.md`); the most resonant faction
+>   voices the companion quest.
+> - **Voice went further than planned:** ten archetypes with 3×3 phrase banks
+>   (content-hash selection, no RNG), identity-derived archetypes for all ~99 factions
+>   (domain/ring/tags — the bits were tried and rejected, 20% vs 83% agreement), and
+>   three whisper registers (webway/berry/measure) at the world's speaking moments.
+> - **Phase 4–5 partial by design:** arc flags run through `island_stops_asking` and
+>   `edge_of_the_enclave`; `chain_branch` seeds exist in the tutorial; quest journal and
+>   faction-relations views remain future work. Reap ritual is explicitly **reserved**
+>   for the open expansion (owner decision — see `inspiration/OPEN_SYSTEM_ACT2.md`).
+
 **Goal:** make the quest system the game's **narrative attachment point** AND its **introduction to
 mechanics** (tutorial), built on the now-simplified closed (Hamiltonian-only) engine.
 

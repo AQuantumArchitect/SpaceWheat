@@ -398,12 +398,59 @@ func _get_cost_for_action_name(action_name: String, action_info: Dictionary) -> 
 			if pair.is_empty():
 				return {}
 			var normalized = "lindblad_drain" if action_name == "drain" else "lindblad_pump"
-			return _get_runtime_action_cost(normalized, {
+			var ctx = {
 				"north_emoji": str(pair.get("north", "")),
 				"south_emoji": str(pair.get("south", ""))
-			})
+			}
+			# Live surprisal preview: the chip shows what the charge will BE,
+			# not the flat fallback (drive_units = max(1, round(−kT·log p))).
+			var units = _live_drive_units(1 if action_name == "drain" else 0)
+			if units > 0:
+				ctx["drive_units"] = units
+			return _get_runtime_action_cost(normalized, ctx)
+		"spark_north", "spark_south", "plant":
+			var spark_pair = _resolve_selected_axis_pair()
+			if spark_pair.is_empty():
+				return {}
+			var spark_ctx = {
+				"north_emoji": str(spark_pair.get("north", "")),
+				"south_emoji": str(spark_pair.get("south", ""))
+			}
+			var spark_units = _live_drive_units(1 if action_name == "spark_south" else 0)
+			if spark_units > 0:
+				spark_ctx["drive_units"] = spark_units
+			return _get_runtime_action_cost(action_name, spark_ctx)
 		_:
 			return _get_runtime_action_cost(action_name)
+
+
+func _live_drive_units(pole: int) -> int:
+	# Surprisal units for driving the selected plot's pole (0 = north, 1 = south):
+	# max(1, round(−kT·log p_pole)) at the biome's live temperature. Mirrors the
+	# charge-time computation in QuantumInstrument/LindbladHandler so the chip
+	# preview and the actual spend never disagree.
+	var farm = _get_farm()
+	if not farm or not farm.grid:
+		return 0
+	var plot_grid = _get_plot_grid()
+	var selected: Array = []
+	if plot_grid and plot_grid.has_method("get_selected_plots"):
+		selected = plot_grid.get_selected_plots()
+	if selected.is_empty():
+		return 0
+	var pos: Vector2i = selected[0]
+	var biome = farm.grid.get_biome_for_plot(pos)
+	if not biome or not biome.quantum_computer:
+		return 0
+	var plot = farm.grid.get_plot(pos)
+	if not plot or not plot.is_active():
+		return 0
+	var emoji = str(plot.north_emoji if pole == 0 else plot.south_emoji)
+	if emoji == "" or not biome.quantum_computer.has(emoji):
+		return 0
+	var kT = EnergyPricing.biome_temperature(biome, farm)
+	var p_target = clampf(float(biome.quantum_computer.get_population(emoji)), 0.0, 1.0)
+	return EnergyPricing.drive_units(p_target, kT)
 
 
 func _get_runtime_action_cost(action_name: String, context: Dictionary = {}) -> Dictionary:

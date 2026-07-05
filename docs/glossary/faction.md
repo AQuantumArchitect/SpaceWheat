@@ -1,7 +1,7 @@
 ---
 term: faction
 short_def: An authoring entity that owns an icon signature and neighborhoods.
-related: [signature, icon, neighborhood, cloud, resonance]
+related: [signature, icon, neighborhood, cloud, resonance, soul]
 since: 2026-05-09
 status: canonical
 ---

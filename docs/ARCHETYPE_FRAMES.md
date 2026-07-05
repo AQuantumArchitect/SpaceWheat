@@ -40,30 +40,34 @@ right. Spark and Druid bookend the set.
 
 | Key | Archetype | Cube coords    | Live wiring                                          |
 |-----|-----------|----------------|------------------------------------------------------|
-| `4` | Spark     | (Self, Q, P)   | Pole shift (spend pole emoji → one-shot shove)       |
+| `4` | Spark     | (Self, Q, P)   | One-shot Lindblad jolt (wet country) / 🌉 bridges     |
 | `5` | Icon      | (Self, Q, F)   | Icon injection (faction-signature qubits)            |
-| `6` | Merchant  | (Self, C, F)   | Faction contracts (drain=treaty / transfer=broker / pump=tribute) |
+| `6` | Merchant  | (Self, C, F)   | Standing Bath contracts: thermal / dephase / damp     |
 | `7` | Captain   | (World, C, F)  | Biome lifecycle (discover / cull)          |
-| `8` | Ace       | (Self, C, P)   | Probe (explore / measure / pop)            |
+| `8` | Ace       | (Self, C, P)   | Energy dyad (plant / measure / harvest / reap) |
 | `9` | Operator  | (World, Q, F)  | Gate building (build / inspect / break)    |
 | `0` | Druid     | (World, Q, P)  | Unitary (X/Y/Z rotations, Hadamard)        |
 
-> **Closed (unitary) system (default):** **Spark** (4) and **Merchant** (6)
-> are pure Lindblad-drive tools (jolt / drain / pump) and are **disabled** —
-> greyed out, unselectable, actions inert — because a closed system has no
-> pump/drain. Ace's **R = Plant** (a drive) is inert for the same reason.
-> The open-quantum DLC (`system_mode = "open"`) re-enables them. See
-> `docs/CLOSED_SYSTEM.md`.
+> **Regimes:** openness is a *place*, not a setting — and the keyboard is
+> never sealed. Every hat is always selectable; the Lindblad **verbs**
+> (Spark's jolt, Merchant's contracts) refuse per-plot wherever the target
+> biome's regime runs closed (`is_open_here`), and run live wherever it
+> leaks — including the wet landmarks that boot open *before* the endgame
+> door. The island can never be mixed: `Farm`'s channel tick skips closed
+> ground by construction. Spark's 🌉 bridge mode is never sealed in any
+> regime. Ace's **Plant** is the counterpoint: a coherent Rabi pulse —
+> unitary, legal everywhere, and unable to purify (a fog needs measurement
+> or the Spark). See `docs/CLOSED_SYSTEM.md`.
 
 ## Frame wiring
 
 | Frame     | Sub-modes                | Q              | E (pause + inspect)       | R             | F                  |
 |-----------|--------------------------|----------------|---------------------------|---------------|--------------------|
-| Spark     | shift                    | —              | Pause (transparent)       | N.Pole (↑1×)  | S.Pole (↓1×) ⚡ overload |
-| Icon      | inject                   | Trim icon      | Pause (transparent)       | Add icon      | Play (transparent) |
-| Merchant  | thermal / dephase / damp | Import 📥      | Read Price !              | Export 📤     | Tip 💬             |
+| Spark     | shift ⚡ / bridge 🌉      | S.Pole · Fuse  | Gauge 🔍 · Bridge card    | N.Pole · Span | — · Braid 🪢       |
+| Icon      | inject                   | Trim icon      | Inspect qubit             | Add icon (incorporate when ripe) | Track ⌖ |
+| Merchant  | thermal ~ / dephase . / damp \| | Export 📤 | Order book !             | Import 📥 (dephase: refused) | Settle ✔ |
 | Captain   | biomes                   | Cull           | Compass (discover peek)   | Add Biome     | —                  |
-| Ace       | probe                    | Explore        | Measure                   | Pop           | —                  |
+| Ace       | probe                    | Harvest        | Measure                   | Plant         | Reap ⌛ (season)   |
 | Operator  | gate                     | Break gate     | Inspect                   | Build gate    | —                  |
 | Druid     | X / Y / Z                | rot−           | Hadamard                  | rot+          | —                  |
 
@@ -72,11 +76,14 @@ right. Spark and Druid bookend the set.
 `Core/GameState/ToolConfig.gd` owns the live frame map in
 `ARCHETYPE_FRAMES`.
 
-- **Spark** handles pole shifts.
+- **Spark** handles the one-shot jolt (wet country) and Majorana bridges.
 - **Icon** handles icon injection.
-- **Merchant** handles faction contracts.
+- **Merchant** handles standing Bath contracts — the sub-mode IS the
+  channel: thermal (detailed balance, keeps the field warm), dephase
+  (pure phase damping — export only; no contract sells phase back), damp
+  (one-way, pins and pays). F settles; E reads the real order book.
 - **Captain** handles biome lifecycle.
-- **Ace** handles probe / measure / pop.
+- **Ace** handles the energy dyad: plant / measure / harvest / reap.
 - **Operator** handles gate building.
 - **Druid** handles unitary gates.
 
@@ -94,8 +101,8 @@ right. Spark and Druid bookend the set.
 - **Self-face vs World-face HUD.** Self-face frames (Spark/Icon/Merchant/Ace)
   tint the player's own state ring; World-face frames (Captain/Operator/Druid)
   emphasize biome/plot rendering. Mostly a presentation difference.
-- **Tab is reclaimed** — direct-pick on 1/2/3 makes Tab redundant for
-  mode cycling. Free for future use.
+- **Tab cycles the hat** (4-0) — the one-key version of the WASD
+  frame-ring step. Sub-modes are direct-picked on 1/2/3.
 
 ## No-hat state
 

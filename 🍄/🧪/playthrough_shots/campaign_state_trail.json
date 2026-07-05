@@ -1,0 +1,260 @@
+{
+  "scenario": "demos_normal",
+  "engine": "live_cpp",
+  "rounds": 8,
+  "final_flags": [
+    "tutorial_seen"
+  ],
+  "trail": [
+    {
+      "round": 0,
+      "label": "boot_baseline",
+      "turn": 15,
+      "flags_fired": [
+        "tutorial_seen"
+      ],
+      "n_flags": 1,
+      "resources": {
+        "⚙": 2,
+        "❄": 13,
+        "🌱": 3,
+        "🌾": 21,
+        "🍂": 1,
+        "🍄": 1,
+        "🍞": 34,
+        "🍼": 1,
+        "👥": 55,
+        "💧": 5,
+        "🪵": 8
+      },
+      "n_icons": 1,
+      "icons": [
+        {
+          "north": "🌾",
+          "south": "👥"
+        }
+      ],
+      "n_quests": 0,
+      "quests": []
+    },
+    {
+      "round": 1,
+      "label": "incorp_1",
+      "turn": 68,
+      "flags_fired": [
+        "tutorial_seen"
+      ],
+      "n_flags": 1,
+      "resources": {
+        "⚙": 2,
+        "❄": 13,
+        "🌱": 3,
+        "🌾": 21,
+        "🍂": 1,
+        "🍄": 1,
+        "🍞": 34,
+        "🍼": 1,
+        "👥": 55,
+        "💧": 5,
+        "🪵": 8
+      },
+      "n_icons": 1,
+      "icons": [
+        {
+          "north": "🌾",
+          "south": "👥"
+        }
+      ],
+      "n_quests": 0,
+      "quests": []
+    },
+    {
+      "round": 2,
+      "label": "incorp_2",
+      "turn": 119,
+      "flags_fired": [
+        "tutorial_seen"
+      ],
+      "n_flags": 1,
+      "resources": {
+        "⚙": 2,
+        "❄": 13,
+        "🌱": 3,
+        "🌾": 21,
+        "🍂": 1,
+        "🍄": 1,
+        "🍞": 34,
+        "🍼": 1,
+        "👥": 55,
+        "💧": 5,
+        "🪵": 8
+      },
+      "n_icons": 1,
+      "icons": [
+        {
+          "north": "🌾",
+          "south": "👥"
+        }
+      ],
+      "n_quests": 0,
+      "quests": []
+    },
+    {
+      "round": 3,
+      "label": "incorp_3",
+      "turn": 170,
+      "flags_fired": [
+        "tutorial_seen"
+      ],
+      "n_flags": 1,
+      "resources": {
+        "⚙": 2,
+        "❄": 13,
+        "🌱": 3,
+        "🌾": 21,
+        "🍂": 1,
+        "🍄": 1,
+        "🍞": 34,
+        "🍼": 1,
+        "👥": 55,
+        "💧": 5,
+        "🪵": 8
+      },
+      "n_icons": 1,
+      "icons": [
+        {
+          "north": "🌾",
+          "south": "👥"
+        }
+      ],
+      "n_quests": 0,
+      "quests": []
+    },
+    {
+      "round": 4,
+      "label": "incorp_4",
+      "turn": 220,
+      "flags_fired": [
+        "tutorial_seen"
+      ],
+      "n_flags": 1,
+      "resources": {
+        "⚙": 2,
+        "❄": 13,
+        "🌱": 3,
+        "🌾": 21,
+        "🍂": 1,
+        "🍄": 1,
+        "🍞": 34,
+        "🍼": 1,
+        "👥": 55,
+        "💧": 5,
+        "🪵": 8
+      },
+      "n_icons": 1,
+      "icons": [
+        {
+          "north": "🌾",
+          "south": "👥"
+        }
+      ],
+      "n_quests": 0,
+      "quests": []
+    },
+    {
+      "round": 5,
+      "label": "incorp_5",
+      "turn": 271,
+      "flags_fired": [
+        "tutorial_seen"
+      ],
+      "n_flags": 1,
+      "resources": {
+        "⚙": 2,
+        "❄": 13,
+        "🌱": 3,
+        "🌾": 21,
+        "🍂": 1,
+        "🍄": 1,
+        "🍞": 34,
+        "🍼": 1,
+        "👥": 55,
+        "💧": 5,
+        "🪵": 8
+      },
+      "n_icons": 1,
+      "icons": [
+        {
+          "north": "🌾",
+          "south": "👥"
+        }
+      ],
+      "n_quests": 0,
+      "quests": []
+    },
+    {
+      "round": 6,
+      "label": "incorp_6",
+      "turn": 321,
+      "flags_fired": [
+        "tutorial_seen"
+      ],
+      "n_flags": 1,
+      "resources": {
+        "⚙": 2,
+        "❄": 13,
+        "🌱": 3,
+        "🌾": 21,
+        "🍂": 1,
+        "🍄": 1,
+        "🍞": 34,
+        "🍼": 1,
+        "👥": 55,
+        "💧": 5,
+        "🪵": 8
+      },
+      "n_icons": 1,
+      "icons": [
+        {
+          "north": "🌾",
+          "south": "👥"
+        }
+      ],
+      "n_quests": 0,
+      "quests": []
+    },
+    {
+      "round": 999,
+      "label": "final",
+      "turn": 326,
+      "flags_fired": [
+        "tutorial_seen"
+      ],
+      "n_flags": 1,
+      "resources": {
+        "⚙": 2,
+        "❄": 13,
+        "🌱": 3,
+        "🌾": 21,
+        "🍂": 1,
+        "🍄": 1,
+        "🍞": 34,
+        "🍼": 1,
+        "👥": 55,
+        "💧": 5,
+        "🪵": 8
+      },
+      "n_icons": 1,
+      "icons": [
+        {
+          "north": "🌾",
+          "south": "👥"
+        }
+      ],
+      "n_quests": 0,
+      "quests": []
+    }
+  ],
+  "errors": [],
+  "notes": []
+}

@@ -65,3 +65,12 @@ static func pole_label(index: int, bit: int) -> String:
 
 static func axis_description(index: int) -> String:
 	return str(get_axis(index).get("description", ""))
+
+
+## The undecided 12-vector: 0.5 on every axis. One home for the neutral
+## projection/bits fallback the overlays previously each rebuilt.
+static func uniform_marginals() -> Array:
+	var out: Array = []
+	for _i in range(AXIS_COUNT):
+		out.append(0.5)
+	return out

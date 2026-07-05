@@ -2,13 +2,31 @@
 
 A quantum farming simulator built on real physics. Grow crops, measure qubits, harvest probability.
 
+![SpaceWheat titlecard](Assets/spacewheat_titlecard.png)
+
 SpaceWheat is a game where every wheat field is a quantum register, every harvest is a projective measurement, and every season is Hamiltonian evolution. The quantum mechanics aren't a metaphor — they're the actual engine. You're playing a quantum computer that happens to look like a farm.
+
+**The story begins in a closed quantum system** — in-fiction, *the enclave*: a world of
+pure unitary evolution where nothing decays, nothing leaks, and the player's measurements
+are the only irreversible acts. "Measurement IS the economy." The full dissipative
+machinery (Lindblad channels, decoherence, weak measurement) is authored throughout and
+wakes **per-biome**: the post-story campaign *What Fades* (`docs/OPEN_CAMPAIGN.md`)
+walks the player out of the enclave into the **wet country** — 64 biomes whose authored
+webways run live — and ends with the door open for good, leaving the full 162-biome
+world to explore with open and closed dynamics coexisting. The island the player grew up
+on stays closed forever: home is the thing the open world teaches you to miss
+(`docs/CLOSED_SYSTEM.md`, `docs/inspiration/OPEN_SYSTEM_ACT2.md`).
+
+> **Working physicist, educator, or skeptic?** [`docs/FOR_PHYSICISTS.md`](docs/FOR_PHYSICISTS.md)
+> is the five-minute ledger: every concept the game teaches, what the player
+> does with it, and an honesty grade per claim — exact, faithful, or
+> suggestive — plus how to verify each one yourself.
 
 ## How It Works
 
 ### The Quantum Foundation
 
-Each biome runs a **density matrix simulation** of its quantum state. A biome is a *cloud of atoms* (single emojis) under Lindblad dissipation; its qubit axes form when a faction's **icons** are installed over it (a neighborhood) — each icon pairs two atoms into a north pole (|0>) and a south pole (|1>). A wheat qubit might be sun/moon, a population qubit might be people/fire. Pole-pairing is a neighborhood/faction product, not a property of the biome itself. The state evolves under the induced Hamiltonian with the biome's Lindblad dissipation channels, and when you measure, Born's rule decides what you get.
+Each biome runs a **density matrix simulation** of its quantum state. A biome is a *cloud of atoms* (single emojis); its qubit axes form when a faction's **icons** are installed over it (a neighborhood) — each icon pairs two atoms into a north pole (|0>) and a south pole (|1>). A wheat qubit might be sun/moon, a population qubit might be people/fire. Pole-pairing is a neighborhood/faction product, not a property of the biome itself. The state evolves under the induced Hamiltonian — exactly, via the unitary propagator U = exp(−iH·dt), purity conserved to machine precision — and when you measure, Born's rule decides what you get. Each biome also authors a Lindblad flow-graph (its *webway*, the food web); in v0 those channels are drawn in the graph views but sealed: zero dissipators are built while the enclave holds.
 
 This isn't approximate. The gate library implements all standard quantum gates with exact matrix definitions:
 
@@ -18,43 +36,99 @@ This isn't approximate. The gate library implements all standard quantum gates w
 
 Every gate is verified against known quantum states (142 physics tests).
 
-### The Four Tools
+### The Seven Frames
 
-Player actions are organized into four tool groups by time scale:
+Player actions live in seven archetype frames on the number row (4–0), each a hat the
+player wears:
 
-| Key | Tool | What it does |
-|-----|------|-------------|
-| **1** | **Unitary** | Reversible quantum gates. Rotate qubits on the Bloch sphere, create superpositions with Hadamard. F-key cycles through X/Y/Z rotation axes. |
-| **2** | **Lindblad** | Dissipative operations. Drain energy out, pump energy in, transfer population between qubits. This is how the environment interacts with your quantum state. |
-| **3** | **Measure** | The core gameplay loop. Explore (bind a terminal), Measure (collapse the state), Pop (harvest credits). F-key switches to Gate mode for building entanglement. |
-| **4** | **Meta** | System-level operations. Add or remove vocabulary pairs, discover or cull biomes. |
+| Key | Frame | What it does |
+|-----|-------|-------------|
+| **4** | **Spark** | Lindbladian jolt — *sealed while the enclave holds*; the endgame door opens it. Mode 2 (🌉): Majorana bridges, never sealed. |
+| **5** | **Icon** | Inject a dual-emoji qubit from the neighborhood's installed signature. |
+| **6** | **Merchant** | Faction contracts: sell, read price, buy. Price = −kT·log p. |
+| **7** | **Captain** | Biome lifecycle: cull, discover. |
+| **8** | **Ace** | The default toolkit — the plant/measure/harvest energy dyad. |
+| **9** | **Operator** | Gate building: Bell, CNOT, CZ, SWAP, GHZ, cluster. |
+| **0** | **Druid** | Unitary rotations + Hadamard (X/Y/Z axes on 1/2/3). |
 
-Within each tool, actions follow a consistent direction:
-- **Q** = in (bind, drill, navigate back)
-- **E** = select (observe, detail, interact with current item)
-- **R** = out (extract, advance, navigate forward)
-- **F** = cycle (switch mode, page, or view — always)
+Every frame speaks the same four-verb grammar (QERF — designed for touch as much as
+keyboard, with **E as the universal "inspect / more information"**):
+- **Q** = screw out — less, remove, retreat, harvest
+- **E** = pause + inspect — read the state, collapse it, or open detail
+- **R** = screw in — more, add, advance, plant
+- **F** = play + flatten — close what E opened
 
 ### The Core Loop
 
 ```
-EXPLORE (Q=in)  -->  MEASURE (E=select)  -->  POP (R=out)  -->  repeat
-      |                    |                       |
-  bind terminal       Born sample            harvest credits
-  to register         collapse state           free terminal
+PLANT (R)  -->  MEASURE (E)  -->  HARVEST (Q)  -->  repeat
+    |               |                  |
+ invest energy   Born sample       surprisal payout
+                collapse state     E = −kT·log p
 ```
 
-1. **Explore** binds one of your 12 terminals to a quantum register. The system favors high-probability states.
-2. **Measure** samples the qubit via Born's rule and collapses it. You see which emoji won and at what probability.
-3. **Pop** converts that probability into emoji-credits. Higher measurement probability = bigger payout.
+1. **Plant** invests energy — jolt population toward the pole you want.
+2. **Measure** samples the qubit via Born's rule and collapses it — the game's single
+   irreversible act, seeded deterministically so a save-load replays the same universe.
+3. **Harvest** pays the *surprisal* of what you learned: improbable outcomes pay more
+   because you learned more. The player is Maxwell's demon on a payroll
+   (`docs/inspiration/DEMON_AT_THE_GATE.md`).
 
-Between cycles, **Reap** runs Hamiltonian evolution across all biomes and does a batch harvest from the accumulated quantum dynamics.
+Selecting a plot auto-binds its terminal. Time + Hamiltonian is the pump: after a
+collapse, the couplings rotate the pinned qubit back into superposition — nothing else
+refills it, because nothing else needs to.
+
+### The Story Is the Physics
+
+The narrative layer is computed from the quantum state, not bolted on:
+
+- **Factions carry twelve axioms** — preferences over quantum observables (purity,
+  entropy, coherence, distribution, scale, dynamics). Matching them against a biome's
+  live state yields the faction's **resonance** with that place, spoken as mood: *"this
+  place sings to them"*, *"restless — the biome grates on their axioms"*. Press E on any
+  offer to read it.
+- **Quests are personality-typed.** The most resonant faction voices the physics quest,
+  and its operator taste picks the ask: material factions ask you to grow a population,
+  mystics to superpose, subtle ones to commit a contested pair, prismatic ones to hold
+  two threads at once. Completion is soft-gated on live observables — the progress bar
+  is the teacher.
+- **Ten archetype voices** (with phrase banks) cover all ~99 factions — 40 authored, the
+  rest derived from faction identity. The world **whispers at irreversible moments**:
+  close a Berry loop and the native faction marks the incorporation; collapse an
+  improbable outcome and someone witnesses the scar.
+- **You are a quantum system too.** The player's identity is a density matrix over
+  12-qubit faction concept-space, decaying toward the mixed state (τ = 300 s) unless
+  choices keep renewing it — the one open system inside the enclave's walls. The M
+  overlay reads it back: `You · Tr(ρ²) = 0.85 — resolved`.
+- **A topology campaign runs through the acts.** "What Survives"
+  (`docs/TOPOLOGY_CAMPAIGN.md`) teaches four genuine topological/geometric invariants
+  as story arcs: Berry phase (the solid angle a loop encloses), the conserved spectrum
+  (with an in-game eigenstate compass 🧭), SSH edge protection (a lantern chain whose
+  bridge cannot go dark — real chiral symmetry, authored as icon data), and gate
+  non-commutativity (braid words drilled by an imperial guard).
+- **An open-systems campaign is the endgame.** "What Fades" (`docs/OPEN_CAMPAIGN.md`,
+  acts 6–8) walks out of the enclave: dephasing as *the world going gray while nothing
+  moves*, the quantum Zeno effect as *watching keeps*, literal attractors with
+  hysteresis, decoherence-tested topological protection, EIT dark states as shelter
+  built from interference — and the rite: a reap paid kT·ΔS from the season's entropy
+  bank. Maxwell's demon stops freelancing and opens a bank.
+- **A nonlocality campaign runs between them.** "What Connects"
+  (`docs/CONNECT_CAMPAIGN.md`, interleaved through acts 5–7) teaches what two systems
+  share that neither owns: Berry-loop **knots** (the record keeps the walks; mutual
+  winding is the integer — ripeness was the shadow of a knot all along) and **Majorana
+  bridges** — one fermion split between two biomes, decohering only at the *product* of
+  its ends' local noise, written by braiding (an honestly Clifford alphabet), read once
+  by fusion. Anchor an end on the island and the Bath can never touch it: home matters
+  mechanically, forever.
+- **A canonical glossary** (`docs/glossary/`) defines the world's physics vocabulary —
+  enclave, measurement, berry, webway, resonance, invariant, knot, bridge — and is
+  projected live into the in-game Guide.
 
 ### Visualization
 
 Qubits appear as floating **bubbles** on each biome's oval. Each bubble displays its two emojis with opacity proportional to measurement probability — a 70/30 superposition literally shows one emoji bright and the other dim. Entangled qubits cluster together (driven by mutual information). Quantum phase is encoded as color rotation through RGB primaries.
 
-The inspector overlay (N key) shows the raw density matrix as a heatmap and probability bars per register.
+The inspector overlay (N key) shows the raw density matrix as a heatmap and probability bars per register. The map overlay (M → Graph) renders each biome's cluster as a live graph: purple Hamiltonian couplings, the sealed webway in dark orange, and **gold entanglement edges pulled from the live mutual-information cache** — the loom the player actually wove, glowing in proportion to bits.
 
 ### Biomes
 
@@ -68,12 +142,41 @@ All resources are **emoji-credits** — unified currency per emoji type. Measure
 
 Quests are procedurally generated from faction data and reference specific emoji deliveries, pushing you to explore diverse biomes and quantum states.
 
+## The Gallery
+
+The project documents itself in generated artifacts — rendered from live
+state or data truth, never hand-drawn:
+
+<p align="center">
+  <img src="docs/atlas/samples/StarterForest.svg" width="32%" alt="StarterForest atlas plate">
+  <img src="docs/atlas/samples/GildedRot.svg" width="32%" alt="GildedRot atlas plate">
+  <img src="docs/atlas/samples/Lanternfall.svg" width="32%" alt="Lanternfall atlas plate">
+</p>
+
+- **The atlas** — `python3 tools/atlas_plates.py` renders all 162 biomes as
+  SVG plates straight from `biomes.json` (the file the engine boots from) in
+  about a second, plus a contact sheet. A curated sixteen-plate exhibition
+  ships as one self-contained page — [`docs/gallery/index.html`](docs/gallery/index.html)
+  (`tools/gallery_exhibit.py`) — no external requests, hostable anywhere.
+- **Postcards** — F12 in-game captures the view with the physics watermark
+  rendered *into the pixels* (biome, act, Tr(ρ²), entanglement bits, phrame
+  count) plus a sidecar JSON certificate in `user://postcards/`. A postcard
+  and its save are a reproducible claim about a real quantum trajectory.
+- **Reels** — attract mode: `SW_REEL=Rig/reels/first_light.reel.json` (or
+  `godot -- --reel=…`) plays a data-driven demo through the rig's real action
+  surface; any input exits to live play.
+- **Recording** — Godot's movie mode turns a reel into portfolio footage:
+  `SW_REEL=Rig/reels/first_light.reel.json godot --write-movie reel.avi --fixed-fps 30`,
+  then ffmpeg to mp4/GIF.
+- **The web door** — build → static QA → real-Chromium smoke emitting a JSON
+  performance verdict: [`docs/release/WEB_DOOR.md`](docs/release/WEB_DOOR.md).
+
 ## Tech Stack
 
 - **Engine**: Godot 4.5
 - **Language**: GDScript + native C++ GDExtension
 - **Quantum backend**: Custom density matrix simulator with Eigen-accelerated native path
-- **Evolution**: First-order Euler integration with Lindblad master equation (GKSL form)
+- **Evolution**: Closed system (default) uses the exact unitary propagator U = exp(−iH·dt) — eigendecomposition in C++, Padé scaling-and-squaring in the GDScript fallback — purity-conserving to machine precision. The GKSL (Lindblad) integrator remains behind the open-system flag.
 - **Gate library**: 14 gates (11 single-qubit + 3 two-qubit) with exact unitary matrices
 
 ### Native Acceleration
@@ -90,7 +193,7 @@ Windows ship in `native/bin/`.
 
 ## Testing
 
-142 quantum physics tests across 4 suites (plus a weak-measurement suite):
+164 quantum physics tests across 6 suites (142 gate tests + weak-measurement + closed-system):
 
 | Suite | Tests | Coverage |
 |-------|-------|----------|
@@ -99,13 +202,14 @@ Windows ship in `native/bin/`.
 | Gate Application Integration | 22 | Gates applied through the real biome/register pipeline |
 | 2-Qubit Gate Embedding | 63 | CNOT/CZ/SWAP embeddings across qubit orderings |
 | Weak-Measurement Drain | 18 | Trace preservation, coherence decay (T₂), purity validity, η=0/1 limits |
+| Closed-System Gate | 4 | Closed → zero Lindblad operators; open override rebuilds them; purity/trace ≡ 1 through evolution and projective collapse |
 
-Run them all:
+Run the four gate suites (142 tests):
 ```bash
 bash run_quantum_gate_tests.sh
 ```
 
-Or through the 🍄 automation lane, with per-suite selection:
+Or run everything through the 🍄 automation lane, with per-suite selection:
 ```bash
 bash 🍄/🧪/🔬.sh
 bash 🍄/🧪/🔬.sh --suite gates
@@ -113,6 +217,7 @@ bash 🍄/🧪/🔬.sh --suite advanced
 bash 🍄/🧪/🔬.sh --suite integration
 bash 🍄/🧪/🔬.sh --suite embed
 bash 🍄/🧪/🔬.sh --suite drain
+bash 🍄/🧪/🔬.sh --suite closed
 ```
 
 ## Project Structure

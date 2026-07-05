@@ -1,6 +1,6 @@
 ---
 term: webway
-short_def: The ecological layer of a biome's Lindblad — non-sink inter-atom flows that recirculate population across the atom cloud. Authored everywhere, SEALED in v0.
+short_def: A biome's Lindblad flow-graph — the food web. Authored everywhere, sealed in v0.
 related: [cloud, atom, biome, enclave, measurement]
 since: 2026-05-30
 status: canonical

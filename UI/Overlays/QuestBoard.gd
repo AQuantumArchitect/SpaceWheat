@@ -456,6 +456,7 @@ func _market_inspect_text() -> String:
 		float(proj.get("alignment", 0.0)),
 		float(proj.get("directional_edge", 0.0)),
 	])
+	var farm = InstrumentLocator.resolve_active_farm(self)
 	# Faction↔biome resonance: how the faction's 12 axial preferences sit with
 	# this biome's live quantum observables (FactionStateMatcher). Physics-derived
 	# mood, not flavor dice.
@@ -465,11 +466,37 @@ func _market_inspect_text() -> String:
 		var prefs := str(offer.get("faction_preferences", ""))
 		if prefs != "":
 			lines.append("their axioms: %s" % prefs)
+		# The scalar decomposed: the axiom that sings and the one that grates —
+		# explain_alignment rows, the same terms the resonance number averages.
+		var best: Dictionary = {}
+		var worst: Dictionary = {}
+		for r in offer.get("faction_axiom_rows", []):
+			if not (r is Dictionary) or not bool(r.get("known", false)):
+				continue
+			if best.is_empty() or float(r.fit) > float(best.fit):
+				best = r
+			if worst.is_empty() or float(r.fit) < float(worst.fit):
+				worst = r
+		if not best.is_empty():
+			lines.append("sings: %s — they want %s, it reads %s (%.2f)" % [
+					str(best.channel), str(best.want), str(best.have), float(best.fit)])
+		if not worst.is_empty() and str(worst.get("channel", "")) != str(best.get("channel", "")):
+			lines.append("grates: %s — they want %s, it reads %s (%.2f)" % [
+					str(worst.channel), str(worst.want), str(worst.have), float(worst.fit)])
+	# Player↔faction kinship: how they sit with who YOU are becoming — geometric
+	# mean of per-axis agreement between your identity ρ's principal axes and
+	# their live alignment (FactionDensityMatrix.kinship; docs/glossary/soul.md).
+	if farm != null and ("faction_density" in farm) and farm.faction_density != null \
+			and farm.faction_density.has_method("kinship"):
+		var reg = farm.faction_density.get_registry()
+		var fac = reg.get_by_name(str(offer.get("faction", ""))) if reg != null else null
+		var kin: float = farm.faction_density.kinship(fac)
+		if kin >= 0.0:
+			lines.append("they and you: %.2f — %s" % [kin, FactionDensityMatrix.kinship_gloss(kin)])
 	var explanation = offer.get("market_explanation", [])
 	if explanation is Array:
 		for line in explanation:
 			lines.append(str(line))
-	var farm = InstrumentLocator.resolve_active_farm(self)
 	var card_tip: String = _faction_card_tooltip(str(offer.get("faction", "")), farm)
 	if card_tip != "":
 		lines.append("")
@@ -551,9 +578,9 @@ func _refresh_close_hint() -> void:
 		return
 	if frame_id == FRAME_MARKET:
 		var sort_label := str(MARKET_SORT_LABELS.get(_market_sort_mode, "?"))
-		_close_hint.text = "[X] close  ·  [ ] / ] cycle tab  ·  [1] Comfort↓  [2] Magnitude↓  [3] Tension↓  ·  active: %s" % sort_label
+		_close_hint.text = "ESC close  ·  T Y U I tabs  ·  [1] Comfort↓  [2] Magnitude↓  [3] Tension↓  ·  active: %s" % sort_label
 	else:
-		_close_hint.text = "[X] close   ·   [ ] / ] cycle tab"
+		_close_hint.text = "ESC close   ·   T Y U I tabs"
 
 func _refresh_status() -> void:
 	if not _status_line:
@@ -1546,8 +1573,66 @@ func _predicate_summary(pred: Dictionary) -> String:
 			return "entanglement (MI) ≥ %.2f" % float(pred.get("value", 0.5))
 		"gate_sequence_contains":
 			return "%s ×%d" % [str(pred.get("gate", "?")), int(pred.get("count", 1))]
+		"gate_order":
+			# The braid word, spelled as the player will drill it: "H → CNOT".
+			var word: Array = pred.get("gates", [])
+			var pretty: Array[String] = []
+			for g in word:
+				pretty.append(_gate_glyph(str(g)))
+			return "in order: %s" % " → ".join(pretty)
+		"dynamics_at_most":
+			return "stillness — motion ≤ %.2f" % float(pred.get("value", 0.2))
+		"dynamics_at_least":
+			return "breathing — motion ≥ %.2f" % float(pred.get("value", 0.25))
+		"purity_at_most":
+			return "let it gray — Tr(ρ²) ≤ %.2f" % float(pred.get("value", 1.0))
+		"coherence_fell":
+			return "watch it fade — coherence %.2f → ≤ %.2f" % [float(pred.get("from", 0.3)), float(pred.get("to", 0.15))]
+		"attractor_emoji_gte":
+			return "deep state[%s] ≥ %.2f" % [str(pred.get("emoji", "")), float(pred.get("value", 0.5))]
+		"eigenvalue_gap_gte":
+			return "compass gap ≥ %.2f" % float(pred.get("value", 0.1))
+		"frozen_loops_gte":
+			return "close %d berry loop%s" % [int(pred.get("count", 1)), "s" if int(pred.get("count", 1)) != 1 else ""]
+		"loops_linked":
+			return "🪢 link two loops — winding ≥ %d" % int(pred.get("value", 1))
+		"winding_gte":
+			return "🪢 mutual winding ≥ %d" % int(pred.get("value", 1))
+		"biome_frozen_loops_gte":
+			return "bank %d loop%s in %s" % [int(pred.get("count", 1)), "s" if int(pred.get("count", 1)) != 1 else "", str(pred.get("biome", "?"))]
+		"biome_loops_linked":
+			return "🪢 link loops in %s — winding ≥ %d" % [str(pred.get("biome", "?")), int(pred.get("value", 1))]
+		"bridge_built_gte":
+			return "🌉 raise %d span%s" % [int(pred.get("value", 1)), "s" if int(pred.get("value", 1)) != 1 else ""]
+		"bridge_braids_gte":
+			return "🪢 braid the span ×%d" % int(pred.get("value", 1))
+		"bridge_fused_gte":
+			return "⚛ fuse %d bridge%s" % [int(pred.get("value", 1)), "s" if int(pred.get("value", 1)) != 1 else ""]
 		_:
 			return t
+
+
+## Short display glyph for a gate dispatch name ("hadamard" → "H").
+func _gate_glyph(gate_name: String) -> String:
+	match gate_name.strip_edges().to_lower():
+		"hadamard": return "H"
+		"cnot": return "CNOT"
+		"cz": return "CZ"
+		"swap": return "SWAP"
+		"bell": return "Bell"
+		"ghz": return "GHZ"
+		"cluster": return "Cluster"
+		"pauli_x": return "X"
+		"pauli_y": return "Y"
+		"pauli_z": return "Z"
+		"s_gate": return "S"
+		"t_gate": return "T"
+		"sdg": return "S†"
+		"tdg": return "T†"
+		"rx": return "Rx"
+		"ry": return "Ry"
+		"rz": return "Rz"
+		_: return gate_name.to_upper()
 
 ## Tooltip for a predicate row — reports the *current* measured value alongside
 ## the threshold. Returns multi-line text. When a value can't be read (missing

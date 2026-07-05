@@ -14,6 +14,10 @@ class ObservableSnapshot:
 	var purity: float = -1.0
 	var entropy: float = -1.0
 	var coherence: float = -1.0
+	# Per-atom marginals (sorted-key order from the caller). In a closed system
+	# purity/entropy are constants of the motion, so populations carry the
+	# breathing that would otherwise be invisible here.
+	var populations: Array = []
 
 # Ring buffer of recent snapshots (last N samples)
 var history: Array = []  # Array of ObservableSnapshot
@@ -42,6 +46,8 @@ func add_snapshot(obs: Dictionary) -> void:
 	snapshot.purity = float(obs.get("purity", -1.0))
 	snapshot.entropy = float(obs.get("entropy", -1.0))
 	snapshot.coherence = float(obs.get("coherence", -1.0))
+	var pops = obs.get("populations", [])
+	snapshot.populations = pops.duplicate() if pops is Array else []
 
 	history.append(snapshot)
 
@@ -79,7 +85,16 @@ func get_dynamics() -> float:
 		var dentropy = abs(curr.entropy - prev.entropy) / dt
 		var dcoherence = abs(curr.coherence - prev.coherence) / dt
 
-		total_rate += dpurity + dentropy + dcoherence
+		# Population motion: mean |Δp|/dt across shared atoms. Weighted ×3 so a
+		# breathing register registers on the same scale as a coherence swing.
+		var dpop = 0.0
+		var n_shared = min(prev.populations.size(), curr.populations.size())
+		if n_shared > 0:
+			for k in range(n_shared):
+				dpop += abs(float(curr.populations[k]) - float(prev.populations[k]))
+			dpop = (dpop / n_shared) / dt * 3.0
+
+		total_rate += dpurity + dentropy + dcoherence + dpop
 		count += 1
 
 	if count == 0:

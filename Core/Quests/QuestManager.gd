@@ -248,6 +248,8 @@ const FLAG_PREDICATE_TYPES := [
 	"standing_gte", "biome_state_gte", "biome_state_lte", "signature_size_gte", "atom_count_gte",
 	"atom_in_biome", "biome_attractor_emoji_gte", "biome_eigenvalue_gap_gte", "biome_purity_trending",
 	"soul_purity_gte",
+	"bridge_built_gte", "bridge_braids_gte", "bridge_fused_gte",
+	"biome_frozen_loops_gte", "biome_loops_linked",
 ]
 
 
@@ -360,6 +362,51 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 				return 0.0
 			return QuestMath.soft_gate(float(farm.faction_density.get_purity()),
 					float(pred.get("value", 0.5)), 0.1)
+		"bridge_built_gte":
+			# What Connects: lifetime Majorana spans raised (farm-wide BridgeRegister).
+			if not ("bridge_register" in farm) or farm.bridge_register == null:
+				return 0.0
+			return QuestMath.soft_gate(float(farm.bridge_register.built_total),
+					maxf(1.0, float(pred.get("value", 1))), 0.75)
+		"bridge_braids_gte":
+			# Lifetime braid operations — the Clifford alphabet, drilled.
+			if not ("bridge_register" in farm) or farm.bridge_register == null:
+				return 0.0
+			return QuestMath.soft_gate(float(farm.bridge_register.braids_total),
+					maxf(1.0, float(pred.get("value", 1))), 1.0)
+		"bridge_fused_gte":
+			# Lifetime fusions — bridges read, collapsed, and spent.
+			if not ("bridge_register" in farm) or farm.bridge_register == null:
+				return 0.0
+			return QuestMath.soft_gate(float(farm.bridge_register.fused_total),
+					maxf(1.0, float(pred.get("value", 1))), 0.75)
+		"biome_frozen_loops_gte":
+			# Closed Berry walks banked in the NAMED biome's record (a loop record
+			# freezes when a tracked walk returns to its seed vertex having
+			# enclosed real solid angle — What Connects, Machine 2).
+			if farm.grid == null:
+				return 0.0
+			var loop_biome = farm.grid.get_biome(str(pred.get("biome", "")))
+			if loop_biome == null or loop_biome.get("quantum_computer") == null \
+					or loop_biome.quantum_computer.berry_register == null:
+				return 0.0
+			return QuestMath.soft_gate(float(loop_biome.quantum_computer.berry_register.frozen_loop_count()),
+					maxf(1.0, float(pred.get("count", 1))), 0.75)
+		"biome_loops_linked":
+			# Two frozen loops in the NAMED biome whose mutual winding is nonzero —
+			# the knot invariant (KnotRegister). Below two loops, halfway credit
+			# per banked loop so the Arc tab shows the road.
+			if farm.grid == null:
+				return 0.0
+			var knot_biome = farm.grid.get_biome(str(pred.get("biome", "")))
+			if knot_biome == null or knot_biome.get("quantum_computer") == null \
+					or knot_biome.quantum_computer.berry_register == null:
+				return 0.0
+			var frozen: Array = knot_biome.quantum_computer.berry_register.frozen_loops()
+			if frozen.size() < 2:
+				return QuestMath.soft_gate(float(frozen.size()), 2.0, 0.75) * 0.5
+			var winding := float(absi(KnotRegister.max_mutual_winding(frozen)))
+			return QuestMath.soft_gate(winding, maxf(1.0, float(pred.get("value", 1))), 0.5)
 		"signature_size_gte":
 			return QuestMath.soft_gate(float(farm.known_icons.size()), float(pred.get("value", 0)), 2.0)
 		"atom_count_gte":
@@ -696,12 +743,16 @@ func _compute_faction_resonance(quests: Array, biome) -> Dictionary:
 		var fname := str(quest.get("faction", ""))
 		if fname == "" or cache.has(fname):
 			continue
-		var entry := {"alignment": -1.0, "prefs": ""}
+		var entry := {"alignment": -1.0, "prefs": "", "axiom_rows": []}
 		var fac = registry.get_by_name(fname)
 		if fac != null and fac.has_method("get_axial_bits"):
 			var bits := Array(fac.get_axial_bits())
 			entry["alignment"] = FactionStateMatcher.compute_alignment(bits, obs)
 			entry["prefs"] = FactionStateMatcher.describe_preferences(bits)
+			# The scalar's own terms (explain_alignment): stamped beside it so
+			# the board can say WHICH axiom sings and which grates — same
+			# moment-in-time truth as the alignment number itself.
+			entry["axiom_rows"] = FactionStateMatcher.explain_alignment(bits, obs)
 		cache[fname] = entry
 	return cache
 
@@ -715,6 +766,7 @@ func _stamp_faction_resonance(quests: Array, resonance: Dictionary) -> void:
 		if not e.is_empty() and float(e.get("alignment", -1.0)) >= 0.0:
 			quest["faction_alignment"] = float(e["alignment"])
 			quest["faction_preferences"] = str(e["prefs"])
+			quest["faction_axiom_rows"] = e.get("axiom_rows", [])
 
 
 ## The offer pool's most biome-resonant faction — it gets to voice the quantum
@@ -1623,27 +1675,3 @@ func clear_all_quests() -> void:
 	next_quest_id = 0
 	_announced_offers.clear()
 	active_quests_changed.emit()
-
-func print_quest_status() -> void:
-	# Print current quest state
-	print("🗂️ Quest Manager Status:")
-	print("  Active: %d" % active_quests.size())
-	print("  Completed: %d" % completed_quests.size())
-	print("  Failed: %d" % failed_quests.size())
-
-	if active_quests.size() > 0:
-		print("\n  Active Quests:")
-		for quest_id in active_quests.keys():
-			var quest = active_quests[quest_id]
-			var time_left = get_quest_time_remaining(quest_id)
-			var time_str = "∞" if time_left < 0 else "%ds" % int(time_left)
-			print("    #%d: %s - %s (%s)" % [
-				quest_id,
-				quest.get("faction", "Unknown"),
-				quest.get("body", quest.get("display", "???")),
-				time_str
-			])
-
-static func test_quest_lifecycle() -> void:
-	# Lifecycle smoke removed with the old offer surface.
-	print("🧪 QuestManager lifecycle smoke retired; use live lattice tests instead.")

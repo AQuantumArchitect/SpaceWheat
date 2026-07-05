@@ -426,10 +426,20 @@ func _eigen_inspect_text() -> String:
 	var lines: Array[String] = []
 	if farm != null and ("faction_density" in farm) and farm.faction_density != null \
 			and farm.faction_density.has_method("get_purity"):
-		var p: float = float(farm.faction_density.get_purity())
+		var fd = farm.faction_density
+		var p: float = float(fd.get_purity())
 		lines.append("You · Tr(ρ²) = %.3f — %s" % [p, _soul_gloss(p)])
 		lines.append("Purity of your alignment density matrix: 1 = a committed identity; the mixed floor = a life not yet chosen.")
-		lines.append("It decays toward the mixed state (τ=300s) unless your choices keep renewing it — learn icons, rotate settlements, work your factions.")
+		var parts: Array[String] = _becoming_parts(true)
+		if not parts.is_empty():
+			lines.append("becoming: %s" % " · ".join(parts))
+		if fd.has_method("dominant_factions"):
+			var names: Array[String] = []
+			for row in fd.dominant_factions(3):
+				names.append("%s %.2f" % [str(row.get("name", "?")), float(row.get("weight", 0.0))])
+			if not names.is_empty():
+				lines.append("who holds you: %s" % " · ".join(names))
+		lines.append("Only learning moves the committed mass — each new icon pumps its owner and everyone who speaks its poles. Coherences between selves fade on their own (τ=300s).")
 	return "\n".join(lines)
 
 
@@ -442,15 +452,34 @@ func _graph_inspect_text() -> String:
 	var lines: Array[String] = []
 	if _graph_neigh_view != null and is_instance_valid(_graph_neigh_view):
 		lines.append(str(_graph_neigh_view.inspect_text()))
-	if not BalanceConfig.dissipative_enabled():
+	var compass := _compass_line(_graph_zoom)
+	if compass != "":
+		lines.append(compass)
+		var wet := _regime_line(_graph_zoom)
+		if wet != "":
+			lines.append(wet)
+		else:
+			lines.append("The depths (the eigenvalues of ρ) are conserved — no unitary motion can change them. Exactly one act reaches them: measurement.")
+	var knot := _knot_line(_graph_zoom)
+	if knot != "":
+		lines.append(knot)
+	if _biome_closed_here(_graph_zoom):
 		var canonical = _canonical_biome(_graph_zoom)
 		if _biome_has_webway(canonical):
-			var natives: Array = canonical.native_factions if ("native_factions" in canonical and canonical.native_factions is Array) else []
-			var speaker := str(natives[0]) if not natives.is_empty() else ""
+			var speaker := str(canonical.first_native_faction()) if canonical.has_method("first_native_faction") else ""
 			var whisper := QuestVoice.webway_whisper(speaker)
 			if whisper != "":
 				lines.append("💬 %s“%s”" % [("%s — " % speaker) if speaker != "" else "", whisper])
 	return "\n".join(lines)
+
+
+## Is the named biome effectively closed? Prefers the live QC's per-biome regime
+## (What Fades seam); falls back to the global switch.
+func _biome_closed_here(biome_name: String) -> bool:
+	var qc = _live_qc_for(biome_name)
+	if qc != null and qc.has_method("is_open_here"):
+		return not qc.is_open_here()
+	return not BalanceConfig.dissipative_enabled()
 
 
 func _on_action_r() -> void:
@@ -652,7 +681,7 @@ func _build_vectors_body() -> void:
 	var fa = _get_pinned_faction()
 	var fb = _get_faction_by_name(_selected_faction_b)
 	if fa == null or fa.alignment == null or fb == null or fb.alignment == null:
-		_body_box.add_child(_make_muted_label("Pin a faction (Z) and pick another via Y · Eigenstate.", 12))
+		_body_box.add_child(_make_muted_label("No pinned faction this run — the pin is who you ARE (set by the scenario; The Demos by default). Pick a comparison faction via Y · Eigenstate.", 12))
 		return
 
 	var ov: float = fa.alignment.overlap(fb.alignment)
@@ -733,8 +762,9 @@ func _build_eigen_body() -> void:
 
 	# WHO AM I BECOMING — the player's concept state, read as physics. Purity of
 	# the alignment density matrix: 1 = a committed identity, low = smeared across
-	# many selves. Farm's τ=300s Lindblad decay drags it down between choices —
-	# the one open system in the enclave (see docs/glossary/enclave.md).
+	# many selves. Learning moves the committed mass (each icon pumps factions);
+	# coherences fade on their own (τ=300s) — the one open system in the enclave
+	# (docs/glossary/soul.md).
 	if farm != null and ("faction_density" in farm) and farm.faction_density != null \
 			and farm.faction_density.has_method("get_purity"):
 		var soul_purity: float = float(farm.faction_density.get_purity())
@@ -743,8 +773,11 @@ func _build_eigen_body() -> void:
 		soul_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		soul_lbl.add_theme_font_size_override("font_size", 12)
 		soul_lbl.add_theme_color_override("font_color", COLOR_HILITE)
-		soul_lbl.tooltip_text = "Purity of your alignment density matrix. It decays toward the mixed state (τ=300s) unless your choices keep renewing it."
+		soul_lbl.tooltip_text = "Purity of your alignment density matrix. Learning moves it — each new icon pumps its owner and everyone who speaks its poles; coherences fade on their own (τ=300s)."
 		_body_box.add_child(soul_lbl)
+		var becoming: Array[String] = _becoming_parts(false)
+		if not becoming.is_empty():
+			_body_box.add_child(_make_muted_label("becoming: %s" % " · ".join(becoming), 11))
 
 	# Sort mode is derived from pinned-faction state — no chord.
 	var sort_mode: int = EIGEN_SORT_SUBJECT if _get_pinned_faction() != null else EIGEN_SORT_SYSTEM
@@ -761,22 +794,50 @@ func _build_eigen_body() -> void:
 		_build_eigen_body_system()
 
 
-## Words for the purity of a soul. Bands are heuristic: the mixed-state floor for
-## a ~90-faction support is ≈0.011, so anything near 1 is a deliberate life.
+## Words for the purity of a soul. The band thresholds live in exactly one
+## place — FactionDensityMatrix.band_key (which also drives the crossing
+## whispers); this maps its keys to display wording.
+const SOUL_GLOSS_WORDS := {
+	"resolved": "resolved",
+	"leaning": "leaning",
+	"torn": "torn",
+	"smeared": "smeared across many selves",
+}
+
 func _soul_gloss(p: float) -> String:
-	if p >= 0.8:
-		return "resolved"
-	if p >= 0.5:
-		return "leaning"
-	if p >= 0.2:
-		return "torn"
-	return "smeared across many selves"
+	return str(SOUL_GLOSS_WORDS.get(FactionDensityMatrix.band_key(p), "?"))
+
+
+## "becoming:" fragments from the identity ρ's decisive axes — emoji + pole
+## label, optionally with the pole confidence. One home for both the E-inspect
+## text and the eigen body label.
+func _becoming_parts(with_confidence: bool) -> Array[String]:
+	var parts: Array[String] = []
+	if farm == null or not ("faction_density" in farm) or farm.faction_density == null \
+			or not farm.faction_density.has_method("decisive_axes"):
+		return parts
+	for row in farm.faction_density.decisive_axes(3):
+		var emoji := str(row.get("emoji", ""))
+		var label := str(row.get("label", "")).to_lower()
+		if with_confidence:
+			var conf: float = float(row.get("p", 0.5))
+			if int(row.get("bit", 1)) == 0:
+				conf = 1.0 - conf
+			parts.append("%s %s %.2f" % [emoji, label, conf])
+		else:
+			parts.append("%s %s" % [emoji, label])
+	return parts
 
 ## Sort by alignment with the joint system's principal axis (synthetic-overlap).
 func _build_eigen_body_system() -> void:
 	var projection: Array = _get_principal_axis_projection()
 	var principal_mode: Dictionary = _get_principal_mode()
-	var synthetic = _build_synthetic_eigen_graph(projection)
+	# The synthetic identity-side state lives in one home now:
+	# FactionDensityMatrix.principal_graph() (same construction, shared with kinship).
+	var synthetic = null
+	if farm != null and ("faction_density" in farm) and farm.faction_density != null \
+			and farm.faction_density.has_method("principal_graph"):
+		synthetic = farm.faction_density.principal_graph()
 
 	var ranked: Array = []
 	for f in _faction_roster:
@@ -1235,19 +1296,13 @@ func _get_faction_by_name(faction_search_name: String):
 
 func _get_principal_axis_projection() -> Array:
 	if farm == null or not ("faction_density" in farm) or farm.faction_density == null:
-		return _uniform_projection()
+		return FactionAxes.uniform_marginals()
 	if not farm.faction_density.has_method("get_principal_axis_projection"):
-		return _uniform_projection()
+		return FactionAxes.uniform_marginals()
 	var arr = farm.faction_density.get_principal_axis_projection()
 	if arr is Array and arr.size() == AlignmentGraphCls.AXIS_COUNT:
 		return arr
-	return _uniform_projection()
-
-func _uniform_projection() -> Array:
-	var out: Array = []
-	for i in range(AlignmentGraphCls.AXIS_COUNT):
-		out.append(0.5)
-	return out
+	return FactionAxes.uniform_marginals()
 
 func _get_principal_mode() -> Dictionary:
 	if farm == null or not ("faction_density" in farm) or farm.faction_density == null:
@@ -1255,35 +1310,6 @@ func _get_principal_mode() -> Dictionary:
 	if not farm.faction_density.has_method("get_principal_mode"):
 		return {}
 	return farm.faction_density.get_principal_mode()
-
-## Build a synthetic pure-state AlignmentGraph whose per-axis p₁ marginals match
-## the given 12-vector projection. The state is the product
-##   ψ = ⊗_i (sqrt(1 - p_i) |0⟩ + sqrt(p_i) |1⟩)
-## stored as a single rank-1 ket. Used to rank factions via overlap.
-func _build_synthetic_eigen_graph(projection: Array):
-	if projection.size() != AlignmentGraphCls.AXIS_COUNT:
-		return null
-	var dim: int = AlignmentGraphCls.DIM
-	var ket: Dictionary = {}
-	# For each basis index, amplitude = product over axes of (sqrt(p_i if bit_i else 1-p_i))
-	for idx in range(dim):
-		var amp: float = 1.0
-		for i in range(AlignmentGraphCls.AXIS_COUNT):
-			var bit_pos: int = AlignmentGraphCls.AXIS_COUNT - 1 - i
-			var bit: int = (idx >> bit_pos) & 1
-			var p: float = clampf(float(projection[i]), 0.0, 1.0)
-			var weight: float = sqrt(p) if bit == 1 else sqrt(1.0 - p)
-			amp *= weight
-			if amp == 0.0:
-				break
-		if amp > 0.0:
-			ket[idx] = Vector2(amp, 0.0)
-	if ket.is_empty():
-		return null
-	var g = AlignmentGraphCls.new()
-	g.weights = PackedFloat64Array([1.0])
-	g.kets = [ket]
-	return g
 
 # =============================================================================
 # HELPERS — render primitives
@@ -1413,10 +1439,12 @@ func _build_graph_body() -> void:
 		var nview = NeighborhoodGraphViewRef.new()
 		nview.custom_minimum_size = Vector2(640, 520)
 		_body_box.add_child(nview)
+		# Live source BEFORE populate: the webway draws in this biome's true
+		# regime (wet country LIVE, sealed elsewhere — What Fades seam).
+		nview.set_live_source(_live_qc_for(_graph_zoom))
 		var canonical = _canonical_biome(_graph_zoom)
 		if canonical != null:
 			nview.populate(NeighborhoodGraphRef.from_biome(canonical))
-		nview.set_live_source(_live_qc_for(_graph_zoom))
 		_graph_neigh_view = nview
 
 
@@ -1448,17 +1476,47 @@ func _build_graph_status_card() -> Control:
 		var sel: String = str(_graph_selectable[_graph_selected_idx]) if (_graph_selected_idx >= 0 and _graph_selected_idx < _graph_selectable.size()) else "—"
 		body.text = "Federation · biomes %d · seams %d · qubits %d · ▶ %s" % [bcount, ecount, qcount, sel]
 	else:
-		var seal := " · webway sealed" if not BalanceConfig.dissipative_enabled() else ""
+		var seal := " · webway sealed" if _biome_closed_here(_graph_zoom) else " · 🌊 wet country"
 		body.text = "%s · neighborhood cluster (live%s)" % [_graph_zoom, seal]
 	vbox.add_child(body)
 
+	# The eigenstate compass: what the biome most IS right now, and how decidedly
+	# (dominant eigenstate of ρ + eigenvalue gap). Press E for the conservation law.
+	if _graph_zoom != "broad":
+		var compass := _compass_line(_graph_zoom)
+		if compass != "":
+			var cl := Label.new()
+			cl.text = compass
+			cl.add_theme_font_size_override("font_size", 11)
+			cl.add_theme_color_override("font_color", UIStyleFactory.COLOR_BODY)
+			cl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			vbox.add_child(cl)
+		# Wet-country passport (What Fades): this biome runs open — say so where
+		# the player is already reading.
+		var wet := _regime_line(_graph_zoom)
+		if wet != "":
+			var wl2 := Label.new()
+			wl2.text = wet
+			wl2.add_theme_font_size_override("font_size", 11)
+			wl2.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
+			wl2.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			vbox.add_child(wl2)
+		# Knot card (What Connects): frozen loop records + the pair invariant.
+		var knot := _knot_line(_graph_zoom)
+		if knot != "":
+			var kl := Label.new()
+			kl.text = knot
+			kl.add_theme_font_size_override("font_size", 11)
+			kl.add_theme_color_override("font_color", UIStyleFactory.COLOR_BODY)
+			kl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			vbox.add_child(kl)
+
 	# Standing at sealed channels, a native faction has something to say about
 	# them (QuestVoice.webway_whisper — words only, no mechanics).
-	if _graph_zoom != "broad" and not BalanceConfig.dissipative_enabled():
+	if _graph_zoom != "broad" and _biome_closed_here(_graph_zoom):
 		var canonical = _canonical_biome(_graph_zoom)
 		if _biome_has_webway(canonical):
-			var natives: Array = canonical.native_factions if ("native_factions" in canonical and canonical.native_factions is Array) else []
-			var speaker := str(natives[0]) if not natives.is_empty() else ""
+			var speaker := str(canonical.first_native_faction()) if canonical.has_method("first_native_faction") else ""
 			var whisper := QuestVoice.webway_whisper(speaker)
 			if whisper != "":
 				var wl := Label.new()
@@ -1466,7 +1524,7 @@ func _build_graph_status_card() -> Control:
 				wl.add_theme_font_size_override("font_size", 11)
 				wl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
 				wl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-				wl.tooltip_text = "The webway: this biome's authored Lindblad channels, sealed while the enclave holds. See the dark orange edges below."
+				wl.tooltip_text = "The webway: this biome's authored Lindblad channels — sealed here, where the country runs closed (dark orange edges below). In the wet country the same channels run live."
 				vbox.add_child(wl)
 	return card
 
@@ -1510,6 +1568,75 @@ func _canonical_biome(biome_name: String):
 		if shared != null and shared.has_method("get_by_name"):
 			return shared.get_by_name(biome_name)
 	return null
+
+
+## The eigenstate compass — the biome's dominant eigenstate of ρ ("the deep
+## state": what this place most IS) and the eigenvalue gap (how decidedly).
+## The old design docs called for exactly this instrument (EXOTIC_TOPOLOGY.md
+## "observation tools"); the campaign's Pond chapter teaches what it reads.
+## Returns "" when no live QC / native eigensolver is available.
+func _compass_line(biome_name: String) -> String:
+	var qc = _live_qc_for(biome_name)
+	if qc == null or not qc.has_method("get_attractor_state"):
+		return ""
+	var attractor: Dictionary = qc.get_attractor_state()
+	if attractor.is_empty():
+		return ""
+	var order: Array = attractor.get("emojis", [])
+	if order.is_empty():
+		return ""
+	var top := str(order[0])
+	var p := float(attractor.get(top, 0.0))
+	var gap := float(attractor.get("eigenvalue_gap", 0.0))
+	# In wet country the compass is LITERAL: dissipation contracts toward the
+	# deep state, so the needle points where the biome is actually going.
+	if qc.has_method("is_open_here") and qc.is_open_here():
+		var pull := "falling in"
+		if gap >= 0.5:
+			pull = "already settling"
+		elif gap < 0.2:
+			pull = "drifting, basin shallow"
+		return "🧭 deep state: %s %.0f%% · gap %.2f — %s (wet country: the needle is destiny here)" % [top, p * 100.0, gap, pull]
+	var gloss := "torn between depths"
+	if gap >= 0.5:
+		gloss = "decided"
+	elif gap >= 0.2:
+		gloss = "leaning"
+	return "🧭 deep state: %s %.0f%% · gap %.2f — %s" % [top, p * 100.0, gap, gloss]
+
+
+## One-line thermodynamic passport for the biome's E-inspect card. "" when closed
+## country (the enclave's law is stated elsewhere — no need to restate the default).
+func _regime_line(biome_name: String) -> String:
+	var qc = _live_qc_for(biome_name)
+	if qc == null or not qc.has_method("is_open_here") or not qc.is_open_here():
+		return ""
+	var purity := -1.0
+	if qc.has_method("get_purity"):
+		purity = float(qc.get_purity())
+	var head := "🌊 wet country — the Bath drinks here. Phase fades first (T₂), population follows (T₁)."
+	if purity >= 0.0 and purity < 0.999:
+		return head + " Tr(ρ²) = %.3f and falling unless watched — measurement pins what it touches (Zeno)." % purity
+	return head + " What you do not watch, fades; measurement pins what it touches (Zeno)."
+
+
+## One-line knot card: frozen Berry loop records + the strongest pair invariant.
+## "" while the record is empty — the line appears the moment a first loop closes.
+func _knot_line(biome_name: String) -> String:
+	var qc = _live_qc_for(biome_name)
+	if qc == null or not ("berry_register" in qc) or qc.berry_register == null:
+		return ""
+	var loops: Array = qc.berry_register.frozen_loops()
+	if loops.is_empty():
+		return ""
+	if loops.size() == 1:
+		var omega := float(loops[0].get("omega", 0.0))
+		return "🪢 the record: 1 closed loop banked (Ω = %.2f) — close another and compare their turns." % omega
+	var w: int = KnotRegister.max_mutual_winding(loops)
+	if absi(w) >= 1:
+		return ("🪢 the record: %d closed loops — mutual winding %+d: LINKED. Nothing links on the sphere; " +
+			"the link lives one floor up, where the phase turns. (Any two answers of a qubit are linked circles — Hopf.)") % [loops.size(), w]
+	return "🪢 the record: %d closed loops — mutual winding 0: the dances pass without turning about each other." % loops.size()
 
 
 ## Live QuantumComputer for a biome's population bars (null if not instantiated).

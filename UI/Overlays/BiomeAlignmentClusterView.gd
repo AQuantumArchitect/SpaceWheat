@@ -428,11 +428,11 @@ func _biome_bits(biome) -> Array:
 			return out
 	var native := _biome_native_factions()
 	if native.is_empty():
-		return _neutral_bits()
+		return FactionAxes.uniform_marginals()
 	var density = _farm.faction_density if _farm and "faction_density" in _farm else null
 	var registry = density.get_registry() if density and density.has_method("get_registry") else null
 	if registry == null:
-		return _neutral_bits()
+		return FactionAxes.uniform_marginals()
 	var sums: Array = []
 	for i in range(FactionAxes.AXIS_COUNT):
 		sums.append(0.0)
@@ -446,7 +446,7 @@ func _biome_bits(biome) -> Array:
 			sums[i] += float(bits[i])
 		counted += 1
 	if counted <= 0:
-		return _neutral_bits()
+		return FactionAxes.uniform_marginals()
 	for i in range(FactionAxes.AXIS_COUNT):
 		out.append(sums[i] / float(counted))
 	return out
@@ -458,11 +458,6 @@ func _biome_native_factions() -> Array:
 	return _biome.get_admitted_factions()
 
 
-func _neutral_bits() -> Array:
-	var out: Array = []
-	for _i in range(FactionAxes.AXIS_COUNT):
-		out.append(0.5)
-	return out
 
 
 func _bits_to_array(bits) -> Array:

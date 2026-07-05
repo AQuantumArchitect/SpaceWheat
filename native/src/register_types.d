@@ -1,4 +1,4 @@
-src/register_types.o: src/register_types.cpp src/register_types.h \
+src/register_types.obj: src/register_types.cpp src/register_types.h \
  include/godot_cpp/core/class_db.hpp \
  include/gdextension/gdextension_interface.h \
  include/godot_cpp/core/defs.hpp include/godot_cpp/core/error_macros.hpp \

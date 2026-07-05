@@ -1,4 +1,4 @@
-src/quantum_evolution_engine.o: src/quantum_evolution_engine.cpp \
+src/quantum_evolution_engine.obj: src/quantum_evolution_engine.cpp \
  src/quantum_evolution_engine.h include/godot_cpp/classes/ref_counted.hpp \
  include/godot_cpp/classes/ref.hpp include/godot_cpp/core/defs.hpp \
  include/godot_cpp/classes/object.hpp \

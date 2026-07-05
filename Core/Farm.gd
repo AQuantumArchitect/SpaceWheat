@@ -25,6 +25,7 @@ var known_icons: Array = []  # Player icons (canonical, farm-owned)
 var active_icon_slots: Array = [0, 1, 2]  # 3 indices into known_icons — the player's active expression voice
 var reap_count: int = 0  # Number of global seasonal reaps completed
 var faction_density: FactionDensityMatrix = FactionDensityMatrix.new()  # ρ over factions; drives affinity
+var bridge_register: BridgeRegister = BridgeRegister.new()  # Majorana bridges: nonlocal 2×2 registers spanning biome pairs (What Connects)
 var icon_atlas: IconRegistry = null  # Pair-Icon atlas (lazy-init on first use)
 var faction_standings: Dictionary = {}  # faction_name -> FactionStanding (6-channel rep; written by QuestManager, read by FactionAffinity)
 var story_log: Array = []              # Array[Dictionary] — fired story flag entries {id, act, display_name, arc_beat, fired_at}
@@ -117,6 +118,10 @@ const DEFAULT_PLOTS_PER_BIOME = 4
 const MAX_PLOTS_PER_BIOME = 7  # J K L ; ' H G
 const LINDBLAD_TIMESCALE_BASE_DT = 0.02
 const LINDBLAD_TIMESCALE_CAP = 4096.0
+## Thermal contracts run a detailed-balance pair: the chosen direction at the
+## contract rate, the back-channel at this fraction of it. Fixed point sits at
+## back/(1+back) ≈ 1/3 against the flow — warm, never pinned.
+const THERMAL_BACK_RATIO = 0.5
 const RAINBOW_DRAIN_MODE_DEFAULT = false
 
 # Dynamic row mappings (built from explored biome order)
@@ -163,6 +168,10 @@ signal biome_removed(biome_name: String)
 
 signal plots_entangled(pos1: Vector2i, pos2: Vector2i, bell_state: String)
 signal standing_changed(faction: String, channel: String, delta: float, new_value: float)
+# The identity ρ crossed a purity band (FactionDensityMatrix.band_key):
+# resolving upward when learning concentrates the diagonal, blurring downward
+# when a learn spreads mass across factions (or kicked coherences fade, τ=300s).
+signal identity_band_changed(prev_band: String, new_band: String, purity: float, rising: bool)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -850,6 +859,13 @@ func _physics_process(delta: float) -> void:
 	# Diagonal untouched: affinity is preserved until the next pop event.
 	if faction_density:
 		faction_density.apply_lindblad_decay(delta)
+		_poll_identity_band(delta)
+
+	# Majorana bridges: each spans two biomes and decoheres only at the PRODUCT
+	# of its ends' local wet rates — a closed-country anchor makes it immortal
+	# (BridgeRegister; What Connects).
+	if bridge_register:
+		bridge_register.tick(delta, self)
 
 	# Lindblad pump/drain effects
 	_process_lindblad_effects(delta)
@@ -861,6 +877,48 @@ func _is_globally_paused() -> bool:
 	if _player_shell_cache and "paused" in _player_shell_cache:
 		return bool(_player_shell_cache.paused)
 	return false
+
+
+# ── identity band watch ──────────────────────────────────────────────────────
+var _identity_band: String = ""       # "" = not yet read (boot/load adopts silently)
+var _identity_band_accum: float = 0.0
+const IDENTITY_BAND_POLL_S: float = 1.0
+const IDENTITY_BAND_HYSTERESIS: float = 0.02
+
+
+func reset_identity_band_watch() -> void:
+	# Called after a save is applied so the first post-load reading adopts the
+	# loaded soul's band silently instead of whispering a phantom crossing.
+	_identity_band = ""
+	_identity_band_accum = 0.0
+
+
+func _poll_identity_band(delta: float) -> void:
+	# Watch the identity ρ's purity band and announce crossings — the soul's
+	# speaking moments (resolve / blur), voiced by whoever holds the most of
+	# the player (QuantumInstrumentInput._on_identity_band_changed).
+	_identity_band_accum += delta
+	if _identity_band_accum < IDENTITY_BAND_POLL_S:
+		return
+	_identity_band_accum = 0.0
+	var p: float = float(faction_density.get_purity())
+	var raw: String = FactionDensityMatrix.band_key(p)
+	if _identity_band == "":
+		_identity_band = raw
+		return
+	if raw == _identity_band:
+		return
+	# Hysteresis: acknowledge a crossing only clear of the boundary, so a pump
+	# landing right on a threshold doesn't stutter whispers.
+	var rising: bool = FactionDensityMatrix.band_rank(raw) > FactionDensityMatrix.band_rank(_identity_band)
+	var boundary: float = FactionDensityMatrix.band_floor(raw if rising else _identity_band)
+	if rising and p < boundary + IDENTITY_BAND_HYSTERESIS:
+		return
+	if not rising and p >= boundary - IDENTITY_BAND_HYSTERESIS:
+		return
+	var prev := _identity_band
+	_identity_band = raw
+	identity_band_changed.emit(prev, raw, p, rising)
 
 
 func time_skip_phrames(phrames: int, delta: float = PhysicsConfig.PHRAME_DT) -> Dictionary:
@@ -938,6 +996,11 @@ func _process_lindblad_effects(delta: float) -> void:
 		var qc = biome.quantum_computer
 		if not ("register_infrastructure" in qc) or qc.register_infrastructure.is_empty():
 			continue
+		# Openness is a place: standing channels run only where the regime is
+		# open. Flags may survive on sealed ground (old saves, later regime
+		# flips) — they simply never tick there. The enclave holds.
+		if not qc.is_open_here():
+			continue
 		var effective_delta = _get_lindblad_effective_delta_for_biome(biome, delta)
 		if effective_delta <= 0.0:
 			continue
@@ -954,24 +1017,41 @@ func _process_lindblad_effects(delta: float) -> void:
 			if pair.is_empty():
 				continue
 
+			var channel_kind = str(infra.get("lindblad_channel_kind", "damp"))
+
 			if bool(infra.get("lindblad_pump_active", false)):
 				var target = pair.get("north", "")
 				if target != "":
-					qc.apply_drive(target, float(infra.get("lindblad_pump_rate", 0.5)), effective_delta)
+					var pump_rate = float(infra.get("lindblad_pump_rate", 0.5))
+					qc.apply_drive(target, pump_rate, effective_delta)
+					if channel_kind == "thermal":
+						# Detailed balance: the back-rate keeps the plot mixed —
+						# thermal import arrives warm, never pinned.
+						var back_qubit = qc.register_map.qubit(target)
+						if back_qubit >= 0:
+							qc.apply_decay(back_qubit, pump_rate * THERMAL_BACK_RATIO, effective_delta)
 
 			if bool(infra.get("lindblad_drain_active", false)):
 				var north = pair.get("north", "")
 				var south = pair.get("south", "")
 				var axis_emoji = north if north != "" else south
 				if axis_emoji != "" and qc.register_map.has(axis_emoji):
+					var qubit_idx = qc.register_map.qubit(axis_emoji)
+					var drain_rate = float(infra.get("lindblad_drain_rate", 0.5))
+					if channel_kind == "dephase":
+						# Pure phase damping: coherence out, populations untouched,
+						# nothing to credit — payment is deferred through kT.
+						if qc.has_method("apply_dephase"):
+							qc.apply_dephase(qubit_idx, drain_rate, effective_delta)
+						continue
+
 					var sample_emoji = north if north != "" and qc.register_map.has(north) else axis_emoji
 					var before_pop = qc.get_population(sample_emoji)
 					var before_flux = 0.0
 					if qc.has_method("get_sink_flux"):
 						before_flux = float(qc.get_sink_flux(axis_emoji))
 
-					var qubit_idx = qc.register_map.qubit(axis_emoji)
-					qc.apply_decay(qubit_idx, float(infra.get("lindblad_drain_rate", 0.5)), effective_delta)
+					qc.apply_decay(qubit_idx, drain_rate, effective_delta)
 
 					var can_harvest = bool(infra.get("lindblad_harvest_visible", false))
 					if rainbow_mode:
@@ -988,8 +1068,13 @@ func _process_lindblad_effects(delta: float) -> void:
 							var after_pop = qc.get_population(sample_emoji)
 							drained_probability = max(0.0, before_pop - after_pop)
 						if drained_probability <= 0.0:
-							drained_probability = max(0.0, before_pop) * float(infra.get("lindblad_drain_rate", 0.5)) * effective_delta
+							drained_probability = max(0.0, before_pop) * drain_rate * effective_delta
 						_accumulate_lindblad_harvest_infra(qc, int(reg_id), axis_emoji, drained_probability)
+
+					if channel_kind == "thermal" and north != "" and qc.register_map.has(north):
+						# Detailed balance: the back-rate keeps the plot warm — the
+						# reap bank survives a thermal export (credit measured first).
+						qc.apply_drive(north, drain_rate * THERMAL_BACK_RATIO, effective_delta)
 
 	if rainbow_mode and not harvestable_drain_biomes.is_empty():
 		_harvest_rainbow_sink_flux(harvestable_drain_biomes)

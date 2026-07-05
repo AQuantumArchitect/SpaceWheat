@@ -1,4 +1,4 @@
-src/force_graph_engine.o: src/force_graph_engine.cpp \
+src/force_graph_engine.obj: src/force_graph_engine.cpp \
  src/force_graph_engine.h include/godot_cpp/classes/ref_counted.hpp \
  include/godot_cpp/classes/ref.hpp include/godot_cpp/core/defs.hpp \
  include/godot_cpp/classes/object.hpp \

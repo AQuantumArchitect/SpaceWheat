@@ -882,7 +882,8 @@
           "☀": 0.05
         }
       }
-    }
+    },
+    "regime": "closed"
   },
   {
     "name": "StellarForges",
@@ -1061,7 +1062,8 @@
           }
         ]
       }
-    }
+    },
+    "regime": "closed"
   },
   {
     "name": "VolcanicWorlds",
@@ -1623,7 +1625,8 @@
           "⚜"
         ]
       }
-    }
+    },
+    "regime": "open"
   },
   {
     "name": "BroadcastTower",
@@ -1987,7 +1990,8 @@
           "🧫"
         ]
       }
-    }
+    },
+    "regime": "open"
   },
   {
     "name": "Workshop",
@@ -3130,7 +3134,8 @@
           "⚱"
         ]
       }
-    }
+    },
+    "regime": "open"
   },
   {
     "name": "PastoralCommons",
@@ -3690,7 +3695,8 @@
           "💧"
         ]
       }
-    }
+    },
+    "regime": "closed"
   },
   {
     "name": "Battlefield",
@@ -4646,7 +4652,8 @@
           "🪵"
         ]
       }
-    }
+    },
+    "regime": "closed"
   },
   {
     "name": "MirrorChamber",
@@ -6121,7 +6128,8 @@
           "🧭": 0.004
         }
       }
-    }
+    },
+    "regime": "open"
   },
   {
     "name": "Lanternfall",
@@ -6253,7 +6261,8 @@
           "💨": 0.008
         }
       }
-    }
+    },
+    "regime": "open"
   },
   {
     "name": "WheelOfHours",
@@ -6324,7 +6333,8 @@
           "target": "🗑"
         }
       }
-    }
+    },
+    "regime": "open"
   },
   {
     "name": "LaserGlint",
@@ -6397,7 +6407,8 @@
           "🌈": 0.15
         }
       }
-    }
+    },
+    "regime": "open"
   },
   {
     "name": "TwofacedTide",
@@ -6456,7 +6467,8 @@
           "🌖": 0.004
         }
       }
-    }
+    },
+    "regime": "open"
   },
   {
     "name": "BrittleDawn",
@@ -6517,7 +6529,8 @@
           "🌗": 0.003
         }
       }
-    }
+    },
+    "regime": "open"
   },
   {
     "name": "MnemonicHive",
@@ -6711,7 +6724,8 @@
           "🐛": 0.05
         }
       }
-    }
+    },
+    "regime": "open"
   },
   {
     "name": "SporeLibrary",
@@ -7999,7 +8013,8 @@
         0.0,
         -0.5
       ]
-    }
+    },
+    "regime": "closed"
   },
   {
     "name": "Black Horizon",

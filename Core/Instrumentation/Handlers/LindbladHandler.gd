@@ -154,52 +154,25 @@ static func _get_register_infra(biome, register_id: int) -> Dictionary:
 	return biome.quantum_computer._ensure_register_infra(register_id)
 
 
-## Install the inverse persistent Lindblad flag on TheDemos (player neighborhood)
-## so every Merchant transfer is conservation-paired.
+## Trajectory log entry — unified observation across all merchant moves.
 ##
-##   kind = "pump":  player drained from B → TheDemos pumps the same emoji (mass arrives)
-##   kind = "drain": player pumped to B    → TheDemos drains the same emoji (mass departs)
-##
-## No-ops silently if TheDemos doesn't have the emoji as a qubit (golden-cut
-## simplification — we don't expand TheDemos's signature here). Caller gets
-## a diagnostic dict either way for trajectory logging.
-static func _install_demos_inverse(farm, emoji: String, kind: String, rate: float) -> Dictionary:
-	if not farm or not farm.grid or emoji == "":
-		return {"installed": false, "reason": "bad_args", "emoji": emoji, "kind": kind}
-	var demos = farm.grid.get_biome("TheDemos") if farm.grid.has_method("get_biome") else null
-	if demos == null or demos.quantum_computer == null:
-		return {"installed": false, "reason": "no_demos", "emoji": emoji, "kind": kind}
-	if not demos.quantum_computer.has(emoji):
-		return {"installed": false, "reason": "emoji_not_in_demos_qc", "emoji": emoji, "kind": kind}
-	var demos_qid: int = int(demos.quantum_computer.qubit(emoji))
-	var infra = _get_register_infra(demos, demos_qid)
-	if infra.is_empty():
-		return {"installed": false, "reason": "no_infra", "emoji": emoji, "kind": kind}
-
-	if kind == "pump":
-		infra["lindblad_pump_active"] = true
-		infra["lindblad_pump_rate"] = rate
-		infra["lindblad_harvest_visible"] = true
-	elif kind == "drain":
-		infra["lindblad_drain_active"] = true
-		infra["lindblad_drain_rate"] = rate
-		infra["lindblad_harvest_visible"] = true
-	else:
-		return {"installed": false, "reason": "unknown_kind", "kind": kind}
-
-	# Trajectory log entry — unified observation across all merchant moves.
+## There is no "conservation pair": a Lindblad channel's counterparty IS the
+## environment, by definition — the Bath absorbs what drains and supplies what
+## pumps; the wallet is the ledger. (The old TheDemos inverse-flag scheme died
+## here: it installed dissipative channels on the closed island the story
+## promises stays pure, and silently no-opped for every emoji but 👥/🌾.)
+static func _note_market_action(verb: String, emoji: String, biome_name: String, rate: float, channel: String) -> void:
 	var main_loop = Engine.get_main_loop()
 	if main_loop and main_loop is SceneTree:
 		var story_engine = main_loop.root.get_node_or_null("/root/StoryEngine")
 		if story_engine != null and story_engine.has_method("note_market_action"):
 			story_engine.note_market_action({
-				"kind": "merchant_" + kind,
+				"kind": verb,
 				"emoji": emoji,
-				"target_biome": "TheDemos",
+				"target_biome": biome_name,
 				"rate": rate,
+				"channel": channel,
 			})
-
-	return {"installed": true, "kind": kind, "emoji": emoji, "rate": rate, "demos_qubit": demos_qid}
 
 
 static func _resolve_qubit_index(biome, emoji: String) -> int:
@@ -236,6 +209,7 @@ static func lindblad_drive(farm, positions: Array[Vector2i]) -> Dictionary:
 		}
 
 	var success_count = 0
+	var sealed = 0
 	var driven_emojis: Dictionary = {}
 	var drive_rate = PULSE_RATE  # Strong drive (1/s)
 	var dt = PULSE_DT  # Half second pulse
@@ -243,6 +217,11 @@ static func lindblad_drive(farm, positions: Array[Vector2i]) -> Dictionary:
 	for pos in positions:
 		var biome = farm.grid.get_biome_for_plot(pos)
 		if not biome or not biome.quantum_computer:
+			continue
+
+		# Openness is a place: the jolt fires only where the regime runs open.
+		if not biome.quantum_computer.is_open_here():
+			sealed += 1
 			continue
 
 		var plot = farm.grid.get_plot(pos)
@@ -257,13 +236,18 @@ static func lindblad_drive(farm, positions: Array[Vector2i]) -> Dictionary:
 		success_count += 1
 		driven_emojis[emoji] = driven_emojis.get(emoji, 0) + 1
 
-	return {
+	var result = {
 		"success": success_count > 0,
 		"driven_count": success_count,
+		"sealed": sealed,
 		"driven_emojis": driven_emojis,
 		"drive_rate": drive_rate,
 		"dt": dt
 	}
+	if success_count == 0 and sealed > 0:
+		result["error"] = "enclave_holds"
+		result["message"] = "The enclave holds — the jolt needs open (wet) country."
+	return result
 
 
 static func lindblad_decay(farm, positions: Array[Vector2i]) -> Dictionary:
@@ -285,6 +269,7 @@ static func lindblad_decay(farm, positions: Array[Vector2i]) -> Dictionary:
 		}
 
 	var success_count = 0
+	var sealed = 0
 	var decayed_emojis: Dictionary = {}
 	var decay_rate = PULSE_RATE  # Strong decay (1/s)
 	var dt = PULSE_DT  # Half second pulse
@@ -292,6 +277,11 @@ static func lindblad_decay(farm, positions: Array[Vector2i]) -> Dictionary:
 	for pos in positions:
 		var biome = farm.grid.get_biome_for_plot(pos)
 		if not biome or not biome.quantum_computer:
+			continue
+
+		# Openness is a place: the jolt fires only where the regime runs open.
+		if not biome.quantum_computer.is_open_here():
+			sealed += 1
 			continue
 
 		var plot = farm.grid.get_plot(pos)
@@ -308,18 +298,26 @@ static func lindblad_decay(farm, positions: Array[Vector2i]) -> Dictionary:
 		success_count += 1
 		decayed_emojis[emoji] = decayed_emojis.get(emoji, 0) + 1
 
-	return {
+	var result = {
 		"success": success_count > 0,
 		"decayed_count": success_count,
+		"sealed": sealed,
 		"decayed_emojis": decayed_emojis,
 		"decay_rate": decay_rate,
 		"dt": dt
 	}
+	if success_count == 0 and sealed > 0:
+		result["error"] = "enclave_holds"
+		result["message"] = "The enclave holds — the jolt needs open (wet) country."
+	return result
 
 
 static func enable_persistent_drive(farm, positions: Array[Vector2i],
-		rate: float = PERSISTENT_RATE) -> Dictionary:
-	# Enable continuous Lindblad drive on selected plots.
+		rate: float = PERSISTENT_RATE, kind: String = "damp") -> Dictionary:
+	# Enable a continuous import channel on selected plots (Merchant R).
+	# kind: "thermal" (detailed-balance pair, net up) or "damp" (one-way pump).
+	# Dephase-import is refused — decoherence is irreversible; no channel
+	# pumps coherence back in.
 	if not farm or not farm.grid:
 		return {
 			"success": false,
@@ -334,10 +332,18 @@ static func enable_persistent_drive(farm, positions: Array[Vector2i],
 			"message": "No plots selected"
 		}
 
+	if kind == "dephase":
+		return {
+			"success": false,
+			"error": "irreversible",
+			"message": "No contract can sell you back your phase — coherence returns only through your own gates."
+		}
+
 	var success_count = 0
 	var activated_count = 0
 	var charged_count = 0
 	var already_active = 0
+	var sealed = 0
 	var insufficient: Dictionary = {}
 	var driven_emojis: Dictionary = {}
 	var no_biome = 0
@@ -350,6 +356,11 @@ static func enable_persistent_drive(farm, positions: Array[Vector2i],
 		var biome = farm.grid.get_biome_for_plot(pos)
 		if not biome or not biome.quantum_computer:
 			no_biome += 1
+			continue
+
+		# Openness is a place: contracts run only where the regime is open.
+		if not biome.quantum_computer.is_open_here():
+			sealed += 1
 			continue
 
 		var binding = _resolve_axis_binding(farm, pos, biome)
@@ -396,16 +407,14 @@ static func enable_persistent_drive(farm, positions: Array[Vector2i],
 
 		infra["lindblad_pump_active"] = true
 		infra["lindblad_pump_rate"] = rate
+		infra["lindblad_channel_kind"] = kind
 		activated_count += 1
 
 		charged_count += 1
 		success_count += 1
 		driven_emojis[north_emoji] = driven_emojis.get(north_emoji, 0) + 1
 
-		# Lindbladian conservation pair: pumping into this biome's emoji
-		# means mass flows OUT of TheDemos for the same emoji. Install the
-		# inverse drain flag on TheDemos.
-		_install_demos_inverse(farm, north_emoji, "drain", rate)
+		_note_market_action("merchant_pump", north_emoji, str(binding.get("biome_name", "")), rate, kind)
 
 	var result = {
 		"success": success_count > 0,
@@ -413,10 +422,12 @@ static func enable_persistent_drive(farm, positions: Array[Vector2i],
 		"driven_emojis": driven_emojis,
 		"drive_rate": rate,
 		"dt": 0.0,
+		"channel_kind": kind,
 		"persistent_enabled": activated_count,
 		"persistent_rate": rate,
 		"charged_count": charged_count,
 		"already_active": already_active,
+		"sealed": sealed,
 		"insufficient": insufficient,
 		"rejections": {
 			"no_biome": no_biome,
@@ -425,10 +436,12 @@ static func enable_persistent_drive(farm, positions: Array[Vector2i],
 			"unresolved_axis": unresolved_axis,
 			"unresolved_qubit": unresolved_qubit
 		},
-		"cost_model": "pump=8💨+32N"
+		"cost_model": "pump = 4📜 + ⌈−kT·log p_N⌉ × north-pole"
 	}
 	if not result.success:
-		if already_active > 0:
+		if sealed > 0 and already_active == 0 and insufficient.is_empty():
+			result["message"] = "The enclave holds — contracts need open (wet) country."
+		elif already_active > 0:
 			result["message"] = "Pump already active on %d plot(s)" % already_active
 		elif not insufficient.is_empty():
 			result["message"] = "Insufficient resources for pump"
@@ -438,8 +451,11 @@ static func enable_persistent_drive(farm, positions: Array[Vector2i],
 
 
 static func enable_persistent_decay(farm, positions: Array[Vector2i],
-		rate: float = PERSISTENT_RATE) -> Dictionary:
-	# Enable continuous Lindblad decay on selected plots.
+		rate: float = PERSISTENT_RATE, kind: String = "damp") -> Dictionary:
+	# Enable a continuous export channel on selected plots (Merchant Q).
+	# kind: "thermal" (detailed-balance pair, net down — plot stays warm),
+	#       "dephase" (pure phase damping — no credits, kT rises instead),
+	#       "damp" (one-way amplitude damping — credits as it drains).
 	if not farm or not farm.grid:
 		return {
 			"success": false,
@@ -458,6 +474,7 @@ static func enable_persistent_decay(farm, positions: Array[Vector2i],
 	var activated_count = 0
 	var charged_count = 0
 	var already_active = 0
+	var sealed = 0
 	var insufficient: Dictionary = {}
 	var decayed_emojis: Dictionary = {}
 	var no_biome = 0
@@ -470,6 +487,11 @@ static func enable_persistent_decay(farm, positions: Array[Vector2i],
 		var biome = farm.grid.get_biome_for_plot(pos)
 		if not biome or not biome.quantum_computer:
 			no_biome += 1
+			continue
+
+		# Openness is a place: contracts run only where the regime is open.
+		if not biome.quantum_computer.is_open_here():
+			sealed += 1
 			continue
 
 		var binding = _resolve_axis_binding(farm, pos, biome)
@@ -497,14 +519,17 @@ static func enable_persistent_decay(farm, positions: Array[Vector2i],
 
 		# Drive-cost: drain (discharge south) costs the surprisal of the target south
 		# pole — mirror of pump; forcing the field (either direction) is work.
-		var drain_units := EnergyPricing.drive_units(
-			clampf(float(biome.quantum_computer.get_marginal(qubit_idx, 1)), 0.0, 1.0),
-			EnergyPricing.biome_temperature(biome, farm))
+		# Dephasing moves no population, so it stakes no pole emoji — 🧺 fee only.
+		var drain_units := 0
+		if kind != "dephase":
+			drain_units = EnergyPricing.drive_units(
+				clampf(float(biome.quantum_computer.get_marginal(qubit_idx, 1)), 0.0, 1.0),
+				EnergyPricing.biome_temperature(biome, farm))
 		var cost = _preflight_lindblad_cost(
 			farm,
 			EconomyConstants.normalize_action_id("lindblad_drain"),
-			north_emoji,
-			south_emoji,
+			north_emoji if kind != "dephase" else "",
+			south_emoji if kind != "dephase" else "",
 			insufficient,
 			drain_units
 		)
@@ -517,17 +542,16 @@ static func enable_persistent_decay(farm, positions: Array[Vector2i],
 		# Activate only after cost commit: one persistent drain channel per register.
 		infra["lindblad_drain_active"] = true
 		infra["lindblad_drain_rate"] = rate
-		infra["lindblad_harvest_visible"] = true
+		infra["lindblad_channel_kind"] = kind
+		# Dephasing pays deferred (kT rises with entropy); nothing lands in the wallet.
+		infra["lindblad_harvest_visible"] = kind != "dephase"
 		activated_count += 1
 
 		charged_count += 1
 		success_count += 1
 		decayed_emojis[north_emoji] = decayed_emojis.get(north_emoji, 0) + 1
 
-		# Lindbladian conservation pair: the mass leaving this biome's emoji
-		# arrives at TheDemos. Install the inverse pump flag on TheDemos so
-		# the player faction physically gains what was drained.
-		_install_demos_inverse(farm, north_emoji, "pump", rate)
+		_note_market_action("merchant_drain", north_emoji, str(binding.get("biome_name", "")), rate, kind)
 
 	var result = {
 		"success": success_count > 0,
@@ -535,10 +559,12 @@ static func enable_persistent_decay(farm, positions: Array[Vector2i],
 		"decayed_emojis": decayed_emojis,
 		"decay_rate": rate,
 		"dt": 0.0,
+		"channel_kind": kind,
 		"persistent_enabled": activated_count,
 		"persistent_rate": rate,
 		"charged_count": charged_count,
 		"already_active": already_active,
+		"sealed": sealed,
 		"insufficient": insufficient,
 		"rejections": {
 			"no_biome": no_biome,
@@ -547,10 +573,12 @@ static func enable_persistent_decay(farm, positions: Array[Vector2i],
 			"unresolved_axis": unresolved_axis,
 			"unresolved_qubit": unresolved_qubit
 		},
-		"cost_model": "drain=2⚙+8S"
+		"cost_model": "drain = 4🧺 + ⌈−kT·log p_S⌉ × south-pole (dephase: 4🧺 only)"
 	}
 	if not result.success:
-		if already_active > 0:
+		if sealed > 0 and already_active == 0 and insufficient.is_empty():
+			result["message"] = "The enclave holds — contracts need open (wet) country."
+		elif already_active > 0:
 			result["message"] = "Drain already active on %d plot(s)" % already_active
 		elif not insufficient.is_empty():
 			result["message"] = "Insufficient resources for drain"
@@ -561,8 +589,55 @@ static func enable_persistent_decay(farm, positions: Array[Vector2i],
 
 
 
-# NOTE: reset_to_pure/reset_to_mixed removed (2026-01)
-# These called biome methods that no longer exist in Model C
+static func settle_channels(farm, positions: Array[Vector2i]) -> Dictionary:
+	# Close standing contracts: clear pump/drain flags on the selected plots.
+	# Free, and deliberately regime-blind — a contract can always be CLOSED,
+	# even on ground that has since sealed. The ledger keeps what already moved.
+	if not farm or not farm.grid:
+		return {"success": false, "error": "farm_not_ready", "message": "Farm not loaded"}
+	if positions.is_empty():
+		return {"success": false, "error": "no_positions", "message": "No plots selected"}
+
+	var settled = 0
+	var idle = 0
+	var settled_emojis: Dictionary = {}
+	for pos in positions:
+		var biome = farm.grid.get_biome_for_plot(pos)
+		if not biome or not biome.quantum_computer:
+			continue
+		var binding = _resolve_axis_binding(farm, pos, biome)
+		var qubit_idx = int(binding.get("register_id", -1))
+		if qubit_idx < 0:
+			continue
+		var infra = _get_register_infra(biome, qubit_idx)
+		if infra.is_empty():
+			continue
+		var was_pump = bool(infra.get("lindblad_pump_active", false))
+		var was_drain = bool(infra.get("lindblad_drain_active", false))
+		if not was_pump and not was_drain:
+			idle += 1
+			continue
+		infra["lindblad_pump_active"] = false
+		infra["lindblad_drain_active"] = false
+		infra["lindblad_harvest_visible"] = false
+		var kind = str(infra.get("lindblad_channel_kind", "damp"))
+		infra.erase("lindblad_channel_kind")
+		settled += 1
+		var emoji = str(binding.get("north", ""))
+		if emoji != "":
+			settled_emojis[emoji] = settled_emojis.get(emoji, 0) + 1
+		_note_market_action("merchant_settle", emoji, str(binding.get("biome_name", "")), 0.0, kind)
+
+	var result = {
+		"success": settled > 0,
+		"settled_count": settled,
+		"settled_emojis": settled_emojis,
+		"idle": idle,
+	}
+	if settled == 0:
+		result["error"] = "no_active_channel"
+		result["message"] = "No standing contract on the selected plot(s)."
+	return result
 
 
 static func pump_to_wheat(farm, positions: Array[Vector2i]) -> Dictionary:

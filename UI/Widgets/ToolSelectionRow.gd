@@ -47,23 +47,19 @@ func _rebuild_buttons() -> void:
 		var icon_path := str(def.get("icon", ""))
 		var hat_key: String = HAT_KEYS[i]
 		var desc: String = str(def.get("description", ""))
-		# Spark/Merchant are Lindblad-drive tools — disabled in the closed (unitary)
-		# system, re-enabled by the open-quantum DLC. Kept in the row (index alignment)
-		# but greyed out and unselectable.
-		var available: bool = ToolConfig.is_frame_available(frame_name)
+		# Every hat is always selectable — openness is a place, so the Lindblad
+		# verbs grey per-plot on sealed ground (ActionValidator), never the hat.
 		var label_text := ""
 		if icon_path != "":
 			label_text = "[%s] %s" % [hat_key, label_name]
 		else:
 			label_text = "[%s] %s %s" % [hat_key, emoji, label_name]
 		var tip: String = "[%s] %s — %s" % [hat_key, label_name, desc] if desc != "" else ""
-		if not available:
-			tip = "[%s] %s — disabled in the closed (unitary) system" % [hat_key, label_name]
 		button_specs.append({
 			"id": i,
 			"text": label_text,
 			"icon_path": icon_path,
-			"enabled": available,
+			"enabled": true,
 			"tooltip": tip,
 		})
 	build_buttons(button_specs)
