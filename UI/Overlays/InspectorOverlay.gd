@@ -650,14 +650,14 @@ func _bridges_muted(text: String) -> Label:
 
 func _resolve_active_biome_obj():
 	var _biome_name := _get_active_biome_name()
-	if name == "":
+	if _biome_name == "":
 		return null
 	var biomes := _get_all_biomes()
-	return biomes.get(name, null)
+	return biomes.get(_biome_name, null)
 
 func _bridges_active_biome_name() -> String:
 	var _biome_name := _get_active_biome_name()
-	return str(name) if name != "" else "(none)"
+	return str(_biome_name) if _biome_name != "" else "(none)"
 
 # =============================================================================
 # WHOLE — biome summary (migrated from B)

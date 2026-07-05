@@ -755,6 +755,11 @@ func _build_eigen_body() -> void:
 	mode_lbl.add_theme_color_override("font_color", COLOR_MUTED)
 	_body_box.add_child(mode_lbl)
 
+	if sort_mode == EIGEN_SORT_SUBJECT:
+		_build_eigen_body_subject()
+	else:
+		_build_eigen_body_system()
+
 
 ## Words for the purity of a soul. Bands are heuristic: the mixed-state floor for
 ## a ~90-faction support is ≈0.011, so anything near 1 is a deliberate life.
@@ -766,11 +771,6 @@ func _soul_gloss(p: float) -> String:
 	if p >= 0.2:
 		return "torn"
 	return "smeared across many selves"
-
-	if sort_mode == EIGEN_SORT_SUBJECT:
-		_build_eigen_body_subject()
-	else:
-		_build_eigen_body_system()
 
 ## Sort by alignment with the joint system's principal axis (synthetic-overlap).
 func _build_eigen_body_system() -> void:
