@@ -80,6 +80,16 @@ wet-country endgame (the crossing into GildedRot, What Fades, What Connects III�
 which needs a purpose-built drive — the predicates and registers behind it are all
 suite-covered.
 
+## A design question surfaced by play (for the owner)
+
+Berry counts and `biome_evolving` live on the LOADED biome — culling a biome
+mid-arc silently erases that arc's progress (the flag predicates read 0 again).
+A player who culls Lanternfall halfway to `chain_ends` loses the berries with no
+warning. Options, in the spirit of "chaos in the deal, not the door": persist
+per-biome berry counts at farm level (progress survives eviction), or toast a
+warning when culling a biome an unfired flag needs. Left as-is for now — it is
+raw-systems-consistent — but it bit the automated player twice today.
+
 ## Still open (nothing blocks desktop launch)
 
 - One hardware-GL web smoke run → final web perf statement.
