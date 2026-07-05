@@ -119,3 +119,5 @@ build_web/
 🍄/🧪/demo_shots/
 🍄/🧪/playthrough_shots/
 node_modules/
+native/src/*.d
+native/src/**/*.obj
