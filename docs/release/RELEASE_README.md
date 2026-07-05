@@ -209,6 +209,22 @@ All rights reserved. Contact for licensing inquiries.
 
 ---
 
+## ✅ Pre-release checklist
+
+Before any itch.io push (`scripts/itch-push.sh`):
+
+1. Linux export builds and boots (`scripts/build-linux-release.sh`).
+2. **Windows export smoke passes** — boot to the title screen and one
+   measure/harvest cycle on the packaged Windows build. A build that boots
+   on the packager's GPU is not a build that boots everywhere; this gate
+   exists because the Windows lane otherwise only runs when someone
+   remembers.
+3. Headless assays green: `python3 tools/plant_assay.py && python3 tools/channel_assay.py`.
+4. Web channel only after `scripts/smoke-test-web-export.mjs` has passed
+   against a real exported bundle (see WEB_DOOR.md) — otherwise desktop-only.
+
+---
+
 ## 🌟 Feedback
 
 Bug reports and playtest notes are welcome via GitHub Issues.
