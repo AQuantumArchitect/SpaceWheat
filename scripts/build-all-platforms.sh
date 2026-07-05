@@ -238,14 +238,19 @@ if [ "$WEB_ONLY" = true ]; then
     fi
 
     if [ "$DO_CLEAN" = true ] || sw_output_is_stale "bin/web/libquantummatrix.wasm" "${NATIVE_INPUTS[@]}" "lib/libgodot-cpp.web.template_release.wasm32.a"; then
-        em++ -std=c++17 -O3 -s SIDE_MODULE=1 -s EXPORT_ALL=1 \
+        # find(1) instead of src/*/*.cpp: subdirs hold only build artifacts, so the
+        # glob stays literal and em++ hard-fails on the phantom input.
+        # -pthread: must match the shipped engine variant (thread_support=true in the
+        # web preset). A nothreads side module inside a shared-memory engine is an ABI
+        # mismatch Godot refuses at load ("No GDExtension library found ... web.wasm32").
+        em++ -std=c++17 -O3 -pthread -s SIDE_MODULE=1 -s EXPORT_ALL=1 \
         -I./include \
         -I./include/godot_cpp \
         -I./include/gdextension \
         -DWEB_ENABLED -DGDEXTENSION -DSPACEWHEAT_WITH_GODOT -DSPACEWHEAT_WEB_BUILD \
-        src/*.cpp src/*/*.cpp \
+        $(find src -name '*.cpp') \
         ./lib/libgodot-cpp.web.template_release.wasm32.a \
-        -o bin/web/libquantummatrix.wasm
+        -o bin/web/libquantummatrix.wasm || { error "em++ web build failed"; exit 1; }
     fi
 
     if [ -f "bin/web/libquantummatrix.wasm" ]; then

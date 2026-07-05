@@ -1,0 +1,31 @@
+{
+  "title": "The Span — one fermion, two shores",
+  "loop": true,
+  "steps": [
+    { "caption": "Some things belong to no single place.", "secs": 4.0 },
+    { "focus_biome": "StarterForest" },
+    { "caption": "This forest is a quantum computer. So is every field past its fence.", "secs": 4.5 },
+    { "icon": { "biome": "StarterForest" } },
+    { "gate": { "gate": "hadamard", "biome": "StarterForest" } },
+    { "caption": "A qubit holds both answers at once — but it lives HERE, and what lives somewhere can be reached.", "secs": 5.5 },
+    { "wait": 2.0 },
+    { "bridge": { "op": "build", "a": { "biome": "StarterForest" }, "b": { "biome": "TheDemos" } } },
+    { "caption": "A Majorana span: one fermion, split between two shores. Neither end holds the state — the PARITY between them does.", "secs": 6.0 },
+    { "wait": 2.0 },
+    { "bridge": { "op": "braid", "id": 1, "end": "a" } },
+    { "caption": "Braiding writes on it. S on this shore…", "secs": 3.5 },
+    { "bridge": { "op": "braid", "id": 1, "end": "b" } },
+    { "caption": "…√X on the far one. A Clifford alphabet, spelled across the map.", "secs": 4.5 },
+    { "wait": 2.0 },
+    { "caption": "Noise must touch BOTH ends at once to hurt it — the bridge decoheres at the PRODUCT of its shores' leaks. Anchor one end at home and the Bath can never reach it.", "secs": 6.5 },
+    { "wait": 2.0 },
+    { "bridge": { "op": "fuse", "id": 1 } },
+    { "caption": "Fusion. One question, asked once: even or odd? Born decides, surprisal pays — and the bridge is gone, because reading it was localizing it.", "secs": 6.5 },
+    { "wait": 2.0 },
+    { "measure": { "biome": "StarterForest" } },
+    { "caption": "Every law of this world in one gesture: looking is paying, knowledge is extraction.", "secs": 5.0 },
+    { "wait": 2.0 },
+    { "caption": "Press any key to farm.", "secs": 4.0 },
+    { "wait": 5.0 }
+  ]
+}

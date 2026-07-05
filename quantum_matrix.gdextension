@@ -15,8 +15,12 @@ windows.x86_64 = "res://native/bin/windows/libquantummatrix.windows.template_rel
 windows.debug.x86_64 = "res://native/bin/windows/libquantummatrix.windows.template_debug.x86_64.dll"
 windows.release.x86_64 = "res://native/bin/windows/libquantummatrix.windows.template_release.x86_64.dll"
 
-# Web/WASM (optional later; not part of the primary shipping path)
-web.wasm32 = "res://native/bin/web/libquantummatrix.wasm"
+# Web/WASM. The export preset ships the THREADS engine variant
+# (variant/thread_support=true), and since Godot 4.3 web GDExtension entries
+# must name the variant explicitly — a bare web.wasm32 is rejected at load so a
+# nothreads lib can never be linked into a shared-memory engine (and vice versa).
+# The lib itself is compiled with -pthread to match (scripts/build-all-platforms.sh).
+web.threads.wasm32 = "res://native/bin/web/libquantummatrix.wasm"
 
 # macOS (optional)
 # macos.debug = "res://native/bin/macos/libquantummatrix.macos.template_debug.framework"

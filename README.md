@@ -192,11 +192,11 @@ state or data truth, never hand-drawn:
   rendered *into the pixels* (biome, act, Tr(ρ²), entanglement bits, phrame
   count) plus a sidecar JSON certificate in `user://postcards/`. A postcard
   and its save are a reproducible claim about a real quantum trajectory.
-- **Reels** — attract mode: `SW_REEL=🍄/🎛️/reels/first_light.reel.json` (or
+- **Reels** — attract mode: `SW_REEL=Core/Gallery/reels/first_light.reel.json` (or
   `godot -- --reel=…`) plays a data-driven demo through the rig's real action
   surface; any input exits to live play.
 - **Recording** — Godot's movie mode turns a reel into portfolio footage:
-  `SW_REEL=🍄/🎛️/reels/first_light.reel.json godot --write-movie reel.avi --fixed-fps 30`,
+  `SW_REEL=Core/Gallery/reels/first_light.reel.json godot --write-movie reel.avi --fixed-fps 30`,
   then ffmpeg to mp4/GIF.
 - **The web door** — build → static QA → real-Chromium smoke emitting a JSON
   performance verdict: [`docs/release/WEB_DOOR.md`](docs/release/WEB_DOOR.md).

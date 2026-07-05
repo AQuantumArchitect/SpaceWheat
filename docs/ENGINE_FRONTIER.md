@@ -7,8 +7,8 @@
 > `BridgeRegister` with derived Γ-product protection, Spark 🌉 verbs, five
 > interleaved story flags (owner: interleave, blessed save touch, mechanics only),
 > glossary **knot** + **bridge**. **Part II SHIPPED G1–G4:** G1 attract reels
-> (`🍄/🎛️/ReelRunner.gd`, `SW_REEL=<path>` / `--reel=path`, any input exits;
-> `🍄/🎛️/reels/first_light.reel.json`); G2 postcards (`🍄/🎛️/PostcardCapture.gd`,
+> (`Core/Gallery/ReelRunner.gd`, `SW_REEL=<path>` / `--reel=path`, any input exits;
+> `Core/Gallery/reels/first_light.reel.json`); G2 postcards (`Core/Gallery/PostcardCapture.gd`,
 > F12 → watermark-in-pixels PNG + sidecar certificate, reel verb `postcard`);
 > G3 the atlas (`tools/atlas_plates.py` — all 162 biomes as SVG plates from data
 > truth + contact sheet; independently re-derives the What Fades geography;

@@ -133,7 +133,7 @@ Nothing above needs to be taken on faith:
    `bash run_quantum_gate_tests.sh` (or per-suite via `bash 🍄/🧪/🔬.sh`).
 2. **The rig** — a deterministic headless JSON control surface
    (`🍄/🎛️/rig_listener.gd`): script a preparation, evolve, measure with a fixed
-   roll, and check the numbers yourself. Reels (`🍄/🎛️/reels/`) are worked
+   roll, and check the numbers yourself. Reels (`Core/Gallery/reels/`) are worked
    examples.
 3. **The assays** — standalone Python ports validating the authored physics
    with no engine in the loop: `tools/ssh_assay.py`, `zeno_assay.py`,

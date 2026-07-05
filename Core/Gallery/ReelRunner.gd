@@ -10,7 +10,7 @@ extends Node
 ## desyncs is a determinism bug found for free.
 ##
 ## Boot: set SW_REEL=<path> in the environment, or pass --reel=<path> as a
-## user arg (godot -- --reel=🍄/🎛️/reels/first_light.reel.json). WorldBuilder
+## user arg (godot -- --reel=Core/Gallery/reels/first_light.reel.json). WorldBuilder
 ## attaches the runner once the simulation starts. ANY key or click stops the
 ## reel and hands the session to the player — the kiosk exit.
 ##
@@ -150,16 +150,25 @@ func _do_step(step) -> void:
 
 func _do_bridge(cmd: Dictionary) -> void:
 	if farm == null or not ("bridge_register" in farm) or farm.bridge_register == null:
+		push_warning("[Reel] bridge step skipped — no bridge_register on farm")
 		return
-	match str(cmd.get("op", "")):
+	var op := str(cmd.get("op", ""))
+	var res: Dictionary = {}
+	match op:
 		"build":
-			farm.bridge_register.build(
+			res = farm.bridge_register.build(
 				cmd.get("a", {}) if cmd.get("a", {}) is Dictionary else {},
 				cmd.get("b", {}) if cmd.get("b", {}) is Dictionary else {})
 		"braid":
-			farm.bridge_register.braid(int(cmd.get("id", 1)), str(cmd.get("end", "a")))
+			res = farm.bridge_register.braid(int(cmd.get("id", 1)), str(cmd.get("end", "a")))
 		"fuse":
-			farm.bridge_register.fuse(int(cmd.get("id", 1)), randf())
+			res = farm.bridge_register.fuse(int(cmd.get("id", 1)), randf())
+	# A reel is a promise to the viewer — a silently failed op means the captions
+	# narrate physics that never happened. Say so where the author will see it.
+	if not bool(res.get("success", true)):
+		push_warning("[Reel] bridge %s failed: %s" % [op, str(res.get("error", res.get("message", "?")))])
+	else:
+		print("[Reel] bridge %s ok" % op)
 
 
 ## Sibling: rig_listener._parse_positions — intentionally divergent, not slop:
