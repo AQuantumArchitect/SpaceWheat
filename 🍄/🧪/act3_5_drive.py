@@ -280,6 +280,19 @@ def main():
     def bridge(emoji, amount):
         go("add_resource", emoji=emoji, amount=amount)
 
+    # Story landmarks must stay LOADED until their gating flag fires: berry counts
+    # live on the biome's berry_register, and biome_evolving reads the live biome —
+    # culling one mid-arc erases its progress. Protection is DYNAMIC: pending flag
+    # → protected; fired → released (slots are scarce, 6 max). GildedRot maps to
+    # the_rite because it is the LAST GildedRot-gated flag (crossing → gray → rite).
+    LANDMARK_GATE = {"Lanternfall": "chain_ends", "GildedRot": "the_rite",
+                     "ZenoLatch": "watching_keeps", "ShrineOfAshes": "the_basin",
+                     "NullingChamber": "hiding_in_the_light"}
+
+    def protected_landmarks():
+        fl = flags()
+        return {b for b, fid in LANDMARK_GATE.items() if fid not in fl}
+
     def cull(name):
         """Cull (remove) a biome to free a slot. Captain hat Q = remove_biome (destructive
         → F confirms); costs 34×💀, so bridge it. Returns True if the biome left the grid.
@@ -544,7 +557,8 @@ def main():
             else:
                 # 6 loaded but still short → drop the thinnest non-core biome, rediscover next round
                 per = go("atom_diversity").get("per_biome", {})
-                thin = sorted([(v, b) for b, v in per.items() if b not in core])
+                keep = core | protected_landmarks()
+                thin = sorted([(v, b) for b, v in per.items() if b not in keep])
                 if thin:
                     cull(thin[0][1])
             ad = go("atom_diversity")
@@ -560,7 +574,7 @@ def main():
         for d in range(1, 16):
             if "BloodLedger" in grid():
                 break
-            cullable = [b for b in grid() if b not in core and b != "BloodLedger"]
+            cullable = [b for b in grid() if b not in (core | protected_landmarks()) and b != "BloodLedger"]
             if cullable:
                 cull(cullable[0])
             bridge("🦅", 80)
@@ -637,11 +651,14 @@ def main():
             print("\n== ACT6-8: the wet country (crossing -> rite -> door) ==")
 
             def discover_target(target, tries=16):
+                # The endgame releases the act-2 anchors (their flags are long fired)
+                # so slots exist for the wet landmarks; landmark protection is dynamic.
+                endgame_core = {"Village", "StarterForest"}
                 for d in range(1, tries + 1):
                     if target in grid():
-                        core.add(target)   # story landmark: protect from later culls
                         return True
-                    cullable = [b for b in grid() if b not in core and b != target]
+                    keep = endgame_core | protected_landmarks()
+                    cullable = [b for b in grid() if b not in keep and b != target]
                     if cullable:
                         cull(cullable[0])
                     bridge("🦅", 80)
