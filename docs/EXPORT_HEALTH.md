@@ -34,21 +34,23 @@ Main remaining risk:
 - exported Windows profiling from sandboxed WSL/Codex shells is still unreliable, so that lane is currently best validated from a real Windows-side process
 
 ### Web export
-Status: lane complete, first real run pending (2026-07-04)
+Status: first real run COMPLETE (2026-07-05) — correctness green, perf gate awaits hardware GL
 
-- A Web preset exists in `export_presets.cfg`.
-- The current web preset is now wired for native WASM GDExtension loading.
-- A browser smoke lane now exists: `scripts/smoke-test-web-export.mjs`
-  (Chromium via playwright-core: crossOriginIsolated, canvas attach, measured
-  FPS + main-thread responsiveness, JSON verdict). Harness validated end-to-end
-  against a fixture bundle; see `docs/release/WEB_DOOR.md` for the lane, the
-  degradation policy (WASM-first, gallery-build fallback), and remaining gates.
+- The full lane executed against a real export: build → static QA → real-Chromium
+  smoke. It caught and fixed three launch bugs (`#`-comment key mangling in the
+  .gdextension, missing `web.threads.wasm32` variant key, silent WASM build
+  failure) — the native extension now loads in the browser
+  (`gdextensionLibs: ["libquantummatrix.wasm"]`).
+- Measured (this machine, SwiftShader software GL — no GPU passthrough):
+  boots, `crossOriginIsolated` granted, canvas live, extension loaded, 0 fatal
+  errors, main thread responsive at steady state (188ms worst ≤ 250ms budget),
+  10.4 fps steady. The report now records `webgl_renderer` and the smoke
+  samples after a `--settle-seconds` grace so numbers are steady-state.
 
-Main remaining risks:
-- the smoke has not yet run against a real exported bundle (needs a machine
-  with Godot + web templates — three commands, documented in WEB_DOOR.md)
-- no published performance numbers yet for the live game (the smoke report is
-  the mechanism; the first real run produces the statement)
+Main remaining risk:
+- the fps floor (≥20) cannot be judged on software GL; one run on a machine
+  with hardware WebGL produces the final perf statement. Bundle weight
+  (385MB) is the first diet lever if that lands near the floor.
 
 ### itch.io desktop uploads
 Status: close, but manual
@@ -58,10 +60,11 @@ Status: close, but manual
 - Desktop itch distribution is realistic once release packaging/versioning is finalized.
 
 ### itch.io web upload
-Status: not production-ready
+Status: exploratory — correctness proven, awaiting a hardware-GL perf number
 
-- The preset exists, but the runtime validation story is not strong enough.
-- Treat HTML5/itch web export as exploratory only.
+- The bundle boots and runs its native physics in a real browser (2026-07-05).
+- Hold the itch web channel until one hardware-GL smoke passes the fps floor,
+  per the WEB_DOOR degradation policy.
 
 ## Recommended release stance
 
