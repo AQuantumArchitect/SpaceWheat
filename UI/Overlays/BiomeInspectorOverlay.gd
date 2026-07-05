@@ -107,6 +107,10 @@ func _on_activated() -> void:
 	if _active_biome and _active_biome.has_method("get_biome_type"):
 		context_id = _active_biome.get_biome_type()
 	_selected_idx = _read_instrument_plot_idx()
+	if _selected_idx < 0 and _get_num_qubits() > 0:
+		# Auto-focus the first plot — an empty microscope teaches nothing,
+		# and first-time players don't know GHJKL; passes through the overlay.
+		_selected_idx = 0
 	if _selected_idx >= 0:
 		set_object_focus(_selected_idx, "plot")
 	else:
@@ -268,7 +272,7 @@ func _build_active_plot_view() -> void:
 		return
 	if _selected_idx < 0 or _selected_idx >= nq:
 		_content_box.add_child(_muted_label(
-			"No plot highlighted.\nUse GHJKL; on the farm to select a plot.", 13))
+			"No plot highlighted.\nGHJKL; works while this overlay is open — pick a plot without closing it.", 13))
 		return
 
 	var vc = _active_biome.viz_cache if _active_biome else null

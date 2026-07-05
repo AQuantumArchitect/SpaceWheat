@@ -126,11 +126,11 @@ func _add_readout_mode_section() -> void:
 
 func _add_selective_measure_section() -> void:
 	# Add selective measurement model selection section
-	var section = _create_section("💰 Selective Measurement Model", "Cost of measuring specific subspaces:")
+	var section = _create_section("💰 Selective Measurement Model", "Cost of measuring specific subspaces — DISPLAY-ONLY in this build: the choice persists but neither model changes behavior yet.")
 
 	var costed_btn_container = _create_mode_button(
 		"POSTSELECT_COSTED",
-		"💸 Postselection cost: harvest yield divided by measurement cost",
+		"💸 Postselection cost: harvest yield divided by measurement cost (display-only — not yet wired)",
 		config.selective_measure_model == QuantumRigorConfig.SelectiveMeasureModel.POSTSELECT_COSTED
 	)
 	costed_btn_container.get_child(0).pressed.connect(func(): _set_measure_model(QuantumRigorConfig.SelectiveMeasureModel.POSTSELECT_COSTED))
@@ -138,7 +138,7 @@ func _add_selective_measure_section() -> void:
 
 	var click_btn_container = _create_mode_button(
 		"CLICK_NOCLICK",
-		"🎯 Click/no-click instrument (future: repeated measurement)",
+		"🎯 Click/no-click instrument (display-only — not yet wired)",
 		config.selective_measure_model == QuantumRigorConfig.SelectiveMeasureModel.CLICK_NOCLICK
 	)
 	click_btn_container.get_child(0).pressed.connect(func(): _set_measure_model(QuantumRigorConfig.SelectiveMeasureModel.CLICK_NOCLICK))

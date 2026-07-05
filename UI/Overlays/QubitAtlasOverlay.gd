@@ -233,31 +233,22 @@ func _on_unhandled_key(keycode: int, _event: InputEvent) -> bool:
 	return false
 
 func _on_action_q() -> void:
-	if frame_id == FRAME_LEXICON or frame_id == FRAME_AFFINITY:
-		# TODO: wire this up — V/Q "Forget" should un-learn the selected
-		# known_icon (remove from GameState.known_icons and refresh).
-		# Stubbed for follow-up.
-		push_warning("V/Q Forget: stub — not yet wired")
-		return
-	pass  # other frames are pure reference; honest empty.
+	# TODO (post-launch): V/Q "Forget" — un-learn the selected known_icon.
+	# The chip reads "—" until then; a dead chip must also be a SILENT one.
+	pass
 
 func _on_action_r() -> void:
-	if frame_id == FRAME_LEXICON or frame_id == FRAME_AFFINITY:
-		# TODO: wire this up — V/R "Bookmark" should pin the selected
-		# icon for later (a player-side favorites list). Stubbed for
-		# follow-up.
-		push_warning("V/R Bookmark: stub — not yet wired")
-		return
-	pass  # other frames are pure reference; honest empty.
+	# TODO (post-launch): V/R "Bookmark" — pin the selected icon.
+	# The chip reads "—" until then; silent no-op, no log spam.
+	pass
 
 func _on_action_f() -> void:
 	pass  # V is read-only — nothing to flatten or page-advance here.
 
 func _refresh_action_labels() -> void:
-	if frame_id == FRAME_LEXICON or frame_id == FRAME_AFFINITY:
-		push_action_label_strings({"Q": "—", "E": "inspect ▾", "R": "—", "F": "—"})  # Q/R stay blank until Forget/Bookmark are wired — dead chips teach the player the buttons lie
-	else:
-		push_action_label_strings({"Q": "—", "E": "inspect ▾", "R": "—", "F": "—"})
+	# Q/R stay blank until Forget/Bookmark are wired — advertised verbs that
+	# do nothing teach the player the buttons lie.
+	push_action_label_strings({"Q": "—", "E": "inspect ▾", "R": "—", "F": "—"})
 
 func _process(_delta: float) -> void:
 	if not visible or not is_active:
