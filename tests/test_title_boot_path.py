@@ -70,6 +70,14 @@ def test_title_menu_restart_path_reaches_first_breath() -> None:
             frame_row = step("confirm_state")
             assert frame_row.get("current_frame") == "icon", frame_row
 
+        # 2b. The Act-0 tutorial chain must be OFFERED once the game starts (headless:
+        #     connect_to_farm auto-onboards; headed: the welcome dismissal calls
+        #     maybe_start_tutorial). Either way, a fresh demos_normal boot with no
+        #     pending Act-0 offer is a broken front door.
+        offers_row = step("story_offers")
+        offered = offers_row.get("story_offers", []) if offers_row.get("ok", False) else []
+        assert offered, f"no Act-0 tutorial offer after start: {offers_row}"
+
         # 3. The progression loop on the player path: Druid-excite plot 0, Icon-track,
         #    ripen under H, incorporate. Signature growth is what first_breath gates on.
         press("0", frames=2)
