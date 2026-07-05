@@ -1,3 +1,9 @@
+> **Historical (moved from repo root 2026-07-05).** Superseded by
+> `/BUILDING.md`. The "no scons" claim below refers to `native/` itself
+> (built with its Makefile); `godot-cpp` is still built once with scons per
+> BUILDING.md — the two documents describe different directories, not a
+> contradiction.
+
 # Native GDExtension Build
 
 **Location:** `~/ws/SpaceWheat/native/`

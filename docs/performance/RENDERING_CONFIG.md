@@ -1,3 +1,8 @@
+> **Historical (moved from repo root 2026-07-05).** This describes a
+> `[rendering]` override that no longer exists — `project.godot` currently
+> carries no `[rendering]` section (engine defaults). For current truth see
+> `docs/RENDERING_RUNTIME_STOCKTAKE.md`.
+
 # Rendering Configuration
 
 ## Target Platform: Windows

@@ -113,7 +113,7 @@ var elapsed_time: float = 0.0  # Total time elapsed since biome initialization
 ## Flip ENABLE_PHASE_LNN to true and assign a native LNN binding to phase_lnn
 ## to activate phasic perturbation during evolution. Useful for nudging biomes
 ## out of stuck attractors or testing sensitivity. C++ implementation lives in
-## native/src/liquid_neural_net.cpp (see NATIVE_LNN_IMPLEMENTATION.md).
+## native/src/liquid_neural_net.cpp (see docs/performance/NATIVE_LNN_IMPLEMENTATION.md).
 const ENABLE_PHASE_LNN: bool = false
 var phase_lnn = null  # Assign a native LiquidNeuralNetNative instance to activate
 
