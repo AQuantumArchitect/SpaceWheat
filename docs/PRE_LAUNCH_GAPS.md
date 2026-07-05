@@ -72,38 +72,33 @@ Before the gaps: a lot is genuinely done.
 
 ## P0 — Functional gaps that confuse or block players
 
-*(Gaps #1, #3, #5 were diagnosed as phantoms and closed. #2, #4 fixed in `942ea3b`. See "Resolved" section.)*
+*(All P0 gaps closed. #1, #3, #5 were diagnosed phantoms; #2, #4 fixed in `942ea3b`;
+#6 fixed 2026-07-05 — see "Resolved".)*
 
-### 6. Boot-path divergence — restart path untested
+### 6. Boot-path divergence — FIXED (2026-07-05)
 
-The rig always boots via the `pending/auto` path (headless connect-to-farm). Real players boot
-via: title screen → main menu → "Restart as The Demos" → save load. This `restart` path is not
-exercised by any rig test. The rig skips the welcome overlay and title flow.
-
-I saw one confirmed consequence of this: the welcome modal was trapping Q/E/R until a fix (ANY
-key dismisses) — found only when a human ran the title path.
-
-**Ask:** add one rig probe that drives `RIG_DRIVE_TITLE=1` and walks the full title→menu→restart
-→first_breath path (the `act3_5_drive` pattern does this partially for screenshots). This catches
-any state differences between the headless-auto path and the player-path that would produce bugs
-only real players find.
+`tests/test_title_boot_path.py` now walks the shipped player lane end-to-end every suite
+run: title → F → start → welcome (shown, any-key dismissed) → hat/plot keys → Druid excite
+→ Icon track → ripen → incorporate → `first_breath` fires. Player-path-only bugs (the
+welcome input trap was one) can no longer evade the suite. 7.6s, headless.
 
 ---
 
 ## P1 — Gaps that affect experience but don't block progress
 
-*(Gaps #7, #8, #9 fixed in `942ea3b`. See "Resolved" section.)*
+*(Gaps #7, #8, #9 fixed in `942ea3b`; #10 fixed 2026-07-05. See "Resolved" section.)*
 
-### 10. Gallery — only one reel authored
+### 10. Gallery — second reel — FIXED (2026-07-05)
 
-Gallery G1 (ReelRunner) is fully implemented and working. `first_light.reel.json` is the only
-reel in `docs/release/`. The reel format supports: captions, gate injection, icon injection,
-measure, reap, bridge ops, postcard capture. The infrastructure is rich but there's one demo.
+`Core/Gallery/reels/the_span.reel.json`: the What Connects attract reel — inject, Hadamard,
+then build → braid → braid → fuse a real Majorana bridge between StarterForest and TheDemos,
+with captions telling the nonlocality story. Verified headless: all four bridge ops report ok
+through the real BridgeRegister. (ReelRunner now logs failed bridge ops — a silent failure
+means captions narrate physics that never happened.)
 
-**Ask:** this isn't blocking but a second or third reel would make the Gallery feature meaningful
-for the launch. The `ENGINE_FRONTIER.md` referenced G3 (a gate-sequence reel) and G4 (a topology
-reel). Even a 30-second `topology_demo.reel.json` walking through a Berry loop would be a
-compelling attract screen.
+**Note the bigger find:** the Gallery scripts lived in the dev playzone (`🍄/🎛️/`), which every
+export preset excludes — so exported builds since the playzone migration had broken class refs.
+Gallery code now ships from `Core/Gallery/`.
 
 ---
 
@@ -111,16 +106,21 @@ compelling attract screen.
 
 *(Gaps #12 and #13 fixed in `66c9f56`. See "Resolved" section.)*
 
-### 11. Web export — smoke has never run against a real bundle
+### 11. Web export — first real smoke HAS RUN (2026-07-05); performance gate pending re-run
 
-`docs/EXPORT_HEALTH.md` is explicit: "the smoke has not yet run against a real exported bundle."
-itch.io web is listed as "not production-ready." This is now the **last gate** in `RELEASE_README.md`'s
-pre-release checklist.
+The full lane executed for the first time: build (WASM extension compiled + exported),
+static QA (bundle complete, COOP/COEP served), and a real-Chromium smoke. First-run verdict:
+engine boots, `crossOriginIsolated` granted, canvas live, zero fatal errors — but **6.2 fps**,
+because two launch bugs kept the native quantum engine out of the browser:
 
-**Ask:** run `scripts/smoke-test-web-export.mjs` against a real bundle on a machine with Godot +
-web templates (three commands, documented in `docs/release/WEB_DOOR.md`). If performance numbers
-are acceptable, flip itch.io web from "not production-ready" to "exploratory." Requires a Godot-
-equipped machine — cannot be verified headlessly.
+1. `quantum_matrix.gdextension` used a bare `web.wasm32` key, which Godot 4.3+ rejects for
+   thread-variant web exports → the extension never loaded → physics fell to GDScript.
+   Fixed: `web.threads.wasm32` + the lib compiled `-pthread` to match the shipped engine.
+2. The excluded-playzone Gallery scripts (see #10) added boot-time script errors.
+
+Re-run of the smoke against the fixed bundle is the remaining gate. Also flagged: the web
+bundle is 385MB (`index.pck` 338MB) — loadable but heavy; a trimmed web pck (audio/asset
+diet) is a post-verdict option per the degradation policy in `docs/release/WEB_DOOR.md`.
 
 ---
 
@@ -158,7 +158,7 @@ now so don't delete — refactor.
 
 ## Summary table
 
-**Status as of 2026-07-05** — 13 of 17 original gaps resolved or closed.
+**Status as of 2026-07-05 (evening)** — 15 of 17 original gaps resolved or closed; #11 ran and is in re-verification; P3 deferred.
 
 | # | Gap | Status | Notes |
 |---|-----|--------|-------|
@@ -167,12 +167,12 @@ now so don't delete — refactor.
 | 3 | Village branch reachability | ~~CLOSED~~ phantom | `66c9f56`: real issue was discovery pacing; GildedRot lean added |
 | 4 | Atlas Forget/Bookmark stubs | ~~FIXED~~ | `942ea3b`: handlers silenced, chips already blank |
 | 5 | SFXRegistry placeholder | ~~CLOSED~~ | All 10 WAV assets confirmed present; pipeline live |
-| 6 | Boot-path restart untested | **OPEN** P0 | Testing lane; 0.5 day to add title-path rig probe |
+| 6 | Boot-path restart untested | ~~FIXED~~ | 2026-07-05: tests/test_title_boot_path.py walks title→welcome→first_breath |
 | 7 | B surface auto-focus | ~~FIXED~~ | `942ea3b`: auto-focuses first plot on open |
 | 8 | −/= sim speed stubs | ~~RESOLVED~~ | Prior sprint: binding already says "Reserved" |
 | 9 | QuantumRigorConfig placeholder modes | ~~FIXED~~ | `942ea3b`: labeled display-only in panel |
-| 10 | Gallery — only one reel | **OPEN** P1 | Deferred; needs Godot-equipped session to author JSON |
-| 11 | Web export smoke unrun | **OPEN** P2 | Last gate in RELEASE_README checklist; needs Godot + web templates |
+| 10 | Gallery — only one reel | ~~FIXED~~ | 2026-07-05: the_span.reel.json (bridge lifecycle), verified headless |
+| 11 | Web export smoke unrun | **RAN** P2 | 2026-07-05: first real run found+fixed 2 launch bugs; perf re-run pending |
 | 12 | No butler push lane | ~~FIXED~~ | `66c9f56`: `scripts/itch-push.sh` added |
 | 13 | Windows smoke not in release checklist | ~~FIXED~~ | `66c9f56`: RELEASE_README pre-release checklist updated |
 | 14 | Dead code census | P3 deferred | ~100 items, verified cull needed |
