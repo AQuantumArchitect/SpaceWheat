@@ -274,76 +274,110 @@ func action_hadamard(positions: Array[Vector2i]) -> Dictionary:
 
 
 # ============================================================================
-# SPARK FRAME: INSTANT POLE-SHIFT ACTIONS
+# SPARK FRAME: INSTANT POLE-SHIFT ACTIONS + ACE PLANT
 # ============================================================================
-# Strong one-shot Lindblad pulse costing 1× pole emoji. No persistent channel.
+# Spark = strong one-shot Lindblad pulse (surprisal-priced pole emoji), the
+# dissipative kick that can re-purify. Plant = coherent Rabi pulse toward the
+# north pole — unitary, legal anywhere, cannot purify. Openness is a place:
+# every Lindblad verb gates on the TARGET biome's regime (is_open_here), never
+# on a global switch. The closed island is unbreakable by construction.
 
-## Closed (unitary) system: every Lindblad drive — spark, drain, pump — is disabled.
-## Applying any of them would mix the state and break the r = 1 (pure) invariant. The
-## open-quantum DLC (system_mode = "open") re-enables them. Returns an inert blocked
-## result so callers (any frame, incl. Ace "Plant") get a clean no-op.
-func _closed_system_blocked(verb: String) -> Dictionary:
+## Honest refusal for a Lindblad verb aimed entirely at sealed ground.
+func _enclave_holds(verb: String) -> Dictionary:
 	return {
-		"success": false, "blocked": true, "error": "closed_system",
-		"message": "%s is unavailable in the closed (unitary) system." % verb,
+		"success": false, "blocked": true, "error": "enclave_holds",
+		"message": "%s needs open (wet) country — the enclave holds: nothing leaks here, nothing pumps." % verb,
 	}
 
 
+## Split a selection by the target biomes' regimes. Lindblad verbs act on the
+## open subset and report the sealed remainder.
+func _open_positions_of(positions: Array[Vector2i]) -> Array[Vector2i]:
+	var open: Array[Vector2i] = []
+	if not farm or not farm.grid:
+		return open
+	for pos in positions:
+		var biome = farm.grid.get_biome_for_plot(pos)
+		if biome and biome.quantum_computer and biome.quantum_computer.is_open_here():
+			open.append(pos)
+	return open
+
+
+func _spark_context(pos: Vector2i, charge_pole: int) -> Dictionary:
+	# Drive-cost context: charge the surprisal of the pole being driven —
+	# forcing an improbable pole is more work (cost-side mirror of harvest).
+	var context: Dictionary = {}
+	var north_emoji = LindbladHandler._resolve_north_emoji(farm, pos)
+	context["north_emoji"] = north_emoji
+	var south_emoji = LindbladHandler._resolve_south_emoji(farm, pos)
+	context["south_emoji"] = south_emoji
+	var charged = north_emoji if charge_pole == 0 else south_emoji
+	var biome = farm.grid.get_biome_for_plot(pos) if farm and farm.grid else null
+	if biome and biome.quantum_computer and charged != "":
+		var kT = EnergyPricing.biome_temperature(biome, farm)
+		var p_target = clampf(float(biome.quantum_computer.get_population(charged)), 0.0, 1.0)
+		context["drive_units"] = EnergyPricing.drive_units(p_target, kT)
+	return context
+
+
 func action_spark_north(positions: Array[Vector2i]) -> Dictionary:
-	if not BalanceConfig.dissipative_enabled(): return _closed_system_blocked("Spark/Plant")
 	var guard = _action_guard(positions)
 	if not guard.is_empty(): return guard
-	var context: Dictionary = {}
-	if not positions.is_empty():
-		var north_emoji = LindbladHandler._resolve_north_emoji(farm, positions[0])
-		context["north_emoji"] = north_emoji
-		# Drive-cost: charge the surprisal of the pole being driven. Forcing an
-		# improbable north costs more (any Lindblad drive is work; cost-side
-		# counterpart of the harvest reward).
-		var biome = farm.grid.get_biome_for_plot(positions[0]) if farm and farm.grid else null
-		if biome and biome.quantum_computer and north_emoji != "":
-			var kT = EnergyPricing.biome_temperature(biome, farm)
-			var p_target = clampf(float(biome.quantum_computer.get_population(north_emoji)), 0.0, 1.0)
-			context["drive_units"] = EnergyPricing.drive_units(p_target, kT)
+	var open_positions = _open_positions_of(positions)
+	if open_positions.is_empty():
+		return _enclave_holds("The Spark's jolt")
+	var context = _spark_context(open_positions[0], 0)
 	var gate = preflight_action_cost("spark_north", context)
 	if not gate.get("ok", true):
 		return {"success": false, "error": "insufficient_resources",
 				"message": gate.get("message", "Need the north-pole emoji to spark"),
 				"cost": gate.get("cost", {})}
-	var result = LindbladHandler.lindblad_drive(farm, positions)
+	var result = LindbladHandler.lindblad_drive(farm, open_positions)
 	action_performed.emit("spark_north", result)
 	if result.get("success", false):
 		commit_action_cost("spark_north", context, "spark_north")
+		_notify_quest_projection("spark_north", result)
 	return result
 
 
 func action_spark_south(positions: Array[Vector2i]) -> Dictionary:
-	if not BalanceConfig.dissipative_enabled(): return _closed_system_blocked("Spark")
 	var guard = _action_guard(positions)
 	if not guard.is_empty(): return guard
-	var context: Dictionary = {}
-	if not positions.is_empty():
-		var north = LindbladHandler._resolve_north_emoji(farm, positions[0])
-		# south emoji is derived from the plot's south binding (complement of north)
-		context["north_emoji"] = north
-		var south_emoji = LindbladHandler._resolve_south_emoji(farm, positions[0])
-		context["south_emoji"] = south_emoji
-		# Drive-cost symmetry: discharging toward south is also a Lindblad drive —
-		# charge the surprisal of the south pole being forced (mirror of spark_north).
-		var biome = farm.grid.get_biome_for_plot(positions[0]) if farm and farm.grid else null
-		if biome and biome.quantum_computer and south_emoji != "":
-			var kT = EnergyPricing.biome_temperature(biome, farm)
-			var p_target = clampf(float(biome.quantum_computer.get_population(south_emoji)), 0.0, 1.0)
-			context["drive_units"] = EnergyPricing.drive_units(p_target, kT)
+	var open_positions = _open_positions_of(positions)
+	if open_positions.is_empty():
+		return _enclave_holds("The Spark's jolt")
+	var context = _spark_context(open_positions[0], 1)
 	var gate = preflight_action_cost("spark_south", context)
 	if not gate.get("ok", true):
 		return {"success": false, "error": "insufficient_resources",
 				"message": gate.get("message", "Need the south-pole emoji to spark"),
 				"cost": gate.get("cost", {})}
-	var result = LindbladHandler.lindblad_decay(farm, positions)
+	var result = LindbladHandler.lindblad_decay(farm, open_positions)
 	action_performed.emit("spark_south", result)
 	if result.get("success", false):
 		commit_action_cost("spark_south", context, "spark_south")
+		_notify_quest_projection("spark_south", result)
+	return result
+
+
+func action_plant(positions: Array[Vector2i]) -> Dictionary:
+	# Ace R — coherent Rabi pulse toward each plot's north pole. Unitary:
+	# works in ANY regime (the one investment verb the enclave allows), and
+	# purity-preserving by theorem — it aligns the Bloch vector but cannot
+	# lengthen it. A fog must be measured, or jolted with the Spark.
+	var guard = _action_guard(positions)
+	if not guard.is_empty(): return guard
+	var context = _spark_context(positions[0], 0)
+	var gate = preflight_action_cost("plant", context)
+	if not gate.get("ok", true):
+		return {"success": false, "error": "insufficient_resources",
+				"message": gate.get("message", "Need the north-pole emoji to plant"),
+				"cost": gate.get("cost", {})}
+	var result = GateActionHandler.apply_plant(farm, positions)
+	action_performed.emit("plant", result)
+	if result.get("success", false):
+		commit_action_cost("plant", context, "plant")
+		_notify_quest_projection("plant", result)
 	return result
 
 
@@ -351,23 +385,43 @@ func action_spark_south(positions: Array[Vector2i]) -> Dictionary:
 # GROUP 2: LINDBLADIAN ACTIONS (Merchant frame)
 # ============================================================================
 
-func action_drain(positions: Array[Vector2i]) -> Dictionary:
-	if not BalanceConfig.dissipative_enabled(): return _closed_system_blocked("Merchant export (drain)")
+func action_drain(positions: Array[Vector2i], kind: String = "damp") -> Dictionary:
+	# Merchant Q (export) — standing channel out. kind picks the canonical
+	# channel: thermal / dephase / damp. Per-plot regime gating lives in the
+	# handler: openness is a place.
 	var guard = _action_guard(positions)
 	if not guard.is_empty(): return guard
 
-	var result = LindbladHandler.enable_persistent_decay(farm, positions)
+	var result = LindbladHandler.enable_persistent_decay(farm, positions, LindbladHandler.PERSISTENT_RATE, kind)
 	action_performed.emit("drain", result)
+	if result.get("success", false):
+		_notify_quest_projection("drain", result)
 	return result
 
 
-func action_pump(positions: Array[Vector2i]) -> Dictionary:
-	if not BalanceConfig.dissipative_enabled(): return _closed_system_blocked("Merchant import (pump)")
+func action_pump(positions: Array[Vector2i], kind: String = "damp") -> Dictionary:
+	# Merchant R (import) — standing channel in. kind: thermal / damp
+	# (dephase-import is refused: decoherence is irreversible).
 	var guard = _action_guard(positions)
 	if not guard.is_empty(): return guard
 
-	var result = LindbladHandler.enable_persistent_drive(farm, positions)
+	var result = LindbladHandler.enable_persistent_drive(farm, positions, LindbladHandler.PERSISTENT_RATE, kind)
 	action_performed.emit("pump", result)
+	if result.get("success", false):
+		_notify_quest_projection("pump", result)
+	return result
+
+
+func action_settle(positions: Array[Vector2i]) -> Dictionary:
+	# Merchant F — close the standing contract on the selected plots. Free,
+	# regime-blind: a contract can always be closed.
+	var guard = _action_guard(positions)
+	if not guard.is_empty(): return guard
+
+	var result = LindbladHandler.settle_channels(farm, positions)
+	action_performed.emit("settle", result)
+	if result.get("success", false):
+		_notify_quest_projection("settle", result)
 	return result
 
 
@@ -1083,11 +1137,8 @@ func gate_inject(gate_name: String, positions: Array[Vector2i]) -> Dictionary:
 func lindblad_pump(positions: Array[Vector2i]) -> Dictionary:
 	if not farm:
 		return {"ok": false, "error": "no_farm"}
-	# Closed (unitary) system: installing a persistent Lindblad channel would mix the
-	# state and break the r=1 invariant. Block the rig/API entry point too (mirrors
-	# action_pump). Re-enabled by the open-quantum DLC.
-	if not BalanceConfig.dissipative_enabled(): return _closed_system_blocked("lindblad_pump")
-	# Rig/API pump should install persistent channels (same semantics as player action_pump).
+	# Rig/API pump — same semantics and same per-plot regime gating as the
+	# player's action_pump: the handler refuses sealed ground plot by plot.
 	var result = LindbladHandler.enable_persistent_drive(farm, positions)
 	action_performed.emit("lindblad_pump", result)
 	_notify_quest_projection("lindblad_pump", result)
@@ -1097,9 +1148,7 @@ func lindblad_pump(positions: Array[Vector2i]) -> Dictionary:
 func lindblad_drain(positions: Array[Vector2i]) -> Dictionary:
 	if not farm:
 		return {"ok": false, "error": "no_farm"}
-	# Closed (unitary) system: blocked (mirrors action_drain) — see lindblad_pump.
-	if not BalanceConfig.dissipative_enabled(): return _closed_system_blocked("lindblad_drain")
-	# Rig/API drain should install persistent channels (same semantics as player action_drain).
+	# Rig/API drain — mirrors action_drain; per-plot regime gating in the handler.
 	var result = LindbladHandler.enable_persistent_decay(farm, positions)
 	action_performed.emit("lindblad_drain", result)
 	_notify_quest_projection("lindblad_drain", result)

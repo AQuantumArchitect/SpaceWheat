@@ -1459,6 +1459,34 @@ func _apply_lindblad_1q(qubit_index: int, from_pole: int, to_pole: int,
 			add_sink_flux(source_emoji, drained)
 
 
+func apply_dephase(qubit_index: int, gamma: float, dt: float) -> void:
+	# Apply single-qubit PURE dephasing (phase damping channel, exact map).
+
+	# The third canonical channel: coherences between the qubit's poles decay
+	# by s = exp(−γ·dt); populations are untouched. Invisible in population
+	# space — entropy rises while nothing moves. CPTP for any 0 ≤ s ≤ 1
+	# (Kraus: K₀=√(1−p)·I, K₁=√p·|0⟩⟨0|, K₂=√p·|1⟩⟨1| with s = 1−p).
+	# No sink flux: dephasing transfers no population, so there is nothing
+	# to credit — its payment is deferred through kT (entropy-derived).
+	if density_matrix == null:
+		return
+	if qubit_index < 0 or qubit_index >= register_map.num_qubits:
+		return
+
+	var dim = register_map.dim()
+	var shift = register_map.num_qubits - 1 - qubit_index
+	var s = clampf(exp(-maxf(0.0, gamma) * maxf(0.0, dt)), 0.0, 1.0)
+	if s >= 1.0:
+		return
+
+	for i in range(dim):
+		for j in range(dim):
+			if ((i >> shift) & 1) != ((j >> shift) & 1):
+				density_matrix.set_element(i, j, density_matrix.get_element(i, j).scale(s))
+
+	_purity_cache = -1.0
+
+
 func _emoji_for_qubit_pole(qubit_index: int, pole_str: int) -> String:
 	var axis = register_map.axis(qubit_index)
 	if axis.is_empty():

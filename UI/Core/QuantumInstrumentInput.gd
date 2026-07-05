@@ -35,6 +35,7 @@ extends Node
 
 # Preloads
 const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
+const LindbladHandler = preload("res://Core/Instrumentation/Handlers/LindbladHandler.gd")
 const GranularityController = preload("res://Core/Utilities/GranularityController.gd")
 
 # Access autoloads safely
@@ -77,8 +78,10 @@ const BUFFER_INVALIDATING_ACTIONS: Array[String] = [
 	"rotate_up", "rotate_down", "hadamard",
 	# Spark frame: instant pole shifts (strong one-shot drive/decay)
 	"spark_north", "spark_south",
-	# Merchant frame: persistent Lindbladian contracts
-	"drain", "pump",
+	# Ace frame: coherent Rabi preparation
+	"plant",
+	# Merchant frame: persistent Lindbladian contracts (settle stops them)
+	"drain", "pump", "settle",
 	# Operator frame: entangling gates
 	"measure", "build_gate", "remove_gates",
 # Icon frame: icon injection/removal (adds/removes qubits via icon assignment)
@@ -1711,12 +1714,20 @@ func _execute_action(action_name: String) -> Dictionary:
 			result = _instrument.action_spark_south(positions)
 			if result.get("success", false):
 				_refresh_plot_tiles(positions)
+		"plant":
+			result = _instrument.action_plant(positions)
+			if result.get("success", false):
+				_refresh_plot_tiles(positions)
 		"drain":
-			result = _instrument.action_drain(positions)
+			result = _instrument.action_drain(positions, _merchant_channel_kind())
 			if result.get("success", false):
 				_refresh_plot_tiles(positions)
 		"pump":
-			result = _instrument.action_pump(positions)
+			result = _instrument.action_pump(positions, _merchant_channel_kind())
+			if result.get("success", false):
+				_refresh_plot_tiles(positions)
+		"settle":
+			result = _instrument.action_settle(positions)
 			if result.get("success", false):
 				_refresh_plot_tiles(positions)
 		"explore":
@@ -1770,8 +1781,10 @@ func _execute_action(action_name: String) -> Dictionary:
 			result = MacroActions.dispatch(_instrument, MacroActions.KIND_REMOVE_BIOME)
 		"inspect_qubit":
 			result = _execute_inspect_qubit()
-		"merchant_hint":
-			result = _execute_merchant_hint()
+		"read_price":
+			result = _execute_read_price()
+		"jolt_inspect":
+			result = _execute_jolt_inspect()
 		"forecast_biome_discovery":
 			result = _execute_discovery_forecast()
 		_:
@@ -1779,19 +1792,6 @@ func _execute_action(action_name: String) -> Dictionary:
 			return {"success": false, "error": "unknown_action", "message": "Unknown action: %s" % action_name}
 
 	return result
-
-
-## Rotating pool of one-line hints the Merchant "Tip" verb whispers into
-## the corner toast. Lightweight by design — the quest layer can
-## replace this with context-aware lines later.
-const _MARKET_QUIP_TEMPLATES: Array[String] = [
-	"The market whispers: [b]%s[/b] is thin on the ground. Worth stocking up.",
-	"Scarce right now: [b]%s[/b]. A well-timed acquisition could pay off.",
-	"I'm hearing [b]%s[/b] is harder to come by than it looks. Just saying.",
-	"Low reserves on [b]%s[/b]. The smart money moves early.",
-]
-
-var _market_quip_idx: int = 0
 
 
 func _execute_inspect_qubit() -> Dictionary:
@@ -1808,15 +1808,93 @@ func _execute_inspect_qubit() -> Dictionary:
 	return {"success": true, "biome": biome_name, "plot_idx": plot_idx}
 
 
-func _execute_merchant_hint() -> Dictionary:
-	# Scan local biome emojis vs wallet; surface the most depleted as a toast tip.
+func _merchant_channel_kind() -> String:
+	# The Merchant sub-mode (1/2/3) IS the channel: thermal / dephase / damp.
+	var kind := ToolConfig.get_frame_mode_name(ToolConfig.FRAME_MERCHANT)
+	return kind if kind in ["thermal", "dephase", "damp"] else "damp"
+
+
+func _axis_gauge(pos: Vector2i) -> Dictionary:
+	# Shared readout behind the Spark gauge and the Merchant order book:
+	# axis pair, pole populations, live kT, surprisal unit prices, regime.
+	if not farm or not farm.grid:
+		return {}
+	var biome = farm.grid.get_biome_for_plot(pos)
+	if not biome or not biome.quantum_computer:
+		return {}
+	var pair: Dictionary = LindbladHandler._resolve_axis_pair(farm, pos)
+	var north := str(pair.get("north", ""))
+	var south := str(pair.get("south", ""))
+	if north == "" and south == "":
+		return {}
+	var qc = biome.quantum_computer
+	var kT: float = EnergyPricing.biome_temperature(biome, farm)
+	var p_n: float = clampf(float(qc.get_population(north)), 0.0, 1.0) if north != "" else 0.0
+	var p_s: float = clampf(float(qc.get_population(south)), 0.0, 1.0) if south != "" else 0.0
+	var bloch_r := -1.0
+	var binding: Dictionary = LindbladHandler._resolve_axis_binding(farm, pos, biome)
+	var reg := int(binding.get("register_id", -1))
+	if reg >= 0 and qc.has_method("export_bloch_packet"):
+		var packet: PackedFloat64Array = qc.export_bloch_packet()
+		if packet.size() >= (reg + 1) * 9:
+			bloch_r = packet[reg * 9 + 5]
+	return {
+		"biome": biome,
+		"biome_name": BiomeBase.type_name(biome),
+		"north": north, "south": south,
+		"p_north": p_n, "p_south": p_s,
+		"kT": kT,
+		"units_north": EnergyPricing.drive_units(p_n, kT) if north != "" else 0,
+		"units_south": EnergyPricing.drive_units(p_s, kT) if south != "" else 0,
+		"open": bool(qc.is_open_here()),
+		"bloch_r": bloch_r,
+	}
+
+
+func _execute_jolt_inspect() -> Dictionary:
+	# Spark ⚡ E — the jolt gauge: pole odds, Bloch radius, kT, cost each way.
 	var shell := _resolve_player_shell()
 	if not shell or not shell.has_method("show_hint"):
 		return {"success": false, "error": "no_player_shell", "message": "PlayerShell unavailable"}
+	var gauge := _axis_gauge(_get_grid_position())
+	if gauge.is_empty():
+		return {"success": false, "error": "no_axis", "message": "No plot with a live axis selected"}
+	var seal_txt := "" if bool(gauge.open) else " · [color=#8899aa]sealed — the enclave holds[/color]"
+	var r_txt := (" · r %.2f" % float(gauge.bloch_r)) if float(gauge.bloch_r) >= 0.0 else ""
+	var text := "[color=#ffe080]⚡ %s — jolt gauge[/color] · kT %.1f%s%s\n  ↑ %s p %.2f costs %d× %s · ↓ %s p %.2f costs %d× %s" % [
+		str(gauge.biome_name), float(gauge.kT), r_txt, seal_txt,
+		str(gauge.north), float(gauge.p_north), int(gauge.units_north), str(gauge.north),
+		str(gauge.south), float(gauge.p_south), int(gauge.units_south), str(gauge.south)]
+	shell.show_hint(text)
+	return {"success": true, "gauge": gauge}
 
-	var hint_text := _build_market_tip()
-	shell.show_hint("[color=#cfe6ff]🤝 Merchant:[/color] " + hint_text)
-	return {"success": true, "hint": hint_text}
+
+func _execute_read_price() -> Dictionary:
+	# Merchant E — the order book: pole odds, kT, unit prices both directions,
+	# and the native faction's standing factor. Read-only — prices are honest
+	# without touching ρ; the collapse verb stays with Ace.
+	var shell := _resolve_player_shell()
+	if not shell or not shell.has_method("show_hint"):
+		return {"success": false, "error": "no_player_shell", "message": "PlayerShell unavailable"}
+	var gauge := _axis_gauge(_get_grid_position())
+	if gauge.is_empty():
+		return {"success": false, "error": "no_axis", "message": "No plot with a live axis selected"}
+	var seal_txt := "" if bool(gauge.open) else " · [color=#8899aa]sealed — contracts need wet country[/color]"
+	var lines: PackedStringArray = []
+	lines.append("[color=#cfe6ff]🤝 %s — order book[/color] · kT %.1f%s" % [
+		str(gauge.biome_name), float(gauge.kT), seal_txt])
+	lines.append("  import 📥 %s: 4📜 + %d× %s · export 📤 stakes 4🧺 + %d× %s, pays as it drains" % [
+		str(gauge.north), int(gauge.units_north), str(gauge.north),
+		int(gauge.units_south), str(gauge.south)])
+	var faction := ""
+	var biome = gauge.get("biome", null)
+	if biome and biome.has_method("first_native_faction"):
+		faction = str(biome.first_native_faction())
+	if faction != "":
+		lines.append("  %s standing ×%.2f on contract prices" % [
+			faction, PriceModel.standing_factor(faction, farm)])
+	shell.show_hint("\n".join(lines))
+	return {"success": true, "gauge": gauge}
 
 
 func _execute_discovery_forecast() -> Dictionary:
@@ -1859,41 +1937,6 @@ func _execute_discovery_forecast() -> Dictionary:
 
 	shell.show_hint("\n".join(lines))
 	return {"success": true, "forecast": forecast}
-
-
-func _build_market_tip() -> String:
-	# Find the most depleted emoji among biome poles + merchant contract resources.
-	# Gather candidate emojis: all poles in active biomes
-	var candidates: Array[String] = []
-	if farm and farm.grid:
-		for biome_name in farm.grid.get_biome_names():
-			var biome = farm.grid.get_biome(biome_name)
-			if biome and biome.viz_cache:
-				for emoji in biome.viz_cache.get_emojis():
-					if emoji != "" and not candidates.has(emoji):
-						candidates.append(emoji)
-	# Also include the merchant contract tokens themselves
-	for token in ["🧺", "🤝", "📜"]:
-		if not candidates.has(token):
-			candidates.append(token)
-
-	if candidates.is_empty():
-		return "Nothing to report — the markets are quiet today."
-
-	# Find which candidate has the lowest balance in the wallet
-	var economy = ActionCostRuntime.resolve_economy(farm)
-	var wallet: Dictionary = economy.emoji_credits if economy and "emoji_credits" in economy else {}
-	var poorest_emoji := candidates[0]
-	var poorest_amount: float = float(wallet.get(poorest_emoji, 0))
-	for emoji in candidates:
-		var amount := float(wallet.get(emoji, 0))
-		if amount < poorest_amount:
-			poorest_amount = amount
-			poorest_emoji = emoji
-
-	var template: String = _MARKET_QUIP_TEMPLATES[_market_quip_idx % _MARKET_QUIP_TEMPLATES.size()]
-	_market_quip_idx += 1
-	return template % poorest_emoji
 
 
 func _resolve_player_shell() -> Node:

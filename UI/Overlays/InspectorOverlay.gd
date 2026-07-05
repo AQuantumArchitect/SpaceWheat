@@ -694,17 +694,18 @@ func _build_whole_view() -> void:
 	var admitted: Array = active.get_admitted_factions() if active.has_method("get_admitted_factions") else []
 	if not admitted.is_empty():
 		_body_box.add_child(_whole_kv("admitted factions", ", ".join(admitted)))
-	# Dissipation count. Closed (unitary) system: no Lindblad operators are live (the
-	# authored terms are dormant DLC data), so report 0 honestly rather than counting
-	# authored-but-inert terms.
-	if not BalanceConfig.dissipative_enabled():
-		_body_box.add_child(_whole_kv("dissipation", "0 live terms (closed system)"))
+	# Dissipation count. Openness is a place: read THIS biome's regime, not the
+	# global switch — a wet landmark runs live terms even while the world is
+	# sealed, and the island reports 0 forever.
+	var regime_open: bool = active.quantum_computer != null and active.quantum_computer.is_open_here()
+	if not regime_open:
+		_body_box.add_child(_whole_kv("dissipation", "0 live terms (the enclave holds here)"))
 	else:
 		var dissipation_count := 0
 		if active.viz_cache != null:
 			for source in active.viz_cache.get_emojis():
 				dissipation_count += active.viz_cache.get_lindblad_outgoing(source).size()
-		_body_box.add_child(_whole_kv("dissipation", "%d live terms" % dissipation_count))
+		_body_box.add_child(_whole_kv("dissipation", "%d live terms (open country)" % dissipation_count))
 	var gate_count: int = active.bell_gates.size() if "bell_gates" in active else 0
 	_body_box.add_child(_whole_kv("gate history", "%d bell gate(s)" % gate_count))
 

@@ -118,6 +118,10 @@ const DEFAULT_PLOTS_PER_BIOME = 4
 const MAX_PLOTS_PER_BIOME = 7  # J K L ; ' H G
 const LINDBLAD_TIMESCALE_BASE_DT = 0.02
 const LINDBLAD_TIMESCALE_CAP = 4096.0
+## Thermal contracts run a detailed-balance pair: the chosen direction at the
+## contract rate, the back-channel at this fraction of it. Fixed point sits at
+## back/(1+back) ≈ 1/3 against the flow — warm, never pinned.
+const THERMAL_BACK_RATIO = 0.5
 const RAINBOW_DRAIN_MODE_DEFAULT = false
 
 # Dynamic row mappings (built from explored biome order)
@@ -992,6 +996,11 @@ func _process_lindblad_effects(delta: float) -> void:
 		var qc = biome.quantum_computer
 		if not ("register_infrastructure" in qc) or qc.register_infrastructure.is_empty():
 			continue
+		# Openness is a place: standing channels run only where the regime is
+		# open. Flags may survive on sealed ground (old saves, later regime
+		# flips) — they simply never tick there. The enclave holds.
+		if not qc.is_open_here():
+			continue
 		var effective_delta = _get_lindblad_effective_delta_for_biome(biome, delta)
 		if effective_delta <= 0.0:
 			continue
@@ -1008,24 +1017,41 @@ func _process_lindblad_effects(delta: float) -> void:
 			if pair.is_empty():
 				continue
 
+			var channel_kind = str(infra.get("lindblad_channel_kind", "damp"))
+
 			if bool(infra.get("lindblad_pump_active", false)):
 				var target = pair.get("north", "")
 				if target != "":
-					qc.apply_drive(target, float(infra.get("lindblad_pump_rate", 0.5)), effective_delta)
+					var pump_rate = float(infra.get("lindblad_pump_rate", 0.5))
+					qc.apply_drive(target, pump_rate, effective_delta)
+					if channel_kind == "thermal":
+						# Detailed balance: the back-rate keeps the plot mixed —
+						# thermal import arrives warm, never pinned.
+						var back_qubit = qc.register_map.qubit(target)
+						if back_qubit >= 0:
+							qc.apply_decay(back_qubit, pump_rate * THERMAL_BACK_RATIO, effective_delta)
 
 			if bool(infra.get("lindblad_drain_active", false)):
 				var north = pair.get("north", "")
 				var south = pair.get("south", "")
 				var axis_emoji = north if north != "" else south
 				if axis_emoji != "" and qc.register_map.has(axis_emoji):
+					var qubit_idx = qc.register_map.qubit(axis_emoji)
+					var drain_rate = float(infra.get("lindblad_drain_rate", 0.5))
+					if channel_kind == "dephase":
+						# Pure phase damping: coherence out, populations untouched,
+						# nothing to credit — payment is deferred through kT.
+						if qc.has_method("apply_dephase"):
+							qc.apply_dephase(qubit_idx, drain_rate, effective_delta)
+						continue
+
 					var sample_emoji = north if north != "" and qc.register_map.has(north) else axis_emoji
 					var before_pop = qc.get_population(sample_emoji)
 					var before_flux = 0.0
 					if qc.has_method("get_sink_flux"):
 						before_flux = float(qc.get_sink_flux(axis_emoji))
 
-					var qubit_idx = qc.register_map.qubit(axis_emoji)
-					qc.apply_decay(qubit_idx, float(infra.get("lindblad_drain_rate", 0.5)), effective_delta)
+					qc.apply_decay(qubit_idx, drain_rate, effective_delta)
 
 					var can_harvest = bool(infra.get("lindblad_harvest_visible", false))
 					if rainbow_mode:
@@ -1042,8 +1068,13 @@ func _process_lindblad_effects(delta: float) -> void:
 							var after_pop = qc.get_population(sample_emoji)
 							drained_probability = max(0.0, before_pop - after_pop)
 						if drained_probability <= 0.0:
-							drained_probability = max(0.0, before_pop) * float(infra.get("lindblad_drain_rate", 0.5)) * effective_delta
+							drained_probability = max(0.0, before_pop) * drain_rate * effective_delta
 						_accumulate_lindblad_harvest_infra(qc, int(reg_id), axis_emoji, drained_probability)
+
+					if channel_kind == "thermal" and north != "" and qc.register_map.has(north):
+						# Detailed balance: the back-rate keeps the plot warm — the
+						# reap bank survives a thermal export (credit measured first).
+						qc.apply_drive(north, drain_rate * THERMAL_BACK_RATIO, effective_delta)
 
 	if rainbow_mode and not harvestable_drain_biomes.is_empty():
 		_harvest_rainbow_sink_flux(harvestable_drain_biomes)

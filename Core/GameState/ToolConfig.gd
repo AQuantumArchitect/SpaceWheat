@@ -8,9 +8,9 @@ extends RefCounted
 ##
 ## | Hat | Frame      | Live wiring                                    |
 ## |-----|------------|------------------------------------------------|
-## |  4  | Spark      | Pole shift (spend pole emoji → shove qubit)    |
+## |  4  | Spark      | Lindblad jolt (wet country) / Majorana bridges |
 ## |  5  | Icon       | Icon injection (player faction signature)      |
-## |  6  | Merchant   | Faction contracts (drain/transfer/pump)        |
+## |  6  | Merchant   | Bath contracts: thermal / dephase / damp       |
 ## |  7  | Captain    | Biomes lifecycle (discover / cull)             |
 ## |  8  | Ace        | Measure / probe (explore / measure / pop)      |
 ## |  9  | Operator   | Gate building (build / inspect / break)        |
@@ -73,9 +73,11 @@ static var frame_mode_indices: Dictionary = {
 
 const ARCHETYPE_FRAMES: Dictionary = {
 	# =========================================================================
-	# SPARK (S, Q, P) — casting moment. Spend one pole emoji to instantly
-	# shove the qubit toward that pole (strong one-shot Lindblad drive/decay).
-	# No extra fees: the pole emoji IS the cost.
+	# SPARK (S, Q, P) — casting moment. Spend the pole emoji (surprisal-priced)
+	# to instantly shove the qubit toward that pole: a strong ONE-SHOT Lindblad
+	# pulse. The dissipative kick can re-purify a faded qubit — the thing no
+	# unitary (Ace Plant, Druid) can do. Openness is a place: the jolt fires
+	# only where the biome's regime runs open (wet country); the enclave holds.
 	# Q = push toward south pole  |  R = push toward north pole
 	# Mode 2 (🌉 bridge): Majorana spans — nonlocal storage between two biomes
 	# (BridgeRegister; What Connects). R anchors, F braids, Q fuses, E inspects.
@@ -86,7 +88,7 @@ const ARCHETYPE_FRAMES: Dictionary = {
 		"emoji": "⚡",
 		"icon": "res://Assets/UI/Tools/Lindblad/Lindblad.svg",
 		"time_scale": "dissipative",
-		"description": "Energy dyad (Lindblad jolt) — Q discharges south (out), R charges north (invest). Both fire while paused or playing. Mode 2: Majorana bridges.",
+		"description": "Energy dyad (Lindblad jolt, wet country only) — Q discharges south (out), R charges north (invest). The kick that can re-purify. Mode 2: Majorana bridges (any regime).",
 		"modes": ["shift", "bridge"],
 		"mode_labels": ["⚡", "🌉"],
 		"mode_emojis": ["⚡", "🌉"],
@@ -95,13 +97,12 @@ const ARCHETYPE_FRAMES: Dictionary = {
 			"shift": {
 				"Q": {"action": "spark_south", "label": "S.Pole", "emoji": "↓",
 					  "icon": "res://Assets/UI/Tools/Lindblad/Decay.svg",
-					  "hint": "Spend 1× south-pole emoji — jolt qubit toward south pole (fires while paused or playing)"},
-				"E": {"action": "", "label": "Pause", "emoji": "⏸", "icon": "",
-					  "hint": "Pause — global side-effect only (no tool action)",
-					  "disabled": true},
+					  "hint": "One-shot Lindblad kick toward south (spend south-pole emoji, surprisal-priced). Dissipative — it re-purifies. Open country only: the enclave holds."},
+				"E": {"action": "jolt_inspect", "label": "Gauge", "emoji": "🔍", "icon": "",
+					  "hint": "Read the jolt — pole odds, Bloch radius, the biome's kT, and what each direction would cost here"},
 				"R": {"action": "spark_north", "label": "N.Pole", "emoji": "↑",
 					  "icon": "res://Assets/UI/Tools/Lindblad/Drive.svg",
-					  "hint": "Spend 1× north-pole emoji — jolt qubit toward north pole (fires while paused or playing)"}
+					  "hint": "One-shot Lindblad kick toward north (spend north-pole emoji, surprisal-priced). Dissipative — it re-purifies. Open country only: the enclave holds."}
 			},
 			"bridge": {
 				"Q": {"action": "bridge_fuse", "label": "Fuse", "emoji": "⚛",
@@ -153,18 +154,28 @@ const ARCHETYPE_FRAMES: Dictionary = {
 	},
 
 	# =========================================================================
-	# MERCHANT (S, C, F) — faction networking. Sets up Lindbladian
-	# drain/transfer/pump as abstracted faction contracts with other factions
-	# (import/broker/export). Costs use social resources: basket 🧺,
-	# handshake 🤝, scroll 📜. F=Tip is live across all sub-modes.
-	# Sub-modes (1/2/3): thermal / dephase / damp — flavor only, same verbs.
+	# MERCHANT (S, C, F) — standing contracts with the country you stand in.
+	# Each sub-mode (1/2/3) IS one of the three canonical qubit channels:
+	#   thermal 🌡 — detailed-balance pair (generalized amplitude damping):
+	#                net flow the direction you chose, but the back-rate keeps
+	#                the plot MIXED — the biome stays warm, the reap bank lives.
+	#   dephase 💨 — pure phase damping: coherence out, populations untouched.
+	#                Export only — decoherence is irreversible; no contract can
+	#                sell your phase back. Pays deferred: kT rises with entropy.
+	#   damp    🌊 — one-way amplitude damping: pins the pole hard. Maximum
+	#                extraction, and it cools the biome toward purity.
+	# The counterparty is the Bath itself — a Lindblad channel's other end is
+	# the environment, by definition. Your wallet is the ledger. Costs use
+	# social fees (🧺 export, 📜 import) + the surprisal-priced pole stake.
+	# Openness is a place: contracts run only where the regime is open.
+	# Q exports (channel out) · E reads the price · R imports · F settles.
 	# =========================================================================
 	FRAME_MERCHANT: {
 		"name": "Merchant",
 		"emoji": "🤝",
 		"icon": "res://Assets/UI/Icon/Icon.svg",
 		"time_scale": "discrete",
-		"description": "Energy dyad (faction contracts) — Q sells/exports (extract), R buys/imports (invest), E reads the price (measure). Price = −kT·log p.",
+		"description": "Standing contracts (wet country only) — Q exports, E reads the price, R imports, F settles. Modes 1/2/3 pick the channel: thermal / dephase / damp. Price = −kT·log p.",
 		"modes": ["thermal", "dephase", "damp"],
 		"mode_labels": ["~", ".", "|"],
 		"mode_emojis": ["🌡", "💨", "🌊"],
@@ -173,41 +184,41 @@ const ARCHETYPE_FRAMES: Dictionary = {
 			"thermal": {
 				"Q": {"action": "drain", "label": "Export", "emoji": "📤",
 					  "icon": "res://Assets/UI/Tools/Lindblad/Decay.svg",
-					  "hint": "Thermal export — local population flows out to a faction partner (costs 🧺 + south-pole)"},
-				"E": {"action": "measure", "label": "Read Price", "emoji": "!",
+					  "hint": "Thermal export — couple the plot to a colder reservoir: population flows out at detailed balance, credited to your wallet as it drains (costs 🧺 + south-pole stake). The back-rate keeps the plot warm — the reap bank survives."},
+				"E": {"action": "read_price", "label": "Price", "emoji": "!",
 					  "icon": "res://Assets/UI/Science/Measure.svg",
-					  "hint": "Read the order-book price — collapse to a classical outcome (pauses the sim)"},
+					  "hint": "Read the order book — pole odds, the biome's kT, unit prices both directions, and how your standing with the native faction moves them"},
 				"R": {"action": "pump", "label": "Import", "emoji": "📥",
 					  "icon": "res://Assets/UI/Tools/Lindblad/Drive.svg",
-					  "hint": "Thermal import — local population rises as a faction partner contributes (costs 📜 + north-pole)"},
-				"F": {"action": "merchant_hint", "label": "Tip", "emoji": "💬",
-					  "icon": "", "hint": "Whisper a hint to the player"}
+					  "hint": "Thermal import — couple to a hotter reservoir: population flows in at detailed balance (costs 📜 + north-pole stake). The gentle way in: arrives warm, never pinned."},
+				"F": {"action": "settle", "label": "Settle", "emoji": "✔",
+					  "icon": "", "hint": "Close the contract — remove the standing channel on the selected plot(s). The ledger keeps what already moved."}
 			},
 			"dephase": {
 				"Q": {"action": "drain", "label": "Export", "emoji": "📤",
 					  "icon": "res://Assets/UI/Tools/Lindblad/Decay.svg",
-					  "hint": "Dephasing export — local coherence flows out to a faction partner (costs 🧺 + south-pole)"},
-				"E": {"action": "measure", "label": "Read Price", "emoji": "!",
+					  "hint": "Sell your phase to the noise — coherence drains, populations untouched (costs 🧺 only). Nothing lands in the wallet: the biome runs hotter, and the season's reap pays kT·ΔS on the entropy you grew."},
+				"E": {"action": "read_price", "label": "Price", "emoji": "!",
 					  "icon": "res://Assets/UI/Science/Measure.svg",
-					  "hint": "Read the order-book price — collapse to a classical outcome (pauses the sim)"},
-				"R": {"action": "pump", "label": "Import", "emoji": "📥",
-					  "icon": "res://Assets/UI/Tools/Lindblad/Drive.svg",
-					  "hint": "Dephasing import — local coherence rises via partner phase contribution (costs 📜 + north-pole)"},
-				"F": {"action": "merchant_hint", "label": "Tip", "emoji": "💬",
-					  "icon": "", "hint": "Whisper a hint to the player"}
+					  "hint": "Read the order book — pole odds, the biome's kT, unit prices both directions, and how your standing with the native faction moves them"},
+				"R": {"action": "", "label": "—", "emoji": "🚫", "icon": "",
+					  "hint": "No contract can sell you back your phase — decoherence is irreversible. Coherence returns only through your own gates (Druid, 0).",
+					  "disabled": true},
+				"F": {"action": "settle", "label": "Settle", "emoji": "✔",
+					  "icon": "", "hint": "Close the contract — remove the standing channel on the selected plot(s). The ledger keeps what already moved."}
 			},
 			"damp": {
 				"Q": {"action": "drain", "label": "Export", "emoji": "📤",
 					  "icon": "res://Assets/UI/Tools/Lindblad/Decay.svg",
-					  "hint": "Amplitude-damping export — local population drains to vacuum (costs 🧺 + south-pole)"},
-				"E": {"action": "measure", "label": "Read Price", "emoji": "!",
+					  "hint": "Damping export — one-way drain to the south sink, credited as it flows (costs 🧺 + south-pole stake). Maximum extraction: pins the plot cold and starves the reap bank."},
+				"E": {"action": "read_price", "label": "Price", "emoji": "!",
 					  "icon": "res://Assets/UI/Science/Measure.svg",
-					  "hint": "Read the order-book price — collapse to a classical outcome (pauses the sim)"},
+					  "hint": "Read the order book — pole odds, the biome's kT, unit prices both directions, and how your standing with the native faction moves them"},
 				"R": {"action": "pump", "label": "Import", "emoji": "📥",
 					  "icon": "res://Assets/UI/Tools/Lindblad/Drive.svg",
-					  "hint": "Amplitude-damping import — counter-rotate back toward excited (costs 📜 + north-pole)"},
-				"F": {"action": "merchant_hint", "label": "Tip", "emoji": "💬",
-					  "icon": "", "hint": "Whisper a hint to the player"}
+					  "hint": "Damping import — one-way pump toward north (costs 📜 + north-pole stake). Pins the pole hard: purity rises, the heat dies."},
+				"F": {"action": "settle", "label": "Settle", "emoji": "✔",
+					  "icon": "", "hint": "Close the contract — remove the standing channel on the selected plot(s). The ledger keeps what already moved."}
 			}
 		}
 	},
@@ -268,9 +279,9 @@ const ARCHETYPE_FRAMES: Dictionary = {
 				"E": {"action": "measure", "label": "Measure", "emoji": "!",
 					  "icon": "res://Assets/UI/Science/Measure.svg",
 					  "hint": "Read the price — collapse the state to a classical outcome (pauses the sim)"},
-				"R": {"action": "spark_north", "label": "Plant", "emoji": "v",
+				"R": {"action": "plant", "label": "Plant", "emoji": "v",
 					  "icon": "res://Assets/UI/Tools/Lindblad/Drive.svg",
-					  "hint": "Invest energy into the selected plot — jolt population toward the north pole (spend 1× north-pole emoji)"},
+					  "hint": "Invest energy — a coherent Rabi pulse swings the qubit toward its north pole (spend north-pole emoji, surprisal-priced). Unitary, works anywhere — but it cannot purify: a faded plot needs measurement, or the Spark."},
 				"F": {"action": "reap", "label": "Reap", "emoji": "⌛", "icon": "",
 					  "hint": "Reap the season — run time forward across the farm and gather the yield (open country pays the rite: kT·ΔS from the entropy bank)",
 					  "destructive": true}
@@ -368,15 +379,12 @@ const ARCHETYPE_FRAMES: Dictionary = {
 # FRAME MANAGEMENT
 # =============================================================================
 
-## Spark and Merchant are pure Lindblad-drive tools (jolt / drain / pump). They are
-## hidden in the closed (unitary) system and re-appear in the open-quantum DLC. The
-## frame definitions stay in ARCHETYPE_FRAMES — only their availability is gated.
-const _CLOSED_HIDDEN_FRAMES: Array = [FRAME_SPARK, FRAME_MERCHANT]
-
-
-static func is_frame_available(frame_name: String) -> bool:
-	if frame_name in _CLOSED_HIDDEN_FRAMES and not BalanceConfig.dissipative_enabled():
-		return false
+## Openness is a place, not a setting: every hat is always selectable. The
+## Lindblad verbs (Spark jolt, Merchant contracts) refuse per-plot wherever the
+## target biome's regime runs closed — QuantumInstrument checks is_open_here()
+## on the actual ground, and the chips grey honestly via ActionValidator. The
+## keyboard is never sealed; the world decides.
+static func is_frame_available(_frame_name: String) -> bool:
 	return true
 
 
@@ -391,7 +399,7 @@ static func available_frame_ids() -> Array:
 
 static func select_frame(frame_name: String) -> bool:
 	# Select an archetype frame by name. Empty string (FRAME_NULL) = no hat.
-	# Frames hidden in the current system mode (Spark/Merchant when closed) are refused.
+	# Every frame is always selectable — regime gating lives on the verbs, not the hats.
 	if frame_name == FRAME_NULL:
 		current_frame = frame_name
 		return true
@@ -405,7 +413,7 @@ static func select_frame(frame_name: String) -> bool:
 
 
 static func cycle_frame(delta: int) -> void:
-	# Step through the available frames by ±1, wrapping (skips Spark/Merchant when closed).
+	# Step through the frames by ±1, wrapping.
 	# Used by WASD layer crawl (A/D on frame layer).
 	var ids := available_frame_ids()
 	if ids.is_empty():

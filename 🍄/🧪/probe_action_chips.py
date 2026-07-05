@@ -33,20 +33,23 @@ def main():
     try:
         c.wait_for_ready(proc, timeout_s=150)
         time.sleep(1.2)
-        print("\n=== ACTION-BAR CHIP STATES (closed system) ===")
+        print("\n=== ACTION-BAR CHIP STATES (closed ground) ===")
         key("8"); key("T"); key("G")           # Ace hat, biome T, plot G
         chips(c, nt(), "Ace @ plot G")
-        key("6")                                # try Merchant (should be REFUSED)
-        s = chips(c, nt(), "after press 6 (Merchant disabled)")
-        assert s.get("current_tool") != "merchant", "Merchant was selectable in closed system!"
-        key("4")                                # try Spark (should be REFUSED)
-        s = chips(c, nt(), "after press 4 (Spark disabled)")
+        # Openness is a place: every hat is always selectable. On closed ground
+        # the Lindblad CHIPS grey (ActionValidator per-plot regime), not the hat.
+        key("6")                                # Merchant hat (selectable everywhere)
+        s = chips(c, nt(), "Merchant on closed ground (chips grey, hat live)")
+        assert s.get("current_tool") == "merchant", "Merchant hat should be selectable — verbs gate per-biome now!"
+        key("4")                                # Spark hat (selectable everywhere)
+        s = chips(c, nt(), "Spark on closed ground (jolt chips grey, hat live)")
+        assert s.get("current_tool") == "spark", "Spark hat should be selectable — verbs gate per-biome now!"
         key("5")                                # Icon hat
         chips(c, nt(), "Icon hat")
         key("R")                                # R = Add Icon -> opens injection submenu
         chips(c, nt(), "Icon submenu (inject) — cost-authority path")
         key("ESCAPE", settle=2)
-        print("\n  ✅ no crash through inject-icon path; Merchant/Spark refused")
+        print("\n  ✅ no crash through inject-icon path; hats live, Lindblad chips grey on closed ground")
     finally:
         try: c.run_turn(9999, "stop", timeout_s=8)
         except Exception: pass

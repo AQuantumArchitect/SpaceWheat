@@ -109,6 +109,121 @@ static func apply_rz_gate(farm, positions: Array[Vector2i]) -> Dictionary:
 
 
 ## ============================================================================
+## PLANT — coherent state preparation (Ace R)
+## ============================================================================
+
+## Below this Bloch radius the state is fog — no unitary can help it.
+const PLANT_MIN_BLOCH_R: float = 0.05
+## Within this cosine of the pole the plot counts as already planted.
+const PLANT_ALIGNED_COS: float = 0.999
+
+
+static func apply_plant(farm, positions: Array[Vector2i]) -> Dictionary:
+	# Coherent Rabi pulse toward each plot's north pole (steepest ascent).
+
+	# Reads the register's reduced Bloch vector r from the native packet and
+	# rotates it fully onto the pole axis n̂: U = exp(−iα·u·σ/2) with
+	# u = (r×n̂)/|r×n̂| and α = angle(r, n̂). Unitary — legal in ANY regime,
+	# and purity-preserving BY THEOREM: the pulse aligns the Bloch vector but
+	# cannot lengthen it. p_north caps at (1+|r|)/2 — a fog (r ≈ 0) cannot be
+	# planted. That refusal is the lesson: coherent control moves states, only
+	# dissipation (measurement, the Spark) makes them anew.
+	if not farm or not farm.grid:
+		return {"success": false, "error": "farm_not_ready", "message": "Farm not loaded"}
+	if positions.is_empty():
+		return {"success": false, "error": "no_positions", "message": "No plots selected"}
+
+	var planted := 0
+	var already := 0
+	var fogged := 0
+	var failed := 0
+	var last_p_north := 0.0
+	for pos in positions:
+		var resolved = _resolve_biome_register(farm, pos)
+		var biome = resolved.get("biome", null)
+		var register_id: int = int(resolved.get("register_id", -1))
+		if not biome or not biome.quantum_computer or register_id < 0:
+			failed += 1
+			continue
+		var qc = biome.quantum_computer
+		var packet: PackedFloat64Array = qc.export_bloch_packet() if qc.has_method("export_bloch_packet") else PackedFloat64Array()
+		if packet.size() < (register_id + 1) * 9:
+			failed += 1
+			continue
+		var base := register_id * 9
+		var rx := packet[base + 2]
+		var ry := packet[base + 3]
+		var rz := packet[base + 4]
+		var r_len := packet[base + 5]
+
+		# Target axis: the plot's north pole. Pole 0 = |0⟩ = +z by convention
+		# (bloch packet z = p0 − p1); flip if this plot's north sits on pole 1.
+		var tz := 1.0
+		var plot = farm.grid.get_plot(pos)
+		var north_emoji: String = str(plot.north_emoji) if plot and plot.is_active() and plot.north_emoji else ""
+		if north_emoji != "" and qc.has(north_emoji) and qc.pole(north_emoji) == 1:
+			tz = -1.0
+
+		if r_len < PLANT_MIN_BLOCH_R:
+			fogged += 1
+			continue
+		var cos_a: float = clampf((rz * tz) / r_len, -1.0, 1.0)
+		if cos_a > PLANT_ALIGNED_COS:
+			already += 1
+			continue
+		var alpha: float = acos(cos_a)
+
+		# Rotation axis u = (r × t̂)/|r × t̂| with t̂ = (0,0,tz): u = (ry·tz, −rx·tz, 0).
+		var ux := ry * tz
+		var uy := -rx * tz
+		var u_len: float = sqrt(ux * ux + uy * uy)
+		if u_len < 1e-12:
+			# Anti-parallel to the target (parallel is excluded above): any
+			# equatorial axis completes the swing — use x̂.
+			ux = 1.0
+			uy = 0.0
+			u_len = 1.0
+		ux /= u_len
+		uy /= u_len
+
+		# U = cos(α/2)·I − i·sin(α/2)·(ux·σx + uy·σy)   (u_z = 0 always here)
+		var c := cos(alpha * 0.5)
+		var s := sin(alpha * 0.5)
+		var u_mat = ComplexMatrix.new(2)
+		u_mat.set_element(0, 0, Complex.new(c, 0.0))
+		u_mat.set_element(1, 1, Complex.new(c, 0.0))
+		u_mat.set_element(0, 1, Complex.new(-s * uy, -s * ux))
+		u_mat.set_element(1, 0, Complex.new(s * uy, -s * ux))
+
+		var inject = GateInjector.inject_gate(biome, register_id, u_mat, farm)
+		if inject.get("success", false):
+			planted += 1
+			last_p_north = (1.0 + r_len) * 0.5
+		else:
+			failed += 1
+
+	var result := {
+		"success": planted > 0,
+		"planted_count": planted,
+		"already_aligned": already,
+		"fogged": fogged,
+		"failed": failed,
+		"p_north_reached": last_p_north,
+	}
+	if planted == 0:
+		if fogged > 0:
+			result["error"] = "fogged"
+			result["message"] = "A fog cannot be planted — no coherent pulse purifies r ≈ 0. Measure it, or jolt it with the Spark (wet country)."
+		elif already > 0:
+			result["error"] = "already_planted"
+			result["message"] = "Already planted — the state sits on its north pole."
+		else:
+			result["error"] = "no_valid_plots"
+			result["message"] = "No plot with a live quantum state selected."
+	return result
+
+
+## ============================================================================
 ## TWO-QUBIT GATE OPERATIONS
 ## ============================================================================
 
@@ -474,22 +589,15 @@ static func _apply_two_qubit_gate_batch(farm, positions: Array[Vector2i], gate_n
 	}
 
 
-static func _apply_single_qubit_gate(farm, position: Vector2i, gate_name: String) -> Dictionary:
-	# Apply a single-qubit gate at a position.
+static func _resolve_biome_register(farm, position: Vector2i) -> Dictionary:
+	# Resolve {biome, register_id} for a plot position.
 
 	# Supports both v2 terminal-based and v1 plot-based models.
-	if not farm:
-		return {
-			"success": false,
-			"error": "no_farm",
-			"message": "Farm not loaded"
-		}
-
 	var biome = null
 	var register_id: int = -1
 
 	# Plot delegates to terminal when attached (O(1) vs O(n) pool scan)
-	if farm.grid:
+	if farm and farm.grid:
 		var plot = farm.grid.get_plot(position)
 		if plot and plot.is_active():
 			var biome_name = plot.bound_biome_name
@@ -502,7 +610,7 @@ static func _apply_single_qubit_gate(farm, position: Vector2i, gate_name: String
 
 	# Headless fallback: project register from sorted position slot index
 	# (same logic as LindbladHandler._project_register_for_position)
-	if (not biome or register_id < 0) and farm.grid:
+	if (not biome or register_id < 0) and farm and farm.grid:
 		var biome_name_routing = farm.grid.get_plot_biome_assignment(position)
 		if biome_name_routing != "" and biome == null:
 			biome = farm.grid.get_biome(biome_name_routing)
@@ -518,6 +626,22 @@ static func _apply_single_qubit_gate(farm, position: Vector2i, gate_name: String
 				var num_qubits = int(biome.quantum_computer.register_map.num_qubits)
 				if num_qubits > 0:
 					register_id = posmod(slot_index, num_qubits)
+
+	return {"biome": biome, "register_id": register_id}
+
+
+static func _apply_single_qubit_gate(farm, position: Vector2i, gate_name: String) -> Dictionary:
+	# Apply a single-qubit gate at a position.
+	if not farm:
+		return {
+			"success": false,
+			"error": "no_farm",
+			"message": "Farm not loaded"
+		}
+
+	var resolved = _resolve_biome_register(farm, position)
+	var biome = resolved.get("biome", null)
+	var register_id: int = int(resolved.get("register_id", -1))
 
 	# Validate biome and register
 	if not biome or not biome.quantum_computer or register_id < 0:

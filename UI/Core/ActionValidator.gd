@@ -111,6 +111,8 @@ static func _can_execute_tool_action(
 			return _can_execute_measure(farm, selected_plots)
 		"pop":
 			return _can_execute_pop(farm, selected_plots)
+		"plant":
+			return true  # Coherent Rabi pulse — unitary, legal in any regime
 
 		# ═══════════════════════════════════════════════════════════════
 		# Druid frame — 1-qubit unitary gates
@@ -153,10 +155,25 @@ static func _can_execute_tool_action(
 		"icon_swap", "icon_clear":
 			return true  # Available if plots selected
 
+		# ═══════════════════════════════════════════════════════════════
+		# Spark frame — one-shot Lindblad jolt (wet country) + bridges
+		# ═══════════════════════════════════════════════════════════════
+		"spark_north", "spark_south":
+			return _any_open_plot(farm, selected_plots)
+		"jolt_inspect", "read_price":
+			return true  # Read-only gauges — available wherever a plot is selected
+		"bridge_anchor", "bridge_braid", "bridge_fuse", "bridge_inspect":
+			return true  # Never sealed — the span is the anti-Lindblad artifact
+
+		# ═══════════════════════════════════════════════════════════════
+		# Merchant frame — standing contracts (wet country only)
+		# ═══════════════════════════════════════════════════════════════
 		"drain", "pump":
-			return true  # Available if plots selected
+			return _any_open_plot(farm, selected_plots)
+		"settle":
+			return _any_active_channel(farm, selected_plots)
 		"lindblad_drive", "lindblad_decay":
-			return true  # Available if plots selected
+			return _any_open_plot(farm, selected_plots)
 
 		# ═══════════════════════════════════════════════════════════════
 		# TOOL 4 META / SYSTEM ACTIONS
@@ -293,6 +310,38 @@ static func _can_execute_submenu_action(
 ## ============================================================================
 ## UTILITY VALIDATION HELPERS
 ## ============================================================================
+
+static func _any_open_plot(farm, selected_plots: Array[Vector2i]) -> bool:
+	# Openness is a place: Lindblad verbs are live if ANY selected plot sits
+	# on ground whose regime runs open (QuantumComputer.is_open_here).
+	var grid = farm.get("grid") if farm else null
+	if not grid:
+		return false
+	for pos in selected_plots:
+		var biome = grid.get_biome_for_plot(pos)
+		if biome and biome.quantum_computer and biome.quantum_computer.is_open_here():
+			return true
+	return false
+
+
+static func _any_active_channel(farm, selected_plots: Array[Vector2i]) -> bool:
+	# Settle is live if any selected plot's register carries a standing channel.
+	var grid = farm.get("grid") if farm else null
+	if not grid:
+		return false
+	for pos in selected_plots:
+		var biome = grid.get_biome_for_plot(pos)
+		if not biome or not biome.quantum_computer:
+			continue
+		var qc = biome.quantum_computer
+		if not ("register_infrastructure" in qc):
+			continue
+		for reg_id in qc.register_infrastructure.keys():
+			var infra: Dictionary = qc.register_infrastructure[reg_id]
+			if bool(infra.get("lindblad_pump_active", false)) or bool(infra.get("lindblad_drain_active", false)):
+				return true
+	return false
+
 
 static func has_active_terminal_at(farm, pos: Vector2i) -> bool:
 	# Check if there's an active (bound but not measured) terminal at position.
