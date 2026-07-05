@@ -48,6 +48,7 @@ const EXPORT_DIR = resolve(positional[0] || join(PROJECT_DIR, "releases", "web-l
 const MIN_FPS = parseFloat(flag("--min-fps", "20"));
 const BOOT_TIMEOUT_S = parseFloat(flag("--boot-timeout", "90"));
 const SAMPLE_SECONDS = parseFloat(flag("--sample-seconds", "6"));
+const SETTLE_SECONDS = parseFloat(flag("--settle-seconds", "10"));
 const PING_BUDGET_MS = parseFloat(flag("--ping-budget", "250"));
 const REPORT_PATH = flag("--report", join(EXPORT_DIR, "web-smoke-report.json"));
 const CHROMIUM_PATH = flag("--chromium", process.env.SW_CHROMIUM || "");
@@ -132,6 +133,24 @@ try {
   }
   if (!check("cross_origin_isolated", isolated)) fail("browser did not grant crossOriginIsolated (COOP/COEP)");
   if (!check("canvas_present", canvasUp)) fail(`no live canvas within ${BOOT_TIMEOUT_S}s — engine did not attach`);
+
+  // Record WHAT rendered: an fps number without its renderer is an adjective.
+  // Headless/CI Chromium often falls back to SwiftShader (software GL), which
+  // caps fps far below what the same bundle does on consumer hardware.
+  report.webgl_renderer = await page.evaluate(() => {
+    try {
+      const c = document.createElement("canvas");
+      const gl = c.getContext("webgl2") || c.getContext("webgl");
+      const ext = gl && gl.getExtension("WEBGL_debug_renderer_info");
+      return ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : (gl ? "unknown" : "none");
+    } catch (e) { return `error: ${e}`; }
+  }).catch(() => "unavailable");
+
+  // Settle: the canvas attaches while the boot is still churning (pck load,
+  // biome discovery, first-scene build). The verdict is about STEADY STATE,
+  // so give the boot a fixed grace period before sampling — boot cost is
+  // already bounded separately by --boot-timeout.
+  if (SETTLE_SECONDS > 0) await page.waitForTimeout(SETTLE_SECONDS * 1000);
 
   // Frame + responsiveness sample: rAF counter and a setTimeout ping race,
   // measured together on the real main thread.

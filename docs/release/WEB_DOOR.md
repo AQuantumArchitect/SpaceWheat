@@ -55,10 +55,42 @@ instantiation is slow on first load), `--sample-seconds 6`, `--chromium
    COOP/COEP (enable SharedArrayBuffer support in the project settings);
    self-hosting must send the two headers `serve-web-local.py` sends.
 
+## First real run — 2026-07-05
+
+The lane executed end-to-end against a real export and caught (then fixed)
+three launch bugs no static check had seen:
+
+1. **`#` is not a ConfigFile comment.** `quantum_matrix.gdextension` used `#`
+   comment blocks; ConfigFile glues such lines into the next key, so the first
+   entry of every block was silently mangled — the web entry (a one-line block)
+   vanished entirely and the exporter packed no extension
+   (`gdextensionLibs: []`). Comments are now `;`. Desktop survived only because
+   the mangled `linux.x86_64`/`windows.x86_64` keys had clean `.release.`
+   duplicates.
+2. **Web entries must name the thread variant.** Godot 4.3+ rejects a bare
+   `web.wasm32` key for thread-support exports; the entry is now
+   `web.threads.wasm32` and the lib is compiled `-pthread` to match.
+3. **`src/*/*.cpp` glob** in the WASM build matched nothing and em++ failed on
+   the literal — silently, because the failure wasn't fatal. Now `find(1)` +
+   hard exit.
+
+**Measured verdict (this machine, honest numbers):** boots in real Chromium,
+`crossOriginIsolated` granted, canvas live, native extension loaded, ZERO
+fatal console errors, main thread responsive at steady state (worst overrun
+188ms ≤ 250ms budget). Steady-state fps: **10.4 — on SwiftShader software
+rendering** (`webgl_renderer` is now in the report; this box has no GPU
+passthrough). The fps floor is the one check that cannot be judged without
+hardware GL. The smoke gained `--settle-seconds` (default 10) so the sample
+measures steady state, not boot churn — boot cost stays bounded by
+`--boot-timeout`.
+
 ## What still gates the itch web channel
 
-- [ ] First real smoke run (needs Godot + templates; three commands above)
-- [ ] Published `web-smoke-report.json` numbers from at least one commodity
-      machine — the perf statement
+- [x] First real smoke run (2026-07-05, this machine — see above)
+- [ ] `web-smoke-report.json` numbers from one machine with hardware WebGL —
+      the remaining perf statement (correctness is already green)
 - [ ] The full/gallery decision made from those numbers, per the policy
 - [ ] Feature-completeness statement on the itch page (full vs gallery build)
+- Note: bundle weight is 385MB (`index.pck` 338MB). Loads, but a web-specific
+  asset diet (audio/texture trim) is the first lever if hardware numbers land
+  near the floor.
