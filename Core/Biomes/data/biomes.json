@@ -1498,6 +1498,12 @@
       "cruelty"
     ],
     "atom_components": {
+    "🎭": {
+     "dephasing": 0.03
+    },
+    "💃": {
+     "dephasing": 0.02
+    },
       "⚜": {
         "lindblad_outgoing": {
           "📜": 0.006
@@ -1513,6 +1519,7 @@
         }
       },
       "🍷": {
+    "dephasing": 0.015,
         "decay": {
           "rate": 0.002,
           "target": "🗑"

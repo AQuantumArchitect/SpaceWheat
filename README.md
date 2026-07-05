@@ -17,6 +17,11 @@ world to explore with open and closed dynamics coexisting. The island the player
 on stays closed forever: home is the thing the open world teaches you to miss
 (`docs/CLOSED_SYSTEM.md`, `docs/inspiration/OPEN_SYSTEM_ACT2.md`).
 
+> **Start here if you're deciding whether to care:**
+> [`docs/FARMING_A_DENSITY_MATRIX.md`](docs/FARMING_A_DENSITY_MATRIX.md) —
+> the ten-minute essay on what this project is and why it refuses to fake
+> its physics.
+>
 > **Working physicist, educator, or skeptic?** [`docs/FOR_PHYSICISTS.md`](docs/FOR_PHYSICISTS.md)
 > is the five-minute ledger: every concept the game teaches, what the player
 > does with it, and an honesty grade per claim — exact, faithful, or
@@ -43,9 +48,9 @@ player wears:
 
 | Key | Frame | What it does |
 |-----|-------|-------------|
-| **4** | **Spark** | Lindbladian jolt — *sealed while the enclave holds*; the endgame door opens it. Mode 2 (🌉): Majorana bridges, never sealed. |
+| **4** | **Spark** | One-shot Lindblad jolt — fires only on open (wet) ground; the dissipative kick that can re-purify. Mode 2 (🌉): Majorana bridges, never sealed. |
 | **5** | **Icon** | Inject a dual-emoji qubit from the neighborhood's installed signature. |
-| **6** | **Merchant** | Faction contracts: sell, read price, buy. Price = −kT·log p. |
+| **6** | **Merchant** | Standing contracts with the Bath (wet ground): thermal / dephase / damp channels; export, order book, import, settle. Price = −kT·log p. |
 | **7** | **Captain** | Biome lifecycle: cull, discover. |
 | **8** | **Ace** | The default toolkit — the plant/measure/harvest energy dyad. |
 | **9** | **Operator** | Gate building: Bell, CNOT, CZ, SWAP, GHZ, cluster. |

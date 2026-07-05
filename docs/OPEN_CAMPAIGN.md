@@ -31,11 +31,18 @@
 > coherent Rabi pulse — legal everywhere, unable to purify (the Spark's jolt
 > is the dissipative counterpoint that can). Phase 6 (Majorana) shipped as
 > "What Connects" (`docs/CONNECT_CAMPAIGN.md`).
-> Remaining: Phase 3 (role-separation data reform — biome bots), the dead
-> `gated_lindblad_source` channels (61 authored self-feeding circuits in
-> `biomes.json` that `LindbladBuilder` does not yet read — Chapter III's
-> hysteresis beats need them), `PREVENT_DECOHERENCE` (tracker exists, no
-> generator emits it), and threshold tuning in live play.
+> **Update, same day — the basins woke.** The 61 authored
+> `gated_lindblad_source` circuits now run at runtime: per-tick mean-field
+> Kraus jumps (`Farm._process_gated_channels`, rate ∝ ρ_gate^power, open
+> ground only), with the bistability of the runtime map verified headlessly
+> (`tools/channel_assay.py`). Law #2 is also literal now: biomes author a
+> `dephasing` rate that builds a true L_z operator — GildedRot's masks,
+> dance, and wine carry it, so the gray is pure T₂, not a byproduct.
+> Remaining: Phase 3 (role-separation data reform — biome bots),
+> `PREVENT_DECOHERENCE` (tracker exists, no generator emits it), dephasing
+> and gated-rate tuning in live play, and one design call for the owner:
+> the Village is stamped `regime:"closed"` (inviolable island), so its
+> authored tristability stays dormant unless its regime call changes.
 
 ## The thesis
 

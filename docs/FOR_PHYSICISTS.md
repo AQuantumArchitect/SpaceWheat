@@ -63,10 +63,10 @@ That claim is checkable, and the last section tells you how.
 | Concept | In-game | What the player does | Grade | Where |
 |---|---|---|---|---|
 | GKSL (Lindblad) master equation | the wet country | 64 of 162 biomes author real L (pumps, decays, dephasing, gated channels); the other 98 author none and stay coherent — the world map is a thermodynamic map | **exact** within the model — the dissipator integrates the real GKSL generator | `LindbladBuilder`, `biomes.json` |
-| T₂ dephasing | the gray / fading | Prepares coherence and watches it drain: populations intact, color desaturating, radius shrinking — *nothing moved, and something is gone* | **exact** channel; the two visual channels (purity→radius, coherence→saturation) are direct readbacks | Chapter I arc |
+| T₂ dephasing | the gray / fading | Prepares coherence and watches it drain: populations intact, color desaturating, radius shrinking — *nothing moved, and something is gone* | **exact** channel — biomes author a `dephasing` rate that builds a true L_z operator (GildedRot carries it); verified headlessly | Chapter I arc, `LindbladBuilder`, `tools/channel_assay.py` |
 | T₁ decay | dying toward the sink | Watches population leak to an authored sink | **exact** channel | webway payloads |
 | Quantum Zeno effect | watching keeps | Pins a dying qubit by measuring it, again and again — the player's oldest verb becomes the shield | **exact** mechanism (repeated projective pinning on the live ρ) | Chapter II arc |
-| Steady states, bistability, hysteresis | the basins | Flips a bistable and feels it refuse to flip back; the Village runs hot/cold/quiet tristable; MothGarden's limit cycle cycles; BrittleDawn slows critically | **faithful** — engineered few-qubit Lindbladians whose steady-state structure genuinely has these features | the circuit shelf, `tools/` assays |
+| Steady states, bistability, hysteresis | the basins | Flips a bistable and feels it refuse to flip back; the wilt feeds on wilt in GildedRot; MothGarden's limit cycle cycles; BrittleDawn slows critically | **faithful** — the authored `gated_lindblad_source` circuits run at runtime as mean-field Kraus jumps (rate ∝ ρ_gate^power); the bistability of the *runtime map itself* is verified headlessly (two initial states, two steady states above threshold, one below) | `Farm._process_gated_channels`, `tools/transition_assay.py`, `tools/channel_assay.py` |
 | EIT dark states | shelter built from phase | Engineers a superposition that destructive interference hides from the drive — the Bath cannot eat what does not couple to it | **faithful** — real dark-state interference in a reduced model | NullingChamber |
 | Thermodynamics of erasure | the rite: reap pays kT·ΔS | A season's accumulated dissipation is paid out from the entropy bank, in the same units the physics uses | **faithful** bookkeeping — Landauer said out loud, at game scale | `_open_reap_rewards` |
 | Coherent state preparation (Rabi control) | Ace R — Plant | A steepest-ascent pulse U = exp(−iα·u·σ/2), u = (r×n̂)/\|r×n̂\|, computed per plot from the reduced Bloch vector — swings the state onto its pole | **exact** unitary; the cap is the theorem: p_north ≤ (1+\|r\|)/2, so *a fog cannot be planted* — purity only comes back dissipatively | `GateActionHandler.apply_plant` |
@@ -136,7 +136,13 @@ Nothing above needs to be taken on faith:
    roll, and check the numbers yourself. Reels (`Rig/reels/`) are worked
    examples.
 3. **The assays** — standalone Python ports validating the authored physics
-   (`tools/ssh_assay.py` and friends) with no engine in the loop.
+   with no engine in the loop: `tools/ssh_assay.py`, `zeno_assay.py`,
+   `eit_assay.py`, `gain_assay.py`, `clock_assay.py`, `transition_assay.py`,
+   and — porting the *runtime's own maps* rather than the authored specs —
+   `plant_assay.py` (the Rabi preparation: unitarity, alignment, the fog-cap
+   theorem) and `channel_assay.py` (dephasing, the thermal pair's fixed
+   points, the cross-qubit jump Kraus, and gated self-kindling bistability).
+   Each exits nonzero if any claim fails.
 4. **The atlas** — `tools/atlas_plates.py` re-derives the world's thermodynamic
    geography (64 wet / 98 dry) from the same data the engine boots from.
 5. **Postcards** — every F12 capture carries a sidecar certificate (purity, MI,

@@ -1391,8 +1391,62 @@ func apply_drive(target_emoji: String, rate: float, dt: float) -> void:
 	_apply_lindblad_1q(q, source_pole, target_pole, rate, dt)
 
 
-func _apply_lindblad_1q(qubit_index: int, from_pole: int, to_pole: int,
+func apply_jump_channel(from_q: int, from_p: int, to_q: int, to_p: int,
                         gamma: float, dt: float) -> void:
+	# Exact Kraus map for one LindbladBuilder-shaped jump, any qubit pair.
+
+	# The builder's jump operators are partial isometries V (V†V = P, the
+	# projector onto matched source states), so the amplitude-damping Kraus
+	# construction generalizes exactly:
+	#   p  = 1 − exp(−γ·dt)
+	#   K₀ = (I−P) + √(1−p)·P          (no-jump)
+	#   K₁ = √p·V                       (jump)
+	# CPTP by construction for arbitrary dt — same guarantees as
+	# _apply_lindblad_1q, which handles the same-qubit case (pole flip).
+	# Cross-qubit: matched states have bit(from_q)==from_p AND bit(to_q)!=to_p
+	# (room to transfer); V flips both bits. Used by the per-tick gated-channel
+	# pass (mean-field rates) — no sink flux: recirculation, not extraction.
+	if from_q == to_q:
+		if from_p == to_p:
+			return
+		_apply_lindblad_1q(from_q, from_p, to_p, gamma, dt, false)
+		return
+	if density_matrix == null:
+		return
+
+	var num_qubits = register_map.num_qubits
+	if from_q < 0 or from_q >= num_qubits or to_q < 0 or to_q >= num_qubits:
+		return
+	var dim = register_map.dim()
+	var shift_from = num_qubits - 1 - from_q
+	var shift_to = num_qubits - 1 - to_q
+	var flip_mask = (1 << shift_from) | (1 << shift_to)
+
+	var p = clampf(1.0 - exp(-maxf(0.0, gamma) * maxf(0.0, dt)), 0.0, 1.0)
+	if p <= 0.0:
+		return
+	var sqrt_1mp = sqrt(1.0 - p)
+
+	var rho_new = ComplexMatrix.zeros(dim)
+	for i in range(dim):
+		var i_member = ((i >> shift_from) & 1) == from_p and ((i >> shift_to) & 1) != to_p
+		var i_image = ((i >> shift_from) & 1) != from_p and ((i >> shift_to) & 1) == to_p
+		for j in range(dim):
+			var j_member = ((j >> shift_from) & 1) == from_p and ((j >> shift_to) & 1) != to_p
+			var k0_i = sqrt_1mp if i_member else 1.0
+			var k0_j = sqrt_1mp if j_member else 1.0
+			var term0 = density_matrix.get_element(i, j).scale(k0_i * k0_j)
+			var term1 = Complex.zero()
+			if i_image and (((j >> shift_from) & 1) != from_p and ((j >> shift_to) & 1) == to_p):
+				term1 = density_matrix.get_element(i ^ flip_mask, j ^ flip_mask).scale(p)
+			rho_new.set_element(i, j, term0.add(term1))
+
+	density_matrix = rho_new
+	_purity_cache = -1.0
+
+
+func _apply_lindblad_1q(qubit_index: int, from_pole: int, to_pole: int,
+                        gamma: float, dt: float, track_flux: bool = true) -> void:
 	# Apply single-qubit amplitude damping channel (exact Kraus map).
 
 	# Implements the CPTP map:
@@ -1452,7 +1506,9 @@ func _apply_lindblad_1q(qubit_index: int, from_pole: int, to_pole: int,
 	# Only invalidate purity cache.
 	_purity_cache = -1.0
 
-	if source_emoji != "":
+	# track_flux=false for ambient recirculation (gated channels): the flux
+	# ledger meters extraction, not the webway's own churn.
+	if track_flux and source_emoji != "":
 		var after_source_pop = get_marginal(qubit_index, from_pole)
 		var drained = max(0.0, before_source_pop - after_source_pop)
 		if drained > 0.0:

@@ -8,7 +8,7 @@
 
 ## 🎮 About SpaceWheat
 
-SpaceWheat is a quantum farming simulation built on a real density-matrix engine. You farm the enclave — a closed quantum world where evolution is exactly unitary, nothing decays, and your measurements are the only irreversible acts. Superpose, entangle, and collapse your way across biomes; every harvest is a Born sample paid in surprisal. (Decoherence and the open-systems world arrive with the expansion.)
+SpaceWheat is a quantum farming simulation built on a real density-matrix engine. You start in the enclave — a closed quantum world where evolution is exactly unitary, nothing decays, and your measurements are the only irreversible acts. Superpose, entangle, and collapse your way across biomes; every harvest is a Born sample paid in surprisal. Past the story's edge lies the wet country: open quantum systems where the world itself leaks, watching is the only way to keep, and the reap pays kT·ΔS from the season's entropy.
 
 ---
 

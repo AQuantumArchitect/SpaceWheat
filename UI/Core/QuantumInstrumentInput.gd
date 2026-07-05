@@ -1538,6 +1538,13 @@ func _log_action_result(action_name: String, log_symbol: String, action_label: S
 			_verbose.info("input", "•", "%s blocked: %s" % [label, message])
 		else:
 			_verbose.warn("input", "✗", "%s failed: %s" % [label, message])
+		# A refused verb must SAY so — silence reads as a broken key. Every
+		# handler ships an honest reason ("the enclave holds…", "need the
+		# north-pole emoji…"); surface it as a toast, not just a dev log.
+		if message != "" and message != "unknown":
+			var shell := _resolve_player_shell()
+			if shell != null and shell.has_method("show_hint"):
+				shell.show_hint("[color=#8899aa]•[/color] %s" % message)
 	action_performed.emit(action_name, result)
 
 
