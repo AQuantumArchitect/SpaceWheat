@@ -474,7 +474,11 @@ func action_measure(grid_pos: Vector2i) -> Dictionary:
 	if not terminal:
 		return {"success": false, "error": "no_terminal", "message": "No terminal at selection", "blocked": true}
 	if not terminal.can_measure():
-		return {"success": false, "error": "cannot_measure", "message": "Terminal not ready to measure", "blocked": true}
+		# Say WHY: the two not-ready states need opposite advice, and the
+		# generic line was shadowing ProbeActions' specific toasts forever.
+		if terminal.is_measured:
+			return {"success": false, "error": "already_measured", "message": "Already measured — Q harvests it.", "blocked": true}
+		return {"success": false, "error": "not_bound", "message": "Nothing to measure — select a plot first (G H J K L ;).", "blocked": true}
 
 	var biome_name = terminal.bound_biome_name
 	if biome_name == "":
