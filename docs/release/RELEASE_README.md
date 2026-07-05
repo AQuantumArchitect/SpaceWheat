@@ -211,6 +211,13 @@ All rights reserved. Contact for licensing inquiries.
 
 ## ✅ Pre-release checklist
 
+> **Status 2026-07-05 (v1.0-rc1 packaged):** items 1–3 green — Linux export
+> boots with native acceleration and zero script errors; Windows package
+> validated (routine on-Windows boot smoke still worth a human pass); both
+> assays "ALL CLAIMS HOLD". Item 4 correctly holds the web channel: the smoke
+> HAS run (correctness green, extension live) but the fps floor needs one
+> hardware-GL machine. Artifacts: `releases/packages/spacewheat-{linux,windows}-v1.0-rc1.*`.
+
 Before any itch.io push (`scripts/itch-push.sh`):
 
 1. Linux export builds and boots (`scripts/build-linux-release.sh`).
