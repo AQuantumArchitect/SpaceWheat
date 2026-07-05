@@ -590,10 +590,35 @@ class RigClient:
 
     @staticmethod
     def terminate_listener(proc: Optional[subprocess.Popen], timeout_s: float = 5.0) -> None:
-        if proc is None or proc.poll() is not None:
-            return
-        proc.terminate()
+        if proc is not None and proc.poll() is None:
+            proc.terminate()
+            try:
+                proc.wait(timeout=timeout_s)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+        # Reap orphans: the launcher shell historically spawned godot as a child,
+        # so terminating the shell left the listener running FOREVER (full physics,
+        # 10Hz queue polling — leaked pytest listeners once saturated the disk until
+        # a reboot). 🟢.sh now execs godot, but sweep defensively: a rig listener
+        # whose XDG_DATA_HOME sandbox no longer exists is unreachable garbage
+        # (tests rmtree their sandboxes), as is one reparented to init/subreaper
+        # (on WSL orphans land on the session leader, not PID 1 — check both).
         try:
-            proc.wait(timeout=timeout_s)
-        except subprocess.TimeoutExpired:
-            proc.kill()
+            out = subprocess.run(
+                ["pgrep", "-f", "rig_listener.gd"],
+                capture_output=True, text=True, timeout=5.0,
+            ).stdout.split()
+            for pid in out:
+                try:
+                    xdg = ""
+                    with open(f"/proc/{pid}/environ", "rb") as f:
+                        for kv in f.read().split(b"\0"):
+                            if kv.startswith(b"XDG_DATA_HOME="):
+                                xdg = kv.split(b"=", 1)[1].decode(errors="replace")
+                                break
+                    if xdg and not os.path.isdir(xdg):
+                        os.kill(int(pid), signal.SIGKILL)
+                except (OSError, ValueError, IndexError):
+                    continue
+        except Exception:
+            pass

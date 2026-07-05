@@ -239,9 +239,20 @@ sw_godot() {
     fi
   done
 
+  # SW_GODOT_EXEC=1: replace the shell with godot instead of spawning a child.
+  # Launchers whose last act is running godot (🟢.sh) set this so that killing
+  # the launcher kills godot — a terminated shell otherwise ORPHANS its godot
+  # child, and orphaned rig listeners run full physics forever (real incident:
+  # leaked pytest listeners saturating the disk until reboot).
   if [ "${has_audio_arg}" -eq 0 ]; then
+    if [ "${SW_GODOT_EXEC:-0}" = "1" ]; then
+      exec "$(sw_godot_bin)" --audio-driver "${SW_GODOT_AUDIO_DRIVER:-Dummy}" "${args[@]}"
+    fi
     command "$(sw_godot_bin)" --audio-driver "${SW_GODOT_AUDIO_DRIVER:-Dummy}" "${args[@]}"
   else
+    if [ "${SW_GODOT_EXEC:-0}" = "1" ]; then
+      exec "$(sw_godot_bin)" "${args[@]}"
+    fi
     command "$(sw_godot_bin)" "${args[@]}"
   fi
 }

@@ -47,6 +47,10 @@ if [ -n "$RIG_RENDERING_DRIVER" ]; then
   echo "Rendering driver: $RIG_RENDERING_DRIVER"
 fi
 
+# The listener is this script's last act — exec it so terminating the launcher
+# terminates godot too (no orphaned listeners; see sw_godot / SW_GODOT_EXEC).
+export SW_GODOT_EXEC=1
+
 if [ "$RIG_DISPLAY_MODE" = "headed" ]; then
   if [ -n "$RIG_RENDERING_DRIVER" ]; then
     sw_godot --rendering-driver "$RIG_RENDERING_DRIVER" --path . --script 🍄/🎛️/rig_listener.gd
