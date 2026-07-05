@@ -335,7 +335,7 @@ def main():
             if is_mill_known():
                 break
             press(vk)
-            press("C"); press("I", 4)              # ARC tab
+            press("X"); press("I", 4)              # ARC tab (menu re-org: Arc lives on X, not C)
             for _ in range(4):
                 press("G", 3); press("R", 4)       # accept, re-selecting index 0
             press("ESCAPE", 3)
