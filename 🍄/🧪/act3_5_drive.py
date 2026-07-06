@@ -155,6 +155,30 @@ def main():
         for pk in plots:  # Icon R = incorporate_icon when ripe
             press(pk, 3); press("R", 4)
 
+    def farm_berries(target_biome, want, fid, rounds=12):
+        # ONE SITE PER ROUND: rigid-H biomes (the SSH chain, the empire monolith)
+        # are near-stationary when every site is excited at once — the joint state
+        # parks in an eigenstate and nothing ripens. A single excitation always
+        # beats against its pinned neighbours. (Measured on Lanternfall: -77 rad
+        # per 1800 phrames single-site vs flat 0.0 all-sites.)
+        goto_biome(target_biome)
+        n = len(qstate(target_biome)) or 1
+        for rnd in range(1, rounds + 1):
+            idx = (rnd - 1) % min(n, len(PLOT))
+            pk = PLOT[idx]
+            ensure_hat("0"); press(pk, 3); press("E", 3)
+            ensure_hat("5"); press(pk, 3)
+            trk = [bool(q.get("tracked")) for q in qstate(target_biome)]
+            if idx >= len(trk) or not trk[idx]:
+                press("F", 3)
+            go("time_skip", phrames=900)
+            press(pk, 3); press("R", 4)
+            b = berry(target_biome)
+            print(f"  [{target_biome} {rnd}] berry={b} | {fprog(fid)}")
+            if isinstance(b, int) and b >= want and fid in flags():
+                return True
+        return fid in flags()
+
     def harvest():
         ensure_hat("0")
         for pk in PLOT:
@@ -608,14 +632,7 @@ def main():
                 ensure_hat("7"); press("R", 6)  # discover (BloodLedger pressured)
                 print(f"  discover BL #{d}: grid={grid()} 🦅={res().get('🦅', 0)}")
             if "BloodLedger" in grid():
-                blk = biome_key("BloodLedger")
-                press(blk)
-                for rnd in range(1, 8):
-                    incorporate(ripen=900, bn="BloodLedger")
-                    b = berry("BloodLedger")
-                    print(f"  [bl {rnd}] BloodLedger berry={b} | {fprog('ledger_opens')}")
-                    if isinstance(b, int) and b >= 2 and "ledger_opens" in flags():
-                        break
+                farm_berries("BloodLedger", 2, "ledger_opens", rounds=12)
 
             # ============ ACT 6: rigid empire vs plural island — the closed-native ending ====
             # The physics: a concentrated biome (the empire) has a WIDE H-gap (one dominant mode
@@ -698,29 +715,7 @@ def main():
                 return target in grid()
 
             def berries_to(target_biome, want, fid):
-                # ONE PLOT PER ROUND. Exciting every site at once can park the joint
-                # state in an eigenstate of the coupled chain (Lanternfall, the SSH
-                # teaching biome, does exactly this: all-Hadamard = stationary = zero
-                # solid angle = berries never ripen). A single excitation always beats
-                # against its pinned neighbours — measured -77 rad/1800 phrames vs a
-                # flat 0.0 for the all-plots pattern.
-                goto_biome(target_biome)
-                n = len(qstate(target_biome)) or 1
-                for rnd in range(1, 10):
-                    pk = PLOT[(rnd - 1) % min(n, len(PLOT))]
-                    ensure_hat("0"); press(pk, 3); press("E", 3)   # Hadamard one site
-                    ensure_hat("5"); press(pk, 3)
-                    trk = [bool(q.get("tracked")) for q in qstate(target_biome)]
-                    idx = (rnd - 1) % min(n, len(PLOT))
-                    if idx >= len(trk) or not trk[idx]:
-                        press("F", 3)                              # track it
-                    go("time_skip", phrames=900)
-                    press(pk, 3); press("R", 4)                    # incorporate when ripe
-                    b = berry(target_biome)
-                    print(f"  [{target_biome} {rnd}] berry={b} | {fprog(fid)}")
-                    if isinstance(b, int) and b >= want and fid in flags():
-                        return True
-                return fid in flags()
+                return farm_berries(target_biome, want, fid, rounds=9)
 
             # chain_ends (act-3 trilogy prerequisite for the_chain_tested)
             if discover_target("Lanternfall"):
