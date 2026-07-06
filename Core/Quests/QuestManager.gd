@@ -591,6 +591,13 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 			var trend: float = biome.predict_purity(steps) - biome.get_purity()
 			return QuestMath.soft_gate(trend, 0.01, 0.02)
 		_:
+			# Not every flag-vocabulary type has an arm here: gate_sequence_contains /
+			# gate_order (and future observable/history types) are OWNED by the
+			# state-projection service. Returning 0.0 silently zeroed them — a flag
+			# gating on "a spark in the gate sequence" could never fire even though
+			# the history recorded it. Delegate; the service's own default is 0.0.
+			if _state_projection:
+				return _state_projection.evaluate_predicate(pred)
 			return 0.0
 
 

@@ -1366,6 +1366,7 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 					trace[fid] = row
 				result["trace"] = trace
 				result["pressured"] = BiomeDiscoveryForecastService._biomes_under_pressure(_farm)
+				result["projection"] = pdq.get_state_projection_snapshot() if pdq.has_method("get_state_projection_snapshot") else {}
 
 		"discovery_forecast":
 			if _farm and _farm.has_method("compute_discovery_forecast"):
