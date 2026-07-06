@@ -65,25 +65,6 @@ var lindblad_operators: Array = []            # Array of L_k matrices (ComplexMa
 ## no operator cache; the builders are the single authority for derived physics.
 var physics_signature: String = ""
 
-## CACHED Lindblad pre-computations (rebuilt when operators change)
-## L_dag[k] = L_k†,  Ldag_L[k] = L_k† L_k — saves 2 matmuls per operator per substep
-var _lindblad_L_dag: Array = []              # Array of L_k† (ComplexMatrix)
-var _lindblad_Ldag_L: Array = []             # Array of L_k† L_k (ComplexMatrix)
-var _lindblad_cache_valid: bool = false
-
-## SPARSE optimized operators (10-50x faster for sparse Hamiltonians/Lindblad)
-var sparse_hamiltonian = null                 # SparseMatrix (auto-converted if sparse)
-var sparse_lindblad_operators: Array = []     # Array of SparseMatrix (auto-converted)
-
-## CLOSED-SYSTEM unitary propagator cache. In the closed (unitary) system, evolution is
-## the EXACT map ρ → U ρ U† with U = exp(−iH·dt) — purity-conserving to machine precision
-## (no Euler drift). U depends only on (H, dt); it is rebuilt when H is reassigned (ref
-## changes), mutated in place (_unitary_dirty), or dt changes. Static-H biomes reuse one U.
-var _unitary_cache = null                     # ComplexMatrix U = exp(−iH·dt)
-var _unitary_cache_dt: float = -1.0
-var _unitary_cache_h = null                   # the hamiltonian instance U was built from
-var _unitary_dirty: bool = false              # set when H is mutated in place
-
 ## CACHED MUTUAL INFORMATION (computed in C++ during evolution at 5Hz)
 ## Format: {qubit_pair_index: mi_value} where index = i * num_qubits + j (upper triangular)
 ## Access via get_cached_mutual_information(qubit_a, qubit_b)
@@ -117,23 +98,9 @@ var _catastrophic_recovery_count: int = 0
 ## Tracks elapsed time to apply time-dependent drivers (e.g., sun oscillation)
 var elapsed_time: float = 0.0  # Total time elapsed since biome initialization
 
-## PHASE MODULATION VIA LEARNED NEURAL NETWORK (Phasic Shadow)
-## Flip ENABLE_PHASE_LNN to true and assign a native LNN binding to phase_lnn
-## to activate phasic perturbation during evolution. Useful for nudging biomes
-## out of stuck attractors or testing sensitivity. C++ implementation lives in
-## native/src/liquid_neural_net.cpp (see docs/performance/NATIVE_LNN_IMPLEMENTATION.md).
-const ENABLE_PHASE_LNN: bool = false
-var phase_lnn = null  # Assign a native LiquidNeuralNetNative instance to activate
-
 # Performance: Purity cache (invalidated on density matrix changes)
 var _purity_cache: float = -1.0
-var _sparse_evolution_enabled_cached: int = -1  # -1 unknown, 0 false, 1 true
 
-
-func _sparse_evolution_enabled() -> bool:
-	if _sparse_evolution_enabled_cached < 0:
-		_sparse_evolution_enabled_cached = 1 if RuntimeEnv.sparse_evolve() else 0
-	return _sparse_evolution_enabled_cached == 1
 
 func _init(name: String = ""):
 	biome_name = name
@@ -147,11 +114,6 @@ func clear() -> void:
 	density_matrix = null
 	hamiltonian = null
 	lindblad_operators.clear()
-	_lindblad_L_dag.clear()
-	_lindblad_Ldag_L.clear()
-	_lindblad_cache_valid = false
-	sparse_hamiltonian = null
-	sparse_lindblad_operators.clear()
 	driven_icons.clear()
 	entanglement_graph.clear()
 	register_infrastructure.clear()
@@ -159,7 +121,6 @@ func clear() -> void:
 		berry_register.clear()
 	sink_flux_per_emoji.clear()
 	_cached_mi_values = PackedFloat64Array()
-	phase_lnn = null
 	_purity_cache = -1.0
 
 
@@ -1733,305 +1694,13 @@ func _recover_to_steady_state() -> void:
 	_purity_cache = -1.0
 
 
-func _apply_phase_lnn(lnn: Object) -> void:
-	# Apply learned phase modulation from neural network to density matrix diagonal.
-
-	# The LNN operates in the phasic shadow - it learns to modulate the phases of
-	# the diagonal density matrix elements. This creates an undercurrent of learned
-	# intelligence that shapes quantum evolution.
-
-	# Args:
-	# lnn: LiquidNeuralNetNative instance with forward(phases: PackedFloat64Array) method
-	# Gated by ENABLE_PHASE_LNN const above and phase_lnn assignment
-	if density_matrix == null or not lnn:
-		return
-
-	var dim = register_map.dim()
-	if dim == 0:
-		return
-
-	# Extract current phases from density matrix diagonal
-	var phases = PackedFloat64Array()
-	phases.resize(dim)
-
-	for i in range(dim):
-		var diag_elem = density_matrix.get_element(i, i)
-		var phase = atan2(diag_elem.im, diag_elem.re)
-		phases[i] = phase
-
-	# Run LNN forward pass to get learned phase modulations
-	var modulated_phases = lnn.forward(phases)
-	if modulated_phases.is_empty():
-		return
-
-	# Apply phase shifts to density matrix diagonal (packed path)
-	var p = density_matrix._to_packed()
-	for i in range(dim):
-		var idx = (i * dim + i) * 2
-		var old_re = p[idx]
-		var old_im = p[idx + 1]
-		var magnitude = sqrt(old_re * old_re + old_im * old_im)
-
-		# Phase shift from LNN
-		var new_phase = modulated_phases[i]
-		p[idx] = magnitude * cos(new_phase)
-		p[idx + 1] = magnitude * sin(new_phase)
-
-	density_matrix._packed_cache = p
-
-	# Invalidate caches since we modified the state
-	_purity_cache = -1.0
-
-
-# ============================================================================
-# MODEL C: FULL LINDBLAD EVOLUTION
-# ============================================================================
-
-func evolve(dt: float, max_dt: float = 0.02, lnn: Object = null) -> void:
-	var t0 = Time.get_ticks_usec()
-	# Evolve density matrix under Lindblad master equation + optional phase modulation.
-
-	# Implements: dρ/dt = -i[H,ρ] + Σ_k (L_k ρ L_k† - ½{L_k†L_k, ρ})
-	# + phase modulation via learned neural network (if lnn provided)
-
-	# Uses first-order Euler integration: ρ(t+dt) = ρ(t) + dt * dρ/dt
-
-	# Args:
-	# dt: Total simulated time this call advances (game seconds)
-	# max_dt: Integrator substep ceiling — dt is subcycled into steps of at most
-	#         max_dt (driven-H closed path and the Euler path both honor it)
-	# lnn: Optional LiquidNeuralNet for phase modulation in phasic shadow
-	# If provided, applies learned phase shifts to density matrix diagonal
-
-	# Requires:
-	# - density_matrix initialized (via initialize_basis or allocate_axis)
-	# - hamiltonian set (via HamiltonianBuilder.build_from_icons)
-	# - lindblad_operators set (via LindbladBuilder.build_from_atoms)
-	if density_matrix == null:
-		return  # Not initialized yet
-
-	var dim = register_map.dim()
-	if dim == 0:
-		return
-
-	# Use provided lnn or fall back to instance variable (only if master switch is on)
-	if lnn == null and ENABLE_PHASE_LNN:
-		lnn = phase_lnn
-
-	# UPDATE TIME-DEPENDENT DRIVERS (e.g., sun/moon 20-second oscillation)
-	# This modifies Hamiltonian diagonal terms for icons with active drivers.
-	# dt controls total simulated time. max_dt controls integrator granularity.
-	var total_dt = maxf(0.0, dt)
-	if total_dt <= 0.0:
-		return
-
-	# COHERENT KERNEL — closed (unitary) system: evolve by the EXACT propagator
-	# ρ → U ρ U†, U = exp(−iH·dt). Each step is a unitary similarity, so Tr(ρ²) and Tr(ρ)
-	# are conserved to machine precision — r = 1 holds exactly, with no Euler drift, no
-	# dissipator branch, and no renormalize-as-crutch. (Phase-LNN modulation, if ever
-	# enabled, falls through to the legacy integrator below.)
-	if is_closed_here() and lnn == null and hamiltonian != null:
-		if driven_icons.is_empty():
-			# Static H: one exact step over the whole interval (U cached + reused).
-			elapsed_time += total_dt
-			_evolve_unitary(total_dt)
-		else:
-			# Time-dependent H (sun/moon drivers): subcycle and rebuild U from the
-			# instantaneous H each substep. Still exactly unitary per substep ⇒ purity exact.
-			var sub_dt = maxf(0.000001, max_dt if max_dt > 0.0 else total_dt)
-			var n_sub = maxi(1, int(ceili(total_dt / sub_dt)))
-			var dt_each = total_dt / float(n_sub)
-			for _i in range(n_sub):
-				elapsed_time += dt_each
-				update_driven_self_energies(elapsed_time)  # mutates H in place
-				_unitary_dirty = true                       # H changed ⇒ rebuild U
-				_evolve_unitary(dt_each)
-		_purity_cache = -1.0
-		return
-
-	var substep_max_dt = maxf(0.000001, max_dt if max_dt > 0.0 else total_dt)
-	var substeps = maxi(1, int(ceili(total_dt / substep_max_dt)))
-	var step_dt = total_dt / float(substeps)
-
-	# ==========================================================================
-	# EVOLUTION PATH: subcycled Euler integration with optional phase modulation
-	# ==========================================================================
-	for _i in range(substeps):
-		elapsed_time += step_dt
-		if not driven_icons.is_empty():
-			update_driven_self_energies(elapsed_time)
-		_evolve_step(step_dt)
-		if lnn:
-			_apply_phase_lnn(lnn)
-
-	# Evolution mutated ρ — invalidate the purity cache (gates/drain already do
-	# this, but the evolution loop did not, so get_purity()/get_entropy() were
-	# returning the stale init value while marginals evolved live).
-	_purity_cache = -1.0
-
-	var t1 = Time.get_ticks_usec()
-	if Engine.get_process_frames() % 60 == 0:
-		_log("trace", "quantum", "⏱️", "QC Evolve Trace (substeps=%d, dt=%.4f, max_dt=%.4f): Total %d us" % [
-			substeps, total_dt, substep_max_dt, t1 - t0
-		])
-
-
-## Exact unitary evolution: ρ ← U ρ U†, U = exp(−iH·dt). The closed-system kernel.
-## Unitary similarity preserves Tr(ρ²) and Tr(ρ) exactly, so a pure state stays pure
-## (r = 1) for all time — no integrator drift. Used only by the closed-mode fast path
-## in evolve() (static H, no LNN).
-func _evolve_unitary(dt: float) -> void:
-	var U = _unitary_for(dt)
-	if U == null:
-		return
-	density_matrix = U.mul(density_matrix).mul(U.dagger())
-
-
-## Build (or reuse) the propagator U = exp(−iH·dt). Cached per (H instance, dt): rebuilt
-## when H is reassigned (ref changes), mutated in place (_unitary_dirty), or dt changes.
-func _unitary_for(dt: float):
-	if hamiltonian == null:
-		return null
-	if (not _unitary_dirty) and _unitary_cache != null and _unitary_cache_h == hamiltonian \
-			and absf(_unitary_cache_dt - dt) < 1e-12:
-		return _unitary_cache
-	# U = exp(−i·dt·H). H is Hermitian ⇒ −i·dt·H is anti-Hermitian ⇒ U is unitary.
-	_unitary_cache = hamiltonian.scale(Complex.new(0.0, -dt)).expm()
-	_unitary_cache_h = hamiltonian
-	_unitary_cache_dt = dt
-	_unitary_dirty = false
-	return _unitary_cache
-
-
-func _evolve_step(dt: float) -> void:
-	# Single Euler integration step (internal).
-	var dim = register_map.dim()
-	var use_sparse_evolution = _sparse_evolution_enabled()
-
-	# Lazy-build Lindblad cache if operators were set directly (not via set_lindblad_operators)
-	if not _lindblad_cache_valid and lindblad_operators.size() > 0:
-		_rebuild_lindblad_cache()
-	if dim <= 0 or density_matrix == null or int(density_matrix.n) != dim:
-		_log("error", "quantum", "🛑", "Skipping evolve: invalid density matrix shape (dim=%d, rho=%s)" % [
-			dim, str(density_matrix.n if density_matrix else -1)
-		])
-		return
-
-	# Defensive shape sanitization before any native matrix products.
-	if hamiltonian != null and int(hamiltonian.n) != dim:
-		_log("warn", "quantum", "🧯", "Hamiltonian shape mismatch (H=%d dim=%d) - disabling Hamiltonian term this step" % [
-			int(hamiltonian.n), dim
-		])
-		hamiltonian = null
-		sparse_hamiltonian = null
-	if sparse_hamiltonian != null and int(sparse_hamiltonian.n) != dim:
-		_log("warn", "quantum", "🧯", "Sparse Hamiltonian shape mismatch (Hs=%d dim=%d) - falling back to dense/null" % [
-			int(sparse_hamiltonian.n), dim
-		])
-		sparse_hamiltonian = null
-
-	if lindblad_operators.size() > 0:
-		var valid_lindblad: Array = []
-		for L in lindblad_operators:
-			if L == null:
-				continue
-			if int(L.n) == dim:
-				valid_lindblad.append(L)
-			else:
-				_log("warn", "quantum", "🧯", "Dropping Lindblad op with shape %d (expected %d)" % [int(L.n), dim])
-		if valid_lindblad.size() != lindblad_operators.size():
-			lindblad_operators = valid_lindblad
-			_lindblad_cache_valid = false  # Operators changed, rebuild cache next step
-
-	if sparse_lindblad_operators.size() > 0:
-		var valid_sparse_lindblad: Array = []
-		for Ls in sparse_lindblad_operators:
-			if Ls == null:
-				continue
-			if int(Ls.n) == dim:
-				valid_sparse_lindblad.append(Ls)
-			else:
-				_log("warn", "quantum", "🧯", "Dropping sparse Lindblad op with shape %d (expected %d)" % [int(Ls.n), dim])
-		if valid_sparse_lindblad.size() != sparse_lindblad_operators.size():
-			sparse_lindblad_operators = valid_sparse_lindblad
-
-	# Accumulate dρ/dt
-	var drho = ComplexMatrix.zeros(dim)
-
-	# -------------------------------------------------------------------------
-	# Term 1: Hamiltonian evolution -i[H, ρ]  (coherent generator)
-	# Gated by the coherent switch so pure-Lindbladian mode (H off, L on) runs the
-	# dissipator alone. (Pure-coherent never reaches here — it takes the exact unitary
-	# fast-path in evolve(). This Euler path serves full-open, pure-dissipative, driven,
-	# and phase-LNN cases.)
-	# -------------------------------------------------------------------------
-	if BalanceConfig.coherent_enabled():
-		if use_sparse_evolution and sparse_hamiltonian != null:
-			# SPARSE path: 10-50x faster commutator
-			var comm = sparse_hamiltonian.commutator_with_dense(density_matrix)
-			drho = drho.add(comm.scale_neg_i())
-		elif hamiltonian != null:
-			# Dense packed path: fused commutator + scale by -i
-			var comm = hamiltonian.commutator(density_matrix)
-			drho = drho.add(comm.scale_neg_i())
-
-	# -------------------------------------------------------------------------
-	# Term 2: Lindblad dissipation Σ_k (L_k ρ L_k† - ½{L_k†L_k, ρ})
-	# -------------------------------------------------------------------------
-	# SPARSE path: use optimized native lindblad_dissipator()
-	if use_sparse_evolution and sparse_lindblad_operators.size() > 0:
-		for L_sparse in sparse_lindblad_operators:
-			if L_sparse == null:
-				continue
-			# Single native call computes entire dissipator: L ρ L† - ½{L†L, ρ}
-			var dissipator = L_sparse.lindblad_dissipator(density_matrix)
-			drho = drho.add(dissipator)
-	else:
-		# Dense path — uses cached L† and L†L when available
-		for idx in range(lindblad_operators.size()):
-			var L = lindblad_operators[idx]
-			if L == null:
-				continue
-
-			var L_dag: ComplexMatrix
-			var Ldag_L: ComplexMatrix
-			if _lindblad_cache_valid and idx < _lindblad_L_dag.size() and _lindblad_L_dag[idx] != null:
-				L_dag = _lindblad_L_dag[idx]
-				Ldag_L = _lindblad_Ldag_L[idx]
-			else:
-				L_dag = L.dagger()
-				Ldag_L = L_dag.mul(L)
-
-			# L ρ L†
-			var L_rho = L.mul(density_matrix)
-			var L_rho_Ldag = L_rho.mul(L_dag)
-
-			# {L†L, ρ}/2 = (L†L ρ + ρ L†L)/2
-			var anticomm = Ldag_L.anticommutator(density_matrix)
-			var half_anticomm = anticomm.scale_real(0.5)
-
-			# Dissipator: L ρ L† - {L†L, ρ}/2
-			var dissipator = L_rho_Ldag.sub(half_anticomm)
-			drho = drho.add(dissipator)
-
-	# -------------------------------------------------------------------------
-	# Euler integration: ρ_new = ρ + dt * dρ/dt
-	# -------------------------------------------------------------------------
-	var rho_new = density_matrix.add(drho.scale_real(dt))
-
-	# DEBUG: Log density matrix before/after update
-	if Engine.get_process_frames() % 100 == 0:
-		var old_01 = density_matrix.get_element(0, 1)
-		var new_01 = rho_new.get_element(0, 1)
-		var drho_01 = drho.get_element(0, 1)
-		_log("trace", "test", "⚛️", "Update: ρ_old[0,1]=%.6f+%.6fi, δρ[0,1]*dt=%.6f+%.6fi, ρ_new[0,1]=%.6f+%.6fi" % [
-			old_01.re, old_01.im, drho_01.re * dt, drho_01.im * dt, new_01.re, new_01.im
-		])
-
-	density_matrix = rho_new
-
-	# Renormalize to maintain Tr(ρ) = 1 (numerical stability)
-	_renormalize()
+## Evolution lives in the NATIVE engine (QuantumEvolutionEngine / MultiBiomeLookaheadEngine),
+## driven by BiomeEvolutionBatcher. The GDScript integrators that used to live here
+## (exact-unitary closed kernel + subcycled Euler open kernel + phase-LNN modulation)
+## were deleted 2026-07-06: the native engine implements both regimes (can_unitary()
+## exact propagator for closed, Lindblad Euler for open), and every GDScript twin was
+## a silent-fallback that let a broken build limp at seconds-per-frame. BootManager
+## refuses to boot without the native classes. There is ONE integrator authority.
 
 
 ## Hilbert-space dimension (2^num_qubits) of this biome's density matrix.
@@ -2210,72 +1879,27 @@ func get_hamiltonian_spectral_gap() -> float:
 
 
 # ============================================================================
-# MUTUAL INFORMATION: Physics-grounded correlation measure
+# MUTUAL INFORMATION — read-only view of the native MI cache
 # ============================================================================
-
-func get_mutual_information(qubit_a: int, qubit_b: int) -> float:
-	# Compute mutual information I(A:B) = S(A) + S(B) - S(AB) between two qubits.
-
-	# Mutual information quantifies the total correlations (classical + quantum)
-	# between two subsystems. For a Bell state: I(A:B) = 2 (maximum).
-	# For a product state: I(A:B) = 0 (independent).
-
-	# This is used for physics-grounded position encoding:
-	# - High mutual info → bubbles cluster together
-	# - Low mutual info → bubbles spread apart
-
-	# Args:
-	# qubit_a: First qubit index (0 to num_qubits-1)
-	# qubit_b: Second qubit index (0 to num_qubits-1)
-
-	# Returns:
-	# Mutual information in bits [0, 2] for single qubits
-	if density_matrix == null or qubit_a == qubit_b:
-		return 0.0
-
-	if qubit_a < 0 or qubit_a >= register_map.num_qubits:
-		return 0.0
-	if qubit_b < 0 or qubit_b >= register_map.num_qubits:
-		return 0.0
-
-	var S_A = _entropy_of_marginal(qubit_a)
-	var S_B = _entropy_of_marginal(qubit_b)
-	var S_AB = _entropy_of_joint(qubit_a, qubit_b)
-
-	# I(A:B) = S(A) + S(B) - S(AB) (subadditivity guarantees this is >= 0)
-	return max(S_A + S_B - S_AB, 0.0)
-
+# MI is computed by the native engine during evolution (evolve_with_mi) and
+# published here (_cached_mi_values) and to viz_cache by the batcher. The
+# GDScript recompute path (partial traces + von Neumann entropies per pair —
+# ~20ms/pair, 610ms/frame when a renderer touched it) was deleted 2026-07-06.
+# No cache -> 0.0: correlations read as absent, never as a stall.
 
 func get_cached_mutual_information(qubit_a: int, qubit_b: int) -> float:
-	# Get mutual information from native C++ cache (computed during evolution).
-
-	# This is the FAST path - MI is computed in C++ during evolve_with_mi() at physics rate.
-	# Falls back to GDScript calculation if cache is empty or indices are invalid.
-
-	# The cache stores MI in upper triangular order: [mi_01, mi_02, ..., mi_12, mi_13, ...]
-	# Index formula: for i < j, index = i * (2*n - i - 1) / 2 + (j - i - 1)
+	# The cache stores MI in upper triangular order: [mi_01, mi_02, ..., mi_12, ...]
 	if qubit_a == qubit_b:
 		return 0.0
-
-	# Ensure a < b for cache lookup (MI is symmetric)
 	var i = min(qubit_a, qubit_b)
 	var j = max(qubit_a, qubit_b)
 	var n = register_map.num_qubits
-
-	if i < 0 or j >= n:
+	if i < 0 or j >= n or _cached_mi_values.is_empty():
 		return 0.0
-
-	# Check if cache is valid
-	if _cached_mi_values.is_empty():
-		# Fallback to GDScript calculation
-		return get_mutual_information(qubit_a, qubit_b)
-
 	# Upper triangular index: i * (2n - i - 1) / 2 + (j - i - 1)
 	var idx = i * (2 * n - i - 1) / 2 + (j - i - 1)
-
 	if idx < 0 or idx >= _cached_mi_values.size():
-		return get_mutual_information(qubit_a, qubit_b)
-
+		return 0.0
 	return _cached_mi_values[idx]
 
 
@@ -2286,8 +1910,7 @@ func has_cached_mi() -> bool:
 
 func get_cached_max_mutual_information() -> float:
 	# Max pairwise MI (bits) across the register, from the native cache ONLY.
-	# Returns -1.0 (unknown) when the cache is empty rather than falling back to
-	# the per-pair eigensolve path — too hot for UI/tracker polling rates.
+	# Returns -1.0 (unknown) when the cache is empty.
 	# The cache holds exactly the upper-triangular pairs, so max over the raw
 	# array IS the max over pairs.
 	if _cached_mi_values.is_empty():
@@ -2297,221 +1920,6 @@ func get_cached_max_mutual_information() -> float:
 		best = maxf(best, float(v))
 	return best
 
-
-func _entropy_of_marginal(qubit_index: int) -> float:
-	# Compute von Neumann entropy S(ρ_A) = -Tr(ρ_A log ρ_A) of single-qubit marginal.
-
-	# For a single qubit: S(ρ) = -p₀ log p₀ - p₁ log p₁
-	# where p₀, p₁ are the eigenvalues of the 2×2 reduced density matrix.
-
-	# Args:
-	# qubit_index: Which qubit to compute entropy for
-
-	# Returns:
-	# Entropy in bits [0, 1] (0 = pure, 1 = maximally mixed)
-	if density_matrix == null:
-		return 0.0
-
-	# Get diagonal elements of marginal (populations)
-	var p0 = get_marginal(qubit_index, 0)  # P(|0⟩)
-	var p1 = get_marginal(qubit_index, 1)  # P(|1⟩)
-
-	# For full entropy, we need eigenvalues of reduced density matrix
-	# The 2×2 reduced matrix is: [[p0, coh], [coh*, p1]]
-	# Eigenvalues: λ± = (1 ± √(1 - 4·det))/2 where det = p0·p1 - |coh|²
-
-	# Get coherence for this qubit's axis
-	var coh_mag_sq = 0.0
-	# Get the emoji pair for this qubit
-	for emoji in register_map.coordinates.keys():
-		var q = register_map.qubit(emoji)
-		if q == qubit_index:
-			var p = register_map.pole(emoji)
-			if p == 0:  # Found north emoji
-				# Find corresponding south emoji
-				for other_emoji in register_map.coordinates.keys():
-					var other_q = register_map.qubit(other_emoji)
-					var other_p = register_map.pole(other_emoji)
-					if other_q == qubit_index and other_p == 1:
-						# Found the pair - get coherence
-						var coh = get_coherence(emoji, other_emoji)
-						if coh:
-							coh_mag_sq = coh.re * coh.re + coh.im * coh.im
-						break
-				break
-
-	# Compute determinant of 2×2 reduced density matrix
-	var det = p0 * p1 - coh_mag_sq
-
-	# Eigenvalues via characteristic polynomial
-	var discriminant = max(1.0 - 4.0 * det, 0.0)
-	var sqrt_disc = sqrt(discriminant)
-	var lambda_plus = (1.0 + sqrt_disc) / 2.0
-	var lambda_minus = (1.0 - sqrt_disc) / 2.0
-
-	# von Neumann entropy: S = -Σ λ log λ (in nats, then convert to bits)
-	var entropy = 0.0
-	var eps = 1e-15
-
-	if lambda_plus > eps:
-		entropy -= lambda_plus * log(lambda_plus)
-	if lambda_minus > eps:
-		entropy -= lambda_minus * log(lambda_minus)
-
-	# Convert from nats to bits (divide by ln(2))
-	return entropy / log(2.0)
-
-
-func _entropy_of_joint(qubit_a: int, qubit_b: int) -> float:
-	# Compute von Neumann entropy S(ρ_AB) of the two-qubit reduced density matrix.
-
-	# This is the entropy of the joint state of qubits A and B after tracing out
-	# all other qubits.
-
-	# Args:
-	# qubit_a: First qubit index
-	# qubit_b: Second qubit index
-
-	# Returns:
-	# Joint entropy in bits [0, 2] (0 = pure, 2 = maximally mixed)
-	if density_matrix == null:
-		return 0.0
-
-	# Build the 4×4 reduced density matrix for qubits A and B
-	var num_qubits = register_map.num_qubits
-	var dim = register_map.dim()
-
-	if num_qubits < 2:
-		return 0.0
-
-	# Ensure a < b for consistent indexing
-	var qa = mini(qubit_a, qubit_b)
-	var qb = maxi(qubit_a, qubit_b)
-
-	# Partial trace over all qubits except qa and qb
-	# Result is 4×4 matrix with indices (i_a, i_b) ∈ {0,1}²
-	var rho_ab = ComplexMatrix.zeros(4)
-	var shift_a = num_qubits - 1 - qa
-	var shift_b = num_qubits - 1 - qb
-
-	for out_a in range(2):
-		for out_b in range(2):
-			for in_a in range(2):
-				for in_b in range(2):
-					var out_ab = out_a * 2 + out_b
-					var in_ab = in_a * 2 + in_b
-
-					# Sum over all basis states where qubits a,b have specified values
-					var accum = Complex.zero()
-					for i in range(dim):
-						var bit_a_i = (i >> shift_a) & 1
-						var bit_b_i = (i >> shift_b) & 1
-						if bit_a_i != out_a or bit_b_i != out_b:
-							continue
-
-						for j in range(dim):
-							var bit_a_j = (j >> shift_a) & 1
-							var bit_b_j = (j >> shift_b) & 1
-							if bit_a_j != in_a or bit_b_j != in_b:
-								continue
-
-							# Check if other qubits match (partial trace condition)
-							var other_match = true
-							for k in range(num_qubits):
-								if k == qa or k == qb:
-									continue
-								var shift_k = num_qubits - 1 - k
-								if ((i >> shift_k) & 1) != ((j >> shift_k) & 1):
-									other_match = false
-									break
-
-							if other_match:
-								accum = accum.add(density_matrix.get_element(i, j))
-
-					rho_ab.set_element(out_ab, in_ab, accum)
-
-	# Compute eigenvalues of 4×4 matrix (numerical diagonalization)
-	var eigenvalues = _eigenvalues_4x4(rho_ab)
-
-	# von Neumann entropy: S = -Σ λ log λ
-	var entropy = 0.0
-	var eps = 1e-15
-
-	for lambda_val in eigenvalues:
-		if lambda_val > eps:
-			entropy -= lambda_val * log(lambda_val)
-
-	return entropy / log(2.0)
-
-
-func _eigenvalues_4x4(mat: ComplexMatrix) -> Array[float]:
-	# Compute eigenvalues of a 4×4 Hermitian matrix numerically.
-
-	# Uses power iteration with deflation for simplicity.
-	# For a Hermitian density matrix, all eigenvalues are real.
-
-	# Returns:
-	# Array of 4 real eigenvalues (may include near-zero values)
-	var eigenvalues: Array[float] = []
-
-	if mat == null or mat.n != 4:
-		return [0.0, 0.0, 0.0, 0.0]
-
-	# Work with a copy to avoid modifying original
-	var work = ComplexMatrix.zeros(4)
-	for i in range(4):
-		for j in range(4):
-			work.set_element(i, j, mat.get_element(i, j))
-
-	# Power iteration with deflation to find eigenvalues
-	for _ev_idx in range(4):
-		var v = [Complex.new(1.0, 0.0), Complex.new(0.0, 0.0),
-		         Complex.new(0.0, 0.0), Complex.new(0.0, 0.0)]
-
-		# Power iteration
-		for _iter in range(50):
-			# w = work * v
-			var w: Array = []
-			for i in range(4):
-				var sum = Complex.zero()
-				for j in range(4):
-					sum = sum.add(work.get_element(i, j).mul(v[j]))
-				w.append(sum)
-
-			# Normalize
-			var norm_sq = 0.0
-			for i in range(4):
-				norm_sq += w[i].re * w[i].re + w[i].im * w[i].im
-			var norm = sqrt(norm_sq)
-			if norm < 1e-14:
-				break
-			for i in range(4):
-				v[i] = Complex.new(w[i].re / norm, w[i].im / norm)
-
-		# Compute Rayleigh quotient (eigenvalue estimate)
-		var Av: Array = []
-		for i in range(4):
-			var sum = Complex.zero()
-			for j in range(4):
-				sum = sum.add(work.get_element(i, j).mul(v[j]))
-			Av.append(sum)
-
-		var numerator = Complex.zero()
-		var denominator = 0.0
-		for i in range(4):
-			numerator = numerator.add(v[i].conjugate().mul(Av[i]))
-			denominator += v[i].re * v[i].re + v[i].im * v[i].im
-
-		var lambda_val = numerator.re / max(denominator, 1e-14)
-		eigenvalues.append(max(lambda_val, 0.0))  # Clamp small negatives
-
-		# Deflate: work = work - λ * v * v†
-		for i in range(4):
-			for j in range(4):
-				var outer = v[i].mul(v[j].conjugate()).scale(lambda_val)
-				work.set_element(i, j, work.get_element(i, j).sub(outer))
-
-	return eigenvalues
 
 
 func get_coherence(emoji_a: String, emoji_b: String):
@@ -2760,12 +2168,8 @@ func _add_zz_coupling_to_hamiltonian(qubit_a: int, qubit_b: int, J: float) -> vo
 		var current = hamiltonian.get_element(i, i)
 		hamiltonian.set_element(i, i, Complex.new(current.re + zz_value, current.im))
 
-	# H mutated in place → the closed-system propagator cache is stale.
-	_unitary_dirty = true
-
-	# Update sparse Hamiltonian if in use
-	if sparse_hamiltonian != null:
-		sparse_hamiltonian = hamiltonian  # Re-reference
+	# H mutated in place — the native engine re-registers from this canonical H
+	# on the biome's next mark_for_reregister cycle.
 
 
 func get_coupling(qubit_a: int, qubit_b: int) -> float:
@@ -2795,29 +2199,9 @@ func get_all_couplings() -> Array:
 # ============================================================================
 
 func set_hamiltonian(H: ComplexMatrix) -> void:
-	# Set Hamiltonian with auto-sparse conversion.
-
-	# Automatically converts to sparse format if sparsity > 50%.
-	# Sparse Hamiltonian: 10-50x faster commutator computation.
+	# Canonical H reference. The native engine consumes it via its own packed
+	# copy at batcher registration; there is no GDScript consumer of H shape.
 	hamiltonian = H
-
-	if H == null:
-		sparse_hamiltonian = null
-		return
-
-	# Sparsity check (simplified - native engine handles actual sparse ops).
-	# Reads the matrix's single packed store via the canonical API (was reaching
-	# into the now-removed H._data array directly).
-	var total = H.n * H.n
-	var nnz = H.count_nonzeros()
-	var sparsity = 1.0 - (float(nnz) / float(total)) if total > 0 else 0.0
-
-	if sparsity > 0.5:
-		sparse_hamiltonian = H  # Keep reference for native engine
-		_log("debug", "quantum", "⚡", "Hamiltonian converted to sparse: %.1f%% zeros, nnz=%d" % [sparsity * 100, nnz])
-	else:
-		sparse_hamiltonian = null
-		_log("debug", "quantum", "📊", "Hamiltonian kept dense: %.1f%% zeros (below threshold)" % [sparsity * 100])
 
 
 func set_driven_icons(configs: Array) -> void:
@@ -2889,10 +2273,6 @@ func update_driven_self_energies(time: float) -> void:
 				var current = hamiltonian.get_element(i, i)
 				hamiltonian.set_element(i, i, Complex.new(current.re + delta, current.im))
 
-	# Update sparse reference if needed
-	if significant_change and sparse_hamiltonian != null:
-		sparse_hamiltonian = hamiltonian
-
 	# NOTE: Native evolution engine cache is not invalidated for small diagonal changes
 	# The native engine stores its own copy, so for truly accurate time-dependent evolution,
 	# we would need to rebuild the native engine. For now, we accept small drift.
@@ -2900,68 +2280,7 @@ func update_driven_self_energies(time: float) -> void:
 
 
 func set_lindblad_operators(operators: Array) -> void:
-	# Set Lindblad operators with auto-sparse conversion.
-
-	# Converts each operator to sparse format. Lindblad operators are
-	# typically very sparse (e.g., |target⟩⟨source| has only 1 non-zero).
-
-	# Sparse Lindblad: 10-50x faster dissipator computation via native
-	# lindblad_dissipator() which fuses L ρ L† - ½{L†L, ρ} into one call.
+	# Canonical L_k references. The native engine consumes them via its own
+	# packed copies at batcher registration; no GDScript integrator iterates
+	# them per substep anymore (that Euler path was deleted 2026-07-06).
 	lindblad_operators = operators
-	sparse_lindblad_operators.clear()
-
-	if operators.is_empty():
-		return
-
-	var total_nnz = 0
-	var total_dense = 0
-
-	for L in operators:
-		if L == null:
-			continue
-
-		# Inline sparsity check (native engine handles actual sparse ops)
-		var nnz = 0
-		var total = L.n * L.n
-		var lp = L._to_packed()
-		for i in range(total):
-			var re = lp[i * 2]
-			var im = lp[i * 2 + 1]
-			if re * re + im * im > 1e-24:
-				nnz += 1
-
-		sparse_lindblad_operators.append(L)  # Keep reference
-		total_nnz += nnz
-		total_dense += total
-
-	var avg_sparsity = 1.0 - (float(total_nnz) / float(total_dense)) if total_dense > 0 else 0.0
-	_log("debug", "quantum", "⚡", "%d Lindblad ops → sparse: avg %.1f%% zeros, total nnz=%d" % [
-		operators.size(), avg_sparsity * 100, total_nnz])
-
-	# Pre-compute L† and L†L for the dense fallback path (saves 2 matmuls/op/substep)
-	_rebuild_lindblad_cache()
-
-
-func _rebuild_lindblad_cache() -> void:
-	# Pre-compute L† and L†L for each Lindblad operator.
-
-	# These are constant between operator rebuilds (faction changes) but were
-	# previously recomputed every substep. Caching saves 2 matmuls per operator
-	# per substep — for 5 operators × 3 substeps/phrame = 30 fewer matmuls/phrame.
-	_lindblad_L_dag.clear()
-	_lindblad_Ldag_L.clear()
-	_lindblad_cache_valid = false
-
-	for L in lindblad_operators:
-		if L == null:
-			_lindblad_L_dag.append(null)
-			_lindblad_Ldag_L.append(null)
-			continue
-		var L_dag = L.dagger()
-		var Ldag_L = L_dag.mul(L)
-		_lindblad_L_dag.append(L_dag)
-		_lindblad_Ldag_L.append(Ldag_L)
-
-	_lindblad_cache_valid = lindblad_operators.size() > 0
-	if _lindblad_cache_valid:
-		_log("debug", "quantum", "⚡", "Lindblad cache built: %d ops pre-computed (L†, L†L)" % lindblad_operators.size())

@@ -373,11 +373,8 @@ func _update_eigen() -> void:
 			lbl.add_theme_color_override("font_color", Color(0.0, 0.0, 0.0) if prob > 0.55 else Color(0.85, 0.88, 0.92))
 			style.bg_color = COLOR_DIAG_LOW.lerp(COLOR_DIAG_HIGH, prob) if prob >= 0.0 else Color(0.12, 0.13, 0.15, 1.0)
 		else:
-			var mi: float = 0.0
-			if quantum_computer.has_method("get_cached_mutual_information"):
-				mi = quantum_computer.get_cached_mutual_information(i, j)
-			elif quantum_computer.has_method("get_mutual_information"):
-				mi = quantum_computer.get_mutual_information(i, j)
+			# Native MI cache only — the GDScript per-pair recompute is gone (2026-07-06).
+			var mi: float = quantum_computer.get_cached_mutual_information(i, j)
 			var t: float = clampf(mi / 1.5, 0.0, 1.0)
 			lbl.text = "%.2f" % mi if mi >= 0.01 else ""
 			lbl.add_theme_color_override("font_color", Color(0.9, 0.95, 1.0) if t > 0.3 else Color(0.4, 0.5, 0.55))
@@ -428,11 +425,7 @@ func _describe_eigen_cell() -> String:
 		return "q%d %s | P(north)=%s | Coherence=%.3f | Purity=%s" % [
 			row, emoji_r, p_txt, coherence, purity_txt,
 		]
-	var mi: float = 0.0
-	if quantum_computer.has_method("get_cached_mutual_information"):
-		mi = quantum_computer.get_cached_mutual_information(row, col)
-	elif quantum_computer.has_method("get_mutual_information"):
-		mi = quantum_computer.get_mutual_information(row, col)
+	var mi: float = quantum_computer.get_cached_mutual_information(row, col)
 	var strength := "none"
 	if mi > 1.0:
 		strength = "STRONG"

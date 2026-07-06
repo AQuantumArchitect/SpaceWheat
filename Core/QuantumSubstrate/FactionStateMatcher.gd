@@ -71,11 +71,10 @@ static func extract_observables(substrate, biome = null) -> BiomeObservables:
 	# Scale: total "active" probability mass
 	obs.scale = _calculate_scale(density_matrix)
 
-	# Dynamics: use tracker if available, else fallback
-	if biome and "dynamics_tracker" in biome and biome.dynamics_tracker:
-		obs.dynamics = biome.dynamics_tracker.get_dynamics()
-	else:
-		obs.dynamics = -1.0
+	# Dynamics channel retired with BiomeDynamicsTracker (2026-07-06): nothing had
+	# created a tracker since batched evolution became the only path, so this was
+	# already -1.0 (unknown) in every live game. -1.0 keeps the channel neutral.
+	obs.dynamics = -1.0
 
 	return obs
 

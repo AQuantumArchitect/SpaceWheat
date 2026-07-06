@@ -152,12 +152,14 @@ func run_additional_cycles(cycles: int, biome_names: Array = []) -> Dictionary:
 				else:
 					skipped_due_empty_buffer += 1
 			else:
+				# Lookahead disabled: step the native engine synchronously — same
+				# integrator authority, just without the buffered read-ahead.
 				var packets = collect_stride_evolution_packets(biome, batcher.LOOKAHEAD_DT)
 				if packets.is_empty():
 					skipped_due_empty_buffer += 1
 					continue
 				for packet in packets:
-					run_direct_biome_cycle(
+					run_native_biome_cycle(
 						biome,
 						float(packet.get("dt", batcher.LOOKAHEAD_DT)),
 						float(packet.get("max_dt", get_base_max_dt(biome)))
@@ -229,8 +231,18 @@ func run_time_skip_cycles(cycles: int, dt: float = -1.0, biome_names: Array = []
 			"mode": "direct"
 		}
 
-	var use_native = batcher.lookahead_engine != null and batcher._engine_ready
-	var mode_str = "native" if use_native else "direct"
+	if batcher.lookahead_engine == null or not batcher._engine_ready:
+		return {
+			"success": false,
+			"error": "native_engine_unavailable",
+			"message": "Time-skip requires the native engine — there is no GDScript integrator.",
+			"cycles": target_cycles,
+			"biomes": 0,
+			"evolved_steps": 0,
+			"skipped_biomes": skipped_biomes,
+			"mode": "native"
+		}
+	var mode_str = "native"
 	var evolved_steps = 0
 	var stride_deferred_steps = 0
 	var stride_flushed_steps = 0
@@ -261,10 +273,7 @@ func run_time_skip_cycles(cycles: int, dt: float = -1.0, biome_names: Array = []
 				var packet_dt = float(packet.get("dt", target_dt))
 				var packet_max_dt = float(packet.get("max_dt", get_base_max_dt(biome)))
 				var packet_stride = int(packet.get("stride", 1))
-				if use_native:
-					run_native_biome_cycle(biome, packet_dt, packet_max_dt)
-				else:
-					run_direct_biome_cycle(biome, packet_dt, packet_max_dt)
+				run_native_biome_cycle(biome, packet_dt, packet_max_dt)
 				if debug_time_skip:
 					VerboseHelper.debug("trace", "time-skip", "cycle=%d biome=%s evolve_ok stride=%d packet_dt=%.6f packet_max_dt=%.6f carry_dt=%.6f" % [
 						cycle_index,
@@ -284,10 +293,7 @@ func run_time_skip_cycles(cycles: int, dt: float = -1.0, biome_names: Array = []
 		if flush_dt <= 0.0:
 			continue
 		var flush_max_dt = float(flush_packet.get("max_dt", get_base_max_dt(biome)))
-		if use_native:
-			run_native_biome_cycle(biome, flush_dt, flush_max_dt)
-		else:
-			run_direct_biome_cycle(biome, flush_dt, flush_max_dt)
+		run_native_biome_cycle(biome, flush_dt, flush_max_dt)
 		stride_flushed_steps += 1
 		evolved_steps += 1
 		if debug_time_skip:
@@ -315,30 +321,12 @@ func run_time_skip_cycles(cycles: int, dt: float = -1.0, biome_names: Array = []
 	}
 
 
-## DEPRECATED for production — GDScript quantum compute. This runs the slow GDScript
-## `QuantumComputer.evolve()` (the exact-unitary REFERENCE kernel). It is now only reached
-## when NO native backend is available (degraded fallback) and serves as the correctness
-## oracle the C++ backend is validated against (Tests/test_engine_equivalence.gd). The
-## canonical evolver is the C++ backend via run_native_biome_cycle(). Do not route the live
-## game or time-skip here when a backend exists.
-func run_direct_biome_cycle(biome, dt: float, max_dt_override: float = -1.0) -> void:
-	if batcher == null or not batcher._is_valid_biome(biome):
-		return
-	if not batcher._ensure_biome_quantum_shapes(biome):
-		return
-
-	if biome.time_tracker:
-		biome.time_tracker.update(dt)
-
-	var sim_dt = dt * biome.quantum_time_scale if "quantum_time_scale" in biome else dt
-	var max_dt = max_dt_override if max_dt_override > 0.0 else get_base_max_dt(biome)
-	biome.quantum_computer.evolve(sim_dt, max_dt, null)
-
-	_accumulate_post_evolution(biome)
-
-	batcher._post_evolution_update(biome)
-
-
+## The native C++ backend is the ONLY evolver. The GDScript direct cycle
+## (run_direct_biome_cycle → QuantumComputer.evolve) was deleted 2026-07-06:
+## it existed as a "degraded fallback" that let a build without the native
+## engine limp at seconds-per-frame instead of failing. BootManager refuses
+## to boot without the native classes, so an unregistered biome here is an
+## authority bug (registration drift) — surface it loudly and skip the step.
 func run_native_biome_cycle(biome, dt: float, max_dt_override: float = -1.0) -> void:
 	if batcher == null or not batcher._is_valid_biome(biome):
 		return
@@ -348,7 +336,7 @@ func run_native_biome_cycle(biome, dt: float, max_dt_override: float = -1.0) -> 
 	var biome_name = batcher._get_biome_name(biome)
 	var engine_id = batcher._biome_engine_ids.get(biome_name, -1)
 	if engine_id < 0:
-		run_direct_biome_cycle(biome, dt, max_dt_override)
+		push_error("[Stepper] %s has no native engine id — biome never registered (or reregistration lost). Step skipped; NO GDScript fallback exists." % biome_name)
 		return
 
 	if biome.time_tracker:

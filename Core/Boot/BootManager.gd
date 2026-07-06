@@ -41,8 +41,30 @@ func _notification(what: int) -> void:
 		pass  # Cleanup handled by individual components
 
 
+## The native quantum engine (quantum_matrix GDExtension) is the ONLY physics
+## authority — there is no GDScript understudy. A build without it must refuse
+## to run rather than limp (or silently freeze). ClassDB check, not assert():
+## asserts are stripped from release exports.
+const REQUIRED_NATIVE_CLASSES: Array[String] = [
+	"QuantumMatrixNative",       # matrix algebra (Eigen)
+	"QuantumEvolutionEngine",    # per-biome evolution kernel (exact-unitary + Lindblad)
+	"MultiBiomeLookaheadEngine", # batched lookahead across biomes
+	"QuantumMythosEngine",       # faction density matrix ops
+]
+
+
 ## Autoload singleton - ready to use as global
 func _ready() -> void:
+	for cls in REQUIRED_NATIVE_CLASSES:
+		if not ClassDB.class_exists(cls):
+			var msg := "FATAL: native class %s missing — the quantum_matrix GDExtension did not load. The game cannot run without its native engine (dev: cd native && make)." % cls
+			push_error(msg)
+			printerr(msg)
+			if DisplayServer.get_name() != "headless":
+				OS.alert("SpaceWheat's native quantum engine failed to load.\nThe install is broken or the platform is unsupported.\n\nMissing: %s" % cls, "SpaceWheat — cannot start")
+			get_tree().quit(1)
+			return
+
 	_verbose.info("boot", "🔧", "BootManager autoload ready")
 
 	# Optimize performance based on detected hardware

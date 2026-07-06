@@ -543,9 +543,9 @@ func _build_entanglement_section() -> void:
 	var shown := 0
 	for i in range(nq):
 		for j in range(i + 1, nq):
-			# viz_cache MI (precomputed by the lookahead) — the live qc recompute costs
-			# ~20ms/pair in GDScript and this rebuild runs 4×/s while B is open.
-			var mi = vc.get_mutual_information(i, j) if vc else qc.get_mutual_information(i, j)
+			# viz_cache MI (precomputed by the lookahead); qc fallback reads the same
+			# native cache. The GDScript per-pair recompute was deleted (2026-07-06).
+			var mi = vc.get_mutual_information(i, j) if vc else qc.get_cached_mutual_information(i, j)
 			if mi < 0.1:
 				continue
 			var axis_i = vc.get_axis(i) if vc else {}
@@ -656,7 +656,7 @@ func _plot_entanglement_summary(qi: int) -> String:
 	for j in range(_get_num_qubits()):
 		if j == qi:
 			continue
-		var mi = vc.get_mutual_information(qi, j) if vc else qc.get_mutual_information(qi, j)
+		var mi = vc.get_mutual_information(qi, j) if vc else qc.get_cached_mutual_information(qi, j)
 		if mi > 0.05:
 			total += 1
 	return "%d linked plot(s)" % total

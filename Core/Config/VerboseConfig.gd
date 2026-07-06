@@ -479,9 +479,23 @@ func _output_file(formatted: String) -> void:
 		_flush_file()
 
 
+## Hard ceiling on a session log. File logging is opt-in (--verbose /
+## VERBOSE_FILE_LOGGING=1), but an unbounded append is exactly the shape of
+## write that once thrashed a drive — cap it and say so, never grow silently.
+const MAX_LOG_FILE_BYTES: int = 50 * 1024 * 1024
+
+
 func _flush_file() -> void:
 	# Write buffered log messages to file
 	if not _log_file or _log_buffer.is_empty():
+		return
+
+	if _log_file.get_length() > MAX_LOG_FILE_BYTES:
+		_log_file.store_line("=== LOG CAPPED at %d MB — further output goes to console only ===" % (MAX_LOG_FILE_BYTES / (1024 * 1024)))
+		_log_file.flush()
+		_log_file.close()
+		_log_file = null
+		_log_buffer.clear()
 		return
 
 	for line in _log_buffer:

@@ -600,9 +600,12 @@ static func _advance_reap_cycles(farm, active_biomes: Array, reap_cycles: int) -
 		if biome:
 			active_biome_names.append(biome.get_biome_type())
 	var batcher = farm.biome_evolution_batcher if farm and ("biome_evolution_batcher" in farm) else null
-	if batcher and batcher.has_method("run_additional_cycles"):
-		return batcher.run_additional_cycles(reap_cycles, active_biome_names)
-	return _manual_fast_forward_biomes(active_biomes, reap_cycles)
+	if batcher == null:
+		# No batcher = no evolution. The manual GDScript fast-forward that used to
+		# live here was a second integrator authority — deleted 2026-07-06.
+		push_error("[reap] No BiomeEvolutionBatcher on farm — cannot advance cycles (no GDScript fallback exists).")
+		return {"success": false, "error": "no_batcher", "cycles": 0, "evolved_steps": 0}
+	return batcher.run_additional_cycles(reap_cycles, active_biome_names)
 
 
 static func _collect_reap_rewards(active_biomes: Array, economy, farm, flux_to_credits: float) -> Dictionary:
@@ -1110,30 +1113,6 @@ static func _get_active_biomes_for_reap(farm) -> Array:
 				continue
 		out.append(biome)
 	return out
-
-
-static func _manual_fast_forward_biomes(active_biomes: Array, cycles: int) -> Dictionary:
-	if cycles <= 0:
-		return {"success": true, "cycles": 0, "evolved_steps": 0}
-	var evolved_steps = 0
-	var dt = 0.17
-	for _i in range(cycles):
-		for biome in active_biomes:
-			if not biome or not biome.quantum_computer:
-				continue
-			var max_dt = biome.max_evolution_dt if "max_evolution_dt" in biome else dt
-			biome.quantum_computer.evolve(dt, max_dt, null)
-			evolved_steps += 1
-			if biome.viz_cache:
-				var packet = biome.quantum_computer.export_bloch_packet() if biome.quantum_computer.has_method("export_bloch_packet") else PackedFloat64Array()
-				var num_qubits = biome.quantum_computer.register_map.num_qubits if biome.quantum_computer.register_map else 0
-				if packet.size() > 0 and num_qubits > 0:
-					if biome.quantum_computer.berry_register != null:
-						biome.quantum_computer.berry_register.integrate_step(packet, num_qubits)
-					biome.viz_cache.update_from_bloch_packet(packet, num_qubits)
-				if biome.quantum_computer.has_method("get_purity"):
-					biome.viz_cache.update_purity(biome.quantum_computer.get_purity())
-	return {"success": true, "cycles": cycles, "evolved_steps": evolved_steps}
 
 
 static func _get_reap_count(farm) -> int:

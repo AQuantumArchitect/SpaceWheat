@@ -55,7 +55,6 @@ var icons: Dictionary = {}
 
 # Common infrastructure
 var time_tracker: BiomeTimeTracker = BiomeTimeTracker.new()
-var dynamics_tracker: BiomeDynamicsTracker = null
 var grid = null  # Injected FarmGrid reference
 
 # Central quantum state core for this biome (ONLY source of truth)
@@ -78,12 +77,6 @@ signal resource_registered(emoji: String, is_producible: bool, is_consumable: bo
 
 # Initialization guards
 var _is_initialized: bool = false
-var _qc_missing_warned: bool = false
-var _orphan_atoms_warned: bool = false  # post-add_atom_pair drift check; once per biome per session
-
-# Performance: Control quantum evolution frequency
-var quantum_evolution_accumulator: float = 0.0
-var quantum_evolution_timestep: float = _PC.PHRAME_DT  # Physics update rate
 var quantum_evolution_enabled: bool = true
 
 # Sim-speed: sim-seconds advanced per wall-second.
@@ -186,10 +179,6 @@ func _exit_tree() -> void:
 	set_process(false)
 	icons.clear()
 	grid = null
-
-	if dynamics_tracker:
-		dynamics_tracker.clear_history()
-	dynamics_tracker = null
 
 	if _bell_gate_tracker:
 		_bell_gate_tracker.clear()
@@ -459,89 +448,29 @@ func _process(delta: float) -> void:
 	if not _is_initialized:
 		return
 
-	# Check if batched evolution is enabled (BiomeEvolutionBatcher handles evolution)
-	if get_meta("batched_evolution", false):
-		# Batcher handles quantum evolution
-		# Only update time tracker here for UI and drift mechanics
-		time_tracker.update(delta)
+	# The BiomeEvolutionBatcher (native engine) is the ONLY evolver. A biome's
+	# _process just ticks wall-clock trackers. The un-batched per-biome GDScript
+	# evolution loop that used to live here was deleted 2026-07-06 — it was a
+	# silent second integrator authority that ran whenever the batcher had not
+	# (or could not) claim the biome, at seconds-per-frame cost.
+	time_tracker.update(delta)
+	if quantum_evolution_enabled and not get_meta("batched_evolution", false):
+		_warn_unclaimed_once(delta)
+
+
+## Loud, once-per-biome alarm when an evolution-enabled biome sits unclaimed by
+## the batcher (grace period covers the boot window between biome creation and
+## batcher claim). An unclaimed biome does NOT evolve — there is no fallback.
+var _unclaimed_grace: float = 5.0
+var _unclaimed_warned: bool = false
+
+func _warn_unclaimed_once(delta: float) -> void:
+	if _unclaimed_warned:
 		return
-
-	if quantum_evolution_enabled:
-		quantum_evolution_accumulator += delta
-		if quantum_evolution_accumulator >= quantum_evolution_timestep:
-			var t0 = Time.get_ticks_usec()
-			# Apply quantum_time_scale to slow down/speed up simulation
-			var actual_dt = quantum_evolution_accumulator * quantum_time_scale
-			quantum_evolution_accumulator = 0.0
-
-			if _ensure_quantum_computer():
-				_update_quantum_substrate(actual_dt)
-				var t1 = Time.get_ticks_usec()
-				if Engine.get_process_frames() % 60 == 0:
-					_verbose.trace("biome", "⏱️", "Biome %s Substrate Update: %d us" % [name, t1 - t0])
-				
-				if not dynamics_tracker:
-					dynamics_tracker = BiomeDynamicsTracker.new()
-				if dynamics_tracker:
-					_track_dynamics()
-
-
-func _ensure_quantum_computer() -> bool:
-	# Per-tick guard. Boot is responsible for building a QC; if one is missing
-	# at runtime, that's a real bug — fail loud once per biome instead of
-	# create an empty node that silently swallows gate/measure ops.
-	if quantum_computer:
-		return true
-	if not _qc_missing_warned:
-		_qc_missing_warned = true
-		push_error("Biome %s has no quantum_computer at tick — boot did not build one or runtime nulled it. Skipping evolution." % get_biome_type())
-	return false
-
-
-func _update_quantum_substrate(dt: float) -> void:
-	# Evolve quantum substrate. Override in subclasses for custom post-evolution logic.
-	if quantum_computer:
-		quantum_computer.evolve(dt, max_evolution_dt)
-		_check_for_orphan_atoms()
-
-
-## Detect canonical-vs-substrate drift: if anyone called
-## `BiomeRegistry.add_atom_pair_to_biome` without following up with
-## `expand_quantum_system`, the canonical biome will have neighborhood icons
-## whose poles aren't in the register_map. This is a contract violation
-## surfaced once per biome per session.
-func _check_for_orphan_atoms() -> void:
-	if _orphan_atoms_warned:
-		return
-	if not quantum_computer or not quantum_computer.register_map:
-		return
-	var registry = load("res://Core/Biomes/BiomeRegistry.gd").get_shared()
-	var canonical = registry.get_by_name(get_biome_type()) if registry else null
-	if canonical == null:
-		return
-	var local_icons: Array = canonical.get_neighborhood_icons()
-	if local_icons.is_empty():
-		return
-	# Drift: each neighborhood icon should occupy one qubit axis. Mismatch means
-	# someone added an icon canonically without growing the substrate.
-	var expected_qubits := local_icons.size()
-	if quantum_computer.register_map.num_qubits == expected_qubits:
-		return
-	# Identify which icon poles aren't in basis.
-	var in_basis: Dictionary = {}
-	for emoji in quantum_computer.register_map.coordinates.keys():
-		in_basis[str(emoji)] = true
-	var orphans: Array = []
-	for icon in local_icons:
-		if not (icon is Dictionary):
-			continue
-		for pole_key in ["pole_0", "pole_1"]:
-			var pole := str(icon.get(pole_key, ""))
-			if pole != "" and not in_basis.has(pole) and not orphans.has(pole):
-				orphans.append(pole)
-	if not orphans.is_empty():
-		_orphan_atoms_warned = true
-		push_warning("Biome '%s': canonical neighborhood icons not in basis (%s) — `add_atom_pair` was called without `expand_quantum_system`" % [get_biome_type(), str(orphans)])
+	_unclaimed_grace -= delta
+	if _unclaimed_grace <= 0.0:
+		_unclaimed_warned = true
+		push_error("Biome %s: evolution enabled but never claimed by BiomeEvolutionBatcher — it is FROZEN (no GDScript fallback exists)." % get_biome_type())
 
 
 func get_drift_status() -> Dictionary:
@@ -1132,28 +1061,6 @@ func get_plot_positions_in_oval(plot_count: int, center: Vector2, viewport_scale
 	return positions
 
 
-# ============================================================================
-# DYNAMICS TRACKING
-# ============================================================================
-
-func _track_dynamics() -> void:
-	if not quantum_computer or not dynamics_tracker:
-		return
-	var purity = quantum_computer.get_purity() if quantum_computer.has_method("get_purity") else -1.0
-	var entropy = _calculate_quantum_entropy()
-	var coherence = _calculate_quantum_coherence()
-	# Population motion: in the enclave purity and entropy are constants of the
-	# motion (unitary evolution), so without this the tracker only sees coherence
-	# slosh. Per-atom marginals are cheap (≤ atom count) and carry the breathing.
-	var populations: Array = []
-	if quantum_computer.register_map != null and quantum_computer.has_method("get_population"):
-		var atoms: Array = quantum_computer.register_map.coordinates.keys()
-		atoms.sort()
-		for atom in atoms:
-			populations.append(float(quantum_computer.get_population(str(atom))))
-	dynamics_tracker.add_snapshot({"purity": purity, "entropy": entropy,
-			"coherence": coherence, "populations": populations})
-
 func _calculate_quantum_entropy() -> float:
 	if not quantum_computer or not quantum_computer.density_matrix:
 		return -1.0
@@ -1199,8 +1106,6 @@ func reset() -> void:
 	if _bell_gate_tracker:
 		_bell_gate_tracker.clear()
 	time_tracker.reset()
-	if dynamics_tracker:
-		dynamics_tracker.clear_history()
 
 
 # ============================================================================

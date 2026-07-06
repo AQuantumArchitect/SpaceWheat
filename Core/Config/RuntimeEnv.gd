@@ -149,9 +149,6 @@ static func advanced_mode_tristate() -> int:
 static func bubble_quality_override() -> String:
 	return OS.get_environment("SW_BUBBLE_QUALITY").strip_edges().to_lower()
 
-static func sparse_evolve() -> bool:
-	return flag("SW_ENABLE_SPARSE_EVOLVE", false)
-
 static func force_operator_rebuild() -> bool:
 	return flag("SW_FORCE_OPERATOR_REBUILD", false)
 
@@ -177,7 +174,6 @@ static func describe() -> Dictionary:
 		"disable_force": disable_force(),
 		"advanced_mode_tristate": advanced_mode_tristate(),
 		"bubble_quality_override": bubble_quality_override(),
-		"sparse_evolve": sparse_evolve(),
 		"force_operator_rebuild": force_operator_rebuild(),
 		"skip_operator_rebuild": skip_operator_rebuild(),
 	}

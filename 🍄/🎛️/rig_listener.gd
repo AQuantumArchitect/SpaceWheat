@@ -135,6 +135,19 @@ func _bootstrap() -> void:
 	_bridge_sentinel_path = _resolve_rig_path("RIG_BRIDGE_SENTINEL_PATH", _bridge_sentinel_path)
 	_heartbeat_path = _resolve_rig_path("RIG_HEARTBEAT_PATH", _heartbeat_path)
 
+	# Disk hygiene: results.jsonl is append-only for a session; a stale file left
+	# over from a crashed multi-hour drive must not keep growing forever. Truncate
+	# oversized leftovers at boot (RigClient re-syncs its offset from zero anyway).
+	var stale := FileAccess.open(_result_path, FileAccess.READ)
+	if stale:
+		var stale_len := stale.get_length()
+		stale.close()
+		if stale_len > 10 * 1024 * 1024:
+			var trunc := FileAccess.open(_result_path, FileAccess.WRITE)
+			if trunc:
+				trunc.close()
+			print("🎛️ Rig results.jsonl was %d MB — truncated at boot" % (stale_len / (1024 * 1024)))
+
 	var is_headless = RuntimeEnv.is_headless()
 	_is_headless = is_headless
 	var load_slot = int(OS.get_environment("RIG_LOAD_SLOT")) if OS.get_environment("RIG_LOAD_SLOT") != "" else -1
@@ -2030,18 +2043,18 @@ func _reservoir_rebuild_all(biome_names: Array) -> void:
 ## Mean pairwise mutual information across a biome's qubits — the reservoir's
 ## "integration" (how much its parts share information). 0 for <2 qubits.
 func _mean_mutual_information(qc) -> float:
-	if not qc.has_method("get_mutual_information"):
-		return 0.0
+	# Reads the native MI cache (populated by the lookahead each step) — the
+	# GDScript per-pair recompute was deleted 2026-07-06.
 	var nq := 0
 	if "register_map" in qc and qc.register_map:
 		nq = int(qc.register_map.num_qubits)
-	if nq < 2:
+	if nq < 2 or not qc.has_cached_mi():
 		return 0.0
 	var total := 0.0
 	var pairs := 0
 	for i in range(nq):
 		for j in range(i + 1, nq):
-			total += float(qc.get_mutual_information(i, j))
+			total += float(qc.get_cached_mutual_information(i, j))
 			pairs += 1
 	return total / float(maxi(pairs, 1))
 

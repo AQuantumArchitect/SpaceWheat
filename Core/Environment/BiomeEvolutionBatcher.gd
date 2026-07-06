@@ -672,7 +672,9 @@ func _create_lookahead_engine_deferred() -> void:
 	# EvolutionBackend contract — duck-typed, so existing lookahead_engine.* calls forward.
 	lookahead_engine = EvolutionBackend.create()
 	if not lookahead_engine:
-		push_warning("[BiomeEvolutionBatcher] No evolution backend available. Evolution remains stalled.")
+		# Unreachable after the BootManager native gate — but if it ever fires,
+		# fail LOUD: physics is frozen and there is no GDScript understudy.
+		push_error("[BiomeEvolutionBatcher] FATAL: no native evolution backend — physics is FROZEN. The BootManager gate should have refused this boot (dev: cd native && make).")
 		return
 	if _disable_mi_env and lookahead_engine.has_method("set_enable_mi"):
 		lookahead_engine.set_enable_mi(false)
@@ -2584,9 +2586,6 @@ func _prime_frozen_buffers_only(biome_rhos: Array = []) -> void:
 func _post_evolution_update(biome):
 	# Apply biome-specific post-evolution updates.
 	# Semantic drift + attractor tracking removed (semantic layer stripped)
-
-	if biome.dynamics_tracker and biome.has_method("_track_dynamics"):
-		biome._track_dynamics()
 
 	match biome.get_biome_type():
 		"FungalNetworks":
