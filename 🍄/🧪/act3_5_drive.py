@@ -602,8 +602,15 @@ def main():
                         bk2 = biome_key(nb)
                         if bk2:
                             press(bk2)
-                            for _ in range(2):
-                                incorporate(bn=nb)
+                            incorporate(bn=nb)
+                            # RIGID-BIOME FALLBACK: incorporate() excites ALL sites, and a
+                            # rigid-H biome (SSH chain / monolith) is near-stationary under
+                            # that — nothing ripens, sig freezes at the soft-gate center
+                            # (0.50) forever. If the sig predicate is still short, grind the
+                            # proven ONE-SITE ritual (same physics lesson as farm_berries;
+                            # this exact stall cost a full campaign run on 2026-07-06).
+                            if vi_pred(3) < 0.9:
+                                farm_berries(nb, 1, "village_identity", rounds=3)
                 else:
                     # 6 loaded but still short → drop the thinnest non-core biome, rediscover next round
                     per = go("atom_diversity").get("per_biome", {})
