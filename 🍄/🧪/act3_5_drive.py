@@ -421,226 +421,239 @@ def main():
         print("known@start:", [f"{i.get('north')}/{i.get('south')}" for i in known()])
 
         # ============ ACT 1: forest_communion + forest_listener ============
-        print("\n== ACT1: StarterForest ==")
-        press("T")
-        for rnd in range(1, 10):
-            incorporate()
-            fl = flags()
-            print(f"  [A{rnd}] forest berry={berry('StarterForest')} communion={'forest_communion' in fl} listener={'forest_listener' in fl}")
-            if "forest_communion" in fl and "forest_listener" in fl:
-                break
-        bridge("🦅", 220); bridge("👥", 240); bridge("🍞", 500); bridge("❄", 500)
-        bridge("🔨", 60); bridge("🌱", 60)
-        print("  bridged:", {k: res().get(k, 0) for k in ("🦅", "🍞", "👥", "❄", "🔨", "🌱")})
-
-        # ---- Learn Mill NOW (clean commitments, before Act-2 grinds clutter them) ----
-        # village_stirs needs forest_listener (just fired) + Village berry; the apprentice
-        # arc rewards the Mill icon, which Act 3 plants to wake the wind.
-        print("\n== learn Mill (apprentice arc, pre-Act-2) ==")
-        vk = biome_key("Village") or "Y"
-        learn_mill(vk)
-
-        # ============ ACT 2: lumber_flows + spring_connects ============
-        print("\n== ACT2: standings + discover + incorporate ==")
-        if "spring_connects" not in flags():
-            faction_grind("Hearth Keepers", "spring_connects", max_cycles=8, at_biome="Village")
-        if "lumber_flows" not in flags():
-            faction_grind("Millwright's Union", "lumber_flows", max_cycles=18, at_biome="Village")
-        for d in range(1, 9):
-            need = [b for b in ("Woodlot", "FreshwaterSpring") if b not in grid()]
-            if not need:
-                break
-            ensure_hat("7")
-            press("R", 6)
-            print(f"  discover #{d}: grid={grid()} 🦅={res().get('🦅', 0)}")
-        for bn in ("Woodlot", "FreshwaterSpring"):
-            bk = biome_key(bn)
-            if bk is None:
-                print(f"  {bn} NOT in grid"); continue
-            press(bk)
-            for rnd in range(1, 7):
-                incorporate(ripen=900, bn=bn)
-                b = berry(bn)
-                if isinstance(b, int) and b >= 2:
+        # Resume lane: ACT35_RESUME=1 loads the banked post-island_free checkpoint
+        # instead of replaying 40 minutes of acts 1-6. Story flags survive save/load
+        # (verified 2026-07-05); the listener rebinds its farm after loads.
+        _resume = os.environ.get("ACT35_RESUME", "0") == "1"
+        _ckpt = os.environ.get("ACT35_CHECKPOINT", "/tmp/sw_act6_checkpoint.tres")
+        if _resume:
+            r_ld = go("load_game_path", path=_ckpt)
+            print(f"  RESUME: loaded={r_ld.get('loaded')} flags={len(flags())} grid={grid()}")
+        if not _resume:
+            print("\n== ACT1: StarterForest ==")
+            press("T")
+            for rnd in range(1, 10):
+                incorporate()
+                fl = flags()
+                print(f"  [A{rnd}] forest berry={berry('StarterForest')} communion={'forest_communion' in fl} listener={'forest_listener' in fl}")
+                if "forest_communion" in fl and "forest_listener" in fl:
                     break
-            print(f"  {bn} berry={berry(bn)}")
-        print("  ", fprog("lumber_flows"))
-        print("  ", fprog("spring_connects"))
+            bridge("🦅", 220); bridge("👥", 240); bridge("🍞", 500); bridge("❄", 500)
+            bridge("🔨", 60); bridge("🌱", 60)
+            print("  bridged:", {k: res().get(k, 0) for k in ("🦅", "🍞", "👥", "❄", "🔨", "🌱")})
 
-        # ============ ACT 3: mill_wakes + mill_master ============
-        print("\n== ACT3: mill_wakes ==")
-        # Mill was learned pre-Act-2. Plant it into Village, evolve so ⚙→💨 wakes wind.
-        learned_mill = is_mill_known()
-        print(f"  Mill known: {learned_mill}")
-        if learned_mill:
-            plant_icon(vk, "💨", "🔨", "Mill")
-        for rnd in range(1, 8):
-            press(vk)
-            ensure_hat("0")
-            for pk in PLOT:
-                press(pk, 2); press("E", 2)
-            go("time_skip", phrames=250)
-            print(f"  [mw-evolve {rnd}] {fprog('mill_wakes')}")
-            if "mill_wakes" in flags():
-                break
+            # ---- Learn Mill NOW (clean commitments, before Act-2 grinds clutter them) ----
+            # village_stirs needs forest_listener (just fired) + Village berry; the apprentice
+            # arc rewards the Mill icon, which Act 3 plants to wake the wind.
+            print("\n== learn Mill (apprentice arc, pre-Act-2) ==")
+            vk = biome_key("Village") or "Y"
+            learn_mill(vk)
 
-        # mill_master: more Village incorporation (berry≥5, phase≥18.85)
-        print("\n== ACT3: mill_master ==")
-        for rnd in range(1, 9):
-            if "mill_master" in flags():
-                break
-            incorporate(bn="Village")
-            print(f"  [mm {rnd}] village berry={berry('Village')} | {fprog('mill_master')}")
+            # ============ ACT 2: lumber_flows + spring_connects ============
+            print("\n== ACT2: standings + discover + incorporate ==")
+            if "spring_connects" not in flags():
+                faction_grind("Hearth Keepers", "spring_connects", max_cycles=8, at_biome="Village")
+            if "lumber_flows" not in flags():
+                faction_grind("Millwright's Union", "lumber_flows", max_cycles=18, at_biome="Village")
+            for d in range(1, 9):
+                need = [b for b in ("Woodlot", "FreshwaterSpring") if b not in grid()]
+                if not need:
+                    break
+                ensure_hat("7")
+                press("R", 6)
+                print(f"  discover #{d}: grid={grid()} 🦅={res().get('🦅', 0)}")
+            for bn in ("Woodlot", "FreshwaterSpring"):
+                bk = biome_key(bn)
+                if bk is None:
+                    print(f"  {bn} NOT in grid"); continue
+                press(bk)
+                for rnd in range(1, 7):
+                    incorporate(ripen=900, bn=bn)
+                    b = berry(bn)
+                    if isinstance(b, int) and b >= 2:
+                        break
+                print(f"  {bn} berry={berry(bn)}")
+            print("  ", fprog("lumber_flows"))
+            print("  ", fprog("spring_connects"))
 
-        # ============ ACT 4: island_lives + village_identity ============
-        print("\n== ACT4: island_lives (🪵 into Village) ==")
-        # plant the already-known 🪵/🌾 lumber icon into Village
-        if not go("flag_progress", id="island_lives").get("fired"):
-            wood = next((i for i in known() if "🪵" in (i.get("north", ""), i.get("south", ""))), None)
-            if wood:
-                plant_icon(vk, wood["north"], wood["south"], "wood")
-            press(vk); go("time_skip", phrames=120)
-        print("  ", fprog("island_lives"))
-
-        # Branch-divergence reachability check (FINDING 2026-06-26): only village_path_artisan
-        # auto-fires, because the Mill mechanically plants 🔨 into Village. The other branches
-        # gate on a specific EMOJI in Village (💧/🏭/🦅/💀). commons needs 💧 — reachable in
-        # principle (FreshwaterSpring realizes 💧-bearing icons like 🌿/💧, 🔥/💧), but ONLY if
-        # you deliberately track+incorporate the 💧 qubit, then plant it before the 6-plot ring
-        # saturates. The generic incorporate() doesn't target 💧, so commons stays dormant.
-        # Best-effort: if a 💧-bearing icon is already known, plant it to demonstrate commons.
-        spring = next((i for i in known() if "💧" in (i.get("north", ""), i.get("south", ""))), None)
-        if spring:
-            plant_icon(vk, spring["north"], spring["south"], "spring 💧 (commons)")
-            press(vk); go("time_skip", phrames=120)
-        else:
-            print("  (no 💧-bearing icon known → village_path_commons unreachable this run)")
-
-        print("\n== ACT4: village_identity (Village built + cross-biome atom diversity) ==")
-        # predicates: [island_lives, atom_count Village>=8, atom_diversity>=N, signature>=14, gap>=0.12]
-        # Reframed (owner): a biome's plot grid caps it at 5 qubits/10 atoms, so the old
-        # atom_count_gte Village 12 was unsatisfiable. Now the LOCAL check is "Village built
-        # out" (>=8, cleared by base+Mill+wood = 10 atoms) and the real goal is CROSS-BIOME
-        # atom diversity — a varied ecology spread across the 6 biome slots. So KEEP discovered
-        # biomes LOADED (their atoms count toward diversity) rather than culling them away.
-        print("  start:", fprog("village_identity"))
-        core = {"StarterForest", "Village", "Woodlot", "FreshwaterSpring"}
-
-        def vi_pred(i):
-            p = go("flag_progress", id="village_identity").get("predicates", [])
-            return p[i]["score"] if i < len(p) else 0.0
-
-        # local atom_count: Village built out (Mill+wood already did it; top up if short)
-        for _ in range(3):
-            if vi_pred(1) >= 0.9:
-                break
-            if not plant_first(vk):
-                break
-            press(vk); go("time_skip", phrames=120)
-
-        # diversity (pred 2) + signature (pred 3): fill the 6 biome slots with DIVERSE biomes
-        # and incorporate each. Keep them loaded so their atoms bank toward diversity; only
-        # cull to SWAP out the thinnest non-core biome if full and still short.
-        for rnd in range(1, 16):
-            if vi_pred(2) >= 0.9 and vi_pred(3) >= 0.9:
-                break
-            if len(grid()) < 6:
-                before = set(grid())
-                bridge("🦅", 80)
-                ensure_hat("7"); press("R", 6)  # Captain discover (fill a slot)
-                for nb in [b for b in grid() if b not in before]:
-                    bk2 = biome_key(nb)
-                    if bk2:
-                        press(bk2)
-                        for _ in range(2):
-                            incorporate(bn=nb)
-            else:
-                # 6 loaded but still short → drop the thinnest non-core biome, rediscover next round
-                per = go("atom_diversity").get("per_biome", {})
-                keep = core | protected_landmarks()
-                thin = sorted([(v, b) for b, v in per.items() if b not in keep])
-                if thin:
-                    cull(thin[0][1])
-            ad = go("atom_diversity")
-            print(f"    [vi {rnd}] loaded={len(grid())} distinct={ad.get('distinct')} "
-                  f"sig={len(known())} | {fprog('village_identity')}")
-        print("  ", fprog("village_identity"))
-
-        # ============ ACT 5: ledger_opens ============
-        print("\n== ACT5: ledger_opens (discover BloodLedger + berry≥2) ==")
-        # village_identity must have fired → BloodLedger inherits discovery pressure.
-        # Slots cap ~6: cull the non-core biomes (discovered for sig) to make room, then
-        # the pressured draw lands BloodLedger.
-        for d in range(1, 16):
-            if "BloodLedger" in grid():
-                break
-            cullable = [b for b in grid() if b not in (core | protected_landmarks()) and b != "BloodLedger"]
-            if cullable:
-                cull(cullable[0])
-            bridge("🦅", 80)
-            ensure_hat("7"); press("R", 6)  # discover (BloodLedger pressured)
-            print(f"  discover BL #{d}: grid={grid()} 🦅={res().get('🦅', 0)}")
-        if "BloodLedger" in grid():
-            blk = biome_key("BloodLedger")
-            press(blk)
+            # ============ ACT 3: mill_wakes + mill_master ============
+            print("\n== ACT3: mill_wakes ==")
+            # Mill was learned pre-Act-2. Plant it into Village, evolve so ⚙→💨 wakes wind.
+            learned_mill = is_mill_known()
+            print(f"  Mill known: {learned_mill}")
+            if learned_mill:
+                plant_icon(vk, "💨", "🔨", "Mill")
             for rnd in range(1, 8):
-                incorporate(ripen=900, bn="BloodLedger")
-                b = berry("BloodLedger")
-                print(f"  [bl {rnd}] BloodLedger berry={b} | {fprog('ledger_opens')}")
-                if isinstance(b, int) and b >= 2 and "ledger_opens" in flags():
+                press(vk)
+                ensure_hat("0")
+                for pk in PLOT:
+                    press(pk, 2); press("E", 2)
+                go("time_skip", phrames=250)
+                print(f"  [mw-evolve {rnd}] {fprog('mill_wakes')}")
+                if "mill_wakes" in flags():
                     break
 
-        # ============ ACT 6: rigid empire vs plural island — the closed-native ending ====
-        # The physics: a concentrated biome (the empire) has a WIDE H-gap (one dominant mode
-        # it rigidly imposes); a diverse built island has a SMALL gap (many modes coexisting).
-        # empire_imposes: ledger_opens + BloodLedger H-gap >= 0.6 (rigid monoculture — RECOGNIZED).
-        # island_free:    empire_imposes + Village H-gap <= 0.45 (plural, many-voiced, free) +
-        #                 diversity + signature. Freedom = irreducible plurality, not stillness.
-        print("\n== ACT6: rigid empire vs plural island (empire_imposes -> island_free) ==")
-
-        def gap(bn):
-            r = go("energy_variance", biome=bn)
-            return float(r.get("h_gap", -1.0)), float(r.get("var_h", -1.0))
-
-        if "BloodLedger" in grid() and "ledger_opens" in flags():
-            bl_g, bl_v = gap("BloodLedger")
-            vg_g, vg_v = gap("Village")
-            # MEASURE — empire should read a WIDE gap (rigid); the built island a SMALL one (plural).
-            print(f"  MEASURE BloodLedger: H-gap={bl_g:.4f}  Var(H)={bl_v:.4f}   (rigid ⟺ gap ≥ 0.60)")
-            print(f"  MEASURE Village:     H-gap={vg_g:.4f}  Var(H)={vg_v:.4f}   (plural ⟺ gap ≤ 0.45)")
-            print(f"  baseline {fprog('empire_imposes')}")
-            for rnd in range(1, 6):
-                print(f"  [impose {rnd}] {fprog('empire_imposes')}")
-                if "empire_imposes" in flags():
+            # mill_master: more Village incorporation (berry≥5, phase≥18.85)
+            print("\n== ACT3: mill_master ==")
+            for rnd in range(1, 9):
+                if "mill_master" in flags():
                     break
-                go("time_skip", phrames=200)
-            for rnd in range(1, 6):
-                print(f"  [free {rnd}] {fprog('island_free')}")
-                if "island_free" in flags():
-                    break
-                go("time_skip", phrames=300)
-            # Story-beat captures: the finale mechanic made legible (B microscope on the
-            # rigid empire vs the plural island) + the Arc spine in its fired end state.
-            goto_biome("BloodLedger"); press("G", 3); press("B", 5); shot("b_bloodledger_rigid"); press("B", 3)
-            goto_biome("Village"); press("G", 3); press("B", 5); shot("b_village_plural"); press("B", 3)
-            press("C", 4); press("I", 3); shot("arc_final"); press("C", 3)
-        else:
-            print("  (BloodLedger/ledger_opens not reached — ending skipped)")
+                incorporate(bn="Village")
+                print(f"  [mm {rnd}] village berry={berry('Village')} | {fprog('mill_master')}")
 
-        # ============ B3: village_identity divergent branches ============
-        print("\n== B3: village path branches (fire on which atom you built) ==")
-        # What atoms actually ended up in Village (drives which paths can fire) + its H-gap
-        # (does a coherent, diverse build stay plural?).
-        vatoms = []
-        vrm = go("realization_debug", biome="Village")
-        try:
-            vqc = go("energy_variance", biome="Village")
-            print(f"  Village: H-gap={vqc.get('h_gap', -1):.4f} (plural ⟺ ≤0.45)  atoms_emojis={vrm.get('emojis')}")
-        except Exception as e:
-            print(f"  Village readout error: {e}")
-        for fid in ("village_path_commons", "village_path_industrial", "village_path_artisan",
-                    "village_path_watched", "village_path_cemetery"):
-            print("  ", fprog(fid))
+            # ============ ACT 4: island_lives + village_identity ============
+            print("\n== ACT4: island_lives (🪵 into Village) ==")
+            # plant the already-known 🪵/🌾 lumber icon into Village
+            if not go("flag_progress", id="island_lives").get("fired"):
+                wood = next((i for i in known() if "🪵" in (i.get("north", ""), i.get("south", ""))), None)
+                if wood:
+                    plant_icon(vk, wood["north"], wood["south"], "wood")
+                press(vk); go("time_skip", phrames=120)
+            print("  ", fprog("island_lives"))
+
+            # Branch-divergence reachability check (FINDING 2026-06-26): only village_path_artisan
+            # auto-fires, because the Mill mechanically plants 🔨 into Village. The other branches
+            # gate on a specific EMOJI in Village (💧/🏭/🦅/💀). commons needs 💧 — reachable in
+            # principle (FreshwaterSpring realizes 💧-bearing icons like 🌿/💧, 🔥/💧), but ONLY if
+            # you deliberately track+incorporate the 💧 qubit, then plant it before the 6-plot ring
+            # saturates. The generic incorporate() doesn't target 💧, so commons stays dormant.
+            # Best-effort: if a 💧-bearing icon is already known, plant it to demonstrate commons.
+            spring = next((i for i in known() if "💧" in (i.get("north", ""), i.get("south", ""))), None)
+            if spring:
+                plant_icon(vk, spring["north"], spring["south"], "spring 💧 (commons)")
+                press(vk); go("time_skip", phrames=120)
+            else:
+                print("  (no 💧-bearing icon known → village_path_commons unreachable this run)")
+
+            print("\n== ACT4: village_identity (Village built + cross-biome atom diversity) ==")
+            # predicates: [island_lives, atom_count Village>=8, atom_diversity>=N, signature>=14, gap>=0.12]
+            # Reframed (owner): a biome's plot grid caps it at 5 qubits/10 atoms, so the old
+            # atom_count_gte Village 12 was unsatisfiable. Now the LOCAL check is "Village built
+            # out" (>=8, cleared by base+Mill+wood = 10 atoms) and the real goal is CROSS-BIOME
+            # atom diversity — a varied ecology spread across the 6 biome slots. So KEEP discovered
+            # biomes LOADED (their atoms count toward diversity) rather than culling them away.
+            print("  start:", fprog("village_identity"))
+            core = {"StarterForest", "Village", "Woodlot", "FreshwaterSpring"}
+
+            def vi_pred(i):
+                p = go("flag_progress", id="village_identity").get("predicates", [])
+                return p[i]["score"] if i < len(p) else 0.0
+
+            # local atom_count: Village built out (Mill+wood already did it; top up if short)
+            for _ in range(3):
+                if vi_pred(1) >= 0.9:
+                    break
+                if not plant_first(vk):
+                    break
+                press(vk); go("time_skip", phrames=120)
+
+            # diversity (pred 2) + signature (pred 3): fill the 6 biome slots with DIVERSE biomes
+            # and incorporate each. Keep them loaded so their atoms bank toward diversity; only
+            # cull to SWAP out the thinnest non-core biome if full and still short.
+            for rnd in range(1, 16):
+                if vi_pred(2) >= 0.9 and vi_pred(3) >= 0.9:
+                    break
+                if len(grid()) < 6:
+                    before = set(grid())
+                    bridge("🦅", 80)
+                    ensure_hat("7"); press("R", 6)  # Captain discover (fill a slot)
+                    for nb in [b for b in grid() if b not in before]:
+                        bk2 = biome_key(nb)
+                        if bk2:
+                            press(bk2)
+                            for _ in range(2):
+                                incorporate(bn=nb)
+                else:
+                    # 6 loaded but still short → drop the thinnest non-core biome, rediscover next round
+                    per = go("atom_diversity").get("per_biome", {})
+                    keep = core | protected_landmarks()
+                    thin = sorted([(v, b) for b, v in per.items() if b not in keep])
+                    if thin:
+                        cull(thin[0][1])
+                ad = go("atom_diversity")
+                print(f"    [vi {rnd}] loaded={len(grid())} distinct={ad.get('distinct')} "
+                      f"sig={len(known())} | {fprog('village_identity')}")
+            print("  ", fprog("village_identity"))
+
+            # ============ ACT 5: ledger_opens ============
+            print("\n== ACT5: ledger_opens (discover BloodLedger + berry≥2) ==")
+            # village_identity must have fired → BloodLedger inherits discovery pressure.
+            # Slots cap ~6: cull the non-core biomes (discovered for sig) to make room, then
+            # the pressured draw lands BloodLedger.
+            for d in range(1, 16):
+                if "BloodLedger" in grid():
+                    break
+                cullable = [b for b in grid() if b not in (core | protected_landmarks()) and b != "BloodLedger"]
+                if cullable:
+                    cull(cullable[0])
+                bridge("🦅", 80)
+                ensure_hat("7"); press("R", 6)  # discover (BloodLedger pressured)
+                print(f"  discover BL #{d}: grid={grid()} 🦅={res().get('🦅', 0)}")
+            if "BloodLedger" in grid():
+                blk = biome_key("BloodLedger")
+                press(blk)
+                for rnd in range(1, 8):
+                    incorporate(ripen=900, bn="BloodLedger")
+                    b = berry("BloodLedger")
+                    print(f"  [bl {rnd}] BloodLedger berry={b} | {fprog('ledger_opens')}")
+                    if isinstance(b, int) and b >= 2 and "ledger_opens" in flags():
+                        break
+
+            # ============ ACT 6: rigid empire vs plural island — the closed-native ending ====
+            # The physics: a concentrated biome (the empire) has a WIDE H-gap (one dominant mode
+            # it rigidly imposes); a diverse built island has a SMALL gap (many modes coexisting).
+            # empire_imposes: ledger_opens + BloodLedger H-gap >= 0.6 (rigid monoculture — RECOGNIZED).
+            # island_free:    empire_imposes + Village H-gap <= 0.45 (plural, many-voiced, free) +
+            #                 diversity + signature. Freedom = irreducible plurality, not stillness.
+            print("\n== ACT6: rigid empire vs plural island (empire_imposes -> island_free) ==")
+
+            def gap(bn):
+                r = go("energy_variance", biome=bn)
+                return float(r.get("h_gap", -1.0)), float(r.get("var_h", -1.0))
+
+            if "BloodLedger" in grid() and "ledger_opens" in flags():
+                bl_g, bl_v = gap("BloodLedger")
+                vg_g, vg_v = gap("Village")
+                # MEASURE — empire should read a WIDE gap (rigid); the built island a SMALL one (plural).
+                print(f"  MEASURE BloodLedger: H-gap={bl_g:.4f}  Var(H)={bl_v:.4f}   (rigid ⟺ gap ≥ 0.60)")
+                print(f"  MEASURE Village:     H-gap={vg_g:.4f}  Var(H)={vg_v:.4f}   (plural ⟺ gap ≤ 0.45)")
+                print(f"  baseline {fprog('empire_imposes')}")
+                for rnd in range(1, 6):
+                    print(f"  [impose {rnd}] {fprog('empire_imposes')}")
+                    if "empire_imposes" in flags():
+                        break
+                    go("time_skip", phrames=200)
+                for rnd in range(1, 6):
+                    print(f"  [free {rnd}] {fprog('island_free')}")
+                    if "island_free" in flags():
+                        break
+                    go("time_skip", phrames=300)
+                # Story-beat captures: the finale mechanic made legible (B microscope on the
+                # rigid empire vs the plural island) + the Arc spine in its fired end state.
+                goto_biome("BloodLedger"); press("G", 3); press("B", 5); shot("b_bloodledger_rigid"); press("B", 3)
+                goto_biome("Village"); press("G", 3); press("B", 5); shot("b_village_plural"); press("B", 3)
+                press("C", 4); press("I", 3); shot("arc_final"); press("C", 3)
+            else:
+                print("  (BloodLedger/ledger_opens not reached — ending skipped)")
+
+            # ============ B3: village_identity divergent branches ============
+            print("\n== B3: village path branches (fire on which atom you built) ==")
+            # What atoms actually ended up in Village (drives which paths can fire) + its H-gap
+            # (does a coherent, diverse build stay plural?).
+            vatoms = []
+            vrm = go("realization_debug", biome="Village")
+            try:
+                vqc = go("energy_variance", biome="Village")
+                print(f"  Village: H-gap={vqc.get('h_gap', -1):.4f} (plural ⟺ ≤0.45)  atoms_emojis={vrm.get('emojis')}")
+            except Exception as e:
+                print(f"  Village readout error: {e}")
+            for fid in ("village_path_commons", "village_path_industrial", "village_path_artisan",
+                        "village_path_watched", "village_path_cemetery"):
+                print("  ", fprog(fid))
+
+        if not _resume:
+            r_sv = go("save_game_path", path=_ckpt)
+            print(f"  checkpoint saved: {r_sv.get('saved')} -> {_ckpt}")
 
         # ============ ACT 6-8: the wet country (endgame; ACT35_ENDGAME=1) ============
         # The crossing into GildedRot, What Fades, and What Connects III-V. Discovery
