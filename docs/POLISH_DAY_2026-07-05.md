@@ -75,7 +75,28 @@ Two legs on the merged build, zero errors, zero walls:
   — plus `village_path_artisan`, and organically along the way: `pond_depths`,
   `pond_breathes`, `braid_order`, `braid_word`, `edge_of_the_enclave`.
 
-**Final count: 29 of 43 flags proven by keyboard.** After the pool fix, run 3
+**FINAL: 43 of 43 flags proven by keyboard — every campaign complete.** The
+checkpoint-resume lane (save after `island_free`, iterate the endgame in
+10-minute cycles) ground the last 14 down. Along the way it caught TWO more
+GAME bugs, both invisible to every prior test:
+
+- **The Spark jolt could never fire** — LindbladHandler read the legacy
+  `plot.north_emoji` (set only by the old plant flow), so on register-first
+  ground every jolt returned a bare failure. Session 11 had only ever
+  verified the closed-ground *refusal*. Now resolves via the register axis.
+- **Flag predicates owned by the projection service scored a silent 0.0** —
+  `gate_sequence_contains`/`gate_order` are in the flag vocabulary but had no
+  arm in `_check_flag_predicate`, whose default returned 0.0 instead of
+  delegating. The action history recorded faithfully; the evaluator never
+  asked it. `the_first_contract` was unfireable.
+
+Plus two physics lessons the game taught its own tester: the SSH chain
+(Lanternfall) is stationary under all-sites-Hadamard — farm it one lantern
+at a time; and fusion targets bridges anchored at the CURRENT biome — one
+fuse per shore. Endgame result, single session: all 14 acts-6–8 flags fired
+(the_first_contract 0.97, the_fusion 0.97, the_rite 0.89, the_door 0.98).
+
+Earlier interim count for the record: 29 of 43. After the pool fix, run 3
 opened the wet country for the first time: `the_crossing` (1.00), `the_gray`
 (0.99), `watching_keeps` (1.00), `the_verbs_come_home` (1.00), `the_basin`
 (fired, then correctly released its biome). The 14 still-unproven flags are
