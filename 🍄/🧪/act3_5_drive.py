@@ -298,6 +298,18 @@ def main():
         fl = flags()
         return {b for b, fid in LANDMARK_GATE.items() if fid not in fl}
 
+    def cullable_from(grid_now, keep, extra_exclude=()):
+        """Non-protected first; if the grid is ALL keep (protection deadlock —
+        6 slots, 6 protected = no room to discover, the loop starves), release
+        a zero-progress landmark: it holds no berries, and discovery pressure
+        re-pulls it the moment its flag is next-reachable."""
+        cand = [b for b in grid_now if b not in keep and b not in extra_exclude]
+        if cand:
+            return cand
+        return [b for b in grid_now
+                if b in LANDMARK_GATE and b not in extra_exclude
+                and not (isinstance(berry(b), int) and berry(b) > 0)]
+
     def cull(name):
         """Cull (remove) a biome to free a slot. Captain hat Q = remove_biome (destructive
         → F confirms); costs 34×💀, so bridge it. Returns True if the biome left the grid.
@@ -572,7 +584,8 @@ def main():
                     # 6 loaded but still short → drop the thinnest non-core biome, rediscover next round
                     per = go("atom_diversity").get("per_biome", {})
                     keep = core | protected_landmarks()
-                    thin = sorted([(v, b) for b, v in per.items() if b not in keep])
+                    cands = cullable_from(list(per.keys()), keep)
+                    thin = sorted([(per.get(b, 0), b) for b in cands])
                     if thin:
                         cull(thin[0][1])
                 ad = go("atom_diversity")
@@ -588,7 +601,7 @@ def main():
             for d in range(1, 16):
                 if "BloodLedger" in grid():
                     break
-                cullable = [b for b in grid() if b not in (core | protected_landmarks()) and b != "BloodLedger"]
+                cullable = cullable_from(grid(), core | protected_landmarks(), ("BloodLedger",))
                 if cullable:
                     cull(cullable[0])
                 bridge("🦅", 80)
@@ -676,7 +689,7 @@ def main():
                     if target in grid():
                         return True
                     keep = endgame_core | protected_landmarks()
-                    cullable = [b for b in grid() if b not in keep and b != target]
+                    cullable = cullable_from(grid(), keep, (target,))
                     if cullable:
                         cull(cullable[0])
                     bridge("🦅", 80)
