@@ -685,8 +685,24 @@ def main():
                 return target in grid()
 
             def berries_to(target_biome, want, fid):
+                # ONE PLOT PER ROUND. Exciting every site at once can park the joint
+                # state in an eigenstate of the coupled chain (Lanternfall, the SSH
+                # teaching biome, does exactly this: all-Hadamard = stationary = zero
+                # solid angle = berries never ripen). A single excitation always beats
+                # against its pinned neighbours — measured -77 rad/1800 phrames vs a
+                # flat 0.0 for the all-plots pattern.
+                goto_biome(target_biome)
+                n = len(qstate(target_biome)) or 1
                 for rnd in range(1, 10):
-                    incorporate(ripen=900, bn=target_biome)
+                    pk = PLOT[(rnd - 1) % min(n, len(PLOT))]
+                    ensure_hat("0"); press(pk, 3); press("E", 3)   # Hadamard one site
+                    ensure_hat("5"); press(pk, 3)
+                    trk = [bool(q.get("tracked")) for q in qstate(target_biome)]
+                    idx = (rnd - 1) % min(n, len(PLOT))
+                    if idx >= len(trk) or not trk[idx]:
+                        press("F", 3)                              # track it
+                    go("time_skip", phrames=900)
+                    press(pk, 3); press("R", 4)                    # incorporate when ripe
                     b = berry(target_biome)
                     print(f"  [{target_biome} {rnd}] berry={b} | {fprog(fid)}")
                     if isinstance(b, int) and b >= want and fid in flags():
