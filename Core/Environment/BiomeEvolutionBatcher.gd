@@ -2461,23 +2461,6 @@ func _biome_has_persistent_lindblad_channels(biome) -> bool:
 
 # === PUBLIC API: Per-Biome Control ===
 
-func pause_biome(biome_name: String):
-	# Manually pause a biome (stop evolution, no refills).
-	#
-	# Useful for debugging or performance optimization.
-	biome_manual_paused[biome_name] = true
-	biome_paused[biome_name] = true
-	_active_biome_names.erase(biome_name)
-	_log("info", "CONTROL", "⏸️", "%s: manually paused" % biome_name)
-
-
-func resume_biome(biome_name: String):
-	# Manually resume a paused biome (allow evolution and refills).
-	biome_manual_paused[biome_name] = false
-	_mark_biome_activity_dirty(biome_name)
-	_log("info", "CONTROL", "▶️", "%s: manually resumed" % biome_name)
-
-
 func is_biome_paused(biome_name: String) -> bool:
 	# Check if a biome is currently paused.
 	return biome_paused.get(biome_name, false) or biome_manual_paused.get(biome_name, false)
@@ -2532,10 +2515,6 @@ func _packet_request_targets_biome(packet_request: Dictionary, biome_name: Strin
 
 func _any_active_biomes() -> bool:
 	return not _active_biome_names.is_empty()
-
-
-func has_runtime_active_biomes() -> bool:
-	return _any_active_biomes()
 
 
 func is_runtime_dormant() -> bool:
@@ -2605,42 +2584,6 @@ func signal_user_action():
 		lookahead_accumulator = LOOKAHEAD_DT * LOOKAHEAD_STEPS
 		_mark_biome_activity_dirty()
 		user_action_detected.emit()
-
-
-func get_buffered_state(biome_name: String) -> PackedFloat64Array:
-	# Get current buffered quantum state for a biome.
-	#
-	# Used by visualization to read buffered native output instead of live state.
-	var lookahead_buffer = _get_lookahead_buffer(biome_name)
-	var buffer = lookahead_buffer.frames if lookahead_buffer else []
-	var cursor = lookahead_buffer.cursor if lookahead_buffer else 0
-
-	if cursor < buffer.size():
-		return buffer[cursor]
-
-	return PackedFloat64Array()
-
-
-func get_buffered_state_offset(biome_name: String, offset: int) -> PackedFloat64Array:
-	# Get buffered quantum state at an offset from the current cursor.
-	#
-	# Args:
-	# biome_name: Biome identifier
-	# offset: 0 = current, 1 = next frame, etc.
-	var lookahead_buffer = _get_lookahead_buffer(biome_name)
-	var buffer = lookahead_buffer.frames if lookahead_buffer else []
-	if buffer.is_empty():
-		return PackedFloat64Array()
-
-	var cursor = lookahead_buffer.cursor if lookahead_buffer else 0
-	var target = clampi(cursor + offset, 0, buffer.size() - 1)
-	return buffer[target]
-
-
-func get_buffered_mi(biome_name: String) -> PackedFloat64Array:
-	# Get cached mutual information for force graph.
-	var lookahead_buffer = _get_lookahead_buffer(biome_name)
-	return lookahead_buffer.latest_mi if lookahead_buffer else PackedFloat64Array()
 
 
 func get_viz_snapshot(biome_name: String, register_id: int, offset: int = 0) -> Dictionary:
@@ -2805,33 +2748,6 @@ func get_interpolated_force_positions(biome_name: String) -> PackedVector2Array:
 	return result
 
 
-func get_force_positions(biome_name: String, lookahead: int = 0) -> PackedVector2Array:
-	# Get force positions for a biome at cursor + lookahead offset.
-	#
-	# Args:
-	# biome_name: Name of the biome
-	# lookahead: Offset from cursor (0 = current, 1 = next, etc.)
-	#
-	# Returns: PackedVector2Array of node positions
-	var lookahead_buffer = _get_lookahead_buffer(biome_name)
-	var cursor = lookahead_buffer.cursor if lookahead_buffer else 0
-	var positions = lookahead_buffer.positions if lookahead_buffer else []
-
-	var index = cursor + lookahead
-	if index >= 0 and index < positions.size():
-		return positions[index]
-	return PackedVector2Array()
-
-
-func get_buffer_cursor(biome_name: String) -> int:
-	var lookahead_buffer = _get_lookahead_buffer(biome_name)
-	return lookahead_buffer.cursor if lookahead_buffer else 0
-
-
-func get_buffer_depth(biome_name: String) -> int:
-	return _get_biome_depth(biome_name)
-
-
 func _lerp_angle(a: float, b: float, t: float) -> float:
 	# Interpolate angles handling wraparound at 2*PI.
 	var diff = fmod(b - a + 3.0 * PI, TAU) - PI
@@ -2940,41 +2856,6 @@ func _has_emergency_refill() -> bool:
 		if bool(biome_emergency_refill.get(biome_name, false)):
 			return true
 	return false
-
-
-func get_batching_diagnostics() -> Dictionary:
-	# Get detailed diagnostics for batching verification.
-	var first_biome_name = ""
-	var cursor = -1
-	var buffer_size = 0
-	var t = get_interpolation_factor()
-
-	if biomes.size() > 0 and biomes[0]:
-		first_biome_name = biomes[0].get_biome_type()
-		var lookahead_buffer = _get_lookahead_buffer(first_biome_name)
-		cursor = lookahead_buffer.cursor if lookahead_buffer else -1
-		var buffer = lookahead_buffer.frames if lookahead_buffer else []
-		buffer_size = buffer.size()
-
-	var fib_index = _get_effective_fib_index()
-	var adaptive_batch_size = _get_effective_batch_size()
-
-	return {
-		"lookahead_enabled": lookahead_enabled,
-		"evolution_tick": _evolution_tick_count,
-		"refill_count": lookahead_refills,
-		"buffer_cursor": cursor,
-		"buffer_size": buffer_size,
-		"buffer_depth": buffer_size - max(0, cursor),
-		"interpolation_t": t,
-		"evolution_accumulator": evolution_accumulator,
-		"lookahead_accumulator": lookahead_accumulator,
-		"batch_queue_size": _packet_queue.size(),
-		# Aggregate view of the per-biome Fibonacci state.
-		"buffer_state": _get_effective_buffer_state_name(),
-		"fib_index": fib_index,
-		"adaptive_batch_size": adaptive_batch_size,
-	}
 
 
 func reset_performance_metrics() -> void:

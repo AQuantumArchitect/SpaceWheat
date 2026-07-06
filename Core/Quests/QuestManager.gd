@@ -49,14 +49,6 @@ var _signature_baseline: int = -1  # Seeded signature size snapshot (-1 = not ca
 var _tutorial_steps: Array = [] # Act-0 onboarding chain (tutorial_arc.json), linked into a chain
 
 # =============================================================================
-# CONFIGURATION
-# =============================================================================
-
-const MAX_ACTIVE_QUESTS: int = 5
-const QUEST_OFFER_COOLDOWN: float = 30.0  # Seconds between new quest offers
-const AUTO_FAIL_ON_RESOURCE_SHORTAGE: bool = true
-
-# =============================================================================
 # LIFECYCLE
 # =============================================================================
 
@@ -135,10 +127,6 @@ func _physics_process(delta: float) -> void:
 func connect_to_economy(econ: Node) -> void:
 	# Inject economy dependency
 	economy = econ
-
-func connect_to_faction_manager(fm: Node) -> void:
-	# Inject faction manager dependency
-	faction_manager = fm
 
 func connect_to_biome(biome: Node) -> void:
 	# Inject biome dependency for quest tracking
@@ -1146,30 +1134,6 @@ func accept_quest(quest_data: Dictionary) -> bool:
 # QUEST COMPLETION
 # =============================================================================
 
-func check_quest_completion(quest_id: int) -> bool:
-	# Check if player has resources to complete quest
-
-	# Returns:
-	# true if quest can be completed with current resources
-	if not active_quests.has(quest_id):
-		return false
-
-	var quest = active_quests[quest_id]
-	var required_emoji = quest.get("resource", "")
-	var required_qty = quest.get("quantity", 0)
-
-	if required_emoji.is_empty() or required_qty <= 0:
-		return false
-
-	if economy == null:
-		push_warning("QuestManager: economy not connected, cannot check resources")
-		return false
-
-	# Check if player has enough resources
-	# quantity is already in credits.
-	var player_amount = economy.get_resource(required_emoji)
-	return player_amount >= required_qty
-
 func _finalize_quest_completion(quest_id: int, quest: Dictionary, reward, granted_resources: Dictionary) -> void:
 	# Stamp completion fields, move quest to completed list, emit signals.
 	quest["status"] = "completed"
@@ -1438,39 +1402,6 @@ func claim_quest(quest_id: int) -> bool:
 	_finalize_quest_completion(quest_id, quest, reward, granted_resources)
 	return true
 
-
-func reject_quest(quest_id: int) -> void:
-	# Reject a ready quest without claiming rewards
-
-	# Used when player doesn't want the rewards from a completed non-delivery quest.
-	if not active_quests.has(quest_id):
-		return
-
-	var quest = active_quests[quest_id]
-
-	# Must be in ready state to reject
-	if quest.get("status") != "ready":
-		push_warning("Cannot reject quest %d: not ready" % quest_id)
-		return
-
-	quest["status"] = "rejected"
-	quest["rejected_at"] = Time.get_ticks_msec()
-
-	# Move to failed list (rejected = voluntary failure)
-	active_quests.erase(quest_id)
-	failed_quests.append(quest)
-
-	_stop_quest_timer(quest_id)
-
-	quest_failed.emit(quest_id, "rejected")
-	active_quests_changed.emit()
-
-
-func is_quest_ready(quest_id: int) -> bool:
-	# Check if a quest is ready to claim
-	if not active_quests.has(quest_id):
-		return false
-	return active_quests[quest_id].get("status") == "ready"
 
 # =============================================================================
 # QUEST TIMERS
@@ -1773,11 +1704,6 @@ func _update_collapse_deliberately_quest(quest: Dictionary, _delta: float) -> vo
 # QUERY FUNCTIONS
 # =============================================================================
 
-func get_active_quest_count() -> int:
-	# Get number of active quests
-	return active_quests.size()
-
-
 func _is_known_observable_value(value: float) -> bool:
 	return value >= 0.0
 
@@ -1805,21 +1731,6 @@ func get_quest_by_id(quest_id: int) -> Dictionary:
 	if story_offers.has(quest_id):
 		return story_offers.get(quest_id, {})
 	return {}
-
-func has_active_quest_for_faction(faction_name: String) -> bool:
-	# Check if there's an active quest from this faction
-	for quest in active_quests.values():
-		if quest.get("faction", "") == faction_name:
-			return true
-	return false
-
-func get_completed_quest_count() -> int:
-	# Get total completed quests
-	return completed_quests.size()
-
-func get_failed_quest_count() -> int:
-	# Get total failed quests
-	return failed_quests.size()
 
 # =============================================================================
 # DEBUG / TESTING

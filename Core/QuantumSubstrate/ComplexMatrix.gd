@@ -32,10 +32,6 @@ static func _check_native() -> void:
 		_native_available = false
 		VerboseHelper.warn("quantum", "matrix", "ComplexMatrix using pure GDScript")
 
-static func is_native_available() -> bool:
-	_check_native()
-	return _native_available
-
 ## Instance-level native backend
 var _native_backend = null
 
@@ -245,15 +241,6 @@ static func identity(dimension: int):
 	return m
 
 ## Create from 2D array of Complex numbers
-static func from_array(arr: Array):
-	var dim = arr.size()
-	var m = load("res://Core/QuantumSubstrate/ComplexMatrix.gd").new(dim)
-	for i in range(dim):
-		for j in range(dim):
-			if j < arr[i].size():
-				m.set_element(i, j, arr[i][j])
-	return m
-
 ## Create diagonal matrix from array of Complex numbers
 static func diagonal(diag: Array):
 	var dim = diag.size()
@@ -397,52 +384,6 @@ func trace():
 	return Complex.new(sum_re, sum_im)
 
 
-func compute_energy_split() -> Dictionary:
-	# Split total energy into Real (diagonal) + Imaginary (off-diagonal)
-
-	# For density matrices:
-	# - Real energy = observable populations (diagonal elements)
-	# - Imaginary energy = quantum coherence (off-diagonal elements)
-
-	# The imaginary energy represents "potential" that can be extracted
-	# via the Sparks mechanic (coherence → observable conversion).
-
-	# Returns:
-	# {
-	# "real": float,           # Sum of diagonal probabilities
-	# "imaginary": float,      # Sum of |off-diagonal| coherences
-	# "total": float,          # real + imaginary
-	# "coherence_ratio": float # imaginary / total (0.0 to 1.0)
-	# }
-	var p = _to_packed()
-	var dim = n
-	var real_energy = 0.0
-	var imaginary_energy = 0.0
-
-	# Real: sum of diagonal (populations)
-	for i in range(dim):
-		real_energy += p[(i * dim + i) * 2]
-
-	# Imaginary: sum of |off-diagonal| (coherences)
-	# Only count upper triangle and multiply by 2 (matrix is Hermitian)
-	for i in range(dim):
-		for j in range(i + 1, dim):
-			var idx = (i * dim + j) * 2
-			var re = p[idx]
-			var im = p[idx + 1]
-			imaginary_energy += sqrt(re * re + im * im) * 2.0
-
-	var total = real_energy + imaginary_energy
-	var ratio = imaginary_energy / total if total > 0.0 else 0.0
-
-	return {
-		"real": real_energy,
-		"imaginary": imaginary_energy,
-		"total": total,
-		"coherence_ratio": ratio
-	}
-
-
 func commutator(other):
 	# [A, B] = AB - BA
 	if n == 0:
@@ -455,17 +396,6 @@ func commutator(other):
 func anticommutator(other):
 	# {A, B} = AB + BA — no native method, decompose via native mul + native add
 	return mul(other).add(other.mul(self))
-
-static func outer_product(ket: Array, bra: Array):
-	var dim = ket.size()
-	if bra.size() != dim:
-		push_error("Outer product dimension mismatch")
-		return load("res://Core/QuantumSubstrate/ComplexMatrix.gd").new(dim)
-	var m = load("res://Core/QuantumSubstrate/ComplexMatrix.gd").new(dim)
-	for i in range(dim):
-		for j in range(dim):
-			m.set_element(i, j, ket[i].mul(bra[j].conjugate()))
-	return m
 
 #endregion
 
@@ -535,16 +465,6 @@ func is_hermitian(tolerance: float = 1e-10) -> bool:
 				return false
 	return true
 
-func is_positive_semidefinite(tolerance: float = 1e-10) -> bool:
-	var eig = eigensystem()
-	for eigenvalue in eig.eigenvalues:
-		if eigenvalue < -tolerance:
-			return false
-	return true
-
-func has_unit_trace(tolerance: float = 1e-10) -> bool:
-	return abs(trace().re - 1.0) < tolerance
-
 #endregion
 
 #region Tensor Products & State Conversion
@@ -602,37 +522,6 @@ func _get_sparsity_pattern() -> Array:
 				pattern.append([i, j])
 
 	return pattern
-
-static func from_statevector(statevector: Array) -> ComplexMatrix:
-	# Convert state vector |ψ⟩ to density matrix ρ = |ψ⟩⟨ψ| (sparse-optimized)
-
-	# Input: statevector as Array[Complex]
-	# Output: density matrix ρ where ρ_ij = ψ_i * conj(ψ_j)
-
-	# Sparse optimization: only compute ρ_ij where both ψ_i and ψ_j are non-zero.
-	# Time: O(nnz²) where nnz = number of non-zero components in |ψ⟩
-	# Space: O(nnz²) instead of O(n²)
-
-	# Typical case: superposition of 2-4 basis states → nnz ≈ 4, time ≈ O(16) vs O(2^(2n))
-	var dim = statevector.size()
-	var rho = load("res://Core/QuantumSubstrate/ComplexMatrix.gd").new(dim)
-
-	# Find non-zero indices in statevector
-	var nonzero_indices = []
-	for i in range(dim):
-		if statevector[i].abs() > 1e-14:
-			nonzero_indices.append(i)
-
-	# Only compute ρ_ij for non-zero pairs
-	for i in nonzero_indices:
-		for j in nonzero_indices:
-			var psi_i = statevector[i]
-			var psi_j = statevector[j]
-			# ρ_ij = ψ_i * conj(ψ_j)
-			var rho_ij = psi_i.mul(psi_j.conjugate())
-			rho.set_element(i, j, rho_ij)
-
-	return rho
 
 func conjugate_transpose() -> ComplexMatrix:
 	# Alias for dagger() for physics naming convention.

@@ -286,17 +286,6 @@ func _decompose_basis_msb(basis: int, num_qubits: int) -> Array[int]:
 ## MEASUREMENT (Ace Frame Backend)
 ## ============================================================================
 
-func inspect_register_distribution(_comp, reg_id: int) -> Dictionary:
-	# Non-destructive peek at measurement probabilities.
-
-	# Returns marginal probabilities WITHOUT collapsing state.
-	# This is simulator introspection, not physical measurement.
-
-	# Returns: {north: float, south: float}
-	var p0 = get_marginal(reg_id, 0)
-	var p1 = get_marginal(reg_id, 1)
-	return {"north": p0, "south": p1}
-
 func _project_component_state(_comp, reg_id: int, outcome_idx: int) -> void:
 	# Apply projector to component state after measurement.
 
@@ -377,27 +366,11 @@ func get_marginal_density_matrix(_comp, reg_id: int) -> ComplexMatrix:
 
 	return result
 
-func get_marginal_probability_subspace(_comp, reg_id: int, _basis_labels: Array[String]) -> float:
-	# Get total probability in subspace spanned by two basis states.
-
-	# Used for plots with (north_emoji, south_emoji) basis.
-	# Returns: P(north) + P(south)
-	var marginal = get_marginal_density_matrix(null, reg_id)
-	var p0 = marginal.get_element(0, 0).re
-	var p1 = marginal.get_element(1, 1).re
-	return p0 + p1
-
 func get_marginal_purity(_comp, reg_id: int) -> float:
 	# Get purity of marginal state for one register.
 	var marginal = get_marginal_density_matrix(null, reg_id)
 	var rho_sq = marginal.mul(marginal)
 	return clamp(rho_sq.trace().re, 0.0, 1.0)
-
-func get_marginal_coherence(_comp, reg_id: int) -> float:
-	# Get coherence (off-diagonal element) for one register.
-	var marginal = get_marginal_density_matrix(null, reg_id)
-	return marginal.get_element(0, 1).abs()
-
 
 func get_attractor_state() -> Dictionary:
 	# Return the biome's attractor — the dominant eigenstate of the current ρ.
@@ -562,14 +535,6 @@ func reset_sink_flux() -> void:
 	sink_flux_per_emoji.clear()
 
 
-func get_renorm_diagnostics() -> Dictionary:
-	# Expose renormalization diagnostics for debugging only (not gameplay economy).
-	return {
-		"last_trace_before_cap": _last_renorm_trace_before_cap,
-		"last_scale": _last_renorm_scale,
-		"cumulative_trace_excess": _cumulative_renorm_excess
-	}
-
 func debug_dump() -> String:
 	# Generate human-readable dump of quantum computer state.
 	var s = "=== QuantumComputer %s ===\n" % biome_name
@@ -641,20 +606,6 @@ func add_persistent_gate_to_register(reg_id: int, gate_type: String, linked_regi
 		"linked_registers": linked_registers.duplicate()
 	})
 	_log("debug", "quantum", "🔧", "Added persistent gate '%s' to register %d (linked: %d registers)" % [gate_type, reg_id, linked_registers.size()])
-
-
-func get_active_gates_for_register(reg_id: int) -> Array[Dictionary]:
-	var infra = _ensure_register_infra(reg_id)
-	var active: Array[Dictionary] = []
-	for gate in infra.get("persistent_gates", []):
-		if gate.get("active", false):
-			active.append(gate)
-	return active
-
-
-func clear_register_infrastructure(reg_id: int) -> void:
-	if register_infrastructure.has(reg_id):
-		register_infrastructure.erase(reg_id)
 
 
 func _resize_density_matrix() -> void:
@@ -877,17 +828,6 @@ func project_qubit(qubit_index: int, outcome: int) -> bool:
 	return true
 
 
-func get_qubit_for_emoji(emoji: String) -> int:
-	# Get qubit index for an emoji.
-
-	# Args:
-	# emoji: Emoji to look up
-
-	# Returns:
-	# Qubit index (0, 1, 2, ...) or -1 if not found
-	return register_map.qubit(emoji)
-
-
 func get_emoji_pair_for_qubit(qubit_index: int) -> Dictionary:
 	# Get {north, south} emoji pair for a qubit.
 
@@ -1020,29 +960,6 @@ func apply_rx(qubit_idx: int, theta: float = PI / 4.0) -> bool:
 	# Apply Rx rotation gate with angle theta (default π/4).
 	var Rx = QuantumGateLibrary._rx_gate(theta)
 	return apply_gate(qubit_idx, Rx)
-
-
-func apply_rz(qubit_idx: int, theta: float = PI / 4.0) -> bool:
-	# Apply Rz rotation gate with angle theta (default π/4).
-	var Rz = QuantumGateLibrary._rz_gate(theta)
-	return apply_gate(qubit_idx, Rz)
-
-
-func apply_perturbation(strength: float = 0.8) -> Dictionary:
-	# Kick every qubit by random Ry+Rx rotations scaled by strength (radians).
-	# Returns the attractor state captured *before* the perturbation so callers
-	# can use it as a recovery target.  strength ≈ 0.8 is enough to scatter the
-	# dominant state without fully destroying structure; PI/2 ≈ maximum chaos.
-	var pre_attractor := get_attractor_state()
-	if not register_map:
-		return {}
-	var nq := register_map.num_qubits
-	for q in range(nq):
-		var angle_y := randf_range(strength * 0.5, strength)
-		var angle_x := randf_range(-strength * 0.3, strength * 0.3)
-		apply_ry(q, angle_y)
-		apply_rx(q, angle_x)
-	return {"pre_attractor": pre_attractor, "qubits_perturbed": nq}
 
 
 func apply_cnot(control_qubit: int, target_qubit: int) -> bool:
@@ -2004,86 +1921,6 @@ func apply_decay(qubit_index: int, rate: float, dt: float) -> void:
 	_apply_lindblad_1q(qubit_index, from_pole, to_pole, rate, dt)
 
 
-func apply_cross_register_channel(source_qubit: int, target_qubit: int,
-                                   rate: float, dt: float) -> void:
-	# Apply a dissipative channel transferring population between two qubits.
-
-	# Creates a cross-register Lindblad jump operator:
-	# L = √γ (σ⁺_target ⊗ σ⁻_source)
-
-	# This simultaneously decays the source qubit (north→south) and excites
-	# the target qubit (south→north), implementing directed energy/population
-	# transfer through the density matrix. Uses the exact Kraus map (CPTP).
-
-	# Args:
-	# source_qubit: Qubit to drain FROM (population flows out of north pole)
-	# target_qubit: Qubit to pump INTO (population flows into north pole)
-	# rate: Channel strength γ (1/s)
-	# dt: Time step (s)
-	if density_matrix == null:
-		return
-	if source_qubit == target_qubit:
-		return  # Self-channel is meaningless
-
-	var num_qubits = register_map.num_qubits
-	var dim = register_map.dim()
-	if source_qubit < 0 or source_qubit >= num_qubits:
-		return
-	if target_qubit < 0 or target_qubit >= num_qubits:
-		return
-
-	var src_shift = num_qubits - 1 - source_qubit
-	var tgt_shift = num_qubits - 1 - target_qubit
-
-	# Exact transition probability (amplitude damping channel)
-	var p = 1.0 - exp(-rate * dt)
-	p = clampf(p, 0.0, 1.0)
-	if p < 1e-15:
-		return  # No effect
-
-	var sqrt_1mp = sqrt(1.0 - p)
-
-	# The cross-register channel acts on basis states where:
-	#   source qubit has north pole (0) AND target qubit has south pole (1)
-	# Flipping both: source goes 0→1 (decay), target goes 1→0 (excitation)
-	#
-	# K₀ (no-jump): identity on states without the pattern,
-	#   √(1-p) scaling on states matching the pattern
-	# K₁ (jump): √p × flip both qubits on matching states
-	var rho_new = ComplexMatrix.zeros(dim)
-	for i in range(dim):
-		for j in range(dim):
-			var src_bit_i = (i >> src_shift) & 1
-			var tgt_bit_i = (i >> tgt_shift) & 1
-			var src_bit_j = (j >> src_shift) & 1
-			var tgt_bit_j = (j >> tgt_shift) & 1
-
-			# Can this row/col participate in a jump?
-			var jumpable_i = (src_bit_i == 0 and tgt_bit_i == 1)  # source=north, target=south
-			var jumpable_j = (src_bit_j == 0 and tgt_bit_j == 1)
-
-			# K₀ term: diagonal scaling
-			var k0_i = sqrt_1mp if jumpable_i else 1.0
-			var k0_j = sqrt_1mp if jumpable_j else 1.0
-			var rho_ij = density_matrix.get_element(i, j)
-			var result = rho_ij.scale(k0_i * k0_j)
-
-			# K₁ term: jump (flip both qubits) for jumpable states
-			# The flipped state has source=south(1), target=north(0)
-			var flipped_i = (src_bit_i == 1 and tgt_bit_i == 0)  # post-jump pattern
-			var flipped_j = (src_bit_j == 1 and tgt_bit_j == 0)
-			if flipped_i and flipped_j:
-				# Map back to pre-jump source indices
-				var i_pre = i ^ (1 << src_shift) ^ (1 << tgt_shift)
-				var j_pre = j ^ (1 << src_shift) ^ (1 << tgt_shift)
-				result = result.add(density_matrix.get_element(i_pre, j_pre).scale(p))
-
-			rho_new.set_element(i, j, result)
-
-	density_matrix = rho_new
-	_purity_cache = -1.0
-
-
 func get_trace() -> float:
 	# Get trace of density matrix (should always be 1.0).
 	if density_matrix == null:
@@ -2172,37 +2009,9 @@ func _add_zz_coupling_to_hamiltonian(qubit_a: int, qubit_b: int, J: float) -> vo
 	# on the biome's next mark_for_reregister cycle.
 
 
-func get_coupling(qubit_a: int, qubit_b: int) -> float:
-	# Get current coupling strength between two qubits.
-
-	# Returns:
-	# Coupling strength J, or 0.0 if no coupling exists
-	var key = "%d-%d" % [mini(qubit_a, qubit_b), maxi(qubit_a, qubit_b)]
-	if coupling_registry.has(key):
-		return coupling_registry[key].J
-	return 0.0
-
-
-func get_all_couplings() -> Array:
-	# Get all registered couplings.
-
-	# Returns:
-	# Array of {a: int, b: int, J: float} dictionaries
-	var result = []
-	for key in coupling_registry:
-		result.append(coupling_registry[key].duplicate())
-	return result
-
-
 # ============================================================================
-# SPARSE OPERATOR SETUP (Performance Optimization)
+# DRIVEN ICONS (time-dependent Hamiltonian diagonal)
 # ============================================================================
-
-func set_hamiltonian(H: ComplexMatrix) -> void:
-	# Canonical H reference. The native engine consumes it via its own packed
-	# copy at batcher registration; there is no GDScript consumer of H shape.
-	hamiltonian = H
-
 
 func set_driven_icons(configs: Array) -> void:
 	# Set time-dependent driver configurations for efficient Hamiltonian updates.

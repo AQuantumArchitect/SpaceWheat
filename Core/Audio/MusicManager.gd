@@ -814,40 +814,6 @@ func _get_top_accumulated_emojis(count: int) -> String:
 	return " ".join(parts)
 
 
-func set_iconmap_mode(enabled: bool) -> void:
-	# Enable or disable IconMap-driven music selection.
-	#
-	# When enabled, music selection is driven by the quantum state (IconMap) of the
-	# active biome. Samples are accumulated every 1 second with decisions on each sample.
-	# Actual track switches are rate-limited to once per ICONMAP_MIN_SWITCH_INTERVAL.
-	#
-	# When disabled, music is selected based on biome identity (BIOME_TRACKS).
-	iconmap_mode_enabled = enabled
-	_iconmap_sample_timer = 0.0
-	_iconmap_last_switch_time = -100.0  # Allow immediate switch on enable
-	_reset_iconmap_accumulator()
-
-
-func is_iconmap_mode() -> bool:
-	# Check if IconMap-driven music mode is enabled.
-	return iconmap_mode_enabled
-
-
-func set_portfolio_mode(enabled: bool) -> void:
-	# Enable or disable portfolio (economy resource) influence on music selection.
-	#
-	# When enabled, the player's resource holdings are blended into the music
-	# selection vector using PORTFOLIO_BLEND_WEIGHT. This makes music respond
-	# to what you have, not just where you are.
-	portfolio_mode_enabled = enabled
-
-
-func is_portfolio_mode() -> bool:
-	# Check if portfolio-driven music influence is enabled.
-	return portfolio_mode_enabled
-
-
-
 ## ============================================================================
 ## PUBLIC API
 ## ============================================================================
@@ -966,32 +932,6 @@ func play_icon_track(icon: String) -> void:
 			return
 
 	# No match found - don't change music (could also use FALLBACK_TRACK)
-
-
-func play_track(track_key: String, instant: bool = false) -> void:
-	# Play a track by key name
-	#
-	# Args:
-	# track_key: Key from TRACKS dictionary
-	# instant: If true, skip crossfade
-	if _disabled:
-		return
-
-	if track_key == _current_track:
-		return
-
-	if not TRACKS.has(track_key):
-		push_warning("MusicManager: Unknown track '%s'" % track_key)
-		return
-
-	var stream = _get_or_load_stream(track_key)
-	if not stream:
-		return
-
-	if instant or not _active_player.playing:
-		_play_instant(stream, track_key)
-	else:
-		crossfade_to(track_key)
 
 
 func crossfade_to(track_key: String) -> void:
@@ -1146,25 +1086,6 @@ func is_playing() -> bool:
 	if _disabled or not _active_player:
 		return false
 	return _active_player.playing
-
-
-func get_current_track() -> String:
-	return _current_track
-
-
-func play_menu_music() -> void:
-	# Play menu/credits music
-	if _disabled:
-		return
-
-	crossfade_to(MENU_TRACK)
-
-
-func clear_track_positions() -> void:
-	# Clear all saved track positions - tracks will restart from beginning
-	_track_positions.clear()
-	if VerboseHelper.get_config():
-		VerboseHelper.debug("music", "🔄", "Cleared all saved track positions")
 
 
 func reset() -> void:
@@ -1588,75 +1509,6 @@ func _load_json_array(path: String) -> Array:
 	if json.parse(text) != OK:
 		return []
 	return json.data if json.data is Array else []
-
-
-func rebuild_vector_cache() -> void:
-	# Force rebuild of vector cache. Call this after modifying biomes/factions.
-	_cache_loaded = false
-	_rebuild_cache()
-	_cache_loaded = true
-
-
-func get_cache_info() -> Dictionary:
-	# Get information about the current cache state.
-	_ensure_cache_loaded()
-	return {
-		"biome_count": _biome_vectors.size(),
-		"icon_count": _icon_vectors.size(),
-		"emoji_dimensions": _emoji_index.size(),
-		"cache_path": CACHE_PATH,
-		"source_hashes": _source_hashes
-	}
-
-
-func select_music_by_iconmap(icon_map: Dictionary) -> void:
-	# Select music track based on IconMap state using cos² similarity.
-	#
-	# Args:
-	# icon_map: Dictionary of emoji -> probability/weight from current quantum state
-	if _disabled or icon_map.is_empty():
-		return
-
-	_ensure_cache_loaded()
-
-	var best_biome := ""
-	var best_similarity := -1.0
-
-	# Normalize the icon_map to unit vector
-	var icon_norm := 0.0
-	for emoji in icon_map.keys():
-		var val: float = float(icon_map[emoji])
-		icon_norm += val * val
-	icon_norm = sqrt(icon_norm)
-	if icon_norm < 0.001:
-		return  # No meaningful state
-
-	# Compare against each biome vector
-	for biome_name in _biome_vectors.keys():
-		var biome_data: Dictionary = _biome_vectors[biome_name]
-		var emojis: Array = biome_data["emojis"]
-		var weights: Array = biome_data["weights"]
-
-		# Compute dot product (only non-zero where both have the emoji)
-		var dot := 0.0
-		for i in range(emojis.size()):
-			var emoji: String = emojis[i]
-			if icon_map.has(emoji):
-				var icon_weight: float = float(icon_map[emoji]) / icon_norm
-				dot += icon_weight * float(weights[i])
-
-		# cos² similarity
-		var cos2: float = dot * dot
-
-		if cos2 > best_similarity:
-			best_similarity = cos2
-			best_biome = biome_name
-
-	# Only switch if we have a meaningful match
-	if best_biome != "" and best_similarity > 0.01:
-		var track_key: String = BIOME_TRACKS.get(best_biome, FALLBACK_TRACK)
-		if track_key != _current_track:
-			crossfade_to(track_key)
 
 
 func get_iconmap_similarities(icon_map: Dictionary) -> Array:

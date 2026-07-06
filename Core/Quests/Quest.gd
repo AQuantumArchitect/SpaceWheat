@@ -21,10 +21,6 @@ const SOURCE_TUTORIAL := "tutorial"  # authored Act-0 onboarding chain
 
 const STATUS_OFFERED := "offered"    # in the market/offer pool, not yet taken
 const STATUS_STORY := "story"        # a story/tutorial offer awaiting acknowledgement/accept
-const STATUS_ACTIVE := "active"      # accepted, in progress
-const STATUS_READY := "ready"        # non-delivery quest whose predicates are satisfied; claimable
-const STATUS_COMPLETED := "completed"
-const STATUS_FAILED := "failed"
 
 
 ## The canonical default quest. Every field a quest can carry lives here exactly once.

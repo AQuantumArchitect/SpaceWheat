@@ -1593,41 +1593,6 @@ func get_biome_for_row(row: int) -> String:
 	return row_biome_map.get(row, "")
 
 
-func get_biomes() -> Array:
-	# Get all loaded biomes for testing/diagnostics.
-	if not grid:
-		return []
-	var result: Array = []
-	for biome_name in grid.get_biome_names():
-		var biome = grid.get_biome(biome_name)
-		if biome:
-			result.append(biome)
-	return result
-
-
-func get_plot_position_for_active_biome(plot_index: int) -> Vector2i:
-	# Convert plot index (0-3) to full grid_pos using active biome
-
-	# Used by input handling to map plot keys to the correct biome's plots.
-	# Now uses ObservationFrame as the source of truth for active biome.
-	# Clamp plot_index to valid range (0..grid_width-1)
-	var max_index = grid_config.grid_width - 1 if grid_config else 3
-	plot_index = clampi(plot_index, 0, max_index)
-
-	# Try ObservationFrame first, fall back to ActiveBiomeManager
-	var observation_frame = get_node_or_null("/root/ObservationFrame")
-	var active_biome = "BioticFlux"
-	if observation_frame:
-		active_biome = observation_frame.get_neutral_biome()
-	else:
-		var biome_router = _get_active_biome_router()
-		if biome_router:
-			active_biome = biome_router.get_active_biome()
-
-	var biome_row = get_biome_row(active_biome)
-	return Vector2i(plot_index, biome_row)
-
-
 ## Public API - Game Operations
 
 func can_discover_biome() -> Dictionary:

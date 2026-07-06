@@ -291,11 +291,6 @@ func _refresh_effective_icons() -> Dictionary:
 	return icons
 
 
-func get_effective_icons() -> Dictionary:
-	# Public accessor for the biome's effective icon set.
-	return _refresh_effective_icons()
-
-
 func _seed_viz_metadata() -> void:
 	# Seed viz_cache metadata from register_map when lookahead is disabled.
 	if not viz_cache or not quantum_computer or not quantum_computer.register_map:
@@ -481,20 +476,6 @@ func get_drift_status() -> Dictionary:
 # ============================================================================
 # EVOLUTION CONTROL
 # ============================================================================
-
-func set_evolution_paused(paused: bool) -> void:
-	if evolution_paused == paused:
-		return
-	evolution_paused = paused
-	if paused:
-		VerboseHelper.info("biome", "pause", "%s: Quantum evolution PAUSED (BUILD mode)" % get_biome_type())
-	else:
-		VerboseHelper.info("biome", "pause", "%s: Quantum evolution RESUMED (PLAY mode)" % get_biome_type())
-
-
-func is_evolution_paused() -> bool:
-	return evolution_paused
-
 
 # ============================================================================
 # FACADE: Resource Registry Methods
@@ -1111,10 +1092,6 @@ func reset() -> void:
 # ============================================================================
 # VECTOR HARVEST OPERATIONS
 # ============================================================================
-
-func harvest_all_plots() -> Array:
-	return []
-
 
 # NOTE: Energy tap system removed (2026-01) - was half-disabled and confusing
 # Use plot-based quantum measurement + economy credits instead
