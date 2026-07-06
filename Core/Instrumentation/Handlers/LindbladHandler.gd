@@ -224,12 +224,17 @@ static func lindblad_drive(farm, positions: Array[Vector2i]) -> Dictionary:
 			sealed += 1
 			continue
 
+		# Register-first: plot_idx ≡ register_id, and the axis lives on the register
+		# map. The legacy plot.north_emoji is only set by the old plant flow, so a
+		# jolt gated on it could NEVER fire on register-first ground (found live:
+		# every spark on open GildedRot refused with no error).
+		var emoji := ""
 		var plot = farm.grid.get_plot(pos)
-		if not plot or not plot.is_active():
-			continue
-		var emoji = plot.north_emoji if plot.north_emoji else ""
-
-		if _resolve_qubit_index(biome, emoji) < 0:
+		if plot and plot.north_emoji:
+			emoji = str(plot.north_emoji)
+		elif biome.quantum_computer.register_map:
+			emoji = str(biome.quantum_computer.register_map.axis(pos.x).get("north", ""))
+		if emoji == "" or _resolve_qubit_index(biome, emoji) < 0:
 			continue
 
 		biome.quantum_computer.apply_drive(emoji, drive_rate, dt)
@@ -285,11 +290,13 @@ static func lindblad_decay(farm, positions: Array[Vector2i]) -> Dictionary:
 			continue
 
 		var plot = farm.grid.get_plot(pos)
-		if not plot or not plot.is_active():
-			continue
-		var emoji = plot.north_emoji if plot.north_emoji else ""
-
-		var qubit_idx = _resolve_qubit_index(biome, emoji)
+		# Register-first fallback — same fix as lindblad_drive above.
+		var emoji := ""
+		if plot and plot.north_emoji:
+			emoji = str(plot.north_emoji)
+		elif biome.quantum_computer.register_map:
+			emoji = str(biome.quantum_computer.register_map.axis(pos.x).get("north", ""))
+		var qubit_idx = _resolve_qubit_index(biome, emoji) if emoji != "" else -1
 		if qubit_idx < 0:
 			continue
 

@@ -723,21 +723,40 @@ def main():
             # Spark hat mode 2: R anchors near shore (StarterForest), R in another biome
             # (GildedRot) raises the span; F braids; Q fuses (destructive: Q arms, F commits).
             if "GildedRot" in grid():
+                # Soft-gate convention: score is 0.5 AT the predicate's center and fires
+                # ~0.87·width past it (QuestMath.fire_value). So OVERSHOOT everything:
+                # 2 spans (built_gte 1, w .75), 6 braids (braids_gte 4, w 1.0),
+                # 2 fusions (fused_gte 1, w .75).
                 ensure_hat("4"); press("2", 3)
-                goto_biome("StarterForest"); press("G", 3); press("R", 5)
-                goto_biome("GildedRot"); press("G", 3); press("R", 5)
-                print(f"  {fprog('the_span')}")
-                for _ in range(4):
-                    press("F", 4)                       # braid the span
+                goto_biome("StarterForest"); press("G", 3); press("R", 5)   # span 1 near
+                goto_biome("GildedRot"); press("G", 3); press("R", 5)       # span 1 far
+                goto_biome("StarterForest"); press("G", 3); press("R", 5)   # span 2 near
+                goto_biome("Village"); press("G", 3); press("R", 5)         # span 2 far
+                bl = go("bridge_list")
+                print(f"  [span] built={bl.get('built_total')} | {fprog('the_span')}")
+                for _ in range(6):
+                    press("F", 4)                       # braid (braids_total += 1 each)
                 print(f"  {fprog('braid_alphabet')}")
-                press("Q", 4); press("F", 5)            # fuse (arm + confirm)
+                # Fuse targets bridges anchored at the CURRENT biome — one fuse per shore.
+                goto_biome("Village"); press("Q", 4); press("F", 5)        # fuse span 2
+                goto_biome("GildedRot"); press("Q", 4); press("F", 5)      # fuse span 1
+                bl = go("bridge_list")
+                print(f"  [span] braids={bl.get('braids_total')} fused={bl.get('fused_total')}")
                 press("1", 3)                           # back to shift mode
                 print(f"  {fprog('the_fusion')}")
 
-            # the_first_contract: a spark recorded in the gate sequence — jolt on wet ground
+            # the_first_contract: sparks recorded in the gate sequence — jolts on wet
+            # ground. The jolt SPENDS the register's north-pole emoji, so stock it
+            # first (same resource-bridge convention as the standings grind), and
+            # overshoot the soft gate: 3 hits reads soft(3,1,1.5)=0.9.
             if "GildedRot" in grid():
-                goto_biome("GildedRot"); ensure_hat("4"); press("1", 3)
-                press("G", 3); press("R", 5)             # spark north (legal: open ground)
+                goto_biome("GildedRot")
+                gr_axis = (qstate("GildedRot") or [{}])[0]
+                north_e = str(gr_axis.get("north", "🌹"))
+                bridge(north_e, 60)
+                ensure_hat("4"); press("1", 3)
+                for _ in range(3):
+                    press("G", 3); press("R", 5)         # spark north (open ground)
                 print(f"  {fprog('the_first_contract')}")
 
             # watching_keeps -> the_basin -> hiding_in_the_light: the wet landmarks
