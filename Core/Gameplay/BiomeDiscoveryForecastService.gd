@@ -99,6 +99,14 @@ static func _biomes_under_pressure(farm) -> Dictionary:
 	if "active_quests" in qm and qm.active_quests is Dictionary:
 		for q in qm.active_quests.values():
 			if q is Dictionary:
+				# A quest whose SOURCE FLAG has already fired must not steer discovery:
+				# the story moved on, but an accepted-and-idle arc quest would otherwise
+				# pull its biome forever (observed live: chain_ends long fired, its arc
+				# quest kept dragging Lanternfall into 13 of 16 captain draws and starved
+				# the act-5 BloodLedger hunt).
+				var src := str(q.get("source_flag", ""))
+				if src != "" and fired.has(src):
+					continue
 				var b := str(q.get("biome", q.get("biome_name", "")))
 				if b != "":
 					pressured[b] = true
