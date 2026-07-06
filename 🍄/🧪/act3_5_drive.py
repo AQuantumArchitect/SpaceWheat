@@ -135,6 +135,11 @@ def main():
         return False
 
     def incorporate(ripen=900, bn=None):
+        # goto FIRST: plot keys land on the ACTIVE biome — reading qstate(bn) while
+        # pressing keys at whatever was active silently farmed the wrong biome
+        # (Lanternfall banked 0 berries across 9 rounds this exact way).
+        if bn:
+            goto_biome(bn)
         bn = bn or active_biome()
         qs = qstate(bn)
         plots = PLOT[:len(qs)] if qs else PLOT
@@ -703,8 +708,8 @@ def main():
             # (GildedRot) raises the span; F braids; Q fuses (destructive: Q arms, F commits).
             if "GildedRot" in grid():
                 ensure_hat("4"); press("2", 3)
-                press(biome_key("StarterForest")); press("G", 3); press("R", 5)
-                press(biome_key("GildedRot")); press("G", 3); press("R", 5)
+                goto_biome("StarterForest"); press("G", 3); press("R", 5)
+                goto_biome("GildedRot"); press("G", 3); press("R", 5)
                 print(f"  {fprog('the_span')}")
                 for _ in range(4):
                     press("F", 4)                       # braid the span
@@ -715,7 +720,7 @@ def main():
 
             # the_first_contract: a spark recorded in the gate sequence — jolt on wet ground
             if "GildedRot" in grid():
-                press(biome_key("GildedRot")); ensure_hat("4"); press("1", 3)
+                goto_biome("GildedRot"); ensure_hat("4"); press("1", 3)
                 press("G", 3); press("R", 5)             # spark north (legal: open ground)
                 print(f"  {fprog('the_first_contract')}")
 
