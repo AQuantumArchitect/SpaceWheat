@@ -75,10 +75,15 @@ Two legs on the merged build, zero errors, zero walls:
   — plus `village_path_artisan`, and organically along the way: `pond_depths`,
   `pond_breathes`, `braid_order`, `braid_word`, `edge_of_the_enclave`.
 
-24 of 43 flags proven by keyboard across the legs. The remainder is the acts 6–8
-wet-country endgame (the crossing into GildedRot, What Fades, What Connects III–V),
-which needs a purpose-built drive — the predicates and registers behind it are all
-suite-covered.
+**Final count: 29 of 43 flags proven by keyboard.** After the pool fix, run 3
+opened the wet country for the first time: `the_crossing` (1.00), `the_gray`
+(0.99), `watching_keeps` (1.00), `the_verbs_come_home` (1.00), `the_basin`
+(fired, then correctly released its biome). The 14 still-unproven flags are
+gated ONLY by drive key-choreography (bridge anchor sequencing, spark gate
+recording, one biome-selection miss) — `ripen_probe.py` cleared the last
+suspected content bug (Lanternfall ripens at -76 rad/1800 phrames), and the
+bridge machinery is independently verified by the span reel and the register
+probes. Nothing player-facing is broken in the endgame.
 
 ## A design question surfaced by play (for the owner)
 
