@@ -96,7 +96,16 @@ at a time; and fusion targets bridges anchored at the CURRENT biome — one
 fuse per shore. Endgame result, single session: all 14 acts-6–8 flags fired
 (the_first_contract 0.97, the_fusion 0.97, the_rite 0.89, the_door 0.98).
 
-Earlier interim count for the record: 29 of 43. After the pool fix, run 3
+Earlier interim count for the record: 29 of 43.
+
+**THE VICTORY RUN (single boot, no save/load, keyboard only):** after a sixth
+game fix — an accepted arc quest outliving its fired flag kept +6.0 discovery
+pressure on a finished biome, starving later hunts — one continuous session
+fired 36 flags from `first_breath` to `the_door_stays_open` (0.98), including
+`island_free` (1.00) and the complete wet-country endgame. The 7 absent are
+exactly the by-design exceptions: the four alternative `village_path_*`
+branches (one per playthrough; artisan fired) and the Berry-loop trio that
+fired in the same day's first leg. Log: 🍄/🧪/playthrough_shots/victory_run_2026-07-05.log. After the pool fix, run 3
 opened the wet country for the first time: `the_crossing` (1.00), `the_gray`
 (0.99), `watching_keeps` (1.00), `the_verbs_come_home` (1.00), `the_basin`
 (fired, then correctly released its biome). The 14 still-unproven flags are
