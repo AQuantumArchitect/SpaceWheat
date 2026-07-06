@@ -567,7 +567,7 @@ def main():
             # diversity (pred 2) + signature (pred 3): fill the 6 biome slots with DIVERSE biomes
             # and incorporate each. Keep them loaded so their atoms bank toward diversity; only
             # cull to SWAP out the thinnest non-core biome if full and still short.
-            for rnd in range(1, 16):
+            for rnd in range(1, 31):   # RNG-luck grind: two seeds stalled at 15 rounds just short of sig≈16
                 if vi_pred(2) >= 0.9 and vi_pred(3) >= 0.9:
                     break
                 if len(grid()) < 6:
