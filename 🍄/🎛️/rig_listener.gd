@@ -1554,6 +1554,49 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 		"full_snapshot":
 			result["snapshot"] = _snapshot_service.get_full_ui_snapshot() if _snapshot_service else {}
 
+		"perf":
+			# Engine performance monitors — fps + frame-time split so a driver can
+			# localize a slowdown (script process vs physics vs rendering) per platform.
+			result["fps"] = Performance.get_monitor(Performance.TIME_FPS)
+			result["process_ms"] = Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0
+			result["physics_process_ms"] = Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0
+			result["static_memory_mb"] = Performance.get_monitor(Performance.MEMORY_STATIC) / (1024.0 * 1024.0)
+			result["object_count"] = Performance.get_monitor(Performance.OBJECT_COUNT)
+			result["node_count"] = Performance.get_monitor(Performance.OBJECT_NODE_COUNT)
+			result["orphan_nodes"] = Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT)
+			result["draw_calls"] = Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)
+			result["video_mem_mb"] = Performance.get_monitor(Performance.RENDER_VIDEO_MEM_USED) / (1024.0 * 1024.0)
+			result["cpp_engine_loaded"] = ClassDB.class_exists("MultiBiomeLookaheadEngine")
+			# Force-graph stage breakdown (it keeps its own rolling samples).
+			var fg_stack: Array = [root]
+			while not fg_stack.is_empty():
+				var fg_n: Node = fg_stack.pop_back()
+				for fg_ch in fg_n.get_children():
+					fg_stack.push_back(fg_ch)
+				if fg_n.has_method("get_perf_averages") and fg_n.has_method("get_stats"):
+					result["force_graph_ms"] = fg_n.get_perf_averages()
+					result["force_graph_stats"] = fg_n.get_stats()
+					break
+
+		"toggle_process":
+			# Perf bisection: enable/disable _process on every node whose name contains
+			# the given substring. Sample `perf` between toggles to localize a frame cost.
+			var needle := str(cmd.get("node", ""))
+			var enable := bool(cmd.get("enable", false))
+			if needle == "":
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "missing_node"}
+			else:
+				var touched: Array = []
+				var stack: Array = [root]
+				while not stack.is_empty():
+					var n: Node = stack.pop_back()
+					for ch in n.get_children():
+						stack.push_back(ch)
+					if needle.to_lower() in str(n.name).to_lower():
+						n.set_process(enable)
+						touched.append(str(n.get_path()))
+				result["touched"] = touched
+
 		"instrument_state":
 			# Diagnostic: read back the dispatch result (cursor ring + selection +
 			# modal state) so a driver can verify input routing after key presses.

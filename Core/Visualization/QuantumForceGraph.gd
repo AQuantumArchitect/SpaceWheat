@@ -1357,8 +1357,12 @@ func _apply_biome_cluster_forces(delta: float) -> void:
 
 func _apply_intra_biome_forces(biome_name: String, nodes: Array, cluster_center: Vector2, scale: float, delta: float) -> void:
 	# Spread nodes within one biome cluster via repulsion + MI attraction + centre spring.
+	# MI is read from viz_cache (the renderer read contract) — it holds the values the
+	# C++ lookahead already computed this step. Calling qc.get_mutual_information here
+	# instead recomputes partial traces + entropies per PAIR per FRAME in GDScript,
+	# which alone cost ~610ms/frame (1-2 fps) with just 9 bubbles.
 	var biome = biomes.get(biome_name)
-	var qc = biome.quantum_computer if (biome and "quantum_computer" in biome) else null
+	var vc = biome.viz_cache if (biome and "viz_cache" in biome) else null
 	var spread: float = 68.0 * scale            # desired node separation
 	var k_center: float = 2.7                   # spring toward cluster centre (keeps clusters tight)
 	var k_rep: float = spread * spread * 4.0    # repulsion (inverse-square)
@@ -1381,8 +1385,8 @@ func _apply_intra_biome_forces(biome_name: String, nodes: Array, cluster_center:
 			# Repulsion — capped so overlapping bubbles don't explode.
 			force += dir * minf(k_rep / (dist * dist), 170.0)
 			# Mutual-information attraction — entangled qubits draw together.
-			if qc and a.register_id >= 0 and b.register_id >= 0 and qc.has_method("get_mutual_information"):
-				var mi: float = float(qc.get_mutual_information(a.register_id, b.register_id))
+			if vc and a.register_id >= 0 and b.register_id >= 0:
+				var mi: float = float(vc.get_mutual_information(a.register_id, b.register_id))
 				if mi > 0.03:
 					force -= dir * mi * k_mi * clampf(dist - spread, -spread, dist) * 0.05
 		a.velocity += force * delta
