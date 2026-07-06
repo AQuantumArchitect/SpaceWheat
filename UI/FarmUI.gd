@@ -13,14 +13,12 @@ extends Control
 signal farm_setup_complete  # Emitted when setup_farm() finishes and instrument_input is ready
 
 # Input is handled by QuantumInstrumentInput (created in BootManager)
-const QuantumModeStatusIndicator = preload("res://UI/Widgets/QuantumModeStatusIndicator.gd")
 
 var farm: Node
 var grid_config: GridConfig
 var plot_grid_display = null  # From scene
 var instrument_input = null  # Created dynamically
 var resource_panel = null  # From scene
-var quantum_mode_indicator = null  # Created dynamically
 var quantum_visualization = null  # Optional - only if needed later
 var layout_manager: Node = null
 
@@ -209,31 +207,3 @@ func _update_debug_display() -> void:
 		if debug_label != null:
 			debug_label.hide()
 
-## ========================================
-## Phase 1 UI Integration: Quantum Mode Indicator
-## ========================================
-
-func _create_quantum_mode_indicator() -> void:
-	# Create and position quantum rigor mode status indicator (top-right corner)
-	# Create the indicator component
-	quantum_mode_indicator = QuantumModeStatusIndicator.new()
-
-	# Get MainContainer to add it there
-	var main_container = get_node_or_null("MainContainer")
-	if not main_container:
-		push_error("Cannot create quantum mode indicator: MainContainer not found")
-		return
-
-	# Add as child of MainContainer
-	main_container.add_child(quantum_mode_indicator)
-
-	# Position in top-right corner
-	quantum_mode_indicator.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	quantum_mode_indicator.offset_left = -220  # 220 pixels from right edge
-	quantum_mode_indicator.offset_top = 8      # 8 pixels from top
-	quantum_mode_indicator.custom_minimum_size = Vector2(210, 40)
-
-	# Enable input processing for the indicator
-	quantum_mode_indicator.mouse_filter = Control.MOUSE_FILTER_PASS
-
-	_log_debug("   ✅ Quantum mode status indicator created (top-right corner)")

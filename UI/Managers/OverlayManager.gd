@@ -9,7 +9,6 @@ extends Node
 ## no standalone save/load overlay.
 
 # Preload dependencies
-const QuantumRigorConfigUI = preload("res://UI/Overlays/QuantumRigorConfigUI.gd")
 
 # Unified overlay stack system
 const OverlayBaseClass = preload("res://UI/Core/OverlayBase.gd")
@@ -20,7 +19,6 @@ var escape_menu: EscapeMenu
 # keyboard_hint_button REMOVED - controls/help now lives on Z
 var biome_inspector: BiomeInspectorOverlay  # Biome inspection overlay
 var map_meta_overlay: MapMetaOverlay  # Biome × faction map overlay
-var quantum_config_ui: QuantumRigorConfigUI  # Quantum rigor mode settings panel
 var touch_button_bar: Control  # Touch-friendly panel buttons for the top-level menu row
 var icon_detail_panel  # Icon information detail panel
 
@@ -192,14 +190,6 @@ func create_overlays(parent: Control) -> void:
 	_verbose.info("ui", "🌍", "Biome inspector overlay created (B to toggle)")
 	_setup_visibility_processing(biome_inspector)
 
-	# Create Quantum Rigor Config UI (Phase 1 UI Integration)
-	quantum_config_ui = QuantumRigorConfigUI.new()
-	quantum_config_ui.visible = false
-	quantum_config_ui.z_index = 18  # System-tier panel, below action bars
-	parent.add_child(quantum_config_ui)
-	_verbose.info("ui", "🔬", "Quantum rigor config panel created (via system menu)")
-	_setup_visibility_processing(quantum_config_ui)
-
 	# Touch button bar retired — superseded by the top MenuSelectionRow in
 	# PlayerShell, which surfaces all 7 ZXCVBNM menus in the same chrome as
 	# the bottom rows. `touch_button_bar` stays declared for null checks but
@@ -226,18 +216,6 @@ func update_positions() -> void:
 	if not layout_manager:
 		return
 
-func toggle_quantum_config_ui() -> void:
-	# Toggle quantum rigor config UI.
-	_verbose.debug("ui", "🔄", "toggle_quantum_config_ui() called")
-	if not quantum_config_ui:
-		_verbose.warn("ui", "❌", "quantum_config_ui is null!")
-		return
-	_verbose.debug("ui", "→", "quantum_config_ui exists, visible = %s" % quantum_config_ui.visible)
-	quantum_config_ui.visible = not quantum_config_ui.visible
-	if quantum_config_ui.visible:
-		_verbose.info("ui", "✅", "quantum_config_ui shown")
-	else:
-		_verbose.info("ui", "✅", "quantum_config_ui hidden")
 
 
 func _on_biome_inspector_closed() -> void:

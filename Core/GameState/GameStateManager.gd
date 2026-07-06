@@ -61,9 +61,6 @@ func _ready():
 	pending_boot = SessionLifecycleClass.BootRequest.new()
 	SaveStore.ensure_save_dir()
 	_verbose.info("save", "💾", "GameStateManager ready - Save dir: " + SaveStore.SAVE_DIR)
-	# QuantumRigorConfig is session-scope and created lazily on first read
-	# (QuantumRigorConfig.instance). Do not pre-warm here — that fires before
-	# the title screen.
 
 
 # Canonical "continue / restart from the latest touched slot" lookup. Returns

@@ -259,7 +259,7 @@ func _resolve_widget(widget_name: String):
 				return player_shell.action_bar_manager.action_preview_row
 			return null
 		"quantum_mode":
-			return player_shell.quantum_mode_indicator if player_shell and "quantum_mode_indicator" in player_shell else null
+			return null  # quantum_mode_indicator retired 2026-07-06 (rigor system deleted)
 		"biome_oval":
 			var overlay = _resolve_overlay("biome_inspector")
 			if overlay and "current_biome_panel" in overlay:

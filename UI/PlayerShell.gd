@@ -15,7 +15,6 @@ extends Control
 
 # QuantumHUDPanel REMOVED - content merged into InspectorOverlay (N key)
 const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
-const QuantumModeStatusIndicator = preload("res://UI/Widgets/QuantumModeStatusIndicator.gd")
 const MenuSelectionRowClass = preload("res://UI/Widgets/MenuSelectionRow.gd")
 const FpsDisplay = preload("res://UI/HUD/FpsDisplay.gd")
 
@@ -36,7 +35,6 @@ var instrument_input = null  # Projection of current_farm_ui.instrument_input fo
 ## paints from QII's cursor_layer_changed signal — it no longer holds the state.
 var advanced_mode_enabled: bool = false
 # quantum_hud_panel REMOVED - content merged into InspectorOverlay (N key)
-var quantum_mode_indicator: QuantumModeStatusIndicator = null  # Current quantum mode display
 var menu_row: MenuSelectionRowClass = null  # Bottom-stack ZXCVBNM ring (owned by ActionBarManager)
 var fps_display: Control = null  # Top-left FPS projection display
 var _hint_toast_stack: VBoxContainer = null  # Bottom-right stack of ephemeral hint toasts
@@ -317,8 +315,6 @@ func _any_menu_open() -> bool:
 	# doesn't count as "a menu open."
 	if overlay_stack and overlay_stack.size() > 1:
 		return true
-	if overlay_manager and overlay_manager.quantum_config_ui and overlay_manager.quantum_config_ui.visible:
-		return true
 	return false
 
 
@@ -350,8 +346,6 @@ func _close_all_menus() -> void:
 	# Close all open menus (shell and farm).
 	if overlay_manager:
 		overlay_manager.close_all_overlays()
-		if overlay_manager.quantum_config_ui and overlay_manager.quantum_config_ui.visible:
-			overlay_manager.quantum_config_ui.visible = false
 
 
 func _open_escape_menu() -> void:
@@ -545,12 +539,6 @@ func _ready() -> void:
 
 	# QuantumHUDPanel REMOVED - content merged into InspectorOverlay (N key)
 
-	# Create quantum mode status indicator (top-right corner)
-	quantum_mode_indicator = QuantumModeStatusIndicator.new()
-	quantum_mode_indicator.name = "QuantumModeIndicator"
-	overlay_layer.add_child(quantum_mode_indicator)
-	_verbose.info("ui", "✅", "Quantum mode indicator created")
-
 	# MenuSelectionRow now lives at the bottom of the cylinder stack — owned
 	# by ActionBarManager alongside the other 3 selection rings. Wire its
 	# overlay_manager here so it can dispatch overlay toggles on click.
@@ -618,8 +606,6 @@ func set_farm_attached(attached: bool) -> void:
 		menu_row.visible = attached
 	if fps_display:
 		fps_display.visible = attached
-	if quantum_mode_indicator:
-		quantum_mode_indicator.visible = attached
 
 
 func is_farm_attached() -> bool:
@@ -658,12 +644,6 @@ func _apply_top_strip_layout() -> void:
 			indicator_size = layout_manager.get_quantum_indicator_size()
 		if layout_manager.has_method("get_action_row_height"):
 			_menu_row_height = layout_manager.get_action_row_height()
-
-	if quantum_mode_indicator:
-		quantum_mode_indicator.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-		quantum_mode_indicator.offset_left = -side_inset
-		quantum_mode_indicator.offset_top = top_offset
-		quantum_mode_indicator.custom_minimum_size = indicator_size
 
 	if fps_display:
 		fps_display.set_anchors_preset(Control.PRESET_TOP_RIGHT)
