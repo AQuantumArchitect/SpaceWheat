@@ -1023,6 +1023,11 @@ func _select_plot(plot_idx: int, key: String) -> void:
 
 	# Second tap on the highlighted plot toggles only the checkbox state.
 	if was_highlighted:
+		# Still a deliberate touch — reveal. (A biome switch repoints the cursor
+		# without revealing, so the player's FIRST key press in the new biome
+		# lands here as a "second tap".)
+		if farm and farm.has_method("reveal_plot") and target_grid_pos.x >= 0:
+			farm.reveal_plot(target_grid_pos)
 		if target_grid_pos.x >= 0:
 			toggle_check(target_grid_pos)
 		_verbose.debug("input", "~", "Plot %d in %s remains highlighted" % [plot_idx, biome_name])
@@ -1043,6 +1048,12 @@ func _select_plot(plot_idx: int, key: String) -> void:
 	if plot_grid_display and farm and target_grid_pos.x >= 0:
 		plot_grid_display.set_selected_plot(target_grid_pos)
 		_verbose.debug("input", "~", "Visual selection: %s" % target_grid_pos)
+
+	# Exploration reveal: ONLY deliberate plot picks (GHJKL; / WASD crawl / ring
+	# enter) wake a bubble. Programmatic repoints (biome switch, overlay restore)
+	# go through set_selected_plot directly and must NOT reveal.
+	if farm and farm.has_method("reveal_plot") and target_grid_pos.x >= 0:
+		farm.reveal_plot(target_grid_pos)
 
 	selection_changed.emit(plot_idx, biome_name)
 	_verbose.debug("input", "~", "Plot %d in %s" % [plot_idx, biome_name])

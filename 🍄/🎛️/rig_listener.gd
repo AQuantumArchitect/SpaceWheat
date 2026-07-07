@@ -790,7 +790,12 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 					var bs_vis: bool = bool(bs_node.visible)
 					if bs_vis:
 						bs_visible += 1
-					bs_bubbles.append({"pos": [bs_pos.x, bs_pos.y], "visible": bs_vis, "measured": bs_node.terminal != null})
+					bs_bubbles.append({
+						"pos": [bs_pos.x, bs_pos.y], "visible": bs_vis, "measured": bs_node.terminal != null,
+						"biome": str(bs_node.biome_name), "register_id": int(bs_node.register_id),
+						"axis": "%s%s" % [str(bs_node.emoji_north), str(bs_node.emoji_south)],
+						"screen_pos": [int(bs_node.position.x), int(bs_node.position.y)],
+					})
 				result["bubbles"] = bs_bubbles
 				result["bubble_count"] = bs_bubbles.size()
 				result["visible_count"] = bs_visible

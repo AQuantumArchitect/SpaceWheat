@@ -624,7 +624,11 @@ func build_register_node(biome_name: String, biome, register_id: int, grid_pos: 
 		center_pos = layout_calculator.graph_center
 		# Co-locate with where a plot bubble would sit: same biome distribution, indexed
 		# by the grid column. Keeps the bubble spatially tied to its plot slot.
-		var positions = layout_calculator.distribute_nodes_in_biome(biome_name, 4)
+		# Distribute over the biome's REAL register count — the old hardcoded 4 clamped
+		# columns 3+ onto one shared anchor, piling their bubbles into the same spot
+		# (which read as "the bubble isn't from my plot").
+		var slot_count: int = maxi(biome.viz_cache.get_num_qubits(), 1)
+		var positions = layout_calculator.distribute_nodes_in_biome(biome_name, slot_count)
 		if positions.size() > 0:
 			var idx = clampi(grid_pos.x, 0, positions.size() - 1)
 			var params = positions[idx]

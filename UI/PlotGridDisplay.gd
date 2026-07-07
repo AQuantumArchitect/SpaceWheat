@@ -743,9 +743,9 @@ func set_selected_plot(pos: Vector2i) -> void:
 		tiles[pos].set_selected(true)
 		if _plot_ring_active:
 			tiles[pos].set_active_ring(true)
-		# Exploration: the cursor landing on a plot reveals its bubble (cosmetic, once).
-		if farm and farm.has_method("reveal_plot"):
-			farm.reveal_plot(pos)
+		# NOTE: no reveal here — this funnel also serves programmatic repoints
+		# (biome switch, overlay restore). Reveal fires only from deliberate
+		# selection in QII._select_plot / set_active_selection.
 		_verbose.debug("ui", "🎯", "Selected plot: %s" % pos)
 
 

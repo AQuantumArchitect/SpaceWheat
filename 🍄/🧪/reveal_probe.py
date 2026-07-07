@@ -93,6 +93,21 @@ def main():
                   f"after {key.upper()}: {i} bubble(s) visible (got {bs.get('visible_count')})")
         shot("rv_select3")
 
+        # --- 3b. Biome SWITCH must not reveal (leak regression: the repoint path
+        #     carried the slot letter into the new biome and woke its bubble). ---
+        press("y")  # switch to the 2nd biome slot
+        bs = t("bubble_state")
+        check(bs.get("visible_count") == 3,
+              f"biome switch reveals nothing (visible={bs.get('visible_count')})")
+        press("g")  # deliberate pick in the new biome DOES reveal
+        bs = t("bubble_state")
+        check(bs.get("visible_count") == 4,
+              f"deliberate pick in new biome reveals (visible={bs.get('visible_count')})")
+        press("t")  # back to the first biome for the save/load leg
+        bs = t("bubble_state")
+        check(bs.get("visible_count") == 4,
+              f"switching back reveals nothing (visible={bs.get('visible_count')})")
+
         # --- 4. Persistence: save -> load keeps the revealed set. ---
         saved = t("save_game", slot=0)
         check(bool(saved.get("saved")), "save_game slot 0")
@@ -102,11 +117,11 @@ def main():
         bs = {}
         for _ in range(10):  # restart rebuilds the force graph lazily — poll briefly
             bs = t("bubble_state")
-            if bs.get("visible_count") == 3 and len(bs.get("revealed_plots", [])) == 3:
+            if bs.get("visible_count") == 4 and len(bs.get("revealed_plots", [])) == 4:
                 break
             time.sleep(0.5)
-        check(bs.get("visible_count") == 3 and len(bs.get("revealed_plots", [])) == 3,
-              f"3 revealed after reload (visible={bs.get('visible_count')}, "
+        check(bs.get("visible_count") == 4 and len(bs.get("revealed_plots", [])) == 4,
+              f"4 revealed after reload (visible={bs.get('visible_count')}, "
               f"revealed={len(bs.get('revealed_plots', []))})")
 
         # --- 5. Toast above the QuestBoard overlay (eyeball shot). ---

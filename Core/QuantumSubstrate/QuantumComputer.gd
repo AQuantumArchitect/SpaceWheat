@@ -683,18 +683,36 @@ func initialize_thermal(beta: float) -> void:
 	_log("debug", "quantum", "🌡️", "Initialized to thermal state β=%.1f (dim=%d)" % [beta, register_map.dim()])
 
 
+## Small per-qubit Ry rotation applied on top of the ground state at boot. The EXACT
+## ground state is an H-eigenstate — stationary forever under unitary evolution — so a
+## fresh farm reads as frozen and surprise-priced extraction (E = −kT·log p) pays ~0.
+## The kick keeps purity 1 but starts gentle Rabi-like oscillation at the spectral gap:
+## the world is visibly alive and the first strike has real surprise to pay.
+const DAWN_KICK_RAD: float = 0.35
+
+
 func initialize_ground_state() -> void:
-	# Closed (unitary) system: start in the EXACT Hamiltonian ground state |g⟩ (the
-	# lowest-energy eigenvector), ρ = |g⟩⟨g| — a pure state (r = 1), which the unitary
-	# kernel then preserves for all time. Open (dissipative) system: the ecological Gibbs
-	# state ρ ∝ exp(−βH) at β=20 is the correct MIXED starting point (eagle ~2%, wolf ~16%,
-	# …). Falls back to uniform superposition if H is not yet built.
+	# Closed (unitary) system: start in the Hamiltonian ground state |g⟩ (the
+	# lowest-energy eigenvector), ρ = |g⟩⟨g| — a pure state (r = 1) — then apply the
+	# DAWN KICK so the state is NOT an exact eigenstate (see DAWN_KICK_RAD).
+	# Open (dissipative) system: the ecological Gibbs state ρ ∝ exp(−βH) at β=20 is
+	# the correct MIXED starting point (eagle ~2%, wolf ~16%, …).
+	# Falls back to uniform superposition if H is not yet built.
 	if is_closed_here() and hamiltonian != null:
 		if _init_pure_ground_state():
+			_apply_dawn_kick()
 			return
 	initialize_thermal(20.0)
 	if is_closed_here():
 		_collapse_to_dominant_eigenstate()  # fallback: purify the thermal state
+		_apply_dawn_kick()
+
+
+func _apply_dawn_kick() -> void:
+	if register_map == null:
+		return
+	for qi in range(register_map.num_qubits):
+		apply_ry(qi, DAWN_KICK_RAD)
 
 
 ## Set ρ = |g⟩⟨g| where |g⟩ is the lowest-energy eigenvector of H (the pure ground state).

@@ -7132,7 +7132,7 @@
     "pole_1": "🌾",
     "self_energy_0": 0.22,
     "self_energy_1": 1.45,
-    "rabi_coupling": 0.5,
+    "rabi_coupling": 1.0,
     "hamiltonian_couplings": {
       "💰": 0.25,
       "🦴": -0.2,

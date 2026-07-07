@@ -393,8 +393,11 @@ func _refresh_runtime_activity(force: bool = false) -> void:
 		var biome_name = _get_biome_name(biome)
 		var has_activity = not biome_manual_paused.get(biome_name, false)
 		has_activity = has_activity and biome.quantum_evolution_enabled and not biome.evolution_paused
-		if has_activity:
-			has_activity = _biome_has_bound_terminals(biome, true)
+		# NOTE: no bound-terminal gate here. That was terminal-first-era logic: in the
+		# register-first world a terminal exists only AFTER a measure, so gating
+		# evolution on bound terminals froze EVERY biome from boot (village frozen,
+		# strikes forever yielding the ground-state pole). The world always evolves;
+		# pause is an explicit verb (E / manual pause), not an inferred state.
 		if has_activity:
 			next_active[biome_name] = true
 
@@ -404,9 +407,9 @@ func _refresh_runtime_activity(force: bool = false) -> void:
 
 		if was_paused != paused_now:
 			if has_activity:
-				_log_debug("[BiomeEvolution] %s: RESUMED (terminal bound)" % biome_name)
+				_log_debug("[BiomeEvolution] %s: RESUMED" % biome_name)
 			else:
-				_log_debug("[BiomeEvolution] %s: PAUSED (no bound terminals)" % biome_name)
+				_log_debug("[BiomeEvolution] %s: PAUSED (evolution disabled or manual pause)" % biome_name)
 
 	_active_biome_names = next_active
 	_activity_refresh_needed = false
