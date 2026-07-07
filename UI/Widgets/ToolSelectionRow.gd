@@ -9,6 +9,7 @@ extends "res://UI/Widgets/SelectionButtonRow.gd"
 ## (0..6) as the button id and translate to/from frame name via FRAME_ORDER.
 
 const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
+const UIProgression = preload("res://UI/Core/UIProgression.gd")
 
 ## Hat-row left → right: Spark, Icon, Merchant, Captain, Ace, Operator, Druid.
 const FRAME_ORDER: Array = [
@@ -37,15 +38,31 @@ func _ready():
 	select_frame(ToolConfig.get_current_frame())
 
 
+## Frames actually rendered this rebuild (progressive disclosure). Button id i
+## maps to _visible_frames[i]; hat KEYS for hidden frames still work.
+var _visible_frames: Array = []
+
+
+## Re-derive visibility from story progress and rebuild. Called at build time
+## and again whenever a story flag fires (PlayerShell wiring).
+func refresh_progression() -> void:
+	_rebuild_buttons()
+	select_frame(ToolConfig.get_current_frame())
+
+
 func _rebuild_buttons() -> void:
+	_visible_frames = []
+	for frame_name in FRAME_ORDER:
+		if UIProgression.is_hat_visible(frame_name):
+			_visible_frames.append(frame_name)
 	var button_specs: Array[Dictionary] = []
-	for i in range(FRAME_ORDER.size()):
-		var frame_name: String = FRAME_ORDER[i]
+	for i in range(_visible_frames.size()):
+		var frame_name: String = _visible_frames[i]
 		var def: Dictionary = ToolConfig.get_frame(frame_name)
 		var label_name := str(def.get("name", frame_name))
 		var emoji := str(def.get("emoji", ""))
 		var icon_path := str(def.get("icon", ""))
-		var hat_key: String = HAT_KEYS[i]
+		var hat_key: String = HAT_KEYS[FRAME_ORDER.find(frame_name)]
 		var desc: String = str(def.get("description", ""))
 		# Every hat is always selectable — openness is a place, so the Lindblad
 		# verbs grey per-plot on sealed ground (ActionValidator), never the hat.
@@ -84,15 +101,15 @@ func select_frame(frame_name: String) -> void:
 	if not ToolConfig.ARCHETYPE_FRAMES.has(frame_name):
 		return
 	current_frame = frame_name
-	var idx := FRAME_ORDER.find(frame_name)
-	if idx >= 0:
-		set_selected(idx)
+	var idx := _visible_frames.find(frame_name)
+	# A not-yet-surfaced hat selected by key: no button to highlight — clear.
+	set_selected(idx if idx >= 0 else -1)
 
 
 func _frame_for_index(idx: int) -> String:
-	if idx < 0 or idx >= FRAME_ORDER.size():
+	if idx < 0 or idx >= _visible_frames.size():
 		return ""
-	return FRAME_ORDER[idx]
+	return _visible_frames[idx]
 
 
 ## Apply a dim/bright mask to the hat buttons based on topology scores.
@@ -105,8 +122,8 @@ func _frame_for_index(idx: int) -> String:
 ## Display-only — selecting a dimmed hat still works. No gating.
 func set_hat_dim_mask(passing_hats: Dictionary) -> void:
 	const DIM := Color(0.35, 0.35, 0.35, 0.8)
-	for i in range(FRAME_ORDER.size()):
-		var frame_name: String = FRAME_ORDER[i]
+	for i in range(_visible_frames.size()):
+		var frame_name: String = _visible_frames[i]
 		if i >= buttons.size():
 			continue
 		var btn_data = buttons[i]

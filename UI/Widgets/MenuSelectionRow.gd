@@ -35,6 +35,14 @@ func _on_overlay_changed(overlay_name: String, is_open: bool) -> void:
 	set_selected(-1)
 
 
+const UIProgression = preload("res://UI/Core/UIProgression.gd")
+
+
+## Re-derive menu visibility from story progress and rebuild the row.
+func refresh_progression() -> void:
+	_rebuild_buttons()
+
+
 func _rebuild_buttons() -> void:
 	_entry_by_id.clear()
 	var specs: Array[Dictionary] = []
@@ -43,6 +51,8 @@ func _rebuild_buttons() -> void:
 	# Keyless entries first (e.g. FarmView — A/D navigable, no direct key).
 	for entry in MenuRegistry.TOP_LEVEL_MENUS:
 		if str(entry.get("key_label", "")) != "":
+			continue
+		if not UIProgression.is_menu_visible(str(entry.get("id", ""))):
 			continue
 		var emoji := str(entry.get("button_emoji", ""))
 		var display := str(entry.get("display_name", ""))
@@ -59,6 +69,8 @@ func _rebuild_buttons() -> void:
 		if not by_key.has(key):
 			continue
 		var entry: Dictionary = by_key[key]
+		if not UIProgression.is_menu_visible(str(entry.get("id", ""))):
+			continue
 		var emoji := str(entry.get("button_emoji", ""))
 		var display := str(entry.get("display_name", ""))
 		specs.append({"id": idx, "text": "%s %s [%s]" % [emoji, display, key], "enabled": true})

@@ -749,10 +749,33 @@ func connect_to_quantum_input() -> void:
 	if quest_manager and farm_ui.farm and quest_manager.has_method("connect_to_farm"):
 		quest_manager.connect_to_farm(farm_ui.farm)
 
+	# Progressive disclosure: hat/menu rows re-derive visibility from story flags
+	# now (farm just attached) and on every future flag fire.
+	if quest_manager and quest_manager.has_signal("story_flag_fired") \
+			and not quest_manager.story_flag_fired.is_connected(_on_progression_flag_fired):
+		quest_manager.story_flag_fired.connect(_on_progression_flag_fired)
+	_refresh_ui_progression()
+
 	if ui_context_controller:
 		ui_context_controller.bind_quantum_input(instrument_input)
 		ui_context_controller.bind_farm_ui(farm_ui)
 		_verbose.info("ui", "✔", "UIContextController bound to QuantumInstrumentInput")
+
+
+func _on_progression_flag_fired(_flag_id: String, _flag_data: Dictionary) -> void:
+	_refresh_ui_progression()
+
+
+## Rebuild the hat + menu button rows against current story progress.
+## Visual-only disclosure: keys for hidden chrome keep working.
+func _refresh_ui_progression() -> void:
+	if action_bar_manager:
+		var tool_row = action_bar_manager.get("tool_selection_row")
+		if tool_row and tool_row.has_method("refresh_progression"):
+			tool_row.refresh_progression()
+		var m_row = action_bar_manager.get("menu_selection_row")
+		if m_row and m_row.has_method("refresh_progression"):
+			m_row.refresh_progression()
 
 
 func _connect_quest_manager_to_biomes(farm_ui: Control) -> void:
