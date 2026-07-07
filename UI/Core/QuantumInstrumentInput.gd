@@ -2229,6 +2229,9 @@ func set_active_selection(plot_idx: int, biome_name: String) -> void:
 	if _instrument:
 		_instrument.current_plot_idx = plot_idx
 		_instrument.current_biome = biome_name
+	# Glass-overlay selection bypasses PlotGridDisplay.set_selected_plot — reveal here too.
+	if plot_idx >= 0 and farm and farm.has_method("reveal_plot"):
+		farm.reveal_plot(_get_grid_position_for(plot_idx, biome_name))
 	selection_changed.emit(plot_idx, biome_name)
 
 

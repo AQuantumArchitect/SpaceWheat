@@ -30,6 +30,7 @@ var icon_atlas: IconRegistry = null  # Pair-Icon atlas (lazy-init on first use)
 var faction_standings: Dictionary = {}  # faction_name -> FactionStanding (6-channel rep; written by QuestManager, read by FactionAffinity)
 var story_log: Array = []              # Array[Dictionary] — fired story flag entries {id, act, display_name, arc_beat, fired_at}
 var story_flags_fired: Dictionary = {} # flag_id -> phrame_index (int); prevents re-firing
+var revealed_plots: Dictionary = {}    # Vector2i -> true; plots the player has focused at least once. COSMETIC ONLY (bubble reveal) — never gate mechanics on it. Persisted.
 ## Player's 12-qubit affinity substrate. Starts at |+⟩^⊗12 (no preferred pole);
 ## evolves via icon-learn rotations and settlement Lindblad jumps. Read by the
 ## market layer as the canonical player axial grid_pos.
@@ -44,6 +45,30 @@ var terminal_pool: TerminalPoolClass:
 	get: return instrument.terminal_pool if instrument and instrument.terminal_pool else _bootstrap_pool
 var biome_evolution_batcher: BiomeEvolutionBatcherClass = null  # Batched quantum evolution
 var _initial_biome_boot_finalized: bool = false
+
+
+## True once boot finished (biomes loaded, signature seeded, batcher finalized).
+## Consumers that poll the active farm every frame (e.g. QuestManager story flags)
+## MUST wait for this — evaluating against a half-booted farm reads pre-seed state.
+func is_boot_finalized() -> bool:
+	return _initial_biome_boot_finalized
+
+
+## Mark a plot as seen by the player (cursor focus or an action on it).
+## Idempotent; emits plot_revealed only on the first touch. COSMETIC — never
+## gate any mechanic on the revealed set (anti-gating law).
+func reveal_plot(grid_pos: Vector2i) -> void:
+	if revealed_plots.has(grid_pos):
+		return
+	# Only assigned plot slots are revealable — don't persist junk positions.
+	if grid and grid.has_method("get_plot_biome_assignments") and not grid.get_plot_biome_assignments().has(grid_pos):
+		return
+	revealed_plots[grid_pos] = true
+	plot_revealed.emit(grid_pos)
+
+
+func is_plot_revealed(grid_pos: Vector2i) -> bool:
+	return revealed_plots.has(grid_pos)
 
 # Icon system now managed by the shared IconRegistry.
 
@@ -172,6 +197,10 @@ signal standing_changed(faction: String, channel: String, delta: float, new_valu
 # resolving upward when learning concentrates the diagonal, blurring downward
 # when a learn spreads mass across factions (or kicked coherences fade, τ=300s).
 signal identity_band_changed(prev_band: String, new_band: String, purity: float, rising: bool)
+
+## First time the player's focus lands on a plot (cursor selection or any action on it).
+## Cosmetic reveal signal — the force graph wakes that plot's bubble. Fires once per plot.
+signal plot_revealed(grid_pos: Vector2i)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

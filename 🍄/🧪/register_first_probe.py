@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """Headed: verify REGISTER-FIRST bubbles + in-place measure/harvest.
 
-After the rework, the field must show one LIVE bubble per assigned register BEFORE
-any strike. R (measure) flips the SELECTED bubble to a frozen cyan-ringed readout
-WITHOUT spawning a new bubble or disturbing the others. Q (harvest) returns that
-bubble to live. This probe captures four shots so we can eyeball each stage:
+Register bubbles exist from boot but start HIDDEN (reveal-on-first-touch
+exploration): a fresh field is DARK, and the cursor landing on a plot wakes its
+bubble permanently. R (measure) flips the SELECTED bubble to a frozen cyan-ringed
+readout WITHOUT spawning a new bubble or disturbing the others. Q (harvest)
+returns that bubble to live. This probe captures four shots so we can eyeball
+each stage:
 
-  rf_boot.png      — bubbles present at boot, none measured (no strike yet)
-  rf_select.png    — plot 0 selected
-  rf_measure.png   — after R: selected bubble cyan-ringed, others still live
+  rf_boot.png      — DARK field: no plot focused yet, so no bubbles revealed
+  rf_select.png    — plot 0 selected → its bubble blooms in (others still dark)
+  rf_measure.png   — after R: selected bubble cyan-ringed
   rf_harvest.png   — after Q: selected bubble back to live
 
 Prints instrument_state at each stage + the absolute shot paths.

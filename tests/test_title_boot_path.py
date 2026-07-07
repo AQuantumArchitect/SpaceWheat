@@ -78,6 +78,18 @@ def test_title_menu_restart_path_reaches_first_breath() -> None:
         offered = offers_row.get("story_offers", []) if offers_row.get("ok", False) else []
         assert offered, f"no Act-0 tutorial offer after start: {offers_row}"
 
+        # 2c. BOOT-RACE regression: zero progression actions taken, so NO campaign flag
+        #     may have fired yet. The farm registers as active before its boot finishes;
+        #     QuestManager once snapshotted the signature baseline in that window (empty
+        #     known_icons → seed lands → growth=1) and first_breath greeted a fresh game
+        #     with "You did something." tutorial_seen is a marker, not a campaign flag.
+        pre_action = step("story_flags")
+        pre_fired = pre_action.get("flags_fired", {}) if pre_action.get("ok", False) else {}
+        campaign_fired = [f for f in pre_fired if f != "tutorial_seen"]
+        assert not campaign_fired, (
+            f"campaign flags fired on the title path before any player action: {campaign_fired}"
+        )
+
         # 3. The progression loop on the player path: Druid-excite plot 0, Icon-track,
         #    ripen under H, incorporate. Signature growth is what first_breath gates on.
         press("0", frames=2)

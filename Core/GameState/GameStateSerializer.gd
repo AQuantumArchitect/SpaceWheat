@@ -135,6 +135,10 @@ func capture_state_from_farm(farm: Node, current_state: GameState, scenario_id: 
 	if "story_log" in farm:
 		state.story_log = farm.story_log.duplicate(true)
 
+	# Revealed plots (cosmetic bubble reveal set)
+	if "revealed_plots" in farm:
+		state.revealed_plots = farm.revealed_plots.keys()
+
 	# Biome progression state (unlocked/unexplored/active spindle position)
 	_capture_biome_progression_state(state, current_state)
 
@@ -342,6 +346,20 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 		farm.story_flags_fired = (state.story_flags_fired if "story_flags_fired" in state else {}).duplicate()
 	if "story_log" in farm:
 		farm.story_log = (state.story_log if "story_log" in state else []).duplicate(true)
+
+	# Revealed plots (cosmetic bubble reveal). Migration: a pre-reveal-era save that
+	# was actually played (any fired flag) saw the full field — restore it rather
+	# than going dark. A fresh scenario state (no flags, no reveals) starts dark.
+	if "revealed_plots" in farm:
+		farm.revealed_plots = {}
+		var saved_revealed: Array = state.revealed_plots if "revealed_plots" in state else []
+		for pos in saved_revealed:
+			if pos is Vector2i:
+				farm.revealed_plots[pos] = true
+		if farm.revealed_plots.is_empty() and not farm.story_flags_fired.is_empty():
+			if farm.grid and farm.grid.has_method("get_plot_biome_assignments"):
+				for pos in farm.grid.get_plot_biome_assignments():
+					farm.revealed_plots[pos] = true
 
 	if "player_alignment" in farm:
 		var AlignmentGraphCls = load("res://Core/Alignment/AlignmentGraph.gd")

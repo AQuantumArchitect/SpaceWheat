@@ -46,6 +46,7 @@ var _state_projection: QuestStateProjectionService = QuestStateProjectionService
 var _story_flags: Array = []    # All flag definitions loaded from story_flags.json
 var _unfired_flags: Array = []  # Subset not yet in farm.story_flags_fired
 var _signature_baseline: int = -1  # Seeded signature size snapshot (-1 = not captured)
+var _baseline_farm_id: int = 0     # Farm instance the baseline was captured from (restart ⇒ recapture)
 var _tutorial_steps: Array = [] # Act-0 onboarding chain (tutorial_arc.json), linked into a chain
 
 # =============================================================================
@@ -221,6 +222,12 @@ func _evaluate_story_flags() -> void:
 	var farm = _get_active_farm()
 	if farm == null:
 		return
+	# BOOT RACE GUARD: the farm registers as active BEFORE its boot completes
+	# (SessionLifecycle sets active_farm, then awaits farm_ready). Evaluating in
+	# that window reads pre-seed state — e.g. the signature baseline snapshots 0,
+	# then seeding lands and first_breath fires with zero player input.
+	if not (farm.has_method("is_boot_finalized") and farm.is_boot_finalized()):
+		return
 	for flag in _unfired_flags.duplicate():
 		var predicates = flag.get("predicates", [])
 		if _evaluate_flag_predicates(predicates, farm) >= FLAG_FIRE_THRESHOLD:
@@ -331,11 +338,15 @@ func _pred_width(pred: Dictionary, t: String) -> float:
 
 
 func _signature_baseline_size(farm) -> int:
-	# Lazily snapshot the seeded signature size the first time a farm is evaluated —
-	# this runs from frame 1, before any player incorporation, so it captures the
-	# scenario's starting signature. -1 sentinel = not yet captured.
-	if _signature_baseline < 0:
+	# Lazily snapshot the seeded signature size the first time a farm is evaluated.
+	# Evaluation is gated on farm.is_boot_finalized(), so the snapshot always sees
+	# the scenario's seeded signature — never the pre-seed empty array.
+	# Re-captured per farm INSTANCE: a restart builds a new farm, and carrying the
+	# old run's baseline over would demand N re-incorporations before first_breath.
+	var farm_id: int = farm.get_instance_id() if farm else 0
+	if _signature_baseline < 0 or farm_id != _baseline_farm_id:
 		_signature_baseline = farm.known_icons.size() if farm and "known_icons" in farm else 0
+		_baseline_farm_id = farm_id
 	return _signature_baseline
 
 

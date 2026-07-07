@@ -522,12 +522,23 @@ func _ensure_register_bubbles() -> void:
 		var node = node_manager.build_register_node(biome_name, biome, register_id, grid_pos, biomes, layout_calculator)
 		if not node:
 			continue
+		# Exploration: bubbles start hidden until the player's focus first lands on
+		# the plot (cursor selection or any action). COSMETIC only — the node still
+		# exists, evolves, and can be acted on; only rendering is gated.
+		node.visible = _is_plot_revealed(grid_pos)
 		quantum_nodes.append(node)
 		quantum_nodes_by_grid_pos[grid_pos] = node
 		if node.plot_id:
 			node_by_plot_id[node.plot_id] = node
 		all_plot_positions[grid_pos] = node.classical_anchor
 		added += 1
+	# Self-heal (monotonic within a session): a mid-session state apply or an acted-on
+	# bubble (bound terminal) must never stay hidden — fail open, per the anti-gating law.
+	for pos in quantum_nodes_by_grid_pos:
+		var n = quantum_nodes_by_grid_pos[pos]
+		if n and not n.visible and (n.terminal != null or _is_plot_revealed(pos)):
+			n.visible = true
+			added += 1
 	if added > 0:
 		queue_redraw()
 		if _verbose:
@@ -587,6 +598,8 @@ func connect_to_farm(farm: Node) -> void:
 		farm.biome_removed.connect(_on_biome_removed)
 	if farm.has_signal("biome_loaded") and not farm.biome_loaded.is_connected(_on_biome_loaded):
 		farm.biome_loaded.connect(_on_biome_loaded)
+	if farm.has_signal("plot_revealed") and not farm.plot_revealed.is_connected(_on_plot_revealed):
+		farm.plot_revealed.connect(_on_plot_revealed)
 
 	# Store references for node creation
 	if "terminal_pool" in farm and farm.terminal_pool:
@@ -595,12 +608,35 @@ func connect_to_farm(farm: Node) -> void:
 		biome_evolution_batcher = farm.biome_evolution_batcher
 
 
+## Cosmetic reveal state. Fail OPEN (visible) when no farm is connected — a bare
+## visual-test graph without a farm must never render an empty field by accident.
+func _is_plot_revealed(grid_pos: Vector2i) -> bool:
+	if farm_ref and farm_ref.has_method("is_plot_revealed"):
+		return farm_ref.is_plot_revealed(grid_pos)
+	return true
+
+
+func _on_plot_revealed(grid_pos: Vector2i) -> void:
+	# The player's focus first landed on this plot — wake its bubble with the
+	# spawn bloom. If the bubble doesn't exist yet, the next _ensure_register_bubbles
+	# pass reads the persisted set and creates it visible.
+	var node = quantum_nodes_by_grid_pos.get(grid_pos)
+	if node and not node.visible:
+		node.visible = true
+		node.start_spawn_animation(time_accumulator)
+		queue_redraw()
+
+
 func _on_terminal_bound(grid_pos: Vector2i, terminal_id: String, _emoji_pair: Dictionary) -> void:
 	# Register-first: EXPLORE (binding) does NOT spawn a bubble — the live register
 	# bubble already exists at this slot. We only ensure it's there (covers a biome
 	# realized by interaction before the lazy seed caught it). MEASURE does the flip.
 	if _verbose:
 		_verbose.debug("viz", "📍", "Terminal bound at %s (register-first: ensure bubble)" % grid_pos)
+	# Anti-gating safety net: acting on a plot reveals it even if selection was
+	# bypassed (rig-driven actions, boot-time verb on the default plot index).
+	if farm_ref and farm_ref.has_method("reveal_plot"):
+		farm_ref.reveal_plot(grid_pos)
 	_ensure_register_bubbles()
 	queue_redraw()
 
@@ -612,6 +648,9 @@ func _on_terminal_measured(grid_pos: Vector2i, terminal_id: String, outcome: Str
 	if _verbose:
 		_verbose.debug("viz", "📏", "Terminal %s measured at %s → %s (p=%.2f)" % [terminal_id, grid_pos, outcome, probability])
 
+	# Anti-gating safety net: a measured plot must always show its bubble.
+	if farm_ref and farm_ref.has_method("reveal_plot"):
+		farm_ref.reveal_plot(grid_pos)
 	var bubble = quantum_nodes_by_grid_pos.get(grid_pos)
 	if not bubble:
 		_ensure_register_bubbles()

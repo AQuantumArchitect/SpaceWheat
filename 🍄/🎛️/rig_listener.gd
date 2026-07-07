@@ -757,6 +757,52 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				result["flags_fired"] = farm.story_flags_fired.duplicate() if "story_flags_fired" in farm else {}
 				result["story_log"] = farm.story_log.duplicate(true) if "story_log" in farm else []
 
+		"toast":
+			# Fire a hint toast through the real shell path (z-layering / visual QA).
+			if _shell == null or not _shell.has_method("show_hint"):
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_shell"}
+			else:
+				_shell.show_hint(str(cmd.get("text", "rig test toast")), int(cmd.get("importance", 2)))
+				result["shown"] = true
+
+		"bubble_state":
+			# Read-only: per-plot bubble visibility (reveal-on-first-touch) + the farm's
+			# persisted revealed set. Drives automated asserts for the exploration reveal.
+			var bs_fg: Node = null
+			var bs_stack: Array = [get_root()]
+			while not bs_stack.is_empty():
+				var bs_n: Node = bs_stack.pop_back()
+				for bs_ch in bs_n.get_children():
+					bs_stack.push_back(bs_ch)
+				if "quantum_nodes_by_grid_pos" in bs_n:
+					bs_fg = bs_n
+					break
+			if bs_fg == null:
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_force_graph"}
+			else:
+				var bs_bubbles: Array = []
+				var bs_visible := 0
+				var bs_by_pos: Dictionary = bs_fg.quantum_nodes_by_grid_pos
+				for bs_pos in bs_by_pos:
+					var bs_node = bs_by_pos[bs_pos]
+					if bs_node == null:
+						continue
+					var bs_vis: bool = bool(bs_node.visible)
+					if bs_vis:
+						bs_visible += 1
+					bs_bubbles.append({"pos": [bs_pos.x, bs_pos.y], "visible": bs_vis, "measured": bs_node.terminal != null})
+				result["bubbles"] = bs_bubbles
+				result["bubble_count"] = bs_bubbles.size()
+				result["visible_count"] = bs_visible
+				# Resolve the farm live — _farm goes stale across a load_game restart.
+				var bs_gsm = get_root().get_node_or_null("GameStateManager")
+				var bs_farm = bs_gsm.get_active_farm() if (bs_gsm and bs_gsm.has_method("get_active_farm")) else _farm
+				var bs_revealed: Array = []
+				if bs_farm != null and is_instance_valid(bs_farm) and "revealed_plots" in bs_farm:
+					for bs_rp in bs_farm.revealed_plots:
+						bs_revealed.append([bs_rp.x, bs_rp.y])
+				result["revealed_plots"] = bs_revealed
+
 		"biome_slots":
 			# Read-only: the TYUIOP slot → biome mapping. grid_snapshot lists biomes in a
 			# different (sorted) order, so a driver must use THIS to press the right biome key.
@@ -1514,7 +1560,7 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_save_load_coordinator"}
 			else:
 				result["slot"] = slot
-				result["loaded"] = gsm.save_load.load_and_apply(slot)
+				result["loaded"] = await gsm.save_load.load_and_apply(slot)
 				_rebind_after_load(gsm)
 
 		"load_game_path":
@@ -1727,6 +1773,13 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 					await _app_root.start_game(_pending_boot_request)
 				_shell = _app_root.get_player_shell()
 				_farm = _app_root.game_root.farm if (_app_root.game_root and is_instance_valid(_app_root.game_root)) else null
+				# The real menu flow closes the EscapeMenu when it launches a game; the
+				# direct-start fallback must match, or the lingering menu sits on the
+				# overlay stack and eats every gameplay key (G/H/J → EscapeMenu, consumed).
+				if _shell and "overlay_manager" in _shell and _shell.overlay_manager:
+					var sft_om = _shell.overlay_manager
+					if sft_om.has_method("_close_registered_overlay"):
+						sft_om._close_registered_overlay("escape_menu")
 				if _shell and _shell.has_method("set_farm_attached"):
 					_shell.set_farm_attached(true)
 				if _shell:

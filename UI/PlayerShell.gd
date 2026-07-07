@@ -565,6 +565,8 @@ func _ready() -> void:
 	_hint_toast_stack.offset_top = -260
 	_hint_toast_stack.offset_right = -16
 	_hint_toast_stack.offset_bottom = -120
+	# Above every overlay tier (OverlayStackManager tops out at Z_TIER_SYSTEM 18 + stack size)
+	_hint_toast_stack.z_index = 100
 	overlay_layer.add_child(_hint_toast_stack)
 	_apply_top_strip_layout()
 	if layout_manager and layout_manager.has_signal("layout_changed"):

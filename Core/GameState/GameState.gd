@@ -130,6 +130,10 @@ extends Resource
 ## Allows saving complex selection configurations before executing actions
 @export var selected_plot_positions: Array = []  # Array of Vector2i
 
+## Plots the player has focused at least once (cosmetic bubble reveal).
+## Array of Vector2i. Absent/empty on pre-reveal saves → serializer pre-reveals all.
+@export var revealed_plots: Array = []
+
 
 static func derive_known_emojis_from_icons(icons: Array) -> Array:
 	var emojis: Array = []
