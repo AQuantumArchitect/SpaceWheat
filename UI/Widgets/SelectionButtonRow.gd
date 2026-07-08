@@ -1,49 +1,43 @@
 class_name SelectionButtonRow
 extends HBoxContainer
 
-## SelectionButtonRow - Shared textured button row for tool/biome selectors.
-## Subclasses provide button specs and handle selection events.
+## SelectionButtonRow — shared FLAT chip row (Apple-minimal pass, 2026-07-08).
+## The glossy SVG button chrome is gone: each button is a quiet translucent
+## rounded chip; state reads as a gentle whole-chip tint plus a gold underline
+## on the selected item. Subclasses provide specs and handle selection.
 
-# Button texture path
-const BTN_TEXTURE_PATH = "res://Assets/UI/Chrome/BtnBtmMidl.svg"
+const CHIP_BG := Color(0.07, 0.08, 0.10, 0.60)
+const CHIP_CORNER_RADIUS := 7
+const SELECT_UNDERLINE_COLOR := Color(1.0, 0.8, 0.3, 0.95)  # global accent gold
 
-# Styling - colors applied via modulate on the TextureRect
-var selected_color: Color = Color(0.4, 1.0, 1.0)  # Bright cyan for selected
-var normal_color: Color = Color(1.0, 1.0, 1.0)    # Natural texture color
-var hover_color: Color = Color(1.2, 1.2, 1.2)     # Slightly brighter on hover
-var pressed_color: Color = Color(0.6, 0.6, 0.6)   # Darker when pressed
-var disabled_color: Color = Color(0.3, 0.3, 0.3)  # Dark for disabled
+# State tints applied via modulate on the WHOLE chip (bg + glyph + label).
+var selected_color: Color = Color(1.25, 1.18, 0.95)  # warm lift
+var normal_color: Color = Color(1.0, 1.0, 1.0)
+var hover_color: Color = Color(1.35, 1.35, 1.35)
+var pressed_color: Color = Color(0.7, 0.7, 0.7)
+var disabled_color: Color = Color(0.45, 0.45, 0.45)
+
+## Compact mode (emoji-only corner clusters): fixed-size chips that hug one
+## end of the row instead of stretching across the screen.
+var compact: bool = false
+var compact_chip_size: Vector2 = Vector2(46, 38)
 
 # Layout manager for scaling
 var layout_manager
 var scale_factor: float = 1.0
 
-# Preloaded button texture
-var btn_texture: Texture2D = null
-
-# Button data array - each element is {container, texture, label, icon, id, disabled}
+# Button data array - each element is {container, chip, label, icon, id, disabled}
+# ("chip" is the tint target — the whole button Control, kept under the legacy
+# key name "texture" so subclass state code needs no changes.)
 var buttons: Array[Dictionary] = []
 var selected_id: int = -1
-
-# Cross-ring active state. When the WASD cursor parks on this ring, the
-# row paints a thin amber border around its outer container so the player
-# can see which ring A/D will step across. Distinct from per-button cyan
-# selected tint — both can apply simultaneously.
-var is_active_ring: bool = false
-const ACTIVE_RING_BORDER_COLOR: Color = Color(1.0, 0.75, 0.2, 1.0)
-const ACTIVE_RING_BORDER_WIDTH: float = 2.0
 
 signal button_selected(id: int)
 
 
 func _ready():
-	# Load button texture
-	btn_texture = load(BTN_TEXTURE_PATH)
-	if not btn_texture:
-		push_warning("%s: Could not load button texture from %s" % [name, BTN_TEXTURE_PATH])
-
 	# Container setup
-	add_theme_constant_override("separation", 8)
+	add_theme_constant_override("separation", 6)
 
 	# Allow keyboard input to pass through, but buttons can still receive clicks
 	mouse_filter = MOUSE_FILTER_PASS
@@ -72,33 +66,46 @@ func _create_button(spec: Dictionary) -> Dictionary:
 	var icon_path = spec.get("icon_path", "")
 	var enabled = spec.get("enabled", true)
 
-	# Container to hold texture, icon, and label
+	# Container to hold chip background, icon, and label
 	var container = Control.new()
 	container.name = "SelectBtn_%d" % button_id
-	container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	if compact:
+		container.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		container.custom_minimum_size = compact_chip_size * scale_factor
+	else:
+		container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		container.custom_minimum_size = Vector2(0, 40 * scale_factor)
 	container.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	container.size_flags_stretch_ratio = 1.0
-	container.custom_minimum_size = Vector2(0, 50 * scale_factor)
 	container.mouse_filter = Control.MOUSE_FILTER_STOP
 
-	# TextureRect for button background
-	var texture_rect = TextureRect.new()
-	texture_rect.name = "BtnTexture"
-	texture_rect.texture = btn_texture
-	texture_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	texture_rect.stretch_mode = TextureRect.STRETCH_SCALE
-	texture_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
-	texture_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	container.add_child(texture_rect)
+	# Flat chip background
+	var chip = Panel.new()
+	chip.name = "BtnChip"
+	var chip_style := StyleBoxFlat.new()
+	chip_style.bg_color = CHIP_BG
+	chip_style.set_corner_radius_all(CHIP_CORNER_RADIUS)
+	chip.add_theme_stylebox_override("panel", chip_style)
+	chip.set_anchors_preset(Control.PRESET_FULL_RECT)
+	chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	container.add_child(chip)
 
-	# TextureRect for icon glyph (left side)
+	# TextureRect for icon glyph
 	var icon_rect = TextureRect.new()
 	icon_rect.name = "BtnIcon"
 	icon_rect.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
 	icon_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	icon_rect.set_anchors_preset(Control.PRESET_LEFT_WIDE)
-	icon_rect.offset_left = 8 * scale_factor
-	icon_rect.offset_right = 40 * scale_factor
+	if compact and label_text == "":
+		# Icon-only chip: glyph fills the chip with a small margin.
+		icon_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+		icon_rect.offset_left = 6 * scale_factor
+		icon_rect.offset_top = 5 * scale_factor
+		icon_rect.offset_right = -6 * scale_factor
+		icon_rect.offset_bottom = -5 * scale_factor
+	else:
+		icon_rect.set_anchors_preset(Control.PRESET_LEFT_WIDE)
+		icon_rect.offset_left = 8 * scale_factor
+		icon_rect.offset_right = 40 * scale_factor
 	icon_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	var has_icon = false
@@ -130,11 +137,8 @@ func _create_button(spec: Dictionary) -> Dictionary:
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.set_anchors_preset(Control.PRESET_FULL_RECT)
-	label.add_theme_font_size_override("font_size", int(16 * scale_factor))
-	label.add_theme_color_override("font_color", Color(0.95, 0.95, 0.95))
-	label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.6))
-	label.add_theme_constant_override("shadow_offset_x", 1)
-	label.add_theme_constant_override("shadow_offset_y", 1)
+	label.add_theme_font_size_override("font_size", int((18 if compact else 15) * scale_factor))
+	label.add_theme_color_override("font_color", Color(0.94, 0.94, 0.94))
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	label.clip_text = true
 	label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
@@ -151,7 +155,9 @@ func _create_button(spec: Dictionary) -> Dictionary:
 
 	var btn_data = {
 		"container": container,
-		"texture": texture_rect,
+		# Legacy key name: the tint target is now the WHOLE chip, so state
+		# changes (hover/selected/disabled) dim or lift bg + glyph together.
+		"texture": container,
 		"icon": icon_rect,
 		"label": label,
 		"id": button_id,
@@ -160,7 +166,7 @@ func _create_button(spec: Dictionary) -> Dictionary:
 	}
 
 	if not enabled:
-		texture_rect.modulate = disabled_color
+		container.modulate = disabled_color
 
 	return btn_data
 
@@ -249,19 +255,12 @@ func set_layout_manager(mgr) -> void:
 		scale_factor = layout_manager.scale_factor
 
 
-func set_active_ring(active: bool) -> void:
-	if is_active_ring == active:
-		return
-	is_active_ring = active
-	queue_redraw()
-
-
 func _draw() -> void:
-	if is_active_ring:
-		draw_rect(Rect2(Vector2.ZERO, size), ACTIVE_RING_BORDER_COLOR, false, ACTIVE_RING_BORDER_WIDTH)
+	# Quiet gold underline marks the selected chip (the WASD-crawl amber ring
+	# around whole rows died 2026-07-08 with the crawl itself).
 	if selected_id >= 0:
 		for btn_data in buttons:
 			if btn_data.id == selected_id:
 				var r: Rect2 = btn_data.container.get_rect()
-				draw_rect(Rect2(r.position.x, r.end.y - 3.0, r.size.x, 3.0), ACTIVE_RING_BORDER_COLOR, true)
+				draw_rect(Rect2(r.position.x, r.end.y - 2.0, r.size.x, 2.0), SELECT_UNDERLINE_COLOR, true)
 				break

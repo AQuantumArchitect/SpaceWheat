@@ -8,8 +8,6 @@ extends HBoxContainer
 
 const LindbladHandler = preload("res://Core/Instrumentation/Handlers/LindbladHandler.gd")
 
-# Button texture path (matches ToolSelectionRow)
-const BTN_TEXTURE_PATH = "res://Assets/UI/Chrome/BtnBtmMidl.svg"
 const ACTION_KEYS = ["Q", "E", "R", "F"]
 
 # Action buttons - now stores container references with .texture and .label children
@@ -30,9 +28,6 @@ var pressed_color: Color = Color(0.6, 0.6, 0.6)  # Darker when pressed
 var layout_manager
 var scale_factor: float = 1.0
 
-# Preloaded button texture (matches ToolSelectionRow)
-var btn_texture: Texture2D = null
-
 # Signals
 signal action_pressed(action_key: String)
 
@@ -42,12 +37,7 @@ func _ready():
 	z_as_relative = false
 	z_index = 60
 
-	# Load button texture (matches ToolSelectionRow)
-	btn_texture = load(BTN_TEXTURE_PATH)
-	if not btn_texture:
-		push_warning("ActionPreviewRow: Could not load button texture from %s" % BTN_TEXTURE_PATH)
-
-	add_theme_constant_override("separation", 8)
+	add_theme_constant_override("separation", 6)
 
 	# Allow keyboard input to pass through, but buttons can still receive clicks
 	mouse_filter = MOUSE_FILTER_PASS
@@ -139,15 +129,17 @@ func _create_action_button(action_key: String) -> Dictionary:
 	container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	container.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	container.size_flags_stretch_ratio = 1.0
-	container.custom_minimum_size = Vector2(0, 50 * scale_factor)
+	container.custom_minimum_size = Vector2(0, 42 * scale_factor)
 	container.mouse_filter = Control.MOUSE_FILTER_STOP
 
-	# TextureRect for button background
-	var texture_rect = TextureRect.new()
-	texture_rect.name = "BtnTexture"
-	texture_rect.texture = btn_texture
-	texture_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	texture_rect.stretch_mode = TextureRect.STRETCH_SCALE
+	# Flat chip background (Apple-minimal pass — glossy SVG chrome removed).
+	# Kept under the legacy "texture" key: state tints modulate the chip node.
+	var texture_rect = Panel.new()
+	texture_rect.name = "BtnChip"
+	var chip_style := StyleBoxFlat.new()
+	chip_style.bg_color = Color(0.07, 0.08, 0.10, 0.60)
+	chip_style.set_corner_radius_all(7)
+	texture_rect.add_theme_stylebox_override("panel", chip_style)
 	texture_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
 	texture_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	container.add_child(texture_rect)
@@ -190,11 +182,8 @@ func _create_action_button(action_key: String) -> Dictionary:
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.set_anchors_preset(Control.PRESET_FULL_RECT)
-	label.add_theme_font_size_override("font_size", int(16 * scale_factor))
-	label.add_theme_color_override("font_color", Color(0.95, 0.95, 0.95))
-	label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.6))
-	label.add_theme_constant_override("shadow_offset_x", 1)
-	label.add_theme_constant_override("shadow_offset_y", 1)
+	label.add_theme_font_size_override("font_size", int(15 * scale_factor))
+	label.add_theme_color_override("font_color", Color(0.94, 0.94, 0.94))
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	label.clip_text = true
 	label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS

@@ -21,8 +21,11 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / "\U0001F39B️"))
 from rig_client import RigClient  # noqa: E402
 
-DRIFT_MAX = 10.0     # px: wobble diameter (7) + ease/carousel residue headroom
-MIN_PAIR_DIST = 18.0  # px: stations must not pile up
+# Flex pass 2026-07-08: motion is MEANING now — correlated stations tug toward
+# each other on an underdamped spring, capped at FLEX_MAX=30px + wobble. The
+# assert is BOUNDED motion (identity never ambiguous), not stillness.
+DRIFT_MAX = 48.0     # px: flex cap (30) + wobble + spring overshoot headroom
+MIN_PAIR_DIST = 16.0  # px: stations must not pile up (flex can pull pairs closer)
 
 _t = [0]
 _fails = []

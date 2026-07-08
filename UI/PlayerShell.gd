@@ -82,26 +82,13 @@ func _input(event: InputEvent) -> void:
 	var stack_size = overlay_stack.size() if overlay_stack else 0
 	_verbose.debug("input", "⌨️", "PlayerShell._input() KEY: %s, overlay_stack: %d" % [event.keycode, stack_size])
 
-	# Early-pierce: ring navigation always fires before overlay routing so
-	# cursor_layer is always consistent when A/D or overlays run.
-	# W/S spin the cylinder (consumed). A/D step within the active ring (consumed).
-	# Direct-pick keys (ZXCVBNM/4-0/TYUIOP/GHJKL;) anchor the ring WITHOUT
-	# consuming — overlays and QII still receive the event for item selection.
-	# cursor_layer is owned by QII (the instrument); PlayerShell only forwards the
-	# raw keys here and paints from the cursor_layer_changed signal.
+	# The WASD crawl ring was REMOVED 2026-07-08 (owner: redundant keyboard
+	# navigation, cluttered the view with the amber layer ring; mouse/touch +
+	# direct keys are the real inputs). Direct-pick keys still anchor the
+	# instrument's internal cursor_layer (it drives the plot-ring lifecycle)
+	# WITHOUT consuming — overlays and QII still receive the event.
 	if event is InputEventKey and event.pressed and not event.echo and instrument_input:
 		var kc = event.keycode
-		if kc == KEY_W or kc == KEY_S:
-			if _any_menu_open():
-				instrument_input.set_cursor_layer(0)  # pin to surface ring while an overlay is open
-			else:
-				instrument_input.change_cursor_layer(1 if kc == KEY_S else -1)
-			_mark_input_handled()
-			return
-		if kc == KEY_A or kc == KEY_D:
-			_step_active_layer(-1 if kc == KEY_A else 1)
-			_mark_input_handled()
-			return
 		if kc in [KEY_Z, KEY_X, KEY_C, KEY_V, KEY_B, KEY_N, KEY_M]:
 			instrument_input.set_cursor_layer(0)
 		elif kc in [KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9, KEY_0]:
@@ -262,11 +249,6 @@ func _handle_shell_action(event: InputEvent) -> bool:
 	return false
 
 
-func _step_active_layer(delta: int) -> void:
-	if instrument_input and instrument_input.has_method("step_active_layer"):
-		instrument_input.step_active_layer(instrument_input.cursor_layer, delta)
-
-
 ## Pin the crawl ring to the surface layer (0). Used when a menu opens. No-op if
 ## the instrument isn't wired yet (pre-boot).
 func _pin_cursor_surface() -> void:
@@ -287,13 +269,10 @@ func _route_action_key(action_key: String) -> void:
 		instrument_input.invoke_action(action_key)
 
 
-## Paint amber ring and plot tile visuals for the given layer. Connected to QII's
-## cursor_layer_changed signal (and called once at boot for the initial paint). The
-## ring state + plot-ring lifecycle now live in QII.set_cursor_layer; this is purely
-## the render side.
+## Cursor-layer paint hook. The amber active-ring border died with the WASD
+## crawl (2026-07-08) — the only remaining render-side effect is the plot
+## grid's ring state (selected-plot lifecycle visuals).
 func _paint_cursor_layer(layer: int) -> void:
-	if action_bar_manager and action_bar_manager.has_method("set_active_cursor_layer"):
-		action_bar_manager.set_active_cursor_layer(layer)
 	var pgd = current_farm_ui.plot_grid_display if current_farm_ui and "plot_grid_display" in current_farm_ui else null
 	if pgd and pgd.has_method("set_active_ring"):
 		pgd.set_active_ring(layer == 3)

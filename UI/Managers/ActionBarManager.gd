@@ -171,18 +171,6 @@ func get_action_row() -> Control:
 	return action_preview_row
 
 
-## Mark exactly one ring as the active WASD-cursor target. Layer indices
-## match QuantumInstrumentInput.cursor_layer:
-##   0=surface (menu), 1=frame (tool), 2=biome, 3=plot (PlotTile cyan border).
-func set_active_cursor_layer(layer: int) -> void:
-	if menu_selection_row:
-		menu_selection_row.set_active_ring(layer == 0)
-	if tool_selection_row:
-		tool_selection_row.set_active_ring(layer == 1)
-	if biome_selection_row:
-		biome_selection_row.set_active_ring(layer == 2)
-
-
 func select_frame(frame_name: String) -> void:
 	if tool_selection_row:
 		tool_selection_row.select_frame(frame_name)

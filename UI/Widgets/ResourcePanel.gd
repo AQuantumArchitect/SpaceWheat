@@ -31,14 +31,8 @@ func _ready():
 
 
 func _draw():
-	# Draw sci-fi styled background directly on the HBoxContainer.
-	# Dark blue-gray background (semi-transparent for sci-fi look)
-	var bg_color = Color(0.1, 0.15, 0.22, 0.9)  # Slightly lighter, more visible
-	draw_rect(Rect2(Vector2.ZERO, size), bg_color)
-
-	# Cyan border on bottom for HUD effect
-	var border_color = Color(0.3, 0.8, 0.9, 0.6)
-	draw_line(Vector2(0, size.y - 1), Vector2(size.x, size.y - 1), border_color, 2.0)
+	# Flat, quiet strip (Apple-minimal pass): translucent ink, no HUD border.
+	draw_rect(Rect2(Vector2.ZERO, size), Color(0.06, 0.07, 0.09, 0.55))
 
 
 func set_layout_manager(layout_mgr: Node):
@@ -95,8 +89,8 @@ func _ensure_display_exists(emoji: String) -> void:
 		return
 
 	var scale_factor = layout_manager.scale_factor if layout_manager else 1.0
-	var icon_font_size = layout_manager.get_scaled_font_size(24) if layout_manager else 24
-	var label_font_size = layout_manager.get_scaled_font_size(20) if layout_manager else 20
+	var icon_font_size = layout_manager.get_scaled_font_size(17) if layout_manager else 17
+	var label_font_size = layout_manager.get_scaled_font_size(14) if layout_manager else 14
 
 	# Create container for this resource
 	var container = HBoxContainer.new()

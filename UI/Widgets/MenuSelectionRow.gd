@@ -14,6 +14,8 @@ var overlay_manager: Node = null
 
 
 func _ready() -> void:
+	compact = true  # emoji-only chips hugging the right corner (Apple-minimal)
+	alignment = BoxContainer.ALIGNMENT_END
 	super._ready()
 	_rebuild_buttons()
 
@@ -48,7 +50,8 @@ func _rebuild_buttons() -> void:
 	var specs: Array[Dictionary] = []
 	var idx := 0
 
-	# Keyless entries first (e.g. FarmView — A/D navigable, no direct key).
+	# Emoji-only chips; the name + key live in the tooltip (Apple-minimal).
+	# Keyless entries first (e.g. FarmView), then strict ZXCVBNM order.
 	for entry in MenuRegistry.TOP_LEVEL_MENUS:
 		if str(entry.get("key_label", "")) != "":
 			continue
@@ -56,11 +59,11 @@ func _rebuild_buttons() -> void:
 			continue
 		var emoji := str(entry.get("button_emoji", ""))
 		var display := str(entry.get("display_name", ""))
-		specs.append({"id": idx, "text": "%s %s" % [emoji, display], "enabled": true})
+		specs.append({"id": idx, "text": emoji if emoji != "" else display,
+				"enabled": true, "tooltip": display})
 		_entry_by_id[idx] = entry
 		idx += 1
 
-	# Keyed entries in strict ZXCVBNM order.
 	var key_order: Array = ["Z", "X", "C", "V", "B", "N", "M"]
 	var by_key: Dictionary = {}
 	for entry in MenuRegistry.TOP_LEVEL_MENUS:
@@ -73,7 +76,8 @@ func _rebuild_buttons() -> void:
 			continue
 		var emoji := str(entry.get("button_emoji", ""))
 		var display := str(entry.get("display_name", ""))
-		specs.append({"id": idx, "text": "%s %s [%s]" % [emoji, display, key], "enabled": true})
+		specs.append({"id": idx, "text": emoji if emoji != "" else key,
+				"enabled": true, "tooltip": "%s [%s]" % [display, key]})
 		_entry_by_id[idx] = entry
 		idx += 1
 

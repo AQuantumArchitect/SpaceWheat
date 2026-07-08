@@ -33,6 +33,7 @@ signal frame_selected(frame_name: String)
 func _ready():
 	# Z-index: ActionBarLayer(50) + 5 = 55 total, below quest(100)
 	z_index = 5
+	compact = true  # icon-only chips (Apple-minimal pass) — words live in tooltips
 	super._ready()
 	_rebuild_buttons()
 	select_frame(ToolConfig.get_current_frame())
@@ -66,12 +67,11 @@ func _rebuild_buttons() -> void:
 		var desc: String = str(def.get("description", ""))
 		# Every hat is always selectable — openness is a place, so the Lindblad
 		# verbs grey per-plot on sealed ground (ActionValidator), never the hat.
-		var label_text := ""
-		if icon_path != "":
-			label_text = "[%s] %s" % [hat_key, label_name]
-		else:
-			label_text = "[%s] %s %s" % [hat_key, emoji, label_name]
-		var tip: String = "[%s] %s — %s" % [hat_key, label_name, desc] if desc != "" else ""
+		# Icon-only chip: the name + key + description live in the tooltip.
+		var label_text := "" if icon_path != "" else emoji
+		var tip: String = "%s [%s]" % [label_name, hat_key]
+		if desc != "":
+			tip += " — %s" % desc
 		button_specs.append({
 			"id": i,
 			"text": label_text,

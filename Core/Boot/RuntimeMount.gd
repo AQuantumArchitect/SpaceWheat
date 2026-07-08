@@ -314,7 +314,8 @@ func stage_ui(farm: Node, shell: Node, quantum_viz: Node, world_builder) -> void
 			contract_chip.z_index = 90
 			shell_overlay_layer.add_child(contract_chip)
 			contract_chip.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-			contract_chip.offset_top = 64.0
+			# Below the (now compact) resource strip + menu/hat/biome chip rows.
+			contract_chip.offset_top = 156.0
 			contract_chip.offset_right = -10.0
 			contract_chip.offset_left = -190.0
 			contract_chip.grow_horizontal = Control.GROW_DIRECTION_BEGIN

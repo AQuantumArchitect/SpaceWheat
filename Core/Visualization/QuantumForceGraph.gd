@@ -1353,13 +1353,19 @@ func _get_scaled_force_delta(delta: float) -> float:
 	return delta * scale_val
 
 
-# Station layout tuning (Mini-Metro pass, 2026-07-07). The O(n²) force soup
-# (repulsion + MI attraction + centre spring + drag) is deleted: position is
-# IDENTITY — a bubble sits at its plot slot; correlations are edges, not layout.
-const WOBBLE_LEASH: float = 3.5      # px of breathing drift around the anchor
+# Station layout tuning (Mini-Metro pass, 2026-07-07; flex pass 2026-07-08).
+# Position is IDENTITY — a bubble lives at its plot slot — but the system
+# BREATHES on top of it: correlated stations tug toward each other (capped
+# excursion) on an underdamped spring, so connections are FELT in bubble
+# behavior, not only drawn as lines. The old unbounded force soup stays dead.
+const WOBBLE_LEASH: float = 4.0      # px of idle breathing drift around the anchor
 const WOBBLE_W1: float = 0.5         # rad/s — wobble x frequency
 const WOBBLE_W2: float = 0.37        # rad/s — wobble y frequency (irrational-ish ratio)
 const MINIATURE_SHRINK: float = 0.5  # extra shrink for inactive-biome clusters
+const FLEX_GAIN: float = 90.0        # px of pull per unit mutual information
+const FLEX_MAX: float = 30.0         # excursion cap — identity never gets ambiguous
+const SPRING_K: float = 30.0         # anchor spring (underdamped → visible sway)
+const SPRING_DAMP: float = 3.5       # velocity decay /s (ζ≈0.32: organic, settles ~2s)
 
 ## Wobble clock advanced by the biome-speed-scaled delta so slow biomes still
 ## read slower, without any per-node physics.
@@ -1442,6 +1448,13 @@ func _update_station_layout(delta: float) -> void:
 			anchor_mean += a
 		anchor_mean /= float(maxi(cluster_nodes.size(), 1))
 
+		# Connection flex (active biome only): correlated stations lean toward
+		# each other. MI reads are O(1) from viz_cache (never recomputed here).
+		var vc = null
+		if front_blend > 0.0:
+			var biome_obj = biomes.get(bname)
+			vc = biome_obj.viz_cache if (biome_obj and "viz_cache" in biome_obj) else null
+
 		for ni in range(cluster_nodes.size()):
 			var node = cluster_nodes[ni]
 			var plot_anchor: Vector2 = anchors[ni]
@@ -1451,11 +1464,39 @@ func _update_station_layout(delta: float) -> void:
 			# Miniature stations shrink with the turntable (renderers read this).
 			node.depth_scale = lerpf(depth_scale * 0.6, 1.0, front_blend)
 			var target: Vector2 = world_anchor
-			if front_blend > 0.0 and not node.is_terminal_measured():
+			var is_measured: bool = node.is_terminal_measured()
+			if front_blend > 0.0 and not is_measured:
 				var s: float = float(node.register_id) * 2.399  # golden-angle desync seed
 				target += Vector2(
 					sin(WOBBLE_W1 * _wobble_clock + s),
 					cos(WOBBLE_W2 * _wobble_clock + 1.7 * s)
 				) * (WOBBLE_LEASH * front_blend)
-			node.velocity = Vector2.ZERO
-			node.position = node.position.lerp(target, ease_w)
+				# Feel the connections: pull toward correlated partners, capped
+				# so a station never wanders off its plot's identity.
+				if vc != null and node.register_id >= 0:
+					var flex := Vector2.ZERO
+					for nj in range(cluster_nodes.size()):
+						if nj == ni:
+							continue
+						var other = cluster_nodes[nj]
+						if other.register_id < 0 or not other.visible:
+							continue
+						var mi: float = float(vc.get_mutual_information(
+								node.register_id, other.register_id))
+						if mi <= 0.02:
+							continue
+						var d: Vector2 = other.position - node.position
+						if d.length_squared() > 1.0:
+							flex += d.normalized() * minf(mi, 1.0) * FLEX_GAIN
+					target += flex.limit_length(FLEX_MAX) * front_blend
+
+			if is_measured or front_blend <= 0.0:
+				# Frozen readouts and miniatures stay calm: critically damped.
+				node.velocity = Vector2.ZERO
+				node.position = node.position.lerp(target, ease_w)
+			else:
+				# Underdamped anchor spring: the graph visibly sways and settles
+				# when correlations jump (measure, gates, evolution swings).
+				node.velocity += (target - node.position) * (SPRING_K * delta)
+				node.velocity *= exp(-SPRING_DAMP * delta)
+				node.position += node.velocity * delta
