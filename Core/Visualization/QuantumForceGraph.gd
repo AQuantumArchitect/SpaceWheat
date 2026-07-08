@@ -248,22 +248,21 @@ func _process(delta: float):
 	node_manager.update_animations(quantum_nodes, time_accumulator, delta)
 	var t4 = Time.get_ticks_usec()
 
-	# Force-directed layout: each biome is its OWN cluster (bubbles interact only with
-	# their own biome's bubbles → emergent per-biome grouping), and the clusters ride a
-	# turntable that rotates the ACTIVE biome to the front on biome-cycle. GDScript owns
-	# viz layout here; the C++ batched force positions are retired for the farm graph
-	# (they can't know the carousel, and drove the amorphous centre-blob).
-	_apply_biome_cluster_forces(delta)
+	# Station layout (Mini-Metro pass): bubbles sit AT their plot-slot anchors with a
+	# few px of breathing wobble; inactive biomes are static miniatures on the turntable.
+	# Position is identity now — correlations read as edges, never as layout forces.
+	_update_station_layout(delta)
 	var t5 = Time.get_ticks_usec()
-	_integrate_velocities(delta, {})
 
 	# GATE: Only update particles if we have active bubbles
 	if has_active:
 		effects_renderer.update_particles(delta, ctx)
 	var t6 = Time.get_ticks_usec()
 
-	# Rebuild projection payloads once per frame from the updated node state.
-	_update_projection_payloads()
+	# Rebuild projection payloads from node state — only while the B microscope
+	# needs them (they draw nothing otherwise).
+	if show_inspection_layers:
+		_update_projection_payloads()
 
 	# Redraw every frame when actively rendering gameplay bubbles.
 	# In idle/no-active states we can safely throttle to reduce overhead.
@@ -309,12 +308,16 @@ func _draw():
 	region_renderer.draw(self, ctx)
 	var t_region = Time.get_ticks_usec()
 
-	# 2. Semantic projection fields
-	projection_renderer.draw(self, ctx)
+	# 2. Semantic projection fields — inspection-only (B microscope open);
+	# the default view is the clean metro map.
+	if show_inspection_layers:
+		projection_renderer.draw(self, ctx)
 	var t_projection = Time.get_ticks_usec()
 
-	# 3. Gate infrastructure
-	infra_renderer.draw(self, ctx)
+	# 3. Gate infrastructure — inspection-only (Bell-pair lines in the edge
+	# pass carry the ambient signal).
+	if show_inspection_layers:
+		infra_renderer.draw(self, ctx)
 	var t_infra = Time.get_ticks_usec()
 
 	# 4. Edge relationships
@@ -407,7 +410,19 @@ func _build_context() -> Dictionary:
 	_context_cache["particle_life"] = PARTICLE_LIFE
 	_context_cache["particle_speed"] = PARTICLE_SPEED
 	_context_cache["particle_size"] = PARTICLE_SIZE
+	_context_cache["show_inspection_layers"] = show_inspection_layers
 	return _context_cache
+
+
+## Inspection layers (Lindblad arrows, entanglement clusters, gate webs, …)
+## draw only while the B microscope is open — the default view stays a clean
+## metro map. Wired to OverlayManager.overlay_changed in RuntimeMount.
+var show_inspection_layers: bool = false
+
+func on_overlay_changed(overlay_name: String, is_open: bool) -> void:
+	if overlay_name == "biome_detail":
+		show_inspection_layers = is_open
+		queue_redraw()
 
 
 # ============================================================================
@@ -1063,6 +1078,16 @@ func set_plot_tether_color(grid_pos: Vector2i, color: Color):
 	plot_tether_colors[grid_pos] = color
 
 
+## Screen-space position of a register's station bubble (O(1) lookup).
+## Returns (-1, -1) when the register has no bubble. Used by the floating
+## reward layer to launch "+N emoji" fliers from the popped station.
+func get_register_screen_position(biome_name: String, register_id: int) -> Vector2:
+	var node = node_by_plot_id.get("%s_r%d" % [biome_name, register_id])
+	if node == null:
+		return Vector2(-1, -1)
+	return get_global_transform() * node.position
+
+
 func update_plot_positions(plot_positions: Dictionary, biome_name: String = "") -> void:
 	# Update plot anchors from PlotGridDisplay (screen-space coordinates).
 	#
@@ -1098,17 +1123,6 @@ func update_plot_positions(plot_positions: Dictionary, biome_name: String = "") 
 # ============================================================================
 # INPUT HANDLING
 # ============================================================================
-
-func _unhandled_input(event):
-	# Debug key: Toggle shadow influence computation (Shift+S)
-	if event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_S and event.shift_pressed:
-			if bubble_renderer and bubble_renderer.has_method("set_shadow_compute_enabled"):
-				var new_state = not bubble_renderer.is_shadow_compute_enabled()
-				bubble_renderer.set_shadow_compute_enabled(new_state)
-				get_viewport().set_input_as_handled()
-				return
-
 
 func _on_pool_terminal_bound(_terminal: RefCounted, _register_id: int):
 	# Handle terminal binding from TerminalPool.
@@ -1168,8 +1182,9 @@ func _on_drag_end(_start_pos: Vector2, _end_pos: Vector2) -> void:
 	_drag_chain.clear()
 
 
-# (C++ batched force positions retired 2026-06-30 — the farm graph layout is now owned
-# by _apply_biome_cluster_forces in GDScript, which the C++ engine can't know about.)
+# (C++ batched force positions retired 2026-06-30; the GDScript force soup itself was
+# retired 2026-07-07 — _update_station_layout owns the farm graph layout: anchored
+# stations + turntable, no forces.)
 
 
 # ============================================================================
@@ -1338,26 +1353,41 @@ func _get_scaled_force_delta(delta: float) -> float:
 	return delta * scale_val
 
 
-func _apply_biome_cluster_forces(delta: float) -> void:
-	# Biome-cluster carousel layout. Each biome's bubbles interact ONLY with their own
-	# biome's bubbles (mutual repulsion so they spread + mutual-information attraction so
-	# entangled qubits draw together + a soft spring to the cluster centre so the group
-	# stays cohesive). No cross-biome forces → each biome emerges as its own cluster.
-	# The cluster CENTRES ride a turntable: the ACTIVE biome eases to the front
-	# (bottom-centre, full size); other live biomes arc up and back (smaller). Cycling
-	# the active biome rotates the turntable so the relevant cluster comes to the front.
+# Station layout tuning (Mini-Metro pass, 2026-07-07). The O(n²) force soup
+# (repulsion + MI attraction + centre spring + drag) is deleted: position is
+# IDENTITY — a bubble sits at its plot slot; correlations are edges, not layout.
+const WOBBLE_LEASH: float = 3.5      # px of breathing drift around the anchor
+const WOBBLE_W1: float = 0.5         # rad/s — wobble x frequency
+const WOBBLE_W2: float = 0.37        # rad/s — wobble y frequency (irrational-ish ratio)
+const MINIATURE_SHRINK: float = 0.5  # extra shrink for inactive-biome clusters
+
+## Wobble clock advanced by the biome-speed-scaled delta so slow biomes still
+## read slower, without any per-node physics.
+var _wobble_clock: float = 0.0
+
+
+func _update_station_layout(delta: float) -> void:
+	# Anchored drift. ACTIVE biome bubbles sit ON their plot tiles
+	# (classical_anchor — PlotGridDisplay pushes true tile positions via
+	# update_plot_positions) plus a small golden-angle-desynced wobble; measured
+	# bubbles are frozen readouts (zero wobble). Inactive biomes render as static
+	# miniatures: their plot layout SHAPE, shrunk around their turntable slot.
+	# The turntable itself (stable slot per biome, active eases to front) is kept
+	# from the force era — it is the "universe of biomes" read.
 	if not layout_calculator:
 		return
 
 	var nodes_by_biome: Dictionary = {}
 	for node in quantum_nodes:
-		if not node.biome_name:
+		if not node.biome_name or node.quantum_behavior == 2:  # FIXED nodes own their position
 			continue
 		if not nodes_by_biome.has(node.biome_name):
 			nodes_by_biome[node.biome_name] = []
 		nodes_by_biome[node.biome_name].append(node)
 	if nodes_by_biome.is_empty():
 		return
+
+	_wobble_clock += _get_scaled_force_delta(delta)
 
 	var biome_list: Array = nodes_by_biome.keys()
 	biome_list.sort()  # stable ordering → stable carousel slots
@@ -1374,9 +1404,10 @@ func _apply_biome_cluster_forces(delta: float) -> void:
 	var reach: float = minf(center.x, center.y)
 	var turntable_rx: float = reach * 0.60
 	var turntable_ry: float = reach * 0.26
-	# Bias the whole turntable DOWN into the play area so the back cluster clears the top
+	# Bias the turntable DOWN into the play area so the back cluster clears the top
 	# tab bar and the front cluster clears the bottom action bar.
 	var play_center: Vector2 = Vector2(center.x, center.y + reach * 0.18)
+	var ease_w: float = 1.0 - exp(-6.0 * delta)  # critically-damped settle
 
 	for i in range(n):
 		var bname: String = biome_list[i]
@@ -1391,84 +1422,40 @@ func _apply_biome_cluster_forces(delta: float) -> void:
 				play_center.y + depth * turntable_ry
 			)
 		var depth_scale: float = 0.55 + 0.45 * (depth * 0.5 + 0.5)  # 1.0 front → 0.55 back
-		_apply_intra_biome_forces(bname, cluster_nodes, cluster_center, depth_scale, delta)
 
+		# Soft handoff between "miniature at turntable slot" and "on the plot tiles":
+		# the active biome blends to its true anchors as its slot swings to the front
+		# (continuous in depth — no snap when the carousel settles).
+		var front_blend: float = 0.0
+		if bname == active_biome:
+			front_blend = clampf((depth - 0.7) / 0.3, 0.0, 1.0) if n > 1 else 1.0
 
-func _apply_intra_biome_forces(biome_name: String, nodes: Array, cluster_center: Vector2, scale: float, delta: float) -> void:
-	# Spread nodes within one biome cluster via repulsion + MI attraction + centre spring.
-	# MI is read from viz_cache (the renderer read contract) — it holds the values the
-	# C++ lookahead already computed this step. Calling qc.get_mutual_information here
-	# instead recomputes partial traces + entropies per PAIR per FRAME in GDScript,
-	# which alone cost ~610ms/frame (1-2 fps) with just 9 bubbles.
-	var biome = biomes.get(biome_name)
-	var vc = biome.viz_cache if (biome and "viz_cache" in biome) else null
-	var spread: float = 68.0 * scale            # desired node separation
-	var k_center: float = 2.7                   # spring toward cluster centre (keeps clusters tight)
-	var k_rep: float = spread * spread * 4.0    # repulsion (inverse-square)
-	var k_mi: float = 3.2                        # mutual-information attraction
-	for a in nodes:
-		var is_quantum_bubble: bool = a.plot or a.has_farm_tether or a.register_id >= 0
-		if not is_quantum_bubble:
-			continue
-		# MEASURED bubbles freeze in place (they're a static readout).
-		if a.is_terminal_measured():
-			a.velocity = Vector2.ZERO
-			continue
-		var force: Vector2 = (cluster_center - a.position) * k_center
-		for b in nodes:
-			if b == a:
-				continue
-			var d: Vector2 = a.position - b.position
-			var dist: float = maxf(d.length(), 6.0)
-			var dir: Vector2 = d / dist
-			# Repulsion — capped so overlapping bubbles don't explode.
-			force += dir * minf(k_rep / (dist * dist), 170.0)
-			# Mutual-information attraction — entangled qubits draw together.
-			if vc and a.register_id >= 0 and b.register_id >= 0:
-				var mi: float = float(vc.get_mutual_information(a.register_id, b.register_id))
-				if mi > 0.03:
-					force -= dir * mi * k_mi * clampf(dist - spread, -spread, dist) * 0.05
-		a.velocity += force * delta
+		# Resolve each node's true anchor: the PGD plot-tile position when the
+		# tile exists (_pgd_positions is pushed by PlotGridDisplay and survives
+		# the boot ordering where bubbles are built AFTER the first push), else
+		# the node's parametric anchor (registers beyond the plot ring).
+		var anchors: Array = []
+		var anchor_mean := Vector2.ZERO
+		for node in cluster_nodes:
+			var a: Vector2 = _pgd_positions.get(node.grid_position, node.classical_anchor)
+			anchors.append(a)
+			anchor_mean += a
+		anchor_mean /= float(maxi(cluster_nodes.size(), 1))
 
-
-func _integrate_velocities(delta: float, nodes_with_batched_pos: Dictionary) -> void:
-	# Integrate velocities into positions for nodes without batched positions.
-	#
-	# Nodes get positions from either:
-	# 1. Batched force system (quantum physics simulation) - if available
-	# 2. Velocity integration (skating rink forces) - fallback
-	#
-	# Args:
-	# delta: Time step
-	# nodes_with_batched_pos: Dictionary of node_id → true for nodes that got batched positions
-	const DRAG = 0.92  # Empirical damping; previously matched QuantumForceSystem (stub deleted 2026-05-09).
-
-	# Play-area bounds — keep every bubble clear of the top tab-bar chrome and the bottom
-	# action bar no matter what the force balance does (a hard backstop against stragglers).
-	var vp: Vector2 = cached_viewport_size if cached_viewport_size.x > 1.0 else Vector2(1280, 720)
-	var min_x: float = 44.0
-	var max_x: float = vp.x - 44.0
-	var min_y: float = vp.y * 0.42   # below the biome tab bar
-	var max_y: float = vp.y * 0.90   # above the action bar
-
-	for bubble in quantum_nodes:
-		# Skip measured bubbles (frozen in place)
-		if bubble.is_terminal_measured():
-			bubble.velocity = Vector2.ZERO
-			continue
-
-		# Apply drag to all bubbles
-		bubble.velocity *= DRAG
-
-		# Integrate velocity ONLY if this node didn't get a batched grid_pos
-		# Batched positions are authoritative (quantum physics), velocity is fallback (visual layout)
-		if not nodes_with_batched_pos.has(bubble.get_instance_id()):
-			bubble.position += bubble.velocity * delta
-			# Clamp into the play area; zero the velocity component that hit the wall so
-			# bubbles settle against it instead of jittering.
-			if bubble.position.x < min_x or bubble.position.x > max_x:
-				bubble.position.x = clampf(bubble.position.x, min_x, max_x)
-				bubble.velocity.x = 0.0
-			if bubble.position.y < min_y or bubble.position.y > max_y:
-				bubble.position.y = clampf(bubble.position.y, min_y, max_y)
-				bubble.velocity.y = 0.0
+		for ni in range(cluster_nodes.size()):
+			var node = cluster_nodes[ni]
+			var plot_anchor: Vector2 = anchors[ni]
+			var miniature: Vector2 = cluster_center \
+					+ (plot_anchor - anchor_mean) * (depth_scale * MINIATURE_SHRINK)
+			var world_anchor: Vector2 = miniature.lerp(plot_anchor, front_blend)
+			# Miniature stations shrink with the turntable (renderers read this).
+			node.depth_scale = lerpf(depth_scale * 0.6, 1.0, front_blend)
+			var target: Vector2 = world_anchor
+			if front_blend > 0.0 and not node.is_terminal_measured():
+				var s: float = float(node.register_id) * 2.399  # golden-angle desync seed
+				target += Vector2(
+					sin(WOBBLE_W1 * _wobble_clock + s),
+					cos(WOBBLE_W2 * _wobble_clock + 1.7 * s)
+				) * (WOBBLE_LEASH * front_blend)
+			node.velocity = Vector2.ZERO
+			node.position = node.position.lerp(target, ease_w)

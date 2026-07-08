@@ -163,6 +163,8 @@ func create_sun_qubit_node(biome, layout_calculator):
 	node.emoji_south = axis.get("south", "🌙")
 	node.emoji_north_opacity = 1.0
 	node.emoji_south_opacity = 0.15
+	node.p_north = 0.85
+	node.p_south = 0.15
 
 	return node
 
@@ -652,7 +654,7 @@ func build_register_node(biome_name: String, biome, register_id: int, grid_pos: 
 	# terminal is attached at MEASURE. NOT farm-tethered, NOT a terminal bubble.
 	node.has_farm_tether = false
 	node.is_terminal_bubble = false
-	node.quantum_behavior = 0  # FLOATING (physics enabled)
+	node.quantum_behavior = 1  # HOVERING — a STATION leashed to its plot anchor
 	node.visible = true
 	return node
 

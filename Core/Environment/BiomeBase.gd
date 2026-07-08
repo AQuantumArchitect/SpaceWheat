@@ -44,6 +44,12 @@ var _quantum_observer: BiomeQuantumObserver
 var _gate_operations: BiomeGateOperations
 var _system_builder: BiomeQuantumSystemBuilder
 var viz_cache: QuantumVizCache = QuantumVizCache.new()
+
+## Ambient biome-state scalars (spectral gap, Var(H)) are O(dim³) — never
+## computed per frame. Mutation funnels and collapse events only mark them
+## dirty; the actual recompute happens lazily in get_ambient_scalars(), which
+## the zone background polls at its own throttled cadence (≤2Hz, active biome).
+var _ambient_scalars_dirty: bool = true
 ## Per-biome cache of `Icon` instances keyed by emoji. Populated on demand from
 ## `IconRegistry` (the canonical icon physics source). Editing entries here does
 ## NOT change biome physics — H is rebuilt from icons.json via the registry.
@@ -395,6 +401,8 @@ func _on_coupling_updated(emoji_a: String, emoji_b: String, strength: float) -> 
 
 
 func _mark_lookahead_dirty() -> void:
+	# H mutated → both ambient scalars are stale (gap is a pure function of H).
+	_ambient_scalars_dirty = true
 	var farm = InstrumentLocator.resolve_active_farm(self)
 	if farm and farm.biome_evolution_batcher and farm.biome_evolution_batcher.has_method("mark_for_reregister"):
 		farm.biome_evolution_batcher.mark_for_reregister(get_biome_type())
@@ -603,6 +611,35 @@ func refresh_viz_projection() -> void:
 		viz_cache.update_from_bloch_packet(packet, num_qubits)
 	if quantum_computer.has_method("get_purity"):
 		viz_cache.update_purity(quantum_computer.get_purity())
+	# ρ jumped (measure / gate inject) → Var(H) moved. Recompute lazily at the
+	# next ambient poll; the gap is untouched (H didn't change).
+	_ambient_scalars_dirty = true
+
+
+## Ambient scalars for the zone background tint: {gap, var_h}.
+## gap  — H spectral gap E₁−E₀ (rigid=large, plural=small); pure function of H.
+## var_h — Var(H) restlessness; constant under closed evolution, moves on
+##         collapse/injection, drifts continuously only in OPEN biomes.
+## Lazy + dirty-flag: callers poll at low cadence (BiomeBackground ≤2Hz for the
+## ACTIVE biome only), so the O(dim³) recomputes stay off the frame path and
+## unviewed biomes never pay. Values also land in viz_cache for the read contract.
+func get_ambient_scalars() -> Dictionary:
+	if viz_cache == null:
+		return {"gap": 0.0, "var_h": 0.0}
+	var needs_var_refresh := _ambient_scalars_dirty
+	if not needs_var_refresh and quantum_computer != null \
+			and quantum_computer.has_method("is_open_here") and quantum_computer.is_open_here():
+		needs_var_refresh = true  # open regime: Var(H) drifts continuously
+	if needs_var_refresh and quantum_computer != null and quantum_computer.hamiltonian != null:
+		var gap := viz_cache.get_spectral_gap()
+		if _ambient_scalars_dirty or gap < 0.0:
+			gap = quantum_computer.get_hamiltonian_spectral_gap()
+		viz_cache.set_biome_scalars(gap, quantum_computer.get_energy_variance())
+		_ambient_scalars_dirty = false
+	return {
+		"gap": maxf(viz_cache.get_spectral_gap(), 0.0),
+		"var_h": maxf(viz_cache.get_energy_variance(), 0.0),
+	}
 
 
 func get_emoji_probability(emoji: String) -> float:

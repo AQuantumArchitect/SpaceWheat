@@ -230,6 +230,13 @@ func stage_ui(farm: Node, shell: Node, quantum_viz: Node, world_builder) -> void
 				plot_grid_display.plot_positions_changed.connect(quantum_viz.update_plot_positions)
 				_verbose.info("boot", "📡", "PlotGridDisplay connected to QuantumForceGraph anchors")
 
+		# Inspection layers follow the B microscope: the default view is the
+		# clean metro map; deep-physics webs draw only while B is open.
+		if quantum_viz and shell.overlay_manager and shell.overlay_manager.has_signal("overlay_changed"):
+			if not shell.overlay_manager.overlay_changed.is_connected(quantum_viz.on_overlay_changed):
+				shell.overlay_manager.overlay_changed.connect(quantum_viz.on_overlay_changed)
+				_verbose.info("boot", "📡", "OverlayManager connected to QuantumForceGraph inspection layers")
+
 	# NOW add to tree - _ready() runs with all dependencies available
 	_verbose.info("boot", "🔍", "Mounting FarmUI in shell (triggers _ready)...")
 	shell.load_farm_ui(farm_ui)
@@ -289,6 +296,30 @@ func stage_ui(farm: Node, shell: Node, quantum_viz: Node, world_builder) -> void
 	if "farm_surface" in shell:
 		shell.farm_surface = farm_surface
 	_verbose.info("boot", "🔭", "FarmSurface mounted (surface snapshot contract)")
+
+	# Loop-feedback layer (Mini-Metro pass): floating "+N emoji" pop rewards +
+	# the pinned contract chip. Cosmetic-only listeners on existing signals.
+	var shell_overlay_layer = shell.get_node_or_null("OverlayLayer")
+	if shell_overlay_layer:
+		var reward_layer = FloatingRewardLayer.new()
+		reward_layer.name = "FloatingRewardLayer"
+		reward_layer.z_index = 90  # above overlays (≤18), below toasts (100)
+		shell_overlay_layer.add_child(reward_layer)
+		reward_layer.setup(farm, quantum_viz, farm_ui.resource_panel)
+		_verbose.info("boot", "✨", "FloatingRewardLayer ready (pop → +N flier)")
+
+		if "quest_manager" in shell and shell.quest_manager:
+			var contract_chip = ContractChip.new()
+			contract_chip.name = "ContractChip"
+			contract_chip.z_index = 90
+			shell_overlay_layer.add_child(contract_chip)
+			contract_chip.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+			contract_chip.offset_top = 64.0
+			contract_chip.offset_right = -10.0
+			contract_chip.offset_left = -190.0
+			contract_chip.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+			contract_chip.setup(shell.quest_manager)
+			_verbose.info("boot", "📋", "ContractChip ready (pinned active contracts)")
 
 	# Create SnapshotService for diagnostics/state snapshots shared by UI + headless runners
 	const SnapshotServiceClass = preload("res://Core/Instrumentation/SnapshotService.gd")

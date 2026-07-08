@@ -65,6 +65,11 @@ var atom_components: Dictionary = {}
 
 var tags: Array = []
 
+## Optional authored visual seed from biomes.json ({color, label, ...}).
+## Pass-through data: BiomeBuilder applies it to the runtime biome and
+## BiomeVisualTheme uses `color` as the palette seed hue.
+var visual_config: Dictionary = {}
+
 ## Thermodynamic regime (What Fades seam, docs/OPEN_CAMPAIGN.md):
 ## "" = inherit global switches; "open" = wet country (dissipative while the
 ## world is sealed); "closed" = inviolable enclave (unitary even after the
@@ -276,6 +281,8 @@ func load_from_dict(data: Dictionary) -> void:
 	atom_components = _normalize_atom_components(data.get("atom_components", {}))
 	tags = _normalize_tags(data.get("tags", []))
 	regime = str(data.get("regime", ""))
+	var vc = data.get("visual_config", {})
+	visual_config = vc if vc is Dictionary else {}
 
 
 static func _normalize_tags(raw: Array) -> Array:

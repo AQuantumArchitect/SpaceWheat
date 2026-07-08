@@ -104,11 +104,16 @@ var resolve_warned: bool = false
 # Visibility (for single-biome filtering - not a Node2D so we manage manually)
 var visible: bool = true
 
-# Orbit trail history (for visualizing evolution path)
-var position_history: Array[Vector2] = []  # Last N positions
-const MAX_TRAIL_LENGTH: int = 30  # Number of positions to remember
-var trail_update_timer: float = 0.0
-const TRAIL_UPDATE_INTERVAL: float = 0.05  # Update every 50ms
+# True marginal probabilities of the two poles (normalized, p_north+p_south=1).
+# emoji_*_opacity keeps the legacy p² curve for old readers; the STATION
+# renderer reads these instead (rare-but-valuable must never be invisible).
+var p_north: float = 0.5
+var p_south: float = 0.5
+
+# Turntable depth scale (station layout): 1.0 for the front/active biome,
+# shrinking toward the back — renderers multiply radius by this so inactive
+# clusters read as miniatures, not as a second row of full-size stations.
+var depth_scale: float = 1.0
 
 # Constants
 const MIN_RADIUS = 10.0
@@ -223,9 +228,13 @@ func apply_measured_visual(measured_outcome: String = "", north_value: String = 
 		if measured_outcome == emoji_north:
 			emoji_north_opacity = 1.0
 			emoji_south_opacity = 0.0
+			p_north = 1.0
+			p_south = 0.0
 		elif measured_outcome == emoji_south:
 			emoji_north_opacity = 0.0
 			emoji_south_opacity = 1.0
+			p_north = 0.0
+			p_south = 1.0
 		else:
 			emoji_north_opacity = 0.0
 			emoji_south_opacity = 0.0
@@ -244,10 +253,12 @@ func apply_quantum_snapshot(snap: Dictionary, smooth_radius: bool = false) -> bo
 	var north_prob = snap.get("p0", 0.5)
 	var south_prob = snap.get("p1", 0.5)
 	var mass = maxf(north_prob + south_prob, 1e-6)
-	var p_north = clampf(north_prob / mass, 0.0, 1.0)
-	var p_south = clampf(south_prob / mass, 0.0, 1.0)
-	emoji_north_opacity = p_north * p_north
-	emoji_south_opacity = p_south * p_south
+	var pn = clampf(north_prob / mass, 0.0, 1.0)
+	var ps = clampf(south_prob / mass, 0.0, 1.0)
+	p_north = pn
+	p_south = ps
+	emoji_north_opacity = pn * pn
+	emoji_south_opacity = ps * ps
 
 	var coh_magnitude = snap.get("r_xy", 0.0) * 0.5
 	var coh_phase = snap.get("phi", 0.0)
@@ -395,19 +406,6 @@ func update_from_quantum_state(batcher = null):
 			verbose.debug("quantum", "⚛️", "Node %s: θ=(%.2f/%.2f) φ=%.1f° purity=%.3f |coh|=%.3f mass=%.3f" % [
 				grid_position, emoji_north_opacity, emoji_south_opacity,
 				rad_to_deg(coh_phase), purity, coh_magnitude, north_prob + south_prob])
-
-
-func update_position(delta: float):
-	# Update position from velocity
-	position += velocity * delta
-
-	# Update orbit trail history
-	trail_update_timer += delta
-	if trail_update_timer >= TRAIL_UPDATE_INTERVAL:
-		trail_update_timer = 0.0
-		position_history.append(position)
-		if position_history.size() > MAX_TRAIL_LENGTH:
-			position_history.remove_at(0)
 
 
 func _test_log(_level: String, emoji: String, message: String) -> void:

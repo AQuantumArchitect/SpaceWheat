@@ -747,315 +747,62 @@ func get_stats() -> Dictionary:
 # These methods mirror the C++ batched_bubble_renderer.cpp visual layers
 # for direct use. Call these instead of low-level add_circle_layer().
 
-func draw_bubble(pos: Vector2, base_radius: float, anim_scale: float, anim_alpha: float,
-				 base_color: Color, time: float,
-				 is_measured: bool, is_celestial: bool,
-				 global_prob: float = 0.0, p_north: float = 0.0, p_south: float = 0.0,
-				 sink_flux: float = 0.0, _pulse_phase: float = 0.0,
-				 phi_raw: float = 0.0, season_projections: Array = [],
-				 coherence: float = 0.0, purity: float = -1.0, shadow_influence: Dictionary = {},
-				 berry_phase: float = 0.0) -> void:
-	# Draw a complete bubble with all visual layers.
-
-	# Replicates the C++ batched_bubble_renderer visual appearance.
-	# Now includes spinning bubbles with triangular seasonal broadcast.
-
-	# New parameters for spinning/wedges:
-	# phi_raw: Raw phase angle (drives rotation)
-	# season_projections: [R, G, B] intensities at 0°, 120°, 240°
-	# coherence: Coherence magnitude for spin pattern visibility
-	# purity: Explicit state purity for its own ring channel
-	# shadow_influence: Optional {tint: Color, strength: float} from nearby bubbles
-	# berry_phase: Accumulated geometric phase (drives glow intensity)
-	if anim_scale <= 0.0:
+func draw_station(pos: Vector2, base_radius: float, anim_scale: float, anim_alpha: float,
+				  theme: Dictionary, ripeness: float, phi: float, coherence: float,
+				  is_measured: bool, is_celestial: bool, time: float) -> void:
+	# Mini-Metro STATION (2026-07-07). Replaces the 10-layer bubble (glows,
+	# gloss, season wedges, spin spiral, uncertainty/purity rings, sink
+	# particles — all deleted). Max three signals per station:
+	#   disc — identity: flat paper on the zone's dark field (ink-inverted when
+	#          measured; the glyph is drawn by the emoji pass on top)
+	#   ring — RIPENESS: expected pop payoff H(p)/ln2 in the global accent gold,
+	#          filling clockwise from 12 o'clock, soft width pulse when nearly
+	#          ripe; measured = pinned full + the established cyan double ring
+	#          (a bankable readout — pop me)
+	#   dot  — PHASE: a small ink dot riding the ring at angle phi,
+	#          alpha = coherence (r_xy ∈ [0,1]) — phase visibly rotates,
+	#          decoherence visibly fades
+	if anim_scale <= 0.0 or anim_alpha <= 0.0:
 		return
+	var r := base_radius * anim_scale
+	var paper: Color = theme.get("paper", Color(0.95, 0.95, 0.92))
+	var ink: Color = theme.get("ink", Color(0.08, 0.09, 0.1))
+	var accent: Color = theme.get("accent", Color(1.0, 0.8, 0.3))
 
-	# Keep bubble size stable. Bloch phase can move/color internal wedges, but
-	# object radius should not breathe independently of state.
-	var effective_radius = base_radius * anim_scale
+	# — Disc —
+	var fill := ink if is_measured else paper
+	fill.a = anim_alpha
+	add_circle_layer("circle_100", pos, r, fill)
 
-	# Glow tint (complementary hue) and alpha (from berry phase)
-	var glow_tint = _get_complementary_color(base_color)
-	var berry_glow = clampf(berry_phase * 0.1, 0.0, 1.0)  # Berry phase -> [0, 1] glow strength
-	var glow_alpha = (0.3 + berry_glow * 0.7) * anim_alpha  # Base 0.3, up to 1.0 with berry
-
-	# === LAYERS 1-2: OUTER GLOWS ===
-	if draw_glow_layers:
-		if is_measured and not is_celestial:
-			_draw_measured_glow(pos, base_radius, anim_scale, anim_alpha, time)
-		else:
-			_draw_unmeasured_glow(pos, effective_radius, glow_tint, glow_alpha, is_celestial)
-
-	# === LAYER 3: Dark background ===
-	var bg_mult = 1.12 if is_celestial else 1.08
-	add_circle_layer("circle_110", pos, effective_radius * bg_mult,
-		Color(0.1, 0.1, 0.15, 0.85 * anim_alpha))
-
-	# === LAYER 4: Main bubble ===
-	var main_color = base_color
-	main_color.a = 0.75 * anim_alpha
-	add_circle_layer("circle_100", pos, effective_radius, main_color)
-
-	# === LAYER 4b: Spinning internal pattern (before highlight) ===
-	if enable_spin_pattern and not is_celestial and not is_measured and coherence > 0.05:
-		draw_spin_pattern(pos, effective_radius, phi_raw, coherence, anim_alpha)
-
-	# === LAYER 5: Glossy highlight ===
-	var highlight_offset = Vector2(-effective_radius * 0.25, -effective_radius * 0.25)
-	var highlight_color = Color.WHITE
-	highlight_color.a = 0.4 * anim_alpha
-	var highlight_size = 0.4 if is_celestial else 0.5
-	add_circle_layer("circle_050", pos + highlight_offset,
-		effective_radius * highlight_size, highlight_color)
-
-	# === LAYER 6: Outline ===
-	if is_measured and not is_celestial:
-		_draw_measured_outline(pos, base_radius, anim_scale, anim_alpha, time)
+	# — Outline —
+	if is_measured:
+		add_arc_layer(pos, r * 1.08, 0, TAU, 4.0, Color(0.0, 1.0, 1.0, 0.95 * anim_alpha))
+		add_arc_layer(pos, r * 1.00, 0, TAU, 2.0, Color(1.0, 1.0, 1.0, 0.9 * anim_alpha))
 	else:
-		var outline_color: Color
-		var outline_width: float
+		var outline: Color
 		if is_celestial:
-			outline_color = Color(1.0, 0.9, 0.3, 0.95 * anim_alpha)
-			outline_width = 3.0
+			outline = Color(1.0, 0.9, 0.35, 0.95 * anim_alpha)
 		else:
-			outline_color = Color(1.0, 1.0, 1.0, 0.95 * anim_alpha)
-			outline_width = 2.5
-		add_arc_layer(pos, effective_radius * 1.02, 0, TAU, outline_width, outline_color)
+			outline = Color(ink.r, ink.g, ink.b, 0.9 * anim_alpha)
+		add_arc_layer(pos, r * 1.02, 0, TAU, 2.0, outline)
 
-	# === LAYER 6b-6e: Data rings (non-celestial only) ===
-	if draw_data_rings and not is_celestial:
-		_draw_data_rings(pos, effective_radius, anim_alpha,
-			global_prob, p_north, p_south, sink_flux, purity, time)
+	# — Ripeness ring —
+	var f := clampf(ripeness, 0.0, 1.0)
+	var ring_r := r * 1.18
+	if is_measured:
+		add_arc_layer(pos, ring_r, 0, TAU, 3.0,
+				Color(accent.r, accent.g, accent.b, 0.95 * anim_alpha))
+	elif f > 0.02:
+		add_arc_layer(pos, ring_r, 0, TAU, 1.5,
+				Color(accent.r, accent.g, accent.b, 0.15 * anim_alpha))
+		var f4 := f * f * f * f
+		var w := 2.0 + 2.5 * f4 * (0.5 + 0.5 * sin(TAU * 0.8 * time))
+		add_arc_layer(pos, ring_r, -PI / 2.0, -PI / 2.0 + TAU * f, w,
+				Color(accent.r, accent.g, accent.b, (0.55 + 0.4 * f) * anim_alpha))
 
-	# === LAYER 7: Phi arc + directional wedge (non-celestial, non-measured only) ===
-	if enable_season_wedges and not is_celestial and not is_measured and season_projections.size() >= 3:
-		draw_phi_arc_and_wedge(pos, effective_radius, phi_raw, season_projections, coherence, anim_alpha)
-
-
-func _draw_measured_glow(pos: Vector2, base_radius: float, anim_scale: float, anim_alpha: float, _time: float) -> void:
-	# Draw single cyan glow for measured bubbles (simplified for performance).
-
-	var glow_alpha = 0.65 * anim_alpha
-	var glow_radius = base_radius * 1.9 * anim_scale
-	add_circle_layer("circle_220", pos, glow_radius, Color(0.0, 1.0, 1.0, glow_alpha))
-
-
-func _draw_unmeasured_glow(pos: Vector2, effective_radius: float, glow_tint: Color, glow_alpha: float, is_celestial: bool) -> void:
-	# Draw single complementary-hued glow for unmeasured bubbles (shows berry phase via glow_alpha).
-	# Single glow circle - glow_alpha encodes energy/berry phase
-	var glow_mult = 2.0 if is_celestial else 1.7
-	var glow_color = glow_tint
-	glow_color.a = glow_alpha * 0.5
-	add_circle_layer("circle_220", pos, effective_radius * glow_mult, glow_color)
-
-
-func _draw_measured_outline(pos: Vector2, base_radius: float, anim_scale: float, anim_alpha: float, _time: float) -> void:
-	# Draw cyan outline with checkmark indicator for measured bubbles.
-
-	# Outer cyan ring
-	var outline_alpha = 0.95 * anim_alpha
-	add_arc_layer(pos, base_radius * 1.08 * anim_scale, 0, TAU, 5.0,
-		Color(0.0, 1.0, 1.0, outline_alpha))
-
-	# Inner white ring
-	add_arc_layer(pos, base_radius * 1.0 * anim_scale, 0, TAU, 3.0,
-		Color(1.0, 1.0, 1.0, 0.95 * anim_alpha))
-
-	# Checkmark indicator circle
-	var check_pos = pos + Vector2(base_radius * 0.7 * anim_scale, -base_radius * 0.7 * anim_scale)
-	add_circle_layer("circle_050", check_pos, 6.0 * anim_scale,
-		Color(0.2, 1.0, 0.4, 0.95 * anim_alpha))
-
-
-func _draw_data_rings(pos: Vector2, effective_radius: float, anim_alpha: float,
-					  global_prob: float, p_north: float, p_south: float,
-					  sink_flux: float, purity: float, time: float) -> void:
-	# Draw uncertainty and sink flux data rings.
-
-	# Uncertainty ring
-	var mass = p_north + p_south
-	if mass > 0.001:
-		var uncertainty = VisualizationConstants.uncertainty(p_north, p_south)
-
-		if uncertainty > 0.05:
-			var ring_radius = effective_radius * 1.15
-			var max_thickness = 6.0
-			var thickness = max_thickness * uncertainty
-
-			# Blue to magenta gradient based on uncertainty
-			var hue = 0.75 - uncertainty * 0.15
-			var ring_color = Color.from_hsv(hue, 0.7, 0.9, 0.6 * anim_alpha * uncertainty)
-			add_arc_layer(pos, ring_radius, 0, TAU, thickness, ring_color)
-
-			# Inner glow at high uncertainty
-			if uncertainty > 0.7:
-				var glow_color = ring_color
-				glow_color.a = 0.3 * anim_alpha
-				add_arc_layer(pos, ring_radius, 0, TAU, thickness * 2.0, glow_color)
-
-	# Sink flux particles (dynamic circles)
-	if sink_flux > 0.001:
-		var particle_count = int(clampf(sink_flux * 20.0, 1.0, 6.0))
-		for i in range(particle_count):
-			var particle_time = time * 0.5 + float(i) * 0.3
-			var particle_phase = fmod(particle_time, 1.0)
-
-			var angle = (float(i) / particle_count) * TAU + particle_time * 2.0
-			var dist = effective_radius * (1.2 + particle_phase * 0.8)
-
-			var px = pos.x + cos(angle) * dist
-			var py = pos.y + sin(angle) * dist
-			var particle_alpha = (1.0 - particle_phase) * 0.6 * anim_alpha
-			var particle_color = Color(0.8, 0.4, 0.2, particle_alpha)
-			var particle_size = 3.0 * (1.0 - particle_phase * 0.5)
-
-			add_circle_layer("circle_050", Vector2(px, py), particle_size, particle_color)
-
-	# Purity ring: explicit mixed-state readout, separate from body size.
-	if purity >= 0.0:
-		var purity_clamped = clampf(purity, 0.0, 1.0)
-		var ring_radius = effective_radius * 1.22
-		var thickness = 1.5 + purity_clamped * 3.5
-		var ring_hue = 0.08 + purity_clamped * 0.22
-		var ring_color = Color.from_hsv(ring_hue, 0.45 + purity_clamped * 0.2, 0.95, 0.18 + purity_clamped * 0.28 * anim_alpha)
-		add_arc_layer(pos, ring_radius, 0, TAU, thickness, ring_color)
-
-
-func _get_complementary_color(base: Color) -> Color:
-	# Calculate complementary glow color (180° hue shift).
-	var h = fmod(base.h + 0.5, 1.0)
-	var s = minf(base.s * 1.3, 1.0)
-	var v = maxf(base.v * 0.6, 0.3)
-	return Color.from_hsv(h, s, v, 1.0)
-
-
-func _lighten(color: Color, amount: float) -> Color:
-	# Lighten a color by blending toward white (alpha controls layer opacity).
-	return Color(
-		minf(1.0, color.r + (1.0 - color.r) * amount),
-		minf(1.0, color.g + (1.0 - color.g) * amount),
-		minf(1.0, color.b + (1.0 - color.b) * amount),
-		color.a
-	)
-
-
-# =============================================================================
-# SPINNING BUBBLES - SEASONAL WEDGE BROADCAST
-# =============================================================================
-# Bubbles visually spin, broadcasting phi colors via triangular wedges.
-# Angular coupling creates emergent swirling - bubbles in each other's
-# "seasonal shadow" synchronize their rotation.
-
-func draw_season_wedges(pos: Vector2, radius: float, phi_raw: float,
-						season_projections: Array, anim_alpha: float,
-						shadow_influence: Dictionary = {}) -> void:
-	# Draw 3 RGB wedges per bubble at 0°, 120°, 240° rotated by phi_raw.
-
-	# Args:
-	# pos: Bubble center position
-	# radius: Bubble radius
-	# phi_raw: Raw phase angle (drives rotation)
-	# season_projections: [R, G, B] intensities at 0°, 120°, 240°
-	# anim_alpha: Animation alpha for fade-in
-	# shadow_influence: Optional {tint: Color, strength: float} from nearby bubbles
-	if anim_alpha < 0.01:
-		return
-
-	# Wedge extends from bubble edge outward
-	var wedge_radius = radius * 1.8  # Size of wedge quad
-	var wedge_offset = radius * 1.2  # Distance from bubble center to wedge center
-
-	for i in range(3):
-		var intensity = season_projections[i] if i < season_projections.size() else 0.5
-		if intensity < 0.05:
-			continue  # Skip very dim wedges
-
-		# Angle for this season (0°, 120°, 240°) plus phi rotation
-		var angle = SEASON_ANGLES[i] + phi_raw
-
-		# Get base season color
-		var wedge_color = SEASON_COLORS[i]
-		wedge_color.a = (0.2 + 0.5 * intensity) * anim_alpha
-
-		# Apply shadow influence tinting if present
-		if shadow_influence.has("tint") and shadow_influence.has("strength"):
-			var influence_strength = shadow_influence["strength"]
-			if influence_strength > 0.05:
-				wedge_color = wedge_color.lerp(shadow_influence["tint"], influence_strength * 0.4)
-
-		# Position wedge at bubble edge, extending outward
-		var wedge_center = pos + Vector2.from_angle(angle) * wedge_offset
-
-		# Draw wedge rotated to point outward from bubble
-		# The template points "up" (-Y), so we rotate to match angle
-		add_rotated_quad("wedge_gradient", wedge_center, wedge_radius, angle + PI / 2.0, wedge_color)
-
-
-func draw_phi_arc_and_wedge(pos: Vector2, radius: float, phi_raw: float,
-							season_projections: Array, coherence: float, anim_alpha: float) -> void:
-	# Draw phi arc + directional wedge (Option B: clean phi visualization).
-
-	# Replaces 3-wedge system with:
-	# 1. Phi arc: Small arc at bubble edge showing current phi position
-	# 2. Color wedge: Single wedge showing coupling direction & dominant season
-
-	# Args:
-	# pos: Bubble center position
-	# radius: Bubble radius
-	# phi_raw: Current phi angle (drives rotation)
-	# season_projections: [R, G, B] intensities at 0°, 120°, 240°
-	# coherence: Coherence magnitude (0-1)
-	# anim_alpha: Animation alpha for fade-in
-	if anim_alpha < 0.01 or coherence < 0.05:
-		return
-
-	# Blend season colors based on projections to get dominant color
-	var blended_color = VisualizationConstants.blend_season_color(season_projections)
-
-	# === 1. PHI ARC (at bubble edge) ===
-	# Small arc showing current phi position
-	var arc_radius = radius * 1.08
-	var arc_width = 3.0
-	var arc_span = deg_to_rad(45.0)  # 45° arc span
-	var arc_from = phi_raw - arc_span / 2.0
-	var arc_to = phi_raw + arc_span / 2.0
-
-	var arc_color = blended_color
-	arc_color.a = (0.7 + 0.3 * coherence) * anim_alpha
-	add_arc_layer(pos, arc_radius, arc_from, arc_to, arc_width, arc_color)
-
-	# === 2. DIRECTIONAL WEDGE (coupling zone) ===
-	# Single wedge pointing in phi direction showing force application
-	var wedge_radius = radius * 1.5
-	var wedge_offset = radius * 1.1
-	var wedge_center = pos + Vector2.from_angle(phi_raw) * wedge_offset
-
-	var wedge_color = blended_color
-	wedge_color.a = (0.3 + 0.4 * coherence) * anim_alpha
-	add_rotated_quad("wedge_gradient", wedge_center, wedge_radius, phi_raw + PI / 2.0, wedge_color)
-
-
-func draw_spin_pattern(pos: Vector2, radius: float, phi_raw: float,
-					   coherence: float, anim_alpha: float) -> void:
-	# Draw subtle rotating internal spiral pattern.
-
-	# Creates "spinning disk" illusion without disturbing bubble's main appearance.
-
-	# Args:
-	# pos: Bubble center position
-	# radius: Bubble radius
-	# phi_raw: Raw phase angle (drives rotation)
-	# coherence: Coherence magnitude (higher = more visible pattern)
-	# anim_alpha: Animation alpha for fade-in
-	if anim_alpha < 0.01 or coherence < 0.05:
-		return  # Skip if invisible or decoherent
-
-	# Subtle spin pattern - scales with coherence
-	var spin_alpha = anim_alpha * 0.2 * coherence
-	if spin_alpha < 0.02:
-		return
-
-	var spin_color = Color(1.0, 1.0, 1.0, spin_alpha)
-
-	# Draw spin pattern rotated by phi
-	add_rotated_quad("spin_spiral", pos, radius * 0.85, phi_raw, spin_color)
+	# — Phase dot —
+	if not is_measured and coherence > 0.02:
+		var dot_alpha := clampf(coherence, 0.0, 1.0) * anim_alpha
+		var dot_color := Color(1.0, 0.9, 0.35, dot_alpha) if is_celestial \
+				else Color(ink.r, ink.g, ink.b, dot_alpha)
+		add_circle_layer("circle_100", pos + Vector2.from_angle(phi) * ring_r, 3.0, dot_color)

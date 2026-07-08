@@ -300,14 +300,12 @@ func _show_empty_state():
 
 
 func _show_memory_state():
-	var outcome = str(plot_ui_data.get("memory_outcome", ""))
-	var north_emoji = str(plot_ui_data.get("memory_north_emoji", ""))
-	var south_emoji = str(plot_ui_data.get("memory_south_emoji", ""))
-	var ghost = outcome if outcome != "" else (north_emoji if north_emoji != "" else south_emoji)
-
-	emoji_label_north.emoji = ghost
+	# Mini-Metro pass: the STATION bubble owns all emoji identity — tiles are
+	# quiet anchor chips (key letter + selection ring + territory border). A
+	# memory ghost here would also leak the axis of an unrevealed plot.
+	emoji_label_north.emoji = ""
 	emoji_label_south.emoji = ""
-	emoji_label_north.modulate = Color(1, 1, 1, 0.38)
+	emoji_label_north.modulate.a = 0.0
 	emoji_label_south.modulate.a = 0.0
 	growth_bar.visible = false
 	background.color = COLOR_MEMORY if not is_selected else COLOR_SELECTED.darkened(0.15)
@@ -324,37 +322,14 @@ func _show_growing_state():
 
 
 func _show_mature_state():
+	# Mini-Metro pass: no tile emoji — the station bubble anchored on this tile
+	# renders the pole glyphs (soft dual-glyph superposition). Duplicating them
+	# at 36pt under the disc read as "a second thing" in playtests.
 	growth_bar.visible = false
-
-	var north_emoji = plot_ui_data.get("north_emoji", "")
-	var south_emoji = plot_ui_data.get("south_emoji", "")
-
-	if not plot_ui_data.get("has_been_measured", false):
-		emoji_label_north.emoji = north_emoji
-		emoji_label_south.emoji = south_emoji
-		var north_prob = float(plot_ui_data.get("north_probability", -1.0))
-		var south_prob = float(plot_ui_data.get("south_probability", -1.0))
-		if north_prob >= 0.0 and south_prob >= 0.0:
-			emoji_label_north.modulate.a = north_prob
-			emoji_label_south.modulate.a = south_prob
-		else:
-			emoji_label_north.modulate.a = 0.5
-			emoji_label_south.modulate.a = 0.5
-	else:
-		var north_prob = float(plot_ui_data.get("north_probability", -1.0))
-		var south_prob = float(plot_ui_data.get("south_probability", -1.0))
-		if north_prob >= south_prob:
-			emoji_label_north.emoji = north_emoji
-			emoji_label_south.emoji = ""
-		else:
-			emoji_label_north.emoji = south_emoji
-			emoji_label_south.emoji = ""
-		if north_prob >= 0.0 and south_prob >= 0.0:
-			emoji_label_north.modulate.a = 1.0
-			emoji_label_south.modulate.a = 0.0
-		else:
-			emoji_label_north.modulate.a = 0.5
-			emoji_label_south.modulate.a = 0.0
+	emoji_label_north.emoji = ""
+	emoji_label_south.emoji = ""
+	emoji_label_north.modulate.a = 0.0
+	emoji_label_south.modulate.a = 0.0
 
 	# Stable mature crop mark; ambient glow is reserved for state/event channels.
 	var base_golden = COLOR_MATURE

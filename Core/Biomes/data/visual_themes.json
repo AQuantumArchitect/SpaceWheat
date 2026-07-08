@@ -1,0 +1,66 @@
+{
+  "comment": "Mini-Metro zone theming. Ordered rules — FIRST rule whose match_tags intersects a biome's tags wins. Biomes with an authored visual_config.color keep that hue; the rule still supplies the silhouette. No rule match → 'horizon' + deterministic name-hash hue. Edit here, never in code.",
+  "defaults": {
+    "accent": [1.0, 0.8, 0.3, 1.0],
+    "line_palette": [
+      [0.90, 0.22, 0.27, 1.0],
+      [0.96, 0.64, 0.38, 1.0],
+      [0.91, 0.77, 0.42, 1.0],
+      [0.16, 0.62, 0.56, 1.0],
+      [0.27, 0.48, 0.62, 1.0],
+      [0.62, 0.31, 0.87, 1.0]
+    ]
+  },
+  "rules": [
+    {
+      "match_tags": ["player_faction"],
+      "silhouette": "field",
+      "hue": 0.115
+    },
+    {
+      "match_tags": ["agriculture", "agricultural", "farming", "pastoral", "harvest", "gardens", "honey", "pollinator", "fermentation"],
+      "silhouette": "field",
+      "hue": 0.13
+    },
+    {
+      "match_tags": ["forest", "ecosystem", "ecology", "flora", "fauna", "wild", "natural", "fungal", "mushroom", "herbalism", "timber", "predator-prey", "biology", "genetics"],
+      "silhouette": "treeline",
+      "hue": 0.34
+    },
+    {
+      "match_tags": ["water", "tidal", "coastal", "maritime", "reef", "flood", "port", "ports", "shipping", "waterclock"],
+      "silhouette": "waves",
+      "hue": 0.55
+    },
+    {
+      "match_tags": ["cosmic", "void", "space", "orbital", "celestial", "lunar", "ethereal", "aerospace", "void-adjacent"],
+      "silhouette": "starline",
+      "hue": 0.68
+    },
+    {
+      "match_tags": ["industrial", "industry", "machine", "forge", "manufacturing", "mining", "metal", "rust", "salvage", "mechanical", "engineering", "volcanic", "geothermal", "construction", "power", "energy", "infrastructure"],
+      "silhouette": "gantry",
+      "hue": 0.045
+    },
+    {
+      "match_tags": ["ritual", "occult", "sacred", "temple", "worship", "religion", "mystic", "oracle", "divination", "spiritual", "cult", "soul", "magic", "prophecy_capable", "fate"],
+      "silhouette": "spires",
+      "hue": 0.78
+    },
+    {
+      "match_tags": ["death", "decay", "ruins", "memorial", "cremation", "horror", "blood", "violence", "warfare", "military", "entropy", "annihilation"],
+      "silhouette": "horizon",
+      "hue": 0.965
+    },
+    {
+      "match_tags": ["lab", "quantum", "detector", "science", "measurement", "physics", "research", "optics", "laser", "mathematics", "information", "data", "memory", "archive", "signal", "communication", "network"],
+      "silhouette": "lattice",
+      "hue": 0.50
+    },
+    {
+      "match_tags": ["civic", "civilization", "domestic", "urban", "neighborhood", "commerce", "market", "markets", "trade", "finance", "bureaucracy", "administration", "kitchen", "textile", "craft", "labor", "law", "aristocracy", "imperial", "cyberpunk"],
+      "silhouette": "rooftops",
+      "hue": 0.075
+    }
+  ]
+}

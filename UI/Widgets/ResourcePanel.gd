@@ -128,6 +128,30 @@ func _ensure_display_exists(emoji: String) -> void:
 	}
 
 
+## Global screen position of an emoji's counter (fly-target for the floating
+## "+N" reward). Falls back to the panel centre before the slot first exists.
+func get_emoji_slot_position(emoji: String) -> Vector2:
+	if resource_displays.has(emoji):
+		var container = resource_displays[emoji]["container"]
+		if is_instance_valid(container) and container.visible:
+			return container.get_global_rect().get_center()
+	return get_global_rect().get_center()
+
+
+## Scale-bounce an emoji counter when a reward flier lands on it.
+func bounce_emoji(emoji: String) -> void:
+	if not resource_displays.has(emoji):
+		return
+	var container = resource_displays[emoji]["container"]
+	if not is_instance_valid(container):
+		return
+	container.pivot_offset = container.size / 2.0
+	var tw = create_tween()
+	tw.tween_property(container, "scale", Vector2(1.35, 1.35), 0.08)
+	tw.tween_property(container, "scale", Vector2.ONE, 0.16) \
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+
 func _update_display(emoji: String, units: int) -> void:
 	# Update the display for an emoji resource
 	if not resource_displays.has(emoji):

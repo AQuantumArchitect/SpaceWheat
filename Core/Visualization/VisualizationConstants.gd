@@ -36,6 +36,26 @@ const GLOW_INNER_MULT: float = 1.3
 ## Pure functions (no game state). Every bubble renderer derives color/season/
 ## uncertainty from THESE, so the formulas live in exactly one place.
 
+## Station RIPENESS — the ambient "worth popping?" signal (Mini-Metro pass).
+## Normalized binary entropy of the pole distribution: H(p)/ln2 ∈ [0,1].
+## This is the honest expected pop payoff — MEASURE samples a pole and POP pays
+## surprisal −kT·ln(p_outcome), so E[reward]/kT = H(p); kT cancels in the
+## normalization. Peaks at even superposition, 0 at certainty (a near-certain
+## collapse pays nothing). p0/p1 come straight from viz_cache bloch reads.
+static func ripeness(p0: float, p1: float) -> float:
+	var mass := p0 + p1
+	if mass <= 1e-9:
+		return 0.0
+	var a := clampf(p0 / mass, 0.0, 1.0)
+	var b := 1.0 - a
+	var h := 0.0
+	if a > 1e-9:
+		h -= a * log(a)
+	if b > 1e-9:
+		h -= b * log(b)
+	return clampf(h / log(2.0), 0.0, 1.0)
+
+
 ## Decompose a phase angle into the three season-basis intensities, scaled by
 ## coherence magnitude. Returns [R, G, B] projections at 0°/120°/240°.
 static func season_projections(phi_raw: float, coh_magnitude: float) -> Array[float]:

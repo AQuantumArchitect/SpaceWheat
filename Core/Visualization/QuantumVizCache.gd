@@ -22,6 +22,13 @@ var _icon_map_by_emoji: Dictionary = {}
 var _icon_map_steps: int = 0
 var _icon_map_total: float = 0.0
 
+## Biome-level ambient scalars (event-driven, NEVER recomputed per frame).
+## Spectral gap is a pure function of H — set on H build/mutation. Var(H) is a
+## constant of motion under unitary evolution — set on H mutation + collapse
+## events + a slow active-biome backstop. -1.0 = not yet computed.
+var _spectral_gap: float = -1.0
+var _energy_variance: float = -1.0
+
 
 func clear() -> void:
 	_bloch_cache.clear()
@@ -84,6 +91,19 @@ func update_purity(purity: float) -> void:
 
 func get_purity() -> float:
 	return _purity_cache
+
+
+func set_biome_scalars(gap: float, var_h: float) -> void:
+	_spectral_gap = gap
+	_energy_variance = var_h
+
+
+func get_spectral_gap() -> float:
+	return _spectral_gap
+
+
+func get_energy_variance() -> float:
+	return _energy_variance
 
 
 func update_mi_values(mi_values: PackedFloat64Array, num_qubits: int) -> void:
