@@ -172,7 +172,9 @@ func _draw_with_atlas(graph: Node2D, ctx: Dictionary) -> void:
 			theme = BiomeVisualTheme.get_theme(node.biome_name)
 			theme_by_biome[node.biome_name] = theme
 
-		var station_radius: float = node.radius * node.depth_scale
+		# hover_scale/press_scale are pointer feel (cosmetic; hit-testing uses raw radius)
+		var station_radius: float = node.radius * node.depth_scale \
+				* node.hover_scale * node.press_scale
 
 		_bubble_atlas_batcher.draw_station(
 			node.position, station_radius, anim_scale, anim_alpha,

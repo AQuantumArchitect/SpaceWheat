@@ -52,6 +52,11 @@ var farm_view: FarmView = null
 var paused: bool = false
 signal paused_changed(is_paused: bool)
 
+
+## Public pause toggle for pointer chrome (the time-flow chip) — the mouse's E/F.
+func toggle_paused() -> void:
+	_set_global_paused(not paused)
+
 ## Farm-attached state. False at title (PlayerShell exists but no Farm yet);
 ## true once BootManager finishes wiring the runtime. Toggled by AppRoot via
 ## set_farm_attached(). Farm-bound chrome (action bars, biome tab bar, FPS,

@@ -1,23 +1,61 @@
 extends Control
 
-## FpsDisplay — always-visible projection HUD: top-left corner.
-## Timer-driven (signal push), never polls in _process.
+## Time-flow chip (top-left): ⏸ while E-pause holds the world, ▶ while time
+## runs. TAPPABLE — mouse/touch players get a pause control (E/F are
+## keyboard-only side-effect peeks). The old always-on FPS/PhHz debug readout
+## now shows only in debug builds — players get one quiet glyph, not a
+## profiler strip.
 
 
+var _flow_label: Label
 var _fps_label: Label
 var _dt_label: Label
+var _shell: Node = null
+var _paused: bool = false
 
 
 func _ready() -> void:
 	_build_ui()
-	var timer := Timer.new()
-	timer.wait_time = 0.5
-	timer.autostart = true
-	timer.timeout.connect(_update_fps)
-	add_child(timer)
+	_resolve_shell()
+	if OS.is_debug_build():
+		var timer := Timer.new()
+		timer.wait_time = 0.5
+		timer.autostart = true
+		timer.timeout.connect(_update_fps)
+		add_child(timer)
+
+
+func _resolve_shell() -> void:
+	var n: Node = get_parent()
+	while n != null:
+		if n.has_signal("paused_changed"):
+			_shell = n
+			n.paused_changed.connect(_on_paused_changed)
+			return
+		n = n.get_parent()
+
+
+func _on_paused_changed(is_paused: bool) -> void:
+	_paused = is_paused
+	if _flow_label:
+		_flow_label.text = "⏸" if is_paused else "▶"
+		_flow_label.add_theme_color_override("font_color",
+			Color(1.0, 0.8, 0.3, 0.95) if is_paused else Color(0.75, 0.82, 0.88, 0.7))
+
+
+func _gui_input(event: InputEvent) -> void:
+	# Tap toggles pause — the mouse's E/F.
+	if (event is InputEventMouseButton and event.pressed
+			and event.button_index == MOUSE_BUTTON_LEFT) \
+			or (event is InputEventScreenTouch and event.pressed):
+		if _shell != null and _shell.has_method("toggle_paused"):
+			_shell.toggle_paused()
+			accept_event()
 
 
 func _update_fps() -> void:
+	if not _fps_label:
+		return
 	var fps := Engine.get_frames_per_second()
 	var farm := InstrumentLocator.resolve_active_farm(self)
 	var phz := UIStyleFactory.get_physics_fps_from_farm(farm)
@@ -47,22 +85,28 @@ func _update_fps() -> void:
 
 
 func _build_ui() -> void:
-	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	mouse_filter = Control.MOUSE_FILTER_STOP  # the chip is tappable
+	tooltip_text = "Time flow — tap (or E/F) to pause/resume"
+	custom_minimum_size = Vector2(44, 30)
 
-	var scaffold := UIStyleFactory.create_hud_scaffold(
-		UIStyleFactory.COLOR_HUD_BG,
-		UIStyleFactory.COLOR_PANEL_BORDER,
-		6, 4
-	)
-	var panel: PanelContainer = scaffold.panel
-	var vbox: VBoxContainer = scaffold.vbox
+	var row := HBoxContainer.new()
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_theme_constant_override("separation", 8)
+	add_child(row)
 
-	_fps_label = UIStyleFactory.create_hud_label("FPS --", UIStyleFactory.COLOR_TEXT_SUBTITLE, 11)
-	vbox.add_child(_fps_label)
+	_flow_label = Label.new()
+	_flow_label.text = "▶"
+	_flow_label.add_theme_font_size_override("font_size", 15)
+	_flow_label.add_theme_color_override("font_color", Color(0.75, 0.82, 0.88, 0.7))
+	_flow_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(_flow_label)
 
-	_dt_label = UIStyleFactory.create_hud_label("", UIStyleFactory.COLOR_TEXT_SUBTITLE, 10)
-	_dt_label.visible = false
-	vbox.add_child(_dt_label)
-
-	panel.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(panel)
+	if OS.is_debug_build():
+		var vbox := VBoxContainer.new()
+		vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.add_child(vbox)
+		_fps_label = UIStyleFactory.create_hud_label("FPS --", UIStyleFactory.COLOR_TEXT_SUBTITLE, 11)
+		vbox.add_child(_fps_label)
+		_dt_label = UIStyleFactory.create_hud_label("", UIStyleFactory.COLOR_TEXT_SUBTITLE, 10)
+		_dt_label.visible = false
+		vbox.add_child(_dt_label)

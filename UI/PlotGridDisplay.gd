@@ -32,6 +32,7 @@ var layout_manager: Node = null
 var grid_config: GridConfig = null  # Grid configuration (Phase 7)
 var biomes: Dictionary = {}  # biome_name -> BiomeBase (injected via layout manager)
 var _plot_ring_active: bool = false  # WASD cursor is on the plot ring
+var instrument_input: Node = null  # QII back-ref (set by QII.inject_plot_grid_display) — tile taps route through it
 
 # Plot tiles (Vector2i -> PlotTile)
 var tiles: Dictionary = {}
@@ -1232,11 +1233,17 @@ func _input(event: InputEvent) -> void:
 					# Don't consume - let TouchInputManager also track for tap detection
 					_verbose.debug("ui", "📱", "PlotGridDisplay: Started drag tracking at %s" % plot_pos)
 			else:
-				# End drag
+				# End drag. Only a completed MULTI-plot drag consumes the release.
+				# A plain click's release MUST reach TouchInputManager so
+				# tap_detected can arbitrate bubble-tap vs tile-tap — stations
+				# sit ON their plot tiles now, and consuming every release here
+				# silently killed the whole one-finger tap loop.
 				if is_dragging:
+					var was_multi: bool = drag_plots.size() > 1
 					_end_drag()
-					get_viewport().set_input_as_handled()
-					_verbose.debug("ui", "✅", "Consumed by PlotGridDisplay (drag end)")
+					if was_multi:
+						get_viewport().set_input_as_handled()
+						_verbose.debug("ui", "✅", "Consumed by PlotGridDisplay (multi-drag end)")
 
 	elif event is InputEventMouseMotion:
 		if is_dragging:
@@ -1255,10 +1262,11 @@ func _input(event: InputEvent) -> void:
 
 
 func _on_touch_tap(grid_pos: Vector2) -> void:
-	# Handle touch tap for plot selection - toggles checkbox for multi-select
-	#
-	# PHASE 2 FIX: Implements spatial hierarchy by checking if bubble already consumed tap.
-	# Bubbles have priority over plots - if bubble consumed tap, skip plot processing.
+	# Handle touch tap on a plot tile — the tile IS the station's ground, so a
+	# tile tap routes through the SAME one-finger seam as a bubble tap
+	# (QII.handle_bubble_tap: unrevealed → wake, live → measure, measured → pop).
+	# Spatial hierarchy via consume flag: whichever handler (bubble/tile) claims
+	# the tap first wins; both route to the same seam so order doesn't matter.
 	_verbose.debug("ui", "🎯", "PlotGridDisplay._on_touch_tap received! Position: %s" % grid_pos)
 	var touch_input = _get_touch_input_manager()
 	if not touch_input:
@@ -1272,10 +1280,14 @@ func _on_touch_tap(grid_pos: Vector2) -> void:
 	var plot_pos = _get_plot_at_screen_position(grid_pos)
 	_verbose.debug("ui", "", "Converted to plot grid grid_pos: %s" % plot_pos)
 	if plot_pos != GridSentinel.INVALID_POSITION:
-		# FOUND PLOT: Toggle checkbox and consume tap
-		toggle_plot_selection(plot_pos)
 		touch_input.consume_current_tap()
-		_verbose.debug("ui", "✅", "Plot checkbox toggled via touch tap: %s (tap CONSUMED)" % plot_pos)
+		if instrument_input != null and instrument_input.has_method("handle_bubble_tap"):
+			instrument_input.handle_bubble_tap(plot_pos)
+			_verbose.debug("ui", "✅", "Tile tap routed to QII.handle_bubble_tap: %s" % plot_pos)
+		else:
+			# Fallback (no QII wired, e.g. bare-viz harnesses): legacy checkbox toggle.
+			toggle_plot_selection(plot_pos)
+			_verbose.debug("ui", "✅", "Plot checkbox toggled via touch tap: %s" % plot_pos)
 	else:
 		# NO PLOT: Let tap pass through
 		_verbose.debug("ui", "⏩", "Touch tap at %s - no plot found" % grid_pos)

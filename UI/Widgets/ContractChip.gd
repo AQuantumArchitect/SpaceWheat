@@ -20,7 +20,9 @@ var _rows_box: VBoxContainer
 
 func setup(quest_manager: Node) -> void:
 	_quest_manager = quest_manager
-	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# Rows are tappable (tap → focus the contract's biome); the panel itself
+	# stops mouse so taps don't leak through to the field behind it.
+	mouse_filter = Control.MOUSE_FILTER_STOP
 
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color(0.08, 0.09, 0.11, 0.82)
@@ -41,7 +43,20 @@ func setup(quest_manager: Node) -> void:
 		if _quest_manager.has_signal("quest_completed"):
 			if not _quest_manager.quest_completed.is_connected(_on_quest_completed):
 				_quest_manager.quest_completed.connect(_on_quest_completed)
+		if _quest_manager.has_signal("quest_accepted"):
+			if not _quest_manager.quest_accepted.is_connected(_on_quest_accepted):
+				_quest_manager.quest_accepted.connect(_on_quest_accepted)
 	_refresh()
+
+
+func _on_quest_accepted(_quest_id) -> void:
+	# Accept lands HERE: a quick pulse so the eye follows the contract to its
+	# pinned home in the corner.
+	pivot_offset = size / 2.0
+	var tw := create_tween()
+	tw.tween_property(self, "scale", Vector2(1.10, 1.10), 0.10) \
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(self, "scale", Vector2.ONE, 0.22)
 
 
 func _signal_arg_count(sig: String) -> int:
@@ -118,6 +133,18 @@ func _build_row(quest: Dictionary) -> Control:
 	head.add_child(label)
 	row.add_child(head)
 
+	# "Where do I go?" — the contract's biome, tappable to focus it.
+	var biome := str(quest.get("biome", ""))
+	if biome != "":
+		var where := Label.new()
+		where.text = "→ %s" % biome
+		where.add_theme_font_size_override("font_size", 11)
+		where.add_theme_color_override("font_color", Color(0.72, 0.80, 0.88, 0.85))
+		row.add_child(where)
+		row.mouse_filter = Control.MOUSE_FILTER_STOP
+		row.tooltip_text = "Tap to focus %s" % biome
+		row.gui_input.connect(_on_row_gui_input.bind(biome))
+
 	var bar := ProgressBar.new()
 	bar.custom_minimum_size = Vector2(150, 5)
 	bar.show_percentage = false
@@ -134,3 +161,14 @@ func _build_row(quest: Dictionary) -> Control:
 	bar.add_theme_stylebox_override("background", bg)
 	row.add_child(bar)
 	return row
+
+
+func _on_row_gui_input(event: InputEvent, biome: String) -> void:
+	# Tap a contract row → bring its biome forward (navigation only, no verb).
+	if (event is InputEventMouseButton and event.pressed
+			and event.button_index == MOUSE_BUTTON_LEFT) \
+			or (event is InputEventScreenTouch and event.pressed):
+		var abm := get_node_or_null("/root/ActiveBiomeManager")
+		if abm != null and abm.has_method("set_active_biome"):
+			abm.set_active_biome(biome)
+			accept_event()

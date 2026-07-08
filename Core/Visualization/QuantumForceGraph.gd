@@ -65,6 +65,16 @@ var node_manager
 # Drag chain state (for chain swipe gesture)
 var _drag_chain: Array = []  # QuantumNode chain during swipe
 
+# Pointer feel (cosmetic only — never gates mechanics). Hover is polled at
+# ~20Hz from the live mouse position (bubbles are canvas-drawn, not Controls);
+# press squash is set on touch-down and decays back every frame.
+const HOVER_POLL_INTERVAL := 0.05
+var _hovered_node: QuantumNode = null
+var _hover_poll_accum: float = 0.0
+var _pointer_cursor_set: bool = false
+var _dragging: bool = false
+var _drag_pointer: Vector2 = Vector2.ZERO
+
 # State
 var quantum_nodes: Array = []
 var node_by_plot_id: Dictionary = {}
@@ -98,6 +108,13 @@ var center_position: Vector2 = Vector2.ZERO
 var graph_radius: float = 250.0
 var time_accumulator: float = 0.0
 var frame_count: int = 0
+
+# Sim-flow clock: drives the metro-line flow dots so motion tracks the SIM,
+# not wall time — dots freeze while E-pause holds the world, and surge briefly
+# after a fast-forward/reap so "time just moved" is visible. Cosmetic only.
+var flow_time: float = 0.0
+var time_flow_scale: float = 1.0
+var _flow_surge: float = 0.0
 
 var cached_viewport_size: Vector2 = Vector2.ZERO
 var _context_cache: Dictionary = {}
@@ -210,6 +227,10 @@ func _process(delta: float):
 	time_accumulator += delta
 	frame_count += 1
 
+	# Sim-flow clock: freezes with E-pause, surges briefly after fast-forward.
+	_flow_surge = maxf(_flow_surge - delta * 2.0, 0.0)
+	flow_time += delta * time_flow_scale * (1.0 + _flow_surge)
+
 	# Register-first lazy seed: on a fresh boot the biome's viz_cache has no metadata at
 	# setup() time, so the field would otherwise stay empty until a strike. Once viz is
 	# populated, seed the live register bubbles. Cheap no-op once the field is seeded.
@@ -252,6 +273,9 @@ func _process(delta: float):
 	# few px of breathing wobble; inactive biomes are static miniatures on the turntable.
 	# Position is identity now — correlations read as edges, never as layout forces.
 	_update_station_layout(delta)
+
+	# Pointer feel: hover halo + press-squash recovery (cosmetic only).
+	_update_pointer_feel(delta)
 	var t5 = Time.get_ticks_usec()
 
 	# GATE: Only update particles if we have active bubbles
@@ -264,9 +288,11 @@ func _process(delta: float):
 	if show_inspection_layers:
 		_update_projection_payloads()
 
-	# Redraw every frame when actively rendering gameplay bubbles.
-	# In idle/no-active states we can safely throttle to reduce overhead.
-	var redraw_stride = REDRAW_STRIDE_ACTIVE if has_active else REDRAW_STRIDE_IDLE
+	# Redraw every frame when actively rendering gameplay bubbles, while the
+	# pointer is interacting (drag trail / hover halo / press squash), else
+	# throttle in idle states to reduce overhead.
+	var pointer_live := _dragging or _hovered_node != null
+	var redraw_stride = REDRAW_STRIDE_ACTIVE if (has_active or pointer_live) else REDRAW_STRIDE_IDLE
 	if frame_count % redraw_stride == 0:
 		queue_redraw()
 	var t7 = Time.get_ticks_usec()
@@ -340,6 +366,10 @@ func _draw():
 	bubble_renderer.draw_sun_qubit(self, ctx)
 	var t_sun = Time.get_ticks_usec()
 
+	# 8. Live chain-swipe trail — a faint thread through the dragged stations so
+	# the gesture is discoverable (drawing it costs nothing when not dragging).
+	_draw_drag_trail()
+
 	# Debug overlay
 	if DEBUG_MODE:
 		_draw_debug_overlay()
@@ -403,6 +433,7 @@ func _build_context() -> Dictionary:
 	_context_cache["center_position"] = center_position
 	_context_cache["graph_radius"] = graph_radius
 	_context_cache["time_accumulator"] = time_accumulator
+	_context_cache["flow_time"] = flow_time
 	_context_cache["frame_count"] = frame_count
 	_context_cache["entanglement_particles"] = entanglement_particles
 	_context_cache["life_cycle_effects"] = life_cycle_effects
@@ -920,13 +951,18 @@ func get_node_at_position(pos: Vector2) -> QuantumNode:
 
 func get_bubble_at_screen_pos(screen_pos: Vector2) -> QuantumNode:
 	# Hit-test bubbles at screen grid_pos with touch-friendly expanded radius.
+	# Hit radius scales with depth_scale so back-turntable miniatures (drawn at
+	# ~0.33×) don't keep full-size hit zones that steal taps from front
+	# stations; on overlap the front-most (largest depth_scale) node wins.
+	var best: QuantumNode = null
 	for node in quantum_nodes:
 		if not node.visible:
 			continue
-		var hit_radius = node.radius * 1.5  # Covers body + inner glow
+		var hit_radius = node.radius * node.depth_scale * 1.5  # Covers body + ring
 		if node.position.distance_to(screen_pos) <= hit_radius:
-			return node
-	return null
+			if best == null or node.depth_scale > best.depth_scale:
+				best = node
+	return best
 
 
 func get_stats() -> Dictionary:
@@ -1137,7 +1173,11 @@ func _on_pool_terminal_unbound(_terminal: RefCounted):
 
 
 func _on_touch_tap(grid_pos: Vector2) -> void:
-	# Handle tap from TouchInputManager — hit-test bubbles.
+	# Handle tap from TouchInputManager — hit-test bubbles. Both this handler
+	# and PlotGridDisplay's tile handler route into QII.handle_bubble_tap, so
+	# the consume flag just prevents the same tap firing the seam twice.
+	if _touch_input_manager and _touch_input_manager.is_current_tap_consumed():
+		return
 	var node = get_bubble_at_screen_pos(grid_pos)
 	if not node or node.grid_position == GridSentinel.INVALID_POSITION:
 		return
@@ -1154,23 +1194,32 @@ func _on_touch_tap(grid_pos: Vector2) -> void:
 
 func _on_drag_start(grid_pos: Vector2) -> void:
 	# Handle drag start from TouchInputManager — begin chain tracking.
+	# Fires on touch/mouse DOWN, so it doubles as the press-squash hook: the
+	# station dips before the verb lands on release. Cosmetic only — the
+	# action itself fires from tap_detected (touch-up) and never waits.
 	_drag_chain.clear()
+	_dragging = true
+	_drag_pointer = grid_pos
 	var node = get_bubble_at_screen_pos(grid_pos)
 	if node:
 		_drag_chain.append(node)
+		node.press_scale = 0.92
 
 
 func _on_drag_move(grid_pos: Vector2) -> void:
 	# Handle drag move from TouchInputManager — extend chain.
+	_drag_pointer = grid_pos
 	if _drag_chain.is_empty():
 		return
 	var node = get_bubble_at_screen_pos(grid_pos)
 	if node and node != _drag_chain.back():
 		_drag_chain.append(node)
+		node.press_scale = 0.94  # small pluck as the thread picks it up
 
 
 func _on_drag_end(_start_pos: Vector2, _end_pos: Vector2) -> void:
 	# Handle drag end from TouchInputManager — emit chain if 2+ bubbles.
+	_dragging = false
 	if _drag_chain.size() < 2:
 		_drag_chain.clear()
 		return
@@ -1180,6 +1229,64 @@ func _on_drag_end(_start_pos: Vector2, _end_pos: Vector2) -> void:
 		positions.append(n.grid_position)
 	chain_swiped.emit(positions)
 	_drag_chain.clear()
+
+
+func _draw_drag_trail() -> void:
+	# Faint gold thread through the stations gathered by the current swipe,
+	# ending at the fingertip. Purely cosmetic gesture feedback.
+	if not _dragging or _drag_chain.is_empty():
+		return
+	var pts := PackedVector2Array()
+	for n in _drag_chain:
+		pts.append(n.position)
+	pts.append(_drag_pointer)
+	if pts.size() < 2:
+		return
+	draw_polyline(pts, Color(1.0, 0.8, 0.3, 0.35), 2.0, true)
+	for n in _drag_chain:
+		draw_arc(n.position, n.radius * n.depth_scale + 5.0, 0.0, TAU, 24,
+				Color(1.0, 0.8, 0.3, 0.45), 1.5, true)
+
+
+## Pause/play wiring: 0.0 freezes the metro flow dots (E holds the world),
+## 1.0 resumes. Cosmetic only — the sim's own pause lives in Farm.
+func set_time_flow_scale(s: float) -> void:
+	time_flow_scale = maxf(s, 0.0)
+
+
+## Brief 3× surge after fast-forward/reap so "time just moved" is visible.
+func surge_time_flow() -> void:
+	_flow_surge = 2.0
+
+
+func _update_pointer_feel(delta: float) -> void:
+	# Hover halo + press-squash recovery. Cosmetic ONLY: hit-testing and verb
+	# dispatch never read these fields, so visuals cannot gate mechanics.
+	# Hover is skipped on touchscreens (no resting pointer there).
+	var press_recover: float = 1.0 - exp(-14.0 * delta)   # ~70ms spring-back
+	var hover_ease: float = 1.0 - exp(-18.0 * delta)
+
+	_hover_poll_accum += delta
+	if _hover_poll_accum >= HOVER_POLL_INTERVAL:
+		_hover_poll_accum = 0.0
+		var hovered: QuantumNode = null
+		if not DisplayServer.is_touchscreen_available():
+			var vp := get_viewport()
+			if vp:
+				hovered = get_bubble_at_screen_pos(vp.get_mouse_position())
+		if hovered != _hovered_node:
+			_hovered_node = hovered
+		# Pointing hand over a station; restore the arrow when we leave it.
+		var want_pointer := _hovered_node != null
+		if want_pointer != _pointer_cursor_set:
+			_pointer_cursor_set = want_pointer
+			Input.set_default_cursor_shape(
+				Input.CURSOR_POINTING_HAND if want_pointer else Input.CURSOR_ARROW)
+
+	for node in quantum_nodes:
+		var hover_target: float = 1.05 if node == _hovered_node else 1.0
+		node.hover_scale = lerpf(node.hover_scale, hover_target, hover_ease)
+		node.press_scale = lerpf(node.press_scale, 1.0, press_recover)
 
 
 # (C++ batched force positions retired 2026-06-30; the GDScript force soup itself was

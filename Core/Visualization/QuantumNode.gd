@@ -115,6 +115,13 @@ var p_south: float = 0.5
 # clusters read as miniatures, not as a second row of full-size stations.
 var depth_scale: float = 1.0
 
+# Pointer feel (cosmetic ONLY — hit-testing uses raw radius so visuals never
+# gate mechanics). hover_scale eases toward 1.05 while the mouse rests on the
+# station; press_scale dips to ~0.92 on touch-down and springs back. Both are
+# written by QuantumForceGraph and multiplied into the drawn radius.
+var hover_scale: float = 1.0
+var press_scale: float = 1.0
+
 # Constants
 const MIN_RADIUS = 10.0
 const MAX_RADIUS = 40.0

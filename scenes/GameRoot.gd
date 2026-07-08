@@ -82,10 +82,45 @@ func _maybe_show_welcome(farm, shell) -> void:
 			qm.maybe_start_tutorial(farm)
 		return
 	if farm.story_flags_fired.has("tutorial_seen"):
+		_show_boot_recap(farm, shell)
 		return
 	var om = shell.overlay_manager if "overlay_manager" in shell else null
 	if om != null and om.has_method("open_overlay"):
 		om.open_overlay("welcome")
+
+
+## Returning-player bookend: one warm toast placing them back in their story —
+## the next beat's act + name and how many contracts are open. No modal.
+func _show_boot_recap(farm_ref, shell) -> void:
+	if shell == null or not shell.has_method("show_hint"):
+		return
+	var qm = shell.quest_manager if "quest_manager" in shell else null
+	if qm == null:
+		return
+	var bits: Array[String] = []
+	if qm.has_method("get_all_story_flags") and "story_flags_fired" in farm_ref:
+		var best_score := -1.0
+		var best_flag: Dictionary = {}
+		for flag in qm.get_all_story_flags():
+			if not (flag is Dictionary):
+				continue
+			if farm_ref.story_flags_fired.has(str(flag.get("id", ""))):
+				continue
+			var s: float = qm.evaluate_flag_score(flag)
+			if s > best_score:
+				best_score = s
+				best_flag = flag
+		if not best_flag.is_empty():
+			bits.append("Act %d — [b]%s[/b] (%d%%)" % [int(best_flag.get("act", 0)),
+					str(best_flag.get("display_name", best_flag.get("id", ""))),
+					int(clampf(best_score / 0.85, 0.0, 1.0) * 100.0)])
+	if qm.has_method("get_active_quests"):
+		var n: int = qm.get_active_quests().size()
+		if n > 0:
+			bits.append("%d contract%s open" % [n, "" if n == 1 else "s"])
+	if bits.is_empty():
+		return
+	shell.show_hint("🌾 " + "  ·  ".join(bits), 2)
 
 
 func teardown_visuals() -> void:

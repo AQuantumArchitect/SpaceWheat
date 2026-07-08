@@ -237,6 +237,15 @@ func stage_ui(farm: Node, shell: Node, quantum_viz: Node, world_builder) -> void
 				shell.overlay_manager.overlay_changed.connect(quantum_viz.on_overlay_changed)
 				_verbose.info("boot", "📡", "OverlayManager connected to QuantumForceGraph inspection layers")
 
+		# E-pause freezes the metro flow dots — motion means "time is passing".
+		if quantum_viz and shell.has_signal("paused_changed") \
+				and quantum_viz.has_method("set_time_flow_scale"):
+			var flow_cb := func(is_paused: bool):
+				quantum_viz.set_time_flow_scale(0.0 if is_paused else 1.0)
+			if not shell.paused_changed.is_connected(flow_cb):
+				shell.paused_changed.connect(flow_cb)
+				_verbose.info("boot", "📡", "PlayerShell pause connected to sim-flow clock")
+
 	# NOW add to tree - _ready() runs with all dependencies available
 	_verbose.info("boot", "🔍", "Mounting FarmUI in shell (triggers _ready)...")
 	shell.load_farm_ui(farm_ui)
@@ -321,6 +330,48 @@ func stage_ui(farm: Node, shell: Node, quantum_viz: Node, world_builder) -> void
 			contract_chip.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 			contract_chip.setup(shell.quest_manager)
 			_verbose.info("boot", "📋", "ContractChip ready (pinned active contracts)")
+
+			# Act filament — the next story beat's live soft-gate score, ambient
+			# under the contract corner. Tap opens X (Arc).
+			var act_filament = ActFilament.new()
+			act_filament.name = "ActFilament"
+			act_filament.z_index = 90
+			shell_overlay_layer.add_child(act_filament)
+			act_filament.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+			act_filament.offset_top = 140.0
+			act_filament.offset_right = -10.0
+			act_filament.offset_left = -200.0
+			act_filament.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+			act_filament.setup(shell.quest_manager, farm, shell.overlay_manager)
+			_verbose.info("boot", "🧵", "ActFilament ready (next-beat progress)")
+
+			# Act postcards: when a fired flag COMPLETES its act, auto-capture a
+			# postcard — the player's per-act "solution stats" card (headed only;
+			# the capture reads real viewport pixels).
+			if not DisplayServer.get_name().to_lower().contains("headless") \
+					and shell.quest_manager.has_signal("story_flag_fired"):
+				var qm_ref = shell.quest_manager
+				var farm_ref = farm
+				var act_cb := func(flag_id: String, flag: Dictionary):
+					var act: int = int(flag.get("act", -1))
+					if act < 0 or not ("story_flags_fired" in farm_ref):
+						return
+					if not qm_ref.has_method("get_all_story_flags"):
+						return
+					for f in qm_ref.get_all_story_flags():
+						if int(f.get("act", -1)) != act:
+							continue
+						var fid := str(f.get("id", ""))
+						if fid != flag_id and not farm_ref.story_flags_fired.has(fid):
+							return  # act not complete yet
+					var cap = farm_ref.get_tree().get_first_node_in_group("postcard_capture")
+					if cap != null and cap.has_method("capture"):
+						cap.capture()
+						if shell.has_method("show_hint"):
+							shell.show_hint("📮 Act %d complete — postcard saved" % act, 3)
+				if not shell.quest_manager.story_flag_fired.is_connected(act_cb):
+					shell.quest_manager.story_flag_fired.connect(act_cb)
+					_verbose.info("boot", "📮", "Act-postcard listener armed")
 
 	# Create SnapshotService for diagnostics/state snapshots shared by UI + headless runners
 	const SnapshotServiceClass = preload("res://Core/Instrumentation/SnapshotService.gd")

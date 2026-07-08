@@ -146,71 +146,18 @@ func _on_quit_requested() -> void:
 
 
 func _on_quantum_node_clicked(grid_pos: Vector2i, button_index: int) -> void:
+	# Delegate to the ONE action decoder. The old direct farm.instrument calls
+	# were a parallel mechanics authority: they skipped selection sync, lookahead
+	# buffer invalidation, whispers and QII's action_performed. Same resolution
+	# as _on_chain_swiped.
 	if _verbose:
 		_verbose.debug("ui", "🎯", "Bubble tap: %s button=%d" % [grid_pos, button_index])
-
-	if not farm or not farm.terminal_pool:
+	var instrument_input = shell.current_farm_ui.instrument_input if shell and shell.current_farm_ui else null
+	if not instrument_input:
 		if _verbose:
-			_verbose.warn("ui", "⚠️", "No farm or terminal_pool")
+			_verbose.error("ui", "❌", "Bubble tap: no QuantumInstrumentInput attached")
 		return
-
-	if not ("instrument" in farm) or not farm.instrument:
-		if _verbose:
-			_verbose.error("ui", "❌", "Bubble tap requires Farm.instrument")
-		return
-
-	var plot = farm.grid.get_plot(grid_pos) if farm.grid else null
-	var terminal = plot.terminal if plot else null
-	if not terminal:
-		var biome_name: String = farm.grid.get_plot_biome_assignment(grid_pos) if farm.grid else ""
-		if biome_name.is_empty():
-			if _verbose:
-				_verbose.warn("ui", "⚠️", "No biome assigned at %s" % grid_pos)
-			return
-		var result = farm.instrument.action_explore(biome_name, grid_pos)
-		if result.get("success", false):
-			if _verbose:
-				_verbose.info("ui", "🔍", "Explored: register %d in %s" % [
-					result.get("register_id", -1), biome_name
-				])
-		else:
-			if _verbose:
-				_verbose.warn("ui", "⚠️", "Explore failed: %s" % result.get("message", "unknown"))
-			_toast_action_failure(result)
-		return
-
-	if not terminal.is_measured:
-		var result = farm.instrument.action_measure(grid_pos)
-		if result.success:
-			if _verbose:
-				_verbose.info("ui", "📊", "Measured: %s (%.1f%% recorded, drained=%s)" % [
-					result.outcome, result.recorded_probability * 100, result.was_drained
-				])
-		else:
-			if _verbose:
-				_verbose.warn("ui", "⚠️", "Measure failed: %s" % result.get("message", "unknown"))
-			_toast_action_failure(result)
-	else:
-		var result = farm.instrument.action_pop(grid_pos)
-		if result.success:
-			if _verbose:
-				_verbose.info("ui", "🎉", "Popped: %s → %.1f credits (purity: %.2f, neighbors: %d)" % [
-					result.resource, result.credits,
-					result.get("purity", 1.0), result.get("neighbor_count", 4)
-				])
-		else:
-			if _verbose:
-				_verbose.warn("ui", "⚠️", "Pop failed: %s" % result.get("message", "unknown"))
-			_toast_action_failure(result)
-
-
-func _toast_action_failure(result: Dictionary) -> void:
-	# Player-facing feedback for a failed tap action — surface the message as a toast,
-	# not just a console warning. Mirrors the keyboard path (QuantumInstrumentInput).
-	var msg := str(result.get("message", ""))
-	if msg == "" or not shell or not shell.has_method("show_hint"):
-		return
-	shell.show_hint("[color=#ff9966]✗ %s[/color]" % msg, 3)
+	instrument_input.handle_bubble_tap(grid_pos)
 
 
 func _on_chain_swiped(positions: Array) -> void:

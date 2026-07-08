@@ -403,11 +403,13 @@ func _update_evolution_gating() -> void:
 			if _verbose:
 				_log_info("[MusicManager] Evolution detected - starting music")
 			_start_music_from_state()
-	elif is_playing:
+	elif is_playing and not _layer3_stopped:
+		# not _layer3_stopped: in bed mode the player keeps playing (ducked) —
+		# without the guard this would re-trigger the duck every poll.
 		_empty_observation_count += 1
 		if _empty_observation_count >= EMPTY_OBSERVATIONS_TO_STOP:
 			if _verbose:
-				_log_info("[MusicManager] No global evolution - stopping music")
+				_log_info("[MusicManager] No global evolution - ducking to ambient bed")
 			_stop_for_layer3()
 
 
@@ -461,9 +463,16 @@ func _get_best_biome_from_global_map() -> String:
 	return ""
 
 
+# Ambient bed: a settled world is QUIET, not silent (never-silent ambience).
+const BED_FRACTION := 0.18  # of the user's music volume, linear
+const BED_FADE_S := 2.5
+const SWELL_S := 1.2
+
+
 func _stop_for_layer3() -> void:
-	# Stop music for Layer 3 (no bubbles). Saves ghost timer position and stops ALL players.
-	# Set flag to prevent watchdog from restarting
+	# Layer 3 (no explored bubbles): duck to a quiet ambient bed instead of a
+	# hard stop. Activity = music still holds — settled fades to a murmur, and
+	# the swell on the next explored bubble is seamless (same track position).
 	_layer3_stopped = true
 
 	# Kill any crossfade in progress
@@ -471,22 +480,15 @@ func _stop_for_layer3() -> void:
 		_crossfade_tween.kill()
 		_crossfade_tween = null
 
-	# Save position for ghost timer before stopping (evolution-synced)
+	# Save position for ghost timer (evolution-synced)
 	if not _current_track.is_empty():
 		_save_ghost_timer_position(_current_track)
 
-	# Fade out over ~80ms before stopping to avoid a click (hard stop mid-sample
-	# cuts the waveform and produces a pop, especially at high sim speed).
-	const FADE_OUT_S: float = 0.08
 	var tree := get_tree()
 	if tree and _active_player.playing:
 		var fade := tree.create_tween()
-		var start_db: float = _active_player.volume_db
-		fade.tween_property(_active_player, "volume_db", -60.0, FADE_OUT_S)
-		fade.tween_callback(func():
-			_active_player.stop()
-			_active_player.volume_db = start_db
-		)
+		fade.tween_property(_active_player, "volume_db",
+				_volume_to_db(_volume * BED_FRACTION), BED_FADE_S)
 	else:
 		_active_player.stop()
 	_inactive_player.stop()
@@ -499,6 +501,13 @@ func _start_music_from_state() -> void:
 	_watchdog_recovery_failures = 0
 	if _iconmap_sample_count >= 3:
 		_evaluate_iconmap_decision()
+	if _active_player.playing:
+		# Bed mode (ducked, still playing) → swell back to full.
+		var tree := get_tree()
+		if tree:
+			var swell := tree.create_tween()
+			swell.tween_property(_active_player, "volume_db", _volume_to_db(_volume), SWELL_S)
+		return
 	if not _active_player.playing:
 		var best_biome := _get_best_biome_from_global_map()
 		# ABM fallback: handles early-boot case where batcher icon map is still empty.

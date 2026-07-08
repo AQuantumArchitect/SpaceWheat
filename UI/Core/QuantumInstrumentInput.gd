@@ -126,6 +126,9 @@ func inject_farm(farm_ref) -> void:
 func inject_plot_grid_display(pgd_ref) -> void:
 	# Inject PlotGridDisplay reference for visual selection updates.
 	plot_grid_display = pgd_ref
+	# Back-ref so tile taps route through the one-finger seam (handle_bubble_tap).
+	if pgd_ref != null and "instrument_input" in pgd_ref:
+		pgd_ref.instrument_input = self
 	_verbose.info("input", "~", "PlotGridDisplay injected into QuantumInstrumentInput")
 
 
@@ -1033,11 +1036,20 @@ func _select_plot(plot_idx: int, key: String) -> void:
 		_verbose.debug("input", "~", "Plot %d in %s remains highlighted" % [plot_idx, biome_name])
 		return
 
-	# First tap on a different plot moves the highlight (Focus) there. The
-	# instrument fields are the single source of truth for the selection — no
-	# shadow dict. Selection is a free, transient cursor move: it does NOT bind a
-	# terminal or fire any action (the live bubble already renders from the QC;
-	# the terminal is created at strike-time by Measure). plot_idx ≡ register_id.
+	# First tap on a different plot moves the highlight (Focus) there.
+	_focus_plot(plot_idx, biome_name)
+	_verbose.debug("input", "~", "Plot %d in %s" % [plot_idx, biome_name])
+
+
+func _focus_plot(plot_idx: int, biome_name: String) -> Vector2i:
+	# Pure Focus move — the shared tail of every deliberate plot pick (keyboard
+	# GHJKL; and bubble taps). The instrument fields are the single source of
+	# truth for the selection — no shadow dict. Selection is a free, transient
+	# cursor move: it does NOT bind a terminal or fire any action (the live
+	# bubble already renders from the QC; the terminal is created at strike-time
+	# by Measure). plot_idx ≡ register_id. NO checkbox semantics here — the
+	# second-tap check toggle belongs to _select_plot alone.
+	var target_grid_pos = _get_grid_position_for(plot_idx, biome_name)
 	_instrument.current_plot_idx = plot_idx
 	_instrument.last_plot_idx = plot_idx
 	_instrument.current_biome = biome_name
@@ -1049,14 +1061,14 @@ func _select_plot(plot_idx: int, key: String) -> void:
 		plot_grid_display.set_selected_plot(target_grid_pos)
 		_verbose.debug("input", "~", "Visual selection: %s" % target_grid_pos)
 
-	# Exploration reveal: ONLY deliberate plot picks (GHJKL; / WASD crawl / ring
+	# Exploration reveal: ONLY deliberate plot picks (GHJKL; / bubble tap / ring
 	# enter) wake a bubble. Programmatic repoints (biome switch, overlay restore)
 	# go through set_selected_plot directly and must NOT reveal.
 	if farm and farm.has_method("reveal_plot") and target_grid_pos.x >= 0:
 		farm.reveal_plot(target_grid_pos)
 
 	selection_changed.emit(plot_idx, biome_name)
-	_verbose.debug("input", "~", "Plot %d in %s" % [plot_idx, biome_name])
+	return target_grid_pos
 
 
 ## ============================================================================
@@ -1316,6 +1328,78 @@ func _select_subspace(subspace_idx: int, key: String) -> void:
 ## Mirrors the keyboard path in _input() for Q/E/R/F.
 func invoke_action(action_key: String) -> void:
 	_perform_action(action_key)
+
+
+## Public entry point for a bubble tap (mouse/touch) — the tap IS the farming
+## gesture. Focuses the tapped plot, then fires hat-INDEPENDENT Ace verbs:
+## measure on a live bubble, pop on a measured one (a tap must never arm
+## Captain-cull or a keyboard-F confirm chord). Dispatch goes through the SAME
+## validator + _run_action tail as the keyboard, so refusal toasts, lookahead
+## buffer invalidation, whispers and action_performed behave identically —
+## one mechanics authority (anti-gating law). A tap on a non-active biome's
+## station only switches + focuses; it never fires a verb on a biome the
+## player isn't looking at.
+func handle_bubble_tap(grid_pos: Vector2i) -> Dictionary:
+	if not farm or not _instrument or not _active_biome_mgr or not farm.grid:
+		return {"success": false, "error": "not_ready", "message": ""}
+
+	# A tap is "any other input" — cancel a pending destructive confirm.
+	_confirm_pending = {}
+
+	var biome_name: String = ""
+	if farm.grid.has_method("get_plot_biome_assignment"):
+		biome_name = str(farm.grid.get_plot_biome_assignment(grid_pos))
+	if biome_name == "":
+		return {"success": false, "error": "no_biome", "message": ""}
+
+	if _chain_tracker:
+		_chain_tracker.record_observation("tap", grid_pos.x, biome_name, 0)
+
+	var active_biome: String = _active_biome_mgr.get_active_biome()
+	if biome_name != active_biome:
+		# Miniature tap: bring that biome forward and focus the tapped plot.
+		_active_biome_mgr.set_active_biome(biome_name)
+		_apply_biome_switch(active_biome, biome_name, "tap")
+		_focus_plot(grid_pos.x, biome_name)
+		return {"success": true, "action": "focus_biome"}
+
+	# Same range guards as the keyboard pick (_select_plot).
+	if farm.grid_config and grid_pos.x >= farm.grid_config.grid_width:
+		return {"success": false, "error": "out_of_range", "message": ""}
+	var plot_count = _get_active_biome_plot_count()
+	if plot_count > 0 and grid_pos.x >= plot_count:
+		return {"success": false, "error": "out_of_range", "message": ""}
+
+	# Three-beat rhythm, all from farm ground truth (never node visuals):
+	# unrevealed plot → the tap WAKES it (focus + reveal, no verb) — the mouse
+	# equivalent of the deliberate first touch. revealed live → measure.
+	# measured → pop.
+	var was_revealed: bool = true
+	if "revealed_plots" in farm:
+		was_revealed = grid_pos in farm.revealed_plots
+
+	# Selection FIRST, so the verb targets exactly what was tapped and every
+	# downstream reader (action bar, B overlay) agrees with the tap.
+	# (_focus_plot also reveals — a tap is a deliberate touch.)
+	_focus_plot(grid_pos.x, biome_name)
+
+	if not was_revealed:
+		return {"success": true, "action": "reveal"}
+
+	var plot = farm.grid.get_plot(grid_pos)
+	var terminal = plot.terminal if plot else null
+	var is_measured: bool = terminal != null and terminal.is_measured
+	var verb := "pop" if is_measured else "measure"
+
+	if not ActionValidator.can_execute_action_name(
+		verb, farm, _get_selected_positions(), _get_grid_position()
+	):
+		_verbose.info("input", "•", "tap %s blocked%s" % [verb, _get_block_reason(verb)])
+		return {"success": false, "blocked": true, "action": verb}
+
+	if verb == "measure":
+		return _run_action("measure", "📊", "Strike")
+	return _run_action("pop", "🎉", "Extract")
 
 
 func _perform_action(action_key: String) -> void:

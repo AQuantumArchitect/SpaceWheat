@@ -9,16 +9,15 @@ extends "res://UI/Core/OverlayBase.gd"
 const _ROWS := [
 	"You are The Demos — a people learning the quantum language of your own ground.",
 	"",
-	"THE LOOP   ·   select a plot on the ring  [ G H J K L ; ]   then act with  [ Q E R F ].",
-	"Harvesting teaches you icons. Icons are your vocabulary — and your power here.",
+	"THE LOOP   ·   Tap a bubble to measure it — the answer locks in.   Tap it again to harvest.",
+	"Harvesting earns emojis and teaches you icons. Icons are your vocabulary — and your power here.",
 	"",
-	"TOOLS   ·   the number row  [ 4 – 0 ]  switches hats  (Icon · Ace · Captain · Operator · Druid …).",
-	"MENUS   ·   [ Z X C V B N M ]  open your top-level surfaces  (story · market · map · microscope).",
+	"KEYBOARD   ·   plots  [ G H J K L ; ]  ·  verbs  [ Q E R F ]  ·  hats  [ 4 – 0 ]  ·  menus  [ Z X C V B N M ].",
 	"",
 	"New here?   Press  X  for the Playthrough surface, then the  Guide  tab  ( O )  — the full how-to-play.",
 	"Open  B  on any biome to see how it behaves (rigid vs. plural), and  C  for your story + contracts.",
 	"",
-	"Press  F  to begin.",
+	"Tap anywhere  (or press  F)  to begin.",
 ]
 
 
@@ -48,21 +47,24 @@ func _build_content(container: Control) -> void:
 		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		var emphasis := str(row).begins_with("THE LOOP") or str(row).begins_with("TOOLS") \
-			or str(row).begins_with("MENUS") or str(row) == "Press  F  to begin."
+			or str(row).begins_with("KEYBOARD") or str(row).begins_with("Tap anywhere")
 		lbl.add_theme_font_size_override("font_size", 15 if emphasis else 13)
 		lbl.add_theme_color_override("font_color",
 			Color(0.85, 0.95, 0.88) if emphasis else Color(0.78, 0.82, 0.88))
 		box.add_child(lbl)
 
 
-# ANY key dismisses the welcome (standard "press any key" splash) so the player is never
-# trapped. Consume that one press cleanly (no fall-through → no double-pop on ESC); the next
-# press plays normally. Without this, the modal ate Q/E/R until F was pressed — which read as
-# "actions are blocked / frame selection prevents changing frames."
+# ANY key — or tap/click — dismisses the welcome (standard "press any key" splash) so the
+# player is never trapped. Consume that one press cleanly (no fall-through → no double-pop
+# on ESC); the next press plays normally. Without this, the modal ate Q/E/R until F was
+# pressed — which read as "actions are blocked / frame selection prevents changing frames."
 func handle_input(event: InputEvent) -> bool:
 	if not is_active:
 		return false
 	if event is InputEventKey and event.pressed and not event.echo:
+		_dismiss()
+		return true
+	if (event is InputEventMouseButton or event is InputEventScreenTouch) and event.pressed:
 		_dismiss()
 		return true
 	return false

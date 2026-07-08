@@ -64,7 +64,9 @@ func _draw_metro_lines(graph: Node2D, ctx: Dictionary) -> void:
 	var biomes = ctx.get("biomes", {})
 	var active_biome = ctx.get("active_biome", "")
 	var batcher = ctx.get("geometry_batcher")
-	var time: float = ctx.get("time_accumulator", 0.0)
+	# Flow dots ride the SIM-flow clock: frozen while E-pause holds the world,
+	# surging after fast-forward — motion honestly means "time is passing".
+	var time: float = ctx.get("flow_time", ctx.get("time_accumulator", 0.0))
 
 	var current_frame = Engine.get_process_frames()
 	if current_frame - _metro_cache_frame >= METRO_CACHE_STRIDE:

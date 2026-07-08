@@ -88,7 +88,7 @@ func _register_default_events() -> void:
 # PUBLIC API
 # ═══════════════════════════════════════════════════════════════════════
 
-func play(event_id: String, volume_scale: float = 1.0) -> void:
+func play(event_id: String, volume_scale: float = 1.0, pitch_scale: float = 1.0) -> void:
 	# Play a sound for the given event. Logs if no audio is loaded.
 	if _muted:
 		return
@@ -105,6 +105,7 @@ func play(event_id: String, volume_scale: float = 1.0) -> void:
 
 	player.stream = stream
 	player.volume_db = _volume_to_db(_sfx_volume * volume_scale)
+	player.pitch_scale = clampf(pitch_scale, 0.5, 2.0)
 	player.play()
 
 
@@ -247,6 +248,15 @@ func reset() -> void:
 # SIGNAL HANDLERS
 # ═══════════════════════════════════════════════════════════════════════
 
+# Pop chain ladder (Mini-Metro/shapez trick): pops within the window step the
+# pitch up a pentatonic degree; silence resets the ladder. Pure celebration —
+# reads only the already-computed result, never touches mechanics.
+const _PENTATONIC_SEMITONES: Array[int] = [0, 2, 4, 7, 9, 12]
+const _POP_CHAIN_WINDOW_MS := 2000
+var _pop_chain: int = 0
+var _last_pop_ms: int = -1000000
+
+
 func _on_action_performed(action: String, result: Dictionary) -> void:
 	# Map game actions to sound events.
 	if result.get("success", false):
@@ -256,7 +266,17 @@ func _on_action_performed(action: String, result: Dictionary) -> void:
 			"measure":
 				play("measure_success")
 			"pop":
-				play("pop_success")
+				# Surprisal-scaled celebration: bigger payouts (rarer outcomes,
+				# E = −kT·log p) land louder; quick chains climb the pentatonic.
+				var now := Time.get_ticks_msec()
+				if now - _last_pop_ms <= _POP_CHAIN_WINDOW_MS:
+					_pop_chain = mini(_pop_chain + 1, _PENTATONIC_SEMITONES.size() - 1)
+				else:
+					_pop_chain = 0
+				_last_pop_ms = now
+				var rel := tanh(float(result.get("credits", 0)) / 40.0)
+				var pitch := pow(2.0, float(_PENTATONIC_SEMITONES[_pop_chain]) / 12.0)
+				play("pop_success", 0.85 + 0.45 * rel, pitch)
 			"reap":
 				play("reap_success")
 			_:

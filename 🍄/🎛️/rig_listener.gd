@@ -808,6 +808,51 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 						bs_revealed.append([bs_rp.x, bs_rp.y])
 				result["revealed_plots"] = bs_revealed
 
+		"tap":
+			# Synthetic mouse tap (one-finger core loop). {pos: [x,y]} resolves the
+			# bubble's live screen position through the force graph; {screen: [x,y]}
+			# taps a raw screen point. Injects a REAL InputEventMouseButton press +
+			# release through the viewport so the tap exercises the true
+			# TouchInputManager → QuantumForceGraph → FarmView → QII path.
+			var tap_screen := Vector2(-1, -1)
+			if cmd.has("screen"):
+				var ts: Array = cmd["screen"]
+				if ts.size() == 2:
+					tap_screen = Vector2(float(ts[0]), float(ts[1]))
+			elif cmd.has("pos"):
+				var tp: Array = cmd["pos"]
+				var tap_fg: Node = null
+				var tap_stack: Array = [get_root()]
+				while not tap_stack.is_empty():
+					var tap_n: Node = tap_stack.pop_back()
+					for tap_ch in tap_n.get_children():
+						tap_stack.push_back(tap_ch)
+					if "quantum_nodes_by_grid_pos" in tap_n:
+						tap_fg = tap_n
+						break
+				if tap_fg != null and tp.size() == 2:
+					var tap_key := Vector2i(int(tp[0]), int(tp[1]))
+					var tap_node = tap_fg.quantum_nodes_by_grid_pos.get(tap_key)
+					if tap_node != null:
+						tap_screen = tap_node.position
+			if tap_screen.x < 0.0:
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_tap_target"}
+			else:
+				# Press + release in the SAME frame: rig frames can exceed the
+				# 300ms tap window under load, which would misclassify a
+				# frame-separated press/release as a hold.
+				var tap_vp: Viewport = get_root()
+				for tap_pressed in [true, false]:
+					var tap_ev := InputEventMouseButton.new()
+					tap_ev.button_index = MOUSE_BUTTON_LEFT
+					tap_ev.pressed = tap_pressed
+					tap_ev.position = tap_screen
+					tap_ev.global_position = tap_screen
+					if tap_vp:
+						tap_vp.push_input(tap_ev, true)
+				await _wait_settle_frames(int(cmd.get("settle_frames", 8)))
+				result["tapped"] = [int(tap_screen.x), int(tap_screen.y)]
+
 		"biome_slots":
 			# Read-only: the TYUIOP slot → biome mapping. grid_snapshot lists biomes in a
 			# different (sorted) order, so a driver must use THIS to press the right biome key.
