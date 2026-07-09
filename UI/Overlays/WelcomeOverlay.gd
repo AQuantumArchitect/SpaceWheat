@@ -70,6 +70,17 @@ func handle_input(event: InputEvent) -> bool:
 	return false
 
 
+# Pointer path: PlayerShell only routes KEYBOARD events into overlay
+# handle_input, so "Tap anywhere to begin" needs a direct ear. Consume the
+# press so it doesn't leak through as a bubble tap under the splash.
+func _input(event: InputEvent) -> void:
+	if not is_active:
+		return
+	if (event is InputEventMouseButton or event is InputEventScreenTouch) and event.pressed:
+		get_viewport().set_input_as_handled()
+		_dismiss()
+
+
 # Tap path (action-bar chip): F = Begin → dismiss.
 func _on_action_f() -> void:
 	_dismiss()

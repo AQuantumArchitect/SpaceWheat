@@ -193,9 +193,22 @@ func _build_tab_row(container: Control) -> void:
 	_tab_labels.clear()
 	for entry in TAB_ROW:
 		var lbl := Label.new()
+		lbl.name = "MenuTab_%s" % str(entry.get("key", ""))
 		lbl.add_theme_font_size_override("font_size", 15)
+		# Mouse parity: tabs are tappable, same dispatch as the T/Y/U/I/O keys.
+		lbl.mouse_filter = Control.MOUSE_FILTER_STOP
+		lbl.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		lbl.gui_input.connect(_on_tab_label_gui_input.bind(int(entry.get("tab", 0))))
 		_tab_row_box.add_child(lbl)
 		_tab_labels[str(entry.get("key", ""))] = lbl
+
+
+func _on_tab_label_gui_input(event: InputEvent, tab: int) -> void:
+	if _pending_action != PendingAction.NONE:
+		return
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
+		_show_tab(tab)
+		accept_event()
 
 func _build_verb_chips(container: Control) -> void:
 	_verb_palette = PanelContainer.new()
@@ -219,9 +232,16 @@ func _build_verb_chips(container: Control) -> void:
 	_verb_chip_cells.clear()
 	for key in ["Q", "E", "R", "F"]:
 		var cell := VBoxContainer.new()
+		cell.name = "MenuVerb_%s" % key
 		cell.alignment = BoxContainer.ALIGNMENT_CENTER
 		cell.add_theme_constant_override("separation", 2)
 		cell.custom_minimum_size = Vector2(90, 0)
+		# Mouse parity: verb chips are tappable — SAME handlers as the keys
+		# (a stranger at the title has only a mouse; "[F] play" must be a
+		# button, not a caption).
+		cell.mouse_filter = Control.MOUSE_FILTER_STOP
+		cell.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		cell.gui_input.connect(_on_verb_chip_gui_input.bind(key))
 		_verb_chip_box.add_child(cell)
 
 		var key_lbl := Label.new()
@@ -238,6 +258,17 @@ func _build_verb_chips(container: Control) -> void:
 		cell.add_child(label_lbl)
 
 		_verb_chip_cells[key] = {"key": key_lbl, "label": label_lbl, "cell": cell}
+
+
+func _on_verb_chip_gui_input(event: InputEvent, key: String) -> void:
+	if not (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed):
+		return
+	accept_event()
+	match key:
+		"Q": _on_action_q()
+		"E": _on_action_e()
+		"R": _on_action_r()
+		"F": _on_action_f()
 
 func _build_close_hint(container: Control) -> void:
 	_close_hint = Label.new()

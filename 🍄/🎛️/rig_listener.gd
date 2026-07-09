@@ -853,6 +853,35 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				await _wait_settle_frames(int(cmd.get("settle_frames", 8)))
 				result["tapped"] = [int(tap_screen.x), int(tap_screen.y)]
 
+		"control_rect":
+			# Mouse-probe helper: global rect + center of a named Control found
+			# anywhere in the live tree. Prefers a visible match. Lets probes
+			# tap real chips/buttons (tap screen=center) instead of hardcoding
+			# screen coordinates that break on the next layout pass.
+			var cr_name := str(cmd.get("name", ""))
+			if cr_name == "":
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "missing_name"}
+			else:
+				var cr_match: Control = null
+				var cr_stack: Array = [get_root()]
+				while not cr_stack.is_empty():
+					var cr_n: Node = cr_stack.pop_back()
+					for cr_ch in cr_n.get_children():
+						cr_stack.push_back(cr_ch)
+					if cr_n is Control and str(cr_n.name) == cr_name:
+						if (cr_n as Control).is_visible_in_tree():
+							cr_match = cr_n
+							break
+						if cr_match == null:
+							cr_match = cr_n  # invisible fallback; keep scanning for a visible one
+				if cr_match == null:
+					result = {"ok": false, "turn": turn_id, "action": action, "error": "control_not_found", "name": cr_name}
+				else:
+					var cr_rect: Rect2 = cr_match.get_global_rect()
+					result["rect"] = [cr_rect.position.x, cr_rect.position.y, cr_rect.size.x, cr_rect.size.y]
+					result["center"] = [int(cr_rect.position.x + cr_rect.size.x / 2.0), int(cr_rect.position.y + cr_rect.size.y / 2.0)]
+					result["visible"] = cr_match.is_visible_in_tree()
+
 		"biome_slots":
 			# Read-only: the TYUIOP slot → biome mapping. grid_snapshot lists biomes in a
 			# different (sorted) order, so a driver must use THIS to press the right biome key.
