@@ -40,7 +40,15 @@ var _content: Control = null
 func begin(farm: Node, shell: Node) -> void:
 	_farm = farm
 	_shell = shell
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	# The overlay layer doesn't impose a rect on children — size to the
+	# viewport explicitly (anchors alone left this 0×0: invisible backdrop,
+	# stage text clipped at the origin).
+	position = Vector2.ZERO
+	size = get_viewport_rect().size
+	get_viewport().size_changed.connect(func():
+		if is_instance_valid(self):
+			size = get_viewport_rect().size
+	)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	z_index = 110  # above toasts (100) — the ceremony owns the screen
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -156,9 +164,9 @@ func _build_title_stage() -> void:
 func _build_montage_stage() -> void:
 	var caption := _big_label("the acts you witnessed", 16, Color(0.8, 0.85, 0.78, 0.8))
 	_content.add_child(caption)
-	caption.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	caption.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
 	caption.offset_top = 40.0
-	caption.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	caption.offset_bottom = 70.0
 
 	var frame := TextureRect.new()
 	frame.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -236,12 +244,12 @@ func _build_credits_stage() -> void:
 	for entry in _credit_entries():
 		roll.add_child(_big_label(entry[0], entry[1], Color(0.92, 0.94, 0.86)))
 	_content.add_child(roll)
-	roll.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	roll.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	var vp_h := get_viewport_rect().size.y
-	roll.position.y = vp_h
+	# Unanchored, full-width, sized to content — position.y is free to tween.
+	var roll_h := roll.get_combined_minimum_size().y
+	roll.size = Vector2(size.x, roll_h)
+	roll.position = Vector2(0, size.y)
 	var tw := create_tween()
-	tw.tween_property(roll, "position:y", -roll.get_combined_minimum_size().y - 40.0, CREDITS_ROLL_S)
+	tw.tween_property(roll, "position:y", -roll_h - 40.0, CREDITS_ROLL_S)
 
 
 func _credit_entries() -> Array:
@@ -306,14 +314,14 @@ func _load_postcards() -> void:
 
 
 func _centered_vbox() -> VBoxContainer:
+	# Full-rect box with centered alignment: labels fill the width and the
+	# column centers vertically — no dependence on anchor-point growth.
 	var box := VBoxContainer.new()
 	box.alignment = BoxContainer.ALIGNMENT_CENTER
 	box.add_theme_constant_override("separation", 8)
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_content.add_child(box)
-	box.set_anchors_preset(Control.PRESET_CENTER)
-	box.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	box.grow_vertical = Control.GROW_DIRECTION_BOTH
+	box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	return box
 
 

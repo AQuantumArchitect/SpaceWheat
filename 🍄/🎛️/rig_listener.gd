@@ -1053,6 +1053,33 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 					result["threshold"] = fp_qm.FLAG_FIRE_THRESHOLD
 					result["predicates"] = fp_scored
 
+		"fire_flag":
+			# Test-only: force-fire a story flag by id through the REAL firing
+			# path (_fire_story_flag → story_flag_fired → every listener:
+			# story log, postcards, autosave, ending ceremony). Lets probes
+			# verify flag CONSEQUENCES without driving a full campaign.
+			var ff_qm = _resolve_quest_manager()
+			var ff_id: String = str(cmd.get("id", ""))
+			if ff_qm == null or not ff_qm.has_method("get_all_story_flags"):
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_quest_manager"}
+			elif _farm == null:
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_farm"}
+			else:
+				var ff_flag: Dictionary = {}
+				for f in ff_qm.get_all_story_flags():
+					if str(f.get("id", "")) == ff_id:
+						ff_flag = f
+						break
+				if ff_flag.is_empty():
+					result = {"ok": false, "turn": turn_id, "action": action, "error": "unknown_flag", "id": ff_id}
+				elif "story_flags_fired" in _farm and _farm.story_flags_fired.has(ff_id):
+					result["fired"] = true
+					result["already"] = true
+				else:
+					ff_qm._fire_story_flag(ff_flag, _farm)
+					await _wait_settle_frames(int(cmd.get("settle_frames", 8)))
+					result["fired"] = (_farm != null and "story_flags_fired" in _farm and _farm.story_flags_fired.has(ff_id))
+
 		"berry_track":
 			# Start Berry-phase tracking on qubit(s) of a biome (test harness for the
 			# incorporation loop, bypassing the Icon-hat keypress ritual).
