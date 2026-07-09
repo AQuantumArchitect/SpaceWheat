@@ -15,10 +15,41 @@ extends RefCounted
 var _gsm: Node = null
 var _verbose = null
 
+# Autosave throttle: flag fires can cluster (one action can fire several
+# story beats); one ring write per minute is plenty for ≤5-min recovery.
+const AUTOSAVE_MIN_INTERVAL_MS := 60_000
+var _last_autosave_ms: int = -AUTOSAVE_MIN_INTERVAL_MS
+
 
 func _init(gsm: Node = null, verbose = null) -> void:
 	_gsm = gsm
 	_verbose = verbose
+
+
+## Write the current game into the autosave ring (oldest of 3 slots).
+## Cheap to call from anywhere — throttled, boot-gated, never touches
+## last_active_slot so continue/restart targeting stays on manual slots.
+func autosave(reason: String = "") -> bool:
+	if not _gsm.active_farm:
+		return false
+	var farm = _gsm.active_farm
+	if farm.has_method("is_boot_finalized") and not farm.is_boot_finalized():
+		return false
+	if _gsm.phase != SessionLifecycle.SessionPhase.RUNNING:
+		return false
+	var now := Time.get_ticks_msec()
+	if now - _last_autosave_ms < AUTOSAVE_MIN_INTERVAL_MS:
+		return false
+	_last_autosave_ms = now
+	var idx := SaveStore.pick_next_auto_slot()
+	var state = _gsm.capture_state_from_game()
+	var result = SaveStore.save_state_to_path(state, SaveStore.get_auto_save_path(idx))
+	if result == OK:
+		if _verbose:
+			_verbose.info("save", "🔁", "Autosave → ring slot %d%s" % [idx, (" (%s)" % reason) if reason != "" else ""])
+		return true
+	push_error("SaveLoadCoordinator: autosave failed (ring slot %d)" % idx)
+	return false
 
 
 func new_game(scenario_id: String = SaveStore.DEFAULT_SCENARIO_ID) -> GameState:

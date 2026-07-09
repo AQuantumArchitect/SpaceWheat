@@ -10,7 +10,10 @@ set -euo pipefail
 
 ITCH_USER="${ITCH_USER:?set ITCH_USER (your itch.io username)}"
 ITCH_GAME="${ITCH_GAME:-spacewheat}"
-VERSION="${1:-}"
+# Default version = the in-game stamp (application/config/version in
+# project.godot) so itch's build list matches what the title screen shows.
+PROJECT_VERSION="$(grep -oP '^config/version="\K[^"]+' "$(dirname "$0")/../project.godot" 2>/dev/null || true)"
+VERSION="${1:-$PROJECT_VERSION}"
 # Packager output (package-desktop-builds.sh) is the default artifact source;
 # override with DIST=… if you stage elsewhere.
 DIST="${DIST:-$(dirname "$0")/../releases/packages}"

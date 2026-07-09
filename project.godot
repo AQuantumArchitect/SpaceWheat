@@ -12,6 +12,7 @@ config_version=5
 
 config/name="SpaceWheat - Quantum Farm"
 config/description="Quantum farming game with tomato conspiracies"
+config/version="0.9.0-beta.1"
 run/main_scene="res://scenes/Main.tscn"
 config/features=PackedStringArray("4.5")
 
@@ -32,6 +33,10 @@ SurfaceRegistry="*res://UI/Core/SurfaceRegistry.gd"
 StoryEngine="*res://Core/Story/StoryEngine.gd"
 PlayerEventLog="*res://Core/Story/PlayerEventLog.gd"
 PlayerEventBridge="*res://Core/Story/PlayerEventBridge.gd"
+
+[debug]
+
+file_logging/enable_file_logging.pc=true
 
 [display]
 

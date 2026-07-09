@@ -35,6 +35,7 @@ var session_load_slot: int = -1  # Slot loaded at session start; -1 = fresh game
 var pending_boot = null  # SessionLifecycle.BootRequest; initialized in _ready()
 var active_farm = null
 var phase: int = SessionPhase.IDLE
+var session_baseline: Dictionary = {}  # Snapshot at session boot (wallet/flags/start_ms); EscapeMenu diffs it for the quit summary.
 
 # Sub-modules (constructed in _ready, accessed by external callers as `gsm.session_lifecycle.X` etc).
 var session_lifecycle: SessionLifecycleClass = null

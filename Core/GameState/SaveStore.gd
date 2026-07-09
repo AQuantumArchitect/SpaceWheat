@@ -48,6 +48,54 @@ static func save_exists(slot: int) -> bool:
 	return FileAccess.file_exists(get_save_path(slot))
 
 
+# =============================================================================
+# AUTOSAVE RING — 3 rotating slots beside the manual 3, written by the game
+# (story-flag fires + a periodic timer via SaveLoadCoordinator.autosave()).
+# Deliberately OUTSIDE the manual slot index space so continue/restart
+# targeting (find_best_save_slot, last_active_slot) never points at them.
+# =============================================================================
+
+const NUM_AUTO_SLOTS = 3
+
+
+static func get_auto_save_path(idx: int) -> String:
+	return SAVE_DIR + "autosave_" + str(idx) + ".tres"
+
+
+static func auto_save_exists(idx: int) -> bool:
+	return FileAccess.file_exists(get_auto_save_path(idx))
+
+
+## Ring rotation: first empty slot, else the oldest-written one.
+static func pick_next_auto_slot() -> int:
+	var oldest_idx := 0
+	var oldest_time := 9223372036854775807
+	for i in range(NUM_AUTO_SLOTS):
+		var path := get_auto_save_path(i)
+		if not FileAccess.file_exists(path):
+			return i
+		var mtime := FileAccess.get_modified_time(path)
+		if mtime < oldest_time:
+			oldest_time = mtime
+			oldest_idx = i
+	return oldest_idx
+
+
+## Newest autosave index, or -1 if the ring is empty. (Recovery entry point.)
+static func newest_auto_slot() -> int:
+	var newest_idx := -1
+	var newest_time := 0
+	for i in range(NUM_AUTO_SLOTS):
+		var path := get_auto_save_path(i)
+		if not FileAccess.file_exists(path):
+			continue
+		var mtime := FileAccess.get_modified_time(path)
+		if mtime > newest_time:
+			newest_time = mtime
+			newest_idx = i
+	return newest_idx
+
+
 static func save_state(state: GameState, slot: int) -> int:
 	# Atomic save: write to .tmp then rename, so interrupted saves never corrupt.
 

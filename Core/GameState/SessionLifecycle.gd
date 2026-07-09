@@ -103,7 +103,28 @@ func complete_session_boot(farm: Node = null) -> void:
 		_gsm.active_farm = farm
 	if _gsm.current_state:
 		await _gsm.apply_state_to_game(_gsm.current_state)
+	_gsm.session_baseline = _capture_session_baseline(_gsm.active_farm)
 	_gsm.farm_ready.emit(_gsm.active_farm, _gsm.current_state)
+
+
+func _capture_session_baseline(farm: Node) -> Dictionary:
+	# Session-start snapshot the quit summary diffs against. Wallet + fired
+	# flags are the only fields that persist across sessions; runtime counters
+	# (completed_quests) start empty each session and need no baseline.
+	if farm == null or not is_instance_valid(farm):
+		return {}
+	var wallet: Dictionary = {}
+	var economy = farm.get("economy")
+	if economy != null and economy.get("emoji_credits") is Dictionary:
+		wallet = economy.emoji_credits.duplicate()
+	var flags: Dictionary = {}
+	if "story_flags_fired" in farm and farm.story_flags_fired is Dictionary:
+		flags = farm.story_flags_fired.duplicate()
+	return {
+		"wallet": wallet,
+		"flags": flags,
+		"start_ms": Time.get_ticks_msec(),
+	}
 
 
 func build_new_session_state(scenario_id: String) -> GameState:
@@ -222,6 +243,7 @@ func reset_runtime_singletons() -> void:
 	# The single place that knows what needs resetting between sessions.
 	_gsm._milk_autosave_done = false
 	_gsm.last_milk_autosave_path = ""
+	_gsm.session_baseline = {}
 
 	var boot_mgr = get_node_or_null("/root/BootManager")
 	if boot_mgr and boot_mgr.has_method("reset"):

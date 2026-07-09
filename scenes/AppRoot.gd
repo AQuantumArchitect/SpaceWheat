@@ -242,6 +242,22 @@ func _build_title() -> void:
 	hint_box.offset_top = -78    # 10 px lower than the prior -88
 	hint_box.offset_bottom = -22 # 10 px lower than the prior -32
 
+	# Version stamp, bottom-left — the one place a player can read which build
+	# they're on (bug reports quote it; itch builds carry the same string).
+	var version_lbl := Label.new()
+	version_lbl.text = "v%s" % str(ProjectSettings.get_setting("application/config/version", "dev"))
+	version_lbl.add_theme_font_size_override("font_size", 13)
+	version_lbl.add_theme_color_override("font_color", Color(0.85, 0.9, 0.8, 0.55))
+	version_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
+	version_lbl.add_theme_constant_override("outline_size", 4)
+	version_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_title_layer.add_child(version_lbl)
+	version_lbl.anchor_top = 1.0
+	version_lbl.anchor_bottom = 1.0
+	version_lbl.offset_left = 12
+	version_lbl.offset_top = -32
+	version_lbl.offset_bottom = -12
+
 	_title_hint = Label.new()
 	_title_hint.text = "Press F to continue"
 	_title_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

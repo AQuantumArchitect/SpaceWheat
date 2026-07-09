@@ -56,6 +56,7 @@ const DEV_ACTIONS := [
 	{"id": "print_biome_registry", "label": "print biome registry", "desc": "dump all loaded biomes to console"},
 	{"id": "validate_biomes",      "label": "validate biomes",      "desc": "check data integrity of exportable set"},
 	{"id": "print_batcher",        "label": "print batcher metrics","desc": "snapshot batcher state to console"},
+	{"id": "copy_logs",            "label": "copy logs",            "desc": "version + recent log tail → clipboard (paste in a bug report)"},
 ]
 
 # GHJKL; — the homerow "slot" row, left-to-right for readability.
@@ -66,6 +67,9 @@ const DEV_ACTIONS := [
 const ITEM_KEYS := ["G", "H", "J", "K", "L", ";"]
 
 const NUM_KEEP_SLOTS := 3
+# Save tab shows the 3 manual slots (rows 0-2) plus the 3-slot autosave ring
+# (virtual rows 3-5, load/inspect only — the game writes them).
+const NUM_KEEP_ROWS := NUM_KEEP_SLOTS + SaveStore.NUM_AUTO_SLOTS
 
 # The scenario a fresh player drops into when there's no save to continue: "The Demos" (the
 # guided tutorial). Kept in sync with SaveStore.DEFAULT_SCENARIO_ID so the menu default, a
@@ -349,7 +353,8 @@ func _current_verb_labels() -> Dictionary:
 			return {"Q": "quit", "E": run_label, "R": "save & resume" if loaded_game else "", "F": run_f}
 		Tab.KEEP:
 			var peek_label := "inspect ▾" if not _keep_peeking else "—"
-			return {"Q": "load slot", "E": peek_label, "R": "save slot", "F": "flatten" if _keep_peeking else ""}
+			var keep_r := "save slot" if _keep_slot < NUM_KEEP_SLOTS else ""
+			return {"Q": "load slot", "E": peek_label, "R": keep_r, "F": "flatten" if _keep_peeking else ""}
 		Tab.NEW:
 			var new_peek_label := "inspect ▾" if not _new_peeking else "—"
 			return {"Q": "start scenario", "E": new_peek_label, "R": "", "F": "flatten" if _new_peeking else ""}
@@ -422,11 +427,18 @@ func _build_keep_body() -> void:
 	_body_box.add_child(_make_section_header("save slots"))
 	for i in range(NUM_KEEP_SLOTS):
 		_body_box.add_child(_make_keep_slot_row(i))
+	_body_box.add_child(_make_spacer(4))
+	_body_box.add_child(_make_section_header("autosaves"))
+	for i in range(SaveStore.NUM_AUTO_SLOTS):
+		_body_box.add_child(_make_auto_slot_row(i))
 	if _keep_peeking:
 		_body_box.add_child(_make_spacer(6))
-		_body_box.add_child(_make_keep_peek_panel(_keep_slot))
+		if _keep_slot < NUM_KEEP_SLOTS:
+			_body_box.add_child(_make_keep_peek_panel(_keep_slot))
+		else:
+			_body_box.add_child(_make_auto_peek_panel(_keep_slot - NUM_KEEP_SLOTS))
 	_body_box.add_child(_make_spacer(4))
-	var hint := _make_muted_label("GHJ pick slot  ·  Q load  ·  E inspect  ·  R save", 11)
+	var hint := _make_muted_label("GHJ slots · KL; autosaves  ·  Q load  ·  E inspect  ·  R save", 11)
 	_body_box.add_child(hint)
 
 func _toggle_keep_peek() -> void:
@@ -563,6 +575,74 @@ func _make_keep_slot_row(idx: int) -> Control:
 		name_lbl.text = "▸ " + name_lbl.text
 	return row
 
+func _make_auto_slot_row(auto_idx: int) -> Control:
+	var virtual_idx := NUM_KEEP_SLOTS + auto_idx
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	var key_str: String = ITEM_KEYS[virtual_idx] if virtual_idx < ITEM_KEYS.size() else str(virtual_idx + 1)
+	row.add_child(_make_key_chip(key_str))
+
+	var name_lbl := Label.new()
+	name_lbl.text = "auto %d" % (auto_idx + 1)
+	name_lbl.add_theme_font_size_override("font_size", 13)
+	name_lbl.custom_minimum_size = Vector2(90, 0)
+	row.add_child(name_lbl)
+
+	var detail := Label.new()
+	detail.text = _auto_slot_detail_text(auto_idx)
+	detail.add_theme_font_size_override("font_size", 12)
+	detail.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(detail)
+
+	var selected := virtual_idx == _keep_slot
+	var c := UIStyleFactory.COLOR_TAB_ACTIVE if selected else UIStyleFactory.COLOR_ITEM_IDLE
+	if detail.text == "empty":
+		c = UIStyleFactory.COLOR_ITEM_EMPTY if not selected else UIStyleFactory.COLOR_TAB_ACTIVE
+	name_lbl.add_theme_color_override("font_color", c)
+	detail.add_theme_color_override("font_color", c)
+	if selected:
+		name_lbl.text = "▸ " + name_lbl.text
+	return row
+
+
+func _auto_slot_detail_text(auto_idx: int) -> String:
+	if not SaveStore.auto_save_exists(auto_idx):
+		return "empty"
+	var mtime := FileAccess.get_modified_time(SaveStore.get_auto_save_path(auto_idx))
+	var dt := Time.get_datetime_dict_from_unix_time(mtime)
+	var stamp := "%02d/%02d %02d:%02d" % [dt.month, dt.day, dt.hour, dt.minute]
+	var star := " ★" if SaveStore.newest_auto_slot() == auto_idx else ""
+	return "%s%s" % [stamp, star]
+
+
+func _make_auto_peek_panel(auto_idx: int) -> Control:
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 3)
+	var panel := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.06, 0.09, 0.13, 0.9)
+	sb.border_color = Color(0.4, 0.55, 0.7, 0.5)
+	sb.set_border_width_all(1)
+	sb.set_corner_radius_all(4)
+	sb.content_margin_left = 10
+	sb.content_margin_right = 10
+	sb.content_margin_top = 8
+	sb.content_margin_bottom = 8
+	panel.add_theme_stylebox_override("panel", sb)
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.add_child(box)
+	if not SaveStore.auto_save_exists(auto_idx):
+		box.add_child(_make_muted_label("auto %d  —  empty" % (auto_idx + 1), 12))
+		return panel
+	var path := SaveStore.get_auto_save_path(auto_idx)
+	box.add_child(_make_kv_row("written", _auto_slot_detail_text(auto_idx).trim_suffix(" ★")))
+	box.add_child(_make_kv_row("file", path.get_file()))
+	box.add_child(_make_muted_label("written automatically on story beats + every 5 min · Q loads it", 11))
+	return panel
+
+
 func _slot_detail_text(slot: int) -> String:
 	var gsm = (Engine.get_main_loop().root.get_node_or_null("/root/GameStateManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 	var last_touched := _get_last_touched_slot(gsm)
@@ -665,6 +745,10 @@ func _start_new_scenario() -> void:
 func _build_dev_body() -> void:
 	# ── Live system metrics ──────────────────────────────────────────────────
 	_body_box.add_child(_make_section_header("system"))
+	_body_box.add_child(_make_kv_row("version", "v%s · %s" % [
+		str(ProjectSettings.get_setting("application/config/version", "dev")),
+		OS.get_name()
+	]))
 	var fps := int(Engine.get_frames_per_second())
 	var proc_ms := Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0
 	var phys_ms := Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0
@@ -757,6 +841,32 @@ func _execute_dev_action(idx: int) -> void:
 				for k in keys:
 					print("  %s: %s" % [k, str(m[k])])
 			_refresh_body()
+		"copy_logs":
+			var report := _gather_log_report()
+			DisplayServer.clipboard_set(report)
+			print("📋 Log report copied to clipboard (%d chars) — paste it in your bug report" % report.length())
+			_refresh_body()
+
+## Build the clipboard payload for a bug report: version + platform header,
+## then the tail of the engine log (push_error/warnings land there via
+## debug/file_logging). Read-only — never writes anything to disk.
+func _gather_log_report() -> String:
+	var lines: Array = []
+	lines.append("SpaceWheat v%s" % str(ProjectSettings.get_setting("application/config/version", "dev")))
+	lines.append("%s · Godot %s" % [OS.get_name(), str(Engine.get_version_info().get("string", "?"))])
+	lines.append("")
+	var log_path := "user://logs/godot.log"
+	if FileAccess.file_exists(log_path):
+		var f := FileAccess.open(log_path, FileAccess.READ)
+		if f:
+			var log_lines := f.get_as_text().split("\n")
+			var start := maxi(0, log_lines.size() - 200)
+			lines.append("--- godot.log (last %d of %d lines) ---" % [log_lines.size() - start, log_lines.size()])
+			for i in range(start, log_lines.size()):
+				lines.append(log_lines[i])
+	else:
+		lines.append("(no engine log at %s)" % log_path)
+	return "\n".join(lines)
 
 # =============================================================================
 # SMALL RENDER HELPERS
@@ -1248,9 +1358,10 @@ func _is_consumed_keyboard_row(keycode: int) -> bool:
 func _select_item_in_tab(slot: int) -> void:
 	match _current_tab:
 		Tab.KEEP:
-			if slot < NUM_KEEP_SLOTS and _keep_slot != slot:
+			if slot < NUM_KEEP_ROWS and _keep_slot != slot:
 				_keep_slot = slot
 				_refresh_body()
+				_refresh_verb_chips()  # R blanks on read-only autosave rows
 		Tab.NEW:
 			if slot < SCENARIO_LIST.size() and _new_item != slot:
 				_new_item = slot
@@ -1285,8 +1396,9 @@ func _on_navigate(direction: Vector2i) -> void:
 	var step: int = signi(direction.x)
 	match _current_tab:
 		Tab.KEEP:
-			_keep_slot = wrapi(_keep_slot + step, 0, NUM_KEEP_SLOTS)
+			_keep_slot = wrapi(_keep_slot + step, 0, NUM_KEEP_ROWS)
 			_refresh_body()
+			_refresh_verb_chips()
 		Tab.NEW:
 			_new_item = wrapi(_new_item + step, 0, SCENARIO_LIST.size())
 			_refresh_body()
@@ -1330,10 +1442,63 @@ func _confirm_title(action: int) -> String:
 
 func _confirm_body(action: int) -> String:
 	match action:
-		PendingAction.QUIT:          return "Unsaved progress will be lost."
+		PendingAction.QUIT:
+			var summary := _session_summary_text()
+			if summary == "":
+				return "Unsaved progress will be lost."
+			return summary + "\n\nUnsaved progress will be lost."
 		PendingAction.RESTART:       return "Reloads the session checkpoint.\nProgress since then will be lost."
 		PendingAction.DEV_RESTART:   return "Signature evolution will be cleared\nand a fresh game will begin."
 		_: return ""
+
+
+## One-line earned-this-session card shown in the quit confirm. Diffs live farm
+## state against gsm.session_baseline (captured at session boot); returns ""
+## when no baseline exists so the confirm falls back to the plain warning.
+func _session_summary_text() -> String:
+	var gsm = (Engine.get_main_loop().root.get_node_or_null("/root/GameStateManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
+	if gsm == null or not (gsm.get("session_baseline") is Dictionary) or gsm.session_baseline.is_empty():
+		return ""
+	var farm = InstrumentLocator.resolve_active_farm(self)
+	if farm == null:
+		return ""
+	var base: Dictionary = gsm.session_baseline
+	var parts: Array = []
+
+	var elapsed_min := int((Time.get_ticks_msec() - int(base.get("start_ms", 0))) / 60000.0)
+	parts.append("⏱ <1 min" if elapsed_min < 1 else "⏱ %d min" % elapsed_min)
+
+	var flags_before: Dictionary = base.get("flags", {})
+	var beats := 0
+	if "story_flags_fired" in farm and farm.story_flags_fired is Dictionary:
+		for fid in farm.story_flags_fired.keys():
+			if not flags_before.has(fid):
+				beats += 1
+	if beats > 0:
+		parts.append("🚩 %d story beat%s" % [beats, "" if beats == 1 else "s"])
+
+	var qm = InstrumentLocator.resolve_quest_manager(self, farm)
+	if qm and "completed_quests" in qm and qm.completed_quests is Array:
+		var done: int = qm.completed_quests.size()
+		if done > 0:
+			parts.append("📜 %d contract%s" % [done, "" if done == 1 else "s"])
+
+	var wallet_before: Dictionary = base.get("wallet", {})
+	var economy = farm.get("economy")
+	if economy != null and economy.get("emoji_credits") is Dictionary:
+		var gains: Array = []
+		for emoji in economy.emoji_credits.keys():
+			var delta: float = float(economy.emoji_credits[emoji]) - float(wallet_before.get(emoji, 0))
+			if delta >= 1.0:
+				gains.append([delta, str(emoji)])
+		gains.sort_custom(func(a, b): return a[0] > b[0])
+		var top: Array = []
+		for i in range(mini(3, gains.size())):
+			top.append("%s+%d" % [gains[i][1], int(gains[i][0])])
+		if not top.is_empty():
+			parts.append(" ".join(top))
+
+	return "This session: " + " · ".join(parts)
 
 func _confirm_verb_labels() -> Dictionary:
 	match _pending_action:
@@ -1448,12 +1613,21 @@ func _save_to_selected_slot() -> void:
 	var gsm = (Engine.get_main_loop().root.get_node_or_null("/root/GameStateManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 	if not gsm or not ("save_load" in gsm):
 		return
+	if _keep_slot >= NUM_KEEP_SLOTS:
+		return  # autosave rows are written by the game; R chip is blank here
 	gsm.save_load.save_game(_keep_slot)
 	_refresh_body()
 
 func _load_from_selected_slot() -> void:
 	var gsm = (Engine.get_main_loop().root.get_node_or_null("/root/GameStateManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 	if not gsm or not ("save_load" in gsm):
+		return
+	if _keep_slot >= NUM_KEEP_SLOTS:
+		var auto_idx := _keep_slot - NUM_KEEP_SLOTS
+		if not SaveStore.auto_save_exists(auto_idx):
+			return
+		deactivate()
+		await gsm.save_load.load_and_apply_path(SaveStore.get_auto_save_path(auto_idx))
 		return
 	deactivate()
 	await gsm.save_load.load_and_apply(_keep_slot)
@@ -1532,10 +1706,18 @@ func get_visible_data() -> Dictionary:
 			"selected": i == _keep_slot,
 			"detail": _slot_detail_text(i),
 		})
+	var auto_slots: Array = []
+	for i in range(SaveStore.NUM_AUTO_SLOTS):
+		auto_slots.append({
+			"auto_index": i,
+			"selected": (NUM_KEEP_SLOTS + i) == _keep_slot,
+			"detail": _auto_slot_detail_text(i),
+		})
 	return {
 		"tab": _current_tab,
 		"frame_label": frame_id,
 		"save_slots": save_slots,
+		"auto_slots": auto_slots,
 	}
 
 func get_transitions() -> Array:

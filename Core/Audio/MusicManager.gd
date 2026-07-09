@@ -494,6 +494,21 @@ func _stop_for_layer3() -> void:
 	_inactive_player.stop()
 
 
+## Ceremony hook (EndingOverlay): lift the current track a few dB, hold, and
+## settle back. No track change, no state change — a swell, not a cue.
+func celebrate_swell(amount_db: float = 3.0, rise_s: float = 2.5, hold_s: float = 5.0) -> void:
+	if _active_player == null or not _active_player.playing:
+		return
+	var tree := get_tree()
+	if tree == null:
+		return
+	var base_db := _volume_to_db(_volume)
+	var tw := tree.create_tween()
+	tw.tween_property(_active_player, "volume_db", base_db + amount_db, rise_s)
+	tw.tween_interval(hold_s)
+	tw.tween_property(_active_player, "volume_db", base_db, rise_s)
+
+
 func _start_music_from_state() -> void:
 	# Restart music using current evolution/biome state. All restart paths converge here.
 	# Clears layer3 stop flag and watchdog counter before attempting playback.

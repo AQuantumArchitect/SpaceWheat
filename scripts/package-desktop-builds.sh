@@ -5,7 +5,11 @@ set -euo pipefail
 
 OUTPUT_ROOT="${OUTPUT_ROOT:-$(pwd)/releases/local}"
 PACKAGE_ROOT="${PACKAGE_ROOT:-$(pwd)/releases/packages}"
-VERSION_TAG="${VERSION_TAG:-dev}"
+
+# Default version = application/config/version in project.godot (the same string
+# the title screen shows), so archives and in-game stamp can't drift apart.
+PROJECT_VERSION="$(grep -oP '^config/version="\K[^"]+' "$(dirname "$0")/../project.godot" 2>/dev/null || true)"
+VERSION_TAG="${VERSION_TAG:-${PROJECT_VERSION:-dev}}"
 
 log() { echo -e "\n\033[1;34m▶ $1\033[0m"; }
 success() { echo -e "\033[1;32m✓ $1\033[0m"; }
@@ -21,7 +25,7 @@ Usage:
 Options:
   --output-root PATH       Export root to package (default: ./releases/local)
   --package-root PATH      Archive output root (default: ./releases/packages)
-  --version TAG            Version label (default: dev)
+  --version TAG            Version label (default: config/version from project.godot, else dev)
   --help                   Show this help
 EOF
 }

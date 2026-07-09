@@ -373,6 +373,48 @@ func stage_ui(farm: Node, shell: Node, quantum_viz: Node, world_builder) -> void
 					shell.quest_manager.story_flag_fired.connect(act_cb)
 					_verbose.info("boot", "📮", "Act-postcard listener armed")
 
+				# island_free ceremony: the campaign's political finale gets a
+				# real close (title → postcard montage → stats → credits →
+				# door). Headed only, same guard as postcards; the flag has
+				# already fired when this spawns (pure presentation).
+				var shell_ref = shell
+				var overlay_layer_ref = shell_overlay_layer
+				var ending_cb := func(flag_id: String, _flag: Dictionary):
+					if flag_id != "island_free":
+						return
+					if overlay_layer_ref.get_node_or_null("EndingOverlay") != null:
+						return
+					var ending := EndingOverlay.new()
+					ending.name = "EndingOverlay"
+					overlay_layer_ref.add_child(ending)
+					ending.begin(farm_ref, shell_ref)
+				if not shell.quest_manager.story_flag_fired.is_connected(ending_cb):
+					shell.quest_manager.story_flag_fired.connect(ending_cb)
+					_verbose.info("boot", "🚪", "island_free ceremony listener armed")
+
+	# Autosave ring: every story beat + a 5-minute heartbeat write into the
+	# 3 rotating auto slots (SaveLoadCoordinator.autosave is throttled and
+	# boot-gated). Runs headless too — rig sessions deserve recovery as well.
+	var gsm_auto = (Engine.get_main_loop().root.get_node_or_null("/root/GameStateManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
+	if gsm_auto and "save_load" in gsm_auto and gsm_auto.save_load:
+		if "quest_manager" in shell and shell.quest_manager \
+				and shell.quest_manager.has_signal("story_flag_fired"):
+			var auto_cb := func(_flag_id: String, _flag: Dictionary):
+				# Deferred: the flag fires mid-action; capture at a frame boundary.
+				gsm_auto.save_load.call_deferred("autosave", "story beat")
+			if not shell.quest_manager.story_flag_fired.is_connected(auto_cb):
+				shell.quest_manager.story_flag_fired.connect(auto_cb)
+		var auto_timer := Timer.new()
+		auto_timer.name = "AutosaveHeartbeat"
+		auto_timer.wait_time = 300.0
+		auto_timer.autostart = true
+		auto_timer.timeout.connect(func():
+			if is_instance_valid(gsm_auto) and gsm_auto.get("save_load") != null:
+				gsm_auto.save_load.autosave("heartbeat")
+		)
+		shell.add_child(auto_timer)
+		_verbose.info("boot", "🔁", "Autosave ring armed (story beats + 5-min heartbeat)")
+
 	# Create SnapshotService for diagnostics/state snapshots shared by UI + headless runners
 	const SnapshotServiceClass = preload("res://Core/Instrumentation/SnapshotService.gd")
 	var snapshot_service = SnapshotServiceClass.new()

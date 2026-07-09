@@ -1,6 +1,16 @@
 extends SceneTree
 
 
+class EconStub:
+	var emoji_credits: Dictionary = {}
+
+
+class FarmStub:
+	extends Node
+	var economy = EconStub.new()
+	var story_flags_fired: Dictionary = {}
+
+
 var passed: int = 0
 var failed: int = 0
 
@@ -37,7 +47,7 @@ func _run() -> void:
 	_check(_has_text(labels, "demos_normal"), "Run tab exposes the demos scenario id")
 	var verbs := menu._current_verb_labels()
 	_check(str(verbs.get("R", "")) == "", "Run tab blanks R when no game is loaded")
-	_check(str(verbs.get("F", "")) == "close", "Run tab treats F as close when no game is loaded")
+	_check(str(verbs.get("F", "")) == "play", "Run tab treats F as play when no game is loaded")
 
 	menu._show_tab(EscapeMenu.Tab.NEW)
 	await process_frame
@@ -62,6 +72,54 @@ func _run() -> void:
 		_check(_has_text(labels, "last touched"), "Run tab switches to last-touched save when one exists")
 		_check(_has_text(labels, "slot 2"), "Run tab reports the touched slot")
 		_check(_has_text(labels, "scenario"), "Run tab reports the scenario for the touched slot")
+
+	# --- Autosave ring (Save tab) ---
+	menu._show_tab(EscapeMenu.Tab.KEEP)
+	await process_frame
+	labels = _collect_label_texts(menu)
+	_check(_has_text(labels, "autosaves"), "Save tab shows the autosaves section")
+	_check(_has_text(labels, "auto 1"), "Save tab lists autosave ring slots")
+
+	_check(SaveStore.pick_next_auto_slot() == 0, "Empty ring rotates from slot 0")
+	if demo_state != null:
+		_check(SaveStore.save_state_to_path(demo_state, SaveStore.get_auto_save_path(0)) == OK, "Ring slot 0 writes")
+		_check(SaveStore.pick_next_auto_slot() == 1, "Ring rotation advances past written slots")
+		_check(SaveStore.newest_auto_slot() == 0, "Newest-autosave lookup finds the fresh write")
+
+	menu._keep_slot = EscapeMenu.NUM_KEEP_SLOTS  # first auto row
+	var keep_verbs := menu._current_verb_labels()
+	_check(str(keep_verbs.get("R", "x")) == "", "R (save) blanks on read-only autosave rows")
+	_check(str(keep_verbs.get("Q", "")) == "load slot", "Q (load) stays live on autosave rows")
+	menu._keep_slot = 0
+
+	# --- Quit-confirm session summary ---
+	gsm.session_baseline = {}
+	_check(menu._confirm_body(EscapeMenu.PendingAction.QUIT) == "Unsaved progress will be lost.",
+		"Quit confirm falls back to the plain warning without a baseline")
+
+	var stub := FarmStub.new()
+	stub.story_flags_fired = {"first_breath": 1, "village_stirs": 2}
+	stub.economy.emoji_credits = {"🌾": 50, "💰": 12, "🐺": 3, "🌱": 2}
+	root.add_child(stub)
+	var prev_farm = gsm.active_farm
+	gsm.active_farm = stub
+	gsm.session_baseline = {
+		"wallet": {"🌾": 9, "💰": 12, "🌱": 5},
+		"flags": {"first_breath": 1},
+		"start_ms": Time.get_ticks_msec() - 120000,
+	}
+	var body: String = menu._confirm_body(EscapeMenu.PendingAction.QUIT)
+	_check(body.begins_with("This session:"), "Quit confirm leads with the session card when a baseline exists")
+	_check(body.find("⏱ 2 min") >= 0, "Session card reports elapsed minutes")
+	_check(body.find("🚩 1 story beat") >= 0, "Session card counts only flags fired this session")
+	_check(body.find("🌾+41") >= 0, "Session card shows the top resource gain")
+	_check(body.find("🐺+3") >= 0, "Session card shows smaller gains")
+	_check(body.find("🌱") < 0, "Spent resources do not appear as gains")
+	_check(body.find("💰") < 0, "Unchanged resources do not appear as gains")
+	_check(body.find("Unsaved progress will be lost.") >= 0, "Quit confirm keeps the unsaved warning")
+	gsm.active_farm = prev_farm
+	gsm.session_baseline = {}
+	stub.queue_free()
 
 	print("Result: %d passed, %d failed" % [passed, failed])
 	_finish()
@@ -118,8 +176,8 @@ func _clear_save_dir() -> void:
 		return
 	dir.list_dir_begin()
 	var entry_name := dir.get_next()
-	while name != "":
-		if name != "." and name != "..":
-			dir.remove(name)
-		name = dir.get_next()
+	while entry_name != "":
+		if entry_name != "." and entry_name != "..":
+			dir.remove(entry_name)
+		entry_name = dir.get_next()
 	dir.list_dir_end()
