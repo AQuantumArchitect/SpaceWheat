@@ -62,11 +62,16 @@ func _run() -> void:
 		quit(13)
 		return
 
-	var loaded_names: Array = farm.grid.get_biome_names()
-	if loaded_names != state.unlocked_biomes:
+	# Order-insensitive: the registry lists biomes alphabetically while the
+	# scenario lists them in authoring order — the SET is the contract.
+	var loaded_names: Array = farm.grid.get_biome_names().duplicate()
+	var expected_names: Array = (state.unlocked_biomes as Array).duplicate()
+	loaded_names.sort()
+	expected_names.sort()
+	if loaded_names != expected_names:
 		printerr("loaded biomes do not match scenario/save state: loaded=%s state=%s" % [
 			str(loaded_names),
-			str(state.unlocked_biomes)
+			str(expected_names)
 		])
 		quit(14)
 		return

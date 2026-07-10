@@ -158,12 +158,41 @@ static func _atomic_save(state: GameState, path: String) -> int:
 	return OK
 
 
+# Saves below this floor half-load into garbage (see GameState.save_version
+# note): refuse them BEFORE ResourceLoader touches them. The player keeps the
+# file; the game just won't boot from it.
+const MIN_COMPATIBLE_SAVE_VERSION = 4
+
+
+## Cheap text scan for the declared save_version — no resource load (the
+## .tres can be hundreds of KB of ρ; we only need one header line).
+static func peek_save_version(path: String) -> int:
+	var f = FileAccess.open(path, FileAccess.READ)
+	if not f:
+		return -1
+	var head := f.get_buffer(mini(65536, int(f.get_length()))).get_string_from_utf8()
+	f.close()
+	var m := RegEx.create_from_string("save_version = (\\d+)").search(head)
+	if m:
+		return int(m.get_string(1))
+	# No marker in the header → ancient save (pre-versioning) or not a save.
+	return 0
+
+
+static func is_save_compatible(path: String) -> bool:
+	return peek_save_version(path) >= MIN_COMPATIBLE_SAVE_VERSION
+
+
 static func load_state(slot: int) -> GameState:
 	if slot < 0 or slot >= NUM_SAVE_SLOTS:
 		push_error("Invalid save slot: " + str(slot))
 		return null
 	var path = get_save_path(slot)
 	if not FileAccess.file_exists(path):
+		return null
+	if not is_save_compatible(path):
+		push_warning("SaveStore: refusing pre-beta save (v%d < v%d) in slot %d — %s" % [
+			peek_save_version(path), MIN_COMPATIBLE_SAVE_VERSION, slot, path])
 		return null
 	var state = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE) as GameState
 	return state
@@ -177,6 +206,10 @@ static func load_state_by_path(save_path: String) -> GameState:
 	if not path.begins_with("user://") and not path.begins_with("res://") and not _is_absolute_path(path):
 		path = SAVE_DIR + save_path
 	if not FileAccess.file_exists(path):
+		return null
+	if not is_save_compatible(path):
+		push_warning("SaveStore: refusing pre-beta save (v%d < v%d) — %s" % [
+			peek_save_version(path), MIN_COMPATIBLE_SAVE_VERSION, path])
 		return null
 	var state = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE) as GameState
 	if state and (not state.known_icons or state.known_icons.size() <= 1):
@@ -245,6 +278,15 @@ static func _extract_known_icons_from_resource_text(path: String) -> Array:
 static func get_save_info(slot: int) -> Dictionary:
 	if not save_exists(slot):
 		return {"exists": false, "slot": slot}
+	if not is_save_compatible(get_save_path(slot)):
+		# The file is there but from a pre-beta era — surface that honestly
+		# instead of pretending the slot is empty.
+		return {
+			"exists": true, "slot": slot, "compatible": false,
+			"display_name": "incompatible (pre-beta save)",
+			"summary": "incompatible (pre-beta save)",
+			"scenario": "—",
+		}
 	var state = load_state(slot)
 	if not state:
 		return {"exists": false, "slot": slot}

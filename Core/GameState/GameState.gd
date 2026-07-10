@@ -24,7 +24,20 @@ extends Resource
 @export var quantum_time_scale: float = 0.5  # Simulation speed multiplier (0.001-16.0) - Half real-time so day/night cycle is ~50s
 @export var observation_stride: int = 1  # Observation stride (0=locked, 1=normal, 2+=fast forward)
 # max_evolution_dt removed — derived from BiomeCharacteristics continuity sweep, not player state
-@export var save_version: int = 3  # v3 (Phase III): adds player_alignment (12-qubit AlignmentGraph); v1/v2 reinitialize the substrate to |+⟩^⊗12
+# v4 = the BETA FLOOR (2026-07-10). "v3" was stamped in April and never bumped
+# through the closed-system cutover / register-first / atoms-native migrations,
+# so it spans incompatible eras: an April "v3" save half-loads into garbage
+# (stale farm_variable_graph poisons the economy, biome ρ deserializes
+# degenerate). Pre-v4 saves are refused at load (SaveStore.MIN_COMPATIBLE_
+# SAVE_VERSION) — the compatibility promise to players starts at v4, and
+# tests/test_save_format_freeze.py ratchets every version from there on.
+const CURRENT_SAVE_VERSION := 4
+
+# Declared default 0 ("unstamped") ON PURPOSE: ResourceSaver omits properties
+# equal to the declaration default, so if this declared 4 a fresh save would
+# carry NO save_version line and be refused by its own floor. _init stamps
+# the real version; stored saves override it on load.
+@export var save_version: int = 0
 @export var advanced_mode_enabled: bool = false  # Enables advanced workbench controls in UI/tools
 
 ## Grid Dimensions (for variable-sized farms)
@@ -269,6 +282,7 @@ static func _normalize_known_icons(raw) -> Array:
 # Example: "(0, 0)" → "Market", "(2, 0)" → "BioticFlux"
 
 func _init():
+	save_version = CURRENT_SAVE_VERSION
 	save_timestamp = int(Time.get_unix_time_from_system())
 	ensure_balance_workbench_defaults()
 	ensure_policy_state_defaults()

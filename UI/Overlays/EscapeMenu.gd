@@ -1660,6 +1660,12 @@ func _load_from_selected_slot() -> void:
 		deactivate()
 		await gsm.save_load.load_and_apply_path(SaveStore.get_auto_save_path(auto_idx))
 		return
+	# Pre-beta saves are refused at load — say so HERE instead of tearing the
+	# session down first and falling back.
+	var peek: Dictionary = gsm.save_load.peek_save_slot(_keep_slot)
+	if bool(peek.get("exists", false)) and not bool(peek.get("compatible", true)):
+		print("slot %d holds a pre-beta save this version can't load" % (_keep_slot + 1))
+		return
 	deactivate()
 	await gsm.save_load.load_and_apply(_keep_slot)
 

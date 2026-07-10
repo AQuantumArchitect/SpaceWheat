@@ -252,17 +252,15 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 		return
 
 	# Save format handling:
-	#   v1 → no faction_standings, no player_alignment (both re-init from defaults)
-	#   v2 → faction_standings present; no player_alignment
-	#   v3 → current; player_alignment present (AlignmentGraph serialized)
-	# All three are accepted. Anything outside this range is a hard mismatch.
-	if state.save_version < 1 or state.save_version > 3:
-		push_error("Save file version unsupported: %d (supported: 1, 2, 3)" % state.save_version)
+	#   v4 → the beta floor (2026-07-10). Everything below is a pre-beta era
+	#        that SaveStore refuses at load (MIN_COMPATIBLE_SAVE_VERSION), so
+	#        by the time a state reaches here it must be v4+. Future versions
+	#        add an explicit migration branch here (ratcheted by
+	#        tests/test_save_format_freeze.py).
+	if state.save_version < SaveStore.MIN_COMPATIBLE_SAVE_VERSION or state.save_version > GameState.CURRENT_SAVE_VERSION:
+		push_error("Save file version unsupported: %d (supported: %d..%d)" % [
+			state.save_version, SaveStore.MIN_COMPATIBLE_SAVE_VERSION, GameState.CURRENT_SAVE_VERSION])
 		push_error("This save may be incompatible with current game version")
-	elif state.save_version == 1:
-		push_warning("Loading v1 save under v3 schema; faction_standings + player_alignment start empty")
-	elif state.save_version == 2:
-		push_warning("Loading v2 save under v3 schema; player_alignment starts at |+⟩^⊗12")
 
 	if farm.grid:
 		if state.grid_width != farm.grid.grid_width or state.grid_height != farm.grid.grid_height:

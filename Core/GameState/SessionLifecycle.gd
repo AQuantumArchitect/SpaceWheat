@@ -53,9 +53,21 @@ func start_session(load_slot: int = -1, scenario_id: String = SaveStore.DEFAULT_
 	if load_slot >= 0:
 		state = _gsm.save_load.load_game_state(load_slot)
 		if not state:
-			push_error("SessionLifecycle: save slot %d is empty; refusing scenario fallback" % load_slot)
-			_gsm.phase = SessionPhase.IDLE
-			return null
+			# The slot is empty, unreadable, or pre-beta (refused by the
+			# compatibility floor). The shutdown already ran by the time we
+			# get here on the restart path — stranding the player in a dead
+			# scene is worse than any fallback, so boot a fresh default run
+			# and say so.
+			push_warning("SessionLifecycle: slot %d missing or incompatible — starting a fresh '%s' instead" % [
+				load_slot, SaveStore.DEFAULT_SCENARIO_ID])
+			load_slot = -1
+			_gsm.session_load_slot = -1
+			_gsm.last_active_slot = -1
+			state = build_new_session_state(SaveStore.DEFAULT_SCENARIO_ID)
+			if not state:
+				push_error("SessionLifecycle: fallback scenario '%s' could not be loaded" % SaveStore.DEFAULT_SCENARIO_ID)
+				_gsm.phase = SessionPhase.IDLE
+				return null
 	else:
 		state = build_new_session_state(scenario_id)
 		if not state:
