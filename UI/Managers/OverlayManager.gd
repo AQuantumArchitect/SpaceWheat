@@ -346,6 +346,11 @@ func register_overlay(_name: String, overlay) -> void:
 	if overlays.has(_name):
 		_verbose.warn("ui", "⚠️", "overlay '%s' already registered, replacing" % _name)
 
+	# Anonymous nodes ("@Control@276") make stack forensics unreadable — every
+	# registered overlay carries its registry key as its node name.
+	if overlay is Node and str(overlay.name).begins_with("@"):
+		overlay.name = _name
+
 	overlays[_name] = overlay
 	if overlay and overlay.has_signal("overlay_closed"):
 		var close_callable = Callable(self, "_on_registered_overlay_closed").bind(_name)

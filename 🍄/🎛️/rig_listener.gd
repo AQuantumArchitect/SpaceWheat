@@ -853,6 +853,24 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				await _wait_settle_frames(int(cmd.get("settle_frames", 8)))
 				result["tapped"] = [int(tap_screen.x), int(tap_screen.y)]
 
+		"ui_stack":
+			# Read-only: the live overlay stack (names bottom→top) + per-entry
+			# visibility. The degradation forensics view: ghosts show up as
+			# invisible entries above FarmView.
+			var us_shell = InstrumentLocator.resolve_player_shell(get_root())
+			if us_shell == null or not ("overlay_stack" in us_shell) or us_shell.overlay_stack == null:
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_overlay_stack"}
+			else:
+				var us_entries: Array = []
+				for ov in us_shell.overlay_stack.overlay_stack:
+					us_entries.append({
+						"name": str(ov.name),
+						"visible": bool(ov.is_visible_in_tree()) if ov is Control else false,
+						"has_handle_action": ov.has_method("handle_action"),
+					})
+				result["stack"] = us_entries
+				result["size"] = us_entries.size()
+
 		"control_rect":
 			# Mouse-probe helper: global rect + center of a named Control found
 			# anywhere in the live tree. Prefers a visible match. Lets probes

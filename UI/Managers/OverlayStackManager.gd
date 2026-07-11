@@ -32,9 +32,20 @@ const Z_TIER_SYSTEM = 18
 # The overlay stack - topmost overlay receives input
 var overlay_stack: Array[Control] = []
 
+# The permanent base (FarmView). Never evicted by tier logic, never popped —
+# without this, the first MODAL-tier open (quests/map) silently evicted the
+# "permanent" base and left anonymous ghosts at the bottom of the stack.
+var permanent_base: Control = null
+
 # =============================================================================
 # STACK OPERATIONS
 # =============================================================================
+
+func push_base(overlay: Control) -> void:
+	# Install the permanent gameplay surface at the bottom of the stack.
+	permanent_base = overlay
+	push(overlay)
+
 
 func push(overlay: Control) -> void:
 	# Push an overlay onto the stack.
@@ -48,9 +59,12 @@ func push(overlay: Control) -> void:
 
 	var tier = get_overlay_tier(overlay)
 
-	# Close lower-tier overlays (higher tier takes precedence)
+	# Close lower-tier overlays (higher tier takes precedence) — but never
+	# the permanent base.
 	while not overlay_stack.is_empty():
 		var top = overlay_stack[-1]
+		if top == permanent_base:
+			break
 		var top_tier = get_overlay_tier(top)
 		if top_tier >= tier:
 			break  # Keep overlays at same or higher tier
@@ -78,7 +92,10 @@ func pop() -> Control:
 
 	# - Calls deactivate() if overlay implements it
 	# - Returns the popped overlay, or null if stack was empty
+	# - Refuses to pop the permanent base (the gameplay surface is not a modal)
 	if overlay_stack.is_empty():
+		return null
+	if overlay_stack[-1] == permanent_base:
 		return null
 
 	var overlay = overlay_stack.pop_back()
@@ -99,6 +116,8 @@ func pop_overlay(overlay: Control) -> bool:
 	# Pop a specific overlay from the stack (if present).
 
 	# Returns true if overlay was found and removed.
+	if overlay == permanent_base:
+		return false
 	var idx = overlay_stack.find(overlay)
 	if idx < 0:
 		return false
@@ -138,8 +157,8 @@ func dismiss_overlay(overlay: Control) -> bool:
 
 
 func close_all() -> void:
-	# Close all overlays on the stack.
-	while not overlay_stack.is_empty():
+	# Close all overlays on the stack (the permanent base stays).
+	while not overlay_stack.is_empty() and overlay_stack[-1] != permanent_base:
 		pop()
 
 
@@ -149,8 +168,11 @@ func get_top() -> Control:
 
 
 func is_empty() -> bool:
-	# Check if overlay stack is empty.
-	return overlay_stack.is_empty()
+	# "Empty" means no overlay ABOVE the gameplay surface — the permanent
+	# base is the game, not a modal.
+	if overlay_stack.is_empty():
+		return true
+	return overlay_stack.size() == 1 and overlay_stack[0] == permanent_base
 
 
 func has_overlay(overlay: Control) -> bool:
@@ -180,11 +202,13 @@ func route_input(event: InputEvent) -> bool:
 func handle_escape() -> bool:
 	# Handle ESC key - closes top overlay.
 
-	# Returns true if an overlay was closed.
-	if not overlay_stack.is_empty():
-		pop()
-		return true
-	return false
+	# Returns true if an overlay was closed. The permanent base doesn't count:
+	# claiming ESC while popping nothing ate every first ESC press (and worse,
+	# used to hide FarmView).
+	if is_empty():
+		return false
+	pop()
+	return true
 
 
 # =============================================================================

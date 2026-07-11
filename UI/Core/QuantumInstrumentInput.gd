@@ -1332,6 +1332,21 @@ func invoke_action(action_key: String) -> void:
 
 ## Public entry point for a bubble tap (mouse/touch) — the tap IS the farming
 ## gesture. Focuses the tapped plot, then fires hat-INDEPENDENT Ace verbs:
+## True when a stacked overlay above the gameplay base should block field
+## taps. The biome microscope ("biome_detail") is the lens exception.
+func _tap_blocked_by_overlay() -> bool:
+	var shell = InstrumentLocator.resolve_player_shell(self)
+	if shell == null or not ("overlay_stack" in shell) or shell.overlay_stack == null:
+		return false
+	var stack = shell.overlay_stack
+	if stack.is_empty():
+		return false
+	var top = stack.get_top()
+	if top == null:
+		return false
+	return str(top.get("overlay_name")) != "biome_detail"
+
+
 ## measure on a live bubble, pop on a measured one (a tap must never arm
 ## Captain-cull or a keyboard-F confirm chord). Dispatch goes through the SAME
 ## validator + _run_action tail as the keyboard, so refusal toasts, lookahead
@@ -1342,6 +1357,14 @@ func invoke_action(action_key: String) -> void:
 func handle_bubble_tap(grid_pos: Vector2i) -> Dictionary:
 	if not farm or not _instrument or not _active_biome_mgr or not farm.grid:
 		return {"success": false, "error": "not_ready", "message": ""}
+
+	# Modality: with an overlay open the field is background, not a target.
+	# TouchInputManager classifies raw _input events, so GUI consumption alone
+	# can't protect the world — the ONE mechanics seam enforces it. Single
+	# designed exception: the biome microscope (B) is a lens over the live
+	# farm, so bubbles stay interactive under it.
+	if _tap_blocked_by_overlay():
+		return {"success": false, "error": "overlay_open", "message": ""}
 
 	# A tap is "any other input" — cancel a pending destructive confirm.
 	_confirm_pending = {}

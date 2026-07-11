@@ -131,9 +131,13 @@ func _connect_toolbar_inputs() -> void:
 
 	# frame_selected is wired to QII._select_frame_hat in bind_quantum_input
 	# (QII is the single write authority for frame state — needs to exist first)
-	var action_row = action_bar_manager.get_action_row()
-	if action_row and action_row.has_signal("action_pressed"):
-		InstrumentLocator._safe_connect(action_row.action_pressed, _on_action_pressed)
+	#
+	# action_pressed is NOT connected here: PlayerShell._route_action_key is
+	# the single dispatch authority for chip clicks (overlay-first, then
+	# QII.invoke_action — the same fallthrough as the keyboard). A second
+	# connection here used to fire every clicked verb TWICE (double costs,
+	# double measures) and bypassed overlay routing via the private
+	# _perform_action.
 
 
 func _observe_overlay(overlay) -> void:
@@ -154,13 +158,6 @@ func _resolve_current_frame() -> String:
 	if quantum_input and quantum_input.has_method("get_current_frame"):
 		return quantum_input.get_current_frame()
 	return ToolConfig.get_current_frame()
-
-
-func _on_action_pressed(action_key: String) -> void:
-	if not quantum_input:
-		return
-	if quantum_input.has_method("_perform_action"):
-		quantum_input._perform_action(action_key)
 
 
 func _on_frame_changed(frame_name: String) -> void:

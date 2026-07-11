@@ -446,8 +446,9 @@ func _ready() -> void:
 	# navigable surface-ring position. Never popped; never registered with
 	# overlay_manager (so toggle_overlay radio logic ignores it).
 	farm_view = FarmView.new()
+	farm_view.name = "FarmView"  # anonymous stack bases make forensics unreadable
 	add_child(farm_view)
-	overlay_stack.push(farm_view)
+	overlay_stack.push_base(farm_view)
 	_verbose.info("ui", "🌾", "FarmView pushed as permanent stack base")
 
 	# Get reference to containers from scene
