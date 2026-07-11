@@ -1,5 +1,10 @@
 # Biome: Woodlot — Campaign & Tutorial Notes
 
+> **Scope banner (2026-07-11):** written before the closed-native migration —
+> this doc treats open-system Lindblad physics as the working baseline. The
+> base game is closed (zero Lindblad operators; see `docs/CLOSED_SYSTEM.md`).
+> Valid as design reference for the open / wet-country DLC content only.
+
 **Lore pitch:** Timber country. Axes ring against trunks. Trees become lumber
 become firewood become ash. The forest gives and takes, and the cycle turns with
 every swing of the blade.

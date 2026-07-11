@@ -103,7 +103,7 @@ Gameplay: Qubit "threads" that must be braided in the correct sequence to
 produce a target state. Wrong order → different (potentially useful?) outcome.
 
 ## Tier 6 — Knot Theory & Linking Numbers
-The emoji topology graph (see EMOJI_TOPOLOGY_LANGUAGE.md) has knot invariants.
+The emoji topology graph (see `archive/docs/architecture/EMOJI_TOPOLOGY_LANGUAGE.md`) has knot invariants.
 Linking number of two faction entanglement loops determines transfer rate.
 Reidemeister moves as optimization: unknot the graph to maximize throughput.
 

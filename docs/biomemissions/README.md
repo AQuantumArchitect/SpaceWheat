@@ -1,5 +1,10 @@
 # docs/biomemissions/ — Campaign Designer Reference
 
+> **Scope banner (2026-07-11):** written before the closed-native migration —
+> this doc treats open-system Lindblad physics as the working baseline. The
+> base game is closed (zero Lindblad operators; see `docs/CLOSED_SYSTEM.md`).
+> Valid as design reference for the open / wet-country DLC content only.
+
 Per-biome design docs for campaign designers and physics engineers. Each file
 covers axes, steady-state assay data, player missions, faction landscape, and
 cross-biome flows. These are working references, not tutorials.

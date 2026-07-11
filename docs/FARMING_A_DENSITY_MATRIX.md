@@ -144,7 +144,7 @@ ground. The sentiment is a theorem.
 The last system turns the instrument around. The player's identity is
 itself a density matrix — a state over a 12-axis space of faction concepts,
 with all the machinery that implies. Learn something (incorporate a ripe
-qubit's word into your vocabulary) and mass moves toward the factions who
+qubit's word into your signature) and mass moves toward the factions who
 think in that word. Stop learning, and your off-diagonal terms decay on a
 five-minute clock: the superposition of people you might have been,
 reclaiming you. Purity is readable on the map screen — **You · Tr(ρ²)** —

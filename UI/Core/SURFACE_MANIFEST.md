@@ -31,7 +31,7 @@ object_focus, visible_data, available_actions, transitions}`.
   falls back to current-biome scope when no handoff exists. Its visible
   snapshot surfaces `scope_mode`, `scope_source`, and `scope_counterparty`.
 - V is the canonical knowledge surface for atoms, icons, signature, and
-  affinity. It is the vocabulary and inspection atlas.
+  affinity. It is the signature and inspection atlas.
 - B is the biome microscope, **a pure visual overlay**: single page,
   no QERF chips, no TYUIOP claims, no `[`/`]` cycling. It mirrors the
   live instrument's plot selection and renders a richer view (IconCard

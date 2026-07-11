@@ -1,5 +1,10 @@
 # Biome: StarterForest — Campaign & Tutorial Notes
 
+> **Scope banner (2026-07-11):** written before the closed-native migration —
+> this doc treats open-system Lindblad physics as the working baseline. The
+> base game is closed (zero Lindblad operators; see `docs/CLOSED_SYSTEM.md`).
+> Valid as design reference for the open / wet-country DLC content only.
+
 **Lore pitch:** A quiet forest edge where celestial cycles drive life. Sun and moon
 wheel overhead while predators and prey orbit each other, and the slow succession
 from seedling to canopy plays out beneath the humus.

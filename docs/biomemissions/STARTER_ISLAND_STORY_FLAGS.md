@@ -1,5 +1,10 @@
 # Starter Island Story Flags
 
+> **Scope banner (2026-07-11):** written before the closed-native migration —
+> this doc treats open-system Lindblad physics as the working baseline. The
+> base game is closed (zero Lindblad operators; see `docs/CLOSED_SYSTEM.md`).
+> Valid as design reference for the open / wet-country DLC content only.
+
 This is the live starter-island arc map.
 
 The current quest surface is the `QuestBoard` Arc tab (`C → Arc`), and the rig exposes the same data through the `story_flags` read action:

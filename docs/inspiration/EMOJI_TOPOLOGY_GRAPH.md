@@ -2,8 +2,9 @@
 
 > **Status: Core graph API is implemented.** `DualEmojiQubit.gd` has `add_graph_edge()`,
 > `get_graph_targets()`, `has_graph_edge()`, `get_all_relationships()`, and the
-> `entanglement_graph` dictionary. The full original spec lives at
-> `docs/architecture/EMOJI_TOPOLOGY_LANGUAGE.md`. This doc captures the higher-level
+> `entanglement_graph` dictionary. The full original spec is archived at
+> `archive/docs/architecture/EMOJI_TOPOLOGY_LANGUAGE.md` (it predates the
+> icon/signature/cloud vocabulary). This doc captures the higher-level
 > design vision and the knot-theory future path.
 
 Every entity in the game can carry a pure-emoji relationship graph.

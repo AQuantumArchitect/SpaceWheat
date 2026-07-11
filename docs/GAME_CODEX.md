@@ -251,7 +251,7 @@ Verbs live in `Core/Actions/ProbeActions.gd`; rewards route through
 **The progression verb (Icon hat):** the only way your *signature* grows.
 - **F = Track** a qubit: under the live `H` it accumulates Berry phase (solid
   angle) until it **ripens** (phase → 2π). Berry phase is the game's XP;
-  `docs/reference/BERRY_PHASE_SYSTEM.md`.
+  `docs/glossary/berry.md`.
 - **R = Incorporate** a ripe qubit: adds its icon to your signature via
   `farm.discover_icon(north, south)` — *not* a biome injection. Signature grows →
   `signature_growth` predicate rises → story flags fire. (On an *empty* plot, Icon-R
@@ -394,13 +394,12 @@ sprawl that was pruned alongside it — see the same commit).
 
 - **Controls:** `UI/Core/KEYBOARD_GRAMMAR.md`, `UI/Core/SURFACE_MANIFEST.md`
 - **Archetypes:** `docs/ARCHETYPE_FRAMES.md`, `docs/CHARACTER_ARCHETYPES.md`
-- **Physics:** `docs/CLOSED_SYSTEM.md`, `docs/architecture/EMOJI_TOPOLOGY_LANGUAGE.md`,
-  `docs/architecture/BIOME_BELL_GATES_ARCHITECTURE.md`
-- **Systems:** `docs/reference/BERRY_PHASE_SYSTEM.md`,
-  `docs/reference/BUBBLE_CLICKS_AND_PLOT_ENTANGLEMENT.md`,
-  `docs/reference/GAMEPLAY_BELL_GATE_ACTION.md`
-- **Narrative content:** `docs/biomemissions/` (biome arcs),
-  `docs/BOAT_CRISIS_QUEST_ARC.md`, `docs/QUEST_SYSTEM_PLAN.md`
+- **Physics:** `docs/CLOSED_SYSTEM.md`, `docs/FOR_PHYSICISTS.md`
+- **Narrative content:** `docs/biomemissions/` (biome arcs — open-DLC scope;
+  see each file's banner), `docs/QUEST_SYSTEM_PLAN.md`
+  (The December-2025 `reference/` and `architecture/` docs were archived
+  2026-07-11 — see `docs/DOC_ROT_2026-07-11.md`; they predate the
+  closed-system migration and the hat/QERF grammar.)
 - **Vocabulary:** `docs/glossary/`
 - **Player-facing:** `docs/HOW_TO_PLAY.md`
 - **Build/ops:** `BUILDING.md`, `docs/EXPORT_HEALTH.md`,

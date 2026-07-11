@@ -1,5 +1,10 @@
 # Biome: PastoralCommons — Campaign & Tutorial Notes
 
+> **Scope banner (2026-07-11):** written before the closed-native migration —
+> this doc treats open-system Lindblad physics as the working baseline. The
+> base game is closed (zero Lindblad operators; see `docs/CLOSED_SYSTEM.md`).
+> Valid as design reference for the open / wet-country DLC content only.
+
 **Lore pitch:** Flocks graze on common land. Bees drift between wildflowers.
 Porridge simmers over low fires while gentle hands shape the future. A peaceful
 place — but peace is fragile, and predators are always circling.

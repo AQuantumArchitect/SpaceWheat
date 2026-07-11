@@ -1,9 +1,10 @@
 # Quantum Kitchen — GHZ Bread Mechanic
 
 > **Status: The core mechanic is implemented.** `BiomeBellGateTracker.gd` detects spatial
-> triplet arrangements and `GAMEPLAY_BELL_GATE_ACTION.md` confirms 20/20 tests passing.
-> Bread production from triplet GHZ measurement is live. This doc preserves the
-> design rationale and the "🍞 as collapsed GHZ state" framing for future UX work.
+> triplet arrangements. Bread production from triplet GHZ measurement is live. The old
+> gameplay spec (with its "kitchen measurement" verb, since redesigned onto the Operator
+> hat) is archived at `archive/docs/reference/GAMEPLAY_BELL_GATE_ACTION.md`. This doc
+> preserves the design rationale and the "🍞 as collapsed GHZ state" framing for future UX work.
 
 The quantum kitchen is a biome (or biome sub-system) where three qubits —
 flour (🌾), water (💧), and fire (🔥) — are arranged by the player into a
