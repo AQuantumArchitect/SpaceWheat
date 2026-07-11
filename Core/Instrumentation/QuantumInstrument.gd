@@ -492,7 +492,28 @@ func action_measure(grid_pos: Vector2i) -> Dictionary:
 	# a duplicate gate upstream only shadowed those richer messages with a vague one.
 	var biome_name = terminal.bound_biome_name if terminal.bound_biome_name != "" else terminal.measured_biome_name
 	if biome_name == "":
-		return {"success": false, "error": "no_biome", "message": "Terminal not bound to biome", "blocked": true}
+		# Zombie terminal: present on the plot but binding-less (historically
+		# produced by the double-dispatch bug firing pop twice on one click;
+		# also reachable via old saves). The plot would be permanently dead —
+		# release the zombie loudly and rebind fresh via the explore path.
+		push_warning("QuantumInstrument: zombie terminal at %s (no biome binding) — releasing and rebinding" % str(grid_pos))
+		if terminal_pool and terminal_pool.has_method("release_terminal"):
+			terminal_pool.release_terminal(terminal)
+		if _plot:
+			_plot.terminal = null
+		var heal_biome := str(farm.grid.get_plot_biome_assignment(grid_pos)) if farm.grid else ""
+		if heal_biome == "":
+			return {"success": false, "error": "no_biome", "message": "Terminal not bound to biome", "blocked": true}
+		var heal_bind := action_explore(heal_biome, grid_pos)
+		if not heal_bind.get("success", false):
+			return heal_bind
+		_plot = farm.grid.get_plot(grid_pos) if farm.grid else null
+		terminal = _plot.terminal if _plot else null
+		if not terminal:
+			return {"success": false, "error": "no_terminal", "message": "No terminal at selection", "blocked": true}
+		biome_name = terminal.bound_biome_name if terminal.bound_biome_name != "" else terminal.measured_biome_name
+		if biome_name == "":
+			return {"success": false, "error": "no_biome", "message": "Terminal not bound to biome", "blocked": true}
 	var biome = _resolve_biome(biome_name)
 	if not biome:
 		return {"success": false, "error": "no_biome", "message": "Biome '%s' not found" % biome_name, "blocked": true}
