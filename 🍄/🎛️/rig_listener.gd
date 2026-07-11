@@ -872,6 +872,23 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				result["stack"] = us_entries
 				result["size"] = us_entries.size()
 
+		"overlay_text":
+			# Read-only: every visible Label/RichTextLabel under a named node
+			# (default: whole tree). The text-lie detector — asserts what the
+			# player actually READS, not what state claims. Optional "under"
+			# narrows to a node name (e.g. "ControlsOverlay").
+			var ot_under := str(cmd.get("under", ""))
+			var ot_root: Node = get_root()
+			if ot_under != "":
+				ot_root = _find_named(get_root(), ot_under)
+			if ot_root == null:
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "node_not_found", "under": ot_under}
+			else:
+				var ot_lines: Array = []
+				_collect_visible_text(ot_root, ot_lines)
+				result["lines"] = ot_lines
+				result["count"] = ot_lines.size()
+
 		"hover_probe":
 			# Diagnostic: who would receive a click at screen point [x, y]?
 			# Sends a mouse-motion there and reads the viewport's hovered
@@ -2416,6 +2433,32 @@ func _resolve_overlay_manager():
 	if _shell and "overlay_manager" in _shell:
 		return _shell.overlay_manager
 	return null
+
+
+func _find_named(node: Node, target: String) -> Node:
+	if str(node.name) == target:
+		return node
+	for child in node.get_children():
+		var hit := _find_named(child, target)
+		if hit != null:
+			return hit
+	return null
+
+
+func _collect_visible_text(node: Node, out: Array) -> void:
+	# Only text a player can actually see: skip invisible subtrees entirely.
+	if node is CanvasItem and not (node as CanvasItem).visible:
+		return
+	if node is Label:
+		var t := str((node as Label).text).strip_edges()
+		if t != "":
+			out.append({"node": str(node.name), "text": t})
+	elif node is RichTextLabel:
+		var rt := str((node as RichTextLabel).get_parsed_text()).strip_edges()
+		if rt != "":
+			out.append({"node": str(node.name), "text": rt})
+	for child in node.get_children():
+		_collect_visible_text(child, out)
 
 
 func _extract_keycode(cmd: Dictionary) -> int:

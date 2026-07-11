@@ -90,3 +90,75 @@ def test_story_flags_fire_from_action_not_boot() -> None:
     finally:
         RigClient.terminate_listener(proc, timeout_s=5.0)
         shutil.rmtree(xdg_root, ignore_errors=True)
+
+
+def test_story_tab_never_narrates_unfired_beats() -> None:
+    # Owner P0 (2026-07-11): a FRESH boot, X→Y, showed first_breath's past-tense
+    # "You did something..." prose with zero player actions taken. The FOCUS pane
+    # shows where graph ATTENTION sits (boot seeds density on the act-0 node) —
+    # attention is not history, so beat prose renders only for FIRED flags.
+    # Guard for ALL flags: open the story tab fresh and assert no un-fired
+    # flag's arc_beat prose is visible anywhere.
+    import json
+
+    RigClient = _load_rig_client()
+    if shutil.which("godot") is None:
+        pytest.skip("godot not available on PATH")
+
+    flags = json.loads(
+        (PROJECT_ROOT / "Core" / "Quests" / "data" / "story_flags.json").read_text()
+    )
+    prose_by_flag = {}
+    for f in flags:
+        fid = str(f.get("id", ""))
+        frags = []
+        beat = str(f.get("arc_beat", "")).strip()
+        if beat:
+            frags.append(beat[:40])
+        for cb in f.get("conditional_beat", []) or []:
+            t = str(cb.get("text", "")).strip()
+            if t:
+                frags.append(t[:40])
+        if fid and frags:
+            prose_by_flag[fid] = frags
+
+    xdg_root = Path(tempfile.mkdtemp(prefix="sw_pytest_story_tab_"))
+    rig = RigClient(xdg=xdg_root, root_from_file=RUNNER_ROOT / "milk_hunt_runner.py")
+    rig.clear_rig_files()
+    proc = None
+    try:
+        proc = rig.start_listener(
+            load_slot=None,
+            scenario_id="demos_normal",
+            listener_stdout="null",
+            rig_log_profile="quiet",
+            extra_env={"RIG_QUEUE_POLL_MS": "80"},
+        )
+        assert RigClient.wait_for_bridge_sentinel(timeout_s=60.0, xdg=rig.xdg_root), "rig listener not ready"
+
+        boot_row = rig.run_turn(1, "story_flags", timeout_s=30.0)
+        assert boot_row.get("ok", False), boot_row
+        fired = set(boot_row.get("flags_fired", {}) or {})
+
+        # Open X (playthrough) → Y (story tab), then read what the player SEES.
+        rig.run_turn(2, "press_key", key="x", settle_frames=10)
+        rig.run_turn(3, "press_key", key="y", settle_frames=10)
+        text_row = rig.run_turn(4, "overlay_text", timeout_s=30.0)
+        assert text_row.get("ok", False), text_row
+        visible = "\n".join(str(line.get("text", "")) for line in text_row.get("lines", []))
+        assert "FOCUS" in visible.upper(), f"story tab did not render a focus section:\n{visible[:2000]}"
+
+        leaks = []
+        for fid, frags in prose_by_flag.items():
+            if fid in fired:
+                continue
+            for frag in frags:
+                if frag in visible:
+                    leaks.append((fid, frag))
+        assert not leaks, (
+            "story tab narrates beats that never fired (past-tense prose for "
+            f"un-fired flags): {leaks}"
+        )
+    finally:
+        RigClient.terminate_listener(proc, timeout_s=5.0)
+        shutil.rmtree(xdg_root, ignore_errors=True)

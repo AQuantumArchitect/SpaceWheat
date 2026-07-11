@@ -853,13 +853,35 @@ func _build_story_body() -> void:
 		_body_box.add_child(_make_spacer(8))
 
 	# === FOCUS NODE ===
-	_body_box.add_child(_make_section_header("focus · %s · act %d" % [focus_node.display_name, focus_node.act]))
-	var beat := Label.new()
-	beat.text = str(focus_node.arc_beat) if focus_node.arc_beat != "" else "(no beat text)"
-	beat.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	beat.add_theme_font_size_override("font_size", 13)
-	beat.add_theme_color_override("font_color", UIStyleFactory.COLOR_VALUE)
-	_body_box.add_child(beat)
+	# Focus = where graph ATTENTION sits (boot seeds density on the act-0 node),
+	# NOT what has happened. The beat prose narrates a past event, so it renders
+	# only once the flag actually fired — before that, the pane looks forward.
+	var focus_fired: bool = story_farm != null and "story_flags_fired" in story_farm \
+			and story_farm.story_flags_fired.has(focus_id)
+	var focus_header := "focus · %s · act %d" % [focus_node.display_name, focus_node.act]
+	if not focus_fired:
+		focus_header += " · approaching"
+	_body_box.add_child(_make_section_header(focus_header))
+	if focus_fired:
+		var beat := Label.new()
+		beat.text = str(focus_node.arc_beat) if focus_node.arc_beat != "" else "(no beat text)"
+		beat.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		beat.add_theme_font_size_override("font_size", 13)
+		beat.add_theme_color_override("font_color", UIStyleFactory.COLOR_VALUE)
+		_body_box.add_child(beat)
+	else:
+		var ahead := _make_muted_label(
+			"Nothing has happened here yet — the story is leaning this way. Its beat is written when you make it true.", 12)
+		_body_box.add_child(ahead)
+		var focus_qm = _arc_quest_manager()
+		if focus_qm != null and not focus_node.predicates.is_empty():
+			var fscore: float = focus_qm.evaluate_flag_score({"predicates": focus_node.predicates})
+			var fire_at: float = focus_qm.FLAG_FIRE_THRESHOLD
+			var prog := Label.new()
+			prog.text = "%.2f / %.2f %s" % [fscore, fire_at, _ratio_bar(fscore / fire_at, 6)]
+			prog.add_theme_font_size_override("font_size", 11)
+			prog.add_theme_color_override("font_color", _score_color(fscore))
+			_body_box.add_child(prog)
 	_body_box.add_child(_make_spacer(6))
 
 	# Faction charge bar
