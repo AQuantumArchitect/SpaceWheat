@@ -1294,15 +1294,14 @@ func _commitments_rows() -> Array:
 			return ta > tb
 		)
 		return rows
-	# Default "active" view — newest accepted FIRST, so the contract you just
-	# took is the selected row when you land on U (dict order buried it under
-	# the whole tutorial chain, sometimes past the visible 6 entirely).
+	# Default "active" view. Insertion (dict) order is a CONTRACT: the arc
+	# claim flow re-selects index 0 after a list shift (apprentice Mill
+	# mechanic), and reordering broke the campaign (act3_5 mill_wakes went
+	# dark when this was briefly newest-first). The just-accepted contract is
+	# surfaced by the accept toast + ContractChip pin instead.
 	if quest_manager and "active_quests" in quest_manager and quest_manager.active_quests is Dictionary:
 		for q in quest_manager.active_quests.values():
 			rows.append(q)
-		rows.sort_custom(func(a, b):
-			return int(a.get("accepted_at", 0)) > int(b.get("accepted_at", 0))
-		)
 	return rows
 
 # =============================================================================
