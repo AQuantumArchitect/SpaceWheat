@@ -864,7 +864,9 @@ func _build_network_view() -> void:
 
 	var _visible_count: int = int(min(_network_edges.size(), NETWORK_MAX_VISIBLE))
 	for i in range(_visible_count):
-		_body_box.add_child(_make_network_row(_network_edges[i], NETWORK_HOMEROW[i], i == _network_selected))
+		var net_row := _make_network_row(_network_edges[i], NETWORK_HOMEROW[i], i == _network_selected)
+		ClickWire.attach(net_row, _select_network_edge.bind(i))
+		_body_box.add_child(net_row)
 
 	if _network_detail_open and _network_selected < _network_edges.size():
 		_body_box.add_child(_make_network_detail_panel(_network_edges[_network_selected]))
@@ -872,6 +874,18 @@ func _build_network_view() -> void:
 	# Keep pending pair scope in sync with the current selection so C always
 	# opens to the highest-tension edge even when the user hasn't visited N.
 	_update_pending_pair_scope()
+
+
+func _select_network_edge(idx: int) -> void:
+	# Click twin of the network homerow keys.
+	if idx >= _network_edges.size() or _network_selected == idx:
+		return
+	_network_selected = idx
+	_network_detail_open = false
+	_update_action_labels()
+	_update_pending_pair_scope()
+	_rebuild_body()
+
 
 func _build_network_summary_card(live_count: int, faction_count: int) -> Control:
 	var panel := PanelContainer.new()

@@ -904,7 +904,17 @@ func _render_eigen_rows(ranked: Array) -> void:
 	var page_end: int = mini(ranked.size(), page_start + ITEM_KEYS.size())
 	for abs_i in range(page_start, page_end):
 		var slot: int = abs_i - page_start
-		_body_box.add_child(_make_eigen_row(ranked[abs_i], ITEM_KEYS[slot], abs_i == _eigen_selected))
+		var eig_row := _make_eigen_row(ranked[abs_i], ITEM_KEYS[slot], abs_i == _eigen_selected)
+		ClickWire.attach(eig_row, _select_eigen_row.bind(abs_i))
+		_body_box.add_child(eig_row)
+
+
+func _select_eigen_row(abs_idx: int) -> void:
+	# Click twin of the GHJKL; keys on the Eigenstate roster.
+	if abs_idx >= _faction_roster.size() or _eigen_selected == abs_idx:
+		return
+	_eigen_selected = abs_idx
+	_render_body()
 
 func _make_eigen_row(entry: Dictionary, key_str: String, selected: bool) -> Control:
 	var f = entry.get("f", null)
