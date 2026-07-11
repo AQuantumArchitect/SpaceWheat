@@ -39,8 +39,10 @@ func _ready():
 
 	add_theme_constant_override("separation", 6)
 
-	# Allow keyboard input to pass through, but buttons can still receive clicks
-	mouse_filter = MOUSE_FILTER_PASS
+	# IGNORE, not PASS: a PASS full-width strip CLAIMS picks and deadens
+	# everything drawn beneath its band (see SelectionButtonRow). The QERF
+	# chips are STOP children and receive clicks directly.
+	mouse_filter = MOUSE_FILTER_IGNORE
 	size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 	# Create Q, E, R, F action buttons (matches 1234 button style)

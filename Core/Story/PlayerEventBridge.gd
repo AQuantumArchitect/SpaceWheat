@@ -133,8 +133,11 @@ func _on_resource_mutated(emoji: String, delta: float, reason: String, _amount: 
 func _on_standing_changed(faction: String, channel: String, delta: float, new_value: float) -> void:
 	if absf(delta) < 0.05:
 		return
-	var sign_str: String = "+" if delta >= 0 else ""
-	var msg := "🤝 %s · %s %s%.2f → %.2f" % [faction, channel, sign_str, delta, new_value]
+	# Plain words, not a ledger line — "🤝 Packlords · trust +0.12 → 0.45"
+	# read as noise to a playtester ("some toast about packlords and 🤝 or
+	# something, no idea what that means").
+	var direction := "grows" if delta >= 0 else "slips"
+	var msg := "🤝 Your %s with the %s %s (%+.2f)" % [channel, faction, direction, delta]
 	_push(msg, 2, "🤝", "faction", "XT")
 
 

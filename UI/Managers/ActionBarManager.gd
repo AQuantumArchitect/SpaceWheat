@@ -144,6 +144,12 @@ func _position_tool_row() -> void:
 
 func _position_biome_row() -> void:
 	_position_top_row(biome_selection_row, 2)
+	# The contract corner (ContractChip + ActFilament, top-right, ~190px wide)
+	# shares this band — inset the biome row's right edge so its chips never
+	# slide under the pinned contracts (playtest 2: "ugly overlap with the
+	# biome bar... fixed by squeezing the biome bar in more").
+	if biome_selection_row:
+		biome_selection_row.offset_right = -210
 
 
 func _position_menu_row() -> void:

@@ -1463,19 +1463,21 @@ func _get_scaled_force_delta(delta: float) -> float:
 	return delta * scale_val
 
 
-# Station layout tuning (Mini-Metro pass, 2026-07-07; flex pass 2026-07-08).
-# Position is IDENTITY — a bubble lives at its plot slot — but the system
-# BREATHES on top of it: correlated stations tug toward each other (capped
-# excursion) on an underdamped spring, so connections are FELT in bubble
-# behavior, not only drawn as lines. The old unbounded force soup stays dead.
-const WOBBLE_LEASH: float = 4.0      # px of idle breathing drift around the anchor
+# Station layout tuning (Mini-Metro pass, 2026-07-07; flex pass 2026-07-08;
+# free-flow pass 2026-07-11 — owner: "bubbles need to free flow around the
+# screen with a much looser tether to their base plot").
+# Position is still IDENTITY — a bubble belongs to its plot slot — but the
+# leash is long: a wide idle drift, strong correlated congregation, and a
+# soft slow spring, so the field reads as living water rather than pinned
+# tokens. The old unbounded force soup stays dead: every excursion is capped.
+const WOBBLE_LEASH: float = 16.0     # px of idle free-drift around the anchor
 const WOBBLE_W1: float = 0.5         # rad/s — wobble x frequency
 const WOBBLE_W2: float = 0.37        # rad/s — wobble y frequency (irrational-ish ratio)
 const MINIATURE_SHRINK: float = 0.5  # extra shrink for inactive-biome clusters
-const FLEX_GAIN: float = 90.0        # px of pull per unit mutual information
-const FLEX_MAX: float = 30.0         # excursion cap — identity never gets ambiguous
-const SPRING_K: float = 30.0         # anchor spring (underdamped → visible sway)
-const SPRING_DAMP: float = 3.5       # velocity decay /s (ζ≈0.32: organic, settles ~2s)
+const FLEX_GAIN: float = 110.0       # px of pull per unit mutual information
+const FLEX_MAX: float = 60.0         # excursion cap — a bubble roams, never defects
+const SPRING_K: float = 14.0         # anchor spring (soft → floaty, wandering return)
+const SPRING_DAMP: float = 2.4       # velocity decay /s (ζ≈0.32: organic glide)
 
 ## Wobble clock advanced by the biome-speed-scaled delta so slow biomes still
 ## read slower, without any per-node physics.

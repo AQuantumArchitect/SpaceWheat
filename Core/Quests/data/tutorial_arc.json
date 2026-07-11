@@ -6,8 +6,8 @@
       "tutorial_teaches": "core_loop",
       "faction": "Hearth Keepers",
       "biome": "StarterForest",
-      "body": "The forest is asleep. Wake it: plant a qubit, measure it, then harvest what collapses.",
-      "tutorial_hint": "Ace is your starting hat (8). Pick a plot with G H J K L ; — then R plants, E measures (the collapse is the one irreversible act), Q harvests the surprise.",
+      "body": "The forest is asleep. Wake it: strike a qubit to collapse it, then extract what the collapse leaves behind.",
+      "tutorial_hint": "Ace is your starting hat (8). Pick a plot with G H J K L ; — or just tap its bubble. R strikes (the collapse is the one irreversible act), Q extracts the yield. E pauses to look; F plays on.",
       "state_predicates": [
         {"type": "gate_sequence_contains", "gate": "measure", "count": 1}
       ]
@@ -18,7 +18,7 @@
       "faction": "Hearth Keepers",
       "biome": "StarterForest",
       "body": "A qubit that walks a closed loop remembers the sky it swept. Ripeness is that memory — and a ripe pair can teach you a new word: an icon. Your vocabulary is your power here.",
-      "tutorial_hint": "Icon hat (5): press F on a planted plot to track its walk (⌖). When the loop has swept enough sky it ripens — press R to incorporate the word into your signature. Completing contracts teaches words too.",
+      "tutorial_hint": "Icon hat (5): press F on a live plot to track its walk (⌖). When the loop has swept enough sky it ripens — press R to incorporate the word into your signature. Completing contracts teaches words too.",
       "state_predicates": [
         {"type": "signature_size_gte", "value": 3}
       ]

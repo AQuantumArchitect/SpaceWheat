@@ -186,7 +186,10 @@ func _build_tab_row(container: Control) -> void:
 	_tab_labels.clear()
 	for entry in TAB_ROW:
 		var lbl := Label.new()
+		lbl.name = "BoardTab_%s" % str(entry["key"])
 		lbl.add_theme_font_size_override("font_size", 15)
+		lbl.mouse_filter = Control.MOUSE_FILTER_STOP
+		lbl.gui_input.connect(_on_tab_gui_input.bind(str(entry["frame"])))
 		_tab_row_box.add_child(lbl)
 		_tab_labels[str(entry["key"])] = lbl
 
@@ -212,9 +215,12 @@ func _build_verb_chips(container: Control) -> void:
 	_verb_chip_cells.clear()
 	for key in ["Q", "E", "R", "F"]:
 		var cell := VBoxContainer.new()
+		cell.name = "BoardVerb_%s" % key
 		cell.alignment = BoxContainer.ALIGNMENT_CENTER
 		cell.add_theme_constant_override("separation", 2)
 		cell.custom_minimum_size = Vector2(90, 0)
+		cell.mouse_filter = Control.MOUSE_FILTER_STOP
+		cell.gui_input.connect(_on_verb_chip_gui_input.bind(key))
 		_verb_chip_box.add_child(cell)
 
 		var key_lbl := Label.new()
@@ -270,6 +276,52 @@ func _on_frame_changed_local() -> void:
 	_selected_index = 0
 	_render_all()
 
+func _on_activated() -> void:
+	super._on_activated()
+	# The market must be LIVE the moment the board opens. The old flow only
+	# filled the offer pool on an E press, so the board always opened empty —
+	# with a hint that lied about R rerolling ("opens to an empty Market with
+	# no explanation", playtest 2).
+	_ensure_biome()
+	_refresh_pool()
+	_render_all()
+
+# =============================================================================
+# MOUSE PARITY — every keyboard verb has a click twin (EscapeMenu pattern).
+# =============================================================================
+
+func _on_tab_gui_input(event: InputEvent, target_frame: String) -> void:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
+		accept_event()
+		set_frame(target_frame)
+
+func _on_verb_chip_gui_input(event: InputEvent, key: String) -> void:
+	if not (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed):
+		return
+	accept_event()
+	match key:
+		"Q": _on_action_q()
+		"E": _on_action_e()
+		"R": _on_action_r()
+		"F": _on_action_f()
+
+func _on_row_gui_input(event: InputEvent, idx: int) -> void:
+	# First click selects the row; a second click on the selected row fires
+	# the primary verb (R: accept in Market, complete in Commitments).
+	if not (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed):
+		return
+	accept_event()
+	if idx == _selected_index:
+		_on_action_r()
+	else:
+		_select(idx)
+
+## Corner-toast feedback through the shell — board verbs must visibly land.
+func _toast_feedback(text: String) -> void:
+	var shell = InstrumentLocator.resolve_player_shell(self)
+	if shell and shell.has_method("show_hint"):
+		shell.show_hint(text, 2)
+
 # =============================================================================
 # VERB ACTIONS
 # =============================================================================
@@ -291,6 +343,13 @@ func _on_action_e() -> void:
 		FRAME_MARKET:
 			_refresh_pool()
 			_render_all()
+			# Refresh must visibly land even when the list stays empty —
+			# a silent E reads as a dead key (playtest 2).
+			var n: int = _offer_pool.size()
+			if n > 0:
+				_toast_feedback("🛒 market refreshed — %d offer%s" % [n, "" if n == 1 else "s"])
+			else:
+				_toast_feedback("🛒 market refreshed — %s" % (_market_status_note if _market_status_note != "" else "no offers yet"))
 		_:
 			pass
 
@@ -509,6 +568,10 @@ func _refresh_body() -> void:
 	if not _body_box:
 		return
 	for child in _body_box.get_children():
+		# Detach BEFORE queue_free: doomed rows linger in-tree until end of
+		# frame with the same names, so name-based lookups (probes, tools)
+		# would race the freed twin of the row they meant.
+		_body_box.remove_child(child)
 		child.queue_free()
 	match frame_id:
 		FRAME_MANIFOLD:    _build_manifold_body()
@@ -866,14 +929,21 @@ func _emoji_marginals_with_qubit(qc) -> Dictionary:
 func _build_market_body() -> void:
 	var visible_offers: Array = _get_visible_offers()
 	if visible_offers.is_empty():
+		# Honest empty state: say WHY (the status note from _refresh_pool names
+		# the failing stage) and what actually helps. The old default said
+		# "press R to reroll" — R accepts, it never rerolled anything.
 		var empty_msg: String = _market_status_note
 		if empty_msg == "":
-			empty_msg = "no offers — load a biome with admitted factions, or press R to reroll"
+			empty_msg = "no offers here yet"
+		empty_msg += "\nthe market follows your active biome — walk somewhere with factions, or press E to refresh"
 		_body_box.add_child(_make_muted_label(empty_msg, 12))
 		return
 	for i in range(MAX_VISIBLE_ITEMS):
 		if i < visible_offers.size():
-			_body_box.add_child(_make_offer_row(visible_offers[i], ITEM_KEYS[i], i == _selected_index))
+			var offer_row := _make_offer_row(visible_offers[i], ITEM_KEYS[i], i == _selected_index)
+			offer_row.name = "BoardRow_%d" % i
+			offer_row.gui_input.connect(_on_row_gui_input.bind(i))
+			_body_box.add_child(offer_row)
 		else:
 			_body_box.add_child(_make_empty_row(ITEM_KEYS[i]))
 
@@ -985,7 +1055,10 @@ func _build_commitments_body() -> void:
 		return
 	for i in range(MAX_VISIBLE_ITEMS):
 		if i < rows.size():
-			_body_box.add_child(_make_commitment_row(rows[i], ITEM_KEYS[i], i == _selected_index))
+			var c_row := _make_commitment_row(rows[i], ITEM_KEYS[i], i == _selected_index)
+			c_row.name = "BoardRow_%d" % i
+			c_row.gui_input.connect(_on_row_gui_input.bind(i))
+			_body_box.add_child(c_row)
 		else:
 			_body_box.add_child(_make_empty_row(ITEM_KEYS[i]))
 	if rows.size() > MAX_VISIBLE_ITEMS:
@@ -1408,6 +1481,14 @@ func _accept_selected() -> void:
 	if quest_manager.has_method("accept_quest"):
 		if quest_manager.accept_quest(offer):
 			quest_accepted.emit(offer)
+			# Accepting must CHANGE something on screen (playtest 2: "pressing
+			# R had no visual effect on the contract itself"). Re-pull the pool
+			# (the accepted offer leaves the market) and say where it went.
+			_refresh_pool()
+			_render_all()
+			_toast_feedback("✓ contract accepted — now in Commitments [U]")
+		else:
+			_toast_feedback("✗ couldn't accept this contract — check its cost")
 
 func _complete_selected() -> void:
 	if quest_manager == null:

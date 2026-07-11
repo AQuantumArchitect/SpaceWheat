@@ -13,14 +13,14 @@ You wake in the **StarterForest** wearing the **Ace** hat (the default —
 that's the `8` key). A toast names the doors; the Hearth Keepers have left
 you a chain of small asks on the quest board.
 
-1. Pick a plot: `G H J K L ;` (left to right).
-2. **R** plants — invest energy: a coherent pulse swings the qubit toward
-   its north pole.
-3. **E** measures — Born's rule picks an answer and the state collapses.
-   This is the game's one irreversible act, and it pauses the sim so you
-   can look around.
-4. **Q** harvests — you are paid the *surprisal* of the outcome,
-   −kT·log p. Rare answers pay more, because you learned more.
+1. Pick a plot: `G H J K L ;` (left to right) — or just tap its bubble.
+2. **R** strikes — Born's rule picks an answer and the state collapses.
+   This is the game's one irreversible act; the bubble freezes cyan with
+   its answer. (Tapping a live bubble does the same.)
+3. **Q** extracts — you are paid the *surprisal* of the outcome,
+   −kT·log p. Rare answers pay more, because you learned more. The bubble
+   returns to live evolution. (Tapping a frozen bubble does the same.)
+4. **E** pauses time to look around; **F** plays on.
 5. **C** opens the quest board. The tutorial chain lives there — each step
    teaches one mechanic and its progress bar fills as the live state
    approaches the ask. The bar is the teacher.
@@ -31,11 +31,11 @@ That's the core loop. Everything else in the game is a deepening of it.
 
 Four verbs, same directions on every surface:
 
-- **Q** — screw out: less, remove, retreat, harvest, fuse.
-- **E** — pause + inspect: read the state, collapse it, or open detail.
+- **Q** — screw out: less, remove, retreat, extract, fuse.
+- **E** — pause + inspect: read the state or open detail.
   **E is the universal "tell me more"** — press it on plots, offers,
   factions, bridges, anything.
-- **R** — screw in: more, add, advance, plant, span.
+- **R** — screw in: more, add, advance, strike, span.
 - **F** — play + flatten: close what E opened, advance time. In the Ace
   hat, **F reaps the season** — time runs forward and the whole biome's
   yield lands at once.

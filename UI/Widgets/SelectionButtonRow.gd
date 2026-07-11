@@ -39,9 +39,32 @@ func _ready():
 	# Container setup
 	add_theme_constant_override("separation", 6)
 
-	# Allow keyboard input to pass through, but buttons can still receive clicks
-	mouse_filter = MOUSE_FILTER_PASS
+	# IGNORE, not PASS: the row is a full-width invisible strip. PASS still
+	# CLAIMS the pick (propagating only to ancestors), so a PASS row deadens
+	# every control drawn beneath its band — with a menu open, clicks aimed
+	# at overlay content silently died here (playtest 2: quest board / escape
+	# menu "not accepting mouse commands"). Chip containers are STOP children
+	# and receive their clicks directly; the row itself must be transparent.
+	mouse_filter = MOUSE_FILTER_IGNORE
 	size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+
+## Pointer twin of PlayerShell's keyboard bleed-through guard. GUI picking
+## ignores z_index, so with a modal overlay open these chips (later in tree)
+## still win clicks over content DRAWN above them — a click aimed at the
+## modal silently landed on a hat/biome chip instead. When a real menu is
+## up, the shell turns these rows' pointers off (keys for them are swallowed
+## too); the chips stay visible, matching the keyboard behavior exactly.
+var _pointer_enabled: bool = true
+
+func set_pointer_enabled(on: bool) -> void:
+	if _pointer_enabled == on:
+		return
+	_pointer_enabled = on
+	for btn_data in buttons:
+		var container: Control = btn_data.get("container")
+		if container:
+			container.mouse_filter = Control.MOUSE_FILTER_STOP if on else Control.MOUSE_FILTER_IGNORE
 
 
 func build_buttons(button_specs: Array[Dictionary]) -> void:
@@ -57,6 +80,12 @@ func build_buttons(button_specs: Array[Dictionary]) -> void:
 		var btn_data = _create_button(spec)
 		add_child(btn_data.container)
 		buttons.append(btn_data)
+	if not _pointer_enabled:
+		# Rebuilt while a modal is open — keep the pointer guard applied.
+		for btn_data in buttons:
+			var container: Control = btn_data.get("container")
+			if container:
+				container.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 
 func _create_button(spec: Dictionary) -> Dictionary:

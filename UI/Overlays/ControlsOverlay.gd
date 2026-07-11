@@ -1195,13 +1195,14 @@ func _build_guide_body() -> void:
 		"glossary": _guide_glossary()
 
 func _guide_core_loop() -> void:
-	_body_box.add_child(_make_section_header("the core loop: R · E · Q"))
-	_body_box.add_child(_make_body("Press 8 to enter the Ace frame, then:"))
-	_body_box.add_child(_make_action_row("R", "Plant", "Invest energy — a coherent Rabi pulse swings the qubit toward its north pole (screw in). Unitary: works anywhere, but cannot purify a fog."))
-	_body_box.add_child(_make_action_row("E", "Measure", "Read the price — collapse the quantum state (Born rule)."))
-	_body_box.add_child(_make_action_row("Q", "Harvest", "Extract energy — reward = surprisal −kT·log p, rare pays more (screw out)."))
+	_body_box.add_child(_make_section_header("the core loop: R · Q (tap · tap)"))
+	_body_box.add_child(_make_body("Press 8 to enter the Ace frame (you start there), then:"))
+	_body_box.add_child(_make_action_row("R", "Strike", "Collapse the quantum state (Born rule) — the game's one irreversible act. The bubble freezes cyan with its answer. A tap on a live bubble does the same."))
+	_body_box.add_child(_make_action_row("Q", "Extract", "Harvest the frozen answer — reward = surprisal −kT·log p, rare pays more. The bubble returns to live evolution. A tap on a frozen bubble does the same."))
+	_body_box.add_child(_make_action_row("E", "Pause", "Stop time and look — E is the universal \"tell me more\" on every surface."))
+	_body_box.add_child(_make_action_row("F", "Fast-Fwd", "Play on / speed time — and in Ace, reap the whole season at once."))
 	_body_box.add_child(_make_body(
-		"R screws in (plant = invest energy), E reads the price (measure), Q screws out (harvest = extract). "
+		"R strikes, Q extracts — that's the farming heartbeat, and tapping a bubble walks the same two beats. "
 		+ "Selecting a plot auto-binds its terminal — no separate Explore. Same direction in every tool."))
 
 func _guide_four_tools() -> void:
@@ -1210,7 +1211,7 @@ func _guide_four_tools() -> void:
 	_body_box.add_child(_make_action_row("5", "Icon",      "Inject a dual-emoji qubit from the neighborhood's installed signature."))
 	_body_box.add_child(_make_action_row("6", "Merchant", "Standing contracts with the country you stand in (wet ground only). 1/2/3 picks the channel: thermal ~ (keeps the field warm) · dephase . (sells phase for heat; no buying it back) · damp | (pins and pays). Q=Export, E=order book, R=Import, F=Settle. Price = −kT·log p."))
 	_body_box.add_child(_make_action_row("7", "Captain",   "Biome lifecycle: Q=cull, E=compass, R=discover."))
-	_body_box.add_child(_make_action_row("8", "Ace", "Energy dyad: Q=harvest (extract), E=measure (price), R=plant (invest), F=reap the season."))
+	_body_box.add_child(_make_action_row("8", "Ace", "Measurement vantage: Q=extract the yield, E=pause+inspect, R=strike (collapse), F=fast-forward / reap the season."))
 	_body_box.add_child(_make_action_row("9", "Operator",  "Gate building: Q=break, E=inspect, R=gate."))
 	_body_box.add_child(_make_action_row("0", "Druid",     "Unitary rotations + Hadamard. 1/2/3 = X / Y / Z."))
 	_body_box.add_child(_make_spacer(4))

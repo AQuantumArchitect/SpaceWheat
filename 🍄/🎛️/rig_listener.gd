@@ -872,6 +872,26 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				result["stack"] = us_entries
 				result["size"] = us_entries.size()
 
+		"hover_probe":
+			# Diagnostic: who would receive a click at screen point [x, y]?
+			# Sends a mouse-motion there and reads the viewport's hovered
+			# control — the ground truth of GUI picking (which ignores
+			# z_index, so "drawn on top" and "gets the click" can disagree).
+			var hp_pos := Vector2(float(cmd.get("x", 0)), float(cmd.get("y", 0)))
+			var hp_vp = get_root()
+			var hp_motion := InputEventMouseMotion.new()
+			hp_motion.position = hp_pos
+			hp_motion.global_position = hp_pos
+			hp_vp.push_input(hp_motion, true)
+			await process_frame
+			var hp_hover: Control = hp_vp.gui_get_hovered_control()
+			if hp_hover == null:
+				result["hovered"] = ""
+			else:
+				result["hovered"] = str(hp_hover.name)
+				result["hovered_path"] = str(hp_hover.get_path())
+				result["hovered_filter"] = int(hp_hover.mouse_filter)
+
 		"plot_register_map":
 			# Diagnostic: per assigned plot, compare what the DISPLAY renders
 			# (register = grid column, the plot_idx ≡ register_id law in

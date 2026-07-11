@@ -280,6 +280,7 @@ func _build_close_hint(container: Control) -> void:
 
 func _build_confirm_group(container: Control) -> void:
 	_confirm_group = VBoxContainer.new()
+	_confirm_group.name = "MenuConfirmGroup"  # named so probes can assert the confirm actually armed
 	_confirm_group.add_theme_constant_override("separation", 10)
 	_confirm_group.visible = false
 	container.add_child(_confirm_group)

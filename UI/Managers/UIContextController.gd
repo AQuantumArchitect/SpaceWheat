@@ -123,6 +123,26 @@ func refresh() -> void:
 
 	action_bar_manager.select_frame(current_frame)
 	action_bar_manager.render_action_projection(_build_action_projection())
+	_apply_pointer_bleed_guard()
+
+
+func _apply_pointer_bleed_guard() -> void:
+	# Pointer twin of PlayerShell's keyboard bleed-through guard. When a real
+	# (non-transparent) menu is open, hat/biome KEYS are swallowed — so their
+	# CHIPS must not win clicks either. GUI picking ignores z_index: without
+	# this, the tool/biome chip strips (later in the tree) silently stole
+	# clicks aimed at modal content drawn above them (playtest 2: quest-board
+	# tabs unclickable by mouse). The menu row (ZXCVBNM ring) and bottom QERF
+	# chips stay live — ring navigation is never swallowed, and QERF chips
+	# route overlay-first, acting as the modal's own verb buttons.
+	var menu_open := false
+	if overlay_stack and not overlay_stack.is_empty():
+		var top = overlay_stack.get_top()
+		var transparent: bool = top != null and ("is_transparent_overlay" in top) and top.is_transparent_overlay
+		menu_open = not transparent
+	for row in [action_bar_manager.get_tool_row(), action_bar_manager.get_biome_row()]:
+		if row and row.has_method("set_pointer_enabled"):
+			row.set_pointer_enabled(not menu_open)
 
 
 func _connect_toolbar_inputs() -> void:
