@@ -1278,6 +1278,14 @@ func complete_or_claim(quest_id: int) -> bool:
 	if not active_quests.has(quest_id):
 		return false
 	var quest = active_quests[quest_id]
+	# Predicate-driven quests (tutorial steps, physics story quests) complete by
+	# CLAIM when their soft bar fills — regardless of nominal type. Tutorial defs
+	# carry no type, so Quest.make defaults them to DELIVERY (0); routing them
+	# into delivery completion could never succeed (no resource/quantity ask).
+	# Mirrors the QuestBoard's own ready→claim path.
+	var qpreds = quest.get("state_predicates", [])
+	if qpreds is Array and not qpreds.is_empty():
+		return claim_quest(quest_id) if quest.get("status", "") == "ready" else false
 	var quest_type = quest.get("type", QuestTypes.Type.DELIVERY)
 	if quest_type == QuestTypes.Type.DELIVERY:
 		return complete_quest(quest_id)

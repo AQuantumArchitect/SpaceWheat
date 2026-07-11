@@ -290,7 +290,8 @@ const ARCHETYPE_FRAMES: Dictionary = {
 				"F": {"action": "fast_forward", "label": "Fast-Fwd", "emoji": "⏩",
 					  "icon": "",
 					  "chip_resolver": "ace.f_explore",
-					  "hint": "Fast-forward — let the Hamiltonian spin the odds (advance time). Also resumes play. On an unexplored plot F mounts an expedition instead: explore it for 🍞."}
+					  "shift_action": "reap", "shift_label": "Reap Season",
+					  "hint": "Fast-forward — let the Hamiltonian spin the odds (advance time). Also resumes play. On an unexplored plot F mounts an expedition instead: explore it for 🍞. Shift+F reaps the whole season (biome-wide harvest, 🍼)."}
 			}
 		}
 	},

@@ -29,7 +29,8 @@ class BiomeObservables:
 	# Abstract quantum observables from any register substrate
 	var purity: float = -1.0       # Tr(rho^2) in [1/N, 1]
 	var entropy: float = -1.0      # Normalized to [0, 1]
-	var coherence: float = -1.0    # Sum of |rho_ij|^2 for i!=j, in [0, 1]
+	var coherence: float = -1.0    # Sum of |rho_ij|^2 for i!=j, LEGACY scale (÷ dim·(dim−1))
+	var coherence_pure: float = -1.0  # Same sum ÷ pure-state max (1−1/dim) — spans [0,1] for real states
 	var distribution_shape: int = -1  # 0=peaked, 1=bimodal, 2=spread, 3=uniform
 	var scale: float = -1.0        # Total probability mass (activity level)
 	var dynamics: float = -1.0     # Evolution rate (how fast state changes)
@@ -62,8 +63,14 @@ static func extract_observables(substrate, biome = null) -> BiomeObservables:
 	else:
 		obs.entropy = -1.0
 
-	# Coherence: sum of off-diagonal magnitudes squared
+	# Coherence: sum of off-diagonal magnitudes squared — published on TWO scales.
+	# `coherence` keeps the legacy dim·(dim−1) denominator because 90 faction
+	# alignments (discovery affinity, market resonance) were calibrated while it
+	# read ~0.001 everywhere — renormalizing it live reshuffled Act-5 discovery
+	# and broke the campaign. `coherence_pure` divides by the pure-state max
+	# (1−1/dim) so quest predicates get a scale a player can actually reach.
 	obs.coherence = _calculate_coherence(density_matrix)
+	obs.coherence_pure = _rescale_coherence_pure(obs.coherence, dim)
 
 	# Distribution shape: analyze probability distribution
 	obs.distribution_shape = _classify_distribution(density_matrix)
@@ -255,9 +262,20 @@ static func _calculate_coherence(density_matrix) -> float:
 				if element:
 					total += element.re * element.re + element.im * element.im
 
-	# Normalize by maximum possible coherence
+	# LEGACY normalization (see extract_observables): kept for faction alignment.
 	var max_coherence = float(dim * (dim - 1))
 	return clamp(total / max_coherence, 0.0, 1.0) if max_coherence > 0 else 0.0
+
+
+## Convert the legacy-normalized coherence back to the PURE-STATE scale:
+## Σ_{i≠j}|ρij|² peaks at 1 − 1/dim (uniform superposition), so this spans
+## [0, 1] for reachable states. Quest predicates read THIS scale.
+static func _rescale_coherence_pure(legacy: float, dim: int) -> float:
+	if dim < 2 or legacy < 0.0:
+		return legacy
+	var total = legacy * float(dim * (dim - 1))
+	var max_pure = 1.0 - 1.0 / float(dim)
+	return clamp(total / max_pure, 0.0, 1.0) if max_pure > 0 else 0.0
 
 
 static func _classify_distribution(density_matrix) -> int:

@@ -25,15 +25,18 @@ func observe_biome(biome, delta: float = 0.0) -> Dictionary:
 	var biome_name = ""
 	if biome and biome.has_method("get"):
 		biome_name = str(biome.get("biome_name"))
+	# Predicates read the PURE-STATE coherence scale (reachable [0,1]); the
+	# legacy alignment scale caps at ~1/dim² and made every coherence_at_least
+	# ≥ 0.3 unreachable (tutorial superposition, pond_breathes, the_crossing).
 	if biome_name != "":
 		var mark := float(_coherence_watermark.get(biome_name, 0.0))
-		if float(obs.coherence) > mark:
-			_coherence_watermark[biome_name] = float(obs.coherence)
+		if float(obs.coherence_pure) > mark:
+			_coherence_watermark[biome_name] = float(obs.coherence_pure)
 	_last_observables = {
 		"biome": biome_name,
 		"purity": float(obs.purity),
 		"entropy": float(obs.entropy),
-		"coherence": float(obs.coherence),
+		"coherence": float(obs.coherence_pure),
 		"distribution_shape": str(obs.distribution_shape),
 		"scale": str(obs.scale),
 		"dynamics": str(obs.dynamics),

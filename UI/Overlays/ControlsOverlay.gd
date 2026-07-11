@@ -1227,7 +1227,8 @@ func _guide_core_loop() -> void:
 	_body_box.add_child(_make_action_row("E", "Pause", "Stop time and look — E is the universal \"tell me more\" on every surface."))
 	_body_box.add_child(_make_body(
 		"F explores, R strikes, Q extracts — that's the farming heartbeat, and tapping a plot walks the same three beats. "
-		+ "On an explored plot F returns to its other meaning: play on / fast-forward (double down and let the odds spin)."))
+		+ "On an explored plot F returns to its other meaning: play on / fast-forward (double down and let the odds spin). "
+		+ "Shift+F reaps the whole season — time runs, every plot settles, the harvest lands at once."))
 
 func _guide_four_tools() -> void:
 	_body_box.add_child(_make_section_header("the seven archetype frames (4-0)"))

@@ -191,5 +191,10 @@ static func from_tutorial_def(quest_def: Dictionary, quest_id: int) -> Dictionar
 	})
 	for k in quest_def:
 		q[str(k)] = quest_def[k]
+	# Tutorial defs author "type" as a STRING ("DELIVERY"); the engine speaks
+	# QuestTypes.Type ints — normalize or completion routing never matches
+	# (complete_or_claim compares against the enum; a string fails forever).
+	if q.get("type") is String:
+		q["type"] = QuestTypes.Type.get(str(q["type"]), QuestTypes.Type.DELIVERY)
 	return q
 

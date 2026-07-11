@@ -29,7 +29,7 @@
       "faction": "Hearth Keepers",
       "biome": "TheDemos",
       "body": "Time is the pump. Reap the season — let the Hamiltonian work, and gather the yield across the whole biome.",
-      "tutorial_hint": "Ace hat (8): press F to reap the season. Time runs forward, every plot settles, and the harvest lands at once.",
+      "tutorial_hint": "Ace hat (8): hold Shift and press F to reap the season. Time runs forward, every plot settles, and the harvest lands at once.",
       "state_predicates": [
         {"type": "gate_sequence_contains", "gate": "reap", "count": 1}
       ]
@@ -51,10 +51,9 @@
       "faction": "Hearth Keepers",
       "biome": "StarterForest",
       "body": "A qubit alone is a wheel. Two qubits woven together are a loom — touch one and the other answers, however far apart they drift.",
-      "tutorial_hint": "Operator hat (9): select two plots (G H J K L ;), press R and build a Bell or CNOT gate. Watch the gold thread between their bubbles thicken — push mutual information past 0.5.",
+      "tutorial_hint": "Operator hat (9): hold Shift and tap two plot keys (G H J K L ;) to check the pair, then press R and weave a Bell (Q). Watch the gold thread between their bubbles — each weave pulls them closer. The bar fills as you weave.",
       "state_predicates": [
-        {"type": "gate_sequence_contains", "gate": "gate_inject", "count": 1},
-        {"type": "mutual_information_at_least", "value": 0.5}
+        {"type": "gate_sequence_contains", "gate": "bell", "count": 1}
       ]
     },
     {

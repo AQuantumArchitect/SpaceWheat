@@ -1917,6 +1917,49 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				var cp = qi._confirm_pending if ("_confirm_pending" in qi) else {}
 				result["confirm_pending"] = not cp.is_empty()
 				result["confirm_label"] = str(cp.get("label", ""))
+				var checks: Array = []
+				if inst and ("checked_plots" in inst):
+					for cpos in inst.checked_plots:
+						checks.append([int(cpos.x), int(cpos.y)])
+				result["checked_plots"] = checks
+
+		"quest_projection":
+			# Diagnostic: the QuestStateProjectionService's view — last observables
+			# (coherence, max MI, frozen loops...) + recent action history. This is
+			# EXACTLY what quest state_predicates score against.
+			var qp_qm = _resolve_quest_manager()
+			if qp_qm == null or not qp_qm.has_method("get_state_projection_snapshot"):
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_projection"}
+			else:
+				var qp_snap: Dictionary = qp_qm.get_state_projection_snapshot()
+				var qp_obs = qp_snap.get("observables", {})
+				var qp_clean: Dictionary = {}
+				for ok_key in qp_obs:
+					var v = qp_obs[ok_key]
+					qp_clean[str(ok_key)] = v if (v is float or v is int or v is bool or v is String) else str(v)
+				result["observables"] = qp_clean
+				var qp_hist: Array = []
+				for row in qp_snap.get("recent_actions", []):
+					qp_hist.append(str(row.get("action", "")))
+				result["recent_actions"] = qp_hist
+
+		"quest_pred_scores":
+			# Diagnostic: per-predicate soft scores for an active quest — the same
+			# numbers the Arc tab shows for flags, but for quest state_predicates.
+			var qps_qm = _resolve_quest_manager()
+			var qps_id := int(cmd.get("quest_id", -1))
+			if qps_qm == null or not qps_qm.active_quests.has(qps_id):
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_such_quest"}
+			else:
+				var qps_q: Dictionary = qps_qm.active_quests[qps_id]
+				var qps_rows: Array = []
+				for qps_pred in qps_q.get("state_predicates", []):
+					qps_rows.append({
+						"pred": str(qps_pred.get("type", "")),
+						"score": qps_qm.evaluate_predicate_score(qps_pred) if qps_qm.has_method("evaluate_predicate_score") else -1.0,
+					})
+				result["scores"] = qps_rows
+				result["progress"] = float(qps_q.get("progress", 0.0))
 
 		"submenu_state":
 			# Diagnostic: read the open submenu (e.g. icon_injection) so a driver can find
@@ -1934,8 +1977,15 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				for slot_key in ["Q", "E", "R"]:
 					if acts.has(slot_key):
 						var a = acts[slot_key]
-						var ic = a.get("icon", {}) if a is Dictionary else {}
-						slots[slot_key] = {"label": str(a.get("label", "")), "north": str(ic.get("north", "")), "south": str(ic.get("south", ""))}
+						# icon is a Dictionary for icon-injection slots but a String
+						# (svg path) for gate slots — reading .get on a String
+						# crashed this whole handler (bare result, no fields).
+						var a_icon = a.get("icon", {}) if a is Dictionary else {}
+						var ic: Dictionary = a_icon if a_icon is Dictionary else {}
+						slots[slot_key] = {
+							"label": str(a.get("label", "")) if a is Dictionary else "",
+							"action": str(a.get("action", "")) if a is Dictionary else "",
+							"north": str(ic.get("north", "")), "south": str(ic.get("south", ""))}
 				result["slots"] = slots
 
 		"press_key":

@@ -282,7 +282,12 @@ func _unhandled_key_input(event: InputEvent) -> void:
 				_close_submenu()
 			else:
 				var f_action = ToolConfig.get_action(ToolConfig.get_current_frame(), "F")
-				if not f_action.is_empty():
+				if event.is_shift_pressed() and str(f_action.get("shift_action", "")) != "":
+					# Shift+F = the season-scale time verb (Ace: Reap Season).
+					# Biome-wide — no checked-plot batch, dispatch directly.
+					_run_action(str(f_action["shift_action"]), str(f_action.get("emoji", "")),
+						str(f_action.get("shift_label", f_action.get("label", ""))))
+				elif not f_action.is_empty():
 					_perform_action("F")
 			get_viewport().set_input_as_handled()
 
