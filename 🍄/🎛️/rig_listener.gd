@@ -1038,6 +1038,32 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				result["offer_pool_size"] = (bs_board._offer_pool.size() if ("_offer_pool" in bs_board) else -1)
 				result["selected_index"] = (int(bs_board._selected_index) if ("_selected_index" in bs_board) else -999)
 				result["market_status_note"] = (str(bs_board._market_status_note) if ("_market_status_note" in bs_board) else "")
+				# The board's OWN pool + commitments rows (the rig's board_market
+				# action proposes its own separate pool — ids there do NOT match
+				# what the player sees; probes must read THIS).
+				if "_offer_pool" in bs_board:
+					var bs_offers: Array = []
+					for bo in bs_board._offer_pool:
+						bs_offers.append({
+							"id": bo.get("id", -1),
+							"faction": str(bo.get("faction", "")),
+							"resource": str(bo.get("resource", "")),
+							"quantity": int(bo.get("quantity", 0)),
+							"reward_resources": bo.get("reward_resources", {}),
+						})
+					result["offers"] = bs_offers
+				if bs_board.has_method("_commitments_rows"):
+					var bs_rows: Array = []
+					for br in bs_board._commitments_rows():
+						bs_rows.append({
+							"id": br.get("id", -1),
+							"faction": str(br.get("faction", "")),
+							"resource": str(br.get("resource", "")),
+							"quantity": int(br.get("quantity", 0)),
+							"status": str(br.get("status", "")),
+							"type": str(br.get("type", "")),
+						})
+					result["commitments"] = bs_rows
 				result["nb_name"] = (str(bs_board._nb_name) if ("_nb_name" in bs_board) else "")
 				result["pair"] = [(str(bs_board._pair_a_name) if ("_pair_a_name" in bs_board) else ""), (str(bs_board._pair_b_name) if ("_pair_b_name" in bs_board) else "")]
 				# The biome the board actually scoped to (the live current_biome it used).

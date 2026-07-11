@@ -219,15 +219,16 @@ static func action_measure(terminal, biome, economy = null, farm = null) -> Dict
 		}
 
 	# 2b. Preflight cost (after validation gates).
-	# FLAT cost since the 🍞 cutover (2026-07-11): the strike is an expedition
-	# and supplies cost the same whether the locals are strangers. The old
-	# unfamiliarity multiplier (×3 at affinity 0) was tuned for the plentiful
-	# ❄️ era; on the bread currency it tripled the burn and closed the door
-	# on a fresh wallet in ~11 strikes. Chaos stays in the DEAL (surprisal
-	# rewards, pop concentration tax); the door price stays flat.
+	# Scale by pair affinity — unfamiliar factions cost more to collapse.
+	# (Owner ruling 2026-07-11: costs stay physics-scaled — the game is the
+	# race to a self-sustaining economy; a flat market is "dumb and boring".)
+	var pair_affinity = FactionAffinity.get_pair_affinity(
+		terminal.north_emoji, terminal.south_emoji, farm)
 	# Override-aware: route through ActionCostRuntime so balance-board action_cost
 	# overrides actually reach measure (EconomyConstants is the fallback inside it).
-	var scaled_measure_cost = ActionCostRuntime.get_action_cost(farm, "measure", {})
+	var base_measure_cost = ActionCostRuntime.get_action_cost(farm, "measure", {})
+	var scaled_measure_cost = PhysicsCostScaling.scale_measure_cost(
+		base_measure_cost, pair_affinity)
 	var measure_cost_gate = _preflight_cost(economy, scaled_measure_cost)
 	if not measure_cost_gate.get("ok", true):
 		var cost = measure_cost_gate.get("cost", {})
@@ -970,14 +971,8 @@ static func _prepare_pop_result(terminal, terminal_pool, economy = null, farm = 
 	var resource_amount = maxi(int(reward_ctx.get("resource_amount", credits)), 1)
 
 	if economy:
-		# FLAT pop cost (2026-07-11, same law as the strike): the old
-		# concentration tax (×3 at p=r=1) charged MOST for harvesting pure
-		# high-probability states — exactly the "harvest icons you KNOW"
-		# strategy the tutorial teaches — so the taught loop ran net-negative
-		# in 👥 and popped players to zero (stranger-session soft-lock).
-		# Chaos stays in the DEAL: the surprisal reward is already the raw
-		# price signal (likely outcomes pay little). The door stays flat.
-		var scaled_cost = ActionCostRuntime.get_action_cost(farm, "pop", {})
+		var base_cost = ActionCostRuntime.get_action_cost(farm, "pop", {})
+		var scaled_cost = PhysicsCostScaling.scale_pop_cost(base_cost, p_emoji, bloch_r)
 		var pop_cost_gate = _preflight_cost(economy, scaled_cost)
 		if not pop_cost_gate.get("ok", true):
 			return {

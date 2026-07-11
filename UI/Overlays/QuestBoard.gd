@@ -947,6 +947,28 @@ func _build_market_body() -> void:
 		else:
 			_body_box.add_child(_make_empty_row(ITEM_KEYS[i]))
 
+## What the contract PAYS, in player language. Icon contracts teach a word;
+## resource contracts pay their pre-rolled bundle (top entries, biggest first).
+func _offer_reward_text(offer: Dictionary) -> String:
+	var icon_n := str(offer.get("reward_icon_north", offer.get("reward_north", "")))
+	var icon_s := str(offer.get("reward_icon_south", offer.get("reward_south", "")))
+	if icon_n != "" and icon_s != "":
+		return "teaches %s%s" % [icon_n, icon_s]
+	var rewards = offer.get("reward_resources", {})
+	if rewards is Dictionary and not rewards.is_empty():
+		var entries: Array = []
+		for emoji in rewards:
+			entries.append({"emoji": str(emoji), "amount": float(rewards[emoji])})
+		entries.sort_custom(func(a, b): return a.amount > b.amount)
+		var parts: PackedStringArray = []
+		for e in entries.slice(0, 3):
+			parts.append("%s×%d" % [e.emoji, int(round(e.amount))])
+		if entries.size() > 3:
+			parts.append("…")
+		return "pays " + " ".join(parts)
+	return "pays ?"
+
+
 func _make_offer_row(offer: Dictionary, key_str: String, selected: bool) -> Control:
 	var row := PanelContainer.new()
 	var sb := StyleBoxFlat.new()
@@ -991,9 +1013,14 @@ func _make_offer_row(offer: Dictionary, key_str: String, selected: bool) -> Cont
 	var share: float = float(offer.get("view_share", 0.0))
 	var depth: float = float(offer.get("view_depth", 0.0))
 	var comfort: float = float(offer.get("view_comfort", 0.0))
+	# The DEAL must read as a deal: give → get. The payout was never rendered
+	# ("(s=0.91 d=0.07 c+0.84)" dev-speak instead), so a stranger could not
+	# trade toward the resource they needed — the whole trade loop was blind.
+	# The raw stats live on in the tooltip (and E-inspect keeps the details).
 	var view_lbl := Label.new()
-	view_lbl.text = "(s=%.2f d=%.2f c%+.2f) %s" % [share, depth, comfort, _comfort_bar(comfort, 5)]
-	view_lbl.add_theme_font_size_override("font_size", 11)
+	view_lbl.text = "→ %s   %s" % [_offer_reward_text(offer), _comfort_bar(comfort, 5)]
+	view_lbl.tooltip_text = "share %.2f · depth %.2f · comfort %+.2f" % [share, depth, comfort]
+	view_lbl.add_theme_font_size_override("font_size", 13)
 	view_lbl.add_theme_color_override("font_color", _comfort_color(comfort))
 	view_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top_hbox.add_child(view_lbl)
@@ -1267,10 +1294,15 @@ func _commitments_rows() -> Array:
 			return ta > tb
 		)
 		return rows
-	# Default "active" view.
+	# Default "active" view — newest accepted FIRST, so the contract you just
+	# took is the selected row when you land on U (dict order buried it under
+	# the whole tutorial chain, sometimes past the visible 6 entirely).
 	if quest_manager and "active_quests" in quest_manager and quest_manager.active_quests is Dictionary:
 		for q in quest_manager.active_quests.values():
 			rows.append(q)
+		rows.sort_custom(func(a, b):
+			return int(a.get("accepted_at", 0)) > int(b.get("accepted_at", 0))
+		)
 	return rows
 
 # =============================================================================
@@ -1441,6 +1473,10 @@ func _get_inventory() -> Dictionary:
 		return {}
 	return farm.economy.get_all_resources()
 
+func _get_economy():
+	var farm = InstrumentLocator.resolve_active_farm(self)
+	return farm.economy if farm else null
+
 func _ensure_biome() -> void:
 	# The neighborhood market follows the player: ALWAYS re-resolve to the ACTIVE biome
 	# (where the player currently stands) so switching biomes re-scopes the board. A sticky
@@ -1479,6 +1515,12 @@ func _accept_selected() -> void:
 	if offer.is_empty() or quest_manager == null:
 		return
 	if quest_manager.has_method("accept_quest"):
+		# The lattice can re-propose a contract the player already holds —
+		# name that case honestly instead of blaming the cost.
+		var offer_id = offer.get("id", -1)
+		if "active_quests" in quest_manager and quest_manager.active_quests.has(offer_id):
+			_toast_feedback("• already accepted — it's in Commitments [U]")
+			return
 		if quest_manager.accept_quest(offer):
 			quest_accepted.emit(offer)
 			# Accepting must CHANGE something on screen (playtest 2: "pressing
@@ -1488,9 +1530,12 @@ func _accept_selected() -> void:
 			_render_all()
 			_toast_feedback("✓ contract accepted — now in Commitments [U]")
 		else:
-			_toast_feedback("✗ couldn't accept this contract — check its cost")
+			_toast_feedback("✗ couldn't accept this contract")
 
 func _complete_selected() -> void:
+	# A refused R must SAY why (anti-gating law) — this used to fail in total
+	# silence, which played as "the trade system is broken" (playtest 4: the
+	# core deliver verb settled nothing and said nothing).
 	if quest_manager == null:
 		return
 	var rows: Array = _commitments_rows()
@@ -1501,12 +1546,37 @@ func _complete_selected() -> void:
 	if qid < 0:
 		return
 	var status := str(quest.get("status", ""))
+	var qt = quest.get("type", QuestTypes.Type.DELIVERY)
+	var qti := int(qt) if (typeof(qt) == TYPE_INT or typeof(qt) == TYPE_FLOAT) else int(QuestTypes.Type.DELIVERY)
+	var is_delivery: bool = qti == int(QuestTypes.Type.DELIVERY)
+
+	if is_delivery:
+		var ask_emoji := str(quest.get("resource", ""))
+		var ask_qty := int(quest.get("quantity", 0))
+		var held := 0
+		var econ = _get_economy()
+		if econ:
+			held = int(econ.get_resource(ask_emoji))
+		if held < ask_qty:
+			_toast_feedback("• deliver needs %s×%d — you hold %d" % [ask_emoji, ask_qty, held])
+			return
+		if quest_manager.has_method("complete_quest") and quest_manager.complete_quest(qid):
+			quest_completed.emit(qid, {})
+			_render_all()
+			_toast_feedback("✓ delivered %s×%d — payout is in your stores" % [ask_emoji, ask_qty])
+		else:
+			_toast_feedback("✗ delivery failed — the market could not settle this contract")
+		return
+
 	if status == "ready" and quest_manager.has_method("claim_quest"):
 		if quest_manager.claim_quest(qid):
 			quest_completed.emit(qid, {})
-	elif quest_manager.has_method("complete_quest"):
-		if quest_manager.complete_quest(qid):
-			quest_completed.emit(qid, {})
+			_render_all()
+			_toast_feedback("✓ claimed — reward granted")
+		else:
+			_toast_feedback("✗ claim failed")
+	else:
+		_toast_feedback("• not ready yet — its bar fills as the live state approaches the ask")
 
 func _abandon_selected() -> void:
 	if quest_manager == null:
