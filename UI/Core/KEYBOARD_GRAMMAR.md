@@ -153,14 +153,16 @@ Right-hand rule. Curl the fingers of your right hand around a screw.
 
 **Ace is the player-character vantage** (see *Hats and frames*). It is the
 one hat that works in every mode, because it uses the only operation all
-modes share: **measurement**. You watch the substrate spin and scrub time
-(**E** pause / **F** fast-forward to read the odds), then **R = Strike**
-collapses the selected register to one classical outcome (the irreversible
-act), and **Q = Extract** cashes out the realized reward (surprisal
-`−kT·log p` — a rare collapse pays more). Selection is a free, transient
-cursor move that renders the live bubble straight from the QC; the **strike**
-binds the terminal it needs, so there is no separate "Explore" verb and no
-cost to look.
+modes share: **measurement**. **F = Explore** on an unexplored plot mounts
+the expedition (costs 🍞 — breaking bread opens doors; the bind is what
+makes the register strikeable); on an explored plot F keeps its other
+meaning, play/fast-forward (double down and let H spin the odds; **E**
+pauses to read them). **R = Strike** collapses the explored register to
+one classical outcome (the irreversible act, a social encounter that
+costs 👥), and **Q = Extract** cashes out the realized reward free
+(surprisal `−kT·log p` — a rare collapse pays more; a certain one pays
+the floor). Selection stays a free, transient cursor move that renders
+the live bubble straight from the QC — looking costs nothing, acting does.
 
 > **Regimes (openness is a place).** On closed ground measure/strike is a
 > **full projective collapse** — measurement is the only irreversible act,
@@ -170,8 +172,8 @@ cost to look.
 > refuse per-plot wherever the target biome's regime runs closed, and run
 > live wherever it leaks (the wet landmarks boot open before the endgame
 > door). **Plant** (the population drive) is gone from Ace entirely — it
-> lives only on Spark; Ace is the measurement vantage (Extract / Pause /
-> Strike / Fast-Fwd). See `docs/CLOSED_SYSTEM.md`.
+> lives only on Spark; Ace is the measurement vantage (Explore-Fast-Fwd / Extract /
+> Pause / Strike). See `docs/CLOSED_SYSTEM.md`.
 
 #### The session is the axis, not the target
 
@@ -293,13 +295,14 @@ still exists and the row still has four slots. Source of truth:
 | 5  | Icon      | inject (single)          | Trim Icon     | (open picker; pause)  | Add Icon      | Track ⌖          |
 | 6  | Merchant  | thermal / dephase / damp | Export 📤     | Order book !          | Import 📥 (dephase: refused) | Settle ✔  |
 | 7  | Captain   | biomes (single)          | Cull          | Compass               | Discover      | (global F)       |
-| 8  | Ace       | probe (single)           | Extract       | Pause ⏸               | Strike !      | Fast-Fwd ⏩      |
+| 8  | Ace       | probe (single)           | Extract       | Pause ⏸               | Strike !      | Explore 🧭 / Fast-Fwd ⏩ |
 | 9  | Operator  | gate (single)            | Break gate    | Inspect               | Build gate    | (global F)       |
 | 0  | Druid     | X / Y / Z                | rot−          | Hadamard              | rot+          | (global F)       |
 
 🔒 = open-quantum DLC only; renders disabled (greyed + 🔒) in the closed (default) build.
 Ace's **E = Pause** and **F = Fast-Fwd** are the time-scrub pair (E freezes to read the
-odds, F advances so H spins them); **R = Strike** is the collapse, **Q = Extract** the cash-out.
+odds, F advances so H spins them); on an UNEXPLORED plot **F = Explore** (🍞) binds the
+register first; **R = Strike** (👥) is the collapse, **Q = Extract** the free cash-out.
 
 F is handled globally by PlayerShell — frames don't define a per-mode F
 verb. The only way a per-frame F appears is if a frame has a verb that

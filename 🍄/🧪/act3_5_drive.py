@@ -472,7 +472,7 @@ def main():
             print(f"  RESUME: loaded={r_ld.get('loaded')} flags={len(flags())} grid={grid()}")
         if not _resume:
             print("\n== ACT1: StarterForest ==")
-            press("T")
+            goto_biome("StarterForest")  # slots follow scenario order now (TheDemos boots on T)
             for rnd in range(1, 10):
                 incorporate()
                 fl = flags()

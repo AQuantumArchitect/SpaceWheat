@@ -599,13 +599,31 @@ func _execute_inject_icon(icon: Dictionary) -> void:
 		action_performed.emit("inject_icon", result)
 
 
-func _build_chip_context() -> ChipContext:
-	# Used by both _perform_action (dispatch resolution) and any UI mirror that
-	# wants to reason about the focused qubit's contextual state.
+func build_chip_context() -> ChipContext:
+	# Used by _perform_action (dispatch resolution) AND UIContextController
+	# (chip text) — both read the SAME context so what a chip shows is exactly
+	# what its key fires.
 	var biome = _get_current_biome()
 	var qc = biome.quantum_computer if biome else null
+	# Sticky focus, same law as _get_selected_positions(): off the plot ring
+	# (hat switch / B lens clear current_plot_idx) the last-focused register is
+	# still the action target — the chip must describe THAT plot.
 	var qid: int = int(_instrument.current_plot_idx) if _instrument else -1
-	return ChipContext.new(qc, qid)
+	var ctx_pos := GridSentinel.INVALID_POSITION
+	if qid >= 0:
+		ctx_pos = _get_grid_position()
+	elif _instrument and _instrument.last_selected_position != GridSentinel.INVALID_POSITION:
+		ctx_pos = _instrument.last_selected_position
+		qid = ctx_pos.x
+	var bound := false
+	if farm and farm.grid and ctx_pos != GridSentinel.INVALID_POSITION:
+		var ctx_plot = farm.grid.get_plot(ctx_pos)
+		bound = ctx_plot != null and ctx_plot.terminal != null
+	return ChipContext.new(qc, qid, bound)
+
+
+func _build_chip_context() -> ChipContext:
+	return build_chip_context()
 
 
 func _execute_toggle_berry_track() -> Dictionary:
@@ -1398,26 +1416,20 @@ func handle_bubble_tap(grid_pos: Vector2i) -> Dictionary:
 	if plot_count > 0 and grid_pos.x >= plot_count:
 		return {"success": false, "error": "out_of_range", "message": ""}
 
-	# Three-beat rhythm, all from farm ground truth (never node visuals):
-	# unrevealed plot → the tap WAKES it (focus + reveal, no verb) — the mouse
-	# equivalent of the deliberate first touch. revealed live → measure.
-	# measured → pop.
-	var was_revealed: bool = true
-	if "revealed_plots" in farm:
-		was_revealed = grid_pos in farm.revealed_plots
-
 	# Selection FIRST, so the verb targets exactly what was tapped and every
 	# downstream reader (action bar, B overlay) agrees with the tap.
 	# (_focus_plot also reveals — a tap is a deliberate touch.)
 	_focus_plot(grid_pos.x, biome_name)
 
-	if not was_revealed:
-		return {"success": true, "action": "reveal"}
-
+	# Three-beat rhythm = the Ace verbs, one tap each, priced exactly like the
+	# keyboard F/R/Q (owner ruling 2026-07-11): unexplored plot → EXPLORE (the
+	# expedition, 🍞) · explored live → STRIKE (👥) · struck → EXTRACT (free).
+	# All from farm ground truth (plot.terminal), never node visuals.
 	var plot = farm.grid.get_plot(grid_pos)
 	var terminal = plot.terminal if plot else null
-	var is_measured: bool = terminal != null and terminal.is_measured
-	var verb := "pop" if is_measured else "measure"
+	var verb := "explore"
+	if terminal != null:
+		verb = "pop" if terminal.is_measured else "measure"
 
 	if not ActionValidator.can_execute_action_name(
 		verb, farm, _get_selected_positions(), _get_grid_position()
@@ -1425,9 +1437,13 @@ func handle_bubble_tap(grid_pos: Vector2i) -> Dictionary:
 		_verbose.info("input", "•", "tap %s blocked%s" % [verb, _get_block_reason(verb)])
 		return {"success": false, "blocked": true, "action": verb}
 
-	if verb == "measure":
-		return _run_action("measure", "📊", "Strike")
-	return _run_action("pop", "🎉", "Extract")
+	match verb:
+		"explore":
+			return _run_action("explore", "🧭", "Explore")
+		"measure":
+			return _run_action("measure", "📊", "Strike")
+		_:
+			return _run_action("pop", "🎉", "Extract")
 
 
 func _perform_action(action_key: String) -> void:

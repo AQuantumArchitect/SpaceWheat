@@ -5,9 +5,9 @@
       "tutorial_step": 0,
       "tutorial_teaches": "core_loop",
       "faction": "Hearth Keepers",
-      "biome": "StarterForest",
-      "body": "The forest is asleep. Wake it: strike a qubit to collapse it, then extract what the collapse leaves behind.",
-      "tutorial_hint": "Ace is your starting hat (8). Pick a plot with G H J K L ; — or just tap its bubble. R strikes (the collapse is the one irreversible act), Q extracts the yield. E pauses to look; F plays on.",
+      "biome": "TheDemos",
+      "body": "The Demos sleeps — wheat and people, waiting. Explore a plot, strike its qubit to collapse it, then extract what the collapse leaves behind.",
+      "tutorial_hint": "Ace is your starting hat (8). Pick a plot with G H J K L ; — or just tap it. F explores it (an expedition costs 🍞), R strikes (a social encounter costs 👥), Q extracts the yield — free. E pauses to look; F plays on.",
       "state_predicates": [
         {"type": "gate_sequence_contains", "gate": "measure", "count": 1}
       ]
@@ -27,7 +27,7 @@
       "tutorial_step": 2,
       "tutorial_teaches": "reap_season",
       "faction": "Hearth Keepers",
-      "biome": "StarterForest",
+      "biome": "TheDemos",
       "body": "Time is the pump. Reap the season — let the Hamiltonian work, and gather the yield across the whole biome.",
       "tutorial_hint": "Ace hat (8): press F to reap the season. Time runs forward, every plot settles, and the harvest lands at once.",
       "state_predicates": [

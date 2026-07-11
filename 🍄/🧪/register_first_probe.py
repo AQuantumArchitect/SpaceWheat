@@ -70,10 +70,18 @@ def main():
         shot("rf_boot")
 
         # Make the registers visually interesting (spread), then select plot 0.
+        # demos_normal boots active in TheDemos — walk to StarterForest by its
+        # live slot key so the gate and the selection address the same biome.
+        slots = t("biome_slots").get("slots", [])
+        forest_key = next(str(sl["key"]).lower() for sl in slots if sl["biome"] == "StarterForest")
+        press(forest_key, settle=8)
         hg = t("gate_inject", gate="hadamard", biome="StarterForest", positions=[])
         print("hadamard ok:", hg.get("ok"))
         press("g", settle=6)
         shot("rf_select")
+
+        # EXPLORE: F/R/Q grammar — the expedition binds the register (1 bread).
+        print("explore F:", press("f", settle=10).get("ok"))
 
         # MEASURE: R flips the selected bubble in place.
         print("strike R:", press("r", settle=12).get("ok"))

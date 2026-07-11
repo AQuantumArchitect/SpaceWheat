@@ -87,23 +87,6 @@ func _input(event: InputEvent) -> void:
 	var stack_size = overlay_stack.size() if overlay_stack else 0
 	_verbose.debug("input", "⌨️", "PlayerShell._input() KEY: %s, overlay_stack: %d" % [event.keycode, stack_size])
 
-	# The WASD crawl ring was REMOVED 2026-07-08 (owner: redundant keyboard
-	# navigation, cluttered the view with the amber layer ring; mouse/touch +
-	# direct keys are the real inputs). Direct-pick keys still anchor the
-	# instrument's internal cursor_layer (it drives the plot-ring lifecycle)
-	# WITHOUT consuming — overlays and QII still receive the event.
-	if event is InputEventKey and event.pressed and not event.echo and instrument_input:
-		var kc = event.keycode
-		if kc in [KEY_Z, KEY_X, KEY_C, KEY_V, KEY_B, KEY_N, KEY_M]:
-			instrument_input.set_cursor_layer(0)
-		elif kc in [KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9, KEY_0]:
-			instrument_input.set_cursor_layer(1)
-		elif kc in [KEY_T, KEY_Y, KEY_U, KEY_I, KEY_O, KEY_P]:
-			instrument_input.set_cursor_layer(2)
-		elif kc in [KEY_G, KEY_H, KEY_J, KEY_K, KEY_L, KEY_SEMICOLON]:
-			instrument_input.set_cursor_layer(3)
-		# Direct-pick anchors do NOT mark as handled.
-
 	# LAYER 1: Overlay input (highest priority) - uses unified OverlayStackManager
 	if overlay_stack and not overlay_stack.is_empty():
 		var top_overlay = overlay_stack.get_top()
@@ -126,6 +109,23 @@ func _input(event: InputEvent) -> void:
 			_verbose.debug("input", "🚧", "Swallowed gameplay key %d — menu open, not a menu action" % event.keycode)
 			_mark_input_handled()
 			return
+
+	# Direct-pick keys anchor the instrument's internal cursor_layer (it drives
+	# the plot-ring lifecycle: entering layer 3 auto-selects a plot, which
+	# REVEALS its bubble). This must run only when the key actually reaches
+	# gameplay — placed BEFORE overlay routing it fired behind open menus
+	# (owner: "pressed G in X>I and the bubble appeared in the background").
+	# Anchors do NOT mark the event as handled.
+	if event is InputEventKey and instrument_input:
+		var kc = event.keycode
+		if kc in [KEY_Z, KEY_X, KEY_C, KEY_V, KEY_B, KEY_N, KEY_M]:
+			instrument_input.set_cursor_layer(0)
+		elif kc in [KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9, KEY_0]:
+			instrument_input.set_cursor_layer(1)
+		elif kc in [KEY_T, KEY_Y, KEY_U, KEY_I, KEY_O, KEY_P]:
+			instrument_input.set_cursor_layer(2)
+		elif kc in [KEY_G, KEY_H, KEY_J, KEY_K, KEY_L, KEY_SEMICOLON]:
+			instrument_input.set_cursor_layer(3)
 
 	# LAYER 2: Shell actions
 	if _handle_shell_action(event):

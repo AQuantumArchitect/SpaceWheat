@@ -1219,15 +1219,15 @@ func _build_guide_body() -> void:
 		"glossary": _guide_glossary()
 
 func _guide_core_loop() -> void:
-	_body_box.add_child(_make_section_header("the core loop: R · Q (tap · tap)"))
+	_body_box.add_child(_make_section_header("the core loop: F · R · Q (tap · tap · tap)"))
 	_body_box.add_child(_make_body("Press 8 to enter the Ace frame (you start there), then:"))
-	_body_box.add_child(_make_action_row("R", "Strike", "Collapse the quantum state (Born rule) — the game's one irreversible act. The bubble freezes cyan with its answer. A tap on a live bubble does the same."))
-	_body_box.add_child(_make_action_row("Q", "Extract", "Harvest the frozen answer — reward = surprisal −kT·log p, rare pays more. The bubble returns to live evolution. A tap on a frozen bubble does the same."))
+	_body_box.add_child(_make_action_row("F", "Explore", "Mount an expedition to an unexplored plot — costs 🍞 (breaking bread opens doors). Binds the register so it can be struck. A tap on an unexplored plot does the same."))
+	_body_box.add_child(_make_action_row("R", "Strike", "Collapse the quantum state (Born rule) — the game's one irreversible act; a social encounter that costs 👥. The bubble freezes cyan with its answer. A tap on a live bubble does the same."))
+	_body_box.add_child(_make_action_row("Q", "Extract", "Harvest the frozen answer, free — reward = surprisal −kT·log p, rare pays more (a certain outcome pays the floor: let the state evolve before you strike). The bubble returns to live evolution. A tap on a frozen bubble does the same."))
 	_body_box.add_child(_make_action_row("E", "Pause", "Stop time and look — E is the universal \"tell me more\" on every surface."))
-	_body_box.add_child(_make_action_row("F", "Fast-Fwd", "Play on / speed time — and in Ace, reap the whole season at once."))
 	_body_box.add_child(_make_body(
-		"R strikes, Q extracts — that's the farming heartbeat, and tapping a bubble walks the same two beats. "
-		+ "Selecting a plot auto-binds its terminal — no separate Explore. Same direction in every tool."))
+		"F explores, R strikes, Q extracts — that's the farming heartbeat, and tapping a plot walks the same three beats. "
+		+ "On an explored plot F returns to its other meaning: play on / fast-forward (double down and let the odds spin)."))
 
 func _guide_four_tools() -> void:
 	_body_box.add_child(_make_section_header("the seven archetype frames (4-0)"))

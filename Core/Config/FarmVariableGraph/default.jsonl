@@ -22,8 +22,7 @@
 # Static action + gate costs — the canonical home for every fixed cost. Dynamic costs
 # (inject_icon / spark / lindblad — computed from context) stay as formulas in code.
 {"op":"set","path":"action_costs.explore.🍞","value":1}
-{"op":"set","path":"action_costs.measure.🍞","value":1}
-{"op":"set","path":"action_costs.pop.👥","value":1}
+{"op":"set","path":"action_costs.measure.👥","value":1}
 {"op":"set","path":"action_costs.reap.🍼","value":1}
 {"op":"set","path":"action_costs.quest_reroll.🐇","value":1}
 {"op":"set","path":"action_costs.discover_biome.🦅","value":21}

@@ -89,15 +89,19 @@ def main():
             ok = check(not g, "r%d: no ghost overlays above base (found: %s)" % (round_no, [e["name"] for e in g])) and ok
 
             # 3) GAMEPLAY action-bar click: [R] Strike chip must fire the verb.
-            # Seed the measure cost first (🍞 — strike = expedition supplies /
-            # breaking bread, owner call 2026-07-11) — an economy refusal is
-            # NOT input death (that conflation hid the double-dispatch bug).
+            # Seed the verb costs first (🍞 explore / 👥 strike, owner ruling
+            # 2026-07-11) — an economy refusal is NOT input death (that
+            # conflation hid the double-dispatch bug).
             t("add_resource", emoji="🍞", amount=40)
+            t("add_resource", emoji="👥", amount=40)
             press("g", settle=6)
             b_before = bubble([0, 0])
             if b_before is not None and b_before.get("measured"):
-                press("q", settle=8)  # clear to live first
+                press("q", settle=8)  # clear to live first (pop releases the terminal)
                 b_before = bubble([0, 0])
+            # F/R/Q grammar: explore AFTER the clear — pop unbinds, and F on a
+            # bound plot is fast-forward, not explore.
+            press("f", settle=8)
             r_chip = t("control_rect", name="ActionBtn_R")
             if r_chip.get("center") and r_chip.get("visible"):
                 t("dispatch_ledger", clear=True)  # arm exactly-once check

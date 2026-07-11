@@ -47,6 +47,7 @@ def main():
         # H-then-strike lands at an arbitrary, often near-certain, probability.
         print("init:", istate())
         press("G")  # select plot 0 (also enters plot ring)
+        press("F")  # explore — F/R/Q grammar (owner 2026-07-11): expedition binds the register
         print("after G:", istate())
 
         # Put the register in genuine superposition (p≈0.5) so the strike carries

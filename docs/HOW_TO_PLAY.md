@@ -9,19 +9,24 @@ reference in [docs/ARCHETYPE_FRAMES.md](ARCHETYPE_FRAMES.md).
 
 ## The first sixty seconds
 
-You wake in the **StarterForest** wearing the **Ace** hat (the default —
+You wake in **The Demos** — your own people, wheat and folk — wearing the **Ace** hat (the default —
 that's the `8` key). A toast names the doors; the Hearth Keepers have left
 you a chain of small asks on the quest board.
 
-1. Pick a plot: `G H J K L ;` (left to right) — or just tap its bubble.
-2. **R** strikes — Born's rule picks an answer and the state collapses.
-   This is the game's one irreversible act; the bubble freezes cyan with
-   its answer. (Tapping a live bubble does the same.)
-3. **Q** extracts — you are paid the *surprisal* of the outcome,
-   −kT·log p. Rare answers pay more, because you learned more. The bubble
-   returns to live evolution. (Tapping a frozen bubble does the same.)
-4. **E** pauses time to look around; **F** plays on.
-5. **C** opens the quest board. The tutorial chain lives there — each step
+1. Pick a plot: `G H J K L ;` (left to right) — or just tap it.
+2. **F** explores — mount an expedition (costs 🍞: breaking bread opens
+   doors). The register binds and its bubble wakes. (The first tap on an
+   unexplored plot does the same.)
+3. **R** strikes — Born's rule picks an answer and the state collapses.
+   The game's one irreversible act, a social encounter that costs 👥; the
+   bubble freezes cyan with its answer. (Tapping a live bubble does the same.)
+4. **Q** extracts, free — you are paid the *surprisal* of the outcome,
+   −kT·log p. Rare answers pay more, because you learned more; a certain
+   answer pays the floor, so let the state evolve before you strike. The
+   bubble returns to live evolution. (Tapping a frozen bubble does the same.)
+5. **E** pauses time to look around; **F** plays on — on an explored plot
+   F doubles down: fast-forward and let the odds spin.
+6. **C** opens the quest board. The tutorial chain lives there — each step
    teaches one mechanic and its progress bar fills as the live state
    approaches the ask. The bar is the teacher.
 
@@ -48,7 +53,7 @@ Four verbs, same directions on every surface:
 | 5 | **Icon** | Inject dual-emoji qubits; **F tracks** a qubit's walk, **R incorporates** it when ripe. |
 | 6 | **Merchant** | Standing contracts with the Bath (wet country only). 1/2/3 picks the channel — thermal / dephase / damp. Q exports, E reads the order book, R imports, **F settles**. |
 | 7 | **Captain** | Biome lifecycle: cull, compass, discover. |
-| 8 | **Ace** | The default: strike (R) / extract (Q) / pause (E) / **reap (F)**. |
+| 8 | **Ace** | The default: explore/fast-fwd (F) / strike (R) / extract (Q) / pause (E). |
 | 9 | **Operator** | Gate building: Bell, CNOT, CZ, SWAP, GHZ. |
 | 0 | **Druid** | Rotations + Hadamard (E); 1/2/3 pick the X/Y/Z axis. |
 

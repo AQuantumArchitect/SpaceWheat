@@ -6,8 +6,10 @@ extends "res://UI/Core/Surface.gd"
 ## B is a magnifier-only overlay: no QERF chips, no TYUIOP claims, no
 ## frame cycling. It mirrors the live instrument's plot selection and
 ## renders a richer view of that one plot (IconCard + marginals strip
-## + entanglement summary + biome name). All keys forward through to
-## the surface beneath via SurfaceRegistry.get_topmost_excluding(self).
+## + entanglement summary + biome name). It consumes NO input at all —
+## handle_input/handle_action return false so every key and chip tap
+## falls through to the one gameplay dispatcher (QII); the player keeps
+## acting on the plot they are magnifying.
 ##
 ## Whole-biome / matrix views moved to N. Subspace moved to V. Eigen
 ## and per-qubit marginals already live on M as Eigenstate / Bits.
@@ -184,27 +186,20 @@ func _on_active_biome_changed(new_biome: String, _old: String) -> void:
 	_rebuild()
 
 # =============================================================================
-# INPUT — pure pass-through to surface beneath
+# INPUT — B is GLASS. It consumes nothing; the magnified plot stays playable.
 # =============================================================================
 
-func _on_action_q() -> void:
-	_forward_to_beneath("_on_action_q")
+func handle_input(_event: InputEvent) -> bool:
+	# OverlayBase.handle_input would claim Q/E/R/F for overlay-local verbs.
+	# B is a magnifier: every key falls through to the one gameplay dispatcher
+	# (QII._unhandled_key_input) so the player acts on the plot they're
+	# inspecting. The 4 Hz _process rebuild reflects the action immediately.
+	return false
 
-func _on_action_e() -> void:
-	_forward_to_beneath("_on_action_e")
-
-func _on_action_r() -> void:
-	_forward_to_beneath("_on_action_r")
-
-func _on_action_f() -> void:
-	_forward_to_beneath("_on_action_f")
-
-func _forward_to_beneath(method_name: String) -> void:
-	if not _has_surface_registry_autoload():
-		return
-	var beneath = _surface_registry().get_topmost_excluding(self)
-	if beneath != null and beneath.has_method(method_name):
-		beneath.call(method_name)
+func handle_action(_action_key: String) -> bool:
+	# Chip taps mirror the keyboard: not consumed here → PlayerShell falls
+	# through to instrument_input.invoke_action on the plot beneath.
+	return false
 
 func _on_unhandled_key(_keycode: int, _event: InputEvent) -> bool:
 	# Pure overlay — never consume keys. TYUIOP/[/] etc. fall through to

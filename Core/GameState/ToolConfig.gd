@@ -269,7 +269,7 @@ const ARCHETYPE_FRAMES: Dictionary = {
 		"emoji": "O",
 		"icon": "res://Assets/UI/Science/Measure.svg",
 		"time_scale": "discrete",
-		"description": "Player vantage — E pauses / F fast-forwards (scrub the odds), R strikes (collapse), Q extracts the reward",
+		"description": "Player vantage — F explores/plays (expeditions cost 🍞), R strikes (👥, collapse), Q extracts free, E pauses",
 		"modes": ["probe"],
 		"mode_labels": ["?"],
 		"mode_emojis": ["?"],
@@ -278,7 +278,7 @@ const ARCHETYPE_FRAMES: Dictionary = {
 			"probe": {
 				"Q": {"action": "pop", "label": "Extract", "emoji": "^",
 					  "icon": "res://Assets/UI/Science/Pop-Harvest.svg",
-					  "hint": "Cash out — pull the realized reward off a collapsed register into inventory. Reward = surprisal −kT·log p (rare collapse pays more).",
+					  "hint": "Cash out — pull the realized reward off a collapsed register into inventory, free. Reward = surprisal −kT·log p (rare collapse pays more; certain ones pay the floor).",
 					  "shift_action": "pop", "shift_label": "Mass Extract"},
 				"E": {"action": "", "label": "Pause", "emoji": "⏸",
 					  "icon": "",
@@ -286,10 +286,11 @@ const ARCHETYPE_FRAMES: Dictionary = {
 					  "disabled": true},
 				"R": {"action": "measure", "label": "Strike", "emoji": "!",
 					  "icon": "res://Assets/UI/Science/Measure.svg",
-					  "hint": "Strike — collapse the selected register to one classical outcome (resolve the biome). The strike binds the terminal it needs."},
+					  "hint": "Strike — collapse the selected register to one classical outcome (a social encounter costs 👥). Needs an explored plot — F explores first."},
 				"F": {"action": "fast_forward", "label": "Fast-Fwd", "emoji": "⏩",
 					  "icon": "",
-					  "hint": "Fast-forward — let the Hamiltonian spin the odds (advance time). Also resumes play."}
+					  "chip_resolver": "ace.f_explore",
+					  "hint": "Fast-forward — let the Hamiltonian spin the odds (advance time). Also resumes play. On an unexplored plot F mounts an expedition instead: explore it for 🍞."}
 			}
 		}
 	},

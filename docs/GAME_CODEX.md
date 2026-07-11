@@ -184,7 +184,7 @@ Re-pressing the active hat returns to Ace. No hat = **Ace** (default).
 | 5 | **Icon** 📖 | Trim / Inspect / **Add-or-Incorporate** / **Track** (Berry) | the progression tool |
 | 6 | **Merchant** 🤝 | import / price / export / tip | **DLC-gated** (hidden in closed mode) |
 | 7 | **Captain** ✳ | Cull / Compass / Add Biome / — | biome lifecycle |
-| 8 | **Ace** ○ | Extract / Pause / **Strike (measure)** / Fast-Fwd | player vantage; works in every mode |
+| 8 | **Ace** ○ | Extract (free) / Pause / **Strike (measure, 👥)** / Explore (🍞) · Fast-Fwd | player vantage; works in every mode |
 | 9 | **Operator** ⚙ | Break / Inspect / Build gate / — | entangling gates |
 | 0 | **Druid** V | rot− / **Hadamard** / rot+ / — | single-qubit unitary; `1/2/3` = X/Y/Z axis |
 

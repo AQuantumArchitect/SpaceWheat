@@ -92,6 +92,14 @@ def test_title_menu_restart_path_reaches_first_breath() -> None:
 
         # 3. The progression loop on the player path: Druid-excite plot 0, Icon-track,
         #    ripen under H, incorporate. Signature growth is what first_breath gates on.
+        #    The boot biome is TheDemos, whose 🌾👥 axis IS the seed icon (growth 0) —
+        #    the first NEW word lives in StarterForest, so walk there first.
+        slots_row = step("biome_slots")
+        forest_key = next(
+            str(s["key"]).lower() for s in slots_row.get("slots", [])
+            if s["biome"] == "StarterForest"
+        )
+        press(forest_key, frames=8)
         press("0", frames=2)
         press("G", frames=3)
         press("E", frames=3)  # Hadamard — off the pole so the walk traces solid angle

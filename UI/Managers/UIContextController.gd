@@ -247,8 +247,14 @@ func _build_action_projection() -> Dictionary:
 
 func _build_frame_actions(frame_name: String) -> Dictionary:
 	var actions: Dictionary = {}
+	# Chip text runs through the SAME resolver as dispatch (QII._perform_action)
+	# so a contextual chip (e.g. Ace F = Explore on an unexplored plot) never
+	# shows a verb its key wouldn't fire.
+	var chip_ctx = quantum_input.build_chip_context() if quantum_input and quantum_input.has_method("build_chip_context") else null
 	for action_key in ACTION_KEYS:
 		var action_info = ToolConfig.get_action(frame_name, action_key)
+		if chip_ctx != null:
+			action_info = ChipResolverRegistry.resolve(action_info, chip_ctx)
 		actions[action_key] = _project_action_info(action_info)
 
 	if frame_name == ToolConfig.FRAME_ACE and ToolConfig.get_frame_mode_name(frame_name) == "probe":

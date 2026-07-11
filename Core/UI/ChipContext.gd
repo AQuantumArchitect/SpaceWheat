@@ -7,11 +7,13 @@ extends RefCounted
 
 var quantum_computer = null   # QuantumComputer for the active biome (may be null)
 var qubit_index: int = -1     # plot_idx ≡ register_id (per Plot-Register Invariant)
+var register_bound: bool = false  # focused plot has a bound terminal (explored)
 
 
-func _init(qc = null, qid: int = -1) -> void:
+func _init(qc = null, qid: int = -1, bound: bool = false) -> void:
 	quantum_computer = qc
 	qubit_index = qid
+	register_bound = bound
 
 
 func has_focused_qubit() -> bool:

@@ -53,8 +53,12 @@ def test_druid_hadamard_targets_focused_plot_after_hat_switch() -> None:
         assert RigClient.wait_for_bridge_sentinel(timeout_s=60.0, xdg=rig.xdg_root), "rig listener not ready"
 
         biome = "StarterForest"
-        # Settle, then highlight plot 0 (key 'g') — cursor enters the plot ring.
-        rig.run_turn(1, "press_key", timeout_s=30.0, key="f", settle_frames=8)
+        # demos_normal boots active in TheDemos (owner's identity-first order) —
+        # switch to StarterForest by its live slot key, order-proof.
+        slots = rig.run_turn(1, "biome_slots", timeout_s=30.0).get("slots", [])
+        forest_key = next(str(s["key"]).lower() for s in slots if s["biome"] == biome)
+        rig.run_turn(2, "press_key", timeout_s=30.0, key=forest_key, settle_frames=8)
+        # Highlight plot 0 (key 'g') — cursor enters the plot ring.
         rig.run_turn(2, "press_key", timeout_s=30.0, key="g", settle_frames=4)
 
         z_before = _live_z(rig, 3, biome)

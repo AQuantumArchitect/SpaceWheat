@@ -84,6 +84,9 @@ def main():
         hg = t("gate_inject", gate="hadamard", biome="StarterForest", positions=[])
         print("hadamard ok:", hg.get("ok"))
         press("g", settle=8)
+        # F/R/Q grammar (owner 2026-07-11): the expedition binds the register
+        # first; the tap beats after that are strike → extract.
+        press("f", settle=10)
 
         b0 = bubble_at((0, 0)) or bubble_at((0, 1))
         # Resolve the actual revealed plot-0 bubble in the ACTIVE biome.
@@ -123,7 +126,9 @@ def main():
         check(bool(gained), "tap 2 paid out (gained: %s)" % (gained,))
         shot("tap_popped")
 
-        # Keyboard parity (anti-gating): R measures, Q pops, on the same plot.
+        # Keyboard parity (anti-gating): F explores, R measures, Q pops, on the
+        # same plot. (tap 2's pop released the terminal — the plot is unbound.)
+        press("f", settle=10)
         press("r", settle=12)
         bk = bubble_at(pos)
         check(bool(bk and bk.get("measured")), "keyboard R still measures")

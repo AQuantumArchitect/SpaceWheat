@@ -298,22 +298,12 @@ func get_slot_for_biome(biome_name: String) -> int:
 
 
 func _rebuild_slot_assignment() -> void:
-	# Rebuild slot->biome mapping with T/Y fixed and extras on TYUIOP.
+	# Slots follow BIOME_ORDER (the scenario's authored unlock order) onto
+	# TYUIOP, first six. No biome is pinned to a key — the order is content
+	# (owner: identity → story location → extraction zones), not code.
 	_slot_assignment = ["", "", "", "", "", ""]
-
-	# Slot 0 (T) = StarterForest if unlocked
-	if "StarterForest" in BIOME_ORDER:
-		_slot_assignment[0] = "StarterForest"
-
-	# Slot 1 (Y) = Village if unlocked
-	if "Village" in BIOME_ORDER:
-		_slot_assignment[1] = "Village"
-
-	# Fill remaining slots in unlock order, skipping fixed biomes
-	var slot_idx = 2
+	var slot_idx = 0
 	for biome_name in BIOME_ORDER:
-		if biome_name == "StarterForest" or biome_name == "Village":
-			continue
 		if slot_idx >= _slot_assignment.size():
 			break
 		_slot_assignment[slot_idx] = biome_name
