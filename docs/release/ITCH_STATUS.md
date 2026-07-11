@@ -2,6 +2,12 @@
 
 Current itch.io readiness for SpaceWheat as of 2026-04-24.
 
+> **Update 2026-07-11:** owner confirms the game is playable in the browser —
+> the soft-launch page promises "play in the browser, or download for
+> Windows + Linux" (`ITCH_PAGE.md`). The "Web channel: not ready" section
+> below is superseded; a formal run of the smoke lane against the shipping
+> bundle is still recommended as a release gate.
+
 > **Update 2026-07-04:** the web channel's missing browser smoke lane now
 > exists — `scripts/smoke-test-web-export.mjs` (real Chromium: isolation,
 > canvas, measured FPS, responsiveness, JSON verdict), harness-validated
