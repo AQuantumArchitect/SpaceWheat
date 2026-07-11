@@ -89,9 +89,10 @@ def main():
             ok = check(not g, "r%d: no ghost overlays above base (found: %s)" % (round_no, [e["name"] for e in g])) and ok
 
             # 3) GAMEPLAY action-bar click: [R] Strike chip must fire the verb.
-            # Seed the measure cost first — an economy refusal is NOT input
-            # death (that conflation hid the double-dispatch bug).
-            t("add_resource", emoji="❄️", amount=20)
+            # Seed the measure cost first (🍞 — strike = expedition supplies /
+            # breaking bread, owner call 2026-07-11) — an economy refusal is
+            # NOT input death (that conflation hid the double-dispatch bug).
+            t("add_resource", emoji="🍞", amount=40)
             press("g", settle=6)
             b_before = bubble([0, 0])
             if b_before is not None and b_before.get("measured"):

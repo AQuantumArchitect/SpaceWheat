@@ -496,30 +496,39 @@ static func _finalize_measurement_terminal(terminal, outcome: String, recorded_p
 ## on SIGNATURE membership (does your signature contain this register's icon?), NOT
 ## on emoji/cloud knowledge — knowing a stray emoji is not the same as owning the icon.
 ##
-## Quantum-derived "purity" curve: add the bonus to the Bloch radius BEFORE the purity
-## calc (purity ≈ r^exp), so it reads as a static bonus when pure and a curve when mixed:
-##   mult = (bloch_r + (incorporated ? signature_r_bonus : 0)) ^ signature_reward_exponent
-##   • Closed (r=1):  not incorporated → 1^2 = 1×,  incorporated → (1+1)^2 = 4×
-##   • Open  (r<1):   not incorporated → r^2 (<1),  incorporated → (r+1)^2  (a smooth curve)
-## Both params are tunable via the FarmVariableGraph board
-## (tuning.signature_r_bonus / tuning.signature_reward_exponent).
+## Quantum-derived "purity" curve on the INCORPORATED branch only:
+##   incorporated     → mult = (bloch_r + signature_r_bonus) ^ signature_reward_exponent
+##                      (pure r=1 → (1+1)^2 = 4×; entangled r<1 → smoothly less —
+##                      purity vs entanglement is a real trade-off, not a trap)
+##   not incorporated → mult = 1× (flat baseline)
+## The old code also RAN the curve on un-incorporated harvests (r^2 < 1), which
+## silently punished the game's own core mechanic: any entangled register has
+## r ≪ 1, so almost every harvest was crushed to the floor of 1 — "what happened
+## to the vocab bonus? i seem to only ever get 1" (playtest 3). The bonus is a
+## bonus; there is no hidden penalty. Both params stay tunable via the
+## FarmVariableGraph board (tuning.signature_r_bonus / signature_reward_exponent).
 static func _incorporation_reward_multiplier(north: String, south: String, bloch_r: float, farm = null) -> float:
 	if farm == null:
 		return 1.0
+	if not _icon_in_signature(farm, north, south):
+		return 1.0
 	var bonus: float = float(BalanceService.get_tuning_value(farm, "signature_r_bonus"))
 	var exponent: float = float(BalanceService.get_tuning_value(farm, "signature_reward_exponent"))
-	var incorporated: bool = _icon_in_signature(farm, north, south)
-	var eff_r: float = clampf(bloch_r, 0.0, 1.0) + (bonus if incorporated else 0.0)
-	return pow(eff_r, exponent)
+	return pow(clampf(bloch_r, 0.0, 1.0) + bonus, exponent)
 
 
-## True iff the icon (north/south pole-pair) is in the player's faction signature
+## True iff the icon (pole-pair AXIS) is in the player's faction signature
 ## (farm.known_icons). The harvest bonus rides incorporation, not emoji knowledge.
+## Orientation-blind: an icon IS its axis, so 🌾/👥 and 👥/🌾 are the same icon —
+## the starter signature stores north=🌾 while TheDemos register mounts north=👥,
+## and the old exact-order compare never matched them (the ×4 escape never fired).
 static func _icon_in_signature(farm, north: String, south: String) -> bool:
 	if north == "" or south == "" or farm == null or not ("known_icons" in farm):
 		return false
 	for ic in farm.known_icons:
-		if str(ic.get("north", "")) == north and str(ic.get("south", "")) == south:
+		var a := str(ic.get("north", ""))
+		var b := str(ic.get("south", ""))
+		if (a == north and b == south) or (a == south and b == north):
 			return true
 	return false
 
@@ -555,14 +564,18 @@ static func _resolve_pop_reward_context(terminal, farm = null) -> Dictionary:
 	# Boltzmann scarcity: reward = surprisal energy E = −kT·log p (EnergyPricing).
 	# Rare outcome → bigger reward, bounded and smooth (no 1/p singularity).
 	var kT = EnergyPricing.biome_temperature(biome, farm)
-	var reward_quantum = round(EnergyPricing.surprisal_energy(p_emoji, kT))
+	# Keep the RAW energy through the multiplier chain and round ONCE at the
+	# end — rounding the surprisal first killed small-but-real rewards before
+	# the vocab bonus could multiply them (0.4 → 0 → ×4 = 0 → floored to 1).
+	var reward_energy: float = EnergyPricing.surprisal_energy(p_emoji, kT)
+	var reward_quantum = round(reward_energy)
 	var affinity_bonus = 1.0 + HamiltonianConfig.AFFINITY_REWARD_MAX * affinity
 	# Harvest bonus rides on whether this register's ICON is in the player's signature.
 	var pop_axis: Dictionary = {}
 	if biome and biome.quantum_computer and biome.quantum_computer.register_map and register_id >= 0:
 		pop_axis = biome.quantum_computer.register_map.axis(register_id)
 	var sig_mult = _incorporation_reward_multiplier(str(pop_axis.get("north", "")), str(pop_axis.get("south", "")), bloch_r, farm)
-	var resource_amount = maxi(int(round(reward_quantum * affinity_bonus * sig_mult)), 1)
+	var resource_amount = maxi(int(round(reward_energy * affinity_bonus * sig_mult)), 1)
 
 	return {
 		"biome": biome,
