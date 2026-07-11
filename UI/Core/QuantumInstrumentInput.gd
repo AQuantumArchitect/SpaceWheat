@@ -1629,30 +1629,13 @@ func _get_gate_name_for_action(action_name: String) -> String:
 
 
 func _get_biome_for_position(pos: Vector2i):
-	# Get biome for a grid grid_pos.
-	if not farm or not farm.grid:
-		return null
-	var biome_name = farm.get_biome_for_row(pos.y) if farm.has_method("get_biome_for_row") else ""
-	if biome_name == "":
-		return null
-	return farm.grid.get_biome(biome_name)
+	# Delegates to the ONE slot→qubit authority shared with the display and
+	# GateActionHandler (this used to be a third private resolution path).
+	return PlotRegisterResolver.resolve(farm, pos).get("biome")
 
 
-func _get_qubit_for_position(pos: Vector2i, biome) -> int:
-	# Get qubit index for a grid grid_pos via plot/terminal binding.
-	if not farm or not farm.grid:
-		return -1
-
-	var plot = farm.grid.get_plot(pos)
-	if plot and plot.is_active():
-		var reg = plot.bound_register_id
-		if reg >= 0:
-			return reg
-		# Fallback: try viz_cache lookup
-		if biome and biome.viz_cache:
-			return biome.viz_cache.get_qubit(plot.north_emoji)
-
-	return -1
+func _get_qubit_for_position(pos: Vector2i, _biome) -> int:
+	return int(PlotRegisterResolver.resolve(farm, pos).get("register_id", -1))
 
 
 func _run_action(action_name: String, log_symbol: String, action_label: String) -> Dictionary:

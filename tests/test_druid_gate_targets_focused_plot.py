@@ -71,13 +71,33 @@ def test_druid_hadamard_targets_focused_plot_after_hat_switch() -> None:
         rig.run_turn(6, "press_key", timeout_s=30.0, key="e", settle_frames=1)
         z_after = _live_z(rig, 7, biome)
 
-        max_delta = max(
-            (abs(z_after[i] - z_before[i]) for i in range(min(len(z_before), len(z_after)))),
-            default=0.0,
-        )
+        deltas = [
+            abs(z_after[i] - z_before[i])
+            for i in range(min(len(z_before), len(z_after)))
+        ]
+        max_delta = max(deltas, default=0.0)
         assert max_delta > 0.1, (
             "Druid Hadamard was a no-op after hat switch: "
             f"z_before={z_before} z_after={z_after} (max|Δz|={max_delta:.4f})"
+        )
+        # The RIGHT qubit must move: plot 0 ('g', column 0) is register 0 —
+        # the plot_idx ≡ register_id law (PlotRegisterResolver). The old
+        # assertion accepted ANY qubit moving, which let the posmod-wrap
+        # wrong-target bug survive ("J spins the sun/moon").
+        moved = max(range(len(deltas)), key=lambda i: deltas[i])
+        assert moved == 0, (
+            f"Druid gate hit register {moved}, not the focused plot's register 0: "
+            f"deltas={['%.3e' % d for d in deltas]}"
+        )
+
+        # Display/gate agreement is structural: the plot_register_map diagnostic
+        # compares the display law against gate resolution for EVERY plot.
+        rows = rig.run_turn(8, "plot_register_map", timeout_s=30.0).get("rows", [])
+        assert rows, "plot_register_map returned no rows"
+        disagreements = [r for r in rows if not r.get("agrees")]
+        assert not disagreements, (
+            "display and gate disagree on slot→qubit mapping: "
+            f"{[(r.get('pos'), r.get('biome')) for r in disagreements]}"
         )
     finally:
         RigClient.terminate_listener(proc, timeout_s=5.0)

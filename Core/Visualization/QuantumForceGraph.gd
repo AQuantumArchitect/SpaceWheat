@@ -564,7 +564,10 @@ func _ensure_register_bubbles() -> void:
 		if biome_name == "" or not biomes.has(biome_name):
 			continue
 		var biome = biomes.get(biome_name)
-		var register_id := int(grid_pos.x)
+		# ONE slot→qubit authority, shared with gate targeting (PlotRegisterResolver:
+		# bound plots render their binding, unbound plots the column law, out-of-range
+		# slots resolve -1 → no bubble AND no gate target — they can never diverge).
+		var register_id := int(PlotRegisterResolver.resolve(farm_ref, grid_pos).get("register_id", int(grid_pos.x)))
 		var node = node_manager.build_register_node(biome_name, biome, register_id, grid_pos, biomes, layout_calculator)
 		if not node:
 			continue

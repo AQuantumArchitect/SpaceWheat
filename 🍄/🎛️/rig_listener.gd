@@ -83,6 +83,7 @@ extends SceneTree
 const QuantumInstrumentClass = preload("res://Core/Instrumentation/QuantumInstrument.gd")
 const BiomeAlignmentCalc = preload("res://Core/Quantum/BiomeAlignmentCalculator.gd")
 const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
+const GateActionHandler = preload("res://Core/Instrumentation/Handlers/GateActionHandler.gd")
 # PlayerInputMacroRunner removed — macro input not available in headless mode
 
 signal action_executed(turn_id: int, action: String, result: Dictionary)
@@ -870,6 +871,49 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 					})
 				result["stack"] = us_entries
 				result["size"] = us_entries.size()
+
+		"plot_register_map":
+			# Diagnostic: per assigned plot, compare what the DISPLAY renders
+			# (register = grid column, the plot_idx ≡ register_id law in
+			# QuantumForceGraph._ensure_register_bubbles) with what the GATE
+			# path would hit (GateActionHandler._resolve_biome_register).
+			# Any row where display != gate is a druid wrong-target bug.
+			var prm_grid = _farm.grid if _farm else null
+			if prm_grid == null or not prm_grid.has_method("get_plot_biome_assignments"):
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_grid"}
+			else:
+				var prm_rows: Array = []
+				var prm_assignments: Dictionary = prm_grid.get_plot_biome_assignments()
+				var prm_keys: Array = prm_assignments.keys()
+				prm_keys.sort()
+				for prm_pos in prm_keys:
+					var prm_bname := str(prm_assignments[prm_pos])
+					var prm_biome = prm_grid.get_biome(prm_bname)
+					var prm_nq: int = prm_biome.viz_cache.get_num_qubits() if prm_biome and prm_biome.viz_cache and prm_biome.viz_cache.has_metadata() else -1
+					# Display law: bounded column — a slot beyond the biome's qubits
+					# renders NO bubble (build_register_node returns null), which the
+					# resolver mirrors as -1. agrees==true means bubble and gate can
+					# never point at different qubits (both -1 = both refuse = agree).
+					var prm_display_reg: int = int(prm_pos.x) if prm_nq > 0 and int(prm_pos.x) < prm_nq else -1
+					var prm_axis: Dictionary = prm_biome.viz_cache.get_axis(prm_display_reg) if prm_nq > 0 and prm_display_reg < prm_nq else {}
+					var prm_res: Dictionary = GateActionHandler._resolve_biome_register(_farm, prm_pos)
+					var prm_gate_reg: int = int(prm_res.get("register_id", -1))
+					var prm_gate_axis: Dictionary = prm_biome.viz_cache.get_axis(prm_gate_reg) if prm_nq > 0 and prm_gate_reg >= 0 and prm_gate_reg < prm_nq else {}
+					var prm_plot = prm_grid.get_plot(prm_pos)
+					prm_rows.append({
+						"pos": [prm_pos.x, prm_pos.y],
+						"biome": prm_bname,
+						"num_qubits": prm_nq,
+						"display_register": prm_display_reg,
+						"display_axis": prm_axis,
+						"gate_register": prm_gate_reg,
+						"gate_axis": prm_gate_axis,
+						"gate_biome": BiomeBase.type_name(prm_res.get("biome")) if prm_res.get("biome") else "",
+						"plot_active": prm_plot.is_active() if prm_plot else false,
+						"has_terminal": prm_plot.has_terminal() if prm_plot else false,
+						"agrees": prm_gate_reg == prm_display_reg,
+					})
+				result["rows"] = prm_rows
 
 		"dispatch_ledger":
 			# Read-only: QII's dispatch forensics ring — one {frame, action,

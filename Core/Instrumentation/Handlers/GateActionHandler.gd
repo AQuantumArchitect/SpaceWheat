@@ -15,17 +15,6 @@ extends RefCounted
 
 
 
-static func _resolve_register_id(biome, emoji: String) -> int:
-	# Resolve register id from viz_cache metadata.
-	if not biome or emoji == "":
-		return -1
-	if biome.viz_cache:
-		var q = biome.viz_cache.get_qubit(emoji)
-		if q >= 0:
-			return q
-	return -1
-
-
 ## ============================================================================
 ## SINGLE-QUBIT GATE OPERATIONS
 ## ============================================================================
@@ -599,44 +588,12 @@ static func _apply_two_qubit_gate_batch(farm, positions: Array[Vector2i], gate_n
 
 
 static func _resolve_biome_register(farm, position: Vector2i) -> Dictionary:
-	# Resolve {biome, register_id} for a plot position.
-
-	# Supports both v2 terminal-based and v1 plot-based models.
-	var biome = null
-	var register_id: int = -1
-
-	# Plot delegates to terminal when attached (O(1) vs O(n) pool scan)
-	if farm and farm.grid:
-		var plot = farm.grid.get_plot(position)
-		if plot and plot.is_active():
-			var biome_name = plot.bound_biome_name
-			if biome_name != "":
-				biome = farm.grid.get_biome(biome_name)
-			register_id = plot.bound_register_id
-			# Fallback: resolve register via viz_cache if plot binding didn't set it
-			if register_id < 0 and biome and plot.north_emoji:
-				register_id = _resolve_register_id(biome, plot.north_emoji)
-
-	# Headless fallback: project register from sorted position slot index
-	# (same logic as LindbladHandler._project_register_for_position)
-	if (not biome or register_id < 0) and farm and farm.grid:
-		var biome_name_routing = farm.grid.get_plot_biome_assignment(position)
-		if biome_name_routing != "" and biome == null:
-			biome = farm.grid.get_biome(biome_name_routing)
-		if biome and register_id < 0:
-			var biome_positions = farm.grid.get_plot_positions_for_biome(
-				farm.grid.get_plot_biome_assignment(position))
-			var slot_index = -1
-			for i in range(biome_positions.size()):
-				if biome_positions[i] == position:
-					slot_index = i
-					break
-			if slot_index >= 0 and biome.quantum_computer and biome.quantum_computer.register_map:
-				var num_qubits = int(biome.quantum_computer.register_map.num_qubits)
-				if num_qubits > 0:
-					register_id = posmod(slot_index, num_qubits)
-
-	return {"biome": biome, "register_id": register_id}
+	# Thin adapter over PlotRegisterResolver — the ONE slot→qubit authority
+	# shared with the display. The old body here wrapped unbound slots with
+	# posmod(slot_index, num_qubits), silently gating a DIFFERENT plot's qubit
+	# than the bubble the player saw. Wrapping is banned; out-of-range slots
+	# resolve to register_id -1 and the caller refuses with an honest message.
+	return PlotRegisterResolver.resolve(farm, position)
 
 
 static func _apply_single_qubit_gate(farm, position: Vector2i, gate_name: String) -> Dictionary:
@@ -652,12 +609,18 @@ static func _apply_single_qubit_gate(farm, position: Vector2i, gate_name: String
 	var biome = resolved.get("biome", null)
 	var register_id: int = int(resolved.get("register_id", -1))
 
-	# Validate biome and register
+	# Validate biome and register. The message reaches the player as a toast
+	# via the _run_action tail — a refused verb must SAY so (anti-gating law).
 	if not biome or not biome.quantum_computer or register_id < 0:
+		var nq: int = int(resolved.get("num_qubits", 0))
+		var refuse_msg := "No qubit under this plot"
+		if str(resolved.get("biome_name", "")) != "" and nq > 0:
+			refuse_msg = "%s holds %d qubit%s — this slot is beyond them" % [
+				str(resolved.get("biome_name")), nq, "" if nq == 1 else "s"]
 		return {
 			"success": false,
 			"error": "no_quantum_state",
-			"message": "No valid quantum state at position",
+			"message": refuse_msg,
 			"position": position
 		}
 
@@ -712,71 +675,25 @@ static func _apply_two_qubit_gate(farm, position_a: Vector2i, position_b: Vector
 			"message": "Farm not loaded"
 		}
 
-	var biome_a = null
-	var biome_b = null
-	var reg_a: int = -1
-	var reg_b: int = -1
+	# ONE slot→qubit authority, same as the 1-qubit path and the display.
+	# (The old body had three stacked fallbacks ending in a posmod wrap that
+	# silently gated a different plot's qubit; and measured plots slid into
+	# the wrap instead of refusing.)
+	var plot_a = farm.grid.get_plot(position_a) if farm.grid else null
+	var plot_b = farm.grid.get_plot(position_b) if farm.grid else null
+	if (plot_a and plot_a.is_measured) or (plot_b and plot_b.is_measured):
+		return {
+			"success": false,
+			"error": "plot_measured",
+			"message": "A measured plot is frozen — harvest it before gating"
+		}
 
-	# Plot delegates to terminal when attached (O(1) vs O(n) pool scan)
-	if farm.grid:
-		var plot_a = farm.grid.get_plot(position_a)
-		var plot_b = farm.grid.get_plot(position_b)
-
-		if plot_a and plot_a.is_active() and not plot_a.is_measured:
-			var biome_name_a = plot_a.bound_biome_name
-			if biome_name_a != "":
-				biome_a = farm.grid.get_biome(biome_name_a)
-			reg_a = plot_a.bound_register_id
-
-		if plot_b and plot_b.is_active() and not plot_b.is_measured:
-			var biome_name_b = plot_b.bound_biome_name
-			if biome_name_b != "":
-				biome_b = farm.grid.get_biome(biome_name_b)
-			reg_b = plot_b.bound_register_id
-
-	# Fallback: resolve via viz_cache mapping
-	if (reg_a < 0 or reg_b < 0) and farm.grid:
-		var plot_a = farm.grid.get_plot(position_a)
-		var plot_b = farm.grid.get_plot(position_b)
-
-		if plot_a and plot_a.is_active() and reg_a < 0:
-			biome_a = farm.grid.get_biome_for_plot(position_a)
-			# Resolve qubit via viz_cache metadata
-			if biome_a and plot_a.north_emoji:
-				reg_a = _resolve_register_id(biome_a, plot_a.north_emoji)
-
-		if plot_b and plot_b.is_active() and reg_b < 0:
-			biome_b = farm.grid.get_biome_for_plot(position_b)
-			# Resolve qubit via viz_cache metadata
-			if biome_b and plot_b.north_emoji:
-				reg_b = _resolve_register_id(biome_b, plot_b.north_emoji)
-
-	# Headless fallback: project registers from sorted position slot indices
-	if farm.grid and (biome_a == null or biome_b == null or reg_a < 0 or reg_b < 0):
-		var biome_name_a = farm.grid.get_plot_biome_assignment(position_a)
-		var biome_name_b = farm.grid.get_plot_biome_assignment(position_b)
-		if biome_name_a != "" and biome_a == null:
-			biome_a = farm.grid.get_biome(biome_name_a)
-		if biome_name_b != "" and biome_b == null:
-			biome_b = farm.grid.get_biome(biome_name_b)
-		if biome_a and reg_a < 0:
-			var positions_a = farm.grid.get_plot_positions_for_biome(biome_name_a)
-			for i in range(positions_a.size()):
-				if positions_a[i] == position_a:
-					if biome_a.quantum_computer and biome_a.quantum_computer.register_map:
-						var nq = int(biome_a.quantum_computer.register_map.num_qubits)
-						if nq > 0:
-							reg_a = posmod(i, nq)
-					break
-		if biome_b and reg_b < 0:
-			var positions_b = farm.grid.get_plot_positions_for_biome(biome_name_b)
-			for i in range(positions_b.size()):
-				if positions_b[i] == position_b:
-					if biome_b.quantum_computer and biome_b.quantum_computer.register_map:
-						var nq = int(biome_b.quantum_computer.register_map.num_qubits)
-						if nq > 0:
-							reg_b = posmod(i, nq)
-					break
+	var resolved_a = _resolve_biome_register(farm, position_a)
+	var resolved_b = _resolve_biome_register(farm, position_b)
+	var biome_a = resolved_a.get("biome", null)
+	var biome_b = resolved_b.get("biome", null)
+	var reg_a: int = int(resolved_a.get("register_id", -1))
+	var reg_b: int = int(resolved_b.get("register_id", -1))
 
 	# Both positions must have valid registers in the SAME biome
 	if biome_a != biome_b or not biome_a or not biome_a.quantum_computer:
@@ -790,7 +707,8 @@ static func _apply_two_qubit_gate(farm, position_a: Vector2i, position_b: Vector
 		return {
 			"success": false,
 			"error": "missing_registers",
-			"message": "Missing valid quantum states"
+			"message": "No qubit under one of these plots (%s holds %d)" % [
+				str(resolved_a.get("biome_name", "?")), int(resolved_a.get("num_qubits", 0))]
 		}
 
 	# Get gate matrix from library

@@ -73,42 +73,14 @@ static func _get_biome_name(biome) -> String:
 	return str(biome.name if "name" in biome else "")
 
 
-static func _sorted_biome_positions(farm, biome_name: String) -> Array[Vector2i]:
-	var out: Array[Vector2i] = []
-	if not farm or not farm.grid:
-		return out
-	return farm.grid.get_plot_positions_for_biome(biome_name)
-
-
 static func _project_register_for_position(farm, biome, pos: Vector2i) -> int:
-	if not farm or not farm.grid or not biome:
+	# Delegates to the ONE slot→qubit authority (column law, bounded — never
+	# wrapped). The old posmod(slot_index, num_qubits) here silently retargeted
+	# another plot's qubit on out-of-range slots.
+	var resolved: Dictionary = PlotRegisterResolver.resolve(farm, pos)
+	if resolved.get("biome") != biome and str(_get_biome_name(biome)) != str(resolved.get("biome_name", "")):
 		return -1
-
-	var biome_name = _get_biome_name(biome)
-	if biome_name == "":
-		return -1
-
-	var positions = _sorted_biome_positions(farm, biome_name)
-	if positions.is_empty():
-		return -1
-
-	var slot_index = -1
-	for i in range(positions.size()):
-		if positions[i] == pos:
-			slot_index = i
-			break
-	if slot_index < 0:
-		return -1
-
-	var num_qubits = 0
-	if biome.viz_cache and biome.viz_cache.has_method("get_num_qubits"):
-		num_qubits = int(biome.viz_cache.get_num_qubits())
-	if num_qubits <= 0 and biome.quantum_computer and biome.quantum_computer.register_map:
-		num_qubits = int(biome.quantum_computer.register_map.num_qubits)
-	if num_qubits <= 0:
-		return -1
-
-	return posmod(slot_index, num_qubits)
+	return int(resolved.get("register_id", -1))
 
 
 static func _resolve_axis_binding(farm, pos: Vector2i, biome) -> Dictionary:
