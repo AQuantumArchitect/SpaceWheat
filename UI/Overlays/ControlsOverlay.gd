@@ -187,7 +187,9 @@ func _build_tab_row(container: Control) -> void:
 	_tab_labels.clear()
 	for entry in TAB_ROW:
 		var lbl := Label.new()
+		lbl.name = "XTab_%s" % str(entry.get("key", ""))
 		lbl.add_theme_font_size_override("font_size", 15)
+		ClickWire.attach(lbl, _show_tab.bind(int(entry.get("tab", 0))))
 		_tab_row_box.add_child(lbl)
 		_tab_labels[str(entry.get("key", ""))] = lbl
 

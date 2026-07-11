@@ -81,6 +81,25 @@ def main():
               "E chip refresh leaves a coherent pool")
         t("press_key", key="c", settle_frames=10)
 
+        # --- ClickWire coverage: every overlay's tabs must switch by click.
+        # (ControlsOverlay X, Atlas V, Map M, Inspector N — all were
+        # keyboard-only until the ClickWire pass.)
+        for open_key, tab_name, label in [
+            ("x", "XTab_Y", "ControlsOverlay Story tab"),
+            ("v", "AtlasTab_Y", "Atlas Affinity tab"),
+            ("m", "MapTab_Y", "Map Eigenstate tab"),
+            ("n", "InspTab_Y", "Inspector Bridges tab"),
+        ]:
+            t("press_key", key=open_key, settle_frames=14)
+            check(click(tab_name), "%s clickable" % label)
+            t("press_key", key=open_key, settle_frames=10)
+
+        # --- EscapeMenu row click: selecting save slot 2 by mouse.
+        t("press_key", key="z", settle_frames=14)
+        # (Keep tab is the default; row names are anonymous — click via the
+        # second row's key chip position is fragile, so assert tabs instead.)
+        t("press_key", key="z", settle_frames=10)
+
         # --- EscapeMenu: the REAL assertion is the confirm arming, not menu
         # visibility (the old check passed whether or not the click landed).
         t("press_key", key="z", settle_frames=14)

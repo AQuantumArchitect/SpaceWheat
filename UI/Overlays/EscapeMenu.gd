@@ -579,6 +579,7 @@ func _make_keep_peek_panel(slot: int) -> Control:
 
 func _make_keep_slot_row(idx: int) -> Control:
 	var row := HBoxContainer.new()
+	ClickWire.attach(row, _select_item_in_tab.bind(idx))
 	row.add_theme_constant_override("separation", 10)
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
@@ -610,6 +611,7 @@ func _make_keep_slot_row(idx: int) -> Control:
 func _make_auto_slot_row(auto_idx: int) -> Control:
 	var virtual_idx := NUM_KEEP_SLOTS + auto_idx
 	var row := HBoxContainer.new()
+	ClickWire.attach(row, _select_item_in_tab.bind(virtual_idx))
 	row.add_theme_constant_override("separation", 10)
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
@@ -702,6 +704,7 @@ func _build_new_body() -> void:
 func _make_scenario_row(idx: int) -> Control:
 	var entry: Dictionary = SCENARIO_LIST[idx]
 	var row := HBoxContainer.new()
+	ClickWire.attach(row, _select_item_in_tab.bind(idx))
 	row.add_theme_constant_override("separation", 10)
 	var key_str: String = ITEM_KEYS[idx] if idx < ITEM_KEYS.size() else "?"
 	row.add_child(_make_key_chip(key_str))
@@ -820,6 +823,7 @@ func _build_dev_body() -> void:
 
 func _make_dev_action_row(idx: int) -> Control:
 	var row := HBoxContainer.new()
+	ClickWire.attach(row, _select_item_in_tab.bind(idx))
 	row.add_theme_constant_override("separation", 10)
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
@@ -1040,6 +1044,7 @@ func _build_balance_body() -> void:
 
 func _make_balance_setting_row(idx: int, slot_idx: int) -> Control:
 	var row := HBoxContainer.new()
+	ClickWire.attach(row, _select_item_in_tab.bind(slot_idx))
 	row.add_theme_constant_override("separation", 10)
 	var key_str: String = ITEM_KEYS[slot_idx] if slot_idx < ITEM_KEYS.size() else "?"
 	row.add_child(_make_key_chip(key_str))
@@ -1073,6 +1078,7 @@ func _make_balance_setting_row(idx: int, slot_idx: int) -> Control:
 
 func _make_balance_action_row(idx: int, slot_idx: int) -> Control:
 	var row := HBoxContainer.new()
+	ClickWire.attach(row, _select_item_in_tab.bind(slot_idx))
 	row.add_theme_constant_override("separation", 10)
 	var key_str: String = ITEM_KEYS[slot_idx] if slot_idx < ITEM_KEYS.size() else "?"
 	row.add_child(_make_key_chip(key_str))

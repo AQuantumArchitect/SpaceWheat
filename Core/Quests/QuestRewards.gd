@@ -10,6 +10,10 @@ extends RefCounted
 ## this is just the manifest of required keys, validated complete (hard-fail if any missing).
 ## reward_kT = representative kT for quest-reward SIZING (rarer goal → bigger bounty; live
 ## market pricing uses the biome's own kT).
+# 🍞 paid on EVERY contract completion — bread is payment for services
+# (see generate_reward). Funds ~4-13 strikes at the 1-3🍞 strike cost.
+const BREAD_STIPEND: float = 13.0
+
 const QUEST_REWARD_TUNING_KEYS: Array = [
 	"resource_reward_min_per_emoji",
 	"biome_novelty_multiplier",
@@ -109,6 +113,15 @@ static func generate_reward(quest: Dictionary, _bath, player_cloud: Array) -> Qu
 		else:
 			# Single emoji (no connections found at creation time)
 			push_warning("QuestRewards: Quest has north=%s but no south" % north)
+
+	# Bread-for-services stipend: 🍞 is payment for services rendered (owner
+	# framing, 2026-07-11 — the same call that made the Ace strike cost 🍞).
+	# Contracts are the game's ONE guaranteed bread mint: harvest poles only
+	# rarely land on 🍞, so without this the strike currency is a pure sink
+	# and a fresh wallet (34🍞) soft-locks the core verb in ~5 minutes of
+	# play. Chaos stays in the deal (rolled rewards untouched, prices raw);
+	# this stipend is the invariant that keeps the door open.
+	reward.resource_rewards["🍞"] = float(reward.resource_rewards.get("🍞", 0.0)) + BREAD_STIPEND
 
 	# Icon modification reward (for higher-tier quests)
 	if faction_dict and should_grant_icon_modification(quest):

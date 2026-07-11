@@ -48,7 +48,7 @@ Four verbs, same directions on every surface:
 | 5 | **Icon** | Inject dual-emoji qubits; **F tracks** a qubit's walk, **R incorporates** it when ripe. |
 | 6 | **Merchant** | Standing contracts with the Bath (wet country only). 1/2/3 picks the channel — thermal / dephase / damp. Q exports, E reads the order book, R imports, **F settles**. |
 | 7 | **Captain** | Biome lifecycle: cull, compass, discover. |
-| 8 | **Ace** | The default: plant / measure / harvest / **reap (F)**. |
+| 8 | **Ace** | The default: strike (R) / extract (Q) / pause (E) / **reap (F)**. |
 | 9 | **Operator** | Gate building: Bell, CNOT, CZ, SWAP, GHZ. |
 | 0 | **Druid** | Rotations + Hadamard (E); 1/2/3 pick the X/Y/Z axis. |
 

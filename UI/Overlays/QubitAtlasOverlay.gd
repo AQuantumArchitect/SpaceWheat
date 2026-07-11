@@ -179,9 +179,29 @@ func _build_tab_row(container: Control) -> void:
 	_tab_labels.clear()
 	for entry in TAB_ROW:
 		var lbl := Label.new()
+		lbl.name = "AtlasTab_%s" % str(entry.get("key", ""))
 		lbl.add_theme_font_size_override("font_size", 14)
+		ClickWire.attach(lbl, _switch_frame.bind(str(entry.get("frame", ""))))
 		_tab_row_box.add_child(lbl)
 		_tab_labels[str(entry.get("key", ""))] = lbl
+
+
+## Card/row click twin of the GHJKL; keys.
+func _select_card(idx: int) -> void:
+	if _selected_idx != idx:
+		_selected_idx = idx
+		_rebuild_display()
+
+
+## One tab-switch authority — keyboard (TAB_BY_KEYCODE) and tab clicks land here.
+func _switch_frame(target_frame: String) -> void:
+	if target_frame == "" or target_frame == frame_id:
+		return
+	frame_id = target_frame
+	_selected_idx = 0
+	_current_page = 0
+	_refresh_action_labels()
+	_rebuild_display()
 
 func _refresh_tab_row() -> void:
 	if _tab_labels.is_empty():
@@ -205,13 +225,7 @@ func _refresh_tab_row() -> void:
 # Direct-jump tab via T/Y/U/I/O; GHJKL; selects within current frame.
 func _on_unhandled_key(keycode: int, _event: InputEvent) -> bool:
 	if TAB_BY_KEYCODE.has(keycode):
-		var target_frame: String = str(TAB_BY_KEYCODE[keycode])
-		if target_frame != frame_id:
-			frame_id = target_frame
-			_selected_idx = 0
-			_current_page = 0
-			_refresh_action_labels()
-			_rebuild_display()
+		_switch_frame(str(TAB_BY_KEYCODE[keycode]))
 		return true
 	var slot: int = InputBindingRegistry.plot_index_for_keycode(keycode, 6)
 	if slot >= 0:
@@ -441,6 +455,7 @@ func _build_lexicon_body() -> void:
 	_selected_idx = clampi(_selected_idx, 0, max(0, end_idx - start - 1))
 	for i in range(start, end_idx):
 		var card: PanelContainer = _build_card(items[i], (i - start) == _selected_idx)
+		ClickWire.attach(card, _select_card.bind(i - start))
 		_cards_grid.add_child(card)
 		_card_nodes.append({"node": card, "data": items[i]})
 
