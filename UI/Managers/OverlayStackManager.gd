@@ -32,7 +32,7 @@ const Z_TIER_SYSTEM = 18
 # The overlay stack - topmost overlay receives input
 var overlay_stack: Array[Control] = []
 
-# The permanent base (FarmView). Never evicted by tier logic, never popped —
+# The permanent base (PlayBase sentinel). Never evicted by tier logic, never popped —
 # without this, the first MODAL-tier open (quests/map) silently evicted the
 # "permanent" base and left anonymous ghosts at the bottom of the stack.
 var permanent_base: Control = null
@@ -204,7 +204,7 @@ func handle_escape() -> bool:
 
 	# Returns true if an overlay was closed. The permanent base doesn't count:
 	# claiming ESC while popping nothing ate every first ESC press (and worse,
-	# used to hide FarmView).
+	# used to hide the play base).
 	if is_empty():
 		return false
 	pop()

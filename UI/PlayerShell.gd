@@ -44,7 +44,7 @@ var _overlay_open_frame: Dictionary = {}  # overlay_name -> Engine frame opened
 ## Unified Overlay Stack Management (replaces modal_stack)
 var overlay_stack: OverlayStackManager = null
 ## Permanent bottom-of-stack sentinel. Makes gameplay a navigable surface-ring position.
-var farm_view: FarmView = null
+var play_base: PlayBaseOverlay = null  # stack sentinel — NOT the farm container (UI/FarmView.gd)
 
 ## Global pause flag — driven by E (pause) / F (resume) peek in _input.
 ## See UI/Core/KEYBOARD_GRAMMAR.md "Mechanics — side-effect peek".
@@ -396,10 +396,10 @@ func _cycle_menu_overlay(delta: int) -> void:
 	if menus.is_empty():
 		return
 
-	# FarmView at top → play (index 0). Otherwise find the open registered overlay.
+	# PlayBase at top → play (index 0). Otherwise find the open registered overlay.
 	var current_idx := 0
 	var top = overlay_stack.get_top()
-	if top and top != farm_view:
+	if top and top != play_base:
 		for i in range(menus.size()):
 			var entry_name = str(menus[i].get("overlay_name", ""))
 			if entry_name == "" or not overlay_manager.has_overlay(entry_name):
@@ -442,14 +442,14 @@ func _ready() -> void:
 	add_child(overlay_stack)
 	_verbose.info("ui", "✅", "OverlayStackManager created")
 
-	# Push FarmView as the permanent bottom of the stack. Makes gameplay a
-	# navigable surface-ring position. Never popped; never registered with
-	# overlay_manager (so toggle_overlay radio logic ignores it).
-	farm_view = FarmView.new()
-	farm_view.name = "FarmView"  # anonymous stack bases make forensics unreadable
-	add_child(farm_view)
-	overlay_stack.push_base(farm_view)
-	_verbose.info("ui", "🌾", "FarmView pushed as permanent stack base")
+	# Push the play sentinel as the permanent bottom of the stack. Makes
+	# gameplay a navigable surface-ring position. Never popped; never
+	# registered with overlay_manager (so toggle_overlay radio logic ignores it).
+	play_base = PlayBaseOverlay.new()
+	play_base.name = "PlayBase"  # anonymous stack bases make forensics unreadable
+	add_child(play_base)
+	overlay_stack.push_base(play_base)
+	_verbose.info("ui", "🌾", "PlayBase pushed as permanent stack base")
 
 	# Get reference to containers from scene
 	farm_ui_container = get_node("FarmUIContainer")
@@ -502,7 +502,7 @@ func _ready() -> void:
 	overlay_layer.add_child(overlay_manager)
 
 	# Setup overlay manager with proper dependencies
-	overlay_manager.setup(layout_manager, null, null, null, quest_manager)
+	overlay_manager.setup(layout_manager, quest_manager)
 
 	# Connect overlay stack and overlay manager bidirectionally
 	if overlay_stack:

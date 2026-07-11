@@ -96,8 +96,46 @@ func _run() -> void:
 		quit(11)
 		return
 
+	# One name, one node: the play-base sentinel used to also be named
+	# "FarmView", so InstrumentLocator found the right node by tree-order luck.
+	var farmview_named := _count_named(root, "FarmView")
+	if farmview_named != 1:
+		printerr("expected exactly one node named FarmView, found %d" % farmview_named)
+		quit(16)
+		return
+
+	# Single chip-click dispatch authority: action_pressed must have EXACTLY
+	# one connection (PlayerShell._route_action_key). Two connections is the
+	# double-verb bug that read as 'the game degrades over play'.
+	var shells = get_nodes_in_group("player_shell")
+	if shells.size() != 1:
+		printerr("expected exactly one PlayerShell, found %d" % shells.size())
+		quit(17)
+		return
+	var shell = shells[0]
+	var apr = shell.action_bar_manager.get_action_row() if shell.action_bar_manager else null
+	if apr == null or not apr.has_signal("action_pressed"):
+		printerr("action row with action_pressed signal missing")
+		quit(18)
+		return
+	var conns: Array = apr.get_signal_connection_list("action_pressed")
+	if conns.size() != 1:
+		var targets := []
+		for c in conns:
+			targets.append(str(c.get("callable")))
+		printerr("action_pressed must have exactly 1 connection (single dispatch authority), found %d: %s" % [conns.size(), str(targets)])
+		quit(19)
+		return
+
 	print("boot tree ok: current_scene=Main farm_parent=GameRoot farm_view_parent=%s" % farm_view.get_parent().name)
 	quit(0)
+
+
+func _count_named(node: Node, target: String) -> int:
+	var count := 1 if str(node.name) == target else 0
+	for child in node.get_children():
+		count += _count_named(child, target)
+	return count
 
 
 func _wait_for_group(group_name: String, frames: int) -> Node:

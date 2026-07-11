@@ -61,6 +61,11 @@ var _in_submenu: bool = false  # Local UI cache for signal emission
 var _submenu_page: int = 0  # Local UI cache for signal emission
 var _confirm_pending: Dictionary = {}  # {action, emoji, label} — awaiting QF confirm
 
+# Dispatch forensics ring: {frame, action, success} per _run_action execution.
+# Read by rig `dispatch_ledger`; same action twice on one frame = double-fire.
+const DISPATCH_LEDGER_CAP := 64
+var dispatch_ledger: Array[Dictionary] = []
+
 ## WASD crawl ring: 0=surface 1=frame 2=biome 3=plot. Owned HERE, co-located with
 ## current_plot_idx (on _instrument) so the two can never desync — entering/leaving
 ## the plot ring (layer 3) is the same mutation that selects/clears the plot. The
@@ -1653,6 +1658,19 @@ func _get_qubit_for_position(pos: Vector2i, biome) -> int:
 func _run_action(action_name: String, log_symbol: String, action_label: String) -> Dictionary:
 	# Execute an action and emit logging + signal.
 	var result = _execute_action(action_name)
+
+	# Dispatch forensics: one ledger entry per verb execution. Probes read this
+	# (rig `dispatch_ledger`) to assert exactly-once dispatch per input — the
+	# double-dispatch bug class becomes directly observable instead of inferred
+	# from wallet drain. Two entries with the same action on the same frame is
+	# the double-fire signature.
+	dispatch_ledger.append({
+		"frame": Engine.get_process_frames(),
+		"action": action_name,
+		"success": bool(result.get("success", false)),
+	})
+	if dispatch_ledger.size() > DISPATCH_LEDGER_CAP:
+		dispatch_ledger.pop_front()
 
 	# Invalidate buffer if action modified density matrix at phrame 0
 	if result.get("success", false) and action_name in BUFFER_INVALIDATING_ACTIONS:

@@ -1,11 +1,17 @@
-class_name FarmView
+class_name PlayBaseOverlay
 extends "res://UI/Core/OverlayBase.gd"
 
-## FarmView — sentinel marker for the "play" position on the surface ring.
+## PlayBaseOverlay — sentinel marker for the "play" position on the surface ring.
 ##
 ## Lives permanently at the bottom of the overlay stack. Never consumes input
 ## (handle_input returns false) so gameplay keys fall through to
 ## QuantumInstrumentInput._unhandled_input() as normal. Never hides the farm.
+##
+## NOT the farm view. The real farm container is UI/FarmView.gd (scene node
+## "FarmView" under GameRoot) — this class used to be named FarmView too,
+## which put two different nodes with the same name in the live tree and left
+## InstrumentLocator.resolve_farm_view finding the right one by tree-order
+## luck. One name, one thing.
 ##
 ## A very high overlay_tier (100) ensures push() never closes it when real
 ## overlays are pushed above — they always land on top, not in its place.
@@ -16,7 +22,7 @@ func _init() -> void:
 
 
 func _build_panel() -> void:
-	pass  # FarmView renders nothing — skip all panel/dimmer/container construction
+	pass  # Sentinel renders nothing — skip all panel/dimmer/container construction
 
 
 func handle_input(_event: InputEvent) -> bool:

@@ -19,7 +19,6 @@ var escape_menu: EscapeMenu
 # keyboard_hint_button REMOVED - controls/help now lives on Z
 var biome_inspector: BiomeInspectorOverlay  # Biome inspection overlay
 var map_meta_overlay: MapMetaOverlay  # Biome × faction map overlay
-var touch_button_bar: Control  # Touch-friendly panel buttons for the top-level menu row
 var icon_detail_panel  # Icon information detail panel
 
 # Unified overlay registry
@@ -37,7 +36,6 @@ var overlay_stack = null  # OverlayStackManager
 # Dependencies
 var layout_manager
 var quest_manager
-var faction_manager
 var farm  # Farm reference for biome inspector
 
 # Signals for menu actions
@@ -46,15 +44,15 @@ signal menu_resumed()
 # Overlay stack signals
 signal overlay_changed(overlay_name: String, is_open: bool)
 
-# HAUNTED UI FIX: Prevent duplicate overlay creation
+# Once-per-lifetime latch for create_overlays(); a second call is a boot bug.
 var _overlays_created: bool = false
 
 
-func setup(layout_mgr, _icon_sys, faction_mgr, _conspiracy_net, quest_mgr = null) -> void:
-	# Initialize OverlayManager with required dependencies.
-	# _icon_sys + _conspiracy_net stay positional to match the PlayerShell call site.
+func setup(layout_mgr, quest_mgr = null) -> void:
+	# Initialize OverlayManager with required dependencies. The old 5-arg
+	# signature (icon system, faction manager, conspiracy net) was retired-
+	# system residue — every extra slot was passed null and never read.
 	layout_manager = layout_mgr
-	faction_manager = faction_mgr
 	quest_manager = quest_mgr
 	_verbose.info("ui", "📋", "OverlayManager initialized")
 
@@ -127,10 +125,12 @@ func _setup_visibility_processing(panel: Node) -> void:
 
 
 func create_overlays(parent: Control) -> void:
-	# Create all overlay panels and add them to parent
-	# HAUNTED UI FIX: Guard against duplicate overlay creation
+	# Create all overlay panels and add them to parent — once per manager
+	# lifetime. The manager is built fresh by each PlayerShell and this has
+	# exactly one call site; a second call means two boots are driving one
+	# manager. That's a real bug: fail LOUD, never silently skip.
 	if _overlays_created:
-		_verbose.warn("ui", "⚠️", "OverlayManager.create_overlays() called multiple times, skipping duplicate creation")
+		push_error("OverlayManager.create_overlays() called twice — duplicate boot path feeding one manager")
 		return
 	_overlays_created = true
 
@@ -190,11 +190,6 @@ func create_overlays(parent: Control) -> void:
 	_verbose.info("ui", "🌍", "Biome inspector overlay created (B to toggle)")
 	_setup_visibility_processing(biome_inspector)
 
-	# Touch button bar retired — superseded by the top MenuSelectionRow in
-	# PlayerShell, which surfaces all 7 ZXCVBNM menus in the same chrome as
-	# the bottom rows. `touch_button_bar` stays declared for null checks but
-	# is never instantiated.
-
 	# Create Icon Detail Panel
 	icon_detail_panel = IconDetailPanel.new()
 	icon_detail_panel.set_layout_manager(layout_manager)
@@ -231,8 +226,6 @@ func _on_icon_detail_panel_closed() -> void:
 
 # _create_keyboard_hint_button REMOVED
 # Z opens ControlsOverlay via PlayerShell, and M is the biome × faction map.
-# _create_touch_button_bar REMOVED — retired with the touch bar; touch routes
-# through TouchInputManager gestures now. (touch_button_bar var stays for null checks.)
 
 
 # ============================================================================
@@ -564,7 +557,6 @@ func reset() -> void:
 	# Drop only farm-scoped refs; overlay refs and stack are kept alive.
 	farm = null
 	quest_manager = null
-	faction_manager = null
 
 
 func toggle_overlay(_name: String) -> void:

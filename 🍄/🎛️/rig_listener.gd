@@ -813,7 +813,7 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			# bubble's live screen position through the force graph; {screen: [x,y]}
 			# taps a raw screen point. Injects a REAL InputEventMouseButton press +
 			# release through the viewport so the tap exercises the true
-			# TouchInputManager → QuantumForceGraph → FarmView → QII path.
+			# TouchInputManager → QuantumForceGraph → FarmView (container) → QII path.
 			var tap_screen := Vector2(-1, -1)
 			if cmd.has("screen"):
 				var ts: Array = cmd["screen"]
@@ -856,7 +856,7 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 		"ui_stack":
 			# Read-only: the live overlay stack (names bottom→top) + per-entry
 			# visibility. The degradation forensics view: ghosts show up as
-			# invisible entries above FarmView.
+			# invisible entries above the PlayBase sentinel.
 			var us_shell = InstrumentLocator.resolve_player_shell(get_root())
 			if us_shell == null or not ("overlay_stack" in us_shell) or us_shell.overlay_stack == null:
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_overlay_stack"}
@@ -870,6 +870,21 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 					})
 				result["stack"] = us_entries
 				result["size"] = us_entries.size()
+
+		"dispatch_ledger":
+			# Read-only: QII's dispatch forensics ring — one {frame, action,
+			# success} entry per _run_action execution. The exactly-once probe
+			# contract: N inputs → N entries; two same-action entries on one
+			# frame = the double-fire signature. Pass clear=true to reset
+			# between probe steps.
+			var dl_qii = _shell.instrument_input if _shell and "instrument_input" in _shell else null
+			if dl_qii == null or not ("dispatch_ledger" in dl_qii):
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_instrument_input"}
+			else:
+				result["ledger"] = dl_qii.dispatch_ledger.duplicate(true)
+				result["count"] = dl_qii.dispatch_ledger.size()
+				if bool(cmd.get("clear", false)):
+					dl_qii.dispatch_ledger.clear()
 
 		"control_rect":
 			# Mouse-probe helper: global rect + center of a named Control found

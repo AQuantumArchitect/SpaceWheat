@@ -9,7 +9,7 @@ Each round: measure/pop a bubble, cycle overlays (C, B, V, M), switch biomes,
 open the escape menu. After each round, assert the mouse still works:
   - menu verb chip click still opens the quit confirm
   - action-bar chip click still fires a verb
-  - overlay stack holds no invisible ghosts above FarmView
+  - overlay stack holds no invisible ghosts above PlayBase
 Prints the first round where anything breaks, with the stack contents.
 """
 import sys
@@ -58,7 +58,7 @@ def main():
 
         def ghosts():
             st = stack()
-            return [e for e in st[1:] if not e.get("visible")]  # above FarmView
+            return [e for e in st[1:] if not e.get("visible")]  # above PlayBase
 
         def bubble(pos):
             bs = t("bubble_state")
@@ -83,8 +83,8 @@ def main():
 
             # 2) stack hygiene: base intact, no ghosts above it
             st = stack()
-            ok = check(bool(st) and st[0]["name"] == "FarmView",
-                       "r%d: FarmView still the stack base (stack: %s)" % (round_no, [e["name"] for e in st])) and ok
+            ok = check(bool(st) and st[0]["name"] == "PlayBase",
+                       "r%d: PlayBase still the stack base (stack: %s)" % (round_no, [e["name"] for e in st])) and ok
             g = ghosts()
             ok = check(not g, "r%d: no ghost overlays above base (found: %s)" % (round_no, [e["name"] for e in g])) and ok
 
@@ -99,10 +99,17 @@ def main():
                 b_before = bubble([0, 0])
             r_chip = t("control_rect", name="ActionBtn_R")
             if r_chip.get("center") and r_chip.get("visible"):
+                t("dispatch_ledger", clear=True)  # arm exactly-once check
                 t("tap", screen=r_chip["center"], settle_frames=12)
                 b_after = bubble([0, 0])
                 ok = check(bool(b_after and b_after.get("measured")),
                            "r%d: action-bar [R] click strikes (mouse gameplay verbs alive)" % round_no) and ok
+                # EXACTLY-ONCE: one click must produce exactly one verb
+                # dispatch. Two entries = the double-dispatch slop class,
+                # caught directly instead of inferred from wallet drain.
+                led = t("dispatch_ledger").get("ledger", [])
+                ok = check(len(led) == 1,
+                           "r%d: one click == one dispatch (ledger: %s)" % (round_no, led)) and ok
                 press("q", settle=8)  # pop back to live for next round
             else:
                 ok = check(False, "r%d: ActionBtn_R not visible/clickable" % round_no)

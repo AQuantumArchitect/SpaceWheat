@@ -9,7 +9,7 @@ const TOP_LEVEL_MENUS := [
 		"overlay_name": "play",
 		"keycode": -1,
 		"key_label": "",
-		"display_name": "FarmView",
+		"display_name": "Farm",
 		"description": "Return to gameplay",
 		"menu_group": "play",
 		"button_emoji": "🌾",
