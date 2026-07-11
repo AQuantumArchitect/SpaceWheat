@@ -6,34 +6,42 @@ one shot); retake `01_living_farm` from the release build before publish,
 or crop. Page settings: slug `spacewheat`, classification Game, pricing
 $0-or-donate ("free beta — will be paid at 1.0"), tags below.
 
+Angle: cozy-weird farming first — the loop and the island up front, the
+real physics revealed as the twist. Play-in-browser + desktop downloads.
+
 ---
 
 ## Title
 
-**SpaceWheat** — a farming game where every field is real quantum mechanics
+**SpaceWheat** — a tiny island farm, one finger, and the strangest thing:
+it's all real
 
 ## Tagline (short description field)
 
-Tap a bubble to measure it. The answer locks in. Tap again to harvest.
-Underneath: an honest density matrix, a real Hamiltonian, and the Born
-rule deciding what your field actually grows.
+A cozy one-finger farm. Tap a sleeping plot to wake it, tap the bubble for
+an answer, tap again to harvest. The twist: underneath it's real quantum
+mechanics — an honest density matrix, and the Born rule deciding what your
+field actually grows.
 
 ## Page body
 
-**SpaceWheat is a farming game in which every field is a density matrix** —
-a small quantum system evolving under a real Hamiltonian, measured by the
-real Born rule. Not "quantum-themed." Not dice with ket notation painted
-on. When you plant, a state is prepared; when you measure, it collapses;
-when the world drifts while you're away, that drift is the actual
-Schrödinger equation, integrated by a native C++ engine.
+**The loop is one finger.** Tap a sleeping plot to wake it. Tap the bubble
+to ask it a question — the answer locks in. Tap it again to harvest what
+the answer decided. Rare outcomes pay big and the game celebrates them
+louder. Fields drift and shimmer while you watch; the game rewards
+attention, not clicking speed — pause any time, inspect anything.
+
+That would already be a nice little farming game. Here is the strange part:
+
+**Every field is a real quantum system.** A density matrix evolving under a
+real Hamiltonian, measured by the real Born rule. Not "quantum-themed."
+Not dice with ket notation painted on. When you plant, a state is prepared;
+when you tap, it collapses; when the world drifts while you're away, that
+drift is the actual Schrödinger equation, integrated by a native C++
+engine. Rare harvests paying more isn't a design flourish — it's
+information theory (E = −kT·log p) setting the prices.
 
 You don't need to know any of that to play.
-
-**The loop is one finger.** Tap a sleeping plot to wake it. Tap the bubble
-to measure it — the answer locks in. Tap it again to harvest what the
-measurement decided. Rare outcomes pay big and the game celebrates them
-louder; that's not a design flourish, it's information theory (E = −kT·log p)
-setting the prices.
 
 **The campaign is a small political story told in physics.** You are The
 Demos — a people learning the quantum language of their own ground. An
@@ -45,8 +53,7 @@ microscope and check.
 
 **What the physics refuses, the game refuses.** Nothing can be copied
 (no-cloning is structural, not a balance decision). Measurement has a cost
-and an aftermath. Watching pays: the game rewards attention, not clicking
-speed — pause any time, inspect anything.
+and an aftermath. Watching pays.
 
 - One-finger playable, keyboard grammar for power users
 - 43-beat campaign across a living island, then an open world that keeps going
@@ -60,14 +67,14 @@ the first humans to ever touch it. If something confuses you or breaks,
 say so in the comments (Menu → Dev → "copy logs" puts a report on your
 clipboard). Confusion reports are as valuable as crash reports.
 
-*Windows + Linux now. Browser build under evaluation.*
+*Play in the browser, or download for Windows + Linux.*
 
 ## Metadata
 
-- **Tags:** farming, quantum, physics, simulation, idle, minimalist,
-  singleplayer, relaxing, mouse-only, education
+- **Tags:** farming, cozy, relaxing, minimalist, quantum, physics,
+  simulation, idle, singleplayer, mouse-only, education
 - **Genre:** Simulation / Puzzle
-- **Platforms:** Windows, Linux
+- **Platforms:** HTML5 (play in browser), Windows, Linux
 - **Pricing:** free / donations enabled, "beta — 1.0 will be paid"
 - **Community:** comments enabled (they're the feedback channel)
 
