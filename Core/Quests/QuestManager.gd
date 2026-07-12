@@ -832,7 +832,15 @@ func offer_all_faction_quests(biome) -> Array:
 			flavor_order = ["amplitude", "coherence", "ratio", "multi"]
 			flavor_order.sort_custom(func(x, y): return float(weights.get(x, 0.0)) > float(weights.get(y, 0.0)))
 		var qq := {}
+		# Wet country leads with its signature ask: WARD the biome against the
+		# Bath (PREVENT_DECOHERENCE). Only where the ground is open — on closed
+		# ground purity ≡ 1 and a ward would be a lie.
+		var ward_qc = biome.get("quantum_computer")
+		if ward_qc != null and ward_qc.has_method("is_open_here") and ward_qc.is_open_here():
+			qq = QuestPipeline.suggest_ward_quest(bn, fac, float(obs.get("purity", 1.0)), next_quest_id)
 		for flavor in flavor_order:
+			if not qq.is_empty():
+				break
 			match str(flavor):
 				"amplitude":
 					qq = _suggest_amplitude_for(biome, bn, fac)
@@ -842,8 +850,6 @@ func offer_all_faction_quests(biome) -> Array:
 					qq = _suggest_ratio_for(biome, bn, fac)
 				"multi":
 					qq = _suggest_multi_for(biome, bn, fac, coh)
-			if not qq.is_empty():
-				break
 		if qq.is_empty():
 			var max_mi := float(obs.get("max_mutual_information", -1.0))
 			var nq: int = 0

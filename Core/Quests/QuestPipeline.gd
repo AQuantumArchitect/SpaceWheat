@@ -105,6 +105,22 @@ static func suggest_quantum_quest(biome_name: String, faction: String, coherence
 	}, quest_id)
 
 
+## WET-COUNTRY signature ask (What Fades): ward a biome against the Bath.
+## PREVENT_DECOHERENCE — keep purity above min_purity for `duration` seconds;
+## the tracker banks survival time and drains it at 2x on a purity crash.
+## Offered only where the ground is open (the Bath is real) and only when
+## there is purity worth defending. Deterministic — no RNG.
+static func suggest_ward_quest(biome_name: String, faction: String, purity: float, quest_id: int) -> Dictionary:
+	if purity < 0.55:
+		return {}
+	var min_purity := clampf(purity - 0.15, 0.4, 0.8)
+	return quantum_quest(QuestTypes.Type.PREVENT_DECOHERENCE, faction, biome_name, {
+		"min_purity": min_purity,
+		"duration": 60.0,
+		"tutorial_hint": "Ward %s: hold purity above %.2f for a minute while the Bath gnaws. Watching keeps — repeated strikes pin the state (Zeno), and Spark's jolt (4) re-purifies." % [biome_name, min_purity],
+	}, quest_id)
+
+
 ## Rung-1 sibling, the AMPLITUDE ask — the flavor material/direct factions prefer
 ## (QUEST_SYSTEM_PLAN stage 3 "type-select", chosen by the caller from
 ## FactionStateMatcher.calculate_operator_weights). Push a specific atom's
