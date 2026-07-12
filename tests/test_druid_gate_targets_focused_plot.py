@@ -64,12 +64,14 @@ def test_druid_hadamard_targets_focused_plot_after_hat_switch() -> None:
         z_before = _live_z(rig, 3, biome)
         assert z_before, "no qubits reported for StarterForest"
 
-        # Switch to the Druid hat (key '0'). This clears current_plot_idx via
-        # leave_plot_ring — the exact state that used to break the gate.
+        # Switch to the Druid hat (key '0'). Hat picks now PRESERVE the plot
+        # cursor (fleet #4: clearing it made the first verb after every hat
+        # switch fail and desynced chips from dispatch) — the gate must target
+        # the still-focused plot 0 directly.
         rig.run_turn(4, "press_key", timeout_s=30.0, key="0", settle_frames=4)
         inst = rig.run_turn(5, "instrument_state", timeout_s=30.0)
-        assert int(inst.get("current_plot_idx", 0)) < 0, \
-            "expected hat-select to clear the plot cursor (precondition for the bug)"
+        assert int(inst.get("current_plot_idx", -1)) == 0, \
+            "expected hat-select to keep the focused plot (fleet-4 keep_plot_selection law)"
 
         # Hadamard (key 'e'). Minimal settle so we isolate the gate from evolution.
         rig.run_turn(6, "press_key", timeout_s=30.0, key="e", settle_frames=1)

@@ -763,9 +763,13 @@ func action_incorporate(qubit_idx: int = -1) -> Dictionary:
 		return {"success": false, "error": "no_quantum_computer"}
 	var qid: int = qubit_idx if qubit_idx >= 0 else int(current_plot_idx)
 	if qid < 0 or qid >= qc.register_map.num_qubits:
-		return {"success": false, "error": "no_qubit"}
+		return {"success": false, "error": "no_qubit",
+				"message": "Incorporate needs a focused plot — G H J K L ; picks one."}
 	if not qc.berry_register.is_ripe(qid):
-		return {"success": false, "error": "not_ripe"}
+		var tracked := bool(qc.berry_register.is_tracked(qid))
+		return {"success": false, "error": "not_ripe",
+				"message": "Not ripe yet — time ripens the tracked loop." if tracked
+						else "Nothing tracked here — Icon-hat F starts the loop."}
 	var axis = qc.register_map.axis(qid)
 	if axis == null or axis.is_empty():
 		return {"success": false, "error": "no_axis"}

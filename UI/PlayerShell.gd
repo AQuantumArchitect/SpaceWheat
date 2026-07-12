@@ -130,9 +130,14 @@ func _input(event: InputEvent) -> void:
 		if kc in [KEY_Z, KEY_X, KEY_C, KEY_V, KEY_B, KEY_N, KEY_M]:
 			instrument_input.set_cursor_layer(0)
 		elif kc in [KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9, KEY_0]:
-			instrument_input.set_cursor_layer(1)
+			# keep_plot_selection: a hat pick switches tools, not workpieces —
+			# the focused plot must survive (fleet #4 P1: every hat switch
+			# dropped focus, so the first verb after it refused).
+			instrument_input.set_cursor_layer(1, true)
 		elif kc in [KEY_T, KEY_Y, KEY_U, KEY_I, KEY_O, KEY_P]:
-			instrument_input.set_cursor_layer(2)
+			# keep_plot_selection: the biome-switch handler re-maps the SAME
+			# slot letter into the new biome; clearing here forced it to G.
+			instrument_input.set_cursor_layer(2, true)
 		elif kc in [KEY_G, KEY_H, KEY_J, KEY_K, KEY_L, KEY_SEMICOLON]:
 			instrument_input.set_cursor_layer(3)
 

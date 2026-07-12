@@ -652,9 +652,13 @@ func _execute_toggle_berry_track() -> Dictionary:
 	if qc.berry_register.is_tracked(qid):
 		qc.berry_register.stop_tracking(qid)
 		_verbose.info("input", "⌖", "Stopped tracking qubit %d" % qid)
+		# The toggle is a trap when silent: testers pressed F to "poll" ripeness
+		# and destroyed their own loop (fleet #4). Say what just happened.
+		_toast_player("⌖ tracking stopped — the loop is lost. F re-tracks.")
 		return {"success": true, "tracking": false, "qubit": qid}
 	qc.berry_register.start_tracking(qid)
 	_verbose.info("input", "⌖", "Started tracking qubit %d" % qid)
+	_toast_player("⌖ tracking — time ripens the loop; Icon-hat R incorporates when ripe.")
 	return {"success": true, "tracking": true, "qubit": qid}
 
 
@@ -1133,16 +1137,21 @@ func step_active_plot(delta: int) -> void:
 ## selected, then emits cursor_layer_changed for PlayerShell to repaint. This is
 ## the one place the ring state changes — PlayerShell forwards here instead of
 ## holding its own copy.
-func set_cursor_layer(layer: int) -> void:
+func set_cursor_layer(layer: int, keep_plot_selection: bool = false) -> void:
 	layer = clampi(layer, 0, 3)
 	if cursor_layer == layer:
 		return
 	var old_layer := cursor_layer
 	cursor_layer = layer
-	# Plot ring lifecycle: entering → auto-select plot 0; leaving → clear selection.
+	# Plot ring lifecycle: entering → auto-select plot 0; leaving via the WASD
+	# crawl → clear selection. Direct picks (hat/biome keys) pass
+	# keep_plot_selection=true: switching tools must not drop the workpiece —
+	# clearing here made the first verb after EVERY hat switch fail while the
+	# chip row still rendered the last-focused plot (fleet #4: "chip says
+	# Incorporate, R says blocked" — two authorities disagreed on focus).
 	if old_layer != 3 and layer == 3:
 		enter_plot_ring()
-	elif old_layer == 3 and layer != 3:
+	elif old_layer == 3 and layer != 3 and not keep_plot_selection:
 		leave_plot_ring()
 	cursor_layer_changed.emit(layer)
 
