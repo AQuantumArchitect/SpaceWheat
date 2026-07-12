@@ -202,10 +202,12 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		_close_submenu()
 
 	# Archetype hat row: 4, 5, 6, 7, 8, 9, 0 → frame.
-	# Re-pressing the active hat toggles back to Ace (no frame).
+	# Re-pressing the active hat falls back to ACE — the documented default
+	# toolkit. It used to target FRAME_NULL, a dead state with no verbs and a
+	# blank action bar (fleet: "re-press doesn't return to Ace").
 	if ToolConfig.HAT_KEY_TO_FRAME.has(key):
 		var hat_frame: String = ToolConfig.HAT_KEY_TO_FRAME[key]
-		var target_frame: String = ToolConfig.FRAME_NULL if ToolConfig.get_current_frame() == hat_frame else hat_frame
+		var target_frame: String = ToolConfig.FRAME_ACE if ToolConfig.get_current_frame() == hat_frame else hat_frame
 		_select_frame_hat(target_frame)
 		get_viewport().set_input_as_handled()
 		return

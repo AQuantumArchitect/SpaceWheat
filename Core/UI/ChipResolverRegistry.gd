@@ -51,7 +51,7 @@ static func annotate_cost(action_info: Dictionary, ctx) -> Dictionary:
 		var shift_cost: Dictionary = _shift_action_cost(ctx.farm, shift_action)
 		if not shift_cost.is_empty():
 			out = action_info.duplicate(true)
-			out["shift_label"] = "%s %s" % [shift_label, _format_cost_inline(shift_cost)]
+			out["shift_label"] = "⇧ %s %s" % [shift_label, _format_cost_inline(shift_cost)]
 
 	var existing = action_info.get("cost")
 	if existing is Dictionary and not existing.is_empty():

@@ -19,7 +19,8 @@ static func resolve_r(ctx: ChipContext) -> Dictionary:
 		return {}
 	var qid: int = ctx.qubit_index
 	if not register.is_tracked(qid):
-		return {"action": "", "label": "", "disabled": true}
+		# A blank chip reads as broken (fleet ×2) — name the prerequisite instead.
+		return {"action": "", "label": "Track first (F)", "disabled": true}
 	if register.is_ripe(qid):
 		return {"action": "incorporate_icon", "label": "Incorporate", "disabled": false}
 	return {"action": "", "label": "Not ready", "disabled": true}

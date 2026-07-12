@@ -116,8 +116,10 @@ func _on_quest_failed(qid: int, reason: String) -> void:
 	_push("❌ Quest %d failed — %s" % [qid, reason], 2, "❌", "quest", "Q")
 
 
-func _on_quest_expired(qid: int) -> void:
-	_push("⌛ Quest %d expired" % qid, 1, "⌛", "quest", "Q")
+func _on_quest_expired(_qid: int) -> void:
+	# Importance 2: at 1 this was dropped by show_hint and commitments
+	# vanished silently (fleet: "accepted quest disappears without a word").
+	_push("⌛ a commitment ran out of time — check the C board", 2, "⌛", "quest", "Q")
 
 
 func _on_purchase_failed(reason: String) -> void:
