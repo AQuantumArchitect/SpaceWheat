@@ -1881,10 +1881,12 @@ func _make_arc_row(entry: Dictionary, key_str: String, selected: bool) -> Contro
 		top_hbox.add_child(fired_lbl)
 		return row
 
-	# Unfired — show score + per-predicate breakdown.
+	# Unfired — show score + per-predicate breakdown. Percent-of-threshold
+	# leads: the filament chip says "91%", so this must say 91% too (fleet #4
+	# read "0.77/0.85" and "91%" as two different systems).
 	var score: float = float(entry.get("score", 0.0))
 	var score_lbl := Label.new()
-	score_lbl.text = "%.2f / 0.85 %s" % [score, _ratio_bar(score / 0.85, 6)]
+	score_lbl.text = "%d%% %s (%.2f / 0.85)" % [int(round(clampf(score / 0.85, 0.0, 1.0) * 100.0)), _ratio_bar(score / 0.85, 6), score]
 	score_lbl.add_theme_font_size_override("font_size", 11)
 	score_lbl.add_theme_color_override("font_color", _score_color(score))
 	top_hbox.add_child(score_lbl)
