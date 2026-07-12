@@ -78,7 +78,25 @@ def _turn(seat: str, st: dict, c: RigClient, action: str, **kw):
     return c.run_turn(st["turn"], action, timeout_s=45, **kw)
 
 
-def cmd_start(seat: str) -> dict:
+def _seat_is_live(seat: str) -> bool:
+    st = _load_state(seat)
+    pid = int(st.get("pid", 0))
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
+def cmd_start(seat: str, fresh: bool = False) -> dict:
+    # Relay guard: a live seat is someone's campaign in progress. Refusing here
+    # protects relay legs from wiping it with a reflexive `start`.
+    if _seat_is_live(seat) and not fresh:
+        return {"ok": False, "error": "seat_already_running",
+                "note": "this seat is live — continue with look/press/wait, "
+                        "or pass --fresh to wipe it and boot a new game."}
     lane = _lane(seat)
     lane.mkdir(parents=True, exist_ok=True)
     c = _client(seat)
@@ -176,7 +194,7 @@ def main() -> int:
     cmd, seat = args[0], args[1]
     try:
         if cmd == "start":
-            out = cmd_start(seat)
+            out = cmd_start(seat, "--fresh" in args)
         elif cmd == "look":
             out = cmd_look(seat)
         elif cmd == "press":

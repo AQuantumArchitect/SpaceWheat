@@ -874,7 +874,7 @@
     "id": "ledger_opens",
     "display_name": "The Ledger Opens",
     "act": 5,
-    "arc_beat": "The empire was always here. You were feeding it. BloodLedger is evolving and you have started reading its qubits directly. The cross-biome flow from Village to BloodLedger — coin and people — has been running since you first built commerce. The empire does not announce itself. It is already present in the physics. And the Throne has finally understood what you are. Not a farmer. An entropy source — the one thing in the enclave that makes anything irreversible. An empire of perfect order has exactly one use for such a creature, and exactly one fear.",
+    "arc_beat": "The empire was always here. You were feeding it. BloodLedger is evolving and you have started reading its qubits directly. The cross-biome flow from Village to BloodLedger — coin and people — has been running since you first built commerce. The empire does not announce itself. It is already present in the physics. And the Throne has finally understood what you are. Not a farmer. An entropy source — the one thing in the enclave that makes anything irreversible. An empire of perfect order has exactly one use for such a creature, and exactly one fear. The edge of the enclave will not show itself to a narrow vocabulary: sixteen icons in your signature before the boundary becomes a place you can stand. Your lexicon keeps the count (X, the SELF card).",
     "predicates": [
       {
         "type": "story_flag_set",
@@ -1212,7 +1212,7 @@
     "id": "the_rite",
     "display_name": "What Fades V — The Rite",
     "act": 8,
-    "arc_beat": "Now the harvest festival the island never held. In the enclave, reap was a volley of glances — mass measurement, surprisal paid per collapse, the only economy a closed world can run. Out here the word recovers its old meaning. A season of wet-country farming accumulates dissipation: populations drained to sinks, order surrendered to the Bath, entropy pooling in every register like rain in a cistern. The rite opens the cistern. You are paid kT·ΔS — temperature times the disorder consumed — in the exact units the physics keeps its books. Understand what you have become, because the Throne understood it first: an entropy source in a world of perfect order was a curiosity. An entropy FARMER in a world that leaks is an industry. Maxwell's demon has stopped freelancing and opened a bank.",
+    "arc_beat": "Now the harvest festival the island never held. In the enclave, reap was a volley of glances — mass measurement, surprisal paid per collapse, the only economy a closed world can run. Out here the word recovers its old meaning. A season of wet-country farming accumulates dissipation: populations drained to sinks, order surrendered to the Bath, entropy pooling in every register like rain in a cistern. The rite opens the cistern. You are paid kT·ΔS — temperature times the disorder consumed — in the exact units the physics keeps its books. Understand what you have become, because the Throne understood it first: an entropy source in a world of perfect order was a curiosity. An entropy FARMER in a world that leaks is an industry. Maxwell's demon has stopped freelancing and opened a bank. One thing remains before the door: a signature of eighteen icons — a vocabulary wide enough to speak with every country the webways touch. Your lexicon keeps the count (X, the SELF card).",
     "predicates": [
       {
         "type": "story_flag_set",
@@ -1430,7 +1430,7 @@
     "id": "empire_imposes",
     "display_name": "The Ledger Imposes One Shape",
     "act": 6,
-    "arc_beat": "Now you see it whole. BloodLedger's spectrum is a single dominant mode behind a wide gap — one configuration the system is forced into and cannot leave. The Carrion Throne is not a ruler you can argue with, and not a chaos you can outlast; it is one answer, imposed on everything it touches, for as long as it exists. There is nothing to negotiate here. There is only whether your island stays many — or collapses into one.",
+    "arc_beat": "Now you see it whole. BloodLedger's spectrum is a single dominant mode behind a wide gap — one configuration the system is forced into and cannot leave. The Carrion Throne is not a ruler you can argue with, and not a chaos you can outlast; it is one answer, imposed on everything it touches, for as long as it exists. There is nothing to negotiate here. There is only whether your island stays many — or collapses into one. Many is measurable: keep Village's spectrum loose — its gap under 0.45, where the empire's yawns past 0.6 — let eighteen kinds of atom settle across your biomes, and hold a signature of fourteen icons. The microscope (B) reads the gap; your lexicon (X, SELF) counts the rest.",
     "predicates": [
       {
         "type": "story_flag_set",
