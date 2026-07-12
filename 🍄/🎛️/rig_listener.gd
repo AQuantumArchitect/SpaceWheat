@@ -2530,20 +2530,24 @@ func _keycode_from_name(key_name: String) -> int:
 			return KEY_TAB
 		"SPACE":
 			return KEY_SPACE
-		"SEMICOLON":
+		";", "SEMICOLON":
 			return KEY_SEMICOLON
-		"APOSTROPHE", "QUOTE":
+		"'", "APOSTROPHE", "QUOTE":
 			return KEY_APOSTROPHE
-		"MINUS":
+		"-", "MINUS":
 			return KEY_MINUS
-		"EQUAL", "EQUALS", "PLUS":
+		"=", "EQUAL", "EQUALS", "PLUS":
 			return KEY_EQUAL
-		"COMMA":
+		",", "COMMA":
 			return KEY_COMMA
-		"PERIOD", "DOT":
+		".", "PERIOD", "DOT":
 			return KEY_PERIOD
-		"SLASH":
+		"/", "SLASH":
 			return KEY_SLASH
+		"[", "BRACKETLEFT":
+			return KEY_BRACKETLEFT
+		"]", "BRACKETRIGHT":
+			return KEY_BRACKETRIGHT
 		_:
 			return OS.find_keycode_from_string(upper)
 

@@ -41,9 +41,12 @@ from rig_client import RigClient  # noqa: E402
 
 SEAT_ROOT = Path("/tmp/sw_player_seats")
 
-# Keys a player can physically press. Anything else is refused.
-ALLOWED_KEYS = set("abcdefghijklmnopqrstuvwxyz0123456789;',.[]") | {
-    "escape", "space", "enter", "tab", "up", "down", "left", "right"}
+# Keys a player can physically press. Anything else is refused. Named
+# aliases are for shells that eat punctuation (`;` unquoted ends a bash
+# command — fleet agents typed "semicolon" and were refused).
+ALLOWED_KEYS = set("abcdefghijklmnopqrstuvwxyz0123456789;',.[]-=") | {
+    "escape", "space", "enter", "tab", "up", "down", "left", "right",
+    "semicolon", "apostrophe", "comma", "period", "minus", "equal", "equals"}
 
 
 def _lane(seat: str) -> Path:

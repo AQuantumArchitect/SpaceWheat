@@ -72,10 +72,12 @@ press it. One incorporation = one berry consumed + one new word in your
 signature. The Arc tab (**X → I**) shows exactly how many berries each act
 asks of which biome.
 
-Two things the impatient learn the hard way: loops only ripen while **time
-flows** (E pauses the world; F plays it on — the ⏸/▶ toast tells you which),
-and you can track **several plots at once** — they ripen together, then R
-harvests them one after another.
+Three things the impatient learn the hard way: loops only ripen while **time
+flows** (E pauses the world; F plays it on — the ⏸/▶ toast tells you which);
+you can track **several plots at once** — they ripen together, then R
+harvests them one after another; and **`=` doubles the active biome's clock**
+(up to 16×, `-` slows it back) — a farmer who speeds the clock ripens a loop
+in a few beats instead of a season.
 
 ## The surfaces (letter row)
 

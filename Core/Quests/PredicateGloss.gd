@@ -19,8 +19,12 @@ static func summary(pred: Dictionary, qm = null) -> String:
 			return "know %d icons — Icon hat (5) incorporates them" % itgt
 		"berry_consumed_count_gte":
 			# Nine fleet testers stalled on "berries[X] ≥ 3" — the gloss must teach
-			# the loop, not just name the count.
-			return "incorporate %d in %s — Icon hat (5): F tracks, ripens, R incorporates" % [itgt, str(pred.get("biome", ""))]
+			# the loop, not just name the count. Live N/M: the ladder is cumulative,
+			# and every incorporation must visibly move the number.
+			var b := str(pred.get("biome", ""))
+			var have := int(qm.berry_consumed_in(b)) if (qm and qm.has_method("berry_consumed_in")) else -1
+			var count_str := ("%d/%d" % [have, itgt]) if have >= 0 else str(itgt)
+			return "berries %s in %s — Icon hat (5): F tracks, ripens, R incorporates" % [count_str, b]
 		"berry_total_phase_gte":
 			return "phase[%s] ≥ %.2f" % [str(pred.get("biome", "")), tgt]
 		"standing_gte":

@@ -150,6 +150,19 @@ func connect_to_farm(farm: Node) -> void:
 # STORY FLAGS
 # =============================================================================
 
+## Berries consumed so far in a biome — PredicateGloss shows live "N/M" so a
+## fresh incorporation visibly moves the number (fleet #5: "progress display
+## not updating" + the cumulative ladder read as shifting requirements).
+func berry_consumed_in(biome_name: String) -> int:
+	var farm = _get_active_farm()
+	if farm == null or farm.grid == null:
+		return 0
+	var biome = farm.grid.get_biome(biome_name)
+	if biome == null or biome.get("quantum_computer") == null or biome.quantum_computer.berry_register == null:
+		return 0
+	return int(biome.quantum_computer.berry_register.get_consumed_count())
+
+
 ## Player-facing display name for a story flag id (PredicateGloss speaks beats,
 ## not internal ids).
 func flag_display_name(flag_id: String) -> String:
