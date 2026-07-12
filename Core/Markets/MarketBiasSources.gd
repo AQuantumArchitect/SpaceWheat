@@ -40,7 +40,7 @@ static func _safe_get_biome(contract, farm):
 	if not farm.grid.has_biomes():
 		return null
 	for b in farm.grid.get_all_biomes().values():
-		var bname = b.get_biome_type() if b.has_method("get_biome_type") else (b.biome_name if "biome_name" in b else "")
+		var bname = BiomeBase.type_name(b)
 		if str(bname) == contract.biome_name:
 			return b
 	return null

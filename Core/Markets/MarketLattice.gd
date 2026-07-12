@@ -43,7 +43,7 @@ func propose_offers(biome, n: int = 1) -> Array:
 	# emoji-axial pair found in biome.qc. Each offer's price is substrate-derived.
 	if biome == null or _farm == null:
 		return []
-	var biome_name: String = biome.get_biome_type() if biome.has_method("get_biome_type") else (biome.biome_name if "biome_name" in biome else "")
+	var biome_name: String = BiomeBase.type_name(biome)
 	if biome_name == "":
 		return []
 	var qc = biome.quantum_computer if "quantum_computer" in biome else null
@@ -572,13 +572,7 @@ func _pick_faction_cost_emoji(deliverable: String, marg_fb: Dictionary) -> Strin
 # ---------------- pair helpers ----------------
 
 func _biome_name(biome) -> String:
-	if biome == null:
-		return ""
-	if biome.has_method("get_biome_type"):
-		return str(biome.get_biome_type())
-	if "biome_name" in biome:
-		return str(biome.biome_name)
-	return ""
+	return BiomeBase.type_name(biome)
 
 
 func _emoji_marginals(qc) -> Dictionary:
@@ -838,7 +832,7 @@ func _resolve_biome_by_name(name: String):
 	if _farm == null or _farm.grid == null:
 		return null
 	for b in _farm.grid.get_all_biomes().values():
-		var bname = b.get_biome_type() if b.has_method("get_biome_type") else (b.biome_name if "biome_name" in b else "")
+		var bname = BiomeBase.type_name(b)
 		if str(bname) == name:
 			return b
 	return null

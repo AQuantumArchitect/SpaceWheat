@@ -257,7 +257,7 @@ func run_time_skip_cycles(cycles: int, dt: float = -1.0, biome_names: Array = []
 				var reg_dim = int(qc.register_map.dim()) if qc and qc.register_map else -1
 				var rho_dim = int(qc.density_matrix.n) if qc and qc.density_matrix else -1
 				var h_dim = int(qc.hamiltonian.n) if qc and qc.hamiltonian else -1
-				var lindblad_count = int(qc.lindblad_operators.size()) if qc and "lindblad_operators" in qc else 0
+				var lindblad_count = int(qc.lindblad_operators.size()) if qc else 0
 				VerboseHelper.debug("trace", "time-skip", "cycle=%d biome=%s reg_dim=%d rho_dim=%d H_dim=%d L_count=%d max_dt=%.6f target_dt=%.6f mode=%s" % [
 					cycle_index,
 					batcher._get_biome_name(biome),

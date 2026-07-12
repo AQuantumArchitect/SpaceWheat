@@ -1498,10 +1498,6 @@ func _ensure_biome() -> void:
 	var obs = farm.observation_frame if "observation_frame" in farm else null
 	if bname == "" and obs and obs.has_method("get_neutral_biome"):
 		bname = str(obs.get_neutral_biome())
-	if bname == "" and farm.has_method("get_current_biome"):
-		var b = farm.get_current_biome()
-		if b and "biome_name" in b:
-			bname = str(b.biome_name)
 	if bname != "" and farm.grid and farm.grid.has_biome(bname):
 		current_biome = farm.grid.get_biome(bname)
 

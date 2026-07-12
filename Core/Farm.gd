@@ -661,7 +661,7 @@ func distribute_settlement_theta(theta_total: float, contract) -> void:
 	# Include other factions whose affinity overlaps the biome above noise floor.
 	var biome = null
 	for b in grid.get_all_biomes().values() if (grid and grid.has_biomes()) else []:
-		var bname = b.get_biome_type() if b.has_method("get_biome_type") else (b.biome_name if "biome_name" in b else "")
+		var bname = BiomeBase.type_name(b)
 		if str(bname) == contract.biome_name:
 			biome = b
 			break

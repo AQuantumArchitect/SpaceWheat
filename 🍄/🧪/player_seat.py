@@ -1,0 +1,203 @@
+#!/usr/bin/env python3
+"""PLAYER SEAT — the rig locked down to player parity.
+
+An agent sits here and experiences ONLY what a player does:
+  READS:  the visible screen text, the visible bubble field, the resource
+          panel, the biome tab bar.
+  INPUTS: key presses (with shift), taps, real-time waiting.
+
+Runs HEADLESS (owner call 2026-07-12: mechanics first) — same scene tree,
+same visibility flags, same text; no pixels, so no screenshots.
+
+No resource injection, no time_skip, no predicate scores, no dev
+introspection. If a verb isn't on this surface, the seat refuses it.
+
+Sessions persist across CLI invocations: `start` boots a detached listener
+in a per-seat sandbox lane; every later command reconnects through the
+lane's queue/results files. State (turn counter, lane path) lives in the
+lane's seat_state.json.
+
+Usage:
+  player_seat.py start <seat>            boot a fresh game (headed, welcome ON)
+  player_seat.py look <seat>             everything the player can currently read
+  player_seat.py press <seat> <key> [--shift]
+  player_seat.py tap <seat> <gx> <gy>    tap the bubble/plot at grid pos
+  player_seat.py wait <seat> <seconds>   real time passes (no skip)
+  player_seat.py screenshot <seat> <name>
+  player_seat.py stop <seat>
+
+All output is one JSON object on stdout.
+"""
+import json
+import os
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+RUNNER = Path("/home/primearchitect/ws/SpaceWheat/🍄") / "\U0001F39B️"
+sys.path.insert(0, str(RUNNER))
+from rig_client import RigClient  # noqa: E402
+
+SEAT_ROOT = Path("/tmp/sw_player_seats")
+
+# Keys a player can physically press. Anything else is refused.
+ALLOWED_KEYS = set("abcdefghijklmnopqrstuvwxyz0123456789;',.[]") | {
+    "escape", "space", "enter", "tab", "up", "down", "left", "right"}
+
+
+def _lane(seat: str) -> Path:
+    return SEAT_ROOT / seat
+
+
+def _state_path(seat: str) -> Path:
+    return _lane(seat) / "seat_state.json"
+
+
+def _load_state(seat: str) -> dict:
+    p = _state_path(seat)
+    if not p.exists():
+        return {}
+    return json.loads(p.read_text())
+
+
+def _save_state(seat: str, st: dict) -> None:
+    _state_path(seat).write_text(json.dumps(st))
+
+
+def _client(seat: str) -> RigClient:
+    os.environ["RIG_BRIDGE_SENTINEL_WSL_PATH"] = ""
+    os.environ.pop("RIG_BRIDGE_SENTINEL_WSL_PATH", None)
+    os.environ.pop("RIG_HEARTBEAT_WSL_PATH", None)
+    return RigClient(xdg=_lane(seat))
+
+
+def _turn(seat: str, st: dict, c: RigClient, action: str, **kw):
+    st["turn"] = int(st.get("turn", 0)) + 1
+    _save_state(seat, st)
+    return c.run_turn(st["turn"], action, timeout_s=45, **kw)
+
+
+def cmd_start(seat: str) -> dict:
+    lane = _lane(seat)
+    lane.mkdir(parents=True, exist_ok=True)
+    c = _client(seat)
+    c.kill_existing_listeners(xdg=lane)
+    c.clear_rig_files(preserve_live_sentinel=False)
+    env = {"RIG_SKIP_WELCOME": "0"}
+    proc = c.start_listener(scenario_id="demos_normal", display_mode="headless",
+                            allow_resource_injection=False,
+                            listener_log_path=lane / "listener.log",
+                            extra_env=env)
+    ready = c.wait_for_ready(proc, timeout_s=240, xdg=lane)
+    ok = c.ready_seen(ready) or c._bridge_sentinel_is_ready(xdg=lane)
+    _save_state(seat, {"turn": 0, "pid": proc.pid, "started": time.time()})
+    return {"ok": bool(ok), "seat": seat, "note": "game booted; the welcome "
+            "splash may be on screen — `look`, read it, press any key to begin."}
+
+
+def _visible_lines(c, seat, st, under="") -> list:
+    kw = {"under": under} if under else {}
+    r = _turn(seat, st, c, "overlay_text", **kw)
+    out = []
+    for x in r.get("lines", []):
+        tx = str(x.get("text", "")) if isinstance(x, dict) else str(x)
+        tx = tx.strip()
+        if tx:
+            out.append(tx)
+    return out
+
+
+def cmd_look(seat: str) -> dict:
+    st = _load_state(seat)
+    c = _client(seat)
+    text = _visible_lines(c, seat, st)
+    bs = _turn(seat, st, c, "bubble_state")
+    # Headless has no force graph (no bubble field) — the chips and toasts
+    # carry the plot state instead, exactly as they do for a player.
+    field = [{"pos": b.get("pos"), "axis": b.get("axis"),
+              "measured": bool(b.get("measured")), "biome": b.get("biome")}
+             for b in bs.get("bubbles", []) if b.get("visible")] \
+        if bs.get("ok") else "headless: no bubble field — read the chips/toasts"
+    rs = _turn(seat, st, c, "resource_snapshot")
+    slots = _turn(seat, st, c, "biome_slots")
+    tabs = [{"key": s.get("key"), "biome": s.get("biome")}
+            for s in slots.get("slots", []) if s.get("biome")]
+    # De-dup consecutive repeats to keep the read short.
+    seen, screen = set(), []
+    for ln in text:
+        if ln not in seen:
+            seen.add(ln)
+            screen.append(ln)
+    return {"ok": True, "screen_text": screen, "field": field,
+            "wallet": rs.get("resources", rs.get("snapshot", {})),
+            "biome_tabs": tabs}
+
+
+def cmd_press(seat: str, key: str, shift: bool) -> dict:
+    if key.lower() not in ALLOWED_KEYS:
+        return {"ok": False, "error": "not_a_player_key", "key": key}
+    st = _load_state(seat)
+    c = _client(seat)
+    kw = {"key": key, "settle_frames": 10}
+    if shift:
+        kw["shift"] = True
+    r = _turn(seat, st, c, "press_key", **kw)
+    return {"ok": bool(r.get("ok", False)), "pressed": key, "shift": shift}
+
+
+def cmd_tap(seat: str, _gx: int, _gy: int) -> dict:
+    return {"ok": False, "error": "headless_no_tap",
+            "hint": "this run is headless — keyboard only (mouse parity is a headed lane)"}
+
+
+def cmd_wait(seat: str, seconds: float) -> dict:
+    seconds = min(max(seconds, 0.0), 30.0)
+    time.sleep(seconds)
+    return {"ok": True, "waited_s": seconds}
+
+
+def cmd_screenshot(seat: str, _name: str) -> dict:
+    return {"ok": False, "error": "headless_no_pixels",
+            "hint": "this run is headless — `look` is your eyes"}
+
+
+def cmd_stop(seat: str) -> dict:
+    c = _client(seat)
+    c.kill_existing_listeners(xdg=_lane(seat))
+    return {"ok": True, "seat": seat, "stopped": True}
+
+
+def main() -> int:
+    args = sys.argv[1:]
+    if len(args) < 2:
+        print(json.dumps({"ok": False, "error": "usage", "help": __doc__}))
+        return 1
+    cmd, seat = args[0], args[1]
+    try:
+        if cmd == "start":
+            out = cmd_start(seat)
+        elif cmd == "look":
+            out = cmd_look(seat)
+        elif cmd == "press":
+            out = cmd_press(seat, args[2], "--shift" in args)
+        elif cmd == "tap":
+            out = cmd_tap(seat, int(args[2]), int(args[3]))
+        elif cmd == "wait":
+            out = cmd_wait(seat, float(args[2]))
+        elif cmd == "screenshot":
+            out = cmd_screenshot(seat, args[2] if len(args) > 2 else "shot")
+        elif cmd == "stop":
+            out = cmd_stop(seat)
+        else:
+            out = {"ok": False, "error": "unknown_command",
+                   "allowed": ["start", "look", "press", "tap", "wait",
+                               "screenshot", "stop"]}
+    except Exception as exc:  # honest failure beats a hung agent
+        out = {"ok": False, "error": "seat_exception", "detail": str(exc)[:300]}
+    print(json.dumps(out, ensure_ascii=False))
+    return 0 if out.get("ok") else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

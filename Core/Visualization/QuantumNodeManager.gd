@@ -174,9 +174,9 @@ func _create_node_for_plot(plot, grid_pos: Vector2i, layout_calculator, biomes: 
 	# Calculate initial anchor position
 	var anchor_pos = Vector2.ZERO
 	var center_pos = Vector2.ZERO
-	var biome_name = ""
-	if plot.parent_biome:
-		biome_name = plot.parent_biome.biome_name if "biome_name" in plot.parent_biome else ""
+	# BiomeBase has no biome_name property — the old guard read "" forever
+	# (frozen-default class, PT6). type_name is the one naming policy.
+	var biome_name = BiomeBase.type_name(plot.parent_biome) if plot.parent_biome else ""
 
 	if layout_calculator:
 		center_pos = layout_calculator.graph_center

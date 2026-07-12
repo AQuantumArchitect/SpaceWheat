@@ -2386,8 +2386,10 @@ func _quantum_shapes_valid(qc) -> bool:
 		return false
 	if qc.hamiltonian and int(qc.hamiltonian.n) != dim:
 		return false
-	var lindblad_ops = qc.lindblad_operators if "lindblad_operators" in qc else []
-	for L in lindblad_ops:
+	# Direct read: the property is canonical on QuantumComputer. A guarded
+	# fallback here would silently skip L validation forever after a rename
+	# (frozen-default class, PT6).
+	for L in qc.lindblad_operators:
 		if L and int(L.n) != dim:
 			return false
 	return true

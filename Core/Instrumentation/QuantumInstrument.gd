@@ -868,7 +868,9 @@ func quest_offer_all() -> Dictionary:
 	if not biome:
 		return {"ok": false, "error": "no_current_biome"}
 	var offers = qm.offer_all_faction_quests(biome)
-	var biome_name = str(biome.biome_name) if biome and "biome_name" in biome else ""
+	# BiomeBase has no biome_name property — the old guard read "" forever
+	# (same dead-property class as the frozen Born seed, PT6).
+	var biome_name = BiomeBase.type_name(biome)
 	var result = {
 		"ok": true,
 		"offers": offers if offers is Array else [],
