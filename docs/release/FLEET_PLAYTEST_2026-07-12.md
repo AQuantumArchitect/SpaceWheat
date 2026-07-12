@@ -111,6 +111,40 @@ fog. Cost badges confirmed in rendered pixels on the headed lane.
 - Verified: suite 119/119; born_reward (a p=0.073 collapse paid +116),
   menu-bleed/lens, tutorial 7/7 by hints.
 
+## Fleet #3 — relay marathons (same day, post-fix build)
+
+New format: 3 lanes × 3 sequential haiku legs on ONE persistent seat
+(campaign survives between legs; notebook handed leg-to-leg; `start` now
+refuses on a live seat unless `--fresh`). Strategies: contract-spine /
+story-first / economy-first. 803 tool calls, ~630k tokens.
+
+**Result: all nine legs stalled on the same wall — Act 1's berry gate.**
+Three stacked defects, all fixed same day (5afc77cf):
+
+1. **The math lied**: soft_gate is 0.5 at the authored value, so
+   "berries ≥ 3" silently demanded ~4.3 and "signature ≥ 18" ~19.7; partial
+   progress at 2/3 berries displayed 0.21 (three testers quoted that exact
+   number). `QuestMath.count_gate` now fires integer counts exactly AT the
+   authored value; `predicate_fire_target` quotes it; 2/3 reads 0.60.
+2. **The gloss didn't teach**: the Arc tab said "berries[StarterForest] ≥ 3"
+   — no verb, no hat. Count glosses now teach the Icon-hat loop;
+   signature_growth finally has a gloss; story_flag_set speaks display
+   names, not internal ids.
+3. **Refusals were mute**: "✗ Track blocked" gave no reason; berry-track
+   failures now name the fix.
+
+Also: manual's Icon-hat "Inject dual-emoji qubits" lie fixed; Ace F copy
+claimed F reaps (it's Shift+F); new manual section "Berries — how the story
+moves". Endgame gate beats (edge/door/island_free) now name their thresholds
+in-voice (afd94635). Commitments rows read "🔥 6/11 held"; reap refusal
+teaches F→Shift+F; ambient drain income logs attributed (b92db5b1 — closes
+the 🐺-from-nowhere P1: it was StarterForest's lindblad trickle; refusal
+paths verified side-effect-free).
+
+Verified after: suite 119/119, act3_5_drive full campaign green under the
+new gates, poverty_run_probe green (owner-style: 25 keyboard cycles, no
+injection, both poles, +303 surprisal pop, ledger fully reconciled).
+
 ## Testing infra now standing
 - `🍄/🧪/player_seat.py` — the parity harness (headless lane). A headed
   variant (screenshots + taps) is the mouse-parity lane for UI passes.
