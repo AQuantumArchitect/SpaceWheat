@@ -849,7 +849,7 @@ static func action_reap(farm, economy = null) -> Dictionary:
 		return {
 			"success": false,
 			"error": "no_active_biomes",
-			"message": "Reap requires at least one active biome with bound terminals."
+			"message": "Nothing to reap — F explores plots first; Shift+F then reaps every explored plot still in play."
 		}
 
 	var reap_count_before = _get_reap_count(farm)

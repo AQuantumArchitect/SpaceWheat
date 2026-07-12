@@ -126,10 +126,24 @@ func _on_purchase_failed(reason: String) -> void:
 	_push("⚠ %s" % reason, 2, "⚠", "economy", "")
 
 
+# Player words for wallet-mutation reasons. Ambient trickles (drain, composting)
+# are logged too — a wallet delta with no trace reads as haunted (fleet: "🐺+2
+# appeared after a refused action"; it was StarterForest's drain trickle).
+const REASON_WORDS := {
+	"quest_completion": "quest",
+	"plot_harvest": "harvest",
+	"trade": "trade",
+	"synthesis": "synthesis",
+	"lindblad_drain": "field drain",
+	"lindblad_rainbow": "field drain",
+	"composting": "composting",
+}
+
+
 func _on_resource_mutated(emoji: String, delta: float, reason: String, _amount: float) -> void:
-	if reason in ["quest_completion", "plot_harvest", "trade", "synthesis"]:
+	if reason in REASON_WORDS:
 		var sign_str: String = "+" if delta >= 0 else ""
-		_push("%s %s%d (%s)" % [emoji, sign_str, int(delta), reason], 1, emoji, "resource", "")
+		_push("%s %s%d (%s)" % [emoji, sign_str, int(delta), REASON_WORDS[reason]], 1, emoji, "resource", "")
 
 
 func _on_standing_changed(faction: String, channel: String, delta: float, new_value: float) -> void:

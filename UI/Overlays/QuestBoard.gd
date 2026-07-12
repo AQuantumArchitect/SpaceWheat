@@ -1146,7 +1146,7 @@ func _make_commitment_row(quest: Dictionary, key_str: String, selected: bool) ->
 	hbox.add_child(faction_lbl)
 
 	var ask_lbl := Label.new()
-	ask_lbl.text = _commitment_ask_text(quest)
+	ask_lbl.text = _commitment_ask_text(quest, not is_history)
 	ask_lbl.add_theme_font_size_override("font_size", 16)
 	ask_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_VALUE)
 	ask_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1198,13 +1198,22 @@ func _make_commitment_row(quest: Dictionary, key_str: String, selected: bool) ->
 
 	return row
 
-## The "ask" line for a commitment row: delivery shows resource×qty; quantum quests show the
-## steerable objective (observable → target) so the player sees what they're aiming the state at.
-func _commitment_ask_text(quest: Dictionary) -> String:
+## The "ask" line for a commitment row: delivery shows held/asked progress; quantum quests show
+## the steerable objective (observable → target) so the player sees what they're aiming the state at.
+func _commitment_ask_text(quest: Dictionary, show_held: bool = false) -> String:
 	var t = quest.get("type", QuestTypes.Type.DELIVERY)
 	var ti := int(t) if (typeof(t) == TYPE_INT or typeof(t) == TYPE_FLOAT) else int(QuestTypes.Type.DELIVERY)
 	if ti == int(QuestTypes.Type.DELIVERY):
-		return "%s × %d" % [str(quest.get("resource", "?")), int(quest.get("quantity", 0))]
+		var emoji := str(quest.get("resource", "?"))
+		var qty := int(quest.get("quantity", 0))
+		# "× 11" alone read as a cycle count to playtesters — held/asked names the goal.
+		if show_held:
+			var held := 0
+			var held_farm = InstrumentLocator.resolve_active_farm(self)
+			if held_farm and held_farm.economy:
+				held = int(held_farm.economy.get_resource_units(emoji))
+			return "%s %d/%d held" % [emoji, held, qty]
+		return "%s × %d" % [emoji, qty]
 	if quest.has("observable"):
 		var obs_label := str(quest.get("observable", "?"))
 		# Player-facing names for internal observable keys.
