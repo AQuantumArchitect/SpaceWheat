@@ -150,6 +150,15 @@ func connect_to_farm(farm: Node) -> void:
 # STORY FLAGS
 # =============================================================================
 
+## Player-facing display name for a story flag id (PredicateGloss speaks beats,
+## not internal ids).
+func flag_display_name(flag_id: String) -> String:
+	for f in _story_flags:
+		if f is Dictionary and str(f.get("id", "")) == flag_id:
+			return str(f.get("display_name", flag_id))
+	return flag_id
+
+
 func _load_story_flags() -> void:
 	var path := "res://Core/Quests/data/story_flags.json"
 	var f := FileAccess.open(path, FileAccess.READ)
@@ -316,12 +325,23 @@ func _evaluate_quest_state_predicates(predicates: Array) -> float:
 	return QuestMath.smooth_and(scores)
 
 
+## Integer-count predicate types — evaluated with QuestMath.count_gate so they fire
+## exactly AT the authored count ("≥ 3" means 3, not 3 + width·atanh). Displays and
+## physics must quote the same number.
+const COUNT_GATE_TYPES: Array[String] = [
+	"berry_consumed_count_gte", "signature_size_gte", "atom_count_gte", "atom_diversity_gte",
+]
+
+
 ## Public: the value the player must actually reach for `pred` to fire. soft_gate is only
 ## 0.5 at the stated `value`; it crosses FLAG_FIRE_THRESHOLD near value + width·atanh(2·t−1).
+## Count gates fire at the authored value itself.
 func predicate_fire_target(pred: Dictionary) -> float:
 	var t := str(pred.get("type", ""))
 	var w: float = _pred_width(pred, t)
 	var center := float(pred.get("value", 0.0))
+	if t in COUNT_GATE_TYPES:
+		return center
 	var target := QuestMath.fire_value(center, w, FLAG_FIRE_THRESHOLD)
 	if t.ends_with("_lte"):
 		# "at most" predicates fire BELOW center — mirror the soft_gate offset.
@@ -370,7 +390,7 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 			if biome == null or biome.get("quantum_computer") == null:
 				return 0.0
 			var count := float(biome.quantum_computer.berry_register.get_consumed_count())
-			return QuestMath.soft_gate(count, float(pred.get("value", 0)), PREDICATE_SOFT_WIDTH["berry_consumed_count_gte"])
+			return QuestMath.count_gate(count, float(pred.get("value", 0)), PREDICATE_SOFT_WIDTH["berry_consumed_count_gte"], FLAG_FIRE_THRESHOLD)
 		"berry_total_phase_gte":
 			if farm.grid == null:
 				return 0.0
@@ -523,7 +543,7 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 			var v_lte: float = float(biome.quantum_computer.get_energy_variance())
 			return QuestMath.soft_gate_inv(v_lte, float(pred.get("value", 0.0)), PREDICATE_SOFT_WIDTH["biome_energy_variance_lte"])
 		"signature_size_gte":
-			return QuestMath.soft_gate(float(farm.known_icons.size()), float(pred.get("value", 0)), _pred_width(pred, "signature_size_gte"))
+			return QuestMath.count_gate(float(farm.known_icons.size()), float(pred.get("value", 0)), _pred_width(pred, "signature_size_gte"), FLAG_FIRE_THRESHOLD)
 		"signature_growth_gte":
 			# Growth of the signature PAST the seeded boot baseline — i.e. how many icons
 			# the player has actually incorporated THIS run. The scenario's starting
@@ -538,7 +558,7 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 			if biome == null or biome.get("quantum_computer") == null:
 				return 0.0
 			var count := float(biome.quantum_computer.register_map.coordinates.size())
-			return QuestMath.soft_gate(count, float(pred.get("value", 0)), PREDICATE_SOFT_WIDTH["atom_count_gte"])
+			return QuestMath.count_gate(count, float(pred.get("value", 0)), PREDICATE_SOFT_WIDTH["atom_count_gte"], FLAG_FIRE_THRESHOLD)
 		"atom_in_biome":
 			if farm.grid == null:
 				return 0.0
@@ -559,7 +579,7 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 					continue
 				for atom in b.quantum_computer.register_map.coordinates.keys():
 					seen[str(atom)] = true
-			return QuestMath.soft_gate(float(seen.size()), float(pred.get("value", 0)), PREDICATE_SOFT_WIDTH["atom_diversity_gte"])
+			return QuestMath.count_gate(float(seen.size()), float(pred.get("value", 0)), PREDICATE_SOFT_WIDTH["atom_diversity_gte"], FLAG_FIRE_THRESHOLD)
 		"biome_attractor_emoji_gte":
 			if farm.grid == null:
 				return 0.0

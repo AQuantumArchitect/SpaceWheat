@@ -34,6 +34,16 @@ static func fire_value(center: float, width: float = 0.05, fire_threshold: float
 	return center + maxf(width, 1e-6) * 0.5 * log((1.0 + y) / (1.0 - y))
 
 
+static func count_gate(x: float, center: float, width: float = 1.5, fire_threshold: float = 0.85) -> float:
+	## Soft gate for INTEGER COUNTS ("≥ N berries"). Plain soft_gate is only 0.5
+	## at the authored N, so "≥ 3" silently demanded ~4.3 — every count display
+	## lied by the soft-gate offset (fleet #3: nine testers stalled on it). This
+	## shifts the center down so the gate reaches fire_threshold exactly AT the
+	## authored count: still smooth partial progress, but N means N.
+	var offset := fire_value(0.0, width, fire_threshold)
+	return soft_gate(x, center - offset, width)
+
+
 static func smooth_and(scores: Array) -> float:
 	## Geometric mean of scores: ALL must be high for result to be high.
 	## Penalises weakest link without zeroing out on any single low score.

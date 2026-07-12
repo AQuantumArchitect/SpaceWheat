@@ -44,15 +44,15 @@ Four verbs, same directions on every surface:
   factions, bridges, anything.
 - **R** — screw in: more, add, advance, strike, span.
 - **F** — play + flatten: close what E opened, advance time. In the Ace
-  hat, **F reaps the season** — time runs forward and the whole biome's
-  yield lands at once.
+  hat, **F explores** a fresh plot (1🍞) or fast-forwards an explored one;
+  **Shift+F reaps the season** — the whole biome's yield lands at once.
 
 ## The seven hats (number row 4–0)
 
 | Key | Hat | What it does |
 |-----|-----|--------------|
 | 4 | **Spark** | One-shot Lindblad jolt — wet country only (chips grey on closed ground); the kick that can *re-purify*. **E** reads the gauge. Mode 2 (🌉): Majorana bridges — never sealed. |
-| 5 | **Icon** | Inject dual-emoji qubits; **F tracks** a qubit's walk, **R incorporates** it when ripe. |
+| 5 | **Icon** | The vocabulary hat — **the story runs on it** (see Berries below). **F tracks** a plot's walk (⌖), **R incorporates** it when ripe; R on an empty plot adds an icon, Q trims one. |
 | 6 | **Merchant** | Standing contracts with the Bath (wet country only). 1/2/3 picks the channel — thermal / dephase / damp. Q exports, E reads the order book, R imports, **F settles**. |
 | 7 | **Captain** | Biome lifecycle: cull, compass, discover. |
 | 8 | **Ace** | The default: explore/fast-fwd (F, Shift+F reaps the season) / strike (R) / extract (Q) / pause (E). |
@@ -61,6 +61,16 @@ Four verbs, same directions on every surface:
 
 Re-press the active hat to fall back to Ace. `Tab` cycles hats. `Shift` +
 Q/E/R applies the verb to every valid plot.
+
+## Berries — how the story moves
+
+The acts advance on **incorporated berries**, and the loop is short: pick a
+plot (`G H J K L ;`), put on the Icon hat (`5`), press **F** to track its
+walk (⌖). Let time run — Ace-hat F fast-forwards. When the loop has swept
+enough sky it **ripens**, and the Icon-hat **R** chip reads *Incorporate*:
+press it. One incorporation = one berry consumed + one new word in your
+signature. The Arc tab (**X → I**) shows exactly how many berries each act
+asks of which biome.
 
 ## The surfaces (letter row)
 

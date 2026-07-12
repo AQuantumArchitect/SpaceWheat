@@ -16,9 +16,11 @@ static func summary(pred: Dictionary, qm = null) -> String:
 	var itgt: int = int(ceil(tgt))
 	match t:
 		"signature_size_gte":
-			return "signature ≥ %d" % itgt
+			return "know %d icons — Icon hat (5) incorporates them" % itgt
 		"berry_consumed_count_gte":
-			return "berries[%s] ≥ %d" % [str(pred.get("biome", "")), itgt]
+			# Nine fleet testers stalled on "berries[X] ≥ 3" — the gloss must teach
+			# the loop, not just name the count.
+			return "incorporate %d in %s — Icon hat (5): F tracks, ripens, R incorporates" % [itgt, str(pred.get("biome", ""))]
 		"berry_total_phase_gte":
 			return "phase[%s] ≥ %.2f" % [str(pred.get("biome", "")), tgt]
 		"standing_gte":
@@ -32,7 +34,15 @@ static func summary(pred: Dictionary, qm = null) -> String:
 		"biome_evolving":
 			return "%s evolving" % str(pred.get("biome", ""))
 		"story_flag_set":
-			return "flag '%s' set" % str(pred.get("id", ""))
+			# Speak the beat's display name, not the internal id ("flag
+			# 'village_identity' set" read as a dead end to playtesters).
+			var fid := str(pred.get("id", ""))
+			var disp := fid
+			if qm and qm.has_method("flag_display_name"):
+				disp = str(qm.flag_display_name(fid))
+			return "after the beat '%s'" % disp
+		"signature_growth_gte":
+			return "learn %d new icon%s — Icon hat (5): F tracks, R incorporates" % [maxi(1, itgt), "s" if itgt > 1 else ""]
 		"atom_count_gte":
 			return "%s atoms ≥ %d" % [str(pred.get("biome", "")), itgt]
 		"atom_diversity_gte":

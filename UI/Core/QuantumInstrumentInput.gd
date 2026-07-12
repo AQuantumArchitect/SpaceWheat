@@ -638,14 +638,17 @@ func _execute_toggle_berry_track() -> Dictionary:
 	# itself from the next slice's Bloch vector — no explicit seed needed.
 	var biome = _get_current_biome()
 	if biome == null:
-		return {"success": false, "error": "no_biome"}
+		return {"success": false, "error": "no_biome",
+				"message": "Track needs a biome underfoot — T Y U switch biomes."}
 	var qc = biome.quantum_computer
 	if qc == null or qc.berry_register == null:
-		return {"success": false, "error": "no_quantum_computer"}
+		return {"success": false, "error": "no_quantum_computer",
+				"message": "This biome isn't evolving yet — nothing to track."}
 	var qid: int = int(_instrument.current_plot_idx) if _instrument else -1
 	if qid < 0 or qid >= qc.register_map.num_qubits:
 		_verbose.info("input", "⌖", "No focused qubit to track")
-		return {"success": false, "error": "no_qubit"}
+		return {"success": false, "error": "no_qubit",
+				"message": "Track needs a focused plot — G H J K L ; picks one."}
 	if qc.berry_register.is_tracked(qid):
 		qc.berry_register.stop_tracking(qid)
 		_verbose.info("input", "⌖", "Stopped tracking qubit %d" % qid)
