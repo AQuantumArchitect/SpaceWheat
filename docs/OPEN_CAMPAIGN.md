@@ -38,9 +38,10 @@
 > (`tools/channel_assay.py`). Law #2 is also literal now: biomes author a
 > `dephasing` rate that builds a true L_z operator — GildedRot's masks,
 > dance, and wine carry it, so the gray is pure T₂, not a byproduct.
-> Remaining: Phase 3 (role-separation data reform — biome bots),
-> `PREVENT_DECOHERENCE` (tracker exists, no generator emits it), dephasing
+> Remaining: Phase 3 (role-separation data reform — biome bots), dephasing
 > and gated-rate tuning in live play, and one design call for the owner:
+> (`PREVENT_DECOHERENCE` woke 2026-07-11: QuestPipeline.suggest_ward_quest
+> leads the curriculum ladder on open ground — ward_quest_probe.py guards it.)
 > the Village is stamped `regime:"closed"` (inviolable island), so its
 > authored tristability stays dormant unless its regime call changes.
 
@@ -96,7 +97,7 @@ the second game teaches you to miss.
 | Persistence | `GameStateSerializer` round-trips mixed density matrices (dense + CSR) |
 | Measurement backaction | Weak-measurement drain path tested (18 tests: trace, √(1−η) coherence decay, η limits) |
 | Visual grammar | Purity→radius and coherence→saturation channels **built and frozen** (r ≡ 1 closed) — dephasing is a reveal of a sense organ the player didn't know the game had |
-| Quest types | `PREVENT_DECOHERENCE` (the Zeno quest), `MAINTAIN_COHERENCE`, `INDUCE_BELL_STATE` trackers implemented, dormant |
+| Quest types | `PREVENT_DECOHERENCE` (the Zeno quest) LIVE in wet pools (2026-07-11); `MAINTAIN_COHERENCE`, `INDUCE_BELL_STATE` trackers implemented, dormant |
 | Economy | Already thermodynamic: E = −kT·log p, kT from live entropy. The open game says Landauer out loud |
 | The circuit shelf | ~15 authored dissipative circuits, all dormant in v0: EIT dark states (NullingChamber), Zeno latch (ZenoLatch, Clinic), chiral clocks (WheelOfHours), laser gain (LaserGlint), bistables (ShrineOfAshes 0.95, TwofacedTide), **tristable Village**, limit cycle (MothGarden), critical slowdown (BrittleDawn), 2-bit memory (MnemonicHive), gradient memory (SporeLibrary), serenity attractor (MeditationGarden), vacuum attractor (FreshwaterSpring), polyculture (PastoralCommons), self-erasing one-shot (OrbitalStrike) |
 | Assay toolkit | Six Python assays validate the shelf's physics headlessly (`tools/`) |
