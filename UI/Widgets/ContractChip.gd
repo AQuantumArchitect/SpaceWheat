@@ -90,6 +90,12 @@ func _refresh() -> void:
 		visible = false
 		return
 	visible = true
+	# Goal thread shows the NEWEST commitments. Insertion order pinned the
+	# oldest active quest here forever — a skipped Act-0 tutorial step was
+	# still the headline at the door (act 8). Display-only: the COMMITMENTS
+	# board keeps insertion order (claim-by-index is a contract there).
+	quests = quests.duplicate()
+	quests.reverse()
 
 	var shown := 0
 	for quest in quests:
