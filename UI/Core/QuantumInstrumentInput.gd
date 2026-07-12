@@ -624,7 +624,7 @@ func build_chip_context() -> ChipContext:
 	if farm and farm.grid and ctx_pos != GridSentinel.INVALID_POSITION:
 		var ctx_plot = farm.grid.get_plot(ctx_pos)
 		bound = ctx_plot != null and ctx_plot.terminal != null
-	return ChipContext.new(qc, qid, bound)
+	return ChipContext.new(qc, qid, bound, farm)
 
 
 func _build_chip_context() -> ChipContext:

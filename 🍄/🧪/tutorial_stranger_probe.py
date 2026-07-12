@@ -166,8 +166,10 @@ def main():
                 press("q", settle=8)
         run_step("contracts", drive5, rounds=8)
 
-        # STEP 6 vocab_escape — signature>=4: keep incorporating.
-        run_step("vocab_escape", drive1, rounds=16)
+        # STEP 6 vocab_escape — signature>=4: keep incorporating. Ripeness is a
+        # genuine random walk since the Born-seed fix (PT6), so the 4th icon's
+        # arrival round varies run-to-run — give it real headroom.
+        run_step("vocab_escape", drive1, rounds=28)
 
         print("\ncompleted steps:", completed)
         print("final wallet:", json.dumps(wallet(), ensure_ascii=False))

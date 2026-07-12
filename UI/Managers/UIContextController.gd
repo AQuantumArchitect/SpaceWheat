@@ -255,6 +255,9 @@ func _build_frame_actions(frame_name: String) -> Dictionary:
 		var action_info = ToolConfig.get_action(frame_name, action_key)
 		if chip_ctx != null:
 			action_info = ChipResolverRegistry.resolve(action_info, chip_ctx)
+			# Price on the chip: every verb advertises what it would charge
+			# (playtest 6: "all the actions need to display their costs").
+			action_info = ChipResolverRegistry.annotate_cost(action_info, chip_ctx)
 		actions[action_key] = _project_action_info(action_info)
 
 	if frame_name == ToolConfig.FRAME_ACE and ToolConfig.get_frame_mode_name(frame_name) == "probe":

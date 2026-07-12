@@ -70,6 +70,13 @@ func reveal_plot(grid_pos: Vector2i) -> void:
 func is_plot_revealed(grid_pos: Vector2i) -> bool:
 	return revealed_plots.has(grid_pos)
 
+
+## Return a plot to the unexplored presentation (extract pops the bubble; the
+## slot goes back to fog until the player touches it again). COSMETIC — the
+## inverse of reveal_plot, same anti-gating law: never gate mechanics on it.
+func unreveal_plot(grid_pos: Vector2i) -> void:
+	revealed_plots.erase(grid_pos)
+
 # Icon system now managed by the shared IconRegistry.
 
 # PERFORMANCE: Cached mushroom count (avoid O(n) iteration every frame)

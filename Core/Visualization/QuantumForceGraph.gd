@@ -716,18 +716,22 @@ func _on_terminal_measured(grid_pos: Vector2i, terminal_id: String, outcome: Str
 
 
 func _on_terminal_released(grid_pos: Vector2i, terminal_id: String, credits_earned: int) -> void:
-	# HARVEST: clear the measured overlay but KEEP the register bubble. It returns to
-	# live (the register re-spreads under H over the next ticks). Erasing it here was
-	# the terminal-first behavior that left the field empty after every harvest.
+	# HARVEST: the bubble POPS. The register node persists (register-first law)
+	# but the plot returns to the UNEXPLORED presentation — fog until the player
+	# touches it again (playtest 6). The FloatingRewardLayer burst plays at the
+	# station independently, so hiding here doesn't eat the celebration.
 	if _verbose:
-		_verbose.debug("viz", "💰", "Terminal %s harvested at %s (+%d) — bubble back to live" % [terminal_id, grid_pos, credits_earned])
+		_verbose.debug("viz", "💰", "Terminal %s harvested at %s (+%d) — bubble popped, plot back to unexplored" % [terminal_id, grid_pos, credits_earned])
 
+	if farm_ref and farm_ref.has_method("unreveal_plot"):
+		farm_ref.unreveal_plot(grid_pos)
 	var bubble = quantum_nodes_by_grid_pos.get(grid_pos)
 	if not bubble:
 		return
 	bubble.terminal = null
 	bubble.is_terminal_bubble = false
 	bubble.is_lifeless = false
+	bubble.visible = false
 	queue_redraw()
 
 

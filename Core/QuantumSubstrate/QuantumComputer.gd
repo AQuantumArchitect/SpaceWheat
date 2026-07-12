@@ -94,10 +94,6 @@ var _last_renorm_scale: float = 1.0
 var _cumulative_renorm_excess: float = 0.0
 var _catastrophic_recovery_count: int = 0
 
-## TIME TRACKING FOR TIME-DEPENDENT HAMILTONIAN
-## Tracks elapsed time to apply time-dependent drivers (e.g., sun oscillation)
-var elapsed_time: float = 0.0  # Total time elapsed since biome initialization
-
 # Performance: Purity cache (invalidated on density matrix changes)
 var _purity_cache: float = -1.0
 

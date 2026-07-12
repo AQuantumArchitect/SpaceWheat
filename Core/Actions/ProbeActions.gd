@@ -464,13 +464,13 @@ static func _resolve_measurement_context(terminal, biome) -> Dictionary:
 	}
 
 
-static func _sample_born_outcome(terminal, biome, register_id: int, north_prob: float, south_prob: float) -> Dictionary:
-	var rng = RandomNumberGenerator.new()
-	var seed_biome_name = (biome.biome_name if (biome and "biome_name" in biome) else "")
-	var seed_elapsed_ms = int((biome.elapsed_time if (biome and "elapsed_time" in biome) else 0.0) * 1000.0)
-	rng.seed = hash([seed_biome_name, register_id, seed_elapsed_ms])
-
-	var is_north := rng.randf() < north_prob
+static func _sample_born_outcome(terminal, _biome, _register_id: int, north_prob: float, south_prob: float) -> Dictionary:
+	# Genuine Born randomness (global RNG), matching _auto_measure_for_pop. The
+	# old "reproducible" seed hashed biome.biome_name + biome.elapsed_time —
+	# neither property exists on BiomeBase, so the seed was CONSTANT and every
+	# measure of a register collapsed to the same pole forever, no matter how
+	# the probabilities moved (playtest 6: "only ever wheat, druid useless").
+	var is_north := randf() < north_prob
 	var outcome: String = terminal.north_emoji if is_north else terminal.south_emoji
 	var outcome_prob: float = north_prob if is_north else south_prob
 	if outcome.is_empty():
@@ -774,8 +774,7 @@ static func _open_reap_rewards(active_biomes: Array, economy, farm, flux_to_cred
 ## pole, floored at 1 resource. There is no sink flux, no entropy bank, and crucially no
 ## drain — draining would mix the state and break the r = 1 (pure) invariant. The
 ## Hamiltonian re-spreads the collapsed qubits over the following season (time + H is the
-## pump). Born sampling reuses the deterministic per-(biome, register, time) seed so reap
-## is save-load reproducible, like _sample_born_outcome.
+## pump). Born sampling uses genuine global-RNG randomness, like _sample_born_outcome.
 static func _closed_reap_rewards(active_biomes: Array, economy, farm) -> Dictionary:
 	var icon_totals: Dictionary = {}
 	var total_icon_credits := 0
@@ -785,16 +784,12 @@ static func _closed_reap_rewards(active_biomes: Array, economy, farm) -> Diction
 		var qc = biome.quantum_computer
 		var kT: float = EnergyPricing.biome_temperature(biome, farm)
 		var nq: int = qc.register_map.num_qubits
-		var seed_biome: String = str(biome.biome_name) if "biome_name" in biome else ""
-		var seed_ms: int = int((biome.elapsed_time if "elapsed_time" in biome else 0.0) * 1000.0)
 		for q in range(nq):
 			var axis: Dictionary = qc.register_map.axis(q)
 			if axis.is_empty():
 				continue
 			var north_p: float = clampf(qc.get_marginal(q, 0), 0.0, 1.0)
-			var rng := RandomNumberGenerator.new()
-			rng.seed = hash([seed_biome, q, seed_ms])
-			var is_north: bool = rng.randf() < north_p
+			var is_north: bool = randf() < north_p
 			var pole: int = 0 if is_north else 1
 			var emoji: String = str(axis.get("north", "")) if is_north else str(axis.get("south", ""))
 			var p: float = north_p if is_north else (1.0 - north_p)

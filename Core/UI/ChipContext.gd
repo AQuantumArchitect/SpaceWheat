@@ -8,12 +8,14 @@ extends RefCounted
 var quantum_computer = null   # QuantumComputer for the active biome (may be null)
 var qubit_index: int = -1     # plot_idx ≡ register_id (per Plot-Register Invariant)
 var register_bound: bool = false  # focused plot has a bound terminal (explored)
+var farm = null               # economy/affinity source for cost annotation (may be null)
 
 
-func _init(qc = null, qid: int = -1, bound: bool = false) -> void:
+func _init(qc = null, qid: int = -1, bound: bool = false, farm_ref = null) -> void:
 	quantum_computer = qc
 	qubit_index = qid
 	register_bound = bound
+	farm = farm_ref
 
 
 func has_focused_qubit() -> bool:
@@ -28,3 +30,10 @@ func get_berry_register():
 	if quantum_computer == null:
 		return null
 	return quantum_computer.berry_register
+
+
+## Emoji axis {north, south} of the focused register ({} when unfocused).
+func focused_axis() -> Dictionary:
+	if not has_focused_qubit():
+		return {}
+	return quantum_computer.register_map.axis(qubit_index)
