@@ -52,6 +52,9 @@ var play_base: PlayBaseOverlay = null  # stack sentinel — NOT the farm contain
 var paused: bool = false
 signal paused_changed(is_paused: bool)
 
+# Debounce for the menu-swallow honesty toast (see the bleed-through guard).
+var _last_swallow_toast_ms: int = -10000
+
 
 ## Public pause toggle for pointer chrome (the time-flow chip) — the mouse's E/F.
 func toggle_paused() -> void:
@@ -107,6 +110,12 @@ func _input(event: InputEvent) -> void:
 		# back-out and surface-switching keep working while a menu is up.
 		if _any_menu_open() and not _overlay_is_transparent(top_overlay) and _is_gameplay_action_key(event.keycode):
 			_verbose.debug("input", "🚧", "Swallowed gameplay key %d — menu open, not a menu action" % event.keycode)
+			# Honest swallow (fleet: "pressed 5, nothing changed" — the guard
+			# ate it silently). Debounced so key-mash doesn't stack toasts.
+			var now := Time.get_ticks_msec()
+			if now - _last_swallow_toast_ms > 4000:
+				_last_swallow_toast_ms = now
+				show_hint("Menu open — Esc to act on the field.", 2)
 			_mark_input_handled()
 			return
 
@@ -174,6 +183,8 @@ func _set_global_paused(value: bool) -> void:
 	paused = value
 	paused_changed.emit(paused)
 	_verbose.info("input", "⏸" if value else "▶", "Sim %s" % ("paused" if value else "resumed"))
+	# State change is player-visible in text too (fleet: "unclear if paused").
+	show_hint("⏸ time paused — F plays on" if value else "▶ time flows", 2)
 
 
 func _handle_shell_action(event: InputEvent) -> bool:

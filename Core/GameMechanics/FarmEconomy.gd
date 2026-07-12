@@ -59,7 +59,8 @@ func remove_resource(emoji: String, credits_amount, reason: String = "") -> bool
 		purchase_failed.emit("Not enough %s! Need %.2f, have %.2f" % [emoji, credits_amount, get_resource(emoji)])
 		return false
 
-	emoji_credits[emoji] -= credits_amount
+	# Whole-unit wallet (see spend_cost): coerce so float costs can't poison it.
+	emoji_credits[emoji] = int(round(float(emoji_credits[emoji]))) - int(round(float(credits_amount)))
 	_emit_resource_change(emoji)
 	_record_resource_mutation(emoji, -float(credits_amount), reason)
 
@@ -123,7 +124,9 @@ func spend_cost(cost: Dictionary, reason: String = "") -> bool:
 		var norm_emoji = EmojiUtil.normalize(emoji)
 		if not emoji_credits.has(norm_emoji):
 			emoji_credits[norm_emoji] = 0
-		emoji_credits[norm_emoji] -= cost[emoji]
+		# Whole-unit wallet: JSONL costs arrive as floats (1.0) and one float
+		# subtraction poisons the balance forever (fleet: "🍞=33.0").
+		emoji_credits[norm_emoji] = int(round(float(emoji_credits[norm_emoji]))) - int(round(float(cost[emoji])))
 		_emit_resource_change(norm_emoji)
 		_record_resource_mutation(norm_emoji, -float(cost[emoji]), reason if reason != "" else "spend_cost")
 

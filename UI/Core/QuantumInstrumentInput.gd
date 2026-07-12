@@ -985,6 +985,9 @@ func _select_biome(biome_idx: int, key: String) -> void:
 	# Switch active biome, then repoint the Focus (same slot, keep checks, no action).
 	_active_biome_mgr.set_active_biome(new_biome)
 	_apply_biome_switch(old_biome, new_biome, key)
+	# Confirm the switch in text (fleet: 4 of 6 testers couldn't tell it worked).
+	if new_biome != old_biome:
+		_toast_player("→ %s" % new_biome)
 
 
 func _apply_biome_switch(old_biome: String, new_biome: String, key: String) -> void:
@@ -1537,7 +1540,8 @@ func _perform_shift_key_action(action_key: String) -> void:
 	# Use checked plots instead of entire homerow (ORDER PRESERVED from selection)
 	var positions = _instrument.checked_plots.duplicate()
 	if positions.is_empty():
-		_verbose.debug("input", "⚠️", "No plots checked - Shift+action requires checked plots")
+		# Honest refusal (anti-gating law): a silent mass-op reads as a dead key.
+		_toast_player("%s needs checked plots — Shift+G H J K L ; marks them first." % log_label)
 		return
 
 	# BATCH GATE PATH: For Druid frame (unitary) gate actions, use batch injection
@@ -1550,6 +1554,7 @@ func _perform_shift_key_action(action_key: String) -> void:
 	# NON-GATE PATH: Apply the action across checked positions
 	_verbose.info("input", symbol, "Batch %s on %d checked plots" % [log_label, positions.size()])
 
+	var fired := 0
 	for pos in positions:
 		_set_selection_for_grid_pos(pos)
 		if not ActionValidator.can_execute_action_name(
@@ -1560,8 +1565,12 @@ func _perform_shift_key_action(action_key: String) -> void:
 			_run_cleanup_action(action_name, symbol, log_label)
 		else:
 			_run_action(action_name, symbol, log_label)
+		fired += 1
 		_refresh_plot_tiles([pos])
 	_restore_selection(original_selection)
+	if fired == 0:
+		# Every checked plot refused — say so instead of pretending nothing happened.
+		_toast_player("%s: no valid targets among %d checked plots." % [log_label, positions.size()])
 
 
 func _is_gate_action(action_name: String) -> bool:
@@ -1947,6 +1956,9 @@ func _execute_action(action_name: String) -> Dictionary:
 		"fast_forward":
 			# Ace F — let H spin the odds forward (advance the closed evolution).
 			result = _instrument.time_skip(ACE_FAST_FORWARD_PHRAMES)
+			# Visible pulse: silent fast-forward reads as "F is broken" (fleet).
+			if result.get("success", true):
+				_toast_player("⏩ the odds spin forward")
 		"reap":
 			result = _instrument.action_reap()
 			_maybe_toast_reap_whisper(result)
@@ -2148,6 +2160,15 @@ func _execute_discovery_forecast() -> Dictionary:
 func _resolve_player_shell() -> Node:
 	var nodes := get_tree().get_nodes_in_group("player_shell") if is_inside_tree() else []
 	return nodes[0] if not nodes.is_empty() else null
+
+
+## Player-facing toast (anti-gating law: refusals are spoken; confirmations
+## for otherwise-invisible state changes too). Logs when no shell exists (rig).
+func _toast_player(message: String) -> void:
+	var shell := _resolve_player_shell()
+	if shell and shell.has_method("show_hint"):
+		shell.show_hint(message, 2)
+	_verbose.info("input", "•", message)
 
 
 func _get_current_biome_name() -> String:

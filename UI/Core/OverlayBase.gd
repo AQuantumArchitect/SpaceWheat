@@ -260,16 +260,22 @@ func handle_input(event: InputEvent) -> bool:
 	if keycode == KEY_ESCAPE:
 		return false
 
-	# QERF action keys
+	# QERF action keys. Chip-honesty gate: when this overlay declares action
+	# labels, a key whose chip reads "—" must NO-OP — a dash chip with a live
+	# key is a text lie (fleet playtest). Overlays that declare nothing keep
+	# legacy behavior.
 	if keycode == InputBindingRegistry.get_action_keycode("Q"):
-		_on_action_q()
+		if _action_key_declared_live("Q"):
+			_on_action_q()
 		return true
 	if keycode == InputBindingRegistry.get_action_keycode("E"):
-		_on_action_e()
-		_maybe_show_inspect_toast()
+		if _action_key_declared_live("E"):
+			_on_action_e()
+			_maybe_show_inspect_toast()
 		return true
 	if keycode == InputBindingRegistry.get_action_keycode("R"):
-		_on_action_r()
+		if _action_key_declared_live("R"):
+			_on_action_r()
 		return true
 	if keycode == InputBindingRegistry.get_action_keycode("F"):
 		_on_action_f()
@@ -297,19 +303,37 @@ func handle_action(action_key: String) -> bool:
 		return false
 	match action_key:
 		"Q":
-			_on_action_q()
+			if _action_key_declared_live(action_key):
+				_on_action_q()
 			return true
 		"E":
-			_on_action_e()
-			_maybe_show_inspect_toast()
+			if _action_key_declared_live(action_key):
+				_on_action_e()
+				_maybe_show_inspect_toast()
 			return true
 		"R":
-			_on_action_r()
+			if _action_key_declared_live(action_key):
+				_on_action_r()
 			return true
 		"F":
-			_on_action_f()
+			if _action_key_declared_live(action_key):
+				_on_action_f()
 			return true
 	return false
+
+
+## Chip-honesty gate: true when this key may fire its handler. Overlays that
+## declare action infos bind their keys to their chips — a "—" chip means the
+## key must no-op. Overlays that declare nothing keep legacy pass-through.
+## E stays live whenever inspect text exists — the universal "tell me more"
+## is its own honest feedback.
+func _action_key_declared_live(key: String) -> bool:
+	if _action_infos.is_empty():
+		return true
+	if key == "E" and get_inspect_text() != "":
+		return true
+	var label := str(_action_infos.get(key, {}).get("label", ""))
+	return label != "" and label != "—" and label != "-"
 
 
 # =============================================================================

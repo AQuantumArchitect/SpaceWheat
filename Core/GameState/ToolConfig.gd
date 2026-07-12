@@ -342,35 +342,35 @@ const ARCHETYPE_FRAMES: Dictionary = {
 		"pauses_sim": false,
 		"actions": {
 			"X": {
-				"Q": {"action": "rotate_down", "label": "-", "emoji": "-",
+				"Q": {"action": "rotate_down", "label": "Spin −", "emoji": "-",
 					  "icon": "res://Assets/UI/Q-Bit/Pauli-X.svg",
 					  "hint": "Rotate X axis down"},
-				"E": {"action": "hadamard", "label": "H", "emoji": "H",
+				"E": {"action": "hadamard", "label": "H-Gate", "emoji": "H",
 					  "icon": "res://Assets/UI/Q-Bit/Hadamard.svg",
 					  "hint": "Hadamard superposition"},
-				"R": {"action": "rotate_up", "label": "+", "emoji": "+",
+				"R": {"action": "rotate_up", "label": "Spin +", "emoji": "+",
 					  "icon": "res://Assets/UI/Q-Bit/Pauli-X.svg",
 					  "hint": "Rotate X axis up"}
 			},
 			"Y": {
-				"Q": {"action": "rotate_down", "label": "-", "emoji": "-",
+				"Q": {"action": "rotate_down", "label": "Spin −", "emoji": "-",
 					  "icon": "res://Assets/UI/Q-Bit/Pauli-Y.svg",
 					  "hint": "Rotate Y axis down"},
-				"E": {"action": "hadamard", "label": "H", "emoji": "H",
+				"E": {"action": "hadamard", "label": "H-Gate", "emoji": "H",
 					  "icon": "res://Assets/UI/Q-Bit/Hadamard.svg",
 					  "hint": "Hadamard superposition"},
-				"R": {"action": "rotate_up", "label": "+", "emoji": "+",
+				"R": {"action": "rotate_up", "label": "Spin +", "emoji": "+",
 					  "icon": "res://Assets/UI/Q-Bit/Pauli-Y.svg",
 					  "hint": "Rotate Y axis up"}
 			},
 			"Z": {
-				"Q": {"action": "rotate_down", "label": "-", "emoji": "-",
+				"Q": {"action": "rotate_down", "label": "Spin −", "emoji": "-",
 					  "icon": "res://Assets/UI/Q-Bit/Pauli-Z.svg",
 					  "hint": "Rotate Z axis down"},
-				"E": {"action": "hadamard", "label": "H", "emoji": "H",
+				"E": {"action": "hadamard", "label": "H-Gate", "emoji": "H",
 					  "icon": "res://Assets/UI/Q-Bit/Hadamard.svg",
 					  "hint": "Hadamard superposition"},
-				"R": {"action": "rotate_up", "label": "+", "emoji": "+",
+				"R": {"action": "rotate_up", "label": "Spin +", "emoji": "+",
 					  "icon": "res://Assets/UI/Q-Bit/Pauli-Z.svg",
 					  "hint": "Rotate Z axis up"}
 			}

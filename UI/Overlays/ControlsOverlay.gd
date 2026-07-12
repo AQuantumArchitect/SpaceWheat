@@ -201,6 +201,35 @@ func _render_all() -> void:
 	_refresh_status_line()
 	_refresh_tab_row()
 	_refresh_body()
+	_declare_tab_actions()
+
+
+## Chip honesty (fleet playtest: "[R] - but R actually works"): declare the
+## verbs each tab really handles so the action bar names them; keys with no
+## declared label are gated to no-ops by OverlayBase.
+func _declare_tab_actions() -> void:
+	var infos: Dictionary = {}
+	match _current_tab:
+		Tab.STORY:
+			infos = {
+				"Q": {"label": "Harmonize"},
+				"E": {"label": "Inspect"},
+				"R": {"label": "Express"},
+				"F": {"label": "▶ Play"},
+			}
+		Tab.ARC:
+			infos = {
+				"Q": {"label": "Dismiss"},
+				"E": {"label": "Refresh"},
+				"R": {"label": "Accept"},
+			}
+		Tab.SELF:
+			infos = {
+				"R": {"label": "Assign"},
+			}
+		_:
+			infos = {}
+	push_action_infos(infos)
 
 func _refresh_status_line() -> void:
 	if not _status_line:
@@ -858,7 +887,10 @@ func _build_story_body() -> void:
 	# only once the flag actually fired — before that, the pane looks forward.
 	var focus_fired: bool = story_farm != null and "story_flags_fired" in story_farm \
 			and story_farm.story_flags_fired.has(focus_id)
-	var focus_header := "focus · %s · act %d" % [focus_node.display_name, focus_node.act]
+	# "lens" in the header: FOCUS follows the expressed faction/spine — it is a
+	# viewpoint, not your position. A fleet winner read a lens switch as the
+	# story "regressing Act 5 → Act 0".
+	var focus_header := "focus (lens) · %s · act %d" % [focus_node.display_name, focus_node.act]
 	if not focus_fired:
 		focus_header += " · approaching"
 	_body_box.add_child(_make_section_header(focus_header))

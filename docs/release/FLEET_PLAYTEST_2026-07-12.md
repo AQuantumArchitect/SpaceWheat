@@ -89,6 +89,28 @@ fog. Cost badges confirmed in rendered pixels on the headed lane.
   working as designed.
 - Commitments-empty after accept — disproven by rig follow-up (see above).
 
+## Fix pass (same day)
+
+- **Lane A shipped**: mass-op refusal toasts (no checked plots / no valid
+  targets); OverlayBase chip-honesty gate (declared "—" chip ⇒ key no-ops; E
+  stays live where inspect text exists); ControlsOverlay declares per-tab
+  verbs (Harmonize/Express/Accept/Assign…); shift costs inline in the shift
+  hint ("(Reap Season 1🍼)"); empty E/F frame chips now read the side-effect
+  truth ("⏸ Pause" / "▶ Play"); menu-swallowed gameplay keys get a debounced
+  "Menu open — Esc" toast.
+- **Lane B shipped**: biome-switch toast ("→ Village"), pause/resume state
+  toasts, fast-forward pulse ("⏩ the odds spin forward").
+- **Lane C closed — not reproducible**: headed FPS on the Commitments tab is
+  a ~1s transient (52→39→47). The fleet's 30→10 was three concurrent Godot
+  instances sharing 8 cores.
+- **Lane D shipped**: HOW_TO_PLAY N/M/C/E lines rewritten to what ships;
+  welcome splash now teaches the real F/R/Q loop.
+- **Lane E shipped**: druid chips read "Spin − / H-Gate / Spin +"; wallet
+  amounts int-coerced at spend (no more 33.0); story FOCUS header labeled
+  "(lens)".
+- Verified: suite 119/119; born_reward (a p=0.073 collapse paid +116),
+  menu-bleed/lens, tutorial 7/7 by hints.
+
 ## Testing infra now standing
 - `🍄/🧪/player_seat.py` — the parity harness (headless lane). A headed
   variant (screenshots + taps) is the mouse-parity lane for UI passes.

@@ -40,12 +40,25 @@ static func resolve(action_info: Dictionary, ctx) -> Dictionary:
 static func annotate_cost(action_info: Dictionary, ctx) -> Dictionary:
 	if action_info.is_empty() or ctx == null or ctx.farm == null:
 		return action_info
+	var out: Dictionary = action_info
+
+	# Shift-variant price rides in the shift hint text — "(Reap Season 1🍼)" —
+	# so F and Shift+F stop looking identical (fleet: the 🍼 cost ambushed
+	# every tester who found reap).
+	var shift_action := str(action_info.get("shift_action", ""))
+	var shift_label := str(action_info.get("shift_label", ""))
+	if shift_action != "" and shift_label != "":
+		var shift_cost: Dictionary = _shift_action_cost(ctx.farm, shift_action)
+		if not shift_cost.is_empty():
+			out = action_info.duplicate(true)
+			out["shift_label"] = "%s %s" % [shift_label, _format_cost_inline(shift_cost)]
+
 	var existing = action_info.get("cost")
 	if existing is Dictionary and not existing.is_empty():
-		return action_info
+		return out
 	var action_name := str(action_info.get("action", ""))
 	if action_name == "":
-		return action_info
+		return out
 	var cost: Dictionary = ActionCostRuntime.get_action_cost(ctx.farm, action_name, {})
 	if action_name == "measure" and not cost.is_empty():
 		var axis: Dictionary = ctx.focused_axis()
@@ -54,12 +67,36 @@ static func annotate_cost(action_info: Dictionary, ctx) -> Dictionary:
 				str(axis.get("north", "")), str(axis.get("south", "")), ctx.farm)
 			cost = PhysicsCostScaling.scale_measure_cost(cost, pair_affinity)
 	if cost.is_empty():
-		return action_info
+		return out
 	# Whole-unit resources: the JSONL board stores values as floats (1.0);
 	# the badge must read "1", matching what the wallet loses.
 	var display_cost: Dictionary = {}
 	for emoji in cost:
 		display_cost[emoji] = int(round(float(cost[emoji])))
-	var out: Dictionary = action_info.duplicate(true)
+	if out == action_info:
+		out = action_info.duplicate(true)
 	out["cost"] = display_cost
 	return out
+
+
+## What a shift verb would charge — the SAME authorities the dispatchers use:
+## reap is sequence-priced by reap count (BalanceService); everything else
+## reads the action_costs board.
+static func _shift_action_cost(farm, shift_action: String) -> Dictionary:
+	if shift_action == "reap":
+		var reap_count := 0
+		if farm != null and farm.has_method("get_reap_count"):
+			reap_count = int(farm.get_reap_count())
+		elif farm != null and "reap_count" in farm:
+			reap_count = int(farm.reap_count)
+		return BalanceService.get_reap_cost(farm, reap_count)
+	return ActionCostRuntime.get_action_cost(farm, shift_action, {})
+
+
+static func _format_cost_inline(cost: Dictionary) -> String:
+	var keys := cost.keys()
+	keys.sort()
+	var parts: Array[String] = []
+	for emoji in keys:
+		parts.append("%d%s" % [int(round(float(cost[emoji]))), str(emoji)])
+	return " ".join(parts)

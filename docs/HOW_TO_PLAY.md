@@ -24,11 +24,13 @@ you a chain of small asks on the quest board.
    −kT·log p. Rare answers pay more, because you learned more; a certain
    answer pays the floor, so let the state evolve before you strike. The
    bubble returns to live evolution. (Tapping a frozen bubble does the same.)
-5. **E** pauses time to look around; **F** plays on — on an explored plot
-   F doubles down: fast-forward and let the odds spin.
-6. **C** opens the quest board. The tutorial chain lives there — each step
-   teaches one mechanic and its progress bar fills as the live state
-   approaches the ask. The bar is the teacher.
+5. **E** pauses time (and on menu surfaces, E is "tell me more"); **F**
+   always plays time on — and on an explored plot F doubles down:
+   fast-forward and let the odds spin.
+6. **C** opens the quest board: market offers to accept, and your active
+   commitments. Early tutorial steps appear among the offers — each teaches
+   one mechanic and its progress bar fills as the live state approaches the
+   ask. The bar is the teacher.
 
 That's the core loop. Everything else in the game is a deepening of it.
 
@@ -66,9 +68,10 @@ Q/E/R applies the verb to every valid plot.
   on any offer to read the faction's *resonance* with this biome — which
   axiom sings, which grates, and how they sit with who *you* are becoming.
 - **V** — vocabulary atlas: the icons you know, and the ones you've seen.
-- **B** — biome inspector. **N** — the density matrix itself, as a heatmap.
-- **M** — map and meta: the world graph, the eigenstate compass 🧭, and
-  **You · Tr(ρ²)** — your own identity, read back as physics.
+- **B** — biome inspector. **N** — the network view: manifold, bridges, and
+  (under its P tab) the density matrix itself as a heatmap.
+- **M** — the affinity hypercube: the world's factions plotted on their
+  alignment axes — where *you* sit among them, read back as physics.
 - **X** — the Guide: an in-game version of all of this, plus the glossary
   (twenty canonical terms) and a list of experiments to try.
 - **Z / ESC** — system menu: save, load, new run.

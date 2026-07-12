@@ -9,8 +9,8 @@ extends "res://UI/Core/OverlayBase.gd"
 const _ROWS := [
 	"You are The Demos — a people learning the quantum language of your own ground.",
 	"",
-	"THE LOOP   ·   Tap a bubble to measure it — the answer locks in.   Tap it again to harvest.",
-	"Harvesting earns emojis and teaches you icons. Icons are your vocabulary — and your power here.",
+	"THE LOOP   ·   F explores a plot (🍞) — R strikes it and the answer locks in (👥) — Q extracts, free.",
+	"Rare answers pay more. Extracting earns emojis and teaches you icons — your vocabulary, your power here.",
 	"",
 	"KEYBOARD   ·   plots  [ G H J K L ; ]  ·  verbs  [ Q E R F ]  ·  hats  [ 4 – 0 ]  ·  menus  [ Z X C V B N M ].",
 	"",

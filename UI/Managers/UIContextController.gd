@@ -258,6 +258,14 @@ func _build_frame_actions(frame_name: String) -> Dictionary:
 			# Price on the chip: every verb advertises what it would charge
 			# (playtest 6: "all the actions need to display their costs").
 			action_info = ChipResolverRegistry.annotate_cost(action_info, chip_ctx)
+		# Honest chips for the E/F side-effect peek (PlayerShell._input): in
+		# frames with no E/F verb the keys STILL pause/resume the sim, so a
+		# dash chip is a lie ("[F] - but F resumes play" — fleet playtest).
+		if action_info.is_empty():
+			if action_key == "F":
+				action_info = {"action": "", "label": "▶ Play", "emoji": ""}
+			elif action_key == "E":
+				action_info = {"action": "", "label": "⏸ Pause", "emoji": ""}
 		actions[action_key] = _project_action_info(action_info)
 
 	if frame_name == ToolConfig.FRAME_ACE and ToolConfig.get_frame_mode_name(frame_name) == "probe":
