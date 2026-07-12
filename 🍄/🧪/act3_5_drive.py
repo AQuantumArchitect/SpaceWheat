@@ -591,6 +591,7 @@ def main():
             # diversity (pred 2) + signature (pred 3): fill the 6 biome slots with DIVERSE biomes
             # and incorporate each. Keep them loaded so their atoms bank toward diversity; only
             # cull to SWAP out the thinnest non-core biome if full and still short.
+            ad_last = {"distinct": -1, "stall": 0}
             for rnd in range(1, 31):   # RNG-luck grind: two seeds stalled at 15 rounds just short of sig≈16
                 if vi_pred(2) >= 0.9 and vi_pred(3) >= 0.9:
                     break
@@ -612,14 +613,30 @@ def main():
                             if vi_pred(3) < 0.9:
                                 farm_berries(nb, 1, "village_identity", rounds=3)
                 else:
-                    # 6 loaded but still short → drop the thinnest non-core biome, rediscover next round
-                    per = go("atom_diversity").get("per_biome", {})
-                    keep = core | protected_landmarks()
-                    cands = cullable_from(list(per.keys()), keep)
-                    thin = sorted([(per.get(b, 0), b) for b in cands])
-                    if thin:
-                        cull(thin[0][1])
+                    # 6 loaded but still short → drop the thinnest non-core biome, rediscover next round.
+                    # ANTI-FREEZE: the discovery ranking is deterministic in the current
+                    # signature — culling the same thin biome hands the SAME biome back
+                    # (distinct froze at 26 for 30 rounds across three runs). When distinct
+                    # stalls, grow the SIGNATURE instead (incorporate the loaded set): sig
+                    # movement reshuffles the ranking, which is exactly how the green run
+                    # escaped (sig 10→12 → distinct 27→34).
+                    if ad_last.get("stall", 0) >= 2:
+                        for lb in [b for b in grid() if b not in ("Village",)][:2]:
+                            incorporate(bn=lb)
+                        ad_last["stall"] = 0
+                    else:
+                        per = go("atom_diversity").get("per_biome", {})
+                        keep = core | protected_landmarks()
+                        cands = cullable_from(list(per.keys()), keep)
+                        thin = sorted([(per.get(b, 0), b) for b in cands])
+                        if thin:
+                            cull(thin[0][1])
                 ad = go("atom_diversity")
+                if int(ad.get("distinct", 0) or 0) == ad_last.get("distinct", -1):
+                    ad_last["stall"] = ad_last.get("stall", 0) + 1
+                else:
+                    ad_last["stall"] = 0
+                ad_last["distinct"] = int(ad.get("distinct", 0) or 0)
                 print(f"    [vi {rnd}] loaded={len(grid())} distinct={ad.get('distinct')} "
                       f"sig={len(known())} | {fprog('village_identity')}")
             print("  ", fprog("village_identity"))
