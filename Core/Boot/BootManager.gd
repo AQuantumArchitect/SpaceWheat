@@ -269,3 +269,12 @@ func stage_core_systems_for(farm) -> void:
 		return
 	_world_builder.stage_core_systems(farm)
 	_world_builder.ensure_quantum_instrument(farm)
+	# Re-wire the quest⇄story lifecycle for the loaded farm: refreshes the
+	# unfired-flag list and re-offers arc quests for fired flags (idempotent —
+	# signals guard with is_connected, restore skips via has_quest_for_flag).
+	# Normally PlayerShell does this when the UI binds (PlayerShell.gd:751);
+	# the path-load lane has no such rebinding, so the Apprentice arc offer
+	# vanished from every loaded save (fleet QA + marathon #3).
+	var qm = farm.get("quest_manager") if farm else null
+	if qm != null and qm.has_method("connect_to_farm"):
+		qm.connect_to_farm(farm)

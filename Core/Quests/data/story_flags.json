@@ -150,7 +150,7 @@
       "type": 1,
       "category": "ARC",
       "body": "Apprentice to the Mill — show the Millwright's Union you know the Village's grain and gears, and they will teach you the windmill (💨/🔨).",
-      "hint": "Become FAMILIAR with the Village: Berry-track its registers, ripen them, and incorporate. Work its grain-and-gear rhythm until this commitment reads READY on the C board — then claim it THERE (R on this row): that claim is when the Millwrights teach you the windmill (💨/🔨). Only a word you know can be planted: after the claim, Icon hat (5) R on an empty Village plot offers it, and the gears wake.",
+      "hint": "Become FAMILIAR with the Village: Berry-track its registers, ripen them, and incorporate. This quest lives on the Arc tab (X → I): accept it there (R on its row), then work Village berries until it reads READY and claim it on that same row — the claim is when the Millwrights teach you the windmill (💨/🔨). Only a word you know can be planted: after the claim, Icon hat (5) R on an empty Village plot offers it, and the gears wake.",
       "faction": "Millwright's Union",
       "state_predicates": [
         {
