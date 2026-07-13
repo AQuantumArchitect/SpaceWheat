@@ -150,7 +150,7 @@
       "type": 1,
       "category": "ARC",
       "body": "Apprentice to the Mill — show the Millwright's Union you know the Village's grain and gears, and they will teach you the windmill (💨/🔨).",
-      "hint": "Become FAMILIAR with the Village: Berry-track its registers, ripen them, and incorporate. Once you've worked its grain-and-gear rhythm, claim the Mill — then PLANT it in the Village to wake the gears.",
+      "hint": "Become FAMILIAR with the Village: Berry-track its registers, ripen them, and incorporate. Once you've worked its grain-and-gear rhythm, claim the Mill — then set its icon into Village soil: Icon hat (5), R on an empty plot opens the Add Icon picker; the windmill (💨/🔨) wakes the gears.",
       "faction": "Millwright's Union",
       "state_predicates": [
         {

@@ -498,6 +498,23 @@ func _manifold_inspect_text() -> String:
 # RENDER PIPELINE
 # =============================================================================
 
+# Rows read continuously-evolving state (berries N/M held/asked, quest progress
+# bars) and froze at render-time values while the board stayed open (fleet #8:
+# "berries 1/3 unchanged after the second incorporation"). Same heartbeat law
+# as the action bar.
+const BOARD_HEARTBEAT_S := 1.0
+var _board_heartbeat_accum: float = 0.0
+
+
+func _process(delta: float) -> void:
+	if not visible:
+		return
+	_board_heartbeat_accum += delta
+	if _board_heartbeat_accum >= BOARD_HEARTBEAT_S:
+		_board_heartbeat_accum = 0.0
+		_render_all()
+
+
 func _render_all() -> void:
 	# A5: keep the selection valid after a row is removed (accept/claim/abandon shrink the
 	# list, so a stale _selected_index would highlight the wrong row or nothing). Clamp to
