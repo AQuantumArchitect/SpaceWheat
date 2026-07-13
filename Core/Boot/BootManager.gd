@@ -257,3 +257,15 @@ func _start_simulation(farm: Node) -> void:
 
 func load_biome(biome_name: String, farm: Node) -> Dictionary:
 	return _world_builder.load_biome(biome_name, farm)
+
+
+func stage_core_systems_for(farm) -> void:
+	# Public seam for path-based loads (SaveLoadCoordinator._attach_state_to_
+	# fresh_farm): shutdown_session resets the story substrate (StoryEngine
+	# graph → null), and that lane bypasses the full boot — without re-staging,
+	# every loaded save played on with "Story substrate not ready" (marathon #2
+	# lost six legs to it). Idempotent: start_for_session no-ops when built.
+	if _world_builder == null:
+		return
+	_world_builder.stage_core_systems(farm)
+	_world_builder.ensure_quantum_instrument(farm)

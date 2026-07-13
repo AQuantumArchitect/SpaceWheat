@@ -208,6 +208,11 @@ func _attach_state_to_fresh_farm(state: GameState) -> void:
 		elif _gsm.active_farm and _gsm.active_farm.has_method("finalize_initial_biome_boot"):
 			_gsm.active_farm.finalize_initial_biome_boot()
 	await _gsm._apply_loaded_state_deferred(state)
+	# Re-stage core systems: shutdown_session reset the story substrate and
+	# this lane bypasses the full boot — without this, every path-loaded save
+	# plays on with "Story substrate not ready" (marathon #2).
+	if boot_mgr and boot_mgr.has_method("stage_core_systems_for"):
+		boot_mgr.stage_core_systems_for(_gsm.active_farm)
 	if _gsm.active_farm and _gsm.active_farm.has_method("set_known_icons") and state.known_icons is Array:
 		_gsm.active_farm.set_known_icons(state.known_icons)
 	if _gsm.active_farm and "active_icon_slots" in _gsm.active_farm and state.active_icon_slots is Array:
