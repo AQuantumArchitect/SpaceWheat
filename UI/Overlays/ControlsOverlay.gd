@@ -1791,8 +1791,18 @@ func _arc_rows() -> Array:
 				"pred_scores": pred_scores,
 			})
 
-	var by_score = func(a, b): return float(a.score) > float(b.score)
-	unfired.sort_custom(by_score)
+	# Spine order: earliest act first, then score. Pure score-desc buried the
+	# next SPINE gate (village_identity, act 4, low score pre-buildout) below
+	# high-scoring side-branch beats and past the 6-row cap — three marathons
+	# of agents never saw the buildout row and diagnosed the campaign as
+	# deadlocked. "What's next" must lead the list.
+	var by_spine = func(a, b):
+		var aa := int(a.flag.get("act", 99))
+		var ab := int(b.flag.get("act", 99))
+		if aa != ab:
+			return aa < ab
+		return float(a.score) > float(b.score)
+	unfired.sort_custom(by_spine)
 	for u in unfired: rows.append(u)
 	for f in fired: rows.append(f)
 	return rows
