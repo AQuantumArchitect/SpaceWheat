@@ -20,6 +20,18 @@ var current_submenu_actions: Dictionary = {}
 var _observed_overlays: Array = []
 const ACTION_KEYS = ["Q", "E", "R", "F"]
 
+# Chips that read continuously-evolving state (berry ripeness %, affinity-
+# scaled costs) go stale between input events — the bar froze at "Ripening 0%"
+# while the loop swept (fleet #7). A slow heartbeat keeps them honest.
+const HEARTBEAT_S := 0.5
+var _heartbeat_accum: float = 0.0
+
+
+func _process(delta: float) -> void:
+	_heartbeat_accum += delta
+	if _heartbeat_accum >= HEARTBEAT_S:
+		_heartbeat_accum = 0.0
+		refresh()
 
 
 func setup(action_bar_mgr, stack_mgr, overlay_mgr = null) -> void:

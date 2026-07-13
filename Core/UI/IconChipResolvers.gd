@@ -23,4 +23,9 @@ static func resolve_r(ctx: ChipContext) -> Dictionary:
 		return {"action": "", "label": "Track first (F)", "disabled": true}
 	if register.is_ripe(qid):
 		return {"action": "incorporate_icon", "label": "Incorporate", "disabled": false}
-	return {"action": "", "label": "Not ready", "disabled": true}
+	# Live ripeness percent: "Not ready" with no meter made every ripening
+	# question unanswerable (fleets #4–#7) — a moving number says "keep
+	# waiting"; a crawling one says "slow loop, speed the clock (=)".
+	var threshold: float = maxf(0.0001, float(register.get_ripe_threshold(qid)))
+	var pct: int = clampi(int(round(absf(float(register.get_phase(qid))) / threshold * 100.0)), 0, 99)
+	return {"action": "", "label": "Ripening %d%%" % pct, "disabled": true}
