@@ -1506,6 +1506,11 @@ func _perform_action(action_key: String) -> void:
 			action_info.get("label", action_name),
 			_get_block_reason(action_name)
 		])
+		# Refusals speak (anti-gating law). This branch was verbose-only —
+		# marathon #5 lost three legs to Captain-R 'Add Biome' silently
+		# refusing on an unaffordable discovery (21🦅 vs 4 held).
+		_toast_player("%s refused — %s" % [
+			str(action_info.get("label", action_name)), _block_reason_for_player(action_name)])
 		return
 
 	if action_info.get("destructive", false):
@@ -1526,6 +1531,34 @@ func _perform_action(action_key: String) -> void:
 
 func _get_block_reason(_action_name: String) -> String:
 	return ""
+
+
+## Player-words reason the validator refused an action — checks the same
+## authorities the validator consulted, so the toast tells the truth.
+func _block_reason_for_player(action_name: String) -> String:
+	match action_name:
+		"discover_biome":
+			if farm and farm.has_method("can_discover_biome"):
+				var gate: Dictionary = farm.can_discover_biome()
+				if not bool(gate.get("ok", false)) and str(gate.get("message", "")) != "":
+					return str(gate.get("message"))
+			var pf: Dictionary = ActionCostRuntime.preflight_action(farm, "discover_biome")
+			if not bool(pf.get("ok", true)):
+				return str(pf.get("message", "it costs more than you hold"))
+			return "no unexplored biome in reach"
+		"inject_icon", "remove_icon", "remove_biome":
+			var pf2: Dictionary = ActionCostRuntime.preflight_action(farm, action_name)
+			if not bool(pf2.get("ok", true)):
+				return str(pf2.get("message", "it costs more than you hold"))
+			return "nothing valid to act on here"
+		"explore":
+			return "no unbound plot to explore here"
+		"measure":
+			return "nothing live to strike — F explores first"
+		"pop", "reap":
+			return "nothing measured to extract here"
+		_:
+			return "not possible on this plot right now"
 
 
 func _perform_shift_key_action(action_key: String) -> void:
