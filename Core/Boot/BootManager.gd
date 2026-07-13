@@ -269,12 +269,22 @@ func stage_core_systems_for(farm) -> void:
 		return
 	_world_builder.stage_core_systems(farm)
 	_world_builder.ensure_quantum_instrument(farm)
-	# Re-wire the quest⇄story lifecycle for the loaded farm: refreshes the
-	# unfired-flag list and re-offers arc quests for fired flags (idempotent —
-	# signals guard with is_connected, restore skips via has_quest_for_flag).
-	# Normally PlayerShell does this when the UI binds (PlayerShell.gd:751);
-	# the path-load lane has no such rebinding, so the Apprentice arc offer
-	# vanished from every loaded save (fleet QA + marathon #3).
+	# Re-wire the quest⇄story lifecycle for the loaded farm — ALL THREE binds
+	# PlayerShell does when the UI attaches (PlayerShell.gd:744-751), not just
+	# the farm ref. Without connect_to_economy the restored quests evaluate
+	# and settle against the PREVIOUS farm's dead economy: progress bars
+	# frozen at 0%, deliveries refused with sufficient funds (marathons #2/#7).
+	# All idempotent — signals guard, restore skips existing quests.
 	var qm = farm.get("quest_manager") if farm else null
-	if qm != null and qm.has_method("connect_to_farm"):
-		qm.connect_to_farm(farm)
+	if qm != null:
+		var econ = farm.get("economy")
+		if econ != null and qm.has_method("connect_to_economy"):
+			qm.connect_to_economy(econ)
+		if qm.has_method("connect_to_biome"):
+			var abm = get_node_or_null("/root/ActiveBiomeManager")
+			var active_name: String = str(abm.get_active_biome()) if (abm and abm.has_method("get_active_biome")) else ""
+			var biome = farm.grid.get_biome(active_name) if (farm.get("grid") != null and active_name != "") else null
+			if biome != null:
+				qm.connect_to_biome(biome)
+		if qm.has_method("connect_to_farm"):
+			qm.connect_to_farm(farm)
