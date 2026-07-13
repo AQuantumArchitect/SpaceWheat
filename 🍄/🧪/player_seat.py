@@ -204,6 +204,26 @@ def cmd_screenshot(seat: str, _name: str) -> dict:
             "hint": "this run is headless — `look` is your eyes"}
 
 
+def cmd_bank(seat: str, name: str) -> dict:
+    # Harness-side checkpoint: save the live campaign into the shared
+    # checkpoints dir (owner directive: aggressive checkpoints so marathons
+    # resume where the last one died instead of replaying the early game).
+    if not name or not name.replace("_", "").isalnum():
+        return {"ok": False, "error": "bad_checkpoint_name"}
+    CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
+    st = _load_state(seat)
+    c = _client(seat)
+    path = CHECKPOINT_DIR / ("%s.tres" % name)
+    r = _turn(seat, st, c, "save_game_path", path=str(path))
+    if not r.get("saved", False):
+        return {"ok": False, "error": "save_failed", "detail": str(r)[:200]}
+    flags = _turn(seat, st, c, "story_flags").get("flags_fired", {}) or {}
+    (CHECKPOINT_DIR / ("%s.json" % name)).write_text(json.dumps(
+        {"name": name, "banked_from": seat, "time": time.time(),
+         "flags_fired": sorted(flags.keys())}, ensure_ascii=False, indent=1))
+    return {"ok": True, "banked": name, "flags": len(flags)}
+
+
 def cmd_stop(seat: str) -> dict:
     c = _client(seat)
     c.kill_existing_listeners(xdg=_lane(seat))
@@ -233,12 +253,14 @@ def main() -> int:
             out = cmd_wait(seat, float(args[2]))
         elif cmd == "screenshot":
             out = cmd_screenshot(seat, args[2] if len(args) > 2 else "shot")
+        elif cmd == "bank":
+            out = cmd_bank(seat, args[2] if len(args) > 2 else "")
         elif cmd == "stop":
             out = cmd_stop(seat)
         else:
             out = {"ok": False, "error": "unknown_command",
                    "allowed": ["start", "look", "press", "tap", "wait",
-                               "screenshot", "stop"]}
+                               "screenshot", "bank", "stop"]}
     except Exception as exc:  # honest failure beats a hung agent
         out = {"ok": False, "error": "seat_exception", "detail": str(exc)[:300]}
     print(json.dumps(out, ensure_ascii=False))
