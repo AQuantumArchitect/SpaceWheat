@@ -93,13 +93,23 @@ def _seat_is_live(seat: str) -> bool:
         return False
 
 
-def cmd_start(seat: str, fresh: bool = False) -> dict:
+CHECKPOINT_DIR = Path("/home/primearchitect/ws/SpaceWheat/🍄/🧪/checkpoints")
+
+
+def cmd_start(seat: str, fresh: bool = False, checkpoint: str = "") -> dict:
     # Relay guard: a live seat is someone's campaign in progress. Refusing here
     # protects relay legs from wiping it with a reflexive `start`.
     if _seat_is_live(seat) and not fresh:
         return {"ok": False, "error": "seat_already_running",
                 "note": "this seat is live — continue with look/press/wait, "
                         "or pass --fresh to wipe it and boot a new game."}
+    ckpt_path = None
+    if checkpoint:
+        ckpt_path = CHECKPOINT_DIR / ("%s.tres" % checkpoint)
+        if not ckpt_path.exists():
+            have = sorted(p.stem for p in CHECKPOINT_DIR.glob("*.tres"))
+            return {"ok": False, "error": "unknown_checkpoint",
+                    "available": have}
     lane = _lane(seat)
     lane.mkdir(parents=True, exist_ok=True)
     c = _client(seat)
@@ -112,7 +122,18 @@ def cmd_start(seat: str, fresh: bool = False) -> dict:
                             extra_env=env)
     ready = c.wait_for_ready(proc, timeout_s=240, xdg=lane)
     ok = c.ready_seen(ready) or c._bridge_sentinel_is_ready(xdg=lane)
-    _save_state(seat, {"turn": 0, "pid": proc.pid, "started": time.time()})
+    st = {"turn": 0, "pid": proc.pid, "started": time.time()}
+    _save_state(seat, st)
+    if ok and ckpt_path is not None:
+        # Owner directive: fleets start from solid save files once an act is
+        # fleet-proven complete — same as a player loading their own save.
+        r = _turn(seat, st, c, "load_game_path", path=str(ckpt_path))
+        if not r.get("loaded", r.get("ok", False)):
+            return {"ok": False, "error": "checkpoint_load_failed",
+                    "detail": str(r)[:200]}
+        return {"ok": True, "seat": seat, "checkpoint": checkpoint,
+                "note": "campaign loaded from the '%s' save — `look`, then "
+                        "check the X STORY tab for where you stand." % checkpoint}
     return {"ok": bool(ok), "seat": seat, "note": "game booted; the welcome "
             "splash may be on screen — `look`, read it, press any key to begin."}
 
@@ -197,7 +218,11 @@ def main() -> int:
     cmd, seat = args[0], args[1]
     try:
         if cmd == "start":
-            out = cmd_start(seat, "--fresh" in args)
+            ckpt = ""
+            if "--checkpoint" in args:
+                i = args.index("--checkpoint")
+                ckpt = args[i + 1] if i + 1 < len(args) else ""
+            out = cmd_start(seat, "--fresh" in args, ckpt)
         elif cmd == "look":
             out = cmd_look(seat)
         elif cmd == "press":
