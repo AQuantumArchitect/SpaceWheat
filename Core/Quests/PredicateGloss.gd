@@ -36,7 +36,14 @@ static func summary(pred: Dictionary, qm = null) -> String:
 		"soul_purity_gte":
 			return "you · Tr(ρ²) ≥ %.2f" % tgt
 		"biome_evolving":
-			return "%s evolving" % str(pred.get("biome", ""))
+			# A biome you haven't found yet reads as an impossible ask (marathon
+			# #4: "requires BloodLedger to be active" with no verb) — teach
+			# discovery when it isn't loaded.
+			var evb := str(pred.get("biome", ""))
+			var loaded := bool(qm.atom_count_in(evb) > 0) if (qm and qm.has_method("atom_count_in")) else true
+			if loaded:
+				return "%s evolving" % evb
+			return "%s awake — discover it first (Captain 7: R), then work its plots" % evb
 		"story_flag_set":
 			# Speak the beat's display name, not the internal id ("flag
 			# 'village_identity' set" read as a dead end to playtesters).
