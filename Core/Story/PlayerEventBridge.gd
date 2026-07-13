@@ -19,7 +19,10 @@ func _ready() -> void:
 
 
 func _on_farm_ready(farm: Node, _state) -> void:
-	if _wired or farm == null:
+	# Re-wire on EVERY new farm. The old one-shot guard (_wired) left this
+	# bridge bound to the previous farm after a path-load created a fresh one
+	# — ACTIVITY read "No events yet" forever on loaded saves (marathon #8).
+	if farm == null or farm == _farm:
 		return
 	_farm = farm
 	_quest_manager = _resolve(farm, "quest_manager")
@@ -37,41 +40,31 @@ func _resolve(farm: Node, prop: String) -> Node:
 	return null
 
 
+func _connect_once(obj: Object, sig: String, cb: Callable) -> void:
+	# Rewiring runs per-farm; the quest manager can be the SAME autoload
+	# across farms, so guard against double-connects.
+	if obj != null and obj.has_signal(sig) and not obj.is_connected(sig, cb):
+		obj.connect(sig, cb)
+
+
 func _wire_quest_signals() -> void:
-	if not _quest_manager:
-		return
-	if _quest_manager.has_signal("icon_learned"):
-		_quest_manager.icon_learned.connect(_on_icon_learned)
-	if _quest_manager.has_signal("story_flag_fired"):
-		_quest_manager.story_flag_fired.connect(_on_story_flag_fired)
-	if _quest_manager.has_signal("quest_completed"):
-		_quest_manager.quest_completed.connect(_on_quest_completed)
-	if _quest_manager.has_signal("quest_ready_to_claim"):
-		_quest_manager.quest_ready_to_claim.connect(_on_quest_ready_to_claim)
-	if _quest_manager.has_signal("quest_offered"):
-		_quest_manager.quest_offered.connect(_on_quest_offered)
-	if _quest_manager.has_signal("quest_failed"):
-		_quest_manager.quest_failed.connect(_on_quest_failed)
-	if _quest_manager.has_signal("quest_expired"):
-		_quest_manager.quest_expired.connect(_on_quest_expired)
+	_connect_once(_quest_manager, "icon_learned", _on_icon_learned)
+	_connect_once(_quest_manager, "story_flag_fired", _on_story_flag_fired)
+	_connect_once(_quest_manager, "quest_completed", _on_quest_completed)
+	_connect_once(_quest_manager, "quest_ready_to_claim", _on_quest_ready_to_claim)
+	_connect_once(_quest_manager, "quest_offered", _on_quest_offered)
+	_connect_once(_quest_manager, "quest_failed", _on_quest_failed)
+	_connect_once(_quest_manager, "quest_expired", _on_quest_expired)
 
 
 func _wire_economy_signals() -> void:
-	if not _economy:
-		return
-	if _economy.has_signal("purchase_failed"):
-		_economy.purchase_failed.connect(_on_purchase_failed)
-	if _economy.has_signal("resource_mutated"):
-		_economy.resource_mutated.connect(_on_resource_mutated)
+	_connect_once(_economy, "purchase_failed", _on_purchase_failed)
+	_connect_once(_economy, "resource_mutated", _on_resource_mutated)
 
 
 func _wire_farm_signals() -> void:
-	if not _farm:
-		return
-	if _farm.has_signal("standing_changed"):
-		_farm.standing_changed.connect(_on_standing_changed)
-	if _farm.has_signal("biome_loaded"):
-		_farm.biome_loaded.connect(_on_biome_loaded)
+	_connect_once(_farm, "standing_changed", _on_standing_changed)
+	_connect_once(_farm, "biome_loaded", _on_biome_loaded)
 
 
 # ─────────────── handlers ───────────────
