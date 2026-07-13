@@ -1540,16 +1540,19 @@ func _block_reason_for_player(action_name: String) -> String:
 		"discover_biome":
 			if farm and farm.has_method("can_discover_biome"):
 				var gate: Dictionary = farm.can_discover_biome()
-				if not bool(gate.get("ok", false)) and str(gate.get("message", "")) != "":
-					return str(gate.get("message"))
-			var pf: Dictionary = ActionCostRuntime.preflight_action(farm, "discover_biome")
-			if not bool(pf.get("ok", true)):
-				return str(pf.get("message", "it costs more than you hold"))
+				var gmsg := str(gate.get("message", ""))
+				# "Insufficient resources" without the number cost marathon #6
+				# three legs — name the cost and the holdings.
+				if not bool(gate.get("ok", false)) and gmsg != "" and gmsg != "Insufficient resources":
+					return gmsg
+			var short := _cost_shortfall_words("discover_biome")
+			if short != "":
+				return short
 			return "no unexplored biome in reach"
 		"inject_icon", "remove_icon", "remove_biome":
-			var pf2: Dictionary = ActionCostRuntime.preflight_action(farm, action_name)
-			if not bool(pf2.get("ok", true)):
-				return str(pf2.get("message", "it costs more than you hold"))
+			var short2 := _cost_shortfall_words(action_name)
+			if short2 != "":
+				return short2
 			return "nothing valid to act on here"
 		"explore":
 			return "no unbound plot to explore here"
@@ -1559,6 +1562,26 @@ func _block_reason_for_player(action_name: String) -> String:
 			return "nothing measured to extract here"
 		_:
 			return "not possible on this plot right now"
+
+
+## "needs 21🦅 — you hold 4" for an unaffordable action; "" when affordable.
+func _cost_shortfall_words(action_name: String) -> String:
+	var pf: Dictionary = ActionCostRuntime.preflight_action(farm, action_name)
+	if bool(pf.get("ok", true)):
+		return ""
+	var cost: Dictionary = ActionCostRuntime.get_action_cost(farm, action_name, {})
+	if cost.is_empty():
+		return str(pf.get("message", "it costs more than you hold"))
+	var econ = farm.get("economy") if farm else null
+	var parts: Array[String] = []
+	for emoji in cost:
+		var need := int(round(float(cost[emoji])))
+		var have := int(econ.get_resource(emoji)) if econ else 0
+		if have < need:
+			parts.append("%d%s (you hold %d)" % [need, str(emoji), have])
+	if parts.is_empty():
+		return str(pf.get("message", "it costs more than you hold"))
+	return "needs " + ", ".join(parts)
 
 
 func _perform_shift_key_action(action_key: String) -> void:
