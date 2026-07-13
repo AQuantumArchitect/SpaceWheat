@@ -163,6 +163,34 @@ func berry_consumed_in(biome_name: String) -> int:
 	return int(biome.quantum_computer.berry_register.get_consumed_count())
 
 
+## Live atom count in a biome — gloss shows "N/M" for the act-4/5 buildout
+## (marathon #3: nobody organically injects icons; the Arc tab must teach it).
+func atom_count_in(biome_name: String) -> int:
+	var farm = _get_active_farm()
+	if farm == null or farm.grid == null:
+		return 0
+	var biome = farm.grid.get_biome(biome_name)
+	if biome == null or biome.get("quantum_computer") == null or biome.quantum_computer.register_map == null:
+		return 0
+	return int(biome.quantum_computer.register_map.coordinates.size())
+
+
+## Live distinct-atom count across all loaded biomes (mirrors the
+## atom_diversity_gte evaluator).
+func atom_diversity_now() -> int:
+	var farm = _get_active_farm()
+	if farm == null or farm.grid == null:
+		return 0
+	var seen: Dictionary = {}
+	for bname in farm.grid.get_biome_names():
+		var b = farm.grid.get_biome(str(bname))
+		if b == null or b.get("quantum_computer") == null or b.quantum_computer.register_map == null:
+			continue
+		for atom in b.quantum_computer.register_map.coordinates.keys():
+			seen[str(atom)] = true
+	return seen.size()
+
+
 ## Player-facing display name for a story flag id (PredicateGloss speaks beats,
 ## not internal ids).
 func flag_display_name(flag_id: String) -> String:

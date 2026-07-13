@@ -48,9 +48,16 @@ static func summary(pred: Dictionary, qm = null) -> String:
 		"signature_growth_gte":
 			return "learn %d new icon%s — Icon hat (5): F tracks, R incorporates" % [maxi(1, itgt), "s" if itgt > 1 else ""]
 		"atom_count_gte":
-			return "%s atoms ≥ %d" % [str(pred.get("biome", "")), itgt]
+			# The act-4/5 buildout gate — teach the verb (marathon #3: five legs
+			# never planted an icon because nothing said to).
+			var acb := str(pred.get("biome", ""))
+			var ac_have := int(qm.atom_count_in(acb)) if (qm and qm.has_method("atom_count_in")) else -1
+			var ac_str := ("%d/%d" % [ac_have, itgt]) if ac_have >= 0 else str(itgt)
+			return "settle %s atoms in %s — Icon hat (5): R on an EMPTY plot plants a word you know" % [ac_str, acb]
 		"atom_diversity_gte":
-			return "atom diversity ≥ %d" % itgt
+			var ad_have := int(qm.atom_diversity_now()) if (qm and qm.has_method("atom_diversity_now")) else -1
+			var ad_str := ("%d/%d" % [ad_have, itgt]) if ad_have >= 0 else str(itgt)
+			return "%s kinds of atom across your lands — plant new icons; discover biomes (Captain 7: R)" % ad_str
 		"atom_in_biome":
 			return "%s ∋ %s" % [str(pred.get("biome", "")), str(pred.get("atom", ""))]
 		"biome_attractor_emoji_gte":
