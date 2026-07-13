@@ -2459,8 +2459,9 @@ func _decrease_time_controls() -> void:
 		speed_result.new_time_scale
 	])
 	# The clock is a player control, not a dev dial — say it (fleet #5: 50+
-	# fast-forwards per berry because nobody knew = existed).
-	_toast_player("⏪ %s clock ×%s — = speeds it back up" % [target_biome_name, _fmt_scale(speed_result.new_time_scale)])
+	# fast-forwards per berry because nobody knew = existed). Stride is the
+	# REAL multiplier (quantum_time_scale is vestigial); live cap ×32.
+	_toast_player("⏪ %s clock ×%d — = speeds it back up" % [target_biome_name, maxi(1, mini(stride_result.new_stride, 32))])
 
 
 func _increase_time_controls() -> void:
@@ -2492,14 +2493,7 @@ func _increase_time_controls() -> void:
 		speed_result.current_time_scale,
 		speed_result.new_time_scale
 	])
-	_toast_player("⏩ %s clock ×%s — loops ripen faster (- slows it)" % [target_biome_name, _fmt_scale(speed_result.new_time_scale)])
-
-
-static func _fmt_scale(s: float) -> String:
-	# "×4" for whole multiples, "×1/4" below 1 — players think in ratios.
-	if s >= 1.0:
-		return str(int(round(s))) if absf(s - round(s)) < 0.01 else "%.2f" % s
-	return "1/%d" % int(round(1.0 / maxf(s, 0.0001)))
+	_toast_player("⏩ %s clock ×%d — loops ripen faster (- slows it)" % [target_biome_name, maxi(1, mini(stride_result.new_stride, 32))])
 
 func _decrease_stride() -> void:
 	# Decrease observation stride - slower playback (- key).

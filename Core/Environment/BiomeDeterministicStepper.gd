@@ -55,18 +55,26 @@ func collect_stride_evolution_packets(biome, incoming_dt: float) -> Array:
 		_stride_dt_carry[biome_name] = 0.0
 		return packets
 
-	var carry_dt = float(_stride_dt_carry.get(biome_name, 0.0)) + incoming_dt
-
 	if stride <= 1:
+		var carry_1x = float(_stride_dt_carry.get(biome_name, 0.0)) + incoming_dt
 		packets.append({
-			"dt": carry_dt,
+			"dt": carry_1x,
 			"max_dt": get_effective_max_dt_for_stride(biome, 1),
 			"stride": 1
 		})
 		_stride_dt_carry[biome_name] = 0.0
 		return packets
 
-	var stride_window_dt = batcher.EVOLUTION_INTERVAL * float(stride)
+	# Stride is a fast-forward MULTIPLIER: stride× sim time flows per wall dt.
+	# It used to only CHUNK time — the window (stride × INTERVAL) filled at 1×
+	# real rate, so sim/wall stayed exactly 1.0 at any stride, while Farm's
+	# Lindblad path DID multiply by stride: the =/- dial desynced H from L and
+	# ripened nothing (fleet #6: "16× clock, zero effect"). Multiplier capped
+	# at 32× per frame (native evolve cost); packets stay ONE INTERVAL each so
+	# the Berry walk samples the trajectory at the same density as 1× play.
+	var mult := float(mini(stride, 32))
+	var carry_dt = float(_stride_dt_carry.get(biome_name, 0.0)) + incoming_dt * mult
+	var stride_window_dt = batcher.EVOLUTION_INTERVAL
 	if stride_window_dt <= 0.0:
 		stride_window_dt = incoming_dt
 	var effective_max_dt = get_effective_max_dt_for_stride(biome, stride)
