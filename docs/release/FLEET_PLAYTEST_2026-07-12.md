@@ -145,6 +145,30 @@ Verified after: suite 119/119, act3_5_drive full campaign green under the
 new gates, poverty_run_probe green (owner-style: 25 keyboard cycles, no
 injection, both poles, +303 surprisal pop, ledger fully reconciled).
 
+## Fleets #4–#6 — the relay loop converges
+
+- **Fleet #4** (post count-gate build): all lanes found the berry loop via
+  the new Arc glosses (fleet #3: zero). New P0 exposed and root-caused: hat/
+  biome switches cleared plot focus (PlayerShell cursor-layer anchor), so
+  chips rendered one plot while dispatch read none — "chip says Incorporate,
+  R says blocked." Fixed: keep_plot_selection (a102ff2d); refusals speak;
+  berry-track F toggle is loud (testers were destroying their own loops by
+  "polling" with F).
+- **Fleet #5**: BREAKTHROUGH — lane 1 completed the entire Act-1 beat chain
+  (Forest Stirs → Listens Back → Village Stirs → Druid's Loop → into What
+  Survives I); first_breath fired for every lane. Wall narrowed to one item:
+  ripening throughput ("50+ fast-forwards per berry").
+- **Fleet #6**: proved the =/- 16× clock was a placebo. Three stacked
+  defects: quantum_time_scale is a dead variable; the lookahead fast-forward
+  branch never runs live (buffer permanently empty); the stepper's stride
+  path chunked time instead of multiplying it — while Farm's Lindblad path
+  DID multiply, desyncing H from L under the dial. Fixed at the packet
+  authority: stride now multiplies sim time (cap ×32/frame), Berry-walk
+  sampling density preserved. Measured ~20× at stride 32 — a berry ripens in
+  ~2 wall-seconds at full throttle (was 50+ commands). Toasts + manual teach
+  the dial; the rig/seat can now physically press it (= - and named aliases
+  were unmappable keys).
+
 ## Testing infra now standing
 - `🍄/🧪/player_seat.py` — the parity harness (headless lane). A headed
   variant (screenshots + taps) is the mouse-parity lane for UI passes.
