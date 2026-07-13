@@ -1242,6 +1242,12 @@ func _offer_chain_spec(spec: Dictionary, parent_quest: Dictionary) -> void:
 		offer_tutorial_quest(spec)
 
 
+## Why the LAST complete_quest refused — read by QuestBoard so the settlement
+## toast names the reason (marathon P1: "market could not settle" with ample
+## resources gave players nothing to act on).
+var last_complete_error: String = ""
+
+
 func complete_quest(quest_id: int) -> bool:
 	# Complete an active quest
 
@@ -1249,8 +1255,10 @@ func complete_quest(quest_id: int) -> bool:
 
 	# Returns:
 	# true if completed successfully
+	last_complete_error = ""
 	if not active_quests.has(quest_id):
 		push_error("Cannot complete quest %d: not active" % quest_id)
+		last_complete_error = "this commitment isn't active"
 		return false
 
 	var quest = active_quests[quest_id]
@@ -1258,15 +1266,18 @@ func complete_quest(quest_id: int) -> bool:
 	var required_qty = int(quest.get("quantity", 0))
 	if required_emoji.is_empty() or required_qty <= 0:
 		push_warning("Cannot complete quest %d: invalid delivery target" % quest_id)
+		last_complete_error = "it has no delivery ask"
 		return false
 
 	if economy == null:
 		push_warning("QuestManager: economy not connected, cannot complete quest")
+		last_complete_error = "no economy"
 		return false
 
 	# Fast resource check to avoid extra dictionary churn in tight rig loops.
 	if economy.get_resource(required_emoji) < required_qty:
 		push_warning("Cannot complete quest %d: insufficient resources" % quest_id)
+		last_complete_error = "you hold too few %s" % required_emoji
 		return false
 
 	var faction_name = str(quest.get("faction", "Unknown"))
@@ -1277,6 +1288,7 @@ func complete_quest(quest_id: int) -> bool:
 	var lat = _get_farm_market_lattice()
 	if lat == null or not lat.has_method("synthesize_and_exercise"):
 		push_error("QuestManager: market lattice required for quest completion")
+		last_complete_error = "no market lattice"
 		return false
 
 	var exer: Dictionary = lat.synthesize_and_exercise(required_emoji, faction_name)
@@ -1285,6 +1297,8 @@ func complete_quest(quest_id: int) -> bool:
 			quest_id,
 			str(exer.get("error", "unknown"))
 		])
+		last_complete_error = "%s can't price %s here (%s)" % [
+			faction_name, required_emoji, str(exer.get("error", "unknown"))]
 		return false
 
 	if not economy.remove_resource(required_emoji, required_qty, "quest_completion"):

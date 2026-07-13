@@ -1586,7 +1586,8 @@ func _complete_selected() -> void:
 			_render_all()
 			_toast_feedback("✓ delivered %s×%d — payout is in your stores" % [ask_emoji, ask_qty])
 		else:
-			_toast_feedback("✗ delivery failed — the market could not settle this contract")
+			var why := str(quest_manager.get("last_complete_error")) if "last_complete_error" in quest_manager else ""
+			_toast_feedback("✗ delivery failed — %s" % (why if why != "" else "the market could not settle this contract"))
 		return
 
 	if status == "ready" and quest_manager.has_method("claim_quest"):
