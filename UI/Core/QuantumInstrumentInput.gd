@@ -550,6 +550,19 @@ func _handle_submenu_action(action_key: String) -> void:
 
 	var action = action_data.get("action", "")
 
+	# Icon-injection options carry bare {north, south, cost} — no action name —
+	# so selection fell through EVERY branch and closed the menu having planted
+	# nothing (marathon #9: the buildout's true blocker, silent since the
+	# submenu's option shape and this dispatcher diverged).
+	if action == "" and action_data.has("north") and action_data.has("south"):
+		var pick := {"north": str(action_data.get("north", "")),
+					 "south": str(action_data.get("south", ""))}
+		if pick["north"] != "" and pick["south"] != "":
+			_verbose.info("input", "📋", "You selected: %s - injecting..." % action_data.get("label", ""))
+			_execute_inject_icon(pick)
+		_close_submenu()
+		return
+
 	# Handle icon_injection submenu actions
 	if action == "inject_icon":
 		var icon = action_data.get("icon", {})
@@ -603,6 +616,9 @@ func _execute_inject_icon(icon: Dictionary) -> void:
 		})
 	else:
 		_verbose.warn("input", "+", "Icon injection failed: %s" % result.get("message", result.get("error", "unknown")))
+		# Refusals speak — the picker closing silently after a failed inject
+		# read as "selection doesn't work" (marathon #9).
+		_toast_player("✗ the icon would not take — %s" % str(result.get("message", result.get("error", "unknown reason"))))
 		action_performed.emit("inject_icon", result)
 
 
