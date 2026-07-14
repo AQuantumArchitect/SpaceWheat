@@ -166,6 +166,35 @@
     }
   },
   {
+    "id": "new_voices",
+    "display_name": "New Voices",
+    "act": 2,
+    "arc_beat": "The village listens for new voices: Icon hat (5), an EMPTY plot, R — plant a word (costs 🌱). Or track a live loop (Icon-hat F) until it ripens, then R incorporates it. Every act ahead asks for more words than the enclave seeded you — your signature is your reach.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "loop_remembers"
+      },
+      {
+        "type": "story_flag_set",
+        "id": "village_stirs"
+      }
+    ],
+    "standing_grants": {},
+    "arc_quest": {
+      "body": "Plant a New Voice — grow your signature past what this run has already taught you.",
+      "hint": "Two doors, one ritual. PLANT: Icon hat (5), pick an EMPTY plot (G H J K L ; past the live bubbles) and press R — a picker opens; Q/E choose the icon, R/its key plants it (costs 🌱). HARVEST: on a live plot, Icon-hat F tracks its loop; when the R chip reads Incorporate, press R and the word is yours.",
+      "faction": "Millwright's Union",
+      "state_predicates": [
+        {
+          "type": "signature_growth_gte",
+          "value": 0.5,
+          "width": 0.4
+        }
+      ]
+    }
+  },
+  {
     "id": "lumber_flows",
     "display_name": "Upstream Wakes — Woodlot",
     "act": 2,

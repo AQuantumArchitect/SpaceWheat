@@ -780,6 +780,9 @@ func action_incorporate(qubit_idx: int = -1) -> Dictionary:
 	var gsm = _get_autoload("GameStateManager")
 	if gsm == null or gsm.player_progress == null:
 		return {"success": false, "error": "no_player_progress"}
+	# Read the banked phase BEFORE consume erases the entry — the success toast
+	# quotes the solid angle the walk actually enclosed.
+	var ripe_phase: float = float(qc.berry_register.get_phase(qid))
 	var added: bool = gsm.player_progress.discover_icon(north, south)
 	qc.berry_register.consume(qid)
 	if added:
@@ -794,6 +797,7 @@ func action_incorporate(qubit_idx: int = -1) -> Dictionary:
 		"south_emoji": south,
 		"qubit": qid,
 		"biome": biome.name,
+		"phase": ripe_phase,
 	}
 	action_performed.emit("incorporate_icon", result)
 	return result

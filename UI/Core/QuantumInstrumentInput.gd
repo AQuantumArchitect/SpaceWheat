@@ -702,6 +702,15 @@ func _execute_incorporate_icon() -> Dictionary:
 	if _instrument == null:
 		return {"success": false, "error": "no_instrument"}
 	var result: Dictionary = _instrument.action_incorporate()
+	# Success and refusal both speak (anti-gating law, same as inject_icon):
+	# _toast_berry_whisper existed but nothing called it — the harvest was mute,
+	# and a silent success reads exactly like a dead key.
+	if result.get("success", false):
+		_toast_berry_whisper(_get_current_biome(),
+				str(result.get("north_emoji", "")), str(result.get("south_emoji", "")),
+				float(result.get("phase", 0.0)))
+	elif str(result.get("message", "")) != "":
+		_toast_player("✗ %s" % str(result.get("message", "")))
 	# Mirror on the QII signal too, for UI listeners (the engine emits its own). Same
 	# double-emit pattern as inject_icon. Incorporate does NOT touch the biome ρ, so no
 	# lookahead-buffer invalidation (it only consumes a berry entry + grows the signature).
@@ -1518,6 +1527,13 @@ func _perform_action(action_key: String) -> void:
 		return
 
 	if bool(action_info.get("disabled", false)):
+		# Refusals speak (anti-gating law): a resolver-disabled chip's key must
+		# say WHY and what to do instead — the silent return here was the act-2
+		# wall (Icon-hat R on a full untracked plot did nothing, and three relay
+		# legs never found the incorporate/plant ritual).
+		var disabled_reason := str(action_info.get("reason", ""))
+		if disabled_reason != "":
+			_toast_player("✗ %s" % disabled_reason)
 		return
 
 	var emoji = action_info.get("emoji", "")
