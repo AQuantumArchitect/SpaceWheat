@@ -69,43 +69,11 @@ func expand_quantum_system(north_emoji: String, south_emoji: String) -> Dictiona
 	if resource_registry:
 		resource_registry.add_emoji_pair_to_producible(north_emoji, south_emoji)
 
-	# 8. Build Icon list from the expanded register_map axes (H from icons.json).
-	var HamBuilder = load("res://Core/QuantumSubstrate/HamiltonianBuilder.gd")
-	var LindBuilder = load("res://Core/QuantumSubstrate/LindbladBuilder.gd")
-	var IconRegistryCls = load("res://Core/Factions/IconRegistry.gd")
-	var IconCls = load("res://Core/QuantumSubstrate/Icon.gd")
-	var verbose = (Engine.get_main_loop().root.get_node_or_null("/root/VerboseConfig") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
-	var lexicon = (Engine.get_main_loop().root.get_node_or_null("/root/IconRegistry") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
-	if lexicon == null:
-		lexicon = IconRegistryCls.new()  # test harness fallback
-
-	var biome_icons: Array = []
-	for q in range(quantum_computer.register_map.num_qubits):
-		var axis = quantum_computer.register_map.axes.get(q, {})
-		var north: String = str(axis.get("north", ""))
-		var south: String = str(axis.get("south", ""))
-		if north == "" or south == "":
-			continue
-		var physics = lexicon.get_icon_physics_by_pair(north, south)
-		var rec = lexicon.find_icon_by_pair(north, south)
-		var iname: String = str(rec.get("name", north)) if not rec.is_empty() else north
-		biome_icons.append(IconCls.from_pair_physics(iname, north, south, physics, 1.0))
-
-	# 9. Rebuild H from icons.json; rebuild L from biome.atom_components.
+	# 8+9. Rebuild H from icons.json (all axes, incl. the new one), L from
+	# biome.atom_components, drivers, and the physics signature — the ONE
+	# rebuild lane for a register layout that changed underneath the operators.
 	# Primed terms whose endpoints are now in basis activate automatically.
-	quantum_computer.hamiltonian = HamBuilder.build_from_icons(biome_icons, quantum_computer.register_map, verbose)
-	var lindblad_result = LindBuilder.build_from_atoms(atom_components, quantum_computer.register_map, verbose, quantum_computer.biome_name, quantum_computer.is_open_here())
-	quantum_computer.lindblad_operators = lindblad_result.get("operators", [])
-
-	# 9b. Extract and set time-dependent driver configurations.
-	var driven_configs = HamBuilder.get_driven_icons(biome_icons, quantum_computer.register_map)
-	quantum_computer.set_driven_icons(driven_configs)
-
-	# Re-stamp the physics signature: this path also rebuilds H+L from authored data, so the
-	# fingerprint must track it or the engine-drift anchor would lie after an icon inject.
-	# (In-place runtime edits — inject_coupling / gates — are out of the authored-derivation
-	# signature's scope by design; those re-sync via the coupling_updated → reregister path.)
-	quantum_computer.physics_signature = _compute_physics_signature(quantum_computer.biome_name, biome_icons)
+	rebuild_operators_from_register_map()
 
 	# Reset to ground state after expanding basis (preserves ecological biases)
 	quantum_computer.initialize_ground_state()
@@ -124,6 +92,39 @@ func expand_quantum_system(north_emoji: String, south_emoji: String) -> Dictiona
 		"north_emoji": north_emoji,
 		"south_emoji": south_emoji
 	}
+
+
+## Rebuild H+L (+ drivers + physics_signature) from the CURRENT register_map
+## axes. The canonical rebuild lane for a register layout that changed
+## underneath the operators: runtime injection (expand_quantum_system) and
+## save-restore of runtime-injected axes both land here. Derives the Icon
+## list from the live axes (icons.json physics via IconRegistry), then defers
+## to build_operators_from_icons — the single builder authority. Does NOT
+## touch ρ (callers decide: expand resets to ground state; load restores the
+## saved ρ afterwards).
+func rebuild_operators_from_register_map() -> bool:
+	if not quantum_computer or not quantum_computer.register_map:
+		return false
+	var IconRegistryCls = load("res://Core/Factions/IconRegistry.gd")
+	var IconCls = load("res://Core/QuantumSubstrate/Icon.gd")
+	var lexicon = (Engine.get_main_loop().root.get_node_or_null("/root/IconRegistry") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
+	if lexicon == null:
+		lexicon = IconRegistryCls.new()  # test harness fallback
+
+	var biome_icons: Array = []
+	for q in range(quantum_computer.register_map.num_qubits):
+		var axis = quantum_computer.register_map.axes.get(q, {})
+		var north: String = str(axis.get("north", ""))
+		var south: String = str(axis.get("south", ""))
+		if north == "" or south == "":
+			continue
+		var physics = lexicon.get_icon_physics_by_pair(north, south)
+		var rec = lexicon.find_icon_by_pair(north, south)
+		var iname: String = str(rec.get("name", north)) if not rec.is_empty() else north
+		biome_icons.append(IconCls.from_pair_physics(iname, north, south, physics, 1.0))
+
+	build_operators_from_icons(quantum_computer.biome_name, biome_icons)
+	return true
 
 
 func inject_coupling(emoji_a: String, emoji_b: String, strength: float) -> Dictionary:

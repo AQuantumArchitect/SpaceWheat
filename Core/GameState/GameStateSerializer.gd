@@ -808,6 +808,8 @@ func _restore_all_biome_states(farm: Node, biome_states: Dictionary) -> void:
 		push_warning("Farm grid has no biomes registry - cannot restore biome states")
 		return
 
+	var batcher = farm.biome_evolution_batcher if ("biome_evolution_batcher" in farm and farm.biome_evolution_batcher) else null
+
 	for biome_name in biome_states.keys():
 		var biome_state = biome_states[biome_name]
 		var biome = farm.grid.get_biome(biome_name)
@@ -815,6 +817,12 @@ func _restore_all_biome_states(farm: Node, biome_states: Dictionary) -> void:
 			push_warning("Biome %s not found in grid registry - skipping restore" % biome_name)
 			continue
 		await _restore_single_biome_state(biome, biome_state, biome_name)
+		# The lookahead buffer still holds frames computed from the PRE-load
+		# state (possibly at a different register dimension). Flush it so a
+		# stale writeback cannot clobber the restored ρ; the flush re-primes
+		# frozen frames from the restored ρ and the next packet refills off it.
+		if batcher and batcher.has_method("invalidate_biome_buffer"):
+			batcher.invalidate_biome_buffer(str(biome_name))
 		_log("debug", "save", "📂", "Restored %s biome" % biome_name)
 
 	_warn_for_physics_drift(farm, biome_states)
@@ -921,6 +929,32 @@ func _restore_single_biome_state(biome: Node, state: Dictionary, biome_name: Str
 				biome.viz_cache.update_from_bloch_packet(packet, qc_rho.register_map.num_qubits)
 			elif qc_rho.register_map == null or qc_rho.register_map.num_qubits <= 0:
 				push_warning("Biome %s restored density matrix without a valid register map" % biome_name)
+
+	# Path-load P0 family #5: a save can carry RUNTIME-INJECTED axes (icon
+	# injections / berry incorporations after boot). The axes restore above
+	# grows register_map, but the boot-built H/L are still sized for the BOOT
+	# layout — without this the biome evolves under a wrong, undersized H until
+	# some unrelated rebuild happens to fire. If the live operators no longer
+	# match the restored register layout (dimension or physics signature),
+	# trigger the CANONICAL rebuild — the same builder authority the runtime
+	# inject lane uses (BiomeQuantumSystemBuilder), which also marks the C++
+	# lookahead twin for re-register. Must run AFTER ρ restore: the rebuild's
+	# buffer flush re-primes the lookahead from the CURRENT ρ, and priming from
+	# the pre-restore (old-dim) ρ would feed stale frames back over the
+	# restored state (negative-trace garbage → I/d hard reinit).
+	if biome.quantum_computer and biome.quantum_computer.register_map:
+		var qc_ops = biome.quantum_computer
+		var reg_dim: int = qc_ops.register_map.dim()
+		var h_dim: int = qc_ops.hamiltonian.n if qc_ops.hamiltonian else 0
+		var saved_sig := str(state.get("physics_signature", ""))
+		var sig_mismatch: bool = saved_sig != "" and saved_sig != str(qc_ops.physics_signature)
+		if (h_dim != reg_dim or sig_mismatch) and biome.has_method("rebuild_operators_from_register_map"):
+			if biome.rebuild_operators_from_register_map():
+				var h_dim_now: int = qc_ops.hamiltonian.n if qc_ops.hamiltonian else 0
+				_log("info", "save", "🔁", "Rebuilt %s operators after restore (H dim %d → %d for %d-qubit register)" % [
+						biome_name, h_dim, h_dim_now, qc_ops.register_map.num_qubits])
+			else:
+				push_warning("Biome %s operators stale after restore (H dim %d vs register dim %d) and rebuild failed" % [biome_name, h_dim, reg_dim])
 
 
 func _warn_for_physics_drift(farm: Node, biome_states: Dictionary) -> void:

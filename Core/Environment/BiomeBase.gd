@@ -892,6 +892,24 @@ func expand_quantum_system(north_emoji: String, south_emoji: String) -> Dictiona
 	return result
 
 
+## Canonical operator rebuild off the CURRENT register layout (H from
+## icons.json, L from atom_components, drivers, physics_signature) — the same
+## builder authority the runtime inject lane uses. Called by the load path
+## when a save carries runtime-injected axes: register_map is restored to N
+## qubits but the boot-built operators are still sized for the boot layout.
+## Leaves ρ alone (the load path restores the saved ρ itself) and re-registers
+## the C++ lookahead twin (its H/L copy is stale after any rebuild).
+func rebuild_operators_from_register_map() -> bool:
+	if quantum_computer == null:
+		return false
+	_wire_component_dependencies()
+	var ok: bool = _system_builder.rebuild_operators_from_register_map()
+	if ok:
+		_refresh_effective_icons()
+		_mark_lookahead_dirty()
+	return ok
+
+
 ## Add an atom pair to this biome's canonical state, then grow the substrate.
 ##
 ## Per the emoji-graph-spaghetti vision (biomes.json is mutable canonical):

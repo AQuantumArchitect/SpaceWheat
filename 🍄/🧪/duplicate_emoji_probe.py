@@ -13,11 +13,13 @@ qubit-indexed. This probe verifies the bookkeeping end to end:
      trace-sane, summed populations feed a finite surprisal price);
   5. H rebuild sane (hamiltonian_stats: finite Frobenius norm, dim == 2^n);
   6. save_game_path → load_game_path round-trips with both duplicate qubits
-     intact (grid_snapshot + per-biome qubit counts equal before/after);
-     NOTE: H is NOT rebuilt on load for runtime-injected axes — a PRE-EXISTING
-     gap (bisected with a unique-icon control), so the probe instead proves a
-     post-load operator rebuild (a third injection) handles the RESTORED
-     duplicate layout: dim doubles, Frobenius finite;
+     intact (grid_snapshot + per-biome qubit counts equal before/after) AND
+     the load path itself rebuilds H over the restored runtime-injected
+     layout (dim == 2^n immediately after load — path-load family #5 fix in
+     GameStateSerializer._restore_single_biome_state; the old stale-H-on-load
+     gap was bisected 2026-07-14 with a unique-icon control). A third
+     injection then proves further rebuilds atop the RESTORED duplicate
+     layout stay sane: dim doubles, Frobenius finite;
   7. measuring EACH duplicate plot works (probe_cycle with explicit register;
      plot_idx ≡ register_id) and yields one of the axis emojis.
 
@@ -144,13 +146,15 @@ def main():
               str(counts_after))
         check(counts_after == counts_before, "all biome qubit counts round-trip",
               f"{counts_before} vs {counts_after}")
-        # KNOWN PRE-EXISTING GAP (bisected 2026-07-14 with a UNIQUE icon control):
-        # load restores register axes + ρ but does NOT rebuild H for runtime-
-        # injected axes — H stays at the boot dim until the next operator
-        # rebuild. Unrelated to duplicates; not asserted here.
+        # Path-load family #5 fix: the load path detects the operator/register
+        # dim mismatch and fires the CANONICAL builder rebuild during restore —
+        # H must be at the restored dim IMMEDIATELY, no later rebuild needed.
         hs2 = go("hamiltonian_stats", biome=target)
-        print(f"  note: post-load H dim={hs2.get('dim')} (pre-existing stale-H-on-load gap; "
-              f"same for unique icons)")
+        frob2 = float(hs2.get("frobenius", -1.0))
+        check(int(hs2.get("dim", -1)) == 2 ** n2,
+              f"post-load H rebuilt on restore: dim {hs2.get('dim')} == 2^{n2}", str(hs2))
+        check(frob2 == frob2 and 0.0 < frob2 < 1e9,
+              f"post-load H Frobenius finite ({frob2:.4f})", str(hs2))
 
         # ── Post-load rebuild must handle the RESTORED duplicate layout ──
         # A third injection of the SAME pair triggers a full H+L rebuild from

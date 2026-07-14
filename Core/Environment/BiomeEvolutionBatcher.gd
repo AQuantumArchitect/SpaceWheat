@@ -2366,6 +2366,13 @@ func run_time_skip_cycles(cycles: int, dt: float = LOOKAHEAD_DT, biome_names: Ar
 	# C++ backend BEFORE evolving. Without this, the time-skip / buffering-off path leaves
 	# the C++ engine with stale H/L (the silent twin) — only the live buffering refill
 	# processed re-registers before. Now the canonical native path picks them up too.
+	# Queued lookahead packets are STALE for this purpose (built from pre-skip ρ snapshots
+	# against pre-skip registrations) AND they block _process_pending_reregisters (it
+	# refuses to touch the engine while packets are queued) — which left the engine at a
+	# stale dimension after inject/load, so evolve_single_biome silently no-opped and the
+	# biome froze through the whole skip. Drop them; the live refill re-queues from the
+	# post-skip state anyway.
+	_packet_queue.clear()
 	_process_pending_reregisters()
 	return _deterministic_stepper.run_time_skip_cycles(cycles, dt, biome_names)
 

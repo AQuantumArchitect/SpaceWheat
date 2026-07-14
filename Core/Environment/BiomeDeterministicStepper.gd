@@ -312,6 +312,14 @@ func run_time_skip_cycles(cycles: int, dt: float = -1.0, biome_names: Array = []
 				flush_max_dt
 			])
 
+	# The skip advanced ρ synchronously, so any frames still buffered for these
+	# biomes were computed from the PRE-skip state — replaying them in the live
+	# lane would silently REWIND the world to before the skip (observed as a
+	# biome "frozen" across a time_skip: it evolved, then a stale writeback put
+	# it back). Flush and re-prime each skipped biome from its post-skip state.
+	for biome in target_biomes:
+		batcher.invalidate_biome_buffer(batcher._get_biome_name(biome))
+
 	batcher._mark_biome_activity_dirty()
 	batcher._refresh_runtime_activity(true)
 
@@ -345,6 +353,17 @@ func run_native_biome_cycle(biome, dt: float, max_dt_override: float = -1.0) -> 
 	var engine_id = batcher._biome_engine_ids.get(biome_name, -1)
 	if engine_id < 0:
 		push_error("[Stepper] %s has no native engine id — biome never registered (or reregistration lost). Step skipped; NO GDScript fallback exists." % biome_name)
+		return
+
+	# Silent-twin guard: evolving against an engine slot registered at a different
+	# dimension makes evolve_single_biome return nothing — the biome silently
+	# freezes. Surface it loudly instead (re-register should have landed in
+	# run_time_skip_cycles → _process_pending_reregisters before we got here).
+	var engine_dim = int(batcher._biome_engine_dims.get(biome_name, -1))
+	var qc_dim = int(biome.quantum_computer.register_map.dim()) if biome.quantum_computer and biome.quantum_computer.register_map else -1
+	if engine_dim >= 0 and qc_dim > 0 and engine_dim != qc_dim:
+		push_error("[Stepper] %s: engine dim %d != qc dim %d — re-register did not land; step skipped." % [biome_name, engine_dim, qc_dim])
+		batcher.biome_pending_reregister[biome_name] = true
 		return
 
 	if biome.time_tracker:
