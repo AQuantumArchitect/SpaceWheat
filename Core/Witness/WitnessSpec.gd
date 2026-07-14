@@ -117,6 +117,26 @@ static func gamma_by_role(spec: Dictionary, node: Dictionary) -> Dictionary:
 	return out
 
 
+## Intra-node exchange couplings from spec data: [{roles: [a, b], j}] →
+## [{a, b, j}] with both roles verified against the node.
+static func couplings_for(node: Dictionary) -> Array:
+	var out := []
+	var node_roles: Array = node.get("roles", [])
+	for coupling in node.get("couplings", []):
+		if not (coupling is Dictionary):
+			continue
+		var pair = coupling.get("roles", [])
+		if not (pair is Array) or pair.size() != 2:
+			push_error("WitnessSpec: coupling needs exactly 2 roles: %s" % str(coupling))
+			continue
+		if not (node_roles.has(pair[0]) and node_roles.has(pair[1])):
+			push_error("WitnessSpec: coupling roles %s not on node %s"
+				% [str(pair), str(node.get("name"))])
+			continue
+		out.append({"a": str(pair[0]), "b": str(pair[1]), "j": float(coupling.get("j", 0.0))})
+	return out
+
+
 static func binding_for(spec: Dictionary, sensor_id: String) -> Dictionary:
 	for binding in spec.get("bindings", []):
 		if str(binding.get("sensor_id", "")) == sensor_id:

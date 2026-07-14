@@ -535,6 +535,25 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				result["ok"] = false
 				result["error"] = "WitnessOrgan autoload missing"
 
+		"witness_forecast":
+			# Read-only: dream the BELIEF field forward under its own dynamics
+			# (couplings + decay) — side-effect-free, never game lookahead.
+			# cmd: {leaves: [[node, role], ...], horizon_s: float}. Empty
+			# leaves → every role of every cluster.
+			var organ_f = get_root().get_node_or_null("WitnessOrgan")
+			if organ_f and organ_f.has_method("forecast"):
+				var leaves = cmd.get("leaves", [])
+				if not (leaves is Array) or leaves.is_empty():
+					leaves = []
+					for cname in organ_f.clusters:
+						for role in organ_f.clusters[cname].roles:
+							leaves.append([str(cname), str(role)])
+				result["forecast"] = organ_f.forecast(leaves, float(cmd.get("horizon_s", 60.0)))
+				result["horizon_s"] = float(cmd.get("horizon_s", 60.0))
+			else:
+				result["ok"] = false
+				result["error"] = "WitnessOrgan autoload missing"
+
 		"reap_probe":
 			# Conservation probe: for each biome, bracket the REAL reap-bank
 			# extraction with S before/after and confirm the entropy-bank payout

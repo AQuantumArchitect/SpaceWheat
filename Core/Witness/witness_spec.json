@@ -26,6 +26,7 @@
         "attention": "dissipative"
       },
       "params": { "gamma_diss": 0.015, "gamma_diss_attention": 0.08 },
+      "couplings": [ { "roles": ["quest_momentum", "wealth_trend"], "j": 0.05 } ],
       "grid_pos": [0, 0],
       "emoji": {
         "wealth_trend":   { "pos": "💰", "zero": "⚪", "neg": "🕳️", "coherent": "💠" },
@@ -48,6 +49,7 @@
         "coverage": "dissipative"
       },
       "params": { "gamma_diss": 0.02, "gamma_diss_coverage": 0.005 },
+      "couplings": [ { "roles": ["outcome", "yield"], "j": 0.05 } ],
       "grid_pos": [1, 0],
       "emoji": {
         "yield":    { "pos": "🌾", "zero": "⚪", "neg": "🥀", "coherent": "💠" },

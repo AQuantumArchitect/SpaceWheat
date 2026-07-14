@@ -73,7 +73,7 @@ func _observe(sensor_id: String, zone: String, value: float, confidence: float =
 	var role := str(binding.get("role", ""))
 	var z := WitnessSpec.normalize(binding, value)
 	var alpha := WitnessSpec.binding_alpha(WitnessOrgan.spec, binding) * clampf(confidence, 0.0, 1.0)
-	WitnessOrgan.observe(zone, role, z, alpha, confidence)
+	WitnessOrgan.observe(zone, role, z, alpha, confidence, sensor_id)
 
 
 func _set_active_biome(biome_name: String) -> void:
@@ -111,7 +111,7 @@ func _on_terminal_measured(grid_pos: Vector2i, _terminal_id: String, outcome: St
 	var binding := WitnessSpec.binding_for(WitnessOrgan.spec, "terminal_measured")
 	if not binding.is_empty():
 		WitnessOrgan.observe(zone, str(binding.get("role", "outcome")), z,
-			WitnessSpec.binding_alpha(WitnessOrgan.spec, binding))
+			WitnessSpec.binding_alpha(WitnessOrgan.spec, binding), 1.0, "terminal_measured")
 	_observe("terminal_measured.freshness", zone, 1.0)
 
 

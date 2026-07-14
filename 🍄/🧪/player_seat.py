@@ -28,6 +28,7 @@ Usage:
   player_seat.py press <seat> <key> [--shift]
   player_seat.py tap <seat> <gx> <gy>    tap the bubble/plot at grid pos
   player_seat.py wait <seat> <seconds>   real time passes (no skip)
+  player_seat.py forecast <seat> [secs]  what will the Witness believe in N s
   player_seat.py screenshot <seat> <name>
   player_seat.py stop <seat>
 
@@ -248,6 +249,19 @@ def cmd_bank(seat: str, name: str) -> dict:
     return {"ok": True, "banked": name, "flags": len(flags)}
 
 
+def cmd_forecast(seat: str, horizon_s: float) -> dict:
+    # The Witness dreaming forward: "if I do nothing for N seconds, what will
+    # the field believe?" Beliefs mix along their couplings and ease toward
+    # uncertainty — a falling number is knowledge going stale, not the world
+    # changing. Parity-safe: it rolls the BELIEF field, never the game.
+    st = _load_state(seat)
+    c = _client(seat)
+    r = _turn(seat, st, c, "witness_forecast", horizon_s=min(max(horizon_s, 1.0), 600.0))
+    if not r.get("ok", False):
+        return {"ok": False, "error": "forecast_unavailable", "detail": str(r)[:200]}
+    return {"ok": True, "horizon_s": r.get("horizon_s"), "beliefs": r.get("forecast", {})}
+
+
 def cmd_stop(seat: str) -> dict:
     c = _client(seat)
     c.kill_existing_listeners(xdg=_lane(seat))
@@ -279,12 +293,14 @@ def main() -> int:
             out = cmd_screenshot(seat, args[2] if len(args) > 2 else "shot")
         elif cmd == "bank":
             out = cmd_bank(seat, args[2] if len(args) > 2 else "")
+        elif cmd == "forecast":
+            out = cmd_forecast(seat, float(args[2]) if len(args) > 2 else 60.0)
         elif cmd == "stop":
             out = cmd_stop(seat)
         else:
             out = {"ok": False, "error": "unknown_command",
                    "allowed": ["start", "look", "press", "tap", "wait",
-                               "screenshot", "bank", "stop"]}
+                               "screenshot", "bank", "forecast", "stop"]}
     except Exception as exc:  # honest failure beats a hung agent
         out = {"ok": False, "error": "seat_exception", "detail": str(exc)[:300]}
     print(json.dumps(out, ensure_ascii=False))

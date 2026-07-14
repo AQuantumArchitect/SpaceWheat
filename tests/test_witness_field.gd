@@ -45,6 +45,9 @@ func _init():
 	_test_gauge_stability()
 	_test_serialize()
 	_test_graph_projection()
+	_test_coupling_transfer()
+	_test_forecast_pure()
+	_test_surprise_alarm()
 
 	print("\n" + DIVIDER)
 	print("RESULTS: %d passed, %d failed" % [passed, failed])
@@ -256,4 +259,77 @@ func _test_graph_projection() -> void:
 	check("globals carry ingest + summary", globals_types.has("ingest") and globals_types.has("summary"))
 	var compact_size := JSON.stringify(g).length()
 	check("compact graph under 2KB with one biome", compact_size < 2048, "%d bytes" % compact_size)
+	organ.free()
+
+
+func _make_organ():
+	var organ = load("res://Core/Witness/WitnessOrgan.gd").new()
+	organ.spec = WitnessSpec.load_spec()
+	organ._spec_hash = WitnessSpec.spec_hash(organ.spec)
+	organ._ensure_self_cluster()
+	return organ
+
+
+func _test_coupling_transfer() -> void:
+	print("\n-- exchange couplings (beliefs inform each other)")
+	var cl := WitnessCluster.new("coupled", ["a", "b"], {})
+	cl.couplings = [{"a": "a", "b": "b", "j": 0.5}]
+	cl.observe("a", Vector3(0, 0, 1), 1.0)
+	var zb0 := cl.role_bloch("b").z
+	for _i in range(10):
+		cl.stride(0.2)
+	var za := cl.role_bloch("a").z
+	var zb := cl.role_bloch("b").z
+	check("exchange transfers belief into the silent role", zb > zb0 + 0.05,
+		"b: %f -> %f" % [zb0, zb])
+	check("donor role gave some belief away", za < 1.0 - 0.05, "a=%f" % za)
+	check("stride keeps trace 1", absf(cl.rho.trace().re - 1.0) < 1e-6)
+	check("stride keeps purity <= 1", cl.purity() <= 1.0 + 1e-6)
+
+	# no couplings → stride is pure decay (phase-1 behavior preserved)
+	var plain := WitnessCluster.new("plain", ["x"], {"x": 1.0})
+	plain.observe("x", Vector3(0, 0, 1), 1.0)
+	plain.stride(1.0)
+	check("uncoupled stride == depolarize", absf(plain.role_bloch("x").z - exp(-1.0)) < 1e-6)
+
+
+func _test_forecast_pure() -> void:
+	print("\n-- forecast (dreams forward, touches nothing)")
+	var organ = _make_organ()
+	organ.ensure_biome_cluster("StarterForest")
+	organ.observe("biome:StarterForest", "yield", 1.0, 0.8)
+	var h_before: String = organ.clusters["biome:StarterForest"].canon_hash()
+	var fc: Dictionary = organ.forecast([["biome:StarterForest", "yield"]], 60.0)
+	var key := "biome:StarterForest.yield"
+	check("forecast answers for the requested leaf", fc.has(key))
+	var now_z: float = organ.clusters["biome:StarterForest"].role_bloch("yield").z
+	check("belief fades toward uncertainty at horizon", fc.get(key, 1.0) < now_z,
+		"now %f, +60s %f" % [now_z, float(fc.get(key, 1.0))])
+	check("forecast is side-effect-free (rho hash unchanged)",
+		organ.clusters["biome:StarterForest"].canon_hash() == h_before)
+	organ.free()
+
+
+func _test_surprise_alarm() -> void:
+	print("\n-- surprise ledger + frozen-world alarm")
+	var organ = _make_organ()
+	organ.ensure_biome_cluster("Frozen")
+	organ.ensure_biome_cluster("Honest")
+	# frozen world: the same outcome forever → belief saturates, innovation dies
+	for _i in range(20):
+		organ.observe("biome:Frozen", "outcome", 1.0, 0.5, 1.0, "frozen_sensor")
+	# honest world: alternating outcomes → the belief keeps being surprised
+	for i in range(20):
+		var z := 1.0 if i % 2 == 0 else -1.0
+		organ.observe("biome:Honest", "outcome", z, 0.5, 1.0, "honest_sensor")
+	var alarms: Array = organ.surprise_alarms()
+	check("frozen source trips the alarm", alarms.has("frozen_sensor"), str(alarms))
+	check("honest randomness does NOT trip it", not alarms.has("honest_sensor"), str(alarms))
+	var g = organ.graph_state(true)
+	var found_surprise := false
+	for gl in g.get("globals", []):
+		if str(gl.get("type", "")) == "surprise":
+			found_surprise = true
+			check("surprise global carries the alarm", (gl.get("alarms", []) as Array).has("frozen_sensor"))
+	check("graph globals carry the surprise organ", found_surprise)
 	organ.free()

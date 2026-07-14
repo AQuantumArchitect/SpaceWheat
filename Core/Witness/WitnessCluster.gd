@@ -36,6 +36,8 @@ var rho: ComplexMatrix = null
 var gamma_diss: Dictionary = {}      # role → relaxation rate (1/s)
 var obs_confidence: Dictionary = {}  # role → last edge-supplied validity (gauge quantity)
 var observe_count: int = 0
+var couplings: Array = []            # [{a: role, b: role, j: float}] — exchange terms
+var _u_cache: Dictionary = {}        # dt → [U, U†] for the coupling unitary
 
 
 func _init(name_: String = "", roles_: Array = [], gamma_by_role: Dictionary = {}):
@@ -86,6 +88,55 @@ func observe(role: String, target: Vector3, alpha: float, confidence: float = 1.
 	_inject_target_rdm(role_index[role],
 		0.5 * (1.0 + z), 0.5 * x, -0.5 * y, 0.5 * (1.0 - z),
 		minf(alpha, 1.0))
+
+
+## One evolution stride: coherent exchange couplings first (exact unitary,
+## cached e^{−iH·dt} on native expm), then the dissipative-role law. This is
+## the cluster's whole autonomous dynamics — beliefs mix along authored
+## couplings and everything eases back toward uncertainty.
+func stride(dt: float) -> void:
+	if dt <= 0.0:
+		return
+	if not couplings.is_empty():
+		var pair = _coupling_unitary(dt)
+		if pair != null:
+			rho = pair[0].mul(rho).mul(pair[1])
+	depolarize(dt)
+
+
+## Exchange Hamiltonian H = Σ J·(|01⟩⟨10| + |10⟩⟨01|) on each coupled role
+## pair — transfers belief population between roles (a ZZ term would only
+## dephase; exchange is what lets a settled belief inform an unknown one).
+## U = e^{−iH·dt} built once per dt through the native expm kernel.
+func _coupling_unitary(dt: float):
+	var key := snappedf(dt, 0.0001)
+	if _u_cache.has(key):
+		return _u_cache[key]
+	var h = ComplexMatrix.zeros(dim)
+	for coupling in couplings:
+		var ra := str(coupling.get("a", ""))
+		var rb := str(coupling.get("b", ""))
+		if not (role_index.has(ra) and role_index.has(rb)):
+			continue
+		var j := float(coupling.get("j", 0.0))
+		if absf(j) < 1e-12:
+			continue
+		var sa: int = n_qubits - 1 - int(role_index[ra])
+		var sb: int = n_qubits - 1 - int(role_index[rb])
+		for i in range(dim):
+			# i has a=0, b=1 → couples to i with a=1, b=0
+			if ((i >> sa) & 1) == 0 and ((i >> sb) & 1) == 1:
+				var k: int = (i | (1 << sa)) & ~(1 << sb)
+				var existing = h.get_element(i, k)
+				h.set_element(i, k, Complex.new(existing.re + j, existing.im))
+				h.set_element(k, i, Complex.new(existing.re + j, -existing.im))
+	if h.frobenius_norm() < 1e-12:
+		_u_cache[key] = null
+		return null
+	var u = h.scale(Complex.new(0.0, -key)).expm()
+	var pair := [u, u.dagger()]
+	_u_cache[key] = pair
+	return pair
 
 
 ## The dissipative-role law: relax every role toward the Bloch origin (I/2)

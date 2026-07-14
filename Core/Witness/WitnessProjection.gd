@@ -71,6 +71,8 @@ static func _node_entry(organ, node_spec: Dictionary, node_name: String, depth: 
 			for role in cluster.obs_confidence:
 				conf[role] = snappedf(float(cluster.obs_confidence[role]), 0.001)
 			cluster_organ["obs_confidence"] = conf
+		if not cluster.couplings.is_empty():
+			cluster_organ["couplings"] = cluster.couplings.duplicate(true)
 		entry["organs"].append(cluster_organ)
 	return entry
 
@@ -117,6 +119,9 @@ static func graph_state(organ, compact: bool = true, max_biome_nodes: int = 12) 
 		"topology": {"nodes": nodes, "edges": edges},
 		"globals": [
 			{"type": "ingest", "unmatched": organ.unmatched_snapshot()},
+			{"type": "surprise",
+				"alarms": organ.surprise_alarms(),
+				"sources": _surprise_sources(organ)},
 			{"type": "summary",
 				"clusters": organ.clusters.size(),
 				"qubits": organ.total_qubits(),
@@ -126,6 +131,17 @@ static func graph_state(organ, compact: bool = true, max_biome_nodes: int = 12) 
 	}
 	if truncated:
 		out["truncated"] = true
+	return out
+
+
+static func _surprise_sources(organ) -> Dictionary:
+	var out := {}
+	var sources: Array = organ.surprise.keys()
+	sources.sort()
+	for source in sources:
+		var entry: Dictionary = organ.surprise[source]
+		out[source] = {"ema": snappedf(float(entry.get("ema", 0.0)), 0.001),
+			"n": int(entry.get("n", 0))}
 	return out
 
 

@@ -18,9 +18,18 @@ var spec: Dictionary = {}
 var clusters: Dictionary = {}      # node name → WitnessCluster
 var observes_total: int = 0
 var last_stride_ms: float = 0.0
+var surprise: Dictionary = {}      # source → {ema, n, node, role} — innovation ledger
 var _spec_hash: String = ""
 var _stride_accum: float = 0.0
 var _unmatched: Dictionary = {}    # sensor/zone/role that matched nothing → count
+
+# Innovation EMA rate + the frozen-world alarm: a source that keeps reporting
+# (n ≥ ALARM_MIN_N) yet never surprises its own belief (ema < ALARM_EMA) is
+# the frozen-Born signature — honest randomness keeps innovations high
+# because the belief settles mid-range while outcomes land at ±1.
+const SURPRISE_EMA_RATE := 0.15
+const ALARM_MIN_N := 12
+const ALARM_EMA := 0.15
 
 
 func _ready() -> void:
@@ -46,7 +55,7 @@ func _process(delta: float) -> void:
 	_stride_accum = 0.0
 	var t0 := Time.get_ticks_usec()
 	for cname in clusters:
-		clusters[cname].depolarize(dt)
+		clusters[cname].stride(dt)
 	last_stride_ms = float(Time.get_ticks_usec() - t0) / 1000.0
 
 
@@ -57,8 +66,10 @@ func _ensure_self_cluster() -> void:
 	if node.is_empty():
 		push_error("WitnessOrgan: spec has no 'self' node")
 		return
-	clusters["self"] = WitnessCluster.new("self", node.get("roles", []),
+	var cluster := WitnessCluster.new("self", node.get("roles", []),
 		WitnessSpec.gamma_by_role(spec, node))
+	cluster.couplings = WitnessSpec.couplings_for(node)
+	clusters["self"] = cluster
 
 
 ## Lazy-mint a biome cluster on first discovery — the Witness only believes
@@ -72,23 +83,84 @@ func ensure_biome_cluster(biome_name: String) -> void:
 	var node := WitnessSpec.instantiate_biome_node(spec, biome_name)
 	if node.is_empty():
 		return
-	clusters[cname] = WitnessCluster.new(cname, node.get("roles", []),
+	var cluster := WitnessCluster.new(cname, node.get("roles", []),
 		WitnessSpec.gamma_by_role(spec, node))
+	cluster.couplings = WitnessSpec.couplings_for(node)
+	clusters[cname] = cluster
 
 
 ## The bridge's single entry: a weak observation of (node, role) toward Bloch
 ## (0, 0, z). Unknown targets are counted, never crash — ingest honesty: the
 ## graph's `unmatched` global shows what fired and found no belief axis.
+## `source` stamps the innovation ledger (surprise tape, umwelt-style): the
+## innovation is |target − belief| BEFORE the update — how much this
+## observation disagreed with what the field already believed.
 func observe(node_name: String, role: String, target_z: float, alpha: float,
-		confidence: float = 1.0) -> void:
+		confidence: float = 1.0, source: String = "") -> void:
 	var cluster = clusters.get(node_name)
 	if cluster == null or not cluster.role_index.has(role):
 		var key := "%s.%s" % [node_name, role]
 		_unmatched[key] = int(_unmatched.get(key, 0)) + 1
 		return
-	cluster.observe(role, Vector3(0.0, 0.0, clampf(target_z, -1.0, 1.0)), alpha, confidence)
+	var z := clampf(target_z, -1.0, 1.0)
+	if alpha > 0.0 and not source.is_empty():
+		var innovation: float = absf(z - cluster.role_bloch(role).z)
+		var entry: Dictionary = surprise.get(source, {"ema": innovation, "n": 0})
+		entry["ema"] = lerpf(float(entry["ema"]), innovation, SURPRISE_EMA_RATE)
+		entry["n"] = int(entry["n"]) + 1
+		entry["node"] = node_name
+		entry["role"] = role
+		surprise[source] = entry
+	cluster.observe(role, Vector3(0.0, 0.0, z), alpha, confidence)
 	if alpha > 0.0:
 		observes_total += 1
+
+
+## The frozen-world alarm (regression smoke detector): sources that report
+## steadily but never surprise a SATURATED belief. The frozen-Born bug
+## (always-wheat) has exactly this shape; honest randomness cannot.
+func surprise_alarms() -> Array:
+	var alarms := []
+	for source in surprise:
+		var entry: Dictionary = surprise[source]
+		if int(entry.get("n", 0)) < ALARM_MIN_N or float(entry.get("ema", 1.0)) >= ALARM_EMA:
+			continue
+		var cluster = clusters.get(str(entry.get("node", "")))
+		if cluster == null:
+			continue
+		if absf(cluster.role_bloch(str(entry.get("role", ""))).z) > 0.85:
+			alarms.append(str(source))
+	alarms.sort()
+	return alarms
+
+
+## Dream the belief field forward under its OWN dynamics (couplings + decay),
+## side-effect-free: snapshot ρ, stride, read, restore. Forecasts BELIEFS —
+## never ground truth (the parity membrane holds in the future too).
+## leaves: Array of [node_name, role]; returns {"node.role": z_at_horizon}.
+func forecast(leaves: Array, horizon_s: float) -> Dictionary:
+	var out := {}
+	var by_cluster := {}
+	for leaf in leaves:
+		if leaf is Array and leaf.size() == 2:
+			var node := str(leaf[0])
+			if not by_cluster.has(node):
+				by_cluster[node] = []
+			by_cluster[node].append(str(leaf[1]))
+	for node in by_cluster:
+		var cluster = clusters.get(node)
+		if cluster == null:
+			continue
+		var snapshot: PackedFloat64Array = cluster.rho._to_packed().duplicate()
+		var remaining := clampf(horizon_s, 0.0, 3600.0)
+		while remaining > 0.0:
+			var dt := minf(remaining, STRIDE_S)
+			cluster.stride(dt)
+			remaining -= dt
+		for role in by_cluster[node]:
+			out["%s.%s" % [node, role]] = snappedf(cluster.role_bloch(role).z, 0.001)
+		cluster.rho._from_packed(snapshot, cluster.dim)
+	return out
 
 
 func total_qubits() -> int:
@@ -125,7 +197,7 @@ func to_save_dict() -> Dictionary:
 		"spec_hash": _spec_hash,
 		"clusters": cluster_saves,
 		"observes_total": observes_total,
-		"surprise": {},  # phase 2: per-source innovation EMAs
+		"surprise": surprise.duplicate(true),
 	}
 
 
@@ -140,6 +212,8 @@ func load_save_dict(saved: Dictionary) -> void:
 			"Witness spec changed since save — beliefs cold-boot blank")
 		return
 	observes_total = int(saved.get("observes_total", 0))
+	if saved.get("surprise") is Dictionary:
+		surprise = (saved.get("surprise") as Dictionary).duplicate(true)
 	var cluster_saves = saved.get("clusters", {})
 	if not (cluster_saves is Dictionary):
 		return
@@ -158,6 +232,7 @@ func load_save_dict(saved: Dictionary) -> void:
 ## an object but returns to maximal uncertainty.
 func reset() -> void:
 	observes_total = 0
+	surprise.clear()
 	_unmatched.clear()
 	_stride_accum = 0.0
 	var biome_names := []
