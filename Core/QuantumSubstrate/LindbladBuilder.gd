@@ -94,33 +94,34 @@ static func build_from_atoms(atom_components: Dictionary, register_map: Register
 			expanded[k] = entry
 		atom_components = expanded
 
-	# First pass: outgoing + decay (both produce |target⟩⟨source| jumps)
+	# First pass: outgoing + decay (both produce |target⟩⟨source| jumps).
+	# Duplicate emojis are legal (degenerate pole labels): a transfer keyed by
+	# emoji applies to ALL instances — one jump operator per (source instance ×
+	# target instance) pair, each at the authored rate. With unique emojis this
+	# reduces exactly to the old single-operator behavior.
 	for source_emoji in atom_components.keys():
 		var component = atom_components[source_emoji]
 		if not (component is Dictionary):
 			continue
 
-		var source_in = register_map.has(source_emoji)
-		var source_q := -1
-		var source_p := 0
-		if source_in:
-			source_q = register_map.qubit(source_emoji)
-			source_p = register_map.pole(source_emoji)
+		var source_coords: Array = register_map.all_coordinates_for(source_emoji)
+		var source_in := not source_coords.is_empty()
 
 		# --- Outgoing transfers ---
 		var outgoing = component.get("lindblad_outgoing", {})
 		if outgoing is Dictionary:
 			for target_emoji in outgoing.keys():
-				if not source_in or not register_map.has(target_emoji):
+				var target_coords: Array = register_map.all_coordinates_for(target_emoji)
+				if not source_in or target_coords.is_empty():
 					stats.outgoing_skipped += 1  # primed
 					if verbose:
 						verbose.debug("quantum", "primed", "L outgoing %s→%s (waiting for axis)" % [source_emoji, target_emoji])
 					continue
-				var target_q = register_map.qubit(target_emoji)
-				var target_p = register_map.pole(target_emoji)
 				var rate = float(outgoing[target_emoji]) * _get_rate_scale()
 				var amp = Complex.new(sqrt(abs(rate)), 0.0)
-				operators.append(_build_jump(source_q, source_p, target_q, target_p, amp, num_qubits))
+				for sc in source_coords:
+					for tc in target_coords:
+						operators.append(_build_jump(int(sc["qubit"]), int(sc["pole"]), int(tc["qubit"]), int(tc["pole"]), amp, num_qubits))
 				stats.outgoing_added += 1
 				emitted[source_emoji + "→" + target_emoji] = true
 				src_atoms[source_emoji] = true
@@ -145,7 +146,10 @@ static func build_from_atoms(atom_components: Dictionary, register_map: Register
 					if verbose:
 						verbose.debug("quantum", "primed", "dephasing %s (waiting for axis)" % source_emoji)
 				else:
-					dephase_rates[source_q] = float(dephase_rates.get(source_q, 0.0)) + deph_rate
+					# Every instance's qubit loses phase (degenerate labels dephase alike).
+					for sc in source_coords:
+						var deph_q: int = int(sc["qubit"])
+						dephase_rates[deph_q] = float(dephase_rates.get(deph_q, 0.0)) + deph_rate
 
 		# --- Decay (treated as outgoing transfer) ---
 		var decay = component.get("decay", {})
@@ -153,16 +157,17 @@ static func build_from_atoms(atom_components: Dictionary, register_map: Register
 			var dt_emoji: String = str(decay.get("target", ""))
 			var dt_rate: float = float(decay.get("rate", 0.0))
 			if dt_rate > 0.0:
-				if not source_in or not register_map.has(dt_emoji):
+				var dt_coords: Array = register_map.all_coordinates_for(dt_emoji)
+				if not source_in or dt_coords.is_empty():
 					stats.decay_skipped += 1  # primed
 					if verbose:
 						verbose.debug("quantum", "primed", "decay %s→%s (waiting for axis)" % [source_emoji, dt_emoji])
 				else:
-					var dt_q = register_map.qubit(dt_emoji)
-					var dt_p = register_map.pole(dt_emoji)
 					var rate = dt_rate * _get_rate_scale()
 					var amp = Complex.new(sqrt(abs(rate)), 0.0)
-					operators.append(_build_jump(source_q, source_p, dt_q, dt_p, amp, num_qubits))
+					for sc in source_coords:
+						for tc in dt_coords:
+							operators.append(_build_jump(int(sc["qubit"]), int(sc["pole"]), int(tc["qubit"]), int(tc["pole"]), amp, num_qubits))
 					stats.decay_added += 1
 					emitted[source_emoji + "→" + dt_emoji] = true
 					src_atoms[source_emoji] = true
@@ -177,26 +182,23 @@ static func build_from_atoms(atom_components: Dictionary, register_map: Register
 		if not (incoming is Dictionary):
 			continue
 
-		var receiver_in = register_map.has(receiver_emoji)
-		var receiver_q := -1
-		var receiver_p := 0
-		if receiver_in:
-			receiver_q = register_map.qubit(receiver_emoji)
-			receiver_p = register_map.pole(receiver_emoji)
+		var receiver_coords: Array = register_map.all_coordinates_for(receiver_emoji)
+		var receiver_in := not receiver_coords.is_empty()
 
 		for src_emoji in incoming.keys():
-			if not receiver_in or not register_map.has(src_emoji):
+			var in_src_coords: Array = register_map.all_coordinates_for(src_emoji)
+			if not receiver_in or in_src_coords.is_empty():
 				stats.incoming_skipped += 1  # primed
 				if verbose:
 					verbose.debug("quantum", "primed", "L incoming %s→%s (waiting for axis)" % [src_emoji, receiver_emoji])
 				continue
 			if emitted.has(src_emoji + "→" + receiver_emoji):
 				continue  # outgoing/decay already covered this pair
-			var src_q = register_map.qubit(src_emoji)
-			var src_p = register_map.pole(src_emoji)
 			var rate = float(incoming[src_emoji]) * _get_rate_scale()
 			var amp = Complex.new(sqrt(abs(rate)), 0.0)
-			operators.append(_build_jump(src_q, src_p, receiver_q, receiver_p, amp, num_qubits))
+			for sc in in_src_coords:
+				for tc in receiver_coords:
+					operators.append(_build_jump(int(sc["qubit"]), int(sc["pole"]), int(tc["qubit"]), int(tc["pole"]), amp, num_qubits))
 			stats.incoming_added += 1
 			src_atoms[src_emoji] = true
 			dst_atoms[receiver_emoji] = true

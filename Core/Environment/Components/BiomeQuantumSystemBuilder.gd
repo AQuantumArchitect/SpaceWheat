@@ -34,7 +34,9 @@ func expand_quantum_system(north_emoji: String, south_emoji: String) -> Dictiona
 	# Adds a new qubit axis to the quantum system, rebuilds Hamiltonian and
 	# Lindblad operators with coupling terms from the faction/icon system.
 
-	# Rejects if EITHER emoji is already in the biome (prevents axis conflicts).
+	# Duplicate emojis are LEGAL (owner ruling): injecting an axis whose labels
+	# already exist in the biome creates a degenerate instance on a new qubit.
+	# The builders map icon physics onto every instance (degenerate coupling).
 
 	# Args:
 	# north_emoji: North pole emoji (|0> basis state)
@@ -53,20 +55,6 @@ func expand_quantum_system(north_emoji: String, south_emoji: String) -> Dictiona
 			"success": false,
 			"error": "no_quantum_computer",
 			"message": "Biome has no quantum computer to expand"
-		}
-
-	# 2. Reject if EITHER emoji already exists (prevents axis conflicts)
-	if quantum_computer.register_map.has(north_emoji):
-		return {
-			"success": false,
-			"error": "emoji_conflict",
-			"message": "Emoji %s already exists in this biome" % north_emoji
-		}
-	if quantum_computer.register_map.has(south_emoji):
-		return {
-			"success": false,
-			"error": "emoji_conflict",
-			"message": "Emoji %s already exists in this biome" % south_emoji
 		}
 
 	# 5. Record old dimension

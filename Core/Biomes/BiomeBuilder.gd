@@ -289,12 +289,18 @@ static func _build_viz_metadata(emoji_pairs: Array, _biome_def) -> Dictionary:
 		var north: String = str(pair.get("north", ""))
 		var south: String = str(pair.get("south", ""))
 		metadata.axes[i] = {"north": north, "south": south}
-		metadata.emoji_to_qubit[north] = i
-		metadata.emoji_to_qubit[south] = i
-		metadata.emoji_to_pole[north] = 0
-		metadata.emoji_to_pole[south] = 1
-		metadata.emoji_list.append(north)
-		metadata.emoji_list.append(south)
+		# Duplicate emojis are legal: FIRST instance wins the single-answer maps,
+		# matching RegisterMap's primary (lowest-qubit) lookup semantics; per-qubit
+		# truth lives in `axes`. emoji_list holds distinct emojis, like the
+		# register_map.coordinates-driven payload builders.
+		if not metadata.emoji_to_qubit.has(north):
+			metadata.emoji_to_qubit[north] = i
+			metadata.emoji_to_pole[north] = 0
+			metadata.emoji_list.append(north)
+		if not metadata.emoji_to_qubit.has(south):
+			metadata.emoji_to_qubit[south] = i
+			metadata.emoji_to_pole[south] = 1
+			metadata.emoji_list.append(south)
 
 	return metadata
 

@@ -176,7 +176,12 @@ func get_atom_component(emoji: String) -> Dictionary:
 ## this mutation, the next substrate rebuild will pick up the now-satisfied
 ## terms automatically (LindbladBuilder.build_from_atoms filters by basis).
 ##
-## Returns true on success. Returns false (no mutation) on duplicate-atom or
+## Duplicate emojis are LEGAL (owner ruling): the same emoji may appear on
+## several qubits — a shared pole label is degeneracy, not a conflict. The only
+## rejected inputs are empty poles and north == south (one qubit's poles must
+## stay orthogonal).
+##
+## Returns true on success. Returns false (no mutation) on
 ## invalid-input. Caller is responsible for triggering the substrate rebuild
 ## (BiomeBase.expand_quantum_system or equivalent). Drift is detected at
 ## tick time by `BiomeBase._check_for_orphan_atoms`, which fires a warning
@@ -186,8 +191,6 @@ func add_atom_pair(north: String, south: String, icon_name: String = "") -> bool
 	if north == "" or south == "":
 		return false
 	if north == south:
-		return false
-	if north in emojis or south in emojis:
 		return false
 
 	emojis.append(north)
@@ -218,14 +221,16 @@ func validate() -> bool:
 		if p0 == "" or p1 == "":
 			push_error("Biome %s: icon %s missing poles" % [name, icon.get("name","?")])
 			valid = false
-
-	var seen_emojis: Dictionary = {}
-	for emoji in emojis:
-		if seen_emojis.has(emoji):
-			push_error("Biome %s: duplicate emoji %s in emojis list" % [name, emoji])
+		elif p0 == p1:
+			# One qubit's poles must stay orthogonal — same label on both poles
+			# of ONE axis is malformed (cross-qubit duplicates are fine).
+			push_error("Biome %s: icon %s has identical poles %s" % [name, icon.get("name","?"), p0])
 			valid = false
-		else:
-			seen_emojis[emoji] = true
+
+	# Duplicate emojis in the list are LEGAL (degenerate pole labels across
+	# qubits) — no uniqueness validation. The only per-icon orthogonality rule
+	# (pole_0 != pole_1 on ONE qubit) is enforced at registration time
+	# (RegisterMap.register_axis asserts, add_atom_pair rejects).
 
 	# atom_components keys should normally be declared emojis. This is a WARNING, not an error
 	# (unlike missing icon poles above, which is malformed) because an auxiliary/primed term may

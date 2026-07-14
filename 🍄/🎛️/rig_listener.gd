@@ -1453,11 +1453,19 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				result["diag_spread"] = (dmax - dmin) if (dmax != -INF and dmin != INF) else 0.0
 
 		"inject_icon":
+			# Optional north/south pick a SPECIFIC icon pair (duplicates are legal:
+			# re-injecting a pair already in the biome adds a degenerate instance).
+			# Without them, the instrument auto-picks as before.
 			var biome_name = str(cmd.get("biome", ""))
-			if biome_name != "":
-				result["inject_result"] = _instrument.action_inject_icon(biome_name)
-			else:
+			var inj_north := str(cmd.get("north", ""))
+			var inj_south := str(cmd.get("south", ""))
+			if biome_name == "":
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "missing_biome"}
+			elif inj_north != "" and inj_south != "":
+				result["inject_result"] = _instrument.action_inject_icon_pair(
+					biome_name, {"north": inj_north, "south": inj_south})
+			else:
+				result["inject_result"] = _instrument.action_inject_icon(biome_name)
 
 		"consume_berry":
 			var cb_biome_name: String = str(cmd.get("biome", "StarterForest"))
@@ -1678,7 +1686,10 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 		"probe_cycle":
 			var biome_name = str(cmd.get("biome", ""))
 			var full_probe = bool(cmd.get("full", false))
-			var probe_data = _instrument.probe_cycle(biome_name)
+			# Optional register targets a specific plot (plot_idx ≡ register_id) —
+			# lets probes measure EACH instance of a duplicated axis.
+			var probe_register := int(cmd.get("register", -1))
+			var probe_data = _instrument.probe_cycle(biome_name, probe_register)
 			result["probe"] = probe_data if full_probe else _slim_probe_result(probe_data)
 			if _snapshot_service and _snapshot_service.has_method("show_probe_cycle_status"):
 				_snapshot_service.show_probe_cycle_status(biome_name, probe_data)

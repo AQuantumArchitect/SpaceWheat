@@ -100,48 +100,69 @@ static func build_from_icons(icons: Array, register_map: RegisterMap,
 	if verbose:
 		verbose.info("quantum", "🔨", "Building H from %d icons (%dD)" % [icons.size(), dim])
 
+	# Duplicate emojis are legal: the same icon axis may live on several qubits
+	# (degeneracy). Each UNIQUE icon is applied once per instance-qubit, and
+	# cross couplings fan out to EVERY instance of the target emoji. Callers
+	# often pass one Icon per qubit, so a duplicated axis appears twice in
+	# `icons` — dedupe by pole pair to avoid double-stamping the physics.
+	var seen_pairs: Dictionary = {}
 	for icon in icons:
 		if not register_map.has(icon.pole_0) or not register_map.has(icon.pole_1):
 			stats.skipped += 1
 			continue
-		var q = register_map.qubit(icon.pole_0)
+		var pair_key: String = "%s|%s" % [icon.pole_0, icon.pole_1]
+		if seen_pairs.has(pair_key):
+			continue
+		seen_pairs[pair_key] = true
 
-		# σ_z self-energies (diagonal)
+		# Every qubit carrying exactly this axis (degenerate instances).
+		var source_qubits: Array = register_map.qubits_with_axis(icon.pole_0, icon.pole_1)
+		if source_qubits.is_empty():
+			# Legacy shape: poles registered but not as one axis — keep the
+			# historical primary-instance behavior.
+			source_qubits = [register_map.qubit(icon.pole_0)]
+
 		var e0 := _get_pole_energy(icon, 0, time)
 		var e1 := _get_pole_energy(icon, 1, time)
-		if abs(e0) > 1e-10:
-			_add_self_energy(H, q, 0, Complex.new(e0, 0.0), num_qubits)
-			stats.self_energies += 1
-		if abs(e1) > 1e-10:
-			_add_self_energy(H, q, 1, Complex.new(e1, 0.0), num_qubits)
-			stats.self_energies += 1
-
-		# σ_x rabi coupling (off-diagonal, pole_0 ↔ pole_1 on same qubit)
-		if abs(icon.rabi_coupling) > 1e-10:
-			_add_coupling(H, q, 0, q, 1, Complex.new(icon.rabi_coupling * h_scale, 0.0), num_qubits)
-			stats.rabi += 1
-
-		# Cross-icon couplings (both poles of source → target pole)
 		var cross_couplings := _get_cross_couplings(icon)
-		for target in cross_couplings:
-			if not register_map.has(target):
-				stats.skipped += 1
-				continue
-			var tq = register_map.qubit(target)
-			var tp = register_map.pole(target)
-			var v = cross_couplings[target]
-			var c: Complex
-			if v is Vector2:
-				c = Complex.new(v.x, v.y)
-			elif v is Complex:
-				c = v
-			else:
-				c = Complex.new(float(v), 0.0)
-			if h_scale != 1.0:
-				c = Complex.new(c.re * h_scale, c.im * h_scale)
-			_add_coupling(H, q, 0, tq, tp, c, num_qubits)
-			_add_coupling(H, q, 1, tq, tp, c, num_qubits)
-			stats.cross += 1
+
+		for q in source_qubits:
+			# σ_z self-energies (diagonal)
+			if abs(e0) > 1e-10:
+				_add_self_energy(H, q, 0, Complex.new(e0, 0.0), num_qubits)
+				stats.self_energies += 1
+			if abs(e1) > 1e-10:
+				_add_self_energy(H, q, 1, Complex.new(e1, 0.0), num_qubits)
+				stats.self_energies += 1
+
+			# σ_x rabi coupling (off-diagonal, pole_0 ↔ pole_1 on same qubit)
+			if abs(icon.rabi_coupling) > 1e-10:
+				_add_coupling(H, q, 0, q, 1, Complex.new(icon.rabi_coupling * h_scale, 0.0), num_qubits)
+				stats.rabi += 1
+
+			# Cross-icon couplings (both poles of source → target pole).
+			# Degenerate coupling: apply to ALL instances of the target emoji.
+			for target in cross_couplings:
+				var target_coords: Array = register_map.all_coordinates_for(target)
+				if target_coords.is_empty():
+					stats.skipped += 1
+					continue
+				var v = cross_couplings[target]
+				var c: Complex
+				if v is Vector2:
+					c = Complex.new(v.x, v.y)
+				elif v is Complex:
+					c = v
+				else:
+					c = Complex.new(float(v), 0.0)
+				if h_scale != 1.0:
+					c = Complex.new(c.re * h_scale, c.im * h_scale)
+				for tcoord in target_coords:
+					var tq: int = int(tcoord["qubit"])
+					var tp: int = int(tcoord["pole"])
+					_add_coupling(H, q, 0, tq, tp, c, num_qubits)
+					_add_coupling(H, q, 1, tq, tp, c, num_qubits)
+					stats.cross += 1
 
 	H = _hermitianize(H)
 
@@ -158,23 +179,34 @@ static func build_from_icons(icons: Array, register_map: RegisterMap,
 ## Returns array of driver dicts for set_driven_icons().
 static func get_driven_icons(icons: Array, register_map: RegisterMap) -> Array:
 	var driven := []
+	var seen_pairs: Dictionary = {}
 	for icon in icons:
 		var driver := _get_driver_dict(icon)
 		if driver.is_empty() or not driver.has("type"):
 			continue
 		if not register_map.has(icon.pole_0):
 			continue
-		driven.append({
-			"emoji": icon.pole_0,
-			"qubit": register_map.qubit(icon.pole_0),
-			"pole": 0,
-			"icon_ref": icon,
-			"driver_type": str(driver.get("type", "")),
-			"base_energy": _get_pole_energy(icon, 0, 0.0),
-			"freq": float(driver.get("freq", 0.0)),
-			"phase": float(driver.get("phase", 0.0)),
-			"amp": float(driver.get("amp", 1.0)),
-		})
+		# Dedupe by pole pair, then emit one driver per degenerate instance —
+		# every qubit carrying this axis gets driven (matches build_from_icons).
+		var pair_key: String = "%s|%s" % [icon.pole_0, icon.pole_1]
+		if seen_pairs.has(pair_key):
+			continue
+		seen_pairs[pair_key] = true
+		var driven_qubits: Array = register_map.qubits_with_axis(icon.pole_0, icon.pole_1)
+		if driven_qubits.is_empty():
+			driven_qubits = [register_map.qubit(icon.pole_0)]
+		for q in driven_qubits:
+			driven.append({
+				"emoji": icon.pole_0,
+				"qubit": q,
+				"pole": 0,
+				"icon_ref": icon,
+				"driver_type": str(driver.get("type", "")),
+				"base_energy": _get_pole_energy(icon, 0, 0.0),
+				"freq": float(driver.get("freq", 0.0)),
+				"phase": float(driver.get("phase", 0.0)),
+				"amp": float(driver.get("amp", 1.0)),
+			})
 	return driven
 
 

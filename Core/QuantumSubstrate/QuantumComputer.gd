@@ -1024,12 +1024,18 @@ func get_marginal(qubit_index: int, pole_value: int) -> float:
 
 func get_population(emoji: String) -> float:
 	# Get probability of emoji state via RegisterMap lookup.
+	#
+	# Duplicate emojis are legal (degenerate pole labels): the population of an
+	# emoji is the SUM of its marginals across every instance — "how much of
+	# this stuff is here" is the physical answer for degenerate levels. With a
+	# single instance this reduces to the plain marginal. Note the sum can
+	# exceed 1.0 when duplicated; consumers that need a probability clamp.
 
 	# Args:
 	# emoji: Emoji to query (must be registered)
 
 	# Returns:
-	# P(emoji) in [0, 1]
+	# Σ_instances P(instance) — in [0, 1] for a unique emoji
 
 	# Example:
 	# get_population("🔥")  # Returns P(qubit 0 = north)
@@ -1037,9 +1043,10 @@ func get_population(emoji: String) -> float:
 		# Unregistered emojis have 0 probability - no warning needed
 		return 0.0
 
-	var q = register_map.qubit(emoji)
-	var p = register_map.pole(emoji)
-	return get_marginal(q, p)
+	var total := 0.0
+	for coord in register_map.all_coordinates_for(emoji):
+		total += get_marginal(int(coord["qubit"]), int(coord["pole"]))
+	return total
 
 
 func get_all_populations() -> Dictionary:
@@ -1050,6 +1057,8 @@ func get_all_populations() -> Dictionary:
 
 	# Example:
 	# {"🔥": 0.7, "❄️": 0.3, "💧": 0.5, "🏜️": 0.5}
+	# Keys are DISTINCT emojis; a duplicated emoji contributes ONE entry whose
+	# value is the summed marginal over all its instances (see get_population).
 	var populations: Dictionary = {}
 
 	if register_map == null:
@@ -1080,20 +1089,13 @@ func get_basis_state_probabilities() -> Array:
 	if dim > 1024:  # > 10 qubits — too large to enumerate
 		return result
 
-	# Build qubit axis labels (north/south emojis per qubit)
+	# Build qubit axis labels (north/south emojis per qubit) straight from the
+	# axes table — duplicate-safe (an emoji scan would only find the primary
+	# instance and leave degenerate qubits unlabeled).
 	var axes: Array = []  # [{north: emoji, south: emoji}, ...]
 	for qi in range(num_qubits):
-		var north = ""
-		var south = ""
-		for emoji in register_map.coordinates.keys():
-			var q = register_map.qubit(emoji)
-			var p = register_map.pole(emoji)
-			if q == qi:
-				if p == 0:
-					north = emoji
-				else:
-					south = emoji
-		axes.append({"north": north, "south": south})
+		var ax: Dictionary = register_map.axis(qi)
+		axes.append({"north": str(ax.get("north", "")), "south": str(ax.get("south", ""))})
 
 	# Read diagonal and build labels
 	for i in range(dim):
@@ -1111,7 +1113,7 @@ func get_basis_state_probabilities() -> Array:
 	return result
 
 
-func measure_axis(north_emoji: String, south_emoji: String) -> String:
+func measure_axis(north_emoji: String, south_emoji: String, register_hint: int = -1) -> String:
 	# Projective measurement on a north/south emoji axis.
 
 	# Model C measurement: samples from Born probabilities and collapses state.
@@ -1119,22 +1121,35 @@ func measure_axis(north_emoji: String, south_emoji: String) -> String:
 	# Args:
 	# north_emoji: North pole emoji (e.g., "🌾")
 	# south_emoji: South pole emoji (e.g., "🍄")
+	# register_hint: qubit index to measure. REQUIRED to disambiguate when the
+	#   axis labels are duplicated across qubits; without it the primary
+	#   (lowest-qubit) instance is measured.
 
 	# Returns:
 	# Measured emoji (north_emoji or south_emoji), or "" on error
-	if not register_map.has(north_emoji) or not register_map.has(south_emoji):
-		push_warning("⚠️ Emoji axis not registered: %s/%s" % [north_emoji, south_emoji])
-		return ""
+	var qubit_idx: int = -1
+	if register_hint >= 0:
+		var hinted_axis: Dictionary = register_map.axis(register_hint)
+		if str(hinted_axis.get("north", "")) == north_emoji and str(hinted_axis.get("south", "")) == south_emoji:
+			qubit_idx = register_hint
+		else:
+			push_warning("⚠️ measure_axis hint q%d does not carry axis %s/%s — falling back to primary instance" % [
+				register_hint, north_emoji, south_emoji])
 
-	var q_north = register_map.qubit(north_emoji)
-	var q_south = register_map.qubit(south_emoji)
+	if qubit_idx < 0:
+		if not register_map.has(north_emoji) or not register_map.has(south_emoji):
+			push_warning("⚠️ Emoji axis not registered: %s/%s" % [north_emoji, south_emoji])
+			return ""
 
-	if q_north != q_south:
-		push_warning("⚠️ Emojis not on same qubit: %s (q%d) / %s (q%d)" % [
-			north_emoji, q_north, south_emoji, q_south])
-		return ""
+		var q_north = register_map.qubit(north_emoji)
+		var q_south = register_map.qubit(south_emoji)
 
-	var qubit_idx = q_north
+		if q_north != q_south:
+			push_warning("⚠️ Emojis not on same qubit: %s (q%d) / %s (q%d)" % [
+				north_emoji, q_north, south_emoji, q_south])
+			return ""
+
+		qubit_idx = q_north
 	var p_north = get_marginal(qubit_idx, 0)  # pole 0 = north
 	var p_south = get_marginal(qubit_idx, 1)  # pole 1 = south
 	var p_total = p_north + p_south

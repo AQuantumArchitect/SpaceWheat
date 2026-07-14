@@ -643,10 +643,8 @@ func action_inject_icon_pair(biome_name: String, icon: Dictionary) -> Dictionary
 	var south_emoji = str(icon.get("south", ""))
 	if north_emoji == "" or south_emoji == "" or north_emoji == south_emoji:
 		return {"success": false, "error": "invalid_icon", "message": "Invalid icon"}
-	if biome.viz_cache.get_qubit(north_emoji) >= 0:
-		return {"success": false, "error": "already_in_biome", "message": "%s already in biome" % north_emoji}
-	if biome.viz_cache.get_qubit(south_emoji) >= 0:
-		return {"success": false, "error": "already_in_biome", "message": "%s already in biome" % south_emoji}
+	# Duplicate emojis are legal: re-injecting an icon already in the biome
+	# creates a degenerate instance on a new qubit (no already_in_biome gate).
 
 	var qubit_count = biome.get_total_register_count() if biome.has_method("get_total_register_count") else 0
 	var max_qubits = _get_max_biome_qubits()
@@ -1312,7 +1310,10 @@ func time_skip(phrames: int, delta: float = -1.0) -> Dictionary:
 # COMPOUND ACTIONS (unified from MilkHunterBridge + rig_listener)
 # ============================================================================
 
-func probe_cycle(biome_name: String) -> Dictionary:
+func probe_cycle(biome_name: String, register_id: int = -1) -> Dictionary:
+	# register_id >= 0 targets a SPECIFIC register (plot_idx ≡ register_id) —
+	# needed to probe each instance of a duplicated axis; -1 keeps the
+	# first-unbound default.
 	if not farm or not terminal_pool:
 		return {"success": false, "error": "no_terminal_pool"}
 	var economy = _get_economy()
@@ -1325,7 +1326,7 @@ func probe_cycle(biome_name: String) -> Dictionary:
 	_notify_autoload("ActiveBiomeManager", "set_active_biome", [biome_name])
 	_notify_autoload("ObservationFrame", "set_neutral_biome", [biome_name])
 
-	var explore = ProbeActions.action_explore(terminal_pool, biome, economy)
+	var explore = ProbeActions.action_explore(terminal_pool, biome, economy, register_id)
 	if not explore.get("success", false):
 		var explore_fail = {"success": false, "stage": "explore", "details": explore}
 		return explore_fail
@@ -1931,30 +1932,32 @@ func _resolve_terminal_for_harvest(grid_pos: Vector2i) -> RefCounted:
 
 
 func _pick_injectable_icon(icons: Array, biome) -> Dictionary:
+	# Soft preference, not a gate: auto-inject picks an icon NOT yet in the
+	# biome when one exists, but duplicates are legal — if every known icon is
+	# already present, re-inject one as a degenerate instance.
+	var fallback: Dictionary = {}
 	for i in range(icons.size() - 1, -1, -1):
 		var icon = icons[i]
 		var north = icon.get("north", "")
 		var south = icon.get("south", "")
 		if north == "" or south == "":
 			continue
+		if fallback.is_empty():
+			fallback = {"north": north, "south": south}
 		if biome.viz_cache and biome.viz_cache.has_metadata() and biome.viz_cache.get_qubit(north) >= 0:
 			continue
 		if biome.viz_cache and biome.viz_cache.has_metadata() and biome.viz_cache.get_qubit(south) >= 0:
 			continue
 		return {"north": north, "south": south}
-	return {}
+	return fallback
 
 
 func _get_icon_for_qubit(register_map, qubit_index: int) -> Dictionary:
-	var north = ""
-	var south = ""
-	for emoji in register_map.coordinates.keys():
-		var coord = register_map.coordinates[emoji]
-		if coord.qubit == qubit_index:
-			if coord.pole == 0:
-				north = emoji
-			else:
-				south = emoji
+	# Read the axes table directly — duplicate-safe (a coordinates scan only
+	# sees the primary instance of each emoji, missing degenerate qubits).
+	var ax: Dictionary = register_map.axis(qubit_index)
+	var north: String = str(ax.get("north", ""))
+	var south: String = str(ax.get("south", ""))
 	if north != "" and south != "":
 		return {"north": north, "south": south}
 	return {}
@@ -1989,13 +1992,12 @@ func _shrink_quantum_system(biome, qubit_to_remove: int, icon: Dictionary) -> Di
 	var old_dim = rm.dim()
 	var old_num_qubits = rm.num_qubits
 
-	rm.coordinates.erase(north)
-	rm.coordinates.erase(south)
-
 	if qc.density_matrix:
 		qc.density_matrix = _trace_out_qubit(qc.density_matrix, qubit_to_remove, old_num_qubits)
 
-	_reindex_register_map_after_removal(rm, qubit_to_remove, old_num_qubits)
+	# RegisterMap owns removal + reindex: only THIS qubit's instance disappears;
+	# degenerate duplicates of the same emojis on other qubits survive.
+	rm.remove_qubit(qubit_to_remove)
 	_reindex_entanglement_graph(qc, qubit_to_remove)
 	_rebuild_operators_after_shrink(biome)
 
@@ -2044,25 +2046,6 @@ func _insert_bit(index: int, bit_position: int, bit_value: int, _num_bits: int) 
 	var low_mask = (1 << bit_position) - 1
 	var low_bits = index & low_mask
 	return high_bits | (bit_value << bit_position) | low_bits
-
-
-func _reindex_register_map_after_removal(register_map, removed_qubit: int, old_num_qubits: int) -> void:
-	var updated_axes: Dictionary = {}
-	for emoji in register_map.coordinates.keys():
-		var coord = register_map.coordinates[emoji]
-		var qubit_index = coord.get("qubit", -1)
-		if qubit_index > removed_qubit:
-			coord["qubit"] = qubit_index - 1
-			register_map.coordinates[emoji] = coord
-			qubit_index -= 1
-		if not updated_axes.has(qubit_index):
-			updated_axes[qubit_index] = {"north": "", "south": ""}
-		if coord.get("pole", 0) == 0:
-			updated_axes[qubit_index]["north"] = emoji
-		else:
-			updated_axes[qubit_index]["south"] = emoji
-	register_map.axes = updated_axes
-	register_map.num_qubits = max(old_num_qubits - 1, 0)
 
 
 func _reindex_entanglement_graph(quantum_computer, removed_qubit: int) -> void:
@@ -2190,7 +2173,9 @@ func _collect_known_icons(farm_ref) -> Array:
 		return farm_ref.get_known_icons()
 	return []
 
-func _collect_injectable_icons(farm_ref, biome = null) -> Array:
+func _collect_injectable_icons(farm_ref, _biome = null) -> Array:
+	# Known icons stay plantable even when already in the biome — duplicate
+	# emojis are legal (degenerate instances), so there is no presence filter.
 	var known = _collect_known_icons(farm_ref)
 	var filtered: Array = []
 	var seen: Dictionary = {}
@@ -2201,9 +2186,6 @@ func _collect_injectable_icons(farm_ref, biome = null) -> Array:
 		var south = str(icon.get("south", ""))
 		if north == "" or south == "" or north == south:
 			continue
-		if biome and biome.viz_cache and biome.viz_cache.has_metadata():
-			if biome.viz_cache.get_qubit(north) >= 0 or biome.viz_cache.get_qubit(south) >= 0:
-				continue
 		var key = "%s|%s" % [north, south]
 		if seen.has(key):
 			continue

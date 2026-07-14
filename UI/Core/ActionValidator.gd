@@ -416,11 +416,8 @@ static func _can_execute_icon_assign(farm, selected_plots: Array[Vector2i], acti
 	if _get_qubit_count(biome) >= ActionCostRuntime.get_max_biome_qubits(farm):
 		return false
 
-	if biome.viz_cache and biome.viz_cache.has_metadata() and biome.viz_cache.get_qubit(north) >= 0:
-		return false
-	if biome.viz_cache and biome.viz_cache.has_metadata() and biome.viz_cache.get_qubit(south) >= 0:
-		return false
-
+	# Duplicate emojis are legal: an icon already in the biome can be injected
+	# again as a degenerate instance — no presence gate.
 	return true
 static func _can_execute_remove_icon(farm, current_selection: Vector2i) -> bool:
 	# Check if there is at least 2 qubits (minimum to remove one) and player can afford it.
@@ -483,7 +480,9 @@ static func _collect_known_icons(farm_ref) -> Array:
 	return []
 
 
-static func _collect_injectable_icons(farm_ref, biome = null) -> Array:
+static func _collect_injectable_icons(farm_ref, _biome = null) -> Array:
+	# Known icons stay plantable even when already in the biome — duplicate
+	# emojis are legal (degenerate instances), so there is no presence filter.
 	var known = _collect_known_icons(farm_ref)
 	var filtered: Array = []
 	var seen: Dictionary = {}
@@ -494,9 +493,6 @@ static func _collect_injectable_icons(farm_ref, biome = null) -> Array:
 		var south = str(icon.get("south", ""))
 		if north == "" or south == "" or north == south:
 			continue
-		if biome and biome.viz_cache and biome.viz_cache.has_metadata():
-			if biome.viz_cache.get_qubit(north) >= 0 or biome.viz_cache.get_qubit(south) >= 0:
-				continue
 		var key = "%s|%s" % [north, south]
 		if seen.has(key):
 			continue

@@ -36,7 +36,9 @@ var plot_position: Vector2i = Vector2i.ZERO
 func _get_marginal_from_computer() -> Dictionary:
 	# Query marginal from parent biome's quantum computer.
 
-	# Model C: Uses get_population() and get_coherence() directly.
+	# Duplicate emojis are legal, so a lens with a register_id reads ITS OWN
+	# qubit's marginals/coherence (emoji lookups would alias the primary
+	# instance and, for populations, sum across all degenerate instances).
 	if not parent_biome:
 		return {}
 
@@ -44,8 +46,27 @@ func _get_marginal_from_computer() -> Dictionary:
 	if not qc:
 		return {}
 
-	# Model C: Use RegisterMap-based queries
-	if qc.density_matrix != null and north_emoji != "" and south_emoji != "":
+	if qc.density_matrix == null:
+		return {}
+
+	# Register-first path: exact per-qubit view.
+	if register_id >= 0 and qc.has_method("get_marginal"):
+		var pr0 = qc.get_marginal(register_id, 0)
+		var pr1 = qc.get_marginal(register_id, 1)
+		var coh_r = Complex.zero()
+		if qc.has_method("get_marginal_density_matrix"):
+			var rho_sub = qc.get_marginal_density_matrix(null, register_id)
+			if rho_sub and rho_sub.n >= 2:
+				coh_r = rho_sub.get_element(0, 1)
+		return {
+			"p_north": pr0,
+			"p_south": pr1,
+			"coherence": coh_r if coh_r else Complex.zero(),
+			"p_subspace": pr0 + pr1
+		}
+
+	# Legacy emoji path (no register binding): primary-instance semantics.
+	if north_emoji != "" and south_emoji != "":
 		var p0 = qc.get_population(north_emoji) if qc.has_method("get_population") else 0.5
 		var p1 = qc.get_population(south_emoji) if qc.has_method("get_population") else 0.5
 		var coh = qc.get_coherence(north_emoji, south_emoji) if qc.has_method("get_coherence") else Complex.zero()
@@ -277,11 +298,13 @@ func get_coherence() -> float:
 ## Measure qubit in {north, south} basis
 ## Collapses the quantum state and returns the outcome (MEASURE operation)
 func measure() -> String:
-	# Model C: Measure via parent_biome's quantum computer
+	# Model C: Measure via parent_biome's quantum computer.
+	# register_id disambiguates which instance collapses when the same axis
+	# labels are duplicated across qubits.
 	if parent_biome and north_emoji != "" and south_emoji != "":
 		var qc = parent_biome.quantum_computer
 		if qc and qc.has_method("measure_axis"):
-			var outcome_emoji = qc.measure_axis(north_emoji, south_emoji)
+			var outcome_emoji = qc.measure_axis(north_emoji, south_emoji, register_id)
 			return "north" if outcome_emoji == north_emoji else "south"
 
 	push_warning("DualEmojiQubit.measure(): No quantum computer reference")
@@ -321,11 +344,12 @@ func batch_measure() -> Dictionary:
 	# Returns:
 	# Dictionary mapping qubit positions to outcomes
 	# For single qubit: returns self outcome in {"0": outcome} format
-	# Model C: Measure this qubit via measure_axis
+	# Model C: Measure this qubit via measure_axis (register_id picks the
+	# instance when axis labels are duplicated across qubits)
 	if parent_biome and north_emoji != "" and south_emoji != "":
 		var qc = parent_biome.quantum_computer
 		if qc and qc.has_method("measure_axis"):
-			var outcome_emoji = qc.measure_axis(north_emoji, south_emoji)
+			var outcome_emoji = qc.measure_axis(north_emoji, south_emoji, register_id)
 			var outcome = "north" if outcome_emoji == north_emoji else "south"
 			return {"0": outcome}
 
