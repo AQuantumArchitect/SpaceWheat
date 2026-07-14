@@ -1297,7 +1297,10 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				for qi in range(vb_n):
 					var cache_z: float = float(vb_biome.viz_cache.get_bloch(qi).get("z", 999.0)) if vb_biome.viz_cache else 999.0
 					var live_z: float = live_packet[qi * 9 + 4] if live_packet.size() > qi * 9 + 4 else 999.0
-					per.append({"qubit": qi, "cache_z": cache_z, "live_z": live_z})
+					var live_x: float = live_packet[qi * 9 + 2] if live_packet.size() > qi * 9 + 4 else 999.0
+					var live_y: float = live_packet[qi * 9 + 3] if live_packet.size() > qi * 9 + 4 else 999.0
+					var live_r: float = live_packet[qi * 9 + 5] if live_packet.size() > qi * 9 + 5 else 999.0
+					per.append({"qubit": qi, "cache_z": cache_z, "live_z": live_z, "live_x": live_x, "live_y": live_y, "live_r": live_r})
 				result["qubits"] = per
 
 		"berry_state":
@@ -1451,6 +1454,30 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				result["diag_min"] = dmin if dmin != INF else 0.0
 				result["diag_max"] = dmax if dmax != -INF else 0.0
 				result["diag_spread"] = (dmax - dmin) if (dmax != -INF and dmin != INF) else 0.0
+				# Per-qubit involvement: partition off-diagonal weight by which qubit
+				# bits flip between |i> and |j>. A qubit with ~0 everywhere is inert:
+				# no precession, no Berry winding, un-ripenable.
+				var hs_nq: int = 0
+				var probe_dim: int = hs_n
+				while probe_dim > 1:
+					probe_dim >>= 1
+					hs_nq += 1
+				var per_qubit: Array = []
+				for q in range(hs_nq):
+					per_qubit.append(0.0)
+				for i in range(hs_n):
+					for j in range(hs_n):
+						if i == j:
+							continue
+						var mag2: float = H.get_element(i, j).abs()
+						var diff: int = i ^ j
+						for q in range(hs_nq):
+							if diff & (1 << q):
+								per_qubit[q] += mag2 * mag2
+				var per_out: Array = []
+				for q in range(hs_nq):
+					per_out.append(sqrt(per_qubit[q]))
+				result["offdiag_norm_per_bit"] = per_out
 
 		"inject_icon":
 			# Optional north/south pick a SPECIFIC icon pair (duplicates are legal:

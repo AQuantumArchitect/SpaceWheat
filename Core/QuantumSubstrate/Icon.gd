@@ -104,13 +104,16 @@ func get_self_energy(time: float) -> float:
 
 ## Get effective self-energy for a given pole at time.
 func get_pole_energy(pole: int, time: float) -> float:
+	# Pair icons (either pair-axis field nonzero) are authoritative per pole —
+	# INCLUDING a legitimate 0.0 (e.g. Burn 🔥/🍂 se0=0.35, se1=0). The old
+	# "0.0 means unset" fallback substituted se0 for a zero se1, silently
+	# symmetrizing the axis: the σz term vanished, so a Hadamard landed the
+	# Bloch vector exactly on the bare-σx eigenaxis and the qubit froze —
+	# Berry-phase ripening could never start (frozen-physics sentinel bomb).
+	# Legacy single-value icons (both pair fields zero) keep using self_energy.
 	var base = self_energy
-	if pole == 0 and self_energy_0 != 0.0:
-		base = self_energy_0
-	elif pole == 1 and self_energy_1 != 0.0:
-		base = self_energy_1
-	elif base == 0.0 and self_energy_0 != 0.0:
-		base = self_energy_0
+	if self_energy_0 != 0.0 or self_energy_1 != 0.0:
+		base = self_energy_0 if pole == 0 else self_energy_1
 
 	match self_energy_driver:
 		"cosine":
