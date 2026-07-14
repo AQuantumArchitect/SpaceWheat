@@ -1,0 +1,1300 @@
+{
+ "gauge": {
+  "_fiber_override": {
+   "bloch": {},
+   "purity": {},
+   "roles": []
+  },
+  "_fiber_skill": {
+   "bloch": {
+    "_param_game_cadence_attack": [
+     0.0,
+     0.0,
+     0.5
+    ],
+    "_param_game_cadence_busy_ref": [
+     0.0,
+     0.0,
+     -0.627119
+    ],
+    "_param_game_cadence_dormancy_window_s": [
+     0.0,
+     0.0,
+     -0.684211
+    ],
+    "_param_game_cadence_fast_s": [
+     0.0,
+     0.0,
+     -0.836735
+    ],
+    "_param_game_cadence_k_max": [
+     0.0,
+     0.0,
+     0.111111
+    ],
+    "_param_game_cadence_l_ref": [
+     0.0,
+     0.0,
+     -0.917999
+    ],
+    "_param_game_cadence_release": [
+     0.0,
+     0.0,
+     -0.627119
+    ],
+    "_param_game_cadence_slow_s": [
+     0.0,
+     0.0,
+     -0.73913
+    ],
+    "_param_game_cadence_throughput_mult": [
+     0.0,
+     0.0,
+     -0.2
+    ],
+    "_param_game_cadence_w_demand": [
+     0.0,
+     0.0,
+     -0.333333
+    ],
+    "_param_game_cadence_w_dorm": [
+     0.0,
+     0.0,
+     -0.3
+    ],
+    "_param_game_cadence_w_lag": [
+     0.0,
+     0.0,
+     -0.6
+    ],
+    "_param_game_cadence_w_lagH": [
+     0.0,
+     0.0,
+     -0.3
+    ],
+    "_param_game_cadence_w_stress": [
+     0.0,
+     0.0,
+     -0.466667
+    ],
+    "_param_game_coast_eps": [
+     0.0,
+     0.0,
+     -0.694915
+    ],
+    "_param_game_dt_factor_max": [
+     0.0,
+     0.0,
+     -0.548387
+    ]
+   },
+   "purity": {
+    "_param_game_cadence_attack": 0.5,
+    "_param_game_cadence_busy_ref": 0.627119,
+    "_param_game_cadence_dormancy_window_s": 0.684211,
+    "_param_game_cadence_fast_s": 0.836735,
+    "_param_game_cadence_k_max": 0.111111,
+    "_param_game_cadence_l_ref": 0.917999,
+    "_param_game_cadence_release": 0.627119,
+    "_param_game_cadence_slow_s": 0.73913,
+    "_param_game_cadence_throughput_mult": 0.2,
+    "_param_game_cadence_w_demand": 0.333333,
+    "_param_game_cadence_w_dorm": 0.3,
+    "_param_game_cadence_w_lag": 0.6,
+    "_param_game_cadence_w_lagH": 0.3,
+    "_param_game_cadence_w_stress": 0.466667,
+    "_param_game_coast_eps": 0.694915,
+    "_param_game_dt_factor_max": 0.548387
+   },
+   "roles": [
+    "_param_game_cadence_attack",
+    "_param_game_cadence_busy_ref",
+    "_param_game_cadence_dormancy_window_s",
+    "_param_game_cadence_fast_s",
+    "_param_game_cadence_k_max",
+    "_param_game_cadence_l_ref",
+    "_param_game_cadence_release",
+    "_param_game_cadence_slow_s",
+    "_param_game_cadence_throughput_mult",
+    "_param_game_cadence_w_demand",
+    "_param_game_cadence_w_dorm",
+    "_param_game_cadence_w_lag",
+    "_param_game_cadence_w_lagH",
+    "_param_game_cadence_w_stress",
+    "_param_game_coast_eps",
+    "_param_game_dt_factor_max"
+   ]
+  },
+  "_fiber_surprise": {
+   "bloch": {
+    "_param_demos_gamma_diss": [
+     0.0,
+     0.0,
+     -0.9946
+    ],
+    "_param_forest_gamma_diss": [
+     0.0,
+     0.0,
+     -0.9946
+    ],
+    "_param_game_bridge_strength": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "_param_game_collapse_rate_ema_alpha": [
+     0.0,
+     0.0,
+     -0.694915
+    ],
+    "_param_game_confidence_threshold": [
+     0.0,
+     0.0,
+     0.6
+    ],
+    "_param_game_driver_alpha": [
+     0.0,
+     0.0,
+     -0.333333
+    ],
+    "_param_game_driver_anticipation_ema": [
+     0.0,
+     0.0,
+     -0.898305
+    ],
+    "_param_game_driver_hebbian_lr": [
+     0.0,
+     0.0,
+     -0.818182
+    ],
+    "_param_game_forecast_ema": [
+     0.0,
+     0.0,
+     -0.898305
+    ],
+    "_param_game_forecast_l2": [
+     0.0,
+     0.0,
+     -0.980198
+    ],
+    "_param_game_forecast_lr": [
+     0.0,
+     0.0,
+     -0.809045
+    ],
+    "_param_game_gamma": [
+     0.0,
+     0.0,
+     -0.672241
+    ],
+    "_param_game_gamma_diss": [
+     0.0,
+     0.0,
+     -0.818182
+    ],
+    "_param_game_hysteresis": [
+     0.0,
+     0.0,
+     -0.632653
+    ],
+    "_param_game_motion_eps": [
+     0.0,
+     0.0,
+     -0.8
+    ],
+    "_param_game_projection_coupling": [
+     0.0,
+     0.0,
+     -0.414141
+    ],
+    "_param_game_sensor_dial_attack": [
+     0.0,
+     0.0,
+     0.666667
+    ],
+    "_param_game_sensor_dial_release": [
+     0.0,
+     0.0,
+     -0.717172
+    ],
+    "_param_game_transition_floor": [
+     0.0,
+     0.0,
+     -0.333333
+    ],
+    "_param_game_wide_nudge_hi": [
+     0.0,
+     0.0,
+     -0.518987
+    ],
+    "_param_game_wide_nudge_lo": [
+     0.0,
+     0.0,
+     -0.058824
+    ],
+    "_param_journey_gamma_diss": [
+     0.0,
+     0.0,
+     -0.9974
+    ],
+    "_param_spring_gamma_diss": [
+     0.0,
+     0.0,
+     -0.9946
+    ],
+    "_param_village_gamma_diss": [
+     0.0,
+     0.0,
+     -0.9946
+    ],
+    "_param_woodlot_gamma_diss": [
+     0.0,
+     0.0,
+     -0.9946
+    ]
+   },
+   "purity": {
+    "_param_demos_gamma_diss": 0.9946,
+    "_param_forest_gamma_diss": 0.9946,
+    "_param_game_bridge_strength": 0.0,
+    "_param_game_collapse_rate_ema_alpha": 0.694915,
+    "_param_game_confidence_threshold": 0.6,
+    "_param_game_driver_alpha": 0.333333,
+    "_param_game_driver_anticipation_ema": 0.898305,
+    "_param_game_driver_hebbian_lr": 0.818182,
+    "_param_game_forecast_ema": 0.898305,
+    "_param_game_forecast_l2": 0.980198,
+    "_param_game_forecast_lr": 0.809045,
+    "_param_game_gamma": 0.672241,
+    "_param_game_gamma_diss": 0.818182,
+    "_param_game_hysteresis": 0.632653,
+    "_param_game_motion_eps": 0.8,
+    "_param_game_projection_coupling": 0.414141,
+    "_param_game_sensor_dial_attack": 0.666667,
+    "_param_game_sensor_dial_release": 0.717172,
+    "_param_game_transition_floor": 0.333333,
+    "_param_game_wide_nudge_hi": 0.518987,
+    "_param_game_wide_nudge_lo": 0.058824,
+    "_param_journey_gamma_diss": 0.9974,
+    "_param_spring_gamma_diss": 0.9946,
+    "_param_village_gamma_diss": 0.9946,
+    "_param_woodlot_gamma_diss": 0.9946
+   },
+   "roles": [
+    "_param_demos_gamma_diss",
+    "_param_forest_gamma_diss",
+    "_param_game_bridge_strength",
+    "_param_game_collapse_rate_ema_alpha",
+    "_param_game_confidence_threshold",
+    "_param_game_driver_alpha",
+    "_param_game_driver_anticipation_ema",
+    "_param_game_driver_hebbian_lr",
+    "_param_game_forecast_ema",
+    "_param_game_forecast_l2",
+    "_param_game_forecast_lr",
+    "_param_game_gamma",
+    "_param_game_gamma_diss",
+    "_param_game_hysteresis",
+    "_param_game_motion_eps",
+    "_param_game_projection_coupling",
+    "_param_game_sensor_dial_attack",
+    "_param_game_sensor_dial_release",
+    "_param_game_transition_floor",
+    "_param_game_wide_nudge_hi",
+    "_param_game_wide_nudge_lo",
+    "_param_journey_gamma_diss",
+    "_param_spring_gamma_diss",
+    "_param_village_gamma_diss",
+    "_param_woodlot_gamma_diss"
+   ]
+  },
+  "_fiber_unlearned": {
+   "bloch": {
+    "_param_game_actuation_silenced": [
+     0.0,
+     0.0,
+     -1.0
+    ],
+    "_param_game_agency_auto_act_enabled": [
+     0.0,
+     0.0,
+     -1.0
+    ],
+    "_param_game_agency_competence_knee": [
+     0.0,
+     0.0,
+     -1.0
+    ],
+    "_param_game_agency_pref_alpha": [
+     0.0,
+     0.0,
+     -1.0
+    ],
+    "_param_game_agency_pref_z": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "_param_game_agency_recommend_z": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "_param_game_agency_tau_days": [
+     0.0,
+     0.0,
+     -0.694915
+    ],
+    "_param_game_anchor_ground_alpha": [
+     0.0,
+     0.0,
+     -0.632653
+    ],
+    "_param_game_attend_hysteresis_scale": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "_param_game_clamp_saturation_target": [
+     0.0,
+     0.0,
+     -0.458333
+    ],
+    "_param_game_classification_target": [
+     0.0,
+     0.0,
+     -0.111111
+    ],
+    "_param_game_collapse_rate_target": [
+     0.0,
+     0.0,
+     -0.632653
+    ],
+    "_param_game_collapse_thresh_lr": [
+     0.0,
+     0.0,
+     -0.632653
+    ],
+    "_param_game_context_actuate": [
+     0.0,
+     0.0,
+     1.0
+    ],
+    "_param_game_context_dt_factor": [
+     0.0,
+     0.0,
+     -1.0
+    ],
+    "_param_game_context_learn": [
+     0.0,
+     0.0,
+     1.0
+    ],
+    "_param_game_context_learn_floor": [
+     0.0,
+     0.0,
+     -0.555556
+    ],
+    "_param_game_context_learn_obs_sigma": [
+     0.0,
+     0.0,
+     -0.25
+    ],
+    "_param_game_context_persist": [
+     0.0,
+     0.0,
+     1.0
+    ],
+    "_param_game_context_surprise_ref": [
+     0.0,
+     0.0,
+     -0.818182
+    ],
+    "_param_game_driver_trust_floor": [
+     0.0,
+     0.0,
+     -0.555556
+    ],
+    "_param_game_dt": [
+     0.0,
+     0.0,
+     -0.818182
+    ],
+    "_param_game_forecast_horizon_min": [
+     0.0,
+     0.0,
+     -0.714286
+    ],
+    "_param_game_hebbian_lr": [
+     0.0,
+     0.0,
+     -0.818182
+    ],
+    "_param_game_hebbian_obs_sigma": [
+     0.0,
+     0.0,
+     -0.052632
+    ],
+    "_param_game_nudge_hi": [
+     0.0,
+     0.0,
+     -0.616162
+    ],
+    "_param_game_nudge_lo": [
+     0.0,
+     0.0,
+     0.22449
+    ],
+    "_param_game_physicality_interval": [
+     0.0,
+     0.0,
+     -0.632653
+    ],
+    "_param_game_snr_white_noise_ref": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "_param_game_step_down": [
+     0.0,
+     0.0,
+     0.803607
+    ],
+    "_param_game_step_down_bold": [
+     0.0,
+     0.0,
+     0.632653
+    ],
+    "_param_game_step_up": [
+     0.0,
+     0.0,
+     -0.901902
+    ],
+    "_param_game_step_up_bold": [
+     0.0,
+     0.0,
+     -0.818182
+    ],
+    "_param_game_substrate_emit_deadband": [
+     0.0,
+     0.0,
+     -0.6
+    ],
+    "_param_game_web_decay": [
+     0.0,
+     0.0,
+     0.15942
+    ],
+    "_param_game_web_floor": [
+     0.0,
+     0.0,
+     -0.809045
+    ],
+    "_param_game_web_grow_threshold": [
+     0.0,
+     0.0,
+     0.066667
+    ],
+    "_param_game_web_grow_value": [
+     0.0,
+     0.0,
+     -0.632653
+    ],
+    "_param_game_web_keep_threshold": [
+     0.0,
+     0.0,
+     -0.5
+    ],
+    "_param_game_web_max_learned": [
+     0.0,
+     0.0,
+     -0.6
+    ],
+    "_param_game_web_min_activity": [
+     0.0,
+     0.0,
+     -0.7
+    ],
+    "_param_game_web_min_samples": [
+     0.0,
+     0.0,
+     -0.6
+    ],
+    "_param_game_web_window": [
+     0.0,
+     0.0,
+     -0.6
+    ]
+   },
+   "purity": {
+    "_param_game_actuation_silenced": 1.0,
+    "_param_game_agency_auto_act_enabled": 1.0,
+    "_param_game_agency_competence_knee": 1.0,
+    "_param_game_agency_pref_alpha": 1.0,
+    "_param_game_agency_pref_z": 0.0,
+    "_param_game_agency_recommend_z": 0.0,
+    "_param_game_agency_tau_days": 0.694915,
+    "_param_game_anchor_ground_alpha": 0.632653,
+    "_param_game_attend_hysteresis_scale": 0.0,
+    "_param_game_clamp_saturation_target": 0.458333,
+    "_param_game_classification_target": 0.111111,
+    "_param_game_collapse_rate_target": 0.632653,
+    "_param_game_collapse_thresh_lr": 0.632653,
+    "_param_game_context_actuate": 1.0,
+    "_param_game_context_dt_factor": 1.0,
+    "_param_game_context_learn": 1.0,
+    "_param_game_context_learn_floor": 0.555556,
+    "_param_game_context_learn_obs_sigma": 0.25,
+    "_param_game_context_persist": 1.0,
+    "_param_game_context_surprise_ref": 0.818182,
+    "_param_game_driver_trust_floor": 0.555556,
+    "_param_game_dt": 0.818182,
+    "_param_game_forecast_horizon_min": 0.714286,
+    "_param_game_hebbian_lr": 0.818182,
+    "_param_game_hebbian_obs_sigma": 0.052632,
+    "_param_game_nudge_hi": 0.616162,
+    "_param_game_nudge_lo": 0.22449,
+    "_param_game_physicality_interval": 0.632653,
+    "_param_game_snr_white_noise_ref": 0.0,
+    "_param_game_step_down": 0.803607,
+    "_param_game_step_down_bold": 0.632653,
+    "_param_game_step_up": 0.901902,
+    "_param_game_step_up_bold": 0.818182,
+    "_param_game_substrate_emit_deadband": 0.6,
+    "_param_game_web_decay": 0.15942,
+    "_param_game_web_floor": 0.809045,
+    "_param_game_web_grow_threshold": 0.066667,
+    "_param_game_web_grow_value": 0.632653,
+    "_param_game_web_keep_threshold": 0.5,
+    "_param_game_web_max_learned": 0.6,
+    "_param_game_web_min_activity": 0.7,
+    "_param_game_web_min_samples": 0.6,
+    "_param_game_web_window": 0.6
+   },
+   "roles": [
+    "_param_game_actuation_silenced",
+    "_param_game_agency_auto_act_enabled",
+    "_param_game_agency_competence_knee",
+    "_param_game_agency_pref_alpha",
+    "_param_game_agency_pref_z",
+    "_param_game_agency_recommend_z",
+    "_param_game_agency_tau_days",
+    "_param_game_anchor_ground_alpha",
+    "_param_game_attend_hysteresis_scale",
+    "_param_game_clamp_saturation_target",
+    "_param_game_classification_target",
+    "_param_game_collapse_rate_target",
+    "_param_game_collapse_thresh_lr",
+    "_param_game_context_actuate",
+    "_param_game_context_dt_factor",
+    "_param_game_context_learn",
+    "_param_game_context_learn_floor",
+    "_param_game_context_learn_obs_sigma",
+    "_param_game_context_persist",
+    "_param_game_context_surprise_ref",
+    "_param_game_driver_trust_floor",
+    "_param_game_dt",
+    "_param_game_forecast_horizon_min",
+    "_param_game_hebbian_lr",
+    "_param_game_hebbian_obs_sigma",
+    "_param_game_nudge_hi",
+    "_param_game_nudge_lo",
+    "_param_game_physicality_interval",
+    "_param_game_snr_white_noise_ref",
+    "_param_game_step_down",
+    "_param_game_step_down_bold",
+    "_param_game_step_up",
+    "_param_game_step_up_bold",
+    "_param_game_substrate_emit_deadband",
+    "_param_game_web_decay",
+    "_param_game_web_floor",
+    "_param_game_web_grow_threshold",
+    "_param_game_web_grow_value",
+    "_param_game_web_keep_threshold",
+    "_param_game_web_max_learned",
+    "_param_game_web_min_activity",
+    "_param_game_web_min_samples",
+    "_param_game_web_window"
+   ]
+  },
+  "demos": {
+   "bloch": {
+    "bright": [
+     -0.000115,
+     -0.000129,
+     -0.177255
+    ],
+    "generous": [
+     -5.6e-05,
+     5e-06,
+     0.071033
+    ],
+    "known": [
+     0.000407,
+     -0.001505,
+     0.367344
+    ]
+   },
+   "purity": 0.147064,
+   "roles": [
+    "bright",
+    "generous",
+    "known"
+   ],
+   "scale_level": 1000000
+  },
+  "forest": {
+   "bloch": {
+    "bright": [
+     0.000877,
+     0.00074,
+     -0.340274
+    ],
+    "generous": [
+     0.000933,
+     -0.000359,
+     0.274232
+    ],
+    "known": [
+     -0.000259,
+     -0.000311,
+     0.273465
+    ]
+   },
+   "purity": 0.161177,
+   "roles": [
+    "bright",
+    "generous",
+    "known"
+   ],
+   "scale_level": 1000000
+  },
+  "journey": {
+   "bloch": {
+    "fortune": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "pace": [
+     -0.0,
+     -0.0,
+     0.0
+    ],
+    "story": [
+     9e-06,
+     -5e-06,
+     -0.126679
+    ]
+   },
+   "purity": 0.127006,
+   "roles": [
+    "fortune",
+    "pace",
+    "story"
+   ],
+   "scale_level": 1000000
+  },
+  "spring": {
+   "bloch": {
+    "bright": [
+     -1.8e-05,
+     0.000139,
+     0.200565
+    ],
+    "generous": [
+     -2.3e-05,
+     -4.6e-05,
+     0.021915
+    ],
+    "known": [
+     -5.7e-05,
+     0.000103,
+     0.204987
+    ]
+   },
+   "purity": 0.135557,
+   "roles": [
+    "bright",
+    "generous",
+    "known"
+   ],
+   "scale_level": 1000000
+  },
+  "village": {
+   "bloch": {
+    "bright": [
+     0.000343,
+     -0.000733,
+     0.141505
+    ],
+    "generous": [
+     -0.001196,
+     5.3e-05,
+     -0.208898
+    ],
+    "known": [
+     0.00036,
+     0.000321,
+     0.279031
+    ]
+   },
+   "purity": 0.143428,
+   "roles": [
+    "bright",
+    "generous",
+    "known"
+   ],
+   "scale_level": 1000000
+  },
+  "woodlot": {
+   "bloch": {
+    "bright": [
+     0.0,
+     -0.0,
+     0.0
+    ],
+    "generous": [
+     -0.0,
+     0.0,
+     0.0
+    ],
+    "known": [
+     2e-05,
+     5.5e-05,
+     0.065862
+    ]
+   },
+   "purity": 0.125542,
+   "roles": [
+    "bright",
+    "generous",
+    "known"
+   ],
+   "scale_level": 1000000
+  }
+ },
+ "learned": [
+  {
+   "backing": {
+    "cluster": "_fiber_surprise",
+    "kind": "qubit",
+    "qubit_idx": 0
+   },
+   "bloch": {
+    "r": 0.672241,
+    "x": 0.0,
+    "y": 0.0,
+    "z": -0.672241
+   },
+   "drift": 0.0,
+   "frac": 0.16387959866220736,
+   "frozen": false,
+   "hi": 0.3,
+   "learned": false,
+   "lo": 0.001,
+   "name": "gamma",
+   "node": "game",
+   "prior_mean": 0.05,
+   "settled": 0.0,
+   "sigma": 0.049,
+   "updates": 0,
+   "value": 0.05
+  },
+  {
+   "backing": {
+    "cluster": "_fiber_surprise",
+    "kind": "qubit",
+    "qubit_idx": 1
+   },
+   "bloch": {
+    "r": 0.818182,
+    "x": 0.0,
+    "y": 0.0,
+    "z": -0.818182
+   },
+   "drift": 0.0,
+   "frac": 0.09090909090909094,
+   "frozen": false,
+   "hi": 50.0,
+   "learned": false,
+   "lo": 0.5,
+   "name": "gamma_diss",
+   "node": "game",
+   "prior_mean": 5.0,
+   "settled": 0.0,
+   "sigma": 4.5,
+   "updates": 0,
+   "value": 5.0
+  },
+  {
+   "backing": {
+    "cluster": "_fiber_unlearned",
+    "kind": "qubit",
+    "qubit_idx": 0
+   },
+   "bloch": {
+    "r": 0.818182,
+    "x": 0.0,
+    "y": 0.0,
+    "z": -0.818182
+   },
+   "drift": 0.0,
+   "frac": 0.09090909090909091,
+   "frozen": false,
+   "hi": 0.1,
+   "learned": false,
+   "lo": 0.001,
+   "name": "dt",
+   "node": "game",
+   "prior_mean": 0.01,
+   "settled": 0.0,
+   "sigma": 0.009,
+   "updates": 0,
+   "value": 0.01
+  },
+  {
+   "backing": {
+    "cluster": "_fiber_surprise",
+    "kind": "qubit",
+    "qubit_idx": 2
+   },
+   "bloch": {
+    "r": 0.0,
+    "x": 0.0,
+    "y": 0.0,
+    "z": 0.0
+   },
+   "drift": 0.0,
+   "frac": 0.5,
+   "frozen": false,
+   "hi": 1.0,
+   "learned": false,
+   "lo": 0.0,
+   "name": "bridge_strength",
+   "node": "game",
+   "prior_mean": 0.5,
+   "settled": 0.0,
+   "sigma": 0.5,
+   "updates": 0,
+   "value": 0.5
+  },
+  {
+   "backing": {
+    "cluster": "_fiber_unlearned",
+    "kind": "qubit",
+    "qubit_idx": 1
+   },
+   "bloch": {
+    "r": 0.632653,
+    "x": 0.0,
+    "y": 0.0,
+    "z": -0.632653
+   },
+   "drift": 0.0,
+   "frac": 0.1836734693877551,
+   "frozen": false,
+   "hi": 50.0,
+   "learned": false,
+   "lo": 1.0,
+   "name": "physicality_interval",
+   "node": "game",
+   "prior_mean": 10.0,
+   "settled": 0.0,
+   "sigma": 9.0,
+   "updates": 0,
+   "value": 10.0
+  },
+  {
+   "backing": {
+    "cluster": "_fiber_surprise",
+    "kind": "qubit",
+    "qubit_idx": 3
+   },
+   "bloch": {
+    "r": 0.6,
+    "x": 0.0,
+    "y": 0.0,
+    "z": 0.6
+   },
+   "drift": 0.0,
+   "frac": 0.8,
+   "frozen": false,
+   "hi": 1.0,
+   "learned": false,
+   "lo": 0.5,
+   "name": "confidence_threshold",
+   "node": "game",
+   "prior_mean": 0.9,
+   "settled": 0.0,
+   "sigma": 0.1,
+   "updates": 0,
+   "value": 0.9
+  },
+  {
+   "backing": {
+    "cluster": "_fiber_surprise",
+    "kind": "qubit",
+    "qubit_idx": 4
+   },
+   "bloch": {
+    "r": 0.632653,
+    "x": 0.0,
+    "y": 0.0,
+    "z": -0.632653
+   },
+   "drift": 0.0,
+   "frac": 0.18367346938775508,
+   "frozen": false,
+   "hi": 0.5,
+   "learned": false,
+   "lo": 0.01,
+   "name": "hysteresis",
+   "node": "game",
+   "prior_mean": 0.1,
+   "settled": 0.0,
+   "sigma": 0.09,
+   "updates": 0,
+   "value": 0.1
+  },
+  {
+   "backing": {
+    "cluster": "_fiber_surprise",
+    "kind": "qubit",
+    "qubit_idx": 5
+   },
+   "bloch": {
+    "r": 0.333333,
+    "x": 0.0,
+    "y": 0.0,
+    "z": -0.333333
+   },
+   "drift": 0.0,
+   "frac": 0.33333333333333326,
+   "frozen": false,
+   "hi": 0.8,
+   "learned": false,
+   "lo": 0.05,
+   "name": "transition_floor",
+   "node": "game",
+   "prior_mean": 0.3,
+   "settled": 0.0,
+   "sigma": 0.25,
+   "updates": 0,
+   "value": 0.3
+  },
+  {
+   "backing": {
+    "cluster": "_fiber_surprise",
+    "kind": "qubit",
+    "qubit_idx": 6
+   },
+   "bloch": {
+    "r": 0.8,
+    "x": 0.0,
+    "y": 0.0,
+    "z": -0.8
+   },
+   "drift": 0.0,
+   "frac": 0.09999999999999998,
+   "frozen": false,
+   "hi": 0.2,
+   "learned": false,
+   "lo": 0.0,
+   "name": "motion_eps",
+   "node": "game",
+   "prior_mean": 0.02,
+   "settled": 0.0,
+   "sigma": 0.02,
+   "updates": 0,
+   "value": 0.02
+  },
+  {
+   "backing": {
+    "cluster": "_fiber_surprise",
+    "kind": "qubit",
+    "qubit_idx": 7
+   },
+   "bloch": {
+    "r": 0.414141,
+    "x": 0.0,
+    "y": 0.0,
+    "z": -0.414141
+   },
+   "drift": 0.0,
+   "frac": 0.29292929292929293,
+   "frozen": false,
+   "hi": 1.0,
+   "learned": false,
+   "lo": 0.01,
+   "name": "projection_coupling",
+   "node": "game",
+   "prior_mean": 0.3,
+   "settled": 0.0,
+   "sigma": 0.29,
+   "updates": 0,
+   "value": 0.3
+  },
+  {
+   "backing": {
+    "cluster": "_fiber_unlearned",
+    "kind": "qubit",
+    "qubit_idx": 2
+   },
+   "bloch": {
+    "r": 0.7,
+    "x": 0.0,
+    "y": 0.0,
+    "z": -0.7
+   },
+   "drift": 0.0,
+   "frac": 0.15000000000000002,
+   "frozen": false,
+   "hi": 1.0,
+   "learned": false,
+   "lo": 0.0,
+   "name": "web_min_activity",
+   "node": "game",
+   "prior_mean": 0.15,
+   "settled": 0.0,
+   "sigma": 0.15,
+   "updates": 0,
+   "value": 0.15
+  },
+  {
+   "backing": {
+    "cluster": "_fiber_unlearned",
+    "kind": "qubit",
+    "qubit_idx": 3
+   },
+   "bloch": {
+    "r": 0.6,
+    "x": 0.0,
+    "y": 0.0,
+    "z": -0.6
+   },
+   "drift": 0.0,
+   "frac": 0.19999999999999993,
+   "frozen": false,
+   "hi": 64.0,
+   "learned": false,
+   "lo": 4.0,
+   "name": "web_window",
+   "node": "game",
+   "prior_mean": 16.0,
+   "settled": 0.0,
+   "sigma": 12.0,
+   "updates": 0,
+   "value": 16.0
+  },
+  {
+   "backing": {
+    "cluster": "_fiber_unlearned",
+    "kind": "qubit",
+    "qubit_idx": 4
+   },
+   "bloch": {
+    "r": 0.066667,
+    "x": 0.0,
+    "y": 0.0,
+    "z": 0.066667
+   },
+   "drift": 0.0,
+   "frac": 0.5333333333333334,
+   "frozen": false,
+   "hi": 0.95,
+   "learned": false,
+   "lo": 0.2,
+   "name": "web_grow_threshold",
+   "node": "game",
+   "prior_mean": 0.6,
+   "settled": 0.0,
+   "sigma": 0.35,
+   "updates": 0,
+   "value": 0.6
+  },
+  {
+   "backing": {
+    "cluster": "_fiber_unlearned",
+    "kind": "qubit",
+    "qubit_idx": 5
+   },
+   "bloch": {
+    "r": 0.5,
+    "x": 0.0,
+    "y": 0.0,
+    "z": -0.5
+   },
+   "drift": 0.0,
+   "frac": 0.25000000000000006,
+   "frozen": false,
+   "hi": 0.9,
+   "learned": false,
+   "lo": 0.1,
+   "name": "web_keep_threshold",
+   "node": "game",
+   "prior_mean": 0.3,
+   "settled": 0.0,
+   "sigma": 0.2,
+   "updates": 0,
+   "value": 0.3
+  },
+  {
+   "backing": {
+    "cluster": "_fiber_unlearned",
+    "kind": "qubit",
+    "qubit_idx": 6
+   },
+   "bloch": {
+    "r": 0.15942,
+    "x": 0.0,
+    "y": 0.0,
+    "z": 0.15942
+   },
+   "drift": 0.0,
+   "frac": 0.5797101449275363,
+   "frozen": false,
+   "hi": 0.99,
+   "learned": false,
+   "lo": 0.3,
+   "name": "web_decay",
+   "node": "game",
+   "prior_mean": 0.7,
+   "settled": 0.0,
+   "sigma": 0.29,
+   "updates": 0,
+   "value": 0.7
+  },
+  {
+   "backing": {
+    "cluster": "_fiber_unlearned",
+    "kind": "qubit",
+    "qubit_idx": 7
+   },
+   "bloch": {
+    "r": 0.809045,
+    "x": 0.0,
+    "y": 0.0,
+    "z": -0.809045
+   },
+   "drift": 0.0,
+   "frac": 0.09547738693467334,
+   "frozen": false,
+   "hi": 0.2,
+   "learned": false,
+   "lo": 0.001,
+   "name": "web_floor",
+   "node": "game",
+   "prior_mean": 0.02,
+   "settled": 0.0,
+   "sigma": 0.019,
+   "updates": 0,
+   "value": 0.02
+  },
+  {
+   "backing": {
+    "cluster": "_fiber_unlearned",
+    "kind": "qubit",
+    "qubit_idx": 8
+   },
+   "bloch": {
+    "r": 0.632653,
+    "x": 0.0,
+    "y": 0.0,
+    "z": -0.632653
+   },
+   "drift": 0.0,
+   "frac": 0.18367346938775508,
+   "frozen": false,
+   "hi": 0.5,
+   "learned": false,
+   "lo": 0.01,
+   "name": "web_grow_value",
+   "node": "game",
+   "prior_mean": 0.1,
+   "settled": 0.0,
+   "sigma": 0.09,
+   "updates": 0,
+   "value": 0.1
+  },
+  {
+   "backing": {
+    "cluster": "_fiber_unlearned",
+    "kind": "qubit",
+    "qubit_idx": 9
+   },
+   "bloch": {
+    "r": 0.6,
+    "x": 0.0,
+    "y": 0.0,
+    "z": -0.6
+   },
+   "drift": 0.0,
+   "frac": 0.19999999999999993,
+   "frozen": false,
+   "hi": 32.0,
+   "learned": false,
+   "lo": 2.0,
+   "name": "web_max_learned",
+   "node": "game",
+   "prior_mean": 8.0,
+   "settled": 0.0,
+   "sigma": 6.0,
+   "updates": 0,
+   "value": 8.0
+  },
+  {
+   "backing": {
+    "cluster": "_fiber_unlearned",
+    "kind": "qubit",
+    "qubit_idx": 10
+   },
+   "bloch": {
+    "r": 0.6,
+    "x": 0.0,
+    "y": 0.0,
+    "z": -0.6
+   },
+   "drift": 0.0,
+   "frac": 0.19999999999999993,
+   "frozen": false,
+   "hi": 32.0,
+   "learned": false,
+   "lo": 2.0,
+   "name": "web_min_samples",
+   "node": "game",
+   "prior_mean": 8.0,
+   "settled": 0.0,
+   "sigma": 6.0,
+   "updates": 0,
+   "value": 8.0
+  },
+  {
+   "backing": {
+    "cluster": "_fiber_surprise",
+    "kind": "qubit",
+    "qubit_idx": 8
+   },
+   "bloch": {
+    "r": 0.333333,
+    "x": 0.0,
+    "y": 0.0,
+    "z": -0.333333
+   },
+   "drift": 0.0,
+   "frac": 0.33333333333333337,
+   "frozen": false,
+   "hi": 0.95,
+   "learned": false,
+   "lo": 0.05,
+   "name": "driver_alpha",
+   "node": "game",
+   "prior_mean": 0.35,
+   "settled": 0.0,
+   "sigma": 0.3,
+   "updates": 0,
+   "value": 0.35
+  }
+ ],
+ "written": "2026-07-14T22:31:35.298615+00:00"
+}
