@@ -290,7 +290,10 @@ func _build_cost_entries(container: HBoxContainer, cost: Dictionary) -> void:
 		entry.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 		var amount_label = Label.new()
-		amount_label.text = str(amount)
+		# Costs are integer resources; a float payload (e.g. {🌱: 5.0} from the
+		# icon-injection submenu) must not render as "5.0" on the badge (#266).
+		var amount_f := float(amount)
+		amount_label.text = str(int(round(amount_f))) if is_equal_approx(amount_f, round(amount_f)) else String.num(amount_f, 1)
 		amount_label.add_theme_font_size_override("font_size", int(18 * scale_factor))
 		amount_label.add_theme_color_override("font_color", Color(0.95, 0.9, 0.7))
 		amount_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.6))

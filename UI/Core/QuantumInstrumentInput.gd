@@ -262,17 +262,27 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 
-	# Action keys
+	# Action keys — one dispatch authority shared with pointer chips (invoke_action).
+	match key:
+		"Q", "E", "R", "F":
+			_dispatch_action_key(key, event.is_shift_pressed())
+			get_viewport().set_input_as_handled()
+
+
+## Single dispatch authority for the Q/E/R/F verb quartet. Both entry points —
+## keyboard (_unhandled_key_input) and pointer/touch chips (invoke_action via
+## PlayerShell._route_action_key) — MUST land here, so the "submenu owns
+## Q/E/R/F while open" rule can never diverge between them (#266: chip clicks
+## bypassed the submenu branch and fired the frame verb underneath the picker).
+func _dispatch_action_key(key: String, shift: bool = false) -> void:
 	match key:
 		"Q", "E", "R":
-			if _instrument.is_in_submenu():
+			if _instrument and _instrument.is_in_submenu():
 				_handle_submenu_action(key)
+			elif shift:
+				_perform_shift_key_action(key)
 			else:
-				if event.is_shift_pressed():
-					_perform_shift_key_action(key)
-				else:
-					_perform_action(key)
-			get_viewport().set_input_as_handled()
+				_perform_action(key)
 		"F":
 			# F = confirm a pending QF destructive action, or close submenu,
 			# or dispatch a frame-defined F verb if one exists.
@@ -280,18 +290,17 @@ func _unhandled_key_input(event: InputEvent) -> void:
 				var pending := _confirm_pending.duplicate()
 				_confirm_pending = {}
 				_run_action(pending["action"], pending.get("emoji", ""), pending.get("label", ""))
-			elif _instrument.is_in_submenu():
+			elif _instrument and _instrument.is_in_submenu():
 				_close_submenu()
 			else:
 				var f_action = ToolConfig.get_action(ToolConfig.get_current_frame(), "F")
-				if event.is_shift_pressed() and str(f_action.get("shift_action", "")) != "":
+				if shift and str(f_action.get("shift_action", "")) != "":
 					# Shift+F = the season-scale time verb (Ace: Reap Season).
 					# Biome-wide — no checked-plot batch, dispatch directly.
 					_run_action(str(f_action["shift_action"]), str(f_action.get("emoji", "")),
 						str(f_action.get("shift_label", f_action.get("label", ""))))
 				elif not f_action.is_empty():
 					_perform_action("F")
-			get_viewport().set_input_as_handled()
 
 
 # The biome/plot/subspace selection rows used to live in a SECOND input callback
@@ -590,6 +599,9 @@ func _execute_inject_icon(icon: Dictionary) -> void:
 	var biome = _get_current_biome()
 	if not biome:
 		_verbose.warn("input", "+", "No biome for icon injection")
+		# Refusals speak (anti-gating) — a picker that closes with no biome bound
+		# must not read as "selection doesn't work".
+		_toast_player("✗ the icon would not take — no biome selected")
 		return
 	var result = MacroActions.dispatch(_instrument, MacroActions.KIND_INJECT_ICON_PAIR, {
 		"biome_name": biome.get_biome_type(),
@@ -602,6 +614,10 @@ func _execute_inject_icon(icon: Dictionary) -> void:
 			icon.get("south", ""),
 			biome.name
 		])
+		# Success speaks too (anti-gating): a silent success reads exactly like a
+		# dead key — the biome grows a qubit off-screen and the player sees nothing.
+		_toast_player("✓ %s/%s took root in %s — +1 qubit" % [
+			str(icon.get("north", "")), str(icon.get("south", "")), str(biome.get_biome_type())])
 
 		# Invalidate buffer (icon injection adds qubits, modifies density matrix)
 		_invalidate_biome_buffer_for_action("inject_icon")
@@ -1386,9 +1402,11 @@ func _select_subspace(subspace_idx: int, key: String) -> void:
 ## ============================================================================
 
 ## Public entry point for action invocation from non-keyboard sources (button tap, touch).
-## Mirrors the keyboard path in _input() for Q/E/R/F.
+## Routes through _dispatch_action_key — the SAME authority as the keyboard —
+## so an open submenu's Q/E/R chips select options (and F closes) instead of
+## firing the frame verb hidden underneath the picker (#266).
 func invoke_action(action_key: String) -> void:
-	_perform_action(action_key)
+	_dispatch_action_key(action_key)
 
 
 ## Public entry point for a bubble tap (mouse/touch) — the tap IS the farming
