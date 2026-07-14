@@ -1193,6 +1193,16 @@
         "name": "Labor",
         "pole_0": "👥",
         "pole_1": "🪓"
+      },
+      {
+        "name": "Swell",
+        "pole_0": "💧",
+        "pole_1": "🌊"
+      },
+      {
+        "name": "Flour",
+        "pole_0": "🔨",
+        "pole_1": "🧺"
       }
     ]
   },
@@ -2441,6 +2451,11 @@
         "name": "Mill",
         "pole_0": "💨",
         "pole_1": "🔨"
+      },
+      {
+        "name": "Lumber",
+        "pole_0": "🪓",
+        "pole_1": "🪵"
       }
     ]
   },
@@ -6031,11 +6046,6 @@
         "pole_1": "🔥"
       },
       {
-        "name": "Scale",
-        "pole_0": "💧",
-        "pole_1": "🌊"
-      },
-      {
         "name": "Cycle",
         "pole_0": "🫧",
         "pole_1": "🌿"
@@ -6149,11 +6159,6 @@
         "name": "Grinding",
         "pole_0": "⚙",
         "pole_1": "🌾"
-      },
-      {
-        "name": "Flour",
-        "pole_0": "🔨",
-        "pole_1": "🧺"
       },
       {
         "name": "Darkness",
@@ -6379,11 +6384,6 @@
         "name": "Witness",
         "pole_0": "⏳",
         "pole_1": "🕰"
-      },
-      {
-        "name": "Labor",
-        "pole_0": "🪓",
-        "pole_1": "🪵"
       },
       {
         "name": "Gearwork",

@@ -229,7 +229,8 @@
     "arc_quest": {
       "type": "DELIVER",
       "body": "Couple the Woodlot — add 🪵 to Village so woodlot and village share one rhythm.",
-      "hint": "🪵 is arriving but has nowhere to settle. Use the Meta tools to add 🪵 to the Village's vocabulary.",
+      "hint": "🪵 is arriving but has nowhere to settle. Use the Meta tools to add 🪵 to the Village's vocabulary. Finish this story quest and the Millwright's Union teaches you their word — the timber axis (🪵/🪓). Plant it into an open slot in their country (Icon hat (5) R on an empty plot) to open their market offerings.",
+      "faction": "Millwright's Union",
       "state_predicates": [
         {
           "type": "atom_in_biome",
@@ -274,6 +275,7 @@
       "type": "DELIVER",
       "body": "Couple the Spring — add 💧 to the Village hearth so the spring's rhythm phase-locks with the mill pond.",
       "hint": "The mill pond could exist; it's waiting on you. Add 💧 to the Village's vocabulary.",
+      "faction": "Hearth Keepers",
       "state_predicates": [
         {
           "type": "atom_in_biome",
@@ -724,6 +726,7 @@
       "type": "DELIVER",
       "body": "Hold the Commons — keep working the village's grain-and-water rhythm so it stays the people's own.",
       "hint": "A shared village answers to the hands that tend it, not the ledger upstream.",
+      "faction": "Mycelial Web",
       "state_predicates": [
         {
           "type": "berry_consumed_count_gte",
@@ -767,6 +770,7 @@
       "type": "DELIVER",
       "body": "Feed the Manufactory — keep the works running, whatever it costs the hands that turn them.",
       "hint": "Productivity has a price, and the hands that turn the works are paying it.",
+      "faction": "Millwright's Union",
       "state_predicates": [
         {
           "type": "berry_consumed_count_gte",
@@ -774,10 +778,10 @@
           "value": 5
         }
       ],
-      "reward_north": "🏭",
-      "reward_south": "⛓",
-      "reward_icon_north": "🏭",
-      "reward_icon_south": "⛓"
+      "reward_north": "⚙",
+      "reward_south": "🏭",
+      "reward_icon_north": "⚙",
+      "reward_icon_south": "🏭"
     }
   },
   {
@@ -809,6 +813,7 @@
       "type": "DELIVER",
       "body": "Keep the Forge Honest — sustain craft and growth together so neither crowds the other out.",
       "hint": "Made things and grown things, in the same hands. That is the whole of it.",
+      "faction": "Hearth Keepers",
       "state_predicates": [
         {
           "type": "berry_consumed_count_gte",
@@ -817,9 +822,9 @@
         }
       ],
       "reward_north": "🔨",
-      "reward_south": "🌱",
+      "reward_south": "🧺",
       "reward_icon_north": "🔨",
-      "reward_icon_south": "🌱"
+      "reward_icon_south": "🧺"
     }
   },
   {
@@ -847,6 +852,7 @@
       "type": "DELIVER",
       "body": "Read the Watcher — learn how the eagle's heavy mode widens your village's gap and pulls its many voices toward a single imposed shape.",
       "hint": "You built the empire's own vocabulary into your home. Read how its rigidity collapses your plurality.",
+      "faction": "Carrion Throne",
       "state_predicates": [
         {
           "type": "berry_consumed_count_gte",
@@ -886,6 +892,7 @@
       "type": "DELIVER",
       "body": "Bury the Dead Honestly — keep the village alive enough that the cemetery does not outgrow it.",
       "hint": "Death and labor on one axis is a debt the living pay. Watch which way it tips.",
+      "faction": "Void Serfs",
       "state_predicates": [
         {
           "type": "berry_consumed_count_gte",
@@ -928,6 +935,7 @@
       "type": "DELIVER",
       "body": "Read the Ledger's Monolith — evolve BloodLedger and read its qubits until you can see its spectrum: one dominant mode behind a wide gap, a single configuration it rigidly holds and allows nothing else.",
       "hint": "The empire is not a storm. It is one shape that permits no other. Read its oscillations and find the gap that swallows every alternative.",
+      "faction": "Carrion Throne",
       "state_predicates": [
         {
           "type": "biome_spectral_gap_gte",
