@@ -1,9 +1,20 @@
 #!/usr/bin/env python3
 """Drive Acts 3-5 by keyboard, on top of a fresh Act-1/2 run.
 
-The rig boots fresh each run, so this replays the proven Act-1/2 sequence first
-(forest_communion/forest_listener → lumber_flows + spring_connects via act2's
-neighborhood-primary market), then pushes into:
+The rig boots fresh each run, so this replays the proven Act-1 sequence first
+(forest beats through loop_remembers + the mill apprenticeship), then walks the
+Country Chapter order for Act 2 (the Millwright/Woodlot reweave):
+
+  Act 2  woodlot_door  : fires off new_voices; grants Millwright access; its arc
+                         points the discovery compass at Woodlot.
+         woodlot_contact → lumber_flows : Millwright contracts ×3 at Village
+                         (access 0.02 → 0.05 with authored widths), then CLAIM the
+                         timber teaching (🪵/🪓) on the Arc tab.
+         woodlot_wakes : plant 🪵/🪓 into Woodlot, then into Village (the DELIVER).
+         timber_rhythm : Woodlot berries ≥2; claim the gear-bench word (🏭/⚙).
+         spring_connects still runs its pre-reweave path (chapter 2 target).
+
+then pushes into:
 
   Act 3  mill_wakes   : learn Mill (village_stirs apprentice arc) → plant Mill into
                         an empty Village plot → evolve so ⚙→💨 populates wind.
@@ -214,7 +225,7 @@ def main():
         """Plant a specific known icon (north/south) into an empty plot of biome `bk`.
         inject_icon costs 4×south-pole + 10×🌱 — bridge them (verified-harvestable grind
         currency; keeps the FLAG genuine, same precedent as the other bridges)."""
-        bridge(south, 12); bridge("🌱", 15)
+        bridge(south, 18); bridge("🌱", 10)  # inject = 5×🌱 + 13×south
         goto_key(bk)
         nq = len(qstate(active_biome()))
         ensure_hat("5")  # Icon hat ON
@@ -256,7 +267,7 @@ def main():
                 press("ESCAPE", 2); continue
             order = [k for k in ("Q", "R") if k in real] or list(real.keys())
             k = order[0]; v = real[k]
-            bridge(str(v.get("south", "")), 12); bridge("🌱", 15)  # inject cost
+            bridge(str(v.get("south", "")), 18); bridge("🌱", 10)  # inject = 5×🌱 + 13×south
             if _select_slot(k):
                 print(f"    planted {v.get('north')}/{v.get('south')} via slot {k} → qubits now {len(qstate(active_biome()))}")
                 return True
@@ -356,21 +367,97 @@ def main():
         print(f"    culled {name}: {'ok' if ok else 'FAILED'} → grid={grid()}")
         return ok
 
+    def word_known(north, south):
+        return any(i.get("north") == north and i.get("south") == south for i in known())
+
     def is_mill_known():
-        return any(i.get("north") == "💨" and i.get("south") == "🔨" for i in known())
+        return word_known("💨", "🔨")
+
+    def _arc_row_key_for(snippet):
+        """Find the Arc-tab row key ([G]/[H]/…) whose body contains `snippet`.
+        Rows render as a standalone '[K]' label line followed by the row's text."""
+        import re as _re
+        cur = None
+        for l in go("overlay_text").get("lines", []) or []:
+            s = str(l.get("text", "")).strip()
+            m = _re.match(r"^\[([A-Z;])\]$", s)
+            if m:
+                cur = m.group(1)
+                continue
+            if cur and snippet in s:
+                return "SEMICOLON" if cur == ";" else cur
+        return None
+
+    def claim_teaching(north, south, work_biome, accept_snippet):
+        """Learn a faction word via a story ARC claim (the ONLY teacher of vocabulary —
+        contracts never teach). Gotchas, all probe-confirmed on the mill apprenticeship:
+          (1) the arc flips "ready" via berries in `work_biome`; ONLY incorporation
+              grows berry, time_skip does not. Needs current_biome=work_biome (press
+              its key) for the readiness poll to run.
+          (2) ARC-tab accept must be TARGETED (match the row by `accept_snippet`):
+              a blind accept-all also accepts tutorial/guidance rows, and the claim
+              then lands past the COMMITMENTS tab's 6-row render cap (measured:
+              idx=8 READY, unclaimable).
+          (3) COMMITMENTS-tab claim: select the arc's EXACT index (by its reward
+              pair), not index 0 (other commitments would bury it)."""
+        wb_key = biome_key(work_biome)
+
+        def arc_commitment():
+            for i, q in enumerate(go("active_quests").get("quests", []) or []):
+                if q.get("reward_icon_north") == north and q.get("reward_icon_south") == south:
+                    return i, str(q.get("status", "")), int(q.get("id", -1))
+            return -1, "", -1
+
+        def accept_arc():
+            # Keyboard first: the row may be on the visible Arc tab.
+            press("X"); press("I", 4)
+            row = _arc_row_key_for(accept_snippet)
+            if row:
+                press(row, 3); press("R", 4)
+            press("ESCAPE", 3)
+            if arc_commitment()[0] >= 0:
+                return True
+            # Beyond the Arc tab's 6-row render cap → accept through the SAME
+            # QuestManager seam by id (story_offers/accept_quest = what R does).
+            for o in go("story_offers").get("story_offers", []) or []:
+                if o.get("reward_icon_north") == north and o.get("reward_icon_south") == south:
+                    r = go("accept_quest", quest_id=int(o.get("id", -1)))
+                    print(f"    (offer beyond Arc-tab cap — accepted by id: {bool(r.get('accepted'))})")
+                    return bool(r.get("accepted"))
+            return False
+
+        for attempt in range(1, 7):
+            if word_known(north, south):
+                break
+            if arc_commitment()[0] < 0:            # not accepted yet → targeted accept
+                accept_arc()
+            if wb_key:
+                press(wb_key)
+            go("time_skip", phrames=150)           # current_biome=work_biome → flip ready
+            idx, st, qid = arc_commitment()
+            print(f"  [claim {north}/{south} #{attempt}] arc idx={idx} status={st} berry={berry(work_biome)}")
+            if st == "ready":
+                if 0 <= idx < len(PLOT):
+                    press("C"); press("U", 4)      # COMMITMENTS tab
+                    press(PLOT[idx], 3); press("R", 4)  # select arc's exact row + claim
+                    press("ESCAPE", 3)
+                if not word_known(north, south) and qid >= 0:
+                    # Row beyond the 6-row cap — claim through the SAME
+                    # QuestManager seam by id. NOTE: a claim that "succeeds"
+                    # without teaching means the signature REFUSED the pair
+                    # (Farm.discover_icon: north must be new) — a data problem,
+                    # not a driver problem.
+                    r = go("complete_or_claim", quest_id=qid)
+                    print(f"    (claim by id: {bool(r.get('completed_or_claimed'))})")
+            else:
+                incorporate(bn=work_biome)
+        ok = word_known(north, south)
+        print(f"  {north}/{south} learned: {ok}")
+        return ok
 
     def learn_mill(vk):
         """Learn the Mill icon (💨/🔨) via the village_stirs apprentice arc. Run this
-        BEFORE the Act-2 market grinds so the COMMITMENTS tab is clean. Gotchas, all
-        probe-confirmed:
-          (1) the arc flips "ready" only around Village berry>=6 (soft_gate(berry,3,1.5)
-              >=0.85); ONLY incorporation grows berry, time_skip does not. Needs
-              current_biome=Village (press the key) for the readiness poll to run.
-          (2) ARC-tab accept: arc_quests are listed first; accepting a row removes it and
-              the list shifts, so re-select index 0 (G) and accept (R) repeatedly.
-          (3) COMMITMENTS-tab claim: the tab renders only the first 6 rows in
-              active_quests order — select the arc's EXACT index (by its 💨/🔨 reward),
-              not index 0 (other commitments would bury it)."""
+        BEFORE the Act-2 market grinds so the COMMITMENTS tab is clean."""
         press(vk)
         for rnd in range(1, 9):
             incorporate(bn="Village")
@@ -378,32 +465,7 @@ def main():
             print(f"  [mill-inc {rnd}] village berry={b} village_stirs={'village_stirs' in flags()}")
             if "village_stirs" in flags() and isinstance(b, int) and b >= 6:
                 break
-
-        def arc_commitment():
-            for i, q in enumerate(go("active_quests").get("quests", []) or []):
-                if q.get("reward_icon_north") == "💨" and q.get("reward_icon_south") == "🔨":
-                    return i, str(q.get("status", ""))
-            return -1, ""
-
-        for attempt in range(1, 7):
-            if is_mill_known():
-                break
-            press(vk)
-            press("X"); press("I", 4)              # ARC tab (menu re-org: Arc lives on X, not C)
-            for _ in range(4):
-                press("G", 3); press("R", 4)       # accept, re-selecting index 0
-            press("ESCAPE", 3)
-            press(vk); go("time_skip", phrames=150)  # current_biome=Village → flip ready
-            idx, st = arc_commitment()
-            print(f"  [mill-claim {attempt}] arc idx={idx} status={st} berry={berry('Village')}")
-            if 0 <= idx < len(PLOT):
-                press("C"); press("U", 4)          # COMMITMENTS tab
-                press(PLOT[idx], 3); press("R", 4) # select arc's exact row + claim
-                press("ESCAPE", 3)
-            else:
-                incorporate(bn="Village")
-        print(f"  Mill learned: {is_mill_known()}")
-        return is_mill_known()
+        return claim_teaching("💨", "🔨", "Village", "Apprentice to the Mill")
 
     def boot_via_title():
         """Drive the real player boot: title → (F opens X menu) → start → welcome → dismiss,
@@ -473,11 +535,14 @@ def main():
         if not _resume:
             print("\n== ACT1: StarterForest ==")
             goto_biome("StarterForest")  # slots follow scenario order now (TheDemos boots on T)
-            for rnd in range(1, 10):
+            # loop_remembers (forest berry ≥7) is now LOAD-BEARING: new_voices needs it,
+            # and the whole Act-2 timber chapter hangs off new_voices → woodlot_door.
+            for rnd in range(1, 13):
                 incorporate()
                 fl = flags()
-                print(f"  [A{rnd}] forest berry={berry('StarterForest')} communion={'forest_communion' in fl} listener={'forest_listener' in fl}")
-                if "forest_communion" in fl and "forest_listener" in fl:
+                print(f"  [A{rnd}] forest berry={berry('StarterForest')} communion={'forest_communion' in fl} "
+                      f"listener={'forest_listener' in fl} loop_remembers={'loop_remembers' in fl}")
+                if "forest_communion" in fl and "forest_listener" in fl and "loop_remembers" in fl:
                     break
             bridge("🦅", 220); bridge("👥", 240); bridge("🍞", 500); bridge("❄", 500)
             bridge("🔨", 60); bridge("🌱", 60)
@@ -490,12 +555,17 @@ def main():
             vk = biome_key("Village") or "Y"
             learn_mill(vk)
 
-            # ============ ACT 2: lumber_flows + spring_connects ============
-            print("\n== ACT2: standings + discover + incorporate ==")
-            if "spring_connects" not in flags():
-                faction_grind("Hearth Keepers", "spring_connects", max_cycles=8, at_biome="Village")
-            if "lumber_flows" not in flags():
-                faction_grind("Millwright's Union", "lumber_flows", max_cycles=18, at_biome="Village")
+            # ============ ACT 2: the timber chapter (Country Chapter order) ============
+            # door → contact → teaching → wakes → rhythm; spring keeps its
+            # pre-reweave path until chapter 2 lands.
+            print("\n== ACT2: timber country (door → contact → teaching → wakes → rhythm) ==")
+            go("time_skip", phrames=120)  # let new_voices → woodlot_door cascade fire
+            print("  ", fprog("new_voices"))
+            print("  ", fprog("woodlot_door"))
+
+            # Beat 1 (door): discover Woodlot — its beats name it, so the compass is
+            # story-pressured toward it. FreshwaterSpring rides along (spring_connects
+            # names it; still needed this run).
             for d in range(1, 9):
                 need = [b for b in ("Woodlot", "FreshwaterSpring") if b not in grid()]
                 if not need:
@@ -503,18 +573,60 @@ def main():
                 ensure_hat("7")
                 press("R", 6)
                 print(f"  discover #{d}: grid={grid()} 🦅={res().get('🦅', 0)}")
-            for bn in ("Woodlot", "FreshwaterSpring"):
-                bk = biome_key(bn)
-                if bk is None:
-                    print(f"  {bn} NOT in grid"); continue
+
+            # Beats 2+3 (contact → teaching): Millwright contracts at Village. The door
+            # grant (access 0.02) + ~2 deliveries × 0.02 clears contact (0.02 w.008)
+            # then the teaching gate (0.05 w.01) — the owner's 2-3 contract budget.
+            if "lumber_flows" not in flags():
+                faction_grind("Millwright's Union", "lumber_flows", max_cycles=8, at_biome="Village")
+            print("  ", fprog("woodlot_contact"))
+            print("  ", fprog("lumber_flows"))
+
+            # Beat 3 claim: the teaching IS the claim (Arc tab). Readiness = Village
+            # berries ≥4, already banked by the mill apprenticeship.
+            claim_teaching("🪵", "🪓", "Village", "teach you timber")
+
+            # Beat 4 (wakes): plant timber into the woodlot's ring, then couple the
+            # Village (the DELIVER — the island economy line). Picker keys first;
+            # the picker shows only ~3 slots, so a grown signature can hide the
+            # pair — fall back to the inject_icon instrument (same injection seam).
+            def plant_pair(bn_name, north, south, label=""):
+                bk3 = biome_key(bn_name)
+                if bk3 and plant_icon(bk3, north, south, label):
+                    return True
+                bridge(south, 18); bridge("🌱", 10)  # inject = 5×🌱 + 13×south
+                rr = go("inject_icon", biome=bn_name, north=north, south=south).get("inject_result", {})
+                print(f"    (picker path failed — inject_icon {north}/{south} → {bn_name}: success={rr.get('success')})")
+                return bool(rr.get("success"))
+
+            if word_known("🪵", "🪓"):
+                plant_pair("Woodlot", "🪵", "🪓", "timber → Woodlot")
+                plant_pair("Village", "🪵", "🪓", "timber → Village (couple)")
+            press(vk); go("time_skip", phrames=120)
+            print("  ", fprog("woodlot_wakes"))
+
+            # Beat 5 (rhythm): berries in the now-awake country, then claim the
+            # gear-bench word (⚙/🏭 — pre-seeds the industrial door).
+            farm_berries("Woodlot", 2, "timber_rhythm", rounds=8)
+            print("  ", fprog("timber_rhythm"))
+            if "timber_rhythm" in flags():
+                farm_berries("Woodlot", 4, "timber_rhythm", rounds=6)
+                claim_teaching("🏭", "⚙", "Woodlot", "The Gear-Bench")
+
+            # ---- chapter-2 country (Spring): pre-reweave path ----
+            if "spring_connects" not in flags():
+                faction_grind("Hearth Keepers", "spring_connects", max_cycles=8, at_biome="Village")
+            bk = biome_key("FreshwaterSpring")
+            if bk is None:
+                print("  FreshwaterSpring NOT in grid")
+            else:
                 press(bk)
                 for rnd in range(1, 7):
-                    incorporate(ripen=900, bn=bn)
-                    b = berry(bn)
+                    incorporate(ripen=900, bn="FreshwaterSpring")
+                    b = berry("FreshwaterSpring")
                     if isinstance(b, int) and b >= 2:
                         break
-                print(f"  {bn} berry={berry(bn)}")
-            print("  ", fprog("lumber_flows"))
+                print(f"  FreshwaterSpring berry={berry('FreshwaterSpring')}")
             print("  ", fprog("spring_connects"))
 
             # ============ ACT 3: mill_wakes + mill_master ============
@@ -820,7 +932,9 @@ def main():
 
         # ============ RESULT ============
         print("\n== RESULT ==")
-        for fid in ("mill_wakes", "mill_master", "island_lives", "village_identity",
+        for fid in ("woodlot_door", "woodlot_contact", "lumber_flows", "woodlot_wakes",
+                    "timber_rhythm", "spring_connects",
+                    "mill_wakes", "mill_master", "island_lives", "village_identity",
                     "ledger_opens", "empire_imposes", "island_free"):
             print("  ", fprog(fid))
         print("  flags:", sorted(flags().keys()))

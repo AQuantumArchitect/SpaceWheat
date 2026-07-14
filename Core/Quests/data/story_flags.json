@@ -195,41 +195,145 @@
     }
   },
   {
-    "id": "lumber_flows",
-    "display_name": "Upstream Wakes — Woodlot",
+    "id": "woodlot_door",
+    "display_name": "Timber Country — The Door",
     "act": 2,
-    "arc_beat": "The woodlot has woken, and its oscillation is finding the same rhythm as the village's. The Millwright's Union can feel the two biomes starting to keep time. 🪵 wants a place in the village's Hamiltonian so the two can phase-lock, and you've started learning the woodlot's vocabulary directly from its qubits.",
+    "arc_beat": "A new word took root in the village and the Millwright's Union heard it land. Their ledgers all lean the same way: upstream, where axes ring against trunks. They have opened their board to you — and past the forest's edge, timber country is waiting to be found.",
     "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "new_voices"
+      }
+    ],
+    "standing_grants": {
+      "Millwright's Union": {
+        "attention": 0.02,
+        "access": 0.02
+      }
+    },
+    "arc_quest": {
+      "body": "Find the Woodlot — follow the discovery compass upstream until timber country turns under your feet.",
+      "hint": "Captain hat (7): F reads the discovery compass — the story is pulling it toward Woodlot. R discovers the top-ranked biome (costs 21🦅; harvest eagles from StarterForest with the Ace hat — strike R, extract Q). A discovered biome evolves on its own; press its biome key to stand in it.",
+      "faction": "Millwright's Union",
+      "state_predicates": [
+        {
+          "type": "biome_evolving",
+          "biome": "Woodlot"
+        }
+      ]
+    }
+  },
+  {
+    "id": "woodlot_contact",
+    "display_name": "Timber Country — First Contact",
+    "act": 2,
+    "arc_beat": "You stood in the woodlot and the woodlot noticed; a Millwright quartermaster chalked your name on the board. Small deliveries first. Keep your word and the word grows.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "woodlot_door"
+      },
       {
         "type": "biome_evolving",
         "biome": "Woodlot"
       },
       {
-        "type": "story_flag_set",
-        "id": "forest_evolving"
-      },
+        "type": "standing_gte",
+        "faction": "Millwright's Union",
+        "channel": "access",
+        "value": 0.02,
+        "width": 0.008
+      }
+    ],
+    "standing_grants": {
+      "Millwright's Union": {
+        "trust": 0.03,
+        "attention": 0.05
+      }
+    },
+    "arc_quest": {
+      "body": "Prove Reliable — finish Millwright deliveries until your access with the Union clears 0.05.",
+      "hint": "C opens the board; Y is the market tab. Accept a Millwright delivery (its row key, then R) — their board counts only what you gather AFTER you accept, so accept first, harvest the goods fresh, then claim on the Commitments tab (C → U, row key, R). Every kept delivery raises access +0.02; watch the have/target line move.",
+      "faction": "Millwright's Union",
+      "state_predicates": [
+        {
+          "type": "standing_gte",
+          "faction": "Millwright's Union",
+          "channel": "access",
+          "value": 0.05,
+          "width": 0.01
+        }
+      ]
+    }
+  },
+  {
+    "id": "lumber_flows",
+    "display_name": "Timber Country — The Teaching",
+    "act": 2,
+    "arc_beat": "Three deliveries kept, and the quartermaster stops weighing your sacks twice. The Union keeps one word it will not sell — the timber axis its whole trade turns on. Words are never bought here: show them you know the village their lumber feeds, and they will say it slowly enough to keep.",
+    "predicates": [
       {
-        "type": "berry_consumed_count_gte",
-        "biome": "Woodlot",
-        "value": 1
+        "type": "story_flag_set",
+        "id": "woodlot_contact"
       },
       {
         "type": "standing_gte",
         "faction": "Millwright's Union",
         "channel": "access",
-        "value": 0.2
+        "value": 0.05,
+        "width": 0.01
+      }
+    ],
+    "standing_grants": {
+      "Millwright's Union": {
+        "trust": 0.08
+      }
+    },
+    "arc_quest": {
+      "type": 1,
+      "category": "ARC",
+      "body": "The Teaching — show the Millwright's Union the village's own grain and they will teach you timber (🪵/🪓).",
+      "hint": "This quest lives on the Arc tab (X → I): accept it there (R on its row), then work Village berries — Icon hat (5), F tracks a register, ripen, R incorporates — until the row reads READY, then claim it on that same row. The claim IS the teaching: 🪵/🪓 joins your signature. Contracts pay goods and standing; only a teaching grows your words.",
+      "faction": "Millwright's Union",
+      "state_predicates": [
+        {
+          "type": "berry_consumed_count_gte",
+          "biome": "Village",
+          "value": 4
+        }
+      ],
+      "reward_north": "🪵",
+      "reward_south": "🪓",
+      "reward_icon_north": "🪵",
+      "reward_icon_south": "🪓"
+    }
+  },
+  {
+    "id": "woodlot_wakes",
+    "display_name": "Timber Country — The Woodlot Wakes",
+    "act": 2,
+    "arc_beat": "Timber lives in the woodlot's ring and now it lives in your mouth. Two countries, one word between them — and the beat wants to line up. The village is the register still missing it: no 🪵 in its Hamiltonian, so the two rhythms keep separate time.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "lumber_flows"
+      },
+      {
+        "type": "atom_in_biome",
+        "biome": "Woodlot",
+        "atom": "🪵"
       }
     ],
     "standing_grants": {
       "Millwright's Union": {
         "trust": 0.08,
-        "attention": 0.1
+        "legitimacy": 0.05
       }
     },
     "arc_quest": {
       "type": "DELIVER",
-      "body": "Couple the Woodlot — add 🪵 to Village so woodlot and village share one rhythm.",
-      "hint": "🪵 is arriving but has nowhere to settle. Use the Meta tools to add 🪵 to the Village's vocabulary. Finish this story quest and the Millwright's Union teaches you their word — the timber axis (🪵/🪓). Plant it into an open slot in their country (Icon hat (5) R on an empty plot) to open their market offerings.",
+      "body": "Couple the Countries — plant 🪵 into the Village so woodlot and village share one rhythm.",
+      "hint": "Icon hat (5) in the Village: pick an EMPTY plot (G H J K L ; past the live bubbles), R opens the picker, choose timber (🪵/🪓) and plant it (costs 🌱 + the south pole's emoji). The law of every country ahead: when a faction's word lives in a land, their board opens there.",
       "faction": "Millwright's Union",
       "state_predicates": [
         {
@@ -237,11 +341,48 @@
           "biome": "Village",
           "atom": "🪵"
         }
+      ]
+    }
+  },
+  {
+    "id": "timber_rhythm",
+    "display_name": "Timber Country — The Timber Rhythm",
+    "act": 2,
+    "arc_beat": "Woodlot and village keep one time now, and you have begun harvesting the beat itself — signatures pulled straight from timber country's qubits. At the gear-bench the Union's elders say your name and the word 'factory' in the same breath.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "woodlot_wakes"
+      },
+      {
+        "type": "berry_consumed_count_gte",
+        "biome": "Woodlot",
+        "value": 2
+      }
+    ],
+    "standing_grants": {
+      "Millwright's Union": {
+        "legitimacy": 0.06,
+        "attention": 0.04
+      }
+    },
+    "arc_quest": {
+      "type": 1,
+      "category": "ARC",
+      "body": "The Gear-Bench — keep working the woodlot's registers and the Union will teach you its deep word: the factory axis (🏭/⚙).",
+      "hint": "The teaching ritual, second verse: Arc tab (X → I), accept (R), then Woodlot berries — Icon hat (5), F track, ripen, R incorporate — until READY, then claim on that row. 🏭/⚙ is the word the industrial quarter will one day open through.",
+      "faction": "Millwright's Union",
+      "state_predicates": [
+        {
+          "type": "berry_consumed_count_gte",
+          "biome": "Woodlot",
+          "value": 4
+        }
       ],
-      "reward_north": "🪵",
-      "reward_south": "🪓",
-      "reward_icon_north": "🪵",
-      "reward_icon_south": "🪓"
+      "reward_north": "🏭",
+      "reward_south": "⚙",
+      "reward_icon_north": "🏭",
+      "reward_icon_south": "⚙"
     }
   },
   {
