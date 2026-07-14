@@ -1,0 +1,113 @@
+{
+  "version": 1,
+  "name": "spacewheat_witness",
+  "_doc": "The Witness's world-as-data spec (umwelt DomainSpec shape, see ~/ws/umwelt docs/SPEC.md). Nodes declare belief clusters; bindings map PLAYER-VISIBLE game signals onto weak observations. The biome node is a template: WitnessSpec.instantiate_biome_node() mints one concrete node per DISCOVERED biome at runtime (flagged here per umwelt's post-build-transform law). All roles are dissipative: every binding is event-fired (one polarity of evidence), and umwelt's dissipative-role law says such roles must relax toward uncertainty or they saturate at a pole.",
+  "defaults": {
+    "gamma_diss": 0.02,
+    "collapse_alpha": 0.3
+  },
+  "nodes": [
+    {
+      "name": "witness",
+      "parent": null,
+      "kind": "root",
+      "roles": [],
+      "grid_pos": [0, 0]
+    },
+    {
+      "name": "self",
+      "parent": "witness",
+      "kind": "entity",
+      "roles": ["wealth_trend", "quest_momentum", "standing", "attention"],
+      "role_modes": {
+        "wealth_trend": "dissipative",
+        "quest_momentum": "dissipative",
+        "standing": "dissipative",
+        "attention": "dissipative"
+      },
+      "params": { "gamma_diss": 0.015, "gamma_diss_attention": 0.08 },
+      "grid_pos": [0, 0],
+      "emoji": {
+        "wealth_trend":   { "pos": "💰", "zero": "⚪", "neg": "🕳️", "coherent": "💠" },
+        "quest_momentum": { "pos": "🏆", "zero": "⚪", "neg": "⌛", "coherent": "💠" },
+        "standing":       { "pos": "🤝", "zero": "⚪", "neg": "🥶", "coherent": "💠" },
+        "attention":      { "pos": "👁️", "zero": "⚪", "neg": "💤", "coherent": "💠" }
+      }
+    },
+    {
+      "name": "biome_template",
+      "parent": "witness",
+      "kind": "region",
+      "template": true,
+      "roles": ["yield", "outcome", "drain", "ripeness", "coverage"],
+      "role_modes": {
+        "yield": "dissipative",
+        "outcome": "dissipative",
+        "drain": "dissipative",
+        "ripeness": "dissipative",
+        "coverage": "dissipative"
+      },
+      "params": { "gamma_diss": 0.02, "gamma_diss_coverage": 0.005 },
+      "grid_pos": [1, 0],
+      "emoji": {
+        "yield":    { "pos": "🌾", "zero": "⚪", "neg": "🥀", "coherent": "💠" },
+        "outcome":  { "pos": "🔆", "zero": "⚪", "neg": "🌑", "coherent": "💠" },
+        "drain":    { "pos": "🩸", "zero": "⚪", "neg": "🛡️", "coherent": "💠" },
+        "ripeness": { "pos": "🍒", "zero": "⚪", "neg": "🌱", "coherent": "💠" },
+        "coverage": { "pos": "🔭", "zero": "⚪", "neg": "🌫️", "coherent": "💠" }
+      }
+    }
+  ],
+  "bridges": [
+    {
+      "source": "self",
+      "target": "biome_template",
+      "shared_roles": ["wealth_trend", "yield"],
+      "kind": "open",
+      "per_instance": true,
+      "weight": 0.0
+    }
+  ],
+  "bindings": [
+    { "sensor_id": "terminal_measured", "zone": "biome:active", "role": "outcome",
+      "normalizer": "measurement_polarity", "collapse_alpha": 0.5, "efficiency": 1.0,
+      "description": "north +1 / south -1, radius scaled by (1-p) surprise" },
+    { "sensor_id": "terminal_measured.freshness", "zone": "biome:active", "role": "coverage",
+      "normalizer": "unit_pos", "collapse_alpha": 0.3, "efficiency": 1.0,
+      "description": "a measurement is a fresh look" },
+    { "sensor_id": "plot_revealed", "zone": "biome:active", "role": "coverage",
+      "normalizer": "unit_pos", "collapse_alpha": 0.15, "efficiency": 1.0,
+      "description": "scouting buys eta" },
+    { "sensor_id": "resource_mutated.harvest", "zone": "biome:active", "role": "yield",
+      "normalizer": { "type": "tanh", "scale": 5.0 }, "collapse_alpha": 0.4, "efficiency": 1.0,
+      "reasons": ["pop", "reap_measure", "reap_flux", "reap_entropy", "plot_harvest"],
+      "description": "harvests here pay off (pop = Q extract, reap_* = Shift+F)" },
+    { "sensor_id": "resource_mutated.drain", "zone": "biome:active", "role": "drain",
+      "normalizer": "unit_pos", "collapse_alpha": 0.3, "efficiency": 1.0,
+      "reasons": ["lindblad_drain", "lindblad_rainbow", "composting"],
+      "description": "this biome is bleeding resources" },
+    { "sensor_id": "resource_mutated.any", "zone": "self", "role": "wealth_trend",
+      "normalizer": { "type": "tanh", "scale": 5.0 }, "collapse_alpha": 0.25, "efficiency": 1.0,
+      "description": "wallet trend, any reason" },
+    { "sensor_id": "purchase_failed", "zone": "self", "role": "wealth_trend",
+      "normalizer": "unit_neg", "collapse_alpha": 0.15, "efficiency": 1.0,
+      "description": "a refusal is evidence of poverty" },
+    { "sensor_id": "quest_completed", "zone": "self", "role": "quest_momentum",
+      "normalizer": "unit_pos", "collapse_alpha": 0.4, "efficiency": 1.0 },
+    { "sensor_id": "quest_failed", "zone": "self", "role": "quest_momentum",
+      "normalizer": "unit_neg", "collapse_alpha": 0.4, "efficiency": 1.0 },
+    { "sensor_id": "quest_expired", "zone": "self", "role": "quest_momentum",
+      "normalizer": "unit_neg", "collapse_alpha": 0.4, "efficiency": 1.0 },
+    { "sensor_id": "standing_changed", "zone": "self", "role": "standing",
+      "normalizer": { "type": "signed_clamp", "scale": 0.25 }, "collapse_alpha": 0.3, "efficiency": 1.0 },
+    { "sensor_id": "biome_loaded", "zone": "self", "role": "attention",
+      "normalizer": "unit_pos", "collapse_alpha": 0.2, "efficiency": 1.0,
+      "description": "also sets the active-biome context and lazily mints the biome cluster" }
+  ],
+  "ignored": [
+    ["story_flag_fired", "narrative beat, not field evidence"],
+    ["icon_learned", "vocabulary event, no belief axis in phase 1"],
+    ["quest_offered", "an offer is the world talking, not the world changing"],
+    ["biome:*.ripeness bindings", "phase 2: 1Hz poll of player-visible berry tracking"]
+  ]
+}

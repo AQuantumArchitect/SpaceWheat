@@ -514,6 +514,27 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 					})
 			result["entropy_snapshot"] = rows
 
+		"witness_graph":
+			# Read-only: the Witness belief field as an umwelt graph_state v1
+			# projection (Core/Witness) — what a small LLM navigates by.
+			# compact (default true) targets <2KB: 3dp, coherence-gated x/y.
+			var organ = get_root().get_node_or_null("WitnessOrgan")
+			if organ and organ.has_method("graph_state"):
+				result["witness"] = organ.graph_state(bool(cmd.get("compact", true)))
+			else:
+				result["ok"] = false
+				result["error"] = "WitnessOrgan autoload missing"
+
+		"witness_gauge":
+			# Read-only: diff-stable gauge snapshot (sorted keys, 6dp) — the
+			# verified-learning seam: an empty diff proves nothing was learned.
+			var organ_g = get_root().get_node_or_null("WitnessOrgan")
+			if organ_g and organ_g.has_method("gauge"):
+				result["gauge"] = organ_g.gauge()
+			else:
+				result["ok"] = false
+				result["error"] = "WitnessOrgan autoload missing"
+
 		"reap_probe":
 			# Conservation probe: for each biome, bracket the REAL reap-bank
 			# extraction with S before/after and confirm the entropy-bank payout

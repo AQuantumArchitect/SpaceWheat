@@ -33,6 +33,8 @@ SurfaceRegistry="*res://UI/Core/SurfaceRegistry.gd"
 StoryEngine="*res://Core/Story/StoryEngine.gd"
 PlayerEventLog="*res://Core/Story/PlayerEventLog.gd"
 PlayerEventBridge="*res://Core/Story/PlayerEventBridge.gd"
+WitnessOrgan="*res://Core/Witness/WitnessOrgan.gd"
+WitnessBridge="*res://Core/Witness/WitnessBridge.gd"
 
 [debug]
 

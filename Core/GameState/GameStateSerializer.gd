@@ -235,6 +235,12 @@ func capture_state_from_farm(farm: Node, current_state: GameState, scenario_id: 
 	else:
 		state.selected_plot_positions = []
 
+	# The Witness's belief field rides the save (v5+). Autoload; absent only
+	# in stripped test harnesses, where an empty dict (= blank field) is right.
+	var witness = _get_autoload("WitnessOrgan")
+	if witness and witness.has_method("to_save_dict"):
+		state.witness_state = witness.to_save_dict()
+
 	var money = state.all_emoji_credits.get("💰", 0)
 	_log("info", "save", "📸", "Captured game state: grid=" + str(state.grid_width) + "x" + str(state.grid_height) +
 		", plots=" + str(state.plots.size()) + ", 💰=" + str(money) + ", selected=" + str(state.selected_plot_positions.size()))
@@ -522,6 +528,18 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 			_log("debug", "save", "✅", "Restored selection state: %d plots selected" % state.selected_plot_positions.size())
 		else:
 			_log("debug", "save", "⚠️", "QuantumInstrumentInput not found - selection state not restored")
+
+	# Restore the Witness's belief field (v5+). v4 migration is explicit:
+	# pre-Witness saves carry no belief field, so it cold-boots maximally
+	# mixed — blank beliefs are a valid state (advisory organ; forgetting is
+	# legal). Spec drift inside a v5 save also cold-boots (load_save_dict).
+	var witness = _get_autoload("WitnessOrgan")
+	if witness and witness.has_method("load_save_dict"):
+		if state.save_version == 4:
+			witness.load_save_dict({})
+			_log("info", "save", "👁️", "v4 save (pre-Witness) — belief field cold-boots blank")
+		else:
+			witness.load_save_dict(state.witness_state if state.witness_state is Dictionary else {})
 
 	_log("info", "save", "✓", "State applied to farm successfully - quantum states will regenerate from biome")
 

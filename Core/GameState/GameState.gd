@@ -31,7 +31,11 @@ extends Resource
 # degenerate). Pre-v4 saves are refused at load (SaveStore.MIN_COMPATIBLE_
 # SAVE_VERSION) — the compatibility promise to players starts at v4, and
 # tests/test_save_format_freeze.py ratchets every version from there on.
-const CURRENT_SAVE_VERSION := 4
+# v5 = the Witness (2026-07-14): additive witness_state section. Migration
+# from v4 is the empty dict → the belief field cold-boots maximally mixed,
+# which is a semantically valid state (beliefs are advisory; forgetting is
+# legal), so v4 saves load unchanged.
+const CURRENT_SAVE_VERSION := 5
 
 # Declared default 0 ("unstamped") ON PURPOSE: ResourceSaver omits properties
 # equal to the declaration default, so if this declared 4 a fresh save would
@@ -43,6 +47,11 @@ const CURRENT_SAVE_VERSION := 4
 ## Grid Dimensions (for variable-sized farms)
 @export var grid_width: int = 0
 @export var grid_height: int = 0
+
+## The Witness's belief field (Core/Witness) — {spec_hash, clusters{name →
+## {packed_rho, dim, roles, ...}}, observes_total, surprise}. Empty dict =
+## blank field (any v4 save, or a fresh game).
+@export var witness_state: Dictionary = {}
 
 ## Economy - Complete emoji credits dictionary (saves ALL resources)
 ## Format: {"emoji": credits_amount, ...}

@@ -12,6 +12,11 @@ same visibility flags, same text; no pixels, so no screenshots.
 No resource injection, no time_skip, no predicate scores, no dev
 introspection. If a verb isn't on this surface, the seat refuses it.
 
+`look` also carries `witness` — the Witness belief graph (Core/Witness), a
+memory grown ONLY from events this seat already saw on screen (parity-safe
+by construction: fog-of-war is weak measurement). Use it to navigate; pass
+--no-graph for the screen-text-only control arm.
+
 Sessions persist across CLI invocations: `start` boots a detached listener
 in a per-seat sandbox lane; every later command reconnects through the
 lane's queue/results files. State (turn counter, lane path) lives in the
@@ -150,7 +155,7 @@ def _visible_lines(c, seat, st, under="") -> list:
     return out
 
 
-def cmd_look(seat: str) -> dict:
+def cmd_look(seat: str, graph: bool = True) -> dict:
     st = _load_state(seat)
     c = _client(seat)
     text = _visible_lines(c, seat, st)
@@ -171,9 +176,21 @@ def cmd_look(seat: str) -> dict:
         if ln not in seen:
             seen.add(ln)
             screen.append(ln)
-    return {"ok": True, "screen_text": screen, "field": field,
-            "wallet": rs.get("resources", rs.get("snapshot", {})),
-            "biome_tabs": tabs}
+    out = {"ok": True, "screen_text": screen, "field": field,
+           "wallet": rs.get("resources", rs.get("snapshot", {})),
+           "biome_tabs": tabs}
+    if graph:
+        # The Witness: a belief field grown ONLY from what this seat has seen
+        # (player-parity is structural — fog-of-war is weak measurement).
+        # Read it as a navigation graph: for each biome node, glyphs/bloch z
+        # per role — z>0 on `yield` means "the field believes harvests here
+        # pay off"; low purity means "it doesn't know yet"; low `coverage`
+        # means "scout to buy measurement efficiency". `--no-graph` keeps the
+        # A/B control arm honest.
+        wg = _turn(seat, st, c, "witness_graph", compact=True)
+        if wg.get("ok", False) and isinstance(wg.get("witness"), dict):
+            out["witness"] = wg["witness"]
+    return out
 
 
 def cmd_press(seat: str, key: str, shift: bool) -> dict:
@@ -221,6 +238,13 @@ def cmd_bank(seat: str, name: str) -> dict:
     (CHECKPOINT_DIR / ("%s.json" % name)).write_text(json.dumps(
         {"name": name, "banked_from": seat, "time": time.time(),
          "flags_fired": sorted(flags.keys())}, ensure_ascii=False, indent=1))
+    # Bank the Witness gauge beside the save — diff-stable by construction,
+    # so `diff a.witness_gauge.json b.witness_gauge.json` shows exactly what
+    # the belief field learned between two checkpoints (empty diff = nothing).
+    wg = _turn(seat, st, c, "witness_gauge")
+    if wg.get("ok", False) and isinstance(wg.get("gauge"), dict):
+        (CHECKPOINT_DIR / ("%s.witness_gauge.json" % name)).write_text(
+            json.dumps(wg["gauge"], ensure_ascii=False, indent=1, sort_keys=True))
     return {"ok": True, "banked": name, "flags": len(flags)}
 
 
@@ -244,7 +268,7 @@ def main() -> int:
                 ckpt = args[i + 1] if i + 1 < len(args) else ""
             out = cmd_start(seat, "--fresh" in args, ckpt)
         elif cmd == "look":
-            out = cmd_look(seat)
+            out = cmd_look(seat, graph="--no-graph" not in args)
         elif cmd == "press":
             out = cmd_press(seat, args[2], "--shift" in args)
         elif cmd == "tap":
