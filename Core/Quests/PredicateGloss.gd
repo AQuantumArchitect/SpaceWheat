@@ -28,7 +28,15 @@ static func summary(pred: Dictionary, qm = null) -> String:
 		"berry_total_phase_gte":
 			return "phase[%s] ≥ %.2f" % [str(pred.get("biome", "")), tgt]
 		"standing_gte":
-			return "standing %s.%s ≥ %.2f" % [str(pred.get("faction", "")), str(pred.get("channel", "trust")), tgt]
+			# Live have/target — a standing gate without the current value reads
+			# as an unpayable toll (the access-0.2 wall cost the fleet ~5 legs).
+			# Completed contracts move it; the player must SEE it move.
+			var sg_faction := str(pred.get("faction", ""))
+			var sg_channel := str(pred.get("channel", "trust"))
+			var have_str := ""
+			if qm and qm.has_method("standing_channel_now"):
+				have_str = "%.2f/" % qm.standing_channel_now(sg_faction, sg_channel)
+			return "standing %s.%s %s%.2f — their contracts (C board) raise it" % [sg_faction, sg_channel, have_str, tgt]
 		"biome_state_gte":
 			return "%s.%s ≥ %.2f" % [str(pred.get("biome", "")), str(pred.get("atom", "")), tgt]
 		"biome_state_lte":

@@ -150,6 +150,19 @@ func connect_to_farm(farm: Node) -> void:
 # STORY FLAGS
 # =============================================================================
 
+## Live standing channel value — PredicateGloss shows "have/target" on standing
+## gates so completed contracts visibly move the number (the access-0.2 wall
+## read as an unpayable toll to the fleet).
+func standing_channel_now(faction: String, channel: String) -> float:
+	var farm = _get_active_farm()
+	if farm == null or not ("faction_standings" in farm) or farm.faction_standings == null:
+		return 0.0
+	var standing = farm.faction_standings.get(faction)
+	if standing == null or not standing.has_method("to_dict"):
+		return 0.0
+	return float(standing.to_dict().get(channel, 0.0))
+
+
 ## Berries consumed so far in a biome — PredicateGloss shows live "N/M" so a
 ## fresh incorporation visibly moves the number (fleet #5: "progress display
 ## not updating" + the cumulative ladder read as shifting requirements).
@@ -446,7 +459,11 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 				return 0.0
 			var channel: String = str(pred.get("channel", "trust"))
 			var current := float(standing.to_dict().get(channel, 0.0))
-			return QuestMath.soft_gate(current, float(pred.get("value", 0.0)))
+			# Per-predicate width matters here more than anywhere: standing accrues
+			# in fixed contract-sized steps (+0.02 access per delivery), so the
+			# default 0.05 width silently prices a 0.2 gate at ~2 extra deliveries.
+			# Authors declare "width" to pin a gate to a delivery count.
+			return QuestMath.soft_gate(current, float(pred.get("value", 0.0)), _pred_width(pred, "standing_gte"))
 		"biome_state_gte":
 			if farm.grid == null:
 				return 0.0
