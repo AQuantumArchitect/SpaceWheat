@@ -150,7 +150,7 @@
       "type": 1,
       "category": "ARC",
       "body": "Apprentice to the Mill — show the Millwright's Union you know the Village's grain and gears, and they will teach you the windmill (💨/🔨).",
-      "hint": "Become FAMILIAR with the Village: Berry-track its registers, ripen them, and incorporate. This quest lives on the Arc tab (X → I): accept it there (R on its row), then work Village berries until it reads READY and claim it on that same row — the claim is when the Millwrights teach you the windmill (💨/🔨). Only a word you know can be planted: after the claim, Icon hat (5) R on an empty Village plot offers it, and the gears wake.",
+      "hint": "Become FAMILIAR with the Village: Berry-track its registers, ripen them, and incorporate. This quest lives on the Arc tab (X → I): accept it there (R on its row), then work Village berries until it reads READY and claim it on that same row — the claim is when the Millwrights teach you the windmill (💨/🔨). Only a word you know can be planted: after the claim, Icon hat (5) R on an empty Village plot offers it, and the gears wake. When a faction's word lives in a land, their board opens there — that is how every country ahead will open.",
       "faction": "Millwright's Union",
       "state_predicates": [
         {
@@ -1432,7 +1432,16 @@
       }
     ],
     "standing_grants": {},
-    "arc_quest": null
+    "arc_quest": {
+      "body": "Sixteen Words — the enclave's vocabulary runs out; what the island cannot grow, the countries teach.",
+      "hint": "The island's words are finite: track and incorporate what its registers still hold (Icon hat 5 — F tracks, time ripens, R incorporates), and when the ground refuses you, a word must be taught instead. Claim a teaching on the Arc tab when its row reads READY — the eagle overhead (🩸/🦅), the serfs' ledger (💸/💀), the Ledger's monolith (📜/🏰) — and the edge is behind you.",
+      "state_predicates": [
+        {
+          "type": "signature_size_gte",
+          "value": 16
+        }
+      ]
+    }
   },
   {
     "id": "the_crossing",
@@ -1767,7 +1776,16 @@
     "physics_changes": {
       "dissipative_dynamics": true
     },
-    "arc_quest": null
+    "arc_quest": {
+      "body": "Eighteen Words — walk through the door carrying every word the whole world taught you.",
+      "hint": "The island grew most of them; the far countries carry the rest. Claim what the teachers still owe you — the eagle's (🩸/🦅), the serfs' (💸/💀), the Ledger's (📜/🏰) — and harvest the words the wet country grows in its own registers: Icon hat (5), F tracks a loop, time ripens it, R incorporates, in any land where a word lives. Eighteen is the door's ask.",
+      "state_predicates": [
+        {
+          "type": "signature_size_gte",
+          "value": 18
+        }
+      ]
+    }
   },
   {
     "id": "second_loop",
@@ -1928,7 +1946,16 @@
         "legitimacy": 0.06
       }
     },
-    "arc_quest": null
+    "arc_quest": {
+      "body": "Collect the Span — fuse the braided bridge and take the one harvest whose crop was never in any field.",
+      "hint": "Spark frame, 🌉 mode, standing on a shore the span touches: Q arms the fusion, F commits it. Born answers even or odd, surprisal pays on both shores at once, and the bridge is spent — reading it was localizing it. One fusion is the lesson.",
+      "state_predicates": [
+        {
+          "type": "bridge_fused_gte",
+          "value": 1
+        }
+      ]
+    }
   },
   {
     "id": "empire_imposes",
@@ -1952,7 +1979,17 @@
         "legitimacy": -0.1
       }
     },
-    "arc_quest": null
+    "arc_quest": {
+      "body": "One Shape — read the empire's gap and know exactly what it imposes.",
+      "hint": "The microscope (B) on BloodLedger shows its spectrum: one dominant mode behind a gap past 0.6. Nothing to build here — let the ledger evolve and read it. Knowing the shape is the quest; what your island does about it is the next one.",
+      "state_predicates": [
+        {
+          "type": "biome_spectral_gap_gte",
+          "biome": "BloodLedger",
+          "value": 0.6
+        }
+      ]
+    }
   },
   {
     "id": "island_free",
@@ -1979,6 +2016,24 @@
       }
     ],
     "standing_grants": {},
-    "arc_quest": null
+    "arc_quest": {
+      "body": "Stay Many — hold the island loose, varied, and word-rich while the empire holds one shape.",
+      "hint": "Three bars, and the island you built already carries them: Village's gap under 0.55 — the microscope (B) reads it; if the ring stiffens, unseat a heavy word (Icon hat Q) and seat a stranger one (R) — eighteen kinds of atom across your lands, and fourteen words in your signature. Many is measurable. Measure it.",
+      "state_predicates": [
+        {
+          "type": "biome_spectral_gap_lte",
+          "biome": "Village",
+          "value": 0.55
+        },
+        {
+          "type": "atom_diversity_gte",
+          "value": 18
+        },
+        {
+          "type": "signature_size_gte",
+          "value": 14
+        }
+      ]
+    }
   }
 ]

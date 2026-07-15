@@ -667,9 +667,19 @@ def main():
             print("  ", fprog("spring_door"))
 
             # Beat 1 (door): discover FreshwaterSpring — the compass pressures it #1 now.
+            # Same slot dance as the lantern/BL loops: a full grid REFUSES discovery
+            # (leg 2026-07-14: 8 draws no-oped against 6 held slots and the lane lost
+            # the water word for good — flags latched on, registers never planted).
+            act2_core = {"StarterForest", "TheDemos", "Village", "Woodlot"}
             for d in range(1, 9):
                 if "FreshwaterSpring" in grid():
                     break
+                if len(grid()) >= 6:
+                    cullable = cullable_from(grid(), act2_core | protected_landmarks(),
+                                             ("FreshwaterSpring",))
+                    if cullable:
+                        cull(cullable[0])
+                bridge("🦅", 80)
                 ensure_hat("7")
                 press("R", 6)
                 print(f"  discover spring #{d}: grid={grid()} 🦅={res().get('🦅', 0)}")
@@ -836,13 +846,28 @@ def main():
             # Branch-divergence (FINDING 2026-06-26, resolved by chapter 2): commons needs
             # 💧 in Village — the spring chapter's mill-pond DELIVER plants it by
             # construction, so village_path_commons is now story-reachable. Fallback
-            # only if the chapter somehow didn't land the plant.
-            if "spring_wakes" in flags():
-                print("  (💧 lives in Village via spring_wakes — commons armed)")
+            # only if the chapter somehow didn't land the plant. CHECK THE LIVE STATE,
+            # not the spring_wakes flag: on a relay lane the flag can be banked while
+            # the plant died with an unsaved leg (flags latch; registers are state) —
+            # trusting the flag left Village at 10 atoms and deadlocked village_identity.
+            vpc0 = go("flag_progress", id="village_path_commons").get("predicates", [])
+            water_in = any(p.get("pred", {}).get("type") == "atom_in_biome"
+                           and float(p.get("score", 0.0)) > 0.5 for p in vpc0)
+            if water_in:
+                print("  (💧 lives in Village — commons armed)")
             else:
+                if not word_known("💧", "🌊"):
+                    # Relay lane: spring_connects latched but its CLAIM died with an
+                    # unsaved leg. StoryEngine restores unclaimed arc offers on load —
+                    # re-claim the water teaching (readiness = forest berries 8).
+                    print("  (water word missing on a relay lane — re-claiming the spring teaching)")
+                    claim_teaching("💧", "🌊", "StarterForest", "teach you water")
                 spring = next((i for i in known() if "💧" in (i.get("north", ""), i.get("south", ""))), None)
                 if spring:
-                    plant_icon(vk, spring["north"], spring["south"], "spring 💧 (commons)")
+                    # plant_pair, not bare plant_icon: the picker hides pairs once the
+                    # signature outgrows its ~3 visible slots — the inject_icon fallback
+                    # is the same seam and is what actually lands on a relay lane.
+                    plant_pair("Village", spring["north"], spring["south"], "spring 💧 (commons)")
                     press(vk); go("time_skip", phrames=120)
                 else:
                     print("  (no 💧-bearing icon known → village_path_commons unreachable this run)")
@@ -873,6 +898,13 @@ def main():
             press(vk); go("time_skip", phrames=150)
             print("  ", fprog("village_identity"))
 
+            # Relay bank #3.5 (identity): the hub gate is the act-4 midpoint; the
+            # water-reclaim + eagle-claim stretches each cost minutes of berry
+            # re-earn on a loaded lane — don't make a dead leg repeat both.
+            if _bank and not _resume and go("flag_progress", id="village_identity").get("fired"):
+                r_b35 = go("save_game_path", path=_bank + "_identity.tres")
+                print(f"  BANK identity checkpoint: {r_b35.get('saved')} -> {_bank}_identity.tres")
+
             # ---- five_doors + both branch teachers cascade off village_identity;
             #      commons (💧, pond) + artisan (🔨, mill) are armed by construction.
             print("\n== ACT4: five doors (the naming beat + the two dark teachers) ==")
@@ -886,7 +918,13 @@ def main():
             # 🦅 was organically incorporated in act 1 via Raptor 🦅/🐇), unseat the
             # timber word (island_lives long fired — flags latch), plant the key.
             print("\n== ACT4: the eagle door (claim 🩸/🦅 → unseat the mill → plant the key) ==")
-            claim_teaching("🩸", "🦅", "Village", "The Eagle's Word")
+            if not go("flag_progress", id="eagle_overhead").get("fired"):
+                # The eagle arc is offered when eagle_overhead FIRES (← village_identity).
+                # Claiming an unoffered arc farms berries into a void (leg 2026-07-14:
+                # six blind rounds, ~6 min) — bail loudly instead.
+                print("  (eagle_overhead not fired — hub gate still open; door skipped)")
+            else:
+                claim_teaching("🩸", "🦅", "Village", "The Eagle's Word")
 
             def trim_village_last():
                 """Icon hat Q = Trim Icon (destructive: Q arms; the confirm toast eats
@@ -915,7 +953,7 @@ def main():
                       f"(qubits {before}→{len(qstate('Village'))}) | {fprog('island_lives')}")
                 return ok
 
-            if word_known("🩸", "🦅"):
+            if word_known("🩸", "🦅") and not go("flag_progress", id="village_path_watched").get("fired"):
                 trim_village_last()
                 plant_pair("Village", "🩸", "🦅", "the eagle's key → Village")
                 press(vk); go("time_skip", phrames=180)
@@ -925,6 +963,12 @@ def main():
                 print("  ", fprog("village_path_watched"))
             ad4 = go("atom_diversity")
             print(f"  post-doors: distinct={ad4.get('distinct')} sig={len(known())}")
+
+            # Relay bank #4 (hub): act 4 done, act 5-6 (ledger → ending) still ahead.
+            # Under machine load the lantern→ending stretch no longer fits one leg.
+            if _bank and not _resume:
+                r_b4 = go("save_game_path", path=_bank + "_hub.tres")
+                print(f"  BANK hub checkpoint: {r_b4.get('saved')} -> {_bank}_hub.tres")
 
             # ============ ACT 5: ledger_opens ============
             print("\n== ACT5: ledger_opens (discover BloodLedger + berry≥2) ==")

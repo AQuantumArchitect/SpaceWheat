@@ -30,18 +30,17 @@ ICONS = PROJECT_ROOT / "Core" / "Factions" / "data" / "icons.json"
 DEFAULT_SCENARIO = PROJECT_ROOT / "Scenarios" / "demos_normal.tres"
 
 # -- TODO allowlists (the ratchet) --------------------------------------------
-# The act-4 hub chapter landed: every village door's key now has a teacher in
-# its path's prereq closure (timber_rhythm → 🏭, eagle_overhead → 🦅,
-# serfs_ledger → 💀), and island_lives/village_identity carry arcs. Remaining
-# debts are the acts 0-1 touch-ups and the acts 5-8 audit.
+# The acts 5-8 audit landed (plan Phase 5): every late gate with an invisible
+# numeric climb now carries a minimal mirroring arc (edge_of_the_enclave,
+# empire_imposes, island_free, the_fusion, the_door_stays_open) — the last two
+# plus island_free are terminal (nothing references them), so rule (d) never
+# owed them, but they carry arcs anyway. Remaining debt: acts 0-1 forest beats.
 TODO_TEACH_BEFORE_PLANT = set()  # every plant has a teacher upstream — keep it so
 TODO_STANDING_WIDTH = set()  # all standing gates carry authored widths — keep it so
 TODO_ARC_QUEST = {
     "forest_evolving",      # acts 0-1 touch-up pass (plan Phase 4)
     "forest_listener",      # acts 0-1 touch-up pass
     "forest_communion",     # acts 0-1 touch-up pass
-    "edge_of_the_enclave",  # acts 5-8 audit (plan Phase 5: signature bar)
-    "empire_imposes",       # acts 5-8 audit (gap read)
 }
 
 
