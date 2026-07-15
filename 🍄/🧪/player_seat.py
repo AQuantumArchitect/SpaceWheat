@@ -233,7 +233,8 @@ def cmd_bank(seat: str, name: str) -> dict:
     # checkpoints dir (owner directive: aggressive checkpoints so marathons
     # resume where the last one died instead of replaying the early game).
     if not name or not name.replace("_", "").isalnum():
-        return {"ok": False, "error": "bad_checkpoint_name"}
+        return {"ok": False, "error": "bad_checkpoint_name",
+                "hint": "letters/digits/underscores only, e.g. leg_l1_relay"}
     CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
     st = _load_state(seat)
     c = _client(seat)
