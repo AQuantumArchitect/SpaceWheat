@@ -51,6 +51,16 @@ func get_consumed_phase() -> float:
 	return _consumed_phase
 
 
+func restore_consumed(count: int, phase: float) -> void:
+	# Save/load seam: the harvest counters are CAMPAIGN progression (the act-1
+	# berry ladder and every teaching claim gate on them), so they must survive
+	# a reload. The tracked-path state stays session-only on purpose —
+	# re-tracking costs nothing, but a spent register never refunds its berry,
+	# so losing the credit can strand a resumed run (relay wall, 2026-07-15).
+	_consumed_count = maxi(0, count)
+	_consumed_phase = maxf(0.0, phase)
+
+
 func clear() -> void:
 	_state.clear()
 	_frozen_loops.clear()

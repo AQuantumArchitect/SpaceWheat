@@ -762,6 +762,14 @@ func _capture_single_biome_state(biome: Node, _biome_name: String) -> Dictionary
 			infra[str(reg_id)] = biome.quantum_computer.register_infrastructure[reg_id].duplicate(true)
 		state_dict["register_infrastructure"] = infra
 
+	# Berry harvest counters are campaign progression (berry_consumed_count_gte
+	# gates the act-1 ladder and every teaching claim). A save keeps its SPENT
+	# registers; without these two numbers it forgets the credit for spending
+	# them, which strands berry gates on any resumed run.
+	if biome.quantum_computer and biome.quantum_computer.berry_register:
+		state_dict["berry_consumed_count"] = biome.quantum_computer.berry_register.get_consumed_count()
+		state_dict["berry_consumed_phase"] = biome.quantum_computer.berry_register.get_consumed_phase()
+
 	# Density matrix ρ — the deepest level of truth. Plots are projections of
 	# ρ via viz_cache; without persisting ρ, registers re-boot to ground state
 	# on load and plots render against stale (or empty) Bloch snapshots.
@@ -886,6 +894,12 @@ func _restore_single_biome_state(biome: Node, state: Dictionary, biome_name: Str
 		var qc = biome.quantum_computer
 		for reg_str in state["register_infrastructure"]:
 			qc.register_infrastructure[int(reg_str)] = state["register_infrastructure"][reg_str]
+
+	# Berry credit restore (absent on pre-fix saves → 0, the old behavior).
+	if biome.quantum_computer and biome.quantum_computer.berry_register:
+		biome.quantum_computer.berry_register.restore_consumed(
+			int(state.get("berry_consumed_count", 0)),
+			float(state.get("berry_consumed_phase", 0.0)))
 
 	# Restore ρ, then re-seed viz_cache so PlotGridDisplay reads live Bloch
 	# snapshots immediately on load instead of -1.0 from an empty cache.

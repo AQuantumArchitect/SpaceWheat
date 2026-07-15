@@ -38,6 +38,8 @@ func _run() -> void:
 			"1": {"theta_frozen": false, "lindblad_drain_active": true},
 		},
 		"density_matrix": serializer._encode_complex_matrix(source_rho),
+		"berry_consumed_count": 4,
+		"berry_consumed_phase": 25.13,
 	}
 
 	var target_biome := BiomeBase.new()
@@ -80,5 +82,22 @@ func _run() -> void:
 		quit(6)
 		return
 
-	print("density/register round-trip ok (max_err=%s)" % str(max_err))
+	# Berry credit round-trip: the harvest counters are campaign progression
+	# (berry gates strand on a resumed run without them — relay wall 2026-07-15).
+	if qc.berry_register == null or qc.berry_register.get_consumed_count() != 4:
+		printerr("berry_consumed_count was not restored: %s" % (
+			str(qc.berry_register.get_consumed_count()) if qc.berry_register else "no register"))
+		quit(9)
+		return
+	if absf(qc.berry_register.get_consumed_phase() - 25.13) > 1e-9:
+		printerr("berry_consumed_phase was not restored: %f" % qc.berry_register.get_consumed_phase())
+		quit(10)
+		return
+	var recapture := serializer._capture_single_biome_state(target_biome, "RoundTripTarget")
+	if int(recapture.get("berry_consumed_count", -1)) != 4:
+		printerr("capture side does not persist berry_consumed_count: %s" % str(recapture.get("berry_consumed_count")))
+		quit(11)
+		return
+
+	print("density/register/berry round-trip ok (max_err=%s)" % str(max_err))
 	quit(0)
