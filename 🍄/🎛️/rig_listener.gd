@@ -996,13 +996,24 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 					var pg_plot = pg_grid.get_plot(pg_pos)
 					var pg_col := int(pg_pos.x)
 					var pg_bname := str(pg_assignments[pg_pos])
-					pg_rows.append({
+					var pg_is_revealed: bool = pg_revealed.has(pg_pos)
+					var pg_row := {
 						"key": pg_keys[pg_col] if pg_col < pg_keys.length() else "?",
 						"biome": pg_bname,
-						"revealed": pg_revealed.has(pg_pos),
+						"revealed": pg_is_revealed,
 						"measured": pg_plot.has_terminal() if pg_plot else false,
 						"focused": pg_col == pg_focus_col and pg_bname == pg_focus_biome,
-					})
+					}
+					# A revealed bubble wears its word (🦅/🐇 on its face) — the
+					# glyphs tell a player WHERE a resource lives. Fog-honest:
+					# unrevealed plots stay wordless, same as headed empty space.
+					if pg_is_revealed:
+						var pg_biome = pg_grid.get_biome(pg_bname)
+						if pg_biome and pg_biome.viz_cache and pg_biome.viz_cache.has_metadata():
+							var pg_axis: Dictionary = pg_biome.viz_cache.get_axis(pg_col)
+							if pg_axis and not pg_axis.is_empty():
+								pg_row["axis"] = "%s%s" % [str(pg_axis.get("north", "")), str(pg_axis.get("south", ""))]
+					pg_rows.append(pg_row)
 				result["plots"] = pg_rows
 
 		"plot_register_map":
