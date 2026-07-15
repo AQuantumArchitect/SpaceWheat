@@ -22,7 +22,14 @@ terminal flag:
 | L2 | act2_woodlot_taught | pond_breathes | plant ritual + spring chapter (trust lane) |
 | L3 | act2_complete | chain_flipped | mill + Lanternfall witness contact (the "circuits" chapter — the owner's open haiku-difficulty question; a wall here is a DESIGN ANSWER, not a failure) |
 | L4 | act3_complete | five_doors + both teachers | the hub, one deliberate word |
-| L5..L9 | act4_hub | one village_path_* each (commons/industrial/artisan/watched/cemetery) | trim + plant one door key |
+| L5..L7 | act4_hub | one village_path_* each (industrial/watched/cemetery) | trim + plant one door key |
+
+P7a FINDING (design, for the owner): commons + artisan fire AT the five_doors
+cascade — their key atoms (💧, 🔨) live in Village by construction (pond
+DELIVER, mill plant). The fork's real choices are the other three doors.
+Whether commons/artisan should demand a deliberate plant is an owner call
+(the composition-IS-character fiction argues both ways); until ruled, the
+branch proof is 3 legs + 2 organically-proven paths.
 
 Sensor orders (every leg): screen text + seat verbs only; NEVER edit files;
 ~8-10 presses without visible progress on the current objective → bank, file
