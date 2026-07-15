@@ -12,7 +12,17 @@
       }
     ],
     "standing_grants": {},
-    "arc_quest": null
+    "arc_quest": {
+      "body": "First Breath — steer one loop, and keep what it traced.",
+      "hint": "The first wheel: Icon hat (5), then F on a plot to Berry-track its register. Let it orbit — a berry ripens in about half a minute of watching — then R incorporates what the loop traced. One deliberate incorporation is the whole quest; the story tab (X) meter is measuring exactly this.",
+      "state_predicates": [
+        {
+          "type": "signature_growth_gte",
+          "value": 0.5,
+          "width": 0.4
+        }
+      ]
+    }
   },
   {
     "id": "forest_evolving",
@@ -35,7 +45,21 @@
         "trust": 0.05
       }
     },
-    "arc_quest": null
+    "arc_quest": {
+      "body": "The Forest Stirs — hear the forest speak once.",
+      "hint": "Stand in StarterForest (the biome tabs along the top). Icon hat (5): F tracks a forest register, wait for its berry to ripen, R incorporates. One forest berry consumed and the forest has spoken to you. If nothing moves, give it time — the rhythm never runs down, but it is a rhythm.",
+      "state_predicates": [
+        {
+          "type": "biome_evolving",
+          "biome": "StarterForest"
+        },
+        {
+          "type": "berry_consumed_count_gte",
+          "biome": "StarterForest",
+          "value": 1
+        }
+      ]
+    }
   },
   {
     "id": "forest_listener",
@@ -58,7 +82,17 @@
         "trust": 0.08
       }
     },
-    "arc_quest": null
+    "arc_quest": {
+      "body": "The Forest Listens Back — three signatures from the same forest.",
+      "hint": "The same ritual, twice more: Icon hat (5), F to track, ripen, R to incorporate. The bar counts forest berries consumed — three, and the patterns stop being noise.",
+      "state_predicates": [
+        {
+          "type": "berry_consumed_count_gte",
+          "biome": "StarterForest",
+          "value": 3
+        }
+      ]
+    }
   },
   {
     "id": "forest_communion",
@@ -86,6 +120,22 @@
         "trust": 0.12,
         "legitimacy": 0.05
       }
+    },
+    "arc_quest": {
+      "body": "The Druid's Loop — five signatures, two full hemispheres of deliberate angle.",
+      "hint": "Keep the loops going: five forest berries in total. The second bar is the signed solid angle your traces have gathered — long, coherent orbits add to it; jittery scribble cancels itself. Track, let it swing wide, then reap. Choosing WHAT to incorporate is the lesson.",
+      "state_predicates": [
+        {
+          "type": "berry_consumed_count_gte",
+          "biome": "StarterForest",
+          "value": 5
+        },
+        {
+          "type": "berry_total_phase_gte",
+          "biome": "StarterForest",
+          "value": 12.566
+        }
+      ]
     }
   },
   {

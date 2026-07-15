@@ -37,11 +37,7 @@ DEFAULT_SCENARIO = PROJECT_ROOT / "Scenarios" / "demos_normal.tres"
 # owed them, but they carry arcs anyway. Remaining debt: acts 0-1 forest beats.
 TODO_TEACH_BEFORE_PLANT = set()  # every plant has a teacher upstream — keep it so
 TODO_STANDING_WIDTH = set()  # all standing gates carry authored widths — keep it so
-TODO_ARC_QUEST = {
-    "forest_evolving",      # acts 0-1 touch-up pass (plan Phase 4)
-    "forest_listener",      # acts 0-1 touch-up pass
-    "forest_communion",     # acts 0-1 touch-up pass
-}
+TODO_ARC_QUEST = set()  # emptied 2026-07-15 — every referenced numeric gate has a visible quest
 
 
 def _load_flags():
