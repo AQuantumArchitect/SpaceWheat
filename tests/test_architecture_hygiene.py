@@ -35,6 +35,11 @@ BANNED_PATTERNS = {
 }
 
 ARCHIVE_ROOT = ROOT / "archive"
+
+# The hive's runtime ledgers (walls.jsonl and friends) are machine-appended
+# playtest reports — sensor prose, not shipped code. A haiku describing a bug
+# using retired vocabulary is data ABOUT the fleet, not residue IN the tree.
+HIVE_RUNTIME_DIR = ROOT / "🍄" / "🧪" / "hive"
 ARCHIVED_PATHS = {
     ROOT / "tests" / "contract_market_smoke.gd",
     ROOT / "docs" / "biomemissions" / "STARTERFOREST_VILLAGE_CONNECTIONS.md",
@@ -54,6 +59,8 @@ def _iter_live_files():
             if not path.is_file():
                 continue
             if ARCHIVE_ROOT in path.parents:
+                continue
+            if HIVE_RUNTIME_DIR in path.parents and path.suffix == ".jsonl":
                 continue
             if path.suffix not in TEXT_SUFFIXES:
                 continue

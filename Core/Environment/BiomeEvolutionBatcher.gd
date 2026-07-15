@@ -1011,6 +1011,13 @@ func physics_process(delta: float):
 		# Buffering off but the backend is present: evolve directly through the C++ backend,
 		# one phrame this tick (no N-phrame buffer). This replaces the old no-op "GDScript
 		# fallback" — GDScript quantum compute is deprecated; the machinery always evolves.
+		#
+		# Flush pending re-registers FIRST: run_native_biome_cycle refuses a
+		# dim-mismatched engine slot (planting an icon grows the qc), and the
+		# only other processor lives in _physics_process_lookahead — which this
+		# lane never runs. Without this, one plant stalled the biome forever
+		# ("engine dim != qc dim — re-register did not land", every tick).
+		_process_pending_reregisters()
 		_deterministic_stepper.run_time_skip_cycles(1, delta)
 	# else: backend not ready yet — biomes wait for engine init (no GDScript compute).
 

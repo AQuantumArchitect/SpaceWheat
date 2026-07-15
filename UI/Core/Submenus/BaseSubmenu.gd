@@ -145,6 +145,17 @@ static func build_result(
 		"actions": actions
 	}
 
+	# Multi-page submenus advertise F as the pager chip (QII dispatches the
+	# actual cycle). Without a visible F chip the extra pages were secret —
+	# with >3 options nothing hinted that more existed.
+	if int(result["max_pages"]) > 1 and not actions.has("F"):
+		actions["F"] = {
+			"action": "cycle_page",
+			"label": "More (%d/%d)" % [int(result["page"]) + 1, int(result["max_pages"])],
+			"hint": "next page",
+			"enabled": true
+		}
+
 	# Merge any extra fields
 	for key in extras:
 		result[key] = extras[key]

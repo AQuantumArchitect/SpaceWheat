@@ -152,8 +152,8 @@ func set_checked_plots(positions: Array) -> void:
 # SUBMENU MANAGEMENT (absorbed from QuantumInstrumentState)
 # ============================================================================
 
-func enter_submenu(name: String, context: Dictionary) -> Dictionary:
-	submenu_page = 0
+func enter_submenu(name: String, context: Dictionary, page: int = 0) -> Dictionary:
+	submenu_page = page
 	current_submenu_name = name
 	if name == "icon_injection":
 		var icon_injection_scene = load("res://UI/Core/Submenus/IconInjectionSubmenu.gd")
@@ -168,6 +168,9 @@ func enter_submenu(name: String, context: Dictionary) -> Dictionary:
 	else:
 		push_error("Unknown submenu: %s" % name)
 		return {}
+	# Pagination wraps (page % max_pages) — adopt the wrapped page so the next
+	# cycle steps from where the menu actually is.
+	submenu_page = int(current_submenu_data.get("page", submenu_page))
 	return current_submenu_data
 
 
@@ -178,8 +181,11 @@ func exit_submenu() -> void:
 
 
 func cycle_submenu_page(context: Dictionary) -> Dictionary:
-	submenu_page += 1
-	var submenu_data = enter_submenu(current_submenu_name, context)
+	# Regenerate at the NEXT page. This used to do `submenu_page += 1` then call
+	# enter_submenu(), whose first line reset submenu_page back to 0 — F-paging
+	# always re-rendered page 0, so any option past the first three was
+	# unreachable (the plant picker's silent vocabulary wall).
+	var submenu_data = enter_submenu(current_submenu_name, context, submenu_page + 1)
 	return {
 		"submenu_changed": true,
 		"submenu_name": current_submenu_name,

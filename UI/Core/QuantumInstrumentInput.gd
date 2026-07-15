@@ -284,14 +284,22 @@ func _dispatch_action_key(key: String, shift: bool = false) -> void:
 			else:
 				_perform_action(key)
 		"F":
-			# F = confirm a pending QF destructive action, or close submenu,
-			# or dispatch a frame-defined F verb if one exists.
+			# F = confirm a pending QF destructive action, or page/close a
+			# submenu, or dispatch a frame-defined F verb if one exists.
 			if not _confirm_pending.is_empty():
 				var pending := _confirm_pending.duplicate()
 				_confirm_pending = {}
 				_run_action(pending["action"], pending.get("emoji", ""), pending.get("label", ""))
 			elif _instrument and _instrument.is_in_submenu():
-				_close_submenu()
+				# F pages a multi-page submenu — the picker's documented F-cycling.
+				# It used to close instead, which stranded every option past the
+				# first three: with >3 known icons the plant picker could never
+				# offer the rest (sensor leg L2b: 🪵/🪓 unreachable on a 9-icon
+				# save). ESC remains the close key (grammar: F does not unwind).
+				if _instrument.current_submenu_data.get("max_pages", 1) > 1:
+					_cycle_submenu_page()
+				else:
+					_close_submenu()
 			else:
 				var f_action = ToolConfig.get_action(ToolConfig.get_current_frame(), "F")
 				if shift and str(f_action.get("shift_action", "")) != "":

@@ -20,6 +20,8 @@ func _init():
 	test_pagination_integration()
 	test_empty_state_handling()
 	test_cost_integration()
+	test_multi_page_offers_every_icon()
+	test_instrument_page_cycling_advances()
 
 	print("\n" + DIVIDER)
 	print("RESULTS: %d passed, %d failed" % [passed, failed])
@@ -178,6 +180,76 @@ func test_cost_integration():
 		if not q["cost"].is_empty():
 			print("  ✓ Cost: %s" % q.get("cost_display", str(q["cost"])))
 			print("  ✓ Can afford: %s" % q["can_afford"])
+
+
+func test_multi_page_offers_every_icon():
+	# Regression (sensor leg L2b): with >3 known icons the plant picker showed
+	# only the top-3-by-affinity page and NOTHING advertised more — the rest of
+	# the vocabulary (incl. a freshly taught 🪵/🪓) was unreachable. Every icon
+	# must be exposed on SOME page, and multi-page menus must carry the F pager
+	# chip so the extra pages are discoverable.
+	print("\n[Multi-page: every icon reachable]")
+
+	var mock_biome = MockBiome.new()
+	var mock_farm = MockFarm.new()
+	for i in range(9):
+		mock_farm.known_icons.append({"north": "N%d" % i, "south": "S%d" % i})
+
+	var page0 = IconInjectionSubmenu.generate_submenu(mock_biome, mock_farm, 0)
+	assert_eq(page0["total_options"], 9, "9 known icons → 9 options")
+	assert_eq(page0["max_pages"], 3, "9 options → 3 pages")
+
+	# Multi-page menus advertise the pager.
+	assert_true(page0["actions"].has("F"), "Multi-page submenu has F pager chip")
+	assert_eq(page0["actions"]["F"]["action"], "cycle_page", "F chip is cycle_page")
+
+	# Single-page menus do NOT grow a pager chip.
+	var small_farm = MockFarm.new()
+	small_farm.known_icons = [{"north": "A", "south": "B"}]
+	var single = IconInjectionSubmenu.generate_submenu(mock_biome, small_farm, 0)
+	assert_true(not single["actions"].has("F"), "Single-page submenu has no F chip")
+
+	# Union of all pages == all 9 icons.
+	var seen = {}
+	for p in range(3):
+		var sub = IconInjectionSubmenu.generate_submenu(mock_biome, mock_farm, p)
+		for key in ["Q", "E", "R"]:
+			if sub["actions"].has(key):
+				var icon = sub["actions"][key].get("icon", {})
+				seen["%s|%s" % [icon.get("north", ""), icon.get("south", "")]] = true
+	assert_eq(seen.size(), 9, "All 9 icons reachable across pages")
+
+	# Page index wraps.
+	var wrapped = IconInjectionSubmenu.generate_submenu(mock_biome, mock_farm, 3)
+	assert_eq(wrapped["page"], 0, "Page 3 of 3 wraps to page 0")
+
+
+func test_instrument_page_cycling_advances():
+	# Regression: QuantumInstrument.cycle_submenu_page incremented submenu_page
+	# and then called enter_submenu(), whose first line RESET the page to 0 —
+	# so F-paging always re-rendered page 0 and the pager was dead end-to-end.
+	print("\n[Instrument page cycling advances]")
+
+	var mock_biome = MockBiome.new()
+	var mock_farm = MockFarm.new()
+	for i in range(9):
+		mock_farm.known_icons.append({"north": "N%d" % i, "south": "S%d" % i})
+	var ctx = {"biome": mock_biome, "farm": mock_farm}
+
+	var instrument = load("res://Core/Instrumentation/QuantumInstrument.gd").new()
+	var opened = instrument.enter_submenu("icon_injection", ctx)
+	assert_eq(int(opened["page"]), 0, "enter_submenu opens on page 0")
+
+	var r1 = instrument.cycle_submenu_page(ctx)
+	assert_eq(int(r1["submenu_data"]["page"]), 1, "First cycle lands on page 1")
+	var r2 = instrument.cycle_submenu_page(ctx)
+	assert_eq(int(r2["submenu_data"]["page"]), 2, "Second cycle lands on page 2")
+	var r3 = instrument.cycle_submenu_page(ctx)
+	assert_eq(int(r3["submenu_data"]["page"]), 0, "Third cycle wraps to page 0")
+
+	# Re-entering resets to page 0 (fresh open, not sticky).
+	var reopened = instrument.enter_submenu("icon_injection", ctx)
+	assert_eq(int(reopened["page"]), 0, "Re-open resets to page 0")
 
 
 func assert_eq(actual, expected, msg: String):

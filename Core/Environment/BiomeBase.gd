@@ -889,6 +889,18 @@ func expand_quantum_system(north_emoji: String, south_emoji: String) -> Dictiona
 	var result = _system_builder.expand_quantum_system(north_emoji, south_emoji)
 	if result.get("success", false):
 		_refresh_effective_icons()
+		# The register layout just changed under the display: reseed viz
+		# metadata NOW so the new axis is readable immediately (glance/axis
+		# labels read viz_cache). Waiting on a lookahead payload never works
+		# on the direct-stepper lane — the plant looked like it ate 🌱 and
+		# produced nothing (sensor leg L2b).
+		if viz_cache:
+			viz_cache.clear_metadata()
+		_seed_viz_metadata()
+		# ... and flush the C++ twin: its H/L copy AND dimension are stale
+		# after a qubit was added. Without this the mutation only surfaced
+		# through the refill-time drift net, which the direct lane never ran.
+		_mark_lookahead_dirty()
 	return result
 
 
