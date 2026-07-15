@@ -1021,6 +1021,13 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 						var pg_axis: Dictionary = pg_biome.viz_cache.get_axis(pg_col)
 						if pg_axis and not pg_axis.is_empty():
 							pg_row["axis"] = "%s%s" % [str(pg_axis.get("north", "")), str(pg_axis.get("south", ""))]
+							# The bubble also wears its STATE (size/tint = weight toward
+							# the north glyph): north_pct says how a HOLD is going. L3c
+							# held the lamp BLIND — lantern_teaching fired with zero
+							# state feedback in text. Fog-honest: revealed plots only.
+							var pg_bloch: Dictionary = pg_biome.viz_cache.get_bloch(pg_col)
+							if not pg_bloch.is_empty():
+								pg_row["north_pct"] = snappedf(float(pg_bloch.get("p0", 0.0)), 0.01)
 					# A column past the biome's registers renders NO bubble headed
 					# — that gap is the PLANT target (Icon hat R opens the picker
 					# there). Text seats walled hunting it invisible (L2).
