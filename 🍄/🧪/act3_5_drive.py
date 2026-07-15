@@ -24,6 +24,13 @@ then pushes into:
   Act 3  mill_wakes   : learn Mill (village_stirs apprentice arc) → plant Mill into
                         an empty Village plot → evolve so ⚙→💨 populates wind.
          mill_master  : keep incorporating Village registers (berry≥5, phase≥18.85).
+         lantern chapter (Lamplighters — contact by WITNESS, not contracts; their
+         market opens nowhere early): lantern_door fires off mill_wakes → discover
+         Lanternfall → berry ×1 + stand the watch → chain_ends (grants trust 0.08,
+         which clears the teaching gate 0.07 w.01) → hold the beacon 🪔 ≥ 55% to
+         ready the claim → claim the bridge word (🌉/🪔) → plant it INTO LANTERNFALL
+         (no Village coupling — the chain is complete in itself) → lantern_wakes →
+         chain_flipped (deepening: the horn drains, the bridge holds).
   Act 4  island_lives : plant the already-known 🪵/🌾 icon into Village (atom_in_biome 🪵)
                         — lumber_flows + spring_connects + mill_wakes already fired.
          village_identity : plant icons into Village to reach atom_count≥12 + grow the
@@ -330,7 +337,7 @@ def main():
     # culling one mid-arc erases its progress. Protection is DYNAMIC: pending flag
     # → protected; fired → released (slots are scarce, 6 max). GildedRot maps to
     # the_rite because it is the LAST GildedRot-gated flag (crossing → gray → rite).
-    LANDMARK_GATE = {"Lanternfall": "chain_ends", "GildedRot": "the_rite",
+    LANDMARK_GATE = {"Lanternfall": "chain_flipped", "GildedRot": "the_rite",
                      "ZenoLatch": "watching_keeps", "ShrineOfAshes": "the_basin",
                      "NullingChamber": "hiding_in_the_light"}
 
@@ -393,7 +400,7 @@ def main():
                 return "SEMICOLON" if cur == ";" else cur
         return None
 
-    def claim_teaching(north, south, work_biome, accept_snippet):
+    def claim_teaching(north, south, work_biome, accept_snippet, work=None):
         """Learn a faction word via a story ARC claim (the ONLY teacher of vocabulary —
         contracts never teach). Gotchas, all probe-confirmed on the mill apprenticeship:
           (1) the arc flips "ready" via berries in `work_biome`; ONLY incorporation
@@ -455,7 +462,10 @@ def main():
                     r = go("complete_or_claim", quest_id=qid)
                     print(f"    (claim by id: {bool(r.get('completed_or_claimed'))})")
             else:
-                incorporate(bn=work_biome)
+                if work is not None:
+                    work()          # chapter-specific readiness ritual (e.g. the lamp hold)
+                else:
+                    incorporate(bn=work_biome)
         ok = word_known(north, south)
         print(f"  {north}/{south} learned: {ok}")
         return ok
@@ -662,6 +672,20 @@ def main():
             print(f"  Mill known: {learned_mill}")
             if learned_mill:
                 plant_icon(vk, "💨", "🔨", "Mill")
+            def biome_pops(bn):
+                snap = go("lindblad_snapshot", biome=bn).get("lindblad_snapshot", {})
+                for _, bd in (snap.get("biomes") or {}).items():
+                    return bd.get("populations", {}) or {}
+                return {}
+
+            def mill_measure(tag):
+                p = biome_pops("Village")
+                fp = go("flag_progress", id="mill_wakes")
+                sc = ["%.4f" % float(ps["score"]) for ps in fp.get("predicates", [])]
+                print(f"    MEASURE[{tag}] Village 💨={float(p.get('💨', 0)):.4f} "
+                      f"⚙={float(p.get('⚙', 0)):.4f} (register sums) scores={sc}")
+
+            mill_measure("at-plant")
             for rnd in range(1, 8):
                 press(vk)
                 ensure_hat("0")
@@ -669,6 +693,7 @@ def main():
                     press(pk, 2); press("E", 2)
                 go("time_skip", phrames=250)
                 print(f"  [mw-evolve {rnd}] {fprog('mill_wakes')}")
+                mill_measure(f"evolve-{rnd}")
                 if "mill_wakes" in flags():
                     break
 
@@ -679,6 +704,76 @@ def main():
                     break
                 incorporate(bn="Village")
                 print(f"  [mm {rnd}] village berry={berry('Village')} | {fprog('mill_master')}")
+            bs_v = go("berry_state", biome="Village")
+            print(f"  MEASURE mill_master: berries={bs_v.get('consumed_count')} "
+                  f"phase={float(bs_v.get('consumed_phase', 0) or 0):.2f} (gates: berries 8, phase 50.27)")
+
+            # ============ ACT 3: lantern country (chapter 3 — contact by witness) ====
+            print("\n== ACT3: lantern country (Lamplighters — witness, not contracts) ==")
+            go("time_skip", phrames=120)  # mill_wakes → lantern_door cascade
+            print("  ", fprog("lantern_door"))
+
+            # Beat 1 (door): discover Lanternfall — chain_ends names it, so once the
+            # door fires the compass pressures the coast. Slots may be full of act-2
+            # land; cull non-core strays (never the act-2 anchors, never TheDemos,
+            # never protected landmarks).
+            act3_core = {"StarterForest", "TheDemos", "Village", "Woodlot",
+                         "FreshwaterSpring"}
+            for d in range(1, 10):
+                if "Lanternfall" in grid():
+                    break
+                if len(grid()) >= 6:
+                    cullable = cullable_from(grid(), act3_core | protected_landmarks(),
+                                             ("Lanternfall",))
+                    if cullable:
+                        cull(cullable[0])
+                bridge("🦅", 80)
+                ensure_hat("7"); press("R", 6)
+                print(f"  discover lantern #{d}: grid={grid()} 🦅={res().get('🦅', 0)}")
+
+            if "Lanternfall" in grid():
+                # Beat 2 (witness): stand the watch — one berry in the chain fires
+                # chain_ends (its trust grant 0.08 then clears the teaching gate
+                # 0.07 w.01 by itself: witness, not baskets).
+                farm_berries("Lanternfall", 1, "chain_ends", rounds=9)
+                print("  ", fprog("chain_ends"))
+                go("time_skip", phrames=120)  # grant → lantern_teaching cascade
+                print("  ", fprog("lantern_teaching"))
+
+                # Beat 3 (teaching): hold the beacon 🪔 ≥ 55% to ready the claim.
+                # Readiness LATCHES (QuestManager marks ready at the first 0.85
+                # crossing), so the lamp's oscillation only has to peak once while
+                # the claim is accepted.
+                def lamp_hold():
+                    goto_biome("Lanternfall")
+                    ensure_hat("0")
+                    for _ in range(3):
+                        press("G", 3); press("E", 3)  # excite the beacon (site 0)
+                        go("time_skip", phrames=900)
+                        p = biome_pops("Lanternfall")
+                        print(f"    [lamp] 🪔={float(p.get('🪔', 0)):.3f} "
+                              f"🗼={float(p.get('🗼', 0)):.3f} "
+                              f"📯={float(p.get('📯', 0)):.3f}")
+
+                claim_teaching("🌉", "🪔", "Lanternfall", "teach you the bridge",
+                               work=lamp_hold)
+
+                # Beat 4 (wakes): plant the bridge INTO LANTERNFALL — the chain
+                # closes on itself; no Village coupling (the Lamplighter variation).
+                if word_known("🌉", "🪔"):
+                    plant_pair("Lanternfall", "🌉", "🪔", "bridge → Lanternfall")
+                goto_biome("Lanternfall"); go("time_skip", phrames=120)
+                ev3 = go("energy_variance", biome="Lanternfall")
+                p3 = {k: round(float(v), 3) for k, v in biome_pops("Lanternfall").items()}
+                print(f"  MEASURE Lanternfall post-plant: h_gap={float(ev3.get('h_gap', -1)):.4f} pops={p3}")
+                print("  ", fprog("lantern_wakes"))
+
+                # Beat 5 (deepening): chain_flipped rides lantern_wakes; its arc bar
+                # (📯 ≤ 25% while 🌉 ≥ 35%) is LIVE now — the plant realized 🌉.
+                go("time_skip", phrames=300)
+                print("  ", fprog("chain_flipped"))
+            else:
+                print("  (Lanternfall not discovered — lantern chapter skipped)")
 
             # ============ ACT 4: island_lives + village_identity ============
             print("\n== ACT4: island_lives (🪵 into Village) ==")
@@ -888,9 +983,12 @@ def main():
             def berries_to(target_biome, want, fid):
                 return farm_berries(target_biome, want, fid, rounds=9)
 
-            # chain_ends (act-3 trilogy prerequisite for the_chain_tested)
-            if discover_target("Lanternfall"):
-                berries_to("Lanternfall", 1, "chain_ends")
+            # chain_ends (act-3 trilogy prerequisite for the_chain_tested) — fired
+            # in the main lane's lantern chapter on a fresh run; only chase it here
+            # on a resume lane whose checkpoint predates the chapter.
+            if "chain_ends" not in flags():
+                if discover_target("Lanternfall"):
+                    berries_to("Lanternfall", 1, "chain_ends")
 
             # the_crossing + the_gray: GildedRot is the wet-country door
             if discover_target("GildedRot"):
@@ -964,7 +1062,10 @@ def main():
                     "timber_rhythm",
                     "spring_door", "spring_contact", "spring_connects", "spring_wakes",
                     "pond_depths", "pond_breathes",
-                    "mill_wakes", "mill_master", "island_lives", "village_identity",
+                    "mill_wakes", "mill_master",
+                    "lantern_door", "chain_ends", "lantern_teaching", "lantern_wakes",
+                    "chain_flipped",
+                    "island_lives", "village_identity",
                     "ledger_opens", "empire_imposes", "island_free"):
             print("  ", fprog(fid))
         print("  flags:", sorted(flags().keys()))

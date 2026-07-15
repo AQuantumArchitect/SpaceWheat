@@ -5575,6 +5575,11 @@
         "name": "Signal",
         "pole_0": "📯",
         "pole_1": "🏁"
+      },
+      {
+        "name": "Viaduct",
+        "pole_0": "🌉",
+        "pole_1": "🪔"
       }
     ]
   },

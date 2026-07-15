@@ -127,11 +127,19 @@ procedural quests to reuse.)*
   already narrates the protected zero mode at the bridge, and a standing physics
   assay (`tools/ssh_assay.py`, with a beautiful pedagogical header). Per the
   rehabilitation-over-duplication rule, the chapter stages there.
-- **Shipped quest ladder** (`chain_ends` → `chain_flipped`, act 3):
-  1. *Keep the Bridge Lit* — hold 🌉 above 45% while the chain runs
-     (`biome_state_gte`); the zero mode does the holding once you feed the ends.
-  2. *The Middle Cannot Hold* — settle 📯 (mid-chain) under 25% while 🌉 still
-     holds 35%: the bulk-vs-edge contrast enacted as a single composed ask.
+- **Shipped quest ladder** (country chapter 3, act 3: `lantern_door` → `chain_ends`
+  → `lantern_teaching` → `lantern_wakes` → `chain_flipped`; the Lamplighter
+  variation is contact by WITNESS — no contracts, their market opens nowhere early):
+  1. *Hold the Lamp* — the witness: hold the beacon 🪔 above 52% while the chain
+     runs. (Probe 2026-07: Lanternfall realizes only Beacon 🪔/🗼 + Signal 📯/🏁 —
+     the bridge lamp 🌉 is UNREALIZED until planted, so pre-plant holds live on 🪔.)
+  2. *The Teaching* — hold 🪔 55% deliberately; the claim teaches the bridge word
+     🌉/🪔 (Viaduct, adopted by the Lamplighters — the one Lanternfall axis whose
+     north the player cannot have organically incorporated).
+  3. *Light the Bridge* — plant 🌉/🪔 into Lanternfall; the chain closes on itself
+     (no Village coupling) and the spectral gap snaps open (measured 0.001 → 0.296).
+  4. *The Middle Cannot Hold* — settle 📯 (mid-chain) under 25% while 🌉 still
+     holds 35%: the bulk-vs-edge contrast, mechanically live now that 🌉 exists.
   The beats carry the winding-number lesson: count the pattern, not the lamps.
 - **Voice:** the Lamplighters themselves (guild-class), including an authored
   webway whisper override — the chapter's faction speaks in its own words.

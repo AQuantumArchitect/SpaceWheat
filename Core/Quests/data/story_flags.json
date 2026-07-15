@@ -664,7 +664,7 @@
     "id": "mill_master",
     "display_name": "Master of the Mill",
     "act": 3,
-    "arc_beat": "Five signatures from the village, total signed solid angle past three hemispheres. You are no longer learning what the village is — you are pushing it where you want it to go. The Millwright's Union calls you by name now.",
+    "arc_beat": "Eight signatures from the village, total signed solid angle past eight hemispheres. You are no longer learning what the village is — you are pushing it where you want it to go. The Millwright's Union calls you by name now.",
     "predicates": [
       {
         "type": "story_flag_set",
@@ -673,12 +673,12 @@
       {
         "type": "berry_consumed_count_gte",
         "biome": "Village",
-        "value": 5
+        "value": 8
       },
       {
         "type": "berry_total_phase_gte",
         "biome": "Village",
-        "value": 18.85
+        "value": 50.27
       }
     ],
     "standing_grants": {
@@ -690,14 +690,42 @@
     "arc_quest": null
   },
   {
-    "id": "chain_ends",
-    "display_name": "What Survives III — The Chain Protects Its Ends",
+    "id": "lantern_door",
+    "display_name": "Lantern Country — The Door",
     "act": 3,
-    "arc_beat": "On the coast, five lanterns stand in a row, and the Lamplighters spaced them in their alternating rhythm: close-far-close-far. Because the bonds alternate, the chain keeps a zero-energy mode pinned at the bridge — light that reaches 🌉 has nowhere left to go, and stays. The Lamplighters call it topological patience; their scholars call it chiral symmetry. Count the pattern, not the lamps: how many weak-strong walls stand between the bridge and the open water is an integer, and integers cannot change smoothly. That is what protection means here. The third invariant is the pattern's winding.",
+    "arc_beat": "The mill turns through the night now, and on the coast the Lamplighters mark who keeps a flame burning past dark. Five lights in a row, close-far-close-far, and no market stall anywhere under them — they sell nothing, sign nothing, and open their door only to those who stand where the light falls. The compass already leans toward the shore.",
     "predicates": [
       {
         "type": "story_flag_set",
         "id": "mill_wakes"
+      }
+    ],
+    "standing_grants": {
+      "Lamplighters": {
+        "attention": 0.02
+      }
+    },
+    "arc_quest": {
+      "body": "Find Lanternfall — follow the discovery compass to the coast where five lights stand in a row.",
+      "hint": "The ritual, third verse: Captain hat (7), F reads the compass — the story is pulling it toward Lanternfall — R discovers it (costs 21🦅). Stand in it; discovered land evolves on its own. And learn this country's law before you walk in: the Lamplighters keep no board you can reach from here. First contact is by witness — they count who holds the light, not who carries baskets.",
+      "faction": "Lamplighters",
+      "state_predicates": [
+        {
+          "type": "biome_evolving",
+          "biome": "Lanternfall"
+        }
+      ]
+    }
+  },
+  {
+    "id": "chain_ends",
+    "display_name": "What Survives III — The Chain Protects Its Ends",
+    "act": 3,
+    "arc_beat": "You walked through the door they left in the dark, and the coast took your measure. Five stations, spaced in the Lamplighters' alternating rhythm: close-far-close-far. Because the bonds alternate, the pattern wants to pin a zero-energy mode at the bridge — but look again: the bridge lamp 🌉 stands unlit, its word missing from the chain. Count the pattern, not the lamps: how many weak-strong walls stand between the bridge and the open water is an integer, and integers cannot change smoothly. That is what protection means here — and the Lamplighters are running their chain around a hole shaped exactly like its own protected mode.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "lantern_door"
       },
       {
         "type": "biome_evolving",
@@ -715,14 +743,92 @@
       }
     },
     "arc_quest": {
-      "body": "Keep the Bridge Lit — hold the bridge lantern 🌉 bright while the chain runs.",
-      "hint": "Feed the chain at its ends, not its middle. The zero mode lives on 🌉 — population that reaches it stays. Hold 🌉 above 45%.",
+      "body": "Hold the Lamp — keep the beacon 🪔 bright while the chain runs; witness is the only contract they honor.",
+      "hint": "Feed the chain at its ends, not its middle. Druid hat (0) on the beacon's plot, E excites it; let it run and hold 🪔 above 52%. The bridge lamp cannot be lit yet — its word is not in the chain.",
+      "faction": "Lamplighters",
       "state_predicates": [
         {
           "type": "biome_state_gte",
           "biome": "Lanternfall",
-          "atom": "🌉",
-          "value": 0.45
+          "atom": "🪔",
+          "value": 0.52
+        }
+      ]
+    }
+  },
+  {
+    "id": "lantern_teaching",
+    "display_name": "Lantern Country — The Teaching",
+    "act": 3,
+    "arc_beat": "They watched you hold the light with nothing to gain by it, and that is the whole of their ledger. The Lamplighters keep one word closer than any signal code — the bridge, the crossing their chain is built to protect and has never once owned. Hold the lamp once more, deliberately, and they will say it slowly enough to keep.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "chain_ends"
+      },
+      {
+        "type": "standing_gte",
+        "faction": "Lamplighters",
+        "channel": "trust",
+        "value": 0.07,
+        "width": 0.01
+      }
+    ],
+    "standing_grants": {
+      "Lamplighters": {
+        "trust": 0.08
+      }
+    },
+    "arc_quest": {
+      "type": 1,
+      "category": "ARC",
+      "body": "The Teaching — hold the beacon once more, deliberately, and the Lamplighters will teach you the bridge (🌉/🪔).",
+      "hint": "This quest lives on the Arc tab (X → I): accept it there (R on its row), then stand in Lanternfall and hold the light — Druid hat (0), the beacon's plot, E to excite — until 🪔 reads 55% and the row reads READY, then claim it on the Commitments tab (C → U). The claim IS the teaching: 🌉/🪔 joins your signature. No basket ever bought this word; holding the light did.",
+      "faction": "Lamplighters",
+      "state_predicates": [
+        {
+          "type": "biome_state_gte",
+          "biome": "Lanternfall",
+          "atom": "🪔",
+          "value": 0.55
+        }
+      ],
+      "reward_north": "🌉",
+      "reward_south": "🪔",
+      "reward_icon_north": "🌉",
+      "reward_icon_south": "🪔"
+    }
+  },
+  {
+    "id": "lantern_wakes",
+    "display_name": "Lantern Country — The Bridge Lights",
+    "act": 3,
+    "arc_beat": "The bridge word is yours, and the chain has a gap shaped exactly like it. Plant it and the pattern closes: five lamps, alternating bonds, and at last a place for the protected mode to live. This chain is complete in itself — nothing here needs carrying to the village. Some countries couple; this one closes.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "lantern_teaching"
+      },
+      {
+        "type": "atom_in_biome",
+        "biome": "Lanternfall",
+        "atom": "🌉"
+      }
+    ],
+    "standing_grants": {
+      "Lamplighters": {
+        "legitimacy": 0.06
+      }
+    },
+    "arc_quest": {
+      "body": "Light the Bridge — plant the bridge word (🌉/🪔) into Lanternfall and close the chain.",
+      "hint": "Icon hat (5) in Lanternfall: pick an EMPTY plot (G H J K L ; past the live bubbles), R opens the picker, choose the bridge (🌉/🪔) and plant it (costs 🌱 + 🪔 — harvest lamp-oil from the beacon with the Ace hat). Watch the spectrum when it lands: the chain snaps shut and a true gap opens. The chain is complete in itself; the bridge belongs to the coast.",
+      "faction": "Lamplighters",
+      "state_predicates": [
+        {
+          "type": "atom_in_biome",
+          "biome": "Lanternfall",
+          "atom": "🌉"
         }
       ]
     }
@@ -735,7 +841,7 @@
     "predicates": [
       {
         "type": "story_flag_set",
-        "id": "chain_ends"
+        "id": "lantern_wakes"
       }
     ],
     "standing_grants": {
