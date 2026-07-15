@@ -608,6 +608,11 @@ def main():
             print("\n== learn Mill (apprentice arc, pre-Act-2) ==")
             learn_mill(vk)
 
+            # -- relay bank #-3: act 1 done (mill apprenticeship claimed, 💨/🔨 known) --
+            if _bank:
+                r_ba1 = go("save_game_path", path=_bank + "_act1.tres")
+                print(f"  BANK act1 checkpoint: {r_ba1.get('saved')} -> {_bank}_act1.tres")
+
             # ============ ACT 2: the timber chapter (Country Chapter order) ============
             # door → contact → teaching → wakes → rhythm; spring keeps its
             # pre-reweave path until chapter 2 lands.
@@ -637,6 +642,11 @@ def main():
             # Beat 3 claim: the teaching IS the claim (Arc tab). Readiness = Village
             # berries ≥4, already banked by the mill apprenticeship.
             claim_teaching("🪵", "🪓", "Village", "teach you timber")
+
+            # -- relay bank #-2: the Woodlot teaching claimed (🪵/🪓 known), NOT yet planted --
+            if _bank and word_known("🪵", "🪓"):
+                r_bwt = go("save_game_path", path=_bank + "_taught.tres")
+                print(f"  BANK taught checkpoint: {r_bwt.get('saved')} -> {_bank}_taught.tres")
 
             # Beat 4 (wakes): plant timber into the woodlot's ring, then couple the
             # Village (the DELIVER — the island economy line). plant_pair is the
@@ -912,6 +922,12 @@ def main():
             for fid in ("five_doors", "eagle_overhead", "serfs_ledger",
                         "village_path_commons", "village_path_artisan"):
                 print("  ", fprog(fid))
+
+            # -- relay bank #3.75 (fork): hub named + both dark teachers fired, BEFORE
+            #    any door key is seated — the five branch legs fly from here.
+            if _bank and not _resume and go("flag_progress", id="five_doors").get("fired"):
+                r_bf = go("save_game_path", path=_bank + "_fork.tres")
+                print(f"  BANK fork checkpoint: {r_bf.get('saved')} -> {_bank}_fork.tres")
 
             # ---- the eagle door (village_path_watched — never fired in QA history):
             # claim the Throne's word (🩸/🦅 — Predation FLIPPED per the signature law:
