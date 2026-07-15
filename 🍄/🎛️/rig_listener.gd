@@ -218,6 +218,15 @@ func _on_ready() -> void:
 	_apply_rig_logger_profile()
 	_snapshot_service = InstrumentLocator.resolve_snapshot_service(_shell)
 	_instrument = InstrumentLocator.resolve_quantum_instrument(_shell)
+	# Follow the boot authority: GSM emits farm_ready AFTER state application on
+	# every lane (fresh boot, path load, slot load → restart_into). The one-shot
+	# _farm binding above goes stale on the restart lane — restart_into finishes
+	# asynchronously AFTER load_and_apply returns, so _rebind_after_load reads
+	# active_farm too early and the rig keeps a freed farm (observed: pressure_debug
+	# hard-errored on a freed _farm after a slot load; every _farm diagnostic died).
+	var gsm_boot = get_root().get_node_or_null("GameStateManager")
+	if gsm_boot and gsm_boot.has_signal("farm_ready"):
+		gsm_boot.farm_ready.connect(_on_gsm_farm_ready)
 	var turn_log_env = OS.get_environment("RIG_VERBOSE_TURN_LOG").to_lower()
 	if turn_log_env == "":
 		var profile = OS.get_environment("RIG_LOG_PROFILE").to_lower()
@@ -1803,11 +1812,12 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 
 		"pressure_debug":
 			# Trace _biomes_under_pressure piece by piece against the LIVE farm/qm.
-			var pdq = InstrumentLocator.resolve_quest_manager(_farm, _farm)
+			var pd_farm = _live_farm()
+			var pdq = InstrumentLocator.resolve_quest_manager(pd_farm, pd_farm) if pd_farm != null else null
 			result["qm_found"] = pdq != null
-			if pdq != null and _farm != null:
+			if pdq != null and pd_farm != null:
 				result["n_flags"] = pdq.get_all_story_flags().size() if pdq.has_method("get_all_story_flags") else -1
-				result["fired"] = _farm.story_flags_fired.keys() if "story_flags_fired" in _farm else []
+				result["fired"] = pd_farm.story_flags_fired.keys() if "story_flags_fired" in pd_farm else []
 				var trace: Dictionary = {}
 				for fl in pdq.get_all_story_flags():
 					if not (fl is Dictionary):
@@ -1815,18 +1825,25 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 					var fid := str(fl.get("id", ""))
 					if fid not in ["chain_ends", "the_crossing", "ledger_opens", "spring_connects"]:
 						continue
-					var row := {"unfired": not _farm.story_flags_fired.has(fid), "preds": []}
+					var row := {"unfired": not pd_farm.story_flags_fired.has(fid), "preds": []}
 					for pr in fl.get("predicates", []):
 						if pr is Dictionary:
 							row["preds"].append({"type": pr.get("type"), "id": pr.get("id", ""), "biome": pr.get("biome", "")})
 					trace[fid] = row
 				result["trace"] = trace
-				result["pressured"] = BiomeDiscoveryForecastService._biomes_under_pressure(_farm)
+				result["pressured"] = BiomeDiscoveryForecastService._biomes_under_pressure(pd_farm)
 				result["projection"] = pdq.get_state_projection_snapshot() if pdq.has_method("get_state_projection_snapshot") else {}
 
 		"discovery_forecast":
-			if _farm and _farm.has_method("compute_discovery_forecast"):
-				result["forecast"] = _farm.compute_discovery_forecast()
+			# Read-only discovery diagnostic: the forecast the KEY PATH would draw
+			# from, plus farm-identity forensics across the three authorities that
+			# can diverge after a load (rig _farm, GSM active_farm, and the shell's
+			# QuantumInstrumentInput.farm — the farm real key presses act through).
+			var df_farm = _live_farm()
+			if df_farm and df_farm.has_method("compute_discovery_forecast"):
+				result["forecast"] = df_farm.compute_discovery_forecast()
+				result["pressured"] = BiomeDiscoveryForecastService._biomes_under_pressure(df_farm)
+				result["farms"] = _discovery_farm_identities()
 			else:
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "forecast_unavailable"}
 
@@ -2911,3 +2928,68 @@ func _rebind_after_load(gsm) -> void:
 	if _shell:
 		_instrument = InstrumentLocator.resolve_quantum_instrument(_shell)
 		_snapshot_service = InstrumentLocator.resolve_snapshot_service(_shell)
+
+
+## GSM farm_ready listener — the authoritative rebind. Fires after EVERY lane
+## finishes state application, including restart_into's async completion that
+## _rebind_after_load races (slot load: load_and_apply returns before the new
+## farm exists, so the immediate rebind is a no-op and _farm stays freed).
+func _on_gsm_farm_ready(farm: Node, _state) -> void:
+	if farm != null and is_instance_valid(farm):
+		_farm = farm
+	if _shell == null or not is_instance_valid(_shell):
+		_shell = InstrumentLocator.resolve_player_shell(get_root())
+	if _shell:
+		_instrument = InstrumentLocator.resolve_quantum_instrument(_shell)
+		_snapshot_service = InstrumentLocator.resolve_snapshot_service(_shell)
+
+
+## Live farm for diagnostics: never hand a freed ref to a typed locator param
+## (freed Object into `scope: Node` is a hard script error, not a null).
+func _live_farm():
+	if _farm != null and is_instance_valid(_farm):
+		return _farm
+	var gsm = get_root().get_node_or_null("GameStateManager")
+	var af = gsm.get_active_farm() if gsm and gsm.has_method("get_active_farm") else null
+	if af != null and is_instance_valid(af):
+		_farm = af
+	return af
+
+
+## Farm-identity forensics for the discovery diagnostics (read-only). After a
+## load, three farm refs can silently diverge: the rig's _farm, GSM's
+## active_farm, and the shell's QuantumInstrumentInput.farm (the one real key
+## presses dispatch through). Discovery served off the wrong one is invisible
+## without this readout.
+func _discovery_farm_identities() -> Dictionary:
+	var out: Dictionary = {}
+	out["rig_farm"] = _farm_identity(_farm)
+	var gsm = get_root().get_node_or_null("GameStateManager")
+	var gsm_farm = gsm.active_farm if gsm and "active_farm" in gsm else null
+	out["gsm_farm"] = _farm_identity(gsm_farm)
+	var shell = InstrumentLocator.resolve_player_shell(get_root())
+	var qii = shell.instrument_input if shell and "instrument_input" in shell else null
+	var qii_farm = qii.farm if qii != null and is_instance_valid(qii) and "farm" in qii else null
+	out["keypath_farm"] = _farm_identity(qii_farm)
+	var shell_instrument = shell.quantum_instrument if shell and "quantum_instrument" in shell else null
+	var si_farm = shell_instrument.farm if shell_instrument != null and is_instance_valid(shell_instrument) and "farm" in shell_instrument else null
+	out["shell_instrument_farm"] = _farm_identity(si_farm)
+	out["converged"] = (
+		out["rig_farm"].get("id", -1) == out["gsm_farm"].get("id", -2)
+		and out["gsm_farm"].get("id", -1) == out["keypath_farm"].get("id", -2)
+		and out["gsm_farm"].get("id", -1) == out["shell_instrument_farm"].get("id", -2)
+	)
+	return out
+
+
+func _farm_identity(f) -> Dictionary:
+	if f == null:
+		return {"id": -1, "valid": false, "in_tree": false, "fired": -1}
+	if not is_instance_valid(f):
+		return {"id": -1, "valid": false, "in_tree": false, "fired": -1, "note": "freed"}
+	return {
+		"id": f.get_instance_id(),
+		"valid": true,
+		"in_tree": f.is_inside_tree(),
+		"fired": (f.story_flags_fired.size() if "story_flags_fired" in f else -1),
+	}
