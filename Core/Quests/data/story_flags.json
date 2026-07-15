@@ -783,14 +783,15 @@
       "type": 1,
       "category": "ARC",
       "body": "The Teaching — hold the beacon once more, deliberately, and the Lamplighters will teach you the bridge (🌉/🪔).",
-      "hint": "This quest lives on the Arc tab (X → I): accept it there (R on its row), then stand in Lanternfall and hold the light — Druid hat (0), the beacon's plot, E to excite — until 🪔 reads 55% and the row reads READY, then claim it on the Commitments tab (C → U). The claim IS the teaching: 🌉/🪔 joins your signature. No basket ever bought this word; holding the light did.",
+      "hint": "This quest lives on the Arc tab (X → I): accept it there (R on its row), then stand in Lanternfall and hold the light — Druid hat (0), the beacon's plot, E to excite — until 🪔 climbs just past 55% and the row reads READY, then claim it on the Commitments tab (C → U). The claim IS the teaching: 🌉/🪔 joins your signature. No basket ever bought this word; holding the light did.",
       "faction": "Lamplighters",
       "state_predicates": [
         {
           "type": "biome_state_gte",
           "biome": "Lanternfall",
           "atom": "🪔",
-          "value": 0.55
+          "value": 0.55,
+          "width": 0.02
         }
       ],
       "reward_north": "🌉",
@@ -1918,7 +1919,7 @@
       "state_predicates": [
         {
           "type": "bridge_braids_gte",
-          "value": 6
+          "value": 4
         }
       ]
     }

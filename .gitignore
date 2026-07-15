@@ -118,6 +118,9 @@ build_web/
 # Rig screenshot artifacts
 🍄/🧪/demo_shots/
 🍄/🧪/playthrough_shots/
+
+# Minted checkpoint banks (runtime artifacts; re-mintable from the drives)
+🍄/🧪/checkpoints/
 node_modules/
 native/src/*.d
 native/src/**/*.obj
