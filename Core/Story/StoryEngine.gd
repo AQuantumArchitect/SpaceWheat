@@ -247,11 +247,19 @@ func _on_arc_quest_completed(quest_id: int, _rewards: Dictionary) -> void:
 	density_shifted.emit(source_flag, graph.density.get(source_flag, 0.0))
 
 
-## On reconnect after save/load: re-offer arc quests for already-fired flags
-## whose quests aren't yet in the quest manager (e.g. player dismissed or never saw them).
+## On reconnect after save/load: quest offers are session state, so a load
+## regenerates them from persisted truth (story_flags_fired × known_icons).
+## Only arcs that still TEACH come back: a reward pair not yet in the
+## signature. A claimed teaching leaves its pair in known_icons (the claim IS
+## the teaching), so claimed arcs never re-offer — no double-teach, no
+## standing pump via save/load cycling. Guidance arcs (no reward pair) fired
+## in a past session live on in the story log and the Arc tab's spine rows;
+## re-offering them flooded the six picker slots and buried the one live
+## teaching past the cap (leg L2i: spring_connects unreachable under 17 rows).
 func _restore_arc_quests_after_load() -> void:
 	if _farm == null or _quest_manager == null:
 		return
+	var known: Array = _farm.get_known_icons() if _farm.has_method("get_known_icons") else []
 	for flag_id in _farm.story_flags_fired:
 		if _quest_manager.has_quest_for_flag(flag_id):
 			continue
@@ -260,9 +268,25 @@ func _restore_arc_quests_after_load() -> void:
 			if str(flag_data.get("id", "")) != flag_id:
 				continue
 			var arc_quest = flag_data.get("arc_quest")
-			if arc_quest is Dictionary and not arc_quest.is_empty():
+			if arc_quest is Dictionary and not arc_quest.is_empty() \
+					and _arc_still_teaches(arc_quest, known):
 				_quest_manager.offer_story_quest(arc_quest.duplicate(), flag_id)
 			break
+
+
+## True when the arc quest's reward pair is a teaching the player has not yet
+## received. Pair-less (guidance) arcs never re-offer post-load; an exact pair
+## already in the signature means the teaching was consumed.
+static func _arc_still_teaches(arc_quest: Dictionary, known_icons: Array) -> bool:
+	var north := str(arc_quest.get("reward_north", ""))
+	var south := str(arc_quest.get("reward_south", ""))
+	if north == "" or south == "":
+		return false
+	for icon in known_icons:
+		if icon is Dictionary and str(icon.get("north", "")) == north \
+				and str(icon.get("south", "")) == south:
+			return false
+	return true
 
 
 ## Called by QuestManager._fire_story_flag(). Records system-driven advances

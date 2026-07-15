@@ -285,6 +285,16 @@ func reset_runtime_singletons() -> void:
 	if story_engine and story_engine.has_method("reset"):
 		story_engine.reset()
 
+	# Quest offers/actives are session state; the next session regenerates
+	# them from persisted truth (tutorial_seen, story_flags_fired, known_icons)
+	# via connect_to_farm → maybe_start_tutorial + the StoryEngine re-offer
+	# path. Without this, a mid-session path-load inherits the previous
+	# campaign's board — a stale tutorial offer sat on every loaded
+	# checkpoint's Arc tab (leg L2i).
+	var qm = InstrumentLocator.resolve_quest_manager(self)
+	if qm and qm.has_method("clear_all_quests"):
+		qm.clear_all_quests()
+
 	var shell = InstrumentLocator.resolve_player_shell(self)
 	if shell:
 		if "overlay_manager" in shell and shell.overlay_manager and shell.overlay_manager.has_method("reset"):
