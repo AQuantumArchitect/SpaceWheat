@@ -693,7 +693,7 @@
     "arc_quest": {
       "type": "MAINTAIN_COHERENCE",
       "body": "Hold Commerce — keep the mill turning: push ⚙ past 8% and hold the mill attractor above 40%.",
-      "hint": "Two attractors. You found the second one. Now make it the deeper one.",
+      "hint": "Two attractors. You found the second one. Now make it the deeper one. The mill only turns if its words are seated: Icon hat (5), R on an empty Village plot plants the windmill (\ud83d\udca8/\ud83d\udd28) you were taught — and the gear-bench word deepens the pull. Then work the Village until the gears hold.",
       "state_predicates": [
         {
           "type": "biome_state_gte",
