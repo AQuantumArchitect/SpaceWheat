@@ -63,7 +63,10 @@ func _physics_process(delta: float) -> void:
 	# Story flags don't require a biome — evaluate unconditionally.
 	_evaluate_story_flags()
 	# Non-delivery quest progress tracking requires a live biome reference.
-	if current_biome == null:
+	# A save/load frees the old farm's biomes: a stale (freed) current_biome is
+	# not == null, and touching it aborts this whole frame BEFORE the quest
+	# readiness loop — claims then never flip READY (act-4 marathon).
+	if current_biome == null or not is_instance_valid(current_biome):
 		return
 	if _state_projection:
 		_state_projection.observe_biome(current_biome, delta)

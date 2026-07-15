@@ -31,10 +31,14 @@ then pushes into:
          ready the claim → claim the bridge word (🌉/🪔) → plant it INTO LANTERNFALL
          (no Village coupling — the chain is complete in itself) → lantern_wakes →
          chain_flipped (deepening: the horn drains, the bridge holds).
-  Act 4  island_lives : plant the already-known 🪵/🌾 icon into Village (atom_in_biome 🪵)
-                        — lumber_flows + spring_connects + mill_wakes already fired.
-         village_identity : plant icons into Village to reach atom_count≥12 + grow the
-                        signature≥14 + push the Village eigenvalue gap ≥0.12.
+  Act 4  island_lives : fires by construction (the three chapter plants put 🪵 in the
+                        Village and lumber_flows + spring_connects + mill_wakes fired).
+         village_identity : A Character — the re-priced hub gate (atoms 12 / diversity
+                        banked / signature 14): ONE more deliberate incorporation.
+         five_doors + eagle_overhead + serfs_ledger : the naming beat and the two dark
+                        teachers cascade; claim the Throne's word (🩸/🦅), unseat the
+                        timber register (Icon hat Q — flags latch), plant the eagle's
+                        key → village_path_watched fires (first time in QA history).
   Act 5  ledger_opens : discover BloodLedger (pressure-biased once village_identity fires)
                         → incorporate twice (berry≥2).
 
@@ -537,17 +541,52 @@ def main():
             boot_via_title()
         print("READY grid:", grid())
         print("known@start:", [f"{i.get('north')}/{i.get('south')}" for i in known()])
+        vk = biome_key("Village") or "Y"
+
+        # Shared cross-act helpers (used by acts 2-6 on every lane).
+        def plant_pair(bn_name, north, south, label=""):
+            # Picker keys first; the picker shows only ~3 slots, so a grown
+            # signature can hide the pair — fall back to the inject_icon
+            # instrument (same injection seam).
+            bk3 = biome_key(bn_name)
+            if bk3 and plant_icon(bk3, north, south, label):
+                return True
+            bridge(south, 18); bridge("🌱", 10)  # inject = 5×🌱 + 13×south
+            rr = go("inject_icon", biome=bn_name, north=north, south=south).get("inject_result", {})
+            print(f"    (picker path failed — inject_icon {north}/{south} → {bn_name}: success={rr.get('success')})")
+            return bool(rr.get("success"))
+
+        def biome_pops(bn):
+            snap = go("lindblad_snapshot", biome=bn).get("lindblad_snapshot", {})
+            for _, bd in (snap.get("biomes") or {}).items():
+                return bd.get("populations", {}) or {}
+            return {}
 
         # ============ ACT 1: forest_communion + forest_listener ============
-        # Resume lane: ACT35_RESUME=1 loads the banked post-island_free checkpoint
-        # instead of replaying 40 minutes of acts 1-6. Story flags survive save/load
-        # (verified 2026-07-05); the listener rebinds its farm after loads.
+        # Resume lanes (the relay-fleet pattern — a full fresh run no longer fits
+        # one 10-minute window, so legs bank checkpoints and hand off):
+        #   ACT35_RESUME=1        loads the banked post-island_free checkpoint and
+        #                         skips straight to the endgame (as before).
+        #   ACT35_RESUME_ACT3=path loads a mid-run bank (post-mill or post-lantern)
+        #                         and re-enters the spine there: the lantern chapter
+        #                         self-skips once chain_flipped is fired.
+        #   ACT35_BANK=prefix     banks <prefix>_mill.tres after mill_master and
+        #                         <prefix>_lantern.tres after the lantern chapter.
+        # Story flags survive save/load (verified 2026-07-05); the listener rebinds
+        # its farm after loads. KNOWN GAP: per-biome berry counters reset on load,
+        # so berry-readiness bars re-earn on a resumed leg (acceptable-generous:
+        # incorporation is always available).
         _resume = os.environ.get("ACT35_RESUME", "0") == "1"
         _ckpt = os.environ.get("ACT35_CHECKPOINT", "/tmp/sw_act6_checkpoint.tres")
+        _r3 = os.environ.get("ACT35_RESUME_ACT3", "")
+        _bank = os.environ.get("ACT35_BANK", "")
         if _resume:
             r_ld = go("load_game_path", path=_ckpt)
             print(f"  RESUME: loaded={r_ld.get('loaded')} flags={len(flags())} grid={grid()}")
-        if not _resume:
+        elif _r3:
+            r_ld3 = go("load_game_path", path=_r3)
+            print(f"  RESUME-ACT3: loaded={r_ld3.get('loaded')} flags={len(flags())} grid={grid()}")
+        if not _resume and not _r3:
             print("\n== ACT1: StarterForest ==")
             goto_biome("StarterForest")  # slots follow scenario order now (TheDemos boots on T)
             # loop_remembers (forest berry ≥7) is now LOAD-BEARING: new_voices needs it,
@@ -567,7 +606,6 @@ def main():
             # village_stirs needs forest_listener (just fired) + Village berry; the apprentice
             # arc rewards the Mill icon, which Act 3 plants to wake the wind.
             print("\n== learn Mill (apprentice arc, pre-Act-2) ==")
-            vk = biome_key("Village") or "Y"
             learn_mill(vk)
 
             # ============ ACT 2: the timber chapter (Country Chapter order) ============
@@ -601,18 +639,8 @@ def main():
             claim_teaching("🪵", "🪓", "Village", "teach you timber")
 
             # Beat 4 (wakes): plant timber into the woodlot's ring, then couple the
-            # Village (the DELIVER — the island economy line). Picker keys first;
-            # the picker shows only ~3 slots, so a grown signature can hide the
-            # pair — fall back to the inject_icon instrument (same injection seam).
-            def plant_pair(bn_name, north, south, label=""):
-                bk3 = biome_key(bn_name)
-                if bk3 and plant_icon(bk3, north, south, label):
-                    return True
-                bridge(south, 18); bridge("🌱", 10)  # inject = 5×🌱 + 13×south
-                rr = go("inject_icon", biome=bn_name, north=north, south=south).get("inject_result", {})
-                print(f"    (picker path failed — inject_icon {north}/{south} → {bn_name}: success={rr.get('success')})")
-                return bool(rr.get("success"))
-
+            # Village (the DELIVER — the island economy line). plant_pair is the
+            # shared helper (picker first, inject_icon instrument fallback).
             if word_known("🪵", "🪓"):
                 plant_pair("Woodlot", "🪵", "🪓", "timber → Woodlot")
                 plant_pair("Village", "🪵", "🪓", "timber → Village (couple)")
@@ -627,6 +655,12 @@ def main():
                 farm_berries("Woodlot", 4, "timber_rhythm", rounds=6)
                 claim_teaching("🏭", "⚙", "Woodlot", "The Gear-Bench")
 
+        # -- relay bank #-1: act 1 + timber chapter done (all claims settled) --
+        if _bank and not _resume and "pond_breathes" not in flags():
+            r_bt = go("save_game_path", path=_bank + "_timber.tres")
+            print(f"  BANK timber checkpoint: {r_bt.get('saved')} -> {_bank}_timber.tres")
+
+        if not _resume and "pond_breathes" not in flags():
             # ---- chapter-2 country (Spring): door → contact → teaching → wakes → depths ----
             print("\n== ACT2: spring country (Hearth Keepers — trust, not access) ==")
             go("time_skip", phrames=120)  # let lumber_flows → spring_door cascade fire
@@ -665,6 +699,13 @@ def main():
             print("  ", fprog("pond_depths"))
             print("  ", fprog("pond_breathes"))
 
+        # -- relay bank #0: acts 1-2 done (a loaded machine can stall a fresh leg
+        #    before the mill; the next leg re-enters at act 3) --
+        if _bank and not _resume and "mill_master" not in flags():
+            r_b0 = go("save_game_path", path=_bank + "_spring.tres")
+            print(f"  BANK spring checkpoint: {r_b0.get('saved')} -> {_bank}_spring.tres")
+
+        if not _resume and "mill_master" not in flags():
             # ============ ACT 3: mill_wakes + mill_master ============
             print("\n== ACT3: mill_wakes ==")
             # Mill was learned pre-Act-2. Plant it into Village, evolve so ⚙→💨 wakes wind.
@@ -672,11 +713,6 @@ def main():
             print(f"  Mill known: {learned_mill}")
             if learned_mill:
                 plant_icon(vk, "💨", "🔨", "Mill")
-            def biome_pops(bn):
-                snap = go("lindblad_snapshot", biome=bn).get("lindblad_snapshot", {})
-                for _, bd in (snap.get("biomes") or {}).items():
-                    return bd.get("populations", {}) or {}
-                return {}
 
             def mill_measure(tag):
                 p = biome_pops("Village")
@@ -708,6 +744,12 @@ def main():
             print(f"  MEASURE mill_master: berries={bs_v.get('consumed_count')} "
                   f"phase={float(bs_v.get('consumed_phase', 0) or 0):.2f} (gates: berries 8, phase 50.27)")
 
+        # -- relay bank #1: acts 1-2 + mill done (leg 2 re-enters at the lantern) --
+        if _bank and not _resume and "chain_flipped" not in flags():
+            r_b1 = go("save_game_path", path=_bank + "_mill.tres")
+            print(f"  BANK mill checkpoint: {r_b1.get('saved')} -> {_bank}_mill.tres")
+
+        if not _resume and "chain_flipped" not in flags():
             # ============ ACT 3: lantern country (chapter 3 — contact by witness) ====
             print("\n== ACT3: lantern country (Lamplighters — witness, not contracts) ==")
             go("time_skip", phrames=120)  # mill_wakes → lantern_door cascade
@@ -775,6 +817,12 @@ def main():
             else:
                 print("  (Lanternfall not discovered — lantern chapter skipped)")
 
+        # -- relay bank #2: act 3 complete (leg 3 re-enters at the act-4 hub) --
+        if _bank and not _resume:
+            r_b2 = go("save_game_path", path=_bank + "_lantern.tres")
+            print(f"  BANK lantern checkpoint: {r_b2.get('saved')} -> {_bank}_lantern.tres")
+
+        if not _resume:
             # ============ ACT 4: island_lives + village_identity ============
             print("\n== ACT4: island_lives (🪵 into Village) ==")
             # plant the already-known 🪵/🌾 lumber icon into Village
@@ -799,87 +847,84 @@ def main():
                 else:
                     print("  (no 💧-bearing icon known → village_path_commons unreachable this run)")
 
-            print("\n== ACT4: village_identity (Village built + cross-biome atom diversity) ==")
-            # predicates: [island_lives, atom_count Village>=8, atom_diversity>=N, signature>=14, gap>=0.12]
-            # Reframed (owner): a biome's plot grid caps it at 5 qubits/10 atoms, so the old
-            # atom_count_gte Village 12 was unsatisfiable. Now the LOCAL check is "Village built
-            # out" (>=8, cleared by base+Mill+wood = 10 atoms) and the real goal is CROSS-BIOME
-            # atom diversity — a varied ecology spread across the 6 biome slots. So KEEP discovered
-            # biomes LOADED (their atoms count toward diversity) rather than culling them away.
-            print("  start:", fprog("village_identity"))
+            print("\n== ACT4: village_identity (A Character — one more deliberate word) ==")
+            # RE-PRICED (act-4 hub chapter): atoms 12 (Village at its 6-qubit cap — banked
+            # by construction: 3 natives + mill + wood + pond) / diversity CAL (banked by
+            # the loaded chapter countries) / signature 14 (post-island_lives canonical
+            # reads 13 — ONE more deliberate incorporation fires it). The old 30-round
+            # RNG discovery grind is gone; island_free's own diversity-18 bar is carried
+            # by the same loaded countries (measured 34 on the canonical build).
             core = {"StarterForest", "Village", "Woodlot", "FreshwaterSpring"}
-
-            def vi_pred(i):
-                p = go("flag_progress", id="village_identity").get("predicates", [])
-                return p[i]["score"] if i < len(p) else 0.0
-
-            # local atom_count: Village built out (Mill+wood already did it; top up if short)
-            for _ in range(3):
-                if vi_pred(1) >= 0.9:
+            ad0 = go("atom_diversity")
+            print(f"  CALIBRATE post-island_lives: village_atoms={ad0.get('per_biome', {}).get('Village')} "
+                  f"distinct={ad0.get('distinct')} sig={len(known())} "
+                  f"villageBerries={berry('Village')} forestBerries={berry('StarterForest')}")
+            print("  start:", fprog("village_identity"))
+            # The one deliberate act: incorporate a word the road didn't hand you —
+            # untapped registers live in the lantern's horn / woodlot / spring.
+            for bn in ("Lanternfall", "Woodlot", "FreshwaterSpring", "StarterForest"):
+                if go("flag_progress", id="village_identity").get("fired"):
                     break
-                if not plant_first(vk):
-                    break
-                press(vk); go("time_skip", phrames=120)
-
-            # diversity (pred 2) + signature (pred 3): fill the 6 biome slots with DIVERSE biomes
-            # and incorporate each. Keep them loaded so their atoms bank toward diversity; only
-            # cull to SWAP out the thinnest non-core biome if full and still short.
-            ad_last = {"best": -1, "stall": 0}
-            for rnd in range(1, 31):   # RNG-luck grind: two seeds stalled at 15 rounds just short of sig≈16
-                if vi_pred(2) >= 0.9 and vi_pred(3) >= 0.9:
-                    break
-                if len(grid()) < 6:
-                    before = set(grid())
-                    bridge("🦅", 80)
-                    ensure_hat("7"); press("R", 6)  # Captain discover (fill a slot)
-                    for nb in [b for b in grid() if b not in before]:
-                        bk2 = biome_key(nb)
-                        if bk2:
-                            press(bk2)
-                            incorporate(bn=nb)
-                            # RIGID-BIOME FALLBACK: incorporate() excites ALL sites, and a
-                            # rigid-H biome (SSH chain / monolith) is near-stationary under
-                            # that — nothing ripens, sig freezes at the soft-gate center
-                            # (0.50) forever. If the sig predicate is still short, grind the
-                            # proven ONE-SITE ritual (same physics lesson as farm_berries;
-                            # this exact stall cost a full campaign run on 2026-07-06).
-                            if vi_pred(3) < 0.9:
-                                farm_berries(nb, 1, "village_identity", rounds=3)
-                else:
-                    # 6 loaded but still short → swap thin biomes for variety.
-                    # ANTI-FREEZE: the discovery ranking is deterministic in the
-                    # signature — cull-one/discover-one oscillates between the SAME
-                    # two biomes (distinct 27↔28 for 14 straight rounds; the swap
-                    # never reaches rank-2 of the compass). Ladder of escapes:
-                    #   stall 2-3: incorporate the loaded set (sig growth reshuffles
-                    #              the ranking — the green-run escape),
-                    #   stall 4+:  open TWO slots at once, forcing discovery down to
-                    #              rank-2 — genuinely fresh variety even when sig is
-                    #              saturated on the loaded axes.
-                    stall = ad_last.get("stall", 0)
-                    per = go("atom_diversity").get("per_biome", {})
-                    keep = core | protected_landmarks()
-                    cands = cullable_from(list(per.keys()), keep)
-                    thin = [b for _, b in sorted((per.get(b, 0), b) for b in cands)]
-                    if stall >= 4 and len(thin) >= 2:
-                        cull(thin[0]); cull(thin[1])
-                        ad_last["stall"] = 0
-                    elif stall >= 2:
-                        for lb in [b for b in grid() if b not in ("Village",)][:2]:
-                            incorporate(bn=lb)
-                    elif thin:
-                        cull(thin[0])
-                ad = go("atom_diversity")
-                # Stall = no NEW HIGH in distinct (equality-based tracking was
-                # defeated by the 27↔28 oscillation).
-                if int(ad.get("distinct", 0) or 0) > ad_last.get("best", -1):
-                    ad_last["best"] = int(ad.get("distinct", 0) or 0)
-                    ad_last["stall"] = 0
-                else:
-                    ad_last["stall"] = ad_last.get("stall", 0) + 1
-                print(f"    [vi {rnd}] loaded={len(grid())} distinct={ad.get('distinct')} "
-                      f"sig={len(known())} | {fprog('village_identity')}")
+                if bn not in grid():
+                    continue
+                b0 = berry(bn)
+                want = (b0 + 1) if isinstance(b0, int) else 1
+                farm_berries(bn, want, "village_identity", rounds=3)
+            press(vk); go("time_skip", phrames=150)
             print("  ", fprog("village_identity"))
+
+            # ---- five_doors + both branch teachers cascade off village_identity;
+            #      commons (💧, pond) + artisan (🔨, mill) are armed by construction.
+            print("\n== ACT4: five doors (the naming beat + the two dark teachers) ==")
+            go("time_skip", phrames=120)
+            for fid in ("five_doors", "eagle_overhead", "serfs_ledger",
+                        "village_path_commons", "village_path_artisan"):
+                print("  ", fprog(fid))
+
+            # ---- the eagle door (village_path_watched — never fired in QA history):
+            # claim the Throne's word (🩸/🦅 — Predation FLIPPED per the signature law:
+            # 🦅 was organically incorporated in act 1 via Raptor 🦅/🐇), unseat the
+            # timber word (island_lives long fired — flags latch), plant the key.
+            print("\n== ACT4: the eagle door (claim 🩸/🦅 → unseat the mill → plant the key) ==")
+            claim_teaching("🩸", "🦅", "Village", "The Eagle's Word")
+
+            def trim_village_last():
+                """Icon hat Q = Trim Icon (destructive: Q arms; the confirm toast eats
+                the FIRST F — press F until the qubit count drops, the cull() dance).
+                Targets the LAST register — deterministic on BOTH lanes: on a fresh
+                run the last Village plant is the mill (natives 0-2, wood 3, pond 4,
+                mill 5), and on a resumed run the plot-terminal binding is not
+                restored so remove_icon falls back to num_qubits-1 anyway. Every
+                flag that needed 💨/🔨 (mill_wakes, artisan) is long fired — flags
+                latch. Cost: 13🐺 + 3 of each pole — bridged like every grind."""
+                goto_biome("Village")
+                before = len(qstate("Village"))
+                if before < 2:
+                    print(f"    ✗ trim: too few registers (qubits={before})")
+                    return False
+                bridge("🐺", 30); bridge("💨", 6); bridge("🔨", 6)
+                ensure_hat("5")
+                press(PLOT[before - 1], 3)
+                press("Q", 3)
+                for _ in range(4):
+                    press("F", 3)
+                    if len(qstate("Village")) < before:
+                        break
+                ok = len(qstate("Village")) < before
+                print(f"    trimmed last register: {'ok' if ok else 'FAILED'} "
+                      f"(qubits {before}→{len(qstate('Village'))}) | {fprog('island_lives')}")
+                return ok
+
+            if word_known("🩸", "🦅"):
+                trim_village_last()
+                plant_pair("Village", "🩸", "🦅", "the eagle's key → Village")
+                press(vk); go("time_skip", phrames=180)
+                ev4 = go("energy_variance", biome="Village")
+                print(f"  MEASURE Village post-eagle: H-gap={float(ev4.get('h_gap', -1)):.4f} "
+                      f"(island_free gate ≤ 0.55, empire band 0.6)")
+                print("  ", fprog("village_path_watched"))
+            ad4 = go("atom_diversity")
+            print(f"  post-doors: distinct={ad4.get('distinct')} sig={len(known())}")
 
             # ============ ACT 5: ledger_opens ============
             print("\n== ACT5: ledger_opens (discover BloodLedger + berry≥2) ==")
@@ -1065,7 +1110,8 @@ def main():
                     "mill_wakes", "mill_master",
                     "lantern_door", "chain_ends", "lantern_teaching", "lantern_wakes",
                     "chain_flipped",
-                    "island_lives", "village_identity",
+                    "island_lives", "village_identity", "five_doors",
+                    "eagle_overhead", "serfs_ledger", "village_path_watched",
                     "ledger_opens", "empire_imposes", "island_free"):
             print("  ", fprog(fid))
         print("  flags:", sorted(flags().keys()))

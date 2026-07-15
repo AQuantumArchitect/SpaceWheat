@@ -301,13 +301,16 @@ Predicate families (`QuestManager.gd`):
   superposition, contracts.
 - **Acts 1–3 — awaken & couple:** Forest wakes → berries → Village stirs → upstream
   biomes (Woodlot 🪵, Spring 💧) couple in → the Mill's `⚙` attractor forms.
-- **Act 4 — the island lives:** all biomes coupled; `village_identity` gates on
-  atom count + diversity + signature size.
+- **Act 4 — the hub:** all biomes coupled (`island_lives`); `village_identity`
+  ("A Character") gates on Village at its 12-atom cap + island diversity + the
+  full 15-word island vocabulary; `five_doors` names the five path keys and the
+  dark teachers (`eagle_overhead` 🩸/🦅, `serfs_ledger` 💸/💀) open their claims.
 - **Act 5 — divergent identity:** which **single atom** you built into the Village
   forks the story — 💧 Commons / 🏭 Manufactory / 🔨 Artisan / 🦅 Watched / 💀 Cemetery.
+  Every key has a story teacher; the paths themselves pay standing only.
 - **Act 6 — the ending:** the empire (`BloodLedger`) locks a **wide** spectral gap
   (`empire_imposes`); you win **`island_free`** iff `Village` spectral gap stays
-  **≤ 0.45** (many coexisting modes), with atom diversity ≥ 18 and signature ≥ 14.
+  **≤ 0.55** (many coexisting modes), with atom diversity ≥ 18 and signature ≥ 14.
   *You win by composing a biome that physically cannot collapse into one shape.*
 
 ### 7.3 What the design claims is elegant

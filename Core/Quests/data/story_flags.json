@@ -903,13 +903,24 @@
         "trust": 0.12
       }
     },
-    "arc_quest": null
+    "arc_quest": {
+      "body": "The Island Lives — three countries feed one hearth; keep the timber word seated in the village ring.",
+      "hint": "Nothing to chase — this fired the moment 🪵 lived in the Village. If a trim ever unseats it, the Icon hat (5) replants it: R on an empty Village plot offers any word you know.",
+      "faction": "Millwright's Union",
+      "state_predicates": [
+        {
+          "type": "atom_in_biome",
+          "biome": "Village",
+          "atom": "🪵"
+        }
+      ]
+    }
   },
   {
     "id": "village_identity",
     "display_name": "Your Village — A Character",
     "act": 4,
-    "arc_beat": "Your village has its sixth qubit, and the island around it has grown varied — many kinds of atom now live across your biome slots. Village is built out; the island has range. And what you built it FROM is what it becomes: the six atoms in its ring are its character. Water (💧) makes a commons; the forge (🔨) an artisan town; the factory (🏭) a manufactory; the skull (💀) a cemetery; the eagle (🦅) draws the empire's eye. Build deliberately — the village you compose is the village you get.",
+    "arc_beat": "Your village ring is full — six axes seated, every plot spoken for — and the island around it carries more kinds of atom than any one country could hold alone. What remains is you. A character here is a lexicon: the words you hold are the orbits you can fly. Take one more word for your signature — one you chose, not one the road handed you — and the island will start reading you back.",
     "conditional_beat": [
       {
         "atom": "💧",
@@ -940,19 +951,133 @@
       {
         "type": "atom_count_gte",
         "biome": "Village",
-        "value": 8
+        "value": 12
       },
       {
         "type": "atom_diversity_gte",
-        "value": 16
+        "value": 26
       },
       {
         "type": "signature_size_gte",
-        "value": 14
+        "value": 15,
+        "width": 1.0
       }
     ],
     "standing_grants": {},
-    "arc_quest": null
+    "arc_quest": {
+      "body": "A Character — the village built to its cap, the island varied, your signature one word deeper.",
+      "hint": "Three bars. The Village ring full (12 atoms) and the island's atom variety (26 kinds) are already yours if the three countries stand. The last is one deliberate act: find a register whose word you do not know yet — the lantern's horn, the woodlot's understory, the spring's margins — Icon hat (5), F tracks it, ripen, R incorporates. Fifteen words — every word this island offers — is a character.",
+      "state_predicates": [
+        {
+          "type": "atom_count_gte",
+          "biome": "Village",
+          "value": 12
+        },
+        {
+          "type": "atom_diversity_gte",
+          "value": 26
+        },
+        {
+          "type": "signature_size_gte",
+          "value": 15,
+          "width": 1.0
+        }
+      ]
+    }
+  },
+  {
+    "id": "five_doors",
+    "display_name": "Your Village — Five Doors",
+    "act": 4,
+    "arc_beat": "The island has read your character; now it asks your intent. Five doors stand in the village ring, each opened by one word. 💧 the Commons — the Hearth Keepers taught it with the spring. 🔨 the Artisan — the Millwrights' own windmill word. 🏭 the Manufactory — the gear-bench's deep word. 🦅 the Eagle — the empire's word, if you dare learn it. 💀 the Cemetery — the Serfs' word for what the ledger buries. Plant one into your Village and the island will read what you meant by it.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "village_identity"
+      }
+    ],
+    "standing_grants": {},
+    "arc_quest": {
+      "body": "Five Doors — seat a door's key in the village ring and the island reads your intent.",
+      "hint": "The ring is full: six seats, all taken. To seat a key, Icon hat (5): Q unseats an icon you can spare (costs 13🐺 + 3 of each pole; Q arms, F confirms), then R on the empty plot plants the key (costs 10🌱 + 4× its south pole). When a word lives in a land, its faction's board opens there — a door is a market as much as a fate.",
+      "state_predicates": [
+        {
+          "type": "atom_count_gte",
+          "biome": "Village",
+          "value": 12
+        }
+      ]
+    }
+  },
+  {
+    "id": "eagle_overhead",
+    "display_name": "The Eagle Overhead",
+    "act": 4,
+    "arc_beat": "Something upstream noticed an island composing itself. A shadow crosses the ring at noon — the Carrion Throne's own axis, blood under the eagle, one heavy mode that rules every ledger it enters. The Throne does not trade and does not ask; its word can only be taken. Take it, and you will hold the empire's word without the empire holding you — that is the only safe order of those two events.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "village_identity"
+      }
+    ],
+    "standing_grants": {
+      "Carrion Throne": {
+        "attention": 0.05
+      }
+    },
+    "arc_quest": {
+      "type": 1,
+      "category": "ARC",
+      "body": "The Eagle's Word — watch your own village long enough and the Throne's axis resolves: blood under the eagle (🩸/🦅).",
+      "hint": "The teaching ritual, imperial verse: Arc tab (X → I), accept (R), then one more Village berry — Icon hat (5), F track, ripen, R incorporate — until the row reads READY; claim it there. The claim teaches 🩸/🦅, the eagle door's key. Blood leads: you already know the eagle from the forest sky, so the Throne yields its dark pole first.",
+      "faction": "Carrion Throne",
+      "state_predicates": [
+        {
+          "type": "berry_consumed_count_gte",
+          "biome": "Village",
+          "value": 9
+        }
+      ],
+      "reward_north": "🩸",
+      "reward_south": "🦅",
+      "reward_icon_north": "🩸",
+      "reward_icon_south": "🦅"
+    }
+  },
+  {
+    "id": "serfs_ledger",
+    "display_name": "The Serfs' Ledger",
+    "act": 4,
+    "arc_beat": "The Void Serfs keep the other book — not who owns, but who owes. A village with a character is a village worth indebting, and their tally-men already walk your forest rows, counting what the living owe the ground. Their axis is debt over the dead: learn it, and the cemetery door has a key.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "village_identity"
+      }
+    ],
+    "standing_grants": {
+      "Void Serfs": {
+        "entanglement": 0.05
+      }
+    },
+    "arc_quest": {
+      "type": 1,
+      "category": "ARC",
+      "body": "The Serfs' Word — walk the shared forest one more season and the tally resolves: debt over the dead (💸/💀).",
+      "hint": "The teaching ritual, debtor's verse: Arc tab (X → I), accept (R), then one more StarterForest berry — Icon hat (5), F track, ripen, R incorporate — until the row reads READY; claim it there. The claim teaches 💸/💀, the cemetery door's key. Debt leads: you already know the skull from the forest floor, so the Serfs teach the coin side first.",
+      "faction": "Void Serfs",
+      "state_predicates": [
+        {
+          "type": "berry_consumed_count_gte",
+          "biome": "StarterForest",
+          "value": 9
+        }
+      ],
+      "reward_north": "💸",
+      "reward_south": "💀",
+      "reward_icon_north": "💸",
+      "reward_icon_south": "💀"
+    }
   },
   {
     "id": "island_stops_asking",
@@ -1083,11 +1208,7 @@
           "biome": "Village",
           "value": 5
         }
-      ],
-      "reward_north": "💧",
-      "reward_south": "🌱",
-      "reward_icon_north": "💧",
-      "reward_icon_south": "🌱"
+      ]
     }
   },
   {
@@ -1099,6 +1220,10 @@
       {
         "type": "story_flag_set",
         "id": "village_identity"
+      },
+      {
+        "type": "story_flag_set",
+        "id": "timber_rhythm"
       },
       {
         "type": "atom_in_biome",
@@ -1127,11 +1252,7 @@
           "biome": "Village",
           "value": 5
         }
-      ],
-      "reward_north": "⚙",
-      "reward_south": "🏭",
-      "reward_icon_north": "⚙",
-      "reward_icon_south": "🏭"
+      ]
     }
   },
   {
@@ -1170,11 +1291,7 @@
           "biome": "Village",
           "value": 5
         }
-      ],
-      "reward_north": "🔨",
-      "reward_south": "🧺",
-      "reward_icon_north": "🔨",
-      "reward_icon_south": "🧺"
+      ]
     }
   },
   {
@@ -1186,6 +1303,10 @@
       {
         "type": "story_flag_set",
         "id": "village_identity"
+      },
+      {
+        "type": "story_flag_set",
+        "id": "eagle_overhead"
       },
       {
         "type": "atom_in_biome",
@@ -1209,11 +1330,7 @@
           "biome": "Village",
           "value": 5
         }
-      ],
-      "reward_north": "🦅",
-      "reward_south": "🩸",
-      "reward_icon_north": "🦅",
-      "reward_icon_south": "🩸"
+      ]
     }
   },
   {
@@ -1225,6 +1342,10 @@
       {
         "type": "story_flag_set",
         "id": "village_identity"
+      },
+      {
+        "type": "story_flag_set",
+        "id": "serfs_ledger"
       },
       {
         "type": "atom_in_biome",
@@ -1249,11 +1370,7 @@
           "biome": "Village",
           "value": 5
         }
-      ],
-      "reward_north": "💀",
-      "reward_south": "💸",
-      "reward_icon_north": "💀",
-      "reward_icon_south": "💸"
+      ]
     }
   },
   {

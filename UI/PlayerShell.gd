@@ -804,10 +804,18 @@ func _connect_quest_manager_to_biomes(farm_ui: Control) -> void:
 
 
 func _handle_active_biome_change(biome_name: String, _old_biome: String, farm_ref: Node) -> void:
-	if not quest_manager or not farm_ref or not farm_ref.grid or not farm_ref.grid.has_biomes() or biome_name == "":
+	# The farm bound at wiring time goes STALE after a save/load rebuilds the farm
+	# (act-4 marathon: on a resumed run every claim stayed "active" forever —
+	# current_biome kept pointing into the dead farm, so QuestManager's readiness
+	# poll never ran). Resolve the LIVE farm at call time; the bound ref is only
+	# the fallback for early-boot frames before the locator resolves.
+	var farm: Node = InstrumentLocator.resolve_active_farm(self)
+	if farm == null and farm_ref != null and is_instance_valid(farm_ref):
+		farm = farm_ref
+	if not quest_manager or not farm or not farm.grid or not farm.grid.has_biomes() or biome_name == "":
 		return
 
-	var biome = farm_ref.grid.get_biome(biome_name)
+	var biome = farm.grid.get_biome(biome_name)
 	if biome:
 		quest_manager.connect_to_biome(biome)
 

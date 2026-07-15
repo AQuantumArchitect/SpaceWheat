@@ -275,7 +275,13 @@ func stage_core_systems_for(farm) -> void:
 	# and settle against the PREVIOUS farm's dead economy: progress bars
 	# frozen at 0%, deliveries refused with sufficient funds (marathons #2/#7).
 	# All idempotent — signals guard, restore skips existing quests.
-	var qm = farm.get("quest_manager") if farm else null
+	# The QM lives on PlayerShell, NOT the farm — farm.get("quest_manager") is
+	# always null, so this whole re-wire silently no-oped on every load and the
+	# readiness poll kept a freed current_biome: claims never flipped READY on
+	# a loaded save (act-4 marathon). Resolve through the locator's shell path.
+	var qm = InstrumentLocator.resolve_quest_manager(farm, farm) if farm else null
+	if qm == null:
+		qm = InstrumentLocator.resolve_quest_manager(self, farm)
 	if qm != null:
 		var econ = farm.get("economy")
 		if econ != null and qm.has_method("connect_to_economy"):

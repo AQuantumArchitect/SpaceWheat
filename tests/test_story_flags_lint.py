@@ -30,21 +30,16 @@ ICONS = PROJECT_ROOT / "Core" / "Factions" / "data" / "icons.json"
 DEFAULT_SCENARIO = PROJECT_ROOT / "Scenarios" / "demos_normal.tres"
 
 # -- TODO allowlists (the ratchet) --------------------------------------------
-# Chapter 2 (Hearth Keepers / Spring) landed: spring_connects is the teaching
-# (💧/🌊 taught before spring_wakes asks anyone to plant it) and every spring
-# trust gate carries an authored width. Remaining debts are act-4's.
-TODO_TEACH_BEFORE_PLANT = {
-    ("village_path_industrial", "Village", "🏭"),  # act-4 chapter: five_doors teachers
-    ("village_path_watched", "Village", "🦅"),     # act-4 chapter: eagle_overhead
-    ("village_path_cemetery", "Village", "💀"),    # act-4 chapter: serfs_ledger
-}
+# The act-4 hub chapter landed: every village door's key now has a teacher in
+# its path's prereq closure (timber_rhythm → 🏭, eagle_overhead → 🦅,
+# serfs_ledger → 💀), and island_lives/village_identity carry arcs. Remaining
+# debts are the acts 0-1 touch-ups and the acts 5-8 audit.
+TODO_TEACH_BEFORE_PLANT = set()  # every plant has a teacher upstream — keep it so
 TODO_STANDING_WIDTH = set()  # all standing gates carry authored widths — keep it so
 TODO_ARC_QUEST = {
     "forest_evolving",      # acts 0-1 touch-up pass (plan Phase 4)
     "forest_listener",      # acts 0-1 touch-up pass
     "forest_communion",     # acts 0-1 touch-up pass
-    "island_lives",         # act-4 hub chapter
-    "village_identity",     # act-4 hub chapter ("A Character" arc, re-priced bars)
     "edge_of_the_enclave",  # acts 5-8 audit (plan Phase 5: signature bar)
     "empire_imposes",       # acts 5-8 audit (gap read)
 }
