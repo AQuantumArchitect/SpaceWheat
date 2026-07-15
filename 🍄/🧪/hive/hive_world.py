@@ -28,7 +28,7 @@ from umwelt.spec.schema import BindingSpec, DomainSpec, NodeSpec
 
 CHAPTERS = ("woodlot", "spring", "act3", "hub")
 
-for _r in ("progress", "blocked", "suite", "drive", "truthful", "momentum"):
+for _r in ("progress", "blocked", "suite", "drive", "truthful", "momentum", "stewardship"):
     role_registry.register_role_mode(_r, "dissipative", analog=True)
 
 
@@ -65,8 +65,9 @@ HIVE_SPEC = DomainSpec(
                  role_modes={"suite": "dissipative", "drive": "dissipative"},
                  params={"gamma_diss": (0.01, 0.01, 0.0, 1.0)}),
         NodeSpec("fleet", parent="campaign", kind="entity",
-                 roles=("truthful", "momentum"),
-                 role_modes={"truthful": "dissipative", "momentum": "dissipative"},
+                 roles=("truthful", "momentum", "stewardship"),
+                 role_modes={"truthful": "dissipative", "momentum": "dissipative",
+                             "stewardship": "dissipative"},
                  params={"gamma_diss": (0.008, 0.01, 0.0, 1.0),
                          "gamma_diss_momentum": (0.03, 0.01, 0.0, 1.0)}),
     ),
@@ -81,6 +82,13 @@ HIVE_SPEC = DomainSpec(
                     normalizer="binary", force_observe=True, collapse_alpha=0.5),
         BindingSpec("leg_completed", zone="fleet", role="momentum",
                     normalizer="binary", force_observe=True, collapse_alpha=0.4),
+        # THE WRAP (protocol law 5): the coordinator's audit verdicts are
+        # CLAIMS at eta<1; the CI referee checks them; stewardship prices
+        # the coordinator's word exactly as truthful prices the sensors'.
+        BindingSpec("coord_claim", zone="fleet", role="stewardship",
+                    normalizer="binary", force_observe=True, collapse_alpha=0.3),
+        BindingSpec("coord_checked", zone="fleet", role="stewardship",
+                    normalizer="binary", force_observe=True, collapse_alpha=0.85),
     ),
     ingest_hold_s=600.0,  # legs land minutes-to-hours apart: sparse by nature
 )

@@ -131,6 +131,34 @@ def cmd_backfill() -> dict:
     return {"ok": True, "legs": len(out)}
 
 
+def cmd_protocol() -> dict:
+    text = (HERE / "HIVE_PROTOCOL.md").read_text(encoding="utf-8")
+    return {"ok": True, "protocol": text}
+
+
+def cmd_wall(chapter: str, report: str) -> dict:
+    """A sensor's early surrender (protocol law 2): ingest the blocked
+    belief AND ledger the precise wall report for the escalation loop."""
+    entry = {"at": _now(), "chapter": chapter, "report": report}
+    with open(HERE / "walls.jsonl", "a", encoding="utf-8") as f:
+        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    resp = _ingest({f"blocked_{chapter}": 1.0})
+    return {"ok": True, "ledgered": entry, "resp": resp}
+
+
+def cmd_audit(claim: float | None, checked: float | None) -> dict:
+    """The wrap (protocol law 5): the coordinator's audit verdict is a CLAIM
+    (alpha 0.3); when the CI referee later confirms/refutes it, ingest
+    coord_checked (alpha 0.85) — agreement lifts stewardship, a blessed
+    failure drops it."""
+    readings = {}
+    if claim is not None:
+        readings["coord_claim"] = claim
+    if checked is not None:
+        readings["coord_checked"] = checked
+    return {"ok": True, "ingested": readings, "resp": _ingest(readings)}
+
+
 def cmd_status() -> dict:
     c = _client()
     state = c.state()
@@ -141,7 +169,8 @@ def cmd_status() -> dict:
             "blocked": c.belief(node, "blocked"),
         }
     beliefs["build"] = {r: c.belief("build", r) for r in ("suite", "drive")}
-    beliefs["fleet"] = {r: c.belief("fleet", r) for r in ("truthful", "momentum")}
+    beliefs["fleet"] = {r: c.belief("fleet", r)
+                        for r in ("truthful", "momentum", "stewardship")}
     recs = []
     try:
         recs = c.recommendations()
@@ -176,6 +205,12 @@ def main() -> int:
             out = cmd_backfill()
         elif cmd == "status":
             out = cmd_status()
+        elif cmd == "protocol":
+            out = cmd_protocol()
+        elif cmd == "wall":
+            out = cmd_wall(args[1], " ".join(args[2:]) or "unreported")
+        elif cmd == "audit":
+            out = cmd_audit(flag("claim").get("claim"), flag("checked").get("checked"))
         elif cmd == "down":
             out = _client(world=False).stop_world(WORLD)
         else:
