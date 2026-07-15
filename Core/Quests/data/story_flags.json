@@ -14,7 +14,7 @@
     "standing_grants": {},
     "arc_quest": {
       "body": "First Breath — steer one loop, and keep what it traced.",
-      "hint": "The first wheel: Icon hat (5), then F on a plot to Berry-track its register. Let it orbit — a berry ripens in about half a minute of watching — then R incorporates what the loop traced. One deliberate incorporation is the whole quest; the story tab (X) meter is measuring exactly this.",
+      "hint": "The first wheel: your home land's word is already yours, so a first breath needs a word you do NOT know — the forest holds one. Cross to StarterForest (the biome tabs), Icon hat (5), F on a plot to Berry-track its register, let it orbit — a berry ripens in about half a minute of watching — then R incorporates the new word it traced. One new word is the whole quest; the story tab (X) meter is measuring exactly this.",
       "state_predicates": [
         {
           "type": "signature_growth_gte",
