@@ -966,7 +966,7 @@
     "standing_grants": {},
     "arc_quest": {
       "body": "A Character — the village built to its cap, the island varied, your signature one word deeper.",
-      "hint": "Three bars. The Village ring full (12 atoms) and the island's atom variety (26 kinds) are already yours if the three countries stand. The last is one deliberate act: find a register whose word you do not know yet — the lantern's horn, the woodlot's understory, the spring's margins — Icon hat (5), F tracks it, ripen, R incorporates. Fifteen words — every word this island offers — is a character.",
+      "hint": "Three bars. The Village ring full (12 atoms) and the island's atom variety (26 kinds) are already yours if the three countries stand. The last is one deliberate act: find a register whose word you do not know yet — the lantern's horn, the woodlot's understory, the spring's margins — Icon hat (5), F tracks it, ripen, R incorporates. Fifteen words is a character.",
       "state_predicates": [
         {
           "type": "atom_count_gte",
