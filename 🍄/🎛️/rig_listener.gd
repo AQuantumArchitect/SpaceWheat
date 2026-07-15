@@ -1007,12 +1007,18 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 					# A revealed bubble wears its word (🦅/🐇 on its face) — the
 					# glyphs tell a player WHERE a resource lives. Fog-honest:
 					# unrevealed plots stay wordless, same as headed empty space.
-					if pg_is_revealed:
-						var pg_biome = pg_grid.get_biome(pg_bname)
-						if pg_biome and pg_biome.viz_cache and pg_biome.viz_cache.has_metadata():
-							var pg_axis: Dictionary = pg_biome.viz_cache.get_axis(pg_col)
-							if pg_axis and not pg_axis.is_empty():
-								pg_row["axis"] = "%s%s" % [str(pg_axis.get("north", "")), str(pg_axis.get("south", ""))]
+					var pg_biome = pg_grid.get_biome(pg_bname)
+					if pg_is_revealed and pg_biome and pg_biome.viz_cache and pg_biome.viz_cache.has_metadata():
+						var pg_axis: Dictionary = pg_biome.viz_cache.get_axis(pg_col)
+						if pg_axis and not pg_axis.is_empty():
+							pg_row["axis"] = "%s%s" % [str(pg_axis.get("north", "")), str(pg_axis.get("south", ""))]
+					# A column past the biome's registers renders NO bubble headed
+					# — that gap is the PLANT target (Icon hat R opens the picker
+					# there). Text seats walled hunting it invisible (L2).
+					var pg_nq: int = pg_biome.quantum_computer.register_map.num_qubits \
+						if (pg_biome and pg_biome.quantum_computer and pg_biome.quantum_computer.register_map) else 0
+					if pg_col >= pg_nq:
+						pg_row["empty"] = true
 					pg_rows.append(pg_row)
 				result["plots"] = pg_rows
 
