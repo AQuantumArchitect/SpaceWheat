@@ -949,6 +949,62 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				result["hovered_path"] = str(hp_hover.get_path())
 				result["hovered_filter"] = int(hp_hover.mouse_filter)
 
+		"plot_glance":
+			# PLAYER-PARITY read: what the bubble field shows a sighted player,
+			# for text seats (headless has no bubbles — L1e walled blind on
+			# focus). Per assigned plot: its ring key, revealed?, measured?,
+			# focused?. NO registers, NO scores, NO fog-piercing — an
+			# unrevealed plot shows only that it is unexplored, exactly like
+			# the empty space a headed player sees.
+			var pg_gsm = get_root().get_node_or_null("GameStateManager")
+			var pg_farm = pg_gsm.get_active_farm() if (pg_gsm and pg_gsm.has_method("get_active_farm")) else _farm
+			var pg_grid = pg_farm.grid if pg_farm else null
+			if pg_grid == null or not pg_grid.has_method("get_plot_biome_assignments"):
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_grid"}
+			else:
+				var pg_revealed: Dictionary = {}
+				if "revealed_plots" in pg_farm:
+					for pg_rp in pg_farm.revealed_plots:
+						pg_revealed[pg_rp] = true
+				# Focus comes from the DISPATCH authority itself: QII's
+				# build_chip_context ("what a chip shows is exactly what its
+				# key fires" — including the sticky last-selected law). Asking
+				# anything else would let glance and dispatch disagree.
+				var pg_qii: Node = null
+				var pg_stack: Array = [get_root()]
+				while not pg_stack.is_empty():
+					var pg_n: Node = pg_stack.pop_back()
+					for pg_ch in pg_n.get_children():
+						pg_stack.push_back(pg_ch)
+					if pg_n.has_method("build_chip_context"):
+						pg_qii = pg_n
+						break
+				var pg_focus_col: int = -1
+				var pg_focus_biome := ""
+				if pg_qii:
+					var pg_ctx = pg_qii.build_chip_context()
+					if pg_ctx and pg_ctx.has_focused_qubit():
+						pg_focus_col = int(pg_ctx.qubit_index)
+						var pg_cb = pg_qii._get_current_biome()
+						pg_focus_biome = BiomeBase.type_name(pg_cb) if pg_cb else ""
+				var pg_keys := "GHJKL;"
+				var pg_rows: Array = []
+				var pg_assignments: Dictionary = pg_grid.get_plot_biome_assignments()
+				var pg_positions: Array = pg_assignments.keys()
+				pg_positions.sort()
+				for pg_pos in pg_positions:
+					var pg_plot = pg_grid.get_plot(pg_pos)
+					var pg_col := int(pg_pos.x)
+					var pg_bname := str(pg_assignments[pg_pos])
+					pg_rows.append({
+						"key": pg_keys[pg_col] if pg_col < pg_keys.length() else "?",
+						"biome": pg_bname,
+						"revealed": pg_revealed.has(pg_pos),
+						"measured": pg_plot.has_terminal() if pg_plot else false,
+						"focused": pg_col == pg_focus_col and pg_bname == pg_focus_biome,
+					})
+				result["plots"] = pg_rows
+
 		"plot_register_map":
 			# Diagnostic: per assigned plot, compare what the DISPLAY renders
 			# (register = grid column, the plot_idx ≡ register_id law in

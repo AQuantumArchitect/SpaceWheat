@@ -161,12 +161,18 @@ def cmd_look(seat: str, graph: bool = True) -> dict:
     c = _client(seat)
     text = _visible_lines(c, seat, st)
     bs = _turn(seat, st, c, "bubble_state")
-    # Headless has no force graph (no bubble field) — the chips and toasts
-    # carry the plot state instead, exactly as they do for a player.
-    field = [{"pos": b.get("pos"), "axis": b.get("axis"),
-              "measured": bool(b.get("measured")), "biome": b.get("biome")}
-             for b in bs.get("bubbles", []) if b.get("visible")] \
-        if bs.get("ok") else "headless: no bubble field — read the chips/toasts"
+    # Headless has no force graph. plot_glance is the parity substitute: the
+    # same facts a sighted player reads off the bubble field — which ring key
+    # holds a plot, revealed/measured, and where the selection ring sits.
+    # (L1e walled blind: focus decides what F/R/Q do, and text hid it.)
+    if bs.get("ok"):
+        field = [{"pos": b.get("pos"), "axis": b.get("axis"),
+                  "measured": bool(b.get("measured")), "biome": b.get("biome")}
+                 for b in bs.get("bubbles", []) if b.get("visible")]
+    else:
+        glance = _turn(seat, st, c, "plot_glance")
+        field = glance.get("plots") if glance.get("ok") \
+            else "headless: no bubble field — read the chips/toasts"
     rs = _turn(seat, st, c, "resource_snapshot")
     slots = _turn(seat, st, c, "biome_slots")
     tabs = [{"key": s.get("key"), "biome": s.get("biome")}

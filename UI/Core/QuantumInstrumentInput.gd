@@ -1607,11 +1607,28 @@ func _block_reason_for_player(action_name: String) -> String:
 		"explore":
 			return "no unbound plot to explore here"
 		"measure":
+			# "F explores first" is FALSE HELP when nothing is focused — in that
+			# state F fast-forwards instead (L1e sensor wall: the advice loops).
+			if not _has_focused_plot():
+				return "no plot selected — G H J K L ; picks one, then F explores it"
 			return "nothing live to strike — F explores first"
 		"pop", "reap":
-			return "nothing measured to extract here"
+			if not _has_focused_plot():
+				return "no plot selected — G H J K L ; picks one"
+			return "nothing measured to extract here — R strikes first"
 		_:
 			return "not possible on this plot right now"
+
+
+## True when a plot is focused AND maps to a real register in the current
+## biome — the same validity shape _bridge_anchor_here uses. Everything the
+## Ace verbs can act on requires this; refusal copy branches on it.
+func _has_focused_plot() -> bool:
+	var biome = _get_current_biome()
+	if biome == null or biome.quantum_computer == null or biome.quantum_computer.register_map == null:
+		return false
+	var qid: int = int(_instrument.current_plot_idx) if _instrument else -1
+	return qid >= 0 and qid < biome.quantum_computer.register_map.num_qubits
 
 
 ## "needs 21🦅 — you hold 4" for an unaffordable action; "" when affordable.
