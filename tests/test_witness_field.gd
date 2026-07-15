@@ -152,6 +152,20 @@ func _test_dissipative_relax() -> void:
 		absf(float(gammas.get("r", -1.0)) - expected_default) < EPS,
 		"got %s" % str(gammas))
 
+	# the E2 decay-variant lane: WITNESS_GAMMA_SCALE multiplies every gamma
+	OS.set_environment("WITNESS_GAMMA_SCALE", "4.0")
+	var scaled := WitnessSpec.gamma_by_role(spec, trap_node)
+	check("WITNESS_GAMMA_SCALE=4 quadruples gamma_diss",
+		absf(float(scaled.get("r", -1.0)) - expected_default * 4.0) < EPS,
+		"got %s" % str(scaled))
+	OS.set_environment("WITNESS_GAMMA_SCALE", "-1")
+	var guarded := WitnessSpec.gamma_by_role(spec, trap_node)
+	check("non-positive scale is refused (falls back to 1.0)",
+		absf(float(guarded.get("r", -1.0)) - expected_default) < EPS,
+		"got %s" % str(guarded))
+	OS.set_environment("WITNESS_GAMMA_SCALE", "")
+	check("unset scale is exactly 1.0", absf(WitnessSpec.gamma_scale() - 1.0) < EPS)
+
 
 func _test_spec() -> void:
 	print("\n-- spec load / validate / template")

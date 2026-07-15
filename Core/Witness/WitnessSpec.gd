@@ -104,6 +104,18 @@ static func instantiate_biome_node(spec: Dictionary, biome_name: String) -> Dict
 	return node
 
 
+## E2 decay-variant lane (gamma research): WITNESS_GAMMA_SCALE multiplies
+## every gamma_diss uniformly — the belief field's confidence half-life ladder
+## for A/B on live runners. Unset/empty/non-positive → 1.0, the authored spec.
+## The gauge stamps the scale so every banked tape self-describes its variant.
+static func gamma_scale() -> float:
+	var raw := OS.get_environment("WITNESS_GAMMA_SCALE")
+	if raw.is_empty():
+		return 1.0
+	var s := raw.to_float()
+	return s if s > 0.0 else 1.0
+
+
 ## role → gamma_diss for a node: per-role `gamma_diss_<role>` wins over the
 ## node's `gamma_diss`, which wins over spec defaults. NOTE the umwelt gamma
 ## trap, honored here: a bare "gamma" key does NOTHING by design.
@@ -111,9 +123,10 @@ static func gamma_by_role(spec: Dictionary, node: Dictionary) -> Dictionary:
 	var defaults = spec.get("defaults", {})
 	var params = node.get("params", {})
 	var base := float(params.get("gamma_diss", defaults.get("gamma_diss", 0.02)))
+	var scale := gamma_scale()
 	var out := {}
 	for role in node.get("roles", []):
-		out[str(role)] = float(params.get("gamma_diss_%s" % str(role), base))
+		out[str(role)] = float(params.get("gamma_diss_%s" % str(role), base)) * scale
 	return out
 
 

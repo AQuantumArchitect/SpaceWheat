@@ -177,6 +177,8 @@ static func gauge(organ) -> Dictionary:
 		clusters[cname] = entry
 	return {
 		"spec_hash": WitnessSpec.spec_hash(organ.spec),
+		"gamma_scale": snappedf(WitnessSpec.gamma_scale(), 0.000001),
 		"clusters": clusters,
 		"observes_total": organ.observes_total,
+		"surprise": _surprise_sources(organ),
 	}
