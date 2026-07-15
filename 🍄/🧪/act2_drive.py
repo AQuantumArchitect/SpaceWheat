@@ -1,20 +1,25 @@
 #!/usr/bin/env python3
-"""Drive Act-2 (the timber chapter + spring_connects) by keyboard.
+"""Drive Act-2 (the timber chapter + the spring chapter) by keyboard.
 
-Country Chapter order (Millwrights/Woodlot reweave):
+Country Chapter order (chapters 1+2: Millwrights/Woodlot, Hearth Keepers/Spring):
 
 A) StarterForest: incorporate through forest_communion AND loop_remembers (berry ≥7)
    — new_voices needs loop_remembers, and the whole chapter hangs off new_voices.
 B) Village: incorporate + the village_stirs apprentice arc → new_voices fires →
    woodlot_door fires instantly (grants Millwright access 0.02, opens their board).
 C) Captain-hat discover Woodlot (story-pressured by the door's beats; costs 🦅).
-   FreshwaterSpring rides along for the spring tail.
 D) Millwright contracts at Village: door grant + ~2 deliveries × access 0.02 clears
    woodlot_contact (0.02 w.008) then the teaching gate on lumber_flows (0.05 w.01).
 E) CLAIM the timber teaching (🪵/🪓) on the Arc tab — the claim IS the teaching.
 F) plant 🪵/🪓 into Woodlot, then into Village (woodlot_wakes + its DELIVER).
 G) Woodlot berries ≥2 → timber_rhythm (the deepening; ⚙/🏭 waits on its claim).
-H) spring_connects still runs its pre-reweave path (chapter 2 target).
+H) spring chapter (Hearth Keepers — their gate channel is TRUST, banked ~0.30
+   from act 1): spring_door fires off lumber_flows → discover FreshwaterSpring
+   (story pressure ranks it #1 now — the stagger) → Hearth deliveries ×2-3
+   (trust +0.05 each) clear spring_contact (0.35 w.02) then the teaching gate
+   (0.42 w.02) → CLAIM the water teaching (💧/🌊; readiness = StarterForest
+   berries ≥8) → plant 💧 into the spring, then the Village (the mill pond
+   DELIVER) → Spring berries ≥2 → pond_depths (pond_breathes chains).
 
 Read-only instruments: flag_progress / berry_state / board_visible / resource_snapshot.
 Mutations beyond keyboard play: add_resource bridges (grind currencies) + inject_icon
@@ -284,13 +289,13 @@ def main():
         print("  ", fprog("new_voices"))
         print("  ", fprog("woodlot_door"))
 
-        # ---- C: discover Woodlot (story-pressured) + FreshwaterSpring ----
+        # ---- C: discover Woodlot (story-pressured) ----
         # NOTE: a successful keyboard discovery auto-switches the hat to Ace, so RE-SELECT
-        # Captain before each discover.
-        print("\n== C: discover Woodlot + FreshwaterSpring ==")
+        # Captain before each discover. FreshwaterSpring waits for ITS door (the stagger:
+        # one pressured biome at a time).
+        print("\n== C: discover Woodlot ==")
         for d in range(1, 9):
-            need = [b for b in ("Woodlot", "FreshwaterSpring") if b not in grid()]
-            if not need:
+            if "Woodlot" in grid():
                 break
             ensure_hat("7")  # re-select Captain each time
             press("R", 6)    # discover (pressure-biased)
@@ -325,22 +330,53 @@ def main():
             if "timber_rhythm" in flags():
                 break
 
-        # ---- H: spring_connects (pre-reweave path; chapter 2 target) ----
-        print("\n== H: spring_connects (Hearth trust + Spring berries) ==")
+        # ---- H: spring country (door → contact → teaching → wakes → depths) ----
+        print("\n== H: spring country (Hearth Keepers — trust, not access) ==")
+        go("time_skip", phrames=120)  # let lumber_flows → spring_door cascade fire
+        print("  ", fprog("spring_door"))
+
+        # Beat 1 (door): discover FreshwaterSpring — the compass pressures it #1 now.
+        for d in range(1, 9):
+            if "FreshwaterSpring" in grid():
+                break
+            ensure_hat("7")
+            press("R", 6)
+            print(f"  discover #{d}: grid={grid()} 🦅={res().get('🦅', 0)}")
+
+        # Beats 2+3 (contact → teaching gate): Hearth deliveries at Village. Their
+        # channel is TRUST (banked ~0.30 from act 1); +0.05/delivery clears contact
+        # (0.35 w.02) then the teaching gate (0.42 w.02) — the 2-3 contract budget.
         if "spring_connects" not in flags():
             faction_grind("Hearth Keepers", "spring_connects", max_cycles=8, at_biome="Village")
-        if "FreshwaterSpring" in grid():
-            for rnd in range(1, 7):
-                incorporate(ripen=900, bn="FreshwaterSpring")
-                b = berry("FreshwaterSpring")
-                if isinstance(b, int) and b >= 2:
-                    break
-            print(f"  FreshwaterSpring berry={berry('FreshwaterSpring')}")
+        print("  ", fprog("spring_contact"))
+        print("  ", fprog("spring_connects"))
+
+        # Beat 3 claim: readiness = StarterForest berries ≥8 (one more loop in the
+        # shared forest — act 1 banked 7 for loop_remembers).
+        claim_teaching("💧", "🌊", "StarterForest", "teach you water")
+
+        # Beat 4 (wakes): plant water into the spring's stone, then couple the
+        # Village (the mill pond DELIVER).
+        if word_known("💧", "🌊"):
+            plant_pair("FreshwaterSpring", "💧", "🌊", "(the spring)")
+            plant_pair("Village", "💧", "🌊", "(the mill pond)")
+        go("time_skip", phrames=120)
+        print("  ", fprog("spring_wakes"))
+
+        # Beat 5 (deepening): Spring berries ≥2 → pond_depths; pond_breathes chains.
+        for rnd in range(1, 7):
+            incorporate(ripen=900, bn="FreshwaterSpring")
+            b = berry("FreshwaterSpring")
+            print(f"  [H{rnd}] spring berry={b} | {fprog('pond_depths')}")
+            if "pond_depths" in flags():
+                break
 
         # ---- RESULT ----
         print("\n== RESULT ==")
         for fid in ("woodlot_door", "woodlot_contact", "lumber_flows",
-                    "woodlot_wakes", "timber_rhythm", "spring_connects"):
+                    "woodlot_wakes", "timber_rhythm",
+                    "spring_door", "spring_contact", "spring_connects",
+                    "spring_wakes", "pond_depths", "pond_breathes"):
             print("  ", fprog(fid))
         print("  flags:", sorted(flags().keys()))
     finally:

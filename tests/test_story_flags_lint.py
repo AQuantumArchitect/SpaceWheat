@@ -30,18 +30,15 @@ ICONS = PROJECT_ROOT / "Core" / "Factions" / "data" / "icons.json"
 DEFAULT_SCENARIO = PROJECT_ROOT / "Scenarios" / "demos_normal.tres"
 
 # -- TODO allowlists (the ratchet) --------------------------------------------
-# Chapter 2 (Hearth Keepers / Spring) re-predicates spring_connects as the
-# teaching: today its DELIVER asks you to plant 💧 BEFORE it teaches 💧 (the
-# self-teach deadlock), and its trust gate carries no width.
+# Chapter 2 (Hearth Keepers / Spring) landed: spring_connects is the teaching
+# (💧/🌊 taught before spring_wakes asks anyone to plant it) and every spring
+# trust gate carries an authored width. Remaining debts are act-4's.
 TODO_TEACH_BEFORE_PLANT = {
-    ("spring_connects", "Village", "💧"),        # chapter 2
     ("village_path_industrial", "Village", "🏭"),  # act-4 chapter: five_doors teachers
     ("village_path_watched", "Village", "🦅"),     # act-4 chapter: eagle_overhead
     ("village_path_cemetery", "Village", "💀"),    # act-4 chapter: serfs_ledger
 }
-TODO_STANDING_WIDTH = {
-    "spring_connects",  # chapter 2 re-predication (trust 0.35→0.42, width 0.02)
-}
+TODO_STANDING_WIDTH = set()  # all standing gates carry authored widths — keep it so
 TODO_ARC_QUEST = {
     "forest_evolving",      # acts 0-1 touch-up pass (plan Phase 4)
     "forest_listener",      # acts 0-1 touch-up pass

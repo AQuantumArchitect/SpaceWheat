@@ -12,7 +12,12 @@ Country Chapter order for Act 2 (the Millwright/Woodlot reweave):
                          timber teaching (🪵/🪓) on the Arc tab.
          woodlot_wakes : plant 🪵/🪓 into Woodlot, then into Village (the DELIVER).
          timber_rhythm : Woodlot berries ≥2; claim the gear-bench word (🏭/⚙).
-         spring_connects still runs its pre-reweave path (chapter 2 target).
+         spring chapter (Hearth Keepers — gate channel TRUST, banked ~0.30 from
+         act 1): spring_door fires off lumber_flows → discover FreshwaterSpring
+         (pressured #1 — the stagger) → Hearth deliveries ×2-3 clear
+         spring_contact (trust 0.35 w.02) + the teaching gate (0.42 w.02) →
+         claim the water teaching (💧/🌊) → plant the spring, then the Village
+         (the mill pond DELIVER) → Spring berries ≥2 → pond_depths/pond_breathes.
 
 then pushes into:
 
@@ -564,11 +569,10 @@ def main():
             print("  ", fprog("woodlot_door"))
 
             # Beat 1 (door): discover Woodlot — its beats name it, so the compass is
-            # story-pressured toward it. FreshwaterSpring rides along (spring_connects
-            # names it; still needed this run).
+            # story-pressured toward it. FreshwaterSpring waits for ITS door (the
+            # stagger: one pressured biome at a time).
             for d in range(1, 9):
-                need = [b for b in ("Woodlot", "FreshwaterSpring") if b not in grid()]
-                if not need:
+                if "Woodlot" in grid():
                     break
                 ensure_hat("7")
                 press("R", 6)
@@ -613,21 +617,43 @@ def main():
                 farm_berries("Woodlot", 4, "timber_rhythm", rounds=6)
                 claim_teaching("🏭", "⚙", "Woodlot", "The Gear-Bench")
 
-            # ---- chapter-2 country (Spring): pre-reweave path ----
+            # ---- chapter-2 country (Spring): door → contact → teaching → wakes → depths ----
+            print("\n== ACT2: spring country (Hearth Keepers — trust, not access) ==")
+            go("time_skip", phrames=120)  # let lumber_flows → spring_door cascade fire
+            print("  ", fprog("spring_door"))
+
+            # Beat 1 (door): discover FreshwaterSpring — the compass pressures it #1 now.
+            for d in range(1, 9):
+                if "FreshwaterSpring" in grid():
+                    break
+                ensure_hat("7")
+                press("R", 6)
+                print(f"  discover spring #{d}: grid={grid()} 🦅={res().get('🦅', 0)}")
+
+            # Beats 2+3 (contact → teaching gate): Hearth deliveries. Their channel
+            # is TRUST (banked ~0.30 from act 1); +0.05/delivery clears contact
+            # (0.35 w.02) then the teaching gate (0.42 w.02) — the 2-3 contract budget.
             if "spring_connects" not in flags():
                 faction_grind("Hearth Keepers", "spring_connects", max_cycles=8, at_biome="Village")
-            bk = biome_key("FreshwaterSpring")
-            if bk is None:
-                print("  FreshwaterSpring NOT in grid")
-            else:
-                press(bk)
-                for rnd in range(1, 7):
-                    incorporate(ripen=900, bn="FreshwaterSpring")
-                    b = berry("FreshwaterSpring")
-                    if isinstance(b, int) and b >= 2:
-                        break
-                print(f"  FreshwaterSpring berry={berry('FreshwaterSpring')}")
+            print("  ", fprog("spring_contact"))
             print("  ", fprog("spring_connects"))
+
+            # Beat 3 claim: readiness = StarterForest berries ≥8 (one more loop in
+            # the shared forest — act 1 banked 7 for loop_remembers).
+            claim_teaching("💧", "🌊", "StarterForest", "teach you water")
+
+            # Beat 4 (wakes): plant water into the spring's stone, then couple the
+            # Village (the mill pond DELIVER).
+            if word_known("💧", "🌊"):
+                plant_pair("FreshwaterSpring", "💧", "🌊", "water → FreshwaterSpring")
+                plant_pair("Village", "💧", "🌊", "water → Village (mill pond)")
+            press(vk); go("time_skip", phrames=120)
+            print("  ", fprog("spring_wakes"))
+
+            # Beat 5 (deepening): Spring berries ≥2 → pond_depths; pond_breathes chains.
+            farm_berries("FreshwaterSpring", 2, "pond_depths", rounds=8)
+            print("  ", fprog("pond_depths"))
+            print("  ", fprog("pond_breathes"))
 
             # ============ ACT 3: mill_wakes + mill_master ============
             print("\n== ACT3: mill_wakes ==")
@@ -664,19 +690,19 @@ def main():
                 press(vk); go("time_skip", phrames=120)
             print("  ", fprog("island_lives"))
 
-            # Branch-divergence reachability check (FINDING 2026-06-26): only village_path_artisan
-            # auto-fires, because the Mill mechanically plants 🔨 into Village. The other branches
-            # gate on a specific EMOJI in Village (💧/🏭/🦅/💀). commons needs 💧 — reachable in
-            # principle (FreshwaterSpring realizes 💧-bearing icons like 🌿/💧, 🔥/💧), but ONLY if
-            # you deliberately track+incorporate the 💧 qubit, then plant it before the 6-plot ring
-            # saturates. The generic incorporate() doesn't target 💧, so commons stays dormant.
-            # Best-effort: if a 💧-bearing icon is already known, plant it to demonstrate commons.
-            spring = next((i for i in known() if "💧" in (i.get("north", ""), i.get("south", ""))), None)
-            if spring:
-                plant_icon(vk, spring["north"], spring["south"], "spring 💧 (commons)")
-                press(vk); go("time_skip", phrames=120)
+            # Branch-divergence (FINDING 2026-06-26, resolved by chapter 2): commons needs
+            # 💧 in Village — the spring chapter's mill-pond DELIVER plants it by
+            # construction, so village_path_commons is now story-reachable. Fallback
+            # only if the chapter somehow didn't land the plant.
+            if "spring_wakes" in flags():
+                print("  (💧 lives in Village via spring_wakes — commons armed)")
             else:
-                print("  (no 💧-bearing icon known → village_path_commons unreachable this run)")
+                spring = next((i for i in known() if "💧" in (i.get("north", ""), i.get("south", ""))), None)
+                if spring:
+                    plant_icon(vk, spring["north"], spring["south"], "spring 💧 (commons)")
+                    press(vk); go("time_skip", phrames=120)
+                else:
+                    print("  (no 💧-bearing icon known → village_path_commons unreachable this run)")
 
             print("\n== ACT4: village_identity (Village built + cross-biome atom diversity) ==")
             # predicates: [island_lives, atom_count Village>=8, atom_diversity>=N, signature>=14, gap>=0.12]
@@ -781,7 +807,9 @@ def main():
             # The physics: a concentrated biome (the empire) has a WIDE H-gap (one dominant mode
             # it rigidly imposes); a diverse built island has a SMALL gap (many modes coexisting).
             # empire_imposes: ledger_opens + BloodLedger H-gap >= 0.6 (rigid monoculture — RECOGNIZED).
-            # island_free:    empire_imposes + Village H-gap <= 0.45 (plural, many-voiced, free) +
+            # island_free:    empire_imposes + Village H-gap <= 0.55 (plural, many-voiced, free;
+            #                 re-pinned from 0.45 when chapter 2's mill-pond DELIVER made 💧/🌊
+            #                 a canonical Village resident — measured 0.5099) +
             #                 diversity + signature. Freedom = irreducible plurality, not stillness.
             print("\n== ACT6: rigid empire vs plural island (empire_imposes -> island_free) ==")
 
@@ -794,7 +822,7 @@ def main():
                 vg_g, vg_v = gap("Village")
                 # MEASURE — empire should read a WIDE gap (rigid); the built island a SMALL one (plural).
                 print(f"  MEASURE BloodLedger: H-gap={bl_g:.4f}  Var(H)={bl_v:.4f}   (rigid ⟺ gap ≥ 0.60)")
-                print(f"  MEASURE Village:     H-gap={vg_g:.4f}  Var(H)={vg_v:.4f}   (plural ⟺ gap ≤ 0.45)")
+                print(f"  MEASURE Village:     H-gap={vg_g:.4f}  Var(H)={vg_v:.4f}   (plural ⟺ gap ≤ 0.55)")
                 print(f"  baseline {fprog('empire_imposes')}")
                 for rnd in range(1, 6):
                     print(f"  [impose {rnd}] {fprog('empire_imposes')}")
@@ -822,7 +850,7 @@ def main():
             vrm = go("realization_debug", biome="Village")
             try:
                 vqc = go("energy_variance", biome="Village")
-                print(f"  Village: H-gap={vqc.get('h_gap', -1):.4f} (plural ⟺ ≤0.45)  atoms_emojis={vrm.get('emojis')}")
+                print(f"  Village: H-gap={vqc.get('h_gap', -1):.4f} (plural ⟺ ≤0.55)  atoms_emojis={vrm.get('emojis')}")
             except Exception as e:
                 print(f"  Village readout error: {e}")
             for fid in ("village_path_commons", "village_path_industrial", "village_path_artisan",
@@ -933,7 +961,9 @@ def main():
         # ============ RESULT ============
         print("\n== RESULT ==")
         for fid in ("woodlot_door", "woodlot_contact", "lumber_flows", "woodlot_wakes",
-                    "timber_rhythm", "spring_connects",
+                    "timber_rhythm",
+                    "spring_door", "spring_contact", "spring_connects", "spring_wakes",
+                    "pond_depths", "pond_breathes",
                     "mill_wakes", "mill_master", "island_lives", "village_identity",
                     "ledger_opens", "empire_imposes", "island_free"):
             print("  ", fprog(fid))

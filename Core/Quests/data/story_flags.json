@@ -386,25 +386,91 @@
     }
   },
   {
-    "id": "spring_connects",
-    "display_name": "Upstream Wakes — Spring",
+    "id": "spring_door",
+    "display_name": "Spring Country — The Door",
     "act": 2,
-    "arc_beat": "The spring oscillates in deep stone, ice and meltwater trading place in a steady cycle. The Hearth Keepers see you tending the watershed. The spring's rhythm is ready to couple into the village's Hamiltonian — the mill pond could exist; it's waiting on you.",
+    "arc_beat": "Timber found its beat, and the Hearth Keepers heard it from their kitchens — they hear everything the water carries. They keep no ledgers, only kettles, and every kettle on the island fills from one cold thread upstream. They have watched you tend what you touch, and to tenders they extend the table. Follow the water up.",
     "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "lumber_flows"
+      }
+    ],
+    "standing_grants": {
+      "Hearth Keepers": {
+        "attention": 0.02
+      }
+    },
+    "arc_quest": {
+      "body": "Find the Spring — follow the discovery compass upstream to the cold water.",
+      "hint": "The ritual you already know, second verse: Captain hat (7), F reads the compass — the story is pulling it toward FreshwaterSpring — R discovers it (costs 21🦅). Stand in it; discovered land evolves on its own.",
+      "faction": "Hearth Keepers",
+      "state_predicates": [
+        {
+          "type": "biome_evolving",
+          "biome": "FreshwaterSpring"
+        }
+      ]
+    }
+  },
+  {
+    "id": "spring_contact",
+    "display_name": "Spring Country — First Contact",
+    "act": 2,
+    "arc_beat": "You stood where the meltwater rises and the Hearth Keepers set another place at their table. No chalk, no quartermaster — they simply remember who carried water. Small promises first. Keep them, and the kitchen keeps you.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "spring_door"
+      },
       {
         "type": "biome_evolving",
         "biome": "FreshwaterSpring"
       },
       {
-        "type": "berry_consumed_count_gte",
-        "biome": "FreshwaterSpring",
-        "value": 1
+        "type": "standing_gte",
+        "faction": "Hearth Keepers",
+        "channel": "trust",
+        "value": 0.35,
+        "width": 0.02
+      }
+    ],
+    "standing_grants": {
+      "Hearth Keepers": {
+        "trust": 0.05
+      }
+    },
+    "arc_quest": {
+      "body": "Carry Water — keep Hearth Keeper deliveries until their trust in you clears 0.42.",
+      "hint": "C opens the board; Y is the market tab. Accept a Hearth Keeper delivery (its row key, then R) — a promise counts only what you gather AFTER you make it, so accept first, harvest the goods fresh, then claim on the Commitments tab (C → U, row key, R). Every kept delivery deepens trust +0.05; watch the have/target line move.",
+      "faction": "Hearth Keepers",
+      "state_predicates": [
+        {
+          "type": "standing_gte",
+          "faction": "Hearth Keepers",
+          "channel": "trust",
+          "value": 0.42,
+          "width": 0.02
+        }
+      ]
+    }
+  },
+  {
+    "id": "spring_connects",
+    "display_name": "Spring Country — The Teaching",
+    "act": 2,
+    "arc_beat": "Ice and meltwater trade place in deep stone, a cycle that never runs down. The Hearth Keepers keep one word closer than any recipe — the water axis their whole table turns on. It is not for trade; it never was. Tend the forest their kettles fill from, one more season, and they will say it slowly enough to keep.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "spring_contact"
       },
       {
         "type": "standing_gte",
         "faction": "Hearth Keepers",
         "channel": "trust",
-        "value": 0.25
+        "value": 0.42,
+        "width": 0.02
       }
     ],
     "standing_grants": {
@@ -413,9 +479,50 @@
       }
     },
     "arc_quest": {
+      "type": 1,
+      "category": "ARC",
+      "body": "The Teaching — show the Hearth Keepers you still tend the forest that fills their kettles, and they will teach you water (💧/🌊).",
+      "hint": "This quest lives on the Arc tab (X → I): accept it there (R on its row), then work StarterForest berries — Icon hat (5), F tracks a register, ripen, R incorporates — until the row reads READY, then claim it on that same row. The claim IS the teaching: 💧/🌊 joins your signature. Deliveries pay goods and trust; only a teaching grows your words.",
+      "faction": "Hearth Keepers",
+      "state_predicates": [
+        {
+          "type": "berry_consumed_count_gte",
+          "biome": "StarterForest",
+          "value": 8
+        }
+      ],
+      "reward_north": "💧",
+      "reward_south": "🌊",
+      "reward_icon_north": "💧",
+      "reward_icon_south": "🌊"
+    }
+  },
+  {
+    "id": "spring_wakes",
+    "display_name": "Spring Country — The Mill Pond",
+    "act": 2,
+    "arc_beat": "Water lives in the spring's stone and now it lives in your mouth. Downstream the village hearth still fights fire with nothing — no 💧 in its Hamiltonian, so the contest never resolves and the mill pond stays a rumor. Two countries, one word between them; the village is the register still missing it.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "spring_connects"
+      },
+      {
+        "type": "atom_in_biome",
+        "biome": "FreshwaterSpring",
+        "atom": "💧"
+      }
+    ],
+    "standing_grants": {
+      "Hearth Keepers": {
+        "trust": 0.08,
+        "legitimacy": 0.05
+      }
+    },
+    "arc_quest": {
       "type": "DELIVER",
-      "body": "Couple the Spring — add 💧 to the Village hearth so the spring's rhythm phase-locks with the mill pond.",
-      "hint": "The mill pond could exist; it's waiting on you. Add 💧 to the Village's vocabulary.",
+      "body": "Couple the Spring — plant 💧 into the Village so the spring's rhythm phase-locks with the hearth.",
+      "hint": "Icon hat (5) in the Village: pick an EMPTY plot (G H J K L ; past the live bubbles), R opens the picker, choose water (💧/🌊) and plant it (costs 🌱 + the south pole's emoji). The mill pond could exist; it's waiting on you. And the law holds: when a faction's word lives in a land, their board opens there.",
       "faction": "Hearth Keepers",
       "state_predicates": [
         {
@@ -423,11 +530,7 @@
           "biome": "Village",
           "atom": "💧"
         }
-      ],
-      "reward_north": "💧",
-      "reward_south": "🌊",
-      "reward_icon_north": "💧",
-      "reward_icon_south": "🌊"
+      ]
     }
   },
   {
@@ -438,7 +541,7 @@
     "predicates": [
       {
         "type": "story_flag_set",
-        "id": "spring_connects"
+        "id": "spring_wakes"
       },
       {
         "type": "berry_consumed_count_gte",
@@ -1608,7 +1711,7 @@
     "id": "empire_imposes",
     "display_name": "The Ledger Imposes One Shape",
     "act": 6,
-    "arc_beat": "Now you see it whole. BloodLedger's spectrum is a single dominant mode behind a wide gap — one configuration the system is forced into and cannot leave. The Carrion Throne is not a ruler you can argue with, and not a chaos you can outlast; it is one answer, imposed on everything it touches, for as long as it exists. There is nothing to negotiate here. There is only whether your island stays many — or collapses into one. Many is measurable: keep Village's spectrum loose — its gap under 0.45, where the empire's yawns past 0.6 — let eighteen kinds of atom settle across your biomes, and hold a signature of fourteen icons. The microscope (B) reads the gap; your lexicon (X, SELF) counts the rest.",
+    "arc_beat": "Now you see it whole. BloodLedger's spectrum is a single dominant mode behind a wide gap — one configuration the system is forced into and cannot leave. The Carrion Throne is not a ruler you can argue with, and not a chaos you can outlast; it is one answer, imposed on everything it touches, for as long as it exists. There is nothing to negotiate here. There is only whether your island stays many — or collapses into one. Many is measurable: keep Village's spectrum loose — its gap under 0.55, where the empire's yawns past 0.6 — let eighteen kinds of atom settle across your biomes, and hold a signature of fourteen icons. The microscope (B) reads the gap; your lexicon (X, SELF) counts the rest.",
     "predicates": [
       {
         "type": "story_flag_set",
@@ -1641,7 +1744,7 @@
       {
         "type": "biome_spectral_gap_lte",
         "biome": "Village",
-        "value": 0.45
+        "value": 0.55
       },
       {
         "type": "atom_diversity_gte",
