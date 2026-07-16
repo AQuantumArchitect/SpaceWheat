@@ -14,8 +14,8 @@ const _ROWS := [
 	"",
 	"KEYBOARD   ·   plots  [ G H J K L ; ]  ·  verbs  [ Q E R F ]  ·  hats  [ 4 – 0 ]  ·  menus  [ Z X C V B N M ].",
 	"",
-	"New here?   Press  X  for the Playthrough surface, then the  Guide  tab  ( O )  — the full how-to-play.",
-	"Open  B  on any biome to see how it behaves (rigid vs. plural), and  C  for your story + contracts.",
+	"New here?   Press  X  —  your first quest waits on the  Arc  tab  ( I );  Guide  ( O )  is the full how-to-play.",
+	"Open  B  on any biome to see how it behaves (rigid vs. plural), and  C  for contracts + commitments.",
 	"",
 	"Tap anywhere  (or press  F)  to begin.",
 ]

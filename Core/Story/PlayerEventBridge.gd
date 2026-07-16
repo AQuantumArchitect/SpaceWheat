@@ -25,12 +25,26 @@ func _on_farm_ready(farm: Node, _state) -> void:
 	if farm == null or farm == _farm:
 		return
 	_farm = farm
-	_quest_manager = _resolve(farm, "quest_manager")
+	# The quest manager lives on the SHELL, not the farm — resolving it off
+	# the farm returned null every boot, so quest events (offers, ready,
+	# expiry) NEVER reached ACTIVITY. Same disease as the BootManager QM
+	# rebind no-op: go through the locator's shell path.
+	_quest_manager = InstrumentLocator.resolve_quest_manager(self, farm)
 	_economy = _resolve(farm, "economy")
 	_wire_quest_signals()
 	_wire_economy_signals()
 	_wire_farm_signals()
 	_wired = true
+	# Boot-race backfill: offers born during connect_to_farm (the tutorial
+	# quest, StoryEngine re-offers) emit quest_offered BEFORE this bridge
+	# wires — the announcement vanished and ACTIVITY read "No events yet" at
+	# fresh boot (stooge round 1: 3/3 blind players never found the Arc tab).
+	# Pending offers are still pending, so announcing them on (re)wire is
+	# re-orientation, not a duplicate.
+	if _quest_manager != null and "story_offers" in _quest_manager:
+		for q in _quest_manager.story_offers.values():
+			if q is Dictionary:
+				_on_quest_offered(q)
 
 
 func _resolve(farm: Node, prop: String) -> Node:
@@ -101,8 +115,12 @@ func _on_quest_ready_to_claim(qid: int) -> void:
 func _on_quest_offered(quest: Dictionary) -> void:
 	var is_arc := bool(quest.get("is_arc", false)) or bool(quest.get("from_story_flag", false))
 	var fac := str(quest.get("faction", ""))
+	if fac.strip_edges() == "":
+		fac = "the story"
 	var imp: int = 3 if is_arc else 1
-	_push("📜 New offer from %s" % fac, imp, "📜", "quest", "Q")
+	# Say WHERE: offers wait on the Arc tab, and no surface pointed there —
+	# every blind round-1 tester starved two keypresses from the on-ramp.
+	_push("📜 New offer from %s — X then I (Arc) to read & accept" % fac, imp, "📜", "quest", "Q")
 
 
 func _on_quest_failed(qid: int, reason: String) -> void:

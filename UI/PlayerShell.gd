@@ -83,6 +83,12 @@ func _input(event: InputEvent) -> void:
 	# no return — fall through to normal dispatch so tools/menus still
 	# receive their primary E/F verb.
 	if event.keycode == KEY_E:
+		# Re-pressing E while already paused on the bare field is silent —
+		# blind round-1 testers read it as "stuck in pause". Re-show the way
+		# out. Only when no overlay is up: inside overlays E is a real verb
+		# (Refresh/Inspect) and this would toast noise over it.
+		if paused and (overlay_stack == null or overlay_stack.is_empty()):
+			show_hint("⏸ time paused — F plays on", 2)
 		_set_global_paused(true)
 	elif event.keycode == KEY_F:
 		_set_global_paused(false)
