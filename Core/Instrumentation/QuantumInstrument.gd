@@ -700,14 +700,18 @@ func action_remove_icon(biome_name: String, grid_pos: Vector2i) -> Dictionary:
 	if rm.num_qubits < 2:
 		return {"success": false, "error": "minimum_reached", "message": "Cannot remove last icon"}
 
-	var target_qubit = rm.num_qubits - 1
-	var icon_to_remove = {}
-	var _icon_plot = farm.grid.get_plot(grid_pos) if farm and farm.grid else null
-	var terminal = _icon_plot.terminal if _icon_plot else null
-	var biome_type = BiomeBase.type_name(biome)
-	if terminal and terminal.is_bound and terminal.bound_biome_name == biome_type:
-		target_qubit = terminal.bound_register_id
-	icon_to_remove = _get_icon_for_qubit(rm, target_qubit)
+	# THE slot→qubit law (PlotRegisterResolver) picks the trim target. The old
+	# path defaulted to the LAST qubit whenever the focused plot's terminal
+	# check failed, so trims removed Beacon / Lumber / the just-planted Eagle
+	# instead of the selected plot (scout run 2026-07-16 — three trims, zero
+	# hit their target). Removing the wrong plot is worse than refusing:
+	# refusal is loud, same law as gate targeting.
+	var res: Dictionary = PlotRegisterResolver.resolve(farm, grid_pos)
+	if int(res.get("register_id", -1)) < 0 or res.get("biome") != biome:
+		return {"success": false, "error": "no_target",
+				"message": "Trim needs a focused plot in this biome — G H J K L ; picks one."}
+	var target_qubit: int = int(res.get("register_id"))
+	var icon_to_remove: Dictionary = _get_icon_for_qubit(rm, target_qubit)
 
 	var removal_context = {"north_emoji": icon_to_remove.get("north", ""), "south_emoji": icon_to_remove.get("south", "")}
 	var cost_gate = preflight_action_cost("remove_icon", removal_context)
