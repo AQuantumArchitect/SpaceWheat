@@ -16,7 +16,12 @@ static func summary(pred: Dictionary, qm = null) -> String:
 	var itgt: int = int(ceil(tgt))
 	match t:
 		"signature_size_gte":
-			return "know %d icons — Icon hat (5) incorporates them" % itgt
+			# Live N/M — the soft-gate bar is a sigmoid, so near the target it
+			# reads single-digit percent while the count is nearly there (hub
+			# leg L4a walled reading 9% as "1-2 of 15" when it held 12).
+			var sig_have := int(qm.signature_size_now()) if (qm and qm.has_method("signature_size_now")) else -1
+			var sig_str := ("%d/%d" % [sig_have, itgt]) if sig_have >= 0 else str(itgt)
+			return "know %s icons — claim teachings (Arc X→I, then C→U); Icon hat (5) R incorporates" % sig_str
 		"berry_consumed_count_gte":
 			# Nine fleet testers stalled on "berries[X] ≥ 3" — the gloss must teach
 			# the loop, not just name the count. Live N/M: the ladder is cumulative,

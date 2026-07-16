@@ -207,6 +207,18 @@ func atom_diversity_now() -> int:
 	return seen.size()
 
 
+## Live signature size — PredicateGloss shows "N/M" on signature gates. The
+## soft-gate score is a sigmoid, so the Arc bar reads ~9% at 12/15 known icons:
+## honest math, but a sensor at the text seat read it as "1-2 of 15" and walled
+## (hub leg L4a). The count is farm.known_icons — grown by claimed teachings
+## AND Icon-hat incorporation, same organ the evaluator reads at :607.
+func signature_size_now() -> int:
+	var farm = _get_active_farm()
+	if farm == null or not ("known_icons" in farm) or farm.known_icons == null:
+		return 0
+	return int(farm.known_icons.size())
+
+
 ## Player-facing display name for a story flag id (PredicateGloss speaks beats,
 ## not internal ids).
 func flag_display_name(flag_id: String) -> String:
