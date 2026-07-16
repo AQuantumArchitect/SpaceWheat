@@ -1,7 +1,11 @@
 # Sprint #265 — a haiku beats the game
 
-**Gate:** a haiku (small model at a text seat) beats the whole game using only the rig
-and in-game instructions. **Status: acts 0–4 hub in flight; acts 0–3 PROVEN.**
+**Gate (as ruled):** a haiku (small model at a text seat) beats the game through the
+act-4 hub using only the rig and in-game instructions; the late game (acts 5–8) is
+carried by sonnet runners (owner ruling 2026-07-16, "the late game can be sonnets").
+**Status: acts 0–4 HAIKU-PROVEN (hub + first incorporations + branch-door recipe);
+all three branch doors fired (sonnet scout, manifest-verified); endgame runner in
+flight toward the ending.**
 
 ## The proof, lane by lane
 
