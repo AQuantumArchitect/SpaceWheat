@@ -167,7 +167,17 @@ static func _short_line(q: Dictionary) -> String:
 		t = str(q.get("body", "")).strip_edges()
 	t = t.replace("\n", " ")
 	if t.length() > OBJECTIVE_MAX_CHARS:
-		t = t.substr(0, OBJECTIVE_MAX_CHARS - 1).strip_edges() + "…"
+		# Cut at a SENTENCE boundary when one exists, else a word boundary —
+		# a mid-clause cut ("…or just…") read as a broken instruction to the
+		# round-6 literalist. A complete short sentence beats a longer stump.
+		var head := t.substr(0, OBJECTIVE_MAX_CHARS + 30)
+		var dot := head.rfind(". ", OBJECTIVE_MAX_CHARS + 29)
+		if dot >= 20:
+			t = head.substr(0, dot + 1)
+		else:
+			var cut := t.substr(0, OBJECTIVE_MAX_CHARS - 1)
+			var sp := cut.rfind(" ")
+			t = (cut.substr(0, sp) if sp >= 20 else cut).strip_edges() + "…"
 	return t
 
 
