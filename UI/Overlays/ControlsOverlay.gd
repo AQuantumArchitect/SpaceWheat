@@ -179,6 +179,14 @@ func _build_content(container: Control) -> void:
 
 	_render_all()
 
+
+# The overlay is BUILT once at boot, before the quest manager exists —
+# the arc badge's locator walk finds nothing then. Refresh on every
+# activation, or the badge is invisible exactly where it matters most:
+# the first open.
+func _on_activated() -> void:
+	_refresh_tab_row()
+
 func _build_tab_row(container: Control) -> void:
 	_tab_row_box = HBoxContainer.new()
 	_tab_row_box.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -239,10 +247,19 @@ func _refresh_status_line() -> void:
 func _refresh_tab_row() -> void:
 	if _tab_labels.is_empty():
 		return
+	# Pending arc offers badge the Arc tab. The ACTIVITY line sends players
+	# to X, but both blind round-2 testers stalled there — the last hop to
+	# [I] needs its own glow (anti-gating: the door must LOOK like a door).
+	var arc_waiting := 0
+	var qm = _arc_quest_manager()
+	if qm != null and "story_offers" in qm and qm.story_offers is Dictionary:
+		arc_waiting = qm.story_offers.size()
 	for entry in TAB_ROW:
 		var key_str := str(entry.get("key", ""))
 		var tab_enum = int(entry.get("tab", Tab.SELF))
 		var name_str := str(entry.get("name", ""))
+		if tab_enum == Tab.ARC and arc_waiting > 0:
+			name_str = "%s 📜%d" % [name_str, arc_waiting]
 		var lbl: Label = _tab_labels.get(key_str, null)
 		if lbl == null:
 			continue

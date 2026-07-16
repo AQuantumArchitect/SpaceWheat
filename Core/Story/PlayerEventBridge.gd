@@ -105,11 +105,45 @@ func _on_story_flag_fired(flag_id: String, flag_data: Dictionary) -> void:
 
 
 func _on_quest_completed(qid: int, rewards: Dictionary) -> void:
-	_push("✅ Quest %d — %s" % [qid, _format_rewards(rewards)], 1, "✅", "quest", "Q")
+	_push("✅ %s — %s" % [_quest_name(qid), _format_rewards(rewards)], 1, "✅", "quest", "Q")
 
 
 func _on_quest_ready_to_claim(qid: int) -> void:
-	_push("🏆 [b]Quest %d ready to claim[/b]" % qid, 3, "🏆", "quest", "Q")
+	_push("🏆 [b]%s ready to claim[/b] — C board" % _quest_name(qid), 3, "🏆", "quest", "Q")
+
+
+## Player words for a quest id. Raw ids leaked into toasts ("❌ Quest
+## 2416248927 failed") — the number means nothing to the player; the
+## faction on the board is what they recognize.
+func _quest_name(qid: int) -> String:
+	var q = null
+	if _quest_manager != null:
+		for pool_name in ["active_quests", "story_offers"]:
+			if pool_name in _quest_manager and _quest_manager.get(pool_name) is Dictionary:
+				var hit = _quest_manager.get(pool_name).get(qid)
+				if hit is Dictionary:
+					q = hit
+					break
+		if q == null:
+			# fail/complete paths erase from active BEFORE emitting — the
+			# quest has already landed in history.
+			for pool_name in ["failed_quests", "completed_quests"]:
+				if pool_name in _quest_manager and _quest_manager.get(pool_name) is Array:
+					for hq in _quest_manager.get(pool_name):
+						if hq is Dictionary and int(hq.get("id", -1)) == qid:
+							q = hq
+							break
+				if q != null:
+					break
+	if q is Dictionary:
+		var fac := str(q.get("faction", "")).strip_edges()
+		var res := str(q.get("resource", "")).strip_edges()
+		var qty := int(q.get("quantity", 0))
+		if fac != "" and res != "" and qty > 0:
+			return "%s contract (%s×%d)" % [fac, res, qty]
+		if fac != "":
+			return "%s quest" % fac
+	return "Quest %d" % qid
 
 
 func _on_quest_offered(quest: Dictionary) -> void:
@@ -124,7 +158,7 @@ func _on_quest_offered(quest: Dictionary) -> void:
 
 
 func _on_quest_failed(qid: int, reason: String) -> void:
-	_push("❌ Quest %d failed — %s" % [qid, reason], 2, "❌", "quest", "Q")
+	_push("❌ %s failed — %s" % [_quest_name(qid), reason], 2, "❌", "quest", "Q")
 
 
 func _on_quest_expired(_qid: int) -> void:

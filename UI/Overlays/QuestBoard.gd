@@ -1169,6 +1169,20 @@ func _make_commitment_row(quest: Dictionary, key_str: String, selected: bool) ->
 	ask_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hbox.add_child(ask_lbl)
 
+	# Timed contracts died in silence — the deadline lived nowhere on this
+	# board, and failure surfaced only in History as "timeout" (two sweep
+	# runners burned contracts on it). The heartbeat re-render makes this a
+	# live countdown for free.
+	if not is_history and quest_manager != null and quest_manager.has_method("get_quest_time_remaining"):
+		var left: float = quest_manager.get_quest_time_remaining(int(quest.get("id", -1)))
+		if left >= 0.0:
+			var clock_lbl := Label.new()
+			clock_lbl.text = "⌛ %d:%02d" % [int(left) / 60, int(left) % 60]
+			clock_lbl.add_theme_font_size_override("font_size", 12)
+			clock_lbl.add_theme_color_override("font_color",
+				UIStyleFactory.COLOR_MUTED if left > 30.0 else Color(0.9, 0.45, 0.35))
+			hbox.add_child(clock_lbl)
+
 	# History tail: reward summary for completions, reason for failures.
 	if is_history:
 		var tail: String = ""
