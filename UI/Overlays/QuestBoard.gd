@@ -1576,7 +1576,21 @@ func _accept_selected() -> void:
 			# (the accepted offer leaves the market) and say where it went.
 			_refresh_pool()
 			_render_all()
-			_toast_feedback("✓ contract accepted — now in Commitments [U]")
+			# Raw economy: accepting beyond your means is LEGAL (chaos in the
+			# deal) — but the gap must speak, and Lock is the tool for it
+			# (round-3 tester read the timeout+debt as 'the system's own
+			# mistake' because nothing said 'you hold 5 of 64').
+			var ask_res := str(offer.get("resource", ""))
+			var ask_qty := int(offer.get("quantity", 0))
+			var held := 0
+			var econ = _get_economy()
+			if econ != null and ask_res != "":
+				held = int(econ.get_resource(ask_res))
+			if ask_qty > 0 and held < ask_qty:
+				_toast_feedback("✓ accepted — you hold %s %d/%d. It can expire: F (Lock) in Commitments [U] pauses the clock while you gather" \
+						% [ask_res, held, ask_qty])
+			else:
+				_toast_feedback("✓ contract accepted — now in Commitments [U]")
 		else:
 			_toast_feedback("✗ couldn't accept this contract")
 
