@@ -71,7 +71,7 @@ MODEL_PREFS = ["qwen2.5", "llama3.2", "llama3.1", "llama3", "phi3", "gemma2", "m
 
 
 def http_json(url: str, payload: dict | None = None, headers: dict | None = None,
-              timeout: float = 120.0):
+              timeout: float = 300.0):
     data = json.dumps(payload).encode() if payload is not None else None
     req = urllib.request.Request(url, data=data, headers={
         "Content-Type": "application/json", **(headers or {})})

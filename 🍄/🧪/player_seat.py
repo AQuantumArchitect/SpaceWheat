@@ -38,6 +38,11 @@ import json
 import os
 import subprocess
 import sys
+# Windows consoles default to cp1252 — emoji JSON then crashes every `look`,
+# leaving remote models BLIND (roc A/B battery: 59/60 turns lost). Force UTF-8.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
 import time
 from pathlib import Path
 
