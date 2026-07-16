@@ -2007,6 +2007,15 @@ func _shrink_quantum_system(biome, qubit_to_remove: int, icon: Dictionary) -> Di
 	_reindex_entanglement_graph(qc, qubit_to_remove)
 	_rebuild_operators_after_shrink(biome)
 
+	# The register layout just changed under the display: reseed viz metadata
+	# NOW, same law as expand_quantum_system. Capacity checks
+	# (get_total_register_count) and the glance read viz_cache — the stale
+	# count refused every replant into a trimmed slot, and the trimmed plot
+	# kept its old axis glyph (hub leg L4c wall).
+	if biome.viz_cache:
+		biome.viz_cache.clear_metadata()
+	biome._seed_viz_metadata()
+
 	return {
 		"success": true,
 		"removed_north": north,
