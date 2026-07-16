@@ -85,9 +85,12 @@ func _input(event: InputEvent) -> void:
 	if event.keycode == KEY_E:
 		# Re-pressing E while already paused on the bare field is silent —
 		# blind round-1 testers read it as "stuck in pause". Re-show the way
-		# out. Only when no overlay is up: inside overlays E is a real verb
-		# (Refresh/Inspect) and this would toast noise over it.
-		if paused and (overlay_stack == null or overlay_stack.is_empty()):
+		# out. Only when no overlay is up AND no QII submenu/confirm owns E/F:
+		# there E is a real verb (Refresh/Inspect/picker select) and this
+		# would toast noise over it (sweep_main hit it mid plant-picker).
+		var qii_owns_ef: bool = instrument_input != null \
+				and instrument_input.has_method("owns_ef_keys") and bool(instrument_input.owns_ef_keys())
+		if paused and (overlay_stack == null or overlay_stack.is_empty()) and not qii_owns_ef:
 			show_hint("⏸ time paused — F plays on", 2)
 		_set_global_paused(true)
 	elif event.keycode == KEY_F:
