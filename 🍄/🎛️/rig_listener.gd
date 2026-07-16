@@ -1010,7 +1010,7 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 						"key": pg_keys[pg_col] if pg_col < pg_keys.length() else "?",
 						"biome": pg_bname,
 						"revealed": pg_is_revealed,
-						"measured": pg_plot.has_terminal() if pg_plot else false,
+						"measured": (pg_plot.terminal != null and bool(pg_plot.terminal.is_measured)) if pg_plot else false,
 						"focused": pg_col == pg_focus_col and pg_bname == pg_focus_biome,
 					}
 					# A revealed bubble wears its word (🦅/🐇 on its face) — the

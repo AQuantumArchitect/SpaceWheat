@@ -1726,6 +1726,10 @@ func _perform_shift_key_action(action_key: String) -> void:
 	if fired == 0:
 		# Every checked plot refused — say so instead of pretending nothing happened.
 		_toast_player("%s: no valid targets among %d checked plots." % [log_label, positions.size()])
+	elif fired < positions.size():
+		# Partial batch: a silent skip reads as "the feature only did one" (QA2).
+		_toast_player("%s: %d of %d checked plots — %d skipped (not valid targets)." % [
+				log_label, fired, positions.size(), positions.size() - fired])
 
 
 func _is_gate_action(action_name: String) -> bool:

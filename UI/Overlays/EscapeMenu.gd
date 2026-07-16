@@ -52,11 +52,14 @@ const TAB_BY_KEYCODE := {
 
 # Dev actions — navigate with GHJ/W/S, execute with R.
 const DEV_ACTIONS := [
-	{"id": "full_reset",           "label": "full reset",           "desc": "wipe evolution state and start fresh"},
 	{"id": "print_biome_registry", "label": "print biome registry", "desc": "dump all loaded biomes to console"},
 	{"id": "validate_biomes",      "label": "validate biomes",      "desc": "check data integrity of exportable set"},
 	{"id": "print_batcher",        "label": "print batcher metrics","desc": "snapshot batcher state to console"},
 	{"id": "copy_logs",            "label": "copy logs",            "desc": "version + recent log tail → clipboard (paste in a bug report)"},
+	# LAST on purpose: the cursor boots on row 0, and a save wipe must never be
+	# the default-armed action of a tab reachable from the pause menu (QA:
+	# a button-masher reached R→Q-confirm in three reflex presses).
+	{"id": "full_reset",           "label": "full reset",           "desc": "wipe evolution state and start fresh"},
 ]
 
 # GHJKL; — the homerow "slot" row, left-to-right for readability.
@@ -1299,6 +1302,11 @@ func _on_frame_changed(new_frame_id: String, _prev_frame_id: String) -> void:
 
 func _on_action_q() -> void:
 	if _pending_action != PendingAction.NONE:
+		if _pending_action == PendingAction.DEV_RESTART:
+			# Q is the game's most-mashed verb — it must never confirm a save
+			# wipe. Only the deliberate F confirms a full reset; Q backs out.
+			_dismiss_confirm()
+			return
 		_confirm_save_and_act()
 		return
 	match _current_tab:
@@ -1310,7 +1318,7 @@ func _on_action_q() -> void:
 
 func _on_action_e() -> void:
 	if _pending_action != PendingAction.NONE:
-		if _pending_action == PendingAction.QUIT:
+		if _pending_action == PendingAction.QUIT or _pending_action == PendingAction.DEV_RESTART:
 			_dismiss_confirm()
 		else:
 			_confirm_act_only()
@@ -1341,7 +1349,8 @@ func _on_action_r() -> void:
 
 func _on_action_f() -> void:
 	# QF chord: if we're in a quit-confirm, F = quit without saving.
-	if _pending_action == PendingAction.QUIT:
+	# DEV_RESTART: F is the ONLY confirm for a full reset (two deliberate keys).
+	if _pending_action == PendingAction.QUIT or _pending_action == PendingAction.DEV_RESTART:
 		_confirm_act_only()
 		return
 	# Flatten: collapse whatever E opened. Only one panel can be open at a time.
@@ -1542,7 +1551,7 @@ func _confirm_verb_labels() -> Dictionary:
 	match _pending_action:
 		PendingAction.QUIT:          return {"Q": "save & quit", "E": "cancel", "R": "resume", "F": "quit without saving"}
 		PendingAction.RESTART:       return {"Q": "save & restart", "E": "restart anyway", "R": "cancel", "F": ""}
-		PendingAction.DEV_RESTART:   return {"Q": "confirm reset", "E": "", "R": "cancel", "F": ""}
+		PendingAction.DEV_RESTART:   return {"Q": "", "E": "", "R": "cancel", "F": "confirm reset"}
 		_: return {"Q": "confirm", "E": "", "R": "cancel", "F": ""}
 
 func _dismiss_confirm() -> void:

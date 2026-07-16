@@ -1674,6 +1674,15 @@ func can_remove_biome() -> Dictionary:
 	if not biome:
 		return {"ok": false, "message": "Biome is not loaded"}
 
+	# The player IS a faction (The Demos), and the biome whose native faction
+	# is the player's pin is their own seat. Culling it is self-erasure — a
+	# masher reached it from a fresh boot in three reflex presses (QA 2026-07-15).
+	var pinned := get_pinned_faction_name()
+	if pinned != "":
+		var canonical = BiomeRegistry.get_shared().get_by_name(biome_name)
+		if canonical != null and str(canonical.first_native_faction()) == pinned:
+			return {"ok": false, "message": "%s is your own country — The Demos cannot cull themselves" % biome_name}
+
 	return {"ok": true, "biome_name": biome_name}
 
 func discover_biome() -> Dictionary:
