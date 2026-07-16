@@ -17,6 +17,7 @@ extends Control
 const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
 const MenuSelectionRowClass = preload("res://UI/Widgets/MenuSelectionRow.gd")
 const FpsDisplay = preload("res://UI/HUD/FpsDisplay.gd")
+const UIProgression = preload("res://UI/Core/UIProgression.gd")
 
 var current_farm_ui = null  # FarmUI instance (from scene)
 var overlay_manager = null
@@ -244,6 +245,13 @@ func _handle_shell_action(event: InputEvent) -> bool:
 
 	var menu_entry = MenuRegistry.get_menu_for_keycode(keycode)
 	if not menu_entry.is_empty():
+		# Progressive disclosure (phase-2 funnel): a locked menu's key redirects
+		# instead of acting. Z/X/C ("system"/"controls"/"quests") never lock —
+		# only the gated surfaces (atlas V, biome_detail B, inspector N,
+		# map_meta M, neighborhood_graph [) can.
+		if not UIProgression.is_menu_active(str(menu_entry.get("id", ""))):
+			UIProgression.redirect_locked()
+			return true
 		var overlay_name = str(menu_entry.get("overlay_name", ""))
 		var menu_group = str(menu_entry.get("menu_group", ""))
 		if menu_group == "game":

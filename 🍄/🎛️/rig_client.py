@@ -242,6 +242,11 @@ class RigClient:
         # Automation skips the first-run welcome splash by default (it would block headed
         # driving). A probe testing the splash passes extra_env={"RIG_SKIP_WELCOME": "0"}.
         env["RIG_SKIP_WELCOME"] = "1"
+        # Automation sees the FULL grammar by default: progressive-disclosure
+        # enforcement (locked hats/menus redirect instead of act) is bypassed so
+        # every existing lane/drive/test is unaffected. The player seat overrides
+        # this to "0" (player parity — enforcement ON) via extra_env.
+        env["RIG_UNLOCK_ALL"] = "1"
         if allow_resource_injection is not None:
             env["RIG_ALLOW_RESOURCE_INJECTION"] = "1" if allow_resource_injection else "0"
         if rig_log_profile:

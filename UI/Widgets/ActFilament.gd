@@ -1,36 +1,51 @@
 class_name ActFilament
 extends Control
 
-## ActFilament — the game's honest XP bar, ambient in the corner.
+## ActFilament — the objective banner: the game's ONE live objective, ambient
+## in the contract corner (phase-2 funnel).
 ##
-## One 3px gold filament showing the LIVE soft-gate score of the nearest
-## unfired story flag (the highest-scoring one — the beat about to fire).
-## QuestManager already evaluates these continuously; this just projects the
-## number the Arc tab shows, so progress toward the next story beat is
-## glanceable without opening a menu. Tap opens X (playthrough → Arc).
+## It used to draw the nearest unfired flag's soft-gate score, but that read
+## "Act 1 91%" everywhere (five rounds of blind playtesters never found the
+## live objective). Now it projects UIProgression.objective_text() — the same
+## authority the locked-input redirect toast speaks — as plain screen text
+## (a Label), so headless seats read the objective off screen_text too.
+## Hides entirely once island_lives fires (the helper returns "" late-game).
+## Tap opens X (playthrough → Arc).
 ##
-## Purely cosmetic (anti-gating law) — reads scores, never writes.
+## Purely cosmetic (anti-gating law) — reads, never writes.
+
+const UIProgression = preload("res://UI/Core/UIProgression.gd")
 
 const ACCENT := Color(1.0, 0.8, 0.3)
 const POLL_S := 0.5
+const BANNER_HEIGHT := 44.0
 
-var _quest_manager: Node = null
-var _farm: Node = null
 var _overlay_manager: Node = null
+var _label: Label = null
 var _accum: float = 0.0
-var _score: float = 0.0
-var _threshold: float = 0.85
-var _flag_name: String = ""
-var _act: int = 0
-var _display_fill: float = 0.0
+var _text: String = ""
 
 
-func setup(quest_manager: Node, farm: Node, overlay_manager: Node) -> void:
-	_quest_manager = quest_manager
-	_farm = farm
+## Signature kept for RuntimeMount's existing wiring; the quest manager and
+## farm are resolved by UIProgression (one authority), so only the overlay
+## manager is retained (tap → X).
+func setup(_quest_manager: Node, _farm: Node, overlay_manager: Node) -> void:
 	_overlay_manager = overlay_manager
-	custom_minimum_size = Vector2(190, 14)
+	custom_minimum_size = Vector2(190, BANNER_HEIGHT)
+	# RuntimeMount anchors us top-right and sets offset_top/left/right; claim
+	# the vertical room the wrapped objective line needs.
+	offset_bottom = offset_top + BANNER_HEIGHT
 	mouse_filter = Control.MOUSE_FILTER_STOP
+	if _label == null:
+		_label = Label.new()
+		_label.name = "ObjectiveLabel"
+		_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+		_label.add_theme_font_size_override("font_size", 11)
+		_label.add_theme_color_override("font_color", ACCENT)
+		_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(_label)
+		_label.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_refresh()
 
 
@@ -39,44 +54,22 @@ func _process(delta: float) -> void:
 	if _accum >= POLL_S:
 		_accum = 0.0
 		_refresh()
-	# Ease the drawn fill toward the live score — quiet, continuous motion.
-	var target: float = clampf(_score / maxf(_threshold, 0.01), 0.0, 1.0)
-	if absf(target - _display_fill) > 0.001:
-		_display_fill = lerpf(_display_fill, target, 1.0 - exp(-4.0 * delta))
-		queue_redraw()
 
 
 func _refresh() -> void:
-	if _quest_manager == null or not is_instance_valid(_quest_manager) \
-			or not _quest_manager.has_method("get_all_story_flags"):
-		visible = false
+	var obj := UIProgression.objective_text()
+	if obj == _text and (obj != "") == visible:
 		return
-	var fired := {}
-	if _farm != null and is_instance_valid(_farm) and "story_flags_fired" in _farm:
-		fired = _farm.story_flags_fired
-	var best_score := -1.0
-	var best_flag: Dictionary = {}
-	for flag in _quest_manager.get_all_story_flags():
-		if not (flag is Dictionary):
-			continue
-		var fid := str(flag.get("id", ""))
-		if fid == "" or fired.has(fid):
-			continue
-		var s: float = _quest_manager.evaluate_flag_score(flag)
-		if s > best_score:
-			best_score = s
-			best_flag = flag
-	if best_flag.is_empty():
-		visible = false  # campaign complete — the filament retires
+	_text = obj
+	if obj == "":
+		visible = false  # late game (island_lives) or nothing to point at
+		queue_redraw()
 		return
 	visible = true
-	_score = best_score
-	_threshold = float(_quest_manager.FLAG_FIRE_THRESHOLD) \
-			if "FLAG_FIRE_THRESHOLD" in _quest_manager else 0.85
-	_flag_name = str(best_flag.get("display_name", best_flag.get("id", "")))
-	_act = int(best_flag.get("act", 0))
-	tooltip_text = "Act %d — %s  (%d%%)\nTap for the Arc" \
-			% [_act, _flag_name, int(_display_fill * 100.0)]
+	if _label != null:
+		_label.text = obj
+	tooltip_text = "Now: %s\nTap for the Arc" % obj
+	queue_redraw()
 
 
 func _gui_input(event: InputEvent) -> void:
@@ -89,14 +82,6 @@ func _gui_input(event: InputEvent) -> void:
 
 
 func _draw() -> void:
-	var w := size.x
-	var y := size.y * 0.5
-	# Track
-	draw_line(Vector2(0, y), Vector2(w, y), Color(1, 1, 1, 0.10), 3.0, true)
-	# Fill
-	if _display_fill > 0.005:
-		draw_line(Vector2(0, y), Vector2(w * _display_fill, y),
-				Color(ACCENT.r, ACCENT.g, ACCENT.b, 0.85), 3.0, true)
-		# Tip dot — a quiet spark at the head of progress.
-		draw_circle(Vector2(w * _display_fill, y), 2.5,
-				Color(ACCENT.r, ACCENT.g, ACCENT.b, 0.95))
+	# A quiet dark backing so the gold line stays legible over the field.
+	if _text != "":
+		draw_rect(Rect2(Vector2.ZERO, size), Color(0.0, 0.0, 0.0, 0.35))

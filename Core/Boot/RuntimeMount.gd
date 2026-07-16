@@ -323,16 +323,17 @@ func stage_ui(farm: Node, shell: Node, quantum_viz: Node, world_builder) -> void
 			contract_chip.z_index = 90
 			shell_overlay_layer.add_child(contract_chip)
 			contract_chip.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-			# Below the (now compact) resource strip + menu/hat/biome chip rows.
-			contract_chip.offset_top = 156.0
+			# Below the (now compact) resource strip + menu/hat/biome chip rows,
+			# AND below the objective banner (ActFilament, 140 + 44px tall).
+			contract_chip.offset_top = 188.0
 			contract_chip.offset_right = -10.0
 			contract_chip.offset_left = -190.0
 			contract_chip.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 			contract_chip.setup(shell.quest_manager)
 			_verbose.info("boot", "📋", "ContractChip ready (pinned active contracts)")
 
-			# Act filament — the next story beat's live soft-gate score, ambient
-			# under the contract corner. Tap opens X (Arc).
+			# Act filament — the objective banner: the ONE live objective as
+			# screen text, ambient in the contract corner. Tap opens X (Arc).
 			var act_filament = ActFilament.new()
 			act_filament.name = "ActFilament"
 			act_filament.z_index = 90
@@ -343,7 +344,7 @@ func stage_ui(farm: Node, shell: Node, quantum_viz: Node, world_builder) -> void
 			act_filament.offset_left = -200.0
 			act_filament.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 			act_filament.setup(shell.quest_manager, farm, shell.overlay_manager)
-			_verbose.info("boot", "🧵", "ActFilament ready (next-beat progress)")
+			_verbose.info("boot", "🧵", "ActFilament ready (objective banner)")
 
 			# Act postcards: when a fired flag COMPLETES its act, auto-capture a
 			# postcard — the player's per-act "solution stats" card (headed only;

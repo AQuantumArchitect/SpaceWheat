@@ -37,6 +37,7 @@ extends Node
 const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
 const LindbladHandler = preload("res://Core/Instrumentation/Handlers/LindbladHandler.gd")
 const GranularityController = preload("res://Core/Utilities/GranularityController.gd")
+const UIProgression = preload("res://UI/Core/UIProgression.gd")
 
 ## Ace F (Fast-Forward) advances the closed evolution by this many phrames per press.
 const ACE_FAST_FORWARD_PHRAMES := 4
@@ -208,6 +209,13 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	if ToolConfig.HAT_KEY_TO_FRAME.has(key):
 		var hat_frame: String = ToolConfig.HAT_KEY_TO_FRAME[key]
 		var target_frame: String = ToolConfig.FRAME_ACE if ToolConfig.get_current_frame() == hat_frame else hat_frame
+		# Progressive disclosure (phase-2 funnel): a locked hat's key redirects
+		# instead of acting. Ace/Icon/Druid never lock (starter kit); the
+		# fall-back-to-Ace re-press path always passes.
+		if not UIProgression.is_hat_active(target_frame):
+			UIProgression.redirect_locked()
+			get_viewport().set_input_as_handled()
+			return
 		_select_frame_hat(target_frame)
 		get_viewport().set_input_as_handled()
 		return
@@ -1274,6 +1282,14 @@ func cycle_frame_hat(delta: int) -> void:
 	# Step through FRAME_IDS by ±1, wrapping. Bound to TAB and to the
 	# WASD frame-layer step.
 	ToolConfig.cycle_frame(delta)
+	# Progressive disclosure (phase-2 funnel): the cycle SKIPS locked hats —
+	# a silent skip, not a toast (a wheel gesture must not flood). Bounded:
+	# Ace is always active, so this terminates within one lap.
+	var guard := 0
+	while guard < ToolConfig.FRAME_IDS.size() \
+			and not UIProgression.is_hat_active(ToolConfig.get_current_frame()):
+		ToolConfig.cycle_frame(delta)
+		guard += 1
 	frame_changed.emit(ToolConfig.get_current_frame())
 	_verbose.debug("input", "~", "Frame → %s" % ToolConfig.get_current_frame())
 

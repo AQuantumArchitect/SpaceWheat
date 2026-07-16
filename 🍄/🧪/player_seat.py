@@ -121,7 +121,10 @@ def cmd_start(seat: str, fresh: bool = False, checkpoint: str = "") -> dict:
     c = _client(seat)
     c.kill_existing_listeners(xdg=lane)
     c.clear_rig_files(preserve_live_sentinel=False)
-    env = {"RIG_SKIP_WELCOME": "0"}
+    # RIG_UNLOCK_ALL=0: the player seat is PARITY — progressive-disclosure
+    # enforcement stays ON here (locked hats/menus redirect), unlike the
+    # automation lanes where RigClient defaults it to 1.
+    env = {"RIG_SKIP_WELCOME": "0", "RIG_UNLOCK_ALL": "0"}
     proc = c.start_listener(scenario_id="demos_normal", display_mode="headless",
                             allow_resource_injection=False,
                             listener_log_path=lane / "listener.log",
