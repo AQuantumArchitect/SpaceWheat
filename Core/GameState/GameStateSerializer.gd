@@ -241,6 +241,19 @@ func capture_state_from_farm(farm: Node, current_state: GameState, scenario_id: 
 	if witness and witness.has_method("to_save_dict"):
 		state.witness_state = witness.to_save_dict()
 
+	# The quest ledger rides the save (v6+): Commitments Active + History are
+	# player state, not session state. CRITICAL: the FARM does not own the
+	# quest manager — the SHELL does. A resolver handed only the farm silently
+	# no-ops (that exact bug shipped once as 72ff67a9), so resolve through the
+	# locator's shell path, with the farm as the in-tree scope.
+	var qm_capture = InstrumentLocator.resolve_quest_manager(farm, farm)
+	if qm_capture and qm_capture.has_method("to_save_dict"):
+		state.quest_state = qm_capture.to_save_dict()
+	elif current_state and current_state.quest_state is Dictionary:
+		# Shell-less lane (headless harness without a QuestManager): carry the
+		# loaded ledger forward rather than silently dropping it from the save.
+		state.quest_state = current_state.quest_state.duplicate(true)
+
 	var money = state.all_emoji_credits.get("💰", 0)
 	_log("info", "save", "📸", "Captured game state: grid=" + str(state.grid_width) + "x" + str(state.grid_height) +
 		", plots=" + str(state.plots.size()) + ", 💰=" + str(money) + ", selected=" + str(state.selected_plot_positions.size()))
@@ -540,6 +553,28 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 			_log("info", "save", "👁️", "v4 save (pre-Witness) — belief field cold-boots blank")
 		else:
 			witness.load_save_dict(state.witness_state if state.witness_state is Dictionary else {})
+
+	# Restore the quest ledger (v6+). This runs on BOTH load lanes (slot
+	# restart and path load) — AFTER SessionLifecycle.reset_runtime_singletons
+	# cleared the session board, and BEFORE StoryEngine._restore_arc_quests_
+	# after_load re-offers arcs (its has_quest_for_flag guard then skips flags
+	# whose quest sits in the restored actives — no duplicate teachings).
+	# Same shell-not-farm resolver gotcha as the capture side (72ff67a9).
+	var saved_quests: Dictionary = {}
+	if state.save_version == 4 or state.save_version == 5:
+		# Pre-ledger eras carry no quest_state — the board regenerates from
+		# persisted truth (tutorial_seen, story_flags_fired, known_icons),
+		# which is exactly what these saves always did. Explicit no-op.
+		saved_quests = {}
+	elif state.quest_state is Dictionary:
+		saved_quests = state.quest_state
+	var qm_restore = InstrumentLocator.resolve_quest_manager(farm, farm)
+	if qm_restore and qm_restore.has_method("restore_from_save_dict"):
+		qm_restore.restore_from_save_dict(saved_quests)
+		if not saved_quests.is_empty():
+			_log("info", "save", "📜", "Restored quest ledger: %d active, %d completed, %d failed (next id %d)" % [
+				saved_quests.get("active", {}).size(), saved_quests.get("completed", []).size(),
+				saved_quests.get("failed", []).size(), int(saved_quests.get("next_quest_id", 0))])
 
 	_log("info", "save", "✓", "State applied to farm successfully - quantum states will regenerate from biome")
 

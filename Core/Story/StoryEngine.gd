@@ -256,6 +256,12 @@ func _on_arc_quest_completed(quest_id: int, _rewards: Dictionary) -> void:
 ## in a past session live on in the story log and the Arc tab's spine rows;
 ## re-offering them flooded the six picker slots and buried the one live
 ## teaching past the cap (leg L2i: spring_connects unreachable under 17 rows).
+##
+## Save v6 interplay: the quest LEDGER now persists, and both load lanes run
+## QuestManager.restore_from_save_dict BEFORE connect_to_farm reaches here —
+## so has_quest_for_flag below sees restored actives and an ACCEPTED-but-
+## unclaimed teaching keeps its live commitment instead of gaining a duplicate
+## offer for the same flag.
 func _restore_arc_quests_after_load() -> void:
 	if _farm == null or _quest_manager == null:
 		return

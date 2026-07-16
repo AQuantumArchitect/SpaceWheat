@@ -1865,6 +1865,104 @@ func get_quest_by_id(quest_id: int) -> Dictionary:
 	return {}
 
 # =============================================================================
+# SAVE / LOAD (quest ledger persistence — save v6)
+# =============================================================================
+
+## Deep-copy a quest dict for serialization. The generated QuestReward OBJECT
+## (stamped by _finalize_quest_completion) is RefCounted and does not survive
+## ResourceSaver; its plain-dict projection (reward_payload) is what history
+## rows read, so the object is dropped.
+static func _quest_save_copy(q: Dictionary) -> Dictionary:
+	var out := q.duplicate(true)
+	out.erase("reward")
+	return out
+
+
+## Serializable snapshot of the quest ledger: active commitments, contract
+## history, and the id counter. quest_timers hold Timer NODES and are NOT
+## serialized — restore_from_save_dict re-arms them from time_limit.
+## story_offers are deliberately absent: offers are session state, regenerated
+## on load by StoryEngine._restore_arc_quests_after_load / the market board.
+func to_save_dict() -> Dictionary:
+	var active_out: Dictionary = {}
+	for qid in active_quests:
+		var q = active_quests[qid]
+		if q is Dictionary:
+			active_out[int(qid)] = _quest_save_copy(q)
+	var completed_out: Array = []
+	for q in completed_quests:
+		if q is Dictionary:
+			completed_out.append(_quest_save_copy(q))
+	var failed_out: Array = []
+	for q in failed_quests:
+		if q is Dictionary:
+			failed_out.append(_quest_save_copy(q))
+	return {
+		"active": active_out,
+		"completed": completed_out,
+		"failed": failed_out,
+		"next_quest_id": next_quest_id,
+	}
+
+
+## Restore the quest ledger from a save (v6+ quest_state section). Ordering
+## contract (both load lanes — slot restart and path load — honor it):
+## SessionLifecycle.reset_runtime_singletons CLEARS the session board first,
+## then GameStateSerializer.apply_state_to_farm calls this, and only later
+## does StoryEngine._restore_arc_quests_after_load re-offer arcs — its
+## has_quest_for_flag guard then sees the restored actives, so an
+## accepted-but-unclaimed teaching is never duplicated as a fresh offer.
+## Empty dict (v4/v5 save, or a fresh game) = no-op: the board regenerates
+## from persisted truth exactly as pre-v6 loads always did.
+func restore_from_save_dict(data: Dictionary) -> void:
+	if data == null or data.is_empty():
+		return
+	for quest_id in quest_timers.keys():
+		_stop_quest_timer(quest_id)
+	active_quests = {}
+	var saved_active = data.get("active", {})
+	if saved_active is Dictionary:
+		for k in saved_active:
+			var q = saved_active[k]
+			if not (q is Dictionary):
+				continue
+			var qid: int = int(q.get("id", -1))
+			if qid < 0 and str(k).is_valid_int():
+				qid = int(str(k))
+			if qid < 0:
+				continue
+			active_quests[qid] = q.duplicate(true)
+			# Restored, not a new offer — never re-announce via quest_offered.
+			_announced_offers[qid] = true
+	var saved_completed = data.get("completed", [])
+	completed_quests = saved_completed.duplicate(true) if saved_completed is Array else []
+	var saved_failed = data.get("failed", [])
+	failed_quests = saved_failed.duplicate(true) if saved_failed is Array else []
+	# Monotonic: never rewind below ids already handed out this session, or
+	# fresh offers would collide with restored quest ids.
+	next_quest_id = maxi(next_quest_id, int(data.get("next_quest_id", 0)))
+	# Re-arm expiry timers. Timer nodes don't serialize, so ELAPSED TIME RESETS:
+	# a reloaded timed contract gets its full time_limit again (generous, and
+	# honest about what a save can carry). Locked (pinned) commitments stay
+	# timerless, mirroring set_quest_locked.
+	for qid in active_quests:
+		var q: Dictionary = active_quests[qid]
+		if float(q.get("time_limit", -1)) > 0 and not bool(q.get("locked", false)):
+			_start_quest_timer(qid, float(q.get("time_limit", -1)))
+	# Defensive dedup: if an arc offer for the same flag somehow landed before
+	# this restore ran, the restored active quest is the truth — drop the shadow.
+	for oid in story_offers.keys():
+		var sf := str(story_offers[oid].get("source_flag", ""))
+		if sf == "":
+			continue
+		for q in active_quests.values():
+			if str(q.get("source_flag", "")) == sf:
+				story_offers.erase(oid)
+				break
+	active_quests_changed.emit()
+
+
+# =============================================================================
 # DEBUG / TESTING
 # =============================================================================
 

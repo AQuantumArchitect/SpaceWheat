@@ -1526,7 +1526,9 @@ func _session_summary_text() -> String:
 
 	var qm = InstrumentLocator.resolve_quest_manager(self, farm)
 	if qm and "completed_quests" in qm and qm.completed_quests is Array:
-		var done: int = qm.completed_quests.size()
+		# The ledger persists across loads (save v6) — diff against the session
+		# baseline so this line credits THIS session, not the whole save.
+		var done: int = qm.completed_quests.size() - int(base.get("completed_quests", 0))
 		if done > 0:
 			parts.append("📜 %d contract%s" % [done, "" if done == 1 else "s"])
 

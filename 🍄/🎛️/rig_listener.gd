@@ -765,6 +765,19 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			var sqm = _resolve_quest_manager()
 			result["story_offers"] = sqm.get_story_offers() if sqm and sqm.has_method("get_story_offers") else []
 
+		"quest_ledger":
+			# Persistent quest ledger (save v6): actives + history + id counter —
+			# lets probes assert the Commitments board and contract History
+			# survive a save/load roundtrip (quest_state persistence).
+			var ql_qm = _resolve_quest_manager()
+			if ql_qm == null:
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_quest_manager"}
+			else:
+				result["active"] = _slim_active_quests(ql_qm.active_quests.values())
+				result["completed"] = _slim_active_quests(ql_qm.completed_quests)
+				result["failed"] = _slim_active_quests(ql_qm.failed_quests)
+				result["next_quest_id"] = int(ql_qm.next_quest_id)
+
 		"known_icons":
 			var icons = _instrument.get_known_icons() if _instrument else []
 			result["icons"] = icons if icons is Array else []
@@ -2391,6 +2404,7 @@ func _slim_active_quests(quests: Array) -> Array:
 			"reward_icon_south": quest.get("reward_icon_south", ""),
 			"offered_at": int(quest.get("offered_at", 0)),
 			"accepted_at": int(quest.get("accepted_at", 0)),
+			"source_flag": str(quest.get("source_flag", "")),
 		})
 	return slim
 

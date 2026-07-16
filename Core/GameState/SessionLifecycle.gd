@@ -121,8 +121,11 @@ func complete_session_boot(farm: Node = null) -> void:
 
 func _capture_session_baseline(farm: Node) -> Dictionary:
 	# Session-start snapshot the quit summary diffs against. Wallet + fired
-	# flags are the only fields that persist across sessions; runtime counters
-	# (completed_quests) start empty each session and need no baseline.
+	# flags persist across sessions; since save v6 the quest ledger does too,
+	# so the completed-contract count needs a baseline as well or the quit
+	# summary would credit this session with the whole save's history.
+	# (Both boot lanes capture this AFTER apply_state, so the baseline sees
+	# the restored ledger.)
 	if farm == null or not is_instance_valid(farm):
 		return {}
 	var wallet: Dictionary = {}
@@ -132,9 +135,14 @@ func _capture_session_baseline(farm: Node) -> Dictionary:
 	var flags: Dictionary = {}
 	if "story_flags_fired" in farm and farm.story_flags_fired is Dictionary:
 		flags = farm.story_flags_fired.duplicate()
+	var completed_baseline: int = 0
+	var qm = InstrumentLocator.resolve_quest_manager(self, farm)
+	if qm and "completed_quests" in qm and qm.completed_quests is Array:
+		completed_baseline = qm.completed_quests.size()
 	return {
 		"wallet": wallet,
 		"flags": flags,
+		"completed_quests": completed_baseline,
 		"start_ms": Time.get_ticks_msec(),
 	}
 
@@ -285,12 +293,14 @@ func reset_runtime_singletons() -> void:
 	if story_engine and story_engine.has_method("reset"):
 		story_engine.reset()
 
-	# Quest offers/actives are session state; the next session regenerates
-	# them from persisted truth (tutorial_seen, story_flags_fired, known_icons)
-	# via connect_to_farm → maybe_start_tutorial + the StoryEngine re-offer
-	# path. Without this, a mid-session path-load inherits the previous
-	# campaign's board — a stale tutorial offer sat on every loaded
-	# checkpoint's Arc tab (leg L2i).
+	# Quest OFFERS are session state; the next session regenerates them from
+	# persisted truth (tutorial_seen, story_flags_fired, known_icons) via
+	# connect_to_farm → maybe_start_tutorial + the StoryEngine re-offer path.
+	# Without this, a mid-session path-load inherits the previous campaign's
+	# board — a stale tutorial offer sat on every loaded checkpoint's Arc tab
+	# (leg L2i). The quest LEDGER (actives/history) is cleared here too, then
+	# restored from the save (v6 quest_state) by GameStateSerializer.apply_
+	# state_to_farm, which every load lane runs AFTER this reset.
 	var qm = InstrumentLocator.resolve_quest_manager(self)
 	if qm and qm.has_method("clear_all_quests"):
 		qm.clear_all_quests()

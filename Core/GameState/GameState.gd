@@ -35,7 +35,14 @@ extends Resource
 # from v4 is the empty dict → the belief field cold-boots maximally mixed,
 # which is a semantically valid state (beliefs are advisory; forgetting is
 # legal), so v4 saves load unchanged.
-const CURRENT_SAVE_VERSION := 5
+# v6 = the Quest Ledger (2026-07-16): additive quest_state section
+# (QuestManager.to_save_dict: active/completed/failed/next_quest_id). Before
+# this, ONLY wallet payouts survived a load — accepted commitments and the
+# contract history vanished (launch-blocking QA repro). Migration from v4/v5
+# is the empty dict → QuestManager.restore_from_save_dict no-ops and the
+# board regenerates from persisted truth (tutorial_seen, story_flags_fired,
+# known_icons) exactly as pre-v6 loads always did.
+const CURRENT_SAVE_VERSION := 6
 
 # Declared default 0 ("unstamped") ON PURPOSE: ResourceSaver omits properties
 # equal to the declaration default, so if this declared 4 a fresh save would
@@ -52,6 +59,12 @@ const CURRENT_SAVE_VERSION := 5
 ## {packed_rho, dim, roles, ...}}, observes_total, surprise}. Empty dict =
 ## blank field (any v4 save, or a fresh game).
 @export var witness_state: Dictionary = {}
+
+## The quest ledger (v6+): QuestManager.to_save_dict() — {active: {id →
+## quest_data}, completed: Array, failed: Array, next_quest_id: int}. Empty
+## dict = no ledger carried (any v4/v5 save, or a fresh game) → the restore
+## no-ops and the board regenerates from persisted truth.
+@export var quest_state: Dictionary = {}
 
 ## Economy - Complete emoji credits dictionary (saves ALL resources)
 ## Format: {"emoji": credits_amount, ...}
