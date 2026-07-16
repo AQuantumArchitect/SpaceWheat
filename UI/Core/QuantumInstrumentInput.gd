@@ -2363,7 +2363,13 @@ func _get_current_biome():
 	if not farm or not farm.grid:
 		return null
 
-	var biome_name = _instrument.current_biome if _instrument.current_biome != "" else ""
+	# Boot ordering: connect_to_quantum_input reaches here via
+	# build_chip_context with farm bound but _instrument not yet — two
+	# SCRIPT ERRORs on every boot. The active biome is the honest answer
+	# until the instrument exists.
+	var biome_name: String = ""
+	if _instrument and _instrument.current_biome != "":
+		biome_name = _instrument.current_biome
 	if biome_name == "":
 		biome_name = _active_biome_mgr.get_active_biome() if _active_biome_mgr else "BioticFlux"
 
