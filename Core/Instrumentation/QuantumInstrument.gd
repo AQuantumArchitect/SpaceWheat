@@ -789,14 +789,28 @@ func action_incorporate(qubit_idx: int = -1) -> Dictionary:
 	var ripe_phase: float = float(qc.berry_register.get_phase(qid))
 	var added: bool = gsm.player_progress.discover_icon(north, south)
 	qc.berry_register.consume(qid)
+	# discover_icon refuses two ways and the difference matters to the player:
+	# the exact pair already known (honest re-harvest) vs the NORTH emoji already
+	# anchoring another signature word (the word is NOT learned — the surviving
+	# uniqueness rule). Calling the second one "re-harvested" told hub leg L4d
+	# its new words joined when they never did.
+	var already_known := false
+	if not added and "known_icons" in farm and farm.known_icons is Array:
+		for kp in farm.known_icons:
+			if kp is Dictionary and str(kp.get("north", "")) == north and str(kp.get("south", "")) == south:
+				already_known = true
+				break
 	if added:
 		_log("info", "instrument", "🧬", "Incorporated %s/%s from qubit %d into signature" % [north, south, qid])
 		_notify_story([north, south], "incorporate")
-	else:
+	elif already_known:
 		_log("info", "instrument", "🧬", "Re-harvested %s/%s (already in signature) — phase counted" % [north, south])
+	else:
+		_log("info", "instrument", "🧬", "Berry counted; %s/%s NOT learned — north %s already anchors a signature word" % [north, south, north])
 	var result := {
 		"success": true,
 		"new_icon": added,
+		"already_known": already_known,
 		"north_emoji": north,
 		"south_emoji": south,
 		"qubit": qid,

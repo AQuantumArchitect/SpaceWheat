@@ -714,9 +714,19 @@ func _execute_incorporate_icon() -> Dictionary:
 	# _toast_berry_whisper existed but nothing called it — the harvest was mute,
 	# and a silent success reads exactly like a dead key.
 	if result.get("success", false):
-		_toast_berry_whisper(_get_current_biome(),
-				str(result.get("north_emoji", "")), str(result.get("south_emoji", "")),
-				float(result.get("phase", 0.0)))
+		var inc_n := str(result.get("north_emoji", ""))
+		var inc_s := str(result.get("south_emoji", ""))
+		if bool(result.get("new_icon", false)):
+			_toast_berry_whisper(_get_current_biome(), inc_n, inc_s,
+					float(result.get("phase", 0.0)))
+		elif bool(result.get("already_known", false)):
+			_toast_player("🧬 %s/%s re-harvested — phase counted, the word was already yours" % [inc_n, inc_s])
+		else:
+			# The berry was spent but the word did NOT join: the north emoji
+			# already anchors another signature word. Saying "woven into your
+			# signature" here sent hub leg L4d chasing a signature that never
+			# grew (anti-gating law: no false help).
+			_toast_player("✗ %s already anchors one of your words — %s/%s cannot join your signature (berry still counted)" % [inc_n, inc_n, inc_s])
 	elif str(result.get("message", "")) != "":
 		_toast_player("✗ %s" % str(result.get("message", "")))
 	# Mirror on the QII signal too, for UI listeners (the engine emits its own). Same
