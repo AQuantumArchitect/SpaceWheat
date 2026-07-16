@@ -112,6 +112,12 @@ func _coupling_unitary(dt: float):
 	var key := snappedf(dt, 0.0001)
 	if _u_cache.has(key):
 		return _u_cache[key]
+	# Defensive bound: dt keys are caller-supplied floats. If a caller ever
+	# feeds jittered dts again (this was a live leak — WitnessOrgan passed the
+	# raw frame accumulator), the cache must not become an unbounded store of
+	# dim×dim ComplexMatrix pairs.
+	if _u_cache.size() >= 32:
+		_u_cache.clear()
 	var h = ComplexMatrix.zeros(dim)
 	for coupling in couplings:
 		var ra := str(coupling.get("a", ""))

@@ -13,6 +13,10 @@ extends Node
 ## rates, and bindings live in witness_spec.json.
 
 const STRIDE_S := 0.2  # 5Hz decay stride — beliefs ease, they don't tick
+# Backlog cap: at very low FPS the accumulator can hold many strides' worth of
+# time. Do at most this many fixed quanta per frame and shed the rest — the
+# Witness is advisory by law; it must never join a death-spiral frame.
+const MAX_STRIDES_PER_FRAME := 3
 
 var spec: Dictionary = {}
 var clusters: Dictionary = {}      # node name → WitnessCluster
@@ -51,11 +55,21 @@ func _process(delta: float) -> void:
 	_stride_accum += delta
 	if _stride_accum < STRIDE_S:
 		return
-	var dt := _stride_accum
-	_stride_accum = 0.0
+	# Stride in FIXED quanta of STRIDE_S. Passing the raw accumulator handed
+	# WitnessCluster a frame-jittered dt, and its dt-keyed unitary cache minted
+	# a fresh [U, U†] ComplexMatrix pair (native expm) nearly every stride —
+	# an unbounded retained-object leak (~2,400 objects/min) plus a per-stride
+	# expm burn. Both maps compose exactly (semigroup), so fixed quanta are
+	# physically equivalent and the cache converges to a single entry.
 	var t0 := Time.get_ticks_usec()
-	for cname in clusters:
-		clusters[cname].stride(dt)
+	var strides := 0
+	while _stride_accum >= STRIDE_S and strides < MAX_STRIDES_PER_FRAME:
+		_stride_accum -= STRIDE_S
+		for cname in clusters:
+			clusters[cname].stride(STRIDE_S)
+		strides += 1
+	if _stride_accum >= STRIDE_S:
+		_stride_accum = 0.0  # shed the backlog — beliefs ease, they don't catch up
 	last_stride_ms = float(Time.get_ticks_usec() - t0) / 1000.0
 
 

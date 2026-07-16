@@ -113,6 +113,26 @@ var _story_chatter_idx: int = 0       # GHJKL; cursor into visible chatter feed 
 var _story_icon_idx: int = 0          # 0/1/2; selected via 1/2/3 keys
 var _story_chatter_connected: bool = false
 var _story_attractor_cache: Dictionary = {}  # biome_name → {emojis, gap, phrame}
+# Story-tab rebuild is DEBOUNCED: chatter/trajectory/activity signals only mark
+# dirty; _process rebuilds at most once per heartbeat. StoryEngine can emit 6+
+# chatter events per tick — a synchronous _refresh_body() per event was the
+# 17k-objects / 1-2 FPS freeze (positive feedback: low FPS → more events/frame).
+# Same heartbeat law as QuestBoard.BOARD_HEARTBEAT_S, slower cadence: a story
+# rebuild reshapes ~35 autowrapped paragraphs (~300ms) — at chatter cadence
+# (1/s) that alone halves FPS. 2s latency on ambient chatter is imperceptible.
+const STORY_HEARTBEAT_S := 2.0
+var _story_body_dirty: bool = false   # full rebuild (trajectory advance — rare)
+var _story_live_dirty: bool = false   # live sections only (chatter/activity)
+var _story_heartbeat_accum: float = 0.0
+# Story-tab section boxes (children of _body_box while the story tab is built).
+# Live boxes hold the feeds; the static box holds the expensive autowrapped
+# prose that must NOT be re-shaped on ambient chatter.
+var _story_live_top: VBoxContainer = null
+var _story_static_mid: VBoxContainer = null
+var _story_live_bot: VBoxContainer = null
+# Cap the rendered story log; older beats collapse into a muted count line
+# (same pattern as the board's "… N more not shown").
+const STORY_LOG_VISIBLE := 40
 var _story_inspect_open: bool = false        # E toggles a chatter detail panel; F flattens it
 const ATTRACTOR_CACHE_TTL: int = 60          # ~1 second at 60Hz physics
 
@@ -793,7 +813,7 @@ func _render_faction_card(farm, faction_name: String) -> void:
 
 ## Render per-active-biome berry consumption (count + accumulated phase).
 ## Berry phase gates forest_evolving → forest_communion story flags.
-func _render_berry_phase_section(farm) -> void:
+func _render_berry_phase_section(farm, parent: Control) -> void:
 	if farm == null or not "grid" in farm or farm.grid == null:
 		return
 	if not farm.grid.has_method("get_all_biomes"):
@@ -817,7 +837,7 @@ func _render_berry_phase_section(farm) -> void:
 		rows.append({"biome": str(biome_name), "count": c, "phase": p})
 	if rows.is_empty():
 		return
-	_body_box.add_child(_make_section_header("berry phase"))
+	parent.add_child(_make_section_header("berry phase"))
 	for row in rows:
 		var lbl := Label.new()
 		# Phase target reference: 4π ≈ 12.566 (full sphere). Show progress against that.
@@ -827,8 +847,8 @@ func _render_berry_phase_section(farm) -> void:
 		]
 		lbl.add_theme_font_size_override("font_size", 11)
 		lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_VALUE)
-		_body_box.add_child(lbl)
-	_body_box.add_child(_make_spacer(8))
+		parent.add_child(lbl)
+	parent.add_child(_make_spacer(8))
 
 func _build_story_body() -> void:
 	_ensure_story_chatter_wired()
@@ -849,6 +869,28 @@ func _build_story_body() -> void:
 	else:
 		_story_edge_idx = 0
 
+	# Three section boxes, same visual order as before. The static middle
+	# holds the expensive prose (autowrapped story-log/beat paragraphs shape
+	# at ~15ms EACH on add_child); the live top/bottom hold the feeds ambient
+	# chatter refreshes. The debounce refills ONLY the live boxes, so chatter
+	# never re-shapes the whole tab — full rebuilds stay on tab switches,
+	# keypresses, and trajectory advances (story-flag fires, rare).
+	_story_live_top = VBoxContainer.new()
+	_story_live_top.add_theme_constant_override("separation", 4)
+	_body_box.add_child(_story_live_top)
+	_story_static_mid = VBoxContainer.new()
+	_story_static_mid.add_theme_constant_override("separation", 4)
+	_body_box.add_child(_story_static_mid)
+	_story_live_bot = VBoxContainer.new()
+	_story_live_bot.add_theme_constant_override("separation", 4)
+	_body_box.add_child(_story_live_bot)
+	_fill_story_live_top()
+	_fill_story_static_mid(engine, focus_id, focus_node, outgoing)
+	_fill_story_live_bot(engine)
+
+## Live top section: activity feed. Cheap; refilled by the chatter debounce.
+func _fill_story_live_top() -> void:
+	var box := _story_live_top
 	# === ACTIVITY FEED (PlayerEventLog ring buffer, newest first) ===
 	const ACTIVITY_VISIBLE := 12
 	var player_event_log = get_node_or_null("/root/PlayerEventLog")
@@ -857,9 +899,9 @@ func _build_story_body() -> void:
 	var header_text: String = "activity"
 	if total_events > recent_events.size():
 		header_text = "activity (%d of %d)" % [recent_events.size(), total_events]
-	_body_box.add_child(_make_section_header(header_text))
+	box.add_child(_make_section_header(header_text))
 	if recent_events.is_empty():
-		_body_box.add_child(_make_muted_label("No events yet.", 12))
+		box.add_child(_make_muted_label("No events yet.", 12))
 	else:
 		for ev in recent_events:
 			var ev_lbl := RichTextLabel.new()
@@ -870,20 +912,24 @@ func _build_story_body() -> void:
 			ev_lbl.fit_content = true
 			ev_lbl.scroll_active = false
 			ev_lbl.add_theme_font_size_override("normal_font_size", 12)
-			_body_box.add_child(ev_lbl)
-	_body_box.add_child(_make_spacer(8))
+			box.add_child(ev_lbl)
+	box.add_child(_make_spacer(8))
 
+## Static middle section: berry phase, story log, focus, edges, icons, actions.
+## The expensive paragraphs live here — rebuilt only on full _refresh_body().
+func _fill_story_static_mid(engine, focus_id: String, focus_node, outgoing: Array) -> void:
+	var box := _story_static_mid
 	# === BERRY PHASE (gates story flags forest_evolving → forest_communion) ===
 	var berry_farm = InstrumentLocator.resolve_active_farm(self)
 	if berry_farm != null:
-		_render_berry_phase_section(berry_farm)
+		_render_berry_phase_section(berry_farm, box)
 
 	# === STORY LOG (fired arc beats, newest first) ===
 	var story_farm = InstrumentLocator.resolve_active_farm(self)
 	var story_log: Array = story_farm.story_log if story_farm != null and "story_log" in story_farm else []
 	if not story_log.is_empty():
-		var log_visible: int = story_log.size()
-		_body_box.add_child(_make_section_header("story (%d)" % log_visible))
+		var log_visible: int = mini(story_log.size(), STORY_LOG_VISIBLE)
+		box.add_child(_make_section_header("story (%d)" % story_log.size()))
 		for i in range(log_visible):
 			var entry: Dictionary = story_log[story_log.size() - 1 - i]
 			var act_n: int = int(entry.get("act", 0))
@@ -895,8 +941,11 @@ func _build_story_body() -> void:
 			beat_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			beat_lbl.add_theme_font_size_override("font_size", 12)
 			beat_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_VALUE if i == 0 else UIStyleFactory.COLOR_MUTED)
-			_body_box.add_child(beat_lbl)
-		_body_box.add_child(_make_spacer(8))
+			box.add_child(beat_lbl)
+		if story_log.size() > log_visible:
+			box.add_child(_make_muted_label(
+				"… %d older entries" % (story_log.size() - log_visible), 11))
+		box.add_child(_make_spacer(8))
 
 	# === FOCUS NODE ===
 	# Focus = where graph ATTENTION sits (boot seeds density on the act-0 node),
@@ -910,18 +959,18 @@ func _build_story_body() -> void:
 	var focus_header := "focus (lens) · %s · act %d" % [focus_node.display_name, focus_node.act]
 	if not focus_fired:
 		focus_header += " · approaching"
-	_body_box.add_child(_make_section_header(focus_header))
+	box.add_child(_make_section_header(focus_header))
 	if focus_fired:
 		var beat := Label.new()
 		beat.text = str(focus_node.arc_beat) if focus_node.arc_beat != "" else "(no beat text)"
 		beat.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		beat.add_theme_font_size_override("font_size", 13)
 		beat.add_theme_color_override("font_color", UIStyleFactory.COLOR_VALUE)
-		_body_box.add_child(beat)
+		box.add_child(beat)
 	else:
 		var ahead := _make_muted_label(
 			"Nothing has happened here yet — the story is leaning this way. Its beat is written when you make it true.", 12)
-		_body_box.add_child(ahead)
+		box.add_child(ahead)
 		var focus_qm = _arc_quest_manager()
 		if focus_qm != null and not focus_node.predicates.is_empty():
 			var fscore: float = focus_qm.evaluate_flag_score({"predicates": focus_node.predicates})
@@ -930,8 +979,8 @@ func _build_story_body() -> void:
 			prog.text = "%.2f / %.2f %s" % [fscore, fire_at, _ratio_bar(fscore / fire_at, 6)]
 			prog.add_theme_font_size_override("font_size", 11)
 			prog.add_theme_color_override("font_color", _score_color(fscore))
-			_body_box.add_child(prog)
-	_body_box.add_child(_make_spacer(6))
+			box.add_child(prog)
+	box.add_child(_make_spacer(6))
 
 	# Faction charge bar
 	var charge: Dictionary = focus_node.faction_charge()
@@ -943,7 +992,7 @@ func _build_story_body() -> void:
 		charge_lbl.text = "charge: " + charge_text
 		charge_lbl.add_theme_font_size_override("font_size", 11)
 		charge_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
-		_body_box.add_child(charge_lbl)
+		box.add_child(charge_lbl)
 
 	# Density / coherence summary
 	var density_w: float = float(engine.graph.density.get(focus_id, 0.0))
@@ -953,13 +1002,13 @@ func _build_story_body() -> void:
 	summary.text = "attention here: %.2f   ·   narrative focus: %.2f (%s)" % [density_w, coh, coh_word]
 	summary.add_theme_font_size_override("font_size", 11)
 	summary.add_theme_color_override("font_color", COLOR_HEADER)
-	_body_box.add_child(summary)
-	_body_box.add_child(_make_spacer(8))
+	box.add_child(summary)
+	box.add_child(_make_spacer(8))
 
 	# === EDGES ===
-	_body_box.add_child(_make_section_header("edges from here"))
+	box.add_child(_make_section_header("edges from here"))
 	if outgoing.is_empty():
-		_body_box.add_child(_make_muted_label("(no outgoing edges)", 11))
+		box.add_child(_make_muted_label("(no outgoing edges)", 11))
 	else:
 		for i in range(outgoing.size()):
 			var edge = outgoing[i]
@@ -975,12 +1024,12 @@ func _build_story_body() -> void:
 			lbl.add_theme_font_size_override("font_size", 12)
 			lbl.add_theme_color_override("font_color",
 				UIStyleFactory.COLOR_TAB_ACTIVE if is_selected else UIStyleFactory.COLOR_ITEM_IDLE)
-			_body_box.add_child(lbl)
+			box.add_child(lbl)
 
-	_body_box.add_child(_make_spacer(8))
+	box.add_child(_make_spacer(8))
 
 	# === ICON ROW ===
-	_body_box.add_child(_make_section_header("icon · expression"))
+	box.add_child(_make_section_header("icon · expression"))
 	var icons: Array = _story_icons()
 	var icon_row := HBoxContainer.new()
 	icon_row.add_theme_constant_override("separation", 18)
@@ -994,32 +1043,36 @@ func _build_story_body() -> void:
 		ilbl.add_theme_color_override("font_color",
 			UIStyleFactory.COLOR_TAB_ACTIVE if sel else UIStyleFactory.COLOR_ITEM_IDLE)
 		icon_row.add_child(ilbl)
-	_body_box.add_child(icon_row)
-	_body_box.add_child(_make_spacer(4))
+	box.add_child(icon_row)
+	box.add_child(_make_spacer(4))
 
 	# === ACTION ROW (canonical Q E R F left-to-right) ===
-	_body_box.add_child(_make_action_row("Q", "Harmonize", "yield self toward target — alignment drifts toward this chatter's emoji palette"))
+	box.add_child(_make_action_row("Q", "Harmonize", "yield self toward target — alignment drifts toward this chatter's emoji palette"))
 	var e_label := "flatten" if _story_inspect_open else "inspect ▾"
 	var e_desc := "close detail panel" if _story_inspect_open else "open chatter detail (pauses sim)"
-	_body_box.add_child(_make_action_row("E", e_label, e_desc))
-	_body_box.add_child(_make_action_row("R", "Express", "push self outward — strong commit: alignment + mass shift + phase rotation"))
+	box.add_child(_make_action_row("E", e_label, e_desc))
+	box.add_child(_make_action_row("R", "Express", "push self outward — strong commit: alignment + mass shift + phase rotation"))
 	var f_label := "flatten" if _story_inspect_open else "—"
 	var f_desc := "close detail panel" if _story_inspect_open else ""
-	_body_box.add_child(_make_action_row("F", f_label, f_desc))
-	_body_box.add_child(_make_spacer(8))
+	box.add_child(_make_action_row("F", f_label, f_desc))
+	box.add_child(_make_spacer(8))
 
+## Live bottom section: chatter bubbles, inspect panel, trajectory, key hints.
+## Refilled by the chatter debounce.
+func _fill_story_live_bot(engine) -> void:
+	var box := _story_live_bot
 	# === CHATTER BUBBLES (cursor target for QERF) ===
-	_body_box.add_child(_make_section_header("chatter — GHJKL; selects target"))
+	box.add_child(_make_section_header("chatter — GHJKL; selects target"))
 	var chatter: Array = engine.recent_chatter(6)
 	if chatter.is_empty():
-		_body_box.add_child(_make_muted_label("(silence so far — wait for socialites)", 10))
+		box.add_child(_make_muted_label("(silence so far — wait for socialites)", 10))
 		_story_chatter_idx = 0
 	else:
 		_story_chatter_idx = clampi(_story_chatter_idx, 0, chatter.size() - 1)
 		for i in range(chatter.size()):
 			var sel := (i == _story_chatter_idx)
 			var key_str: String = ITEM_KEYS[i] if i < ITEM_KEYS.size() else " "
-			_body_box.add_child(_make_chatter_bubble(chatter[i], sel, key_str))
+			box.add_child(_make_chatter_bubble(chatter[i], sel, key_str))
 		# Attractor state for the selected chatter's biome — what it's "trying to become".
 		var sel_ev: Dictionary = chatter[_story_chatter_idx] if _story_chatter_idx < chatter.size() else {}
 		var sel_biome_name: String = str(sel_ev.get("biome", ""))
@@ -1048,19 +1101,19 @@ func _build_story_body() -> void:
 						]
 						att_lbl.add_theme_font_size_override("font_size", 11)
 						att_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
-						_body_box.add_child(att_lbl)
+						box.add_child(att_lbl)
 
 	# === INSPECT PANEL (E expands; F flattens) ===
 	if _story_inspect_open:
-		_body_box.add_child(_make_spacer(6))
-		_body_box.add_child(_make_story_inspect_panel())
-	_body_box.add_child(_make_spacer(8))
+		box.add_child(_make_spacer(6))
+		box.add_child(_make_story_inspect_panel())
+	box.add_child(_make_spacer(8))
 
 	# === TRAJECTORY ===
-	_body_box.add_child(_make_section_header("trajectory (last 5)"))
+	box.add_child(_make_section_header("trajectory (last 5)"))
 	var traj: Array = engine.trajectory.last(5) if engine.trajectory != null else []
 	if traj.is_empty():
-		_body_box.add_child(_make_muted_label("(no steps yet)", 10))
+		box.add_child(_make_muted_label("(no steps yet)", 10))
 	else:
 		for entry in traj:
 			var verb := str(entry.get("verb", ""))
@@ -1070,10 +1123,10 @@ func _build_story_body() -> void:
 			t.text = "  %s%s · %s → %s" % [verb_chip, spk, str(entry.get("from_node", "")), str(entry.get("to_node", ""))]
 			t.add_theme_font_size_override("font_size", 10)
 			t.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
-			_body_box.add_child(t)
+			box.add_child(t)
 
-	_body_box.add_child(_make_spacer(8))
-	_body_box.add_child(_make_muted_label("GHJKL; pick chatter   ·   1/2/3 pick icon   ·   Q harmonize / R express / E inspect / F flatten   ·   W parent / S child node", 10))
+	box.add_child(_make_spacer(8))
+	box.add_child(_make_muted_label("GHJKL; pick chatter   ·   1/2/3 pick icon   ·   Q harmonize / R express / E inspect / F flatten   ·   W parent / S child node", 10))
 
 func _make_story_inspect_panel() -> Control:
 	# Detail panel for the selected chatter line. Surfaces the data Q/R will
@@ -1182,11 +1235,11 @@ func _ensure_story_chatter_wired() -> void:
 
 func _on_player_event_added(_entry: Dictionary) -> void:
 	if _current_tab == Tab.STORY and is_active:
-		_refresh_body()
+		_story_live_dirty = true
 
 func _on_story_chatter(_speaker: String, _faction: String, _line: String, _topic: String) -> void:
 	if _current_tab == Tab.STORY and is_active:
-		_refresh_body()
+		_story_live_dirty = true
 
 ## WASD on Story tab: W (step=-1) follows trajectory backward (parent — first incoming edge);
 ## S (step=+1) follows the *cursor* forward without measuring (peek at selected edge's target).
@@ -1232,7 +1285,44 @@ func _on_story_trajectory(_from: String, to_node: String, _edge: String) -> void
 		_story_focus_node = to_node
 		_story_edge_idx = 0
 	if _current_tab == Tab.STORY and is_active:
+		_story_body_dirty = true
+
+## Debounced Story-tab refresh: at most one update per STORY_HEARTBEAT_S, no
+## matter how many chatter/trajectory/activity events arrived in between.
+## Chatter/activity refill only the live section boxes; a trajectory advance
+## (story-flag fire, rare) rebuilds the whole body since focus/edges moved.
+func _process(delta: float) -> void:
+	_story_heartbeat_accum += delta
+	if _story_heartbeat_accum < STORY_HEARTBEAT_S:
+		return
+	_story_heartbeat_accum = 0.0
+	if not (_story_body_dirty or _story_live_dirty):
+		return
+	var full := _story_body_dirty
+	_story_body_dirty = false
+	_story_live_dirty = false
+	if _current_tab == Tab.STORY and is_active and visible:
+		if full:
+			_refresh_body()
+		else:
+			_refresh_story_live()
+
+## Refill ONLY the live story sections (activity feed + chatter/trajectory).
+## The static middle (berry, story log, focus, edges — the ~15ms-per-paragraph
+## prose) is left untouched, so ambient chatter costs ~a tenth of a rebuild.
+func _refresh_story_live() -> void:
+	if not (is_instance_valid(_story_live_top) and is_instance_valid(_story_live_bot)):
 		_refresh_body()
+		return
+	var engine = _story_engine()
+	if engine == null or engine.graph == null:
+		return
+	for child in _story_live_top.get_children():
+		child.queue_free()
+	for child in _story_live_bot.get_children():
+		child.queue_free()
+	_fill_story_live_top()
+	_fill_story_live_bot(engine)
 
 # =============================================================================
 # BODY: GUIDE — pick a section with GHJKL, see prose.
