@@ -36,6 +36,12 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+# Windows consoles/pipes default to cp1252 — printing model output or seat
+# JSON with emoji then crashes. Force UTF-8 on our own stdio too.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+
 REPO_ROOT = Path(__file__).resolve().parents[3]  # .../SpaceWheat
 SEAT_PY = REPO_ROOT / "🍄" / "🧪" / "player_seat.py"
 
@@ -43,6 +49,8 @@ SEAT = os.environ.get("SEAT_NAME", "ollama1")
 MAX_TURNS = int(os.environ.get("MAX_TURNS", "40"))
 HISTORY_N = int(os.environ.get("HISTORY_N", "6"))
 SCREEN_CAP = int(os.environ.get("SCREEN_CAP", "4000"))
+NUM_PREDICT = int(os.environ.get("SEAT_NUM_PREDICT", "24"))
+SEAT_THINK = os.environ.get("SEAT_THINK", "").strip().lower()  # "off" | "on" | ""
 
 BRIDGE_URL = os.environ.get("BRIDGE_URL", "http://roc.tailff1b6b.ts.net:8787").rstrip("/")
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "").rstrip("/")
@@ -65,6 +73,17 @@ CMD_RE = re.compile(
     r"\b(?:PRESS\s+(?P<key>[A-Za-z0-9]+)(?P<shift>\s+SHIFT)?|WAIT\s+(?P<secs>\d+(?:\.\d+)?)|(?P<look>LOOK))\b",
     re.IGNORECASE,
 )
+
+# Reasoning models (qwen3 &c.) wrap deliberation in <think>...</think>. Any
+# PRESS/WAIT/LOOK inside that block is deliberation, not a command — strip
+# closed blocks AND an unclosed trailing block (budget ran out mid-think).
+THINK_BLOCK_RE = re.compile(r"<think>.*?</think>", re.IGNORECASE | re.DOTALL)
+THINK_TAIL_RE = re.compile(r"<think>.*\Z", re.IGNORECASE | re.DOTALL)
+
+
+def strip_think(text: str) -> str:
+    text = THINK_BLOCK_RE.sub("", text or "")
+    return THINK_TAIL_RE.sub("", text)
 
 # preference order for "best small instruct model"
 MODEL_PREFS = ["qwen2.5", "llama3.2", "llama3.1", "llama3", "phi3", "gemma2", "mistral"]
@@ -115,21 +134,29 @@ class Brain:
 
     def next_command(self, messages: list[dict]) -> str:
         if self.kind == "raw":
-            out = http_json(f"{OLLAMA_URL}/api/chat", {
+            payload = {
                 "model": self.model, "messages": messages, "stream": False,
-                "options": {"temperature": 0.2, "num_predict": 24},
-            })
-            return out.get("message", {}).get("content", "")
+                "options": {"temperature": 0.2, "num_predict": NUM_PREDICT},
+            }
+            if SEAT_THINK == "off":
+                payload["think"] = False  # qwen3 &c.: don't burn budget thinking
+            out = http_json(f"{OLLAMA_URL}/api/chat", payload)
+            msg = out.get("message", {})
+            # thinking-only reply (content empty): no command -> caller LOOKs
+            return msg.get("content") or ""
         out = http_json(f"{BRIDGE_URL}/v1/chat/completions", {
             "model": self.model, "messages": messages,
-            "temperature": 0.2, "max_tokens": 24,
+            "temperature": 0.2, "max_tokens": NUM_PREDICT,
         }, headers=self._auth())
-        return out["choices"][0]["message"]["content"]
+        return out["choices"][0]["message"].get("content") or ""
 
 
 def seat(*args: str) -> dict:
+    # encoding pinned: the seat prints UTF-8 (emoji JSON); Windows' default
+    # cp1252 reader thread dies on it and the model goes blind.
     p = subprocess.run([sys.executable, str(SEAT_PY), *args],
-                       capture_output=True, text=True, cwd=REPO_ROOT, timeout=300)
+                       capture_output=True, text=True, encoding="utf-8",
+                       errors="replace", cwd=REPO_ROOT, timeout=300)
     line = (p.stdout or "").strip().splitlines()
     try:
         return json.loads(line[-1]) if line else {"ok": False, "error": p.stderr[-400:]}
@@ -171,7 +198,7 @@ def main() -> None:
                 print(f"[turn {turn}] brain error: {e}; stopping.", flush=True)
                 break
 
-            m = CMD_RE.search(raw or "")
+            m = CMD_RE.search(strip_think(raw))
             if not m:
                 print(f"[turn {turn}] unparseable: {raw!r} -> LOOK", flush=True)
                 history.append((obs, "LOOK"))
