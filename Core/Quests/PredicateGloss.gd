@@ -29,7 +29,10 @@ static func summary(pred: Dictionary, qm = null) -> String:
 			var b := str(pred.get("biome", ""))
 			var have := int(qm.berry_consumed_in(b)) if (qm and qm.has_method("berry_consumed_in")) else -1
 			var count_str := ("%d/%d" % [have, itgt]) if have >= 0 else str(itgt)
-			return "berries %s in %s — Icon hat (5): F tracks, ripens, R incorporates" % [count_str, b]
+			# "F again STOPS" is load-bearing: F is a toggle, and runners who
+			# poll ripeness with F destroy their own loop (fleet #4, hub L4f —
+			# two fleets lost to the same reflex despite the stop-toast).
+			return "berries %s in %s — Icon hat (5): F tracks (F again STOPS the loop), time ripens, R incorporates" % [count_str, b]
 		"berry_total_phase_gte":
 			return "phase[%s] ≥ %.2f" % [str(pred.get("biome", "")), tgt]
 		"standing_gte":
