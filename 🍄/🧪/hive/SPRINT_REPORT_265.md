@@ -1,76 +1,75 @@
-# Sprint #265 — a haiku beats the game
+# Sprint #265 — the game is beaten. CLOSED 2026-07-16.
 
 **Gate (as ruled):** a haiku (small model at a text seat) beats the game through the
 act-4 hub using only the rig and in-game instructions; the late game (acts 5–8) is
 carried by sonnet runners (owner ruling 2026-07-16, "the late game can be sonnets").
-**Status: acts 0–4 HAIKU-PROVEN (hub + first incorporations + branch-door recipe);
-all three branch doors fired (sonnet scout, manifest-verified); endgame runner in
-flight toward the ending.**
+
+**Verdict: PASSED.** The ending fired — *"Your island never collapsed... This is
+ours. **The Demos are free.**"* — `island_free` manifest-verified in
+`endrun_ending` (49 story flags, 19-word signature). Every claim in this report is
+backed by a save-file grep; nothing rests on a runner's word alone.
 
 ## The proof, lane by lane
 
-| Lane | Road | Legs | Bank | Verdict |
-|---|---|---|---|---|
-| L1 | fresh boot → lumber_flows (Woodlot chapter) | 15 | `leg_l1o_done` | PROVEN — first vocabulary chapter beaten reading only the screen |
-| L2 | woodlot_taught → pond_breathes (Spring chapter) | 14 | `leg_l2p_done` (21 flags) | PROVEN — full loop: door / contact / claim 💧🌊 / plant / wake / pond |
-| L3 | act2_complete → chain_flipped (Mill + Lanternfall) | 4 | `leg_l3d_done` (28 flags) | PROVEN — the witness-hold chapter, incl. the owner's difficulty question (below) |
-| L4 | act3 → hub cascade (village_identity, five_doors, teachers) | — | — | IN FLIGHT |
-| Branches | act4_hub → 3 path legs (industrial / watched / cemetery) | — | — | PENDING |
-| Endgame | act3_5_drive end-to-end on final data | — | — | PENDING |
+| Lane | Road | Runner | Legs | Bank | Verdict |
+|---|---|---|---|---|---|
+| L1 | fresh boot → lumber_flows | haiku | 15 | `leg_l1o_done` | PROVEN |
+| L2 | woodlot_taught → pond_breathes | haiku | 14 | `leg_l2p_done` | PROVEN — first vocabulary claim (💧🌊) |
+| L3 | act2 → chain_flipped | haiku | 4 | `leg_l3d_done` | PROVEN — the witness-hold chapter |
+| L4 | hub cascade + Eagle claim | haiku | 7 | `leg_l4e_done` + | PROVEN — village_identity, five_doors, first incorporations (🫧🌿, 📯🏁) |
+| Doors | 3 village branch paths | sonnet scout → haiku | 1+1 | `scout_branch_*`, `leg_l4g_done` | ALL FIRED; cemetery re-walked by a haiku in **44 presses, zero walls** |
+| Endgame | acts 5–8 → island_free | sonnet | 1 | `endrun_act5..ending` | **ENDING REACHED** — sig 16→19, 4 new biomes, act-7 content live past the ending |
 
-Every claim was manifest-verified (`grep <flag> <bank>.tres`) — sensors both inflate
-(trajectory-line misreads ×2, accepted-contract misreads ×2) and under-claim
-(beats fired unnoticed ×4). Nothing in the ledger rests on a sensor's word alone.
+## The owner's design questions, answered by play
 
-## The owner's question, answered
+- **Lanternfall:** haiku-passable — it asked for *eyes* (state feedback), not a human.
+- **The ending:** lands as designed — "the game just tells you you already won,
+  mid-action, because the physics you'd been building was the answer all along...
+  genuinely satisfying" (endgame runner, unprompted).
+- **Act 7's gut-punch works:** "the Bath greying the same lanterns you'd tended
+  since Act 2" — and biome-slot scarcity makes letting go feel thematically right.
+- **One sour note (owner call):** the endgame cull→discover→track→wait→incorporate
+  loop per new biome reads as repetitive busywork beside the emotional beats.
 
-**"Is Lanternfall haiku-passable?"** Yes — and it asked for *eyes*, not a human.
-The L3c hold succeeded blind (the sensor held 🪔 with zero state feedback), which
-proved the mechanic passable but illegible. One parity read later (`north_pct` in
-plot_glance, commit `14538995`), L3d reported: *"north_pct climbed from 0.18 → 0.45
-over ~50 seconds… clear feedback. The north_pct field was a powerful guide."*
+## What the sprint fixed (walls fix paths — every repair traced from a runner's wall)
 
-## The parity organ (what a text seat can now sense)
+- Post-load disease family (QM rebind, claims-never-READY, offers-not-reborn, rig
+  rebind, berry credit) — 72ff67a9, c0adf124, 0248f67b, 49556c21
+- Plant pipeline for >3-icon boots (picker pager ×2, half-landed plants) — bf373ecf
+- Signature gloss sigmoid lie ("know 13/15" now live) — a9701a68
+- Microscope honesty: pair-keyed "known ✓" + VS16 normalization (❄ ≡ ❄️) — f19d9a99
+- Trim: viz reseed on shrink (capacity lie) — c86ac9ee; slot-law targeting (wrong
+  plot felled) — post-4aa12c28
+- Incorporation honesty: blocked words no longer celebrated — 972b3876
+- QA trio P0s: dev-panel wipe defused, Demos uncullable, glance measured truth — 98ba236c
+- **Quest persistence (save v6)**: contracts + history survive load — 4aa12c28
+- Boot script errors zeroed; berry F-toggle trap named in the gloss; parity organ
+  grown sense by sense (focus/words/gaps/state/microscope/ledger)
 
-Each sense was priced by a wall a haiku actually hit, in order:
-1. **Focus** (L1e) — which plot the verbs act on (`plot_glance.focused`, QII dispatch authority)
-2. **Words** (L1i) — axis glyphs on revealed plots (eagle-source visibility)
-3. **Gaps** (L2) — `empty:true` on plantable columns
-4. **State** (L3c) — `north_pct` live probability on revealed plots
-5. **The microscope** (owner directive 2026-07-15) — B renders fully in screen text:
-   per-plot poles/probabilities, purity, links, H-gap, Var(H), icon lineage +
-   couplings, entanglement; ring keys pick the plot, biome tabs switch countries
-   inside B. Verified live; now a standard block in every sensor brief.
+## Fleet doctrine results (owner directive, measured)
 
-## Path repairs the sprint produced (walls fix paths)
-
-- `80c790d8` act 0-1 gates gained arc quests; `57e0de46` First Breath names the new-word constraint
-- `636d3e82` lantern latch width + braid mirror; `b647b1b4` mill hint names the ritual
-- `49556c21` berry credit persists across loads; `6e07382a`/`fbc8b9b8`/`14538995` the glance grows senses
-- `bf373ecf` plant pipeline for >3-icon boots (picker pager ×2 + half-landed plants)
-- `72ff67a9` + `c0adf124` + `0248f67b` the post-load disease family: QM rebind, claims-never-READY,
-  teaching offers not reborn (re-offer only unclaimed pairs), rig diagnostics rebind on farm_ready
-- `da1d610e` seat bank-name hint
-
-## Measured pacing (honest-economy facts)
-
-- Berry ≈ 2–3 min wall each; door toll 21🦅 ≈ 6 Ace F-R-Q cycles ≈ 2 min
-- Teaching gate = 2–3 deliveries (access +0.02 each) — the owner's budget held
-- Discovery lottery at PRESSURE_BOOST 6.0: ~88% story-biome, ~12% toll betrayal
-  (owner design note: ~66 gives 99%; ledgered, not changed)
+- **Paver→prover works**: the sonnet scout pathfound the branch road once
+  (~100 tool calls); a haiku repeated it in 44 presses with zero walls.
+- **Hostile QA personas pay immediately**: one flight found a save wipe two keys
+  from the pause menu, a display-manufactured "broken feature," and the
+  quest-ledger-evaporates-on-load launch blocker.
+- **Epistemics shipped**: umwelt PR #7 (misread taxonomy + POISONED channel tier +
+  fleet doctrine), PR #8 (E2 gamma ladder: retention buys 6.5× decisiveness free).
 
 ## Ledgered owner calls (open, not blocking)
 
-1. Trajectory line should ghost/dim unfired beats (2 sensor inflations)
-2. "Once accepted, find it under C→U" hint line (3 runners lost budget to the split)
-3. Accepted-but-unclaimed quests don't survive loads (ruling wanted)
-4. Discovery boost 6.0 vs ~66 (texture vs certainty)
-5. Drives bridge eagles (act2_drive:274) — test-honesty smell
-6. Arc-offer flood vs 6-row cap; Z-menu "loaded from: fresh start" cosmetic
+1. North-uniqueness rule: 4 of 6 island unknowns unlearnable; sig-gate margins
+   (15/16/18) are razor-thin by accident — intended scarcity or leftover slop?
+2. Data-level VS16 normalization would switch on silently-dead H couplings — needs
+   its own tuned pass.
+3. Trajectory ghosting; boost 6.0 vs 66; boot hat = 8; QERF-in-overlay binding
+   accepts; endgame cull-loop busywork; act filament shows "Act 1 91%" everywhere;
+   Explore chip hides 1🍞; Network-C dead handoff; stale "✓ ready" HUD badges;
+   cull-confirm toast throttled; braid ×4 climbs by soft-gate increments;
+   "Failed to remove biome" refusal doesn't say WHY (protected biome).
 
-## E2 gamma rungs (owner's spare-time program)
+## Follow-up engineering (post-sprint, small)
 
-All 67 banked witness tapes sit at gamma_scale=1.0. Rungs {0.25, 4} re-fly a short
-fixed leg per scale, scored by `hive/gamma_ab.py`. PENDING — queued behind the L4 seat.
-
-*(Report finalizes when L4 + branch legs + endgame drive land.)*
+- Re-mint canonical checkpoints on current HEAD (act1..act4_hub predate the fixes).
+- act3_5_drive end-to-end on final data (#252 flake rule applies).
+- Behavioral E2 (live-runner gamma A/B) — licensed by the instrument result.
