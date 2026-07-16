@@ -62,9 +62,14 @@ static func from_story_def(quest_def: Dictionary, source_flag: String, quest_id:
 		"expires": false,
 		"offered_at": Time.get_ticks_msec(),
 	})
-	# Merge the authored arc_quest fields verbatim (type may be a legacy string here; preserved).
+	# Merge the authored arc_quest fields verbatim.
 	for k in quest_def:
 		q[str(k)] = quest_def[k]
+	# Authored types are legacy STRINGS; the board coerces non-int types to
+	# DELIVERY, which made ready arc rows immortal ("deliver needs ×1 — you
+	# hold 0" forever). Normalize exactly like the tutorial path does.
+	if q.get("type") is String:
+		q["type"] = QuestTypes.Type.get(str(q["type"]), QuestTypes.Type.DELIVERY)
 	return q
 
 

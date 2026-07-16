@@ -1611,6 +1611,12 @@ func _complete_selected() -> void:
 	var qt = quest.get("type", QuestTypes.Type.DELIVERY)
 	var qti := int(qt) if (typeof(qt) == TYPE_INT or typeof(qt) == TYPE_FLOAT) else int(QuestTypes.Type.DELIVERY)
 	var is_delivery: bool = qti == int(QuestTypes.Type.DELIVERY)
+	# A READY row with no real ask is a CLAIM whatever its type field says —
+	# arc quests saved with string/absent types read as DELIVERY here, and
+	# their empty ask made ready rows IMMORTAL (seven piled up by act 3,
+	# overflowing the board; claims refused with "deliver needs ×1").
+	if is_delivery and status == "ready" and str(quest.get("resource", "")).strip_edges() == "":
+		is_delivery = false
 
 	if is_delivery:
 		var ask_emoji := str(quest.get("resource", ""))
