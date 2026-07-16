@@ -171,7 +171,7 @@ func _build_content(container: Control) -> void:
 	container.add_child(_body_box)
 
 	_close_hint = Label.new()
-	_close_hint.text = "ESC close   ·   T Y I O tabs   ·   G H J K L ; items"
+	_close_hint.text = "ESC close   ·   T Y I O tabs   ·   G H J K L ; ' items"
 	_close_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_close_hint.add_theme_font_size_override("font_size", 11)
 	_close_hint.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)

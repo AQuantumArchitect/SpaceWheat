@@ -41,6 +41,9 @@ const ITEM_KEYS := ["G", "H", "J", "K", "L", ";"]
 const MAX_VISIBLE_ITEMS: int = 6
 const MARKET_FETCH_LIMIT: int = 24
 
+# Armed-abandon quest id (confirm-chord law: Q arms, F confirms, else cancels).
+var _abandon_arm_qid: int = -1
+
 # Sort modes inside Market — chord 1/2/3 toggles within the tab.
 const MARKET_SORT_BY_KEY := {
 	KEY_1: MarketView.SortMode.COMFORT,
@@ -263,6 +266,7 @@ func _on_unhandled_key(keycode: int, event: InputEvent) -> bool:
 		_render_all()
 		return true
 	if frame_id == FRAME_COMMITMENTS and COMMITMENTS_VIEW_BY_KEY.has(keycode):
+		_disarm_abandon(true)
 		_commitments_view = str(COMMITMENTS_VIEW_BY_KEY[keycode])
 		_selected_index = 0
 		_render_all()
@@ -273,6 +277,7 @@ func _on_frame_changed(_new_frame_id: String, _prev_frame_id: String) -> void:
 	_on_frame_changed_local()
 
 func _on_frame_changed_local() -> void:
+	_disarm_abandon(true)
 	_selected_index = 0
 	_render_all()
 
@@ -336,6 +341,7 @@ func _on_action_q() -> void:
 
 func _on_action_e() -> void:
 	# E = pause + inspect / refresh.
+	_disarm_abandon()
 	match frame_id:
 		FRAME_MANIFOLD:
 			_refresh_pool()
@@ -355,6 +361,7 @@ func _on_action_e() -> void:
 
 func _on_action_r() -> void:
 	# R = stay / commit current run state forward.
+	_disarm_abandon()
 	match frame_id:
 		FRAME_MARKET:
 			_accept_selected()  # commit the offer onto the run
@@ -366,9 +373,13 @@ func _on_action_r() -> void:
 func _on_action_f() -> void:
 	# F = pin/unpin a commitment. A locked commitment never expires, so you can accept a
 	# contract you can't yet afford, go gather the deliverable, and come back to turn it in.
+	# While an abandon is armed, F is its confirm (confirm-chord law).
 	match frame_id:
 		FRAME_COMMITMENTS:
-			_toggle_lock_selected()
+			if _abandon_arm_qid >= 0:
+				_abandon_confirmed()
+			else:
+				_toggle_lock_selected()
 		_:
 			pass
 
@@ -623,6 +634,8 @@ func _current_verb_labels() -> Dictionary:
 		FRAME_MARKET:
 			return {"Q": "—", "E": "Refresh", "R": "Accept", "F": "—"}
 		FRAME_COMMITMENTS:
+			if _abandon_arm_qid >= 0:
+				return {"Q": "Cancel", "E": "—", "R": "—", "F": "⚠ Confirm Abandon"}
 			var f_label := "Lock"
 			var crows := _commitments_rows()
 			if quest_manager and quest_manager.has_method("is_quest_locked") and _selected_index >= 0 and _selected_index < crows.size():
@@ -1615,6 +1628,9 @@ func _complete_selected() -> void:
 		_toast_feedback("• not ready yet — its bar fills as the live state approaches the ask")
 
 func _abandon_selected() -> void:
+	# Confirm-chord law: Abandon FAILS the quest (standing penalty) and was
+	# a single instant Q press — the sweep runner nuked a commitment with no
+	# takeback. Q arms, ONLY F confirms, any other key cancels.
 	if quest_manager == null:
 		return
 	var rows: Array = _commitments_rows()
@@ -1624,9 +1640,31 @@ func _abandon_selected() -> void:
 	var qid: int = int(quest.get("id", -1))
 	if qid < 0:
 		return
-	if quest_manager.has_method("fail_quest"):
+	if _abandon_arm_qid == qid:
+		_disarm_abandon()
+		return
+	_abandon_arm_qid = qid
+	_toast_feedback("⚠ abandon %s — counts as FAILED. F confirms · any other key cancels" \
+			% str(quest.get("faction", "this commitment")))
+	_refresh_verb_chips()
+
+
+func _disarm_abandon(silent: bool = false) -> void:
+	if _abandon_arm_qid < 0:
+		return
+	_abandon_arm_qid = -1
+	if not silent:
+		_toast_feedback("abandon cancelled")
+	_refresh_verb_chips()
+
+
+func _abandon_confirmed() -> void:
+	var qid: int = _abandon_arm_qid
+	_abandon_arm_qid = -1
+	if quest_manager != null and quest_manager.has_method("fail_quest"):
 		quest_manager.fail_quest(qid, "player_action")
 		quest_abandoned.emit(qid)
+	_render_all()
 
 # =============================================================================
 # HELPERS
@@ -1644,6 +1682,7 @@ func _current_row_count() -> int:
 
 
 func _select(idx: int) -> void:
+	_disarm_abandon()
 	_selected_index = clampi(idx, 0, MAX_VISIBLE_ITEMS - 1)
 	_refresh_body()
 	_refresh_verb_chips()

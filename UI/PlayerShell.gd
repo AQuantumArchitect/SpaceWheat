@@ -466,6 +466,13 @@ func _ready() -> void:
 	overlay_stack = OverlayStackManager.new()
 	add_child(overlay_stack)
 	_verbose.info("ui", "✅", "OverlayStackManager created")
+	# Surfing menus with E leaves the sim paused long after the overlay is
+	# gone — the sweep runner burned ~25 presses on physics gates that
+	# couldn't tick. When the last overlay closes onto a paused field, say
+	# so once (the pause-time hint expired minutes ago).
+	overlay_stack.overlay_popped.connect(func(_ov):
+		if paused and overlay_stack.is_empty():
+			show_hint("⏸ time paused — F plays on", 2))
 
 	# Push the play sentinel as the permanent bottom of the stack. Makes
 	# gameplay a navigable surface-ring position. Never popped; never
