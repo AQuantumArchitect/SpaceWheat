@@ -46,8 +46,19 @@ func _ready() -> void:
 		_reload_all()
 
 
+## Emoji keys ignore U+FE0F (the emoji variation selector): the data ships 5
+## emoji in BOTH spellings (⚙ ❄ 🏚 🏛 🏜), and raw string keys split them into
+## different addresses — find_icon_by_pair("❄","🔥") missed Hearth (🔥/❄️) and
+## the microscope described a different word than the plot held. 360 pole
+## records, zero collisions under this normalization (audited 2026-07-15).
+## Lookup-layer only: physics addressing and the JSON data are untouched —
+## normalizing the DATA would switch on silently-dead couplings (ledgered).
+static func norm_emoji(e: String) -> String:
+	return e.replace("️", "")
+
+
 static func _pair_key(p0: String, p1: String) -> String:
-	return "%s|%s" % [p0, p1]
+	return "%s|%s" % [norm_emoji(p0), norm_emoji(p1)]
 
 
 func _reload_all() -> void:
@@ -277,9 +288,10 @@ func _register(record: Dictionary) -> void:
 func find_icon_by_emoji(emoji: String) -> Dictionary:
 	if emoji == "":
 		return {}
+	var e := norm_emoji(emoji)
 	for key in _by_pair:
 		var rec = _by_pair[key]
-		if str(rec.get("pole_0", "")) == emoji or str(rec.get("pole_1", "")) == emoji:
+		if norm_emoji(str(rec.get("pole_0", ""))) == e or norm_emoji(str(rec.get("pole_1", ""))) == e:
 			return rec
 	return {}
 

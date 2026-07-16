@@ -17,7 +17,7 @@ extends RefCounted
 ##   axis_label       String              — "label_0 ↔ label_1" when axial
 ##   faction_speakers Array[String]       — factions with this emoji in their signature
 ##   affinity         float               — [0,1] from FactionAffinity.get_affinity
-##   player_known     bool                — does farm.known_icons contain this emoji?
+##   player_known     bool                — does farm.known_icons hold this AXIS PAIR (emoji + complement)?
 ##   biomes_present   Array[String]       — biomes whose .icons map contains this emoji
 ##   atom_summary     Dictionary          — {self_energy, decay_rate, top_couplings}
 
@@ -42,7 +42,11 @@ static func _coupling_magnitude(v) -> float:
 	return 0.0
 
 
-static func gather(emoji: String, farm) -> Dictionary:
+## complement_hint: the other pole of the axis the CALLER is describing (e.g. the
+## selected plot's south). With duplicate emojis (c21b5943) an emoji-only lookup
+## returns the registry's first icon containing the emoji, which may be a
+## different word than the plot holds — the hint resolves the exact pair.
+static func gather(emoji: String, farm, complement_hint: String = "") -> Dictionary:
 	var out: Dictionary = {
 		"emoji": emoji,
 		"present": false,
@@ -64,7 +68,11 @@ static func gather(emoji: String, farm) -> Dictionary:
 	var icon_registry = (Engine.get_main_loop().root.get_node_or_null("/root/IconRegistry") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 	if icon_registry == null:
 		return out
-	var icon_record: Dictionary = icon_registry.find_icon_by_emoji(emoji)
+	var icon_record: Dictionary = {}
+	if complement_hint != "":
+		icon_record = icon_registry.find_icon_by_pair(emoji, complement_hint)
+	if icon_record.is_empty():
+		icon_record = icon_registry.find_icon_by_emoji(emoji)
 	if icon_record.is_empty():
 		return out
 	out["present"] = true
@@ -111,12 +119,21 @@ static func gather(emoji: String, farm) -> Dictionary:
 		out["faction_speakers"] = names
 	out["affinity"] = FactionAffinity.get_affinity(emoji, farm)
 
-	# Player ownership.
+	# Player ownership — the WORD is the axis pair, not the pole. Duplicate
+	# emojis (c21b5943) made single-emoji matching a lie: a 🪓/🔥 plot read
+	# "known ✓" off 🪵/🪓 + 🔥/❄, hiding the incorporation road (hub leg L4b).
+	# Comparisons go through the registry's emoji normalization: the data mixes
+	# "❄️"/"❄" spellings, and a raw match showed a KNOWN word as unknown.
+	var comp: String = icon_registry.norm_emoji(str(out.get("complement", "")))
+	var e_norm: String = icon_registry.norm_emoji(emoji)
 	if "known_icons" in farm and farm.known_icons is Array:
 		for p in farm.known_icons:
-			if p is Dictionary and (str(p.get("north", "")) == emoji or str(p.get("south", "")) == emoji):
-				out["player_known"] = true
-				break
+			if p is Dictionary:
+				var kn: String = icon_registry.norm_emoji(str(p.get("north", "")))
+				var ks: String = icon_registry.norm_emoji(str(p.get("south", "")))
+				if (kn == e_norm and ks == comp) or (ks == e_norm and kn == comp):
+					out["player_known"] = true
+					break
 
 	# Biomes containing this emoji.
 	if farm.grid != null and farm.grid.has_method("get_all_biomes"):

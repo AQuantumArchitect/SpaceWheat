@@ -481,7 +481,7 @@ func _build_affinity_body() -> void:
 		var north: String = str(icon.get("north", ""))
 		if north == "":
 			continue
-		var card: Dictionary = IconCard.gather(north, farm)
+		var card: Dictionary = IconCard.gather(north, farm, str(icon.get("south", "")))
 		rows.append({
 			"north": north,
 			"south": str(icon.get("south", "")),
@@ -1013,7 +1013,7 @@ func _build_known_card_content(vbox: VBoxContainer, item: Dictionary) -> void:
 	vbox.add_child(south_label)
 
 	var farm = InstrumentLocator.resolve_active_farm(self)
-	var card_data: Dictionary = IconCard.gather(String(item.north), farm)
+	var card_data: Dictionary = IconCard.gather(String(item.north), farm, String(item.south))
 
 	var affinity_val: float = float(card_data.get("affinity", 0.0))
 	vbox.add_child(_build_affinity_ribbon(affinity_val))

@@ -323,8 +323,10 @@ func _build_active_plot_view() -> void:
 	# Marginals bar — visual N/S split.
 	_content_box.add_child(_make_marginals_strip(p_north, p_south, north, south))
 
-	# IconCard for the current emoji.
-	var card_dict: Dictionary = IconCard.gather(current_emoji, farm)
+	# IconCard for the current emoji — pass the plot's other pole so the card
+	# describes THIS plot's word, not the registry's first icon holding the emoji.
+	var current_complement: String = south if current_emoji == north else north
+	var card_dict: Dictionary = IconCard.gather(current_emoji, farm, current_complement)
 	if bool(card_dict.get("present", false)):
 		_render_icon_card(card_dict)
 
