@@ -261,7 +261,27 @@ def cmd_bank(seat: str, name: str) -> dict:
     if wg.get("ok", False) and isinstance(wg.get("gauge"), dict):
         (CHECKPOINT_DIR / ("%s.witness_gauge.json" % name)).write_text(
             json.dumps(wg["gauge"], ensure_ascii=False, indent=1, sort_keys=True))
+    _semantica_post_bank(name, seat, flags)
     return {"ok": True, "banked": name, "flags": len(flags)}
+
+
+def _semantica_post_bank(run_id: str, seat: str, flags: dict) -> None:
+    """Opt-in hearth adapter (SEMANTICA_POST=1): a bank IS a leg completing —
+    the save just landed and flags_fired is the real (not hand-claimed)
+    referee evidence for it. Posts work_referee at the referee eta-tier
+    (0.92, eta_tiers.sh) into hive-ops. Default off; never blocks/fails the
+    bank on a dark hearth."""
+    if os.environ.get("SEMANTICA_POST") != "1":
+        return
+    sys.path.insert(0, str(RUNNER.parent / "🧪"))
+    try:
+        from semantica_post import post, HearthDark
+        n = post("work_referee", 0.92, {"run_id": run_id, "seat": seat,
+                                         "flags": sorted(flags.keys())},
+                  world="hive-ops")
+        print(f"[semantica] work_referee appended={n} run_id={run_id}", file=sys.stderr)
+    except Exception as exc:  # HearthDark or import failure — never break banking
+        print(f"[semantica] hearth dark, bank NOT posted: {exc}", file=sys.stderr)
 
 
 def cmd_forecast(seat: str, horizon_s: float) -> dict:
