@@ -1,0 +1,52 @@
+[
+  {
+    "name": "Activity",
+    "pole_0": "🔥",
+    "pole_1": "💤",
+    "self_energy_0": 0.0,
+    "self_energy_1": 0.0,
+    "rabi_coupling": 0.69,
+    "hamiltonian_couplings": {},
+    "energy_couplings": {}
+  },
+  {
+    "name": "Confidence",
+    "pole_0": "✅",
+    "pole_1": "🔮",
+    "self_energy_0": 0.0,
+    "self_energy_1": 0.0,
+    "rabi_coupling": 0.69,
+    "hamiltonian_couplings": {},
+    "energy_couplings": {}
+  },
+  {
+    "name": "Blocked",
+    "pole_0": "🟢",
+    "pole_1": "🚧",
+    "self_energy_0": 0.0,
+    "self_energy_1": 0.0,
+    "rabi_coupling": 0.69,
+    "hamiltonian_couplings": {},
+    "energy_couplings": {}
+  },
+  {
+    "name": "Freshness",
+    "pole_0": "✨",
+    "pole_1": "🍂",
+    "self_energy_0": 0.0,
+    "self_energy_1": 0.0,
+    "rabi_coupling": 0.69,
+    "hamiltonian_couplings": {},
+    "energy_couplings": {}
+  },
+  {
+    "name": "Coordination",
+    "pole_0": "🤝",
+    "pole_1": "🏃",
+    "self_energy_0": 0.0,
+    "self_energy_1": 0.0,
+    "rabi_coupling": 0.69,
+    "hamiltonian_couplings": {},
+    "energy_couplings": {}
+  }
+]

@@ -23,6 +23,11 @@ const JSON_FACTIONS = "res://Core/Factions/data/factions.json"
 const JSON_BIOMES = "res://Core/Biomes/data/biomes.json"
 const JSON_ICONS = "res://Core/Factions/data/icons.json"
 
+## Semantica explorer (W3b): compiled *.icons.json files under this dir, merged
+## ADDITIVELY on top of canon when RuntimeEnv.semantica_explorer() is true. Never
+## touches icons.json (crafted-artifact law) — see 🍄/🧪/semantica_compiler.py.
+const SEMANTICA_DIR = "res://Core/Config/semantica"
+
 var _by_pair: Dictionary = {}
 var _by_name: Dictionary = {}
 var _by_faction: Dictionary = {}
@@ -74,6 +79,10 @@ func _reload_all() -> void:
 	_load_axial_icons()
 	_world_built_count = _by_pair.size()
 	_load_icon_physics()
+	# Semantica explorer: additive pass, OFF by default (boot-neutral). A player
+	# never sets SEMANTICA_EXPLORER, so this branch is dead weight for them.
+	if RuntimeEnv.semantica_explorer():
+		_load_semantica_icon_physics()
 	_rebuild_atom_cache()
 	_loaded = true
 
@@ -170,9 +179,30 @@ func _load_axial_icons() -> void:
 
 
 func _load_icon_physics() -> void:
-	# Merge authored pair physics from icons.json. Missing pair records are
-	# created here so physics-only entries can still exist in the atlas.
-	var physics_data = _read_json(JSON_ICONS)
+	_merge_icon_physics_from(JSON_ICONS)
+
+
+## Semantica explorer: additively merge every compiled *.icons.json under
+## Core/Config/semantica/ (produced by 🍄/🧪/semantica_compiler.py). Same record
+## shape as icons.json, so the same merge path applies unchanged.
+func _load_semantica_icon_physics() -> void:
+	var dir := DirAccess.open(SEMANTICA_DIR)
+	if dir == null:
+		return
+	dir.list_dir_begin()
+	var fname := dir.get_next()
+	while fname != "":
+		if not dir.current_is_dir() and fname.ends_with(".icons.json"):
+			_merge_icon_physics_from(SEMANTICA_DIR.path_join(fname))
+		fname = dir.get_next()
+	dir.list_dir_end()
+
+
+## Merge authored pair physics from a single icons.json-shaped file. Missing
+## pair records are created here so physics-only entries can still exist in
+## the atlas. Shared by the canonical load and the semantica additive pass.
+func _merge_icon_physics_from(path: String) -> void:
+	var physics_data = _read_json(path)
 	if not physics_data is Array:
 		return
 	var physics_fields := [

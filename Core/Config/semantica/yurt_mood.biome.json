@@ -1,0 +1,102 @@
+[
+  {
+    "name": "YurtMood",
+    "description": "yurt-mood — the yurt's felt space: a live belief field whose state IS the project mood of the whole camp (Ring 4/5).",
+    "image_path": "",
+    "music_path": "",
+    "discovered": true,
+    "discoverable": false,
+    "plot_layout": [
+      {
+        "x": 0.15,
+        "y": 0.65
+      },
+      {
+        "x": 0.2667,
+        "y": 0.65
+      },
+      {
+        "x": 0.3833,
+        "y": 0.65
+      },
+      {
+        "x": 0.5,
+        "y": 0.65
+      },
+      {
+        "x": 0.6167,
+        "y": 0.65
+      },
+      {
+        "x": 0.7333,
+        "y": 0.65
+      },
+      {
+        "x": 0.85,
+        "y": 0.65
+      }
+    ],
+    "emojis": [
+      "🛖",
+      "🧠",
+      "🥔",
+      "🦅",
+      "🪢",
+      "🌾",
+      "🍺",
+      "🧬",
+      "🔥",
+      "💤",
+      "✅",
+      "🔮",
+      "🟢",
+      "🚧",
+      "✨",
+      "🍂",
+      "🤝",
+      "🏃"
+    ],
+    "tags": [
+      "semantica",
+      "explorer",
+      "compiled"
+    ],
+    "atom_components": {
+      "🧠": {
+        "lindblad_outgoing": {
+          "🛖": 0.05175
+        }
+      },
+      "🥔": {
+        "lindblad_outgoing": {
+          "🛖": 0.05175
+        }
+      },
+      "🦅": {
+        "lindblad_outgoing": {
+          "🛖": 0.05175
+        }
+      },
+      "🪢": {
+        "lindblad_outgoing": {
+          "🛖": 0.05175
+        }
+      },
+      "🌾": {
+        "lindblad_outgoing": {
+          "🛖": 0.05175
+        }
+      },
+      "🍺": {
+        "lindblad_outgoing": {
+          "🛖": 0.05175
+        }
+      },
+      "🧬": {
+        "lindblad_outgoing": {
+          "🛖": 0.05175
+        }
+      }
+    }
+  }
+]

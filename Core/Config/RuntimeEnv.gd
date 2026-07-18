@@ -156,6 +156,18 @@ static func skip_operator_rebuild() -> bool:
 	return flag("SW_SKIP_OPERATOR_REBUILD", false)
 
 # ============================================================================
+# Semantica explorer (W3b, one-way compiler seam). OFF by default — a normal
+# player boot never sees this. When on, BiomeRegistry/IconRegistry additively
+# load every *.biome.json / *.icons.json under Core/Config/semantica/ (compiled
+# by 🍄/🧪/semantica_compiler.py from an umwelt world spec) ON TOP OF canon,
+# after the canonical biomes.json/icons.json. Canon files are never edited —
+# "crafted artifacts" law — this is a second, additive load pass.
+# ============================================================================
+
+static func semantica_explorer() -> bool:
+	return flag("SEMANTICA_EXPLORER", false)
+
+# ============================================================================
 # The full mode-matrix — for logging at boot and for a rig-vs-player diff/test.
 # ============================================================================
 
@@ -176,4 +188,5 @@ static func describe() -> Dictionary:
 		"bubble_quality_override": bubble_quality_override(),
 		"force_operator_rebuild": force_operator_rebuild(),
 		"skip_operator_rebuild": skip_operator_rebuild(),
+		"semantica_explorer": semantica_explorer(),
 	}

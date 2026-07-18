@@ -15,6 +15,11 @@ extends RefCounted
 
 const JSON_PATH = "res://Core/Biomes/data/biomes.json"
 
+## Semantica explorer (W3b): compiled *.biome.json files under this dir, loaded
+## ADDITIVELY on top of canon when RuntimeEnv.semantica_explorer() is true. Never
+## touches biomes.json (crafted-artifact law) — see 🍄/🧪/semantica_compiler.py.
+const SEMANTICA_DIR = "res://Core/Config/semantica"
+
 # Process-wide shared instance. Engine code should access via `get_shared()`.
 static var _shared = null
 
@@ -60,10 +65,32 @@ func load_biomes() -> bool:
 	if not _load_biomes_from(JSON_PATH, true):
 		return false
 
+	# Semantica explorer: additive pass, OFF by default (boot-neutral). A player
+	# never sets SEMANTICA_EXPLORER, so this branch is dead weight for them.
+	if RuntimeEnv.semantica_explorer():
+		_load_semantica_biomes()
+
 	_build_indexes()
 	_loaded = true
 
 	return true
+
+
+## Load every compiled *.biome.json under Core/Config/semantica/ (additive,
+## non-canonical). Each file holds a one-element array in the same shape as a
+## biomes.json record (see semantica_compiler.py). Missing dir is not an error
+## (nothing compiled yet) — this is opt-in exploration data, not a required asset.
+func _load_semantica_biomes() -> void:
+	var dir := DirAccess.open(SEMANTICA_DIR)
+	if dir == null:
+		return
+	dir.list_dir_begin()
+	var fname := dir.get_next()
+	while fname != "":
+		if not dir.current_is_dir() and fname.ends_with(".biome.json"):
+			_load_biomes_from(SEMANTICA_DIR.path_join(fname), false)
+		fname = dir.get_next()
+	dir.list_dir_end()
 
 
 ## Load biomes from a single JSON file. If `required` is false, missing file

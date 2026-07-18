@@ -1,0 +1,33 @@
+Godot Engine v4.5.stable.official.876b29033 - https://godotengine.org
+
+
+=== Semantica explorer load proof ===
+SEMANTICA_EXPLORER=1
+  PASS  YurtMood biome loads when SEMANTICA_EXPLORER=1
+  PASS  YurtMood is discovered (browsable, no unlock gate)
+  PASS  YurtMood carries organ + axis emojis (>=8, got 18)
+  PASS  YurtMood has 7 plots, one per organ (got 7)
+  PASS  YurtMood carries sparse L (atom_components non-empty)
+
+--- simulated `look`: organ plots ---
+  plot 0 [🧠]  wargen_head  x=0.15
+  plot 1 [🥔]  potato_seat  x=0.27
+  plot 2 [🦅]  roc_muscle  x=0.38
+  plot 3 [🪢]  succession  x=0.50
+  plot 4 [🌾]  lane_spacewheat  x=0.62
+  plot 5 [🍺]  lane_bar  x=0.73
+  plot 6 [🧬]  lane_semantica  x=0.85
+  biome emojis: ["🛖", "🧠", "🥔", "🦅", "🪢", "🌾", "🍺", "🧬", "🔥", "💤", "✅", "🔮", "🟢", "🚧", "✨", "🍂", "🤝", "🏃"]
+
+--- simulated `look`: axis icons (H physics) ---
+  Activity  🔥/💤  rabi_coupling=0.690
+  Confidence  ✅/🔮  rabi_coupling=0.690
+  Blocked  🟢/🚧  rabi_coupling=0.690
+  Freshness  ✨/🍂  rabi_coupling=0.690
+  Coordination  🤝/🏃  rabi_coupling=0.690
+  PASS  every compiled axis icon carries rabi_coupling > 0
+
+Result: 6 passed, 0 failed
+[INFO][BOOT] 🔧 BootManager autoload ready
+[INFO][SAVE] 💾 GameStateManager ready - Save dir: user://saves/
+[INFO][QUANTUM] matrix ComplexMatrix native acceleration enabled (Eigen)
