@@ -8,6 +8,7 @@
       "biome": "TheDemos",
       "body": "The Demos sleeps — wheat and people, waiting. Explore a plot, strike its qubit to collapse it, then extract what the collapse leaves behind.",
       "tutorial_hint": "Ace is your starting hat (8). Pick a plot with G H J K L ; — or just tap it. F explores it (an expedition costs 🍞), R strikes (a social encounter costs 👥), Q extracts the yield — free. E pauses to look; F plays on.",
+      "math_note": "Fires the instant your action history records 1 measure gate (a single R-strike) — a structural count, not a soft gate.",
       "state_predicates": [
         {"type": "gate_sequence_contains", "gate": "measure", "count": 1}
       ]
@@ -19,6 +20,7 @@
       "biome": "StarterForest",
       "body": "A qubit that walks a closed loop remembers the sky it swept. Ripeness is that memory — and a ripe pair can teach you a new word: an icon. Your vocabulary is your power here.",
       "tutorial_hint": "Icon hat (5): press F on a live plot to track its walk (⌖). When the loop has swept enough sky it ripens — press R to incorporate the word into your signature. Completing contracts teaches words too.",
+      "math_note": "Fires when your signature (farm.known_icons) reaches 3 icons — a count gate, so 3 means exactly 3, no soft-gate overshoot.",
       "state_predicates": [
         {"type": "signature_size_gte", "value": 3}
       ]
@@ -30,6 +32,7 @@
       "biome": "TheDemos",
       "body": "Time is the pump. Reap the season — let the Hamiltonian work, and gather the yield across the whole biome.",
       "tutorial_hint": "Ace hat (8): hold Shift and press F to reap the season. Time runs forward, every plot settles, and the harvest lands at once.",
+      "math_note": "Fires the instant your action history records 1 reap gate (a single Shift+F) — a structural count, not a soft gate.",
       "state_predicates": [
         {"type": "gate_sequence_contains", "gate": "reap", "count": 1}
       ]
@@ -41,6 +44,7 @@
       "biome": "StarterForest",
       "body": "A qubit need not pick a side. Superpose it — spread it across both poles — and the forest shimmers between states.",
       "tutorial_hint": "Druid hat (0): press E to lay a Hadamard on the selected plot. Raise the biome's coherence past ~0.3 — watch the bar fill as the shimmer spreads.",
+      "math_note": "Soft gate on StarterForest coherence, center 0.3, width 0.05 (default) — the bar crosses fire-ready (score ≥ 0.85) at coherence ≈ 0.34, a hair past the stated 0.3.",
       "state_predicates": [
         {"type": "coherence_at_least", "value": 0.3}
       ]
@@ -52,6 +56,7 @@
       "biome": "StarterForest",
       "body": "A qubit alone is a wheel. Two qubits woven together are a loom — touch one and the other answers, however far apart they drift.",
       "tutorial_hint": "Operator hat (9): hold Shift and tap two plot keys (G H J K L ;) to check the pair, then press R and weave a Bell (Q). Watch the gold thread between their bubbles — each weave pulls them closer. The bar fills as you weave.",
+      "math_note": "Fires the instant your action history records 1 bell gate (a single Bell weave) — a structural count, not a soft gate.",
       "state_predicates": [
         {"type": "gate_sequence_contains", "gate": "bell", "count": 1}
       ]
@@ -65,7 +70,8 @@
       "resource": "🌾",
       "quantity": 2,
       "body": "The Millwright's Union is buying. Accept their contract and deliver 2× 🌾 from your stores.",
-      "tutorial_hint": "Open the quest board (C) and press E on an offer first — every faction will tell you how this biome sits with its axioms (its resonance), which axiom sings, and which grates. Then accept the contract and complete it when you hold enough 🌾."
+      "tutorial_hint": "Open the quest board (C) and press E on an offer first — every faction will tell you how this biome sits with its axioms (its resonance), which axiom sings, and which grates. Then accept the contract and complete it when you hold enough 🌾.",
+      "math_note": "A DELIVERY quest, not a soft gate — fires the instant your 🌾 stores hold quantity ≥ 2 and you complete the contract."
     },
     {
       "tutorial_step": 6,
@@ -74,6 +80,7 @@
       "biome": "Village",
       "body": "You are The Demos. Plant your vocabulary in the Village and harvest its people — because you KNOW them, every harvest pays more than it costs. This is how the spiral breaks.",
       "tutorial_hint": "Grow your signature to 4+. Harvesting icons you KNOW (like 👥 in the Village) yields up to ×4 — net positive forever.",
+      "math_note": "Fires when your signature (farm.known_icons) reaches 4 icons — a count gate, so 4 means exactly 4, no soft-gate overshoot.",
       "state_predicates": [
         {"type": "signature_size_gte", "value": 4}
       ],
@@ -85,7 +92,8 @@
             "faction": "Hearth Keepers",
             "biome": "StarterForest",
             "body": "The Hearth Keepers trust you. The forest's deeper rhythms open — walk the Druid's Loop and let the canopy speak.",
-            "tutorial_hint": "Your path leans to the forest. Build coherence and berry-phase with the Hearth Keepers."
+            "tutorial_hint": "Your path leans to the forest. Build coherence and berry-phase with the Hearth Keepers.",
+            "math_note": "Branch picked when Hearth Keepers trust ≥ 0.15 scores higher than the Millwright branch (each a soft gate, width 0.05, scoring exactly 0.5 at trust = 0.15); the higher-scoring branch wins, and it must clear 0.5 to fire at all."
           }
         },
         {
@@ -95,7 +103,8 @@
             "faction": "Millwright's Union",
             "biome": "Village",
             "body": "The Millwright's Union counts you an ally. The mill wants to run — feed it lumber and watch ⚙ rise.",
-            "tutorial_hint": "Your path leans to the mill. Drive the Village's ⚙ attractor with the Millwright's Union."
+            "tutorial_hint": "Your path leans to the mill. Drive the Village's ⚙ attractor with the Millwright's Union.",
+            "math_note": "Branch picked when Millwright's Union trust ≥ 0.15 scores higher than the Hearth Keepers branch (each a soft gate, width 0.05, scoring exactly 0.5 at trust = 0.15); the higher-scoring branch wins, and it must clear 0.5 to fire at all."
           }
         }
       ]

@@ -21,7 +21,8 @@
           "value": 0.5,
           "width": 0.4
         }
-      ]
+      ],
+      "math_note": "Soft gate on signature growth past the run's seeded baseline, center 0.5, width 0.4 — fires (score ≥ 0.85) once growth passes ≈0.85 icons, i.e. after 1 real incorporation."
     }
   },
   {
@@ -58,7 +59,8 @@
           "biome": "StarterForest",
           "value": 1
         }
-      ]
+      ],
+      "math_note": "Two threads (smooth_and, geometric mean): StarterForest must be loaded (structural 1/0) AND hold berry_consumed_count ≥ 1 (count gate — fires exactly at 1 consumed berry)."
     }
   },
   {
@@ -91,7 +93,8 @@
           "biome": "StarterForest",
           "value": 3
         }
-      ]
+      ],
+      "math_note": "Count gate on StarterForest berry_consumed_count ≥ 3 — fires exactly at 3, not sooner."
     }
   },
   {
@@ -135,7 +138,8 @@
           "biome": "StarterForest",
           "value": 12.566
         }
-      ]
+      ],
+      "math_note": "Two thresholds must both clear (smooth_and): berry_consumed_count ≥ 5 in StarterForest (count gate, exact at 5) AND berry_total_phase ≥ 12.566 rad = 2 hemispheres (soft gate, width 0.1, fires ≈12.65)."
     }
   },
   {
@@ -168,7 +172,8 @@
           "biome": "StarterForest",
           "value": 18.85
         }
-      ]
+      ],
+      "math_note": "Soft gate on StarterForest berry_total_phase, center 18.85 rad = 3 hemispheres, width 0.1 — fires at phase ≈18.94."
     }
   },
   {
@@ -212,7 +217,8 @@
       "reward_north": "💨",
       "reward_south": "🔨",
       "reward_icon_north": "💨",
-      "reward_icon_south": "🔨"
+      "reward_icon_south": "🔨",
+      "math_note": "Count gate on Village berry_consumed_count ≥ 3 — fires exactly at 3 consumed berries in the Village register."
     }
   },
   {
@@ -241,7 +247,8 @@
           "value": 0.5,
           "width": 0.4
         }
-      ]
+      ],
+      "math_note": "Soft gate on signature growth past the run's seeded baseline, center 0.5, width 0.4 — fires once growth passes ≈0.85 icons, i.e. after 1 more incorporation this run."
     }
   },
   {
@@ -270,7 +277,8 @@
           "type": "biome_evolving",
           "biome": "Woodlot"
         }
-      ]
+      ],
+      "math_note": "Structural predicate: fires the instant the Woodlot biome is loaded and has a live QuantumComputer (1.0), no soft gate."
     }
   },
   {
@@ -313,7 +321,8 @@
           "value": 0.05,
           "width": 0.01
         }
-      ]
+      ],
+      "math_note": "Soft gate on Millwright's Union access standing, center 0.05, width 0.01 — fires at access ≈0.059 (a hair past 0.05)."
     }
   },
   {
@@ -355,7 +364,8 @@
       "reward_north": "🪵",
       "reward_south": "🪓",
       "reward_icon_north": "🪵",
-      "reward_icon_south": "🪓"
+      "reward_icon_south": "🪓",
+      "math_note": "Count gate on Village berry_consumed_count ≥ 4 — fires exactly at 4 consumed berries."
     }
   },
   {
@@ -391,7 +401,8 @@
           "biome": "Village",
           "atom": "🪵"
         }
-      ]
+      ],
+      "math_note": "Structural predicate: fires the instant 🪵 appears as a register in the Village biome (1.0), no soft gate."
     }
   },
   {
@@ -432,7 +443,8 @@
       "reward_north": "🏭",
       "reward_south": "⚙",
       "reward_icon_north": "🏭",
-      "reward_icon_south": "⚙"
+      "reward_icon_south": "⚙",
+      "math_note": "Count gate on Woodlot berry_consumed_count ≥ 4 — fires exactly at 4 consumed berries."
     }
   },
   {
@@ -460,7 +472,8 @@
           "type": "biome_evolving",
           "biome": "FreshwaterSpring"
         }
-      ]
+      ],
+      "math_note": "Structural predicate: fires the instant the FreshwaterSpring biome is loaded and has a live QuantumComputer (1.0), no soft gate."
     }
   },
   {
@@ -502,7 +515,8 @@
           "value": 0.42,
           "width": 0.02
         }
-      ]
+      ],
+      "math_note": "Soft gate on Hearth Keepers trust standing, center 0.42, width 0.02 — fires at trust ≈0.437."
     }
   },
   {
@@ -544,7 +558,8 @@
       "reward_north": "💧",
       "reward_south": "🌊",
       "reward_icon_north": "💧",
-      "reward_icon_south": "🌊"
+      "reward_icon_south": "🌊",
+      "math_note": "Count gate on StarterForest berry_consumed_count ≥ 8 — fires exactly at 8 consumed berries."
     }
   },
   {
@@ -580,7 +595,8 @@
           "biome": "Village",
           "atom": "💧"
         }
-      ]
+      ],
+      "math_note": "Structural predicate: fires the instant 💧 appears as a register in the Village biome (1.0), no soft gate."
     }
   },
   {
@@ -617,7 +633,8 @@
           "type": "dynamics_at_most",
           "value": 0.2
         }
-      ]
+      ],
+      "math_note": "Two thresholds must both clear (smooth_and): FreshwaterSpring compass gap E₁−E₀ ≥ 0.35 (soft gate, width 0.02, fires ≈0.367) AND dynamics ≤ 0.2 (soft gate, width 0.08, fires once motion drops to ≈0.131)."
     }
   },
   {
@@ -644,7 +661,8 @@
           "type": "dynamics_at_least",
           "value": 0.25
         }
-      ]
+      ],
+      "math_note": "Two thresholds must both clear (smooth_and): coherence ≥ 0.35 (soft gate, width 0.05, fires ≈0.393) AND dynamics ≥ 0.25 (soft gate, width 0.08, fires ≈0.319)."
     }
   },
   {
@@ -693,7 +711,7 @@
     "arc_quest": {
       "type": "MAINTAIN_COHERENCE",
       "body": "Hold Commerce — keep the mill turning: push ⚙ past 8% and hold the mill attractor above 40%.",
-      "hint": "Two attractors. You found the second one. Now make it the deeper one. The mill only turns if its words are seated: Icon hat (5), R on an empty Village plot plants the windmill (\ud83d\udca8/\ud83d\udd28) you were taught — and the gear-bench word deepens the pull. Then work the Village until the gears hold.",
+      "hint": "Two attractors. You found the second one. Now make it the deeper one. The mill only turns if its words are seated: Icon hat (5), R on an empty Village plot plants the windmill (💨/🔨) you were taught — and the gear-bench word deepens the pull. Then work the Village until the gears hold.",
       "state_predicates": [
         {
           "type": "biome_state_gte",
