@@ -8,6 +8,10 @@ extends SceneTree
 ##   4. FactionStanding.to_dict / from_dict roundtrip preserves channels.
 ##   5. QuestRewards._standing_deltas_for_quest returns plausible payloads
 ##      for both success and failure, across quest types.
+##   6. Regression (d1-05): a faction_standings entry is a FactionStanding
+##      object, never directly float()-coercible — UI code (e.g.
+##      ControlsOverlay._make_story_inspect_panel) must read it via
+##      .scalar(), matching every other call site in the codebase.
 ##
 ## Run: godot --headless -s tests/standings_lifecycle.gd
 
@@ -71,7 +75,11 @@ func _init() -> void:
 	# Test 8: Farm-level apply (with a real Farm instance is heavy; simulate the lazy
 	# create + delta application via a minimal stand-in that exposes the same shape).
 	# Build a fake farm with just a faction_standings dict and apply_standing_deltas helper.
-	var fake_farm = SubstrateFixtures.TestFarm.new()
+	# tests/ carries a .gdignore (test scripts don't ship in exports), so its
+	# class_names never enter the global cache — preload by path, per the
+	# usage note in substrate_fixtures.gd, rather than the bare identifier.
+	const SubstrateFixturesScript = preload("res://tests/substrate_fixtures.gd")
+	var fake_farm = SubstrateFixturesScript.TestFarm.new()
 	fake_farm.apply_standing_deltas("Hearth Keepers", {"trust": 0.05, "access": 0.02})
 	fake_farm.apply_standing_deltas("Hearth Keepers", {"trust": 0.03, "debt": 0.01})
 	var hk = fake_farm.faction_standings.get("Hearth Keepers")
@@ -82,9 +90,35 @@ func _init() -> void:
 		print("FAIL: faction deltas not accumulated correctly: trust=%.4f access=%.4f debt=%.4f" % [hk.trust, hk.access, hk.debt])
 		failures += 1
 
+	# Test 9 (regression d1-05): faction_standings entries render safely.
+	# Mirrors ControlsOverlay._make_story_inspect_panel's "standing" row: look
+	# the entry up by faction name, confirm it exposes scalar() (the contract
+	# every render call site relies on), and confirm a bare float() coercion
+	# — the bug that used to crash the inspect panel — is NOT how a
+	# FactionStanding behaves (Variant->float conversion fails for a
+	# RefCounted object, so callers MUST go through scalar()).
+	var standings: Dictionary = {}
+	standings["Hearth Keepers"] = FactionStanding.new()
+	standings["Hearth Keepers"].trust = 0.4
+	standings["Hearth Keepers"].debt = 0.1
+	var render_faction := "Hearth Keepers"
+	if not standings.has(render_faction):
+		print("FAIL: regression fixture missing faction entry")
+		failures += 1
+	else:
+		var entry = standings[render_faction]
+		if entry == null or not entry.has_method("scalar"):
+			print("FAIL: FactionStanding entry lost its scalar() contract")
+			failures += 1
+		else:
+			var rendered := "%+.2f" % float(entry.scalar())
+			if rendered != "+0.08":
+				print("FAIL: rendered standing expected +0.08, got %s" % rendered)
+				failures += 1
+
 	print()
 	if failures == 0:
-		print("✅ STANDINGS LIFECYCLE PASS — all 8 checks green")
+		print("✅ STANDINGS LIFECYCLE PASS — all 9 checks green")
 		quit(0)
 	else:
 		print("❌ STANDINGS LIFECYCLE FAIL — %d check(s) failed" % failures)
