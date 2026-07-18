@@ -116,12 +116,57 @@ func _init() -> void:
 				print("FAIL: rendered standing expected +0.08, got %s" % rendered)
 				failures += 1
 
+	# Test 10 (d1-04 wave-2): the standings sig column reads the SIGNATURE
+	# (the faction's set of icons), never the cloud (its set of atoms) — the
+	# locked vocabulary (signature.md). Millwright's Union is the shipped
+	# divergence fixture: a 4-icon signature including Lumber 🪓/🪵 whose
+	# poles are NOT in its 6-atom cloud. Cloud-counting reads 0 forever for
+	# that taught icon; signature-counting moves 0→1 when the player
+	# incorporates it. Mirrors ControlsOverlay._render_faction_standings_grid:
+	# get_icons_for_faction × discovered_set_from_icons(farm.known_icons).
+	var lex = preload("res://Core/Factions/IconRegistry.gd").new()
+	var freg = preload("res://Core/Factions/FactionRegistry.gd").new()
+	var mill = freg.get_by_name("Millwright's Union")
+	var mill_sig: Array = lex.get_icons_for_faction("Millwright's Union")
+	if mill_sig.size() != 4:
+		print("FAIL: Millwright signature expected 4 icons, got %d" % mill_sig.size())
+		failures += 1
+	if mill == null or mill.cloud.size() != 6 or mill.cloud.has("🪓") or mill.cloud.has("🪵"):
+		print("FAIL: Millwright divergence fixture drifted (cloud should be 6 atoms without 🪓/🪵)")
+		failures += 1
+	if _sig_known(lex, "Millwright's Union", []) != 0:
+		print("FAIL: sig_known should be 0 with nothing incorporated")
+		failures += 1
+	if _sig_known(lex, "Millwright's Union", [{"north": "🪓", "south": "🪵"}]) != 1:
+		print("FAIL: incorporating Lumber 🪓/🪵 must move Millwright sig_known 0→1")
+		failures += 1
+	# Carrion Throne counter-example: its cloud holds 👥, so cloud-counting
+	# read 1/8 at boot off the starting 🌾/👥 icon's emojis. Its signature
+	# holds no 🌾/👥 icon — signature-counting must read 0.
+	if _sig_known(lex, "Carrion Throne", [{"north": "🌾", "south": "👥"}]) != 0:
+		print("FAIL: Carrion Throne sig_known must be 0 at boot (👥 in cloud is not an incorporated icon)")
+		failures += 1
+
 	print()
 	if failures == 0:
-		print("✅ STANDINGS LIFECYCLE PASS — all 9 checks green")
+		print("✅ STANDINGS LIFECYCLE PASS — all 10 checks green")
 		quit(0)
 	else:
 		print("❌ STANDINGS LIFECYCLE FAIL — %d check(s) failed" % failures)
 		quit(1)
+
+
+## sig_known exactly as the standings grid computes it: count of the faction's
+## signature icons the player has incorporated (known_icons pairs, VS16-normal
+## pair keys via IconRegistry).
+func _sig_known(lex, faction_name: String, known_icons: Array) -> int:
+	var incorporated: Dictionary = lex.discovered_set_from_icons(known_icons)
+	var n: int = 0
+	for rec in lex.get_icons_for_faction(faction_name):
+		if not (rec is Dictionary):
+			continue
+		if lex.is_icon_discovered(str(rec.get("pole_0", "")), str(rec.get("pole_1", "")), incorporated):
+			n += 1
+	return n
 
 

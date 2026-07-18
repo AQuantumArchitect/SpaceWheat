@@ -508,12 +508,15 @@ func _top_other_faction_by_magnitude(standings: Dictionary) -> String:
 ## Render top factions with full 6-channel standing + signature progress.
 ## Sorted by aggregate scalar magnitude. Up to 6 rows.
 func _render_faction_standings_grid(farm, standings: Dictionary) -> void:
-	var known: Array = farm.get_known_emojis() if farm and farm.has_method("get_known_emojis") else []
-	var known_set: Dictionary = {}
-	for e in known:
-		known_set[str(e)] = true
-
-	var faction_reg := FactionRegistry.get_shared()
+	# sig column = SIGNATURE progress: signature is the faction's set of ICONS
+	# (2-emoji axes), NOT its cloud (atoms). The old code counted cloud atoms
+	# against get_known_emojis() — cloud-recognition, which diverges for 7/99
+	# factions (Millwright's Union teaches Lumber 🪓/🪵 outside its 6-atom
+	# cloud; Carrion Throne's cloud holds 👥 so it read 1/8 at boot with zero
+	# icons incorporated). Incorporation lives in farm.known_icons; pair
+	# identity goes through IconRegistry's VS16-normalized keys (d1-04 wave-2).
+	var known_icons: Array = farm.known_icons if farm != null and "known_icons" in farm else []
+	var incorporated: Dictionary = IconRegistry.discovered_set_from_icons(known_icons)
 
 	var rows: Array = []
 	for fname in standings.keys():
@@ -526,12 +529,13 @@ func _render_faction_standings_grid(farm, standings: Dictionary) -> void:
 				and absf(s.attention) < 0.0001 and absf(s.access) < 0.0001 \
 				and absf(s.legitimacy) < 0.0001 and absf(s.entanglement) < 0.0001:
 			continue
-		var f = faction_reg.get_by_name(str(fname))
-		var sig: Array = f.cloud.duplicate() if f != null else []
-		var sig_total: int = sig.size()
+		var sig_icons: Array = IconRegistry.get_icons_for_faction(str(fname))
+		var sig_total: int = sig_icons.size()
 		var sig_known: int = 0
-		for atom in sig:
-			if known_set.has(str(atom)):
+		for rec in sig_icons:
+			if not (rec is Dictionary):
+				continue
+			if IconRegistry.is_icon_discovered(str(rec.get("pole_0", "")), str(rec.get("pole_1", "")), incorporated):
 				sig_known += 1
 		rows.append({
 			"faction": str(fname),
