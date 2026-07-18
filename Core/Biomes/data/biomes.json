@@ -1498,12 +1498,12 @@
       "cruelty"
     ],
     "atom_components": {
-    "🎭": {
-     "dephasing": 0.03
-    },
-    "💃": {
-     "dephasing": 0.02
-    },
+      "🎭": {
+        "dephasing": 0.03
+      },
+      "💃": {
+        "dephasing": 0.02
+      },
       "⚜": {
         "lindblad_outgoing": {
           "📜": 0.006
@@ -1519,7 +1519,7 @@
         }
       },
       "🍷": {
-    "dephasing": 0.015,
+        "dephasing": 0.015,
         "decay": {
           "rate": 0.002,
           "target": "🗑"
@@ -13943,25 +13943,254 @@
     "name": "Wildwood",
     "description": "The wilderness cluster — pack and herd, fire and fungus, the turning sky. The neighborhood StarterForest belongs to: predators and prey, growth and rot, sun and moon, all turning without a hand on the wheel. Anchors the wild cluster the way HearthKeepers anchors the village.",
     "discovered": false,
-    "emojis": ["☀", "🌙", "🐺", "🦌", "🦅", "🐇", "🌲", "🍂", "🌱", "🌿", "🍄", "💀"],
-    "native_factions": ["Pack Lords", "Swift Herd", "Wildfire", "Celestial Archons", "Mycelial Web", "Verdant Pulse", "orphaned_icons"],
-    "tags": ["neighborhood", "wild"],
+    "emojis": [
+      "☀",
+      "🌙",
+      "🐺",
+      "🦌",
+      "🦅",
+      "🐇",
+      "🌲",
+      "🍂",
+      "🌱",
+      "🌿",
+      "🍄",
+      "💀"
+    ],
+    "native_factions": [
+      "Pack Lords",
+      "Swift Herd",
+      "Wildfire",
+      "Celestial Archons",
+      "Mycelial Web",
+      "Verdant Pulse",
+      "orphaned_icons"
+    ],
+    "tags": [
+      "neighborhood",
+      "wild"
+    ],
     "atom_components": {
-      "🌱": {"decay": {"rate": 0.03, "target": "🌿"}},
-      "🌿": {"decay": {"rate": 0.02, "target": "🌲"}},
-      "🌲": {"decay": {"rate": 0.02, "target": "🍂"}},
-      "🍂": {"decay": {"rate": 0.04, "target": "💀"}},
-      "💀": {"decay": {"rate": 0.03, "target": "🌱"}},
-      "🍄": {"lindblad_incoming": {"💀": 0.05}},
-      "🦌": {"decay": {"rate": 0.02, "target": "🐺"}},
-      "🐇": {"decay": {"rate": 0.02, "target": "🦅"}},
-      "🐺": {"decay": {"rate": 0.01, "target": "🦌"}},
-      "🦅": {"decay": {"rate": 0.01, "target": "🐇"}},
-      "☀": {"decay": {"rate": 0.05, "target": "🌙"}},
-      "🌙": {"decay": {"rate": 0.05, "target": "☀"}}
+      "🌱": {
+        "decay": {
+          "rate": 0.03,
+          "target": "🌿"
+        }
+      },
+      "🌿": {
+        "decay": {
+          "rate": 0.02,
+          "target": "🌲"
+        }
+      },
+      "🌲": {
+        "decay": {
+          "rate": 0.02,
+          "target": "🍂"
+        }
+      },
+      "🍂": {
+        "decay": {
+          "rate": 0.04,
+          "target": "💀"
+        }
+      },
+      "💀": {
+        "decay": {
+          "rate": 0.03,
+          "target": "🌱"
+        }
+      },
+      "🍄": {
+        "lindblad_incoming": {
+          "💀": 0.05
+        }
+      },
+      "🦌": {
+        "decay": {
+          "rate": 0.02,
+          "target": "🐺"
+        }
+      },
+      "🐇": {
+        "decay": {
+          "rate": 0.02,
+          "target": "🦅"
+        }
+      },
+      "🐺": {
+        "decay": {
+          "rate": 0.01,
+          "target": "🦌"
+        }
+      },
+      "🦅": {
+        "decay": {
+          "rate": 0.01,
+          "target": "🐇"
+        }
+      },
+      "☀": {
+        "decay": {
+          "rate": 0.05,
+          "target": "🌙"
+        }
+      },
+      "🌙": {
+        "decay": {
+          "rate": 0.05,
+          "target": "☀"
+        }
+      }
     },
     "visual_config": {
-      "color": [0.3, 0.55, 0.35, 0.8]
+      "color": [
+        0.3,
+        0.55,
+        0.35,
+        0.8
+      ]
     }
+  },
+  {
+    "name": "EukaryoticEucharist",
+    "description": "A depth-stratified microbial water column ported from the Eukaryotic Eucharist ecology: a calm photosynthetic canopy and a toxic deep floor, with grazers, scavengers and predators breathing between them at golden-ratio periods (a KAM set that never phase-locks). Matter closes — the abyssal drifter returns it to the sink and photosynthesis pumps it back up.",
+    "image_path": "res://Assets/Biomes/Eukaryotic_Eucharist.png",
+    "discovered": false,
+    "plot_layout": [
+      {
+        "x": 0.2,
+        "y": 0.12
+      },
+      {
+        "x": 0.5,
+        "y": 0.26
+      },
+      {
+        "x": 0.35,
+        "y": 0.42
+      },
+      {
+        "x": 0.65,
+        "y": 0.52
+      },
+      {
+        "x": 0.5,
+        "y": 0.66
+      },
+      {
+        "x": 0.36,
+        "y": 0.8
+      },
+      {
+        "x": 0.62,
+        "y": 0.9
+      }
+    ],
+    "emojis": [
+      "🌿",
+      "🍂",
+      "🟡",
+      "🔻",
+      "🦠",
+      "💀",
+      "🧱",
+      "🌊",
+      "☠",
+      "🧪",
+      "🦈",
+      "🌑",
+      "🪼",
+      "⚫"
+    ],
+    "native_factions": [
+      "Sunlit Canopy",
+      "Twilight Recyclers",
+      "Toxic Abyss"
+    ],
+    "tags": [
+      "ecosystem",
+      "microbial",
+      "depth",
+      "eukaryotic-eucharist"
+    ],
+    "atom_components": {
+      "🌿": {
+        "lindblad_incoming": {
+          "🗑": 0.2
+        },
+        "decay": {
+          "rate": 0.04,
+          "target": "🍂"
+        }
+      },
+      "🍂": {
+        "decay": {
+          "rate": 0.05,
+          "target": "🦠"
+        }
+      },
+      "🟡": {
+        "decay": {
+          "rate": 0.06,
+          "target": "🍂"
+        }
+      },
+      "🦠": {
+        "decay": {
+          "rate": 0.04,
+          "target": "🌿"
+        },
+        "lindblad_incoming": {
+          "💀": 0.01
+        }
+      },
+      "🧱": {
+        "decay": {
+          "rate": 0.03,
+          "target": "🌊"
+        }
+      },
+      "🌊": {
+        "decay": {
+          "rate": 0.05,
+          "target": "🦠"
+        }
+      },
+      "🦈": {
+        "decay": {
+          "rate": 0.02,
+          "target": "💀"
+        }
+      },
+      "💀": {
+        "decay": {
+          "rate": 0.05,
+          "target": "🦠"
+        }
+      },
+      "☠": {
+        "lindblad_incoming": {
+          "🗑": 0.05
+        },
+        "decay": {
+          "rate": 0.04,
+          "target": "🧪"
+        }
+      },
+      "🧪": {
+        "decay": {
+          "rate": 0.05,
+          "target": "🗑"
+        }
+      },
+      "🪼": {
+        "decay": {
+          "rate": 0.03,
+          "target": "🗑"
+        }
+      }
+    },
+    "regime": "closed"
   }
 ]

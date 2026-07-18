@@ -5872,11 +5872,23 @@
     "neighborhoods": [
       {
         "biome": "StarterForest",
-        "signature": [{"name": "Subsistence", "pole_0": "👥", "pole_1": "🌾"}]
+        "signature": [
+          {
+            "name": "Subsistence",
+            "pole_0": "👥",
+            "pole_1": "🌾"
+          }
+        ]
       },
       {
         "biome": "Village",
-        "signature": [{"name": "Subsistence", "pole_0": "👥", "pole_1": "🌾"}]
+        "signature": [
+          {
+            "name": "Subsistence",
+            "pole_0": "👥",
+            "pole_1": "🌾"
+          }
+        ]
       }
     ]
   },
@@ -6456,6 +6468,148 @@
         "name": "Tradecraft",
         "pole_0": "🔓",
         "pole_1": "🔍"
+      }
+    ]
+  },
+  {
+    "name": "Sunlit Canopy",
+    "description": "The lit surface shelf: photosynthetic blooms that fatten in the light and the grazers that graze them. The providing base of the whole column, a green prismatic canopy over an eternal day/night sway.",
+    "domain": "Nature",
+    "ring": "second",
+    "motto": "Bask, fatten, be eaten.",
+    "tags": [
+      "ecosystem",
+      "surface",
+      "photosynthesis",
+      "producer"
+    ],
+    "bits": [
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      1,
+      1,
+      0,
+      0
+    ],
+    "cloud": [
+      "🌿",
+      "🍂",
+      "🟡",
+      "🔻"
+    ],
+    "icons": [
+      {
+        "name": "EuPhotobloom",
+        "pole_0": "🌿",
+        "pole_1": "🍂"
+      },
+      {
+        "name": "EuGrazer",
+        "pole_0": "🟡",
+        "pole_1": "🔻"
+      }
+    ]
+  },
+  {
+    "name": "Twilight Recyclers",
+    "description": "The mid-column recyclers: anaerobic scavenger swarms and aerobic walls that turn the sinking rain of detritus back into biomass. Common, fluid, quick to bloom and quick to starve.",
+    "domain": "Decay",
+    "ring": "second",
+    "motto": "Nothing falls for free.",
+    "tags": [
+      "ecosystem",
+      "twilight",
+      "scavenger",
+      "recycler"
+    ],
+    "bits": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "cloud": [
+      "🦠",
+      "💀",
+      "🧱",
+      "🌊"
+    ],
+    "icons": [
+      {
+        "name": "EuAnaerobe",
+        "pole_0": "🦠",
+        "pole_1": "💀"
+      },
+      {
+        "name": "EuAerobicWall",
+        "pole_0": "🧱",
+        "pole_1": "🌊"
+      }
+    ]
+  },
+  {
+    "name": "Toxic Abyss",
+    "description": "The deep floor: a toxic bloom that hoards venom, an apex hunter that lurks the dark, and the abyssal drifter that carries the last of the matter back to the sink. Elite, cosmic, subtle, focused — the eternal deep.",
+    "domain": "Boundary",
+    "ring": "third",
+    "motto": "The deep keeps what it takes.",
+    "tags": [
+      "ecosystem",
+      "abyss",
+      "predator",
+      "toxic"
+    ],
+    "bits": [
+      1,
+      1,
+      1,
+      1,
+      1,
+      0,
+      1,
+      1,
+      0,
+      0,
+      0,
+      1
+    ],
+    "cloud": [
+      "☠",
+      "🧪",
+      "🦈",
+      "🌑",
+      "🪼",
+      "⚫"
+    ],
+    "icons": [
+      {
+        "name": "EuToxicBloom",
+        "pole_0": "☠",
+        "pole_1": "🧪"
+      },
+      {
+        "name": "EuAbyssHunter",
+        "pole_0": "🦈",
+        "pole_1": "🌑"
+      },
+      {
+        "name": "EuAbyssDrifter",
+        "pole_0": "🪼",
+        "pole_1": "⚫"
       }
     ]
   }

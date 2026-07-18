@@ -294,8 +294,8 @@
       "🌬": 0.7,
       "💧": 0.2,
       "🔥": 0.7,
-      "🌱": 0.30,
-      "🌿": 0.20
+      "🌱": 0.3,
+      "🌿": 0.2
     },
     "energy_couplings": {},
     "driver": {
@@ -2115,11 +2115,11 @@
     "pole_0": "🐺",
     "pole_1": "🦌",
     "self_energy_0": -0.35,
-    "self_energy_1": 0.20,
+    "self_energy_1": 0.2,
     "rabi_coupling": 0.5,
     "hamiltonian_couplings": {
-      "🐇": 0.20,
-      "🦅": 0.20,
+      "🐇": 0.2,
+      "🦅": 0.2,
       "🌾": -0.25,
       "🐑": 0.3
     },
@@ -2129,8 +2129,8 @@
     "name": "Raptor",
     "pole_0": "🦅",
     "pole_1": "🐇",
-    "self_energy_0": -0.30,
-    "self_energy_1": 0.20,
+    "self_energy_0": -0.3,
+    "self_energy_1": 0.2,
     "rabi_coupling": 0.5,
     "hamiltonian_couplings": {
       "🐺": 0.25,
@@ -2143,8 +2143,8 @@
     "name": "Cycle",
     "pole_0": "💀",
     "pole_1": "🌱",
-    "self_energy_0": -0.30,
-    "self_energy_1": 0.20,
+    "self_energy_0": -0.3,
+    "self_energy_1": 0.2,
     "rabi_coupling": 0.35,
     "hamiltonian_couplings": {
       "🐇": 0.15,
@@ -4191,11 +4191,11 @@
     "name": "Humus",
     "pole_0": "🍂",
     "pole_1": "🌿",
-    "self_energy_0": 0.20,
-    "self_energy_1": 0.40,
+    "self_energy_0": 0.2,
+    "self_energy_1": 0.4,
     "rabi_coupling": 0.25,
     "hamiltonian_couplings": {
-      "🌱": 0.20,
+      "🌱": 0.2,
       "🍄": 0.15
     },
     "energy_couplings": {
@@ -7978,5 +7978,131 @@
       "💰": 0.25
     },
     "energy_couplings": {}
+  },
+  {
+    "name": "EuGrazer",
+    "pole_0": "🟡",
+    "pole_1": "🔻",
+    "self_energy_0": 1.0,
+    "self_energy_1": 0.8,
+    "rabi_coupling": 0.35,
+    "hamiltonian_couplings": {
+      "🌿": 0.25
+    },
+    "energy_couplings": {},
+    "driver": {
+      "amp": 1.0,
+      "freq": 0.025,
+      "phase": 0.0,
+      "type": "cosine"
+    }
+  },
+  {
+    "name": "EuAnaerobe",
+    "pole_0": "🦠",
+    "pole_1": "💀",
+    "self_energy_0": 1.0,
+    "self_energy_1": 0.8,
+    "rabi_coupling": 0.35,
+    "hamiltonian_couplings": {
+      "🍂": 0.2,
+      "💀": 0.15
+    },
+    "energy_couplings": {},
+    "driver": {
+      "amp": 1.0,
+      "freq": 0.04045,
+      "phase": 0.0,
+      "type": "sine"
+    }
+  },
+  {
+    "name": "EuAerobicWall",
+    "pole_0": "🧱",
+    "pole_1": "🌊",
+    "self_energy_0": 1.0,
+    "self_energy_1": 0.8,
+    "rabi_coupling": 0.35,
+    "hamiltonian_couplings": {
+      "🦠": 0.15
+    },
+    "energy_couplings": {},
+    "driver": {
+      "amp": 1.0,
+      "freq": 0.01545,
+      "phase": 0.0,
+      "type": "cosine"
+    }
+  },
+  {
+    "name": "EuAbyssHunter",
+    "pole_0": "🦈",
+    "pole_1": "🌑",
+    "self_energy_0": 1.0,
+    "self_energy_1": 0.8,
+    "rabi_coupling": 0.35,
+    "hamiltonian_couplings": {
+      "🧱": 0.2,
+      "🟡": 0.1
+    },
+    "energy_couplings": {},
+    "driver": {
+      "amp": 1.0,
+      "freq": 0.00955,
+      "phase": 0.0,
+      "type": "sine"
+    }
+  },
+  {
+    "name": "EuAbyssDrifter",
+    "pole_0": "🪼",
+    "pole_1": "⚫",
+    "self_energy_0": 1.0,
+    "self_energy_1": 0.8,
+    "rabi_coupling": 0.35,
+    "hamiltonian_couplings": {
+      "☠": 0.15
+    },
+    "energy_couplings": {},
+    "driver": {
+      "amp": 1.0,
+      "freq": 0.0059,
+      "phase": 0.0,
+      "type": "cosine"
+    }
+  },
+  {
+    "name": "EuPhotobloom",
+    "pole_0": "🌿",
+    "pole_1": "🍂",
+    "self_energy_0": 1.0,
+    "self_energy_1": 0.8,
+    "rabi_coupling": 0.35,
+    "hamiltonian_couplings": {},
+    "energy_couplings": {},
+    "driver": {
+      "amp": 0.6,
+      "freq": 0.025,
+      "phase": 3.14159,
+      "type": "cosine"
+    }
+  },
+  {
+    "name": "EuToxicBloom",
+    "pole_0": "☠",
+    "pole_1": "🧪",
+    "self_energy_0": 1.0,
+    "self_energy_1": 0.8,
+    "rabi_coupling": 0.35,
+    "hamiltonian_couplings": {
+      "🦈": 0.1
+    },
+    "energy_couplings": {},
+    "driver": {
+      "amp": 0.4,
+      "freq": 0.0059,
+      "phase": 0.0,
+      "type": "sine"
+    }
   }
 ]
