@@ -98,5 +98,7 @@ static func _format_cost_inline(cost: Dictionary) -> String:
 	keys.sort()
 	var parts: Array[String] = []
 	for emoji in keys:
-		parts.append("%d%s" % [int(round(float(cost[emoji]))), str(emoji)])
+		# Signed: a bare "1🍼" reads ambiguous (cost or reward?); "−1🍼" is honest —
+		# this is what the wallet loses (d1-03, literalist care pass).
+		parts.append("−%d%s" % [int(round(float(cost[emoji]))), str(emoji)])
 	return " ".join(parts)

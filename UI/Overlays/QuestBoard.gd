@@ -1234,6 +1234,16 @@ func _make_commitment_row(quest: Dictionary, key_str: String, selected: bool) ->
 		hint_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
 		vbox.add_child(hint_lbl)
 
+	# d1-01: the literalist's line — the firing rule in plain math, one notch dimmer
+	# than the hint above it (authored on the same quest def, story/tutorial sources only).
+	var math_note := str(quest.get("math_note", ""))
+	if math_note != "":
+		var math_lbl := Label.new()
+		math_lbl.text = "    math: " + math_note
+		math_lbl.add_theme_font_size_override("font_size", 9)
+		math_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
+		vbox.add_child(math_lbl)
+
 	# Tooltip: faction-card summary so hovering shows who's behind the contract.
 	var farm = InstrumentLocator.resolve_active_farm(self)
 	var card_tip: String = _faction_card_tooltip(str(quest.get("faction", "")), farm)

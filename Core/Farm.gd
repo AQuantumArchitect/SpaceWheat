@@ -1649,7 +1649,9 @@ func can_discover_biome() -> Dictionary:
 
 	var cost_gate = ActionCostRuntime.preflight_action(economy, "discover_biome")
 	if not cost_gate.get("ok", true):
-		return {"ok": false, "message": "Insufficient resources"}
+		# d1-03: the preflight already carries a shortfall message ("needs 3🌾 (have 1)")
+		# from EconomyConstants — quote the rule instead of a bare "Insufficient resources".
+		return {"ok": false, "message": str(cost_gate.get("message", "Insufficient resources"))}
 
 	return {"ok": true, "unexplored": unexplored}
 

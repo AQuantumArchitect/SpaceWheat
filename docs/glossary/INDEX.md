@@ -1,6 +1,6 @@
 # The Glossary — one page of the canon web
 
-Twenty terms, one dictionary between the physics and the story. Each entry is a
+Twenty-eight terms, one dictionary between the physics and the story. Each entry is a
 `.md` file with YAML frontmatter, loaded live into the in-game Guide (X → Guide →
 Glossary) by `Core/Documentation/GlossaryRegistry.gd`.
 
@@ -44,6 +44,19 @@ terms must exist. This INDEX file is deliberately excluded from the in-game load
 | [faction](faction.md) | An authoring entity that owns an icon signature and neighborhoods. |
 | [signature](signature.md) | A set of icons. The icon side of a faction or neighborhood. |
 
+## The Acts — what a literalist meets in the first hours
+
+| Term | One line |
+|------|----------|
+| [population](population.md) | An emoji's marginal probability — how much of that state a register holds. |
+| [coherence](coherence.md) | Superposition strength — the normalized weight sitting off the diagonal of ρ. |
+| [collapse](collapse.md) | The projective step of measurement — ρ snaps to one eigenstate. |
+| [incorporation](incorporation.md) | Adding a ripe icon to YOUR signature — the only way your vocabulary grows. |
+| [harvest](harvest.md) | Cashing a collapsed outcome for resources — reward = surprisal, ×4 if known. |
+| [standing](standing.md) | A six-channel reputation edge between the player and one faction. |
+| [soft_gate](soft_gate.md) | 0.5·(1+tanh((x−center)/width)) — the smooth step every quest threshold uses. |
+| [width](width.md) | The transition-zone size of a soft gate — how far past center it takes to fire. |
+
 ## The web
 
 Reading paths that teach the game in order:
@@ -59,6 +72,9 @@ Reading paths that teach the game in order:
   read who you are becoming
 - **The matter stack:** atom → cloud → icon → (sibling, family)
 - **The authoring stack:** biome → neighborhood ← faction → signature
+- **The first hours (acts 0-2):** population → coherence → collapse → harvest →
+  incorporation → standing, with soft_gate → width underneath every quest threshold
+  you watch fill
 - **The seam between them:** icons carry H onto biomes (neighborhood); the webway
   carries L and sleeps; factions read biomes through resonance; the player scars
   the whole thing through measurement and keeps what berry loops teach.

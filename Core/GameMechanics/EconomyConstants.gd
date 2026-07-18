@@ -214,8 +214,27 @@ static func preflight_cost(costs: Dictionary, economy) -> Dictionary:
 	if not economy:
 		return {"ok": false, "cost": costs, "message": "Economy not available"}
 	if not can_afford(economy, costs):
-		return {"ok": false, "cost": costs, "message": "Insufficient resources"}
+		# d1-03: name the rule, not just "insufficient" — the caller already has
+		# the cost dict in scope, so quote what's short and what's held.
+		return {"ok": false, "cost": costs, "message": _shortfall_message(costs, economy)}
 	return {"ok": true, "cost": costs}
+
+
+## "needs 3🌾 (have 1), 2👥 (have 0)" — the shortfall for a cost the economy can't
+## afford. Falls back to "insufficient resources" only if the economy exposes no
+## balance-reading method at all (structural degrade, not the common case).
+static func _shortfall_message(costs: Dictionary, economy) -> String:
+	if economy == null or not economy.has_method("get_resource_units"):
+		return "Insufficient resources"
+	var parts: Array[String] = []
+	for emoji in costs:
+		var need := int(round(float(costs[emoji])))
+		var have := int(economy.get_resource_units(str(emoji)))
+		if have < need:
+			parts.append("%d%s (have %d)" % [need, str(emoji), have])
+	if parts.is_empty():
+		return "Insufficient resources"
+	return "needs " + ", ".join(parts)
 
 
 static func commit_cost(costs: Dictionary, economy, reason: String = "") -> bool:

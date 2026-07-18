@@ -146,6 +146,52 @@ static func summary(pred: Dictionary, qm = null) -> String:
 			return t
 
 
+## Compact math-formula line for a predicate — the literalist counterpart to
+## summary(): where summary() hand-authors player-voice prose per type, formula()
+## reads the raw config (type, target, width, count-gate-vs-soft-gate) straight
+## off the predicate dict + QuestManager's own width/count-gate accessors, so it
+## can never drift from the physics summary() paraphrases. No per-type authoring —
+## one generic template covers every predicate type in FLAG_PREDICATE_TYPES.
+## d1-02: rendered on Arc E-inspect (ControlsOverlay) beside summary().
+static func formula(pred: Dictionary, qm = null) -> String:
+	var t := str(pred.get("type", "?"))
+	var center: float = float(pred.get("value", 0.0))
+	var is_count: bool = bool(qm != null and qm.has_method("predicate_is_count_gate") and qm.predicate_is_count_gate(pred))
+	var width: float = float(qm.predicate_width(pred)) if (qm and qm.has_method("predicate_width")) else float(pred.get("width", 0.05))
+	var fire_target: float = float(qm.predicate_fire_target(pred)) if (qm and qm.has_method("predicate_fire_target")) else center
+	var op := "≤" if t.ends_with("_lte") else "≥"
+	var subject := _formula_subject(pred, t)
+	var gate_kind := "count_gate" if is_count else "soft_gate"
+	if is_count:
+		# Fires exactly AT the authored integer — no width-shifted target to report.
+		return "%s %s %d  ·  %s, width %s" % [subject, op, int(round(center)), gate_kind, _num(width)]
+	return "%s %s %s  ·  %s(x, %s, w=%s), fires ~%s" % [subject, op, _num(center), gate_kind, _num(center), _num(width), _num(fire_target)]
+
+
+## Compact float formatting for formula() — GDScript's String % operator has no %g,
+## so trim trailing zeros off a fixed 3-decimal render by hand (3.000 → 3, 0.437 → 0.437).
+static func _num(x: float) -> String:
+	var s := "%.3f" % x
+	if not s.contains("."):
+		return s
+	while s.ends_with("0"):
+		s = s.substr(0, s.length() - 1)
+	if s.ends_with("."):
+		s = s.substr(0, s.length() - 1)
+	return s
+
+
+## The "x" side of the formula — the observable/count the predicate reads, named
+## from whatever identifying fields the predicate dict carries (biome/atom/
+## faction/channel/emoji), falling back to the bare type name.
+static func _formula_subject(pred: Dictionary, t: String) -> String:
+	var parts: Array[String] = [t]
+	for key in ["biome", "atom", "faction", "channel", "emoji", "gate"]:
+		if pred.has(key):
+			parts.append(str(pred[key]))
+	return ".".join(parts)
+
+
 ## Short display glyph for a gate dispatch name ("hadamard" → "H").
 static func gate_glyph(gate_name: String) -> String:
 	match gate_name.strip_edges().to_lower():

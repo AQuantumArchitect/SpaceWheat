@@ -292,8 +292,11 @@ func _build_cost_entries(container: HBoxContainer, cost: Dictionary) -> void:
 		var amount_label = Label.new()
 		# Costs are integer resources; a float payload (e.g. {🌱: 5.0} from the
 		# icon-injection submenu) must not render as "5.0" on the badge (#266).
+		# Signed: a bare "1🍼" read ambiguous (cost or reward?) — "−1🍼" is honest,
+		# what the wallet actually loses (d1-03, literalist care pass).
 		var amount_f := float(amount)
-		amount_label.text = str(int(round(amount_f))) if is_equal_approx(amount_f, round(amount_f)) else String.num(amount_f, 1)
+		var amount_str := str(int(round(amount_f))) if is_equal_approx(amount_f, round(amount_f)) else String.num(amount_f, 1)
+		amount_label.text = "−%s" % amount_str
 		amount_label.add_theme_font_size_override("font_size", int(18 * scale_factor))
 		amount_label.add_theme_color_override("font_color", Color(0.95, 0.9, 0.7))
 		amount_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.6))

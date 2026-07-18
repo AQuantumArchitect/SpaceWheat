@@ -1274,7 +1274,9 @@ func _format_cost(cost: Dictionary) -> String:
 	var keys = cost.keys()
 	keys.sort()
 	for emoji in keys:
-		parts.append("%s%d" % [str(emoji), int(cost[emoji])])
+		# Signed: a bare "🍼1" read ambiguous (cost or reward?); "🍼−1" is honest —
+		# this is the dev-inspector's "cost" row, the same badge law as the live bar (d1-03).
+		parts.append("%s−%d" % [str(emoji), int(cost[emoji])])
 	return " ".join(parts)
 
 # =============================================================================

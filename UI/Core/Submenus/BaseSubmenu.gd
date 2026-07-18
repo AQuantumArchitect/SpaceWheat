@@ -174,7 +174,8 @@ static func format_cost(cost: Dictionary) -> String:
 	# cost: {"emoji": amount, ...} e.g., {"🍼": 2, "🌾": 5}
 
 	# Returns:
-	# Formatted string like "🍼×2 🌾×5"
+	# Formatted string like "−🍼×2 −🌾×5" — signed: a bare "🍼×2" read ambiguous
+	# (cost or reward?); "−🍼×2" is honest, what the wallet loses (d1-03).
 	if cost.is_empty():
 		return ""
 
@@ -182,9 +183,9 @@ static func format_cost(cost: Dictionary) -> String:
 	for emoji in cost:
 		var amount = cost[emoji]
 		if amount > 1:
-			parts.append("%s×%d" % [emoji, amount])
+			parts.append("−%s×%d" % [emoji, amount])
 		else:
-			parts.append(emoji)
+			parts.append("−%s" % emoji)
 
 	return " ".join(parts)
 

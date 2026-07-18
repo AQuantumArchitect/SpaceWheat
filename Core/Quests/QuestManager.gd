@@ -426,6 +426,19 @@ func _pred_width(pred: Dictionary, t: String) -> float:
 	return float(pred.get("width", PREDICATE_SOFT_WIDTH.get(t, 0.05)))
 
 
+## Public: the width _pred_width would use for `pred` — PredicateGloss.formula reads this
+## to print the actual soft-gate width alongside the target, instead of duplicating the
+## per-instance-override → per-type-default → QuestMath-default fallback chain.
+func predicate_width(pred: Dictionary) -> float:
+	return _pred_width(pred, str(pred.get("type", "")))
+
+
+## Public: true if `pred`'s type fires on QuestMath.count_gate (integer counts, exact-at-N)
+## rather than plain soft_gate. PredicateGloss.formula uses this to label the formula.
+func predicate_is_count_gate(pred: Dictionary) -> bool:
+	return str(pred.get("type", "")) in COUNT_GATE_TYPES
+
+
 func _signature_baseline_size(farm) -> int:
 	# Lazily snapshot the seeded signature size the first time a farm is evaluated.
 	# Evaluation is gated on farm.is_boot_finalized(), so the snapshot always sees
@@ -1335,9 +1348,13 @@ func complete_quest(quest_id: int) -> bool:
 		return false
 
 	# Fast resource check to avoid extra dictionary churn in tight rig loops.
-	if economy.get_resource(required_emoji) < required_qty:
+	var held_qty = economy.get_resource(required_emoji)
+	if held_qty < required_qty:
 		push_warning("Cannot complete quest %d: insufficient resources" % quest_id)
-		last_complete_error = "you hold too few %s" % required_emoji
+		# d1-03: name the rule (asked qty) and the shortfall (held qty), not just the emoji —
+		# matches QuestBoard's "deliver needs ×N — you hold M" wording (both numbers were
+		# already in scope; the old message dropped them).
+		last_complete_error = "deliver needs %s×%d — you hold %d" % [required_emoji, required_qty, int(held_qty)]
 		return false
 
 	var faction_name = str(quest.get("faction", "Unknown"))

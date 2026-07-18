@@ -1179,7 +1179,9 @@ func _make_story_inspect_panel() -> Control:
 		if farm and "faction_standings" in farm:
 			var standings: Dictionary = farm.faction_standings
 			if standings.has(faction):
-				box.add_child(_make_kv_row("standing", "%+.2f" % float(standings[faction])))
+				var s = standings[faction]
+				if s != null and s.has_method("scalar"):
+					box.add_child(_make_kv_row("standing", "%+.2f" % float(s.scalar())))
 
 	var topic: String = str(ev.get("topic_node", ""))
 	if topic != "":
@@ -1972,6 +1974,16 @@ func _make_arc_row(entry: Dictionary, key_str: String, selected: bool) -> Contro
 				hint_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
 				hint_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 				vbox.add_child(hint_lbl)
+			# d1-01: the literalist's line — the actual firing rule in plain math,
+			# hand-authored per quest def but dimmer/smaller than the flavor body above.
+			var math_note_str: String = str(data.get("math_note", ""))
+			if math_note_str != "":
+				var math_lbl := Label.new()
+				math_lbl.text = "    math: %s" % math_note_str
+				math_lbl.add_theme_font_size_override("font_size", 10)
+				math_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
+				math_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+				vbox.add_child(math_lbl)
 		return row
 
 	var flag: Dictionary = entry.get("flag", {})
@@ -2018,6 +2030,13 @@ func _make_arc_row(entry: Dictionary, key_str: String, selected: bool) -> Contro
 			pred_lbl.add_theme_font_size_override("font_size", 10)
 			pred_lbl.add_theme_color_override("font_color", _score_color(ps_score))
 			vbox.add_child(pred_lbl)
+			# d1-02: the literal rule, generated from config — dimmer/smaller than the
+			# player-voice summary above it (the math game's literalist deserves the formula).
+			var formula_lbl := Label.new()
+			formula_lbl.text = "        %s" % PredicateGloss.formula(pred, _arc_quest_manager())
+			formula_lbl.add_theme_font_size_override("font_size", 9)
+			formula_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
+			vbox.add_child(formula_lbl)
 
 	return row
 
@@ -2057,9 +2076,13 @@ func _arc_inspect_text() -> String:
 		var data: Dictionary = entry.get("data", {})
 		var body := str(data.get("body", str(data.get("source_flag", "campaign quest"))))
 		var hint := str(data.get("hint", ""))
-		if hint == "":
-			return body
-		return "%s\nhint: %s" % [body, hint]
+		var math_note := str(data.get("math_note", ""))
+		var out := body
+		if hint != "":
+			out += "\nhint: %s" % hint
+		if math_note != "":
+			out += "\nmath: %s" % math_note
+		return out
 	var flag: Dictionary = entry.get("flag", {})
 	var lines: Array[String] = []
 	lines.append("%s · act %d" % [str(flag.get("display_name", flag.get("id", "?"))), int(flag.get("act", 0))])
@@ -2067,9 +2090,11 @@ func _arc_inspect_text() -> String:
 	if kind == "flag_fired":
 		lines.append("✓ FIRED")
 		return "\n".join(lines)
-	# unfired — show predicate summaries
+	# unfired — show predicate summaries + the literal formula beneath each (d1-02)
 	for ps in entry.get("pred_scores", []):
-		lines.append("· %s · %.2f" % [PredicateGloss.summary(ps.get("pred", {}), _arc_quest_manager()), float(ps.get("score", 0.0))])
+		var pred: Dictionary = ps.get("pred", {})
+		lines.append("· %s · %.2f" % [PredicateGloss.summary(pred, _arc_quest_manager()), float(ps.get("score", 0.0))])
+		lines.append("    %s" % PredicateGloss.formula(pred, _arc_quest_manager()))
 	return "\n".join(lines)
 
 ## Accept the selected arc/tutorial offer into active quests (R). Without this,

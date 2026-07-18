@@ -127,13 +127,15 @@ func test_build_actions():
 func test_cost_formatting():
 	print("\n[Cost Formatting]")
 
+	# Signed (d1-03, literalist care pass): a bare "🍼" read ambiguous as cost or
+	# reward; "−🍼" is honest — what the wallet loses.
 	assert_eq(BaseSubmenu.format_cost({}), "", "Empty cost")
-	assert_eq(BaseSubmenu.format_cost({"🍼": 1}), "🍼", "Single item, qty 1")
-	assert_eq(BaseSubmenu.format_cost({"🍼": 3}), "🍼×3", "Single item, qty 3")
+	assert_eq(BaseSubmenu.format_cost({"🍼": 1}), "−🍼", "Single item, qty 1")
+	assert_eq(BaseSubmenu.format_cost({"🍼": 3}), "−🍼×3", "Single item, qty 3")
 
 	var multi = BaseSubmenu.format_cost({"🍼": 2, "🌾": 5})
-	assert_true(multi.contains("🍼×2"), "Multi: has milk")
-	assert_true(multi.contains("🌾×5"), "Multi: has wheat")
+	assert_true(multi.contains("−🍼×2"), "Multi: has milk")
+	assert_true(multi.contains("−🌾×5"), "Multi: has wheat")
 
 
 func test_affordability():
