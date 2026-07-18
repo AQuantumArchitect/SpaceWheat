@@ -670,7 +670,7 @@ func action_inject_icon_pair(biome_name: String, icon: Dictionary) -> Dictionary
 		return {
 			"success": false,
 			"error": "insufficient_funds",
-			"message": "Insufficient resources for icon injection (%s)" % [gate.get("cost", {})]
+			"message": _cost_shortfall_message("Icon injection", gate.get("cost", {}))
 		}
 
 	var result = biome.expand_quantum_system(north_emoji, south_emoji)
@@ -999,6 +999,25 @@ func get_action_cost(action_name: String, context: Dictionary = {}) -> Dictionar
 func preflight_action_cost(action_name: String, context: Dictionary = {}) -> Dictionary:
 	# Check affordability for an action cost (no spend).
 	return ActionCostRuntime.preflight_action(farm, action_name, context)
+
+
+## "Icon injection needs 10🌱 (you hold 3)" — honest refusal copy for an
+## unaffordable action. Mirrors QuantumInstrumentInput._cost_shortfall_words:
+## each short emoji as need+held, never a stringified GDScript Dictionary
+## at the player (d1-04 wave-2 polish).
+func _cost_shortfall_message(verb: String, cost: Dictionary) -> String:
+	var economy = _get_economy()
+	var parts: Array[String] = []
+	for emoji in cost:
+		var need := int(round(float(cost[emoji])))
+		var have: int = 0
+		if economy != null and economy.has_method("get_resource"):
+			have = int(economy.get_resource(emoji))
+		if have < need:
+			parts.append("%d%s (you hold %d)" % [need, str(emoji), have])
+	if parts.is_empty():
+		return "%s costs more than you hold" % verb
+	return "%s needs %s" % [verb, ", ".join(parts)]
 
 
 func can_afford_cost(cost: Dictionary) -> Dictionary:
