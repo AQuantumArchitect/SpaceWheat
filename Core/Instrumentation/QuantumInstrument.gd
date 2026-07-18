@@ -481,9 +481,12 @@ func action_measure(grid_pos: Vector2i) -> Dictionary:
 		# Explore is its own verb now (owner ruling 2026-07-11: F mounts the
 		# expedition for 🍞; the strike is a separate 👥-priced act). A strike
 		# on an unexplored plot refuses honestly instead of silently buying
-		# the expedition too.
+		# the expedition too. Quantity is READ from the same cost authority
+		# the chip badge uses — never hardcoded (d1-03 literalist finding).
+		var explore_cost: Dictionary = ActionCostRuntime.get_action_cost(economy, "explore", {})
+		var bread_amount := int(round(float(explore_cost.get("🍞", 1))))
 		return {"success": false, "error": "not_explored",
-			"message": "Unexplored — press F to explore this plot first (🍞).", "blocked": true}
+			"message": "Unexplored — press F to explore this plot first (%d🍞)." % bread_amount, "blocked": true}
 
 	# Resolve the biome from whichever binding the terminal carries (bound OR already
 	# measured) so the call reaches the single measure authority. ProbeActions.action_measure

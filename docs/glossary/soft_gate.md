@@ -1,7 +1,7 @@
 ---
 term: soft_gate
 short_def: 0.5·(1+tanh((x−center)/width)) — the smooth step every quest threshold uses.
-related: [width, measurement]
+related: [width, measurement, count_gate]
 since: 2026-07-17
 status: canonical
 ---

@@ -1,6 +1,6 @@
 # The Glossary — one page of the canon web
 
-Twenty-eight terms, one dictionary between the physics and the story. Each entry is a
+Twenty-nine terms, one dictionary between the physics and the story. Each entry is a
 `.md` file with YAML frontmatter, loaded live into the in-game Guide (X → Guide →
 Glossary) by `Core/Documentation/GlossaryRegistry.gd`.
 
@@ -56,6 +56,7 @@ terms must exist. This INDEX file is deliberately excluded from the in-game load
 | [standing](standing.md) | A six-channel reputation edge between the player and one faction. |
 | [soft_gate](soft_gate.md) | 0.5·(1+tanh((x−center)/width)) — the smooth step every quest threshold uses. |
 | [width](width.md) | The transition-zone size of a soft gate — how far past center it takes to fire. |
+| [count_gate](count_gate.md) | A soft gate re-centered so an integer count fires exactly AT the stated N. |
 
 ## The web
 
@@ -73,8 +74,8 @@ Reading paths that teach the game in order:
 - **The matter stack:** atom → cloud → icon → (sibling, family)
 - **The authoring stack:** biome → neighborhood ← faction → signature
 - **The first hours (acts 0-2):** population → coherence → collapse → harvest →
-  incorporation → standing, with soft_gate → width underneath every quest threshold
-  you watch fill
+  incorporation → standing, with soft_gate → width → count_gate underneath every
+  quest threshold you watch fill
 - **The seam between them:** icons carry H onto biomes (neighborhood); the webway
   carries L and sleeps; factions read biomes through resonance; the player scars
   the whole thing through measurement and keeps what berry loops teach.

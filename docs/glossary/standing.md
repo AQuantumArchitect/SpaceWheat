@@ -25,3 +25,14 @@ center, not merely touch it once (`predicate_fire_target` reports the real numbe
 
 Nothing but completed contracts and story beats move standing — there is no panel to
 spend it against; v0 tracks it only (`project_standing_tracked_only`).
+
+The X-panel standing table (`ControlsOverlay._render_faction_standings_grid`) renders
+seven columns — `trst dbt attn acc leg ent sig` — because it appends an eighth,
+non-channel field after the six: **sig** is `sig_known/sig_total`, how much of that
+faction's icon [signature](signature.md) you've [incorporated](incorporation.md) so
+far. It is vocabulary progress, not a reputation channel — `FactionStanding` itself
+still has exactly six fields. The Spotlight "standing" scalar shown beside a speaking
+faction (`ControlsOverlay`, the chatter-bubble kv-row) is a *different* single number:
+`FactionStanding.scalar()`, the legacy aggregate `clamp((trust − debt + access +
+legitimacy) · 0.25, −1, 1)` — one float that folds four of the six channels together
+for a quick read, not a seventh channel of its own.

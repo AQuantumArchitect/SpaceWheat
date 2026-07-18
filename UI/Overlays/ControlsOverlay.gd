@@ -1360,10 +1360,20 @@ func _build_guide_body() -> void:
 		"glossary": _guide_glossary()
 
 func _guide_core_loop() -> void:
+	# Quantities are READ from the same cost authority the action-bar badges use
+	# (ActionCostRuntime → FarmEconomy/EconomyConstants) — never hardcoded prose
+	# numbers that can drift from the real price (d1-03 literalist finding).
+	var farm = InstrumentLocator.resolve_active_farm(self)
+	var economy = ActionCostRuntime.resolve_economy(farm)
+	var explore_cost: Dictionary = ActionCostRuntime.get_action_cost(economy, "explore", {})
+	var explore_bread := int(round(float(explore_cost.get("🍞", 1))))
+	var strike_cost: Dictionary = ActionCostRuntime.get_action_cost(economy, "measure", {})
+	var strike_people := int(round(float(strike_cost.get("👥", 1))))
+
 	_body_box.add_child(_make_section_header("the core loop: F · R · Q (tap · tap · tap)"))
 	_body_box.add_child(_make_body("Press 8 to enter the Ace frame (you start there), then:"))
-	_body_box.add_child(_make_action_row("F", "Explore", "Mount an expedition to an unexplored plot — costs 🍞 (breaking bread opens doors). Binds the register so it can be struck. A tap on an unexplored plot does the same."))
-	_body_box.add_child(_make_action_row("R", "Strike", "Collapse the quantum state (Born rule) — the game's one irreversible act; a social encounter that costs 👥. The bubble freezes cyan with its answer. A tap on a live bubble does the same."))
+	_body_box.add_child(_make_action_row("F", "Explore", "Mount an expedition to an unexplored plot — costs %d🍞 (breaking bread opens doors). Binds the register so it can be struck. A tap on an unexplored plot does the same." % explore_bread))
+	_body_box.add_child(_make_action_row("R", "Strike", "Collapse the quantum state (Born rule) — the game's one irreversible act; a social encounter that costs %d👥 base (unfamiliar pairs cost more). The bubble freezes cyan with its answer. A tap on a live bubble does the same." % strike_people))
 	_body_box.add_child(_make_action_row("Q", "Extract", "Harvest the frozen answer, free — reward = surprisal −kT·log p, rare pays more (a certain outcome pays the floor: let the state evolve before you strike). The bubble returns to live evolution. A tap on a frozen bubble does the same."))
 	_body_box.add_child(_make_action_row("E", "Pause", "Stop time and look — E is the universal \"tell me more\" on every surface."))
 	_body_box.add_child(_make_body(
