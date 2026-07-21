@@ -76,22 +76,19 @@ func _ready() -> void:
 	var we := WorldEnvironment.new()
 	var env := Environment.new()
 	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color(0.028, 0.032, 0.062)
+	# Mini-Metro clarity: a clean dark canvas, bright even light so flat colours read bold,
+	# and NO bloom/glow haze (vibrant colour does the work, not glow).
+	env.background_color = Color(0.10, 0.11, 0.14)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(0.52, 0.54, 0.70)
-	env.ambient_light_energy = 0.5
-	env.glow_enabled = true
-	env.glow_intensity = 1.0
-	env.glow_strength = 1.1
-	env.glow_bloom = 0.28
-	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_ADDITIVE
-	env.glow_hdr_threshold = 0.82
+	env.ambient_light_color = Color(0.85, 0.87, 0.95)
+	env.ambient_light_energy = 1.25
+	env.glow_enabled = false
 	we.environment = env
 	_world.add_child(we)
 
 	var key := DirectionalLight3D.new()
 	key.rotation_degrees = Vector3(-44, -32, 0)
-	key.light_energy = 0.55
+	key.light_energy = 0.8
 	_world.add_child(key)
 
 	_pivot = Node3D.new()
@@ -105,7 +102,6 @@ func _ready() -> void:
 	emat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	emat.vertex_color_use_as_albedo = true
 	emat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	emat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
 	_edges.material_override = emat
 	_pivot.add_child(_edges)
 
@@ -191,9 +187,10 @@ func _apply_theme(biome_name: String) -> void:
 	# Orb glows in the biome's theme hue; the ripeness ring stays the global gold accent.
 	var theme: Dictionary = BVT.get_theme(biome_name)
 	var hue: float = float(theme.get("base", Color(0.1, 0.1, 0.1)).h)
-	_glow = Color.from_hsv(hue, 0.72, 1.0)
-	_orb_base = Color.from_hsv(hue, 0.55, 0.15)
-	_accent = theme.get("accent", Color(0.96, 0.80, 0.36))
+	# _glow: vibrant self-light kept bold on the shaded side; _orb_base: the flat albedo.
+	_glow = Color.from_hsv(hue, 0.85, 0.95)
+	_orb_base = Color.from_hsv(hue, 0.82, 0.74)
+	_accent = theme.get("accent", Color(0.98, 0.82, 0.30))
 
 
 func _layout_pos(i: int, n: int) -> Vector3:
@@ -249,11 +246,13 @@ func _spawn(reg: int, pos: Vector3, emoji: String, grid_pos: Vector2i) -> void:
 	mi.mesh = sm
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = _orb_base
+	# subtle self-light keeps the colour bold on the shaded side; glow is OFF so it never
+	# blooms — the orb reads as a solid, vibrant colour (Mini-Metro flat), not a haze.
 	mat.emission_enabled = true
 	mat.emission = _glow
-	mat.emission_energy_multiplier = 1.3
-	mat.metallic = 0.15; mat.roughness = 0.38
-	mat.rim_enabled = true; mat.rim = 0.75; mat.rim_tint = 0.3
+	mat.emission_energy_multiplier = 0.35
+	mat.metallic = 0.0; mat.roughness = 0.55
+	mat.rim_enabled = false
 	mi.material_override = mat
 	mi.position = pos
 	_pivot.add_child(mi)
@@ -265,9 +264,7 @@ func _spawn(reg: int, pos: Vector3, emoji: String, grid_pos: Vector2i) -> void:
 	ring.mesh = tm
 	var rmat := StandardMaterial3D.new()
 	rmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	rmat.emission_enabled = true; rmat.emission = _accent; rmat.emission_energy_multiplier = 1.6
-	rmat.albedo_color = Color(_accent.r, _accent.g, _accent.b, 0.85)
-	rmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	rmat.albedo_color = _accent   # crisp, solid gold — no glow, no transparency haze
 	ring.material_override = rmat
 	ring.position = pos
 	ring.rotation_degrees = Vector3(76, 0, 0)
@@ -292,8 +289,7 @@ func _spawn(reg: int, pos: Vector3, emoji: String, grid_pos: Vector2i) -> void:
 	dot.mesh = dm
 	var dmat := StandardMaterial3D.new()
 	dmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	dmat.emission_enabled = true; dmat.emission = CYAN; dmat.emission_energy_multiplier = 3.2
-	dmat.albedo_color = CYAN
+	dmat.albedo_color = CYAN   # crisp solid dot
 	dot.material_override = dmat
 	_pivot.add_child(dot)
 
@@ -343,11 +339,12 @@ func _spawn_portal(biome, pos: Vector3) -> void:
 	sm.radial_segments = 20; sm.rings = 12
 	mi.mesh = sm
 	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color.from_hsv(hue, 0.5, 0.12)
+	mat.albedo_color = Color.from_hsv(hue, 0.82, 0.70)
 	mat.emission_enabled = true
-	mat.emission = Color.from_hsv(hue, 0.7, 0.9)
-	mat.emission_energy_multiplier = 0.95
-	mat.rim_enabled = true; mat.rim = 0.6
+	mat.emission = Color.from_hsv(hue, 0.85, 0.9)
+	mat.emission_energy_multiplier = 0.3
+	mat.metallic = 0.0; mat.roughness = 0.55
+	mat.rim_enabled = false
 	mi.material_override = mat
 	mi.position = pos
 	_world.add_child(mi)   # on _world, NOT _pivot: portals stay a fixed nav ring, don't orbit
@@ -419,16 +416,15 @@ func _process(dt: float) -> void:
 		if dir.length() < 0.001:
 			dir = Vector3.UP
 		b.dot.position = b.pos + dir.normalized() * (R + 0.07 + 0.32 * clampf(br, 0.0, 1.0))
-		# orb emission tracks coherence/purity
-		b.mat.emission_energy_multiplier = 0.85 + 2.2 * clampf(br, 0.0, 1.0)
-		# honest ripeness: gold ring brightens + fattens as the register ripens
+		# honest coherence carried by flat colour brightness (no glow): a coherent register
+		# reads bold + vibrant, a decohered one duller.
+		var cval: float = 0.52 + 0.44 * clampf(br, 0.0, 1.0)
+		b.mat.albedo_color = Color.from_hsv(_orb_base.h, _orb_base.s, cval)
+		# honest ripeness: the clean gold ring grows as the register ripens
 		var rip := clampf(VC.ripeness(p0, p1), 0.0, 1.0)
-		b.rmat.emission_energy_multiplier = 0.5 + 3.0 * rip
-		var ring_s: float = 0.9 + 0.35 * rip + 0.04 * sin(t * 2.3 + float(b.reg) * 1.1)
-		b.ring.scale = Vector3.ONE * ring_s
-		b.ring.rotate_object_local(Vector3.UP, dt * (0.3 + 0.8 * rip))
-		# idle breathe
-		var s: float = 1.0 + 0.045 * sin(t * 1.5 + b.pos.x * 1.7)
+		b.ring.scale = Vector3.ONE * (0.82 + 0.5 * rip)
+		# idle breathe (subtle)
+		var s: float = 1.0 + 0.03 * sin(t * 1.4 + b.pos.x * 1.7)
 		b.mesh.scale = Vector3.ONE * s
 	_update_edges(vc)
 
@@ -452,8 +448,10 @@ func _update_edges(vc) -> void:
 		return
 	em.surface_begin(Mesh.PRIMITIVE_LINES)
 	for s in segs:
-		var a := clampf(float(s[2]) * 1.8, 0.08, 0.85)
-		var col := Color(_glow.r, _glow.g, _glow.b, a)
+		# crisp, clean correlation line (Mini-Metro line, not a glow) — light steel-blue,
+		# more opaque the stronger the correlation
+		var a := clampf(float(s[2]) * 3.0, 0.3, 0.95)
+		var col := Color(0.62, 0.82, 0.95, a)
 		em.surface_set_color(col)
 		em.surface_add_vertex(_bubbles[s[0]].pos)
 		em.surface_set_color(col)
