@@ -181,7 +181,10 @@ func _on_quantum_node_clicked(grid_pos: Vector2i, button_index: int) -> void:
 
 
 func _on_chain_swiped(positions: Array) -> void:
-	if positions.size() < 2 or not farm:
+	# Route through the live shell UI (like _on_quantum_node_clicked) — the gate build binds
+	# to the instrument's own farm, so instrument_input liveness (not the FarmView.farm
+	# reference, which can go stale across a reload) is what determines dispatch validity.
+	if positions.size() < 2:
 		return
 	if _verbose:
 		_verbose.debug("ui", "⛓️", "Chain swipe: %d bubbles" % positions.size())

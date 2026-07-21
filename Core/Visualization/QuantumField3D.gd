@@ -13,17 +13,20 @@ extends SubViewportContainer
 #   • the honest Bloch-vector dot at the register's real (x,y,z), length = r.
 # The field drifts slowly (pausing on mouse activity) so it never reads as a dead frame.
 #
-# NO mechanics input is wired here yet (Phase B), so it can never misfire a game
-# action; the 2D renderer stays the shippable default. Presents the interface FarmView
-# expects (connect_to_farm / node_clicked / chain_swiped / teardown /
-# selected_plot_positions / _on_plot_selection_changed) so it drops into
-# GameRoot._mount_quantum_visualization behind the flag. Defensive throughout: any
-# missing farm/viz_cache API fails to an empty field, never a crash.
+# Mechanics input is wired through the SAME seam the 2D renderer uses: a TAP on an orb
+# emits node_clicked(grid_pos) (FarmView → handle_bubble_tap), and a SWIPE across 2+ orbs
+# emits chain_swiped([grid_pos…]) (FarmView → apply_chain_gate → bell/cluster gate build).
+# A left-drag that begins on EMPTY space orbits the camera instead — that is how tap, chain,
+# and orbit are disambiguated from one pointer. Presents the interface FarmView expects
+# (connect_to_farm / node_clicked / chain_swiped / teardown / selected_plot_positions /
+# _on_plot_selection_changed) so it drops into GameRoot._mount_quantum_visualization behind
+# the flag. Defensive throughout: any missing farm/viz_cache API fails to an empty field,
+# never a crash.
 
 signal quantum_node_selected(node)
 signal biome_selected(biome_name: String)
-signal node_clicked(grid_pos: Vector2i, button_index: int)   # declared; not emitted yet (Phase B)
-signal chain_swiped(positions: Array)                        # declared; not emitted yet (Phase B)
+signal node_clicked(grid_pos: Vector2i, button_index: int)   # tap on an orb → handle_bubble_tap
+signal chain_swiped(positions: Array)                        # swipe across 2+ orbs → apply_chain_gate
 
 const BVT = preload("res://Core/Visualization/BiomeVisualTheme.gd")
 const VC = preload("res://Core/Visualization/VisualizationConstants.gd")
@@ -47,6 +50,10 @@ var _dragging := false
 var _press_pos := Vector2.ZERO
 var _press_moved := false
 var _orbit_hold_until_ms := 0     # pause idle drift briefly after any mouse activity
+var _chain_mode := false          # a left-drag that began on an orb builds a gate chain
+var _chain: Array = []            # orbs gathered by the current chain-swipe (bell/cluster)
+var _chain_mesh: MeshInstance3D = null  # live gold thread through the chained orbs
+var _pointer_pos := Vector2.ZERO
 var _last_biome := ""
 var _reg_tex: Dictionary = {}       # emoji -> Texture2D cache
 var _emoji_reg: Dictionary = {}
@@ -117,6 +124,17 @@ func _ready() -> void:
 	vmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_vectors.material_override = vmat
 	_pivot.add_child(_vectors)
+
+	# live chain-swipe thread: a gold line through the orbs the current drag has gathered
+	# (2+ orbs on release builds a bell/cluster gate — the 3D equivalent of the 2D swipe).
+	_chain_mesh = MeshInstance3D.new()
+	_chain_mesh.mesh = ImmediateMesh.new()
+	var cmat := StandardMaterial3D.new()
+	cmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	cmat.vertex_color_use_as_albedo = true
+	cmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_chain_mesh.material_override = cmat
+	_pivot.add_child(_chain_mesh)
 
 	_load_emoji_registry()
 
@@ -480,6 +498,7 @@ func _process(dt: float) -> void:
 		b.ring.scale = Vector3.ONE * (0.92 + 0.35 * rip)
 	_update_edges(vc)
 	_update_vectors()
+	_draw_chain()
 
 
 ## Draw each register's live state vector (centre → the real Bloch point) plus a fading
@@ -545,25 +564,129 @@ func _update_edges(vc) -> void:
 func _gui_input(ev: InputEvent) -> void:
 	if ev is InputEventMouse:
 		_orbit_hold_until_ms = Time.get_ticks_msec() + 1500
-	# A short press that doesn't drag = a TAP → pick an orb → node_clicked(grid_pos)
-	# (FarmView routes it to handle_bubble_tap, exactly like a 2D bubble tap). A press
-	# that moves past the threshold becomes an ORBIT drag and never dispatches an action.
+		_pointer_pos = ev.position
+	# ONE pointer, three gestures, disambiguated by where the press lands and whether it moves:
+	#   • press+release on an orb, no drag → TAP → node_clicked(grid_pos) → handle_bubble_tap
+	#   • press on an orb, drag across 2+ orbs → CHAIN → chain_swiped([grid_pos…]) → bell/cluster
+	#   • press on EMPTY space, drag → ORBIT the camera (never dispatches a game action)
+	# A right-click on an orb picks it too (same as a tap; FarmView ignores the button).
 	if ev is InputEventMouseButton and ev.button_index == MOUSE_BUTTON_LEFT:
 		if ev.pressed:
 			_press_pos = ev.position
 			_press_moved = false
 			_dragging = false
+			var hit := _orb_at(ev.position)
+			if not hit.is_empty():
+				# press began ON an orb → this drag builds a gate chain, not an orbit
+				_chain_mode = true
+				_chain = [hit]
+				_flash_orb(hit)
+			else:
+				_chain_mode = false
+				_chain = []
 		else:
-			if not _press_moved:
+			if _chain_mode and _chain.size() >= 2:
+				_emit_chain()
+			elif not _press_moved:
 				_try_pick(ev.position, ev.button_index)
+			_end_chain()
 			_dragging = false
+	elif ev is InputEventMouseButton and ev.button_index == MOUSE_BUTTON_RIGHT and ev.pressed:
+		_try_pick(ev.position, ev.button_index)
 	elif ev is InputEventMouseMotion and (ev.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
 		if not _press_moved and ev.position.distance_to(_press_pos) > 7.0:
 			_press_moved = true
+		if _chain_mode:
+			# extend the chain when the pointer crosses onto a NEW orb (dedup consecutive,
+			# matching the 2D drag-chain: a node re-enters only if it isn't the current tail)
+			var hit := _orb_at(ev.position)
+			if not hit.is_empty() and (_chain.is_empty() or int(hit.reg) != int((_chain.back() as Dictionary).reg)):
+				_chain.append(hit)
+				_flash_orb(hit)
+		elif _press_moved:
 			_dragging = true
-		if _dragging:
 			_pivot.rotate_object_local(Vector3.UP, ev.relative.x * 0.008)
 			_pivot.rotate_object_local(Vector3.RIGHT, ev.relative.y * 0.008)
+
+
+## Resolution-relative screen-pixel hit radii (so picking survives high-DPI / 4K, where a
+## fixed pixel radius would be far too small). Scale gently with the viewport height.
+func _orb_hit_radius() -> float:
+	return maxf(56.0, size.y * 0.07)
+
+
+func _portal_hit_radius() -> float:
+	return maxf(46.0, size.y * 0.055)
+
+
+## Nearest register orb to a screen point within the orb hit radius (bubbles only, no
+## portals — you chain registers, not biomes). Returns the bubble dict, or {} if none.
+func _orb_at(screen_pos: Vector2) -> Dictionary:
+	if _cam == null:
+		return {}
+	var best := {}
+	var best_d := _orb_hit_radius()
+	for b in _bubbles:
+		if not is_instance_valid(b.mesh):
+			continue
+		var wp: Vector3 = b.mesh.global_position
+		if _cam.is_position_behind(wp):
+			continue
+		var d := _cam.unproject_position(wp).distance_to(screen_pos)
+		if d < best_d:
+			best_d = d
+			best = b
+	return best
+
+
+## Brief scale pop on an orb's state dot so it reads as "picked up" by the chain; the pop
+## decays back to 1.0 in _process (same path as the tap pick-flash).
+func _flash_orb(b: Dictionary) -> void:
+	if b.get("dot") != null and is_instance_valid(b.dot):
+		b.dot.scale = Vector3.ONE * 1.8
+
+
+## Emit the gathered chain as an Array[Vector2i] of grid positions — the exact payload the
+## 2D renderer emits, so FarmView._on_chain_swiped → apply_chain_gate builds bell (2) / cluster
+## (3+) identically to a 2D swipe.
+func _emit_chain() -> void:
+	var positions: Array[Vector2i] = []
+	for b in _chain:
+		if (b as Dictionary).has("grid_pos"):
+			positions.append(b.grid_pos)
+	if positions.size() >= 2:
+		chain_swiped.emit(positions)
+
+
+func _end_chain() -> void:
+	_chain_mode = false
+	_chain = []
+	if _chain_mesh != null and _chain_mesh.mesh is ImmediateMesh:
+		(_chain_mesh.mesh as ImmediateMesh).clear_surfaces()
+
+
+## Draw the live gold thread through the orbs the current chain-swipe has gathered (in the
+## orbs' own pivot-local space, so it tracks them; orbit is frozen while chaining). Cleared
+## when no chain is active.
+func _draw_chain() -> void:
+	if _chain_mesh == null or not (_chain_mesh.mesh is ImmediateMesh):
+		return
+	var cm: ImmediateMesh = _chain_mesh.mesh
+	cm.clear_surfaces()
+	if not _chain_mode or _chain.size() < 2:
+		return
+	# bright near-white gold so the live thread reads distinctly against the static gold
+	# ripeness rings it passes through
+	var gold := Color(1.0, 0.95, 0.72, 0.96)
+	cm.surface_begin(Mesh.PRIMITIVE_LINES)
+	for i in range(1, _chain.size()):
+		var a: Vector3 = (_chain[i - 1] as Dictionary).pos
+		var b: Vector3 = (_chain[i] as Dictionary).pos
+		cm.surface_set_color(gold)
+		cm.surface_add_vertex(a)
+		cm.surface_set_color(gold)
+		cm.surface_add_vertex(b)
+	cm.surface_end()
 
 
 func _try_pick(screen_pos: Vector2, button: int) -> void:
@@ -571,7 +694,7 @@ func _try_pick(screen_pos: Vector2, button: int) -> void:
 		return
 	# Portals first: a click on another biome's orb dives into it (fractal navigation).
 	var bestp = null
-	var bestp_d := 60.0
+	var bestp_d := _portal_hit_radius()
 	for p in _portals:
 		if not is_instance_valid(p.mesh):
 			continue
@@ -589,7 +712,7 @@ func _try_pick(screen_pos: Vector2, button: int) -> void:
 		biome_selected.emit(str(bestp.name))
 		return
 	var best = null
-	var best_d := 72.0   # px hit radius
+	var best_d := _orb_hit_radius()   # resolution-relative px hit radius
 	for b in _bubbles:
 		if not is_instance_valid(b.mesh):
 			continue
@@ -630,6 +753,28 @@ func dev_tap_register(idx: int) -> Vector2i:
 		return Vector2i(-9, -9)
 	_try_pick(_cam.unproject_position(b.mesh.global_position), MOUSE_BUTTON_LEFT)
 	return b.grid_pos
+
+
+## dev-only: simulate a chain-swipe across the given register indices (into _bubbles),
+## emitting chain_swiped exactly as a real drag would → FarmView._on_chain_swiped →
+## apply_chain_gate builds a bell (2) / cluster (3+) gate. Returns the grid positions
+## chained, so the screenshot harness can log the dispatch.
+func dev_chain(regs: Array) -> Array:
+	var positions: Array[Vector2i] = []
+	_chain = []
+	for r in regs:
+		var idx := int(r)
+		if idx < 0 or idx >= _bubbles.size():
+			continue
+		var b = _bubbles[idx]
+		_chain.append(b)
+		_flash_orb(b)
+		if b.has("grid_pos"):
+			positions.append(b.grid_pos)
+	_chain_mode = true   # keep the gold thread drawn for the capture
+	if positions.size() >= 2:
+		chain_swiped.emit(positions)
+	return positions
 
 
 ## dev-only: simulate a click on portal `idx` (dives into that biome). Returns its name.

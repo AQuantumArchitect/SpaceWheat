@@ -188,6 +188,17 @@ func _dev_screenshot() -> void:
 			var pidx := int(pe) if pe.is_valid_int() else 0
 			print("SW_TAP_PORTAL dove to ", f3dp.dev_tap_portal(pidx))
 			await get_tree().create_timer(2.0).timeout
+	# SW_CHAIN_TEST=0,1[,2…]: simulate a chain-swipe across those register orbs to verify the
+	# 3D swipe → chain_swiped → apply_chain_gate (bell/cluster) dispatch, headed.
+	if OS.has_environment("SW_CHAIN_TEST"):
+		var f3dc = get_node_or_null("QuantumField3D")
+		if f3dc != null and f3dc.has_method("dev_chain"):
+			var regs := []
+			for part in OS.get_environment("SW_CHAIN_TEST").split(","):
+				if part.strip_edges().is_valid_int():
+					regs.append(int(part.strip_edges()))
+			print("SW_CHAIN_TEST chained ", f3dc.dev_chain(regs))
+			await get_tree().create_timer(1.6).timeout
 	var img := get_viewport().get_texture().get_image()
 	if img:
 		img.save_png(OS.get_environment("SW_SHOT"))
