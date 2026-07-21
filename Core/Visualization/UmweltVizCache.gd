@@ -24,6 +24,14 @@ func load_trace(path: String) -> bool:
 	var d = JSON.parse_string(f.get_as_text())
 	if typeof(d) != TYPE_DICTIONARY:
 		return false
+	return load_frame(d)
+
+
+## Swap the cache to an already-parsed trace dict IN PLACE — same object, new frame. Used by
+## the filmstrip playback so QuantumField3D keeps its persistent bubbles (same biome name,
+## same register count) and simply reads the new state each frame, animating the field instead
+## of rebuilding it. Returns true if the frame carries registers.
+func load_frame(d: Dictionary) -> bool:
 	world = str(d.get("world", ""))
 	_regs = d.get("registers", []) if typeof(d.get("registers")) == TYPE_ARRAY else []
 	_edge_w.clear()

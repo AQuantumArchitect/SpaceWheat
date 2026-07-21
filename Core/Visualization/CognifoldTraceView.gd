@@ -15,8 +15,12 @@ const UmweltVizCacheScript = preload("res://Core/Visualization/UmweltVizCache.gd
 # so it is always safe to use here.
 const QuantumField3DScript = preload("res://Core/Visualization/CognifoldForecastField.gd")
 const DEFAULT_TRACE := "res://Core/Visualization/cognifold_forecast_grid.json"
+const DEFAULT_FILMSTRIP := "res://Core/Visualization/cognifold_filmstrip"
 
 var _field = null
+var _vc = null                 # the live UmweltVizCache (swapped in place during filmstrip playback)
+var _frames: Array = []        # parsed trace dicts, one per filmstrip frame (empty = single trace)
+var _frame_idx := 0
 
 
 ## Minimal farm/grid/biome so QuantumField3D's farm-shaped read path resolves to our adapter
@@ -53,14 +57,28 @@ class _Farm extends Node:
 func _ready() -> void:
 	name = "CognifoldTraceView"
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	var path := OS.get_environment("SW_COGNIFOLD_TRACE")
-	if path == "":
-		path = DEFAULT_TRACE
 	var vc = UmweltVizCacheScript.new()
-	if not vc.load_trace(path):
-		push_error("CognifoldTraceView: could not load cognifold trace: " + path)
-		return
-	print("[cognifold] loaded trace world='%s' registers=%d" % [str(vc.world), vc.get_num_qubits()])
+	_vc = vc
+	# Precedence: SW_COGNIFOLD_TRACE_DIR (a dir of *.json frames → animated filmstrip) →
+	# SW_COGNIFOLD_TRACE (a single trace file) → a PLAIN launch defaults to the committed live
+	# filmstrip (the field animates as a real umwelt walk evolves), falling back to the single
+	# forecast trace if the filmstrip is absent.
+	var dir_env := OS.get_environment("SW_COGNIFOLD_TRACE_DIR")
+	var file_env := OS.get_environment("SW_COGNIFOLD_TRACE")
+	if dir_env == "" and file_env == "":
+		dir_env = DEFAULT_FILMSTRIP
+	if dir_env != "":
+		_frames = _load_frames_dir(dir_env)
+	if _frames.size() >= 2 and vc.load_frame(_frames[0]):
+		print("[cognifold] filmstrip frames=%d world='%s' registers=%d"
+			% [_frames.size(), str(vc.world), vc.get_num_qubits()])
+	else:
+		_frames = []
+		var path := file_env if file_env != "" else DEFAULT_TRACE
+		if not vc.load_trace(path):
+			push_error("CognifoldTraceView: could not load cognifold trace: " + path)
+			return
+		print("[cognifold] loaded trace world='%s' registers=%d" % [str(vc.world), vc.get_num_qubits()])
 	var bname := "belief-field: " + str(vc.world)
 	var biome = _Biome.new(vc, bname)
 	var farm = _Farm.new(_Grid.new({bname: biome}))
@@ -69,8 +87,48 @@ func _ready() -> void:
 	_field.name = "QuantumField3D"
 	add_child(_field)
 	_field.connect_to_farm(farm)
+	# filmstrip advance: swap the vc's frame in place; the renderer keeps its persistent
+	# bubbles (same biome name + register count) and animates to the new state each tick.
+	if _frames.size() > 1:
+		var t := Timer.new()
+		t.wait_time = float(OS.get_environment("SW_COGNIFOLD_FRAME_S")) if \
+			OS.get_environment("SW_COGNIFOLD_FRAME_S").is_valid_float() else 1.2
+		t.autostart = true
+		t.timeout.connect(_advance_frame)
+		add_child(t)
 	if OS.has_environment("SW_SHOT"):
 		_dev_capture()
+
+
+func _load_frames_dir(dir_path: String) -> Array:
+	var frames: Array = []
+	var da := DirAccess.open(dir_path)
+	if da == null:
+		return frames
+	var names: Array[String] = []
+	da.list_dir_begin()
+	var fn := da.get_next()
+	while fn != "":
+		if not da.current_is_dir() and fn.ends_with(".json"):
+			names.append(fn)
+		fn = da.get_next()
+	da.list_dir_end()
+	names.sort()   # frame_000, frame_001, … play in order
+	for nm in names:
+		var f := FileAccess.open(dir_path.path_join(nm), FileAccess.READ)
+		if f == null:
+			continue
+		var d = JSON.parse_string(f.get_as_text())
+		if typeof(d) == TYPE_DICTIONARY:
+			frames.append(d)
+	return frames
+
+
+func _advance_frame() -> void:
+	if _frames.size() < 2 or _vc == null:
+		return
+	_frame_idx = (_frame_idx + 1) % _frames.size()
+	_vc.load_frame(_frames[_frame_idx])
 
 
 func _dev_capture() -> void:
