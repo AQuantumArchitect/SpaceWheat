@@ -90,9 +90,14 @@ func _surge_flow() -> void:
 
 
 func _station_position(biome_name: String, register_id: int) -> Vector2:
-	if _quantum_viz != null and is_instance_valid(_quantum_viz) \
-			and _quantum_viz.has_method("get_register_screen_position"):
-		var p: Vector2 = _quantum_viz.get_register_screen_position(biome_name, register_id)
+	var viz = _quantum_viz
+	if viz == null or not (is_instance_valid(viz) and viz.has_method("get_register_screen_position")):
+		# 3D field path: the live renderer is held by FarmView, not passed as quantum_viz.
+		var fvs = get_tree().get_nodes_in_group("farm_view")
+		if fvs.size() > 0 and fvs[0].has_method("get_field_renderer"):
+			viz = fvs[0].get_field_renderer()
+	if viz != null and is_instance_valid(viz) and viz.has_method("get_register_screen_position"):
+		var p: Vector2 = viz.get_register_screen_position(biome_name, register_id)
 		if p.x >= 0.0:
 			return p
 	return get_viewport_rect().size * 0.5

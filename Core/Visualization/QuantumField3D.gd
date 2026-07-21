@@ -434,6 +434,18 @@ func _try_pick(screen_pos: Vector2, button: int) -> void:
 		node_clicked.emit(best.grid_pos, button)
 
 
+## Screen position of a register's orb — FloatingRewardLayer uses this to anchor world-space
+## reward fliers/bursts to the 3D orbs. Returns (-1,-1) when the register has no visible orb
+## (the reward layer then falls back to a centred spawn).
+func get_register_screen_position(_biome_name: String, register_id: int) -> Vector2:
+	if _cam != null:
+		for b in _bubbles:
+			if int(b.reg) == register_id and is_instance_valid(b.mesh):
+				if not _cam.is_position_behind(b.mesh.global_position):
+					return _cam.unproject_position(b.mesh.global_position)
+	return Vector2(-1, -1)
+
+
 ## dev-only: simulate a real tap on register `idx` by unprojecting its orb to screen and
 ## running the actual pick geometry (exercises unproject → nearest → node_clicked → the
 ## FarmView → handle_bubble_tap chain). Returns the grid_pos tapped, or (-9,-9) on failure.

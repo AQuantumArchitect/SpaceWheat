@@ -28,6 +28,12 @@ func _renderer():
 	return quantum_viz if quantum_viz else field3d
 
 
+## Public accessor for the live renderer — lets widgets (e.g. FloatingRewardLayer) reach
+## the 3D field, which is not passed around as `quantum_viz`.
+func get_field_renderer():
+	return _renderer()
+
+
 func _ready() -> void:
 	# Passive container — GameRoot calls attach_runtime() to wire everything.
 	add_to_group("farm_view")
