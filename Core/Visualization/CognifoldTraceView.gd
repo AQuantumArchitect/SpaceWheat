@@ -10,8 +10,11 @@ extends Control
 # register = belief, Bloch point = value + confidence, edges = couplings.
 
 const UmweltVizCacheScript = preload("res://Core/Visualization/UmweltVizCache.gd")
-const QuantumField3DScript = preload("res://Core/Visualization/QuantumField3D.gd")
-const DEFAULT_TRACE := "res://Core/Visualization/cognifold_sample_grid.json"
+# CognifoldForecastField extends the shipped QuantumField3D and adds the forward self-forecast
+# ladder; it degrades to the base renderer for any register whose gauge carries no forecast,
+# so it is always safe to use here.
+const QuantumField3DScript = preload("res://Core/Visualization/CognifoldForecastField.gd")
+const DEFAULT_TRACE := "res://Core/Visualization/cognifold_forecast_grid.json"
 
 var _field = null
 
