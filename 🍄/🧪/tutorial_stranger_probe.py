@@ -68,9 +68,27 @@ def main():
                     return str(s.get("key")).lower()
             return ""
 
+        _ORDER = ["core_loop", "vocabulary", "reap_season", "superposition",
+                  "entanglement", "contracts", "vocab_escape"]
+
+        def chain_advanced_past(teach):
+            # The Act-0 chain is strictly linear (each claim unlocks the next), so a LATER
+            # step being live proves `teach` already completed. Since predicate-driven steps
+            # now auto-accept AND auto-claim (the progress bar is the teacher), a step whose
+            # soft condition is already met when it unlocks — StarterForest coherence ≥ 0.3
+            # in the naturally oscillating forest (superposition) — completes before this
+            # data-shortcut probe can poll it. That is a pass, not a "never offered".
+            i = _ORDER.index(teach)
+            live = {str(x.get("tutorial_teaches", "")) for x in offers() + actives()}
+            return any(later in live for later in _ORDER[i + 1:])
+
         def run_step(teach, drive, rounds=10):
             where, q = find_step(teach)
             if where == "":
+                if chain_advanced_past(teach):
+                    print("  ✓ step '%s' auto-completed (condition already met on unlock)" % teach)
+                    completed.append(teach)
+                    return True
                 note("step '%s' never offered" % teach)
                 return False
             if where == "offer":

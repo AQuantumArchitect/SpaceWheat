@@ -14,7 +14,7 @@ const _ROWS := [
 	"",
 	"KEYBOARD   ·   plots  [ G H J K L ; ]  ·  verbs  [ Q E R F ]  ·  hats  [ 4 – 0 ]  ·  menus  [ Z X C V B N M ].",
 	"",
-	"New here?   Press  X  —  your first quest waits on the  Arc  tab  ( I );  Guide  ( O )  is the full how-to-play.",
+	"New here?   Your first task is already live — the banner names it.  X → Arc  ( I )  lists your quests;  R  accepts the one you pick.  Guide  ( O )  is the full how-to-play.",
 	"Open  B  on any biome to see how it behaves (rigid vs. plural), and  C  for contracts + commitments.",
 	"",
 	"Tap anywhere  (or press  F)  to begin.",
