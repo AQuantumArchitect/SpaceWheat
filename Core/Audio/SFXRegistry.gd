@@ -54,7 +54,7 @@ func _create_player_pool() -> void:
 	for i in range(POOL_SIZE):
 		var player = AudioStreamPlayer.new()
 		player.name = "SFXPlayer_%d" % i
-		player.bus = "Master"
+		player.bus = "SFX"  # Falls back to Master if the bus layout is absent
 		add_child(player)
 		_players.append(player)
 
