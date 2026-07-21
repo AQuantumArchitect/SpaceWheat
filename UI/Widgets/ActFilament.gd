@@ -18,7 +18,9 @@ const UIProgression = preload("res://UI/Core/UIProgression.gd")
 
 const ACCENT := Color(1.0, 0.8, 0.3)
 const POLL_S := 0.5
+const BANNER_WIDTH := 190.0
 const BANNER_HEIGHT := 44.0
+const TEXT_PAD := 8.0   # inner padding so the wrapped line clears the banner edges
 
 var _overlay_manager: Node = null
 var _label: Label = null
@@ -31,7 +33,7 @@ var _text: String = ""
 ## manager is retained (tap → X).
 func setup(_quest_manager: Node, _farm: Node, overlay_manager: Node) -> void:
 	_overlay_manager = overlay_manager
-	custom_minimum_size = Vector2(190, BANNER_HEIGHT)
+	custom_minimum_size = Vector2(BANNER_WIDTH, BANNER_HEIGHT)
 	# RuntimeMount anchors us top-right and sets offset_top/left/right; claim
 	# the vertical room the wrapped objective line needs.
 	offset_bottom = offset_top + BANNER_HEIGHT
@@ -44,6 +46,10 @@ func setup(_quest_manager: Node, _farm: Node, overlay_manager: Node) -> void:
 		_label.add_theme_font_size_override("font_size", 11)
 		_label.add_theme_color_override("font_color", ACCENT)
 		_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		# A definite width floor so AUTOWRAP always has a real budget. Without it the label
+		# computes its wrap width before the full-rect anchor propagates the parent's 190px,
+		# collapses to ~1 char, and renders the objective vertically (one glyph per line).
+		_label.custom_minimum_size = Vector2(BANNER_WIDTH - TEXT_PAD, 0.0)
 		add_child(_label)
 		_label.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_refresh()
