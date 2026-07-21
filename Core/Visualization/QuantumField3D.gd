@@ -1,17 +1,17 @@
 class_name QuantumField3D
 extends SubViewportContainer
-# Phase A (view-only): a 3D cognifold renderer for the live farm, gated behind the
-# SW_FIELD_3D toggle. It reads the SAME `biome.viz_cache` the 2D renderer reads —
-# per-register Bloch vectors (x,y,z,r,p0,p1) — and draws each register as a glowing
-# 3D bubble:
-#   • an emissive SphereMesh, glowing in the biome's THEME HUE (BiomeVisualTheme —
-#     "one colour = one meaning"), its energy driven by coherence/purity r;
-#   • a billboarded real-emoji Sprite3D (the register's north-pole axis icon);
-#   • a golden RIPENESS ring (TorusMesh) — gold is the global ripeness/value colour in
-#     EVERY biome, so it stays gold here; its brightness + girth track the honest
-#     VisualizationConstants.ripeness(p0,p1);
+# A 3D cognifold renderer for the live farm, gated behind the 3D toggle. It reads the
+# SAME `biome.viz_cache` the 2D renderer reads — per-register Bloch vectors
+# (x,y,z,r,p0,p1) — and draws each register in a clean, Mini-Metro style (flat + vibrant,
+# NO bloom/glow) where the EMOJI is the star:
+#   • a big, clean billboarded real-emoji Sprite3D (the register's north-pole axis icon)
+#     on a DARK subtle backing ball — the colour is a ring, not a filled glow;
+#   • a thin biome-colour identity ring (BiomeVisualTheme, "one colour = one meaning"),
+#     brighter when coherent, duller when decohered;
+#   • a thin gold RIPENESS ring (gold = the global ripeness/value colour in every biome)
+#     that grows with the honest VisualizationConstants.ripeness(p0,p1);
 #   • the honest Bloch-vector dot at the register's real (x,y,z), length = r.
-# The field breathes and slowly orbits so it never reads as a dead screenshot.
+# The field drifts slowly (pausing on mouse activity) so it never reads as a dead frame.
 #
 # NO mechanics input is wired here yet (Phase B), so it can never misfire a game
 # action; the 2D renderer stays the shippable default. Presents the interface FarmView
@@ -80,15 +80,15 @@ func _ready() -> void:
 	# and NO bloom/glow haze (vibrant colour does the work, not glow).
 	env.background_color = Color(0.10, 0.11, 0.14)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(0.85, 0.87, 0.95)
-	env.ambient_light_energy = 1.25
+	env.ambient_light_color = Color(0.80, 0.82, 0.92)
+	env.ambient_light_energy = 0.85
 	env.glow_enabled = false
 	we.environment = env
 	_world.add_child(we)
 
 	var key := DirectionalLight3D.new()
 	key.rotation_degrees = Vector3(-44, -32, 0)
-	key.light_energy = 0.8
+	key.light_energy = 0.55
 	_world.add_child(key)
 
 	_pivot = Node3D.new()
@@ -245,29 +245,39 @@ func _spawn(reg: int, pos: Vector3, emoji: String, grid_pos: Vector2i) -> void:
 	sm.radial_segments = 32; sm.rings = 18
 	mi.mesh = sm
 	var mat := StandardMaterial3D.new()
-	mat.albedo_color = _orb_base
-	# subtle self-light keeps the colour bold on the shaded side; glow is OFF so it never
-	# blooms — the orb reads as a solid, vibrant colour (Mini-Metro flat), not a haze.
-	mat.emission_enabled = true
-	mat.emission = _glow
-	mat.emission_energy_multiplier = 0.35
-	mat.metallic = 0.0; mat.roughness = 0.55
+	# a DARK, subtle backing ball — just something for the emoji to sit on. The colour
+	# identity is a thin RING, not a filled glowing sphere, so the emoji stays the star.
+	mat.albedo_color = Color.from_hsv(_orb_base.h, 0.45, 0.11)
+	mat.metallic = 0.0; mat.roughness = 0.75
 	mat.rim_enabled = false
 	mi.material_override = mat
 	mi.position = pos
 	_pivot.add_child(mi)
 
-	# golden ripeness ring (global gold — value/ripeness reads the same in every biome)
+	# biome-colour identity ring (the crisp "line colour" hugging the icon)
+	var hue_ring := MeshInstance3D.new()
+	var htm := TorusMesh.new(); htm.inner_radius = R + 0.02; htm.outer_radius = R + 0.06
+	htm.rings = 48; htm.ring_segments = 16
+	hue_ring.mesh = htm
+	var hmat := StandardMaterial3D.new()
+	hmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	hmat.albedo_color = _glow
+	hue_ring.material_override = hmat
+	hue_ring.position = pos
+	hue_ring.rotation_degrees = Vector3(90, 0, 0)   # ring faces the camera at rest
+	_pivot.add_child(hue_ring)
+
+	# gold ripeness ring: thin, just outside the colour ring, grows with ripeness
 	var ring := MeshInstance3D.new()
-	var tm := TorusMesh.new(); tm.inner_radius = R + 0.075; tm.outer_radius = R + 0.135
-	tm.rings = 40; tm.ring_segments = 12
+	var tm := TorusMesh.new(); tm.inner_radius = R + 0.10; tm.outer_radius = R + 0.135
+	tm.rings = 48; tm.ring_segments = 16
 	ring.mesh = tm
 	var rmat := StandardMaterial3D.new()
 	rmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	rmat.albedo_color = _accent   # crisp, solid gold — no glow, no transparency haze
+	rmat.albedo_color = _accent   # crisp solid gold, no haze
 	ring.material_override = rmat
 	ring.position = pos
-	ring.rotation_degrees = Vector3(76, 0, 0)
+	ring.rotation_degrees = Vector3(90, 0, 0)
 	_pivot.add_child(ring)
 
 	# billboarded real-emoji sprite
@@ -279,7 +289,7 @@ func _spawn(reg: int, pos: Vector3, emoji: String, grid_pos: Vector2i) -> void:
 		sp.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 		sp.shaded = false
 		sp.no_depth_test = true
-		sp.pixel_size = 0.56 / float(max(8, tex.get_width()))
+		sp.pixel_size = 0.92 / float(max(8, tex.get_width()))   # BIG, clean icon — the star
 		sp.position = pos
 		_pivot.add_child(sp)
 
@@ -293,13 +303,13 @@ func _spawn(reg: int, pos: Vector3, emoji: String, grid_pos: Vector2i) -> void:
 	dot.material_override = dmat
 	_pivot.add_child(dot)
 
-	_bubbles.append({"reg": reg, "mesh": mi, "ring": ring, "sprite": sp, "dot": dot,
-		"mat": mat, "rmat": rmat, "pos": pos, "grid_pos": grid_pos})
+	_bubbles.append({"reg": reg, "mesh": mi, "hue_ring": hue_ring, "ring": ring, "sprite": sp,
+		"dot": dot, "mat": mat, "hmat": hmat, "rmat": rmat, "pos": pos, "grid_pos": grid_pos})
 
 
 func _clear_bubbles() -> void:
 	for b in _bubbles:
-		for k in ["mesh", "ring", "sprite", "dot"]:
+		for k in ["mesh", "hue_ring", "ring", "sprite", "dot"]:
 			if b.get(k) != null and is_instance_valid(b[k]):
 				b[k].queue_free()
 	_bubbles.clear()
@@ -339,15 +349,25 @@ func _spawn_portal(biome, pos: Vector3) -> void:
 	sm.radial_segments = 20; sm.rings = 12
 	mi.mesh = sm
 	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color.from_hsv(hue, 0.82, 0.70)
-	mat.emission_enabled = true
-	mat.emission = Color.from_hsv(hue, 0.85, 0.9)
-	mat.emission_energy_multiplier = 0.3
-	mat.metallic = 0.0; mat.roughness = 0.55
+	mat.albedo_color = Color.from_hsv(hue, 0.5, 0.11)   # dark backing; colour is the ring
+	mat.metallic = 0.0; mat.roughness = 0.75
 	mat.rim_enabled = false
 	mi.material_override = mat
 	mi.position = pos
 	_world.add_child(mi)   # on _world, NOT _pivot: portals stay a fixed nav ring, don't orbit
+
+	# thin biome-colour identity ring (matches the field orbs' look)
+	var pring := MeshInstance3D.new()
+	var ptm := TorusMesh.new(); ptm.inner_radius = 0.205; ptm.outer_radius = 0.235
+	ptm.rings = 44; ptm.ring_segments = 14
+	pring.mesh = ptm
+	var pmat := StandardMaterial3D.new()
+	pmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	pmat.albedo_color = Color.from_hsv(hue, 0.8, 0.85)
+	pring.material_override = pmat
+	pring.position = pos
+	pring.rotation_degrees = Vector3(90, 0, 0)
+	_world.add_child(pring)
 
 	var emoji := ""
 	if ("viz_cache" in biome) and biome.viz_cache != null and biome.viz_cache.get_num_qubits() > 0:
@@ -361,16 +381,16 @@ func _spawn_portal(biome, pos: Vector3) -> void:
 		sp.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 		sp.shaded = false
 		sp.no_depth_test = true
-		sp.pixel_size = 0.30 / float(max(8, tex.get_width()))
+		sp.pixel_size = 0.46 / float(max(8, tex.get_width()))   # bigger, clean icon
 		sp.position = pos
 		_world.add_child(sp)
 
-	_portals.append({"mesh": mi, "sprite": sp, "name": nm, "pos": pos})
+	_portals.append({"mesh": mi, "hue_ring": pring, "sprite": sp, "name": nm, "pos": pos})
 
 
 func _clear_portals() -> void:
 	for p in _portals:
-		for k in ["mesh", "sprite"]:
+		for k in ["mesh", "hue_ring", "sprite"]:
 			if p.get(k) != null and is_instance_valid(p[k]):
 				p[k].queue_free()
 	_portals.clear()
@@ -416,16 +436,12 @@ func _process(dt: float) -> void:
 		if dir.length() < 0.001:
 			dir = Vector3.UP
 		b.dot.position = b.pos + dir.normalized() * (R + 0.07 + 0.32 * clampf(br, 0.0, 1.0))
-		# honest coherence carried by flat colour brightness (no glow): a coherent register
-		# reads bold + vibrant, a decohered one duller.
-		var cval: float = 0.52 + 0.44 * clampf(br, 0.0, 1.0)
-		b.mat.albedo_color = Color.from_hsv(_orb_base.h, _orb_base.s, cval)
+		# honest coherence: the biome-colour ring reads bold when coherent, dull when decohered
+		var cval: float = 0.42 + 0.53 * clampf(br, 0.0, 1.0)
+		b.hmat.albedo_color = Color.from_hsv(_glow.h, _glow.s, cval)
 		# honest ripeness: the clean gold ring grows as the register ripens
 		var rip := clampf(VC.ripeness(p0, p1), 0.0, 1.0)
-		b.ring.scale = Vector3.ONE * (0.82 + 0.5 * rip)
-		# idle breathe (subtle)
-		var s: float = 1.0 + 0.03 * sin(t * 1.4 + b.pos.x * 1.7)
-		b.mesh.scale = Vector3.ONE * s
+		b.ring.scale = Vector3.ONE * (0.9 + 0.4 * rip)
 	_update_edges(vc)
 
 
