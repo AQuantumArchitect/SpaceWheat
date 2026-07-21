@@ -18,6 +18,7 @@ var _edge_w: Dictionary = {}     # undirected weight, keyed _key(i, j)
 var _regs_b: Array = []          # optional "next" frame (frame B) for smooth filmstrip tween
 var _blend: float = 0.0          # 0 → frame A, 1 → frame B
 var _actions: Array = []         # decision-layer recommendations (frame A)
+var _mi_edges: Array = []        # real mutual-information edges (kind "mi"), kept distinct from couplings
 
 
 func load_trace(path: String) -> bool:
@@ -41,12 +42,19 @@ func load_frame(d: Dictionary) -> bool:
 	_regs = d.get("registers", []) if typeof(d.get("registers")) == TYPE_ARRAY else []
 	_actions = d.get("actions", []) if typeof(d.get("actions")) == TYPE_ARRAY else []
 	_edge_w.clear()
+	_mi_edges = []
 	for e in d.get("edges", []):
 		if typeof(e) != TYPE_DICTIONARY:
 			continue
 		var a := int(e.get("i", -1))
 		var b := int(e.get("j", -1))
 		if a < 0 or b < 0:
+			continue
+		# Real mutual-information edges (bits) are a DISTINCT channel — the beliefs' actual shared
+		# information — kept apart from the coupling edges (potential) rather than max-pooled (the
+		# units differ). Everything else is the coupling structure.
+		if str(e.get("kind", "")) == "mi":
+			_mi_edges.append({"i": a, "j": b, "weight": absf(float(e.get("weight", 0.0)))})
 			continue
 		# keep the strongest link if a pair appears more than once (bridge + zz, etc.)
 		var k := _key(a, b)
@@ -144,6 +152,12 @@ func get_mutual_information(a: int, b: int) -> float:
 ## `driving_register` (an index into the register list). `shadow`/`gated` say why it did NOT act.
 func get_actions() -> Array:
 	return _actions
+
+
+## Real mutual-information edges [{i, j, weight(bits)}] — the beliefs' ACTUAL shared information
+## (the fast MI sensor firing), distinct from the coupling edges. Empty when the field is at rest.
+func get_mi_edges() -> Array:
+	return _mi_edges
 
 
 # ---- extra reasoning-transparency channels (beyond SpaceWheat's shape) -------

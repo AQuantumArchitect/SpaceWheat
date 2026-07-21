@@ -17,11 +17,13 @@ extends "res://Core/Visualization/QuantumField3D.gd"
 const FORECAST_WARM := Color(0.98, 0.35, 0.95)
 const RUNG_TICK := 0.055         # half-size of the 3-axis cross drawn at each horizon stop
 const ACTION_COL := Color(1.0, 0.58, 0.16)   # decision layer: recommended actions (belief → act)
+const MI_COL := Color(0.55, 1.0, 0.85)       # live mutual information — beliefs actually sharing info
 
 var _fc_mesh: MeshInstance3D = null
 var _cores: Dictionary = {}       # reg → inner "trust core" MeshInstance3D (reliability channel)
 var _act_mesh: MeshInstance3D = null   # connector lines: driving belief → recommended action
 var _act_nodes: Dictionary = {}        # action id → {marker, label}
+var _mi_mesh: MeshInstance3D = null    # bright edges: real mutual information (the MI sensor firing)
 
 
 func _ready() -> void:
@@ -51,6 +53,18 @@ func _ready() -> void:
 		_pivot.add_child(_act_mesh)
 	else:
 		add_child(_act_mesh)
+	# live mutual-information edges (the MI sensor firing) — a distinct bright channel
+	_mi_mesh = MeshInstance3D.new()
+	_mi_mesh.mesh = ImmediateMesh.new()
+	var mim := StandardMaterial3D.new()
+	mim.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mim.vertex_color_use_as_albedo = true
+	mim.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_mi_mesh.material_override = mim
+	if _pivot != null and is_instance_valid(_pivot):
+		_pivot.add_child(_mi_mesh)
+	else:
+		add_child(_mi_mesh)
 
 
 # The base calls _update_vectors() unqualified from _process, so this override dispatches;
@@ -60,6 +74,7 @@ func _update_vectors() -> void:
 	_draw_forecasts()
 	_update_trust_cores()
 	_update_actions()
+	_update_mi_edges()
 
 
 func _draw_forecasts() -> void:
@@ -265,3 +280,45 @@ func _make_action_node() -> Dictionary:
 		add_child(marker)
 		add_child(label)
 	return {"marker": marker, "label": label}
+
+
+## Live mutual-information edges: a bright mint line between two beliefs that ACTUALLY share
+## information right now (the fast MI sensor firing), brightness ∝ bits. Distinct from the steel
+## coupling edges (learned potential). Empty when the field is at rest — it lights up only where
+## real correlation lives, so a glowing edge here means "these two beliefs are entangled in what
+## they know" at this moment.
+func _update_mi_edges() -> void:
+	if _mi_mesh == null or not (_mi_mesh.mesh is ImmediateMesh):
+		return
+	var mm: ImmediateMesh = _mi_mesh.mesh
+	mm.clear_surfaces()
+	var biome = _get_active_biome()
+	if biome == null:
+		return
+	var vc = biome.viz_cache
+	if vc == null or not vc.has_method("get_mi_edges"):
+		return
+	var mis = vc.get_mi_edges()
+	if typeof(mis) != TYPE_ARRAY or mis.is_empty():
+		return
+	var orb := {}
+	for b in _bubbles:
+		orb[b.reg] = b.pos
+	mm.surface_begin(Mesh.PRIMITIVE_LINES)
+	for e in mis:
+		if typeof(e) != TYPE_DICTIONARY:
+			continue
+		var i := int(e.get("i", -1))
+		var j := int(e.get("j", -1))
+		if not orb.has(i) or not orb.has(j):
+			continue
+		var w := float(e.get("weight", 0.0))                 # bits
+		var a := clampf(0.45 + 0.55 * w, 0.45, 1.0)          # brighter with more shared information
+		var col := Color(MI_COL.r, MI_COL.g, MI_COL.b, a)
+		# drawn twice with a hair of offset so a live MI edge reads thicker than a coupling line
+		for off in [Vector3.ZERO, Vector3(0.0, 0.012, 0.0)]:
+			mm.surface_set_color(col)
+			mm.surface_add_vertex(orb[i] + off)
+			mm.surface_set_color(col)
+			mm.surface_add_vertex(orb[j] + off)
+	mm.surface_end()
