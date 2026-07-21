@@ -179,6 +179,14 @@ func _dev_screenshot() -> void:
 			var gp = f3d.dev_tap_register(reg)
 			print("SW_TAP_TEST tapped grid_pos=", gp)
 			await get_tree().create_timer(1.6).timeout
+	# SW_TAP_PORTAL=<i>: click portal <i> to dive into that biome (fractal nav check).
+	if OS.has_environment("SW_TAP_PORTAL"):
+		var f3dp = get_node_or_null("QuantumField3D")
+		if f3dp != null and f3dp.has_method("dev_tap_portal"):
+			var pe := OS.get_environment("SW_TAP_PORTAL")
+			var pidx := int(pe) if pe.is_valid_int() else 0
+			print("SW_TAP_PORTAL dove to ", f3dp.dev_tap_portal(pidx))
+			await get_tree().create_timer(2.0).timeout
 	var img := get_viewport().get_texture().get_image()
 	if img:
 		img.save_png(OS.get_environment("SW_SHOT"))

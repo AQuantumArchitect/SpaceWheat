@@ -40,6 +40,7 @@ var _world: Node3D
 var _pivot: Node3D
 var _cam: Camera3D
 var _bubbles: Array = []            # {reg, mesh, ring, sprite, dot, mat, rmat, pos, grid_pos}
+var _portals: Array = []            # {mesh, sprite, name, pos} — other biomes, click to dive
 var _edges: MeshInstance3D = null   # live MI correlation lines between orbs
 var _dragging := false
 var _press_pos := Vector2.ZERO
@@ -118,6 +119,7 @@ func connect_to_farm(farm: Node) -> void:
 
 func teardown() -> void:
 	_clear_bubbles()
+	_clear_portals()
 	farm_ref = null
 
 
@@ -307,6 +309,76 @@ func _clear_bubbles() -> void:
 	_bubbles.clear()
 
 
+# ------------------------------------------------------- fractal biome portals
+## Every OTHER loaded biome becomes a small themed portal orb ringed around the field.
+## Clicking one dives into it (set_active_biome) — the fractal navigation from the demo.
+func _rebuild_portals(active_name: String) -> void:
+	_clear_portals()
+	var grid = _farm_grid()
+	if grid == null or not grid.has_method("get_all_biomes"):
+		return
+	var others := []
+	for bb in grid.get_all_biomes().values():
+		if not _biome_ok(bb):
+			continue
+		var nm := str(bb.get_biome_type()) if bb.has_method("get_biome_type") else ""
+		if nm == "" or nm == active_name:
+			continue
+		others.append(bb)
+	var n := others.size()
+	for i in range(n):
+		# a fixed vertical "travel rail" down the empty left side — never occluded by the
+		# field or its bloom, always clickable to dive into that biome
+		var t := (float(i) + 0.5) / float(max(1, n))   # 0..1, centered
+		var pos := Vector3(-4.9, 0.8 - t * 3.6, 0.0)
+		_spawn_portal(others[i], pos)
+
+
+func _spawn_portal(biome, pos: Vector3) -> void:
+	var nm := str(biome.get_biome_type()) if biome.has_method("get_biome_type") else ""
+	var theme: Dictionary = BVT.get_theme(nm)
+	var hue: float = float(theme.get("base", Color(0.1, 0.1, 0.1)).h)
+	var mi := MeshInstance3D.new()
+	var sm := SphereMesh.new(); sm.radius = 0.19; sm.height = 0.38
+	sm.radial_segments = 20; sm.rings = 12
+	mi.mesh = sm
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color.from_hsv(hue, 0.5, 0.12)
+	mat.emission_enabled = true
+	mat.emission = Color.from_hsv(hue, 0.7, 0.9)
+	mat.emission_energy_multiplier = 0.95
+	mat.rim_enabled = true; mat.rim = 0.6
+	mi.material_override = mat
+	mi.position = pos
+	_world.add_child(mi)   # on _world, NOT _pivot: portals stay a fixed nav ring, don't orbit
+
+	var emoji := ""
+	if ("viz_cache" in biome) and biome.viz_cache != null and biome.viz_cache.get_num_qubits() > 0:
+		var axis = biome.viz_cache.get_axis(0)
+		emoji = str(axis.get("north", "")) if typeof(axis) == TYPE_DICTIONARY else ""
+	var sp: Sprite3D = null
+	var tex := _emoji_tex(emoji)
+	if tex != null:
+		sp = Sprite3D.new()
+		sp.texture = tex
+		sp.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		sp.shaded = false
+		sp.no_depth_test = true
+		sp.pixel_size = 0.30 / float(max(8, tex.get_width()))
+		sp.position = pos
+		_world.add_child(sp)
+
+	_portals.append({"mesh": mi, "sprite": sp, "name": nm, "pos": pos})
+
+
+func _clear_portals() -> void:
+	for p in _portals:
+		for k in ["mesh", "sprite"]:
+			if p.get(k) != null and is_instance_valid(p[k]):
+				p[k].queue_free()
+	_portals.clear()
+
+
 func _process(dt: float) -> void:
 	# Force sizing: if anchor resolution left us collapsed, drive size from the window
 	# so the SubViewport has a real render target.
@@ -324,8 +396,9 @@ func _process(dt: float) -> void:
 		_last_biome = bname
 		_apply_theme(bname)
 		_rebuild(biome)
+		_rebuild_portals(bname)
 		if OS.has_environment("SW_FIELD_3D_DEBUG"):
-			print("[QF3D] rebuilt biome=", bname, " registers=", _bubbles.size())
+			print("[QF3D] rebuilt biome=", bname, " registers=", _bubbles.size(), " portals=", _portals.size())
 
 	# Gentle idle drift for life, but hold still for a few seconds after any mouse activity
 	# so the player never chases a moving orb while clicking.
@@ -415,6 +488,25 @@ func _gui_input(ev: InputEvent) -> void:
 func _try_pick(screen_pos: Vector2, button: int) -> void:
 	if _cam == null:
 		return
+	# Portals first: a click on another biome's orb dives into it (fractal navigation).
+	var bestp = null
+	var bestp_d := 60.0
+	for p in _portals:
+		if not is_instance_valid(p.mesh):
+			continue
+		var wpp: Vector3 = p.mesh.global_position
+		if _cam.is_position_behind(wpp):
+			continue
+		var dp := _cam.unproject_position(wpp).distance_to(screen_pos)
+		if dp < bestp_d:
+			bestp_d = dp
+			bestp = p
+	if bestp != null:
+		var abm = get_node_or_null("/root/ActiveBiomeManager")
+		if abm != null and abm.has_method("set_active_biome"):
+			abm.set_active_biome(str(bestp.name))
+		biome_selected.emit(str(bestp.name))
+		return
 	var best = null
 	var best_d := 72.0   # px hit radius
 	for b in _bubbles:
@@ -457,3 +549,14 @@ func dev_tap_register(idx: int) -> Vector2i:
 		return Vector2i(-9, -9)
 	_try_pick(_cam.unproject_position(b.mesh.global_position), MOUSE_BUTTON_LEFT)
 	return b.grid_pos
+
+
+## dev-only: simulate a click on portal `idx` (dives into that biome). Returns its name.
+func dev_tap_portal(idx: int) -> String:
+	if idx < 0 or idx >= _portals.size():
+		return "<none>"
+	var p = _portals[idx]
+	if not is_instance_valid(p.mesh) or _cam == null:
+		return "<none>"
+	_try_pick(_cam.unproject_position(p.mesh.global_position), MOUSE_BUTTON_LEFT)
+	return str(p.name)
