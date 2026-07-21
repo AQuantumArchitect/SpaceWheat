@@ -204,10 +204,24 @@ func _resolve_player_shell() -> Node:
 	return shells[0] if shells.size() > 0 else null
 
 
-func _mount_quantum_visualization() -> void:
-	# SW_FIELD_3D toggle (Phase A, view-only): opt-in 3D cognifold renderer. With the
-	# flag UNSET the path below is byte-for-byte the original 2D renderer.
+## Opt-in 3D cognifold renderer toggle: the SW_FIELD_3D env var (dev) OR a --field3d
+## command-line flag (so a shipped build can offer a "3D" launcher). Unset → the 2D game.
+func _field3d_enabled() -> bool:
 	if OS.has_environment("SW_FIELD_3D"):
+		return true
+	for a in OS.get_cmdline_args():
+		if a == "--field3d":
+			return true
+	for a in OS.get_cmdline_user_args():
+		if a == "--field3d":
+			return true
+	return false
+
+
+func _mount_quantum_visualization() -> void:
+	# 3D cognifold renderer toggle (see _field3d_enabled). With it OFF the path below is
+	# byte-for-byte the original 2D renderer.
+	if _field3d_enabled():
 		var field3d = load("res://Core/Visualization/QuantumField3D.gd").new()
 		field3d.name = "QuantumField3D"
 		add_child(field3d)

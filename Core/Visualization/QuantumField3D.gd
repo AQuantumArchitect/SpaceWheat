@@ -39,10 +39,12 @@ var _sv: SubViewport
 var _world: Node3D
 var _pivot: Node3D
 var _cam: Camera3D
-var _bubbles: Array = []            # {reg, mesh, ring, sprite, dot, mat, rmat, pos}
+var _bubbles: Array = []            # {reg, mesh, ring, sprite, dot, mat, rmat, pos, grid_pos}
+var _edges: MeshInstance3D = null   # live MI correlation lines between orbs
 var _dragging := false
 var _press_pos := Vector2.ZERO
 var _press_moved := false
+var _orbit_hold_until_ms := 0     # pause idle drift briefly after any mouse activity
 var _last_biome := ""
 var _reg_tex: Dictionary = {}       # emoji -> Texture2D cache
 var _emoji_reg: Dictionary = {}
@@ -94,6 +96,18 @@ func _ready() -> void:
 	_pivot = Node3D.new()
 	_pivot.position = Vector3(0, -0.45, 0)   # sit the field below the top HUD chrome
 	_world.add_child(_pivot)
+
+	# manifold edges: live mutual-information correlation lines, rebuilt each frame
+	_edges = MeshInstance3D.new()
+	_edges.mesh = ImmediateMesh.new()
+	var emat := StandardMaterial3D.new()
+	emat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	emat.vertex_color_use_as_albedo = true
+	emat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	emat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	_edges.material_override = emat
+	_pivot.add_child(_edges)
+
 	_load_emoji_registry()
 
 
@@ -313,8 +327,10 @@ func _process(dt: float) -> void:
 		if OS.has_environment("SW_FIELD_3D_DEBUG"):
 			print("[QF3D] rebuilt biome=", bname, " registers=", _bubbles.size())
 
-	if not _dragging:
-		_pivot.rotate_object_local(Vector3.UP, dt * 0.11)
+	# Gentle idle drift for life, but hold still for a few seconds after any mouse activity
+	# so the player never chases a moving orb while clicking.
+	if not _dragging and Time.get_ticks_msec() > _orbit_hold_until_ms:
+		_pivot.rotate_object_local(Vector3.UP, dt * 0.06)
 
 	var vc = biome.viz_cache
 	var t := Time.get_ticks_msec() * 0.001
@@ -341,9 +357,40 @@ func _process(dt: float) -> void:
 		# idle breathe
 		var s: float = 1.0 + 0.045 * sin(t * 1.5 + b.pos.x * 1.7)
 		b.mesh.scale = Vector3.ONE * s
+	_update_edges(vc)
+
+
+## Rebuild the manifold edges from live mutual information: a line between two orbs whose
+## registers are correlated, brightness ∝ MI. Product (uncorrelated) states draw nothing.
+func _update_edges(vc) -> void:
+	if _edges == null or not (_edges.mesh is ImmediateMesh):
+		return
+	var em: ImmediateMesh = _edges.mesh
+	em.clear_surfaces()
+	if not vc.has_method("get_mutual_information") or _bubbles.size() < 2:
+		return
+	var segs := []
+	for i in range(_bubbles.size()):
+		for j in range(i + 1, _bubbles.size()):
+			var mi := float(vc.get_mutual_information(_bubbles[i].reg, _bubbles[j].reg))
+			if mi > 0.02:
+				segs.append([i, j, mi])
+	if segs.is_empty():
+		return
+	em.surface_begin(Mesh.PRIMITIVE_LINES)
+	for s in segs:
+		var a := clampf(float(s[2]) * 1.8, 0.08, 0.85)
+		var col := Color(_glow.r, _glow.g, _glow.b, a)
+		em.surface_set_color(col)
+		em.surface_add_vertex(_bubbles[s[0]].pos)
+		em.surface_set_color(col)
+		em.surface_add_vertex(_bubbles[s[1]].pos)
+	em.surface_end()
 
 
 func _gui_input(ev: InputEvent) -> void:
+	if ev is InputEventMouse:
+		_orbit_hold_until_ms = Time.get_ticks_msec() + 4000
 	# A short press that doesn't drag = a TAP → pick an orb → node_clicked(grid_pos)
 	# (FarmView routes it to handle_bubble_tap, exactly like a 2D bubble tap). A press
 	# that moves past the threshold becomes an ORBIT drag and never dispatches an action.
