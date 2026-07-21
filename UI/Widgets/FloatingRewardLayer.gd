@@ -14,11 +14,27 @@ extends Control
 
 const ACCENT := Color(1.0, 0.8, 0.3)
 
+## Big-moment punctuation (rare): only genuinely surprising pops (high surprisal
+## `rel`) earn a hitstop + gold flash + a brief Music-bus duck. rel = tanh(credits/40)
+## so BIG_POP_REL ≈ 0.75 corresponds to ~40 credits — a real payout, not a trickle.
+const BIG_POP_REL := 0.75
+const HITSTOP_SCALE := 0.06     # how far Engine.time_scale dips
+const HITSTOP_S := 0.09         # real seconds (timer ignores time_scale)
+const MUSIC_DUCK_DB := 7.0      # how far the Music bus dips
+const MUSIC_DUCK_HOLD_S := 0.12
+const MUSIC_DUCK_RESTORE_S := 0.45
+
 var _farm: Node = null
 var _quantum_viz: Node = null
 var _resource_panel: Node = null
 var _connected_instrument = null
 var _retry_accum: float = 0.0
+
+## Punctuation guards — prevent overlapping dips leaving global state stuck.
+var _hitstop_active: bool = false
+var _prev_time_scale: float = 1.0
+var _music_ducking: bool = false
+var _music_duck_base_db: float = 0.0
 
 
 func setup(farm: Node, quantum_viz: Node, resource_panel: Node) -> void:
@@ -68,6 +84,9 @@ func _on_action_performed(action: String, result: Dictionary) -> void:
 			var rel := tanh(float(result.get("credits", amount)) / 40.0)
 			_spawn_burst(from_pos, rel)
 			spawn_reward(emoji, amount, from_pos, rel)
+			# Rare big-moment punctuation — only the truly surprising pops.
+			if rel >= BIG_POP_REL:
+				_punctuate_big_pop(rel)
 		"measure":
 			# Measure snap: a quick converging tick — "the answer locked in."
 			var biome := str(result.get("biome_name", ""))
@@ -87,6 +106,98 @@ func _surge_flow() -> void:
 	if _quantum_viz != null and is_instance_valid(_quantum_viz) \
 			and _quantum_viz.has_method("surge_time_flow"):
 		_quantum_viz.surge_time_flow()
+
+
+## Big-moment punctuation — a rare hitstop + gold flash + Music-bus duck, fired
+## only for genuinely surprising pops. Purely cosmetic; each dip restores itself
+## reliably (timers/tweens the SceneTree owns, plus an _exit_tree failsafe) so a
+## restart mid-punctuation can never leave Engine.time_scale or the bus stuck.
+func _punctuate_big_pop(rel: float) -> void:
+	_hitstop()
+	_screen_flash(rel)
+	_duck_music()
+
+
+func _hitstop() -> void:
+	if _hitstop_active:
+		return  # never re-dip a live hitstop — that's how time_scale gets stuck
+	var tree := get_tree()
+	if tree == null:
+		return
+	_hitstop_active = true
+	_prev_time_scale = Engine.time_scale
+	Engine.time_scale = HITSTOP_SCALE
+	# ignore_time_scale=true so the restore fires after real HITSTOP_S, not dilated.
+	var t := tree.create_timer(HITSTOP_S, true, false, true)
+	t.timeout.connect(_restore_time_scale)
+
+
+func _restore_time_scale() -> void:
+	if not _hitstop_active:
+		return
+	Engine.time_scale = _prev_time_scale
+	_hitstop_active = false
+
+
+func _screen_flash(rel: float) -> void:
+	# A quick full-screen warm-white/gold flash that fades out. Self-contained:
+	# it's a child of this layer, so a free takes it with us — nothing to restore.
+	var flash := ColorRect.new()
+	flash.color = Color(1.0, 0.95, 0.8, 0.0)
+	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	flash.z_index = 20  # above the fliers
+	add_child(flash)
+	flash.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var peak: float = 0.14 + 0.14 * rel  # subtle; scales gently with surprisal
+	var tw := create_tween()
+	tw.tween_property(flash, "color:a", peak, 0.04).set_ease(Tween.EASE_OUT)
+	tw.tween_property(flash, "color:a", 0.0, 0.30).set_ease(Tween.EASE_IN)
+	tw.tween_callback(flash.queue_free)
+
+
+func _duck_music() -> void:
+	# Self-contained duck of the Music bus (enabled by the bus split). No coupling
+	# to MusicManager.celebrate_swell (that's the ending's alone).
+	var idx := AudioServer.get_bus_index("Music")
+	if idx < 0 or _music_ducking:
+		return  # no Music bus (fell back to Master) or already ducking
+	var tree := get_tree()
+	if tree == null:
+		return
+	_music_ducking = true
+	_music_duck_base_db = AudioServer.get_bus_volume_db(idx)
+	AudioServer.set_bus_volume_db(idx, _music_duck_base_db - MUSIC_DUCK_DB)
+	var tw := create_tween()
+	tw.tween_interval(MUSIC_DUCK_HOLD_S)
+	tw.tween_method(_set_music_bus_db,
+			_music_duck_base_db - MUSIC_DUCK_DB, _music_duck_base_db, MUSIC_DUCK_RESTORE_S)
+	tw.tween_callback(_finish_music_duck)
+
+
+func _set_music_bus_db(db: float) -> void:
+	var idx := AudioServer.get_bus_index("Music")
+	if idx >= 0:
+		AudioServer.set_bus_volume_db(idx, db)
+
+
+func _finish_music_duck() -> void:
+	_music_ducking = false
+
+
+func _restore_music_bus() -> void:
+	# Failsafe (free mid-duck): snap the Music bus back to its resting level.
+	if not _music_ducking:
+		return
+	var idx := AudioServer.get_bus_index("Music")
+	if idx >= 0:
+		AudioServer.set_bus_volume_db(idx, _music_duck_base_db)
+	_music_ducking = false
+
+
+func _exit_tree() -> void:
+	# Never leave global audio/time state stuck if we're freed mid-punctuation.
+	_restore_time_scale()
+	_restore_music_bus()
 
 
 func _station_position(biome_name: String, register_id: int) -> Vector2:

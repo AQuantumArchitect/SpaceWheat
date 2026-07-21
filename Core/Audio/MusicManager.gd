@@ -305,12 +305,12 @@ func _unhandled_key_input(event: InputEvent) -> void:
 func _setup_audio_players() -> void:
 	_player_a = AudioStreamPlayer.new()
 	_player_a.name = "MusicPlayerA"
-	_player_a.bus = "Master"  # Will use Music bus if available
+	_player_a.bus = "Music"  # Falls back to Master if the bus layout is absent
 	add_child(_player_a)
 
 	_player_b = AudioStreamPlayer.new()
 	_player_b.name = "MusicPlayerB"
-	_player_b.bus = "Master"
+	_player_b.bus = "Music"
 	add_child(_player_b)
 
 	_active_player = _player_a

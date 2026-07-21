@@ -36,6 +36,11 @@ var _we_paused: bool = false
 var _postcards: Array = []  # ImageTexture, oldest → newest
 var _content: Control = null
 
+## The live cognifold field renderer (2D force graph OR 3D field), shown drifting
+## behind the ceremony. Null in 2D-absent/headless setups → opaque backdrop fallback.
+var _field: Node = null
+var _field_prev_process_mode: int = -1
+
 
 func begin(farm: Node, shell: Node) -> void:
 	_farm = farm
@@ -58,8 +63,20 @@ func begin(farm: Node, shell: Node) -> void:
 	backdrop.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(backdrop)
 	backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	# Let the live cognifold field (2D force graph or 3D field) drift behind the
+	# ceremony instead of a near-opaque wall. If no renderer is reachable (headless
+	# / no viz), keep the original opaque backdrop — no crash, no regression.
+	var backdrop_target_a := 0.93
+	_field = _resolve_field_renderer()
+	if _field != null:
+		backdrop_target_a = 0.6  # field clearly shows through; text keeps its heavy outline
+		# Soft-pause freezes the sim, but the field's idle drift should keep breathing.
+		_field_prev_process_mode = _field.process_mode
+		_field.process_mode = Node.PROCESS_MODE_ALWAYS
+
 	var fade := create_tween()
-	fade.tween_property(backdrop, "color:a", 0.93, 1.2)
+	fade.tween_property(backdrop, "color:a", backdrop_target_a, 1.2)
 
 	_content = Control.new()
 	_content.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -127,12 +144,36 @@ func _auto_advance(delay_s: float) -> void:
 	)
 
 
+func _resolve_field_renderer() -> Node:
+	# Read-only access to FarmView's live renderer via its group (never edit FarmView).
+	var fvs = get_tree().get_nodes_in_group("farm_view")
+	if fvs.size() > 0 and fvs[0].has_method("get_field_renderer"):
+		var f = fvs[0].get_field_renderer()
+		if f != null and is_instance_valid(f):
+			return f
+	return null
+
+
+func _restore_field() -> void:
+	# Hand the field's process_mode back exactly as we found it.
+	if _field != null and is_instance_valid(_field) and _field_prev_process_mode != -1:
+		_field.process_mode = _field_prev_process_mode
+	_field_prev_process_mode = -1
+
+
 func _close() -> void:
 	_pause_sim(false)
+	_restore_field()
 	ceremony_finished.emit()
 	if _shell != null and _shell.has_method("show_hint"):
 		_shell.show_hint("🚪 The door stays open.", 4)
 	queue_free()
+
+
+func _exit_tree() -> void:
+	# Failsafe: if we're freed without a clean _close (e.g. restart), still hand
+	# the field's process_mode back.
+	_restore_field()
 
 
 func _pause_sim(value: bool) -> void:
