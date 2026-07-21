@@ -21,6 +21,8 @@ var _field = null
 var _vc = null                 # the live UmweltVizCache (swapped in place during filmstrip playback)
 var _frames: Array = []        # parsed trace dicts, one per filmstrip frame (empty = single trace)
 var _frame_idx := 0
+var _play_t := 0.0             # tween position within the current frame pair [0,1)
+var _frame_s := 1.2            # seconds per frame
 
 
 ## Minimal farm/grid/biome so QuantumField3D's farm-shaped read path resolves to our adapter
@@ -69,7 +71,7 @@ func _ready() -> void:
 		dir_env = DEFAULT_FILMSTRIP
 	if dir_env != "":
 		_frames = _load_frames_dir(dir_env)
-	if _frames.size() >= 2 and vc.load_frame(_frames[0]):
+	if _frames.size() >= 2 and vc.load_frame_pair(_frames[0], _frames[1]):
 		print("[cognifold] filmstrip frames=%d world='%s' registers=%d"
 			% [_frames.size(), str(vc.world), vc.get_num_qubits()])
 	else:
@@ -87,17 +89,26 @@ func _ready() -> void:
 	_field.name = "QuantumField3D"
 	add_child(_field)
 	_field.connect_to_farm(farm)
-	# filmstrip advance: swap the vc's frame in place; the renderer keeps its persistent
-	# bubbles (same biome name + register count) and animates to the new state each tick.
-	if _frames.size() > 1:
-		var t := Timer.new()
-		t.wait_time = float(OS.get_environment("SW_COGNIFOLD_FRAME_S")) if \
-			OS.get_environment("SW_COGNIFOLD_FRAME_S").is_valid_float() else 1.2
-		t.autostart = true
-		t.timeout.connect(_advance_frame)
-		add_child(t)
+	# filmstrip playback: _process continuously tweens the vc from frame A→B, advancing the
+	# pair every _frame_s. The renderer keeps its persistent bubbles (same biome + register
+	# count) and animates SMOOTHLY to each new state, so the picture IS the belief-field
+	# evolving — and the cyan memory-trail becomes a continuous arc, not a staircase.
+	if _frames.size() > 1 and OS.get_environment("SW_COGNIFOLD_FRAME_S").is_valid_float():
+		_frame_s = maxf(0.05, float(OS.get_environment("SW_COGNIFOLD_FRAME_S")))
+	set_process(_frames.size() > 1)
 	if OS.has_environment("SW_SHOT"):
 		_dev_capture()
+
+
+func _process(delta: float) -> void:
+	if _frames.size() < 2 or _vc == null:
+		return
+	_play_t += delta / _frame_s
+	while _play_t >= 1.0:
+		_play_t -= 1.0
+		_frame_idx = (_frame_idx + 1) % _frames.size()
+		_vc.load_frame_pair(_frames[_frame_idx], _frames[(_frame_idx + 1) % _frames.size()])
+	_vc.set_blend(_play_t)
 
 
 func _load_frames_dir(dir_path: String) -> Array:
@@ -124,11 +135,6 @@ func _load_frames_dir(dir_path: String) -> Array:
 	return frames
 
 
-func _advance_frame() -> void:
-	if _frames.size() < 2 or _vc == null:
-		return
-	_frame_idx = (_frame_idx + 1) % _frames.size()
-	_vc.load_frame(_frames[_frame_idx])
 
 
 func _dev_capture() -> void:
