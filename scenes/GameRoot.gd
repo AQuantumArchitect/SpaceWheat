@@ -168,6 +168,17 @@ func _dev_screenshot() -> void:
 			if f3d != null and post_farm != null and f3d.has_method("connect_to_farm"):
 				f3d.connect_to_farm(post_farm)
 	await get_tree().create_timer(4.5).timeout
+	# SW_TAP_TEST=<reg>: simulate a real tap on the 3D field's register <reg> (default 0)
+	# through the pick geometry, so the pick→node_clicked→handle_bubble_tap chain can be
+	# verified headed. Waits for the game's response before the capture.
+	if OS.has_environment("SW_TAP_TEST"):
+		var f3d = get_node_or_null("QuantumField3D")
+		if f3d != null and f3d.has_method("dev_tap_register"):
+			var reg_env := OS.get_environment("SW_TAP_TEST")
+			var reg := int(reg_env) if reg_env.is_valid_int() else 0
+			var gp = f3d.dev_tap_register(reg)
+			print("SW_TAP_TEST tapped grid_pos=", gp)
+			await get_tree().create_timer(1.6).timeout
 	var img := get_viewport().get_texture().get_image()
 	if img:
 		img.save_png(OS.get_environment("SW_SHOT"))
@@ -204,8 +215,13 @@ func _mount_quantum_visualization() -> void:
 		# anchors. GameRoot is full-rect, so the field fills it; the app HUD lives in a
 		# CanvasLayer above GameRoot, so it stays on top of the field.
 		field3d.z_index = 0
-		if farm and field3d.has_method("connect_to_farm"):
-			field3d.connect_to_farm(farm)
+		# quantum_viz stays null so RuntimeMount skips its QuantumForceGraph-only staging
+		# (atlas batchers, layout_calculator, quantum_nodes). FarmView wires the 3D field
+		# through its `field3d` slot instead — same node_clicked/chain_swiped/connect_to_farm
+		# contract, so a tap in the 3D field dispatches through handle_bubble_tap exactly
+		# like a 2D bubble tap.
+		if farm_view:
+			farm_view.field3d = field3d
 		quantum_viz = null
 		return
 	quantum_viz = QuantumForceGraph.new()

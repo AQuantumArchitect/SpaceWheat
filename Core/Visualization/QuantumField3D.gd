@@ -27,6 +27,7 @@ signal chain_swiped(positions: Array)                        # declared; not emi
 
 const BVT = preload("res://Core/Visualization/BiomeVisualTheme.gd")
 const VC = preload("res://Core/Visualization/VisualizationConstants.gd")
+const PRR = preload("res://Core/GameMechanics/PlotRegisterResolver.gd")
 
 const CYAN := Color(0.42, 0.95, 0.88)
 const R := 0.34                     # orb radius
@@ -40,6 +41,8 @@ var _pivot: Node3D
 var _cam: Camera3D
 var _bubbles: Array = []            # {reg, mesh, ring, sprite, dot, mat, rmat, pos}
 var _dragging := false
+var _press_pos := Vector2.ZERO
+var _press_moved := false
 var _last_biome := ""
 var _reg_tex: Dictionary = {}       # emoji -> Texture2D cache
 var _emoji_reg: Dictionary = {}
@@ -193,14 +196,36 @@ func _rebuild(biome) -> void:
 	_clear_bubbles()
 	var vc = biome.viz_cache
 	var n: int = vc.get_num_qubits()
+	var reg_gpos := _build_register_gridpos_map(biome)
 	for i in range(n):
 		var pos := _layout_pos(i, n)
 		var axis = vc.get_axis(i)
 		var emoji := str(axis.get("north", "")) if typeof(axis) == TYPE_DICTIONARY else ""
-		_spawn(i, pos, emoji)
+		_spawn(i, pos, emoji, reg_gpos.get(i, Vector2i(i, 0)))
 
 
-func _spawn(reg: int, pos: Vector3, emoji: String) -> void:
+## register index -> grid position, via the SAME slot->qubit authority the 2D renderer
+## uses (get_plot_biome_assignments + PlotRegisterResolver). This is what lets a tap on
+## an orb dispatch through handle_bubble_tap identically to a 2D bubble tap.
+func _build_register_gridpos_map(biome) -> Dictionary:
+	var out := {}
+	var grid = _farm_grid()
+	if grid == null or not grid.has_method("get_plot_biome_assignments"):
+		return out
+	var bname := ""
+	if biome.has_method("get_biome_type"):
+		bname = str(biome.get_biome_type())
+	var assignments: Dictionary = grid.get_plot_biome_assignments()
+	for gpos in assignments.keys():
+		if str(assignments[gpos]) != bname:
+			continue
+		var reg := int(PRR.resolve(farm_ref, gpos).get("register_id", int(gpos.x)))
+		if reg >= 0 and not out.has(reg):
+			out[reg] = gpos
+	return out
+
+
+func _spawn(reg: int, pos: Vector3, emoji: String, grid_pos: Vector2i) -> void:
 	# emissive orb, glowing in the biome hue
 	var mi := MeshInstance3D.new()
 	var sm := SphereMesh.new(); sm.radius = R; sm.height = R * 2.0
@@ -257,7 +282,7 @@ func _spawn(reg: int, pos: Vector3, emoji: String) -> void:
 	_pivot.add_child(dot)
 
 	_bubbles.append({"reg": reg, "mesh": mi, "ring": ring, "sprite": sp, "dot": dot,
-		"mat": mat, "rmat": rmat, "pos": pos})
+		"mat": mat, "rmat": rmat, "pos": pos, "grid_pos": grid_pos})
 
 
 func _clear_bubbles() -> void:
@@ -319,9 +344,57 @@ func _process(dt: float) -> void:
 
 
 func _gui_input(ev: InputEvent) -> void:
-	# view-only orbit; NO mechanics dispatch (Phase B wires picking -> node_clicked)
+	# A short press that doesn't drag = a TAP → pick an orb → node_clicked(grid_pos)
+	# (FarmView routes it to handle_bubble_tap, exactly like a 2D bubble tap). A press
+	# that moves past the threshold becomes an ORBIT drag and never dispatches an action.
 	if ev is InputEventMouseButton and ev.button_index == MOUSE_BUTTON_LEFT:
-		_dragging = ev.pressed
-	elif ev is InputEventMouseMotion and _dragging:
-		_pivot.rotate_object_local(Vector3.UP, ev.relative.x * 0.008)
-		_pivot.rotate_object_local(Vector3.RIGHT, ev.relative.y * 0.008)
+		if ev.pressed:
+			_press_pos = ev.position
+			_press_moved = false
+			_dragging = false
+		else:
+			if not _press_moved:
+				_try_pick(ev.position, ev.button_index)
+			_dragging = false
+	elif ev is InputEventMouseMotion and (ev.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
+		if not _press_moved and ev.position.distance_to(_press_pos) > 7.0:
+			_press_moved = true
+			_dragging = true
+		if _dragging:
+			_pivot.rotate_object_local(Vector3.UP, ev.relative.x * 0.008)
+			_pivot.rotate_object_local(Vector3.RIGHT, ev.relative.y * 0.008)
+
+
+func _try_pick(screen_pos: Vector2, button: int) -> void:
+	if _cam == null:
+		return
+	var best = null
+	var best_d := 72.0   # px hit radius
+	for b in _bubbles:
+		if not is_instance_valid(b.mesh):
+			continue
+		var wp: Vector3 = b.mesh.global_position
+		if _cam.is_position_behind(wp):
+			continue
+		var d := _cam.unproject_position(wp).distance_to(screen_pos)
+		if d < best_d:
+			best_d = d
+			best = b
+	if best != null and best.has("grid_pos"):
+		# brief pick flash so the tap reads even before the game's own feedback lands
+		if is_instance_valid(best.mat):
+			best.mat.emission_energy_multiplier = 4.5
+		node_clicked.emit(best.grid_pos, button)
+
+
+## dev-only: simulate a real tap on register `idx` by unprojecting its orb to screen and
+## running the actual pick geometry (exercises unproject → nearest → node_clicked → the
+## FarmView → handle_bubble_tap chain). Returns the grid_pos tapped, or (-9,-9) on failure.
+func dev_tap_register(idx: int) -> Vector2i:
+	if idx < 0 or idx >= _bubbles.size():
+		return Vector2i(-9, -9)
+	var b = _bubbles[idx]
+	if not is_instance_valid(b.mesh) or _cam == null:
+		return Vector2i(-9, -9)
+	_try_pick(_cam.unproject_position(b.mesh.global_position), MOUSE_BUTTON_LEFT)
+	return b.grid_pos
