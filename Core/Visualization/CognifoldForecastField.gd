@@ -16,9 +16,12 @@ extends "res://Core/Visualization/QuantumField3D.gd"
 # the gold ripeness ring, and the teal spheres, so the self-forecast reads as its own channel.
 const FORECAST_WARM := Color(0.98, 0.35, 0.95)
 const RUNG_TICK := 0.055         # half-size of the 3-axis cross drawn at each horizon stop
+const ACTION_COL := Color(1.0, 0.58, 0.16)   # decision layer: recommended actions (belief → act)
 
 var _fc_mesh: MeshInstance3D = null
 var _cores: Dictionary = {}       # reg → inner "trust core" MeshInstance3D (reliability channel)
+var _act_mesh: MeshInstance3D = null   # connector lines: driving belief → recommended action
+var _act_nodes: Dictionary = {}        # action id → {marker, label}
 
 
 func _ready() -> void:
@@ -36,6 +39,18 @@ func _ready() -> void:
 		_pivot.add_child(_fc_mesh)
 	else:
 		add_child(_fc_mesh)
+	# decision-layer connector lines (belief → recommended action)
+	_act_mesh = MeshInstance3D.new()
+	_act_mesh.mesh = ImmediateMesh.new()
+	var am := StandardMaterial3D.new()
+	am.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	am.vertex_color_use_as_albedo = true
+	am.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_act_mesh.material_override = am
+	if _pivot != null and is_instance_valid(_pivot):
+		_pivot.add_child(_act_mesh)
+	else:
+		add_child(_act_mesh)
 
 
 # The base calls _update_vectors() unqualified from _process, so this override dispatches;
@@ -44,6 +59,7 @@ func _update_vectors() -> void:
 	super._update_vectors()
 	_draw_forecasts()
 	_update_trust_cores()
+	_update_actions()
 
 
 func _draw_forecasts() -> void:
@@ -160,3 +176,92 @@ func _update_trust_cores() -> void:
 		core.visible = true
 		# reliability 0 → a bare seed, 1 → ~0.6·R (stays well inside the rb·R shell)
 		core.scale = Vector3.ONE * ((0.08 + 0.55 * clampf(float(rel), 0.0, 1.0)) * R)
+
+
+## Decision layer — "why did it act": each output tendril's recommendation floats as an amber
+## marker above the belief that DRIVES it, wired down by a connector line, labelled with the
+## recommended value. Shadow recommendations (the agent decides but dispatches nothing) render
+## ghostly — the honest "it decided, but held". So you can read belief → decision at a glance.
+func _update_actions() -> void:
+	if _act_mesh == null or not (_act_mesh.mesh is ImmediateMesh):
+		return
+	var am: ImmediateMesh = _act_mesh.mesh
+	am.clear_surfaces()
+	var biome = _get_active_biome()
+	if biome == null:
+		return
+	var vc = biome.viz_cache
+	if vc == null or not vc.has_method("get_actions"):
+		return
+	var orb := {}
+	for b in _bubbles:
+		orb[b.reg] = b.pos
+	var seen := {}
+	var began := false
+	for a in vc.get_actions():
+		if typeof(a) != TYPE_DICTIONARY:
+			continue
+		var dr = a.get("driving_register", null)
+		if dr == null or not orb.has(int(dr)):
+			continue
+		var aid := str(a.get("id", ""))
+		seen[aid] = true
+		var base: Vector3 = orb[int(dr)]
+		var marker_pos: Vector3 = base + Vector3(0.0, R * 2.6, 0.0)
+		var rec = _act_nodes.get(aid, null)
+		if rec == null:
+			rec = _make_action_node()
+			_act_nodes[aid] = rec
+		var shadow: bool = bool(a.get("shadow", true))
+		var kind := str(a.get("kind", ""))
+		var val := float(a.get("value", 0.0))
+		var vtxt := ("ON" if val >= 0.5 else "OFF") if kind == "binary" else ("%.0f" % val)
+		rec.marker.position = marker_pos
+		rec.marker.visible = true
+		rec.marker.transparency = 0.55 if shadow else 0.0
+		rec.label.position = marker_pos + Vector3(0.0, R * 0.75, 0.0)
+		rec.label.text = "%s → %s%s" % [aid, vtxt, ("  ·shadow" if shadow else "")]
+		rec.label.modulate = Color(1.0, 0.72, 0.4, 0.7 if shadow else 1.0)
+		rec.label.visible = true
+		# connector: driving belief (faint) → action marker (bright); dashed-feel via short gap
+		var col := ACTION_COL
+		var a_end := 0.45 if shadow else 0.95
+		if not began:
+			am.surface_begin(Mesh.PRIMITIVE_LINES)
+			began = true
+		am.surface_set_color(Color(col.r, col.g, col.b, 0.12))
+		am.surface_add_vertex(base)
+		am.surface_set_color(Color(col.r, col.g, col.b, a_end))
+		am.surface_add_vertex(marker_pos)
+	if began:
+		am.surface_end()
+	for aid in _act_nodes:
+		if not seen.has(aid):
+			_act_nodes[aid].marker.visible = false
+			_act_nodes[aid].label.visible = false
+
+
+func _make_action_node() -> Dictionary:
+	var marker := MeshInstance3D.new()
+	var bx := BoxMesh.new()
+	bx.size = Vector3(R * 0.5, R * 0.5, R * 0.5)
+	marker.mesh = bx
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.albedo_color = ACTION_COL
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	marker.material_override = m
+	var label := Label3D.new()
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.no_depth_test = true
+	label.font_size = 44
+	label.pixel_size = 0.0022
+	label.outline_size = 10
+	label.modulate = Color(1.0, 0.72, 0.4, 1.0)
+	if _pivot != null and is_instance_valid(_pivot):
+		_pivot.add_child(marker)
+		_pivot.add_child(label)
+	else:
+		add_child(marker)
+		add_child(label)
+	return {"marker": marker, "label": label}

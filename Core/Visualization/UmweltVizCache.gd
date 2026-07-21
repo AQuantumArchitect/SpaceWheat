@@ -17,6 +17,7 @@ var _regs: Array = []            # per-register dicts from the trace (frame A)
 var _edge_w: Dictionary = {}     # undirected weight, keyed _key(i, j)
 var _regs_b: Array = []          # optional "next" frame (frame B) for smooth filmstrip tween
 var _blend: float = 0.0          # 0 → frame A, 1 → frame B
+var _actions: Array = []         # decision-layer recommendations (frame A)
 
 
 func load_trace(path: String) -> bool:
@@ -38,6 +39,7 @@ func load_frame(d: Dictionary) -> bool:
 	_blend = 0.0
 	world = str(d.get("world", ""))
 	_regs = d.get("registers", []) if typeof(d.get("registers")) == TYPE_ARRAY else []
+	_actions = d.get("actions", []) if typeof(d.get("actions")) == TYPE_ARRAY else []
 	_edge_w.clear()
 	for e in d.get("edges", []):
 		if typeof(e) != TYPE_DICTIONARY:
@@ -135,6 +137,13 @@ func _bloch_vec(r: Dictionary) -> Vector3:
 
 func get_mutual_information(a: int, b: int) -> float:
 	return float(_edge_w.get(_key(a, b), 0.0))
+
+
+# ---- decision layer (why did it act) -----------------------------------------
+## The output tendrils' current recommendations, each wired to its driving register via
+## `driving_register` (an index into the register list). `shadow`/`gated` say why it did NOT act.
+func get_actions() -> Array:
+	return _actions
 
 
 # ---- extra reasoning-transparency channels (beyond SpaceWheat's shape) -------
