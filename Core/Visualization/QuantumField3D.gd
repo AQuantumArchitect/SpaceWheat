@@ -35,6 +35,7 @@ const PRR = preload("res://Core/GameMechanics/PlotRegisterResolver.gd")
 const CYAN := Color(0.42, 0.95, 0.88)
 const R := 0.34                     # orb radius
 const SHELL := 2.35                 # layout shell radius
+const MI_STRIDE := 6                # recompute mutual-information correlations every N frames
 
 var selected_plot_positions: Dictionary = {}
 var farm_ref = null
@@ -54,6 +55,9 @@ var _chain_mode := false          # a left-drag that began on an orb builds a ga
 var _chain: Array = []            # orbs gathered by the current chain-swipe (bell/cluster)
 var _chain_mesh: MeshInstance3D = null  # live gold thread through the chained orbs
 var _pointer_pos := Vector2.ZERO
+var _mi_frame := 0                # MI stride counter (recompute correlations every MI_STRIDE)
+var _mi_segs: Array = []          # cached correlation segments: [posA, posB, color]
+var _mi_dirty := true             # force an MI recompute after a rebuild
 var _last_biome := ""
 var _reg_tex: Dictionary = {}       # emoji -> Texture2D cache
 var _emoji_reg: Dictionary = {}
@@ -361,6 +365,8 @@ func _clear_bubbles() -> void:
 			if b.get(k) != null and is_instance_valid(b[k]):
 				b[k].queue_free()
 	_bubbles.clear()
+	_mi_segs.clear()
+	_mi_dirty = true
 
 
 # ------------------------------------------------------- fractal biome portals
@@ -534,32 +540,45 @@ func _update_vectors() -> void:
 
 ## Rebuild the manifold edges from live mutual information: a line between two orbs whose
 ## registers are correlated, brightness ∝ MI. Product (uncorrelated) states draw nothing.
+## get_mutual_information is O(n²) over registers, so the correlation set is recomputed only
+## every MI_STRIDE frames (the 2D renderer caches MI at a ~6-frame stride too); the cached
+## segments still redraw every frame so orbit/drift stays smooth.
 func _update_edges(vc) -> void:
 	if _edges == null or not (_edges.mesh is ImmediateMesh):
 		return
+	_mi_frame += 1
+	if _mi_dirty or (_mi_frame % MI_STRIDE) == 0:
+		_mi_segs = _recompute_mi_segs(vc)
+		_mi_dirty = false
 	var em: ImmediateMesh = _edges.mesh
 	em.clear_surfaces()
-	if not vc.has_method("get_mutual_information") or _bubbles.size() < 2:
+	if _mi_segs.is_empty():
 		return
-	var segs := []
+	em.surface_begin(Mesh.PRIMITIVE_LINES)
+	for s in _mi_segs:
+		var col: Color = s[2]
+		em.surface_set_color(col)
+		em.surface_add_vertex(s[0])
+		em.surface_set_color(col)
+		em.surface_add_vertex(s[1])
+	em.surface_end()
+
+
+## Recompute the correlation segments as [posA, posB, color] (positions in the orbs' stable
+## pivot-local space, so the cache stays valid between strides while orbs hold position).
+func _recompute_mi_segs(vc) -> Array:
+	var segs: Array = []
+	if not vc.has_method("get_mutual_information") or _bubbles.size() < 2:
+		return segs
 	for i in range(_bubbles.size()):
 		for j in range(i + 1, _bubbles.size()):
 			var mi := float(vc.get_mutual_information(_bubbles[i].reg, _bubbles[j].reg))
 			if mi > 0.02:
-				segs.append([i, j, mi])
-	if segs.is_empty():
-		return
-	em.surface_begin(Mesh.PRIMITIVE_LINES)
-	for s in segs:
-		# crisp, clean correlation line (Mini-Metro line, not a glow) — light steel-blue,
-		# more opaque the stronger the correlation
-		var a := clampf(float(s[2]) * 3.0, 0.3, 0.95)
-		var col := Color(0.62, 0.82, 0.95, a)
-		em.surface_set_color(col)
-		em.surface_add_vertex(_bubbles[s[0]].pos)
-		em.surface_set_color(col)
-		em.surface_add_vertex(_bubbles[s[1]].pos)
-	em.surface_end()
+				# crisp, clean correlation line (Mini-Metro line, not a glow) — light
+				# steel-blue, more opaque the stronger the correlation
+				var a := clampf(mi * 3.0, 0.3, 0.95)
+				segs.append([_bubbles[i].pos, _bubbles[j].pos, Color(0.62, 0.82, 0.95, a)])
+	return segs
 
 
 func _gui_input(ev: InputEvent) -> void:
