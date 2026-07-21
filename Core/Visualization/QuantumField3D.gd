@@ -336,7 +336,8 @@ func _spawn(reg: int, pos: Vector3, north_emoji: String, south_emoji: String, gr
 	_pivot.add_child(ring)
 
 	_bubbles.append({"reg": reg, "mesh": mi, "eq": eq, "axisline": axisline, "np": np,
-		"spr": spr, "dot": dot, "ring": ring, "pos": pos, "grid_pos": grid_pos, "trail": []})
+		"spr": spr, "dot": dot, "ring": ring, "pos": pos, "grid_pos": grid_pos, "trail": [],
+		"north_e": north_emoji, "south_e": south_emoji})
 
 
 func _pole_sprite(e: String, at: Vector3, sz: float) -> Sprite3D:
@@ -753,6 +754,45 @@ func dev_tap_register(idx: int) -> Vector2i:
 		return Vector2i(-9, -9)
 	_try_pick(_cam.unproject_position(b.mesh.global_position), MOUSE_BUTTON_LEFT)
 	return b.grid_pos
+
+
+## ------------------------------------------------------ rig/harness surface
+## Renderer-agnostic mirror of the 2D rig's per-bubble read, so automated drives (the act
+## campaign, tap_to_farm probe) can enumerate + target orbs under the 3D field. The 3D field
+## shows ALL registers (no reveal-on-first-touch), so `visible` is always true; terminal-
+## measured state is not tracked in the field yet (measured=false) — a known follow-up. The
+## authoritative reveal/measured data lives on the farm, which the rig reads separately.
+func rig_bubble_state() -> Array:
+	var out: Array = []
+	for b in _bubbles:
+		if not is_instance_valid(b.mesh):
+			continue
+		var sp := Vector2(-1, -1)
+		if _cam != null and not _cam.is_position_behind(b.mesh.global_position):
+			sp = _cam.unproject_position(b.mesh.global_position)
+		out.append({
+			"pos": [int(b.grid_pos.x), int(b.grid_pos.y)],
+			"visible": true,
+			"measured": false,
+			"biome": _last_biome,
+			"register_id": int(b.reg),
+			"axis": "%s%s" % [str(b.get("north_e", "")), str(b.get("south_e", ""))],
+			"screen_pos": [int(sp.x), int(sp.y)],
+		})
+	return out
+
+
+## Rig tap support: the live screen position of the orb at a grid position (or (-1,-1) if it
+## has no visible orb). The rig injects a synthetic mouse press+release at this point, which
+## _gui_input picks up as a TAP → node_clicked → handle_bubble_tap, exactly like the 2D path.
+func rig_screen_pos_for_grid(grid_pos: Vector2i) -> Vector2:
+	if _cam == null:
+		return Vector2(-1, -1)
+	for b in _bubbles:
+		if b.has("grid_pos") and b.grid_pos == grid_pos and is_instance_valid(b.mesh):
+			if not _cam.is_position_behind(b.mesh.global_position):
+				return _cam.unproject_position(b.mesh.global_position)
+	return Vector2(-1, -1)
 
 
 ## dev-only: simulate a chain-swipe across the given register indices (into _bubbles),
