@@ -42,6 +42,7 @@ var _cam: Camera3D
 var _bubbles: Array = []            # {reg, mesh, ring, sprite, dot, mat, rmat, pos, grid_pos}
 var _portals: Array = []            # {mesh, sprite, name, pos} — other biomes, click to dive
 var _edges: MeshInstance3D = null   # live MI correlation lines between orbs
+var _vectors: MeshInstance3D = null # live Bloch state-vector lines (centre → state point)
 var _dragging := false
 var _press_pos := Vector2.ZERO
 var _press_moved := false
@@ -69,9 +70,10 @@ func _ready() -> void:
 	_world = Node3D.new()
 	_sv.add_child(_world)
 	_cam = Camera3D.new()
-	_cam.position = Vector3(0, 0, 7.3)
+	_cam.position = Vector3(0, 1.5, 7.1)
 	_cam.fov = 54.0
 	_world.add_child(_cam)
+	_cam.look_at(Vector3(0, -0.45, 0), Vector3.UP)   # slight top-down so Bloch spheres read as spheres
 
 	var we := WorldEnvironment.new()
 	var env := Environment.new()
@@ -104,6 +106,17 @@ func _ready() -> void:
 	emat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_edges.material_override = emat
 	_pivot.add_child(_edges)
+
+	# live Bloch state-vector lines + fading trails (centre → the evolving state point),
+	# rebuilt every frame so the picture IS the physics simulation, not a decorative spin
+	_vectors = MeshInstance3D.new()
+	_vectors.mesh = ImmediateMesh.new()
+	var vmat := StandardMaterial3D.new()
+	vmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	vmat.vertex_color_use_as_albedo = true
+	vmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_vectors.material_override = vmat
+	_pivot.add_child(_vectors)
 
 	_load_emoji_registry()
 
@@ -213,8 +226,9 @@ func _rebuild(biome) -> void:
 	for i in range(n):
 		var pos := _layout_pos(i, n)
 		var axis = vc.get_axis(i)
-		var emoji := str(axis.get("north", "")) if typeof(axis) == TYPE_DICTIONARY else ""
-		_spawn(i, pos, emoji, reg_gpos.get(i, Vector2i(i, 0)))
+		var north_e := str(axis.get("north", "")) if typeof(axis) == TYPE_DICTIONARY else ""
+		var south_e := str(axis.get("south", "")) if typeof(axis) == TYPE_DICTIONARY else ""
+		_spawn(i, pos, north_e, south_e, reg_gpos.get(i, Vector2i(i, 0)))
 
 
 ## register index -> grid position, via the SAME slot->qubit authority the 2D renderer
@@ -238,78 +252,93 @@ func _build_register_gridpos_map(biome) -> Dictionary:
 	return out
 
 
-func _spawn(reg: int, pos: Vector3, emoji: String, grid_pos: Vector2i) -> void:
-	# emissive orb, glowing in the biome hue
+func _spawn(reg: int, pos: Vector3, north_emoji: String, south_emoji: String, grid_pos: Vector2i) -> void:
+	# ── BLOCH SPHERE — every element maps to a physical quantity ──────────────────
+	# translucent ball = this register's STATE SPACE (the Bloch ball); tint = its biome.
 	var mi := MeshInstance3D.new()
 	var sm := SphereMesh.new(); sm.radius = R; sm.height = R * 2.0
-	sm.radial_segments = 32; sm.rings = 18
+	sm.radial_segments = 32; sm.rings = 20
 	mi.mesh = sm
 	var mat := StandardMaterial3D.new()
-	# a DARK, subtle backing ball — just something for the emoji to sit on. The colour
-	# identity is a thin RING, not a filled glowing sphere, so the emoji stays the star.
-	mat.albedo_color = Color.from_hsv(_orb_base.h, 0.45, 0.11)
-	mat.metallic = 0.0; mat.roughness = 0.75
-	mat.rim_enabled = false
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED   # see the far wall + the vector inside
+	mat.albedo_color = Color(_glow.r, _glow.g, _glow.b, 0.12)
 	mi.material_override = mat
 	mi.position = pos
 	_pivot.add_child(mi)
 
-	# biome-colour identity ring (the crisp "line colour" hugging the icon)
-	var hue_ring := MeshInstance3D.new()
-	var htm := TorusMesh.new(); htm.inner_radius = R + 0.02; htm.outer_radius = R + 0.06
-	htm.rings = 48; htm.ring_segments = 16
-	hue_ring.mesh = htm
-	var hmat := StandardMaterial3D.new()
-	hmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	hmat.albedo_color = _glow
-	hue_ring.material_override = hmat
-	hue_ring.position = pos
-	hue_ring.rotation_degrees = Vector3(90, 0, 0)   # ring faces the camera at rest
-	_pivot.add_child(hue_ring)
+	# equator = the equal-superposition circle (the x–y phase plane), biome hue
+	var eq := MeshInstance3D.new()
+	var etm := TorusMesh.new(); etm.inner_radius = R - 0.004; etm.outer_radius = R + 0.004
+	etm.rings = 64; etm.ring_segments = 8
+	eq.mesh = etm
+	var emat := StandardMaterial3D.new(); emat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	emat.albedo_color = _glow
+	eq.material_override = emat
+	eq.position = pos
+	_pivot.add_child(eq)
 
-	# gold ripeness ring: thin, just outside the colour ring, grows with ripeness
-	var ring := MeshInstance3D.new()
-	var tm := TorusMesh.new(); tm.inner_radius = R + 0.10; tm.outer_radius = R + 0.135
-	tm.rings = 48; tm.ring_segments = 16
-	ring.mesh = tm
-	var rmat := StandardMaterial3D.new()
-	rmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	rmat.albedo_color = _accent   # crisp solid gold, no haze
-	ring.material_override = rmat
-	ring.position = pos
-	ring.rotation_degrees = Vector3(90, 0, 0)
-	_pivot.add_child(ring)
+	# z-axis pole-to-pole = the measurement axis (faint)
+	var axisline := MeshInstance3D.new()
+	var bm := BoxMesh.new(); bm.size = Vector3(0.009, R * 2.0, 0.009)
+	axisline.mesh = bm
+	var lmat := StandardMaterial3D.new(); lmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	lmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	lmat.albedo_color = Color(0.62, 0.65, 0.74, 0.4)
+	axisline.material_override = lmat
+	axisline.position = pos
+	_pivot.add_child(axisline)
 
-	# billboarded real-emoji sprite
-	var sp: Sprite3D = null
-	var tex := _emoji_tex(emoji)
-	if tex != null:
-		sp = Sprite3D.new()
-		sp.texture = tex
-		sp.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-		sp.shaded = false
-		sp.no_depth_test = true
-		sp.pixel_size = 0.92 / float(max(8, tex.get_width()))   # BIG, clean icon — the star
-		sp.position = pos
-		_pivot.add_child(sp)
+	# poles: |0⟩ = north emoji (top), |1⟩ = south emoji (bottom) — the basis observables
+	var np := _pole_sprite(north_emoji, pos + Vector3(0, R + 0.12, 0), 0.5)
+	var spr := _pole_sprite(south_emoji, pos + Vector3(0, -(R + 0.12), 0), 0.38)
 
-	# honest Bloch-vector dot
+	# THE STATE: a bright point at the real (x,y,z) inside the ball (positioned live in
+	# _process); a line + fading trail are drawn from the centre by _update_vectors.
+	# Its distance from centre = purity/coherence r; its motion IS the physics evolving.
 	var dot := MeshInstance3D.new()
-	var dm := SphereMesh.new(); dm.radius = 0.052; dm.height = 0.104
+	var dm := SphereMesh.new(); dm.radius = 0.05; dm.height = 0.1
 	dot.mesh = dm
-	var dmat := StandardMaterial3D.new()
-	dmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	dmat.albedo_color = CYAN   # crisp solid dot
+	var dmat := StandardMaterial3D.new(); dmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	dmat.albedo_color = Color(1, 1, 1)
 	dot.material_override = dmat
+	dot.position = pos
 	_pivot.add_child(dot)
 
-	_bubbles.append({"reg": reg, "mesh": mi, "hue_ring": hue_ring, "ring": ring, "sprite": sp,
-		"dot": dot, "mat": mat, "hmat": hmat, "rmat": rmat, "pos": pos, "grid_pos": grid_pos})
+	# gold ripeness ring = value/ripeness (E = −kT·log p), horizontal, outside the ball
+	var ring := MeshInstance3D.new()
+	var tm := TorusMesh.new(); tm.inner_radius = R + 0.12; tm.outer_radius = R + 0.155
+	tm.rings = 60; tm.ring_segments = 12
+	ring.mesh = tm
+	var rmat := StandardMaterial3D.new(); rmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	rmat.albedo_color = _accent
+	ring.material_override = rmat
+	ring.position = pos
+	_pivot.add_child(ring)
+
+	_bubbles.append({"reg": reg, "mesh": mi, "eq": eq, "axisline": axisline, "np": np,
+		"spr": spr, "dot": dot, "ring": ring, "pos": pos, "grid_pos": grid_pos, "trail": []})
+
+
+func _pole_sprite(e: String, at: Vector3, sz: float) -> Sprite3D:
+	var tex := _emoji_tex(e)
+	if tex == null:
+		return null
+	var sp := Sprite3D.new()
+	sp.texture = tex
+	sp.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	sp.shaded = false
+	sp.no_depth_test = true
+	sp.pixel_size = sz / float(max(8, tex.get_width()))
+	sp.position = at
+	_pivot.add_child(sp)
+	return sp
 
 
 func _clear_bubbles() -> void:
 	for b in _bubbles:
-		for k in ["mesh", "hue_ring", "ring", "sprite", "dot"]:
+		for k in ["mesh", "eq", "axisline", "np", "spr", "dot", "ring"]:
 			if b.get(k) != null and is_instance_valid(b[k]):
 				b[k].queue_free()
 	_bubbles.clear()
@@ -417,32 +446,70 @@ func _process(dt: float) -> void:
 		if OS.has_environment("SW_FIELD_3D_DEBUG"):
 			print("[QF3D] rebuilt biome=", bname, " registers=", _bubbles.size(), " portals=", _portals.size())
 
-	# Gentle idle drift for life, but hold still for a few seconds after any mouse activity
-	# so the player never chases a moving orb while clicking.
+	# Gentle continuous drift so the 3D never freezes; a brief hold after a mouse action so a
+	# click doesn't fight a moving target. The PRIMARY motion is the physics (state points below).
 	if not _dragging and Time.get_ticks_msec() > _orbit_hold_until_ms:
-		_pivot.rotate_object_local(Vector3.UP, dt * 0.06)
+		_pivot.rotate_object_local(Vector3.UP, dt * 0.08)
 
 	var vc = biome.viz_cache
-	var t := Time.get_ticks_msec() * 0.001
 	for b in _bubbles:
 		var snap = vc.get_snapshot(b.reg)
 		if typeof(snap) != TYPE_DICTIONARY:
 			continue
 		var p0 := float(snap.get("p0", 0.5))
 		var p1 := float(snap.get("p1", 0.5))
-		var br := float(snap.get("r", 0.5))
-		# honest Bloch vector: the dot sits at the real (x,y,z), out to length r.
-		var dir := Vector3(float(snap.get("x", 0.0)), float(snap.get("z", 0.0)), float(snap.get("y", 0.0)))
-		if dir.length() < 0.001:
-			dir = Vector3.UP
-		b.dot.position = b.pos + dir.normalized() * (R + 0.07 + 0.32 * clampf(br, 0.0, 1.0))
-		# honest coherence: the biome-colour ring reads bold when coherent, dull when decohered
-		var cval: float = 0.42 + 0.53 * clampf(br, 0.0, 1.0)
-		b.hmat.albedo_color = Color.from_hsv(_glow.h, _glow.s, cval)
-		# honest ripeness: the clean gold ring grows as the register ripens
+		# THE honest state point, from the LIVE spherical Bloch coords: theta = polar angle
+		# (0 → |0⟩ north pole, π → |1⟩ south), phi = phase, r_bloch = purity (1 = pure state
+		# on the surface). Its motion IS the simulation evolving. Bloch z (population axis) →
+		# world Y (up), so the poles line up with the |0⟩/|1⟩ emoji.
+		var rb := float(snap.get("r_bloch", 1.0))
+		var th := float(snap.get("theta", 0.0))
+		var ph := float(snap.get("phi", 0.0))
+		var st := sin(th)
+		var bloch := Vector3(st * cos(ph), cos(th), st * sin(ph)) * (rb * R)
+		b.dot.position = b.pos + bloch
+		if b.dot.scale.x > 1.01:   # decay the pick-flash
+			b.dot.scale = b.dot.scale.lerp(Vector3.ONE, min(1.0, dt * 6.0))
+		# record the trajectory so the state's precession leaves a visible fading arc
+		var tr: Array = b.trail
+		tr.append(b.dot.position)
+		if tr.size() > 110:
+			tr.pop_front()
+		# ripeness (value) grows the gold ring
 		var rip := clampf(VC.ripeness(p0, p1), 0.0, 1.0)
-		b.ring.scale = Vector3.ONE * (0.9 + 0.4 * rip)
+		b.ring.scale = Vector3.ONE * (0.92 + 0.35 * rip)
 	_update_edges(vc)
+	_update_vectors()
+
+
+## Draw each register's live state vector (centre → the real Bloch point) plus a fading
+## trail of its recent trajectory — so the moving picture IS the physics simulation.
+func _update_vectors() -> void:
+	if _vectors == null or not (_vectors.mesh is ImmediateMesh):
+		return
+	var vm: ImmediateMesh = _vectors.mesh
+	vm.clear_surfaces()
+	if _bubbles.is_empty():
+		return
+	vm.surface_begin(Mesh.PRIMITIVE_LINES)
+	for b in _bubbles:
+		if not is_instance_valid(b.dot):
+			continue
+		# state vector: faint at the centre, bright cyan at the tip
+		vm.surface_set_color(Color(0.55, 0.6, 0.7, 0.35))
+		vm.surface_add_vertex(b.pos)
+		vm.surface_set_color(CYAN)
+		vm.surface_add_vertex(b.dot.position)
+		# trajectory trail: recent state points, fading with age
+		var tr: Array = b.trail
+		for k in range(1, tr.size()):
+			var a := float(k) / float(tr.size())
+			var col := Color(CYAN.r, CYAN.g, CYAN.b, a * 0.55)
+			vm.surface_set_color(col)
+			vm.surface_add_vertex(tr[k - 1])
+			vm.surface_set_color(col)
+			vm.surface_add_vertex(tr[k])
+	vm.surface_end()
 
 
 ## Rebuild the manifold edges from live mutual information: a line between two orbs whose
@@ -477,7 +544,7 @@ func _update_edges(vc) -> void:
 
 func _gui_input(ev: InputEvent) -> void:
 	if ev is InputEventMouse:
-		_orbit_hold_until_ms = Time.get_ticks_msec() + 4000
+		_orbit_hold_until_ms = Time.get_ticks_msec() + 1500
 	# A short press that doesn't drag = a TAP → pick an orb → node_clicked(grid_pos)
 	# (FarmView routes it to handle_bubble_tap, exactly like a 2D bubble tap). A press
 	# that moves past the threshold becomes an ORBIT drag and never dispatches an action.
@@ -535,8 +602,8 @@ func _try_pick(screen_pos: Vector2, button: int) -> void:
 			best = b
 	if best != null and best.has("grid_pos"):
 		# brief pick flash so the tap reads even before the game's own feedback lands
-		if is_instance_valid(best.mat):
-			best.mat.emission_energy_multiplier = 4.5
+		if best.get("dot") != null and is_instance_valid(best.dot):
+			best.dot.scale = Vector3.ONE * 2.2
 		node_clicked.emit(best.grid_pos, button)
 
 

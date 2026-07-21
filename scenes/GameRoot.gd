@@ -167,7 +167,8 @@ func _dev_screenshot() -> void:
 				post_farm = app_roots[0].game_root.farm
 			if f3d != null and post_farm != null and f3d.has_method("connect_to_farm"):
 				f3d.connect_to_farm(post_farm)
-	await get_tree().create_timer(4.5).timeout
+	var _delay := OS.get_environment("SW_SHOT_DELAY")
+	await get_tree().create_timer(float(_delay) if _delay.is_valid_float() else 4.5).timeout
 	# SW_TAP_TEST=<reg>: simulate a real tap on the 3D field's register <reg> (default 0)
 	# through the pick geometry, so the pick→node_clicked→handle_bubble_tap chain can be
 	# verified headed. Waits for the game's response before the capture.
