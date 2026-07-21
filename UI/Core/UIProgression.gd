@@ -126,9 +126,10 @@ static func objective_text() -> String:
 	var act_by_flag := _act_by_flag(qm)
 	var best: Dictionary = {}
 	var best_rank := 0x7FFFFFFF
-	# Candidate pool: ACTIVE tutorial/arc quests, plus tutorial-chain OFFERS —
-	# on a fresh boot Act-0 step 0 sits in story_offers until accepted, and it
-	# IS the live objective. Market contracts are the ContractChip's job.
+	# Candidate pool: ACTIVE tutorial/arc quests, plus tutorial-chain OFFERS.
+	# Predicate-driven tutorial steps auto-accept (QuestManager), so they live in
+	# active_quests; the contracts step (5) still waits in story_offers for a real
+	# R-accept, and it IS the live objective then. Market contracts are the ContractChip's job.
 	var pools: Array = [qm.active_quests.values()]
 	if "story_offers" in qm:
 		pools.append(qm.story_offers.values())
@@ -141,10 +142,24 @@ static func objective_text() -> String:
 				best_rank = rank
 				best = q
 	if not best.is_empty():
-		return _short_line(best)
+		return _decorate_objective(best)
 	if ("story_offers" in qm) and not qm.story_offers.is_empty():
 		return OFFER_LINE
 	return ""
+
+
+## Lead the one live objective with the KEY it needs, when it needs one. The two moments a new
+## player stalls (both survived the old data-shortcut probe): an OFFER awaiting the R-accept it
+## was never taught (the contracts step, every arc offer), and a quest that has gone READY but
+## sits unclaimed. Naming the key + the surface is the whole fix. In-progress quests keep just
+## their hint — the bar is already teaching.
+static func _decorate_objective(q: Dictionary) -> String:
+	var status := str(q.get("status", ""))
+	if status == Quest.STATUS_STORY:
+		return "▸ press R to accept it on the Arc tab (X → I)"
+	if status == "ready":
+		return "▸ press R to claim it in Commitments (C → U)"
+	return _short_line(q)
 
 
 ## Rank = earliest tutorial step, then earliest-act arc quest. Non-candidates

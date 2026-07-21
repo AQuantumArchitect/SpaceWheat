@@ -47,7 +47,9 @@
       "math_note": "Soft gate on StarterForest coherence, center 0.3, width 0.05 (default) — the bar crosses fire-ready (score ≥ 0.85) at coherence ≈ 0.34, a hair past the stated 0.3.",
       "state_predicates": [
         {"type": "coherence_at_least", "value": 0.3}
-      ]
+      ],
+      "unlock_flags": ["forest_listener"],
+      "_unlock_note": "Completing this step fires the forest_listener spine flag, which unlocks the Operator hat (UIProgression.HAT_UNLOCK_FLAGS) the NEXT step (entanglement) needs — the tutorial hands the spine forward instead of racing it (Break #2)."
     },
     {
       "tutorial_step": 4,
@@ -70,8 +72,8 @@
       "resource": "🌾",
       "quantity": 2,
       "body": "The Millwright's Union is buying. Accept their contract and deliver 2× 🌾 from your stores.",
-      "tutorial_hint": "Open the quest board (C) and press E on an offer first — every faction will tell you how this biome sits with its axioms (its resonance), which axiom sings, and which grates. Then accept the contract and complete it when you hold enough 🌾.",
-      "math_note": "A DELIVERY quest, not a soft gate — fires the instant your 🌾 stores hold quantity ≥ 2 and you complete the contract."
+      "tutorial_hint": "Gather 2× 🌾 — Ace hat (8) on TheDemos: strike a plot (R), extract the yield (Q). Then deliver on the Commitments tab: press C, then U, pick this contract's row (G–;) and press R. (To accept it in the first place: X, then the Arc tab I, pick its row, R — every other quest works the same way.)",
+      "math_note": "A DELIVERY quest, not a soft gate — fires the instant your 🌾 stores hold quantity ≥ 2 and you complete the contract. This step alone is NOT auto-accepted/claimed: you learn the real accept→do→claim ceremony every market contract uses."
     },
     {
       "tutorial_step": 6,
