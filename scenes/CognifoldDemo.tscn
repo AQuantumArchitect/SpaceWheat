@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://bcognifolddemo1"]
+
+[ext_resource type="Script" path="res://scenes/CognifoldDemo.gd" id="1_cog"]
+
+[node name="CognifoldDemo" type="Node3D"]
+script = ExtResource("1_cog")

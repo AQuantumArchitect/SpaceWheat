@@ -1,0 +1,1989 @@
+{
+"root": [
+"TheDemos",
+"Village",
+"StarterForest"
+],
+"biomes": {
+"BioticFlux": {
+"emojis": [
+"☀",
+"🌙",
+"🌾",
+"🍄",
+"🍂",
+"💀"
+],
+"hue": 0.34,
+"desc": "The quantum heart of the ecosystem. Sun and moon cycle through wheat and mushroom growth, while matter flows t"
+},
+"CyberDebtMegacity": {
+"emojis": [
+"⛓",
+"💸",
+"👥",
+"🗝",
+"🕵",
+"💀",
+"🩸",
+"🚀",
+"💰",
+"⚙",
+"✊",
+"🚩"
+],
+"hue": 0.075,
+"desc": "A sprawling cyberpunk megacity where debt fuels the neon lights and criminal syndicates rule from towering spi"
+},
+"EchoingChasm": {
+"emojis": [
+"🎶",
+"🔔",
+"🫥",
+"🪦",
+"🕸",
+"🕯",
+"🔇",
+"🌑",
+"💫",
+"🌀"
+],
+"hue": 0.68,
+"desc": "A labyrinth of resonant canyons where forgotten songs unravel reality. Faint bells toll in the wind, webs of m"
+},
+"FungalNetworks": {
+"emojis": [
+"🦗",
+"🐜",
+"🍄",
+"🦠",
+"🍂",
+"💀",
+"🌙",
+"☀",
+"🌧",
+"🧫"
+],
+"hue": 0.34,
+"desc": "Networked fungal colonies thrive in moonlight and moisture, spreading through insects and spores, cycling betw"
+},
+"HorizonFracture": {
+"emojis": [
+"🕳",
+"🪐",
+"🌀",
+"⚫",
+"🧭",
+"📍",
+"🗺",
+"🔭",
+"🌠",
+"🫥"
+],
+"hue": 0.68,
+"desc": "Fractured rifts at the world's edge, where planets dissolve into swirling voids. Boundaries blur between somet"
+},
+"StarterForest": {
+"emojis": [
+"☀",
+"🌙",
+"🐺",
+"🦌",
+"🦅",
+"🐇",
+"🌲",
+"🍂",
+"🌱",
+"🌿",
+"🍄",
+"💀"
+],
+"hue": 0.34,
+"desc": "A quiet forest edge where celestial cycles drive life. Sun and moon oscillate above while creatures and plants"
+},
+"StellarForges": {
+"emojis": [
+"⚡",
+"🔋",
+"⚙",
+"🔩",
+"🚀",
+"🛸"
+],
+"hue": 0.68,
+"desc": "Industrial space. Energy cycles through power and storage while production shifts between active fabrication a"
+},
+"Village": {
+"emojis": [
+"🔥",
+"❄",
+"👥",
+"🍞",
+"⚙",
+"💨",
+"💰",
+"🧺"
+],
+"hue": 0.075,
+"desc": "A farming settlement where fire and ice oscillate in hearths, labor produces bread, and gears grind flour into"
+},
+"VolcanicWorlds": {
+"emojis": [
+"🔥",
+"🪨",
+"💎",
+"⛏",
+"🌫",
+"✨"
+],
+"hue": 0.045,
+"desc": "Extreme geology. Fire forges stone into crystal while mining and steam shape the environment into glowing vita"
+},
+"TidalPools": {
+"emojis": [
+"🌊",
+"🪨",
+"🌀",
+"🦀",
+"🐙",
+"🪸",
+"🐚",
+"🧂",
+"✨",
+"🐠",
+"👁",
+"📜",
+"🌫"
+],
+"hue": 0.55,
+"desc": "A liminal shore where cosmic tides expose and submerge quantum states in eternal rhythm. The spiral pools are "
+},
+"BureaucraticAbyss": {
+"emojis": [
+"📜",
+"🖋",
+"🗃",
+"♟",
+"👥",
+"⛓",
+"🕰",
+"🪦",
+"💀",
+"📖",
+"🩸"
+],
+"hue": 0.045,
+"desc": "The machine that processes billions. Not evil—evil requires intention. Simply thorough. Edicts descend from th"
+},
+"GildedRot": {
+"emojis": [
+"👑",
+"⚜",
+"🍷",
+"🌹",
+"🎭",
+"💃",
+"🦅",
+"🩸",
+"📜",
+"🥀"
+],
+"hue": 0.075,
+"desc": "The eternal party above the grinding machine. Wine flows, masks smile, roses bloom in impossible colors. The a"
+},
+"BroadcastTower": {
+"emojis": [
+"📡",
+"📶",
+"🔊",
+"🗣",
+"🎵",
+"🧩"
+],
+"hue": 0.965,
+"desc": "A crackling relay station at the edge of coherence. Signals propagate through antenna arrays, degrade into sta"
+},
+"SatelliteGraveyard": {
+"emojis": [
+"🛰",
+"⭐",
+"📼",
+"🧩"
+],
+"hue": 0.68,
+"desc": "Orbital debris field where dead satellites tumble in eternal silence among dying stars. Recorded data corrupts"
+},
+"Clinic": {
+"emojis": [
+"💉",
+"💊",
+"🩺",
+"🚫",
+"🧪",
+"🧬"
+],
+"hue": 0.115,
+"desc": "Sterile light hums above examination tables. Treatments expire on shelves. Diagnosis leads inexorably to prohi"
+},
+"Workshop": {
+"emojis": [
+"🔧",
+"🔨",
+"🪛",
+"🧰",
+"🔌",
+"♻️"
+],
+"hue": 0.045,
+"desc": "The honest entropy of labor. Hammers ring in steady rhythm. Tools wear down with use, are repaired, wear down "
+},
+"ScrapYard": {
+"emojis": [
+"♻️",
+"🗑",
+"🧤",
+"🏭",
+"🚧",
+"🧱"
+],
+"hue": 0.075,
+"desc": "The terminal basin. Everything ends here eventually—machinery, materials, workers. The 🗑 grows ever larger. Bu"
+},
+"MarketDistrict": {
+"emojis": [
+"💰",
+"💳",
+"📦",
+"🏷️",
+"💱",
+"🕴️",
+"🐂",
+"🐻"
+],
+"hue": 0.075,
+"desc": "Hub of commerce where goods become money and money becomes obligation. Bulls and bears pace the trading floors"
+},
+"TradingFloor": {
+"emojis": [
+"🐂",
+"🐻",
+"📊",
+"💱"
+],
+"hue": 0.075,
+"desc": "Pure speculation distilled. Bulls charge, bears retreat, charts rise and crash. Yesterday's analysis is worthl"
+},
+"WeaversLoft": {
+"emojis": [
+"🧵",
+"🧶",
+"👘",
+"🧷",
+"🪢",
+"🪡"
+],
+"hue": 0.075,
+"desc": "Threads fray under patient fingers. Garments take shape, wear out, return to thread. Needles pierce and bind. "
+},
+"BindingCircle": {
+"emojis": [
+"🪢",
+"📿",
+"🕯",
+"🧵"
+],
+"hue": 0.78,
+"desc": "A small sacred space where oaths are knotted into permanence. Prayer beads count the bindings. Candles witness"
+},
+"MeditationGarden": {
+"emojis": [
+"🧘",
+"📿",
+"🏮",
+"🕯"
+],
+"hue": 0.78,
+"desc": "Lantern light flickers over still water. Breathing slows. The attempt to hold coherence against the constant p"
+},
+"OccultSanctum": {
+"emojis": [
+"🧿",
+"🏮",
+"🕯",
+"⚱"
+],
+"hue": 0.78,
+"desc": "Warding magic hums in the shadows. The evil eye watches from every corner, deflecting what should not enter. C"
+},
+"ShrineOfAshes": {
+"emojis": [
+"⚱",
+"🕯",
+"📿",
+"💀"
+],
+"hue": 0.965,
+"desc": "Where the cremated rest. Final rites are performed by candlelight, prayers strung on beads that outlast the pr"
+},
+"PastoralCommons": {
+"emojis": [
+"🐑",
+"🐺",
+"🐝",
+"🌿",
+"🥣",
+"🫙",
+"🤲",
+"🌾"
+],
+"hue": 0.13,
+"desc": "Flocks graze on common land. Bees drift between wildflowers. Porridge simmers over low fires while gentle hand"
+},
+"Apiary": {
+"emojis": [
+"🐝",
+"🫙",
+"🌿",
+"🌾"
+],
+"hue": 0.13,
+"desc": "Hives hum with focused industry. Honey accumulates in jars, beginning its slow transformation. The bees know t"
+},
+"Harbor": {
+"emojis": [
+"🛶",
+"🪝",
+"💧",
+"⚓",
+"🌾",
+"🏜",
+"🪣",
+"🪨"
+],
+"hue": 0.55,
+"desc": "Salt air and contested ground. Boats run or hook depending on who's watching. Ice from the spring melts into t"
+},
+"FreshwaterSpring": {
+"emojis": [
+"🧊",
+"🔥",
+"💧",
+"🌊",
+"🫧",
+"🌿"
+],
+"hue": 0.55,
+"desc": "Source water wells up from deep stone. Ice melts at the margins. Bubbles rise and pop in an instant. This is w"
+},
+"Battlefield": {
+"emojis": [
+"⚔",
+"🛡",
+"💥",
+"🩸",
+"💀",
+"⚱"
+],
+"hue": 0.965,
+"desc": "Steel meets steel in thunder and blood. Shields splinter. Explosions tear the air. The dead pile up, awaiting "
+},
+"RevolutionSquare": {
+"emojis": [
+"✊",
+"🚩",
+"📜",
+"🗣",
+"👥",
+"⛓"
+],
+"hue": 0.115,
+"desc": "Fists raised against the sky. Flags snap in the wind. Manifestos are shouted to crowds who may or may not be l"
+},
+"OrbitalStrike": {
+"emojis": [
+"🛸",
+"💥",
+"🚀",
+"⭐"
+],
+"hue": 0.68,
+"desc": "A space combat biome armed by the presence of a carrier (🛸). When the strike (💥) detonates, it consumes the ca"
+},
+"Archives": {
+"emojis": [
+"📒",
+"📋",
+"📘",
+"📐",
+"🧮",
+"⚖"
+],
+"hue": 0.115,
+"desc": "Records accumulate in endless stacks. Filing systems slowly fail. Precedent decays into ambiguity. The scales "
+},
+"AbandonedQuarter": {
+"emojis": [
+"🏚️",
+"🏛",
+"🏺",
+"🪨"
+],
+"hue": 0.965,
+"desc": "What remains when power withdraws. Crumbling monuments to forgotten purposes. Empty urns that once held meanin"
+},
+"ForgottenCastle": {
+"emojis": [
+"🏰",
+"📜",
+"🦅",
+"🥀"
+],
+"hue": 0.965,
+"desc": "The party ended centuries ago. Edicts yellow on the walls. Eagles circle the towers, waiting for scraps that n"
+},
+"DemolitionSite": {
+"emojis": [
+"🧨",
+"💥",
+"🧱",
+"🔥"
+],
+"hue": 0.115,
+"desc": "Controlled destruction. Dynamite cracks. Flames consume. Bricks scatter. What took years to build comes down i"
+},
+"Woodlot": {
+"emojis": [
+"🌲",
+"🌱",
+"🪓",
+"🪵",
+"🔥",
+"🍂"
+],
+"hue": 0.13,
+"desc": "Timber country. Axes ring against trunks. Trees become lumber become firewood become ash. The forest gives and"
+},
+"MirrorChamber": {
+"emojis": [
+"🪞",
+"👤",
+"🕯",
+"🌑"
+],
+"hue": 0.5,
+"desc": "A space of reflection—literal and otherwise. Candlelight flickers across silvered glass. Shadows gather in cor"
+},
+"TrappersCamp": {
+"emojis": [
+"🪤",
+"🪝",
+"🐇",
+"🦴",
+"💀",
+"🌱"
+],
+"hue": 0.965,
+"desc": "Where hunters wait. Snares are set in careful patterns. Hooks bait the unwary. Rabbits wander in; bones remain"
+},
+"EnforcementPost": {
+"emojis": [
+"🚔",
+"🔓",
+"⛓",
+"📋"
+],
+"hue": 0.075,
+"desc": "Law's presence, however temporary. Patrol cars wait. Keys jingle on belts that may unlock or bind. Chains ratt"
+},
+"PowerStation": {
+"emojis": [
+"🔌",
+"⚡",
+"🔋",
+"⚙"
+],
+"hue": 0.045,
+"desc": "The grid's heart. Electricity hums through transformers. Batteries charge and discharge. Gears turn generators"
+},
+"MagneticAnomaly": {
+"emojis": [
+"🧲",
+"⚡",
+"🌀",
+"📡"
+],
+"hue": 0.5,
+"desc": "Something wrong with the local physics. Compasses spin. Instruments give impossible readings. Vortices form in"
+},
+"AntimatterFoundry": {
+"emojis": [
+"⚫",
+"✨",
+"💥",
+"🌀",
+"🕳",
+"⚡"
+],
+"hue": 0.045,
+"desc": "Where annihilation is harvested. Void-stuff and starlight collide in magnetic containment. The energy released"
+},
+"ColdLab": {
+"emojis": [
+"❄",
+"⚙",
+"🔭",
+"📡"
+],
+"hue": 0.045,
+"desc": "A controlled micro-biome for low-entropy measurement loops. Useful for consistent probe regression runs."
+},
+"BloodLedger": {
+"emojis": [
+"👥",
+"⚖",
+"🦅",
+"⚜",
+"🩸",
+"🏰",
+"📜",
+"💰"
+],
+"hue": 0.075,
+"desc": "The district where law becomes land and coin becomes tribute. Four columns of documentation rise around a cent"
+},
+"StellarSeed": {
+"emojis": [
+"🌠",
+"🛰",
+"📡",
+"✨"
+],
+"hue": 0.68,
+"desc": "A minimal cosmic test patch that links signal-space to luminous symbols under mild decoherence."
+},
+"AshPatch": {
+"emojis": [
+"🔥",
+"⚫",
+"⚜",
+"🩸"
+],
+"hue": 0.115,
+"desc": "A compact high-dissipation patch for stress testing unstable routes and low-resource recovery."
+},
+"ThePrecession": {
+"emojis": [
+"⚫",
+"⭐",
+"🕳",
+"🌠",
+"🔭",
+"🕰"
+],
+"hue": 0.68,
+"desc": "A cosmic threshold where probability starts to unwind. Observers fix telescopes on fading stars while the dim "
+},
+"WeaversCant": {
+"emojis": [
+"🧿",
+"🪢",
+"🧵",
+"🕯",
+"🫖",
+"🏮"
+],
+"hue": 0.78,
+"desc": "A domestic hush where knots keep oaths and candles keep time. Every gesture in this room rotates the ward at i"
+},
+"ResonanceHall": {
+"emojis": [
+"💃",
+"🎼",
+"🩰",
+"🎸",
+"💫",
+"🔊"
+],
+"hue": 0.115,
+"desc": "A stage where synchronized motion becomes physics. The dancers' triangle alone is enough to set the air rotati"
+},
+"NullingChamber": {
+"emojis": [
+"🗺",
+"🔭",
+"⚫",
+"📍"
+],
+"hue": 0.5,
+"desc": "A stargazer's null-detector. The telescope lens is lossy — it leaks photons to the void. But when the Cartogra"
+},
+"Lanternfall": {
+"emojis": [
+"🌉",
+"🪔",
+"📯",
+"🗼",
+"🏁",
+"🧂"
+],
+"hue": 0.5,
+"desc": "The coastal watchtower chain. Five lights in a row, spaced by the Lamplighters' alternating rhythm: close-far-"
+},
+"ZenoLatch": {
+"emojis": [
+"🪔",
+"📯"
+],
+"hue": 0.5,
+"desc": "A single strong link from the Lamplighters' signal chain — the oil-lamp and the horn, coupled by the guild's t"
+},
+"WheelOfHours": {
+"emojis": [
+"⌛",
+"⏰",
+"⏳",
+"🕰"
+],
+"hue": 0.5,
+"desc": "Three glasses turning on a single wheel, attended by the Timekeepers' one-way sand. A slow pump fills the empt"
+},
+"LaserGlint": {
+"emojis": [
+"💥",
+"🌟",
+"✨",
+"🌈"
+],
+"hue": 0.5,
+"desc": "A three-level laser cavity. An external pump feeds sparks (💥) from the void. Each spark tumbles fast into the "
+},
+"TwofacedTide": {
+"emojis": [
+"🌕",
+"🌘"
+],
+"hue": 0.5,
+"desc": "A coastal flat where the moon hangs in one of two fixed postures, bright or dim, and switches only when someon"
+},
+"BrittleDawn": {
+"emojis": [
+"🌕",
+"🌘"
+],
+"hue": 0.5,
+"desc": "A moon tuned to the knife edge between bright and dim. TwofacedTide has a confident two-phase personality; Bri"
+},
+"MnemonicHive": {
+"emojis": [
+"📕",
+"🔑",
+"📗",
+"📓"
+],
+"hue": 0.5,
+"desc": "A stone shelf with two ledgers, bound in red and green. Their pages are kept by the same silence: whatever is "
+},
+"MothGarden": {
+"emojis": [
+"🦋",
+"🌸",
+"🕷",
+"🐛"
+],
+"hue": 0.34,
+"desc": "A hedge where three appetites contest for the same air. Pump each of them from outside — sun for the butterfli"
+},
+"SporeLibrary": {
+"emojis": [
+"🪸",
+"🪵",
+"🌰",
+"🫚"
+],
+"hue": 0.34,
+"desc": "A shelf of mushrooms tuned to two different thresholds. The pale register ignites at the faintest disturbance;"
+},
+"_orphan_lindblads": {
+"emojis": [
+"🧨",
+"⭐",
+"💧",
+"📡",
+"📶",
+"🔊",
+"🔌",
+"📒",
+"🧵",
+"🏚",
+"📦",
+"📋",
+"🤲",
+"🪵",
+"⚔",
+"🧶",
+"🗣",
+"🧤",
+"♻",
+"🔧",
+"⚱",
+"🚩",
+"🫧",
+"🧩",
+"✊",
+"🏷",
+"🥣",
+"🧿",
+"🧬",
+"📿",
+"🧘",
+"🐑",
+"🛡",
+"🪢",
+"🚔",
+"👘",
+"🐂",
+"🐻",
+"📊",
+"📘",
+"📼",
+"🏛",
+"🧱",
+"💱",
+"🐝",
+"🚫",
+"🪝",
+"🔓",
+"🛰",
+"🎵",
+"💳",
+"🏮",
+"⚖",
+"🗑",
+"📐",
+"🧮",
+"🧰",
+"👤",
+"🫙",
+"💉",
+"🏰",
+"🪤",
+"🧪",
+"🪣",
+"🏭",
+"🏺",
+"🚧",
+"🕴",
+"🩺",
+"🛶",
+"🔨",
+"🧊",
+"🪞",
+"💊",
+"🧲",
+"🪛",
+"🧷"
+],
+"hue": 0.115,
+"desc": "Collected Lindblad terms for emojis not found in any biome"
+},
+"HearthKeepers": {
+"emojis": [
+"🔥",
+"❄",
+"🍯",
+"🐝",
+"💨",
+"🍞",
+"👥",
+"🪓"
+],
+"hue": 0.075,
+"desc": "The faction's own embodied territory: a domestic kitchen-biome where flame, bees, and breath conspire to make "
+},
+"VolcanicFoundry": {
+"emojis": [
+"🌋",
+"🔥",
+"🪨",
+"💎",
+"🌫",
+"✨",
+"⚡",
+"🏜"
+],
+"hue": 0.045,
+"desc": "A forge-biome where magma meets stone, ash clouds catch lightning, and desert sand is smelted into glass. The "
+},
+"SaltRunners": {
+"emojis": [
+"🧂",
+"🛶",
+"💧",
+"⛓",
+"🔓",
+"🔍"
+],
+"hue": 0.55,
+"desc": "A hidden-channel biome: boats ply waterways that appear on no official map, salt is always the cover cargo, ch"
+},
+"QuayRooks": {
+"emojis": [
+"🚢",
+"⚓",
+"💰",
+"🪝",
+"🛶",
+"📋"
+],
+"hue": 0.55,
+"desc": "A dockside ledger-biome: large ships generate profit, profit hooks debtors, every small vessel that passes mus"
+},
+"IrrigationJury": {
+"emojis": [
+"⚖",
+"🌱",
+"💧",
+"🌧",
+"🪣",
+"🌾"
+],
+"hue": 0.13,
+"desc": "A civic water-authority biome: twelve rotating citizens who decide where the water goes. Their judgments shape"
+},
+"TheDemos": {
+"emojis": [
+"👥",
+"🌾"
+],
+"hue": 0.115,
+"desc": "The player's home circuit: people and wheat in mutual making. Two atoms, one rhythm — bodies reaping bread, br"
+},
+"Black Horizon": {
+"emojis": [
+"🕳",
+"🪐",
+"🌀",
+"⚫",
+"⚡"
+],
+"hue": 0.68,
+"desc": "Not a faction—a boundary condition. The edge of the probability manifold where quantum states become undefined"
+},
+"Bone Merchants": {
+"emojis": [
+"🦴",
+"💰",
+"🔧",
+"💉"
+],
+"hue": 0.075,
+"desc": "Salvage traders specializing in remains - not just bones, but artifacts, memories, the residue of ended things"
+},
+"Brotherhood of Ash": {
+"emojis": [
+"⚔",
+"🧯",
+"⚱",
+"🌫"
+],
+"hue": 0.965,
+"desc": "Mercenaries who specialize in clean endings - not just killing, but ensuring nothing remains. They burn what n"
+},
+"Carrion Throne": {
+"emojis": [
+"🦅",
+"🩸",
+"🏰",
+"📜",
+"⚜"
+],
+"hue": 0.965,
+"desc": "The pattern that sustains itself through bureaucratic mass. It doesn't know it's a quantum phenomenon - it *is"
+},
+"Cartographers": {
+"emojis": [
+"🧭",
+"📍",
+"🗺",
+"🔭"
+],
+"hue": 0.115,
+"desc": "Nomadic explorers who chart probability-space - not just where things are, but where they might be, where they"
+},
+"Cartographers of the Impossible": {
+"emojis": [
+"🗺",
+"🧭",
+"🔭",
+"📍"
+],
+"hue": 0.115,
+"desc": "They map what shouldn't be mappable. The fracture zones where space folds, the probability gradients where pat"
+},
+"Celestial Archons": {
+"emojis": [
+"☀",
+"🌙"
+],
+"hue": 0.68,
+"desc": "The eternal substrate. Sun and moon, the four elements. The abiotic foundation."
+},
+"Children of the Ember": {
+"emojis": [
+"✊",
+"🚩"
+],
+"hue": 0.115,
+"desc": "Revolutionary militants who believe the current order must burn for something better to grow. They sabotage, t"
+},
+"Chop Docs": {
+"emojis": [
+"💉",
+"🦴",
+"⚙️",
+"🔧"
+],
+"hue": 0.045,
+"desc": "Back-alley surgeons and cybernetic salvagers. They buy what the Bone Merchants sell and install it in whoever "
+},
+"Chorus of Oblivion": {
+"emojis": [
+"🎶",
+"🔔"
+],
+"hue": 0.965,
+"desc": "They sing the songs that unmake. Not destruction—dissolution. Their harmonies resonate at frequencies that loo"
+},
+"Chronicle Keepers": {
+"emojis": [
+"🕰",
+"🪦"
+],
+"hue": 0.5,
+"desc": "The Wardens sign, the Keepers remember. Every form processed, every life filed, every death stamped—they maint"
+},
+"Clan of the Hidden Root": {
+"emojis": [
+"🌱",
+"⛏",
+"🪨",
+"🪤"
+],
+"hue": 0.13,
+"desc": "Subterranean farmers who cultivate root vegetables, fungi, and cave-adapted crops in the spaces beneath settle"
+},
+"Cult of the Drowned Star": {
+"emojis": [
+"⭐",
+"🕳",
+"🫧",
+"⚱"
+],
+"hue": 0.68,
+"desc": "Worshippers of something that collapsed into the void - a star, a civilization, a god, something that fell and"
+},
+"Debt Wardens": {
+"emojis": [
+"💸",
+"⛓",
+"👥"
+],
+"hue": 0.115,
+"desc": "They don't create debt—they enforce it. Every obligation in the megacity flows through their ledgers, every de"
+},
+"Engram Freighters": {
+"emojis": [
+"📡",
+"📶"
+],
+"hue": 0.5,
+"desc": "Long-haul data transport between settlements too distant for real-time communication. They carry memory archiv"
+},
+"Fencebreakers": {
+"emojis": [
+"🪓",
+"🔥"
+],
+"hue": 0.115,
+"desc": "Rural insurgents who sabotage infrastructure, raid estates, and fight against enclosure. Some are bandits. Som"
+},
+"Flesh Architects": {
+"emojis": [
+"🫀",
+"🧬",
+"🩸",
+"🧵"
+],
+"hue": 0.34,
+"desc": "Bio-engineers who sculpt living tissue into architecture, art, and things harder to categorize. They grow buil"
+},
+"Gearwright Circle": {
+"emojis": [
+"⚙",
+"🔩",
+"🛠",
+"🧰",
+"💎",
+"⚡"
+],
+"hue": 0.045,
+"desc": "The mechanics' guild. They certify equipment, standardize part specifications, and maintain the manufacturing "
+},
+"Granary Guilds": {
+"emojis": [
+"🧺",
+"💰"
+],
+"hue": 0.13,
+"desc": "They set grain prices, maintain storage standards, and arbitrate harvest disputes. Boring work that feeds ever"
+},
+"Hearth Keepers": {
+"emojis": [
+"🔥",
+"❄️"
+],
+"hue": 0.075,
+"desc": "The tenders of flame and dough. Where wheat becomes bread."
+},
+"Hearth Witches": {
+"emojis": [
+"🫖",
+"🥣",
+"🕯",
+"🧿"
+],
+"hue": 0.34,
+"desc": "Domestic mystics who work magic through cooking, cleaning, and the small rituals of household life. Their tea "
+},
+"Helix Conservatory": {
+"emojis": [
+"🧬",
+"🧫",
+"🔬",
+"🕳"
+],
+"hue": 0.34,
+"desc": "Research institution dedicated to genomics, inheritance, and the deep patterns of biological information. Thei"
+},
+"House of Thorns": {
+"emojis": [
+"🍷",
+"🌹"
+],
+"hue": 0.075,
+"desc": "The aristocratic court that surrounds the Station Lords and reaches toward the Carrion Throne. They deal in ma"
+},
+"Ink Wardens": {
+"emojis": [
+"📜",
+"🖋"
+],
+"hue": 0.075,
+"desc": "They do not make policy. They do not question orders. They sign where indicated, stamp what requires stamping,"
+},
+"Iron Confessors": {
+"emojis": [
+"🧘",
+"📿"
+],
+"hue": 0.045,
+"desc": "Tech-priests who minister to artificial systems - not just maintaining them, but hearing their confessions, gr"
+},
+"Iron Shepherds": {
+"emojis": [
+"⚔",
+"🛡",
+"🐑",
+"🛸"
+],
+"hue": 0.965,
+"desc": "Heavy patrol units who guard transit routes between settlements. Their ships are armed, their crews are profes"
+},
+"Irrigation Jury": {
+"emojis": [
+"💧",
+"⚖",
+"🌱",
+"🪣"
+],
+"hue": 0.13,
+"desc": "Twelve citizens who decide where water goes. Their judgments shape harvests, determine which settlements thriv"
+},
+"Keepers of Silence": {
+"emojis": [
+"🔇",
+"🤫",
+"🛑",
+"📵"
+],
+"hue": 0.68,
+"desc": "Censors who hunt dangerous information - not political secrets, but knowledge that damages reality when transm"
+},
+"Kilowatt Collective": {
+"emojis": [
+"⚡",
+"🔋",
+"🔌",
+"⚙"
+],
+"hue": 0.045,
+"desc": "Union workers who maintain the grid. They have rate disputes, coverage arguments, and strong opinions about ge"
+},
+"Knot-Shriners": {
+"emojis": [
+"🪢",
+"📿"
+],
+"hue": 0.78,
+"desc": "Oath-keepers who make promises permanent through ritual knot-work. Their knots bind agreements in ways that tr"
+},
+"Lantern Cant": {
+"emojis": [
+"🏮",
+"🕯",
+"🧿"
+],
+"hue": 0.5,
+"desc": "A technical street-code using visible light to transmit invisible secrets. Not a cult - a *cant*, a hidden lan"
+},
+"Laughing Court": {
+"emojis": [
+"🎭",
+"💃"
+],
+"hue": 0.075,
+"desc": "They laugh at everything. The wine, the dancing, the clever wordplay—and yes, the reports from below. Millions"
+},
+"Ledger Bailiffs": {
+"emojis": [
+"💰",
+"⚖",
+"📒",
+"🚔"
+],
+"hue": 0.075,
+"desc": "The enforcement arm of documentary reality. They collect what the ledgers say is owed - taxes, fines, debts, p"
+},
+"Locusts": {
+"emojis": [
+"🦗",
+"🐜"
+],
+"hue": 0.34,
+"desc": "Biological salvage crews who break down dead things - organisms, ecosystems, sometimes entire failed settlemen"
+},
+"Loom Priests": {
+"emojis": [
+"🪢",
+"🪡"
+],
+"hue": 0.78,
+"desc": "Elite mystical tailors who weave fate into fabric. Their garments confer status that others instinctively reco"
+},
+"Market Spirits": {
+"emojis": [
+"🐂",
+"🐻"
+],
+"hue": 0.075,
+"desc": "The invisible hands that push and pull. Greed and fear dance eternal."
+},
+"Measure Scribes": {
+"emojis": [
+"📘",
+"📐"
+],
+"hue": 0.5,
+"desc": "Pure auditors who define the units of existence. They standardize weights, certify measurements, and ensure th"
+},
+"Memory Merchants": {
+"emojis": [
+"📼",
+"🧩"
+],
+"hue": 0.5,
+"desc": "Dealers in recorded experience - not just data, but the lived texture of memory itself. They buy recollections"
+},
+"Memory Weavers": {
+"emojis": [
+"🫥",
+"🪦"
+],
+"hue": 0.5,
+"desc": "Where the Chorus dissolves, the Weavers collect. They spin webs from the residue of unraveled identities—not t"
+},
+"Millwright's Union": {
+"emojis": [
+"👥",
+"🍞"
+],
+"hue": 0.045,
+"desc": "They operate the mills that grind grain into flour. Dusty work, loud work, essential work. The Union negotiate"
+},
+"Monolith Masons": {
+"emojis": [
+"🧱",
+"🏛",
+"📐",
+"🏺"
+],
+"hue": 0.045,
+"desc": "Architects who construct buildings that remain stable across probability fluctuations. Their structures use ge"
+},
+"Mossline Brokers": {
+"emojis": [
+"🌿",
+"🦠",
+"🧫",
+"🧿"
+],
+"hue": 0.34,
+"desc": "Fringe mystics who communicate with non-human biologics - fungal networks, bacterial colonies, the distributed"
+},
+"Mycelial Web": {
+"emojis": [
+"🍂",
+"💀",
+"🌱"
+],
+"hue": 0.68,
+"desc": "The hidden network beneath. Moon-touched, death-fed, eternal recyclers. Spooky symbiosis with death itself."
+},
+"Nexus Wardens": {
+"emojis": [
+"🚪",
+"🗝",
+"🛂",
+"📋"
+],
+"hue": 0.115,
+"desc": "Gatekeepers who control the major transit points between probability-spaces. They check papers, collect tolls,"
+},
+"Obsidian Will": {
+"emojis": [
+"⛓",
+"🪨",
+"🧱",
+"🕴️"
+],
+"hue": 0.075,
+"desc": "Labor organizers who impose structure on chaotic workforces. Their methods are strict, their expectations abso"
+},
+"Order of the Crimson Scale": {
+"emojis": [
+"⚔",
+"💱",
+"🐉",
+"🩸"
+],
+"hue": 0.965,
+"desc": "Enforcers of trade agreements and contract law - with violence. When arbitration fails and payment is due, the"
+},
+"Pack Lords": {
+"emojis": [
+"🐺",
+"🦌",
+"🦅",
+"🐇"
+],
+"hue": 0.34,
+"desc": "The hunters. They cull the weak and shepherd death."
+},
+"Plague Vectors": {
+"emojis": [
+"🦠",
+"💀",
+"🐝",
+"🐇"
+],
+"hue": 0.115,
+"desc": "The invisible cullers. They thrive on density and crash on scarcity."
+},
+"Pollinator Guild": {
+"emojis": [
+"🌿",
+"🌾"
+],
+"hue": 0.13,
+"desc": "The tiny workers without whom no seed sets. Their absence collapses agriculture."
+},
+"Quarantine Sealwrights": {
+"emojis": [
+"🩺",
+"🚫"
+],
+"hue": 0.115,
+"desc": "Biological border guards who prevent contamination between probability-spaces. They inspect cargo, certify org"
+},
+"Quay Rooks": {
+"emojis": [
+"⚓",
+"🪝"
+],
+"hue": 0.55,
+"desc": "Dockside operators who control the grey economy of every port. They know which ships carry what, which inspect"
+},
+"Reality Midwives": {
+"emojis": [
+"🍼",
+"✨",
+"🤲",
+"💫"
+],
+"hue": 0.115,
+"desc": "Attendants at the creation of new stable configurations - new stars, new possibilities, new patterns that achi"
+},
+"Relay Lattice": {
+"emojis": [
+"📡",
+"📶",
+"🧩",
+"🗺"
+],
+"hue": 0.045,
+"desc": "The telecom company. They maintain the communication network connecting settlements across probability-space, "
+},
+"Resonance Dancers": {
+"emojis": [
+"💃",
+"🎼"
+],
+"hue": 0.78,
+"desc": "Performers whose synchronized movements across probability-space create interference patterns in the quantum s"
+},
+"Rocketwright Institute": {
+"emojis": [
+"🚀",
+"⚙",
+"📋",
+"🔬"
+],
+"hue": 0.68,
+"desc": "Technical school and manufacturing consortium for spacecraft propulsion and orbital mechanics. They train engi"
+},
+"Rose Wardens": {
+"emojis": [
+"🌹",
+"🥀",
+"🌺",
+"⚔"
+],
+"hue": 0.13,
+"desc": "Every rose has thorns, and the Wardens are the thorns. They tend the impossible gardens of the Gilded Rot—flow"
+},
+"Sacred Flame Keepers": {
+"emojis": [
+"🕯",
+"🔥",
+"🪵",
+"🧯"
+],
+"hue": 0.78,
+"desc": "Fire-priests who maintain flames that burn true in vacuum, in void, in places where combustion shouldn't be po"
+},
+"Salt Scribes": {
+"emojis": [
+"🐚",
+"🧂"
+],
+"hue": 0.55,
+"desc": "Historians of the inevitable. While others mourn or celebrate collapse, the Scribes simply record it. They har"
+},
+"Salt-Runners": {
+"emojis": [
+"🛶",
+"💧",
+"🧂",
+"🔓"
+],
+"hue": 0.55,
+"desc": "Canal smugglers who move contraband through waterways that official maps don't show. Salt is their cover cargo"
+},
+"Scythe Provosts": {
+"emojis": [
+"⚔",
+"🛡"
+],
+"hue": 0.13,
+"desc": "Estate guards who protect agricultural land from raiders, pests, and less obvious threats. They ride the bound"
+},
+"Seamstress Syndicate": {
+"emojis": [
+"🧵",
+"🧶"
+],
+"hue": 0.5,
+"desc": "Tailors who encode information in fabric patterns. A trained eye can read origin, status, allegiance, and secr"
+},
+"Seedvault Curators": {
+"emojis": [
+"🧪",
+"🧬"
+],
+"hue": 0.34,
+"desc": "Keepers of the genetic archive. They maintain backup copies of every crop strain, every useful organism, every"
+},
+"Star-Charter Enclave": {
+"emojis": [
+"🔭",
+"📡",
+"🌠",
+"🛰"
+],
+"hue": 0.68,
+"desc": "Navigators who map routes through probability-space. Where others see chaos, they see currents - stable paths "
+},
+"Starforge Reliquary": {
+"emojis": [
+"☀",
+"⚙",
+"🌀",
+"🌙"
+],
+"hue": 0.68,
+"desc": "Heavy-duty celestial mechanics who maintain the ancient stellar infrastructure required for warship fabricatio"
+},
+"Station Lords": {
+"emojis": [
+"🚀",
+"💰",
+"🏢",
+"🛂"
+],
+"hue": 0.55,
+"desc": "They control the skyports where ships dock and fortunes change hands. Every rocket that lands pays tribute; ev"
+},
+"Swift Herd": {
+"emojis": [
+"🦌",
+"🌿",
+"🐇"
+],
+"hue": 0.34,
+"desc": "The gentle grazers. They eat the green and feed the strong."
+},
+"Symphony Smiths": {
+"emojis": [
+"🎵",
+"🔊",
+"🔨",
+"⚙",
+"🔇",
+"❄"
+],
+"hue": 0.075,
+"desc": "Artisans who forge instruments and acoustic equipment with properties that edge toward the mystical. Their con"
+},
+"Syndicate of Glass": {
+"emojis": [
+"🪞",
+"🔍",
+"💎",
+"🧊"
+],
+"hue": 0.5,
+"desc": "Criminal oligarchs who deal in precision surveillance and blackmail. Their mirrors show what people hide. Thei"
+},
+"Terrarium Collective": {
+"emojis": [
+"🫙",
+"♻️",
+"🌿",
+"💧"
+],
+"hue": 0.34,
+"desc": "Ecological engineers who design self-sustaining habitats. They build the life-support systems, waste recyclers"
+},
+"The Gilded Legacy": {
+"emojis": [
+"💎",
+"⛏"
+],
+"hue": 0.045,
+"desc": "Mining consortiums and gem traders who extract value from the deep places. They fund expeditions, process rare"
+},
+"The Indelible Precept": {
+"emojis": [
+"📜",
+"⚖",
+"📋",
+"💳"
+],
+"hue": 0.075,
+"desc": "The office that creates permanent records. Birth certificates, death certificates, property deeds, citizenship"
+},
+"The Liminal Osmosis": {
+"emojis": [
+"📻",
+"📶",
+"📡",
+"🗣"
+],
+"hue": 0.5,
+"desc": "Broadcasters who transmit on frequencies that slip between official channels. Their programs reach listeners w"
+},
+"The Liminal Taper": {
+"emojis": [
+"🕯",
+"🧵"
+],
+"hue": 0.115,
+"desc": "A focused mystic signal that bridges the domestic magic of Hearth Witches to the encoded communications of the"
+},
+"The Opalescent Hegemon": {
+"emojis": [
+"🔭",
+"⚫",
+"🌠",
+"⚖"
+],
+"hue": 0.68,
+"desc": "Elite cosmic observers who serve as the Carrion Throne's most distant eyes. They watch the Black Horizon, char"
+},
+"The Scavenged Psithurism": {
+"emojis": [
+"🧤",
+"🗑",
+"💀"
+],
+"hue": 0.965,
+"desc": "Destitute remains of war and oppression gathering in the quiet corners. Not serfs (who are owned), not freemen"
+},
+"The Sovereign Ukase": {
+"emojis": [
+"💊",
+"📦",
+"🧪",
+"🚛"
+],
+"hue": 0.075,
+"desc": "The pharmaceutical and medical supply arm of imperial authority. They manufacture medicines, distribute suppli"
+},
+"The Submersed": {
+"emojis": [
+"🪸",
+"🦀",
+"🌊",
+"🐠"
+],
+"hue": 0.55,
+"desc": "Reef-tenders who move with the flood. They believe all things should remain connected, that isolation is death"
+},
+"The Vitreous Scrutiny": {
+"emojis": [
+"📐",
+"🧮",
+"🔭",
+"🔬"
+],
+"hue": 0.5,
+"desc": "Elite mathematicians mapping the deep curvatures of probability-space. They observe the simulation's boundarie"
+},
+"Tinker Team": {
+"emojis": [
+"🪛",
+"🧰",
+"🔌",
+"♻️"
+],
+"hue": 0.045,
+"desc": "Traveling repair crews in battered vans full of salvaged parts. They fix what others throw away, know every ba"
+},
+"Umbra Exchange": {
+"emojis": [
+"🗝",
+"💰",
+"🕵️",
+"💀"
+],
+"hue": 0.5,
+"desc": "Information brokers who trade in secrets, leverage, and lives. Their currency is knowing things others don't w"
+},
+"Veiled Sisters": {
+"emojis": [
+"🪞",
+"👤"
+],
+"hue": 0.5,
+"desc": "A covert sisterhood that moves through every level of society - servants, courtiers, merchants, magistrates. T"
+},
+"Verdant Pulse": {
+"emojis": [
+"🌱",
+"🌲",
+"🍂",
+"🌿"
+],
+"hue": 0.34,
+"desc": "The green rhythm of growth and decay. Seeds become grass or trees, grain returns to earth."
+},
+"Void Emperors": {
+"emojis": [
+"⚫",
+"⚜",
+"♟",
+"🕰"
+],
+"hue": 0.68,
+"desc": "Sovereigns of abandoned territories - regions where settlements failed, where probability destabilized, where "
+},
+"Void Serfs": {
+"emojis": [
+"👥",
+"⛓",
+"💸",
+"💀"
+],
+"hue": 0.115,
+"desc": "Not a faction by choice—a faction by classification. They are the processed, the filed, the ones whose names a"
+},
+"Void Troubadours": {
+"emojis": [
+"🎸",
+"🎼",
+"💫",
+"🏮"
+],
+"hue": 0.68,
+"desc": "Musicians who play at the edge of nothing. Their instruments are strung with probability, their songs carry ac"
+},
+"Volcanic Foundry": {
+"emojis": [
+"🌫",
+"✨"
+],
+"hue": 0.045,
+"desc": "Masters of volcanic processes who harvest crystals from cooling magma. They read the earth's fire and know whe"
+},
+"Vortex Readers": {
+"emojis": [
+"🌀",
+"🐙",
+"👁",
+"✨"
+],
+"hue": 0.55,
+"desc": "Oracles of the spiral pools. They see measurement not as violence but as truth-making—the moment when possibil"
+},
+"Wildfire": {
+"emojis": [
+"🔥",
+"🍂",
+"🌿",
+"🌱"
+],
+"hue": 0.115,
+"desc": "The great destroyer and renewer. Burns hot, leaves fertility behind."
+},
+"Yeast Prophets": {
+"emojis": [
+"🍞",
+"💨",
+"🧪",
+"🫙"
+],
+"hue": 0.13,
+"desc": "They read probability in fermentation - bubble patterns, rise timing, the behavior of cultures. But they're no"
+},
+"Forgewright Union": {
+"emojis": [
+"⚙",
+"🔩",
+"🔥",
+"🪨",
+"🔧",
+"🔨"
+],
+"hue": 0.045,
+"desc": "The forge workers who shape raw metal and stone into tools. Ore in, edge out. Where volcanic heat becomes indu"
+},
+"Lamplighters": {
+"emojis": [
+"🌉",
+"🪔",
+"📯",
+"🗼"
+],
+"hue": 0.045,
+"desc": "A secret guild of signal-fire tenders. Each keeper attends one beacon in a chain that runs from the shore to t"
+},
+"Timekeepers": {
+"emojis": [
+"⌛",
+"⏳"
+],
+"hue": 0.115,
+"desc": "The quiet order that attends the turning of hours. Three glasses on a wheel: the full one, the pouring one, an"
+},
+"Prismatic Cascade": {
+"emojis": [
+"🌟",
+"🌈"
+],
+"hue": 0.5,
+"desc": "A cult of light-mathematicians who believe color is the residue of thought. They teach that a sparkler (💥) is "
+},
+"Phase Keepers": {
+"emojis": [
+"🌕",
+"🌘"
+],
+"hue": 0.115,
+"desc": "A monastic order that tends the two faces of the moon. They teach that bright and dim are not points on a line"
+},
+"Archivists": {
+"emojis": [
+"📕",
+"🔑",
+"📗",
+"📓"
+],
+"hue": 0.5,
+"desc": "A silent order that maintains two independent ledgers. The red book and the green book do not speak to each ot"
+},
+"CycleKeepers": {
+"emojis": [
+"🦋",
+"🕷",
+"🐛"
+],
+"hue": 0.34,
+"desc": "An unlikely coalition of three watchers, none of whom can admit to being more important than the others. The b"
+},
+"Wildwood": {
+"emojis": [
+"☀",
+"🌙",
+"🐺",
+"🦌",
+"🦅",
+"🐇",
+"🌲",
+"🍂",
+"🌱",
+"🌿",
+"🍄",
+"💀"
+],
+"hue": 0.34,
+"desc": "The wilderness cluster — pack and herd, fire and fungus, the turning sky. The neighborhood StarterForest belon"
+}
+},
+"emoji_to_biome": {
+"☀": "Celestial Archons",
+"🌙": "Celestial Archons",
+"🌾": "Pollinator Guild",
+"🍄": "BioticFlux",
+"🍂": "Mycelial Web",
+"💀": "Mycelial Web",
+"⛓": "Debt Wardens",
+"💸": "Debt Wardens",
+"👥": "Millwright's Union",
+"🗝": "Nexus Wardens",
+"🕵": "CyberDebtMegacity",
+"🩸": "AshPatch",
+"🚀": "OrbitalStrike",
+"💰": "Granary Guilds",
+"⚙": "ColdLab",
+"✊": "Children of the Ember",
+"🚩": "Children of the Ember",
+"🎶": "Chorus of Oblivion",
+"🔔": "Chorus of Oblivion",
+"🫥": "Memory Weavers",
+"🪦": "Chronicle Keepers",
+"🕸": "EchoingChasm",
+"🕯": "The Liminal Taper",
+"🔇": "Keepers of Silence",
+"🌑": "MirrorChamber",
+"💫": "Reality Midwives",
+"🌀": "MagneticAnomaly",
+"🦗": "Locusts",
+"🐜": "Locusts",
+"🦠": "Mossline Brokers",
+"🌧": "IrrigationJury",
+"🧫": "Helix Conservatory",
+"🕳": "Cult of the Drowned Star",
+"🪐": "Black Horizon",
+"⚫": "AshPatch",
+"🧭": "Cartographers",
+"📍": "Cartographers",
+"🗺": "Cartographers",
+"🔭": "Cartographers",
+"🌠": "Star-Charter Enclave",
+"🐺": "Pack Lords",
+"🦌": "Swift Herd",
+"🦅": "ForgottenCastle",
+"🐇": "Swift Herd",
+"🌲": "Verdant Pulse",
+"🌱": "Mycelial Web",
+"🌿": "Pollinator Guild",
+"⚡": "Kilowatt Collective",
+"🔋": "Kilowatt Collective",
+"🔩": "Forgewright Union",
+"🛸": "Iron Shepherds",
+"🔥": "Fencebreakers",
+"❄": "ColdLab",
+"🍞": "Millwright's Union",
+"💨": "Yeast Prophets",
+"🧺": "Granary Guilds",
+"🪨": "AbandonedQuarter",
+"💎": "The Gilded Legacy",
+"⛏": "The Gilded Legacy",
+"🌫": "Volcanic Foundry",
+"✨": "Volcanic Foundry",
+"🌊": "The Submersed",
+"🦀": "The Submersed",
+"🐙": "Vortex Readers",
+"🪸": "SporeLibrary",
+"🐚": "Salt Scribes",
+"🧂": "Salt Scribes",
+"🐠": "The Submersed",
+"👁": "Vortex Readers",
+"📜": "Ink Wardens",
+"🖋": "Ink Wardens",
+"🗃": "BureaucraticAbyss",
+"♟": "Void Emperors",
+"🕰": "Chronicle Keepers",
+"📖": "BureaucraticAbyss",
+"👑": "GildedRot",
+"⚜": "AshPatch",
+"🍷": "House of Thorns",
+"🌹": "House of Thorns",
+"🎭": "Laughing Court",
+"💃": "Laughing Court",
+"🥀": "ForgottenCastle",
+"📡": "Engram Freighters",
+"📶": "Engram Freighters",
+"🔊": "BroadcastTower",
+"🗣": "The Liminal Osmosis",
+"🎵": "BroadcastTower",
+"🧩": "Memory Merchants",
+"🛰": "SatelliteGraveyard",
+"⭐": "Cult of the Drowned Star",
+"📼": "Memory Merchants",
+"💉": "Bone Merchants",
+"💊": "The Sovereign Ukase",
+"🩺": "Quarantine Sealwrights",
+"🚫": "Quarantine Sealwrights",
+"🧪": "Seedvault Curators",
+"🧬": "Seedvault Curators",
+"🔧": "Bone Merchants",
+"🔨": "Forgewright Union",
+"🪛": "Tinker Team",
+"🧰": "Tinker Team",
+"🔌": "Kilowatt Collective",
+"♻️": "Terrarium Collective",
+"🗑": "The Scavenged Psithurism",
+"🧤": "The Scavenged Psithurism",
+"🏭": "ScrapYard",
+"🚧": "ScrapYard",
+"🧱": "DemolitionSite",
+"💳": "The Indelible Precept",
+"📦": "The Sovereign Ukase",
+"🏷️": "MarketDistrict",
+"💱": "Order of the Crimson Scale",
+"🕴️": "Obsidian Will",
+"🐂": "Market Spirits",
+"🐻": "Market Spirits",
+"📊": "TradingFloor",
+"🧵": "Seamstress Syndicate",
+"🧶": "Seamstress Syndicate",
+"👘": "WeaversLoft",
+"🧷": "WeaversLoft",
+"🪢": "Knot-Shriners",
+"🪡": "Loom Priests",
+"📿": "Iron Confessors",
+"🧘": "Iron Confessors",
+"🏮": "Lantern Cant",
+"🧿": "Lantern Cant",
+"⚱": "Brotherhood of Ash",
+"🐑": "Iron Shepherds",
+"🐝": "Apiary",
+"🥣": "Hearth Witches",
+"🫙": "Apiary",
+"🤲": "Reality Midwives",
+"🛶": "Salt-Runners",
+"🪝": "Quay Rooks",
+"💧": "Irrigation Jury",
+"⚓": "Quay Rooks",
+"🏜": "Harbor",
+"🪣": "Irrigation Jury",
+"🧊": "Syndicate of Glass",
+"🫧": "Cult of the Drowned Star",
+"⚔": "Scythe Provosts",
+"🛡": "Scythe Provosts",
+"💥": "DemolitionSite",
+"📒": "Ledger Bailiffs",
+"📋": "EnforcementPost",
+"📘": "Measure Scribes",
+"📐": "Measure Scribes",
+"🧮": "The Vitreous Scrutiny",
+"⚖": "Irrigation Jury",
+"🏚️": "AbandonedQuarter",
+"🏛": "AbandonedQuarter",
+"🏺": "AbandonedQuarter",
+"🏰": "ForgottenCastle",
+"🧨": "DemolitionSite",
+"🪓": "Fencebreakers",
+"🪵": "Sacred Flame Keepers",
+"🪞": "Veiled Sisters",
+"👤": "Veiled Sisters",
+"🪤": "Clan of the Hidden Root",
+"🦴": "Bone Merchants",
+"🚔": "EnforcementPost",
+"🔓": "EnforcementPost",
+"🧲": "MagneticAnomaly",
+"🫖": "Hearth Witches",
+"🎼": "Resonance Dancers",
+"🩰": "ResonanceHall",
+"🎸": "Void Troubadours",
+"🌉": "Lamplighters",
+"🪔": "ZenoLatch",
+"📯": "ZenoLatch",
+"🗼": "Lamplighters",
+"🏁": "Lanternfall",
+"⌛": "Timekeepers",
+"⏰": "WheelOfHours",
+"⏳": "Timekeepers",
+"🌟": "Prismatic Cascade",
+"🌈": "Prismatic Cascade",
+"🌕": "BrittleDawn",
+"🌘": "BrittleDawn",
+"📕": "Archivists",
+"🔑": "Archivists",
+"📗": "Archivists",
+"📓": "Archivists",
+"🦋": "CycleKeepers",
+"🌸": "MothGarden",
+"🕷": "CycleKeepers",
+"🐛": "CycleKeepers",
+"🌰": "SporeLibrary",
+"🫚": "SporeLibrary",
+"🏚": "_orphan_lindblads",
+"♻": "_orphan_lindblads",
+"🏷": "_orphan_lindblads",
+"🕴": "_orphan_lindblads",
+"🍯": "HearthKeepers",
+"🌋": "VolcanicFoundry",
+"🔍": "Syndicate of Glass",
+"🚢": "QuayRooks",
+"🧯": "Brotherhood of Ash",
+"⚙️": "Chop Docs",
+"🫀": "Flesh Architects",
+"🛠": "Gearwright Circle",
+"❄️": "Hearth Keepers",
+"🔬": "Helix Conservatory",
+"🤫": "Keepers of Silence",
+"🛑": "Keepers of Silence",
+"📵": "Keepers of Silence",
+"🚪": "Nexus Wardens",
+"🛂": "Nexus Wardens",
+"🐉": "Order of the Crimson Scale",
+"🍼": "Reality Midwives",
+"🌺": "Rose Wardens",
+"🏢": "Station Lords",
+"📻": "The Liminal Osmosis",
+"🚛": "The Sovereign Ukase",
+"🕵️": "Umbra Exchange"
+}
+}

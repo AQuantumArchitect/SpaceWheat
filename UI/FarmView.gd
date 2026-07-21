@@ -90,6 +90,10 @@ func _connect_quantum_viz_to_farm() -> void:
 	if quantum_viz:
 		quantum_viz.connect_to_farm(farm)
 		return
+	# Under the SW_FIELD_3D toggle the 3D field is mounted by GameRoot and connects to the
+	# farm itself, so a null 2D quantum_viz here is expected, not a failure.
+	if OS.has_environment("SW_FIELD_3D"):
+		return
 	push_error("FarmView: quantum_viz is NULL — cannot connect to farm!")
 
 

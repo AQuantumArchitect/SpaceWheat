@@ -145,6 +145,34 @@ func _mark_started() -> void:
 	game_started.emit(farm)
 	if _verbose:
 		_verbose.info("boot", ">", "GameRoot ready")
+	if OS.has_environment("SW_SHOT"):
+		_dev_screenshot()
+
+
+func _dev_screenshot() -> void:
+	# dev-only (SW_SHOT env): once the game is up, capture the live screen then quit,
+	# so a display-less builder can SEE headed output. Never active in production.
+	# SW_LOAD_PATH optionally loads a checkpoint into the live field first (lets me
+	# verify the 3D renderer against rich, multi-register real state).
+	if OS.has_environment("SW_LOAD_PATH"):
+		var gsm = get_node_or_null("/root/GameStateManager")
+		if gsm != null and ("save_load" in gsm) and gsm.save_load != null:
+			await gsm.save_load.load_and_apply_path(OS.get_environment("SW_LOAD_PATH"))
+			await get_tree().process_frame
+			# Re-point any 3D field at the (possibly rebuilt) post-load farm.
+			var f3d = get_node_or_null("QuantumField3D")
+			var post_farm = farm
+			var app_roots = get_tree().get_nodes_in_group("app_root")
+			if app_roots.size() > 0 and "game_root" in app_roots[0] and app_roots[0].game_root:
+				post_farm = app_roots[0].game_root.farm
+			if f3d != null and post_farm != null and f3d.has_method("connect_to_farm"):
+				f3d.connect_to_farm(post_farm)
+	await get_tree().create_timer(4.5).timeout
+	var img := get_viewport().get_texture().get_image()
+	if img:
+		img.save_png(OS.get_environment("SW_SHOT"))
+		print("SW_SHOT_SAVED:", OS.get_environment("SW_SHOT"))
+	get_tree().quit()
 
 
 func _mount_farm_view(is_headless: bool) -> void:
@@ -166,6 +194,20 @@ func _resolve_player_shell() -> Node:
 
 
 func _mount_quantum_visualization() -> void:
+	# SW_FIELD_3D toggle (Phase A, view-only): opt-in 3D cognifold renderer. With the
+	# flag UNSET the path below is byte-for-byte the original 2D renderer.
+	if OS.has_environment("SW_FIELD_3D"):
+		var field3d = load("res://Core/Visualization/QuantumField3D.gd").new()
+		field3d.name = "QuantumField3D"
+		add_child(field3d)
+		# NOT top_level: a Control needs its parent's rect to resolve PRESET_FULL_RECT
+		# anchors. GameRoot is full-rect, so the field fills it; the app HUD lives in a
+		# CanvasLayer above GameRoot, so it stays on top of the field.
+		field3d.z_index = 0
+		if farm and field3d.has_method("connect_to_farm"):
+			field3d.connect_to_farm(farm)
+		quantum_viz = null
+		return
 	quantum_viz = QuantumForceGraph.new()
 	quantum_viz.name = "QuantumForceGraph"
 	add_child(quantum_viz)

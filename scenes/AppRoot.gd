@@ -128,7 +128,7 @@ func get_player_shell() -> Node:
 
 func _maybe_auto_start() -> void:
 	var request = _peek_pending_boot_request()
-	var should_start := RuntimeEnv.is_headless() or bool(request.get("_pending", false))
+	var should_start := RuntimeEnv.is_headless() or bool(request.get("_pending", false)) or OS.has_environment("SW_AUTOSTART")
 	if should_start:
 		await start_game(_consume_pending_boot_request())
 
