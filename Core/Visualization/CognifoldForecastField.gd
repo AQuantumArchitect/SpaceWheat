@@ -18,6 +18,7 @@ const FORECAST_WARM := Color(0.98, 0.35, 0.95)
 const RUNG_TICK := 0.055         # half-size of the 3-axis cross drawn at each horizon stop
 
 var _fc_mesh: MeshInstance3D = null
+var _cores: Dictionary = {}       # reg → inner "trust core" MeshInstance3D (reliability channel)
 
 
 func _ready() -> void:
@@ -42,6 +43,7 @@ func _ready() -> void:
 func _update_vectors() -> void:
 	super._update_vectors()
 	_draw_forecasts()
+	_update_trust_cores()
 
 
 func _draw_forecasts() -> void:
@@ -112,3 +114,49 @@ func _draw_forecasts() -> void:
 			prev = pt
 	if began:
 		fm.surface_end()
+
+
+## Reliability channel: a pale "trust core" nested at each belief's centre, sized by how much
+## the agent trusts its EVIDENCE for that belief (observation-trust α) — distinct from its
+## confidence in the belief (the Bloch radius). A belief with a strong core is well-evidenced;
+## a tiny core is held on thin evidence. Beliefs with NO trust estimate (reliability == null,
+## honestly) show no core at all — the field admits "I have no trust reading here" rather than
+## faking one. Cores live at b.pos (the sphere centre), inside the shell, so they never fight
+## the surface state-point, the ripeness ring, or the forecast ladder.
+func _update_trust_cores() -> void:
+	var biome = _get_active_biome()
+	if biome == null:
+		return
+	var vc = biome.viz_cache
+	if vc == null or not vc.has_method("get_gauge"):
+		return
+	for b in _bubbles:
+		var gauge = vc.get_gauge(b.reg)
+		var rel = gauge.get("reliability", null) if typeof(gauge) == TYPE_DICTIONARY else null
+		var core = _cores.get(b.reg, null)
+		if rel == null:
+			if core != null and is_instance_valid(core):
+				core.visible = false
+			continue
+		if core == null or not is_instance_valid(core):
+			core = MeshInstance3D.new()
+			var sm := SphereMesh.new()
+			sm.radius = 1.0
+			sm.height = 2.0
+			sm.radial_segments = 12
+			sm.rings = 6
+			core.mesh = sm
+			var mat := StandardMaterial3D.new()
+			mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			mat.albedo_color = Color(0.96, 0.98, 1.0, 0.55)
+			core.material_override = mat
+			core.position = b.pos
+			if _pivot != null and is_instance_valid(_pivot):
+				_pivot.add_child(core)
+			else:
+				add_child(core)
+			_cores[b.reg] = core
+		core.visible = true
+		# reliability 0 → a bare seed, 1 → ~0.6·R (stays well inside the rb·R shell)
+		core.scale = Vector3.ONE * ((0.08 + 0.55 * clampf(float(rel), 0.0, 1.0)) * R)
