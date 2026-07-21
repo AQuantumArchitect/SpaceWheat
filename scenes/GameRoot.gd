@@ -224,10 +224,10 @@ func _resolve_player_shell() -> Node:
 	return shells[0] if shells.size() > 0 else null
 
 
-## 3D cognifold renderer toggle. Force 2D with --classic-2d / SW_CLASSIC_2D (the fallback lane
-## + 2D-regression harness, kept for one release after the default flips to 3D); force 3D with
-## --field3d / SW_FIELD_3D. An explicit 2D request always wins over an explicit 3D one. The
-## final `return` is the DEFAULT — flipping it 2D↔3D is the sprint's flip gate (one line).
+## 3D cognifold renderer toggle. The DEFAULT is now the 3D field (the sprint flip). Force the
+## legacy 2D renderer with --classic-2d / SW_CLASSIC_2D (the fallback lane + 2D-regression
+## harness, kept for one release); force 3D explicitly with --field3d / SW_FIELD_3D. An
+## explicit 2D request always wins over an explicit 3D one.
 func _field3d_enabled() -> bool:
 	# Explicit overrides (2D wins ties): env first, then command-line + user args.
 	if OS.has_environment("SW_CLASSIC_2D"):
@@ -239,7 +239,7 @@ func _field3d_enabled() -> bool:
 			return false
 		if a == "--field3d":
 			return true
-	return false  # DEFAULT: 2D (the flip gate changes this to `true`)
+	return true  # DEFAULT: 3D cognifold field (--classic-2d falls back to the legacy 2D)
 
 
 func _mount_quantum_visualization() -> void:
