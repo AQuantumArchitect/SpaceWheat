@@ -189,4 +189,9 @@ func get_gauge(reg: int) -> Dictionary:
 		"forecast_skill": r.get("forecast_skill", null),
 		"forecast": r.get("forecast", []),
 		"constellation": r.get("constellation", null),
+		# accumulated geometric phase γ (the belief's PROCESS POSITION — how far it has
+		# actually traveled, not where it sits) and raw surprise (innov_ema, the un-clipped
+		# sibling of reliability). Both honestly null when the trace doesn't carry them.
+		"berry_phase": r.get("berry_phase", null),
+		"surprise": r.get("surprise", null),
 	}

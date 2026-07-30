@@ -25,6 +25,12 @@ const MI_COL := Color(0.55, 1.0, 0.85)       # live mutual information — belie
 const CHORUS_COL := Color(1.0, 0.85, 0.35)
 const CONSPIRACY_COL := Color(0.62, 0.28, 0.95)
 const FLAT_COL := Color(0.72, 0.72, 0.8)
+# Berry-phase odometer: accumulated geometric phase γ — the belief's PROCESS POSITION, how far
+# it has genuinely traveled on the Bloch sphere (one equatorial loop ≈ π of |γ|), as opposed to
+# where it happens to sit. Copper arc sweeps γ mod 2π; the tint deepens toward ember with each
+# full winding, so a well-traveled belief carries visible mileage even when it looks settled.
+const BERRY_COL := Color(0.85, 0.55, 0.30)
+const BERRY_DEEP := Color(1.0, 0.30, 0.16)
 
 var _fc_mesh: MeshInstance3D = null
 var _cores: Dictionary = {}       # reg → inner "trust core" MeshInstance3D (reliability channel)
@@ -32,6 +38,7 @@ var _act_mesh: MeshInstance3D = null   # connector lines: driving belief → rec
 var _act_nodes: Dictionary = {}        # action id → {marker, label}
 var _mi_mesh: MeshInstance3D = null    # bright edges: real mutual information (the MI sensor firing)
 var _mf_mesh: MeshInstance3D = null    # soft loops: manifold constellations (higher-order clusters)
+var _berry_mesh: MeshInstance3D = null # copper arcs: Berry-phase odometer (geometric-phase mileage)
 
 
 func _ready() -> void:
@@ -85,6 +92,18 @@ func _ready() -> void:
 		_pivot.add_child(_mf_mesh)
 	else:
 		add_child(_mf_mesh)
+	# Berry-phase odometer arcs (geometric-phase mileage per belief)
+	_berry_mesh = MeshInstance3D.new()
+	_berry_mesh.mesh = ImmediateMesh.new()
+	var bm := StandardMaterial3D.new()
+	bm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	bm.vertex_color_use_as_albedo = true
+	bm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_berry_mesh.material_override = bm
+	if _pivot != null and is_instance_valid(_pivot):
+		_pivot.add_child(_berry_mesh)
+	else:
+		add_child(_berry_mesh)
 
 
 # The base calls _update_vectors() unqualified from _process, so this override dispatches;
@@ -96,6 +115,7 @@ func _update_vectors() -> void:
 	_update_actions()
 	_update_mi_edges()
 	_update_manifold()
+	_update_berry()
 
 
 func _draw_forecasts() -> void:
@@ -216,6 +236,15 @@ func _update_trust_cores() -> void:
 		core.visible = true
 		# reliability 0 → a bare seed, 1 → ~0.6·R (stays well inside the rb·R shell)
 		core.scale = Vector3.ONE * ((0.08 + 0.55 * clampf(float(rel), 0.0, 1.0)) * R)
+		# Surprise flare: innov_ema is the UN-CLIPPED sibling of reliability (alpha is a
+		# saturating transform of it), read off the same trust struct — so it lives on the
+		# same core. A surprised belief's core heats white-hot; a settled one stays pale.
+		# Null → base tint (no reading, no fake calm).
+		var mat = core.material_override
+		if mat is StandardMaterial3D:
+			var sup = gauge.get("surprise", null)
+			var heat := (clampf(float(sup), 0.0, 1.0) if sup != null else 0.0)
+			mat.albedo_color = Color(0.96, 0.98, 1.0, 0.55).lerp(Color(1.0, 0.93, 0.72, 0.95), heat)
 
 
 ## Decision layer — "why did it act": each output tendril's recommendation floats as an amber
@@ -422,3 +451,55 @@ func _update_manifold() -> void:
 			mf.surface_add_vertex(pts[(idx + 1) % n])
 	if began:
 		mf.surface_end()
+
+
+## Berry-phase odometer: a thin copper arc at each belief's base sweeping γ mod 2π, tint
+## deepening toward ember with each full winding (|γ| / 2π). γ is the belief's accumulated
+## GEOMETRIC phase — path history the state point cannot show: two beliefs sitting at the
+## same spot read identical everywhere else, but the one that got there the long way carries
+## a longer, hotter arc. Honestly absent (no arc at all) when the trace has no berry_phase.
+func _update_berry() -> void:
+	if _berry_mesh == null or not (_berry_mesh.mesh is ImmediateMesh):
+		return
+	var bm: ImmediateMesh = _berry_mesh.mesh
+	bm.clear_surfaces()
+	var biome = _get_active_biome()
+	if biome == null:
+		return
+	var vc = biome.viz_cache
+	if vc == null or not vc.has_method("get_gauge"):
+		return
+	var began := false
+	for b in _bubbles:
+		if not is_instance_valid(b.dot):
+			continue
+		var gauge = vc.get_gauge(b.reg)
+		if typeof(gauge) != TYPE_DICTIONARY:
+			continue
+		var gp = gauge.get("berry_phase", null)
+		if gp == null:
+			continue
+		var gamma := absf(float(gp))
+		var sweep := fmod(gamma, TAU)
+		var windings := int(gamma / TAU)
+		if sweep < 0.05 and windings == 0:
+			continue   # no meaningful mileage yet — draw nothing rather than a speck
+		var col := BERRY_COL.lerp(BERRY_DEEP, clampf(float(windings) / 5.0, 0.0, 1.0))
+		col.a = 0.95
+		# just below the orb ball, so the arc reads as a pedestal dial rather than
+		# hiding inside the translucent sphere
+		var arc_r := R * 0.72
+		var base_y := -R * 1.18
+		var segs := maxi(2, int(ceil(24.0 * sweep / TAU)))
+		if not began:
+			bm.surface_begin(Mesh.PRIMITIVE_LINES)
+			began = true
+		for s in range(segs):
+			var a0 := sweep * float(s) / float(segs)
+			var a1 := sweep * float(s + 1) / float(segs)
+			bm.surface_set_color(col)
+			bm.surface_add_vertex(b.pos + Vector3(arc_r * cos(a0), base_y, arc_r * sin(a0)))
+			bm.surface_set_color(col)
+			bm.surface_add_vertex(b.pos + Vector3(arc_r * cos(a1), base_y, arc_r * sin(a1)))
+	if began:
+		bm.surface_end()
