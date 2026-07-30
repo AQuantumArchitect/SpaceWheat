@@ -6,6 +6,12 @@ extends Control
 # whose viz_cache is the UmweltVizCache adapter. Run standalone:
 #   DISPLAY=:0 SW_COGNIFOLD_TRACE=res://scratch_cognifold_sample.json \
 #     SW_SHOT=/abs/out.png godot scenes/CognifoldTraceView.tscn
+# LIVE mode — point it at a stepping umweltd and watch a mind think in real time:
+#   SW_COGNIFOLD_URL=http://127.0.0.1:7073/worlds/<world>/cognifold \
+#     [SW_COGNIFOLD_POLL_S=2.0] [UMWELTD_API_KEY=...] godot scenes/CognifoldTraceView.tscn
+# The poll loop reuses the filmstrip tween machinery verbatim: each fresh response becomes
+# the next frame and the field glides to it in Bloch-vector space. A quiet world is
+# LEGITIMATELY still — the daemon steps on ingest only; stillness means no events, not breakage.
 # Proves the thesis: the same cognifold that draws the farm draws a reasoning field —
 # register = belief, Bloch point = value + confidence, edges = couplings.
 
@@ -23,6 +29,11 @@ var _frames: Array = []        # parsed trace dicts, one per filmstrip frame (em
 var _frame_idx := 0
 var _play_t := 0.0             # tween position within the current frame pair [0,1)
 var _frame_s := 1.2            # seconds per frame
+var _farm = null               # kept so live mode can respawn bubbles on topology change
+var _live_url := ""            # non-empty → live polling mode (SW_COGNIFOLD_URL)
+var _http: HTTPRequest = null
+var _live_pending := false
+var _live_cur: Dictionary = {} # the frame the field last settled on (tween source)
 
 
 ## Minimal farm/grid/biome so QuantumField3D's farm-shaped read path resolves to our adapter
@@ -61,10 +72,16 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var vc = UmweltVizCacheScript.new()
 	_vc = vc
-	# Precedence: SW_COGNIFOLD_TRACE_DIR (a dir of *.json frames → animated filmstrip) →
-	# SW_COGNIFOLD_TRACE (a single trace file) → a PLAIN launch defaults to the committed live
-	# filmstrip (the field animates as a real umwelt walk evolves), falling back to the single
-	# forecast trace if the filmstrip is absent.
+	# Precedence: SW_COGNIFOLD_URL (LIVE: poll a stepping umweltd) → SW_COGNIFOLD_TRACE_DIR
+	# (a dir of *.json frames → animated filmstrip) → SW_COGNIFOLD_TRACE (a single trace file)
+	# → a PLAIN launch defaults to the committed live filmstrip (the field animates as a real
+	# umwelt walk evolves), falling back to the single forecast trace if the filmstrip is absent.
+	_live_url = OS.get_environment("SW_COGNIFOLD_URL")
+	if _live_url != "":
+		_start_live_poll()
+		if OS.has_environment("SW_SHOT"):
+			_dev_capture()
+		return   # field is built lazily, on the first successful response
 	var dir_env := OS.get_environment("SW_COGNIFOLD_TRACE_DIR")
 	var file_env := OS.get_environment("SW_COGNIFOLD_TRACE")
 	if dir_env == "" and file_env == "":
@@ -81,14 +98,7 @@ func _ready() -> void:
 			push_error("CognifoldTraceView: could not load cognifold trace: " + path)
 			return
 		print("[cognifold] loaded trace world='%s' registers=%d" % [str(vc.world), vc.get_num_qubits()])
-	var bname := "belief-field: " + str(vc.world)
-	var biome = _Biome.new(vc, bname)
-	var farm = _Farm.new(_Grid.new({bname: biome}))
-	add_child(farm)   # keep the holder Node tree-managed (no orphan on exit)
-	_field = QuantumField3DScript.new()
-	_field.name = "QuantumField3D"
-	add_child(_field)
-	_field.connect_to_farm(farm)
+	_build_field()
 	# filmstrip playback: _process continuously tweens the vc from frame A→B, advancing the
 	# pair every _frame_s. The renderer keeps its persistent bubbles (same biome + register
 	# count) and animates SMOOTHLY to each new state, so the picture IS the belief-field
@@ -100,8 +110,27 @@ func _ready() -> void:
 		_dev_capture()
 
 
+func _build_field() -> void:
+	var bname := "belief-field: " + str(_vc.world)
+	var biome = _Biome.new(_vc, bname)
+	_farm = _Farm.new(_Grid.new({bname: biome}))
+	add_child(_farm)   # keep the holder Node tree-managed (no orphan on exit)
+	_field = QuantumField3DScript.new()
+	_field.name = "QuantumField3D"
+	add_child(_field)
+	_field.connect_to_farm(_farm)
+
+
 func _process(delta: float) -> void:
-	if _frames.size() < 2 or _vc == null:
+	if _vc == null:
+		return
+	if _live_url != "":
+		# live mode: glide toward the most recent response and HOLD there (no wrap) —
+		# the next poll supplies the next leg. A quiet world legitimately sits still.
+		_play_t = minf(1.0, _play_t + delta / _frame_s)
+		_vc.set_blend(_play_t)
+		return
+	if _frames.size() < 2:
 		return
 	_play_t += delta / _frame_s
 	while _play_t >= 1.0:
@@ -109,6 +138,70 @@ func _process(delta: float) -> void:
 		_frame_idx = (_frame_idx + 1) % _frames.size()
 		_vc.load_frame_pair(_frames[_frame_idx], _frames[(_frame_idx + 1) % _frames.size()])
 	_vc.set_blend(_play_t)
+
+
+# ---- live mode: the instrument as a MEMBRANE over a stepping umweltd ---------------
+## Poll GET <SW_COGNIFOLD_URL> (a /worlds/<name>/cognifold endpoint) every
+## SW_COGNIFOLD_POLL_S seconds and tween the field to each fresh trace. The tween spans
+## the poll gap, so consecutive responses read as continuous motion — the filmstrip
+## machinery pointed at the network instead of a directory.
+func _start_live_poll() -> void:
+	_frame_s = 2.0
+	var poll_env := OS.get_environment("SW_COGNIFOLD_POLL_S")
+	if poll_env.is_valid_float():
+		_frame_s = maxf(0.25, float(poll_env))
+	_http = HTTPRequest.new()
+	_http.timeout = maxf(4.0, _frame_s * 2.0)
+	add_child(_http)
+	_http.request_completed.connect(_on_live_response)
+	var t := Timer.new()
+	t.wait_time = _frame_s
+	t.timeout.connect(_poll_live)
+	add_child(t)
+	t.start()
+	set_process(true)
+	print("[cognifold] LIVE mode: polling %s every %.2fs" % [_live_url, _frame_s])
+	_poll_live()
+
+
+func _poll_live() -> void:
+	if _live_pending or _http == null:
+		return
+	var headers := PackedStringArray()
+	var key := OS.get_environment("UMWELTD_API_KEY")
+	if key != "":
+		headers.append("X-API-Key: " + key)
+	if _http.request(_live_url, headers) == OK:
+		_live_pending = true
+
+
+func _on_live_response(result: int, code: int, _hdrs: PackedStringArray, body: PackedByteArray) -> void:
+	_live_pending = false
+	if result != HTTPRequest.RESULT_SUCCESS or code != 200:
+		push_warning("[cognifold] live poll failed (result=%d http=%d) — field holds last state" % [result, code])
+		return
+	var d = JSON.parse_string(body.get_string_from_utf8())
+	if typeof(d) != TYPE_DICTIONARY or not (d.get("registers", null) is Array):
+		push_warning("[cognifold] live poll returned a non-trace payload — ignored")
+		return
+	if _field == null:
+		if _vc.load_frame(d):
+			_live_cur = d
+			_build_field()
+			print("[cognifold] LIVE first frame: world='%s' registers=%d"
+				% [str(_vc.world), _vc.get_num_qubits()])
+		return
+	var n: int = (d.get("registers") as Array).size()
+	if n != _vc.get_num_qubits():
+		# topology changed (world regrew) — reload flat and respawn the field's bubbles
+		_vc.load_frame(d)
+		_live_cur = d
+		_play_t = 1.0
+		_field.connect_to_farm(_farm)
+		return
+	_vc.load_frame_pair(_live_cur, d)
+	_live_cur = d
+	_play_t = 0.0
 
 
 func _load_frames_dir(dir_path: String) -> Array:
