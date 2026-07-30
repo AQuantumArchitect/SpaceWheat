@@ -37,6 +37,35 @@ def test_chorus_demo_fixture_carries_a_real_bound_constellation() -> None:
     assert [r["constellation"] for r in trace["registers"]] == [0, 0, 0]
 
 
+def test_forecast_ladder_grades_by_persistence_relative_skill() -> None:
+    """Honesty pass: rung boldness must come from skill_vs_persistence, never raw skill —
+    raw skill reads ~1.0 on any quiet belief ("predict it stays put" is near-optimal), so
+    grading by it would flatter a frozen field. Entries without svp stay at the dim floor."""
+    src = FORECAST_FIELD.read_text(encoding="utf-8")
+    fc = src.split("func _draw_forecasts")[1].split("\nfunc ")[0]
+    assert 'e.get("skill_vs_persistence", null)' in fc
+    assert 'e.get("skill", null)' not in fc  # raw skill no longer drives boldness
+
+
+def test_manifold_loops_grade_by_backend_tier() -> None:
+    """Honesty pass: only the dense-exact backend can SIGN a grain; proxy/gated readings
+    must desaturate toward flat and cap brightness rather than present as signed."""
+    src = FORECAST_FIELD.read_text(encoding="utf-8")
+    mf = src.split("func _update_manifold")[1]
+    assert '"tier"' in mf and '!= "exact"' in mf
+    assert "col.lerp(FLAT_COL" in mf
+
+
+def test_manifold_web_fixture_carries_svp_and_tier() -> None:
+    """The flagship real-world fixture must carry the honest grade (svp) on every forecast
+    entry and a backend tier on every cluster — the fields the honesty pass renders."""
+    trace = json.loads(MANIFOLD_WEB_FIXTURE.read_text(encoding="utf-8"))
+    entries = [e for r in trace["registers"] for e in r.get("forecast", [])]
+    assert entries, "flagship fixture must carry a forecast ladder"
+    assert all("skill_vs_persistence" in e for e in entries)
+    assert all("tier" in cl for cl in trace["manifold"]["clusters"])
+
+
 def test_manifold_web_fixture_is_no_longer_stale() -> None:
     """Regression guard: this fixture predated the manifold/constellation section entirely
     (silently missing it is exactly the gap this channel closed)."""

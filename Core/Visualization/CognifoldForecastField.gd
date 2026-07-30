@@ -2,8 +2,9 @@
 # SELF-FORECAST as a forward "ghost ladder": from the live Bloch state point, a warm-amber
 # thread climbs the population axis to the register's predicted future state at the
 # 13 / 21 / 34 / 55-minute horizons — the mirror of QuantumField3D's cyan *backward* memory
-# trail. Boldness scales with the forecast's own skill, so a belief the agent can forecast
-# about itself reaches out with a bright, confident ladder; one it cannot barely shows.
+# trail. Boldness scales with the forecast's PERSISTENCE-RELATIVE skill (skill_vs_persistence
+# — raw skill reads ~1.0 on any quiet belief, so it would flatter a frozen field): a belief the
+# agent genuinely foresees beyond "it stays put" reaches out bright; one it cannot barely shows.
 #
 # QuantumField3D is left byte-for-byte untouched: this override only lights up when the
 # viz_cache exposes a forecast gauge (UmweltVizCache.get_gauge), which the game's
@@ -142,11 +143,15 @@ func _draw_forecasts() -> void:
 			var zc := clampf(float(zraw), -rb, rb)
 			var eqr := R * sqrt(max(0.0, rb * rb - zc * zc))
 			var pt: Vector3 = b.pos + Vector3(eqr * cos(ph), zc * R, eqr * sin(ph))
-			# boldness = forecast skill (null skill → faint); farther horizons fade.
-			var sk = e.get("skill", null)
-			var skill := (float(sk) if sk != null else 0.0)
+			# boldness = persistence-relative skill (the honest grade: 0 means "no better
+			# than predicting it stays put" — raw `skill` reads ~1.0 on any quiet belief
+			# and would flatter a frozen field). Entries without skill_vs_persistence
+			# (pre-svp traces, dissolved rollouts) stay at the dim floor: ungraded, not
+			# flattered. Farther horizons fade.
+			var svp = e.get("skill_vs_persistence", null)
+			var grade := (clampf(float(svp), 0.0, 1.0) if svp != null else 0.0)
 			var horizon_fade := 1.0 - 0.4 * (float(idx) / float(max(1, n - 1)))
-			var a := clampf(lerpf(0.35, 0.95, clampf(skill, 0.0, 1.0)) * horizon_fade, 0.12, 0.98)
+			var a := clampf(lerpf(0.35, 0.95, grade) * horizon_fade, 0.12, 0.98)
 			var col := Color(FORECAST_WARM.r, FORECAST_WARM.g, FORECAST_WARM.b, a)
 			# reach: previous stop → this stop (faint at the tail, full at the new tip)
 			fm.surface_set_color(Color(col.r, col.g, col.b, a * 0.7))
@@ -397,6 +402,13 @@ func _update_manifold() -> void:
 		elif grain == "conspiracy":
 			col = CONSPIRACY_COL
 		var strength := clampf(float(cl.get("max_corr_norm", 0.3)), 0.0, 1.0)
+		# Backend tier is part of the reading's honesty: only the dense-exact backend can
+		# SIGN the grain; proxy (cumulant) feels the bind but can't sign it, and gated never
+		# crossed the floor. Non-exact loops desaturate toward flat and cap their brightness
+		# so an unsigned reading never presents as a signed one.
+		if str(cl.get("tier", "")) != "exact":
+			col = col.lerp(FLAT_COL, 0.65)
+			strength = minf(strength, 0.35)
 		var a := clampf(0.18 + 0.45 * strength, 0.18, 0.65)
 		var draw_col := Color(col.r, col.g, col.b, a)
 		if not began:
