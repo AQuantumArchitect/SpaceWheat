@@ -19,6 +19,7 @@ var _regs_b: Array = []          # optional "next" frame (frame B) for smooth fi
 var _blend: float = 0.0          # 0 → frame A, 1 → frame B
 var _actions: Array = []         # decision-layer recommendations (frame A)
 var _mi_edges: Array = []        # real mutual-information edges (kind "mi"), kept distinct from couplings
+var _manifold: Array = []        # higher-order clusters (chorus/conspiracy grain, constellations)
 
 
 func load_trace(path: String) -> bool:
@@ -41,6 +42,9 @@ func load_frame(d: Dictionary) -> bool:
 	world = str(d.get("world", ""))
 	_regs = d.get("registers", []) if typeof(d.get("registers")) == TYPE_ARRAY else []
 	_actions = d.get("actions", []) if typeof(d.get("actions")) == TYPE_ARRAY else []
+	var manifold = d.get("manifold", {})
+	var m_clusters = manifold.get("clusters", []) if typeof(manifold) == TYPE_DICTIONARY else []
+	_manifold = m_clusters if typeof(m_clusters) == TYPE_ARRAY else []
 	_edge_w.clear()
 	_mi_edges = []
 	for e in d.get("edges", []):
@@ -160,9 +164,19 @@ func get_mi_edges() -> Array:
 	return _mi_edges
 
 
+## Higher-order manifold clusters: [{name, roles, n, total_correlation, o_information, grain
+## ("chorus"|"conspiracy"|"flat"), tier, max_corr_norm, constellations, metric}]. `name` matches
+## the `node` field on registers belonging to that cluster (see get_gauge's `constellation`).
+## Only clusters with ≥2 beliefs appear; empty when the field has no higher-order binding.
+func get_manifold_clusters() -> Array:
+	return _manifold
+
+
 # ---- extra reasoning-transparency channels (beyond SpaceWheat's shape) -------
-## Full gauge for a register: value, confidence, reliability, forecast_skill, forecast ladder.
-## Not read by QuantumField3D yet; here so a richer overlay (Inc 3) can light them up.
+## Full gauge for a register: value, confidence, reliability, forecast_skill, forecast ladder,
+## and which manifold constellation (if any) this belief belongs to. Read by CognifoldForecastField
+## for the forecast/reliability/decision/manifold overlays; the game's QuantumVizCache has none of
+## these keys, so the shipped renderer stays unaffected.
 func get_gauge(reg: int) -> Dictionary:
 	if reg < 0 or reg >= _regs.size():
 		return {}
@@ -174,4 +188,5 @@ func get_gauge(reg: int) -> Dictionary:
 		"reliability": r.get("reliability", null),
 		"forecast_skill": r.get("forecast_skill", null),
 		"forecast": r.get("forecast", []),
+		"constellation": r.get("constellation", null),
 	}

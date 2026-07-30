@@ -18,12 +18,19 @@ const FORECAST_WARM := Color(0.98, 0.35, 0.95)
 const RUNG_TICK := 0.055         # half-size of the 3-axis cross drawn at each horizon stop
 const ACTION_COL := Color(1.0, 0.58, 0.16)   # decision layer: recommended actions (belief → act)
 const MI_COL := Color(0.55, 1.0, 0.85)       # live mutual information — beliefs actually sharing info
+# manifold channel: grain colours — chorus (redundancy, beliefs echo a common cause) reads warm
+# and golden; conspiracy (synergy, the whole knows what no part does) reads deep and violet; flat
+# (unresolved / pairwise-only) reads pale and neutral, deliberately duller than either signed grain.
+const CHORUS_COL := Color(1.0, 0.85, 0.35)
+const CONSPIRACY_COL := Color(0.62, 0.28, 0.95)
+const FLAT_COL := Color(0.72, 0.72, 0.8)
 
 var _fc_mesh: MeshInstance3D = null
 var _cores: Dictionary = {}       # reg → inner "trust core" MeshInstance3D (reliability channel)
 var _act_mesh: MeshInstance3D = null   # connector lines: driving belief → recommended action
 var _act_nodes: Dictionary = {}        # action id → {marker, label}
 var _mi_mesh: MeshInstance3D = null    # bright edges: real mutual information (the MI sensor firing)
+var _mf_mesh: MeshInstance3D = null    # soft loops: manifold constellations (higher-order clusters)
 
 
 func _ready() -> void:
@@ -65,6 +72,18 @@ func _ready() -> void:
 		_pivot.add_child(_mi_mesh)
 	else:
 		add_child(_mi_mesh)
+	# manifold constellation loops (higher-order clusters, grain-coloured)
+	_mf_mesh = MeshInstance3D.new()
+	_mf_mesh.mesh = ImmediateMesh.new()
+	var mfm := StandardMaterial3D.new()
+	mfm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mfm.vertex_color_use_as_albedo = true
+	mfm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_mf_mesh.material_override = mfm
+	if _pivot != null and is_instance_valid(_pivot):
+		_pivot.add_child(_mf_mesh)
+	else:
+		add_child(_mf_mesh)
 
 
 # The base calls _update_vectors() unqualified from _process, so this override dispatches;
@@ -75,6 +94,7 @@ func _update_vectors() -> void:
 	_update_trust_cores()
 	_update_actions()
 	_update_mi_edges()
+	_update_manifold()
 
 
 func _draw_forecasts() -> void:
@@ -322,3 +342,71 @@ func _update_mi_edges() -> void:
 			mm.surface_set_color(col)
 			mm.surface_add_vertex(orb[j] + off)
 	mm.surface_end()
+
+## Manifold channel: which beliefs are moving together as a CLUSTER, not just pairwise — a soft
+## closed loop drawn through every belief sharing a constellation (umwelt's `get_gauge().
+## constellation`, grouped by `node` — the register field that names its manifold cluster), tinted
+## by that cluster's grain: gold for chorus (redundancy — they echo a common cause), violet for
+## conspiracy (synergy — the whole knows what no part does), pale for flat (unresolved/pairwise-
+## only). Brightness tracks the cluster's own max_corr_norm. A lone belief has no constellation
+## (null) and draws nothing — same "honestly null-when-absent" convention as the trust cores.
+func _update_manifold() -> void:
+	if _mf_mesh == null or not (_mf_mesh.mesh is ImmediateMesh):
+		return
+	var mf: ImmediateMesh = _mf_mesh.mesh
+	mf.clear_surfaces()
+	var biome = _get_active_biome()
+	if biome == null:
+		return
+	var vc = biome.viz_cache
+	if vc == null or not vc.has_method("get_manifold_clusters") or not vc.has_method("get_gauge"):
+		return
+	var clusters = vc.get_manifold_clusters()
+	if typeof(clusters) != TYPE_ARRAY or clusters.is_empty():
+		return
+	var meta := {}   # cluster name → cluster dict (grain, max_corr_norm)
+	for cl in clusters:
+		if typeof(cl) == TYPE_DICTIONARY:
+			meta[str(cl.get("name", ""))] = cl
+	var groups := {}   # "node|constellation_id" → Array[Vector3]
+	for b in _bubbles:
+		if not is_instance_valid(b.dot):
+			continue
+		var gauge = vc.get_gauge(b.reg)
+		if typeof(gauge) != TYPE_DICTIONARY:
+			continue
+		var cons = gauge.get("constellation", null)
+		if cons == null:
+			continue
+		var node := str(gauge.get("node", ""))
+		var gk := "%s|%d" % [node, int(cons)]
+		if not groups.has(gk):
+			groups[gk] = {"node": node, "pts": []}
+		(groups[gk].pts as Array).append(b.pos)
+	var began := false
+	for gk in groups:
+		var g = groups[gk]
+		var pts: Array = g.pts
+		if pts.size() < 2:
+			continue
+		var cl = meta.get(g.node, {})
+		var grain := str(cl.get("grain", "flat"))
+		var col := FLAT_COL
+		if grain == "chorus":
+			col = CHORUS_COL
+		elif grain == "conspiracy":
+			col = CONSPIRACY_COL
+		var strength := clampf(float(cl.get("max_corr_norm", 0.3)), 0.0, 1.0)
+		var a := clampf(0.18 + 0.45 * strength, 0.18, 0.65)
+		var draw_col := Color(col.r, col.g, col.b, a)
+		if not began:
+			mf.surface_begin(Mesh.PRIMITIVE_LINES)
+			began = true
+		var n := pts.size()
+		for idx in range(n):
+			mf.surface_set_color(draw_col)
+			mf.surface_add_vertex(pts[idx])
+			mf.surface_set_color(draw_col)
+			mf.surface_add_vertex(pts[(idx + 1) % n])
+	if began:
+		mf.surface_end()

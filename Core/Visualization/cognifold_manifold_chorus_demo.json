@@ -1,0 +1,112 @@
+{
+ "world": "manifold_demo_ghz",
+ "format": "cognifold_trace_v1",
+ "n_registers": 3,
+ "registers": [
+  {
+   "id": 0,
+   "node": "pantry",
+   "role": "grain",
+   "p0": 0.5,
+   "p1": 0.5,
+   "r_xy": 0.0,
+   "r_bloch": 0.0,
+   "phi": 0.0,
+   "theta": 1.5707963267948966,
+   "purity": 0.5,
+   "value": 0.5,
+   "confidence": 0.0,
+   "reliability": 0.7,
+   "forecast_skill": null,
+   "forecast": [],
+   "constellation": 0
+  },
+  {
+   "id": 1,
+   "node": "pantry",
+   "role": "bread",
+   "p0": 0.5,
+   "p1": 0.5,
+   "r_xy": 0.0,
+   "r_bloch": 0.0,
+   "phi": 0.0,
+   "theta": 1.5707963267948966,
+   "purity": 0.5,
+   "value": 0.5,
+   "confidence": 0.0,
+   "reliability": 0.7,
+   "forecast_skill": null,
+   "forecast": [],
+   "constellation": 0
+  },
+  {
+   "id": 2,
+   "node": "pantry",
+   "role": "folk",
+   "p0": 0.5,
+   "p1": 0.5,
+   "r_xy": 0.0,
+   "r_bloch": 0.0,
+   "phi": 0.0,
+   "theta": 1.5707963267948966,
+   "purity": 0.5,
+   "value": 0.5,
+   "confidence": 0.0,
+   "reliability": 0.7,
+   "forecast_skill": null,
+   "forecast": [],
+   "constellation": 0
+  }
+ ],
+ "edges": [],
+ "actions": [],
+ "manifold": {
+  "clusters": [
+   {
+    "name": "pantry",
+    "roles": [
+     "grain",
+     "bread",
+     "folk"
+    ],
+    "n": 3,
+    "total_correlation": 2.0,
+    "o_information": 1.0,
+    "grain": "chorus",
+    "tier": "exact",
+    "max_corr_norm": 1.0,
+    "constellations": [
+     [
+      "grain",
+      "bread",
+      "folk"
+     ]
+    ],
+    "metric": {
+     "roles": [
+      "grain",
+      "bread",
+      "folk"
+     ],
+     "distance": [
+      [
+       0.0,
+       0.0,
+       0.0
+      ],
+      [
+       0.0,
+       0.0,
+       0.0
+      ],
+      [
+       0.0,
+       0.0,
+       0.0
+      ]
+     ]
+    }
+   }
+  ]
+ }
+}

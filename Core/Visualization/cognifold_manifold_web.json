@@ -7,292 +7,405 @@
       "id": 0,
       "node": "pantry",
       "role": "grain",
-      "p0": 0.5142835002711765,
-      "p1": 0.48571649972882347,
-      "r_xy": 0.00046629540295636666,
-      "r_bloch": 0.028570805928248108,
-      "phi": -1.3413135324678582,
-      "theta": 0.01632141940311205,
-      "purity": 0.5004081454756948,
-      "value": 0.5142835002711765,
-      "confidence": 0.028570805928248108,
+      "p0": 0.5142831941148536,
+      "p1": 0.48571680588514643,
+      "r_xy": 0.00042616599104568887,
+      "r_bloch": 0.02856956691905349,
+      "phi": 1.8328986254873176,
+      "theta": 0.014917334876939201,
+      "purity": 0.5004081100769712,
+      "value": 0.5142831941148536,
+      "confidence": 0.02856956691905349,
       "reliability": null,
-      "forecast_skill": 0.9972,
+      "forecast_skill": 0.9988,
       "forecast": [
         {
           "horizon_min": 55,
-          "z_pred": 0.02465,
-          "skill": 0.99724
+          "z_pred": 0.02597,
+          "skill": 0.99875,
+          "skill_vs_persistence": 0.78933
         },
         {
           "horizon_min": 89,
-          "z_pred": 0.024,
-          "skill": 0.99631
+          "z_pred": 0.02523,
+          "skill": 0.99854,
+          "skill_vs_persistence": 0.84755
         },
         {
           "horizon_min": 144,
-          "z_pred": 0.02184,
-          "skill": 0.99342
+          "z_pred": 0.02278,
+          "skill": 0.99745,
+          "skill_vs_persistence": 0.83292
         },
         {
           "horizon_min": 233,
-          "z_pred": 0.01836,
-          "skill": 0.98118
+          "z_pred": 0.02189,
+          "skill": 0.98674,
+          "skill_vs_persistence": 0.46163
         }
-      ]
+      ],
+      "constellation": 0
     },
     {
       "id": 1,
       "node": "pantry",
       "role": "bread",
-      "p0": 0.5068985645278681,
-      "p1": 0.4931014354721319,
-      "r_xy": 6.694635098806e-05,
-      "r_bloch": 0.013797291473131685,
-      "phi": -0.11544662498025329,
-      "theta": 0.004852156222839398,
-      "purity": 0.5000951826259973,
-      "value": 0.5068985645278681,
-      "confidence": 0.013797291473131685,
+      "p0": 0.5068973626142458,
+      "p1": 0.4931026373857542,
+      "r_xy": 0.0001682753603256343,
+      "r_bloch": 0.0137957515462723,
+      "phi": -1.8599575771523007,
+      "theta": 0.012197924322143174,
+      "purity": 0.5000951613803633,
+      "value": 0.5068973626142458,
+      "confidence": 0.0137957515462723,
       "reliability": null,
-      "forecast_skill": 0.9979,
+      "forecast_skill": 0.999,
       "forecast": [
         {
           "horizon_min": 55,
-          "z_pred": 0.01113,
-          "skill": 0.99791
+          "z_pred": 0.01235,
+          "skill": 0.99895,
+          "skill_vs_persistence": 0.81122
         },
         {
           "horizon_min": 89,
-          "z_pred": 0.01094,
-          "skill": 0.99803
+          "z_pred": 0.01212,
+          "skill": 0.99891,
+          "skill_vs_persistence": 0.86908
         },
         {
           "horizon_min": 144,
-          "z_pred": 0.00945,
-          "skill": 0.99831
+          "z_pred": 0.01042,
+          "skill": 0.99893,
+          "skill_vs_persistence": 0.90202
         },
         {
           "horizon_min": 233,
-          "z_pred": 0.00835,
-          "skill": 0.99218
+          "z_pred": 0.01023,
+          "skill": 0.99439,
+          "skill_vs_persistence": 0.55529
         }
-      ]
+      ],
+      "constellation": 1
     },
     {
       "id": 2,
       "node": "pantry",
       "role": "folk",
-      "p0": 0.5061332916898819,
-      "p1": 0.49386670831011814,
-      "r_xy": 0.0001514629287812633,
-      "r_bloch": 0.01226751844634799,
-      "phi": 0.9475468357497757,
-      "theta": 0.012346977742787877,
-      "purity": 0.5000752460044158,
-      "value": 0.5061332916898819,
-      "confidence": 0.01226751844634799,
+      "p0": 0.5061338793755301,
+      "p1": 0.4938661206244699,
+      "r_xy": 5.215095870701914e-05,
+      "r_bloch": 0.012267869598944662,
+      "phi": -0.5796411703080336,
+      "theta": 0.00425103277786359,
+      "purity": 0.5000752503122483,
+      "value": 0.5061338793755301,
+      "confidence": 0.012267869598944662,
       "reliability": null,
-      "forecast_skill": 0.9985,
+      "forecast_skill": 0.9991,
       "forecast": [
         {
           "horizon_min": 55,
-          "z_pred": 0.00962,
-          "skill": 0.99848
+          "z_pred": 0.01085,
+          "skill": 0.99906,
+          "skill_vs_persistence": 0.81189
         },
         {
           "horizon_min": 89,
-          "z_pred": 0.00951,
-          "skill": 0.99856
+          "z_pred": 0.01069,
+          "skill": 0.99904,
+          "skill_vs_persistence": 0.86064
         },
         {
           "horizon_min": 144,
-          "z_pred": 0.00815,
-          "skill": 0.99848
+          "z_pred": 0.00912,
+          "skill": 0.999,
+          "skill_vs_persistence": 0.87332
         },
         {
           "horizon_min": 233,
-          "z_pred": 0.00732,
-          "skill": 0.99332
+          "z_pred": 0.00902,
+          "skill": 0.99518,
+          "skill_vs_persistence": 0.55481
         }
-      ]
+      ],
+      "constellation": 2
     },
     {
       "id": 3,
       "node": "pantry",
       "role": "seed",
-      "p0": 0.5142520383198831,
-      "p1": 0.4857479616801169,
-      "r_xy": 0.001745330445925464,
-      "r_bloch": 0.0285574607318498,
-      "phi": -2.9014012392385014,
-      "theta": 0.06115455518980616,
-      "purity": 0.5004077642817256,
-      "value": 0.5142520383198831,
-      "confidence": 0.0285574607318498,
+      "p0": 0.5142783171539597,
+      "p1": 0.48572168284604034,
+      "r_xy": 0.000812941104426333,
+      "r_bloch": 0.02856820323778694,
+      "phi": 2.633403087855385,
+      "theta": 0.028459992782032494,
+      "purity": 0.5004080711181178,
+      "value": 0.5142783171539597,
+      "confidence": 0.02856820323778694,
       "reliability": null,
-      "forecast_skill": 0.9972,
+      "forecast_skill": 0.9988,
       "forecast": [
         {
           "horizon_min": 55,
-          "z_pred": 0.0246,
-          "skill": 0.99724
+          "z_pred": 0.02596,
+          "skill": 0.99875,
+          "skill_vs_persistence": 0.78934
         },
         {
           "horizon_min": 89,
-          "z_pred": 0.02395,
-          "skill": 0.99632
+          "z_pred": 0.02522,
+          "skill": 0.99854,
+          "skill_vs_persistence": 0.84758
         },
         {
           "horizon_min": 144,
-          "z_pred": 0.0218,
-          "skill": 0.99343
+          "z_pred": 0.02277,
+          "skill": 0.99745,
+          "skill_vs_persistence": 0.83293
         },
         {
           "horizon_min": 233,
-          "z_pred": 0.01832,
-          "skill": 0.98122
+          "z_pred": 0.02188,
+          "skill": 0.98675,
+          "skill_vs_persistence": 0.46162
         }
-      ]
+      ],
+      "constellation": 3
     },
     {
       "id": 4,
       "node": "pantry",
       "role": "compost",
-      "p0": 0.5045344622440303,
-      "p1": 0.4954655377559697,
-      "r_xy": 0.00022476546072699533,
-      "r_bloch": 0.009071709369379217,
-      "phi": 2.180613287623651,
-      "theta": 0.024779063602611687,
-      "purity": 0.5000411479554412,
-      "value": 0.5045344622440303,
-      "confidence": 0.009071709369379217,
+      "p0": 0.5045328508711334,
+      "p1": 0.4954671491288666,
+      "r_xy": 0.00030246537028452925,
+      "r_bloch": 0.009070746021136363,
+      "phi": -1.681263872008846,
+      "theta": 0.03335133069133297,
+      "purity": 0.50004113921669,
+      "value": 0.5045328508711334,
+      "confidence": 0.009070746021136363,
       "reliability": null,
-      "forecast_skill": 0.9979,
+      "forecast_skill": 0.9991,
       "forecast": [
         {
           "horizon_min": 55,
-          "z_pred": 0.01019,
-          "skill": 0.99789
+          "z_pred": 0.00908,
+          "skill": 0.99908,
+          "skill_vs_persistence": 0.81935
         },
         {
           "horizon_min": 89,
-          "z_pred": 0.00955,
-          "skill": 0.99685
+          "z_pred": 0.00844,
+          "skill": 0.99882,
+          "skill_vs_persistence": 0.8124
         },
         {
           "horizon_min": 144,
-          "z_pred": 0.00978,
-          "skill": 0.99408
+          "z_pred": 0.0088,
+          "skill": 0.99769,
+          "skill_vs_persistence": 0.6462
         },
         {
           "horizon_min": 233,
-          "z_pred": 0.00714,
-          "skill": 0.99079
+          "z_pred": 0.00783,
+          "skill": 0.99358,
+          "skill_vs_persistence": 0.37766
         }
-      ]
+      ],
+      "constellation": 4
     },
     {
       "id": 5,
       "node": "story",
       "role": "progress",
-      "p0": 0.5000997632741928,
-      "p1": 0.4999002367258072,
-      "r_xy": 8.486022959720974e-06,
-      "r_bloch": 0.00019970692550923746,
-      "phi": -2.043174279775797,
-      "theta": 0.04250517975786858,
-      "purity": 0.5000000199414281,
-      "value": 0.5000997632741928,
-      "confidence": 0.00019970692550923746,
+      "p0": 0.5000996589660645,
+      "p1": 0.49990034103393555,
+      "r_xy": 6.185111749883469e-07,
+      "r_bloch": 0.00019931889178955632,
+      "phi": 2.839188831678584,
+      "theta": 0.0031031286702618358,
+      "purity": 0.5000000198640103,
+      "value": 0.5000996589660645,
+      "confidence": 0.00019931889178955632,
       "reliability": null,
       "forecast_skill": 1.0,
       "forecast": [
         {
           "horizon_min": 55,
-          "z_pred": 0.00017,
-          "skill": 0.99998
+          "z_pred": 0.00019,
+          "skill": 0.99999,
+          "skill_vs_persistence": 0.73349
         },
         {
           "horizon_min": 89,
-          "z_pred": 0.00017,
-          "skill": 0.99997
+          "z_pred": 0.00018,
+          "skill": 0.99999,
+          "skill_vs_persistence": 0.81088
         },
         {
           "horizon_min": 144,
-          "z_pred": 0.00015,
-          "skill": 0.99996
+          "z_pred": 0.00016,
+          "skill": 0.99998,
+          "skill_vs_persistence": 0.82172
         },
         {
           "horizon_min": 233,
-          "z_pred": 0.00013,
-          "skill": 0.99988
+          "z_pred": 0.00016,
+          "skill": 0.99992,
+          "skill_vs_persistence": 0.51887
         }
-      ]
+      ],
+      "constellation": null
     }
   ],
   "edges": [
     {
       "i": 0,
-      "j": 3,
-      "weight": 0.2174,
-      "kind": "zz"
-    },
-    {
-      "i": 0,
-      "j": 2,
-      "weight": 0.1526,
+      "j": 1,
+      "weight": 0.2609,
       "kind": "zz"
     },
     {
       "i": 1,
       "j": 2,
-      "weight": 0.0976,
+      "weight": 0.2097,
       "kind": "zz"
     },
     {
       "i": 0,
-      "j": 4,
-      "weight": 0.0975,
-      "kind": "zz"
-    },
-    {
-      "i": 1,
-      "j": 4,
-      "weight": 0.0865,
-      "kind": "zz"
-    },
-    {
-      "i": 2,
-      "j": 4,
-      "weight": 0.0651,
-      "kind": "zz"
-    },
-    {
-      "i": 2,
-      "j": 3,
-      "weight": 0.0631,
+      "j": 2,
+      "weight": 0.1685,
       "kind": "zz"
     },
     {
       "i": 1,
       "j": 3,
-      "weight": 0.0299,
+      "weight": 0.168,
       "kind": "zz"
     },
     {
       "i": 3,
       "j": 4,
-      "weight": 0.0114,
+      "weight": 0.1585,
+      "kind": "zz"
+    },
+    {
+      "i": 2,
+      "j": 3,
+      "weight": 0.1432,
+      "kind": "zz"
+    },
+    {
+      "i": 2,
+      "j": 4,
+      "weight": 0.1186,
       "kind": "zz"
     },
     {
       "i": 0,
-      "j": 1,
-      "weight": 0.0034,
+      "j": 3,
+      "weight": 0.0744,
+      "kind": "zz"
+    },
+    {
+      "i": 1,
+      "j": 4,
+      "weight": 0.0572,
+      "kind": "zz"
+    },
+    {
+      "i": 0,
+      "j": 4,
+      "weight": 0.0388,
       "kind": "zz"
     }
   ],
-  "actions": []
+  "actions": [],
+  "manifold": {
+    "clusters": [
+      {
+        "name": "pantry",
+        "roles": [
+          "grain",
+          "bread",
+          "folk",
+          "seed",
+          "compost"
+        ],
+        "n": 5,
+        "total_correlation": 0.0,
+        "o_information": 0.0,
+        "grain": "flat",
+        "tier": "gated",
+        "max_corr_norm": 1.2e-05,
+        "constellations": [
+          [
+            "grain"
+          ],
+          [
+            "bread"
+          ],
+          [
+            "folk"
+          ],
+          [
+            "seed"
+          ],
+          [
+            "compost"
+          ]
+        ],
+        "metric": {
+          "roles": [
+            "grain",
+            "bread",
+            "folk",
+            "seed",
+            "compost"
+          ],
+          "distance": [
+            [
+              0.0,
+              1.999274,
+              1.999303,
+              1.998822,
+              1.999352
+            ],
+            [
+              1.999274,
+              0.0,
+              1.999754,
+              1.999274,
+              1.999803
+            ],
+            [
+              1.999303,
+              1.999754,
+              0.0,
+              1.999303,
+              1.999832
+            ],
+            [
+              1.998822,
+              1.999274,
+              1.999303,
+              0.0,
+              1.999352
+            ],
+            [
+              1.999352,
+              1.999803,
+              1.999832,
+              1.999352,
+              0.0
+            ]
+          ]
+        }
+      }
+    ]
+  }
 }
