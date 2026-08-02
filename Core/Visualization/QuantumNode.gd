@@ -39,7 +39,6 @@ var purity: float = -1.0
 var coherence: float = 1.0
 var color: Color = Color.WHITE
 var radius: float = 20.0
-var berry_phase: float = 0.0  # Accumulated quantum evolution (experience points)
 
 # DUAL EMOJI SYSTEM for quantum superposition visualization
 var emoji_north: String = "🌾"  # North pole emoji (e.g., 🌾 for wheat)
@@ -302,7 +301,6 @@ func apply_quantum_snapshot(snap: Dictionary, smooth_radius: bool = false) -> bo
 		target_radius = lerpf(MIN_RADIUS, MAX_RADIUS, r_bloch)
 	radius = lerpf(radius, target_radius, 0.15) if smooth_radius else target_radius
 
-	berry_phase = coh_magnitude * TAU
 	return true
 
 

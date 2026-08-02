@@ -22,8 +22,12 @@ extends Node2D
 ## - Emoji opacity: P(n)/mass, P(s)/mass - measurement probability
 ## - Color hue: arg(ρ_01) - coherence phase
 ## - Color saturation: |ρ_01| - coherence magnitude
-## - Glow intensity: |ρ_01| / Berry phase - coherence and history
-## - Pulse rate: |ρ_01| + berry_phase - stability
+##
+## Glow/pulse-from-Berry-phase was a planned channel, never wired: QuantumNode carried a
+## field named berry_phase but it was `coh_magnitude * TAU` (an overwrite, not an
+## accumulator) with zero readers anywhere in the renderer — removed 2026-08-02, see
+## tests/test_berry_phase_agreement.py for what "berry_phase" actually means in this repo
+## now (Core/QuantumSubstrate/BerryPhaseRegister.gd, the real L'Huilier solid-angle one).
 
 
 # Preload component scripts
