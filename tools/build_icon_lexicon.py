@@ -18,6 +18,7 @@ Outputs:
 import argparse
 import json
 import shutil
+import sys
 from collections import defaultdict
 from pathlib import Path
 
@@ -26,13 +27,8 @@ FACTIONS_PATH = REPO / "Core/Factions/data/factions.json"
 BIOMES_PATH = REPO / "Core/Biomes/data/biomes.json"
 PROPOSALS_PATH = REPO / "tools/icon_lexicon_proposals.json"
 
-
-def load_biomes():
-    return json.loads(BIOMES_PATH.read_text())
-
-
-def load_factions():
-    return json.loads(FACTIONS_PATH.read_text())
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from biome_audit import load_biomes, load_factions  # noqa: E402
 
 
 def collect_pair_icons(biomes):

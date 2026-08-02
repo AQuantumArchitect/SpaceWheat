@@ -24,10 +24,7 @@ QUIT_AFTER="${QUIT_AFTER:-60}"
 EXE_NAME="${EXE_NAME:-SpaceWheat.exe}"
 DLL_NAME="${DLL_NAME:-libquantummatrix.windows.template_release.x86_64.dll}"
 
-log() { echo -e "\n\033[1;34m▶ $1\033[0m"; }
-success() { echo -e "\033[1;32m✓ $1\033[0m"; }
-warn() { echo -e "\033[1;33m⚠ $1\033[0m"; }
-error() { echo -e "\033[1;31m✗ $1\033[0m" >&2; exit 1; }
+source "$SCRIPT_DIR/lib/log.sh"
 
 show_help() {
     cat <<'EOF'

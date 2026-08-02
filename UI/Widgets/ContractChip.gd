@@ -39,7 +39,9 @@ func setup(quest_manager: Node) -> void:
 			if _quest_manager.has_signal(sig):
 				var callable := Callable(self, "_refresh_deferred")
 				if not _quest_manager.is_connected(sig, callable):
-					_quest_manager.connect(sig, callable.unbind(_signal_arg_count(sig)))
+					# unbind(n) requires n >= 1 — a 0-arg signal connects the callable as-is.
+					var argc := _signal_arg_count(sig)
+					_quest_manager.connect(sig, callable.unbind(argc) if argc > 0 else callable)
 		if _quest_manager.has_signal("quest_completed"):
 			if not _quest_manager.quest_completed.is_connected(_on_quest_completed):
 				_quest_manager.quest_completed.connect(_on_quest_completed)

@@ -776,7 +776,26 @@ func offer_tutorial_quest(quest_def: Dictionary) -> int:
 	if not _announced_offers.has(quest_id):
 		_announced_offers[quest_id] = true
 		quest_offered.emit(q)
+	# Break #1 — the offer-with-no-progress dead end. A predicate-driven tutorial step (whose
+	# soft bar IS the teacher) is accepted FOR the player: it goes straight into active_quests
+	# so the progress bar advances the instant the mechanic is done — no hidden X→Arc R-accept a
+	# new player was never taught. The contracts step (5, a DELIVERY with no predicates) is the
+	# one exception: it keeps the real accept→do→claim board ceremony. See _tutorial_auto_advances.
+	if _tutorial_auto_advances(q):
+		accept_quest(q)
 	return quest_id
+
+
+## A tutorial step auto-advances (auto-accept on offer + auto-claim on ready) when its completion
+## is physics-driven — it carries state_predicates whose soft bar the player watches fill
+## (tutorial_arc.json's own stated intent: "the progress bar is the teacher"). The contracts step
+## is the sole tutorial step with NO predicates (a DELIVERY ask); it stays manual so the player
+## learns the real accept→do→claim grammar they will need for every market contract.
+func _tutorial_auto_advances(quest: Dictionary) -> bool:
+	if str(quest.get("category", "")) != "TUTORIAL":
+		return false
+	var preds = quest.get("state_predicates", [])
+	return preds is Array and not preds.is_empty()
 
 
 ## True if any story or active quest has source_flag == flag_id (for save/load restore check).
@@ -1268,8 +1287,42 @@ func _finalize_quest_completion(quest_id: int, quest: Dictionary, reward, grante
 	_stop_quest_timer(quest_id)
 	quest_completed.emit(quest_id, _build_reward_payload(reward, granted_resources))
 	active_quests_changed.emit()
+	# Break #2 — hand the story spine off FROM the tutorial before unlocking the next step, so
+	# the hat/menu the next step teaches is already surfaced (load-bearing: step 3 fires
+	# forest_listener → the Operator hat, before the entanglement step needs it).
+	_fire_tutorial_unlock_flags(quest)
 	_process_chain_unlocks(quest)
 	_process_chain_branch(quest)
+
+
+## Break #2 — tutorial ↔ story-spine handoff. A completed tutorial step FIRES the spine flags it
+## hands off to (its authored `unlock_flags`), so the spine advances FROM the tutorial instead of
+## racing it on a separate clock. The load-bearing case: step 3 fires `forest_listener`, which
+## unlocks the Operator hat (UIProgression.HAT_UNLOCK_FLAGS) that the entanglement step (4) then
+## tells the player to use — without this, a player with progressive-disclosure enforcement ON
+## hits a locked hat the tutorial is pointing them at. Idempotent: _fire_story_flag no-ops a flag
+## the spine already fired from the tutorial's own mechanics (first_breath from signature growth,
+## forest_evolving from forest berries).
+func _fire_tutorial_unlock_flags(quest: Dictionary) -> void:
+	var flags = quest.get("unlock_flags", [])
+	if not (flags is Array) or flags.is_empty():
+		return
+	var farm = _get_active_farm()
+	if farm == null or not ("story_flags_fired" in farm):
+		return
+	for fid in flags:
+		var flag := _story_flag_by_id(str(fid))
+		if not flag.is_empty():
+			_fire_story_flag(flag, farm)
+
+
+## The raw story-flag definition for `flag_id` (the SAME dict instance held in _unfired_flags, so
+## _fire_story_flag's by-reference erase stays correct). Empty dict when the id is unknown.
+func _story_flag_by_id(flag_id: String) -> Dictionary:
+	for f in _story_flags:
+		if f is Dictionary and str(f.get("id", "")) == flag_id:
+			return f
+	return {}
 
 
 ## On completion, offer any quests this one unlocks (linear tutorial chains, arc continuations).
@@ -1522,6 +1575,13 @@ func mark_quest_ready(quest_id: int, completion_reason: String = "conditions_met
 
 	quest_ready_to_claim.emit(quest_id)
 	active_quests_changed.emit()
+
+	# Break #1 (claim half): a predicate-driven tutorial step auto-claims the instant its bar
+	# fills, so doing the mechanic both completes the step AND unlocks the next one — no hidden
+	# C→Commitments R-claim. (The contracts step never reaches here; a DELIVERY completes via
+	# complete_quest, not the ready→claim path.)
+	if _tutorial_auto_advances(quest):
+		claim_quest(quest_id)
 
 
 func claim_quest(quest_id: int) -> bool:

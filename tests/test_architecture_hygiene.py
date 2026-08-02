@@ -40,6 +40,11 @@ ARCHIVE_ROOT = ROOT / "archive"
 # playtest reports — sensor prose, not shipped code. A haiku describing a bug
 # using retired vocabulary is data ABOUT the fleet, not residue IN the tree.
 HIVE_RUNTIME_DIR = ROOT / "🍄" / "🧪" / "hive"
+
+# Slop-patrol reports are the same category: duplication audits that QUOTE live and
+# archived filenames as findings. A report naming tools/build_icon_lexicon.py (which
+# exists, outside the scan roots) is data about the tree, not resurrected code.
+SLOP_PATROL_GLOB = "SLOP_PATROL_*.md"
 ARCHIVED_PATHS = {
     ROOT / "tests" / "contract_market_smoke.gd",
     ROOT / "docs" / "biomemissions" / "STARTERFOREST_VILLAGE_CONNECTIONS.md",
@@ -61,6 +66,8 @@ def _iter_live_files():
             if ARCHIVE_ROOT in path.parents:
                 continue
             if HIVE_RUNTIME_DIR in path.parents and path.suffix == ".jsonl":
+                continue
+            if path.match(SLOP_PATROL_GLOB):
                 continue
             if path.suffix not in TEXT_SUFFIXES:
                 continue

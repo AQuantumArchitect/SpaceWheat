@@ -4,6 +4,7 @@ import json
 import sys
 from typing import Any, Dict, List, Optional
 
+from constants import POLICY_ENGINE, POLICY_QUANTUM
 from milk_hunt_characters import get_character, resolve_character_seed
 from profiles import load, list_all
 from policy_graph_runtime import profile_graph_path
@@ -71,8 +72,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--world-state", type=str, default=None, help="World state JSON path (alternative to --profile)")
     parser.add_argument(
         "--policy-mode",
-        choices=["engine_policy", "quantum_register"],
-        default="engine_policy",
+        choices=[POLICY_ENGINE, POLICY_QUANTUM],
+        default=POLICY_ENGINE,
         help="Policy mode used when resolving a character's policy graph",
     )
     parser.add_argument(

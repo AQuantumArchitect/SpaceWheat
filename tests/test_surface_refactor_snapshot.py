@@ -4,11 +4,7 @@ Ensures each refactored overlay still extends Surface and declares the
 surface_id, so the snapshot contract cannot silently regress into an
 OverlayBase-only implementation.
 """
-from pathlib import Path
-
-
-ROOT = Path(__file__).resolve().parents[1]
-
+from conftest import ROOT, read_source as _read
 
 SURFACE_OVERLAYS = {
     "UI/Overlays/InspectorOverlay.gd": "N",
@@ -20,10 +16,6 @@ SURFACE_OVERLAYS = {
     "UI/Overlays/EscapeMenu.gd": "Z",
     "UI/Core/FarmSurface.gd": "farm",
 }
-
-
-def _read(path: str) -> str:
-    return (ROOT / path).read_text(encoding="utf-8")
 
 
 def test_each_surface_overlay_extends_surface_and_sets_surface_id() -> None:

@@ -61,6 +61,29 @@ def _pid_cmdline(pid: int) -> str:
     return raw.replace(b"\x00", b" ").decode("utf-8", errors="replace").strip().lower()
 
 
+def _pid_env_value(pid: int, *keys: str) -> str:
+    """First non-empty value among `keys` in a live process's OWN environment.
+
+    Which lane a listener serves is knowable only from the listener: start_listener
+    stamps XDG_ROOT into the child env (rig_client.py:234) and 🟢.sh re-exports it
+    as XDG_DATA_HOME (🍄/🎛️/🟢.sh:18). Returns "" if the process is gone or unset.
+    """
+    try:
+        raw = Path(f"/proc/{pid}/environ").read_bytes()
+    except OSError:
+        return ""
+    env: Dict[str, str] = {}
+    for kv in raw.split(b"\0"):
+        name, sep, value = kv.partition(b"=")
+        if sep:
+            env[name.decode("utf-8", errors="replace")] = value.decode("utf-8", errors="replace")
+    for key in keys:
+        value = env.get(key, "").strip()
+        if value:
+            return value
+    return ""
+
+
 def _pid_looks_like_rig_listener(pid: int) -> bool:
     cmdline = _pid_cmdline(pid)
     if not cmdline:
@@ -208,6 +231,114 @@ class RigClient:
                 return True
             time.sleep(0.25)
         return False
+
+    @classmethod
+    def attach_to_running_listener(
+        cls,
+        *,
+        heartbeat_stale_s: float = 30.0,
+        **kwargs: Any,
+    ) -> "RigClient":
+        """Bind to an ALREADY-RUNNING listener's lane. Never starts a game.
+
+        LAW: a bare RigClient() MINTS a lane, it never finds one — xdg_root() falls
+        through to _lane_token() = "lane_<pid>_<ms>" and stamps it into the
+        environment (🍄/🎛️/milk_hunt_paths.py:29-45). That is correct for a caller
+        that starts its own listener and wrong for one that only observes: it queues
+        into a file no Godot is polling, so its only possible outcome is
+        "timeout_waiting_for_result" (rig_client.py:663) with no cause named.
+        Attaching inverts the direction — the lane comes FROM the listener.
+
+        An exported lane wins (XDG_ROOT, else SW_RIG_LANE); otherwise the lane is
+        read off a live listener process. A rig with no live listener raises HERE,
+        naming the variable to export, rather than being waited on for a timeout.
+        """
+        exported = (os.environ.get("XDG_ROOT", "").strip()
+                    or os.environ.get("SW_RIG_LANE", "").strip())
+        if exported:
+            lane = xdg_root()
+            if not cls.lane_is_live(lane, heartbeat_stale_s=heartbeat_stale_s):
+                raise RuntimeError(
+                    f"lane {lane} has no live rig listener (bridge_ready absent or "
+                    f"dead, heartbeat absent or stale): the exported "
+                    "XDG_ROOT/SW_RIG_LANE names a lane with no game in it"
+                )
+            return cls._attached(lane, **kwargs)
+
+        lane, dead = cls._discover_running_lane(heartbeat_stale_s=heartbeat_stale_s)
+        if lane is not None:
+            return cls._attached(lane, **kwargs)
+        if dead:
+            raise RuntimeError(
+                "found rig listener process(es) but no live lane among "
+                f"{[str(p) for p in dead]}: export XDG_ROOT to name the right one"
+            )
+        raise RuntimeError(
+            "no running rig listener found: export XDG_ROOT (or SW_RIG_LANE) "
+            "naming the lane of the running game, or start one with 🍄/🎛️/🟢.sh"
+        )
+
+    @classmethod
+    def _discover_running_lane(
+        cls,
+        *,
+        heartbeat_stale_s: float,
+    ) -> tuple[Optional[Path], List[Path]]:
+        """Lane of a live listener found by process scan, plus the dead candidates.
+
+        pgrep -f also matches any shell, grep or editor whose command line merely
+        NAMES the script, and such a process carries an unrelated XDG_ROOT — so only
+        godot-shaped pids may nominate a lane (rig_client.py:87) and the lane must
+        then prove live.
+
+        The scan itself must leave the environment as it found it: resolving the
+        default lane's sentinel MINTS an ephemeral lane and stamps it into os.environ
+        (milk_hunt_paths.py:38-45), so a scan that finds nothing would otherwise hand
+        the next attach in this process a phantom lane to "attach" to.
+        """
+        before = {key: os.environ.get(key) for key in ("XDG_ROOT", "SW_RIG_LANE")}
+        dead: List[Path] = []
+        try:
+            for pid in cls.find_listener_pids():
+                if not _pid_looks_like_rig_listener(pid):
+                    continue
+                found = _pid_env_value(pid, "XDG_ROOT", "XDG_DATA_HOME")
+                if not found:
+                    continue
+                lane = Path(found)
+                if cls.lane_is_live(lane, heartbeat_stale_s=heartbeat_stale_s):
+                    return lane, dead
+                dead.append(lane)
+            return None, dead
+        finally:
+            for key, value in before.items():
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
+
+    @classmethod
+    def lane_is_live(cls, lane: Path, *, heartbeat_stale_s: float = 30.0) -> bool:
+        """Is a game actually serving this lane right now?
+
+        Two independent witnesses, either sufficient: the bridge sentinel (a live
+        godot pid, rig_client.py:213) and a fresh heartbeat, which is the one signal
+        that also survives the Windows lane layout where the sentinel moves under
+        RIG_BRIDGE_SENTINEL_WSL_PATH (rig_client.py:176).
+        """
+        heartbeat = _read_heartbeat(xdg=lane)
+        if heartbeat is not None and (time.time() - heartbeat) < heartbeat_stale_s:
+            return True
+        return cls._bridge_sentinel_is_ready(xdg=lane)
+
+    @classmethod
+    def _attached(cls, lane: Path, **kwargs: Any) -> "RigClient":
+        # The environment must agree with the lane we attached to: every path helper
+        # in this process (and every child it spawns) reads the lane back out of
+        # XDG_ROOT/SW_RIG_LANE (milk_hunt_paths.py:38-45, lane_env:48).
+        os.environ["XDG_ROOT"] = str(lane)
+        os.environ["SW_RIG_LANE"] = lane.name
+        return cls(xdg=lane, **kwargs)
 
     @staticmethod
     def kill_existing_listeners(xdg: Optional[Path] = None) -> None:
@@ -615,12 +746,7 @@ class RigClient:
             ).stdout.split()
             for pid in out:
                 try:
-                    xdg = ""
-                    with open(f"/proc/{pid}/environ", "rb") as f:
-                        for kv in f.read().split(b"\0"):
-                            if kv.startswith(b"XDG_DATA_HOME="):
-                                xdg = kv.split(b"=", 1)[1].decode(errors="replace")
-                                break
+                    xdg = _pid_env_value(int(pid), "XDG_DATA_HOME")
                     if xdg and not os.path.isdir(xdg):
                         os.kill(int(pid), signal.SIGKILL)
                 except (OSError, ValueError, IndexError):

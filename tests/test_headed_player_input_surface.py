@@ -1,11 +1,4 @@
-from pathlib import Path
-
-
-ROOT = Path(__file__).resolve().parents[1]
-
-
-def _read(path: str) -> str:
-    return (ROOT / path).read_text(encoding="utf-8")
+from conftest import ROOT, read_source as _read
 
 
 def test_rig_listener_exposes_player_input_backend_and_key_commands() -> None:

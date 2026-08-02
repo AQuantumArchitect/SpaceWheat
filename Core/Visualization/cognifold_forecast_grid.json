@@ -1,0 +1,1270 @@
+{
+  "world": "gridworld",
+  "format": "cognifold_trace_v1",
+  "n_registers": 19,
+  "registers": [
+    {
+      "id": 0,
+      "node": "grid",
+      "role": "agent_near",
+      "p0": 0.9994298815727234,
+      "p1": 0.0005701184272766113,
+      "r_xy": 0.04773744254170146,
+      "r_bloch": 0.9999998449256882,
+      "phi": 2.6942409539104344,
+      "theta": 0.04775559975685351,
+      "purity": 0.9999998449257002,
+      "value": 0.9994298815727234,
+      "confidence": 0.9999998449256882,
+      "reliability": null,
+      "surprise": null,
+      "berry_phase": -0.0003406991527637036,
+      "forecast_skill": null,
+      "forecast": [],
+      "constellation": null
+    },
+    {
+      "id": 1,
+      "node": "cell_0_0",
+      "role": "agent_near",
+      "p0": 0.07469645142555237,
+      "p1": 0.9253035485744476,
+      "r_xy": 0.0012109908482785248,
+      "r_bloch": 0.8506079591791419,
+      "phi": 0.3415908667179311,
+      "theta": 3.1401689762725398,
+      "purity": 0.8617669501094524,
+      "value": 0.07469645142555237,
+      "confidence": 0.8506079591791419,
+      "reliability": 0.4916,
+      "surprise": 0.226,
+      "berry_phase": 131.23914962749356,
+      "forecast_skill": 0.9729,
+      "forecast": [
+        {
+          "horizon_min": 13,
+          "z_pred": -0.66937,
+          "skill": 0.9729,
+          "skill_vs_persistence": 0.47215
+        },
+        {
+          "horizon_min": 21,
+          "z_pred": -0.6751,
+          "skill": 0.97002,
+          "skill_vs_persistence": 0.47055
+        },
+        {
+          "horizon_min": 34,
+          "z_pred": -0.72159,
+          "skill": 0.97211,
+          "skill_vs_persistence": 0.57004
+        },
+        {
+          "horizon_min": 55,
+          "z_pred": -0.72121,
+          "skill": 0.97265,
+          "skill_vs_persistence": 0.61247
+        }
+      ],
+      "constellation": 0
+    },
+    {
+      "id": 2,
+      "node": "cell_0_0",
+      "role": "resource",
+      "p0": 0.5865978449583054,
+      "p1": 0.41340215504169464,
+      "r_xy": 0.00012823907889883721,
+      "r_bloch": 0.1731957373925586,
+      "phi": -1.6509231192326577,
+      "theta": 0.0007404286765019683,
+      "purity": 0.5149983817254761,
+      "value": 0.5865978449583054,
+      "confidence": 0.1731957373925586,
+      "reliability": null,
+      "surprise": null,
+      "berry_phase": -0.020534563448921822,
+      "forecast_skill": 0.988,
+      "forecast": [
+        {
+          "horizon_min": 13,
+          "z_pred": 0.17329,
+          "skill": 0.98805,
+          "skill_vs_persistence": 0.41882
+        },
+        {
+          "horizon_min": 21,
+          "z_pred": 0.17704,
+          "skill": 0.98817,
+          "skill_vs_persistence": 0.34687
+        },
+        {
+          "horizon_min": 34,
+          "z_pred": 0.183,
+          "skill": 0.98833,
+          "skill_vs_persistence": 0.45558
+        },
+        {
+          "horizon_min": 55,
+          "z_pred": 0.17974,
+          "skill": 0.98721,
+          "skill_vs_persistence": 0.42602
+        }
+      ],
+      "constellation": 0
+    },
+    {
+      "id": 3,
+      "node": "cell_0_1",
+      "role": "agent_near",
+      "p0": 0.07418966293334961,
+      "p1": 0.9258103370666504,
+      "r_xy": 0.0015440244162173592,
+      "r_bloch": 0.8516220738230401,
+      "phi": 1.800927365584294,
+      "theta": 3.1397796131466147,
+      "purity": 0.8626300783113278,
+      "value": 0.07418966293334961,
+      "confidence": 0.8516220738230401,
+      "reliability": 0.2746,
+      "surprise": 0.3612,
+      "berry_phase": 45.505758527547655,
+      "forecast_skill": 0.9633,
+      "forecast": [
+        {
+          "horizon_min": 13,
+          "z_pred": -0.67577,
+          "skill": 0.96331,
+          "skill_vs_persistence": 0.51727
+        },
+        {
+          "horizon_min": 21,
+          "z_pred": -0.69449,
+          "skill": 0.95976,
+          "skill_vs_persistence": 0.47266
+        },
+        {
+          "horizon_min": 34,
+          "z_pred": -0.68434,
+          "skill": 0.96316,
+          "skill_vs_persistence": 0.5299
+        },
+        {
+          "horizon_min": 55,
+          "z_pred": -0.67853,
+          "skill": 0.9634,
+          "skill_vs_persistence": 0.526
+        }
+      ],
+      "constellation": 0
+    },
+    {
+      "id": 4,
+      "node": "cell_0_1",
+      "role": "resource",
+      "p0": 0.5880542993545532,
+      "p1": 0.4119457006454468,
+      "r_xy": 0.0012053070692978653,
+      "r_bloch": 0.17611272328942162,
+      "phi": -2.6377906328560554,
+      "theta": 0.006844005681998402,
+      "purity": 0.5155078456522082,
+      "value": 0.5880542993545532,
+      "confidence": 0.17611272328942162,
+      "reliability": null,
+      "surprise": null,
+      "berry_phase": 0.6547979393660104,
+      "forecast_skill": 0.9882,
+      "forecast": [
+        {
+          "horizon_min": 13,
+          "z_pred": 0.17558,
+          "skill": 0.98823,
+          "skill_vs_persistence": 0.43137
+        },
+        {
+          "horizon_min": 21,
+          "z_pred": 0.17912,
+          "skill": 0.98815,
+          "skill_vs_persistence": 0.34473
+        },
+        {
+          "horizon_min": 34,
+          "z_pred": 0.18513,
+          "skill": 0.9883,
+          "skill_vs_persistence": 0.46143
+        },
+        {
+          "horizon_min": 55,
+          "z_pred": 0.1808,
+          "skill": 0.9873,
+          "skill_vs_persistence": 0.44568
+        }
+      ],
+      "constellation": 0
+    },
+    {
+      "id": 5,
+      "node": "cell_0_2",
+      "role": "agent_near",
+      "p0": 0.02499997615814209,
+      "p1": 0.9750000238418579,
+      "r_xy": 0.0,
+      "r_bloch": 0.9500000476837158,
+      "phi": 0.0,
+      "theta": 3.141592653589793,
+      "purity": 0.9512500452995312,
+      "value": 0.02499997615814209,
+      "confidence": 0.9500000476837158,
+      "reliability": 0.2078,
+      "surprise": 0.434,
+      "berry_phase": 40.64291777213383,
+      "forecast_skill": 0.8985,
+      "forecast": [
+        {
+          "horizon_min": 13,
+          "z_pred": -0.71221,
+          "skill": 0.89855,
+          "skill_vs_persistence": 0.38876
+        },
+        {
+          "horizon_min": 21,
+          "z_pred": -0.74048,
+          "skill": 0.89524,
+          "skill_vs_persistence": 0.53434
+        },
+        {
+          "horizon_min": 34,
+          "z_pred": -0.59461,
+          "skill": 0.9035,
+          "skill_vs_persistence": 0.65327
+        },
+        {
+          "horizon_min": 55,
+          "z_pred": -0.72473,
+          "skill": 0.90268,
+          "skill_vs_persistence": 0.60769
+        }
+      ],
+      "constellation": 0
+    },
+    {
+      "id": 6,
+      "node": "cell_0_2",
+      "role": "resource",
+      "p0": 0.5843355506658554,
+      "p1": 0.4156644493341446,
+      "r_xy": 0.001096476501312217,
+      "r_bloch": 0.1686746652143415,
+      "phi": 1.3026411579306179,
+      "theta": 0.006500586335066406,
+      "purity": 0.5142255713425851,
+      "value": 0.5843355506658554,
+      "confidence": 0.1686746652143415,
+      "reliability": null,
+      "surprise": null,
+      "berry_phase": 0.7700443836670885,
+      "forecast_skill": 0.9881,
+      "forecast": [
+        {
+          "horizon_min": 13,
+          "z_pred": 0.17123,
+          "skill": 0.98815,
+          "skill_vs_persistence": 0.41715
+        },
+        {
+          "horizon_min": 21,
+          "z_pred": 0.17496,
+          "skill": 0.98836,
+          "skill_vs_persistence": 0.35584
+        },
+        {
+          "horizon_min": 34,
+          "z_pred": 0.18097,
+          "skill": 0.98851,
+          "skill_vs_persistence": 0.4382
+        },
+        {
+          "horizon_min": 55,
+          "z_pred": 0.17759,
+          "skill": 0.98746,
+          "skill_vs_persistence": 0.39433
+        }
+      ],
+      "constellation": 1
+    },
+    {
+      "id": 7,
+      "node": "cell_1_0",
+      "role": "agent_near",
+      "p0": 0.06519493460655212,
+      "p1": 0.9348050653934479,
+      "r_xy": 0.0009105574581830298,
+      "r_bloch": 0.8696106075032012,
+      "phi": 0.48839567936416045,
+      "theta": 3.140545566978036,
+      "purity": 0.8781113043410433,
+      "value": 0.06519493460655212,
+      "confidence": 0.8696106075032012,
+      "reliability": 0.2758,
+      "surprise": 0.3601,
+      "berry_phase": 32.074986125443296,
+      "forecast_skill": 0.9567,
+      "forecast": [
+        {
+          "horizon_min": 13,
+          "z_pred": -0.69982,
+          "skill": 0.95671,
+          "skill_vs_persistence": 0.50056
+        },
+        {
+          "horizon_min": 21,
+          "z_pred": -0.77419,
+          "skill": 0.9521,
+          "skill_vs_persistence": 0.45971
+        },
+        {
+          "horizon_min": 34,
+          "z_pred": -0.71012,
+          "skill": 0.95815,
+          "skill_vs_persistence": 0.56396
+        },
+        {
+          "horizon_min": 55,
+          "z_pred": -0.74697,
+          "skill": 0.95649,
+          "skill_vs_persistence": 0.59302
+        }
+      ],
+      "constellation": 0
+    },
+    {
+      "id": 8,
+      "node": "cell_1_0",
+      "role": "resource",
+      "p0": 0.5868215262889862,
+      "p1": 0.4131784737110138,
+      "r_xy": 0.0010215106507359957,
+      "r_bloch": 0.17364605723311444,
+      "phi": -1.6434059662121645,
+      "theta": 0.005882751148491092,
+      "purity": 0.5150764765963031,
+      "value": 0.5868215262889862,
+      "confidence": 0.17364605723311444,
+      "reliability": null,
+      "surprise": null,
+      "berry_phase": 0.7251279309502432,
+      "forecast_skill": 0.9881,
+      "forecast": [
+        {
+          "horizon_min": 13,
+          "z_pred": 0.17277,
+          "skill": 0.98806,
+          "skill_vs_persistence": 0.42341
+        },
+        {
+          "horizon_min": 21,
+          "z_pred": 0.17752,
+          "skill": 0.98817,
+          "skill_vs_persistence": 0.35237
+        },
+        {
+          "horizon_min": 34,
+          "z_pred": 0.18341,
+          "skill": 0.98828,
+          "skill_vs_persistence": 0.46724
+        },
+        {
+          "horizon_min": 55,
+          "z_pred": 0.18098,
+          "skill": 0.9872,
+          "skill_vs_persistence": 0.48728
+        }
+      ],
+      "constellation": 0
+    },
+    {
+      "id": 9,
+      "node": "cell_1_1",
+      "role": "agent_near",
+      "p0": 0.05680340528488159,
+      "p1": 0.9431965947151184,
+      "r_xy": 0.0014214262049600719,
+      "r_bloch": 0.8863943291339154,
+      "phi": 1.66887733673684,
+      "theta": 3.1399890480979247,
+      "purity": 0.8928474533603818,
+      "value": 0.05680340528488159,
+      "confidence": 0.8863943291339154,
+      "reliability": 0.4183,
+      "surprise": 0.2621,
+      "berry_phase": 51.506725287433596,
+      "forecast_skill": 0.9278,
+      "forecast": [
+        {
+          "horizon_min": 13,
+          "z_pred": -0.62358,
+          "skill": 0.92783,
+          "skill_vs_persistence": 0.4209
+        },
+        {
+          "horizon_min": 21,
+          "z_pred": -0.65339,
+          "skill": 0.92532,
+          "skill_vs_persistence": 0.3967
+        },
+        {
+          "horizon_min": 34,
+          "z_pred": -0.63933,
+          "skill": 0.9227,
+          "skill_vs_persistence": 0.40383
+        },
+        {
+          "horizon_min": 55,
+          "z_pred": -0.68044,
+          "skill": 0.92725,
+          "skill_vs_persistence": 0.47647
+        }
+      ],
+      "constellation": 0
+    },
+    {
+      "id": 10,
+      "node": "cell_1_1",
+      "role": "resource",
+      "p0": 0.5864651650190353,
+      "p1": 0.41353483498096466,
+      "r_xy": 0.0005673302673827966,
+      "r_bloch": 0.17293126065205314,
+      "phi": 1.0845715669682834,
+      "theta": 0.003280675124467017,
+      "purity": 0.5149526104553541,
+      "value": 0.5864651650190353,
+      "confidence": 0.17293126065205314,
+      "reliability": null,
+      "surprise": null,
+      "berry_phase": 0.3342885065145841,
+      "forecast_skill": 0.9884,
+      "forecast": [
+        {
+          "horizon_min": 13,
+          "z_pred": 0.15908,
+          "skill": 0.98839,
+          "skill_vs_persistence": 0.42636
+        },
+        {
+          "horizon_min": 21,
+          "z_pred": 0.1622,
+          "skill": 0.98852,
+          "skill_vs_persistence": 0.36035
+        },
+        {
+          "horizon_min": 34,
+          "z_pred": 0.16755,
+          "skill": 0.98841,
+          "skill_vs_persistence": 0.4596
+        },
+        {
+          "horizon_min": 55,
+          "z_pred": 0.16398,
+          "skill": 0.98747,
+          "skill_vs_persistence": 0.4231
+        }
+      ],
+      "constellation": 0
+    },
+    {
+      "id": 11,
+      "node": "cell_1_2",
+      "role": "agent_near",
+      "p0": 0.02499997615814209,
+      "p1": 0.9750000238418579,
+      "r_xy": 0.0,
+      "r_bloch": 0.9500000476837158,
+      "phi": 0.0,
+      "theta": 3.141592653589793,
+      "purity": 0.9512500452995312,
+      "value": 0.02499997615814209,
+      "confidence": 0.9500000476837158,
+      "reliability": 0.1898,
+      "surprise": 0.4591,
+      "berry_phase": -8.032443587232024,
+      "forecast_skill": 0.777,
+      "forecast": [
+        {
+          "horizon_min": 13,
+          "z_pred": -0.59043,
+          "skill": 0.77701,
+          "skill_vs_persistence": 0.42268
+        },
+        {
+          "horizon_min": 21,
+          "z_pred": -0.62509,
+          "skill": 0.76107,
+          "skill_vs_persistence": 0.49879
+        },
+        {
+          "horizon_min": 34,
+          "z_pred": -0.62512,
+          "skill": 0.79364,
+          "skill_vs_persistence": 0.587
+        },
+        {
+          "horizon_min": 55,
+          "z_pred": -0.65133,
+          "skill": 0.78751,
+          "skill_vs_persistence": 0.61423
+        }
+      ],
+      "constellation": 0
+    },
+    {
+      "id": 12,
+      "node": "cell_1_2",
+      "role": "resource",
+      "p0": 0.5769144147634506,
+      "p1": 0.4230855852365494,
+      "r_xy": 0.0009411068497084977,
+      "r_bloch": 0.153831708290973,
+      "phi": -0.17155862329244334,
+      "theta": 0.0061178071201727045,
+      "purity": 0.5118320972378595,
+      "value": 0.5769144147634506,
+      "confidence": 0.153831708290973,
+      "reliability": null,
+      "surprise": null,
+      "berry_phase": -0.8891030446728522,
+      "forecast_skill": 0.9885,
+      "forecast": [
+        {
+          "horizon_min": 13,
+          "z_pred": 0.14839,
+          "skill": 0.98845,
+          "skill_vs_persistence": 0.42822
+        },
+        {
+          "horizon_min": 21,
+          "z_pred": 0.15144,
+          "skill": 0.98843,
+          "skill_vs_persistence": 0.4193
+        },
+        {
+          "horizon_min": 34,
+          "z_pred": 0.15785,
+          "skill": 0.98854,
+          "skill_vs_persistence": 0.45507
+        },
+        {
+          "horizon_min": 55,
+          "z_pred": 0.15654,
+          "skill": 0.98808,
+          "skill_vs_persistence": 0.44504
+        }
+      ],
+      "constellation": 1
+    },
+    {
+      "id": 13,
+      "node": "cell_2_0",
+      "role": "agent_near",
+      "p0": 0.03685465455055237,
+      "p1": 0.9631453454494476,
+      "r_xy": 0.0004829636402873256,
+      "r_bloch": 0.92629081680638,
+      "phi": 1.3751694821555205,
+      "theta": 3.1410712583070097,
+      "purity": 0.9290073386499154,
+      "value": 0.03685465455055237,
+      "confidence": 0.92629081680638,
+      "reliability": 0.1926,
+      "surprise": 0.4549,
+      "berry_phase": 112.425074325747,
+      "forecast_skill": 0.9165,
+      "forecast": [
+        {
+          "horizon_min": 13,
+          "z_pred": -0.68631,
+          "skill": 0.9165,
+          "skill_vs_persistence": 0.44014
+        },
+        {
+          "horizon_min": 21,
+          "z_pred": -0.67515,
+          "skill": 0.9098,
+          "skill_vs_persistence": 0.49249
+        },
+        {
+          "horizon_min": 34,
+          "z_pred": -0.68124,
+          "skill": 0.90971,
+          "skill_vs_persistence": 0.55844
+        },
+        {
+          "horizon_min": 55,
+          "z_pred": -0.75134,
+          "skill": 0.90835,
+          "skill_vs_persistence": 0.61817
+        }
+      ],
+      "constellation": 0
+    },
+    {
+      "id": 14,
+      "node": "cell_2_0",
+      "role": "resource",
+      "p0": 0.5827802866697311,
+      "p1": 0.41721971333026886,
+      "r_xy": 0.0009389851428231848,
+      "r_bloch": 0.16556323606885048,
+      "phi": -1.3214598651153369,
+      "theta": 0.005671489631433202,
+      "purity": 0.513705592568795,
+      "value": 0.5827802866697311,
+      "confidence": 0.16556323606885048,
+      "reliability": null,
+      "surprise": null,
+      "berry_phase": 1.9139907305822683,
+      "forecast_skill": 0.9887,
+      "forecast": [
+        {
+          "horizon_min": 13,
+          "z_pred": 0.1564,
+          "skill": 0.98871,
+          "skill_vs_persistence": 0.41221
+        },
+        {
+          "horizon_min": 21,
+          "z_pred": 0.16065,
+          "skill": 0.98871,
+          "skill_vs_persistence": 0.34789
+        },
+        {
+          "horizon_min": 34,
+          "z_pred": 0.16746,
+          "skill": 0.98893,
+          "skill_vs_persistence": 0.47834
+        },
+        {
+          "horizon_min": 55,
+          "z_pred": 0.16658,
+          "skill": 0.988,
+          "skill_vs_persistence": 0.496
+        }
+      ],
+      "constellation": 0
+    },
+    {
+      "id": 15,
+      "node": "cell_2_1",
+      "role": "agent_near",
+      "p0": 0.14039641618728638,
+      "p1": 0.8596035838127136,
+      "r_xy": 0.0011743168809691014,
+      "r_bloch": 0.719208126333349,
+      "phi": 1.8782388048397292,
+      "theta": 3.139959861412104,
+      "purity": 0.7586301644919632,
+      "value": 0.14039641618728638,
+      "confidence": 0.719208126333349,
+      "reliability": 0.2715,
+      "surprise": 0.364,
+      "berry_phase": 108.26362648478265,
+      "forecast_skill": 0.8759,
+      "forecast": [
+        {
+          "horizon_min": 13,
+          "z_pred": -0.65447,
+          "skill": 0.87586,
+          "skill_vs_persistence": 0.4054
+        },
+        {
+          "horizon_min": 21,
+          "z_pred": -0.68715,
+          "skill": 0.87844,
+          "skill_vs_persistence": 0.38056
+        },
+        {
+          "horizon_min": 34,
+          "z_pred": -0.64399,
+          "skill": 0.88513,
+          "skill_vs_persistence": 0.53693
+        },
+        {
+          "horizon_min": 55,
+          "z_pred": -0.64235,
+          "skill": 0.87778,
+          "skill_vs_persistence": 0.59092
+        }
+      ],
+      "constellation": 0
+    },
+    {
+      "id": 16,
+      "node": "cell_2_1",
+      "role": "resource",
+      "p0": 0.5825089365243912,
+      "p1": 0.4174910634756088,
+      "r_xy": 0.000557049137206907,
+      "r_bloch": 0.1650188132586261,
+      "phi": 1.4764795436791545,
+      "theta": 0.003375676895012371,
+      "purity": 0.5136156043646427,
+      "value": 0.5825089365243912,
+      "confidence": 0.1650188132586261,
+      "reliability": null,
+      "surprise": null,
+      "berry_phase": 1.11662738022957,
+      "forecast_skill": 0.9883,
+      "forecast": [
+        {
+          "horizon_min": 13,
+          "z_pred": 0.16007,
+          "skill": 0.98834,
+          "skill_vs_persistence": 0.39926
+        },
+        {
+          "horizon_min": 21,
+          "z_pred": 0.16477,
+          "skill": 0.98833,
+          "skill_vs_persistence": 0.33077
+        },
+        {
+          "horizon_min": 34,
+          "z_pred": 0.1726,
+          "skill": 0.98869,
+          "skill_vs_persistence": 0.48217
+        },
+        {
+          "horizon_min": 55,
+          "z_pred": 0.17116,
+          "skill": 0.98757,
+          "skill_vs_persistence": 0.49278
+        }
+      ],
+      "constellation": 0
+    },
+    {
+      "id": 17,
+      "node": "cell_2_2",
+      "role": "agent_near",
+      "p0": 0.3728557229042053,
+      "p1": 0.6271442770957947,
+      "r_xy": 0.0004208975868042314,
+      "r_bloch": 0.2542889025255083,
+      "phi": 1.2558357013814496,
+      "theta": 3.139937458357852,
+      "purity": 0.5323314229738138,
+      "value": 0.3728557229042053,
+      "confidence": 0.2542889025255083,
+      "reliability": 0.1202,
+      "surprise": 0.6011,
+      "berry_phase": -17.005382315267568,
+      "forecast_skill": 0.7378,
+      "forecast": [
+        {
+          "horizon_min": 13,
+          "z_pred": 0.01871,
+          "skill": 0.73775,
+          "skill_vs_persistence": 0.56666
+        },
+        {
+          "horizon_min": 21,
+          "z_pred": -0.04554,
+          "skill": 0.70304,
+          "skill_vs_persistence": 0.47719
+        },
+        {
+          "horizon_min": 34,
+          "z_pred": 0.00189,
+          "skill": 0.71753,
+          "skill_vs_persistence": 0.48355
+        },
+        {
+          "horizon_min": 55,
+          "z_pred": -0.03272,
+          "skill": 0.73849,
+          "skill_vs_persistence": 0.52915
+        }
+      ],
+      "constellation": 0
+    },
+    {
+      "id": 18,
+      "node": "cell_2_2",
+      "role": "resource",
+      "p0": 0.5576176941394806,
+      "p1": 0.4423823058605194,
+      "r_xy": 0.0008970397563696675,
+      "r_bloch": 0.11523887968965792,
+      "phi": -2.2482495898707744,
+      "theta": 0.007784254915934293,
+      "purity": 0.5066399996960638,
+      "value": 0.5576176941394806,
+      "confidence": 0.11523887968965792,
+      "reliability": null,
+      "surprise": null,
+      "berry_phase": -0.45151729020730447,
+      "forecast_skill": 0.9867,
+      "forecast": [
+        {
+          "horizon_min": 13,
+          "z_pred": 0.11742,
+          "skill": 0.98665,
+          "skill_vs_persistence": 0.29694
+        },
+        {
+          "horizon_min": 21,
+          "z_pred": 0.12252,
+          "skill": 0.98608,
+          "skill_vs_persistence": 0.42046
+        },
+        {
+          "horizon_min": 34,
+          "z_pred": 0.12824,
+          "skill": 0.98631,
+          "skill_vs_persistence": 0.5227
+        },
+        {
+          "horizon_min": 55,
+          "z_pred": 0.12791,
+          "skill": 0.98618,
+          "skill_vs_persistence": 0.47139
+        }
+      ],
+      "constellation": 0
+    }
+  ],
+  "edges": [
+    {
+      "i": 1,
+      "j": 3,
+      "weight": 0.925906,
+      "kind": "bridge"
+    },
+    {
+      "i": 1,
+      "j": 7,
+      "weight": 0.899085,
+      "kind": "bridge"
+    },
+    {
+      "i": 3,
+      "j": 5,
+      "weight": 0.94247,
+      "kind": "bridge"
+    },
+    {
+      "i": 3,
+      "j": 9,
+      "weight": 0.927041,
+      "kind": "bridge"
+    },
+    {
+      "i": 5,
+      "j": 11,
+      "weight": 0.919431,
+      "kind": "bridge"
+    },
+    {
+      "i": 7,
+      "j": 9,
+      "weight": 0.900219,
+      "kind": "bridge"
+    },
+    {
+      "i": 7,
+      "j": 13,
+      "weight": 0.931187,
+      "kind": "bridge"
+    },
+    {
+      "i": 9,
+      "j": 11,
+      "weight": 0.904001,
+      "kind": "bridge"
+    },
+    {
+      "i": 9,
+      "j": 15,
+      "weight": 0.919089,
+      "kind": "bridge"
+    },
+    {
+      "i": 11,
+      "j": 17,
+      "weight": 0.934207,
+      "kind": "bridge"
+    },
+    {
+      "i": 13,
+      "j": 15,
+      "weight": 0.950058,
+      "kind": "bridge"
+    },
+    {
+      "i": 15,
+      "j": 17,
+      "weight": 0.949295,
+      "kind": "bridge"
+    }
+  ],
+  "actions": [
+    {
+      "id": "harvest",
+      "node": "cell_1_1",
+      "role": "resource",
+      "value": 1.0,
+      "committed_level": 0.7204,
+      "confidence": 0.4408,
+      "decode": "sticky",
+      "kind": "binary",
+      "shadow": true,
+      "gated": true,
+      "gates_held": [
+        "shadow"
+      ],
+      "actuator_id": "harvester_1",
+      "driving_register": 10
+    },
+    {
+      "id": "beacon",
+      "node": "cell_0_0",
+      "role": "agent_near",
+      "value": 18.1534,
+      "committed_level": 0.1815,
+      "confidence": 0.6369,
+      "decode": "linear",
+      "kind": "scalar",
+      "shadow": true,
+      "gated": true,
+      "gates_held": [
+        "shadow"
+      ],
+      "actuator_id": "beacon",
+      "driving_register": 1
+    }
+  ],
+  "manifold": {
+    "clusters": [
+      {
+        "name": "cell_0_0",
+        "roles": [
+          "agent_near",
+          "resource"
+        ],
+        "n": 2,
+        "total_correlation": 0.000321,
+        "o_information": null,
+        "grain": "flat",
+        "tier": "exact",
+        "max_corr_norm": 0.010967,
+        "constellations": [
+          [
+            "agent_near",
+            "resource"
+          ]
+        ],
+        "metric": {
+          "roles": [
+            "agent_near",
+            "resource"
+          ],
+          "distance": [
+            [
+              0.0,
+              1.361288
+            ],
+            [
+              1.361288,
+              0.0
+            ]
+          ]
+        }
+      },
+      {
+        "name": "cell_0_1",
+        "roles": [
+          "agent_near",
+          "resource"
+        ],
+        "n": 2,
+        "total_correlation": 0.000388,
+        "o_information": null,
+        "grain": "flat",
+        "tier": "exact",
+        "max_corr_norm": 0.012018,
+        "constellations": [
+          [
+            "agent_near",
+            "resource"
+          ]
+        ],
+        "metric": {
+          "roles": [
+            "agent_near",
+            "resource"
+          ],
+          "distance": [
+            [
+              0.0,
+              1.358666
+            ],
+            [
+              1.358666,
+              0.0
+            ]
+          ]
+        }
+      },
+      {
+        "name": "cell_0_2",
+        "roles": [
+          "agent_near",
+          "resource"
+        ],
+        "n": 2,
+        "total_correlation": 0.0,
+        "o_information": null,
+        "grain": "flat",
+        "tier": "exact",
+        "max_corr_norm": 0.0,
+        "constellations": [
+          [
+            "agent_near"
+          ],
+          [
+            "resource"
+          ]
+        ],
+        "metric": {
+          "roles": [
+            "agent_near",
+            "resource"
+          ],
+          "distance": [
+            [
+              0.0,
+              1.148039
+            ],
+            [
+              1.148039,
+              0.0
+            ]
+          ]
+        }
+      },
+      {
+        "name": "cell_1_0",
+        "roles": [
+          "agent_near",
+          "resource"
+        ],
+        "n": 2,
+        "total_correlation": 0.000181,
+        "o_information": null,
+        "grain": "flat",
+        "tier": "exact",
+        "max_corr_norm": 0.00773,
+        "constellations": [
+          [
+            "agent_near",
+            "resource"
+          ]
+        ],
+        "metric": {
+          "roles": [
+            "agent_near",
+            "resource"
+          ],
+          "distance": [
+            [
+              0.0,
+              1.325782
+            ],
+            [
+              1.325782,
+              0.0
+            ]
+          ]
+        }
+      },
+      {
+        "name": "cell_1_1",
+        "roles": [
+          "agent_near",
+          "resource"
+        ],
+        "n": 2,
+        "total_correlation": 0.000378,
+        "o_information": null,
+        "grain": "flat",
+        "tier": "exact",
+        "max_corr_norm": 0.010491,
+        "constellations": [
+          [
+            "agent_near",
+            "resource"
+          ]
+        ],
+        "metric": {
+          "roles": [
+            "agent_near",
+            "resource"
+          ],
+          "distance": [
+            [
+              0.0,
+              1.292781
+            ],
+            [
+              1.292781,
+              0.0
+            ]
+          ]
+        }
+      },
+      {
+        "name": "cell_1_2",
+        "roles": [
+          "agent_near",
+          "resource"
+        ],
+        "n": 2,
+        "total_correlation": 0.0,
+        "o_information": null,
+        "grain": "flat",
+        "tier": "exact",
+        "max_corr_norm": 0.0,
+        "constellations": [
+          [
+            "agent_near"
+          ],
+          [
+            "resource"
+          ]
+        ],
+        "metric": {
+          "roles": [
+            "agent_near",
+            "resource"
+          ],
+          "distance": [
+            [
+              0.0,
+              1.151523
+            ],
+            [
+              1.151523,
+              0.0
+            ]
+          ]
+        }
+      },
+      {
+        "name": "cell_2_0",
+        "roles": [
+          "agent_near",
+          "resource"
+        ],
+        "n": 2,
+        "total_correlation": 7.4e-05,
+        "o_information": null,
+        "grain": "flat",
+        "tier": "exact",
+        "max_corr_norm": 0.003773,
+        "constellations": [
+          [
+            "agent_near",
+            "resource"
+          ]
+        ],
+        "metric": {
+          "roles": [
+            "agent_near",
+            "resource"
+          ],
+          "distance": [
+            [
+              0.0,
+              1.207795
+            ],
+            [
+              1.207795,
+              0.0
+            ]
+          ]
+        }
+      },
+      {
+        "name": "cell_2_1",
+        "roles": [
+          "agent_near",
+          "resource"
+        ],
+        "n": 2,
+        "total_correlation": 0.002193,
+        "o_information": null,
+        "grain": "flat",
+        "tier": "exact",
+        "max_corr_norm": 0.037977,
+        "constellations": [
+          [
+            "agent_near",
+            "resource"
+          ]
+        ],
+        "metric": {
+          "roles": [
+            "agent_near",
+            "resource"
+          ],
+          "distance": [
+            [
+              0.0,
+              1.563461
+            ],
+            [
+              1.563461,
+              0.0
+            ]
+          ]
+        }
+      },
+      {
+        "name": "cell_2_2",
+        "roles": [
+          "agent_near",
+          "resource"
+        ],
+        "n": 2,
+        "total_correlation": 0.015217,
+        "o_information": null,
+        "grain": "flat",
+        "tier": "exact",
+        "max_corr_norm": 0.138783,
+        "constellations": [
+          [
+            "agent_near",
+            "resource"
+          ]
+        ],
+        "metric": {
+          "roles": [
+            "agent_near",
+            "resource"
+          ],
+          "distance": [
+            [
+              0.0,
+              1.915451
+            ],
+            [
+              1.915451,
+              0.0
+            ]
+          ]
+        }
+      }
+    ]
+  }
+}

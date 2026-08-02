@@ -3,14 +3,7 @@
 Keeps the live frame labels and visible-data keys aligned with the current
 surface contract.
 """
-from pathlib import Path
-
-
-ROOT = Path(__file__).resolve().parents[1]
-
-
-def _read(path: str) -> str:
-    return (ROOT / path).read_text(encoding="utf-8")
+from conftest import ROOT, read_source as _read
 
 
 def _assert_in_order(src: str, tokens: list[str], label: str) -> None:

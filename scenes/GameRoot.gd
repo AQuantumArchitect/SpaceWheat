@@ -145,6 +145,65 @@ func _mark_started() -> void:
 	game_started.emit(farm)
 	if _verbose:
 		_verbose.info("boot", ">", "GameRoot ready")
+	if OS.has_environment("SW_SHOT"):
+		_dev_screenshot()
+
+
+func _dev_screenshot() -> void:
+	# dev-only (SW_SHOT env): once the game is up, capture the live screen then quit,
+	# so a display-less builder can SEE headed output. Never active in production.
+	# SW_LOAD_PATH optionally loads a checkpoint into the live field first (lets me
+	# verify the 3D renderer against rich, multi-register real state).
+	if OS.has_environment("SW_LOAD_PATH"):
+		var gsm = get_node_or_null("/root/GameStateManager")
+		if gsm != null and ("save_load" in gsm) and gsm.save_load != null:
+			await gsm.save_load.load_and_apply_path(OS.get_environment("SW_LOAD_PATH"))
+			await get_tree().process_frame
+			# Re-point any 3D field at the (possibly rebuilt) post-load farm.
+			var f3d = get_node_or_null("QuantumField3D")
+			var post_farm = farm
+			var app_roots = get_tree().get_nodes_in_group("app_root")
+			if app_roots.size() > 0 and "game_root" in app_roots[0] and app_roots[0].game_root:
+				post_farm = app_roots[0].game_root.farm
+			if f3d != null and post_farm != null and f3d.has_method("connect_to_farm"):
+				f3d.connect_to_farm(post_farm)
+	var _delay := OS.get_environment("SW_SHOT_DELAY")
+	await get_tree().create_timer(float(_delay) if _delay.is_valid_float() else 4.5).timeout
+	# SW_TAP_TEST=<reg>: simulate a real tap on the 3D field's register <reg> (default 0)
+	# through the pick geometry, so the pick→node_clicked→handle_bubble_tap chain can be
+	# verified headed. Waits for the game's response before the capture.
+	if OS.has_environment("SW_TAP_TEST"):
+		var f3d = get_node_or_null("QuantumField3D")
+		if f3d != null and f3d.has_method("dev_tap_register"):
+			var reg_env := OS.get_environment("SW_TAP_TEST")
+			var reg := int(reg_env) if reg_env.is_valid_int() else 0
+			var gp = f3d.dev_tap_register(reg)
+			print("SW_TAP_TEST tapped grid_pos=", gp)
+			await get_tree().create_timer(1.6).timeout
+	# SW_TAP_PORTAL=<i>: click portal <i> to dive into that biome (fractal nav check).
+	if OS.has_environment("SW_TAP_PORTAL"):
+		var f3dp = get_node_or_null("QuantumField3D")
+		if f3dp != null and f3dp.has_method("dev_tap_portal"):
+			var pe := OS.get_environment("SW_TAP_PORTAL")
+			var pidx := int(pe) if pe.is_valid_int() else 0
+			print("SW_TAP_PORTAL dove to ", f3dp.dev_tap_portal(pidx))
+			await get_tree().create_timer(2.0).timeout
+	# SW_CHAIN_TEST=0,1[,2…]: simulate a chain-swipe across those register orbs to verify the
+	# 3D swipe → chain_swiped → apply_chain_gate (bell/cluster) dispatch, headed.
+	if OS.has_environment("SW_CHAIN_TEST"):
+		var f3dc = get_node_or_null("QuantumField3D")
+		if f3dc != null and f3dc.has_method("dev_chain"):
+			var regs := []
+			for part in OS.get_environment("SW_CHAIN_TEST").split(","):
+				if part.strip_edges().is_valid_int():
+					regs.append(int(part.strip_edges()))
+			print("SW_CHAIN_TEST chained ", f3dc.dev_chain(regs))
+			await get_tree().create_timer(1.6).timeout
+	var img := get_viewport().get_texture().get_image()
+	if img:
+		img.save_png(OS.get_environment("SW_SHOT"))
+		print("SW_SHOT_SAVED:", OS.get_environment("SW_SHOT"))
+	get_tree().quit()
 
 
 func _mount_farm_view(is_headless: bool) -> void:
@@ -165,7 +224,44 @@ func _resolve_player_shell() -> Node:
 	return shells[0] if shells.size() > 0 else null
 
 
+## 3D cognifold renderer toggle. The DEFAULT is now the 3D field (the sprint flip). Force the
+## legacy 2D renderer with --classic-2d / SW_CLASSIC_2D (the fallback lane + 2D-regression
+## harness, kept for one release); force 3D explicitly with --field3d / SW_FIELD_3D. An
+## explicit 2D request always wins over an explicit 3D one.
+func _field3d_enabled() -> bool:
+	# Explicit overrides (2D wins ties): env first, then command-line + user args.
+	if OS.has_environment("SW_CLASSIC_2D"):
+		return false
+	if OS.has_environment("SW_FIELD_3D"):
+		return true
+	for a in OS.get_cmdline_args() + OS.get_cmdline_user_args():
+		if a == "--classic-2d":
+			return false
+		if a == "--field3d":
+			return true
+	return true  # DEFAULT: 3D cognifold field (--classic-2d falls back to the legacy 2D)
+
+
 func _mount_quantum_visualization() -> void:
+	# 3D cognifold renderer toggle (see _field3d_enabled). With it OFF the path below is
+	# byte-for-byte the original 2D renderer.
+	if _field3d_enabled():
+		var field3d = load("res://Core/Visualization/QuantumField3D.gd").new()
+		field3d.name = "QuantumField3D"
+		add_child(field3d)
+		# NOT top_level: a Control needs its parent's rect to resolve PRESET_FULL_RECT
+		# anchors. GameRoot is full-rect, so the field fills it; the app HUD lives in a
+		# CanvasLayer above GameRoot, so it stays on top of the field.
+		field3d.z_index = 0
+		# quantum_viz stays null so RuntimeMount skips its QuantumForceGraph-only staging
+		# (atlas batchers, layout_calculator, quantum_nodes). FarmView wires the 3D field
+		# through its `field3d` slot instead — same node_clicked/chain_swiped/connect_to_farm
+		# contract, so a tap in the 3D field dispatches through handle_bubble_tap exactly
+		# like a 2D bubble tap.
+		if farm_view:
+			farm_view.field3d = field3d
+		quantum_viz = null
+		return
 	quantum_viz = QuantumForceGraph.new()
 	quantum_viz.name = "QuantumForceGraph"
 	add_child(quantum_viz)

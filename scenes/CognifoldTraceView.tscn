@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3 uid="uid://cogtraceview01"]
+
+[ext_resource type="Script" path="res://Core/Visualization/CognifoldTraceView.gd" id="1"]
+
+[node name="CognifoldTraceView" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+script = ExtResource("1")

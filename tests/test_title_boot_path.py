@@ -70,13 +70,24 @@ def test_title_menu_restart_path_reaches_first_breath() -> None:
             frame_row = step("confirm_state")
             assert frame_row.get("current_frame") == "icon", frame_row
 
-        # 2b. The Act-0 tutorial chain must be OFFERED once the game starts (headless:
+        # 2b. The Act-0 tutorial chain must be LIVE once the game starts (headless:
         #     connect_to_farm auto-onboards; headed: the welcome dismissal calls
-        #     maybe_start_tutorial). Either way, a fresh demos_normal boot with no
-        #     pending Act-0 offer is a broken front door.
+        #     maybe_start_tutorial). A fresh demos_normal boot with no Act-0 step
+        #     anywhere is a broken front door. Predicate-driven tutorial steps now
+        #     auto-accept (Break #1 fix), so step 0 lives in active_quests rather than
+        #     waiting in story_offers for an R-accept the player was never taught —
+        #     accept EITHER surface.
         offers_row = step("story_offers")
         offered = offers_row.get("story_offers", []) if offers_row.get("ok", False) else []
-        assert offered, f"no Act-0 tutorial offer after start: {offers_row}"
+        actives_row = step("active_quests", full=True)
+        actives = actives_row.get("quests", []) if actives_row.get("ok", False) else []
+        tutorial_live = [
+            q for q in list(offered) + list(actives)
+            if str(q.get("category", "")) == "TUTORIAL" or int(q.get("tutorial_step", -1)) >= 0
+        ]
+        assert tutorial_live, (
+            f"no Act-0 tutorial step live after start (offers={offers_row}, actives={actives_row})"
+        )
 
         # 2c. BOOT-RACE regression: zero progression actions taken, so NO campaign flag
         #     may have fired yet. The farm registers as active before its boot finishes;

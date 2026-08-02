@@ -409,6 +409,9 @@ func _requires_quantum_instrument(action: String) -> bool:
 		"configure_seed_state",
 		"probe_cycle",
 		"discover_biome",
+	"enter_icon",
+	"ascend_fractal",
+	"fractal_atlas",
 		"victory_lap",
 		"victory_lap_partial",
 	]
@@ -831,7 +834,11 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 		"bubble_state":
 			# Read-only: per-plot bubble visibility (reveal-on-first-touch) + the farm's
 			# persisted revealed set. Drives automated asserts for the exploration reveal.
+			# Renderer-agnostic: the 2D force graph exposes quantum_nodes_by_grid_pos; the 3D
+			# field exposes rig_bubble_state(). Exactly one renderer is live. Prefer the 2D
+			# node if present (default), else fall through to the 3D field's rig surface.
 			var bs_fg: Node = null
+			var bs_field3d: Node = null
 			var bs_stack: Array = [get_root()]
 			while not bs_stack.is_empty():
 				var bs_n: Node = bs_stack.pop_back()
@@ -840,25 +847,33 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				if "quantum_nodes_by_grid_pos" in bs_n:
 					bs_fg = bs_n
 					break
-			if bs_fg == null:
+				if bs_field3d == null and bs_n.has_method("rig_bubble_state"):
+					bs_field3d = bs_n
+			if bs_fg == null and bs_field3d == null:
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_force_graph"}
 			else:
 				var bs_bubbles: Array = []
 				var bs_visible := 0
-				var bs_by_pos: Dictionary = bs_fg.quantum_nodes_by_grid_pos
-				for bs_pos in bs_by_pos:
-					var bs_node = bs_by_pos[bs_pos]
-					if bs_node == null:
-						continue
-					var bs_vis: bool = bool(bs_node.visible)
-					if bs_vis:
-						bs_visible += 1
-					bs_bubbles.append({
-						"pos": [bs_pos.x, bs_pos.y], "visible": bs_vis, "measured": bs_node.terminal != null,
-						"biome": str(bs_node.biome_name), "register_id": int(bs_node.register_id),
-						"axis": "%s%s" % [str(bs_node.emoji_north), str(bs_node.emoji_south)],
-						"screen_pos": [int(bs_node.position.x), int(bs_node.position.y)],
-					})
+				if bs_fg != null:
+					var bs_by_pos: Dictionary = bs_fg.quantum_nodes_by_grid_pos
+					for bs_pos in bs_by_pos:
+						var bs_node = bs_by_pos[bs_pos]
+						if bs_node == null:
+							continue
+						var bs_vis: bool = bool(bs_node.visible)
+						if bs_vis:
+							bs_visible += 1
+						bs_bubbles.append({
+							"pos": [bs_pos.x, bs_pos.y], "visible": bs_vis, "measured": bs_node.terminal != null,
+							"biome": str(bs_node.biome_name), "register_id": int(bs_node.register_id),
+							"axis": "%s%s" % [str(bs_node.emoji_north), str(bs_node.emoji_south)],
+							"screen_pos": [int(bs_node.position.x), int(bs_node.position.y)],
+						})
+				else:
+					bs_bubbles = bs_field3d.rig_bubble_state()
+					for bs_bb in bs_bubbles:
+						if bool(bs_bb.get("visible", false)):
+							bs_visible += 1
 				result["bubbles"] = bs_bubbles
 				result["bubble_count"] = bs_bubbles.size()
 				result["visible_count"] = bs_visible
@@ -884,7 +899,11 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 					tap_screen = Vector2(float(ts[0]), float(ts[1]))
 			elif cmd.has("pos"):
 				var tp: Array = cmd["pos"]
+				# Renderer-agnostic grid_pos → screen: 2D reads the node's live position; the
+				# 3D field unprojects its orb via rig_screen_pos_for_grid(). Either way the
+				# synthetic press+release below injects a real tap the live renderer handles.
 				var tap_fg: Node = null
+				var tap_field3d: Node = null
 				var tap_stack: Array = [get_root()]
 				while not tap_stack.is_empty():
 					var tap_n: Node = tap_stack.pop_back()
@@ -893,11 +912,16 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 					if "quantum_nodes_by_grid_pos" in tap_n:
 						tap_fg = tap_n
 						break
-				if tap_fg != null and tp.size() == 2:
+					if tap_field3d == null and tap_n.has_method("rig_screen_pos_for_grid"):
+						tap_field3d = tap_n
+				if tp.size() == 2:
 					var tap_key := Vector2i(int(tp[0]), int(tp[1]))
-					var tap_node = tap_fg.quantum_nodes_by_grid_pos.get(tap_key)
-					if tap_node != null:
-						tap_screen = tap_node.position
+					if tap_fg != null:
+						var tap_node = tap_fg.quantum_nodes_by_grid_pos.get(tap_key)
+						if tap_node != null:
+							tap_screen = tap_node.position
+					elif tap_field3d != null:
+						tap_screen = tap_field3d.rig_screen_pos_for_grid(tap_key)
 			if tap_screen.x < 0.0:
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_tap_target"}
 			else:
@@ -1580,6 +1604,27 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				for q in range(hs_nq):
 					per_out.append(sqrt(per_qubit[q]))
 				result["offdiag_norm_per_bit"] = per_out
+
+
+		"enter_icon":
+			var ei_biome := str(cmd.get("biome", ""))
+			var ei_reg := int(cmd.get("register_id", cmd.get("qubit", -1)))
+			if _instrument.has_method("action_enter_icon"):
+				result["enter_icon"] = _instrument.action_enter_icon(ei_biome, ei_reg)
+			else:
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_enter_icon"}
+
+		"ascend_fractal":
+			if _instrument.has_method("action_ascend_fractal"):
+				result["ascend_fractal"] = _instrument.action_ascend_fractal()
+			else:
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_ascend_fractal"}
+
+		"fractal_atlas":
+			if _instrument.has_method("action_fractal_atlas"):
+				result["fractal_atlas"] = _instrument.action_fractal_atlas()
+			else:
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_fractal_atlas"}
 
 		"inject_icon":
 			# Optional north/south pick a SPECIFIC icon pair (duplicates are legal:

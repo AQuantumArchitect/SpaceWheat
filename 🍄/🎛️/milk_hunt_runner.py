@@ -8,6 +8,7 @@ from collections import deque
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
+from constants import POLICY_AUTO, POLICY_ENGINE, POLICY_QUANTUM
 from milk_hunt_console import (
     Console,
     default_listener_stdout,
@@ -1119,7 +1120,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--hunter-policy",
         type=str,
-        choices=["auto", "engine_policy", "quantum_register"],
+        choices=[POLICY_AUTO, POLICY_ENGINE, POLICY_QUANTUM],
         default=None,
         help="Decision policy mode (default: auto => engine_policy)",
     )
@@ -1682,11 +1683,11 @@ def main() -> int:
         hunter_policy_mode = get_cfg_str(cfg, "hunter_policy")
     if not hunter_policy_mode and os.environ.get("MILK_HUNT_POLICY", "") != "":
         hunter_policy_mode = os.environ["MILK_HUNT_POLICY"]
-    if hunter_policy_mode not in {"auto", "engine_policy", "quantum_register"}:
+    if hunter_policy_mode not in {POLICY_AUTO, POLICY_ENGINE, POLICY_QUANTUM}:
         hunter_policy_mode = "auto"
     # Default migration target: decision authority in-engine.
     if hunter_policy_mode == "auto":
-        hunter_policy_mode = "engine_policy"
+        hunter_policy_mode = POLICY_ENGINE
 
     policy_actions_per_loop = args.policy_actions_per_loop
     if policy_actions_per_loop is None:
@@ -2054,7 +2055,7 @@ def main() -> int:
         RigClient.terminate_listener(proc, timeout_s=5.0)
         return 4
     faction_sigs, milk_distances = _load_faction_data()
-    use_engine_policy = hunter_policy_mode in ("engine_policy", "quantum_register")
+    use_engine_policy = hunter_policy_mode in (POLICY_ENGINE, POLICY_QUANTUM)
 
     try:
         # Health check: verify the rig listener is responsive before sending

@@ -55,8 +55,6 @@ func induce(faction, bare_biome, max_icons: int = 8, lexicon = null) -> Array:
 		return []
 	if lexicon == null:
 		lexicon = (Engine.get_main_loop().root.get_node_or_null("/root/IconRegistry") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
-	if lexicon == null:
-		lexicon = (Engine.get_main_loop().root.get_node_or_null("/root/IconRegistry") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 
 	var biome_atoms := _biome_atom_set(bare_biome)
 	if biome_atoms.is_empty():

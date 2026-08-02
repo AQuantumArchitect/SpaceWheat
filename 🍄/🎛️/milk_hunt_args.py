@@ -10,6 +10,8 @@ Usage:
 """
 import argparse
 
+from constants import POLICY_AUTO, POLICY_ENGINE, POLICY_QUANTUM
+
 
 def make_base_parser(description: str = "Milk hunt tool") -> argparse.ArgumentParser:
     """Return an ArgumentParser pre-loaded with args shared across all milk hunt tools.
@@ -67,7 +69,7 @@ def make_base_parser(description: str = "Milk hunt tool") -> argparse.ArgumentPa
     )
     parser.add_argument(
         "--hunter-policy",
-        choices=["auto", "engine_policy", "quantum_register"],
+        choices=[POLICY_AUTO, POLICY_ENGINE, POLICY_QUANTUM],
         default=None,
         help="Policy mode passed to runner",
     )

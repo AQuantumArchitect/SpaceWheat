@@ -124,3 +124,4 @@ build_web/
 node_modules/
 native/src/*.d
 native/src/**/*.obj
+scratch_cognifold_sample.json

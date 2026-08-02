@@ -37,6 +37,7 @@ def run_timeout(max_cycles: int, floor: int = 300, runs: int = 1) -> int:
 POLICY_ENGINE  = "engine_policy"
 POLICY_QUANTUM = "quantum_register"
 POLICY_MODES   = [POLICY_ENGINE, POLICY_QUANTUM]
+POLICY_AUTO    = "auto"
 
 # ── Default lane names (profile-mode duel) ───────────────────────────
 DEFAULT_LANES = ["sonnet", "codex"]

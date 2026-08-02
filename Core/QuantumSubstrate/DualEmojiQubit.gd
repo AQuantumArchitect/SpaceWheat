@@ -130,13 +130,20 @@ var radius: float:
 ## Purity: Tr(ρ²) of the 2×2 reduced density matrix
 var purity: float:
 	get:
+		# Register-first path: the exact Tr(ρ²), computed by the quantum
+		# computer from the real marginal density matrix.
+		if register_id >= 0 and parent_biome and parent_biome.quantum_computer \
+				and parent_biome.quantum_computer.has_method("get_marginal_purity"):
+			return parent_biome.quantum_computer.get_marginal_purity(null, register_id)
+
 		var marginal = _get_marginal_from_computer()
 		if marginal.is_empty():
 			return 0.5
 
-		# Compute Tr(ρ²) from marginal
-		# This should come directly from parent_biome.quantum_computer.get_marginal_purity()
-		# For now, approximate from probabilities
+		# Legacy emoji path (no register binding): p0/p1/coherence aren't
+		# pulled from a genuine trace-1 2×2 marginal, so this stays an
+		# approximation — p0²+p1²+2|coherence|² is Tr(ρ²) for a *proper*
+		# 2×2 density matrix, which this may not quite be.
 		var p0 = marginal.get("p_north", 0.0)
 		var p1 = marginal.get("p_south", 0.0)
 		var coh_sq = marginal.get("coherence", Complex.zero()).abs_sq()
@@ -222,10 +229,6 @@ var is_qubit_a: bool = true
 var entangled_cluster: Resource = null
 var cluster_qubit_index: int = -1
 
-## Berry phase accumulation (visualization aid)
-var berry_phase: float = 0.0
-var berry_phase_rate: float = 1.0
-
 ## Entanglement graph (topological relationships)
 var entanglement_graph: Dictionary = {}
 
@@ -236,7 +239,6 @@ var entanglement_graph: Dictionary = {}
 func _init(north: String = "", south: String = "", _unused_theta: float = PI/2):
 	north_emoji = north
 	south_emoji = south
-	berry_phase = 0.0
 
 ## ========================================
 ## Projection Methods
@@ -355,20 +357,6 @@ func batch_measure() -> Dictionary:
 
 	push_warning("DualEmojiQubit.batch_measure(): No quantum computer reference")
 	return {}
-
-## ========================================
-## Berry Phase (Visualization Aid)
-## ========================================
-
-func accumulate_berry_phase(evolution_amount: float, dt: float = 1.0) -> void:
-	berry_phase += evolution_amount * berry_phase_rate * dt
-	berry_phase = clamp(berry_phase, 0.0, 10.0)
-
-func get_berry_phase() -> float:
-	return berry_phase
-
-func get_berry_phase_normalized() -> float:
-	return berry_phase / 10.0
 
 ## ========================================
 ## Entanglement Graph (Topological Relationships)

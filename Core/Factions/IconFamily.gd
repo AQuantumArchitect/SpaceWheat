@@ -57,8 +57,6 @@ func family_of_cloud(cloud, lexicon = null) -> Array:
 func _ensure_index(lexicon = null) -> void:
 	if lexicon == null:
 		lexicon = (Engine.get_main_loop().root.get_node_or_null("/root/IconRegistry") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
-	if lexicon == null:
-		lexicon = (Engine.get_main_loop().root.get_node_or_null("/root/IconRegistry") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 	if _built_for == lexicon and not _by_atom.is_empty():
 		return
 	_built_for = lexicon

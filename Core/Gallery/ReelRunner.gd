@@ -64,6 +64,11 @@ func load_reel(path: String) -> bool:
 		return false
 	_title = str(data.get("title", path.get_file()))
 	_loop = bool(data.get("loop", false))
+	# Recording mode: SW_REEL_ONCE=1 plays the reel exactly once, then quits the
+	# whole app — so `--write-movie` finalizes a clean single-pass capture instead
+	# of looping the kiosk forever.
+	if OS.get_environment("SW_REEL_ONCE") != "":
+		_loop = false
 	_steps = data.get("steps")
 	return true
 
@@ -100,6 +105,9 @@ func _run() -> void:
 			break
 		await _sleep(2.0)
 	_running = false
+	if OS.get_environment("SW_REEL_ONCE") != "":
+		get_tree().quit()
+		return
 	queue_free()
 
 

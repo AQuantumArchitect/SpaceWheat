@@ -12,10 +12,26 @@ const QUANTUM_VIZ_Z_INDEX := 40
 var shell = null  # PlayerShell — borrowed from AppRoot, never owned here
 var farm: Node = null
 var quantum_viz: QuantumForceGraph = null
+# The 3D cognifold renderer (SW_FIELD_3D). It implements the SAME renderer interface
+# as quantum_viz (connect_to_farm / node_clicked / chain_swiped / _on_plot_selection_changed
+# / selected_plot_positions / teardown) but is NOT a QuantumForceGraph, so it can't share
+# the typed `quantum_viz` slot. Exactly one renderer is live at a time; `_renderer()` picks it.
+var field3d = null
 var biome_background: Control = null
 var performance_hud: Control = null
 
 @onready var _verbose = get_node_or_null("/root/VerboseConfig")
+
+
+## The single live field renderer (2D force graph XOR 3D cognifold field).
+func _renderer():
+	return quantum_viz if quantum_viz else field3d
+
+
+## Public accessor for the live renderer — lets widgets (e.g. FloatingRewardLayer) reach
+## the 3D field, which is not passed around as `quantum_viz`.
+func get_field_renderer():
+	return _renderer()
 
 
 func _ready() -> void:
@@ -63,6 +79,7 @@ func finalize_runtime_mount(is_headless: bool = false) -> void:
 func teardown_runtime() -> void:
 	# Called by GameRoot.teardown_visuals before queue_free.
 	quantum_viz = null
+	field3d = null
 	biome_background = null
 	performance_hud = null
 	farm = null
@@ -87,29 +104,31 @@ func _create_biome_background_layer() -> void:
 
 
 func _connect_quantum_viz_to_farm() -> void:
-	if quantum_viz:
-		quantum_viz.connect_to_farm(farm)
+	var renderer = _renderer()
+	if renderer:
+		renderer.connect_to_farm(farm)
 		return
-	push_error("FarmView: quantum_viz is NULL — cannot connect to farm!")
+	push_error("FarmView: no field renderer — cannot connect to farm!")
 
 
 func _connect_visualization_ui_signals() -> void:
-	if quantum_viz and shell:
+	var renderer = _renderer()
+	if renderer and shell:
 		var plot_grid_display = shell.get_node_or_null("QuantumInstrument/PlotGridDisplay")
 		if plot_grid_display and plot_grid_display.has_signal("plot_selection_changed"):
-			plot_grid_display.plot_selection_changed.connect(quantum_viz._on_plot_selection_changed)
+			plot_grid_display.plot_selection_changed.connect(renderer._on_plot_selection_changed)
 			if _verbose:
 				_verbose.info("ui", "✅", "PlotGridDisplay connected to visualization")
 			if plot_grid_display.has_method("get_selected_plots"):
 				var selected = plot_grid_display.get_selected_plots()
 				for pos in selected:
-					quantum_viz.selected_plot_positions[pos] = true
+					renderer.selected_plot_positions[pos] = true
 
-	if quantum_viz:
-		if quantum_viz.node_clicked.connect(_on_quantum_node_clicked) != OK:
+	if renderer:
+		if renderer.node_clicked.connect(_on_quantum_node_clicked) != OK:
 			if _verbose:
 				_verbose.warn("ui", "⚠️", "Failed to connect node_clicked signal")
-		quantum_viz.chain_swiped.connect(_on_chain_swiped)
+		renderer.chain_swiped.connect(_on_chain_swiped)
 		if _verbose:
 			_verbose.info("ui", "✅", "Quantum viz signals connected")
 
@@ -132,8 +151,9 @@ func _bind_overlay_hud_proxies() -> void:
 func _on_quit_requested() -> void:
 	if _verbose:
 		_verbose.info("ui", "🛑", "Quit requested")
-	if quantum_viz and quantum_viz.has_method("teardown"):
-		quantum_viz.teardown()
+	var renderer = _renderer()
+	if renderer and renderer.has_method("teardown"):
+		renderer.teardown()
 	var gsm = get_node_or_null("/root/GameStateManager")
 	if gsm and gsm.has_method("request_application_quit"):
 		gsm.request_application_quit(true)
@@ -161,7 +181,10 @@ func _on_quantum_node_clicked(grid_pos: Vector2i, button_index: int) -> void:
 
 
 func _on_chain_swiped(positions: Array) -> void:
-	if positions.size() < 2 or not farm:
+	# Route through the live shell UI (like _on_quantum_node_clicked) — the gate build binds
+	# to the instrument's own farm, so instrument_input liveness (not the FarmView.farm
+	# reference, which can go stale across a reload) is what determines dispatch validity.
+	if positions.size() < 2:
 		return
 	if _verbose:
 		_verbose.debug("ui", "⛓️", "Chain swipe: %d bubbles" % positions.size())

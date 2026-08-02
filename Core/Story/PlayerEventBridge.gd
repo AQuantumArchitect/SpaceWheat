@@ -99,7 +99,16 @@ func _on_story_flag_fired(flag_id: String, flag_data: Dictionary) -> void:
 	if not grants.is_empty():
 		var parts: Array[String] = []
 		for f in grants:
-			parts.append("%s %+.2f" % [str(f), float(grants[f])])
+			# standing_grants is {faction: {channel: delta}} (story_flags.json) — the
+			# per-channel dict, NOT a scalar. float(<Dictionary>) threw "Nonexistent
+			# 'float' constructor" on every grant-bearing flag (forest_evolving, …); flatten
+			# to one "faction channel +Δ" fragment per channel. (Flat {faction: delta} tolerated.)
+			var ch = grants[f]
+			if ch is Dictionary:
+				for c in ch:
+					parts.append("%s %s %+.2f" % [str(f), str(c), float(ch[c])])
+			else:
+				parts.append("%s %+.2f" % [str(f), float(ch)])
 		msg += "\n   " + ", ".join(parts)
 	_push(msg, 3, "✨", "story", "XY")
 
