@@ -21,6 +21,7 @@ private:
 
     // Helper to pack matrix to array
     PackedFloat64Array pack_matrix(const Eigen::MatrixXcd& mat, int dim) const;
+    Eigen::MatrixXcd unpack_matrix(const PackedFloat64Array& data, int dim) const;
 
 protected:
     static void _bind_methods();

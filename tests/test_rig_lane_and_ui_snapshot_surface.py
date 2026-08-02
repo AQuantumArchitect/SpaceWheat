@@ -1,11 +1,4 @@
-from pathlib import Path
-
-
-ROOT = Path(__file__).resolve().parents[1]
-
-
-def _read(path: str) -> str:
-    return (ROOT / path).read_text(encoding="utf-8")
+from conftest import ROOT, read_source as _read
 
 
 def test_milk_hunt_paths_allocates_private_lane_root() -> None:

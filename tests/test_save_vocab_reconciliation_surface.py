@@ -1,11 +1,4 @@
-from pathlib import Path
-
-
-ROOT = Path(__file__).resolve().parents[1]
-
-
-def _read(rel: str) -> str:
-    return (ROOT / rel).read_text(encoding="utf-8")
+from conftest import ROOT, read_source as _read
 
 
 def test_serializer_reconciles_known_icons_on_load_and_capture() -> None:

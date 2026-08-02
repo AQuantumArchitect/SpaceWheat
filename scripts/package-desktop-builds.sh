@@ -11,9 +11,7 @@ PACKAGE_ROOT="${PACKAGE_ROOT:-$(pwd)/releases/packages}"
 PROJECT_VERSION="$(grep -oP '^config/version="\K[^"]+' "$(dirname "$0")/../project.godot" 2>/dev/null || true)"
 VERSION_TAG="${VERSION_TAG:-${PROJECT_VERSION:-dev}}"
 
-log() { echo -e "\n\033[1;34m▶ $1\033[0m"; }
-success() { echo -e "\033[1;32m✓ $1\033[0m"; }
-error() { echo -e "\033[1;31m✗ $1\033[0m" >&2; exit 1; }
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/log.sh"
 
 show_help() {
     cat << 'EOF'

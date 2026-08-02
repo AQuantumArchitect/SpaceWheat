@@ -1,9 +1,6 @@
 # Biome: FreshwaterSpring — Campaign & Tutorial Notes
 
-> **Scope banner (2026-07-11):** written before the closed-native migration —
-> this doc treats open-system Lindblad physics as the working baseline. The
-> base game is closed (zero Lindblad operators; see `docs/CLOSED_SYSTEM.md`).
-> Valid as design reference for the open / wet-country DLC content only.
+> **Scope:** open-system Lindblad design reference (DLC-only) — full banner in [docs/biomemissions/README.md](README.md).
 
 **Lore pitch:** Source water wells up from deep stone. Ice melts at the margins.
 Bubbles rise and pop in an instant. This is where water begins its journey through

@@ -14,9 +14,7 @@ GODOT_EXPORT_CONFIG_HOME="${GODOT_EXPORT_CONFIG_HOME:-$PROJECT_DIR/.build/xdg-co
 SMOKE_HOME="${SMOKE_HOME:-/tmp/spacewheat-smoke-home}"
 WINDOWS_SMOKE_MODE="${WINDOWS_SMOKE_MODE:-skip}"
 
-log() { echo -e "\n\033[1;34m▶ $1\033[0m"; }
-success() { echo -e "\033[1;32m✓ $1\033[0m"; }
-error() { echo -e "\033[1;31m✗ $1\033[0m" >&2; exit 1; }
+source "$SCRIPT_DIR/lib/log.sh"
 
 [ -x "$LINUX_DIR/SpaceWheat.x86_64" ] || error "Missing Linux export executable: $LINUX_DIR/SpaceWheat.x86_64"
 [ -f "$LINUX_DIR/libquantummatrix.linux.template_release.x86_64.so" ] || error "Missing Linux native library"

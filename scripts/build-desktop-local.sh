@@ -20,10 +20,7 @@ SKIP_EXPORT=false
 COPY_TO_WINDOWS=false
 WINDOWS_STAGE_OUT="${WINDOWS_STAGE_OUT:-${WINDOWS_STAGE_ROOT:-$(sw_windows_stage_root)}/windows-native}"
 
-log() { echo -e "\n\033[1;34m▶ $1\033[0m"; }
-success() { echo -e "\033[1;32m✓ $1\033[0m"; }
-warn() { echo -e "\033[1;33m⚠ $1\033[0m"; }
-error() { echo -e "\033[1;31m✗ $1\033[0m" >&2; exit 1; }
+source "$SCRIPT_DIR/lib/log.sh"
 
 sanitize_godot_export_state() {
     local extension_cache="$PROJECT_DIR/.godot/extension_list.cfg"

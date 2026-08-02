@@ -14,6 +14,14 @@ unreachable the adapter prints a warning and does NOT fail the test run;
 a dark membrane is not a test failure.
 """
 import os
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+
+
+def read_source(rel_path: str) -> str:
+    """Read a repo-relative source file as text (shared by surface lint tests)."""
+    return (ROOT / rel_path).read_text(encoding="utf-8")
 
 
 def pytest_sessionfinish(session, exitstatus):

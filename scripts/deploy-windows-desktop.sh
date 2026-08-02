@@ -10,9 +10,7 @@ source "$PROJECT_DIR/scripts/lib/windows_desktop_deploy.sh"
 TARGET_ROOT="${TARGET_ROOT:-$(sw_windows_player_root)}"
 CREATE_LAUNCHER="${CREATE_LAUNCHER:-1}"
 
-log() { echo -e "\n\033[1;34m▶ $1\033[0m"; }
-success() { echo -e "\033[1;32m✓ $1\033[0m"; }
-error() { echo -e "\033[1;31m✗ $1\033[0m" >&2; exit 1; }
+source "$SCRIPT_DIR/lib/log.sh"
 
 show_help() {
     cat << 'EOF'

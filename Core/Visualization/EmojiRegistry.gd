@@ -75,4 +75,4 @@ func print_statistics() -> void:
 
 
 func _norm(s: String) -> String:
-	return s.replace(String.chr(0xFE0F), "").replace(String.chr(0xFE0E), "")
+	return EmojiUtil.normalize(s)

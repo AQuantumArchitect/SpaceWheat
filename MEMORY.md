@@ -4,40 +4,7 @@ Operational notes for future release/build work and other repeated tasks.
 
 ## Desktop Release Path
 
-Use the local desktop release flow from the current checkout:
-
-```bash
-./scripts/build-desktop-local.sh --install-templates
-```
-
-This builds:
-
-- `releases/local/windows-native/SpaceWheat.exe`
-- `releases/local/linux-native/SpaceWheat.x86_64`
-
-To also stage the builds onto the Windows filesystem:
-
-```bash
-./scripts/build-desktop-local.sh --copy-to-windows
-```
-
-Default Windows staging folder:
-
-- `C:\Games\SpaceWheat Builds\windows-native`
-- `C:\Games\SpaceWheat Builds\linux-native`
-
-## Packaging
-
-Package the exported folders with:
-
-```bash
-./scripts/package-desktop-builds.sh --version v0.1.0
-```
-
-Outputs:
-
-- `releases/packages/spacewheat-windows-v0.1.0.zip`
-- `releases/packages/spacewheat-linux-v0.1.0.tar.gz`
+See [docs/release/DESKTOP_RELEASE_WORKFLOW.md](docs/release/DESKTOP_RELEASE_WORKFLOW.md) for the full build → package → validate flow (`build-desktop-local.sh`, `package-desktop-builds.sh`, `validate-desktop-release.sh`, headless smoke-test steps).
 
 ## Key Facts
 
@@ -47,26 +14,13 @@ Outputs:
   - `native/bin/windows/libquantummatrix.windows.template_release.x86_64.dll`
 - The Linux native path is:
   - `native/bin/linux/libquantummatrix.linux.template_release.x86_64.so`
-- Export templates can be installed with:
-
-```bash
-./scripts/install-godot-export-templates.sh
-```
 
 ## Release Notes
 
 - Export presets were cleaned to exclude test scenes and some dev-only roots.
 - Windows export was manually launch-tested from:
   - `C:\Games\SpaceWheat Builds\windows-native\SpaceWheat.exe`
-- Linux exported binary headless smoke-test works when given writable runtime dirs:
-
-```bash
-mkdir -p /tmp/spacewheat-runtime-home /tmp/spacewheat-runtime-config /tmp/spacewheat-runtime-data
-HOME=/tmp/spacewheat-runtime-home \
-XDG_CONFIG_HOME=/tmp/spacewheat-runtime-config \
-XDG_DATA_HOME=/tmp/spacewheat-runtime-data \
-./releases/local/linux-native/SpaceWheat.x86_64 --headless --quit-after 1
-```
+- Linux headless smoke-test steps live in docs/release/DESKTOP_RELEASE_WORKFLOW.md (writable `/tmp/spacewheat-runtime-*` dirs required).
 
 ## Runtime Authority
 
