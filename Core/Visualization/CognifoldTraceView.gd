@@ -34,6 +34,14 @@ var _live_url := ""            # non-empty → live polling mode (SW_COGNIFOLD_U
 var _http: HTTPRequest = null
 var _live_pending := false
 var _live_cur: Dictionary = {} # the frame the field last settled on (tween source)
+# THE DARK BANNER. A quiet world and a dead daemon look IDENTICAL in a belief field —
+# both are a still picture. Before this, a failed first poll rendered an empty window and
+# a lost daemon froze the field, with the only evidence on stderr. That is the same class
+# of lie as the file-side vitals that read "alive" through a 12h umweltd outage. The
+# instrument must say which of the two it is, on screen, where the eye already is.
+var _dark: Label = null
+var _last_ok_ms := 0
+var _live_fails := 0
 
 
 ## Minimal farm/grid/biome so QuantumField3D's farm-shaped read path resolves to our adapter
@@ -160,8 +168,36 @@ func _start_live_poll() -> void:
 	add_child(t)
 	t.start()
 	set_process(true)
+	_dark = Label.new()
+	_dark.add_theme_color_override("font_color", Color(1.0, 0.72, 0.24))
+	_dark.add_theme_color_override("font_outline_color", Color(0, 0, 0))
+	_dark.add_theme_constant_override("outline_size", 6)
+	_dark.position = Vector2(18, 14)
+	_dark.z_index = 4096
+	add_child(_dark)
+	_set_dark("◌ waiting for the first frame — %s" % _live_url)
 	print("[cognifold] LIVE mode: polling %s every %.2fs" % [_live_url, _frame_s])
 	_poll_live()
+
+
+## The banner's wording, which must never overstate what we know. Before any frame has
+## landed the field is EMPTY (nothing to trust); after one has, the picture on screen is
+## real but STALE, and how stale is the number that matters.
+func _dark_text(reason: String) -> String:
+	if _last_ok_ms == 0:
+		return "⚠ DARK — %s\n%s\nno frame has ever arrived; this field is empty, not calm" % [
+			reason, _live_url]
+	var age := float(Time.get_ticks_msec() - _last_ok_ms) / 1000.0
+	return "⚠ STALE — %s\nlast good frame %.0fs ago (%d failed polls)\nthis picture is frozen, not quiet" % [
+		reason, age, _live_fails]
+
+
+## Show a banner, or hide it entirely when text is empty. Never silently swallow a state.
+func _set_dark(text: String) -> void:
+	if _dark == null:
+		return
+	_dark.text = text
+	_dark.visible = text != ""
 
 
 func _poll_live() -> void:
@@ -178,12 +214,19 @@ func _poll_live() -> void:
 func _on_live_response(result: int, code: int, _hdrs: PackedStringArray, body: PackedByteArray) -> void:
 	_live_pending = false
 	if result != HTTPRequest.RESULT_SUCCESS or code != 200:
+		_live_fails += 1
 		push_warning("[cognifold] live poll failed (result=%d http=%d) — field holds last state" % [result, code])
+		_set_dark(_dark_text("no answer (result=%d http=%d)" % [result, code]))
 		return
 	var d = JSON.parse_string(body.get_string_from_utf8())
 	if typeof(d) != TYPE_DICTIONARY or not (d.get("registers", null) is Array):
+		_live_fails += 1
 		push_warning("[cognifold] live poll returned a non-trace payload — ignored")
+		_set_dark(_dark_text("not a cognifold trace"))
 		return
+	_live_fails = 0
+	_last_ok_ms = Time.get_ticks_msec()
+	_set_dark("")   # a still field from here on is a QUIET WORLD, not a dead one
 	if _field == null:
 		if _vc.load_frame(d):
 			_live_cur = d

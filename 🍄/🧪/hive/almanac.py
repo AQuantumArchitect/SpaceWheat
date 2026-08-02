@@ -36,6 +36,7 @@ sys.path.insert(0, str(UMWELT_REPO / "src"))
 sys.path.insert(0, str(HERE))
 
 from almanac_world import ALMANAC_SPEC, COUNTRIES  # noqa: E402
+from witness_readings import gauge_to_readings  # noqa: E402
 from umwelt.boot import build_engine  # noqa: E402
 from umwelt.projection.gauge import field_gauge  # noqa: E402
 from umwelt.projection.transparency import model_snapshot  # noqa: E402
@@ -67,24 +68,15 @@ def _digest_checkpoint(name: str) -> tuple[dict, str] | None:
     readings: dict[str, float] = {"session_flags": float(len(manifest.get("flags_fired", [])))}
     if gauge_p.exists():
         witness = json.loads(gauge_p.read_text(encoding="utf-8"))
-        for cname, cluster in witness.get("clusters", {}).items():
-            if not cname.startswith("biome:"):
-                continue
-            country = BIOME_TO_COUNTRY.get(cname.split(":", 1)[1])
-            if country is None:
-                continue
-            bloch = cluster.get("bloch", {})
-            for witness_role, felt in (("yield", "yield"), ("outcome", "outcome"),
-                                       ("coverage", "coverage")):
-                if witness_role in bloch:
-                    z = float(bloch[witness_role][2])
-                    # Adapter honesty (umwelt FIELD_NOTES §3): a faded witness
-                    # belief is an ABSENCE, not a zero reading — the in-game
-                    # field decays in game-seconds, so a quiet end-of-session
-                    # gauge says "nothing happened here THIS leg", which must
-                    # not overwrite the Almanac's history at full strength.
-                    if abs(z) >= 0.1:
-                        readings[f"felt_{country}_{felt}"] = z
+        # Conversion (incl. the absence law) lives in witness_readings — the one
+        # authority, shared with the live hearth poster. The Almanac's own policy
+        # is only WHICH biomes it has countries for and WHICH roles it feels.
+        readings.update(gauge_to_readings(
+            witness,
+            name_fn=lambda biome, role: (
+                f"felt_{BIOME_TO_COUNTRY[biome]}_{role}" if biome in BIOME_TO_COUNTRY else None),
+            roles=("yield", "outcome", "coverage"),
+        ))
     ts = datetime.fromtimestamp(manifest.get("time", manifest_p.stat().st_mtime),
                                 tz=timezone.utc).isoformat()
     return readings, ts

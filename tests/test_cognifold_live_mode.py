@@ -49,3 +49,34 @@ def test_live_topology_change_respawns_field() -> None:
     resp = src.split("func _on_live_response")[1].split("\nfunc ")[0]
     assert "get_num_qubits()" in resp
     assert "_field.connect_to_farm(_farm)" in resp
+
+
+# ---- the dark banner: a dead daemon must not look like a calm world ------------------
+
+def test_every_failed_poll_path_says_so_on_screen() -> None:
+    """A belief field renders a quiet world and a dead daemon IDENTICALLY — both are a
+    still picture. Every early-return in the response handler must therefore set the
+    banner, not just push_warning to a stderr nobody is watching."""
+    src = _src()
+    resp = src.split("func _on_live_response")[1].split("\nfunc ")[0]
+    bail_blocks = [b for b in resp.split("\t\treturn") if "push_warning" in b]
+    assert bail_blocks, "expected failure branches in the live response handler"
+    for block in bail_blocks:
+        assert "_set_dark(" in block, f"a failure path renders nothing on screen:\n{block}"
+
+
+def test_success_clears_the_banner() -> None:
+    """Once a good frame lands, stillness is honest again — the banner must come down,
+    or it would itself become the lie."""
+    resp = _src().split("func _on_live_response")[1].split("\nfunc ")[0]
+    assert '_set_dark("")' in resp
+    assert "_last_ok_ms = Time.get_ticks_msec()" in resp
+
+
+def test_banner_distinguishes_never_arrived_from_gone_stale() -> None:
+    """'No frame ever arrived' (the field is EMPTY) and 'the daemon died' (the field is
+    FROZEN at a real past state) are different claims about what you're looking at."""
+    txt = _src().split("func _dark_text")[1].split("\nfunc ")[0]
+    assert "_last_ok_ms == 0" in txt, "must special-case the never-arrived state"
+    assert "DARK" in txt and "STALE" in txt
+    assert "_live_fails" in txt, "a stale banner should say how many polls have failed"
