@@ -38,6 +38,7 @@ signal plot_check_changed(position: Vector2i, is_checked: bool)
 # ============================================================================
 
 var farm: Node = null
+var fractal_world = null
 
 ## Terminal pool (instrument owns its measurement probes)
 var terminal_pool = null
@@ -679,6 +680,16 @@ func action_inject_icon_pair(biome_name: String, icon: Dictionary) -> Dictionary
 			return {"success": false, "error": "cost_commit_failed", "message": "Icon injection failed: unable to spend cost."}
 		if farm and farm.has_method("discover_icon"):
 			farm.discover_icon(north_emoji, south_emoji)
+	# Fractal: latent child world for this qubit axis
+	var _qid := int(result.get("qubit_index", -1))
+	if _qid < 0 and biome.quantum_computer and biome.quantum_computer.register_map:
+		_qid = max(0, biome.quantum_computer.register_map.num_qubits - 1)
+	var _icon_name := "%s/%s" % [north_emoji, south_emoji]
+	var _fw = _fractal()
+	if _fw:
+		var _fr = _fw.on_inject(biome_name, _qid, _icon_name, north_emoji, south_emoji)
+		result["fractal_child_id"] = _fr.get("child_id", "")
+		result["fractal"] = _fr
 		result["north_emoji"] = north_emoji
 		result["south_emoji"] = south_emoji
 		result["cost"] = gate.get("cost", {})
@@ -2263,3 +2274,59 @@ func _get_verbose():
 
 func _log(level: String, category: String, emoji: String, message: String) -> void:
 	VerboseHelper.log(level, category, emoji, message)
+
+
+func _fractal():
+	if farm == null:
+		var resolved = InstrumentLocator.resolve_active_farm_main_loop()
+		if resolved:
+			farm = resolved
+	if fractal_world == null:
+		var FWS = load("res://Core/Instrumentation/FractalWorldService.gd")
+		if FWS == null:
+			push_error("FractalWorldService failed to load")
+			return null
+		fractal_world = FWS.new()
+	if fractal_world and farm:
+		fractal_world.bind_farm(farm)
+	return fractal_world
+
+
+func action_enter_icon(biome_name: String = "", register_id: int = -1) -> Dictionary:
+	var fw = _fractal()
+	if fw == null:
+		return {"success": false, "error": "no_fractal", "message": "FractalWorldService unavailable"}
+	var bname := biome_name
+	if bname == "":
+		var abm = _get_autoload("ActiveBiomeManager")
+		if abm and abm.has_method("get_active_biome"):
+			bname = str(abm.get_active_biome())
+	if register_id < 0:
+		# default: last qubit of biome
+		var biome = _resolve_biome(bname)
+		if biome and biome.quantum_computer and biome.quantum_computer.register_map:
+			register_id = max(0, biome.quantum_computer.register_map.num_qubits - 1)
+	if bname == "" or register_id < 0:
+		return {"success": false, "error": "no_target", "message": "enter_icon needs biome and register_id"}
+	var result = fw.enter_icon(bname, register_id)
+	action_performed.emit("enter_icon", result)
+	return result
+
+
+func action_ascend_fractal() -> Dictionary:
+	var fw = _fractal()
+	if fw == null:
+		return {"success": false, "error": "no_fractal", "message": "FractalWorldService unavailable"}
+	var result = fw.ascend()
+	action_performed.emit("ascend_fractal", result)
+	return result
+
+
+func action_fractal_atlas() -> Dictionary:
+	var fw = _fractal()
+	if fw == null:
+		return {"success": false, "error": "no_fractal", "message": "FractalWorldService unavailable"}
+	fw.ensure_root_from_active()
+	var snap = fw.snapshot()
+	var exp = fw.export_all()
+	return {"success": true, "atlas": snap, "export": exp}

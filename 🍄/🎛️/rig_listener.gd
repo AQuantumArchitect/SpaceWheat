@@ -409,6 +409,9 @@ func _requires_quantum_instrument(action: String) -> bool:
 		"configure_seed_state",
 		"probe_cycle",
 		"discover_biome",
+	"enter_icon",
+	"ascend_fractal",
+	"fractal_atlas",
 		"victory_lap",
 		"victory_lap_partial",
 	]
@@ -1601,6 +1604,27 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				for q in range(hs_nq):
 					per_out.append(sqrt(per_qubit[q]))
 				result["offdiag_norm_per_bit"] = per_out
+
+
+		"enter_icon":
+			var ei_biome := str(cmd.get("biome", ""))
+			var ei_reg := int(cmd.get("register_id", cmd.get("qubit", -1)))
+			if _instrument.has_method("action_enter_icon"):
+				result["enter_icon"] = _instrument.action_enter_icon(ei_biome, ei_reg)
+			else:
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_enter_icon"}
+
+		"ascend_fractal":
+			if _instrument.has_method("action_ascend_fractal"):
+				result["ascend_fractal"] = _instrument.action_ascend_fractal()
+			else:
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_ascend_fractal"}
+
+		"fractal_atlas":
+			if _instrument.has_method("action_fractal_atlas"):
+				result["fractal_atlas"] = _instrument.action_fractal_atlas()
+			else:
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_fractal_atlas"}
 
 		"inject_icon":
 			# Optional north/south pick a SPECIFIC icon pair (duplicates are legal:
