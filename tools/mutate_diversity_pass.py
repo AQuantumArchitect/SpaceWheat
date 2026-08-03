@@ -16,9 +16,11 @@ network across the 11 emojis. Steady-state shows whether a wavepacket can
 traverse the chain (transport) or piles up near the source (localization).
 """
 from __future__ import annotations
-import json
 import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import biome_io  # noqa: E402
 
 
 FUNGAL_ATOM_COMPONENTS = {
@@ -105,8 +107,7 @@ STARTER_FOREST_ATOM_COMPONENTS = {
 
 
 def main() -> int:
-    path = Path(__file__).resolve().parent.parent / "Core/Biomes/data/biomes.json"
-    biomes = json.load(path.open())
+    biomes = biome_io.load_biomes()  # raw read — mutate scripts never normalize
 
     # FungalNetworks gradient memory was attempted but its dense faction-H
     # mixing (every reservoir/carrier pair has coupling ≥ 0.5 from native
@@ -125,7 +126,7 @@ def main() -> int:
     if missing:
         print(f"WARN: not found in biomes.json: {sorted(missing)}", file=sys.stderr)
 
-    json.dump(biomes, path.open("w"), indent=2, ensure_ascii=False)
+    biome_io.save_biomes(biomes)
     print(f"mutated {sorted(seen)}")
     return 0
 

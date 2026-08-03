@@ -16,50 +16,28 @@ from __future__ import annotations
 
 import json
 import math
-import os
-import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import biome_io  # noqa: E402
+from biome_io import ROOT, FACTIONS_PATH, BIOMES_PATH, strip_fe0f  # noqa: E402,F401
+
 # ── Paths (relative to repo root) ────────────────────────────────────────────
 
-ROOT = Path(__file__).resolve().parent.parent
-FACTIONS_PATH = ROOT / "Core" / "Factions" / "data" / "factions.json"
-BIOMES_PATH = ROOT / "Core" / "Biomes" / "data" / "biomes.json"
 HAMILTONIANS_DIR = ROOT / "Core" / "Config" / "Hamiltonians"
 
-# ── Emoji normalization ──────────────────────────────────────────────────────
-
-def strip_fe0f(s: str) -> str:
-    """Strip U+FE0F variation selectors (matches EmojiUtil.normalize in GDScript)."""
-    return s.replace("\ufe0f", "")
-
-
-# ── Data loading ─────────────────────────────────────────────────────────────
+# ── Data loading ───────────────────────────────────────────────────────────────
+# The audit/assay stack works on FE0F-normalized emoji keys (matching
+# EmojiUtil.normalize in GDScript), so these wrappers opt in EXPLICITLY.
+# strip_fe0f itself now lives in (and is re-exported from) biome_io.
 
 def load_factions() -> list[dict]:
-    with open(FACTIONS_PATH, encoding="utf-8") as f:
-        factions = json.load(f)
-    # Normalize emoji keys
-    for fac in factions:
-        fac["sig"] = [strip_fe0f(e) for e in fac.get("sig", [])]
-        fac["self_energies"] = {strip_fe0f(k): v for k, v in fac.get("self_energies", {}).items()}
-        fac["hamiltonian"] = {
-            strip_fe0f(src): {strip_fe0f(tgt): v for tgt, v in targets.items()}
-            for src, targets in fac.get("hamiltonian", {}).items()
-        }
-        fac["drivers"] = {
-            strip_fe0f(k): v for k, v in fac.get("drivers", {}).items()
-        }
-    return factions
+    return biome_io.load_factions(normalize=True)
 
 
 def load_biomes() -> list[dict]:
-    with open(BIOMES_PATH, encoding="utf-8") as f:
-        biomes = json.load(f)
-    for b in biomes:
-        b["emojis"] = [strip_fe0f(e) for e in b.get("emojis", [])]
-    return biomes
+    return biome_io.load_biomes(normalize=True)
 
 
 def load_profile(biome_name: str) -> dict:

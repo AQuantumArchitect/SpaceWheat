@@ -14,8 +14,11 @@ the natural "wild vs calm" toggle qubit (see follow-up: applying X here swaps
 which pump is dominant).
 """
 from __future__ import annotations
-import json
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import biome_io  # noqa: E402
 
 
 NEW_EMOJIS = ["🦗", "🐜", "🍄", "🦠", "🍂", "💀", "🌙", "☀", "🌧", "🧫"]
@@ -34,8 +37,7 @@ RAIN_ATOM = {
 
 
 def main() -> int:
-    path = Path(__file__).resolve().parent.parent / "Core/Biomes/data/biomes.json"
-    biomes = json.load(path.open())
+    biomes = biome_io.load_biomes()  # raw read — mutate scripts never normalize
     for b in biomes:
         if b["name"] != "FungalNetworks":
             continue
@@ -53,7 +55,7 @@ def main() -> int:
         print("FungalNetworks not found")
         return 1
 
-    json.dump(biomes, path.open("w"), indent=2, ensure_ascii=False)
+    biome_io.save_biomes(biomes)
     print("patched FungalNetworks (9 → 10 emojis, +🌧)")
     return 0
 

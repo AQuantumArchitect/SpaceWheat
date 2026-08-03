@@ -4,19 +4,21 @@ Mutate Core/Factions/data/factions.json and Core/Biomes/data/biomes.json
 according to spec.
 """
 
-import json
 import copy
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-FACTIONS_PATH = ROOT / "Core/Factions/data/factions.json"
-BIOMES_PATH = ROOT / "Core/Biomes/data/biomes.json"
+sys.path.insert(0, str(ROOT / "tools"))
+import biome_io  # noqa: E402
+from biome_io import FACTIONS_PATH, BIOMES_PATH  # noqa: E402
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Load
 # ─────────────────────────────────────────────────────────────────────────────
-factions = json.loads(FACTIONS_PATH.read_text())
-biomes   = json.loads(BIOMES_PATH.read_text())
+# Raw reads — mutate scripts never opt into FE0F normalization.
+factions = biome_io.load_factions()
+biomes   = biome_io.load_biomes()
 
 faction_map = {f["name"]: f for f in factions}
 changes = []
@@ -840,9 +842,9 @@ for biome_name, faction_name in patches:
 # Write back
 # ─────────────────────────────────────────────────────────────────────────────
 print("\n=== Writing files ===")
-FACTIONS_PATH.write_text(json.dumps(factions, indent=2, ensure_ascii=False) + "\n")
+biome_io.save_factions(factions, trailing_newline=True)
 print(f"  Wrote {FACTIONS_PATH}")
-BIOMES_PATH.write_text(json.dumps(biomes, indent=2, ensure_ascii=False) + "\n")
+biome_io.save_biomes(biomes, trailing_newline=True)
 print(f"  Wrote {BIOMES_PATH} ({len(biomes)} biomes total)")
 
 print("\nDone.")

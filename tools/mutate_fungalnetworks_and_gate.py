@@ -22,16 +22,18 @@ Wild/calm toggle semantics:
 The toggle is a kick, not a latch — player mission territory to make it hold.
 """
 from __future__ import annotations
-import json
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import biome_io  # noqa: E402
 
 
 AND_GATE = {"target": "🦠", "gate": "🌙", "rate": 1.5, "power": 1}
 
 
 def main() -> int:
-    path = Path(__file__).resolve().parent.parent / "Core/Biomes/data/biomes.json"
-    biomes = json.load(path.open())
+    biomes = biome_io.load_biomes()  # raw read — mutate scripts never normalize
     for b in biomes:
         if b["name"] != "FungalNetworks":
             continue
@@ -44,7 +46,7 @@ def main() -> int:
         print("FungalNetworks not found")
         return 1
 
-    json.dump(biomes, path.open("w"), indent=2, ensure_ascii=False)
+    biome_io.save_biomes(biomes)
     print("patched: 🌧×🌙 → 🦠 AND gate wired")
     return 0
 

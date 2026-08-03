@@ -387,19 +387,23 @@ Bonus: `scripts/run_tests.sh` was invoking a scene that no longer exists
 (`scenes/test_quantum_substrate.tscn`); it is now a real runner wiring all 27 green smoke
 tests (incl. the three resurrected in 68ebd80e) so they can't rot outside a runner again.
 
-**7. JSON load-parse-error boilerplate hand-rolled independently across ~20 GDScript loaders**
+~~**7. JSON load-parse-error boilerplate hand-rolled independently across ~20 GDScript loaders**~~
+**CLOSED (fable push 2026-08-03, ce92faa0 + b5c0d278):** `Core/Config/JsonFileLoader.gd` is the one authority ({ok,data,error,missing} envelope, required-vs-optional + root checks). 4 strict registries + 12 lax sites migrated, each preserving its semantics; malformed-but-existing files are now LOUD everywhere (line-numbered). Correctly not migrated: PolicyGraph/FarmVariableGraph (JSONL per-line), Frontmatter (YAML-in-Markdown), CognifoldTraceView's HTTP body, SaveStore's .tres-substring parse.
 `Core/Biomes/BiomeRegistry.gd:104-122`, `Core/Factions/FactionRegistry.gd:64-79`, `Core/Factions/IconRegistry.gd:293-303`, `Core/Factions/FactionAxes.gd:19-31` (full open/parse/error-report/close idiom); laxer `JSON.parse_string` variant in `Core/GameMechanics/BalanceConfig.gd:206-209`, `Core/Story/StorySeedLoader.gd:26-30`, `Core/Quests/QuestManager.gd:233-237,259-263`, `Core/GameState/ScenarioLedger.gd:47-50`, `Core/GameMechanics/FarmVariableGraph.gd:28-45`, `Core/Gallery/ReelRunner.gd:61`, plus ~10 more (`SaveStore.gd`, `EmojiRegistry.gd`, `MusicManager.gd`, `QuantumField3D.gd`, `UmweltVizCache.gd`, `CognifoldTraceView.gd`, `QuantumInstrument.gd`, `Frontmatter.gd`, `PolicyGraph.gd`, `BiomeCharacteristics.gd`, `EscapeMenu.gd`).
 Knot: callers differ on required-vs-optional files and diagnostics; a shared `JsonFileLoader.gd` needs a signature that accommodates that before ~20 sites can move.
 
-**8. ~27 probe/drive scripts hand-roll an identical turn-driver DSL instead of sharing one helper**
+~~**8. ~27 probe/drive scripts hand-roll an identical turn-driver DSL instead of sharing one helper**~~
+**CLOSED (fable push 2026-08-03, 854f7ce8):** `🍄/🧪/turn_driver.py` (TurnDriver + go/press factories, both timeout idioms). 28/30 migrated by exact-literal replacement; per-script timeouts stay explicit constants (90 vs 120 NOT unified, per this knot's own warning). demos_campaign_run + visual_playthrough left — genuinely divergent DSLs.
 `🍄/🧪/mill_probe.py`, `c3_probe.py`, `b_probe.py`, `dynamic_probe.py`, `screenshot_probe.py`, `welcome_probe.py`, `ring6_probe.py`, `plot_idx_probe.py`, `act2_drive.py`, `act3_5_drive.py`, `village_arc_drive.py`, `mill_drive.py`, and ~15 more — `grep -l "_turn[0] += 1"` → 29 files, `def go(a, **k):` → 27 files, `def press(seq` → 23 files, with divergent hardcoded timeouts (90 vs 120).
 Knot: consolidating requires picking canonical default timeouts/settle-frame counts across ~27 independently-evolved diagnostic scripts.
 
-**9. No shared biome/faction data-IO module: path constants + read-mutate-write boilerplate duplicated across 12+ tools/scripts files, with drifting read idioms and a hidden normalization trap**
+~~**9. No shared biome/faction data-IO module: path constants + read-mutate-write boilerplate duplicated across 12+ tools/scripts files, with drifting read idioms and a hidden normalization trap**~~
+**CLOSED (fable push 2026-08-03):** `tools/biome_io.py` is the ONE json-read/write implementation (paths, load/save, ensure_ascii=False law); FE0F-stripping is an EXPLICIT normalize= opt-in, default off — biome_audit keeps it on, mutate scripts stay raw, exactly per this knot's trap warning. Read-only tools byte-identical across 37 fixture invocations; mutate-script idioms proven byte-equivalent without execution. Follow-up candidates flagged, not touched: 6 more tools/ files with their own path constants that were outside this knot's named list.
 `tools/build_icon_lexicon.py`, `tools/gen_biome_icon_stubs.py`, `tools/validate_icon_lexicon.py`, `tools/biome_audit.py`, `tools/validate_faction_bits.py`, `tools/mutate_starter_island.py`, `tools/set_starter_island.py`, `scripts/mutate_factions_biomes.py`, `tools/mutate_fungalnetworks_and_gate.py`, `tools/mutate_diversity_pass.py`, `tools/mutate_fungalnetworks.py`, `tools/mutate_biome_repair.py`. A verified byte-identical subset (`mutate_fungalnetworks_and_gate.py`, `mutate_diversity_pass.py`, `mutate_fungalnetworks.py`, `mutate_biome_repair.py`, `set_starter_island.py`) uses `json.load(path.open())`; others use `json.loads(path.read_text())` or `with open(path) as f:`. `tools/biome_audit.py`'s `load_biomes()`/`load_factions()` (already shared by 6 assay tools) strip FE0F variation selectors — the mutate scripts don't.
 Knot: any shared helper must not silently import FE0F-normalization behavior into scripts that never opted into it.
 
-**10. Six `tools/*_assay.py` scripts share a copy-pasted CLI harness, with one confirmed behavioral difference**
+~~**10. Six `tools/*_assay.py` scripts share a copy-pasted CLI harness, with one confirmed behavioral difference**~~
+**CLOSED (fable push 2026-08-03):** `tools/assay_cli.py:run_assay(...)` owns the harness; the orphan-biome filter is an explicit per-caller flag (clock/transition/gain=True, eit/ssh/zeno=False — each file's pre-existing behavior preserved, the doc's stated requirement). All six delegate; outputs byte-identical incl. error branches and exit codes.
 `tools/clock_assay.py`, `tools/eit_assay.py`, `tools/ssh_assay.py`, `tools/transition_assay.py`, `tools/gain_assay.py`, `tools/zeno_assay.py` — identical argparse + biome-detail branch + rank/print loop around `tools/biome_audit.py`'s shared loaders. `clock_assay.py:230-231` filters out `_orphan_lindblads` biomes; `ssh_assay.py` does not.
 Knot: a shared `tools/assay_cli.py:run_assay(...)` must preserve the orphan-biome filter as an explicit opt-in, not silently unify it away.
 
@@ -408,15 +412,18 @@ Knot: a shared `tools/assay_cli.py:run_assay(...)` must preserve the orphan-biom
 **11. ~~BIOME_ORDER duplicated as independent mutable state across ObservationFrame and ActiveBiomeManager~~**
 **CLOSED (consolidation P3, 2026-08-03): ObservationFrame designated single owner.** ObservationFrame gained `set_biome_order()` + a `biome_order_changed` signal (also emitted from `unlock_biome`/`lock_biome`/`reset`/`_load_unlocked_biomes`); ActiveBiomeManager's `BIOME_ORDER` is now a signal-driven mirror — its `set_biome_order()` applies locally (headless fallback) then routes divergence back through the authority, and its internal `_apply_biome_order()` never writes back. The two dual-write routines (`GameStateSerializer._restore_biome_progression_state`, `WorldBuilder.sync_biome_progression_autoloads`) no longer poke `BIOME_ORDER` fields directly. Serialization format untouched (still `state.unlocked_biomes`). The verbatim index/count method copies remain but now read a guaranteed-synced mirror.
 
-**12. Both scenario `.tres` files bake an identical, schema-stale default `plots` array instead of sharing GameState's factory**
+~~**12. Both scenario `.tres` files bake an identical, schema-stale default `plots` array instead of sharing GameState's factory**~~
+**CLOSED (fable push 2026-08-03, 7ff7c3f7): factory owns defaults.** Both `.tres` plots arrays regenerated to `create_for_grid`'s schema; the serializer shim stays one release for genuinely old SAVES (comment says when to retire). NEW rot found in passing: audit_saves_text.sh + repair_saves.py still target the long-gone Scenarios/default.tres.
 `Scenarios/demos_normal.tres:33`, `Scenarios/new_game_easy.tres:47` — pre-migration schema (bare `type` int). `Core/GameState/GameState.gd:314-338` (`create_for_grid`) builds the current richer schema. `Core/GameState/GameStateSerializer.gd:452-461` carries a legacy-format shim that exists solely to translate the stale `.tres` files.
 Knot: needs an owner decision on whether "default plot" lives in data or factory before the schema drift can be closed.
 
-**13. Cost-dictionary-to-display-string formatter reimplemented 5× with three drifting conventions**
+~~**13. Cost-dictionary-to-display-string formatter reimplemented 5× with three drifting conventions**~~
+**CLOSED (fable push 2026-08-03, ce92faa0):** `Core/UI/CostFormat.gd` is the one formatter; all five sites are one-line delegates pinning their exact convention — parity-probed byte-identical (incl. chip's round-vs-truncate float divergence, preserved). The EscapeMenu↔ChipResolverRegistry hand-sync comment is dead.
 `Core/Actions/ProbeActions.gd:1147` (`_format_cost`, unsigned, sorted), `Core/GameMechanics/FarmEconomy.gd:186` (`_format_cost`, unsigned, unsorted, comma-joined — visibly older), `Core/UI/ChipResolverRegistry.gd:96` (`_format_cost_inline`, signed, sorted), `UI/Core/Submenus/BaseSubmenu.gd:170` (`format_cost`, signed), `UI/Overlays/EscapeMenu.gd:1270` (`_format_cost`, signed, sorted — its own comment cites `ChipResolverRegistry._format_cost_inline` as the convention it's manually kept in sync with).
 Knot: developers are already hand-syncing two of these via comments instead of shared code — proof the duplication is a recognized liability; folding requires auditing every caller's expected string shape.
 
-**14. Save-file schema knowledge (obsolete vs. current plot fields) hardcoded independently in bash and python**
+~~**14. Save-file schema knowledge (obsolete vs. current plot fields) hardcoded independently in bash and python**~~
+**CLOSED (fable push 2026-08-03, ce92faa0):** repair_saves.py owns OBSOLETE_PLOT_FIELDS/REQUIRED_PLOT_FIELDS and emits them via `--emit-schema`; audit_saves_text.sh loops over that output instead of re-deriving. Fixture-proven.
 `scripts/audit_saves_text.sh:57-67` (flags `theta`/`phi`/`growth_progress`/`is_mature` as OBSOLETE, checks for `theta_frozen` at 70-73) vs `scripts/repair_saves.py:7-9,152-153` (same rule re-derived in a different language).
 Knot: no mechanical cross-language merge is possible; needs a shared manifest format decision.
 
@@ -425,34 +432,41 @@ Knot: no mechanical cross-language merge is possible; needs a shared manifest fo
 **15. ~~EmojiAtlasBatcher's `_normalize_emoji()` diverges from canonical `EmojiUtil.normalize()` on the atlas/render lookup path~~**
 **CLOSED (consolidation P3, 2026-08-03): unified onto `EmojiUtil.normalize`, probe-verified.** A probe over the full emoji universe (every string in biomes.json + factions.json + icons.json, 254 candidates) plus a repo-wide grep of GDScript sources found **zero** ZWJ (U+200D) and **zero** FE0E carriers — the two schemes produce byte-identical atlas keys over the entire actual domain, so the delegation is behavior-preserving, not a blind swap. `_normalize_emoji` now delegates, with the history + probe documented in a comment at the function.
 
-**16. BubbleAtlasBatcher and EmojiAtlasBatcher independently implement the same textured-quad batching, already diverged in optimization**
+~~**16. BubbleAtlasBatcher and EmojiAtlasBatcher independently implement the same textured-quad batching, already diverged in optimization**~~
+**CLOSED-SCOPED (fable push 2026-08-03, ff14826f):** the flush divergence (the real defect) is unified — EmojiAtlasBatcher adopts the pre-allocated identity-indices strategy, killing the per-frame N-int fill loop. The per-quad append bodies stay DELIBERATELY forked (documented in-code): a shared per-quad call adds GDScript call overhead on the hottest render path for cosmetic dedup.
 `Core/Visualization/BubbleAtlasBatcher.gd:464-489` vs `Core/Visualization/EmojiAtlasBatcher.gd:535-570` (quad/UV/triangle push); flush() diverges: `BubbleAtlasBatcher.gd:657-677` pre-allocates the index array, `EmojiAtlasBatcher.gd:618-640` still builds one with a GDScript loop every flush.
 Knot: hot per-frame render path — needs a shared base/helper decision, not a copy-paste port.
 
-**17. Six Surface overlays each hand-roll their own tab-row builder/refresher**
+~~**17. Six Surface overlays each hand-roll their own tab-row builder/refresher**~~
+**CLOSED for the frame-keyed four (fable push 2026-08-03, ff14826f):** Surface._build_frame_tab_row/_refresh_frame_tab_row; QuestBoard/Inspector/QubitAtlas/MapMeta delegate with pinned styling; QuestBoard's hand-rolled click handler retired for ClickWire. ControlsOverlay/EscapeMenu key off LOCAL ENUMS — their enum→frame_id reconcile is a real refactor, deliberately left (documented in the helper).
 `UI/Overlays/QuestBoard.gd:184-197,580-593`, `InspectorOverlay.gd:151-180`, `ControlsOverlay.gd:210-222,267-291`, `EscapeMenu.gd:191-206,326-341`, `MapMetaOverlay.gd:188-199,552-566`, `QubitAtlasOverlay.gd:174-186,206-221` against base `UI/Core/Surface.gd`. Four key off `frame_id`; ControlsOverlay/EscapeMenu key off a separate local `tab` enum.
 Knot: migrating the frame-keyed four is mostly mechanical; ControlsOverlay/EscapeMenu's local enum needs reconciling with `frame_id` first.
 
-**18. EscapeMenu hand-rolls ClickWire-equivalent click detection for its tab row, entangled with a pending-confirmation guard**
+~~**18. EscapeMenu hand-rolls ClickWire-equivalent click detection for its tab row, entangled with a pending-confirmation guard**~~
+**CLOSED (fable push 2026-08-03, e3b51de5):** migrated to ClickWire.attach with the pending-confirm guard inside the callback. The ordering question is RESOLVED: ClickWire consumes the release before the callback, so a mid-confirm click dies at the guard instead of leaking to viewport unhandled-input — strictly tighter modality (same direction as the #231 tap-pierce fixes).
 `UI/Overlays/EscapeMenu.gd:191-206` (manual mouse_filter/connect instead of `UI/Core/ClickWire.gd:22-27`'s `ClickWire.attach`), `_on_tab_label_gui_input` (209-214) checks `_pending_action != PendingAction.NONE` *before* the event filter and before `accept_event()`; `_show_tab()` (1286) never re-checks the guard.
 Knot: `ClickWire.attach` always calls `accept_event()` before invoking its callback — a naive migration changes whether clicks propagate while a confirm modal is showing; needs verification of whether that ordering is load-bearing.
 
 **19. ~~Small overlay-chrome helpers copy-pasted across 4-5 overlay files instead of extending UIStyleFactory~~**
 **CLOSED (consolidation P3, 2026-08-03): extracted to `UI/Core/OverlayChrome.gd`.** One static builder family (`key_chip`/`muted_label`/`spacer`/`ratio_bar`/`empty_row`/`kv_row`), parameterized so every overlay keeps its EXACT historical styling; each overlay's local `_make_*` became a one-line delegate pinning its params (QuestBoard chip 14px/28w with selected/empty colors; MapMeta chip on its local axis palette + its 0.9-alpha muted; EscapeMenu's no-autowrap kv value; QuestBoard's no-autowrap muted; `_comfort_bar` = `ratio_bar(absf(c))`). Also folded `InspectorOverlay._map_make_spacer`. **Deliberately NOT migrated** (ruled load-bearing forks, documented in OverlayChrome's header): tab-row builders (knot #17 — ControlsOverlay/EscapeMenu key off local enums), EscapeMenu tab click handling (knot #18 — pending-confirm guard ordering), overlay open/close/input-swallow wiring (per-overlay, z-order/input regression history #197/#243), and BiomeInspectorOverlay's genuinely-variant `_make_kv_row`/`_make_ratio_bar` (different geometry/fallbacks). Knots #17/#18/#20 remain open.
 
-**20. Overlay-instantiation boilerplate repeated ~9× in OverlayManager**
+~~**20. Overlay-instantiation boilerplate repeated ~9× in OverlayManager**~~
+**CLOSED-SCOPED (fable push 2026-08-03, e3b51de5):** the six UNIFORM sites route through _spawn_registered_overlay (exact historical order pinned; welcome opts out of visibility processing). The three sites with interleaved signal wiring (quest_board/escape_menu/biome_inspector) stay verbatim on purpose — connect-vs-add_child order is load-bearing (#197/#243). IconDetailPanel's site was deleted with the panel (knot #22).
 `UI/Managers/OverlayManager.gd` — quest_board (151-165), escape_menu (170-181), biome_inspector (186-191), icon_detail_panel (194-199), inspector_overlay (270-276), controls_overlay (279-285), welcome_overlay (288-293), atlas_overlay (296-302), map_meta_overlay (313-318), neighborhood_graph_overlay (323-328).
 Knot: each site interleaves unique extra signal wiring mid-sequence — a blind extract-method risks reordering signal connections relative to add_child/registration.
 
-**21. BroadGraphView and NeighborhoodGraphView duplicate GraphEdit setup, node-clearing safety dance, and ring-layout math**
+~~**21. BroadGraphView and NeighborhoodGraphView duplicate GraphEdit setup, node-clearing safety dance, and ring-layout math**~~
+**CLOSED (fable push 2026-08-03, e3b51de5):** `UI/Overlays/GraphViewCommon.gd` static composition helpers (setup, the GraphNode-only clear dance with its connection_layer/remove-before-free safety comments now in ONE place, ring layout, shared COLOR_ENTANGLE); both views delegate, per-view geometry pinned as args.
 `UI/Overlays/BroadGraphView.gd` — `_init()`, `populate()` (45-54), `_layout_pos` (163-169) — vs `UI/Overlays/NeighborhoodGraphView.gd` — `populate()` (59-69), `_layout_pos` (203-209); both independently declare `COLOR_ENTANGLE := Color(1.0, 0.84, 0.25)`.
 Knot: both are on the render path for live overlays (M · Graph, 🕸 NeighborhoodGraphOverlay); extraction needs a class-hierarchy decision.
 
-**22. IconDetailPanel is fully wired into boot but its only content entry point is unreachable**
+~~**22. IconDetailPanel is fully wired into boot but its only content entry point is unreachable**~~
+**CLOSED (fable push 2026-08-03, e7a0b796): deleted** (owner-approved). Scene grep confirmed no .tscn/dynamic reference; panel + OverlayManager wiring + .uid removed; class cache re-imported clean.
 `UI/Managers/OverlayManager.gd:194-199` instantiates it every boot; `UI/Widgets/IconDetailPanel.gd:99` (`show_icon()`) has zero call sites anywhere in the repo — the live flow runs through `IconCard.gather()` instead.
 Knot: confirm no `.tscn`-level dynamic wiring reaches it before deleting the class and its OverlayManager wiring.
 
-**23. `_log(level, category, emoji, message)` VerboseHelper wrapper copy-pasted 5×, with a 6th copy silently diverging**
+~~**23. `_log(level, category, emoji, message)` VerboseHelper wrapper copy-pasted 5×, with a 6th copy silently diverging**~~
+**CLOSED (fable push 2026-08-03, ce92faa0):** GameStateSerializer's diverging copy routed through VerboseHelper (its silent no-op-if-unset is gone — save/load diagnostics now fall back loud); GameStateManager's set_verbose plumbing removed. The five 2-line wrappers already delegate to the single authority — they ARE the post-dedup state, left as-is.
 `Core/QuantumSubstrate/QuantumComputer.gd:19-20`, `Core/Instrumentation/QuantumInstrument.gd:2264-2265`, `Core/Actions/ProbeActions.gd:1235-1236`, `Core/GameMechanics/BasePlot.gd:20-21`, `Core/Environment/BiomeEvolutionBatcher.gd:13-14` all delegate to `Core/Config/VerboseHelper.gd`. `Core/GameState/GameStateSerializer.gd:16-18` instead does `if _verbose and _verbose.has_method(...)`, silently no-op'ing if `set_verbose()` was never called.
 Knot: fixing the 5 copies is mechanical; changing GameStateSerializer's behavior touches observable diagnostics on the save/load path and needs sign-off.
 
@@ -469,11 +483,13 @@ three cognifold launchers (`cognifold.sh`, `cognifold-meerkat.sh`, `cognifold-ba
 Since `sw_godot_bin()` defaults to `SW_GODOT_BIN` → `GODOT_BIN` → `godot`, each caller's prior
 env-override semantics are preserved exactly; all touched scripts pass `bash -n`.
 
-**25. `milk_hunt_args.make_base_parser()` is a documented shared argparse base, but two consumers hand-duplicate the same flags with drift**
+~~**25. `milk_hunt_args.make_base_parser()` is a documented shared argparse base, but two consumers hand-duplicate the same flags with drift**~~
+**CLOSED (fable push 2026-08-03, 854f7ce8):** runner + seed_save build on make_base_parser via only=/overrides= hooks; every local divergence kept (--strategy stays Path; seed_save's missing counterpart flag stays missing per this knot's text). Parser-surface dump byte-identical before/after.
 `🍄/🎛️/milk_hunt_args.py:14-118` (`make_base_parser`, only used by `milk_hunt_batch.py`) vs `🍄/🎛️/milk_hunt_runner.py:1070-1256+` (`_build_parser`, e.g. `--strategy` typed `Path` vs `str` in the shared parser) and `🍄/🎛️/milk_hunt_seed_save.py:66-144` (`_build_parser`, missing the `--no-reuse-listener` counterpart flag).
 Knot: migrating requires reconciling type/default/counterpart-flag mismatches per divergence, not a blind swap.
 
-**26. `constants.py`'s policy-mode/timeout constants bypassed almost everywhere; two live modules compute divergent timeout formulas**
+~~**26. `constants.py`'s policy-mode/timeout constants bypassed almost everywhere; two live modules compute divergent timeout formulas**~~
+**CLOSED (fable push 2026-08-03, 854f7ce8):** policy strings import from constants everywhere; the divergent timeout FORMULAS live in constants as NAMED per-caller variants (zero behavior change, one home); constants for long-deleted files removed with zero consumers verified.
 `🍄/🎛️/constants.py:12-33` (`run_timeout`, references files that no longer exist); policy-mode strings hardcoded independently at `milk_hunt_args.py:70`, `milk_hunt_seed_save.py:74`, `milk_hunt_runner.py:1122,1685,2057`; timeout formulas diverge — `milk_hunt_runner.py:1613` hardcodes `max_loops=140` and never imports constants, `milk_hunt_batch.py:417` computes `max(120, max_loops*15+120)` inline vs constants' `max(300, max_cycles*30*runs)`.
 Knot: the policy-string swap is low-risk, but picking one real timeout formula (15s vs 30s/loop, 120s vs 300s floor) changes subprocess timeout behavior on the batch-run hot path.
 
@@ -494,7 +510,8 @@ through it. Parameter surface: `prefix`, `sentinel_timeout_s`, and everything el
 straight to `start_listener`, so per-test scenario/env divergence stays in the test. All 7
 files migrated (both import styles deleted); full suite 182 passed / 0 failed after migration.
 
-**30. Byte-identical `setup_test_environment()` bootstrap duplicated across 2 of 4 gate/quantum-state tests**
+~~**30. Byte-identical `setup_test_environment()` bootstrap duplicated across 2 of 4 gate/quantum-state tests**~~
+**CLOSED (fable push 2026-08-03, ff14826f):** SubstrateFixtures.build_test_biome (static coroutine — the feared pattern works; the trap was class_name resolution under -s harness timing, solved by the fixtures file's own preload-by-path rule). The two genuine variants stay local as prescribed.
 `tests/test_advanced_quantum_states.gd:46-66` and `tests/test_gate_exact_states.gd:45-65` are byte-identical (`BiomeBuilder.build_from_registry("StarterForest", ...)` → `await self.process_frame` → density-matrix check). `tests/test_gate_application_integration.gd:42-75` and `tests/test_closed_system.gd:48-75` are genuine variants (different biome names, extra closed-system precheck) — not duplicates.
 Knot: extracting even the safe 2-file subset requires a new async static-coroutine test-fixture pattern with no existing precedent in `tests/substrate_fixtures.gd` — needs a run-and-verify pass in Godot, not a text move.
 
@@ -507,7 +524,8 @@ Knot: safe action depends on whether the underlying invariant is covered live el
 **32. ~~README.md's core-loop key bindings contradict the game's own canonical Ace-hat table~~**
 **CLOSED (consolidation P3, 2026-08-03): README rewritten to match reality.** Verified against `UI/Core/KEYBOARD_GRAMMAR.md:160-162,298` (live grammar: R=Strike/measure costs 👥, Q=Extract free cash-out, E=Pause, F=Explore/Fast-Fwd), which agrees with GAME_CODEX/HOW_TO_PLAY/ARCHETYPE_FRAMES. README's core-loop steps 1-2 now read Strike (Ace R, with F=Explore noted) and Extract (Ace Q, free); README:80's hat table was already correct.
 
-**33. Three docs maintain separate, partially-diverging Linux build prerequisites**
+~~**33. Three docs maintain separate, partially-diverging Linux build prerequisites**~~
+**CLOSED (fable push 2026-08-03, ce92faa0): no merge — cross-linked owners.** BUILDING.md owns the scons/godot-cpp path, docs/build/BUILD_LINUX.md owns the prebuilt-Godot Makefile path; each names the other and says the package-list divergence is intent, not drift.
 `BUILDING.md:16,44` and `docs/release/RELEASE_README.md:106` agree (`build-essential git python3 python3-pip scons`); `docs/build/BUILD_LINUX.md:11` genuinely differs (`git g++ make wget unzip`, no python3/scons) because it documents a different build path (prebuilt Godot + native/ Makefile-only).
 Knot: the two package lists serve two legitimately different build paths — needs a canonical-owner-per-path decision plus cross-links, not a merge into one list.
 

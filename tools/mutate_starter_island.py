@@ -10,21 +10,20 @@ Biomes patched:
 """
 
 from __future__ import annotations
-import json
 import pathlib
 import sys
 
-BIOMES_PATH = pathlib.Path(__file__).resolve().parent.parent / "Core/Biomes/data/biomes.json"
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import biome_io  # noqa: E402
+from biome_io import BIOMES_PATH  # noqa: E402
 
 
 def load() -> list[dict]:
-    with BIOMES_PATH.open(encoding="utf-8") as f:
-        return json.load(f)
+    return biome_io.load_biomes()  # raw read — mutate scripts never normalize
 
 
 def save(data: list[dict]) -> None:
-    with BIOMES_PATH.open("w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    biome_io.save_biomes(data)
     print(f"Saved → {BIOMES_PATH}")
 
 

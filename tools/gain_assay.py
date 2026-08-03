@@ -83,7 +83,6 @@ Usage:
 
 from __future__ import annotations
 
-import argparse
 import math
 import sys
 from pathlib import Path
@@ -92,11 +91,10 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from biome_audit import (  # noqa: E402
-    load_factions,
-    load_biomes,
     compute_frobenius_norms,
     compute_faction_baselines,
 )
+from assay_cli import run_assay  # noqa: E402
 
 
 # ── Build H on the biome basis ──────────────────────────────────────────────
@@ -252,29 +250,7 @@ def print_detail(r: dict) -> None:
     print(f"  gain coefficient  g = Ω · ΔN = {r['gain']:.3f}")
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
-    ap.add_argument('--top', type=int, default=10)
-    ap.add_argument('--biome', type=str, default=None)
-    ap.add_argument('--threshold', type=float, default=0.05)
-    args = ap.parse_args()
-
-    factions = load_factions()
-    biomes = load_biomes()
-
-    if args.biome:
-        m = [b for b in biomes if b['name'] == args.biome]
-        if not m:
-            print(f'No such biome: {args.biome}')
-            return 1
-        print_detail(assay_biome(m[0], factions))
-        return 0
-
-    results = [assay_biome(b, factions) for b in biomes
-               if b.get('name') != '_orphan_lindblads']
-    ok = [r for r in results if not r.get('note')]
-    ok.sort(key=lambda r: r['gain'], reverse=True)
-
+def print_summary(ok: list[dict], results: list[dict], args) -> None:
     print('─' * 82)
     print(' GAIN-MEDIUM ASSAY — steady-state population inversion under drive + drain')
     print('─' * 82)
@@ -286,7 +262,18 @@ def main() -> int:
               f"{r['name']:<18} {pair}")
     n = sum(1 for r in ok if r['gain'] >= args.threshold)
     print(f"\n  {n} biome(s) clear the gain threshold (gain ≥ {args.threshold}).")
-    return 0
+
+
+def main() -> int:
+    return run_assay(
+        description=__doc__.split('\n')[0],
+        assay_fn=assay_biome,
+        print_detail=print_detail,
+        sort_key='gain',
+        default_threshold=0.05,
+        skip_orphan_biomes=True,  # gain_assay has always excluded _orphan_lindblads
+        print_summary=print_summary,
+    )
 
 
 if __name__ == '__main__':

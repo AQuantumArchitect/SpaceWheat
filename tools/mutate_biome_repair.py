@@ -19,8 +19,11 @@ biome's `icons[]` array). Earlier orderings had self-paired pairs like
 {🏁,🏁} and {💥,💥} which would themselves trip the new assertion.
 """
 from __future__ import annotations
-import json
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import biome_io  # noqa: E402
 
 
 PATCHES = {
@@ -123,8 +126,7 @@ PATCHES = {
 
 
 def main() -> int:
-    path = Path(__file__).resolve().parent.parent / "Core/Biomes/data/biomes.json"
-    biomes = json.load(path.open())
+    biomes = biome_io.load_biomes()  # raw read — mutate scripts never normalize
 
     seen = set()
     for b in biomes:
@@ -154,7 +156,7 @@ def main() -> int:
         print(f"WARN: not found: {sorted(missing)}")
         return 1
 
-    json.dump(biomes, path.open("w"), indent=2, ensure_ascii=False)
+    biome_io.save_biomes(biomes)
     print(f"patched {sorted(seen)}")
     return 0
 

@@ -100,12 +100,11 @@ import numpy as np
 # We reuse the faction-baseline machinery from biome_audit.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from biome_audit import (  # noqa: E402
-    load_factions,
-    load_biomes,
     compute_frobenius_norms,
     compute_faction_baselines,
     extract_biome_lindblad,
 )
+from assay_cli import run_assay  # noqa: E402
 
 
 # ── Core physics ────────────────────────────────────────────────────────────
@@ -303,30 +302,16 @@ def print_detail(r: dict) -> None:
     print(f"  EIT score = {r['eit_score']:.3f}")
 
 
-def main() -> int:
+def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     ap.add_argument('--top', type=int, default=10, help='show top N biomes')
     ap.add_argument('--biome', type=str, default=None, help='detailed report on one biome')
     ap.add_argument('--verbose', action='store_true', help='show Λ for every biome')
     ap.add_argument('--threshold', type=float, default=0.3, help='eit_score threshold for the "detector" list')
-    args = ap.parse_args()
+    return ap
 
-    factions = load_factions()
-    biomes = load_biomes()
 
-    if args.biome:
-        match = [b for b in biomes if b['name'] == args.biome]
-        if not match:
-            print(f"No such biome: {args.biome}")
-            return 1
-        r = assay_biome(match[0], factions)
-        print_detail(r)
-        return 0
-
-    results = [assay_biome(b, factions) for b in biomes]
-    scored = [r for r in results if not r.get('note')]
-    scored.sort(key=lambda r: r['eit_score'], reverse=True)
-
+def print_summary(scored: list[dict], results: list[dict], args) -> None:
     print(f"\n{'─' * 72}")
     print(f" EIT DARK-STATE ASSAY  ({len(scored)}/{len(results)} biomes had a Λ candidate)")
     print(f"{'─' * 72}")
@@ -343,7 +328,16 @@ def main() -> int:
         for r in scored:
             print_detail(r)
 
-    return 0
+
+def main() -> int:
+    return run_assay(
+        build_parser=build_parser,  # keeps eit's extra --verbose flag + help texts
+        assay_fn=assay_biome,
+        print_detail=print_detail,
+        sort_key='eit_score',
+        skip_orphan_biomes=False,  # eit_assay has always assayed _orphan_lindblads too
+        print_summary=print_summary,
+    )
 
 
 if __name__ == '__main__':

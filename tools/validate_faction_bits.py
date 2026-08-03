@@ -20,13 +20,12 @@ Hard errors (exit 1):
   - Cannot read either JSON file
   - Bits malformed (size != 12 or non-0/1 values)
 """
-import json
 import sys
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parent.parent
-AXES_PATH = REPO / "Core/Factions/data/axes.json"
-FACTIONS_PATH = REPO / "Core/Factions/data/factions.json"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import biome_io  # noqa: E402
+from biome_io import AXES_PATH, FACTIONS_PATH  # noqa: E402
 
 
 def main() -> int:
@@ -37,8 +36,8 @@ def main() -> int:
         print(f"ERROR: factions.json not found at {FACTIONS_PATH}")
         return 1
 
-    axes = json.loads(AXES_PATH.read_text())
-    factions = json.loads(FACTIONS_PATH.read_text())
+    axes = biome_io.load_axes()
+    factions = biome_io.load_factions()  # raw read — bit audit must see canonical bytes
 
     print(f"=== Faction Bit Audit ===")
     print(f"Axes: {len(axes)} | Factions: {len(factions)}")

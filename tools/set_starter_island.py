@@ -13,8 +13,11 @@ Starter island:
   BioticFlux       — ecological margin, pure-H (intentionally empty L)
 """
 from __future__ import annotations
-import json
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import biome_io  # noqa: E402
 
 ISLAND = {
     "StarterForest",
@@ -27,8 +30,7 @@ ISLAND = {
 
 
 def main() -> int:
-    path = Path(__file__).resolve().parent.parent / "Core/Biomes/data/biomes.json"
-    biomes = json.load(path.open())
+    biomes = biome_io.load_biomes()  # raw read — mutate scripts never normalize
     turned_on, turned_off = [], []
     for b in biomes:
         want = b["name"] in ISLAND
@@ -38,7 +40,7 @@ def main() -> int:
             turned_on.append(b["name"])
         elif not want and was:
             turned_off.append(b["name"])
-    json.dump(biomes, path.open("w"), indent=2, ensure_ascii=False)
+    biome_io.save_biomes(biomes)
     if turned_on:
         print(f"  discovered ON :  {sorted(turned_on)}")
     if turned_off:
