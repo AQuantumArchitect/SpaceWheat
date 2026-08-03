@@ -19,7 +19,6 @@ var escape_menu: EscapeMenu
 # keyboard_hint_button REMOVED - controls/help now lives on Z
 var biome_inspector: BiomeInspectorOverlay  # Biome inspection overlay
 var map_meta_overlay: MapMetaOverlay  # Biome × faction map overlay
-var icon_detail_panel  # Icon information detail panel
 
 # Unified overlay registry
 var overlays: Dictionary = {}  # _name → OverlayBase instance
@@ -190,14 +189,6 @@ func create_overlays(parent: Control) -> void:
 	_verbose.info("ui", "🌍", "Biome inspector overlay created (B to toggle)")
 	_setup_visibility_processing(biome_inspector)
 
-	# Create Icon Detail Panel
-	icon_detail_panel = IconDetailPanel.new()
-	icon_detail_panel.set_layout_manager(layout_manager)
-	parent.add_child(icon_detail_panel)
-	icon_detail_panel.panel_closed.connect(_on_icon_detail_panel_closed)
-	_verbose.info("ui", "📖", "Icon detail panel created (click emojis in icon to view)")
-	_setup_visibility_processing(icon_detail_panel)
-
 	# Create unified overlays
 	_create_overlays(parent)
 
@@ -215,12 +206,6 @@ func update_positions() -> void:
 
 func _on_biome_inspector_closed() -> void:
 	# Handle biome inspector overlay closed signal
-	pass
-
-
-func _on_icon_detail_panel_closed() -> void:
-	# Handle icon detail panel closed signal
-	# Nothing special needed - panel just hides itself
 	pass
 
 

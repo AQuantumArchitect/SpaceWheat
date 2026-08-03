@@ -42,8 +42,9 @@ ARCHIVE_ROOT = ROOT / "archive"
 HIVE_RUNTIME_DIR = ROOT / "🍄" / "🧪" / "hive"
 
 # Slop-patrol reports are the same category: duplication audits that QUOTE live and
-# archived filenames as findings. A report naming tools/build_icon_lexicon.py (which
-# exists, outside the scan roots) is data about the tree, not resurrected code.
+# archived filenames as findings. A report naming tools/build_icon_lexicon.py (the
+# one-shot 2b72ac19 migration scaffold, since deleted along with its gen/validate
+# siblings) is data about the tree's history, not resurrected code.
 SLOP_PATROL_GLOB = "SLOP_PATROL_*.md"
 ARCHIVED_PATHS = {
     ROOT / "tests" / "contract_market_smoke.gd",
