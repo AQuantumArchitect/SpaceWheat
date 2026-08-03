@@ -76,7 +76,15 @@ may drift.
 
 ### Big mechanical wins (large, clean, low-risk to collapse)
 
-- **UI overlay "mini design system" forked 4×.** `EscapeMenu.gd`,
+- **UI overlay "mini design system" forked 4×.** **PARTIALLY CLOSED
+  (consolidation P3, 2026-08-03):** the copy-pasted widget builders
+  (`_make_key_chip`/`_make_muted_label`/`_make_kv_row`/`_make_empty_row`/
+  `_make_spacer`/`_ratio_bar`) are now one-line delegates into the new
+  `UI/Core/OverlayChrome.gd` (parameterized so every overlay keeps its exact
+  historical look — see knot #19 below for what deliberately stayed forked:
+  tab rows, open/close/input wiring, and BiomeInspectorOverlay's kv/bar
+  variants). The bounce/pop tweens and percent-formatting helpers below
+  remain open. Original finding: `EscapeMenu.gd`,
   `ControlsOverlay.gd`, `QuestBoard.gd`, `MapMetaOverlay.gd` (+ cousins
   `BiomeInspectorOverlay.gd`/`InspectorOverlay.gd`) all extend `Surface.gd`
   but each reinvented `_make_key_chip`, `_make_muted_label`, `_make_kv_row`,
@@ -154,21 +162,25 @@ may drift.
   **CLOSED (2026-08-03):** `BiomeBase._calculate_quantum_entropy`/
   `_calculate_quantum_coherence` deleted (zero callers re-verified at deletion
   time).
-- **`BridgeRegister._apply_unitary` hand-rolls a 2×2 complex matrix
-  multiply** (`Core/QuantumSubstrate/BridgeRegister.gd:241-270`) on packed
-  floats instead of calling `ComplexMatrix.mul()`/`conjugate_transpose()` —
-  which live in the same directory.
+- ~~**`BridgeRegister._apply_unitary` hand-rolls a 2×2 complex matrix
+  multiply**~~ **CLOSED BY RULING (consolidation P3, 2026-08-03): not slop.**
+  `ComplexMatrix.mul()`/`dagger()` now delegate to the native compute kernel,
+  so routing this fixed-size sandwich through them would add Array↔Packed
+  conversions, 3 object allocations, and a native-lib dependency on the
+  save-serialized bridge path while deduplicating zero logic;
+  `QuantumGateLibrary` has no packed 2×2 sandwich helper either. Ruling
+  documented in a comment at the function.
 - **`WitnessBridge` is explicitly commented "cloned from
   `PlayerEventBridge`"** (`Core/Witness/WitnessBridge.gd:1-70`), including a
   verbatim `_connect_once` helper and near-identical farm-ready wiring. An
   intentional fork never pulled into a shared `SignalBridge` base.
-- **Three near-identical affinity-scoring methods in one file** —
-  `Core/Quantum/BiomeAlignmentCalculator.gd`: `calculate_affinity` (8-56),
-  `calculate_affinity_with_populations` (58-106), and
-  `_calculate_affinity_from_emojis` (131-148) each independently accumulate
-  `IconPairing.get_connection_weights` over an icon×biome-emoji loop — and
-  `calculate_affinity` doesn't even call the "shared" helper that was added
-  later. ~60 duplicated lines.
+- ~~**Three near-identical affinity-scoring methods in one file**~~
+  **CLOSED (consolidation P3, 2026-08-03):** all three public entry points
+  (`calculate_affinity`, `calculate_affinity_with_populations`,
+  `calculate_affinity_by_name`) now delegate to one shared
+  `_accumulate_affinity(icon, biome_emojis, populations)` core; the
+  population weighting became an optional parameter. Public signatures and
+  outputs unchanged.
 - **Two independent hand-written Kraus-map loops for the same physics** —
   `Core/QuantumSubstrate/QuantumComputer.gd`: `apply_jump_channel`
   (~1307-1355, cross-qubit) and `_apply_lindblad_1q` (1362-1420, same-qubit)
@@ -367,9 +379,8 @@ Knot: a shared `tools/assay_cli.py:run_assay(...)` must preserve the orphan-biom
 
 #### Tier 3 — Core game-state, save-load & economy correctness
 
-**11. BIOME_ORDER duplicated as independent mutable state across ObservationFrame and ActiveBiomeManager**
-`Core/GameState/ObservationFrame.gd:18` and `Core/GameState/ActiveBiomeManager.gd:31` each own a separate `BIOME_ORDER` array; index/count methods copy-pasted verbatim (`ObservationFrame.gd:105-118` vs `ActiveBiomeManager.gd:168-182`); kept in sync via two hand-rolled dual-write routines: `Core/GameState/GameStateSerializer.gd:648-659` (`_restore_biome_progression_state`) and `Core/Boot/WorldBuilder.gd:107-119` (`sync_biome_progression_autoloads`).
-Knot: touches boot, save/load, and live navigation input — needs ObservationFrame designated single owner, not a blind merge.
+**11. ~~BIOME_ORDER duplicated as independent mutable state across ObservationFrame and ActiveBiomeManager~~**
+**CLOSED (consolidation P3, 2026-08-03): ObservationFrame designated single owner.** ObservationFrame gained `set_biome_order()` + a `biome_order_changed` signal (also emitted from `unlock_biome`/`lock_biome`/`reset`/`_load_unlocked_biomes`); ActiveBiomeManager's `BIOME_ORDER` is now a signal-driven mirror — its `set_biome_order()` applies locally (headless fallback) then routes divergence back through the authority, and its internal `_apply_biome_order()` never writes back. The two dual-write routines (`GameStateSerializer._restore_biome_progression_state`, `WorldBuilder.sync_biome_progression_autoloads`) no longer poke `BIOME_ORDER` fields directly. Serialization format untouched (still `state.unlocked_biomes`). The verbatim index/count method copies remain but now read a guaranteed-synced mirror.
 
 **12. Both scenario `.tres` files bake an identical, schema-stale default `plots` array instead of sharing GameState's factory**
 `Scenarios/demos_normal.tres:33`, `Scenarios/new_game_easy.tres:47` — pre-migration schema (bare `type` int). `Core/GameState/GameState.gd:314-338` (`create_for_grid`) builds the current richer schema. `Core/GameState/GameStateSerializer.gd:452-461` carries a legacy-format shim that exists solely to translate the stale `.tres` files.
@@ -385,9 +396,8 @@ Knot: no mechanical cross-language merge is possible; needs a shared manifest fo
 
 #### Tier 4 — UI/overlay & render-path duplication
 
-**15. EmojiAtlasBatcher's `_normalize_emoji()` diverges from canonical `EmojiUtil.normalize()` on the atlas/render lookup path**
-`Core/Utilities/EmojiUtil.gd:17-18` strips FE0F+FE0E. `Core/Visualization/EmojiAtlasBatcher.gd:91-107` strips only FE0F (103) and additionally strips ZWJ U+200D (105), never touching FE0E.
-Knot: atlas dictionary keys may currently depend on the ZWJ-stripping behavior — needs an owner call on which selector set is correct before swapping, not a blind delegation.
+**15. ~~EmojiAtlasBatcher's `_normalize_emoji()` diverges from canonical `EmojiUtil.normalize()` on the atlas/render lookup path~~**
+**CLOSED (consolidation P3, 2026-08-03): unified onto `EmojiUtil.normalize`, probe-verified.** A probe over the full emoji universe (every string in biomes.json + factions.json + icons.json, 254 candidates) plus a repo-wide grep of GDScript sources found **zero** ZWJ (U+200D) and **zero** FE0E carriers — the two schemes produce byte-identical atlas keys over the entire actual domain, so the delegation is behavior-preserving, not a blind swap. `_normalize_emoji` now delegates, with the history + probe documented in a comment at the function.
 
 **16. BubbleAtlasBatcher and EmojiAtlasBatcher independently implement the same textured-quad batching, already diverged in optimization**
 `Core/Visualization/BubbleAtlasBatcher.gd:464-489` vs `Core/Visualization/EmojiAtlasBatcher.gd:535-570` (quad/UV/triangle push); flush() diverges: `BubbleAtlasBatcher.gd:657-677` pre-allocates the index array, `EmojiAtlasBatcher.gd:618-640` still builds one with a GDScript loop every flush.
@@ -401,9 +411,8 @@ Knot: migrating the frame-keyed four is mostly mechanical; ControlsOverlay/Escap
 `UI/Overlays/EscapeMenu.gd:191-206` (manual mouse_filter/connect instead of `UI/Core/ClickWire.gd:22-27`'s `ClickWire.attach`), `_on_tab_label_gui_input` (209-214) checks `_pending_action != PendingAction.NONE` *before* the event filter and before `accept_event()`; `_show_tab()` (1286) never re-checks the guard.
 Knot: `ClickWire.attach` always calls `accept_event()` before invoking its callback — a naive migration changes whether clicks propagate while a confirm modal is showing; needs verification of whether that ordering is load-bearing.
 
-**19. Small overlay-chrome helpers copy-pasted across 4-5 overlay files instead of extending UIStyleFactory**
-`_make_key_chip`/`_make_muted_label`: `UI/Overlays/ControlsOverlay.gd:1578-1593`, `EscapeMenu.gd:938-953` (byte-identical to ControlsOverlay's), `QuestBoard.gd:1724-1735,1748-1754`, `MapMetaOverlay.gd:1343-1358`. `_make_spacer`: `ControlsOverlay.gd:1603-1606`, `EscapeMenu.gd:955-958`. `_ratio_bar`: `QuestBoard.gd:1764-1771`, `MapMetaOverlay.gd:1360-1367`, `ControlsOverlay.gd:2144-2149`. `_make_empty_row`: `ControlsOverlay.gd:2159-2168`, `QuestBoard.gd:1737-1746`. `UI/Core/UIStyleFactory.gd:258,69` already has a near-miss `create_muted_label`.
-Knot: the four `_make_key_chip` copies have diverging optional params (`selected`/`empty`) that need reconciling into one signature first.
+**19. ~~Small overlay-chrome helpers copy-pasted across 4-5 overlay files instead of extending UIStyleFactory~~**
+**CLOSED (consolidation P3, 2026-08-03): extracted to `UI/Core/OverlayChrome.gd`.** One static builder family (`key_chip`/`muted_label`/`spacer`/`ratio_bar`/`empty_row`/`kv_row`), parameterized so every overlay keeps its EXACT historical styling; each overlay's local `_make_*` became a one-line delegate pinning its params (QuestBoard chip 14px/28w with selected/empty colors; MapMeta chip on its local axis palette + its 0.9-alpha muted; EscapeMenu's no-autowrap kv value; QuestBoard's no-autowrap muted; `_comfort_bar` = `ratio_bar(absf(c))`). Also folded `InspectorOverlay._map_make_spacer`. **Deliberately NOT migrated** (ruled load-bearing forks, documented in OverlayChrome's header): tab-row builders (knot #17 — ControlsOverlay/EscapeMenu key off local enums), EscapeMenu tab click handling (knot #18 — pending-confirm guard ordering), overlay open/close/input-swallow wiring (per-overlay, z-order/input regression history #197/#243), and BiomeInspectorOverlay's genuinely-variant `_make_kv_row`/`_make_ratio_bar` (different geometry/fallbacks). Knots #17/#18/#20 remain open.
 
 **20. Overlay-instantiation boilerplate repeated ~9× in OverlayManager**
 `UI/Managers/OverlayManager.gd` — quest_board (151-165), escape_menu (170-181), biome_inspector (186-191), icon_detail_panel (194-199), inspector_overlay (270-276), controls_overlay (279-285), welcome_overlay (288-293), atlas_overlay (296-302), map_meta_overlay (313-318), neighborhood_graph_overlay (323-328).
@@ -439,9 +448,8 @@ Knot: the policy-string swap is low-risk, but picking one real timeout formula (
 `🍄/🎛️/run_executor.py:122-289` (`build_seed_cmd`/`build_runner_cmd`/`build_batch_cmd`/`run_seed`/`run_batch`/`run_runner`, zero call sites repo-wide) vs `🍄/🎛️/milk_hunt_batch.py:359-417` (`_run_trial`, ~25 conditional `cmd.extend()`/`append()` calls covering flags the builders don't know about).
 Knot: either delete the unused surface or bring it to full flag parity with `_run_trial` and switch callers over — the latter touches the hot batch-run path.
 
-**28. Icon-lexicon tooling trio operates on a biome-level `icons[]` field that no longer exists in the data**
-`tools/gen_biome_icon_stubs.py:165` and `tools/validate_icon_lexicon.py:66` both iterate `biome.get('icons', [])`, which sums to 0 across all 163 biomes in `Core/Biomes/data/biomes.json`; `tools/build_icon_lexicon.py` shares the same hand-rolled loader pattern rather than `tools/biome_audit.py`'s shared loaders.
-Knot: requires a product/data decision — restore `icons[]` emission upstream, or retire the biome-side logic as dead — before any loader consolidation makes sense.
+**28. ~~Icon-lexicon tooling trio operates on a biome-level `icons[]` field that no longer exists in the data~~**
+**PARTIALLY CLOSED (consolidation P3, 2026-08-03): verdict OBSOLETE, not regression — tool + artifact deleted.** Git archaeology: per-biome `icons[]` left biomes.json in commit `2b72ac19` (2026-05-30, "de-iconed biomes") — a *deliberate* migration that in the same commit created the faction-side icon authority (`Core/Factions/data/icons.json` 367 entries, `IconRegistry`/`IconFamily`/`IconLoadoutInducer`, cutover smoke tests) and grew biomes 60→162 all authored bare; all 102 factions now carry `icons`. `build_icon_lexicon.py` + `gen_biome_icon_stubs.py` + `validate_icon_lexicon.py` + `icon_lexicon_proposals.json` were all *added by that same commit* as its one-shot migration scaffolding (the tool's own docstring: cross-reference biome icons[] to seed factions.json), never invoked by CI/scripts, never meaningfully touched since. Deleted this pass: `tools/build_icon_lexicon.py` and the frozen artifact `tools/icon_lexicon_proposals.json` (the two explicitly named for removal). Still present, same-verdict, awaiting explicit naming: `tools/gen_biome_icon_stubs.py`, `tools/validate_icon_lexicon.py`. Stale-comment note: `tests/test_architecture_hygiene.py:45` mentions build_icon_lexicon.py in a comment ("which exists, outside the scan roots") — comment-only, no assertion depends on it, left untouched (tests/ owned by a concurrent pass).
 
 #### Tier 6 — Test infrastructure
 
@@ -459,9 +467,8 @@ Knot: safe action depends on whether the underlying invariant is covered live el
 
 #### Tier 7 — Documentation drift
 
-**32. README.md's core-loop key bindings contradict the game's own canonical Ace-hat table**
-`README.md:57-58` ("Measure a qubit (Ace E)... Harvest (Ace Q)") vs `docs/GAME_CODEX.md:187`, `docs/HOW_TO_PLAY.md:58`, `docs/ARCHETYPE_FRAMES.md:73` (all agree: Q=Extract, E=Pause, R=Strike/measure, F=Explore/Fast-Fwd). `README.md:30-32` itself names GAME_CODEX.md "the single canonical source of truth."
-Knot: the highest-traffic entry-point doc disagrees with the doc it names canonical — needs an owner call on whether README's section is a simplified gloss (then label it as such) or should be rewritten to match.
+**32. ~~README.md's core-loop key bindings contradict the game's own canonical Ace-hat table~~**
+**CLOSED (consolidation P3, 2026-08-03): README rewritten to match reality.** Verified against `UI/Core/KEYBOARD_GRAMMAR.md:160-162,298` (live grammar: R=Strike/measure costs 👥, Q=Extract free cash-out, E=Pause, F=Explore/Fast-Fwd), which agrees with GAME_CODEX/HOW_TO_PLAY/ARCHETYPE_FRAMES. README's core-loop steps 1-2 now read Strike (Ace R, with F=Explore noted) and Extract (Ace Q, free); README:80's hat table was already correct.
 
 **33. Three docs maintain separate, partially-diverging Linux build prerequisites**
 `BUILDING.md:16,44` and `docs/release/RELEASE_README.md:106` agree (`build-essential git python3 python3-pip scons`); `docs/build/BUILD_LINUX.md:11` genuinely differs (`git g++ make wget unzip`, no python3/scons) because it documents a different build path (prebuilt Godot + native/ Makefile-only).

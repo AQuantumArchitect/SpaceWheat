@@ -919,43 +919,17 @@ func _make_section_header(text: String) -> Label:
 	return lbl
 
 func _make_kv_row(key: String, value: String) -> Control:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 10)
-	var k := Label.new()
-	k.text = key
-	k.add_theme_font_size_override("font_size", 12)
-	k.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
-	k.custom_minimum_size = Vector2(140, 0)
-	row.add_child(k)
-	var v := Label.new()
-	v.text = value
-	v.add_theme_font_size_override("font_size", 13)
-	v.add_theme_color_override("font_color", UIStyleFactory.COLOR_VALUE)
-	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(v)
-	return row
+	# Historical quirk kept: no autowrap on the value column here.
+	return OverlayChrome.kv_row(key, value, 140, false)
 
 func _make_key_chip(key_text: String) -> Label:
-	var lbl := Label.new()
-	lbl.text = "[%s]" % key_text
-	lbl.add_theme_font_size_override("font_size", 13)
-	lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_KEY_CHIP)
-	lbl.custom_minimum_size = Vector2(32, 0)
-	return lbl
+	return OverlayChrome.key_chip(key_text)
 
 func _make_muted_label(text: String, icon_size: int) -> Label:
-	var lbl := Label.new()
-	lbl.text = text
-	lbl.add_theme_font_size_override("font_size", icon_size)
-	lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
-	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	return lbl
+	return OverlayChrome.muted_label(text, icon_size)
 
 func _make_spacer(h: int) -> Control:
-	var c := Control.new()
-	c.custom_minimum_size = Vector2(0, h)
-	return c
+	return OverlayChrome.spacer(h)
 
 # =============================================================================
 # BODY: BALANCE — live economy/system tunables + read-only action cost inspector.

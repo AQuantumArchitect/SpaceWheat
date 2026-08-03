@@ -54,8 +54,9 @@ Each biome runs a **density matrix simulation** of its quantum state. A biome is
 
 ## The core loop
 
-1. **Measure** a qubit (Ace **E**): Born-sample it; it collapses to one emoji.
-2. **Harvest** (Ace **Q**): cash the outcome for resources — reward is the
+1. **Strike** a qubit (Ace **R**): Born-sample it; it collapses to one emoji.
+   (**F** = Explore first to open the register and see the odds; Strike costs 👥.)
+2. **Extract** (Ace **Q**, free): cash the outcome for resources — reward is the
    surprisal `−kT·log p` (rarer = richer), with a bonus if the icon is in your
    signature.
 3. **Track & Incorporate** (Icon **F** then **R**): let a qubit accumulate Berry

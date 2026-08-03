@@ -240,6 +240,13 @@ func from_dict(data: Dictionary) -> void:
 
 static func _apply_unitary(rho: Array, u: Array) -> Array:
 	# ρ' = U ρ U† on packed 2×2 complex layout [00r,00i,01r,01i,10r,10i,11r,11i].
+	#
+	# Deliberately hand-rolled (slop-patrol ruling 2026-08-03): ComplexMatrix
+	# mul()/dagger() now delegate to the native compute kernel, so routing this
+	# fixed-size sandwich through it would add Array<->Packed conversions, 3
+	# object allocations, and a native-lib dependency on the save-serialized
+	# bridge path — deduplicating zero logic. QuantumGateLibrary has no packed
+	# 2×2 sandwich helper either. Keep local.
 	var m := [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 	for i in range(2):
 		for j in range(2):

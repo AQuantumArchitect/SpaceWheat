@@ -66,10 +66,13 @@ func _connect_to_observation_frame() -> void:
 	if _observation_frame:
 		if not _observation_frame.neutral_changed.is_connected(_on_neutral_changed):
 			_observation_frame.neutral_changed.connect(_on_neutral_changed)
+		if _observation_frame.has_signal("biome_order_changed") \
+				and not _observation_frame.biome_order_changed.is_connected(_apply_biome_order):
+			_observation_frame.biome_order_changed.connect(_apply_biome_order)
 		# Sync initial state
 		active_biome = _observation_frame.get_neutral_biome()
 		# Sync unlocked biomes
-		set_biome_order(_observation_frame.get_unlocked_biomes())
+		_apply_biome_order(_observation_frame.get_unlocked_biomes())
 
 
 func _on_neutral_changed(biome: String) -> void:
@@ -227,6 +230,23 @@ func get_biome_order() -> Array[String]:
 
 func set_biome_order(new_order: Array) -> void:
 	# Replace the current unlocked biome order and notify listeners.
+	#
+	# ObservationFrame is the single authority for BIOME_ORDER (slop-patrol
+	# Tier 3); this manager only mirrors it. Apply locally first (covers
+	# headless setups with no ObservationFrame autoload), then push through
+	# the authority — its biome_order_changed signal re-applies here
+	# idempotently, and keeps any other mirror in sync.
+	_apply_biome_order(new_order)
+	if _observation_frame == null:
+		_observation_frame = get_node_or_null("/root/ObservationFrame")
+	if _observation_frame and _observation_frame.has_method("set_biome_order"):
+		if _observation_frame.get_unlocked_biomes() != BIOME_ORDER:
+			_observation_frame.set_biome_order(new_order)
+
+
+func _apply_biome_order(new_order: Array) -> void:
+	# Mirror-apply an order pushed by ObservationFrame (or a direct caller
+	# when no ObservationFrame exists). Does NOT write back to the authority.
 	var normalized: Array[String] = []
 	for biome_name in new_order:
 		var biome_text := str(biome_name)
@@ -248,7 +268,9 @@ func get_biome_info(biome_name: String) -> Dictionary:
 func reset() -> void:
 	# Reset to initial state (for dev restart).
 	active_biome = "StarterForest"
-	set_biome_order(["StarterForest", "Village"])
+	# Local mirror only — SessionLifecycle resets ObservationFrame itself;
+	# writing back to the authority here would fight that reset ordering.
+	_apply_biome_order(["StarterForest", "Village"])
 	_transitioning = false
 	_observation_frame = null
 

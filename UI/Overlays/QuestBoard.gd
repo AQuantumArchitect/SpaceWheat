@@ -1722,53 +1722,25 @@ func _on_quest_pool_changed(_quest: Dictionary = {}) -> void:
 		_render_all()
 
 func _make_key_chip(key_str: String, selected: bool = false, empty: bool = false) -> Label:
-	var lbl := Label.new()
-	lbl.text = "[%s]" % key_str
-	lbl.add_theme_font_size_override("font_size", 14)
+	var color := UIStyleFactory.COLOR_KEY_CHIP
 	if empty:
-		lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_ITEM_EMPTY)
+		color = UIStyleFactory.COLOR_ITEM_EMPTY
 	elif selected:
-		lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_TAB_ACTIVE)
-	else:
-		lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_KEY_CHIP)
-	lbl.custom_minimum_size = Vector2(28, 0)
-	return lbl
+		color = UIStyleFactory.COLOR_TAB_ACTIVE
+	return OverlayChrome.key_chip(key_str, 14, 28, color)
 
 func _make_empty_row(key_str: String) -> Control:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 10)
-	row.add_child(_make_key_chip(key_str, false, true))
-	var lbl := Label.new()
-	lbl.text = "—"
-	lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_ITEM_EMPTY)
-	lbl.add_theme_font_size_override("font_size", 12)
-	row.add_child(lbl)
-	return row
+	return OverlayChrome.empty_row(_make_key_chip(key_str, false, true))
 
 func _make_muted_label(text: String, icon_size: int) -> Label:
-	var lbl := Label.new()
-	lbl.text = text
-	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lbl.add_theme_font_size_override("font_size", icon_size)
-	lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
-	return lbl
+	# Historical quirk kept: no autowrap on QuestBoard's muted labels.
+	return OverlayChrome.muted_label(text, icon_size, UIStyleFactory.COLOR_MUTED, false)
 
 func _comfort_bar(comfort: float, length: int) -> String:
-	var filled: int = int(round(absf(comfort) * float(length)))
-	filled = clampi(filled, 0, length)
-	var bar := ""
-	for i in range(length):
-		bar += "▮" if i < filled else "▯"
-	return bar
+	return OverlayChrome.ratio_bar(absf(comfort), length)
 
 func _ratio_bar(ratio: float, length: int) -> String:
-	var clamped: float = clampf(ratio, 0.0, 1.0)
-	var filled: int = int(round(clamped * float(length)))
-	filled = clampi(filled, 0, length)
-	var bar := ""
-	for i in range(length):
-		bar += "▮" if i < filled else "▯"
-	return bar
+	return OverlayChrome.ratio_bar(ratio, length)
 
 func _comfort_color(comfort: float) -> Color:
 	if comfort > 0.05:

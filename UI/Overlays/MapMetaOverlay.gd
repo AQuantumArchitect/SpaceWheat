@@ -1341,30 +1341,15 @@ func _row_stylebox(selected: bool) -> StyleBoxFlat:
 	return sb
 
 func _make_key_chip(key_str: String, selected: bool) -> Label:
-	var lbl := Label.new()
-	lbl.text = "[%s]" % key_str
-	lbl.add_theme_font_size_override("font_size", 13)
-	lbl.add_theme_color_override("font_color", COLOR_HILITE if selected else COLOR_AXIS_A)
-	lbl.custom_minimum_size = Vector2(28, 0)
-	return lbl
+	# Historical palette kept: this overlay's chips use its axis colors.
+	return OverlayChrome.key_chip(key_str, 13, 28, COLOR_HILITE if selected else COLOR_AXIS_A)
 
 func _make_muted_label(text: String, icon_size: int) -> Label:
-	var lbl := Label.new()
-	lbl.text = text
-	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lbl.add_theme_font_size_override("font_size", icon_size)
-	lbl.add_theme_color_override("font_color", COLOR_MUTED)
-	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	return lbl
+	# Historical palette kept: local COLOR_MUTED (alpha 0.9 vs factory 0.85).
+	return OverlayChrome.muted_label(text, icon_size, COLOR_MUTED)
 
 func _ratio_bar(ratio: float, length: int) -> String:
-	var clamped: float = clampf(ratio, 0.0, 1.0)
-	var filled: int = int(round(clamped * float(length)))
-	filled = clampi(filled, 0, length)
-	var bar := ""
-	for i in range(length):
-		bar += "▮" if i < filled else "▯"
-	return bar
+	return OverlayChrome.ratio_bar(ratio, length)
 
 func _phase_glyph(off: Vector2) -> String:
 	if off.length_squared() < 1e-12:

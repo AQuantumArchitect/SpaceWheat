@@ -26,6 +26,7 @@ var _biome_registry: BiomeRegistry = null
 ## Signals
 signal frame_shifted(old_biome: String, new_biome: String, direction: int)
 signal neutral_changed(biome: String)
+signal biome_order_changed(new_order: Array)
 
 
 func _ready() -> void:
@@ -118,6 +119,23 @@ func get_biome_count() -> int:
 	return BIOME_ORDER.size()
 
 
+## Replace the unlocked-biome order. SINGLE AUTHORITY (slop-patrol Tier 3):
+## ObservationFrame owns BIOME_ORDER; ActiveBiomeManager mirrors it via the
+## biome_order_changed signal. Writers (WorldBuilder, GameStateSerializer,
+## rig) should call this — never poke BIOME_ORDER fields directly.
+func set_biome_order(new_order: Array) -> void:
+	var normalized: Array[String] = []
+	for biome_name in new_order:
+		var biome_text := str(biome_name)
+		if biome_text == "":
+			continue
+		normalized.append(biome_text)
+	BIOME_ORDER = normalized
+	if neutral_index >= BIOME_ORDER.size():
+		neutral_index = 0
+	biome_order_changed.emit(BIOME_ORDER.duplicate())
+
+
 ## Check if a biome is currently the neutral reference
 func is_neutral(biome_name: String) -> bool:
 	return biome_name == get_neutral_biome()
@@ -141,6 +159,7 @@ func _load_unlocked_biomes() -> void:
 			# Clamp neutral_index to valid range
 			if neutral_index >= BIOME_ORDER.size():
 				neutral_index = 0
+			biome_order_changed.emit(BIOME_ORDER.duplicate())
 
 	# Refresh unexplored pool against loadable list. Biomes flagged
 	# `discoverable=false` are skipped — they're loadable but cannot appear in
@@ -200,6 +219,7 @@ func unlock_biome(biome_name: String) -> bool:
 		return false
 
 	BIOME_ORDER.append(biome_name)
+	biome_order_changed.emit(BIOME_ORDER.duplicate())
 
 	# Persist to GameState
 	var gsm = get_node_or_null("/root/GameStateManager")
@@ -234,6 +254,8 @@ func lock_biome(biome_name: String) -> bool:
 		neutral_index = max(0, BIOME_ORDER.size() - 1)
 	elif removed_index <= neutral_index:
 		neutral_index = max(0, neutral_index - 1)
+
+	biome_order_changed.emit(BIOME_ORDER.duplicate())
 
 	var gsm = get_node_or_null("/root/GameStateManager")
 	if gsm and gsm.current_state:
@@ -296,6 +318,7 @@ func get_unexplored_biomes() -> Array[String]:
 func reset() -> void:
 	BIOME_ORDER = ["StarterForest", "Village"]
 	neutral_index = 0
+	biome_order_changed.emit(BIOME_ORDER.duplicate())
 
 
 func _refresh_loadable_biomes() -> void:

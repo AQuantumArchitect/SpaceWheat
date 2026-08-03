@@ -645,16 +645,21 @@ func _restore_biome_progression_state(state: GameState) -> void:
 		gsm.current_state.unexplored_biome_pool = state.unexplored_biome_pool.duplicate()
 		gsm.current_state.active_biome_name = active_biome
 
+	# ObservationFrame is the single authority for biome order (slop-patrol
+	# Tier 3); its biome_order_changed signal fans out to ActiveBiomeManager.
 	var observation_frame = _get_autoload("ObservationFrame")
 	if observation_frame:
-		if "BIOME_ORDER" in observation_frame:
-			observation_frame.BIOME_ORDER = unlocked_biomes.duplicate()
+		if observation_frame.has_method("set_biome_order"):
+			observation_frame.set_biome_order(unlocked_biomes)
 		if observation_frame.has_method("set_neutral_biome") and active_biome != "":
 			observation_frame.set_neutral_biome(active_biome)
 
 	var active_biome_manager = _get_autoload("ActiveBiomeManager")
 	if active_biome_manager:
 		if active_biome_manager.has_method("set_biome_order"):
+			# Idempotent: the mirror applies locally and only writes back to
+			# the authority if it has diverged (covers partial headless boots
+			# and the window before ABM's deferred signal connect).
 			active_biome_manager.set_biome_order(unlocked_biomes)
 		if active_biome_manager.has_method("set_active_biome") and active_biome != "":
 			active_biome_manager.set_active_biome(active_biome)

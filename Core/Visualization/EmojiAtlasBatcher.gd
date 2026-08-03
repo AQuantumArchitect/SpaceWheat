@@ -91,21 +91,23 @@ func _init():
 func _normalize_emoji(emoji: String) -> String:
 	# Normalize emoji string for consistent lookup.
 
-	# Removes variation selectors (U+FE0F) and zero-width joiners to ensure
-	# emojis match between atlas building and rendering phases.
+	# Strips variation selectors so emojis match between atlas building and
+	# rendering phases.
 
 	# Example: "⚙️" (with U+FE0F) becomes "⚙" (without)
+	#
+	# Delegates to the canonical EmojiUtil.normalize (strips FE0F + FE0E).
+	# Historical note (slop-patrol Tier 4, unified 2026-08-03): this used to
+	# strip FE0F + ZWJ (U+200D) instead. A probe over the full emoji universe
+	# (biomes.json + factions.json + icons.json + all GDScript literals)
+	# found zero ZWJ and zero FE0E carriers, so both schemes produce
+	# identical atlas keys over the actual domain -- unification is
+	# behavior-preserving. If ZWJ-sequence emojis are ever added, atlas build
+	# and lookup both pass through this same function, so keys stay
+	# self-consistent.
 	if emoji.is_empty():
 		return emoji
-
-	# Remove all variation selectors (U+FE0F) - these are often added inconsistently
-	# by text editors, terminals, and different Unicode implementations
-	var normalized = emoji.replace("\uFE0F", "")
-
-	# Also remove zero-width joiners (U+200D) which can combine emojis inconsistently
-	normalized = normalized.replace("\u200D", "")
-
-	return normalized
+	return EmojiUtil.normalize(emoji)
 
 
 func build_atlas(emoji_list: Array, font_size: int = 48) -> bool:

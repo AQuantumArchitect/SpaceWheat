@@ -1533,22 +1533,7 @@ func _make_section_header(text: String) -> Label:
 	return lbl
 
 func _make_kv_row(key: String, value: String) -> Control:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 10)
-	var k := Label.new()
-	k.text = key
-	k.add_theme_font_size_override("font_size", 12)
-	k.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
-	k.custom_minimum_size = Vector2(140, 0)
-	row.add_child(k)
-	var v := Label.new()
-	v.text = value
-	v.add_theme_font_size_override("font_size", 13)
-	v.add_theme_color_override("font_color", UIStyleFactory.COLOR_VALUE)
-	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	v.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	row.add_child(v)
-	return row
+	return OverlayChrome.kv_row(key, value)
 
 func _make_action_row(key_text: String, label: String, hint: String) -> Control:
 	var row := HBoxContainer.new()
@@ -1576,21 +1561,10 @@ func _make_action_row(key_text: String, label: String, hint: String) -> Control:
 	return row
 
 func _make_key_chip(key_text: String) -> Label:
-	var lbl := Label.new()
-	lbl.text = "[%s]" % key_text
-	lbl.add_theme_font_size_override("font_size", 13)
-	lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_KEY_CHIP)
-	lbl.custom_minimum_size = Vector2(32, 0)
-	return lbl
+	return OverlayChrome.key_chip(key_text)
 
 func _make_muted_label(text: String, icon_size: int) -> Label:
-	var lbl := Label.new()
-	lbl.text = text
-	lbl.add_theme_font_size_override("font_size", icon_size)
-	lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
-	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	return lbl
+	return OverlayChrome.muted_label(text, icon_size)
 
 func _make_body(text: String) -> Label:
 	var lbl := Label.new()
@@ -1601,9 +1575,7 @@ func _make_body(text: String) -> Label:
 	return lbl
 
 func _make_spacer(h: int) -> Control:
-	var c := Control.new()
-	c.custom_minimum_size = Vector2(0, h)
-	return c
+	return OverlayChrome.spacer(h)
 
 # =============================================================================
 # CHATTER BUBBLE (Z Story page)
@@ -2143,11 +2115,7 @@ func _acknowledge_selected_arc() -> void:
 	_refresh_body()
 
 func _ratio_bar(ratio: float, length: int) -> String:
-	var filled: int = clampi(int(round(clampf(ratio, 0.0, 1.0) * float(length))), 0, length)
-	var bar := ""
-	for i in range(length):
-		bar += "▮" if i < filled else "▯"
-	return bar
+	return OverlayChrome.ratio_bar(ratio, length)
 
 func _score_color(score: float) -> Color:
 	if score >= 0.85:
@@ -2157,15 +2125,7 @@ func _score_color(score: float) -> Color:
 	return UIStyleFactory.COLOR_MUTED
 
 func _make_empty_row(key_str: String) -> Control:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 10)
-	row.add_child(_make_key_chip(key_str))
-	var lbl := Label.new()
-	lbl.text = "—"
-	lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_ITEM_EMPTY)
-	lbl.add_theme_font_size_override("font_size", 12)
-	row.add_child(lbl)
-	return row
+	return OverlayChrome.empty_row(_make_key_chip(key_str))
 
 # =============================================================================
 # SURFACE WIRING

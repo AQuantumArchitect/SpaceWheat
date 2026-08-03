@@ -429,9 +429,7 @@ func _make_map_biome_row(idx: int, slot_key: String, _biomes: Dictionary, abm) -
 	return hbox
 
 func _map_make_spacer(h: int) -> Control:
-	var c := Control.new()
-	c.custom_minimum_size = Vector2(0, h)
-	return c
+	return OverlayChrome.spacer(h)
 
 func _resolve_abm():
 	# Resolve the ActiveBiomeManager autoload — used by the Map frame.

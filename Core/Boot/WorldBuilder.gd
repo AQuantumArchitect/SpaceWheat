@@ -104,18 +104,21 @@ func sync_biome_progression_autoloads(state) -> void:
 	var active_biome := str(state.active_biome_name)
 
 	# RefCounted has no Node scope; resolve via main loop where available.
+	# ObservationFrame is the single authority for biome order (slop-patrol
+	# Tier 3); its biome_order_changed signal fans out to ActiveBiomeManager.
 	var observation_frame = (Engine.get_main_loop().root.get_node_or_null("/root/ObservationFrame") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 	if observation_frame:
-		if "BIOME_ORDER" in observation_frame:
-			observation_frame.BIOME_ORDER = loaded.duplicate()
-		if "neutral_index" in observation_frame and int(observation_frame.neutral_index) >= loaded.size():
-			observation_frame.neutral_index = 0
+		if observation_frame.has_method("set_biome_order"):
+			observation_frame.set_biome_order(loaded)
 		if observation_frame.has_method("set_neutral_biome"):
 			observation_frame.set_neutral_biome(active_biome)
 
 	var active_biome_manager = (Engine.get_main_loop().root.get_node_or_null("/root/ActiveBiomeManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 	if active_biome_manager:
 		if active_biome_manager.has_method("set_biome_order"):
+			# Idempotent: the mirror applies locally and only writes back to
+			# the authority if it has diverged (covers partial headless boots
+			# and the window before ABM's deferred signal connect).
 			active_biome_manager.set_biome_order(loaded)
 		if active_biome_manager.has_method("set_active_biome"):
 			active_biome_manager.set_active_biome(active_biome)

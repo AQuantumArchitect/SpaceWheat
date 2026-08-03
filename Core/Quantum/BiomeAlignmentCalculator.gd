@@ -4,6 +4,11 @@ extends RefCounted
 ## Biome Affinity Calculator
 ## Calculates quantum affinity between icons and biomes
 ## Uses graph-based connection weights from IconPairing
+##
+## All three public entry points share one accumulation core
+## (_accumulate_affinity); they differ only in where the biome emojis come
+## from (live QC viz_cache vs BiomeRegistry JSON) and whether connection
+## weights are population-weighted.
 
 static func calculate_affinity(icon: Dictionary, biome) -> float:
 	# Calculate quantum affinity between icon and biome.
@@ -17,43 +22,8 @@ static func calculate_affinity(icon: Dictionary, biome) -> float:
 
 	# Returns:
 	# float: Weighted connection strength (higher = better match)
+	return _accumulate_affinity(icon, _get_biome_emojis(biome))
 
-	# Algorithm:
-	# 1. Get emojis from icon
-	# 2. Get all emojis from biome QC
-	# 3. For each (icon_emoji, biome_emoji) pair:
-	# - Look up connection weight: |H| + L_in + L_out (IconPairing)
-	# - Accumulate total weight
-	# 4. Normalize by number of connections
-	var icon_emojis = [icon.get("north", ""), icon.get("south", "")]
-	var biome_emojis = _get_biome_emojis(biome)
-
-	# Filter out empty emojis
-	var filtered_emojis = []
-	for emoji in icon_emojis:
-		if not emoji.is_empty():
-			filtered_emojis.append(emoji)
-	icon_emojis = filtered_emojis
-
-	if icon_emojis.is_empty() or biome_emojis.is_empty():
-		return 0.0
-
-	var total_weight = 0.0
-	var connection_count = 0
-	var atom_registry = _get_atom_registry()
-
-	# Calculate connection strengths between all icon-biome emoji pairs
-	for icon_emoji in icon_emojis:
-		var connections = IconPairing.get_connection_weights(icon_emoji, atom_registry)
-
-		for biome_emoji in biome_emojis:
-			if connections.has(biome_emoji):
-				var conn_data = connections[biome_emoji]
-				var weight = conn_data.get("weight", 0.0) if conn_data is Dictionary else 0.0
-				total_weight += weight
-				connection_count += 1
-
-	return total_weight / connection_count if connection_count > 0 else 0.0
 
 static func calculate_affinity_with_populations(icon: Dictionary, biome) -> float:
 	# Calculate affinity weighted by biome quantum state populations.
@@ -67,43 +37,15 @@ static func calculate_affinity_with_populations(icon: Dictionary, biome) -> floa
 
 	# Returns:
 	# float: Population-weighted connection strength
-	var icon_emojis = [icon.get("north", ""), icon.get("south", "")]
 	var biome_emojis = _get_biome_emojis(biome)
-
-	# Filter out empty emojis
-	var filtered_emojis = []
-	for emoji in icon_emojis:
-		if not emoji.is_empty():
-			filtered_emojis.append(emoji)
-	icon_emojis = filtered_emojis
-
-	if icon_emojis.is_empty() or biome_emojis.is_empty():
-		return 0.0
 
 	# Get current quantum populations (viz_cache-backed)
 	var populations: Dictionary = {}
 	for emoji in biome_emojis:
 		populations[emoji] = biome.get_emoji_probability(emoji)
 
-	var total_weight = 0.0
-	var connection_count = 0
-	var atom_registry = _get_atom_registry()
+	return _accumulate_affinity(icon, biome_emojis, populations)
 
-	# Calculate connection strengths weighted by populations
-	for icon_emoji in icon_emojis:
-		var connections = IconPairing.get_connection_weights(icon_emoji, atom_registry)
-
-		for biome_emoji in biome_emojis:
-			if connections.has(biome_emoji):
-				var conn_data = connections[biome_emoji]
-				var connection_weight = conn_data.get("weight", 0.0) if conn_data is Dictionary else 0.0
-				var population = populations.get(biome_emoji, 0.0)
-
-				# Weight by population (higher population = more relevant)
-				total_weight += connection_weight * (1.0 + population)
-				connection_count += 1
-
-	return total_weight / connection_count if connection_count > 0 else 0.0
 
 static func calculate_affinity_by_name(icon: Dictionary, biome_name: String) -> float:
 	# Calculate affinity for an unloaded biome using BiomeRegistry (JSON-backed).
@@ -125,26 +67,42 @@ static func calculate_affinity_by_name(icon: Dictionary, biome_name: String) -> 
 	var biome_emojis: Array[String] = []
 	for e in biome_data.emojis:
 		biome_emojis.append(e)
-	return _calculate_affinity_from_emojis(icon, biome_emojis)
+	return _accumulate_affinity(icon, biome_emojis)
 
 
-static func _calculate_affinity_from_emojis(icon: Dictionary, biome_emojis: Array[String]) -> float:
-	# Core affinity: connection weight between icon emojis and biome emojis.
+static func _accumulate_affinity(icon: Dictionary, biome_emojis: Array, populations: Dictionary = {}) -> float:
+	# Shared core: mean IconPairing connection weight over the
+	# icon-emoji x biome-emoji grid.
+	#
+	# Algorithm:
+	# 1. Get emojis from icon
+	# 2. For each (icon_emoji, biome_emoji) pair:
+	#    - Look up connection weight: |H| + L_in + L_out (IconPairing)
+	#    - If populations were supplied, scale by (1 + population)
+	#    - Accumulate total weight
+	# 3. Normalize by number of connections
 	var icon_emojis = [icon.get("north", ""), icon.get("south", "")]
 	icon_emojis = icon_emojis.filter(func(e): return not e.is_empty())
 	if icon_emojis.is_empty() or biome_emojis.is_empty():
 		return 0.0
+
 	var total_weight = 0.0
 	var connection_count = 0
 	var atom_registry = _get_atom_registry()
+
 	for icon_emoji in icon_emojis:
 		var connections = IconPairing.get_connection_weights(icon_emoji, atom_registry)
+
 		for biome_emoji in biome_emojis:
 			if connections.has(biome_emoji):
 				var conn_data = connections[biome_emoji]
 				var weight = conn_data.get("weight", 0.0) if conn_data is Dictionary else 0.0
+				if not populations.is_empty():
+					# Weight by population (higher population = more relevant)
+					weight *= 1.0 + populations.get(biome_emoji, 0.0)
 				total_weight += weight
 				connection_count += 1
+
 	return total_weight / connection_count if connection_count > 0 else 0.0
 
 
@@ -159,6 +117,7 @@ static func _get_biome_emojis(biome) -> Array[String]:
 		for e in emojis:
 			result.append(e)
 	return result
+
 
 static func _get_atom_registry():
 	var icon_reg = (Engine.get_main_loop().root.get_node_or_null("/root/IconRegistry") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
