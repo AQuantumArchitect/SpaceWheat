@@ -327,7 +327,7 @@ static func _get_faction_dynamic_data(faction_name: String, fallback_cloud: Arra
 
 static func _get_icon_registry():
 	var local_registry = (Engine.get_main_loop().root.get_node_or_null("/root/IconRegistry") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
-	if local_registry.has_method("rebuild_from_icons"):
+	if local_registry != null and local_registry.has_method("rebuild_from_icons"):
 		local_registry.rebuild_from_icons()
 	return local_registry
 

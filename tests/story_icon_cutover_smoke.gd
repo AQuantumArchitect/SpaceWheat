@@ -12,8 +12,26 @@ var passed: int = 0
 var failed: int = 0
 
 
-func _init() -> void:
+var _ran := false
+
+
+func _process(_delta: float) -> bool:
+	# Run on the first frame, not _init/_initialize: production statics
+	# (StoryEngine/QuestRewards) resolve /root/IconRegistry via absolute
+	# get_node paths, which only work once the scene tree is active.
+	if _ran:
+		return false
+	_ran = true
+	_run_test()
+	return false
+
+
+func _run_test() -> void:
 	print("\n=== Story / icon cutover smoke ===")
+	# Load the canonical economy config the way boot does — QuestRewards'
+	# tuning contract is "no code defaults, config must be whole".
+	var econ: Dictionary = FarmVariableGraph.parse_graph_lines(FarmVariableGraph.load_graph_lines())
+	QuestRewards.set_reward_tuning_overrides(econ.get("patch", {}).get("quest_rewards", {}))
 	var freg = FactionRegistryCls.new()
 	var icon_registry = _resolve_icon_registry()
 	_check(icon_registry != null, "shared icon registry resolves")
@@ -24,7 +42,7 @@ func _init() -> void:
 		_check(faction != null, "%s loads" % faction_name)
 		if faction == null:
 			continue
-		var physics: Dictionary = icon_registry.get_signature_physics(faction.cloud) if icon_registry != null else {}
+		var physics: Dictionary = icon_registry.get_cloud_physics(faction.cloud) if icon_registry != null else {}
 		_check(not physics.is_empty(), "%s projects live signature physics" % faction_name)
 		_check(not physics.get("hamiltonian", {}).is_empty(), "%s has projected hamiltonian terms" % faction_name)
 		_check(not physics.get("self_energies", {}).is_empty(), "%s has projected self energies" % faction_name)
@@ -93,13 +111,16 @@ func _find_rotatable_emoji(icon_registry) -> String:
 
 
 func _resolve_icon_registry():
-	var icon_registry = get_node_or_null("/root/IconRegistry")
-	if icon_registry != null and icon_registry.has_method("get_signature_physics"):
+	# Headless SceneTree runs skip project autoloads; install the registry at
+	# /root/IconRegistry so every production static that resolves the autoload
+	# path (StoryEngine, QuestRewards, FactionDensityMatrix) finds it.
+	var icon_registry = root.get_node_or_null("/root/IconRegistry") if root else null
+	if icon_registry != null and icon_registry.has_method("get_cloud_physics"):
 		return icon_registry
-	var local_registry = get_node_or_null("/root/IconRegistry")
-	if local_registry.has_method("rebuild_from_icons"):
-		local_registry.rebuild_from_icons()
-	return local_registry
+	icon_registry = load("res://Core/Factions/IconRegistry.gd").new()
+	icon_registry.name = "IconRegistry"
+	root.add_child(icon_registry)
+	return icon_registry
 
 
 func _check(cond: bool, label: String) -> void:

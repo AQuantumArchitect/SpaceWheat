@@ -1,6 +1,6 @@
 #pragma once
 
-#include "complex_matrix.h"
+#include <Eigen/Dense>
 
 #include <vector>
 
@@ -8,7 +8,7 @@ namespace spacewheat {
 
 struct EigenResult {
     std::vector<double> eigenvalues;
-    ComplexMatrix eigenvectors; // columns are eigenvectors when backend supports them
+    Eigen::MatrixXcd eigenvectors; // columns are eigenvectors when backend supports them
     bool used_external_backend = false;
     bool eigenvectors_available = false;
     int iterations = 0;
@@ -30,7 +30,7 @@ public:
     // (h(r,c).real()) before diagonalizing, silently discarding the imaginary
     // off-diagonals that carry the phase of every genuinely complex Hermitian
     // coupling in this engine. Deleted rather than left as a trap.
-    static EigenResult solve(const ComplexMatrix &h, int max_iterations = 128, double tolerance = 1e-10);
+    static EigenResult solve(const Eigen::MatrixXcd &h, int max_iterations = 128, double tolerance = 1e-10);
 };
 
 } // namespace spacewheat

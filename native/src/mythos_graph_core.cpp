@@ -4,6 +4,36 @@
 #include <cmath>
 #include <stdexcept>
 
+namespace {
+
+// Hermitian projection with small-value clamp: real diagonal, averaged
+// conjugate off-diagonals, entries whose re AND im both fall under epsilon
+// zeroed outright.
+void enforce_hermitian(Eigen::MatrixXcd &m, double epsilon = 0.0) {
+    const Eigen::Index n = m.rows();
+    for (Eigen::Index i = 0; i < n; ++i) {
+        m(i, i) = std::complex<double>(m(i, i).real(), 0.0);
+        for (Eigen::Index j = i + 1; j < n; ++j) {
+            std::complex<double> avg = (m(i, j) + std::conj(m(j, i))) * 0.5;
+            if (std::abs(avg.real()) < epsilon && std::abs(avg.imag()) < epsilon) {
+                avg = std::complex<double>(0.0, 0.0);
+            }
+            m(i, j) = avg;
+            m(j, i) = std::conj(avg);
+        }
+    }
+}
+
+void normalize_trace(Eigen::MatrixXcd &m, double target_trace = 1.0) {
+    const double t = m.trace().real();
+    if (std::abs(t) < 1e-14) {
+        return;
+    }
+    m *= (target_trace / t);
+}
+
+} // namespace
+
 namespace spacewheat {
 
 MythosGraphCore::MythosGraphCore() {
@@ -17,9 +47,9 @@ void MythosGraphCore::clear() {
     emoji_to_index_.clear();
     faction_to_index_.clear();
     pair_to_icon_.clear();
-    hamiltonian_ = ComplexMatrix();
-    density_ = ComplexMatrix();
-    faction_density_ = ComplexMatrix();
+    hamiltonian_ = Eigen::MatrixXcd();
+    density_ = Eigen::MatrixXcd();
+    faction_density_ = Eigen::MatrixXcd();
 }
 
 int MythosGraphCore::ensure_emoji(const std::string &emoji) {
@@ -92,7 +122,7 @@ int MythosGraphCore::faction_index(const std::string &name) const {
 
 void MythosGraphCore::compose_hamiltonian_from_icons() {
     const std::size_t n = emojis_.size();
-    hamiltonian_ = ComplexMatrix::zeros(n, n);
+    hamiltonian_ = Eigen::MatrixXcd::Zero(static_cast<Eigen::Index>(n), static_cast<Eigen::Index>(n));
     for (std::size_t i = 0; i < n; ++i) {
         hamiltonian_(i, i) = Complex(emojis_[i].self_energy, 0.0);
     }
@@ -106,12 +136,12 @@ void MythosGraphCore::compose_hamiltonian_from_icons() {
         hamiltonian_(static_cast<std::size_t>(a), static_cast<std::size_t>(b)) += coupling;
         hamiltonian_(static_cast<std::size_t>(b), static_cast<std::size_t>(a)) += std::conj(coupling);
     }
-    hamiltonian_.enforce_hermitian();
+    enforce_hermitian(hamiltonian_);
 }
 
 void MythosGraphCore::initialize_density_uniform() {
     const std::size_t n = emojis_.size();
-    density_ = ComplexMatrix::zeros(n, n);
+    density_ = Eigen::MatrixXcd::Zero(static_cast<Eigen::Index>(n), static_cast<Eigen::Index>(n));
     if (n == 0) {
         return;
     }
@@ -124,7 +154,7 @@ void MythosGraphCore::initialize_density_uniform() {
 void MythosGraphCore::initialize_density_pure_emoji(const std::string &emoji) {
     const int idx = emoji_index(emoji);
     const std::size_t n = emojis_.size();
-    density_ = ComplexMatrix::zeros(n, n);
+    density_ = Eigen::MatrixXcd::Zero(static_cast<Eigen::Index>(n), static_cast<Eigen::Index>(n));
     if (idx >= 0) {
         density_(static_cast<std::size_t>(idx), static_cast<std::size_t>(idx)) = Complex(1.0, 0.0);
     } else {
@@ -133,19 +163,19 @@ void MythosGraphCore::initialize_density_pure_emoji(const std::string &emoji) {
 }
 
 void MythosGraphCore::step_density(double dt, double decoherence) {
-    if (density_.empty() || hamiltonian_.empty()) {
+    if (density_.size() == 0 || hamiltonian_.size() == 0) {
         return;
     }
     // First-order von Neumann step: dρ/dt = -i[H,ρ]
-    ComplexMatrix drho = commutator(hamiltonian_, density_);
-    drho.scale(Complex(0.0, -1.0));
-    density_.add_scaled(drho, Complex(dt, 0.0));
+    const Eigen::MatrixXcd drho =
+        Complex(0.0, -1.0) * (hamiltonian_ * density_ - density_ * hamiltonian_);
+    density_ += dt * drho;
 
     // Simple diagonal dephasing/decoherence. More precise Lindblad operators can be added later.
     if (decoherence > 0.0) {
         const double decay = std::exp(-decoherence * dt);
-        for (std::size_t r = 0; r < density_.rows(); ++r) {
-            for (std::size_t c = 0; c < density_.cols(); ++c) {
+        for (Eigen::Index r = 0; r < density_.rows(); ++r) {
+            for (Eigen::Index c = 0; c < density_.cols(); ++c) {
                 if (r != c) {
                     density_(r, c) *= decay;
                 }
@@ -153,8 +183,8 @@ void MythosGraphCore::step_density(double dt, double decoherence) {
         }
     }
 
-    density_.enforce_hermitian(1e-14);
-    density_.normalize_trace(1.0);
+    enforce_hermitian(density_, 1e-14);
+    normalize_trace(density_, 1.0);
 }
 
 EigenResult MythosGraphCore::solve_hamiltonian() const {
@@ -163,7 +193,7 @@ EigenResult MythosGraphCore::solve_hamiltonian() const {
 
 void MythosGraphCore::initialize_faction_density_uniform() {
     const std::size_t n = factions_.size();
-    faction_density_ = ComplexMatrix::zeros(n, n);
+    faction_density_ = Eigen::MatrixXcd::Zero(static_cast<Eigen::Index>(n), static_cast<Eigen::Index>(n));
     if (n == 0) {
         return;
     }
@@ -177,7 +207,7 @@ void MythosGraphCore::apply_icon_learned(const std::string &pole0, const std::st
     if (factions_.empty()) {
         return;
     }
-    if (faction_density_.rows() != factions_.size()) {
+    if (static_cast<std::size_t>(faction_density_.rows()) != factions_.size()) {
         initialize_faction_density_uniform();
     }
 
@@ -239,7 +269,7 @@ std::vector<FactionProjection> MythosGraphCore::project_factions_for_icon(const 
         FactionProjection p;
         p.name = factions_[i].name;
         p.overlap = axial_.kernel(field, factions_[i].field, true);
-        p.mass = faction_density_.empty() || i >= faction_density_.rows() ? 0.0 : faction_density_(i, i).real();
+        p.mass = faction_density_.size() == 0 || i >= faction_density_.rows() ? 0.0 : faction_density_(i, i).real();
         out.push_back(p);
     }
     std::sort(out.begin(), out.end(), [](const FactionProjection &a, const FactionProjection &b) {
@@ -253,7 +283,7 @@ std::vector<double> MythosGraphCore::axis_marginal(int axis_index) const {
         throw std::out_of_range("axis index out of range");
     }
     std::vector<double> marginal(2, 0.0);
-    if (factions_.empty() || faction_density_.empty()) {
+    if (factions_.empty() || faction_density_.size() == 0) {
         return marginal;
     }
     for (std::size_t i = 0; i < factions_.size(); ++i) {
@@ -273,7 +303,7 @@ std::vector<double> MythosGraphCore::axis_marginal(int axis_index) const {
 double MythosGraphCore::icon_expectation(const std::string &pole0, const std::string &pole1) const {
     const int a = emoji_index(pole0);
     const int b = emoji_index(pole1);
-    if (a < 0 || b < 0 || density_.empty()) {
+    if (a < 0 || b < 0 || density_.size() == 0) {
         return 0.0;
     }
     const double pa = density_(static_cast<std::size_t>(a), static_cast<std::size_t>(a)).real();
@@ -318,8 +348,8 @@ void MythosGraphCore::reindex_pairs() {
 }
 
 void MythosGraphCore::normalize_faction_density() {
-    faction_density_.enforce_hermitian(1e-14);
-    faction_density_.normalize_trace(1.0);
+    enforce_hermitian(faction_density_, 1e-14);
+    normalize_trace(faction_density_, 1.0);
 }
 
 // ====== Faction density facade primitives ======
@@ -372,7 +402,7 @@ void MythosGraphCore::faction_initialize_uniform() {
 }
 
 void MythosGraphCore::faction_renormalize_trace() {
-    if (factions_.empty() || faction_density_.empty()) return;
+    if (factions_.empty() || faction_density_.size() == 0) return;
     double total = 0.0;
     const std::size_t n = faction_density_.rows();
     for (std::size_t i = 0; i < n; ++i) {
@@ -392,7 +422,7 @@ void MythosGraphCore::faction_renormalize_trace() {
 
 void MythosGraphCore::faction_pump(const std::string &name, double rate) {
     const int idx_signed = faction_index(name);
-    if (idx_signed < 0 || rate == 0.0 || faction_density_.empty()) return;
+    if (idx_signed < 0 || rate == 0.0 || faction_density_.size() == 0) return;
     const std::size_t i = static_cast<std::size_t>(idx_signed);
     const std::size_t n = faction_density_.rows();
 
@@ -445,7 +475,7 @@ void MythosGraphCore::faction_pump(const std::string &name, double rate) {
 void MythosGraphCore::faction_kick_coherence(const std::string &name_a, const std::string &name_b, double re, double im) {
     const int ia = faction_index(name_a);
     const int ib = faction_index(name_b);
-    if (ia < 0 || ib < 0 || ia == ib || (re == 0.0 && im == 0.0) || faction_density_.empty()) return;
+    if (ia < 0 || ib < 0 || ia == ib || (re == 0.0 && im == 0.0) || faction_density_.size() == 0) return;
     const std::size_t i = static_cast<std::size_t>(ia);
     const std::size_t j = static_cast<std::size_t>(ib);
 
@@ -467,7 +497,7 @@ void MythosGraphCore::faction_kick_coherence(const std::string &name_a, const st
 }
 
 void MythosGraphCore::faction_apply_lindblad_decay(double dt, double tau) {
-    if (dt <= 0.0 || tau <= 0.0 || faction_density_.empty()) return;
+    if (dt <= 0.0 || tau <= 0.0 || faction_density_.size() == 0) return;
     const std::size_t n = faction_density_.rows();
     if (n <= 1) return;
     const double factor = std::exp(-dt / tau);
@@ -481,7 +511,7 @@ void MythosGraphCore::faction_apply_lindblad_decay(double dt, double tau) {
 }
 
 void MythosGraphCore::faction_apply_axis_bias(int axis_i, int bit_b, double strength) {
-    if (axis_i < 0 || axis_i >= AXIS_COUNT || faction_density_.empty()) return;
+    if (axis_i < 0 || axis_i >= AXIS_COUNT || faction_density_.size() == 0) return;
     double alpha = strength;
     if (alpha <= 0.0) return;
     if (alpha > 1.0) alpha = 1.0;
@@ -502,7 +532,7 @@ void MythosGraphCore::faction_apply_axis_bias(int axis_i, int bit_b, double stre
 
 double MythosGraphCore::faction_get_weight(const std::string &name) const {
     const int idx = faction_index(name);
-    if (idx < 0 || faction_density_.empty()) return 0.0;
+    if (idx < 0 || faction_density_.size() == 0) return 0.0;
     double v = faction_density_(static_cast<std::size_t>(idx), static_cast<std::size_t>(idx)).real();
     if (v < 0.0) v = 0.0;
     if (v > 1.0) v = 1.0;
@@ -514,7 +544,7 @@ void MythosGraphCore::faction_get_coherence(const std::string &name_a, const std
     im_out = 0.0;
     const int ia = faction_index(name_a);
     const int ib = faction_index(name_b);
-    if (ia < 0 || ib < 0 || faction_density_.empty()) return;
+    if (ia < 0 || ib < 0 || faction_density_.size() == 0) return;
     const Complex c = faction_density_(static_cast<std::size_t>(ia), static_cast<std::size_t>(ib));
     re_out = c.real();
     im_out = c.imag();
@@ -522,7 +552,7 @@ void MythosGraphCore::faction_get_coherence(const std::string &name_a, const std
 
 void MythosGraphCore::faction_partial_trace_axis(int axis_i, double &r00_out, double &r11_out, double &r01_re_out, double &r01_im_out) const {
     r00_out = 0.0; r11_out = 0.0; r01_re_out = 0.0; r01_im_out = 0.0;
-    if (axis_i < 0 || axis_i >= AXIS_COUNT || faction_density_.empty()) {
+    if (axis_i < 0 || axis_i >= AXIS_COUNT || faction_density_.size() == 0) {
         r00_out = 0.5; r11_out = 0.5;
         return;
     }
@@ -570,7 +600,7 @@ std::vector<std::string> MythosGraphCore::factions_speaking(const std::string &e
 }
 
 double MythosGraphCore::faction_affinity_for_emoji(const std::string &emoji) const {
-    if (emoji.empty() || faction_density_.empty()) return 0.0;
+    if (emoji.empty() || faction_density_.size() == 0) return 0.0;
     double total = 0.0;
     for (std::size_t i = 0; i < factions_.size(); ++i) {
         const auto &f = factions_[i];
@@ -584,7 +614,7 @@ double MythosGraphCore::faction_affinity_for_emoji(const std::string &emoji) con
 }
 
 double MythosGraphCore::faction_purity() const {
-    if (faction_density_.empty()) return 0.0;
+    if (faction_density_.size() == 0) return 0.0;
     const std::size_t n = faction_density_.rows();
     double p = 0.0;
     for (std::size_t i = 0; i < n; ++i) {
@@ -597,7 +627,7 @@ double MythosGraphCore::faction_purity() const {
 }
 
 double MythosGraphCore::faction_diagonal_sum() const {
-    if (faction_density_.empty()) return 0.0;
+    if (faction_density_.size() == 0) return 0.0;
     double t = 0.0;
     const std::size_t n = faction_density_.rows();
     for (std::size_t i = 0; i < n; ++i) t += faction_density_(i, i).real();
@@ -608,7 +638,7 @@ void MythosGraphCore::faction_serialize(std::vector<std::string> &names_out, std
     names_out.clear();
     data_out.clear();
     for (const auto &f : factions_) names_out.push_back(f.name);
-    if (faction_density_.empty()) return;
+    if (faction_density_.size() == 0) return;
     const std::size_t n = faction_density_.rows();
     data_out.reserve(2 * n * n);
     for (std::size_t i = 0; i < n; ++i) {
@@ -656,7 +686,7 @@ void MythosGraphCore::faction_deserialize(const std::vector<std::string> &names_
 bool MythosGraphCore::faction_principal_mode(double &eigenvalue_out, std::vector<double> &amplitudes_out) const {
     eigenvalue_out = 0.0;
     amplitudes_out.clear();
-    if (faction_density_.empty() || faction_density_.rows() < 2) {
+    if (faction_density_.size() == 0 || faction_density_.rows() < 2) {
         return false;
     }
     // ρ is Hermitian PSD with trace 1; SelfAdjointEigenSolver works directly.

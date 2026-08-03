@@ -137,22 +137,23 @@ may drift.
 
 ### Two competing math stacks (architectural-level)
 
-- **Two full complex-matrix-math implementations coexist in C++.** The
-  hand-rolled `spacewheat::ComplexMatrix` (`complex_matrix.h/.cpp`, O(n³)
-  loops, used only by `mythos_graph_core.*`/`hermitian_eigensolver.*`) vs
-  `Eigen::MatrixXcd`-based code in `quantum_matrix_native.cpp`/
-  `quantum_evolution_engine.cpp`. Same ops (multiply, dagger, commutator,
-  trace) implemented twice.
-- **`SelfAdjointEigenSolver` invoked ad hoc 8+ times** instead of routing
-  through the existing `HermitianEigensolver::solve` wrapper —
-  `quantum_matrix_native.cpp:129`,
-  `quantum_evolution_engine.cpp:261,617,1070,1119,1148,1232`.
-- **A fully dead duplicate entropy/coherence calculator.**
-  `Core/Environment/BiomeBase.gd:1112-1143`
-  (`_calculate_quantum_coherence`/`_calculate_quantum_entropy`) reimplements
-  `Core/QuantumSubstrate/FactionStateMatcher.gd:56-64,243-266` formula for
-  formula, but has **zero callers anywhere in the repo**. Superseded pipeline
-  never deleted — candidate for outright removal, not just refactor.
+- ~~**Two full complex-matrix-math implementations coexist in C++.**~~
+  **CLOSED (consolidation pass 2026-08-03, task #421):** `spacewheat::ComplexMatrix`
+  deleted; `mythos_graph_core.*` and `hermitian_eigensolver.*` now use
+  `Eigen::MatrixXcd` directly. The eigensolver's two O(n²) conversion copy
+  loops deleted with it. Verified by facade_parity.gd GDScript-vs-native
+  comparison at TOL=1e-9.
+- ~~**`SelfAdjointEigenSolver` invoked ad hoc 8+ times**~~
+  **CLOSED BY RULING (2026-08-03): not slop.** The 8 sites use the raw solver
+  idiomatically on Eigen types — eigenvalues-only reads and unitary
+  construction on hot paths. `HermitianEigensolver::solve` exists to serve the
+  GDScript-facing `EigenResult` summary and carries no policy of its own;
+  routing hot paths through it would add per-call vector/matrix copies while
+  deduplicating zero logic. Leave direct.
+- ~~**A fully dead duplicate entropy/coherence calculator.**~~
+  **CLOSED (2026-08-03):** `BiomeBase._calculate_quantum_entropy`/
+  `_calculate_quantum_coherence` deleted (zero callers re-verified at deletion
+  time).
 - **`BridgeRegister._apply_unitary` hand-rolls a 2×2 complex matrix
   multiply** (`Core/QuantumSubstrate/BridgeRegister.gd:241-270`) on packed
   floats instead of calling `ComplexMatrix.mul()`/`conjugate_transpose()` —

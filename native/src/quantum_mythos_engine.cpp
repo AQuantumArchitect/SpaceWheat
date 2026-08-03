@@ -145,12 +145,12 @@ Array QuantumMythosEngine::get_faction_projection_for_icon(String pole_0, String
 
 PackedFloat64Array QuantumMythosEngine::get_faction_diagonal() const {
     PackedFloat64Array out;
-    if (core_->faction_density().empty()) {
+    if (core_->faction_density().size() == 0) {
         return out;
     }
-    const std::vector<double> diag = core_->faction_density().real_diagonal();
-    for (double v : diag) {
-        out.push_back(v);
+    const Eigen::VectorXd diag = core_->faction_density().diagonal().real();
+    for (Eigen::Index i = 0; i < diag.size(); ++i) {
+        out.push_back(diag[i]);
     }
     return out;
 }
@@ -160,7 +160,7 @@ Dictionary QuantumMythosEngine::get_hamiltonian_eigen_summary(int limit) const {
     // Guard against an empty Hamiltonian — the Eigen solver asserts on empty
     // matrices. When compose_hamiltonian() has never been called (or the
     // substrate has zero emojis), return an empty summary rather than crash.
-    if (core_->hamiltonian().empty()) {
+    if (core_->hamiltonian().size() == 0) {
         out["eigenvalues"] = PackedFloat64Array();
         out["used_external_backend"] = false;
         out["eigenvectors_available"] = false;

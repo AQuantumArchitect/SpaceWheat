@@ -1109,39 +1109,6 @@ func get_plot_positions_in_oval(plot_count: int, center: Vector2, viewport_scale
 	return positions
 
 
-func _calculate_quantum_entropy() -> float:
-	if not quantum_computer or not quantum_computer.density_matrix:
-		return -1.0
-	var purity = quantum_computer.get_purity() if quantum_computer.has_method("get_purity") else -1.0
-	var dim = quantum_computer.density_matrix.dimension() if quantum_computer.density_matrix.has_method("dimension") else 1
-	if purity < 0.0:
-		return -1.0
-	if purity <= 0 or dim <= 1:
-		return 0.0
-	var max_entropy = log(dim)
-	if max_entropy <= 0:
-		return 0.0
-	return clamp(-log(purity) / max_entropy, 0.0, 1.0)
-
-func _calculate_quantum_coherence() -> float:
-	if not quantum_computer or not quantum_computer.density_matrix:
-		return 0.0
-	var dm = quantum_computer.density_matrix
-	var dim = dm.dimension() if dm.has_method("dimension") else 0
-	if dim < 2:
-		return 0.0
-	var mat = dm.get_matrix() if dm.has_method("get_matrix") else null
-	if not mat:
-		return 0.0
-	var total = 0.0
-	for i in range(dim):
-		for j in range(dim):
-			if i != j:
-				var element = mat.get_element(i, j)
-				if element:
-					total += element.re * element.re + element.im * element.im
-	var max_coherence = float(dim * (dim - 1))
-	return clamp(total / max_coherence, 0.0, 1.0) if max_coherence > 0 else 0.0
 
 
 # ============================================================================

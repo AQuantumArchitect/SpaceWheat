@@ -40,6 +40,10 @@ func _load_world_into_engine() -> void:
 	# Pass 1: emojis with self-energies. Derived from icons.json via IconRegistry
 	# so the abstract engine reads the same authority as biome H.
 	var lexicon = (Engine.get_main_loop().root.get_node_or_null("/root/IconRegistry") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
+	if lexicon == null:
+		# Headless SceneTree contexts (godot --headless -s tests/*.gd) have no
+		# autoloads; construct the same authority over the same icons.json.
+		lexicon = load("res://Core/Factions/IconRegistry.gd").new()
 	var seen_emojis: Dictionary = {}
 	for f in _registry.get_all():
 		var derived_se: Dictionary = lexicon.get_cloud_physics(f.cloud).get("self_energies", {})

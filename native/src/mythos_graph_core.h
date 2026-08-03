@@ -1,15 +1,19 @@
 #pragma once
 
 #include "axial_manifold.h"
-#include "complex_matrix.h"
 #include "emoji_graph_types.h"
 #include "hermitian_eigensolver.h"
 
+#include <Eigen/Dense>
+
+#include <complex>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
 namespace spacewheat {
+
+using Complex = std::complex<double>;
 
 class MythosGraphCore {
 public:
@@ -32,20 +36,20 @@ public:
     int faction_index(const std::string &name) const;
 
     void compose_hamiltonian_from_icons();
-    const ComplexMatrix &hamiltonian() const { return hamiltonian_; }
+    const Eigen::MatrixXcd &hamiltonian() const { return hamiltonian_; }
 
     void initialize_density_uniform();
     void initialize_density_pure_emoji(const std::string &emoji);
     void step_density(double dt, double decoherence = 0.0);
 
-    const ComplexMatrix &density() const { return density_; }
+    const Eigen::MatrixXcd &density() const { return density_; }
     EigenResult solve_hamiltonian() const;
 
     void initialize_faction_density_uniform();
     void apply_icon_learned(const std::string &pole0, const std::string &pole1, double strength = 0.02);
     void apply_event(const MythosEvent &event);
 
-    const ComplexMatrix &faction_density() const { return faction_density_; }
+    const Eigen::MatrixXcd &faction_density() const { return faction_density_; }
     std::vector<FactionProjection> project_factions_for_icon(const std::string &pole0, const std::string &pole1) const;
     std::vector<double> axis_marginal(int axis_index) const;
 
@@ -100,9 +104,9 @@ private:
     std::unordered_map<std::string, int> faction_to_index_;
     std::unordered_map<std::string, int> pair_to_icon_;
 
-    ComplexMatrix hamiltonian_;
-    ComplexMatrix density_;
-    ComplexMatrix faction_density_;
+    Eigen::MatrixXcd hamiltonian_;
+    Eigen::MatrixXcd density_;
+    Eigen::MatrixXcd faction_density_;
 
     static std::string pair_key(const std::string &a, const std::string &b);
     static std::string unordered_pair_key(const std::string &a, const std::string &b);

@@ -144,7 +144,7 @@ func _make_native(registry):
 	var lexicon = IconRegistryCls.new()
 	var seen_emojis: Dictionary = {}
 	for f in registry.get_all():
-		var derived_se: Dictionary = lexicon.get_signature_physics(f.cloud).get("self_energies", {})
+		var derived_se: Dictionary = lexicon.get_cloud_physics(f.cloud).get("self_energies", {})
 		for emoji in f.cloud:
 			if seen_emojis.has(emoji):
 				continue
