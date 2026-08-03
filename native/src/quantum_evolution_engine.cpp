@@ -154,8 +154,19 @@ void QuantumEvolutionEngine::set_hamiltonian(const PackedFloat64Array& H_packed)
         return;
     }
 
-    // Build sparse Hamiltonian from packed dense format
-    // H_packed is row-major: [re00, im00, re01, im01, ..., renn, imnn]
+    // Same packed convention as ρ, same contract: 2·dim² doubles, row-major
+    // [re00, im00, re01, im01, ..., renn, imnn]. This walked a raw double* over
+    // m_dim² entries without checking — a short H is the identical heap overread
+    // as a short ρ, just through a different door, and it silently installs
+    // garbage couplings that then drive every subsequent step.
+    const int64_t expected = static_cast<int64_t>(2) * m_dim * m_dim;
+    if (H_packed.size() != expected) {
+        UtilityFunctions::push_error(
+            "QuantumEvolutionEngine::set_hamiltonian: H size mismatch (got ", H_packed.size(),
+            ", expected ", expected, " for dim ", m_dim, ") — H not installed.");
+        return;
+    }
+
     const double* ptr = H_packed.ptr();
     const double threshold = 1e-15;
 
@@ -201,6 +212,16 @@ void QuantumEvolutionEngine::add_lindblad_triplets(const PackedFloat64Array& tri
         int col = static_cast<int>(ptr[i * 4 + 1]);
         double re = ptr[i * 4 + 2];
         double im = ptr[i * 4 + 3];
+
+        // Triplet indices come from GDScript and index straight into a dim×dim sparse
+        // matrix — an out-of-range row/col is undefined behaviour inside setFromTriplets,
+        // not a caught error. Refuse the entry rather than corrupt the operator.
+        if (row < 0 || row >= m_dim || col < 0 || col >= m_dim) {
+            UtilityFunctions::push_error(
+                "QuantumEvolutionEngine::add_lindblad_triplets: index (", row, ",", col,
+                ") out of range for dim ", m_dim, " — entry dropped.");
+            continue;
+        }
 
         if (std::abs(re) > 1e-15 || std::abs(im) > 1e-15) {
             eigen_triplets.emplace_back(row, col, std::complex<double>(re, im));
@@ -304,70 +325,20 @@ bool QuantumEvolutionEngine::is_finalized() const {
 }
 
 PackedFloat64Array QuantumEvolutionEngine::evolve_step(const PackedFloat64Array& rho_data, float dt) {
-    if (!m_finalized) {
-        UtilityFunctions::push_warning("QuantumEvolutionEngine: call finalize() first!");
-        return rho_data;  // Return unchanged
-    }
-
-    // PRECONDITION: ρ must be a dim×dim complex matrix (2·dim² packed floats). Without this
-    // check a mis-sized ρ (e.g. another biome's state handed to this engine) would make
-    // unpack_dense read past the buffer → heap overread / SIGSEGV. Validate, never overread.
-    const int64_t expected = static_cast<int64_t>(2) * m_dim * m_dim;
-    if (rho_data.size() != expected) {
-        UtilityFunctions::push_warning(
-            "QuantumEvolutionEngine::evolve_step: ρ size mismatch (got ", rho_data.size(),
-            ", expected ", expected, " for dim ", m_dim, ") — returning unchanged.");
-        return rho_data;
-    }
-
-    // EXACT UNITARY PATH (coherent, no dissipation): ρ → U ρ U†, U = exp(-iH·dt).
-    // Purity-exact (r=1), no Euler error, no enforce clamp. See can_unitary().
-    if (can_unitary()) {
-        Eigen::MatrixXcd rho_u = unpack_dense(rho_data);
-        const Eigen::MatrixXcd& U = propagator_for(static_cast<double>(dt));
-        rho_u = U * rho_u * U.adjoint();
-        return pack_dense(rho_u);
-    }
-
-    Eigen::MatrixXcd rho = unpack_dense(rho_data);
-    Eigen::MatrixXcd drho = Eigen::MatrixXcd::Zero(m_dim, m_dim);
-
-    // =========================================================================
-    // Term 1: Hamiltonian evolution -i[H, ρ]  (coherent generator)
-    // =========================================================================
-    if (m_coherent && m_has_hamiltonian) {
-        // [H, ρ] = Hρ - ρH
-        Eigen::MatrixXcd commutator = m_hamiltonian * rho - rho * m_hamiltonian;
-        drho += std::complex<double>(0.0, -1.0) * commutator;
-    }
-
-    // =========================================================================
-    // Term 2: Lindblad dissipation Σ_k (L_k ρ L_k† - ½{L_k†L_k, ρ})
-    // =========================================================================
-    for (size_t k = 0; k < m_lindblads.size(); k++) {
-        const auto& L = m_lindblads[k];
-        const auto& L_dag = m_lindblad_dags[k];
-        const auto& LdagL = m_LdagLs[k];
-
-        // L ρ L† (sparse × dense × sparse)
-        Eigen::MatrixXcd L_rho = L * rho;           // Sparse × Dense
-        Eigen::MatrixXcd L_rho_Ldag = L_rho * L_dag; // Dense × Sparse
-
-        // {L†L, ρ} = L†L ρ + ρ L†L (anticommutator with sparse L†L)
-        Eigen::MatrixXcd LdagL_rho = LdagL * rho;   // Sparse × Dense
-        Eigen::MatrixXcd rho_LdagL = rho * LdagL;   // Dense × Sparse
-
-        // Dissipator: L ρ L† - 0.5 * (L†L ρ + ρ L†L)
-        drho += L_rho_Ldag - 0.5 * (LdagL_rho + rho_LdagL);
-    }
-
-    // =========================================================================
-    // Euler integration: ρ(t+dt) = ρ(t) + dt * dρ/dt
-    // =========================================================================
-    rho += static_cast<double>(dt) * drho;
-    enforce_density_matrix(rho);
-
-    return pack_dense(rho);
+    // ONE INTEGRATOR. evolve_step() used to carry its own hand-written copy of the
+    // precondition check, the exact-unitary fast path, and the coherent+Lindblad RHS —
+    // and the two copies had already drifted apart: evolve() grew the adaptive-substep
+    // loop (analytic step size from the purity constraint) and evolve_step() never did.
+    // Measured divergence on a near-pure 2-qubit state with a strong dissipator at
+    // dt=1.0 was max|Δρ| ≈ 0.21 — the same physics integrated two different ways, with
+    // the coarser one reachable through a bound GDExtension method.
+    //
+    // A single fixed step is just the degenerate case of the adaptive one: cap the
+    // substep at the full interval and the loop takes exactly one step whenever the
+    // purity quadratic allows it (verified in tests/test_evolve_parity.gd — identical
+    // to the last bit across the unitary, dissipative and pure-Lindbladian regimes).
+    // So evolve_step IS evolve with max_dt = dt. No second authority.
+    return evolve(rho_data, dt, dt);
 }
 
 PackedFloat64Array QuantumEvolutionEngine::evolve(const PackedFloat64Array& rho_data, float dt, float max_dt) {
@@ -485,6 +456,21 @@ PackedFloat64Array QuantumEvolutionEngine::evolve(const PackedFloat64Array& rho_
 }
 
 Eigen::MatrixXcd QuantumEvolutionEngine::unpack_dense(const PackedFloat64Array& data) const {
+    // THE convention boundary. Every packed ρ entering this engine comes through here,
+    // so the size contract is enforced here rather than re-hand-checked per caller —
+    // it used to be checked at 2 of ~9 call sites, and the other seven walked a raw
+    // double* over m_dim² elements of whatever they were handed. An undersized buffer
+    // is a heap overread (silent garbage, or SIGSEGV); an oversized one is somebody
+    // else's biome state, which would evolve the wrong physics under right-looking
+    // numbers. Both are refused, loudly, with a zero matrix in place of a guess.
+    const int64_t expected = static_cast<int64_t>(2) * m_dim * m_dim;
+    if (m_dim <= 0 || data.size() != expected) {
+        UtilityFunctions::push_error(
+            "QuantumEvolutionEngine::unpack_dense: packed ρ size mismatch (got ", data.size(),
+            ", expected ", expected, " for dim ", m_dim, ") — refusing to read, returning zero.");
+        return Eigen::MatrixXcd::Zero(m_dim > 0 ? m_dim : 0, m_dim > 0 ? m_dim : 0);
+    }
+
     Eigen::MatrixXcd mat(m_dim, m_dim);
     const double* ptr = data.ptr();
 

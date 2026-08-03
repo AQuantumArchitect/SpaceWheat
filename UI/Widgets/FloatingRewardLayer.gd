@@ -24,6 +24,19 @@ const MUSIC_DUCK_DB := 7.0      # how far the Music bus dips
 const MUSIC_DUCK_HOLD_S := 0.12
 const MUSIC_DUCK_RESTORE_S := 0.45
 
+## Fractal descend/ascend punctuation (light touch): this fires on EVERY dive,
+## not a rare surprisal-gated moment like the pop hitstop, so it skips the
+## Engine.time_scale dip entirely — just a brief tinted flash + a gentler,
+## shorter Music-bus duck. Colours mirror QuantumField3D's own portal hues
+## (DESCEND_HUE_COLOR indigo / CYAN ascend) so the cue reads as "the same
+## place" as the geometry the player just tapped.
+const FRACTAL_DESCEND_COLOR := Color(0.55, 0.35, 0.95)
+const FRACTAL_ASCEND_COLOR := Color(0.42, 0.95, 0.88)
+const FRACTAL_FLASH_PEAK := 0.10
+const FRACTAL_DUCK_DB := 3.5
+const FRACTAL_DUCK_HOLD_S := 0.08
+const FRACTAL_DUCK_RESTORE_S := 0.30
+
 var _farm: Node = null
 var _quantum_viz: Node = null
 var _resource_panel: Node = null
@@ -99,6 +112,10 @@ func _on_action_performed(action: String, result: Dictionary) -> void:
 			_surge_flow()
 		"fast_forward":
 			_surge_flow()
+		"enter_icon":
+			_punctuate_fractal_step(FRACTAL_DESCEND_COLOR)
+		"ascend_fractal":
+			_punctuate_fractal_step(FRACTAL_ASCEND_COLOR)
 
 
 func _surge_flow() -> void:
@@ -116,6 +133,15 @@ func _punctuate_big_pop(rel: float) -> void:
 	_hitstop()
 	_screen_flash(rel)
 	_duck_music()
+
+
+## Light-touch descend/ascend punctuation — every dive earns it (unlike the
+## rare pop hitstop), so deliberately no time_scale dip: a brief tinted flash
+## in the portal's own hue plus a shallow, quick Music duck. Reuses the same
+## self-contained flash/duck machinery (tween-owned, _exit_tree failsafe).
+func _punctuate_fractal_step(hue: Color) -> void:
+	_screen_flash(0.0, hue, FRACTAL_FLASH_PEAK)
+	_duck_music(FRACTAL_DUCK_DB, FRACTAL_DUCK_HOLD_S, FRACTAL_DUCK_RESTORE_S)
 
 
 func _hitstop() -> void:
@@ -139,25 +165,31 @@ func _restore_time_scale() -> void:
 	_hitstop_active = false
 
 
-func _screen_flash(rel: float) -> void:
-	# A quick full-screen warm-white/gold flash that fades out. Self-contained:
-	# it's a child of this layer, so a free takes it with us — nothing to restore.
+## `color`/`peak_override` let the fractal step reuse this for a tinted, quieter
+## flash; the default (color=null) is the original warm-white/gold pop flash.
+func _screen_flash(rel: float, color = null, peak_override: float = -1.0) -> void:
+	# A quick full-screen flash that fades out. Self-contained: it's a child of
+	# this layer, so a free takes it with us — nothing to restore.
+	var base: Color = color if color is Color else Color(1.0, 0.95, 0.8)
 	var flash := ColorRect.new()
-	flash.color = Color(1.0, 0.95, 0.8, 0.0)
+	flash.color = Color(base.r, base.g, base.b, 0.0)
 	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	flash.z_index = 20  # above the fliers
 	add_child(flash)
 	flash.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	var peak: float = 0.14 + 0.14 * rel  # subtle; scales gently with surprisal
+	var peak: float = peak_override if peak_override >= 0.0 else (0.14 + 0.14 * rel)  # subtle; scales gently with surprisal
 	var tw := create_tween()
 	tw.tween_property(flash, "color:a", peak, 0.04).set_ease(Tween.EASE_OUT)
 	tw.tween_property(flash, "color:a", 0.0, 0.30).set_ease(Tween.EASE_IN)
 	tw.tween_callback(flash.queue_free)
 
 
-func _duck_music() -> void:
-	# Self-contained duck of the Music bus (enabled by the bus split). No coupling
-	# to MusicManager.celebrate_swell (that's the ending's alone).
+## Self-contained duck of the Music bus (enabled by the bus split). No coupling
+## to MusicManager.celebrate_swell (that's the ending's alone). Parameterized
+## so the light fractal-step punctuation can duck shallower/shorter than the
+## big-pop moment without a second copy of the tween machinery.
+func _duck_music(db: float = MUSIC_DUCK_DB, hold_s: float = MUSIC_DUCK_HOLD_S,
+		restore_s: float = MUSIC_DUCK_RESTORE_S) -> void:
 	var idx := AudioServer.get_bus_index("Music")
 	if idx < 0 or _music_ducking:
 		return  # no Music bus (fell back to Master) or already ducking
@@ -166,11 +198,11 @@ func _duck_music() -> void:
 		return
 	_music_ducking = true
 	_music_duck_base_db = AudioServer.get_bus_volume_db(idx)
-	AudioServer.set_bus_volume_db(idx, _music_duck_base_db - MUSIC_DUCK_DB)
+	AudioServer.set_bus_volume_db(idx, _music_duck_base_db - db)
 	var tw := create_tween()
-	tw.tween_interval(MUSIC_DUCK_HOLD_S)
+	tw.tween_interval(hold_s)
 	tw.tween_method(_set_music_bus_db,
-			_music_duck_base_db - MUSIC_DUCK_DB, _music_duck_base_db, MUSIC_DUCK_RESTORE_S)
+			_music_duck_base_db - db, _music_duck_base_db, restore_s)
 	tw.tween_callback(_finish_music_duck)
 
 

@@ -208,15 +208,16 @@ func stage_ui(farm: Node, shell: Node, quantum_viz: Node, world_builder) -> void
 		plot_grid_display.inject_farm(farm)
 		plot_grid_display.inject_grid_config(farm.grid_config)
 
-		# Layout calculator may not exist if no biomes were loaded
-		if quantum_viz and quantum_viz.layout_calculator:
-			if plot_grid_display.has_method("inject_layout_calculator"):
-				plot_grid_display.inject_layout_calculator(quantum_viz.layout_calculator)
-		else:
-			if RuntimeEnv.is_headless():
-				_verbose.info("boot", "ℹ️", "Headless rig: no layout_calculator (fallback tile positions)")
-			else:
-				_verbose.warn("boot", "⚠️", "No layout_calculator available - tiles will use fallback positioning")
+		# The plot rack needs its own BiomeLayoutCalculator regardless of which
+		# graph renderer is active — it used to piggyback on QuantumForceGraph's
+		# instance, which left the rack unpositioned (all tiles stacked at the
+		# origin) whenever the 3D field replaced it. RefCounted, no renderer
+		# dependency, so it's cheap to own independently (owner ruling 2026-08-02:
+		# the 2D rack is a separate fixed panel, not spatially tied to 3D).
+		if plot_grid_display.has_method("inject_layout_calculator"):
+			var calc: BiomeLayoutCalculator = quantum_viz.layout_calculator if quantum_viz else BiomeLayoutCalculator.new()
+			plot_grid_display.inject_layout_calculator(calc)
+			_verbose.info("boot", "✓", "PlotGridDisplay layout_calculator: %s" % ("QuantumForceGraph's" if quantum_viz else "standalone (3D mode)"))
 
 		if farm.grid and farm.grid.has_biomes():
 			plot_grid_display.inject_biomes(farm.grid.get_all_biomes())

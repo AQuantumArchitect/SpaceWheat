@@ -183,6 +183,7 @@ func get_gauge(reg: int) -> Dictionary:
 	var r: Dictionary = _regs[reg]
 	return {
 		"node": str(r.get("node", "")), "role": str(r.get("role", "")),
+		"node_icon": str(r.get("node_icon", "")),
 		"value": float(r.get("value", r.get("p0", 0.5))),
 		"confidence": float(r.get("confidence", r.get("r_bloch", 0.0))),
 		"reliability": r.get("reliability", null),

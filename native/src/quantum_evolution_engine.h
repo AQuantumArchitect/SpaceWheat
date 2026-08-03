@@ -42,11 +42,15 @@ public:
     int get_lindblad_count() const;
     bool is_finalized() const;
 
-    // Evolution (single call per frame!)
-    PackedFloat64Array evolve_step(const PackedFloat64Array& rho_data, float dt);
-
-    // Single evolution step (max_dt kept for API compatibility, not used)
+    // Evolve ρ forward by dt, capping each internal substep at max_dt. The substep
+    // size is otherwise chosen analytically from the purity constraint Tr(ρ'²) ≤ 1,
+    // so fast dynamics shrink it and near-steady-state dynamics let it grow to max_dt.
+    // This is the ONE integrator — evolve_step() below is this call with max_dt = dt.
     PackedFloat64Array evolve(const PackedFloat64Array& rho_data, float dt, float max_dt);
+
+    // Evolve by dt in a single uncapped interval. Thin alias for evolve(ρ, dt, dt);
+    // kept because it is GDExtension-bound. Deliberately NOT a second integrator.
+    PackedFloat64Array evolve_step(const PackedFloat64Array& rho_data, float dt);
 
     // Mutual information computation (piggybacks on evolution)
     // Returns: [mi_01, mi_02, ..., mi_0n, mi_12, mi_13, ..., mi_(n-1)n] for all pairs

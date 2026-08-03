@@ -39,6 +39,7 @@ var _act_nodes: Dictionary = {}        # action id → {marker, label}
 var _mi_mesh: MeshInstance3D = null    # bright edges: real mutual information (the MI sensor firing)
 var _mf_mesh: MeshInstance3D = null    # soft loops: manifold constellations (higher-order clusters)
 var _berry_mesh: MeshInstance3D = null # copper arcs: Berry-phase odometer (geometric-phase mileage)
+var _node_badges: Dictionary = {}      # reg → Sprite3D (P4: which project/cluster this belief lives on)
 
 
 func _ready() -> void:
@@ -116,6 +117,7 @@ func _update_vectors() -> void:
 	_update_mi_edges()
 	_update_manifold()
 	_update_berry()
+	_update_node_badges()
 
 
 func _draw_forecasts() -> void:
@@ -503,3 +505,59 @@ func _update_berry() -> void:
 			bm.surface_add_vertex(b.pos + Vector3(arc_r * cos(a1), base_y, arc_r * sin(a1)))
 	if began:
 		bm.surface_end()
+
+
+## Node-identity badge: a small icon floating beside each belief naming WHICH project/cluster
+## it lives on (umwelt's `NODE_ICONS`, registered per-domain — VOCABULARY_CONVENTION.md — and
+## carried in the trace itself via `node_icon` so this renderer never has to know the registry,
+## the same way north/south_emoji already travel with the trace). Closes the gap flagged
+## 2026-08-02: registering a node icon only lit up the text-only `field_summary()`, never this
+## field, so a viewer had zero visual signal for "which world is this belief on" — the same
+## silently-generic-default bug class VOCABULARY_CONVENTION.md's coverage lint now catches on
+## the registration side; this is the render-side half. Honestly absent (no badge) when the
+## trace carries no node_icon (a game viz_cache, or a pre-P4 trace) — never a guessed glyph.
+func _update_node_badges() -> void:
+	var biome = _get_active_biome()
+	if biome == null:
+		return
+	var vc = biome.viz_cache
+	if vc == null or not vc.has_method("get_gauge"):
+		return
+	var seen := {}
+	for b in _bubbles:
+		if not is_instance_valid(b.dot):
+			continue
+		var gauge = vc.get_gauge(b.reg)
+		if typeof(gauge) != TYPE_DICTIONARY:
+			continue
+		var icon := str(gauge.get("node_icon", ""))
+		var badge = _node_badges.get(b.reg, null)
+		if icon == "":
+			if badge != null and is_instance_valid(badge):
+				badge.visible = false
+			continue
+		var tex := _emoji_tex(icon)
+		if tex == null:
+			if badge != null and is_instance_valid(badge):
+				badge.visible = false
+			continue
+		if badge == null or not is_instance_valid(badge):
+			badge = Sprite3D.new()
+			badge.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+			badge.shaded = false
+			badge.no_depth_test = true
+			if _pivot != null and is_instance_valid(_pivot):
+				_pivot.add_child(badge)
+			else:
+				add_child(badge)
+			_node_badges[b.reg] = badge
+		seen[b.reg] = true
+		badge.texture = tex
+		badge.pixel_size = 0.28 / float(max(8, tex.get_width()))
+		# west of the orb, clear of the north/south pole sprites, the ripeness ring, and the
+		# radial descend-portal satellite (which pushes outward along the anchor direction).
+		badge.position = b.pos + Vector3(-(R + 0.16), 0, 0)
+		badge.visible = true
+	for reg in _node_badges:
+		if not seen.has(reg):
+			_node_badges[reg].visible = false

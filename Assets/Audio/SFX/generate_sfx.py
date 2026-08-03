@@ -179,6 +179,31 @@ def gen_menu_close():
     return make_samples(dur, f)
 
 
+# ── fractal_descend ─────────────────────────────────────────────────────────
+# "Stepping inside" — a low, indigo-toned downward glide with a soft shimmer
+# tail, distinct from biome_switch's lateral whoosh (this one falls INWARD).
+def gen_fractal_descend():
+    dur = 0.42
+    def f(t, d):
+        env = env_gaussian(t, d, center_frac=0.36, sigma_frac=0.34)
+        freq = 620 * math.exp(-2.1 * t / d)
+        shimmer = sine(t, freq * 2.01) * 0.05 * (t / d)
+        return (sine(t, freq) * 0.16 + sine(t, freq * 1.5) * 0.05 + shimmer) * env
+    return make_samples(dur, f)
+
+
+# ── fractal_ascend ───────────────────────────────────────────────────────────
+# "Surfacing" — the mirror climb: a cyan-toned upward glide, brighter and a
+# touch shorter than the descend (leaving reads quicker than diving).
+def gen_fractal_ascend():
+    dur = 0.34
+    def f(t, d):
+        env = env_gaussian(t, d, center_frac=0.30, sigma_frac=0.30)
+        freq = 340 + 560 * (t / d)
+        return (sine(t, freq) * 0.15 + sine(t, freq * 2) * 0.06 + sine(t, freq * 3) * 0.02) * env
+    return make_samples(dur, f)
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 
 GENERATORS = {
@@ -192,6 +217,8 @@ GENERATORS = {
     "biome_switch": gen_biome_switch,
     "menu_open": gen_menu_open,
     "menu_close": gen_menu_close,
+    "fractal_descend": gen_fractal_descend,
+    "fractal_ascend": gen_fractal_ascend,
 }
 
 if __name__ == "__main__":

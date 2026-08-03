@@ -1133,11 +1133,8 @@ func _select_plot(plot_idx: int, key: String) -> void:
 
 	# Second tap on the highlighted plot toggles only the checkbox state.
 	if was_highlighted:
-		# Still a deliberate touch — reveal. (A biome switch repoints the cursor
-		# without revealing, so the player's FIRST key press in the new biome
-		# lands here as a "second tap".)
-		if farm and farm.has_method("reveal_plot") and target_grid_pos.x >= 0:
-			farm.reveal_plot(target_grid_pos)
+		# Focus/toggle is not exploration — reveal only fires from the real
+		# Explore action (action_explore), not from touching the plot.
 		if target_grid_pos.x >= 0:
 			toggle_check(target_grid_pos)
 		_verbose.debug("input", "~", "Plot %d in %s remains highlighted" % [plot_idx, biome_name])
@@ -1168,11 +1165,9 @@ func _focus_plot(plot_idx: int, biome_name: String) -> Vector2i:
 		plot_grid_display.set_selected_plot(target_grid_pos)
 		_verbose.debug("input", "~", "Visual selection: %s" % target_grid_pos)
 
-	# Exploration reveal: ONLY deliberate plot picks (GHJKL; / bubble tap / ring
-	# enter) wake a bubble. Programmatic repoints (biome switch, overlay restore)
-	# go through set_selected_plot directly and must NOT reveal.
-	if farm and farm.has_method("reveal_plot") and target_grid_pos.x >= 0:
-		farm.reveal_plot(target_grid_pos)
+	# Focus is a free cursor move, not exploration — the bubble wakes only when
+	# the player actually takes the Explore action (QuantumInstrument.action_explore),
+	# not on mere focus/select/tap.
 
 	selection_changed.emit(plot_idx, biome_name)
 	return target_grid_pos
@@ -2571,9 +2566,8 @@ func set_active_selection(plot_idx: int, biome_name: String) -> void:
 	if _instrument:
 		_instrument.current_plot_idx = plot_idx
 		_instrument.current_biome = biome_name
-	# Glass-overlay selection bypasses PlotGridDisplay.set_selected_plot — reveal here too.
-	if plot_idx >= 0 and farm and farm.has_method("reveal_plot"):
-		farm.reveal_plot(_get_grid_position_for(plot_idx, biome_name))
+	# Glass-overlay navigation is a cursor move, not exploration — reveal only
+	# fires from the real Explore action (action_explore).
 	selection_changed.emit(plot_idx, biome_name)
 
 

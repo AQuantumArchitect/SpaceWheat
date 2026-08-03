@@ -11,6 +11,12 @@
 > closed-system physics migration, ~15 dead-code purge rounds, a UI/menu re-org,
 > and a nine-item UX bug sweep. The codebase you are reading is deliberately
 > smaller and more honest than it was; this doc is the synthesis of that work.
+>
+> Refreshed 2026-08-03 (doc-truth pass, claims re-verified in code): the default
+> renderer is now the 3D cognifold field (§5.6); the M surface tab row updated
+> (§5.4); the ending's spectral-gap number corrected in §8; and §5.6 now names
+> the Witness organ and the cognifold transparency instrument, which post-date
+> the original writing. Everything else stands as written.
 
 ---
 
@@ -218,7 +224,7 @@ All extend `UI/Core/Surface.gd` and emit one snapshot contract the action bar re
 | V | **Qubit Atlas** | Lexicon / Affinity / Alignment / Coverage / Hints / Subspace |
 | B | **Biome Microscope** | single-plot detail; *transparent overlay* (keys pass through) |
 | N | **Inspector** | Network / Bridges / Selector / Live / Whole / Matrix |
-| M | **MapMeta** | biome × faction field / atlas / graph |
+| M | **MapMeta** (affinity hypercube) | Vectors / Eigenstate / Drift / Bits / Atlas / Graph |
 
 *(The recent menu re-org moved Arc C→X and Balance X→Z; both kept key `I`.)*
 
@@ -230,6 +236,29 @@ hat / sub-mode / biome / plot / subspace / QERF. A QERF press →
 `ToolConfig.get_action(frame, key)` → `ChipResolverRegistry.resolve` (contextual
 override, e.g. Icon-R "Add" vs "Incorporate") → `_run_action` →
 `QuantumInstrument` → a handler. Destructive verbs arm a confirm and wait for `F`.
+
+### 5.6 Renderer, the Witness, and the transparency instrument
+
+- **The default renderer is the 3D cognifold field.** `scenes/GameRoot.gd`
+  (`_field3d_enabled`) mounts `Core/Visualization/QuantumField3D.gd` by default;
+  the legacy 2D force graph survives one release behind `--classic-2d` /
+  `SW_CLASSIC_2D` (an explicit 2D request wins over an explicit 3D one). Same
+  tap contract — a node tap in the field dispatches through `handle_bubble_tap`
+  exactly like a 2D bubble tap.
+- **The Witness organ** (`Core/Witness/WitnessOrgan.gd`, autoload) is an
+  advisory belief field: one small density-matrix cluster per discovered biome
+  plus a self cluster, relaxing toward uncertainty and moved only by weak
+  observations of player-visible events. Advisory *by law* — nothing gates,
+  vetoes, or prices off it; it exists to be projected (today mostly to the rig
+  and LLM lanes). Topology and rates live in `witness_spec.json`.
+- **The cognifold transparency instrument** — SpaceWheat's renderer doubling as
+  a reasoning-transparency lens. `scenes/CognifoldTraceView.tscn` runs
+  `Core/Visualization/CognifoldForecastField.gd` (a `QuantumField3D` subclass)
+  over an umwelt trace or a live daemon (`SW_COGNIFOLD_URL` /
+  `SW_COGNIFOLD_TRACE`); extra channels (gauge, Berry-phase odometer, surprise
+  flare) light up only when the trace exposes them, so the shipped game is
+  unaffected. The channel legend — every visual channel, its data source, and
+  its honesty caveat — is `docs/COGNIFOLD_CHANNELS.md`.
 
 ---
 
@@ -337,7 +366,7 @@ engaging and Acts 4–5 grindy. The most valuable fresh perspective would probe:
 2. **Is composition felt?** Planting an atom into a biome (which forks Act 5) is
    currently a side-effect of completing a DELIVER quest, not a deliberate UI act.
    Should the player choose *where* to plant, visibly?
-3. **Is the spectral gap a black box?** The ending gates on `Village` gap ≤ 0.45,
+3. **Is the spectral gap a black box?** The ending gates on `Village` gap ≤ 0.55,
    but no surface shows the live gap or teaches "🏭 widens it, 💧 narrows it." How
    much should the winning physics be made legible without spoiling it?
 4. **Are the soft gates too invisible?** Quests say "3 berries" but fire at a 0.85

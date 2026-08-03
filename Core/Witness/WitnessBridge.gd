@@ -129,14 +129,19 @@ func _on_active_biome_changed(new_biome: String, _old_biome: String) -> void:
 	_observe("biome_loaded", "self", 1.0)
 
 
-func _on_resource_mutated(emoji: String, delta: float, reason: String, _new_amount: float) -> void:
+func _on_resource_mutated(emoji: String, delta: float, reason: String, _new_amount: float, biome_name: String = "") -> void:
 	var spec: Dictionary = WitnessOrgan.spec
+	# The mutation's true origin biome (threaded from FarmEconomy.add_resource
+	# by callers that know it, e.g. Farm's per-biome Lindblad drain tick) beats
+	# _active_biome — a "what's on screen" proxy that only updates on player
+	# navigation and goes stale for background/rig-driven biome mutations.
+	var zone_biome := biome_name if biome_name != "" else _active_biome
 	var harvest := WitnessSpec.binding_for(spec, "resource_mutated.harvest")
 	if not harvest.is_empty() and (harvest.get("reasons", []) as Array).has(reason):
-		_observe("resource_mutated.harvest", "biome:%s" % _active_biome, delta)
+		_observe("resource_mutated.harvest", "biome:%s" % zone_biome, delta)
 	var drain := WitnessSpec.binding_for(spec, "resource_mutated.drain")
 	if not drain.is_empty() and (drain.get("reasons", []) as Array).has(reason):
-		_observe("resource_mutated.drain", "biome:%s" % _active_biome, 1.0)
+		_observe("resource_mutated.drain", "biome:%s" % zone_biome, 1.0)
 	# 🍼/🌱-style ambient trickles and spends alike move the wealth trend.
 	if emoji != "":
 		_observe("resource_mutated.any", "self", delta)

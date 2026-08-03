@@ -1259,19 +1259,13 @@ func _get_biome_rho_status(biome_name: String, biome) -> Dictionary:
 	# to return stale zero-trace native data. Instead, build the packed array directly
 	# and call _from_packed() to sync both _packed_cache and native backend.
 	if dim > 0 and rho_packed.size() >= dim * dim * 2:
-		var trace = 0.0
-		for i in range(dim):
-			trace += rho_packed[i * (dim + 1) * 2]
-		if is_nan(trace) or trace < 1e-10:
+		var trace := DegenerateRho.packed_trace(rho_packed, dim)
+		if DegenerateRho.is_degenerate_trace(trace):
 			var now_ms := Time.get_ticks_msec()
 			if now_ms - _degenerate_warned_at.get(biome_name, 0) > 5000:
 				_degenerate_warned_at[biome_name] = now_ms
 				push_warning("BiomeEvolutionBatcher: degenerate rho for '%s' (tr=%.6f), reinitializing to mixed state" % [biome_name, trace])
-			var fresh_packed = PackedFloat64Array()
-			fresh_packed.resize(dim * dim * 2)
-			var diag_val = 1.0 / float(dim)
-			for i in range(dim):
-				fresh_packed[i * (dim + 1) * 2] = diag_val
+			var fresh_packed := DegenerateRho.maximally_mixed_packed(dim)
 			qc.density_matrix._from_packed(fresh_packed, dim)
 			rho_packed = fresh_packed
 			status.rho = rho_packed
@@ -2972,15 +2966,15 @@ func _queue_adaptive_packet(biome_rhos: Array, active_flags_arr: Array, packet_s
 			push_error("BiomeEvolutionBatcher: Active biome '%s' (engine_id=%d) has empty rho! Marking inactive." % [biome_name, i])
 			active_flags_arr[i] = false
 			continue
-		# Also guard zero-trace rhos: C++ crashes on degenerate density matrices
+		# Also guard degenerate rhos: C++ crashes on them. Same detector as the
+		# status-gather path above (DegenerateRho), different remedy — a queued
+		# packet can't rebuild the biome's state mid-flight, so it drops out of
+		# this packet instead. Detection is shared; policy stays local.
 		var dim_i = _biome_engine_dims.get(_engine_id_to_biome.get(i, ""), -1)
 		if dim_i > 0 and rho.size() >= dim_i * dim_i * 2:
-			var trace = 0.0
-			for k in range(dim_i):
-				trace += rho[k * (dim_i + 1) * 2]
-			if trace < 1e-10:
+			if DegenerateRho.is_degenerate(rho, dim_i):
 				var biome_name = _engine_id_to_biome.get(i, "unknown")
-				push_warning("BiomeEvolutionBatcher: Active biome '%s' has zero-trace rho. Marking inactive for this packet." % biome_name)
+				push_warning("BiomeEvolutionBatcher: Active biome '%s' has degenerate rho. Marking inactive for this packet." % biome_name)
 				active_flags_arr[i] = false
 
 	# Queue SINGLE packet with adaptive phrame count

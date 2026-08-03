@@ -17,6 +17,7 @@ Run from project root:
 
 import argparse
 import json
+import os
 import re
 import sys
 import urllib.request
@@ -35,6 +36,16 @@ GAME_DATA = [
 SVG_DIR       = ROOT / "Assets/emoji_svg"
 REGISTRY_FILE = ROOT / "Assets/emoji_registry.json"
 CDN           = "https://cdn.jsdelivr.net/gh/jdecked/twemoji@latest/assets/svg/{cp}.svg"
+
+# The yurt worlds tree — same repo-crossing convention 🍄/🧪/hearth_client.py's YURT_ENV_DEFAULT
+# and umwelt's tests/test_world_vocabulary_coverage.py already use to reach it from a sibling
+# repo. A `register_role_emoji(...)`/`register_node_icon(...)` call anywhere under here designs a
+# glyph the hive now needs an SVG for; this pipeline used to only know about SpaceWheat's own
+# GAME_DATA/.gd sources, so getting a newly-registered glyph to actually render required 3 manual
+# round-trips (run Godot headed, read "no SVG for X" warnings out of the log, hand-collect them,
+# re-run this pipeline) — found the hard way across the hive-ops/yurt-mood/project_membrane fixes,
+# 2026-08-02. Scanning it here closes that loop.
+YURT_WORLDS_DIR_DEFAULT = "/mnt/c/Users/Luke Spooner/ws-win/yurt/worlds"
 
 # ── Custom SVG entries (Tier 1) ────────────────────────────────────────────────
 # Single authoritative source for hand-crafted emoji → SVG mappings.
@@ -65,7 +76,10 @@ CUSTOM_ENTRIES: dict[str, str] = {
     "⚖": "res://Assets/UI/Economic/Justice.svg",
     "🗝": "res://Assets/UI/Economic/Lock.svg",
     "🔒": "res://Assets/UI/Economic/Lock.svg",
-    "👥": "res://Assets/UI/Economic/Collective.svg",
+    # 👥 had no matching Assets/UI/Economic/Collective.svg (art never actually made) — every
+    # get_texture() call logged a Godot resource-load ERROR and silently fell to the twemoji
+    # tier anyway. Found via P4's cognifold node-badge verification, 2026-08-02. Dropped rather
+    # than pointed at art that doesn't exist; twemoji already covers 👥 honestly.
     "≈": "res://Assets/UI/Math/AlmostEqual.svg",
     "≠": "res://Assets/UI/Math/NotEqual.svg",
 }
@@ -129,6 +143,32 @@ def emojis_on_disk() -> set[str]:
             if from_codepoint(svg.stem)}
 
 
+# ── yurt worlds vocabulary scan (register_role_emoji / register_node_icon glyphs) ─────────────
+
+def _yurt_worlds_dir() -> Path | None:
+    raw = os.environ.get("YURT_WORLDS_DIR", YURT_WORLDS_DIR_DEFAULT)
+    p = Path(raw)
+    return p if p.is_dir() else None
+
+
+def _scan_yurt_vocab() -> set[str]:
+    """Every emoji literal in any worlds/*/vocabulary.py — register_role_emoji's {pos,zero,neg,
+    coherent} dict values and register_node_icon's icon args, whatever their exact call shape.
+    A plain emoji-glyph regex scan over the file text (same _EMOJI_RE the GAME_DATA/.gd scans use)
+    rather than parsing the calls — a `vocabulary.py` has no other reason to carry these glyphs."""
+    worlds_dir = _yurt_worlds_dir()
+    if worlds_dir is None:
+        return set()
+    found: set[str] = set()
+    for vocab_file in worlds_dir.glob("*/vocabulary.py"):
+        text = vocab_file.read_text(encoding="utf-8", errors="replace")
+        for m in _EMOJI_RE.finditer(text):
+            n = normalize(m.group())
+            if n:
+                found.add(n)
+    return found
+
+
 # ── Phase 1: SCAN ──────────────────────────────────────────────────────────────
 
 def phase1_scan() -> tuple[set[str], set[str]]:
@@ -166,6 +206,15 @@ def phase1_scan() -> tuple[set[str], set[str]]:
     new_from_gd = gd_emojis - all_emojis
     print(f"  .gd files: {'+' + str(len(new_from_gd)) + ' additional' if new_from_gd else 'no new'} emojis")
     all_emojis |= gd_emojis
+
+    yurt_emojis = _scan_yurt_vocab()
+    if _yurt_worlds_dir() is None:
+        print(f"  yurt worlds/*/vocabulary.py: not mounted here — skipping")
+    else:
+        new_from_yurt = yurt_emojis - all_emojis
+        print(f"  yurt worlds/*/vocabulary.py: "
+              f"{'+' + str(len(new_from_yurt)) + ' additional' if new_from_yurt else 'no new'} emojis")
+        all_emojis |= yurt_emojis
 
     custom_hit   = all_emojis & set(CUSTOM_ENTRIES)
     needing_svgs = all_emojis - set(CUSTOM_ENTRIES)

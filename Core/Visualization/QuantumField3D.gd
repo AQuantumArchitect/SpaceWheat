@@ -22,6 +22,26 @@ extends SubViewportContainer
 # _on_plot_selection_changed) so it drops into GameRoot._mount_quantum_visualization behind
 # the flag. Defensive throughout: any missing farm/viz_cache API fails to an empty field,
 # never a crash.
+#
+# Two distinct navigation layers share this field, both docs/architecture/fractal_atlas.md
+# calls "fractal" but which are genuinely different mechanics:
+#   • the sibling portal rail (_rebuild_portals): every OTHER already-loaded biome as a
+#     themed orb on the fixed left rail — lateral, one level, calls ActiveBiomeManager
+#     directly (a navigation concern, not an economy-gated mechanic);
+#   • descend/ascend (_rebuild_fractal_portals): a small indigo satellite per register
+#     (enter_icon — real recursive icon→world depth, FractalAtlas/FractalWorldService/
+#     ProceduralIconBiome) and a single cyan ascend portal shown only when the active
+#     biome is itself a materialized fractal child. Both call farm_ref.instrument directly,
+#     the same precedent the sibling rail already set.
+#
+# Three line/glyph channels, each a genuinely different physical quantity, never overlapping
+# (parallel-track offset on the edges; local, register-attached glyphs for the arrows):
+#   • MI edges (_recompute_mi_segs) — live measured correlation, symmetric, no direction.
+#   • metro lines (_recompute_metro_segs) — the PERMANENT Hamiltonian coupling (icons.json),
+#     static per biome, same authority + math as the 2D QuantumEdgeRenderer's metro lines.
+#   • Lindblad flow arrows (_rebuild_lindblad_glyphs) — directional pump/drain cones local to
+#     a register's own poles (BasePlot.lindblad_pump_active/lindblad_drain_active), not an
+#     edge between two registers.
 
 signal quantum_node_selected(node)
 signal biome_selected(biome_name: String)
@@ -36,6 +56,16 @@ const CYAN := Color(0.42, 0.95, 0.88)
 const R := 0.34                     # orb radius
 const SHELL := 2.35                 # layout shell radius
 const MI_STRIDE := 6                # recompute mutual-information correlations every N frames
+const METRO_STRIDE := 90            # H-coupling is static per biome ("H only moves on incorporation")
+const LINDBLAD_STRIDE := 24         # pump/drain flags are gameplay-driven, refresh a bit livelier
+const LINE_TRACK_OFFSET := 0.055    # perpendicular push so MI/H tracks never literally overlap
+const PUMP_COLOR := Color(0.45, 0.85, 0.55)   # energy flowing IN at the north pole
+const DRAIN_COLOR := Color(0.95, 0.40, 0.32)  # population flowing OUT at the south pole
+const FORCE_STRIDE := MI_STRIDE     # how often live MI/H attraction weights are recomputed
+const DRIFT_MAX := R * 1.6          # cap on how far an orb may wander from its Fibonacci anchor —
+                                     # legibility over chaos: the layout must always stay readable
+const DRIFT_SMOOTH := 2.2           # exponential-smoothing rate toward the target (frame-rate independent)
+const REPEL_MARGIN := R * 2.3       # minimum comfortable separation between two live orb positions
 
 var selected_plot_positions: Dictionary = {}
 var farm_ref = null
@@ -45,6 +75,9 @@ var _pivot: Node3D
 var _cam: Camera3D
 var _bubbles: Array = []            # {reg, mesh, ring, sprite, dot, mat, rmat, pos, grid_pos}
 var _portals: Array = []            # {mesh, sprite, name, pos} — other biomes, click to dive
+const DESCEND_HUE_COLOR := Color(0.55, 0.35, 0.95)  # fixed indigo — "go deeper", never a biome hue
+var _descend_portals: Array = []    # {mesh, ring, sprite, biome_name, register_id} — per register, click to enter_icon
+var _ascend_portal = null           # {mesh, ring, sprite} or null — only present inside a fractal child world
 var _edges: MeshInstance3D = null   # live MI correlation lines between orbs
 var _vectors: MeshInstance3D = null # live Bloch state-vector lines (centre → state point)
 var _dragging := false
@@ -58,9 +91,16 @@ var _pointer_pos := Vector2.ZERO
 var _mi_frame := 0                # MI stride counter (recompute correlations every MI_STRIDE)
 var _mi_segs: Array = []          # cached correlation segments: [posA, posB, color]
 var _mi_dirty := true             # force an MI recompute after a rebuild
+var _force_frame := 0             # force-dynamics stride counter
+var _attract_pairs: Array = []    # cached [bubble_i, bubble_j, weight 0..1] — live MI + static
+                                   # H-coupling combined, drives the gentle drift toward correlated partners
+var _metro_mesh: MeshInstance3D = null  # static H-coupling lines — the permanent transit map
+var _metro_frame := 0
+var _metro_segs: Array = []       # cached coupling segments: [posA, posB, color]
+var _metro_dirty := true
+var _lindblad_frame := 0
+var _lindblad_glyphs: Array = []  # {shaft, head, register_id} — pump/drain flow cones, cleared on rebuild
 var _last_biome := ""
-var _reg_tex: Dictionary = {}       # emoji -> Texture2D cache
-var _emoji_reg: Dictionary = {}
 # current biome theme colours
 var _glow := Color(0.96, 0.80, 0.36)
 var _orb_base := Color(0.14, 0.11, 0.05)
@@ -118,6 +158,19 @@ func _ready() -> void:
 	_edges.material_override = emat
 	_pivot.add_child(_edges)
 
+	# metro lines: static Hamiltonian-coupling edges — the biome's PERMANENT wiring
+	# (icons.json), distinct from the live MI overlay above. Offset onto its own parallel
+	# track (LINE_TRACK_OFFSET) so a coupled pair that's ALSO correlated never renders as
+	# one overlapping line — see _perp_offset.
+	_metro_mesh = MeshInstance3D.new()
+	_metro_mesh.mesh = ImmediateMesh.new()
+	var mmat := StandardMaterial3D.new()
+	mmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mmat.vertex_color_use_as_albedo = true
+	mmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_metro_mesh.material_override = mmat
+	_pivot.add_child(_metro_mesh)
+
 	# live Bloch state-vector lines + fading trails (centre → the evolving state point),
 	# rebuilt every frame so the picture IS the physics simulation, not a decorative spin
 	_vectors = MeshInstance3D.new()
@@ -140,17 +193,69 @@ func _ready() -> void:
 	_chain_mesh.material_override = cmat
 	_pivot.add_child(_chain_mesh)
 
-	_load_emoji_registry()
-
 
 # ------------------------------------------------- interface (FarmView contract)
 func connect_to_farm(farm: Node) -> void:
+	if farm_ref and farm_ref != farm:
+		_disconnect_reveal_signals(farm_ref)
 	farm_ref = farm
+	_connect_reveal_signals(farm_ref)
+
+
+func _connect_reveal_signals(farm: Node) -> void:
+	if farm == null:
+		return
+	if farm.has_signal("plot_revealed") and not farm.plot_revealed.is_connected(_on_plot_revealed):
+		farm.plot_revealed.connect(_on_plot_revealed)
+	if farm.has_signal("terminal_released") and not farm.terminal_released.is_connected(_on_terminal_released):
+		farm.terminal_released.connect(_on_terminal_released)
+
+
+func _disconnect_reveal_signals(farm: Node) -> void:
+	if farm == null:
+		return
+	if farm.has_signal("plot_revealed") and farm.plot_revealed.is_connected(_on_plot_revealed):
+		farm.plot_revealed.disconnect(_on_plot_revealed)
+	if farm.has_signal("terminal_released") and farm.terminal_released.is_connected(_on_terminal_released):
+		farm.terminal_released.disconnect(_on_terminal_released)
+
+
+## Cosmetic reveal state (mirrors QuantumForceGraph._is_plot_revealed). Fail OPEN
+## (visible) when no farm is connected — a bare field without a farm must never
+## render empty by accident.
+func _is_plot_revealed(grid_pos: Vector2i) -> bool:
+	if farm_ref and farm_ref.has_method("is_plot_revealed"):
+		return farm_ref.is_plot_revealed(grid_pos)
+	return true
+
+
+func _on_plot_revealed(grid_pos: Vector2i) -> void:
+	for b in _bubbles:
+		if b.get("grid_pos") == grid_pos:
+			_set_bubble_visible(b, true)
+
+
+## HARVEST pops the bubble back to unexplored fog (mirrors
+## QuantumForceGraph._on_terminal_released) — the register persists, only the
+## cosmetic reveal state resets.
+func _on_terminal_released(grid_pos: Vector2i, _terminal_id: String, _credits_earned: int) -> void:
+	for b in _bubbles:
+		if b.get("grid_pos") == grid_pos:
+			_set_bubble_visible(b, false)
+
+
+func _set_bubble_visible(b: Dictionary, vis: bool) -> void:
+	for k in ["mesh", "eq", "axisline", "np", "spr", "dot", "ring"]:
+		var node = b.get(k)
+		if node != null and is_instance_valid(node):
+			node.visible = vis
 
 
 func teardown() -> void:
+	_disconnect_reveal_signals(farm_ref)
 	_clear_bubbles()
 	_clear_portals()
+	_clear_fractal_portals()
 	farm_ref = null
 
 
@@ -189,33 +294,10 @@ func _biome_ok(b) -> bool:
 
 
 # ------------------------------------------------------------------- rendering
-func _load_emoji_registry() -> void:
-	var f := FileAccess.open("res://Assets/emoji_registry.json", FileAccess.READ)
-	if f == null:
-		return
-	var d = JSON.parse_string(f.get_as_text())
-	if typeof(d) != TYPE_DICTIONARY:
-		return
-	for grp in ["twemoji", "custom"]:
-		if d.has(grp) and typeof(d[grp]) == TYPE_DICTIONARY:
-			for k in d[grp]:
-				_emoji_reg[k] = d[grp][k]
-
-
 func _emoji_tex(e: String) -> Texture2D:
 	if e == "":
 		return null
-	if _reg_tex.has(e):
-		return _reg_tex[e]
-	var tex: Texture2D = null
-	for cand in [e, e + "️", e.replace("️", "")]:
-		if _emoji_reg.has(cand):
-			var p: String = _emoji_reg[cand]
-			if ResourceLoader.exists(p):
-				tex = load(p)
-				break
-	_reg_tex[e] = tex
-	return tex
+	return EmojiRegistry.shared().get_texture(e)
 
 
 func _apply_theme(biome_name: String) -> void:
@@ -339,9 +421,14 @@ func _spawn(reg: int, pos: Vector3, north_emoji: String, south_emoji: String, gr
 	ring.position = pos
 	_pivot.add_child(ring)
 
-	_bubbles.append({"reg": reg, "mesh": mi, "eq": eq, "axisline": axisline, "np": np,
-		"spr": spr, "dot": dot, "ring": ring, "pos": pos, "grid_pos": grid_pos, "trail": [],
-		"north_e": north_emoji, "south_e": south_emoji})
+	var b := {"reg": reg, "mesh": mi, "eq": eq, "axisline": axisline, "np": np,
+		"spr": spr, "dot": dot, "ring": ring, "pos": pos, "anchor": pos, "grid_pos": grid_pos,
+		"trail": [], "north_e": north_emoji, "south_e": south_emoji}
+	_bubbles.append(b)
+	# Explore-on-action (owner ruling 2026-08-02): a register stays hidden until
+	# the player actually explores its plot — mirrors QuantumForceGraph's own
+	# reveal gate so 2D and 3D agree on what "explored" means.
+	_set_bubble_visible(b, _is_plot_revealed(grid_pos))
 
 
 func _pole_sprite(e: String, at: Vector3, sz: float) -> Sprite3D:
@@ -367,6 +454,10 @@ func _clear_bubbles() -> void:
 	_bubbles.clear()
 	_mi_segs.clear()
 	_mi_dirty = true
+	_metro_segs.clear()
+	_metro_dirty = true
+	_attract_pairs.clear()
+	_clear_lindblad_glyphs()
 
 
 # ------------------------------------------------------- fractal biome portals
@@ -374,6 +465,7 @@ func _clear_bubbles() -> void:
 ## Clicking one dives into it (set_active_biome) — the fractal navigation from the demo.
 func _rebuild_portals(active_name: String) -> void:
 	_clear_portals()
+	_clear_fractal_portals()
 	var grid = _farm_grid()
 	if grid == null or not grid.has_method("get_all_biomes"):
 		return
@@ -392,6 +484,100 @@ func _rebuild_portals(active_name: String) -> void:
 		var t := (float(i) + 0.5) / float(max(1, n))   # 0..1, centered
 		var pos := Vector3(-4.9, 0.8 - t * 3.6, 0.0)
 		_spawn_portal(others[i], pos)
+
+	_rebuild_fractal_portals(active_name)
+
+
+## Fractal icon→world nav (FractalAtlas/FractalWorldService/ProceduralIconBiome): a small
+## indigo "descend" satellite next to every register (enter_icon on tap, real recursive
+## depth — not the lateral sibling dive above), plus a single ascend portal when the active
+## biome is itself a materialized fractal child (ProceduralIconBiome stamps
+## biome.set_meta("fractal_world", true) on every world it builds). Descend satellites are
+## children of _pivot (they orbit WITH their register); the ascend portal is fixed on _world
+## like the sibling rail, since "leave this world" isn't tied to any one register.
+## Depth-cap enforcement stays server-side in FractalAtlas/FractalWorldService — a click past
+## the cap is a defensive no-op here (action_enter_icon just returns success=false) rather
+## than duplicating the cap check in the renderer; a friendlier dead-end message is P4 scope
+## (playable-first-arc polish, task #405).
+func _rebuild_fractal_portals(active_name: String) -> void:
+	for reg in _bubbles:
+		_spawn_descend_portal(int(reg.reg), reg.pos, active_name)
+
+	var biome = _get_active_biome()
+	if biome != null and biome.has_meta("fractal_world") and bool(biome.get_meta("fractal_world")):
+		_spawn_ascend_portal()
+
+
+func _spawn_descend_portal(register_id: int, base_pos: Vector3, biome_name: String) -> void:
+	# Push the satellite further out along the same radial direction as its register orb —
+	# purely geometric, no extra layout math needed.
+	var dir := base_pos.normalized() if base_pos.length() > 0.01 else Vector3(0, 1, 0)
+	var pos := base_pos + dir * 0.42
+
+	var mi := MeshInstance3D.new()
+	var sm := SphereMesh.new(); sm.radius = 0.09; sm.height = 0.18
+	sm.radial_segments = 14; sm.rings = 8
+	mi.mesh = sm
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = DESCEND_HUE_COLOR.darkened(0.35)
+	mi.material_override = mat
+	mi.position = pos
+	_pivot.add_child(mi)
+
+	var ring := MeshInstance3D.new()
+	var tm := TorusMesh.new(); tm.inner_radius = 0.10; tm.outer_radius = 0.125
+	tm.rings = 32; tm.ring_segments = 10
+	ring.mesh = tm
+	var rmat := StandardMaterial3D.new()
+	rmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	rmat.albedo_color = DESCEND_HUE_COLOR
+	ring.material_override = rmat
+	ring.position = pos
+	_pivot.add_child(ring)
+
+	_descend_portals.append({"mesh": mi, "ring": ring, "pos": pos, "biome_name": biome_name, "register_id": register_id})
+
+
+func _spawn_ascend_portal() -> void:
+	var pos := Vector3(4.9, 1.6, 0.0)
+	var mi := MeshInstance3D.new()
+	var sm := SphereMesh.new(); sm.radius = 0.20; sm.height = 0.40
+	sm.radial_segments = 20; sm.rings = 12
+	mi.mesh = sm
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = CYAN.darkened(0.55)
+	mi.material_override = mat
+	mi.position = pos
+	_world.add_child(mi)
+
+	var ring := MeshInstance3D.new()
+	var tm := TorusMesh.new(); tm.inner_radius = 0.215; tm.outer_radius = 0.25
+	tm.rings = 44; tm.ring_segments = 14
+	ring.mesh = tm
+	var rmat := StandardMaterial3D.new()
+	rmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	rmat.albedo_color = CYAN
+	ring.material_override = rmat
+	ring.position = pos
+	ring.rotation_degrees = Vector3(90, 0, 0)
+	_world.add_child(ring)
+
+	_ascend_portal = {"mesh": mi, "ring": ring, "pos": pos}
+
+
+func _clear_fractal_portals() -> void:
+	for p in _descend_portals:
+		for k in ["mesh", "ring"]:
+			if p.get(k) != null and is_instance_valid(p[k]):
+				p[k].queue_free()
+	_descend_portals.clear()
+	if _ascend_portal != null:
+		for k in ["mesh", "ring"]:
+			if _ascend_portal.get(k) != null and is_instance_valid(_ascend_portal[k]):
+				_ascend_portal[k].queue_free()
+		_ascend_portal = null
 
 
 func _spawn_portal(biome, pos: Vector3) -> void:
@@ -477,6 +663,7 @@ func _process(dt: float) -> void:
 		_pivot.rotate_object_local(Vector3.UP, dt * 0.08)
 
 	var vc = biome.viz_cache
+	_apply_force_dynamics(vc, dt)
 	for b in _bubbles:
 		var snap = vc.get_snapshot(b.reg)
 		if typeof(snap) != TYPE_DICTIONARY:
@@ -506,6 +693,10 @@ func _process(dt: float) -> void:
 	_update_edges(vc)
 	_update_vectors()
 	_draw_chain()
+
+	_lindblad_frame += 1
+	if (_lindblad_frame % LINDBLAD_STRIDE) == 0:
+		_rebuild_lindblad_glyphs()
 
 
 ## Draw each register's live state vector (centre → the real Bloch point) plus a fading
@@ -538,30 +729,160 @@ func _update_vectors() -> void:
 	vm.surface_end()
 
 
+## Feel the dynamics: each orb drifts a bounded distance off its static Fibonacci anchor
+## toward whichever partners it's live-correlated with (MI) or permanently coupled to
+## (H, icons.json) — the "Position (distance) = Mutual Info" idea QuantumForceGraph's own
+## docstring always aspired to but never implemented. DRIFT_MAX + the anchor-relative target
+## keep this legible (gentle breathing, never a chaotic bounce); REPEL_MARGIN keeps orbs from
+## visually colliding when two both drift toward a shared neighbourhood.
+func _apply_force_dynamics(vc, dt: float) -> void:
+	if _bubbles.size() < 2:
+		return
+	_force_frame += 1
+	if _mi_dirty or (_force_frame % FORCE_STRIDE) == 0:
+		_attract_pairs = _recompute_attraction(vc)
+
+	var targets: Array = []
+	for i in range(_bubbles.size()):
+		var b = _bubbles[i]
+		var pull := Vector3.ZERO
+		for pair in _attract_pairs:
+			if pair[0] == i:
+				pull += (_bubbles[pair[1]].anchor - b.anchor) * pair[2]
+			elif pair[1] == i:
+				pull += (_bubbles[pair[0]].anchor - b.anchor) * pair[2]
+		if pull.length() > DRIFT_MAX:
+			pull = pull.normalized() * DRIFT_MAX
+		targets.append(b.anchor + pull)
+
+	# Mild pairwise repulsion on the TARGET positions (not the live ones) so two orbs both
+	# drifting toward a shared correlated neighbour never overlap.
+	for i in range(_bubbles.size()):
+		for j in range(_bubbles.size()):
+			if i == j:
+				continue
+			var delta: Vector3 = targets[i] - targets[j]
+			var dist := delta.length()
+			if dist < REPEL_MARGIN and dist > 0.001:
+				targets[i] += delta.normalized() * (REPEL_MARGIN - dist) * 0.5
+
+	var smoothing := 1.0 - exp(-DRIFT_SMOOTH * dt)
+	for i in range(_bubbles.size()):
+		var b = _bubbles[i]
+		b.pos = b.pos.lerp(targets[i], smoothing)
+		_reposition_bubble_visuals(b)
+
+
+## Move every fixed-offset visual (the Bloch ball, equator ring, axis line, ripeness ring,
+## pole sprites) to the orb's current live position. The inner state dot keeps updating from
+## b.pos in the main _process loop, same as before.
+func _reposition_bubble_visuals(b: Dictionary) -> void:
+	var pos: Vector3 = b.pos
+	for k in ["mesh", "eq", "axisline", "ring"]:
+		var node = b.get(k)
+		if node != null and is_instance_valid(node):
+			node.position = pos
+	var np = b.get("np")
+	if np != null and is_instance_valid(np):
+		np.position = pos + Vector3(0, R + 0.12, 0)
+	var spr = b.get("spr")
+	if spr != null and is_instance_valid(spr):
+		spr.position = pos + Vector3(0, -(R + 0.12), 0)
+
+
+## Combine live MI (primary, 0.7 weight) and static H-coupling magnitude (secondary, 0.3
+## weight — same normalization trick as _recompute_metro_segs) into per-bubble-index-pair
+## attraction weights. Index pairs, not positions, so the cache stays valid while orbs drift.
+func _recompute_attraction(vc) -> Array:
+	var pairs: Array = []
+	if _bubbles.size() < 2:
+		return pairs
+	var has_mi: bool = vc.has_method("get_mutual_information")
+	var coupling_by_pair: Dictionary = {}
+	if vc.has_method("get_hamiltonian_couplings") and vc.has_method("get_qubit"):
+		var idx_by_reg: Dictionary = {}
+		for i in range(_bubbles.size()):
+			idx_by_reg[int(_bubbles[i].reg)] = i
+		for emoji in vc.get_emojis():
+			var q_src: int = vc.get_qubit(emoji)
+			if q_src < 0 or not idx_by_reg.has(q_src):
+				continue
+			var couplings: Dictionary = vc.get_hamiltonian_couplings(emoji)
+			for target_emoji in couplings:
+				var q_tgt: int = vc.get_qubit(target_emoji)
+				if q_tgt < 0 or q_tgt == q_src or not idx_by_reg.has(q_tgt):
+					continue
+				var mag := _coupling_magnitude(couplings[target_emoji])
+				if mag < 0.001:
+					continue
+				var key := Vector2i(mini(q_src, q_tgt), maxi(q_src, q_tgt))
+				coupling_by_pair[key] = maxf(float(coupling_by_pair.get(key, 0.0)), mag)
+
+	var coup_ref := 1e-6
+	if not coupling_by_pair.is_empty():
+		var mags: Array = coupling_by_pair.values()
+		mags.sort()
+		coup_ref = maxf(float(mags[mags.size() / 2]), 1e-6)
+
+	for i in range(_bubbles.size()):
+		for j in range(i + 1, _bubbles.size()):
+			var w := 0.0
+			if has_mi:
+				var mi := float(vc.get_mutual_information(_bubbles[i].reg, _bubbles[j].reg))
+				w += clampf(mi * 3.0, 0.0, 1.0) * 0.7
+			var key := Vector2i(mini(int(_bubbles[i].reg), int(_bubbles[j].reg)),
+				maxi(int(_bubbles[i].reg), int(_bubbles[j].reg)))
+			if coupling_by_pair.has(key):
+				w += clampf(float(coupling_by_pair[key]) / coup_ref, 0.0, 1.0) * 0.3
+			if w > 0.02:
+				pairs.append([i, j, w])
+	return pairs
+
+
 ## Rebuild the manifold edges from live mutual information: a line between two orbs whose
 ## registers are correlated, brightness ∝ MI. Product (uncorrelated) states draw nothing.
 ## get_mutual_information is O(n²) over registers, so the correlation set is recomputed only
 ## every MI_STRIDE frames (the 2D renderer caches MI at a ~6-frame stride too); the cached
 ## segments still redraw every frame so orbit/drift stays smooth.
 func _update_edges(vc) -> void:
-	if _edges == null or not (_edges.mesh is ImmediateMesh):
-		return
 	_mi_frame += 1
 	if _mi_dirty or (_mi_frame % MI_STRIDE) == 0:
 		_mi_segs = _recompute_mi_segs(vc)
 		_mi_dirty = false
-	var em: ImmediateMesh = _edges.mesh
-	em.clear_surfaces()
-	if _mi_segs.is_empty():
+	if _edges != null and _edges.mesh is ImmediateMesh:
+		_draw_segs(_edges.mesh, _mi_segs)
+
+	_metro_frame += 1
+	if _metro_dirty or (_metro_frame % METRO_STRIDE) == 0:
+		_metro_segs = _recompute_metro_segs(vc)
+		_metro_dirty = false
+	if _metro_mesh != null and _metro_mesh.mesh is ImmediateMesh:
+		_draw_segs(_metro_mesh.mesh, _metro_segs)
+
+
+func _draw_segs(mesh: ImmediateMesh, segs: Array) -> void:
+	mesh.clear_surfaces()
+	if segs.is_empty():
 		return
-	em.surface_begin(Mesh.PRIMITIVE_LINES)
-	for s in _mi_segs:
+	mesh.surface_begin(Mesh.PRIMITIVE_LINES)
+	for s in segs:
 		var col: Color = s[2]
-		em.surface_set_color(col)
-		em.surface_add_vertex(s[0])
-		em.surface_set_color(col)
-		em.surface_add_vertex(s[1])
-	em.surface_end()
+		mesh.surface_set_color(col)
+		mesh.surface_add_vertex(s[0])
+		mesh.surface_set_color(col)
+		mesh.surface_add_vertex(s[1])
+	mesh.surface_end()
+
+
+## A pair of edges between the SAME two orbs (one MI, one H-coupling) would otherwise render
+## as one indistinguishable overlapping line. Push each line class onto its own small parallel
+## "track", perpendicular to the edge, the same fix the 2D metro renderer already uses.
+func _perp_offset(a: Vector3, b: Vector3) -> Vector3:
+	var dir := (b - a).normalized()
+	if dir.length() < 0.001:
+		return Vector3.ZERO
+	var reference := Vector3.UP if absf(dir.dot(Vector3.UP)) < 0.98 else Vector3.RIGHT
+	return dir.cross(reference).normalized() * LINE_TRACK_OFFSET
 
 
 ## Recompute the correlation segments as [posA, posB, color] (positions in the orbs' stable
@@ -577,8 +898,144 @@ func _recompute_mi_segs(vc) -> Array:
 				# crisp, clean correlation line (Mini-Metro line, not a glow) — light
 				# steel-blue, more opaque the stronger the correlation
 				var a := clampf(mi * 3.0, 0.3, 0.95)
-				segs.append([_bubbles[i].pos, _bubbles[j].pos, Color(0.62, 0.82, 0.95, a)])
+				var pa: Vector3 = _bubbles[i].pos
+				var pb: Vector3 = _bubbles[j].pos
+				var off := _perp_offset(pa, pb)
+				segs.append([pa + off, pb + off, Color(0.62, 0.82, 0.95, a)])
 	return segs
+
+
+## Static Hamiltonian-coupling edges — the biome's PERMANENT wiring (icons.json), not a live
+## measurement. Same authority the 2D metro-line renderer uses (QuantumEdgeRenderer.gd
+## _rebuild_metro_cache): viz_cache.get_hamiltonian_couplings(emoji), aggregated to qubit
+## pairs by max |J|, colored from BiomeVisualTheme's global line_palette.
+func _recompute_metro_segs(vc) -> Array:
+	var segs: Array = []
+	if not vc.has_method("get_hamiltonian_couplings") or not vc.has_method("get_qubit") or _bubbles.size() < 2:
+		return segs
+	var pos_by_reg: Dictionary = {}
+	for b in _bubbles:
+		pos_by_reg[int(b.reg)] = b.pos
+
+	var strength_by_pair: Dictionary = {}  # Vector2i(min,max) qubit -> max |J|
+	for emoji in vc.get_emojis():
+		var q_src: int = vc.get_qubit(emoji)
+		if q_src < 0 or not pos_by_reg.has(q_src):
+			continue
+		var couplings: Dictionary = vc.get_hamiltonian_couplings(emoji)
+		for target_emoji in couplings:
+			var q_tgt: int = vc.get_qubit(target_emoji)
+			if q_tgt < 0 or q_tgt == q_src or not pos_by_reg.has(q_tgt):
+				continue
+			var mag := _coupling_magnitude(couplings[target_emoji])
+			if mag < 0.001:
+				continue
+			var key := Vector2i(mini(q_src, q_tgt), maxi(q_src, q_tgt))
+			strength_by_pair[key] = maxf(float(strength_by_pair.get(key, 0.0)), mag)
+
+	if strength_by_pair.is_empty():
+		return segs
+	var mags: Array = strength_by_pair.values()
+	mags.sort()
+	var j_ref: float = maxf(float(mags[mags.size() / 2]), 1e-6)
+
+	var theme: Dictionary = BVT.get_theme(_last_biome)
+	var palette: Array = theme.get("line_palette", [Color(0.9, 0.78, 0.45)])
+	var idx := 0
+	for key in strength_by_pair:
+		var rel: float = float(strength_by_pair[key]) / j_ref
+		var alpha := clampf(0.35 + 0.5 * tanh(rel), 0.35, 0.85)
+		var col: Color = palette[idx % palette.size()]
+		col.a = alpha
+		var pa: Vector3 = pos_by_reg[key.x]
+		var pb: Vector3 = pos_by_reg[key.y]
+		var off := _perp_offset(pa, pb)
+		segs.append([pa - off, pb - off, col])
+		idx += 1
+	return segs
+
+
+func _coupling_magnitude(value) -> float:
+	if value is float or value is int:
+		return absf(float(value))
+	if value is Vector2:
+		return value.length()
+	if value is String and value.is_valid_float():
+		return absf(value.to_float())
+	return 0.0
+
+
+# ------------------------------------------------------ Lindblad flow arrows
+## Directional pump/drain glyphs, genuinely local — unlike H-coupling/MI, these are NOT edges
+## between two different registers. A pump drives population toward a register's OWN north
+## pole (energy flowing in from outside); a drain pulls it out at the register's OWN south
+## pole (population leaving). viz_cache.get_lindblad_outgoing() looks like the right read
+## contract but is confirmed dead plumbing (BiomeBase._seed_viz_couplings deliberately never
+## populates it) — so this bypasses viz_cache and reads the same live BasePlot infra flags
+## BiomeEvolutionBatcher._biome_has_persistent_lindblad_channels already reads directly.
+func _rebuild_lindblad_glyphs() -> void:
+	_clear_lindblad_glyphs()
+	if farm_ref == null or not is_instance_valid(farm_ref) or not ("grid" in farm_ref) or farm_ref.grid == null:
+		return
+	var grid = farm_ref.grid
+	for b in _bubbles:
+		var plot = grid.get_plot(b.grid_pos)
+		if plot == null:
+			continue
+		var pos: Vector3 = b.pos
+		if bool(plot.lindblad_pump_active):
+			# arrow sits just outside the north pole sprite, apex pointing DOWN into it
+			_spawn_lindblad_glyph(pos + Vector3(0, R + 0.42, 0), pos + Vector3(0, R + 0.24, 0), PUMP_COLOR, int(b.reg))
+		if bool(plot.lindblad_drain_active):
+			# arrow sits just outside the south pole sprite, apex pointing further away from it
+			_spawn_lindblad_glyph(pos - Vector3(0, R + 0.24, 0), pos - Vector3(0, R + 0.42, 0), DRAIN_COLOR, int(b.reg))
+
+
+func _spawn_lindblad_glyph(tail: Vector3, tip: Vector3, color: Color, register_id: int) -> void:
+	var dir := (tip - tail).normalized()
+	if dir.length() < 0.001:
+		return
+
+	var shaft := MeshInstance3D.new()
+	var scm := CylinderMesh.new()
+	scm.top_radius = 0.012; scm.bottom_radius = 0.012
+	scm.height = tail.distance_to(tip) * 0.6
+	scm.radial_segments = 8
+	shaft.mesh = scm
+	var smat := StandardMaterial3D.new()
+	smat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	smat.albedo_color = color
+	shaft.material_override = smat
+	shaft.position = tail.lerp(tip, 0.3)
+	_pivot.add_child(shaft)
+
+	var head := MeshInstance3D.new()
+	var hcm := CylinderMesh.new()
+	hcm.top_radius = 0.0; hcm.bottom_radius = 0.055; hcm.height = 0.16
+	hcm.radial_segments = 10
+	head.mesh = hcm
+	var hmat := StandardMaterial3D.new()
+	hmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	hmat.albedo_color = color
+	hmat.emission_enabled = true
+	hmat.emission = color
+	hmat.emission_energy_multiplier = 1.3
+	head.material_override = hmat
+	head.position = tip
+	# CylinderMesh's apex (top_radius=0) faces local +Y by default; flip to face `dir`.
+	if dir.y < 0:
+		head.rotation_degrees = Vector3(180, 0, 0)
+	_pivot.add_child(head)
+
+	_lindblad_glyphs.append({"shaft": shaft, "head": head, "register_id": register_id})
+
+
+func _clear_lindblad_glyphs() -> void:
+	for g in _lindblad_glyphs:
+		for k in ["shaft", "head"]:
+			if g.get(k) != null and is_instance_valid(g[k]):
+				g[k].queue_free()
+	_lindblad_glyphs.clear()
 
 
 func _gui_input(ev: InputEvent) -> void:
@@ -712,6 +1169,35 @@ func _draw_chain() -> void:
 func _try_pick(screen_pos: Vector2, button: int) -> void:
 	if _cam == null:
 		return
+	# Ascend first: the one fixed portal that leaves the current fractal child world.
+	if _ascend_portal != null and is_instance_valid(_ascend_portal.mesh):
+		var wpa: Vector3 = _ascend_portal.mesh.global_position
+		if not _cam.is_position_behind(wpa) and _cam.unproject_position(wpa).distance_to(screen_pos) < _portal_hit_radius():
+			if farm_ref != null and is_instance_valid(farm_ref) and ("instrument" in farm_ref) and farm_ref.instrument != null:
+				var asc: Dictionary = farm_ref.instrument.action_ascend_fractal()
+				if bool(asc.get("success", false)):
+					biome_selected.emit(str(asc.get("biome_name", "")))
+			return
+	# Descend: a tap on a register's indigo satellite calls enter_icon for that register —
+	# real recursive depth, distinct from the lateral sibling dive below.
+	var bestd = null
+	var bestd_d := _portal_hit_radius() * 0.75
+	for dp in _descend_portals:
+		if not is_instance_valid(dp.mesh):
+			continue
+		var wpd: Vector3 = dp.mesh.global_position
+		if _cam.is_position_behind(wpd):
+			continue
+		var dd := _cam.unproject_position(wpd).distance_to(screen_pos)
+		if dd < bestd_d:
+			bestd_d = dd
+			bestd = dp
+	if bestd != null:
+		if farm_ref != null and is_instance_valid(farm_ref) and ("instrument" in farm_ref) and farm_ref.instrument != null:
+			var desc: Dictionary = farm_ref.instrument.action_enter_icon(str(bestd.biome_name), int(bestd.register_id))
+			if bool(desc.get("success", false)):
+				biome_selected.emit(str(desc.get("biome_name", "")))
+		return
 	# Portals first: a click on another biome's orb dives into it (fractal navigation).
 	var bestp = null
 	var bestp_d := _portal_hit_radius()
@@ -777,10 +1263,14 @@ func dev_tap_register(idx: int) -> Vector2i:
 
 ## ------------------------------------------------------ rig/harness surface
 ## Renderer-agnostic mirror of the 2D rig's per-bubble read, so automated drives (the act
-## campaign, tap_to_farm probe) can enumerate + target orbs under the 3D field. The 3D field
-## shows ALL registers (no reveal-on-first-touch), so `visible` is always true; terminal-
-## measured state is not tracked in the field yet (measured=false) — a known follow-up. The
-## authoritative reveal/measured data lives on the farm, which the rig reads separately.
+## campaign, tap_to_farm probe) can enumerate + target orbs under the 3D field. `visible`
+## now mirrors the SAME reveal-on-first-touch state the 2D renderer's node.visible carries
+## (b.mesh.visible is kept live by _set_bubble_visible / _is_plot_revealed, the same authority
+## _spawn seeds a new orb from) — the 3D field used to report a blanket true here ("3D shows
+## all registers"), which was true of the RENDER but not of the rig surface's honesty; fixed
+## per task #405. terminal-measured state is still not tracked in the field (measured=false)
+## — a known follow-up. The authoritative reveal/measured data lives on the farm, which the
+## rig reads separately.
 func rig_bubble_state() -> Array:
 	var out: Array = []
 	for b in _bubbles:
@@ -791,7 +1281,7 @@ func rig_bubble_state() -> Array:
 			sp = _cam.unproject_position(b.mesh.global_position)
 		out.append({
 			"pos": [int(b.grid_pos.x), int(b.grid_pos.y)],
-			"visible": true,
+			"visible": bool(b.mesh.visible),
 			"measured": false,
 			"biome": _last_biome,
 			"register_id": int(b.reg),

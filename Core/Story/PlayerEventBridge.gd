@@ -8,7 +8,14 @@ extends Node
 var _farm: Node = null
 var _quest_manager: Node = null
 var _economy: Node = null
+var _instrument = null   # QuantumInstrument (RefCounted, not a Node)
 var _wired := false
+## First-icon-descent onboarding beat (task #405, Track 2 pattern from 63dd82f9):
+## the first successful icon injection that opens a fractal child world earns
+## ONE guided hint pointing at the new indigo descend satellite. Session-only
+## (not persisted) — purely a one-time nudge, never a gate; re-injecting after
+## this fires is silent, same as any other repeat action.
+var _fractal_intro_shown := false
 
 
 func _ready() -> void:
@@ -31,9 +38,13 @@ func _on_farm_ready(farm: Node, _state) -> void:
 	# rebind no-op: go through the locator's shell path.
 	_quest_manager = InstrumentLocator.resolve_quest_manager(self, farm)
 	_economy = _resolve(farm, "economy")
+	# QuantumInstrument is a RefCounted (not a Node), so _resolve's Node cast
+	# would drop it — grab it directly off the farm.
+	_instrument = farm.instrument if ("instrument" in farm) else null
 	_wire_quest_signals()
 	_wire_economy_signals()
 	_wire_farm_signals()
+	_wire_instrument_signals()
 	_wired = true
 	# Boot-race backfill: offers born during connect_to_farm (the tutorial
 	# quest, StoryEngine re-offers) emit quest_offered BEFORE this bridge
@@ -79,6 +90,10 @@ func _wire_economy_signals() -> void:
 func _wire_farm_signals() -> void:
 	_connect_once(_farm, "standing_changed", _on_standing_changed)
 	_connect_once(_farm, "biome_loaded", _on_biome_loaded)
+
+
+func _wire_instrument_signals() -> void:
+	_connect_once(_instrument, "action_performed", _on_instrument_action_performed)
 
 
 # ─────────────── handlers ───────────────
@@ -213,6 +228,25 @@ func _on_standing_changed(faction: String, channel: String, delta: float, new_va
 
 func _on_biome_loaded(biome_name: String, _biome_ref) -> void:
 	_push("🗺 Biome loaded: %s" % biome_name, 1, "🗺", "biome", "")
+
+
+## First-icon-descent onboarding beat (task #405): the first icon injection
+## that opens a fractal child world (FractalWorldService.on_inject, called
+## inside QuantumInstrument.action_inject_icon_pair) earns one guided nudge
+## toward the new indigo descend satellite next to that register — same
+## importance/toast path every other one-off beat here already uses (PlayerShell
+## turns importance>=2 PlayerEventLog entries into a show_hint toast). Purely
+## guidance: nothing here blocks or gates the injection itself.
+func _on_instrument_action_performed(action: String, result: Dictionary) -> void:
+	if _fractal_intro_shown or action != "inject_icon":
+		return
+	if not bool(result.get("success", false)):
+		return
+	if str(result.get("fractal_child_id", "")) == "":
+		return
+	_fractal_intro_shown = true
+	_push("🟣 a new world has opened — tap the indigo glow beside it to step inside",
+		2, "🟣", "fractal", "")
 
 
 func _format_rewards(rewards: Dictionary) -> String:

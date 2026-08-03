@@ -466,6 +466,12 @@ func action_explore(biome_name: String, grid_pos: Vector2i = GridSentinel.INVALI
 			elif bound_register >= 0:
 				terminal.grid_position = _derive_grid_position_for_register(biome_name, bound_register)
 		_attach_terminal_to_plot(terminal)
+		# The real Explore action is the sole reveal trigger — focus/select/tap
+		# alone no longer wake a bubble (owner ruling 2026-08-02).
+		if farm and farm.has_method("reveal_plot"):
+			var reveal_pos: Vector2i = terminal.grid_position if terminal else grid_pos
+			if reveal_pos.x >= 0:
+				farm.reveal_plot(reveal_pos)
 	_emit_farm_action("explore", result, grid_pos)
 	action_performed.emit("explore", result)
 	return result
@@ -680,16 +686,16 @@ func action_inject_icon_pair(biome_name: String, icon: Dictionary) -> Dictionary
 			return {"success": false, "error": "cost_commit_failed", "message": "Icon injection failed: unable to spend cost."}
 		if farm and farm.has_method("discover_icon"):
 			farm.discover_icon(north_emoji, south_emoji)
-	# Fractal: latent child world for this qubit axis
-	var _qid := int(result.get("qubit_index", -1))
-	if _qid < 0 and biome.quantum_computer and biome.quantum_computer.register_map:
-		_qid = max(0, biome.quantum_computer.register_map.num_qubits - 1)
-	var _icon_name := "%s/%s" % [north_emoji, south_emoji]
-	var _fw = _fractal()
-	if _fw:
-		var _fr = _fw.on_inject(biome_name, _qid, _icon_name, north_emoji, south_emoji)
-		result["fractal_child_id"] = _fr.get("child_id", "")
-		result["fractal"] = _fr
+		# Fractal: latent child world for this qubit axis
+		var _qid := int(result.get("qubit_index", -1))
+		if _qid < 0 and biome.quantum_computer and biome.quantum_computer.register_map:
+			_qid = max(0, biome.quantum_computer.register_map.num_qubits - 1)
+		var _icon_name := "%s/%s" % [north_emoji, south_emoji]
+		var _fw = _fractal()
+		if _fw:
+			var _fr = _fw.on_inject(biome_name, _qid, _icon_name, north_emoji, south_emoji)
+			result["fractal_child_id"] = _fr.get("child_id", "")
+			result["fractal"] = _fr
 		result["north_emoji"] = north_emoji
 		result["south_emoji"] = south_emoji
 		result["cost"] = gate.get("cost", {})

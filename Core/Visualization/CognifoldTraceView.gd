@@ -65,6 +65,10 @@ class _Grid:
 		return _biomes
 	func get_biome(n):
 		return _biomes.get(n)
+	## Belief-field registers carry no BasePlot infra (no pump/drain flags to read) — nil means
+	## QuantumField3D._rebuild_lindblad_glyphs correctly draws no glyphs here, not an error.
+	func get_plot(_grid_pos):
+		return null
 
 
 ## QuantumField3D.connect_to_farm(farm: Node) is typed Node, so the farm holder must be a Node

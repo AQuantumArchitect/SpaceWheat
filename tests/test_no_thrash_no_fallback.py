@@ -60,6 +60,7 @@ WRITE_WHITELIST = {
     "Core/Audio/MusicManager.gd",           # boot-once vector cache (truncate mode)
     "Core/Config/VerboseConfig.gd",         # opt-in file log, 50MB hard cap
     "Core/Instrumentation/QuantumInstrument.gd",  # explicit balance_export rig action
+    "Core/Instrumentation/FractalAtlas.gd",  # export_json_path: atlas snapshot on inject/enter/ascend, not per-frame
 }
 
 

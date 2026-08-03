@@ -72,6 +72,8 @@ func _register_default_events() -> void:
 		"biome_switch",
 		"menu_open",
 		"menu_close",
+		"fractal_descend",
+		"fractal_ascend",
 	]
 	var loaded := 0
 	for event_id in events:
@@ -279,6 +281,12 @@ func _on_action_performed(action: String, result: Dictionary) -> void:
 				play("pop_success", 0.85 + 0.45 * rel, pitch)
 			"reap":
 				play("reap_success")
+			"enter_icon":
+				# Descending into a fractal child world — every dive, not a rare event,
+				# so a plain distinct cue (no chain/pitch-ramp trick like pop's).
+				play("fractal_descend")
+			"ascend_fractal":
+				play("fractal_ascend")
 			_:
 				play("gate_success")
 	elif result.get("blocked", false):

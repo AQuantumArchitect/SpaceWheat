@@ -60,8 +60,13 @@ void QuantumMatrixNative::from_packed(const PackedFloat64Array& data, int dim) {
     // Validate input size: need dim*dim*2 elements (real + imag for each element)
     int required_size = dim * dim * 2;
     if ((int)data.size() < required_size) {
-        // Size mismatch - avoid buffer overflow by returning early
-        // This prevents segfault when array is too small
+        // Size mismatch - avoid buffer overflow by returning early.
+        // Loud, not silent: the caller gets a 0×0 matrix back either way, and a
+        // dimension that quietly collapsed to zero is far harder to trace from
+        // whatever NaN it eventually produces than from the mismatch itself.
+        UtilityFunctions::push_error(
+            "QuantumMatrixNative::from_packed: size mismatch (got ", data.size(),
+            ", need ", required_size, " for dim ", dim, ") — matrix left empty.");
         m_dim = 0;
         m_matrix.resize(0, 0);
         return;

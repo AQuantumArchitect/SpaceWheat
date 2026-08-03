@@ -374,16 +374,11 @@ func run_native_biome_cycle(biome, dt: float, max_dt_override: float = -1.0) -> 
 	var max_dt = max_dt_override if max_dt_override > 0.0 else get_base_max_dt(biome)
 	var dim = int(qc.register_map.dim())
 
+	# Degenerate ρ would SIGABRT the native engine. DegenerateRho owns the test
+	# (including the NaN case this site used to miss) and the replacement state.
 	if dim > 0 and rho_packed.size() >= dim * dim * 2:
-		var trace = 0.0
-		for i in range(dim):
-			trace += rho_packed[i * (dim + 1) * 2]
-		if trace < 1e-10:
-			var fresh_packed = PackedFloat64Array()
-			fresh_packed.resize(dim * dim * 2)
-			var diag_val = 1.0 / float(dim)
-			for i in range(dim):
-				fresh_packed[i * (dim + 1) * 2] = diag_val
+		if DegenerateRho.is_degenerate(rho_packed, dim):
+			var fresh_packed := DegenerateRho.maximally_mixed_packed(dim)
 			qc.density_matrix._from_packed(fresh_packed, dim)
 			rho_packed = fresh_packed
 

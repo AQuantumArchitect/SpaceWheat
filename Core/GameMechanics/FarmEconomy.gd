@@ -10,7 +10,12 @@ extends Node
 @onready var _verbose = get_node_or_null("/root/VerboseConfig")
 
 signal resource_changed(emoji: String, new_amount: int)
-signal resource_mutated(emoji: String, delta: float, reason: String, new_amount: float)
+## biome_name is the true origin biome of the mutation when the caller knows
+## it (e.g. a Lindblad drain ticking on a specific biome's registers) — empty
+## when the mutation has no single-biome origin (spends, sets). Consumers
+## that need a zone should prefer this over any "currently displayed biome"
+## proxy, which can be stale relative to background-biome mutations.
+signal resource_mutated(emoji: String, delta: float, reason: String, new_amount: float, biome_name: String)
 signal purchase_failed(reason: String)
 
 ## Canonical emoji registry: see config/emoji_registry.json
@@ -31,7 +36,7 @@ func _ready():
 	if _verbose: _verbose.info("economy", "⚛️", "Emoji-Credits Economy ready (quantum mass = credits, 1:1 mapping)")
 
 
-func add_resource(emoji: String, credits_amount, reason: String = "") -> void:
+func add_resource(emoji: String, credits_amount, reason: String = "", biome_name: String = "") -> void:
 	# Add emoji-credits to any resource
 
 	# Note: Signature bonus now applied in action phase (ProbeActions).
@@ -45,7 +50,7 @@ func add_resource(emoji: String, credits_amount, reason: String = "") -> void:
 
 	emoji_credits[emoji] += final_amount
 	_emit_resource_change(emoji)
-	_record_resource_mutation(emoji, float(final_amount), reason)
+	_record_resource_mutation(emoji, float(final_amount), reason, biome_name)
 
 	var quantum_units = final_amount / _q2c()
 	if reason != "":
@@ -152,9 +157,9 @@ func _emit_resource_change(emoji: String) -> void:
 	resource_changed.emit(emoji, amount)
 
 
-func _record_resource_mutation(emoji: String, delta: float, reason: String) -> void:
+func _record_resource_mutation(emoji: String, delta: float, reason: String, biome_name: String = "") -> void:
 	var new_amount = float(emoji_credits.get(emoji, 0))
-	resource_mutated.emit(emoji, delta, reason, new_amount)
+	resource_mutated.emit(emoji, delta, reason, new_amount, biome_name)
 	var row = {
 		"time_ms": Time.get_ticks_msec(),
 		"emoji": emoji,

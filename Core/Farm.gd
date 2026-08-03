@@ -1137,7 +1137,7 @@ func _process_lindblad_effects(delta: float) -> void:
 							drained_probability = max(0.0, before_pop - after_pop)
 						if drained_probability <= 0.0:
 							drained_probability = max(0.0, before_pop) * drain_rate * effective_delta
-						_accumulate_lindblad_harvest_infra(qc, int(reg_id), axis_emoji, drained_probability)
+						_accumulate_lindblad_harvest_infra(qc, int(reg_id), axis_emoji, drained_probability, str(biome_name))
 
 					if channel_kind == "thermal" and north != "" and qc.register_map.has(north):
 						# Detailed balance: the back-rate keeps the plot warm — the
@@ -1241,7 +1241,7 @@ func _get_lindblad_pair_for_register(biome, register_id: int) -> Dictionary:
 	return {}
 
 
-func _accumulate_lindblad_harvest_infra(qc, register_id: int, emoji: String, drained_probability: float) -> void:
+func _accumulate_lindblad_harvest_infra(qc, register_id: int, emoji: String, drained_probability: float, biome_name: String = "") -> void:
 	if not economy or not qc or register_id < 0 or emoji == "":
 		return
 	var q2c = EconomyConstants.get_quantum_to_credits(economy)
@@ -1259,7 +1259,7 @@ func _accumulate_lindblad_harvest_infra(qc, register_id: int, emoji: String, dra
 
 	accum -= whole_credits
 	qc.set_register_infra_field(register_id, "lindblad_drain_accumulator", accum)
-	economy.add_resource(emoji, whole_credits, "lindblad_drain")
+	economy.add_resource(emoji, whole_credits, "lindblad_drain", biome_name)
 
 
 func _is_rainbow_drain_mode() -> bool:
@@ -1290,7 +1290,7 @@ func _harvest_rainbow_sink_flux(active_drain_biomes: Dictionary) -> void:
 			var accum = float(lindblad_rainbow_accumulators.get(emoji, 0.0)) + credits
 			var whole = int(accum)
 			if whole > 0:
-				economy.add_resource(str(emoji), whole, "lindblad_rainbow")
+				economy.add_resource(str(emoji), whole, "lindblad_rainbow", str(biome_name))
 				accum -= whole
 			lindblad_rainbow_accumulators[emoji] = maxf(0.0, accum)
 

@@ -324,8 +324,11 @@ void MythosGraphCore::normalize_faction_density() {
 
 // ====== Faction density facade primitives ======
 //
-// These mirror the algorithms in Core/Factions/FactionDensityMatrix.gd line-by-line.
-// The GDScript file is the canonical reference; this is the computer.
+// These were written to mirror Core/Factions/FactionDensityMatrix.gd line-by-line,
+// back when that file held the algorithms and this was the shadow. The direction has
+// since reversed: FactionDensityMatrix.gd is now a pure facade that forwards every
+// call to QuantumMythosEngine → here. This file is the canonical implementation;
+// there is no GDScript reference copy left to compare against.
 
 int MythosGraphCore::faction_bit(std::size_t i, int axis) const {
     if (axis < 0 || axis >= AXIS_COUNT) return 0;
