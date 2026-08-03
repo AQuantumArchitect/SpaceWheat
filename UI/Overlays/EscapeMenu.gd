@@ -199,19 +199,23 @@ func _build_tab_row(container: Control) -> void:
 		lbl.name = "MenuTab_%s" % str(entry.get("key", ""))
 		lbl.add_theme_font_size_override("font_size", 15)
 		# Mouse parity: tabs are tappable, same dispatch as the T/Y/U/I/O keys.
-		lbl.mouse_filter = Control.MOUSE_FILTER_STOP
-		lbl.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-		lbl.gui_input.connect(_on_tab_label_gui_input.bind(int(entry.get("tab", 0))))
+		# Via ClickWire (slop knot #18) — same release edge and STOP filter as
+		# the old hand-rolled handler.
+		ClickWire.attach(lbl, _on_tab_clicked.bind(int(entry.get("tab", 0))))
 		_tab_row_box.add_child(lbl)
 		_tab_labels[str(entry.get("key", ""))] = lbl
 
 
-func _on_tab_label_gui_input(event: InputEvent, tab: int) -> void:
+func _on_tab_clicked(tab: int) -> void:
+	# Pending-confirm guard: switching tabs mid-confirm would yank the confirm
+	# UI out from under the pointer. Ordering note (knot #18's open question,
+	# resolved): ClickWire consumes the release BEFORE this callback runs, so
+	# a mid-confirm click now dies here instead of leaking on to viewport
+	# unhandled-input — strictly tighter modality, the same direction as the
+	# #231 tap-pierce fixes. The old handler returned without accepting.
 	if _pending_action != PendingAction.NONE:
 		return
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
-		_show_tab(tab)
-		accept_event()
+	_show_tab(tab)
 
 func _build_verb_chips(container: Control) -> void:
 	_verb_palette = PanelContainer.new()

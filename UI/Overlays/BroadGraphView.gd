@@ -13,9 +13,11 @@ extends GraphEdit
 ## Read/inspect only. The host supplies a derived [BroadGraph] via populate(); keyboard
 ## selection runs over get_selectable_biomes() + set_highlight().
 
+const GraphViewCommon = preload("res://UI/Overlays/GraphViewCommon.gd")
+
 const COLOR_NODE := Color(0.45, 0.65, 0.9)       # biome cluster node (blue)
 const COLOR_EDGE := Color(0.5, 0.75, 0.6)         # shared-vocabulary federation seam
-const COLOR_ENTANGLE := Color(1.0, 0.84, 0.25)    # live entanglement badge (gold)
+const COLOR_ENTANGLE := GraphViewCommon.COLOR_ENTANGLE  # live entanglement badge (gold)
 
 var _broad = null                          # BroadGraph (derived)
 var _selectable: Array = []                # ordered biome names (keyboard nav)
@@ -26,10 +28,7 @@ var _refresh_accum := 0.0
 
 
 func _init() -> void:
-	right_disconnects = false
-	show_grid = true
-	size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	size_flags_vertical = Control.SIZE_EXPAND_FILL
+	GraphViewCommon.setup_graph_edit(self)
 
 
 ## Host supplies biome_name → live QuantumComputer resolution; _process then pulls
@@ -41,17 +40,7 @@ func set_live_lookup(lookup: Callable) -> void:
 ## Render the whole-world federation graph (rebuilds all nodes + connections).
 func populate(broad) -> void:
 	_broad = broad
-	clear_connections()
-	# Free only the GraphNodes we added — NOT every child. GraphEdit keeps an internal,
-	# non-internal `connection_layer` child; queue_free-ing it corrupts the GraphEdit
-	# ("connections_layer is missing" on the next scroll/redraw).
-	# remove_child BEFORE queue_free: the free is deferred, and while old same-named
-	# nodes are still in the tree the new ones get auto-renamed on add_child — every
-	# connect_node would then bind to a dying node and vanish at frame end.
-	for child in get_children():
-		if child is GraphNode:
-			remove_child(child)
-			child.queue_free()
+	GraphViewCommon.clear_graph_nodes(self)
 	_selectable.clear()
 	_name_to_node.clear()
 	_mi_labels.clear()
@@ -161,9 +150,4 @@ func _process(delta: float) -> void:
 
 ## Spread biome nodes around a ring so the federation reads as a graph, not a column.
 func _layout_pos(index: int, count: int) -> Vector2:
-	if count <= 1:
-		return Vector2(360, 260)
-	var center := Vector2(420, 300)
-	var radius := 260.0
-	var ang := TAU * float(index) / float(count) - PI / 2.0
-	return center + Vector2(cos(ang), sin(ang)) * radius
+	return GraphViewCommon.ring_layout_pos(index, count, Vector2(420, 300), 260.0, Vector2(360, 260))

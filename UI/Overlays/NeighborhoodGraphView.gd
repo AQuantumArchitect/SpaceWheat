@@ -25,10 +25,12 @@ extends GraphEdit
 ##                           (gates + shared H evolution). Edge glow ∝ MI in bits;
 ##                           a Bell pair saturates at 2.
 
+const GraphViewCommon = preload("res://UI/Overlays/GraphViewCommon.gd")
+
 const COLOR_COHERENT := Color(0.6, 0.45, 0.9)   # Hamiltonian coupling (purple)
 const COLOR_WEBWAY := Color(0.95, 0.55, 0.25)   # Lindblad / webway flow (orange)
 const COLOR_WEBWAY_SEALED := Color(0.95, 0.55, 0.25, 0.22)  # closed mode: drawn, dormant
-const COLOR_ENTANGLE := Color(1.0, 0.84, 0.25)  # live mutual information (gold)
+const COLOR_ENTANGLE := GraphViewCommon.COLOR_ENTANGLE  # live mutual information (gold)
 const COLOR_PORT := Color(0.3, 0.8, 0.55)        # shared-vocabulary port (teal)
 
 ## MI below this (bits) is treated as loom noise, not a woven edge. A Bell pair
@@ -45,28 +47,13 @@ var _refresh_accum := 0.0
 
 
 func _init() -> void:
-	# Read/inspect view — don't let the user drag-disconnect canonical edges yet.
-	right_disconnects = false
-	show_grid = true
-	size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	size_flags_vertical = Control.SIZE_EXPAND_FILL
+	GraphViewCommon.setup_graph_edit(self)
 
 
 ## Render the derived cluster graph (rebuilds all nodes + connections).
 func populate(graph) -> void:
 	_graph = graph
-	clear_connections()
-	# Free only the GraphNodes we added — NOT every child. GraphEdit keeps an internal,
-	# non-internal `connection_layer` child; queue_free-ing it corrupts the GraphEdit
-	# ("connections_layer is missing" on the next scroll/redraw).
-	# remove_child BEFORE queue_free: the free is deferred, and while the old q0..qN
-	# are still in the tree the new same-named nodes would be auto-renamed on
-	# add_child — connect_node("q0", ...) would then bind to the dying node and every
-	# edge would silently vanish at frame end.
-	for child in get_children():
-		if child is GraphNode:
-			remove_child(child)
-			child.queue_free()
+	GraphViewCommon.clear_graph_nodes(self)
 	_node_widgets.clear()
 	_mi_edges.clear()
 	if _graph == null or _graph.node_count() == 0:
@@ -201,12 +188,7 @@ func _port_tooltip(ports: Array) -> String:
 
 ## Spread nodes around a ring so the cluster reads as a graph, not a column.
 func _layout_pos(index: int, count: int) -> Vector2:
-	if count <= 1:
-		return Vector2(300, 200)
-	var center := Vector2(330, 210)
-	var radius := 180.0
-	var ang := TAU * float(index) / float(count) - PI / 2.0
-	return center + Vector2(cos(ang), sin(ang)) * radius
+	return GraphViewCommon.ring_layout_pos(index, count, Vector2(330, 210), 180.0, Vector2(300, 200))
 
 
 func _process(delta: float) -> void:

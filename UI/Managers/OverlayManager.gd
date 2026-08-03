@@ -250,41 +250,29 @@ func _create_overlays(parent: Control) -> void:
 	# Create and register all stack-managed overlays.
 	_verbose.info("ui", "📊", "Creating overlay stack...")
 
-	# Create Inspector Overlay (density matrix visualization)
-	# Note: Overlay centers its own panel in _build_standard_panel()
-	inspector_overlay = InspectorOverlay.new()
-	inspector_overlay.z_index = 11  # Info-tier overlay
-	if layout_manager:
-		inspector_overlay.set_layout_manager(layout_manager)
-	parent.add_child(inspector_overlay)
-	register_overlay("inspector", inspector_overlay)
-	_setup_visibility_processing(inspector_overlay)
+	# Uniform sites go through _spawn_registered_overlay (slop knot #20). The
+	# three sites with signal wiring interleaved (quest_board / escape_menu /
+	# biome_inspector, in create_overlays above) stay verbatim on purpose:
+	# their connect-vs-add_child ordering is load-bearing (#197/#243 history).
 
-	# Create Controls Overlay (keyboard reference)
-	controls_overlay = ControlsOverlay.new()
-	controls_overlay.z_index = 11
-	if layout_manager:
-		controls_overlay.set_layout_manager(layout_manager)
-	parent.add_child(controls_overlay)
-	register_overlay("controls", controls_overlay)
-	_setup_visibility_processing(controls_overlay)
+	# Inspector Overlay (density matrix visualization; centers its own panel)
+	inspector_overlay = _spawn_registered_overlay(
+		parent, InspectorOverlay.new(), "inspector", {"z_index": 11})
 
-	# Welcome / how-to-play splash (shown once on first run by GameRoot; dismiss begins tutorial)
-	welcome_overlay = WelcomeOverlay.new()
-	welcome_overlay.z_index = 14  # modal tier, above info overlays
-	if layout_manager:
-		welcome_overlay.set_layout_manager(layout_manager)
-	parent.add_child(welcome_overlay)
-	register_overlay("welcome", welcome_overlay)
+	# Controls Overlay (keyboard reference)
+	controls_overlay = _spawn_registered_overlay(
+		parent, ControlsOverlay.new(), "controls", {"z_index": 11})
+
+	# Welcome / how-to-play splash (shown once on first run by GameRoot;
+	# dismiss begins tutorial). Modal tier; no visibility processing —
+	# GameRoot drives it directly.
+	welcome_overlay = _spawn_registered_overlay(
+		parent, WelcomeOverlay.new(), "welcome",
+		{"z_index": 14, "visibility_processing": false})
 
 	# Atom Atlas (V — atoms / icons / signature / affinity)
-	atlas_overlay = QubitAtlasOverlay.new()
-	atlas_overlay.z_index = 11
-	if layout_manager:
-		atlas_overlay.set_layout_manager(layout_manager)
-	parent.add_child(atlas_overlay)
-	register_overlay("atlas", atlas_overlay)
-	_setup_visibility_processing(atlas_overlay)
+	atlas_overlay = _spawn_registered_overlay(
+		parent, QubitAtlasOverlay.new(), "atlas", {"z_index": 11})
 
 	# Register existing overlays that already implement OverlayBase methods
 	if quest_board:
@@ -295,24 +283,32 @@ func _create_overlays(parent: Control) -> void:
 		register_overlay("biome_detail", biome_inspector)
 
 	# M surface — biome × faction relationships
-	map_meta_overlay = MapMetaOverlay.new()
-	if layout_manager and map_meta_overlay.has_method("set_layout_manager"):
-		map_meta_overlay.set_layout_manager(layout_manager)
-	parent.add_child(map_meta_overlay)
-	register_overlay("map_meta", map_meta_overlay)
-	_setup_visibility_processing(map_meta_overlay)
+	map_meta_overlay = _spawn_registered_overlay(
+		parent, MapMetaOverlay.new(), "map_meta")
 
 	# Neighborhood Graph — GraphEdit cluster view of the active biome's reservoir.
 	# No top-level keybind yet (ZXCVBNM is full + in flux); reachable as a menu
 	# button via MenuRegistry (keycode -1). Assign a key when the keymap settles.
-	var neighborhood_graph_overlay = NeighborhoodGraphOverlay.new()
-	if layout_manager and neighborhood_graph_overlay.has_method("set_layout_manager"):
-		neighborhood_graph_overlay.set_layout_manager(layout_manager)
-	parent.add_child(neighborhood_graph_overlay)
-	register_overlay("neighborhood_graph", neighborhood_graph_overlay)
-	_setup_visibility_processing(neighborhood_graph_overlay)
+	_spawn_registered_overlay(
+		parent, NeighborhoodGraphOverlay.new(), "neighborhood_graph")
 
 	_verbose.info("ui", "📊", "Overlay stack created with %d overlays" % overlays.size())
+
+
+## Shared spawn for the UNIFORM overlay sites (slop knot #20): z-index →
+## layout manager → add_child → registration → visibility processing, in
+## exactly the order every one of these sites already used. Sites that
+## interleave signal connects do NOT come through here.
+func _spawn_registered_overlay(parent: Control, node, reg_name: String, opts: Dictionary = {}):
+	if opts.has("z_index"):
+		node.z_index = int(opts["z_index"])
+	if layout_manager and node.has_method("set_layout_manager"):
+		node.set_layout_manager(layout_manager)
+	parent.add_child(node)
+	register_overlay(reg_name, node)
+	if bool(opts.get("visibility_processing", true)):
+		_setup_visibility_processing(node)
+	return node
 
 
 func register_overlay(_name: String, overlay) -> void:
