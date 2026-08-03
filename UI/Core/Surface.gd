@@ -178,6 +178,50 @@ func cycle_frame(step: int = 1) -> void:
 	set_frame(next)
 
 
+## Shared tab-row builder for frame-keyed surfaces (slop knot #17): centered
+## HBox of "[key] Name" Labels, one per TAB_ROW entry, clicks via ClickWire.
+## Each surface pins its EXACT historical styling through opts (name_prefix,
+## font_size, on_frame — defaults to set_frame). Returns {box, labels}.
+## ControlsOverlay/EscapeMenu key their tab rows off local enums, not
+## frame_id — deliberately NOT on this helper (SLOP_PATROL #17).
+func _build_frame_tab_row(container: Control, tab_row: Array, opts: Dictionary = {}) -> Dictionary:
+	var box := HBoxContainer.new()
+	box.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_theme_constant_override("separation", 18)
+	container.add_child(box)
+	var labels := {}
+	var on_frame: Callable = opts.get("on_frame", set_frame)
+	for entry in tab_row:
+		var lbl := Label.new()
+		lbl.name = "%s%s" % [str(opts.get("name_prefix", "Tab_")), str(entry.get("key", ""))]
+		lbl.add_theme_font_size_override("font_size", int(opts.get("font_size", 14)))
+		ClickWire.attach(lbl, on_frame.bind(str(entry.get("frame", ""))))
+		box.add_child(lbl)
+		labels[str(entry.get("key", ""))] = lbl
+	return {"box": box, "labels": labels}
+
+
+## Shared refresher for _build_frame_tab_row rows: active tab renders
+## "[key] NAME" in active_color, the rest "[key] Name" in idle_color.
+func _refresh_frame_tab_row(tab_row: Array, labels: Dictionary, opts: Dictionary = {}) -> void:
+	if labels.is_empty():
+		return
+	var active_color = opts.get("active_color", UIStyleFactory.COLOR_TAB_ACTIVE)
+	var idle_color = opts.get("idle_color", UIStyleFactory.COLOR_TAB_IDLE)
+	for entry in tab_row:
+		var key_str := str(entry.get("key", ""))
+		var lbl: Label = labels.get(key_str, null)
+		if lbl == null:
+			continue
+		var name_str := str(entry.get("name", ""))
+		if str(entry.get("frame", "")) == frame_id:
+			lbl.text = "[%s] %s" % [key_str, name_str.to_upper()]
+			lbl.add_theme_color_override("font_color", active_color)
+		else:
+			lbl.text = "[%s] %s" % [key_str, name_str]
+			lbl.add_theme_color_override("font_color", idle_color)
+
+
 func set_context(new_context_id: String) -> void:
 	if new_context_id == context_id:
 		return

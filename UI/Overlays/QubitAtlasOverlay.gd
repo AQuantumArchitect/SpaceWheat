@@ -172,18 +172,12 @@ func _on_activated() -> void:
 	_rebuild_display()
 
 func _build_tab_row(container: Control) -> void:
-	_tab_row_box = HBoxContainer.new()
-	_tab_row_box.alignment = BoxContainer.ALIGNMENT_CENTER
-	_tab_row_box.add_theme_constant_override("separation", 18)
-	container.add_child(_tab_row_box)
-	_tab_labels.clear()
-	for entry in TAB_ROW:
-		var lbl := Label.new()
-		lbl.name = "AtlasTab_%s" % str(entry.get("key", ""))
-		lbl.add_theme_font_size_override("font_size", 14)
-		ClickWire.attach(lbl, _switch_frame.bind(str(entry.get("frame", ""))))
-		_tab_row_box.add_child(lbl)
-		_tab_labels[str(entry.get("key", ""))] = lbl
+	# Shared frame-tab builder (slop knot #17); clicks route through this
+	# surface's own _switch_frame, styling pinned.
+	var row := _build_frame_tab_row(container, TAB_ROW,
+		{"name_prefix": "AtlasTab_", "font_size": 14, "on_frame": _switch_frame})
+	_tab_row_box = row["box"]
+	_tab_labels = row["labels"]
 
 
 ## Card/row click twin of the GHJKL; keys.
@@ -204,21 +198,7 @@ func _switch_frame(target_frame: String) -> void:
 	_rebuild_display()
 
 func _refresh_tab_row() -> void:
-	if _tab_labels.is_empty():
-		return
-	for entry in TAB_ROW:
-		var key_str := str(entry.get("key", ""))
-		var fid := str(entry.get("frame", ""))
-		var name_str := str(entry.get("name", ""))
-		var lbl: Label = _tab_labels.get(key_str, null)
-		if lbl == null:
-			continue
-		if fid == frame_id:
-			lbl.text = "[%s] %s" % [key_str, name_str.to_upper()]
-			lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_TAB_ACTIVE)
-		else:
-			lbl.text = "[%s] %s" % [key_str, name_str]
-			lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_TAB_IDLE)
+	_refresh_frame_tab_row(TAB_ROW, _tab_labels)
 
 # Plot-ring keycode→slot via InputBindingRegistry.plot_index_for_keycode (shared source).
 

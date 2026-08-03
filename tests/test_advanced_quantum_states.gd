@@ -5,6 +5,8 @@ extends "res://tests/smoke_test_base.gd"
 ## Run: godot --headless --script tests/test_advanced_quantum_states.gd
 
 
+const SubstrateFixtures = preload("res://tests/substrate_fixtures.gd")
+
 var biome = null
 
 const DIVIDER = "============================================================"
@@ -38,26 +40,9 @@ func _init():
 
 
 func setup_test_environment() -> bool:
-	# Create a real biome with quantum computer.
-	print("\n[Setup: Real Biome + Quantum Computer]")
-
-	var BiomeBuilder = load("res://Core/Biomes/BiomeBuilder.gd")
-	var result = BiomeBuilder.build_from_registry("StarterForest", root, {"skip_tree_add": true})
-	if not result.success:
-		print("  ✗ Failed to build biome: %s" % result.error)
-		return false
-	biome = result.biome_node
-	biome.name = "TestBiome"
-	root.add_child(biome)
-
-	await self.process_frame
-
-	if not biome.quantum_computer or not biome.quantum_computer.density_matrix:
-		print("  ✗ Failed to create quantum computer")
-		return false
-
-	print("  ✓ Quantum computer ready: %d qubits" % biome.get_total_register_count())
-	return true
+	# Shared fixture (slop knot #30) — real StarterForest biome + QC.
+	biome = await SubstrateFixtures.build_test_biome(self)
+	return biome != null
 
 
 func test_s_gate_phase():

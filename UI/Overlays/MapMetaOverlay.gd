@@ -185,18 +185,11 @@ func _build_content(container: Control) -> void:
 	_hint_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	container.add_child(_hint_label)
 
-	_tab_row_box = HBoxContainer.new()
-	_tab_row_box.alignment = BoxContainer.ALIGNMENT_CENTER
-	_tab_row_box.add_theme_constant_override("separation", 18)
-	container.add_child(_tab_row_box)
-	_tab_labels.clear()
-	for entry in TAB_ROW:
-		var lbl := Label.new()
-		lbl.name = "MapTab_%s" % str(entry.get("key", ""))
-		lbl.add_theme_font_size_override("font_size", 15)
-		ClickWire.attach(lbl, set_frame.bind(str(entry.get("frame", ""))))
-		_tab_row_box.add_child(lbl)
-		_tab_labels[str(entry.get("key", ""))] = lbl
+	# Shared frame-tab builder (slop knot #17), styling pinned.
+	var row := _build_frame_tab_row(container, TAB_ROW,
+		{"name_prefix": "MapTab_", "font_size": 15})
+	_tab_row_box = row["box"]
+	_tab_labels = row["labels"]
 
 	var sep := HSeparator.new()
 	sep.add_theme_color_override("color", Color(0.4, 0.4, 0.3, 0.45))
@@ -550,20 +543,9 @@ func _refresh_header() -> void:
 		_hint_label.text = _hint_text_for_frame()
 
 func _refresh_tab_row() -> void:
-	if _tab_labels.is_empty():
-		return
-	for entry in TAB_ROW:
-		var key_str := str(entry.get("key", ""))
-		var lbl: Label = _tab_labels.get(key_str, null)
-		if lbl == null:
-			continue
-		var name_str := str(entry.get("name", ""))
-		if str(entry.get("frame", "")) == frame_id:
-			lbl.text = "[%s] %s" % [key_str, name_str.to_upper()]
-			lbl.add_theme_color_override("font_color", COLOR_HILITE)
-		else:
-			lbl.text = "[%s] %s" % [key_str, name_str]
-			lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_BODY)
+	# M keeps its own palette: hilite/body rather than the tab-active pair.
+	_refresh_frame_tab_row(TAB_ROW, _tab_labels,
+		{"active_color": COLOR_HILITE, "idle_color": UIStyleFactory.COLOR_BODY})
 
 func _render_body() -> void:
 	if _body_box == null:

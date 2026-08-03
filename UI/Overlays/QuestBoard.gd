@@ -182,19 +182,13 @@ func _build_content(container: Control) -> void:
 	_render_all()
 
 func _build_tab_row(container: Control) -> void:
-	_tab_row_box = HBoxContainer.new()
-	_tab_row_box.alignment = BoxContainer.ALIGNMENT_CENTER
-	_tab_row_box.add_theme_constant_override("separation", 18)
-	container.add_child(_tab_row_box)
-	_tab_labels.clear()
-	for entry in TAB_ROW:
-		var lbl := Label.new()
-		lbl.name = "BoardTab_%s" % str(entry["key"])
-		lbl.add_theme_font_size_override("font_size", 15)
-		lbl.mouse_filter = Control.MOUSE_FILTER_STOP
-		lbl.gui_input.connect(_on_tab_gui_input.bind(str(entry["frame"])))
-		_tab_row_box.add_child(lbl)
-		_tab_labels[str(entry["key"])] = lbl
+	# Shared frame-tab builder (slop knot #17); ClickWire replaces the old
+	# hand-rolled gui_input handler — same release edge and accept-then-
+	# set_frame order, plus the pointing-hand cursor the other tab rows had.
+	var row := _build_frame_tab_row(container, TAB_ROW,
+		{"name_prefix": "BoardTab_", "font_size": 15})
+	_tab_row_box = row["box"]
+	_tab_labels = row["labels"]
 
 func _build_verb_chips(container: Control) -> void:
 	_verb_palette = PanelContainer.new()
@@ -294,11 +288,6 @@ func _on_activated() -> void:
 # =============================================================================
 # MOUSE PARITY — every keyboard verb has a click twin (EscapeMenu pattern).
 # =============================================================================
-
-func _on_tab_gui_input(event: InputEvent, target_frame: String) -> void:
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
-		accept_event()
-		set_frame(target_frame)
 
 func _on_verb_chip_gui_input(event: InputEvent, key: String) -> void:
 	if not (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed):
@@ -578,19 +567,7 @@ func _current_tab_label() -> String:
 	return str(frame_id)
 
 func _refresh_tab_row() -> void:
-	if _tab_labels.is_empty():
-		return
-	for entry in TAB_ROW:
-		var key_str := str(entry["key"])
-		var lbl: Label = _tab_labels.get(key_str, null)
-		if lbl == null:
-			continue
-		if str(entry["frame"]) == frame_id:
-			lbl.text = "[%s] %s" % [key_str, str(entry["name"]).to_upper()]
-			lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_TAB_ACTIVE)
-		else:
-			lbl.text = "[%s] %s" % [key_str, str(entry["name"])]
-			lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_TAB_IDLE)
+	_refresh_frame_tab_row(TAB_ROW, _tab_labels)
 
 func _refresh_body() -> void:
 	if not _body_box:

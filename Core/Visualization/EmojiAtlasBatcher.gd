@@ -51,9 +51,30 @@ var _points: PackedVector2Array = PackedVector2Array()
 var _uvs: PackedVector2Array = PackedVector2Array()
 var _colors: PackedColorArray = PackedColorArray()
 
+# Pre-allocated identity indices (slop knot #16: BubbleAtlasBatcher's flush
+# strategy adopted — the old per-flush GDScript fill loop allocated and wrote
+# N ints every frame). NOTE: the per-quad append bodies in the two batchers
+# stay deliberately forked — extracting them into a shared per-quad call adds
+# GDScript call overhead on the hottest render path for cosmetic dedup.
+var _indices: PackedInt32Array = PackedInt32Array()
+var _max_indices_size: int = 0
+
 # Empty arrays for reuse
 var _empty_bones := PackedInt32Array()
 var _empty_weights := PackedFloat32Array()
+
+
+func _ensure_indices_capacity(size: int) -> void:
+	# Ensure the pre-allocated identity-indices array is large enough.
+	if size <= _max_indices_size:
+		return
+	# Grow with headroom to avoid frequent reallocations.
+	var new_size = maxi(size, _max_indices_size * 2)
+	new_size = maxi(new_size, 2048)
+	_indices.resize(new_size)
+	for i in range(_max_indices_size, new_size):
+		_indices[i] = i
+	_max_indices_size = new_size
 
 # Stats
 var _emoji_count: int = 0
@@ -626,14 +647,11 @@ func flush() -> void:
 
 	# Draw atlas-batched emojis (ONE DRAW CALL!)
 	if _points.size() > 0 and _atlas_texture:
-		var indices = PackedInt32Array()
-		indices.resize(_points.size())
-		for i in range(_points.size()):
-			indices[i] = i
+		_ensure_indices_capacity(_points.size())
 
 		RenderingServer.canvas_item_add_triangle_array(
 			_canvas_item,
-			indices,
+			_indices.slice(0, _points.size()),
 			_points,
 			_colors,
 			_uvs,

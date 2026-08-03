@@ -80,3 +80,28 @@ class TestFarm:
 				"access": s.access += v
 				"legitimacy": s.legitimacy += v
 				"entanglement": s.entanglement += v
+
+
+## Build a real biome + quantum computer for gate/state SceneTree tests
+## (slop knot #30 — this body was byte-identical in test_advanced_quantum_states
+## and test_gate_exact_states). Static coroutine: await the call, pass the
+## running SceneTree test script as `tree`. Returns the biome node, or null on
+## failure (reason already printed). Callers that need a different biome name
+## or extra prechecks (test_gate_application_integration, test_closed_system)
+## are genuine variants and stay local.
+static func build_test_biome(tree: SceneTree, biome_name: String = "StarterForest"):
+	print("\n[Setup: Real Biome + Quantum Computer]")
+	var BiomeBuilder = load("res://Core/Biomes/BiomeBuilder.gd")
+	var result = BiomeBuilder.build_from_registry(biome_name, tree.root, {"skip_tree_add": true})
+	if not result.success:
+		print("  ✗ Failed to build biome: %s" % result.error)
+		return null
+	var biome = result.biome_node
+	biome.name = "TestBiome"
+	tree.root.add_child(biome)
+	await tree.process_frame
+	if not biome.quantum_computer or not biome.quantum_computer.density_matrix:
+		print("  ✗ Failed to create quantum computer")
+		return null
+	print("  ✓ Quantum computer ready: %d qubits" % biome.get_total_register_count())
+	return biome
