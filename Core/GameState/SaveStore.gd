@@ -389,14 +389,12 @@ static func _choose_marker_emoji(state: GameState, slot: int) -> String:
 
 static func _read_save_artifact_index() -> Dictionary:
 	var path = get_save_artifact_index_path()
-	if not FileAccess.file_exists(path):
-		return {}
-	var file = FileAccess.open(path, FileAccess.READ)
-	if not file:
-		return {}
-	var parsed = JSON.parse_string(file.get_as_text())
-	if parsed is Dictionary:
-		return parsed
+	# One JSON-load authority (slop knot #7); a missing index is an empty index,
+	# exactly as before. Malformed files are loud via the loader.
+	var res: Dictionary = preload("res://Core/Config/JsonFileLoader.gd").load_json(
+		path, {"context": "SaveStore", "required": false})
+	if res.ok and res.data is Dictionary:
+		return res.data
 	return {}
 
 

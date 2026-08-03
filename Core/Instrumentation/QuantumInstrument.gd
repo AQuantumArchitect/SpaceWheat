@@ -1151,14 +1151,17 @@ func load_balance_profile(path: String) -> Dictionary:
 		return {"ok": false, "error": "no_farm"}
 	if path == "":
 		return {"ok": false, "error": "empty_path"}
-	if not FileAccess.file_exists(path):
+	# One JSON-load authority (slop knot #7); the structured error envelope is
+	# preserved verbatim, malformed files are additionally loud via the loader.
+	var res: Dictionary = preload("res://Core/Config/JsonFileLoader.gd").load_json(
+		path, {"context": "QuantumInstrument", "required": false})
+	if res.error == "missing":
 		return {"ok": false, "error": "missing_file", "path": path}
-	var file = FileAccess.open(path, FileAccess.READ)
-	if not file:
+	if res.error == "unopenable":
 		return {"ok": false, "error": "file_open_failed", "path": path}
-	var parsed = JSON.parse_string(file.get_as_text())
-	if not (parsed is Dictionary):
+	if not res.ok or not (res.data is Dictionary):
 		return {"ok": false, "error": "invalid_json", "path": path}
+	var parsed = res.data
 	var patch = {
 		"profile_id": parsed.get("profile_id", "default"),
 		"action_costs": parsed.get("action_costs", {}),

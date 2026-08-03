@@ -23,13 +23,13 @@ var _manifold: Array = []        # higher-order clusters (chorus/conspiracy grai
 
 
 func load_trace(path: String) -> bool:
-	var f := FileAccess.open(path, FileAccess.READ)
-	if f == null:
+	# One JSON-load authority (slop knot #7); missing → quiet false (the caller
+	# reports), malformed trace files are loud via the loader.
+	var res: Dictionary = preload("res://Core/Config/JsonFileLoader.gd").load_json(
+		path, {"context": "UmweltVizCache", "required": false})
+	if not res.ok or typeof(res.data) != TYPE_DICTIONARY:
 		return false
-	var d = JSON.parse_string(f.get_as_text())
-	if typeof(d) != TYPE_DICTIONARY:
-		return false
-	return load_frame(d)
+	return load_frame(res.data)
 
 
 ## Swap the cache to an already-parsed trace dict IN PLACE — same object, new frame. Used by

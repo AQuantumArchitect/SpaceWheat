@@ -57,9 +57,12 @@ static func maybe_attach(farm_node: Node) -> void:
 
 
 func load_reel(path: String) -> bool:
-	var text := FileAccess.get_file_as_string(path)
-	var data = JSON.parse_string(text)
-	if not (data is Dictionary) or not (data.get("steps", null) is Array):
+	# One JSON-load authority (slop knot #7); the warning below still covers
+	# missing and wrong-shape reels, parse errors are additionally loud.
+	var res: Dictionary = preload("res://Core/Config/JsonFileLoader.gd").load_json(
+		path, {"context": "ReelRunner", "required": false})
+	var data = res.data
+	if not res.ok or not (data is Dictionary) or not (data.get("steps", null) is Array):
 		push_warning("ReelRunner: malformed reel: %s" % path)
 		return false
 	_title = str(data.get("title", path.get_file()))

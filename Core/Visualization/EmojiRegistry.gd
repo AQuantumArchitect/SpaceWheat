@@ -30,16 +30,14 @@ var _warned:  Dictionary = {}  # normalized emoji → true (warn once per sessio
 
 
 func _init() -> void:
-	var f := FileAccess.open(REGISTRY_PATH, FileAccess.READ)
-	if not f:
-		push_error("EmojiRegistry: registry not found at %s" % REGISTRY_PATH)
+	# One JSON-load authority (slop knot #7); the registry is REQUIRED — missing
+	# or malformed is loud (push_error), exactly as before.
+	var res: Dictionary = preload("res://Core/Config/JsonFileLoader.gd").load_json(
+		REGISTRY_PATH, {"context": "EmojiRegistry", "required": true, "root": "dictionary"})
+	if not res.ok:
 		return
-	var data = JSON.parse_string(f.get_as_text())
-	if not data is Dictionary:
-		push_error("EmojiRegistry: invalid registry format")
-		return
-	_custom  = data.get("custom",  {})
-	_twemoji = data.get("twemoji", {})
+	_custom  = res.data.get("custom",  {})
+	_twemoji = res.data.get("twemoji", {})
 
 
 func get_texture(emoji: String) -> Texture2D:

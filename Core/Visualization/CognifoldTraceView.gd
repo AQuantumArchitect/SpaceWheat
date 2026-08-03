@@ -265,13 +265,13 @@ func _load_frames_dir(dir_path: String) -> Array:
 		fn = da.get_next()
 	da.list_dir_end()
 	names.sort()   # frame_000, frame_001, … play in order
+	# One JSON-load authority (slop knot #7); an unreadable/non-dict frame is
+	# skipped quietly as before, malformed frames are loud via the loader.
 	for nm in names:
-		var f := FileAccess.open(dir_path.path_join(nm), FileAccess.READ)
-		if f == null:
-			continue
-		var d = JSON.parse_string(f.get_as_text())
-		if typeof(d) == TYPE_DICTIONARY:
-			frames.append(d)
+		var res: Dictionary = preload("res://Core/Config/JsonFileLoader.gd").load_json(
+			dir_path.path_join(nm), {"context": "CognifoldTraceView", "required": false})
+		if res.ok and typeof(res.data) == TYPE_DICTIONARY:
+			frames.append(res.data)
 	return frames
 
 

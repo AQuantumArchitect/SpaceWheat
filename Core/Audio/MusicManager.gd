@@ -1335,18 +1335,13 @@ func _compute_file_hash(path: String) -> String:
 
 
 func _load_cache() -> Dictionary:
-	# Load cached vectors from disk.
-	if not FileAccess.file_exists(CACHE_PATH):
+	# Load cached vectors from disk. One JSON-load authority (slop knot #7); a
+	# missing/unopenable cache is just "no cache" (→ rebuild), exactly as before.
+	var res: Dictionary = preload("res://Core/Config/JsonFileLoader.gd").load_json(
+		CACHE_PATH, {"context": "MusicManager", "required": false})
+	if not res.ok:
 		return {}
-	var file := FileAccess.open(CACHE_PATH, FileAccess.READ)
-	if not file:
-		return {}
-	var text := file.get_as_text()
-	file.close()
-	var json := JSON.new()
-	if json.parse(text) != OK:
-		return {}
-	return json.data if json.data is Dictionary else {}
+	return res.data if res.data is Dictionary else {}
 
 
 func _save_cache() -> void:
@@ -1521,18 +1516,13 @@ func _build_normalized_vector(emojis: Array, atom_components: Dictionary) -> Dic
 
 
 func _load_json_array(path: String) -> Array:
-	# Load a JSON file that contains an array.
-	if not FileAccess.file_exists(path):
+	# Load a JSON file that contains an array. One JSON-load authority (slop
+	# knot #7); a missing file is empty, exactly as before.
+	var res: Dictionary = preload("res://Core/Config/JsonFileLoader.gd").load_json(
+		path, {"context": "MusicManager", "required": false})
+	if not res.ok:
 		return []
-	var file := FileAccess.open(path, FileAccess.READ)
-	if not file:
-		return []
-	var text := file.get_as_text()
-	file.close()
-	var json := JSON.new()
-	if json.parse(text) != OK:
-		return []
-	return json.data if json.data is Array else []
+	return res.data if res.data is Array else []
 
 
 func get_iconmap_similarities(icon_map: Dictionary) -> Array:

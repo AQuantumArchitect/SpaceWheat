@@ -23,22 +23,19 @@ static func _load_if_needed() -> void:
 	if _loaded:
 		return
 
-	var file = FileAccess.open(CHARACTERISTICS_PATH, FileAccess.READ)
-	if not file:
+	# One JSON-load authority (slop knot #7); a missing file keeps the old
+	# warning + defaults, a malformed file stays loud (loader push_error).
+	var res: Dictionary = preload("res://Core/Config/JsonFileLoader.gd").load_json(
+		CHARACTERISTICS_PATH, {"context": "BiomeCharacteristics", "required": false})
+	if res.missing:
 		push_warning("BiomeCharacteristics: Could not load %s - using defaults" % CHARACTERISTICS_PATH)
 		_loaded = true
 		return
-
-	var json = JSON.new()
-	var err = json.parse(file.get_as_text())
-	file.close()
-
-	if err != OK:
-		push_error("BiomeCharacteristics: JSON parse error: %s" % json.get_error_message())
+	if not res.ok:
 		_loaded = true
 		return
 
-	_data = json.data
+	_data = res.data
 	_loaded = true
 
 	var biome_count = _data.get("biomes", {}).size()

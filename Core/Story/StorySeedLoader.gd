@@ -23,12 +23,16 @@ static func load_default():
 
 static func load_from_file(path: String):
 	var graph = StoryGraph.new()
-	var f := FileAccess.open(path, FileAccess.READ)
-	if f == null:
+	# One JSON-load authority (slop knot #7); a missing file keeps the old
+	# warning, malformed files are loud via the loader.
+	var res: Dictionary = preload("res://Core/Config/JsonFileLoader.gd").load_json(
+		path, {"context": "StorySeedLoader", "required": false})
+	if res.missing:
 		push_warning("StorySeedLoader: %s not found" % path)
 		return graph
-	var parsed = JSON.parse_string(f.get_as_text())
-	f.close()
+	if not res.ok:
+		return graph
+	var parsed = res.data
 	if not (parsed is Array):
 		push_warning("StorySeedLoader: root not Array in %s" % path)
 		return graph

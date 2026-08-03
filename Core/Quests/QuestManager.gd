@@ -230,14 +230,17 @@ func flag_display_name(flag_id: String) -> String:
 
 func _load_story_flags() -> void:
 	var path := "res://Core/Quests/data/story_flags.json"
-	var f := FileAccess.open(path, FileAccess.READ)
-	if f == null:
+	# One JSON-load authority (slop knot #7); a missing file keeps the old
+	# warning, malformed files are loud via the loader.
+	var res: Dictionary = preload("res://Core/Config/JsonFileLoader.gd").load_json(
+		path, {"context": "QuestManager", "required": false})
+	if res.missing:
 		push_warning("QuestManager: story_flags.json not found at %s" % path)
 		return
-	var parsed = JSON.parse_string(f.get_as_text())
-	f.close()
-	if parsed is Array:
-		_story_flags = parsed
+	if not res.ok:
+		return
+	if res.data is Array:
+		_story_flags = res.data
 	else:
 		push_warning("QuestManager: story_flags.json root is not an Array")
 
@@ -256,12 +259,17 @@ func _refresh_unfired_flags(farm) -> void:
 ## chain_unlocks; dicts are references, so the nesting is built in one pass).
 func _load_tutorial_arc() -> void:
 	var path := "res://Core/Quests/data/tutorial_arc.json"
-	var f := FileAccess.open(path, FileAccess.READ)
-	if f == null:
+	# One JSON-load authority (slop knot #7); a missing file keeps the old
+	# warning, malformed files are loud via the loader.
+	var res: Dictionary = preload("res://Core/Config/JsonFileLoader.gd").load_json(
+		path, {"context": "QuestManager", "required": false})
+	if res.missing:
 		push_warning("QuestManager: tutorial_arc.json not found at %s" % path)
 		return
-	var parsed = JSON.parse_string(f.get_as_text())
-	f.close()
+	if not res.ok:
+		_tutorial_steps = []
+		return
+	var parsed = res.data
 	var steps: Array = []
 	if parsed is Dictionary and parsed.get("steps", null) is Array:
 		steps = parsed["steps"]

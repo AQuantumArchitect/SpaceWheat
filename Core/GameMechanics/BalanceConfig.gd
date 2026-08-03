@@ -201,12 +201,12 @@ static func merge_with_defaults(raw: Dictionary) -> Dictionary:
 
 static func load_config(path: String) -> Dictionary:
 	# Legacy import path support for existing tooling.
-	if path == "" or not FileAccess.file_exists(path):
+	if path == "":
 		return DEFAULTS.duplicate(true)
-	var file = FileAccess.open(path, FileAccess.READ)
-	if not file:
+	# One JSON-load authority (slop knot #7); a missing/unopenable file falls
+	# back to defaults silently, exactly as before. Malformed files are loud.
+	var res: Dictionary = preload("res://Core/Config/JsonFileLoader.gd").load_json(
+		path, {"context": "BalanceConfig", "required": false})
+	if not res.ok or not (res.data is Dictionary):
 		return DEFAULTS.duplicate(true)
-	var parsed = JSON.parse_string(file.get_as_text())
-	if not (parsed is Dictionary):
-		return DEFAULTS.duplicate(true)
-	return merge_with_defaults(parsed)
+	return merge_with_defaults(res.data)
