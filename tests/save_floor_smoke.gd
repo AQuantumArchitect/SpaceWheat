@@ -38,11 +38,16 @@ func _run() -> void:
 	var fresh = SaveStore.load_scenario("demos_normal")
 	_check(fresh != null, "demos_normal scenario loads")
 	if fresh != null:
-		_check(fresh.save_version == SaveStore.MIN_COMPATIBLE_SAVE_VERSION,
-			"fresh state carries the beta-floor version (v4)")
+		# The format has moved past the beta floor since this test was written
+		# (floor stays pinned at v4 for old-save compatibility; fresh writes
+		# track GameState.CURRENT_SAVE_VERSION, currently v6) — assert against
+		# the live constant so this can't go stale again.
+		_check(fresh.save_version == GameState.CURRENT_SAVE_VERSION,
+			"fresh state carries the current save version (v%d)" % GameState.CURRENT_SAVE_VERSION)
 		_check(SaveStore.save_state(fresh, 0) == OK, "fresh save overwrites slot 0")
-		_check(SaveStore.peek_save_version(slot0) == 4, "written save declares v4")
-		_check(SaveStore.load_state(0) != null, "v4 save loads")
+		_check(SaveStore.peek_save_version(slot0) == GameState.CURRENT_SAVE_VERSION,
+			"written save declares v%d" % GameState.CURRENT_SAVE_VERSION)
+		_check(SaveStore.load_state(0) != null, "current-version save loads")
 
 	# Clean up so other smokes see an empty dir.
 	var dir = DirAccess.open(SaveStore.SAVE_DIR)

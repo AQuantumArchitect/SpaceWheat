@@ -6,7 +6,22 @@ extends "res://tests/smoke_test_base.gd"
 const BiomeRegistryCls = preload("res://Core/Biomes/BiomeRegistry.gd")
 const BiomeBuilderCls = preload("res://Core/Biomes/BiomeBuilder.gd")
 
-func _init() -> void:
+var _ran := false
+
+
+func _process(_delta: float) -> bool:
+	# Run on the first frame, not _init(): the live biome's quantum_computer/
+	# register_map resolution touches /root/* autoload paths (IconRegistry/
+	# FactionDensityMatrix), which only work once the scene tree is active —
+	# see tests/story_icon_cutover_smoke.gd for the precedent.
+	if _ran:
+		return false
+	_ran = true
+	_run_test()
+	return false
+
+
+func _run_test() -> void:
 	print("\n=== Bare biome neighborhood smoke ===")
 	BiomeRegistryCls.reset_shared()
 	var reg = BiomeRegistryCls.get_shared()
@@ -14,8 +29,7 @@ func _init() -> void:
 	var biome = _pick_bare_biome(reg)
 	_check(biome != null, "found a bare biome with a neighborhood loadout")
 	if biome == null:
-		print("Result: %d passed, %d failed" % [passed, failed])
-		quit(1)
+		_finish()
 		return
 
 	_check(biome.get_neighborhood_icons().size() > 0, "%s preserves a neighborhood loadout" % biome.name)

@@ -62,14 +62,34 @@ SMOKE_TESTS=(
     test_witness_field
     test_submenu_dry
     test_submenu_integration
+    bare_biome_realization_smoke
+    bubble_rendering_cleanup_smoke
+    save_floor_smoke
+    test_cn_handoff_runtime
+    test_v_surface_runtime
 )
-# Known-red / not wired (2026-08-03) — fix before adding, don't delete silently:
-#   bare_biome_realization_smoke   (2 pre-existing failures)
-#   bubble_rendering_cleanup_smoke (1 pre-existing failure)
-#   save_floor_smoke               (2 pre-existing failures)
-#   test_cn_handoff_runtime, test_m_surface_runtime, test_v_surface_runtime
-#                                  (pre-existing parse error: "visible" undeclared)
-#   test_surface_headless_smoke    (hangs headless — BiomeBase unclaimed-warn loop)
+# Known-red / not wired (2026-08-03, #429 slop pass) — fix before adding, don't
+# delete silently:
+#   test_m_surface_runtime  — the "visible" parse-error rot is FIXED (23/24
+#     pass now); one genuine pre-existing gap remains: pressing "2" on the
+#     Eigenstate frame is expected to flip eigen_sort_mode to "Subject" (a
+#     faction-pin chord) but UI/Overlays/MapMetaOverlay.gd never wires KEY_2
+#     to anything — eigen_sort_mode is derived solely from whether a faction
+#     is already pinned (line ~1696). Either the chord was never implemented
+#     or was removed; needs an owner call on the intended key, not a rename.
+#   test_surface_headless_smoke — NOT a deadlock: at line 156
+#     `BiomeInspectorOverlay.new()` throws "Nonexistent function 'new' in
+#     base 'GDScript'" (i.e. BiomeInspectorOverlay.gd itself fails to
+#     compile in this specific headless SceneTree-script timing — a
+#     standalone `--check-only` on that file reports "Identifier not found:
+#     IconRegistry" even though IconRegistry is a registered autoload
+#     (project.godot:28) that resolves fine in normal gameplay boot). The
+#     script's error handling doesn't call quit()/_finish() on this failure,
+#     so BiomeBase._process's "unclaimed" warning then repeats forever —
+#     that's the "hang". Root cause is autoload-vs-script-compile ordering
+#     in the `-s script.gd` harness, not the warning loop itself; needs
+#     someone who can reproduce Godot's exact autoload init timing to fix
+#     correctly, not a guess.
 
 FAILED_TESTS=()
 for name in "${SMOKE_TESTS[@]}"; do

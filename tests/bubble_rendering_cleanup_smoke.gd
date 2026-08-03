@@ -59,6 +59,13 @@ func _test_lifeless_nodes_stay_hidden() -> void:
 
 
 func _test_radius_tracks_bloch_not_purity() -> void:
+	# Force open-system mode: QuantumNode.apply_quantum_snapshot forces
+	# target_radius = MAX_RADIUS under is_closed_system() (the closed-system
+	# migration's "r = 1 forever" contract, see docs/CLOSED_SYSTEM.md), which
+	# would make radius ignore r_bloch entirely — exactly the open-system
+	# behavior this sub-test exists to check. Same override precedent as
+	# tests/test_closed_system.gd.
+	BalanceConfig.set_physics_override({"dissipative_dynamics": true})
 	var node = QuantumNode.new()
 	var snap_a = {
 		"p0": 0.75,
@@ -87,6 +94,7 @@ func _test_radius_tracks_bloch_not_purity() -> void:
 	_check(_approx(radius_a, radius_b, 1e-6), "radius ignores purity changes when r_bloch is fixed")
 	_check(not _approx(radius_a, radius_c, 1e-6), "radius changes when Bloch radius changes")
 	_check(purity_a < purity_b, "purity is tracked separately from radius")
+	BalanceConfig.clear_physics_override()
 
 
 func _test_projection_field_payload_and_draw() -> void:

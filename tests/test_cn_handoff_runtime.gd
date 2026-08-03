@@ -13,7 +13,7 @@ func _init() -> void:
 func _run() -> void:
 	var overlay_mgr = OverlayManager.new()
 	root.add_child(overlay_mgr)
-	overlay_mgr.setup(null, null, null, null, null)
+	overlay_mgr.setup(null, null)
 
 	var fake_quests := MockQuestOverlay.new()
 	overlay_mgr.register_overlay("quests", fake_quests)
@@ -40,7 +40,7 @@ func _run() -> void:
 	biome.name = "StarterForest"
 	quest_board.current_biome = biome
 	quest_board.set_pair_scope("StarterForest", "Village")
-	var visible_data = quest_board.get_visible_data()
+	var visible = quest_board.get_visible_data()
 	assert_eq(visible.get("scope_source", ""), "N handoff", "quest board scope source")
 	assert_true(str(visible.get("scope_mode", "")).contains("StarterForest × Village"), "quest board scope mode")
 

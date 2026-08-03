@@ -61,7 +61,7 @@ func _run() -> void:
 	overlay.activate()
 	await process_frame
 
-	var visible_data: Dictionary = overlay.get_visible_data()
+	var visible: Dictionary = overlay.get_visible_data()
 	assert_eq(visible.get("frame_label", ""), "Lexicon", "frame label is lexicon")
 	assert_eq(int(visible.get("page_index", -1)), 1, "page index starts at first page")
 	assert_true(int(visible.get("page_count", -1)) >= 1, "page count is exposed")

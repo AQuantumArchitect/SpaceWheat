@@ -82,7 +82,7 @@ func _run() -> void:
 	await process_frame
 
 	# T — Vectors (default)
-	var visible_data: Dictionary = overlay.get_visible_data()
+	var visible: Dictionary = overlay.get_visible_data()
 	assert_eq(visible.get("frame_label", ""), "Vectors", "starts on Vectors")
 	assert_eq(int(visible.get("selected_axis", -1)), 0, "default axis selection is 0")
 	assert_eq(int(visible.get("axis_page", -1)), 0, "default axis_page is 0")

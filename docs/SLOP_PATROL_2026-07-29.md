@@ -335,25 +335,36 @@ A fresh duplication sweep of the repo turned up 36 "knots": places where the sam
 
 #### Tier 1 — Native engine & physics correctness (highest stakes: hot path, crash/precision risk)
 
-**1. Lindblad master-equation RHS (and the exact-unitary fast path) implemented twice**
-`native/src/quantum_evolution_engine.cpp` — `evolve_step()` (306-371) and `evolve()` (373-485) duplicate the precondition check (306-321 vs 373-386), the exact-unitary fast path (325-330 vs 400-405), and the coherent+Lindblad RHS (338-362 vs 417-427). Both are GDExtension-bound (`quantum_evolution_engine.h:98,100`); `evolve()` is also called from `native/src/multi_biome_lookahead_engine.cpp:895`.
-Knot: `evolve()` has an extra adaptive-substep branch `evolve_step()` lacks — a blind extract needs physics-probe verification before merge, not a text move.
+**All 5 Tier 1 knots below are CLOSED.** Doc-hygiene correction (scout pass, 2026-08-03): every
+one of these was already fixed by commit `d8126c22` ("Slop patrol Tier 1 + fractal portals P1-P5
++ legibility channel codex") — the same commit this doc's Cycle-2 section was originally written
+in — but this Tier 1 list itself was never struck through to match. Verified against current
+source, not assumption:
 
-**2. QuantumMatrixNative and QuantumEvolutionEngine reinvent the same packed-array↔dense-matrix convention with divergent validation**
-`native/src/quantum_matrix_native.cpp` (`pack_matrix`/`from_packed`) vs `native/src/quantum_evolution_engine.cpp` (`pack_dense`/`unpack_dense`). `from_packed()` validates size before reading; `unpack_dense()` doesn't, and only 2 of ~9 call sites (`evolve_step`, `evolve`) check size first — the rest (`compute_all_mutual_information:668`, `compute_purity_from_packed:994`, `compute_bloch_metrics_from_packed:1000`, plus 856/1067/1118/1147) call it raw.
-Knot: this is a live heap-overread risk, not style drift — fixing it changes behavior for every unchecked caller and needs per-call-site error-handling review.
+~~**1. Lindblad master-equation RHS (and the exact-unitary fast path) implemented twice**~~
+**CLOSED (d8126c22).** `quantum_evolution_engine.cpp:327` (`evolve_step`) now carries the comment
+"ONE INTEGRATOR... evolve_step() used to carry its own hand-written copy... So evolve_step IS
+evolve with max_dt = dt. No second authority." — `evolve_step` now delegates to `evolve()`.
 
-**3. Degenerate/zero-trace density-matrix trace-and-rebuild loop duplicated 3×**
-`Core/Environment/BiomeDeterministicStepper.gd:377-387`, `Core/Environment/BiomeEvolutionBatcher.gd:1261-1275`, `Core/Environment/BiomeEvolutionBatcher.gd:2976-2984` — each independently sums the packed-rho diagonal and rebuilds a maximally-mixed state to prevent native-engine SIGABRTs on degenerate matrices.
-Knot: any future epsilon/formula correction has to be hand-propagated to all three or one call site silently keeps the old (crash-prone) behavior.
+~~**2. QuantumMatrixNative and QuantumEvolutionEngine reinvent the same packed-array↔dense-matrix convention with divergent validation**~~
+**CLOSED (d8126c22).** `unpack_dense()` (`quantum_evolution_engine.cpp:458-483`) now centralizes
+the size check with a documented history comment: "it used to be checked at 2 of ~9 call
+sites... An undersized buffer is a heap overread... Both are refused, loudly." Every caller
+(`compute_purity_from_packed`, `compute_bloch_metrics_from_packed`, etc.) routes through this
+one guarded function.
 
-**4. Hand-rolled `spacewheat::ComplexMatrix` duplicates Eigen::MatrixXcd, which the same files already require**
-`native/src/complex_matrix.h`/`.cpp`, consumed by `native/src/mythos_graph_core.cpp` (~704 lines), while `native/src/hermitian_eigensolver.cpp:21-44` converts ComplexMatrix→Eigen internally anyway just to run `SelfAdjointEigenSolver`.
-Knot: migrating MythosGraphCore's density/Hamiltonian members to Eigen directly is a ~700-line change against code documented as a Phase-1 "shadow" system — needs a migration-plan check first.
+~~**3. Degenerate/zero-trace density-matrix trace-and-rebuild loop duplicated 3×**~~
+**CLOSED.** All 3 call sites (`BiomeDeterministicStepper.gd:380`,
+`BiomeEvolutionBatcher.gd:1263,2975`) now delegate to a shared `DegenerateRho.is_degenerate`/
+`maximally_mixed_packed` utility instead of hand-rolling the trace-and-rebuild loop independently.
 
-**5. HermitianEigensolver's Jacobi fallback is a dead, mathematically wrong duplicate of the Eigen path**
-`native/src/hermitian_eigensolver.cpp:16-48` (dispatch), `50-136` (`solve_real_jacobi_projection`, line 57 drops the imaginary part of Hermitian off-diagonals). Gated by `#if __has_include(<Eigen/Dense>)`, unreachable in both `native/Makefile` and `native/Makefile.windows` since both always vendor Eigen.
-Knot: don't delete without confirming no minimal/mobile export target intentionally excludes vendored Eigen.
+~~**4. Hand-rolled `spacewheat::ComplexMatrix` duplicates Eigen::MatrixXcd, which the same files already require**~~
+**CLOSED by #421** (consolidation pass, 2026-08-03) — see "Two competing math stacks" below;
+cross-referenced here so this list doesn't read as still-open.
+
+~~**5. HermitianEigensolver's Jacobi fallback is a dead, mathematically wrong duplicate of the Eigen path**~~
+**CLOSED (d8126c22).** `native/src/hermitian_eigensolver.cpp` is now 31 lines total — pure Eigen
+`SelfAdjointEigenSolver` path only, `solve_real_jacobi_projection` and its dispatch gone entirely.
 
 #### Tier 2 — Wide-reach infrastructure duplication (12-28 files each)
 
@@ -502,13 +513,18 @@ Knot: the two package lists serve two legitimately different build paths — nee
 
 #### Tier 8 — Dead code / unmerged proposals (lowest live risk; blocked on explicit human deletion approval)
 
-**34. Assets/UI/Elements/ holds six SVG icons that are byte-identical, unreferenced duplicates**
-`Assets/UI/Elements/{Decay,Forest,Seedling,Vegetation,Moon,Sun}.svg` (+ matching `.svg.import`, 12 files) vs `Assets/UI/Nature/{Decay,Forest,Seedling,Vegetation}.svg` and `Assets/UI/Celestial/{Moon,Sun}.svg` — confirmed byte-identical via md5sum; `Assets/emoji_registry.json:10-15` only ever references the Nature/Celestial copies; zero repo-wide references to the Elements/ copies. (`Elements/Fire.svg`, `Water.svg`, `Wind.svg` remain live — not part of this finding.)
-Knot: a prior consolidation pass declined to delete these under a hard no-file-deletion rule; escalated for a human to explicitly name the 12 files for removal.
+~~**34. Assets/UI/Elements/ holds six SVG icons that are byte-identical, unreferenced duplicates**~~
+**CLOSED (`710fef51`, "Slop patrol tier 8: delete confirmed dead/duplicate files").** Doc-hygiene
+correction (scout pass, 2026-08-03): re-verified on disk — the 12 files
+(`Assets/UI/Elements/{Decay,Forest,Seedling,Vegetation,Moon,Sun}.svg` + `.svg.import`) are gone;
+`Elements/Fire.svg`, `Water.svg`, `Wind.svg`, `Wolf.svg`, `Rabbit.svg` remain, untouched. This
+was already done before this doc's Tier 8 section was last read as still-open — never struck
+through.
 
-**35. `🍄/🛠️/📥.py` and `📥_retry.py` are dead legacy emoji-SVG downloaders fully superseded by `sync_emoji_pipeline.py`**
-`🍄/🛠️/📥.py:90` depends on a manifest file (`emoji_manifest.json`) that doesn't exist anywhere in the repo; `🍄/🛠️/📥.py:9` is the only place either filename is referenced (its own docstring); `🍄/🛠️/sync_emoji_pipeline.py` is the actively-maintained pipeline per its own header. Neither touched since commit `8853c446` (2026-02-15).
-Knot: same as above — safe to delete per git-history and reference-grep verification, but blocked on a human explicitly naming the two files for removal.
+~~**35. `🍄/🛠️/📥.py` and `📥_retry.py` are dead legacy emoji-SVG downloaders fully superseded by `sync_emoji_pipeline.py`**~~
+**CLOSED (`710fef51`).** Re-verified: neither file exists in the working tree; the only
+remaining hits are inside two now-pruned `.claude/worktrees/agent-*` copies (unrelated to this
+repo's history) and this doc's own text.
 
 **36. Two sibling native-engine proposals in the same handoff bundle independently redefine AxialField/FactionField/IconEdge with incompatible math**
 `llm_inbox/spacewheat_quantum_graph_handoff_bundle/spacewheat_native_quantum_graph_seed/src/axial_manifold.cpp:117-129` (`blend`, circular-mean phase via cos/sin) vs `.../spacewheat_contract_market_native_seed/src/axial_field.cpp` (`blend_fields`, plain weighted linear sum of phase); both bundles' own `QUANTUM_GRAPH_UNIFICATION_NOTE.md` and `README.md` call for these to become one engine.
