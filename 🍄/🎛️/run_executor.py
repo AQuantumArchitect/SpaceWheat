@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
+from constants import POLICY_ENGINE
 from milk_hunt_paths import lane_env, xdg_root
 
 
@@ -125,7 +126,7 @@ def build_seed_cmd(
     profile: Optional[str] = None,
     world_state: Optional[str] = None,
     character: Optional[str] = None,
-    policy_mode: str = "engine_policy",
+    policy_mode: str = POLICY_ENGINE,
     display_mode: str = "headless",
     ready_timeout: int = 180,
     reuse_listener: bool = True,
@@ -155,7 +156,7 @@ def build_runner_cmd(
     load_slot: Optional[int] = None,
     profile_save: Optional[str] = None,
     hunter_profile: str = "",
-    hunter_policy: str = "engine_policy",
+    hunter_policy: str = POLICY_ENGINE,
     console_profile: str = "quiet",
     extra_args: Optional[Iterable[str]] = None,
 ) -> List[str]:

@@ -16,6 +16,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / "\U0001f39b️"))
 from rig_client import RigClient  # noqa: E402
+from turn_driver import TurnDriver  # noqa: E402
 
 REAL_SAVE_DIR = Path.home() / ".local/share/godot/app_userdata/SpaceWheat - Quantum Farm/saves"
 SHOTS = HERE / "playthrough_shots"
@@ -23,27 +24,20 @@ SHOTS.mkdir(exist_ok=True)
 PLOT_KEYS = ["G", "H", "J", "K", "L", "SEMICOLON"]
 BIOME_KEYS = ["T", "Y", "U", "I", "O", "P"]
 
-_turn = [0]
+# Historical per-script driver timeouts — deliberately NOT unified (SLOP_PATROL knot #8).
+GO_TIMEOUT_S = 90
+PRESS_TIMEOUT_S = 25
+PRESS_SETTLE_FRAMES = 4
 
-def t():
-    _turn[0] += 1
-    return _turn[0]
-
-
-def press(c, seq, s=4):
-    if isinstance(seq, str):
-        seq = [seq]
-    for k in seq:
-        c.run_turn(t(), "press_key", key=k, settle_frames=s, timeout_s=25)
-
-
-def go(c, action, **kw):
-    return c.run_turn(t(), action, timeout_s=kw.pop("timeout_s", 90), **kw)
+_driver = TurnDriver(start=0)
+t = _driver.t
+press = _driver.make_client_press(settle_frames=PRESS_SETTLE_FRAMES, timeout_s=PRESS_TIMEOUT_S)
+go = _driver.make_client_go(timeout_s=GO_TIMEOUT_S)
 
 
 def shot(c, name):
     safe = "".join(ch if ch.isalnum() else "_" for ch in name)[:40]
-    path = f"user://rig/sv_{_turn[0]:03d}_{safe}.png"
+    path = f"user://rig/sv_{_driver.turn:03d}_{safe}.png"
     r = go(c, "screenshot", path=path)
     sc = r.get("screenshot") or {}
     abs_path = sc.get("abs", "")
@@ -109,7 +103,7 @@ def try_add_resource(c, emoji, amount):
 # SESSION 1: headed — screenshot SELF, test save/load, drive campaign
 # ─────────────────────────────────────────────────────────────────────────────
 def run_campaign():
-    _turn[0] = 0
+    _driver.reset(0)
     c = RigClient()
     c.clear_rig_files(preserve_live_sentinel=False)
     proc = c.start_listener(
@@ -235,7 +229,7 @@ def run_campaign():
 #            then run load_game tests (safe in headless: no restart_into path)
 # ─────────────────────────────────────────────────────────────────────────────
 def save_fresh_and_test_load():
-    _turn[0] = 9000
+    _driver.reset(9000)
     c = RigClient()
     c.clear_rig_files(preserve_live_sentinel=False)
     proc = c.start_listener(

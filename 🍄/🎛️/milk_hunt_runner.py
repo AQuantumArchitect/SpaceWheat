@@ -8,7 +8,8 @@ from collections import deque
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from constants import POLICY_AUTO, POLICY_ENGINE, POLICY_QUANTUM
+import milk_hunt_args
+from constants import POLICY_AUTO, POLICY_ENGINE, POLICY_QUANTUM, RUNNER_MAX_LOOPS_FALLBACK
 from milk_hunt_console import (
     Console,
     default_listener_stdout,
@@ -1069,60 +1070,37 @@ def _select_focus_biome(
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Single-run milk hunt rig player")
+    # Shared flags come from milk_hunt_args; overrides keep this runner's
+    # historical types/help exactly (local behavior wins — knot #25).
+    parser = milk_hunt_args.make_base_parser(
+        "Single-run milk hunt rig player",
+        overrides={
+            "console_profile": {"help": "Runner console verbosity profile"},
+            "profile_save": {"help": "Canonical profile save path or profile id from registry"},
+            "profile_save_index": {"help": "Optional registry JSON path for profile-id resolution"},
+            "hunter_profile": {"help": "Profile identity for policy tuning (e.g. granary_scout)"},
+            "hunter_policy": {"type": str, "help": "Decision policy mode (default: auto => engine_policy)"},
+            "policy_execution_backend": {"help": "Execute policy steps directly or through the player input path"},
+            "strategy": {"type": Path, "help": "Strategy JSON path (overrides hardcoded scoring/targeting constants)"},
+            "strict_biome_economy": {"help": "Disable all rig-side resource injection; rely only on in-biome resources"},
+            "reuse_listener": {"help": "Reuse an existing rig listener instead of starting a new one"},
+            "no_reuse_listener": {"help": "Do not reuse an existing rig listener"},
+        },
+    )
     parser.add_argument(
         "--config",
         type=Path,
         default=Path(__file__).resolve().parent / "config" / "milk_hunt_runner.json",
         help="Runner config JSON path",
     )
-    parser.add_argument(
-        "--strategy",
-        type=Path,
-        default=None,
-        help="Strategy JSON path (overrides hardcoded scoring/targeting constants)",
-    )
     parser.add_argument("--max-loops", type=int, default=None, help="Maximum offer cycles")
     parser.add_argument("--summary-path", type=Path, default=None, help="Optional JSON summary output path")
     parser.add_argument("--json-only", action="store_true", help="Print only the summary JSON")
-    parser.add_argument(
-        "--console-profile",
-        choices=["quiet", "normal", "debug", "trace", "test"],
-        default=None,
-        help="Runner console verbosity profile",
-    )
     parser.add_argument(
         "--wait-progress-seconds",
         type=float,
         default=None,
         help="Emit wait heartbeat every N seconds while turn is pending (0 disables)",
-    )
-    parser.add_argument("--load-slot", type=int, default=None, help="Boot the rig from a save slot")
-    parser.add_argument(
-        "--profile-save",
-        type=str,
-        default=None,
-        help="Canonical profile save path or profile id from registry",
-    )
-    parser.add_argument(
-        "--profile-save-index",
-        type=str,
-        default=None,
-        help="Optional registry JSON path for profile-id resolution",
-    )
-    parser.add_argument("--scenario-id", type=str, default=None, help="Scenario id when not loading a slot")
-    parser.add_argument(
-        "--hunter-profile",
-        type=str,
-        default=None,
-        help="Profile identity for policy tuning (e.g. granary_scout)",
-    )
-    parser.add_argument(
-        "--hunter-policy",
-        type=str,
-        choices=[POLICY_AUTO, POLICY_ENGINE, POLICY_QUANTUM],
-        default=None,
-        help="Decision policy mode (default: auto => engine_policy)",
     )
     parser.add_argument(
         "--policy-actions-per-loop",
@@ -1196,32 +1174,8 @@ def _build_parser() -> argparse.ArgumentParser:
         default=300,
         help="Maximum number of policy decision events to keep in summary",
     )
-    parser.add_argument(
-        "--strict-biome-economy",
-        dest="strict_biome_economy",
-        action="store_true",
-        help="Disable all rig-side resource injection; rely only on in-biome resources",
-    )
-    parser.add_argument(
-        "--no-strict-biome-economy",
-        dest="strict_biome_economy",
-        action="store_false",
-        help="Force-enable rig-side resource injection",
-    )
     parser.add_argument("--save-slot-at-end", type=int, default=None, help="Save the run state to this slot before exit")
     parser.add_argument("--save-path-at-end", type=str, default=None, help="Save the run state to this path/alias before exit")
-    parser.add_argument(
-        "--reuse-listener",
-        dest="reuse_listener",
-        action="store_true",
-        help="Reuse an existing rig listener instead of starting a new one",
-    )
-    parser.add_argument(
-        "--no-reuse-listener",
-        dest="reuse_listener",
-        action="store_false",
-        help="Do not reuse an existing rig listener",
-    )
     parser.add_argument("--turn-start", type=int, default=1, help="Turn id to start at")
     parser.add_argument("--no-stop", action="store_true", help="Skip sending stop on exit")
     parser.add_argument("--no-clear-rig", action="store_true", help="Skip clearing rig queue/results files")
@@ -1242,18 +1196,6 @@ def _build_parser() -> argparse.ArgumentParser:
         choices=["default", "quantum_fiber_nodes", "io_min"],
         default=None,
         help="Runtime env profile for listener startup and batcher path",
-    )
-    parser.add_argument(
-        "--display-mode",
-        choices=["headless", "headed"],
-        default=None,
-        help="Launch the rig headless or with a visible window",
-    )
-    parser.add_argument(
-        "--policy-execution-backend",
-        choices=["auto", "direct", "player_input"],
-        default=None,
-        help="Execute policy steps directly or through the player input path",
     )
     parser.add_argument(
         "--include-offer-reward-resources",
@@ -1611,7 +1553,7 @@ def main() -> int:
     if max_loops is None and os.environ.get("MILK_HUNT_MAX_LOOPS", "") != "":
         max_loops = int(os.environ["MILK_HUNT_MAX_LOOPS"])
     if max_loops is None:
-        max_loops = 140
+        max_loops = RUNNER_MAX_LOOPS_FALLBACK
 
     if not display_mode:
         display_mode = get_cfg_str(cfg, "display_mode")
@@ -1803,8 +1745,8 @@ def main() -> int:
     if runtime_profile not in {"default", "quantum_fiber_nodes", "io_min"}:
         runtime_profile = "default"
     runtime_env_overrides = _runtime_profile_env_overrides(runtime_profile)
-    if hunter_policy_mode == "quantum_register":
-        runtime_env_overrides["RIG_POLICY_TYPE"] = "quantum_register"
+    if hunter_policy_mode == POLICY_QUANTUM:
+        runtime_env_overrides["RIG_POLICY_TYPE"] = POLICY_QUANTUM
     runtime_env_overrides["RIG_POLICY_EXECUTION_BACKEND"] = str(policy_execution_backend)
     include_offer_reward_resources = bool(args.include_offer_reward_resources)
     include_offer_market_projection = bool(args.include_offer_market_projection)
@@ -2460,7 +2402,7 @@ def main() -> int:
                                 else 0,
                                 "biome": biome_name if biome_name else None,
                                 "ok": probe_ok,
-                                "reason": "engine_policy",
+                                "reason": POLICY_ENGINE,
                                 "probe": probe if isinstance(probe, dict) else {},
                             }
                         )

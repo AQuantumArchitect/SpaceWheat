@@ -17,16 +17,20 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / "\U0001F39B️"))  # 🍄/🎛️
 from rig_client import RigClient  # noqa: E402
+from turn_driver import TurnDriver  # noqa: E402
 
 SCEN = os.environ.get("PT_SCENARIO", "demos_normal")
 os.environ.setdefault("RIG_DISABLE_LOOKAHEAD", "0")
 PLOT_KEYS = ["G", "H", "J", "K", "L", "SEMICOLON"]
-_turn = [10]
+# Historical per-script driver timeouts — deliberately NOT unified (SLOP_PATROL knot #8).
+GO_TIMEOUT_S = 60
+PRESS_TIMEOUT_S = 25
+PRESS_SETTLE_FRAMES = 4
+
+_driver = TurnDriver(start=10)
 
 
-def t():
-    _turn[0] += 1
-    return _turn[0]
+t = _driver.t
 
 
 def main():
@@ -37,15 +41,9 @@ def main():
         extra_env={"RIG_DISABLE_LOOKAHEAD": os.environ.get("RIG_DISABLE_LOOKAHEAD", "0")},
     )
 
-    def go(action, **kw):
-        to = kw.pop("timeout_s", 60)
-        return c.run_turn(t(), action, timeout_s=to, **kw)
+    go = _driver.make_go(c, timeout_s=GO_TIMEOUT_S, caller_override=True)
 
-    def press(seq, settle=4):
-        if isinstance(seq, str):
-            seq = [seq]
-        for k in seq:
-            go("press_key", key=k, settle_frames=settle, timeout_s=25)
+    press = _driver.make_press(c, settle_frames=PRESS_SETTLE_FRAMES, timeout_s=PRESS_TIMEOUT_S)
 
     def fprog(fid):
         fp = go("flag_progress", id=fid)

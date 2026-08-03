@@ -5,9 +5,10 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / "\U0001F39B️"))
 from rig_client import RigClient
+from turn_driver import TurnDriver
 
-_turn = [0]
-def t(): _turn[0] += 1; return _turn[0]
+_driver = TurnDriver(start=0)
+t = _driver.t
 
 def main():
     c = RigClient()

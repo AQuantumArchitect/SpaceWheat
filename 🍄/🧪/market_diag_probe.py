@@ -7,22 +7,25 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / "\U0001F39B️"))
 from rig_client import RigClient  # noqa: E402
+from turn_driver import TurnDriver  # noqa: E402
 
 os.environ.setdefault("RIG_DISABLE_LOOKAHEAD", "0")
 PLOT = ["G", "H", "J", "K", "L", "SEMICOLON"]
-_turn = [0]
-def t(): _turn[0] += 1; return _turn[0]
+# Historical per-script driver timeouts — deliberately NOT unified (SLOP_PATROL knot #8).
+GO_TIMEOUT_S = 90
+PRESS_TIMEOUT_S = 25
+PRESS_SETTLE_FRAMES = 4
+
+_driver = TurnDriver(start=0)
+t = _driver.t
 
 def main():
     c = RigClient()
     c.clear_rig_files(preserve_live_sentinel=False)
     proc = c.start_listener(scenario_id="demos_normal", display_mode="headless",
                             extra_env={"RIG_DISABLE_LOOKAHEAD": "0"})
-    def go(a, **k):
-        k.pop("timeout_s", None); return c.run_turn(t(), a, timeout_s=90, **k)
-    def press(seq, s=4):
-        if isinstance(seq, str): seq = [seq]
-        for k in seq: c.run_turn(t(), "press_key", key=k, settle_frames=s, timeout_s=25)
+    go = _driver.make_go(c, timeout_s=GO_TIMEOUT_S)
+    press = _driver.make_press(c, settle_frames=PRESS_SETTLE_FRAMES, timeout_s=PRESS_TIMEOUT_S)
     def known(): return go("known_icons").get("icons", []) or []
     def grid():
         g = go("grid_snapshot").get("grid", {}); return g.get("biomes", g)

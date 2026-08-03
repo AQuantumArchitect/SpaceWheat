@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import milk_hunt_args
+from constants import DEFAULT_RUNS_BATCH, MAX_LOOPS, SEED_TIMEOUT_S, batch_trial_timeout
 from milk_hunt_console import Console, resolve_console_profile
 from milk_hunt_io import write_json
 from profiles import load, get_profile_name_for_save, get_save_path, resolve_save_spec
@@ -87,8 +88,8 @@ def _archive_rig_data(run_dir: Path, lane) -> Dict[str, Any]:
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = milk_hunt_args.make_base_parser("Batch runner for milk hunt trials")
-    parser.add_argument("--runs", type=int, default=5, help="How many independent trials to run")
-    parser.add_argument("--max-loops", type=int, default=220, help="Max offer cycles per trial")
+    parser.add_argument("--runs", type=int, default=DEFAULT_RUNS_BATCH, help="How many independent trials to run")
+    parser.add_argument("--max-loops", type=int, default=MAX_LOOPS, help="Max offer cycles per trial")
     parser.add_argument(
         "--metrics-every",
         type=int,
@@ -414,7 +415,7 @@ def _run_trial(
     if no_stop:
         cmd.append("--no-stop")
     # Scale timeout with max_loops: 15s/loop + 120s boot margin, minimum 120s
-    timeout_s = max(120, max_loops * 15 + 120)
+    timeout_s = batch_trial_timeout(max_loops)
     proc = run_cli(cmd, lane=lane, capture_output=True, timeout_s=timeout_s)
 
     summary: Dict[str, Any] = {}
@@ -467,7 +468,7 @@ def _seed_profile(
         cmd.extend(["--scenario-id", scenario_id])
     if resource_mode:
         cmd.extend(["--resource-mode", resource_mode])
-    proc = run_cli(cmd, lane=lane, capture_output=True, timeout_s=180)
+    proc = run_cli(cmd, lane=lane, capture_output=True, timeout_s=SEED_TIMEOUT_S)
     log_path.write_text((proc.stdout or "") + (proc.stderr or ""), encoding="utf-8")
     return {"ok": proc.returncode == 0, "exit_code": proc.returncode, "log_path": str(log_path), "cmd": cmd}
 

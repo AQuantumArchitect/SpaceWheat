@@ -8,21 +8,24 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / "\U0001F39B️"))
 from rig_client import RigClient  # noqa: E402
+from turn_driver import TurnDriver  # noqa: E402
 
 os.environ.setdefault("RIG_DISABLE_LOOKAHEAD", "0")
-_turn = [0]
-def t(): _turn[0] += 1; return _turn[0]
+# Historical per-script driver timeouts — deliberately NOT unified (SLOP_PATROL knot #8).
+GO_TIMEOUT_S = 120
+PRESS_TIMEOUT_S = 30
+PRESS_SETTLE_FRAMES = 5
+
+_driver = TurnDriver(start=0)
+t = _driver.t
 
 def main():
     c = RigClient()
     c.clear_rig_files(preserve_live_sentinel=False)
     proc = c.start_listener(scenario_id="demos_normal", display_mode="headed",
                             extra_env={"RIG_DISABLE_LOOKAHEAD": "0", "RIG_SKIP_WELCOME": "0"})
-    def go(a, **k):
-        k.pop("timeout_s", None); return c.run_turn(t(), a, timeout_s=120, **k)
-    def press(seq, s=5):
-        if isinstance(seq, str): seq = [seq]
-        for k in seq: c.run_turn(t(), "press_key", key=k, settle_frames=s, timeout_s=30)
+    go = _driver.make_go(c, timeout_s=GO_TIMEOUT_S)
+    press = _driver.make_press(c, settle_frames=PRESS_SETTLE_FRAMES, timeout_s=PRESS_TIMEOUT_S)
     def shot(name):
         sh = go("screenshot", path="user://rig/wf_%s.png" % name).get("screenshot", {})
         print("SHOT %-18s -> %s" % (name, sh.get("abs")))

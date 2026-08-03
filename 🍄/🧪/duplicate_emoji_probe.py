@@ -32,14 +32,16 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / "\U0001F39B️"))
 from rig_client import RigClient  # noqa: E402
+from turn_driver import TurnDriver  # noqa: E402
 
-_turn = [100]
+# Historical per-script driver timeouts — deliberately NOT unified (SLOP_PATROL knot #8).
+GO_TIMEOUT_S = 90
+
+_driver = TurnDriver(start=100)
 FAILURES = []
 
 
-def t():
-    _turn[0] += 1
-    return _turn[0]
+t = _driver.t
 
 
 def check(cond, label, detail=""):
@@ -60,8 +62,7 @@ def main():
     proc = c.start_listener(scenario_id="demos_normal", display_mode="headless",
                             extra_env={"RIG_DISABLE_LOOKAHEAD": "0"})
 
-    def go(a, **k):
-        return c.run_turn(t(), a, timeout_s=90, **k)
+    go = _driver.make_go(c, timeout_s=GO_TIMEOUT_S)
 
     def qubit_count(bn):
         return len(go("berry_state", biome=bn).get("qubits", []))

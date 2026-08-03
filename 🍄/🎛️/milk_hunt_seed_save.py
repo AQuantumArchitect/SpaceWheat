@@ -4,6 +4,7 @@ import json
 import sys
 from typing import Any, Dict, List, Optional
 
+import milk_hunt_args
 from constants import POLICY_ENGINE, POLICY_QUANTUM
 from milk_hunt_characters import get_character, resolve_character_seed
 from profiles import load, list_all
@@ -65,7 +66,23 @@ def _select_resource_mode(args_resource_mode: Optional[str], profile: Optional[D
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Create a starter save slot for milk-hunt testing")
+    # Shared flags come from milk_hunt_args (subset); overrides keep this
+    # tool's historical defaults/help exactly (local behavior wins — knot #25).
+    # NOTE: the --no-reuse-listener counterpart stays deliberately absent here.
+    parser = milk_hunt_args.make_base_parser(
+        "Create a starter save slot for milk-hunt testing",
+        only=("load_slot", "scenario_id", "display_mode", "reuse_listener"),
+        overrides={
+            "load_slot": {"help": "Optional existing slot to load before seeding"},
+            "display_mode": {
+                "default": "headless",
+                "help": "Launch the seeding rig headless or with a visible window",
+            },
+            "reuse_listener": {
+                "help": "Reuse an existing listener (phrame bridge or headless) instead of starting a new one",
+            },
+        },
+    )
     parser.add_argument("--slot", type=int, required=True, help="Save slot index (0-2)")
     parser.add_argument("--character", type=str, default=None, help="Higher-order character name/path")
     parser.add_argument("--profile", type=str, default=None, help="Starter profile name")
@@ -89,20 +106,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Extra JSONL policy graph patch line (repeatable)",
     )
     parser.add_argument(
-        "--display-mode",
-        choices=["headless", "headed"],
-        default="headless",
-        help="Launch the seeding rig headless or with a visible window",
-    )
-    parser.add_argument(
         "--ready-timeout",
         type=float,
         default=None,
         help="Seconds to wait for the rig bridge to become ready",
     )
     parser.add_argument("--list-profiles", action="store_true", help="List available profiles and exit")
-    parser.add_argument("--load-slot", type=int, default=None, help="Optional existing slot to load before seeding")
-    parser.add_argument("--scenario-id", type=str, default=None, help="Scenario id when not loading a slot")
     parser.add_argument(
         "--resource-mode",
         choices=["add", "set"],
@@ -140,8 +149,6 @@ def _build_parser() -> argparse.ArgumentParser:
         default=[],
         help="Known icon in NORTH:SOUTH format (repeatable)",
     )
-    parser.add_argument("--reuse-listener", action="store_true",
-        help="Reuse an existing listener (phrame bridge or headless) instead of starting a new one")
     return parser
 
 

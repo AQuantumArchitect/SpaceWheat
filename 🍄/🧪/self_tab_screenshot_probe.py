@@ -8,19 +8,25 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / "\U0001f39b️"))
 from rig_client import RigClient
+from turn_driver import TurnDriver
 
 SHOTS = HERE / "playthrough_shots"
 SHOTS.mkdir(exist_ok=True)
-_turn = [0]
 
-def t(): _turn[0] += 1; return _turn[0]
-def press(c, k, s=5): c.run_turn(t(), "press_key", key=k, settle_frames=s, timeout_s=30)
-def go(c, action, **kw): return c.run_turn(t(), action, timeout_s=kw.pop("timeout_s", 60), **kw)
+# Historical per-script driver timeouts — deliberately NOT unified (SLOP_PATROL knot #8).
+GO_TIMEOUT_S = 60
+PRESS_TIMEOUT_S = 30
+PRESS_SETTLE_FRAMES = 5
+
+_driver = TurnDriver(start=0)
+t = _driver.t
+press = _driver.make_client_press(settle_frames=PRESS_SETTLE_FRAMES, timeout_s=PRESS_TIMEOUT_S)
+go = _driver.make_client_go(timeout_s=GO_TIMEOUT_S)
 
 
 def shot(c, name):
     safe = "".join(ch if ch.isalnum() else "_" for ch in name)[:40]
-    path = f"user://rig/st_{_turn[0]:03d}_{safe}.png"
+    path = f"user://rig/st_{_driver.turn:03d}_{safe}.png"
     r = go(c, "screenshot", path=path)
     sc = r.get("screenshot") or {}
     abs_path = sc.get("abs", "")
