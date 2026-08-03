@@ -2,6 +2,11 @@
 
 This guide covers building SpaceWheat from source on a fresh Linux machine.
 
+> This is the **prebuilt-Godot + `native/` Makefile path** and this file is
+> its canonical owner — that's why its package list is smaller than
+> [BUILDING.md](../../BUILDING.md)'s (no python3/scons needed; deliberate,
+> not drift). For the full scons/godot-cpp path, use BUILDING.md.
+
 ## Prerequisites
 
 ### Required Packages

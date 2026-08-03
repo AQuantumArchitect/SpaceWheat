@@ -51,27 +51,28 @@ analyze_file() {
 		echo "    - credits: $credits"
 	fi
 
-	# Check for removed fields
+	# Check for removed fields. The obsolete/required lists come from the ONE
+	# schema authority — scripts/repair_saves.py --emit-schema (slop knot #14);
+	# bash no longer re-derives the rules.
 	echo "  ⚠️  Field check:"
 
-	if grep -q '"theta"' "$path"; then
-		echo "    - ❌ Has 'theta' (OBSOLETE - should regenerate from biome)"
-	fi
-	if grep -q '"phi"' "$path"; then
-		echo "    - ❌ Has 'phi' (OBSOLETE - should regenerate from biome)"
-	fi
-	if grep -q '"growth_progress"' "$path"; then
-		echo "    - ❌ Has 'growth_progress' (OBSOLETE)"
-	fi
-	if grep -q '"is_mature"' "$path"; then
-		echo "    - ❌ Has 'is_mature' (OBSOLETE)"
-	fi
-
-	if grep -q '"theta_frozen"' "$path"; then
-		echo "    - ✅ Has 'theta_frozen' (correct)"
-	else
-		echo "    - ⚠️  Missing 'theta_frozen' (should be present)"
-	fi
+	local schema_line kind field
+	while read -r kind field; do
+		case "$kind" in
+			obsolete)
+				if grep -q "\"$field\"" "$path"; then
+					echo "    - ❌ Has '$field' (OBSOLETE - should regenerate from biome)"
+				fi
+				;;
+			required)
+				if grep -q "\"$field\"" "$path"; then
+					echo "    - ✅ Has '$field' (correct)"
+				else
+					echo "    - ⚠️  Missing '$field' (should be present)"
+				fi
+				;;
+		esac
+	done < <(python3 "$REPO_ROOT/scripts/repair_saves.py" --emit-schema)
 
 	# Count plots
 	local plot_count=$(grep -o '"position":' "$path" | wc -l)

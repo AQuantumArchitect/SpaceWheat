@@ -94,11 +94,8 @@ static func _shift_action_cost(farm, shift_action: String) -> Dictionary:
 
 
 static func _format_cost_inline(cost: Dictionary) -> String:
-	var keys := cost.keys()
-	keys.sort()
-	var parts: Array[String] = []
-	for emoji in keys:
-		# Signed: a bare "1🍼" reads ambiguous (cost or reward?); "−1🍼" is honest —
-		# this is what the wallet loses (d1-03, literalist care pass).
-		parts.append("−%d%s" % [int(round(float(cost[emoji]))), str(emoji)])
-	return " ".join(parts)
+	# Signed: a bare "1🍼" reads ambiguous (cost or reward?); "−1🍼" is honest —
+	# this is what the wallet loses (d1-03, literalist care pass). Delegates to
+	# the one formatter authority, pinning this convention (slop knot #13).
+	return preload("res://Core/UI/CostFormat.gd").format_cost(
+		cost, {"sorted": true, "pair": "neg_tight"})

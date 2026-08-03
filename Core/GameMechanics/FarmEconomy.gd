@@ -189,10 +189,10 @@ func _get_missing_resources(cost: Dictionary) -> String:
 
 
 func _format_cost(cost: Dictionary) -> String:
-	var parts = []
-	for emoji in cost.keys():
-		parts.append("%d %s" % [cost[emoji], emoji])
-	return ", ".join(parts)
+	# Delegates to the one formatter authority, pinning this site's exact
+	# historical convention (slop knot #13).
+	return preload("res://Core/UI/CostFormat.gd").format_cost(
+		cost, {"pair": "amount_emoji", "joiner": ", "})
 
 
 ## ============================================================================

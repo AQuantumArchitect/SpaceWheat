@@ -168,26 +168,11 @@ static func build_result(
 ## ============================================================================
 
 static func format_cost(cost: Dictionary) -> String:
-	# Format cost dictionary as display string.
-
-	# Args:
-	# cost: {"emoji": amount, ...} e.g., {"🍼": 2, "🌾": 5}
-
-	# Returns:
-	# Formatted string like "−🍼×2 −🌾×5" — signed: a bare "🍼×2" read ambiguous
-	# (cost or reward?); "−🍼×2" is honest, what the wallet loses (d1-03).
-	if cost.is_empty():
-		return ""
-
-	var parts: Array = []
-	for emoji in cost:
-		var amount = cost[emoji]
-		if amount > 1:
-			parts.append("−%s×%d" % [emoji, amount])
-		else:
-			parts.append("−%s" % emoji)
-
-	return " ".join(parts)
+	# "−🍼×2 −🌾×5" (bare "−🍼" at amount ≤ 1) — signed: a bare "🍼×2" read
+	# ambiguous (cost or reward?); "−🍼×2" is honest, what the wallet loses
+	# (d1-03). Delegates to the one formatter authority (slop knot #13).
+	return preload("res://Core/UI/CostFormat.gd").format_cost(
+		cost, {"pair": "neg_emoji_times"})
 
 
 static func check_affordability(cost: Dictionary, economy) -> bool:

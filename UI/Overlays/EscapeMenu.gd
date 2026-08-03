@@ -1242,16 +1242,11 @@ func _refresh_balance_projection() -> void:
 		_balance_projection = inst.get_timescale_projection(biome_name, 8)
 
 func _format_cost(cost: Dictionary) -> String:
-	if cost.is_empty():
-		return "(none)"
-	var parts: Array[String] = []
-	var keys = cost.keys()
-	keys.sort()
-	for emoji in keys:
-		# Signed: a bare "🍼1" read ambiguous (cost or reward?); "🍼−1" is honest —
-		# this is the dev-inspector's "cost" row, the same badge law as the live bar (d1-03).
-		parts.append("%s−%d" % [str(emoji), int(cost[emoji])])
-	return " ".join(parts)
+	# "🍼−1" — the dev-inspector's "cost" row, same signed badge law as the
+	# live bar (d1-03). Delegates to the one formatter authority (slop knot
+	# #13) — this used to be a hand-synced copy of ChipResolverRegistry's.
+	return preload("res://Core/UI/CostFormat.gd").format_cost(
+		cost, {"sorted": true, "pair": "emoji_neg", "empty": "(none)"})
 
 # =============================================================================
 # TAB SWITCHING (mirrored into Surface.frame_id)

@@ -96,28 +96,15 @@ func _load_semantica_biomes() -> void:
 ## Load biomes from a single JSON file. If `required` is false, missing file
 ## is treated as empty.
 func _load_biomes_from(path: String, required: bool) -> bool:
-	if not FileAccess.file_exists(path):
-		if required:
-			push_error("BiomeRegistry: Required file missing: %s" % path)
-			return false
+	# One JSON-load authority (slop knot #7); a missing optional file is
+	# treated as empty (success), exactly as before.
+	var res: Dictionary = preload("res://Core/Config/JsonFileLoader.gd").load_json(
+		path, {"context": "BiomeRegistry", "required": required, "root": "array"})
+	if res.missing and not required:
 		return true
-	var file = FileAccess.open(path, FileAccess.READ)
-	if not file:
-		if required:
-			push_error("BiomeRegistry: Could not open %s" % path)
-			return false
-		return true
-	var json = JSON.new()
-	var err = json.parse(file.get_as_text())
-	file.close()
-	if err != OK:
-		push_error("BiomeRegistry: JSON parse error in %s line %d: %s" % [path, json.get_error_line(), json.get_error_message()])
+	if not res.ok:
 		return false
-	var data = json.data
-	if not data is Array:
-		push_error("BiomeRegistry: Expected array at root of %s" % path)
-		return false
-	for biome_data in data:
+	for biome_data in res.data:
 		var biome = Biome.from_dict(biome_data)
 		_biomes.append(biome)
 	return true

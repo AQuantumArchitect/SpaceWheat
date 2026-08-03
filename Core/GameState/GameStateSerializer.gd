@@ -6,16 +6,12 @@ extends RefCounted
 ## Keeps GameStateManager focused on orchestration.
 
 
-var _verbose = null
-
-
-func set_verbose(verbose) -> void:
-	_verbose = verbose
-
-
 func _log(level: String, category: String, icon: String, msg: String) -> void:
-	if _verbose and _verbose.has_method(level):
-		_verbose.call(level, category, icon, msg)
+	# Routes through the one VerboseHelper authority like every other class
+	# (slop knot #23). The old injected-_verbose variant silently no-op'd
+	# whenever set_verbose() was never called — save/load diagnostics vanished
+	# in standalone/tool use. VerboseHelper falls back to print/push_* instead.
+	VerboseHelper.log(level, category, icon, msg)
 
 
 func _find_quantum_instrument_input(_farm: Node) -> Node:

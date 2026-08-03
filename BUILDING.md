@@ -10,6 +10,11 @@ This guide will help you build SpaceWheat locally. If you're working with an LLM
 
 ## Quick Start (Linux)
 
+> This is the **scons/godot-cpp from-source path** and this file is its
+> canonical owner. For the lighter prebuilt-Godot + `native/` Makefile-only
+> path (different, smaller package list — not a drift bug), see
+> [docs/build/BUILD_LINUX.md](docs/build/BUILD_LINUX.md).
+
 ```bash
 # Install prerequisites
 sudo apt-get update

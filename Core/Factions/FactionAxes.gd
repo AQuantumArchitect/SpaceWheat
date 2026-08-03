@@ -16,20 +16,12 @@ static var AXES: Array = _load_axes()
 
 
 static func _load_axes() -> Array:
-	var file = FileAccess.open(JSON_PATH, FileAccess.READ)
-	if not file:
-		push_error("FactionAxes: cannot open %s" % JSON_PATH)
+	# One JSON-load authority (slop knot #7).
+	var res: Dictionary = preload("res://Core/Config/JsonFileLoader.gd").load_json(
+		JSON_PATH, {"context": "FactionAxes", "root": "array"})
+	if not res.ok:
 		return []
-	var json = JSON.new()
-	var err = json.parse(file.get_as_text())
-	file.close()
-	if err != OK:
-		push_error("FactionAxes: JSON parse error: %s" % json.get_error_message())
-		return []
-	var data = json.data
-	if not (data is Array):
-		push_error("FactionAxes: expected Array at root of %s" % JSON_PATH)
-		return []
+	var data = res.data
 	if data.size() != AXIS_COUNT:
 		push_warning("FactionAxes: expected %d axes, got %d" % [AXIS_COUNT, data.size()])
 	return data

@@ -15,6 +15,20 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
+# The one save-schema authority (slop knot #14). audit_saves_text.sh reads
+# these via `--emit-schema` instead of re-deriving the same rules in bash —
+# a schema change now edits exactly one list.
+OBSOLETE_PLOT_FIELDS = ["theta", "phi", "growth_progress", "is_mature"]
+REQUIRED_PLOT_FIELDS = ["theta_frozen"]
+
+
+def emit_schema() -> None:
+    """Print one `kind field` line per rule, for shell consumers."""
+    for field in OBSOLETE_PLOT_FIELDS:
+        print("obsolete %s" % field)
+    for field in REQUIRED_PLOT_FIELDS:
+        print("required %s" % field)
+
 class GameStateRepair:
     def __init__(self, file_path):
         self.file_path = Path(file_path)
@@ -149,10 +163,13 @@ class GameStateRepair:
         print("\n  📊 Repair Summary:")
         print(f"    - Original plots: {len(self.plots)}")
         print(f"    - New grid size: 6x1")
-        print(f"    - Removed fields: theta, phi, growth_progress, is_mature")
-        print(f"    - Added missing fields: theta_frozen")
+        print(f"    - Removed fields: {', '.join(OBSOLETE_PLOT_FIELDS)}")
+        print(f"    - Added missing fields: {', '.join(REQUIRED_PLOT_FIELDS)}")
 
 def main():
+    if "--emit-schema" in sys.argv:
+        emit_schema()
+        return
     print("\n" + "="*70)
     print("🔧 SPACEWHEAT SAVE FILE REPAIR TOOL")
     print("="*70)

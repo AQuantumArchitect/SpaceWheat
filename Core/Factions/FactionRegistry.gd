@@ -61,23 +61,12 @@ func load_factions() -> bool:
 	_tag_index.clear()
 	_ring_index.clear()
 
-	var file = FileAccess.open(JSON_PATH, FileAccess.READ)
-	if not file:
-		push_error("FactionRegistry: Could not open %s" % JSON_PATH)
+	# One JSON-load authority (slop knot #7).
+	var res: Dictionary = preload("res://Core/Config/JsonFileLoader.gd").load_json(
+		JSON_PATH, {"context": "FactionRegistry", "root": "array"})
+	if not res.ok:
 		return false
-
-	var json = JSON.new()
-	var err = json.parse(file.get_as_text())
-	file.close()
-
-	if err != OK:
-		push_error("FactionRegistry: JSON parse error at line %d: %s" % [json.get_error_line(), json.get_error_message()])
-		return false
-
-	var data = json.data
-	if not data is Array:
-		push_error("FactionRegistry: Expected array at root of JSON")
-		return false
+	var data = res.data
 
 	# Load each faction
 	for faction_data in data:

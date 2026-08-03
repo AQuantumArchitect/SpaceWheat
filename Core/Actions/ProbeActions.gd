@@ -1145,14 +1145,10 @@ static func _set_reap_count(farm, value: int) -> void:
 
 
 static func _format_cost(cost: Dictionary) -> String:
-	if cost.is_empty():
-		return "resources"
-	var keys = cost.keys()
-	keys.sort()
-	var parts: Array[String] = []
-	for emoji in keys:
-		parts.append("%s×%d" % [str(emoji), int(cost[emoji])])
-	return " ".join(parts)
+	# Delegates to the one formatter authority, pinning this site's exact
+	# historical convention (slop knot #13).
+	return preload("res://Core/UI/CostFormat.gd").format_cost(
+		cost, {"sorted": true, "pair": "emoji_times", "empty": "resources"})
 
 
 static func get_explore_preview(terminal_pool, biome) -> Dictionary:

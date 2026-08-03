@@ -138,7 +138,6 @@ func _refresh_runtime_bindings() -> void:
 func _get_serializer() -> GameStateSerializer:
 	if not _serializer:
 		_serializer = GameStateSerializer.new()
-	_serializer.set_verbose(_verbose)
 	return _serializer
 
 

@@ -290,17 +290,10 @@ func _accumulate_atom_for_pole(emoji: String, record: Dictionary, is_pole_0: boo
 
 
 func _read_json(path: String) -> Variant:
-	var file = FileAccess.open(path, FileAccess.READ)
-	if not file:
-		push_error("IconRegistry: cannot open %s" % path)
-		return null
-	var json = JSON.new()
-	var err = json.parse(file.get_as_text())
-	file.close()
-	if err != OK:
-		push_error("IconRegistry: JSON parse error in %s: %s" % [path, json.get_error_message()])
-		return null
-	return json.data
+	# One JSON-load authority (slop knot #7); null on failure as before.
+	var res: Dictionary = preload("res://Core/Config/JsonFileLoader.gd").load_json(
+		path, {"context": "IconRegistry"})
+	return res.data if res.ok else null
 
 
 func _register(record: Dictionary) -> void:
