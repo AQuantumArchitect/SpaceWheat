@@ -257,11 +257,19 @@ func _rebuild_icon_row() -> void:
 		return
 	var vc = _active_biome.viz_cache
 	var nq: int = vc.get_num_qubits() if vc.has_method("get_num_qubits") else 0
+	# Autoload resolved by node path, not bare identifier — a bare IconRegistry
+	# fails script compile under the `-s` headless harness, where autoload
+	# globals aren't populated (same idiom as _ready/_resolve_biome/
+	# _rebuild_biome_row and IconCard.gd:67). has_method guard: the surface
+	# smoke harness parks a fake registry without find_icon_by_emoji here.
+	var icon_registry = (Engine.get_main_loop().root.get_node_or_null("/root/IconRegistry")
+		if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 	const PLOT_KEYS: Array = ["G", "H", "J", "K", "L", ";"]
 	for i in range(min(nq, PLOT_KEYS.size())):
 		var axis: Dictionary = vc.get_axis(i) if vc.has_method("get_axis") else {}
 		var north_emoji := str(axis.get("north", ""))
-		var rec: Dictionary = IconRegistry.find_icon_by_emoji(north_emoji)
+		var rec: Dictionary = (icon_registry.find_icon_by_emoji(north_emoji)
+			if icon_registry != null and icon_registry.has_method("find_icon_by_emoji") else {})
 		var icon_name := str(rec.get("name", north_emoji))
 		var lbl := Label.new()
 		lbl.add_theme_font_size_override("font_size", 12)

@@ -28,6 +28,12 @@ class FakeFarm:
 	var grid: FakeGrid = null
 	var faction_standings: Dictionary = {}
 	var player_alignment = null
+	# The pin is who you ARE — MapMetaOverlay derives eigen_sort_mode from it
+	# via InstrumentLocator.resolve_active_farm → get_pinned_faction_name().
+	var pinned_name: String = ""
+
+	func get_pinned_faction_name() -> String:
+		return pinned_name
 
 
 func _init() -> void:
@@ -109,15 +115,28 @@ func _run() -> void:
 	assert_eq(visible.get("frame_label", ""), "Eigenstate", "Y switches to Eigenstate")
 	assert_eq(visible.get("eigen_sort_mode", ""), "System", "Eigenstate defaults to System sort")
 
-	# Sort-mode chord: [2] = Subject (pinned faction)
-	overlay._on_unhandled_key(KEY_2, InputEventKey.new())
+	# Sort mode is DERIVED from pinned-faction state — no chord (the design
+	# comment at MapMetaOverlay._build_eigen_body; canon reserves 1/2/3 for the
+	# Q/R sub-mode axis selector, KEYBOARD_GRAMMAR.md:54). Earlier revisions of
+	# this test asserted a phantom KEY_2/KEY_1 sort chord that never existed.
+	# Pin a real roster faction through the active-farm path and watch the
+	# derivation flip.
+	var gsm = root.get_node_or_null("/root/GameStateManager")
+	assert_true(gsm != null, "GameStateManager autoload present for pin routing")
+	var prior_active_farm = gsm.active_farm if gsm else null
+	if gsm:
+		gsm.active_farm = farm
+	assert_true(overlay._faction_roster.size() > 0, "faction roster available for pinning")
+	farm.pinned_name = str(overlay._faction_roster[0].name) if overlay._faction_roster.size() > 0 else ""
 	visible = overlay.get_visible_data()
-	assert_eq(visible.get("eigen_sort_mode", ""), "Subject", "[2] switches Eigenstate sort to Subject")
+	assert_eq(visible.get("eigen_sort_mode", ""), "Subject", "pinned faction derives Subject sort")
 
-	# [1] returns to System
-	overlay._on_unhandled_key(KEY_1, InputEventKey.new())
+	# Unpinning returns the derivation to System.
+	farm.pinned_name = ""
 	visible = overlay.get_visible_data()
-	assert_eq(visible.get("eigen_sort_mode", ""), "System", "[1] returns to System sort")
+	assert_eq(visible.get("eigen_sort_mode", ""), "System", "detached pin derives System sort")
+	if gsm:
+		gsm.active_farm = prior_active_farm
 
 	# E on Eigen sets selected_faction_b and jumps to Bits
 	# Pick a non-zero index first via H to simulate selection.

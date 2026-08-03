@@ -221,9 +221,11 @@ static func _can_execute_explore(farm, current_selection: Vector2i) -> bool:
 static func _can_execute_measure(farm, selected_plots: Array[Vector2i]) -> bool:
 	# Check if STRIKE/MEASURE is available (Ace frame — the strike verb).
 	#
-	# A strike collapses the selected register. Selection no longer pre-binds a
-	# terminal — the strike binds one on demand — so the verb is available on any
-	# live QC register (plot_idx ≡ register_id), or on an already-active terminal.
+	# A strike collapses an EXPLORED register. The strike-time auto-bind was
+	# deleted (a933613d, owner ruling 2026-07-11: F mounts the expedition for 🍞,
+	# the strike is a separate 👥-priced act), so the chip is live only where a
+	# bound terminal can measure — mirroring the mouse path's ground-truth verb
+	# pick (QuantumInstrumentInput picks "explore" when terminal == null).
 	if not farm or selected_plots.is_empty():
 		return false
 	var grid = farm.get("grid") if farm else null
@@ -232,14 +234,8 @@ static func _can_execute_measure(farm, selected_plots: Array[Vector2i]) -> bool:
 	for pos in selected_plots:
 		var plot = grid.get_plot(pos) if grid else null
 		var terminal = plot.terminal if plot else null
-		# Already-bound terminal → measurable now.
 		if terminal and terminal.can_measure():
 			return true
-		# Live QC register → strikeable (measure binds the terminal on demand).
-		var biome = grid.get_biome_for_plot(pos)
-		if biome and biome.quantum_computer and biome.quantum_computer.register_map:
-			if pos.x >= 0 and pos.x < biome.quantum_computer.register_map.num_qubits:
-				return true
 
 	return false
 

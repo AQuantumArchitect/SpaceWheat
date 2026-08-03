@@ -67,29 +67,17 @@ SMOKE_TESTS=(
     save_floor_smoke
     test_cn_handoff_runtime
     test_v_surface_runtime
+    test_m_surface_runtime
+    test_surface_headless_smoke
+    test_vantage_strike
 )
-# Known-red / not wired (2026-08-03, #429 slop pass) — fix before adding, don't
-# delete silently:
-#   test_m_surface_runtime  — the "visible" parse-error rot is FIXED (23/24
-#     pass now); one genuine pre-existing gap remains: pressing "2" on the
-#     Eigenstate frame is expected to flip eigen_sort_mode to "Subject" (a
-#     faction-pin chord) but UI/Overlays/MapMetaOverlay.gd never wires KEY_2
-#     to anything — eigen_sort_mode is derived solely from whether a faction
-#     is already pinned (line ~1696). Either the chord was never implemented
-#     or was removed; needs an owner call on the intended key, not a rename.
-#   test_surface_headless_smoke — NOT a deadlock: at line 156
-#     `BiomeInspectorOverlay.new()` throws "Nonexistent function 'new' in
-#     base 'GDScript'" (i.e. BiomeInspectorOverlay.gd itself fails to
-#     compile in this specific headless SceneTree-script timing — a
-#     standalone `--check-only` on that file reports "Identifier not found:
-#     IconRegistry" even though IconRegistry is a registered autoload
-#     (project.godot:28) that resolves fine in normal gameplay boot). The
-#     script's error handling doesn't call quit()/_finish() on this failure,
-#     so BiomeBase._process's "unclaimed" warning then repeats forever —
-#     that's the "hang". Root cause is autoload-vs-script-compile ordering
-#     in the `-s script.gd` harness, not the warning loop itself; needs
-#     someone who can reproduce Godot's exact autoload init timing to fix
-#     correctly, not a guess.
+# Known-red / not wired: NONE (2026-08-03 fable push — the #429 leftovers all
+# closed: m_surface's phantom KEY_2 sort chord replaced with the real
+# pinned-faction derivation; surface_headless_smoke's hang was one bare
+# IconRegistry identifier in BiomeInspectorOverlay (fixed, plus a watchdog so
+# an uncaught error can never hang the runner again); vantage_strike rewritten
+# to the live explore-first contract from a933613d). If a test goes red, fix or
+# document it here — never drop it from the array silently.
 
 FAILED_TESTS=()
 for name in "${SMOKE_TESTS[@]}"; do

@@ -1,12 +1,14 @@
 #!/usr/bin/env -S godot --headless -s
 extends SceneTree
 
-## Test: Ace vantage (L1–L3) — strike-time terminal binding + closed-mode honesty.
+## Test: Ace vantage — explore-first honesty + strike collapse.
 ##
-## Proves the "unfuck the UI" gameplay core:
+## Proves the F/R/Q contract (owner ruling 2026-07-11, commit a933613d "Ace
+## speaks F/R/Q" — the silent strike-time auto-bind is deleted):
 ##   - Ace ToolConfig mapping: Q=Extract(pop) / E=Pause("") / R=Strike(measure) / F=fast_forward
-##   - Selection no longer auto-binds a terminal (pool stays full until a strike)
-##   - Strike (action_measure) binds a terminal ON DEMAND, then collapses
+##   - Selection never auto-binds a terminal (pool stays full until Explore)
+##   - Strike on an unexplored plot refuses honestly (not_explored, blocked)
+##   - Explore (action_explore) binds the terminal; Strike then collapses it
 ##   - Extract (action_pop) releases the terminal back to the pool
 ##   - Closed mode: spark_north (Plant) returns an inert blocked result
 
@@ -129,15 +131,35 @@ func _run() -> void:
 	_check(not plant.get("success", false) and plant.get("blocked", false), "spark_north (Plant) blocked in closed mode")
 	_check(farm.grid.get_plot(gp) == null or farm.grid.get_plot(gp).terminal == null, "blocked Plant bound no terminal")
 
-	# L1/L3: STRIKE binds a terminal on demand, then collapses (no prior explore).
+	# Wallet: Explore charges 🍞 and Strike charges 👥 (unfamiliarity-scaled).
+	# Seed both so this contract test never fails on affordability.
+	farm.economy.add_resource("🍞", 20, "vantage_test_seed")
+	farm.economy.add_resource("👥", 100, "vantage_test_seed")
+
+	# The strike-time auto-bind is DELETED (a933613d): R on an unexplored plot
+	# refuses honestly instead of silently buying the expedition too.
+	var early_strike = farm.instrument.action_measure(gp)
+	_check(not early_strike.get("success", false), "Strike refuses on an unexplored plot")
+	_check(str(early_strike.get("error", "")) == "not_explored", "refusal names not_explored")
+	_check(early_strike.get("blocked", false), "refusal is blocked:true (honest toast, not silence)")
+	_check(farm.grid.get_plot(gp) == null or farm.grid.get_plot(gp).terminal == null, "refused strike bound no terminal")
+
+	# F = Explore mounts the expedition and binds the terminal.
+	var explored = farm.instrument.action_explore("StarterForest", gp)
+	var explored_plot = farm.grid.get_plot(gp)
+	var explored_terminal = explored_plot.terminal if explored_plot else null
+	_check(explored.get("success", false), "Explore (action_explore) succeeds: %s" % str(explored.get("message", "")))
+	_check(explored_terminal != null, "explore bound a terminal at %s" % gp)
+	_check(explored_terminal != null and not explored_terminal.is_measured, "explored terminal is bound, not yet measured")
+
+	# R = Strike collapses the explored register.
 	var strike = farm.instrument.action_measure(gp)
 	var struck_plot = farm.grid.get_plot(gp)
 	var struck_terminal = struck_plot.terminal if struck_plot else null
-	_check(strike.get("success", false), "Strike (action_measure) succeeds with no prior explore — strike-time bind")
-	_check(struck_terminal != null, "strike created a terminal at %s where none existed (strike-time bind)" % gp)
+	_check(strike.get("success", false), "Strike (action_measure) succeeds on the explored plot")
 	_check(struck_terminal != null and struck_terminal.is_measured, "struck terminal is measured (register collapsed)")
 
-	# L3: EXTRACT pops the struck terminal off the plot.
+	# Q = EXTRACT pops the struck terminal off the plot.
 	var extract = farm.instrument.action_pop(gp)
 	var popped_plot = farm.grid.get_plot(gp)
 	_check(extract.get("success", false), "Extract (action_pop) succeeds after strike")

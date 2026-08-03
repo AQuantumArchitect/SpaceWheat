@@ -3,6 +3,7 @@ extends SceneTree
 
 var passed := 0
 var failed := 0
+var _finished := false
 
 
 class FakePlayerProgress:
@@ -71,6 +72,20 @@ class FakeFarm:
 
 func _init() -> void:
 	call_deferred("_run")
+	call_deferred("_arm_watchdog")
+
+
+func _arm_watchdog() -> void:
+	# Fail-safe: an uncaught script error inside _run() (e.g. an overlay class
+	# failing to compile under this harness's autoload timing — the 2026-08
+	# BiomeInspectorOverlay bare-IconRegistry hang) aborts _run without ever
+	# reaching quit(), leaving the tree ticking forever. Quit red instead.
+	var t := create_timer(90.0)
+	t.timeout.connect(func() -> void:
+		if not _finished:
+			printerr("headless surface smoke: watchdog fired — _run() never finished (uncaught error?)")
+			quit(1)
+	)
 
 
 func _run() -> void:
@@ -103,6 +118,8 @@ func _run() -> void:
 	if village_spec == null or hearth_spec == null:
 		_fail("required biome specs unavailable")
 		_cleanup(scene_root, gsm, abm, atom_registry)
+		_finished = true
+		quit(1)
 		return
 
 	var village_res = BiomeBuilder.build_from_spec(village_spec, scene_root, {"skip_tree_add": true})
@@ -110,6 +127,8 @@ func _run() -> void:
 	if not bool(village_res.get("success", false)) or not bool(hearth_res.get("success", false)):
 		_fail("biomes failed to build")
 		_cleanup(scene_root, gsm, abm, atom_registry)
+		_finished = true
+		quit(1)
 		return
 
 	var village = village_res.get("biome_node", null)
@@ -205,6 +224,7 @@ func _run() -> void:
 
 	_cleanup(scene_root, gsm, abm, atom_registry)
 	await process_frame
+	_finished = true
 	print("headless surface smoke: %d passed, %d failed" % [passed, failed])
 	quit(0 if failed == 0 else 1)
 

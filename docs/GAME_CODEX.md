@@ -265,9 +265,9 @@ override, e.g. Icon-R "Add" vs "Incorporate") → `_run_action` →
 ## 6. The core loop (minute to minute)
 
 **The immediate verb triad (Ace, on a plot):**
-1. **Explore / bind** — point a terminal at a qubit; a bubble appears showing its
-   icon-pair.
-2. **E = Measure (Strike)** — Born-sample the qubit; it collapses to one emoji;
+1. **F = Explore / bind** — point a terminal at a qubit; a bubble appears showing
+   its icon-pair.
+2. **R = Measure (Strike)** — Born-sample the qubit; it collapses to one emoji;
    the probability bar shows how rare that outcome was. Closed mode projects
    (purity stays 1).
 3. **Q = Extract (Pop/Harvest)** — cash the outcome for resources; reward is the

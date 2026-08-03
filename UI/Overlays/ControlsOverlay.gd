@@ -516,7 +516,15 @@ func _render_faction_standings_grid(farm, standings: Dictionary) -> void:
 	# icons incorporated). Incorporation lives in farm.known_icons; pair
 	# identity goes through IconRegistry's VS16-normalized keys (d1-04 wave-2).
 	var known_icons: Array = farm.known_icons if farm != null and "known_icons" in farm else []
-	var incorporated: Dictionary = IconRegistry.discovered_set_from_icons(known_icons)
+	# Autoload resolved by node path, not bare identifier — a bare IconRegistry
+	# fails script compile under the `-s` headless harness, where autoload
+	# globals aren't populated (defect class test_surface_headless_smoke exposed
+	# in BiomeInspectorOverlay; idiom per IconCard.gd:67). Static calls route
+	# through the instance too — legal in GDScript, keeps one resolution.
+	var icon_registry = (Engine.get_main_loop().root.get_node_or_null("/root/IconRegistry")
+		if Engine.get_main_loop() and Engine.get_main_loop().root else null)
+	var incorporated: Dictionary = (icon_registry.discovered_set_from_icons(known_icons)
+		if icon_registry != null else {})
 
 	var rows: Array = []
 	for fname in standings.keys():
@@ -529,13 +537,14 @@ func _render_faction_standings_grid(farm, standings: Dictionary) -> void:
 				and absf(s.attention) < 0.0001 and absf(s.access) < 0.0001 \
 				and absf(s.legitimacy) < 0.0001 and absf(s.entanglement) < 0.0001:
 			continue
-		var sig_icons: Array = IconRegistry.get_icons_for_faction(str(fname))
+		var sig_icons: Array = (icon_registry.get_icons_for_faction(str(fname))
+			if icon_registry != null else [])
 		var sig_total: int = sig_icons.size()
 		var sig_known: int = 0
 		for rec in sig_icons:
 			if not (rec is Dictionary):
 				continue
-			if IconRegistry.is_icon_discovered(str(rec.get("pole_0", "")), str(rec.get("pole_1", "")), incorporated):
+			if icon_registry.is_icon_discovered(str(rec.get("pole_0", "")), str(rec.get("pole_1", "")), incorporated):
 				sig_known += 1
 		rows.append({
 			"faction": str(fname),
@@ -719,7 +728,11 @@ func _build_our_faction_view(farm) -> void:
 	var qc = null
 	if biome != null and biome.get("quantum_computer") != null:
 		qc = biome.quantum_computer
-	var icons: Array = IconRegistry.get_icons_for_faction("The Demos")
+	# Autoload by node path, not bare identifier (see _render_faction_standings_grid).
+	var icon_registry = (Engine.get_main_loop().root.get_node_or_null("/root/IconRegistry")
+		if Engine.get_main_loop() and Engine.get_main_loop().root else null)
+	var icons: Array = (icon_registry.get_icons_for_faction("The Demos")
+		if icon_registry != null else [])
 	if icons.is_empty():
 		_body_box.add_child(_make_muted_label("the demos has no icons yet.", 11))
 		return
