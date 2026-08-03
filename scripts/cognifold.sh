@@ -20,7 +20,8 @@
 set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-GODOT_BIN="${GODOT_BIN:-godot}"
+source "$PROJECT_DIR/scripts/lib/godot_runtime_env.sh"
+GODOT_BIN="$(sw_godot_bin)"
 SCENE="scenes/CognifoldTraceView.tscn"
 HEARTH="$PROJECT_DIR/🍄/🧪/hearth_client.py"
 

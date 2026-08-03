@@ -1,4 +1,4 @@
-extends SceneTree
+extends "res://tests/smoke_test_base.gd"
 
 ## story_icon_cutover_smoke.gd
 ##
@@ -7,9 +7,6 @@ extends SceneTree
 
 const FactionRegistryCls = preload("res://Core/Factions/FactionRegistry.gd")
 const StoryEngine = preload("res://Core/Story/StoryEngine.gd")
-
-var passed: int = 0
-var failed: int = 0
 
 
 var _ran := false
@@ -81,8 +78,7 @@ func _run_test() -> void:
 		_check(changed, "phase rotation mutates at least one atom")
 		_check(before != after, "phase rotation changes the coupling map")
 
-	print("Result: %d passed, %d failed" % [passed, failed])
-	quit(0 if failed == 0 else 1)
+	_finish()
 
 
 func _reward_keys_are_in_signature(reward, signature: Array) -> bool:
@@ -121,12 +117,3 @@ func _resolve_icon_registry():
 	icon_registry.name = "IconRegistry"
 	root.add_child(icon_registry)
 	return icon_registry
-
-
-func _check(cond: bool, label: String) -> void:
-	if cond:
-		passed += 1
-		print("  PASS  %s" % label)
-	else:
-		failed += 1
-		print("  FAIL  %s" % label)

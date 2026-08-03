@@ -1,4 +1,4 @@
-extends SceneTree
+extends "res://tests/smoke_test_base.gd"
 
 ## QuantumEvolutionEngine: evolve_step() vs evolve() parity + packed-array size guards.
 ##
@@ -16,8 +16,6 @@ extends SceneTree
 ##
 ## Run: godot --headless --path . --script tests/test_evolve_parity.gd
 
-var passed := 0
-var failed := 0
 
 const DIVIDER = "============================================================"
 const TOL_EXACT := 1e-12
@@ -39,22 +37,10 @@ func _init():
 	test_oversized_rho_rejected()
 	test_undersized_hamiltonian_rejected()
 
-	print("\n" + DIVIDER)
-	print("RESULTS: %d passed, %d failed" % [passed, failed])
-	print(DIVIDER + "\n")
-
-	quit(0 if failed == 0 else 1)
+	_finish("RESULTS")
 
 
 ## ---------------------------------------------------------------- helpers
-
-func _check(label: String, cond: bool, detail: String = "") -> void:
-	if cond:
-		passed += 1
-		print("  ✓ %s" % label)
-	else:
-		failed += 1
-		print("  ✗ %s %s" % [label, detail])
 
 
 ## Dense packed identity-scaled / arbitrary matrix helpers. Packed layout is
@@ -171,10 +157,9 @@ func test_unitary_path_parity():
 		var a: PackedFloat64Array = e.evolve_step(rho, dt)
 		var b: PackedFloat64Array = e.evolve(rho, dt, dt)
 		var d := _max_abs_diff(a, b)
-		_check("dt=%s agree (max|Δ|=%s)" % [dt, d], d < TOL_EXACT, "diff=%s" % d)
+		_check(d < TOL_EXACT, "dt=%s agree (max|Δ|=%s)" % [dt, d], "diff=%s" % d)
 		# and purity is preserved exactly on this path
-		_check("dt=%s purity preserved" % dt, abs(_purity(a, dim) - 1.0) < TOL_LOOSE,
-			"purity=%s" % _purity(a, dim))
+		_check(abs(_purity(a, dim) - 1.0) < TOL_LOOSE, "dt=%s purity preserved" % dt, "purity=%s" % _purity(a, dim))
 
 
 func test_dissipative_small_dt_parity():
@@ -191,7 +176,7 @@ func test_dissipative_small_dt_parity():
 		var a: PackedFloat64Array = e.evolve_step(rho, dt)
 		var b: PackedFloat64Array = e.evolve(rho, dt, dt)
 		var d := _max_abs_diff(a, b)
-		_check("dt=%s agree (max|Δ|=%s)" % [dt, d], d < TOL_LOOSE, "diff=%s" % d)
+		_check(d < TOL_LOOSE, "dt=%s agree (max|Δ|=%s)" % [dt, d], "diff=%s" % d)
 
 
 func test_dissipative_large_dt_purity_bound():
@@ -209,12 +194,11 @@ func test_dissipative_large_dt_purity_bound():
 		var b: PackedFloat64Array = e.evolve(rho, dt, dt)
 		var pa := _purity(a, dim)
 		var pb := _purity(b, dim)
-		_check("dt=%s evolve_step trace≈1" % dt, abs(_trace(a, dim) - 1.0) < 1e-6,
-			"trace=%s" % _trace(a, dim))
-		_check("dt=%s evolve_step purity ≤ 1" % dt, pa <= 1.0 + 1e-9, "purity=%s" % pa)
-		_check("dt=%s evolve purity ≤ 1" % dt, pb <= 1.0 + 1e-9, "purity=%s" % pb)
+		_check(abs(_trace(a, dim) - 1.0) < 1e-6, "dt=%s evolve_step trace≈1" % dt, "trace=%s" % _trace(a, dim))
+		_check(pa <= 1.0 + 1e-9, "dt=%s evolve_step purity ≤ 1" % dt, "purity=%s" % pa)
+		_check(pb <= 1.0 + 1e-9, "dt=%s evolve purity ≤ 1" % dt, "purity=%s" % pb)
 		var d := _max_abs_diff(a, b)
-		_check("dt=%s agree (max|Δ|=%s)" % [dt, d], d < TOL_LOOSE, "diff=%s" % d)
+		_check(d < TOL_LOOSE, "dt=%s agree (max|Δ|=%s)" % [dt, d], "diff=%s" % d)
 
 
 func test_pure_lindblad_parity():
@@ -229,8 +213,8 @@ func test_pure_lindblad_parity():
 		var a: PackedFloat64Array = e.evolve_step(rho, dt)
 		var b: PackedFloat64Array = e.evolve(rho, dt, dt)
 		var d := _max_abs_diff(a, b)
-		_check("dt=%s agree (max|Δ|=%s)" % [dt, d], d < TOL_LOOSE, "diff=%s" % d)
-		_check("dt=%s trace≈1" % dt, abs(_trace(a, dim) - 1.0) < 1e-6, "trace=%s" % _trace(a, dim))
+		_check(d < TOL_LOOSE, "dt=%s agree (max|Δ|=%s)" % [dt, d], "diff=%s" % d)
+		_check(abs(_trace(a, dim) - 1.0) < 1e-6, "dt=%s trace≈1" % dt, "trace=%s" % _trace(a, dim))
 
 
 func test_undersized_rho_rejected():
@@ -242,26 +226,25 @@ func test_undersized_rho_rejected():
 	var short_rho := _packed_zero(2)  # 2×2 worth of data handed to a 4×4 engine
 
 	var stepped: PackedFloat64Array = e.evolve_step(short_rho, 0.01)
-	_check("evolve_step returns input unchanged", stepped == short_rho)
+	_check(stepped == short_rho, "evolve_step returns input unchanged")
 	var evolved: PackedFloat64Array = e.evolve(short_rho, 0.01, 0.01)
-	_check("evolve returns input unchanged", evolved == short_rho)
+	_check(evolved == short_rho, "evolve returns input unchanged")
 
 	# The unguarded family: these used to call unpack_dense raw.
 	var purity: float = e.compute_purity_from_packed(short_rho)
-	_check("compute_purity_from_packed → 0 (zero matrix), no crash", purity == 0.0,
-		"purity=%s" % purity)
+	_check(purity == 0.0, "compute_purity_from_packed → 0 (zero matrix), no crash", "purity=%s" % purity)
 	var bloch: PackedFloat64Array = e.compute_bloch_metrics_from_packed(short_rho, 2)
-	_check("compute_bloch_metrics_from_packed survives", bloch.size() >= 0)
+	_check(bloch.size() >= 0, "compute_bloch_metrics_from_packed survives")
 	var mi: PackedFloat64Array = e.compute_all_mutual_information(short_rho, 2)
-	_check("compute_all_mutual_information survives", mi.size() == 1)
+	_check(mi.size() == 1, "compute_all_mutual_information survives")
 	var eig: Dictionary = e.compute_eigenstates(short_rho)
-	_check("compute_eigenstates survives", eig != null)
+	_check(eig != null, "compute_eigenstates survives")
 	var evals: PackedFloat64Array = e.compute_eigenvalues(short_rho)
-	_check("compute_eigenvalues survives", evals.size() == dim)
+	_check(evals.size() == dim, "compute_eigenvalues survives")
 	var dom: PackedFloat64Array = e.compute_dominant_eigenvector(short_rho)
-	_check("compute_dominant_eigenvector survives", dom.size() == dim * 2)
+	_check(dom.size() == dim * 2, "compute_dominant_eigenvector survives")
 	var withmi: Dictionary = e.evolve_with_mi(short_rho, 0.01, 0.01, 2)
-	_check("evolve_with_mi survives", withmi != null)
+	_check(withmi != null, "evolve_with_mi survives")
 
 
 func test_oversized_rho_rejected():
@@ -277,9 +260,9 @@ func test_oversized_rho_rejected():
 		big[i] = 0.125
 
 	var stepped: PackedFloat64Array = e.evolve_step(big, 0.01)
-	_check("evolve_step returns input unchanged", stepped == big)
+	_check(stepped == big, "evolve_step returns input unchanged")
 	var purity: float = e.compute_purity_from_packed(big)
-	_check("compute_purity_from_packed → 0 (zero matrix)", purity == 0.0, "purity=%s" % purity)
+	_check(purity == 0.0, "compute_purity_from_packed → 0 (zero matrix)", "purity=%s" % purity)
 
 
 func test_undersized_hamiltonian_rejected():
@@ -301,5 +284,4 @@ func test_undersized_hamiltonian_rejected():
 	# engine is a no-op evolver, so ρ comes back untouched.
 	var rho := _make_rho(4, 0.3)
 	var out: PackedFloat64Array = e.evolve_step(rho, 0.1)
-	_check("short H not installed (ρ unchanged)", _max_abs_diff(out, rho) < TOL_EXACT,
-		"diff=%s" % _max_abs_diff(out, rho))
+	_check(_max_abs_diff(out, rho) < TOL_EXACT, "short H not installed (ρ unchanged)", "diff=%s" % _max_abs_diff(out, rho))

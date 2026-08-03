@@ -8,10 +8,12 @@
 
 set -euo pipefail
 
-GODOT_BIN="godot"
-VERSION_OVERRIDE=""
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/log.sh"
+source "$SCRIPT_DIR/lib/godot_runtime_env.sh"
 
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/log.sh"
+GODOT_BIN="$(sw_godot_bin)"
+VERSION_OVERRIDE=""
 
 show_help() {
     cat << 'EOF'

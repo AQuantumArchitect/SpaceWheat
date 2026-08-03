@@ -1,11 +1,8 @@
-extends SceneTree
+extends "res://tests/smoke_test_base.gd"
 
 ## Minimal unit test for 2-qubit gate embedding
 ## Run: godot --headless --script tests/test_2q_gate_embed.gd
 
-
-var passed = 0
-var failed = 0
 
 const DIVIDER = "============================================================"
 
@@ -28,11 +25,7 @@ func _init():
 	test_cz_gate()
 	test_swap_gate()
 
-	print("\n" + DIVIDER)
-	print("RESULTS: %d passed, %d failed" % [passed, failed])
-	print(DIVIDER + "\n")
-
-	quit(0 if failed == 0 else 1)
+	_finish("RESULTS")
 
 
 func test_cnot_matrix_contents():

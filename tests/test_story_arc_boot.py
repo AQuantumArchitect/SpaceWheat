@@ -1,23 +1,8 @@
-import shutil
-import tempfile
 import time
 from pathlib import Path
 
-import pytest
-
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-RUNNER_ROOT = PROJECT_ROOT / "🍄" / "🎛️"
-
-
-def _load_rig_client():
-    import sys
-
-    if str(RUNNER_ROOT) not in sys.path:
-        sys.path.insert(0, str(RUNNER_ROOT))
-    from rig_client import RigClient  # noqa: E402
-
-    return RigClient
 
 
 def _wait_for_story_flag(rig, flag_id: str, *, timeout_s: float = 12.0):
@@ -35,7 +20,7 @@ def _wait_for_story_flag(rig, flag_id: str, *, timeout_s: float = 12.0):
     raise AssertionError(f"timed out waiting for story flag {flag_id}: {last_row}")
 
 
-def test_story_flags_fire_from_action_not_boot() -> None:
+def test_story_flags_fire_from_action_not_boot(rig_boot) -> None:
     # Principle: story flags fire as a RESULT of human action, never at a fresh boot.
     # Run on the SHIPPED DEFAULT scenario (demos_normal). first_breath now gates on
     # signature_GROWTH past the seeded boot baseline (signature_growth_gte 0.5 width 0.4),
@@ -44,55 +29,42 @@ def test_story_flags_fire_from_action_not_boot() -> None:
     # the old absolute signature_size_gte 1.5 fired at boot for any start with ≥2 icons
     # (e.g. new_game_easy, or a Demos start with a 2-icon signature). The forest beats below
     # then fire from a real action (consuming berries).
-    RigClient = _load_rig_client()
-    if shutil.which("godot") is None:
-        pytest.skip("godot not available on PATH")
+    rig, _proc = rig_boot(
+        prefix="sw_pytest_story_boot_",
+        load_slot=None,
+        scenario_id="demos_normal",
+        allow_resource_injection=True,
+        listener_stdout="null",
+        rig_log_profile="quiet",
+        extra_env={"RIG_QUEUE_POLL_MS": "80"},
+    )
 
-    xdg_root = Path(tempfile.mkdtemp(prefix="sw_pytest_story_boot_"))
-    rig = RigClient(xdg=xdg_root, root_from_file=RUNNER_ROOT / "milk_hunt_runner.py")
-    rig.clear_rig_files()
+    # No action taken yet → first_breath must NOT have fired at boot.
+    boot_row = rig.run_turn(1, "story_flags", timeout_s=30.0)
+    assert boot_row.get("ok", False), boot_row
+    assert "first_breath" not in boot_row.get("flags_fired", {}), boot_row
 
-    proc = None
-    try:
-        proc = rig.start_listener(
-            load_slot=None,
-            scenario_id="demos_normal",
-            allow_resource_injection=True,
-            listener_stdout="null",
-            rig_log_profile="quiet",
-            extra_env={"RIG_QUEUE_POLL_MS": "80"},
-        )
-        assert RigClient.wait_for_bridge_sentinel(timeout_s=60.0, xdg=rig.xdg_root), "rig listener not ready"
-
-        # No action taken yet → first_breath must NOT have fired at boot.
-        boot_row = rig.run_turn(1, "story_flags", timeout_s=30.0)
-        assert boot_row.get("ok", False), boot_row
-        assert "first_breath" not in boot_row.get("flags_fired", {}), boot_row
-
-        # Positive half: the flag fires FROM the action. forest_evolving gates on
-        # biome_evolving(StarterForest) + berry_consumed_count_gte 1, which under soft
-        # geometry needs ~2.3 berries to cross the 0.85 fire threshold — so consume a few.
-        # (The full forest→village→empire chain is covered end-to-end by act3_5_drive.py.)
-        berry_row = rig.run_turn(
-            99,
-            "consume_berry",
-            timeout_s=30.0,
-            biome="StarterForest",
-            count=4,
-            phase_each=3.14159,
-        )
-        assert berry_row.get("ok", False), berry_row
-        story_row = _wait_for_story_flag(rig, "forest_evolving", timeout_s=20.0)
-        flags_fired = story_row.get("flags_fired", {})
-        assert "forest_evolving" in flags_fired, story_row
-        story_log = story_row.get("story_log", [])
-        assert any(str(entry.get("id", "")) == "forest_evolving" for entry in story_log), story_row
-    finally:
-        RigClient.terminate_listener(proc, timeout_s=5.0)
-        shutil.rmtree(xdg_root, ignore_errors=True)
+    # Positive half: the flag fires FROM the action. forest_evolving gates on
+    # biome_evolving(StarterForest) + berry_consumed_count_gte 1, which under soft
+    # geometry needs ~2.3 berries to cross the 0.85 fire threshold — so consume a few.
+    # (The full forest→village→empire chain is covered end-to-end by act3_5_drive.py.)
+    berry_row = rig.run_turn(
+        99,
+        "consume_berry",
+        timeout_s=30.0,
+        biome="StarterForest",
+        count=4,
+        phase_each=3.14159,
+    )
+    assert berry_row.get("ok", False), berry_row
+    story_row = _wait_for_story_flag(rig, "forest_evolving", timeout_s=20.0)
+    flags_fired = story_row.get("flags_fired", {})
+    assert "forest_evolving" in flags_fired, story_row
+    story_log = story_row.get("story_log", [])
+    assert any(str(entry.get("id", "")) == "forest_evolving" for entry in story_log), story_row
 
 
-def test_story_tab_never_narrates_unfired_beats() -> None:
+def test_story_tab_never_narrates_unfired_beats(rig_boot) -> None:
     # Owner P0 (2026-07-11): a FRESH boot, X→Y, showed first_breath's past-tense
     # "You did something..." prose with zero player actions taken. The FOCUS pane
     # shows where graph ATTENTION sits (boot seeds density on the act-0 node) —
@@ -100,10 +72,6 @@ def test_story_tab_never_narrates_unfired_beats() -> None:
     # Guard for ALL flags: open the story tab fresh and assert no un-fired
     # flag's arc_beat prose is visible anywhere.
     import json
-
-    RigClient = _load_rig_client()
-    if shutil.which("godot") is None:
-        pytest.skip("godot not available on PATH")
 
     flags = json.loads(
         (PROJECT_ROOT / "Core" / "Quests" / "data" / "story_flags.json").read_text()
@@ -122,43 +90,35 @@ def test_story_tab_never_narrates_unfired_beats() -> None:
         if fid and frags:
             prose_by_flag[fid] = frags
 
-    xdg_root = Path(tempfile.mkdtemp(prefix="sw_pytest_story_tab_"))
-    rig = RigClient(xdg=xdg_root, root_from_file=RUNNER_ROOT / "milk_hunt_runner.py")
-    rig.clear_rig_files()
-    proc = None
-    try:
-        proc = rig.start_listener(
-            load_slot=None,
-            scenario_id="demos_normal",
-            listener_stdout="null",
-            rig_log_profile="quiet",
-            extra_env={"RIG_QUEUE_POLL_MS": "80"},
-        )
-        assert RigClient.wait_for_bridge_sentinel(timeout_s=60.0, xdg=rig.xdg_root), "rig listener not ready"
+    rig, _proc = rig_boot(
+        prefix="sw_pytest_story_tab_",
+        load_slot=None,
+        scenario_id="demos_normal",
+        listener_stdout="null",
+        rig_log_profile="quiet",
+        extra_env={"RIG_QUEUE_POLL_MS": "80"},
+    )
 
-        boot_row = rig.run_turn(1, "story_flags", timeout_s=30.0)
-        assert boot_row.get("ok", False), boot_row
-        fired = set(boot_row.get("flags_fired", {}) or {})
+    boot_row = rig.run_turn(1, "story_flags", timeout_s=30.0)
+    assert boot_row.get("ok", False), boot_row
+    fired = set(boot_row.get("flags_fired", {}) or {})
 
-        # Open X (playthrough) → Y (story tab), then read what the player SEES.
-        rig.run_turn(2, "press_key", key="x", settle_frames=10)
-        rig.run_turn(3, "press_key", key="y", settle_frames=10)
-        text_row = rig.run_turn(4, "overlay_text", timeout_s=30.0)
-        assert text_row.get("ok", False), text_row
-        visible = "\n".join(str(line.get("text", "")) for line in text_row.get("lines", []))
-        assert "FOCUS" in visible.upper(), f"story tab did not render a focus section:\n{visible[:2000]}"
+    # Open X (playthrough) → Y (story tab), then read what the player SEES.
+    rig.run_turn(2, "press_key", key="x", settle_frames=10)
+    rig.run_turn(3, "press_key", key="y", settle_frames=10)
+    text_row = rig.run_turn(4, "overlay_text", timeout_s=30.0)
+    assert text_row.get("ok", False), text_row
+    visible = "\n".join(str(line.get("text", "")) for line in text_row.get("lines", []))
+    assert "FOCUS" in visible.upper(), f"story tab did not render a focus section:\n{visible[:2000]}"
 
-        leaks = []
-        for fid, frags in prose_by_flag.items():
-            if fid in fired:
-                continue
-            for frag in frags:
-                if frag in visible:
-                    leaks.append((fid, frag))
-        assert not leaks, (
-            "story tab narrates beats that never fired (past-tense prose for "
-            f"un-fired flags): {leaks}"
-        )
-    finally:
-        RigClient.terminate_listener(proc, timeout_s=5.0)
-        shutil.rmtree(xdg_root, ignore_errors=True)
+    leaks = []
+    for fid, frags in prose_by_flag.items():
+        if fid in fired:
+            continue
+        for frag in frags:
+            if frag in visible:
+                leaks.append((fid, frag))
+    assert not leaks, (
+        "story tab narrates beats that never fired (past-tense prose for "
+        f"un-fired flags): {leaks}"
+    )

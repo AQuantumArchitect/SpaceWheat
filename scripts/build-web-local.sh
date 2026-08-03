@@ -5,7 +5,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-GODOT_BIN="${GODOT_BIN:-godot}"
+source "$SCRIPT_DIR/lib/godot_runtime_env.sh"
+GODOT_BIN="$(sw_godot_bin)"
 OUTPUT_ROOT="${OUTPUT_ROOT:-$PROJECT_DIR/releases/web-local}"
 GODOT_TMP_ROOT="${GODOT_TMP_ROOT:-/tmp/spacewheat-godot-web-export}"
 INSTALL_TEMPLATES=false

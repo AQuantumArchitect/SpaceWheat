@@ -8,7 +8,9 @@
 
 set -e
 
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/log.sh"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/log.sh"
+source "$SCRIPT_DIR/lib/godot_runtime_env.sh"
 
 log "SpaceWheat VM Cross-Compile Setup"
 echo ""
@@ -78,8 +80,8 @@ source ~/emsdk/emsdk_env.sh
 success "Emscripten activated: $(emcc --version | head -1)"
 
 # Install Godot if not already present
-if command -v godot >/dev/null 2>&1; then
-    success "Godot already installed: $(godot --version)"
+if command -v "$(sw_godot_bin)" >/dev/null 2>&1; then
+    success "Godot already installed: $("$(sw_godot_bin)" --version)"
 else
     log "Installing Godot 4.5..."
     cd /tmp

@@ -1,4 +1,4 @@
-extends SceneTree
+extends "res://tests/smoke_test_base.gd"
 
 ## Smoke test: BiomeRegistry load shape after the bare-biome / neighborhood split.
 ## Run: godot --headless --script tests/biome_registry_load_shape.gd
@@ -9,9 +9,6 @@ extends SceneTree
 ##  - neighborhood loadouts are preserved separately for faction discovery
 ##  - Internal records (`_`-prefix) excluded from `get_exportable_biomes`
 ##  - All exportable biomes pass `validate()`
-
-var passed = 0
-var failed = 0
 
 
 func _init():
@@ -61,14 +58,4 @@ func _init():
 			neighborhoods_with_components.append(b.name)
 	print("  info: %d neighborhoods carry non-empty atom_components" % neighborhoods_with_components.size())
 
-	print("\nResult: %d passed, %d failed" % [passed, failed])
-	quit(0 if failed == 0 else 1)
-
-
-func _check(cond: bool, label: String) -> void:
-	if cond:
-		passed += 1
-		print("  PASS  %s" % label)
-	else:
-		failed += 1
-		push_error("  FAIL  %s" % label)
+	_finish()

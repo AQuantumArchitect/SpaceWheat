@@ -14,14 +14,74 @@ unreachable the adapter prints a warning and does NOT fail the test run;
 a dark membrane is not a test failure.
 """
 import os
+import shutil
+import tempfile
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parent.parent
+RUNNER_ROOT = ROOT / "🍄" / "🎛️"
 
 
 def read_source(rel_path: str) -> str:
     """Read a repo-relative source file as text (shared by surface lint tests)."""
     return (ROOT / rel_path).read_text(encoding="utf-8")
+
+
+def _rig_client_class():
+    """Lazy import of RigClient from the 🍄/🎛️ runner tree (sys.path side effect
+    contained here instead of copy-pasted per test module)."""
+    import sys
+
+    if str(RUNNER_ROOT) not in sys.path:
+        sys.path.insert(0, str(RUNNER_ROOT))
+    from rig_client import RigClient  # noqa: E402
+
+    return RigClient
+
+
+@pytest.fixture
+def rig_boot():
+    """Boot a real Godot rig listener and guarantee teardown.
+
+    Replaces the hand-rolled tempdir + start_listener + sentinel-wait +
+    finally: terminate/rmtree block that was copy-pasted across 7 rig
+    integration tests (slop-patrol 2026-07-29, Tier 6 knot #29).
+
+    Yields a factory:
+
+        rig, proc = rig_boot(prefix="sw_pytest_myname_",
+                             scenario_id="new_game_easy", ...)
+
+    All keyword args except ``prefix`` and ``sentinel_timeout_s`` are passed
+    straight to ``RigClient.start_listener``. Skips (never fails) when godot
+    is not on PATH. Every booted listener is terminated and its XDG tempdir
+    removed at test teardown, pass or fail — a leaked listener runs full
+    physics forever (real incident: leaked pytest listeners saturating the
+    disk until reboot).
+    """
+    booted = []  # (RigClient class, proc, xdg_root)
+
+    def boot(prefix="sw_pytest_rig_", *, sentinel_timeout_s=60.0, **listener_kwargs):
+        if shutil.which("godot") is None:
+            pytest.skip("godot not available on PATH")
+        RigClient = _rig_client_class()
+        xdg_root = Path(tempfile.mkdtemp(prefix=prefix))
+        rig = RigClient(xdg=xdg_root, root_from_file=RUNNER_ROOT / "milk_hunt_runner.py")
+        rig.clear_rig_files()
+        proc = rig.start_listener(**listener_kwargs)
+        booted.append((RigClient, proc, xdg_root))
+        assert RigClient.wait_for_bridge_sentinel(
+            timeout_s=sentinel_timeout_s, xdg=rig.xdg_root
+        ), "rig listener not ready"
+        return rig, proc
+
+    yield boot
+
+    for RigClient, proc, xdg_root in booted:
+        RigClient.terminate_listener(proc, timeout_s=5.0)
+        shutil.rmtree(xdg_root, ignore_errors=True)
 
 
 def pytest_sessionfinish(session, exitstatus):

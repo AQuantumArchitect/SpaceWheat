@@ -1,44 +1,94 @@
 #!/bin/bash
-# Quick test runner for SpaceWheat quantum substrate
+# run_tests.sh — headless GDScript smoke-test runner for SpaceWheat.
+#
+# Runs every green SceneTree smoke test under tests/ so they can't rot
+# silently outside a runner again (facade_parity/principal_mode/
+# story_icon_cutover were dead for months before 68ebd80e resurrected them).
+#
+# Godot resolution goes through the canonical scripts/lib/godot_runtime_env.sh
+# resolver, so GODOT_BIN / SW_GODOT_BIN are honored (slop-patrol Tier 5 #24).
+# Save/load boot tests live in scripts/run_save_load_tests.sh.
 
-echo "======================================="
-echo "SpaceWheat Quantum Substrate Test"
-echo "======================================="
-echo ""
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+source "$SCRIPT_DIR/lib/godot_runtime_env.sh"
 
-# Find Godot executable
-GODOT=""
-if command -v godot4 &> /dev/null; then
-    GODOT="godot4"
-elif command -v godot &> /dev/null; then
-    GODOT="godot"
-else
-    echo "❌ Godot not found in PATH"
-    echo "Please install Godot 4.3+ or add it to PATH"
-    echo ""
-    echo "Alternatives:"
-    echo "  1. Open project in Godot Editor"
-    echo "  2. Run scene: scenes/test_quantum_substrate.tscn"
-    exit 1
+GODOT="$(sw_godot_bin)"
+if ! command -v "$GODOT" &> /dev/null; then
+    # Legacy fallback from the pre-lib version of this script.
+    if command -v godot4 &> /dev/null; then
+        GODOT="godot4"
+    else
+        echo "❌ Godot not found: $GODOT"
+        echo "Install Godot 4.3+, add it to PATH, or set GODOT_BIN."
+        exit 1
+    fi
 fi
 
-echo "✓ Found Godot: $GODOT"
+echo "======================================="
+echo "SpaceWheat headless smoke tests"
+echo "======================================="
+echo "Godot: $GODOT ($($GODOT --version 2>&1 | head -1))"
 echo ""
 
-# Check Godot version
-VERSION=$($GODOT --version 2>&1 | head -1)
-echo "Godot version: $VERSION"
-echo ""
+# Every entry runs as: godot --headless --path . -s tests/<name>.gd
+# and reports via exit code (tests/smoke_test_base.gd convention, or the
+# fail-fast quit(1) style used by facade_parity/principal_mode).
+SMOKE_TESTS=(
+    facade_parity
+    principal_mode
+    story_icon_cutover_smoke
+    biome_registry_load_shape
+    chatter_liveliness_smoke
+    ending_overlay_smoke
+    escape_menu_run_smoke
+    faction_icon_adoption_smoke
+    registry_shared_mutator_smoke
+    semantica_explorer_load_proof
+    sun_qubit_renderer_smoke
+    tool_config_strict_frame_smoke
+    test_icon_relations
+    test_faction_signature_gate
+    test_complex_matrix_empty_serialization
+    test_closed_system
+    test_advanced_quantum_states
+    test_gate_exact_states
+    test_gate_application_integration
+    test_2q_gate_embed
+    test_drain_qubit
+    test_evolve_parity
+    test_degenerate_rho
+    test_hermitian_eigen_path
+    test_witness_field
+    test_submenu_dry
+    test_submenu_integration
+)
+# Known-red / not wired (2026-08-03) — fix before adding, don't delete silently:
+#   bare_biome_realization_smoke   (2 pre-existing failures)
+#   bubble_rendering_cleanup_smoke (1 pre-existing failure)
+#   save_floor_smoke               (2 pre-existing failures)
+#   test_cn_handoff_runtime, test_m_surface_runtime, test_v_surface_runtime
+#                                  (pre-existing parse error: "visible" undeclared)
+#   test_surface_headless_smoke    (hangs headless — BiomeBase unclaimed-warn loop)
 
-# Run tests
-echo "Running quantum substrate tests..."
-echo "-----------------------------------"
-$GODOT --headless --path . scenes/test_quantum_substrate.tscn 2>&1
+FAILED_TESTS=()
+for name in "${SMOKE_TESTS[@]}"; do
+    printf '%-45s' "tests/${name}.gd"
+    if timeout 180 "$GODOT" --headless --path "$PROJECT_DIR" -s "tests/${name}.gd" > /tmp/sw_run_tests_last.log 2>&1; then
+        echo "PASS"
+    else
+        echo "FAIL"
+        FAILED_TESTS+=("$name")
+        tail -20 /tmp/sw_run_tests_last.log | sed 's/^/    /'
+    fi
+done
 
 echo ""
 echo "======================================="
-echo "Tests complete!"
-echo "======================================="
-echo ""
-echo "To see visual debugger:"
-echo "  $GODOT --path . scenes/quantum_network_visualizer.tscn"
+if [ "${#FAILED_TESTS[@]}" -eq 0 ]; then
+    echo "All ${#SMOKE_TESTS[@]} smoke tests passed."
+    exit 0
+fi
+echo "${#FAILED_TESTS[@]} of ${#SMOKE_TESTS[@]} smoke tests FAILED:"
+printf '  %s\n' "${FAILED_TESTS[@]}"
+exit 1

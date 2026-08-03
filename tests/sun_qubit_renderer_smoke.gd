@@ -1,14 +1,10 @@
-extends SceneTree
+extends "res://tests/smoke_test_base.gd"
 
 
 class FakeAtlas extends RefCounted:
 
 	func is_atlas_built() -> bool:
 		return false
-
-
-var passed: int = 0
-var failed: int = 0
 
 
 func _init() -> void:
@@ -35,14 +31,4 @@ func _init() -> void:
 	})
 	_check(true, "sun qubit draw hook returns cleanly")
 
-	print("Result: %d passed, %d failed" % [passed, failed])
-	quit(0 if failed == 0 else 1)
-
-
-func _check(cond: bool, label: String) -> void:
-	if cond:
-		passed += 1
-		print("  PASS  %s" % label)
-	else:
-		failed += 1
-		print("  FAIL  %s" % label)
+	_finish()

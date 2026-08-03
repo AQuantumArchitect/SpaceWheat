@@ -1,5 +1,4 @@
-extends SceneTree
-
+extends "res://tests/smoke_test_base.gd"
 
 
 class FakeVizCache extends RefCounted:
@@ -35,10 +34,6 @@ class FakeGeometryBatcher extends RefCounted:
 		arcs += 1
 
 
-var passed: int = 0
-var failed: int = 0
-
-
 func _init() -> void:
 	print("\n=== Bubble rendering cleanup smoke ===")
 
@@ -47,8 +42,7 @@ func _init() -> void:
 	_test_spawn_lane_is_gone()
 	_test_projection_field_payload_and_draw()
 
-	print("Result: %d passed, %d failed" % [passed, failed])
-	quit(0 if failed == 0 else 1)
+	_finish()
 
 
 func _test_lifeless_nodes_stay_hidden() -> void:
@@ -151,12 +145,3 @@ func _test_spawn_lane_is_gone() -> void:
 
 func _approx(a: float, b: float, tol: float = 1e-4) -> bool:
 	return absf(a - b) <= tol
-
-
-func _check(cond: bool, label: String) -> void:
-	if cond:
-		passed += 1
-		print("  PASS  %s" % label)
-	else:
-		failed += 1
-		printerr("  FAIL  %s" % label)

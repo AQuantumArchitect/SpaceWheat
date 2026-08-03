@@ -1,4 +1,4 @@
-extends SceneTree
+extends "res://tests/smoke_test_base.gd"
 
 ## chatter_liveliness_smoke.gd
 ##
@@ -17,9 +17,6 @@ extends SceneTree
 const Socialite := preload("res://Core/Story/Socialite.gd")
 const SocialiteCluster := preload("res://Core/Story/SocialiteCluster.gd")
 const BiomeMeasurementSampler := preload("res://Core/Story/BiomeMeasurementSampler.gd")
-
-var passed: int = 0
-var failed: int = 0
 
 
 # --- Mocks: minimal biome/QC exposing get_basis_state_probabilities() ---------
@@ -99,8 +96,7 @@ func _init() -> void:
 	var one: Dictionary = cluster._pick_biome_from_names(["Alive"], biomes_dict)
 	_check(is_equal_approx(float(one.get("liveliness", -1.0)), 1.0), "pick returns the winner's liveliness for cadence reuse")
 
-	print("Result: %d passed, %d failed" % [passed, failed])
-	quit(0 if failed == 0 else 1)
+	_finish()
 
 
 ## Empirical fraction of ticks where the socialite chatters, over n trials.
@@ -110,12 +106,3 @@ func _chatter_rate(s, node_activity: float, liveliness: float, n: int) -> float:
 		if s.should_chatter(node_activity, liveliness):
 			hits += 1
 	return float(hits) / float(n)
-
-
-func _check(cond: bool, label: String) -> void:
-	if cond:
-		passed += 1
-		print("  PASS  %s" % label)
-	else:
-		failed += 1
-		print("  FAIL  %s" % label)

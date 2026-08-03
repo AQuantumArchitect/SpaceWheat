@@ -5,8 +5,11 @@
 
 set -e
 
-GODOT="${GODOT_PATH:-godot}"
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+source "$PROJECT_DIR/scripts/lib/godot_runtime_env.sh"
+# GODOT_PATH kept for back-compat; otherwise the canonical resolver
+# (SW_GODOT_BIN / GODOT_BIN / godot) decides.
+GODOT="${GODOT_PATH:-$(sw_godot_bin)}"
 RESULTS_DIR="$PROJECT_DIR/test_results"
 
 # Colors for output

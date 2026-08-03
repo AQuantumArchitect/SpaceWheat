@@ -1,4 +1,4 @@
-extends SceneTree
+extends "res://tests/smoke_test_base.gd"
 
 ## Semantica explorer (W3b) — browsable-load proof.
 ## Run: SEMANTICA_EXPLORER=1 godot --headless --script tests/semantica_explorer_load_proof.gd
@@ -15,9 +15,6 @@ extends SceneTree
 ## with), the compiled biome must NOT appear.
 
 const IconRegistryS = preload("res://Core/Factions/IconRegistry.gd")
-
-var passed = 0
-var failed = 0
 
 
 func _init():
@@ -68,14 +65,4 @@ func _init():
 	else:
 		_check(yurt_mood == null, "YurtMood biome does NOT load when SEMANTICA_EXPLORER unset (boot-neutral)")
 
-	print("\nResult: %d passed, %d failed" % [passed, failed])
-	quit(0 if failed == 0 else 1)
-
-
-func _check(cond: bool, label: String) -> void:
-	if cond:
-		passed += 1
-		print("  PASS  %s" % label)
-	else:
-		failed += 1
-		push_error("  FAIL  %s" % label)
+	_finish()

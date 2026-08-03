@@ -1,4 +1,4 @@
-extends SceneTree
+extends "res://tests/smoke_test_base.gd"
 
 
 class EconStub:
@@ -9,10 +9,6 @@ class FarmStub:
 	extends Node
 	var economy = EconStub.new()
 	var story_flags_fired: Dictionary = {}
-
-
-var passed: int = 0
-var failed: int = 0
 
 
 func _init() -> void:
@@ -121,7 +117,6 @@ func _run() -> void:
 	gsm.session_baseline = {}
 	stub.queue_free()
 
-	print("Result: %d passed, %d failed" % [passed, failed])
 	_finish()
 
 
@@ -151,22 +146,6 @@ func _first_index(texts: Array[String], needle: String) -> int:
 			return i
 	return -1
 
-
-func _check(cond: bool, label: String) -> void:
-	if cond:
-		passed += 1
-		print("  PASS  %s" % label)
-	else:
-		failed += 1
-		print("  FAIL  %s" % label)
-
-
-func _fail(label: String) -> void:
-	_check(false, label)
-
-
-func _finish() -> void:
-	quit(0 if failed == 0 else 1)
 
 
 func _clear_save_dir() -> void:

@@ -1,4 +1,4 @@
-extends SceneTree
+extends "res://tests/smoke_test_base.gd"
 
 ## Gate audit: verifies the faction-signature admission gate across all biomes.
 ##
@@ -18,8 +18,6 @@ const BiomeRegistryCls = preload("res://Core/Biomes/BiomeRegistry.gd")
 const MIN_BIOMES_PER_FACTION: int = 1   # Factions with fewer accessible biomes are flagged
 const WARN_ZERO_FACTION_BIOMES: bool = true  # Zero-faction biomes are warnings (not hard errors)
 
-var passed: int = 0
-var failed: int = 0
 var warnings: int = 0
 
 
@@ -141,13 +139,5 @@ func _init() -> void:
 	print("\n📊 Results: %d biomes checked, %d passed, %d failed, %d warnings" % [
 		all_biomes.size(), passed, failed, warnings
 	])
-	quit(0 if failed == 0 else 1)
+	_exit_by_result()
 
-
-func _check(cond: bool, label: String) -> void:
-	if cond:
-		passed += 1
-		print("  PASS  %s" % label)
-	else:
-		failed += 1
-		print("  FAIL  %s" % label)

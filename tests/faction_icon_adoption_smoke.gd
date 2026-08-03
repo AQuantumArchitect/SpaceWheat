@@ -1,4 +1,4 @@
-extends SceneTree
+extends "res://tests/smoke_test_base.gd"
 
 ## faction_icon_adoption_smoke.gd
 ##
@@ -9,9 +9,6 @@ extends SceneTree
 
 const FactionRegistryCls = preload("res://Core/Factions/FactionRegistry.gd")
 const IconRegistryCls = preload("res://Core/Factions/IconRegistry.gd")
-
-var passed: int = 0
-var failed: int = 0
 
 
 func _init() -> void:
@@ -26,8 +23,7 @@ func _init() -> void:
 	_check(_faction_has_icons(lex, "Verdant Pulse", 5), "Verdant Pulse owns 5 icon pairs after adoption")
 	_check(_faction_has_icons(lex, "Mycelial Web", 4), "Mycelial Web owns 4 icon pairs after adoption")
 
-	print("Result: %d passed, %d failed" % [passed, failed])
-	quit(0 if failed == 0 else 1)
+	_finish()
 
 
 func _signatures_are_unique(reg) -> bool:
@@ -55,12 +51,3 @@ func _adopted_icon_owner(lex, p0: String, p1: String, expected_owner: String) ->
 func _faction_has_icons(lex, faction_name: String, expected_min: int) -> bool:
 	var icons: Array = lex.get_icons_for_faction(faction_name)
 	return icons.size() >= expected_min
-
-
-func _check(cond: bool, label: String) -> void:
-	if cond:
-		passed += 1
-		print("  PASS  %s" % label)
-	else:
-		failed += 1
-		print("  FAIL  %s" % label)

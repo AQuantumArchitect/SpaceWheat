@@ -1,4 +1,4 @@
-extends SceneTree
+extends "res://tests/smoke_test_base.gd"
 
 ## Smoke test: shared BiomeRegistry + canonical mutator path.
 ## Run: godot --headless --script tests/registry_shared_mutator_smoke.gd
@@ -12,9 +12,6 @@ extends SceneTree
 ##  4. The mutator ACCEPTS duplicate atoms (degenerate labels are legal),
 ##     rejects missing biomes and identical poles.
 
-var passed = 0
-var failed = 0
-
 
 func _init():
 	print("\n=== BiomeRegistry shared + mutator smoke ===")
@@ -24,17 +21,7 @@ func _init():
 	_test_mutator_propagates()
 	_test_mutator_guards()
 
-	print("\nResult: %d passed, %d failed" % [passed, failed])
-	quit(0 if failed == 0 else 1)
-
-
-func _check(cond: bool, label: String) -> void:
-	if cond:
-		passed += 1
-		print("  PASS  %s" % label)
-	else:
-		failed += 1
-		push_error("  FAIL  %s" % label)
+	_finish()
 
 
 func _pick_biome_name() -> String:

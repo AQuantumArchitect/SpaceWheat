@@ -1,12 +1,10 @@
-extends SceneTree
+extends "res://tests/smoke_test_base.gd"
 
 ## Advanced Quantum State Verification Test
 ## Tests: Phase gates, rotation gates, GHZ states, W states, sequential operations
 ## Run: godot --headless --script tests/test_advanced_quantum_states.gd
 
 
-var passed = 0
-var failed = 0
 var biome = null
 
 const DIVIDER = "============================================================"
@@ -36,11 +34,7 @@ func _init():
 		print("\n[ERROR] Failed to setup test environment")
 		failed += 1
 
-	print("\n" + DIVIDER)
-	print("RESULTS: %d passed, %d failed" % [passed, failed])
-	print(DIVIDER + "\n")
-
-	quit(0 if failed == 0 else 1)
+	_finish("RESULTS")
 
 
 func setup_test_environment() -> bool:

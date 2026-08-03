@@ -1,12 +1,9 @@
-extends SceneTree
+extends "res://tests/smoke_test_base.gd"
 
 ## EndingOverlay smoke: walk every ceremony stage with the most hostile inputs
 ## (null farm, null shell, no postcards on disk) and assert it neither crashes
 ## nor leaks. The headed look is verified by the screenshot pass; this guards
 ## the control flow.
-
-var passed: int = 0
-var failed: int = 0
 
 
 func _init() -> void:
@@ -44,14 +41,4 @@ func _run() -> void:
 	_check(finished[0], "ceremony_finished emitted on close")
 	_check(root.get_node_or_null("EndingOverlay") == null, "overlay frees itself")
 
-	print("Result: %d passed, %d failed" % [passed, failed])
-	quit(0 if failed == 0 else 1)
-
-
-func _check(cond: bool, label: String) -> void:
-	if cond:
-		passed += 1
-		print("  PASS  %s" % label)
-	else:
-		failed += 1
-		print("  FAIL  %s" % label)
+	_finish()

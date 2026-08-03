@@ -1,14 +1,10 @@
-extends SceneTree
+extends "res://tests/smoke_test_base.gd"
 
 ## Smoke test for the bare-biome / neighborhood split.
 ## Run: godot --headless --script tests/bare_biome_realization_smoke.gd
 
 const BiomeRegistryCls = preload("res://Core/Biomes/BiomeRegistry.gd")
 const BiomeBuilderCls = preload("res://Core/Biomes/BiomeBuilder.gd")
-
-var passed: int = 0
-var failed: int = 0
-
 
 func _init() -> void:
 	print("\n=== Bare biome neighborhood smoke ===")
@@ -37,8 +33,7 @@ func _init() -> void:
 			var _def = live.get_meta("biome_def", null)
 			_check(_def != null and _def.get_neighborhood_icons().size() > 0, "live neighborhood has faction-derived icons")
 
-	print("Result: %d passed, %d failed" % [passed, failed])
-	quit(0 if failed == 0 else 1)
+	_finish()
 
 
 func _pick_bare_biome(reg) -> Object:
@@ -51,12 +46,3 @@ func _pick_bare_biome(reg) -> Object:
 			continue
 		return biome
 	return null
-
-
-func _check(cond: bool, label: String) -> void:
-	if cond:
-		passed += 1
-		print("  PASS  %s" % label)
-	else:
-		failed += 1
-		print("  FAIL  %s" % label)

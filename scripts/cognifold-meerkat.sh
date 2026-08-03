@@ -13,7 +13,8 @@
 set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-GODOT_BIN="${GODOT_BIN:-godot}"
+source "$PROJECT_DIR/scripts/lib/godot_runtime_env.sh"
+GODOT_BIN="$(sw_godot_bin)"
 SCENE="scenes/CognifoldTraceView.tscn"
 BRIDGE="$PROJECT_DIR/🍄/🧪/meerkat_cognifold_bridge.py"
 PORT="${MEERKAT_BRIDGE_PORT:-8099}"

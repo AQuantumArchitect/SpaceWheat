@@ -1,9 +1,5 @@
 #!/usr/bin/env -S godot --headless -s
-extends SceneTree
-
-
-var passed: int = 0
-var failed: int = 0
+extends "res://tests/smoke_test_base.gd"
 
 
 func _init() -> void:
@@ -26,14 +22,4 @@ func _run() -> void:
 	_check(int(packed_two.get("dim", -1)) == 2, "Two-dim matrix keeps dim 2")
 	_check(packed_two.has("format"), "Two-dim matrix serializes with a format")
 
-	print("Result: %d passed, %d failed" % [passed, failed])
-	quit(0 if failed == 0 else 1)
-
-
-func _check(cond: bool, label: String) -> void:
-	if cond:
-		passed += 1
-		print("  PASS  %s" % label)
-	else:
-		failed += 1
-		print("  FAIL  %s" % label)
+	_finish()

@@ -1,14 +1,10 @@
-extends SceneTree
+extends "res://tests/smoke_test_base.gd"
 
 ## Save compatibility floor smoke — uses the owner's REAL April 2026 save
 ## (tests/fixtures/pre_beta_save_v3.tres, the one that half-loaded into
 ## garbage on 2026-07-10: missing tunables, -2^63 credit payouts, degenerate
 ## Village ρ). The floor must refuse it cleanly and keep fresh v4 saves
 ## loadable.
-
-var passed: int = 0
-var failed: int = 0
-
 
 func _init() -> void:
 	call_deferred("_run")
@@ -53,18 +49,5 @@ func _run() -> void:
 	if dir and dir.file_exists(slot0.get_file()):
 		dir.remove(slot0.get_file())
 
-	print("Result: %d passed, %d failed" % [passed, failed])
 	_finish()
 
-
-func _check(cond: bool, label: String) -> void:
-	if cond:
-		passed += 1
-		print("  PASS  %s" % label)
-	else:
-		failed += 1
-		print("  FAIL  %s" % label)
-
-
-func _finish() -> void:
-	quit(0 if failed == 0 else 1)

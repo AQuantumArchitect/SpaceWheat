@@ -1,30 +1,9 @@
-import shutil
-import tempfile
-from pathlib import Path
-
-import pytest
-
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-RUNNER_ROOT = PROJECT_ROOT / "🍄" / "🎛️"
-
-
-def _load_rig_client():
-    import sys
-
-    if str(RUNNER_ROOT) not in sys.path:
-        sys.path.insert(0, str(RUNNER_ROOT))
-    from rig_client import RigClient  # noqa: E402
-
-    return RigClient
-
-
 def _live_z(rig, turn: int, biome: str) -> list:
     row = rig.run_turn(turn, "viz_bloch", timeout_s=30.0, biome=biome)
     return [float(q.get("live_z", 999.0)) for q in row.get("qubits", [])]
 
 
-def test_druid_hadamard_targets_focused_plot_after_hat_switch() -> None:
+def test_druid_hadamard_targets_focused_plot_after_hat_switch(rig_boot) -> None:
     # Bug #9: the natural flow — highlight a plot, THEN switch to the Druid hat,
     # THEN press E (Hadamard) — used to silently no-op. Jumping to the frame layer
     # to pick the hat runs leave_plot_ring(), which clears current_plot_idx, and the
@@ -32,79 +11,66 @@ def test_druid_hadamard_targets_focused_plot_after_hat_switch() -> None:
     # sticky-focus fallback to last_selected_position, so the gate still lands on the
     # register you were looking at. This test drives the real key path and asserts the
     # qubit's live Bloch-z actually moves.
-    RigClient = _load_rig_client()
-    if shutil.which("godot") is None:
-        pytest.skip("godot not available on PATH")
+    rig, _proc = rig_boot(
+        prefix="sw_pytest_druid_",
+        load_slot=None,
+        scenario_id="demos_normal",
+        allow_resource_injection=True,
+        listener_stdout="null",
+        rig_log_profile="quiet",
+        extra_env={"RIG_QUEUE_POLL_MS": "80", "RIG_SKIP_WELCOME": "1"},
+    )
 
-    xdg_root = Path(tempfile.mkdtemp(prefix="sw_pytest_druid_"))
-    rig = RigClient(xdg=xdg_root, root_from_file=RUNNER_ROOT / "milk_hunt_runner.py")
-    rig.clear_rig_files()
+    biome = "StarterForest"
+    # demos_normal boots active in TheDemos (owner's identity-first order) —
+    # switch to StarterForest by its live slot key, order-proof.
+    slots = rig.run_turn(1, "biome_slots", timeout_s=30.0).get("slots", [])
+    forest_key = next(str(s["key"]).lower() for s in slots if s["biome"] == biome)
+    rig.run_turn(2, "press_key", timeout_s=30.0, key=forest_key, settle_frames=8)
+    # Highlight plot 0 (key 'g') — cursor enters the plot ring.
+    rig.run_turn(2, "press_key", timeout_s=30.0, key="g", settle_frames=4)
 
-    proc = None
-    try:
-        proc = rig.start_listener(
-            load_slot=None,
-            scenario_id="demos_normal",
-            allow_resource_injection=True,
-            listener_stdout="null",
-            rig_log_profile="quiet",
-            extra_env={"RIG_QUEUE_POLL_MS": "80", "RIG_SKIP_WELCOME": "1"},
-        )
-        assert RigClient.wait_for_bridge_sentinel(timeout_s=60.0, xdg=rig.xdg_root), "rig listener not ready"
+    z_before = _live_z(rig, 3, biome)
+    assert z_before, "no qubits reported for StarterForest"
 
-        biome = "StarterForest"
-        # demos_normal boots active in TheDemos (owner's identity-first order) —
-        # switch to StarterForest by its live slot key, order-proof.
-        slots = rig.run_turn(1, "biome_slots", timeout_s=30.0).get("slots", [])
-        forest_key = next(str(s["key"]).lower() for s in slots if s["biome"] == biome)
-        rig.run_turn(2, "press_key", timeout_s=30.0, key=forest_key, settle_frames=8)
-        # Highlight plot 0 (key 'g') — cursor enters the plot ring.
-        rig.run_turn(2, "press_key", timeout_s=30.0, key="g", settle_frames=4)
+    # Switch to the Druid hat (key '0'). Hat picks now PRESERVE the plot
+    # cursor (fleet #4: clearing it made the first verb after every hat
+    # switch fail and desynced chips from dispatch) — the gate must target
+    # the still-focused plot 0 directly.
+    rig.run_turn(4, "press_key", timeout_s=30.0, key="0", settle_frames=4)
+    inst = rig.run_turn(5, "instrument_state", timeout_s=30.0)
+    assert int(inst.get("current_plot_idx", -1)) == 0, \
+        "expected hat-select to keep the focused plot (fleet-4 keep_plot_selection law)"
 
-        z_before = _live_z(rig, 3, biome)
-        assert z_before, "no qubits reported for StarterForest"
+    # Hadamard (key 'e'). Minimal settle so we isolate the gate from evolution.
+    rig.run_turn(6, "press_key", timeout_s=30.0, key="e", settle_frames=1)
+    z_after = _live_z(rig, 7, biome)
 
-        # Switch to the Druid hat (key '0'). Hat picks now PRESERVE the plot
-        # cursor (fleet #4: clearing it made the first verb after every hat
-        # switch fail and desynced chips from dispatch) — the gate must target
-        # the still-focused plot 0 directly.
-        rig.run_turn(4, "press_key", timeout_s=30.0, key="0", settle_frames=4)
-        inst = rig.run_turn(5, "instrument_state", timeout_s=30.0)
-        assert int(inst.get("current_plot_idx", -1)) == 0, \
-            "expected hat-select to keep the focused plot (fleet-4 keep_plot_selection law)"
+    deltas = [
+        abs(z_after[i] - z_before[i])
+        for i in range(min(len(z_before), len(z_after)))
+    ]
+    max_delta = max(deltas, default=0.0)
+    assert max_delta > 0.1, (
+        "Druid Hadamard was a no-op after hat switch: "
+        f"z_before={z_before} z_after={z_after} (max|Δz|={max_delta:.4f})"
+    )
+    # The RIGHT qubit must move: plot 0 ('g', column 0) is register 0 —
+    # the plot_idx ≡ register_id law (PlotRegisterResolver). The old
+    # assertion accepted ANY qubit moving, which let the posmod-wrap
+    # wrong-target bug survive ("J spins the sun/moon").
+    moved = max(range(len(deltas)), key=lambda i: deltas[i])
+    assert moved == 0, (
+        f"Druid gate hit register {moved}, not the focused plot's register 0: "
+        f"deltas={['%.3e' % d for d in deltas]}"
+    )
 
-        # Hadamard (key 'e'). Minimal settle so we isolate the gate from evolution.
-        rig.run_turn(6, "press_key", timeout_s=30.0, key="e", settle_frames=1)
-        z_after = _live_z(rig, 7, biome)
-
-        deltas = [
-            abs(z_after[i] - z_before[i])
-            for i in range(min(len(z_before), len(z_after)))
-        ]
-        max_delta = max(deltas, default=0.0)
-        assert max_delta > 0.1, (
-            "Druid Hadamard was a no-op after hat switch: "
-            f"z_before={z_before} z_after={z_after} (max|Δz|={max_delta:.4f})"
-        )
-        # The RIGHT qubit must move: plot 0 ('g', column 0) is register 0 —
-        # the plot_idx ≡ register_id law (PlotRegisterResolver). The old
-        # assertion accepted ANY qubit moving, which let the posmod-wrap
-        # wrong-target bug survive ("J spins the sun/moon").
-        moved = max(range(len(deltas)), key=lambda i: deltas[i])
-        assert moved == 0, (
-            f"Druid gate hit register {moved}, not the focused plot's register 0: "
-            f"deltas={['%.3e' % d for d in deltas]}"
-        )
-
-        # Display/gate agreement is structural: the plot_register_map diagnostic
-        # compares the display law against gate resolution for EVERY plot.
-        rows = rig.run_turn(8, "plot_register_map", timeout_s=30.0).get("rows", [])
-        assert rows, "plot_register_map returned no rows"
-        disagreements = [r for r in rows if not r.get("agrees")]
-        assert not disagreements, (
-            "display and gate disagree on slot→qubit mapping: "
-            f"{[(r.get('pos'), r.get('biome')) for r in disagreements]}"
-        )
-    finally:
-        RigClient.terminate_listener(proc, timeout_s=5.0)
-        shutil.rmtree(xdg_root, ignore_errors=True)
+    # Display/gate agreement is structural: the plot_register_map diagnostic
+    # compares the display law against gate resolution for EVERY plot.
+    rows = rig.run_turn(8, "plot_register_map", timeout_s=30.0).get("rows", [])
+    assert rows, "plot_register_map returned no rows"
+    disagreements = [r for r in rows if not r.get("agrees")]
+    assert not disagreements, (
+        "display and gate disagree on slot→qubit mapping: "
+        f"{[(r.get('pos'), r.get('biome')) for r in disagreements]}"
+    )

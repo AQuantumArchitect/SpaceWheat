@@ -1,11 +1,7 @@
-extends SceneTree
+extends "res://tests/smoke_test_base.gd"
 
 ## Quick terminal test for BaseSubmenu DRY utilities
 ## Run: godot --headless --script tests/test_submenu_dry.gd
-
-
-var passed = 0
-var failed = 0
 
 
 const DIVIDER = "============================================================"
@@ -24,11 +20,7 @@ func _init():
 	test_gate_selection_empty()
 	test_sorting()
 
-	print("\n" + DIVIDER)
-	print("RESULTS: %d passed, %d failed" % [passed, failed])
-	print(DIVIDER + "\n")
-
-	quit(0 if failed == 0 else 1)
+	_finish("RESULTS")
 
 
 func assert_eq(actual, expected, msg: String):

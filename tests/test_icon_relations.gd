@@ -1,11 +1,10 @@
-extends SceneTree
+extends "res://tests/smoke_test_base.gd"
 
 ## Synthetic-input tests for IconRelations + IconFamily. Hand-rolled icon
 ## dicts and a fake registry; no real game data.
 
 
 var rel = null
-var fail_count := 0
 
 
 func _init() -> void:
@@ -17,29 +16,17 @@ func _init() -> void:
 	test_siblings_via_cloud_of()
 	test_union_of_clouds()
 	test_family_of_synthetic()
-	if fail_count == 0:
-		print("[icon-relations-test] OK — all checks passed")
-		quit(0)
-	else:
-		printerr("[icon-relations-test] FAIL — %d failure(s)" % fail_count)
-		quit(1)
+	_finish("[icon-relations-test]")
 
-
-func _check(label: String, cond: bool) -> void:
-	if cond:
-		print("  ok  %s" % label)
-	else:
-		printerr("  FAIL %s" % label)
-		fail_count += 1
 
 
 func test_cloud_of_poles_only() -> void:
 	print("test_cloud_of_poles_only")
 	var icon := {"pole_0": "☀", "pole_1": "🌙"}
 	var c: Dictionary = rel.cloud_of(icon)
-	_check("size==2", c.size() == 2)
-	_check("has ☀",   c.has("☀"))
-	_check("has 🌙",  c.has("🌙"))
+	_check(c.size() == 2, "size==2")
+	_check(c.has("☀"), "has ☀")
+	_check(c.has("🌙"), "has 🌙")
 
 
 func test_cloud_of_with_couplings() -> void:
@@ -51,9 +38,9 @@ func test_cloud_of_with_couplings() -> void:
 		"energy_couplings":      {"🔥": 0.3},
 	}
 	var c: Dictionary = rel.cloud_of(icon)
-	_check("size==4", c.size() == 4)
-	_check("has ⭐",  c.has("⭐"))
-	_check("has 🔥",  c.has("🔥"))
+	_check(c.size() == 4, "size==4")
+	_check(c.has("⭐"), "has ⭐")
+	_check(c.has("🔥"), "has 🔥")
 
 
 func test_is_sibling() -> void:
@@ -61,8 +48,8 @@ func test_is_sibling() -> void:
 	var a := {"pole_0": "☀", "pole_1": "🌙"}
 	var b := {"pole_0": "🌙", "pole_1": "⭐"}
 	var c := {"pole_0": "🔥", "pole_1": "💧"}
-	_check("a~b shares 🌙",  rel.is_sibling(a, b))
-	_check("a~c disjoint",    not rel.is_sibling(a, c))
+	_check(rel.is_sibling(a, b), "a~b shares 🌙")
+	_check(not rel.is_sibling(a, c), "a~c disjoint")
 
 
 func test_siblings_of() -> void:
@@ -71,7 +58,7 @@ func test_siblings_of() -> void:
 	var b := {"pole_0": "🌙", "pole_1": "⭐"}
 	var c := {"pole_0": "🔥", "pole_1": "💧"}
 	var sibs: Array = rel.siblings_of(a, [a, b, c])
-	_check("siblings_of(a)==[b]", sibs.size() == 1 and sibs[0] == b)
+	_check(sibs.size() == 1 and sibs[0] == b, "siblings_of(a)==[b]")
 
 
 func test_siblings_via_cloud_of() -> void:
@@ -85,9 +72,9 @@ func test_siblings_via_cloud_of() -> void:
 	var c := {"pole_0": "🔥", "pole_1": "💧"}    # via cloud (🔥 ∈ cloud(a))
 	var d := {"pole_0": "🌳", "pole_1": "🪨"}    # disjoint
 	var via: Array = rel.siblings_via_cloud_of(a, [a, b, c, d])
-	_check("includes b (pole-share)", via.has(b))
-	_check("includes c (cloud-touch)", via.has(c))
-	_check("excludes d (disjoint)", not via.has(d))
+	_check(via.has(b), "includes b (pole-share)")
+	_check(via.has(c), "includes c (cloud-touch)")
+	_check(not via.has(d), "excludes d (disjoint)")
 
 
 func test_union_of_clouds() -> void:
@@ -97,9 +84,9 @@ func test_union_of_clouds() -> void:
 		{"pole_0": "🔥", "pole_1": "💧", "hamiltonian_couplings": {"🌳": 0.2}},
 	]
 	var u: Dictionary = rel.union_of_clouds(icons)
-	_check("union size==5", u.size() == 5)
+	_check(u.size() == 5, "union size==5")
 	for atom in ["☀", "🌙", "🔥", "💧", "🌳"]:
-		_check("has %s" % atom, u.has(atom))
+		_check(u.has(atom), "has %s" % atom)
 
 
 # Synthetic IconFamily test: build a fake "lexicon" object exposing get_all().
@@ -113,14 +100,14 @@ func test_family_of_synthetic() -> void:
 	])
 	var fam := IconFamily.new()
 	var sun: Array = fam.family_of("☀", fake_lex)
-	_check("family(☀) size==2 (Solar + Sunfire; Anon excluded)", sun.size() == 2)
+	_check(sun.size() == 2, "family(☀) size==2 (Solar + Sunfire; Anon excluded)")
 	var fire: Array = fam.family_of("🔥", fake_lex)
-	_check("family(🔥) size==2 (Sunfire + Quench)", fire.size() == 2)
+	_check(fire.size() == 2, "family(🔥) size==2 (Sunfire + Quench)")
 	var none: Array = fam.family_of("🌳", fake_lex)
-	_check("family(🌳) empty",  none.size() == 0)
+	_check(none.size() == 0, "family(🌳) empty")
 	var via_cloud: Array = fam.family_of_cloud({"🔥": true, "💧": true}, fake_lex)
 	# Expected: Sunfire (🔥), Quench (🔥, 💧 both → still one entry, deduped)
-	_check("family_of_cloud({🔥, 💧}) size==2", via_cloud.size() == 2)
+	_check(via_cloud.size() == 2, "family_of_cloud({🔥, 💧}) size==2")
 
 
 class FakeLexicon:

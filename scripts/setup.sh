@@ -6,7 +6,9 @@
 
 set -e
 
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/log.sh"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/log.sh"
+source "$SCRIPT_DIR/lib/godot_runtime_env.sh"
 
 echo ""
 echo "╔═══════════════════════════════════════════════════════════╗"
@@ -74,18 +76,20 @@ elif [ "$OS" = "macos" ]; then
     success "Compiler installed: $(clang --version | head -1)"
 fi
 
-# Check Godot
-if ! command -v godot &> /dev/null; then
-    warn "Godot not found in PATH."
+# Check Godot (canonical resolver: SW_GODOT_BIN / GODOT_BIN / godot)
+GODOT_BIN="$(sw_godot_bin)"
+if ! command -v "$GODOT_BIN" &> /dev/null; then
+    warn "Godot not found: $GODOT_BIN"
     echo ""
     echo "Please download Godot 4.5+ from: https://godotengine.org/download/"
     echo "After installing, add it to PATH or set GODOT_BIN environment variable."
     echo ""
     read -p "Press Enter when Godot is installed..."
+    GODOT_BIN="$(sw_godot_bin)"
 fi
 
-if command -v godot &> /dev/null; then
-    GODOT_VERSION=$(godot --version 2>/dev/null | head -1)
+if command -v "$GODOT_BIN" &> /dev/null; then
+    GODOT_VERSION=$("$GODOT_BIN" --version 2>/dev/null | head -1)
     success "Godot installed: $GODOT_VERSION"
 else
     warn "Godot still not found. You'll need to install it manually."

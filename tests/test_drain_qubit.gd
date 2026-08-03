@@ -1,5 +1,5 @@
 #!/usr/bin/env -S godot --headless -s
-extends SceneTree
+extends "res://tests/smoke_test_base.gd"
 
 ## Test: drain_qubit() ensemble measurement mechanics
 ## Validates that partial drain preserves quantum structure while extracting population.
@@ -7,9 +7,6 @@ extends SceneTree
 
 const DIVIDER = "======================================================================"
 const TOL = 1e-6
-
-var passed := 0
-var failed := 0
 
 
 func _init():
@@ -30,10 +27,7 @@ func _init():
 	_test_drain_multi_qubit()
 	_test_drain_vs_project_comparison()
 
-	print("\n" + DIVIDER)
-	print("RESULTS: %d passed, %d failed" % [passed, failed])
-	print(DIVIDER + "\n")
-	quit(0 if failed == 0 else 1)
+	_finish("RESULTS")
 
 
 func _make_qc_1q() -> QuantumComputer:

@@ -1,4 +1,4 @@
-extends SceneTree
+extends "res://tests/smoke_test_base.gd"
 
 ## Witness belief-field verification (Core/Witness) — the physics contracts
 ## ported from umwelt (~/ws/umwelt, the reference implementation):
@@ -18,8 +18,6 @@ extends SceneTree
 ##
 ## Run: godot --headless --script tests/test_witness_field.gd
 
-var passed = 0
-var failed = 0
 
 const EPS = 1e-9
 const DIVIDER = "============================================================"
@@ -49,10 +47,7 @@ func _init():
 	_test_forecast_pure()
 	_test_surprise_alarm()
 
-	print("\n" + DIVIDER)
-	print("RESULTS: %d passed, %d failed" % [passed, failed])
-	print(DIVIDER)
-	quit(0 if failed == 0 else 1)
+	_finish("RESULTS")
 
 
 func _cluster3() -> WitnessCluster:

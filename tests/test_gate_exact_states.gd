@@ -1,12 +1,10 @@
-extends SceneTree
+extends "res://tests/smoke_test_base.gd"
 
 ## Exact Quantum State Verification Test
 ## Verifies gates produce EXACT expected quantum states
 ## Run: godot --headless --script tests/test_gate_exact_states.gd
 
 
-var passed = 0
-var failed = 0
 var biome = null
 
 const DIVIDER = "============================================================"
@@ -35,11 +33,7 @@ func _init():
 		print("\n[ERROR] Failed to setup test environment")
 		failed += 1
 
-	print("\n" + DIVIDER)
-	print("RESULTS: %d passed, %d failed" % [passed, failed])
-	print(DIVIDER + "\n")
-
-	quit(0 if failed == 0 else 1)
+	_finish("RESULTS")
 
 
 func setup_test_environment() -> bool:

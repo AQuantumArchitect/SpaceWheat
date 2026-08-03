@@ -1,20 +1,4 @@
-import shutil
-import sys
-import tempfile
-from pathlib import Path
-
-import pytest
-
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-RUNNER_ROOT = PROJECT_ROOT / "🍄" / "🎛️"
-if str(RUNNER_ROOT) not in sys.path:
-    sys.path.insert(0, str(RUNNER_ROOT))
-
-from rig_client import RigClient  # noqa: E402
-
-
-def test_quest_ledger_survives_save_load_roundtrip() -> None:
+def test_quest_ledger_survives_save_load_roundtrip(rig_boot) -> None:
     # Launch-blocking QA repro (2026-07-15): accept a contract, complete
     # another, save, reload → Commitments Active came back empty, History said
     # "no past contracts yet", the in-progress contract ceased to exist; only
@@ -29,112 +13,100 @@ def test_quest_ledger_survives_save_load_roundtrip() -> None:
     #   4. the restored commitment is LIVE: it can be worked and claimed on
     #      the loaded farm (wired to the new economy/biomes, not the dead
     #      pre-load farm).
-    if shutil.which("godot") is None:
-        pytest.skip("godot not available on PATH")
+    rig, _proc = rig_boot(
+        prefix="sw_pytest_quest_ledger_",
+        load_slot=None,
+        scenario_id="demos_normal",
+        allow_resource_injection=True,
+        listener_stdout="null",
+        rig_log_profile="quiet",
+        extra_env={"RIG_QUEUE_POLL_MS": "80"},
+    )
 
-    xdg_root = Path(tempfile.mkdtemp(prefix="sw_pytest_quest_ledger_"))
-    rig = RigClient(xdg=xdg_root, root_from_file=RUNNER_ROOT / "milk_hunt_runner.py")
-    rig.clear_rig_files()
+    turn = [1]
 
-    proc = None
-    try:
-        proc = rig.start_listener(
-            load_slot=None,
-            scenario_id="demos_normal",
-            allow_resource_injection=True,
-            listener_stdout="null",
-            rig_log_profile="quiet",
-            extra_env={"RIG_QUEUE_POLL_MS": "80"},
-        )
-        assert RigClient.wait_for_bridge_sentinel(timeout_s=60.0, xdg=rig.xdg_root), "rig listener not ready"
+    def step(action, **kw):
+        turn[0] += 1
+        return rig.run_turn(turn[0], action, timeout_s=60.0, **kw)
 
-        turn = [1]
+    def ledger():
+        row = step("quest_ledger")
+        assert row.get("ok", False), row
+        return row
 
-        def step(action, **kw):
-            turn[0] += 1
-            return rig.run_turn(turn[0], action, timeout_s=60.0, **kw)
+    def offers_by_flag():
+        row = step("story_offers")
+        assert row.get("ok", False), row
+        return {str(o.get("source_flag", "")): o for o in row.get("story_offers", [])}
 
-        def ledger():
-            row = step("quest_ledger")
-            assert row.get("ok", False), row
-            return row
+    def signature_icons():
+        row = step("known_icons")
+        assert row.get("ok", False), row
+        return {(i.get("north", ""), i.get("south", "")) for i in row.get("icons", [])}
 
-        def offers_by_flag():
-            row = step("story_offers")
-            assert row.get("ok", False), row
-            return {str(o.get("source_flag", "")): o for o in row.get("story_offers", [])}
+    # Two teaching flags through the real firing path → two arc offers.
+    for flag_id in ("village_stirs", "spring_connects"):
+        fired = step("fire_flag", id=flag_id)
+        assert fired.get("ok", False) and fired.get("fired", False), fired
+    by_flag = offers_by_flag()
+    assert "village_stirs" in by_flag and "spring_connects" in by_flag, by_flag
 
-        def signature_icons():
-            row = step("known_icons")
-            assert row.get("ok", False), row
-            return {(i.get("north", ""), i.get("south", "")) for i in row.get("icons", [])}
+    # COMPLETE village_stirs: accept → work (berries) → claim.
+    vs_id = int(by_flag["village_stirs"].get("id", -1))
+    assert step("accept_quest", quest_id=vs_id).get("accepted", False)
+    assert step("consume_berry", biome="Village", count=3).get("ok", False)
+    step("press_key", key="ESCAPE", settle_frames=30)  # readiness polls per physics frame
+    assert step("complete_or_claim", quest_id=vs_id).get("completed_or_claimed", False)
 
-        # Two teaching flags through the real firing path → two arc offers.
-        for flag_id in ("village_stirs", "spring_connects"):
-            fired = step("fire_flag", id=flag_id)
-            assert fired.get("ok", False) and fired.get("fired", False), fired
-        by_flag = offers_by_flag()
-        assert "village_stirs" in by_flag and "spring_connects" in by_flag, by_flag
+    # ACCEPT spring_connects and leave it in-progress (the QA repro's
+    # vanishing commitment).
+    sc_id = int(by_flag["spring_connects"].get("id", -1))
+    assert step("accept_quest", quest_id=sc_id).get("accepted", False)
 
-        # COMPLETE village_stirs: accept → work (berries) → claim.
-        vs_id = int(by_flag["village_stirs"].get("id", -1))
-        assert step("accept_quest", quest_id=vs_id).get("accepted", False)
-        assert step("consume_berry", biome="Village", count=3).get("ok", False)
-        step("press_key", key="ESCAPE", settle_frames=30)  # readiness polls per physics frame
-        assert step("complete_or_claim", quest_id=vs_id).get("completed_or_claimed", False)
+    pre = ledger()
+    pre_active = {int(q["id"]): q for q in pre["active"]}
+    assert sc_id in pre_active and pre_active[sc_id]["status"] == "active", pre
+    assert any(int(q.get("id", -1)) == vs_id for q in pre["completed"]), pre
+    pre_next_id = int(pre["next_quest_id"])
+    pre_accepted_at = int(pre_active[sc_id]["accepted_at"])
 
-        # ACCEPT spring_connects and leave it in-progress (the QA repro's
-        # vanishing commitment).
-        sc_id = int(by_flag["spring_connects"].get("id", -1))
-        assert step("accept_quest", quest_id=sc_id).get("accepted", False)
+    save_path = rig.xdg_root / "quest_ledger.tres"
+    assert step("save_game_path", path=str(save_path)).get("saved", False)
+    assert step("load_game_path", path=str(save_path)).get("loaded", False)
 
-        pre = ledger()
-        pre_active = {int(q["id"]): q for q in pre["active"]}
-        assert sc_id in pre_active and pre_active[sc_id]["status"] == "active", pre
-        assert any(int(q.get("id", -1)) == vs_id for q in pre["completed"]), pre
-        pre_next_id = int(pre["next_quest_id"])
-        pre_accepted_at = int(pre_active[sc_id]["accepted_at"])
+    # 1+2+3: the ledger came back — commitment intact, history intact,
+    # id counter monotonic.
+    post = ledger()
+    post_active = {int(q["id"]): q for q in post["active"]}
+    assert sc_id in post_active, post
+    assert post_active[sc_id]["status"] == "active", post
+    assert str(post_active[sc_id]["source_flag"]) == "spring_connects", post
+    assert int(post_active[sc_id]["accepted_at"]) == pre_accepted_at, post
+    assert any(int(q.get("id", -1)) == vs_id and str(q.get("status", "")) == "completed"
+               for q in post["completed"]), post
+    assert int(post["next_quest_id"]) >= pre_next_id, post
 
-        save_path = xdg_root / "quest_ledger.tres"
-        assert step("save_game_path", path=str(save_path)).get("saved", False)
-        assert step("load_game_path", path=str(save_path)).get("loaded", False)
+    # 1 (dedup half): the accepted teaching must NOT also be re-offered —
+    # the restore ran before StoryEngine's re-offer pass, whose
+    # has_quest_for_flag guard sees the restored active. The claimed one
+    # stays claimed (pair in signature).
+    post_offers = offers_by_flag()
+    assert "spring_connects" not in post_offers, post_offers
+    assert "village_stirs" not in post_offers, post_offers
 
-        # 1+2+3: the ledger came back — commitment intact, history intact,
-        # id counter monotonic.
-        post = ledger()
-        post_active = {int(q["id"]): q for q in post["active"]}
-        assert sc_id in post_active, post
-        assert post_active[sc_id]["status"] == "active", post
-        assert str(post_active[sc_id]["source_flag"]) == "spring_connects", post
-        assert int(post_active[sc_id]["accepted_at"]) == pre_accepted_at, post
-        assert any(int(q.get("id", -1)) == vs_id and str(q.get("status", "")) == "completed"
-                   for q in post["completed"]), post
-        assert int(post["next_quest_id"]) >= pre_next_id, post
+    # 4: the restored commitment is live on the loaded farm — work it to
+    # ready and claim it; the teaching lands in the signature.
+    assert step("consume_berry", biome="StarterForest", count=8).get("ok", False)
+    step("press_key", key="ESCAPE", settle_frames=30)
+    assert step("complete_or_claim", quest_id=sc_id).get("completed_or_claimed", False)
+    assert ("💧", "🌊") in signature_icons()
 
-        # 1 (dedup half): the accepted teaching must NOT also be re-offered —
-        # the restore ran before StoryEngine's re-offer pass, whose
-        # has_quest_for_flag guard sees the restored active. The claimed one
-        # stays claimed (pair in signature).
-        post_offers = offers_by_flag()
-        assert "spring_connects" not in post_offers, post_offers
-        assert "village_stirs" not in post_offers, post_offers
-
-        # 4: the restored commitment is live on the loaded farm — work it to
-        # ready and claim it; the teaching lands in the signature.
-        assert step("consume_berry", biome="StarterForest", count=8).get("ok", False)
-        step("press_key", key="ESCAPE", settle_frames=30)
-        assert step("complete_or_claim", quest_id=sc_id).get("completed_or_claimed", False)
-        assert ("💧", "🌊") in signature_icons()
-
-        # And a second roundtrip carries the grown history: both contracts in
-        # History, no phantom actives, no offer resurrection.
-        assert step("save_game_path", path=str(save_path)).get("saved", False)
-        assert step("load_game_path", path=str(save_path)).get("loaded", False)
-        final = ledger()
-        final_completed_flags = {str(q.get("source_flag", "")) for q in final["completed"]}
-        assert {"village_stirs", "spring_connects"} <= final_completed_flags, final
-        assert not any(int(q.get("id", -1)) == sc_id for q in final["active"]), final
-        assert offers_by_flag() == {}, "offer resurrected for a completed teaching"
-    finally:
-        RigClient.terminate_listener(proc, timeout_s=5.0)
-        shutil.rmtree(xdg_root, ignore_errors=True)
+    # And a second roundtrip carries the grown history: both contracts in
+    # History, no phantom actives, no offer resurrection.
+    assert step("save_game_path", path=str(save_path)).get("saved", False)
+    assert step("load_game_path", path=str(save_path)).get("loaded", False)
+    final = ledger()
+    final_completed_flags = {str(q.get("source_flag", "")) for q in final["completed"]}
+    assert {"village_stirs", "spring_connects"} <= final_completed_flags, final
+    assert not any(int(q.get("id", -1)) == sc_id for q in final["active"]), final
+    assert offers_by_flag() == {}, "offer resurrected for a completed teaching"

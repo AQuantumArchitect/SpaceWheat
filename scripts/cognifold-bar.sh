@@ -14,7 +14,8 @@
 set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-GODOT_BIN="${GODOT_BIN:-godot}"
+source "$PROJECT_DIR/scripts/lib/godot_runtime_env.sh"
+GODOT_BIN="$(sw_godot_bin)"
 SCENE="scenes/CognifoldTraceView.tscn"
 WORKSPACE="${VERDANCE_WORKSPACE:-/mnt/c/Users/Luke Spooner/Documents/BAR_Verdance_Workspace}"
 BRIDGE="$WORKSPACE/tools/quantum_bar_ai/verdance_cognifold_bridge.py"

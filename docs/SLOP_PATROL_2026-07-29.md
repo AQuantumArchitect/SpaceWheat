@@ -357,9 +357,24 @@ Knot: don't delete without confirming no minimal/mobile export target intentiona
 
 #### Tier 2 — Wide-reach infrastructure duplication (12-28 files each)
 
-**6. Ad-hoc pass/fail test-harness boilerplate reimplemented in ~28 GDScript SceneTree scripts**
-`grep -l "quit(0 if failed == 0 else 1)" tests/*.gd` → 28 files (e.g. `tests/test_2q_gate_embed.gd`, `tests/test_witness_field.gd`, `tests/test_m_surface_runtime.gd`, `tests/biome_registry_load_shape.gd`, full list in findings). `tests/test_icon_relations.gd:28` flips its local `_check(cond, label)` to `_check(label, cond)` — a live footgun if code is copy-pasted between files. `tests/substrate_fixtures.gd` is repo precedent for a shared preloadable test-support class but no equivalent exists for this pattern.
-Knot: needs a deliberate `SmokeTestBase extends SceneTree` design + staged migration, not a sed pass.
+~~**6. Ad-hoc pass/fail test-harness boilerplate reimplemented in ~28 GDScript SceneTree scripts**~~
+**CLOSED (consolidation pass 2026-08-03, P2b):** `tests/smoke_test_base.gd` now owns the
+passed/failed counters, `_check(cond, label[, detail])`, `_fail`, and the summary-print/quit
+tail; 28 tests migrated mechanically via `extends "res://tests/smoke_test_base.gd"` (path
+extends, no class_name — the class cache never needs an `--import` pass). The
+`test_icon_relations.gd` arg-order footgun fixed: all its call sites flipped to the canonical
+`(cond, label)` order, along with the three label-first files
+(`test_evolve_parity.gd`, `test_degenerate_rho.gd`, `test_hermitian_eigen_path.gd`).
+Per-file pass/fail counts verified identical before/after for every migrated test, including
+the pre-existing red ones (`bare_biome_realization_smoke` 6P/2F,
+`bubble_rendering_cleanup_smoke` 19P/1F, `save_floor_smoke` 10P/2F). NOT migrated:
+`test_cn_handoff_runtime.gd`/`test_m_surface_runtime.gd`/`test_v_surface_runtime.gd`
+(pre-existing parse error — `"visible"` undeclared — makes behavior-preservation unverifiable),
+`test_surface_headless_smoke.gd` (pre-existing headless hang), and
+`facade_parity.gd`/`principal_mode.gd` (fail-fast `quit(1)` style, not this counter pattern).
+Bonus: `scripts/run_tests.sh` was invoking a scene that no longer exists
+(`scenes/test_quantum_substrate.tscn`); it is now a real runner wiring all 27 green smoke
+tests (incl. the three resurrected in 68ebd80e) so they can't rot outside a runner again.
 
 **7. JSON load-parse-error boilerplate hand-rolled independently across ~20 GDScript loaders**
 `Core/Biomes/BiomeRegistry.gd:104-122`, `Core/Factions/FactionRegistry.gd:64-79`, `Core/Factions/IconRegistry.gd:293-303`, `Core/Factions/FactionAxes.gd:19-31` (full open/parse/error-report/close idiom); laxer `JSON.parse_string` variant in `Core/GameMechanics/BalanceConfig.gd:206-209`, `Core/Story/StorySeedLoader.gd:26-30`, `Core/Quests/QuestManager.gd:233-237,259-263`, `Core/GameState/ScenarioLedger.gd:47-50`, `Core/GameMechanics/FarmVariableGraph.gd:28-45`, `Core/Gallery/ReelRunner.gd:61`, plus ~10 more (`SaveStore.gd`, `EmojiRegistry.gd`, `MusicManager.gd`, `QuantumField3D.gd`, `UmweltVizCache.gd`, `CognifoldTraceView.gd`, `QuantumInstrument.gd`, `Frontmatter.gd`, `PolicyGraph.gd`, `BiomeCharacteristics.gd`, `EscapeMenu.gd`).
@@ -432,9 +447,16 @@ Knot: fixing the 5 copies is mechanical; changing GameStateSerializer's behavior
 
 #### Tier 5 — Tooling & build scripts
 
-**24. Godot-binary resolution reimplemented independently in at least 5 places**
-`scripts/lib/godot_runtime_env.sh:10-12` defines the canonical `sw_godot_bin()` with WSL/Windows path translation; only `scripts/build-linux-release.sh` sources it. `scripts/build-web-local.sh` and `scripts/build-desktop-local.sh` each hand-roll `GODOT_BIN=${GODOT_BIN:-godot}`; `scripts/install-godot-export-templates.sh` has a third CLI-flag variant; `scripts/run_tests.sh` has a fourth godot4-then-godot fallback that ignores `GODOT_BIN` entirely; `scripts/setup.sh` a fifth one-off check.
-Knot: release/export build scripts — migrating each caller needs verification that WSL/Windows path handling doesn't change per script.
+~~**24. Godot-binary resolution reimplemented independently in at least 5 places**~~
+**CLOSED (consolidation pass 2026-08-03, P2b):** every script that locates a godot binary now
+sources `scripts/lib/godot_runtime_env.sh` and resolves through `sw_godot_bin()` —
+`run_tests.sh` (finally honors `GODOT_BIN`; legacy `godot4` fallback kept),
+`run_save_load_tests.sh` (`GODOT_PATH` still wins for back-compat),
+`build-web-local.sh`, `build-desktop-local.sh`, `install-godot-export-templates.sh`
+(`--godot-bin` CLI flag still overrides), `setup.sh`, `setup-vm-cross-compile.sh`, and the
+three cognifold launchers (`cognifold.sh`, `cognifold-meerkat.sh`, `cognifold-bar.sh`).
+Since `sw_godot_bin()` defaults to `SW_GODOT_BIN` → `GODOT_BIN` → `godot`, each caller's prior
+env-override semantics are preserved exactly; all touched scripts pass `bash -n`.
 
 **25. `milk_hunt_args.make_base_parser()` is a documented shared argparse base, but two consumers hand-duplicate the same flags with drift**
 `🍄/🎛️/milk_hunt_args.py:14-118` (`make_base_parser`, only used by `milk_hunt_batch.py`) vs `🍄/🎛️/milk_hunt_runner.py:1070-1256+` (`_build_parser`, e.g. `--strategy` typed `Path` vs `str` in the shared parser) and `🍄/🎛️/milk_hunt_seed_save.py:66-144` (`_build_parser`, missing the `--no-reuse-listener` counterpart flag).
@@ -453,9 +475,13 @@ Knot: either delete the unused surface or bring it to full flag parity with `_ru
 
 #### Tier 6 — Test infrastructure
 
-**29. RigClient boot/teardown harness hand-rolled in 7 pytest integration tests**
-`tests/test_cost_surface_parity.py`, `tests/test_quest_state_roundtrip.py`, `tests/test_rig_quest_roundtrip.py`, `tests/test_arc_offer_rebirth_on_load.py`, `tests/test_title_boot_path.py`, `tests/test_story_arc_boot.py`, `tests/test_druid_gate_targets_focused_plot.py` — each repeats tempdir + `start_listener` + `wait_for_bridge_sentinel` + `finally: terminate_listener/rmtree`; 5 import RigClient via module-level `sys.path.insert`, 2 use a local `_load_rig_client()` instead.
-Knot: real Godot-process lifecycle management — a cleanup bug leaks processes/tempdirs across the suite; consolidating into a `conftest.py` fixture requires deciding its parameter surface.
+~~**29. RigClient boot/teardown harness hand-rolled in 7 pytest integration tests**~~
+**CLOSED (consolidation pass 2026-08-03, P2b):** `tests/conftest.py` now carries a `rig_boot`
+factory fixture — godot-on-PATH skip, tempdir, `start_listener(**kwargs)`, sentinel wait, and
+guaranteed `terminate_listener` + `rmtree` teardown (pass or fail) for every listener booted
+through it. Parameter surface: `prefix`, `sentinel_timeout_s`, and everything else passed
+straight to `start_listener`, so per-test scenario/env divergence stays in the test. All 7
+files migrated (both import styles deleted); full suite 182 passed / 0 failed after migration.
 
 **30. Byte-identical `setup_test_environment()` bootstrap duplicated across 2 of 4 gate/quantum-state tests**
 `tests/test_advanced_quantum_states.gd:46-66` and `tests/test_gate_exact_states.gd:45-65` are byte-identical (`BiomeBuilder.build_from_registry("StarterForest", ...)` → `await self.process_frame` → density-matrix check). `tests/test_gate_application_integration.gd:42-75` and `tests/test_closed_system.gd:48-75` are genuine variants (different biome names, extra closed-system precheck) — not duplicates.
