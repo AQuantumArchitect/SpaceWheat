@@ -445,7 +445,10 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 
 		var plot = grid.get_plot(pos)
 		if plot:
-			# Restore plot type from older enum saves
+			# Restore plot type from older enum saves. The scenario .tres files
+			# were regenerated onto the factory schema (slop knot #12,
+			# 2026-08-03) so this shim now serves only pre-migration SAVE
+			# files; retire it once the beta save floor moves past them.
 			if plot_data.has("type_name"):
 				plot.plot_type_name = plot_data["type_name"]
 			elif plot_data.has("type"):  # Old saves with enum
