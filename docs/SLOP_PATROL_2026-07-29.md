@@ -430,7 +430,7 @@ Knot: no mechanical cross-language merge is possible; needs a shared manifest fo
 #### Tier 4 — UI/overlay & render-path duplication
 
 **15. ~~EmojiAtlasBatcher's `_normalize_emoji()` diverges from canonical `EmojiUtil.normalize()` on the atlas/render lookup path~~**
-**CLOSED (consolidation P3, 2026-08-03): unified onto `EmojiUtil.normalize`, probe-verified.** A probe over the full emoji universe (every string in biomes.json + factions.json + icons.json, 254 candidates) plus a repo-wide grep of GDScript sources found **zero** ZWJ (U+200D) and **zero** FE0E carriers — the two schemes produce byte-identical atlas keys over the entire actual domain, so the delegation is behavior-preserving, not a blind swap. `_normalize_emoji` now delegates, with the history + probe documented in a comment at the function.
+**CLOSED (consolidation P3, 2026-08-03): unified onto `EmojiUtil.normalize`, probe-verified.** A probe over the full emoji universe (every string in biomes.json + factions.json + icons.json, 254 candidates) plus a repo-wide grep of GDScript sources found **zero** ZWJ (U+200D) and **zero** FE0E carriers — the two schemes produce byte-identical atlas keys over the entire actual domain, so the delegation is behavior-preserving, not a blind swap. `_normalize_emoji` now delegates, with the history + probe documented in a comment at the function. *(Evidence note, 2026-08-04: the "zero ZWJ" claim is stale against today's registry — `Assets/emoji_registry.json` carries two ZWJ keys (🏋‍♀, 👨‍💻) plus keycap sequences. Both schemes still agree on them, so the CONCLUSION stands; only the stated probe scope aged.)*
 
 ~~**16. BubbleAtlasBatcher and EmojiAtlasBatcher independently implement the same textured-quad batching, already diverged in optimization**~~
 **CLOSED-SCOPED (fable push 2026-08-03, ff14826f):** the flush divergence (the real defect) is unified — EmojiAtlasBatcher adopts the pre-allocated identity-indices strategy, killing the per-frame N-int fill loop. The per-quad append bodies stay DELIBERATELY forked (documented in-code): a shared per-quad call adds GDScript call overhead on the hottest render path for cosmetic dedup.
@@ -547,3 +547,37 @@ repo's history) and this doc's own text.
 **36. Two sibling native-engine proposals in the same handoff bundle independently redefine AxialField/FactionField/IconEdge with incompatible math**
 `llm_inbox/spacewheat_quantum_graph_handoff_bundle/spacewheat_native_quantum_graph_seed/src/axial_manifold.cpp:117-129` (`blend`, circular-mean phase via cos/sin) vs `.../spacewheat_contract_market_native_seed/src/axial_field.cpp` (`blend_fields`, plain weighted linear sum of phase); both bundles' own `QUANTUM_GRAPH_UNIFICATION_NOTE.md` and `README.md` call for these to become one engine.
 Knot: unbuilt inbox proposal material, never merged into the live engine — flagged for the umwelt/quantum-graph owner to resolve the math disagreement if either seed is picked up, not an active risk today.
+---
+
+## 3D mode (post-668fe7a4) — polish pass 2026-08-04 residue
+
+The 3D cognifold field became the default renderer AFTER this doc's sweep; the 2026-08-04
+polish pass fixed the acute defects (selection truth, honest gate refusals, play-area
+centring, emoji glyph pipeline, B/pause contract restoration — commits c290cb74…f1368940)
+and leaves these documented, deliberately-deferred items:
+
+**37. Emoji atlas is never built in 3D mode, and never rebuilt when a fractal child biome registers**
+`Core/Boot/RuntimeMount.gd` early-returns before `build_atlas_cached` when quantum_viz is
+null (3D). Harmless today — no 3D consumer reads the atlas — but `--classic-2d` and 3D take
+fully divergent glyph paths, and in 2D mode a descend into a fractal child whose poles
+weren't in the boot universe falls to `_draw_text_box` (bordered tofu). Related ceiling:
+`EmojiAtlasBatcher` caps at 961 glyphs (2048² / 66²) then warns + skips. All latent, 2D-only.
+
+**38. The gate-pricing seam exists but nothing calls it**
+`FarmEconomy.preflight_gate`/`commit_gate` (and `EconomyConstants` twins) have ZERO gameplay
+callers — the Druid path charges via `action_costs`. The lying `gate_costs` price rows were
+deleted from `default.jsonl` (P2, gates are now HONESTLY free); wiring the seam into gate
+dispatch — i.e. whether gates should cost anything — is an owner balance decision.
+
+**39. QII writes selection state past QuantumInstrument.select_plot()**
+`QuantumInstrumentInput._focus_plot` writes `_instrument.current_plot_idx` and friends
+directly while `QuantumInstrument.select_plot()` sits unused — a parallel-authority smell,
+behavior-identical today. Route the write through the API when next in that seam.
+
+**40. rig_bubble_state reports measured:false unconditionally**
+`QuantumField3D.rig_bubble_state` doesn't track terminal-measured state (known follow-up,
+noted in-code); the rig reads authoritative measured state from the farm separately.
+
+**41. PlotGridDisplay touch-drag TODO + orphaned `[` overlay**
+Godot-4 touch drag selection is still a stub (`PlotGridDisplay._input` TODO), and the
+neighborhood-graph overlay is reachable only by the literal `[` key — no button-row slot.
