@@ -28,7 +28,12 @@ def test_runner_batch_and_launcher_thread_display_backend_flags() -> None:
     batch = _read("🍄/🎛️/milk_hunt_batch.py")
     client = _read("🍄/🎛️/rig_client.py")
     launcher = _read("🍄/🎛️/🟢.sh")
-    assert "--display-mode" in runner
+    # Shared CLI flags live in make_base_parser's spec table since the fable
+    # push (slop knot #25); the runner composes it, so the flag literal lives
+    # in milk_hunt_args.py while the runner's use of the value stays local.
+    args_mod = _read("🍄/🎛️/milk_hunt_args.py")
+    assert "--display-mode" in args_mod
+    assert "make_base_parser" in runner
     assert "--policy-execution-backend" in runner
     assert "execution_backend=policy_execution_backend" in runner
     assert '--display-mode", str(display_mode)' in batch
@@ -43,7 +48,11 @@ def test_runner_batch_and_launcher_thread_display_backend_flags() -> None:
 
 def test_seed_save_accepts_headed_player_input_flags() -> None:
     seed = _read("🍄/🎛️/milk_hunt_seed_save.py")
-    assert "--display-mode" in seed
+    # --display-mode is a shared flag composed from make_base_parser (knot
+    # #25); seed_save opts into it via only=. --ready-timeout stays local.
+    args_mod = _read("🍄/🎛️/milk_hunt_args.py")
+    assert "--display-mode" in args_mod
+    assert '"display_mode"' in seed  # the only= opt-in
     assert "--ready-timeout" in seed
     assert 'display_mode=str(args.display_mode or "headless")' in seed
     assert "if proc is not None and not args.reuse_listener:" in seed

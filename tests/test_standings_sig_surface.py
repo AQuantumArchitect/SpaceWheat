@@ -85,10 +85,13 @@ def test_carrion_throne_fixture_still_diverges() -> None:
 def test_sig_column_reads_signature_not_cloud() -> None:
     fn = _grid_func_src()
     # Signature authority: the faction's icon list + the player's incorporated
-    # icons, matched through IconRegistry's normalized pair keys.
-    assert "IconRegistry.get_icons_for_faction(" in fn
-    assert "IconRegistry.discovered_set_from_icons(" in fn
-    assert "IconRegistry.is_icon_discovered(" in fn
+    # icons, matched through IconRegistry's normalized pair keys. Since the
+    # fable push the autoload is resolved by node path (bare identifiers fail
+    # headless-harness compiles), so the calls go through `icon_registry`.
+    assert '"/root/IconRegistry"' in fn
+    assert "icon_registry.get_icons_for_faction(" in fn
+    assert "icon_registry.discovered_set_from_icons(" in fn
+    assert "icon_registry.is_icon_discovered(" in fn
     assert "known_icons" in fn
     # The defect: cloud atoms counted against recognized emojis.
     assert ".cloud" not in fn
