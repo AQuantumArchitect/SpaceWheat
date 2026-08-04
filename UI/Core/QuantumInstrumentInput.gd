@@ -297,7 +297,14 @@ func _dispatch_action_key(key: String, shift: bool = false) -> void:
 			if not _confirm_pending.is_empty():
 				var pending := _confirm_pending.duplicate()
 				_confirm_pending = {}
-				_run_action(pending["action"], pending.get("emoji", ""), pending.get("label", ""))
+				if bool(pending.get("shift_batch", false)):
+					_run_shift_batch(
+						str(pending.get("shift_action_name", "")),
+						pending.get("shift_positions", []),
+						str(pending.get("shift_symbol", "")),
+						str(pending.get("shift_log_label", "")))
+				else:
+					_run_action(pending["action"], pending.get("emoji", ""), pending.get("label", ""))
 			elif _instrument and _instrument.is_in_submenu():
 				# F pages a multi-page submenu — the picker's documented F-cycling.
 				# It used to close instead, which stranded every option past the
@@ -311,6 +318,13 @@ func _dispatch_action_key(key: String, shift: bool = false) -> void:
 			else:
 				var f_action = ToolConfig.get_action(ToolConfig.get_current_frame(), "F")
 				if shift and str(f_action.get("shift_action", "")) != "":
+					# This branch bypasses _perform_action/ActionValidator entirely
+					# (today only Ace's Shift+F reap), so the verb-level funnel has
+					# to be checked here too — gated on the BASE key (F), same as
+					# the plain-F dispatch below.
+					if not UIProgression.is_verb_active(ToolConfig.get_current_frame(), "F"):
+						UIProgression.redirect_locked()
+						return
 					# Shift+F = the season-scale time verb (Ace: Reap Season).
 					# Biome-wide — no checked-plot batch, dispatch directly.
 					_run_action(str(f_action["shift_action"]), str(f_action.get("emoji", "")),
@@ -1546,6 +1560,13 @@ func _perform_action(action_key: String) -> void:
 	# Args:
 	# action_key: "Q" (DOWN), "E" (NEUTRAL), or "R" (UP)
 	var current_frame_name: String = ToolConfig.get_current_frame()
+	# Progressive disclosure (phase-3 funnel): a verb not yet unlocked within
+	# an already-unlocked hat redirects instead of acting — same shape as the
+	# hat-select guard in _unhandled_key_input. Act-0-only; every other verb
+	# and every verb once Act 0 ends compares true here.
+	if not UIProgression.is_verb_active(current_frame_name, action_key):
+		UIProgression.redirect_locked()
+		return
 	var action_info = ToolConfig.get_action(current_frame_name, action_key)
 	# Apply contextual chip resolver so dispatch matches what the chip displayed.
 	# Resolvers may override `action` (and strip `submenu`) based on sim state.
@@ -1686,6 +1707,12 @@ func _perform_shift_key_action(action_key: String) -> void:
 	# For gate actions (Druid frame: unitary gates), uses batch injection with single buffer invalidation.
 	# Selection order is preserved - gates are applied in the order plots were checked.
 	var current_frame_name: String = ToolConfig.get_current_frame()
+	# Progressive disclosure (phase-3 funnel): structurally separate dispatch
+	# path from _perform_action (Shift+Q/E/R bulk-apply), so it needs its own
+	# verb-lock guard — same table, same redirect.
+	if not UIProgression.is_verb_active(current_frame_name, action_key):
+		UIProgression.redirect_locked()
+		return
 	var action_info = ToolConfig.get_action(current_frame_name, action_key)
 	if action_info.is_empty():
 		return
@@ -1698,17 +1725,44 @@ func _perform_shift_key_action(action_key: String) -> void:
 	var symbol = "⇧%s" % action_key
 	var log_label = action_info.get("shift_label", action_info.get("label", action_name))
 
-	var original_selection := {
-		"plot_idx": int(_instrument.current_plot_idx),
-		"biome": str(_instrument.current_biome),
-	}
-
 	# Use checked plots instead of entire homerow (ORDER PRESERVED from selection)
 	var positions = _instrument.checked_plots.duplicate()
 	if positions.is_empty():
 		# Honest refusal (anti-gating law): a silent mass-op reads as a dead key.
 		_toast_player("%s needs checked plots — Shift+G H J K L ; marks them first." % log_label)
 		return
+
+	# Destructive bulk actions confirm before firing — same QF confirm chord the
+	# singular (non-shift) path already uses (_perform_action, above). Before this
+	# fix Shift+Q on Icon's remove_icon (destructive) mass-fired on every checked
+	# plot with zero confirmation. Arm the SAME _confirm_pending mechanism, scaled
+	# to the batch; F re-enters via _dispatch_action_key's confirm branch.
+	if action_info.get("destructive", false):
+		_confirm_pending = {
+			"shift_batch": true,
+			"shift_action_name": action_name,
+			"shift_positions": positions,
+			"shift_symbol": symbol,
+			"shift_log_label": log_label,
+			"label": "%s ×%d" % [log_label, positions.size()],
+		}
+		var shell := _resolve_player_shell()
+		if shell and shell.has_method("show_hint"):
+			shell.show_hint(
+				"[color=#ff9966]⚠ %s ×%d[/color]  —  press [b]F[/b] to confirm, any other key cancels" \
+				% [log_label, positions.size()], 3)
+		return
+
+	_run_shift_batch(action_name, positions, symbol, log_label)
+
+
+## The actual batch-apply body (gate path + non-gate path), shared by the
+## immediate (non-destructive) dispatch and the QF-confirmed destructive one.
+func _run_shift_batch(action_name: String, positions: Array, symbol: String, log_label: String) -> void:
+	var original_selection := {
+		"plot_idx": int(_instrument.current_plot_idx),
+		"biome": str(_instrument.current_biome),
+	}
 
 	# BATCH GATE PATH: For Druid frame (unitary) gate actions, use batch injection
 	# This applies all gates in selection order with SINGLE buffer invalidation

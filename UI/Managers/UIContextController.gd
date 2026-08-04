@@ -8,6 +8,7 @@ extends Node
 ## what the tool row and action row should display.
 
 const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
+const UIProgression = preload("res://UI/Core/UIProgression.gd")
 
 var action_bar_manager = null
 var overlay_stack = null
@@ -278,6 +279,15 @@ func _build_frame_actions(frame_name: String) -> Dictionary:
 				action_info = {"action": "", "label": "▶ Play", "emoji": ""}
 			elif action_key == "E":
 				action_info = {"action": "", "label": "⏸ Pause", "emoji": ""}
+		elif not UIProgression.is_verb_active(frame_name, action_key):
+			# Progressive disclosure (phase-3 funnel, Act-0 only): a verb this hat
+			# HAS but the tutorial hasn't taught yet renders locked — same visual
+			# language the closed-mode DLC teaser uses below (🔒 prefix + disabled
+			# chip via _apply_runtime_state), not a second lock language.
+			action_info = action_info.duplicate()
+			action_info.disabled = true
+			if not str(action_info.get("label", "")).begins_with("🔒"):
+				action_info.label = "🔒 " + str(action_info.get("label", ""))
 		actions[action_key] = _project_action_info(action_info)
 
 	if frame_name == ToolConfig.FRAME_ACE and ToolConfig.get_frame_mode_name(frame_name) == "probe":

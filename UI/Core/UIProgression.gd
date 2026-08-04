@@ -103,6 +103,86 @@ static func is_menu_active(menu_id: String) -> bool:
 
 
 # ============================================================================
+# VERB-LEVEL ENFORCEMENT (phase 3 — the funnel goes one level deeper).
+# is_hat_active gates the HAT; is_verb_active gates individual Q/E/R/F keys
+# WITHIN an already-unlocked hat, but ONLY during the Act-0 tutorial. Once
+# Act 0 ends (current_tutorial_step() hits the no-signal sentinel) every verb
+# compares true and this stops mattering — it never gates the mid/late game.
+# Same fail-open law as the rest of the file: no signal = permissive.
+# ============================================================================
+
+## Sentinel current_tutorial_step() returns when there's no active TUTORIAL
+## quest to read (Act 0 already complete, or no farm/quest manager yet).
+## Comfortably above every VERB_UNLOCK_STEP entry (including the 90 "locked
+## through Act 0" sentinel below) so the fail-open reading is "everything
+## unlocked" — NOT 0, which would mean "only step-0 verbs are live."
+const NO_TUTORIAL_SENTINEL := 999
+
+## VERB_UNLOCK_STEP entries pinned here stay locked for the whole Act-0
+## tutorial (steps 0-6) without picking a real step to unlock at — comfortably
+## above the highest real step (6), and visually distinct from
+## NO_TUTORIAL_SENTINEL so a reader can tell "locked all of Act 0" apart from
+## "no signal, fully open."
+const VERB_LOCKED_FOR_ACT0 := 90
+
+
+## Which Act-0 tutorial step is currently live — the same active-TUTORIAL-quest
+## lookup _objective_rank() already does (reused, not reinvented). Returns
+## NO_TUTORIAL_SENTINEL when there's no active TUTORIAL quest to read.
+static func current_tutorial_step() -> int:
+	var qm := _quest_manager()
+	if qm == null or not ("active_quests" in qm):
+		return NO_TUTORIAL_SENTINEL
+	for q in qm.active_quests.values():
+		if q is Dictionary and str(q.get("category", "")) == "TUTORIAL":
+			return int(q.get("tutorial_step", 0))
+	return NO_TUTORIAL_SENTINEL
+
+
+## "<frame>:<key>" -> minimum tutorial_step at which that verb goes live.
+## Anything NOT listed here defaults to always-active (see is_verb_active) —
+## this table only carries the handful of Act-0-relevant restrictions; every
+## other hat/key combo (and every verb once Act 0 ends) is fully live.
+## Destructive verbs are listed EXPLICITLY even when locked for all of Act 0
+## (VERB_LOCKED_FOR_ACT0), on purpose — silence here would default them open.
+const VERB_UNLOCK_STEP: Dictionary = {
+	# Step 0 (core_loop): Ace F (explore/fast-forward), R (strike), Q (extract).
+	# ace:E (Pause) is deliberately absent — harmless utility taught in the
+	# same hint, never locked.
+	"ace:F": 0,
+	"ace:R": 0,
+	"ace:Q": 0,
+
+	# Step 1 (vocabulary): Icon F (track berry-phase), R (incorporate icon).
+	# icon:Q (remove_icon, destructive) and icon:E (inspect) stay locked for
+	# the rest of Act 0 — explicit, not omitted.
+	"icon:F": 1,
+	"icon:R": 1,
+	"icon:Q": VERB_LOCKED_FOR_ACT0,
+	"icon:E": VERB_LOCKED_FOR_ACT0,
+
+	# Step 3 (superposition): Druid E (Hadamard). druid:Q/R (rotations) stay
+	# locked for the rest of Act 0 — explicit.
+	"druid:E": 3,
+	"druid:Q": VERB_LOCKED_FOR_ACT0,
+	"druid:R": VERB_LOCKED_FOR_ACT0,
+
+	# Step 4 (entanglement): Operator R (build_gate — the Bell weave).
+	# operator:Q (remove_gates, destructive) stays locked for the rest of
+	# Act 0 — explicit.
+	"operator:R": 4,
+	"operator:Q": VERB_LOCKED_FOR_ACT0,
+}
+
+
+static func is_verb_active(frame_name: String, key: String) -> bool:
+	if _enforcement_bypassed():
+		return true
+	var min_step: int = int(VERB_UNLOCK_STEP.get("%s:%s" % [frame_name, key], 0))
+	return current_tutorial_step() >= min_step
+
+
+# ============================================================================
 # THE ONE LIVE OBJECTIVE — single authority shared by the HUD banner
 # (ActFilament) and the locked-input redirect toast. Blind playtesters
 # (masher / literalist / lost lamb) consistently failed to find the game's one
