@@ -121,6 +121,12 @@ func capture_state_from_farm(farm: Node, current_state: GameState, scenario_id: 
 		known_emojis = GameState.derive_known_emojis_from_icons(state.known_icons)
 		_log("debug", "save", "📖", "Captured signature: %d icons → %d emojis" % [state.known_icons.size(), known_emojis.size()])
 
+	# Ripening-incorporation ledger (v7+) — separate from known_icons; see
+	# GameState.incorporated_icons doc comment.
+	if farm and farm.has_method("get_incorporated_icons"):
+		state.incorporated_icons = _resolve_incorporated_icons_for_capture(farm)
+		_log("debug", "save", "🧬", "Captured incorporation ledger: %d icon(s)" % state.incorporated_icons.size())
+
 	# Active icon slots (3 indices into known_icons — player's expression voice).
 	if farm and "active_icon_slots" in farm:
 		state.active_icon_slots = (farm.active_icon_slots as Array).duplicate()
@@ -402,6 +408,27 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 				state.atom_map_snapshot.get("by_emoji", {}).size()
 			])
 
+	# Restore the DELIBERATE ripening-incorporation ledger (v7+) — gates
+	# fractal descent (FractalWorldService.enter_icon). Migration for saves at
+	# version <= 6: those saves carry no incorporated_icons field, but every
+	# fractal world the player ever entered left its opener's {north, south}
+	# baked onto register 0 of its materialized FX_* synthetic biome
+	# (ProceduralIconBiome.materialize + FractalAtlas.synthetic_biome_name) —
+	# scan the restored biome_states for those instead of defaulting to
+	# empty, which would silently re-lock worlds the player already
+	# legitimately reached.
+	var restored_incorporated_icons: Array = []
+	if state.save_version == 4 or state.save_version == 5 or state.save_version == 6:
+		restored_incorporated_icons = _migrate_incorporated_icons_from_biome_states(state.biome_states)
+	elif state.incorporated_icons is Array:
+		restored_incorporated_icons = state.incorporated_icons
+	if farm and farm.has_method("set_incorporated_icons"):
+		farm.set_incorporated_icons(restored_incorporated_icons)
+		_log("debug", "save", "🧬", "Restored incorporation ledger: %d icon(s)%s" % [
+			restored_incorporated_icons.size(),
+			" (migrated from FX_* biome_states)" if state.save_version <= 6 else ""
+		])
+
 	# Restore active icon slots (3 indices into known_icons).
 	if farm and "active_icon_slots" in farm:
 		var slots: Array = []
@@ -606,6 +633,45 @@ func _resolve_known_icons_from_state(state: GameState) -> Array:
 	return merged
 
 
+## v7 migration: pre-v7 saves have no incorporated_icons ledger. Every
+## fractal world the player ever entered materialized its own FX_* synthetic
+## biome (FractalAtlas.synthetic_biome_name) with the opening icon's
+## {north, south} baked onto register 0 (ProceduralIconBiome.materialize →
+## _capture_single_biome_state's register_axes) — reconstruct the ledger from
+## that instead of defaulting empty, which would re-lock worlds already
+## legitimately reached.
+func _migrate_incorporated_icons_from_biome_states(biome_states: Dictionary) -> Array:
+	var out: Array = []
+	var seen: Dictionary = {}
+	if not (biome_states is Dictionary):
+		return out
+	for biome_name in biome_states.keys():
+		if not str(biome_name).begins_with("FX_"):
+			continue
+		var bstate = biome_states[biome_name]
+		if not (bstate is Dictionary):
+			continue
+		var axes = bstate.get("register_axes", [])
+		if not (axes is Array):
+			continue
+		for axis in axes:
+			if not (axis is Dictionary):
+				continue
+			if int(axis.get("qubit", -1)) != 0:
+				continue
+			var north = str(axis.get("north", ""))
+			var south = str(axis.get("south", ""))
+			if north == "" or south == "" or north == south:
+				continue
+			var key = "%s|%s" % [north, south]
+			if seen.has(key):
+				continue
+			seen[key] = true
+			out.append({"north": north, "south": south})
+			break
+	return out
+
+
 func _capture_biome_progression_state(state: GameState, current_state: GameState) -> void:
 	var observation_frame = _get_autoload("ObservationFrame")
 	if observation_frame and observation_frame.has_method("get_unlocked_biomes"):
@@ -740,6 +806,29 @@ func _resolve_known_icons_for_capture(farm: Node) -> Array:
 
 	if merged.is_empty():
 		return [{"north": "🌾", "south": "👥"}]
+	return merged
+
+
+func _resolve_incorporated_icons_for_capture(farm: Node) -> Array:
+	# Unlike _resolve_known_icons_for_capture, an empty ledger is legal — no
+	# starter-pair fallback here.
+	var merged: Array = []
+	var seen: Dictionary = {}
+
+	if farm and farm.has_method("get_incorporated_icons"):
+		for icon in farm.get_incorporated_icons():
+			if not (icon is Dictionary):
+				continue
+			var north = str(icon.get("north", ""))
+			var south = str(icon.get("south", ""))
+			if north == "" or south == "" or north == south:
+				continue
+			var key = "%s|%s" % [north, south]
+			if seen.has(key):
+				continue
+			seen[key] = true
+			merged.append({"north": north, "south": south})
+
 	return merged
 
 

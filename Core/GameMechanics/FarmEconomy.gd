@@ -252,6 +252,12 @@ func get_economy_variable(_name: String):
 
 func get_overridden_action_cost(action: String, context: Dictionary = {}) -> Dictionary:
 	# Get action cost, checking overrides first, then EconomyConstants.
+	# HAZARD (enter_icon): this override table is checked BEFORE the dynamic
+	# EconomyConstants.get_action_cost branch below. enter_icon's cost is
+	# depth-scaled from context (south_emoji, depth) — a static JSONL
+	# action_costs["enter_icon"] row would silently WIN over that scaling and
+	# ignore context entirely. See EconomyConstants.get_action_cost's
+	# ActionIds.ENTER_ICON case for the paired warning.
 	var normalized_action = EconomyConstants.normalize_action_id(action)
 	var overrides = _economy_overrides.get("action_costs", {})
 	if overrides is Dictionary and overrides.has(normalized_action):

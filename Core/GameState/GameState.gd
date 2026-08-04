@@ -42,7 +42,17 @@ extends Resource
 # is the empty dict → QuestManager.restore_from_save_dict no-ops and the
 # board regenerates from persisted truth (tutorial_seen, story_flags_fired,
 # known_icons) exactly as pre-v6 loads always did.
-const CURRENT_SAVE_VERSION := 6
+# v7 = Fractal Incorporation Ledger (2026-08-04): additive incorporated_icons
+# section — the player's DELIBERATE ripening-incorporation ledger (Icon-hat R
+# success path only), which now gates fractal descent (FractalWorldService.
+# enter_icon). Deliberately separate from known_icons: injection alone
+# auto-discovers into known_icons, so a known_icons gate would be vacuously
+# true for every fractal world. Migration from v4/v5/v6 is NOT the empty dict
+# (that would re-lock worlds already legitimately reached) —
+# GameStateSerializer.apply_state_to_farm scans the restored biome_states for
+# already-materialized FX_* synthetic biomes and seeds the ledger from their
+# register-0 axis instead.
+const CURRENT_SAVE_VERSION := 7
 
 # Declared default 0 ("unstamped") ON PURPOSE: ResourceSaver omits properties
 # equal to the declaration default, so if this declared 4 a fresh save would
@@ -79,6 +89,14 @@ const CURRENT_SAVE_VERSION := 6
 @export var known_icons: Array = [
 	{"north": "🌾", "south": "👥"}
 ]
+
+## The player's DELIBERATE ripening-incorporation ledger (v7+, canonical in
+## Farm). Each entry is {north: String, south: String} — written ONLY by
+## QuantumInstrument.action_incorporate's success path (Icon-hat R on a
+## tracked+ripe plot), never by mere injection/discovery. Gates fractal
+## descent (FractalWorldService.enter_icon). Empty array = no ritual
+## completed yet (fresh game, or any pre-v7 save with nothing to migrate).
+@export var incorporated_icons: Array = []
 
 ## Active icon slots — 3 indices into known_icons. The player faction's active
 ## expression voice. Defaults to [0,1,2]; clamped to known_icons size on load.

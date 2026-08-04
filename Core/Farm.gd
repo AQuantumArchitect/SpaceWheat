@@ -22,6 +22,7 @@ var grid: FarmGrid
 var economy  # FarmEconomy type
 var _loaded_biome_count: int = 0  # Track how many biomes loaded successfully
 var known_icons: Array = []  # Player icons (canonical, farm-owned)
+var incorporated_icons: Array = []  # DELIBERATE ripening-incorporation ledger (Icon-hat R success path only) — gates fractal descent; separate from known_icons, which grows on mere injection/discovery too
 var active_icon_slots: Array = [0, 1, 2]  # 3 indices into known_icons — the player's active expression voice
 var reap_count: int = 0  # Number of global seasonal reaps completed
 var faction_density: FactionDensityMatrix = FactionDensityMatrix.new()  # ρ over factions; drives affinity
@@ -504,6 +505,58 @@ func discorporate_icon(north: String, south: String) -> bool:
 	return true
 
 
+func get_incorporated_icons() -> Array:
+	# Return the player's DELIBERATE ripening-incorporation ledger (canonical).
+	# Separate from known_icons: EVERY latent fractal child world is
+	# auto-discovered into known_icons the moment it's injected
+	# (QuantumInstrument.action_inject_icon_pair calls farm.discover_icon
+	# right before creating the child world), so a gate keyed on known_icons
+	# would be vacuously true for every fractal world that could ever exist.
+	# This ledger only grows via action_incorporate's success path (Icon-hat R
+	# on a tracked+ripe plot) — the real "earned this" signal.
+	return incorporated_icons.duplicate(true)
+
+
+func set_incorporated_icons(icons: Array) -> void:
+	# Replace the incorporation ledger with a sanitized, deduped list. Unlike
+	# known_icons, an empty ledger is a legal state (fresh game, or any
+	# pre-v7 save with no materialized FX_* worlds to migrate from).
+	var filtered: Array = []
+	var seen: Dictionary = {}
+	for icon in icons:
+		if not (icon is Dictionary):
+			continue
+		var north = icon.get("north", "")
+		var south = icon.get("south", "")
+		if north == "" or south == "" or north == south:
+			continue
+		var key = "%s|%s" % [north, south]
+		if seen.has(key):
+			continue
+		seen[key] = true
+		filtered.append({"north": north, "south": south})
+
+	incorporated_icons = filtered
+	if _verbose:
+		_verbose.info("save", "🧬", "Farm incorporated_icons set to %d icon(s)" % incorporated_icons.size())
+	_sync_current_state_signature()
+
+
+func mark_icon_incorporated(north: String, south: String) -> bool:
+	# Record a completed ripening-incorporation ritual (farm-owned source of
+	# truth). Idempotent: re-incorporating an already-ledgered pair is still a
+	# success (the ritual was genuinely completed again), just a no-op on the
+	# ledger itself.
+	if north == "" or south == "" or north == south:
+		return false
+	for icon in incorporated_icons:
+		if icon.get("north", "") == north and icon.get("south", "") == south:
+			return true
+	incorporated_icons.append({"north": north, "south": south})
+	_sync_current_state_signature()
+	return true
+
+
 func _ensure_icon_atlas() -> IconRegistry:
 	if icon_atlas == null:
 		icon_atlas = get_node_or_null("/root/IconRegistry")
@@ -799,6 +852,8 @@ func _sync_current_state_signature() -> void:
 	var gsm = _get_gsm()
 	if gsm and "current_state" in gsm and gsm.current_state:
 		gsm.current_state.known_icons = get_known_icons()
+		if "incorporated_icons" in gsm.current_state:
+			gsm.current_state.incorporated_icons = get_incorporated_icons()
 		# Clamp slots to current pairs and mirror to state.
 		var max_idx: int = max(0, known_icons.size() - 1)
 		var clamped: Array = []

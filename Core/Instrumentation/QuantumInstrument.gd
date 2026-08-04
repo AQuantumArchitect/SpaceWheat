@@ -824,6 +824,16 @@ func action_incorporate(qubit_idx: int = -1) -> Dictionary:
 			if kp is Dictionary and str(kp.get("north", "")) == north and str(kp.get("south", "")) == south:
 				already_known = true
 				break
+	# Ledger the DELIBERATE ripening-incorporation ritual — separate from
+	# known_icons (which grows on mere injection/discovery too; see
+	# Farm.incorporated_icons doc comment). Ledgered on BOTH `added` and
+	# `already_known`: the Berry-phase entry was genuinely consumed either
+	# way, that's the real "ritual completed" signal — but NOT on the
+	# north-conflict silent-fail branch below, where the word was never
+	# learned. Gates fractal descent (FractalWorldService.enter_icon).
+	if (added or already_known) and farm.has_method("mark_icon_incorporated"):
+		farm.mark_icon_incorporated(north, south)
+
 	if added:
 		_log("info", "instrument", "🧬", "Incorporated %s/%s from qubit %d into signature" % [north, south, qid])
 		_notify_story([north, south], "incorporate")

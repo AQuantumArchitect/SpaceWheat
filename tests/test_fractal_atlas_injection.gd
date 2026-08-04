@@ -151,16 +151,56 @@ func _run() -> void:
 	var injected_register: int = int(ok_result.get("qubit_index", -1))
 	_check(injected_register >= 0, "injection reports a real qubit_index")
 
-	# --- 4. enter_icon / ascend_fractal round trip on the successful injection above. ---
-	print("\n[enter_icon / ascend_fractal] descend then ascend:")
+	# --- 4. NEW gate: enter_icon must refuse an icon that's merely been injected/
+	# discovered (bug scenario this gate exists to close). Injection ALREADY calls
+	# farm.discover_icon, so a known_icons-keyed gate would be vacuously true —
+	# this must fail on the SEPARATE incorporated_icons ledger instead. ---
+	print("\n[enter_icon] incorporation gate — refuses on injection-only icon:")
+	var gated_result = farm.instrument.action_enter_icon("StarterForest", injected_register)
+	_check(not bool(gated_result.get("success", true)), "enter_icon refuses before deliberate incorporation")
+	_check(str(gated_result.get("error", "")) == "not_incorporated", "refusal reason is not_incorporated")
+
+	# --- 5. Real ripening-incorporation ritual (Icon-hat R) on the injected register.
+	# Force-ripen the Berry-phase entry (0-threshold track) instead of faking the
+	# whole quantum walk — is_ripe only needs accumulated >= threshold, and
+	# start_tracking seeds accumulated at 0.0. ---
+	print("\n[incorporate] real ripening-incorporation ritual:")
+	real_qc.berry_register.start_tracking(injected_register)
+	real_qc.berry_register.set_ripe_threshold(injected_register, 0.0)
+	var incorporate_result = farm.instrument.action_incorporate(injected_register)
+	_check(bool(incorporate_result.get("success", false)), "action_incorporate succeeds on the force-ripened register")
+	# already_known, NOT new_icon: action_inject_icon_pair above already called
+	# farm.discover_icon on ☀/⚡ (injection always auto-discovers), so this
+	# incorporate hits the "re-harvest" branch — which is exactly the case
+	# Step 1's gate must still ledger into incorporated_icons (the whole point
+	# is that discovery alone must NOT be enough to open the fractal world).
+	_check(bool(incorporate_result.get("already_known", false)), "☀/⚡ was already known from injection (re-harvest branch — the case the gate exists for)")
+	var ledgered := false
+	for pair in farm.incorporated_icons:
+		if str(pair.get("north", "")) == "☀" and str(pair.get("south", "")) == "⚡":
+			ledgered = true
+			break
+	_check(ledgered, "farm.incorporated_icons ledgers ☀/⚡ after the ritual")
+
+	# --- 6. Cost + enter_icon / ascend_fractal round trip, now that the icon is
+	# genuinely incorporated. Fund generously past the depth-scaled entry cost. ---
+	farm.instrument.set_resource("🌱", 200)
+	farm.instrument.set_resource("⚡", 200)
+	var wallet_before_enter: int = int(farm.economy.get_resource_units("⚡"))
+	print("\n[enter_icon / ascend_fractal] descend then ascend (incorporated + funded):")
 	var enter_result = farm.instrument.action_enter_icon("StarterForest", injected_register)
-	_check(bool(enter_result.get("success", false)), "enter_icon succeeds on the freshly-injected register")
+	_check(bool(enter_result.get("success", false)), "enter_icon succeeds once incorporated and funded")
+	_check(enter_result.has("cost") and not (enter_result.get("cost", {}) as Dictionary).is_empty(), "enter_icon result carries the depth-scaled cost")
+	var wallet_after_enter: int = int(farm.economy.get_resource_units("⚡"))
+	_check(wallet_after_enter < wallet_before_enter, "enter_icon actually charged the south-emoji cost (was free before this pass)")
 	var child_biome_name: String = str(enter_result.get("biome_name", ""))
 	_check(child_biome_name != "" and abm != null and str(abm.get_active_biome()) == child_biome_name, "descend switches the active biome to the child world")
 
 	var ascend_result = farm.instrument.action_ascend_fractal()
 	_check(bool(ascend_result.get("success", false)), "ascend_fractal succeeds back out of the child world")
 	_check(abm != null and str(abm.get_active_biome()) == "StarterForest", "ascend restores StarterForest as the active biome")
+	var wallet_after_ascend: int = int(farm.economy.get_resource_units("⚡"))
+	_check(wallet_after_ascend == wallet_after_enter, "ascend_fractal charges nothing (stays completely free)")
 
 	_finish()
 

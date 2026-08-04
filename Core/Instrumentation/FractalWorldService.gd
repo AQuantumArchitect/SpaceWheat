@@ -85,9 +85,47 @@ func enter_icon(parent_biome_name: String, register_id: int) -> Dictionary:
 	if child_id == "":
 		return {"success": false, "error": "no_child", "message": "No fractal child for register %d" % register_id}
 
+	var depth: int = int(atlas.nodes.get(child_id, {}).get("depth", 0))
+	var north: String = str(poles[0])
+	var south: String = str(poles[1])
+
+	# Incorporation gate — BEFORE the depth-cap check below. Fractal children
+	# are latent from the moment they're injected (QuantumInstrument.
+	# action_inject_icon_pair calls farm.discover_icon on every successful
+	# inject — the SAME call that creates the child world in on_inject right
+	# after), so gating on farm.known_icons would be vacuously true for every
+	# world that could ever exist. farm.incorporated_icons is the separate,
+	# deliberate ritual ledger written only by action_incorporate's success
+	# path (Icon-hat R on a tracked+ripe plot) — that's the real "earned
+	# this" signal.
+	var incorporated := false
+	if farm and "incorporated_icons" in farm and farm.incorporated_icons is Array:
+		for pair in farm.incorporated_icons:
+			if pair is Dictionary and str(pair.get("north", "")) == north and str(pair.get("south", "")) == south:
+				incorporated = true
+				break
+	if not incorporated:
+		return {
+			"success": false,
+			"error": "not_incorporated",
+			"message": "This world only opens to icons you've truly incorporated — track it (Icon-hat F), then incorporate it (R) once ripe.",
+		}
+
 	var gate: Dictionary = atlas.can_enter(child_id)
 	if not bool(gate.get("ok", false)):
 		return {"success": false, "error": gate.get("error", "blocked"), "message": gate.get("message", "enter blocked")}
+
+	# Cost: same base formula as icon injection (4 south-pole emoji + 10 🌱),
+	# scaled by (depth + 1) — descending deeper costs proportionally more.
+	# Ascending (ascend()) stays completely free — no charge there.
+	var cost_context: Dictionary = {"south_emoji": south, "depth": depth}
+	var cost_gate: Dictionary = ActionCostRuntime.preflight_action(farm, ActionIds.ENTER_ICON, cost_context)
+	if not bool(cost_gate.get("ok", false)):
+		return {
+			"success": false,
+			"error": "insufficient_funds",
+			"message": cost_gate.get("message", "Not enough resources to enter this world."),
+		}
 
 	var node: Dictionary = atlas.nodes[child_id]
 	var Atlas = load("res://Core/Instrumentation/FractalAtlas.gd")
@@ -119,6 +157,11 @@ func enter_icon(parent_biome_name: String, register_id: int) -> Dictionary:
 
 	atlas.push_path(child_id)
 	_activate_biome(biome_name)
+
+	if not ActionCostRuntime.commit_action(farm, ActionIds.ENTER_ICON, cost_context, "enter_icon"):
+		export_all()
+		return {"success": false, "error": "cost_commit_failed", "message": "Entering world failed: unable to spend cost."}
+
 	export_all()
 	return {
 		"success": true,
@@ -127,6 +170,7 @@ func enter_icon(parent_biome_name: String, register_id: int) -> Dictionary:
 		"depth": int(node.get("depth", 0)),
 		"active_path": atlas.active_path.duplicate(),
 		"poles": poles,
+		"cost": cost_gate.get("cost", {}),
 	}
 
 

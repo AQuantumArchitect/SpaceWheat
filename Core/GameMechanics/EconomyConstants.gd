@@ -116,6 +116,31 @@ static func get_icon_injection_cost(south_emoji: String) -> Dictionary:
 	return cost
 
 
+static func get_icon_entry_cost(south_emoji: String, depth: int) -> Dictionary:
+	# Cost to DESCEND into a fractal child world (action_enter_icon →
+	# FractalWorldService.enter_icon). Same base formula as icon injection (4
+	# south-pole emoji + 10 🌱), scaled by (depth + 1) so each deeper fractal
+	# layer costs proportionally more: depth 0 → 1×, depth 3 → 4× at the
+	# atlas's existing depth_cap. Ascending stays completely free.
+	return scale_cost_dict(get_icon_injection_cost(south_emoji), depth + 1)
+
+
+## Multiply a {emoji: amount} cost dict by an integer scalar. factor <= 1
+## leaves the cost unchanged — this is a tax structure for going deeper, not
+## a rebate for going shallower.
+static func scale_cost_dict(cost: Dictionary, factor: int) -> Dictionary:
+	var out: Dictionary = {}
+	if cost.is_empty():
+		return out
+	if factor <= 1:
+		for emoji in cost:
+			out[emoji] = int(cost[emoji])
+		return out
+	for emoji in cost:
+		out[emoji] = int(cost[emoji]) * factor
+	return out
+
+
 static func get_lindblad_injection_cost(action: String = ActionIds.LINDBLAD_PUMP, context: Dictionary = {}) -> Dictionary:
 	# Get axis-aware Lindblad costs (Merchant networking frame).
 
@@ -268,6 +293,15 @@ static func get_action_cost(action: String, context: Dictionary = {}) -> Diction
 	var normalized_action = normalize_action_id(action)
 	if normalized_action == ActionIds.INJECT_ICON:
 		return get_icon_injection_cost(context.get("south_emoji", ""))
+	if normalized_action == ActionIds.ENTER_ICON:
+		# HAZARD: FarmEconomy.get_overridden_action_cost checks the
+		# action_costs JSONL override table BEFORE this dynamic branch ever
+		# runs. If a future "enter_icon" row is ever added to that table, it
+		# will silently ignore context.south_emoji/depth and this per-depth
+		# scaling becomes dead code. Don't add that row without also teaching
+		# the override lookup to fall through for enter_icon (or updating
+		# this comment to explain why not).
+		return get_icon_entry_cost(context.get("south_emoji", ""), int(context.get("depth", 0)))
 	if normalized_action == "remove_icon":
 		# Always dynamic: get_icon_removal_cost("","") returns the base, context adds poles.
 		return get_icon_removal_cost(context.get("north_emoji", ""), context.get("south_emoji", ""))

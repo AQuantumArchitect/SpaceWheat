@@ -129,6 +129,8 @@ func _refresh_runtime_bindings() -> void:
 	if current_state:
 		if farm.has_method("set_known_icons") and current_state.known_icons is Array:
 			farm.set_known_icons(current_state.known_icons)
+		if farm.has_method("set_incorporated_icons") and current_state.incorporated_icons is Array:
+			farm.set_incorporated_icons(current_state.incorporated_icons)
 		if "active_icon_slots" in farm and current_state.active_icon_slots is Array:
 			farm.active_icon_slots = (current_state.active_icon_slots as Array).duplicate()
 

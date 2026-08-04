@@ -8,6 +8,7 @@ const LINDBLAD_PUMP := "lindblad_pump"
 const LINDBLAD_DRAIN := "lindblad_drain"
 const SPARK_NORTH := "spark_north"
 const SPARK_SOUTH := "spark_south"
+const ENTER_ICON := "enter_icon"
 
 const ACTION_ALIASES: Dictionary = {
 	"icon_injection": INJECT_ICON,
