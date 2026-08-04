@@ -73,10 +73,27 @@ static func can_execute_action_name(
 			return _can_execute_discover_biome(farm)
 		"remove_biome":
 			return _can_execute_remove_biome(farm)
+		"hadamard", "rotate_up", "rotate_down":
+			# Gate family was previously unvalidated (fell through to `true`) —
+			# the keyboard path fired on register-less slots and refused after.
+			var targets := selected_plots if not selected_plots.is_empty() else ([current_selection] as Array[Vector2i])
+			return _can_execute_gate(farm, targets)
 		"cycle_mode":
 			return true
 		_:
 			return true
+
+
+## Gate family: a unitary needs a real qubit under at least one target slot.
+## PlotRegisterResolver is the ONE slot→qubit authority (wrapping banned) — register-less
+## slots resolve to -1 and the verb must read as unavailable BEFORE the press.
+static func _can_execute_gate(farm, positions: Array[Vector2i]) -> bool:
+	if farm == null:
+		return false
+	for pos in positions:
+		if int(PlotRegisterResolver.resolve(farm, pos).get("register_id", -1)) >= 0:
+			return true
+	return false
 
 
 ## ============================================================================
@@ -118,7 +135,10 @@ static func _can_execute_tool_action(
 		# Druid frame — 1-qubit unitary gates
 		# ═══════════════════════════════════════════════════════════════
 		"rotate_down", "rotate_up", "hadamard":
-			return true  # Available if plots selected
+			# A unitary needs a real qubit under at least one target slot —
+			# a chip that lights up on a register-less slot then refuses on
+			# press is false-help (anti-gating law).
+			return _can_execute_gate(farm, selected_plots)
 		"apply_pauli_x", "apply_hadamard", "apply_pauli_z", "apply_ry", \
 		"apply_pauli_y", "apply_s_gate", "apply_t_gate", "apply_sdg_gate", \
 		"apply_rx_gate", "apply_ry_gate", "apply_rz_gate":

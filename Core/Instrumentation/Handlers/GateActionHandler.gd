@@ -548,7 +548,11 @@ static func _apply_gate_batch(farm, positions: Array[Vector2i], gate_name: Strin
 			success_count += 1
 		results.append(result)
 
-	return {
+	# When every position refused, lift the first honest per-position message to the top
+	# level — _run_action's toast tail reads only result.message, so without this the
+	# player got a bare "✗ H-Gate blocked" while the real reason ("StarterForest holds
+	# 4 qubits — this slot is beyond them") sat unread inside results[] (anti-gating law).
+	var out := {
 		"success": success_count > 0,
 		"gate": gate_name,
 		"display_name": display_name,
@@ -556,6 +560,9 @@ static func _apply_gate_batch(farm, positions: Array[Vector2i], gate_name: Strin
 		"total_count": positions.size(),
 		"results": results
 	}
+	if success_count == 0:
+		out["message"] = _first_failure_message(results, "%s refused" % display_name)
+	return out
 
 
 static func _apply_two_qubit_gate_batch(farm, positions: Array[Vector2i], gate_name: String, display_name: String) -> Dictionary:
@@ -578,13 +585,29 @@ static func _apply_two_qubit_gate_batch(farm, positions: Array[Vector2i], gate_n
 			success_count += 1
 		results.append(result)
 
-	return {
+	# Same message lift as _apply_gate_batch — an all-refused Operator-frame gate must
+	# say why, not just "blocked".
+	var out := {
 		"success": success_count > 0,
 		"gate": gate_name,
 		"display_name": display_name,
 		"pair_count": success_count,
 		"results": results
 	}
+	if success_count == 0:
+		out["message"] = _first_failure_message(results, "%s refused" % display_name)
+	return out
+
+
+## First non-empty failure message from a batch's per-position results — the honest text
+## _apply_single_qubit_gate/_apply_two_qubit_gate already wrote.
+static func _first_failure_message(results: Array, fallback: String) -> String:
+	for r in results:
+		if typeof(r) == TYPE_DICTIONARY and not bool(r.get("success", false)):
+			var msg := str(r.get("message", ""))
+			if msg != "":
+				return msg
+	return fallback
 
 
 static func _resolve_biome_register(farm, position: Vector2i) -> Dictionary:
@@ -609,8 +632,9 @@ static func _apply_single_qubit_gate(farm, position: Vector2i, gate_name: String
 	var biome = resolved.get("biome", null)
 	var register_id: int = int(resolved.get("register_id", -1))
 
-	# Validate biome and register. The message reaches the player as a toast
-	# via the _run_action tail — a refused verb must SAY so (anti-gating law).
+	# Validate biome and register. The message reaches the player via
+	# _apply_gate_batch's message lift → _run_action's toast tail — a refused
+	# verb must SAY so (anti-gating law).
 	if not biome or not biome.quantum_computer or register_id < 0:
 		var nq: int = int(resolved.get("num_qubits", 0))
 		var refuse_msg := "No qubit under this plot"

@@ -1788,7 +1788,19 @@ func _perform_batch_gate_action(action_name: String, positions: Array, symbol: S
 		order_log.append("q%d" % qubit)
 
 	if gate_ops.is_empty():
+		# A mass-op that does nothing must SAY so (anti-gating law) — this was a
+		# verbose-only bail: no toast, no action_performed, a silent Shift+verb.
 		_verbose.warn("input", "⚠️", "No valid qubits for batch gate")
+		var first_resolved: Dictionary = PlotRegisterResolver.resolve(farm, positions[0]) if positions.size() > 0 else {}
+		var nq := int(first_resolved.get("num_qubits", 0))
+		var bname := str(first_resolved.get("biome_name", ""))
+		var msg := "No qubits under the checked plots"
+		if bname != "" and nq > 0:
+			msg = "%s holds %d qubit%s — the checked slots are beyond them" % [
+				bname, nq, "" if nq == 1 else "s"]
+		var refusal := {"success": false, "error": "no_valid_qubits", "message": msg}
+		_toast_refusal(log_label, refusal)
+		action_performed.emit(action_name, refusal)
 		return
 
 	_verbose.info("input", symbol, "Batch %s on %d qubits (order: %s)" % [
@@ -1867,18 +1879,29 @@ func _run_action(action_name: String, log_symbol: String, action_label: String) 
 	# failures like "Need ❄️ to measure" never showed.) If a started action fails and
 	# carries a message, the player sees it.
 	if not bool(result.get("success", true)):
-		var msg := str(result.get("message", action_label + " blocked"))
-		if msg != "":
-			var shell := _resolve_player_shell()
-			if shell and shell.has_method("show_hint"):
-				shell.show_hint("[color=#ff9966]✗ %s[/color]" % msg, 3)
+		_toast_refusal(action_label, result)
 	return result
+
+
+## The ONE player-facing refusal toast (anti-gating law: a refused verb must SAY so).
+## Handlers ship honest reasons in result.message; if one arrives empty, the fallback
+## still names the verb AND the error code — "H-Gate blocked" with no reason was itself
+## a law violation, and the code makes a silent handler debuggable from the player's chair.
+func _toast_refusal(action_label: String, result: Dictionary) -> void:
+	var msg := str(result.get("message", ""))
+	if msg == "" or msg == "unknown":
+		msg = "%s refused (%s)" % [action_label, str(result.get("error", "no reason given"))]
+	var shell := _resolve_player_shell()
+	if shell and shell.has_method("show_hint"):
+		shell.show_hint("[color=#ff9966]✗ %s[/color]" % msg, 3)
 
 
 func _run_cleanup_action(action_name: String, log_symbol: String, action_label: String) -> void:
 	# Execute a cleanup version of an action (e.g., pop cleanup).
 	var result = _execute_cleanup_action(action_name)
 	_log_action_result(action_name, log_symbol, action_label, result)
+	if not bool(result.get("success", true)):
+		_toast_refusal(action_label, result)
 
 
 func _execute_cleanup_action(action_name: String) -> Dictionary:
@@ -1900,13 +1923,9 @@ func _log_action_result(action_name: String, log_symbol: String, action_label: S
 			_verbose.info("input", "•", "%s blocked: %s" % [label, message])
 		else:
 			_verbose.warn("input", "✗", "%s failed: %s" % [label, message])
-		# A refused verb must SAY so — silence reads as a broken key. Every
-		# handler ships an honest reason ("the enclave holds…", "need the
-		# north-pole emoji…"); surface it as a toast, not just a dev log.
-		if message != "" and message != "unknown":
-			var shell := _resolve_player_shell()
-			if shell != null and shell.has_method("show_hint"):
-				shell.show_hint("[color=#8899aa]•[/color] %s" % message)
+		# Player-facing refusal toast lives in ONE place — _toast_refusal, fired
+		# from the _run_action/_run_cleanup_action tails. This used to also toast
+		# here, which double-toasted every message-carrying refusal (gray + orange).
 	action_performed.emit(action_name, result)
 
 

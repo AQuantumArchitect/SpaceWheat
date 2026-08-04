@@ -264,10 +264,12 @@ func get_overridden_action_cost(action: String, context: Dictionary = {}) -> Dic
 func get_overridden_gate_cost(gate_name: String) -> Dictionary:
 	# Gate costs are DATA, sourced ONLY from the canonical JSONL — there is no code-default.
 	# gate_costs is an intentionally SPARSE table: only gates that cost a currency are listed.
-	# A gate with no entry returns {} and is FREE by design (empty cost = nothing to spend) —
-	# this is NOT a silent config-hole fallback. (Unlike economy_variables, which are all
-	# required and hard-fail when missing; a missing gate price is a valid "this gate is free".)
-	# If a gate SHOULD cost something, price it in default.jsonl under gate_costs.<gate>.<emoji>.
+	# A gate with no entry returns {} and is FREE by design (empty cost = nothing to spend).
+	# CURRENT TRUTH (polish pass 2026-08-04): default.jsonl ships the table EMPTY — the old
+	# 9 price rows were deleted because NO gameplay path ever charged them (preflight_gate/
+	# commit_gate below have zero callers; the Druid path charges via action_costs). Pricing
+	# a gate here does nothing until a caller wires preflight_gate/commit_gate into the gate
+	# dispatch — that wiring is the owner's gate-pricing decision, catalogued in SLOP_PATROL.
 	var overrides = _economy_overrides.get("gate_costs", {})
 	if overrides is Dictionary and overrides.has(gate_name):
 		var cost = overrides[gate_name]
