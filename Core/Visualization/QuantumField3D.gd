@@ -1,17 +1,18 @@
 class_name QuantumField3D
 extends SubViewportContainer
-# A 3D cognifold renderer for the live farm, gated behind the 3D toggle. It reads the
-# SAME `biome.viz_cache` the 2D renderer reads — per-register Bloch vectors
-# (x,y,z,r,p0,p1) — and draws each register in a clean, Mini-Metro style (flat + vibrant,
-# NO bloom/glow) where the EMOJI is the star:
-#   • a big, clean billboarded real-emoji Sprite3D (the register's north-pole axis icon)
-#     on a DARK subtle backing ball — the colour is a ring, not a filled glow;
-#   • a thin biome-colour identity ring (BiomeVisualTheme, "one colour = one meaning"),
-#     brighter when coherent, duller when decohered;
+# A 3D cognifold renderer for the live farm — the default renderer since the sprint
+# flip. It reads the SAME `biome.viz_cache` the 2D renderer reads — per-register Bloch
+# coords (theta/phi/r, p0/p1) — and draws each register as a legible BLOCH BALL:
+#   • a translucent biome-tinted state-space ball with an equator ring (the x-y phase
+#     plane) and a faint pole-to-pole measurement axis;
+#   • both basis emojis as billboarded Sprite3Ds — |0⟩ north above, |1⟩ south below;
+#   • the honest state DOT at the live (theta,phi,r) inside the ball — its motion IS
+#     the physics — plus (under the B microscope) its vector and fading trail;
 #   • a thin gold RIPENESS ring (gold = the global ripeness/value colour in every biome)
 #     that grows with the honest VisualizationConstants.ripeness(p0,p1);
-#   • the honest Bloch-vector dot at the register's real (x,y,z), length = r.
-# The field drifts slowly (pausing on mouse activity) so it never reads as a dead frame.
+#   • a bright selection torus on the focused orb (set_focused_plot).
+# The field drifts slowly (pausing on mouse activity or E-pause) so it never reads as a
+# dead frame. Mini-Metro clarity: flat vibrant colour, no bloom/glow.
 #
 # Mechanics input is wired through the SAME seam the 2D renderer uses: a TAP on an orb
 # emits node_clicked(grid_pos) (FarmView → handle_bubble_tap), and a SWIPE across 2+ orbs
@@ -84,6 +85,13 @@ var _ascend_portal = null           # {mesh, ring, sprite} or null — only pres
 var _sel_plot_idx := -1
 var _sel_biome := ""
 var _sel_ring: MeshInstance3D = null
+# B-microscope contract (mirrors QuantumForceGraph.on_overlay_changed): the default view
+# is the clean metro map — deep-physics webs (live MI edges, state vectors + trails) draw
+# only while the B biome microscope is open. Wired in RuntimeMount.
+var show_inspection_layers: bool = false
+# E-pause contract (mirrors QuantumForceGraph.set_time_flow_scale): 0 freezes the
+# renderer's own idle motion so "motion means time is passing" stays honest.
+var _time_scale: float = 1.0
 var _edges: MeshInstance3D = null   # live MI correlation lines between orbs
 var _vectors: MeshInstance3D = null # live Bloch state-vector lines (centre → state point)
 var _dragging := false
@@ -145,10 +153,8 @@ func _ready() -> void:
 	we.environment = env
 	_world.add_child(we)
 
-	var key := DirectionalLight3D.new()
-	key.rotation_degrees = Vector3(-44, -32, 0)
-	key.light_energy = 0.55
-	_world.add_child(key)
+	# (no DirectionalLight3D: every material in this renderer is UNSHADED by design —
+	# the light rig that used to sit here was dead weight)
 
 	_pivot = Node3D.new()
 	_pivot.position = Vector3(0, -0.45, 0)   # sit the field below the top HUD chrome
@@ -331,7 +337,7 @@ func _update_descend_visibility() -> void:
 		var b := _bubble_for_reg(int(dp.register_id))
 		var vis: bool = (not b.is_empty()) and is_instance_valid(b.get("mesh")) \
 			and b.mesh.visible and int(dp.register_id) == sel_reg
-		for k in ["mesh", "ring"]:
+		for k in ["mesh", "ring", "sprite"]:
 			var node = dp.get(k)
 			if node != null and is_instance_valid(node):
 				node.visible = vis
@@ -342,6 +348,32 @@ func _bubble_for_reg(reg: int) -> Dictionary:
 		if int(b.reg) == reg:
 			return b
 	return {}
+
+
+## B-microscope contract (same signature as QuantumForceGraph's): deep-physics webs
+## (MI edges, state vectors + trails) draw only while B is open.
+func on_overlay_changed(overlay_name: String, is_open: bool) -> void:
+	if overlay_name == "biome_detail":
+		show_inspection_layers = is_open
+		_mi_dirty = true
+
+
+## E-pause contract (same signature as QuantumForceGraph's): 0 freezes the renderer's
+## idle drift so a paused game LOOKS paused.
+func set_time_flow_scale(s: float) -> void:
+	_time_scale = s
+
+
+## Route a renderer-side refusal (e.g. the fractal depth cap) to the player as a toast —
+## a click that does nothing and says nothing is a silent hindrance (anti-gating law).
+func _toast(msg: String) -> void:
+	if msg == "":
+		return
+	var tree := get_tree()
+	var app = tree.get_first_node_in_group("app_root") if tree else null
+	var shell = app.player_shell if app != null and ("player_shell" in app) else null
+	if shell != null and shell.has_method("show_hint"):
+		shell.show_hint("[color=#8899aa]•[/color] %s" % msg)
 
 
 ## Centre the field on the PLAY AREA, not the window: ~283px of top chrome (resource bar
@@ -625,13 +657,12 @@ func _rebuild_portals(active_name: String) -> void:
 ## biome.set_meta("fractal_world", true) on every world it builds). Descend satellites are
 ## children of _pivot (they orbit WITH their register); the ascend portal is fixed on _world
 ## like the sibling rail, since "leave this world" isn't tied to any one register.
-## Depth-cap enforcement stays server-side in FractalAtlas/FractalWorldService — a click past
-## the cap is a defensive no-op here (action_enter_icon just returns success=false) rather
-## than duplicating the cap check in the renderer; a friendlier dead-end message is P4 scope
-## (playable-first-arc polish, task #405).
+## Depth-cap enforcement stays server-side in FractalAtlas/FractalWorldService — the
+## renderer doesn't duplicate the cap check; a refused descend (success=false) surfaces
+## the server's message as a toast in _try_pick (polish pass 2026-08-04).
 func _rebuild_fractal_portals(active_name: String) -> void:
 	for reg in _bubbles:
-		_spawn_descend_portal(int(reg.reg), reg.pos, active_name)
+		_spawn_descend_portal(int(reg.reg), reg.pos, active_name, str(reg.get("north_e", "")))
 
 	var biome = _get_active_biome()
 	if biome != null and biome.has_meta("fractal_world") and bool(biome.get_meta("fractal_world")):
@@ -640,7 +671,7 @@ func _rebuild_fractal_portals(active_name: String) -> void:
 	_update_selection_visuals()
 
 
-func _spawn_descend_portal(register_id: int, base_pos: Vector3, biome_name: String) -> void:
+func _spawn_descend_portal(register_id: int, base_pos: Vector3, biome_name: String, north_emoji: String = "") -> void:
 	# Push the satellite further out along the same radial direction as its register orb —
 	# purely geometric, no extra layout math needed.
 	var dir := base_pos.normalized() if base_pos.length() > 0.01 else Vector3(0, 1, 0)
@@ -670,7 +701,22 @@ func _spawn_descend_portal(register_id: int, base_pos: Vector3, biome_name: Stri
 	ring.visible = false
 	_pivot.add_child(ring)
 
-	_descend_portals.append({"mesh": mi, "ring": ring, "pos": pos, "biome_name": biome_name, "register_id": register_id})
+	# label the satellite with the register's icon so it reads as "descend into THIS
+	# register's world" instead of a meaningless indigo dot
+	var sp: Sprite3D = null
+	var tex := _emoji_tex(north_emoji)
+	if tex != null:
+		sp = Sprite3D.new()
+		sp.texture = tex
+		sp.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		sp.shaded = false
+		sp.no_depth_test = true
+		sp.pixel_size = 0.16 / float(max(8, tex.get_width()))
+		sp.position = pos
+		sp.visible = false
+		_pivot.add_child(sp)
+
+	_descend_portals.append({"mesh": mi, "ring": ring, "sprite": sp, "pos": pos, "biome_name": biome_name, "register_id": register_id})
 
 
 func _spawn_ascend_portal() -> void:
@@ -698,17 +744,30 @@ func _spawn_ascend_portal() -> void:
 	ring.rotation_degrees = Vector3(90, 0, 0)
 	_world.add_child(ring)
 
-	_ascend_portal = {"mesh": mi, "ring": ring, "pos": pos}
+	# "go back up" needs a glyph, not just a cyan dot
+	var sp: Sprite3D = null
+	var tex := _emoji_tex("⬆")
+	if tex != null:
+		sp = Sprite3D.new()
+		sp.texture = tex
+		sp.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		sp.shaded = false
+		sp.no_depth_test = true
+		sp.pixel_size = 0.28 / float(max(8, tex.get_width()))
+		sp.position = pos
+		_world.add_child(sp)
+
+	_ascend_portal = {"mesh": mi, "ring": ring, "sprite": sp, "pos": pos}
 
 
 func _clear_fractal_portals() -> void:
 	for p in _descend_portals:
-		for k in ["mesh", "ring"]:
+		for k in ["mesh", "ring", "sprite"]:
 			if p.get(k) != null and is_instance_valid(p[k]):
 				p[k].queue_free()
 	_descend_portals.clear()
 	if _ascend_portal != null:
-		for k in ["mesh", "ring"]:
+		for k in ["mesh", "ring", "sprite"]:
 			if _ascend_portal.get(k) != null and is_instance_valid(_ascend_portal[k]):
 				_ascend_portal[k].queue_free()
 		_ascend_portal = null
@@ -800,17 +859,25 @@ func _process(dt: float) -> void:
 	if biome.has_method("get_biome_type"):
 		bname = str(biome.get_biome_type())
 	if bname != _last_biome or _bubbles.is_empty():
+		var switched := _last_biome != "" and bname != _last_biome
 		_last_biome = bname
 		_apply_theme(bname)
 		_rebuild(biome)
 		_rebuild_portals(bname)
+		if switched:
+			# soften the hard cut on biome switch / descend / ascend — a short fade-in
+			# instead of the whole world teleporting between frames
+			modulate.a = 0.35
+			var tw := create_tween()
+			tw.tween_property(self, "modulate:a", 1.0, 0.28)
 		if OS.has_environment("SW_FIELD_3D_DEBUG"):
 			print("[QF3D] rebuilt biome=", bname, " registers=", _bubbles.size(), " portals=", _portals.size())
 
 	# Gentle continuous drift so the 3D never freezes; a brief hold after a mouse action so a
-	# click doesn't fight a moving target. The PRIMARY motion is the physics (state points below).
-	if not _dragging and Time.get_ticks_msec() > _orbit_hold_until_ms:
-		_pivot.rotate_object_local(Vector3.UP, dt * 0.08)
+	# click doesn't fight a moving target. The PRIMARY motion is the physics (state points
+	# below). E-pause (_time_scale 0) freezes this too — motion means time is passing.
+	if not _dragging and _time_scale > 0.0 and Time.get_ticks_msec() > _orbit_hold_until_ms:
+		_pivot.rotate_object_local(Vector3.UP, dt * 0.08 * _time_scale)
 
 	var vc = biome.viz_cache
 	_apply_force_dynamics(vc, dt)
@@ -833,10 +900,13 @@ func _process(dt: float) -> void:
 		if b.dot.scale.x > 1.01:   # decay the pick-flash
 			b.dot.scale = b.dot.scale.lerp(Vector3.ONE, min(1.0, dt * 6.0))
 		# record the trajectory so the state's precession leaves a visible fading arc
-		var tr: Array = b.trail
-		tr.append(b.dot.position)
-		if tr.size() > 110:
-			tr.pop_front()
+		# (only while time flows and the orb is revealed — a paused/hidden register
+		# must not accumulate a ghost trail)
+		if _time_scale > 0.0 and is_instance_valid(b.mesh) and b.mesh.visible:
+			var tr: Array = b.trail
+			tr.append(b.dot.position)
+			if tr.size() > 110:
+				tr.pop_front()
 		# ripeness (value) grows the gold ring
 		var rip := clampf(VC.ripeness(p0, p1), 0.0, 1.0)
 		b.ring.scale = Vector3.ONE * (0.92 + 0.35 * rip)
@@ -858,9 +928,16 @@ func _update_vectors() -> void:
 	vm.clear_surfaces()
 	if _bubbles.is_empty():
 		return
+	# deep-physics web: vectors + trails draw only under the B microscope (the state
+	# DOT itself stays always-on — it's the primary "physics is alive" signal)
+	if not show_inspection_layers:
+		return
 	vm.surface_begin(Mesh.PRIMITIVE_LINES)
 	for b in _bubbles:
 		if not is_instance_valid(b.dot):
+			continue
+		# reveal gate: an unexplored register draws no web
+		if not is_instance_valid(b.mesh) or not b.mesh.visible:
 			continue
 		# state vector: faint at the centre, bright cyan at the tip
 		vm.surface_set_color(Color(0.55, 0.6, 0.7, 0.35))
@@ -955,7 +1032,7 @@ func _reposition_bubble_visuals(b: Dictionary) -> void:
 	for dp in _descend_portals:
 		if int(dp.register_id) == int(b.reg):
 			var dpos := pos + dir * 0.42
-			for k in ["mesh", "ring"]:
+			for k in ["mesh", "ring", "sprite"]:
 				var node = dp.get(k)
 				if node != null and is_instance_valid(node):
 					node.position = dpos
@@ -1023,7 +1100,9 @@ func _recompute_attraction(vc) -> Array:
 func _update_edges(vc) -> void:
 	_mi_frame += 1
 	if _mi_dirty or (_mi_frame % MI_STRIDE) == 0:
-		_mi_segs = _recompute_mi_segs(vc)
+		# live MI is a deep-physics web — recomputed and drawn only under the B
+		# microscope (metro lines below stay: they're the permanent transit map)
+		_mi_segs = _recompute_mi_segs(vc) if show_inspection_layers else []
 		_mi_dirty = false
 	if _edges != null and _edges.mesh is ImmediateMesh:
 		_draw_segs(_edges.mesh, _mi_segs)
@@ -1069,6 +1148,9 @@ func _recompute_mi_segs(vc) -> Array:
 		return segs
 	for i in range(_bubbles.size()):
 		for j in range(i + 1, _bubbles.size()):
+			# reveal gate: edges only between orbs the player has actually explored
+			if not _bubble_shown(_bubbles[i]) or not _bubble_shown(_bubbles[j]):
+				continue
 			var mi := float(vc.get_mutual_information(_bubbles[i].reg, _bubbles[j].reg))
 			if mi > 0.02:
 				# crisp, clean correlation line (Mini-Metro line, not a glow) — light
@@ -1081,6 +1163,10 @@ func _recompute_mi_segs(vc) -> Array:
 	return segs
 
 
+func _bubble_shown(b: Dictionary) -> bool:
+	return is_instance_valid(b.get("mesh")) and b.mesh.visible
+
+
 ## Static Hamiltonian-coupling edges — the biome's PERMANENT wiring (icons.json), not a live
 ## measurement. Same authority the 2D metro-line renderer uses (QuantumEdgeRenderer.gd
 ## _rebuild_metro_cache): viz_cache.get_hamiltonian_couplings(emoji), aggregated to qubit
@@ -1091,7 +1177,8 @@ func _recompute_metro_segs(vc) -> Array:
 		return segs
 	var pos_by_reg: Dictionary = {}
 	for b in _bubbles:
-		pos_by_reg[int(b.reg)] = b.pos
+		if _bubble_shown(b):   # reveal gate: no transit lines into unexplored fog
+			pos_by_reg[int(b.reg)] = b.pos
 
 	var strength_by_pair: Dictionary = {}  # Vector2i(min,max) qubit -> max |J|
 	for emoji in vc.get_emojis():
@@ -1155,6 +1242,8 @@ func _rebuild_lindblad_glyphs() -> void:
 		return
 	var grid = farm_ref.grid
 	for b in _bubbles:
+		if not _bubble_shown(b):   # reveal gate: no flow arrows on unexplored registers
+			continue
 		var plot = grid.get_plot(b.grid_pos)
 		if plot == null:
 			continue
@@ -1410,6 +1499,9 @@ func _try_pick(screen_pos: Vector2, button: int) -> void:
 			var desc: Dictionary = farm_ref.instrument.action_enter_icon(str(bestd.biome_name), int(bestd.register_id))
 			if bool(desc.get("success", false)):
 				biome_selected.emit(str(desc.get("biome_name", "")))
+			else:
+				# depth cap (or any other server-side refusal) used to be a silent no-op
+				_toast(str(desc.get("message", "The depths end here — this world descends no further")))
 		_consume_tap()
 		return
 	if best != null and best.has("grid_pos"):

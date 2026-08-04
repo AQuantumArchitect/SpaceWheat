@@ -91,6 +91,12 @@ func teardown_runtime() -> void:
 # =============================================================================
 
 func _create_biome_background_layer() -> void:
+	# The 3D field's SubViewport is opaque (transparent_bg=false) and covers the full
+	# rect — a background behind it is dead pixels burning a CanvasLayer. 2D mode only.
+	if field3d != null:
+		if _verbose:
+			_verbose.info("ui", "🎯", "3D field is opaque — skipping biome background layer")
+		return
 	var bg_layer := CanvasLayer.new()
 	bg_layer.layer = BACKGROUND_LAYER
 	bg_layer.name = "BiomeBackgroundLayer"

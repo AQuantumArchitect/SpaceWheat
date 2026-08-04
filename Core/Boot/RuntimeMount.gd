@@ -237,24 +237,37 @@ func stage_ui(farm: Node, shell: Node, quantum_viz: Node, world_builder) -> void
 		else:
 			_verbose.warn("boot", "⚠️", "No biomes to inject - PlotGridDisplay will have no tiles")
 
-		# Wire plot positions to QuantumForceGraph for tethering
+		# Wire plot positions to QuantumForceGraph for tethering (2D-only: the 3D field's
+		# orbs have their own Fibonacci layout, no tile tethering)
 		if quantum_viz and plot_grid_display.has_signal("plot_positions_changed"):
 			if not plot_grid_display.plot_positions_changed.is_connected(quantum_viz.update_plot_positions):
 				plot_grid_display.plot_positions_changed.connect(quantum_viz.update_plot_positions)
 				_verbose.info("boot", "📡", "PlotGridDisplay connected to QuantumForceGraph anchors")
 
+		# The LIVE field renderer — the 2D force graph, or the 3D cognifold field
+		# FarmView holds in 3D mode (GameRoot mounts it before boot_runtime, so it
+		# exists by now). These two contracts used to be quantum_viz-guarded, which
+		# silently dropped them in 3D: MI webs/trails were always-on and pause didn't
+		# freeze the field.
+		var field_renderer: Node = quantum_viz
+		if field_renderer == null:
+			var fv = shell.get_tree().get_first_node_in_group("farm_view")
+			if fv != null and fv.has_method("get_field_renderer"):
+				field_renderer = fv.get_field_renderer()
+
 		# Inspection layers follow the B microscope: the default view is the
 		# clean metro map; deep-physics webs draw only while B is open.
-		if quantum_viz and shell.overlay_manager and shell.overlay_manager.has_signal("overlay_changed"):
-			if not shell.overlay_manager.overlay_changed.is_connected(quantum_viz.on_overlay_changed):
-				shell.overlay_manager.overlay_changed.connect(quantum_viz.on_overlay_changed)
-				_verbose.info("boot", "📡", "OverlayManager connected to QuantumForceGraph inspection layers")
+		if field_renderer and field_renderer.has_method("on_overlay_changed") \
+				and shell.overlay_manager and shell.overlay_manager.has_signal("overlay_changed"):
+			if not shell.overlay_manager.overlay_changed.is_connected(field_renderer.on_overlay_changed):
+				shell.overlay_manager.overlay_changed.connect(field_renderer.on_overlay_changed)
+				_verbose.info("boot", "📡", "OverlayManager connected to field-renderer inspection layers")
 
-		# E-pause freezes the metro flow dots — motion means "time is passing".
-		if quantum_viz and shell.has_signal("paused_changed") \
-				and quantum_viz.has_method("set_time_flow_scale"):
+		# E-pause freezes the renderer's idle motion — motion means "time is passing".
+		if field_renderer and shell.has_signal("paused_changed") \
+				and field_renderer.has_method("set_time_flow_scale"):
 			var flow_cb := func(is_paused: bool):
-				quantum_viz.set_time_flow_scale(0.0 if is_paused else 1.0)
+				field_renderer.set_time_flow_scale(0.0 if is_paused else 1.0)
 			if not shell.paused_changed.is_connected(flow_cb):
 				shell.paused_changed.connect(flow_cb)
 				_verbose.info("boot", "📡", "PlayerShell pause connected to sim-flow clock")
