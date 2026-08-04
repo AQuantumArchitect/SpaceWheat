@@ -32,6 +32,10 @@ GAME_DATA = [
     ROOT / "Core/Factions/data/icons.json",        # canonical icon poles (H physics)
     ROOT / "Core/Factions/data/axes.json",          # axis label emojis (qubit poles)
     ROOT / "Core/Quests/data/story_flags.json",     # story flag emojis
+    # semantica world configs (spec→biome compiler output) also carry pole emojis the
+    # renderer must draw — 🍺/🛖 shipped glyphless because this list didn't scan them
+    # (found in the 2026-08-04 broken-fractal-emoji audit).
+    *sorted((ROOT / "Core/Config/semantica").glob("*.json")),
 ]
 SVG_DIR       = ROOT / "Assets/emoji_svg"
 REGISTRY_FILE = ROOT / "Assets/emoji_registry.json"

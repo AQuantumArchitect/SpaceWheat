@@ -28,6 +28,7 @@ func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	process_mode = Node.PROCESS_MODE_ALWAYS
 
+	_install_emoji_font_fallback()
 	_create_player_shell()
 	if player_shell:
 		await get_tree().process_frame
@@ -35,6 +36,29 @@ func _ready() -> void:
 			player_shell.warm_shell_surfaces(true)
 	_build_title()
 	call_deferred("_maybe_auto_start")
+
+
+## Bundle-deterministic emoji text: append Twemoji-Mozilla (COLR) to the default UI
+## font's fallback chain. Without a bundled font every raw-Label emoji was a host-OS
+## lottery — Windows DirectWrite sends FE0F-stripped symbols (☀ ⚙ ⛰ …) to monochrome
+## Segoe UI Symbol and lacks newer glyphs (🪼) entirely, while the Linux dev box
+## resolves them via Noto Color Emoji, so "works here, tofu there". Twemoji-Mozilla
+## matches the twemoji SVGs the Sprite3D/EmojiDisplay path already draws, so text
+## and sprite glyphs now come from ONE artwork family on every platform.
+func _install_emoji_font_fallback() -> void:
+	var emoji_font: FontFile = load("res://Assets/Fonts/TwemojiMozilla.ttf")
+	if emoji_font == null:
+		push_warning("AppRoot: TwemojiMozilla.ttf missing — emoji text falls back to OS fonts")
+		return
+	var base := ThemeDB.fallback_font
+	if base == null:
+		return
+	var fallbacks: Array = base.fallbacks
+	for f in fallbacks:
+		if f == emoji_font:
+			return
+	fallbacks.append(emoji_font)
+	base.fallbacks = fallbacks
 
 
 func _input(event: InputEvent) -> void:
