@@ -219,6 +219,15 @@ func stage_ui(farm: Node, shell: Node, quantum_viz: Node, world_builder) -> void
 			plot_grid_display.inject_layout_calculator(calc)
 			_verbose.info("boot", "✓", "PlotGridDisplay layout_calculator: %s" % ("QuantumForceGraph's" if quantum_viz else "standalone (3D mode)"))
 
+		# Owner ruling 2026-08-03 (supersedes 2026-08-02's "separate fixed panel"
+		# ruling above): seeing the 2D rack live alongside the 3D field, Luke
+		# doesn't want it on screen — it read as visually tied to/over the 3D
+		# view. Hide it in 3D mode only; it keeps tracking plot/selection state
+		# underneath (QuantumInstrumentInput still routes through it below),
+		# only its rendering is suppressed.
+		if not quantum_viz:
+			plot_grid_display.visible = false
+
 		if farm.grid and farm.grid.has_biomes():
 			plot_grid_display.inject_biomes(farm.grid.get_all_biomes())
 			_verbose.info("boot", "✓", "PlotGridDisplay dependencies pre-injected")

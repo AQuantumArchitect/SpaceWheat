@@ -643,6 +643,15 @@ func _process(dt: float) -> void:
 	if win != null and (size.x < 4.0 or size.y < 4.0):
 		size = Vector2(win.size)
 
+	# _rebuild() below reads _is_plot_revealed(), which fails OPEN (visible) when
+	# farm_ref is null — correct for the standalone cognifold instrument (no farm,
+	# nothing to explore) but wrong here: FarmView's connect_to_farm() lands a few
+	# frames after this node starts ticking, so the first rebuild used to fire with
+	# farm_ref still unset and every plot came up pre-revealed, permanently (a
+	# biome only rebuilds again on biome change). Wait for the real connection.
+	if farm_ref == null:
+		return
+
 	var biome = _get_active_biome()
 	if biome == null:
 		return
