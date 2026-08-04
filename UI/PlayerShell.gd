@@ -93,7 +93,13 @@ func _input(event: InputEvent) -> void:
 				and instrument_input.has_method("owns_ef_keys") and bool(instrument_input.owns_ef_keys())
 		if paused and (overlay_stack == null or overlay_stack.is_empty()) and not qii_owns_ef:
 			show_hint("⏸ time paused — F plays on", 2)
-		_set_global_paused(true)
+		# The hint above was already suppressed when a submenu/confirm owns E/F
+		# (E is a real picker verb there, not pause) — but the actual pause
+		# side-effect below fired unconditionally regardless, silently
+		# stepping on the submenu's own E-slot interaction (sweep_main,
+		# first-arc pass). Gate it on the same check.
+		if not qii_owns_ef:
+			_set_global_paused(true)
 	elif event.keycode == KEY_F:
 		_set_global_paused(false)
 

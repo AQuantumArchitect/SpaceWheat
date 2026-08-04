@@ -585,6 +585,12 @@ func _handle_submenu_action(action_key: String) -> void:
 	# Check if option is disabled
 	if not action_data.get("enabled", true):
 		_verbose.info("input", "📋", "Option disabled: %s" % action_data.get("label", ""))
+		# Silent before this fix (sweep_main, first-arc pass): a disabled/
+		# unaffordable option pressed indistinguishably from a working one —
+		# no toast, no wallet change, no menu close. Same silent-picker class
+		# marathon #9 fixed nearby for the bare-{north,south} path; this
+		# disabled branch was missed.
+		_toast_player("✗ %s — not available" % str(action_data.get("label", action_key)))
 		return  # Stay in submenu
 
 	var action = action_data.get("action", "")
