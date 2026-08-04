@@ -344,6 +344,41 @@ func _bubble_for_reg(reg: int) -> Dictionary:
 	return {}
 
 
+## Centre the field on the PLAY AREA, not the window: ~283px of top chrome (resource bar
+## + 3 action rows) vs ~72px bottom at 720p means the window centre sits well above the
+## usable strip's centre, sliding top orbs under the HUD. Camera h/v_offset pans the frame
+## so the pivot projects at UILayoutManager.get_play_area_center() — unproject_position
+## includes the offsets, so picking stays exact. The standalone cognifold instrument has
+## no shell/layout manager and keeps the plain window-centred frame.
+func _update_camera_framing() -> void:
+	if _cam == null or size.y < 4.0:
+		return
+	var lm = _layout_manager_ref()
+	if lm == null or not lm.has_method("get_play_area_center"):
+		return
+	var pc: Vector2 = lm.get_play_area_center()
+	var vc: Vector2 = size * 0.5
+	var dist := _cam.position.length()   # camera → pivot origin
+	var world_per_px := 2.0 * dist * tan(deg_to_rad(_cam.fov * 0.5)) / size.y
+	# camera pans opposite to where the subject should appear: play-centre right of the
+	# window centre → camera left; play-centre BELOW (screen y grows down) → camera up.
+	_cam.h_offset = -(pc.x - vc.x) * world_per_px
+	_cam.v_offset = (pc.y - vc.y) * world_per_px
+
+
+var _lm_cache: Node = null
+func _layout_manager_ref() -> Node:
+	if _lm_cache != null and is_instance_valid(_lm_cache):
+		return _lm_cache
+	var tree := get_tree()
+	if tree == null:
+		return null
+	var fv = tree.get_first_node_in_group("farm_view")
+	var shell = fv.shell if fv != null and ("shell" in fv) else null
+	_lm_cache = shell.layout_manager if shell != null and ("layout_manager" in shell) else null
+	return _lm_cache
+
+
 # ----------------------------------------------------------- farm/biome access
 func _farm_grid():
 	if farm_ref == null or not is_instance_valid(farm_ref):
@@ -408,8 +443,20 @@ func _rebuild(biome) -> void:
 	var vc = biome.viz_cache
 	var n: int = vc.get_num_qubits()
 	var reg_gpos := _build_register_gridpos_map(biome)
+	# The Fibonacci spiral is only centroid-balanced for large n — a 4-register biome's
+	# raw layout sits ~0.29 units left of origin, and the pivot spin then ORBITS that
+	# offset around the screen centre (the picture visibly wanders). Subtract the
+	# centroid so the cloud is centred on the pivot it rotates about.
+	var raw: Array = []
+	var centroid := Vector3.ZERO
 	for i in range(n):
-		var pos := _layout_pos(i, n)
+		var p := _layout_pos(i, n)
+		raw.append(p)
+		centroid += p
+	if n > 0:
+		centroid /= float(n)
+	for i in range(n):
+		var pos: Vector3 = raw[i] - centroid
 		var axis = vc.get_axis(i)
 		var north_e := str(axis.get("north", "")) if typeof(axis) == TYPE_DICTIONARY else ""
 		var south_e := str(axis.get("south", "")) if typeof(axis) == TYPE_DICTIONARY else ""
@@ -561,9 +608,11 @@ func _rebuild_portals(active_name: String) -> void:
 	var n := others.size()
 	for i in range(n):
 		# a fixed vertical "travel rail" down the empty left side — never occluded by the
-		# field or its bloom, always clickable to dive into that biome
+		# field or its bloom, always clickable to dive into that biome. x=−4.2 mirrors the
+		# ascend portal's +4.2 (the old −4.9 sat ~76% out toward the left edge and read as
+		# a lopsided composition with ≥2 biomes loaded).
 		var t := (float(i) + 0.5) / float(max(1, n))   # 0..1, centered
-		var pos := Vector3(-4.9, 0.8 - t * 3.6, 0.0)
+		var pos := Vector3(-4.2, 0.8 - t * 3.6, 0.0)
 		_spawn_portal(others[i], pos)
 
 	_rebuild_fractal_portals(active_name)
@@ -625,7 +674,7 @@ func _spawn_descend_portal(register_id: int, base_pos: Vector3, biome_name: Stri
 
 
 func _spawn_ascend_portal() -> void:
-	var pos := Vector3(4.9, 1.6, 0.0)
+	var pos := Vector3(4.2, 1.6, 0.0)   # mirrors the sibling rail's −4.2
 	var mi := MeshInstance3D.new()
 	var sm := SphereMesh.new(); sm.radius = 0.20; sm.height = 0.40
 	sm.radial_segments = 20; sm.rings = 12
@@ -722,11 +771,18 @@ func _clear_portals() -> void:
 
 
 func _process(dt: float) -> void:
-	# Force sizing: if anchor resolution left us collapsed, drive size from the window
-	# so the SubViewport has a real render target.
-	var win := get_window()
-	if win != null and (size.x < 4.0 or size.y < 4.0):
-		size = Vector2(win.size)
+	# Force sizing: if anchor resolution left us collapsed, re-assert the full-rect
+	# anchors (the authority for our rect). The old fallback copied win.size — PHYSICAL
+	# window pixels — into the 1280×720 canvas_items space, which shifted the render
+	# down-right and zoomed it ~1.5× whenever it fired, permanently.
+	if size.x < 4.0 or size.y < 4.0:
+		set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	elif _sv != null and Vector2(_sv.size) != size:
+		# stretch=true must keep the render target in lockstep with the container —
+		# any divergence breaks centring AND picking together (unproject vs ev.position).
+		_sv.size = Vector2i(size)
+
+	_update_camera_framing()
 
 	# _rebuild() below reads _is_plot_revealed(), which fails OPEN (visible) when
 	# farm_ref is null — correct for the standalone cognifold instrument (no farm,
@@ -859,6 +915,17 @@ func _apply_force_dynamics(vc, dt: float) -> void:
 			var dist := delta.length()
 			if dist < REPEL_MARGIN and dist > 0.001:
 				targets[i] += delta.normalized() * (REPEL_MARGIN - dist) * 0.5
+
+	# Attraction is one-sided (everything pulls inward toward partners), so the cloud's
+	# centre of mass migrates off the pivot origin — and the pivot spin then swings that
+	# offset around the screen (visible wander). Cancel the mean displacement so the
+	# cloud breathes in place: relative attraction preserved, COM pinned to the origin.
+	var com_drift := Vector3.ZERO
+	for i in range(_bubbles.size()):
+		com_drift += targets[i] - _bubbles[i].anchor
+	com_drift /= float(_bubbles.size())
+	for i in range(_bubbles.size()):
+		targets[i] -= com_drift
 
 	var smoothing := 1.0 - exp(-DRIFT_SMOOTH * dt)
 	for i in range(_bubbles.size()):
