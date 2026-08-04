@@ -133,8 +133,15 @@ func evaluate_predicate(predicate: Dictionary) -> float:
 				var action_name := str(row.get("action", "")).to_lower()
 				if action_name.find(pattern) >= 0:
 					hits += 1.0
-			# Smooth over ±1.5 hits so "just short" isn't a cliff
-			return QuestMath.soft_gate(hits, min_count, 1.5)
+			# A STRUCTURAL count, not a soft gate — the tutorial math_notes promise
+			# "fires the instant your action history records N" and gate_order below
+			# already scores as a completed fraction. The old soft_gate(hits, min_count,
+			# 1.5) scored exactly 0.5 AT the promised count, so a count-1 step (one
+			# R-strike) silently needed ~3 strikes to cross the 0.85 fire line — the
+			# tutorial's first objective never advanced for a player who did exactly
+			# what it asked (caught by the 2026-08-04 rig re-verification, fresh-boot
+			# reproduced). Partial progress below the count keeps the bar a teacher.
+			return clampf(hits / min_count, 0.0, 1.0)
 		"gate_order":
 			# The braid teacher: ordered subsequence match over the action history.
 			# {"type": "gate_order", "gates": ["hadamard", "cnot"]} scores the

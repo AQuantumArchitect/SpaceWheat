@@ -21,8 +21,11 @@ var _fractal_intro_shown := false
 func _ready() -> void:
 	if Engine.is_editor_hint():
 		return
-	if GameStateManager and GameStateManager.has_signal("farm_ready"):
-		GameStateManager.farm_ready.connect(_on_farm_ready)
+	# Guarded /root/ lookup, not the bare autoload identifier (compile bomb under
+	# --check-only harnesses — same law as PlotGridDisplay/BiomeInspectorOverlay).
+	var gsm := get_node_or_null("/root/GameStateManager")
+	if gsm and gsm.has_signal("farm_ready"):
+		gsm.farm_ready.connect(_on_farm_ready)
 
 
 func _on_farm_ready(farm: Node, _state) -> void:
@@ -99,7 +102,11 @@ func _wire_instrument_signals() -> void:
 # ─────────────── handlers ───────────────
 
 func _push(message: String, importance: int, icon: String, category: String, path: String = "") -> void:
-	PlayerEventLog.push(message, importance, icon, category, path)
+	# Guarded /root/ lookup — bare autoload identifiers are compile bombs under
+	# --check-only harnesses (same law as the GameStateManager lookup above).
+	var log_node := get_node_or_null("/root/PlayerEventLog")
+	if log_node and log_node.has_method("push"):
+		log_node.push(message, importance, icon, category, path)
 
 
 func _on_icon_learned(north: String, south: String, faction: String) -> void:
@@ -209,7 +216,10 @@ const REASON_WORDS := {
 }
 
 
-func _on_resource_mutated(emoji: String, delta: float, reason: String, _amount: float) -> void:
+## resource_mutated grew a 5th arg (biome_name) in d8126c22; this handler was never
+## updated, so EVERY mutation since errored the connection and the "🌾 +23 (extract)"
+## chatter toasts died silently (caught by the polish-pass rig re-verification).
+func _on_resource_mutated(emoji: String, delta: float, reason: String, _amount: float, _biome_name: String = "") -> void:
 	if reason in REASON_WORDS:
 		var sign_str: String = "+" if delta >= 0 else ""
 		_push("%s %s%d (%s)" % [emoji, sign_str, int(delta), REASON_WORDS[reason]], 1, emoji, "resource", "")
