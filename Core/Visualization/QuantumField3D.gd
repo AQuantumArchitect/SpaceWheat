@@ -1546,6 +1546,23 @@ func dev_tap_register(idx: int) -> Vector2i:
 	return b.grid_pos
 
 
+## dev-only: tap the orb's outer EDGE (offset toward its descend satellite) — the exact
+## point the old satellite-first pick order stole from the orb. The centre-tap probe
+## above could never catch that bug: the orb always wins at its own centre.
+func dev_tap_register_edge(idx: int) -> Vector2i:
+	if idx < 0 or idx >= _bubbles.size():
+		return Vector2i(-9, -9)
+	var b = _bubbles[idx]
+	if not is_instance_valid(b.mesh) or _cam == null:
+		return Vector2i(-9, -9)
+	var centre := _cam.unproject_position(b.mesh.global_position)
+	var dir3 := (b.pos as Vector3).normalized() if (b.pos as Vector3).length() > 0.01 else Vector3.UP
+	var sat := _cam.unproject_position(b.mesh.global_position + dir3 * 0.42)
+	var toward := (sat - centre).normalized() if sat.distance_to(centre) > 0.5 else Vector2.RIGHT
+	_try_pick(centre + toward * (_orb_hit_radius() * 0.8), MOUSE_BUTTON_LEFT)
+	return b.grid_pos
+
+
 ## ------------------------------------------------------ rig/harness surface
 ## Renderer-agnostic mirror of the 2D rig's per-bubble read, so automated drives (the act
 ## campaign, tap_to_farm probe) can enumerate + target orbs under the 3D field. `visible`

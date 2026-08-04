@@ -180,6 +180,12 @@ func _dev_screenshot() -> void:
 			var gp = f3d.dev_tap_register(reg)
 			print("SW_TAP_TEST tapped grid_pos=", gp)
 			await get_tree().create_timer(1.6).timeout
+			# edge tap: the orb's outer half, where the old satellite-first pick order
+			# used to steal the click and dive into a fractal world
+			if f3d.has_method("dev_tap_register_edge"):
+				var gpe = f3d.dev_tap_register_edge(reg)
+				print("SW_TAP_TEST edge-tapped grid_pos=", gpe)
+				await get_tree().create_timer(1.6).timeout
 	# SW_TAP_PORTAL=<i>: click portal <i> to dive into that biome (fractal nav check).
 	if OS.has_environment("SW_TAP_PORTAL"):
 		var f3dp = get_node_or_null("QuantumField3D")
