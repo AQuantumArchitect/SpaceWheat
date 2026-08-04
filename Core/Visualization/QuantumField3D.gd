@@ -78,6 +78,12 @@ var _portals: Array = []            # {mesh, sprite, name, pos} — other biomes
 const DESCEND_HUE_COLOR := Color(0.55, 0.35, 0.95)  # fixed indigo — "go deeper", never a biome hue
 var _descend_portals: Array = []    # {mesh, ring, sprite, biome_name, register_id} — per register, click to enter_icon
 var _ascend_portal = null           # {mesh, ring, sprite} or null — only present inside a fractal child world
+# Focused-plot selection (QII.selection_changed → FarmView → set_focused_plot). plot_idx ≡
+# register_id (the plot-register invariant), so the ring finds its orb by register. A slot
+# with no register keeps the ring hidden — the honest refusal toast is the cue there.
+var _sel_plot_idx := -1
+var _sel_biome := ""
+var _sel_ring: MeshInstance3D = null
 var _edges: MeshInstance3D = null   # live MI correlation lines between orbs
 var _vectors: MeshInstance3D = null # live Bloch state-vector lines (centre → state point)
 var _dragging := false
@@ -193,6 +199,20 @@ func _ready() -> void:
 	_chain_mesh.material_override = cmat
 	_pivot.add_child(_chain_mesh)
 
+	# THE selection ring: one bright horizontal torus that sits on whichever orb the
+	# player's plot cursor focuses (keyboard G-; or tap). One shared node, moved between
+	# orbs — the 3D replacement for the hidden 2D rack's cyan tile border.
+	_sel_ring = MeshInstance3D.new()
+	var stm := TorusMesh.new(); stm.inner_radius = R + 0.19; stm.outer_radius = R + 0.23
+	stm.rings = 60; stm.ring_segments = 12
+	_sel_ring.mesh = stm
+	var selmat := StandardMaterial3D.new()
+	selmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	selmat.albedo_color = Color(0.92, 0.99, 1.0)
+	_sel_ring.material_override = selmat
+	_sel_ring.visible = false
+	_pivot.add_child(_sel_ring)
+
 
 # ------------------------------------------------- interface (FarmView contract)
 func connect_to_farm(farm: Node) -> void:
@@ -233,6 +253,7 @@ func _on_plot_revealed(grid_pos: Vector2i) -> void:
 	for b in _bubbles:
 		if b.get("grid_pos") == grid_pos:
 			_set_bubble_visible(b, true)
+	_update_selection_visuals()
 
 
 ## HARVEST pops the bubble back to unexplored fog (mirrors
@@ -242,6 +263,7 @@ func _on_terminal_released(grid_pos: Vector2i, _terminal_id: String, _credits_ea
 	for b in _bubbles:
 		if b.get("grid_pos") == grid_pos:
 			_set_bubble_visible(b, false)
+	_update_selection_visuals()
 
 
 func _set_bubble_visible(b: Dictionary, vis: bool) -> void:
@@ -259,8 +281,67 @@ func teardown() -> void:
 	farm_ref = null
 
 
-func _on_plot_selection_changed(_selected) -> void:
-	pass   # Phase B
+## Multi-select (checkbox) channel — same signature as QuantumForceGraph's handler, fed by
+## PlotGridDisplay.plot_selection_changed via FarmView. The rack still owns checkbox STATE;
+## the field just mirrors it so batch verbs read against a visible set.
+func _on_plot_selection_changed(grid_pos: Vector2i, is_selected: bool) -> void:
+	if is_selected:
+		selected_plot_positions[grid_pos] = true
+	else:
+		selected_plot_positions.erase(grid_pos)
+
+
+## Focused-plot channel (the single cursor, keyboard G-; or tap) — fed by
+## QII.selection_changed via FarmView. Drives the selection ring and which orb shows its
+## descend satellite (selected-orb-only, owner default 2026-08-04: satellites on every orb
+## both stole clicks from the orb's outer half and read as clutter).
+func set_focused_plot(plot_idx: int, biome_name: String) -> void:
+	_sel_plot_idx = plot_idx
+	_sel_biome = biome_name
+	_update_selection_visuals()
+
+
+func _selected_bubble() -> Dictionary:
+	if _sel_plot_idx < 0:
+		return {}
+	if _sel_biome != "" and _last_biome != "" and _sel_biome != _last_biome:
+		return {}
+	for b in _bubbles:
+		if int(b.reg) == _sel_plot_idx:
+			return b
+	return {}
+
+
+func _update_selection_visuals() -> void:
+	var b := _selected_bubble()
+	var has_orb: bool = (not b.is_empty()) and is_instance_valid(b.get("mesh")) and b.mesh.visible
+	if _sel_ring != null and is_instance_valid(_sel_ring):
+		_sel_ring.visible = has_orb
+		if has_orb:
+			_sel_ring.position = b.pos
+	_update_descend_visibility()
+
+
+## Descend satellites show ONLY on the focused, revealed orb — they exist as an affordance
+## for "descend into THIS register", not as a permanent constellation.
+func _update_descend_visibility() -> void:
+	var sel := _selected_bubble()
+	var sel_reg: int = int(sel.reg) if not sel.is_empty() else -2147483648
+	for dp in _descend_portals:
+		var b := _bubble_for_reg(int(dp.register_id))
+		var vis: bool = (not b.is_empty()) and is_instance_valid(b.get("mesh")) \
+			and b.mesh.visible and int(dp.register_id) == sel_reg
+		for k in ["mesh", "ring"]:
+			var node = dp.get(k)
+			if node != null and is_instance_valid(node):
+				node.visible = vis
+
+
+func _bubble_for_reg(reg: int) -> Dictionary:
+	for b in _bubbles:
+		if int(b.reg) == reg:
+			return b
+	return {}
 
 
 # ----------------------------------------------------------- farm/biome access
@@ -506,6 +587,8 @@ func _rebuild_fractal_portals(active_name: String) -> void:
 	var biome = _get_active_biome()
 	if biome != null and biome.has_meta("fractal_world") and bool(biome.get_meta("fractal_world")):
 		_spawn_ascend_portal()
+	# Satellites spawn hidden; selection + reveal state decide which one shows.
+	_update_selection_visuals()
 
 
 func _spawn_descend_portal(register_id: int, base_pos: Vector3, biome_name: String) -> void:
@@ -523,6 +606,7 @@ func _spawn_descend_portal(register_id: int, base_pos: Vector3, biome_name: Stri
 	mat.albedo_color = DESCEND_HUE_COLOR.darkened(0.35)
 	mi.material_override = mat
 	mi.position = pos
+	mi.visible = false   # selected-orb-only: _update_descend_visibility decides
 	_pivot.add_child(mi)
 
 	var ring := MeshInstance3D.new()
@@ -534,6 +618,7 @@ func _spawn_descend_portal(register_id: int, base_pos: Vector3, biome_name: Stri
 	rmat.albedo_color = DESCEND_HUE_COLOR
 	ring.material_override = rmat
 	ring.position = pos
+	ring.visible = false
 	_pivot.add_child(ring)
 
 	_descend_portals.append({"mesh": mi, "ring": ring, "pos": pos, "biome_name": biome_name, "register_id": register_id})
@@ -797,6 +882,21 @@ func _reposition_bubble_visuals(b: Dictionary) -> void:
 	var spr = b.get("spr")
 	if spr != null and is_instance_valid(spr):
 		spr.position = pos + Vector3(0, -(R + 0.12), 0)
+	# the register's descend satellite rides with its orb (it used to stay parked at the
+	# spawn-time anchor while the orb drifted away from it)
+	var dir := pos.normalized() if pos.length() > 0.01 else Vector3(0, 1, 0)
+	for dp in _descend_portals:
+		if int(dp.register_id) == int(b.reg):
+			var dpos := pos + dir * 0.42
+			for k in ["mesh", "ring"]:
+				var node = dp.get(k)
+				if node != null and is_instance_valid(node):
+					node.position = dpos
+			dp.pos = dpos
+	# the selection ring rides with the focused orb
+	if _sel_ring != null and is_instance_valid(_sel_ring) and _sel_ring.visible \
+			and _sel_plot_idx == int(b.reg):
+		_sel_ring.position = pos
 
 
 ## Combine live MI (primary, 0.7 weight) and static H-coupling magnitude (secondary, 0.3
@@ -1186,28 +1286,9 @@ func _try_pick(screen_pos: Vector2, button: int) -> void:
 				var asc: Dictionary = farm_ref.instrument.action_ascend_fractal()
 				if bool(asc.get("success", false)):
 					biome_selected.emit(str(asc.get("biome_name", "")))
+			_consume_tap()
 			return
-	# Descend: a tap on a register's indigo satellite calls enter_icon for that register —
-	# real recursive depth, distinct from the lateral sibling dive below.
-	var bestd = null
-	var bestd_d := _portal_hit_radius() * 0.75
-	for dp in _descend_portals:
-		if not is_instance_valid(dp.mesh):
-			continue
-		var wpd: Vector3 = dp.mesh.global_position
-		if _cam.is_position_behind(wpd):
-			continue
-		var dd := _cam.unproject_position(wpd).distance_to(screen_pos)
-		if dd < bestd_d:
-			bestd_d = dd
-			bestd = dp
-	if bestd != null:
-		if farm_ref != null and is_instance_valid(farm_ref) and ("instrument" in farm_ref) and farm_ref.instrument != null:
-			var desc: Dictionary = farm_ref.instrument.action_enter_icon(str(bestd.biome_name), int(bestd.register_id))
-			if bool(desc.get("success", false)):
-				biome_selected.emit(str(desc.get("biome_name", "")))
-		return
-	# Portals first: a click on another biome's orb dives into it (fractal navigation).
+	# Sibling portals next: their rail lives in empty space, no orb overlap to arbitrate.
 	var bestp = null
 	var bestp_d := _portal_hit_radius()
 	for p in _portals:
@@ -1225,7 +1306,13 @@ func _try_pick(screen_pos: Vector2, button: int) -> void:
 		if abm != null and abm.has_method("set_active_biome"):
 			abm.set_active_biome(str(bestp.name))
 		biome_selected.emit(str(bestp.name))
+		_consume_tap()
 		return
+	# Orb vs descend satellite: the satellite sits only ~0.42 units off its orb, well inside
+	# the orb's own hit radius, so strict ordering either steals the orb's outer half (the
+	# old bug: every outer-edge click dove into a fractal world) or makes the satellite
+	# unclickable. NEAREST-WINS between the two, and only VISIBLE satellites compete (they
+	# render on the focused, revealed orb only).
 	var best = null
 	var best_d := _orb_hit_radius()   # resolution-relative px hit radius
 	for b in _bubbles:
@@ -1238,11 +1325,41 @@ func _try_pick(screen_pos: Vector2, button: int) -> void:
 		if d < best_d:
 			best_d = d
 			best = b
+	var bestd = null
+	var bestd_d := _portal_hit_radius() * 0.75
+	for dp2 in _descend_portals:
+		if not is_instance_valid(dp2.mesh) or not dp2.mesh.visible:
+			continue
+		var wpd: Vector3 = dp2.mesh.global_position
+		if _cam.is_position_behind(wpd):
+			continue
+		var dd := _cam.unproject_position(wpd).distance_to(screen_pos)
+		if dd < bestd_d:
+			bestd_d = dd
+			bestd = dp2
+	if bestd != null and (best == null or bestd_d < best_d):
+		# Descend: enter_icon for that register — real recursive depth.
+		if farm_ref != null and is_instance_valid(farm_ref) and ("instrument" in farm_ref) and farm_ref.instrument != null:
+			var desc: Dictionary = farm_ref.instrument.action_enter_icon(str(bestd.biome_name), int(bestd.register_id))
+			if bool(desc.get("success", false)):
+				biome_selected.emit(str(desc.get("biome_name", "")))
+		_consume_tap()
+		return
 	if best != null and best.has("grid_pos"):
 		# brief pick flash so the tap reads even before the game's own feedback lands
 		if best.get("dot") != null and is_instance_valid(best.dot):
 			best.dot.scale = Vector3.ONE * 2.2
 		node_clicked.emit(best.grid_pos, button)
+		_consume_tap()
+
+
+## Join the tap-arbitration protocol the 2D handlers already speak: marking the tap consumed
+## stops any later (deferred) handler — e.g. a hidden-but-listening rack — from dispatching
+## the SAME click a second time against a different plot.
+func _consume_tap() -> void:
+	var tim = get_node_or_null("/root/TouchInputManager")
+	if tim != null and tim.has_method("consume_current_tap"):
+		tim.consume_current_tap()
 
 
 ## Screen position of a register's orb — FloatingRewardLayer uses this to anchor world-space

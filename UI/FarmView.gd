@@ -114,8 +114,13 @@ func _connect_quantum_viz_to_farm() -> void:
 func _connect_visualization_ui_signals() -> void:
 	var renderer = _renderer()
 	if renderer and shell:
-		var plot_grid_display = shell.get_node_or_null("QuantumInstrument/PlotGridDisplay")
-		if plot_grid_display and plot_grid_display.has_signal("plot_selection_changed"):
+		# The rack lives at shell.current_farm_ui.plot_grid_display (FarmUI.tscn child) —
+		# the old "QuantumInstrument/PlotGridDisplay" lookup pointed at a node path that
+		# never existed, so the multi-select wire below had never actually connected.
+		var farm_ui = shell.current_farm_ui if ("current_farm_ui" in shell) else null
+		var plot_grid_display = farm_ui.plot_grid_display if farm_ui and ("plot_grid_display" in farm_ui) else null
+		if plot_grid_display and plot_grid_display.has_signal("plot_selection_changed") \
+				and renderer.has_method("_on_plot_selection_changed"):
 			plot_grid_display.plot_selection_changed.connect(renderer._on_plot_selection_changed)
 			if _verbose:
 				_verbose.info("ui", "✅", "PlotGridDisplay connected to visualization")
@@ -123,6 +128,20 @@ func _connect_visualization_ui_signals() -> void:
 				var selected = plot_grid_display.get_selected_plots()
 				for pos in selected:
 					renderer.selected_plot_positions[pos] = true
+
+		# Focused-plot channel: QII.selection_changed is the shared tail of BOTH keyboard
+		# picks (_focus_plot) and taps (handle_bubble_tap) — one connection gives the
+		# renderer every deliberate selection, driving the 3D selection ring.
+		var instrument_input = farm_ui.instrument_input if farm_ui and ("instrument_input" in farm_ui) else null
+		if instrument_input and instrument_input.has_signal("selection_changed") \
+				and renderer.has_method("set_focused_plot"):
+			instrument_input.selection_changed.connect(renderer.set_focused_plot)
+			if instrument_input.has_method("get_current_selection"):
+				var cur = instrument_input.get_current_selection()
+				if typeof(cur) == TYPE_DICTIONARY and int(cur.get("plot_idx", -1)) >= 0:
+					renderer.set_focused_plot(int(cur.get("plot_idx", -1)), str(cur.get("biome", "")))
+			if _verbose:
+				_verbose.info("ui", "✅", "QII selection_changed connected to visualization")
 
 	if renderer:
 		if renderer.node_clicked.connect(_on_quantum_node_clicked) != OK:

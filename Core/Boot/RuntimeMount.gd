@@ -221,10 +221,13 @@ func stage_ui(farm: Node, shell: Node, quantum_viz: Node, world_builder) -> void
 
 		# Owner ruling 2026-08-03 (supersedes 2026-08-02's "separate fixed panel"
 		# ruling above): seeing the 2D rack live alongside the 3D field, Luke
-		# doesn't want it on screen — it read as visually tied to/over the 3D
-		# view. Hide it in 3D mode only; it keeps tracking plot/selection state
-		# underneath (QuantumInstrumentInput still routes through it below),
-		# only its rendering is suppressed.
+		# doesn't want it on screen. Hide it in 3D mode only; it keeps tracking
+		# plot/selection state underneath (QuantumInstrumentInput still routes
+		# through it below). PlotGridDisplay gates its own _input/_on_touch_tap
+		# on this same `visible` flag (polish pass 2026-08-04) — hiding alone
+		# left the rack invisibly eating taps and double-dispatching them
+		# against the 3D field's picks; the selection ring now lives in
+		# QuantumField3D (set_focused_plot), fed by QII.selection_changed.
 		if not quantum_viz:
 			plot_grid_display.visible = false
 

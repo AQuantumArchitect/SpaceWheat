@@ -1210,7 +1210,10 @@ func get_plot_position(grid_pos: Vector2i) -> Vector2:
 
 
 func _get_touch_input_manager() -> Node:
-	return TouchInputManager
+	# Guarded /root/ lookup, not the bare autoload identifier — a bare identifier is a
+	# compile error in any harness that loads this script without the autoload registered
+	# (same law as BiomeInspectorOverlay's IconRegistry fix, fable push 2026-08-03).
+	return get_node_or_null("/root/TouchInputManager")
 
 
 ## DRAG/SWIPE BATCH SELECTION
@@ -1223,6 +1226,13 @@ func _input(event: InputEvent) -> void:
 	# - Mouse press on plot: Start drag tracking
 	# - Mouse motion: Add plots to drag selection
 	# - Mouse release: End drag and select all dragged plots
+	#
+	# An invisible rack must not eat input: in 3D mode the rack is hidden but its
+	# tiles still hold real screen rects, so without this gate it kept starting
+	# drags and consuming releases the 3D field needed (_input runs before the
+	# GUI phase — hiding a Control does NOT stop _input delivery).
+	if not visible:
+		return
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_LEFT:
 			if event.pressed:
@@ -1268,6 +1278,12 @@ func _on_touch_tap(grid_pos: Vector2) -> void:
 	# Spatial hierarchy via consume flag: whichever handler (bubble/tile) claims
 	# the tap first wins; both route to the same seam so order doesn't matter.
 	_verbose.debug("ui", "🎯", "PlotGridDisplay._on_touch_tap received! Position: %s" % grid_pos)
+	# Same invisible-rack gate as _input(): a hidden rack's tiles still pass the
+	# rect test in _get_plot_at_screen_position (only per-TILE visibility is
+	# checked there), so in 3D mode this handler used to consume the tap and
+	# double-dispatch handle_bubble_tap against the 3D field's own pick.
+	if not visible:
+		return
 	var touch_input = _get_touch_input_manager()
 	if not touch_input:
 		return
