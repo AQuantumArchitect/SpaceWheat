@@ -13,11 +13,31 @@ direct-`_try_pick()` shortcut in any harness code — it bypasses the real
 input pipeline and can reproduce the "click hit whatever it might" bug
 class this campaign exists to catch.
 
+## Luke's "menu buttons feel dead" report (2026-08-05) — investigated
+
+Swept all 8 `MenuSelectionRow` buttons by click, twice: fresh boot (Z, X
+only unlocked) and at `act1_complete.tres` (Z X C V B N M all unlocked —
+EscapeMenu/ControlsOverlay/QuestBoard/Atlas/BiomeDetail/Inspector/MapMeta).
+**Every button opened its overlay and toggled closed again correctly at
+both checkpoints.** No dead menu button found by direct click test.
+
+Working theory: this is a downstream symptom of the plot-tap blocker
+above, not a separate menu bug. Most menus are correctly LOCKED/hidden at
+fresh boot until story flags unlock them (by design, progressive
+disclosure) — a mouse-only player who can never explore the first plot
+never triggers any of those unlocks, so almost the whole menu row stays
+inert for reasons unrelated to click-handling itself. Once the plot-tap
+blocker is actually fixed, re-run this sweep from a genuine fresh boot to
+confirm menus unlock and stay clickable through real progress (not just a
+loaded checkpoint) — if buttons still feel dead after that, it's a real,
+separate bug and this section should be reopened.
+
 ## Covered — verified working by click alone
 
 | Surface | Verb/control | Notes |
 |---|---|---|
 | Q/E/R/F action chips | `ActionPreviewRow` → `PlayerShell._route_action_key` → `OverlayBase.handle_action` | `ActionBtn_Q/E/R/F`, built once at boot (never rebuilt), safe to `control_rect` unscoped |
+| Top-level menu row (Z X C V B N M + play) | `MenuSelectionRow` | verified 2x: fresh boot (2 unlocked) and act1_complete (8 unlocked) — every button opens+closes correctly |
 | Hat row (4-0) | `ToolSelectionRow` (`SelectionButtonRow`) | |
 | Biome row (T-P) | `BiomeSelectionRow` (`SelectionButtonRow`) | |
 | Top-level menu open/close (Z X C V B N M) | `MenuSelectionRow` (`SelectionButtonRow`) — verified live 2026-08-05: click opens EscapeMenu, second click closes it | was previously untestable by name-based lookup — see fixed bug below |
