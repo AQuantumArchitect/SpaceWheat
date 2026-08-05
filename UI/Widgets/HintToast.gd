@@ -27,6 +27,8 @@ var _path_label: Label = null
 var _tween: Tween = null
 var _style: StyleBoxFlat = null
 var _paused: bool = false
+var _raw_bbcode: String = ""
+var _bump_count: int = 1
 
 
 func _init() -> void:
@@ -66,6 +68,7 @@ func _init() -> void:
 
 
 func show_text(bbcode: String, importance: int = 1, path: String = "") -> void:
+	_raw_bbcode = bbcode
 	if _label:
 		_label.text = bbcode
 	if _style:
@@ -78,6 +81,20 @@ func show_text(bbcode: String, importance: int = 1, path: String = "") -> void:
 		else:
 			_path_label.visible = false
 	_run_lifecycle()
+
+
+## Same message fired again while this toast is live: fold it in instead of
+## stacking a duplicate. Restarts the hold and appends a ×N tally.
+func matches(bbcode: String) -> bool:
+	return bbcode == _raw_bbcode
+
+
+func bump() -> void:
+	_bump_count += 1
+	if _label:
+		_label.text = "%s  [color=#aac]×%d[/color]" % [_raw_bbcode, _bump_count]
+	if not _paused:
+		_run_lifecycle()
 
 
 ## E pressed — halt decoherence; toast stops fading.
@@ -103,8 +120,12 @@ func flatten() -> void:
 func _run_lifecycle() -> void:
 	if _tween and _tween.is_valid():
 		_tween.kill()
+	# Reading-time hold: ~15 chars/sec over the parsed (bbcode-stripped) text,
+	# floored at the classic 4.5s, capped at 12s. E still pauses indefinitely.
+	var chars: int = _label.get_parsed_text().length() if _label else 0
+	var hold: float = clampf(float(chars) / 15.0, HOLD_SEC, 12.0)
 	_tween = create_tween()
 	_tween.tween_property(self, "modulate:a", 1.0, FADE_IN_SEC)
-	_tween.tween_interval(HOLD_SEC)
+	_tween.tween_interval(hold)
 	_tween.tween_property(self, "modulate:a", 0.0, FADE_OUT_SEC)
 	_tween.tween_callback(queue_free)

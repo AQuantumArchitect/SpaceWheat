@@ -176,11 +176,24 @@ func _mark_input_handled() -> void:
 
 ## Spawn an ephemeral corner-toast. importance: 1=blue, 2=teal, 3=gold.
 ## Importance < 2 is logged only; no toast is shown.
+const MAX_LIVE_TOASTS := 4
+
 func show_hint(bbcode_text: String, importance: int = 1, path: String = "") -> void:
 	if importance < 2:
 		return
 	if not _hint_toast_stack or not is_inside_tree():
 		return
+	# Dedupe: the same message re-fired while its toast is live folds into a
+	# ×N tally instead of stacking (unthrottled producers burst under load).
+	var top := _topmost_toast()
+	if top != null and top.matches(bbcode_text):
+		top.bump()
+		return
+	# Cap: bursts must not overflow the corner region — oldest toasts yield.
+	while _hint_toast_stack.get_child_count() >= MAX_LIVE_TOASTS:
+		var oldest := _hint_toast_stack.get_child(0)
+		_hint_toast_stack.remove_child(oldest)
+		oldest.queue_free()
 	var toast := HintToast.new()
 	_hint_toast_stack.add_child(toast)
 	toast.show_text(bbcode_text, importance, path)
