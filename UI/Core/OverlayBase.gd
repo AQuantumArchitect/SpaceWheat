@@ -263,22 +263,33 @@ func handle_input(event: InputEvent) -> bool:
 	# QERF action keys. Chip-honesty gate: when this overlay declares action
 	# labels, a key whose chip reads "—" must NO-OP — a dash chip with a live
 	# key is a text lie (fleet playtest). Overlays that declare nothing keep
-	# legacy behavior.
+	# legacy behavior. F takes the SAME gate as Q/E/R (it was keyboard-only
+	# ungated while chip-tap-F was gated — an input-path asymmetry), and a
+	# gated-off key speaks instead of dying silently (anti-gating law).
 	if keycode == InputBindingRegistry.get_action_keycode("Q"):
 		if _action_key_declared_live("Q"):
 			_on_action_q()
+		else:
+			RefusalVoice.note("nothing on Q here")
 		return true
 	if keycode == InputBindingRegistry.get_action_keycode("E"):
 		if _action_key_declared_live("E"):
 			_on_action_e()
 			_maybe_show_inspect_toast()
+		else:
+			RefusalVoice.note("nothing on E here")
 		return true
 	if keycode == InputBindingRegistry.get_action_keycode("R"):
 		if _action_key_declared_live("R"):
 			_on_action_r()
+		else:
+			RefusalVoice.note("nothing on R here")
 		return true
 	if keycode == InputBindingRegistry.get_action_keycode("F"):
-		_on_action_f()
+		if _action_key_declared_live("F"):
+			_on_action_f()
+		else:
+			RefusalVoice.note("nothing on F here")
 		return true
 
 	# ENTER/SPACE keys - activate selected item
@@ -302,22 +313,17 @@ func handle_action(action_key: String) -> bool:
 	if not is_active:
 		return false
 	match action_key:
-		"Q":
+		"Q", "E", "R", "F":
 			if _action_key_declared_live(action_key):
-				_on_action_q()
-			return true
-		"E":
-			if _action_key_declared_live(action_key):
-				_on_action_e()
-				_maybe_show_inspect_toast()
-			return true
-		"R":
-			if _action_key_declared_live(action_key):
-				_on_action_r()
-			return true
-		"F":
-			if _action_key_declared_live(action_key):
-				_on_action_f()
+				match action_key:
+					"Q": _on_action_q()
+					"E":
+						_on_action_e()
+						_maybe_show_inspect_toast()
+					"R": _on_action_r()
+					"F": _on_action_f()
+			else:
+				RefusalVoice.note("nothing on %s here" % action_key)
 			return true
 	return false
 
