@@ -604,6 +604,8 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 			if biome == null or biome.get("quantum_computer") == null:
 				return 0.0
 			var g_gte: float = float(biome.quantum_computer.get_hamiltonian_spectral_gap())
+			if g_gte < 0.0:
+				return 0.0  # unmeasurable (solver failure sentinel) is never satisfaction
 			return QuestMath.soft_gate(g_gte, float(pred.get("value", 0.0)), PREDICATE_SOFT_WIDTH["biome_spectral_gap_gte"])
 		"biome_spectral_gap_lte":
 			# "chaotic / near-degenerate" — score rises as H's gap falls below value (competing
@@ -614,6 +616,8 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 			if biome == null or biome.get("quantum_computer") == null:
 				return 0.0
 			var g_lte: float = float(biome.quantum_computer.get_hamiltonian_spectral_gap())
+			if g_lte < 0.0:
+				return 0.0  # a broken solver must not read as "chaotic" and hand out the ending
 			return QuestMath.soft_gate_inv(g_lte, float(pred.get("value", 0.0)), PREDICATE_SOFT_WIDTH["biome_spectral_gap_lte"])
 		"biome_energy_variance_gte":
 			# "restless / chaotic" — score rises as Var(H) = ⟨H²⟩−⟨H⟩² climbs above value.

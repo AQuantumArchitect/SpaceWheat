@@ -1810,28 +1810,48 @@ func get_hamiltonian_spectral_gap() -> float:
 	#
 	# Reuses the one eigensolver: the gap of H is the gap of −H's two TOP eigenvalues
 	# (E₁−E₀ = (−E₀)−(−E₁)), and compute_eigenstates returns them dominant-first.
+	#
+	# FAILURE SENTINEL: every can't-measure branch returns -1.0, never 0.0.
+	# A genuine 0.0 gap SATISFIES biome_spectral_gap_lte — the win condition —
+	# so a broken solver returning 0.0 would silently hand the player the
+	# ending. Consumers: predicate evaluators score a negative gap as 0 (failure
+	# is never satisfaction); display surfaces render "—".
 	if hamiltonian == null or register_map == null:
-		return 0.0
+		return -1.0
 	var dim := register_map.dim()
 	if dim <= 1:
-		return 0.0
+		return -1.0
 	if not _bloch_engine:
 		_bloch_engine = QuantumEvolutionEngine.new()
 	if not _bloch_engine:
-		return 0.0
+		_warn_gap_failure("no native eigensolver")
+		return -1.0
 	var packed: PackedFloat64Array = hamiltonian.scale_real(-1.0)._to_packed()
 	if packed.size() != dim * dim * 2:
-		return 0.0
+		_warn_gap_failure("H packing mismatch (%d for dim %d)" % [packed.size(), dim])
+		return -1.0
 	if _bloch_engine.get_dimension() != dim:
 		_bloch_engine.set_dimension(dim)
 	var result = _bloch_engine.compute_eigenstates(packed)
 	if result.is_empty() or result.has("error"):
-		return 0.0
+		_warn_gap_failure("eigensolver error: %s" % str(result.get("error", "empty result")))
+		return -1.0
 	var eigs: PackedFloat64Array = result.get("eigenvalues", PackedFloat64Array())
 	if eigs.size() < 2:
-		return 0.0
+		_warn_gap_failure("solver returned %d eigenvalue(s)" % eigs.size())
+		return -1.0
 	var dom: float = float(result.get("dominant_eigenvalue", eigs[0]))
 	return absf(dom - eigs[1])
+
+
+var _gap_failure_warned := false
+
+func _warn_gap_failure(why: String) -> void:
+	# Loud once per computer: a broken gap read must not be a silent 0.
+	if _gap_failure_warned:
+		return
+	_gap_failure_warned = true
+	push_warning("spectral gap unmeasurable for '%s': %s" % [biome_name, why])
 
 
 # ============================================================================

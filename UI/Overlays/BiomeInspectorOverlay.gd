@@ -473,20 +473,25 @@ func _build_biome_physics_section() -> void:
 
 	if qc.has_method("get_hamiltonian_spectral_gap"):
 		var gap: float = qc.get_hamiltonian_spectral_gap()
-		var gap_word: String
-		var gap_color: Color
-		if gap >= 0.6:
-			gap_word = "rigid — one dominant mode imposed"
-			gap_color = COLOR_LINDBLAD
-		elif gap <= 0.45:
-			gap_word = "plural — many modes coexist"
-			gap_color = COLOR_ENTANGLE
+		if gap < 0.0:
+			# Failure sentinel: the solver couldn't measure — say so, don't
+			# render -1 as "plural" (a broken read must never look like a win).
+			body.add_child(_make_kv_row("H-gap  E₁−E₀", "—   ·   unmeasurable (solver unavailable)", UIStyleFactory.COLOR_MUTED))
 		else:
-			gap_word = "between — settling toward one mode"
-			gap_color = UIStyleFactory.COLOR_BODY
-		body.add_child(_make_kv_row("H-gap  E₁−E₀", "%.3f   ·   %s" % [gap, gap_word], gap_color))
-		# Visual gap bar — wide gap fills the bar (rigid); narrow = plural.
-		body.add_child(_make_ratio_bar(clampf(gap, 0.0, 1.0), gap_color))
+			var gap_word: String
+			var gap_color: Color
+			if gap >= 0.6:
+				gap_word = "rigid — one dominant mode imposed"
+				gap_color = COLOR_LINDBLAD
+			elif gap <= 0.45:
+				gap_word = "plural — many modes coexist"
+				gap_color = COLOR_ENTANGLE
+			else:
+				gap_word = "between — settling toward one mode"
+				gap_color = UIStyleFactory.COLOR_BODY
+			body.add_child(_make_kv_row("H-gap  E₁−E₀", "%.3f   ·   %s" % [gap, gap_word], gap_color))
+			# Visual gap bar — wide gap fills the bar (rigid); narrow = plural.
+			body.add_child(_make_ratio_bar(clampf(gap, 0.0, 1.0), gap_color))
 
 	if qc.has_method("get_energy_variance"):
 		var v: float = qc.get_energy_variance()
