@@ -731,8 +731,17 @@ func _execute_toggle_berry_track() -> Dictionary:
 		return {"success": true, "tracking": false, "qubit": qid}
 	qc.berry_register.start_tracking(qid)
 	_verbose.info("input", "⌖", "Started tracking qubit %d" % qid)
-	_toast_player("⌖ tracking — time ripens the loop; Icon-hat R incorporates when ripe.")
+	# Teach the per-biome clock at the exact moment waiting begins, once per
+	# run — fleet data says players never learned −/= existed (some pressed
+	# fast-forward ~50× per berry instead of touching the dial).
+	var track_msg := "⌖ tracking — time ripens the loop; Icon-hat R incorporates when ripe."
+	if not _clock_taught:
+		_clock_taught = true
+		track_msg += "  ⏩ = speeds this biome's clock (up to ×32), − slows it."
+	_toast_player(track_msg)
 	return {"success": true, "tracking": true, "qubit": qid}
+
+static var _clock_taught: bool = false
 
 
 func _execute_incorporate_icon() -> Dictionary:

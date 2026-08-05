@@ -5,8 +5,10 @@ extends RefCounted
 ##
 ## Batched lookahead mode (single C++ call for all biomes × N steps)
 ##
-## Performance Optimization: Skip evolution for biomes with no bound terminals
-## ("Out of sight, out of mind" - don't evolve unpopulated biomes)
+## The world always evolves: every discovered biome runs full-fidelity every
+## frame regardless of terminals or focus — pause is an explicit verb, never an
+## optimization side-effect (see _refresh_runtime_activity, which deliberately
+## removed the old bound-terminal skip).
 
 const BiomeDeterministicStepperClass = preload("res://Core/Environment/BiomeDeterministicStepper.gd")
 
