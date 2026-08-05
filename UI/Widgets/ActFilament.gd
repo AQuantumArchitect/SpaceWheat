@@ -9,7 +9,8 @@ extends Control
 ## live objective). Now it projects UIProgression.objective_text() — the same
 ## authority the locked-input redirect toast speaks — as plain screen text
 ## (a Label), so headless seats read the objective off screen_text too.
-## Hides entirely once island_lives fires (the helper returns "" late-game).
+## Hides only when there is genuinely nothing to point at (no active quest
+## AND no pending offer — the earned endgame quiet); it serves all 8 acts.
 ## Tap opens X (playthrough → Arc).
 ##
 ## Purely cosmetic (anti-gating law) — reads, never writes.
@@ -68,7 +69,7 @@ func _refresh() -> void:
 		return
 	_text = obj
 	if obj == "":
-		visible = false  # late game (island_lives) or nothing to point at
+		visible = false  # nothing to point at (no quest, no offer)
 		queue_redraw()
 		return
 	visible = true

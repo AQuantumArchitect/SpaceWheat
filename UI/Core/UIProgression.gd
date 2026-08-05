@@ -30,7 +30,8 @@ const HAT_UNLOCK_FLAGS: Dictionary = {
 	ToolConfig.FRAME_MERCHANT: "village_stirs",
 	# woodlot_door, not island_lives: the proven campaign road discovers the
 	# Woodlot (Captain's biome) right after the woodlot_door beat — island_lives
-	# is the ENDGAME flag and would lock the hat for the whole middle game.
+	# fires mid-campaign (act 4 of 8) and would lock the hat for the whole
+	# early-middle game.
 	ToolConfig.FRAME_CAPTAIN: "woodlot_door",
 	ToolConfig.FRAME_SPARK: "edge_of_the_enclave",
 }
@@ -220,9 +221,11 @@ static func is_verb_active(frame_name: String, key: String) -> bool:
 # THE ONE LIVE OBJECTIVE — single authority shared by the HUD banner
 # (ActFilament) and the locked-input redirect toast. Blind playtesters
 # (masher / literalist / lost lamb) consistently failed to find the game's one
-# live objective; this puts it in screen text. Returns "" when there is
-# nothing to point at (island_lives fired = late-game chrome stays clean,
-# or no farm/quest manager yet).
+# live objective; this puts it in screen text. Returns "" only when there is
+# genuinely nothing to point at (no active quest AND no pending offer — the
+# earned late-game quiet), never as an act cutoff. (An island_lives early-
+# return here once blacked out acts 4-8 — island_lives is act 4 of 8, not
+# the endgame; the banner and spotlight must serve the whole campaign.)
 # ============================================================================
 
 const OBJECTIVE_MAX_CHARS := 70
@@ -259,9 +262,6 @@ static func _best_objective() -> Dictionary:
 
 
 static func objective_text() -> String:
-	var flags := _flags()
-	if flags.has("island_lives"):
-		return ""
 	var qm := _quest_manager()
 	if qm == null or not ("active_quests" in qm):
 		return ""
@@ -280,11 +280,14 @@ static func objective_text() -> String:
 ## in-progress ARC quests carry only free-text hints, no target field — those
 ## fall back to text-only, same as today, rather than inventing a guess).
 static func objective_target_key() -> String:
-	var flags := _flags()
-	if flags.has("island_lives"):
-		return ""
 	var best := _best_objective()
 	if best.is_empty():
+		# Mirror objective_text's OFFER_LINE fallback: an arc offer waiting
+		# with no active quest means the next key IS X — the banner says
+		# "X then I" and the spotlight must pulse the same key, not go dark.
+		var qm := _quest_manager()
+		if qm != null and ("story_offers" in qm) and not qm.story_offers.is_empty():
+			return "X"
 		return ""
 	var status := str(best.get("status", ""))
 	if status == Quest.STATUS_STORY:
