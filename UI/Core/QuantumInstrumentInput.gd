@@ -1709,6 +1709,9 @@ func _block_reason_for_player(action_name: String) -> String:
 			# state F fast-forwards instead (L1e sensor wall: the advice loops).
 			if not _has_focused_plot():
 				return "no plot selected — G H J K L ; picks one, then F explores it"
+			var track_hint := _tracked_elsewhere_hint()
+			if track_hint != "":
+				return track_hint
 			return "nothing live to strike — F explores first"
 		"pop", "reap":
 			if not _has_focused_plot():
@@ -1716,6 +1719,22 @@ func _block_reason_for_player(action_name: String) -> String:
 			return "nothing measured to extract here — R strikes first"
 		_:
 			return "not possible on this plot right now"
+
+
+## Ace-hat R ("Strike") and Icon-hat R ("Incorporate") are different verbs
+## sharing one key. A player following the tutorial copy ("Icon hat (5) ...
+## R incorporates") who never actually switched hats hits "nothing live to
+## strike" on every press with no signal that the fix is a hat swap, not an
+## explore (wave-2 sensor wall: 32 presses, no cost ever charged). Name the
+## other hat's verb when the focused qubit is mid-track.
+func _tracked_elsewhere_hint() -> String:
+	var biome = _get_current_biome()
+	if biome == null or biome.quantum_computer == null or biome.quantum_computer.berry_register == null:
+		return ""
+	var qid: int = int(_instrument.current_plot_idx) if _instrument else -1
+	if qid >= 0 and biome.quantum_computer.berry_register.is_tracked(qid):
+		return "this plot is being tracked — switch to Icon hat (5), R incorporates there"
+	return ""
 
 
 ## True when a plot is focused AND maps to a real register in the current
