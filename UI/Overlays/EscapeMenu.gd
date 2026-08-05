@@ -31,6 +31,8 @@ enum PendingAction {
 	QUIT,
 	RESTART,
 	DEV_RESTART,
+	SAVE_OVERWRITE,   # KEEP R on an occupied slot — overwriting destroys a save
+	LOAD_DISCARD,     # KEEP Q on a loadable slot — loading discards the live run
 }
 
 # Tab row — TYUIOP slots. We bind T/Y/U/I/O; P is honestly empty
@@ -1304,9 +1306,10 @@ func _on_frame_changed(new_frame_id: String, _prev_frame_id: String) -> void:
 
 func _on_action_q() -> void:
 	if _pending_action != PendingAction.NONE:
-		if _pending_action == PendingAction.DEV_RESTART:
+		if _pending_action in [PendingAction.DEV_RESTART, PendingAction.SAVE_OVERWRITE, PendingAction.LOAD_DISCARD]:
 			# Q is the game's most-mashed verb — it must never confirm a save
-			# wipe. Only the deliberate F confirms a full reset; Q backs out.
+			# wipe, a slot overwrite, or a run discard. F is the one confirm
+			# for those; Q backs out.
 			_dismiss_confirm()
 			return
 		_confirm_save_and_act()
@@ -1320,10 +1323,10 @@ func _on_action_q() -> void:
 
 func _on_action_e() -> void:
 	if _pending_action != PendingAction.NONE:
-		if _pending_action == PendingAction.QUIT or _pending_action == PendingAction.DEV_RESTART:
-			_dismiss_confirm()
+		if _pending_action == PendingAction.RESTART:
+			_confirm_act_only()  # RESTART's E = "restart anyway" (no save first)
 		else:
-			_confirm_act_only()
+			_dismiss_confirm()
 		return
 	match _current_tab:
 		Tab.RUN:    _toggle_run_inspect()
@@ -1351,8 +1354,10 @@ func _on_action_r() -> void:
 
 func _on_action_f() -> void:
 	# QF chord: if we're in a quit-confirm, F = quit without saving.
-	# DEV_RESTART: F is the ONLY confirm for a full reset (two deliberate keys).
-	if _pending_action == PendingAction.QUIT or _pending_action == PendingAction.DEV_RESTART:
+	# DEV_RESTART / SAVE_OVERWRITE / LOAD_DISCARD: F is the ONLY confirm
+	# (arm + deliberate F, same chord as every other destructive verb).
+	if _pending_action in [PendingAction.QUIT, PendingAction.DEV_RESTART, \
+			PendingAction.SAVE_OVERWRITE, PendingAction.LOAD_DISCARD]:
 		_confirm_act_only()
 		return
 	# Flatten: collapse whatever E opened. Only one panel can be open at a time.
@@ -1493,9 +1498,11 @@ func _request_confirm(action: int) -> void:
 
 func _confirm_title(action: int) -> String:
 	match action:
-		PendingAction.QUIT:          return "QUIT GAME?"
-		PendingAction.RESTART:       return "RESTART?"
-		PendingAction.DEV_RESTART:   return "FULL RESET?"
+		PendingAction.QUIT:            return "QUIT GAME?"
+		PendingAction.RESTART:         return "RESTART?"
+		PendingAction.DEV_RESTART:     return "FULL RESET?"
+		PendingAction.SAVE_OVERWRITE:  return "OVERWRITE SAVE?"
+		PendingAction.LOAD_DISCARD:    return "LOAD — DISCARD THIS RUN?"
 		_: return "CONFIRM?"
 
 func _confirm_body(action: int) -> String:
@@ -1507,7 +1514,26 @@ func _confirm_body(action: int) -> String:
 			return summary + "\n\nUnsaved progress will be lost."
 		PendingAction.RESTART:       return "Reloads the session checkpoint.\nProgress since then will be lost."
 		PendingAction.DEV_RESTART:   return "Signature evolution will be cleared\nand a fresh game will begin."
+		PendingAction.SAVE_OVERWRITE:
+			var held := _selected_slot_summary()
+			var stakes := "Slot %d holds: %s" % [_keep_slot + 1, held] if held != "" else "Slot %d is occupied." % (_keep_slot + 1)
+			return stakes + "\nSaving replaces it."
+		PendingAction.LOAD_DISCARD:
+			var summary2 := _session_summary_text()
+			var warn := "Loading replaces this run with the saved one."
+			return warn if summary2 == "" else summary2 + "\n\n" + warn
 		_: return ""
+
+
+## The peeked summary of the currently-selected KEEP slot ("" if empty/unpeekable).
+func _selected_slot_summary() -> String:
+	var gsm = (Engine.get_main_loop().root.get_node_or_null("/root/GameStateManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
+	if gsm == null or not ("save_load" in gsm) or _keep_slot >= NUM_KEEP_SLOTS:
+		return ""
+	var peek: Dictionary = gsm.save_load.peek_save_slot(_keep_slot)
+	if not bool(peek.get("exists", false)):
+		return ""
+	return str(peek.get("summary", peek.get("display_name", "a saved game")))
 
 
 ## One-line earned-this-session card shown in the quit confirm. Diffs live farm
@@ -1562,9 +1588,11 @@ func _session_summary_text() -> String:
 
 func _confirm_verb_labels() -> Dictionary:
 	match _pending_action:
-		PendingAction.QUIT:          return {"Q": "save & quit", "E": "cancel", "R": "resume", "F": "quit without saving"}
-		PendingAction.RESTART:       return {"Q": "save & restart", "E": "restart anyway", "R": "cancel", "F": ""}
-		PendingAction.DEV_RESTART:   return {"Q": "", "E": "", "R": "cancel", "F": "confirm reset"}
+		PendingAction.QUIT:            return {"Q": "save & quit", "E": "cancel", "R": "resume", "F": "quit without saving"}
+		PendingAction.RESTART:         return {"Q": "save & restart", "E": "restart anyway", "R": "cancel", "F": ""}
+		PendingAction.DEV_RESTART:     return {"Q": "", "E": "", "R": "cancel", "F": "confirm reset"}
+		PendingAction.SAVE_OVERWRITE:  return {"Q": "", "E": "cancel", "R": "cancel", "F": "overwrite slot"}
+		PendingAction.LOAD_DISCARD:    return {"Q": "", "E": "cancel", "R": "cancel", "F": "load — discard run"}
 		_: return {"Q": "confirm", "E": "", "R": "cancel", "F": ""}
 
 func _dismiss_confirm() -> void:
@@ -1586,7 +1614,8 @@ func _confirm_save_and_act() -> void:
 
 func _confirm_act_only() -> void:
 	match _pending_action:
-		PendingAction.QUIT, PendingAction.RESTART, PendingAction.DEV_RESTART:
+		PendingAction.QUIT, PendingAction.RESTART, PendingAction.DEV_RESTART, \
+		PendingAction.SAVE_OVERWRITE, PendingAction.LOAD_DISCARD:
 			_execute_pending_action()
 		_:
 			_dismiss_confirm()
@@ -1610,6 +1639,12 @@ func _execute_pending_action() -> void:
 			var gsm3 = (Engine.get_main_loop().root.get_node_or_null("/root/GameStateManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 			if gsm3 and "session_lifecycle" in gsm3:
 				gsm3.session_lifecycle.request_fresh_restart(true)
+		PendingAction.SAVE_OVERWRITE:
+			_dismiss_confirm()
+			_do_save_to_selected_slot()
+		PendingAction.LOAD_DISCARD:
+			_dismiss_confirm()
+			_do_load_from_selected_slot()  # async; deactivates itself on success
 
 func _autosave_before_action(action: int) -> void:
 	var gsm = (Engine.get_main_loop().root.get_node_or_null("/root/GameStateManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
@@ -1669,34 +1704,75 @@ func _has_loaded_game() -> bool:
 	var gsm = (Engine.get_main_loop().root.get_node_or_null("/root/GameStateManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 	return bool(gsm and gsm.active_farm and gsm.current_state)
 
+## R on KEEP — arm path. Empty slot saves immediately (no friction on the safe
+## path); an occupied slot arms SAVE_OVERWRITE (overwriting destroys a save).
 func _save_to_selected_slot() -> void:
 	var gsm = (Engine.get_main_loop().root.get_node_or_null("/root/GameStateManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 	if not gsm or not ("save_load" in gsm):
 		return
 	if _keep_slot >= NUM_KEEP_SLOTS:
-		return  # autosave rows are written by the game; R chip is blank here
+		RefusalVoice.note("autosave rows are written by the game — pick slot 1-%d to save" % NUM_KEEP_SLOTS)
+		return
+	var peek: Dictionary = gsm.save_load.peek_save_slot(_keep_slot)
+	if bool(peek.get("exists", false)):
+		_request_confirm(PendingAction.SAVE_OVERWRITE)
+		return
+	_do_save_to_selected_slot()
+
+func _do_save_to_selected_slot() -> void:
+	var gsm = (Engine.get_main_loop().root.get_node_or_null("/root/GameStateManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
+	if not gsm or not ("save_load" in gsm):
+		return
 	gsm.save_load.save_game(_keep_slot)
+	_toast_shell("💾 saved to slot %d" % (_keep_slot + 1))
 	_refresh_body()
 
+## Q on KEEP — arm path. Validity refusals speak FIRST (empty row, pre-beta
+## save); a loadable slot arms LOAD_DISCARD — loading always discards the live
+## run, which deserves one deliberate F.
 func _load_from_selected_slot() -> void:
 	var gsm = (Engine.get_main_loop().root.get_node_or_null("/root/GameStateManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 	if not gsm or not ("save_load" in gsm):
 		return
 	if _keep_slot >= NUM_KEEP_SLOTS:
-		var auto_idx := _keep_slot - NUM_KEEP_SLOTS
-		if not SaveStore.auto_save_exists(auto_idx):
+		if not SaveStore.auto_save_exists(_keep_slot - NUM_KEEP_SLOTS):
+			RefusalVoice.note("this autosave slot is empty")
 			return
+	else:
+		var peek: Dictionary = gsm.save_load.peek_save_slot(_keep_slot)
+		if not bool(peek.get("exists", false)):
+			RefusalVoice.note("slot %d is empty — R saves into it" % (_keep_slot + 1))
+			return
+		if not bool(peek.get("compatible", true)):
+			RefusalVoice.refuse("Load", "slot %d holds a pre-beta save this version can't load" % (_keep_slot + 1))
+			return
+	_request_confirm(PendingAction.LOAD_DISCARD)
+
+func _do_load_from_selected_slot() -> void:
+	# The menu closes only AFTER the load is known to succeed — a failed load
+	# must leave the player where they were, with a spoken reason, not staring
+	# at an unchanged game behind a closed menu.
+	var gsm = (Engine.get_main_loop().root.get_node_or_null("/root/GameStateManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
+	if not gsm or not ("save_load" in gsm):
+		return
+	var ok: bool
+	if _keep_slot >= NUM_KEEP_SLOTS:
+		ok = await gsm.save_load.load_and_apply_path(SaveStore.get_auto_save_path(_keep_slot - NUM_KEEP_SLOTS))
+	else:
+		ok = await gsm.save_load.load_and_apply(_keep_slot)
+	if ok:
 		deactivate()
-		await gsm.save_load.load_and_apply_path(SaveStore.get_auto_save_path(auto_idx))
+	else:
+		RefusalVoice.refuse("Load", "the save could not be applied — this run is untouched")
+		_refresh_body()
+
+func _toast_shell(text: String) -> void:
+	var ml = Engine.get_main_loop()
+	if not (ml is SceneTree):
 		return
-	# Pre-beta saves are refused at load — say so HERE instead of tearing the
-	# session down first and falling back.
-	var peek: Dictionary = gsm.save_load.peek_save_slot(_keep_slot)
-	if bool(peek.get("exists", false)) and not bool(peek.get("compatible", true)):
-		print("slot %d holds a pre-beta save this version can't load" % (_keep_slot + 1))
-		return
-	deactivate()
-	await gsm.save_load.load_and_apply(_keep_slot)
+	var shells: Array = (ml as SceneTree).get_nodes_in_group("player_shell")
+	if not shells.is_empty() and shells[0].has_method("show_hint"):
+		shells[0].show_hint(text, 2)
 
 func _get_last_touched_slot(gsm) -> int:
 	if not gsm:
