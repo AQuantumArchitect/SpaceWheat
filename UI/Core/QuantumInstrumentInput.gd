@@ -1556,18 +1556,28 @@ func handle_bubble_tap(grid_pos: Vector2i) -> Dictionary:
 		return {"success": false, "error": "out_of_range", "message": ""}
 
 	# Selection FIRST, so the verb targets exactly what was tapped and every
-	# downstream reader (action bar, B overlay) agrees with the tap.
-	# (_focus_plot also reveals — a tap is a deliberate touch.)
+	# downstream reader (action bar, B overlay) agrees with the tap. Focus
+	# alone does not reveal — the bubble wakes only on the actual Explore
+	# dispatch below (mirrors _focus_plot's own doc comment).
 	_focus_plot(grid_pos.x, biome_name)
 
 	# Three-beat rhythm = the Ace verbs, one tap each, priced exactly like the
 	# keyboard F/R/Q (owner ruling 2026-07-11): unexplored plot → EXPLORE (the
 	# expedition, 🍞) · explored live → STRIKE (👥) · struck → EXTRACT (free).
-	# All from farm ground truth (plot.terminal), never node visuals.
+	# All from farm ground truth (plot.terminal), never node visuals. Ground
+	# truth for "unexplored" is Terminal.is_bound (Terminal.can_explore()),
+	# NOT "terminal != null" — a terminal object can exist but be unbound
+	# (a zombie terminal), and a bare null-check would silently pick
+	# "measure" on one: ActionValidator correctly refuses it, but the
+	# block-return above only logs verbosely, so the tap does nothing with
+	# no player-facing toast. Keyboard F (routed through
+	# ToolConfig/ChipResolverRegistry) already reads is_bound correctly;
+	# this brings the tap path's ground truth into line with it.
+	# Mouse-only campaign, 2026-08-05.
 	var plot = farm.grid.get_plot(grid_pos)
 	var terminal = plot.terminal if plot else null
 	var verb := "explore"
-	if terminal != null:
+	if terminal != null and terminal.is_bound:
 		verb = "pop" if terminal.is_measured else "measure"
 
 	if not ActionValidator.can_execute_action_name(

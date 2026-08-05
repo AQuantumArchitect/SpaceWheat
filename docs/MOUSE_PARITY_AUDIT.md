@@ -17,8 +17,7 @@ class this campaign exists to catch.
 
 | Surface | Verb/control | Notes |
 |---|---|---|
-| Plot select+act | 3D bubble tap (`QuantumField3D._gui_input` → `_try_pick` → `handle_bubble_tap`) | fuses select+act, unlike keyboard G/H/J/K/L which is pure select |
-| Q/E/R/F action chips | `ActionPreviewRow` → `PlayerShell._route_action_key` → `OverlayBase.handle_action` | |
+| Q/E/R/F action chips | `ActionPreviewRow` → `PlayerShell._route_action_key` → `OverlayBase.handle_action` | `ActionBtn_Q/E/R/F`, built once at boot (never rebuilt), safe to `control_rect` unscoped |
 | Hat row (4-0) | `ToolSelectionRow` (`SelectionButtonRow`) | |
 | Biome row (T-P) | `BiomeSelectionRow` (`SelectionButtonRow`) | |
 | Top-level menu open/close (Z X C V B N M) | `MenuSelectionRow` (`SelectionButtonRow`) — verified live 2026-08-05: click opens EscapeMenu, second click closes it | was previously untestable by name-based lookup — see fixed bug below |
@@ -28,15 +27,19 @@ class this campaign exists to catch.
 
 | Surface | Keyboard mechanism | Why it's a gap |
 |---|---|---|
+| **Plot select+act on an UNEXPLORED plot (the core loop's first move)** | 3D bubble tap should route `_gui_input → _try_pick → handle_bubble_tap`, but `bubble_state` shows the pre-explore register has `visible: false` and a degenerate `screen_pos` near the viewport origin — `_try_pick`'s pixel-radius hit-test can never find it. A raw-pixel sweep of the ENTIRE play area (66 points) after confirmed welcome-dismiss found ZERO clickable targets. Keyboard G/H/J/K/L selects by index, no visibility needed. | **Severe — this is the very first thing "or just tap it" tells a fresh player to try, and it silently does nothing.** `PlotGridDisplay` is documented (task #408, "2D plot tiles as fixed rack in 3D mode") as the intended pre-explore click surface, but its screen rect/tile geometry hasn't been confirmed live yet — first item for Wave 2. |
 | A/D inner paging (Arc/Self/Story/Guide tabs in `ControlsOverlay`, Balance settings in `EscapeMenu`) | `step_active_layer()` (`UI/Core/QuantumInstrumentInput.gd:1337`) wired to `_on_navigate(Vector2i)` via `_on_unhandled_key` (fixed for keyboard 2026-08-05) | Zero mouse call sites. No on-screen prev/next affordance exists at all — a mouse-only player cannot reach page 2+ of any paginated tab (Arc tab alone has 57 flags at 6/page = 11 pages). |
 | QubitAtlasOverlay T/Y/U/I/O frame-tab switching | `_on_unhandled_key:206` | `ClickWire.attach` here (`:438`) only covers card selection *within* a tab, not the tab switch itself. |
 
-## Unknown — needs live discovery (Phase 2)
+## Unknown — needs live discovery (Wave 2)
 
+- **Start here**: does `PlotGridDisplay`'s fixed-rack overlay actually give an unexplored plot a real, visible, clickable Control? Get its live screen rect (`control_rect`/`node_children` under `PlotGridDisplay`) and tap that instead of the 3D field's `rig_screen_pos_for_grid`. If it also fails to dispatch, this is the real, severe, launch-blocking bug — the intended "or just tap it" path for a brand-new player is broken.
+- Whether the `tap` rig verb's `pos=` resolution should be extended to also check `PlotGridDisplay` (a third node kind alongside `quantum_nodes_by_grid_pos`/`rig_screen_pos_for_grid`) — currently it can't test the pre-explore click path at all.
 - Submenu confirm/cancel flows outside Q/E/R/F (destructive confirms — Cull/Trim/Break Q→F chord)
 - Save/load slot buttons in EscapeMenu's KEEP/NEW tabs
-- Welcome-splash dismiss — code-confirmed covered (`WelcomeOverlay._input` consumes any `InputEventMouseButton`), not yet live-verified this campaign
+- Welcome-splash dismiss — confirmed working live 2026-08-05 (`WelcomeOverlay._input` consumes the click, `ui_stack` shows it gone after one tap)
 - Refusal/toast text parity — does a mouse-triggered refusal reach the same `RefusalVoice` text as a keyboard one? `handle_action` is a separate dispatch path from `handle_input`; unconfirmed whether they share the same refusal call sites.
+- Once explored, does the ALREADY-VISIBLE bubble (now with a real screen position) tap correctly for the second-stage Strike/Extract verbs? Not yet tested — Wave 1 never got past the first plot.
 
 ## Bugs found and fixed this campaign (not gaps — genuine defects)
 
@@ -55,6 +58,16 @@ class this campaign exists to catch.
    `SelectBtn_N`) — added an optional `{"under": "AncestorName"}` scope to
    `🍄/🎛️/rig_listener.gd`'s `control_rect` verb, plus a new `node_children`
    read-only verb for live child discovery instead of guessing names.
+3. **`handle_bubble_tap`'s verb resolution used a bare `terminal != null`
+   check** where `Terminal.gd`'s own `can_explore()`/`can_measure()`
+   predicates key off `terminal.is_bound` — a terminal object can exist
+   but be unbound. Fixed to check `is_bound` too, matching the keyboard
+   path's ground truth (`UI/Core/QuantumInstrumentInput.gd`). Real and
+   verified-correct by code inspection, but NOT the cause of the "first
+   tap does nothing" symptom below — that traces to the bubble being
+   invisible/unpickable pre-explore, not verb misresolution. Kept because
+   it's a genuine, narrower correctness fix (matters once a terminal
+   exists mid-game in an unbound state).
 
 ## Out of scope this pass
 
