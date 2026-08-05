@@ -61,3 +61,42 @@ def test_seed_save_accepts_headed_player_input_flags() -> None:
 def test_dev_runner_forks_are_deleted() -> None:
     assert not (ROOT / "🍄" / "🎛️" / "dev" / "milk_hunt_runner_graphics_waits.py").exists()
     assert not (ROOT / "🍄" / "🎛️" / "dev" / "milk_hunt_runner_quantum_waits.py").exists()
+
+
+def test_rig_listener_tap_injects_a_real_mouse_event() -> None:
+    # Mouse-only campaign (2026-08-05) Phase 0: `tap` must inject a genuine
+    # InputEventMouseButton press+release via push_input — the same event
+    # class/path a real OS click takes — never call a picking handler
+    # directly (that shortcut is what caused the "hit whatever plane it
+    # might" bug months ago). dev_tap_register (QuantumField3D.gd) is the
+    # shortcut pattern to avoid; it's dev/env-var-gated and NOT reachable
+    # from this rig verb.
+    src = _read("🍄/🎛️/rig_listener.gd")
+    assert '"tap":' in src
+    assert "InputEventMouseButton.new()" in src
+    assert "tap_vp.push_input(tap_ev, true)" in src
+    assert "rig_screen_pos_for_grid(tap_key)" in src
+
+
+def test_control_rect_supports_scoped_lookup() -> None:
+    # `control_rect`'s bare name search silently resolves to whichever
+    # SelectionButtonRow (Tool/Biome/Menu) the DFS visits first, since all
+    # three independently name children "SelectBtn_N" — an ambiguous match
+    # is exactly the "click whatever it might" failure mode. `under` scopes
+    # the search to a named ancestor's subtree.
+    src = _read("🍄/🎛️/rig_listener.gd")
+    assert '"control_rect":' in src
+    assert 'cr_under := str(cmd.get("under", ""))' in src
+    assert '"node_children":' in src
+
+
+def test_selection_button_row_frees_buttons_before_readding() -> None:
+    # _clear_buttons() must detach (remove_child) before queue_free(), not
+    # queue_free() alone — otherwise a same-frame rebuild re-adds a child
+    # with the same requested name while the old, not-yet-freed sibling
+    # still occupies it, and Godot silently discards the new name in favor
+    # of an auto-generated "@Control@N". That made every SelectBtn_N lookup
+    # (Tool/Biome/Menu hat rows) fail after the row's first rebuild.
+    src = _read("UI/Widgets/SelectionButtonRow.gd")
+    assert "remove_child(btn_data.container)" in src
+    assert "btn_data.container.queue_free()" in src

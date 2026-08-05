@@ -1138,29 +1138,89 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			# anywhere in the live tree. Prefers a visible match. Lets probes
 			# tap real chips/buttons (tap screen=center) instead of hardcoding
 			# screen coordinates that break on the next layout pass.
+			#
+			# Optional {"under": "AncestorName"} scopes the search to that
+			# ancestor's subtree. Needed because every SelectionButtonRow
+			# subclass (Tool/Biome/Menu) independently names its buttons
+			# "SelectBtn_0".."SelectBtn_N" (SelectionButtonRow.gd:100) — an
+			# unscoped search silently resolves to whichever row the DFS
+			# happens to visit first, tapping the wrong button while
+			# reporting success. That is exactly the "hit whatever it might"
+			# failure mode a mouse-only rig driver must never reproduce.
 			var cr_name := str(cmd.get("name", ""))
+			var cr_under := str(cmd.get("under", ""))
 			if cr_name == "":
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "missing_name"}
 			else:
-				var cr_match: Control = null
-				var cr_stack: Array = [get_root()]
-				while not cr_stack.is_empty():
-					var cr_n: Node = cr_stack.pop_back()
-					for cr_ch in cr_n.get_children():
-						cr_stack.push_back(cr_ch)
-					if cr_n is Control and str(cr_n.name) == cr_name:
-						if (cr_n as Control).is_visible_in_tree():
-							cr_match = cr_n
+				var cr_root: Node = get_root()
+				var cr_under_missing := false
+				if cr_under != "":
+					var cr_anchor_stack: Array = [get_root()]
+					var cr_anchor: Node = null
+					while not cr_anchor_stack.is_empty():
+						var cr_an: Node = cr_anchor_stack.pop_back()
+						for cr_ach in cr_an.get_children():
+							cr_anchor_stack.push_back(cr_ach)
+						if str(cr_an.name) == cr_under:
+							cr_anchor = cr_an
 							break
-						if cr_match == null:
-							cr_match = cr_n  # invisible fallback; keep scanning for a visible one
-				if cr_match == null:
-					result = {"ok": false, "turn": turn_id, "action": action, "error": "control_not_found", "name": cr_name}
+					if cr_anchor == null:
+						cr_under_missing = true
+					else:
+						cr_root = cr_anchor
+				if cr_under_missing:
+					result = {"ok": false, "turn": turn_id, "action": action, "error": "under_not_found", "under": cr_under}
 				else:
-					var cr_rect: Rect2 = cr_match.get_global_rect()
-					result["rect"] = [cr_rect.position.x, cr_rect.position.y, cr_rect.size.x, cr_rect.size.y]
-					result["center"] = [int(cr_rect.position.x + cr_rect.size.x / 2.0), int(cr_rect.position.y + cr_rect.size.y / 2.0)]
-					result["visible"] = cr_match.is_visible_in_tree()
+					var cr_match: Control = null
+					var cr_stack: Array = [cr_root]
+					while not cr_stack.is_empty():
+						var cr_n: Node = cr_stack.pop_back()
+						for cr_ch in cr_n.get_children():
+							cr_stack.push_back(cr_ch)
+						if cr_n is Control and str(cr_n.name) == cr_name:
+							if (cr_n as Control).is_visible_in_tree():
+								cr_match = cr_n
+								break
+							if cr_match == null:
+								cr_match = cr_n  # invisible fallback; keep scanning for a visible one
+					if cr_match == null:
+						result = {"ok": false, "turn": turn_id, "action": action, "error": "control_not_found", "name": cr_name, "under": cr_under}
+					else:
+						var cr_rect: Rect2 = cr_match.get_global_rect()
+						result["rect"] = [cr_rect.position.x, cr_rect.position.y, cr_rect.size.x, cr_rect.size.y]
+						result["center"] = [int(cr_rect.position.x + cr_rect.size.x / 2.0), int(cr_rect.position.y + cr_rect.size.y / 2.0)]
+						result["visible"] = cr_match.is_visible_in_tree()
+
+		"node_children":
+			# Mouse-probe helper: direct children of a named node, with class +
+			# visibility. Lets a probe discover the real, current child names
+			# under a container (e.g. a SelectionButtonRow's "SelectBtn_N"
+			# chips) instead of guessing indices/names ahead of a control_rect
+			# call.
+			var nc_name := str(cmd.get("name", ""))
+			if nc_name == "":
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "missing_name"}
+			else:
+				var nc_stack: Array = [get_root()]
+				var nc_match: Node = null
+				while not nc_stack.is_empty():
+					var nc_n: Node = nc_stack.pop_back()
+					for nc_ch in nc_n.get_children():
+						nc_stack.push_back(nc_ch)
+					if str(nc_n.name) == nc_name:
+						nc_match = nc_n
+						break
+				if nc_match == null:
+					result = {"ok": false, "turn": turn_id, "action": action, "error": "node_not_found", "name": nc_name}
+				else:
+					var nc_children: Array = []
+					for nc_ch2 in nc_match.get_children():
+						nc_children.append({
+							"name": str(nc_ch2.name),
+							"class": nc_ch2.get_class(),
+							"visible": nc_ch2.is_visible_in_tree() if nc_ch2 is CanvasItem else true,
+						})
+					result["children"] = nc_children
 
 		"biome_slots":
 			# Read-only: the TYUIOP slot → biome mapping. grid_snapshot lists biomes in a

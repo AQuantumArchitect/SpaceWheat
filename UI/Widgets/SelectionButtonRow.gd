@@ -203,6 +203,7 @@ func _create_button(spec: Dictionary) -> Dictionary:
 func _clear_buttons() -> void:
 	for btn_data in buttons:
 		if btn_data.container and btn_data.container.get_parent() == self:
+			remove_child(btn_data.container)
 			btn_data.container.queue_free()
 	buttons.clear()
 
