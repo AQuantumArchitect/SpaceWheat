@@ -7,7 +7,7 @@
       "faction": "Hearth Keepers",
       "biome": "TheDemos",
       "body": "The Demos sleeps — wheat and people, waiting. Explore a plot, strike its qubit to collapse it, then extract what the collapse leaves behind.",
-      "tutorial_hint": "Ace is your starting hat (8) — hats are your toolbelts: the number row 4-0 swaps them, and each gives Q/E/R/F new verbs. Pick a plot with G H J K L ; — or just tap it. F explores it (an expedition costs 🍞), R strikes (a social encounter costs 👥), Q extracts the yield — free. E pauses to look; F plays on.",
+      "tutorial_hint": "Pick a plot with G H J K L ; — or just tap it. F explores it (an expedition costs 🍞), R strikes (a social encounter costs 👥), Q extracts the yield — free. Ace is your starting hat (8); the number row 4-0 swaps hats for new Q/E/R/F verbs. E pauses to look; F plays on.",
       "math_note": "Fires the instant your action history records 1 measure gate (a single R-strike) — a structural count, not a soft gate.",
       "state_predicates": [
         {"type": "gate_sequence_contains", "gate": "measure", "count": 1}
