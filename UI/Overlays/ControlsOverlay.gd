@@ -76,6 +76,12 @@ const MAX_VISIBLE_ITEMS := 6
 const COLOR_ARC_FIRED := Color(0.5, 0.75, 0.55, 0.85)
 const COLOR_ARC_UNFIRED := Color(0.85, 0.7, 0.4, 0.95)
 const COLOR_ARC_HEADER := Color(0.7, 0.6, 0.85, 0.95)
+## Narrative-lane row tint (What Survives / What Connects / What Fades).
+const LANE_COLORS := {
+	"survives": Color(0.55, 0.8, 0.55, 0.95),
+	"connects": Color(0.55, 0.7, 0.9, 0.95),
+	"fades": Color(0.75, 0.68, 0.6, 0.95),
+}
 
 # Guide tab: 7 sections, GHJKL;' selects which. The Verbs section absorbs
 # what used to live on Z's I tab — the 7-hat × QERF reference.
@@ -142,7 +148,8 @@ var _self_picker_icon: int = 0     # cursor into known_icons (GHJKL; navigates)
 var _self_picker_page: int = 0     # page of known_icons (6 per page)
 
 # Arc tab state.
-var _arc_selected_idx: int = 0        # GHJKL; cursor into the visible arc rows
+var _arc_selected_idx: int = 0        # GHJKL; cursor — ABSOLUTE index into _arc_rows()
+var _arc_page: int = 0                # A/D page over the 6-row window (57 flags, 6 slots)
 var _arc_signal_connected: bool = false
 
 # UI refs.
@@ -1849,16 +1856,22 @@ func _build_arc_body() -> void:
 	if rows.is_empty():
 		_body_box.add_child(_make_muted_label("no story flags loaded", 12))
 		return
+	# A/D pages the 6-row window over ALL rows — 57 flags used to compete for
+	# six slots with a muted "… N more not shown" and no way to reach them.
+	var page_count: int = maxi(1, int(ceil(float(rows.size()) / float(MAX_VISIBLE_ITEMS))))
+	_arc_page = clampi(_arc_page, 0, page_count - 1)
 	_body_box.add_child(_make_arc_chapter_header())
+	var base: int = _arc_page * MAX_VISIBLE_ITEMS
 	for i in range(MAX_VISIBLE_ITEMS):
-		if i < rows.size():
-			_body_box.add_child(_make_arc_row(rows[i], ITEM_KEYS[i], i == _arc_selected_idx))
+		var idx: int = base + i
+		if idx < rows.size():
+			_body_box.add_child(_make_arc_row(rows[idx], ITEM_KEYS[i], idx == _arc_selected_idx))
 		else:
 			_body_box.add_child(_make_empty_row(ITEM_KEYS[i]))
-	if rows.size() > MAX_VISIBLE_ITEMS:
-		_body_box.add_child(_make_muted_label("… %d more arc beats not shown" % (rows.size() - MAX_VISIBLE_ITEMS), 10))
+	if page_count > 1:
+		_body_box.add_child(_make_muted_label("page %d/%d · A/D" % [_arc_page + 1, page_count], 10))
 	_body_box.add_child(_make_spacer(6))
-	_body_box.add_child(_make_muted_label("Q dismiss  ·  R accept  ·  E refresh  ·  GHJKL; pick", 11))
+	_body_box.add_child(_make_muted_label("Q dismiss  ·  R accept  ·  E refresh  ·  GHJKL; pick  ·  A/D page", 11))
 
 ## Builds Arc tab rows: arc-quest offers first, then unfired flags (by score
 ## desc), then fired flags. (The manifold "on-edge" boost lives on C; X has no
@@ -1909,6 +1922,12 @@ func _arc_rows() -> Array:
 		var ab := int(b.flag.get("act", 99))
 		if aa != ab:
 			return aa < ab
+		# Within an act: spine before lane rows ("what's next" leads; the
+		# What-Survives/Connects/Fades teaching ladders follow), then score.
+		var a_lane: bool = StoryAtlas.lane_of(str(a.flag.get("display_name", "")))["lane"] != ""
+		var b_lane: bool = StoryAtlas.lane_of(str(b.flag.get("display_name", "")))["lane"] != ""
+		if a_lane != b_lane:
+			return b_lane
 		return float(a.score) > float(b.score)
 	unfired.sort_custom(by_spine)
 	for u in unfired: rows.append(u)
@@ -1988,9 +2007,13 @@ func _make_arc_row(entry: Dictionary, key_str: String, selected: bool) -> Contro
 	var flag: Dictionary = entry.get("flag", {})
 	var act_n: int = int(flag.get("act", 0))
 	var act_lbl := Label.new()
-	act_lbl.text = "act %d" % act_n
+	# Lane tag: the What-Survives/Connects/Fades ladders were invisible as
+	# lanes — 22 flags carried them only inside display_name prose.
+	var lane_tag := StoryAtlas.lane_tag(str(flag.get("display_name", "")))
+	act_lbl.text = ("act %d · %s" % [act_n, lane_tag]) if lane_tag != "" else "act %d" % act_n
 	act_lbl.add_theme_font_size_override("font_size", 11)
-	act_lbl.add_theme_color_override("font_color", COLOR_ARC_HEADER)
+	act_lbl.add_theme_color_override("font_color",
+			LANE_COLORS.get(str(StoryAtlas.lane_of(str(flag.get("display_name", "")))["lane"]), COLOR_ARC_HEADER))
 	act_lbl.custom_minimum_size = Vector2(48, 0)
 	top_hbox.add_child(act_lbl)
 
@@ -2209,10 +2232,11 @@ func _on_unhandled_key(keycode: int, _event: InputEvent) -> bool:
 func _select_item_in_tab(slot: int) -> void:
 	match _current_tab:
 		Tab.ARC:
-			# GHJKL; selects an arc beat (only the first MAX_VISIBLE_ITEMS are shown).
+			# GHJKL; selects an arc beat on the CURRENT page (A/D pages).
 			var rows: Array = _arc_rows()
-			if slot < MAX_VISIBLE_ITEMS and slot < rows.size() and _arc_selected_idx != slot:
-				_arc_selected_idx = slot
+			var abs_idx: int = _arc_page * MAX_VISIBLE_ITEMS + slot
+			if slot < MAX_VISIBLE_ITEMS and abs_idx < rows.size() and _arc_selected_idx != abs_idx:
+				_arc_selected_idx = abs_idx
 				_refresh_body()
 		Tab.GUIDE:
 			if slot < GUIDE_ITEMS.size() and _guide_item != slot:
@@ -2274,6 +2298,18 @@ func _on_navigate(direction: Vector2i) -> void:
 		Tab.GUIDE:
 			_guide_item = wrapi(_guide_item + step, 0, GUIDE_ITEMS.size())
 			_refresh_body()
+		Tab.ARC:
+			# Page the 6-row window; the selection follows onto the new page
+			# so GHJKL; and QER always act on something visible.
+			var rows: Array = _arc_rows()
+			var max_page: int = max(0, int(float(maxi(rows.size(), 1) - 1) / float(MAX_VISIBLE_ITEMS)))
+			var new_page: int = clampi(_arc_page + step, 0, max_page)
+			if new_page != _arc_page:
+				_arc_page = new_page
+				_arc_selected_idx = clampi(_arc_selected_idx,
+						_arc_page * MAX_VISIBLE_ITEMS,
+						mini((_arc_page + 1) * MAX_VISIBLE_ITEMS, maxi(rows.size(), 1)) - 1)
+				_refresh_body()
 		_:
 			pass
 
