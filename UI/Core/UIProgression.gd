@@ -17,6 +17,7 @@ extends RefCounted
 ## redirect_locked() toasts the objective, rate-limited, never floods.
 
 const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
+const PredicateGloss = preload("res://Core/Quests/PredicateGloss.gd")
 
 ## Hat → the story flag that surfaces it ("" = always visible).
 ## Starter kit is Ace + Icon + Druid — exactly what Act-0 teaches.
@@ -280,6 +281,16 @@ static func objective_text() -> String:
 ## in-progress ARC quests carry only free-text hints, no target field — those
 ## fall back to text-only, same as today, rather than inventing a guess).
 static func objective_target_key() -> String:
+	return str(objective_target().get("key", ""))
+
+
+## Full structured target: {"key": String, "biome": String} — the spotlight
+## pulses the biome tab first when the target biome isn't focused, then the
+## key's chip. For active ARC quests the target derives from the quest's OWN
+## state_predicates via PredicateGloss.TARGETS (the same table its prose
+## speaks from) — no parallel hand-authored lookup to drift. First
+## UNSATISFIED predicate with a table entry wins; none → honest dark.
+static func objective_target() -> Dictionary:
 	var best := _best_objective()
 	if best.is_empty():
 		# Mirror objective_text's OFFER_LINE fallback: an arc offer waiting
@@ -287,22 +298,34 @@ static func objective_target_key() -> String:
 		# "X then I" and the spotlight must pulse the same key, not go dark.
 		var qm := _quest_manager()
 		if qm != null and ("story_offers" in qm) and not qm.story_offers.is_empty():
-			return "X"
-		return ""
+			return {"key": "X", "biome": ""}
+		return {}
 	var status := str(best.get("status", ""))
 	if status == Quest.STATUS_STORY:
-		return "X"
+		return {"key": "X", "biome": ""}
 	if status == "ready":
-		return "C"
-	if str(best.get("category", "")) != "TUTORIAL":
-		return ""
-	var step := int(best.get("tutorial_step", -1))
-	for entry_key in VERB_UNLOCK_STEP:
-		if int(VERB_UNLOCK_STEP[entry_key]) == step:
-			var hat_key := _hat_key_for_frame(str(entry_key).split(":")[0])
-			if hat_key != "":
-				return hat_key
-	return ""
+		return {"key": "C", "biome": ""}
+	if str(best.get("category", "")) == "TUTORIAL":
+		var step := int(best.get("tutorial_step", -1))
+		for entry_key in VERB_UNLOCK_STEP:
+			if int(VERB_UNLOCK_STEP[entry_key]) == step:
+				var hat_key := _hat_key_for_frame(str(entry_key).split(":")[0])
+				if hat_key != "":
+					return {"key": hat_key, "biome": ""}
+		return {}
+	# Active ARC quest: 42/72 authored state_predicates carry a biome, 13 an
+	# atom — structured targets exist one level down, no new authoring needed.
+	var qm2 := _quest_manager()
+	for pred in best.get("state_predicates", []):
+		if not (pred is Dictionary):
+			continue
+		if qm2 != null and qm2.has_method("evaluate_predicate_score") \
+				and float(qm2.evaluate_predicate_score(pred)) >= 0.85:
+			continue  # already satisfied — point at the next unsatisfied leg
+		var t := PredicateGloss.target(pred)
+		if not t.is_empty():
+			return t
+	return {}
 
 
 static func _hat_key_for_frame(frame_name: String) -> String:

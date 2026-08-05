@@ -95,6 +95,18 @@ func _set_selected_from_active() -> void:
 		set_selected(slot_idx)
 
 
+## Pulse hook for ObjectiveSpotlight — same contract as MenuSelectionRow /
+## ToolSelectionRow: the uncontested node the spotlight may Tween. Biome chips
+## render through their Label ("text" spec — no icon_path), so pulse that.
+## Looked up by BIOME NAME (the objective carries a biome, not a slot).
+func get_button_pulse_target(biome_name: String) -> Control:
+	var slot := _find_slot_for_biome(biome_name)
+	if slot < 0:
+		return null  # undiscovered / unassigned — nothing honest to pulse
+	var data := _get_button_data(slot)
+	return data.get("label", null) if not data.is_empty() else null
+
+
 func _find_slot_for_biome(biome_name: String) -> int:
 	if not active_biome_router:
 		return -1

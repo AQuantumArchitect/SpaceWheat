@@ -6,6 +6,92 @@ extends RefCounted
 ## (merged 2026-07-06). Pass the QuestManager so numeric targets show the REAL
 ## fire threshold (predicate_fire_target inverts the soft-gate); without it,
 ## raw authored values are shown.
+##
+## TARGETS (below) is the MACHINE side of the same knowledge: per predicate
+## type, which surface/hat advances it. summary()'s prose and target()'s key
+## live in one file so they cannot drift — an anti-drift smoke asserts every
+## hat-kind prose names the digit target() returns.
+
+
+# Explicit preload, not the bare class_name identifier — bare autoload/class
+# identifiers are compile bombs under --check-only harnesses (same law as the
+# GameStateManager lookups elsewhere).
+const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
+
+
+## Per-predicate-type structured target: which literal key advances this
+## predicate. kind "hat" resolves a ToolConfig frame to its digit; "menu" is
+## a ZXCVBNM surface key; "gate" picks druid/operator from the gate name;
+## "biome" has no key of its own (the work IS being in that biome). Types
+## absent here have no honest single target — the spotlight stays dark for
+## them rather than guessing (same law as the tutorial table).
+const TARGETS := {
+	"berry_consumed_count_gte": {"kind": "hat", "frame": "icon"},
+	"berry_total_phase_gte":    {"kind": "hat", "frame": "icon"},
+	"signature_size_gte":       {"kind": "hat", "frame": "icon"},
+	"signature_growth_gte":     {"kind": "hat", "frame": "icon"},
+	"atom_count_gte":           {"kind": "hat", "frame": "icon"},
+	"atom_in_biome":            {"kind": "hat", "frame": "icon"},
+	"atom_diversity_gte":       {"kind": "hat", "frame": "icon"},
+	"frozen_loops_gte":         {"kind": "hat", "frame": "icon"},
+	"biome_frozen_loops_gte":   {"kind": "hat", "frame": "icon"},
+	"standing_gte":             {"kind": "menu", "key": "C"},
+	"biome_spectral_gap_gte":   {"kind": "menu", "key": "B"},
+	"biome_spectral_gap_lte":   {"kind": "menu", "key": "B"},
+	"gate_sequence_contains":   {"kind": "gate"},
+	"biome_evolving":           {"kind": "biome"},
+}
+
+## Gate dispatch name → the hat that fires it (single-qubit rotations are
+## Druid's; entangling gates are Operator's).
+const GATE_FRAMES := {
+	"hadamard": "druid", "rx": "druid", "ry": "druid", "rz": "druid",
+	"pauli_x": "druid", "pauli_y": "druid", "pauli_z": "druid",
+	"s_gate": "druid", "t_gate": "druid", "sdg": "druid", "tdg": "druid",
+	"cnot": "operator", "cz": "operator", "swap": "operator",
+	"bell": "operator", "ghz": "operator", "cluster": "operator",
+}
+
+
+## Structured target for a predicate: {"key": String, "biome": String,
+## "atom": String}, or {} when this type has no honest single target.
+static func target(pred: Dictionary) -> Dictionary:
+	var t := str(pred.get("type", ""))
+	if not TARGETS.has(t):
+		return {}
+	var spec: Dictionary = TARGETS[t]
+	var biome := str(pred.get("biome", ""))
+	var atom := str(pred.get("atom", pred.get("emoji", "")))
+	match str(spec.get("kind", "")):
+		"hat":
+			var hk := hat_key_for_frame(str(spec.get("frame", "")))
+			return {} if hk == "" else {"key": hk, "biome": biome, "atom": atom}
+		"menu":
+			return {"key": str(spec.get("key", "")), "biome": biome, "atom": atom}
+		"gate":
+			var frame := str(GATE_FRAMES.get(str(pred.get("gate", "")).strip_edges().to_lower(), ""))
+			if frame == "":
+				return {}
+			var ghk := hat_key_for_frame(frame)
+			return {} if ghk == "" else {"key": ghk, "biome": biome, "atom": atom}
+		"biome":
+			return {} if biome == "" else {"key": "", "biome": biome, "atom": atom}
+	return {}
+
+
+## "Icon hat (5)" — the prose name summary() interpolates, derived from the
+## SAME frame resolution target() uses so the two can't disagree.
+static func verb_home(frame: String) -> String:
+	var digit := hat_key_for_frame(frame)
+	var word := frame.capitalize()
+	return "%s hat (%s)" % [word, digit] if digit != "" else "%s hat" % word
+
+
+static func hat_key_for_frame(frame: String) -> String:
+	for hat_key in ToolConfig.HAT_KEY_TO_FRAME:
+		if str(ToolConfig.HAT_KEY_TO_FRAME[hat_key]) == frame:
+			return str(hat_key)
+	return ""
 
 
 static func summary(pred: Dictionary, qm = null) -> String:
@@ -34,7 +120,7 @@ static func summary(pred: Dictionary, qm = null) -> String:
 			# two fleets lost to the same reflex despite the stop-toast).
 			return "berries %s in %s — Icon hat (5): F tracks (F again STOPS the loop), time ripens, R incorporates" % [count_str, b]
 		"berry_total_phase_gte":
-			return "phase[%s] ≥ %.2f" % [str(pred.get("biome", "")), tgt]
+			return "phase[%s] ≥ %.2f — %s: F tracks, wide orbits build phase" % [str(pred.get("biome", "")), tgt, verb_home("icon")]
 		"standing_gte":
 			# Live have/target — a standing gate without the current value reads
 			# as an unpayable toll (the access-0.2 wall cost the fleet ~5 legs).
@@ -80,17 +166,22 @@ static func summary(pred: Dictionary, qm = null) -> String:
 		"atom_diversity_gte":
 			var ad_have := int(qm.atom_diversity_now()) if (qm and qm.has_method("atom_diversity_now")) else -1
 			var ad_str := ("%d/%d" % [ad_have, itgt]) if ad_have >= 0 else str(itgt)
-			return "%s kinds of atom across your lands — plant new icons; discover biomes (Captain 7: R)" % ad_str
+			return "%s kinds of atom across your lands — plant new icons (%s: R on an EMPTY plot); discover biomes (%s: R)" % [ad_str, verb_home("icon"), verb_home("captain")]
 		"atom_in_biome":
-			return "%s ∋ %s" % [str(pred.get("biome", "")), str(pred.get("atom", ""))]
+			# The Act-5 fork's actual gate — for months this glossed as bare set
+			# notation ("Village ∋ 💧") with no verb, leaving the game's one
+			# real narrative choice undiscoverable. Teach the plant verb AND
+			# the full-ring escape hatch (Village runs zero-slack).
+			return "seat %s in %s — %s: R on an EMPTY plot plants it; ring full? Q unseats one first" % [
+					str(pred.get("atom", "")), str(pred.get("biome", "")), verb_home("icon")]
 		"biome_attractor_emoji_gte":
 			return "%s attractor[%s] ≥ %.2f" % [str(pred.get("biome", "")), str(pred.get("emoji", "")), tgt]
 		"biome_eigenvalue_gap_gte":
 			return "%s gap ≥ %.2f" % [str(pred.get("biome", "")), tgt]
 		"biome_spectral_gap_gte":
-			return "%s stable (gap ≥ %.2f)" % [str(pred.get("biome", "")), tgt]
+			return "%s stable (gap ≥ %.2f) — the microscope (B) reads it" % [str(pred.get("biome", "")), tgt]
 		"biome_spectral_gap_lte":
-			return "%s chaotic (gap ≤ %.2f)" % [str(pred.get("biome", "")), tgt]
+			return "%s chaotic (gap ≤ %.2f) — the microscope (B) reads it" % [str(pred.get("biome", "")), tgt]
 		"biome_energy_variance_gte":
 			return "%s restless ≥ %.2f" % [str(pred.get("biome", "")), tgt]
 		"biome_energy_variance_lte":
@@ -106,7 +197,10 @@ static func summary(pred: Dictionary, qm = null) -> String:
 		"mutual_information_at_least":
 			return "entanglement (MI) ≥ %.2f" % float(pred.get("value", 0.5))
 		"gate_sequence_contains":
-			return "%s ×%d" % [str(pred.get("gate", "?")), int(pred.get("count", 1))]
+			var gname := str(pred.get("gate", "?")).strip_edges().to_lower()
+			var gframe := str(GATE_FRAMES.get(gname, ""))
+			var ghome := (" — %s: gate a focused plot" % verb_home(gframe)) if gframe != "" else ""
+			return "%s ×%d%s" % [gate_glyph(str(pred.get("gate", "?"))), int(pred.get("count", 1)), ghome]
 		"gate_order":
 			# The braid word, spelled as the player will drill it: "H → CNOT".
 			var word: Array = pred.get("gates", [])
@@ -127,13 +221,13 @@ static func summary(pred: Dictionary, qm = null) -> String:
 		"eigenvalue_gap_gte":
 			return "compass gap ≥ %.2f" % float(pred.get("value", 0.1))
 		"frozen_loops_gte":
-			return "close %d berry loop%s" % [int(pred.get("count", 1)), "s" if int(pred.get("count", 1)) != 1 else ""]
+			return "close %d berry loop%s — %s: F tracks" % [int(pred.get("count", 1)), "s" if int(pred.get("count", 1)) != 1 else "", verb_home("icon")]
 		"loops_linked":
 			return "🪢 link two loops — winding ≥ %d" % int(pred.get("value", 1))
 		"winding_gte":
 			return "🪢 mutual winding ≥ %d" % int(pred.get("value", 1))
 		"biome_frozen_loops_gte":
-			return "bank %d loop%s in %s" % [int(pred.get("count", 1)), "s" if int(pred.get("count", 1)) != 1 else "", str(pred.get("biome", "?"))]
+			return "bank %d loop%s in %s — %s: F tracks" % [int(pred.get("count", 1)), "s" if int(pred.get("count", 1)) != 1 else "", str(pred.get("biome", "?")), verb_home("icon")]
 		"biome_loops_linked":
 			return "🪢 link loops in %s — winding ≥ %d" % [str(pred.get("biome", "?")), int(pred.get("value", 1))]
 		"bridge_built_gte":

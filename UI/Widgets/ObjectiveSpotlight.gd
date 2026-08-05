@@ -44,31 +44,48 @@ func _process(delta: float) -> void:
 
 
 func _refresh() -> void:
-	var key := UIProgression.objective_target_key()
+	var target_info := UIProgression.objective_target()
+	var key := str(target_info.get("key", ""))
+	var biome := str(target_info.get("biome", ""))
+	# One pulse at a time, the LITERAL next key: if the target lives in a
+	# biome that isn't focused, the next key is that biome's tab (TYUIOP) —
+	# pulse it; once focused, pulse the verb's chip.
+	var pulse_id := key
+	if biome != "" and biome != _active_biome_name():
+		pulse_id = "biome:%s" % biome
 	# Unchanged AND the pulsed node survived (a progression-triggered row
 	# rebuild frees and recreates chip nodes) — nothing to do.
-	if key == _current_key and _pulsing_node != null and is_instance_valid(_pulsing_node):
+	if pulse_id == _current_key and _pulsing_node != null and is_instance_valid(_pulsing_node):
 		return
-	_current_key = key
+	_current_key = pulse_id
 	_stop_pulse()
-	if key == "":
+	if pulse_id == "":
 		return
-	var target := _resolve_target(key)
+	var target := _resolve_target(pulse_id)
 	if target != null:
 		_start_pulse(target)
 
 
-func _resolve_target(key: String) -> Control:
+func _active_biome_name() -> String:
+	var abm := get_node_or_null("/root/ActiveBiomeManager")
+	return str(abm.active_biome) if (abm != null and "active_biome" in abm) else ""
+
+
+func _resolve_target(pulse_id: String) -> Control:
 	if _action_bar_manager == null:
 		return null
 	var row = null
-	if key == "X" or key == "C":
+	var lookup := pulse_id
+	if pulse_id.begins_with("biome:"):
+		row = _action_bar_manager.get("biome_selection_row")
+		lookup = pulse_id.trim_prefix("biome:")
+	elif pulse_id in ["Z", "X", "C", "V", "B", "N", "M"]:
 		row = _action_bar_manager.get("menu_selection_row")
 	else:
 		row = _action_bar_manager.get("tool_selection_row")
 	if row == null or not is_instance_valid(row) or not row.has_method("get_button_pulse_target"):
 		return null
-	return row.get_button_pulse_target(key)
+	return row.get_button_pulse_target(lookup)
 
 
 func _start_pulse(target: Control) -> void:

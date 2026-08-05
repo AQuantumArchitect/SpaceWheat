@@ -1203,7 +1203,12 @@ func _make_commitment_row(quest: Dictionary, key_str: String, selected: bool) ->
 			vbox.add_child(bar)
 
 	# Tutorial hint sub-line (Act-0 onboarding — tells the player exactly what to do).
+	# Arc quests author `hint`; tutorials author `tutorial_hint`. Reading only
+	# the latter dropped ALL 56 arc-quest hints from the board the moment they
+	# were accepted — campaign guidance survived only as the banner's 70 chars.
 	var hint := str(quest.get("tutorial_hint", ""))
+	if hint == "":
+		hint = str(quest.get("hint", ""))
 	if hint != "":
 		var hint_lbl := Label.new()
 		hint_lbl.text = "    💡 " + hint
