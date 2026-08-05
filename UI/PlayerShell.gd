@@ -485,8 +485,11 @@ func _ready() -> void:
 	# Add to group so overlay buttons can find us
 	add_to_group("player_shell")
 
-	# CRITICAL: Ensure PlayerShell fills its parent (FarmView)
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	# CRITICAL: Ensure PlayerShell fills its parent (FarmView). set_anchors_preset()
+	# alone keeps current offsets to preserve the (still (0,0)) visual rect under the
+	# new anchors, which bakes in offsets equal to -parent_size and cancels the anchor
+	# scaling back to zero -- only "_and_offsets_" actually zeroes the offsets.
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	# Process input even when game is paused (for ESC menu, etc.)
 	process_mode = Node.PROCESS_MODE_ALWAYS

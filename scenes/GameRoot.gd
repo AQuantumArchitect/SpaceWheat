@@ -18,7 +18,10 @@ var _started: bool = false
 func _ready() -> void:
 	name = "GameRoot"
 	add_to_group("game_root")
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	# same fix as AppRoot._ready(): the "_and_offsets_" form is required so this
+	# freshly created Control's rect actually spans its (already real-sized) parent
+	# instead of baking in offsets that cancel the anchor scaling back to zero.
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	process_mode = Node.PROCESS_MODE_ALWAYS
 
 

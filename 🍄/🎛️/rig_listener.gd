@@ -1190,6 +1190,13 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 						result["rect"] = [cr_rect.position.x, cr_rect.position.y, cr_rect.size.x, cr_rect.size.y]
 						result["center"] = [int(cr_rect.position.x + cr_rect.size.x / 2.0), int(cr_rect.position.y + cr_rect.size.y / 2.0)]
 						result["visible"] = cr_match.is_visible_in_tree()
+						# Anchor/offset diagnostics: a zero-sized "rect" alone doesn't say WHY.
+						# These caught a whole-app collapse (offsets baked to -window_size,
+						# cancelling the anchor scaling back to zero) that "rect": [0,0,0,0]
+						# on its own gave no way to root-cause. Cheap; kept permanently.
+						result["local_size"] = [cr_match.size.x, cr_match.size.y]
+						result["anchors"] = [cr_match.anchor_left, cr_match.anchor_top, cr_match.anchor_right, cr_match.anchor_bottom]
+						result["offsets"] = [cr_match.offset_left, cr_match.offset_top, cr_match.offset_right, cr_match.offset_bottom]
 
 		"node_children":
 			# Mouse-probe helper: direct children of a named node, with class +

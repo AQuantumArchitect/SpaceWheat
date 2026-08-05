@@ -47,14 +47,11 @@ separate bug and this section should be reopened.
 
 | Surface | Keyboard mechanism | Why it's a gap |
 |---|---|---|
-| **Plot select+act on an UNEXPLORED plot (the core loop's first move)** | 3D bubble tap should route `_gui_input → _try_pick → handle_bubble_tap`, but `bubble_state` shows the pre-explore register has `visible: false` and a degenerate `screen_pos` near the viewport origin — `_try_pick`'s pixel-radius hit-test can never find it. A raw-pixel sweep of the ENTIRE play area (66 points) after confirmed welcome-dismiss found ZERO clickable targets. Keyboard G/H/J/K/L selects by index, no visibility needed. | **Severe — this is the very first thing "or just tap it" tells a fresh player to try, and it silently does nothing.** `PlotGridDisplay` is documented (task #408, "2D plot tiles as fixed rack in 3D mode") as the intended pre-explore click surface, but its screen rect/tile geometry hasn't been confirmed live yet — first item for Wave 2. |
 | A/D inner paging (Arc/Self/Story/Guide tabs in `ControlsOverlay`, Balance settings in `EscapeMenu`) | `step_active_layer()` (`UI/Core/QuantumInstrumentInput.gd:1337`) wired to `_on_navigate(Vector2i)` via `_on_unhandled_key` (fixed for keyboard 2026-08-05) | Zero mouse call sites. No on-screen prev/next affordance exists at all — a mouse-only player cannot reach page 2+ of any paginated tab (Arc tab alone has 57 flags at 6/page = 11 pages). |
 | QubitAtlasOverlay T/Y/U/I/O frame-tab switching | `_on_unhandled_key:206` | `ClickWire.attach` here (`:438`) only covers card selection *within* a tab, not the tab switch itself. |
 
 ## Unknown — needs live discovery (Wave 2)
 
-- **Start here**: does `PlotGridDisplay`'s fixed-rack overlay actually give an unexplored plot a real, visible, clickable Control? Get its live screen rect (`control_rect`/`node_children` under `PlotGridDisplay`) and tap that instead of the 3D field's `rig_screen_pos_for_grid`. If it also fails to dispatch, this is the real, severe, launch-blocking bug — the intended "or just tap it" path for a brand-new player is broken.
-- Whether the `tap` rig verb's `pos=` resolution should be extended to also check `PlotGridDisplay` (a third node kind alongside `quantum_nodes_by_grid_pos`/`rig_screen_pos_for_grid`) — currently it can't test the pre-explore click path at all.
 - Submenu confirm/cancel flows outside Q/E/R/F (destructive confirms — Cull/Trim/Break Q→F chord)
 - Save/load slot buttons in EscapeMenu's KEEP/NEW tabs
 - Welcome-splash dismiss — confirmed working live 2026-08-05 (`WelcomeOverlay._input` consumes the click, `ui_stack` shows it gone after one tap)
@@ -84,10 +81,51 @@ separate bug and this section should be reopened.
    but be unbound. Fixed to check `is_bound` too, matching the keyboard
    path's ground truth (`UI/Core/QuantumInstrumentInput.gd`). Real and
    verified-correct by code inspection, but NOT the cause of the "first
-   tap does nothing" symptom below — that traces to the bubble being
-   invisible/unpickable pre-explore, not verb misresolution. Kept because
-   it's a genuine, narrower correctness fix (matters once a terminal
-   exists mid-game in an unbound state).
+   tap does nothing" symptom below — kept because it's a genuine, narrower
+   correctness fix (matters once a terminal exists mid-game in an unbound
+   state).
+4. **THE root cause of "first tap does nothing" — `AppRoot`, `GameRoot`,
+   and `PlayerShell` all had `Control.size` permanently stuck at `(0,0)`,
+   collapsing the entire app tree's clickable area to nothing.** All three
+   called `set_anchors_preset(Control.PRESET_FULL_RECT)` — the bare form,
+   which keeps the CURRENT offsets to preserve the visual rect under the
+   new anchors. For a freshly created `(0,0)`-sized `Control` added to an
+   ALREADY-realized parent (the real root `Window`, sized 1280×720 by the
+   time `AppRoot._ready()` runs), that computes offsets of exactly
+   `-1280, -720` — which exactly cancels the anchor scaling and
+   permanently collapses `.size` back to `(0,0)`, cascading down through
+   `GameRoot` into `QuantumField3D` (which itself correctly used
+   `set_anchors_and_offsets_preset`, but inherited a zero-size parent
+   regardless). With `QuantumField3D.size == (0,0)`, `_gui_input` can
+   never fire for ANY click, anywhere on screen — Control's `has_point()`
+   test against a zero-size rect is never true — so `_try_pick` never even
+   runs, independent of the bubble's own 3D position or visibility. This
+   is why the earlier "layout collapse" fix (Wave 2, `_layout_pos`/
+   `_rebuild` centroid) was real but insufficient: it fixed the bubble's
+   3D position, but the Control receiving the click was already unclickable
+   for an unrelated, upstream reason. Root-caused live by adding temporary
+   `_dbg_*` fields to `bubble_state`/`control_rect` (since removed, except
+   for `local_size`/`anchors`/`offsets` on `control_rect`, kept
+   permanently — see rig_listener.gd) that traced `Control.size == 0` up
+   the ancestor chain to `AppRoot`'s exact `-1280/-720` offsets. Fixed by
+   changing all three call sites to `set_anchors_and_offsets_preset`
+   (`scenes/AppRoot.gd`, `scenes/GameRoot.gd`, `UI/PlayerShell.gd`), which
+   actually zeroes the offsets instead of preserving them. **Verified
+   live: a genuine mouse tap (zero keyboard) on TheDemos's first plot now
+   produces `dispatch_ledger: {"action": "explore", "success": true}` and
+   flips `plot_glance`'s `revealed` from `false` to `true`.** Regression
+   test: `tests/test_headed_player_input_surface.py::
+   test_app_boot_chain_zeroes_offsets_not_just_anchors`.
+
+   HUD/menu clicks (`PlayerShell`'s own descendants — `MenuSelectionRow`
+   etc.) were unaffected by this bug throughout the campaign despite
+   `PlayerShell.size` also reading `(0,0)`: those children are sized by
+   their own `Container` layout (content-fit, e.g. an `HBoxContainer`
+   sizing a chip to its label), not by anchoring to `PlayerShell`'s own
+   `.size`, so their absolute rects were always real. This also confirms
+   the "menu buttons dead" report (§ above) was correctly diagnosed as a
+   downstream symptom, not a separate bug — the ONE thing actually broken
+   was the 3D field's own clickable area.
 
 ## Out of scope this pass
 

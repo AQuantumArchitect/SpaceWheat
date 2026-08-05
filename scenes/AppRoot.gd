@@ -25,7 +25,12 @@ var _title_hint: Label = null
 func _ready() -> void:
 	name = "AppRoot"
 	add_to_group("app_root")
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	# set_anchors_preset() alone keeps the current offsets to preserve the visual rect
+	# under the new anchors -- for a freshly created (0,0)-sized Control added to an
+	# ALREADY-sized root Window, that computes offsets equal to -window_size, which
+	# exactly cancels the anchor scaling and permanently collapses size to (0,0). Only
+	# the "_and_offsets_" form actually zeroes the offsets so the rect spans the parent.
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	process_mode = Node.PROCESS_MODE_ALWAYS
 
 	_install_emoji_font_fallback()

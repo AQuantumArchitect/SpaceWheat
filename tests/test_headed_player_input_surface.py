@@ -100,3 +100,25 @@ def test_selection_button_row_frees_buttons_before_readding() -> None:
     src = _read("UI/Widgets/SelectionButtonRow.gd")
     assert "remove_child(btn_data.container)" in src
     assert "btn_data.container.queue_free()" in src
+
+
+def test_app_boot_chain_zeroes_offsets_not_just_anchors() -> None:
+    # set_anchors_preset(FULL_RECT) alone keeps the CURRENT offsets to preserve
+    # the visual rect under the new anchors. For a freshly created (0,0)-sized
+    # Control added to an already-realized (nonzero) parent, that bakes in
+    # offsets equal to -parent_size, exactly cancelling the anchor scaling and
+    # permanently collapsing .size to (0,0) -- with no visual symptom, since
+    # nothing ever painted there anyway. AppRoot -> GameRoot -> QuantumField3D
+    # is exactly this shape (each .new()'d and add_child()'d into an already-
+    # sized live parent), so this silently zeroed out EVERY Control in the
+    # game: the field's own _gui_input never fires (has_point() against a
+    # (0,0) rect is never true), so no mouse click on ANY unexplored plot
+    # bubble ever reaches handle_bubble_tap -- the game's own "or just tap
+    # it" hint was false for a mouse-only player from the very first screen.
+    # Only set_anchors_and_offsets_preset() actually zeroes the offsets so
+    # the rect spans the (real) parent; that's the fix, pinned here so
+    # nobody "simplifies" these three calls back to the bare form.
+    for path in ("scenes/AppRoot.gd", "scenes/GameRoot.gd", "UI/PlayerShell.gd"):
+        src = _read(path)
+        assert "set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)" in src, path
+        assert "\tset_anchors_preset(Control.PRESET_FULL_RECT)" not in src, path
