@@ -241,3 +241,22 @@ def test_lane_display_names_parse():
     assert len(laned) >= 20, "expected the ~22 lane-prefixed flags; data reshaped?"
     bad = [f["id"] for f in laned if not lane_re.match(str(f["display_name"]))]
     assert not bad, f"lane display_names that no longer parse: {bad}"
+
+
+def test_story_flag_any_ids_are_real_flags():
+    """Every story_flag_any predicate (flag-level or arc state_predicate) must
+    reference only real flag ids — an OR over phantom flags is permanently
+    unsatisfiable and the quest it gates would never leave ACTIVE."""
+    flags = json.loads(STORY_FLAGS.read_text(encoding="utf-8"))
+    known = {str(f["id"]) for f in flags}
+    bad = []
+    for f in flags:
+        pred_sets = [f.get("predicates", [])]
+        if isinstance(f.get("arc_quest"), dict):
+            pred_sets.append(f["arc_quest"].get("state_predicates", []))
+        for preds in pred_sets:
+            for p in preds:
+                if p.get("type") == "story_flag_any":
+                    assert p.get("ids"), f"{f['id']}: story_flag_any with no ids"
+                    bad += [(f["id"], i) for i in p["ids"] if str(i) not in known]
+    assert not bad, f"story_flag_any references unknown flags: {bad}"

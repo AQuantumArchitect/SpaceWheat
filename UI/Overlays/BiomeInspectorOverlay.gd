@@ -18,6 +18,9 @@ extends "res://UI/Core/Surface.gd"
 ## register c of that biome's quantum computer.
 
 const FRAME_SUPPORTS := "supports"
+# Explicit preload — bare class_name identifiers are compile bombs under
+# --check-only harnesses (this file's IconRegistry hang, fable push 2026-08-03).
+const ActionCostRuntime = preload("res://Core/GameMechanics/ActionCostRuntime.gd")
 
 # Layout
 const BAR_HEIGHT := 10
@@ -498,7 +501,12 @@ func _build_biome_physics_section() -> void:
 		var v_word := "settled — near a stationary eigenstate" if v < 0.05 else "restless — broad energy spread, marginals swing"
 		body.add_child(_make_kv_row("Var(H)", "%.3f   ·   %s" % [v, v_word]))
 
-	body.add_child(_make_kv_row("qubits", "%d  (atoms %d)" % [_get_num_qubits(), _get_num_qubits() * 2]))
+	# DISTINCT atoms, not qubits×2 — degenerate pole re-use is exactly the
+	# Village slot-budget trap (atom_count_gte counts distinct emojis; 2N
+	# overstated progress whenever poles collide). Show the ring budget too.
+	var distinct_atoms: int = qc.register_map.coordinates.size() if qc.register_map != null else 0
+	var ring_cap: int = ActionCostRuntime.get_max_biome_qubits(null)
+	body.add_child(_make_kv_row("qubits", "%d/%d  (atoms: %d distinct)" % [_get_num_qubits(), ring_cap, distinct_atoms]))
 
 
 func _make_ratio_bar(ratio: float, fill_color: Color) -> Control:

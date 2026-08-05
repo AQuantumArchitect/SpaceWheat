@@ -28,6 +28,7 @@ static func generate_submenu(biome, farm, page: int = 0) -> Dictionary:
 
 	# Sort by affinity and apply costs
 	options = _sort_by_affinity(options, biome)
+	_annotate_new_atoms(options, biome)
 	options = BaseSubmenu.apply_cost_to_options(options, farm.economy if farm else null)
 
 	var pagination = BaseSubmenu.paginate(options, page)
@@ -35,10 +36,41 @@ static func generate_submenu(biome, farm, page: int = 0) -> Dictionary:
 
 	return BaseSubmenu.build_result(
 		"icon_injection",
-		"Inject Icon",
+		_budget_title(biome, farm),
 		pagination,
 		actions
 	)
+
+
+## "Inject Icon — Village: 4/6 axes" — the slot budget the zero-slack race
+## runs on (village_identity needs 12 DISTINCT atoms = exactly the 6-qubit
+## cap; nothing surfaced how few seats remain or which plants waste one).
+static func _budget_title(biome, farm) -> String:
+	if biome == null or not biome.has_method("get_total_register_count"):
+		return "Inject Icon"
+	var used: int = biome.get_total_register_count()
+	var cap: int = ActionCostRuntime.get_max_biome_qubits(farm)
+	var bname: String = str(biome.get_biome_type()) if biome.has_method("get_biome_type") else ""
+	return "Inject Icon — %s: %d/%d axes" % [bname, used, cap]
+
+
+## Per candidate: how many of its poles are NEW atoms to this biome (0/1/2).
+## atom_count_gte counts DISTINCT emojis, so a pair whose other pole already
+## lives here advances the count by 1, not 2 — legal, sometimes optimal (the
+## late door-key seat), but the number must be visible, never a refusal.
+static func _annotate_new_atoms(options: Array, biome) -> void:
+	var coords: Dictionary = {}
+	if biome != null and biome.get("quantum_computer") != null \
+			and biome.quantum_computer.register_map != null:
+		coords = biome.quantum_computer.register_map.coordinates
+	for option in options:
+		var fresh := 0
+		for pole in [str(option.get("north", "")), str(option.get("south", ""))]:
+			if pole != "" and not coords.has(pole):
+				fresh += 1
+		option["new_atoms"] = fresh
+		option["hint"] = "%s · +%d new atom%s" % [
+				str(option.get("hint", "")), fresh, "" if fresh == 1 else "s"]
 
 
 static func _collect_options(biome, farm) -> Array:

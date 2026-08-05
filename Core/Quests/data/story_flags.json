@@ -1067,13 +1067,18 @@
     ],
     "standing_grants": {},
     "arc_quest": {
-      "body": "Five Doors — seat a door's key in the village ring and the island reads your intent.",
+      "body": "Five Doors — choose one: 💧 Commons · 🔨 Artisan · 🏭 Manufactory (after Timber Rhythm) · 🦅 Eagle (after The Eagle Overhead) · 💀 Cemetery (after The Serfs' Ledger). Seat one key in the Village ring and the island reads your intent.",
       "hint": "The ring is full: six seats, all taken. To seat a key, Icon hat (5): Q unseats an icon you can spare (costs 13🐺 + 3 of each pole; Q arms, F confirms), then R on the empty plot plants the key (costs 10🌱 + 4× its south pole). When a word lives in a land, its faction's board opens there — a door is a market as much as a fate.",
       "state_predicates": [
         {
-          "type": "atom_count_gte",
-          "biome": "Village",
-          "value": 12
+          "type": "story_flag_any",
+          "ids": [
+            "village_path_commons",
+            "village_path_industrial",
+            "village_path_artisan",
+            "village_path_watched",
+            "village_path_cemetery"
+          ]
         }
       ]
     }

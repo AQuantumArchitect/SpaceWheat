@@ -154,6 +154,16 @@ static func summary(pred: Dictionary, qm = null) -> String:
 			if qm and qm.has_method("flag_display_name"):
 				disp = str(qm.flag_display_name(fid))
 			return "after the beat '%s'" % disp
+		"story_flag_any":
+			# The branch-choice predicate: ANY one of the named beats satisfies
+			# it — spell the alternatives so the choice reads as a choice.
+			var names: Array[String] = []
+			for aid in pred.get("ids", []):
+				var adisp := str(aid)
+				if qm and qm.has_method("flag_display_name"):
+					adisp = str(qm.flag_display_name(str(aid)))
+				names.append("'%s'" % adisp)
+			return "choose one door — any of: %s" % ", ".join(names)
 		"signature_growth_gte":
 			return "learn %d new icon%s — Icon hat (5): F tracks, R incorporates" % [maxi(1, itgt), "s" if itgt > 1 else ""]
 		"atom_count_gte":

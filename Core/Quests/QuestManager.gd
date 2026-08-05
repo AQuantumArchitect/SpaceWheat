@@ -337,7 +337,7 @@ func _evaluate_flag_predicates(predicates: Array, farm) -> float:
 ## (below) accepts these PLUS the QuestStateProjectionService observable/action vocabulary, so the
 ## tutorial + arc + market quests all draw from one unified predicate language.
 const FLAG_PREDICATE_TYPES := [
-	"story_flag_set", "biome_evolving", "berry_consumed_count_gte", "berry_total_phase_gte",
+	"story_flag_set", "story_flag_any", "biome_evolving", "berry_consumed_count_gte", "berry_total_phase_gte",
 	"standing_gte", "biome_state_gte", "biome_state_lte", "signature_size_gte", "signature_growth_gte", "atom_count_gte", "atom_in_biome",
 	"atom_diversity_gte", "biome_attractor_emoji_gte",
 	"soul_purity_gte",
@@ -468,6 +468,16 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 	match kind:
 		"story_flag_set":
 			return 1.0 if farm.story_flags_fired.has(str(pred.get("id", ""))) else 0.0
+		"story_flag_any":
+			# OR over a set of flags — the branch-choice predicate. Lets a
+			# quest stay ACTIVE ("choose one door") until ANY alternative
+			# fires, instead of instant-completing on an already-true gate
+			# (five_doors' old state_predicates were satisfied the moment the
+			# flag fired, so its fork guidance was claimed away untaught).
+			for fid in pred.get("ids", []):
+				if farm.story_flags_fired.has(str(fid)):
+					return 1.0
+			return 0.0
 		"biome_evolving":
 			if farm.grid == null:
 				return 0.0
