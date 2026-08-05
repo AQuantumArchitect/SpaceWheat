@@ -528,8 +528,13 @@ func _build_biome_physics_section() -> void:
 	# Village slot-budget trap (atom_count_gte counts distinct emojis; 2N
 	# overstated progress whenever poles collide). Show the ring budget too.
 	var distinct_atoms: int = qc.register_map.coordinates.size() if qc.register_map != null else 0
-	var ring_cap: int = ActionCostRuntime.get_max_biome_qubits(null)
-	body.add_child(_make_kv_row("qubits", "%d/%d  (atoms: %d distinct)" % [_get_num_qubits(), ring_cap, distinct_atoms]))
+	# Resolve the cap through a REAL farm/economy — a null source returns 0,
+	# which rendered "qubits 5/0" (caught by the headed screenshot pass).
+	var ring_cap: int = ActionCostRuntime.get_max_biome_qubits(InstrumentLocator.resolve_active_farm(self))
+	if ring_cap > 0:
+		body.add_child(_make_kv_row("qubits", "%d/%d  (atoms: %d distinct)" % [_get_num_qubits(), ring_cap, distinct_atoms]))
+	else:
+		body.add_child(_make_kv_row("qubits", "%d  (atoms: %d distinct)" % [_get_num_qubits(), distinct_atoms]))
 
 
 ## marker: optional fraction [0,1] to draw a bright tick at (the campaign's
