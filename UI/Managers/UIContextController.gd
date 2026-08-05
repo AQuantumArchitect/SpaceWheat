@@ -341,6 +341,10 @@ func _project_action_info(action_info: Dictionary) -> Dictionary:
 		"shift_label": str(action_info.get("shift_label", "")),
 		"shift_action": str(action_info.get("shift_action", "")),
 		"destructive": bool(action_info.get("destructive", false)),
+		# A producer-supplied consequence annotation (e.g. IconInjectionSubmenu's
+		# "+2 new atoms · gap 0.61→0.54 ▼") — dropped here for years since no
+		# consumer read it, silently defeating every submenu that computed one.
+		"hint": str(action_info.get("hint", "")),
 	}
 
 

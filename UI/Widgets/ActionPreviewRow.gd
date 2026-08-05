@@ -219,6 +219,12 @@ func _apply_button_projection(action_key: String, action_info: Dictionary) -> vo
 	var emoji = str(action_info.get("emoji", ""))
 	var icon_path = str(action_info.get("icon", ""))
 	var shift_hint = str(action_info.get("shift_label", ""))
+	# Producer-computed consequence annotation (IconInjectionSubmenu's
+	# "+2 new atoms · gap 0.61→0.54 ▼" etc.) — this is the only place it's
+	# ever rendered; the projection carries it through but no widget read it.
+	var hint_suffix := str(action_info.get("hint", "")).strip_edges().trim_prefix("· ").strip_edges()
+	if hint_suffix != "":
+		hint_suffix = " · %s" % hint_suffix
 	var is_disabled = bool(action_info.get("disabled", false))
 	var is_available = bool(action_info.get("available", false))
 	var has_icon = false
@@ -232,13 +238,14 @@ func _apply_button_projection(action_key: String, action_info: Dictionary) -> vo
 				has_icon = true
 
 	if has_icon:
-		btn_data.label.text = "[%s] %s%s" % [action_key, label_text, " (%s)" % shift_hint if shift_hint != "" else ""]
+		btn_data.label.text = "[%s] %s%s%s" % [
+				action_key, label_text, " (%s)" % shift_hint if shift_hint != "" else "", hint_suffix]
 		btn_data.label.offset_left = 40 * scale_factor
 		btn_data.base_label_offset = 40 * scale_factor
 	else:
 		var prefix = ("%s " % emoji) if emoji != "" else ""
 		var suffix = " (%s)" % shift_hint if shift_hint != "" else ""
-		btn_data.label.text = "[%s] %s%s%s" % [action_key, prefix, label_text, suffix]
+		btn_data.label.text = "[%s] %s%s%s%s" % [action_key, prefix, label_text, suffix, hint_suffix]
 
 	btn_data.disabled = is_disabled
 	btn_data.available = is_available
