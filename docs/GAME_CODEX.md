@@ -427,6 +427,9 @@ sprawl that was pruned alongside it — see the same commit).
 - **Controls:** `UI/Core/KEYBOARD_GRAMMAR.md`, `UI/Core/SURFACE_MANIFEST.md`
 - **Archetypes:** `docs/ARCHETYPE_FRAMES.md`, `docs/CHARACTER_ARCHETYPES.md`
 - **Physics:** `docs/CLOSED_SYSTEM.md`, `docs/FOR_PHYSICISTS.md`
+- **Campaign status snapshot:** `docs/CAMPAIGN_STATE_2026-08-04.md` — act-by-act
+  flag map, biome ship-status, known-issues ledger, test-coverage verdict
+  (a fable-push briefing; re-verify before trusting if stale).
 - **Narrative content:** `docs/biomemissions/` (biome arcs — open-DLC scope;
   see each file's banner), `docs/QUEST_SYSTEM_PLAN.md`
   (The December-2025 `reference/` and `architecture/` docs were archived
