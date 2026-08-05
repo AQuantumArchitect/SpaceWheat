@@ -105,6 +105,17 @@ func start_game(request: Dictionary = {}) -> void:
 	game_root = GameRootClass.new()
 	game_root.name = "GameRoot"
 	add_child(game_root)
+	# GameRoot must sit BELOW PlayerShell in sibling order: both are full-rect
+	# Control siblings of AppRoot (no CanvasLayer actually separates them, despite
+	# a comment in _mount_quantum_visualization() claiming one does), and Godot's
+	# same-layer input hit-testing picks the LATER sibling first. Left at the
+	# default append order (added after PlayerShell), QuantumField3D's full-screen
+	# MOUSE_FILTER_STOP rect silently ate every click meant for the HUD chrome
+	# (menu row, hat row, biome row, Q/E/R/F chips) sitting visually on top of it
+	# -- invisible while the field was stuck at size (0,0) (see dde8dcde), but a
+	# real, severe regression the moment that bug was fixed and the field started
+	# actually covering the screen.
+	move_child(game_root, 0)
 	await game_root.start(boot_request)
 
 	# Boot pipeline finished — flip the shell into farm-attached mode so the

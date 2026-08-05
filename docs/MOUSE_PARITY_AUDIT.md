@@ -13,6 +13,30 @@ direct-`_try_pick()` shortcut in any harness code — it bypasses the real
 input pipeline and can reproduce the "click hit whatever it might" bug
 class this campaign exists to catch.
 
+## Severe: fixing the plot-tap blocker exposed a second, bigger blocker (found + fixed)
+
+The root cause of the plot-tap blocker turned out to be `AppRoot`/`GameRoot`/
+`PlayerShell`'s whole `Control` tree stuck at `size == (0,0)` (see below).
+Fixing it (commit `dde8dcde`) made `QuantumField3D` a real, full-screen,
+`MOUSE_FILTER_STOP` Control for the first time — and it turned out to be
+sibling-ordered ABOVE `PlayerShell` under `AppRoot` (added later, in
+`start_game()`, vs. `PlayerShell` added earlier, in `_ready()`), with no
+`CanvasLayer` actually separating them despite a code comment claiming one
+did. That full-screen rect silently ate every click meant for the HUD
+underneath it — the whole "Covered" table below (menu row, hat row, biome
+row, all four Q/E/R/F action chips) was **only ever verified true while the
+field was accidentally masked by the OTHER (0,0) bug**; a mouse player could
+tap plot bubbles (routed through `QuantumField3D` itself) and nothing else.
+Two independent persona-wave agents (earnest, literalist) hit this
+independently right after the first fix landed and root-caused it
+identically. Fixed by sibling-ordering `GameRoot` below `PlayerShell`
+(`AppRoot.start_game()`: `move_child(game_root, 0)` right after
+`add_child(game_root)`). Verified live: `MenuSelectionRow`'s `X` button now
+opens `EscapeMenu` via click, and `ActionBtn_F` (a real HUD button, not a
+bubble tap) now dispatches `explore success=true`. Regression test:
+`tests/test_headed_player_input_surface.py::test_game_root_sits_below_player_shell_in_sibling_order`.
+The "Covered" table below is now re-verified correct as of this fix.
+
 ## Luke's "menu buttons feel dead" report (2026-08-05) — investigated
 
 Swept all 8 `MenuSelectionRow` buttons by click, twice: fresh boot (Z, X

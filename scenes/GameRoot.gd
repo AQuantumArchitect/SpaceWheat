@@ -259,8 +259,12 @@ func _mount_quantum_visualization() -> void:
 		field3d.name = "QuantumField3D"
 		add_child(field3d)
 		# NOT top_level: a Control needs its parent's rect to resolve PRESET_FULL_RECT
-		# anchors. GameRoot is full-rect, so the field fills it; the app HUD lives in a
-		# CanvasLayer above GameRoot, so it stays on top of the field.
+		# anchors. GameRoot is full-rect, so the field fills it; the app HUD (PlayerShell)
+		# is a plain Control sibling of GameRoot under AppRoot, NOT a CanvasLayer -- it
+		# stays on top of the field purely because AppRoot.start_game() sibling-orders
+		# GameRoot below it (move_child(game_root, 0)). Don't reorder GameRoot after
+		# PlayerShell without also fixing that, or the field's full-screen
+		# MOUSE_FILTER_STOP rect will eat every HUD click again.
 		field3d.z_index = 0
 		# quantum_viz stays null so RuntimeMount skips its QuantumForceGraph-only staging
 		# (atlas batchers, layout_calculator, quantum_nodes). FarmView wires the 3D field

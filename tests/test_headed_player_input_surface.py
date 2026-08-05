@@ -122,3 +122,26 @@ def test_app_boot_chain_zeroes_offsets_not_just_anchors() -> None:
         src = _read(path)
         assert "set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)" in src, path
         assert "\tset_anchors_preset(Control.PRESET_FULL_RECT)" not in src, path
+
+
+def test_game_root_sits_below_player_shell_in_sibling_order() -> None:
+    # Fixing the (0,0)-size bug above (test_app_boot_chain_zeroes_offsets_not_just_anchors)
+    # exposed a SECOND, more severe bug it had been accidentally masking: GameRoot ->
+    # QuantumField3D is a full-screen Control with MOUSE_FILTER_STOP, added as a LATER
+    # sibling of PlayerShell under AppRoot -- no CanvasLayer actually separates them,
+    # despite a comment in GameRoot.gd once claiming one does. Once the field's size
+    # stopped being permanently (0,0), its full-screen hit-box started winning every
+    # click meant for PlayerShell's HUD chrome underneath it (menu row, hat row, biome
+    # row, all four Q/E/R/F action chips) -- a mouse player could tap plot bubbles
+    # (routed through QuantumField3D itself) and nothing else. AppRoot.start_game()
+    # must sibling-order GameRoot BELOW PlayerShell (move_child(game_root, 0)) so the
+    # HUD stays on top for both rendering and input, matching the codebase's own
+    # stated intent. Verified live: control_rect on MenuSelectionRow/ActionBtn_F
+    # buttons now dispatch (ui_stack opens EscapeMenu; dispatch_ledger records
+    # explore success=true) instead of silently hitting QuantumField3D.
+    src = _read("scenes/AppRoot.gd")
+    assert "add_child(game_root)" in src
+    assert "move_child(game_root, 0)" in src
+    add_idx = src.index("add_child(game_root)")
+    move_idx = src.index("move_child(game_root, 0)")
+    assert add_idx < move_idx, "move_child must run after add_child(game_root)"
