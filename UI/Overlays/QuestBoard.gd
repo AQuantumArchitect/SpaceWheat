@@ -1642,10 +1642,12 @@ func _abandon_selected() -> void:
 		return
 	var rows: Array = _commitments_rows()
 	if _selected_index < 0 or _selected_index >= rows.size():
+		_toast_feedback("• nothing selected to abandon — G H J K L ; picks a commitment")
 		return
 	var quest: Dictionary = rows[_selected_index]
 	var qid: int = int(quest.get("id", -1))
 	if qid < 0:
+		_toast_feedback("• only an active commitment can be abandoned")
 		return
 	if _abandon_arm_qid == qid:
 		_disarm_abandon()

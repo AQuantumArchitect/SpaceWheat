@@ -1316,7 +1316,7 @@ func _on_action_q() -> void:
 		Tab.KEEP:    _load_from_selected_slot()
 		Tab.NEW:     _start_new_scenario()                    # Q = leave current run for a new one
 		Tab.BALANCE: _nudge_balance_setting(-1)              # Q = − value
-		Tab.DEV:     pass  # honest empty
+		Tab.DEV:     RefusalVoice.note("nothing on Q in Dev — G H J picks an action, R runs it")
 
 func _on_action_e() -> void:
 	if _pending_action != PendingAction.NONE:
@@ -1345,7 +1345,7 @@ func _on_action_r() -> void:
 	match _current_tab:
 		Tab.RUN:     _save_and_resume()                      # R = screw in = enter game
 		Tab.KEEP:    _save_to_selected_slot()
-		Tab.NEW:     pass                                     # R empty — no current run to commit forward yet
+		Tab.NEW:     RefusalVoice.note("nothing on R here — Q starts the selected scenario")
 		Tab.BALANCE: _nudge_balance_setting(1)              # R = + value
 		Tab.DEV:     _execute_dev_action(_dev_action_idx)
 

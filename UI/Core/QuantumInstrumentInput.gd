@@ -331,6 +331,8 @@ func _dispatch_action_key(key: String, shift: bool = false) -> void:
 						str(f_action.get("shift_label", f_action.get("label", ""))))
 				elif not f_action.is_empty():
 					_perform_action("F")
+				else:
+					RefusalVoice.note("nothing on F in this hat")
 
 
 # The biome/plot/subspace selection rows used to live in a SECOND input callback
@@ -404,10 +406,12 @@ func _cycle_mode() -> void:
 	var frame_name: String = ToolConfig.get_current_frame()
 	if frame_name == ToolConfig.FRAME_NULL:
 		_verbose.debug("input", "~", "No active frame to cycle")
+		RefusalVoice.note("no hat selected — 4-0 picks one, Tab cycles its modes")
 		return
 	var new_index = ToolConfig.cycle_frame_mode(frame_name)
 	if new_index < 0:
 		_verbose.debug("input", "~", "No mode cycle for frame %s (single mode)" % frame_name)
+		RefusalVoice.note("this hat has one mode — Tab has nothing to cycle")
 		return
 	_on_mode_changed(frame_name, new_index)
 
@@ -580,6 +584,7 @@ func _handle_submenu_action(action_key: String) -> void:
 			"✓" if actions.has("E") else "✗",
 			"✓" if actions.has("R") else "✗"
 		])
+		RefusalVoice.note("no option on %s here — F pages, ESC closes" % action_key)
 		return  # Stay in submenu
 
 	# Check if option is disabled
@@ -1074,6 +1079,7 @@ func _select_biome(biome_idx: int, key: String) -> void:
 	var new_biome = _active_biome_mgr.get_biome_for_slot(biome_idx)
 	if new_biome == "":
 		_verbose.info("input", "•", "Biome slot %s unassigned" % key)
+		RefusalVoice.note("no biome in slot %s yet — Captain hat (7): R discovers one" % key)
 		return
 
 	var old_biome = _active_biome_mgr.get_active_biome()
@@ -1130,6 +1136,7 @@ func _select_plot(plot_idx: int, key: String) -> void:
 	# Guard against out-of-range plot indices
 	if farm and farm.grid_config and plot_idx >= farm.grid_config.grid_width:
 		_verbose.debug("input", "•", "Plot %d outside grid width %d" % [plot_idx, farm.grid_config.grid_width])
+		RefusalVoice.note("no plot on that key here")
 		return
 	# Allow focusing an EMPTY plot the biome owns (assigned plots ≥ registers): an
 	# empty plot is where you PLANT (inject) a new icon — Icon-R there opens the
@@ -1137,6 +1144,7 @@ func _select_plot(plot_idx: int, key: String) -> void:
 	var plot_count = _get_active_biome_plot_count()
 	if plot_count > 0 and plot_idx >= plot_count:
 		_verbose.debug("input", "•", "Plot %d exceeds biome plots (%d)" % [plot_idx, plot_count])
+		RefusalVoice.note("this biome has %d plot%s — G H J K L ; left to right" % [plot_count, "" if plot_count == 1 else "s"])
 		return
 
 	# Get current active biome
@@ -1580,16 +1588,20 @@ func _perform_action(action_key: String) -> void:
 
 	if action_info.is_empty():
 		_verbose.debug("input", "~", "No action for %s in frame %s" % [action_key, current_frame_name])
+		RefusalVoice.note("nothing on %s in this hat" % action_key)
 		return
 
 	if bool(action_info.get("disabled", false)):
 		# Refusals speak (anti-gating law): a resolver-disabled chip's key must
 		# say WHY and what to do instead — the silent return here was the act-2
 		# wall (Icon-hat R on a full untracked plot did nothing, and three relay
-		# legs never found the incorporate/plant ritual).
+		# legs never found the incorporate/plant ritual). A disabled chip with
+		# NO authored reason still speaks (generic), never dies silently.
 		var disabled_reason := str(action_info.get("reason", ""))
 		if disabled_reason != "":
 			_toast_player("✗ %s" % disabled_reason)
+		else:
+			RefusalVoice.refuse(str(action_info.get("label", action_key)), "not available here")
 		return
 
 	var emoji = action_info.get("emoji", "")
@@ -1603,6 +1615,7 @@ func _perform_action(action_key: String) -> void:
 
 	var action_name = action_info.get("action", "")
 	if action_name == "":
+		RefusalVoice.note("nothing on %s in this mode" % action_key)
 		return
 
 	if not ActionValidator.can_execute_action_name(
@@ -1721,11 +1734,13 @@ func _perform_shift_key_action(action_key: String) -> void:
 		return
 	var action_info = ToolConfig.get_action(current_frame_name, action_key)
 	if action_info.is_empty():
+		RefusalVoice.note("nothing on Shift+%s in this hat" % action_key)
 		return
 
 	# Use shift_action if defined, otherwise use normal action
 	var action_name = action_info.get("shift_action", action_info.get("action", ""))
 	if action_name == "":
+		RefusalVoice.note("nothing on Shift+%s in this mode" % action_key)
 		return
 
 	var symbol = "⇧%s" % action_key
