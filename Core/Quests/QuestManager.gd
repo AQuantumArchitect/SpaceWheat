@@ -191,6 +191,48 @@ func atom_count_in(biome_name: String) -> int:
 	return int(biome.quantum_computer.register_map.coordinates.size())
 
 
+## Live H spectral gap for a biome (-1.0 = not loaded / unmeasurable) —
+## PredicateGloss shows "gap now → target" on the finale predicates, the same
+## live-N/M shape atom_count_in gives the buildout gates. Cached read.
+func spectral_gap_in(biome_name: String) -> float:
+	var farm = _get_active_farm()
+	if farm == null or farm.grid == null:
+		return -1.0
+	var biome = farm.grid.get_biome(biome_name)
+	if biome == null or not biome.has_method("spectral_gap_now"):
+		return -1.0
+	return float(biome.spectral_gap_now())
+
+
+## The un-fired gap predicate targeting this biome, if any:
+## {"op": "lte"|"gte", "value": float, "fire_target": float} or {} — the
+## B overlay's campaign-marker row reads the LIVE story data through this
+## instead of hardcoding thresholds into a physics instrument.
+func gap_target_for(biome_name: String) -> Dictionary:
+	for flag in _unfired_flags:
+		if not (flag is Dictionary):
+			continue
+		var pred_sets: Array = [flag.get("predicates", [])]
+		var arc = flag.get("arc_quest")
+		if arc is Dictionary:
+			pred_sets.append(arc.get("state_predicates", []))
+		for preds in pred_sets:
+			for pred in preds:
+				if not (pred is Dictionary):
+					continue
+				var t := str(pred.get("type", ""))
+				if not t.begins_with("biome_spectral_gap_"):
+					continue
+				if str(pred.get("biome", "")) != biome_name:
+					continue
+				return {
+					"op": "lte" if t.ends_with("_lte") else "gte",
+					"value": float(pred.get("value", 0.0)),
+					"fire_target": predicate_fire_target(pred),
+				}
+	return {}
+
+
 ## Live distinct-atom count across all loaded biomes (mirrors the
 ## atom_diversity_gte evaluator).
 func atom_diversity_now() -> int:
@@ -613,10 +655,16 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
 			if biome == null or biome.get("quantum_computer") == null:
 				return 0.0
-			var g_gte: float = float(biome.quantum_computer.get_hamiltonian_spectral_gap())
+			# Cached read (invalidated on H mutation) — the evaluators run every
+			# flag tick and were paying a dim³ eigensolve each. Width honors a
+			# per-flag override via _pred_width, same as the count gates —
+			# PREDICATE_SOFT_WIDTH-direct made the Arc tab's printed fire point
+			# (predicate_width-aware) disagree with the actual evaluator.
+			var g_gte: float = float(biome.spectral_gap_now()) if biome.has_method("spectral_gap_now") \
+					else float(biome.quantum_computer.get_hamiltonian_spectral_gap())
 			if g_gte < 0.0:
 				return 0.0  # unmeasurable (solver failure sentinel) is never satisfaction
-			return QuestMath.soft_gate(g_gte, float(pred.get("value", 0.0)), PREDICATE_SOFT_WIDTH["biome_spectral_gap_gte"])
+			return QuestMath.soft_gate(g_gte, float(pred.get("value", 0.0)), _pred_width(pred, "biome_spectral_gap_gte"))
 		"biome_spectral_gap_lte":
 			# "chaotic / near-degenerate" — score rises as H's gap falls below value (competing
 			# modes, no single rest configuration). The empire's restlessness is this, by composition.
@@ -625,10 +673,11 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
 			if biome == null or biome.get("quantum_computer") == null:
 				return 0.0
-			var g_lte: float = float(biome.quantum_computer.get_hamiltonian_spectral_gap())
+			var g_lte: float = float(biome.spectral_gap_now()) if biome.has_method("spectral_gap_now") \
+					else float(biome.quantum_computer.get_hamiltonian_spectral_gap())
 			if g_lte < 0.0:
 				return 0.0  # a broken solver must not read as "chaotic" and hand out the ending
-			return QuestMath.soft_gate_inv(g_lte, float(pred.get("value", 0.0)), PREDICATE_SOFT_WIDTH["biome_spectral_gap_lte"])
+			return QuestMath.soft_gate_inv(g_lte, float(pred.get("value", 0.0)), _pred_width(pred, "biome_spectral_gap_lte"))
 		"biome_energy_variance_gte":
 			# "restless / chaotic" — score rises as Var(H) = ⟨H²⟩−⟨H⟩² climbs above value.
 			# Var(H) is the closed-native chaos measure (a broad energy superposition swings

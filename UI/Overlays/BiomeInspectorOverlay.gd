@@ -474,27 +474,50 @@ func _build_biome_physics_section() -> void:
 	var body := _make_card_panel(_content_box, "How this biome behaves",
 		"Closed-system character — set by composition, conserved under evolution")
 
-	if qc.has_method("get_hamiltonian_spectral_gap"):
-		var gap: float = qc.get_hamiltonian_spectral_gap()
-		if gap < 0.0:
-			# Failure sentinel: the solver couldn't measure — say so, don't
-			# render -1 as "plural" (a broken read must never look like a win).
-			body.add_child(_make_kv_row("H-gap  E₁−E₀", "—   ·   unmeasurable (solver unavailable)", UIStyleFactory.COLOR_MUTED))
+	# Cached read via the lazy dirty-flagged scalars — this section refreshes
+	# at 4 Hz and was paying a raw dim³ eigensolve each tick (Village dim-128:
+	# the single biggest hidden cost in the overlay). H never changes without
+	# invalidating the cache, so cached == truth.
+	var gap: float = _active_biome.spectral_gap_now() if _active_biome.has_method("spectral_gap_now") \
+			else (qc.get_hamiltonian_spectral_gap() if qc.has_method("get_hamiltonian_spectral_gap") else -1.0)
+	if gap < 0.0:
+		# Failure sentinel: the solver couldn't measure — say so, don't
+		# render -1 as "plural" (a broken read must never look like a win).
+		body.add_child(_make_kv_row("H-gap  E₁−E₀", "—   ·   unmeasurable (solver unavailable)", UIStyleFactory.COLOR_MUTED))
+	else:
+		var gap_word: String
+		var gap_color: Color
+		if gap >= 0.6:
+			gap_word = "rigid — one dominant mode imposed"
+			gap_color = COLOR_LINDBLAD
+		elif gap <= 0.45:
+			gap_word = "plural — many modes coexist"
+			gap_color = COLOR_ENTANGLE
 		else:
-			var gap_word: String
-			var gap_color: Color
-			if gap >= 0.6:
-				gap_word = "rigid — one dominant mode imposed"
-				gap_color = COLOR_LINDBLAD
-			elif gap <= 0.45:
-				gap_word = "plural — many modes coexist"
-				gap_color = COLOR_ENTANGLE
-			else:
-				gap_word = "between — settling toward one mode"
-				gap_color = UIStyleFactory.COLOR_BODY
-			body.add_child(_make_kv_row("H-gap  E₁−E₀", "%.3f   ·   %s" % [gap, gap_word], gap_color))
-			# Visual gap bar — wide gap fills the bar (rigid); narrow = plural.
-			body.add_child(_make_ratio_bar(clampf(gap, 0.0, 1.0), gap_color))
+			gap_word = "between — settling toward one mode"
+			gap_color = UIStyleFactory.COLOR_BODY
+		body.add_child(_make_kv_row("H-gap  E₁−E₀", "%.3f   ·   %s" % [gap, gap_word], gap_color))
+		# Campaign marker: when an UN-FIRED story gate targets this biome's
+		# gap, show the target + live side. Read from the LIVE story data
+		# (QuestManager.gap_target_for) — the physics bands above stay
+		# physics; story numbers never hardcode into the instrument.
+		var marker := -1.0
+		var qm = InstrumentLocator.resolve_quest_manager(self, null)
+		if qm != null and qm.has_method("gap_target_for"):
+			var tgt_info: Dictionary = qm.gap_target_for(str(_active_biome.get_biome_type()))
+			if not tgt_info.is_empty():
+				var op_glyph := "≤" if str(tgt_info.get("op", "")) == "lte" else "≥"
+				var fire := float(tgt_info.get("fire_target", 0.0))
+				marker = clampf(fire, 0.0, 1.0)
+				var on_side := (gap <= fire) if op_glyph == "≤" else (gap >= fire)
+				var side_word := "on the winning side" if on_side else "not there yet"
+				body.add_child(_make_kv_row("campaign",
+						"need %s %.2f (fires ~%.3f) — now %.3f · %s" % [
+							op_glyph, float(tgt_info.get("value", 0.0)), fire, gap, side_word],
+						COLOR_ENTANGLE if on_side else COLOR_LINDBLAD))
+		# Visual gap bar — wide gap fills the bar (rigid); narrow = plural.
+		# The tick marks the campaign fire target when one exists.
+		body.add_child(_make_ratio_bar(clampf(gap, 0.0, 1.0), gap_color, marker))
 
 	if qc.has_method("get_energy_variance"):
 		var v: float = qc.get_energy_variance()
@@ -509,7 +532,10 @@ func _build_biome_physics_section() -> void:
 	body.add_child(_make_kv_row("qubits", "%d/%d  (atoms: %d distinct)" % [_get_num_qubits(), ring_cap, distinct_atoms]))
 
 
-func _make_ratio_bar(ratio: float, fill_color: Color) -> Control:
+## marker: optional fraction [0,1] to draw a bright tick at (the campaign's
+## gap fire-target); < 0 (the default) draws no tick — all prior call sites
+## keep their behavior.
+func _make_ratio_bar(ratio: float, fill_color: Color, marker: float = -1.0) -> Control:
 	var bar := PanelContainer.new()
 	var bg := StyleBoxFlat.new()
 	bg.bg_color = UIStyleFactory.COLOR_BAR_BG
@@ -532,6 +558,21 @@ func _make_ratio_bar(ratio: float, fill_color: Color) -> Control:
 	rest.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	rest.size_flags_stretch_ratio = maxf(1.0 - ratio, 0.02)
 	inner.add_child(rest)
+	if marker >= 0.0:
+		var overlay := Control.new()
+		overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		bar.add_child(overlay)
+		var tick := ColorRect.new()
+		tick.color = Color(1.0, 0.95, 0.75, 0.95)
+		tick.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		overlay.add_child(tick)
+		var m := clampf(marker, 0.0, 1.0)
+		tick.anchor_left = m
+		tick.anchor_right = m
+		tick.anchor_top = 0.0
+		tick.anchor_bottom = 1.0
+		tick.offset_left = -1.0
+		tick.offset_right = 1.0
 	return bar
 
 

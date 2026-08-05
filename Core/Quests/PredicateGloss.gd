@@ -189,9 +189,18 @@ static func summary(pred: Dictionary, qm = null) -> String:
 		"biome_eigenvalue_gap_gte":
 			return "%s gap ≥ %.2f" % [str(pred.get("biome", "")), tgt]
 		"biome_spectral_gap_gte":
-			return "%s stable (gap ≥ %.2f) — the microscope (B) reads it" % [str(pred.get("biome", "")), tgt]
+			# Live now→target, same shape as atom_count_gte's N/M — the gap
+			# gates the ENDING and read as a black box with no current value.
+			var gg_biome := str(pred.get("biome", ""))
+			var gg_now: float = qm.spectral_gap_in(gg_biome) if (qm and qm.has_method("spectral_gap_in")) else -1.0
+			var gg_live := ("gap %.2f → need ≥ %.2f" % [gg_now, tgt]) if gg_now >= 0.0 else ("gap ≥ %.2f" % tgt)
+			return "%s rigid: %s — the microscope (B) reads it" % [gg_biome, gg_live]
 		"biome_spectral_gap_lte":
-			return "%s chaotic (gap ≤ %.2f) — the microscope (B) reads it" % [str(pred.get("biome", "")), tgt]
+			var gl_biome := str(pred.get("biome", ""))
+			var gl_now: float = qm.spectral_gap_in(gl_biome) if (qm and qm.has_method("spectral_gap_in")) else -1.0
+			var gl_live := ("gap %.2f → need ≤ %.2f" % [gl_now, tgt]) if gl_now >= 0.0 else ("gap ≤ %.2f" % tgt)
+			return "%s plural: %s — unseat a heavy word (%s Q), seat a stranger one (R); B reads it" % [
+					gl_biome, gl_live, verb_home("icon")]
 		"biome_energy_variance_gte":
 			return "%s restless ≥ %.2f" % [str(pred.get("biome", "")), tgt]
 		"biome_energy_variance_lte":

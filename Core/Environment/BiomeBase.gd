@@ -642,6 +642,18 @@ func get_ambient_scalars() -> Dictionary:
 	}
 
 
+## Sentinel-aware spectral gap through the LAZY CACHE: drives the dirty-flag
+## refresh, then returns the raw cached value — may be -1.0 (unmeasurable /
+## never computed), which display consumers must render as "—", never as a
+## small gap. The cache invalidates on every H mutation (_mark_lookahead_dirty),
+## so cached == truth; per-render eigensolves (dim³) stay off the frame path.
+func spectral_gap_now() -> float:
+	if viz_cache == null:
+		return quantum_computer.get_hamiltonian_spectral_gap() if quantum_computer != null else -1.0
+	get_ambient_scalars()
+	return viz_cache.get_spectral_gap()
+
+
 func get_emoji_probability(emoji: String) -> float:
 	if not viz_cache:
 		return -1.0
