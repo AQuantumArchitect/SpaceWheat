@@ -137,6 +137,23 @@ func set_hat_dim_mask(passing_hats: Dictionary) -> void:
 			tex.modulate = normal_color if bright else DIM
 
 
+## The visible glyph node for hat_key (e.g. "8" = Ace) — the TextureRect
+## icon, since hat chips render via icon_path (never the label, which stays
+## empty whenever an icon is present). null if that hat isn't currently
+## visible (progressive disclosure) or the key is unrecognized. Used by
+## ObjectiveSpotlight to pulse "press me next" — reuses the SAME id-mapping
+## select_frame()/_frame_for_index() already do, not a second lookup table.
+func get_button_pulse_target(hat_key: String) -> Control:
+	var frame_idx := HAT_KEYS.find(hat_key)
+	if frame_idx < 0:
+		return null
+	var frame_name: String = FRAME_ORDER[frame_idx]
+	var idx := _visible_frames.find(frame_name)
+	if idx < 0 or idx >= buttons.size():
+		return null
+	return buttons[idx].get("icon", null)
+
+
 func debug_layout() -> String:
 	# Return detailed layout debug information for F3 display.
 	var debug_text = ""

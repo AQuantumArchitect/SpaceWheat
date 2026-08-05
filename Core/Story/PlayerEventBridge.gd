@@ -178,7 +178,13 @@ func _quest_name(qid: int) -> String:
 
 
 func _on_quest_offered(quest: Dictionary) -> void:
-	var is_arc := bool(quest.get("is_arc", false)) or bool(quest.get("from_story_flag", false))
+	# A story/arc/tutorial offer deserves an actual toast, not a log-only
+	# entry — this used to check is_arc/from_story_flag, fields QuestPipeline
+	# never sets (dead code; every offer landed at importance 1 and never hit
+	# the screen). category and source_flag ARE the real fields
+	# from_tutorial_def/from_story_def populate (Core/Quests/QuestPipeline.gd).
+	var is_arc := str(quest.get("category", "")) == "TUTORIAL" \
+		or str(quest.get("source_flag", "")).strip_edges() != ""
 	var fac := str(quest.get("faction", ""))
 	if fac.strip_edges() == "":
 		fac = "the story"

@@ -1,6 +1,8 @@
 class_name EscapeMenu
 extends "res://UI/Core/Surface.gd"
 
+const UIProgression = preload("res://UI/Core/UIProgression.gd")
+
 ## Z — System Surface (Z key + ESC).
 ##
 ## Keyboard grammar matches the rest of the game:
@@ -337,7 +339,10 @@ func _refresh_tab_row() -> void:
 		var lbl: Label = _tab_labels.get(key_str, null)
 		if lbl == null:
 			continue
-		if tab_enum == _current_tab:
+		if not _tab_active(tab_enum):
+			lbl.text = "🔒 [%s] %s" % [key_str, name_str]
+			lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_ITEM_EMPTY)
+		elif tab_enum == _current_tab:
 			lbl.text = "[%s] %s" % [key_str, name_str.to_upper()]
 			lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_TAB_ACTIVE)
 		else:
@@ -1256,7 +1261,24 @@ func _format_cost(cost: Dictionary) -> String:
 # TAB SWITCHING (mirrored into Surface.frame_id)
 # =============================================================================
 
+## TAB_ROW's own "name" field, lowercased, IS the id UIProgression's
+## ESCAPE_TAB_LOCKED_UNTIL_ACT0_DONE table keys on — one source for the
+## enum→string mapping, not a second parallel table.
+func _tab_id(tab: int) -> String:
+	for entry in TAB_ROW:
+		if int(entry.get("tab", -1)) == tab:
+			return str(entry.get("name", "")).to_lower()
+	return ""
+
+
+func _tab_active(tab: int) -> bool:
+	return UIProgression.is_escape_tab_active(_tab_id(tab))
+
+
 func _show_tab(tab: int) -> void:
+	if not _tab_active(tab):
+		UIProgression.redirect_locked()
+		return
 	if _current_tab == tab and frame_id == TAB_TO_FRAME.get(tab, frame_id):
 		return
 	_keep_peeking = false
@@ -1414,9 +1436,18 @@ func _on_navigate(direction: Vector2i) -> void:
 	if _pending_action != PendingAction.NONE:
 		return
 	if direction.y != 0:
-		# W/S cycles tabs.
+		# W/S cycles tabs, skipping any locked during Act 0 — a plain
+		# wrapi() step would stall forever on the first locked tab (it keeps
+		# recomputing the same target). Bounded by tab count so this always
+		# terminates even if every tab were somehow locked.
 		var n := TAB_ROW.size()
-		_show_tab(wrapi(_current_tab + signi(direction.y), 0, n))
+		var step := signi(direction.y)
+		var candidate := _current_tab
+		for _i in range(n):
+			candidate = wrapi(candidate + step, 0, n)
+			if _tab_active(candidate):
+				_show_tab(candidate)
+				return
 		return
 	if direction.x == 0:
 		return

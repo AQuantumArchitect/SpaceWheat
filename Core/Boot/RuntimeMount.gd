@@ -372,6 +372,17 @@ func stage_ui(farm: Node, shell: Node, quantum_viz: Node, world_builder) -> void
 			act_filament.setup(shell.quest_manager, farm, shell.overlay_manager)
 			_verbose.info("boot", "🧵", "ActFilament ready (objective banner)")
 
+			# Objective spotlight — the SAME live objective ActFilament speaks,
+			# but shown: a looping pulse on whichever menu/hat chip is next.
+			# Renders nothing of its own; only reaches into action_bar_manager's
+			# existing rows, so it doesn't need OverlayLayer real estate.
+			if "action_bar_manager" in shell and shell.action_bar_manager:
+				var objective_spotlight = ObjectiveSpotlight.new()
+				objective_spotlight.name = "ObjectiveSpotlight"
+				shell.add_child(objective_spotlight)
+				objective_spotlight.setup(shell.action_bar_manager)
+				_verbose.info("boot", "✨", "ObjectiveSpotlight ready (next-target pulse)")
+
 			# Act postcards: when a fired flag COMPLETES its act, auto-capture a
 			# postcard — the player's per-act "solution stats" card (headed only;
 			# the capture reads real viewport pixels).

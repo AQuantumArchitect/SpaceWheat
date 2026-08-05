@@ -84,6 +84,21 @@ func _rebuild_buttons() -> void:
 	build_buttons(specs)
 
 
+## The visible glyph node for key_label (e.g. "X"/"C") — the Label, NOT the
+## icon TextureRect: MenuSelectionRow's specs never set icon_path (only
+## "text"), so icon_rect stays permanently hidden and the emoji is rendered
+## through the label instead. null if that menu isn't currently visible
+## (progressive disclosure) or the key is unrecognized. Used by
+## ObjectiveSpotlight to pulse "press me next".
+func get_button_pulse_target(key_label: String) -> Control:
+	for btn_id in _entry_by_id:
+		if str(_entry_by_id[btn_id].get("key_label", "")) == key_label:
+			if btn_id < 0 or btn_id >= buttons.size():
+				return null
+			return buttons[btn_id].get("label", null)
+	return null
+
+
 func _on_button_selected(button_id: int) -> void:
 	if not overlay_manager or not _entry_by_id.has(button_id):
 		return

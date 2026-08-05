@@ -48,6 +48,16 @@ const MENU_UNLOCK_FLAGS: Dictionary = {
 	"neighborhood_graph": "village_stirs",
 }
 
+## Menu id → minimum tutorial_step at which it surfaces (checked ALONGSIDE
+## MENU_UNLOCK_FLAGS, not instead of — a menu needs both its flag AND its step
+## satisfied). Only Quest Board carries an entry: nothing in tutorial steps
+## 0-4 needs it, and step 5 ("contracts") is literally where it's taught.
+## Missing from this table = no step gate, same fail-open law as everywhere
+## else in this file.
+const MENU_UNLOCK_STEP: Dictionary = {
+	"quests": 5,
+}
+
 
 static func _flags() -> Dictionary:
 	var gsm = Engine.get_main_loop().root.get_node_or_null("GameStateManager") if Engine.get_main_loop() else null
@@ -73,7 +83,11 @@ static func is_menu_visible(menu_id: String) -> bool:
 	var flags := _flags()
 	if flags.is_empty() and _no_farm():
 		return true
-	return _unlocked(str(MENU_UNLOCK_FLAGS.get(menu_id, "")), flags)
+	if not _unlocked(str(MENU_UNLOCK_FLAGS.get(menu_id, "")), flags):
+		return false
+	if MENU_UNLOCK_STEP.has(menu_id):
+		return current_tutorial_step() >= int(MENU_UNLOCK_STEP[menu_id])
+	return true
 
 
 static func _no_farm() -> bool:
@@ -100,6 +114,26 @@ static func is_menu_active(menu_id: String) -> bool:
 	if _enforcement_bypassed():
 		return true
 	return is_menu_visible(menu_id)
+
+
+## Escape-menu (Z) tab id → locked until Act 0 fully completes. Only the
+## wander-only tabs are listed (New/Balance/Dev); Now/Save default to always-
+## active (missing = unlocked, same fail-open convention as every other table
+## in this file). Locked here means "gate `_show_tab()`'s target" — EscapeMenu
+## owns its own Tab enum, this takes the string id it maps that enum to.
+const ESCAPE_TAB_LOCKED_UNTIL_ACT0_DONE: Dictionary = {
+	"new": true,
+	"balance": true,
+	"dev": true,
+}
+
+
+static func is_escape_tab_active(tab_id: String) -> bool:
+	if _enforcement_bypassed():
+		return true
+	if not bool(ESCAPE_TAB_LOCKED_UNTIL_ACT0_DONE.get(tab_id, false)):
+		return true
+	return current_tutorial_step() == NO_TUTORIAL_SENTINEL
 
 
 # ============================================================================
@@ -196,13 +230,13 @@ const OFFER_LINE := "📜 new offer — X then I (Arc)"
 const REDIRECT_FALLBACK := "follow the Arc (X → I)"
 
 
-static func objective_text() -> String:
-	var flags := _flags()
-	if flags.has("island_lives"):
-		return ""
+## The single ranked winning quest/offer — shared by objective_text() (the
+## text banner) and objective_target_key() (the visual spotlight), so both
+## always agree on what "the one live objective" is. {} when there's none.
+static func _best_objective() -> Dictionary:
 	var qm := _quest_manager()
 	if qm == null or not ("active_quests" in qm):
-		return ""
+		return {}
 	var act_by_flag := _act_by_flag(qm)
 	var best: Dictionary = {}
 	var best_rank := 0x7FFFFFFF
@@ -221,10 +255,57 @@ static func objective_text() -> String:
 			if rank < best_rank:
 				best_rank = rank
 				best = q
+	return best
+
+
+static func objective_text() -> String:
+	var flags := _flags()
+	if flags.has("island_lives"):
+		return ""
+	var qm := _quest_manager()
+	if qm == null or not ("active_quests" in qm):
+		return ""
+	var best := _best_objective()
 	if not best.is_empty():
 		return _decorate_objective(best)
 	if ("story_offers" in qm) and not qm.story_offers.is_empty():
 		return OFFER_LINE
+	return ""
+
+
+## Visual companion to objective_text() — which literal key is the next thing
+## to press, for UI/Widgets/ObjectiveSpotlight.gd to pulse. Reuses the SAME
+## ranked objective objective_text() decorates; never a second guess. "" when
+## there's no reliable structured target (tutorial steps 2/5-gather/6 and
+## in-progress ARC quests carry only free-text hints, no target field — those
+## fall back to text-only, same as today, rather than inventing a guess).
+static func objective_target_key() -> String:
+	var flags := _flags()
+	if flags.has("island_lives"):
+		return ""
+	var best := _best_objective()
+	if best.is_empty():
+		return ""
+	var status := str(best.get("status", ""))
+	if status == Quest.STATUS_STORY:
+		return "X"
+	if status == "ready":
+		return "C"
+	if str(best.get("category", "")) != "TUTORIAL":
+		return ""
+	var step := int(best.get("tutorial_step", -1))
+	for entry_key in VERB_UNLOCK_STEP:
+		if int(VERB_UNLOCK_STEP[entry_key]) == step:
+			var hat_key := _hat_key_for_frame(str(entry_key).split(":")[0])
+			if hat_key != "":
+				return hat_key
+	return ""
+
+
+static func _hat_key_for_frame(frame_name: String) -> String:
+	for hat_key in ToolConfig.HAT_KEY_TO_FRAME:
+		if str(ToolConfig.HAT_KEY_TO_FRAME[hat_key]) == frame_name:
+			return str(hat_key)
 	return ""
 
 
