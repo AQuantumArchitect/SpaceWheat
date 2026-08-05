@@ -172,3 +172,62 @@ Ranked roughly by leverage, not by memory-file order:
 - Branch/fork narrative detail: `docs/biomemissions/VILLAGE_STORY_PATHS.md` (564 lines) — remember it uses Path-letter names, not the shipped fork names; §2 above has the mapping.
 - Test/verification shape: `🍄/🧪/hive/P7_SWEEP_PLAN.md` (the chapter-leg-sweep protocol), `🍄/🧪/act3_5_drive.py` (closest thing to a full campaign play, diagnostic-only), `PERSONAS.md` (the persona-swarm doctrine).
 - This session's most recent shipped work: `[[project_arc0_spotlight_pass_2026-08-04]]` and `[[project_first_arc_polish_2026-08-04]]` in memory — both are prerequisite context for items 1 and 4 above.
+
+---
+
+## 9. ADDENDUM — the fable push executed same-day (2026-08-04, local commits)
+
+The push this doc briefed ran the same day. Status of §5's ranked list:
+
+1. **Masher baseline: MEASURED.** Fresh-boot, 3 seeds × 100 presses via a rig
+   lane reading `dispatch_ledger`: productive-dispatch rate mean **0.007**
+   (range 0.000–0.020). The funnel is masher-safe but still not
+   masher-productive. NEW FINDING: seed 47 drove the game unresponsive at
+   press ~57 (heartbeat stale, 16s+/turn after) — deterministically
+   reproducible (`random.Random(47)` over the seat key set); suspect the
+   `−`/`=` stride dial compounding. Un-diagnosed, filed for follow-up.
+2. **Silent-refusal family: STRUCTURAL FIX.** `UI/Core/RefusalVoice.gd` is the
+   one voice for the guard band (per-message dedupe, two shapes); ~10 cataloged
+   silent sites covered; OverlayBase keyboard-F takes the chip-honesty gate.
+3. **Fork discoverability: FIXED (owner ruling: full signpost).** `five_doors`
+   is a persistent "choose one door" quest (new `story_flag_any` predicate),
+   its body lists all five doors + prereqs, `atom_in_biome` glosses teach the
+   plant verb, the picker shows the Village slot budget + "+N new atoms".
+4. **Fractal descent keyboard entry: NOT TOUCHED** (still mouse-only).
+5. **KEEP-tab R/Q: FIXED.** SAVE_OVERWRITE/LOAD_DISCARD confirms via the
+   existing scaffolding; load deactivates only after success; empty/
+   incompatible slots speak.
+6. **GAME_CODEX §8: 4 of 5 addressed** (see the codex's per-item status);
+   chatter (Q5) deliberately left for a future push.
+7. **Berry rate: VISIBLE.** Tracked plots show a ripening ETA ("~40s" / "∅");
+   an un-ripenable axis (no transverse H term) warns at track time.
+8. **Campaign test gate: BUILT.** `tests/test_campaign_checkpoints.py` asserts
+   the minted spine checkpoints load + all banked flags survive, plus a
+   `fire_flag` consequence test. Green in ~45s.
+9. **Doc-rot:** GAME_CODEX refreshed; this addendum. STARTER_ISLAND banner
+   fix still owed.
+10. **`five_doors`: WIRED** (see 3).
+11. **`the_span` lane continuity: NOT TOUCHED** (still awaiting design confirm).
+12. **Standing doc note: NOT TOUCHED.**
+
+Beyond the list, the push's largest finds (none were in this doc's §5):
+- **The acts-4-8 blackout** — `objective_text()`/`objective_target_key()`
+  early-returned "" once `island_lives` (act 4!) fired; banner + spotlight
+  were dark for half the campaign. Deleted; smoke-pinned.
+- **Acts are now felt**: `Core/Story/StoryAtlas.gd` (contiguous-prefix current
+  act, any-one-of branch groups, lane parsing) drives an act-entry toast, an
+  ambient "Act N · Chapter" line on the banner, honest act postcards (act 5
+  was unreachable), a de-inflated chapter header, and Arc-tab lane tags +
+  A/D paging over all 57 flags.
+- **Arc hints survive acceptance** (QuestBoard read only `tutorial_hint`; all
+  56 arc quests author `hint`) and beat toasts cut at sentence boundaries
+  (was `.left(80)` mid-word).
+- **Reap was corrupting Berry phase** (projective collapse without reseed —
+  fake solid angle every Shift+F). The collapse→reseed law now lives at the
+  one authority (`QuantumComputer._project_qubit`), probe-pinned.
+- **A gap-solver failure satisfied the win condition** (returned 0.0, and
+  0.0 ≤ 0.55). Failure sentinel −1.0; failure is never satisfaction.
+- **Planting preserves state** (owner ruling E1): the ground-state reset on
+  every plant is gone; the already-computed tensor extension stands; only the
+  new qubit gets the dawn kick. Probe-pinned (marginal continuity, purity,
+  Berry-walk survival).

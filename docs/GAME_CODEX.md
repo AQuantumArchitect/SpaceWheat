@@ -17,6 +17,14 @@
 > (§5.4); the ending's spectral-gap number corrected in §8; and §5.6 now names
 > the Witness organ and the cognifold transparency instrument, which post-date
 > the original writing. Everything else stands as written.
+>
+> Refreshed 2026-08-04 (campaign fable push): §8's fun/legibility questions
+> carry per-item status — the gap is legible (live glosses, B campaign marker,
+> SpectralPreview what-if), the fork is a persistent choice quest, soft-gate
+> scores are on the Arc tab, and Q2's premise correction is recorded (planting
+> was never a DELIVER side-effect). Acts are announced + ambient (StoryAtlas);
+> planting now PRESERVES the biome's state (owner ruling — the tensor
+> extension stands; the ground-state reset is gone).
 
 ---
 
@@ -359,20 +367,29 @@ the Arc tab open, reads biome detail, and tries to win the ending *deliberately*
 will see "story is the physics." A reviewer who just clicks will find Acts 1–3
 engaging and Acts 4–5 grindy. The most valuable fresh perspective would probe:
 
-**Fun / legibility**
+**Fun / legibility** *(status refreshed after the 2026-08-04 fable push — see
+`docs/CAMPAIGN_STATE_2026-08-04.md`'s addendum for the change list)*
 1. **Does the loop scale?** R/E/Q is crisp with 1–2 biomes; by Act 5 there are ~6
-   and it turns repetitive. Is a "run a biome in the background / macro-harvest"
-   affordance needed, or does Reap already cover it?
-2. **Is composition felt?** Planting an atom into a biome (which forks Act 5) is
-   currently a side-effect of completing a DELIVER quest, not a deliberate UI act.
-   Should the player choose *where* to plant, visibly?
-3. **Is the spectral gap a black box?** The ending gates on `Village` gap ≤ 0.55,
-   but no surface shows the live gap or teaches "🏭 widens it, 💧 narrows it." How
-   much should the winning physics be made legible without spoiling it?
-4. **Are the soft gates too invisible?** Quests say "3 berries" but fire at a 0.85
-   smooth-gate (~3.5). Should the Arc tab expose the predicate score bar directly?
-5. **Is the chatter readable or noise?** It carries real state but scrolls by.
-   Should a chatter line be inspectable ("show me what the Forest just said")?
+   and it turns repetitive. *Partially addressed:* the per-biome `−`/`=` clock
+   dial is now taught at first berry-track, and tracked plots show a ripening
+   ETA — waiting is legible. Deliberately NOT auto-paced (an untested heuristic
+   would be silent hindrance). Still open: whether a macro affordance is wanted.
+2. **Is composition felt?** *(The premise here was wrong — planting was never a
+   DELIVER side-effect; it has always been the deliberate Icon-hat (5) R verb.
+   DELIVER quests teach icons; a learned icon is then planted separately.)*
+   *Addressed:* the picker now shows the slot budget ("Village: 4/6 axes"),
+   "+N new atoms" per candidate, and the what-if gap ("0.61→0.54 ▼"); the
+   Act-5 fork is a persistent "choose one door" quest (`five_doors`).
+3. **Is the spectral gap a black box?** *Addressed (owner ruling: full what-if):*
+   gap glosses show live now→target, the B microscope carries a campaign-target
+   marker row + bar tick, and the icon picker / trim confirm preview the gap a
+   composition WOULD produce (`SpectralPreview`, proven bit-identical to live).
+4. **Are the soft gates too invisible?** *Largely addressed:* the Arc tab shows
+   per-flag `x/0.85` score bars + per-predicate breakdowns with real fire
+   points; glosses carry live have/target values (berries, atoms, standing, gap).
+5. **Is the chatter readable or noise?** Still open. It carries real state but
+   scrolls by (emoji streams, 32-entry ring, no history surface). A different
+   push's question.
 
 **Elegance / architecture**
 6. **Standing is tracked but inert** — 6 channels grant deltas but gate almost
