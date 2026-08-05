@@ -34,6 +34,31 @@ Every persona ends its run the same way regardless of outcome:
 `python3 🍄/🧪/player_seat.py bank <seat> <name>` then
 `python3 🍄/🧪/player_seat.py stop <seat>`.
 
+## Testing a specific late-game system: pick a checkpoint that's ON target
+
+A leg's press budget (~8-10 for the strict personas, more for earnest) is
+spent on the DIAGNOSTIC, not on travel. If the checkpoint you resume from
+is several flags upstream of the system you actually want exercised, the
+leg will burn its whole budget just getting oriented on whatever's active
+first (a contracts board, an earlier quest) and never reach the target —
+that's a harness bug, not a finding, and it wastes the run. Mint (or
+reuse) a checkpoint sitting immediately before the moment you want
+tested, not merely "in the neighborhood." `🍄/🧪/checkpoints/fork_ready.tres`
+is the canonical example: `village_identity` fired (so the five_doors arc
+quest is ACTIVE) and no `village_path_*` flag fired yet — a fork-signpost
+leg dropped there is testing the fork on turn 1, not turn 15.
+
+For a leg whose JOB is to judge the legibility of a specific instrumented
+view (the B biome microscope, the icon-injection picker, a gap readout) —
+as opposed to judging whether that view is *discoverable* in the first
+place, which is a different and already-tracked question — it's fair to
+hand it the exact key path to get there (e.g. "press 5 for Icon hat, then
+b opens the biome microscope on your focused biome"). That's not
+spoon-feeding the puzzle; discoverability and legibility are different
+defects and conflating them by starving a legibility leg of navigation
+just produces a null result instead of a reading on the thing you sent it
+to check.
+
 ---
 
 ## 1. masher

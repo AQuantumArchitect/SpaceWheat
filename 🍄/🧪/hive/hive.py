@@ -142,7 +142,14 @@ def cmd_wall(chapter: str, report: str) -> dict:
     entry = {"at": _now(), "chapter": chapter, "report": report}
     with open(HERE / "walls.jsonl", "a", encoding="utf-8") as f:
         f.write(json.dumps(entry, ensure_ascii=False) + "\n")
-    resp = _ingest({f"blocked_{chapter}": 1.0})
+    # The local ledger write above is the wall report of record — a sensor's
+    # job is done once it lands there. The hive daemon may be down (no
+    # umweltd running); don't let that make a successfully-filed wall read
+    # as a failure to the reporting agent.
+    try:
+        resp = _ingest({f"blocked_{chapter}": 1.0})
+    except Exception as exc:
+        resp = {"ok": False, "error": str(exc)}
     return {"ok": True, "ledgered": entry, "resp": resp}
 
 
