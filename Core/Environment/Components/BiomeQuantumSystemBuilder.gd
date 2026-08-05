@@ -105,15 +105,26 @@ func expand_quantum_system(north_emoji: String, south_emoji: String) -> Dictiona
 func rebuild_operators_from_register_map() -> bool:
 	if not quantum_computer or not quantum_computer.register_map:
 		return false
-	var IconRegistryCls = load("res://Core/Factions/IconRegistry.gd")
-	var IconCls = load("res://Core/QuantumSubstrate/Icon.gd")
-	var lexicon = (Engine.get_main_loop().root.get_node_or_null("/root/IconRegistry") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
-	if lexicon == null:
-		lexicon = IconRegistryCls.new()  # test harness fallback
-
-	var biome_icons: Array = []
+	var axes: Array = []
 	for q in range(quantum_computer.register_map.num_qubits):
 		var axis = quantum_computer.register_map.axes.get(q, {})
+		axes.append({"north": str(axis.get("north", "")), "south": str(axis.get("south", ""))})
+	build_operators_from_icons(quantum_computer.biome_name, icons_from_axes(axes))
+	return true
+
+
+## Axis list [{north, south}, ...] → Icon objects with icons.json physics —
+## the ONE derivation both the live rebuild above and SpectralPreview's
+## what-if use, so a hypothetical H can never drift from the real builder's.
+static func icons_from_axes(axes: Array, lexicon = null) -> Array:
+	var IconRegistryCls = load("res://Core/Factions/IconRegistry.gd")
+	var IconCls = load("res://Core/QuantumSubstrate/Icon.gd")
+	if lexicon == null:
+		lexicon = (Engine.get_main_loop().root.get_node_or_null("/root/IconRegistry") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
+	if lexicon == null:
+		lexicon = IconRegistryCls.new()  # test harness fallback
+	var out: Array = []
+	for axis in axes:
 		var north: String = str(axis.get("north", ""))
 		var south: String = str(axis.get("south", ""))
 		if north == "" or south == "":
@@ -121,10 +132,8 @@ func rebuild_operators_from_register_map() -> bool:
 		var physics = lexicon.get_icon_physics_by_pair(north, south)
 		var rec = lexicon.find_icon_by_pair(north, south)
 		var iname: String = str(rec.get("name", north)) if not rec.is_empty() else north
-		biome_icons.append(IconCls.from_pair_physics(iname, north, south, physics, 1.0))
-
-	build_operators_from_icons(quantum_computer.biome_name, biome_icons)
-	return true
+		out.append(IconCls.from_pair_physics(iname, north, south, physics, 1.0))
+	return out
 
 
 func inject_coupling(emoji_a: String, emoji_b: String, strength: float) -> Dictionary:

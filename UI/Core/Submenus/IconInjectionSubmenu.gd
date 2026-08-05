@@ -1,6 +1,10 @@
 class_name IconInjectionSubmenu
 extends RefCounted
 
+# Explicit preload — bare class_name identifiers are compile bombs under
+# --check-only harnesses.
+const SpectralPreview = preload("res://Core/QuantumSubstrate/SpectralPreview.gd")
+
 ## Signature Injection Submenu
 ## Dynamic submenu for Icon frame Q action showing icon options sorted by biome affinity
 ## Supports F-cycling through multiple pages of options
@@ -32,6 +36,7 @@ static func generate_submenu(biome, farm, page: int = 0) -> Dictionary:
 	options = BaseSubmenu.apply_cost_to_options(options, farm.economy if farm else null)
 
 	var pagination = BaseSubmenu.paginate(options, page)
+	_annotate_gap_preview(pagination.page_options, biome)
 	var actions = BaseSubmenu.build_actions(pagination.page_options, _build_icon_action)
 
 	return BaseSubmenu.build_result(
@@ -52,6 +57,26 @@ static func _budget_title(biome, farm) -> String:
 	var cap: int = ActionCostRuntime.get_max_biome_qubits(farm)
 	var bname: String = str(biome.get_biome_type()) if biome.has_method("get_biome_type") else ""
 	return "Inject Icon — %s: %d/%d axes" % [bname, used, cap]
+
+
+## What-if gap per VISIBLE candidate (≤3/page, cached by physics_signature —
+## F-page-cycling re-enters here and hits the cache): "gap 0.61→0.54 ▼" is the
+## number the ending literally gates on (island_free: Village gap ≤ 0.55),
+## finally readable at the moment of composition instead of after it.
+static func _annotate_gap_preview(page_options: Array, biome) -> void:
+	if biome == null or not biome.has_method("spectral_gap_now"):
+		return
+	var cur: float = biome.spectral_gap_now()
+	if cur < 0.0:
+		return  # unmeasurable live gap — no honest baseline to compare against
+	for option in page_options:
+		var g: float = SpectralPreview.preview_gap_with(
+				biome, str(option.get("north", "")), str(option.get("south", "")))
+		if g < 0.0:
+			continue
+		var arrow := "▼" if g < cur - 0.005 else ("▲" if g > cur + 0.005 else "→")
+		option["gap_after"] = g
+		option["hint"] = "%s · gap %.2f→%.2f %s" % [str(option.get("hint", "")), cur, g, arrow]
 
 
 ## Per candidate: how many of its poles are NEW atoms to this biome (0/1/2).

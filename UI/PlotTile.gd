@@ -617,6 +617,22 @@ func _draw_berry_ring_inline(rect: Rect2):
 		# Faint full track + bright partial fill showing progress toward 2π.
 		draw_arc(center, ring_radius, 0, TAU, 32, COLOR_BERRY_GLOW, 1.0)
 		draw_arc(center, ring_radius, start_angle, start_angle + TAU * frac, 32, COLOR_BERRY_FILL, 2.5)
+		# ETA under the arc: the ring shows position, this shows VELOCITY —
+		# ripening rates vary ~20× between registers (and a rabi-0 axis barely
+		# moves at all); "~40s" vs "∅" is the difference between waiting and
+		# realizing you should couple or re-track elsewhere.
+		var eta: float = float(plot_ui_data.get("berry_eta_s", -1.0))
+		var rate: float = float(plot_ui_data.get("berry_rate", 0.0))
+		var eta_text := ""
+		if eta > 0.0 and eta < 3600.0:
+			eta_text = "~%ds" % int(ceil(eta))
+		elif rate <= 1e-4 and frac > 0.01:
+			eta_text = "∅"
+		if eta_text != "":
+			var font := get_theme_default_font()
+			if font != null:
+				draw_string(font, Vector2(center.x - 12, rect.position.y + rect.size.y - 2),
+						eta_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 9, COLOR_BERRY_FILL)
 
 
 ## Public API

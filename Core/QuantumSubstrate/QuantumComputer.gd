@@ -1826,22 +1826,61 @@ func get_hamiltonian_spectral_gap() -> float:
 	if not _bloch_engine:
 		_warn_gap_failure("no native eigensolver")
 		return -1.0
-	var packed: PackedFloat64Array = hamiltonian.scale_real(-1.0)._to_packed()
-	if packed.size() != dim * dim * 2:
-		_warn_gap_failure("H packing mismatch (%d for dim %d)" % [packed.size(), dim])
+	var g := gap_of_hamiltonian(hamiltonian, dim, _bloch_engine)
+	if g < 0.0:
+		_warn_gap_failure("eigensolver could not measure the gap (dim %d)" % dim)
+	return g
+
+
+## The one −H/top-two packing authority: E₁−E₀ of H via a caller-supplied
+## eigensolver instance. Pure static — SpectralPreview's what-if uses the SAME
+## math on a hypothetical H, so preview and live can never disagree. -1.0 on
+## any failure (never 0.0 — a zero gap satisfies the win condition).
+static func gap_of_hamiltonian(h: ComplexMatrix, dim: int, engine) -> float:
+	if h == null or dim <= 1 or engine == null:
 		return -1.0
-	if _bloch_engine.get_dimension() != dim:
-		_bloch_engine.set_dimension(dim)
-	var result = _bloch_engine.compute_eigenstates(packed)
+	var packed: PackedFloat64Array = h.scale_real(-1.0)._to_packed()
+	if packed.size() != dim * dim * 2:
+		return -1.0
+	if engine.get_dimension() != dim:
+		engine.set_dimension(dim)
+	var result = engine.compute_eigenstates(packed)
 	if result.is_empty() or result.has("error"):
-		_warn_gap_failure("eigensolver error: %s" % str(result.get("error", "empty result")))
 		return -1.0
 	var eigs: PackedFloat64Array = result.get("eigenvalues", PackedFloat64Array())
 	if eigs.size() < 2:
-		_warn_gap_failure("solver returned %d eigenvalue(s)" % eigs.size())
 		return -1.0
 	var dom: float = float(result.get("dominant_eigenvalue", eigs[0]))
 	return absf(dom - eigs[1])
+
+
+## True iff H contains ANY off-diagonal term that flips this qubit's bit —
+## i.e. the axis can precess off the pole (its own rabi, or a transverse
+## cross-coupling touching either pole). Pure function of (H, register layout).
+## Deliberately H-first, NOT an icons.json read: a rabi-0 icon that RECEIVES a
+## transverse coupling from a neighbor IS ripenable, and only H knows. A qubit
+## with no transverse term keeps θ ≈ 0 on the Bloch sphere → encloses ~zero
+## solid angle → Berry-tracking it can never ripen alone (the silent trap that
+## pinned signatures on rigid-H biomes — NIGHT_PURGE 2026-07-06).
+func qubit_has_transverse_term(qubit_index: int) -> bool:
+	if hamiltonian == null or register_map == null:
+		return false
+	var n := register_map.num_qubits
+	if qubit_index < 0 or qubit_index >= n:
+		return false
+	var dim := register_map.dim()
+	var shift := n - 1 - qubit_index
+	var packed: PackedFloat64Array = hamiltonian._to_packed()
+	if packed.size() != dim * dim * 2:
+		return false
+	for i in range(dim):
+		for j in range(dim):
+			if ((i ^ j) >> shift) & 1 == 0:
+				continue  # this element doesn't flip our qubit
+			var base := (i * dim + j) * 2
+			if absf(packed[base]) > 1e-9 or absf(packed[base + 1]) > 1e-9:
+				return true
+	return false
 
 
 var _gap_failure_warned := false

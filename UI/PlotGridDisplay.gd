@@ -808,6 +808,36 @@ func update_tile_from_farm(pos: Vector2i) -> void:
 
 ## PHASE 4: PLOT TRANSFORMATION HELPER
 
+## Wall-clock finite-difference Berry rate per tracked register. Samples at
+## ≥0.5s spacing, EMA-smoothed (α=0.3); a |Δφ| > π/2 jump in one interval is a
+## collapse/reseed discontinuity — reset the sample instead of reporting a
+## garbage rate. Returns {"rate": rad/s, "eta_s": seconds-to-ripe or -1}.
+var _berry_rate_samples: Dictionary = {}
+
+func _berry_rate_sample(biome_name: String, qid: int, phase_abs: float) -> Dictionary:
+	var key := "%s:%d" % [biome_name, qid]
+	var now_ms := Time.get_ticks_msec()
+	var prev: Dictionary = _berry_rate_samples.get(key, {})
+	if prev.is_empty():
+		_berry_rate_samples[key] = {"t_ms": now_ms, "phase": phase_abs, "rate": 0.0}
+		return {"rate": 0.0, "eta_s": -1.0}
+	var dt := float(now_ms - int(prev["t_ms"])) / 1000.0
+	var rate := float(prev.get("rate", 0.0))
+	if dt >= 0.5:
+		var dphi: float = phase_abs - float(prev["phase"])
+		if absf(dphi) > PI / 2.0:
+			# Discontinuity (collapse cut the walk) — reseed the sampler.
+			_berry_rate_samples[key] = {"t_ms": now_ms, "phase": phase_abs, "rate": 0.0}
+			return {"rate": 0.0, "eta_s": -1.0}
+		var inst: float = maxf(dphi, 0.0) / dt
+		rate = rate * 0.7 + inst * 0.3
+		_berry_rate_samples[key] = {"t_ms": now_ms, "phase": phase_abs, "rate": rate}
+	var eta := -1.0
+	if rate > 1e-4:
+		eta = maxf(TAU - phase_abs, 0.0) / rate
+	return {"rate": rate, "eta_s": eta}
+
+
 func _transform_plot_to_ui_data(pos: Vector2i, plot, terminal = null) -> Dictionary:
 	# Transform WheatPlot/Terminal state → plot display dictionary.
 	#
@@ -868,6 +898,16 @@ func _transform_plot_to_ui_data(pos: Vector2i, plot, terminal = null) -> Diction
 			ui_data["berry_phase"] = br.get_phase(qid)
 			ui_data["berry_threshold"] = br.get_ripe_threshold(qid)
 			ui_data["berry_ripe"] = br.is_ripe(qid)
+			# Rate + ETA: wall-clock finite difference (automatically honest
+			# about the −/= clock dial and stride). The ring shows position;
+			# the ETA shows velocity — the ~20× per-register rate spread had
+			# NO on-screen signal, and a rabi-0 axis (rate ≈ 0) read as
+			# "tracking is broken". Named berry_rate, never "ripeness" (that
+			# word is taken by the marginal-derived bubble-glow quantity).
+			var rate_info := _berry_rate_sample(str(berry_biome.get_biome_type()), qid,
+					absf(float(ui_data["berry_phase"])))
+			ui_data["berry_rate"] = rate_info.get("rate", 0.0)
+			ui_data["berry_eta_s"] = rate_info.get("eta_s", -1.0)
 
 	# CASE 1: Terminal-bound or measured (from EXPLORE/MEASURE) - takes priority for emoji display
 	if terminal_active:

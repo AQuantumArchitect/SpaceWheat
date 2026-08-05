@@ -45,6 +45,7 @@ SMOKE_TESTS=(
     objective_blackout_smoke
     story_atlas_smoke
     predicate_target_smoke
+    spectral_preview_smoke
     faction_icon_adoption_smoke
     registry_shared_mutator_smoke
     semantica_explorer_load_proof

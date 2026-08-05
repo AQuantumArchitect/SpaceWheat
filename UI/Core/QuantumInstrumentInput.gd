@@ -38,6 +38,7 @@ const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
 const LindbladHandler = preload("res://Core/Instrumentation/Handlers/LindbladHandler.gd")
 const GranularityController = preload("res://Core/Utilities/GranularityController.gd")
 const UIProgression = preload("res://UI/Core/UIProgression.gd")
+const SpectralPreview = preload("res://Core/QuantumSubstrate/SpectralPreview.gd")
 
 ## Ace F (Fast-Forward) advances the closed evolution by this many phrames per press.
 const ACE_FAST_FORWARD_PHRAMES := 4
@@ -731,10 +732,17 @@ func _execute_toggle_berry_track() -> Dictionary:
 		return {"success": true, "tracking": false, "qubit": qid}
 	qc.berry_register.start_tracking(qid)
 	_verbose.info("input", "⌖", "Started tracking qubit %d" % qid)
+	# The un-ripenable trap speaks at TRACK time: a qubit with no transverse
+	# H term keeps θ≈0 → encloses no solid angle → never ripens alone. Still
+	# tracks (no gating — the state may couple later); just never silent.
+	var track_msg: String
+	if qc.has_method("qubit_has_transverse_term") and not qc.qubit_has_transverse_term(qid):
+		track_msg = "⌖ tracking — but this axis barely precesses alone (no transverse term). Couple it — plant a word that speaks to it — or it will not ripen."
+	else:
+		track_msg = "⌖ tracking — time ripens the loop; Icon-hat R incorporates when ripe."
 	# Teach the per-biome clock at the exact moment waiting begins, once per
 	# run — fleet data says players never learned −/= existed (some pressed
 	# fast-forward ~50× per berry instead of touching the dial).
-	var track_msg := "⌖ tracking — time ripens the loop; Icon-hat R incorporates when ripe."
 	if not _clock_taught:
 		_clock_taught = true
 		track_msg += "  ⏩ = speeds this biome's clock (up to ×32), − slows it."
@@ -1649,9 +1657,21 @@ func _perform_action(action_key: String) -> void:
 		}
 		var shell := _resolve_player_shell()
 		if shell and shell.has_method("show_hint"):
+			# Trimming moves the gap too — the island_free hint promises the
+			# player can "unseat a heavy word"; show the what-if at the confirm.
+			var gap_note := ""
+			if action_name == "remove_icon":
+				var trim_biome = _get_current_biome()
+				var qid: int = int(_instrument.current_plot_idx) if _instrument else -1
+				if trim_biome != null and trim_biome.has_method("spectral_gap_now") and qid >= 0:
+					var cur: float = trim_biome.spectral_gap_now()
+					var after: float = SpectralPreview.preview_gap_without(trim_biome, qid)
+					if cur >= 0.0 and after >= 0.0:
+						var arrow := "▼" if after < cur - 0.005 else ("▲" if after > cur + 0.005 else "→")
+						gap_note = "  ·  gap %.2f→%.2f %s" % [cur, after, arrow]
 			shell.show_hint(
-				"[color=#ff9966]⚠ %s[/color]  —  press [b]F[/b] to confirm, any other key cancels" \
-				% action_info.get("label", action_name), 3)
+				"[color=#ff9966]⚠ %s[/color]%s  —  press [b]F[/b] to confirm, any other key cancels" \
+				% [action_info.get("label", action_name), gap_note], 3)
 		return
 
 	_run_action(action_name, emoji if emoji != "" else action_name, action_info.get("label", action_name))
