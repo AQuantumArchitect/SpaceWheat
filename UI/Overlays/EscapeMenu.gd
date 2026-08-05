@@ -1390,6 +1390,16 @@ func _on_unhandled_key(keycode: int, _event: InputEvent) -> bool:
 		_show_tab(int(TAB_BY_KEYCODE[keycode]))
 		return true
 
+	# A/D = step INNER (pages within the active tab, e.g. Balance settings) —
+	# _on_navigate already implements this per-tab but was never wired to a
+	# keypress (same gap confirmed on ControlsOverlay's Arc tab, wave 3).
+	if keycode == KEY_A:
+		_on_navigate(Vector2i(-1, 0))
+		return true
+	if keycode == KEY_D:
+		_on_navigate(Vector2i(1, 0))
+		return true
+
 	# Item selection within the active tab — GHJKL;.
 	var slot := InputBindingRegistry.plot_index_for_keycode(keycode, ITEM_KEYS.size())
 	if slot >= 0:

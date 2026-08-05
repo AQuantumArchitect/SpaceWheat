@@ -2188,6 +2188,16 @@ func _on_unhandled_key(keycode: int, _event: InputEvent) -> bool:
 	if TAB_BY_KEYCODE.has(keycode):
 		_show_tab(int(TAB_BY_KEYCODE[keycode]))
 		return true
+	# A/D = step INNER (items/pages within the active tab) — _on_navigate has
+	# always implemented this per-tab (Arc paging, Self icon paging, Story
+	# crawl, Guide paging) but was never wired to a keypress (wave-3 sensor
+	# wall: the Arc tab's own "page 1/11 · A/D" footer did nothing on D).
+	if keycode == KEY_A:
+		_on_navigate(Vector2i(-1, 0))
+		return true
+	if keycode == KEY_D:
+		_on_navigate(Vector2i(1, 0))
+		return true
 	var ctrl_item := InputBindingRegistry.plot_index_for_keycode(keycode, ITEM_KEYS.size())
 	if ctrl_item >= 0:
 		_select_item_in_tab(ctrl_item)
