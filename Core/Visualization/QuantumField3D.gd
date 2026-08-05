@@ -459,8 +459,19 @@ func _apply_theme(biome_name: String) -> void:
 
 
 func _layout_pos(i: int, n: int) -> Vector3:
-	if n <= 1:
+	if n <= 0:
 		return Vector3.ZERO
+	if n == 1:
+		# A single register can't divide by (n-1) below, and always sat at the
+		# literal pivot origin as a result — which for TheDemos's real
+		# fresh-boot state (exactly one register) projected to a degenerate,
+		# near-corner screen point with no valid click radius around it: a
+		# mouse/touch player could never tap their very first, tutorial-
+		# highlighted plot (mouse-only campaign, 2026-08-05). Place it at the
+		# same "north pole" point the formula below gives i=0 of a 2-orb
+		# layout — a real, camera-facing, on-shell position.
+		var scale1 := SHELL * (0.66 + 0.035)
+		return Vector3(0.0, scale1 * 0.8, 0.0)
 	# fibonacci sphere shell; scale gently with count so orbs never crowd
 	var scale := SHELL * (0.66 + 0.035 * float(min(n, 12)))
 	var y := 1.0 - (float(i) / float(n - 1)) * 2.0
@@ -485,8 +496,17 @@ func _rebuild(biome) -> void:
 		var p := _layout_pos(i, n)
 		raw.append(p)
 		centroid += p
-	if n > 0:
+	# A single point's centroid IS that point, so subtracting it below always
+	# collapsed n=1 back to Vector3.ZERO regardless of what _layout_pos gave
+	# it -- the centering step only makes sense once there's more than one
+	# point to center. This is what actually erased the n==1 fix above: the
+	# real, first-explorable register (TheDemos's fresh-boot starter) landed
+	# at the pivot origin, projected to a degenerate near-corner screen
+	# point, and no tap could ever hit it. Mouse-only campaign, 2026-08-05.
+	if n > 1:
 		centroid /= float(n)
+	else:
+		centroid = Vector3.ZERO
 	for i in range(n):
 		var pos: Vector3 = raw[i] - centroid
 		var axis = vc.get_axis(i)
