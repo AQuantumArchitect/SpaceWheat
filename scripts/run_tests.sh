@@ -43,6 +43,7 @@ SMOKE_TESTS=(
     ending_overlay_smoke
     escape_menu_run_smoke
     objective_blackout_smoke
+    story_atlas_smoke
     faction_icon_adoption_smoke
     registry_shared_mutator_smoke
     semantica_explorer_load_proof

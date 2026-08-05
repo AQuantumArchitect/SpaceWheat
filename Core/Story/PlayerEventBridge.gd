@@ -49,6 +49,9 @@ func _on_farm_ready(farm: Node, _state) -> void:
 	_wire_farm_signals()
 	_wire_instrument_signals()
 	_wired = true
+	# Seed the act-entry announcer from the LOADED position so resuming a
+	# mid-campaign save doesn't replay "Act N" toasts for acts already lived.
+	_announced_act = _current_act_now()
 	# Boot-race backfill: offers born during connect_to_farm (the tutorial
 	# quest, StoryEngine re-offers) emit quest_offered BEFORE this bridge
 	# wires — the announcement vanished and ACTIVITY read "No events yet" at
@@ -113,9 +116,39 @@ func _on_icon_learned(north: String, south: String, faction: String) -> void:
 	_push("📖 [b]%s / %s[/b]  taught by %s" % [north, south, faction], 2, "📖", "vocab", "V")
 
 
+# ─────────────── act-entry announcement ───────────────
+# The campaign's acts were invisible: no transition was ever announced
+# anywhere (the postcard fires on act COMPLETION, headed-only, and act 5's
+# was unreachable). When the contiguous-prefix current act grows, mark the
+# entry once — a gold toast naming the act and its chapter movement.
+
+var _announced_act: int = -1
+
+
+func _current_act_now() -> int:
+	if _farm == null or not ("story_flags_fired" in _farm) \
+			or _quest_manager == null or not _quest_manager.has_method("get_all_story_flags"):
+		return -1
+	return StoryAtlas.current_act(_farm.story_flags_fired, _quest_manager.get_all_story_flags())
+
+
+func _maybe_announce_act_entry() -> void:
+	var act := _current_act_now()
+	if act < 0 or _announced_act < 0 or act <= _announced_act:
+		_announced_act = maxi(_announced_act, act)
+		return
+	_announced_act = act
+	_push("🎬 [b]Act %d[/b] — %s" % [act, StoryAtlas.chapter_for_act(act)],
+			3, "🎬", "story", "XI")
+
+
 func _on_story_flag_fired(flag_id: String, flag_data: Dictionary) -> void:
+	_maybe_announce_act_entry()
 	var display := str(flag_data.get("display_name", flag_id))
-	var beat := str(flag_data.get("arc_beat", "")).left(80)
+	# Sentence-boundary cut, not .left(80): beats run 300-700 chars and the
+	# old hard cut showed ~13% of the average beat, sliced mid-word. The [XY]
+	# path chip is the breadcrumb to the full prose (X→Y story log).
+	var beat := StoryAtlas.sentence_cut(str(flag_data.get("arc_beat", "")), 160)
 	var grants: Dictionary = flag_data.get("standing_grants", {})
 	var msg := "✨ [b]%s[/b]  %s" % [display, beat]
 	if not grants.is_empty():

@@ -202,3 +202,42 @@ def test_reward_pairs_are_real_icon_axes():
         assert frozenset((north, south)) in axes, (
             f"{f['id']}: reward pair {north}/{south} is not an icons.json axis"
         )
+
+
+def test_branch_groups_are_coherent_alternatives():
+    """branch_group members must be real alternatives: same act, and a shared
+    story_flag_set prereq (the choice point they branch FROM). StoryAtlas
+    treats a group as any-one-of for act completion — a group whose members
+    span acts or lack a common gate would make that semantics a lie."""
+    flags = json.loads(STORY_FLAGS.read_text(encoding="utf-8"))
+    groups = {}
+    for f in flags:
+        g = str(f.get("branch_group", ""))
+        if g:
+            groups.setdefault(g, []).append(f)
+    assert "village_door" in groups, "the five village_path_* doors must share a branch_group"
+    for name, members in groups.items():
+        assert len(members) >= 2, f"branch_group {name!r} has a single member — not a branch"
+        acts = {int(m["act"]) for m in members}
+        assert len(acts) == 1, f"branch_group {name!r} spans acts {sorted(acts)}"
+        prereq_sets = []
+        for m in members:
+            prereq_sets.append({str(p.get("flag", ""))
+                                for p in m.get("predicates", [])
+                                if p.get("type") == "story_flag_set"})
+        common = set.intersection(*prereq_sets) if prereq_sets else set()
+        assert common, f"branch_group {name!r} members share no story_flag_set prereq"
+
+
+def test_lane_display_names_parse():
+    """Every 'What Survives/Connects/Fades' display_name must parse as a lane
+    — optional I-V numeral, then '— Title' (both authored shapes:
+    'What Survives III — …' and 'What Fades — …'). Pins StoryAtlas.lane_of's
+    derive-from-display_name contract so a rename fails loudly instead of
+    silently dropping a flag off its lane."""
+    flags = json.loads(STORY_FLAGS.read_text(encoding="utf-8"))
+    lane_re = re.compile(r"^What (Survives|Connects|Fades)( (I{1,3}|IV|V))? — .+")
+    laned = [f for f in flags if str(f["display_name"]).startswith("What ")]
+    assert len(laned) >= 20, "expected the ~22 lane-prefixed flags; data reshaped?"
+    bad = [f["id"] for f in laned if not lane_re.match(str(f["display_name"]))]
+    assert not bad, f"lane display_names that no longer parse: {bad}"

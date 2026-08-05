@@ -350,8 +350,9 @@ func stage_ui(farm: Node, shell: Node, quantum_viz: Node, world_builder) -> void
 			shell_overlay_layer.add_child(contract_chip)
 			contract_chip.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 			# Below the (now compact) resource strip + menu/hat/biome chip rows,
-			# AND below the objective banner (ActFilament, 140 + 44px tall).
-			contract_chip.offset_top = 188.0
+			# AND below the objective banner (ActFilament, 140 + 58px tall —
+			# the banner grew an act line).
+			contract_chip.offset_top = 202.0
 			contract_chip.offset_right = -10.0
 			contract_chip.offset_left = -190.0
 			contract_chip.grow_horizontal = Control.GROW_DIRECTION_BEGIN
@@ -396,12 +397,12 @@ func stage_ui(farm: Node, shell: Node, quantum_viz: Node, world_builder) -> void
 						return
 					if not qm_ref.has_method("get_all_story_flags"):
 						return
-					for f in qm_ref.get_all_story_flags():
-						if int(f.get("act", -1)) != act:
-							continue
-						var fid := str(f.get("id", ""))
-						if fid != flag_id and not farm_ref.story_flags_fired.has(fid):
-							return  # act not complete yet
+					# StoryAtlas.act_complete honors branch_group: the five
+					# village_path_* doors are mutually optional — requiring
+					# ALL of them made the act-5 postcard unreachable.
+					if not StoryAtlas.act_complete(act, farm_ref.story_flags_fired,
+							qm_ref.get_all_story_flags()):
+						return
 					var cap = farm_ref.get_tree().get_first_node_in_group("postcard_capture")
 					if cap != null and cap.has_method("capture"):
 						cap.capture()

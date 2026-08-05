@@ -1278,7 +1278,8 @@
           "value": 5
         }
       ]
-    }
+    },
+    "branch_group": "village_door"
   },
   {
     "id": "village_path_industrial",
@@ -1322,7 +1323,8 @@
           "value": 5
         }
       ]
-    }
+    },
+    "branch_group": "village_door"
   },
   {
     "id": "village_path_artisan",
@@ -1361,7 +1363,8 @@
           "value": 5
         }
       ]
-    }
+    },
+    "branch_group": "village_door"
   },
   {
     "id": "village_path_watched",
@@ -1400,7 +1403,8 @@
           "value": 5
         }
       ]
-    }
+    },
+    "branch_group": "village_door"
   },
   {
     "id": "village_path_cemetery",
@@ -1440,7 +1444,8 @@
           "value": 5
         }
       ]
-    }
+    },
+    "branch_group": "village_door"
   },
   {
     "id": "ledger_opens",

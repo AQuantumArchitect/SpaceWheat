@@ -2044,26 +2044,16 @@ func _make_arc_chapter_header() -> Control:
 	lbl.add_theme_color_override("font_color", Color(0.78, 0.72, 0.45, 0.95))
 	return lbl
 
-## The Demos' four-movement spine, derived from a flag's act (single source = act).
-func _chapter_for_act(act: int) -> String:
-	if act <= 1:
-		return "Chapter I — Vocabulary"
-	elif act <= 3:
-		return "Chapter II — The Village"
-	elif act == 4:
-		return "Chapter III — The Island & Its People"
-	return "Chapter IV — The Empire & The Escape"
-
-## Current chapter = the furthest act the player has fired into (else the opening).
+## Current chapter — StoryAtlas's contiguous-prefix current act, NOT max act
+## fired: act-5's second_loop needs only an act-1 flag, so a player who closed
+## a second loop in act 2 used to read "Chapter IV" here (act inflation).
 func _current_chapter_label() -> String:
 	var farm = InstrumentLocator.resolve_active_farm(self)
 	var qm = _arc_quest_manager()
-	var max_act := 0
+	var act := 0
 	if farm != null and "story_flags_fired" in farm and qm != null and qm.has_method("get_all_story_flags"):
-		for flag in qm.get_all_story_flags():
-			if farm.story_flags_fired.has(str(flag.get("id", ""))):
-				max_act = max(max_act, int(flag.get("act", 0)))
-	return "The Demos · %s" % _chapter_for_act(max_act)
+		act = StoryAtlas.current_act(farm.story_flags_fired, qm.get_all_story_flags())
+	return "The Demos · %s" % StoryAtlas.chapter_for_act(act)
 
 func _arc_inspect_text() -> String:
 	var rows: Array = _arc_rows()
@@ -2085,7 +2075,7 @@ func _arc_inspect_text() -> String:
 	var flag: Dictionary = entry.get("flag", {})
 	var lines: Array[String] = []
 	lines.append("%s · act %d" % [str(flag.get("display_name", flag.get("id", "?"))), int(flag.get("act", 0))])
-	lines.append("The Demos · %s" % _chapter_for_act(int(flag.get("act", 0))))
+	lines.append("The Demos · %s" % StoryAtlas.chapter_for_act(int(flag.get("act", 0))))
 	if kind == "flag_fired":
 		lines.append("✓ FIRED")
 		return "\n".join(lines)
