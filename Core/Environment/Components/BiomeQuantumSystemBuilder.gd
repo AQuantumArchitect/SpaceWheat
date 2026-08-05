@@ -75,8 +75,26 @@ func expand_quantum_system(north_emoji: String, south_emoji: String) -> Dictiona
 	# Primed terms whose endpoints are now in basis activate automatically.
 	rebuild_operators_from_register_map()
 
-	# Reset to ground state after expanding basis (preserves ecological biases)
-	quantum_computer.initialize_ground_state()
+	# PLANTING PRESERVES STATE (owner ruling, fable push 2026-08-04).
+	# allocate_axis already tensor-extended ρ → ρ ⊗ |0⟩⟨0| — the mathematically
+	# standard subsystem addition: every existing qubit's Bloch vector is
+	# CONTINUOUS through the plant (partial trace over the new qubit is exactly
+	# the old ρ), purity is preserved (pure ⊗ pure = pure), and tracked Berry
+	# walks legitimately survive (an H quench under a continuous ρ is not a
+	# collapse). The old initialize_ground_state() here DISCARDED that
+	# extension and wiped the whole biome's cultivated superposition on every
+	# plant — punishing the endgame's own instruction ("plant into your
+	# cultivated Village while holding its gap down"). Removal already
+	# preserved state via partial trace; add/remove are now symmetric.
+	# Only the NEW qubit gets the dawn kick, so it isn't born pole-stationary
+	# (an exact |0⟩ never precesses — un-trackable, un-ripenable).
+	if quantum_computer.density_matrix != null \
+			and quantum_computer.density_matrix.n == quantum_computer.register_map.dim():
+		quantum_computer.apply_ry(new_qubit_index, quantum_computer.DAWN_KICK_RAD)
+	else:
+		# Belt-and-braces: dims out of sync (shouldn't happen — allocate_axis
+		# ran above) → the full reset is the only honest recovery.
+		quantum_computer.initialize_ground_state()
 
 	var new_dim = quantum_computer.register_map.dim()
 
