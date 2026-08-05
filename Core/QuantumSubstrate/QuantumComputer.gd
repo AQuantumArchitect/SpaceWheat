@@ -1202,6 +1202,16 @@ func _project_qubit(qubit_index: int, outcome_pole: int) -> void:
 	density_matrix.renormalize_trace()
 	_purity_cache = -1.0
 
+	# Collapse cuts every tracked Berry walk in this computer — the Bloch jump
+	# is nonlocal under entanglement, so ALL tracked registers reseed, not just
+	# the measured one. This is the single authority for the collapse→reseed
+	# law; callers (Ace Strike, Reap, market exercise, measure_axis) must not
+	# duplicate it. Without this, the next integrate_step draws a spurious
+	# spherical triangle across the discontinuity: fake solid angle → fake
+	# ripeness. drain_qubit deliberately does NOT reseed (weak/continuous).
+	if berry_register != null:
+		berry_register.reseed_tracked()
+
 
 func drain_qubit(qubit_index: int, outcome_pole: int, eta: float) -> void:
 	# Partial ensemble measurement: drain η of population from measured pole.

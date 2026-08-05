@@ -335,13 +335,10 @@ static func _project_register(biome, register_id: int, is_north: bool) -> bool:
 		if live_prob < 1e-12:
 			# Flip to the opposite outcome which must have ~1.0 probability
 			outcome_pole = 1 - outcome_pole
-	var projected: bool = qc.project_qubit(register_id, outcome_pole)
-	if projected and qc.berry_register != null:
-		# Collapse cuts the Berry walk: no unitary path connects the jump, and
-		# entanglement makes the jump nonlocal within the biome — every tracked
-		# qubit re-seeds from the next evolved slice (partial loops forfeit).
-		qc.berry_register.reseed_tracked()
-	return projected
+	# Collapse→reseed law now lives inside QuantumComputer._project_qubit —
+	# every projective path (Strike, Reap, market exercise, measure_axis)
+	# cuts tracked Berry walks there, no caller-side duplication.
+	return qc.project_qubit(register_id, outcome_pole)
 
 
 static func _drain_register(biome, register_id: int, is_north: bool, eta: float) -> bool:
