@@ -309,3 +309,31 @@ def test_mouse_biome_tab_click_gets_the_same_confirm_as_keyboard() -> None:
     assert "biome_row.biome_confirmed.connect(_route_biome_confirm)" in shell_src
     assert "func _route_biome_confirm(old_biome: String, new_biome: String, key: String) -> void:" in shell_src
     assert "instrument_input.confirm_biome_switch(old_biome, new_biome, key)" in shell_src
+
+
+def test_shift_tap_toggles_multiselect_check_for_entanglement() -> None:
+    # Wave-6 sensor wall (earnest): the entanglement tutorial step reads
+    # "Operator hat (9): hold Shift and tap two plot keys (G H J K L ;) to
+    # check the pair, then press R and weave a Bell (Q)." The keyboard path
+    # (Shift+GHJKL;) calls _toggle_check_at_plot_idx -> toggle_check, but a
+    # mouse tap always ran the single-plot Explore/Strike/Extract cycle
+    # regardless of shift state -- no hat that builds a multi-select
+    # (Operator's Bell weave) had ANY mouse path, the true Act-1 mouse-only
+    # ceiling. Fixed by threading the real click's shift_pressed state all
+    # the way from QuantumField3D's _gui_input through node_clicked ->
+    # FarmView -> handle_bubble_tap, which now toggles the checkbox instead
+    # of running the verb cycle when shift is held (mirrors keyboard exactly:
+    # no focus move, no Explore/Strike/Extract dispatch).
+    field_src = _read("Core/Visualization/QuantumField3D.gd")
+    assert "signal node_clicked(grid_pos: Vector2i, button_index: int, shift: bool)" in field_src
+    assert "func _try_pick(screen_pos: Vector2, button: int, shift: bool = false) -> void:" in field_src
+    assert "_try_pick(ev.position, ev.button_index, ev.shift_pressed)" in field_src
+    assert "node_clicked.emit(best.grid_pos, button, shift)" in field_src
+
+    qii_src = _read("UI/Core/QuantumInstrumentInput.gd")
+    assert "func handle_bubble_tap(grid_pos: Vector2i, shift: bool = false) -> Dictionary:" in qii_src
+    assert 'if shift:\n\t\ttoggle_check(grid_pos)' in qii_src
+
+    shell_src = _read("UI/FarmView.gd")
+    assert "func _on_quantum_node_clicked(grid_pos: Vector2i, button_index: int, shift: bool = false) -> void:" in shell_src
+    assert "instrument_input.handle_bubble_tap(grid_pos, shift)" in shell_src

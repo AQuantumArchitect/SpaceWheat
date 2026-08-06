@@ -13,6 +13,49 @@ direct-`_try_pick()` shortcut in any harness code — it bypasses the real
 input pipeline and can reproduce the "click hit whatever it might" bug
 class this campaign exists to catch.
 
+## Wave 6 (earnest/literalist/lost-lamb) — first run against ALL prior fixes combined
+
+Ran after fixing wave 5's Reap Season gap AND the biome-tab silent-switch bug
+(mouse click bypassed the keyboard's confirm+repoint tail — see "Bugs found"
+below). No prior wave had run against both fixes together.
+
+- **earnest reached tutorial_step 4 (entanglement) — the furthest any wave
+  has gotten**, confirming steps 0-3 (core_loop, vocabulary/StarterForest
+  redirect, reap_season/shift-tap, superposition/Hadamard) all now work
+  cleanly by mouse alone. Found and root-caused the NEW true ceiling:
+  **the Operator hat's two-plot multi-select ("hold Shift and tap two plot
+  keys... then weave a Bell") had zero mouse path** — `handle_bubble_tap`
+  always ran the single-plot Explore/Strike/Extract cycle regardless of
+  hat or shift state; only the keyboard's Shift+GHJKL; called
+  `toggle_check`. **Fixed** (see "Bugs found" below) and live-verified.
+  Also found a NOT-yet-fixed lead: an intermittent silent desync between
+  `ActiveBiomeManager.get_active_biome()` and what the HUD/field actually
+  render, observed 3× over ~15 minutes of ordinary play, causing taps to
+  silently miss or misdirect actions to the wrong biome's registers (real
+  ripened progress lost with zero on-screen indication). Root cause NOT
+  isolated — reproducible "in spirit," not on demand. **Needs a dedicated
+  investigation before any patch is attempted; do not guess at a fix.**
+- **literalist** independently confirmed core_loop and the StarterForest
+  redirect (incl. the biome-confirm fix — clean toast, no silence), then
+  stopped at the SAME wall as lost-lamb below (hat-selector legibility).
+- **lost-lamb** confirmed the biome-tab-confirm fix holds even when
+  DELIBERATELY aiming taps at the StarterForest/HUD overlap zone (4
+  taps, all legible — either a distinct "→ Village"/"→ TheDemos" toast or
+  clean plot-bubble interaction, zero silent/ambiguous outcomes). Found a
+  soft self-sufficiency gap (step-0's hint text doesn't change after the
+  first tap, only the F-chip's tooltip does — no hard bug, low priority)
+  and a lead worth a follow-up look: the Ace hat's Fast-Forward chip
+  logged `success:false` on ~18 consecutive taps while unpaused, with zero
+  toast/visible feedback either way.
+- **Both literalist and lost-lamb independently hit the same non-bug**
+  already documented under wave 5 item 3 above: hat-selector chips
+  (`ToolSelectionRow`) are icon-only with no `overlay_text`-visible label,
+  discoverable only by hover tooltip or visual glyph recognition — a real
+  gap for a strictly-literal-text-only reader, not for a sighted mouse
+  player (who can see 2-3 icons and/or hover). Not treated as a bug for
+  the same reason as before: reversing an intentional compact-chrome
+  design decision needs a design call, not a unilateral patch.
+
 ## Session 4 continued — wave 5 findings + the real headline fix
 
 Wave 5 (earnest/literalist/lost-lamb) ran against the Session-4 fixes above,
@@ -367,6 +410,48 @@ separate bug and this section should be reopened.
    the "menu buttons dead" report (§ above) was correctly diagnosed as a
    downstream symptom, not a separate bug — the ONE thing actually broken
    was the 3D field's own clickable area.
+5. **Mouse biome-tab clicks switched biomes with zero feedback.**
+   `BiomeSelectionRow._on_button_selected` called
+   `ActiveBiomeManager.set_active_biome()` directly instead of going through
+   `QuantumInstrumentInput._select_biome()` (the keyboard TYUIOP path) — the
+   only place that repoints the Focus cursor and shows the confirm toast.
+   Two divergent code paths for one action; only one carried feedback.
+   Fixed by extracting the shared tail into `confirm_biome_switch()` and
+   wiring a new `BiomeSelectionRow.biome_confirmed` signal through
+   `PlayerShell`, same pattern as `action_pressed`. Live-verified: a mouse
+   tap on a biome tab now shows the same "→ Village" toast the keyboard
+   gets. Commit `c38fdcb4`.
+6. **The Operator hat's two-plot multi-select had zero mouse path —
+   the true Act-1 ceiling (wave 6, earnest).** `handle_bubble_tap` always
+   ran the single-plot Explore/Strike/Extract cycle regardless of hat or
+   shift state; only keyboard's Shift+GHJKL; called `toggle_check`. Fixed
+   by threading the real click's `shift_pressed` from
+   `QuantumField3D._gui_input` through `_try_pick` → `node_clicked` →
+   `FarmView._on_quantum_node_clicked` → `handle_bubble_tap`, which now
+   toggles the multi-select checkbox (no focus move, no verb dispatch)
+   when shift is held — mirrors the keyboard exactly. Live-verified: two
+   real shift-held taps on StarterForest bubbles populate
+   `instrument_state.checked_plots` with both grid positions, with zero
+   keyboard input. 2D renderer (`QuantumForceGraph`/`TouchInputManager`)
+   NOT threaded — out of scope this pass since the 3D field is default and
+   what's actually exercised; a known, documented follow-up if 2D is ever
+   the live renderer again.
+
+## Open, not yet fixed
+
+- **Intermittent active-biome desync** (wave 6, earnest): 3× over ~15 min
+  of ordinary StarterForest/Icon-hat play, `ActiveBiomeManager.get_active_biome()`
+  silently diverged from what the HUD/field actually displayed — taps
+  silently failed (`no_tap_target`) or misdirected an action (e.g.
+  "successful" incorporate that actually touched the WRONG biome's
+  already-known axis, quietly wasting real ripened progress). Reproducible
+  "in spirit," not on demand; exact causal path not isolated. Needs a
+  dedicated investigation before any patch — do not guess at a fix.
+- **Ace hat's Fast-Forward chip logs `success:false` repeatedly with zero
+  feedback** (wave 6, lost-lamb): ~18 consecutive taps while unpaused all
+  failed silently in `dispatch_ledger`, no toast, chip stays enabled.
+  Unconfirmed whether this is a real bug or a legitimate refusal (e.g. a
+  cooldown) that's simply missing its toast — needs a quick live check.
 
 ## Out of scope this pass
 

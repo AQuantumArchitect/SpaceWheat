@@ -1524,7 +1524,7 @@ func _tap_blocked_by_overlay() -> bool:
 ## one mechanics authority (anti-gating law). A tap on a non-active biome's
 ## station only switches + focuses; it never fires a verb on a biome the
 ## player isn't looking at.
-func handle_bubble_tap(grid_pos: Vector2i) -> Dictionary:
+func handle_bubble_tap(grid_pos: Vector2i, shift: bool = false) -> Dictionary:
 	if not farm or not _instrument or not _active_biome_mgr or not farm.grid:
 		return {"success": false, "error": "not_ready", "message": ""}
 
@@ -1562,6 +1562,15 @@ func handle_bubble_tap(grid_pos: Vector2i) -> Dictionary:
 	var plot_count = _get_active_biome_plot_count()
 	if plot_count > 0 and grid_pos.x >= plot_count:
 		return {"success": false, "error": "out_of_range", "message": ""}
+
+	# Shift-tap = the mouse twin of Shift+GHJKL; (_toggle_check_at_plot_idx):
+	# toggle the multi-select checkbox WITHOUT moving focus or running the
+	# Ace verb cycle below. Without this, hats that build a selection (e.g.
+	# Operator's Bell weave — "hold Shift and tap two plot keys") had no
+	# mouse path at all, the true Act-1 mouse-only ceiling (wave 6, earnest).
+	if shift:
+		toggle_check(grid_pos)
+		return {"success": true, "action": "toggle_check", "checked": grid_pos in _instrument.checked_plots}
 
 	# Selection FIRST, so the verb targets exactly what was tapped and every
 	# downstream reader (action bar, B overlay) agrees with the tap. Focus

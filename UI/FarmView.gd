@@ -190,19 +190,19 @@ func _on_quit_requested() -> void:
 		get_tree().quit()
 
 
-func _on_quantum_node_clicked(grid_pos: Vector2i, button_index: int) -> void:
+func _on_quantum_node_clicked(grid_pos: Vector2i, button_index: int, shift: bool = false) -> void:
 	# Delegate to the ONE action decoder. The old direct farm.instrument calls
 	# were a parallel mechanics authority: they skipped selection sync, lookahead
 	# buffer invalidation, whispers and QII's action_performed. Same resolution
 	# as _on_chain_swiped.
 	if _verbose:
-		_verbose.debug("ui", "🎯", "Bubble tap: %s button=%d" % [grid_pos, button_index])
+		_verbose.debug("ui", "🎯", "Bubble tap: %s button=%d shift=%s" % [grid_pos, button_index, shift])
 	var instrument_input = shell.current_farm_ui.instrument_input if shell and shell.current_farm_ui else null
 	if not instrument_input:
 		if _verbose:
 			_verbose.error("ui", "❌", "Bubble tap: no QuantumInstrumentInput attached")
 		return
-	instrument_input.handle_bubble_tap(grid_pos)
+	instrument_input.handle_bubble_tap(grid_pos, shift)
 
 
 func _on_chain_swiped(positions: Array) -> void:

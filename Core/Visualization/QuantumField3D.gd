@@ -46,7 +46,7 @@ extends SubViewportContainer
 
 signal quantum_node_selected(node)
 signal biome_selected(biome_name: String)
-signal node_clicked(grid_pos: Vector2i, button_index: int)   # tap on an orb → handle_bubble_tap
+signal node_clicked(grid_pos: Vector2i, button_index: int, shift: bool)   # tap on an orb → handle_bubble_tap
 signal chain_swiped(positions: Array)                        # swipe across 2+ orbs → apply_chain_gate
 
 const BVT = preload("res://Core/Visualization/BiomeVisualTheme.gd")
@@ -1350,11 +1350,11 @@ func _gui_input(ev: InputEvent) -> void:
 			if _chain_mode and _chain.size() >= 2:
 				_emit_chain()
 			elif not _press_moved:
-				_try_pick(ev.position, ev.button_index)
+				_try_pick(ev.position, ev.button_index, ev.shift_pressed)
 			_end_chain()
 			_dragging = false
 	elif ev is InputEventMouseButton and ev.button_index == MOUSE_BUTTON_RIGHT and ev.pressed:
-		_try_pick(ev.position, ev.button_index)
+		_try_pick(ev.position, ev.button_index, ev.shift_pressed)
 	elif ev is InputEventMouseMotion and (ev.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
 		if not _press_moved and ev.position.distance_to(_press_pos) > 7.0:
 			_press_moved = true
@@ -1451,7 +1451,7 @@ func _draw_chain() -> void:
 	cm.surface_end()
 
 
-func _try_pick(screen_pos: Vector2, button: int) -> void:
+func _try_pick(screen_pos: Vector2, button: int, shift: bool = false) -> void:
 	if _cam == null:
 		return
 	# Ascend first: the one fixed portal that leaves the current fractal child world.
@@ -1528,7 +1528,7 @@ func _try_pick(screen_pos: Vector2, button: int) -> void:
 		# brief pick flash so the tap reads even before the game's own feedback lands
 		if best.get("dot") != null and is_instance_valid(best.dot):
 			best.dot.scale = Vector3.ONE * 2.2
-		node_clicked.emit(best.grid_pos, button)
+		node_clicked.emit(best.grid_pos, button, shift)
 		_consume_tap()
 
 
