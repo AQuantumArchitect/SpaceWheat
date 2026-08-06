@@ -13,6 +13,79 @@ direct-`_try_pick()` shortcut in any harness code — it bypasses the real
 input pipeline and can reproduce the "click hit whatever it might" bug
 class this campaign exists to catch.
 
+## Post-wave-7: owner ruling closes the biome-tab overlap lead + drift removed
+
+Luke's ruling on the "Open, not yet fixed" biome-tab/field-orb overlap lead
+below: **"defer to 3D for all things, 2D is being deprecated."** That
+resolves the design fork item 4/the overlap entry itself left open (reshape
+3D camera framing vs. teach the 2D HUD to defer) — 3D wins. Implemented in
+the shared `SelectionButtonRow` base (covers Tool/Biome/Menu rows
+uniformly, not just Biome): before a chip claims a click, it asks the live
+`QuantumField3D` (`has_pickable_target(screen_pos)`, found via a new
+`quantum_field_3d` group) whether a real 3D target sits at that point; if
+so the chip does nothing (no press-flash, no selection) and the tap is
+forwarded to the field's own `receive_deferred_tap()` — the exact same
+pick geometry a direct field tap runs. Live-verified via the rig: switched
+to StarterForest, polled `bubble_state` until an orb's `screen_pos` fell
+inside `BiomeSelectionRow`'s own rect (happened on the very first poll),
+tapped exactly there, and got `dispatch_ledger: {"action": "explore",
+"success": true}` with `active_biome` unchanged — the tap reached the orb,
+not the tab. A follow-up check confirmed ordinary (non-overlapping) biome
+and hat clicks still work unchanged through the same code path.
+
+Same session, separate owner ask: **removed `QuantumField3D`'s passive
+idle-rotation** of the whole field (`_process()`'s
+`_pivot.rotate_object_local(...)`, previously always spinning slowly "so
+the 3D never freezes"). A playtester read that ambient motion as
+meaningful when it wasn't — "all motion and adjustment should have meaning
+or be the result of the player." Camera motion is now only the player's
+own drag, or honest physics (force dynamics, Bloch-state evolution); the
+now-fully-dead `_orbit_hold_until_ms` gate/hold-timer was removed with it.
+This directly shrinks the drift surface the defer-to-3D fix above exists
+to handle — orbs no longer wander into HUD bands on their own, only via
+real correlated-pull force dynamics, which move far less. Live-verified:
+orb screen positions were pixel-identical across 6s of real idle time with
+no input (previously: continuous drift).
+
+Both changes gate-clean (see repo test suite) and committed together —
+`Core/Visualization/QuantumField3D.gd`, `UI/Widgets/SelectionButtonRow.gd`.
+
+## Wave 7 (earnest/literalist/lost-lamb) — furthest reach yet, past entanglement into Act 1
+
+Ran fresh-boot, mouse-only, against every fix through wave 6 plus this
+session's biome-tab-miss-toast fix (item 7 below).
+
+- **lost-lamb reached Act 1, tutorial steps 0–6 ALL complete**, plus the
+  `village_stirs` story flag and a freshly-accepted post-tutorial quest —
+  by a wide margin the furthest any wave has gotten (wave 6's ceiling was
+  step 4/entanglement). Confirmed core_loop, vocabulary, reap_season,
+  superposition, **entanglement** (Operator hat Bell weave), **contracts**
+  (Millwright's Union delivery accepted, fulfilled, completed — Arc tab →
+  Commitments tab, all mouse), and vocab_escape, all via `story_flags`/
+  `known_icons`/`quest_ledger`. Zero hard blockers hit this run — every
+  prior wave's wall held fixed. Found and precisely root-caused three real
+  bugs along the way: items 8 and 9 in "Bugs found" below (both fixed),
+  and the biome-tab/field-orb overlap misdirection in "Open, not yet
+  fixed" (documented, deliberately not blind-patched — see there for why).
+- **earnest and literalist both independently stalled at tutorial_step 1**
+  (vocabulary), NOT on a mouse-parity bug — every tap dispatched correctly
+  (`explore`, `toggle_berry_track` all `success:true`) — but on real
+  wall-clock ripening pace. literalist's own live-polled numbers: the
+  `[R]` chip's ripening tooltip rose 11%→43%→46% over the session without
+  reaching ripe; earnest's Arc-tab "First Breath" flag read 9%
+  (0.08/0.85) after ~90s of real tracked time across two plots. This
+  reconfirms wave 3/4's prior note (in-game hint claims "about half a
+  minute," observed reality is far slower) — a pacing/content question for
+  the owner, not a mouse-input bug, since every verb involved already has
+  a confirmed working mouse path. lost-lamb's success on the SAME mechanic
+  is explained by heavy, repeated Fast-Forward chip use accelerating
+  ripening well past what earnest/literalist's more measured pacing
+  covered in one session.
+- Both literalist and earnest's stalls double as an unplanned, useful
+  confirmation: the wave-6 entanglement fix and biome-tab-confirm fix both
+  held under a SECOND independent replay, with zero new issues in the
+  steps they did reach.
+
 ## Wave 6 (earnest/literalist/lost-lamb) — first run against ALL prior fixes combined
 
 Ran after fixing wave 5's Reap Season gap AND the biome-tab silent-switch bug
@@ -465,14 +538,55 @@ separate bug and this section should be reopened.
    field space now produces a genuine new `overlay_text` line reading
    "• Nothing there — the field keeps moving, aim again"; before the
    importance fix it produced none.
+8. **Fast-Forward's `dispatch_ledger` entry always logged `success:false`
+   despite its own toast always firing correctly** (wave 6 lead, closed by
+   wave 7's lost-lamb). Root cause, precisely traced: `Core/Farm.gd`'s
+   `time_skip_phrames()` never set a `"success"` key at all. Two different
+   read sites in `QuantumInstrumentInput.gd` checked the same absent key
+   with OPPOSITE defaults — the toast check (`result.get("success", true)`)
+   defaulted true, the ledger writer (`result.get("success", false)`)
+   defaulted false — so they silently disagreed on every fast-forward.
+   Fixed at the source: `time_skip_phrames()` now sets `success: true` on
+   every return path, so both readers agree without relying on defaults.
+   Live-verified: two real F-chip taps (explore, then fast-forward once the
+   plot was bound) now both show `success: true` in `dispatch_ledger`.
+9. **Submenu-routed actions (gate-building, icon injection) never wrote to
+   `dispatch_ledger`** (wave 7, lost-lamb). A genuine mouse-only Bell weave
+   (Operator hat, shift-tap two plots, gate submenu, tap Bell) succeeded —
+   the tutorial advanced — with zero new ledger entry, because
+   `_execute_build_gate()`/`_execute_inject_icon()` only ever emitted the
+   `action_performed` signal; only `_run_action()` (the direct Q/E/R/F chip
+   path) wrote to the ledger. Any rig probe asserting exactly-once dispatch
+   via `dispatch_ledger` was blind to every submenu-routed action,
+   including the campaign's own entanglement mechanic. Fixed by factoring
+   the ledger-append into a shared `_append_dispatch_ledger()` helper and
+   calling it from both submenu handlers too.
+10. **Biome-tab row could intercept a tap meant for a drifting 3D field
+    orb, with confirming (not warning) feedback** (wave 7, lost-lamb — a
+    distinct, more severe variant of item 4's original pointer-bleed
+    finding; CLOSED post-wave-7, see the section above). Repro: Icon hat,
+    StarterForest, a tap resolved fresh via `rig_screen_pos_for_grid` to a
+    live orb's screen position instead landed on
+    `BiomeSelectionRow/SelectBtn_1` (Village) — confirmed via `hover_probe`
+    at that exact point. Unlike a miss (item 7), this didn't fail silently
+    — it hit the WRONG thing and showed a legible "→ Village" toast that
+    read as a deliberate, successful action, actively misleading rather
+    than merely absent. Luke's ruling resolved the design fork item 4 left
+    open ("defer to 3D for all things, 2D is being deprecated"): fixed by
+    teaching the shared `SelectionButtonRow` base to check
+    `QuantumField3D.has_pickable_target()` before claiming a click and
+    forward to `receive_deferred_tap()` when a real 3D target is there.
+    Live-verified via the rig (see section above for the exact repro).
 
 ## Open, not yet fixed
 
-- **Ace hat's Fast-Forward chip logs `success:false` repeatedly with zero
-  feedback** (wave 6, lost-lamb): ~18 consecutive taps while unpaused all
-  failed silently in `dispatch_ledger`, no toast, chip stays enabled.
-  Unconfirmed whether this is a real bug or a legitimate refusal (e.g. a
-  cooldown) that's simply missing its toast — needs a quick live check.
+- **Ace hat's Fast-Forward chip logging `success:false` with zero
+  feedback** (wave 6 lead) — **CLOSED, was never a real refusal.** See item
+  8 above: root-caused and fixed by wave 7's lost-lamb. As a control,
+  lost-lamb also verified `reap` (Shift+F) IS a genuine, correctly-toasted
+  refusal when nothing's explored yet — a different code path
+  (`action_reap`'s own explicit `success: false` branches), not the same
+  bug class.
 
 ## Out of scope this pass
 
