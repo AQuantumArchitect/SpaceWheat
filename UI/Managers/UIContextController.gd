@@ -148,8 +148,17 @@ func _apply_pointer_bleed_guard() -> void:
 	# tabs unclickable by mouse). The menu row (ZXCVBNM ring) and bottom QERF
 	# chips stay live — ring navigation is never swallowed, and QERF chips
 	# route overlay-first, acting as the modal's own verb buttons.
+	#
+	# Must gate on size() > 1, matching PlayerShell._any_menu_open() exactly --
+	# NOT is_empty(). PlayBase (OverlayStackManager's permanent, never-popped
+	# stack base) doesn't declare is_transparent_overlay, so checking that flag
+	# directly on the stack's top treated PlayBase ITSELF as "a menu is open"
+	# the instant it became the stack's sole remaining top -- i.e. permanently,
+	# after ANY real overlay (even the one-time welcome splash) had been pushed
+	# and popped even once. That silently disabled hat/biome row pointer input
+	# for the rest of the session (mouse-only campaign 2026-08-05).
 	var menu_open := false
-	if overlay_stack and not overlay_stack.is_empty():
+	if overlay_stack and overlay_stack.size() > 1:
 		var top = overlay_stack.get_top()
 		var transparent: bool = top != null and ("is_transparent_overlay" in top) and top.is_transparent_overlay
 		menu_open = not transparent

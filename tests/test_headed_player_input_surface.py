@@ -145,3 +145,19 @@ def test_game_root_sits_below_player_shell_in_sibling_order() -> None:
     add_idx = src.index("add_child(game_root)")
     move_idx = src.index("move_child(game_root, 0)")
     assert add_idx < move_idx, "move_child must run after add_child(game_root)"
+
+
+def test_pointer_bleed_guard_does_not_treat_play_base_as_a_menu() -> None:
+    # PlayerShell._any_menu_open() (the keyboard-side twin of this guard) correctly
+    # checks overlay_stack.size() > 1 -- PlayBase (the permanent, never-popped stack
+    # base, OverlayStackManager.gd) doesn't count as "a menu is open" on its own.
+    # UIContextController._apply_pointer_bleed_guard() used to check is_empty()
+    # instead and read the top overlay's is_transparent_overlay flag directly --
+    # PlayBase never declares that property, so the instant it became the stack's
+    # sole remaining top (i.e. normal gameplay, nothing open) after ANY real overlay
+    # had been pushed+popped even once, menu_open evaluated true FOREVER, silently
+    # disabling hat/biome row pointer input for the rest of the session. Must match
+    # the keyboard guard's size() > 1 check exactly.
+    src = _read("UI/Managers/UIContextController.gd")
+    assert "overlay_stack.size() > 1" in src
+    assert "overlay_stack.is_empty()" not in src

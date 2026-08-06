@@ -1195,6 +1195,7 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 						# cancelling the anchor scaling back to zero) that "rect": [0,0,0,0]
 						# on its own gave no way to root-cause. Cheap; kept permanently.
 						result["local_size"] = [cr_match.size.x, cr_match.size.y]
+						result["mouse_filter"] = int(cr_match.mouse_filter)
 						result["anchors"] = [cr_match.anchor_left, cr_match.anchor_top, cr_match.anchor_right, cr_match.anchor_bottom]
 						result["offsets"] = [cr_match.offset_left, cr_match.offset_top, cr_match.offset_right, cr_match.offset_bottom]
 
