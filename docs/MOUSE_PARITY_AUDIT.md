@@ -13,6 +13,44 @@ direct-`_try_pick()` shortcut in any harness code — it bypasses the real
 input pipeline and can reproduce the "click hit whatever it might" bug
 class this campaign exists to catch.
 
+## Persona wave 3 (earnest/literalist/lost-lamb, mouse-only) — new findings
+
+Three real-boot mouse-only agents run after the two blockers below were
+fixed. earnest and literalist independently found and this doc's authors
+fixed the sibling-order blocker (next section). lost-lamb, testing the
+REAL first-boot path (welcome splash shown+dismissed, not the automation
+default of skipping it), found three more real issues:
+
+1. **Fixed**: hat/biome row pointer input permanently disabled after any
+   real overlay (including the one-time welcome splash) opened+closed once
+   — see "pointer-bleed guard" section below.
+2. **Still open**: even after fix #1, a specific hat-row click after a real
+   welcome-splash dismiss still produces an empty `dispatch_ledger` —
+   `mouse_filter` on the button is correctly `STOP` (0) and the guard's
+   `menu_open` correctly reads `false` (verified via temporary debug log),
+   so the block is downstream of both of those — most likely a signal-
+   wiring race in `UIContextController.bind_quantum_input()`'s
+   `tool_row.frame_selected → quantum_input._select_frame_hat` connection
+   specific to this boot path. Not yet root-caused; needs a dedicated pass.
+3. **Still open**: plot bubbles report `visible: false` in `bubble_state`
+   persistently (5+ idle seconds, no fade-in) even though tapping the
+   correct (invisible) pixel does work — a render/visibility defect, not a
+   click-routing one. A sighted mouse-only player has nothing to aim at.
+4. **Still open**: the Explore→Strike→Extract loop cannot be completed by
+   mouse — re-tapping a bubble only cycles Explore↔Measure, and the
+   dedicated `[Q] Extract` chip produces no `dispatch_ledger` change either.
+   `Terminal.gd`'s measure handler releases `is_bound` as part of
+   collapsing, and `handle_bubble_tap`'s verb resolution checks `is_bound`
+   before `is_measured`, so a freshly-measured terminal always resolves
+   back to "explore." The `Q` chip's separate failure is unexplained —
+   possibly a refusal toast starved by an already-full toast stack. Not
+   yet root-caused.
+
+Items 2-4 are the frontier for the next wave — earnest and literalist both
+stopped at Act 0 because of the sibling-order blocker (now fixed); a
+fresh re-run from a genuine first boot is needed to see how far a
+mouse-only player now actually gets before hitting #2/#3/#4.
+
 ## Severe: fixing the plot-tap blocker exposed a second, bigger blocker (found + fixed)
 
 The root cause of the plot-tap blocker turned out to be `AppRoot`/`GameRoot`/
