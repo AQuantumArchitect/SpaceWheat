@@ -211,3 +211,17 @@ def test_controls_overlay_arc_tab_rows_and_pager_are_clickable() -> None:
     assert "func _select_arc_row(idx: int) -> void:" in src
     assert "ClickWire.attach(prev_lbl, _on_navigate.bind(Vector2i(-1, 0)))" in src
     assert "ClickWire.attach(next_lbl, _on_navigate.bind(Vector2i(1, 0)))" in src
+
+
+def test_locked_action_chip_click_speaks_instead_of_going_silent() -> None:
+    # A locked (progressive-disclosure) Q/E/R/F chip click used to be a total
+    # no-op -- zero toast, zero press flash, indistinguishable from a click
+    # that never landed (mouse-only campaign wave 4, lost-lamb). Verified
+    # live: with a locked Icon-hat chip clicked, the toast "not yet -- now:
+    # <objective>" (UIProgression.redirect_locked(), the same one the
+    # keyboard's own locked-verb refusal already shows) now fires, and
+    # dispatch_ledger correctly stays empty (no accidental dispatch).
+    src = _read("UI/Widgets/ActionPreviewRow.gd")
+    assert 'const UIProgression = preload("res://UI/Core/UIProgression.gd")' in src
+    assert "UIProgression.redirect_locked()" in src
+    assert 'label_node.text.contains("🔒")' in src

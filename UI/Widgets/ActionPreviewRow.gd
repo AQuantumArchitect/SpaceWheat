@@ -7,6 +7,7 @@ extends HBoxContainer
 ## Uses BtnBtmMidl.svg from Assets/UI/Chrome for sci-fi aesthetic
 
 const LindbladHandler = preload("res://Core/Instrumentation/Handlers/LindbladHandler.gd")
+const UIProgression = preload("res://UI/Core/UIProgression.gd")
 
 const ACTION_KEYS = ["Q", "E", "R", "F"]
 
@@ -325,7 +326,22 @@ func _build_cost_entries(container: HBoxContainer, cost: Dictionary) -> void:
 
 func _on_action_button_input(event: InputEvent, action_key: String) -> void:
 	var btn_data = action_buttons.get(action_key)
-	if not btn_data or btn_data.disabled:
+	if not btn_data:
+		return
+	if btn_data.disabled:
+		# A locked-hat chip click used to be a total no-op: zero toast, zero
+		# press flash, indistinguishable from a click that never landed
+		# (mouse-only campaign wave 4, lost-lamb). The progressive-disclosure
+		# lock is the one disabled-reason a chip's own text names (a "🔒"
+		# glyph _build_frame_actions mixes into the label) -- other disabled
+		# reasons (submenu unavailability, an overlay's own non-binding) get
+		# no lock glyph and stay silent here, unchanged, since a "not yet
+		# unlocked" toast would misdescribe them. Read-only, no dispatch, so
+		# it's safe regardless of context.
+		var label_node: Label = btn_data.get("label")
+		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed \
+				and label_node != null and label_node.text.contains("🔒"):
+			UIProgression.redirect_locked()
 		return
 
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
