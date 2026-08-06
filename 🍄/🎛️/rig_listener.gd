@@ -929,12 +929,14 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				# 300ms tap window under load, which would misclassify a
 				# frame-separated press/release as a hold.
 				var tap_vp: Viewport = get_root()
+				var tap_shift := bool(cmd.get("shift", false))
 				for tap_pressed in [true, false]:
 					var tap_ev := InputEventMouseButton.new()
 					tap_ev.button_index = MOUSE_BUTTON_LEFT
 					tap_ev.pressed = tap_pressed
 					tap_ev.position = tap_screen
 					tap_ev.global_position = tap_screen
+					tap_ev.shift_pressed = tap_shift
 					if tap_vp:
 						tap_vp.push_input(tap_ev, true)
 				await _wait_settle_frames(int(cmd.get("settle_frames", 8)))
