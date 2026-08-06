@@ -19,37 +19,62 @@ Three real-boot mouse-only agents run after the two blockers below were
 fixed. earnest and literalist independently found and this doc's authors
 fixed the sibling-order blocker (next section). lost-lamb, testing the
 REAL first-boot path (welcome splash shown+dismissed, not the automation
-default of skipping it), found three more real issues:
+default of skipping it), found three more issues, since triaged:
 
 1. **Fixed**: hat/biome row pointer input permanently disabled after any
    real overlay (including the one-time welcome splash) opened+closed once
    — see "pointer-bleed guard" section below.
-2. **Still open**: even after fix #1, a specific hat-row click after a real
-   welcome-splash dismiss still produces an empty `dispatch_ledger` —
-   `mouse_filter` on the button is correctly `STOP` (0) and the guard's
-   `menu_open` correctly reads `false` (verified via temporary debug log),
-   so the block is downstream of both of those — most likely a signal-
-   wiring race in `UIContextController.bind_quantum_input()`'s
-   `tool_row.frame_selected → quantum_input._select_frame_hat` connection
-   specific to this boot path. Not yet root-caused; needs a dedicated pass.
-3. **Still open**: plot bubbles report `visible: false` in `bubble_state`
-   persistently (5+ idle seconds, no fade-in) even though tapping the
-   correct (invisible) pixel does work — a render/visibility defect, not a
-   click-routing one. A sighted mouse-only player has nothing to aim at.
-4. **Still open**: the Explore→Strike→Extract loop cannot be completed by
-   mouse — re-tapping a bubble only cycles Explore↔Measure, and the
-   dedicated `[Q] Extract` chip produces no `dispatch_ledger` change either.
-   `Terminal.gd`'s measure handler releases `is_bound` as part of
-   collapsing, and `handle_bubble_tap`'s verb resolution checks `is_bound`
-   before `is_measured`, so a freshly-measured terminal always resolves
-   back to "explore." The `Q` chip's separate failure is unexplained —
-   possibly a refusal toast starved by an already-full toast stack. Not
-   yet root-caused.
+2. **Resolved as a false alarm**: a hat-row click after a real welcome-
+   splash dismiss was reported as producing no dispatched action. Live
+   re-verification (`current_frame` via the rig's `confirm_state` verb,
+   not `dispatch_ledger`) shows the hat click DOES correctly flip the
+   active frame end-to-end (`frame_selected → QII._select_frame_hat →
+   ToolConfig.select_frame`) — `dispatch_ledger` simply never records hat
+   selection at all (it only logs Q/E/R/F verb dispatches), so it was the
+   wrong signal to check. No fix needed here.
+3. **Fixed (root cause was severe)**: `PlayerShell.gd` (`extends Control`,
+   full-rect, `mouse_filter` never set on itself) defaulted to Godot's
+   `MOUSE_FILTER_STOP`. The earlier sibling-order fix (below) correctly
+   put PlayerShell's HUD widgets above `GameRoot`/`QuantumField3D` for
+   picking — but PlayerShell's OWN background, not just its widgets, now
+   won every click that didn't land on a specific named child. That
+   silently absorbed every tap aimed at empty space over a 3D orb — the
+   single most severe remaining mouse blocker, since it meant NO plot tap
+   could ever reach the field at all (`hover_probe` at a bubble's exact
+   `screen_pos` returned `PlayerShell`, not `QuantumField3D`). Explains
+   both the "invisible bubbles" report (a bubble reveals on its first
+   successful tap; if no tap ever lands, it never reveals) and the
+   Explore→Strike→Extract report below. Fix: `mouse_filter =
+   MOUSE_FILTER_IGNORE` on PlayerShell itself in `_ready()`, mirroring the
+   same pattern `SelectionButtonRow` already uses for its own root
+   ("the row is a full-width invisible strip... must be transparent").
+   Verified live: `hover_probe` at a bubble's `screen_pos` now correctly
+   resolves to `QuantumField3D`, and HUD hat/action-chip clicks still work
+   (PlayerShell's named widget children keep their own explicit `STOP`
+   filters, unaffected by the container's own filter).
+4. **Fixed**: the Explore→Strike→Extract loop couldn't be completed by
+   mouse — re-tapping a bubble only cycled Explore↔Measure. Root cause
+   (confirmed live via a temporary debug trace): `Terminal.gd`'s MEASURE
+   handler calls `release_register()`, which intentionally sets
+   `is_bound=false` while KEEPING `is_measured=true` (the register frees
+   for reuse; the terminal keeps its frozen snapshot so it can still be
+   popped — a real, documented state, see `Terminal.can_pop()`).
+   `handle_bubble_tap`'s verb resolution gated on `terminal.is_bound`
+   BEFORE checking `is_measured`, so a freshly-struck (measured but now
+   unbound) terminal always fell through to the "explore" default instead
+   of resolving to "pop." Fixed by using the terminal's own
+   `can_pop()`/`can_measure()` methods instead of hand-rolling the state
+   check — the same fix instantly also should explain the dedicated `[Q]
+   Extract` chip's separate failure, since that path shares this same
+   entry-plot terminal state (not independently re-verified this pass).
+   Verified live end-to-end: tap 1 → explore (success), tap 2 → measure
+   (success), tap 3 → pop (success) — the full loop, mouse-only, no
+   keyboard.
 
-Items 2-4 are the frontier for the next wave — earnest and literalist both
-stopped at Act 0 because of the sibling-order blocker (now fixed); a
-fresh re-run from a genuine first boot is needed to see how far a
-mouse-only player now actually gets before hitting #2/#3/#4.
+Item #3's fix is the single biggest unblock of the whole campaign — it was
+silently absorbing every plot tap, on every boot path, mouse-only or not,
+since the sibling-order fix landed. A fresh persona wave should now be
+able to progress well past Act 0.
 
 ## Severe: fixing the plot-tap blocker exposed a second, bigger blocker (found + fixed)
 

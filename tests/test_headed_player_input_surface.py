@@ -161,3 +161,35 @@ def test_pointer_bleed_guard_does_not_treat_play_base_as_a_menu() -> None:
     src = _read("UI/Managers/UIContextController.gd")
     assert "overlay_stack.size() > 1" in src
     assert "overlay_stack.is_empty()" not in src
+
+
+def test_player_shell_passes_through_clicks_it_does_not_claim() -> None:
+    # PlayerShell extends Control, full-rect, and never set its OWN mouse_filter --
+    # Godot's Control default is MOUSE_FILTER_STOP, so a full-screen PlayerShell
+    # became the pick target for every point no NAMED child widget claimed (e.g.
+    # empty HUD space over a 3D plot bubble). That silently absorbed every tap
+    # aimed at QuantumField3D beneath it once AppRoot.start_game()'s sibling-order
+    # fix (test_game_root_sits_below_player_shell_in_sibling_order, above) put
+    # PlayerShell's HUD on top for picking -- the single most severe mouse-only
+    # blocker of the whole campaign, since NO plot tap could ever reach the field.
+    # Verified live: hover_probe at a bubble's exact screen_pos resolved to
+    # PlayerShell, not QuantumField3D, until this filter was set.
+    src = _read("UI/PlayerShell.gd")
+    assert "mouse_filter = Control.MOUSE_FILTER_IGNORE" in src
+
+
+def test_bubble_tap_verb_resolution_uses_terminal_state_methods() -> None:
+    # handle_bubble_tap used to gate the explore/measure/pop verb choice on a
+    # hand-rolled "terminal.is_bound" check BEFORE looking at is_measured.
+    # Terminal.gd's MEASURE handler calls release_register(), which intentionally
+    # sets is_bound=false while KEEPING is_measured=true (the register frees for
+    # reuse; the terminal keeps its frozen snapshot so it can still be popped --
+    # exactly Terminal.can_pop()'s documented case). Gating on is_bound first
+    # excluded that state entirely, so every mouse Strike immediately fell through
+    # to "explore" again instead of advancing to Extract -- the Explore->Strike->
+    # Extract loop could never complete by mouse. Fixed by using the terminal's
+    # own can_pop()/can_measure() methods. Verified live: tap 1 (explore) -> tap 2
+    # (measure) -> tap 3 (pop), all success=true, mouse-only.
+    src = _read("UI/Core/QuantumInstrumentInput.gd")
+    assert "terminal.can_pop()" in src
+    assert "terminal.can_measure()" in src

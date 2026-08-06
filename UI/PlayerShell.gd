@@ -491,6 +491,18 @@ func _ready() -> void:
 	# scaling back to zero -- only "_and_offsets_" actually zeroes the offsets.
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
+	# CRITICAL: PlayerShell itself must not claim clicks -- only its named HUD
+	# widgets (each with their own explicit STOP filter) should. Godot's Control
+	# default is MOUSE_FILTER_STOP; a full-rect PlayerShell left at that default
+	# becomes the pick target for every point NO child widget claims (empty HUD
+	# space over a 3D plot bubble, for instance) -- the click never reaches
+	# GameRoot/QuantumField3D beneath, even though AppRoot.start_game() sibling-
+	# orders GameRoot below PlayerShell specifically so the HUD's OWN widgets can
+	# win clicks over the field. Same pattern as SelectionButtonRow's own filter
+	# ("the row is a full-width invisible strip... must be transparent"), just at
+	# the shell's own root. Mouse-only campaign, 2026-08-05.
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
+
 	# Process input even when game is paused (for ESC menu, etc.)
 	process_mode = Node.PROCESS_MODE_ALWAYS
 

@@ -1564,21 +1564,26 @@ func handle_bubble_tap(grid_pos: Vector2i) -> Dictionary:
 	# Three-beat rhythm = the Ace verbs, one tap each, priced exactly like the
 	# keyboard F/R/Q (owner ruling 2026-07-11): unexplored plot → EXPLORE (the
 	# expedition, 🍞) · explored live → STRIKE (👥) · struck → EXTRACT (free).
-	# All from farm ground truth (plot.terminal), never node visuals. Ground
-	# truth for "unexplored" is Terminal.is_bound (Terminal.can_explore()),
-	# NOT "terminal != null" — a terminal object can exist but be unbound
-	# (a zombie terminal), and a bare null-check would silently pick
-	# "measure" on one: ActionValidator correctly refuses it, but the
-	# block-return above only logs verbosely, so the tap does nothing with
-	# no player-facing toast. Keyboard F (routed through
-	# ToolConfig/ChipResolverRegistry) already reads is_bound correctly;
-	# this brings the tap path's ground truth into line with it.
+	# All from farm ground truth (plot.terminal), never node visuals, via the
+	# terminal's OWN state-query methods (can_explore/can_measure/can_pop) —
+	# NOT a hand-rolled is_bound/is_measured check. MEASURE calls
+	# release_register() as part of its execution (Terminal.gd), which
+	# intentionally sets is_bound=false while KEEPING is_measured=true (the
+	# register frees for reuse; the terminal keeps its frozen snapshot so it
+	# can still be popped) — a struck-but-unbound terminal is exactly
+	# can_pop()'s documented case. Gating on "is_bound" first, as this used
+	# to, excludes that case entirely and falls through to the "explore"
+	# default: every mouse Strike immediately re-Explored instead of
+	# advancing to Extract, so the loop could never complete by tap alone.
 	# Mouse-only campaign, 2026-08-05.
 	var plot = farm.grid.get_plot(grid_pos)
 	var terminal = plot.terminal if plot else null
 	var verb := "explore"
-	if terminal != null and terminal.is_bound:
-		verb = "pop" if terminal.is_measured else "measure"
+	if terminal != null:
+		if terminal.can_pop():
+			verb = "pop"
+		elif terminal.can_measure():
+			verb = "measure"
 
 	if not ActionValidator.can_execute_action_name(
 		verb, farm, _get_selected_positions(), _get_grid_position()
