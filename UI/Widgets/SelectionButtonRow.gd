@@ -214,12 +214,48 @@ func _on_button_input(event: InputEvent, button_id: int) -> void:
 		return
 
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		if _defers_to_field3d(event.global_position):
+			# Don't even flash "pressed" — a chip visually reacting to a tap that isn't
+			# meant for it is the same misleading-feedback bug class this is fixing, just
+			# on the press instead of the release.
+			if not event.pressed:
+				_forward_to_field3d(event.global_position, event.button_index, event.shift_pressed)
+			get_viewport().set_input_as_handled()
+			return
 		if event.pressed:
 			btn_data.texture.modulate = pressed_color
 		else:
 			set_selected(button_id)
 			button_selected.emit(button_id)
 		get_viewport().set_input_as_handled()
+
+
+## "2D is being deprecated" (owner ruling, 2026-08-06): wherever this row's fixed HUD
+## band structurally overlaps the 3D field's live orbit space, a real 3D pick target wins
+## the dispute outright. Without this, a tap aimed at a drifting StarterForest orb that
+## happened to land on the biome tab row switched biomes with a legible, CONFIRMING
+## "→ Village" toast — worse than a silent miss, since it read as a deliberate success
+## (mouse-only campaign wave 7, lost-lamb). Group lookup instead of a typed reference:
+## this row and the field mount in separate branches of the tree with no shared parent
+## until AppRoot, and the field may not exist yet the first time this fires.
+var _field3d_cache: Node = null
+
+func _live_field3d() -> Node:
+	if _field3d_cache == null or not is_instance_valid(_field3d_cache):
+		var matches := get_tree().get_nodes_in_group("quantum_field_3d")
+		_field3d_cache = matches[0] if matches.size() > 0 else null
+	return _field3d_cache
+
+
+func _defers_to_field3d(screen_pos: Vector2) -> bool:
+	var f3d := _live_field3d()
+	return f3d != null and f3d.has_method("has_pickable_target") and bool(f3d.has_pickable_target(screen_pos))
+
+
+func _forward_to_field3d(screen_pos: Vector2, button: int, shift: bool) -> void:
+	var f3d := _live_field3d()
+	if f3d != null and f3d.has_method("receive_deferred_tap"):
+		f3d.receive_deferred_tap(screen_pos, button, shift)
 
 
 func _on_button_hover(button_id: int, is_hovering: bool) -> void:

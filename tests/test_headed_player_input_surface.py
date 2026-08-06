@@ -400,3 +400,43 @@ def test_submenu_actions_write_to_dispatch_ledger() -> None:
     assert '_append_dispatch_ledger("build_gate", false)' in qii_src
     assert '_append_dispatch_ledger("inject_icon", true)' in qii_src
     assert '_append_dispatch_ledger("inject_icon", false)' in qii_src
+
+
+def test_selection_button_row_defers_to_a_live_3d_pick_target() -> None:
+    # Wave-7 documented lead (lost-lamb), fixed 2026-08-06 per owner ruling "defer to
+    # 3D for all things, 2D is being deprecated": BiomeSelectionRow's fixed HUD band
+    # structurally overlaps the 3D field's live orbit space, so a tap aimed at a
+    # drifting StarterForest orb could land on a biome-tab chip instead -- and unlike
+    # an ordinary miss, the biome switch shows a legible, CONFIRMING "-> Village"
+    # toast, which reads as a deliberate success rather than a misdirected tap. Fixed
+    # by teaching the shared SelectionButtonRow base (Tool/Biome/Menu rows all inherit
+    # it) to check QuantumField3D.has_pickable_target() before claiming a click, and
+    # forward to receive_deferred_tap() instead of doing chip selection when a real 3D
+    # target is there. Live-verified via the rig: a tap that landed on an orb sitting
+    # inside BiomeSelectionRow's own rect dispatched "explore" (a plot action) with
+    # active_biome unchanged, instead of switching biomes.
+    row_src = _read("UI/Widgets/SelectionButtonRow.gd")
+    assert "func _live_field3d() -> Node:" in row_src
+    assert 'get_tree().get_nodes_in_group("quantum_field_3d")' in row_src
+    assert "func _defers_to_field3d(screen_pos: Vector2) -> bool:" in row_src
+    assert "func _forward_to_field3d(screen_pos: Vector2, button: int, shift: bool) -> void:" in row_src
+    assert "if _defers_to_field3d(event.global_position):" in row_src
+
+    field_src = _read("Core/Visualization/QuantumField3D.gd")
+    assert 'add_to_group("quantum_field_3d")' in field_src
+    assert "func has_pickable_target(screen_pos: Vector2) -> bool:" in field_src
+    assert "func receive_deferred_tap(screen_pos: Vector2, button: int, shift: bool = false) -> void:" in field_src
+
+
+def test_field3d_has_no_passive_idle_rotation() -> None:
+    # Owner ask, 2026-08-06: "the passive rotation of the manifold graph should be
+    # removed... all motion and adjustment [should] have meaning or [be] the result
+    # of the player" -- a playtester read the old idle auto-rotation as meaningful
+    # when it wasn't. Removed the _process() pivot spin and its now-dead
+    # _orbit_hold_until_ms gate/hold-timer entirely; camera motion is now only the
+    # player's own drag, or the honest physics (force dynamics, Bloch-state
+    # evolution). Live-verified via the rig: orb screen positions were pixel-identical
+    # across 6s of real idle time with no input.
+    field_src = _read("Core/Visualization/QuantumField3D.gd")
+    assert "_pivot.rotate_object_local(Vector3.UP, dt * 0.08 * _time_scale)" not in field_src
+    assert "_orbit_hold_until_ms" not in field_src

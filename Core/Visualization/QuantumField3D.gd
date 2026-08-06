@@ -11,8 +11,10 @@ extends SubViewportContainer
 #   • a thin gold RIPENESS ring (gold = the global ripeness/value colour in every biome)
 #     that grows with the honest VisualizationConstants.ripeness(p0,p1);
 #   • a bright selection torus on the focused orb (set_focused_plot).
-# The field drifts slowly (pausing on mouse activity or E-pause) so it never reads as a
-# dead frame. Mini-Metro clarity: flat vibrant colour, no bloom/glow.
+# No passive camera drift: a playtester read the old idle auto-rotation as meaningful
+# motion when it wasn't, so every visible movement is now either real physics (state
+# evolution, force dynamics below) or the player's own camera drag — nothing spins on
+# its own. Mini-Metro clarity: flat vibrant colour, no bloom/glow.
 #
 # Mechanics input is wired through the SAME seam the 2D renderer uses: a TAP on an orb
 # emits node_clicked(grid_pos) (FarmView → handle_bubble_tap), and a SWIPE across 2+ orbs
@@ -90,14 +92,13 @@ var _sel_ring: MeshInstance3D = null
 # only while the B biome microscope is open. Wired in RuntimeMount.
 var show_inspection_layers: bool = false
 # E-pause contract (mirrors QuantumForceGraph.set_time_flow_scale): 0 freezes the
-# renderer's own idle motion so "motion means time is passing" stays honest.
+# live Bloch-state trail accumulation and force dynamics below.
 var _time_scale: float = 1.0
 var _edges: MeshInstance3D = null   # live MI correlation lines between orbs
 var _vectors: MeshInstance3D = null # live Bloch state-vector lines (centre → state point)
 var _dragging := false
 var _press_pos := Vector2.ZERO
 var _press_moved := false
-var _orbit_hold_until_ms := 0     # pause idle drift briefly after any mouse activity
 var _chain_mode := false          # a left-drag that began on an orb builds a gate chain
 var _chain: Array = []            # orbs gathered by the current chain-swipe (bell/cluster)
 var _chain_mesh: MeshInstance3D = null  # live gold thread through the chained orbs
@@ -122,6 +123,11 @@ var _accent := Color(0.96, 0.80, 0.36)
 
 
 func _ready() -> void:
+	# "2D is being deprecated" (owner ruling, 2026-08-06): SelectionButtonRow-based HUD
+	# rows look this group up to defer taps that actually land on a live 3D pick target
+	# (see has_pickable_target/receive_deferred_tap below) instead of letting a fixed
+	# HUD band silently steal a tap meant for a drifting orb.
+	add_to_group("quantum_field_3d")
 	stretch = true
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
@@ -358,8 +364,8 @@ func on_overlay_changed(overlay_name: String, is_open: bool) -> void:
 		_mi_dirty = true
 
 
-## E-pause contract (same signature as QuantumForceGraph's): 0 freezes the renderer's
-## idle drift so a paused game LOOKS paused.
+## E-pause contract (same signature as QuantumForceGraph's): 0 freezes the live state
+## trail + force dynamics so a paused game LOOKS paused.
 func set_time_flow_scale(s: float) -> void:
 	_time_scale = s
 
@@ -898,12 +904,6 @@ func _process(dt: float) -> void:
 		if OS.has_environment("SW_FIELD_3D_DEBUG"):
 			print("[QF3D] rebuilt biome=", bname, " registers=", _bubbles.size(), " portals=", _portals.size())
 
-	# Gentle continuous drift so the 3D never freezes; a brief hold after a mouse action so a
-	# click doesn't fight a moving target. The PRIMARY motion is the physics (state points
-	# below). E-pause (_time_scale 0) freezes this too — motion means time is passing.
-	if not _dragging and _time_scale > 0.0 and Time.get_ticks_msec() > _orbit_hold_until_ms:
-		_pivot.rotate_object_local(Vector3.UP, dt * 0.08 * _time_scale)
-
 	var vc = biome.viz_cache
 	_apply_force_dynamics(vc, dt)
 	for b in _bubbles:
@@ -1330,7 +1330,6 @@ func _clear_lindblad_glyphs() -> void:
 
 func _gui_input(ev: InputEvent) -> void:
 	if ev is InputEventMouse:
-		_orbit_hold_until_ms = Time.get_ticks_msec() + 1500
 		_pointer_pos = ev.position
 	# ONE pointer, three gestures, disambiguated by where the press lands and whether it moves:
 	#   • press+release on an orb, no drag → TAP → node_clicked(grid_pos) → handle_bubble_tap
@@ -1537,16 +1536,60 @@ func _try_pick(screen_pos: Vector2, button: int, shift: bool = false) -> void:
 		_consume_tap()
 	else:
 		# A genuine miss (nothing within hit radius of a real, non-drag tap) used to be a
-		# silent no-op — the field's own idle drift + live force dynamics continuously move
-		# every orb, so a target that was reachable a moment ago can rotate out of camera
-		# view or just drift past the click point with ZERO on-screen sign anything went
-		# wrong. A player who doesn't notice then presses an action chip, which fires
+		# silent no-op — live force dynamics continuously move every orb (correlated pulls,
+		# state evolution), so a target that was reachable a moment ago can drift past the
+		# click point with ZERO on-screen sign anything went wrong (worse still while the
+		# renderer also had its own passive idle rotation, since removed — 2026-08-06,
+		# "all motion should have meaning"). A player who doesn't notice then presses an
+		# action chip, which fires
 		# against whatever plot is still focused from their LAST successful tap — not the
 		# one they just tried to reach (mouse-only campaign wave 6, earnest: repeated
 		# no_tap_target on a plot that was tappable minutes earlier, then a chip-fired
 		# incorporate landed on a different, already-known plot). This won't spam during
 		# camera-orbit drags — _try_pick only runs on a real press+release, never a drag.
 		_toast("Nothing there — the field keeps moving, aim again")
+
+
+## True if a genuine 3D pick (ascend portal, sibling portal, orb, or descend satellite)
+## exists at screen_pos — the same candidate set _try_pick checks, with no side effects.
+## "2D is being deprecated" (owner ruling, 2026-08-06): any HUD Control whose fixed band
+## structurally overlaps the field's live orbit space calls this before claiming a tap, so
+## a real orb under a chip wins the dispute instead of the chip silently (or worse,
+## misleadingly) eating it — see SelectionButtonRow._defers_to_field3d.
+func has_pickable_target(screen_pos: Vector2) -> bool:
+	if _cam == null:
+		return false
+	if _ascend_portal != null and is_instance_valid(_ascend_portal.mesh):
+		var wpa: Vector3 = _ascend_portal.mesh.global_position
+		if not _cam.is_position_behind(wpa) and _cam.unproject_position(wpa).distance_to(screen_pos) < _portal_hit_radius():
+			return true
+	for p in _portals:
+		if not is_instance_valid(p.mesh):
+			continue
+		var wpp: Vector3 = p.mesh.global_position
+		if _cam.is_position_behind(wpp):
+			continue
+		if _cam.unproject_position(wpp).distance_to(screen_pos) < _portal_hit_radius():
+			return true
+	if not _orb_at(screen_pos).is_empty():
+		return true
+	for dp2 in _descend_portals:
+		if not is_instance_valid(dp2.mesh) or not dp2.mesh.visible:
+			continue
+		var wpd: Vector3 = dp2.mesh.global_position
+		if _cam.is_position_behind(wpd):
+			continue
+		if _cam.unproject_position(wpd).distance_to(screen_pos) < _portal_hit_radius() * 0.75:
+			return true
+	return false
+
+
+## Entry point for a HUD Control that just deferred its own tap to this field (see
+## has_pickable_target above) — runs the exact same pick geometry a direct field tap
+## would, just entered from outside _gui_input since the HUD control, not the field,
+## was the one Godot's picking actually delivered the event to.
+func receive_deferred_tap(screen_pos: Vector2, button: int, shift: bool = false) -> void:
+	_try_pick(screen_pos, button, shift)
 
 
 ## Join the tap-arbitration protocol the 2D handlers already speak: marking the tap consumed
