@@ -664,6 +664,7 @@ func _execute_inject_icon(icon: Dictionary) -> void:
 		# Invalidate buffer (icon injection adds qubits, modifies density matrix)
 		_invalidate_biome_buffer_for_action("inject_icon")
 
+		_append_dispatch_ledger("inject_icon", true)
 		# (story notification now fires inside QuantumInstrument.action_inject_icon_pair)
 		action_performed.emit("inject_icon", {
 			"success": true,
@@ -677,6 +678,7 @@ func _execute_inject_icon(icon: Dictionary) -> void:
 		# Refusals speak — the picker closing silently after a failed inject
 		# read as "selection doesn't work" (marathon #9).
 		_toast_player("✗ the icon would not take — %s" % str(result.get("message", result.get("error", "unknown reason"))))
+		_append_dispatch_ledger("inject_icon", false)
 		action_performed.emit("inject_icon", result)
 
 
@@ -1045,6 +1047,7 @@ func _execute_build_gate(gate_type: String) -> void:
 
 	if positions.size() < 2:
 		_verbose.warn("input", "⚛️", "Need 2+ qubits selected for %s gate" % gate_type)
+		_append_dispatch_ledger("build_gate", false)
 		action_performed.emit("build_gate", {"success": false, "error": "need_more_qubits"})
 		return
 
@@ -1063,6 +1066,7 @@ func _execute_build_gate(gate_type: String) -> void:
 	else:
 		_verbose.warn("input", "⚛️", "Failed to build %s: %s" % [gate_type, result.get("error", result.get("message", "unknown"))])
 
+	_append_dispatch_ledger("build_gate", bool(result.get("success", false)))
 	action_performed.emit("build_gate", result)
 
 
@@ -2005,22 +2009,30 @@ func _get_qubit_for_position(pos: Vector2i, _biome) -> int:
 	return int(PlotRegisterResolver.resolve(farm, pos).get("register_id", -1))
 
 
+## Dispatch forensics: one ledger entry per verb execution. Probes read this
+## (rig `dispatch_ledger`) to assert exactly-once dispatch per input — the
+## double-dispatch bug class becomes directly observable instead of inferred
+## from wallet drain. Two entries with the same action on the same frame is
+## the double-fire signature. Submenu-routed actions (build_gate, inject_icon)
+## went through _execute_build_gate/_execute_inject_icon, which only emitted
+## action_performed — never wrote here, so a mouse-only Bell weave or icon
+## injection was invisible to this ledger (mouse-only campaign wave 7,
+## lost-lamb: real entanglement succeeded with zero dispatch_ledger entry).
+func _append_dispatch_ledger(action_name: String, success: bool) -> void:
+	dispatch_ledger.append({
+		"frame": Engine.get_process_frames(),
+		"action": action_name,
+		"success": success,
+	})
+	if dispatch_ledger.size() > DISPATCH_LEDGER_CAP:
+		dispatch_ledger.pop_front()
+
+
 func _run_action(action_name: String, log_symbol: String, action_label: String) -> Dictionary:
 	# Execute an action and emit logging + signal.
 	var result = _execute_action(action_name)
 
-	# Dispatch forensics: one ledger entry per verb execution. Probes read this
-	# (rig `dispatch_ledger`) to assert exactly-once dispatch per input — the
-	# double-dispatch bug class becomes directly observable instead of inferred
-	# from wallet drain. Two entries with the same action on the same frame is
-	# the double-fire signature.
-	dispatch_ledger.append({
-		"frame": Engine.get_process_frames(),
-		"action": action_name,
-		"success": bool(result.get("success", false)),
-	})
-	if dispatch_ledger.size() > DISPATCH_LEDGER_CAP:
-		dispatch_ledger.pop_front()
+	_append_dispatch_ledger(action_name, bool(result.get("success", false)))
 
 	# Invalidate buffer if action modified density matrix at phrame 0
 	if result.get("success", false) and action_name in BUFFER_INVALIDATING_ACTIONS:

@@ -362,3 +362,41 @@ def test_field3d_miss_tap_toasts_instead_of_silent_no_op() -> None:
     field_src = _read("Core/Visualization/QuantumField3D.gd")
     assert 'shell.show_hint("[color=#8899aa]•[/color] %s" % msg, 2)' in field_src
     assert '_toast("Nothing there — the field keeps moving, aim again")' in field_src
+
+
+def test_fast_forward_ledger_matches_its_own_toast() -> None:
+    # Wave-7 mouse-only lead (lost-lamb): Fast-Forward's chip toast always
+    # fired ("the odds spin forward") but dispatch_ledger always logged
+    # success:false for the same action -- two read sites shared one absent
+    # dict key with OPPOSITE defaults. Farm.gd's time_skip_phrames() never
+    # set "success" at all; QuantumInstrumentInput's toast check read
+    # result.get("success", true) while its ledger-writer read
+    # result.get("success", false) -- same missing key, opposite defaults,
+    # opposite conclusions. Root-caused via lost-lamb's own precise repro
+    # (Core/Farm.gd:1040, UI/Core/QuantumInstrumentInput.gd:2020+2300).
+    # Fixed at the source: time_skip_phrames() now sets success:true on
+    # every return path, so both readers agree without relying on defaults.
+    farm_src = _read("Core/Farm.gd")
+    assert '{"ok": true, "success": true, "phrames": 0, "delta": dt}' in farm_src
+    assert '"ok": true,\n\t\t"success": true,\n\t\t"phrames": steps,' in farm_src
+
+
+def test_submenu_actions_write_to_dispatch_ledger() -> None:
+    # Wave-7 mouse-only finding (lost-lamb): a real, mouse-only Bell weave
+    # (Operator hat, shift-tap two plots, gate submenu, tap Bell) genuinely
+    # succeeded -- entanglement fired, the tutorial advanced -- with ZERO
+    # new dispatch_ledger entry. _execute_build_gate() and
+    # _execute_inject_icon() (the submenu-routed action handlers) only ever
+    # emitted the action_performed signal; only _run_action() (the direct
+    # Q/E/R/F chip path) wrote to dispatch_ledger. Rig probes that assert
+    # exactly-once dispatch via dispatch_ledger were blind to every
+    # submenu-routed action, including the campaign's own entanglement
+    # mechanic. Fixed by factoring the ledger-append into a shared
+    # _append_dispatch_ledger() helper and calling it from both submenu
+    # handlers too.
+    qii_src = _read("UI/Core/QuantumInstrumentInput.gd")
+    assert "func _append_dispatch_ledger(action_name: String, success: bool) -> void:" in qii_src
+    assert '_append_dispatch_ledger("build_gate", bool(result.get("success", false)))' in qii_src
+    assert '_append_dispatch_ledger("build_gate", false)' in qii_src
+    assert '_append_dispatch_ledger("inject_icon", true)' in qii_src
+    assert '_append_dispatch_ledger("inject_icon", false)' in qii_src

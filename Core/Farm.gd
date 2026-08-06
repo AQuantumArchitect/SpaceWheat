@@ -1044,7 +1044,7 @@ func time_skip_phrames(phrames: int, delta: float = PhysicsConfig.PHRAME_DT) -> 
 	var debug_time_skip = RuntimeEnv.debug_timeskip()
 	var skip_lindblad = RuntimeEnv.time_skip_skip_lindblad()
 	if steps <= 0:
-		return {"ok": true, "phrames": 0, "delta": dt}
+		return {"ok": true, "success": true, "phrames": 0, "delta": dt}
 
 	if debug_time_skip:
 		_log_debug("[TIME_SKIP] begin steps=%d dt=%.6f skip_lindblad=%s" % [steps, dt, str(skip_lindblad)])
@@ -1087,6 +1087,7 @@ func time_skip_phrames(phrames: int, delta: float = PhysicsConfig.PHRAME_DT) -> 
 
 	return {
 		"ok": true,
+		"success": true,
 		"phrames": steps,
 		"delta": dt,
 		"evolved_steps": evolved_steps,
