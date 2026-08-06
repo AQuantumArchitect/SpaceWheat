@@ -307,11 +307,20 @@ static func objective_target() -> Dictionary:
 		return {"key": "C", "biome": ""}
 	if str(best.get("category", "")) == "TUTORIAL":
 		var step := int(best.get("tutorial_step", -1))
+		# tutorial_arc.json's own "biome" field names where the step's mechanic
+		# actually happens (from_tutorial_def copies it onto the quest dict
+		# verbatim) -- dropping it here left the spotlight pulsing the verb
+		# chip alone, on whatever biome the player already stood on. A player
+		# who never learns to switch biomes first (step 1's Icon-hat lesson
+		# needs StarterForest; TheDemos's only word is already the player's
+		# own starting signature) hits a real dead end with no visual cue to
+		# leave. Mouse-only campaign wave 4.
+		var step_biome := str(best.get("biome", ""))
 		for entry_key in VERB_UNLOCK_STEP:
 			if int(VERB_UNLOCK_STEP[entry_key]) == step:
 				var hat_key := _hat_key_for_frame(str(entry_key).split(":")[0])
 				if hat_key != "":
-					return {"key": hat_key, "biome": ""}
+					return {"key": hat_key, "biome": step_biome}
 		return {}
 	# Active ARC quest: 42/72 authored state_predicates carry a biome, 13 an
 	# atom — structured targets exist one level down, no new authoring needed.

@@ -225,3 +225,19 @@ def test_locked_action_chip_click_speaks_instead_of_going_silent() -> None:
     assert 'const UIProgression = preload("res://UI/Core/UIProgression.gd")' in src
     assert "UIProgression.redirect_locked()" in src
     assert 'label_node.text.contains("🔒")' in src
+
+
+def test_tutorial_objective_spotlight_honors_the_steps_own_biome() -> None:
+    # The Icon-hat vocabulary step (tutorial_arc.json step 1) is authored to
+    # happen in StarterForest -- TheDemos's only word is already the player's
+    # own starting signature, so incorporating it there is refused by
+    # construction (a real, silent dead end after a ~100s ripen wait; mouse-
+    # only campaign wave 4). objective_target()'s TUTORIAL branch used to
+    # hardcode biome:"" regardless of the step's own data, so
+    # ObjectiveSpotlight never pulsed the biome tab to redirect the player.
+    # Fixed by reading the step's own "biome" field (already present on the
+    # quest dict -- QuestPipeline.from_tutorial_def copies it verbatim)
+    # instead of discarding it.
+    src = _read("UI/Core/UIProgression.gd")
+    assert 'var step_biome := str(best.get("biome", ""))' in src
+    assert 'return {"key": hat_key, "biome": step_biome}' in src

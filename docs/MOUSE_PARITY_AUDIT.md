@@ -13,6 +13,106 @@ direct-`_try_pick()` shortcut in any harness code — it bypasses the real
 input pipeline and can reproduce the "click hit whatever it might" bug
 class this campaign exists to catch.
 
+## Session 4 (2026-08-06): Icon-hat tutorial dead-end + wave-4's two "cosmetic" items
+
+Luke's ruling on item 3 below: "change the plot to match the mechanics" — the
+tutorial's own POINTER was wrong, not the biome data itself (TheDemos's word
+correctly stays "already yours"; the deliberate narrative device from
+`first_breath`'s own hint text). Root-caused and fixed the pointer:
+
+1. **Fixed — the real root cause of the Icon-hat dead-end**:
+   `UIProgression.objective_target()`'s TUTORIAL branch hardcoded
+   `{"key": hat_key, "biome": ""}` for every Act-0 step, discarding the
+   step's own `"biome"` field from `tutorial_arc.json` (already present on
+   the quest dict — `QuestPipeline.from_tutorial_def` copies it verbatim).
+   `ObjectiveSpotlight` only pulses the biome tab when `target.biome != ""
+   and != active_biome` — with biome always `""`, the spotlight pulsed the
+   Icon-hat verb chip alone, on whatever biome the player already stood on.
+   Step 1 (vocabulary) is authored `"biome": "StarterForest"`, but a player
+   who never learns to cross biomes tries it on TheDemos instead — and
+   TheDemos's only axis (`👥🌾`) is refused by construction (`👥` already
+   anchors the player's own starting signature word `🌾/👥`), a real dead
+   end after a ~100s ripen wait with zero visual cue to leave. Fixed:
+   `objective_target()` now passes the step's own `biome` through instead of
+   discarding it — steps 0/1/3/4 (the ones with a mapped verb chip) all
+   benefit; steps 2/5/6 have no chip mapping and are unaffected either way.
+   Also strengthened step 1's own `tutorial_hint` text to lead with "Cross
+   to StarterForest first (biome tabs T-P) — your home word is already
+   yours," matching the "visual UX pairs with text hints" precedent
+   (spotlight pulse + explicit text, not spotlight alone). Verified live:
+   with the fix, the objective banner on TheDemos now reads exactly that
+   text and the biome tab row shows the StarterForest tab underlined/active
+   target. Regression test:
+   `test_headed_player_input_surface.py::test_tutorial_objective_spotlight_honors_the_steps_own_biome`.
+2. **Investigated, NOT reproduced — `bubble_state.visible`**: ran a live
+   headed diagnostic (explore → measure → extract full loop on TheDemos,
+   plus a biome switch to Village) comparing `bubble_state.visible` against
+   real screenshots at every step. In every case the flag correctly matched
+   what was on screen (hidden before explore, visible after, hidden again
+   after extract/pop; all three Village plots correctly hidden pre-explore).
+   Both screenshots DO show a small wolf emoji (🐺) with a green ring at a
+   fixed screen position, identical across biomes and explore-state — this
+   is almost certainly what wave 4 read as "a visible bubble": it isn't one
+   of `_bubbles` at all (its screen position matches neither TheDemos's nor
+   Village's actual bubble `screen_pos` values), most likely a Lindblad-
+   drain or cognifold-badge indicator (see `CognifoldForecastField.gd`'s
+   `_node_badges`). No code changed — a real bug wasn't found to fix, and
+   the "no special cases" law argues against a speculative patch with no
+   reproduction.
+3. **Investigated, NOT a bug — `MenuSelectionRow`'s `SelectBtn_0`**:
+   `MenuRegistry.TOP_LEVEL_MENUS`' first (keyless) entry is `"play"`
+   (🌾, "Return to gameplay") — it becomes button index 0 because keyless
+   entries render before the ZXCVBNM-keyed ones. Its handler
+   (`MenuSelectionRow._on_button_selected`, `menu_group == "play"`) closes
+   every registered overlay so FarmView becomes top. Wave 4 clicked it while
+   no overlay was open — correctly a no-op, since there was nothing to
+   close. Not a gap: the button still visibly presses (shared chip-flash
+   feedback), it just has nothing to do in that state.
+
+## Persona wave 4 (earnest/literalist/lost-lamb, mouse-only, post-PlayerShell-fix)
+
+Run after the two fixes in the section below (PlayerShell's own
+`mouse_filter`, and `handle_bubble_tap`'s verb resolution). All three
+agents confirmed the core loop now genuinely works end to end by mouse:
+real welcome-splash dismiss, hat row, biome row, menu row, and the full
+Explore→Strike→Extract loop all independently verified working via direct
+clicks, with real resource deltas. No agent got past Act 0 / Chapter I —
+Vocabulary (no new `story_flags` fired beyond `tutorial_seen`), but for
+mechanical reasons now understood, not because clicks don't work:
+
+1. **Fixed**: the Arc tab (`X` → `I`), the mouse path to the game's own
+   advertised "Hearth Keepers"/story-flag quest offers, had rows with zero
+   click affordance (only the `R`-accept HUD chip worked, so a mouse
+   player could never pick WHICH row to accept) and an inert "page N/M ·
+   A/D" footer. Both now route through `ClickWire` onto the same
+   authorities the keyboard already calls (`_select_arc_row` mirrors
+   `GHJKL;` picks; two pager glyphs call the existing `_on_navigate()`).
+2. **Fixed**: a locked (progressive-disclosure) Q/E/R/F chip click was a
+   total no-op — zero toast, zero press flash, indistinguishable from a
+   click that never landed. Now shows the same rate-limited "🔒 not yet —
+   now: ..." toast the keyboard's own locked-verb refusal already shows.
+3. **Design issue found, NOT a mouse-parity bug (out of scope for this
+   campaign, flagging for the owner)**: the Icon hat's tutorial explicitly
+   points at TheDemos's one plot (axis `👥🌾`), but incorporating it is
+   refused by construction — `👥` already anchors the player's own
+   starting faction signature (`QuantumInstrumentInput.gd:774-779`), so
+   the literal tutorial instruction dead-ends after a real ~100s berry-
+   ripening wait with no hint to try a different biome. Reproduces
+   identically for a keyboard player; not something this campaign's fixes
+   can address.
+4. **Reconfirmed, still open**: `bubble_state.visible` is unreliable —
+   `false` for plot bubbles that are actually on-screen and directly
+   tappable (screenshot-verified on both TheDemos and Village). Cosmetic/
+   render-state bug, not a click-routing one.
+5. **Unclassified, minor**: `MenuSelectionRow`'s `SelectBtn_0` produced no
+   visible `ui_stack` change when clicked — not yet identified what this
+   button is or whether it's a real gap.
+6. **Content note, not a bug**: berry-phase ripening after a correctly
+   started track accumulated only ~11% of the 2π threshold over 45s idle,
+   much slower than the in-game hint's own "about half a minute" claim —
+   possibly stale copy, possibly needs a tuning look independent of mouse
+   parity.
+
 ## Persona wave 3 (earnest/literalist/lost-lamb, mouse-only) — new findings
 
 Three real-boot mouse-only agents run after the two blockers below were

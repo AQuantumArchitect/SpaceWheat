@@ -19,7 +19,7 @@
       "faction": "Hearth Keepers",
       "biome": "StarterForest",
       "body": "A qubit that walks a closed loop remembers the sky it swept. Ripeness is that memory — and a ripe pair can teach you a new word: an icon. Your vocabulary is your power here.",
-      "tutorial_hint": "Icon hat (5): press F on a live plot to track its walk (⌖). When the loop has swept enough sky it ripens — press R to incorporate the word into your signature. Completing contracts teaches words too.",
+      "tutorial_hint": "Cross to StarterForest first (biome tabs T-P) — your home word is already yours. Icon hat (5): F tracks a live plot (⌖), R incorporates it once ripe.",
       "math_note": "Fires when your signature (farm.known_icons) reaches 3 icons — a count gate, so 3 means exactly 3, no soft-gate overshoot.",
       "state_predicates": [
         {"type": "signature_size_gte", "value": 3}
