@@ -1865,11 +1865,11 @@ func _build_arc_body() -> void:
 	for i in range(MAX_VISIBLE_ITEMS):
 		var idx: int = base + i
 		if idx < rows.size():
-			_body_box.add_child(_make_arc_row(rows[idx], ITEM_KEYS[i], idx == _arc_selected_idx))
+			_body_box.add_child(_make_arc_row(rows[idx], ITEM_KEYS[i], idx == _arc_selected_idx, idx))
 		else:
 			_body_box.add_child(_make_empty_row(ITEM_KEYS[i]))
 	if page_count > 1:
-		_body_box.add_child(_make_muted_label("page %d/%d · A/D" % [_arc_page + 1, page_count], 10))
+		_body_box.add_child(_make_arc_pager(page_count))
 	_body_box.add_child(_make_spacer(6))
 	_body_box.add_child(_make_muted_label("Q dismiss  ·  R accept  ·  E refresh  ·  GHJKL; pick  ·  A/D page", 11))
 
@@ -1934,9 +1934,42 @@ func _arc_rows() -> Array:
 	for f in fired: rows.append(f)
 	return rows
 
-func _make_arc_row(entry: Dictionary, key_str: String, selected: bool) -> Control:
+## Mouse parity for GHJKL; row selection (wave-4 sensor wall: rows had no
+## click affordance at all, only the R-accept chip did — a mouse player
+## could never pick WHICH row to accept). Clicking a row selects it, same
+## as pressing its key chip's keyboard letter.
+func _select_arc_row(idx: int) -> void:
+	var rows: Array = _arc_rows()
+	if idx < 0 or idx >= rows.size() or _arc_selected_idx == idx:
+		return
+	_arc_selected_idx = idx
+	_refresh_body()
+
+
+## Mouse parity for A/D paging (wave-3 sensor wall, reconfirmed wave-4: the
+## "page N/M · A/D" footer was inert text). Two small clickable glyphs reuse
+## the same _on_navigate() the A/D keys already call — one authority, no
+## duplicated paging logic.
+func _make_arc_pager(page_count: int) -> Control:
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 8)
+	var prev_lbl := _make_muted_label("◀", 11)
+	prev_lbl.name = "ArcPagerPrev"
+	ClickWire.attach(prev_lbl, _on_navigate.bind(Vector2i(-1, 0)))
+	row.add_child(prev_lbl)
+	row.add_child(_make_muted_label("page %d/%d" % [_arc_page + 1, page_count], 10))
+	var next_lbl := _make_muted_label("▶", 11)
+	next_lbl.name = "ArcPagerNext"
+	ClickWire.attach(next_lbl, _on_navigate.bind(Vector2i(1, 0)))
+	row.add_child(next_lbl)
+	return row
+
+
+func _make_arc_row(entry: Dictionary, key_str: String, selected: bool, idx: int) -> Control:
 	var kind := str(entry.get("kind", ""))
 	var row := PanelContainer.new()
+	row.name = "ArcRow_%d" % idx
 	var sb := StyleBoxFlat.new()
 	sb.set_corner_radius_all(3)
 	sb.content_margin_left = 8
@@ -1957,6 +1990,7 @@ func _make_arc_row(entry: Dictionary, key_str: String, selected: bool) -> Contro
 		sb.bg_color = Color(0.10, 0.10, 0.13, 0.85) if not selected else Color(0.18, 0.16, 0.10, 0.95)
 		sb.border_color = Color(0.5, 0.45, 0.35, 0.5) if not selected else COLOR_ARC_UNFIRED
 	row.add_theme_stylebox_override("panel", sb)
+	ClickWire.attach(row, _select_arc_row.bind(idx))
 
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 2)

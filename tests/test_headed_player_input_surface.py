@@ -193,3 +193,21 @@ def test_bubble_tap_verb_resolution_uses_terminal_state_methods() -> None:
     src = _read("UI/Core/QuantumInstrumentInput.gd")
     assert "terminal.can_pop()" in src
     assert "terminal.can_measure()" in src
+
+
+def test_controls_overlay_arc_tab_rows_and_pager_are_clickable() -> None:
+    # Wave-4 sensor wall (literalist): the Arc tab (X > I) is the mouse path to
+    # the game's own advertised "Hearth Keepers" quest offer, but its rows had
+    # NO click affordance at all (only the R-accept HUD chip did -- a mouse
+    # player could never pick WHICH row to accept), and the "page N/M · A/D"
+    # footer was inert text with no mouse equivalent for A/D paging. Both now
+    # route through ClickWire onto the SAME authorities the A/D keys and
+    # GHJKL; picks already call (_select_arc_row / _on_navigate) -- one
+    # selection/paging authority, not a duplicated mouse-only path. Verified
+    # live: clicking a row moves the expanded predicate detail to that row;
+    # clicking the pager glyph advances the page and its content.
+    src = _read("UI/Overlays/ControlsOverlay.gd")
+    assert "ClickWire.attach(row, _select_arc_row.bind(idx))" in src
+    assert "func _select_arc_row(idx: int) -> void:" in src
+    assert "ClickWire.attach(prev_lbl, _on_navigate.bind(Vector2i(-1, 0)))" in src
+    assert "ClickWire.attach(next_lbl, _on_navigate.bind(Vector2i(1, 0)))" in src
