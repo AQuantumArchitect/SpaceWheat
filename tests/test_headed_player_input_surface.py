@@ -283,3 +283,29 @@ def test_tutorial_objective_spotlight_honors_the_steps_own_biome() -> None:
     src = _read("UI/Core/UIProgression.gd")
     assert 'var step_biome := str(best.get("biome", ""))' in src
     assert 'return {"key": hat_key, "biome": step_biome}' in src
+
+
+def test_mouse_biome_tab_click_gets_the_same_confirm_as_keyboard() -> None:
+    # Wave-5 sensor wall (lost-lamb): a StarterForest plot bubble's orbit can
+    # coincide with BiomeSelectionRow's fixed tab band, so a tap meant for
+    # the bubble switches biomes instead -- reproduced 2/2, with NO toast and
+    # NO Focus repoint either way, because the mouse path called
+    # ActiveBiomeManager.set_active_biome() directly instead of going
+    # through QuantumInstrumentInput._select_biome() (the keyboard TYUIOP
+    # path), which is the only place that repoints the Focus cursor and
+    # shows the "-> Village" confirm toast (added because "4 of 6 testers
+    # couldn't tell it worked"). Root cause: two divergent code paths for
+    # the same action. Fixed by routing both through a shared tail.
+    row_src = _read("UI/Widgets/BiomeSelectionRow.gd")
+    assert "signal biome_confirmed(old_biome: String, new_biome: String, key: String)" in row_src
+    assert "var old_biome = active_biome_router.get_active_biome()" in row_src
+    assert "biome_confirmed.emit(old_biome, biome_name, active_biome_router.get_slot_key(slot_idx))" in row_src
+
+    qii_src = _read("UI/Core/QuantumInstrumentInput.gd")
+    assert "func confirm_biome_switch(old_biome: String, new_biome: String, key: String) -> void:" in qii_src
+    assert "_apply_biome_switch(old_biome, new_biome, key)" in qii_src
+
+    shell_src = _read("UI/PlayerShell.gd")
+    assert "biome_row.biome_confirmed.connect(_route_biome_confirm)" in shell_src
+    assert "func _route_biome_confirm(old_biome: String, new_biome: String, key: String) -> void:" in shell_src
+    assert "instrument_input.confirm_biome_switch(old_biome, new_biome, key)" in shell_src

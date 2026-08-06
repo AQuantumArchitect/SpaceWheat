@@ -1103,8 +1103,16 @@ func _select_biome(biome_idx: int, key: String) -> void:
 
 	# Switch active biome, then repoint the Focus (same slot, keep checks, no action).
 	_active_biome_mgr.set_active_biome(new_biome)
+	confirm_biome_switch(old_biome, new_biome, key)
+
+
+## Shared tail for any biome-switch trigger (TYUIOP direct-pick here, and mouse
+## tab clicks via PlayerShell — see BiomeSelectionRow.biome_confirmed). Repoints
+## the Focus and confirms the switch in text (fleet: 4 of 6 testers couldn't
+## tell it worked) — without this, a mouse click landing on the biome tab bar
+## switches biomes with zero visible feedback (mouse-only campaign wave 5).
+func confirm_biome_switch(old_biome: String, new_biome: String, key: String) -> void:
 	_apply_biome_switch(old_biome, new_biome, key)
-	# Confirm the switch in text (fleet: 4 of 6 testers couldn't tell it worked).
 	if new_biome != old_biome:
 		_toast_player("→ %s" % new_biome)
 

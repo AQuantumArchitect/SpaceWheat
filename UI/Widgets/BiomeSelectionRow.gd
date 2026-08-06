@@ -10,6 +10,13 @@ extends "res://UI/Widgets/SelectionButtonRow.gd"
 
 var active_biome_router: Node = null
 
+## Fired after a tab click actually switches the router's active biome — carries
+## enough for PlayerShell to route it through the same confirm+repoint tail the
+## keyboard TYUIOP path uses (QuantumInstrumentInput.confirm_biome_switch), so a
+## mouse click gets the same "→ Village" toast the keyboard gets instead of
+## switching silently (mouse-only campaign wave 5: silent tab-bar pointer-bleed).
+signal biome_confirmed(old_biome: String, new_biome: String, key: String)
+
 # Biome display names (more user-friendly)
 const BIOME_LABELS: Dictionary = {
 	"StarterForest": "Starter Forest",
@@ -71,10 +78,12 @@ func _on_button_selected(slot_idx: int) -> void:
 	var biome_name = active_biome_router.get_biome_for_slot(slot_idx)
 	if biome_name == "":
 		return
-	var current_idx = active_biome_router.get_biome_index(active_biome_router.get_active_biome())
+	var old_biome = active_biome_router.get_active_biome()
+	var current_idx = active_biome_router.get_biome_index(old_biome)
 	var target_idx = active_biome_router.get_biome_index(biome_name)
 	var direction = 1 if target_idx > current_idx else -1 if target_idx < current_idx else 0
 	active_biome_router.set_active_biome(biome_name, direction)
+	biome_confirmed.emit(old_biome, biome_name, active_biome_router.get_slot_key(slot_idx))
 
 
 func _on_active_biome_changed(_new_biome: String, _old_biome: String) -> void:
