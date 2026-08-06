@@ -337,3 +337,28 @@ def test_shift_tap_toggles_multiselect_check_for_entanglement() -> None:
     shell_src = _read("UI/FarmView.gd")
     assert "func _on_quantum_node_clicked(grid_pos: Vector2i, button_index: int, shift: bool = false) -> void:" in shell_src
     assert "instrument_input.handle_bubble_tap(grid_pos, shift)" in shell_src
+
+
+def test_field3d_miss_tap_toasts_instead_of_silent_no_op() -> None:
+    # Wave-6 "active-biome desync" lead (earnest): re-investigated against
+    # earnest's own real rig transcript (not a fresh guess) -- there was NO
+    # biome-authority divergence anywhere in the recorded turns (zero
+    # focus_biome dispatches, bubble_state's biome tag always matched what
+    # was rendered). The real mechanism: QuantumField3D's own idle-drift +
+    # live force-dynamics continuously move every orb, so a tap that lands
+    # on empty space (the target having drifted since the player last
+    # looked) was a SILENT no-op -- then a later action-chip press fired
+    # against whatever plot was still focused from the last successful tap,
+    # not the one the player was trying to reach. Fixed by toasting on a
+    # genuine total miss in _try_pick.
+    #
+    # Live-verified this ALSO exposed a second, pre-existing bug: _toast()
+    # called show_hint() with no importance arg, defaulting to 1 --
+    # PlayerShell.show_hint()'s own doc comment says "Importance < 2 is
+    # logged only; no toast is shown," so _toast() (incl. the pre-existing
+    # depth-cap-refusal message below) had never actually shown anything.
+    # A synthetic miss-tap produced zero new overlay lines until importance
+    # was raised to 2, confirmed live via the rig.
+    field_src = _read("Core/Visualization/QuantumField3D.gd")
+    assert 'shell.show_hint("[color=#8899aa]•[/color] %s" % msg, 2)' in field_src
+    assert '_toast("Nothing there — the field keeps moving, aim again")' in field_src

@@ -373,7 +373,12 @@ func _toast(msg: String) -> void:
 	var app = tree.get_first_node_in_group("app_root") if tree else null
 	var shell = app.player_shell if app != null and ("player_shell" in app) else null
 	if shell != null and shell.has_method("show_hint"):
-		shell.show_hint("[color=#8899aa]•[/color] %s" % msg)
+		# importance=2 (teal) — PlayerShell.show_hint() silently discards importance<2
+		# ("logged only; no toast is shown"), its own default. Every OTHER call site in
+		# the codebase passes 2+ explicitly; this one didn't, so every _toast() from this
+		# file — including the pre-existing depth-cap refusal below — has been invisible
+		# since it was added (caught live: a miss-tap toast never appeared on screen).
+		shell.show_hint("[color=#8899aa]•[/color] %s" % msg, 2)
 
 
 ## Centre the field on the PLAY AREA, not the window: ~283px of top chrome (resource bar
@@ -1530,6 +1535,18 @@ func _try_pick(screen_pos: Vector2, button: int, shift: bool = false) -> void:
 			best.dot.scale = Vector3.ONE * 2.2
 		node_clicked.emit(best.grid_pos, button, shift)
 		_consume_tap()
+	else:
+		# A genuine miss (nothing within hit radius of a real, non-drag tap) used to be a
+		# silent no-op — the field's own idle drift + live force dynamics continuously move
+		# every orb, so a target that was reachable a moment ago can rotate out of camera
+		# view or just drift past the click point with ZERO on-screen sign anything went
+		# wrong. A player who doesn't notice then presses an action chip, which fires
+		# against whatever plot is still focused from their LAST successful tap — not the
+		# one they just tried to reach (mouse-only campaign wave 6, earnest: repeated
+		# no_tap_target on a plot that was tappable minutes earlier, then a chip-fired
+		# incorporate landed on a different, already-known plot). This won't spam during
+		# camera-orbit drags — _try_pick only runs on a real press+release, never a drag.
+		_toast("Nothing there — the field keeps moving, aim again")
 
 
 ## Join the tap-arbitration protocol the 2D handlers already speak: marking the tap consumed

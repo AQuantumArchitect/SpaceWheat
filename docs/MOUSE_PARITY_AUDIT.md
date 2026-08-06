@@ -28,13 +28,12 @@ below). No prior wave had run against both fixes together.
   always ran the single-plot Explore/Strike/Extract cycle regardless of
   hat or shift state; only the keyboard's Shift+GHJKL; called
   `toggle_check`. **Fixed** (see "Bugs found" below) and live-verified.
-  Also found a NOT-yet-fixed lead: an intermittent silent desync between
-  `ActiveBiomeManager.get_active_biome()` and what the HUD/field actually
-  render, observed 3× over ~15 minutes of ordinary play, causing taps to
-  silently miss or misdirect actions to the wrong biome's registers (real
-  ripened progress lost with zero on-screen indication). Root cause NOT
-  isolated — reproducible "in spirit," not on demand. **Needs a dedicated
-  investigation before any patch is attempted; do not guess at a fix.**
+  Also found a lead earnest's own report framed as an "active-biome
+  desync" — re-investigated afterward against earnest's REAL rig
+  transcript (not a fresh guess): it was NOT a biome-authority divergence
+  (zero `focus_biome` dispatches anywhere in the log, `bubble_state`'s
+  biome tag always matched what was rendered). The real mechanism and fix
+  are in "Bugs found" item 7 below.
 - **literalist** independently confirmed core_loop and the StarterForest
   redirect (incl. the biome-confirm fix — clean toast, no silence), then
   stopped at the SAME wall as lost-lamb below (hat-selector legibility).
@@ -436,17 +435,39 @@ separate bug and this section should be reopened.
    NOT threaded — out of scope this pass since the 3D field is default and
    what's actually exercised; a known, documented follow-up if 2D is ever
    the live renderer again.
+7. **Missed 3D field taps were a silent no-op, misreported by earnest as
+   an "active-biome desync"** (wave 6). Investigated against earnest's OWN
+   real rig transcript (`queue.jsonl`/`results.jsonl` from its lane) rather
+   than reproducing blind. Found: zero `focus_biome` cross-biome dispatches
+   anywhere in the log, and `bubble_state`'s per-orb biome tag always
+   matched the live-rendered biome — no authority divergence ever
+   occurred. The actual mechanism: `QuantumField3D`'s own idle-drift
+   rotation (`_process`, "so the 3D never freezes") plus live force
+   dynamics continuously move every orb, so a target that's tappable one
+   moment can drift past the click point or rotate behind the camera
+   later — and `_try_pick` (`Core/Visualization/QuantumField3D.gd`) fell
+   all the way through with zero feedback on a genuine miss. A player who
+   doesn't notice then presses an action chip, which fires against
+   whatever plot is still focused from their LAST successful tap — not the
+   one they were just trying to reach, matching earnest's report of a
+   "successful" incorporate landing on an already-known plot. Fixed:
+   `_try_pick` now toasts `"Nothing there — the field keeps moving, aim
+   again"` on a total miss (never fires during a camera-orbit drag —
+   `_try_pick` only runs on a real press+release). This ALSO exposed a
+   second, pre-existing, unrelated bug caught live: `QuantumField3D._toast()`
+   called `show_hint()` with no `importance` argument, defaulting to `1`,
+   but `PlayerShell.show_hint()`'s own doc comment says "Importance < 2 is
+   logged only; no toast is shown" — so `_toast()` (including the
+   pre-existing depth-cap-refusal message, item 6's neighbor in this same
+   file) had never actually displayed anything. Fixed by passing
+   `importance=2`, matching every other real toast call site in the
+   codebase. Live-verified via the rig: a synthetic miss-tap on empty
+   field space now produces a genuine new `overlay_text` line reading
+   "• Nothing there — the field keeps moving, aim again"; before the
+   importance fix it produced none.
 
 ## Open, not yet fixed
 
-- **Intermittent active-biome desync** (wave 6, earnest): 3× over ~15 min
-  of ordinary StarterForest/Icon-hat play, `ActiveBiomeManager.get_active_biome()`
-  silently diverged from what the HUD/field actually displayed — taps
-  silently failed (`no_tap_target`) or misdirected an action (e.g.
-  "successful" incorporate that actually touched the WRONG biome's
-  already-known axis, quietly wasting real ripened progress). Reproducible
-  "in spirit," not on demand; exact causal path not isolated. Needs a
-  dedicated investigation before any patch — do not guess at a fix.
 - **Ace hat's Fast-Forward chip logs `success:false` repeatedly with zero
   feedback** (wave 6, lost-lamb): ~18 consecutive taps while unpaused all
   failed silently in `dispatch_ledger`, no toast, chip stays enabled.
