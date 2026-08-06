@@ -13,6 +13,60 @@ direct-`_try_pick()` shortcut in any harness code — it bypasses the real
 input pipeline and can reproduce the "click hit whatever it might" bug
 class this campaign exists to catch.
 
+## Session 4 continued — wave 5 findings + the real headline fix
+
+Wave 5 (earnest/literalist/lost-lamb) ran against the Session-4 fixes above,
+explicitly pushing for depth past Act 0. Two more real, structural bugs
+surfaced and were fixed the same session:
+
+1. **Fixed — the actual headline bug of the whole campaign: Reap Season
+   (Shift+F) had NO mouse path at all, for any input, ever.**
+   `ActionPreviewRow._on_action_button_input` emitted `action_pressed` as a
+   bare `String` with no modifier data; `PlayerShell._route_action_key` →
+   `QuantumInstrumentInput.invoke_action` → `_dispatch_action_key` all
+   hardcoded `shift=false` for the chip-click path (the keyboard path,
+   `_on_unhandled_key`, correctly reads `event.is_shift_pressed()` — mouse
+   never did). Since tutorial step 2 (`reap_season`) requires exactly one
+   `reap` gate to fire (`gate_sequence_contains`) and the tutorial chain is
+   strictly linear, **no mouse-only player, however skilled, could ever
+   pass Act-0 step 2** — this was the real ceiling under the Icon-hat fix,
+   found live by earnest (repeated `ActionBtn_F` taps on Ace hat only ever
+   produced `fast_forward`, never `reap`, in `dispatch_ledger`, matching
+   the chip's own tooltip text "[F] ⏩ Fast-Fwd (⇧ Reap Season −1🍼)" that
+   named a verb a mouse player could never trigger). Fixed by threading the
+   real click event's `shift_pressed` through the whole chain instead of
+   discarding it — `action_pressed(action_key, shift)`,
+   `_route_action_key(action_key, shift=false)`,
+   `invoke_action(action_key, shift=false)`, same
+   `_dispatch_action_key(key, shift)` the keyboard already used. A mouse
+   player physically holding Shift while clicking F now genuinely reaps.
+2. **Fixed — my own Session-4 hint fix broke itself via truncation.**
+   literalist confirmed the biome-redirect fix works (correctly found and
+   clicked the "Starter Forest [U]" tab by reading its real label) but then
+   found the objective banner was byte-identical before and after crossing
+   — the hint's second, actionable sentence ("Icon hat (5): F tracks...")
+   never rendered at all. Root cause: `UIProgression._short_line()` cuts at
+   the last sentence boundary within a ~100-char lookahead
+   (`OBJECTIVE_MAX_CHARS=70 + 30`); my two-sentence hint's crossing
+   instruction (~83 chars) fell inside that window and the actionable
+   half fell outside it, so it was silently dropped. Fixed by shortening
+   `tutorial_arc.json` step 1's hint to "Cross to StarterForest. Icon hat
+   (5): F tracks, R incorporates." (63 chars) — short enough that
+   `_short_line` never truncates it at all; both instructions now always
+   render. Regression test pins the length under `OBJECTIVE_MAX_CHARS`.
+3. **Investigated, not a bug — hat-row (`ToolSelectionRow`) chips read as
+   icon-only with zero `overlay_text`-visible label.** literalist correctly
+   flagged this as a wall (nothing on screen names which of 3-4 unlabeled
+   glyphs is "Icon hat"), but `ToolSelectionRow._rebuild_buttons` DOES set
+   a real tooltip per chip (name + key + description) — same
+   Apple-minimal-pass pattern as every sibling row (`compact = true`,
+   comment: "icon-only chips... words live in tooltips"). A real mouse
+   player who hovers before clicking (ordinary UI behavior) sees the name;
+   `overlay_text` simply doesn't capture popup tooltips, and a strictly
+   literal reader who never hovers is a real, narrower edge case worth
+   naming here but not a case for reversing an intentional compact-chrome
+   design decision unilaterally.
+
 ## Session 4 (2026-08-06): Icon-hat tutorial dead-end + wave-4's two "cosmetic" items
 
 Luke's ruling on item 3 below: "change the plot to match the mechanics" — the

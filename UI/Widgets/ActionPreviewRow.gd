@@ -30,7 +30,7 @@ var layout_manager
 var scale_factor: float = 1.0
 
 # Signals
-signal action_pressed(action_key: String)
+signal action_pressed(action_key: String, shift: bool)
 
 
 func _ready():
@@ -349,7 +349,13 @@ func _on_action_button_input(event: InputEvent, action_key: String) -> void:
 			btn_data.texture.modulate = pressed_color
 		else:
 			_update_single_button_color(action_key)
-			action_pressed.emit(action_key)
+			# Mirror the keyboard path's event.is_shift_pressed() (QII._on_unhandled_key):
+			# a mouse click carries the SAME live modifier state, but nothing ever read
+			# it here -- every chip dispatch hardcoded shift=false, so Shift+F's "Reap
+			# Season" (the chip's own tooltip names it) had no mouse path at all, a real
+			# ceiling since tutorial step 2 requires exactly one reap gate. Mouse-only
+			# campaign wave 5, earnest.
+			action_pressed.emit(action_key, event.shift_pressed)
 		get_viewport().set_input_as_handled()
 
 

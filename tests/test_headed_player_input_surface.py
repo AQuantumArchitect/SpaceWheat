@@ -1,3 +1,5 @@
+import json
+
 from conftest import ROOT, read_source as _read
 
 
@@ -225,6 +227,46 @@ def test_locked_action_chip_click_speaks_instead_of_going_silent() -> None:
     assert 'const UIProgression = preload("res://UI/Core/UIProgression.gd")' in src
     assert "UIProgression.redirect_locked()" in src
     assert 'label_node.text.contains("🔒")' in src
+
+
+def test_action_chip_click_threads_shift_state_for_reap_season() -> None:
+    # Wave-5 sensor wall (earnest): ActionPreviewRow's action_pressed signal
+    # never carried the click's modifier state -- PlayerShell._route_action_key
+    # -> QuantumInstrumentInput.invoke_action -> _dispatch_action_key all
+    # hardcoded shift=false, so Shift+F "Reap Season" (the chip's own tooltip
+    # names it) had NO mouse path at all, ever, for any input -- a real
+    # ceiling, since tutorial step 2 requires exactly one reap gate and no
+    # mouse-only player could ever produce one. Fixed by reading the real
+    # mouse event's own shift_pressed (mirroring the keyboard path's
+    # event.is_shift_pressed()) and threading it through every hop.
+    apr_src = _read("UI/Widgets/ActionPreviewRow.gd")
+    assert "signal action_pressed(action_key: String, shift: bool)" in apr_src
+    assert "action_pressed.emit(action_key, event.shift_pressed)" in apr_src
+
+    shell_src = _read("UI/PlayerShell.gd")
+    assert "func _route_action_key(action_key: String, shift: bool = false) -> void:" in shell_src
+    assert "instrument_input.invoke_action(action_key, shift)" in shell_src
+
+    qii_src = _read("UI/Core/QuantumInstrumentInput.gd")
+    assert "func invoke_action(action_key: String, shift: bool = false) -> void:" in qii_src
+    assert "_dispatch_action_key(action_key, shift)" in qii_src
+
+
+def test_tutorial_step1_hint_survives_the_objective_banners_truncation() -> None:
+    # Wave-5 sensor wall (literalist): UIProgression._short_line() truncates
+    # tutorial_hint at the first sentence boundary within a ~100-char
+    # lookahead (OBJECTIVE_MAX_CHARS=70 + 30) -- the first fix's two-sentence
+    # hint ("Cross to StarterForest first... Icon hat (5): F tracks...") put
+    # the ACTIONABLE second sentence past that boundary, so it silently never
+    # rendered on screen at all; the banner stayed byte-identical before and
+    # after crossing biomes, with no instruction for what to do once there.
+    # Pin the hint under OBJECTIVE_MAX_CHARS so the whole thing always shows.
+    OBJECTIVE_MAX_CHARS = 70
+    data = json.loads(_read("Core/Quests/data/tutorial_arc.json"))
+    step1 = next(s for s in data["steps"] if s.get("tutorial_step") == 1)
+    assert len(step1["tutorial_hint"]) <= OBJECTIVE_MAX_CHARS
+    assert "StarterForest" in step1["tutorial_hint"]
+    assert "Icon hat" in step1["tutorial_hint"]
 
 
 def test_tutorial_objective_spotlight_honors_the_steps_own_biome() -> None:

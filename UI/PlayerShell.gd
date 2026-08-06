@@ -317,7 +317,7 @@ func _pin_cursor_surface() -> void:
 
 ## Route a tapped/clicked action key (Q/E/R/F) to the same handler as the keyboard path.
 ## Connected to ActionPreviewRow.action_pressed for touch/mouse parity.
-func _route_action_key(action_key: String) -> void:
+func _route_action_key(action_key: String, shift: bool = false) -> void:
 	# Overlay first — mirrors the keyboard fallthrough order.
 	if overlay_stack and not overlay_stack.is_empty():
 		var top = overlay_stack.get_top()
@@ -325,7 +325,7 @@ func _route_action_key(action_key: String) -> void:
 			return
 	# No overlay — route to instrument actions (gameplay Q/E/R/F).
 	if instrument_input and instrument_input.has_method("invoke_action"):
-		instrument_input.invoke_action(action_key)
+		instrument_input.invoke_action(action_key, shift)
 
 
 ## Cursor-layer paint hook. The amber active-ring border died with the WASD

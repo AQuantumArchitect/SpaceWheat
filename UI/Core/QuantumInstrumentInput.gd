@@ -1488,8 +1488,8 @@ func _select_subspace(subspace_idx: int, key: String) -> void:
 ## Routes through _dispatch_action_key — the SAME authority as the keyboard —
 ## so an open submenu's Q/E/R chips select options (and F closes) instead of
 ## firing the frame verb hidden underneath the picker (#266).
-func invoke_action(action_key: String) -> void:
-	_dispatch_action_key(action_key)
+func invoke_action(action_key: String, shift: bool = false) -> void:
+	_dispatch_action_key(action_key, shift)
 
 
 ## Public entry point for a bubble tap (mouse/touch) — the tap IS the farming
