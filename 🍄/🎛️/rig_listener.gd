@@ -63,6 +63,11 @@ extends SceneTree
 ## - save_game_path: {path: String}
 ## - load_game: {slot: int}
 ## - load_game_path: {path: String}
+## - install_checkpoint: {path: String, slot: int} — copies a checkpoint .tres onto a save
+##   slot on disk (same GameState resource format SaveStore already writes/reads), so the
+##   caller can then use the canonical load_game(slot), which is AppRoot/restart_into-aware
+##   and correctly remounts QuantumField3D. load_game_path's own load_and_apply_path() does
+##   NOT do that remount — it's a dev-only lightweight lane, not a player-reachable path.
 ## - save_info: {slot: int}
 ## - overlay_snapshot: {overlay: String} — returns structured dict from overlay.get_snapshot()
 ## - widget_snapshot: {widget: String} — returns structured dict from widget.get_snapshot()
@@ -2125,6 +2130,31 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				result["path"] = path
 				result["loaded"] = await gsm.save_load.load_and_apply_path(path)
 				_rebind_after_load(gsm)
+
+		"install_checkpoint":
+			# Checkpoints are minted via save_game_path, which writes the exact same
+			# GameState resource format as a save slot (SaveStore.save_state_to_path and
+			# save_state both go through _atomic_save → ResourceSaver.save). So installing
+			# one is a plain file copy onto the slot path — no new boot pipeline needed;
+			# the caller loads it via the already-canonical load_game(slot) verb.
+			var ckpt_path = str(cmd.get("path", ""))
+			var install_slot = int(cmd.get("slot", -1))
+			if ckpt_path == "" or install_slot < 0 or install_slot >= SaveStore.NUM_SAVE_SLOTS:
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "missing_or_invalid_path_or_slot"}
+			elif not FileAccess.file_exists(ckpt_path):
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "checkpoint_not_found", "path": ckpt_path}
+			else:
+				SaveStore.ensure_save_dir()
+				var dest_path = SaveStore.get_save_path(install_slot)
+				var dest_abs = ProjectSettings.globalize_path(dest_path)
+				var copy_err = DirAccess.copy_absolute(ckpt_path, dest_abs)
+				result["path"] = ckpt_path
+				result["slot"] = install_slot
+				result["dest"] = dest_path
+				result["installed"] = (copy_err == OK)
+				if copy_err != OK:
+					result["error"] = "copy_failed"
+					result["error_code"] = copy_err
 
 		"save_info":
 			var slot = int(cmd.get("slot", -1))

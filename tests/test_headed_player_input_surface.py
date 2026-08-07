@@ -440,3 +440,19 @@ def test_field3d_has_no_passive_idle_rotation() -> None:
     field_src = _read("Core/Visualization/QuantumField3D.gd")
     assert "_pivot.rotate_object_local(Vector3.UP, dt * 0.08 * _time_scale)" not in field_src
     assert "_orbit_hold_until_ms" not in field_src
+
+
+def test_install_checkpoint_verb_reuses_canonical_slot_load() -> None:
+    # Owner ruling 2026-08-06: "checkpoints are supposed to be using the save/load
+    # system, don't invent new systems." Wave 8 worked around the load_game_path /
+    # QuantumField3D-remount gap with an ad hoc live-session double-hop (path-load ->
+    # save-to-slot -> slot-load). Checkpoints are ordinary GameState .tres resources
+    # (mint_checkpoint.py writes them via the same save_game_path -> ResourceSaver.save
+    # SaveStore already uses for slot saves), so installing one is a plain file copy
+    # onto a slot path -- no new boot pipeline needed. install_checkpoint does exactly
+    # that copy; the caller then loads it through the already-canonical, AppRoot/
+    # restart_into-aware load_game(slot) verb, unchanged.
+    src = _read("🍄/🎛️/rig_listener.gd")
+    assert '"install_checkpoint":' in src
+    assert "DirAccess.copy_absolute(ckpt_path, dest_abs)" in src
+    assert "SaveStore.get_save_path(install_slot)" in src
