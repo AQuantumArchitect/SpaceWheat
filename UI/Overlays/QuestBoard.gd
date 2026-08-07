@@ -87,6 +87,12 @@ var _nb_auto_scoped: bool = false
 
 var _offer_pool: Array = []
 var _selected_index: int = 0
+# _selected_index defaults to 0, so row 0 reads as "already selected" the instant the
+# board opens. Without this flag, a tap-to-look at row 0 (idx == _selected_index on the
+# very first tap) reads identically to a deliberate confirm and fires the verb immediately
+# -- a silent accept before the player ever chose to commit. True only once a real tap (or
+# keyboard nav via _select()) has actually landed on the current row.
+var _row_confirm_armed: bool = false
 var _market_status_note: String = ""
 
 var _market_sort_mode: int = MarketView.SortMode.COMFORT
@@ -140,6 +146,7 @@ func set_biome(biome: Node) -> void:
 		current_biome = biome
 		_offer_pool.clear()
 		_selected_index = 0
+		_row_confirm_armed = false
 		if visible:
 			_render_all()
 
@@ -257,12 +264,14 @@ func _on_unhandled_key(keycode: int, event: InputEvent) -> bool:
 	if frame_id == FRAME_MARKET and MARKET_SORT_BY_KEY.has(keycode):
 		_market_sort_mode = int(MARKET_SORT_BY_KEY[keycode])
 		_selected_index = 0
+		_row_confirm_armed = false
 		_render_all()
 		return true
 	if frame_id == FRAME_COMMITMENTS and COMMITMENTS_VIEW_BY_KEY.has(keycode):
 		_disarm_abandon(true)
 		_commitments_view = str(COMMITMENTS_VIEW_BY_KEY[keycode])
 		_selected_index = 0
+		_row_confirm_armed = false
 		_render_all()
 		return true
 	return false
@@ -273,6 +282,7 @@ func _on_frame_changed(_new_frame_id: String, _prev_frame_id: String) -> void:
 func _on_frame_changed_local() -> void:
 	_disarm_abandon(true)
 	_selected_index = 0
+	_row_confirm_armed = false
 	_render_all()
 
 func _on_activated() -> void:
@@ -302,10 +312,14 @@ func _on_verb_chip_gui_input(event: InputEvent, key: String) -> void:
 func _on_row_gui_input(event: InputEvent, idx: int) -> void:
 	# First click selects the row; a second click on the selected row fires
 	# the primary verb (R: accept in Market, complete in Commitments).
+	# _row_confirm_armed guards this: idx == _selected_index is trivially true
+	# for row 0 the instant the board opens (default selection), so without the
+	# arm flag a first look at row 0 would fire the verb immediately instead
+	# of just selecting it.
 	if not (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed):
 		return
 	accept_event()
-	if idx == _selected_index:
+	if idx == _selected_index and _row_confirm_armed:
 		_on_action_r()
 	else:
 		_select(idx)
@@ -1460,6 +1474,7 @@ func set_pair_scope(name_a: String, name_b: String) -> void:
 	_nb_auto_scoped = false
 	_offer_pool.clear()
 	_selected_index = 0
+	_row_confirm_armed = false
 	if _body_box != null:
 		_refresh_pool()
 		_render_all()
@@ -1473,6 +1488,7 @@ func clear_pair_scope() -> void:
 	_nb_auto_scoped = false
 	_offer_pool.clear()
 	_selected_index = 0
+	_row_confirm_armed = false
 
 func _get_visible_offers() -> Array:
 	var sorted: Array = MarketView.sort_view(_offer_pool, _get_inventory(), _market_sort_mode)
@@ -1698,6 +1714,7 @@ func _current_row_count() -> int:
 func _select(idx: int) -> void:
 	_disarm_abandon()
 	_selected_index = clampi(idx, 0, MAX_VISIBLE_ITEMS - 1)
+	_row_confirm_armed = true
 	_refresh_body()
 	_refresh_verb_chips()
 

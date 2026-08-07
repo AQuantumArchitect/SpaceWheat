@@ -251,6 +251,30 @@ def test_restart_into_awaits_the_approot_remount() -> None:
         "restart_into must await restart_from_pending_boot(), not fire-and-forget it"
 
 
+def test_quest_board_row_tap_requires_a_prior_select_before_confirming() -> None:
+    # _selected_index defaults to 0, so row 0 in the Market/Commitments list reads as
+    # "already selected" the instant the board opens -- before the player has looked at
+    # anything. _on_row_gui_input's "second tap on the selected row fires the verb" shortcut
+    # used to key off `idx == _selected_index` alone, which is trivially true for row 0 on
+    # its very FIRST tap: a mouse-only player tapping the top offer just to see it instead
+    # instantly accepted the contract, sight unseen. Found live via wave 11 of the mouse-only
+    # campaign against the act2_complete checkpoint: a single tap on BoardRow_0 alone (no
+    # verb-chip tap at all) produced a real accepted quest in active_quests. Worse, a script
+    # that then tapped BoardVerb_R (the documented, correct confirm gesture) landed a SECOND,
+    # different accept once the market pool refreshed a new offer into row 0 -- a silent
+    # double-commit from what read as one deliberate action. _row_confirm_armed must gate the
+    # same-index shortcut so a row only "already selected" by default (never actually tapped
+    # or keyboard-navigated to) doesn't auto-confirm on its first tap.
+    src = _read("UI/Overlays/QuestBoard.gd")
+    select_fn = src[src.index("func _select(idx: int)"):src.index("func _on_quest_pool_changed(")]
+    assert "_row_confirm_armed = true" in select_fn, \
+        "_select() must arm confirm — only a real select (tap or keyboard nav) should allow the next tap to fire the verb"
+
+    row_input_fn = src[src.index("func _on_row_gui_input("):src.index("func _toast_feedback(")]
+    assert "idx == _selected_index and _row_confirm_armed" in row_input_fn, \
+        "_on_row_gui_input must require _row_confirm_armed, not just an index match, before firing the verb"
+
+
 def test_rig_boots_through_approot_not_a_parallel_shell() -> None:
     # The rig and a human player share ONE boot path and ONE PlayerShell: the rig brings up
     # the real AppRoot and lets it boot AppRoot → GameRoot → the app-owned shell, then drives

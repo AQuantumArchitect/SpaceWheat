@@ -137,6 +137,76 @@ strip). This is the first time the campaign has exercised quest
 completion/reward delivery via mouse alone — the full Market → accept →
 Commitments → complete → reward loop, zero new bugs.
 
+## Wave 11 (from the act2_complete checkpoint) — silent double-accept found and fixed, failed/expired Commitments path verified clean
+
+First genuinely fresh territory since wave 8: `act2_complete.tres` (21
+story flags including `spring_door`/`woodlot_door`/`lumber_flows`/
+`pond_depths`, vs. `act1_complete`'s Village-only 11) unlocks 6 biome tabs
+(TheDemos, Village, StarterForest, Lanternfall, Woodlot, FreshwaterSpring),
+6 hats, and all 8 menu overlays (`EscapeMenu`/`ControlsOverlay`/
+`QuestBoard`/`atlas`/`biome_detail`/`inspector`/`map_meta`, menu slots
+1–7 respectively — mapped explicitly this wave via a per-slot `ui_stack`
+probe, since wave 8's blind substring search for `"Atlas"` had silently
+missed the overlay: its live `ui_stack` name is the lowercase
+`"atlas"`, a harness-script gap, not a game bug).
+
+**Real bug found and fixed: a single tap on the Market's top offer could
+silently accept a contract the player only meant to look at — and a
+second, deliberate tap on the `[R] Accept` chip could then silently accept
+a SECOND, different contract.** `QuestBoard._selected_index` defaults to
+`0`, so row 0 reads as "already selected" the instant the board opens —
+before the player has looked at anything. `_on_row_gui_input`'s "first tap
+selects, second tap on the selected row fires the verb" convenience keyed
+off `idx == _selected_index` alone, which is trivially true for row 0 on
+its very first tap. Live-reproduced directly: `install_checkpoint` +
+`load_game(0)` → open QuestBoard → a single tap on `BoardRow_0`, nothing
+else, produced a real entry in `active_quests`. Worse, the campaign's own
+established two-tap script pattern (`BoardRow_0` then `BoardVerb_R` — used
+without incident in waves 9 and 10) turned out to have been silently
+double-accepting all along: the first "select" tap already committed row
+0's offer, and the pool's `_refresh_pool()` (which runs after every
+accept) sometimes rotated a *new* offer into row 0 fast enough for the
+second, `BoardVerb_R` tap to accept *that* too — reproduced live this wave
+(`Wildfire` 🌿×23 from the first tap, `Pollinator Guild` 🌿×18 from the
+second). Wave 10 was almost certainly hit by this too; it read as a clean
+single accept only because the market pool happened to have nothing left
+to refill with in the ~1s window between its two taps.
+
+The keyboard path never has this hazard: `_select()` (driven by GHJKL) never
+auto-fires the verb regardless of index match, only an explicit `R`
+keypress does — so this was mouse-exclusive. Fixed with a `_row_confirm_armed`
+flag (`UI/Overlays/QuestBoard.gd`): `false` by default and everywhere
+`_selected_index` resets to its default, `true` only once `_select()` has
+actually run (a real tap or keyboard nav). `_on_row_gui_input` now requires
+`idx == _selected_index and _row_confirm_armed` before firing the verb —
+the dedicated `[R]`/`[E]`/etc. verb-chip taps are untouched and still fire
+on a single deliberate tap, matching keyboard `R`. Live-verified post-fix:
+tap #1 on row 0 → `active_quests` stays empty; tap #2 (same row) → exactly
+one accept. Re-verified in the real wave script too (row-tap-then-verb-tap
+now yields exactly one accepted contract, not two). Regression test:
+`test_quest_board_row_tap_requires_a_prior_select_before_confirming`
+(`tests/test_surface_refactor_snapshot.py`). Full gate green (40 smokes,
+216 pytest — 215 baseline + 1 new).
+
+**Also verified, not a bug — closes out wave 10's last open item**: letting
+an accepted contract's 120s `time_limit` run out (deliberate, mouse-only —
+accept, then just poll and wait) produces a fully legible failed/expired
+path. `quest_ledger.failed` gains the entry with `status: "failed"`; the
+Commitments Active view correctly clears to "no active or ready contracts";
+and a real toast trail appears unprompted: `🤝 Your debt with the Terrarium
+Collective grows (+0.06)`, `❌ Terrarium Collective contract (🌿×19) failed
+— timeout`, `⌛ a commitment ran out of time — check the C board`. No fix
+needed — the path already works correctly and was simply never exercised
+by mouse before this wave.
+
+`bubble_state.revealed` read `0` across every biome tab this wave despite
+`plot_glance` showing real `revealed: true` entries for the same plots —
+this reproduces the already-documented, already-triaged cosmetic quirk
+from wave 3/6 (`bubble_state.visible`/`revealed` unreliable, `plot_glance`
+is the trustworthy read), not a new regression. Not re-investigated.
+
+Commit: `_row_confirm_armed` fix + regression test, gate results above.
+
 ## Post-wave-7: owner ruling closes the biome-tab overlap lead + drift removed
 
 Luke's ruling on the "Open, not yet fixed" biome-tab/field-orb overlap lead
