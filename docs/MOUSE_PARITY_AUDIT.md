@@ -93,6 +93,50 @@ and `quest_ledger` immediately, and switching to the Commitments tab
 582/19 held ⌛ 1:58`. Zero new bugs — the Market → accept → Commitments
 loop works end-to-end via mouse alone.
 
+## Wave 10 (lost-lamb, from the patched checkpoint) — first mouse-only quest completion + reward delivery; found and fixed a real load-settle race
+
+First attempt hit a genuine harness-adjacent bug, not a player-facing gap:
+reading `story_flags` only once, immediately after `load_game`'s `"loaded:
+true"` ack, showed `flags_fired: []` — empty. `UIProgression.is_menu_visible`
+gates `QuestBoard`'s menu button on `current_tutorial_step() >= 5`, itself
+derived from those flags, so the menu row built with `quests` (and `play`,
+`escape_menu`, `controls`) missing, shifting every later `SelectBtn_N` index
+and making `QuestBoard` unreachable at the expected slot. Root-caused via a
+poll: `flags_fired` went from 0 to 11 entries about a second after the ack,
+so `load_game` was answering "loaded" before the load had actually finished
+settling.
+
+Traced to the real bug: `SessionLifecycle.restart_into()` called
+`AppRoot.restart_from_pending_boot()` **without `await`**, even though that
+method is itself a coroutine (frees the old `GameRoot`, awaits two process
+frames, then awaits `start_game()`). The bare call kicked off the remount
+and returned immediately, so the await chain `load_and_apply()` →
+`restart_into()` → the `load_game` rig verb resolved before the remount
+finished — not a checkpoint-tooling bug, a pre-existing gap in `load_game`
+itself that would affect any caller (Continue, New Game, a fresh rig
+script) fast enough to read state right after the ack. Fixed with one
+`await` (`Core/GameState/SessionLifecycle.gd`); confirmed via the same poll
+(`flags_fired` count is 11 on the very first read, `load_game`'s
+`duration_ms` correctly rose from ~100ms to ~700-900ms). Regression test
+added (`test_restart_into_awaits_the_approot_remount`,
+`tests/test_surface_refactor_snapshot.py`). Full gate green (40 smokes, 215
+pytest). Committed `5e3bbe35`, pushed.
+
+With that fixed, wave 10 re-ran clean end-to-end on the first attempt:
+`install_checkpoint` + `load_game(0)` → menu slot 3 opens `QuestBoard`
+directly → Market tab, `BoardRow_0` tap selects the first offer (Hearth
+Keepers, 🍞×19 → 🔥×5 🍞×3 🏜×3) → `BoardVerb_R` tap accepts it
+(`active_quests` shows it `active` immediately) → `BoardTab_U` tap opens
+Commitments, showing `[ACTIVE] Hearth Keepers 🍞 582/19 held ⌛ 1:58` → tap
+the row to select it → `BoardVerb_R` tap (now labelled "Complete" in this
+frame, per `_current_verb_labels()`) fires `_complete_selected()` → the
+quest moves out of `active_quests` entirely and into `quest_ledger`'s
+`completed` array (`status: "completed"`), and the reward icons visibly
+land in inventory (🔥 and 🏜 appear as new nonzero counts in the resource
+strip). This is the first time the campaign has exercised quest
+completion/reward delivery via mouse alone — the full Market → accept →
+Commitments → complete → reward loop, zero new bugs.
+
 ## Post-wave-7: owner ruling closes the biome-tab overlap lead + drift removed
 
 Luke's ruling on the "Open, not yet fixed" biome-tab/field-orb overlap lead
