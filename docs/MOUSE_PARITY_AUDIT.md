@@ -13,6 +13,60 @@ direct-`_try_pick()` shortcut in any harness code — it bypasses the real
 input pipeline and can reproduce the "click hit whatever it might" bug
 class this campaign exists to catch.
 
+## Wave 8 (lost-lamb, from a post-Act-1 checkpoint) — re-confirms Act 1 holds, one harness-only finding
+
+Per Luke's instruction, lost-lamb started from `🍄/🧪/checkpoints/act1_complete.tres`
+instead of a fresh boot, so the run's budget would go toward genuinely new
+territory instead of re-covering already-proven Act 0-1 ground.
+
+**Harness gap found and root-caused (not a player-facing bug — documented,
+not fixed as part of this campaign):** the rig's `load_game_path` verb
+(dev/test-only; no in-game UI ever reaches it) loaded the checkpoint's
+underlying game STATE correctly (`story_flags`, `known_icons`,
+`revealed_plots` all came back exactly right), but the live
+`QuantumField3D` kept rendering the stale PRE-load farm — `bubble_state`
+showed exactly 1 bubble with TheDemos's own axis (`👥🌾`) no matter which
+biome tab was selected. Root cause, confirmed by reading
+`Core/GameState/SaveLoadCoordinator.gd`: `load_and_apply(slot)` (the real,
+player-reachable slot-load path) explicitly checks for a live `AppRoot`
+and routes through `restart_into()` (full app/GameRoot remount) when one
+exists; its sibling `load_and_apply_path(save_path)` has NO such check —
+it unconditionally takes the lightweight `_attach_state_to_fresh_farm()`
+branch, even with a live 3D field already mounted, so nothing ever
+re-points `QuantumField3D.farm_ref` at the new farm.
+`GameRoot._dev_screenshot()`'s own `SW_LOAD_PATH` handling already works
+around this exact gap with a manual `f3d.connect_to_farm(post_farm)` call
+— further confirming it's a known, if under-documented, edge of this dev
+tool, not a fresh discovery of a live bug. No real player can reach
+`load_and_apply_path` (only the rig verb and the dev screenshot path use
+it), so this doesn't belong in the mouse-only campaign's fix scope.
+**Workaround used to get wave 8 unblocked**: `load_game_path` → immediately
+`save_game_path` the (correctly-stated) result into a real slot
+(`user://saves/save_slot_0.tres`) → `load_game(slot=0)`, which DOES route
+through `restart_into()` and correctly remounted everything.
+
+**Once past that, wave 8 fully re-confirmed Act 1's mechanics hold from a
+genuine checkpoint load, not just a fresh boot**: biome-tab switching
+(TheDemos/Village/StarterForest, bubble counts correctly 1/3/5 with the
+right axes per biome), hat-row switching (6 hats now unlocked at this
+checkpoint — icon/merchant/captain/ace/operator/druid, vs. Ace-only at
+fresh boot), menu row (8 overlays now unlocked — EscapeMenu,
+ControlsOverlay, QuestBoard, atlas, biome_detail, inspector, map_meta, vs.
+2 at fresh boot), and all 9 plot orbs across the three biomes — every tap
+a genuine `dispatch_ledger: {"action": "explore", "success": true}`. Zero
+new bugs surfaced in any of this — a strong signal the defer-to-3D and
+drift-removal fixes above didn't regress anything.
+
+**Didn't reach genuinely new Act-2+ content this run**: the checkpoint's
+own state has zero active quests and no biomes beyond the three already
+known from Act 0-1 — it's Act 1's END state, not itself a launchpad into
+new territory. Re-tapping already-`revealed_plots` orbs (which is what
+happened here, since the checkpoint's plots were already explored) didn't
+fire any new story flag. Reaching real Act 2+ content needs a leg that
+specifically works the QuestBoard/Arc-Commitments surface for a fresh
+quest offer, or otherwise advances the story from this state — a natural
+wave 9 follow-up, not done this round.
+
 ## Post-wave-7: owner ruling closes the biome-tab overlap lead + drift removed
 
 Luke's ruling on the "Open, not yet fixed" biome-tab/field-orb overlap lead
