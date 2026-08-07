@@ -726,7 +726,16 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			result["claimed"] = bool(claim_result.get("claimed", false))
 
 		"resource_snapshot":
-			result["resources"] = _instrument.get_resource_snapshot() if _instrument else {}
+			# get_resource_snapshot() already returns {"resources": {emoji: count}, "ordered": [...]} --
+			# assigning it wholesale to result["resources"] double-wraps the flat emoji map one level
+			# too deep (result["resources"]["resources"]). Every probe consumer reads
+			# result["resources"] expecting the flat map directly (`.get(emoji, 0)`); the double-nest
+			# silently made every emoji lookup miss and read as 0. Found live via wave 12 of the
+			# mouse-only campaign: a contract's ask resource showed 0 held via this verb while the
+			# real economy (read through QuestBoard's own get_resource()) held 567 of it.
+			var rs_snap: Dictionary = _instrument.get_resource_snapshot() if _instrument else {}
+			result["resources"] = rs_snap.get("resources", {})
+			result["ordered"] = rs_snap.get("ordered", [])
 
 		"policy_snapshot":
 			var include_offers = bool(cmd.get("include_offers", true))

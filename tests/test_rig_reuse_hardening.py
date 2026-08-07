@@ -27,7 +27,12 @@ def test_rig_client_turn_roundtrip_uses_request_id() -> None:
 
 def test_rig_listener_routes_read_actions_through_policy_snapshot() -> None:
     src = RIG_LISTENER.read_text(encoding="utf-8")
-    assert 'result["resources"] = _instrument.get_resource_snapshot()' in src
+    # resource_snapshot must flatten get_resource_snapshot()'s own
+    # {"resources": {...}, "ordered": [...]} return, not wrap it wholesale into
+    # result["resources"] -- the wholesale-assign form double-nests the flat
+    # emoji map, so every probe's `.get(emoji, 0)` lookup silently reads 0.
+    assert 'result["resources"] = rs_snap.get("resources", {})' in src
+    assert 'result["resources"] = _instrument.get_resource_snapshot()' not in src
     assert 'result["grid"] = _instrument.get_grid_snapshot()' in src
     assert 'result["quests"] = active if full else _slim_active_quests(active)' in src
     assert 'result["icons"] = icons if icons is Array else []' in src

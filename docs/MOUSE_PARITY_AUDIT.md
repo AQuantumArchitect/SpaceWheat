@@ -207,6 +207,84 @@ is the trustworthy read), not a new regression. Not re-investigated.
 
 Commit: `_row_confirm_armed` fix + regression test, gate results above.
 
+## Wave 12 (from the act3_complete checkpoint) — first genuine mouse-only quest delivered end-to-end via gathering, real economy; found and fixed a harness read-verb bug
+
+`act3_complete.tres` (29 story flags, incl. `island_lives`/`mill_master`/
+`chain_ends`/`lantern_teaching`) unlocks the same 6 biome tabs/6 hats/8
+menu overlays as wave 11's checkpoint — this run's Act-5 economy (per the
+Commitments-tab act banner, `Act 5 · Chapter IV — The Empire & The Escape`)
+is simply much further along, with wallets in the hundreds for several
+resources. Menu-slot map re-confirmed identical to wave 11's
+(`atlas` at slot 4, lowercase).
+
+**Closed the gap wave 11 explicitly left open**: instead of letting an
+accepted contract expire, this wave gathered the asked resource through
+genuine explore→strike→extract taps and drove the contract through real
+delivery completion. Flow: opened Market, tapped `[E] Refresh` up to 15
+times reading `overlay_text` for a low-quantity ask (none under 13 turned
+up in this economy; accepted the first-seen `🍞 × 13` from Hearth Keepers,
+scope `Village ⊗ Woodlot`), accepted via the wave-11-verified two-tap
+sequence (row-tap-alone left `active_quests` empty — the `_row_confirm_armed`
+fix still holds — then `[R] Accept` produced exactly one accept), switched
+to the origin biome's tab (a real click on `BiomeSelectionRow`, which routes
+through `_active_biome_mgr.set_active_biome()` — the same mechanics-level
+switch a biome tab click always does, not a cosmetic-only change), then
+tapped each of that biome's plots through the full three-beat
+explore→strike→extract cycle (confirmed live via `dispatch_ledger`:
+`explore`→`measure`→`pop`, repeating, all `success: true`). Opened
+Commitments, tapped the row then `[R] Complete`: `✓ delivered 🍞×13 —
+payout is in your stores`, `🤝 Your trust with the Hearth Keepers grows
+(+0.05)`, and `quest_ledger.completed` gained the entry (`status:
+"completed"`). This is the mouse-only campaign's first full accept→gather→
+deliver loop closed end-to-end from a live economy, rather than a checkpoint
+pre-loaded with the needed resource or an expiry-only path.
+
+**Real bug found and fixed — not in the game, in the rig harness's own
+`resource_snapshot` verb.** While polling wallet progress during the gather
+loop, `resource_snapshot`'s `resources` map read `0` for the ask emoji on
+every single poll, even after `dispatch_ledger` showed successful `pop`
+actions. Root cause (`🍄/🎛️/rig_listener.gd`): `QuantumInstrument.
+get_resource_snapshot()` already returns `{"resources": {emoji: count},
+"ordered": [...]}`, but the listener's handler assigned that whole dict
+wholesale to `result["resources"]` — double-wrapping the flat emoji map one
+level too deep (`result["resources"]["resources"]` instead of
+`result["resources"]`). Confirmed via an isolated diagnostic
+(`diag_resource_snapshot.py`): a fresh `act3_complete` load's
+`resource_snapshot` returned a 2-key dict (`"resources"`, `"ordered"`)
+instead of the ~23-key flat emoji map; `resources.get("🍞")` returned
+`None` even though the same session's Commitments UI (reading the economy
+directly) showed 567 held. **This wasn't new** — grepping every consumer of
+the verb found ~9 probe scripts (`farm_to_completion.py`, `play_the_game.py`,
+`act3_5_drive.py`, `poverty_run_probe.py`, `act2_drive.py`, `mill_drive.py`,
+`stranger_arc_ui_probe.py`, `tutorial_stranger_probe.py`,
+`ace_strike_extract_probe.py`) reading `.get("resources", {})` with no
+compensation — silently broken the same way, for however long this bug
+predates this wave — while 3 others (`stranger_mouse_probe.py`,
+`tap_to_farm_probe.py`, `export_umwelt_tape.py`) already carried a defensive
+`if "resources" in res: res = res["resources"]` unwrap, proving the
+double-nesting had been quietly noticed and worked around locally at least
+once before, never fixed at the source. Fixed at the source
+(`🍄/🎛️/rig_listener.gd`): the handler now flattens
+`rs_snap.get("resources", {})` into `result["resources"]` directly. This is
+fully backward compatible — the defensive unwraps in the 3 scripts that had
+them are now no-ops (harmless), and the other ~9 scripts start reading real
+wallet data for free, with no script-side changes needed. Live-verified
+post-fix: the same diagnostic against a fresh `act3_complete` load now
+returns the full 23-key flat map, `🍞` → `567` directly.
+`tests/test_rig_reuse_hardening.py`'s
+`test_rig_listener_routes_read_actions_through_policy_snapshot` used to pin
+the buggy line verbatim as a source-grep assertion; updated to assert the
+corrected line and that the old wholesale-assign form no longer exists.
+Gate: `godot --headless --check-only` on the touched `.gd` clean, targeted
+pytest green, full gate green (40 smokes, 216 pytest — 215 baseline + 1
+test edited, 0 net new since this was a correction not an addition).
+
+No new flags fired this run (all reachable from menu/hat/biome sweep + the
+accept/gather/deliver loop were already fired by the checkpoint).
+
+Commit: `resource_snapshot` flatten fix + test correction, gate results
+above.
+
 ## Post-wave-7: owner ruling closes the biome-tab overlap lead + drift removed
 
 Luke's ruling on the "Open, not yet fixed" biome-tab/field-orb overlap lead
