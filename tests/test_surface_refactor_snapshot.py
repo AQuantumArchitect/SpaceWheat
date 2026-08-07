@@ -235,6 +235,22 @@ def test_save_load_routes_through_single_boot_authority() -> None:
     assert "restart_into(slot)" in sla, "load_and_apply must route through restart_into"
 
 
+def test_restart_into_awaits_the_approot_remount() -> None:
+    # restart_from_pending_boot() is itself a coroutine (frees the old GameRoot, awaits two
+    # process frames, then awaits start_game()). restart_into() previously called it bare
+    # (no `await`) and returned right after kicking it off, so the whole await chain above it
+    # -- load_and_apply(), the load_game rig verb's "loaded: true" ack -- resolved before the
+    # remount actually finished. A caller reading farm state immediately after "loaded: true"
+    # could see an empty story_flags_fired for over a second (found live via the mouse-only
+    # campaign's wave 10: QuestBoard's menu button was missing because UIProgression read
+    # tutorial_step against not-yet-applied state).
+    src = _read("Core/GameState/SessionLifecycle.gd")
+    start = src.index("func restart_into(")
+    ri = src[start:start + 1500]
+    assert "await app_root.restart_from_pending_boot()" in ri, \
+        "restart_into must await restart_from_pending_boot(), not fire-and-forget it"
+
+
 def test_rig_boots_through_approot_not_a_parallel_shell() -> None:
     # The rig and a human player share ONE boot path and ONE PlayerShell: the rig brings up
     # the real AppRoot and lets it boot AppRoot → GameRoot → the app-owned shell, then drives

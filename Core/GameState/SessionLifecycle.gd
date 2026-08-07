@@ -363,6 +363,14 @@ func restart_into(slot: int) -> void:
 		if app_roots.size() > 0:
 			var app_root = app_roots[0]
 			if app_root and app_root.has_method("restart_from_pending_boot"):
-				app_root.restart_from_pending_boot()
+				# Must be awaited: restart_from_pending_boot() is itself a coroutine
+				# (frees the old GameRoot, awaits two process frames, then awaits
+				# start_game()). Calling it bare kicked it off and returned
+				# immediately, so restart_into()'s own await chain — and everything
+				# stacked on top of it (load_and_apply, the load_game rig verb) —
+				# resolved before the remount actually finished. A rig script that
+				# read farm state right after load_game's "loaded: true" ack could
+				# see a still-empty story_flags_fired for over a second.
+				await app_root.restart_from_pending_boot()
 				return
 		tree.change_scene_to_file("res://scenes/Main.tscn")
