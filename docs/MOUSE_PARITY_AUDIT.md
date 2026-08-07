@@ -67,6 +67,32 @@ specifically works the QuestBoard/Arc-Commitments surface for a fresh
 quest offer, or otherwise advances the story from this state — a natural
 wave 9 follow-up, not done this round.
 
+## Wave 9 (lost-lamb, patched checkpoint tooling) — first genuine Act-2+ mouse action: accepting a market contract
+
+Owner ruling on wave 8's harness gap: checkpoints must load through the
+existing save/load system, not an invented workaround. The path-load →
+save-to-slot → slot-load double-hop from wave 8 was itself an ad hoc
+system; the real fix is `install_checkpoint` (new rig verb) — a plain file
+copy of the checkpoint `.tres` onto a save slot on disk (checkpoints are
+already ordinary `GameState` resources, the same format `SaveStore` writes
+for slot saves), then the unmodified, already-canonical
+`load_game(slot)` → `load_and_apply(slot)` → `restart_into()` verb loads
+it — no live-session double-save needed. Live-verified: `install_checkpoint`
++ `load_game(0)` remounts `QuantumField3D` correctly in a single hop
+(`bubble_count` varies 1/3/5 across biomes, matching the checkpoint's real
+state).
+
+With that in place, wave 9 pushed past wave 8's "didn't reach new content"
+edge: opened `QuestBoard` (Menu slot 3), which lands on the Market tab
+showing 4 real offers (`pool=4`, confirmed via `overlay_text`). Selected the
+first offer (`BoardRow_0`, tap) and tapped the `[R]` Accept verb chip
+(`BoardVerb_R`) — a genuine two-tap accept flow, no keyboard involved. The
+contract (Millwright's Union, 🍞×19 → ⚙/🏭/💨) landed in `active_quests`
+and `quest_ledger` immediately, and switching to the Commitments tab
+(`BoardTab_U`, tap) visually confirmed it: `[ACTIVE] Millwright's Union 🍞
+582/19 held ⌛ 1:58`. Zero new bugs — the Market → accept → Commitments
+loop works end-to-end via mouse alone.
+
 ## Post-wave-7: owner ruling closes the biome-tab overlap lead + drift removed
 
 Luke's ruling on the "Open, not yet fixed" biome-tab/field-orb overlap lead
