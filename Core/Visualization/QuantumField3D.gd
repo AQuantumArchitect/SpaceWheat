@@ -1584,6 +1584,45 @@ func has_pickable_target(screen_pos: Vector2) -> bool:
 	return false
 
 
+## Same intent as has_pickable_target() above, but with a much tighter hit radius --
+## has_pickable_target()'s ~56px radius is the right generosity for a player aiming
+## directly at a small on-screen orb from a sloppy point, but is much too generous for
+## deciding whether a HUD row should defer a click: a row spans 300+px, and 56px is wide
+## enough that an orb merely drifting into the same general neighborhood (not actually
+## touching the row) still matched, silently eating ordinary, visually un-overlapped tab
+## clicks (mouse-only campaign wave 13: an eagle orb resting ~22px above the Village tab's
+## own rendered edge -- comfortably clear of it on screen -- was still enough to make the
+## tab stop switching biomes). A tight radius only defers when a target is genuinely
+## touching/near the exact click point, which is what "this row and that orb are visually
+## ambiguous at this pixel" actually means.
+func has_pickable_target_near(screen_pos: Vector2, radius: float) -> bool:
+	if _cam == null:
+		return false
+	if _ascend_portal != null and is_instance_valid(_ascend_portal.mesh):
+		var wpa: Vector3 = _ascend_portal.mesh.global_position
+		if not _cam.is_position_behind(wpa) and _cam.unproject_position(wpa).distance_to(screen_pos) < radius:
+			return true
+	for p in _portals:
+		if not is_instance_valid(p.mesh):
+			continue
+		var wpp: Vector3 = p.mesh.global_position
+		if _cam.is_position_behind(wpp):
+			continue
+		if _cam.unproject_position(wpp).distance_to(screen_pos) < radius:
+			return true
+	if not _orb_at(screen_pos).is_empty() and _cam.unproject_position(_orb_at(screen_pos).mesh.global_position).distance_to(screen_pos) < radius:
+		return true
+	for dp2 in _descend_portals:
+		if not is_instance_valid(dp2.mesh) or not dp2.mesh.visible:
+			continue
+		var wpd2: Vector3 = dp2.mesh.global_position
+		if _cam.is_position_behind(wpd2):
+			continue
+		if _cam.unproject_position(wpd2).distance_to(screen_pos) < radius:
+			return true
+	return false
+
+
 ## Entry point for a HUD Control that just deferred its own tap to this field (see
 ## has_pickable_target above) — runs the exact same pick geometry a direct field tap
 ## would, just entered from outside _gui_input since the HUD control, not the field,

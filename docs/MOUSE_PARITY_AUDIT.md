@@ -207,6 +207,150 @@ is the trustworthy read), not a new regression. Not re-investigated.
 
 Commit: `_row_confirm_armed` fix + regression test, gate results above.
 
+## Wave 13 (fork_ready + endrun_ending) — pushed into the campaign's central narrative choice; found a real, severe mouse-parity gap in the icon-injection ritual, fixed a real tab-vs-orb click bug, confirmed the ending ceremony is fully mouse-clean
+
+Per Luke's steer ("push into the unexplored surfaces... though the central quest
+should touch on every aspect of the game"), this wave targeted the Act 5 branch
+fork (`docs/CAMPAIGN_STATE_2026-08-04.md` §2 — "the one real narrative choice") and
+the `island_free` ending ceremony, rather than another quest-loop variant. The
+fork is reached by planting one of 5 candidate atoms (💧/🏭/🔨/🦅/💀) into the
+Village register via the Icon-hat's inject-icon ritual — the same mechanic that
+underlies ordinary vocabulary growth throughout the whole game, not just the
+fork. `fork_ready.tres` (`village_identity` fired, zero `village_path_*` flags
+yet) is the checkpoint minted for exactly this moment.
+
+**Real bug found and fixed: a biome-tab (or hat-row, or menu-row) click could
+silently defer to a nearby 3D orb pick even when the tab's own rendered content
+was fully opaque and nowhere near the orb visually.** `SelectionButtonRow`'s
+post-wave-7 "defer to 3D" fix (`_defers_to_field3d`) called
+`QuantumField3D.has_pickable_target(screen_pos)`, which uses `_orb_hit_radius()`
+(56px, `maxf(56.0, size.y * 0.07)`) — a radius sized for a player aiming
+directly at a small orb from a sloppy point, not for deciding whether a 300+px
+-wide HUD row should give up a click. Live-reproduced: tapping the Village tab's
+own rect-center (a fully opaque button, screenshot-verified with nothing drawn
+over it) silently failed to switch biomes whenever a StarterForest orb's
+projected position passed within that 56px radius of the click point — in one
+capture, an eagle orb (🦅🐇) sat 22px above the tab's own rendered top edge,
+comfortably clear of it on screen, and that alone was enough to eat the click.
+Broadened further: an initial fix attempt (`has_pickable_target_in_rect`,
+checking whether ANY live orb's position fell anywhere inside the ROW's own
+rect) made things categorically worse — a 300px×1260px row is large enough that
+some orb almost always falls inside it by chance, so EVERY tap on EVERY
+Tool/Biome/Menu row slot silently deferred (live-reproduced: all 6 hat-row taps
+read back `current_frame: "ace"`, meaning none of them actually switched).
+Reverted to a point-based check but with a much tighter radius scoped to the
+defer decision specifically (`SelectionButtonRow._DEFER_HIT_RADIUS = 14.0`, via
+a new `QuantumField3D.has_pickable_target_near(screen_pos, radius)`) — this
+preserves `has_pickable_target()`'s own generous 56px radius for what it's
+actually for (a direct field tap), while making the "should this row give up
+the click" decision only fire for a genuine near-touch. Gate: `godot
+--headless --check-only` on both touched `.gd` files clean.
+
+**Residual, honestly-reported limitation (not fully eliminated, only
+narrowed):** because 3D orbs still drift via real correlated-pull force
+dynamics (not idle rotation, which was removed earlier in the campaign — see
+"Post-wave-7" section below), an orb can still occasionally pass within the
+tightened 14px radius of a tab's exact click point, causing a single tap to
+miss. A real player would just click again — this wave's own script added a
+4-attempt retry-with-reread pattern for biome-tab taps to model that, and it
+resolved cleanly on the first attempt in the final run. This is a lower
+frequency, lower severity residual than the pre-fix state (which failed on
+essentially any tab click near a populated biome), not a claim of a perfect
+fix.
+
+**Severe, confirmed, NOT-yet-fixed gap: the Icon-hat's "empty plot: inject
+icon" ritual has no reachable mouse path once the target biome has any
+populated register — which is true almost everywhere past the earliest game
+state, and is the exact mechanic underlying all 5 `village_path_*` fork flags
+plus ordinary signature growth via newly-planted icons.** Root cause, traced
+precisely across three code paths:
+1. `IconChipResolvers.resolve_r()` (`Core/UI/IconChipResolvers.gd`) only lets
+   Icon-hat R resolve to the "Add Icon" (inject) action when
+   `ChipContext.has_focused_qubit()` is false — i.e. the currently-focused
+   register index is `>=` the ACTIVE biome's own `register_map.num_qubits`.
+   Keyboard reaches this cleanly: G/H/J/K/L/; are literal index-0..5 picks
+   (`Plot-Register Invariant`: `plot_idx ≡ register_id`), so pressing K/L/;
+   on a biome with only 3 populated registers directly selects index 3/4/5 —
+   genuinely unfocused, correctly landing on "Add Icon".
+2. `QuantumField3D` only renders a 3D orb for POPULATED registers (`_bubbles`
+   is built from `get_num_qubits()`, live-confirmed via `bubble_state`: Village
+   at `fork_ready` shows exactly 3 bubbles for 3 populated registers, none for
+   the 3 empty K/L/; slots) — there is no click target at all for an empty
+   register slot. `rig_screen_pos_for_grid()` (used by the rig's `tap
+   pos:[x,y]` verb) confirms this: `tap pos=[3,1]` (Village's empty K slot)
+   returns `no_tap_target`.
+3. `PlotGridDisplay` (the fixed 2D rack that COULD tap arbitrary grid
+   positions, including empty ones) deliberately gates its own input on
+   `visible`, and is hidden whenever the 3D field is the live renderer
+   (`_input()`'s own comment: "in 3D mode the rack is hidden but its tiles
+   still hold real screen rects... without this gate it kept starting drags
+   and consuming releases the 3D field needed") — so even the ONE piece of
+   UI built to reach an unpopulated grid slot can't be used while 3D is
+   default, which the whole campaign has established it always is now.
+
+A tempting workaround — tap a HIGHER-index orb in a DIFFERENT, more-populated
+biome (e.g. StarterForest register 3, which is out of range for Village's 3
+registers) hoping `current_plot_idx` stays sticky across a biome-tab switch,
+landing on "unfocused" once Village becomes active — does NOT work: live-
+verified via `plot_glance`, switching the active biome tab actively
+RE-FOCUSES a real, populated register in the new biome (landed on Village's
+own register 2, 💰⚙, not the StarterForest index carried over) every time.
+There is currently no sequence of genuine mouse taps, however creative, that
+reaches the "Add Icon" chip state on a biome with any existing registers —
+this was reproduced fresh three separate times against `fork_ready.tres`, with
+`[R] Track first (F)` (the disabled "full+untracked" state) showing every
+time. Given `_execute_inject_icon()` itself never reads a specific plot
+position at all (it dispatches on `biome_name` alone —
+`MacroActions.KIND_INJECT_ICON_PAIR`), the fix does not need to solve
+"which specific empty slot," only "how does a mouse player ever reach the
+unfocused state at all." Two credible directions for a future dedicated pass
+(deliberately not attempted this wave — each touches shared 3D layout/render
+code and deserves its own careful visual verification, not a rushed change
+buried in an already-large wave):
+  - Lay out all 6 potential ring slots per biome (not just the populated
+    ones) and render a dim/ghost "+" marker for empty slots, extending
+    `rig_screen_pos_for_grid`/`_orb_at`-style picking to include them. Real
+    risk: `_layout_pos(i, n)` currently rings orbs based on the CURRENT
+    populated count `n`, so switching to a fixed `n=6` ring would shift
+    every existing orb's on-screen position — needs its own visual pass.
+  - Give the Icon hat a small, dedicated "+" affordance (separate from the
+    3D field/rack entirely) that always reaches the inject-icon submenu when
+    that hat is active, independent of plot focus — sidesteps the ring-layout
+    risk entirely but is a new, narrower UI element.
+
+This gap is comparable in severity to the campaign's earlier headline finding
+(Reap Season had zero mouse path) — but broader in blast radius, since inject-
+icon is the ONLY way to grow a biome's vocabulary/signature at all, mouse or
+keyboard convenience aside; keyboard players reach it fine via G/H/J/K/L;,
+mouse players currently cannot reach it under any circumstance once a biome
+has any content. Flagging for the owner rather than shipping a rushed fix.
+
+**Wave 13b — the `island_free` ending ceremony is fully mouse-clean.**
+`EndingOverlay.gd`'s own `_input()` already accepts ANY
+`InputEventMouseButton`/`InputEventScreenTouch` press anywhere on screen to
+advance each of its 5 stages (Title → Montage/Stats → Credits → Door → close)
+— no dedicated button, no keyboard-only path. Since `endrun_ending.tres` (and
+every other `endrun_*` checkpoint) ships with `island_free` ALREADY recorded
+as fired, and the ceremony only spawns on the live `story_flag_fired` signal
+(not a load-time re-check), this wave used the rig's `fire_flag` dev verb
+(`🍄/🎛️/rig_listener.gd` — "force-fire a story flag... through the REAL
+firing path... lets probes verify flag CONSEQUENCES without driving a full
+campaign") against `fork_ready.tres` (where `island_free` had NOT yet fired)
+to reach the ceremony — a legitimate SETUP-tier verb, same tier as
+`install_checkpoint`, since the mouse-only discipline is about how the
+CEREMONY itself is navigated, not how the test reaches that moment. Six
+genuine screen-center taps walked the full stage sequence and closed the
+ceremony cleanly, confirmed via screenshots (stage 0: "The Demos are free.";
+stage 1: "the island, measured / 0 contracts honored"; final: "The door stays
+open." toast, sim resumed, Ace action chips live again, `[F] Explore` chip
+active). **Harness-only finding, not a game bug**: `ui_stack` never lists
+`EndingOverlay` by name even while it's genuinely on screen and consuming
+input — a future probe should verify ceremony presence via `overlay_text`/
+screenshot, not `ui_stack`, matching this doc's earlier note about `ui_stack`'s
+lowercase `"atlas"` miss.
+
+Commit: `SelectionButtonRow`/`QuantumField3D` tab-defer-radius fix, this doc.
+
 ## Wave 12 (from the act3_complete checkpoint) — first genuine mouse-only quest delivered end-to-end via gathering, real economy; found and fixed a harness read-verb bug
 
 `act3_complete.tres` (29 story flags, incl. `island_lives`/`mill_master`/

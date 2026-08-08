@@ -247,9 +247,22 @@ func _live_field3d() -> Node:
 	return _field3d_cache
 
 
+## has_pickable_target()'s own ~56px radius is generous by design (a player aiming
+## directly at a small orb from a sloppy point) -- too generous for this defer decision,
+## where it silently ate ordinary, visually un-overlapped tab clicks whenever a target
+## merely drifted into the row's general neighborhood (mouse-only campaign wave 13: an
+## eagle orb resting ~22px above the Village tab's own rendered edge -- comfortably clear
+## of it on screen -- was still enough to stop the tab from switching biomes). This tight
+## radius only defers when a target is genuinely touching/near the exact click point.
+const _DEFER_HIT_RADIUS := 14.0
+
 func _defers_to_field3d(screen_pos: Vector2) -> bool:
 	var f3d := _live_field3d()
-	return f3d != null and f3d.has_method("has_pickable_target") and bool(f3d.has_pickable_target(screen_pos))
+	if f3d == null:
+		return false
+	if f3d.has_method("has_pickable_target_near"):
+		return bool(f3d.has_pickable_target_near(screen_pos, _DEFER_HIT_RADIUS))
+	return f3d.has_method("has_pickable_target") and bool(f3d.has_pickable_target(screen_pos))
 
 
 func _forward_to_field3d(screen_pos: Vector2, button: int, shift: bool) -> void:
