@@ -390,6 +390,25 @@ func _select_frame_hat(frame_name: String) -> void:
 		return
 	frame_changed.emit(frame_name)
 
+	if frame_name == ToolConfig.FRAME_ICON and _instrument:
+		# inject_icon is biome-scoped, not plot-scoped (QuantumInstrument.
+		# action_inject_icon_pair only checks biome capacity) -- but R's
+		# "Add Icon" default (IconChipResolvers.resolve_r) only shows when
+		# NOTHING is focused. Mouse can never tap an empty plot directly
+		# (QuantumField3D renders orbs only for populated registers), so
+		# without this, switching to the Icon hat while any orb happens to
+		# be focused permanently hides Add Icon behind the lifecycle chip
+		# (mouse-only campaign wave 14 -- keyboard reaches "unfocused" for
+		# free by landing an out-of-range plot key; mouse has no equivalent).
+		# Clearing focus here reproduces that same "nothing focused yet"
+		# entry state; tapping a specific orb (or G/H/J/K/L/;) still
+		# re-focuses it normally for Track/Ripening/Incorporate. Same
+		# clear-both pattern as the existing full reset (_quantum_reset_cycle).
+		_instrument.current_plot_idx = -1
+		_instrument.last_selected_position = GridSentinel.INVALID_POSITION
+		if plot_grid_display:
+			plot_grid_display.set_selected_plot(GridSentinel.INVALID_POSITION)
+
 	if frame_name == ToolConfig.FRAME_NULL:
 		_verbose.info("input", "~", "Frame: Ace (default toolkit)")
 		return
