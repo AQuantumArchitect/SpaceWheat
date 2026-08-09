@@ -942,6 +942,26 @@ func _make_muted_label(text: String, icon_size: int) -> Label:
 func _make_spacer(h: int) -> Control:
 	return OverlayChrome.spacer(h)
 
+## Mouse parity for A/D paging on the Balance settings list (mouse-only
+## campaign wave 15 — same gap class ControlsOverlay's Arc tab had: a "page
+## N/M · A/D" footer with zero click affordance). Two glyphs reuse the same
+## _on_navigate() the A/D keys already call — one authority, no duplicated
+## paging logic.
+func _make_nav_pager(label_text: String) -> Control:
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 8)
+	var prev_lbl := _make_muted_label("◀", 11)
+	prev_lbl.name = "NavPagerPrev"
+	ClickWire.attach(prev_lbl, _on_navigate.bind(Vector2i(-1, 0)))
+	row.add_child(prev_lbl)
+	row.add_child(_make_muted_label(label_text, 10))
+	var next_lbl := _make_muted_label("▶", 11)
+	next_lbl.name = "NavPagerNext"
+	ClickWire.attach(next_lbl, _on_navigate.bind(Vector2i(1, 0)))
+	row.add_child(next_lbl)
+	return row
+
 # =============================================================================
 # BODY: BALANCE — live economy/system tunables + read-only action cost inspector.
 # =============================================================================
@@ -962,6 +982,7 @@ func _build_balance_body() -> void:
 		_body_box.add_child(_make_muted_label(
 			"Q − value  ·  R + value  ·  E reset  ·  GHJKL; pick  ·  A/D page (%d/%d)" % [
 				_balance_setting_page + 1, page_count], 11))
+		_body_box.add_child(_make_nav_pager("page %d/%d" % [_balance_setting_page + 1, page_count]))
 	else:
 		_body_box.add_child(_make_muted_label(
 			"Q − value  ·  R + value  ·  E reset  ·  GHJKL; pick", 11))

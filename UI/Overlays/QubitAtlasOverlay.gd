@@ -217,13 +217,35 @@ func _on_unhandled_key(keycode: int, _event: InputEvent) -> bool:
 	# fully visible, so A/D is unbound there.
 	if keycode == KEY_A or keycode == KEY_D:
 		if frame_id == FRAME_LEXICON or frame_id == FRAME_HINTS:
-			var step := -1 if keycode == KEY_A else 1
-			var pages: int = max(_total_pages, 1)
-			_current_page = (_current_page + step + pages) % pages
-			_selected_idx = 0
-			_rebuild_display()
+			_step_page(-1 if keycode == KEY_A else 1)
 			return true
 	return false
+
+## Shared A/D-page authority (keyboard above, mouse pager glyphs below —
+## mouse-only campaign wave 15: the "Page N/M · A/D step page" footer had
+## zero click affordance).
+func _step_page(step: int) -> void:
+	if frame_id != FRAME_LEXICON and frame_id != FRAME_HINTS:
+		return
+	var pages: int = max(_total_pages, 1)
+	_current_page = (_current_page + step + pages) % pages
+	_selected_idx = 0
+	_rebuild_display()
+
+func _make_nav_pager(label_text: String) -> Control:
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 8)
+	var prev_lbl := _muted_label("◀")
+	prev_lbl.name = "NavPagerPrev"
+	ClickWire.attach(prev_lbl, _step_page.bind(-1))
+	row.add_child(prev_lbl)
+	row.add_child(_muted_label(label_text))
+	var next_lbl := _muted_label("▶")
+	next_lbl.name = "NavPagerNext"
+	ClickWire.attach(next_lbl, _step_page.bind(1))
+	row.add_child(next_lbl)
+	return row
 
 func _on_action_q() -> void:
 	# Discorporate (un-incorporate) the selected known icon — the inverse of the
@@ -423,6 +445,21 @@ func _build_lexicon_body() -> void:
 	_total_pages = pages
 	_current_page = clampi(_current_page, 0, pages - 1)
 
+	# Pager renders BEFORE the card grid, not after (mouse-only campaign
+	# wave 15: a multi-page grid can run tall enough to push a trailing
+	# pager row past the bottom of the viewport — genuinely unclickable,
+	# even though A/D still worked for keyboard since it never depended on
+	# the footer's on-screen position). Pinning it here keeps it reachable
+	# regardless of how many card rows follow.
+	if pages > 1:
+		_page_label = Label.new()
+		_page_label.text = "Page %d / %d  ·  A/D step page" % [_current_page + 1, pages]
+		_page_label.add_theme_font_size_override("font_size", 12)
+		_page_label.add_theme_color_override("font_color", Color(0.5, 0.6, 0.7))
+		_page_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_dynamic_box.add_child(_page_label)
+		_dynamic_box.add_child(_make_nav_pager("page %d/%d" % [_current_page + 1, pages]))
+
 	_cards_grid = GridContainer.new()
 	_cards_grid.columns = GRID_COLUMNS
 	_cards_grid.add_theme_constant_override("h_separation", 10)
@@ -438,14 +475,6 @@ func _build_lexicon_body() -> void:
 		ClickWire.attach(card, _select_card.bind(i - start))
 		_cards_grid.add_child(card)
 		_card_nodes.append({"node": card, "data": items[i]})
-
-	if pages > 1:
-		_page_label = Label.new()
-		_page_label.text = "Page %d / %d  ·  A/D step page" % [_current_page + 1, pages]
-		_page_label.add_theme_font_size_override("font_size", 12)
-		_page_label.add_theme_color_override("font_color", Color(0.5, 0.6, 0.7))
-		_page_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		_dynamic_box.add_child(_page_label)
 
 # Y — Affinity: known icons sorted by IconCard.affinity descending.
 func _build_affinity_body() -> void:
@@ -657,21 +686,13 @@ func _build_hints_body() -> void:
 		_dynamic_box.add_child(_muted_label("All icons learned. Lexicon is complete."))
 		return
 	_dynamic_box.add_child(_section_header("hints (%d undiscovered)" % unknowns.size()))
-	_cards_grid = GridContainer.new()
-	_cards_grid.columns = GRID_COLUMNS
-	_cards_grid.add_theme_constant_override("h_separation", 10)
-	_cards_grid.add_theme_constant_override("v_separation", 10)
-	_cards_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_dynamic_box.add_child(_cards_grid)
 	# Page hints same as Lexicon — but live updates aren't useful for unknowns.
 	var pages: int = max(1, ceili(float(unknowns.size()) / float(CARDS_PER_PAGE)))
 	_total_pages = pages
 	_current_page = clampi(_current_page, 0, pages - 1)
-	var start: int = _current_page * CARDS_PER_PAGE
-	var end_idx: int = mini(start + CARDS_PER_PAGE, unknowns.size())
-	_selected_idx = clampi(_selected_idx, 0, max(0, end_idx - start - 1))
-	for i in range(start, end_idx):
-		_cards_grid.add_child(_build_card(unknowns[i], (i - start) == _selected_idx))
+	# Pager renders BEFORE the card grid — see the matching comment in
+	# _build_lexicon_body (mouse-only campaign wave 15: a tall grid can push
+	# a trailing pager row off the bottom of the viewport).
 	if pages > 1:
 		_page_label = Label.new()
 		_page_label.text = "Page %d / %d  ·  A/D step page" % [_current_page + 1, pages]
@@ -679,6 +700,18 @@ func _build_hints_body() -> void:
 		_page_label.add_theme_color_override("font_color", Color(0.5, 0.6, 0.7))
 		_page_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		_dynamic_box.add_child(_page_label)
+		_dynamic_box.add_child(_make_nav_pager("page %d/%d" % [_current_page + 1, pages]))
+	_cards_grid = GridContainer.new()
+	_cards_grid.columns = GRID_COLUMNS
+	_cards_grid.add_theme_constant_override("h_separation", 10)
+	_cards_grid.add_theme_constant_override("v_separation", 10)
+	_cards_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_dynamic_box.add_child(_cards_grid)
+	var start: int = _current_page * CARDS_PER_PAGE
+	var end_idx: int = mini(start + CARDS_PER_PAGE, unknowns.size())
+	_selected_idx = clampi(_selected_idx, 0, max(0, end_idx - start - 1))
+	for i in range(start, end_idx):
+		_cards_grid.add_child(_build_card(unknowns[i], (i - start) == _selected_idx))
 
 # =============================================================================
 # SUBSPACE — single-qubit subspace projection (migrated from B)

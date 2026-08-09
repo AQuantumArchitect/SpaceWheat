@@ -1,5 +1,66 @@
 # Mouse-Only Parity Audit
 
+## Wave 15 (structural fixes) — closed the last 3 confirmed keyboard-only paging gaps; caught a real off-screen-click bug in the fix itself
+
+Luke's directive: patch the structural issues the "Confirmed gaps" table still
+listed, then keep running mouse-only waves. Live re-checking that table
+against current code first (not just trusting the doc) found it was partly
+stale: `ControlsOverlay`'s Arc tab already had a clickable pager
+(`_make_arc_pager`) and `QubitAtlasOverlay`'s T/Y/U/I/O tab switching already
+routed clicks and keys through one authority (`_build_frame_tab_row` / slop
+knot #17) — neither table entry reflected real, present-day gaps. What
+remained real: three other places share the exact same A/D-via-`_on_navigate`
+authority Arc used, with zero click affordance of their own —
+`ControlsOverlay`'s Self/Story/Guide tabs, `EscapeMenu`'s Balance settings
+list, and `QubitAtlasOverlay`'s own Lexicon/Hints inner paging (a gap the
+stale table entry never named, found while checking the tab-switch claim).
+
+**Fix**: generalized `ControlsOverlay._make_arc_pager` into a shared
+`_make_nav_pager(label_text)` (same two-glyph ClickWire pattern reusing
+`_on_navigate`), added the equivalent local helper to `EscapeMenu.gd`, and
+factored `QubitAtlasOverlay`'s inline A/D handler into a callable
+`_step_page(step)` so its own pager glyphs and its keyboard case share one
+authority. Wired into `_build_self_body`, `_build_story_body`,
+`_build_guide_body` (ControlsOverlay), `_build_balance_body` (EscapeMenu),
+and `_build_lexicon_body`/`_build_hints_body` (QubitAtlasOverlay). Also fixed
+a real, pre-existing stale-copy bug found along the way: the Self tab's own
+hint text claimed "W/S page" when the actual paging key (confirmed via
+`_on_navigate`) is A/D — corrected.
+
+**Live-verified via the rig, not just gate-green — and the live pass caught
+a real bug in the first version of the QubitAtlasOverlay fix.** Tapping
+Balance's and Guide's pagers genuinely changed the displayed content
+(`overlay_text` diffs: Balance's settings rows changed category entirely,
+Guide's picker/section text changed); Self correctly showed no pager when
+the player's known-icon count fits on one page (mirrors keyboard's own
+no-op in that state, not a bug); Story's pager dispatches the same
+`_on_navigate` the keyboard uses and correctly no-ops when the graph-crawl
+focus node has no edge to move to in that direction — identical to what D
+would do on a keyboard in the same state.
+
+QubitAtlasOverlay's Lexicon pager, however, resolved via `control_rect` to
+screen position `(644, 746)` against a 720px-tall viewport — **26px past the
+bottom edge of the actual window**, a real off-screen, unclickable control,
+confirmed by 4 repeated taps producing zero page change ("Page 1/32" every
+time). Root cause: the pager was appended *after* the card grid, and
+Lexicon's grid (up to `CARDS_PER_PAGE` cards across 32 pages for a 282-icon
+catalog) is tall enough to push a trailing row off-screen — keyboard A/D
+never had this problem since it doesn't depend on the footer's on-screen
+position at all, only a mouse click does. Fixed by moving the page label +
+pager to render *before* the card grid in both `_build_lexicon_body` and
+`_build_hints_body`, pinning it near the top of the body regardless of how
+tall the grid below it grows. Re-verified live: pager center now at
+`(644, 309)`, well inside the viewport, and 4 consecutive taps correctly
+walked "Page 1/32" → "Page 2/32" → "Page 3/32" → "Page 4/32" with the
+visible card set changing each time.
+
+Gate: `godot --headless --check-only` on all 3 touched files clean; 40
+smokes green; 216 pytest green (both re-run after the Lexicon off-screen fix,
+not just the first pass).
+
+Commit: pager mouse-parity fixes (ControlsOverlay/EscapeMenu/
+QubitAtlasOverlay) + this doc entry.
+
 Tracks whether the full keyboard grammar (`UI/PlayerShell.gd:_GAMEPLAY_ACTION_KEYS`)
 has a working mouse/click equivalent. Started 2026-08-05 for the mouse-only
 playtest campaign — see memory `project_mouse_only_campaign_2026-08-05.md`.
@@ -883,10 +944,13 @@ separate bug and this section should be reopened.
 
 ## Confirmed gaps — keyboard-only, no mouse path
 
-| Surface | Keyboard mechanism | Why it's a gap |
+None currently open. The table below is kept for history; see wave 15.
+
+| Surface | Keyboard mechanism | Status |
 |---|---|---|
-| A/D inner paging (Arc/Self/Story/Guide tabs in `ControlsOverlay`, Balance settings in `EscapeMenu`) | `step_active_layer()` (`UI/Core/QuantumInstrumentInput.gd:1337`) wired to `_on_navigate(Vector2i)` via `_on_unhandled_key` (fixed for keyboard 2026-08-05) | Zero mouse call sites. No on-screen prev/next affordance exists at all — a mouse-only player cannot reach page 2+ of any paginated tab (Arc tab alone has 57 flags at 6/page = 11 pages). |
-| QubitAtlasOverlay T/Y/U/I/O frame-tab switching | `_on_unhandled_key:206` | `ClickWire.attach` here (`:438`) only covers card selection *within* a tab, not the tab switch itself. |
+| A/D inner paging — `ControlsOverlay` Arc tab | `_on_navigate(Vector2i)` via `_on_unhandled_key` | **Fixed pre-wave-15** (`_make_arc_pager`, unknown earlier commit — Arc alone had a clickable pager when this campaign found the other three tabs still lacked one). |
+| A/D inner paging — `ControlsOverlay` Self/Story/Guide tabs, `EscapeMenu` Balance settings | Same `_on_navigate()` authority per tab, never given a click affordance | **Fixed wave 15** — generalized `_make_arc_pager` into a shared `_make_nav_pager(label)` helper (ControlsOverlay), added an equivalent local helper to EscapeMenu, both reusing the same `_on_navigate()`/`_step_page()` the keys already call. |
+| QubitAtlasOverlay T/Y/U/I/O frame-tab switching | `_on_unhandled_key:206` | **Was already fixed, doc was stale.** `_build_frame_tab_row`/`_switch_frame` (slop knot #17) already routes both keyboard and tab-label clicks through one authority — this table's own claim was wrong by the time wave 15 checked it, most likely fixed by unrelated de-slop work without this doc being updated. Superseded by a real, narrower gap found in its place: QubitAtlasOverlay's own inner Lexicon/Hints A/D paging (`_page_label` footer) had zero click affordance — **fixed wave 15** the same way as the other two overlays. |
 
 ## Unknown — needs live discovery (Wave 2)
 

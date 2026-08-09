@@ -721,10 +721,12 @@ func _build_icon_picker(farm) -> void:
 
 	# Page indicator + hints
 	var hint := Label.new()
-	hint.text = "page %d/%d   ·   1/2/3 slot   ·   GHJKL; cursor   ·   W/S page   ·   R assign" % [_self_picker_page + 1, max_page + 1]
+	hint.text = "page %d/%d   ·   1/2/3 slot   ·   GHJKL; cursor   ·   A/D page   ·   R assign" % [_self_picker_page + 1, max_page + 1]
 	hint.add_theme_font_size_override("font_size", 10)
 	hint.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
 	_body_box.add_child(hint)
+	if max_page > 0:
+		_body_box.add_child(_make_nav_pager("page %d/%d" % [_self_picker_page + 1, max_page + 1]))
 
 func _build_our_faction_view(farm) -> void:
 	_body_box.add_child(_make_section_header("the demos"))
@@ -984,6 +986,7 @@ func _fill_story_static_mid(engine, focus_id: String, focus_node, outgoing: Arra
 	if not focus_fired:
 		focus_header += " · approaching"
 	box.add_child(_make_section_header(focus_header))
+	box.add_child(_make_nav_pager("A crawl back · crawl forward D"))
 	if focus_fired:
 		var beat := Label.new()
 		beat.text = str(focus_node.arc_beat) if focus_node.arc_beat != "" else "(no beat text)"
@@ -1371,6 +1374,8 @@ func _build_guide_body() -> void:
 			item.add_theme_color_override("font_color", UIStyleFactory.COLOR_ITEM_IDLE)
 		picker.add_child(item)
 
+	if GUIDE_ITEMS.size() > 1:
+		_body_box.add_child(_make_nav_pager("section %d/%d" % [_guide_item + 1, GUIDE_ITEMS.size()]))
 	_body_box.add_child(_make_spacer(6))
 
 	var section_id := str(GUIDE_ITEMS[_guide_item].get("id", ""))
@@ -1949,21 +1954,26 @@ func _select_arc_row(idx: int) -> void:
 ## Mouse parity for A/D paging (wave-3 sensor wall, reconfirmed wave-4: the
 ## "page N/M · A/D" footer was inert text). Two small clickable glyphs reuse
 ## the same _on_navigate() the A/D keys already call — one authority, no
-## duplicated paging logic.
-func _make_arc_pager(page_count: int) -> Control:
+## duplicated paging logic. Shared across every tab that pages via A/D (Arc,
+## Self, Story, Guide — mouse-only campaign wave 15: Arc alone had this, the
+## other three tabs' own _on_navigate() cases were still mouse-unreachable).
+func _make_nav_pager(label_text: String) -> Control:
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_theme_constant_override("separation", 8)
 	var prev_lbl := _make_muted_label("◀", 11)
-	prev_lbl.name = "ArcPagerPrev"
+	prev_lbl.name = "NavPagerPrev"
 	ClickWire.attach(prev_lbl, _on_navigate.bind(Vector2i(-1, 0)))
 	row.add_child(prev_lbl)
-	row.add_child(_make_muted_label("page %d/%d" % [_arc_page + 1, page_count], 10))
+	row.add_child(_make_muted_label(label_text, 10))
 	var next_lbl := _make_muted_label("▶", 11)
-	next_lbl.name = "ArcPagerNext"
+	next_lbl.name = "NavPagerNext"
 	ClickWire.attach(next_lbl, _on_navigate.bind(Vector2i(1, 0)))
 	row.add_child(next_lbl)
 	return row
+
+func _make_arc_pager(page_count: int) -> Control:
+	return _make_nav_pager("page %d/%d" % [_arc_page + 1, page_count])
 
 
 func _make_arc_row(entry: Dictionary, key_str: String, selected: bool, idx: int) -> Control:
