@@ -273,7 +273,27 @@ func _build_frame_actions(frame_name: String) -> Dictionary:
 	# so a contextual chip (e.g. Ace F = Explore on an unexplored plot) never
 	# shows a verb its key wouldn't fire.
 	var chip_ctx = quantum_input.build_chip_context() if quantum_input and quantum_input.has_method("build_chip_context") else null
+	var confirm_pending: bool = quantum_input != null and quantum_input.has_method("has_pending_confirm") and quantum_input.has_pending_confirm()
 	for action_key in ACTION_KEYS:
+		if action_key == "F" and confirm_pending:
+			# A pending destructive confirm (Cull/Trim/Break) takes priority over
+			# whatever F normally means in this frame/mode -- mirrors
+			# QuantumInstrumentInput._dispatch_action_key's own priority order
+			# (confirm_pending is checked before any frame-defined F verb).
+			# Without this override the F chip stayed permanently DISABLED
+			# below whenever the current mode defines no F verb of its own
+			# (Captain's "biomes" mode, Operator's "gate" mode) -- keyboard
+			# never hit this since raw F always reaches _dispatch_action_key
+			# regardless of any chip's disabled flag; mouse could arm Q but
+			# then never confirm it (mouse-only campaign wave 15).
+			actions[action_key] = _project_action_info({
+				"action": "confirm_destructive",
+				"label": "✔ Confirm %s" % quantum_input.pending_confirm_label(),
+				"emoji": "⚠",
+				"disabled": false,
+				"destructive": true,
+			})
+			continue
 		var action_info = ToolConfig.get_action(frame_name, action_key)
 		if chip_ctx != null:
 			action_info = ChipResolverRegistry.resolve(action_info, chip_ctx)

@@ -61,6 +61,94 @@ not just the first pass).
 Commit: pager mouse-parity fixes (ControlsOverlay/EscapeMenu/
 QubitAtlasOverlay) + this doc entry.
 
+## Wave 15 leg 2 — EscapeMenu save/load slots fully clean; found and fixed 2 severe mouse-only bugs in the destructive Q→F confirm chord; second fork flag fired mouse-only
+
+Three targeted checks, run against real checkpoints, no keyboard involved.
+
+**Save/load slot buttons (EscapeMenu KEEP/NEW) — clean.** Armed/cancelled/
+confirmed both `SAVE_OVERWRITE` and `LOAD_DISCARD` via mouse alone
+(`MenuVerb_Q/E/F`), verified via `overlay_text`/`ui_stack`/`story_flags`
+diffs — a slot's timestamp genuinely updated, a load genuinely reset state
+and auto-closed the menu, a mid-arm tab switch was correctly blocked
+(matches keyboard's own pending-action guard). New-tab scenario start fires
+with zero confirmation — reproduces identically for keyboard (`_start_new_scenario()`
+has no `PendingAction` branch for `Tab.NEW` at all), a general design gap,
+not a mouse-parity bug.
+
+**Real bug found and fixed — the destructive Q→F confirm chord (Cull Biome,
+Break, Trim) had two severe, independent mouse-only defects.**
+
+1. *F-confirm chip permanently disabled whenever the active mode defines no
+   F verb of its own.* `UIContextController._apply_runtime_state` computed
+   the F chip's `disabled` flag purely from whether the CURRENT frame/mode
+   defines an explicit F action (`Core/GameState/ToolConfig.gd` — Captain's
+   `"biomes"` mode and Operator's `"gate"` mode define none). It had no idea
+   a destructive confirm might be armed, so F stayed disabled unconditionally
+   — a mouse player could arm Cull Biome or Break via Q, but could never
+   complete it. Keyboard never hit this: raw F always reaches
+   `QuantumInstrumentInput._dispatch_action_key`, which checks
+   `_confirm_pending` FIRST, before any frame-defined F verb, regardless of
+   any chip's disabled flag. Fixed by giving `_build_frame_actions` the same
+   priority order — when a confirm is pending, F's action_info is now built
+   as a synthetic `confirm_destructive` entry (`✔ Confirm <label>`,
+   `disabled: false`) instead of falling through to the empty/disabled
+   frame-verb path. New getters `has_pending_confirm()`/
+   `pending_confirm_label()` expose the previously-private `_confirm_pending`
+   state for this purpose.
+2. *A non-F chip tap did not cancel a pending confirm — and a later,
+   unrelated F tap could silently fire the forgotten destructive action.*
+   Keyboard's "any key but F cancels the chord, loudly" rule
+   (`_unhandled_key_input`'s own top-level check) never applied to mouse chip
+   taps, hat switches, or biome switches — those dispatch through
+   `_dispatch_action_key`/`_select_frame_hat`/`confirm_biome_switch`
+   directly, none of which knew about `_confirm_pending` at all.
+   Live-reproduced: arm Trim Icon (Q on the Icon hat), tap E (Inspect) —
+   E's own action fires AND the Trim confirm stays silently armed; a later
+   tap on F (meant to toggle Berry tracking, F's normal meaning here)
+   instead fires the forgotten `remove_icon`. This is the "actively
+   misleading" bug class this campaign treats as most severe — a mouse
+   player who thinks they backed out gets a surprise destructive action from
+   an unrelated later tap. Fixed by extracting the cancel into one shared
+   `_cancel_pending_confirm()` and calling it from every dispatch path that
+   isn't the F-confirm itself: `_dispatch_action_key`'s Q/E/R branch (the
+   authority mouse chip taps and keyboard both already funnel through),
+   `_select_frame_hat` (the single hat-switch entry for both input methods),
+   and `confirm_biome_switch` (the shared tail for both TYUIOP and
+   BiomeSelectionRow taps). Keyboard's own pre-existing top-level cancel
+   check is untouched (now redundant-but-harmless for Q/E/R/F, still the
+   only guard for other keys); `try_escape_unwind()`'s own duplicate cancel
+   logic was refactored to call the same shared helper instead of
+   re-implementing it a third time.
+
+Both fixes live-verified via the rig against the exact reproductions above:
+Cull Biome (Captain hat) armed via mouse Q, then F tap correctly confirmed
+it (`dispatch_ledger: remove_biome success:true`, `confirm_state.pending`
+cleared). Trim Icon (Icon hat) armed via mouse Q, then a mouse E tap
+correctly cleared `confirm_state.pending`, and a following F tap correctly
+fired F's OWN verb (`toggle_berry_track`) instead of the stale Trim — no
+silent destructive action. Gate: `godot --headless --check-only` on both
+touched files (`UI/Core/QuantumInstrumentInput.gd`,
+`UI/Managers/UIContextController.gd`) clean; 40 smokes green; 216 pytest
+green.
+
+**Second fork flag, mouse-only.** Wave 14 proved the inject-icon mechanic
+works but couldn't fire a fork flag because that checkpoint's player only
+knew the starter icon. Surveying every fork-adjacent checkpoint
+(`fork_ready.tres`, `literalist_fable_push_fork.tres`/`_r2.tres`) found each
+had a real, distinct prerequisite gap (either the vocabulary or the
+`village_identity` flag itself missing) — `p7a_fork.tres` was the one
+checkpoint meeting the actual criterion (`village_identity` fired, knows
+several fork-trigger icons, a still-unfired `village_path_*` flag with its
+prerequisites already met). First inject attempt correctly refused on
+Village's real 6/6 register cap (`inject_icon success:false`, matches
+keyboard identically); trimmed an icon via the now-fixed Q→F chord to free a
+slot, re-entered the Icon hat (clearing focus per the wave-14 fix), and
+completed a genuine mouse-only inject: `village_path_watched` fired,
+confirmed via a `story_flags` diff. A second of the campaign's 5 fork flags
+is now proven reachable end-to-end by mouse alone.
+
+Commit: destructive Q→F confirm-chord fixes, this doc entry.
+
 Tracks whether the full keyboard grammar (`UI/PlayerShell.gd:_GAMEPLAY_ACTION_KEYS`)
 has a working mouse/click equivalent. Started 2026-08-05 for the mouse-only
 playtest campaign — see memory `project_mouse_only_campaign_2026-08-05.md`.

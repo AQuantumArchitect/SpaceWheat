@@ -180,6 +180,39 @@ func owns_ef_keys() -> bool:
 	return _instrument != null and _instrument.is_in_submenu()
 
 
+## Whether a destructive confirm (Trim/Cull/Break) is currently armed, awaiting
+## its F-confirm. Exposed so callers outside this script (e.g.
+## UIContextController, deciding whether the F chip should render enabled)
+## don't need to reach into the private _confirm_pending dict directly.
+func has_pending_confirm() -> bool:
+	return not _confirm_pending.is_empty()
+
+
+## The armed confirm's display label ("Cull TheDemos", "Trim 🌾/👥", ...), or
+## "" if nothing is pending.
+func pending_confirm_label() -> String:
+	return str(_confirm_pending.get("label", "")) if not _confirm_pending.is_empty() else ""
+
+
+## Cancels an armed destructive confirm and says so out loud (silent cancels
+## ate actions and confused the harvest loop). This is the ONE place that
+## clears _confirm_pending outside of F actually confirming it — every
+## dispatch path that isn't the F-confirm itself (keyboard's own key handler,
+## mouse Q/E/R chip taps, hat switches, biome switches, ESC) funnels through
+## here, so "anything but confirming cancels" can't silently diverge between
+## keyboard and mouse (mouse-only campaign wave 15: a mouse tap on an
+## unrelated chip left a destructive confirm armed, and a LATER unrelated F
+## tap silently fired it instead of its own labeled verb).
+func _cancel_pending_confirm() -> void:
+	if _confirm_pending.is_empty():
+		return
+	var cancelled_label := str(_confirm_pending.get("label", "action"))
+	_confirm_pending = {}
+	var shell := _resolve_player_shell()
+	if shell and shell.has_method("show_hint"):
+		shell.show_hint("[color=#88aabb]%s cancelled[/color]" % cancelled_label, 2)
+
+
 func _unhandled_key_input(event: InputEvent) -> void:
 	# Handle keyboard input for the quantum instrument.
 	if not event is InputEventKey or not event.pressed:
@@ -189,15 +222,10 @@ func _unhandled_key_input(event: InputEvent) -> void:
 
 	var key = InputBindingRegistry.get_label_for_keycode(event.keycode)
 
-	# Any key other than F cancels a pending confirm-chord — but say so out loud
-	# (silent cancels ate actions and confused the harvest loop). Only destructive
+	# Any key other than F cancels a pending confirm-chord. Only destructive
 	# verbs (Trim/Cull/Break) arm the chord now; safe verbs fire immediately.
-	if not _confirm_pending.is_empty() and key != "F":
-		var cancelled_label := str(_confirm_pending.get("label", "action"))
-		_confirm_pending = {}
-		var shell := _resolve_player_shell()
-		if shell and shell.has_method("show_hint"):
-			shell.show_hint("[color=#88aabb]%s cancelled[/color]" % cancelled_label, 2)
+	if key != "F":
+		_cancel_pending_confirm()
 
 	# Auto-close submenu when any non-action key is pressed
 	if _instrument.is_in_submenu() and key not in ["Q", "E", "R", "F"]:
@@ -284,6 +312,14 @@ func _unhandled_key_input(event: InputEvent) -> void:
 ## Q/E/R/F while open" rule can never diverge between them (#266: chip clicks
 ## bypassed the submenu branch and fired the frame verb underneath the picker).
 func _dispatch_action_key(key: String, shift: bool = false) -> void:
+	# Keyboard's own cancel-on-any-non-F-key already ran by the time this is
+	# reached via _unhandled_key_input (harmless no-op here, second time).
+	# Pointer/touch chips reach this DIRECTLY with no such upstream check, so
+	# without this a mouse tap on a different chip left a destructive confirm
+	# silently armed for a LATER unrelated F tap to fire (mouse-only campaign
+	# wave 15).
+	if key != "F":
+		_cancel_pending_confirm()
 	match key:
 		"Q", "E", "R":
 			if _instrument and _instrument.is_in_submenu():
@@ -388,6 +424,11 @@ func _select_frame_hat(frame_name: String) -> void:
 	if not ToolConfig.select_frame(frame_name):
 		_verbose.warn("input", "⚠️", "Ignored invalid frame selection '%s'" % frame_name)
 		return
+	# Same cancel keyboard gets for free via _unhandled_key_input's top-level
+	# check — this is the single hat-switch entry for BOTH keyboard and mouse
+	# (ToolSelectionRow taps land here too), so without it a mouse hat switch
+	# left a pending confirm armed (mouse-only campaign wave 15).
+	_cancel_pending_confirm()
 	frame_changed.emit(frame_name)
 
 	if frame_name == ToolConfig.FRAME_ICON and _instrument:
@@ -1135,6 +1176,11 @@ func _select_biome(biome_idx: int, key: String) -> void:
 ## tell it worked) — without this, a mouse click landing on the biome tab bar
 ## switches biomes with zero visible feedback (mouse-only campaign wave 5).
 func confirm_biome_switch(old_biome: String, new_biome: String, key: String) -> void:
+	# Same cancel keyboard gets for free via _unhandled_key_input's top-level
+	# check — this is the shared tail for BOTH keyboard (TYUIOP) and mouse
+	# (BiomeSelectionRow tap) biome switches, so without it a mouse biome
+	# switch left a pending confirm armed (mouse-only campaign wave 15).
+	_cancel_pending_confirm()
 	_apply_biome_switch(old_biome, new_biome, key)
 	if new_biome != old_biome:
 		_toast_player("→ %s" % new_biome)
@@ -1310,12 +1356,8 @@ func try_escape_unwind() -> bool:
 		_close_submenu()
 		return true
 	# 2. A pending destructive confirm — cancel it (loud, same as a non-F key).
-	if not _confirm_pending.is_empty():
-		var cancelled_label := str(_confirm_pending.get("label", "action"))
-		_confirm_pending = {}
-		var shell := _resolve_player_shell()
-		if shell and shell.has_method("show_hint"):
-			shell.show_hint("[color=#88aabb]%s cancelled[/color]" % cancelled_label, 2)
+	if has_pending_confirm():
+		_cancel_pending_confirm()
 		return true
 	# 3. The plot ring — step up to the biome ring; the leave_plot_ring lifecycle
 	#    clears the selection.
