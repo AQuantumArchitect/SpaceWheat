@@ -149,6 +149,33 @@ is now proven reachable end-to-end by mouse alone.
 
 Commit: destructive Q→F confirm-chord fixes, this doc entry.
 
+## Wave 15 leg 3 — Acts 6-8 hat/chip sweep (endrun_act6/7/8), mostly clean
+
+The third leg (originally dispatched as a persona agent, which stalled
+twice on a 600s harness watchdog with no reproducible game-side cause —
+recorded here as a harness reliability gap, not a finding — and was
+finished directly instead) mapped hat row + biome row and tapped every
+Q/E/R/F chip on a focused plot across all three late-game checkpoints.
+Confirmed 6 biomes unlock by `endrun_act7`/`8` including two never
+mouse-exercised before (`ZenoLatch`, `ShrineOfAshes`), and all 7 hats
+(Spark, Icon, Merchant, Captain, Ace, Operator, Druid) dispatch or toast
+correctly on nearly every chip.
+
+Three chips read as fully silent (`spark.R` on act6, `operator.F` on act7,
+`druid.F` on act8 — no ledger entry, no toast). Code-level investigation
+found a plausible non-bug explanation for each, not independently
+live-confirmed this wave: Spark's shift-mode R (`spark_north`) is a
+`CLOSED_BLOCKED_ACTIONS` Lindblad verb, 🔒-locked in the closed system these
+late-game checkpoints run in — its `redirect_locked()` toast is
+rate-limited (`REDIRECT_COOLDOWN_MS`), so a mechanical sweep tapping many
+chips in quick succession can suppress it after an earlier lock in the same
+run. Operator's "gate" mode and Druid's X/Y/Z modes define no F verb at
+all, so F falls back to the universal Play/Pause toggle — a no-op, silent
+by design, when the sim is already running. Flagging as unconfirmed rather
+than fixed or dismissed — a future wave should isolate each chip alone
+(not mid-sweep) to rule the cooldown/no-op explanations in or out for
+certain.
+
 Tracks whether the full keyboard grammar (`UI/PlayerShell.gd:_GAMEPLAY_ACTION_KEYS`)
 has a working mouse/click equivalent. Started 2026-08-05 for the mouse-only
 playtest campaign — see memory `project_mouse_only_campaign_2026-08-05.md`.
