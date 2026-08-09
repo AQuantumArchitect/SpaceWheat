@@ -207,6 +207,72 @@ is the trustworthy read), not a new regression. Not re-investigated.
 
 Commit: `_row_confirm_armed` fix + regression test, gate results above.
 
+## Wave 14 (fork_ready) — fixed the severe inject-icon gap wave 13 found; verified live with zero keyboard-relying workaround
+
+Direct follow-up to wave 13's headline finding: the Icon-hat's "Add Icon"
+default (`IconChipResolvers.resolve_r`) only shows on R when nothing is
+focused, but mouse can never tap an empty plot directly — `QuantumField3D`
+renders orbs only for populated registers — so once a biome had any
+populated register, switching to the Icon hat while an orb happened to be
+focused permanently hid Add Icon behind the Track/Ripening/Incorporate
+lifecycle chip. This blocked all 5 Act-5 fork flags plus ordinary
+vocabulary growth for mouse-only play.
+
+Two fix directions were on the table (see wave 13's writeup): a fixed
+6-slot 3D ring layout with ghost markers for empty slots, or a dedicated
+always-on affordance decoupled from plot focus. Luke picked the second —
+it doesn't couple to the 3D ring's population-dependent layout math,
+which matters if biome slot counts ever change.
+
+**First attempt (reverted): swap which chip owns "Incorporate."** The
+initial plan moved Incorporate from R to F so R could always mean "Add
+Icon" regardless of focus. This looked clean in isolation but broke two
+real, pinned regression tests
+(`test_title_boot_path.py::test_title_menu_restart_path_reaches_first_breath`,
+`test_rig_quest_roundtrip.py::test_learned_icon_survives_path_save_load_roundtrip`)
+— both press R expecting Incorporate, confirming that binding is load-bearing
+tested keyboard grammar, not something to silently relocate. Caught by the
+standard gate (`pytest tests/ -q`) before commit; reverted immediately.
+
+**Actual fix: clear plot focus specifically when switching into the Icon
+hat.** `inject_icon` was never plot-scoped in the first place —
+`QuantumInstrument.action_inject_icon_pair` only checks biome capacity, and
+`_execute_inject_icon` dispatches with `{biome_name, icon}`, no plot
+position. The four-state R resolver's "unfocused → Add Icon" branch is the
+correct, already-tested behavior; the only real bug was that mouse could
+never *reach* unfocused once any orb existed. `_select_frame_hat`
+(`UI/Core/QuantumInstrumentInput.gd`) now clears `current_plot_idx` and
+`last_selected_position` (same clear-both pattern as the existing full
+reset in `_quantum_reset_cycle`) whenever the target frame is
+`FRAME_ICON` — reproducing, on purpose, the same "nothing focused yet"
+entry state keyboard already got for free by landing an out-of-range plot
+key. Tapping a specific orb (or pressing G/H/J/K/L/;) still re-focuses
+normally for Track/Ripening/Incorporate. 3 lines of logic, no 3D layout
+math touched, no new UI element.
+
+Live-verified via the rig (not just the gate): switched to Village,
+deliberately tapped a populated orb first (the exact condition that broke
+Add Icon before the fix — mouse can only ever land on populated orbs),
+switched to the Icon hat, and tapped R. `plot_glance` confirmed every plot
+read `"focused": false` immediately after the hat switch, and R opened the
+`icon_injection` submenu on the first tap with zero G/H/J/K/L/; re-focus.
+Re-ran the full gate afterward (40 smokes, 216 pytest) — clean.
+
+A follow-up run attempted to actually fire `village_path_commons` (plant
+💧 into Village) from `fork_ready.tres` via this newly-mouse-reachable
+path. R opened the submenu correctly, but the submenu offered only one
+icon (🌾/👥) and paging (F) had nothing to page to. Traced to
+`ActionValidator._collect_injectable_icons`: the injection picker only
+ever offers the player's *known* icons (their learned vocabulary), and
+this checkpoint's player simply hasn't incorporated an icon containing 💧
+yet. Not a mouse-parity bug — a genuine vocabulary-progression
+prerequisite, same as it would be for a keyboard player at this same
+checkpoint state. Reaching a specific fork flag via mouse from a savepoint
+that predates learning its trigger icon needs a prior mouse-only
+incorporation leg first, not a further code fix.
+
+Commit: `97c20bd6` — `_select_frame_hat` focus-clear fix, this doc entry.
+
 ## Wave 13 (fork_ready + endrun_ending) — pushed into the campaign's central narrative choice; found a real, severe mouse-parity gap in the icon-injection ritual, fixed a real tab-vs-orb click bug, confirmed the ending ceremony is fully mouse-clean
 
 Per Luke's steer ("push into the unexplored surfaces... though the central quest
