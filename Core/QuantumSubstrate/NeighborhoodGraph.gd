@@ -17,6 +17,9 @@ extends RefCounted
 ##   edge = {from_qubit:int, to_qubit:int, from_emoji, to_emoji, kind, strength:float}
 ##          kind ∈ {"coherent" (undirected H), "webway" (directed L), "sink" (→🗑)}
 ##          to_qubit == -1 means the target is outside this cluster (a sink/outflow)
+##          coherent edges also carry phase:float — arg(J) of the coupling
+##          oriented lo→hi (0 for positive real J, π for negative; the honest
+##          U(1) angle for complex J). Seeds the gauge ledger (GaugeField).
 ##   port = {qubit:int, emoji:String, neighbor_factions:Array[String]}
 
 const SINK_EMOJI := "🗑"
@@ -67,28 +70,7 @@ static func from_biome(biome, icon_registry = null, faction_registry = null) -> 
 		var self_e: Dictionary = phys.get("self_energies", {})
 		for n in g.nodes:
 			n["self_energy"] = float(self_e.get(n["north"], 0.0)) + float(self_e.get(n["south"], 0.0))
-		var ham: Dictionary = phys.get("hamiltonian", {})
-		var seen: Dictionary = {}
-		for src in ham.keys():
-			var row = ham[src]
-			if not (row is Dictionary):
-				continue
-			for tgt in row.keys():
-				var qi: int = g._emoji_to_qubit.get(str(src), -1)
-				var qj: int = g._emoji_to_qubit.get(str(tgt), -1)
-				if qi < 0 or qj < 0 or qi == qj:
-					continue  # only cross-qubit coherent couplings are inter-node edges
-				var lo: int = mini(qi, qj)
-				var hi: int = maxi(qi, qj)
-				var key := "%d|%d" % [lo, hi]
-				if seen.has(key):
-					continue
-				seen[key] = true
-				g.edges.append({
-					"from_qubit": lo, "to_qubit": hi,
-					"from_emoji": str(src), "to_emoji": str(tgt),
-					"kind": "coherent", "strength": g._coupling_mag(row[tgt]),
-				})
+		g._build_coherent_edges(phys.get("hamiltonian", {}))
 
 	# --- Webway edges (directed L) from canonical atom_components ---
 	var ac = biome.atom_components if ("atom_components" in biome and biome.atom_components is Dictionary) else {}
@@ -133,6 +115,66 @@ static func from_biome(biome, icon_registry = null, faction_registry = null) -> 
 	return g
 
 
+## Coherent-only body straight from a RegisterMap's axes — for consumers that
+## have a QuantumComputer but no biome object (headless, gauge ledger). Same
+## aggregation as from_biome's coherent pass; no webway/ports (those need the
+## biome's atom_components and faction context).
+static func coherent_from_register(register_map, icon_registry = null) -> NeighborhoodGraph:
+	var g := NeighborhoodGraph.new()
+	if register_map == null:
+		return g
+	var signature: Array = []
+	for q in range(register_map.num_qubits):
+		var axis = register_map.axes.get(q, {})
+		var north := str(axis.get("north", ""))
+		var south := str(axis.get("south", ""))
+		g.nodes.append({
+			"qubit": q, "icon_name": north,
+			"north": north, "south": south, "self_energy": 0.0,
+		})
+		if north != "":
+			g._emoji_to_qubit[north] = q
+		if south != "":
+			g._emoji_to_qubit[south] = q
+		signature.append(north)
+		signature.append(south)
+	var ir = icon_registry if icon_registry != null else g._resolve_icon_registry()
+	if ir != null and ir.has_method("get_cloud_physics"):
+		var phys: Dictionary = ir.get_cloud_physics(signature)
+		g._build_coherent_edges(phys.get("hamiltonian", {}))
+	return g
+
+
+## Aggregate an emoji→emoji Hamiltonian dict into qubit-pair coherent edges.
+## Dedupes on the qubit pair (first emoji-level coupling seen represents the
+## fence). Carries both magnitude and the coupling's complex argument, phase
+## oriented lo→hi (Hermiticity: the hi→lo entry is the conjugate).
+func _build_coherent_edges(ham: Dictionary) -> void:
+	var seen: Dictionary = {}
+	for src in ham.keys():
+		var row = ham[src]
+		if not (row is Dictionary):
+			continue
+		for tgt in row.keys():
+			var qi: int = _emoji_to_qubit.get(str(src), -1)
+			var qj: int = _emoji_to_qubit.get(str(tgt), -1)
+			if qi < 0 or qj < 0 or qi == qj:
+				continue  # only cross-qubit coherent couplings are inter-node edges
+			var lo: int = mini(qi, qj)
+			var hi: int = maxi(qi, qj)
+			var key := "%d|%d" % [lo, hi]
+			if seen.has(key):
+				continue
+			seen[key] = true
+			var arg := _coupling_arg(row[tgt])
+			edges.append({
+				"from_qubit": lo, "to_qubit": hi,
+				"from_emoji": str(src), "to_emoji": str(tgt),
+				"kind": "coherent", "strength": _coupling_mag(row[tgt]),
+				"phase": (arg if qi == lo else wrapf(-arg, -PI, PI)),
+			})
+
+
 func _add_webway(from_emoji: String, to_emoji: String, rate: float, kind: String) -> void:
 	if rate <= 0.0:
 		return
@@ -155,6 +197,16 @@ func _coupling_mag(v) -> float:
 	if v is Array and v.size() == 2:
 		return sqrt(float(v[0]) * float(v[0]) + float(v[1]) * float(v[1]))
 	return absf(float(v))
+
+
+## Complex argument of a coupling value: 0 for positive real J, π for negative,
+## atan2(im, re) for genuinely complex hoppings. The honest gauge seed.
+func _coupling_arg(v) -> float:
+	if v is Vector2:
+		return atan2(v.y, v.x)
+	if v is Array and v.size() == 2:
+		return atan2(float(v[1]), float(v[0]))
+	return 0.0 if float(v) >= 0.0 else PI
 
 
 func _biome_name_of(biome) -> String:

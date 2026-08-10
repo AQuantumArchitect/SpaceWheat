@@ -53,6 +53,26 @@ var density_matrix: ComplexMatrix = null
 ## viz layer reads from here. Headless-visible.
 var berry_register: BerryPhaseRegister = BerryPhaseRegister.new()
 
+## Lattice gauge ledger over this biome's coherent coupling graph (the fence
+## ledger — docs/GAUGE_CAMPAIGN.md). Lazy and signature-keyed: rebuilt exactly
+## when physics_signature changes (icon inject/remove, operator rebuild),
+## carrying player-set phases forward by emoji so bookkeeping choices survive
+## qubit reindexing. Never serialized: conventions re-seed from H on reload;
+## the Wilson loops (the invariant content) survive that automatically.
+var _gauge_field: GaugeField = null
+var _gauge_signature: String = "<unbuilt>"
+
+
+func get_gauge_field() -> GaugeField:
+	if register_map == null:
+		return null
+	if _gauge_field == null or _gauge_signature != physics_signature:
+		var carry: Dictionary = _gauge_field.carry_state() if _gauge_field != null else {}
+		var ng = NeighborhoodGraph.coherent_from_register(register_map)
+		_gauge_field = GaugeField.from_neighborhood(ng, carry)
+		_gauge_signature = physics_signature
+	return _gauge_field
+
 ## Lindblad evolution operators (set by biome via HamiltonianBuilder/LindbladBuilder)
 var hamiltonian: ComplexMatrix = null         # H matrix (Hermitian, dim×dim)
 var lindblad_operators: Array = []            # Array of L_k matrices (ComplexMatrix)
