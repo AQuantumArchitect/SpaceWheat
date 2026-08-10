@@ -16,6 +16,13 @@ var _last_biome = null  # Retained for on-demand predict_population calls
 ## something to lose). Session-scoped; resets on load, which only delays the witness.
 var _coherence_watermark: Dictionary = {}
 
+## Per-biome winding-attack witness (What Turns IV, "The Number That Lied"):
+## the set of max_mutual_winding values observed while no banked record was
+## lost. Two distinct values in one uncut window = the integer moved under
+## smooth moves alone — proof it was never an invariant. A record loss
+## (eviction, clear) restarts the window: a change across a cut proves nothing.
+var _winding_witness: Dictionary = {}
+
 
 func observe_biome(biome, delta: float = 0.0) -> Dictionary:
 	if biome == null:
@@ -71,7 +78,17 @@ func observe_biome(biome, delta: float = 0.0) -> Dictionary:
 	if qc != null and "berry_register" in qc and qc.berry_register != null:
 		var loops: Array = qc.berry_register.frozen_loops()
 		_last_observables["frozen_loops"] = loops.size()
-		_last_observables["max_mutual_winding"] = KnotRegister.max_mutual_winding(loops) if loops.size() >= 2 else 0
+		var w_now: int = KnotRegister.max_mutual_winding(loops) if loops.size() >= 2 else 0
+		_last_observables["max_mutual_winding"] = w_now
+		if biome_name != "":
+			var wit: Dictionary = _winding_witness.get(biome_name, {"seen": {}, "loops": 0})
+			if loops.size() < int(wit.get("loops", 0)):
+				wit["seen"] = {}  # a record was lost — the attack window restarts
+			wit["loops"] = loops.size()
+			if loops.size() >= 2:
+				wit["seen"][w_now] = true
+			_winding_witness[biome_name] = wit
+			_last_observables["winding_values_seen"] = (wit["seen"] as Dictionary).size()
 	return _last_observables
 
 
@@ -180,6 +197,60 @@ func evaluate_predicate(predicate: Dictionary) -> float:
 			# a simple link, ±2 doubly wound.
 			var w := float(absi(int(_last_observables.get("max_mutual_winding", 0))))
 			return QuestMath.soft_gate(w, maxf(1.0, float(predicate.get("value", 1))), 0.75)
+		"winding_changed_uncut":
+			# What Turns IV: the winding took two different values while no
+			# banked record was lost — the number moved under legal moves alone.
+			# Integer-valued was never the same as invariant; here is the proof.
+			var distinct := int(_last_observables.get("winding_values_seen", 0))
+			if distinct >= 2:
+				return 1.0
+			if distinct == 1:
+				return 0.4  # one reading on the books — now make it move
+			return 0.2 * clampf(float(_last_observables.get("frozen_loops", 0)) / 2.0, 0.0, 1.0)
+		"wilson_survived_flip":
+			# What Turns III: a gauge_flip whose payload certifies the player
+			# READ the loop card first (read_since_topology_change) and every
+			# Wilson product held (wilson_unchanged). Road below the summit:
+			# a flip without the read, then a bare read, then nothing.
+			var certified := false
+			var any_flip := false
+			var any_read := false
+			for row in _action_history:
+				var a := str(row.get("action", ""))
+				if a == "wilson_inspect":
+					any_read = true
+				elif a == "gauge_flip":
+					any_flip = true
+					var p: Dictionary = row.get("payload", {})
+					if bool(p.get("wilson_unchanged", false)) and bool(p.get("read_since_topology_change", false)):
+						certified = true
+			if certified:
+				return 1.0
+			if any_flip and any_read:
+				return 0.6  # both moves made, wrong order — read, THEN turn
+			if any_flip or any_read:
+				return 0.3
+			return 0.0
+		"spinor_read":
+			# What Turns I: an interfere reading whose spinor sign product
+			# matches (−1 after a ripe loop: home downstairs, flipped upstairs).
+			var want := int(predicate.get("value", -1))
+			var any_interfere := false
+			var any_mark := false
+			for row in _action_history:
+				var a := str(row.get("action", ""))
+				if a == "mark_reference":
+					any_mark = true
+				elif a == "interfere":
+					any_interfere = true
+					var p: Dictionary = row.get("payload", {})
+					if int(p.get("spinor_product", 0)) == want and not bool(p.get("self_compare", false)):
+						return 1.0
+			if any_interfere:
+				return 0.5  # the mirror is in use — now bring it a ripe traveler
+			if any_mark:
+				return 0.25
+			return 0.0
 		"dynamics_at_most":
 			# Stillness teacher: the biome's evolution rate (BiomeDynamicsTracker,
 			# 0 = still, 1 = storming). In the enclave purity and entropy are frozen,

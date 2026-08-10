@@ -206,6 +206,75 @@ static func concat_records(records: Array) -> PackedFloat64Array:
 	return out
 
 
+## Junction tolerance for stitching consecutive records: a freeze closes onto
+## its seed and reseeds AT the triggering vertex, which sits within
+## BerryPhaseRegister.LOOP_CLOSE_EPS (0.25 rad) of that seed — so honest
+## junctions land inside 0.3 rad. A broken walk (decoherence, collapse)
+## reseeds wherever the state actually is, which almost never does.
+const STITCH_JUNCTION_EPS: float = 0.3
+
+
+static func closed_lift_curves(records: Array, eps: float = LIFT_CLOSE_EPS) -> Array:
+	# Per qubit, the longest contiguous stitch of its frozen records whose
+	# Berry lift genuinely closes in S³. Returns [{qubit, points, holonomy}].
+	#
+	# Scans contiguous SUBRUNS, not just whole runs: a hemisphere loop walked
+	# twice closes (Ω = 4π), but keep walking and the running stitch reopens —
+	# the closed curve is a window inside the walk, and over-walking must not
+	# hide it. Runs break where consecutive records fail the junction check
+	# (the walk was cut between them; stitching across a cut would be a lie).
+	# O(runs²) on ≤ FROZEN_LOOP_CAP records — trivial.
+	var by_qubit: Dictionary = {}
+	for r in records:
+		if not (r is Dictionary):
+			continue
+		var q: int = int(r.get("qubit", -1))
+		if not by_qubit.has(q):
+			by_qubit[q] = []
+		by_qubit[q].append(r)
+	var out: Array = []
+	for q in by_qubit.keys():
+		var runs: Array = _contiguous_runs(by_qubit[q])
+		var best := PackedFloat64Array()
+		for run in runs:
+			for i in range(run.size()):
+				for j in range(i, run.size()):
+					var stitched := concat_records(run.slice(i, j + 1))
+					if vertex_count(stitched) < 3:
+						continue
+					if lift_closure_defect(stitched) < eps and vertex_count(stitched) > vertex_count(best):
+						best = stitched
+		if vertex_count(best) >= 3:
+			out.append({"qubit": q, "points": best, "holonomy": lift_holonomy(best)})
+	return out
+
+
+static func _contiguous_runs(records: Array) -> Array:
+	# Split one qubit's records (FIFO order) into maximal stitchable runs:
+	# consecutive records whose junction vertices coincide on the sphere.
+	var runs: Array = []
+	var current: Array = []
+	for r in records:
+		var pts: PackedFloat64Array = r.get("points", PackedFloat64Array())
+		if pts.is_empty():
+			continue
+		if current.is_empty():
+			current = [r]
+			continue
+		var prev_pts: PackedFloat64Array = current[current.size() - 1].get("points", PackedFloat64Array())
+		var last := vertex(prev_pts, vertex_count(prev_pts) - 1)
+		var first := vertex(pts, 0)
+		var dot: float = clampf(last.dot(first), -1.0, 1.0)
+		if acos(dot) <= STITCH_JUNCTION_EPS:
+			current.append(r)
+		else:
+			runs.append(current)
+			current = [r]
+	if not current.is_empty():
+		runs.append(current)
+	return runs
+
+
 static func gauss_linking(points_a: PackedFloat64Array, points_b: PackedFloat64Array) -> float:
 	# Gauss linking estimate of the two loops' S³ lifts: stereographic
 	# projection from a pole far from both curves, then the midpoint-rule

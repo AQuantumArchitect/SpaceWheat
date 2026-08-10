@@ -94,6 +94,12 @@ func _init() -> void:
 	checks["stitched_holonomy_near_2pi"] = absf(hol_2 - TAU) < 0.4
 	checks["stitched_closed_upstairs"] = Knot.is_closed_upstairs(stitched)
 	checks["live_spinor_sign_home"] = reg2.get_spinor_sign(0) == 1
+	# The subrun scanner (quest predicate seam): finds the closed window itself.
+	var auto_closed: Array = Knot.closed_lift_curves(loops2)
+	checks["closed_lift_curves_finds_it"] = auto_closed.size() == 1 \
+		and int(auto_closed[0].get("qubit", -1)) == 0 \
+		and Knot.is_closed_upstairs(auto_closed[0].get("points"))
+	checks["closed_lift_curves_rejects_single"] = Knot.closed_lift_curves([loops2[0]]).is_empty()
 
 	# --- 3. two genuinely closed lifts: linking is a legal question ----------
 	var reg3 = Register.new()

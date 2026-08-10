@@ -40,6 +40,14 @@ const TARGETS := {
 	"biome_spectral_gap_lte":   {"kind": "menu", "key": "B"},
 	"gate_sequence_contains":   {"kind": "gate"},
 	"biome_evolving":           {"kind": "biome"},
+	# What Turns (gauge/holonomy): compass verbs live on Operator, the mirror
+	# and the loop-walking on Icon.
+	"biome_betti_gte":          {"kind": "hat", "frame": "icon"},
+	"biome_loop_closed_upstairs": {"kind": "hat", "frame": "icon"},
+	"biome_linking_valid":      {"kind": "hat", "frame": "icon"},
+	"wilson_survived_flip":     {"kind": "hat", "frame": "operator"},
+	"spinor_read":              {"kind": "hat", "frame": "icon"},
+	"winding_changed_uncut":    {"kind": "hat", "frame": "icon"},
 }
 
 ## Gate dispatch name → the hat that fires it (single-qubit rotations are
@@ -255,6 +263,23 @@ static func summary(pred: Dictionary, qm = null) -> String:
 			return "🪢 braid the span ×%d" % int(pred.get("value", 1))
 		"bridge_fused_gte":
 			return "⚛ fuse %d bridge%s" % [int(pred.get("value", 1)), "s" if int(pred.get("value", 1)) != 1 else ""]
+		"biome_betti_gte":
+			return "🧭 %s needs %d loop%s in its coupling graph (β₁) — %s R adds icons; cycles make places invariants live" % [
+				str(pred.get("biome", "?")), int(pred.get("count", 1)),
+				"s" if int(pred.get("count", 1)) != 1 else "", verb_home("icon")]
+		"biome_loop_closed_upstairs":
+			return "close a lift upstairs in %s — walk the SAME loop again (%s: F tracks) until the loose ends meet (Ω ≡ 0 mod 4π)" % [
+				str(pred.get("biome", "?")), verb_home("icon")]
+		"biome_linking_valid":
+			return "🪢 two closed lifts in %s — %s: walk two qubits each to upstairs closure; only then is linking a legal question" % [
+				str(pred.get("biome", "?")), verb_home("icon")]
+		"wilson_survived_flip":
+			return "read the loops, then turn — %s 🧭: E reads the loop card, R flips a plot, the Wilson products hold" % verb_home("operator")
+		"spinor_read":
+			return "🪞 read a sign product of %+d — %s 🪞: R holds a reference home, E compares a ripe traveler against it" % [
+				int(pred.get("value", -1)), verb_home("icon")]
+		"winding_changed_uncut":
+			return "🪢 make the winding change without cutting — %s: re-walk the partner with its axis swung, bank it, watch the integer move" % verb_home("icon")
 		_:
 			return t
 

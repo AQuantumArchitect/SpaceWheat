@@ -385,6 +385,11 @@ const FLAG_PREDICATE_TYPES := [
 	"soul_purity_gte",
 	"bridge_built_gte", "bridge_braids_gte", "bridge_fused_gte",
 	"biome_frozen_loops_gte", "biome_loops_linked",
+	# What Turns (gauge/holonomy — docs/GAUGE_CAMPAIGN.md):
+	#   biome_betti_gte           — β₁ of the coupling graph: places invariants can live
+	#   biome_loop_closed_upstairs — a stitched Berry walk whose S³ lift genuinely closes
+	#   biome_linking_valid       — two closed lifts on distinct qubits: linking is a legal question
+	"biome_betti_gte", "biome_loop_closed_upstairs", "biome_linking_valid",
 	# Closed-native chaos↔stability vocabulary:
 	#   biome_spectral_gap_*  — H's own gap E₁−E₀ (composition-intrinsic, state-independent,
 	#                           conserved): large = one dominant attractor (STABLE identity),
@@ -450,6 +455,17 @@ func _evaluate_quest_state_predicates(predicates: Array) -> float:
 const COUNT_GATE_TYPES: Array[String] = [
 	"berry_consumed_count_gte", "signature_size_gte", "atom_count_gte", "atom_diversity_gte",
 ]
+
+
+## NAMED-biome resolver shared by the gauge/holonomy predicate arms: the biome
+## from pred.biome, or null unless it carries a live quantum_computer.
+func _pred_biome_qc(farm, pred: Dictionary):
+	if farm == null or farm.grid == null:
+		return null
+	var b = farm.grid.get_biome(str(pred.get("biome", "")))
+	if b == null or b.get("quantum_computer") == null:
+		return null
+	return b
 
 
 ## Public: the value the player must actually reach for `pred` to fire. soft_gate is only
@@ -646,6 +662,46 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 				return QuestMath.soft_gate(float(frozen.size()), 2.0, 0.75) * 0.5
 			var winding := float(absi(KnotRegister.max_mutual_winding(frozen)))
 			return QuestMath.soft_gate(winding, maxf(1.0, float(pred.get("value", 1))), 0.5)
+		"biome_betti_gte":
+			# Independent cycles in the NAMED biome's coupling graph — the count
+			# of places gauge-invariant information can live (β₁ = E − V + C).
+			var gauge_biome = _pred_biome_qc(farm, pred)
+			if gauge_biome == null:
+				return 0.0
+			var gf = gauge_biome.quantum_computer.get_gauge_field()
+			if gf == null:
+				return 0.0
+			return QuestMath.soft_gate(float(gf.betti_1()), maxf(1.0, float(pred.get("count", 1))), 0.75)
+		"biome_loop_closed_upstairs":
+			# A stitched Berry walk in the NAMED biome whose S³ lift genuinely
+			# closes (Ω ≡ 0 mod 4π — walk the loop again; the loose ends meet).
+			# Partial credit below closure: how near the best lift's ends are.
+			var up_biome = _pred_biome_qc(farm, pred)
+			if up_biome == null or up_biome.quantum_computer.berry_register == null:
+				return 0.0
+			var up_records: Array = up_biome.quantum_computer.berry_register.frozen_loops()
+			if up_records.is_empty():
+				return 0.0
+			if not KnotRegister.closed_lift_curves(up_records).is_empty():
+				return 1.0
+			var best_defect: float = PI
+			for rec in up_records:
+				best_defect = minf(best_defect, float(rec.get("fiber_defect", PI)))
+			return 0.5 * clampf(1.0 - best_defect / PI, 0.0, 1.0)
+		"biome_linking_valid":
+			# Two genuinely-closed lifts on DISTINCT qubits in the NAMED biome —
+			# the precondition under which gauss_linking stops refusing. Halfway
+			# credit per closed curve so the Arc tab shows the road.
+			var lk_biome = _pred_biome_qc(farm, pred)
+			if lk_biome == null or lk_biome.quantum_computer.berry_register == null:
+				return 0.0
+			var closed: Array = KnotRegister.closed_lift_curves(
+					lk_biome.quantum_computer.berry_register.frozen_loops())
+			if closed.size() >= 2:
+				var report: Dictionary = KnotRegister.linking_report(
+						closed[0].get("points"), closed[1].get("points"))
+				return 1.0 if report.get("valid", false) else 0.5
+			return 0.5 * clampf(float(closed.size()) / 2.0, 0.0, 1.0)
 		"biome_spectral_gap_gte":
 			# "stable / strong attractor" — score rises as H's gap E₁−E₀ climbs above value.
 			# Composition-intrinsic (set by which icons make up H), state-independent, conserved:
