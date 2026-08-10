@@ -48,6 +48,11 @@ var _index: Dictionary = {}
 var _frame: Dictionary = {}
 var _node_emoji: Dictionary = {}
 
+# Has anyone read the loop card since this field was built? Deliberately NOT
+# carried across rebuilds: a changed topology voids the reading — quests that
+# ask for read → flip → survived need the read on the CURRENT graph.
+var inspected: bool = false
+
 
 ## Build from a NeighborhoodGraph's coherent edges (webway/sink excluded — a
 ## gauge phase on an irreversible channel would be dishonest). `carry` is a
@@ -143,6 +148,14 @@ func nodes() -> Array:
 
 func has_edge(a, b) -> bool:
 	return _index.has(a) and _index[a].has(b)
+
+
+func neighbors(id) -> Array:
+	return _index[id].keys() if _index.has(id) else []
+
+
+func degree(id) -> int:
+	return _index[id].size() if _index.has(id) else 0
 
 
 func edge_phase(a, b) -> float:

@@ -1004,6 +1004,42 @@ func _execute_bridge_inspect() -> Dictionary:
 	return {"success": true, "bridge": bridge, "odds": odds}
 
 
+## Compass (Operator 🧭) + mirror (Icon 🪞) verbs — thin adapter over the
+## engine seam. All logic and quest-projection notification live on
+## QuantumInstrument.action_*; here we only dispatch and speak the result
+## (anti-gating law: a refused verb SAYS so).
+const _GAUGE_VERB_ICONS := {
+	"gauge_flip": "🧭", "wilson_inspect": "🔍", "gauge_fix": "🪮",
+	"gauge_scramble": "🎲", "mark_reference": "⌂", "unmark_reference": "🪞",
+	"interfere": "🪞",
+}
+
+
+func _execute_gauge_verb(action_name: String) -> Dictionary:
+	if _instrument == null:
+		return {"success": false, "error": "no_instrument"}
+	var result: Dictionary = {}
+	match action_name:
+		"gauge_flip":
+			result = _instrument.action_gauge_flip()
+		"wilson_inspect":
+			result = _instrument.action_wilson_inspect()
+		"gauge_fix":
+			result = _instrument.action_gauge_fix()
+		"gauge_scramble":
+			result = _instrument.action_gauge_scramble()
+		"mark_reference":
+			result = _instrument.action_mark_reference()
+		"unmark_reference":
+			result = _instrument.action_unmark_reference()
+		"interfere":
+			result = _instrument.action_interfere()
+	var msg := str(result.get("message", ""))
+	if msg != "":
+		_toast_note("%s %s" % [str(_GAUGE_VERB_ICONS.get(action_name, "🧭")), msg])
+	return result
+
+
 ## ============================================================================
 ## FRACTAL DEPTH — keyboard twin of the 3D portal satellites
 ## ============================================================================
@@ -2453,6 +2489,9 @@ func _execute_action(action_name: String) -> Dictionary:
 			result = _execute_bridge_fuse()
 		"bridge_inspect":
 			result = _execute_bridge_inspect()
+		"gauge_flip", "wilson_inspect", "gauge_fix", "gauge_scramble", \
+		"mark_reference", "unmark_reference", "interfere":
+			result = _execute_gauge_verb(action_name)
 		"inject_icon":
 			result = MacroActions.dispatch(_instrument, MacroActions.KIND_INJECT_ICON, {"biome_name": biome_name})
 		"discover_biome":

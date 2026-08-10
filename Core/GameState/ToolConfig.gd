@@ -131,9 +131,9 @@ const ARCHETYPE_FRAMES: Dictionary = {
 		"icon": "res://Assets/UI/Icon/Icon.svg",
 		"time_scale": "meta",
 		"description": "Icon injection — dual-emoji qubits from your faction signature",
-		"modes": ["inject"],
-		"mode_labels": ["Icon"],
-		"mode_emojis": ["📖"],
+		"modes": ["inject", "mirror"],
+		"mode_labels": ["Icon", "🪞"],
+		"mode_emojis": ["📖", "🪞"],
 		"pauses_sim": true,
 		"actions": {
 			"inject": {
@@ -149,6 +149,20 @@ const ARCHETYPE_FRAMES: Dictionary = {
 					  "chip_resolver": "icon.r_state"},
 				"F": {"action": "toggle_berry_track", "label": "Track", "emoji": "⌖", "icon": "",
 					  "hint": "Toggle Berry-phase tracking on the focused icon. Press again to stop. Also fires Play."}
+			},
+			# The mirror (docs/GAUGE_CAMPAIGN.md, "The Loop Came Home"): a
+			# phase is invisible alone, visible in company. Compares the
+			# Berry register's travel logs — non-destructive, ρ untouched.
+			"mirror": {
+				"Q": {"action": "unmark_reference", "label": "Release", "emoji": "−", "icon": "",
+					  "hint": "Release the reference. Tracking continues — stopping the walk would forfeit the loop."},
+				"E": {"action": "interfere", "label": "Compare", "emoji": "🪞", "icon": "",
+					  "hint": "Interfere the focused qubit's travel log with the reference's: relative phase Δγ and the sign product. A ripe loop reads −1 — home on the sphere, flipped upstairs."},
+				"R": {"action": "mark_reference", "label": "Stay Home", "emoji": "⌂", "icon": "",
+					  "hint": "Mark the focused qubit as the stay-home reference (starts Berry tracking if needed). Phase is only visible relationally."},
+				"F": {"action": "mirror_noop", "label": "—", "emoji": "·", "icon": "",
+					  "hint": "The mirror only reads. Tracking lives on the Icon mode's F.",
+					  "disabled": true}
 			}
 		}
 	},
@@ -306,9 +320,9 @@ const ARCHETYPE_FRAMES: Dictionary = {
 		"icon": "res://Assets/UI/Q-Bit/CNOT.svg",
 		"time_scale": "discrete",
 		"description": "Topology craft — build, inspect, and break entangling gates",
-		"modes": ["gate"],
-		"mode_labels": [")("],
-		"mode_emojis": [")("],
+		"modes": ["gate", "compass"],
+		"mode_labels": [")(", "🧭"],
+		"mode_emojis": [")(", "🧭"],
 		"pauses_sim": true,
 		"actions": {
 			"gate": {
@@ -322,6 +336,19 @@ const ARCHETYPE_FRAMES: Dictionary = {
 					  "icon": "res://Assets/UI/Q-Bit/CNOT.svg",
 					  "hint": "Build entangling gate",
 					  "submenu": "gate_selection"}
+			},
+			# The fence ledger (docs/GAUGE_CAMPAIGN.md). Every verb is FREE:
+			# changing local bookkeeping costs nothing because nothing
+			# physical changes — that is the lesson, not an oversight.
+			"compass": {
+				"Q": {"action": "gauge_fix", "label": "Comb", "emoji": "🪮", "icon": "",
+					  "hint": "Comb the ledger flat — gauge every tree fence to zero. What cannot be combed away collects on the cycles: the invariant residue."},
+				"E": {"action": "wilson_inspect", "label": "Loops", "emoji": "🔍", "icon": "",
+					  "hint": "Read the loop card — independent cycles (β₁ = E − V + C), each closed fence-product W(C), and this plot's fences"},
+				"R": {"action": "gauge_flip", "label": "Turn", "emoji": "🧭", "icon": "",
+					  "hint": "Turn this plot's sign convention around (χ = π). Every fence touching it flips; every closed loop survives. Free — bookkeeping isn't physics."},
+				"F": {"action": "gauge_scramble", "label": "Shake", "emoji": "🎲", "icon": "",
+					  "hint": "Scramble every plot's convention at random — the red-team move. Any number that survives has earned the word invariant."}
 			}
 		}
 	},

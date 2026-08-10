@@ -80,6 +80,14 @@ static func can_execute_action_name(
 			return _can_execute_gate(farm, targets)
 		"cycle_mode":
 			return true
+		"gauge_flip", "wilson_inspect", "mark_reference", "interfere":
+			# Plot-focused ledger/mirror verbs: need a real qubit under the
+			# focused slot (same law as the gate family — grey BEFORE the press).
+			return _can_execute_gate(farm, [current_selection] as Array[Vector2i])
+		"gauge_fix", "gauge_scramble":
+			# Biome-wide ledger verbs: any real qubit in reach will do.
+			var gauge_targets := selected_plots if not selected_plots.is_empty() else ([current_selection] as Array[Vector2i])
+			return _can_execute_gate(farm, gauge_targets)
 		_:
 			return true
 

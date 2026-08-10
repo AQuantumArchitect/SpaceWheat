@@ -13,6 +13,7 @@ extends RefCounted
 
 const GateActionHandler = preload("res://Core/Instrumentation/Handlers/GateActionHandler.gd")
 const LindbladHandler = preload("res://Core/Instrumentation/Handlers/LindbladHandler.gd")
+const GaugeActionHandler = preload("res://Core/Instrumentation/Handlers/GaugeActionHandler.gd")
 const GranularityController = preload("res://Core/Utilities/GranularityController.gd")
 const GameStateSerializerClass = preload("res://Core/GameState/GameStateSerializer.gd")
 const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
@@ -852,7 +853,96 @@ func action_incorporate(qubit_idx: int = -1) -> Dictionary:
 		"phase": ripe_phase,
 	}
 	action_performed.emit("incorporate_icon", result)
+	_notify_quest_projection("incorporate_icon", result)
 	return result
+
+
+## ============================================================================
+## GAUGE VERBS (Operator 🧭 compass + Icon 🪞 mirror — docs/GAUGE_CAMPAIGN.md)
+## All engine-side behind the one seam: every input source (keyboard, bot,
+## mouse chip) gets identical physics, identical action_performed emission,
+## and identical quest-projection visibility.
+## ============================================================================
+
+## The stay-home reference for the mirror. Session-only, like a pending
+## bridge anchor: conventions and comparisons are bookkeeping, not world state.
+var _mirror_reference: Dictionary = {}
+
+
+func _gauge_focus() -> Dictionary:
+	# Resolve the focused (biome, qid) the same way action_incorporate does.
+	var biome_name := current_biome
+	if biome_name == "":
+		var abm = _get_autoload("ActiveBiomeManager")
+		if abm and abm.has_method("get_active_biome"):
+			biome_name = abm.get_active_biome()
+	var biome = _resolve_biome(biome_name)
+	if biome == null:
+		return {"success": false, "error": "no_biome", "message": "No living biome in focus."}
+	return {"success": true, "biome": biome, "qid": int(current_plot_idx)}
+
+
+func _run_gauge_action(action_name: String, result: Dictionary) -> Dictionary:
+	action_performed.emit(action_name, result)
+	if result.get("success", false):
+		_notify_quest_projection(action_name, result)
+	return result
+
+
+func action_gauge_flip() -> Dictionary:
+	var f := _gauge_focus()
+	if not f.get("success", false):
+		return f
+	return _run_gauge_action("gauge_flip", GaugeActionHandler.gauge_flip(f["biome"], f["qid"]))
+
+
+func action_wilson_inspect() -> Dictionary:
+	var f := _gauge_focus()
+	if not f.get("success", false):
+		return f
+	return _run_gauge_action("wilson_inspect", GaugeActionHandler.wilson_inspect(f["biome"], f["qid"]))
+
+
+func action_gauge_fix() -> Dictionary:
+	var f := _gauge_focus()
+	if not f.get("success", false):
+		return f
+	return _run_gauge_action("gauge_fix", GaugeActionHandler.gauge_fix(f["biome"]))
+
+
+func action_gauge_scramble() -> Dictionary:
+	var f := _gauge_focus()
+	if not f.get("success", false):
+		return f
+	return _run_gauge_action("gauge_scramble", GaugeActionHandler.gauge_scramble(f["biome"], randi()))
+
+
+func action_mark_reference() -> Dictionary:
+	var f := _gauge_focus()
+	if not f.get("success", false):
+		return f
+	var result: Dictionary = GaugeActionHandler.mark_reference(f["biome"], f["qid"])
+	if result.get("success", false):
+		_mirror_reference = result.get("reference", {})
+	return _run_gauge_action("mark_reference", result)
+
+
+func action_unmark_reference() -> Dictionary:
+	if _mirror_reference.is_empty():
+		return {"success": false, "error": "no_reference", "message": "No reference held — nothing to release."}
+	var released := _mirror_reference
+	_mirror_reference = {}
+	return _run_gauge_action("unmark_reference",
+		{"success": true, "released": released,
+		 "message": "Reference released. Its walk continues — stopping the track would forfeit the loop."})
+
+
+func action_interfere() -> Dictionary:
+	var f := _gauge_focus()
+	if not f.get("success", false):
+		return f
+	return _run_gauge_action("interfere",
+		GaugeActionHandler.interfere(farm, f["biome"], f["qid"], _mirror_reference))
 
 
 ## Report emojis the player touched into the story substrate (trajectory + conversation-H
