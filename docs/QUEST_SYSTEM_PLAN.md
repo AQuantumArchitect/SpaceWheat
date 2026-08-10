@@ -15,7 +15,7 @@
 > - **Phase 3 shipped.** Act-0 tutorial chain (7 steps, one mechanic each, soft-gated),
 >   including the entanglement step; the 5-act story-flag arc rides the same predicates.
 > - **The "gem" is wired** (stage 2 of the pipeline diagram): every offer carries the
->   faction's live resonance (`docs/glossary/resonance.md`); the most resonant faction
+>   faction's live resonance (`Core/Documentation/glossary/resonance.md`); the most resonant faction
 >   voices the companion quest.
 > - **Voice went further than planned:** ten archetypes with 3×3 phrase banks
 >   (content-hash selection, no RNG), identity-derived archetypes for all ~99 factions

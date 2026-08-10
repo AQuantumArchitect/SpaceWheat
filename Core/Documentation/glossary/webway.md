@@ -33,7 +33,7 @@ webway trends `S → 0` (it "dies" — see `BiomeBase.apply_atomic_drain`).
 ### Sealed in v0
 
 **The webway is authored in every biome and carries nothing in the shipped
-game.** This is the enclave's founding act (`docs/glossary/enclave.md`):
+game.** This is the enclave's founding act (`Core/Documentation/glossary/enclave.md`):
 `LindbladBuilder` gates on `BalanceConfig.dissipative_enabled()` and builds
 **zero** operators in closed mode, so the channels exist as canonical *data* with
 no runtime physics. Nothing leaks, because the drains are dry.
@@ -49,7 +49,7 @@ two were indistinguishable in population space. The role-separation law drawn
 from that failure — H owns everything conservative and phase-carrying; the webway
 owns only what is irreversible — is the constitution Act 2 reopens the channels
 under. Until then, exactly two things in the game do what the webway does:
-**measurement** (the player's collapses — `docs/glossary/measurement.md`) and
+**measurement** (the player's collapses — `Core/Documentation/glossary/measurement.md`) and
 **the player's own soul** (the τ = 300 s alignment decay — the one open system
 inside the walls).
 

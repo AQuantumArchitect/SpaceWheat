@@ -29,7 +29,7 @@ averages. The breakdown is the computation; it cannot drift from the score.
 ### The enclave's politics, for free
 
 Inside the enclave, purity ≡ 1 and entropy ≡ 0 for every biome — the walls hold
-(`docs/glossary/enclave.md`). Resonance therefore carries a piece of built-in
+(`Core/Documentation/glossary/enclave.md`). Resonance therefore carries a piece of built-in
 politics that nobody had to author: **factions that prefer order and purity are
 at home everywhere inside the walls; factions that crave entropy and mixture
 are restless in every biome they touch, and will stay restless until Act 2

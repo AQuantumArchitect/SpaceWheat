@@ -1,6 +1,6 @@
 """d1-04 wave-2: the standings `sig` column is SIGNATURE progress, not cloud.
 
-Locked vocabulary (docs/glossary/signature.md): signature = a faction's set of
+Locked vocabulary (Core/Documentation/glossary/signature.md): signature = a faction's set of
 ICONS (2-emoji axes); cloud = its set of atoms (emojis). The wave-1 glossary
 sentence promised signature-incorporation while the grid counted cloud atoms
 against get_known_emojis() — false for the 7/99 factions whose icon poles are
@@ -26,7 +26,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 FACTIONS_JSON = PROJECT_ROOT / "Core" / "Factions" / "data" / "factions.json"
 CONTROLS_OVERLAY = PROJECT_ROOT / "UI" / "Overlays" / "ControlsOverlay.gd"
 QUANTUM_INSTRUMENT = PROJECT_ROOT / "Core" / "Instrumentation" / "QuantumInstrument.gd"
-STANDING_MD = PROJECT_ROOT / "docs" / "glossary" / "standing.md"
+STANDING_MD = PROJECT_ROOT / "Core" / "Documentation" / "glossary" / "standing.md"
 
 
 def _norm(emoji: str) -> str:

@@ -43,6 +43,7 @@ SMOKE_TESTS=(
     ending_overlay_smoke
     escape_menu_run_smoke
     quest_board_paging_smoke
+    test_glossary_registry
     objective_blackout_smoke
     story_atlas_smoke
     predicate_target_smoke

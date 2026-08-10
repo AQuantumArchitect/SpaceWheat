@@ -1,11 +1,11 @@
 class_name GlossaryRegistry
 extends RefCounted
 
-## GlossaryRegistry — loads docs/glossary/*.md files and exposes a stable
+## GlossaryRegistry — loads Core/Documentation/glossary/*.md files and exposes a stable
 ## read API for use by the in-game Guide tab and any tooling that needs
 ## canonical term definitions.
 ##
-## The canonical glossary lives at res://docs/glossary/. One file per term,
+## The canonical glossary lives at res://Core/Documentation/glossary/. One file per term,
 ## each with YAML frontmatter. This registry is the single in-memory index.
 ##
 ## Usage:
@@ -14,7 +14,7 @@ extends RefCounted
 ##   reg.get_term("cloud")  # → {short_def, related, since, status, body}
 
 
-const GLOSSARY_DIR := "res://docs/glossary"
+const GLOSSARY_DIR := "res://Core/Documentation/glossary"
 
 ## Required frontmatter fields (files lacking these are skipped with push_error).
 const REQUIRED := ["term", "short_def"]

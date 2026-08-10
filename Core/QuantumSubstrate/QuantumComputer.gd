@@ -8,10 +8,10 @@ extends Resource
 ## Entanglement tracked via entanglement_graph metadata (adjacency lists).
 ##
 ## In the shipped closed system this core IS the story's "enclave"
-## (docs/glossary/enclave.md): evolution is exact-unitary — ρ → UρU†, trace and
+## (Core/Documentation/glossary/enclave.md): evolution is exact-unitary — ρ → UρU†, trace and
 ## purity conserved to machine precision — the authored Lindblad webway is sealed
-## (docs/glossary/webway.md; LindbladBuilder builds zero operators), and projective
-## measurement is the single irreversible operation (docs/glossary/measurement.md —
+## (Core/Documentation/glossary/webway.md; LindbladBuilder builds zero operators), and projective
+## measurement is the single irreversible operation (Core/Documentation/glossary/measurement.md —
 ## measurement IS the economy).
 
 # Sparse-matrix optimization is now handled by the native C++ backend.

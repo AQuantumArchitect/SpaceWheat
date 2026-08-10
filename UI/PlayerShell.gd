@@ -374,6 +374,11 @@ const _GAMEPLAY_ACTION_KEYS: Array = [
 	KEY_T, KEY_Y, KEY_U, KEY_I, KEY_O, KEY_P,
 	KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9, KEY_0,
 	KEY_1, KEY_2, KEY_3,
+	# ] / Shift+] = fractal descend / ascend. Listed here because descending
+	# SPENDS resources: without the gate an overlay that uses `]` for its own
+	# navigation (or a player following a stale "[ / ] cycle" hint) would charge
+	# a fractal dive from behind an open menu.
+	KEY_BRACKETRIGHT,
 ]
 
 

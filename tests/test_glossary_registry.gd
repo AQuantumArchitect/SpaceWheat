@@ -1,6 +1,6 @@
 extends SceneTree
 
-## Integration test for GlossaryRegistry — loads the real docs/glossary/*.md
+## Integration test for GlossaryRegistry — loads the real Core/Documentation/glossary/*.md
 ## files and asserts structural invariants.
 
 
@@ -36,10 +36,33 @@ func _check(label: String, cond: bool) -> void:
 		fail_count += 1
 
 
+## The term count is DERIVED from the shipped .md files, never frozen as a
+## literal. It was pinned at 9 while the glossary grew to 29 — and because this
+## test was not in scripts/run_tests.sh, it sat red and unseen (the same rot that
+## killed facade_parity/principal_mode for months). Count the directory instead.
 func test_count(reg: GlossaryRegistry, count: int) -> void:
 	print("test_count")
-	_check("9 terms loaded", count == 9)
-	_check("size() == 9",    reg.size() == 9)
+	var expected := _term_file_count()
+	_check("every .md term file loaded (%d)" % expected, count == expected)
+	_check("size() agrees with the loader", reg.size() == expected)
+	_check("glossary is not empty", expected > 0)
+
+
+## Number of *.md files in GLOSSARY_DIR excluding INDEX.md — the same set
+## GlossaryRegistry.load_all() walks.
+func _term_file_count() -> int:
+	var n := 0
+	var dir := DirAccess.open(GlossaryRegistry.GLOSSARY_DIR)
+	if dir == null:
+		return 0
+	dir.list_dir_begin()
+	var fname := dir.get_next()
+	while fname != "":
+		if not dir.current_is_dir() and fname.ends_with(".md") and fname != "INDEX.md":
+			n += 1
+		fname = dir.get_next()
+	dir.list_dir_end()
+	return n
 
 
 func test_term_lookup(reg: GlossaryRegistry) -> void:
@@ -72,7 +95,7 @@ func test_related_references_resolve(reg: GlossaryRegistry) -> void:
 func test_all_terms_sorted(reg: GlossaryRegistry) -> void:
 	print("test_all_terms_sorted")
 	var sorted: Array = reg.all_terms_sorted()
-	_check("sorted length == 9", sorted.size() == 9)
+	_check("sorted length matches the loaded set", sorted.size() == reg.size())
 	for i in range(1, sorted.size()):
 		_check("'%s' >= '%s'" % [sorted[i], sorted[i - 1]], sorted[i] >= sorted[i - 1])
 

@@ -15,7 +15,7 @@ extends GraphEdit
 ## a live QuantumComputer via set_live_source(); this view never touches canonical data.
 ## Shared by the standalone 🕸 NeighborhoodGraphOverlay and the M · Graph drill-down.
 ##
-## Three edge species, one per slot row (see docs/glossary/):
+## Three edge species, one per slot row (see Core/Documentation/glossary/):
 ##   row 0 · coherent (H)  — authored Hamiltonian couplings, purple
 ##   row 1 · webway   (L)  — authored Lindblad flow, orange. SEALED in the closed
 ##                           game: drawn dark, carries nothing (enclave.md) — the
@@ -62,7 +62,7 @@ func populate(graph) -> void:
 
 	# The webway (Lindblad flow + decay sink) is authored in every biome but SEALED
 	# in the closed game: no dissipators are built, nothing decays (see
-	# docs/glossary/enclave.md + webway.md). We draw it anyway — dark, dormant —
+	# Core/Documentation/glossary/enclave.md + webway.md). We draw it anyway — dark, dormant —
 	# so the player can see the channels the enclave is holding shut. Wet-country
 	# biomes (What Fades regime seam) draw theirs LIVE.
 	var closed: bool = _closed_here()
@@ -128,7 +128,7 @@ func populate(graph) -> void:
 			lbl.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7, 0.6))
 		sg.add_child(lbl)
 		sg.tooltip_text = ("The webway's drain. Sealed here — this biome runs closed: no dissipators are built, " +
-				"nothing leaks (docs/glossary/enclave.md). The wet country runs the same channels live.") if closed else "Decay outflow — population leaving the cluster."
+				"nothing leaks (Core/Documentation/glossary/enclave.md). The wet country runs the same channels live.") if closed else "Decay outflow — population leaving the cluster."
 		sg.set_slot(0, true, 1, webway_color, false, 0, Color.WHITE)
 		add_child(sg)
 

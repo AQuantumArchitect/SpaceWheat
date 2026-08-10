@@ -83,7 +83,7 @@ spectrum has the shape the ending requires.
 
 ## 3. Locked vocabulary
 
-These terms are **locked** — use them exactly. The authority is `docs/glossary/`.
+These terms are **locked** — use them exactly. The authority is `Core/Documentation/glossary/`.
 
 | Term | Meaning (glossary) |
 |------|--------------------|
@@ -95,7 +95,7 @@ These terms are **locked** — use them exactly. The authority is `docs/glossary
 | **family** | All atoms reachable by (open-system) Lindblad transfers — the weak-coupling graph. |
 | **neighborhood** | A configured `(biome, induced signature)` cluster. **Factions own neighborhoods.** |
 | **faction** | A named agent = a signature (icons) + a cloud (atoms) + alignment couplings + standing. The player is one: **The Demos** (`👥🌾`). |
-| **webway** | See `docs/glossary/webway.md` — inter-node coherent edge concept. |
+| **webway** | See `Core/Documentation/glossary/webway.md` — inter-node coherent edge concept. |
 
 Traps a fresh reviewer will hit:
 - *signature ≠ atoms.* A signature is icons; a cloud is atoms. Do not conflate.
@@ -288,7 +288,7 @@ Verbs live in `Core/Actions/ProbeActions.gd`; rewards route through
 **The progression verb (Icon hat):** the only way your *signature* grows.
 - **F = Track** a qubit: under the live `H` it accumulates Berry phase (solid
   angle) until it **ripens** (phase → 2π). Berry phase is the game's XP;
-  `docs/glossary/berry.md`.
+  `Core/Documentation/glossary/berry.md`.
 - **R = Incorporate** a ripe qubit: adds its icon to your signature via
   `farm.discover_icon(north, south)` — *not* a biome injection. Signature grows →
   `signature_growth` predicate rises → story flags fire. (On an *empty* plot, Icon-R
@@ -452,7 +452,7 @@ sprawl that was pruned alongside it — see the same commit).
   (The December-2025 `reference/` and `architecture/` docs were archived
   2026-07-11 — see `docs/DOC_ROT_2026-07-11.md`; they predate the
   closed-system migration and the hat/QERF grammar.)
-- **Vocabulary:** `docs/glossary/`
+- **Vocabulary:** `Core/Documentation/glossary/`
 - **Player-facing:** `docs/HOW_TO_PLAY.md`
 - **Build/ops:** `BUILDING.md`, `docs/EXPORT_HEALTH.md`,
   `docs/release/DESKTOP_RELEASE_WORKFLOW.md`, `docs/performance/`

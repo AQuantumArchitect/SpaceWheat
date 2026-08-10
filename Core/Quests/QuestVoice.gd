@@ -179,7 +179,7 @@ const TYPE_VERB := {
 
 
 ## One line per voice archetype about the SEALED webway — the dry Lindblad
-## channels drawn dark in the graph views (docs/glossary/webway.md). Words only,
+## channels drawn dark in the graph views (Core/Documentation/glossary/webway.md). Words only,
 ## no mechanics: surfaced where the player stands at the channels (M · Graph
 ## drill-down). Each archetype tells you what it *wants* from Act 2 without a
 ## single mechanic existing yet.
@@ -222,7 +222,7 @@ static func trade_whisper(faction_name: String) -> String:
 ## One line per voice archetype for the moment a Berry loop is INCORPORATED —
 ## the qubit walked a closed loop on its sphere, the signed solid angle ripened
 ## past 2π, and the player wove the axis into their signature
-## (docs/glossary/berry.md). The harvest moment was mute; now it answers.
+## (Core/Documentation/glossary/berry.md). The harvest moment was mute; now it answers.
 const BERRY_WHISPER := {
 	"imperial":  "Another word annexed. The Throne's lexicon grows through you.",
 	"guild":     "A loop closed clean is a wheel trued. The word is yours.",
@@ -239,7 +239,7 @@ const BERRY_WHISPER := {
 
 ## One line per voice archetype for an IMPROBABLE measurement — the Born sample
 ## landed on a thin branch (small p, big surprisal payout). The scar that taught
-## you most deserves a witness (docs/glossary/measurement.md).
+## you most deserves a witness (Core/Documentation/glossary/measurement.md).
 const MEASURE_WHISPER := {
 	"imperial":  "An unlikely writ, notarized by collapse. The Throne pays best for what it did not expect.",
 	"guild":     "Long odds, clean read. That's craft — or luck wearing craft's apron.",

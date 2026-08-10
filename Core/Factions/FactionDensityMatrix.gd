@@ -184,7 +184,7 @@ func get_principal_axis_projection() -> Array:
 
 ## ========================================
 ## Identity vocabulary — who the player is becoming
-## (the soul's readback surface; see docs/glossary/soul.md)
+## (the soul's readback surface; see Core/Documentation/glossary/soul.md)
 ## ========================================
 
 # Purity bands for the identity ρ. The mixed floor for a ~90-faction support

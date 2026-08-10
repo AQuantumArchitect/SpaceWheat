@@ -279,6 +279,21 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 
+	# Fractal depth: ] descends into the focused register's icon world,
+	# Shift+] ascends one level. Claimed from KEYBOARD_GRAMMAR.md's reserved
+	# set (the doc's own rule: new features take a reserved key rather than
+	# overload a bound one). Before this the whole fractal mechanic — which
+	# has a real cost, a gate and save state — was reachable ONLY by clicking
+	# a 3D portal satellite, so a keyboard-only player could never use it
+	# (docs/CAMPAIGN_STATE_2026-08-04.md §5.4).
+	if event.keycode == KEY_BRACKETRIGHT:
+		if event.is_shift_pressed():
+			_ascend_fractal_level()
+		else:
+			_descend_into_focused_register()
+		get_viewport().set_input_as_handled()
+		return
+
 	# Apostrophe: bulk select / clear toggle on the active biome's plots.
 	# Empty selection → check every register; non-empty → clear all checks.
 	if key == "'":
@@ -989,6 +1004,43 @@ func _execute_bridge_inspect() -> Dictionary:
 	return {"success": true, "bridge": bridge, "odds": odds}
 
 
+## ============================================================================
+## FRACTAL DEPTH — keyboard twin of the 3D portal satellites
+## ============================================================================
+
+## ] — descend into the focused register's icon world. Routes through the SAME
+## instrument action the 3D descend portal taps (QuantumField3D._try_pick), so
+## the cost, the incorporation gate and the depth cap stay one authority.
+func _descend_into_focused_register() -> void:
+	if _instrument == null or _active_biome_mgr == null:
+		RefusalVoice.note("no live instrument — nothing to descend into")
+		return
+	var bname: String = str(_active_biome_mgr.get_active_biome())
+	var qid: int = int(_instrument.current_plot_idx)
+	if qid < 0:
+		RefusalVoice.note("pick a register first (G-;) — ] descends into the one you're holding")
+		return
+	var result: Dictionary = _instrument.action_enter_icon(bname, qid)
+	if bool(result.get("success", false)):
+		_toast_note("🌀 descended into %s" % str(result.get("biome_name", "the icon")))
+	else:
+		# Server-side refusals (depth cap, unaffordable, ungated) must speak —
+		# the 3D path already toasts them; the keyboard path must not be quieter.
+		RefusalVoice.note(str(result.get("message", "the depths end here — this world descends no further")))
+
+
+## Shift+] — ascend one fractal level (free; only descent charges).
+func _ascend_fractal_level() -> void:
+	if _instrument == null:
+		RefusalVoice.note("no live instrument — nothing to ascend from")
+		return
+	var result: Dictionary = _instrument.action_ascend_fractal()
+	if bool(result.get("success", false)):
+		_toast_note("🌀 surfaced to %s" % str(result.get("biome_name", "the world above")))
+	else:
+		RefusalVoice.note(str(result.get("message", "already at the surface — nothing above this world")))
+
+
 ## Plain mechanics note through the PlayerShell hint channel (no voice line).
 func _toast_note(head: String) -> void:
 	var ps: Node = _resolve_player_shell()
@@ -1065,7 +1117,7 @@ func _toast_berry_whisper(biome, north: String, south: String, phase: float) -> 
 ## The soul crossed a purity band (Farm.identity_band_changed): the identity ρ
 ## resolved upward or blurred downward past 0.2 / 0.5 / 0.8. Speaker: whoever
 ## holds the most of the player — the faction with the largest diagonal weight
-## marks the change in its own voice (docs/glossary/soul.md).
+## marks the change in its own voice (Core/Documentation/glossary/soul.md).
 func _on_identity_band_changed(prev_band: String, new_band: String, purity: float, rising: bool) -> void:
 	var speaker := ""
 	if farm != null and ("faction_density" in farm) and farm.faction_density != null \
@@ -1080,7 +1132,7 @@ func _on_identity_band_changed(prev_band: String, new_band: String, purity: floa
 
 
 ## An IMPROBABLE Born outcome (p below this) is the scar that taught you most —
-## the surprisal payout law made audible (docs/glossary/measurement.md).
+## the surprisal payout law made audible (Core/Documentation/glossary/measurement.md).
 const MEASURE_WHISPER_MAX_P := 0.10
 
 func _maybe_toast_measure_whisper(result: Dictionary) -> void:

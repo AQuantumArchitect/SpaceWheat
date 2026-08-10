@@ -151,7 +151,7 @@ The narrative layer is computed from the quantum state, not bolted on:
   its ends' local noise, written by braiding (an honestly Clifford alphabet), read once
   by fusion. Anchor an end on the island and the Bath can never touch it: home matters
   mechanically, forever.
-- **A canonical glossary** (`docs/glossary/`) defines the world's physics vocabulary —
+- **A canonical glossary** (`Core/Documentation/glossary/`) defines the world's physics vocabulary —
   enclave, measurement, berry, webway, resonance, invariant, knot, bridge — and is
   projected live into the in-game Guide.
 

@@ -746,7 +746,7 @@ func _build_eigen_body() -> void:
 	# the alignment density matrix: 1 = a committed identity, low = smeared across
 	# many selves. Learning moves the committed mass (each icon pumps factions);
 	# coherences fade on their own (τ=300s) — the one open system in the enclave
-	# (docs/glossary/soul.md).
+	# (Core/Documentation/glossary/soul.md).
 	if farm != null and ("faction_density" in farm) and farm.faction_density != null \
 			and farm.faction_density.has_method("get_purity"):
 		var soul_purity: float = float(farm.faction_density.get_purity())
@@ -1240,11 +1240,15 @@ func _build_atlas_node_detail_panel(node_data: Dictionary) -> Control:
 	panel.add_child(vbox)
 
 	var kind: String = str(node_data.get("kind", ""))
-	var _node_name: String = str(node_data.get("name", ""))
+	# NOT `name` — inside a Node subclass that resolves to Node.name, so the card
+	# titled itself with the engine's internal id ("Faction: @Control@2"). The
+	# selected node's real name was already read here and then dropped on the
+	# floor behind a leading underscore.
+	var node_name: String = str(node_data.get("name", ""))
 	var score: float = float(node_data.get("score", 0.0))
 
 	var title := Label.new()
-	title.text = "%s: %s" % [kind.capitalize(), name]
+	title.text = "%s: %s" % [kind.capitalize(), node_name]
 	title.add_theme_font_size_override("font_size", 14)
 	title.add_theme_color_override("font_color", COLOR_HILITE)
 	vbox.add_child(title)
@@ -1608,12 +1612,25 @@ func _knot_line(biome_name: String) -> String:
 		return ""
 	if loops.size() == 1:
 		var omega := float(loops[0].get("omega", 0.0))
-		return "🪢 the record: 1 closed loop banked (Ω = %.2f) — close another and compare their turns." % omega
+		return "🪢 the record: 1 closed loop banked (Ω = %.2f)%s — close another and compare their turns." % [omega, _lift_gloss(loops[0])]
 	var w: int = KnotRegister.max_mutual_winding(loops)
+	var latest_gloss := _lift_gloss(loops[loops.size() - 1])
 	if absi(w) >= 1:
-		return ("🪢 the record: %d closed loops — mutual winding %+d: LINKED. Nothing links on the sphere; " +
-			"the link lives one floor up, where the phase turns. (Any two answers of a qubit are linked circles — Hopf.)") % [loops.size(), w]
-	return "🪢 the record: %d closed loops — mutual winding 0: the dances pass without turning about each other." % loops.size()
+		return ("🪢 the record: %d closed loops — mutual winding %+d: WOUND%s. Nothing links on the sphere; " +
+			"the link lives one floor up, where the phase turns. (Any two answers of a qubit are linked circles — Hopf.)") % [loops.size(), w, latest_gloss]
+	return "🪢 the record: %d closed loops — mutual winding 0: the dances pass without turning about each other.%s" % [loops.size(), latest_gloss]
+
+
+## The fiber ledger for one frozen loop record: closed on the sphere is not
+## closed upstairs. "" for legacy records without the holonomy fields.
+func _lift_gloss(rec: Dictionary) -> String:
+	if not rec.has("fiber_defect"):
+		return ""
+	if bool(rec.get("closed_upstairs", false)):
+		return "; its lift closes upstairs too — a true circle one floor up"
+	if bool(rec.get("spinor_flip", false)):
+		return "; home on the sphere, SIGN-FLIPPED upstairs — the lift's ends sit at the antipode. Walk it again to close the floor above"
+	return "; upstairs its lift is still open by %.2f rad" % float(rec.get("fiber_defect", 0.0))
 
 
 ## Live QuantumComputer for a biome's population bars (null if not instantiated).

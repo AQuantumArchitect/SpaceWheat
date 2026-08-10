@@ -110,6 +110,8 @@ const GLOBAL_BINDINGS := [
 	{"key": "Shift+-", "label": "Resolution Down", "description": "Use finer substeps with a 10x smaller dt"},
 	{"key": "Shift+=", "label": "Resolution Up", "description": "Use coarser substeps with a 10x larger dt"},
 	{"key": "Shift+Q", "label": "Mass Harvest", "description": "Harvest (extract) all bound terminals in the checked set"},
+	{"key": "]", "label": "Descend", "description": "Enter the focused register's icon world (costs; needs the incorporation gate)"},
+	{"key": "Shift+]", "label": "Ascend", "description": "Surface one fractal level back toward the world above (free)"},
 	{"key": "F12", "label": "Postcard", "description": "Capture the view with the physics watermark + sidecar certificate (user://postcards/)"},
 ]
 

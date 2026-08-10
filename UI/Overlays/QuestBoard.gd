@@ -479,7 +479,7 @@ func _market_inspect_text() -> String:
 					str(worst.channel), str(worst.want), str(worst.have), float(worst.fit)])
 	# Player↔faction kinship: how they sit with who YOU are becoming — geometric
 	# mean of per-axis agreement between your identity ρ's principal axes and
-	# their live alignment (FactionDensityMatrix.kinship; docs/glossary/soul.md).
+	# their live alignment (FactionDensityMatrix.kinship; Core/Documentation/glossary/soul.md).
 	var kin_farm = InstrumentLocator.resolve_active_farm(self)
 	if kin_farm != null and ("faction_density" in kin_farm) and kin_farm.faction_density != null \
 			and kin_farm.faction_density.has_method("kinship"):

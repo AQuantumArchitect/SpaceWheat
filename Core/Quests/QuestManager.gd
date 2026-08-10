@@ -593,7 +593,7 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 		"soul_purity_gte":
 			# The player's OWN concept state: purity of the faction-alignment ρ — the
 			# enclave's one open system (τ=300s decay pulls it toward the mixed state
-			# unless choices keep renewing it; see docs/glossary/enclave.md). Starts
+			# unless choices keep renewing it; see Core/Documentation/glossary/enclave.md). Starts
 			# maximally mixed (~1/n), so this can only fire through deliberate living.
 			# Width 0.1: identity resolves gradually — the Arc tab should feel it coming.
 			if not ("faction_density" in farm) or farm.faction_density == null \

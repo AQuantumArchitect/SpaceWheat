@@ -85,7 +85,7 @@ const LANE_COLORS := {
 
 # Guide tab: 7 sections, GHJKL;' selects which. The Verbs section absorbs
 # what used to live on Z's I tab — the 7-hat × QERF reference.
-# Glossary (') is the final section; projects docs/glossary/*.md live.
+# Glossary (') is the final section; projects Core/Documentation/glossary/*.md live.
 const GUIDE_ITEMS := [
 	{"id": "loop",     "title": "Core Loop"},
 	{"id": "tools",    "title": "Four Tools"},

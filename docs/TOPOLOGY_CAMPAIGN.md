@@ -9,7 +9,7 @@
 > `chain_flipped`, `braid_order`, `braid_word`) across acts 1–4; `gate_order` +
 > `dynamics_at_most` / `dynamics_at_least` predicates; the eigenstate compass (🧭)
 > on the Graph frame's status card + E-inspect; population motion in the dynamics
-> tracker; `docs/glossary/invariant.md`. One plan-to-reality correction below:
+> tracker; `Core/Documentation/glossary/invariant.md`. One plan-to-reality correction below:
 > Chapter 3 needed **no new biome** — Lanternfall already existed.
 
 ## The thesis
@@ -191,7 +191,7 @@ Three tiers stay sealed with reasons, recorded in `docs/inspiration/OPEN_SYSTEM_
 | **A — data** | All four chapter arcs: 7 story flags with beats + arc quests, acts 1–4 | `Core/Quests/data/story_flags.json` |
 | **B — small code** | `gate_order` (ordered-subsequence braid predicate) + `dynamics_at_most` / `dynamics_at_least`; eigenstate compass 🧭 (status card + E-inspect, with the conservation-law line); population motion in dynamics snapshots (in the enclave purity/entropy are frozen — populations carry the breathing); Druid-frame Hadamard recorded into the gate history; predicate summaries + gate glyphs on the quest board | `QuestStateProjectionService`, `MapMetaOverlay`, `BiomeBase` + `BiomeDynamicsTracker`, `QuantumInstrument`, `QuestBoard` |
 | **C — authored content** | *Cancelled as planned, replaced by rehabilitation:* Lanternfall + Lamplighters + alternating icon couplings already existed. Chapter 3 stages on them; a Lamplighters webway whisper override was the only new authored voice | `story_flags.json`, `QuestVoice` |
-| **D — weave** | `docs/glossary/invariant.md` (the campaign's one new canon word), INDEX + in-game Guide featured strip, this status pass | `docs/glossary/`, `ControlsOverlay` |
+| **D — weave** | `Core/Documentation/glossary/invariant.md` (the campaign's one new canon word), INDEX + in-game Guide featured strip, this status pass | `Core/Documentation/glossary/`, `ControlsOverlay` |
 
 ## How it sits in the game
 

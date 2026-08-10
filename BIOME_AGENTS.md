@@ -24,7 +24,7 @@ Scope:
 > guide (webway / decay / pumps) is dormant data at runtime until the open
 > expansion. Author it anyway: Act 2 inherits everything, and headless tooling
 > can exercise it via `BalanceConfig.set_physics_override({"dissipative_dynamics": true})`.
-> See `docs/CLOSED_SYSTEM.md` and `docs/glossary/webway.md`.
+> See `docs/CLOSED_SYSTEM.md` and `Core/Documentation/glossary/webway.md`.
 
 ---
 
@@ -138,7 +138,7 @@ Lindblad operator types (on each emoji). Two ecological readings of these edges:
 **sink-decay** (target/source is the sink `🗑` — population leaves the biome,
 lowering entropy) vs the **webway** (non-sink inter-atom edges — population
 recirculates across the atom cloud, holding entropy up). See
-`docs/glossary/webway.md`.
+`Core/Documentation/glossary/webway.md`.
 - `decay: {rate, target}` — `√rate · |target⟩⟨emoji|`. Target `🗑` = sink-decay;
   target = another in-cloud atom = a webway edge.
 - `lindblad_outgoing: {target: rate}` — same, multiple targets (webway when non-sink).

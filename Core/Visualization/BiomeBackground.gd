@@ -9,6 +9,14 @@ extends Control
 ## wiring are unchanged from the photo era. Set LEGACY_PHOTO_MODE true to get
 ## the old Assets/Biomes/*.png path back for one release.
 ##
+## SHIPPING NOTE: because LEGACY_PHOTO_MODE is a false const, _apply_zone never
+## builds the TextureRect branch, so _get_biome_texture is unreachable and NONE
+## of Assets/Biomes/**.png loads at runtime — biomes.json's `image_path` fields
+## are dead data on this path too. Those imports were 337.8 MB of the shipped
+## .pck, so all three export presets now carry `Assets/Biomes/**` in their
+## exclude_filter. Flipping LEGACY_PHOTO_MODE back on means REMOVING that
+## exclusion first, or the legacy path ships with no textures to load.
+##
 ## Live tint: this node polls the ACTIVE biome's ambient scalars (spectral gap,
 ## Var(H)) at 2 Hz via BiomeBase.get_ambient_scalars() — the lazy, dirty-flagged
 ## accessor — and pushes them to the current panel. Rigid biomes read cold and

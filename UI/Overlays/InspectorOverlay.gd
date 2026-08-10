@@ -230,7 +230,7 @@ func _refresh_label() -> void:
 		var idx := frame_ids.find(frame_id)
 		var total := frame_ids.size()
 		var page_text := "%d/%d" % [idx + 1 if idx >= 0 else 1, total if total > 0 else 1]
-		var subtitle := "TYUIOP jump · [ / ] cycle"
+		var subtitle := "TYUIOP jump · ESC close"
 		if frame_id == FRAME_NETWORK and _network_selected >= 0 and _network_selected < _network_edges.size():
 			var edge: Dictionary = _network_edges[_network_selected]
 			var edge_b := str(edge.get("b", ""))
@@ -241,7 +241,7 @@ func _refresh_label() -> void:
 				edge_b,
 			]
 		elif frame_id == FRAME_MAP:
-			subtitle = "Bind biomes to TYUIOP · TYUIOP slot · GHJKL; biome · R bind · Q clear · [/] leave"
+			subtitle = "Bind biomes to TYUIOP · TYUIOP slot · GHJKL; biome · R bind · Q clear · ESC leave"
 		_frame_label.text = "[ %s ]  page %s  ·  %s" % [
 			FRAME_LABELS_LOCAL.get(frame_id, frame_id),
 			page_text,
@@ -254,7 +254,7 @@ func _refresh_label() -> void:
 			FRAME_BRIDGES:
 				_hint_label.text = "G bridges · H gates · J links  — three views of inter-qubit & inter-biome structure."
 			FRAME_MAP:
-				_hint_label.text = "Map binds biomes to TYUIOP keys — press the slot key (T..P), pick a biome (G..;), R binds, Q clears. [/] leaves Map."
+				_hint_label.text = "Map binds biomes to TYUIOP keys — press the slot key (T..P), pick a biome (G..;), R binds, Q clears. ESC leaves Map (or click another tab)."
 			FRAME_LIVE:
 				_hint_label.text = "Ranked by recent chatter activity. E opens the biome inspector."
 			FRAME_WHOLE:
@@ -296,8 +296,9 @@ func _rebuild_body() -> void:
 ##   W / S    page biomes (when more than 6 unlocked)
 ##   R        bind cursor biome → target slot (commit)
 ##   Q        clear target slot
-##   [ / ]    leave Map (cycle to a sibling frame)
-##   ESC      close N entirely
+##   ESC      close N entirely (the only key exit — Map deliberately eats
+##            TYUIOP for slot picking, so the frame row is keyboard-dead here;
+##            click a tab to switch frames instead)
 func _build_map_view() -> void:
 	_ensure_slot_signal_wired()
 	var biomes := _get_all_biomes()
@@ -324,7 +325,7 @@ func _build_map_view() -> void:
 	_body_box.add_child(hdr)
 
 	var sub := Label.new()
-	sub.text = "TYUIOP pick slot  ·  GHJKL; pick biome  ·  R bind  ·  Q clear  ·  [/] leave Map"
+	sub.text = "TYUIOP pick slot  ·  GHJKL; pick biome  ·  R bind  ·  Q clear  ·  ESC leave Map"
 	sub.add_theme_font_size_override("font_size", 11)
 	sub.add_theme_color_override("font_color", COLOR_MUTED)
 	sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -1382,7 +1383,9 @@ func _on_unhandled_key(keycode: int, _event) -> bool:
 	# Map frame: TYUIOP is consumed for slot picking — frame-local override
 	# of the surface's normal frame-jump dispatch. Returning true keeps the
 	# press from reaching super._on_unhandled_key (which would jump frames).
-	# Players leave Map via [/] or ESC.
+	# Players leave Map via ESC, or by clicking another tab in the frame row.
+	# NOT via [ or ]: [ opens the Neighborhood Graph and ] is a PAID fractal
+	# dive — four on-screen hints used to advertise "[/]" here (2026-08-10).
 	if frame_id == FRAME_MAP and SLOT_KEYCODES.has(keycode):
 		_map_target_slot = int(SLOT_KEYCODES[keycode])
 		_update_action_labels()

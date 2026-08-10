@@ -231,3 +231,42 @@ Beyond the list, the push's largest finds (none were in this doc's §5):
   every plant is gone; the already-computed tensor extension stands; only the
   new qubit gets the dawn kick. Probe-pinned (marginal continuity, purity,
   Berry-walk survival).
+
+---
+
+## 10. ADDENDUM — publishability sweep (2026-08-10)
+
+Closing two items this doc left open, and correcting one.
+
+**§9.1's seed-47 hang: NOT REPRODUCIBLE — hypothesis refuted.** The recorded
+suspicion was "the −/= stride dial compounding." Tested directly rather than
+by replay: every dial pinned to its worst corner *simultaneously* —
+`max_evolution_dt` driven to its 1e-4 floor (Shift+− ×12), `observation_stride`
+to 256 and `quantum_time_scale` to 16 (`=` ×12) — then 20 ordinary gameplay
+presses. Result: **0/20 slow presses, all ≈0.2s**, and `dispatch_ledger` /
+`grid_snapshot` both answered in under 0.15s. A separate 90-press random-key
+run over the full seat key set produced zero turns above 1.0s. The dials are
+individually clamped and their product is not expensive, because stride only
+skips a precomputed buffer cursor and a finer dt does not add substeps per
+phrame — it shortens the sim-time each buffered slice covers. **Caveat:** the
+original masher script was never committed, so the exact `random.Random(47)`
+draw sequence could not be replayed bit-for-bit; this is a behavioural
+refutation of the mechanism, not of the observation. If it resurfaces, commit
+the probe first.
+
+**§9.4's fractal-descent keyboard entry: FIXED.** `]` descends into the focused
+register's icon world, `Shift+]` ascends. Both route through the same
+`QuantumInstrument.action_enter_icon` / `action_ascend_fractal` the 3D portal
+satellites call, so cost, incorporation gate and depth cap stay one authority,
+and server-side refusals speak through `RefusalVoice` rather than no-opping.
+The key was claimed from `KEYBOARD_GRAMMAR.md`'s reserved set, per that doc's
+own rule.
+
+**New find, not in §5 — 337.8 MB of dead art shipped in every build.**
+`BiomeBackground.LEGACY_PHOTO_MODE` is a `false` const, so `_apply_zone` never
+builds its `TextureRect` branch, so `_get_biome_texture` is unreachable and no
+`Assets/Biomes/**.png` loads at runtime (`biomes.json`'s `image_path` fields
+are dead data on this path too). With `export_filter="all_resources"` those
+imports were 337.8 MB of the shipped `.pck` — about two-thirds of all imported
+resources. All three presets now exclude `Assets/Biomes/**`; the art stays in
+the repo. Re-enabling `LEGACY_PHOTO_MODE` means removing that exclusion first.

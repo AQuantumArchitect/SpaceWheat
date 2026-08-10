@@ -504,18 +504,20 @@ playtesters get stuck.
 | `Enter` / `Space` | Confirm / activate the selected item in menus. |
 | `Backspace` | Reserved (no binding). |
 | `F12` | Postcard — capture the view with the physics watermark + sidecar certificate (`user://postcards/`). |
-| `[` / `]` | Reserved (no binding). WASD already crawls the whole selection block; `[/]` next to TYUIOP would gain no functionality. |
-| `,` / `.` | Reserved (no binding). With ZXCVBNM joining the cylinder, A/D on the bottom ring covers the same gesture. |
+| `[` | **Bound** — Neighborhood Graph overlay (`MenuRegistry.gd`: ZXCVBNM was full, so the graph took the adjacent key). |
+| `]` | **Bound** — descend into the focused register's icon world; `Shift+]` ascends one level (`QuantumInstrumentInput._descend_into_focused_register`). |
+| `,` `.` `/` | **Bound** — subspace row, together with `M` (`InputBindingRegistry.SUBSPACE_KEYS = ["M", ",", ".", "/"]`). |
 | `` ` `` | Reserved (no binding). |
 | `\` | Reserved (no binding). |
-| `/` | Reserved (no binding). |
 
-The `[/]` `,/.` `` ` `` `\` `/` keys are deliberately no-ops. WASD's
-spin + the row keys' direct-jump cover the entire 4-ring cylinder; an
-extra cycle pair would either duplicate WASD or scatter functionality
-into a less-discoverable place. Future features that need a binding
-should claim from this reserved set rather than overloading an existing
-key.
+`` ` `` and `\` (plus `Backspace`) are the remaining deliberate no-ops.
+WASD's spin + the row keys' direct-jump cover the entire 4-ring cylinder,
+so an extra *cycle* pair would either duplicate WASD or scatter navigation
+into a less-discoverable place. Future features that need a binding should
+claim from this reserved set rather than overloading an existing key —
+that is exactly how `[` (neighborhood graph) and `]` (fractal depth)
+were claimed. Depth is a genuinely separate axis from the cylinder, which
+is why it earned a key instead of an overload.
 
 ---
 
