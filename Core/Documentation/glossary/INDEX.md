@@ -1,6 +1,6 @@
 # The Glossary — one page of the canon web
 
-Twenty-nine terms, one dictionary between the physics and the story. Each entry is a
+Thirty-two terms, one dictionary between the physics and the story. Each entry is a
 `.md` file with YAML frontmatter, loaded live into the in-game Guide (X → Guide →
 Glossary) by `Core/Documentation/GlossaryRegistry.gd`.
 
@@ -23,6 +23,9 @@ terms must exist. This INDEX file is deliberately excluded from the in-game load
 | [fading](fading.md) | What the Bath does — coherence drains, purity falls, color leaves first. |
 | [knot](knot.md) | Two closed Berry walks that cannot be pulled apart — winding is why. |
 | [bridge](bridge.md) | One fermion split between two biomes — its parity lives in neither. |
+| [gauge](gauge.md) | The freedom to re-zero local bookkeeping — nothing physical hears the turn. |
+| [wilson](wilson.md) | A closed fence-loop's product — the number no convention flip can touch. |
+| [holonomy](holonomy.md) | What a closed walk carries home that the sphere can't show — the lift's turn. |
 | [soul](soul.md) | Your identity as a density matrix — the one open system the enclave allows. |
 
 ## The Matter — what things are made of

@@ -1455,6 +1455,8 @@ func _guide_things_to_try() -> void:
 	_body_box.add_child(_make_body("Keep a dying thing: in the wet country, measurement pins what it touches (Zeno). Watch the Lamplighters' horn — stop watching and the drain wins."))
 	_body_box.add_child(_make_body("Bank a knot: track a forest qubit (Icon F) through TWO closed loops — the record keeps the walks, and the knot card reads their mutual winding. Nothing links on the sphere; the link lives one floor up."))
 	_body_box.add_child(_make_body("Raise a span: Spark 🌉 mode, R on a qubit here, R on a qubit in another biome — one fermion split between two shores. Anchor an end at home and the Bath can never touch it. Braid (F), then fuse (Q) — reading it spends it."))
+	_body_box.add_child(_make_body("Catch a sign flip: Icon 🪞 mode, R holds a qubit home, then walk another through a ripe loop and E compares their logs — the traveler reads −1: home on the sphere, flipped upstairs. Phase is only visible in company."))
+	_body_box.add_child(_make_body("Turn the compass: Operator 🧭 mode, E reads the loop card (β₁ cycles, Wilson products), R turns a plot's convention — fences flip, colors swing, every closed loop holds. F scrambles everything; what survives has earned the word invariant."))
 
 func _guide_quick_reference() -> void:
 	_body_box.add_child(_make_section_header("verbs"))

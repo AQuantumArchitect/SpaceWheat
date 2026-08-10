@@ -109,3 +109,13 @@ shores' temperatures, split across both anchor atoms. Verbs in Spark 🌉 mode
    counts, lifetime counters); loop records intentionally do NOT persist.
 5. **KAPPA = 10.0 / DEFAULT_WET_RATE = 0.05** set bridge lifetimes (both-wet at
    rate 0.1 → τ ≈ 10 s) — tune to taste in live play.
+
+## Addendum (2026-08-10)
+
+The knot thread's two honesty sequels live in the fourth lane, **What Turns**
+(`docs/GAUGE_CAMPAIGN.md`): the winding attack ("The Number That Lied" — mutual
+winding demoted from invariant to attackable diagnostic) and lift closure
+("Close It Upstairs" — `gauss_linking` now refuses open lifts; the player walks
+a loop twice to close its S³ lift before the linking question is legal). Also
+resolved here: `the_span` now additionally gates on `the_knot`, restoring
+What Connects II→III lane continuity (CAMPAIGN_STATE_2026-08-04 anomaly 11).

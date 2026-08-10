@@ -1,10 +1,5 @@
 # Exotic Topology Mechanics — Tier System
 
-> **Tier 0 and Tier 1 are implemented.** Instant quantum farming (no time grinds) is the
-> current design. Berry phase is live in `DualEmojiQubit.gd` and drives glow in `QuantumNode.gd`.
-> Tiers 2–6 (strange attractors, topological pipes, Majorana bridges, anyonic braiding,
-> knot theory) are future work.
-
 > **Audited, promoted to a campaign, and SHIPPED, 2026-07** — see
 > `docs/TOPOLOGY_CAMPAIGN.md` ("What Survives"): four chapters live across acts 1–4,
 > staged on StarterForest, FreshwaterSpring, Lanternfall, and the Operator/Druid
@@ -28,6 +23,16 @@
 >   Γ-product protection (`BridgeRegister`), the knot as Berry-loop path records +
 >   mutual-winding invariants on the Berry lift (`KnotRegister`). All six tiers of
 >   this document are live. Chaos alone stays in the seed bank.
+>
+> **Tier 7 — Gauge & Holonomy — added and SHIPPED, 2026-08-10** as the fourth
+> campaign lane, "What Turns" (`docs/GAUGE_CAMPAIGN.md`): a Z₂/U(1) lattice
+> gauge ledger over each biome's coupling graph (`GaugeField` — gauge
+> transforms, Wilson loops, tree gauge fixing, β₁), reference-qubit
+> interference revealing the spinor sign flip of a ripe Berry loop, the
+> closure-honesty pass on the S³ lift (`gauss_linking` refuses open lifts),
+> and the deliberate demotion of mutual winding from "invariant" to
+> "attackable diagnostic". The tier this document never dared to write down:
+> *which of your numbers are bookkeeping, and which belong to the world.*
 
 A 6-tier progression from basic farming to reality engineering.
 Each tier introduces a new topological concept as a *gameplay mechanic.*

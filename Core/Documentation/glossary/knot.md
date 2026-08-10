@@ -1,7 +1,7 @@
 ---
 term: knot
 short_def: Two closed Berry walks that cannot be pulled apart — winding is why.
-related: [berry, invariant, bridge, measurement]
+related: [berry, invariant, bridge, measurement, holonomy, gauge]
 since: 2026-07-04
 status: canonical
 ---

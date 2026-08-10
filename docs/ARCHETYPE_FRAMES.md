@@ -67,11 +67,11 @@ right. Spark and Druid bookend the set.
 | Frame     | Sub-modes                | Q              | E (pause + inspect)       | R             | F                  |
 |-----------|--------------------------|----------------|---------------------------|---------------|--------------------|
 | Spark     | shift ⚡ / bridge 🌉      | S.Pole · Fuse  | Gauge 🔍 · Bridge card    | N.Pole · Span | — · Braid 🪢       |
-| Icon      | inject                   | Trim icon      | Inspect qubit             | Add icon / **Incorporate** (tracked+ripe) | **Track** ⌖ (Berry phase) |
+| Icon      | inject 📖 / mirror 🪞    | Trim icon · Release | Inspect qubit · **Compare** 🪞 (Δγ + spinor sign vs reference) | Add icon / **Incorporate** (tracked+ripe) · **Stay Home** ⌂ | **Track** ⌖ (Berry phase) · — |
 | Merchant  | thermal ~ / dephase . / damp \| | Export 📤 | Order book !             | Import 📥 (dephase: refused) | Settle ✔ |
 | Captain   | biomes                   | Cull           | Compass (discover peek)   | Add Biome     | —                  |
 | Ace       | probe                    | Extract        | Pause ⏸                   | Strike !      | Fast-Fwd ⏩        |
-| Operator  | gate                     | Break gate     | Inspect                   | Build gate    | —                  |
+| Operator  | gate )( / compass 🧭     | Break gate · **Comb** 🪮 (tree gauge-fix) | Inspect · **Loops** 🔍 (β₁, Wilson) | Build gate · **Turn** 🧭 (gauge flip) | — · **Shake** 🎲 (scramble) |
 | Druid     | X / Y / Z                | rot−           | Hadamard                  | rot+          | —                  |
 
 ## Live wiring

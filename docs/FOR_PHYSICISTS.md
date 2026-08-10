@@ -81,7 +81,8 @@ That claim is checkable, and the last section tells you how.
 | Linking and the Hopf fibration | "any two answers of a qubit are linked circles" | Learns that loops on S² cannot link — the sphere is a shadow; linking lives one floor up, on S³, where the Berry phase turns | **faithful** teaching — the Hopf statement is true; the game places it correctly, and does *not* claim the linked fibers are the mechanism of measurement exclusivity (that is the Born rule's job) | knot card, `Core/Documentation/glossary/knot.md` |
 | Holonomy of the Berry lift | "home downstairs, antipodal upstairs" | Closes a ripe loop (Ω = 2π): the Bloch vector is home but the lift sits at the S³ antipode — the spinor's sign reversed (γ = Ω/2 = π). A second traversal (Ω = 4π) brings the lift's loose ends together | **exact** for the recorded polylines — γ read from the fiber coordinate; the closure defect is the true S³ angular gap between the lift's endpoints | `KnotRegister.lift_holonomy` / `lift_closure_defect`, frozen-record fields in `BerryPhaseRegister.gd` |
 | Gauss linking of Berry lifts | the experimental line on the knot card | Sees a Gauss linking number computed on the loops' horizontal lifts to S³ (stereographic projection, midpoint double sum) | **suggestive**, now closure-gated: a base-closed loop's lift is *open* by exactly its holonomy, and the double sum over an open curve is not a linking number — `gauss_linking` refuses (NAN) unless both lifts genuinely close (walk the loop again; `concat_records`). When both close it is a quadrature estimate of a real linking number; still never gated on by quests | `KnotRegister.lift_to_s3` / `gauss_linking` / `linking_report` |
-| Z₂/U(1) lattice gauge field | the fence ledger (substrate; not yet surfaced) | Flips a plot's sign convention: every incident fence changes, every closed-loop product survives (g² = 1); a spanning tree gauges away entirely while β₁ = E − V + C fluxes refuse — topology creates the places gauge-invariant information lives | **exact** — gauge transformations, Wilson loops, tree gauge fixing, and the cycle-space count are the real lattice-gauge structure on the graph | `GaugeField.gd` |
+| Z₂/U(1) lattice gauge field | the fence ledger — Operator 🧭 compass verbs; campaign "What Turns" II–III (`docs/GAUGE_CAMPAIGN.md`) | Flips a plot's sign convention: every incident fence changes, every closed-loop product survives (g² = 1); a spanning tree gauges away entirely while β₁ = E − V + C fluxes refuse — topology creates the places gauge-invariant information lives | **faithful** — gauge transformations, Wilson loops, tree gauge fixing, and the cycle-space count are exact lattice-gauge structure on the biome's real coherent coupling graph, phases seeded from arg(J) of the authored H; the stated caveat is that the ledger's phases never feed back into U(t) | `GaugeField.gd`, `QuantumComputer.get_gauge_field` |
+| Reference-qubit interference | the mirror — Icon 🪞; "What Turns I" | Holds one qubit home, walks another around a ripe loop, and reads the pair: Δγ = γ_a − γ_b and the spinor sign product — a ripe (Ω = 2π) traveler reads −1 against home: same Bloch point, opposite lift | **faithful** — Δγ is the true relative geometric phase of the two recorded walks (what a Ramsey comparison reveals), read from the Berry register with ρ untouched; the card says it compares travel logs, never that a beam was split | `GaugeActionHandler.interfere`, `BerryPhaseRegister.get_fiber_angle` |
 | Majorana-style nonlocal storage | the bridge / the span | Splits one parity bit between two biomes; decoherence rate is the **product** of the two shores' local noise rates (Γ = κ·Γ_a·Γ_b, read live from the webways) — an island-anchored end is immortal | **faithful** — the product scaling is the honest core of topological protection (a nonlocal fermion needs correlated noise at both ends); the model is a 2×2 parity ρ, not a Kitaev wire, and the game never claims otherwise | `BridgeRegister.gd` |
 | Ising-anyon braiding | the braid alphabet: S here, √X there | Writes the bridge by braiding — two non-commuting letters; the reachable set is Clifford **and the game teaches that limit as a feature** (why the field wants T gates) | **faithful** — S and √X are the genuine braid-group representation for Ising anyons | Spark 🌉 mode |
 | Fusion | reading the span | Born-samples the joint parity: the answer localizes, the surprisal is paid across both shores at once, and the bridge is spent — localizing the answer handed the Bath the address | **faithful** | `bridge_fuse` |
@@ -106,6 +107,15 @@ The credibility of the ledger lives as much in the refusals as the claims:
   arithmetic, not a buff.
 - **Clifford-only braiding, admitted.** The braid alphabet cannot reach every
   program, which is the true limitation of Ising anyons — taught, not hidden.
+- **No fake invariants.** The knot card's mutual winding is integer-valued and
+  is NOT an isotopy invariant — the axis it counts turns about belongs to the
+  partner loop, and legal smooth moves swing it. Rather than hide that, the
+  campaign makes the player break the number ("What Turns IV"): an invariant
+  is what survives every attack the rules allow, and this one doesn't.
+- **No linking numbers for open curves.** A loop closed on the Bloch sphere is
+  generally open in its S³ lift — separated by exactly its holonomy — and
+  `gauss_linking` returns NAN rather than silently closing the gap. The player
+  earns the closed curve (Ω ≡ 0 mod 4π) before the question is answerable.
 
 ## Assessment is performance, not quizzes
 
@@ -125,6 +135,7 @@ earns visible partial credit — the progress bar is the teacher.
 | 0–1 | states, superposition, Born rule, measurement backaction, entanglement | first weeks of any quantum-information course |
 | 1–4 | geometric phase, spectra as invariants, SSH edge modes, non-commutativity | topological-matter interludes |
 | 5–7 | mutual information, knot/linking intuition, Majorana nonlocality, braiding | quantum computing / anyons |
+| 5–8 | gauge freedom, Wilson loops and Z₂ flux, holonomy and lift closure, invariance-as-survival | lattice gauge theory intro / geometric phase |
 | 6–8 | Lindblad channels, T₁/T₂, Zeno, dark states, Landauer | open quantum systems |
 
 ## Verifying the claims

@@ -292,12 +292,20 @@ still exists and the row still has four slots. Source of truth:
 | Hat | Frame    | Sub-mode (1/2/3 active?)  | Q (out/less)  | E (pause + inspect)   | R (in/more)   | F (play/flatten) |
 |----|-----------|--------------------------|---------------|-----------------------|---------------|------------------|
 | 4  | Spark     | shift ⚡ / bridge 🌉      | Spark S · Fuse | Gauge 🔍 · Bridge card | Spark N · Span | (global F) · Braid 🪢 |
-| 5  | Icon      | inject (single)          | Trim Icon     | (open picker; pause)  | Add Icon      | Track ⌖          |
+| 5  | Icon      | inject 📖 / mirror 🪞    | Trim Icon · Release | (open picker; pause) · Compare 🪞 | Add Icon · Stay Home ⌂ | Track ⌖ · (disabled) |
 | 6  | Merchant  | thermal / dephase / damp | Export 📤     | Order book !          | Import 📥 (dephase: refused) | Settle ✔  |
 | 7  | Captain   | biomes (single)          | Cull          | Compass               | Discover      | (global F)       |
 | 8  | Ace       | probe (single)           | Extract       | Pause ⏸               | Strike !      | Explore 🧭 / Fast-Fwd ⏩ |
-| 9  | Operator  | gate (single)            | Break gate    | Inspect               | Build gate    | (global F)       |
+| 9  | Operator  | gate )( / compass 🧭     | Break gate · Comb 🪮 | Inspect · Loops 🔍 | Build gate · Turn 🧭 | (global F) · Shake 🎲 |
 | 0  | Druid     | X / Y / Z                | rot−          | Hadamard              | rot+          | (global F)       |
+
+**What Turns modes (2026-08-10):** Icon mode 2 🪞 is the mirror — R holds a
+stay-home reference, E interferes the focused traveler's Berry log against it
+(Δγ + spinor sign product; a ripe loop reads −1); non-destructive, ρ untouched.
+Operator mode 2 🧭 is the fence ledger — R turns the focused plot's gauge
+convention (χ = π), E reads the loop card (β₁, Wilson products), Q combs the
+spanning tree flat, F scrambles every convention (red-team). All compass verbs
+are FREE: bookkeeping isn't physics, and pricing it would teach the opposite.
 
 🔒 = open-quantum DLC only; renders disabled (greyed + 🔒) in the closed (default) build.
 Ace's **E = Pause** and **F = Fast-Fwd** are the time-scrub pair (E freezes to read the

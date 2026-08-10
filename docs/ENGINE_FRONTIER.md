@@ -152,9 +152,11 @@ linked circles — that is the geometric reason you can never hold both.
     (NAN) — the double sum over a curve with loose ends is not a linking
     number. Mutual winding is re-documented as an axis-relative diagnostic
     (integer-valued ≠ invariant): the campaign teaches the attack ("The Number
-    That Lied") instead of overclaiming. The Z₂/U(1) fence ledger for the gauge
-    lessons ("Turn the Compass", "The Fence Remembers") exists as substrate in
-    `GaugeField.gd` — gauge transforms, Wilson loops, tree gauge fixing, β₁.
+    That Lied") instead of overclaiming. **Promoted + SHIPPED 2026-08-10:** the
+    gauge lessons ("Turn the Compass", "The Fence Remembers") and the closure/
+    winding sequels became the fourth campaign lane, **What Turns I–V** — see
+    `docs/GAUGE_CAMPAIGN.md` (GaugeField wiring, compass 🧭 + mirror 🪞 verbs,
+    six predicates, station dial + fence glyph).
 - **Graph knots as puzzles, not invariants.** Reidemeister moves on the webway /
   entanglement graph ("unknot the ecology to maximize throughput") depend on the
   drawing, not the physics — so they ship as a *puzzle shape* using the existing
