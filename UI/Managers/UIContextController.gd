@@ -352,6 +352,17 @@ func _build_submenu_actions() -> Dictionary:
 
 	for action_key in ACTION_KEYS:
 		var action_info = current_submenu_actions.get(action_key, {})
+		if action_key == "F" and action_info.is_empty():
+			# A single-page submenu's generator never puts an F entry in
+			# "actions" (BaseSubmenu only adds one to advertise paging on a
+			# multi-page picker), so this chip fell through to the default
+			# blank+disabled projection below -- even though keyboard F
+			# already closes a single-page submenu (_dispatch_action_key's F
+			# branch). Mouse had NO click path to leave ANY picker that
+			# happened to fit on one page (#511). The label is cosmetic only:
+			# that same F branch decides page-vs-close purely from
+			# is_in_submenu()/max_pages, not from this action name.
+			action_info = {"action": "close_submenu", "label": "✕ Close", "emoji": ""}
 		var projected = _project_action_info(action_info)
 		var action_name = str(projected.get("action", ""))
 		var available = submenu_availability.get(action_key, true)

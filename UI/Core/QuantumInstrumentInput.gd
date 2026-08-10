@@ -1297,6 +1297,10 @@ func confirm_biome_switch(old_biome: String, new_biome: String, key: String) -> 
 	# (BiomeSelectionRow tap) biome switches, so without it a mouse biome
 	# switch left a pending confirm armed (mouse-only campaign wave 15).
 	_cancel_pending_confirm()
+	# Same for an open submenu (#511) — see _select_frame_hat's matching call
+	# for the full failure mode. A mouse biome-tab tap reaches this directly,
+	# bypassing keyboard's top-level auto-close.
+	_close_submenu()
 	_apply_biome_switch(old_biome, new_biome, key)
 	if new_biome != old_biome:
 		_toast_player("→ %s" % new_biome)
