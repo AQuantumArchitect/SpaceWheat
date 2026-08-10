@@ -10,7 +10,12 @@ extends RefCounted
 
 const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
 
+## preload, not the bare class_name: a freshly added class_name is invisible
+## until Godot re-imports, and this file must parse on a cold checkout.
+const _ModeSelectionRow = preload("res://UI/Widgets/ModeSelectionRow.gd")
+
 var tool_selection_row: Control = null
+var mode_selection_row: Control = null
 var biome_selection_row: Control = null
 var menu_selection_row: Control = null
 var action_preview_row: Control = null
@@ -37,6 +42,8 @@ func _on_layout_changed(_data: Dictionary) -> void:
 func _reposition_all_rows() -> void:
 	if tool_selection_row and tool_selection_row.is_inside_tree():
 		_position_tool_row()
+	if mode_selection_row and mode_selection_row.is_inside_tree():
+		_position_mode_row()
 	if biome_selection_row and biome_selection_row.is_inside_tree():
 		_position_biome_row()
 	if menu_selection_row and menu_selection_row.is_inside_tree():
@@ -66,6 +73,14 @@ func create_action_bars(parent: Control) -> void:
 	tool_selection_row = ToolSelectionRow.new()
 	tool_selection_row.name = "ToolSelectionRow"
 	parent.add_child(tool_selection_row)
+
+	# Sub-mode chips ride the hat band, right-aligned. Added AFTER the tool row
+	# so it wins the pick in any overlap (GUI picking is tree order, not
+	# z_index) — though _position_tool_row also insets the hats so they cannot
+	# reach this cluster in the first place.
+	mode_selection_row = _ModeSelectionRow.new()
+	mode_selection_row.name = "ModeSelectionRow"
+	parent.add_child(mode_selection_row)
 
 	biome_selection_row = BiomeSelectionRow.new()
 	biome_selection_row.name = "BiomeSelectionRow"
@@ -138,8 +153,26 @@ func _position_top_row(row: Control, idx: int) -> void:
 	row.custom_minimum_size = Vector2(0, row_h)
 
 
+## Right-edge inset that clears the pinned contract corner (ContractChip +
+## ActFilament). Shared by the biome row and the sub-mode row.
+const CONTRACT_CORNER_INSET := 210.0
+
+
 func _position_tool_row() -> void:
+	# Hats hug the LEFT (HBoxContainer default), so they never reach the
+	# right-aligned mode cluster — no inset needed here.
 	_position_top_row(tool_selection_row, 1)
+
+
+func _position_mode_row() -> void:
+	# Same band as the hats (top idx 1), right-aligned — costs no vertical
+	# space and sits beside the hat it belongs to.
+	_position_top_row(mode_selection_row, 1)
+	# The contract corner (ContractChip + ActFilament, ~190px) owns the top
+	# right. Inset past it or the mode chips draw straight over the act banner
+	# — the same squeeze _position_biome_row already applies one band down.
+	if mode_selection_row:
+		mode_selection_row.offset_right = -CONTRACT_CORNER_INSET
 
 
 func _position_biome_row() -> void:
@@ -149,7 +182,7 @@ func _position_biome_row() -> void:
 	# slide under the pinned contracts (playtest 2: "ugly overlap with the
 	# biome bar... fixed by squeezing the biome bar in more").
 	if biome_selection_row:
-		biome_selection_row.offset_right = -210
+		biome_selection_row.offset_right = -CONTRACT_CORNER_INSET
 
 
 func _position_menu_row() -> void:
@@ -180,6 +213,13 @@ func get_action_row() -> Control:
 func select_frame(frame_name: String) -> void:
 	if tool_selection_row:
 		tool_selection_row.select_frame(frame_name)
+	# The mode chips belong to whichever hat is active, so they follow it.
+	if mode_selection_row:
+		mode_selection_row.show_frame(frame_name)
+
+
+func get_mode_row() -> Control:
+	return mode_selection_row
 
 
 func render_action_projection(projection: Dictionary) -> void:

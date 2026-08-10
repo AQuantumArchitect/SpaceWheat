@@ -142,6 +142,19 @@ linked circles — that is the geometric reason you can never hold both.
   - **Gauss linking of the Hopf lifts** (stretch): lift both polylines to S³
     using the accumulated phase and evaluate the Gauss double sum — O(64²) per
     pair, trivial cost, and the number it returns is the real thing.
+  - **Closure honesty (shipped 2026-08-10):** a loop closed on S² is generally
+    NOT closed in its lift — the loose fiber ends are separated by exactly the
+    holonomy γ = Ω/2. A ripe loop (Ω = 2π) lands on the S³ antipode: same
+    Bloch point, spinor sign reversed; only Ω ≡ 0 (mod 4π) truly closes
+    upstairs. `lift_holonomy` / `lift_closure_defect` / `is_closed_upstairs`
+    expose the gap; `concat_records` stitches consecutive same-qubit records so
+    a second traversal can close it; `gauss_linking` now REFUSES open lifts
+    (NAN) — the double sum over a curve with loose ends is not a linking
+    number. Mutual winding is re-documented as an axis-relative diagnostic
+    (integer-valued ≠ invariant): the campaign teaches the attack ("The Number
+    That Lied") instead of overclaiming. The Z₂/U(1) fence ledger for the gauge
+    lessons ("Turn the Compass", "The Fence Remembers") exists as substrate in
+    `GaugeField.gd` — gauge transforms, Wilson loops, tree gauge fixing, β₁.
 - **Graph knots as puzzles, not invariants.** Reidemeister moves on the webway /
   entanglement graph ("unknot the ecology to maximize throughput") depend on the
   drawing, not the physics — so they ship as a *puzzle shape* using the existing

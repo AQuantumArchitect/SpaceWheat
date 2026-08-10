@@ -17,15 +17,37 @@ extends RefCounted
 ## - winding_about_axis: signed turn count of a loop around any axis
 ## - mutual_winding:     integer — how many times loop A winds about loop B's
 ##                       area axis. Robust to decimation; the quest currency.
-## - gauss_linking:      EXPERIMENTAL — Gauss linking estimate of the two loops'
-##                       Berry-connection lifts to S³ (stereographic projection
-##                       + midpoint Gauss double sum). Approximate near-contact;
-##                       no quest gates on it.
+##                       HONESTY: an axis-relative winding DIAGNOSTIC, not an
+##                       isotopy invariant of the pair — the axis is derived
+##                       from the partner loop, so smooth moves that swing B's
+##                       area axis can change the count without any cutting.
+##                       Integer-valued ≠ topological invariant; an invariant
+##                       is what survives every attack the rules allow.
+## - lift_holonomy / lift_closure_defect / is_closed_upstairs:
+##                       the fiber ledger. A loop closed on S² is generally
+##                       NOT closed in its S³ lift — the gap between the
+##                       lift's loose ends IS the holonomy (γ = Ω/2). At
+##                       Ω = 2π (ripeness) the lift lands on the ANTIPODE:
+##                       the spinor came home with its sign reversed. Only
+##                       at Ω ≡ 0 (mod 4π) does the lift truly close.
+## - concat_records:     stitch consecutive frozen records of one qubit into
+##                       a longer walk — travel the loop again and the loose
+##                       fiber ends rotate toward each other until they meet.
+## - gauss_linking:      Gauss linking estimate of two GENUINELY CLOSED S³
+##                       lifts (stereographic projection + midpoint double
+##                       sum). Refuses open lifts (returns NAN): the double
+##                       sum over a curve with loose ends is not a linking
+##                       number. Use linking_report for the full verdict.
 ##
 ## All functions are static; loops from different qubits (even different
 ## biomes) compare on the shared abstract Bloch sphere.
 
 const PROJECTION_EPS: float = 1e-3
+
+## Max S³ angular gap between a lift's endpoints that still counts as closed.
+## Must absorb base-closure slack (LOOP_CLOSE_EPS = 0.25 rad on S² lifts to
+## ~0.125 rad upstairs) while staying far below π, the spinor-flip antipode.
+const LIFT_CLOSE_EPS: float = 0.5
 
 
 static func vertex_count(points: PackedFloat64Array) -> int:
@@ -83,6 +105,9 @@ static func winding_about_axis(points: PackedFloat64Array, axis: Vector3) -> flo
 static func mutual_winding(points_a: PackedFloat64Array, points_b: PackedFloat64Array) -> int:
 	# How many times loop A winds about loop B's area axis. The pair teacher:
 	# 0 = an unlinked dance, ±1 = a simple link, ±2 = doubly wound.
+	# Diagnostic, not invariant: the axis is B's, so deforming B moves the
+	# measuring stick. See the header note — this is a feature to teach with
+	# ("The Number That Lied"), not a bug to hide.
 	var axis := area_axis(points_b)
 	if axis == Vector3.ZERO:
 		return 0
@@ -125,12 +150,75 @@ static func lift_to_s3(points: PackedFloat64Array) -> Array:
 	return out
 
 
+static func lift_holonomy(points: PackedFloat64Array) -> float:
+	# Signed fiber displacement of the loop's horizontal lift: γ = ΔΩ/2,
+	# UNWRAPPED — a walk driven twice around a hemisphere reports 2π, not 0.
+	# This is the angle the lift's loose end has rotated along the phase fiber
+	# relative to its seed. |γ| = π is the spinor flip (e^{iπ} = −1: same
+	# Bloch point, opposite sign upstairs); γ ≡ 0 (mod 2π) closes upstairs.
+	var n: int = vertex_count(points)
+	if n < 2:
+		return 0.0
+	return (points[(n - 1) * 4 + 3] - points[3]) * 0.5
+
+
+static func lift_closure_defect(points: PackedFloat64Array) -> float:
+	# S³ angular distance between the lift's first and last vertices, in
+	# [0, π]. Zero-ish: the lift genuinely closes. ~π: the loose end sits at
+	# the ANTIPODE — the spinor sign flip a ripe (Ω = 2π) loop earns. This is
+	# the honest geometric gap, so it also absorbs base-closure slack.
+	var n: int = vertex_count(points)
+	if n < 2:
+		return 0.0
+	var lifted := lift_to_s3(points)
+	var d: float = clampf(_dot4(lifted[0], lifted[n - 1]), -1.0, 1.0)
+	return acos(d)
+
+
+static func is_closed_upstairs(points: PackedFloat64Array, eps: float = LIFT_CLOSE_EPS) -> bool:
+	# True when the Berry-connection lift is a genuinely closed curve in S³ —
+	# the precondition for asking that curve any knot-theoretic question.
+	return lift_closure_defect(points) < eps
+
+
+static func concat_records(records: Array) -> PackedFloat64Array:
+	# Stitch consecutive frozen loop records of ONE qubit into a single walk.
+	# BerryPhaseRegister freezes a record at each base closure and reseeds the
+	# path at the closing vertex with the SAME running Ω, so consecutive
+	# records of a qubit are contiguous in both position and fiber: appending
+	# them (dropping each record's duplicated seed vertex after the first)
+	# reconstructs the longer walk. Travel the hemisphere once → open lift;
+	# stitch the second traversal → the loose ends meet (Ω = 4π, γ = 2π).
+	var out := PackedFloat64Array()
+	for r in records:
+		var pts: PackedFloat64Array = r.get("points", PackedFloat64Array()) if r is Dictionary else r
+		if pts.is_empty():
+			continue
+		var start: int = 0
+		if not out.is_empty():
+			start = 1  # drop the junction vertex shared with the previous record
+		for i in range(start, vertex_count(pts)):
+			var b: int = i * 4
+			out.append(pts[b])
+			out.append(pts[b + 1])
+			out.append(pts[b + 2])
+			out.append(pts[b + 3])
+	return out
+
+
 static func gauss_linking(points_a: PackedFloat64Array, points_b: PackedFloat64Array) -> float:
-	# EXPERIMENTAL. Gauss linking estimate of the two loops' S³ lifts:
-	# stereographic projection from a pole far from both curves, then the
-	# midpoint-rule Gauss double sum over segment pairs. Returns a float near
-	# an integer for well-separated curves; degrades near contact. Display and
-	# curiosity only — quests gate on mutual_winding.
+	# Gauss linking estimate of the two loops' S³ lifts: stereographic
+	# projection from a pole far from both curves, then the midpoint-rule
+	# Gauss double sum over segment pairs. Returns a float near an integer
+	# for well-separated curves; degrades near contact.
+	#
+	# REFUSES OPEN LIFTS (returns NAN). A loop closed on the Bloch sphere is
+	# generally open upstairs — its loose fiber ends separated by exactly its
+	# holonomy — and the double sum over an implicitly-wrapped open curve is
+	# not a linking number of anything. Close it upstairs first (walk the
+	# loop again; concat_records), then ask. Quests gate on mutual_winding.
+	if not is_closed_upstairs(points_a) or not is_closed_upstairs(points_b):
+		return NAN
 	var la := lift_to_s3(points_a)
 	var lb := lift_to_s3(points_b)
 	if la.size() < 3 or lb.size() < 3:
@@ -157,6 +245,29 @@ static func gauss_linking(points_a: PackedFloat64Array, points_b: PackedFloat64A
 				continue
 			lk += da.cross(db).dot(r) / (rl * rl * rl)
 	return lk / (4.0 * PI)
+
+
+static func linking_report(points_a: PackedFloat64Array, points_b: PackedFloat64Array) -> Dictionary:
+	# The full verdict on a pair of walks, for cards and quests:
+	#   holonomy_a/b  — unwrapped fiber displacement γ = ΔΩ/2 of each lift
+	#   defect_a/b    — S³ angular gap between each lift's loose ends [0, π]
+	#   closed_a/b    — whether each lift genuinely closes upstairs
+	#   valid         — both closed: the linking number is a real question
+	#   lk            — Gauss estimate when valid, NAN otherwise
+	var da := lift_closure_defect(points_a)
+	var db := lift_closure_defect(points_b)
+	var ca := da < LIFT_CLOSE_EPS
+	var cb := db < LIFT_CLOSE_EPS
+	return {
+		"holonomy_a": lift_holonomy(points_a),
+		"holonomy_b": lift_holonomy(points_b),
+		"defect_a": da,
+		"defect_b": db,
+		"closed_a": ca,
+		"closed_b": cb,
+		"valid": ca and cb,
+		"lk": gauss_linking(points_a, points_b) if (ca and cb) else NAN,
+	}
 
 
 static func _dot4(a: Array, b: Array) -> float:

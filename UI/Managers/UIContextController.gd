@@ -110,6 +110,15 @@ func bind_quantum_input(instrument_input) -> void:
 		if tool_row and tool_row.has_signal("frame_selected"):
 			InstrumentLocator._safe_connect(tool_row.frame_selected,
 					Callable(quantum_input, "_select_frame_hat"))
+		# Same deal for the sub-mode chips: the keyboard's 1/2/3 branch calls
+		# ToolConfig.set_frame_mode + QII._on_mode_changed, so the click twin
+		# lands on the identical handler. Before this the modes had NO pointer
+		# path at all, which locked mouse-only players out of Spark's bridge
+		# verbs (and therefore the Act-7 "What Connects" flags).
+		var mode_row = action_bar_manager.get_mode_row()
+		if mode_row and mode_row.has_signal("mode_selected"):
+			InstrumentLocator._safe_connect(mode_row.mode_selected,
+					Callable(quantum_input, "_on_mode_changed"))
 
 	refresh()
 
@@ -162,7 +171,10 @@ func _apply_pointer_bleed_guard() -> void:
 		var top = overlay_stack.get_top()
 		var transparent: bool = top != null and ("is_transparent_overlay" in top) and top.is_transparent_overlay
 		menu_open = not transparent
-	for row in [action_bar_manager.get_tool_row(), action_bar_manager.get_biome_row()]:
+	# The mode chips share the hat band, so they need the same guard — without
+	# it a click aimed at an open overlay could land on a sub-mode chip instead.
+	for row in [action_bar_manager.get_tool_row(), action_bar_manager.get_biome_row(),
+			action_bar_manager.get_mode_row()]:
 		if row and row.has_method("set_pointer_enabled"):
 			row.set_pointer_enabled(not menu_open)
 
@@ -213,6 +225,13 @@ func _on_frame_changed(frame_name: String) -> void:
 
 func _on_frame_mode_changed(frame_name: String, _mode_idx: int, _mode_label: String) -> void:
 	current_frame = frame_name
+	# Keyboard 1/2/3 also lands here, so this is where the mode chips re-read
+	# the live index. The row mirrors ToolConfig and never leads it, which is
+	# what keeps the two input paths from drifting.
+	if action_bar_manager:
+		var mode_row = action_bar_manager.get_mode_row()
+		if mode_row and mode_row.has_method("sync_selection"):
+			mode_row.sync_selection()
 	refresh()
 
 

@@ -1057,9 +1057,49 @@ separate bug and this section should be reopened.
 | Top-level menu open/close (Z X C V B N M) | `MenuSelectionRow` (`SelectionButtonRow`) — verified live 2026-08-05: click opens EscapeMenu, second click closes it | was previously untestable by name-based lookup — see fixed bug below |
 | Most overlay tab/row clicks | `UI/Core/ClickWire.gd` helper — EscapeMenu tabs+verb chips, ControlsOverlay tabs, InspectorOverlay, QubitAtlasOverlay card selection, MapMetaOverlay, QuestBoard | |
 
+## Wave 16 (2026-08-10) — the sub-mode gap: the largest keyboard-only hole in the game
+
+**Found by the publishability audit, confirmed by reading every call site, fixed
+and live-verified.** `ToolConfig.set_frame_mode` had exactly ONE runtime caller:
+the `1/2/3` branch of `QuantumInstrumentInput._unhandled_key_input`. Both
+alternative entry points (`QII._cycle_mode`, `QuantumInstrument.cycle_frame_mode`)
+were dead code with zero callers. A hat-chip click reaches `_select_frame_hat`,
+which never touches mode state.
+
+Consequence: **a mouse-only player was locked to mode 0 of every hat, permanently.**
+That is not cosmetic — several hats are two or three tools sharing one glyph:
+
+| Hat | Modes | What mode 0 hides |
+|---|---|---|
+| Spark ⚡ | `shift` / `bridge` | ALL Majorana bridge verbs — anchor (Span), Braid, Fuse |
+| Merchant | `thermal` / `dephase` / `damp` | selling phase, hard pumping |
+| Druid | `X` / `Y` / `Z` | rotation about the Y and Z axes |
+
+Spark's bridge verbs are the only source of `bridge_braids_gte` /
+`bridge_fused_gte`, which gate the Act-7 "What Connects" flags (`the_span`,
+`braid_word`, `braid_alphabet`, `the_fusion`). **No mode switch, no ending.**
+
+**Fix:** a new `UI/Widgets/ModeSelectionRow.gd` renders one chip per mode of the
+ACTIVE hat, right-aligned into the hat band (costs no vertical space), hidden
+entirely for single-mode hats so no dead chip ever shows. Clicks call the same
+`ToolConfig.set_frame_mode` + `QII._on_mode_changed` pair the keys call, and
+`_on_frame_mode_changed` re-syncs the highlight — so the row mirrors ToolConfig
+and never leads it, which is what stops the two input paths drifting.
+
+Live-verified headed at 1280x720 from `act4_hub`: Ace (one mode) shows nothing;
+Spark shows ⚡/🌉 and a real mouse tap on the 🌉 chip flipped the action bar to
+`Q Fuse · E Inspect · R Span · F Braid`; Merchant shows three chips and keyboard
+`2` moved the same highlight the mouse had set. Chips are named `ModeChip_N` —
+during verification a probe searching for the generic `SelectBtn_1` matched the
+MENU row's chip three bands away, so the mode chips carry their own prefix.
+
+Also fixed in the same pass: the chips initially drew over the pinned contract
+corner (ContractChip + ActFilament). `CONTRACT_CORNER_INSET` is now one shared
+constant used by both the biome row and the mode row instead of a bare `-210`.
+
 ## Confirmed gaps — keyboard-only, no mouse path
 
-None currently open. The table below is kept for history; see wave 15.
+None currently open. The table below is kept for history; see waves 15 and 16.
 
 | Surface | Keyboard mechanism | Status |
 |---|---|---|

@@ -214,11 +214,21 @@ func _path_advance(entry: Dictionary, qid: int, bx: float, by: float, bz: float)
 	pts.append(path[1])
 	pts.append(path[2])
 	pts.append(float(entry.get("accumulated", 0.0)))
+	# The fiber ledger: closed on the Bloch sphere is NOT closed upstairs.
+	# The lift's loose ends sit e^{iΩ/2} apart — that gap IS the holonomy.
+	# A ripe loop (Ω = 2π) lands on the antipode: spinor sign reversed.
+	# Only Ω ≡ 0 (mod 4π) truly closes in S³ (KnotRegister.LIFT_CLOSE_EPS).
+	var holonomy: float = omega * 0.5
+	var fiber_defect: float = absf(wrapf(holonomy, -PI, PI))
 	_frozen_loops.append({
 		"qubit": qid,
 		"points": pts,
 		"omega": omega,
 		"vertex_count": int(pts.size() / 4.0),
+		"holonomy": holonomy,
+		"fiber_defect": fiber_defect,
+		"closed_upstairs": fiber_defect < KnotRegister.LIFT_CLOSE_EPS,
+		"spinor_flip": fiber_defect > PI - KnotRegister.LIFT_CLOSE_EPS,
 	})
 	while _frozen_loops.size() > FROZEN_LOOP_CAP:
 		_frozen_loops.pop_front()
@@ -288,6 +298,23 @@ func get_phase(qubit_index: int) -> float:
 	if entry == null:
 		return 0.0
 	return float(entry.get("accumulated", 0.0))
+
+
+func get_fiber_angle(qubit_index: int) -> float:
+	# The live fiber coordinate of the walk's horizontal lift: γ = Ω/2,
+	# unwrapped. What the Bloch shadow forgets and the lift remembers — the
+	# angle the qubit's global phase has turned relative to where it started
+	# tracking. Not locally observable; visible only RELATIONALLY, by
+	# interfering against a reference that stayed home.
+	return get_phase(qubit_index) * 0.5
+
+
+func get_spinor_sign(qubit_index: int) -> int:
+	# Which hemisphere of the fiber circle the lift currently occupies:
+	# +1 near e^{i·0} = +|ψ₀⟩, −1 near e^{iπ} = −|ψ₀⟩. After a ripe loop
+	# (Ω = 2π) the Bloch vector is home but this reads −1: the crop came
+	# back and it is NOT the same state. Two ripe loops (Ω = 4π) read +1.
+	return 1 if cos(get_fiber_angle(qubit_index)) >= 0.0 else -1
 
 
 func get_ripe_threshold(qubit_index: int) -> float:
