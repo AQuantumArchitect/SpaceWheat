@@ -1833,6 +1833,14 @@ func _get_scope_node() -> Node:
 	return null
 
 
+## Public seam for UI-side verbs (bridge, berry toggle) whose logic lives in
+## QuantumInstrumentInput rather than behind an action_* here: without this
+## they never reach the projection's action history, so no history predicate
+## (gate_sequence_contains / gate_order) could see a braid or a track.
+func record_projection_action(action_name: String, payload: Dictionary) -> void:
+	_notify_quest_projection(action_name, payload)
+
+
 func _notify_quest_projection(action_name: String, payload: Dictionary) -> void:
 	var qm = _resolve_quest_manager()
 	if not qm:

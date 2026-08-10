@@ -444,6 +444,16 @@ func _select_frame_hat(frame_name: String) -> void:
 	# (ToolSelectionRow taps land here too), so without it a mouse hat switch
 	# left a pending confirm armed (mouse-only campaign wave 15).
 	_cancel_pending_confirm()
+	# Same for an open submenu (#511): keyboard auto-closes on any non-QERF
+	# key (_unhandled_key_input's top-level check), but a mouse hat tap comes
+	# straight here, bypassing it. Without this, UIContextController's OWN
+	# submenu mirror still gets cleared by its frame_changed handler (so the
+	# action bar visibly repaints to the new hat's chips — looks cancelled),
+	# while the real instrument stayed armed underneath: the NEXT verb tap
+	# dispatched through _handle_submenu_action against the stale picker
+	# instead of the hat the player thinks they're using — spending
+	# resources/burning a register slot on an option they never chose.
+	_close_submenu()
 	frame_changed.emit(frame_name)
 
 	if frame_name == ToolConfig.FRAME_ICON and _instrument:
@@ -806,7 +816,9 @@ func _execute_toggle_berry_track() -> Dictionary:
 		# The toggle is a trap when silent: testers pressed F to "poll" ripeness
 		# and destroyed their own loop (fleet #4). Say what just happened.
 		_toast_player("⌖ tracking stopped — the loop is lost. F re-tracks.")
-		return {"success": true, "tracking": false, "qubit": qid}
+		var stop_result := {"success": true, "tracking": false, "qubit": qid}
+		_record_projection_action("toggle_berry_track", stop_result)
+		return stop_result
 	qc.berry_register.start_tracking(qid)
 	_verbose.info("input", "⌖", "Started tracking qubit %d" % qid)
 	# The un-ripenable trap speaks at TRACK time: a qubit with no transverse
@@ -824,7 +836,9 @@ func _execute_toggle_berry_track() -> Dictionary:
 		_clock_taught = true
 		track_msg += "  ⏩ = speeds this biome's clock (up to ×32), − slows it."
 	_toast_player(track_msg)
-	return {"success": true, "tracking": true, "qubit": qid}
+	var start_result := {"success": true, "tracking": true, "qubit": qid}
+	_record_projection_action("toggle_berry_track", start_result)
+	return start_result
 
 static var _clock_taught: bool = false
 
@@ -905,6 +919,7 @@ func _execute_bridge_anchor() -> Dictionary:
 		_toast_note("⚓ near shore set: %s (%s/%s) — anchor a far shore in another biome" % [
 			str(here["biome"]), str(here["north"]), str(here["south"])])
 		action_performed.emit("bridge_anchor", {"success": true, "pending": true, "anchor": here})
+		_record_projection_action("bridge_anchor", {"success": true, "pending": true, "anchor": here})
 		return {"success": true, "pending": true}
 	var near: Dictionary = _pending_bridge_anchor
 	var result: Dictionary = farm.bridge_register.build(near, here)
@@ -919,6 +934,7 @@ func _execute_bridge_anchor() -> Dictionary:
 	else:
 		_toast_note("🌉 %s" % str(result.get("message", result.get("error", "the span failed"))))
 	action_performed.emit("bridge_anchor", result)
+	_record_projection_action("bridge_anchor", result)
 	return result
 
 
@@ -939,6 +955,7 @@ func _execute_bridge_braid() -> Dictionary:
 		_toast_note("🪢 braid %s at %s — parity now %d%% even (the far shore speaks %s; the word's order matters)" % [
 			gate, bname, int(round(float(odds.get("even", 0.0)) * 100.0)), "√X" if end == "a" else "S"])
 	action_performed.emit("bridge_braid", result)
+	_record_projection_action("bridge_braid", result)
 	return result
 
 
@@ -975,6 +992,7 @@ func _execute_bridge_fuse() -> Dictionary:
 		_toast_note("⚛ fusion: parity %s (p = %.2f) — +%d paid across both shores. The bridge is spent; looking closed it." % [
 			str(result.get("outcome", "?")), p, reward])
 	action_performed.emit("bridge_fuse", result)
+	_record_projection_action("bridge_fuse", result)
 	return result
 
 
@@ -1013,6 +1031,16 @@ const _GAUGE_VERB_ICONS := {
 	"gauge_scramble": "🎲", "mark_reference": "⌂", "unmark_reference": "🪞",
 	"interfere": "🪞",
 }
+
+
+## Quest-projection seam for UI-side verbs (bridge, berry toggle) with no
+## engine action_* — without this, no history predicate can see them.
+## Records successes only; refusals are toast-and-forget.
+func _record_projection_action(action_name: String, payload: Dictionary) -> void:
+	if _instrument == null or not payload.get("success", false):
+		return
+	if _instrument.has_method("record_projection_action"):
+		_instrument.record_projection_action(action_name, payload)
 
 
 func _execute_gauge_verb(action_name: String) -> Dictionary:
