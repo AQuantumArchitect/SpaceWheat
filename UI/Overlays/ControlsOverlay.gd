@@ -76,11 +76,12 @@ const MAX_VISIBLE_ITEMS := 6
 const COLOR_ARC_FIRED := Color(0.5, 0.75, 0.55, 0.85)
 const COLOR_ARC_UNFIRED := Color(0.85, 0.7, 0.4, 0.95)
 const COLOR_ARC_HEADER := Color(0.7, 0.6, 0.85, 0.95)
-## Narrative-lane row tint (What Survives / What Connects / What Fades).
+## Narrative-lane row tint (What Survives / What Connects / What Fades / What Turns).
 const LANE_COLORS := {
 	"survives": Color(0.55, 0.8, 0.55, 0.95),
 	"connects": Color(0.55, 0.7, 0.9, 0.95),
 	"fades": Color(0.75, 0.68, 0.6, 0.95),
+	"turns": Color(0.85, 0.7, 0.5, 0.95),
 }
 
 # Guide tab: 7 sections, GHJKL;' selects which. The Verbs section absorbs

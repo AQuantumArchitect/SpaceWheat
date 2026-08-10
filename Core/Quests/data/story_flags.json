@@ -1947,6 +1947,10 @@
         "id": "the_crossing"
       },
       {
+        "type": "story_flag_set",
+        "id": "the_knot"
+      },
+      {
         "type": "bridge_built_gte",
         "value": 1
       }
@@ -2111,6 +2115,178 @@
         {
           "type": "signature_size_gte",
           "value": 14
+        }
+      ]
+    }
+  },
+  {
+    "id": "loop_came_home",
+    "display_name": "What Turns I — The Loop Came Home",
+    "act": 5,
+    "arc_beat": "A ripe loop came home. Same plot, same point on the sphere, same odds for every question you know how to ask — and the Hearth Keepers' geometers swear something returned different. They are right. The sphere you watch is a shadow; one floor up, the walk turned the state's hidden dial exactly half the solid angle it enclosed, and a full hemisphere's worth turns it to MINUS. The crop is home and it is not the same crop. No reading taken here alone will ever show you a minus sign. Hold a second qubit at home, one that never walked, and read the two together: what is invisible alone is plain in company. Phase is not a property. Phase is a relationship.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "second_loop"
+      },
+      {
+        "type": "biome_evolving",
+        "biome": "StarterForest"
+      },
+      {
+        "type": "biome_frozen_loops_gte",
+        "biome": "StarterForest",
+        "count": 1
+      }
+    ],
+    "standing_grants": {
+      "Hearth Keepers": {
+        "trust": 0.05
+      }
+    },
+    "arc_quest": {
+      "body": "Ask the Loop What It Kept — hold a reference qubit home, walk another around a ripe loop, and read the pair's sign in the mirror.",
+      "hint": "Icon hat (5), mirror mode 🪞: R marks the stay-home reference, F on mode 1 tracks the traveler, time ripens the loop (2π of solid angle), then E compares the two travel logs. A ripe traveler against a stay-home reads −1.",
+      "math_note": "γ = Ω/2 = π at ripeness ⇒ |ψ⟩ → e^{iπ}|ψ⟩ = −|ψ⟩. Same Bloch point; opposite lift.",
+      "state_predicates": [
+        {
+          "type": "spinor_read",
+          "value": -1
+        }
+      ]
+    }
+  },
+  {
+    "id": "turned_compass",
+    "display_name": "What Turns II — Turn the Compass",
+    "act": 6,
+    "arc_beat": "Past the door you watched the wet country take things. Before you learn what it cannot take, learn what was never a thing at all. Every plot keeps a clock face — a local zero for its phase, a convention, a habit of bookkeeping. Turn one. The Operator's compass swings the whole dial: displayed phases jump, colors swing, half the ledger rewrites itself. And every prediction — every probability, every ripening, every deal — holds exactly. What a turn of convention can change was never physics. What no turn can change is what the world actually keeps. The Scythe Provosts approve: an auditor's first duty is knowing which entries in the books are real.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "loop_came_home"
+      },
+      {
+        "type": "story_flag_set",
+        "id": "the_crossing"
+      }
+    ],
+    "standing_grants": {
+      "Scythe Provosts": {
+        "legitimacy": 0.05
+      }
+    },
+    "arc_quest": {
+      "body": "Turn Every Needle — re-zero the phase convention at three plots and watch what refuses to move.",
+      "hint": "Operator hat (9), compass mode 🧭: R turns the focused plot's convention (χ = π; every fence touching it flips). Free, always — bookkeeping is not physics. Turn three and compare what changed against what held.",
+      "math_note": "|ψ⟩ → e^{iχ}|ψ⟩ per plot; A_ij → A_ij + χ_i − χ_j on the fences. Local freedom, no observable moved.",
+      "state_predicates": [
+        {
+          "type": "gate_sequence_contains",
+          "gate": "gauge_flip",
+          "count": 3
+        }
+      ]
+    }
+  },
+  {
+    "id": "fence_remembers",
+    "display_name": "What Turns III — The Fence Remembers",
+    "act": 7,
+    "arc_beat": "So if every plot's convention is free to turn, where does anything live that the turning cannot reach? Walk the fences. Every fence between two plots carries a sign, and a turn at either post flips it — but a turn touches every fence at that post AT ONCE, two by two around any closed circuit. The product around a closed fence-line never hears the turning. That product is the first number you have met that belongs to the loop and to no post on it. And count the places such numbers can live: comb a treelike corner of the ledger and it goes entirely flat — a tree keeps no books. Only the cycles remember. The Millwrights knew it in their bones: a ring of gears holds a truth no single gear owns.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "turned_compass"
+      },
+      {
+        "type": "biome_betti_gte",
+        "biome": "StarterForest",
+        "count": 1
+      }
+    ],
+    "standing_grants": {
+      "Millwright's Union": {
+        "trust": 0.06
+      }
+    },
+    "arc_quest": {
+      "body": "Flip the Posts, Walk the Fence — read the loop card, turn a post, and certify that every closed fence-product held.",
+      "hint": "Operator hat (9), compass mode 🧭: E reads the loop card FIRST (β₁ cycles and their Wilson products), then R turns a post on one of those loops. The record certifies read → turn → held. Q combs the tree flat if you want to see what refuses to go; F scrambles everything for the full red-team.",
+      "math_note": "W(C) = Π s_ij invariant under s_ij → σ_i s_ij σ_j (each σ enters twice). Survivor count: β₁ = E − V + C.",
+      "state_predicates": [
+        {
+          "type": "wilson_survived_flip"
+        }
+      ]
+    }
+  },
+  {
+    "id": "the_number_lied",
+    "display_name": "What Turns IV — The Number That Lied",
+    "act": 7,
+    "arc_beat": "The knot card told you LINKED, and the word did honest work — but the Carrion Throne would like you to notice what the number under it actually promises. Mutual winding counts turns about the PARTNER'S axis, and the axis is the partner's to swing. An integer, yes. Unable to drift, yes — it can only jump. But a number a legal move can jump is not an invariant; it is a diagnostic wearing an invariant's coat. There is one way to know which you hold: attack it. Change it without cutting anything, and it confesses. An invariant is not something a card declares. It is something that survives every attack the rules allow.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "the_knot"
+      },
+      {
+        "type": "story_flag_set",
+        "id": "fence_remembers"
+      }
+    ],
+    "standing_grants": {
+      "Carrion Throne": {
+        "attention": 0.08
+      },
+      "Hearth Keepers": {
+        "trust": 0.05
+      }
+    },
+    "arc_quest": {
+      "body": "Break It Without Cutting — make the knot card's winding change by smooth moves alone: no loop cut, no record lost.",
+      "hint": "Icon hat (5): re-walk the partner's dance with its axis swung — steer the same qubit around a tilted circuit and bank the new loop beside the old ones. The card re-reads the strongest pair; if the integer moves while every banked record stands, the number confessed.",
+      "math_note": "w(A, B) is axis-relative: smooth moves of B swing area_axis(B) and change w with nothing torn. Integer-valued ⇏ invariant.",
+      "state_predicates": [
+        {
+          "type": "winding_changed_uncut"
+        }
+      ]
+    }
+  },
+  {
+    "id": "close_it_upstairs",
+    "display_name": "What Turns V — Close It Upstairs",
+    "act": 8,
+    "arc_beat": "One loose end remains, and it is literal. You learned in the mirror that a ripe loop comes home with its sign turned — which means that one floor up, where the phase lives, the walk did NOT close. Its lift hangs open, loose ends split by exactly the holonomy the walk earned. The record has been refusing a question all this time on precisely these grounds: two curves can only link if both actually close, and yours do not. So close them. Walk the same loop again — the loose ends swing toward each other as the dial turns — and when a walk banks two full hemispheres, the ends meet. The lift is a true circle at last, and the record will finally accept the question you have wanted to ask since the second loop froze: do they link?",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "the_number_lied"
+      },
+      {
+        "type": "story_flag_set",
+        "id": "loop_came_home"
+      }
+    ],
+    "standing_grants": {
+      "Hearth Keepers": {
+        "trust": 0.08
+      }
+    },
+    "arc_quest": {
+      "body": "Walk It Twice — close a lift upstairs on each of two qubits, until the record accepts the linking question.",
+      "hint": "Icon hat (5): track a qubit and let it walk its ripe loop TWICE without stopping (Ω = 4π closes the lift; the record stitches consecutive banked loops itself). Then do it again on a second qubit. The knot card's experimental line stops refusing the moment both lifts truly close.",
+      "math_note": "Lift closes iff Ω ≡ 0 (mod 4π). gauss_linking(open lift) = NAN — refusal, not failure; earn the closed curve and the number becomes real.",
+      "state_predicates": [
+        {
+          "type": "biome_loop_closed_upstairs",
+          "biome": "StarterForest"
+        },
+        {
+          "type": "biome_linking_valid",
+          "biome": "StarterForest"
         }
       ]
     }

@@ -58,6 +58,9 @@ func _run() -> void:
 	_check(bare["lane"] == "fades" and bare["numeral"] == "",
 			"numeral-less lane parses", str(bare))
 	_check(StoryAtlas.lane_of("First Breath")["lane"] == "", "spine flag has no lane")
+	var turns := StoryAtlas.lane_of("What Turns I — The Loop Came Home")
+	_check(turns["lane"] == "turns" and turns["numeral"] == "I",
+			"the fourth lane (What Turns) parses", str(turns))
 	_check(StoryAtlas.lane_tag("What Connects IV — The Braid Alphabet") == "Connects IV",
 			"lane_tag renders short form")
 

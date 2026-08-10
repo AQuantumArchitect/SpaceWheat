@@ -230,15 +230,15 @@ def test_branch_groups_are_coherent_alternatives():
 
 
 def test_lane_display_names_parse():
-    """Every 'What Survives/Connects/Fades' display_name must parse as a lane
-    — optional I-V numeral, then '— Title' (both authored shapes:
+    """Every 'What Survives/Connects/Fades/Turns' display_name must parse as a
+    lane — optional I-V numeral, then '— Title' (both authored shapes:
     'What Survives III — …' and 'What Fades — …'). Pins StoryAtlas.lane_of's
     derive-from-display_name contract so a rename fails loudly instead of
     silently dropping a flag off its lane."""
     flags = json.loads(STORY_FLAGS.read_text(encoding="utf-8"))
-    lane_re = re.compile(r"^What (Survives|Connects|Fades)( (I{1,3}|IV|V))? — .+")
+    lane_re = re.compile(r"^What (Survives|Connects|Fades|Turns)( (I{1,3}|IV|V))? — .+")
     laned = [f for f in flags if str(f["display_name"]).startswith("What ")]
-    assert len(laned) >= 20, "expected the ~22 lane-prefixed flags; data reshaped?"
+    assert len(laned) >= 20, "expected the ~27 lane-prefixed flags; data reshaped?"
     bad = [f["id"] for f in laned if not lane_re.match(str(f["display_name"]))]
     assert not bad, f"lane display_names that no longer parse: {bad}"
 
