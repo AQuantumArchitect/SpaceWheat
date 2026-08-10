@@ -3,6 +3,7 @@ extends RefCounted
 
 # Shared constants
 const VerboseConfig = preload("res://Core/Config/VerboseConfig.gd")
+const UIProgression = preload("res://UI/Core/UIProgression.gd")
 
 ## Batched Bubble Renderer — STATION coordinator (Mini-Metro pass, 2026-07-07)
 ##
@@ -136,6 +137,14 @@ func _draw_with_atlas(graph: Node2D, ctx: Dictionary) -> void:
 
 	var theme_by_biome: Dictionary = {}
 
+	# Gauge dial (What Turns): per-biome fence-ledger lookup, resolved once
+	# per pass and only after the compass lesson unlocks the overlay. NAN
+	# frame = dial off (draw_station's default keeps every other caller —
+	# and the C++ mirror — untouched).
+	var biomes_ctx: Dictionary = ctx.get("biomes", {}) if ctx.get("biomes") is Dictionary else {}
+	var gauge_on: bool = not biomes_ctx.is_empty() and UIProgression.is_viz_visible("gauge_overlay")
+	var gauge_by_biome: Dictionary = {}
+
 	for node in quantum_nodes:
 		if not node.visible:
 			continue
@@ -176,10 +185,20 @@ func _draw_with_atlas(graph: Node2D, ctx: Dictionary) -> void:
 		var station_radius: float = node.radius * node.depth_scale \
 				* node.hover_scale * node.press_scale
 
+		var frame_chi := NAN
+		if gauge_on and node.register_id >= 0:
+			if not gauge_by_biome.has(node.biome_name):
+				var gb = biomes_ctx.get(node.biome_name, null)
+				gauge_by_biome[node.biome_name] = gb.quantum_computer.get_gauge_field() \
+						if (gb != null and "quantum_computer" in gb and gb.quantum_computer != null) else null
+			var gf = gauge_by_biome[node.biome_name]
+			if gf != null:
+				frame_chi = gf.node_frame(node.register_id)
+
 		_bubble_atlas_batcher.draw_station(
 			node.position, station_radius, anim_scale, anim_alpha,
 			theme, VisualizationConstants.ripeness(p0, p1),
-			phi, coherence, is_measured, false, time_accumulator)
+			phi, coherence, is_measured, false, time_accumulator, frame_chi)
 
 		_emoji_queue.append({
 			"position": node.position,

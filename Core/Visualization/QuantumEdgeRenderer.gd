@@ -38,6 +38,13 @@ var _metro_cache: Dictionary = {}
 var _metro_cache_frame: int = -1000
 const METRO_CACHE_STRIDE: int = 300  # ~5 s — H only moves on icon incorporation
 
+## Fence-ledger references (What Turns), refreshed with the metro cache. The
+## FIELD reference is cached at stride; the PHASE is read live per frame so a
+## compass turn rotates the glyph the same frame the player presses R —
+## visual affordance must answer the verb, not lag it by five seconds.
+const UIProgression = preload("res://UI/Core/UIProgression.gd")
+var _gauge_field_cache: Dictionary = {}
+
 ## Lindblad cache (inspection-only): {biome_name -> [{src, tgt, rate, color}]}
 var _lindblad_cache: Dictionary = {}
 var _lindblad_cache_frame: int = -1000
@@ -123,14 +130,38 @@ func _draw_metro_lines(graph: Node2D, ctx: Dictionary) -> void:
 					else:
 						graph.draw_circle(p, 2.2, dot_color)
 
+			# Fence glyph (What Turns) — a short midpoint bar rotated by the
+			# fence's gauge phase A_ij: upright at 0, crosswise ("cut fence")
+			# at π, in between for U(1) turns. Phase read LIVE so a compass
+			# turn rotates the glyph the frame it happens; the LINE itself
+			# (physics: |J|) never moves.
+			if is_front and _gauge_field_cache.has(biome_name):
+				var gf = _gauge_field_cache[biome_name]
+				if gf != null and gf.has_edge(pair.q_a, pair.q_b):
+					var g_ang: float = dir.angle() + PI / 2.0 + float(gf.edge_phase(pair.q_a, pair.q_b)) * 0.5
+					var mid: Vector2 = (a + b) * 0.5
+					var g_dir := Vector2.from_angle(g_ang) * 5.0
+					var g_color: Color = pair.color
+					g_color.a = 0.9
+					if batcher:
+						batcher.add_line(mid - g_dir, mid + g_dir, g_color, 2.5)
+					else:
+						graph.draw_line(mid - g_dir, mid + g_dir, g_color, 2.5, true)
+
 
 func _rebuild_metro_cache(biomes: Dictionary) -> void:
 	_metro_cache.clear()
+	_gauge_field_cache.clear()
+	# Fence-ledger refs resolve at cache cadence; hidden until the compass
+	# lesson lands (same gate as the station dial).
+	var gauge_on: bool = UIProgression.is_viz_visible("gauge_overlay")
 	for biome_name in biomes:
 		var biome = biomes[biome_name]
 		if not biome or not biome.viz_cache or not biome.viz_cache.has_metadata():
 			continue
 		var vc = biome.viz_cache
+		if gauge_on and "quantum_computer" in biome and biome.quantum_computer != null:
+			_gauge_field_cache[biome_name] = biome.quantum_computer.get_gauge_field()
 		var theme: Dictionary = BiomeVisualTheme.get_theme(biome_name)
 		var palette: Array = theme.get("line_palette", [Color.WHITE])
 

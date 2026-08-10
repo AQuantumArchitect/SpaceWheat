@@ -81,6 +81,25 @@ static func is_hat_visible(frame_name: String) -> bool:
 	return _unlocked(str(HAT_UNLOCK_FLAGS.get(frame_name, "")), flags)
 
 
+## Viz overlay id → surfacing flag ("" = always). Same fail-open law: an
+## overlay absent from the table is always drawn. Renderers check once per
+## cache rebuild, not per frame.
+const VIZ_UNLOCK_FLAGS: Dictionary = {
+	# The gauge dial (clock-face ticks on stations) + edge fence glyphs stay
+	# hidden until the compass lesson introduces the very idea of a local
+	# convention — an unexplained rotating dial would read as noise (visual
+	# affordance pairs with the teaching beat, not before it).
+	"gauge_overlay": "turned_compass",
+}
+
+
+static func is_viz_visible(overlay_id: String) -> bool:
+	var flags := _flags()
+	if flags.is_empty() and _no_farm():
+		return true
+	return _unlocked(str(VIZ_UNLOCK_FLAGS.get(overlay_id, "")), flags)
+
+
 static func is_menu_visible(menu_id: String) -> bool:
 	var flags := _flags()
 	if flags.is_empty() and _no_farm():

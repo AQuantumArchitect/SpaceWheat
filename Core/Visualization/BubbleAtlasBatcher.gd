@@ -749,7 +749,8 @@ func get_stats() -> Dictionary:
 
 func draw_station(pos: Vector2, base_radius: float, anim_scale: float, anim_alpha: float,
 				  theme: Dictionary, ripeness: float, phi: float, coherence: float,
-				  is_measured: bool, is_celestial: bool, time: float) -> void:
+				  is_measured: bool, is_celestial: bool, time: float,
+				  frame_chi: float = NAN) -> void:
 	# Mini-Metro STATION (2026-07-07). Replaces the 10-layer bubble (glows,
 	# gloss, season wedges, spin spiral, uncertainty/purity rings, sink
 	# particles — all deleted). Max three signals per station:
@@ -762,6 +763,12 @@ func draw_station(pos: Vector2, base_radius: float, anim_scale: float, anim_alph
 	#   dot  — PHASE: a small ink dot riding the ring at angle phi,
 	#          alpha = coherence (r_xy ∈ [0,1]) — phase visibly rotates,
 	#          decoherence visibly fades
+	#   dial — GAUGE FRAME (opt-in; NAN = off): four faint tick marks rotated
+	#          by the plot's chosen local convention χ. Turning the compass
+	#          rotates the FACE; the phase dot (physics) stays put — the
+	#          What Turns II lesson, drawn. Gated by UIProgression
+	#          ("gauge_overlay") at the caller; this layer only renders what
+	#          it is handed.
 	if anim_scale <= 0.0 or anim_alpha <= 0.0:
 		return
 	var r := base_radius * anim_scale
@@ -806,3 +813,16 @@ func draw_station(pos: Vector2, base_radius: float, anim_scale: float, anim_alph
 		var dot_color := Color(1.0, 0.9, 0.35, dot_alpha) if is_celestial \
 				else Color(ink.r, ink.g, ink.b, dot_alpha)
 		add_circle_layer("circle_100", pos + Vector2.from_angle(phi) * ring_r, 3.0, dot_color)
+
+	# — Gauge dial —
+	if not is_nan(frame_chi) and not is_measured:
+		var tick_r := ring_r * 0.88
+		for k in range(4):
+			var ang := frame_chi + float(k) * TAU / 4.0
+			# The χ tick (k = 0) is the dial's zero marker — brighter and
+			# longer, so a quarter-turn of convention is legible at a glance.
+			var is_zero := k == 0
+			var half_span := 0.10 if is_zero else 0.055
+			var tick_alpha := (0.55 if is_zero else 0.3) * anim_alpha
+			add_arc_layer(pos, tick_r, ang - half_span, ang + half_span,
+					3.0 if is_zero else 2.0, Color(ink.r, ink.g, ink.b, tick_alpha))
