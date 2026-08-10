@@ -93,6 +93,13 @@ var _selected_index: int = 0
 # -- a silent accept before the player ever chose to commit. True only once a real tap (or
 # keyboard nav via _select()) has actually landed on the current row.
 var _row_confirm_armed: bool = false
+# Which block of MAX_VISIBLE_ITEMS rows the GHJKL; ring is currently pointed at.
+# The ring is exactly six keys wide, so a list longer than six needs a page
+# offset or its tail is unreachable — items past the sixth were never added to
+# the tree at all, and the old "… N more not shown" footer was a dead end.
+# _selected_index stays ABSOLUTE (indexes the full list); the page decides which
+# absolute slice the six keys address.
+var _item_page: int = 0
 var _market_status_note: String = ""
 
 var _market_sort_mode: int = MarketView.SortMode.COMFORT
@@ -145,8 +152,7 @@ func set_biome(biome: Node) -> void:
 	if biome != current_biome:
 		current_biome = biome
 		_offer_pool.clear()
-		_selected_index = 0
-		_row_confirm_armed = false
+		_reset_item_cursor()
 		if visible:
 			_render_all()
 
@@ -257,32 +263,48 @@ func _on_unhandled_key(keycode: int, event: InputEvent) -> bool:
 	if super._on_unhandled_key(keycode, event):
 		_on_frame_changed_local()
 		return true
+	# A/D = step INNER (the item page inside the active tab), the same layer
+	# ControlsOverlay/EscapeMenu/QubitAtlasOverlay bind. Before this the board's
+	# six-key ring could only ever address the first six rows of any list.
+	if keycode == KEY_A:
+		_on_navigate(Vector2i(-1, 0))
+		return true
+	if keycode == KEY_D:
+		_on_navigate(Vector2i(1, 0))
+		return true
 	var item_idx := InputBindingRegistry.plot_index_for_keycode(keycode, ITEM_KEYS.size())
 	if item_idx >= 0:
-		_select(item_idx)
+		# GHJKL; give a SLOT on the current page; _select takes an absolute index.
+		_select(_item_page * MAX_VISIBLE_ITEMS + item_idx)
 		return true
 	if frame_id == FRAME_MARKET and MARKET_SORT_BY_KEY.has(keycode):
 		_market_sort_mode = int(MARKET_SORT_BY_KEY[keycode])
-		_selected_index = 0
-		_row_confirm_armed = false
+		_reset_item_cursor()
 		_render_all()
 		return true
 	if frame_id == FRAME_COMMITMENTS and COMMITMENTS_VIEW_BY_KEY.has(keycode):
 		_disarm_abandon(true)
 		_commitments_view = str(COMMITMENTS_VIEW_BY_KEY[keycode])
-		_selected_index = 0
-		_row_confirm_armed = false
+		_reset_item_cursor()
 		_render_all()
 		return true
 	return false
+
+
+## Send the cursor back to row 0 / page 0, disarmed. Every event that reshuffles
+## or replaces the underlying list calls this — a stale page would otherwise
+## render an empty ring over a list that does have rows.
+func _reset_item_cursor() -> void:
+	_selected_index = 0
+	_item_page = 0
+	_row_confirm_armed = false
 
 func _on_frame_changed(_new_frame_id: String, _prev_frame_id: String) -> void:
 	_on_frame_changed_local()
 
 func _on_frame_changed_local() -> void:
 	_disarm_abandon(true)
-	_selected_index = 0
-	_row_confirm_armed = false
+	_reset_item_cursor()
 	_render_all()
 
 func _on_activated() -> void:
@@ -536,6 +558,10 @@ func _render_all() -> void:
 	var _rc := _current_row_count()
 	if _rc > 0:
 		_selected_index = clampi(_selected_index, 0, _rc - 1)
+	# Same for the page: a list that shrank under the cursor (accept/claim/
+	# abandon, or a market refresh) must not leave the ring parked past the end
+	# showing six empty slots over a non-empty list.
+	_item_page = clampi(_item_page, 0, _item_page_count(_rc) - 1)
 	_refresh_status()
 	_refresh_tab_row()
 	_refresh_body()
@@ -545,11 +571,12 @@ func _render_all() -> void:
 func _refresh_close_hint() -> void:
 	if not _close_hint:
 		return
+	var paging_hint := "  ·  A/D page" if _current_row_count() > MAX_VISIBLE_ITEMS else ""
 	if frame_id == FRAME_MARKET:
 		var sort_label := str(MARKET_SORT_LABELS.get(_market_sort_mode, "?"))
-		_close_hint.text = "ESC close  ·  T Y U tabs  ·  [1] Comfort↓  [2] Magnitude↓  [3] Tension↓  ·  active: %s" % sort_label
+		_close_hint.text = "ESC close  ·  T Y U tabs%s  ·  [1] Comfort↓  [2] Magnitude↓  [3] Tension↓  ·  active: %s" % [paging_hint, sort_label]
 	else:
-		_close_hint.text = "ESC close   ·   T Y U tabs"
+		_close_hint.text = "ESC close   ·   T Y U tabs%s" % paging_hint
 
 func _refresh_status() -> void:
 	if not _status_line:
@@ -672,16 +699,18 @@ func _build_manifold_body() -> void:
 	]
 	header.add_child(hdr_lbl)
 
-	# Per-qubit rows — first MAX_VISIBLE_ITEMS qubits get an item key chip.
+	# Per-qubit rows — the six GHJKL; keys address one page of qubits at a time.
 	var num_q: int = int(qc.register_map.num_qubits)
-	var rows_to_show: int = min(num_q, MAX_VISIBLE_ITEMS)
-	for q in range(rows_to_show):
-		_body_box.add_child(_make_manifold_row(qc, q, ITEM_KEYS[q], q == _selected_index))
-	# Empty slots fill out the GHJKL; row.
-	for i in range(rows_to_show, MAX_VISIBLE_ITEMS):
-		_body_box.add_child(_make_empty_row(ITEM_KEYS[i]))
+	var start: int = _item_page_start(num_q)
+	for i in range(MAX_VISIBLE_ITEMS):
+		var q: int = start + i
+		if q < num_q:
+			_body_box.add_child(_make_manifold_row(qc, q, ITEM_KEYS[i], q == _selected_index))
+		else:
+			# Empty slots fill out the GHJKL; row.
+			_body_box.add_child(_make_empty_row(ITEM_KEYS[i]))
 	if num_q > MAX_VISIBLE_ITEMS:
-		_body_box.add_child(_make_muted_label("… %d more qubits not shown" % (num_q - MAX_VISIBLE_ITEMS), 10))
+		_body_box.add_child(_make_item_pager(num_q, "qubits"))
 
 func _make_manifold_row(qc, qubit_idx: int, key_str: String, selected: bool) -> Control:
 	var row := PanelContainer.new()
@@ -751,7 +780,12 @@ func _make_manifold_row(qc, qubit_idx: int, key_str: String, selected: bool) -> 
 ## biome's marginal + tension between them. Side A and B can each be either a
 ## live biome (read live QC marginals) or a neighborhood spec (read Lindblad
 ## steady-state marginals from spec).
-func _build_manifold_edge_body() -> void:
+## The ordered emoji list across the active edge, plus the marginals behind it.
+## Extracted from the body builder so the row-count authority
+## (_manifold_row_count) and the renderer read the SAME ordering — a paged list
+## whose length is derived a second, different way is how page/selection
+## off-by-ones get in.
+func _edge_ordered_emojis() -> Dictionary:
 	var marg_a: Dictionary = _resolve_marginals(_pair_a_name)
 	var marg_b: Dictionary = _resolve_marginals(_pair_b_name)
 
@@ -776,7 +810,24 @@ func _build_manifold_edge_body() -> void:
 	a_only.sort_custom(func(x, y): return float(marg_a[x].p) > float(marg_a[y].p))
 	b_only.sort_custom(func(x, y): return float(marg_b[x].p) > float(marg_b[y].p))
 
-	var ordered: Array = shared + a_only + b_only
+	return {
+		"ordered": shared + a_only + b_only,
+		"marg_a": marg_a,
+		"marg_b": marg_b,
+		"shared": shared,
+		"a_only": a_only,
+		"b_only": b_only,
+	}
+
+
+func _build_manifold_edge_body() -> void:
+	var edge: Dictionary = _edge_ordered_emojis()
+	var marg_a: Dictionary = edge["marg_a"]
+	var marg_b: Dictionary = edge["marg_b"]
+	var shared: Array = edge["shared"]
+	var a_only: Array = edge["a_only"]
+	var b_only: Array = edge["b_only"]
+	var ordered: Array = edge["ordered"]
 
 	# Header: edge identity + total tension + shared count.
 	var total_tension: float = 0.0
@@ -818,15 +869,17 @@ func _build_manifold_edge_body() -> void:
 	col_t.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
 	col_hdr.add_child(col_t)
 
-	# Rows.
+	# Rows — one page of the ordered emoji list per GHJKL; ring.
+	var edge_start: int = _item_page_start(ordered.size())
 	for i in range(MAX_VISIBLE_ITEMS):
-		if i < ordered.size():
-			var emoji: String = str(ordered[i])
-			_body_box.add_child(_make_edge_row(emoji, marg_a, marg_b, ITEM_KEYS[i], i == _selected_index))
+		var abs_i: int = edge_start + i
+		if abs_i < ordered.size():
+			var emoji: String = str(ordered[abs_i])
+			_body_box.add_child(_make_edge_row(emoji, marg_a, marg_b, ITEM_KEYS[i], abs_i == _selected_index))
 		else:
 			_body_box.add_child(_make_empty_row(ITEM_KEYS[i]))
 	if ordered.size() > MAX_VISIBLE_ITEMS:
-		_body_box.add_child(_make_muted_label("… %d more emojis not shown" % (ordered.size() - MAX_VISIBLE_ITEMS), 10))
+		_body_box.add_child(_make_item_pager(ordered.size(), "emojis"))
 
 func _make_edge_row(emoji: String, marg_a: Dictionary, marg_b: Dictionary, key_str: String, selected: bool) -> Control:
 	var row := PanelContainer.new()
@@ -959,14 +1012,20 @@ func _build_market_body() -> void:
 		empty_msg += "\nthe market follows your active biome — walk somewhere with factions, or press E to refresh"
 		_body_box.add_child(_make_muted_label(empty_msg, 12))
 		return
+	# One page of offers per GHJKL; ring. BoardRow_N stays SLOT-named (0-5) so
+	# probes and mouse taps address the visible row, not an absolute pool index.
+	var start: int = _item_page_start(visible_offers.size())
 	for i in range(MAX_VISIBLE_ITEMS):
-		if i < visible_offers.size():
-			var offer_row := _make_offer_row(visible_offers[i], ITEM_KEYS[i], i == _selected_index)
+		var abs_i: int = start + i
+		if abs_i < visible_offers.size():
+			var offer_row := _make_offer_row(visible_offers[abs_i], ITEM_KEYS[i], abs_i == _selected_index)
 			offer_row.name = "BoardRow_%d" % i
-			offer_row.gui_input.connect(_on_row_gui_input.bind(i))
+			offer_row.gui_input.connect(_on_row_gui_input.bind(abs_i))
 			_body_box.add_child(offer_row)
 		else:
 			_body_box.add_child(_make_empty_row(ITEM_KEYS[i]))
+	if visible_offers.size() > MAX_VISIBLE_ITEMS:
+		_body_box.add_child(_make_item_pager(visible_offers.size(), "offers"))
 
 ## What the contract PAYS, in player language. Icon contracts teach a word;
 ## resource contracts pay their pre-rolled bundle (top entries, biggest first).
@@ -1101,17 +1160,18 @@ func _build_commitments_body() -> void:
 			else "no active or ready contracts — accept some via Y (Market)"
 		_body_box.add_child(_make_muted_label(empty_msg, 12))
 		return
+	var start: int = _item_page_start(rows.size())
 	for i in range(MAX_VISIBLE_ITEMS):
-		if i < rows.size():
-			var c_row := _make_commitment_row(rows[i], ITEM_KEYS[i], i == _selected_index)
+		var abs_i: int = start + i
+		if abs_i < rows.size():
+			var c_row := _make_commitment_row(rows[abs_i], ITEM_KEYS[i], abs_i == _selected_index)
 			c_row.name = "BoardRow_%d" % i
-			c_row.gui_input.connect(_on_row_gui_input.bind(i))
+			c_row.gui_input.connect(_on_row_gui_input.bind(abs_i))
 			_body_box.add_child(c_row)
 		else:
 			_body_box.add_child(_make_empty_row(ITEM_KEYS[i]))
 	if rows.size() > MAX_VISIBLE_ITEMS:
-		_body_box.add_child(_make_muted_label(
-			"… %d more not shown" % (rows.size() - MAX_VISIBLE_ITEMS), 10))
+		_body_box.add_child(_make_item_pager(rows.size(), "contracts"))
 
 func _make_commitment_row(quest: Dictionary, key_str: String, selected: bool) -> Control:
 	var row := PanelContainer.new()
@@ -1473,8 +1533,7 @@ func set_pair_scope(name_a: String, name_b: String) -> void:
 	_nb_name = ""
 	_nb_auto_scoped = false
 	_offer_pool.clear()
-	_selected_index = 0
-	_row_confirm_armed = false
+	_reset_item_cursor()
 	if _body_box != null:
 		_refresh_pool()
 		_render_all()
@@ -1487,8 +1546,7 @@ func clear_pair_scope() -> void:
 	_nb_name = ""
 	_nb_auto_scoped = false
 	_offer_pool.clear()
-	_selected_index = 0
-	_row_confirm_armed = false
+	_reset_item_cursor()
 
 func _get_visible_offers() -> Array:
 	var sorted: Array = MarketView.sort_view(_offer_pool, _get_inventory(), _market_sort_mode)
@@ -1702,18 +1760,76 @@ func _abandon_confirmed() -> void:
 
 func _current_row_count() -> int:
 	# Row count for the ACTIVE frame (the list _selected_index indexes into).
+	# Manifold used to answer a flat MAX_VISIBLE_ITEMS — a lie in both directions
+	# (too many when a biome has fewer qubits, too few once it has more than six).
 	match frame_id:
 		FRAME_MARKET:
 			return MarketView.sort_view(_offer_pool, _get_inventory(), _market_sort_mode).size()
 		FRAME_COMMITMENTS:
 			return _commitments_rows().size()
+		FRAME_MANIFOLD:
+			return _manifold_row_count()
 		_:
 			return MAX_VISIBLE_ITEMS
 
 
+func _manifold_row_count() -> int:
+	if _is_pair_scope_active():
+		return _edge_ordered_emojis()["ordered"].size()
+	_ensure_biome()
+	if current_biome == null:
+		return 0
+	var qc = current_biome.quantum_computer if "quantum_computer" in current_biome else null
+	if qc == null or qc.register_map == null:
+		return 0
+	return int(qc.register_map.num_qubits)
+
+
+# =============================================================================
+# ITEM PAGING — the GHJKL; ring is six keys wide; longer lists page.
+# =============================================================================
+
+func _item_page_count(total: int) -> int:
+	return maxi(1, ceili(float(total) / float(MAX_VISIBLE_ITEMS)))
+
+
+## Clamp the page into range for a list of `total` rows and return its first
+## absolute index. Every body builder calls this before slicing.
+func _item_page_start(total: int) -> int:
+	_item_page = clampi(_item_page, 0, _item_page_count(total) - 1)
+	return _item_page * MAX_VISIBLE_ITEMS
+
+
+## Step the page by ±1 and drag the cursor onto the new page, so the Q/E/R/F
+## chips never act on a row the player can no longer see.
+func _step_item_page(step: int) -> void:
+	var total := _current_row_count()
+	var last_page := _item_page_count(total) - 1
+	var next := clampi(_item_page + step, 0, last_page)
+	if next == _item_page:
+		return
+	_disarm_abandon(true)
+	_item_page = next
+	_selected_index = clampi(_item_page * MAX_VISIBLE_ITEMS, 0, maxi(0, total - 1))
+	_row_confirm_armed = false
+	_render_all()
+
+
+## A/D step the item page (KEYBOARD_GRAMMAR "selection layer": A/D = step INNER).
+func _on_navigate(direction: Vector2i) -> void:
+	if direction.x == 0:
+		return
+	_step_item_page(signi(direction.x))
+
+
 func _select(idx: int) -> void:
+	# idx is ABSOLUTE (a row's index in the full list), not a slot in the
+	# six-key ring — callers on the current page pass page_start + slot.
 	_disarm_abandon()
-	_selected_index = clampi(idx, 0, MAX_VISIBLE_ITEMS - 1)
+	var total := _current_row_count()
+	_selected_index = clampi(idx, 0, maxi(0, total - 1))
+	# Keep the cursor and the visible page in agreement.
+	_item_page = clampi(_selected_index / MAX_VISIBLE_ITEMS, 0, _item_page_count(total) - 1)
 	_row_confirm_armed = true
 	_refresh_body()
 	_refresh_verb_chips()
@@ -1736,6 +1852,33 @@ func _make_empty_row(key_str: String) -> Control:
 func _make_muted_label(text: String, icon_size: int) -> Label:
 	# Historical quirk kept: no autowrap on QuestBoard's muted labels.
 	return OverlayChrome.muted_label(text, icon_size, UIStyleFactory.COLOR_MUTED, false)
+
+
+## Footer pager for lists longer than the six-key ring. Arrows are click twins
+## of the A/D keys through the same _on_navigate() the keyboard calls — one
+## authority, matching ControlsOverlay/EscapeMenu/QubitAtlasOverlay.
+func _make_item_pager(total: int, noun: String) -> Control:
+	var row := HBoxContainer.new()
+	row.name = "BoardPager"
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 8)
+	var prev_lbl := _make_muted_label("◀", 11)
+	prev_lbl.name = "BoardPagerPrev"
+	ClickWire.attach(prev_lbl, _on_navigate.bind(Vector2i(-1, 0)))
+	row.add_child(prev_lbl)
+	var pages := _item_page_count(total)
+	var first: int = _item_page * MAX_VISIBLE_ITEMS + 1
+	var last: int = mini(total, first + MAX_VISIBLE_ITEMS - 1)
+	var page_lbl := _make_muted_label(
+		"%d–%d of %d %s  ·  page %d/%d  ·  A/D" % [first, last, total, noun, _item_page + 1, pages], 10)
+	page_lbl.name = "BoardPagerLabel"
+	page_lbl.autowrap_mode = TextServer.AUTOWRAP_OFF
+	row.add_child(page_lbl)
+	var next_lbl := _make_muted_label("▶", 11)
+	next_lbl.name = "BoardPagerNext"
+	ClickWire.attach(next_lbl, _on_navigate.bind(Vector2i(1, 0)))
+	row.add_child(next_lbl)
+	return row
 
 func _comfort_bar(comfort: float, length: int) -> String:
 	return OverlayChrome.ratio_bar(absf(comfort), length)
@@ -1825,8 +1968,12 @@ func get_snapshot() -> Dictionary:
 		"selected_label": _selected_label_for_tab(),
 		"surface_hint": "%s · %s" % [_scope_mode_label(), _scope_source_label()],
 		"pool_size": _offer_pool.size(),
-		"total_pages": 1,
-		"current_page": 0,
+		# Item paging inside the active tab (distinct from page_index/page_count,
+		# which are the TAB ring). These used to be hardcoded 1/0 — an instrument
+		# lie that read "one page, nothing beyond" over a truncated list.
+		"total_pages": _item_page_count(_current_row_count()),
+		"current_page": _item_page,
+		"row_count": _current_row_count(),
 		"slots": slots,
 		"market_sort": str(MARKET_SORT_LABELS.get(_market_sort_mode, "")),
 		"scope_mode": _scope_mode_label(),

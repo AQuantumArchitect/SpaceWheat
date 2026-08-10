@@ -42,6 +42,7 @@ SMOKE_TESTS=(
     chatter_liveliness_smoke
     ending_overlay_smoke
     escape_menu_run_smoke
+    quest_board_paging_smoke
     objective_blackout_smoke
     story_atlas_smoke
     predicate_target_smoke
