@@ -955,7 +955,12 @@ func _make_nav_pager(label_text: String) -> Control:
 	prev_lbl.name = "NavPagerPrev"
 	ClickWire.attach(prev_lbl, _on_navigate.bind(Vector2i(-1, 0)))
 	row.add_child(prev_lbl)
-	row.add_child(_make_muted_label(label_text, 10))
+	# AUTOWRAP_OFF: this label sits in a shrink-to-fit centered HBoxContainer
+	# with no width budget — an autowrap label in that layout collapses to a
+	# near-zero minimum width and wraps after nearly every character.
+	var page_lbl := _make_muted_label(label_text, 10)
+	page_lbl.autowrap_mode = TextServer.AUTOWRAP_OFF
+	row.add_child(page_lbl)
 	var next_lbl := _make_muted_label("▶", 11)
 	next_lbl.name = "NavPagerNext"
 	ClickWire.attach(next_lbl, _on_navigate.bind(Vector2i(1, 0)))

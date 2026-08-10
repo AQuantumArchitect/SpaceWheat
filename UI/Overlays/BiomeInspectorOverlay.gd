@@ -59,7 +59,6 @@ func _init() -> void:
 	show_dimmer = true
 	dimmer_color = Color(0, 0, 0, 0.75)
 	panel_border_color = Color(0.3, 0.5, 0.6, 0.8)
-	use_scroll_container = false
 	content_spacing = 6
 	navigation_mode = NavigationMode.NONE
 	# Surface contract — pure overlay: single frame, no chips, no claims.

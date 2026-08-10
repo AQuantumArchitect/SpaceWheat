@@ -956,6 +956,34 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				await _wait_settle_frames(int(cmd.get("settle_frames", 8)))
 				result["tapped"] = [int(tap_screen.x), int(tap_screen.y)]
 
+		"scroll":
+			# Synthetic mouse-wheel scroll at a screen point — injects a REAL
+			# InputEventMouseButton (WHEEL_DOWN/WHEEL_UP) through the viewport, the
+			# same event a ScrollContainer's default input handling reacts to.
+			# {screen: [x,y], notches: N} — N>0 scrolls down, N<0 scrolls up.
+			var scroll_screen := Vector2(-1, -1)
+			if cmd.has("screen"):
+				var ss: Array = cmd["screen"]
+				if ss.size() == 2:
+					scroll_screen = Vector2(float(ss[0]), float(ss[1]))
+			if scroll_screen.x < 0.0:
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_scroll_target"}
+			else:
+				var notches := int(cmd.get("notches", 3))
+				var wheel_button := MOUSE_BUTTON_WHEEL_DOWN if notches >= 0 else MOUSE_BUTTON_WHEEL_UP
+				var scroll_vp: Viewport = get_root()
+				for _i in range(abs(notches)):
+					for scroll_pressed in [true, false]:
+						var scroll_ev := InputEventMouseButton.new()
+						scroll_ev.button_index = wheel_button
+						scroll_ev.pressed = scroll_pressed
+						scroll_ev.position = scroll_screen
+						scroll_ev.global_position = scroll_screen
+						if scroll_vp:
+							scroll_vp.push_input(scroll_ev, true)
+				await _wait_settle_frames(int(cmd.get("settle_frames", 8)))
+				result["scrolled"] = [int(scroll_screen.x), int(scroll_screen.y)]
+
 		"ui_stack":
 			# Read-only: the live overlay stack (names bottom→top) + per-entry
 			# visibility. The degradation forensics view: ghosts show up as
