@@ -149,6 +149,50 @@ the point of evaluation.
 
 ---
 
+## The re-verify wave — both keyboard personas now PASS
+
+Same two personas, fresh Act 0, against the fixed build. Both had previously
+walled inside ~6 presses.
+
+- **Lost-lamb: "Neither LOOPING nor DRIFT."** Fourteen fresh-look-then-press
+  turns carried it from boot to **Act 1**, through the whole Icon ritual — pick,
+  explore, strike, cross, hat, track, wait, incorporate. It specifically noted
+  that pressing R at 57% ripeness produced a clear refusal naming the state, the
+  goal and the remedy, and that "the game does not tell me to 'pick a plot'
+  after I've already picked it."
+- **Literalist: "100% literal throughout. No defects found."** Also reached
+  **Act 1**, incorporating an icon. It exercised the new empty-ground toast on
+  H/J/K, followed both travel lines verbatim ("press T to cross…", "press U to
+  cross…"), and reached for `=` when the ripening dragged.
+
+**And the mouse leg got further than any mouse run before it** — explore →
+strike → cross biome → Icon hat → track — which is exactly how it found the next
+gap. That is the loop working: fix the wall, and the leg walks far enough to hit
+the next one.
+
+## The clock gap the re-verify wave exposed
+
+**VERIFIED and fixed.** `_increase_time_controls` / `_decrease_time_controls`
+had exactly two call sites, both in `QuantumInstrumentInput._unhandled_key_input`
+— the biome clock was keyboard-only, with no chip, no menu item, no gesture.
+
+Same structural shape as wave 16's sub-mode gap, worse consequence: it sits in
+Act 0's own step 1. Ripening runs in real time (~6% per 15s at ×1, measured), so
+a mouse-only player waits ~90 seconds staring at the first plot in the game —
+while the tracking hint says "⏩ = speeds this biome's clock (up to ×32)",
+naming a control they cannot reach.
+
+`UI/Widgets/ClockSpeedRow.gd` puts ⏪/⏩ in the biome band's right corner (the hat
+band's corner is ModeSelectionRow's; two right-aligned clusters on one row
+collide on a narrow window). Clicks route through `QII.step_time_controls(delta)`
+into the same two methods the keys call. Verified live, mouse-only:
+`⏩ TheDemos clock ×2 — loops ripen faster` → `⏪ TheDemos clock ×1`.
+
+Both legs also proved step 1's authored "Wait ~30s" wrong — it is closer to ~90s
+at ×1. A duration that is both incorrect and points at no remedy is worse than
+none, so the hint now names the clock: *"Icon hat: press 5. F tracks a plot. ⏩
+speeds the clock. R when ripe."*
+
 ## Fixed this sweep
 
 | # | Finding | Where |
@@ -163,6 +207,8 @@ the point of evaluation.
 | 8 | Seats could not see which hat was worn | `player_seat.py`, `mouse_seat.py` |
 | 9 | Seats could not enumerate unrevealed plots | `plot_glance` gains `pos` |
 | 10 | No mouse-only seat existed; parity rested on tester honour | `mouse_seat.py` (new) |
+| 11 | The biome clock had no pointer path at all | `ClockSpeedRow.gd` (new) |
+| 12 | Step 1 claimed "~30s"; both legs measured ~90s at ×1 | `tutorial_arc.json` |
 
 ## Open, not fixed
 
