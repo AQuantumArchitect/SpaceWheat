@@ -3027,6 +3027,16 @@ func _decrease_time_controls() -> void:
 	_toast_player("⏪ %s clock ×%d — = speeds it back up" % [target_biome_name, maxi(1, mini(stride_result.new_stride, 32))])
 
 
+## One step of the biome clock, signed. The pointer twin of `−` / `=` — the
+## clock chips call THIS rather than reaching for either private method, so the
+## two input paths share one entry and cannot drift.
+func step_time_controls(delta: int) -> void:
+	if delta >= 0:
+		_increase_time_controls()
+	else:
+		_decrease_time_controls()
+
+
 func _increase_time_controls() -> void:
 	# Increase stride and simulation speed together (= key).
 	if not farm or not farm.grid:

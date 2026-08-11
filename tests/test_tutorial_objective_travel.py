@@ -137,7 +137,9 @@ def test_the_vocabulary_step_teaches_the_whole_ritual_in_one_banner() -> None:
     assert re.search(r"\bF\b", hint) and re.search(r"\bR\b", hint), (
         "must name both verbs: F tracks, R incorporates"
     )
-    assert re.search(r"wait|~\s*\d+\s*s|orbit|ripen", hint, re.I), (
-        "must tell the player to WAIT — the berry ripens over ~30s, and this is "
-        "the only beat of the ritual that isn't a key press"
+    assert re.search(r"wait|orbit|ripe|clock|⏩", hint, re.I), (
+        "must name the TIME beat — the loop ripens in real time, and that is the "
+        "only step of the ritual that isn't a key press. Naming the clock is the "
+        "better answer than naming a duration: two legs measured ~90s at ×1, so "
+        "an authored '~30s' was simply wrong, and it pointed at no remedy."
     )

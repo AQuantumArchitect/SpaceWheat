@@ -13,10 +13,12 @@ const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
 ## preload, not the bare class_name: a freshly added class_name is invisible
 ## until Godot re-imports, and this file must parse on a cold checkout.
 const _ModeSelectionRow = preload("res://UI/Widgets/ModeSelectionRow.gd")
+const _ClockSpeedRow = preload("res://UI/Widgets/ClockSpeedRow.gd")
 
 var tool_selection_row: Control = null
 var mode_selection_row: Control = null
 var biome_selection_row: Control = null
+var clock_speed_row: Control = null
 var menu_selection_row: Control = null
 var action_preview_row: Control = null
 var layout_manager: Node = null  # UILayoutManager reference for responsive sizing
@@ -46,6 +48,8 @@ func _reposition_all_rows() -> void:
 		_position_mode_row()
 	if biome_selection_row and biome_selection_row.is_inside_tree():
 		_position_biome_row()
+	if clock_speed_row and clock_speed_row.is_inside_tree():
+		_position_clock_row()
 	if menu_selection_row and menu_selection_row.is_inside_tree():
 		_position_menu_row()
 	if action_preview_row and action_preview_row.is_inside_tree():
@@ -85,6 +89,13 @@ func create_action_bars(parent: Control) -> void:
 	biome_selection_row = BiomeSelectionRow.new()
 	biome_selection_row.name = "BiomeSelectionRow"
 	parent.add_child(biome_selection_row)
+
+	# Clock chips ride the biome band's right corner (the hat band's right
+	# corner already belongs to ModeSelectionRow). Added AFTER the biome row so
+	# it wins the pick in any overlap — GUI picking is tree order, not z_index.
+	clock_speed_row = _ClockSpeedRow.new()
+	clock_speed_row.name = "ClockSpeedRow"
+	parent.add_child(clock_speed_row)
 
 	menu_selection_row = MenuSelectionRow.new()
 	menu_selection_row.name = "MenuSelectionRow"
@@ -185,6 +196,17 @@ func _position_biome_row() -> void:
 		biome_selection_row.offset_right = -CONTRACT_CORNER_INSET
 
 
+func _position_clock_row() -> void:
+	# Same band as the biome tabs (top idx 2), right-aligned — the hat band's
+	# right corner is already the mode cluster's, and two right-aligned clusters
+	# on one row collide on a narrow window.
+	_position_top_row(clock_speed_row, 2)
+	# Clear the pinned contract corner, exactly like the biome row it shares the
+	# band with. The biome chips hug the LEFT, so they cannot reach this cluster.
+	if clock_speed_row:
+		clock_speed_row.offset_right = -CONTRACT_CORNER_INSET
+
+
 func _position_menu_row() -> void:
 	_position_top_row(menu_selection_row, 0)
 
@@ -220,6 +242,10 @@ func select_frame(frame_name: String) -> void:
 
 func get_mode_row() -> Control:
 	return mode_selection_row
+
+
+func get_clock_row() -> Control:
+	return clock_speed_row
 
 
 func render_action_projection(projection: Dictionary) -> void:

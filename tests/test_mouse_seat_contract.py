@@ -88,3 +88,30 @@ def test_clickables_reports_where_to_aim() -> None:
             "without a label a persona must pick by node name rather than by "
             "what it reads on screen" % field
         )
+
+
+def test_the_clock_has_a_pointer_path() -> None:
+    """`_increase_time_controls` / `_decrease_time_controls` had exactly two
+    call sites, both inside QuantumInstrumentInput's `_unhandled_key_input`, so
+    the biome clock was keyboard-only. That is not a convenience gap: Act 0's
+    own icon ritual ripens in REAL TIME (a mouse-only leg measured ~6% per 15s
+    at x1), and the tracking hint names the clock as the remedy — a control a
+    pointer could not reach."""
+    row = ROOT / "UI/Widgets/ClockSpeedRow.gd"
+    assert row.exists(), "the clock chips are the pointer twin of the -/= keys"
+    src = row.read_text(encoding="utf-8")
+    assert "speed_step_requested" in src, "the row must ASK for a step, not own timescale"
+
+    qii = (ROOT / "UI/Core/QuantumInstrumentInput.gd").read_text(encoding="utf-8")
+    step = qii.split("func step_time_controls(")[1].split("\nfunc ")[0]
+    for authority in ("_increase_time_controls()", "_decrease_time_controls()"):
+        assert authority in step, (
+            "the pointer entry must call the SAME method the key calls (%s), or "
+            "the two input paths drift" % authority
+        )
+
+    wiring = (ROOT / "UI/Managers/UIContextController.gd").read_text(encoding="utf-8")
+    assert "speed_step_requested" in wiring and "step_time_controls" in wiring, (
+        "the row's signal must actually be connected — an unwired chip is a "
+        "button that lies"
+    )

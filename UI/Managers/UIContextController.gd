@@ -119,6 +119,17 @@ func bind_quantum_input(instrument_input) -> void:
 		if mode_row and mode_row.has_signal("mode_selected"):
 			InstrumentLocator._safe_connect(mode_row.mode_selected,
 					Callable(quantum_input, "_on_mode_changed"))
+		# And the clock chips: the keyboard's `−` / `=` branch calls
+		# _decrease_time_controls / _increase_time_controls, so the click twin
+		# lands on the identical pair. Before this the biome clock had NO
+		# pointer path — and Act 0's own icon ritual needs real time to ripen
+		# (a mouse-only leg measured ~6% per 15s at ×1), while the tracking hint
+		# told the player "⏩ = speeds this biome's clock" about a control they
+		# could not reach.
+		var clock_row = action_bar_manager.get_clock_row()
+		if clock_row and clock_row.has_signal("speed_step_requested"):
+			InstrumentLocator._safe_connect(clock_row.speed_step_requested,
+					Callable(quantum_input, "step_time_controls"))
 
 	refresh()
 

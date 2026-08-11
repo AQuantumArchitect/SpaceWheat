@@ -19,7 +19,7 @@
       "faction": "Hearth Keepers",
       "biome": "StarterForest",
       "body": "A qubit that walks a closed loop remembers the sky it swept. Ripeness is that memory — and a ripe pair can teach you a new word: an icon. Your vocabulary is your power here.",
-      "tutorial_hint": "Icon hat: press 5. F on a plot to track. Wait ~30s. R to incorporate.",
+      "tutorial_hint": "Icon hat: press 5. F tracks a plot. ⏩ speeds the clock. R when ripe.",
       "math_note": "Fires when your signature (farm.known_icons) reaches 3 icons — a count gate, so 3 means exactly 3, no soft-gate overshoot.",
       "state_predicates": [
         {"type": "signature_size_gte", "value": 3}
