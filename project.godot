@@ -14,6 +14,8 @@ config/name="SpaceWheat - Quantum Farm"
 config/description="A cozy one-finger farm where every field is real quantum mechanics — an honest density matrix, and the Born rule deciding what grows."
 config/version="0.9.0-beta.2"
 run/main_scene="res://scenes/Main.tscn"
+config/icon="res://Assets/icon.svg"
+config/windows_native_icon="res://Assets/icon.ico"
 config/features=PackedStringArray("4.5")
 
 [audio]
