@@ -157,11 +157,24 @@ def test_sweep_runs_even_without_a_live_biome() -> None:
 
 
 @pytest.mark.parametrize("act", [2])
-def test_tutorial_steps_are_stamped_once_in_their_own_loader(act: int) -> None:
+def test_the_retire_default_is_resolved_at_evaluation_not_stamped_at_load(act: int) -> None:
+    """Originally the default was stamped onto each step in _load_tutorial_arc().
+    That reached only quests BUILT by the loader — a quest restored from a save
+    written before the rule existed carried an empty retire_predicates and could
+    never retire. Since any TUTORIAL entry outranks every arc quest in
+    _objective_rank, one stale Act-0 step hijacked the objective banner for the
+    rest of that save's life. A literalist dropped at the Act-4 fork found the
+    banner still steering it to the tutorial's biome, not the campaign's choice."""
     qm = src(QM)
     assert f"const TUTORIAL_RETIRE_ACT := {act}" in qm, "the act threshold needs one named home"
+    resolver = qm.split("func _retire_predicates_for(")[1].split("\nfunc ")[0]
+    assert "TUTORIAL_RETIRE_ACT" in resolver, (
+        "the default must be applied where retirement is DECIDED, so it reaches "
+        "restored saves as well as freshly-loaded arcs"
+    )
+    assert "authored" in resolver, "a step that authors its own predicates keeps them"
     loader = qm.split("func _load_tutorial_arc()")[1].split("\nfunc ")[0]
-    assert "retire_predicates" in loader and "TUTORIAL_RETIRE_ACT" in loader, (
-        "stamp the default in the tutorial's own loader beside chain_unlocks — not repeated "
-        "in every step of tutorial_arc.json, and not as an is-tutorial branch in shared code"
+    assert "retire_predicates" not in loader, (
+        "the loader must NOT also stamp a copy — two authorities for one rule is "
+        "how the restored-save hole opened in the first place"
     )

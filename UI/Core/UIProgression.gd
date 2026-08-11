@@ -374,7 +374,53 @@ static func _decorate_objective(q: Dictionary) -> String:
 		return "▸ press R to accept it on the Arc tab (X → I)"
 	if status == "ready":
 		return "▸ press R to claim it in Commitments (C → U)"
+	var travel := _travel_line(q)
+	if travel != "":
+		return travel
 	return _short_line(q)
+
+
+## A tutorial step whose mechanic lives in another biome has exactly one honest
+## next action: go there. objective_target() already knew this — it pulses the
+## biome tab before the verb chip — but the TEXT did not, so the banner kept
+## repeating the step's full instruction while the player stood in the wrong
+## country and nothing they did could satisfy it. Both keyboard personas walled
+## on precisely that: the literalist read "Cross to StarterForest…" as a
+## standing order it had already obeyed, and the lost-lamb (who re-derives the
+## objective every single turn, holding no memory of having crossed) reported
+## LOOPING because the line never acknowledged the crossing.
+##
+## Scoped to TUTORIAL because that is where `biome` is a STEP-level field. Arc
+## quests carry biomes per-predicate and already resolve targets through
+## PredicateGloss; giving them a second, coarser travel rule would be the
+## parallel authority this file exists to avoid.
+static func _travel_line(q: Dictionary) -> String:
+	if str(q.get("category", "")) != "TUTORIAL":
+		return ""
+	var want := str(q.get("biome", "")).strip_edges()
+	if want == "":
+		return ""
+	var abm := _active_biome_manager()
+	if abm == null:
+		return ""
+	if str(abm.get_active_biome()) == want:
+		return ""
+	var slot := int(abm.get_slot_for_biome(want))
+	if slot < 0:
+		return ""
+	var key := str(abm.get_slot_key(slot)).to_upper()
+	if key == "":
+		# No tab reaches it yet. Stay silent rather than name a key that isn't
+		# there — a lie costs more than the missing nudge.
+		return ""
+	return "▸ press %s to cross to %s — this step happens there" % [key, want]
+
+
+static func _active_biome_manager() -> Node:
+	var ml := Engine.get_main_loop()
+	if not (ml is SceneTree):
+		return null
+	return (ml as SceneTree).root.get_node_or_null("/root/ActiveBiomeManager")
 
 
 ## Rank = earliest tutorial step, then earliest-act arc quest. Non-candidates

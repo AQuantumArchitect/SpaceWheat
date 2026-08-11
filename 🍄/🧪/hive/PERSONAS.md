@@ -59,6 +59,44 @@ defects and conflating them by starving a legibility leg of navigation
 just produces a null result instead of a reading on the thing you sent it
 to check.
 
+## Running any of these MOUSE-ONLY: swap the seat, keep the persona
+
+Every persona below is written against `player_seat.py`, which is headless and
+therefore keyboard-only (its `tap` refuses with `headless_no_tap`). To run the
+same persona as a mouse-only leg, swap in `🍄/🧪/mouse_seat.py` — identical
+parity contract (welcome splash ON, progressive disclosure ON, no resource
+injection), but headed, and with the keyboard **removed rather than
+discouraged**:
+
+    python3 🍄/🧪/mouse_seat.py start <seat> --fresh [--checkpoint <name>]
+    python3 🍄/🧪/mouse_seat.py look <seat>          # + `buttons`: what's clickable
+    python3 🍄/🧪/mouse_seat.py click <seat> <Name> [--under <ParentRow>]
+    python3 🍄/🧪/mouse_seat.py click_at <seat> <x> <y>
+    python3 🍄/🧪/mouse_seat.py tap <seat> <gx> <gy> # a bubble, by grid pos
+    python3 🍄/🧪/mouse_seat.py bank|screenshot|stop <seat> ...
+
+Two differences that matter to how you write the prompt:
+
+- **`press` is refused.** Mouse-only used to be an honour rule in the prompt,
+  so every wave's "reached X by mouse alone" rested on the tester choosing not
+  to cheat. Now the seat simply has no keyboard, and the claim is structural.
+  Tell the leg that a key-only path IS the finding, not an obstacle to route
+  around.
+- **`look` carries `buttons`.** A mouse leg that has to guess node names will
+  guess wrong, and a wrong guess that still resolves is the "hit whatever it
+  might" failure this whole campaign exists to prevent. `buttons` lists the
+  visible, click-receiving controls with their labels, parent rows and centres,
+  so the leg picks by what it reads. Names repeat across rows (`SelectBtn_0`
+  lives in the menu row, the biome row and the hat row at once) — `click`
+  refuses an ambiguous name and asks for `--under`, and legs must comply rather
+  than fall back to raw coordinates.
+
+Headed seats share the ambient display: WSLg mounts `/tmp/.X11-unix` read-only,
+so a private Xvfb per seat is impossible and each mouse seat opens a real window
+on the owner's desktop. Taps are injected via `viewport.push_input`, not OS
+events, so window focus never changes a result — but keep concurrent mouse legs
+to two or three, since the cost is the owner's screen.
+
 ---
 
 ## 1. masher

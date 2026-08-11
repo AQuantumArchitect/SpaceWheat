@@ -1407,6 +1407,23 @@ func _focus_plot(plot_idx: int, biome_name: String) -> Vector2i:
 		plot_grid_display.set_selected_plot(target_grid_pos)
 		_verbose.debug("input", "~", "Visual selection: %s" % target_grid_pos)
 
+	# Empty ground is INVISIBLE under the 3D renderer: no orb exists for a
+	# register-less plot, and the 2D rack that used to draw one is hidden in 3D
+	# mode (PlotGridDisplay.visible == false), so set_selected_plot() above
+	# paints nothing anyone can see. The focus really moved — F would explore
+	# HERE now — but the screen is byte-identical, which is a silent state
+	# change, the exact thing the anti-gating law forbids.
+	#
+	# It bites on the player's very first instruction: Act 0 says "Pick a plot
+	# with G H J K L ; — or just tap it", the starting biome has ONE register,
+	# and pressing H..; moves the cursor onto empty ground in total silence.
+	# The keyboard literalist and the lost-lamb both stalled right here; the
+	# lamb, re-deriving its objective every turn, correctly called it LOOPING.
+	if plot_idx >= _get_active_biome_register_count():
+		var plot_keys := InputBindingRegistry.get_plot_keys()
+		var plot_key := str(plot_keys[plot_idx]).to_upper() if plot_idx < plot_keys.size() else "?"
+		RefusalVoice.note("%s is empty ground — nothing grows here yet" % plot_key)
+
 	# Focus is a free cursor move, not exploration — the bubble wakes only when
 	# the player actually takes the Explore action (QuantumInstrument.action_explore),
 	# not on mere focus/select/tap.

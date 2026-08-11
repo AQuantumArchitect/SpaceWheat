@@ -19,7 +19,7 @@
       "faction": "Hearth Keepers",
       "biome": "StarterForest",
       "body": "A qubit that walks a closed loop remembers the sky it swept. Ripeness is that memory — and a ripe pair can teach you a new word: an icon. Your vocabulary is your power here.",
-      "tutorial_hint": "Cross to StarterForest. Icon hat (5): F tracks, R incorporates.",
+      "tutorial_hint": "Icon hat: press 5. F on a plot to track. Wait ~30s. R to incorporate.",
       "math_note": "Fires when your signature (farm.known_icons) reaches 3 icons — a count gate, so 3 means exactly 3, no soft-gate overshoot.",
       "state_predicates": [
         {"type": "signature_size_gte", "value": 3}
@@ -57,7 +57,7 @@
       "faction": "Hearth Keepers",
       "biome": "StarterForest",
       "body": "A qubit alone is a wheel. Two qubits woven together are a loom — touch one and the other answers, however far apart they drift.",
-      "tutorial_hint": "Operator hat (9): hold Shift and tap two plot keys (G H J K L ;) to check the pair, then press R and weave a Bell (Q). Watch the gold thread between their bubbles — each weave pulls them closer. The bar fills as you weave.",
+      "tutorial_hint": "Operator hat: press 9. Shift + two plot keys picks a pair. Then R weaves a Bell. Watch the gold thread between their bubbles — each weave pulls them closer, and the bar fills as you weave.",
       "math_note": "Fires the instant your action history records 1 bell gate (a single Bell weave) — a structural count, not a soft gate.",
       "state_predicates": [
         {"type": "gate_sequence_contains", "gate": "bell", "count": 1}
@@ -67,12 +67,12 @@
       "tutorial_step": 5,
       "tutorial_teaches": "contracts",
       "faction": "Millwright's Union",
-      "biome": "StarterForest",
+      "biome": "TheDemos",
       "type": "DELIVERY",
       "resource": "🌾",
       "quantity": 2,
       "body": "The Millwright's Union is buying. Accept their contract and deliver 2× 🌾 from your stores.",
-      "tutorial_hint": "Gather 2× 🌾 — Ace hat (8) on TheDemos: strike a plot (R), extract the yield (Q). Then deliver on the Commitments tab: press C, then U, pick this contract's row (G–;) and press R. (To accept it in the first place: X, then the Arc tab I, pick its row, R — every other quest works the same way.)",
+      "tutorial_hint": "Gather 2× 🌾: Ace hat (8), strike (R), extract (Q). Then deliver it: press C, then U, pick this contract's row (G–;) and press R. (To accept it in the first place: X, then the Arc tab I, pick its row, R — every other quest works the same way.)",
       "math_note": "A DELIVERY quest, not a soft gate — fires the instant your 🌾 stores hold quantity ≥ 2 and you complete the contract. This step alone is NOT auto-accepted/claimed: you learn the real accept→do→claim ceremony every market contract uses."
     },
     {

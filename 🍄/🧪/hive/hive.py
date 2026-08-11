@@ -9,6 +9,7 @@ Usage:
   hive.py up                          start umweltd (if needed) + ensure the world
   hive.py leg <chapter> [--claim 0|1] [--truth 0|1] [--blocked 0|1] [--accurate 0|1]
                                       one leg's tick (chapter ∈ woodlot|spring|act3|hub)
+  hive.py wall <chapter> <report...>  ledger a sensor's wall report (tried/saw/expected)
   hive.py build [--suite 0|1] [--drive 0|1]
   hive.py backfill                    replay the verified 9-leg relay tape (2026-07-14)
   hive.py status                      the belief graph, fleet-readable

@@ -329,16 +329,6 @@ func _load_tutorial_arc() -> void:
 		steps = parsed
 	for i in steps.size():
 		steps[i]["chain_unlocks"] = [steps[i + 1]] if i + 1 < steps.size() else []
-		# Owner ruling 2026-08-10: a tutorial step you walked past stops being a
-		# commitment once you're two acts clear of it. Stamped here, beside
-		# chain_unlocks, rather than repeated in all seven steps of
-		# tutorial_arc.json — this is the tutorial's own loader writing DATA onto
-		# its own entries, so the retire mechanism itself stays general and no
-		# consumer ever branches on "is this a tutorial".
-		# A step that authors its own retire_predicates keeps them.
-		var authored_retire = steps[i].get("retire_predicates", [])
-		if not (authored_retire is Array) or (authored_retire as Array).is_empty():
-			steps[i]["retire_predicates"] = [{"type": "act_at_least", "value": TUTORIAL_RETIRE_ACT}]
 	_tutorial_steps = steps
 
 
@@ -488,10 +478,31 @@ func _sweep_retired_quests() -> void:
 func _should_retire(quest) -> bool:
 	if not (quest is Dictionary):
 		return false
-	var preds = quest.get("retire_predicates", [])
-	if not (preds is Array) or preds.is_empty():
+	var preds := _retire_predicates_for(quest)
+	if preds.is_empty():
 		return false
 	return _evaluate_quest_state_predicates(preds) >= QuestStateProjectionService.COMPLETION_THRESHOLD
+
+
+## Authored retire_predicates win; a TUTORIAL step that authors none falls back to
+## the owner's standing rule (2026-08-10): a step you walked past stops being a
+## commitment once you are two acts clear of it.
+##
+## Resolved HERE, at evaluation time, rather than stamped onto the step dicts in
+## _load_tutorial_arc(). The stamp only ever reached quests built by that loader,
+## so every quest RESTORED FROM A SAVE written before the rule existed carried an
+## empty retire_predicates and could never retire — and since any TUTORIAL entry
+## outranks every arc quest in UIProgression._objective_rank, one stale Act-0 step
+## hijacked the objective banner for the rest of that save's life. Caught by a
+## literalist leg dropped at the Act-4 fork: the banner was still steering it back
+## to the tutorial's biome instead of at the campaign's central choice.
+func _retire_predicates_for(quest: Dictionary) -> Array:
+	var authored = quest.get("retire_predicates", [])
+	if authored is Array and not (authored as Array).is_empty():
+		return authored as Array
+	if str(quest.get("category", "")) == "TUTORIAL":
+		return [{"type": "act_at_least", "value": TUTORIAL_RETIRE_ACT}]
+	return []
 
 
 ## Retire a quest: it leaves the ledger because it stopped being relevant, not

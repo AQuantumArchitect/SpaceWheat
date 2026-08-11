@@ -1089,6 +1089,14 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 					var pg_is_revealed: bool = pg_revealed.has(pg_pos)
 					var pg_row := {
 						"key": pg_keys[pg_col] if pg_col < pg_keys.length() else "?",
+						# The tile's grid position — what `tap {pos:[x,y]}` aims at.
+						# Fog-safe: this is WHERE the tile sits, which a sighted
+						# player reads straight off the rack; it says nothing about
+						# what the plot holds. Without it a MOUSE-only driver can
+						# only aim at bubbles that are already revealed, so it has
+						# no way to click the very first plot — which is exactly
+						# where a mouse-only literalist leg stalled.
+						"pos": [int(pg_pos.x), int(pg_pos.y)],
 						"biome": pg_bname,
 						"revealed": pg_is_revealed,
 						"measured": (pg_plot.terminal != null and bool(pg_plot.terminal.is_measured)) if pg_plot else false,
@@ -1273,6 +1281,77 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 							"visible": nc_ch2.is_visible_in_tree() if nc_ch2 is CanvasItem else true,
 						})
 					result["children"] = nc_children
+
+		"clickables":
+			# Mouse-parity helper: every VISIBLE button-like Control currently on
+			# screen, with the global-rect centre a tap should aim at.
+			#
+			# Parity-safe by construction: this reports what a sighted player can
+			# see and click, nothing more. It exists because a mouse-only driver
+			# otherwise has to GUESS node names ahead of control_rect — and a
+			# guessed name that resolves to the wrong row is exactly the
+			# "hit whatever it might" failure mode this campaign forbids.
+			#
+			# `label` carries the chip's own visible text where it has one, so a
+			# persona can choose by what it reads rather than by node name.
+			var ck_out: Array = []
+			var ck_stack: Array = [get_root()]
+			while not ck_stack.is_empty():
+				var ck_n: Node = ck_stack.pop_back()
+				for ck_ch in ck_n.get_children():
+					ck_stack.push_back(ck_ch)
+				if not (ck_n is Control):
+					continue
+				var ck_c: Control = ck_n
+				if not ck_c.is_visible_in_tree():
+					continue
+				# MOUSE_FILTER_IGNORE cannot receive a click at all — listing it
+				# would promise a tap that silently does nothing.
+				if ck_c.mouse_filter == Control.MOUSE_FILTER_IGNORE:
+					continue
+				# Most of this game's chrome is NOT a Button: tabs, chips and rows
+				# are Labels made clickable by ClickWire.attach(), which connects
+				# gui_input. Filtering on `is BaseButton` alone reported ZERO
+				# clickables on a screen full of them, so ask the real question —
+				# is anything listening for a click here?
+				if not (ck_c is BaseButton or ck_c.gui_input.get_connections().size() > 0):
+					continue
+				var ck_rect: Rect2 = ck_c.get_global_rect()
+				if ck_rect.size.x <= 0.0 or ck_rect.size.y <= 0.0:
+					continue
+				var ck_label := ""
+				if "text" in ck_c:
+					ck_label = str(ck_c.get("text"))
+				if ck_label == "" and "tooltip_text" in ck_c:
+					ck_label = str(ck_c.tooltip_text)
+				if ck_label == "":
+					# A wired container (a row, a card) usually carries its words in
+					# child Labels — report those so a persona can pick by what it
+					# reads, the way a player does.
+					var ck_kids: Array = []
+					var ck_kstack: Array = [ck_c]
+					while not ck_kstack.is_empty() and ck_kids.size() < 4:
+						var ck_k: Node = ck_kstack.pop_back()
+						for ck_kc in ck_k.get_children():
+							ck_kstack.push_back(ck_kc)
+						if ck_k != ck_c and ck_k is Label and (ck_k as Label).is_visible_in_tree():
+							var ck_t := str((ck_k as Label).text).strip_edges()
+							if ck_t != "":
+								ck_kids.append(ck_t)
+					ck_label = " ".join(ck_kids)
+				ck_out.append({
+					"name": str(ck_c.name),
+					"parent": str(ck_c.get_parent().name) if ck_c.get_parent() else "",
+					"class": ck_c.get_class(),
+					"label": ck_label,
+					"disabled": bool(ck_c.disabled) if ck_c is BaseButton else false,
+					"center": [int(ck_rect.position.x + ck_rect.size.x / 2.0),
+						int(ck_rect.position.y + ck_rect.size.y / 2.0)],
+					"rect": [int(ck_rect.position.x), int(ck_rect.position.y),
+						int(ck_rect.size.x), int(ck_rect.size.y)],
+				})
+			result["clickables"] = ck_out
+			result["count"] = ck_out.size()
 
 		"biome_slots":
 			# Read-only: the TYUIOP slot → biome mapping. grid_snapshot lists biomes in a

@@ -261,11 +261,19 @@ def test_tutorial_step1_hint_survives_the_objective_banners_truncation() -> None
     # rendered on screen at all; the banner stayed byte-identical before and
     # after crossing biomes, with no instruction for what to do once there.
     # Pin the hint under OBJECTIVE_MAX_CHARS so the whole thing always shows.
+    #
+    # 2026-08-10: the destination moved OUT of the prose. Cramming "Cross to
+    # StarterForest" into the hint made the banner repeat a journey the player
+    # had already made — the literalist read a standing order it had obeyed,
+    # and the lost-lamb called it LOOPING. UIProgression._travel_line() now
+    # derives the crossing from the step's own `biome` field and drops it the
+    # moment you arrive, so the hint is free to spend all 70 chars on the
+    # ritual. The destination is still asserted — just at its real authority.
     OBJECTIVE_MAX_CHARS = 70
     data = json.loads(_read("Core/Quests/data/tutorial_arc.json"))
     step1 = next(s for s in data["steps"] if s.get("tutorial_step") == 1)
     assert len(step1["tutorial_hint"]) <= OBJECTIVE_MAX_CHARS
-    assert "StarterForest" in step1["tutorial_hint"]
+    assert step1["biome"] == "StarterForest"
     assert "Icon hat" in step1["tutorial_hint"]
 
 
