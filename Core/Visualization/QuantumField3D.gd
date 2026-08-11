@@ -1689,9 +1689,16 @@ func dev_tap_register_edge(idx: int) -> Vector2i:
 ## (b.mesh.visible is kept live by _set_bubble_visible / _is_plot_revealed, the same authority
 ## _spawn seeds a new orb from) — the 3D field used to report a blanket true here ("3D shows
 ## all registers"), which was true of the RENDER but not of the rig surface's honesty; fixed
-## per task #405. terminal-measured state is still not tracked in the field (measured=false)
-## — a known follow-up. The authoritative reveal/measured data lives on the farm, which the
-## rig reads separately.
+## per task #405.
+##
+## `measured` used to be hardcoded false here for the same reason — the field itself does not
+## track terminal state — and because this is the DEFAULT renderer that made every mouse-only
+## probe asserting on measured read a permanent false negative (wave 15: the stranger probe
+## failed "clicking a bubble measures it" on a tap that had demonstrably measured, since the
+## next tap harvested and paid out). A sensor that always says "no" is worse than no sensor.
+## It now reads the farm's own authority, BasePlot.is_measured — which is
+## `terminal.is_measured if terminal else _is_measured`, the same value the 2D path reports —
+## so the two renderers cannot disagree about what the player just did.
 func rig_bubble_state() -> Array:
 	var out: Array = []
 	for b in _bubbles:
@@ -1703,13 +1710,26 @@ func rig_bubble_state() -> Array:
 		out.append({
 			"pos": [int(b.grid_pos.x), int(b.grid_pos.y)],
 			"visible": bool(b.mesh.visible),
-			"measured": false,
+			"measured": _is_plot_measured(b.grid_pos),
 			"biome": _last_biome,
 			"register_id": int(b.reg),
 			"axis": "%s%s" % [str(b.get("north_e", "")), str(b.get("south_e", ""))],
 			"screen_pos": [int(sp.x), int(sp.y)],
 		})
 	return out
+
+
+## The farm's own measured state for a plot, or false when there is no farm to ask.
+## Deliberately NOT a field-local cache: the field renders state, it does not own it.
+func _is_plot_measured(grid_pos: Vector2i) -> bool:
+	if farm_ref == null or not is_instance_valid(farm_ref):
+		return false
+	if not farm_ref.has_method("get_plot"):
+		return false
+	var plot = farm_ref.get_plot(grid_pos)
+	if plot == null:
+		return false
+	return bool(plot.is_measured)
 
 
 ## Rig tap support: the live screen position of the orb at a grid position (or (-1,-1) if it
