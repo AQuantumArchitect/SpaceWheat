@@ -1,5 +1,15 @@
 # Mouse-Only Parity Audit
 
+> **Superseded as the running log by
+> [`PLAYTEST_SWEEP_2026-08-10.md`](PLAYTEST_SWEEP_2026-08-10.md).** That sweep
+> replaced the mouse-only-wave format with `🍄/🧪/mouse_seat.py`, where the
+> keyboard is *removed* rather than discouraged — so "reached X by mouse alone"
+> is structural instead of resting on the tester's honour, which is what every
+> wave below relied on. It also found the one parity gap this file's "None
+> currently open" table missed: **an unrevealed plot has no clickable target at
+> all under the default 3D renderer** (the 2D rack is hidden; orbs exist only
+> for live registers). Keep this file for the wave-by-wave history.
+
 ## Wave 15 (structural fixes) — closed the last 3 confirmed keyboard-only paging gaps; caught a real off-screen-click bug in the fix itself
 
 Luke's directive: patch the structural issues the "Confirmed gaps" table still
