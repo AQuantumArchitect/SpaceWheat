@@ -13,9 +13,21 @@ extends Node
 ## Full biome order (loadable biomes from registry + icon build)
 var ALL_BIOMES: Array[String] = []
 
+## The floor the frame stands on: the pair every run can fall back to, the pair a
+## fresh/reset frame starts from, and the pair the player may not lock away.
+##
+## This used to be spelled out THREE separate times — the initial BIOME_ORDER, an
+## emergency refill inside lock_biome, and reset() — plus a fourth hardcoded copy
+## as lock_biome's own protected-pair veto. They were free to drift apart, and had:
+## the veto listed StarterForest/Village while Farm's cull guard protected the
+## player's faction seat, so neither knew what the other forbade. One list now,
+## and Farm.can_remove_biome asks it via is_seed_biome() BEFORE anything is
+## liquidated instead of discovering the refusal halfway through the demolition.
+const SEED_BIOMES: Array[String] = ["StarterForest", "Village"]
+
 ## Current available biomes (filtered by unlocked status from GameState)
-## Starts with ["StarterForest", "Village"], grows as player explores
-var BIOME_ORDER: Array[String] = ["StarterForest", "Village"]
+## Starts at SEED_BIOMES, grows as player explores
+var BIOME_ORDER: Array[String] = SEED_BIOMES.duplicate()
 
 ## Current neutral index in BIOME_ORDER
 var neutral_index: int = 0
@@ -239,7 +251,11 @@ func lock_biome(biome_name: String) -> bool:
 	# Remove a biome from the unlocked list and return it to the unexplored pool.
 	if biome_name == "" or biome_name not in BIOME_ORDER:
 		return false
-	if biome_name == "StarterForest" or biome_name == "Village":
+	# Defence in depth, not the player-facing rule: Farm.can_remove_biome refuses
+	# a seed biome out loud before a single credit is liquidated. If we ever reach
+	# here it means a caller skipped that gate, so refuse rather than mutate.
+	if is_seed_biome(biome_name):
+		push_warning("lock_biome(%s) reached the seed guard — caller skipped Farm.can_remove_biome" % biome_name)
 		return false
 
 	var removed_index := BIOME_ORDER.find(biome_name)
@@ -248,7 +264,7 @@ func lock_biome(biome_name: String) -> bool:
 
 	BIOME_ORDER.remove_at(removed_index)
 	if BIOME_ORDER.is_empty():
-		BIOME_ORDER = ["StarterForest", "Village"]
+		BIOME_ORDER = SEED_BIOMES.duplicate()
 
 	if neutral_index >= BIOME_ORDER.size():
 		neutral_index = max(0, BIOME_ORDER.size() - 1)
@@ -314,9 +330,15 @@ func get_unexplored_biomes() -> Array[String]:
 	return unexplored
 
 
+## Is this one of the biomes the frame stands on? Asked by Farm.can_remove_biome
+## so the refusal is spoken up front instead of vetoed mid-demolition.
+func is_seed_biome(biome_name: String) -> bool:
+	return biome_name in SEED_BIOMES
+
+
 ## Reset to initial state (for dev restart)
 func reset() -> void:
-	BIOME_ORDER = ["StarterForest", "Village"]
+	BIOME_ORDER = SEED_BIOMES.duplicate()
 	neutral_index = 0
 	biome_order_changed.emit(BIOME_ORDER.duplicate())
 

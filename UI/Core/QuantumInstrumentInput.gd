@@ -1914,7 +1914,22 @@ func _block_reason_for_player(action_name: String) -> String:
 			if short != "":
 				return short
 			return "no unexplored biome in reach"
-		"inject_icon", "remove_icon", "remove_biome":
+		"remove_biome":
+			# Cull refusals are RULES, not shortfalls — "you cannot cull your own
+			# home", "seed country", "need at least two biomes". Quoting the
+			# generic fallback here made the hard identity rule read as though no
+			# guard existed at all, which is how a tester concludes the rule is
+			# missing and files it as a bug. Same shape as discover_biome above.
+			if farm and farm.has_method("can_remove_biome"):
+				var cull_gate: Dictionary = farm.can_remove_biome()
+				var cull_msg := str(cull_gate.get("message", ""))
+				if not bool(cull_gate.get("ok", false)) and cull_msg != "":
+					return cull_msg
+			var short_cull := _cost_shortfall_words(action_name)
+			if short_cull != "":
+				return short_cull
+			return "nothing valid to act on here"
+		"inject_icon", "remove_icon":
 			var short2 := _cost_shortfall_words(action_name)
 			if short2 != "":
 				return short2

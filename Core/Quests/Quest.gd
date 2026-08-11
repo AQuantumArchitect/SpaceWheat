@@ -38,8 +38,17 @@ static func defaults() -> Dictionary:
 		"resource": "",                     # delivered/measured emoji
 		"quantity": 1,
 		"time_limit": -1.0,                 # seconds; -1 = unlimited
-		"expires": false,
 		"state_predicates": [],             # soft-gate predicates for non-delivery completion
+		# When these score true the entry stops being relevant and leaves the
+		# ledger WITHOUT completing or failing — you outgrew it, you did not blow
+		# it. Same predicate vocabulary as state_predicates, evaluated by the same
+		# scorer, so any source (tutorial, arc, market) can declare its own
+		# obsolescence in the language it already speaks. Empty = never retires,
+		# which is every existing quest's behaviour unchanged.
+		#
+		# Replaces a dead `expires: bool` that was written in three places and
+		# read in none — one retire concept, not two spellings.
+		"retire_predicates": [],
 
 		# ── Presentation ──
 		"faction": "",

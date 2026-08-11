@@ -38,6 +38,10 @@ var revealed_plots: Dictionary = {}    # Vector2i -> true; plots the player has 
 var player_alignment = AlignmentGraphCls.from_uniform_superposition()
 var market_lattice: MarketLattice = null    # Canonical tensor-pair market (commodity-to-commodity, biome ⊗ biome)
 var grid_config: GridConfig = null  # Single source of truth for grid layout
+# Resolved home biome for identity_biome_name(). Unrelated to _identity_band below,
+# which is a story-tone reading, not a place.
+var _identity_biome_cache: String = ""
+var _identity_biome_resolved: bool = false
 var _bootstrap_pool: TerminalPoolClass = null  # Created at boot, transferred to instrument via set_instrument()
 var instrument = null  # QuantumInstrument (set via set_instrument() after boot)
 ## terminal_pool: canonical runtime pool surface. Uses the instrument pool once attached,
@@ -1732,9 +1736,27 @@ func can_remove_biome() -> Dictionary:
 	if not biome:
 		return {"ok": false, "message": "Biome is not loaded"}
 
+	# HARD RULE (owner ruling 2026-08-10): the biome the run began in is your
+	# identity, and you may not erase it. Full stop — not a cost, not a warning.
+	var identity := identity_biome_name()
+	if identity != "" and biome_name == identity:
+		return {"ok": false, "message": "%s is where you began — you cannot cull your own home" % biome_name}
+
+	# ObservationFrame keeps the seed pair loadable as the floor the frame falls
+	# back to. It used to enforce that with a silent `return false` DEEP inside
+	# lock_biome — after remove_biome had already paid out liquidation credits
+	# and released the biome's terminals. Ask it up here instead, before anything
+	# is destroyed, and say so out loud.
+	if observation_frame.has_method("is_seed_biome") and observation_frame.is_seed_biome(biome_name):
+		return {"ok": false, "message": "%s is seed country — the frame needs it to stand on" % biome_name}
+
 	# The player IS a faction (The Demos), and the biome whose native faction
 	# is the player's pin is their own seat. Culling it is self-erasure — a
 	# masher reached it from a fresh boot in three reflex presses (QA 2026-07-15).
+	# This is a WEAKER rule than the identity rule above and does not replace it:
+	# it is a proxy that silently does nothing whenever the run's home biome is
+	# not native to the player's faction (new_game_easy begins in StarterForest,
+	# which is not Demos-native, so this arm never fires there).
 	var pinned := get_pinned_faction_name()
 	if pinned != "":
 		var canonical = BiomeRegistry.get_shared().get_by_name(biome_name)
@@ -1742,6 +1764,41 @@ func can_remove_biome() -> Dictionary:
 			return {"ok": false, "message": "%s is your own country — The Demos cannot cull themselves" % biome_name}
 
 	return {"ok": true, "biome_name": biome_name}
+
+
+## The biome this run BEGAN in — the player's home, and under the owner's hard
+## rule the one thing they cannot erase.
+##
+## DERIVED, not stored. The scenario resource already records where a run starts,
+## so there is no new GameState field, no save_version bump, and pre-existing
+## saves resolve to exactly the same answer as fresh ones. Free play with no
+## scenario has no home, and the rule is simply inert there rather than inventing
+## one.
+##
+## Cached because ActionValidator calls can_remove_biome to decide chip greying,
+## which can run every repaint; the scenario a run started from cannot change
+## mid-run.
+func identity_biome_name() -> String:
+	if _identity_biome_resolved:
+		return _identity_biome_cache
+	_identity_biome_resolved = true
+	_identity_biome_cache = ""
+
+	var gsm = get_node_or_null("/root/GameStateManager")
+	if gsm == null or not ("current_scenario_id" in gsm):
+		return ""
+	var scenario_id := str(gsm.current_scenario_id)
+	if scenario_id == "":
+		return ""
+
+	var scenario = SaveStore.load_scenario(scenario_id)
+	if scenario == null:
+		return ""
+	var home := str(scenario.active_biome_name)
+	if home == "" and not scenario.unlocked_biomes.is_empty():
+		home = str(scenario.unlocked_biomes[0])
+	_identity_biome_cache = home
+	return home
 
 func discover_biome() -> Dictionary:
 	# Explore and unlock a random new biome (4E action)
@@ -1828,9 +1885,6 @@ func remove_biome() -> Dictionary:
 	if not biome:
 		return {"success": false, "message": "Biome is not loaded"}
 
-	var liquidation = _liquidate_biome_resources(biome_name, biome)
-	_release_terminals_in_biome(biome_name)
-
 	var observation_frame = get_node_or_null("/root/ObservationFrame")
 	var old_order: Array[String] = observation_frame.get_unlocked_biomes() if observation_frame else []
 	var removed_index := old_order.find(biome_name)
@@ -1843,8 +1897,16 @@ func remove_biome() -> Dictionary:
 	if removed_index > 0 and removed_index - 1 < old_order.size():
 		successor = str(old_order[removed_index - 1])
 
+	# Unregister BEFORE liquidating. This used to run the other way round: the
+	# biome's flux and mass were paid out as credits and every terminal in it was
+	# released, and only THEN did lock_biome get its say — so a refused cull still
+	# banked the payout and left a half-destroyed biome standing. The frame's
+	# answer is the point of no return; nothing irreversible happens above it.
 	if observation_frame and not observation_frame.lock_biome(biome_name):
 		return {"success": false, "message": "Failed to remove biome from observation frame"}
+
+	var liquidation = _liquidate_biome_resources(biome_name, biome)
+	_release_terminals_in_biome(biome_name)
 
 	biome_removed.emit(biome_name)
 

@@ -59,7 +59,6 @@ static func from_story_def(quest_def: Dictionary, source_flag: String, quest_id:
 		"category": "ARC",
 		"source_flag": source_flag,
 		"status": Quest.STATUS_STORY,
-		"expires": false,
 		"offered_at": Time.get_ticks_msec(),
 	})
 	# Merge the authored arc_quest fields verbatim.
@@ -207,7 +206,6 @@ static func from_tutorial_def(quest_def: Dictionary, quest_id: int) -> Dictionar
 		"id": quest_id,
 		"category": "TUTORIAL",
 		"status": Quest.STATUS_STORY,
-		"expires": false,
 		"offered_at": Time.get_ticks_msec(),
 	})
 	for k in quest_def:

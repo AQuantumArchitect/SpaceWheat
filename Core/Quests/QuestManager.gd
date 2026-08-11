@@ -62,6 +62,11 @@ func _physics_process(delta: float) -> void:
 	var t0 = Time.get_ticks_usec()
 	# Story flags don't require a biome — evaluate unconditionally.
 	_evaluate_story_flags()
+	# Neither does retirement: an act boundary is a campaign fact, not a physics
+	# reading. This MUST stay above the current_biome guard below — otherwise a
+	# fresh load (whose current_biome is briefly null) never sweeps, which is
+	# exactly the state a stale Act-0 step is loaded back into.
+	_sweep_retired_quests()
 	# Non-delivery quest progress tracking requires a live biome reference.
 	# A save/load frees the old farm's biomes: a stale (freed) current_biome is
 	# not == null, and touching it aborts this whole frame BEFORE the quest
@@ -299,6 +304,11 @@ func _refresh_unfired_flags(farm) -> void:
 
 ## Load the Act-0 onboarding chain and link each step to unlock the next (linear chain via
 ## chain_unlocks; dicts are references, so the nesting is built in one pass).
+## Act at which an un-satisfied Act-0 tutorial step stops being a commitment
+## (owner ruling 2026-08-10). Two acts of grace, then it retires itself.
+const TUTORIAL_RETIRE_ACT := 2
+
+
 func _load_tutorial_arc() -> void:
 	var path := "res://Core/Quests/data/tutorial_arc.json"
 	# One JSON-load authority (slop knot #7); a missing file keeps the old
@@ -319,6 +329,16 @@ func _load_tutorial_arc() -> void:
 		steps = parsed
 	for i in steps.size():
 		steps[i]["chain_unlocks"] = [steps[i + 1]] if i + 1 < steps.size() else []
+		# Owner ruling 2026-08-10: a tutorial step you walked past stops being a
+		# commitment once you're two acts clear of it. Stamped here, beside
+		# chain_unlocks, rather than repeated in all seven steps of
+		# tutorial_arc.json — this is the tutorial's own loader writing DATA onto
+		# its own entries, so the retire mechanism itself stays general and no
+		# consumer ever branches on "is this a tutorial".
+		# A step that authors its own retire_predicates keeps them.
+		var authored_retire = steps[i].get("retire_predicates", [])
+		if not (authored_retire is Array) or (authored_retire as Array).is_empty():
+			steps[i]["retire_predicates"] = [{"type": "act_at_least", "value": TUTORIAL_RETIRE_ACT}]
 	_tutorial_steps = steps
 
 
@@ -379,6 +399,7 @@ func _evaluate_flag_predicates(predicates: Array, farm) -> float:
 ## (below) accepts these PLUS the QuestStateProjectionService observable/action vocabulary, so the
 ## tutorial + arc + market quests all draw from one unified predicate language.
 const FLAG_PREDICATE_TYPES := [
+	"act_at_least",
 	"story_flag_set", "story_flag_any", "biome_evolving", "berry_consumed_count_gte", "berry_total_phase_gte",
 	"standing_gte", "biome_state_gte", "biome_state_lte", "signature_size_gte", "signature_growth_gte", "atom_count_gte", "atom_in_biome",
 	"atom_diversity_gte", "biome_attractor_emoji_gte",
@@ -434,6 +455,61 @@ func _quest_predicate_score(pred: Dictionary, farm) -> float:
 	if _state_projection:
 		return _state_projection.evaluate_predicate(pred)
 	return 0.0
+
+
+## Retire every live entry whose retire_predicates now score true.
+##
+## Retirement is a THIRD terminal beside complete and fail: the entry stops being
+## relevant without being either won or lost, so no rewards land and no standing
+## penalty is docked. Outgrowing an Act-0 tutorial step is not a broken promise.
+##
+## Both pools are swept. active_quests is the one that actually reaches act 8 —
+## offer_tutorial_quest auto-accepts any predicate-carrying step, so a step whose
+## predicate the player never satisfies sits in the ledger forever, survives
+## save/load, and (via UIProgression._objective_rank, where any TUTORIAL entry
+## outranks every arc quest) hijacks the objective banner and the spotlight for
+## the rest of the run. story_offers is swept for symmetry — it is session-only,
+## but one rule is better than two.
+func _sweep_retired_quests() -> void:
+	for quest_id in active_quests.keys():
+		var quest = active_quests[quest_id]
+		if _should_retire(quest):
+			retire_quest(int(quest_id), "outgrown")
+
+	var dropped_offers := false
+	for offer_id in story_offers.keys():
+		if _should_retire(story_offers[offer_id]):
+			story_offers.erase(offer_id)
+			dropped_offers = true
+	if dropped_offers:
+		active_quests_changed.emit()
+
+
+func _should_retire(quest) -> bool:
+	if not (quest is Dictionary):
+		return false
+	var preds = quest.get("retire_predicates", [])
+	if not (preds is Array) or preds.is_empty():
+		return false
+	return _evaluate_quest_state_predicates(preds) >= QuestStateProjectionService.COMPLETION_THRESHOLD
+
+
+## Retire a quest: it leaves the ledger because it stopped being relevant, not
+## because it was completed or failed. Deliberately NOT fail_quest with a flag —
+## fail_quest applies QuestRewards._standing_deltas_for_quest(quest, false), and
+## docking the player debt for walking past a tutorial step they didn't need is
+## precisely the kind of silent hindrance this codebase forbids.
+func retire_quest(quest_id: int, reason: String = "outgrown") -> void:
+	if not active_quests.has(quest_id):
+		return
+	var quest = active_quests[quest_id]
+	quest["status"] = "retired"
+	quest["retired_at"] = Time.get_ticks_msec()
+	quest["retire_reason"] = reason
+
+	active_quests.erase(quest_id)
+	_stop_quest_timer(quest_id)
+	active_quests_changed.emit()
 
 
 ## smooth_and over a quest's state_predicates using the unified vocabulary. Empty → 0.0.
@@ -524,6 +600,17 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 	## Physics predicates use soft_gate so partial progress is visible.
 	var kind := str(pred.get("type", ""))
 	match kind:
+		"act_at_least":
+			# "am I this far into the campaign yet" — the general form of the
+			# owner's ruling that Act-0 tutorial steps retire at act >= 2.
+			# Structural (1.0/0.0, like story_flag_set): an act boundary is a
+			# threshold you are on one side of, not a quantity to soft-gate.
+			# StoryAtlas.current_act is THE act authority — deliberately the
+			# contiguous-prefix reading, not max-fired-act, which once inflated
+			# the Arc header.
+			if farm == null:
+				return 0.0
+			return 1.0 if StoryAtlas.current_act(farm.story_flags_fired, get_all_story_flags()) >= int(pred.get("value", 0)) else 0.0
 		"story_flag_set":
 			return 1.0 if farm.story_flags_fired.has(str(pred.get("id", ""))) else 0.0
 		"story_flag_any":
