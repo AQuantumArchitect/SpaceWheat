@@ -1279,6 +1279,37 @@ None currently open. The table below is kept for history; see waves 15 and 16.
     forward to `receive_deferred_tap()` when a real 3D target is there.
     Live-verified via the rig (see section above for the exact repro).
 
+## Wave 15 — the harness was lying to us (2026-08-10)
+
+Not a parity gap: an **instrument** gap, and the more dangerous kind, because
+it silently inverts what every future wave reports.
+
+11. **`QuantumField3D.rig_bubble_state()` hardcoded `"measured": false`**
+    (`Core/Visualization/QuantumField3D.gd`, fixed in `aa8f70d3`). The 2D
+    path reported the honest terminal state; the 3D path — the DEFAULT
+    renderer since the sprint flip — reported "not measured" for every orb,
+    always. Its own docstring recorded this as a known follow-up.
+
+    Caught by re-running `stranger_mouse_probe.py` headed as a wave-15
+    harness self-check: it failed `clicking a bubble measures it` on a tap
+    that had **demonstrably** measured — the next tap harvested and paid out
+    👥10, which cannot happen on an unmeasured plot. So the probe was RED on
+    a game that was behaving correctly.
+
+    Why it matters more than one red line: a sensor stuck at "no" makes a
+    passing run indistinguishable from a failing one on that channel. Every
+    mouse-only wave since the 3D flip has been blind to measure-state
+    regressions, and any wave that *did* see one would have been dismissed
+    as the standing lie. Fixed by reading the farm's own `BasePlot.is_measured`
+    (`terminal.is_measured if terminal else _is_measured`) — the same value
+    the 2D path reports — so the renderers cannot disagree about what the
+    player just did. Re-verified: GREEN, 0 failures.
+
+    **Standing lesson for later waves:** when a leg reports a failure that
+    contradicts an adjacent passing assertion, suspect the instrument before
+    the game. The rig surface is code too, and it is not covered by the
+    probes that read it.
+
 ## Open, not yet fixed
 
 - **Ace hat's Fast-Forward chip logging `success:false` with zero
