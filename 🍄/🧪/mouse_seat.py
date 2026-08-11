@@ -183,7 +183,12 @@ def cmd_look(seat: str) -> dict:
                 "parent": b.get("parent"), "disabled": b.get("disabled"),
                 "center": b.get("center")}
                for b in ck.get("clickables", [])]
+    # Which hat is active — a sighted player reads it off the highlighted chip
+    # in the hat row; nothing in the text made it legible before. It decides
+    # what every action chip does, and the hat keys/chips are toggles.
+    frame = _turn(seat, st, c, "confirm_state").get("current_frame", "")
     return {"ok": True, "screen_text": screen, "field": field, "plots": plots,
+            "wearing_hat": frame,
             "wallet": rs.get("resources", rs.get("snapshot", {})),
             "biome_tabs": [{"key": s.get("key"), "biome": s.get("biome")}
                            for s in slots.get("slots", []) if s.get("biome")],

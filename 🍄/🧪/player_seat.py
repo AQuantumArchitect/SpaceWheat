@@ -191,7 +191,17 @@ def cmd_look(seat: str, graph: bool = True) -> dict:
         if ln not in seen:
             seen.add(ln)
             screen.append(ln)
+    # WHICH HAT YOU ARE WEARING. A sighted player reads this off the
+    # highlighted chip in the hat row (ToolSelectionRow.set_selected); a text
+    # seat could not see a highlight, so every persona has driven this game
+    # blind to the single piece of state that decides what Q/E/R/F even DO.
+    # The hat keys are toggles — re-pressing the active hat returns to Ace —
+    # so a leg that cannot see the current hat cannot predict its own next
+    # press, and reports the resulting misfire as "the game did something I
+    # didn't ask for". Parity-safe: it is on screen, just not as text.
+    frame = _turn(seat, st, c, "confirm_state").get("current_frame", "")
     out = {"ok": True, "screen_text": screen, "field": field,
+           "wearing_hat": frame,
            "wallet": rs.get("resources", rs.get("snapshot", {})),
            "biome_tabs": tabs}
     if graph:

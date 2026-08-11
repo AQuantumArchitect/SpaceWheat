@@ -173,7 +173,14 @@ func _on_quest_completed(qid: int, rewards: Dictionary) -> void:
 
 
 func _on_quest_ready_to_claim(qid: int) -> void:
-	_push("🏆 [b]%s ready to claim[/b] — C board" % _quest_name(qid), 3, "🏆", "quest", "Q")
+	# "C board" is one key short of the truth: C opens the market, and claiming
+	# lives on its Commitments tab. A main-road playthrough repeatedly pressed C,
+	# landed on the wrong tab and read the toast as a lie — while the newer
+	# objective-banner copy right beside it already says the full path
+	# ("▸ press R to claim it in Commitments (C → U)"). Two spellings of one
+	# route, and the older one sent people to the wrong screen.
+	_push("🏆 [b]%s ready to claim[/b] — C then U, then R on its row" % _quest_name(qid),
+			3, "🏆", "quest", "Q")
 
 
 ## Player words for a quest id. Raw ids leaked into toasts ("❌ Quest
@@ -234,7 +241,7 @@ func _on_quest_failed(qid: int, reason: String) -> void:
 func _on_quest_expired(_qid: int) -> void:
 	# Importance 2: at 1 this was dropped by show_hint and commitments
 	# vanished silently (fleet: "accepted quest disappears without a word").
-	_push("⌛ a commitment ran out of time — check the C board", 2, "⌛", "quest", "Q")
+	_push("⌛ a commitment ran out of time — C then U to see it", 2, "⌛", "quest", "Q")
 
 
 func _on_purchase_failed(reason: String) -> void:
