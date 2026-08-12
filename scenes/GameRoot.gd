@@ -160,16 +160,12 @@ func _dev_screenshot() -> void:
 	if OS.has_environment("SW_LOAD_PATH"):
 		var gsm = get_node_or_null("/root/GameStateManager")
 		if gsm != null and ("save_load" in gsm) and gsm.save_load != null:
+			# load_and_apply_path re-points the view at the farm it builds
+			# (SaveLoadCoordinator.rebind_view_to_farm) — this used to hand-roll that
+			# re-point here, which left the real path-load lane rendering the pre-load
+			# world for everyone who was not taking a dev screenshot (#519).
 			await gsm.save_load.load_and_apply_path(OS.get_environment("SW_LOAD_PATH"))
 			await get_tree().process_frame
-			# Re-point any 3D field at the (possibly rebuilt) post-load farm.
-			var f3d = get_node_or_null("QuantumField3D")
-			var post_farm = farm
-			var app_roots = get_tree().get_nodes_in_group("app_root")
-			if app_roots.size() > 0 and "game_root" in app_roots[0] and app_roots[0].game_root:
-				post_farm = app_roots[0].game_root.farm
-			if f3d != null and post_farm != null and f3d.has_method("connect_to_farm"):
-				f3d.connect_to_farm(post_farm)
 	var _delay := OS.get_environment("SW_SHOT_DELAY")
 	await get_tree().create_timer(float(_delay) if _delay.is_valid_float() else 4.5).timeout
 	# SW_TAP_TEST=<reg>: simulate a real tap on the 3D field's register <reg> (default 0)

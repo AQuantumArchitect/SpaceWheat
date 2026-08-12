@@ -219,6 +219,24 @@ func _attach_state_to_fresh_farm(state: GameState) -> void:
 		_gsm.active_farm.set_incorporated_icons(state.incorporated_icons)
 	if _gsm.active_farm and "active_icon_slots" in _gsm.active_farm and state.active_icon_slots is Array:
 		_gsm.active_farm.active_icon_slots = (state.active_icon_slots as Array).duplicate()
+	# This lane builds a NEW Farm without rebuilding the view, so every UI holder is
+	# still pointing at the farm the player just left. Re-point them here — at the one
+	# place that swaps the farm — or the 3D field renders the old world forever (#519).
+	rebind_view_to_farm(_gsm.active_farm)
+
+
+## Hand the live view the farm that is actually being played.
+## Static so any lane that replaces the Farm in place can call it; the slot-load lane
+## does not need it (restart_into rebuilds GameRoot, view and all).
+static func rebind_view_to_farm(farm: Node) -> void:
+	if farm == null or not is_instance_valid(farm):
+		return
+	var tree = Engine.get_main_loop()
+	if not (tree is SceneTree):
+		return
+	var fv = (tree as SceneTree).get_first_node_in_group("farm_view")
+	if fv != null and fv.has_method("rebind_farm"):
+		fv.rebind_farm(farm)
 
 
 func find_best_save_slot() -> int:

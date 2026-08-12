@@ -79,9 +79,16 @@ const REPEL_MARGIN := R * 2.3       # minimum comfortable separation between two
 const FOG_SAT := 0.16               # desaturate toward grey — hue survives, vibrancy does not
 const FOG_VAL := 0.44
 const FOG_ALPHA := 0.22             # vs 0.12 live: no dot inside, so the shell carries the shape
+## Below this the reported free band is a layout still settling, not a real strip —
+## fall back to the play-area centre rather than jam the cloud into a sliver.
+const MIN_FIELD_BAND_PX := 120.0
 
 var selected_plot_positions: Dictionary = {}
 var farm_ref = null
+## Why the field is drawing nothing right now, in one sentence; "" while healthy.
+## A blank field used to be indistinguishable from a field showing the wrong biome
+## (#519) — this is the channel that tells them apart, read by rig_field_status().
+var _field_blocked := ""
 var _sv: SubViewport
 var _world: Node3D
 var _pivot: Node3D
@@ -443,6 +450,14 @@ func _update_camera_framing() -> void:
 	if lm == null or not lm.has_method("get_play_area_center"):
 		return
 	var pc: Vector2 = lm.get_play_area_center()
+	# Vertically, defer to the HUD's own owner: ActionBarManager knows where its rows
+	# actually sit, and play_area_rect does not (see get_free_band — #520). Horizontally
+	# the HUD spans the full width and constrains nothing, so play_area_center.x stands.
+	var abm = _action_bars_ref()
+	if abm != null and abm.has_method("get_free_band"):
+		var band: Vector2 = abm.get_free_band()
+		if band.y - band.x > MIN_FIELD_BAND_PX:
+			pc.y = (band.x + band.y) * 0.5
 	var vc: Vector2 = size * 0.5
 	var dist := _cam.position.length()   # camera → pivot origin
 	var world_per_px := 2.0 * dist * tan(deg_to_rad(_cam.fov * 0.5)) / size.y
@@ -465,6 +480,18 @@ func _layout_manager_ref() -> Node:
 	return _lm_cache
 
 
+## The HUD's own row owner — the only thing that knows where the chrome really is.
+## Not cached: ActionBarManager is a RefCounted held by PlayerShell, and a shell rebuild
+## replaces it. The lookup is two hops off a group, once per frame.
+func _action_bars_ref():
+	var tree := get_tree()
+	if tree == null:
+		return null
+	var fv = tree.get_first_node_in_group("farm_view")
+	var shell = fv.shell if fv != null and ("shell" in fv) else null
+	return shell.action_bar_manager if shell != null and ("action_bar_manager" in shell) else null
+
+
 # ----------------------------------------------------------- farm/biome access
 func _farm_grid():
 	if farm_ref == null or not is_instance_valid(farm_ref):
@@ -475,24 +502,59 @@ func _farm_grid():
 func _get_active_biome():
 	# Authority: ActiveBiomeManager owns the active biome NAME; Farm.grid (a FarmGrid)
 	# maps name -> biome object with the live viz_cache.
+	#
+	# THE ONE RULE (#519): substitute another biome only when the authority has no
+	# opinion about THIS grid. If ABM names a biome and the grid holds it, that biome
+	# is the only honest thing to draw — if it isn't renderable yet we draw NOTHING and
+	# say why, because drawing a neighbour instead renders a country the player is not
+	# standing in and speaks no refusal (cf. #141 hard-fail silent fallbacks).
+	# The fall-through is still load-bearing for the standalone cognifold instrument
+	# (CognifoldTraceView's grid holds "belief-field: <world>", a name ABM never knows),
+	# which is exactly the "no opinion about this grid" case.
 	var grid = _farm_grid()
 	if grid == null:
+		_field_blocked = "no farm grid"
 		return null
 	var abm = get_node_or_null("/root/ActiveBiomeManager")
-	if abm != null and abm.has_method("get_active_biome") and grid.has_method("get_biome"):
-		var b = grid.get_biome(abm.get_active_biome())
-		if _biome_ok(b):
-			return b
+	var want := ""
+	if abm != null and abm.has_method("get_active_biome"):
+		want = str(abm.get_active_biome())
+	if want != "" and grid.has_method("get_biome"):
+		var b = grid.get_biome(want)
+		if b != null:
+			# This grid IS the world ABM governs. Its answer is final.
+			if _biome_ok(b):
+				_field_blocked = ""
+				return b
+			_field_blocked = "%s not renderable: %s" % [want, _biome_gap(b)]
+			return null
 	if grid.has_method("get_all_biomes"):
 		for bb in grid.get_all_biomes().values():
 			if _biome_ok(bb):
+				_field_blocked = ""
 				return bb
+	_field_blocked = "no renderable biome in grid" if want == "" else \
+		"%s is not in this grid, and nothing here is renderable" % want
 	return null
 
 
 func _biome_ok(b) -> bool:
 	return b != null and is_instance_valid(b) and ("viz_cache" in b) and b.viz_cache != null \
 		and b.viz_cache.has_metadata() and b.viz_cache.get_num_qubits() > 0
+
+
+## Which link of _biome_ok's chain broke — the sentence the field says instead of
+## quietly drawing somewhere else.
+func _biome_gap(b) -> String:
+	if b == null or not is_instance_valid(b):
+		return "no biome object"
+	if not ("viz_cache" in b) or b.viz_cache == null:
+		return "no viz_cache"
+	if not b.viz_cache.has_metadata():
+		return "viz_cache carries no axes yet"
+	if b.viz_cache.get_num_qubits() <= 0:
+		return "viz_cache reports 0 registers"
+	return "unknown"
 
 
 # ------------------------------------------------------------------- rendering
@@ -927,7 +989,16 @@ func _process(dt: float) -> void:
 	# frames after this node starts ticking, so the first rebuild used to fire with
 	# farm_ref still unset and every plot came up pre-revealed, permanently (a
 	# biome only rebuilds again on biome change). Wait for the real connection.
-	if farm_ref == null:
+	if farm_ref == null or not is_instance_valid(farm_ref):
+		# A farm that was here and is now gone means the world got swapped underneath
+		# us. Freezing the last render would keep a dead world on screen and let the
+		# player go on clicking it (#519) — drop it and say so instead.
+		if not _bubbles.is_empty():
+			_clear_bubbles()
+			_clear_portals()
+			_clear_fractal_portals()
+			_last_biome = ""
+			_field_blocked = "the farm this field was wired to is gone"
 		return
 
 	var biome = _get_active_biome()
@@ -1774,6 +1845,46 @@ func rig_bubble_state() -> Array:
 			"screen_pos": [int(sp.x), int(sp.y)],
 		})
 	return out
+
+
+## What the field believes it is drawing, and — when it is drawing nothing — why.
+##
+## `rendering` is the biome whose registers are on screen; `wants` is the biome the
+## ActiveBiomeManager says the player is standing in. They must match. A driver that
+## only reads bubble_state cannot tell "the field is empty" from "the field is showing
+## the wrong country," which is how #519 survived a whole mouse-only campaign.
+func rig_field_status() -> Dictionary:
+	var abm = get_node_or_null("/root/ActiveBiomeManager")
+	var wants := str(abm.get_active_biome()) if (abm != null and abm.has_method("get_active_biome")) else ""
+	var grid = _farm_grid()
+	var seen: Array = []
+	if grid != null and grid.has_method("get_all_biomes"):
+		for k in grid.get_all_biomes().keys():
+			seen.append(str(k))
+	seen.sort()
+	return {
+		"rendering": _last_biome,
+		"wants": wants,
+		"agrees": _last_biome != "" and _last_biome == wants,
+		"blocked": _field_blocked,
+		"registers": _bubbles.size(),
+		# The world the field can actually see. A field wired to a dead farm still
+		# renders happily — it just renders yesterday's world (#519).
+		"grid_biomes": seen,
+		"farm_is_live": _farm_is_live(),
+	}
+
+
+## Is farm_ref still the farm the game is playing? A load swaps the Farm out from
+## under every holder; a renderer that keeps the old one draws a world nobody is in.
+func _farm_is_live() -> bool:
+	if farm_ref == null or not is_instance_valid(farm_ref):
+		return false
+	var gsm = get_node_or_null("/root/GameStateManager")
+	if gsm == null or not gsm.has_method("get_active_farm"):
+		return true   # no authority to disagree with (standalone cognifold instrument)
+	var live = gsm.get_active_farm()
+	return live == null or live == farm_ref
 
 
 ## The farm's own measured state for a plot, or false when there is no farm to ask.

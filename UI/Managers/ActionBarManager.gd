@@ -216,6 +216,31 @@ func _position_action_row() -> void:
 	_position_row_at_index(action_preview_row, 0)
 
 
+## The vertical strip the HUD leaves free, in global screen coords: (top_y, bottom_y).
+##
+## This manager owns every row that boxes the play space, so it is the only thing that
+## can answer honestly. The 3D field centres on THIS rather than on
+## UILayoutManager.play_area_rect: that rect models the 2D rack's layout, where
+## top_bar_height is 6% of the window — while the real top chrome is the resource bar
+## plus three stacked selection rows, ~37% at 720p. Centring on the model instead of the
+## screen put the cloud ~180px too high, with orbs behind the biome tabs and the bottom
+## third of the screen empty (#520).
+func get_free_band() -> Vector2:
+	var layer: Control = action_preview_row.get_parent() if action_preview_row else null
+	if layer == null or not is_instance_valid(layer):
+		return Vector2.ZERO
+	var band := layer.get_global_rect()
+	var top := band.position.y
+	var bottom := band.end.y
+	for row in [menu_selection_row, tool_selection_row, mode_selection_row,
+			biome_selection_row, clock_speed_row]:
+		if row != null and is_instance_valid(row) and row.visible:
+			top = maxf(top, row.get_global_rect().end.y)
+	if action_preview_row != null and is_instance_valid(action_preview_row) and action_preview_row.visible:
+		bottom = minf(bottom, action_preview_row.get_global_rect().position.y)
+	return Vector2(top, bottom)
+
+
 func get_tool_row() -> Control:
 	return tool_selection_row
 

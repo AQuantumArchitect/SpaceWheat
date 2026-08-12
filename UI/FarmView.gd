@@ -117,6 +117,23 @@ func _connect_quantum_viz_to_farm() -> void:
 	push_error("FarmView: no field renderer — cannot connect to farm!")
 
 
+## Re-point the view at a farm that replaced the one it was built with.
+##
+## The slot-load lane never needs this: restart_into() frees GameRoot and rebuilds the
+## whole view from scratch. The path-load lane (SaveLoadCoordinator.load_and_apply_path)
+## keeps the scene alive and swaps the Farm underneath it — and every holder that kept
+## the old reference then renders a world nobody is in. That was #519: the 3D field went
+## on drawing the pre-load biome, and clicking a biome tab could not shift it, because
+## the field's farm had no biomes left to look up.
+func rebind_farm(p_farm: Node) -> void:
+	if p_farm == null or not is_instance_valid(p_farm) or p_farm == farm:
+		return
+	farm = p_farm
+	_connect_quantum_viz_to_farm()
+	if _verbose:
+		_verbose.info("ui", "🔗", "FarmView re-pointed at the post-load farm")
+
+
 func _connect_visualization_ui_signals() -> void:
 	var renderer = _renderer()
 	if renderer and shell:

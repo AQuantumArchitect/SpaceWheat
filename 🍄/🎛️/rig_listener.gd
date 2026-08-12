@@ -853,6 +853,7 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			# node if present (default), else fall through to the 3D field's rig surface.
 			var bs_fg: Node = null
 			var bs_field3d: Node = null
+			var bs_field_paths: Array = []
 			var bs_stack: Array = [get_root()]
 			while not bs_stack.is_empty():
 				var bs_n: Node = bs_stack.pop_back()
@@ -861,8 +862,10 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				if "quantum_nodes_by_grid_pos" in bs_n:
 					bs_fg = bs_n
 					break
-				if bs_field3d == null and bs_n.has_method("rig_bubble_state"):
-					bs_field3d = bs_n
+				if bs_n.has_method("rig_bubble_state"):
+					bs_field_paths.append(str(bs_n.get_path()))
+					if bs_field3d == null:
+						bs_field3d = bs_n
 			if bs_fg == null and bs_field3d == null:
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_force_graph"}
 			else:
@@ -888,6 +891,13 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 					for bs_bb in bs_bubbles:
 						if bool(bs_bb.get("visible", false)):
 							bs_visible += 1
+					# WHICH biome the field is drawing, vs which one the player is
+					# standing in. bubble_count alone cannot tell "empty field" from
+					# "field showing the wrong country" — #519 hid behind exactly that.
+					if bs_field3d.has_method("rig_field_status"):
+						var bs_fs: Dictionary = bs_field3d.rig_field_status()
+						bs_fs["nodes"] = bs_field_paths
+						result["field"] = bs_fs
 				result["bubbles"] = bs_bubbles
 				result["bubble_count"] = bs_bubbles.size()
 				result["visible_count"] = bs_visible
