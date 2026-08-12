@@ -69,6 +69,16 @@ const DRIFT_MAX := R * 1.6          # cap on how far an orb may wander from its 
                                      # legibility over chaos: the layout must always stay readable
 const DRIFT_SMOOTH := 2.2           # exponential-smoothing rate toward the target (frame-rate independent)
 const REPEL_MARGIN := R * 2.3       # minimum comfortable separation between two live orb positions
+# Unexplored ground (owner ruling 2026-08-11): a register the player has not explored still
+# draws its BALL — dimmed, desaturated and unlabelled — instead of vanishing. A biome then
+# always holds the same shape and only its LABELLING changes with exploration, which is what
+# gives a pointer a visible target for every plot (#513: the orbs were always pickable, but
+# an invisible orb is not a click affordance). Saturation/value are pulled right down so the
+# fog ball reads as inert matter rather than a live instrument; alpha rises a little because
+# there is no state dot inside it to make the silhouette legible.
+const FOG_SAT := 0.16               # desaturate toward grey — hue survives, vibrancy does not
+const FOG_VAL := 0.44
+const FOG_ALPHA := 0.22             # vs 0.12 live: no dot inside, so the shell carries the shape
 
 var selected_plot_positions: Dictionary = {}
 var farm_ref = null
@@ -120,6 +130,7 @@ var _last_biome := ""
 var _glow := Color(0.96, 0.80, 0.36)
 var _orb_base := Color(0.14, 0.11, 0.05)
 var _accent := Color(0.96, 0.80, 0.36)
+var _fog := Color(0.42, 0.42, 0.46)   # unexplored ball tint; re-derived per biome in _apply_theme
 
 
 func _ready() -> void:
@@ -264,7 +275,7 @@ func _is_plot_revealed(grid_pos: Vector2i) -> bool:
 func _on_plot_revealed(grid_pos: Vector2i) -> void:
 	for b in _bubbles:
 		if b.get("grid_pos") == grid_pos:
-			_set_bubble_visible(b, true)
+			_set_bubble_revealed(b, true)
 	_update_selection_visuals()
 
 
@@ -274,15 +285,44 @@ func _on_plot_revealed(grid_pos: Vector2i) -> void:
 func _on_terminal_released(grid_pos: Vector2i, _terminal_id: String, _credits_earned: int) -> void:
 	for b in _bubbles:
 		if b.get("grid_pos") == grid_pos:
-			_set_bubble_visible(b, false)
+			_set_bubble_revealed(b, false)
 	_update_selection_visuals()
 
 
-func _set_bubble_visible(b: Dictionary, vis: bool) -> void:
-	for k in ["mesh", "eq", "axisline", "np", "spr", "dot", "ring"]:
+## THE reveal authority for an orb's presentation. `b.revealed` is the single flag every
+## reveal-gated channel reads (via _bubble_shown) — it used to be inferred from
+## `b.mesh.visible`, which stopped being a truthful proxy the moment unexplored ground
+## started drawing a ball (owner ruling 2026-08-11). An inferred flag that quietly means
+## two things is exactly the split authority this codebase keeps paying for, so it is
+## stored once, here, and read everywhere else.
+##
+## Explored: the full instrument — translucent Bloch ball, equator, measurement axis, both
+## pole emoji, the live state dot, the gold ripeness ring.
+## Unexplored: the BALL ONLY, dimmed and unlabelled. The shape of the biome is constant;
+## exploration adds the labels and the readouts, it does not conjure the ground.
+func _set_bubble_revealed(b: Dictionary, revealed: bool) -> void:
+	b["revealed"] = revealed
+	# Everything that READS state stays gated on exploration — an unexplored register must
+	# not display physics the player has not looked at yet.
+	for k in ["eq", "axisline", "np", "spr", "dot", "ring"]:
 		var node = b.get(k)
 		if node != null and is_instance_valid(node):
-			node.visible = vis
+			node.visible = revealed
+	# The ball itself is the ground, and ground does not come and go.
+	var mesh = b.get("mesh")
+	if mesh == null or not is_instance_valid(mesh):
+		return
+	mesh.visible = true
+	var mat = mesh.material_override
+	if mat is StandardMaterial3D:
+		(mat as StandardMaterial3D).albedo_color = (
+			Color(_glow.r, _glow.g, _glow.b, 0.12) if revealed
+			else Color(_fog.r, _fog.g, _fog.b, FOG_ALPHA)
+		)
+	# A trail accumulated while explored would otherwise hang in the air over fog after a
+	# harvest pops the bubble back to unexplored.
+	if not revealed:
+		b["trail"] = []
 
 
 func teardown() -> void:
@@ -326,7 +366,10 @@ func _selected_bubble() -> Dictionary:
 
 func _update_selection_visuals() -> void:
 	var b := _selected_bubble()
-	var has_orb: bool = (not b.is_empty()) and is_instance_valid(b.get("mesh")) and b.mesh.visible
+	# Deliberately NOT reveal-gated: the ring is the CURSOR, and a cursor you cannot see
+	# while it sits on unexplored ground is the silent-focus defect all over again. Since
+	# unexplored registers now draw a fog ball, the ring has something real to sit on.
+	var has_orb: bool = (not b.is_empty()) and is_instance_valid(b.get("mesh"))
 	if _sel_ring != null and is_instance_valid(_sel_ring):
 		_sel_ring.visible = has_orb
 		if has_orb:
@@ -341,8 +384,8 @@ func _update_descend_visibility() -> void:
 	var sel_reg: int = int(sel.reg) if not sel.is_empty() else -2147483648
 	for dp in _descend_portals:
 		var b := _bubble_for_reg(int(dp.register_id))
-		var vis: bool = (not b.is_empty()) and is_instance_valid(b.get("mesh")) \
-			and b.mesh.visible and int(dp.register_id) == sel_reg
+		var vis: bool = (not b.is_empty()) and _bubble_shown(b) \
+			and int(dp.register_id) == sel_reg
 		for k in ["mesh", "ring", "sprite"]:
 			var node = dp.get(k)
 			if node != null and is_instance_valid(node):
@@ -467,6 +510,9 @@ func _apply_theme(biome_name: String) -> void:
 	_glow = Color.from_hsv(hue, 0.85, 0.95)
 	_orb_base = Color.from_hsv(hue, 0.82, 0.74)
 	_accent = theme.get("accent", Color(0.98, 0.82, 0.30))
+	# Unexplored ground keeps the biome's hue so the fog still reads as THIS country, but
+	# drained of saturation and light so it never competes with a live register.
+	_fog = Color.from_hsv(hue, FOG_SAT, FOG_VAL)
 
 
 func _layout_pos(i: int, n: int) -> Vector3:
@@ -614,12 +660,13 @@ func _spawn(reg: int, pos: Vector3, north_emoji: String, south_emoji: String, gr
 
 	var b := {"reg": reg, "mesh": mi, "eq": eq, "axisline": axisline, "np": np,
 		"spr": spr, "dot": dot, "ring": ring, "pos": pos, "anchor": pos, "grid_pos": grid_pos,
-		"trail": [], "north_e": north_emoji, "south_e": south_emoji}
+		"trail": [], "north_e": north_emoji, "south_e": south_emoji, "revealed": false}
 	_bubbles.append(b)
-	# Explore-on-action (owner ruling 2026-08-02): a register stays hidden until
-	# the player actually explores its plot — mirrors QuantumForceGraph's own
-	# reveal gate so 2D and 3D agree on what "explored" means.
-	_set_bubble_visible(b, _is_plot_revealed(grid_pos))
+	# Explore-on-action (owner ruling 2026-08-02): a register stays UNLABELLED until the
+	# player actually explores its plot — mirrors QuantumForceGraph's own reveal gate so
+	# 2D and 3D agree on what "explored" means. Since 2026-08-11 the ball itself always
+	# draws (dimmed), so the biome's shape is constant and every plot has a click target.
+	_set_bubble_revealed(b, _is_plot_revealed(grid_pos))
 
 
 func _pole_sprite(e: String, at: Vector3, sz: float) -> Sprite3D:
@@ -927,7 +974,7 @@ func _process(dt: float) -> void:
 		# record the trajectory so the state's precession leaves a visible fading arc
 		# (only while time flows and the orb is revealed — a paused/hidden register
 		# must not accumulate a ghost trail)
-		if _time_scale > 0.0 and is_instance_valid(b.mesh) and b.mesh.visible:
+		if _time_scale > 0.0 and _bubble_shown(b):
 			var tr: Array = b.trail
 			tr.append(b.dot.position)
 			if tr.size() > 110:
@@ -962,7 +1009,7 @@ func _update_vectors() -> void:
 		if not is_instance_valid(b.dot):
 			continue
 		# reveal gate: an unexplored register draws no web
-		if not is_instance_valid(b.mesh) or not b.mesh.visible:
+		if not _bubble_shown(b):
 			continue
 		# state vector: faint at the centre, bright cyan at the tip
 		vm.surface_set_color(Color(0.55, 0.6, 0.7, 0.35))
@@ -1188,8 +1235,13 @@ func _recompute_mi_segs(vc) -> Array:
 	return segs
 
 
+## Has the player actually explored this register? The one question every reveal-gated
+## channel asks (MI edges, metro lines, Lindblad arrows, state vectors, trails, descend
+## satellites, the rig surface). Reads the stored flag, NOT `mesh.visible` — since the
+## owner ruling of 2026-08-11 an unexplored orb still draws its ball, so mesh visibility
+## no longer answers this question and asking it there silently opened every gate.
 func _bubble_shown(b: Dictionary) -> bool:
-	return is_instance_valid(b.get("mesh")) and b.mesh.visible
+	return is_instance_valid(b.get("mesh")) and bool(b.get("revealed", false))
 
 
 ## Static Hamiltonian-coupling edges — the biome's PERMANENT wiring (icons.json), not a live
@@ -1685,11 +1737,16 @@ func dev_tap_register_edge(idx: int) -> Vector2i:
 ## ------------------------------------------------------ rig/harness surface
 ## Renderer-agnostic mirror of the 2D rig's per-bubble read, so automated drives (the act
 ## campaign, tap_to_farm probe) can enumerate + target orbs under the 3D field. `visible`
-## now mirrors the SAME reveal-on-first-touch state the 2D renderer's node.visible carries
-## (b.mesh.visible is kept live by _set_bubble_visible / _is_plot_revealed, the same authority
-## _spawn seeds a new orb from) — the 3D field used to report a blanket true here ("3D shows
-## all registers"), which was true of the RENDER but not of the rig surface's honesty; fixed
-## per task #405.
+## mirrors the SAME reveal-on-first-touch state the 2D renderer's node.visible carries — the
+## 3D field used to report a blanket true here ("3D shows all registers"), which was true of
+## the RENDER but not of the rig surface's honesty; fixed per task #405.
+##
+## Since the fog-ball ruling (2026-08-11) `visible` deliberately does NOT mean "on screen":
+## an unexplored register draws a dimmed, unlabelled ball and is fully tappable, so it reports
+## visible=false (nothing about its STATE is on show) with a real `screen_pos` to aim at.
+## `screen_pos` is the on-screen truth; `visible` is the explored truth. A mouse leg that
+## filters its targets on `visible` will believe it cannot click the ground it can see —
+## which is precisely how #513 read as "unrevealed plots have no mouse target".
 ##
 ## `measured` used to be hardcoded false here for the same reason — the field itself does not
 ## track terminal state — and because this is the DEFAULT renderer that made every mouse-only
@@ -1709,7 +1766,7 @@ func rig_bubble_state() -> Array:
 			sp = _cam.unproject_position(b.mesh.global_position)
 		out.append({
 			"pos": [int(b.grid_pos.x), int(b.grid_pos.y)],
-			"visible": bool(b.mesh.visible),
+			"visible": _bubble_shown(b),
 			"measured": _is_plot_measured(b.grid_pos),
 			"biome": _last_biome,
 			"register_id": int(b.reg),
