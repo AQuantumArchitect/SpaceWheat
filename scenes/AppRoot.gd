@@ -285,7 +285,7 @@ func _build_title() -> void:
 	# Version stamp, bottom-left — the one place a player can read which build
 	# they're on (bug reports quote it; itch builds carry the same string).
 	var version_lbl := Label.new()
-	version_lbl.text = "v%s" % str(ProjectSettings.get_setting("application/config/version", "dev"))
+	version_lbl.text = BuildInfo.display()
 	version_lbl.add_theme_font_size_override("font_size", 13)
 	version_lbl.add_theme_color_override("font_color", Color(0.85, 0.9, 0.8, 0.55))
 	version_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))

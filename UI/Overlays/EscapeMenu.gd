@@ -794,8 +794,8 @@ func _start_new_scenario() -> void:
 func _build_dev_body() -> void:
 	# ── Live system metrics ──────────────────────────────────────────────────
 	_body_box.add_child(_make_section_header("system"))
-	_body_box.add_child(_make_kv_row("version", "v%s · %s" % [
-		str(ProjectSettings.get_setting("application/config/version", "dev")),
+	_body_box.add_child(_make_kv_row("version", "%s · %s" % [
+		BuildInfo.display(),
 		OS.get_name()
 	]))
 	var fps := int(Engine.get_frames_per_second())
@@ -902,7 +902,7 @@ func _execute_dev_action(idx: int) -> void:
 ## debug/file_logging). Read-only — never writes anything to disk.
 func _gather_log_report() -> String:
 	var lines: Array = []
-	lines.append("SpaceWheat v%s" % str(ProjectSettings.get_setting("application/config/version", "dev")))
+	lines.append("SpaceWheat %s" % BuildInfo.display())
 	lines.append("%s · Godot %s" % [OS.get_name(), str(Engine.get_version_info().get("string", "?"))])
 	lines.append("")
 	var log_path := "user://logs/godot.log"

@@ -37,6 +37,31 @@ run_godot_export() {
         "$GODOT_BIN" --headless "$@"
 }
 
+# Which commit this pack was cut from. Core/Config/BuildInfo.gd reads it and the
+# title screen + bug-report clipboard show it. Written here rather than typed by
+# hand because the hand-typed half (config/version) sat 66 commits stale once
+# already; a stamp nobody types cannot go stale. Removed again after the export
+# so a source run honestly reports "source" instead of the last build's commit.
+BUILD_STAMP_FILE="$PROJECT_DIR/Core/Config/build_stamp.json"
+
+write_build_stamp() {
+    local sha branch built
+    sha="$(git -C "$PROJECT_DIR" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+    branch="$(git -C "$PROJECT_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)"
+    built="$(date -u +%Y-%m-%d)"
+    if [ -n "$(git -C "$PROJECT_DIR" status --porcelain 2>/dev/null)" ]; then
+        sha="${sha}-dirty"   # a pack built off uncommitted edits must say so
+    fi
+    printf '{"commit": "%s", "branch": "%s", "built": "%s"}\n' \
+        "$sha" "$branch" "$built" > "$BUILD_STAMP_FILE"
+    log "Build stamp: $sha ($branch, $built)"
+}
+
+remove_build_stamp() {
+    rm -f "$BUILD_STAMP_FILE" "$BUILD_STAMP_FILE.import" "$BUILD_STAMP_FILE.uid"
+}
+trap remove_build_stamp EXIT
+
 show_help() {
     cat << 'EOF'
 Build SpaceWheat desktop exports from the current checkout.
@@ -128,6 +153,11 @@ LINUX_OUT="$OUTPUT_ROOT/linux-native"
 
 log "Sanitizing Godot export state"
 sanitize_godot_export_state
+
+write_build_stamp
+# The stamp is a brand-new file; import it so the exporter packs it rather than
+# silently shipping a build that reports "source".
+run_godot_export --path "$PROJECT_DIR" --import >/dev/null 2>&1 || true
 
 log "Exporting desktop builds"
 rm -rf "$WINDOWS_OUT" "$LINUX_OUT"

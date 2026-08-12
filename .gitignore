@@ -125,3 +125,8 @@ node_modules/
 native/src/*.d
 native/src/**/*.obj
 scratch_cognifold_sample.json
+
+# Written by scripts/build-desktop-local.sh immediately before an export and
+# deleted immediately after — it belongs to a pack, never to the tree.
+Core/Config/build_stamp.json
+Core/Config/build_stamp.json.uid
