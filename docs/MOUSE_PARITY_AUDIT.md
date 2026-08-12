@@ -1320,6 +1320,35 @@ it silently inverts what every future wave reports.
     the game. The rig surface is code too, and it is not covered by the
     probes that read it.
 
+13. **`bubble_state` could not tell an empty field from the WRONG field**
+    (found 2026-08-12 chasing #519; instrument added the same day). A leg
+    reading only `bubble_count` / `visible_count` sees the same numbers
+    whether the field is rendering nothing or rendering a biome the player
+    is not standing in. That blind spot is why the post-autosave wrong-biome
+    render survived every wave in this campaign: the orbs it drew were real
+    orbs with real screen positions, just from the world the player had
+    left.
+
+    `bubble_state` now carries a `field` block from
+    `QuantumField3D.rig_field_status()`:
+
+        "field": {"rendering": "Village", "wants": "Village",
+                  "agrees": true, "blocked": "",
+                  "registers": 3, "grid_biomes": [...],
+                  "farm_is_live": true, "nodes": [...]}
+
+    **Every future field leg should assert `field.agrees`** before trusting a
+    single orb reading. `blocked` carries the field's own sentence when it is
+    deliberately drawing nothing, so a blank screen can now be told apart
+    from a broken one.
+
+    Related harness note: `mouse_seat.py --checkpoint` and
+    `player_seat.py --checkpoint` both go through the rig's `load_game_path`,
+    which is the dev-only lane. The canonical player route is
+    `install_checkpoint` onto a slot then `load_game(slot)`. The lane itself
+    is no longer broken (the view is re-pointed now), but a leg that wants to
+    exercise what a player actually does should use the slot route.
+
 ## Open, not yet fixed
 
 - **Ace hat's Fast-Forward chip logging `success:false` with zero
