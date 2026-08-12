@@ -29,12 +29,32 @@ What is still missing:
 
 ## Web channel
 
-Status: not ready
+Status: **cannot be built on this machine** (measured 2026-08-12, v1.0-rc3)
 
-Why:
-- there is a Web preset, but not a trusted browser smoke lane
-- performance for the actual live game is not yet characterized well enough
-- the current web path is not the same maturity level as desktop
+This supersedes both notes above. The 2026-07-11 update said the owner had
+confirmed browser play; that was true of a bundle built *before* the native-only
+cutover. It is no longer reachable, and the blocker is mechanical, not a
+judgement call:
+
+- `native/bin/web/` is **empty** — the WASM extension has never been built here.
+- **Emscripten is not installed.** `build-all-platforms.sh --web-only` shells out
+  to `em++` to produce `bin/web/libquantummatrix.wasm`; the lane exists and is
+  wired, the toolchain is simply absent.
+- Since the native-only purge, `BootManager._ready()` **hard-fails** — it calls
+  `get_tree().quit(1)` when `REQUIRED_NATIVE_CLASSES` are missing. A web build
+  without that WASM does not degrade to GDScript physics; it refuses to start.
+  There is no fallback left to fall back to.
+- `releases/web-local/` is from 2026-07-05, which predates that cutover.
+  **Do not ship it.**
+
+Order to make web real: install emsdk → `build-all-platforms.sh --web-only` →
+export the Web preset → run `scripts/smoke-test-web-export.mjs` against the real
+bundle (the lane exists and has never been run against one).
+
+**Page-copy conflict, unresolved:** `ITCH_PAGE.md` promises "Play-in-browser +
+desktop downloads" and the title section repeats it. Until the above is done,
+either cut the browser promise from the page or hold the page. Shipping the copy
+as written promises something that currently cannot boot.
 
 ## Practical recommendation
 

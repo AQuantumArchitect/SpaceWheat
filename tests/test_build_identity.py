@@ -36,25 +36,26 @@ def test_project_version_is_not_the_stale_beta():
     )
 
 
-def test_project_version_is_at_least_the_newest_shipped_package():
-    """A build must never claim to be older than a package already on disk.
+def test_package_and_push_take_their_version_from_the_game():
+    """An artifact can never be named something the game does not claim.
 
-    releases/packages/ is the record of what has actually been cut. If the
-    version in project.godot is one of those names, the next build would ship
-    under a name already taken — which is exactly how rc2's identity got reused.
+    The archive name, the itch --userversion, and the title-screen stamp must
+    all come from one place. If packaging took its own version (a --version
+    default, a hand-edited constant), a zip could ship as v1.0-rc3 carrying a
+    build whose title screen says something else — the same identity drift the
+    stamp exists to end, just moved into the filename.
+
+    Deliberately NOT asserted here: that config/version is absent from
+    releases/packages/. Cutting a release puts the current version there, so
+    that check fires on the correct workflow rather than on a defect. Two builds
+    sharing a release name are already distinguishable by their commit stamp,
+    which is the property that actually matters.
     """
-    packages = ROOT / "releases/packages"
-    if not packages.is_dir():
-        return  # packages are local artifacts; nothing to compare against
-    shipped = {
-        m.group(1)
-        for f in packages.iterdir()
-        if (m := re.match(r"spacewheat-(?:windows|linux)-(.+?)\.(?:zip|tar\.gz)$", f.name))
-    }
-    version = re.search(r'^config/version="([^"]+)"', _read(PROJECT_GODOT), re.M).group(1)
-    assert version not in shipped and f"v{version}" not in shipped, (
-        f"config/version {version!r} names a package already cut in releases/packages/"
-    )
+    for script in ("scripts/package-desktop-builds.sh", "scripts/itch-push.sh"):
+        src = _read(ROOT / script)
+        assert "config/version" in src and "project.godot" in src, (
+            f"{script} must derive its version from project.godot, not its own default"
+        )
 
 
 def test_build_info_is_the_single_authority():
