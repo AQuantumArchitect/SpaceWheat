@@ -171,6 +171,18 @@ func standing_channel_now(faction: String, channel: String) -> float:
 	return float(standing.to_dict().get(channel, 0.0))
 
 
+## Live Tr(ρ²) of the player's own faction-alignment state — PredicateGloss shows
+## "have/target" so the one gate in the campaign that asks for a META-state still
+## has a moving number under it. Without this it read as the only ask in six acts
+## with no visible dial (main-road finding, #515).
+func soul_purity_now() -> float:
+	var farm = _get_active_farm()
+	if farm == null or not ("faction_density" in farm) or farm.faction_density == null \
+			or not farm.faction_density.has_method("get_purity"):
+		return 0.0
+	return float(farm.faction_density.get_purity())
+
+
 ## Berries consumed so far in a biome — PredicateGloss shows live "N/M" so a
 ## fresh incorporation visibly moves the number (fleet #5: "progress display
 ## not updating" + the cumulative ladder read as shifting requirements).

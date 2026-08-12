@@ -1171,7 +1171,7 @@
     "standing_grants": {},
     "arc_quest": {
       "body": "Stay Yourself — hold your alignment purity above the fog while the island watches.",
-      "hint": "The M overlay's Eigen tab shows You · Tr(ρ²). It decays toward the mixed state (τ=300s) unless your choices keep renewing it — learn icons, rotate settlements, work your factions. Hold it near 0.55.",
+      "hint": "Icon hat: press 5. F tracks a loop on a plot, time ripens it, R takes the icon — and taking it pumps mass into the faction that owns it, which is what sharpens you out of the fog. Icons from ONE faction sharpen fastest; a scatter of owners keeps you mixed. Read the number on the M overlay's Eigen tab (You · Tr(ρ²)) and watch it move on each take. It fades back toward the fog in about five minutes, so the ask is a run of takes, not one. Hold it near 0.55.",
       "state_predicates": [
         {
           "type": "soul_purity_gte",

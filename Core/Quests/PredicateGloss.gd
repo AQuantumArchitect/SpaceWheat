@@ -144,7 +144,16 @@ static func summary(pred: Dictionary, qm = null) -> String:
 		"biome_state_lte":
 			return "%s.%s ≤ %.2f" % [str(pred.get("biome", "")), str(pred.get("atom", "")), tgt]
 		"soul_purity_gte":
-			return "you · Tr(ρ²) ≥ %.2f" % tgt
+			# The campaign's ONE meta-state gate. Everything else says "do X in biome
+			# Y"; this says "be a certain way", and with no live number and no named
+			# verb it read as the first ask in six acts with no next step (#515). So
+			# it gets both: where it stands now, and the verb that moves it.
+			# The lever is real — Farm._pump_for_icon pumps the owning faction hard on
+			# every incorporation, concentrating ρ; the τ=300s decay pulls it back.
+			var sp_have := ""
+			if qm and qm.has_method("soul_purity_now"):
+				sp_have = "%.2f/" % qm.soul_purity_now()
+			return "you · Tr(ρ²) %s%.2f — incorporate icons (Icon hat 5: F track, R take) to sharpen it; it fades toward the fog in ~5 min" % [sp_have, tgt]
 		"biome_evolving":
 			# A biome you haven't found yet reads as an impossible ask (marathon
 			# #4: "requires BloodLedger to be active" with no verb) — teach
