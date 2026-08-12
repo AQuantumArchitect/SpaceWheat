@@ -145,10 +145,18 @@ func load_and_apply(slot: int) -> bool:
 	var tree = Engine.get_main_loop()
 	var app_roots = tree.get_nodes_in_group("app_root") if tree else []
 	if not app_roots.is_empty():
-		_gsm.phase = SessionLifecycle.SessionPhase.BOOTING
 		var peek := peek_save_slot(slot)
-		if peek and bool(peek.get("exists", false)):
-			_gsm.current_scenario_id = str(peek.get("scenario", _gsm.current_scenario_id))
+		if peek.is_empty() or not bool(peek.get("exists", false)):
+			# There is nothing in that slot. restart_into() would cheerfully boot a
+			# FRESH scenario and this used to return true regardless — a load that
+			# silently became a new game, with EscapeMenu closing on it as though it
+			# had worked (it only stays open `if not ok`). Say no instead.
+			# The headless branch below already refuses this way; the two lanes now
+			# agree. Found 2026-08-12: load_game(slot=3) — one past NUM_SAVE_SLOTS —
+			# answered {"loaded": true} while landing in a fresh demos_normal boot.
+			return false
+		_gsm.phase = SessionLifecycle.SessionPhase.BOOTING
+		_gsm.current_scenario_id = str(peek.get("scenario", _gsm.current_scenario_id))
 		_gsm.last_active_slot = slot
 		await _gsm.session_lifecycle.restart_into(slot)
 		_gsm.phase = SessionLifecycle.SessionPhase.RUNNING

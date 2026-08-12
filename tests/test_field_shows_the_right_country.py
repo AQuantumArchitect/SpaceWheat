@@ -156,6 +156,52 @@ def test_the_meta_state_gate_shows_a_number_and_names_a_verb() -> None:
     )
 
 
+# ------------------------------------------------- #514: a load that says it loaded
+
+def test_loading_an_empty_slot_says_no() -> None:
+    """`load_and_apply` used to `return true` unconditionally on the AppRoot lane.
+    restart_into() on an empty slot cheerfully boots a FRESH scenario, so a load
+    that never happened reported success — and EscapeMenu only keeps its menu open
+    `if not ok`, so it closed on a brand-new game. Found 2026-08-12 by the endgame
+    re-mint drive: load_game(slot=3), one past NUM_SAVE_SLOTS, answered
+    {"loaded": true} while landing in a fresh demos_normal boot with 1 flag."""
+    src = body(SAVES, "load_and_apply")
+    lane = src.split("if not app_roots.is_empty():")[1].split("# Headless")[0]
+    assert "return false" in lane, (
+        "the AppRoot lane must refuse a slot with nothing in it — the headless "
+        "lane below already does, and the two must agree"
+    )
+    assert lane.index("return false") < lane.index("session_lifecycle.restart_into"), (
+        "and it must refuse BEFORE restarting, or the refusal arrives after the "
+        "player's session has already been replaced by a fresh game"
+    )
+
+
+def test_the_endgame_checkpoints_are_not_all_the_same_state() -> None:
+    """The whole point of #514: endrun_act7/act8/ending were one 49-flag state
+    wearing three names, so no leg could walk act7 -> act8 -> ending."""
+    import json
+    d = ROOT / "🍄/🧪/checkpoints"
+    counts = {}
+    for name in ("endrun_act7", "endrun_act8"):
+        p = d / (name + ".json")
+        assert p.exists(), "%s is a shipped fixture — do not remove it silently" % name
+        fired = json.loads(p.read_text(encoding="utf-8"))["flags_fired"]
+        counts[name] = set(fired if isinstance(fired, list) else fired)
+    assert counts["endrun_act7"] < counts["endrun_act8"], (
+        "act8 must strictly extend act7. If these ever collapse to the same set "
+        "again, the endgame is untestable and the fixtures are lying about which "
+        "act they represent."
+    )
+    for beat in ("braid_alphabet", "the_fusion", "the_number_lied"):
+        assert beat in counts["endrun_act7"], (
+            "endrun_act7 must carry real act-7 play, not a post-ending state "
+            "mislabelled — %s is missing" % beat
+        )
+    for beat in ("the_rite", "the_door_stays_open"):
+        assert beat in counts["endrun_act8"], "endrun_act8 is missing %s" % beat
+
+
 def test_the_lever_named_in_the_gloss_is_the_lever_in_the_code() -> None:
     """A hint that names a verb the physics does not have is worse than no hint."""
     farm = (ROOT / "Core/Farm.gd").read_text(encoding="utf-8")
