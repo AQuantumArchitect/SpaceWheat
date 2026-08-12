@@ -13,6 +13,8 @@ INSTALL_TEMPLATES=false
 BUILD_NATIVE=true
 
 source "$SCRIPT_DIR/lib/log.sh"
+source "$SCRIPT_DIR/lib/build_stamp.sh"
+trap remove_build_stamp EXIT
 
 show_help() {
     cat << 'EOF'
@@ -88,12 +90,32 @@ else
     warn "Skipping web native build"
 fi
 
+WASM_EXT="$PROJECT_DIR/native/bin/web/libquantummatrix.wasm"
+[ -f "$WASM_EXT" ] || error "No web extension at $WASM_EXT — run without --skip-native.
+Since the native-only cutover, BootManager quits(1) when the native classes are
+missing, so a web bundle without this WASM does not degrade — it refuses to boot."
+
 log "Exporting Web build"
 rm -rf "$OUTPUT_ROOT"
 mkdir -p "$OUTPUT_ROOT"
 
 cd "$PROJECT_DIR"
+write_build_stamp
+# Brand-new file: import it so the exporter packs it rather than shipping a
+# bundle that reports "source". Same order as the desktop lane — stamp, import,
+# export.
+run_godot_export --path "$PROJECT_DIR" --import >/dev/null 2>&1 || true
 run_godot_export --export-release "Web" "$OUTPUT_ROOT/index.html"
+
+# The GDExtension is the whole point of this lane. Godot silently omits a
+# side-module whose .gdextension entry does not match the shipped engine variant
+# (the threads/nothreads ABI trap documented in quantum_matrix.gdextension), and
+# the export itself still "succeeds" — leaving a bundle that only fails once a
+# browser tries to boot it. Catch it here instead.
+[ -f "$OUTPUT_ROOT/libquantummatrix.wasm" ] || error \
+    "Export produced no libquantummatrix.wasm — the GDExtension did not reach the bundle.
+Check that quantum_matrix.gdextension's web entry names the same variant the
+Web preset ships (variant/thread_support=true → web.threads.wasm32)."
 
 success "Web export ready: $OUTPUT_ROOT/index.html"
 echo ""

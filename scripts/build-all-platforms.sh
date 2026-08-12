@@ -93,6 +93,18 @@ echo "    Web:     $WEB_ONLY"
 echo "    Clean:   $DO_CLEAN"
 echo ""
 
+# Emscripten lives in its own SDK tree and is not on PATH until activated. Do it
+# HERE — before the prerequisite check that looks for emcc — because the check
+# and the activation must not disagree. They used to: activation happened twice,
+# further down inside the build blocks, so a clean shell always failed the check
+# first and reported "Emscripten not found" on a machine where it was installed
+# and working. That false negative is why the web channel was written off as
+# unbuildable.
+if [ "$WEB_ONLY" = true ] && [ -f "$HOME/emsdk/emsdk_env.sh" ]; then
+    # emsdk_env.sh is chatty and returns nonzero under `set -e` on some versions.
+    source "$HOME/emsdk/emsdk_env.sh" >/dev/null 2>&1 || true
+fi
+
 # Check prerequisites
 log "Checking prerequisites..."
 
@@ -150,10 +162,6 @@ fi
 if [ "$WEB_ONLY" = true ]; then
     if [ "$DO_CLEAN" = true ] || sw_output_is_stale "bin/libgodot-cpp.web.template_release.wasm32.a" "${GODOT_CPP_INPUTS[@]}"; then
         log "Building godot-cpp for Web..."
-        # Ensure Emscripten is activated
-        if [ -f "$HOME/emsdk/emsdk_env.sh" ]; then
-            source "$HOME/emsdk/emsdk_env.sh"
-        fi
         scons platform=web target=template_release -j$(nproc)
         success "godot-cpp Web built"
     else
@@ -227,11 +235,6 @@ fi
 if [ "$WEB_ONLY" = true ]; then
     log "Building Web extension (WASM)..."
     mkdir -p bin/web
-
-    # Ensure Emscripten is activated
-    if [ -f "$HOME/emsdk/emsdk_env.sh" ]; then
-        source "$HOME/emsdk/emsdk_env.sh"
-    fi
 
     if [ "$DO_CLEAN" = true ] || sw_output_is_stale "bin/web/libquantummatrix.wasm" "${NATIVE_INPUTS[@]}" "lib/libgodot-cpp.web.template_release.wasm32.a"; then
         # find(1) instead of src/*/*.cpp: subdirs hold only build artifacts, so the

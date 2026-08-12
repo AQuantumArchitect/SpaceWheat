@@ -21,6 +21,11 @@ PROJECT_GODOT = ROOT / "project.godot"
 APP_ROOT = ROOT / "scenes/AppRoot.gd"
 ESCAPE_MENU = ROOT / "UI/Overlays/EscapeMenu.gd"
 BUILD_SCRIPT = ROOT / "scripts/build-desktop-local.sh"
+# The stamp mechanics moved into a shared lib once the web lane needed them too,
+# so a browser build is as traceable as a desktop one. Desktop-lane wiring
+# (sourcing, trap, stamp→import→export order) is still asserted on the script;
+# the stamp's own shape is asserted where it now lives.
+STAMP_LIB = ROOT / "scripts/lib/build_stamp.sh"
 
 
 def _read(p: Path) -> str:
@@ -103,7 +108,9 @@ def test_build_script_stamps_then_removes():
     """The stamp is written from git, packed, and then cleaned up."""
     src = _read(BUILD_SCRIPT)
     assert "write_build_stamp" in src and "remove_build_stamp" in src
-    assert "rev-parse --short HEAD" in src, "the stamp must come from git, not by hand"
+    assert "rev-parse --short HEAD" in _read(STAMP_LIB), (
+        "the stamp must come from git, not by hand"
+    )
     assert "trap remove_build_stamp EXIT" in src, (
         "a failed export must not leave a stamp behind for the next source run to claim"
     )
@@ -119,7 +126,7 @@ def test_build_script_stamps_then_removes():
 
 def test_dirty_trees_are_marked_in_the_stamp():
     """A pack built off uncommitted edits must not claim to be its commit."""
-    src = _read(BUILD_SCRIPT)
+    src = _read(STAMP_LIB)
     assert "-dirty" in src and "status --porcelain" in src, (
         "the stamp must mark builds cut from a dirty tree"
     )
@@ -160,7 +167,7 @@ def test_export_smoke_refuses_an_unstamped_pack():
 def test_stamp_shape_matches_what_build_info_reads():
     """The writer's keys and the reader's keys must be the same keys."""
     # The printf template names its keys inline; pull them from the format string.
-    fmt = re.search(r"printf '(\{.*\})\\n'", _read(BUILD_SCRIPT))
+    fmt = re.search(r"printf '(\{.*\})\\n'", _read(STAMP_LIB))
     assert fmt, "could not find the stamp's printf template"
     written = set(re.findall(r'"(\w+)":', fmt.group(1)))
     assert written == {"commit", "branch", "built"}, f"stamp writes {written}"

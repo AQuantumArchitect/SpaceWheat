@@ -17,7 +17,7 @@ var _paused: bool = false
 func _ready() -> void:
 	_build_ui()
 	_resolve_shell()
-	if OS.is_debug_build():
+	if RuntimeEnv.debug_readout_enabled():
 		var timer := Timer.new()
 		timer.wait_time = 0.5
 		timer.autostart = true
@@ -101,7 +101,7 @@ func _build_ui() -> void:
 	_flow_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(_flow_label)
 
-	if OS.is_debug_build():
+	if RuntimeEnv.debug_readout_enabled():
 		var vbox := VBoxContainer.new()
 		vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		row.add_child(vbox)

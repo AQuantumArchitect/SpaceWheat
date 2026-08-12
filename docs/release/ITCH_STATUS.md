@@ -24,37 +24,52 @@ Status: viable
 - The remaining work is smoke coverage and release automation polish, not fundamental build viability.
 
 What is still missing:
-- first-class `butler push` automation
-- routine use of the new native Windows export smoke/profile lane as a release gate
+- routine use of the native Windows export smoke/profile lane as a release gate
+
+Publishing itself (butler, credentials, pricing, page approval) is not tracked
+here — it belongs to the owner seat, in the yurt:
+`yurt-sync/mail/for-luke-spacewheat-itch-publishing.md`. The repo's lane is
+`scripts/itch-push.sh`, and it is done.
 
 ## Web channel
 
-Status: **cannot be built on this machine** (measured 2026-08-12, v1.0-rc3)
+Status: **built and booting with native physics** (measured 2026-08-12, v1.0-rc3)
 
-This supersedes both notes above. The 2026-07-11 update said the owner had
-confirmed browser play; that was true of a bundle built *before* the native-only
-cutover. It is no longer reachable, and the blocker is mechanical, not a
-judgement call:
+This supersedes every note above, including one written earlier the same day.
 
-- `native/bin/web/` is **empty** — the WASM extension has never been built here.
-- **Emscripten is not installed.** `build-all-platforms.sh --web-only` shells out
-  to `em++` to produce `bin/web/libquantummatrix.wasm`; the lane exists and is
-  wired, the toolchain is simply absent.
-- Since the native-only purge, `BootManager._ready()` **hard-fails** — it calls
-  `get_tree().quit(1)` when `REQUIRED_NATIVE_CLASSES` are missing. A web build
-  without that WASM does not degrade to GDScript physics; it refuses to start.
-  There is no fallback left to fall back to.
-- `releases/web-local/` is from 2026-07-05, which predates that cutover.
-  **Do not ship it.**
+**Correction.** An earlier pass on 2026-08-12 recorded this channel as "cannot be
+built on this machine — Emscripten is not installed". That was wrong, and the way
+it was wrong is worth keeping: `build-all-platforms.sh` ran its `emcc`
+prerequisite check *before* its own `source ~/emsdk/emsdk_env.sh`, so from a
+clean shell it always reported the toolchain missing on a machine where emsdk was
+fully installed. The check disagreed with the script that contained it. Hoisting
+the activation above the check (one activation, not the two that had drifted
+downstream) made the lane run first try.
 
-Order to make web real: install emsdk → `build-all-platforms.sh --web-only` →
-export the Web preset → run `scripts/smoke-test-web-export.mjs` against the real
-bundle (the lane exists and has never been run against one).
+What is now measured, not assumed:
 
-**Page-copy conflict, unresolved:** `ITCH_PAGE.md` promises "Play-in-browser +
-desktop downloads" and the title section repeats it. Until the above is done,
-either cut the browser promise from the page or hold the page. Shipping the copy
-as written promises something that currently cannot boot.
+- `native/bin/web/libquantummatrix.wasm` — **1.6 MB, built** from the Eigen
+  sources by `--web-only`.
+- The export carries it: `releases/web-local/libquantummatrix.wasm` sits beside
+  the engine's own `index.side.wasm` (the dlink/threads template).
+- In real Chromium the bundle **boots through the native-class gate** and prints
+  `ComplexMatrix native acceleration enabled (Eigen)`. The C++ physics runs in
+  the browser — this is not a degraded build, and there is no GDScript fallback
+  for it to have quietly fallen back to.
+- It carries its build stamp like any desktop pack, so a browser bug report names
+  its commit.
+
+**The one open number: framerate.** `smoke-test-web-export.mjs` measures 9.5 fps
+against its floor of 20 — but its own report names the renderer:
+`SwiftShader` (software rasterization). That is the case WEB_DOOR explicitly says
+cannot judge the floor. The remaining gate is one run on hardware WebGL. Until
+someone has that number, "it boots and computes correctly in a browser" is a
+stronger claim than the fps line supports, and neither should be traded for the
+other.
+
+Weight is the other lever if the hardware number lands near the floor: the
+bundle is ~221 MB (183 MB of it `index.pck`), which is a slow first load on a
+cold cache regardless of fps.
 
 ## Practical recommendation
 

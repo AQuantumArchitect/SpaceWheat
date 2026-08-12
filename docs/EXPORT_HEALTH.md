@@ -53,18 +53,27 @@ Main remaining risk:
   (385MB) is the first diet lever if that lands near the floor.
 
 ### itch.io desktop uploads
-Status: close, but manual
+Status: artifacts ready; publishing is an owner-seat concern, not a repo one
 
-- Windows and Linux archives are packageable today.
-- The repo does not yet have a first-class `butler push` lane.
-- Desktop itch distribution is realistic once release packaging/versioning is finalized.
+- Windows and Linux archives are packageable today, versioned from
+  `project.godot` and stamped with the commit they were cut from.
+- `scripts/itch-push.sh` is the push lane (both channels, one command). The
+  earlier claim here that no such lane existed was stale.
+- Account operations — installing/logging into butler, credentials, pricing,
+  page approval — deliberately do NOT live in this repo. See the yurt card
+  `yurt-sync/mail/for-luke-spacewheat-itch-publishing.md`. This repo's job ends
+  at a finished, identifiable artifact.
 
 ### itch.io web upload
-Status: exploratory — correctness proven, awaiting a hardware-GL perf number
+Status: correctness re-proven on the current tree — awaiting a hardware-GL perf number
 
-- The bundle boots and runs its native physics in a real browser (2026-07-05).
-- Hold the itch web channel until one hardware-GL smoke passes the fps floor,
-  per the WEB_DOOR degradation policy.
+- Rebuilt and re-measured 2026-08-12 against v1.0-rc3, *after* the native-only
+  cutover: the bundle boots, clears the `REQUIRED_NATIVE_CLASSES` gate, and
+  reports `ComplexMatrix native acceleration enabled (Eigen)` in real Chromium.
+  The 2026-07-05 result was from a pre-cutover tree; this one is not.
+- Still the one open number: the smoke run measures 9.5 fps, but on
+  **SwiftShader** (software rasterization) — the exact case WEB_DOOR says cannot
+  judge the floor. Hold the itch web channel until one hardware-GL smoke passes.
 
 ## Recommended release stance
 
@@ -81,5 +90,7 @@ If you had to choose today:
 2. Keep `scripts/build-desktop-local.sh` as the primary desktop build path.
 3. Keep native build incrementality healthy so validator runs do not recompile the world for minor edits.
 4. Do not describe Web as release-ready until it has:
-   - a browser/runtime smoke path
-   - a believable performance envelope for the current game
+   - ~~a browser/runtime smoke path~~ — `scripts/smoke-test-web-export.mjs`, run
+     against a real bundle 2026-08-12
+   - a believable performance envelope for the current game — **still open**,
+     and the only thing between this channel and shipping

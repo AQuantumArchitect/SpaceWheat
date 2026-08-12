@@ -145,6 +145,17 @@ static func disable_force() -> bool:
 static func advanced_mode_tristate() -> int:
 	return tristate("SPACEWHEAT_ADVANCED_MODE")
 
+## Is the developer readout (FPS / PhHz / per-biome dt strip) allowed on screen?
+##
+## Defaults to OS.is_debug_build(), which is what a shipped player build answers:
+## false. But the rig drives a DEBUG binary, so every headed capture — including
+## the store-page screenshots — showed a profiler strip no player will ever see.
+## One shipped screenshot went out that way. SW_DEBUG_READOUT=0 lets a capture
+## look like the release it is advertising, without a second visibility rule
+## living in the HUD.
+static func debug_readout_enabled() -> bool:
+	return flag("SW_DEBUG_READOUT", OS.is_debug_build())
+
 ## "" | "low" | "medium"/"med" | "high" — bubble graphics quality override.
 static func bubble_quality_override() -> String:
 	return OS.get_environment("SW_BUBBLE_QUALITY").strip_edges().to_lower()
