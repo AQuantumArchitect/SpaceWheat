@@ -101,6 +101,26 @@ def test_web_lane_refuses_a_bundle_without_its_physics_engine():
     )
 
 
+def test_linux_clean_does_not_delete_other_platforms_outputs():
+    """Building desktop must not destroy the web extension.
+
+    `make clean` removed bin/windows/*.dll, bin/macos/*.framework and
+    bin/web/*.wasm — outputs this Makefile does not build and cannot rebuild —
+    and build-all-platforms.sh runs it before every Linux extension build. The
+    damage was invisible while the web extension did not exist. The moment it
+    did, one desktop build deleted it, and the next web export would have
+    shipped a bundle with no physics engine in it.
+    """
+    makefile = _read(ROOT / "native/Makefile")
+    clean = makefile.split("\nclean:")[1].split("\n\n")[0]
+    for foreign in ("bin/web", "bin/windows", "bin/macos"):
+        assert foreign not in clean, (
+            f"native/Makefile's clean deletes {foreign} — a lane must clean only "
+            f"its own outputs, or a desktop build silently breaks another platform"
+        )
+    assert "bin/linux" in clean, "clean should still remove the Linux .so it builds"
+
+
 def test_gdextension_web_entry_names_the_variant_the_preset_ships():
     """A bare web.wasm32 key is rejected by a shared-memory engine at load."""
     ext = _read(GDEXTENSION)
