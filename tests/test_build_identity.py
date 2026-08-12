@@ -133,6 +133,29 @@ def test_stamp_is_not_tracked_by_git():
     )
 
 
+def test_boot_announces_the_build_identity():
+    """First line of every boot, so a log names its build even if boot dies."""
+    boot = _read(ROOT / "Core/Boot/BootManager.gd")
+    ready = boot.split("func _ready()")[1].split("\nfunc ")[0]
+    assert "BuildInfo.display()" in ready, (
+        "BootManager._ready must announce the build identity"
+    )
+    # Before the native-class check, which can quit(1) — a build that dies at the
+    # native gate is exactly the one whose identity you need in the report.
+    assert ready.index("BuildInfo.display()") < ready.index("REQUIRED_NATIVE_CLASSES"), (
+        "the identity line must come before the boot gate that can quit"
+    )
+
+
+def test_export_smoke_refuses_an_unstamped_pack():
+    """Shipping an unstamped release must fail the gate, not warn."""
+    smoke = _read(ROOT / "scripts/smoke-test-desktop-export.sh")
+    assert "· source" in smoke, "the smoke test must detect an unstamped pack"
+    assert 'error "Export shipped unstamped' in smoke, (
+        "an unstamped pack must fail the export gate, not merely log"
+    )
+
+
 def test_stamp_shape_matches_what_build_info_reads():
     """The writer's keys and the reader's keys must be the same keys."""
     # The printf template names its keys inline; pull them from the format string.

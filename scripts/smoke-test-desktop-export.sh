@@ -38,6 +38,19 @@ fi
 
 success "Linux export booted with native acceleration"
 
+# A pack must know which commit it was cut from. BootManager prints the identity
+# as its first line; "source" there means the build stamp never made it into the
+# export, so the title screen and every bug report would name a build that
+# cannot be traced back to a commit. That is a shipping defect, not a warning.
+BUILD_LINE="$(grep -o "SpaceWheat v[^ ]* · [^ ]*\( · [^ ]*\)\?" "$LINUX_LOG" | head -1)"
+[ -n "$BUILD_LINE" ] || error "Export never reported its build identity at boot"
+case "$BUILD_LINE" in
+    *"· source"*)
+        error "Export shipped unstamped ($BUILD_LINE) — the build stamp did not reach the pack"
+        ;;
+esac
+success "Export carries its build identity: ${BUILD_LINE#SpaceWheat }"
+
 case "$WINDOWS_SMOKE_MODE" in
     skip)
         success "Windows export package contains executable + native DLL"

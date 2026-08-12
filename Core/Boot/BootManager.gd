@@ -55,6 +55,13 @@ const REQUIRED_NATIVE_CLASSES: Array[String] = [
 
 ## Autoload singleton - ready to use as global
 func _ready() -> void:
+	# First line of every boot, before anything can fail: which build is this.
+	# It lands in user://logs/godot.log, which EscapeMenu's bug-report clipboard
+	# tails — so a report names its build even when the boot itself died. It is
+	# also how scripts/smoke-test-desktop-export.sh proves a pack carries its
+	# commit stamp rather than shipping as "source".
+	_verbose.info("boot", "🏷️", "SpaceWheat %s" % BuildInfo.display())
+
 	for cls in REQUIRED_NATIVE_CLASSES:
 		if not ClassDB.class_exists(cls):
 			var msg := "FATAL: native class %s missing — the quantum_matrix GDExtension did not load. The game cannot run without its native engine (dev: cd native && make)." % cls
