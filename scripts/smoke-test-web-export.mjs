@@ -82,7 +82,9 @@ if (!existsSync(join(EXPORT_DIR, ENTRY))) {
 }
 
 // --- static server (COOP/COEP) -------------------------------------------
-const server = spawn("python3", [join(SCRIPT_DIR, "serve-web-local.py"), EXPORT_DIR, "--port", String(PORT)], {
+// `python3` does not exist on Windows (the Store alias stub is not it).
+const PYTHON = process.env.SW_PYTHON || (process.platform === "win32" ? "python" : "python3");
+const server = spawn(PYTHON, [join(SCRIPT_DIR, "serve-web-local.py"), EXPORT_DIR, "--port", String(PORT)], {
   stdio: ["ignore", "pipe", "pipe"],
 });
 const stopServer = () => { try { server.kill(); } catch { /* gone */ } };

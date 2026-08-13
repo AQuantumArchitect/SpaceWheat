@@ -1,28 +1,44 @@
 # SpaceWheat profiling kit — brief for the Windows agent
 
-You are being asked to produce **the first trustworthy performance numbers this
-game has ever had.** Not to confirm a baseline — there isn't one. Every frame
-rate ever recorded for SpaceWheat was measured on a software rasteriser, because
-the machine that measured them (WSL2) has no GPU passthrough. You are on the
-Windows side, where the GPU is.
+A first pass has already been taken — see **`results\BASELINE.md`** for what it
+found and `docs/performance/PROFILE_2026-08-12.md` in the repo for the full
+write-up. Your job is to **confirm it natively and close the three gaps it
+names.** A second independent measurement of a number that decides a release is
+worth having; so is a boot time that isn't distorted by a filesystem bridge.
 
 Everything here is self-contained and standard-library Python 3. No WSL paths,
 no bash, no npm, no PowerShell 7.
 
 ---
 
-## What is already known, and why it is worthless
+## What is already measured (2026-08-12, trustworthy)
 
-| Number | Where it came from | Why it cannot stand |
-|---|---|---|
-| **9.5 fps** browser | `scripts/smoke-test-web-export.mjs`, 2026-08-12 | Its own report names the renderer **SwiftShader** — Chromium's software rasteriser. Headless Chromium falls back to it by default, so that lane cannot measure a GPU on any machine. |
-| **10.4 fps** browser | `docs/release/WEB_DOOR.md`, 2026-07-05 | Same: SwiftShader. |
-| **4.6 fps** desktop, late-game save | WSL headed, 2026-08-12 | **llvmpipe**. Also a debug build. |
-| **~50 fps** desktop | `docs/performance/WSL2_GPU_SETUP.md` | The only hardware-GL number in the repo — but it predates the native-only physics cutover and the 3D renderer, records no scene and no resolution, and names a GPU this machine no longer reports. Treat as folklore. |
+Build v1.0-rc3 · `5a42a3f5`, release export, GTX 960M / Intel HD 5600, 60 Hz.
 
-So: **do not compare your results to anything.** You are establishing the first
-point, not confirming a trend. If a number surprises you, that is information,
-not an error.
+| | result |
+|---|---|
+| desktop, title | 60.0 fps, not one dropped frame |
+| desktop, fresh campaign | 60.0 fps, not one dropped frame |
+| **desktop, endgame save** | p50 **55 fps**, 1% low **2.1 fps**, worst frame **681 ms** |
+| **browser** | **59.7 fps** mean, p95 19.5 ms — clears the 20 fps floor six times over |
+
+The endgame result is a **hitch**, not a slowdown, and the cause is already
+identified: `batcher.avg_batch_time_ms` sits at 285–377 ms with
+`buffer_state: RECOVERY` for the entire run, while `draw_calls` stays flat at
+149. The GPU is idle; the CPU-side quantum batch is the whole cost.
+
+## What every earlier number was worth: nothing
+
+| Number | Why it cannot stand |
+|---|---|
+| 9.5 fps browser | its own report names the renderer **SwiftShader** |
+| 10.4 fps browser | same |
+| 4.6 fps desktop | **llvmpipe**, and a debug build |
+| ~50 fps desktop (`WSL2_GPU_SETUP.md`) | predates the physics cutover and the 3D renderer; no scene, no resolution, a GPU this machine no longer reports |
+
+The browser build is **six times faster** than the number that was on record for
+it this morning. That is the size of error a software rasteriser introduces —
+which is why the rule below is the one rule that matters.
 
 ---
 
@@ -72,24 +88,31 @@ frames the browser actually presented, which is what a player sees.
 Fill in `results\RESULTS.md` and leave everything in `results\`. The one thing
 that must be right: **every number carries the renderer it was measured on.**
 A frame rate without its renderer is an adjective, and this project has already
-published two of those.
+published two of those and been wrong by 6×.
 
-Both scripts already emit `trustworthy: true/false` plus a `caveats` list. If a
-run comes back `false`, say so and say why — do not average it in, do not round
-it off, do not report it as "roughly". A precise "this run cannot answer that"
-is worth more than an imprecise answer.
+Both scripts emit `trustworthy: true/false` plus a `caveats` list. If a run comes
+back `false`, say so and say why — do not average it in, do not round it off, do
+not report it as "roughly". A precise "this run cannot answer that" is worth more
+than an imprecise answer.
 
-The questions actually being asked:
+### The three gaps
 
-1. **Does the desktop build hold a comfortable frame rate at `endgame`?** If not,
-   is the cost in `process_ms` (rendering) or in `batcher.avg_batch_time_ms`
-   (the physics)? Those need different fixes and the reports separate them.
-2. **Does the browser build clear 20 fps on real hardware?** That is the floor in
-   `docs/release/WEB_DOOR.md`, and it decides whether the itch.io page can
-   truthfully say "play in the browser". Right now that line is unproven.
-3. **How long does the web build take to boot?** The bundle is 193 MB, ~183 MB
-   of it one resource pack. `boot_seconds` in the web report is the number that
-   decides whether an asset diet comes before launch.
+1. **A native web boot time.** The 21.4 s already recorded is an upper bound: the
+   bundle was served across the WSL filesystem bridge and then the WSL2 localhost
+   bridge. Running from `web\` on this machine removes both. That number decides
+   whether the 183 MB resource pack gets a diet before launch.
+2. **The uncapped desktop pass.** Everything measured so far is vsync-capped at
+   60, so the headroom on `title` and `fresh` is unknown — 62 fps and 400 fps
+   look identical. `run_desktop.py` runs capped and uncapped by default.
+3. **Confirm or refute the endgame hitch.** Does `endgame` reproduce the 681 ms
+   worst frame and the permanent `RECOVERY` state? If yes, the CPU-side batcher
+   diagnosis stands and it is a real bug. If your run looks different, say so
+   loudly — a finding that does not reproduce is more useful than one that is
+   politely agreed with.
+
+Anything else you notice is welcome. A stutter the JSON does not capture, a
+scenario that behaved unlike its numbers, a run that failed strangely — write it
+down as what it did, not as what you think it meant.
 
 ---
 

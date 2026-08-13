@@ -354,7 +354,7 @@ def find_browser(explicit: str | None) -> str:
     )
 
 
-def launch(browser: str, url: str, profile_dir: Path) -> subprocess.Popen:
+def launch(browser: str, url: str, profile_dir: Path, headless: bool) -> subprocess.Popen:
     args = [
         browser,
         f"--user-data-dir={profile_dir}",
@@ -371,15 +371,27 @@ def launch(browser: str, url: str, profile_dir: Path) -> subprocess.Popen:
         "--disable-backgrounding-occluded-windows",
         "--disable-renderer-backgrounding",
         "--disable-features=CalculateNativeWinOcclusion",
-        url,
     ]
+    if headless:
+        # Rehearsal only. Chromium falls back to SwiftShader here, which is the
+        # exact reason the 9.5 fps number this script replaces is worthless —
+        # so verdict() refuses to call a headless run trustworthy no matter what
+        # it measures. Useful for checking that the bundle BOOTS on a machine
+        # with no usable GL at all, which is what WSL is.
+        args.append("--headless=new")
+    args.append(url)
     return subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 # ---------------------------------------------------------------------------
 
-def verdict(payload: dict) -> tuple[bool, list[str]]:
+def verdict(payload: dict, headless: bool) -> tuple[bool, list[str]]:
     caveats: list[str] = []
+    if headless:
+        caveats.append(
+            "headless browser — Chromium falls back to SwiftShader, which is precisely "
+            "why the 9.5 fps this run replaces was meaningless. Correctness only."
+        )
     gpu = (payload.get("gpu") or {})
     renderer = str(gpu.get("renderer", "")).lower()
     software = any(m in renderer for m in SOFTWARE_MARKERS)
@@ -407,7 +419,8 @@ def verdict(payload: dict) -> tuple[bool, list[str]]:
              if re.search(r"abort|out of memory|failed to (instantiate|fetch)|RuntimeError", e, re.I)]
     if fatal:
         caveats.append(f"{len(fatal)} fatal console errors: {fatal[:2]}")
-    return (not software and payload.get("cross_origin_isolated", False)), caveats
+    return (not headless and not software
+            and payload.get("cross_origin_isolated", False)), caveats
 
 
 def main() -> int:
@@ -422,6 +435,8 @@ def main() -> int:
     ap.add_argument("--port", type=int, default=8043)
     ap.add_argument("--browser", default=None)
     ap.add_argument("--keep-open", action="store_true", help="leave the browser up after the run")
+    ap.add_argument("--headless", action="store_true",
+                    help="rehearsal only — a headless run is never reported as trustworthy")
     args = ap.parse_args()
 
     bundle = Path(args.bundle).resolve()
@@ -459,7 +474,7 @@ def main() -> int:
     print("\nA browser window will open. LEAVE IT IN FRONT and do not click away —")
     print("a background tab is throttled and the number would be meaningless.\n")
 
-    proc = launch(browser, url, profile_dir)
+    proc = launch(browser, url, profile_dir, args.headless)
     budget = args.boot_timeout + args.settle + args.seconds + 60
     started = time.time()
     try:
@@ -491,7 +506,7 @@ def main() -> int:
         print(f"wrote {out}")
         return 2
 
-    trustworthy, caveats = verdict(payload)
+    trustworthy, caveats = verdict(payload, args.headless)
     report = {
         "schema": "spacewheat.perf.web/1",
         "label": args.label,
@@ -501,6 +516,7 @@ def main() -> int:
             "processor": platform.processor(),
             "release": platform.platform(),
         },
+        "headless": args.headless,
         "trustworthy": trustworthy,
         "caveats": caveats,
         **payload,

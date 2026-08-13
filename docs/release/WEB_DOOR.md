@@ -84,13 +84,35 @@ hardware GL. The smoke gained `--settle-seconds` (default 10) so the sample
 measures steady state, not boot churn — boot cost stays bounded by
 `--boot-timeout`.
 
+## The hardware run — 2026-08-12. The floor is cleared six times over.
+
+Measured in **Microsoft Edge on real D3D11**, on the v1.0-rc3 bundle:
+
+    renderer  ANGLE (Intel, Intel(R) HD Graphics 5600, Direct3D11)
+    steady    59.7 fps mean · p50 16.7ms · p95 19.5ms · worst 37ms
+    stall     24ms worst main-thread timer overrun
+    verdict   trustworthy: true
+
+Against a floor of 20. **The 9.5 and 10.4 fps on record were both SwiftShader
+and were wrong by a factor of six** — and note the renderer above is the
+*integrated* Intel chip, not the machine's GTX 960M, because browsers usually
+take the iGPU on a switchable laptop. This is close to a floor for the hardware,
+not a best case.
+
+Per the degradation policy: **ship the full WASM-native build.** No gallery
+fallback, no page caveat about reduced content.
+
+Full write-up: `docs/performance/PROFILE_2026-08-12.md`.
+
 ## What still gates the itch web channel
 
 - [x] First real smoke run (2026-07-05, this machine — see above)
-- [ ] `web-smoke-report.json` numbers from one machine with hardware WebGL —
-      the remaining perf statement (correctness is already green)
-- [ ] The full/gallery decision made from those numbers, per the policy
-- [ ] Feature-completeness statement on the itch page (full vs gallery build)
-- Note: bundle weight is 385MB (`index.pck` 338MB). Loads, but a web-specific
-  asset diet (audio/texture trim) is the first lever if hardware numbers land
-  near the floor.
+- [x] Hardware-WebGL numbers (2026-08-12, Edge/D3D11 — 59.7 fps, above)
+- [x] The full/gallery decision: **full**, per the policy's first clause
+- [ ] An honest **boot time**. The 21.4 s recorded above was served across the
+      WSL filesystem bridge and then the WSL2 localhost bridge, so it is an upper
+      bound, not a measurement. A native run from
+      `C:\Games\SpaceWheat-Releases\profiling-kit\` settles it.
+- Note: bundle weight is now 193MB zipped (`index.pck` 183MB), down from the
+  385MB recorded above. Since the frame rate is no longer near the floor, a
+  web-specific asset diet is a **load-time** question only.

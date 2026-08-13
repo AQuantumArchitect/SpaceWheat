@@ -59,6 +59,7 @@ cp -f "$PROJECT_DIR/tools/profiling_kit/run_desktop.py" \
       "$PROJECT_DIR/tools/profiling_kit/run_web.py" \
       "$PROJECT_DIR/tools/profiling_kit/README.md" \
       "$KIT_DEST/"
+cp -f "$PROJECT_DIR/tools/profiling_kit/BASELINE.md" "$KIT_DEST/results/BASELINE.md"
 # RESULTS.md is the agent's to write; never clobber a filled-in one.
 if [ ! -f "$KIT_DEST/results/RESULTS.md" ]; then
     cp -f "$PROJECT_DIR/tools/profiling_kit/RESULTS.md" "$KIT_DEST/results/RESULTS.md"
