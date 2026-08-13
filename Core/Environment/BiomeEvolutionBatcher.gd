@@ -205,6 +205,7 @@ var _last_frame_time: int = 0
 var _native_ms_total: float = 0.0
 var _merge_ms_total: float = 0.0
 var _packets_total: int = 0
+var _steps_total: int = 0
 
 ## Measured cost of ONE phrame-step across all active biomes, smoothed. This is the
 ## quantity the Fibonacci ladder never had: it sized packets by buffer depth and
@@ -292,6 +293,10 @@ func _teardown_runtime_state() -> void:
 	# The per-step cost is a property of THIS farm's biome set; a new session must
 	# re-measure it rather than size its first packets from a dead one's numbers.
 	_avg_ms_per_step = 0.0
+	_native_ms_total = 0.0
+	_merge_ms_total = 0.0
+	_packets_total = 0
+	_steps_total = 0
 
 	terminal_pool = null
 	farm_ref = null
@@ -2957,6 +2962,12 @@ func get_performance_metrics() -> Dictionary:
 		"native_ms_total": _native_ms_total,
 		"packets_total": _packets_total,
 		"merge_ms_total": _merge_ms_total,
+		# Cost of ONE phrame of physics, independent of how many the packet carried.
+		# The only integrator/dimension comparison that survives adaptive sizing:
+		# ms-per-packet moves when the packet does, so two builds can only be
+		# compared per step. This is the same number PACKET_TIME_BUDGET_MS divides.
+		"native_ms_per_step": (_native_ms_total / float(_steps_total)) if _steps_total > 0 else 0.0,
+		"steps_total": _steps_total,
 		# Adaptive Fibonacci Batching
 		"buffer_state": _get_effective_buffer_state_name(),
 		"fib_index": _get_effective_fib_index(),
@@ -3087,6 +3098,7 @@ func _compute_packet(packet_req: Dictionary) -> Dictionary:
 
 	_native_ms_total += float(packet_end - packet_start) / 1000.0
 	_packets_total += 1
+	_steps_total += maxi(1, int(num_phrames))
 
 	return result
 

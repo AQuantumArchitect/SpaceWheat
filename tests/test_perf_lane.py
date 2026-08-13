@@ -222,3 +222,47 @@ def test_integrator_substeps_are_bounded():
     assert "1e-6f" not in cpp.split("QuantumEvolutionEngine::evolve(")[1].split("\n}")[0], (
         "the absolute 1e-6s step floor is what allowed 100k substeps; it must not return"
     )
+
+
+def test_sampler_measures_wall_clock_not_engine_delta():
+    """`_process(delta)` delta is multiplied by Engine.time_scale, and Godot clamps
+    it to stop the spiral of death. A sampler that accumulates it is measuring
+    dilated, clamped seconds and calling them seconds.
+
+    Measured 2026-08-13 on the endgame save, headless: the run took 280.7s of real
+    time and the report said 32.4s. The same clamp hid the tail — a worst frame of
+    10,384ms was reported as 884ms, twelve times smaller. Every "share of the
+    window" number computed from that clock was inflated by the same factor, and
+    one of them came out above 100%, which is how it was caught.
+
+    So the window and every frame time must come from Time.get_ticks_usec()."""
+    src = _read(SAMPLER)
+    assert "Time.get_ticks_usec()" in src, "the sampler's clock must be the wall clock"
+    assert "_wall_start_us" in src and "_last_frame_us" in src
+    body = src.split("func _process(")[1].split("\nfunc ")[0]
+    assert "_elapsed += delta" not in body, (
+        "accumulating _process delta re-introduces the dilated/clamped clock"
+    )
+    assert "delta * 1000.0" not in body, (
+        "frame times must be wall-clock deltas, not the engine's clamped delta"
+    )
+    # A dilated run must be legible as dilated rather than silently reported.
+    assert "engine_time_scale_min" in src
+
+
+def test_batcher_reports_cost_per_step_not_only_per_packet():
+    """Packet size is adaptive, so ms-per-packet moves when the packet does and two
+    builds cannot be compared with it. Measured 2026-08-13 at the 6-qubit ceiling:
+    per-packet cost said one thing and per-step cost said the opposite.
+
+    native_ms_per_step is also the exact quantity PACKET_TIME_BUDGET_MS divides,
+    so the report and the sizing rule read the same number."""
+    src = _read(ROOT / "Core/Environment/BiomeEvolutionBatcher.gd")
+    assert '"native_ms_per_step"' in src
+    assert '"steps_total"' in src
+    assert "_steps_total += " in src, "steps must be counted where packets are"
+    sampler = _read(SAMPLER)
+    assert "native_ms_per_step" in sampler, (
+        "the sampler copies a fixed key list — a metric the batcher exports but the "
+        "sampler does not copy never reaches the report"
+    )

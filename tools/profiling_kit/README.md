@@ -34,8 +34,23 @@ frame and 1% low should be much better. Report what you actually see either way.
 
 One caution the first pass got wrong: `avg_batch_time_ms` is the cost of *one packet*,
 not a share of the frame. To get the share, use the cumulative `native_ms_total` /
-`packets_total` fields now in the report. Measured honestly, the native call is ~23%
-of wall time, not all of it.
+`steps_total` fields now in the report. Measured honestly, the native call is ~11%
+of wall time headless, not all of it.
+
+### ⚠ The clock — check this field first
+
+**If the report's `window` block has no `"clock": "wall"`, its long-frame numbers are
+too small.** Builds before 2026-08-13 measured the window and every frame time by
+accumulating `_process(delta)`, which Godot clamps under load. One headless run took
+280.7 s of real time and reported 32.4 s, and its worst frame read 884 ms when the
+truth was 10,384 ms. Medians were about right; the stalls — the thing you are here to
+find — were hidden by roughly 12×.
+
+So: if `clock` is absent, **report the numbers as floors and say the exe predates the
+fix**, and ask for a rebuilt exe rather than working around it. If `clock` is `"wall"`,
+the numbers are real seconds. Also read `engine_time_scale_min`: below 1.0 means the
+reward hitstop was dipping time during the run, which does not affect these wall-clock
+figures but does affect any in-game rate you compare against them.
 
 ## What every earlier number was worth: nothing
 
@@ -118,7 +133,10 @@ than an imprecise answer.
    worst frame and the permanent `RECOVERY` state? If yes, the CPU-side batcher
    diagnosis stands and it is a real bug. If your run looks different, say so
    loudly — a finding that does not reproduce is more useful than one that is
-   politely agreed with.
+   politely agreed with. Note that 681 ms came from the broken clock and is a
+   floor: a *larger* worst frame on the fixed build is not necessarily a
+   regression, it may be the first honest reading. Compare `clock` fields before
+   comparing frame times.
 
 Anything else you notice is welcome. A stutter the JSON does not capture, a
 scenario that behaved unlike its numbers, a run that failed strangely — write it

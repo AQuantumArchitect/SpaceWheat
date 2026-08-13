@@ -41,6 +41,18 @@ var _quit_when_done: bool = true
 var _snapshot_interval_s: float = 1.0
 
 var _elapsed: float = 0.0
+# Wall clock, deliberately NOT accumulated `_process` delta. Godot multiplies
+# that delta by Engine.time_scale, and FloatingRewardLayer dips time_scale to
+# 0.06 for every big pop — so a run full of celebrations measured its own window
+# and every frame in it in DILATED seconds. Measured 2026-08-13: a headless
+# endgame run took 280.7s of wall clock and reported 32.4s, an 8.7x understatement
+# that made a per-frame stall look eight times smaller than the player feels it,
+# and made "share of the window" arithmetic exceed 100%.
+var _wall_start_us: int = 0
+var _last_frame_us: int = 0
+var _time_scale_min: float = 1.0
+var _time_scale_sum: float = 0.0
+var _time_scale_samples: int = 0
 var _frame_ms: PackedFloat64Array = PackedFloat64Array()
 var _warmup_frame_ms: PackedFloat64Array = PackedFloat64Array()
 var _snapshots: Array[Dictionary] = []
@@ -65,6 +77,9 @@ func _ready() -> void:
 	_snapshot_interval_s = maxf(0.1, RuntimeEnv.perf_snapshot_interval_seconds())
 	_next_snapshot_at = _warmup_s
 
+	_wall_start_us = Time.get_ticks_usec()
+	_last_frame_us = _wall_start_us
+
 	# Sample after every other _process in the frame, so a snapshot reflects the
 	# work the frame actually did rather than half of it.
 	process_priority = 1000
@@ -76,10 +91,19 @@ func _ready() -> void:
 		str(_quit_when_done)])
 
 
-func _process(delta: float) -> void:
-	_elapsed += delta
+func _process(_delta: float) -> void:
+	# `_delta` is ignored on purpose — see _wall_start_us. Every number this
+	# sampler reports is in real seconds a player would count on a stopwatch.
+	var now_us := Time.get_ticks_usec()
+	var ms := float(now_us - _last_frame_us) / 1000.0
+	_last_frame_us = now_us
+	_elapsed = float(now_us - _wall_start_us) / 1_000_000.0
 
-	var ms := delta * 1000.0
+	var ts := Engine.time_scale
+	_time_scale_min = minf(_time_scale_min, ts)
+	_time_scale_sum += ts
+	_time_scale_samples += 1
+
 	if _elapsed < _warmup_s:
 		# Kept, not discarded: boot cost is a real number a player pays, it just
 		# is not the steady state the floor is about. Reported separately.
@@ -145,6 +169,10 @@ func _take_snapshot() -> Dictionary:
 			"native_ms_total": m.get("native_ms_total", null),
 			"merge_ms_total": m.get("merge_ms_total", null),
 			"packets_total": m.get("packets_total", null),
+			# Per-STEP, so two builds stay comparable when adaptive sizing moves
+			# the packet under them. Per-packet cost alone cannot do that.
+			"native_ms_per_step": m.get("native_ms_per_step", null),
+			"steps_total": m.get("steps_total", null),
 		}
 	return snap
 
@@ -204,6 +232,11 @@ func _build_report(reason: String) -> Dictionary:
 			"total_seconds": _elapsed,
 			"snapshot_interval_seconds": _snapshot_interval_s,
 			"dropped_samples": _dropped_samples,
+			# Named so a reader can tell a dilated run from a slow one. Both look
+			# like "low fps"; only one of them is the game being slow.
+			"clock": "wall",
+			"engine_time_scale_min": _time_scale_min,
+			"engine_time_scale_mean": (_time_scale_sum / float(_time_scale_samples)) if _time_scale_samples > 0 else 1.0,
 		},
 		"steady_state": _stats(_frame_ms),
 		"warmup": _stats(_warmup_frame_ms),
@@ -267,6 +300,11 @@ func _caveats(env: Dictionary) -> Array[String]:
 			% _frame_ms.size())
 	if _dropped_samples > 0:
 		out.append("%d frames past the sample cap were dropped" % _dropped_samples)
+	if _time_scale_min < 0.999:
+		out.append(("Engine.time_scale dipped to %.2f during this run (reward hitstop). "
+			+ "Frame times and the window here are WALL clock and unaffected, but any "
+			+ "in-game rate compared against them is in dilated seconds")
+			% _time_scale_min)
 	return out
 
 

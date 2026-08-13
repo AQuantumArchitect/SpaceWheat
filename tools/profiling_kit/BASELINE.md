@@ -34,10 +34,21 @@ Not rendering. A faster GPU changes nothing.
 
 **Read `avg_batch_time_ms` carefully — the first pass at this did not.** It is the
 cost of one packet, not a share of the frame. Cumulative counters added afterwards
-(`native_ms_total`, `packets_total`, now in the report) show the native call is
-**23% of wall time**, arriving as ~18 packets of ~310 ms each in 24 seconds. Most
-frames carry no packet, which is why the median is a healthy 18 ms; every frame that
-catches one stalls for a third of a second. The hitch is lumpiness, not total work.
+(`native_ms_total`, `steps_total`, now in the report) give the share. The hitch is
+lumpiness, not total work: most frames carry no packet, which is why the median is a
+healthy 18 ms, and every frame that catches one stalls for a third of a second.
+
+The first attempt at that share said **23% of wall**, and that was wrong too — the
+window it divided by was accumulated `_process(delta)`, which Godot clamps under load,
+not seconds. On a wall clock the native call is **~11%** headless. Same lesson twice:
+a ratio is only as good as its denominator.
+
+**Two numbers in the table above are floors, not values.** `worst frame 681 ms` and
+`1% low 2.1` came from that same clock, which understates long frames specifically —
+one headless run reported 884 ms for a frame that really took 10,384 ms. Before
+comparing your frame times to these, check that your report's `window` block says
+`"clock": "wall"`. If it does not, the exe predates the fix; say so rather than
+comparing.
 
 **This has since been fixed** (see `docs/performance/PROFILE_2026-08-12.md`): packet
 size is now bounded by a measured time budget, taking the worst packet from 310 ms to
