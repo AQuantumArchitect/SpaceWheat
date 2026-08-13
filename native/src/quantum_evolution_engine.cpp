@@ -97,6 +97,8 @@ void QuantumEvolutionEngine::_bind_methods() {
 
     ClassDB::bind_method(D_METHOD("evolve_step", "rho_data", "dt"),
                          &QuantumEvolutionEngine::evolve_step);
+    ClassDB::bind_method(D_METHOD("get_last_substep_count"),
+                         &QuantumEvolutionEngine::get_last_substep_count);
     ClassDB::bind_method(D_METHOD("evolve", "rho_data", "dt", "max_dt"),
                          &QuantumEvolutionEngine::evolve);
 
@@ -375,84 +377,92 @@ PackedFloat64Array QuantumEvolutionEngine::evolve(const PackedFloat64Array& rho_
         return pack_dense(rho_u);
     }
 
-    const float max_step = (max_dt > 0.0f) ? max_dt : dt;
-    const float min_step = 1e-6f;
+    const double max_step = (max_dt > 0.0f) ? static_cast<double>(max_dt)
+                                            : static_cast<double>(dt);
 
     Eigen::MatrixXcd rho = unpack_dense(rho_data);
-    float remaining = dt;
+    double remaining = static_cast<double>(dt);
+    m_last_substeps = 0;
 
-    while (remaining > min_step * 0.5f) {
-        // Compute dρ/dt = -i[H,ρ] + Σ D[L](ρ)
-        Eigen::MatrixXcd drho = Eigen::MatrixXcd::Zero(m_dim, m_dim);
+    // The substep floor is a HARD CAP on work, not a step size: no ρ, however
+    // pathological, can make one phrame cost more than MAX_SUBSTEPS RK4 steps.
+    // The old floor was an absolute 1e-6s, which at a 0.1s phrame permitted 100k
+    // substeps — an unbounded amount of work reachable from ordinary play.
+    const double floor_step = static_cast<double>(dt) / static_cast<double>(MAX_SUBSTEPS);
 
-        if (m_coherent && m_has_hamiltonian) {
-            Eigen::MatrixXcd comm = m_hamiltonian * rho - rho * m_hamiltonian;
-            drho += std::complex<double>(0.0, -1.0) * comm;
+    while (remaining > 1e-12) {
+        Eigen::MatrixXcd k1 = liouvillian(rho);
+
+        // Step size from the RELATIVE CHANGE this substep would make, which is a
+        // proxy for RK4's local truncation error — an accuracy criterion.
+        //
+        // It used to come from the purity quadratic: solve Tr(ρ'²) ≤ 1 for h and
+        // take 90% of the root, i.e. "time until the trajectory touches Tr(ρ²)=1."
+        // That is not a numerical hazard — a pure state is a physical destination,
+        // and enforce_density_matrix() below already rescales coherences so
+        // Tr(ρ²) ≤ 1 after EVERY substep, unconditionally. So the rule was guarding
+        // something already guarded, and as ρ approached purity it drove
+        // h → (1 - Tr(ρ²)) / 2·Tr(ρD) → the floor.
+        //
+        // Measured (native/src, dim 32, one 0.1s phrame, against a 20k-step
+        // reference): the old rule took 167 substeps and 318 ms at Tr(ρ²)=0.999,
+        // and its answer was NO more accurate than its own single-substep case —
+        // both ≈1e-3. The substeps bought nothing. The endgame save has six biomes
+        // in that band, which is the whole of the ~330 ms batch and the 681 ms
+        // worst frame (task #528). Under this rule the same phrame is one substep
+        // at ≈1e-7. Cheaper AND four orders more accurate.
+        double rate = k1.norm();
+        double scale = std::max(rho.norm(), 1e-9);
+        double h = max_step;
+        if (rate > 1e-14) {
+            h = REL_CHANGE_PER_SUBSTEP * scale / rate;
         }
+        h = std::min({h, max_step, remaining});
+        h = std::max(h, std::min(floor_step, remaining));
 
-        for (size_t k = 0; k < m_lindblads.size(); k++) {
-            const auto& L = m_lindblads[k];
-            const auto& L_dag = m_lindblad_dags[k];
-            const auto& LdagL = m_LdagLs[k];
-            drho += L * rho * L_dag - 0.5 * (LdagL * rho + rho * LdagL);
-        }
+        // Classical RK4. Fourth order, so a step this size lands far inside the
+        // error a single Euler kick of the same size would make — which is what
+        // buys the substep count back.
+        Eigen::MatrixXcd k2 = liouvillian(rho + (h * 0.5) * k1);
+        Eigen::MatrixXcd k3 = liouvillian(rho + (h * 0.5) * k2);
+        Eigen::MatrixXcd k4 = liouvillian(rho + h * k3);
+        rho += (h / 6.0) * (k1 + 2.0 * k2 + 2.0 * k3 + k4);
 
-        // Three traces for the purity quadratic (O(N²), negligible)
-        double tr_rho_sq = 0.0;  // Tr(ρ²) = Σ|ρ_ij|²
-        double tr_rho_D  = 0.0;  // Tr(ρD)  (real for Hermitian ρ, D)
-        double tr_D_sq   = 0.0;  // Tr(D²) = Σ|D_ij|²
-
-        for (int i = 0; i < m_dim; i++) {
-            for (int j = 0; j < m_dim; j++) {
-                tr_rho_sq += std::norm(rho(i, j));
-                tr_D_sq   += std::norm(drho(i, j));
-                tr_rho_D  += (rho(i, j) * std::conj(drho(i, j))).real();
-            }
-        }
-
-        // Solve a·h² + b·h + c ≤ 0 for h
-        //   a = Tr(D²) ≥ 0
-        //   b = 2·Tr(ρD)
-        //   c = Tr(ρ²) - 1  (≤ 0 for valid state)
-        float h_opt = max_step;
-
-        if (tr_D_sq > 1e-14) {
-            double a = tr_D_sq;
-            double b = 2.0 * tr_rho_D;
-            double c = tr_rho_sq - 1.0;
-            double disc = b * b - 4.0 * a * c;
-
-            if (c < -1e-10 && disc > 0.0) {
-                // Valid state inside Bloch ball: positive root = max safe step
-                double h_max = (-b + std::sqrt(disc)) / (2.0 * a);
-                if (h_max > 0.0) {
-                    h_opt = static_cast<float>(h_max * 0.9);  // 90% headroom
-                }
-            } else if (c >= -1e-10 && c < 1e-6) {
-                // State AT the purity boundary (pure state, c ≈ 0).
-                // Unitary (Hamiltonian-only) evolution preserves purity exactly,
-                // so the constraint Tr(ρ'²) ≤ 1 is satisfied analytically.
-                // Euler's discretization error is bounded and corrected by
-                // enforce_density_matrix(). Use max_step to avoid 100k substeps.
-                h_opt = max_step;
-            } else {
-                // State PAST purity boundary (c > 1e-6) — tiny step to recover
-                h_opt = min_step;
-            }
-        }
-        // else: D ≈ 0 (steady state), any step is fine → use max_step
-
-        // Clamp to [min_step, max_step] and remaining time
-        float step = std::min({h_opt, max_step, remaining});
-        step = std::max(step, min_step);
-
-        // Euler step + enforcement
-        rho += static_cast<double>(step) * drho;
         enforce_density_matrix(rho);
-        remaining -= step;
+        remaining -= h;
+        m_last_substeps++;
     }
 
     return pack_dense(rho);
+}
+
+Eigen::MatrixXcd QuantumEvolutionEngine::liouvillian(const Eigen::MatrixXcd& rho) const {
+    // dρ/dt = -i[H,ρ] + Σ_k ( L ρ L† - ½{L†L, ρ} ).
+    //
+    // Extracted so the integrator can evaluate it at the RK4 stage points instead of
+    // once per step. There is still exactly one generator: both switches (coherent,
+    // dissipative) are read here and nowhere else in the stepping loop.
+    Eigen::MatrixXcd drho = Eigen::MatrixXcd::Zero(m_dim, m_dim);
+
+    if (m_coherent && m_has_hamiltonian) {
+        drho += std::complex<double>(0.0, -1.0) * (m_hamiltonian * rho - rho * m_hamiltonian);
+    }
+
+    for (size_t k = 0; k < m_lindblads.size(); k++) {
+        const auto& L = m_lindblads[k];
+        const auto& L_dag = m_lindblad_dags[k];
+        const auto& LdagL = m_LdagLs[k];
+        drho += L * rho * L_dag - 0.5 * (LdagL * rho + rho * LdagL);
+    }
+
+    return drho;
+}
+
+int QuantumEvolutionEngine::get_last_substep_count() const {
+    // How many integrator substeps the last evolve() spent. Exposed because #528
+    // was invisible for months: the cost lived entirely inside one native call and
+    // nothing counted the loop that produced it.
+    return m_last_substeps;
 }
 
 Eigen::MatrixXcd QuantumEvolutionEngine::unpack_dense(const PackedFloat64Array& data) const {

@@ -199,6 +199,23 @@ var _avg_batch_time_ms: float = 10.0
 var _avg_frame_time_ms: float = 16.67
 var _last_frame_time: int = 0
 
+# Cumulative cost ledger (see get_performance_metrics). Separates the native call
+# from the GDScript merge that unpacks its result, because the two are different
+# problems with different fixes and the old metrics blurred them together.
+var _native_ms_total: float = 0.0
+var _merge_ms_total: float = 0.0
+var _packets_total: int = 0
+
+## Measured cost of ONE phrame-step across all active biomes, smoothed. This is the
+## quantity the Fibonacci ladder never had: it sized packets by buffer depth and
+## assumed the cost of a step was negligible.
+var _avg_ms_per_step: float = 0.0
+
+## How much of one frame a synchronous packet may occupy. A packet is not
+## interruptible, so this is a stall budget, not a throughput budget — see
+## _affordable_batch_size for why capping it costs no throughput at all.
+const PACKET_TIME_BUDGET_MS: float = 25.0
+
 
 func _notification(what: int) -> void:
 	# Handle cleanup when object is freed.
@@ -272,6 +289,9 @@ func _teardown_runtime_state() -> void:
 	_throttled_phrame_skips = 0
 	_packet_started_at_ms = 0
 	_packet_completed_at_ms = 0
+	# The per-step cost is a property of THIS farm's biome set; a new session must
+	# re-measure it rather than size its first packets from a dead one's numbers.
+	_avg_ms_per_step = 0.0
 
 	terminal_pool = null
 	farm_ref = null
@@ -1669,6 +1689,28 @@ func _trigger_hybrid_refill():
 		_queue_hybrid_packet()
 
 
+## Clamp a packet to what fits in one frame, using the MEASURED per-step cost.
+##
+## A packet is computed synchronously on the main thread, so its whole cost lands in
+## a single frame. The Fibonacci ladder sizes packets by buffer depth alone, and its
+## own note said "C++ batches are cheap — let fib grow to max and stay there." At six
+## live biomes they are not cheap: measured on the endgame save, one 21-step packet
+## costs ~310 ms, which is exactly the 681 ms class of frame in
+## docs/performance/PROFILE_2026-08-12.md.
+##
+## The key measurement is that TOTAL native work is invariant under packet size —
+## 21.7% / 25.3% / 23.3% of wall at 1, 5 and 21 steps per packet. Batch size does not
+## buy throughput; it only decides whether the same work arrives as one stall or as
+## several frame-sized slices. So bounding it costs nothing and removes the stall.
+##
+## Always returns at least 1: progress is never traded away, only lumpiness.
+func _affordable_batch_size(requested: int) -> int:
+	if _avg_ms_per_step <= 0.0:
+		return requested  # no timing yet — first packet sizes itself
+	var affordable := int(floor(PACKET_TIME_BUDGET_MS / _avg_ms_per_step))
+	return clampi(requested, 1, maxi(1, affordable))
+
+
 func _queue_hybrid_packet():
 	# Queue ONE global packet with per-biome active_flags and batch sizes.
 	#
@@ -1747,6 +1789,7 @@ func _queue_hybrid_packet():
 
 	# Queue ONE global packet with active_flags.
 	max_batch_size = mini(max_batch_size, _max_packet_steps)
+	max_batch_size = _affordable_batch_size(max_batch_size)
 	_queue_adaptive_packet(biome_rhos, active_flags_arr, max_batch_size)
 
 	# Log which biomes are being evolved (with their individual batch sizes)
@@ -2906,6 +2949,14 @@ func get_performance_metrics() -> Dictionary:
 		"last_batch_time_ms": last_batch_time_ms,
 		"avg_batch_time_ms": _avg_batch_time_ms,
 		"avg_frame_time_ms": _avg_frame_time_ms,
+		# Cumulative, so a reader can divide by wall time and get the FRACTION of the
+		# session spent inside the native call. avg_batch_time_ms alone cannot answer
+		# that — it says what one packet cost, not how many ran (task #528: a 331ms
+		# average was being read as "the batch is the frame" when packets-per-second
+		# was never in the report).
+		"native_ms_total": _native_ms_total,
+		"packets_total": _packets_total,
+		"merge_ms_total": _merge_ms_total,
 		# Adaptive Fibonacci Batching
 		"buffer_state": _get_effective_buffer_state_name(),
 		"fib_index": _get_effective_fib_index(),
@@ -2997,7 +3048,9 @@ func _process_next_packet() -> void:
 	_active_packet_request = _packet_queue.pop_front()
 	_packet_started_at_ms = Time.get_ticks_msec()
 	var result = _compute_packet(_active_packet_request)
+	var merge_start_us := Time.get_ticks_usec()
 	_merge_packet_result(_active_packet_request, result)
+	_merge_ms_total += float(Time.get_ticks_usec() - merge_start_us) / 1000.0
 	_active_packet_request.clear()
 	_packet_started_at_ms = 0
 	_packet_completed_at_ms = Time.get_ticks_msec()
@@ -3032,6 +3085,9 @@ func _compute_packet(packet_req: Dictionary) -> Dictionary:
 	result["batch_time_us"] = packet_end - packet_start
 	result["error"] = false
 
+	_native_ms_total += float(packet_end - packet_start) / 1000.0
+	_packets_total += 1
+
 	return result
 
 
@@ -3047,6 +3103,11 @@ func _merge_packet_result(packet_request: Dictionary, result: Dictionary) -> voi
 
 	_avg_batch_time_ms = _smooth_metric(_avg_batch_time_ms, packet_time_ms)
 	last_batch_time_ms = packet_time_ms
+
+	# Per-step cost feeds the next packet's size budget. Measured, not assumed:
+	# it tracks biome count, dimension growth and machine speed for free.
+	var packet_steps: int = maxi(1, int(packet_request.get("num_steps", 1)))
+	_avg_ms_per_step = _smooth_metric(_avg_ms_per_step, packet_time_ms / float(packet_steps))
 
 	var depth_before = _get_minimum_buffer_depth()
 

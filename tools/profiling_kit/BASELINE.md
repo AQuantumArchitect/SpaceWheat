@@ -27,11 +27,23 @@ Cause, from the per-second snapshots:
 |---|---|---|
 | `draw_calls` | 149, flat | the GPU is idle |
 | `physics_process_ms` | 11 ms, spiking to 400–627 ms | these spikes are the dropped frames |
-| `batcher.avg_batch_time_ms` | **285–377 ms** | |
+| `batcher.avg_batch_time_ms` | **285–377 ms** | cost of ONE packet — see below |
 | `batcher.buffer_state` | **`RECOVERY` the entire run** | never caught up once |
 
-The cost is the CPU-side quantum batch, not rendering. A faster GPU changes
-nothing.
+Not rendering. A faster GPU changes nothing.
+
+**Read `avg_batch_time_ms` carefully — the first pass at this did not.** It is the
+cost of one packet, not a share of the frame. Cumulative counters added afterwards
+(`native_ms_total`, `packets_total`, now in the report) show the native call is
+**23% of wall time**, arriving as ~18 packets of ~310 ms each in 24 seconds. Most
+frames carry no packet, which is why the median is a healthy 18 ms; every frame that
+catches one stalls for a third of a second. The hitch is lumpiness, not total work.
+
+**This has since been fixed** (see `docs/performance/PROFILE_2026-08-12.md`): packet
+size is now bounded by a measured time budget, taking the worst packet from 310 ms to
+27 ms with total native work unchanged. **The desktop numbers in the table above
+predate that fix** — your run measures the fixed build, so expect the endgame's worst
+frame and 1% low to be markedly better. If they are not, that is the finding.
 
 ## Browser
 

@@ -138,6 +138,13 @@ func _take_snapshot() -> Dictionary:
 			"packets_pending": m.get("packets_pending", null),
 			"watchdog_stall_warnings": m.get("watchdog_stall_warnings", null),
 			"phrame_cap_hz": m.get("phrame_cap_hz", null),
+			# Cumulative — two snapshots give the FRACTION of wall time inside the
+			# native call and inside the GDScript merge that unpacks it. An average
+			# per-packet cost cannot say that, and reading it as though it could is
+			# what sent the first pass at #528 after the wrong half of the frame.
+			"native_ms_total": m.get("native_ms_total", null),
+			"merge_ms_total": m.get("merge_ms_total", null),
+			"packets_total": m.get("packets_total", null),
 		}
 	return snap
 

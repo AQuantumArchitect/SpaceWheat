@@ -22,10 +22,20 @@ Build v1.0-rc3 · `5a42a3f5`, release export, GTX 960M / Intel HD 5600, 60 Hz.
 | **desktop, endgame save** | p50 **55 fps**, 1% low **2.1 fps**, worst frame **681 ms** |
 | **browser** | **59.7 fps** mean, p95 19.5 ms — clears the 20 fps floor six times over |
 
-The endgame result is a **hitch**, not a slowdown, and the cause is already
-identified: `batcher.avg_batch_time_ms` sits at 285–377 ms with
-`buffer_state: RECOVERY` for the entire run, while `draw_calls` stays flat at
-149. The GPU is idle; the CPU-side quantum batch is the whole cost.
+The endgame result is a **hitch**, not a slowdown. `draw_calls` stays flat at 149, so
+the GPU is idle and the cost is CPU-side. The specific cause: the quantum batch was
+computed in one synchronous ~310 ms lump per packet, so the rare frame that caught a
+packet stalled for a third of a second while every other frame was fine.
+
+**That is fixed as of 2026-08-13** — packet size is now bounded by a measured time
+budget (310 ms → 27 ms per packet, same total work). **The desktop table above was
+measured BEFORE the fix.** Your run measures the fixed build, so the endgame's worst
+frame and 1% low should be much better. Report what you actually see either way.
+
+One caution the first pass got wrong: `avg_batch_time_ms` is the cost of *one packet*,
+not a share of the frame. To get the share, use the cumulative `native_ms_total` /
+`packets_total` fields now in the report. Measured honestly, the native call is ~23%
+of wall time, not all of it.
 
 ## What every earlier number was worth: nothing
 

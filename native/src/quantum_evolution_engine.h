@@ -103,6 +103,11 @@ public:
     // Returns: PackedFloat64Array in upper triangular order [sim_01, sim_02, ..., sim_12, ...]
     PackedFloat64Array compute_eigenstate_similarity_matrix(const Array& eigenvectors) const;
 
+    // Integrator substeps spent inside the last evolve(). A diagnostic, not a control:
+    // task #528 (an endgame biome quietly taking ~170 substeps per phrame) was invisible
+    // for months because nothing counted the loop. Now the cost is observable.
+    int get_last_substep_count() const;
+
 protected:
     static void _bind_methods();
 
@@ -144,9 +149,25 @@ private:
     static constexpr double MI_SCREEN_THRESHOLD = 0.001;   // Product deviation threshold
     static constexpr double PURITY_HIGH_THRESHOLD = 0.9;   // Use linear approx above this
 
+    // === Integrator (see evolve()) ==========================================
+    // Bound on ||h·dρ/dt|| / ||ρ|| per substep — an accuracy criterion. Measured
+    // against a 20k-step reference at dim 32: 0.1 costs ONE RK4 substep for a
+    // 0.1s phrame at both Tr(ρ²)=0.5 and Tr(ρ²)=0.999, with max|Δρ| ≈ 1e-7.
+    static constexpr double REL_CHANGE_PER_SUBSTEP = 0.1;
+
+    // Hard ceiling on substeps per evolve() call. This is the guarantee that one
+    // phrame costs bounded work no matter what state the player builds — the old
+    // 1e-6s step floor allowed 100k substeps for the same phrame.
+    static constexpr int MAX_SUBSTEPS = 16;
+
+    int m_last_substeps = 0;
+
     // Helper methods
     Eigen::MatrixXcd unpack_dense(const PackedFloat64Array& data) const;
     PackedFloat64Array pack_dense(const Eigen::MatrixXcd& mat) const;
+
+    // dρ/dt = -i[H,ρ] + Σ_k D[L_k](ρ) — the single generator, evaluated at each RK4 stage.
+    Eigen::MatrixXcd liouvillian(const Eigen::MatrixXcd& rho) const;
 
     // Exact-unitary path: eligible when coherent, has H, eigendecomposition valid, no Lindblad.
     bool can_unitary() const;

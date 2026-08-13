@@ -154,3 +154,71 @@ def test_loading_a_save_does_not_require_asking_for_a_screenshot():
     assert "SW_LOAD_PATH" not in shot, (
         "the screenshot path must not own the checkpoint load again"
     )
+
+
+BATCHER = ROOT / "Core/Environment/BiomeEvolutionBatcher.gd"
+
+
+def test_packet_size_is_bounded_by_measured_time_not_just_buffer_depth():
+    """Task #528. A native packet is computed synchronously on the main thread, so
+    its whole cost lands in ONE frame.
+
+    The Fibonacci ladder sized packets by buffer depth alone, on a stated assumption
+    that "C++ batches are cheap". At six live biomes they are not: one 21-step packet
+    measured ~310ms on the endgame save. Crucially, total native work is INVARIANT
+    under packet size (21.7% / 25.3% / 23.3% of wall at 1, 5 and 21 steps per packet),
+    so the ladder was buying no throughput with that stall — only lumpiness.
+
+    This pins the time budget so a future tuning pass cannot quietly restore
+    "grow fib to max and stay there" without also restoring the 681ms frame.
+    """
+    src = _read(BATCHER)
+    assert "PACKET_TIME_BUDGET_MS" in src, (
+        "packet size must be bounded by a time budget, not only by the fib ladder"
+    )
+    assert "_avg_ms_per_step" in src, (
+        "the budget has to divide by a MEASURED per-step cost; a hardcoded step "
+        "count would drift the moment biome count or dimension changes"
+    )
+    # The clamp must actually be applied on the queueing path, not merely defined.
+    queue_fn = src.split("func _queue_hybrid_packet()")[1].split("\nfunc ")[0]
+    assert "_affordable_batch_size" in queue_fn, (
+        "the budget is applied where the packet is sized, or it is decoration"
+    )
+    # Progress must never be traded away entirely.
+    afford = src.split("func _affordable_batch_size(")[1].split("\nfunc ")[0]
+    assert "1" in afford and "clampi" in afford, (
+        "a starved biome must still get at least one step per packet"
+    )
+
+
+def test_batcher_reports_cumulative_native_cost_not_only_an_average():
+    """avg_batch_time_ms says what ONE packet cost. It cannot say what fraction of
+    the session went into the native call — for that you need packets-per-second too.
+
+    Reading the average as though it were the frame is exactly how the first pass at
+    #528 concluded "the quantum batch is the whole cost" when the measured share was
+    23%. The cumulative counters make that mistake impossible to repeat."""
+    src = _read(BATCHER)
+    for key in ("native_ms_total", "merge_ms_total", "packets_total"):
+        assert key in src, f"{key} is needed to turn a per-packet average into a share of wall time"
+    sampler = _read(ROOT / "Core/Debug/PerfSampler.gd")
+    for key in ("native_ms_total", "packets_total"):
+        assert key in sampler, f"{key} must reach the report, not just the batcher"
+
+
+def test_integrator_substeps_are_bounded():
+    """The old step-size rule solved the purity quadratic for "time until Tr(ρ²)=1"
+    and floored the step at 1e-6s — which permitted 100k substeps inside a single
+    0.1s phrame. Measured at dim 32: 167 substeps, 318ms, and NO better accuracy
+    than its own single-substep case (both ≈1e-3 against a 20k-step reference).
+
+    A hard substep ceiling is the guarantee that one phrame costs bounded work no
+    matter what state a player builds."""
+    src = _read(ROOT / "native/src/quantum_evolution_engine.h")
+    assert "MAX_SUBSTEPS" in src, "the integrator needs a hard ceiling on work per call"
+    cpp = _read(ROOT / "native/src/quantum_evolution_engine.cpp")
+    assert "MAX_SUBSTEPS" in cpp, "the ceiling must be used, not just declared"
+    assert "1e-6f" not in cpp.split("QuantumEvolutionEngine::evolve(")[1].split("\n}")[0], (
+        "the absolute 1e-6s step floor is what allowed 100k substeps; it must not return"
+    )
