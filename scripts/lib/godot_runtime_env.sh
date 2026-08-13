@@ -46,7 +46,7 @@ sw_wsl_to_windows_path() {
 
 sw_should_convert_arg_key() {
   case "$1" in
-    --path|--script|--editor-settings-path|--runtime-profile-output|--summary-path|--output|--output-dir|--out-dir|--log-file)
+    --path|--script|--editor-settings-path|--summary-path|--output|--output-dir|--out-dir|--log-file)
       return 0
       ;;
     *)
@@ -80,7 +80,7 @@ sw_rewrite_godot_args_for_target() {
     shift
 
     case "$arg" in
-      --path|--script|--editor-settings-path|--runtime-profile-output|--summary-path|--output|--output-dir|--out-dir|--log-file)
+      --path|--script|--editor-settings-path|--summary-path|--output|--output-dir|--out-dir|--log-file)
         if [ "$#" -gt 0 ]; then
           value="$(sw_convert_arg_value_if_needed "$arg" "$1")"
           rewritten+=("$arg" "$value")

@@ -156,6 +156,45 @@ static func advanced_mode_tristate() -> int:
 static func debug_readout_enabled() -> bool:
 	return flag("SW_DEBUG_READOUT", OS.is_debug_build())
 
+## Where Core/Debug/PerfSampler.gd writes its JSON report. Empty (the default,
+## and every player's build) disables sampling entirely on the first frame.
+##
+## This is the ONLY machine-readable perf channel a shipped build has: `🍄/**` —
+## the rig listener — is excluded from every export preset, so the pack a player
+## downloads cannot be asked anything by the harness. Before this, profiling an
+## export meant photographing the FPS strip.
+static func perf_log_path() -> String:
+	return env_str("SW_PERF_LOG", "")
+
+## Seconds of boot churn kept out of the steady-state percentiles. Sampled and
+## reported separately rather than dropped — boot cost is real, it just isn't
+## the number an fps floor is about.
+static func perf_warmup_seconds() -> float:
+	return env_float("SW_PERF_WARMUP_SECONDS", 15.0)
+
+## Measurement window after warmup. 0 = sample until the game exits.
+static func perf_duration_seconds() -> float:
+	return env_float("SW_PERF_SECONDS", 0.0)
+
+## Quit once the window closes, so an unattended run terminates itself instead of
+## waiting for a window nobody is sitting at. Only applies when SW_PERF_SECONDS
+## bounds the run.
+static func perf_quit_when_done() -> bool:
+	return flag("SW_PERF_QUIT", true)
+
+static func perf_snapshot_interval_seconds() -> float:
+	return env_float("SW_PERF_SNAPSHOT_SECONDS", 1.0)
+
+## Lift the frame-rate ceiling PerformanceOptimizer normally applies (vsync on a
+## real GPU, max_fps 60 on the OpenGL backend, max_fps 30 on a software one).
+##
+## Not a quality setting — a measurement one. Capped, the game answers "does the
+## player get a smooth 60?"; uncapped, it answers "how much headroom is there?".
+## Both are worth knowing and neither substitutes for the other, so the profiling
+## kit runs both and the report says which it was.
+static func uncap_frame_rate() -> bool:
+	return flag("SW_UNCAP_FPS", false)
+
 ## "" | "low" | "medium"/"med" | "high" — bubble graphics quality override.
 static func bubble_quality_override() -> String:
 	return OS.get_environment("SW_BUBBLE_QUALITY").strip_edges().to_lower()
@@ -196,6 +235,11 @@ static func describe() -> Dictionary:
 		"disable_mi": disable_mi(),
 		"disable_force": disable_force(),
 		"advanced_mode_tristate": advanced_mode_tristate(),
+		"debug_readout_enabled": debug_readout_enabled(),
+		"perf_log_path": perf_log_path(),
+		"perf_warmup_seconds": perf_warmup_seconds(),
+		"perf_duration_seconds": perf_duration_seconds(),
+		"uncap_frame_rate": uncap_frame_rate(),
 		"bubble_quality_override": bubble_quality_override(),
 		"force_operator_rebuild": force_operator_rebuild(),
 		"skip_operator_rebuild": skip_operator_rebuild(),

@@ -148,15 +148,19 @@ func _mark_started() -> void:
 	game_started.emit(farm)
 	if _verbose:
 		_verbose.info("boot", ">", "GameRoot ready")
-	if OS.has_environment("SW_SHOT"):
-		_dev_screenshot()
+	_run_boot_env_hooks()
 
 
-func _dev_screenshot() -> void:
-	# dev-only (SW_SHOT env): once the game is up, capture the live screen then quit,
-	# so a display-less builder can SEE headed output. Never active in production.
-	# SW_LOAD_PATH optionally loads a checkpoint into the live field first (lets me
-	# verify the 3D renderer against rich, multi-register real state).
+## The env hooks that fire once the game is actually up, in order.
+##
+## SW_LOAD_PATH used to live INSIDE _dev_screenshot(), which meant "load this
+## checkpoint into the live field" was only reachable by ALSO asking for a
+## screenshot — and the screenshot quits the game the moment it lands. So the
+## richest state the game can be in (a late-act save: several biomes, many live
+## registers, the full coupling graph) could be photographed but never simply
+## RUN. That is precisely the state a performance pass has to measure, so the
+## load is its own step now and the screenshot composes on top of it.
+func _run_boot_env_hooks() -> void:
 	if OS.has_environment("SW_LOAD_PATH"):
 		var gsm = get_node_or_null("/root/GameStateManager")
 		if gsm != null and ("save_load" in gsm) and gsm.save_load != null:
@@ -166,6 +170,13 @@ func _dev_screenshot() -> void:
 			# world for everyone who was not taking a dev screenshot (#519).
 			await gsm.save_load.load_and_apply_path(OS.get_environment("SW_LOAD_PATH"))
 			await get_tree().process_frame
+	if OS.has_environment("SW_SHOT"):
+		await _dev_screenshot()
+
+
+func _dev_screenshot() -> void:
+	# dev-only (SW_SHOT env): once the game is up, capture the live screen then quit,
+	# so a display-less builder can SEE headed output.
 	var _delay := OS.get_environment("SW_SHOT_DELAY")
 	await get_tree().create_timer(float(_delay) if _delay.is_valid_float() else 4.5).timeout
 	# SW_TAP_TEST=<reg>: simulate a real tap on the 3D field's register <reg> (default 0)

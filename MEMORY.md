@@ -47,8 +47,6 @@ Read these first:
   - canonical live-rig / QA operator guide
 - [`🍄/🎛️/🧠🗺️.md`](🍄/🎛️/🧠🗺️.md)
   - rig intent, action surface, and planned extensions
-- [`🍄/🧪/README_🧬.md`](🍄/🧪/README_🧬.md)
-  - focused biome stress-test wrapper and what it validates
 - [`🍄/artifacts_whitelist/README.txt`](🍄/artifacts_whitelist/README.txt)
   - only place under `🍄` where committed runtime artifacts belong
 

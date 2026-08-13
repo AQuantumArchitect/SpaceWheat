@@ -1,4 +1,27 @@
 #!/bin/bash
+# profile-export-runtime.sh — measure a DESKTOP EXPORT's frame cost.
+#
+# Drives the exported binary through the same lane a player's build has:
+# SW_PERF_LOG (Core/Debug/PerfSampler.gd), which is compiled into the pack. The
+# game samples every frame, writes one JSON report, and quits on its own.
+#
+# It used to pass `--runtime-profile-mode=…` and friends. Nothing in this
+# repository has ever parsed those flags — the only script that could was
+# tests/test_headed_runtime_profile.gd, which read PROFILE_* ENV VARS instead,
+# was never invoked by anything, and is excluded from every export preset
+# anyway. So this lane launched an exported game, waited, and then reported the
+# absence of its own output as a failure ("mode 'dense' did not produce
+# dense.json"). It has been rewritten around a parser that actually ships, and
+# the phantom-flag cluster around it deleted.
+#
+# THE NUMBERS FROM THIS SCRIPT ARE ONLY AS GOOD AS THE RENDERER UNDER THEM.
+# Inside WSL there is no GPU passthrough: a headed run lands on llvmpipe and the
+# fps it reports is a software rasteriser's. Every report carries
+# `environment.software_rendering_suspected` and a `trustworthy` verdict for
+# exactly this reason; this script refuses to summarise a run as a result when
+# that flag is set. Real numbers come from the Windows-side kit — see
+# docs/performance/PROFILING.md.
+
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -9,194 +32,174 @@ OUT_DIR="${2:-/tmp/spacewheat_export_profiles_$(date +%Y%m%d_%H%M%S)}"
 PROFILE_HOME="${PROFILE_HOME:-$OUT_DIR/runtime_home}"
 PROFILE_CONFIG_HOME="${PROFILE_CONFIG_HOME:-$OUT_DIR/runtime_config}"
 PROFILE_DATA_HOME="${PROFILE_DATA_HOME:-$OUT_DIR/runtime_data}"
-WINDOWS_SMOKE_TIMEOUT_S="${WINDOWS_SMOKE_TIMEOUT_S:-420}"
+
+# Warmup is generous because it has to cover the whole boot: pck mount, biome
+# discovery, first scene build, and — in the loaded scenarios — a full save
+# rebuild. Percentiles taken across that would describe loading, not playing.
+WARMUP_S="${PROFILE_WARMUP_SECONDS:-20}"
+SAMPLE_S="${PROFILE_SAMPLE_SECONDS:-30}"
+UNCAP="${PROFILE_UNCAP_FPS:-0}"
 
 if [ -z "$EXPORT_DIR" ]; then
-	echo "usage: $0 <desktop-export-dir> [output-dir]" >&2
+	cat >&2 <<'EOF'
+usage: profile-export-runtime.sh <desktop-export-dir> [output-dir]
+
+env:
+  PROFILE_WARMUP_SECONDS   boot grace before sampling (default 20)
+  PROFILE_SAMPLE_SECONDS   measurement window        (default 30)
+  PROFILE_UNCAP_FPS=1      lift vsync/max_fps to see headroom (SW_UNCAP_FPS)
+  PROFILE_SCENARIOS        space-separated subset of: title fresh endgame
+EOF
 	exit 1
 fi
 
-mkdir -p "$OUT_DIR" "$PROFILE_HOME" "$PROFILE_CONFIG_HOME" "$PROFILE_DATA_HOME"
-FAILED_MODES=()
+# Each scenario is a different amount of game, because SpaceWheat's cost scales
+# with how much world is alive — not with which menu is open.
+#   title    the title card; the renderer's floor, almost no physics
+#   fresh    a new campaign (SW_AUTOSTART); Act-0 load, three biomes
+#   endgame  a late-act save (SW_LOAD_PATH); six biomes, the full coupling graph
+# The gap between `fresh` and `endgame` is the number that decides whether a
+# long game stays playable.
+SCENARIOS="${PROFILE_SCENARIOS:-title fresh endgame}"
+ENDGAME_SAVE="${PROFILE_ENDGAME_SAVE:-$ROOT_DIR/🍄/🧪/checkpoints/endrun_ending.tres}"
 
-MODES=(dormant single dense multi)
-RENDERING_DRIVER="${RUNTIME_RENDERING_DRIVER:-}"
-RENDERING_METHOD="${RUNTIME_RENDERING_METHOD:-}"
-PROFILE_WARMUP_FRAMES="${PROFILE_WARMUP_FRAMES:-90}"
-PROFILE_SAMPLE_FRAMES="${PROFILE_SAMPLE_FRAMES:-240}"
-PROFILE_DISPLAY_MODE="${PROFILE_DISPLAY_MODE:-auto}"
+mkdir -p "$OUT_DIR" "$PROFILE_HOME" "$PROFILE_CONFIG_HOME" "$PROFILE_DATA_HOME"
+FAILED=()
 
 LINUX_BIN="$EXPORT_DIR/SpaceWheat.x86_64"
 WINDOWS_BIN="$EXPORT_DIR/SpaceWheat.exe"
-PLATFORM=""
-BIN=""
-
 if [ -x "$LINUX_BIN" ]; then
-	PLATFORM="linux"
-	BIN="$LINUX_BIN"
+	PLATFORM="linux"; BIN="$LINUX_BIN"
 elif [ -f "$WINDOWS_BIN" ]; then
-	PLATFORM="windows"
-	BIN="$WINDOWS_BIN"
+	PLATFORM="windows"; BIN="$WINDOWS_BIN"
 else
 	echo "missing desktop export executable in: $EXPORT_DIR" >&2
 	exit 1
 fi
 
 echo "SpaceWheat exported runtime profiler"
-echo "export: $EXPORT_DIR"
-echo "platform: $PLATFORM"
-echo "output: $OUT_DIR"
-if [ -n "$RENDERING_DRIVER" ]; then
-	echo "rendering driver override: $RENDERING_DRIVER"
-fi
-if [ -n "$RENDERING_METHOD" ]; then
-	echo "rendering method override: $RENDERING_METHOD"
-fi
+echo "export:    $EXPORT_DIR ($PLATFORM)"
+echo "output:    $OUT_DIR"
+echo "window:    ${WARMUP_S}s warmup + ${SAMPLE_S}s sample"
+echo "scenarios: $SCENARIOS"
 echo
 
-resolve_profile_display_mode() {
-	local platform="$1"
-
-	case "$PROFILE_DISPLAY_MODE" in
-		headed|headless)
-			printf '%s\n' "$PROFILE_DISPLAY_MODE"
-			return 0
+scenario_env() {
+	# Prints `KEY=VALUE` lines for the scenario's extra environment.
+	case "$1" in
+		title) ;;
+		fresh) echo "SW_AUTOSTART=1" ;;
+		endgame)
+			echo "SW_AUTOSTART=1"
+			echo "SW_LOAD_PATH=$ENDGAME_SAVE"
 			;;
-		auto)
-			;;
-		*)
-			echo "invalid PROFILE_DISPLAY_MODE: $PROFILE_DISPLAY_MODE (use auto, headed, or headless)" >&2
-			exit 1
-			;;
+		*) echo "unknown scenario: $1" >&2; return 1 ;;
 	esac
-
-	if [ "$platform" = "linux" ]; then
-		if [ -n "${DISPLAY:-}" ]; then
-			if command -v xdpyinfo >/dev/null 2>&1 && timeout 1s xdpyinfo >/dev/null 2>&1; then
-				printf 'headed\n'
-				return 0
-			fi
-			if ! sw_is_wsl; then
-				printf 'headed\n'
-				return 0
-			fi
-		fi
-		if ! sw_is_wsl && [ -n "${WAYLAND_DISPLAY:-}" ] && [ -n "${XDG_RUNTIME_DIR:-}" ] && [ -S "${XDG_RUNTIME_DIR}/${WAYLAND_DISPLAY}" ]; then
-			printf 'headed\n'
-			return 0
-		fi
-		printf 'headless\n'
-		return 0
-	fi
-
-	printf 'headed\n'
 }
 
-PROFILE_DISPLAY_MODE_RESOLVED="$(resolve_profile_display_mode "$PLATFORM")"
-echo "display mode: $PROFILE_DISPLAY_MODE_RESOLVED"
-
-run_linux_mode() {
-	local mode="$1"
-	local log_path="$2"
-	local json_path="$3"
-	local cmd=("$BIN")
-
-	if [ "$PROFILE_DISPLAY_MODE_RESOLVED" = "headless" ]; then
-		cmd+=(--headless)
-	fi
-	if [ -n "$RENDERING_DRIVER" ]; then
-		cmd+=(--rendering-driver "$RENDERING_DRIVER")
-	fi
-	if [ -n "$RENDERING_METHOD" ]; then
-		cmd+=(--rendering-method "$RENDERING_METHOD")
-	fi
-	cmd+=(
-		--
-		--runtime-profile-mode="$mode"
-		--runtime-profile-output="$json_path"
-		--runtime-profile-warmup="$PROFILE_WARMUP_FRAMES"
-		--runtime-profile-frames="$PROFILE_SAMPLE_FRAMES"
-	)
-
+run_linux() {
+	local json="$1"; shift
+	local -a env_pairs=("$@")
 	set +e
-	HOME="$PROFILE_HOME" \
-	XDG_CONFIG_HOME="$PROFILE_CONFIG_HOME" \
-	XDG_DATA_HOME="$PROFILE_DATA_HOME" \
-	"${cmd[@]}" 2>&1 | tee "$log_path"
-	local status=${PIPESTATUS[0]}
+	env HOME="$PROFILE_HOME" \
+		XDG_CONFIG_HOME="$PROFILE_CONFIG_HOME" \
+		XDG_DATA_HOME="$PROFILE_DATA_HOME" \
+		SW_PERF_LOG="$json" \
+		SW_PERF_WARMUP_SECONDS="$WARMUP_S" \
+		SW_PERF_SECONDS="$SAMPLE_S" \
+		SW_UNCAP_FPS="$UNCAP" \
+		SW_DEBUG_READOUT=0 \
+		"${env_pairs[@]}" \
+		"$BIN"
+	local status=$?
 	set -e
 	return "$status"
 }
 
-run_windows_mode() {
-	local mode="$1"
-	local log_path="$2"
-	local json_path="$3"
-	local windows_exe windows_log windows_json ps_args ps_cmd
-
+run_windows() {
+	# Start-Process cannot inherit an env assignment made by `env`, and cmd.exe
+	# refuses a UNC working directory, so the variables are set on the
+	# PowerShell process itself and inherited by the child.
+	local json="$1"; shift
 	command -v powershell.exe >/dev/null 2>&1 || {
 		echo "powershell.exe is required to profile a Windows export from WSL" >&2
 		return 1
 	}
+	local win_exe win_json setters=""
+	win_exe="$(sw_wsl_to_windows_path "$BIN")"
+	win_json="$(sw_wsl_to_windows_path "$json")"
 
-	windows_exe="$(sw_wsl_to_windows_path "$BIN")"
-	windows_log="$(sw_wsl_to_windows_path "$log_path")"
-	windows_json="$(sw_wsl_to_windows_path "$json_path")"
-
-	# Build PS argument array - avoids cmd.exe UNC CWD limitation
-	ps_args="'$windows_exe'"
-	if [ "$PROFILE_DISPLAY_MODE_RESOLVED" = "headless" ]; then
-		ps_args="$ps_args, '--headless'"
-	fi
-	if [ -n "$RENDERING_DRIVER" ]; then
-		ps_args="$ps_args, '--rendering-driver', '$RENDERING_DRIVER'"
-	fi
-	if [ -n "$RENDERING_METHOD" ]; then
-		ps_args="$ps_args, '--rendering-method', '$RENDERING_METHOD'"
-	fi
-	ps_args="$ps_args, '--', '--runtime-profile-mode=$mode', '--runtime-profile-output=$windows_json', '--runtime-profile-warmup=$PROFILE_WARMUP_FRAMES', '--runtime-profile-frames=$PROFILE_SAMPLE_FRAMES'"
-
-	ps_cmd="\$p = Start-Process -FilePath $ps_args -Wait -PassThru -RedirectStandardOutput '$windows_log' -RedirectStandardError '$windows_log'; exit \$p.ExitCode"
+	setters+="\$env:SW_PERF_LOG='$win_json'; "
+	setters+="\$env:SW_PERF_WARMUP_SECONDS='$WARMUP_S'; "
+	setters+="\$env:SW_PERF_SECONDS='$SAMPLE_S'; "
+	setters+="\$env:SW_UNCAP_FPS='$UNCAP'; "
+	setters+="\$env:SW_DEBUG_READOUT='0'; "
+	local pair key value
+	for pair in "$@"; do
+		key="${pair%%=*}"; value="${pair#*=}"
+		if [ "$key" = "SW_LOAD_PATH" ]; then
+			value="$(sw_wsl_to_windows_path "$value")"
+		fi
+		setters+="\$env:$key='$value'; "
+	done
 
 	set +e
-	powershell.exe -NoProfile -NonInteractive -Command "$ps_cmd" >/dev/null 2>&1
+	powershell.exe -NoProfile -NonInteractive -Command \
+		"$setters \$p = Start-Process -FilePath '$win_exe' -Wait -PassThru; exit \$p.ExitCode" \
+		>/dev/null 2>&1
 	local status=$?
 	set -e
-
-	if [ -f "$log_path" ]; then
-		cat "$log_path"
-	fi
 	return "$status"
 }
 
-for mode in "${MODES[@]}"; do
+for scenario in $SCENARIOS; do
 	echo "============================================================"
-	echo "EXPORT PROFILE MODE: $mode"
+	echo "SCENARIO: $scenario"
 	echo "============================================================"
-	LOG_PATH="$OUT_DIR/${mode}.log"
-	JSON_PATH="$OUT_DIR/${mode}.json"
+	JSON="$OUT_DIR/${scenario}.json"
+	rm -f "$JSON"
 
+	mapfile -t EXTRA < <(scenario_env "$scenario")
+	if [ "$scenario" = "endgame" ] && [ ! -f "$ENDGAME_SAVE" ]; then
+		echo "skipped — no save at $ENDGAME_SAVE"
+		FAILED+=("$scenario:no_save")
+		echo
+		continue
+	fi
+
+	status=0
 	if [ "$PLATFORM" = "linux" ]; then
-		run_linux_mode "$mode" "$LOG_PATH" "$JSON_PATH"
-		status=$?
+		run_linux "$JSON" "${EXTRA[@]}" || status=$?
 	else
-		run_windows_mode "$mode" "$LOG_PATH" "$JSON_PATH"
-		status=$?
+		run_windows "$JSON" "${EXTRA[@]}" || status=$?
 	fi
+	[ "$status" -eq 0 ] || FAILED+=("$scenario:exit$status")
 
-	if [ "$status" -ne 0 ]; then
-		echo "warning: mode '$mode' exited with status $status" | tee -a "$LOG_PATH"
-		FAILED_MODES+=("$mode:$status")
-	fi
-	if [ ! -f "$JSON_PATH" ]; then
-		echo "warning: mode '$mode' did not produce $JSON_PATH" | tee -a "$LOG_PATH"
-		FAILED_MODES+=("$mode:no_json")
+	if [ ! -f "$JSON" ]; then
+		echo "no report at $JSON — the build has no PerfSampler (pre-2026-08-12 pack?)"
+		FAILED+=("$scenario:no_report")
+	else
+		python3 - "$JSON" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))
+s, e = d.get("steady_state", {}), d.get("environment", {})
+if not s:
+    print("  no steady-state frames sampled"); raise SystemExit
+print("  %-22s %s" % ("adapter", e.get("video_adapter") or "(none)"))
+print("  %-22s %.1f mean / %.1f p50 / %.1f 1%% low  (%d frames)" % (
+    "fps", s["fps_mean"], s["fps_p50"], s["fps_1pct_low"], s["frames"]))
+print("  %-22s %.1f p50 / %.1f p95 / %.1f max" % (
+    "frame ms", s["frame_ms_p50"], s["frame_ms_p95"], s["frame_ms_max"]))
+print("  %-22s %s" % ("trustworthy", d.get("trustworthy")))
+for c in d.get("caveats", []):
+    print("    ! " + c)
+PY
 	fi
 	echo
 done
 
-echo "Profiles written to: $OUT_DIR"
-if [ "${#FAILED_MODES[@]}" -gt 0 ]; then
-	echo "Profile modes with non-zero exit: ${FAILED_MODES[*]}"
+echo "Reports written to: $OUT_DIR"
+if [ "${#FAILED[@]}" -gt 0 ]; then
+	echo "Scenarios with problems: ${FAILED[*]}"
 	exit 1
 fi

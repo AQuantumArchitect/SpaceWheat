@@ -26,6 +26,7 @@ buses/default_bus_layout="res://default_bus_layout.tres"
 
 VerboseConfig="*res://Core/Config/VerboseConfig.gd"
 UIPerformanceTracker="*res://Core/Debug/UIPerformanceTracker.gd"
+PerfSampler="*res://Core/Debug/PerfSampler.gd"
 BootManager="*res://Core/Boot/BootManager.gd"
 IconRegistry="*res://Core/Factions/IconRegistry.gd"
 GameStateManager="*res://Core/GameState/GameStateManager.gd"

@@ -21,6 +21,10 @@ static func detect_software_renderer() -> bool:
 		"softpipe" in gpu_name or
 		"software" in gpu_name or
 		"microsoft basic render" in gpu_name or
+		# Direct3D12's software rasterizer reports as "… (WARP)". Parenthesised
+		# so a hardware adapter with "warp" inside its marketing name can't be
+		# mistaken for one.
+		"(warp)" in gpu_name or
 		"swiftshader" in vendor_name or
 		gpu_name == "unknown"
 	)
@@ -44,6 +48,19 @@ static func optimize_for_platform() -> void:
 	else:
 		VerboseHelper.info("perf", "gpu", "Hardware renderer detected on %s: %s" % [backend_name, gpu_name])
 		VerboseHelper.info("perf", "vsync", "Keeping VSYNC enabled for smooth presentation")
+
+	# A profiling run asks a different question than a play session. With vsync on
+	# (or max_fps pinned) the game reports the refresh rate and headroom is
+	# invisible: a build that could do 300 fps and one that can barely hold 60
+	# both read "60". SW_UNCAP_FPS lifts both caps so a profiler can see the
+	# ceiling. It is off for every player, and RuntimeEnv.describe() — which the
+	# perf report embeds verbatim — records whether it was on, so an uncapped
+	# number can never be mistaken for the capped one a player actually gets.
+	if RuntimeEnv.uncap_frame_rate():
+		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
+		Engine.max_fps = 0
+		VerboseHelper.info("perf", "fps", "SW_UNCAP_FPS: VSYNC off, no FPS cap (profiling run)")
+		return
 
 	# Apply settings
 	if is_software_render:

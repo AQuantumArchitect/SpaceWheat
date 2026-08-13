@@ -163,5 +163,7 @@ Core/…                           real actions: measure / harvest / incorporate
 
 - `🍄/📦_emoji_research/` — pre-consolidation emoji design work (gitignored). Live truth is the
   game's `icons.json` / `biomes.json`.
-- `🍄/🧪/*_🧬.md` — biome stress-test specs (buffer invalidation, force-graph scaling); run
-  independently, see `🍄/🧪/README_🧬.md`.
+- The `*_🧬` biome stress-test cluster — deleted 2026-08-12. Every script in it drove the
+  game with `--runtime-profile-*` flags that no code in the repo has ever parsed, so the
+  whole tree produced no measurements. Performance is measured by `SW_PERF_LOG` now
+  (`Core/Debug/PerfSampler.gd`), which ships inside the exported game.

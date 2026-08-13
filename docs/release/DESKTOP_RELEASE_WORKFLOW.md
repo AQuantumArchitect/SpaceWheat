@@ -111,18 +111,17 @@ STRICT_WINDOWS_PROFILE=1 ./scripts/validate-desktop-release.sh --version v0.1.0
 ### Windows Godot from WSL
 
 You can also drive a native Windows Godot binary from WSL-facing repo scripts.
-Set `SW_GODOT_BIN` to the Windows executable path under `/mnt/c/...` and use the
-normal profiler wrappers:
+Set `SW_GODOT_BIN` to the Windows executable path under `/mnt/c/...`; the shared
+launcher rewrites repo-local WSL paths to Windows-visible paths.
 
 ```bash
 export SW_GODOT_BIN='/mnt/c/Users/Luke Spooner/Documents/antigravity_i_guess/Godot/Godot_v4.6.2-stable_win64_console.exe'
-bash ./scripts/profile_headed_runtime.sh
-bash ./scripts/compare_headed_renderers.sh
-bash ./🍄/🧪/🧬.sh
 ```
 
-The shared launcher rewrites repo-local WSL paths to Windows-visible paths, so
-runtime JSON outputs land back inside the repo under `🍄/🎛️/.godot_tmp/...`.
+**Note on performance numbers from WSL: don't.** WSL has no GPU passthrough
+here, so a headed run lands on llvmpipe and any fps it reports is a software
+rasteriser's, not the machine's. Profiling is a Windows-side job — see
+`docs/performance/PROFILING.md`.
 
 Linux:
 

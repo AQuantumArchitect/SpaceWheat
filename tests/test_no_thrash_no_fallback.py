@@ -61,6 +61,11 @@ WRITE_WHITELIST = {
     "Core/Config/VerboseConfig.gd",         # opt-in file log, 50MB hard cap
     "Core/Instrumentation/QuantumInstrument.gd",  # explicit balance_export rig action
     "Core/Instrumentation/FractalAtlas.gd",  # export_json_path: atlas snapshot on inject/enter/ascend, not per-frame
+    # Exactly one write, at the end of a profiling run, and only when
+    # SW_PERF_LOG is set — which is never in a player's build. Reviewed
+    # because a per-frame sampler writing per-frame would be this test's
+    # nightmare case: the in-memory ring is flushed once, on the way out.
+    "Core/Debug/PerfSampler.gd",
 }
 
 
