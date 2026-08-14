@@ -4,7 +4,7 @@ Assets: `releases/store_kit/` — 7 screenshots + `tap_loop.gif` (22 frames).
 Note: kit shots were taken from a debug run (FPS text visible top-right in
 one shot); retake `01_living_farm` from the release build before publish,
 or crop. Page settings: slug `spacewheat`, classification Game, pricing
-$0-or-donate ("free beta — will be paid at 1.0"), tags below.
+$0-or-donate ("free alpha — will be paid at 1.0"), tags below.
 
 Angle: cozy-weird farming first — the loop and the island up front, the
 real physics revealed as the twist. Play-in-browser + desktop downloads.
@@ -61,7 +61,7 @@ and an aftermath. Watching pays.
 - Postcards: every act you complete is captured with its physics certificate
 - No RNG behind a curtain — the only randomness is the Born rule itself
 
-**Beta.** This is the first public build. The campaign plays end-to-end and
+**Alpha.** This is the first public build. The campaign plays end-to-end and
 is verified by an automated battery before every push — but you are among
 the first humans to ever touch it. If something confuses you or breaks,
 say so in the comments (Menu → Dev → "copy logs" puts a report on your
@@ -75,7 +75,7 @@ clipboard). Confusion reports are as valuable as crash reports.
   simulation, idle, singleplayer, mouse-only, education
 - **Genre:** Simulation / Puzzle
 - **Platforms:** HTML5 (play in browser), Windows, Linux
-- **Pricing:** free / donations enabled, "beta — 1.0 will be paid"
+- **Pricing:** free / donations enabled, "alpha — 1.0 will be paid"
 - **Community:** comments enabled (they're the feedback channel)
 
 ## Screenshot order

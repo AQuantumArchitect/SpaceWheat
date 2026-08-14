@@ -49,13 +49,20 @@ Same MIT terms as the engine; full text at `godot-cpp/LICENSE.md`.
 
 ## Music
 
-The 25 tracks in `Assets/Audio/Music/` were composed with **Suno** by Luke
-Spooner, under a paid Suno plan that grants commercial use and redistribution
-of the generated audio.
+The 25 tracks in `Assets/Audio/Music/` were generated with **Suno** under a
+Suno Pro account belonging to Luke Spooner's brother, and granted to Luke for
+commercial use in this project.
 
 Recorded here because the generator is not otherwise evident from the shipped
-files, and because a claim of commercial rights should name the basis it rests
-on rather than leave a future reader to guess.
+files (the tracks still carry Suno's `made with suno` tag in their ID3
+metadata), and because a claim of commercial rights should name the basis it
+rests on rather than leave a future reader to guess.
+
+The rights here come from a grant by a third party rather than from the
+account holder shipping their own output. That is a normal arrangement, and
+the tracks stay in the build — but a one-line written confirmation from the
+account holder, kept with the project records, is what makes this paragraph
+verifiable later by someone who wasn't in the room.
 
 ## Sound effects
 

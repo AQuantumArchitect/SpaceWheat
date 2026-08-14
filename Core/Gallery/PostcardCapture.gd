@@ -78,7 +78,11 @@ func capture() -> void:
 	var f := FileAccess.open(base + ".json", FileAccess.WRITE)
 	if f != null:
 		f.store_string(JSON.stringify(cert, "  ") + "\n")
-	_toast("📮 postcard: %s.png" % base)
+	# `user://` is a Godot virtual path — it does not exist on the player's disk,
+	# and F12 is advertised in three player-facing places, so this toast is the
+	# headline feature's only pointer to its own output. Globalize it so the
+	# player can actually open the folder.
+	_toast("📮 postcard: %s.png" % ProjectSettings.globalize_path(base))
 
 
 func _watermark_line(cert: Dictionary) -> String:

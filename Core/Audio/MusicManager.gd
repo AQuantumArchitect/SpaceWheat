@@ -118,7 +118,13 @@ const CROSSFADE_DURATION: float = 0.8
 const MIN_CROSSFADE_INTERVAL: float = 0.5
 
 ## Volume settings
-var _volume: float = 0.7  # 0.0 to 1.0
+# 0.45, not 0.7. The ONLY volume control in the game is the Balance tab's
+# music row, and "balance" is locked until every Act-0 tutorial quest clears
+# (UIProgression.ESCAPE_TAB_LOCKED_UNTIL_ACT0_DONE) — so a first-time player
+# has no way to turn the music down for the whole tutorial. Until that control
+# moves somewhere reachable, the default has to be a level nobody needs to
+# escape from. A player who wants it louder can raise it once Balance opens.
+var _volume: float = 0.45  # 0.0 to 1.0
 var _muted: bool = false
 
 ## Audio players for crossfading
@@ -1232,7 +1238,7 @@ func _load_volume_preference() -> void:
 	var config = ConfigFile.new()
 	var err = config.load("user://settings.cfg")
 	if err == OK:
-		_volume = config.get_value("audio", "music_volume", 0.7)
+		_volume = config.get_value("audio", "music_volume", 0.45)
 
 
 func _is_headless() -> bool:

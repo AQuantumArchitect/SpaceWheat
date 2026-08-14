@@ -1133,7 +1133,7 @@ func _make_balance_action_row(idx: int, slot_idx: int) -> Control:
 # MusicManager. Every economy/physics knob is DERIVED from BalanceConfig.TUNABLES
 # via board_specs() — the single source of truth. open_only rows (Lindbladian-only)
 # are filtered out in the closed system.
-const _MUSIC_ROW := {"id": "music_volume", "label": "Music volume", "category": "Audio", "value_path": [], "kind": "music_pct", "step": 5, "min": 0, "max": 100, "default": 70}
+const _MUSIC_ROW := {"id": "music_volume", "label": "Music volume", "category": "Audio", "value_path": [], "kind": "music_pct", "step": 5, "min": 0, "max": 100, "default": 45}
 
 func _ensure_balance_settings_loaded() -> void:
 	if _balance_settings.is_empty():

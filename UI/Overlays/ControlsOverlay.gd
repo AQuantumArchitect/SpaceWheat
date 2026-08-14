@@ -1469,7 +1469,7 @@ func _guide_quick_reference() -> void:
 	_body_box.add_child(_make_action_row("1/2/3", "Pick sub-mode", "Direct sub-mode select within current frame"))
 	_body_box.add_child(_make_action_row("4-0", "Frame hat",    "Pick archetype frame; re-press toggles to Ace"))
 	_body_box.add_child(_make_action_row("WASD", "Spin cylinder", "W/S rotate between rings (frame/biome/plot/surface), A/D step around the active ring"))
-	_body_box.add_child(_make_action_row("F12", "Postcard",    "Capture the view with the physics watermark in the pixels + a certificate (user://postcards/)"))
+	_body_box.add_child(_make_action_row("F12", "Postcard",    "Capture the view with the physics watermark in the pixels + a certificate. The toast names the folder."))
 	_body_box.add_child(_make_spacer(4))
 	_body_box.add_child(_make_section_header("rows"))
 	_body_box.add_child(_make_action_row("4-0",         "Frames",  ""))
