@@ -1,6 +1,6 @@
 ---
 term: enclave
-short_def: The closed world of v0 — only measurement leaves a scar. The enclave holds.
+short_def: The closed world of the island — only measurement leaves a scar. It holds.
 related: [biome, webway, icon, cloud, measurement, berry, resonance]
 since: 2026-07-04
 status: canonical

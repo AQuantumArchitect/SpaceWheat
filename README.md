@@ -15,7 +15,7 @@ are the only irreversible acts. "Measurement IS the economy." The full dissipati
 machinery (Lindblad channels, decoherence, weak measurement) is authored throughout and
 wakes **per-biome**: the post-story campaign *What Fades* (`docs/OPEN_CAMPAIGN.md`)
 walks the player out of the enclave into the **wet country** — 64 biomes whose authored
-webways run live — and ends with the door open for good, leaving the full 162-biome
+webways run live — and ends with the door open for good, leaving the full 164-biome
 world to explore with open and closed dynamics coexisting. The island the player grew up
 on stays closed forever: home is the thing the open world teaches you to miss
 (`docs/CLOSED_SYSTEM.md`, `docs/inspiration/OPEN_SYSTEM_ACT2.md`).
@@ -163,7 +163,7 @@ The inspector overlay (N key) shows the raw density matrix as a heatmap and prob
 
 ### Biomes
 
-64 biomes, each with a unique Hamiltonian, Lindblad configuration, and emoji palette. StarterForest has a day/night oscillation driving sun/moon populations. FungalNetworks has cross-coupled mushroom ecology. Each biome feels mechanically different because the quantum dynamics actually are different.
+The wet country's 64 biomes each carry a unique Hamiltonian, Lindblad configuration, and emoji palette. StarterForest has a day/night oscillation driving sun/moon populations. FungalNetworks has cross-coupled mushroom ecology. Each biome feels mechanically different because the quantum dynamics actually are different.
 
 Navigate biomes with T-Y-U-I-O-P (6 active slots). Select plots within a biome with J-K-L-;-'-H-G.
 
@@ -184,7 +184,7 @@ state or data truth, never hand-drawn:
   <img src="docs/atlas/samples/Lanternfall.svg" width="32%" alt="Lanternfall atlas plate">
 </p>
 
-- **The atlas** — `python3 tools/atlas_plates.py` renders all 162 biomes as
+- **The atlas** — `python3 tools/atlas_plates.py` renders all 164 biomes as
   SVG plates straight from `biomes.json` (the file the engine boots from) in
   about a second, plus a contact sheet. A curated sixteen-plate exhibition
   ships as one self-contained page — [`docs/gallery/index.html`](docs/gallery/index.html)
@@ -237,7 +237,7 @@ Windows ship in `native/bin/`.
 
 Run the four gate suites (142 tests):
 ```bash
-bash run_quantum_gate_tests.sh
+bash 🍄/🧪/🔬.sh
 ```
 
 Or run everything through the 🍄 automation lane, with per-suite selection:
@@ -257,7 +257,7 @@ bash 🍄/🧪/🔬.sh --suite closed
 Core/
   QuantumSubstrate/    Quantum computer, gates, density matrix, circuit builder
   Environment/         Biome implementations, evolution batcher
-  Biomes/              Biome registry + data (biomes_merged.json)
+  Biomes/              Biome registry + data (biomes.json)
   Config/Hamiltonians/ Per-biome Hamiltonian configurations (JSONL)
   Actions/             Explore/Measure/Pop/Reap action handlers
   GameMechanics/       Farm economy, grid, terminal pool
@@ -279,8 +279,8 @@ native/                C++ GDExtension (libquantummatrix)
 Requires Godot 4.5. Open the project in the WSL-aware editor launcher, or run headless:
 
 ```bash
-./launch_game.sh                 # play (Linux, headed)
-./editor_launch.sh               # open in the Godot editor
+./scripts/launch_game.sh         # play (Linux, headed)
+./scripts/editor_launch.sh       # open in the Godot editor
 python3 -m pytest tests/ -q      # Python test suite (rig-driven + source contracts)
 ```
 - Native C++ extension: `cd native && scons` (see **[`BUILDING.md`](BUILDING.md)**).
@@ -309,4 +309,9 @@ docs/          Documentation — start at GAME_CODEX.md
 
 ## License
 
-All rights reserved. Contact for licensing inquiries.
+MIT — see [`LICENSE`](LICENSE).
+
+Bundled third-party assets carry their own terms; Twemoji in particular is
+CC-BY 4.0 and its attribution is owed. See
+[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md), which ships inside every
+release archive.

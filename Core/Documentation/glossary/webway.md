@@ -1,6 +1,6 @@
 ---
 term: webway
-short_def: A biome's Lindblad flow-graph — the food web. Authored everywhere, sealed in v0.
+short_def: A biome's Lindblad flow-graph — the food web. Authored everywhere, still sealed.
 related: [cloud, atom, biome, enclave, measurement]
 since: 2026-05-30
 status: canonical

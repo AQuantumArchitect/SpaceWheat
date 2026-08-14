@@ -1,12 +1,15 @@
 # The Web Door — lane and policy
 
-> The Gallery, G4 (`docs/ENGINE_FRONTIER.md`, Part II). Status, 2026-07-04:
-> **the lane is complete; the first real run is pending.** This container has
-> no Godot binary, so the browser smoke has been validated end-to-end against
-> a fixture bundle (server spawn, COOP/COEP isolation, canvas detection, FPS
-> and responsiveness sampling, JSON verdict — measured 58.8 fps on the
-> fixture). The first run against a real export belongs to a machine with
-> Godot 4.5 + web templates; it is three commands (below).
+> The Gallery, G4 (`docs/ENGINE_FRONTIER.md`, Part II). Status, **2026-08-13**:
+> **the lane is complete and it has run — twice, on real exports.** See "First
+> real run — 2026-07-05" and "The hardware run — 2026-08-12" below. The bundle
+> boots in a real browser through the native-class gate and runs the C++ Eigen
+> physics; on hardware WebGL it holds **59.7 fps mean**, six times the 20 fps
+> floor this document sets.
+>
+> This header used to say "the first real run is pending" while sitting two
+> sections above the run that happened, and it is linked from `README.md` —
+> one click from the front page.
 
 ## Why this door matters
 
@@ -113,6 +116,6 @@ Full write-up: `docs/performance/PROFILE_2026-08-12.md`.
       WSL filesystem bridge and then the WSL2 localhost bridge, so it is an upper
       bound, not a measurement. A native run from
       `C:\Games\SpaceWheat-Releases\profiling-kit\` settles it.
-- Note: bundle weight is now 193MB zipped (`index.pck` 183MB), down from the
-  385MB recorded above. Since the frame rate is no longer near the floor, a
+- Note: the shipped bundle is **192,622,078 bytes zipped** (~184 MiB;
+  `index.pck` 183 MB). Since the frame rate is no longer near the floor, a
   web-specific asset diet is a **load-time** question only.

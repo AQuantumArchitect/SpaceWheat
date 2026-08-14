@@ -57,7 +57,7 @@
       "faction": "Hearth Keepers",
       "biome": "StarterForest",
       "body": "A qubit alone is a wheel. Two qubits woven together are a loom — touch one and the other answers, however far apart they drift.",
-      "tutorial_hint": "Operator hat: press 9. Shift + two plot keys picks a pair. Then R weaves a Bell. Watch the gold thread between their bubbles — each weave pulls them closer, and the bar fills as you weave.",
+      "tutorial_hint": "Operator hat: press 9. Shift + two plot keys picks a pair. R opens the gate picker — then Q weaves the Bell. Watch the gold thread between their bubbles — each weave pulls them closer, and the bar fills as you weave.",
       "math_note": "Fires the instant your action history records 1 bell gate (a single Bell weave) — a structural count, not a soft gate.",
       "state_predicates": [
         {"type": "gate_sequence_contains", "gate": "bell", "count": 1}

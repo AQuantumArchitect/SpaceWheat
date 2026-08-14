@@ -133,7 +133,12 @@ func _input(event: InputEvent) -> void:
 
 	# Note: Tool selection (1-4) is handled by QuantumInstrumentInput via signals
 	if event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_F3:  # F3 to toggle debug layout display
+		# F3 dumps a raw layout-debug overlay — node rects, container sizes,
+		# developer language. It was reachable in the release export with no gate
+		# at all. RuntimeEnv.debug_readout_enabled() is the existing authority for
+		# "is a developer readout allowed on this screen"; use it rather than add
+		# a second visibility rule.
+		if event.keycode == KEY_F3 and RuntimeEnv.debug_readout_enabled():
 			debug_layout_visible = not debug_layout_visible
 			_update_debug_display()
 			get_viewport().set_input_as_handled()

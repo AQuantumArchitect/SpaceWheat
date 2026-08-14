@@ -1,6 +1,6 @@
 # Itch Status
 
-Current itch.io readiness for SpaceWheat as of 2026-04-24.
+Current itch.io readiness for SpaceWheat as of **2026-08-13**.
 
 > **Update 2026-07-11:** owner confirms the game is playable in the browser —
 > the soft-launch page promises "play in the browser, or download for
@@ -59,32 +59,44 @@ What is now measured, not assumed:
 - It carries its build stamp like any desktop pack, so a browser bug report names
   its commit.
 
-**The one open number: framerate.** `smoke-test-web-export.mjs` measures 9.5 fps
-against its floor of 20 — but its own report names the renderer:
-`SwiftShader` (software rasterization). That is the case WEB_DOOR explicitly says
-cannot judge the floor. The remaining gate is one run on hardware WebGL. Until
-someone has that number, "it boots and computes correctly in a browser" is a
-stronger claim than the fps line supports, and neither should be traded for the
-other.
+**Framerate — answered 2026-08-12.** **59.7 fps mean, p95 19.5 ms, worst frame
+37 ms**, against the 20 fps floor in `WEB_DOOR.md`. Measured on hardware WebGL
+through ANGLE on an Intel HD 5600 — the *integrated* GPU, so this is near a
+floor for that machine, not a best case.
 
-Weight is the other lever if the hardware number lands near the floor: the
-bundle is ~221 MB (183 MB of it `index.pck`), which is a slow first load on a
-cold cache regardless of fps.
+This retires the 9.5 fps that stood here. That number's own report named its
+renderer as `SwiftShader` (software rasterization), which `WEB_DOOR.md`
+explicitly says cannot judge the floor. The real hardware figure is **six times
+better**, which is the size of error a software rasteriser introduces — and the
+reason every frame rate in this project must carry the renderer it was measured
+on.
 
-## Practical recommendation
+Weight is the remaining lever: the bundle is ~184 MiB zipped (183 MB of it
+`index.pck`), which is a slow first load on a cold cache regardless of fps.
 
-If you want itch soon:
+## Practical recommendation (2026-08-13)
 
-1. ship Linux desktop
-2. ship Windows desktop
-3. do not promise the web build yet
+Ship all three channels: **Linux desktop, Windows desktop, and web.**
 
-## To make web believable
+This replaces the standing "do not promise the web build yet" that sat here
+until 2026-08-13. It was written in April and never retired, so the file's
+closing advice contradicted both its own supersede note above *and* the two
+store copies, which promise browser play (`ITCH_PAGE.md`).
 
-You would want at minimum:
+The five conditions that section set for making web believable have all been
+met:
 
-1. one repeatable export script that produces the web bundle from current repo state
-2. one browser smoke lane that verifies the exported game boots and remains responsive
-3. a realistic performance profile for the real runtime, not an archived test scene
-4. a clear statement about whether the web build is feature-complete or degraded
-5. an explicit decision on whether web remains GDScript-only or regains a native-extension path
+1. **Repeatable export** — `scripts/build-web-local.sh` produces the bundle
+   from current repo state.
+2. **Browser smoke lane** — `scripts/smoke-test-web-export.mjs`, run against a
+   real export, not a fixture.
+3. **Real-runtime performance** — 59.7 fps mean on hardware WebGL, p95 19.5 ms.
+   Six times the 20 fps floor in `WEB_DOOR.md`.
+4. **Feature-complete, not degraded** — the bundle boots through the
+   native-class gate and prints `ComplexMatrix native acceleration enabled
+   (Eigen)`. There is no GDScript fallback for it to have quietly taken.
+5. **Native-extension path** — resolved: `web.threads.wasm32` with the lib
+   compiled `-pthread`.
+
+The one number still worth improving is **first load**: the bundle is ~184 MiB
+zipped, which is a slow cold start regardless of frame rate.

@@ -1,6 +1,6 @@
 ---
 term: biome
-short_def: A full dissipative scaffold - cloud of atoms + Lindblad physics + visual config.
+short_def: A full dissipative scaffold - cloud of atoms + Lindblad physics + its own look.
 related: [atom, cloud, signature, neighborhood, faction, webway, enclave]
 since: 2026-05-09
 status: canonical

@@ -61,6 +61,10 @@ func _run() -> void:
 		if "session_load_slot" in gsm:
 			gsm.session_load_slot = 1
 		_check(menu._pick_auto_save_slot(gsm, EscapeMenu.PendingAction.RESTART) == 1, "Restart autosave prefers the last touched slot")
+		# QUIT used to read a property that does not exist (`last_saved_slot`),
+		# so it always resolved to 0 — a save-and-quit from slot 2 overwrote
+		# slot 1. Both actions must target the slot the run came from.
+		_check(menu._pick_auto_save_slot(gsm, EscapeMenu.PendingAction.QUIT) == 1, "Quit autosave targets the last touched slot, not slot 0")
 		menu._show_tab(EscapeMenu.Tab.RUN)
 		menu._refresh_body()
 		await process_frame

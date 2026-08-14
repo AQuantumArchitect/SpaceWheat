@@ -172,7 +172,7 @@ cd exports && python3 ../scripts/serve-web-local.py . --port 8000
 ### Current Desktop Workflow
 ```bash
 ./scripts/build-desktop-local.sh --install-templates
-./scripts/package-desktop-builds.sh --version v0.1.0
+./scripts/package-desktop-builds.sh
 ./scripts/deploy-windows-desktop.sh
 ./scripts/build-web-local.sh --install-templates
 ```
@@ -394,7 +394,7 @@ Godot supports hot-reloading GDScript changes, but C++ changes require:
 
 ```bash
 # Run the full quantum physics suite (142 tests)
-bash run_quantum_gate_tests.sh
+bash 🍄/🧪/🔬.sh
 
 # Run a specific suite directly
 godot --headless --script tests/test_gate_exact_states.gd

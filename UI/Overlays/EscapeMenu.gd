@@ -1641,7 +1641,8 @@ func _confirm_save_and_act() -> void:
 	var action := _pending_action
 	match action:
 		PendingAction.QUIT, PendingAction.RESTART:
-			_autosave_before_action(action)
+			if not _autosave_before_action(action):
+				return  # refusal already spoke; leave the confirm armed
 			_execute_pending_action()
 		PendingAction.DEV_RESTART:
 			_execute_pending_action()
@@ -1682,24 +1683,38 @@ func _execute_pending_action() -> void:
 			_dismiss_confirm()
 			_do_load_from_selected_slot()  # async; deactivates itself on success
 
-func _autosave_before_action(action: int) -> void:
+## Returns true when it is safe to go ahead with the quit/restart: either the
+## run was written, or there was no run to write. Returns false ONLY when a real
+## save was attempted and failed — quitting through a failed save would discard
+## the session silently, which is the one outcome this button must never have.
+func _autosave_before_action(action: int) -> bool:
 	var gsm = (Engine.get_main_loop().root.get_node_or_null("/root/GameStateManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
-	if not gsm or not ("save_load" in gsm):
-		return
+	if not gsm or not ("save_load" in gsm) or not _has_loaded_game():
+		return true
 	var slot := _pick_auto_save_slot(gsm, action)
-	gsm.save_load.save_game(slot)
+	if gsm.save_load.save_game(slot):
+		return true
+	RefusalVoice.refuse("Save", "slot %d could not be written — your run is still here" % (slot + 1))
+	return false
 
-func _pick_auto_save_slot(gsm, action: int) -> int:
-	if action == PendingAction.RESTART:
-		var touched := _get_last_touched_slot(gsm)
-		if touched >= 0:
-			return touched
-		var checkpoint = gsm.get("session_load_slot") if gsm.get("session_load_slot") != null else -1
-		if int(checkpoint) >= 0:
-			return int(checkpoint)
-		return 0
-	var last = gsm.get("last_saved_slot") if gsm.get("last_saved_slot") != null else -1
-	return int(last) if int(last) >= 0 else 0
+## Both QUIT and RESTART autosave into the slot THIS RUN CAME FROM. One
+## resolution, no per-action special case.
+##
+## The QUIT branch used to read `gsm.get("last_saved_slot")` — a property no
+## GameStateManager has ever defined (it is `last_active_slot`). `get()` on a
+## missing property returns null, so the guard fell through to -1 and QUIT
+## always resolved to slot 0. A player who loaded slot 3, played, and chose
+## "save & quit" had that run written over slot 1, destroying an unrelated save.
+## `_action` is deliberately unused: QUIT and RESTART resolve identically now.
+## The parameter stays so callers and the smoke test keep one call shape.
+func _pick_auto_save_slot(gsm, _action: int) -> int:
+	var touched := _get_last_touched_slot(gsm)
+	if touched >= 0:
+		return touched
+	var checkpoint = gsm.get("session_load_slot") if gsm and gsm.get("session_load_slot") != null else -1
+	if int(checkpoint) >= 0:
+		return int(checkpoint)
+	return 0
 
 # =============================================================================
 # ACTIONS PER TAB
@@ -1759,7 +1774,15 @@ func _do_save_to_selected_slot() -> void:
 	var gsm = (Engine.get_main_loop().root.get_node_or_null("/root/GameStateManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
 	if not gsm or not ("save_load" in gsm):
 		return
-	gsm.save_load.save_game(_keep_slot)
+	# save_game() returns false on "no active game" and on a write failure.
+	# Announcing "saved" regardless is the worst kind of lie a save button can
+	# tell — the player closes the game believing the run is on disk.
+	if not _has_loaded_game():
+		RefusalVoice.refuse("Save", "there is no live run to save")
+		return
+	if not gsm.save_load.save_game(_keep_slot):
+		RefusalVoice.refuse("Save", "slot %d could not be written" % (_keep_slot + 1))
+		return
 	_toast_shell("💾 saved to slot %d" % (_keep_slot + 1))
 	_refresh_body()
 
@@ -1816,10 +1839,7 @@ func _get_last_touched_slot(gsm) -> int:
 	if gsm.has_method("find_best_save_slot"):
 		return int(gsm.find_best_save_slot())
 	var last_active: int = int(gsm.get("last_active_slot")) if gsm.get("last_active_slot") != null else -1
-	if int(last_active) >= 0:
-		return int(last_active)
-	var last_saved: int = int(gsm.get("last_saved_slot")) if gsm.get("last_saved_slot") != null else -1
-	return int(last_saved) if int(last_saved) >= 0 else -1
+	return int(last_active) if int(last_active) >= 0 else -1
 
 func _get_last_touched_info(gsm, slot: int) -> Dictionary:
 	if slot < 0 or not gsm or not ("save_load" in gsm):

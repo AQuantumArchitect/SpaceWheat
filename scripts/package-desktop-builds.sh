@@ -62,6 +62,17 @@ command -v python3 >/dev/null 2>&1 || error "python3 not found"
 
 mkdir -p "$PACKAGE_ROOT"
 
+# Twemoji is CC-BY 4.0 and attribution is its ONE condition. The rc3 archives
+# carried binaries only (windows zip = 2 entries, linux tar = 3), so that
+# condition was unmet in every artifact shipped so far. These two files are not
+# paperwork — they are the licence terms travelling with the thing they cover.
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+for legal in LICENSE THIRD_PARTY_NOTICES.md; do
+    [ -f "$REPO_ROOT/$legal" ] || error "Missing $legal — refusing to package an archive without its licence"
+    cp "$REPO_ROOT/$legal" "$WINDOWS_DIR/$legal"
+    cp "$REPO_ROOT/$legal" "$LINUX_DIR/$legal"
+done
+
 WINDOWS_ARCHIVE="$PACKAGE_ROOT/spacewheat-windows-${VERSION_TAG}.zip"
 LINUX_ARCHIVE="$PACKAGE_ROOT/spacewheat-linux-${VERSION_TAG}.tar.gz"
 

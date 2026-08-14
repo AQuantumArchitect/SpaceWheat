@@ -41,6 +41,50 @@ def test_project_version_is_not_the_stale_beta():
     )
 
 
+def test_windows_binary_declares_a_version_and_a_copyright():
+    """Right-click → Properties must not contradict the game inside.
+
+    These four fields are the ONE version surface that does not read through
+    BuildInfo: Windows accepts only `a.b.c.d`, so they cannot hold "0.1.0-alpha"
+    and cannot be derived from config/version by the packaging script. Left at
+    Godot's default they report FileVersion 1.0.0.0 — which is what the rc3
+    .exe actually shipped, a binary claiming 1.0 final while the title screen
+    said rc3. Relabelling the release does not move them, so they need their own
+    assertion or they drift again.
+    """
+    src = _read(ROOT / "export_presets.cfg")
+    for field in ("application/file_version", "application/product_version"):
+        m = re.search(rf'^{re.escape(field)}="([^"]*)"', src, re.M)
+        assert m, f"{field} vanished from export_presets.cfg"
+        assert re.fullmatch(r"\d+\.\d+\.\d+\.\d+", m.group(1)), (
+            f"{field} must be four integers (Windows accepts nothing else); got {m.group(1)!r}"
+        )
+    copyright_m = re.search(r'^application/copyright="([^"]*)"', src, re.M)
+    assert copyright_m and copyright_m.group(1).strip(), (
+        "application/copyright is empty — the shipped .exe carries no LegalCopyright"
+    )
+
+
+def test_archives_carry_their_licence():
+    """Twemoji is CC-BY 4.0 and attribution is its only condition.
+
+    Every rc3 archive contained binaries only, so that condition was unmet in
+    everything shipped so far. The notices file existing in the repo satisfies
+    nothing — it has to travel inside the artifact, which is what the packaging
+    script now guarantees (and refuses to build without).
+    """
+    assert (ROOT / "LICENSE").is_file(), "no LICENSE at repo root"
+    notices = ROOT / "THIRD_PARTY_NOTICES.md"
+    assert notices.is_file(), "no THIRD_PARTY_NOTICES.md at repo root"
+    body = _read(notices)
+    for owed in ("Twemoji", "CC-BY 4.0", "Eigen", "MPL", "Godot"):
+        assert owed in body, f"THIRD_PARTY_NOTICES.md never mentions {owed}"
+    packaging = _read(ROOT / "scripts/package-desktop-builds.sh")
+    assert "THIRD_PARTY_NOTICES.md" in packaging and "LICENSE" in packaging, (
+        "packaging script does not copy the licence files into the archives"
+    )
+
+
 def test_package_and_push_take_their_version_from_the_game():
     """An artifact can never be named something the game does not claim.
 
