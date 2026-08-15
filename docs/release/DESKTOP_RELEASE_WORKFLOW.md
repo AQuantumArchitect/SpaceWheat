@@ -1,5 +1,16 @@
 # Desktop Release Workflow
 
+This is the desktop lane in detail. To cut a **whole** release — desktop and
+browser, gated and packaged, with a manifest — you want one command instead:
+
+```bash
+./scripts/release.sh
+```
+
+See `docs/release/RELEASE_ARCHITECTURE.md` for the shape. Everything below is
+the desktop half of it, and is what you reach for when working on that lane
+specifically.
+
 This is the current local release path for SpaceWheat desktop builds.
 
 The runtime entry scene is `res://scenes/Main.tscn`.

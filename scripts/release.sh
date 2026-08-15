@@ -32,6 +32,8 @@ VERSION_TAG="${VERSION_TAG:-$(sw_project_version)}"
 DO_DESKTOP=true
 DO_WEB=true
 DO_PHYSICS_GATE=true
+GATE_ADVISORY=false
+PHYSICS_GATE_RESULT="not run"
 WEB_EXTRA=()
 DESKTOP_EXTRA=()
 
@@ -46,6 +48,11 @@ Options:
   --desktop-only        Skip the browser lane
   --web-only            Skip the desktop lane
   --skip-physics-gate   Skip scripts/run_tests.sh before building
+  --gate-advisory       Run the physics gate but do NOT stop on failure. The
+                        manifest records exactly which state it ended in, so
+                        the archives stay honestly labelled. For cutting a
+                        build off a tree with known-red tests you have already
+                        judged.
   --skip-web-gate       Pass --skip-gate to the web lane (ships UNVERIFIED
                         against a host that omits isolation headers)
   --skip-smoke          Pass --skip-smoke to both lanes
@@ -72,6 +79,7 @@ while [[ $# -gt 0 ]]; do
         --desktop-only)      DO_WEB=false; shift ;;
         --web-only)          DO_DESKTOP=false; shift ;;
         --skip-physics-gate) DO_PHYSICS_GATE=false; shift ;;
+        --gate-advisory)     GATE_ADVISORY=true; shift ;;
         --skip-web-gate)     WEB_EXTRA+=(--skip-gate); shift ;;
         --skip-smoke)        WEB_EXTRA+=(--skip-smoke); DESKTOP_EXTRA+=(--skip-smoke); shift ;;
         --help|-h)           show_help; exit 0 ;;
@@ -109,9 +117,25 @@ fi
 
 if [ "$DO_PHYSICS_GATE" = true ]; then
     log "Physics / smoke gate"
-    "$PROJECT_DIR/scripts/run_tests.sh" 2>&1 | tee "$RUN_DIR/physics-gate.log"
-    success "Physics gate passed"
+    # set -o pipefail is on, so a failing gate really does fail here rather
+    # than being masked by tee's exit code.
+    if "$PROJECT_DIR/scripts/run_tests.sh" 2>&1 | tee "$RUN_DIR/physics-gate.log"; then
+        PHYSICS_GATE_RESULT="passed"
+        success "Physics gate passed"
+    elif [ "$GATE_ADVISORY" = true ]; then
+        # Named in the manifest rather than swallowed. A build that shipped
+        # past a red gate is allowed; a build that hides it is not.
+        FAILED_NAMES="$(grep -oP '(?<=^FAILED )\S+' "$RUN_DIR/physics-gate.log" 2>/dev/null | head -20 | paste -sd, - || true)"
+        PHYSICS_GATE_RESULT="FAILED, built anyway (advisory)${FAILED_NAMES:+ — $FAILED_NAMES}"
+        warn "Physics gate FAILED. --gate-advisory is set, so the cut continues."
+        warn "The manifest will say so: $PHYSICS_GATE_RESULT"
+    else
+        PHYSICS_GATE_RESULT="FAILED"
+        error "Physics gate failed — see $RUN_DIR/physics-gate.log
+Pass --gate-advisory to cut anyway; the manifest then records the failure."
+    fi
 else
+    PHYSICS_GATE_RESULT="SKIPPED"
     warn "Skipping physics gate"
 fi
 
@@ -160,7 +184,7 @@ mkdir -p "$PACKAGE_ROOT"
     echo "| cut | $(date -u '+%Y-%m-%d %H:%M UTC') |"
     echo "| desktop lane | $DESKTOP_RESULT |"
     echo "| web lane | $WEB_RESULT |"
-    echo "| physics gate | $([ "$DO_PHYSICS_GATE" = true ] && echo "ran" || echo "SKIPPED") |"
+    echo "| physics gate | $PHYSICS_GATE_RESULT |"
     echo "| gate logs | \`releases/validation/$SW_RUN_TIMESTAMP/\` |"
     echo
     if [[ "$SOURCE_ID" == *dirty* ]]; then
