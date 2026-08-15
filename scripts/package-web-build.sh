@@ -30,13 +30,15 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 source "$SCRIPT_DIR/lib/log.sh"
 source "$SCRIPT_DIR/lib/build_stamp.sh"
+source "$SCRIPT_DIR/lib/release_paths.sh"
 
-EXPORT_DIR="${EXPORT_DIR:-$PROJECT_DIR/releases/web}"
-PACKAGE_ROOT="${PACKAGE_ROOT:-$PROJECT_DIR/releases/packages}"
+# build-web-local.sh writes here. This default used to say releases/web,
+# which nothing has ever produced, so the packager refused on a bare run.
+EXPORT_DIR="$(sw_web_export_root)"
+PACKAGE_ROOT="$(sw_package_root)"
 FORCE=false
 
-PROJECT_VERSION="$(grep -oP '^config/version="\K[^"]+' "$PROJECT_DIR/project.godot" 2>/dev/null || true)"
-VERSION_TAG="${VERSION_TAG:-${PROJECT_VERSION:-dev}}"
+VERSION_TAG="${VERSION_TAG:-$(sw_project_version)}"
 
 show_help() {
     cat << 'EOF'
@@ -46,7 +48,7 @@ Usage:
   ./scripts/package-web-build.sh [OPTIONS]
 
 Options:
-  --export-dir PATH     Exported web bundle (default: ./releases/web)
+  --export-dir PATH     Exported web bundle (default: ./releases/web-local)
   --package-root PATH   Archive output root (default: ./releases/packages)
   --version TAG         Version label (default: config/version from project.godot)
   --force               Overwrite an archive of the same name (default: refuse)

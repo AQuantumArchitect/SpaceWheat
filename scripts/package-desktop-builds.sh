@@ -3,15 +3,16 @@
 
 set -euo pipefail
 
-OUTPUT_ROOT="${OUTPUT_ROOT:-$(pwd)/releases/local}"
-PACKAGE_ROOT="${PACKAGE_ROOT:-$(pwd)/releases/packages}"
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/log.sh"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/release_paths.sh"
+
+OUTPUT_ROOT="$(sw_desktop_export_root)"
+PACKAGE_ROOT="$(sw_package_root)"
 
 # Default version = application/config/version in project.godot (the same string
 # the title screen shows), so archives and in-game stamp can't drift apart.
-PROJECT_VERSION="$(grep -oP '^config/version="\K[^"]+' "$(dirname "$0")/../project.godot" 2>/dev/null || true)"
-VERSION_TAG="${VERSION_TAG:-${PROJECT_VERSION:-dev}}"
-
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/log.sh"
+VERSION_TAG="${VERSION_TAG:-$(sw_project_version)}"
 
 show_help() {
     cat << 'EOF'

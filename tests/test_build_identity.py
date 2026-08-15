@@ -100,14 +100,117 @@ def test_package_and_push_take_their_version_from_the_game():
     sharing a release name are already distinguishable by their commit stamp,
     which is the property that actually matters.
     """
+    # The derivation itself lives in ONE place now. Asserting the grep appears
+    # in each script would pass on a comment that merely mentions config/version
+    # — which is exactly what happened once the greps were centralised.
+    authority = _read(ROOT / "scripts/lib/release_paths.sh")
+    assert "sw_project_version" in authority and "config/version" in authority, (
+        "release_paths.sh must hold the one config/version derivation"
+    )
     for script in (
         "scripts/package-desktop-builds.sh",
         "scripts/package-web-build.sh",
-        "scripts/itch-push.sh",
+        "scripts/validate-desktop-release.sh",
+        "scripts/validate-web-release.sh",
+        "scripts/release.sh",
     ):
         src = _read(ROOT / script)
-        assert "config/version" in src and "project.godot" in src, (
-            f"{script} must derive its version from project.godot, not its own default"
+        assert "sw_project_version" in src, (
+            f"{script} must take its version from sw_project_version(), not its own default"
+        )
+    # itch-push.sh reads the version to label an upload but is not a build lane,
+    # so it keeps its own standalone grep rather than sourcing the release libs.
+    push = _read(ROOT / "scripts/itch-push.sh")
+    assert "config/version" in push and "project.godot" in push, (
+        "itch-push.sh must derive --userversion from project.godot"
+    )
+
+
+def test_the_web_packager_points_at_the_folder_the_web_builder_writes():
+    """These two defaults disagreed, and nothing said so.
+
+    package-web-build.sh defaulted to releases/web; build-web-local.sh has
+    always written releases/web-local. So the web packager pointed at a folder
+    nothing in this repo has ever produced, and a bare run simply refused —
+    which is why the web zip kept getting assembled by hand instead. A default
+    that names a nonexistent place is worse than no default.
+    """
+    paths = _read(ROOT / "scripts/lib/release_paths.sh")
+    builder = _read(ROOT / "scripts/build-web-local.sh")
+    packager = _read(ROOT / "scripts/package-web-build.sh")
+
+    assert "sw_web_export_root" in paths, "release_paths.sh lost the web export root"
+    assert "releases/web-local" in paths, (
+        "the shared web export root must name the folder build-web-local.sh writes"
+    )
+    assert "releases/web-local" in builder, "build-web-local.sh changed where it writes"
+    assert "sw_web_export_root" in packager, (
+        "package-web-build.sh must ask the shared authority where the export is, "
+        "rather than restating a path that can drift out from under it"
+    )
+
+
+def test_the_desktop_orchestrator_does_not_override_the_derived_version():
+    """It used to default VERSION_TAG to "dev" and forward it unconditionally.
+
+    docs/release/DESKTOP_RELEASE_WORKFLOW.md warns in writing that passing
+    --version "reintroduces exactly the drift the default exists to prevent".
+    The orchestrator that doc describes was doing it on every run, so archives
+    cut through the documented path were named spacewheat-windows-dev.zip while
+    the game inside claimed a real version.
+    """
+    src = _read(ROOT / "scripts/validate-desktop-release.sh")
+    assert 'VERSION_TAG="${VERSION_TAG:-dev}"' not in src, (
+        "the orchestrator is back to defaulting the release name to 'dev'"
+    )
+    assert "VERSION_EXPLICIT" in src, (
+        "--version must only be forwarded when a human actually passed one"
+    )
+
+
+def test_every_platform_can_be_cut_by_one_command():
+    """A release nobody can run in one command is a release assembled by memory.
+
+    The desktop lane had an orchestrator; the web lane had all the same pieces
+    and none. So a browser cut was reassembled by hand each time and whatever
+    got skipped was invisible afterwards. build-all-platforms.sh is NOT this: it
+    builds the three native extensions and prints the export commands.
+    """
+    release = ROOT / "scripts/release.sh"
+    web = ROOT / "scripts/validate-web-release.sh"
+    assert release.is_file() and web.is_file(), "the release orchestrators went missing"
+    src = _read(release)
+    for lane in ("validate-desktop-release.sh", "validate-web-release.sh"):
+        assert lane in src, f"release.sh must drive {lane}"
+    assert "sha256sum" in src, (
+        "the manifest must record a checksum per artifact — otherwise 'which build "
+        "is on itch' is answerable only by rebuilding it"
+    )
+
+    web_src = _read(web)
+    for stage in ("test_web_extension_links.py", "gate-web-bundle.mjs", "package-web-build.sh"):
+        assert stage in web_src, f"the web lane must run {stage}"
+    assert "--skip-gate" in web_src, (
+        "skipping the headers-absent browser gate must be an explicit choice, "
+        "not what happens when a dependency is quietly missing"
+    )
+
+
+def test_a_build_whose_source_moved_is_refused():
+    """An export reads the tree over minutes; a second agent edits it live.
+
+    If the tree moves mid-export the artifact is a blend of two source states
+    and its stamp — captured at one instant — honestly describes neither. The
+    last desktop cut went out while its own inputs were still being written.
+    """
+    lib = _read(STAMP_LIB)
+    assert "sw_capture_source_id" in lib and "sw_assert_source_unchanged" in lib, (
+        "the stamp lib lost the moved-tree guard"
+    )
+    for script in ("scripts/release.sh", "scripts/validate-web-release.sh"):
+        src = _read(ROOT / script)
+        assert "sw_capture_source_id" in src and "sw_assert_source_unchanged" in src, (
+            f"{script} must check that its source did not move under it"
         )
 
 

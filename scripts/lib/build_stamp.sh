@@ -48,6 +48,32 @@ build_id() {
     printf '%s' "$sha"
 }
 
+# An export reads the working tree file by file over several minutes. If the
+# tree moves while it reads, the artifact is a blend of two source states and
+# its stamp — captured at one instant — honestly names neither. That is not
+# hypothetical here: a second agent edits this repo concurrently, and the last
+# desktop cut went out while its files were still being written.
+#
+# So the lane records the source id before the export and checks it after. A
+# build whose source moved underneath it is not labelled, it is refused.
+sw_capture_source_id() {
+    SW_SOURCE_ID_AT_START="$(build_id)"
+    printf '%s' "$SW_SOURCE_ID_AT_START"
+}
+
+sw_assert_source_unchanged() {
+    local now
+    now="$(build_id)"
+    if [ "$now" != "${SW_SOURCE_ID_AT_START:-}" ]; then
+        error "The working tree changed during the build.
+  started from: ${SW_SOURCE_ID_AT_START:-<not captured>}
+  ended at:     $now
+This artifact was read from two different source states, so no single build id
+describes it. Another agent edits this repo concurrently — wait for the tree to
+settle, then cut again."
+    fi
+}
+
 write_build_stamp() {
     local sha branch built
     sha="$(build_id)"

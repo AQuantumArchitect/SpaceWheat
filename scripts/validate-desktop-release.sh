@@ -8,10 +8,19 @@ set -euo pipefail
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
-OUTPUT_ROOT="${OUTPUT_ROOT:-$PROJECT_DIR/releases/local}"
-PACKAGE_ROOT="${PACKAGE_ROOT:-$PROJECT_DIR/releases/packages}"
-REPORT_ROOT="${REPORT_ROOT:-$PROJECT_DIR/releases/validation}"
-VERSION_TAG="${VERSION_TAG:-dev}"
+source "$SCRIPT_DIR/lib/release_paths.sh"
+
+OUTPUT_ROOT="$(sw_desktop_export_root)"
+PACKAGE_ROOT="$(sw_package_root)"
+REPORT_ROOT="$(sw_report_root)"
+
+# This used to default to the literal "dev" and forward it unconditionally,
+# overriding package-desktop-builds.sh's config/version default — the exact
+# drift DESKTOP_RELEASE_WORKFLOW.md warns against in writing, performed by the
+# orchestrator that doc describes. Now the tag is derived like everywhere else,
+# and --version is forwarded only when a human actually passed one.
+VERSION_TAG="${VERSION_TAG:-$(sw_project_version)}"
+VERSION_EXPLICIT=false
 WINDOWS_SMOKE_MODE="${WINDOWS_SMOKE_MODE:-skip}"
 STRICT_WINDOWS_PROFILE="${STRICT_WINDOWS_PROFILE:-0}"
 
@@ -19,6 +28,7 @@ DO_BUILD=true
 DO_SMOKE=true
 DO_PROFILE=true
 DO_PACKAGE=true
+DO_PHYSICS_GATE=false
 
 source "$SCRIPT_DIR/lib/log.sh"
 
@@ -33,12 +43,18 @@ Options:
   --output-root PATH         Export root (default: ./releases/local)
   --package-root PATH        Package root (default: ./releases/packages)
   --report-root PATH         Validation report root (default: ./releases/validation)
-  --version TAG              Package version tag (default: dev)
+  --version TAG              Package version tag (default: config/version
+                             from project.godot — overriding it reintroduces
+                             name/stamp drift; don't, unless renaming on purpose)
   --windows-smoke-mode MODE  skip|native (default: skip)
   --skip-build               Reuse existing exports
   --skip-smoke               Skip export smoke tests
   --skip-profile             Skip runtime profiling
   --skip-package             Skip archive packaging
+  --physics-gate             Run scripts/run_tests.sh (physics probes +
+                             Berry agreement) before the export lane.
+                             Required for an itch cut; default off because
+                             it is a long headless Godot pass.
   --help                     Show this help
 
 Environment:
@@ -69,6 +85,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         --version)
             VERSION_TAG="$2"
+            VERSION_EXPLICIT=true
             shift 2
             ;;
         --windows-smoke-mode)
@@ -91,6 +108,10 @@ while [[ $# -gt 0 ]]; do
             DO_PACKAGE=false
             shift
             ;;
+        --physics-gate)
+            DO_PHYSICS_GATE=true
+            shift
+            ;;
         --help|-h)
             show_help
             exit 0
@@ -108,8 +129,10 @@ case "$WINDOWS_SMOKE_MODE" in
         ;;
 esac
 
-TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
-RUN_DIR="$REPORT_ROOT/$TIMESTAMP"
+# release.sh exports SW_RUN_TIMESTAMP so a full cut lands both lanes in one
+# run dir instead of two adjacent ones nobody can pair up afterwards.
+TIMESTAMP="${SW_RUN_TIMESTAMP:-$(date +%Y%m%d_%H%M%S)}"
+RUN_DIR="$REPORT_ROOT/$TIMESTAMP/desktop"
 SMOKE_LOG_DIR="$RUN_DIR/smoke"
 PROFILE_DIR="$RUN_DIR/profiles"
 
@@ -120,6 +143,13 @@ echo "output root:         $OUTPUT_ROOT"
 echo "package root:        $PACKAGE_ROOT"
 echo "validation reports:  $RUN_DIR"
 echo "windows smoke mode:  $WINDOWS_SMOKE_MODE"
+echo "physics gate:        $DO_PHYSICS_GATE"
+
+if [ "$DO_PHYSICS_GATE" = true ]; then
+    log "Running physics / smoke gate (scripts/run_tests.sh)"
+    "$PROJECT_DIR/scripts/run_tests.sh"
+    success "Physics gate passed"
+fi
 
 if [ "$DO_BUILD" = true ]; then
     log "Building desktop exports"
@@ -166,10 +196,11 @@ fi
 
 if [ "$DO_PACKAGE" = true ]; then
     log "Packaging desktop exports"
-    "$PROJECT_DIR/scripts/package-desktop-builds.sh" \
-        --output-root "$OUTPUT_ROOT" \
-        --package-root "$PACKAGE_ROOT" \
-        --version "$VERSION_TAG"
+    PACKAGE_ARGS=(--output-root "$OUTPUT_ROOT" --package-root "$PACKAGE_ROOT")
+    if [ "$VERSION_EXPLICIT" = true ]; then
+        PACKAGE_ARGS+=(--version "$VERSION_TAG")
+    fi
+    "$PROJECT_DIR/scripts/package-desktop-builds.sh" "${PACKAGE_ARGS[@]}"
     success "Packages created"
 else
     warn "Skipping package step"
