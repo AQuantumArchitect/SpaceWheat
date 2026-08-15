@@ -12,6 +12,7 @@ and an export-time stamp that nobody types (and therefore nobody forgets).
 
 import json
 import re
+import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -386,3 +387,66 @@ def test_stamp_shape_matches_what_build_info_reads():
     read = set(re.findall(r'(?<![\w.])s\.get\("(\w+)"', _read(BUILD_INFO)))
     assert read <= written, f"BuildInfo reads {read - written} which the build script never writes"
     assert {"commit", "built"} <= read, "the display line must name the commit and the build date"
+
+def test_no_desktop_archive_can_silently_replace_another():
+    """The defect the web lane was fixed for was still live on the desktop side.
+
+    Desktop archives were named spacewheat-<os>-<version> with no build id, and
+    packaging did `rm -f` on that name first. So two different desktop builds at
+    one version — a rebuild after a fix, a cut from a different tree — landed on
+    the same filename and the earlier one vanished without a word. Identical in
+    kind to the three browser bundles that all shipped as
+    spacewheat-web-0.1.0-alpha.zip.
+    """
+    src = _read(ROOT / "scripts/package-desktop-builds.sh")
+    assert "build_id" in src, "desktop archive names must carry the build id"
+    assert "Refusing to overwrite" in src, (
+        "packaging must refuse to replace an existing desktop archive"
+    )
+    for name in ("spacewheat-windows-${VERSION_TAG}-${BUILD_ID}.zip",
+                 "spacewheat-linux-${VERSION_TAG}-${BUILD_ID}.tar.gz"):
+        assert name in src, f"desktop archive name lost its build id: {name}"
+
+
+def test_the_source_guard_baseline_survives_into_the_caller():
+    """A behavioural test, because the bug was invisible to a string check.
+
+    sw_capture_source_id assigns SW_SOURCE_ID_AT_START. Called as
+    `x="$(sw_capture_source_id)"` the assignment happens in a command
+    substitution — a subshell — and dies there, so the later comparison runs
+    against an empty baseline and refuses a perfectly good build. That is
+    exactly how the first full web cut died: export finished, guard rejected it.
+
+    Every static assertion about this guard passed while it was broken. This
+    one runs it.
+    """
+    script = f"""
+    set -euo pipefail
+    PROJECT_DIR={ROOT}
+    log() {{ :; }}
+    error() {{ echo "REFUSED"; exit 3; }}
+    source "$PROJECT_DIR/scripts/lib/build_stamp.sh"
+    sw_capture_source_id
+    [ -n "${{SW_SOURCE_ID_AT_START:-}}" ] || {{ echo "BASELINE_LOST"; exit 4; }}
+    sw_assert_source_unchanged
+    echo OK
+    """
+    done = subprocess.run(["bash", "-c", script], capture_output=True, text=True)
+    assert "BASELINE_LOST" not in done.stdout, (
+        "sw_capture_source_id lost its baseline — it is being called in a "
+        "subshell, so the guard will refuse every build it is asked to check"
+    )
+    assert done.returncode == 0 and "OK" in done.stdout, (
+        f"the guard rejected an unchanged tree: rc={done.returncode} "
+        f"out={done.stdout!r} err={done.stderr!r}"
+    )
+
+
+def test_the_lanes_do_not_capture_the_baseline_in_a_subshell():
+    """The call shape is the bug, so pin the call shape too."""
+    for name in ("scripts/release.sh", "scripts/validate-web-release.sh"):
+        src = _read(ROOT / name)
+        assert '"$(sw_capture_source_id)"' not in src, (
+            f"{name} captures the source id in a command substitution; the "
+            f"assignment dies in the subshell and the guard refuses everything"
+        )

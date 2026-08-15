@@ -93,7 +93,8 @@ export SW_RUN_TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 RUN_DIR="$REPORT_ROOT/$SW_RUN_TIMESTAMP"
 mkdir -p "$RUN_DIR"
 
-SOURCE_ID="$(sw_capture_source_id)"
+sw_capture_source_id
+SOURCE_ID="$SW_SOURCE_ID_AT_START"
 BRANCH="$(git -C "$PROJECT_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)"
 
 log "SpaceWheat release  $VERSION_TAG"

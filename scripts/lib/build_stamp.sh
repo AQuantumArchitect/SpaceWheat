@@ -56,9 +56,20 @@ build_id() {
 #
 # So the lane records the source id before the export and checks it after. A
 # build whose source moved underneath it is not labelled, it is refused.
+# Sets SW_SOURCE_ID_AT_START; prints nothing. It must NOT be called as
+# `x="$(sw_capture_source_id)"` — command substitution runs in a subshell, so
+# the assignment would die there and the later comparison would run against an
+# empty baseline and refuse a perfectly good build. That is exactly how the
+# first web cut died. Call it bare, then read the variable.
+#
+# Exported and idempotent: a lane invoked by release.sh inherits the parent's
+# baseline instead of resetting it, so a whole cut is judged against one
+# starting state rather than each lane against its own.
 sw_capture_source_id() {
-    SW_SOURCE_ID_AT_START="$(build_id)"
-    printf '%s' "$SW_SOURCE_ID_AT_START"
+    if [ -z "${SW_SOURCE_ID_AT_START:-}" ]; then
+        SW_SOURCE_ID_AT_START="$(build_id)"
+        export SW_SOURCE_ID_AT_START
+    fi
 }
 
 sw_assert_source_unchanged() {

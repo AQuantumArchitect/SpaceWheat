@@ -109,7 +109,8 @@ echo "version:       $VERSION_TAG"
 
 # Recorded before the export reads a single file; checked again after. An
 # artifact assembled while the tree moved under it has no honest build id.
-SOURCE_ID="$(sw_capture_source_id)"
+sw_capture_source_id
+SOURCE_ID="$SW_SOURCE_ID_AT_START"
 echo "source id:     $SOURCE_ID"
 
 if [ "$DO_BUILD" = true ]; then

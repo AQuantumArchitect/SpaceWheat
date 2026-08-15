@@ -6,6 +6,9 @@ set -euo pipefail
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/log.sh"
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/release_paths.sh"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/build_stamp.sh"
+
+FORCE=false
 
 OUTPUT_ROOT="$(sw_desktop_export_root)"
 PACKAGE_ROOT="$(sw_package_root)"
@@ -25,6 +28,7 @@ Options:
   --output-root PATH       Export root to package (default: ./releases/local)
   --package-root PATH      Archive output root (default: ./releases/packages)
   --version TAG            Version label (default: config/version from project.godot, else dev)
+  --force                  Overwrite archives of the same name (default: refuse)
   --help                   Show this help
 EOF
 }
@@ -42,6 +46,10 @@ while [[ $# -gt 0 ]]; do
         --version)
             VERSION_TAG="$2"
             shift 2
+            ;;
+        --force)
+            FORCE=true
+            shift
             ;;
         --help|-h)
             show_help
@@ -74,8 +82,23 @@ for legal in LICENSE THIRD_PARTY_NOTICES.md; do
     cp "$REPO_ROOT/$legal" "$LINUX_DIR/$legal"
 done
 
-WINDOWS_ARCHIVE="$PACKAGE_ROOT/spacewheat-windows-${VERSION_TAG}.zip"
-LINUX_ARCHIVE="$PACKAGE_ROOT/spacewheat-linux-${VERSION_TAG}.tar.gz"
+# The release name alone is not an identity. Two desktop builds at the same
+# version — a rebuild after a fix, a cut from a different working tree — used to
+# land on the same filename, and `rm -f` below silently replaced the earlier
+# one. That is the same defect that let three different browser bundles ship as
+# spacewheat-web-0.1.0-alpha.zip; the web lane was fixed and this one was not.
+BUILD_ID="$(build_id | tr '.' '-')"
+WINDOWS_ARCHIVE="$PACKAGE_ROOT/spacewheat-windows-${VERSION_TAG}-${BUILD_ID}.zip"
+LINUX_ARCHIVE="$PACKAGE_ROOT/spacewheat-linux-${VERSION_TAG}-${BUILD_ID}.tar.gz"
+
+for existing in "$WINDOWS_ARCHIVE" "$LINUX_ARCHIVE"; do
+    if [ -e "$existing" ] && [ "$FORCE" != true ]; then
+        error "Refusing to overwrite $(basename "$existing").
+That name is already taken by a packaged build. If the export really changed,
+the build id would have changed with it; if it did not, ship the archive that is
+already there. Use --force only when you mean to discard the existing one."
+    fi
+done
 
 log "Packaging Windows build"
 rm -f "$WINDOWS_ARCHIVE"
