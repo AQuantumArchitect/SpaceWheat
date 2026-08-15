@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0">
+		<title>$GODOT_PROJECT_NAME</title>
+		<style>
+html, body, #canvas {
+	margin: 0;
+	padding: 0;
+	border: 0;
+}
+
+body {
+	color: white;
+	background-color: black;
+	overflow: hidden;
+	touch-action: none;
+}
+
+#canvas {
+	display: block;
+}
+
+#canvas:focus {
+	outline: none;
+}
+
+#status, #status-splash, #status-progress {
+	position: absolute;
+	left: 0;
+	right: 0;
+}
+
+#status, #status-splash {
+	top: 0;
+	bottom: 0;
+}
+
+#status {
+	background-color: $GODOT_SPLASH_COLOR;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	visibility: hidden;
+}
+
+#status-splash {
+	max-height: 100%;
+	max-width: 100%;
+	margin: auto;
+}
+
+#status-splash.show-image--false {
+	display: none;
+}
+
+#status-splash.fullsize--true {
+	height: 100%;
+	width: 100%;
+	object-fit: contain;
+}
+
+#status-splash.use-filter--false {
+	image-rendering: pixelated;
+}
+
+#status-progress, #status-notice {
+	display: none;
+}
+
+#status-progress {
+	bottom: 10%;
+	width: 50%;
+	margin: 0 auto;
+}
+
+#status-notice {
+	background-color: #5b3943;
+	border-radius: 0.5rem;
+	border: 1px solid #9b3943;
+	color: #e0e0e0;
+	font-family: 'Noto Sans', 'Droid Sans', Arial, sans-serif;
+	line-height: 1.4;
+	margin: 0 2rem;
+	max-width: 44rem;
+	overflow: hidden;
+	padding: 1rem 1.25rem;
+	text-align: left;
+	z-index: 1;
+}
+		</style>
+		$GODOT_HEAD_INCLUDE
+	</head>
+	<body>
+		<canvas id="canvas">
+			Your browser does not support the canvas tag.
+		</canvas>
+
+		<noscript>
+			Your browser does not support JavaScript.
+		</noscript>
+
+		<div id="status">
+			<img id="status-splash" class="$GODOT_SPLASH_CLASSES" src="$GODOT_SPLASH" alt="">
+			<progress id="status-progress"></progress>
+			<div id="status-notice"></div>
+		</div>
+
+		<script src="$GODOT_URL"></script>
+		<script>
+const GODOT_CONFIG = $GODOT_CONFIG;
+const GODOT_THREADS_ENABLED = $GODOT_THREADS_ENABLED;
+const engine = new Engine(GODOT_CONFIG);
+
+// SpaceWheat custom shell.
+//
+// This is Godot 4.5's stock web shell with ONE branch rewritten: the path taken
+// when the browser is missing a required feature.
+//
+// The stock behaviour ships a silent failure. When cross-origin isolation is
+// absent (no SharedArrayBuffer, which a threaded export requires), it tries to
+// install a service worker and reload. On the reload the registration already
+// exists, the promise rejects, and the `.catch` only writes to the console —
+// `setStatusMode()` is never called, so the overlay keeps its stylesheet
+// default of `visibility: hidden`, the canvas is never sized, and the page sits
+// black forever with no message. That is precisely what shipped in 0.1.0-alpha
+// and what three people reported as "it never loads".
+//
+// Refusals must speak. Every path below ends at a visible sentence.
+(function () {
+	const statusOverlay = document.getElementById('status');
+	const statusProgress = document.getElementById('status-progress');
+	const statusNotice = document.getElementById('status-notice');
+
+	// One retry, ever. sessionStorage survives the reload but not the tab, so a
+	// genuinely-fixable case still gets its second chance and a permanently
+	// broken host cannot spin.
+	const RETRY_KEY = 'sw-coi-retry';
+
+	let initializing = true;
+	let statusMode = '';
+
+	function setStatusMode(mode) {
+		if (statusMode === mode || !initializing) {
+			return;
+		}
+		if (mode === 'hidden') {
+			statusOverlay.remove();
+			initializing = false;
+			return;
+		}
+		statusOverlay.style.visibility = 'visible';
+		statusProgress.style.display = mode === 'progress' ? 'block' : 'none';
+		statusNotice.style.display = mode === 'notice' ? 'block' : 'none';
+		statusMode = mode;
+	}
+
+	function setStatusNotice(text) {
+		while (statusNotice.lastChild) {
+			statusNotice.removeChild(statusNotice.lastChild);
+		}
+		text.split('\n').forEach((line) => {
+			statusNotice.appendChild(document.createTextNode(line));
+			statusNotice.appendChild(document.createElement('br'));
+		});
+	}
+
+	function displayFailureNotice(err) {
+		console.error(err);
+		if (err instanceof Error) {
+			setStatusNotice(err.message);
+		} else if (typeof err === 'string') {
+			setStatusNotice(err);
+		} else {
+			setStatusNotice('An unknown error occurred.');
+		}
+		setStatusMode('notice');
+		initializing = false;
+	}
+
+	// Say what is wrong in words a player understands, then what an operator
+	// needs. `missing` is Godot's own feature list and is kept verbatim at the
+	// bottom so a bug report carries the real cause.
+	function isolationFailureText(missing) {
+		const isolationProblem = !self.crossOriginIsolated || typeof SharedArrayBuffer === 'undefined';
+		const lines = ['SpaceWheat could not start in this browser.', ''];
+		if (isolationProblem) {
+			lines.push(
+				'It needs SharedArrayBuffer, which a browser only grants to a page served',
+				'with cross-origin isolation headers. This page was not served with them,',
+				'so the engine never started.',
+				'',
+				'If you are playing: try a current desktop Chrome, Edge, Firefox or Safari.',
+				'If that fails, the download builds have no such requirement.',
+				'',
+				'If this is your page: the host must send',
+				'    Cross-Origin-Opener-Policy: same-origin',
+				'    Cross-Origin-Embedder-Policy: require-corp',
+				'On itch.io that is the "SharedArrayBuffer support" checkbox in the',
+				'project\'s embed options.'
+			);
+		} else {
+			lines.push('This browser is missing a feature the engine requires.');
+		}
+		// Godot appends its own " - Check that the web server configuration..."
+		// to each entry, which restates the paragraphs above. Keep the feature
+		// names only — they are what a bug report needs.
+		const names = missing.map((m) => String(m).split(' - ')[0].trim());
+		lines.push('', 'Missing: ' + names.join(', '));
+		return lines.join('\n');
+	}
+
+	const missing = Engine.getMissingFeatures({
+		threads: GODOT_THREADS_ENABLED,
+	});
+
+	if (missing.length !== 0) {
+		const canTryServiceWorker = GODOT_CONFIG['serviceWorker']
+			&& GODOT_CONFIG['ensureCrossOriginIsolationHeaders']
+			&& 'serviceWorker' in navigator;
+		let alreadyRetried = false;
+		try {
+			alreadyRetried = window.sessionStorage.getItem(RETRY_KEY) === '1';
+		} catch (err) {
+			// Private mode / storage disabled: treat as "already retried" so the
+			// player gets the message instead of a reload loop.
+			alreadyRetried = true;
+		}
+
+		if (!canTryServiceWorker || alreadyRetried) {
+			displayFailureNotice(isolationFailureText(missing));
+		} else {
+			// The service worker can inject the isolation headers on a reload.
+			// Show that this is happening — the stock shell shows nothing here,
+			// which is a blank screen for however long it takes.
+			setStatusNotice('Setting up… the page will reload once.');
+			setStatusMode('notice');
+			try {
+				window.sessionStorage.setItem(RETRY_KEY, '1');
+			} catch (err) { /* storage refused; the flag above already covers it */ }
+
+			let registrationPromise;
+			try {
+				registrationPromise = navigator.serviceWorker.getRegistration();
+			} catch (err) {
+				registrationPromise = Promise.reject(new Error('Service worker registration failed.'));
+			}
+			Promise.race([
+				registrationPromise.then((registration) => {
+					if (registration != null) {
+						return Promise.reject(new Error('Service worker already exists.'));
+					}
+					return registration;
+				}).then(() => engine.installServiceWorker()),
+				// `getRegistration()` can stall; do not wait on it forever.
+				new Promise((resolve) => { setTimeout(() => resolve(), 2000); }),
+			]).then(() => {
+				window.location.reload();
+			}).catch((err) => {
+				// The stock shell stops here with a console line and a black
+				// page. Say it out loud instead.
+				console.error('Error while registering service worker:', err);
+				displayFailureNotice(isolationFailureText(missing));
+			});
+		}
+	} else {
+		try {
+			window.sessionStorage.removeItem(RETRY_KEY);
+		} catch (err) { /* nothing to clear */ }
+		setStatusMode('progress');
+		engine.startGame({
+			'onProgress': function (current, total) {
+				if (current > 0 && total > 0) {
+					statusProgress.value = current;
+					statusProgress.max = total;
+				} else {
+					statusProgress.removeAttribute('value');
+					statusProgress.removeAttribute('max');
+				}
+			},
+		}).then(() => {
+			setStatusMode('hidden');
+		}, displayFailureNotice);
+	}
+}());
+		</script>
+	</body>
+</html>

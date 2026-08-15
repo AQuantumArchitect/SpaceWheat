@@ -102,20 +102,52 @@ and were wrong by a factor of six** — and note the renderer above is the
 take the iGPU on a switchable laptop. This is close to a floor for the hardware,
 not a best case.
 
-Per the degradation policy: **ship the full WASM-native build.** No gallery
-fallback, no page caveat about reduced content.
+Per the degradation policy: **title/first-look can ship the full WASM-native
+build.** In-farm play cannot. Headed Chrome 2026-08-14 (`PROFILE_2026-08-14.md`):
+`?sw_autostart=1` reaches `BOOT SESSION STARTING` and the side module aborts
+on libc++ `std::__hash_memory` (`_ZNSt3__213__hash_memoryEPKvm`). The canvas
+keeps presenting at 60 fps. That is not a farm. Rebuild
+`libquantummatrix.wasm` against the 4.5 template's Emscripten before calling
+the pack playable.
 
-Full write-up: `docs/performance/PROFILE_2026-08-12.md`.
+Full write-up: `docs/performance/PROFILE_2026-08-12.md` (title) and
+`docs/performance/PROFILE_2026-08-14.md` (in-farm abort).
 
 ## What still gates the itch web channel
 
 - [x] First real smoke run (2026-07-05, this machine — see above)
 - [x] Hardware-WebGL numbers (2026-08-12, Edge/D3D11 — 59.7 fps, above)
 - [x] The full/gallery decision: **full**, per the policy's first clause
-- [ ] An honest **boot time**. The 21.4 s recorded above was served across the
-      WSL filesystem bridge and then the WSL2 localhost bridge, so it is an upper
-      bound, not a measurement. A native run from
-      `C:\Games\SpaceWheat-Releases\profiling-kit\` settles it.
+- [x] An honest **boot time**. Native NTFS run 2026-08-13: **20.0 s** to a live
+      canvas (headed Chrome, HD 5600). The 21.4 s WSL-bridge figure was an upper
+      bound by 1.4 s, not a fiction. Lever is `index.pck` 175 MiB / source
+      audio 144 MB, not more GL work. See `docs/performance/PROFILE_2026-08-13.md`.
+- [ ] **Cross-origin isolation at the host.** 2026-08-15, found the hard way:
+      the alpha shipped to itch with **"SharedArrayBuffer support" not ticked**,
+      so no COOP/COEP, so no SAB, so a threaded export never starts. Luke and
+      both siblings got a black screen. Reproduced by serving the shipped zip
+      twice — plain static served forever-black, the same bytes with COOP/COEP
+      reached the title in 16.7 s. **The loader gives no error on this path**:
+      it tries a service worker, the reload finds one already registered, and
+      the `.catch` only logs — `setStatusMode()` is never called, so the status
+      overlay keeps `visibility: hidden` and the canvas is never sized. The
+      degradation policy above always said isolation failures are hosting
+      failures; it was never a gate item, so nobody checked it.
+- [ ] **In-farm boot.** 2026-08-14, re-confirmed on the shipped bundle
+      2026-08-15 by pressing F at the title: `BOOT SESSION STARTING` then
+      `undefined symbol '_ZNSt3__213__hash_memoryEPKvm'`. Title is playable.
+      New Game is not. Direct wasm section parse: `libquantummatrix.wasm`
+      imports 51 libc++ symbols and **29 are exported by nothing in the
+      bundle**; that one is just the first the farm path calls. Cause is a
+      toolchain mismatch — the Godot template reports Emscripten 4.0.10, the
+      local emsdk is 5.0.6, and `scripts/build-all-platforms.sh:245` builds the
+      side module with whatever `~/emsdk/emsdk_env.sh` happens to activate.
+      **Pin the emsdk version**, rebuild godot-cpp for wasm32 and the extension
+      against it, re-export.
+- [ ] **A no-headers browser check in the release gate.**
+      `scripts/smoke-test-web-export.mjs` serves *with* COOP/COEP, so it can
+      catch the abort above but structurally cannot catch the isolation bug.
+      The gate needs both a headers-present and a headers-absent load.
 - Note: the shipped bundle is **192,622,078 bytes zipped** (~184 MiB;
   `index.pck` 183 MB). Since the frame rate is no longer near the floor, a
   web-specific asset diet is a **load-time** question only.

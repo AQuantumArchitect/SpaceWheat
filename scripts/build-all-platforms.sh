@@ -15,6 +15,23 @@ NATIVE_DIR="$PROJECT_DIR/native"
 GODOT_CPP_DIR="$PROJECT_DIR/godot-cpp"
 source "$SCRIPT_DIR/lib/native_build_state.sh"
 
+# The Emscripten the Godot web export template was built with. This is a HARD
+# pin, not a preference.
+#
+# A side module compiled by a different emsdk links against a different libc++,
+# whose mangled symbol names do not match what the engine's main module exports.
+# The extension still loads — dlopen succeeds and the Eigen banner prints — and
+# then aborts at the first call into an unresolved stub. 0.1.0-alpha shipped
+# exactly that: built with emsdk 5.0.6 against a 4.0.10 template, 29 unresolved
+# libc++ imports, and the browser build died on
+# `undefined symbol '_ZNSt3__213__hash_memoryEPKvm'` the instant a farm booted.
+# The title card looked fine, so nothing caught it.
+#
+# Read the truth out of a running export: the engine prints
+# "Build configuration: Emscripten <version>, multi-threaded, GDExtension support."
+# in the browser console at boot. Match this to that.
+SW_EMSDK_VERSION="4.0.10"
+
 # Options
 DO_CLEAN=false
 LINUX_ONLY=false
@@ -101,6 +118,11 @@ echo ""
 # and working. That false negative is why the web channel was written off as
 # unbuildable.
 if [ "$WEB_ONLY" = true ] && [ -f "$HOME/emsdk/emsdk_env.sh" ]; then
+    # Activate the PINNED version, not whatever was last used. Activation is
+    # what rewrites .emscripten and the PATH that emsdk_env.sh then exports;
+    # sourcing alone inherits whatever the tree was left on.
+    ( cd "$HOME/emsdk" && ./emsdk activate "$SW_EMSDK_VERSION" ) >/dev/null 2>&1 \
+        || error "emsdk $SW_EMSDK_VERSION is not installed.\nRun: cd ~/emsdk && ./emsdk install $SW_EMSDK_VERSION"
     # emsdk_env.sh is chatty and returns nonzero under `set -e` on some versions.
     source "$HOME/emsdk/emsdk_env.sh" >/dev/null 2>&1 || true
 fi
@@ -118,6 +140,13 @@ fi
 
 if [ "$WEB_ONLY" = true ]; then
     command -v emcc >/dev/null 2>&1 || error "Emscripten not found. Run: source ~/emsdk/emsdk_env.sh"
+    # Verify the pin actually took. Refuse to build against the wrong toolchain
+    # rather than emit a wasm that loads and then dies mid-game.
+    SW_EMCC_ACTIVE="$(emcc --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+    if [ "$SW_EMCC_ACTIVE" != "$SW_EMSDK_VERSION" ]; then
+        error "Emscripten $SW_EMCC_ACTIVE is active, but the web export template needs exactly $SW_EMSDK_VERSION.\nA mismatched side module links, loads, and then aborts on an undefined libc++ symbol the first time a farm boots.\nRun: cd ~/emsdk && ./emsdk install $SW_EMSDK_VERSION && ./emsdk activate $SW_EMSDK_VERSION"
+    fi
+    success "Emscripten $SW_EMCC_ACTIVE (pinned)"
 fi
 
 command -v scons >/dev/null 2>&1 || error "SCons not found. Run: pip3 install scons"
@@ -160,9 +189,21 @@ if [ "$WINDOWS_ONLY" = true ]; then
 fi
 
 if [ "$WEB_ONLY" = true ]; then
-    if [ "$DO_CLEAN" = true ] || sw_output_is_stale "bin/libgodot-cpp.web.template_release.wasm32.a" "${GODOT_CPP_INPUTS[@]}"; then
+    # Source staleness alone is not enough for web: the toolchain is an input.
+    # A cached .a built by a different emsdk is exactly the bug this pin exists
+    # to prevent, so a toolchain change invalidates the cache like a source edit.
+    SW_CPP_EMSTAMP="bin/.emsdk-version"
+    SW_CPP_TOOLCHAIN_CHANGED=false
+    [ "$(cat "$SW_CPP_EMSTAMP" 2>/dev/null)" = "$SW_EMSDK_VERSION" ] || SW_CPP_TOOLCHAIN_CHANGED=true
+
+    if [ "$DO_CLEAN" = true ] || [ "$SW_CPP_TOOLCHAIN_CHANGED" = true ] || sw_output_is_stale "bin/libgodot-cpp.web.template_release.wasm32.a" "${GODOT_CPP_INPUTS[@]}"; then
+        if [ "$SW_CPP_TOOLCHAIN_CHANGED" = true ]; then
+            log "Emscripten pin is $SW_EMSDK_VERSION; cached godot-cpp web build does not match. Rebuilding."
+            rm -f bin/libgodot-cpp.web.template_release.wasm32.a
+        fi
         log "Building godot-cpp for Web..."
         scons platform=web target=template_release -j$(nproc)
+        mkdir -p bin && printf '%s\n' "$SW_EMSDK_VERSION" > "$SW_CPP_EMSTAMP"
         success "godot-cpp Web built"
     else
         success "godot-cpp Web already built (cached)"
@@ -236,7 +277,14 @@ if [ "$WEB_ONLY" = true ]; then
     log "Building Web extension (WASM)..."
     mkdir -p bin/web
 
-    if [ "$DO_CLEAN" = true ] || sw_output_is_stale "bin/web/libquantummatrix.wasm" "${NATIVE_INPUTS[@]}" "lib/libgodot-cpp.web.template_release.wasm32.a"; then
+    SW_EXT_EMSTAMP="bin/web/.emsdk-version"
+    SW_EXT_TOOLCHAIN_CHANGED=false
+    [ "$(cat "$SW_EXT_EMSTAMP" 2>/dev/null)" = "$SW_EMSDK_VERSION" ] || SW_EXT_TOOLCHAIN_CHANGED=true
+
+    if [ "$DO_CLEAN" = true ] || [ "$SW_EXT_TOOLCHAIN_CHANGED" = true ] || sw_output_is_stale "bin/web/libquantummatrix.wasm" "${NATIVE_INPUTS[@]}" "lib/libgodot-cpp.web.template_release.wasm32.a"; then
+        if [ "$SW_EXT_TOOLCHAIN_CHANGED" = true ]; then
+            log "Emscripten pin is $SW_EMSDK_VERSION; cached web extension does not match. Rebuilding."
+        fi
         # find(1) instead of src/*/*.cpp: subdirs hold only build artifacts, so the
         # glob stays literal and em++ hard-fails on the phantom input.
         # -pthread: must match the shipped engine variant (thread_support=true in the
@@ -250,6 +298,7 @@ if [ "$WEB_ONLY" = true ]; then
         $(find src -name '*.cpp') \
         ./lib/libgodot-cpp.web.template_release.wasm32.a \
         -o bin/web/libquantummatrix.wasm || { error "em++ web build failed"; exit 1; }
+        printf '%s\n' "$SW_EMSDK_VERSION" > "$SW_EXT_EMSTAMP"
     fi
 
     if [ -f "bin/web/libquantummatrix.wasm" ]; then
