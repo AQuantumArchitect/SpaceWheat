@@ -100,10 +100,73 @@ def test_package_and_push_take_their_version_from_the_game():
     sharing a release name are already distinguishable by their commit stamp,
     which is the property that actually matters.
     """
-    for script in ("scripts/package-desktop-builds.sh", "scripts/itch-push.sh"):
+    for script in (
+        "scripts/package-desktop-builds.sh",
+        "scripts/package-web-build.sh",
+        "scripts/itch-push.sh",
+    ):
         src = _read(ROOT / script)
         assert "config/version" in src and "project.godot" in src, (
             f"{script} must derive its version from project.godot, not its own default"
+        )
+
+
+def test_the_web_lane_names_its_archive_the_way_the_desktop_lane_does():
+    """The browser build was the one lane with no packaging authority.
+
+    Desktop archives have been named from config/version since the alpha, and
+    the assertion above pins it. The web zip was named by hand every time — so
+    three materially different bundles (the broken alpha, the emsdk-pinned
+    rebuild, the async-lookahead rebuild) all shipped as
+    "spacewheat-web-0.1.0-alpha.zip", each overwriting the last. Neither the
+    filename nor itch's upload list could tell them apart.
+    """
+    script = ROOT / "scripts/package-web-build.sh"
+    assert script.is_file(), "the web lane lost its packaging script"
+    src = _read(script)
+    assert "build_id" in src, (
+        "the web archive name must carry the build id, not the release name alone"
+    )
+    assert "Refusing to overwrite" in src, (
+        "packaging must refuse to replace an existing archive — silently "
+        "overwriting a shipped bundle is exactly the defect this script exists to end"
+    )
+
+
+def test_two_dirty_builds_are_told_apart():
+    """"-dirty" says THAT there were edits, never WHICH.
+
+    Another agent edits this repo concurrently, so building off a dirty tree is
+    the normal case. Two dirty builds an hour apart are routinely different
+    games, and under a bare "-dirty" suffix they carried identical stamps.
+    """
+    src = _read(STAMP_LIB)
+    assert "build_id()" in src, "the stamp lib lost its shared build_id()"
+    assert "diff HEAD" in src and "sha1sum" in src, (
+        "a dirty stamp must hash the uncommitted delta, so two different dirty "
+        "trees at the same commit get different build ids"
+    )
+
+
+def test_the_windows_version_fields_track_the_release():
+    """Right-click → Properties must not name a different release than the game.
+
+    These four integers cannot hold "0.1.1-alpha" and so cannot be derived from
+    config/version by the packaging script — which is precisely why they drift:
+    the rc3 .exe shipped FileVersion 1.0.0.0 while the title screen said rc3.
+    Shape alone did not catch that; the numbers have to be compared.
+    """
+    version = re.search(r'^config/version="([^"]+)"', _read(PROJECT_GODOT), re.M).group(1)
+    numeric = re.match(r"(\d+)\.(\d+)\.(\d+)", version)
+    assert numeric, f"config/version {version!r} does not start with a.b.c"
+    expected = ".".join(numeric.groups())
+
+    src = _read(ROOT / "export_presets.cfg")
+    for field in ("application/file_version", "application/product_version"):
+        got = re.search(rf'^{re.escape(field)}="([^"]*)"', src, re.M).group(1)
+        assert got.startswith(expected + "."), (
+            f"{field} is {got!r} but the game calls itself {version!r} — "
+            f"expected it to start with {expected}."
         )
 
 

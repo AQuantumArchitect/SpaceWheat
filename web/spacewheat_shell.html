@@ -85,10 +85,30 @@ body {
 	line-height: 1.4;
 	margin: 0 2rem;
 	max-width: 44rem;
-	overflow: hidden;
 	padding: 1rem 1.25rem;
 	text-align: left;
 	z-index: 1;
+
+	/* The notice is the ONLY thing a blocked player can read, so it must never
+	   be the thing that gets cut off. itch embeds the game in a fixed-height
+	   frame — 570px on the default page — and the first version of this panel
+	   used overflow:hidden with no height cap, so on the live page the last
+	   line ("Missing: ...") was sliced off by the frame edge. min-height:0 is
+	   required for a flex child to shrink below its content height at all. */
+	max-height: 100%;
+	min-height: 0;
+	overflow-y: auto;
+	-webkit-overflow-scrolling: touch;
+}
+
+/* Short frames: buy back the vertical room before the scrollbar has to. */
+@media (max-height: 620px) {
+	#status-notice {
+		font-size: 0.85rem;
+		line-height: 1.35;
+		margin: 0 1rem;
+		padding: 0.75rem 0.9rem;
+	}
 }
 		</style>
 		$GODOT_HEAD_INCLUDE
@@ -185,21 +205,36 @@ const engine = new Engine(GODOT_CONFIG);
 	// bottom so a bug report carries the real cause.
 	function isolationFailureText(missing) {
 		const isolationProblem = !self.crossOriginIsolated || typeof SharedArrayBuffer === 'undefined';
+		// Whether we are in someone else's frame changes the ADVICE, not the
+		// cause: itch's isolation rides on COEP credentialless, which Firefox
+		// does not implement, so Firefox fails embedded even when the host has
+		// done everything right. Breaking out of the frame fixes it there.
+		let embedded = true;
+		try { embedded = self !== self.top; } catch (e) { embedded = true; }
 		const lines = ['SpaceWheat could not start in this browser.', ''];
 		if (isolationProblem) {
 			lines.push(
 				'It needs SharedArrayBuffer, which a browser only grants to a page served',
 				'with cross-origin isolation headers. This page was not served with them,',
 				'so the engine never started.',
-				'',
-				'If you are playing: try a current desktop Chrome, Edge, Firefox or Safari.',
-				'If that fails, the download builds have no such requirement.',
+				''
+			);
+			lines.push(embedded
+				? 'If you are playing: press the fullscreen button — that opens the game in'
+				: 'If you are playing: try a current desktop Chrome or Edge.');
+			lines.push(embedded
+				? 'its own window, which is enough for Firefox. Chrome and Edge also work'
+				: 'If that fails, the download builds have no such requirement.');
+			if (embedded) {
+				lines.push('here in the frame. If neither works, the downloads always do.');
+			}
+			lines.push(
 				'',
 				'If this is your page: the host must send',
 				'    Cross-Origin-Opener-Policy: same-origin',
 				'    Cross-Origin-Embedder-Policy: require-corp',
-				'On itch.io that is the "SharedArrayBuffer support" checkbox in the',
-				'project\'s embed options.'
+				'On itch.io that is the "SharedArrayBuffer support" checkbox under',
+				'Embed options → Frame options. It does not fix embedded Firefox.'
 			);
 		} else {
 			lines.push('This browser is missing a feature the engine requires.');
