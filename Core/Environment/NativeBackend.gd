@@ -99,3 +99,37 @@ func evolve_all_lookahead(biome_rhos: Array, steps: int, dt: float, max_dt: floa
 
 func evolve_single_biome(biome_id: int, rho_packed: PackedFloat64Array, steps: int, dt: float, max_dt: float) -> Dictionary:
 	return _engine.evolve_single_biome(biome_id, rho_packed, steps, dt, max_dt) if _engine else {}
+
+
+# ── produce / take ────────────────────────────────────────────────────────────────
+func has_async_lookahead() -> bool:
+	# SPACEWHEAT_WEB_BUILD compiles submit as a blocking pretend-complete.
+	# OS.has_feature("web") is the runtime twin of that ifdef.
+	if _engine == null or OS.has_feature("web"):
+		return false
+	return _engine.has_method("submit_lookahead_job")
+
+func submit_lookahead_job(biome_rhos: Array, steps: int, dt: float, max_dt: float) -> bool:
+	if _engine == null or not _engine.has_method("submit_lookahead_job"):
+		return false
+	return bool(_engine.submit_lookahead_job(biome_rhos, steps, dt, max_dt))
+
+func is_lookahead_job_running() -> bool:
+	return bool(_engine.is_lookahead_job_running()) if (_engine and _engine.has_method("is_lookahead_job_running")) else false
+
+func is_lookahead_job_complete() -> bool:
+	return bool(_engine.is_lookahead_job_complete()) if (_engine and _engine.has_method("is_lookahead_job_complete")) else false
+
+func take_completed_lookahead_job() -> Dictionary:
+	if _engine and _engine.has_method("take_completed_lookahead_job"):
+		var taken = _engine.take_completed_lookahead_job()
+		return taken if taken is Dictionary else {}
+	return {}
+
+func cancel_lookahead_job(wait: bool = true) -> void:
+	if _engine and _engine.has_method("cancel_lookahead_job"):
+		_engine.cancel_lookahead_job(wait)
+
+func set_node_positions(biome_id: int, positions: PackedVector2Array) -> void:
+	if _engine and _engine.has_method("set_node_positions"):
+		_engine.set_node_positions(biome_id, positions)

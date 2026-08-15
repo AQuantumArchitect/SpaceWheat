@@ -134,12 +134,14 @@ func _process(delta):
 	if _biome_routing.is_biomes_empty():
 		return
 
+	var t0 := Time.get_ticks_usec()
 	# Grow all planted plots
 	for grid_pos in _plot_manager.plots.keys():
 		var plot = _plot_manager.plots[grid_pos]
 		if plot.is_active():
 			var plot_biome = _biome_routing.get_biome_for_plot(grid_pos)
 			plot.grow(delta, plot_biome)
+	FrameCostLedger.add_us("viz_farm_grid", Time.get_ticks_usec() - t0)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

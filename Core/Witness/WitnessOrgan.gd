@@ -26,6 +26,11 @@ var surprise: Dictionary = {}      # source → {ema, n, node, role} — innovat
 var _spec_hash: String = ""
 var _stride_accum: float = 0.0
 var _unmatched: Dictionary = {}    # sensor/zone/role that matched nothing → count
+# Autonomous 5 Hz stride is advisory decay. Nothing in the player UI reads it
+# (test_witness_surface). Endgame still paid ~90 ms/stride on 6 biome
+# clusters × 32×32 ComplexMatrix.mul — the hitch train that vsync only
+# promoted. Watchers are the rig / a future overlay. Observe() still lands.
+var _watchers: int = 0
 
 # Innovation EMA rate + the frozen-world alarm: a source that keeps reporting
 # (n ≥ ALARM_MIN_N) yet never surprises its own belief (ema < ALARM_EMA) is
@@ -47,10 +52,20 @@ func _ready() -> void:
 	_ensure_self_cluster()
 
 
+func watch() -> void:
+	_watchers += 1
+
+
+func unwatch() -> void:
+	_watchers = maxi(0, _watchers - 1)
+
+
 func _process(delta: float) -> void:
 	if spec.is_empty() or clusters.is_empty():
 		return
 	if get_tree().paused:
+		return
+	if _watchers <= 0:
 		return
 	_stride_accum += delta
 	if _stride_accum < STRIDE_S:
@@ -70,7 +85,9 @@ func _process(delta: float) -> void:
 		strides += 1
 	if _stride_accum >= STRIDE_S:
 		_stride_accum = 0.0  # shed the backlog — beliefs ease, they don't catch up
-	last_stride_ms = float(Time.get_ticks_usec() - t0) / 1000.0
+	var used := Time.get_ticks_usec() - t0
+	last_stride_ms = float(used) / 1000.0
+	FrameCostLedger.add_us("viz_witness", used)
 
 
 func _ensure_self_cluster() -> void:

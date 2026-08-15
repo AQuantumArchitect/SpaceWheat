@@ -1,10 +1,11 @@
 # SpaceWheat profiling kit — brief for the Windows agent
 
-A first pass has already been taken — see **`results\BASELINE.md`** for what it
-found and `docs/performance/PROFILE_2026-08-12.md` in the repo for the full
-write-up. Your job is to **confirm it natively and close the three gaps it
-names.** A second independent measurement of a number that decides a release is
-worth having; so is a boot time that isn't distorted by a filesystem bridge.
+A hardware pass landed 2026-08-13 and a viz/web pass 2026-08-14 —
+**`results\RESULTS.md`** is the filled report,
+`docs/performance/PROFILE_2026-08-14.md` is the current write-up.
+`results\BASELINE.md` is the *previous* (broken-clock, pre-budget) table;
+do not quote it as current. The 86% is not QuantumField3D `_process` (2.1%).
+In-farm browser aborts on `std::__hash_memory`.
 
 Everything here is self-contained and standard-library Python 3. No WSL paths,
 no bash, no npm, no PowerShell 7.

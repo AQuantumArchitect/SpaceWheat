@@ -527,7 +527,10 @@ func _filter_tiles_for_biome(biome_name: String) -> void:
 		var tile_biome = grid_config.get_biome_for_plot(pos)
 
 		if tile_biome == biome_name and (register_count <= 0 or pos.x < register_count):
+			var was_visible: bool = tile.visible
 			tile.visible = true
+			if not was_visible:
+				update_tile_from_farm(pos)
 			visible_count += 1
 		else:
 			tile.visible = false
@@ -773,18 +776,10 @@ func set_plot_checked(pos: Vector2i, is_checked: bool) -> void:
 func update_tile_from_farm(pos: Vector2i) -> void:
 	# Update tile visual state directly from live farm plot data.
 	if not tiles.has(pos):
-		_verbose.debug("ui", "✗", "update_tile_from_farm(%s): tile not found!" % pos)
 		return
 
-	if not farm:
-		_verbose.debug("ui", "✗", "update_tile_from_farm(%s): farm is null!" % pos)
-		var tile = tiles[pos]
-		tile.set_plot_data(null, pos, -1)
-		return
-
-	if not farm.grid:
-		_verbose.debug("ui", "✗", "update_tile_from_farm(%s): farm.grid is null!" % pos)
-		var tile = tiles[pos]
+	var tile = tiles[pos]
+	if not farm or not farm.grid:
 		tile.set_plot_data(null, pos, -1)
 		return
 
@@ -792,18 +787,13 @@ func update_tile_from_farm(pos: Vector2i) -> void:
 	var terminal = plot.terminal if plot else null
 
 	if not plot and not terminal and _resolve_live_register(pos).is_empty():
-		# Truly empty - no plot, no terminal, and not a live QC register
-		_verbose.debug("ui", "⚠️", "update_tile_from_farm(%s): empty (no plot/terminal/live register)" % pos)
-		var tile = tiles[pos]
+		# Truly empty - no plot, no terminal, and not a live QC register.
+		# set_plot_data no-ops when the tile is already empty.
 		tile.set_plot_data(null, pos, -1)
 		return
 
-	# Transform plot/terminal → PlotUIData inline
-	_verbose.debug("ui", "✓", "update_tile_from_farm(%s): found plot=%s, terminal=%s" % [pos, plot != null, terminal != null])
 	var ui_data = _transform_plot_to_ui_data(pos, plot, terminal)
-	var tile = tiles[pos]
 	tile.set_plot_data(ui_data, pos, -1)
-	_verbose.debug("ui", "🌾", "PlotGridDisplay updating tile for plot %s" % pos)
 
 
 ## PHASE 4: PLOT TRANSFORMATION HELPER
@@ -1006,10 +996,17 @@ func refresh_all_tiles() -> void:
 
 func _refresh_live_tiles() -> void:
 	# Quiet ~5 Hz refresh so live-QC bubbles + Berry ripeness rings stay current.
-	# update_tile_from_farm early-returns on truly empty tiles, so this only does
-	# real work for live registers / planted / terminal-bound plots.
+	# Only VISIBLE tiles: the 2026-08-16 hitch train was this loop calling
+	# set_plot_data (and queue_redraw) on all ~192 tiles every 200 ms. Hidden
+	# tiles do not need a live berry ring, and PlotTile now no-ops unchanged
+	# snapshots so a visible empty tile is free too.
+	var t0 := Time.get_ticks_usec()
 	for pos in tiles.keys():
+		var tile = tiles[pos]
+		if tile == null or not tile.visible:
+			continue
 		update_tile_from_farm(pos)
+	FrameCostLedger.add_us("viz_pgd_live", Time.get_ticks_usec() - t0)
 
 
 
@@ -1474,14 +1471,16 @@ func _process(delta: float) -> void:
 	if _live_refresh_timer >= 0.2:
 		_live_refresh_timer = 0.0
 		_refresh_live_tiles()
-	
+	var t5 = Time.get_ticks_usec()
+	FrameCostLedger.add_us("viz_pgd", t5 - t0)
+
 	if Engine.get_process_frames() % 60 == 0:
 		_verbose.trace("ui", "⏱️", "PGD Process Trace: Total %d us (Sync: %d, Rejection: %d, Cleanup: %d, Connections: %d)" % [t4 - t0, t1 - t0, t2 - t1, t3 - t2, t4 - t3])
 
 	# Report timing to UIPerformanceTracker
 	var tracker = get_node_or_null("/root/UIPerformanceTracker")
 	if tracker:
-		tracker.record_time("PlotGridDisplay._process", t4 - t0)
+		tracker.record_time("PlotGridDisplay._process", t5 - t0)
 	elif Engine.get_process_frames() % 300 == 0 and _verbose:
 		_verbose.trace("ui", "⏱️", "UIPerformanceTracker autoload not found")
 

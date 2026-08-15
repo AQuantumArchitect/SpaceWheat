@@ -970,6 +970,16 @@ func _clear_portals() -> void:
 
 
 func _process(dt: float) -> void:
+	var t0 := Time.get_ticks_usec()
+	_tick_field(dt)
+	var used := Time.get_ticks_usec() - t0
+	FrameCostLedger.add_us("viz_field3d", used)
+	var vc = get_node_or_null("/root/VerboseConfig")
+	if vc and vc.has_method("hitch"):
+		vc.hitch("viz_field3d", float(used) / 1000.0, {"bubbles": _bubbles.size()})
+
+
+func _tick_field(dt: float) -> void:
 	# Force sizing: if anchor resolution left us collapsed, re-assert the full-rect
 	# anchors (the authority for our rect). The old fallback copied win.size — PHYSICAL
 	# window pixels — into the 1280×720 canvas_items space, which shifted the render
@@ -1009,10 +1019,12 @@ func _process(dt: float) -> void:
 		bname = str(biome.get_biome_type())
 	if bname != _last_biome or _bubbles.is_empty():
 		var switched := _last_biome != "" and bname != _last_biome
+		var tr := Time.get_ticks_usec()
 		_last_biome = bname
 		_apply_theme(bname)
 		_rebuild(biome)
 		_rebuild_portals(bname)
+		FrameCostLedger.add_us("viz_field3d_rebuild", Time.get_ticks_usec() - tr)
 		if switched:
 			# soften the hard cut on biome switch / descend / ascend — a short fade-in
 			# instead of the whole world teleporting between frames
@@ -1023,7 +1035,9 @@ func _process(dt: float) -> void:
 			print("[QF3D] rebuilt biome=", bname, " registers=", _bubbles.size(), " portals=", _portals.size())
 
 	var vc = biome.viz_cache
+	var t1 := Time.get_ticks_usec()
 	_apply_force_dynamics(vc, dt)
+	var t2 := Time.get_ticks_usec()
 	for b in _bubbles:
 		var snap = vc.get_snapshot(b.reg)
 		if typeof(snap) != TYPE_DICTIONARY:
@@ -1046,20 +1060,31 @@ func _process(dt: float) -> void:
 		# (only while time flows and the orb is revealed — a paused/hidden register
 		# must not accumulate a ghost trail)
 		if _time_scale > 0.0 and _bubble_shown(b):
-			var tr: Array = b.trail
-			tr.append(b.dot.position)
-			if tr.size() > 110:
-				tr.pop_front()
+			var trl: Array = b.trail
+			trl.append(b.dot.position)
+			if trl.size() > 110:
+				trl.pop_front()
 		# ripeness (value) grows the gold ring
 		var rip := clampf(VC.ripeness(p0, p1), 0.0, 1.0)
 		b.ring.scale = Vector3.ONE * (0.92 + 0.35 * rip)
+	var t3 := Time.get_ticks_usec()
 	_update_edges(vc)
+	var t4 := Time.get_ticks_usec()
 	_update_vectors()
+	var t5 := Time.get_ticks_usec()
 	_draw_chain()
+	var t6 := Time.get_ticks_usec()
 
 	_lindblad_frame += 1
 	if (_lindblad_frame % LINDBLAD_STRIDE) == 0:
 		_rebuild_lindblad_glyphs()
+	var t7 := Time.get_ticks_usec()
+	FrameCostLedger.add_us("viz_field3d_force", t2 - t1)
+	FrameCostLedger.add_us("viz_field3d_bubbles", t3 - t2)
+	FrameCostLedger.add_us("viz_field3d_edges", t4 - t3)
+	FrameCostLedger.add_us("viz_field3d_vectors", t5 - t4)
+	FrameCostLedger.add_us("viz_field3d_chain", t6 - t5)
+	FrameCostLedger.add_us("viz_field3d_lindblad", t7 - t6)
 
 
 ## Draw each register's live state vector (centre → the real Bloch point) plus a fading

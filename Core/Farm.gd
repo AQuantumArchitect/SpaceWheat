@@ -945,6 +945,7 @@ func _process(delta: float):
 	_process_mushroom_composting(delta)
 	var t2 = Time.get_ticks_usec()
 
+	FrameCostLedger.add_us("viz_farm", t2 - t0)
 	if Engine.get_process_frames() % 60 == 0:
 		# Use 'trace' category (WARN by default, only shown if explicitly enabled at DEBUG level)
 		if _verbose:
@@ -971,6 +972,7 @@ func _physics_process(delta: float) -> void:
 	if biome_evolution_batcher:
 		biome_evolution_batcher.physics_process(delta)
 
+	var rest_us := Time.get_ticks_usec()
 	# Faction density matrix Lindblad decay — off-diagonal coherences
 	# (alliance memory built by harvests) fade over ~5 min wall time.
 	# Diagonal untouched: affinity is preserved until the next pop event.
@@ -989,6 +991,7 @@ func _physics_process(delta: float) -> void:
 
 	# Authored nonlinear channels (the basins' hearts)
 	_process_gated_channels(delta)
+	FrameCostLedger.add_us("viz_farm_physics_rest", Time.get_ticks_usec() - rest_us)
 
 
 func _is_globally_paused() -> bool:

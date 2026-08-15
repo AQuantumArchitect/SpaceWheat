@@ -41,6 +41,7 @@ const InfraRendererScript = preload("res://Core/Visualization/QuantumInfraRender
 const EffectsRendererScript = preload("res://Core/Visualization/QuantumEffectsRenderer.gd")
 const NodeManagerScript = preload("res://Core/Visualization/QuantumNodeManager.gd")
 const GeometryBatcherScript = preload("res://Core/Visualization/GeometryBatcher.gd")
+const InstrumentLocatorCls = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
 # Logging
 @onready var _verbose = get_node_or_null("/root/VerboseConfig")
@@ -244,6 +245,7 @@ func _process(delta: float):
 	# GATE: Skip all rendering if no bubbles exist (viz_cache still not ready)
 	if quantum_nodes.is_empty():
 		projection_payloads = {}
+		FrameCostLedger.add_us("viz_force_process", Time.get_ticks_usec() - t0)
 		return
 
 	# GATE: Check for active terminal bubbles (explored, not measured)
@@ -301,6 +303,7 @@ func _process(delta: float):
 		queue_redraw()
 	var t7 = Time.get_ticks_usec()
 
+	FrameCostLedger.add_us("viz_force_process", t7 - t0)
 	# Store timing samples
 	_perf_samples["process_total"].append(t7 - t0)
 	_perf_samples["process_viewport"].append(t1 - t0)
@@ -379,6 +382,7 @@ func _draw():
 		_draw_debug_overlay()
 	var t_end = Time.get_ticks_usec()
 
+	FrameCostLedger.add_us("viz_force_draw", t_end - t_start)
 	# Store timing samples (consolidated sub-1ms steps)
 	_perf_samples["draw_total"].append(t_end - t_start)
 	_perf_samples["draw_context"].append(t_ctx - t_start)
@@ -425,6 +429,7 @@ func _build_context() -> Dictionary:
 	_context_cache["farm_grid"] = farm_grid
 	_context_cache["terminal_pool"] = terminal_pool
 	_context_cache["biome_evolution_batcher"] = biome_evolution_batcher
+	_context_cache["instrument"] = InstrumentLocatorCls.resolve_quantum_instrument(self)
 	_context_cache["emoji_atlas_batcher"] = emoji_atlas_batcher
 	_context_cache["bubble_atlas_batcher"] = bubble_atlas_batcher
 	_context_cache["geometry_batcher"] = geometry_batcher

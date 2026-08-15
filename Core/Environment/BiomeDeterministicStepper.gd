@@ -250,6 +250,18 @@ func run_time_skip_cycles(cycles: int, dt: float = -1.0, biome_names: Array = []
 			"skipped_biomes": skipped_biomes,
 			"mode": "native"
 		}
+	if batcher.lookahead_engine.has_method("is_lookahead_job_running") \
+			and batcher.lookahead_engine.is_lookahead_job_running():
+		return {
+			"success": false,
+			"error": "async_packet_in_flight",
+			"message": "Time-skip refused while compute is filling a lookahead packet.",
+			"cycles": target_cycles,
+			"biomes": 0,
+			"evolved_steps": 0,
+			"skipped_biomes": skipped_biomes,
+			"mode": "native"
+		}
 	var mode_str = "native"
 	var evolved_steps = 0
 	var stride_deferred_steps = 0

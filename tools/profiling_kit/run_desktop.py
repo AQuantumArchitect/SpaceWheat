@@ -56,8 +56,17 @@ SCENARIOS = {
 }
 
 
+def find_exe(build: Path) -> Path:
+    for name in ("SpaceWheat.exe", "SpaceWheat.x86_64", "SpaceWheat"):
+        candidate = build / name
+        if candidate.exists():
+            return candidate
+    sys.exit(f"no SpaceWheat binary in {build}")
+
+
 def run_one(exe: Path, out: Path, scenario: str, uncapped: bool,
-            warmup: float, seconds: float, save: Path, timeout: float) -> dict | None:
+            warmup: float, seconds: float, save: Path, timeout: float,
+            extra_env: dict | None = None, extra_args: list | None = None) -> dict | None:
     env = dict(os.environ)
     env.update({
         "SW_PERF_LOG": str(out),
@@ -67,7 +76,10 @@ def run_one(exe: Path, out: Path, scenario: str, uncapped: bool,
         # The FPS/PhHz strip is a debug-build readout. Off, so the run renders
         # exactly what a player's build renders.
         "SW_DEBUG_READOUT": "0",
+        "VERBOSE_CATEGORIES": "perf:debug,viz:warn",
     })
+    if extra_env:
+        env.update(extra_env)
     for k, v in SCENARIOS[scenario].items():
         env[k] = str(save) if v is None else v
 
@@ -77,8 +89,9 @@ def run_one(exe: Path, out: Path, scenario: str, uncapped: bool,
     label = f"{scenario}/{'uncapped' if uncapped else 'capped'}"
     print(f"  running {label} … ", end="", flush=True)
     started = time.time()
+    cmd = [str(exe)] + (extra_args or [])
     try:
-        proc = subprocess.run([str(exe)], env=env, timeout=timeout,
+        proc = subprocess.run(cmd, env=env, timeout=timeout,
                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     except subprocess.TimeoutExpired:
         print(f"TIMEOUT after {timeout:.0f}s — the game did not quit on its own")
@@ -99,8 +112,16 @@ def run_one(exe: Path, out: Path, scenario: str, uncapped: bool,
     if not s:
         print("no steady-state frames")
         return report
+    attr = report.get("attribution") or {}
     print(f"{s['fps_mean']:6.1f} fps mean  |  p50 {s['frame_ms_p50']:6.2f}ms  "
           f"p95 {s['frame_ms_p95']:6.2f}ms  |  {s['frames']} frames")
+    if attr:
+        viz = attr.get("viz") or {}
+        print(f"           accounted {float(attr.get('accounted_share', 0)):.1%}  "
+              f"engine {float(attr.get('engine_process_share', 0)):.1%}  "
+              f"present {float(attr.get('present_wait_share', 0)):.1%}  "
+              f"field3d {float(viz.get('viz_field3d_share', 0)):.1%}  "
+              f"native {float(attr.get('native_share', 0)):.1%}")
     return report
 
 
@@ -116,22 +137,36 @@ def main() -> int:
     ap.add_argument("--warmup", type=float, default=25.0,
                     help="boot grace kept out of the percentiles (sampled separately)")
     ap.add_argument("--only", choices=["capped", "uncapped"], default=None)
+    ap.add_argument("--classic-2d", action="store_true",
+                    help="force the legacy 2D renderer (isolates the 3D SubViewport)")
+    ap.add_argument("--headless", action="store_true",
+                    help="CPU-only / no-GPU boxes. fps is not a player frame rate.")
+    ap.add_argument("--prefix", default="desktop",
+                    help="results filename prefix (desktop / linux / …)")
     args = ap.parse_args()
 
-    exe = Path(args.build).resolve() / "SpaceWheat.exe"
-    if not exe.exists():
-        sys.exit(f"no SpaceWheat.exe in {args.build}")
+    exe = find_exe(Path(args.build).resolve())
     save = Path(args.save).resolve()
     results = Path(args.results).resolve()
     results.mkdir(parents=True, exist_ok=True)
 
     passes = [False, True] if args.only is None else [args.only == "uncapped"]
     timeout = args.warmup + args.seconds + 180
+    extra_env = {}
+    extra_args = []
+    suffix = ""
+    if args.classic_2d:
+        extra_env["SW_CLASSIC_2D"] = "1"
+        suffix = "-2d"
+    if args.headless:
+        extra_args.append("--headless")
 
     print(f"exe        {exe}")
     print(f"save       {save}{'' if save.exists() else '   [MISSING — endgame will be skipped]'}")
     print(f"window     {args.warmup:.0f}s warmup + {args.seconds:.0f}s sample per run")
     print(f"scenarios  {', '.join(args.scenarios)}")
+    print(f"renderer   {'classic-2d' if args.classic_2d else 'default 3D'}"
+          f"{'  HEADLESS' if args.headless else ''}")
     print()
     print("Each run opens a game window and closes itself. Leave the window in front.")
     print()
@@ -142,9 +177,10 @@ def main() -> int:
             print(f"  skipping endgame — no save at {save}")
             continue
         for uncapped in passes:
-            key = f"{scenario}-{'uncapped' if uncapped else 'capped'}"
-            report = run_one(exe, results / f"desktop-{key}.json", scenario, uncapped,
-                             args.warmup, args.seconds, save, timeout)
+            key = f"{scenario}{suffix}-{'uncapped' if uncapped else 'capped'}"
+            report = run_one(exe, results / f"{args.prefix}-{key}.json", scenario, uncapped,
+                             args.warmup, args.seconds, save, timeout,
+                             extra_env=extra_env, extra_args=extra_args)
             if report:
                 reports[key] = report
 

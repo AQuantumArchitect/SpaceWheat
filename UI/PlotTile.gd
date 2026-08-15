@@ -99,10 +99,10 @@ func _ready():
 	# Explicitly layout elements since NOTIFICATION_RESIZED may not fire in all cases
 	_layout_elements()
 
-	# Performance optimization: Start with processing disabled for empty tiles
-	# Processing is enabled when plot data is set via set_plot_data()
+	# Empty tiles do not tick. There is no _physics_process here — leaving
+	# physics on dispatched 192 idle callbacks at PHRAME_HZ for nothing.
 	set_process(false)
-	set_physics_process(true)  # Physics process updates shared glow value
+	set_physics_process(false)
 	_visuals_dirty = true  # Ensure first update when data arrives
 
 
@@ -639,24 +639,79 @@ func _draw_berry_ring_inline(rect: Rect2):
 
 func set_plot_data(plot_data, pos: Vector2i, index: int = -1):
 	# Set the plot UI data for this tile (Phase 4: PlotUIData instead of WheatPlot)
-	plot_ui_data = plot_data
 	grid_position = pos
 
-	# Set number label if index provided (check if label exists first)
 	if index >= 0 and number_label:
-		number_label.text = str(index)
+		var label := str(index)
+		if number_label.text != label:
+			number_label.text = label
 
-	# Performance optimization: Mark visuals as dirty for next frame update
+	# PlotGridDisplay used to rebuild every tile at 5 Hz. Same empty snapshot
+	# still called _update_visuals + queue_redraw, and Godot's canvas paid ~90 ms
+	# on the 960M for 192 Control dirties — the hitch that vsync only promoted.
+	if plot_data == null:
+		if plot_ui_data == null:
+			return
+	elif plot_ui_data is Dictionary and _structural_same(plot_ui_data, plot_data):
+		var berry_dirty := _berry_visual_changed(plot_ui_data, plot_data)
+		_copy_live_fields(plot_ui_data, plot_data)
+		if berry_dirty:
+			queue_redraw()
+		return
+
+	plot_ui_data = plot_data
 	_visuals_dirty = true
-
-	# Performance optimization: Only enable _process for planted tiles
-	# Empty tiles don't need per-frame updates
-	var is_planted = plot_data != null and plot_data.get("is_planted", false)
-	set_process(is_planted)
-
-	# Immediate visual update for responsiveness on state change
+	var is_planted = plot_data != null and bool(plot_data.get("is_planted", false))
+	if is_processing() != is_planted:
+		set_process(is_planted)
 	_update_visuals()
 	queue_redraw()
+
+
+func _structural_same(cur: Dictionary, nxt) -> bool:
+	if nxt == null or not (nxt is Dictionary):
+		return false
+	if bool(cur.get("is_planted", false)) != bool(nxt.get("is_planted", false)):
+		return false
+	if bool(cur.get("memory_visible", false)) != bool(nxt.get("memory_visible", false)):
+		return false
+	if bool(cur.get("has_been_measured", false)) != bool(nxt.get("has_been_measured", false)):
+		return false
+	if str(cur.get("north_emoji", "")) != str(nxt.get("north_emoji", "")):
+		return false
+	if str(cur.get("south_emoji", "")) != str(nxt.get("south_emoji", "")):
+		return false
+	if bool(cur.get("lindblad_pump_active", false)) != bool(nxt.get("lindblad_pump_active", false)):
+		return false
+	if bool(cur.get("lindblad_drain_active", false)) != bool(nxt.get("lindblad_drain_active", false)):
+		return false
+	var cur_ent: Variant = cur.get("entangled_plots", [])
+	var nxt_ent: Variant = nxt.get("entangled_plots", [])
+	var cur_n: int = cur_ent.size() if cur_ent is Array else 0
+	var nxt_n: int = nxt_ent.size() if nxt_ent is Array else 0
+	return cur_n == nxt_n
+
+
+func _berry_visual_changed(cur: Dictionary, nxt: Dictionary) -> bool:
+	if bool(cur.get("berry_tracked", false)) != bool(nxt.get("berry_tracked", false)):
+		return true
+	if not bool(nxt.get("berry_tracked", false)):
+		return false
+	if bool(cur.get("berry_ripe", false)) != bool(nxt.get("berry_ripe", false)):
+		return true
+	# ~2° of the 2π ring — smaller than a pixel at tile size, skips no-op redraws.
+	return absf(float(cur.get("berry_phase", 0.0)) - float(nxt.get("berry_phase", 0.0))) > 0.035
+
+
+func _copy_live_fields(cur: Dictionary, nxt: Dictionary) -> void:
+	cur["north_probability"] = nxt.get("north_probability", 0.0)
+	cur["south_probability"] = nxt.get("south_probability", 0.0)
+	cur["berry_tracked"] = nxt.get("berry_tracked", false)
+	cur["berry_phase"] = nxt.get("berry_phase", 0.0)
+	cur["berry_threshold"] = nxt.get("berry_threshold", TAU)
+	cur["berry_ripe"] = nxt.get("berry_ripe", false)
+	cur["berry_rate"] = nxt.get("berry_rate", 0.0)
+	cur["berry_eta_s"] = nxt.get("berry_eta_s", -1.0)
 
 
 func get_debug_info() -> String:

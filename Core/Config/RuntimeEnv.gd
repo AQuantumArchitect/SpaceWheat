@@ -35,31 +35,73 @@ const _FALSE_TOKENS := ["0", "false", "no", "off"]
 static func _truthy(raw: String) -> bool:
 	return raw.strip_edges().to_lower() in _TRUE_TOKENS
 
+# Web exports have no process environment. The profiling kit therefore talks to
+# a shipped web build through the page query string (?sw_autostart=1&sw_load_path=…).
+# Desktop still wins: a real env var is never overridden by a query key.
+static var _qs: Dictionary = {}
+static var _qs_ready: bool = false
+
+static func parse_query(search: String) -> Dictionary:
+	var out := {}
+	var s := search.strip_edges()
+	if s.begins_with("?"):
+		s = s.substr(1)
+	if s.is_empty():
+		return out
+	for part in s.split("&"):
+		if part.is_empty():
+			continue
+		var kv: PackedStringArray = part.split("=", true, 1)
+		var k := kv[0].strip_edges().uri_decode().to_upper()
+		if k.is_empty():
+			continue
+		var v := kv[1].uri_decode() if kv.size() > 1 else "1"
+		out[k] = v
+	return out
+
+static func _ensure_qs() -> void:
+	if _qs_ready:
+		return
+	_qs_ready = true
+	if not OS.has_feature("web"):
+		return
+	var search := ""
+	if ClassDB.class_exists("JavaScriptBridge"):
+		search = str(JavaScriptBridge.eval("String(window.location.search || '')", true))
+	_qs = parse_query(search)
+
+static func _raw(key: String) -> String:
+	var from_env := OS.get_environment(key).strip_edges()
+	if from_env != "":
+		return from_env
+	_ensure_qs()
+	return str(_qs.get(key.to_upper(), "")).strip_edges()
+
 static func flag(key: String, default_value: bool = false) -> bool:
-	var raw := OS.get_environment(key)
-	if raw.strip_edges() == "":
+	var raw := _raw(key)
+	if raw == "":
 		return default_value
 	return _truthy(raw)
 
 static func env_int(key: String, default_value: int) -> int:
-	var raw := OS.get_environment(key)
+	var raw := _raw(key)
 	if raw == "" or not raw.is_valid_int():
 		return default_value
 	return raw.to_int()
 
 static func env_float(key: String, default_value: float) -> float:
-	var raw := OS.get_environment(key)
+	var raw := _raw(key)
 	if raw == "" or not raw.is_valid_float():
 		return default_value
 	return raw.to_float()
 
 static func env_str(key: String, default_value: String = "") -> String:
-	var raw := OS.get_environment(key).strip_edges()
+	var raw := _raw(key)
 	return raw if raw != "" else default_value
 
 ## Tri-state env read: 1 = truthy, 0 = explicitly falsy, -1 = unset/unknown (caller falls back).
 static func tristate(key: String) -> int:
-	var v := OS.get_environment(key).strip_edges().to_lower()
+	var v := _raw(key).to_lower()
 	if v in _TRUE_TOKENS:
 		return 1
 	if v in _FALSE_TOKENS:
@@ -164,7 +206,34 @@ static func debug_readout_enabled() -> bool:
 ## downloads cannot be asked anything by the harness. Before this, profiling an
 ## export meant photographing the FPS strip.
 static func perf_log_path() -> String:
-	return env_str("SW_PERF_LOG", "")
+	var p := env_str("SW_PERF_LOG", "")
+	if p != "":
+		return p
+	# Web has no filesystem the kit can read. `?sw_perf=1` means "sample and
+	# POST the report back to the page's origin" — see PerfSampler._post_web_report.
+	if OS.has_feature("web") and flag("SW_PERF", false):
+		return "web://post"
+	return ""
+
+## Skip the title card and boot a live farm. Desktop: SW_AUTOSTART=1.
+## Web: ?sw_autostart=1. Without this every headed browser sample is the title.
+static func autostart() -> bool:
+	return flag("SW_AUTOSTART", false)
+
+## Load this checkpoint after the farm is up. Desktop: SW_LOAD_PATH=<abs>.
+## Web: ?sw_load_path=endrun_ending.tres (same-origin fetch into user://).
+static func load_path() -> String:
+	return env_str("SW_LOAD_PATH", "")
+
+## Force the legacy 2D force-graph renderer. Desktop: SW_CLASSIC_2D=1.
+## Web: ?sw_classic_2d=1. Used to isolate the 3D SubViewport submit.
+static func classic_2d() -> bool:
+	return flag("SW_CLASSIC_2D", false)
+
+## Force the 3D field even if something else asked for 2D. 2D still wins ties
+## in GameRoot — this is the explicit "I mean the cognifold" switch.
+static func field_3d_forced() -> bool:
+	return flag("SW_FIELD_3D", false)
 
 ## Seconds of boot churn kept out of the steady-state percentiles. Sampled and
 ## reported separately rather than dropped — boot cost is real, it just isn't
@@ -239,6 +308,10 @@ static func describe() -> Dictionary:
 		"perf_log_path": perf_log_path(),
 		"perf_warmup_seconds": perf_warmup_seconds(),
 		"perf_duration_seconds": perf_duration_seconds(),
+		"autostart": autostart(),
+		"load_path": load_path(),
+		"classic_2d": classic_2d(),
+		"field_3d_forced": field_3d_forced(),
 		"uncap_frame_rate": uncap_frame_rate(),
 		"bubble_quality_override": bubble_quality_override(),
 		"force_operator_rebuild": force_operator_rebuild(),

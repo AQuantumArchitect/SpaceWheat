@@ -16,6 +16,7 @@ func _init() -> void:
 		"is_lookahead_job_complete",
 		"take_completed_lookahead_job",
 		"cancel_lookahead_job",
+		"set_node_positions",
 	]:
 		if not engine.has_method(method_name):
 			push_error("missing method: %s" % method_name)

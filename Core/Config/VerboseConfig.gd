@@ -130,6 +130,14 @@ func _ready():
 	else:
 		enable_file_logging = false
 
+	# Per-category levels without turning the whole game to TRACE (which
+	# would eat the fps the perf lane is trying to measure).
+	#   VERBOSE_CATEGORIES=perf:debug,viz:debug
+	var cat_overrides := OS.get_environment("VERBOSE_CATEGORIES")
+	if cat_overrides.strip_edges() != "":
+		_apply_runtime_overrides(cat_overrides)
+		print("🔧 Logger: VERBOSE_CATEGORIES=%s" % cat_overrides)
+
 	# Legacy: Check for subsystem-specific flags
 	if OS.get_environment("VERBOSE_FOREST") == "1":
 		set_category_level("biome", LogLevel.DEBUG)
@@ -220,6 +228,17 @@ func debug(category: String, emoji: String, message: String) -> void:
 func trace(category: String, emoji: String, message: String) -> void:
 	# Log trace message (extremely verbose)
 	_log(category, LogLevel.TRACE, emoji, message)
+
+
+## Hitch helper for the perf lane. WARN (the default `perf` level) so a
+## player's build is silent unless a frame actually stalls.
+func hitch(tag: String, ms: float, detail: Dictionary = {}) -> void:
+	if ms < 33.4:
+		return
+	var extra := ""
+	if not detail.is_empty():
+		extra = " " + JSON.stringify(detail)
+	warn("perf", "🐢", "%s hitch %.1fms%s" % [tag, ms, extra])
 
 
 # Shorter aliases for frequent use

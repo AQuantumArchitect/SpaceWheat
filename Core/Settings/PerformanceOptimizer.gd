@@ -75,6 +75,9 @@ static func optimize_for_platform() -> void:
 			Engine.max_fps = 60
 			VerboseHelper.info("perf", "fps", "OpenGL mode - FPS cap: 60")
 		else:
+			# ENABLED (FIFO). MAILBOX on the 960M (Vulkan 1.4) took endgame from
+			# 45 fps / p95 103 to 26 fps / p95 147 — the leftover 5 Hz spike is
+			# not a FIFO train, and mailbox made present slower.
 			DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED)
 			VerboseHelper.info("perf", "fps", "VSYNC: ON (hardware GPU)")
 

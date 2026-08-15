@@ -172,7 +172,10 @@ PROBE = r"""
   // software rasteriser can be minutes after the page is "loaded".
   var logLines = [];
   var BOOT_RE = /native acceleration enabled|SpaceWheat v|Godot Engine v/i;
+  var FARM_RE = /GameRoot ready|Farm simulation process enabled|fetched save |BOOT SESSION STARTING|awaiting farm/i;
   var sawBootLine = false;
+  var sawFarmLine = false;
+  var sawEigen = false;
   ["log", "info", "warn", "error"].forEach(function (level) {
     var original = console[level].bind(console);
     console[level] = function () {
@@ -180,6 +183,8 @@ PROBE = r"""
         var text = Array.prototype.map.call(arguments, String).join(" ");
         if (logLines.length < 400) logLines.push(level + ": " + text.slice(0, 300));
         if (BOOT_RE.test(text)) sawBootLine = true;
+        if (FARM_RE.test(text)) sawFarmLine = true;
+        if (/native acceleration enabled/i.test(text)) sawEigen = true;
       } catch (e) { /* never let instrumentation break the page */ }
       return original.apply(null, arguments);
     };
@@ -236,6 +241,8 @@ PROBE = r"""
       gpu: gpu(canvas),
       boot_seconds: bootSeconds,
       boot_signal: bootSignal,
+      farm_seen: sawFarmLine,
+      eigen_seen: sawEigen,
       console_tail: logLines.slice(-60),
       settle: settle,
       steady_state: steady,
@@ -257,10 +264,14 @@ PROBE = r"""
 class Result:
     def __init__(self) -> None:
         self.payload: dict | None = None
+        self.engine: dict | None = None
         self.ready = threading.Event()
+        self.engine_ready = threading.Event()
 
 
-def make_handler(bundle: Path, cfg: dict, result: Result):
+def make_handler(bundle: Path, cfg: dict, result: Result, extra_files: dict | None = None):
+    extra_files = extra_files or {}
+
     class Handler(http.server.SimpleHTTPRequestHandler):
         def __init__(self, *a, **kw):
             super().__init__(*a, directory=str(bundle), **kw)
@@ -280,7 +291,8 @@ def make_handler(bundle: Path, cfg: dict, result: Result):
             super().end_headers()
 
         def do_POST(self):
-            if self.path != "/__perf":
+            path = self.path.split("?")[0]
+            if path not in ("/__perf", "/__engine_perf"):
                 self.send_error(404)
                 return
             length = int(self.headers.get("Content-Length", "0"))
@@ -291,15 +303,34 @@ def make_handler(bundle: Path, cfg: dict, result: Result):
                 return
             self.send_response(204)
             self.end_headers()
+            if path == "/__engine_perf":
+                # The engine's own PerfSampler report. No nonce — the page
+                # origin is already the only client that can POST here.
+                if result.engine is None:
+                    result.engine = body
+                    result.engine_ready.set()
+                return
             if body.get("nonce") == cfg["nonce"] and result.payload is None:
                 result.payload = body
                 result.ready.set()
 
         def do_GET(self):
-            if self.path.split("?")[0] in ("/", "/index.html"):
+            path = self.path.split("?")[0]
+            if path in extra_files:
+                self._serve_extra(extra_files[path])
+                return
+            if path in ("/", "/index.html"):
                 self._serve_injected()
                 return
             super().do_GET()
+
+        def _serve_extra(self, src: Path):
+            raw = src.read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/octet-stream")
+            self.send_header("Content-Length", str(len(raw)))
+            self.end_headers()
+            self.wfile.write(raw)
 
         def _serve_injected(self):
             html = (bundle / "index.html").read_text(encoding="utf-8")
@@ -385,6 +416,73 @@ def launch(browser: str, url: str, profile_dir: Path, headless: bool) -> subproc
 
 # ---------------------------------------------------------------------------
 
+DEFAULT_SAVE = HERE / "build" / "endrun_ending.tres"
+
+SCENARIOS = {
+    "title": {
+        "query": {},
+        "settle": 15.0,
+        "warmup": 15.0,
+    },
+    "fresh": {
+        "query": {"sw_autostart": "1"},
+        "settle": 25.0,
+        "warmup": 25.0,
+    },
+    "endgame": {
+        "query": {"sw_autostart": "1", "sw_load_path": "endrun_ending.tres"},
+        "settle": 35.0,
+        "warmup": 40.0,
+        "save": True,
+    },
+}
+
+
+def build_query(scenario: str, seconds: float, warmup: float) -> str:
+    params = {
+        "sw_perf": "1",
+        "sw_perf_quit": "0",
+        "sw_perf_seconds": f"{seconds:.0f}",
+        "sw_perf_warmup_seconds": f"{warmup:.0f}",
+    }
+    params.update(SCENARIOS[scenario]["query"])
+    return "&".join(f"{k}={v}" for k, v in params.items())
+
+
+def keep_chrome_in_front(stop: threading.Event) -> None:
+    """Windows will throttle an unfocused Chrome to ~1 rAF/sec. Prod the window."""
+    if os.name != "nt":
+        return
+    try:
+        import ctypes
+        from ctypes import wintypes
+    except ImportError:
+        return
+    user32 = ctypes.windll.user32
+    EnumWindows = user32.EnumWindows
+    GetWindowTextW = user32.GetWindowTextW
+    IsWindowVisible = user32.IsWindowVisible
+    SetForegroundWindow = user32.SetForegroundWindow
+    ShowWindow = user32.ShowWindow
+    WNDENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+
+    def _enum(hwnd, _lparam):
+        if not IsWindowVisible(hwnd):
+            return True
+        buf = ctypes.create_unicode_buffer(256)
+        GetWindowTextW(hwnd, buf, 256)
+        title = buf.value.lower()
+        if "chrome" in title or "edge" in title or "spacewheat" in title:
+            ShowWindow(hwnd, 9)  # SW_RESTORE
+            SetForegroundWindow(hwnd)
+            return False
+        return True
+
+    cb = WNDENUMPROC(_enum)
+    while not stop.wait(2.0):
+        EnumWindows(cb, 0)
+
+
 def verdict(payload: dict, headless: bool) -> tuple[bool, list[str]]:
     caveats: list[str] = []
     if headless:
@@ -415,12 +513,133 @@ def verdict(payload: dict, headless: bool) -> tuple[bool, list[str]]:
     steady = payload.get("steady_state") or {}
     if steady.get("frames", 0) < 60:
         caveats.append(f"only {steady.get('frames', 0)} frames sampled — too few for a percentile")
-    fatal = [e for e in payload.get("console_errors", [])
-             if re.search(r"abort|out of memory|failed to (instantiate|fetch)|RuntimeError", e, re.I)]
-    if fatal:
-        caveats.append(f"{len(fatal)} fatal console errors: {fatal[:2]}")
-    return (not headless and not software
+    log_blob = "\n".join(str(x) for x in (payload.get("console_errors") or [])
+                         + (payload.get("console_tail") or []))
+    fatal = re.findall(r".{0,80}(abort|RuntimeError|undefined symbol).{0,120}",
+                       log_blob, flags=re.I)
+    aborted = bool(fatal)
+    if aborted:
+        caveats.append(
+            "WASM aborted — rAF keeps firing on a dead canvas, so fps here is not a game: "
+            + "; ".join(fatal[:2])
+        )
+    return (not headless and not software and not aborted
             and payload.get("cross_origin_isolated", False)), caveats
+
+
+def run_one(bundle: Path, results_dir: Path, scenario: str, seconds: float,
+            settle: float, warmup: float, boot_timeout: float, port: int,
+            browser: str, save: Path, headless: bool, keep_open: bool) -> dict | None:
+    extra: dict[str, Path] = {}
+    if SCENARIOS[scenario].get("save"):
+        if not save.exists():
+            print(f"  skipping {scenario} — no save at {save}")
+            return None
+        extra["/endrun_ending.tres"] = save
+
+    cfg = {
+        "nonce": os.urandom(8).hex(),
+        "seconds": seconds,
+        "settle": settle,
+        "boot_timeout": boot_timeout,
+    }
+    result = Result()
+    server = ThreadedServer(("127.0.0.1", port),
+                            make_handler(bundle, cfg, result, extra))
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+
+    query = build_query(scenario, seconds, warmup)
+    url = f"http://127.0.0.1:{port}/index.html?{query}"
+    profile_dir = Path(tempfile.mkdtemp(prefix="sw-profile-"))
+    print(f"  {scenario}: {url}")
+    print(f"           boot<={boot_timeout:.0f}s, settle {settle:.0f}s, sample {seconds:.0f}s")
+
+    stop_focus = threading.Event()
+    threading.Thread(target=keep_chrome_in_front, args=(stop_focus,), daemon=True).start()
+    proc = launch(browser, url, profile_dir, headless)
+    budget = boot_timeout + settle + seconds + 90
+    started = time.time()
+    try:
+        while not result.ready.wait(timeout=2.0):
+            if time.time() - started > budget:
+                print(f"  FAIL: no rAF result within {budget:.0f}s")
+                return None
+    finally:
+        # Give the engine sampler a moment to POST after the rAF window.
+        result.engine_ready.wait(timeout=12.0)
+        stop_focus.set()
+        if not keep_open:
+            proc.terminate()
+            if os.name == "nt":
+                subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                               check=False)
+        server.shutdown()
+        shutil.rmtree(profile_dir, ignore_errors=True)
+
+    payload = result.payload or {}
+    if not payload.get("ok"):
+        print(f"  FAIL: {payload.get('failed', 'the page reported a failure')}")
+        out = results_dir / f"web-{scenario}-FAILED.json"
+        out.write_text(json.dumps({"raf": payload, "engine": result.engine}, indent=2),
+                       encoding="utf-8")
+        print(f"  wrote {out}")
+        return None
+
+    trustworthy, caveats = verdict(payload, headless)
+    if scenario != "title" and not payload.get("farm_seen"):
+        caveats.append(
+            "farm boot banner never appeared — this may still be the title card"
+        )
+    # rAF keeps ticking after a WASM abort, so a 60 fps number on a dead
+    # canvas is the most expensive lie this lane can tell.
+    blob = "\n".join(str(x) for x in (payload.get("console_tail") or []))
+    if re.search(r"Aborted\(|undefined symbol|RuntimeError", blob):
+        caveats.append(
+            "WASM aborted during boot — the rAF rate is a frozen canvas, not a game"
+        )
+        trustworthy = False
+    report = {
+        "schema": "spacewheat.perf.web/1",
+        "label": f"web-{scenario}",
+        "scenario": scenario,
+        "bundle": str(bundle),
+        "query": query,
+        "host": {
+            "machine": platform.machine(),
+            "processor": platform.processor(),
+            "release": platform.platform(),
+        },
+        "headless": headless,
+        "trustworthy": trustworthy,
+        "caveats": caveats,
+        "engine": result.engine,
+        **payload,
+    }
+    out = results_dir / f"web-{scenario}.json"
+    out.write_text(json.dumps(report, indent=2), encoding="utf-8")
+
+    s = report["steady_state"]
+    st = report["settle"]
+    print(f"           renderer  {report['gpu'].get('renderer')}")
+    print(f"           boot      {report['boot_seconds']:.1f}s   farm={payload.get('farm_seen')}  "
+          f"eigen={payload.get('eigen_seen')}")
+    print(f"           settle    {st['fps_mean']:.1f} fps")
+    print(f"           STEADY    {s['fps_mean']:.1f} fps   p50 {s['frame_ms_p50']:.1f}ms"
+          f"   p95 {s['frame_ms_p95']:.1f}ms   worst {s['frame_ms_max']:.0f}ms")
+    print(f"           timer     {s['worst_timer_overrun_ms']:.0f}ms   trustworthy={trustworthy}")
+    if result.engine:
+        attr = (result.engine.get("attribution") or {})
+        viz = attr.get("viz") or {}
+        field = viz.get("viz_field3d_share")
+        unacc = attr.get("unaccounted_share")
+        print(f"           engine    unaccounted={unacc}  field3d_share={field}")
+    else:
+        print("           engine    (no PerfSampler POST — this bundle predates the web hook)")
+    for c in caveats:
+        print(f"             ! {c}")
+    print(f"           wrote {out}")
+    return report
 
 
 def main() -> int:
@@ -428,9 +647,15 @@ def main() -> int:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--bundle", default=str(DEFAULT_BUNDLE), help="unzipped web export dir")
     ap.add_argument("--results", default=str(DEFAULT_RESULTS))
-    ap.add_argument("--label", default="web")
+    ap.add_argument("--label", default="web",
+                    help="unused when --scenarios is set; kept so old invocations still parse")
+    ap.add_argument("--scenarios", nargs="*", default=["title", "fresh", "endgame"],
+                    choices=list(SCENARIOS))
+    ap.add_argument("--save", default=str(DEFAULT_SAVE),
+                    help="endgame .tres served at /endrun_ending.tres")
     ap.add_argument("--seconds", type=float, default=30.0, help="steady-state sample window")
-    ap.add_argument("--settle", type=float, default=15.0, help="post-boot grace, measured separately")
+    ap.add_argument("--settle", type=float, default=None,
+                    help="override post-boot grace (default depends on scenario)")
     ap.add_argument("--boot-timeout", type=float, default=180.0)
     ap.add_argument("--port", type=int, default=8043)
     ap.add_argument("--browser", default=None)
@@ -452,95 +677,48 @@ def main() -> int:
 
     results_dir = Path(args.results).resolve()
     results_dir.mkdir(parents=True, exist_ok=True)
-
-    cfg = {
-        "nonce": os.urandom(8).hex(),
-        "seconds": args.seconds,
-        "settle": args.settle,
-        "boot_timeout": args.boot_timeout,
-    }
-    result = Result()
-    server = ThreadedServer(("127.0.0.1", args.port), make_handler(bundle, cfg, result))
-    threading.Thread(target=server.serve_forever, daemon=True).start()
-
-    url = f"http://127.0.0.1:{args.port}/index.html"
+    save = Path(args.save).resolve()
     browser = find_browser(args.browser)
-    profile_dir = Path(tempfile.mkdtemp(prefix="sw-profile-"))
 
     print(f"bundle   {bundle}")
-    print(f"serving  {url}  (COOP/COEP, threaded)")
     print(f"browser  {browser}")
-    print(f"window   boot<={args.boot_timeout:.0f}s, settle {args.settle:.0f}s, sample {args.seconds:.0f}s")
-    print("\nA browser window will open. LEAVE IT IN FRONT and do not click away —")
-    print("a background tab is throttled and the number would be meaningless.\n")
+    print(f"scenarios  {', '.join(args.scenarios)}")
+    print("\nEach run opens a headed browser. LEAVE IT IN FRONT.\n")
 
-    proc = launch(browser, url, profile_dir, args.headless)
-    budget = args.boot_timeout + args.settle + args.seconds + 60
-    started = time.time()
-    try:
-        while not result.ready.wait(timeout=2.0):
-            if time.time() - started > budget:
-                print(f"FAIL: no result within {budget:.0f}s — the page never reported back")
-                return 2
-            if proc.poll() is not None and not result.ready.is_set():
-                # Chrome forks and the launcher exits immediately; only treat a
-                # dead process as fatal once the whole budget is gone.
-                pass
-    finally:
-        if not args.keep_open:
-            proc.terminate()
-            if os.name == "nt":
-                # Chrome re-parents its own children; terminate() alone leaves
-                # the window up and the next run's port already claimed.
-                subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)],
-                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                               check=False)
-        server.shutdown()
-        shutil.rmtree(profile_dir, ignore_errors=True)
+    reports: dict[str, dict] = {}
+    rc = 0
+    for i, scenario in enumerate(args.scenarios):
+        spec = SCENARIOS[scenario]
+        settle = args.settle if args.settle is not None else float(spec["settle"])
+        warmup = float(spec["warmup"])
+        report = run_one(
+            bundle, results_dir, scenario, args.seconds, settle, warmup,
+            args.boot_timeout, args.port + i, browser, save,
+            args.headless, args.keep_open,
+        )
+        if report is None:
+            rc = 2
+            continue
+        reports[scenario] = report
+        if not report.get("trustworthy"):
+            rc = max(rc, 1)
 
-    payload = result.payload or {}
-    if not payload.get("ok"):
-        print(f"FAIL: {payload.get('failed', 'the page reported a failure')}")
-        out = results_dir / f"{args.label}-FAILED.json"
-        out.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-        print(f"wrote {out}")
+    if not reports:
+        print("\nNo reports produced. Nothing to conclude — do not guess a number.")
         return 2
 
-    trustworthy, caveats = verdict(payload, args.headless)
-    report = {
-        "schema": "spacewheat.perf.web/1",
-        "label": args.label,
-        "bundle": str(bundle),
-        "host": {
-            "machine": platform.machine(),
-            "processor": platform.processor(),
-            "release": platform.platform(),
-        },
-        "headless": args.headless,
-        "trustworthy": trustworthy,
-        "caveats": caveats,
-        **payload,
-    }
-    out = results_dir / f"{args.label}.json"
-    out.write_text(json.dumps(report, indent=2), encoding="utf-8")
-
-    s = report["steady_state"]
-    st = report["settle"]
-    print("=" * 64)
-    print(f"  renderer     {report['gpu'].get('renderer')}")
-    print(f"  vendor       {report['gpu'].get('vendor')}")
-    print(f"  canvas       {report['canvas']['width']}x{report['canvas']['height']}")
-    print(f"  boot         {report['boot_seconds']:.1f}s to first live canvas")
-    print(f"  settle fps   {st['fps_mean']:.1f} mean  (first {args.settle:.0f}s after boot)")
-    print(f"  STEADY fps   {s['fps_mean']:.1f} mean   p50 frame {s['frame_ms_p50']:.1f}ms"
-          f"   p95 {s['frame_ms_p95']:.1f}ms   worst {s['frame_ms_max']:.0f}ms")
-    print(f"  timer stall  {s['worst_timer_overrun_ms']:.0f}ms worst")
-    print(f"  trustworthy  {trustworthy}")
-    for c in caveats:
-        print(f"    ! {c}")
-    print("=" * 64)
-    print(f"wrote {out}")
-    return 0 if trustworthy else 1
+    print()
+    print("=" * 72)
+    print(f"  {'scenario':<10} {'fps':>7} {'p50 ms':>8} {'p95 ms':>8} {'worst':>7}  farm  eigen  trust")
+    for key, report in reports.items():
+        s = report.get("steady_state") or {}
+        print(f"  {key:<10} {s.get('fps_mean', 0):>7.1f} {s.get('frame_ms_p50', 0):>8.1f} "
+              f"{s.get('frame_ms_p95', 0):>8.1f} {s.get('frame_ms_max', 0):>7.0f}  "
+              f"{'yes' if report.get('farm_seen') else 'no':>4}  "
+              f"{'yes' if report.get('eigen_seen') else 'no':>5}  {report.get('trustworthy')}")
+    print("=" * 72)
+    print(f"reports in {results_dir}")
+    return rc
 
 
 if __name__ == "__main__":

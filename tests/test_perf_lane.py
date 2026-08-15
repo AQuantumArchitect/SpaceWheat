@@ -149,7 +149,10 @@ def test_loading_a_save_does_not_require_asking_for_a_screenshot():
     photographed but never run, and never profiled."""
     src = _read(ROOT / "scenes/GameRoot.gd")
     hooks = src.split("func _run_boot_env_hooks()")[1].split("\nfunc ")[0]
-    assert "SW_LOAD_PATH" in hooks, "the checkpoint load must be its own step"
+    assert "RuntimeEnv.load_path()" in hooks, (
+        "the checkpoint load must go through RuntimeEnv so a web query string can "
+        "reach it — OS.get_environment is empty in a browser"
+    )
     shot = src.split("func _dev_screenshot()")[1].split("\nfunc ")[0]
     assert "SW_LOAD_PATH" not in shot, (
         "the screenshot path must not own the checkpoint load again"
@@ -160,32 +163,29 @@ BATCHER = ROOT / "Core/Environment/BiomeEvolutionBatcher.gd"
 
 
 def test_packet_size_is_bounded_by_measured_time_not_just_buffer_depth():
-    """Task #528. A native packet is computed synchronously on the main thread, so
-    its whole cost lands in ONE frame.
+    """Two-layer size law. Sync compute still runs ON the frame, so the 25 ms
+    stall budget stays. Async compute sizes by buffer cover (Fibonacci) and
+    must not silently fall back to "grow fib to max" on the sync path.
 
-    The Fibonacci ladder sized packets by buffer depth alone, on a stated assumption
-    that "C++ batches are cheap". At six live biomes they are not: one 21-step packet
-    measured ~310ms on the endgame save. Crucially, total native work is INVARIANT
-    under packet size (21.7% / 25.3% / 23.3% of wall at 1, 5 and 21 steps per packet),
-    so the ladder was buying no throughput with that stall — only lumpiness.
-
-    This pins the time budget so a future tuning pass cannot quietly restore
-    "grow fib to max and stay there" without also restoring the 681ms frame.
+    The clamp is applied where the packet is sized. Progress is never zero.
     """
     src = _read(BATCHER)
     assert "PACKET_TIME_BUDGET_MS" in src, (
-        "packet size must be bounded by a time budget, not only by the fib ladder"
+        "sync packets must stay bounded by a stall budget"
+    )
+    assert "_has_async_lookahead" in src, (
+        "cover law is gated on the compute layer actually being async"
+    )
+    assert "ASYNC_PACKET_LATENCY_BUDGET_MS" in src, (
+        "async packets are bounded by job/take latency, not uncapped Fibonacci"
     )
     assert "_avg_ms_per_step" in src, (
-        "the budget has to divide by a MEASURED per-step cost; a hardcoded step "
-        "count would drift the moment biome count or dimension changes"
+        "the stall budget has to divide by a MEASURED per-step cost"
     )
-    # The clamp must actually be applied on the queueing path, not merely defined.
     queue_fn = src.split("func _queue_hybrid_packet()")[1].split("\nfunc ")[0]
     assert "_affordable_batch_size" in queue_fn, (
         "the budget is applied where the packet is sized, or it is decoration"
     )
-    # Progress must never be traded away entirely.
     afford = src.split("func _affordable_batch_size(")[1].split("\nfunc ")[0]
     assert "1" in afford and "clampi" in afford, (
         "a starved biome must still get at least one step per packet"
@@ -266,3 +266,148 @@ def test_batcher_reports_cost_per_step_not_only_per_packet():
         "the sampler copies a fixed key list — a metric the batcher exports but the "
         "sampler does not copy never reaches the report"
     )
+
+
+def test_batcher_splits_the_gdscript_side_of_the_physics_callback():
+    """Headed endgame on the 960M (2026-08-13) spent ~13% of wall inside Eigen
+    and never left RECOVERY. native+merge cannot say where the other 87% went.
+    consume/refill/poll are the next three seams in the same callback."""
+    src = _read(BATCHER)
+    for key in ("consume_ms_total", "refill_ms_total", "poll_ms_total"):
+        assert key in src, f"{key} is how the remaining physics-callback cost gets a name"
+    sampler = _read(SAMPLER)
+    for key in ("consume_ms_total", "refill_ms_total", "poll_ms_total", "attribution"):
+        assert key in sampler, f"{key} must reach the shipped report"
+
+
+LEDGER = ROOT / "Core/Debug/FrameCostLedger.gd"
+FIELD3D = ROOT / "Core/Visualization/QuantumField3D.gd"
+
+
+def test_viz_cost_has_a_named_ledger_that_ships():
+    """The 86% of headed endgame wall that is not the batcher needs a name.
+
+    UIPerformanceTracker only keeps a 100-sample rolling average and never
+    reaches the shipped report. A second silent average would repeat the
+    avg_batch_time_ms mistake. The ledger is cumulative milliseconds, lives
+    in Core/Debug (not tests/, not 🍄/), and PerfSampler copies it.
+    """
+    assert LEDGER.exists(), "FrameCostLedger.gd is the viz channel; it is missing"
+    rel = str(LEDGER.relative_to(ROOT))
+    assert not rel.startswith(("🍄/", "tests/", "Core/Tests/", "tools/")), (
+        f"{rel} sits inside an export-excluded tree — it would not ship"
+    )
+    src = _read(LEDGER)
+    assert "add_us" in src and "totals" in src
+    assert "RuntimeEnv.perf_log_path()" in src, (
+        "the ledger must be inert unless the sampler is on — a player's build "
+        "pays one env read, not a running average"
+    )
+    sampler = _read(SAMPLER)
+    assert "snap[\"viz\"]" in sampler
+    assert "\"viz_field3d\"" in sampler, (
+        "the default renderer is QuantumField3D, not the 2D force graph — "
+        "that key must be in the non-overlapping accounted set"
+    )
+
+
+def test_the_default_3d_field_records_its_tick():
+    """GameRoot._field3d_enabled defaults ON. Timing only QuantumForceGraph
+    would name a renderer the player is not looking at."""
+    src = _read(FIELD3D)
+    assert "FrameCostLedger.add_us(\"viz_field3d\"" in src
+    for key in ("viz_field3d_force", "viz_field3d_bubbles", "viz_field3d_edges"):
+        assert key in src, f"{key} splits the 3D tick so a hitch has a seam"
+    farm = _read(ROOT / "Core/Farm.gd")
+    assert "FrameCostLedger.add_us(\"viz_farm\"" in farm
+    assert "FrameCostLedger.add_us(\"viz_farm_physics_rest\"" in farm
+    pgd = _read(ROOT / "UI/PlotGridDisplay.gd")
+    assert "FrameCostLedger.add_us(\"viz_pgd\"" in pgd
+    force = _read(ROOT / "Core/Visualization/QuantumForceGraph.gd")
+    assert "FrameCostLedger.add_us(\"viz_force_process\"" in force
+    assert "FrameCostLedger.add_us(\"viz_force_draw\"" in force
+
+
+def test_web_builds_read_the_same_switches_from_the_query_string():
+    """SW_AUTOSTART is an env var. A browser has none. Without a query hook
+    every headed web sample is the title card, which is how 59.8 fps got
+    quoted as the playable number when it was not."""
+    env_src = _read(RUNTIME_ENV)
+    assert "parse_query" in env_src
+    assert "JavaScriptBridge" in env_src
+    assert "static func autostart()" in env_src
+    assert "static func load_path()" in env_src
+    assert "return \"web://post\"" in env_src, (
+        "sw_perf=1 must give the sampler a path or it disables itself"
+    )
+    app = _read(ROOT / "scenes/AppRoot.gd")
+    start = app.split("func _maybe_auto_start()")[1].split("\nfunc ")[0]
+    assert "RuntimeEnv.autostart()" in start
+    assert "OS.has_environment(\"SW_AUTOSTART\")" not in start, (
+        "OS.has_environment is empty on web — autostart must go through RuntimeEnv"
+    )
+    sampler = _read(SAMPLER)
+    assert "_post_web_report" in sampler
+    assert "/__engine_perf" in sampler
+    web = _read(ROOT / "tools/profiling_kit/run_web.py")
+    assert "/__engine_perf" in web
+    assert "sw_autostart" in web
+    assert "sw_load_path" in web
+
+
+def test_perf_hitch_logs_go_through_the_tagged_logger():
+    """The owner asked for telemetry on the existing verbosity/tag logger,
+    not a second silent channel. Hitch lines are WARN on `perf` so a player
+    build stays quiet; the sampler raises that category when SW_PERF_LOG is on.
+    """
+    vc = _read(ROOT / "Core/Config/VerboseConfig.gd")
+    assert "func hitch(" in vc
+    assert 'warn("perf"' in vc
+    assert "VERBOSE_CATEGORIES" in vc
+    sampler = _read(SAMPLER)
+    assert "_record_hitch" in sampler
+    assert "engine_process_ms_total" in sampler
+    assert "present_wait_share" in sampler
+    assert "engine_minus_script_share" in sampler
+    field = _read(FIELD3D)
+    assert 'vc.hitch("viz_field3d"' in field
+    root = _read(ROOT / "scenes/GameRoot.gd")
+    assert "RuntimeEnv.classic_2d()" in root
+    desktop = _read(ROOT / "tools/profiling_kit/run_desktop.py")
+    assert "--classic-2d" in desktop
+    assert "--headless" in desktop
+    assert "find_exe" in desktop
+
+
+def test_vsync_hitch_train_is_pinned():
+    """Capped and uncapped endgame share the same ~150 hitches / 30 s.
+
+    FIFO vsync only promotes them into p95. Mailbox on the 960M made present
+    worse (26 fps). Keep the packet flat, hitch rows name ledger_ms, and the
+    5 Hz live-tile refresh must not dirty hidden / unchanged tiles — that
+    loop was the ~90 ms unnamed spike (hitch times sit on a 0.2 s grid).
+    """
+    optimizer = _read(ROOT / "Core/Settings/PerformanceOptimizer.gd")
+    assert "VSYNC_ENABLED" in optimizer
+    assert "VSYNC_MAILBOX" not in optimizer.split("window_set_vsync_mode")[-1]
+    batcher = _read(ROOT / "Core/Environment/BiomeEvolutionBatcher.gd")
+    assert "func adopt_flat_from_result" in batcher
+    assert "layout == \"flat\"" in batcher
+    sampler = _read(SAMPLER)
+    assert "ledger_ms" in sampler
+    assert "_ledger_prev = FrameCostLedger.totals()" in sampler
+    pgd = _read(ROOT / "UI/PlotGridDisplay.gd")
+    live = pgd.split("func _refresh_live_tiles()")[1].split("\nfunc ")[0]
+    assert "not tile.visible" in live, "5 Hz refresh must skip hidden tiles"
+    assert "viz_pgd_live" in live
+    tile = _read(ROOT / "UI/PlotTile.gd")
+    setter = tile.split("func set_plot_data(")[1].split("\nfunc ")[0]
+    assert "_structural_same" in setter
+    assert "queue_redraw()" in setter
+    assert "set_physics_process(false)" in tile
+    assert "set_physics_process(true)" not in tile
+    witness = _read(ROOT / "Core/Witness/WitnessOrgan.gd")
+    proc = witness.split("func _process(")[1].split("\nfunc ")[0]
+    assert "_watchers <= 0" in proc, "advisory 5 Hz stride must not run unwatched"
+    assert "viz_witness" in proc
+    assert "\"viz_witness\"" in sampler

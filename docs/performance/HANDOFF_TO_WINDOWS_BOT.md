@@ -1,9 +1,9 @@
 # Performance & runtime attribution — lane handoff
 
-**As of 2026-08-13 this lane is owned by the Windows bot.** Profiling, frame-rate
-evaluation, and the native-vs-graphics-vs-game-logic attribution question all move
-there. This repo's agents stop taking measurements on WSL; what follows is
-everything needed to pick the lane up without re-learning it the hard way.
+**As of 2026-08-13 this lane is owned by the Windows bot.** The first hardware
+pass landed the same day — `docs/performance/PROFILE_2026-08-13.md` and
+`C:\Games\SpaceWheat-Releases\profiling-kit\results\RESULTS.md`. What follows
+is still the orientation; the open list at the bottom is what is left.
 
 The reason for the move is not that the WSL numbers were bad. It is that every
 question left open here is a question about *a real GPU on real Windows*, and this
@@ -39,45 +39,41 @@ Anything not in that table is unmeasured.
 
 ## The open questions — in priority order
 
-1. **Where does the other ~89% of a stalled frame go?** This is the real question
-   and nobody has answered it. Headless worst frames run 2.7–8.1 s while the native
-   physics call accounts for only ~11% of wall time. The remaining majority is
-   unattributed — it could be GDScript, scene-tree work, the renderer, or something
-   in the UI stack. Splitting native / graphics / game-logic is exactly the
-   attribution this bot exists to do, and this is where to start.
+Closed 2026-08-13 (see `PROFILE_2026-08-13.md`): #528 on real hardware (310 ms
+packet → 22 ms; native 12% of wall); uncapped title/fresh (399 / 293 fps);
+native web boot (20.0 s). The kit exe is now `8cb53809-dirty` and reports
+`"clock": "wall"`.
 
-2. **Re-measure #528's fix on Windows.** Packet size is now bounded by a measured
-   time budget (310 ms → 27 ms per packet, same total work). Whether that actually
-   removes the player-visible stall on real hardware is unverified.
-   ⚠ **The staged kit at `C:\Games\SpaceWheat-Releases\profiling-kit\` carries an exe
-   built before the wall-clock fix.** Rebuild and restage before trusting its tail
-   numbers, or every long-frame figure it emits is understated. See the clock trap
-   below.
+1. **Where does the other ~86% of endgame wall go?** Closed. The 5 Hz
+   ~90 ms train was `WitnessOrgan` (advisory decay, unread by any player
+   UI). Async lookahead is live; `take` is 0.05 ms; Witness stride runs
+   only when something `watch()`es. Headed endgame on the 960M holds the
+   60 Hz cap (mean 60.0, p95 38.5, worst 63, 1% low 22.4). See
+   `PROFILE_2026-08-16.md`. `TIME_PROCESS` is still hitch-sticky — do not
+   quote `engine_process_share`. Tagged hitch logs: `VerboseConfig.hitch`.
+
+2. **In-farm browser fps.** Query hook landed (`?sw_autostart=1&sw_perf=1`).
+   Title still 59.8. Fresh/endgame **abort** at farm boot:
+   `undefined symbol '_ZNSt3__213__hash_memoryEPKvm'`. Rebuild
+   `libquantummatrix.wasm` against Godot 4.5's Emscripten before quoting a
+   playable web number. rAF after the abort is a frozen canvas.
 
 3. **`PACKET_TIME_BUDGET_MS = 25` cannot be met at the game's real ceiling.**
    `economy_variables.max_biome_qubits = 6`, so dim 64 is reachable in normal play —
    the shipped `endrun_ending` save already has Village at 6 qubits. One phrame there
    costs ~83 ms with the current RK4 integrator (~45 ms with the old Euler one), and
    the budget's floor is one step. The budget is therefore *advisory* at the ceiling,
-   not binding. Whether that is a real player problem is a Windows question.
+   not binding. Measured per-step on this machine at the shipped save is 12.1 ms,
+   so the *shipped* endgame is inside the budget; the all-6-qubit ceiling is not.
 
-4. **A native web boot time.** The 21.4 s on record is an upper bound — it was served
-   across the WSL filesystem bridge and then the WSL2 localhost bridge. Running from
-   a local `web\` removes both. This number decides whether the 183 MB resource pack
-   needs a diet before launch.
+4. **Web pack diet.** 20 s cold start is real. Source audio is 144 MB of the
+   175 MiB `index.pck`. Frame rate is not the lever.
 
-5. **The uncapped desktop pass.** Everything measured so far is vsync-capped at 60,
-   so the headroom on `title` and `fresh` is unknown — 62 fps and 400 fps both read
-   as "60".
+### Structural lead — taken 2026-08-16
 
-### One structural lead, not yet taken
-
-`MultiBiomeLookaheadEngine::submit_lookahead_job` already runs a packet on a real
-`std::thread`, and **the batcher's hot path does not use it** — it calls the
-synchronous entry instead. Moving to it is the structural answer to lumpiness at any
-dimension, and it would make the budget question moot. It was deliberately not done
-here because it is a change to the batcher's state machine, not a tuning pass, and
-it should be made by whoever owns the measurement that justifies it.
+`submit_lookahead_job` is the batcher's hot path on desktop. Web stays
+sync (`SPACEWHEAT_WEB_BUILD`). Packet size is worker-latency × biome
+count, not uncapped Fibonacci. Do not restore 13-step packets.
 
 ---
 

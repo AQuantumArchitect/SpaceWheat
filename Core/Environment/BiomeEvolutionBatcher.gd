@@ -60,7 +60,7 @@ var _packet_pacing_delay_ms: int = 0
 var _max_packet_steps: int = FIB_SEQUENCE[FIB_SEQUENCE.size() - 1]
 
 class BiomeLookaheadBuffer:
-	var frames: Array = []  # Array[PackedFloat64Array]
+	var frames: Array = []  # Array[PackedFloat64Array] — nested / frozen path
 	var cursor: int = 0
 	var latest_mi: PackedFloat64Array = PackedFloat64Array()
 	var mi_steps: Array = []  # Array[PackedFloat64Array]
@@ -70,8 +70,62 @@ class BiomeLookaheadBuffer:
 	var metadata: Dictionary = {}
 	var couplings: Dictionary = {}
 	var icon_map: Dictionary = {}
+	# Producer side of the same pipe: a packet is growing at the far end.
+	var generation: int = 0
+	var awaiting_packet: bool = false
+	# Async take already flattened ρ / Bloch / MI / purity / pos. Keep that
+	# form here so merge is a move, not an Array-of-Array unpack (the 5 Hz
+	# GC hitch after cheap take).
+	var layout: String = "nested"  # "nested" | "flat"
+	var rho_data: PackedFloat64Array = PackedFloat64Array()
+	var rho_off: int = 0
+	var rho_stride: int = 0
+	var rho_n: int = 0
+	var bloch_data: PackedFloat64Array = PackedFloat64Array()
+	var bloch_off: int = 0
+	var bloch_stride: int = 0
+	var bloch_n: int = 0
+	var mi_data: PackedFloat64Array = PackedFloat64Array()
+	var mi_off: int = 0
+	var mi_stride: int = 0
+	var mi_n: int = 0
+	var purity_data: PackedFloat64Array = PackedFloat64Array()
+	var purity_off: int = 0
+	var purity_n: int = 0
+	var pos_data: PackedVector2Array = PackedVector2Array()
+	var pos_off: int = 0
+	var pos_stride: int = 0
+	var pos_n: int = 0
 
-	func clear() -> void:
+	func depth() -> int:
+		if layout == "flat":
+			return maxi(0, rho_n - cursor)
+		return maxi(0, frames.size() - cursor)
+
+	func _clear_flat() -> void:
+		layout = "nested"
+		rho_data = PackedFloat64Array()
+		rho_off = 0
+		rho_stride = 0
+		rho_n = 0
+		bloch_data = PackedFloat64Array()
+		bloch_off = 0
+		bloch_stride = 0
+		bloch_n = 0
+		mi_data = PackedFloat64Array()
+		mi_off = 0
+		mi_stride = 0
+		mi_n = 0
+		purity_data = PackedFloat64Array()
+		purity_off = 0
+		purity_n = 0
+		pos_data = PackedVector2Array()
+		pos_off = 0
+		pos_stride = 0
+		pos_n = 0
+
+	func reset_frames() -> void:
+		# Invalidate the consumer without dropping structure (metadata/couplings).
 		frames.clear()
 		cursor = 0
 		latest_mi = PackedFloat64Array()
@@ -79,9 +133,179 @@ class BiomeLookaheadBuffer:
 		bloch_steps.clear()
 		purity_steps.clear()
 		positions.clear()
+		_clear_flat()
+		generation += 1
+		awaiting_packet = false
+
+	func clear() -> void:
+		reset_frames()
 		metadata.clear()
 		couplings.clear()
 		icon_map.clear()
+
+	func _window(result: Dictionary, key: String, engine_id: int, default_data = PackedFloat64Array()) -> Dictionary:
+		var data = result.get(key, default_data)
+		var off: PackedInt32Array = result.get(key + "_off", PackedInt32Array())
+		var counts: PackedInt32Array = result.get(key + "_n", PackedInt32Array())
+		var strides: PackedInt32Array = result.get(key + "_stride", PackedInt32Array())
+		if engine_id < 0 or engine_id >= counts.size() or engine_id >= off.size():
+			return {"data": data, "off": 0, "n": 0, "stride": 0}
+		var stride := 1
+		if engine_id < strides.size():
+			stride = int(strides[engine_id])
+		return {
+			"data": data,
+			"off": int(off[engine_id]),
+			"n": int(counts[engine_id]),
+			"stride": stride,
+		}
+
+	func adopt_flat_from_result(result: Dictionary, engine_id: int) -> void:
+		# Point at the packet's Packed arrays. No per-step slice, no Array.
+		layout = "flat"
+		frames.clear()
+		mi_steps.clear()
+		bloch_steps.clear()
+		purity_steps.clear()
+		positions.clear()
+		cursor = 0
+		var rho := _window(result, "rho", engine_id)
+		rho_data = rho["data"]
+		rho_off = int(rho["off"])
+		rho_n = int(rho["n"])
+		rho_stride = int(rho["stride"])
+		var bloch := _window(result, "bloch", engine_id)
+		bloch_data = bloch["data"]
+		bloch_off = int(bloch["off"])
+		bloch_n = int(bloch["n"])
+		bloch_stride = int(bloch["stride"])
+		var mi := _window(result, "mi", engine_id)
+		mi_data = mi["data"]
+		mi_off = int(mi["off"])
+		mi_n = int(mi["n"])
+		mi_stride = int(mi["stride"])
+		var purity := _window(result, "purity", engine_id)
+		purity_data = purity["data"]
+		purity_off = int(purity["off"])
+		purity_n = int(purity["n"])
+		var pos := _window(result, "pos", engine_id, PackedVector2Array())
+		pos_data = pos["data"] if pos["data"] is PackedVector2Array else PackedVector2Array()
+		pos_off = int(pos["off"])
+		pos_n = int(pos["n"])
+		pos_stride = int(pos["stride"])
+		latest_mi = step_mi(maxi(0, mi_n - 1))
+
+	func append_flat_from_result(result: Dictionary, engine_id: int) -> void:
+		# Leftover steps + new packet window into owned packed arrays.
+		if layout != "flat" or depth() <= 0:
+			adopt_flat_from_result(result, engine_id)
+			return
+		var leftover := depth()
+		rho_data = _concat_f64(rho_data, rho_off + cursor * rho_stride, leftover, rho_stride, result, "rho", engine_id)
+		rho_off = 0
+		var rho_inc := _window(result, "rho", engine_id)
+		rho_stride = int(rho_inc["stride"]) if int(rho_inc["stride"]) > 0 else rho_stride
+		rho_n = leftover + int(rho_inc["n"])
+		bloch_data = _concat_f64(bloch_data, bloch_off + cursor * bloch_stride, leftover, bloch_stride, result, "bloch", engine_id)
+		bloch_off = 0
+		var bloch_inc := _window(result, "bloch", engine_id)
+		bloch_stride = int(bloch_inc["stride"]) if int(bloch_inc["stride"]) > 0 else bloch_stride
+		bloch_n = leftover + int(bloch_inc["n"])
+		mi_data = _concat_f64(mi_data, mi_off + cursor * mi_stride, leftover, mi_stride, result, "mi", engine_id)
+		mi_off = 0
+		var mi_inc := _window(result, "mi", engine_id)
+		mi_stride = int(mi_inc["stride"]) if int(mi_inc["stride"]) > 0 else mi_stride
+		mi_n = leftover + int(mi_inc["n"])
+		purity_data = _concat_f64(purity_data, purity_off + cursor, leftover, 1, result, "purity", engine_id)
+		purity_off = 0
+		var purity_inc := _window(result, "purity", engine_id)
+		purity_n = leftover + int(purity_inc["n"])
+		pos_data = _concat_vec2(pos_data, pos_off + cursor * pos_stride, leftover, pos_stride, result, "pos", engine_id)
+		pos_off = 0
+		var pos_inc := _window(result, "pos", engine_id, PackedVector2Array())
+		pos_stride = int(pos_inc["stride"]) if int(pos_inc["stride"]) > 0 else pos_stride
+		pos_n = leftover + int(pos_inc["n"])
+		cursor = 0
+		latest_mi = step_mi(maxi(0, mi_n - 1))
+
+	func _concat_f64(existing: PackedFloat64Array, src_off: int, leftover_n: int, stride: int, result: Dictionary, key: String, engine_id: int) -> PackedFloat64Array:
+		var keep := PackedFloat64Array()
+		var keep_len := leftover_n * maxi(1, stride)
+		if keep_len > 0 and src_off >= 0 and src_off + keep_len <= existing.size():
+			keep = existing.slice(src_off, src_off + keep_len)
+		var inc := _window(result, key, engine_id)
+		var inc_data: PackedFloat64Array = inc["data"]
+		var inc_len := int(inc["n"]) * maxi(1, int(inc["stride"]) if int(inc["stride"]) > 0 else 1)
+		if inc_len > 0:
+			var a := int(inc["off"])
+			keep.append_array(inc_data.slice(a, a + inc_len))
+		return keep
+
+	func _concat_vec2(existing: PackedVector2Array, src_off: int, leftover_n: int, stride: int, result: Dictionary, key: String, engine_id: int) -> PackedVector2Array:
+		var keep := PackedVector2Array()
+		var keep_len := leftover_n * maxi(1, stride)
+		if keep_len > 0 and src_off >= 0 and src_off + keep_len <= existing.size():
+			keep = existing.slice(src_off, src_off + keep_len)
+		var inc := _window(result, key, engine_id, PackedVector2Array())
+		var inc_data: PackedVector2Array = inc["data"] if inc["data"] is PackedVector2Array else PackedVector2Array()
+		var inc_len := int(inc["n"]) * maxi(1, int(inc["stride"]) if int(inc["stride"]) > 0 else 1)
+		if inc_len > 0:
+			var a := int(inc["off"])
+			keep.append_array(inc_data.slice(a, a + inc_len))
+		return keep
+
+	func step_rho(i: int) -> PackedFloat64Array:
+		if layout == "flat":
+			if i < 0 or i >= rho_n or rho_stride <= 0:
+				return PackedFloat64Array()
+			var a := rho_off + i * rho_stride
+			return rho_data.slice(a, a + rho_stride)
+		if i >= 0 and i < frames.size():
+			return frames[i]
+		return PackedFloat64Array()
+
+	func step_bloch(i: int) -> PackedFloat64Array:
+		if layout == "flat":
+			if i < 0 or i >= bloch_n or bloch_stride <= 0:
+				return PackedFloat64Array()
+			var a := bloch_off + i * bloch_stride
+			return bloch_data.slice(a, a + bloch_stride)
+		if i >= 0 and i < bloch_steps.size():
+			return bloch_steps[i]
+		return PackedFloat64Array()
+
+	func step_mi(i: int) -> PackedFloat64Array:
+		if layout == "flat":
+			if i < 0 or i >= mi_n or mi_stride <= 0:
+				return PackedFloat64Array()
+			var a := mi_off + i * mi_stride
+			return mi_data.slice(a, a + mi_stride)
+		if i >= 0 and i < mi_steps.size():
+			return mi_steps[i]
+		return PackedFloat64Array()
+
+	func step_purity(i: int) -> float:
+		if layout == "flat":
+			var idx := purity_off + i
+			if i < 0 or i >= purity_n or idx < 0 or idx >= purity_data.size():
+				return 0.0
+			return float(purity_data[idx])
+		if i >= 0 and i < purity_steps.size():
+			return float(purity_steps[i])
+		return 0.0
+
+	func step_pos(i: int) -> PackedVector2Array:
+		if layout == "flat":
+			if i < 0 or i >= pos_n or pos_stride <= 0:
+				return PackedVector2Array()
+			var a := pos_off + i * pos_stride
+			return pos_data.slice(a, a + pos_stride)
+		if i >= 0 and i < positions.size():
+			return positions[i]
+		return PackedVector2Array()
+
+	func bloch_count() -> int:
+		return bloch_n if layout == "flat" else bloch_steps.size()
 
 
 var _lookahead_buffers: Dictionary = {}  # biome_name -> BiomeLookaheadBuffer
@@ -204,6 +428,10 @@ var _last_frame_time: int = 0
 # problems with different fixes and the old metrics blurred them together.
 var _native_ms_total: float = 0.0
 var _merge_ms_total: float = 0.0
+var _take_ms_total: float = 0.0
+var _consume_ms_total: float = 0.0
+var _refill_ms_total: float = 0.0
+var _poll_ms_total: float = 0.0
 var _packets_total: int = 0
 var _steps_total: int = 0
 
@@ -216,6 +444,12 @@ var _avg_ms_per_step: float = 0.0
 ## interruptible, so this is a stall budget, not a throughput budget — see
 ## _affordable_batch_size for why capping it costs no throughput at all.
 const PACKET_TIME_BUDGET_MS: float = 25.0
+## Async packets do not stall the evolve call, but take() still packs the
+## whole Dictionary on the main thread and the 2-step prime only covers
+## ~200 ms. A 13-step endgame packet measured 266 ms worker + a 170 ms
+## process hitch (2026-08-15 headed 960M: 51 → 23 fps). Bound job latency
+## so take stays cheap and the buffer can actually cover.
+const ASYNC_PACKET_LATENCY_BUDGET_MS: float = 50.0
 
 
 func _notification(what: int) -> void:
@@ -235,10 +469,8 @@ func _cleanup_lookahead_engine() -> void:
 
 
 func abort_for_quit() -> void:
-	# Fast shutdown path for application exit: disable new work and free C++ engine.
-	#
-	# The MultiBiomeLookaheadEngine destructor has no background workers to join,
-	# so freeing immediately is safe and avoids ObjectDB leak warnings at exit.
+	# Fast shutdown path for application exit: join any in-flight compute job
+	# before dropping the C++ engine (the worker holds pointers into it).
 	_teardown_runtime_state()
 
 
@@ -253,6 +485,9 @@ func _teardown_runtime_state() -> void:
 	_lookahead_init_started = false
 
 	_disconnect_runtime_activity_signals()
+
+	if lookahead_engine and lookahead_engine.has_method("cancel_lookahead_job"):
+		lookahead_engine.cancel_lookahead_job(true)
 
 	_cleanup_lookahead_engine()
 
@@ -295,6 +530,10 @@ func _teardown_runtime_state() -> void:
 	_avg_ms_per_step = 0.0
 	_native_ms_total = 0.0
 	_merge_ms_total = 0.0
+	_take_ms_total = 0.0
+	_consume_ms_total = 0.0
+	_refill_ms_total = 0.0
+	_poll_ms_total = 0.0
 	_packets_total = 0
 	_steps_total = 0
 
@@ -790,7 +1029,10 @@ func _prime_all_biomes_native(biomes_to_prime: Array) -> void:
 	if not lookahead_engine or biomes_to_prime.is_empty():
 		return
 
-	_log_debug("  Priming %d biomes with %d-phrame lookahead..." % [biomes_to_prime.size(), LOOKAHEAD_STEPS])
+	# Prime a thin slice only. A 13-step all-biome sync call is the boot hitch;
+	# the packet queue refills the rest under the measured budget.
+	var prime_steps: int = mini(2, LOOKAHEAD_STEPS)
+	_log_debug("  Priming %d biomes with %d-phrame lookahead..." % [biomes_to_prime.size(), prime_steps])
 
 	# Collect density matrices in ENGINE-ID ORDER. The native engine maps biome_rhos[id]
 	# → m_engines[id] by index, so the array MUST be ordered by registration id, not by
@@ -816,7 +1058,7 @@ func _prime_all_biomes_native(biomes_to_prime: Array) -> void:
 	# Batched evolution: all biomes × LOOKAHEAD_STEPS in one native call
 	# Pass actual_dt as BOTH dt and max_dt (no subcycling, max_dt is the timestep)
 	var evo_result = lookahead_engine.evolve_all_lookahead(
-		biome_rhos, LOOKAHEAD_STEPS, actual_dt, actual_dt
+		biome_rhos, prime_steps, actual_dt, actual_dt
 	)
 
 	# Unpack results into per-biome buffers
@@ -1050,7 +1292,7 @@ func physics_process(delta: float):
 
 
 func _physics_process_lookahead(delta: float):
-	# Lookahead mode: consume buffered phrames and run synchronous native packets.
+	# Lookahead mode: consume buffered phrames; compute fills the far end.
 	#
 	# Terminology:
 	# - tick = visual frame (60 FPS from _process)
@@ -1070,7 +1312,9 @@ func _physics_process_lookahead(delta: float):
 	if lookahead_enabled:
 		_process_pending_reregisters()
 
+	var poll_us := Time.get_ticks_usec()
 	_poll_runtime_activity(delta)
+	_poll_ms_total += float(Time.get_ticks_usec() - poll_us) / 1000.0
 
 	if _any_active_biomes():
 		for biome in biomes:
@@ -1094,6 +1338,7 @@ func _physics_process_lookahead(delta: float):
 			_track_physics_fps()
 
 			# CONSUME: Advance all buffer cursors (1 phrame per biome)
+			var consume_us := Time.get_ticks_usec()
 			_advance_all_buffers()
 
 			# Update per-biome buffer states (self-balancing Fibonacci)
@@ -1101,18 +1346,21 @@ func _physics_process_lookahead(delta: float):
 				if _is_valid_biome(biome):
 					var biome_name = _get_biome_name(biome)
 					_update_biome_buffer_state(biome_name)
+			_consume_ms_total += float(Time.get_ticks_usec() - consume_us) / 1000.0
 
 			# Queue one native packet that evolves only biomes that need refill.
-			if lookahead_enabled and _packet_queue.is_empty():
+			# Skip if a packet is already in the farm buffer (queued or in flight).
+			if lookahead_enabled and _packet_queue.is_empty() and _active_packet_request.is_empty():
+				var refill_us := Time.get_ticks_usec()
 				_trigger_hybrid_refill()
+				_refill_ms_total += float(Time.get_ticks_usec() - refill_us) / 1000.0
 		else:
 			# Keep accumulator bounded while throttled to avoid huge catch-up bursts.
 			evolution_accumulator = min(evolution_accumulator, EVOLUTION_INTERVAL * 2.0)
 			_throttled_phrame_skips += 1
 
-	# === PACKET PROCESSING (per physics frame) ===
-	# Process one queued native packet synchronously.
-	if lookahead_enabled and not _packet_queue.is_empty():
+	# Consume one farm-scale request: take a finished packet, or ask compute.
+	if lookahead_enabled:
 		_process_next_packet()
 	_run_batcher_watchdog(tick_now_ms)
 
@@ -1181,7 +1429,11 @@ func _get_biome_buffer_state(biome) -> BiomeBufferState:
 	var lookahead_buffer = _get_lookahead_buffer(biome_name)
 	var buffer = lookahead_buffer.frames if lookahead_buffer else []
 	var cursor = lookahead_buffer.cursor if lookahead_buffer else 0
-	return BiomeBufferState.new(biome_name, buffer, cursor)
+	var state = BiomeBufferState.new(biome_name, buffer, cursor)
+	if lookahead_buffer != null:
+		state.depth = lookahead_buffer.depth()
+		state.is_empty = state.depth <= 0
+	return state
 
 
 func _get_minimum_buffer_depth() -> int:
@@ -1234,9 +1486,9 @@ func _get_biome_depth(biome_name: String) -> int:
 	#
 	# Used by per-biome refill logic to check each biome independently.
 	var lookahead_buffer = _get_lookahead_buffer(biome_name)
-	var buffer = lookahead_buffer.frames if lookahead_buffer else []
-	var cursor = lookahead_buffer.cursor if lookahead_buffer else 0
-	return buffer.size() - cursor
+	if lookahead_buffer == null:
+		return 0
+	return lookahead_buffer.depth()
 
 
 func _get_biome_buffer_time_ms(biome_name: String) -> float:
@@ -1431,6 +1683,11 @@ func _should_trigger_biome_refill(biome_name: String, _depth: int, rho_valid: bo
 
 	# Don't evolve if rho is invalid
 	if not rho_valid:
+		return false
+
+	# Producer side already growing this buffer — do not ask twice.
+	var lookahead_buffer = _get_lookahead_buffer(biome_name)
+	if lookahead_buffer != null and lookahead_buffer.awaiting_packet:
 		return false
 
 	# Invalidation should force a refill even if buffer is still full
@@ -1694,25 +1951,35 @@ func _trigger_hybrid_refill():
 		_queue_hybrid_packet()
 
 
-## Clamp a packet to what fits in one frame, using the MEASURED per-step cost.
+func _has_async_lookahead() -> bool:
+	return lookahead_engine != null \
+		and lookahead_engine.has_method("has_async_lookahead") \
+		and bool(lookahead_engine.has_async_lookahead())
+
+
+## Packet size follows the layer.
 ##
-## A packet is computed synchronously on the main thread, so its whole cost lands in
-## a single frame. The Fibonacci ladder sizes packets by buffer depth alone, and its
-## own note said "C++ batches are cheap — let fib grow to max and stay there." At six
-## live biomes they are not cheap: measured on the endgame save, one 21-step packet
-## costs ~310 ms, which is exactly the 681 ms class of frame in
-## docs/performance/PROFILE_2026-08-12.md.
-##
-## The key measurement is that TOTAL native work is invariant under packet size —
-## 21.7% / 25.3% / 23.3% of wall at 1, 5 and 21 steps per packet. Batch size does not
-## buy throughput; it only decides whether the same work arrives as one stall or as
-## several frame-sized slices. So bounding it costs nothing and removes the stall.
-##
-## Always returns at least 1: progress is never traded away, only lumpiness.
-func _affordable_batch_size(requested: int) -> int:
+## Sync compute runs ON the frame, so the packet is a stall budget (25 ms).
+## Async compute fills the far end of the buffer; size by cover, not stall.
+## Always returns at least 1: progress is never traded away.
+func _affordable_batch_size(requested: int, active_biomes: int = 1) -> int:
+	if _has_async_lookahead():
+		# First packet has no timing — 1, same as sync. _avg_ms_per_step is
+		# per active-biome-step; worker + take latency is that times biomes.
+		# Forgetting the multiply lets a 13-step 6-biome packet through
+		# (50/2.4ms ≈ 20) and headed endgame falls over on take.
+		if _avg_ms_per_step <= 0.0:
+			return 1
+		var cost := _avg_ms_per_step * float(maxi(1, active_biomes))
+		var by_latency := int(floor(ASYNC_PACKET_LATENCY_BUDGET_MS / maxf(cost, 0.001)))
+		return clampi(requested, 1, clampi(by_latency, 1, _max_packet_steps))
+	# First packet has no timing — return 1, never the uncapped Fibonacci 21.
+	# _avg_ms_per_step is ms per *active-biome-step*, so a 1-biome emergency
+	# packet cannot license a 6-biome stall.
 	if _avg_ms_per_step <= 0.0:
-		return requested  # no timing yet — first packet sizes itself
-	var affordable := int(floor(PACKET_TIME_BUDGET_MS / _avg_ms_per_step))
+		return 1
+	var cost := _avg_ms_per_step * float(maxi(1, active_biomes))
+	var affordable := int(floor(PACKET_TIME_BUDGET_MS / maxf(cost, 0.001)))
 	return clampi(requested, 1, maxi(1, affordable))
 
 
@@ -1794,7 +2061,7 @@ func _queue_hybrid_packet():
 
 	# Queue ONE global packet with active_flags.
 	max_batch_size = mini(max_batch_size, _max_packet_steps)
-	max_batch_size = _affordable_batch_size(max_batch_size)
+	max_batch_size = _affordable_batch_size(max_batch_size, active_count)
 	_queue_adaptive_packet(biome_rhos, active_flags_arr, max_batch_size)
 
 	# Log which biomes are being evolved (with their individual batch sizes)
@@ -1832,15 +2099,10 @@ func invalidate_biome_buffer(biome_name: String):
 	# Hybrid system: ONE global packet, per-biome buffers
 	# Just clear this biome's buffers - next packet will refill it
 
-	# Clear buffers for this biome only (other biomes unaffected!)
+	# Clear this biome's consumer frames (other biomes unaffected).
+	# Bumps generation so an in-flight packet for this biome is dropped on take.
 	var lookahead_buffer = _ensure_lookahead_buffer(biome_name)
-	lookahead_buffer.frames = []
-	lookahead_buffer.mi_steps = []
-	lookahead_buffer.bloch_steps = []
-	lookahead_buffer.purity_steps = []
-	lookahead_buffer.positions = []
-	lookahead_buffer.cursor = 0
-	lookahead_buffer.latest_mi = PackedFloat64Array()
+	lookahead_buffer.reset_frames()
 	biome_dirty[biome_name] = true
 
 	# Re-prime this biome from current state (frozen 13 phrames)
@@ -1870,7 +2132,34 @@ func decimate_biome_buffer(biome_name: String, decimation_factor: int) -> int:
 	if lookahead_buffer == null:
 		return 0
 	if decimation_factor < 2:
-		return lookahead_buffer.frames.size()
+		return lookahead_buffer.depth()
+
+	if lookahead_buffer.layout == "flat":
+		var start: int = int(lookahead_buffer.cursor)
+		var leftover: int = int(lookahead_buffer.depth())
+		var nf: Array = []
+		var nmi: Array = []
+		var nb: Array = []
+		var np: Array = []
+		var npos: Array = []
+		nf.resize(leftover)
+		nmi.resize(leftover)
+		nb.resize(leftover)
+		np.resize(leftover)
+		npos.resize(leftover)
+		for i in range(leftover):
+			nf[i] = lookahead_buffer.step_rho(start + i)
+			nmi[i] = lookahead_buffer.step_mi(start + i)
+			nb[i] = lookahead_buffer.step_bloch(start + i)
+			np[i] = lookahead_buffer.step_purity(start + i)
+			npos[i] = lookahead_buffer.step_pos(start + i)
+		lookahead_buffer._clear_flat()
+		lookahead_buffer.frames = nf
+		lookahead_buffer.mi_steps = nmi
+		lookahead_buffer.bloch_steps = nb
+		lookahead_buffer.purity_steps = np
+		lookahead_buffer.positions = npos
+		lookahead_buffer.cursor = 0
 
 	# Decimate all 6 buffers in lockstep (from cursor position, not start)
 	var cursor = lookahead_buffer.cursor
@@ -1930,6 +2219,8 @@ func _prime_single_biome_frozen(biome):
 
 	# Fill with frozen current state
 	var lookahead_buffer = _ensure_lookahead_buffer(biome_name)
+	lookahead_buffer.layout = "nested"
+	lookahead_buffer._clear_flat()
 	lookahead_buffer.frames = _create_frozen_buffer(rho_packed, LOOKAHEAD_STEPS)
 	lookahead_buffer.cursor = 0
 
@@ -1976,9 +2267,9 @@ func _advance_all_buffers():
 		if stride > 1:
 			# Fast-forward: advance cursor by (stride-1) without applying, then apply final
 			var lookahead_buffer = _get_lookahead_buffer(biome_name)
-			var buf = lookahead_buffer.bloch_steps if lookahead_buffer else []
 			var cursor = lookahead_buffer.cursor if lookahead_buffer else 0
-			var skip_count = mini(stride - 1, buf.size() - cursor - 1)
+			var bloch_n: int = lookahead_buffer.bloch_count() if lookahead_buffer else 0
+			var skip_count = mini(stride - 1, bloch_n - cursor - 1)
 			if skip_count > 0:
 				# Berry walk stays faithful through fast-forward: integrate the
 				# skipped slices too (see BerryPhaseRegister.integrate_step —
@@ -1988,7 +2279,7 @@ func _advance_all_buffers():
 					var nq: int = int(lookahead_buffer.metadata.get("num_qubits", 0))
 					if nq > 0:
 						for s in range(skip_count):
-							qc.berry_register.integrate_step(buf[cursor + s], nq)
+							qc.berry_register.integrate_step(lookahead_buffer.step_bloch(cursor + s), nq)
 				lookahead_buffer.cursor = cursor + skip_count
 
 		var had_data := _get_biome_depth(biome_name) > 0
@@ -2009,16 +2300,15 @@ func _apply_buffered_step(biome, apply_post: bool = true) -> void:
 	var state = _get_biome_buffer_state(biome)
 	var biome_name = state.biome_name
 	var lookahead_buffer = _get_lookahead_buffer(biome_name)
-	var buffer = state.buffer
 	var cursor = state.cursor
 
-	if lookahead_buffer == null or cursor >= buffer.size():
+	if lookahead_buffer == null or lookahead_buffer.depth() <= 0:
 		if lookahead_buffer != null and not biome_paused.get(biome_name, false):
-			_log_debug("[BUFFER_UNDERRUN] %s cursor=%d buf=%d" % [biome_name, cursor, buffer.size()])
+			_log_debug("[BUFFER_UNDERRUN] %s cursor=%d depth=%d" % [biome_name, cursor, lookahead_buffer.depth()])
 		return
 
 	# Update density matrix from buffer
-	var rho_packed = buffer[cursor]
+	var rho_packed = lookahead_buffer.step_rho(cursor)
 	var qc = biome.quantum_computer  # Cache reference (accessed multiple times below)
 	var dim = qc.register_map.dim()
 	qc.load_packed_state(rho_packed, dim, true)
@@ -2028,21 +2318,18 @@ func _apply_buffered_step(biome, apply_post: bool = true) -> void:
 
 	if num_qubits > 0:
 		# Update MI cache for force graph (per-step)
-		var mi_steps = lookahead_buffer.mi_steps
-		if cursor < mi_steps.size():
-			var mi_step = mi_steps[cursor]
+		var mi_step = lookahead_buffer.step_mi(cursor)
+		if not mi_step.is_empty():
 			biome.viz_cache.update_mi_values(mi_step, num_qubits)
-			if not mi_step.is_empty():
-				qc._cached_mi_values = mi_step
+			qc._cached_mi_values = mi_step
 		elif not lookahead_buffer.latest_mi.is_empty():
 			var mi_cached = lookahead_buffer.latest_mi
 			if mi_cached is PackedFloat64Array and not mi_cached.is_empty():
 				biome.viz_cache.update_mi_values(mi_cached, num_qubits)
 
 		# Update visualization cache from precomputed lookahead packets
-		var bloch_steps = lookahead_buffer.bloch_steps
-		if cursor < bloch_steps.size():
-			var bloch_packet = bloch_steps[cursor]
+		var bloch_packet = lookahead_buffer.step_bloch(cursor)
+		if not bloch_packet.is_empty():
 			# Berry walk: path-integrate geometric phase on the sim-side register.
 			# This is the live integration seam (with the stride-skip loop in
 			# _advance_all_buffers) — no-op unless qubits are tracked here.
@@ -2054,14 +2341,13 @@ func _apply_buffered_step(biome, apply_post: bool = true) -> void:
 				])
 			biome.viz_cache.update_from_bloch_packet(bloch_packet, num_qubits)
 		elif Engine.get_process_frames() % 120 == 0:
-			_log("debug", "test", "⚠️", "No bloch data for %s (cursor=%d, buffer size=%d)" % [
-				biome_name, cursor, bloch_steps.size()
+			_log("debug", "test", "⚠️", "No bloch data for %s (cursor=%d, bloch_n=%d)" % [
+				biome_name, cursor, lookahead_buffer.bloch_count()
 			])
-		var purity_steps = lookahead_buffer.purity_steps
-		if cursor < purity_steps.size():
+		if cursor < (lookahead_buffer.purity_n if lookahead_buffer.layout == "flat" else lookahead_buffer.purity_steps.size()):
 			# C++ compute_purity now returns Tr(ρ²)/Tr(ρ)² (already normalized).
 			# GDScript qc.get_purity() also normalizes. No correction needed.
-			biome.viz_cache.update_purity(purity_steps[cursor])
+			biome.viz_cache.update_purity(lookahead_buffer.step_purity(cursor))
 		if metadata_payload:
 			biome.viz_cache.update_metadata_from_payload(metadata_payload)
 		var coupling_payload = lookahead_buffer.couplings
@@ -2121,6 +2407,7 @@ func _prime_single_biome(biome, biome_id: int) -> void:
 	)
 
 	var lookahead_buffer = _ensure_lookahead_buffer(biome_name)
+	lookahead_buffer._clear_flat()
 	lookahead_buffer.frames = result.get("results", [])
 	lookahead_buffer.cursor = 0
 	lookahead_buffer.mi_steps = result.get("mi_steps", [])
@@ -2610,6 +2897,7 @@ func _prime_frozen_buffers_only(biome_rhos: Array = []) -> void:
 
 		# Fill buffers with frozen (repeated) values using helper
 		var lookahead_buffer = _ensure_lookahead_buffer(biome_name)
+		lookahead_buffer._clear_flat()
 		lookahead_buffer.frames = _create_frozen_buffer(rho, LOOKAHEAD_STEPS)
 		lookahead_buffer.cursor = 0
 		lookahead_buffer.bloch_steps = _create_frozen_buffer(bloch_packet, LOOKAHEAD_STEPS)
@@ -2657,12 +2945,11 @@ func get_viz_snapshot(biome_name: String, register_id: int, offset: int = 0) -> 
 	if register_id < 0:
 		return {}
 	var lookahead_buffer = _get_lookahead_buffer(biome_name)
-	var bloch_steps = lookahead_buffer.bloch_steps if lookahead_buffer else []
-	if bloch_steps.is_empty():
+	if lookahead_buffer == null or lookahead_buffer.bloch_count() <= 0:
 		return {}
-	var cursor = lookahead_buffer.cursor if lookahead_buffer else 0
-	var idx = clampi(cursor + offset, 0, bloch_steps.size() - 1)
-	var packed = bloch_steps[idx]
+	var cursor = lookahead_buffer.cursor
+	var idx = clampi(cursor + offset, 0, lookahead_buffer.bloch_count() - 1)
+	var packed = lookahead_buffer.step_bloch(idx)
 	var base = register_id * 8
 	if packed.is_empty() or packed.size() < base + 8:
 		return {}
@@ -2676,9 +2963,9 @@ func get_viz_snapshot(biome_name: String, register_id: int, offset: int = 0) -> 
 	var r_xy = clampf(sqrt(x * x + y * y), 0.0, 1.0)
 
 	var purity = -1.0
-	var purity_steps = lookahead_buffer.purity_steps if lookahead_buffer else []
-	if not purity_steps.is_empty() and idx < purity_steps.size():
-		purity = purity_steps[idx]
+	var purity_count: int = int(lookahead_buffer.purity_n) if str(lookahead_buffer.layout) == "flat" else int(lookahead_buffer.purity_steps.size())
+	if idx < purity_count:
+		purity = lookahead_buffer.step_purity(idx)
 
 	return {
 		"p0": p0,
@@ -2914,6 +3201,14 @@ func _get_effective_buffer_state_name() -> String:
 	return "COAST"
 
 
+func _get_effective_buffer_layout() -> String:
+	for biome_name in _lookahead_buffers.keys():
+		var buf = _lookahead_buffers[biome_name]
+		if buf != null and str(buf.layout) == "flat":
+			return "flat"
+	return "nested"
+
+
 func _has_emergency_refill() -> bool:
 	for biome_name in biome_emergency_refill.keys():
 		if bool(biome_emergency_refill.get(biome_name, false)):
@@ -2962,6 +3257,13 @@ func get_performance_metrics() -> Dictionary:
 		"native_ms_total": _native_ms_total,
 		"packets_total": _packets_total,
 		"merge_ms_total": _merge_ms_total,
+		"take_ms_total": _take_ms_total,
+		# GDScript sides of the same physics callback. native+merge were not
+		# enough: headed endgame on the 960M spent ~13% of wall in Eigen and
+		# the other 87% was unattributed. These three close the next seam.
+		"consume_ms_total": _consume_ms_total,
+		"refill_ms_total": _refill_ms_total,
+		"poll_ms_total": _poll_ms_total,
 		# Cost of ONE phrame of physics, independent of how many the packet carried.
 		# The only integrator/dimension comparison that survives adaptive sizing:
 		# ms-per-packet moves when the packet does, so two builds can only be
@@ -2970,6 +3272,7 @@ func get_performance_metrics() -> Dictionary:
 		"steps_total": _steps_total,
 		# Adaptive Fibonacci Batching
 		"buffer_state": _get_effective_buffer_state_name(),
+		"buffer_layout": _get_effective_buffer_layout(),
 		"fib_index": _get_effective_fib_index(),
 		"adaptive_batch_size": adaptive_batch_size,
 		"batch_size": adaptive_batch_size,  # Alias for VisualBubbleTest
@@ -3002,8 +3305,28 @@ func get_performance_metrics() -> Dictionary:
 
 
 # ============================================================================
-# LOOKAHEAD PACKETS - synchronous native packet queue
+# LOOKAHEAD PACKETS - farm-scale buffer of compute requests
 # ============================================================================
+
+func _snapshot_buffer_generations() -> Array:
+	var gens: Array = []
+	var engine_count: int = lookahead_engine.get_biome_count() if lookahead_engine else 0
+	for engine_id in range(engine_count):
+		var biome_name: String = _engine_id_to_biome.get(engine_id, "")
+		var lookahead_buffer = _get_lookahead_buffer(biome_name)
+		gens.append(lookahead_buffer.generation if lookahead_buffer else 0)
+	return gens
+
+
+func _mark_awaiting_packet(active_flags_arr: Array, awaiting: bool) -> void:
+	for engine_id in range(active_flags_arr.size()):
+		if not bool(active_flags_arr[engine_id]):
+			continue
+		var biome_name: String = _engine_id_to_biome.get(engine_id, "")
+		var lookahead_buffer = _get_lookahead_buffer(biome_name)
+		if lookahead_buffer:
+			lookahead_buffer.awaiting_packet = awaiting
+
 
 func _queue_adaptive_packet(biome_rhos: Array, active_flags_arr: Array, packet_size: int) -> void:
 	# Queue a SINGLE C++ packet with adaptive size (Fibonacci-based).
@@ -3052,7 +3375,11 @@ func _queue_adaptive_packet(biome_rhos: Array, active_flags_arr: Array, packet_s
 
 
 func _process_next_packet() -> void:
-	# Run the next queued native packet synchronously on the main thread.
+	# Consume one farm-scale request: take a finished packet, or ask compute.
+	# Sync fallback (web / no job API) still computes on this frame.
+	if _has_async_lookahead():
+		_process_next_packet_async()
+		return
 	if _packet_queue.is_empty():
 		return
 
@@ -3062,6 +3389,56 @@ func _process_next_packet() -> void:
 	var merge_start_us := Time.get_ticks_usec()
 	_merge_packet_result(_active_packet_request, result)
 	_merge_ms_total += float(Time.get_ticks_usec() - merge_start_us) / 1000.0
+	_active_packet_request.clear()
+	_packet_started_at_ms = 0
+	_packet_completed_at_ms = Time.get_ticks_msec()
+
+
+func _process_next_packet_async() -> void:
+	if lookahead_engine.is_lookahead_job_complete():
+		var take_us := Time.get_ticks_usec()
+		var result = lookahead_engine.take_completed_lookahead_job()
+		var take_elapsed := Time.get_ticks_usec() - take_us
+		_take_ms_total += float(take_elapsed) / 1000.0
+		FrameCostLedger.add_us("native_take", take_elapsed)
+		if result == null or not result is Dictionary:
+			result = {}
+		if not _active_packet_request.is_empty():
+			var packet_ms := float(result.get("batch_time_us", 0)) / 1000.0
+			_native_ms_total += packet_ms
+			_packets_total += 1
+			_steps_total += maxi(1, int(_active_packet_request.get("num_steps", 1)))
+			var merge_start_us := Time.get_ticks_usec()
+			_merge_packet_result(_active_packet_request, result)
+			_merge_ms_total += float(Time.get_ticks_usec() - merge_start_us) / 1000.0
+			_mark_awaiting_packet(_active_packet_request.get("active_flags", []), false)
+		_active_packet_request.clear()
+		_packet_started_at_ms = 0
+		_packet_completed_at_ms = Time.get_ticks_msec()
+		return
+
+	if lookahead_engine.is_lookahead_job_running():
+		return
+	if _packet_queue.is_empty():
+		return
+
+	_active_packet_request = _packet_queue.pop_front()
+	_active_packet_request["generations"] = _snapshot_buffer_generations()
+	_mark_awaiting_packet(_active_packet_request.get("active_flags", []), true)
+	_packet_started_at_ms = Time.get_ticks_msec()
+
+	var biome_rhos = _active_packet_request["biome_rhos"]
+	var num_phrames: int = int(_active_packet_request["num_steps"])
+	var actual_dt: float = _get_packet_dt_for_active_flags(_active_packet_request.get("active_flags", []))
+	if lookahead_engine.submit_lookahead_job(biome_rhos, num_phrames, actual_dt, actual_dt):
+		return
+
+	# Submit refused — compute this once on the frame rather than stall the farm.
+	var result = _compute_packet(_active_packet_request)
+	var merge_start_us := Time.get_ticks_usec()
+	_merge_packet_result(_active_packet_request, result)
+	_merge_ms_total += float(Time.get_ticks_usec() - merge_start_us) / 1000.0
+	_mark_awaiting_packet(_active_packet_request.get("active_flags", []), false)
 	_active_packet_request.clear()
 	_packet_started_at_ms = 0
 	_packet_completed_at_ms = Time.get_ticks_msec()
@@ -3079,6 +3456,16 @@ func _compute_packet(packet_req: Dictionary) -> Dictionary:
 		biome_rhos, num_phrames, actual_dt, actual_dt
 	)
 	var packet_end = Time.get_ticks_usec()
+	var packet_ms := float(packet_end - packet_start) / 1000.0
+	if packet_ms > 33.4:
+		var logn = Engine.get_main_loop()
+		if logn is SceneTree:
+			var v = (logn as SceneTree).root.get_node_or_null("/root/VerboseConfig")
+			if v and v.has_method("hitch"):
+				v.hitch("native_packet", packet_ms, {
+					"steps": num_phrames,
+					"biomes": biome_rhos.size() if typeof(biome_rhos) == TYPE_DICTIONARY else -1,
+				})
 
 	# Error handling: check if result is valid
 	if result == null or not result is Dictionary:
@@ -3103,6 +3490,64 @@ func _compute_packet(packet_req: Dictionary) -> Dictionary:
 	return result
 
 
+func _unpack_flat_f64(result: Dictionary, key: String, engine_id: int) -> Array:
+	var data: PackedFloat64Array = result.get(key, PackedFloat64Array())
+	var off: PackedInt32Array = result.get(key + "_off", PackedInt32Array())
+	var counts: PackedInt32Array = result.get(key + "_n", PackedInt32Array())
+	var strides: PackedInt32Array = result.get(key + "_stride", PackedInt32Array())
+	if engine_id < 0 or engine_id >= counts.size() or engine_id >= off.size() or engine_id >= strides.size():
+		return []
+	var start: int = int(off[engine_id])
+	var n: int = int(counts[engine_id])
+	var stride: int = int(strides[engine_id])
+	var out: Array = []
+	if n <= 0 or stride <= 0:
+		return out
+	out.resize(n)
+	for s in range(n):
+		var a: int = start + s * stride
+		out[s] = data.slice(a, a + stride)
+	return out
+
+
+func _unpack_flat_scalars(result: Dictionary, key: String, engine_id: int) -> Array:
+	var data: PackedFloat64Array = result.get(key, PackedFloat64Array())
+	var off: PackedInt32Array = result.get(key + "_off", PackedInt32Array())
+	var counts: PackedInt32Array = result.get(key + "_n", PackedInt32Array())
+	if engine_id < 0 or engine_id >= counts.size() or engine_id >= off.size():
+		return []
+	var start: int = int(off[engine_id])
+	var n: int = int(counts[engine_id])
+	var out: Array = []
+	if n <= 0:
+		return out
+	out.resize(n)
+	for s in range(n):
+		var i: int = start + s
+		out[s] = data[i] if i < data.size() else 0.0
+	return out
+
+
+func _unpack_flat_vec2(result: Dictionary, key: String, engine_id: int) -> Array:
+	var data: PackedVector2Array = result.get(key, PackedVector2Array())
+	var off: PackedInt32Array = result.get(key + "_off", PackedInt32Array())
+	var counts: PackedInt32Array = result.get(key + "_n", PackedInt32Array())
+	var strides: PackedInt32Array = result.get(key + "_stride", PackedInt32Array())
+	if engine_id < 0 or engine_id >= counts.size() or engine_id >= off.size() or engine_id >= strides.size():
+		return []
+	var start: int = int(off[engine_id])
+	var n: int = int(counts[engine_id])
+	var stride: int = int(strides[engine_id])
+	var out: Array = []
+	if n <= 0 or stride <= 0:
+		return out
+	out.resize(n)
+	for s in range(n):
+		var a: int = start + s * stride
+		out[s] = data.slice(a, a + stride)
+	return out
+
+
 func _merge_packet_result(packet_request: Dictionary, result: Dictionary) -> void:
 	# Merge one native packet result into the per-biome lookahead buffers.
 	var packet_time_ms = result.get("batch_time_us", 0) / 1000.0
@@ -3119,7 +3564,12 @@ func _merge_packet_result(packet_request: Dictionary, result: Dictionary) -> voi
 	# Per-step cost feeds the next packet's size budget. Measured, not assumed:
 	# it tracks biome count, dimension growth and machine speed for free.
 	var packet_steps: int = maxi(1, int(packet_request.get("num_steps", 1)))
-	_avg_ms_per_step = _smooth_metric(_avg_ms_per_step, packet_time_ms / float(packet_steps))
+	var active_in_packet := 0
+	for flag in packet_request.get("active_flags", []):
+		if bool(flag):
+			active_in_packet += 1
+	var biome_steps: float = float(packet_steps * maxi(1, active_in_packet))
+	_avg_ms_per_step = _smooth_metric(_avg_ms_per_step, packet_time_ms / biome_steps)
 
 	var depth_before = _get_minimum_buffer_depth()
 
@@ -3133,6 +3583,7 @@ func _merge_packet_result(packet_request: Dictionary, result: Dictionary) -> voi
 	# Get engine biome count for proper result array sizing
 	var engine_biome_count = lookahead_engine.get_biome_count() if lookahead_engine else 0
 
+	var flat: bool = str(result.get("layout", "")) == "flat"
 	var results = result.get("results", [])
 	var mi_steps = result.get("mi_steps", [])
 	var bloch_steps = result.get("bloch_steps", [])
@@ -3165,31 +3616,44 @@ func _merge_packet_result(packet_request: Dictionary, result: Dictionary) -> voi
 		# Check if this biome was marked active in the refill request
 		if packet_active_flags[engine_id]:
 			var lookahead_buffer = _ensure_lookahead_buffer(biome_name)
-			var unconsumed_frames = lookahead_buffer.frames.slice(lookahead_buffer.cursor) if lookahead_buffer.cursor < lookahead_buffer.frames.size() else []
-			var unconsumed_mi = lookahead_buffer.mi_steps.slice(lookahead_buffer.cursor) if lookahead_buffer.cursor < lookahead_buffer.mi_steps.size() else []
-			var unconsumed_bloch = lookahead_buffer.bloch_steps.slice(lookahead_buffer.cursor) if lookahead_buffer.cursor < lookahead_buffer.bloch_steps.size() else []
-			var unconsumed_purity = lookahead_buffer.purity_steps.slice(lookahead_buffer.cursor) if lookahead_buffer.cursor < lookahead_buffer.purity_steps.size() else []
-			var unconsumed_positions = lookahead_buffer.positions.slice(lookahead_buffer.cursor) if lookahead_buffer.cursor < lookahead_buffer.positions.size() else []
-
-			unconsumed_frames.append_array(results[engine_id] if engine_id < results.size() else [])
-			lookahead_buffer.frames = unconsumed_frames
-			lookahead_buffer.cursor = 0
-
-			var merged_mi_steps = mi_steps[engine_id] if engine_id < mi_steps.size() else []
-			unconsumed_mi.append_array(merged_mi_steps)
-			lookahead_buffer.mi_steps = unconsumed_mi
-			if not merged_mi_steps.is_empty():
-				lookahead_buffer.latest_mi = merged_mi_steps[merged_mi_steps.size() - 1]
-
-			unconsumed_bloch.append_array(bloch_steps[engine_id] if engine_id < bloch_steps.size() else [])
-			lookahead_buffer.bloch_steps = unconsumed_bloch
-
-			unconsumed_purity.append_array(purity_steps[engine_id] if engine_id < purity_steps.size() else [])
-			lookahead_buffer.purity_steps = unconsumed_purity
-
-			unconsumed_positions.append_array(position_steps[engine_id] if engine_id < position_steps.size() else [])
-			lookahead_buffer.positions = unconsumed_positions
+			var stamped_gens: Array = packet_request.get("generations", [])
+			if engine_id < stamped_gens.size() and int(stamped_gens[engine_id]) != lookahead_buffer.generation:
+				# This biome was invalidated while compute grew the packet.
+				continue
+			if flat:
+				if lookahead_buffer.layout == "flat" and lookahead_buffer.depth() > 0:
+					lookahead_buffer.append_flat_from_result(result, engine_id)
+				else:
+					lookahead_buffer.adopt_flat_from_result(result, engine_id)
+			else:
+				var unconsumed_frames = lookahead_buffer.frames.slice(lookahead_buffer.cursor) if lookahead_buffer.cursor < lookahead_buffer.frames.size() else []
+				var unconsumed_mi = lookahead_buffer.mi_steps.slice(lookahead_buffer.cursor) if lookahead_buffer.cursor < lookahead_buffer.mi_steps.size() else []
+				var unconsumed_bloch = lookahead_buffer.bloch_steps.slice(lookahead_buffer.cursor) if lookahead_buffer.cursor < lookahead_buffer.bloch_steps.size() else []
+				var unconsumed_purity = lookahead_buffer.purity_steps.slice(lookahead_buffer.cursor) if lookahead_buffer.cursor < lookahead_buffer.purity_steps.size() else []
+				var unconsumed_positions = lookahead_buffer.positions.slice(lookahead_buffer.cursor) if lookahead_buffer.cursor < lookahead_buffer.positions.size() else []
+				unconsumed_frames.append_array(results[engine_id] if engine_id < results.size() else [])
+				var merged_mi_steps = mi_steps[engine_id] if engine_id < mi_steps.size() else []
+				unconsumed_mi.append_array(merged_mi_steps)
+				if not merged_mi_steps.is_empty():
+					lookahead_buffer.latest_mi = merged_mi_steps[merged_mi_steps.size() - 1]
+				unconsumed_bloch.append_array(bloch_steps[engine_id] if engine_id < bloch_steps.size() else [])
+				unconsumed_purity.append_array(purity_steps[engine_id] if engine_id < purity_steps.size() else [])
+				unconsumed_positions.append_array(position_steps[engine_id] if engine_id < position_steps.size() else [])
+				lookahead_buffer.layout = "nested"
+				lookahead_buffer.frames = unconsumed_frames
+				lookahead_buffer.cursor = 0
+				lookahead_buffer.mi_steps = unconsumed_mi
+				lookahead_buffer.bloch_steps = unconsumed_bloch
+				lookahead_buffer.purity_steps = unconsumed_purity
+				lookahead_buffer.positions = unconsumed_positions
 			biome_dirty[biome_name] = false
+			# Commit last force positions so the next compute job snapshots
+			# what this buffer actually kept.
+			if lookahead_engine and lookahead_engine.has_method("set_node_positions"):
+				var last_idx: int = (int(lookahead_buffer.pos_n) - 1) if str(lookahead_buffer.layout) == "flat" else (int(lookahead_buffer.positions.size()) - 1)
+				var last_pos = lookahead_buffer.step_pos(last_idx)
+				if last_pos is PackedVector2Array and not last_pos.is_empty():
+					lookahead_engine.set_node_positions(engine_id, last_pos)
 		else:
 			# PHASE 2 FIX: Only create frozen buffer if buffer is empty
 			# If buffer has unconsumed frames, preserve them (don't overwrite with frozen)

@@ -72,6 +72,23 @@ func evolve_all_lookahead(_biome_rhos: Array, _steps: int, _dt: float, _max_dt: 
 func evolve_single_biome(_biome_id: int, _rho_packed: PackedFloat64Array, _steps: int, _dt: float, _max_dt: float) -> Dictionary:
 	return {}
 
+# ── produce / take (compute layer mouth) ──────────────────────────────────────────
+## Desktop native only. Web compiles submit as a sync pretend-complete — report false.
+func has_async_lookahead() -> bool:
+	return false
+func submit_lookahead_job(_biome_rhos: Array, _steps: int, _dt: float, _max_dt: float) -> bool:
+	return false
+func is_lookahead_job_running() -> bool:
+	return false
+func is_lookahead_job_complete() -> bool:
+	return false
+func take_completed_lookahead_job() -> Dictionary:
+	return {}
+func cancel_lookahead_job(_wait: bool = true) -> void:
+	pass
+func set_node_positions(_biome_id: int, _positions: PackedVector2Array) -> void:
+	pass
+
 
 ## Factory: the active machinery backend for this runtime. Native today; web/torch later
 ## select here by platform/feature. Returns null if no backend is available.

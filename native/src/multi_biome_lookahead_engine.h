@@ -3,6 +3,8 @@
 
 #include <godot_cpp/classes/ref_counted.hpp>
 #include <godot_cpp/variant/packed_float64_array.hpp>
+#include <godot_cpp/variant/packed_int32_array.hpp>
+#include <godot_cpp/variant/packed_vector2_array.hpp>
 #include <godot_cpp/variant/array.hpp>
 #include <godot_cpp/variant/dictionary.hpp>
 #include "quantum_evolution_engine.h"
@@ -195,6 +197,14 @@ public:
      */
     void set_biome_center(int biome_id, Vector2 center);
 
+    /**
+     * Commit force-graph positions for one biome (main thread only).
+     * Used after a successful buffer merge of an async packet so the next
+     * job snapshots the positions the buffer actually kept. Refuses while
+     * a job is running.
+     */
+    void set_node_positions(int biome_id, const PackedVector2Array& positions);
+
     // ========================================================================
     // SINGLE-BIOME EVOLUTION (for on-demand refill after user action)
     // ========================================================================
@@ -257,7 +267,10 @@ private:
     BiomeStepResult
     _evolve_biome_steps(int biome_id, const PackedFloat64Array& rho_packed,
                         int steps, float dt, float max_dt,
-                        bool compute_mi = true, bool build_icon_map = true);
+                        bool compute_mi = true, bool build_icon_map = true,
+                        PackedVector2Array* positions_io = nullptr,
+                        const Vector2* center_io = nullptr,
+                        bool commit_live = true);
 
     Dictionary _build_icon_map(int biome_id,
                                const std::vector<PackedFloat64Array>& bloch_steps);
@@ -268,16 +281,49 @@ private:
     struct AsyncJobState;
     std::unique_ptr<AsyncJobState> m_async;
 
+    bool _job_blocks(const char* op) const;
     void _wait_for_job();
     Dictionary _evolve_all_lookahead_impl(const Array& biome_rhos, int steps,
                                           float dt, float max_dt);
     std::vector<PackedFloat64Array> _copy_rhos_to_vector(const Array& biome_rhos) const;
     std::vector<BiomeStepResult> _evolve_all_lookahead_raw(
         const std::vector<PackedFloat64Array>& biome_rhos, int steps,
-        float dt, float max_dt, bool build_icon_maps);
+        float dt, float max_dt, bool build_icon_maps,
+        std::vector<PackedVector2Array>* positions_io = nullptr,
+        const std::vector<Vector2>* centers_io = nullptr,
+        bool commit_live = true);
     Dictionary _build_lookahead_dictionary(
         const std::vector<BiomeStepResult>& raw_results, int num_biomes,
         int64_t batch_time_us = 0, bool include_timing = false);
+
+    // Worker-side flatten: take() only moves these Packed arrays. Nested
+    // Array-of-Array + icon-map rebuild was the remaining main-thread hitch.
+    struct FlatPacket {
+        PackedFloat64Array rho;
+        PackedFloat64Array bloch;
+        PackedFloat64Array mi;
+        PackedFloat64Array purity;
+        PackedVector2Array positions;
+        PackedInt32Array rho_off;
+        PackedInt32Array rho_n;
+        PackedInt32Array rho_stride;
+        PackedInt32Array bloch_off;
+        PackedInt32Array bloch_n;
+        PackedInt32Array bloch_stride;
+        PackedInt32Array mi_off;
+        PackedInt32Array mi_n;
+        PackedInt32Array mi_stride;
+        PackedInt32Array purity_off;
+        PackedInt32Array purity_n;
+        PackedInt32Array pos_off;
+        PackedInt32Array pos_n;
+        PackedInt32Array pos_stride;
+        int num_biomes = 0;
+        int64_t batch_time_us = 0;
+    };
+    FlatPacket _flatten_raw_results(const std::vector<BiomeStepResult>& raw_results,
+                                    int num_biomes, int64_t batch_time_us) const;
+    Dictionary _flat_packet_to_dictionary(FlatPacket& packet) const;
 
 };
 

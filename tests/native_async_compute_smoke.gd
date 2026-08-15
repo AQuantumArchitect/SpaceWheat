@@ -41,9 +41,13 @@ func _init() -> void:
 		await process_frame
 
 	var result: Dictionary = engine.take_completed_lookahead_job()
-	var all_results: Array = result.get("results", [])
-	if all_results.size() != 1 or (all_results[0] as Array).size() != 3:
-		push_error("unexpected async result shape: %s" % str(result))
+	if str(result.get("layout", "")) != "flat":
+		push_error("async take must be a flat packet, got: %s" % str(result.keys()))
+		quit(1)
+		return
+	var counts: PackedInt32Array = result.get("rho_n", PackedInt32Array())
+	if counts.size() != 1 or int(counts[0]) != 3:
+		push_error("unexpected flat rho_n: %s" % str(counts))
 		quit(1)
 		return
 

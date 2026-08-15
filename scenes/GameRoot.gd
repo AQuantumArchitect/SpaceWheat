@@ -161,17 +161,61 @@ func _mark_started() -> void:
 ## RUN. That is precisely the state a performance pass has to measure, so the
 ## load is its own step now and the screenshot composes on top of it.
 func _run_boot_env_hooks() -> void:
-	if OS.has_environment("SW_LOAD_PATH"):
+	var load_path := RuntimeEnv.load_path()
+	if load_path != "":
 		var gsm = get_node_or_null("/root/GameStateManager")
 		if gsm != null and ("save_load" in gsm) and gsm.save_load != null:
 			# load_and_apply_path re-points the view at the farm it builds
 			# (SaveLoadCoordinator.rebind_view_to_farm) — this used to hand-roll that
 			# re-point here, which left the real path-load lane rendering the pre-load
 			# world for everyone who was not taking a dev screenshot (#519).
-			await gsm.save_load.load_and_apply_path(OS.get_environment("SW_LOAD_PATH"))
-			await get_tree().process_frame
+			# Web has no process env and no local filesystem the kit can point at:
+			# a relative SW_LOAD_PATH is fetched same-origin into user:// first.
+			if OS.has_feature("web") and not load_path.begins_with("user://") \
+					and not load_path.begins_with("res://"):
+				load_path = await _materialize_web_save(load_path)
+			if load_path != "":
+				await gsm.save_load.load_and_apply_path(load_path)
+				await get_tree().process_frame
 	if OS.has_environment("SW_SHOT"):
 		await _dev_screenshot()
+
+
+func _materialize_web_save(spec: String) -> String:
+	# Fetch a same-origin (or absolute http) .tres into user:// so SaveStore can
+	# ResourceLoader.load it. Used only by the headed web profiling lane.
+	var url := spec
+	if not url.begins_with("http://") and not url.begins_with("https://"):
+		var origin := ""
+		if ClassDB.class_exists("JavaScriptBridge"):
+			origin = str(JavaScriptBridge.eval("String(window.location.origin || '')", true))
+		if origin == "":
+			push_warning("SW_LOAD_PATH: no window.location.origin; cannot fetch %s" % spec)
+			return ""
+		url = origin.rstrip("/") + "/" + spec.lstrip("/")
+	var dest := "user://perf_load.tres"
+	var http := HTTPRequest.new()
+	add_child(http)
+	var err := http.request(url)
+	if err != OK:
+		push_warning("SW_LOAD_PATH: web fetch failed to start (%s): %s" % [err, url])
+		http.queue_free()
+		return ""
+	var completed: Array = await http.request_completed
+	http.queue_free()
+	var code := int(completed[1]) if completed.size() > 1 else 0
+	var body: PackedByteArray = completed[3] if completed.size() > 3 else PackedByteArray()
+	if code != 200 or body.is_empty():
+		push_warning("SW_LOAD_PATH: web fetch HTTP %d (%d bytes) for %s" % [code, body.size(), url])
+		return ""
+	var f := FileAccess.open(dest, FileAccess.WRITE)
+	if f == null:
+		push_warning("SW_LOAD_PATH: cannot write %s" % dest)
+		return ""
+	f.store_buffer(body)
+	f.close()
+	print("[PERF] fetched save %s → %s (%d bytes)" % [url, dest, body.size()])
+	return dest
 
 
 func _dev_screenshot() -> void:
@@ -245,10 +289,12 @@ func _resolve_player_shell() -> Node:
 ## harness, kept for one release); force 3D explicitly with --field3d / SW_FIELD_3D. An
 ## explicit 2D request always wins over an explicit 3D one.
 func _field3d_enabled() -> bool:
-	# Explicit overrides (2D wins ties): env first, then command-line + user args.
-	if OS.has_environment("SW_CLASSIC_2D"):
+	# Explicit overrides (2D wins ties): RuntimeEnv first (env + web query),
+	# then command-line + user args. OS.has_environment is the wrong test —
+	# SW_CLASSIC_2D=0 would still count as set.
+	if RuntimeEnv.classic_2d():
 		return false
-	if OS.has_environment("SW_FIELD_3D"):
+	if RuntimeEnv.field_3d_forced():
 		return true
 	for a in OS.get_cmdline_args() + OS.get_cmdline_user_args():
 		if a == "--classic-2d":
@@ -265,6 +311,8 @@ func _mount_quantum_visualization() -> void:
 		var field3d = load("res://Core/Visualization/QuantumField3D.gd").new()
 		field3d.name = "QuantumField3D"
 		add_child(field3d)
+		if _verbose:
+			_verbose.info("perf", "🖼", "mounted QuantumField3D (default renderer)")
 		# NOT top_level: a Control needs its parent's rect to resolve PRESET_FULL_RECT
 		# anchors. GameRoot is full-rect, so the field fills it; the app HUD (PlayerShell)
 		# is a plain Control sibling of GameRoot under AppRoot, NOT a CanvasLayer -- it
@@ -285,6 +333,8 @@ func _mount_quantum_visualization() -> void:
 	quantum_viz = QuantumForceGraph.new()
 	quantum_viz.name = "QuantumForceGraph"
 	add_child(quantum_viz)
+	if _verbose:
+		_verbose.info("perf", "🖼", "mounted QuantumForceGraph (--classic-2d)")
 	quantum_viz.top_level = true
 	quantum_viz.position = Vector2.ZERO
 	quantum_viz.z_index = 40
