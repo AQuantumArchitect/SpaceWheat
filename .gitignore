@@ -130,6 +130,7 @@ build_web/
 !🍄/🧪/checkpoints/endrun_act7.json
 !🍄/🧪/checkpoints/endrun_act8.tres
 !🍄/🧪/checkpoints/endrun_act8.json
+!🍄/🧪/checkpoints/endrun_ending.tres
 node_modules/
 native/src/*.d
 native/src/**/*.obj
