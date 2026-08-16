@@ -66,6 +66,11 @@ WRITE_WHITELIST = {
     # because a per-frame sampler writing per-frame would be this test's
     # nightmare case: the in-memory ring is flushed once, on the way out.
     "Core/Debug/PerfSampler.gd",
+    # _materialize_web_save: at most one write per boot, and only reached when
+    # OS.has_feature("web") AND SW_LOAD_PATH names a relative (non-user://,
+    # non-res://) path — the headed web profiling lane fetching a save
+    # same-origin into user:// before load. Never on a player's default path.
+    "scenes/GameRoot.gd",
 }
 
 
