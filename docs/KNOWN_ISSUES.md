@@ -94,25 +94,26 @@ doc for full context.
 
 ## Test-suite gap found during this pass
 
-- **`tests/test_field_shows_the_right_country.py::test_the_endgame_checkpoints_are_not_all_the_same_state`
+- ~~**`tests/test_field_shows_the_right_country.py::test_the_endgame_checkpoints_are_not_all_the_same_state`
   fails on any fresh clone**, including CI, because its two required fixtures
   (`🍄/🧪/checkpoints/endrun_act7.json`, `endrun_act8.json`) are gitignored
-  (`.gitignore` calls them "minted checkpoint banks; runtime artifacts,
-  re-mintable from the drives") and were never committed — even though the
-  test's own assertion message calls them "a shipped fixture." The bug this
-  test guards against (`#514` — all three endgame checkpoints collapsing to
-  one identical 49-flag state, making the Act 7/8 story gates unreachable
-  from any shipped save) was fixed per the test's docstring and
-  `docs/PLAYTEST_SWEEP_2026-08-10.md`, but the fix was never captured as
-  committed test data, so nobody without a local `🍄/🧪/checkpoints/`
-  directory can verify it — this sandbox included. Needs one of: (a) a real
-  Godot campaign run to Act 7 and Act 8 to regenerate the two fixtures via
-  `🍄/🧪/mint_checkpoint.py` (its own hardcoded-path portability bug is now
-  fixed, so this is at least runnable on any checkout now), with a
-  `.gitignore` exception carved out to actually commit them (mirroring the
-  `native/bin/` pattern), or (b) a skip guard on the test for environments
-  without the fixtures, matching how the rest of the suite handles a missing
-  `godot` binary.
+  ... Needs one of: (a) a real Godot campaign run to Act 7 and Act 8 to
+  regenerate the two fixtures ..., or (b) a skip guard on the test.~~
+  **Fixed 2026-08-16**: (a) happened. `🍄/🧪/act3_5_drive.py`'s `ACT35_ENDGAME=1`
+  block drives a real headless campaign from a fresh boot through
+  `the_door_stays_open`; two bugs blocked it from ever reaching Act 8 before
+  this pass — `discover_target()` always retried the same un-cullable biome
+  (`TheDemos`) instead of trying the next candidate, permanently starving
+  ShrineOfAshes/NullingChamber discovery (and everything chained behind
+  them: `the_basin` → `the_chain_tested` → `hiding_in_the_light` →
+  `the_rite` → `the_door_stays_open`); and no code path banked the fixtures
+  at all. Both fixed (commit `7e09958`); the driver now banks
+  `endrun_act7`/`endrun_act8` itself the moment each one's required flags go
+  live. The two fixtures are minted from that real run and committed
+  (commit `f43a4f0`), with a `.gitignore` exception carved out for just
+  those two files, mirroring the `native/bin/` pattern — everything else
+  under `🍄/🧪/checkpoints/` stays ignored as re-mintable runtime output.
+  `python3 -m pytest tests/ -q` now reads 298 passed, 0 failed, 17 skipped.
 - **Fixed during this pass**: 11 files across `🍄/` hardcoded the original
   developer's absolute machine path (`/home/primearchitect/ws/SpaceWheat/...`)
   instead of deriving it from the script's own location — silently breaking
