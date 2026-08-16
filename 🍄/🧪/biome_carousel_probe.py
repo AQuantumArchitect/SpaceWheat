@@ -1,6 +1,6 @@
 import sys, shutil
 from pathlib import Path
-ROOT = Path("/home/primearchitect/ws/SpaceWheat")
+ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT / "\U0001F344" / "\U0001F39B️"))
 from rig_client import RigClient
 OUT = ROOT / "logs"
