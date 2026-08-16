@@ -46,8 +46,10 @@ Bridging precedent (act2): raw resource grinds are bridged via add_resource so t
 FLAGS fire through genuine keyboard incorporation/planting/discovery — the physics
 and the flag-firing stay honest, only the grind currencies are topped up.
 """
+import json
 import os
 import sys
+import time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -531,6 +533,23 @@ def main():
             press("ESCAPE", 3)
         press(["ESCAPE", "ESCAPE"], 2)
         print("  gallery complete")
+
+    FIXTURE_DIR = HERE / "checkpoints"
+
+    def bank_fixture(name):
+        """Bank an endgame fixture (endrun_act7/act8): the .tres + a .json sidecar
+        carrying flags_fired, matching player_seat.py cmd_bank's schema — this is
+        what tests/test_field_shows_the_right_country.py reads."""
+        FIXTURE_DIR.mkdir(parents=True, exist_ok=True)
+        path = FIXTURE_DIR / (name + ".tres")
+        r = go("save_game_path", path=str(path))
+        fl = sorted(flags().keys())
+        (FIXTURE_DIR / (name + ".json")).write_text(json.dumps(
+            {"name": name, "minted": time.strftime("%Y-%m-%d %H:%M"),
+             "flags_fired": fl,
+             "criterion": "real headless campaign run via act3_5_drive.py endgame"},
+            ensure_ascii=False, indent=1))
+        print(f"  BANK FIXTURE {name}: saved={r.get('saved')} flags={len(fl)} -> {path}")
 
     try:
         c.wait_for_ready(proc, timeout_s=180)
@@ -1076,8 +1095,13 @@ def main():
                         return True
                     keep = endgame_core | protected_landmarks()
                     cullable = cullable_from(grid(), keep, (target,))
-                    if cullable:
-                        cull(cullable[0])
+                    # Try EVERY cullable candidate, not just the first — TheDemos
+                    # refuses removal outright (2026-08-16: 16/16 tries "FAILED"),
+                    # and always retrying the SAME un-cullable candidate starves
+                    # discovery forever when the grid is full. Move on to the next.
+                    for cand in cullable:
+                        if cull(cand):
+                            break
                     bridge("🦅", 80)
                     ensure_hat("7"); press("R", 6)
                     print(f"  discover {target} #{d}: grid={grid()}")
@@ -1125,6 +1149,19 @@ def main():
                 press("1", 3)                           # back to shift mode
                 print(f"  {fprog('the_fusion')}")
 
+            # Bank the act-7 fixture the moment its 3 required beats are all live.
+            # the_number_lied hangs off the_knot + fence_remembers, both rooted in
+            # StarterForest/Village play from acts 1-5 (pre-checkpoint) — so on a
+            # resumed leg it is very likely already true; braid_alphabet/the_fusion
+            # are the ones this block just drove. Check, don't assume.
+            _act7_need = ("braid_alphabet", "the_fusion", "the_number_lied")
+            _fl7 = flags()
+            if all(f in _fl7 for f in _act7_need):
+                bank_fixture("endrun_act7")
+            else:
+                print(f"  (endrun_act7 not ready: missing "
+                      f"{[f for f in _act7_need if f not in _fl7]})")
+
             # the_first_contract: sparks recorded in the gate sequence — jolts on wet
             # ground. The jolt SPENDS the register's north-pole emoji, so stock it
             # first (same resource-bridge convention as the standings grind), and
@@ -1150,7 +1187,28 @@ def main():
             # the_rite: three seasons of GildedRot berries; the_door_stays_open: sig>=18
             berries_to("GildedRot", 3, "the_rite")
             go("time_skip", phrames=300)
+            print(f"  {fprog('the_rite')}")
+
+            # Push signature over 18 if the door's other predicate isn't there yet
+            # (measured 0.94 on the first full run — close, not always over).
+            for bn2 in ("StarterForest", "Village", "Woodlot", "FreshwaterSpring"):
+                if go("flag_progress", id="the_door_stays_open").get("fired"):
+                    break
+                if bn2 not in grid():
+                    continue
+                b0 = berry(bn2)
+                want = (b0 + 1) if isinstance(b0, int) else 1
+                farm_berries(bn2, want, "the_door_stays_open", rounds=3)
+            go("time_skip", phrames=200)
             print(f"  {fprog('the_door_stays_open')}")
+
+            _act8_need = ("the_rite", "the_door_stays_open")
+            _fl8 = flags()
+            if all(f in _fl8 for f in _act8_need):
+                bank_fixture("endrun_act8")
+            else:
+                print(f"  (endrun_act8 not ready: missing "
+                      f"{[f for f in _act8_need if f not in _fl8]})")
 
             print("\n== ENDGAME RESULT ==")
             for fid in ("chain_ends", "the_crossing", "the_gray", "the_span",
