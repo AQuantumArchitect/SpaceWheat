@@ -1,5 +1,9 @@
 # SpaceWheat — Pre-Launch Gaps Report
 
+> **Historical.** Snapshot from 2026-07-05. Most gaps in this file closed the
+> same week; do not treat the P3 table as a live backlog. Canon:
+> `docs/FOR_PHYSICISTS.md`, `docs/GAME_CODEX.md`, `docs/EXPORT_HEALTH.md`.
+
 *Compiled from 7 headed playtesting sessions (sessions 5–11, 2026-07-04), live codebase
 audit, and the published docs in `docs/`. Perspective: I can press every key and read every
 screenshot but I can't play the full campaign end-to-end in a single live session — the gaps

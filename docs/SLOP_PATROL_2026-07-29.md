@@ -1,5 +1,8 @@
 # Slop patrol — 2026-07-29
 
+> **Historical.** Session log + wish list from 2026-07-29. The four live bugs
+> it names were fixed that day. The wish list is not a release blocker.
+
 A 6-way parallel sweep (UI, core gameplay logic, quantum/physics/biome layer,
 native C++, Python tooling, misc systems) hunting for duplicated/copy-pasted
 code across SpaceWheat. Four findings turned out to be live bugs, not just

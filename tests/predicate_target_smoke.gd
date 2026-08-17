@@ -36,6 +36,7 @@ const SAMPLES := {
 	"wilson_survived_flip":     {"type": "wilson_survived_flip"},
 	"spinor_read":              {"type": "spinor_read", "value": -1},
 	"winding_changed_uncut":    {"type": "winding_changed_uncut"},
+	"soul_purity_gte":          {"type": "soul_purity_gte", "value": 0.55},
 }
 
 
@@ -81,6 +82,13 @@ func _run() -> void:
 	var druid := PredicateGloss.target(SAMPLES["gate_sequence_contains"])
 	_check(cnot.get("key", "") != druid.get("key", ""),
 			"cnot and hadamard resolve different hats", "%s vs %s" % [cnot, druid])
+
+	# What Turns compass verbs must spotlight the Operator hat — not stay {}.
+	var flip := PredicateGloss.target({"type": "gate_sequence_contains", "gate": "gauge_flip", "count": 3})
+	_check(str(flip.get("key", "")) != "",
+			"gauge_flip resolves a hat digit (Lesson II spotlight)", str(flip))
+	_check(str(flip.get("key", "")) == str(cnot.get("key", "")),
+			"gauge_flip and cnot share the Operator hat", "%s vs %s" % [flip, cnot])
 
 	# No-table types stay honestly dark.
 	_check(PredicateGloss.target({"type": "story_flag_set", "id": "x"}).is_empty(),

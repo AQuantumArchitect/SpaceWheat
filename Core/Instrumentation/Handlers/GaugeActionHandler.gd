@@ -1,5 +1,7 @@
 extends RefCounted
 
+const LoopCardCls = preload("res://UI/Overlays/LoopCard.gd")
+
 ## GaugeActionHandler — static instrumentation dispatcher for the fence
 ## ledger (GaugeField) and the mirror (reference-qubit interference).
 ##
@@ -68,6 +70,12 @@ static func wilson_inspect(biome, qid: int) -> Dictionary:
 			"sign": gf.edge_sign(qid, nb),
 		})
 	var betti: int = gf.betti_1()
+	var card: Dictionary = LoopCardCls.gather(biome)
+	var card_text := LoopCardCls.format_text(card)
+	var fallback := ("β₁ = %d: %d place%s where an invariant can live. " % [
+		betti, betti, "" if betti == 1 else "s"]) + (
+		"A tree keeps no books — every fence here can be combed away." if betti == 0
+		else "The cycles keep the books no combing can erase.")
 	return {
 		"success": true,
 		"biome": ctx["biome_name"],
@@ -76,10 +84,8 @@ static func wilson_inspect(biome, qid: int) -> Dictionary:
 		"cycles": cycle_cards,
 		"fences": fences,
 		"frame": gf.node_frame(qid),
-		"message": ("β₁ = %d: %d place%s where an invariant can live. " % [
-			betti, betti, "" if betti == 1 else "s"]) + (
-			"A tree keeps no books — every fence here can be combed away." if betti == 0
-			else "The cycles keep the books no combing can erase."),
+		"loop_card": card,
+		"message": card_text if card_text != "" else fallback,
 	}
 
 
@@ -173,10 +179,11 @@ static func interfere(farm, biome, qid: int, reference: Dictionary) -> Dictionar
 	var ref_id: int = int(reference.get("register_id", -1))
 	var reg_here = qc.berry_register
 	var reg_home = ref_biome.quantum_computer.berry_register
-	if not reg_here.has_entry(qid):
+	# Live entry OR a frozen loop record — the knot outlives harvest.
+	if not reg_here.has_fiber_ledger(qid):
 		return {"success": false, "error": "untracked",
 			"message": "q%d keeps no travel log — track it (Icon F) and walk it first." % qid}
-	if not reg_home.has_entry(ref_id):
+	if not reg_home.has_fiber_ledger(ref_id):
 		return {"success": false, "error": "reference_untracked", "message": "The reference lost its log. Mark home again."}
 	var gamma_here: float = reg_here.get_fiber_angle(qid)
 	var gamma_home: float = reg_home.get_fiber_angle(ref_id)

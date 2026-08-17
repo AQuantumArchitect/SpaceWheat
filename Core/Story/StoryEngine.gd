@@ -266,16 +266,31 @@ func _restore_arc_quests_after_load() -> void:
 	if _farm == null or _quest_manager == null:
 		return
 	var known: Array = _farm.get_known_icons() if _farm.has_method("get_known_icons") else []
+	var offered_guidance := false
 	for flag_id in _farm.story_flags_fired:
 		if _quest_manager.has_quest_for_flag(flag_id):
+			continue
+		if _quest_manager.has_completed_flag(flag_id):
+			continue
+		if _quest_manager.is_guidance_dismissed(flag_id):
 			continue
 		# Find the raw flag data from QuestManager's loaded flags
 		for flag_data in _quest_manager._story_flags:
 			if str(flag_data.get("id", "")) != flag_id:
 				continue
 			var arc_quest = flag_data.get("arc_quest")
-			if arc_quest is Dictionary and not arc_quest.is_empty() \
-					and _arc_still_teaches(arc_quest, known):
+			if not (arc_quest is Dictionary) or arc_quest.is_empty():
+				break
+			var pair_less := str(arc_quest.get("reward_north", "")) == "" \
+					and str(arc_quest.get("reward_south", "")) == ""
+			if pair_less:
+				# At most one guidance teacher in the six-slot picker.
+				# The rest stay on the Arc spine as resume, not a flood.
+				if offered_guidance:
+					break
+				_quest_manager.offer_story_quest(arc_quest.duplicate(), flag_id)
+				offered_guidance = true
+			elif _arc_still_teaches(arc_quest, known):
 				_quest_manager.offer_story_quest(arc_quest.duplicate(), flag_id)
 			break
 

@@ -1,5 +1,10 @@
 # The Last Machinery — engine frontier plan
 
+> **Historical.** Planning document from 2026-07. Part I and Part II shipped;
+> What Turns was promoted out to `docs/GAUGE_CAMPAIGN.md`. This file is the
+> audit trail, not live status. Canon: `docs/FOR_PHYSICISTS.md`,
+> `docs/GAME_CODEX.md`, `docs/CONNECT_CAMPAIGN.md`, `docs/GAUGE_CAMPAIGN.md`.
+
 > **Status: Part I SHIPPED (2026-07-04, same day) — see `docs/CONNECT_CAMPAIGN.md`
 > for the ship record.** C0–C4 landed: loop records + the repaired Berry
 > integration seam (the audit's biggest find — `integrate_step` had NO live call
@@ -126,7 +131,8 @@ remembers that the shadow doesn't. **Ripeness was always the shadow of a knot.**
 The canonical fact to teach costs zero computation, because it is a theorem
 (Hopf): the preimages of *any two distinct points* of the Bloch sphere are
 circles in S³ that link exactly once. Any two answers a qubit can give are
-linked circles — that is the geometric reason you can never hold both.
+linked circles — the state space's anatomy, not the mechanism of measurement
+exclusivity (that story belongs to the Born rule; see glossary/knot.md).
 
 ### The engine translation
 

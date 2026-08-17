@@ -37,10 +37,10 @@ That claim is checkable, and the last section tells you how.
 | Concept | In-game | What the player does | Grade | Where |
 |---|---|---|---|---|
 | Density matrix ρ | the biome's cloud | Every biome is a ρ; the N overlay shows the raw matrix as a heatmap with per-register probability bars | **exact** | `Core/QuantumSubstrate/` |
-| Unitary evolution U = exp(−iH·dt) | the season | Watches states evolve under each biome's authored H; purity conserved to machine precision (eigendecomposition in C++, Padé scaling-and-squaring in the GDScript fallback) | **exact** | `QuantumComputer.evolve()` |
-| Quantum gates | Operator (9) / Druid (0) frames | Builds Bell, GHZ, and cluster states by hand; 14 gates with exact unitary matrices, verified against exact density-matrix elements (142 tests) | **exact** | `Core/QuantumSubstrate/`, `tests/` |
+| Unitary evolution U = exp(−iH·dt) | the season | Watches states evolve under each biome's authored H; purity conserved to machine precision via eigendecomposition in the native C++ engine. There is no GDScript evolution fallback — if the extension is missing, the biome is frozen | **exact** | `QuantumComputer.evolve()`, `native/src/` |
+| Quantum gates | Operator (9) / Druid (0) frames | Builds Bell, GHZ, and cluster states by hand; 14 gates with exact unitary matrices, verified against exact density-matrix elements | **exact** | `Core/QuantumSubstrate/`, `tests/test_gate_exact_states.gd` |
 | Born rule + projective collapse | measurement (E) — the economy's engine | Samples a qubit; the state collapses; sampling is deterministically seeded so a save-load replays the same universe | **exact** | `Core/Actions/` |
-| Weak measurement | the drain (open country) | Partial-strength readout: trace preserved, coherence decays as √(1−η); η = 0 and η = 1 limits tested (18 tests) | **exact** | weak-measurement suite |
+| Weak measurement | the drain (open country) | Partial-strength readout: trace preserved, coherence decays as √(1−η); η = 0 and η = 1 limits tested | **exact** | `tests/test_drain_qubit.gd` |
 | Purity Tr(ρ²) and von Neumann entropy | "resolved / mixed"; kT | Reads purity on every inspect surface; the economy's kT is computed from live entropy | **exact** | inspect overlays |
 | Mutual information | the loom — gold edges | Entangles qubits and watches MI edges glow in proportion to bits (native path, physics rate) | **exact** | M-Graph view |
 | Surprisal economy E = −kT·log p | the harvest | Gets paid the surprisal of what was learned; improbable outcomes pay more | **faithful** — the bookkeeping is real (Landauer-flavored, kT from live entropy); the credit exchange rate is a game constant | `EnergyPricing` |
@@ -142,8 +142,11 @@ earns visible partial credit — the progress bar is the teacher.
 
 Nothing above needs to be taken on faith:
 
-1. **The test suites** — 164 physics tests against exact matrix elements:
-   `bash run_quantum_gate_tests.sh` (or per-suite via `bash 🍄/🧪/🔬.sh`).
+1. **The test suites** — do not trust a frozen census. The release gate is
+   `bash scripts/run_tests.sh`: gate exactness, evolve parity, Berry/knot/gauge
+   probes, packet budget. Cross-impl Berry agreement is
+   `tests/test_berry_phase_agreement.py`. Assays below exit nonzero if a claim
+   fails. Per-probe: `godot --headless --path . -s tests/<name>.gd`.
 2. **The rig** — a deterministic headless JSON control surface
    (`🍄/🎛️/rig_listener.gd`): script a preparation, evolve, measure with a fixed
    roll, and check the numbers yourself. Reels (`Core/Gallery/reels/`) are worked

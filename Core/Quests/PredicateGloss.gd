@@ -49,6 +49,7 @@ const TARGETS := {
 	"wilson_survived_flip":     {"kind": "hat", "frame": "operator"},
 	"spinor_read":              {"kind": "hat", "frame": "icon"},
 	"winding_changed_uncut":    {"kind": "hat", "frame": "icon"},
+	"soul_purity_gte":          {"kind": "hat", "frame": "icon"},
 }
 
 ## Gate dispatch name → the hat that fires it (single-qubit rotations are
@@ -59,6 +60,9 @@ const GATE_FRAMES := {
 	"s_gate": "druid", "t_gate": "druid", "sdg": "druid", "tdg": "druid",
 	"cnot": "operator", "cz": "operator", "swap": "operator",
 	"bell": "operator", "ghz": "operator", "cluster": "operator",
+	"gauge_flip": "operator", "wilson_inspect": "operator",
+	"gauge_fix": "operator", "gauge_scramble": "operator",
+	"mark_reference": "icon", "interfere": "icon",
 }
 
 
@@ -145,16 +149,15 @@ static func summary(pred: Dictionary, qm = null) -> String:
 		"biome_state_lte":
 			return "%s.%s ≤ %.2f" % [str(pred.get("biome", "")), str(pred.get("atom", "")), tgt]
 		"soul_purity_gte":
-			# The campaign's ONE meta-state gate. Everything else says "do X in biome
-			# Y"; this says "be a certain way", and with no live number and no named
-			# verb it read as the first ask in six acts with no next step (#515). So
-			# it gets both: where it stands now, and the verb that moves it.
-			# The lever is real — Farm._pump_for_icon pumps the owning faction hard on
-			# every incorporation, concentrating ρ; the τ=300s decay pulls it back.
+			# The campaign's ONE meta-state gate. Banner-first sentence must fit
+			# OBJECTIVE_MAX_CHARS (70) and name the hat digit in (N) form so
+			# predicate_target_smoke can pin the spotlight. The lever is real —
+			# Farm._pump_for_icon pumps the owning faction on each incorporation;
+			# τ=300s decay pulls it back.
 			var sp_have := ""
 			if qm and qm.has_method("soul_purity_now"):
 				sp_have = "%.2f/" % qm.soul_purity_now()
-			return "you · Tr(ρ²) %s%.2f — incorporate icons (Icon hat 5: F track, R take) to sharpen it; it fades toward the fog in ~5 min" % [sp_have, tgt]
+			return "you · Tr(ρ²) %s%.2f — Icon (5): F track, R take. Fades ~5 min." % [sp_have, tgt]
 		"biome_evolving":
 			# A biome you haven't found yet reads as an impossible ask (marathon
 			# #4: "requires BloodLedger to be active" with no verb) — teach

@@ -300,7 +300,7 @@ still exists and the row still has four slots. Source of truth:
 | 0  | Druid     | X / Y / Z                | rot−          | Hadamard              | rot+          | (global F)       |
 
 **What Turns modes (2026-08-10):** Icon mode 2 🪞 is the mirror — R holds a
-stay-home reference, E interferes the focused traveler's Berry log against it
+stay-home reference (a different plot), E interferes the focused traveler's Berry log against it. Key 2 opens the mirror; key 1 F tracks. Do not Incorporate before the compare — the frozen record still works if you did.
 (Δγ + spinor sign product; a ripe loop reads −1); non-destructive, ρ untouched.
 Operator mode 2 🧭 is the fence ledger — R turns the focused plot's gauge
 convention (χ = π), E reads the loop card (β₁, Wilson products), Q combs the
@@ -494,9 +494,11 @@ playtesters get stuck.
 - **`'`** (apostrophe) toggles bulk select / clear all on the active
   biome's plots. Empty selection → check every register. Non-empty →
   clear all checks.
-- **`-` / `=`** = simulation time scale — **wiring pending**: PlayerShell
-  currently stubs both (logs and returns). The GranularityController
-  hookup is planned; until it lands these keys do nothing.
+- **`-` / `=`** = simulation time scale. These WORK. QuantumInstrumentInput
+  owns them (`_decrease_time_controls` / `_increase_time_controls`), driving
+  GranularityController and toasting the new rate; PlayerShell documents that
+  QII owns them rather than stubbing them. This entry claimed "wiring pending
+  — these keys do nothing" long after the hookup landed.
 - **`Shift + -` / `Shift + =`** = simulation resolution (dt). Coarser /
   finer substeps, multiplicative jump.
 - **`Tab`** cycles the **hat** (4-0) — the same step WASD does when

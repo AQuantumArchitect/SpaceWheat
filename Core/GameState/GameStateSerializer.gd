@@ -897,6 +897,12 @@ func _capture_single_biome_state(biome: Node, _biome_name: String) -> Dictionary
 	if biome.quantum_computer and biome.quantum_computer.berry_register:
 		state_dict["berry_consumed_count"] = biome.quantum_computer.berry_register.get_consumed_count()
 		state_dict["berry_consumed_phase"] = biome.quantum_computer.berry_register.get_consumed_phase()
+		state_dict["berry_frozen_loops"] = biome.quantum_computer.berry_register.serialize_frozen()
+		state_dict["berry_tracked"] = biome.quantum_computer.berry_register.serialize_tracked()
+	if biome.quantum_computer and biome.quantum_computer.has_method("get_gauge_field"):
+		var gf = biome.quantum_computer.get_gauge_field()
+		if gf != null:
+			state_dict["gauge_inspected"] = bool(gf.inspected)
 
 	# Density matrix ρ — the deepest level of truth. Plots are projections of
 	# ρ via viz_cache; without persisting ρ, registers re-boot to ground state
@@ -1028,6 +1034,17 @@ func _restore_single_biome_state(biome: Node, state: Dictionary, biome_name: Str
 		biome.quantum_computer.berry_register.restore_consumed(
 			int(state.get("berry_consumed_count", 0)),
 			float(state.get("berry_consumed_phase", 0.0)))
+		var frozen = state.get("berry_frozen_loops", [])
+		if frozen is Array and not frozen.is_empty():
+			biome.quantum_computer.berry_register.restore_frozen(frozen)
+		var tracked = state.get("berry_tracked", [])
+		if tracked is Array and not tracked.is_empty():
+			biome.quantum_computer.berry_register.restore_tracked(tracked)
+	if state.has("gauge_inspected") and biome.quantum_computer \
+			and biome.quantum_computer.has_method("get_gauge_field"):
+		var gf_load = biome.quantum_computer.get_gauge_field()
+		if gf_load != null:
+			gf_load.inspected = bool(state.get("gauge_inspected", false))
 
 	# Restore ρ, then re-seed viz_cache so PlotGridDisplay reads live Bloch
 	# snapshots immediately on load instead of -1.0 from an empty cache.

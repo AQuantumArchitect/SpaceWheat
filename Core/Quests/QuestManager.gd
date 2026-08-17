@@ -48,6 +48,7 @@ var _unfired_flags: Array = []  # Subset not yet in farm.story_flags_fired
 var _signature_baseline: int = -1  # Seeded signature size snapshot (-1 = not captured)
 var _baseline_farm_id: int = 0     # Farm instance the baseline was captured from (restart ⇒ recapture)
 var _tutorial_steps: Array = [] # Act-0 onboarding chain (tutorial_arc.json), linked into a chain
+var guidance_dismissed: Dictionary = {}  # flag_id -> true; player chose not to resume this teacher
 
 # =============================================================================
 # LIFECYCLE
@@ -2167,8 +2168,23 @@ func dismiss_story_offer(quest_id: int) -> bool:
 	# Remove a pending story arc offer from the current board view.
 	if not story_offers.has(quest_id):
 		return false
+	var q: Dictionary = story_offers[quest_id]
+	var flag_id := str(q.get("source_flag", ""))
+	if flag_id != "":
+		guidance_dismissed[flag_id] = true
 	story_offers.erase(quest_id)
 	return true
+
+
+func has_completed_flag(flag_id: String) -> bool:
+	for q in completed_quests:
+		if q is Dictionary and str(q.get("source_flag", "")) == flag_id:
+			return true
+	return false
+
+
+func is_guidance_dismissed(flag_id: String) -> bool:
+	return bool(guidance_dismissed.get(flag_id, false))
 
 func get_quest_by_id(quest_id: int) -> Dictionary:
 	# Get quest data by ID (active quests first, then pending story offers).
@@ -2211,11 +2227,16 @@ func to_save_dict() -> Dictionary:
 	for q in failed_quests:
 		if q is Dictionary:
 			failed_out.append(_quest_save_copy(q))
+	var receipts: Dictionary = {}
+	if _state_projection and _state_projection.has_method("serialize_receipts"):
+		receipts = _state_projection.serialize_receipts()
 	return {
 		"active": active_out,
 		"completed": completed_out,
 		"failed": failed_out,
 		"next_quest_id": next_quest_id,
+		"lesson_receipts": receipts,
+		"guidance_dismissed": guidance_dismissed.duplicate(true),
 	}
 
 
@@ -2287,6 +2308,11 @@ func restore_from_save_dict(data: Dictionary) -> void:
 	# Monotonic: never rewind below ids already handed out this session, or
 	# fresh offers would collide with restored quest ids.
 	next_quest_id = maxi(next_quest_id, int(data.get("next_quest_id", 0)))
+	var saved_receipts = data.get("lesson_receipts", {})
+	if _state_projection and saved_receipts is Dictionary:
+		_state_projection.restore_receipts(saved_receipts)
+	var saved_dismissed = data.get("guidance_dismissed", {})
+	guidance_dismissed = saved_dismissed.duplicate(true) if saved_dismissed is Dictionary else {}
 	# Re-arm expiry timers. Timer nodes don't serialize, so ELAPSED TIME RESETS:
 	# a reloaded timed contract gets its full time_limit again (generous, and
 	# honest about what a save can carry). Locked (pinned) commitments stay

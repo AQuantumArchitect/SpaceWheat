@@ -1,14 +1,13 @@
 # What Turns — the Bookkeeping Campaign
 
-> Campaign design + ship record, 2026-08-10. The fourth lane, promoted from
-> `docs/ENGINE_FRONTIER.md` (Machine 2's closure-honesty note named its two
-> gauge lessons) the way the first three campaigns were promoted from their
-> seed banks. Owner directives honored: the lessons **interleave** into acts
-> 5–8 rather than trailing the door, the ending is **untouched**
-> (`the_door_stays_open` still closes act 8 on its own terms), and there is
-> **no save-format touch** — deliberately, see "Nothing persists" below.
+> Campaign design + ship record, 2026-08-10, seams closed 2026-08-12.
+> The fourth lane, promoted from `docs/ENGINE_FRONTIER.md` the way the first
+> three campaigns were promoted from their seed banks. Owner directives
+> honored: the lessons **interleave** into acts 5–8 rather than trailing the
+> door, and the ending is **untouched** (`the_door_stays_open` still closes
+> act 8 on its own terms).
 >
-> **Status: SHIPPED (2026-08-10, same day as the plan).** Machinery:
+> **Status: SHIPPED-with-seams (2026-08-12).** Machinery from the 08-10 ship:
 > `GaugeField` (Z₂/U(1) lattice gauge substrate: gauge transforms, Wilson
 > loops, spanning-tree gauge fixing, β₁ = E − V + C, red-team scrambles) wired
 > per biome as `QuantumComputer.get_gauge_field()` over the NeighborhoodGraph's
@@ -18,9 +17,13 @@
 > `BerryPhaseRegister` spinor sign + fiber angle; Operator 🧭 compass verbs +
 > Icon 🪞 mirror verbs (`GaugeActionHandler`); six predicates; the station
 > dial + fence glyph (gated on `turned_compass`); five story flags; glossary
-> **gauge** + **wilson** + **holonomy**. Remaining: threshold tuning in live
-> play; a dedicated loop-card overlay surface (the E-card message carries the
-> payload for now).
+> **gauge** + **wilson** + **holonomy**. Seams closed after ship: frozen loop
+> records and in-progress tracks persist on the biome dict; lesson receipts
+> persist on the quest ledger; `gauge_inspected` survives save/load of the
+> same graph; `UI/Overlays/LoopCard.gd` is the dedicated overlay (E no longer
+> dumps the payload into a toast). Remaining: headed StarterForest walk of
+> lessons I and V (P5) — owner-only, real GPU. Gauge χ frames stay
+> session-only; that is still the lesson, not a missing save key.
 
 ## The thesis
 
@@ -85,10 +88,13 @@ Berry travel logs, never a beam splitter on ρ):
   travel logs; it never claims a beam was split.
 - **Mutual winding — exact computation, honestly demoted.** Taught as an
   attackable, axis-relative diagnostic. Lesson IV *is* the demotion.
-- **Nothing persists — deliberately.** Gauge conventions are session-only and
-  re-seed from H on reload; the Wilson loops survive that automatically,
+- **χ frames stay session-only — deliberately.** Gauge conventions re-seed
+  from `arg(J)` on reload; the Wilson loops survive that automatically,
   because they are the part that was never bookkeeping. The reload behavior
-  is itself the lesson, and the save format goes untouched.
+  *is* the lesson. Walks and receipts *do* persist (additive biome/quest
+  keys, no v8 bump): `berry_frozen_loops`, `berry_tracked`,
+  `lesson_receipts`, `gauge_inspected`. Missing keys read empty — honest
+  for pre-seam saves.
 
 ## Predicates
 

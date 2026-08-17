@@ -1,5 +1,7 @@
 # Polish Day — 2026-07-05
 
+> **Historical.** Session log from 2026-07-05. Not live status.
+
 *One session, primary-dev autonomous: merge → test → play → publish. Everything below is
 on `main` and pushed to origin.*
 

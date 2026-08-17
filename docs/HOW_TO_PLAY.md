@@ -52,15 +52,29 @@ Four verbs, same directions on every surface:
 | Key | Hat | What it does |
 |-----|-----|--------------|
 | 4 | **Spark** | One-shot Lindblad jolt — wet country only (chips grey on closed ground); the kick that can *re-purify*. **E** reads the gauge. Mode 2 (🌉): Majorana bridges — never sealed. |
-| 5 | **Icon** | The vocabulary hat — **the story runs on it** (see Berries below). **F tracks** a plot's walk (⌖), **R incorporates** it when ripe; R on an empty plot adds an icon, Q trims one. |
+| 5 | **Icon** | The vocabulary hat — **the story runs on it** (see Berries below). Mode **1** is inject: **F tracks** a plot's walk (⌖), **R incorporates** it when ripe. Mode **2** is the mirror 🪞 (see What Turns). R on an empty plot (mode 1) adds an icon, Q trims one. |
 | 6 | **Merchant** | Standing contracts with the Bath (wet country only). 1/2/3 picks the channel — thermal / dephase / damp. Q exports, E reads the order book, R imports, **F settles**. |
 | 7 | **Captain** | Biome lifecycle: cull, compass, discover. |
 | 8 | **Ace** | The default: explore/fast-fwd (F, Shift+F reaps the season) / strike (R) / extract (Q) / pause (E). |
-| 9 | **Operator** | Gate building: Bell, CNOT, CZ, SWAP, GHZ. |
+| 9 | **Operator** | Gate building: Bell, CNOT, CZ, SWAP, GHZ. Mode **2** is the compass 🧭 (see What Turns). |
 | 0 | **Druid** | Rotations + Hadamard (E); 1/2/3 pick the X/Y/Z axis. |
 
-Re-press the active hat to fall back to Ace. `Tab` cycles hats. `Shift` +
-Q/E/R applies the verb to every valid plot.
+Re-press the active hat to fall back to Ace. `Tab` cycles hats (not modes).
+Keys `1`/`2`/`3` pick a hat's sub-mode. `Shift` + Q/E/R applies the verb to
+every valid plot.
+
+## What Turns — the mirror and the compass
+
+A ripe loop comes home on the Bloch sphere with its spinor sign reversed.
+Nothing local can see that. **Icon `5`, key `2` (🪞):** pick a traveler, **R**
+marks a *different* plot stay-home, key `1` **F** tracks the traveler, wait
+until ripe (**do not Incorporate first**), key `2` **E** compares. A ripe
+traveler against a stay-home reads **−1**.
+
+**Operator `9`, key `2` (🧭):** **E** reads the loop card (β₁, Wilson
+products, frozen lifts), **R** turns a plot's convention (fences flip; every
+closed loop holds), **Q** combs the tree flat, **F** scrambles. What a turn
+can change was never physics.
 
 ## Contracts and teachings — how the early story moves
 
@@ -106,7 +120,7 @@ in a few beats instead of a season.
   (twenty canonical terms) and a list of experiments to try.
 - **Z / ESC** — system menu: save, load, new run.
 - **F12** — postcard: captures the view with the physics watermark in the
-  pixels and a certificate JSON beside it (`user://postcards/`).
+  pixels and a certificate JSON beside it. The toast names the real folder path.
 
 ## Navigation
 

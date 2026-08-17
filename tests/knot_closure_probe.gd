@@ -112,6 +112,16 @@ func _init() -> void:
 	var report_open: Dictionary = Knot.linking_report(pts, stitched_tilt)
 	checks["open_pair_link_refused"] = (not report_open.get("valid", true)) and is_nan(float(report_open.get("lk", 0.0)))
 
+	# --- 4. a 0.6 rad twitch is not a loop (LOOP_OMEGA_FLOOR = π) -------------
+	var reg4 = Register.new()
+	reg4.start_tracking(0)
+	var twitch: Array = []
+	for i in range(40):
+		var a: float = 0.6 * float(i) / 39.0
+		twitch.append([sin(a), 0.0, cos(a)])
+	_drive(reg4, twitch)
+	checks["small_wiggle_does_not_freeze"] = reg4.frozen_loop_count() == 0
+
 	var ok := true
 	for k in checks.keys():
 		if not bool(checks[k]):

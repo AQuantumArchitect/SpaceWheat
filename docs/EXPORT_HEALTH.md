@@ -77,20 +77,18 @@ Status: correctness re-proven on the current tree — awaiting a hardware-GL per
 
 ## Recommended release stance
 
-If you had to choose today:
+Superseded 2026-08-13 — agree with `docs/release/ITCH_STATUS.md`:
 
 1. Linux desktop: yes
-2. Windows desktop: yes, with continued smoke tightening
+2. Windows desktop: yes, with the native export smoke as a hard gate
 3. itch.io desktop channels: yes
-4. itch.io web: no, not yet
+4. itch.io web: yes — hardware WebGL measured 59.7 fps mean (p95 19.5 ms)
+   on 2026-08-12. The remaining lever is cold-start weight (~184 MiB zipped),
+   not frame rate. Ship the web channel only from the same commit as desktop.
 
 ## Immediate cleanup priorities
 
 1. Make the Windows export smoke/profile lane part of the normal release checklist.
 2. Keep `scripts/build-desktop-local.sh` as the primary desktop build path.
 3. Keep native build incrementality healthy so validator runs do not recompile the world for minor edits.
-4. Do not describe Web as release-ready until it has:
-   - ~~a browser/runtime smoke path~~ — `scripts/smoke-test-web-export.mjs`, run
-     against a real bundle 2026-08-12
-   - a believable performance envelope for the current game — **still open**,
-     and the only thing between this channel and shipping
+4. Web is release-ready on frame rate. Remaining diet: first-load weight.

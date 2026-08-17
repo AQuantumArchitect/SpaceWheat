@@ -459,26 +459,49 @@ static func _objective_rank(q: Dictionary, act_by_flag: Dictionary) -> int:
 	return 0x7FFFFFFF
 
 
+static func _first_unsatisfied_gloss(q: Dictionary) -> String:
+	var qm := _quest_manager()
+	for pred in q.get("state_predicates", []):
+		if not (pred is Dictionary):
+			continue
+		if qm != null and qm.has_method("evaluate_predicate_score") \
+				and float(qm.evaluate_predicate_score(pred)) >= 0.85:
+			continue
+		var g := str(PredicateGloss.summary(pred, qm)).strip_edges()
+		if g != "":
+			return g
+	return ""
+
+
+static func _clip_banner(t: String) -> String:
+	# Cut at a SENTENCE boundary when one exists, else a word boundary —
+	# a mid-clause cut ("…or just…") read as a broken instruction to the
+	# round-6 literalist. A complete short sentence beats a longer stump.
+	if t.length() <= OBJECTIVE_MAX_CHARS:
+		return t
+	var head := t.substr(0, OBJECTIVE_MAX_CHARS + 30)
+	var dot := head.rfind(". ", OBJECTIVE_MAX_CHARS + 29)
+	if dot >= 20:
+		return head.substr(0, dot + 1)
+	var cut := t.substr(0, OBJECTIVE_MAX_CHARS - 1)
+	var sp := cut.rfind(" ")
+	return (cut.substr(0, sp) if sp >= 20 else cut).strip_edges() + "…"
+
+
 static func _short_line(q: Dictionary) -> String:
-	var t := str(q.get("tutorial_hint", "")).strip_edges()
+	# ARC: lead with the live unsatisfied predicate gloss (number + verb).
+	# Authored hints are paragraphs; they truncate into a first sentence that
+	# names a hat and drops the lever (#515 / island_stops_asking).
+	var t := ""
+	if str(q.get("category", "")) == "ARC":
+		t = _first_unsatisfied_gloss(q)
+	if t == "":
+		t = str(q.get("tutorial_hint", "")).strip_edges()
 	if t == "":
 		t = str(q.get("hint", "")).strip_edges()
 	if t == "":
 		t = str(q.get("body", "")).strip_edges()
-	t = t.replace("\n", " ")
-	if t.length() > OBJECTIVE_MAX_CHARS:
-		# Cut at a SENTENCE boundary when one exists, else a word boundary —
-		# a mid-clause cut ("…or just…") read as a broken instruction to the
-		# round-6 literalist. A complete short sentence beats a longer stump.
-		var head := t.substr(0, OBJECTIVE_MAX_CHARS + 30)
-		var dot := head.rfind(". ", OBJECTIVE_MAX_CHARS + 29)
-		if dot >= 20:
-			t = head.substr(0, dot + 1)
-		else:
-			var cut := t.substr(0, OBJECTIVE_MAX_CHARS - 1)
-			var sp := cut.rfind(" ")
-			t = (cut.substr(0, sp) if sp >= 20 else cut).strip_edges() + "…"
-	return t
+	return _clip_banner(t.replace("\n", " "))
 
 
 static func _shell() -> Node:

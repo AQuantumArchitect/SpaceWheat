@@ -2361,7 +2361,7 @@
     },
     "arc_quest": {
       "body": "Ask the Loop What It Kept — hold a reference qubit home, walk another around a ripe loop, and read the pair's sign in the mirror.",
-      "hint": "Icon hat (5), mirror mode 🪞: R marks the stay-home reference, F on mode 1 tracks the traveler, time ripens the loop (2π of solid angle), then E compares the two travel logs. A ripe traveler against a stay-home reads −1.",
+      "hint": "Icon hat (5). Pick the traveler. Key 2 opens the mirror 🪞: R marks a DIFFERENT plot as stay-home. Key 1, F tracks the traveler. Wait until ripe (do not Incorporate first). Key 2, E compares. A ripe traveler against a stay-home reads −1.",
       "math_note": "γ = Ω/2 = π at ripeness ⇒ |ψ⟩ → e^{iπ}|ψ⟩ = −|ψ⟩. Same Bloch point; opposite lift.",
       "state_predicates": [
         {

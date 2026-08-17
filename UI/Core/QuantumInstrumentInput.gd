@@ -39,6 +39,7 @@ const LindbladHandler = preload("res://Core/Instrumentation/Handlers/LindbladHan
 const GranularityController = preload("res://Core/Utilities/GranularityController.gd")
 const UIProgression = preload("res://UI/Core/UIProgression.gd")
 const SpectralPreview = preload("res://Core/QuantumSubstrate/SpectralPreview.gd")
+const LoopCardCls = preload("res://UI/Overlays/LoopCard.gd")
 
 ## Ace F (Fast-Forward) advances the closed evolution by this many phrames per press.
 const ACE_FAST_FORWARD_PHRAMES := 4
@@ -456,24 +457,9 @@ func _select_frame_hat(frame_name: String) -> void:
 	_close_submenu()
 	frame_changed.emit(frame_name)
 
-	if frame_name == ToolConfig.FRAME_ICON and _instrument:
-		# inject_icon is biome-scoped, not plot-scoped (QuantumInstrument.
-		# action_inject_icon_pair only checks biome capacity) -- but R's
-		# "Add Icon" default (IconChipResolvers.resolve_r) only shows when
-		# NOTHING is focused. Mouse can never tap an empty plot directly
-		# (QuantumField3D renders orbs only for populated registers), so
-		# without this, switching to the Icon hat while any orb happens to
-		# be focused permanently hides Add Icon behind the lifecycle chip
-		# (mouse-only campaign wave 14 -- keyboard reaches "unfocused" for
-		# free by landing an out-of-range plot key; mouse has no equivalent).
-		# Clearing focus here reproduces that same "nothing focused yet"
-		# entry state; tapping a specific orb (or G/H/J/K/L/;) still
-		# re-focuses it normally for Track/Ripening/Incorporate. Same
-		# clear-both pattern as the existing full reset (_quantum_reset_cycle).
-		_instrument.current_plot_idx = -1
-		_instrument.last_selected_position = GridSentinel.INVALID_POSITION
-		if plot_grid_display:
-			plot_grid_display.set_selected_plot(GridSentinel.INVALID_POSITION)
+	# Icon-hat focus: do NOT clear here. Lesson I is 5 → pick → 2 (mirror)
+	# and needs the plot. Add Icon still gets an unfocused inject mode via
+	# _on_mode_changed when the player actually enters inject (mode 1).
 
 	if frame_name == ToolConfig.FRAME_NULL:
 		_verbose.info("input", "~", "Frame: Ace (default toolkit)")
@@ -508,6 +494,13 @@ func _on_mode_changed(frame_name: String, mode_index: int) -> void:
 	var mode_emoji = ToolConfig.get_frame_mode_emoji(frame_name)
 	frame_mode_changed.emit(frame_name, mode_index, mode_label)
 	_verbose.info("input", "~", "Mode: %s (%s)" % [mode_label, mode_emoji])
+	# Inject (Icon mode 0) needs an unfocused plot so mouse can see Add Icon.
+	# Mirror (mode 1) must KEEP the plot — that is Lesson I.
+	if frame_name == ToolConfig.FRAME_ICON and mode_index == 0 and _instrument:
+		_instrument.current_plot_idx = -1
+		_instrument.last_selected_position = GridSentinel.INVALID_POSITION
+		if plot_grid_display:
+			plot_grid_display.set_selected_plot(GridSentinel.INVALID_POSITION)
 
 
 ## ============================================================================
@@ -912,8 +905,8 @@ func _execute_bridge_anchor() -> Dictionary:
 	var here := _bridge_anchor_here()
 	if here.is_empty():
 		_verbose.info("input", "⚓", "No focused qubit to anchor")
-		_toast_note("⚓ focus a qubit first — the span needs an atom pair to hold")
-		return {"success": false, "error": "no_anchor"}
+		return {"success": false, "error": "no_anchor",
+			"message": "⚓ focus a qubit first — the span needs an atom pair to hold"}
 	if _pending_bridge_anchor.is_empty() or str(_pending_bridge_anchor.get("biome", "")) == str(here.get("biome", "")):
 		_pending_bridge_anchor = here
 		_toast_note("⚓ near shore set: %s (%s/%s) — anchor a far shore in another biome" % [
@@ -944,8 +937,8 @@ func _execute_bridge_braid() -> Dictionary:
 	var bname := _get_current_biome_name()
 	var spans: Array = farm.bridge_register.bridges_at(bname)
 	if spans.is_empty():
-		_toast_note("🪢 no bridge anchored in %s" % bname)
-		return {"success": false, "error": "no_bridge_here"}
+		return {"success": false, "error": "no_bridge_here",
+			"message": "🪢 no bridge anchored in %s" % bname}
 	var bridge: Dictionary = spans[0]
 	var end: String = "a" if str(bridge.get("biome_a", "")) == bname else "b"
 	var result: Dictionary = farm.bridge_register.braid(int(bridge.get("id", -1)), end)
@@ -965,8 +958,8 @@ func _execute_bridge_fuse() -> Dictionary:
 	var bname := _get_current_biome_name()
 	var spans: Array = farm.bridge_register.bridges_at(bname)
 	if spans.is_empty():
-		_toast_note("⚛ no bridge anchored in %s to fuse" % bname)
-		return {"success": false, "error": "no_bridge_here"}
+		return {"success": false, "error": "no_bridge_here",
+			"message": "⚛ no bridge anchored in %s to fuse" % bname}
 	var bridge: Dictionary = spans[0]
 	var result: Dictionary = farm.bridge_register.fuse(int(bridge.get("id", -1)), randf())
 	if not result.get("success", false):
@@ -2285,12 +2278,21 @@ func _run_action(action_name: String, log_symbol: String, action_label: String) 
 
 ## The ONE player-facing refusal toast (anti-gating law: a refused verb must SAY so).
 ## Handlers ship honest reasons in result.message; if one arrives empty, the fallback
-## still names the verb AND the error code — "H-Gate blocked" with no reason was itself
-## a law violation, and the code makes a silent handler debuggable from the player's chair.
+## still names the verb — "H-Gate blocked" with no reason was itself a law violation.
+##
+## The raw `error` code used to be appended here so a silent handler stayed
+## debuggable from the player's chair. It came out because three Spark verbs
+## toasted authored English and THEN returned a message-less error, and
+## PlayerShell stacks toasts rather than replacing: the player read
+## "🪢 no bridge anchored in Village" and "Span refused (no_bridge_here)" at the
+## same time. Those handlers now carry their sentence in `message`, and the code
+## still reaches the log below — the player's chair is not the debugger's chair.
 func _toast_refusal(action_label: String, result: Dictionary) -> void:
 	var msg := str(result.get("message", ""))
 	if msg == "" or msg == "unknown":
-		msg = "%s refused (%s)" % [action_label, str(result.get("error", "no reason given"))]
+		_verbose.warn("input", "✗", "%s refused with no message; error=%s" % [
+			action_label, str(result.get("error", "none"))])
+		msg = "%s isn't available right now" % action_label
 	var shell := _resolve_player_shell()
 	if shell and shell.has_method("show_hint"):
 		shell.show_hint("[color=#ff9966]✗ %s[/color]" % msg, 3)
@@ -2605,17 +2607,25 @@ func _execute_action(action_name: String) -> Dictionary:
 
 
 func _execute_inspect_qubit() -> Dictionary:
-	# Open qubit detail view for the currently selected plot (Icon frame 5E).
-	# Eventually opens the V-surface focused on this qubit; shows a toast until wired.
-	var shell := _resolve_player_shell()
-	if not shell or not shell.has_method("show_hint"):
-		return {"success": false, "error": "no_player_shell", "message": "PlayerShell unavailable"}
+	# Icon inject-mode E: the LoopCard for this biome (same gatherer Operator
+	# 🧭 E uses). Do not promise a V-surface zoom that does not exist.
+	var biome = _get_current_biome()
+	if biome == null:
+		return {"success": false, "error": "no_biome", "message": "no biome under the cursor"}
+	var card: Dictionary = LoopCardCls.gather(biome, farm)
+	var card_text := LoopCardCls.format_text(card)
 	var biome_name := _get_current_biome_name()
 	var plot_idx: int = _instrument.current_plot_idx if _instrument else -1
-	var pos := _get_grid_position()
-	var tip := "[color=#d4c5ff]🔍 Qubit:[/color] [b]%s[/b] plot %d (%s)" % [biome_name, plot_idx, pos]
-	shell.show_hint(tip)
-	return {"success": true, "biome": biome_name, "plot_idx": plot_idx}
+	if card_text == "":
+		card_text = "no loop ledger yet — track a qubit (F) or read fences on Operator 🧭"
+	_toast_note("🔍 %s" % card_text)
+	return {
+		"success": true,
+		"biome": biome_name,
+		"plot_idx": plot_idx,
+		"loop_card": card,
+		"message": card_text,
+	}
 
 
 func _merchant_channel_kind() -> String:

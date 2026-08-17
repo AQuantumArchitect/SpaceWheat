@@ -18,6 +18,7 @@ const BroadGraphRef = preload("res://Core/QuantumSubstrate/BroadGraph.gd")
 const NeighborhoodGraphRef = preload("res://Core/QuantumSubstrate/NeighborhoodGraph.gd")
 const BroadGraphViewRef = preload("res://UI/Overlays/BroadGraphView.gd")
 const NeighborhoodGraphViewRef = preload("res://UI/Overlays/NeighborhoodGraphView.gd")
+const LoopCardCls = preload("res://UI/Overlays/LoopCard.gd")
 
 # =============================================================================
 # FRAMES + KEY GRAMMAR
@@ -1604,21 +1605,15 @@ func _regime_line(biome_name: String) -> String:
 ## One-line knot card: frozen Berry loop records + the strongest pair invariant.
 ## "" while the record is empty — the line appears the moment a first loop closes.
 func _knot_line(biome_name: String) -> String:
-	var qc = _live_qc_for(biome_name)
-	if qc == null or not ("berry_register" in qc) or qc.berry_register == null:
+	var biome = farm.grid.get_biome(biome_name) if (farm and farm.grid and farm.grid.has_method("get_biome")) else null
+	if biome == null:
 		return ""
-	var loops: Array = qc.berry_register.frozen_loops()
-	if loops.is_empty():
+	var card: Dictionary = LoopCardCls.gather(biome, farm)
+	if not bool(card.get("present", false)):
 		return ""
-	if loops.size() == 1:
-		var omega := float(loops[0].get("omega", 0.0))
-		return "🪢 the record: 1 closed loop banked (Ω = %.2f)%s — close another and compare their turns." % [omega, _lift_gloss(loops[0])]
-	var w: int = KnotRegister.max_mutual_winding(loops)
-	var latest_gloss := _lift_gloss(loops[loops.size() - 1])
-	if absi(w) >= 1:
-		return ("🪢 the record: %d closed loops — mutual winding %+d: WOUND%s. Nothing links on the sphere; " +
-			"the link lives one floor up, where the phase turns. (Any two answers of a qubit are linked circles — Hopf.)") % [loops.size(), w, latest_gloss]
-	return "🪢 the record: %d closed loops — mutual winding 0: the dances pass without turning about each other.%s" % [loops.size(), latest_gloss]
+	if (card.get("loops", []) as Array).is_empty() and int(card.get("betti_1", 0)) <= 0:
+		return ""
+	return LoopCardCls.format_text(card)
 
 
 ## The fiber ledger for one frozen loop record: closed on the sphere is not

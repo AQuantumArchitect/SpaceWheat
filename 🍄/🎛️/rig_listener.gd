@@ -1877,7 +1877,7 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				for i in range(cb_count):
 					var qid: int = i % max(1, qcount)
 					berry.start_tracking(qid)
-					berry._state[qid]["accumulated"] = cb_phase
+					berry.force_accumulated(qid, cb_phase)
 					berry.consume(qid)
 				result["consumed_count"] = berry.get_consumed_count()
 				result["consumed_phase"] = berry.get_consumed_phase()

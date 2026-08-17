@@ -27,7 +27,7 @@ const LOOP_MIN_ARC: float = 0.15        # radians of arc between recorded vertic
 const LOOP_MAX_POINTS: int = 128        # vertex cap; on overflow the path thins 2×
 const LOOP_CLOSE_EPS: float = 0.25      # arc distance to the seed vertex that closes a loop
 const LOOP_MIN_POINTS: int = 12         # vertices required before closure can fire
-const LOOP_OMEGA_FLOOR: float = 0.5     # |solid angle| a loop must enclose to freeze
+const LOOP_OMEGA_FLOOR: float = PI      # |solid angle| a loop must enclose to freeze (hemisphere-class; 0.5 rad scraps never close upstairs)
 const FROZEN_LOOP_CAP: int = 8          # frozen records kept per biome (FIFO)
 
 # qubit_index -> {tracked: bool, accumulated: float, prev_x/y/z: float, ripe_threshold: float,
@@ -248,6 +248,29 @@ func clear_frozen() -> void:
 	_frozen_loops.clear()
 
 
+func last_record_for(qubit_index: int) -> Dictionary:
+	# Newest frozen record for this qubit (the knot that outlives harvest).
+	var q: int = int(qubit_index)
+	for i in range(_frozen_loops.size() - 1, -1, -1):
+		var rec: Dictionary = _frozen_loops[i]
+		if int(rec.get("qubit", -1)) == q:
+			return rec
+	return {}
+
+
+func has_fiber_ledger(qubit_index: int) -> bool:
+	# Live walk OR a banked loop — interfere reads either.
+	return has_entry(qubit_index) or not last_record_for(qubit_index).is_empty()
+
+
+func force_accumulated(qubit_index: int, phase: float) -> void:
+	# Public write for the rig / tests. Do not poke _state from outside.
+	start_tracking(qubit_index)
+	if _state.has(qubit_index):
+		_state[qubit_index]["accumulated"] = float(phase)
+		_state[qubit_index]["pending_seed"] = true
+
+
 func start_tracking(qubit_index: int) -> void:
 	# Marks the qubit for tracking. The next integration step will seed prev_bloch
 	# from the actual evolved Bloch vector (no caller-provided seed needed; works
@@ -306,7 +329,13 @@ func get_fiber_angle(qubit_index: int) -> float:
 	# angle the qubit's global phase has turned relative to where it started
 	# tracking. Not locally observable; visible only RELATIONALLY, by
 	# interfering against a reference that stayed home.
-	return get_phase(qubit_index) * 0.5
+	# After consume() the live entry is gone; the frozen record IS the walk.
+	if has_entry(qubit_index):
+		return get_phase(qubit_index) * 0.5
+	var rec: Dictionary = last_record_for(qubit_index)
+	if rec.is_empty():
+		return 0.0
+	return float(rec.get("holonomy", float(rec.get("omega", 0.0)) * 0.5))
 
 
 func get_spinor_sign(qubit_index: int) -> int:
@@ -314,7 +343,14 @@ func get_spinor_sign(qubit_index: int) -> int:
 	# +1 near e^{i·0} = +|ψ₀⟩, −1 near e^{iπ} = −|ψ₀⟩. After a ripe loop
 	# (Ω = 2π) the Bloch vector is home but this reads −1: the crop came
 	# back and it is NOT the same state. Two ripe loops (Ω = 4π) read +1.
-	return 1 if cos(get_fiber_angle(qubit_index)) >= 0.0 else -1
+	if has_entry(qubit_index):
+		return 1 if cos(get_fiber_angle(qubit_index)) >= 0.0 else -1
+	var rec: Dictionary = last_record_for(qubit_index)
+	if rec.is_empty():
+		return 1
+	if rec.has("spinor_flip"):
+		return -1 if bool(rec.get("spinor_flip", false)) else 1
+	return 1 if cos(float(rec.get("holonomy", 0.0))) >= 0.0 else -1
 
 
 func get_ripe_threshold(qubit_index: int) -> float:
@@ -344,3 +380,100 @@ func tracked_qubits() -> Array:
 		if _state[qid].get("tracked", false):
 			out.append(qid)
 	return out
+
+
+func serialize_frozen() -> Array:
+	var out: Array = []
+	for rec in _frozen_loops:
+		if not (rec is Dictionary):
+			continue
+		var pts: PackedFloat64Array = rec.get("points", PackedFloat64Array())
+		var packed: Array = []
+		for i in range(pts.size()):
+			packed.append(float(pts[i]))
+		out.append({
+			"qubit": int(rec.get("qubit", -1)),
+			"points": packed,
+			"omega": float(rec.get("omega", 0.0)),
+			"vertex_count": int(rec.get("vertex_count", 0)),
+			"holonomy": float(rec.get("holonomy", 0.0)),
+			"fiber_defect": float(rec.get("fiber_defect", 0.0)),
+			"closed_upstairs": bool(rec.get("closed_upstairs", false)),
+			"spinor_flip": bool(rec.get("spinor_flip", false)),
+		})
+	return out
+
+
+func restore_frozen(records: Array) -> void:
+	_frozen_loops.clear()
+	for rec in records:
+		if not (rec is Dictionary):
+			continue
+		var packed = rec.get("points", [])
+		var pts := PackedFloat64Array()
+		if packed is PackedFloat64Array:
+			pts = packed
+		elif packed is Array:
+			for v in packed:
+				pts.append(float(v))
+		_frozen_loops.append({
+			"qubit": int(rec.get("qubit", -1)),
+			"points": pts,
+			"omega": float(rec.get("omega", 0.0)),
+			"vertex_count": int(rec.get("vertex_count", int(pts.size() / 4.0))),
+			"holonomy": float(rec.get("holonomy", float(rec.get("omega", 0.0)) * 0.5)),
+			"fiber_defect": float(rec.get("fiber_defect", 0.0)),
+			"closed_upstairs": bool(rec.get("closed_upstairs", false)),
+			"spinor_flip": bool(rec.get("spinor_flip", false)),
+		})
+	while _frozen_loops.size() > FROZEN_LOOP_CAP:
+		_frozen_loops.pop_front()
+
+
+func serialize_tracked() -> Array:
+	var out: Array = []
+	for qid in _state.keys():
+		var entry: Dictionary = _state[qid]
+		if not bool(entry.get("tracked", false)):
+			continue
+		var path: PackedFloat64Array = entry.get("path", PackedFloat64Array())
+		var packed: Array = []
+		for i in range(path.size()):
+			packed.append(float(path[i]))
+		out.append({
+			"qid": int(qid),
+			"accumulated": float(entry.get("accumulated", 0.0)),
+			"ripe_threshold": float(entry.get("ripe_threshold", BERRY_DEFAULT_RIPE_THRESHOLD)),
+			"path": packed,
+			"loop_omega0": float(entry.get("loop_omega0", 0.0)),
+			"arc_gate": float(entry.get("arc_gate", LOOP_MIN_ARC)),
+		})
+	return out
+
+
+func restore_tracked(records: Array) -> void:
+	for rec in records:
+		if not (rec is Dictionary):
+			continue
+		var qid: int = int(rec.get("qid", -1))
+		if qid < 0:
+			continue
+		var packed = rec.get("path", [])
+		var path := PackedFloat64Array()
+		if packed is PackedFloat64Array:
+			path = packed
+		elif packed is Array:
+			for v in packed:
+				path.append(float(v))
+		_state[qid] = {
+			"tracked": true,
+			"accumulated": float(rec.get("accumulated", 0.0)),
+			"prev_x": 0.0,
+			"prev_y": 0.0,
+			"prev_z": 1.0,
+			"ripe_threshold": float(rec.get("ripe_threshold", BERRY_DEFAULT_RIPE_THRESHOLD)),
+			"pending_seed": true,  # next live slice reseeds; do not invent a triangle across the save cut
+			"path": path,
+			"loop_omega0": float(rec.get("loop_omega0", 0.0)),
+			"arc_gate": float(rec.get("arc_gate", LOOP_MIN_ARC)),
+		}

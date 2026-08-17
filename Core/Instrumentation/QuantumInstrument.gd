@@ -941,8 +941,25 @@ func action_interfere() -> Dictionary:
 	var f := _gauge_focus()
 	if not f.get("success", false):
 		return f
+	if _mirror_reference.is_empty():
+		_mirror_reference = _restored_mirror_reference()
 	return _run_gauge_action("interfere",
 		GaugeActionHandler.interfere(farm, f["biome"], f["qid"], _mirror_reference))
+
+
+func get_mirror_reference() -> Dictionary:
+	if _mirror_reference.is_empty():
+		_mirror_reference = _restored_mirror_reference()
+	return _mirror_reference
+
+
+func _restored_mirror_reference() -> Dictionary:
+	var qm = _resolve_quest_manager()
+	if qm == null or qm._state_projection == null:
+		return {}
+	var rec: Dictionary = qm._state_projection.lesson_receipts
+	var ref = rec.get("mirror_reference", {})
+	return ref.duplicate(true) if ref is Dictionary else {}
 
 
 ## Report emojis the player touched into the story substrate (trajectory + conversation-H

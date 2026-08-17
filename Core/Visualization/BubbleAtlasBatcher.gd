@@ -750,16 +750,19 @@ func get_stats() -> Dictionary:
 func draw_station(pos: Vector2, base_radius: float, anim_scale: float, anim_alpha: float,
 				  theme: Dictionary, ripeness: float, phi: float, coherence: float,
 				  is_measured: bool, is_celestial: bool, time: float,
-				  frame_chi: float = NAN) -> void:
+				  frame_chi: float = NAN,
+				  fiber_gamma: float = NAN,
+				  fiber_closed: bool = false,
+				  stay_home: bool = false) -> void:
 	# Mini-Metro STATION (2026-07-07). Replaces the 10-layer bubble (glows,
 	# gloss, season wedges, spin spiral, uncertainty/purity rings, sink
 	# particles — all deleted). Max three signals per station:
 	#   disc — identity: flat paper on the zone's dark field (ink-inverted when
 	#          measured; the glyph is drawn by the emoji pass on top)
-	#   ring — RIPENESS: expected pop payoff H(p)/ln2 in the global accent gold,
-	#          filling clockwise from 12 o'clock, soft width pulse when nearly
-	#          ripe; measured = pinned full + the established cyan double ring
-	#          (a bankable readout — pop me)
+	#   ring — PAYOFF / MIXEDNESS: expected pop payoff H(p)/ln2 in the global
+	#          accent gold (NOT Berry Ω — that lives on the plot-tile violet
+	#          arc). Filling clockwise from 12 o'clock; measured = pinned full
+	#          + the established cyan double ring (a bankable readout — pop me)
 	#   dot  — PHASE: a small ink dot riding the ring at angle phi,
 	#          alpha = coherence (r_xy ∈ [0,1]) — phase visibly rotates,
 	#          decoherence visibly fades
@@ -826,3 +829,24 @@ func draw_station(pos: Vector2, base_radius: float, anim_scale: float, anim_alph
 			var tick_alpha := (0.55 if is_zero else 0.3) * anim_alpha
 			add_arc_layer(pos, tick_r, ang - half_span, ang + half_span,
 					3.0 if is_zero else 2.0, Color(ink.r, ink.g, ink.b, tick_alpha))
+
+	# — Fiber ticks (What Turns I): seed at 0, live end at γ = Ω/2.
+	# Only drawn for tracked / frozen stations (caller passes a real gamma).
+	# Leave the physics phase-dot (φ) alone.
+	if not is_nan(fiber_gamma) and not is_measured:
+		var fiber_r := ring_r * 1.30
+		var seed_ang := -PI / 2.0
+		var live_ang := seed_ang + fiber_gamma
+		var fiber_col := Color(0.55, 0.25, 0.75, 0.85 * anim_alpha)
+		if fiber_closed:
+			add_arc_layer(pos, fiber_r, 0.0, TAU, 2.0, Color(0.55, 0.25, 0.75, 0.55 * anim_alpha))
+		else:
+			var gap := wrapf(fiber_gamma, 0.0, TAU)
+			if gap > 0.02:
+				add_arc_layer(pos, fiber_r, seed_ang, seed_ang + gap, 2.0, fiber_col)
+		add_circle_layer("circle_100", pos + Vector2.from_angle(seed_ang) * fiber_r, 2.5, fiber_col)
+		add_circle_layer("circle_100", pos + Vector2.from_angle(live_ang) * fiber_r, 2.5, fiber_col)
+
+	if stay_home and not is_measured:
+		var home_col := Color(0.2, 0.55, 0.35, 0.9 * anim_alpha)
+		add_circle_layer("circle_100", pos + Vector2(0, -ring_r * 1.48), 3.5, home_col)

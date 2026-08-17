@@ -1,5 +1,9 @@
 # Campaign State — 2026-08-04 (Fable-Push Briefing)
 
+> **Historical.** Content snapshot from 2026-08-04. Flag counts and act maps
+> have moved since. Re-read `Core/Quests/data/story_flags.json` and
+> `docs/GAUGE_CAMPAIGN.md` before acting. Canon: `docs/GAME_CODEX.md`.
+
 > **Purpose:** a breadcrumb trail for a "fable push" on the whole campaign
 > experience and gameplay loop, so that session doesn't have to re-read
 > `story_flags.json`, `tutorial_arc.json`, all of `docs/biomemissions/`, and

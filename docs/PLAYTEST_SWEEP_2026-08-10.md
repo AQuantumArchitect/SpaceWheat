@@ -1,5 +1,9 @@
 # Playtest sweep, 2026-08-10 — keyboard + mouse, personas + main road
 
+> Session log from 2026-08-10. The Open list at the bottom is the live
+> remainder; fog-orb mouse targets closed 2026-08-11. Do not rebuild a
+> closed item from the body.
+
 Six agents: four haiku sensor legs (literalist and lost-lamb, on both the
 keyboard seat and the new mouse seat, at Act 0 and at the Act-4 fork) and one
 sonnet main road that played Act 0 → Act 2 unassisted and sampled Acts 4–7 from
@@ -212,17 +216,26 @@ speeds the clock. R when ripe."*
 
 ## Open, not fixed
 
-- **Unrevealed plots have no mouse target** under the default 3D renderer, and
-  the Act-0 hint promises "or just tap it". Needs a design call: ghost orbs for
-  empty ground, re-show the rack in 3D, or reword the hint.
 - **`endrun_act7/act8/ending` are the same post-`island_free` state.** The
   Act-7/8 gates are unreachable from the shipped checkpoints; they need
   re-minting from a real run.
-- **`Tr(ρ²) ≥ 0.54` has no legible lever** (main road's #2 ranked ask).
 - **Arc-offer queueing at the fork:** four offers behind one banner line, 12
   pages deep.
 - **Hat keys are toggles with no text affordance** — a design question for the
   owner, not a defect.
+
+## Closed after this sweep (do not rebuild)
+
+- **Unrevealed plots have no mouse target.** Closed 2026-08-11, owner
+  ruling: unexplored registers draw dim unlabelled spheres and stay
+  tappable (`QuantumField3D._set_bubble_revealed`,
+  `tests/test_unexplored_fog_orbs.py`). The Act-0 "or just tap it" line is
+  now true. Reveal-gated labels (emoji, ring, Bloch dot) stay hidden until
+  first look.
+- **`Tr(ρ²) ≥ 0.54` has no legible lever.** Closed 2026-08-13: the ask is
+  `island_stops_asking` (`soul_purity_gte`). PredicateGloss now names the
+  live number and Icon (5); `UIProgression` banners the unsatisfied gloss
+  instead of a truncated paragraph; TARGETS spotlights the Icon hat.
 
 ---
 

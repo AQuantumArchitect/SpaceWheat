@@ -403,17 +403,19 @@ engaging and Acts 4–5 grindy. The most valuable fresh perspective would probe:
    push's question.
 
 **Elegance / architecture**
-6. **Standing is tracked but inert** — 6 channels grant deltas but gate almost
-   nothing in the closed campaign. Wire them, or admit they are cosmetic for now?
+6. **Standing feeds `PriceModel`.** The six channels are not cosmetic: they
+   move prices. They are not a closed-campaign win condition. Say that, don't
+   say "inert."
 7. **The story graph is dormant** — socialites walk it but its density rarely feeds
    back into gameplay. Cut it, or activate it (couple standing ↔ topic density)?
 8. **Closed-state degeneracies** — several natural observables (von-Neumann entropy,
    purity, and therefore market `kT`) are constant for a pure state. The campaign
    already retired degenerate predicates in favor of spectral gap / Var(H); is any
    residual degeneracy (e.g. constant market temperature) worth addressing?
-9. **Two evolution paths** (GDScript exact-unitary vs C++ lookahead predictor) —
-   guarded by `physics_signature`, but there is no formal proof they stay in sync.
-   Is the C++-as-derived-predictor contract airtight?
+9. **One evolution path.** The GDScript integrator was deleted. Native
+   `MultiBiomeLookaheadEngine` is the only evolver; BootManager refuses to boot
+   without it. `physics_signature` is the drift check between live H/L and the
+   C++ copy, not a dual-kernel proof.
 10. **The open-system DLC** adds a large conditional surface (Lindblad, drain,
     Spark/Merchant hats) that is off by default and less tested. Keep it primed, or
     is it dead weight on comprehension?

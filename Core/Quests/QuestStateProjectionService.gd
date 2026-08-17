@@ -23,6 +23,10 @@ var _coherence_watermark: Dictionary = {}
 ## (eviction, clear) restarts the window: a change across a cut proves nothing.
 var _winding_witness: Dictionary = {}
 
+## Campaign facts that outlive the 64-row session action buffer. Written when
+## the ritual succeeds; save/load must not un-teach a completed compare.
+var lesson_receipts: Dictionary = {}
+
 
 func observe_biome(biome, delta: float = 0.0) -> Dictionary:
 	if biome == null:
@@ -101,6 +105,29 @@ func record_action(action_name: String, payload: Dictionary = {}) -> void:
 	_action_history.append(row)
 	if _action_history.size() > MAX_ACTION_HISTORY:
 		_action_history.pop_front()
+	_stamp_lesson_receipt(action_name, payload)
+
+
+func _stamp_lesson_receipt(action_name: String, payload: Dictionary) -> void:
+	if action_name == "interfere" and payload.get("success", false) \
+			and not bool(payload.get("self_compare", false)):
+		lesson_receipts["spinor_read"] = int(payload.get("spinor_product", 0))
+	if action_name == "mark_reference" and payload.get("success", false):
+		var ref = payload.get("reference", {})
+		if ref is Dictionary and not ref.is_empty():
+			lesson_receipts["mirror_reference"] = ref.duplicate(true)
+	if action_name == "gauge_flip" and payload.get("success", false) \
+			and bool(payload.get("wilson_unchanged", false)) \
+			and bool(payload.get("read_since_topology_change", false)):
+		lesson_receipts["wilson_survived_flip"] = true
+
+
+func serialize_receipts() -> Dictionary:
+	return lesson_receipts.duplicate(true)
+
+
+func restore_receipts(data: Dictionary) -> void:
+	lesson_receipts = data.duplicate(true) if data is Dictionary else {}
 
 
 func get_snapshot() -> Dictionary:
@@ -210,8 +237,11 @@ func evaluate_predicate(predicate: Dictionary) -> float:
 			# What Turns IV: the winding took two different values while no
 			# banked record was lost — the number moved under legal moves alone.
 			# Integer-valued was never the same as invariant; here is the proof.
+			if bool(lesson_receipts.get("winding_changed_uncut", false)):
+				return 1.0
 			var distinct := int(_last_observables.get("winding_values_seen", 0))
 			if distinct >= 2:
+				lesson_receipts["winding_changed_uncut"] = true
 				return 1.0
 			if distinct == 1:
 				return 0.4  # one reading on the books — now make it move
@@ -233,7 +263,7 @@ func evaluate_predicate(predicate: Dictionary) -> float:
 					var p: Dictionary = row.get("payload", {})
 					if bool(p.get("wilson_unchanged", false)) and bool(p.get("read_since_topology_change", false)):
 						certified = true
-			if certified:
+			if certified or bool(lesson_receipts.get("wilson_survived_flip", false)):
 				return 1.0
 			if any_flip and any_read:
 				return 0.6  # both moves made, wrong order — read, THEN turn
@@ -244,6 +274,8 @@ func evaluate_predicate(predicate: Dictionary) -> float:
 			# What Turns I: an interfere reading whose spinor sign product
 			# matches (−1 after a ripe loop: home downstairs, flipped upstairs).
 			var want := int(predicate.get("value", -1))
+			if int(lesson_receipts.get("spinor_read", 0)) == want:
+				return 1.0
 			var any_interfere := false
 			var any_mark := false
 			for row in _action_history:

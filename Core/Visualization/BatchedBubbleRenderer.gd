@@ -195,10 +195,29 @@ func _draw_with_atlas(graph: Node2D, ctx: Dictionary) -> void:
 			if gf != null:
 				frame_chi = gf.node_frame(node.register_id)
 
+		var fiber_gamma := NAN
+		var fiber_closed := false
+		var stay_home := false
+		if node.register_id >= 0:
+			var fb = biomes_ctx.get(node.biome_name, null)
+			var fqc = fb.quantum_computer if (fb != null and "quantum_computer" in fb) else null
+			if fqc != null and "berry_register" in fqc and fqc.berry_register != null:
+				var breg = fqc.berry_register
+				if breg.has_fiber_ledger(node.register_id):
+					fiber_gamma = breg.get_fiber_angle(node.register_id)
+					var frec: Dictionary = breg.last_record_for(node.register_id)
+					fiber_closed = bool(frec.get("closed_upstairs", false))
+			var instrument = ctx.get("instrument", null)
+			if instrument != null and instrument.has_method("get_mirror_reference"):
+				var href: Dictionary = instrument.get_mirror_reference()
+				stay_home = str(href.get("biome_name", "")) == str(node.biome_name) \
+						and int(href.get("register_id", -2)) == int(node.register_id)
+
 		_bubble_atlas_batcher.draw_station(
 			node.position, station_radius, anim_scale, anim_alpha,
 			theme, VisualizationConstants.ripeness(p0, p1),
-			phi, coherence, is_measured, false, time_accumulator, frame_chi)
+			phi, coherence, is_measured, false, time_accumulator, frame_chi,
+			fiber_gamma, fiber_closed, stay_home)
 
 		_emoji_queue.append({
 			"position": node.position,

@@ -1,5 +1,9 @@
 # Night shift report — 2026-07-06
 
+> **Historical.** Session log from 2026-07-06. The native-only cutover it
+> describes shipped; do not re-litigate the fallback. Canon:
+> `docs/FOR_PHYSICISTS.md`, `docs/GAME_CODEX.md`.
+
 Owner mandate: extract the disk-thrash and GDScript-fallback diseases at the root
 ("if the game doesn't work with the native engine, the game should not work at
 all"), then DRY the codebase aggressively — "cut off every piece of this statue

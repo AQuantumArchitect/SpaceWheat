@@ -92,6 +92,15 @@ func _init() -> void:
 		and absf(reg.get_phase(1) - phase_before_trav) < 1e-12,
 		"interfere is a read — both travel logs untouched")
 
+	# --- The knot outlives harvest: consume the traveler, interfere still reads −1
+	reg.consume(1)
+	_check(not reg.has_entry(1), "consume erases the live log")
+	_check(reg.has_fiber_ledger(1), "frozen record remains after consume")
+	var after_harvest: Dictionary = HandlerCls.interfere(farm, biome, 1, reference)
+	_check(after_harvest.get("success", false)
+		and int(after_harvest.get("spinor_product", 0)) == -1,
+		"interfere after incorporate still reads −1 from the frozen record")
+
 	# --- Honest refusals -----------------------------------------------------
 	var no_ref: Dictionary = HandlerCls.interfere(farm, biome, 1, {})
 	_check(not no_ref.get("success", true) and str(no_ref.get("error", "")) == "no_reference",
