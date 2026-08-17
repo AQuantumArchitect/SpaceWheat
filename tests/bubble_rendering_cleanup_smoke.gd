@@ -34,6 +34,19 @@ class FakeGeometryBatcher extends RefCounted:
 		arcs += 1
 
 
+class FakeFarm extends RefCounted:
+	var revealed_plots: Dictionary = {}
+
+	func reveal_plot(grid_pos: Vector2i) -> void:
+		revealed_plots[grid_pos] = true
+
+	func unreveal_plot(grid_pos: Vector2i) -> void:
+		revealed_plots.erase(grid_pos)
+
+	func is_plot_revealed(grid_pos: Vector2i) -> bool:
+		return revealed_plots.has(grid_pos)
+
+
 func _init() -> void:
 	print("\n=== Bubble rendering cleanup smoke ===")
 
@@ -41,8 +54,29 @@ func _init() -> void:
 	_test_radius_tracks_bloch_not_purity()
 	_test_spawn_lane_is_gone()
 	_test_projection_field_payload_and_draw()
+	_test_harvest_clears_farm_reveal_state()
 
 	_finish()
+
+
+## A biome-switch rebuild (_rebuild -> _spawn) re-derives each bubble's revealed
+## flag from farm_ref.revealed_plots (_is_plot_revealed). QuantumForceGraph's
+## harvest handler already clears that entry via unreveal_plot(); QuantumField3D's
+## used to only flip its own local per-bubble flag and never touch farm_ref, so a
+## harvested plot came back fully revealed (not grey) the next time its biome was
+## rebuilt — mechanically still harvested, cosmetically wrong. Regression guard
+## for that split-authority desync.
+func _test_harvest_clears_farm_reveal_state() -> void:
+	var farm = FakeFarm.new()
+	var pos := Vector2i(2, 3)
+	farm.reveal_plot(pos)
+	_check(farm.is_plot_revealed(pos), "setup: plot starts revealed")
+
+	var field = QuantumField3D.new()
+	field.farm_ref = farm
+	field._on_terminal_released(pos, "terminal_1", 5)
+
+	_check(not farm.is_plot_revealed(pos), "harvest clears the plot from farm_ref.revealed_plots")
 
 
 func _test_lifeless_nodes_stay_hidden() -> void:

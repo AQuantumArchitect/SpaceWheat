@@ -24,6 +24,13 @@ var disabled_color: Color = Color(0.3, 0.3, 0.3)  # Dark for disabled
 var enabled_color: Color = Color(0.5, 1.0, 0.5)  # Green tint for available actions
 var destructive_color: Color = Color(1.0, 0.55, 0.1)  # Amber — irreversible action (QF confirm required)
 var pressed_color: Color = Color(0.6, 0.6, 0.6)  # Darker when pressed
+# "This is what a click fires right now" cue (player-reported gap: the click loop was hard to
+# track). A modulate tint alone is nearly invisible here — it multiplies onto the chip's own
+# near-black translucent background (bg_color ~0.08 alpha 0.6), so enabled_color's green washes
+# out to almost nothing. A border draws at full color regardless of how dark the fill under it
+# is, so it stays legible where the tint didn't.
+var would_fire_border_color: Color = Color(0.55, 1.0, 0.6, 0.95)
+const WOULD_FIRE_BORDER_WIDTH: int = 3
 
 # Layout manager for scaling
 var layout_manager
@@ -142,6 +149,8 @@ func _create_action_button(action_key: String) -> Dictionary:
 	var chip_style := StyleBoxFlat.new()
 	chip_style.bg_color = Color(0.07, 0.08, 0.10, 0.60)
 	chip_style.set_corner_radius_all(7)
+	chip_style.set_border_width_all(0)
+	chip_style.border_color = would_fire_border_color
 	texture_rect.add_theme_stylebox_override("panel", chip_style)
 	texture_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
 	texture_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -200,6 +209,7 @@ func _create_action_button(action_key: String) -> Dictionary:
 	return {
 		"container": container,
 		"texture": texture_rect,
+		"chip_style": chip_style,
 		"icon": icon_rect,
 		"label": label,
 		"cost_container": cost_container,
@@ -250,7 +260,9 @@ func _apply_button_projection(action_key: String, action_info: Dictionary) -> vo
 
 	btn_data.disabled = is_disabled
 	btn_data.available = is_available
+	btn_data.would_fire = bool(action_info.get("would_fire", false))
 	btn_data.texture.modulate = _resolve_button_color(btn_data)
+	_apply_would_fire_border(btn_data)
 
 	var cost = action_info.get("cost", {})
 	var has_cost = _set_cost_display(btn_data, cost if cost is Dictionary else {})
@@ -387,6 +399,7 @@ func _update_single_button_color(action_key: String) -> void:
 		btn_data.texture.modulate = enabled_color
 	else:
 		btn_data.texture.modulate = button_color
+	_apply_would_fire_border(btn_data)
 
 
 func _resolve_button_color(btn_data: Dictionary) -> Color:
@@ -397,3 +410,14 @@ func _resolve_button_color(btn_data: Dictionary) -> Color:
 	if btn_data.get("available", false):
 		return enabled_color
 	return button_color
+
+
+## See would_fire_border_color's doc comment: the border, not the modulate tint, is what
+## actually reads as "this chip is what a click fires right now" against the chip's own
+## near-black background.
+func _apply_would_fire_border(btn_data: Dictionary) -> void:
+	var style: StyleBoxFlat = btn_data.get("chip_style")
+	if style == null:
+		return
+	var fires := bool(btn_data.get("would_fire", false)) and not bool(btn_data.get("disabled", false))
+	style.set_border_width_all(WOULD_FIRE_BORDER_WIDTH if fires else 0)

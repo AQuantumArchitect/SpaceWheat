@@ -290,6 +290,13 @@ func _on_plot_revealed(grid_pos: Vector2i) -> void:
 ## QuantumForceGraph._on_terminal_released) — the register persists, only the
 ## cosmetic reveal state resets.
 func _on_terminal_released(grid_pos: Vector2i, _terminal_id: String, _credits_earned: int) -> void:
+	# Farm.revealed_plots is the reveal authority _spawn()/_rebuild() read back from
+	# (see _is_plot_revealed above). Without clearing it here too, a later rebuild of
+	# this biome (switching the active-biome view to explore elsewhere and back) reads
+	# the still-true entry and re-paints full glow, undoing the grey — QuantumForceGraph
+	# already clears it on its own harvest path; this one silently didn't.
+	if farm_ref and farm_ref.has_method("unreveal_plot"):
+		farm_ref.unreveal_plot(grid_pos)
 	for b in _bubbles:
 		if b.get("grid_pos") == grid_pos:
 			_set_bubble_revealed(b, false)
