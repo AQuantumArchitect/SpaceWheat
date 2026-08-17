@@ -45,9 +45,20 @@ def test_story_flags_fire_from_action_not_boot(rig_boot) -> None:
     assert "first_breath" not in boot_row.get("flags_fired", {}), boot_row
 
     # Positive half: the flag fires FROM the action. forest_evolving gates on
-    # biome_evolving(StarterForest) + berry_consumed_count_gte 1, which under soft
-    # geometry needs ~2.3 berries to cross the 0.85 fire threshold — so consume a few.
-    # (The full forest→village→empire chain is covered end-to-end by act3_5_drive.py.)
+    # story_flag_set(first_breath) + biome_evolving(StarterForest) +
+    # berry_consumed_count_gte 1 (the 2026-08-17 reorder relocated the whole
+    # berry chapter, first_breath included, to act 3 and added the story_flag_set
+    # leg onto forest_evolving). first_breath's own chain runs through
+    # spring_connects' standing ladder — orthogonal to what this test pins (that
+    # flags fire from action, not boot) — so force-fire it the same way the rig's
+    # other prerequisite-setup tests do, then let the berry consumption be the
+    # real action that fires forest_evolving through the live evaluator.
+    setup_row = rig.run_turn(50, "fire_flag", id="first_breath", timeout_s=30.0)
+    assert setup_row.get("ok", False) and setup_row.get("fired", False), setup_row
+
+    # under soft geometry needs ~2.3 berries to cross the 0.85 fire threshold —
+    # so consume a few. (The full forest→village→empire chain is covered
+    # end-to-end by act3_5_drive.py.)
     berry_row = rig.run_turn(
         99,
         "consume_berry",
