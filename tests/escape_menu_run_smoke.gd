@@ -121,6 +121,47 @@ func _run() -> void:
 	gsm.session_baseline = {}
 	stub.queue_free()
 
+	# --- No-brainer save-continue safety net (2026-08-17) ---
+	# The title screen's F/R/Enter/Space/click now bypass save detection
+	# entirely (AppRoot._input / _start_fresh_demo) — RUN tab's F here is
+	# the DELIBERATE "continue" a player only reaches by opening X on
+	# purpose. It still must not silently drop that player into a save
+	# with nothing in it: _save_looks_meaningful gates that into a
+	# redirect confirm instead of a silent load. NOT game_time (dead —
+	# exported but never incremented anywhere in the codebase, always
+	# 0.0) — story_flags_fired.size(), since Act 0 fires first_harvest
+	# within the first real minute of play.
+	_check(menu._save_looks_meaningful({"compatible": true, "flags_fired": 0}) == false,
+		"a save with no flags fired does not look meaningful")
+	_check(menu._save_looks_meaningful({"compatible": true, "flags_fired": 3}) == true,
+		"a save with flags fired looks meaningful")
+	_check(menu._save_looks_meaningful({"compatible": false, "flags_fired": 99}) == false,
+		"an incompatible save never looks meaningful, however many flags it claims")
+
+	_clear_save_dir()
+	var empty_scenario := SaveStore.load_scenario("demos_normal")
+	if empty_scenario != null:
+		_check(empty_scenario.story_flags_fired.is_empty(),
+			"a freshly loaded scenario template starts with no flags fired")
+		_check(SaveStore.save_state(empty_scenario, 0) == OK, "empty-progress save writes to slot 0")
+		gsm.last_active_slot = -1
+		if "session_load_slot" in gsm:
+			gsm.session_load_slot = -1
+		gsm.active_farm = null
+		gsm.current_state = null
+		menu._show_tab(EscapeMenu.Tab.RUN)
+		# _continue_or_play must NOT reach load_and_apply here — that tears
+		# down and restarts the whole app (AppRoot.restart_from_pending_boot),
+		# which this bare-EscapeMenu smoke has no AppRoot to survive.
+		await menu._continue_or_play()
+		_check(menu._pending_action == EscapeMenu.PendingAction.EMPTY_SAVE_REDIRECT,
+			"RUN tab F on a flagless save arms the redirect confirm instead of silently loading it")
+		var redirect_verbs := menu._confirm_verb_labels()
+		_check(str(redirect_verbs.get("F", "")) == "start The Demos",
+			"the redirect confirm's F starts The Demos")
+		_check(str(redirect_verbs.get("Q", "")) == "cancel", "the redirect confirm's Q cancels, never confirms")
+		menu._dismiss_confirm()
+
 	_finish()
 
 

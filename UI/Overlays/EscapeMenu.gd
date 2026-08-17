@@ -31,8 +31,9 @@ enum PendingAction {
 	QUIT,
 	RESTART,
 	DEV_RESTART,
-	SAVE_OVERWRITE,   # KEEP R on an occupied slot — overwriting destroys a save
-	LOAD_DISCARD,     # KEEP Q on a loadable slot — loading discards the live run
+	SAVE_OVERWRITE,       # KEEP R on an occupied slot — overwriting destroys a save
+	LOAD_DISCARD,         # KEEP Q on a loadable slot — loading discards the live run
+	EMPTY_SAVE_REDIRECT,  # RUN F auto-continue found a save with nothing in it yet
 }
 
 # Tab row — TYUIOP slots. We bind T/Y/U/I/O; P is honestly empty
@@ -1332,7 +1333,8 @@ func _on_frame_changed(new_frame_id: String, _prev_frame_id: String) -> void:
 
 func _on_action_q() -> void:
 	if _pending_action != PendingAction.NONE:
-		if _pending_action in [PendingAction.DEV_RESTART, PendingAction.SAVE_OVERWRITE, PendingAction.LOAD_DISCARD]:
+		if _pending_action in [PendingAction.DEV_RESTART, PendingAction.SAVE_OVERWRITE, \
+				PendingAction.LOAD_DISCARD, PendingAction.EMPTY_SAVE_REDIRECT]:
 			# Q is the game's most-mashed verb — it must never confirm a save
 			# wipe, a slot overwrite, or a run discard. F is the one confirm
 			# for those; Q backs out.
@@ -1380,10 +1382,12 @@ func _on_action_r() -> void:
 
 func _on_action_f() -> void:
 	# QF chord: if we're in a quit-confirm, F = quit without saving.
-	# DEV_RESTART / SAVE_OVERWRITE / LOAD_DISCARD: F is the ONLY confirm
-	# (arm + deliberate F, same chord as every other destructive verb).
+	# DEV_RESTART / SAVE_OVERWRITE / LOAD_DISCARD / EMPTY_SAVE_REDIRECT: F is
+	# the ONLY confirm (arm + deliberate F, same chord as every other
+	# destructive-or-redirecting verb).
 	if _pending_action in [PendingAction.QUIT, PendingAction.DEV_RESTART, \
-			PendingAction.SAVE_OVERWRITE, PendingAction.LOAD_DISCARD]:
+			PendingAction.SAVE_OVERWRITE, PendingAction.LOAD_DISCARD, \
+			PendingAction.EMPTY_SAVE_REDIRECT]:
 		_confirm_act_only()
 		return
 	# Flatten: collapse whatever E opened. Only one panel can be open at a time.
@@ -1539,6 +1543,7 @@ func _confirm_title(action: int) -> String:
 		PendingAction.DEV_RESTART:     return "FULL RESET?"
 		PendingAction.SAVE_OVERWRITE:  return "OVERWRITE SAVE?"
 		PendingAction.LOAD_DISCARD:    return "LOAD — DISCARD THIS RUN?"
+		PendingAction.EMPTY_SAVE_REDIRECT: return "START THE DEMOS INSTEAD?"
 		_: return "CONFIRM?"
 
 func _confirm_body(action: int) -> String:
@@ -1558,6 +1563,10 @@ func _confirm_body(action: int) -> String:
 			var summary2 := _session_summary_text()
 			var warn := "Loading replaces this run with the saved one."
 			return warn if summary2 == "" else summary2 + "\n\n" + warn
+		PendingAction.EMPTY_SAVE_REDIRECT:
+			return "That save has nothing in it yet — probably a stray quit, " + \
+				"not a run worth protecting.\n\nF starts The Demos fresh. Want that " + \
+				"save back instead? Cancel, then Save tab (Y) loads any slot."
 		_: return ""
 
 
@@ -1629,6 +1638,7 @@ func _confirm_verb_labels() -> Dictionary:
 		PendingAction.DEV_RESTART:     return {"Q": "", "E": "", "R": "cancel", "F": "confirm reset"}
 		PendingAction.SAVE_OVERWRITE:  return {"Q": "", "E": "cancel", "R": "cancel", "F": "overwrite slot"}
 		PendingAction.LOAD_DISCARD:    return {"Q": "", "E": "cancel", "R": "cancel", "F": "load — discard run"}
+		PendingAction.EMPTY_SAVE_REDIRECT: return {"Q": "cancel", "E": "cancel", "R": "cancel", "F": "start The Demos"}
 		_: return {"Q": "confirm", "E": "", "R": "cancel", "F": ""}
 
 func _dismiss_confirm() -> void:
@@ -1652,7 +1662,8 @@ func _confirm_save_and_act() -> void:
 func _confirm_act_only() -> void:
 	match _pending_action:
 		PendingAction.QUIT, PendingAction.RESTART, PendingAction.DEV_RESTART, \
-		PendingAction.SAVE_OVERWRITE, PendingAction.LOAD_DISCARD:
+		PendingAction.SAVE_OVERWRITE, PendingAction.LOAD_DISCARD, \
+		PendingAction.EMPTY_SAVE_REDIRECT:
 			_execute_pending_action()
 		_:
 			_dismiss_confirm()
@@ -1682,6 +1693,11 @@ func _execute_pending_action() -> void:
 		PendingAction.LOAD_DISCARD:
 			_dismiss_confirm()
 			_do_load_from_selected_slot()  # async; deactivates itself on success
+		PendingAction.EMPTY_SAVE_REDIRECT:
+			deactivate()
+			var gsm4 = (Engine.get_main_loop().root.get_node_or_null("/root/GameStateManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
+			if gsm4 and "session_lifecycle" in gsm4:
+				gsm4.session_lifecycle.request_fresh_restart(false, DEFAULT_RUN_SCENARIO_ID)
 
 ## Returns true when it is safe to go ahead with the quit/restart: either the
 ## run was written, or there was no run to write. Returns false ONLY when a real
@@ -1734,13 +1750,31 @@ func _continue_or_play() -> void:
 	if gsm == null:
 		return
 	var slot := _get_last_touched_slot(gsm)
-	if slot >= 0 and not _get_last_touched_info(gsm, slot).is_empty() and "save_load" in gsm:
+	var info := _get_last_touched_info(gsm, slot) if slot >= 0 else {}
+	if slot >= 0 and not info.is_empty() and "save_load" in gsm:
+		if not _save_looks_meaningful(info):
+			# The masher's own F must not silently drop them into a save with
+			# ~nothing in it — offer the fresh Demos instead. A player who
+			# specifically WANTS that slot back can still load it deliberately
+			# from the Save tab (Y), which never runs this check.
+			_request_confirm(PendingAction.EMPTY_SAVE_REDIRECT)
+			return
 		deactivate()
 		await gsm.save_load.load_and_apply(slot)
 		return
 	if "session_lifecycle" in gsm:
 		deactivate()
 		gsm.session_lifecycle.request_fresh_restart(false, DEFAULT_RUN_SCENARIO_ID)
+
+## A save with zero story flags fired (nothing has happened yet — Act 0's
+## first_harvest fires within a minute of real play) or a pre-beta format
+## this version can't really read reads as a stray quit, not a run worth
+## protecting. NOT playtime: GameState.game_time is exported but never
+## incremented anywhere in the codebase, so every save reads 0.0 there.
+func _save_looks_meaningful(peek: Dictionary) -> bool:
+	if not bool(peek.get("compatible", true)):
+		return false
+	return int(peek.get("flags_fired", 0)) > 0
 
 func _save_and_resume() -> void:
 	var gsm = (Engine.get_main_loop().root.get_node_or_null("/root/GameStateManager") if Engine.get_main_loop() and Engine.get_main_loop().root else null)

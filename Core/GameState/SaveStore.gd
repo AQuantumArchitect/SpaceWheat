@@ -298,6 +298,11 @@ static func get_save_info(slot: int) -> Dictionary:
 		"display_name": state.get_save_display_name(),
 		"scenario": state.scenario_id,
 		"credits": money,
+		# story_flags_fired is the honest "has anything actually happened"
+		# signal — game_time (below, kept for display) is exported but never
+		# incremented anywhere in the codebase, so it reads 0.0 on every save
+		# and can't tell a real run from a stray one.
+		"flags_fired": state.story_flags_fired.size() if state.story_flags_fired is Dictionary else 0,
 		"playtime": state.game_time,
 		"grid_size": "%dx%d" % [state.grid_width, state.grid_height],
 		"save_file": artifact_meta.get("save_file", artifact_meta.get("alias_file", "")),

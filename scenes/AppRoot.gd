@@ -67,9 +67,16 @@ func _install_emoji_font_fallback() -> void:
 
 
 func _input(event: InputEvent) -> void:
-	# Pre-boot title input: F / R / click / Enter / X all open the X menu.
-	# Once X is open the player_shell handles everything (including ESC to close).
-	# Once a game has started, this handler stays out of the way entirely.
+	# Pre-boot title input splits in two: the no-brainer keys (F / R / Enter /
+	# Space / a click — "I just want to play") skip save detection entirely
+	# and boot a fresh Demos run directly. Mashing through the title must
+	# never land a player in someone else's mid-run save with no explanation
+	# — that fork used to live behind these same keys via the X menu's RUN
+	# tab, so two mashes of F could silently reload whatever save was newest
+	# on disk. X is the one deliberate "show me more" key: it still opens the
+	# full system menu (continue THIS save, pick a scenario, load a specific
+	# slot). Once X is open the player_shell handles everything (including
+	# ESC to close). Once a game has started, this handler stays out of the way.
 	if game_root:
 		return
 	if not player_shell:
@@ -77,17 +84,23 @@ func _input(event: InputEvent) -> void:
 	if _x_is_open():
 		return
 
-	var should_open := false
+	var open_menu := false
+	var start_fresh := false
 	if event is InputEventKey and event.pressed and not event.echo:
 		match event.keycode:
-			KEY_F, KEY_R, KEY_ENTER, KEY_KP_ENTER, KEY_X, KEY_SPACE:
-				should_open = true
+			KEY_X:
+				open_menu = true
+			KEY_F, KEY_R, KEY_ENTER, KEY_KP_ENTER, KEY_SPACE:
+				start_fresh = true
 	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		should_open = true
+		start_fresh = true
 
-	if should_open:
+	if open_menu:
 		get_viewport().set_input_as_handled()
 		_open_x_to_keep_tab()
+	elif start_fresh:
+		get_viewport().set_input_as_handled()
+		_start_fresh_demo()
 
 
 func start_game(request: Dictionary = {}) -> void:
@@ -204,6 +217,16 @@ func _consume_pending_boot_request() -> Dictionary:
 	return SaveStore.normalize_boot_request(request)
 
 
+## The title screen's no-brainer path. Bypasses save detection entirely — F,
+## R, Enter, Space, or a click on the raw title always reaches a fresh "The
+## Demos" run, never a leftover save. A player who wants to continue or load
+## a specific slot presses X for the full system menu instead.
+func _start_fresh_demo() -> void:
+	var gsm = get_node_or_null("/root/GameStateManager")
+	if gsm and "session_lifecycle" in gsm:
+		gsm.session_lifecycle.request_fresh_restart(false, SaveStore.DEFAULT_SCENARIO_ID)
+
+
 func _open_x_to_keep_tab() -> void:
 	# Title-screen entrypoint: open the X system surface so the player can
 	# start a new game or load a save. Currently EscapeMenu serves as X.
@@ -299,7 +322,7 @@ func _build_title() -> void:
 	version_lbl.offset_bottom = -12
 
 	_title_hint = Label.new()
-	_title_hint.text = "Press F to continue"
+	_title_hint.text = "Press F to play  ·  X for menu"
 	_title_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_title_hint.add_theme_font_size_override("font_size", 24)
 	_title_hint.add_theme_color_override("font_color", Color(0.95, 0.97, 0.88, 1.0))
