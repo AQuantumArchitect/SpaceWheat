@@ -1,5 +1,9 @@
 # SpaceWheat
 
+[![Build](https://github.com/AQuantumArchitect/SpaceWheat/actions/workflows/build-gdextension.yml/badge.svg)](https://github.com/AQuantumArchitect/SpaceWheat/actions/workflows/build-gdextension.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Godot 4.5](https://img.shields.io/badge/Godot-4.5-478cbf?logo=godot-engine&logoColor=white)](https://godotengine.org)
+
 A quantum farming game where **the story is the physics**. Every plot is a real
 qubit; every biome is a small quantum computer evolving under its own Hamiltonian;
 every harvest is a projective measurement. The quantum mechanics aren't a
@@ -254,24 +258,28 @@ bash 🍄/🧪/🔬.sh --suite closed
 ## Project Structure
 
 ```
-Core/
-  QuantumSubstrate/    Quantum computer, gates, density matrix, circuit builder
+Core/          Engine + game logic (~55k LOC)
+  QuantumSubstrate/    QuantumComputer, HamiltonianBuilder, LindbladBuilder, gates, density matrix
   Environment/         Biome implementations, evolution batcher
-  Biomes/              Biome registry + data (biomes.json)
+  Biomes/data/         Biome registry + data (biomes.json — scaffolds + dormant L)
+  Factions/data/       icons.json (H), factions.json, axes.json
   Config/Hamiltonians/ Per-biome Hamiltonian configurations (JSONL)
-  Actions/             Explore/Measure/Pop/Reap action handlers
+  Actions/             Explore / Measure / Pop / Reap verb handlers
   GameMechanics/       Farm economy, grid, terminal pool
   GameState/           Save/load, tool config, scenario builder
   Instrumentation/     Action dispatch (QuantumInstrument)
-  Quests/              Quest generation, faction database
+  Quests/              QuestManager, story_flags.json (the campaign), soft-gate math
+  Story/               StoryEngine, socialite chatter (measurement-driven)
+  Markets/             EnergyPricing (Boltzmann), MarketLattice (contracts)
   Visualization/       Bubble rendering, force graph, biome backgrounds
-UI/
-  Core/                Input handling (QuantumInstrumentInput), action validation
-  Overlays/            Controls, inspector, biome inspector
+UI/            Thin key-in / projection-out surfaces (~26k LOC)
+  Core/                QuantumInstrumentInput (input decoder), Surface, ToolConfig
+  Overlays/            EscapeMenu(Z), ControlsOverlay(X), QuestBoard(C), Atlas(V)...
   HUD/                 Performance display, bot status
-tests/                 Physics verification suites + integration tests
-🍄/                    Automation lane (headless runners, test harnesses, batch tools)
-native/                C++ GDExtension (libquantummatrix)
+tests/         Physics verification suites + integration tests
+native/        C++ GDExtension (libquantummatrix) — Eigen-accelerated backend
+docs/          Documentation — start at GAME_CODEX.md
+🍄/            Automation lane (headless runners, rig, test harnesses, batch tools)
 ```
 
 ## Building
@@ -288,24 +296,18 @@ python3 -m pytest tests/ -q      # Python test suite (rig-driven + source contra
 - Boot-error gate (must print `0`):
   `godot --headless --audio-driver Dummy --path . --quit 2>&1 | grep -cE "SCRIPT ERROR|Parse Error|ERROR: Failed to"`
 
-## Project structure
+Known open issues, design questions, and tech debt are tracked honestly in
+[`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md) rather than left buried in
+internal audit docs.
 
-```
-Core/          Engine + game logic (~55k LOC)
-  QuantumSubstrate/  QuantumComputer, HamiltonianBuilder, LindbladBuilder, gates
-  Factions/data/     icons.json (H), factions.json, axes.json
-  Biomes/data/       biomes.json (scaffolds + dormant L)
-  Quests/            QuestManager, story_flags.json (the campaign), soft-gate math
-  Story/             StoryEngine, socialite chatter (measurement-driven)
-  Markets/           EnergyPricing (Boltzmann), MarketLattice (contracts)
-  Actions/           Explore / Measure / Pop / Reap verbs
-UI/            Thin key-in / projection-out surfaces (~26k LOC)
-  Core/              QuantumInstrumentInput (input decoder), Surface, ToolConfig
-  Overlays/          EscapeMenu(Z), ControlsOverlay(X), QuestBoard(C), Atlas(V)...
-native/        C++ GDExtension (libquantummatrix) — derived predictor
-docs/          Documentation — start at GAME_CODEX.md
-🍄/            Automation lane (headless runners, rig, test harnesses)
-```
+## How this was built
+
+A meaningful share of this codebase, including the `🍄/` automation lane and
+much of the release/test tooling, was built through direct collaboration
+with AI coding agents driving the real game headlessly. See
+[`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) for how that actually works —
+the same headless rig that development used is also how the physics test
+suite and CI verify every change.
 
 ## License
 

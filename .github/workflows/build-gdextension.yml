@@ -160,24 +160,19 @@ jobs:
       - name: Set up Emscripten
         uses: mymindstorm/setup-emsdk@v13
         with:
-          version: 3.1.45
+          # Must match SW_EMSDK_VERSION in scripts/build-all-platforms.sh — that
+          # is the hard pin (matched to the Godot web export template's own
+          # Emscripten), not a preference. A mismatched side module links,
+          # loads, and then aborts on an unresolved libc++ symbol the first
+          # time a farm boots; see that script's comment for the history.
+          version: 4.0.10
 
-      - name: Build godot-cpp (Web)
-        run: |
-          cd godot-cpp
-          scons platform=web target=template_release -j$(nproc)
-
-      - name: Create platform directory
-        run: mkdir -p native/bin/web
-
-      - name: Build SpaceWheat extension
-        run: |
-          cd native
-          emcc -std=c++17 -O3 -s SIDE_MODULE=1 -s EXPORT_ALL=1 \
-            -I./include -I./include/godot_cpp -I./include/gdextension \
-            -DWEB_ENABLED -DGDEXTENSION \
-            src/*.cpp \
-            -o bin/web/libquantummatrix.wasm
+      - name: Build SpaceWheat extension (Web)
+        # --clean: a fresh CI checkout gives the committed native/bin/web/*
+        # outputs the same mtime as the sources that would rebuild them, so
+        # the script's local incremental-build cache can't be trusted here —
+        # force a real build every run instead of risking a silent skip.
+        run: ./scripts/build-all-platforms.sh --web-only --clean
 
       - name: Upload Web artifact
         uses: actions/upload-artifact@v4

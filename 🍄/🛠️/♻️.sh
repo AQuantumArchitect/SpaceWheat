@@ -3,7 +3,8 @@
 # ♻️ - Reset & Rebuild C++
 # Clean rebuild of godot-cpp bindings + native library (quantum evolution, bubble renderer, etc.)
 
-PROJECT_ROOT="/home/primearchitect/ws/SpaceWheat"
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
 
 echo "♻️ Reset & Rebuild C++ Native Library"
 echo "======================================="

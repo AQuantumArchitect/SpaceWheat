@@ -1780,29 +1780,7 @@ func handle_bubble_tap(grid_pos: Vector2i, shift: bool = false) -> Dictionary:
 	# dispatch below (mirrors _focus_plot's own doc comment).
 	_focus_plot(grid_pos.x, biome_name)
 
-	# Three-beat rhythm = the Ace verbs, one tap each, priced exactly like the
-	# keyboard F/R/Q (owner ruling 2026-07-11): unexplored plot → EXPLORE (the
-	# expedition, 🍞) · explored live → STRIKE (👥) · struck → EXTRACT (free).
-	# All from farm ground truth (plot.terminal), never node visuals, via the
-	# terminal's OWN state-query methods (can_explore/can_measure/can_pop) —
-	# NOT a hand-rolled is_bound/is_measured check. MEASURE calls
-	# release_register() as part of its execution (Terminal.gd), which
-	# intentionally sets is_bound=false while KEEPING is_measured=true (the
-	# register frees for reuse; the terminal keeps its frozen snapshot so it
-	# can still be popped) — a struck-but-unbound terminal is exactly
-	# can_pop()'s documented case. Gating on "is_bound" first, as this used
-	# to, excludes that case entirely and falls through to the "explore"
-	# default: every mouse Strike immediately re-Explored instead of
-	# advancing to Extract, so the loop could never complete by tap alone.
-	# Mouse-only campaign, 2026-08-05.
-	var plot = farm.grid.get_plot(grid_pos)
-	var terminal = plot.terminal if plot else null
-	var verb := "explore"
-	if terminal != null:
-		if terminal.can_pop():
-			verb = "pop"
-		elif terminal.can_measure():
-			verb = "measure"
+	var verb := predict_tap_verb(grid_pos)
 
 	if not ActionValidator.can_execute_action_name(
 		verb, farm, _get_selected_positions(), _get_grid_position()
@@ -1817,6 +1795,48 @@ func handle_bubble_tap(grid_pos: Vector2i, shift: bool = false) -> Dictionary:
 			return _run_action("measure", "📊", "Strike")
 		_:
 			return _run_action("pop", "🎉", "Extract")
+
+
+## What a tap on grid_pos would fire RIGHT NOW: measure on a live bubble, pop on
+## a measured one, explore otherwise. All from farm ground truth (plot.terminal),
+## via the terminal's OWN state-query methods (can_explore/can_measure/can_pop) —
+## NOT a hand-rolled is_bound/is_measured check. MEASURE calls release_register()
+## as part of its execution (Terminal.gd), which intentionally sets is_bound=false
+## while KEEPING is_measured=true (the register frees for reuse; the terminal
+## keeps its frozen snapshot so it can still be popped) — a struck-but-unbound
+## terminal is exactly can_pop()'s documented case. Gating on "is_bound" first, as
+## this used to, excludes that case entirely and falls through to "explore": every
+## mouse Strike immediately re-Explored instead of advancing to Extract, so the
+## loop could never complete by tap alone. Mouse-only campaign, 2026-08-05.
+## Pure read, no dispatch — handle_bubble_tap's own verb comes from here, and
+## UIContextController calls it too to preview which Ace chip a tap would fire,
+## so a click and its own preview can never name two different verbs.
+func predict_tap_verb(grid_pos: Vector2i) -> String:
+	if not farm or not farm.grid:
+		return "explore"
+	var plot = farm.grid.get_plot(grid_pos)
+	var terminal = plot.terminal if plot else null
+	if terminal == null:
+		return "explore"
+	if terminal.can_pop():
+		return "pop"
+	if terminal.can_measure():
+		return "measure"
+	return "explore"
+
+
+## predict_tap_verb for whatever plot handle_bubble_tap would actually land on —
+## the live cursor, or (off the plot ring) the last-focused register, exactly
+## _get_selected_positions()'s own fallback. This is the position a plain tap
+## acts on, NOT the Shift-click multi-select set (UIContextController's own
+## _apply_probe_preview keys off that, separately, for its odds/outcome text).
+func predict_tap_verb_for_focus() -> String:
+	if not _instrument:
+		return "explore"
+	var positions := _get_selected_positions()
+	if positions.is_empty():
+		return "explore"
+	return predict_tap_verb(positions[0])
 
 
 func _perform_action(action_key: String) -> void:

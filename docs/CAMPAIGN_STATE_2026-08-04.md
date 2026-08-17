@@ -142,7 +142,7 @@ Ranked roughly by leverage, not by memory-file order:
 8. **Campaign-layer test coverage has no runtime pass/fail gate.** `act3_5_drive.py` (the closest thing to a full end-to-end campaign play) is diagnostic-only (zero asserts, not in CI). `test_story_flags_lint.py`/`test_scenario_pool_covers_campaign.py` give strong static coverage; only Acts 0-1 + save/load have real behavioral pytest assertions. A fable push that wants to verify its own campaign-content changes cheaply should either wire `act3_5_drive.py` into a real assert-based gate or lean on the `hive.py leg` checkpoint-sweep pattern.
 9. **Doc-rot, cheap fixes:** `STARTER_ISLAND_STORY_FLAGS.md`'s flag table lists 11 flags, live JSON has 57 (self-aware footer says live JSON wins, but the gap is large); the DLC-only banner is misapplied to that same file (its content is actually live closed-system reference, not DLC); `VILLAGE_STORY_PATHS.md` never maps its Path-letter names to the shipped fork names (💧 Commons etc.) — no doc states the mapping (§2 above is the first place it's written down).
 10. **`five_doors` flag doesn't actually gate anything** — none of the 5 branch flags check it; it's flavor-only despite reading as a structural gate. Confirm intentional or wire it in.
-11. **`the_span` (Act 6) gates on `the_crossing` rather than `the_knot`**, breaking the "What Connects" lane's own internal continuity — worth a design confirm, may be intentional (the physical bridge-mechanic may be the real gate).
+11. ~~**`the_span` (Act 6) gates on `the_crossing` rather than `the_knot`**~~ — **correction, 2026-08-16: not current.** Live `Core/Quests/data/story_flags.json` has `the_span`'s predicates requiring `the_crossing` **and** `the_knot` **and** `bridge_built_gte 1` — What Connects' own continuity (`the_knot`) is already required, alongside the cross-lane `the_crossing` gate this item flagged. Whether that cross-lane coupling to What Fades is still worth a design confirm is open, but the specific "breaks internal continuity" claim no longer holds against the live data.
 12. **Standing keeps getting re-flagged as "inert" across multiple passes** even though it does feed `PriceModel` pricing — an intentional owner-accepted half-state that keeps resurfacing as a question purely because nothing documents the ambiguity is deliberate. One-line doc fix, not a code fix.
 
 ---
@@ -207,7 +207,7 @@ The push this doc briefed ran the same day. Status of §5's ranked list:
 9. **Doc-rot:** GAME_CODEX refreshed; this addendum. STARTER_ISLAND banner
    fix still owed.
 10. **`five_doors`: WIRED** (see 3).
-11. **`the_span` lane continuity: NOT TOUCHED** (still awaiting design confirm).
+11. **`the_span` lane continuity: superseded, 2026-08-16** — see the correction on item 11 in §5; the live predicate already requires `the_knot`, so there's no continuity break to confirm design intent on anymore.
 12. **Standing doc note: NOT TOUCHED.**
 
 Beyond the list, the push's largest finds (none were in this doc's §5):

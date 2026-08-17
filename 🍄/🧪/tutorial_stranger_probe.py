@@ -11,7 +11,7 @@ import json
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path("/home/primearchitect/ws/SpaceWheat/🍄") / "\U0001F39B️"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "\U0001F39B️"))
 from rig_client import RigClient  # noqa: E402
 
 _t = [0]

@@ -71,8 +71,12 @@ def test_the_cognifold_fall_through_survives() -> None:
 
 def test_a_dead_farm_stops_the_render_instead_of_freezing_it() -> None:
     """`_process` used to return early on a missing farm, which left the pre-load
-    orbs on screen and clickable — the visible half of #519."""
-    src = body(FIELD, "_process")
+    orbs on screen and clickable — the visible half of #519.
+
+    `_process` is now a thin frame-cost-timing wrapper around `_tick_field`
+    (added when FrameCostLedger instrumentation landed) — the real guard
+    lives in `_tick_field`, so that's what this test has to read."""
+    src = body(FIELD, "_tick_field")
     guard = src.split("var biome = _get_active_biome()")[0]
     assert "is_instance_valid(farm_ref)" in guard, (
         "a freed Farm is not `== null` in Godot — the guard must ask "

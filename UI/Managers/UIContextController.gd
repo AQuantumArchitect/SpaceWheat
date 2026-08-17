@@ -351,6 +351,7 @@ func _build_frame_actions(frame_name: String) -> Dictionary:
 
 	if frame_name == ToolConfig.FRAME_ACE and ToolConfig.get_frame_mode_name(frame_name) == "probe":
 		_apply_probe_preview(actions)
+		_apply_tap_preview_highlight(actions)
 
 	_apply_runtime_state(actions)
 	return actions
@@ -404,6 +405,12 @@ func _project_action_info(action_info: Dictionary) -> Dictionary:
 		"disabled": bool(action_info.get("disabled", false)),
 		"dlc_locked": bool(action_info.get("dlc_locked", false)),
 		"available": false,
+		# "A tap on the focused plot fires THIS chip right now" — distinct from
+		# `available` (which for F is "has any action bound", nearly always true
+		# in Ace, so it can't tell the player which one is live). Only
+		# _apply_probe_preview sets this true; every other context defaults it
+		# false, which is the correct "no tap-preview here" answer.
+		"would_fire": false,
 		# Carry through a producer-supplied cost (e.g. the icon-injection submenu prices
 		# each option as it builds it). Single cost authority: whoever holds the payload
 		# computes the cost; the controller preserves it rather than re-deriving.
@@ -513,6 +520,25 @@ func _apply_probe_preview(actions: Dictionary) -> void:
 	if not measured_terminals.is_empty() and actions.has("Q"):
 		var measured_terminal = measured_terminals[0]
 		actions["Q"].label = "Extract (%s)" % str(measured_terminal.measured_outcome if measured_terminal.measured_outcome else "?")
+
+
+## Which chip would a tap on the FOCUSED plot fire right now? Deliberately
+## separate from _apply_probe_preview above, which keys off get_selected_plots()
+## — the Shift-click multi-select checkbox set, empty on an ordinary tap/focus
+## and therefore the wrong source for "what does a plain click do". The focused
+## plot (predict_tap_verb_for_focus, same cursor handle_bubble_tap itself acts
+## on) is right regardless of whether anything is multi-selected.
+## predict_tap_verb is the one place the verb logic lives — a resolver-swapped
+## key (F showing Fast-Fwd instead of Explore) correctly gets no highlight,
+## since its chip no longer IS that verb.
+func _apply_tap_preview_highlight(actions: Dictionary) -> void:
+	if not quantum_input or not quantum_input.has_method("predict_tap_verb_for_focus"):
+		return
+	var predicted_verb: String = quantum_input.predict_tap_verb_for_focus()
+	for key in actions:
+		var info: Dictionary = actions[key]
+		if str(info.get("action", "")) == predicted_verb and not bool(info.get("disabled", false)):
+			info.would_fire = true
 
 
 func _get_cost_for_action(action_info: Dictionary) -> Dictionary:

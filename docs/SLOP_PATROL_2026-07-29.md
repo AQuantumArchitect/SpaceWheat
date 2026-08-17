@@ -128,14 +128,17 @@ may drift.
   `shutil.which("godot") is None: pytest.skip(...)` guard, 8 times.
   `tests/conftest.py` exists but doesn't carry this fixture — wants a shared
   `rig_client()`/`rig_env()` fixture there.
-- **Same bootstrap pattern again across 52 `🍄/🧪/*.py` probes**, 8 of which
-  (`born_reward_probe.py:16`, `menu_bleed_lens_probe.py:18`,
-  `biome_carousel_probe.py:4`, `mint_checkpoint.py:16`,
-  `poverty_run_probe.py:26`, `player_seat.py`, `ward_quest_probe.py`,
-  `tutorial_stranger_probe.py`) hardcode an absolute
-  `/home/primearchitect/ws/SpaceWheat/🍄` path instead of computing it — a
-  portability bug on top of the duplication. Wants a tiny
-  `🍄/🧪/_bootstrap.py`.
+- **Same bootstrap pattern again across 52 `🍄/🧪/*.py` probes.** The
+  duplication itself is still open and still wants a shared
+  `🍄/🧪/_bootstrap.py`. **The portability half is fixed (2026-08-16):** the
+  hardcoded `/home/primearchitect/ws/SpaceWheat/🍄` absolute path in
+  `born_reward_probe.py`, `menu_bleed_lens_probe.py`, `biome_carousel_probe.py`,
+  `mint_checkpoint.py`, `poverty_run_probe.py`, `player_seat.py`,
+  `ward_quest_probe.py`, `tutorial_stranger_probe.py` — plus `mouse_seat.py`,
+  `store_kit_shots.py`, and the unrelated `🍄/🛠️/♻️.sh` — now all compute
+  their root from the script's own location instead of one machine's path.
+  Found because it broke `tests/test_mouse_seat_contract.py` on any checkout
+  that isn't that exact path.
 - **~36-site "safe autoload lookup" ternary** spread across `Core/Boot/`,
   `Core/Config/`, `Core/GameState/`, even inside
   `Core/Instrumentation/InstrumentLocator.gd` itself (`:46,63`) — which

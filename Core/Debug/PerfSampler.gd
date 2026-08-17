@@ -349,6 +349,13 @@ func _environment() -> Dictionary:
 	# A headless run draws nothing; its fps is a CPU number wearing a render
 	# label, which is exactly the confusion this field exists to prevent.
 	var software: bool = RuntimeEnv.is_headless() or PerfOptimizer.detect_software_renderer()
+	# A virtual display (Xvfb, common on cloud build agents) reports no refresh
+	# rate — NAN. Godot's JSON.stringify emits that as the bare token `nan`,
+	# which is not valid JSON (and doesn't even match Python's `NaN` spelling),
+	# so any report cut under a virtual display failed to parse afterward. null
+	# says "unknown" instead of poisoning the file.
+	var refresh_rate: float = DisplayServer.screen_get_refresh_rate()
+	var refresh_rate_json = null if is_nan(refresh_rate) else refresh_rate
 
 	return {
 		"os": OS.get_name(),
@@ -365,7 +372,7 @@ func _environment() -> Dictionary:
 		"headless": RuntimeEnv.is_headless(),
 		"vsync_mode": DisplayServer.window_get_vsync_mode(),
 		"window_size": [DisplayServer.window_get_size().x, DisplayServer.window_get_size().y],
-		"screen_refresh_rate": DisplayServer.screen_get_refresh_rate(),
+		"screen_refresh_rate": refresh_rate_json,
 		"max_fps": Engine.max_fps,
 		"software_rendering_suspected": software,
 	}
@@ -384,8 +391,10 @@ func _caveats(env: Dictionary) -> Array[String]:
 	# cap that isn't there would be the same kind of confident-wrong reading this
 	# report exists to prevent.
 	if not headless and int(env.get("vsync_mode", 0)) != DisplayServer.VSYNC_DISABLED:
+		var refresh_val = env.get("screen_refresh_rate")
+		var refresh_hz: float = float(refresh_val) if refresh_val != null else 0.0
 		out.append("vsync is on — fps is capped at the refresh rate (%.0f Hz) and headroom above it is invisible"
-			% float(env.get("screen_refresh_rate", 0.0)))
+			% refresh_hz)
 	if int(env.get("max_fps", 0)) > 0:
 		out.append("Engine.max_fps is %d — the frame rate is capped below whatever the hardware could do"
 			% int(env.get("max_fps", 0)))

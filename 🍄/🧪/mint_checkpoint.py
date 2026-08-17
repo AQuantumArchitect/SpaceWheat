@@ -13,10 +13,10 @@ import sys
 import time
 from pathlib import Path
 
-sys.path.insert(0, str(Path("/home/primearchitect/ws/SpaceWheat/🍄") / "\U0001F39B️"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "\U0001F39B️"))
 from rig_client import RigClient  # noqa: E402
 
-ROOT = Path("/home/primearchitect/ws/SpaceWheat")
+ROOT = Path(__file__).resolve().parent.parent.parent
 CKPT_DIR = ROOT / "🍄" / "🧪" / "checkpoints"
 
 # Act-1 chain: what "solidly complete" means for this checkpoint.

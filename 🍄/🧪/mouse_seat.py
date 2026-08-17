@@ -43,7 +43,7 @@ if hasattr(sys.stdout, "reconfigure"):
 import time
 from pathlib import Path
 
-ROOT = Path("/home/primearchitect/ws/SpaceWheat")
+ROOT = Path(__file__).resolve().parent.parent.parent
 RUNNER = ROOT / "\U0001F344" / "\U0001F39B️"
 sys.path.insert(0, str(RUNNER))
 from rig_client import RigClient  # noqa: E402

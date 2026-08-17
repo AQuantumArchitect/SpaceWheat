@@ -119,8 +119,18 @@ build_web/
 🍄/🧪/demo_shots/
 🍄/🧪/playthrough_shots/
 
-# Minted checkpoint banks (runtime artifacts; re-mintable from the drives)
-🍄/🧪/checkpoints/
+# Minted checkpoint banks (runtime artifacts; re-mintable from the drives) —
+# except the two shipped endgame fixtures tests/test_field_shows_the_right_country.py
+# needs on a fresh clone (real campaign saves, re-mintable via act3_5_drive.py
+# ACT35_RESUME=1 ACT35_ENDGAME=1, not hand-authored). Ignore CONTENTS with `*`,
+# not the directory itself — negating the directory node makes git traverse in
+# and expose every OTHER checkpoint file as untracked too, not just these four.
+🍄/🧪/checkpoints/*
+!🍄/🧪/checkpoints/endrun_act7.tres
+!🍄/🧪/checkpoints/endrun_act7.json
+!🍄/🧪/checkpoints/endrun_act8.tres
+!🍄/🧪/checkpoints/endrun_act8.json
+!🍄/🧪/checkpoints/endrun_ending.tres
 node_modules/
 native/src/*.d
 native/src/**/*.obj

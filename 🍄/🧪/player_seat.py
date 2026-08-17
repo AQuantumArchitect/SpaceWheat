@@ -46,7 +46,7 @@ if hasattr(sys.stdout, "reconfigure"):
 import time
 from pathlib import Path
 
-RUNNER = Path("/home/primearchitect/ws/SpaceWheat/🍄") / "\U0001F39B️"
+RUNNER = Path(__file__).resolve().parent.parent / "\U0001F39B️"
 sys.path.insert(0, str(RUNNER))
 from rig_client import RigClient  # noqa: E402
 
@@ -104,7 +104,7 @@ def _seat_is_live(seat: str) -> bool:
         return False
 
 
-CHECKPOINT_DIR = Path("/home/primearchitect/ws/SpaceWheat/🍄/🧪/checkpoints")
+CHECKPOINT_DIR = Path(__file__).resolve().parent / "checkpoints"
 
 
 def cmd_start(seat: str, fresh: bool = False, checkpoint: str = "") -> dict:

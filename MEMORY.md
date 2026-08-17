@@ -35,6 +35,17 @@ For the fuller workflow, see:
 
 - [docs/release/DESKTOP_RELEASE_WORKFLOW.md](docs/release/DESKTOP_RELEASE_WORKFLOW.md)
 
+## Claude Code on the web (cloud sessions)
+
+If a cloud session is cutting a release or pushing tags, read
+[docs/CLOUD_SESSION_HANDOFF_2026-08-17.md](docs/CLOUD_SESSION_HANDOFF_2026-08-17.md)
+first — it documents real, confirmed constraints of that environment: git
+push is credential-scoped to a single branch (tag pushes and pushes to
+`main` get a hard 403, not fixable from inside the session), there's no
+GitHub-API release-creation tool available, no `butler`/itch credentials,
+and `scripts/release.sh`'s own reproducibility check can trip on a freshly
+cloud-installed native toolchain that isn't byte-reproducible run-to-run.
+
 ## `🍄` Folder Map
 
 `🍄` is the LLM automation and experiment lane, not core runtime game code. Future instances should treat it as a separate ops surface with a few real entrypoints and a lot of generated or historical support material.
