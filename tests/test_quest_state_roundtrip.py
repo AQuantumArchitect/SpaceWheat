@@ -51,10 +51,15 @@ def test_quest_ledger_survives_save_load_roundtrip(rig_boot) -> None:
     by_flag = offers_by_flag()
     assert "village_stirs" in by_flag and "spring_connects" in by_flag, by_flag
 
-    # COMPLETE village_stirs: accept → work (berries) → claim.
+    # COMPLETE village_stirs: accept → work (Millwright's Union access, the
+    # 2026-08-17 reorder's teachings-first road — berry_consumed_count_gte
+    # was replaced by standing_gte on the arc_quest's own state_predicates)
+    # → claim. grant_standing sets the channel directly rather than grinding
+    # the real delivery loop, same role consume_berry played before.
     vs_id = int(by_flag["village_stirs"].get("id", -1))
     assert step("accept_quest", quest_id=vs_id).get("accepted", False)
-    assert step("consume_berry", biome="Village", count=3).get("ok", False)
+    assert step("grant_standing", faction="Millwright's Union",
+                deltas={"access": 0.2}).get("ok", True)
     step("press_key", key="ESCAPE", settle_frames=30)  # readiness polls per physics frame
     assert step("complete_or_claim", quest_id=vs_id).get("completed_or_claimed", False)
 
@@ -95,8 +100,10 @@ def test_quest_ledger_survives_save_load_roundtrip(rig_boot) -> None:
     assert "village_stirs" not in post_offers, post_offers
 
     # 4: the restored commitment is live on the loaded farm — work it to
-    # ready and claim it; the teaching lands in the signature.
-    assert step("consume_berry", biome="StarterForest", count=8).get("ok", False)
+    # ready and claim it; the teaching lands in the signature. spring_connects'
+    # state_predicates now gate on Hearth Keepers trust, not berries.
+    assert step("grant_standing", faction="Hearth Keepers",
+                deltas={"trust": 0.8}).get("ok", True)
     step("press_key", key="ESCAPE", settle_frames=30)
     assert step("complete_or_claim", quest_id=sc_id).get("completed_or_claimed", False)
     assert ("💧", "🌊") in signature_icons()

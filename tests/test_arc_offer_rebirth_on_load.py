@@ -35,14 +35,20 @@ def test_arc_teaching_offer_reborn_on_load_and_claimed_pair_stays_claimed(rig_bo
         assert row.get("ok", False), row
         return {(i.get("north", ""), i.get("south", "")) for i in row.get("icons", [])}
 
-    def claim_arc(flag_id, biome, berries):
+    def claim_arc(flag_id, faction, channel, value):
+        # 2026-08-17 reorder: village_stirs/spring_connects' arc_quest.state_predicates
+        # now gate on faction standing (access/trust), not berry consumption — the
+        # teachings-first road earns vocabulary via kept market contracts. Driving a
+        # real delivery grind here would test the market, not the load-contract this
+        # test pins, so grant_standing sets the channel directly (same role
+        # consume_berry played for the old berry-gated beats).
         offer = offers_by_flag().get(flag_id)
         assert offer is not None, "no offer for %s" % flag_id
         quest_id = int(offer.get("id", -1))
         acc = step("accept_quest", quest_id=quest_id)
         assert acc.get("accepted", False), acc
-        cb = step("consume_berry", biome=biome, count=berries)
-        assert cb.get("ok", False), cb
+        gs = step("grant_standing", faction=faction, deltas={channel: value})
+        assert gs.get("ok", True), gs
         # Readiness is polled by QuestManager._physics_process; give it frames.
         step("press_key", key="ESCAPE", settle_frames=30)
         claimed = step("complete_or_claim", quest_id=quest_id)
@@ -56,7 +62,7 @@ def test_arc_teaching_offer_reborn_on_load_and_claimed_pair_stays_claimed(rig_bo
     assert "village_stirs" in by_flag and "spring_connects" in by_flag, by_flag
 
     # Claim village_stirs → 💨/🔨 joins the signature (the claim IS the teaching).
-    claim_arc("village_stirs", "Village", 3)
+    claim_arc("village_stirs", "Millwright's Union", "access", 0.2)
     assert ("💨", "🔨") in signature_icons()
 
     save_path = rig.xdg_root / "arc_rebirth.tres"
@@ -73,7 +79,7 @@ def test_arc_teaching_offer_reborn_on_load_and_claimed_pair_stays_claimed(rig_bo
     assert ("💨", "🔨") in signature_icons()
 
     # The reborn offer completes the ritual: accept → work → claim → teach.
-    claim_arc("spring_connects", "StarterForest", 8)
+    claim_arc("spring_connects", "Hearth Keepers", "trust", 0.8)
     assert ("💧", "🌊") in signature_icons()
 
     # And a further roundtrip re-offers nothing — both teachings are held.
