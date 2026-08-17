@@ -59,7 +59,7 @@ static func load_from_file(path: String):
 					continue
 				graph.add_edge(StoryEdge.make_predicate_edge(from_id, to_id))
 
-	# Seed initial density on the first-act node ("first_breath" if present).
+	# Seed initial density on the first-act node ("first_harvest" if present).
 	var seed_id := _pick_seed(graph)
 	if seed_id != "":
 		graph.init_seed_density(seed_id)

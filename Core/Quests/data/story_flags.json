@@ -1,36 +1,148 @@
 [
   {
-    "id": "first_breath",
-    "display_name": "First Breath",
+    "id": "first_harvest",
+    "display_name": "First Harvest",
     "act": 0,
-    "arc_beat": "You did something. A qubit you steered around its Bloch sphere came back to where it started, signed solid angle in tow, and you incorporated what it traced. The world does not move without you turning a wheel. This is the first wheel. And notice what did NOT happen: nothing leaked, nothing faded, nothing was forgotten. The enclave holds. Here, only measurement leaves a scar — and the scar is yours.",
+    "arc_beat": "You turned time forward and the whole country answered — every plot settled, every yield landed at once. And notice what did NOT happen: nothing leaked, nothing faded, nothing was forgotten. The enclave holds. The Demos has eaten from its own ground by its own hand, and the shape of the meal is worth remembering: explore, strike, extract, reap. Every country ahead runs on the same four beats.",
     "predicates": [
       {
-        "type": "signature_growth_gte",
-        "value": 0.5,
-        "width": 0.4
+        "type": "gate_sequence_contains",
+        "gate": "reap",
+        "count": 1
+      }
+    ],
+    "standing_grants": {
+      "Hearth Keepers": {
+        "trust": 0.03
+      }
+    },
+    "arc_quest": {
+      "body": "First Harvest — reap one whole season by your own hand.",
+      "hint": "Ace hat (8): hold Shift and press F to reap the season. One reap is the whole quest — the tutorial bar and this meter are measuring the same gate.",
+      "state_predicates": [
+        {
+          "type": "gate_sequence_contains",
+          "gate": "reap",
+          "count": 1
+        }
+      ],
+      "math_note": "Structural count over the recorded action history (clamped hits/count): 1.0 at one reap gate. The history is session-scoped (64 rows, not saved) — after a load the next reap re-satisfies it."
+    }
+  },
+  {
+    "id": "loom_opens",
+    "display_name": "The Loom Opens",
+    "act": 0,
+    "arc_beat": "You spread one qubit across both its poles and the forest shimmered — neither sun nor moon, but the chord between them. A thing that can be two answers at once can be woven to another. The Operators call the weave a loom, and the loom is now yours to work.",
+    "predicates": [],
+    "_predicate_note": "Empty on purpose: flags with no predicates never auto-fire (QuestManager._evaluate_story_flags). This beat is fired exclusively by the Act-0 superposition step's unlock_flags handoff — the tutorial hands the spine forward so the Operator hat exists before the entanglement step needs it (Break #2).",
+    "standing_grants": {
+      "Hearth Keepers": {
+        "trust": 0.02
+      }
+    },
+    "arc_quest": null
+  },
+  {
+    "id": "arc_handover",
+    "display_name": "The Wheel Is Yours",
+    "act": 1,
+    "arc_beat": "Six lessons and the banner goes quiet. From here the island does not queue its asks one at a time — the Arc keeps every open door on one page, and the wheel passes to you. Check it the way a millwright checks the wind: often, and before committing the grain.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "loom_opens"
+      },
+      {
+        "type": "gate_sequence_contains",
+        "gate": "bell",
+        "count": 1
+      }
+    ],
+    "standing_grants": {},
+    "arc_quest": {
+      "body": "The Wheel Is Yours — open the Arc and read the island's open doors.",
+      "hint": "X opens the guide; I is the Arc tab. Every quest ahead lives there: A/D page the beats, a row key selects, E inspects its live meters, R accepts. The banner will still whisper the nearest ask — but the Arc is the whole sky.",
+      "state_predicates": [
+        {
+          "type": "gate_sequence_contains",
+          "gate": "bell",
+          "count": 1
+        }
+      ],
+      "math_note": "Fires with the tutorial's last gate (one Bell weave) — the beat marks the hand-off the moment Act 0 ends. The 2026-08-10 playtest asked for exactly this: 'Act 2 hands over the wheel abruptly — no beat marking the transition.' Session-scoped history; after a mid-claim load it re-readies on the next weave."
+    }
+  },
+  {
+    "id": "first_breath",
+    "display_name": "First Breath",
+    "act": 3,
+    "arc_beat": "You did something. A qubit you steered around its Bloch sphere came back to where it started, signed solid angle in tow, and you incorporated what it traced. Every word before this one was taught to you — this one you took from the land itself, and no faction owns it. And notice what did NOT happen: nothing leaked, nothing faded, nothing was forgotten. The enclave holds. Here, only measurement leaves a scar — and the scar is yours.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "spring_connects"
+      },
+      {
+        "type": "berry_consumed_count_gte",
+        "biome": "StarterForest",
+        "value": 1
       }
     ],
     "standing_grants": {},
     "arc_quest": {
       "body": "First Breath — steer one loop, and keep what it traced.",
-      "hint": "The first wheel: your home land's word is already yours, so a first breath needs a word you do NOT know — the forest holds one. Cross to StarterForest (the biome tabs), Icon hat (5), F on a plot to Berry-track its register, let it orbit — a berry ripens in about half a minute of watching — then R incorporates the new word it traced. One new word is the whole quest; the story tab (X) meter is measuring exactly this.",
+      "hint": "Icon hat 5: F berry-tracks a plot; a loop ripens in ~90s at ×1. ⏩ (or =) speeds the biome clock, and several tracked plots ripen together — F again STOPS a loop, so track and let it orbit. When the R chip reads Incorporate, R takes the word — the forest's, now yours, no faction in between. One new word is the whole quest; the story tab (X) meter is measuring exactly this.",
       "state_predicates": [
         {
-          "type": "signature_growth_gte",
-          "value": 0.5,
-          "width": 0.4
+          "type": "berry_consumed_count_gte",
+          "biome": "StarterForest",
+          "value": 1
         }
       ],
-      "math_note": "Soft gate on signature growth past the run's seeded baseline, center 0.5, width 0.4 — fires (score ≥ 0.85) once growth passes ≈0.85 icons, i.e. after 1 real incorporation."
+      "math_note": "Count gate on StarterForest berry_consumed_count ≥ 1 — fires exactly at the first incorporation (the ritual consumes the berry). The old signature_growth gate moved off this beat when teachings began growing the signature in act 1; berries are the only witness that the word came from the land."
+    }
+  },
+  {
+    "id": "spiral_breaks",
+    "display_name": "The Spiral Breaks",
+    "act": 3,
+    "arc_beat": "Harvest a word you have incorporated and read the receipt twice. Because you KNOW it — because you walked its loop and kept the shape — every harvest of it pays more than the strike cost. Up to four times more. Contracts fed you; teachings armed you; this is the third economy, and it is nobody's to grant. The spiral of spending to look breaks here.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "first_breath"
+      },
+      {
+        "type": "berry_consumed_count_gte",
+        "biome": "StarterForest",
+        "value": 2
+      }
+    ],
+    "standing_grants": {},
+    "arc_quest": {
+      "body": "The Spiral Breaks — take a second word from the land, then harvest what you know.",
+      "hint": "The ritual again: Icon hat (5), F tracks a fresh plot, ⏩ hurries the sky, R when ripe. Then strike and extract a plot whose word you have incorporated — the yield multiplies by how well the loop was walked (up to ×4). Incorporated words pay; taught words plant.",
+      "state_predicates": [
+        {
+          "type": "berry_consumed_count_gte",
+          "biome": "StarterForest",
+          "value": 2
+        }
+      ],
+      "math_note": "Count gate on StarterForest berry_consumed_count ≥ 2 — the second self-taken word. The ×4 is (bloch_r + 1)² on extraction of an incorporated axis (ProbeActions), so the pitch is measurable on the very next harvest."
     }
   },
   {
     "id": "forest_evolving",
     "display_name": "The Forest Stirs",
-    "act": 1,
+    "act": 3,
     "arc_beat": "Sunlight reached the canopy. The forest is oscillating now — trees, rabbits, and wolves trading amplitude back and forth in a coherent rhythm that never runs down. Anderson transport is live, but the forest has only spoken to you once. Listen longer.",
     "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "first_breath"
+      },
       {
         "type": "biome_evolving",
         "biome": "StarterForest"
@@ -66,7 +178,7 @@
   {
     "id": "forest_listener",
     "display_name": "The Forest Listens Back",
-    "act": 1,
+    "act": 3,
     "arc_beat": "Three signatures harvested from the same forest. The forest is no longer noise — patterns repeat, qubits return to where they started, and you can feel which loops are coherent and which are scribble. The Hearth Keepers have noticed someone is paying attention.",
     "predicates": [
       {
@@ -100,7 +212,7 @@
   {
     "id": "forest_communion",
     "display_name": "The Druid's Loop",
-    "act": 1,
+    "act": 3,
     "arc_beat": "Five signatures, and the total signed solid angle you've harvested from this forest exceeds two full hemispheres. The chaotic cancellations are gone — every trace is deliberate. You are not just incorporating, you are choosing what to incorporate. The forest answers in kind.",
     "predicates": [
       {
@@ -145,7 +257,7 @@
   {
     "id": "loop_remembers",
     "display_name": "What Survives I — The Loop Remembers",
-    "act": 1,
+    "act": 3,
     "arc_beat": "Ask what you actually harvested from those loops. Not sunlight. Not moonlight. The qubit came back to the exact state it left — every population restored, every coherence rewound — and still it paid you. What it paid was the area of the walk itself: the solid angle the loop enclosed on its sphere. Two roads from the same door to the same door carry different sky, and walk a loop backward and the world subtracts what it gave. The old texts have a name for a number that forgets everything about a journey except its shape: an invariant. It is the first of four. The enclave forbids decay; it cannot forbid shape.",
     "predicates": [
       {
@@ -180,20 +292,22 @@
     "id": "village_stirs",
     "display_name": "The Village Stirs",
     "act": 1,
-    "arc_beat": "Fire and water are in permanent contest at the hearth. The mill gears are idle. Labor turns flour into bread, but the second attractor hasn't formed — the Commerce bistability is dormant. Something upstream is missing, and the village knows it.",
+    "arc_beat": "Fire and water are in permanent contest at the hearth. The mill gears are idle. Labor turns flour into bread, but the second attractor hasn't formed — the Commerce bistability is dormant. Something upstream is missing, and the village knows it. The Millwright's Union knows it too — and they have started counting which deliveries arrive with your name on them.",
     "predicates": [
       {
         "type": "story_flag_set",
-        "id": "forest_listener"
+        "id": "first_harvest"
       },
       {
         "type": "biome_evolving",
         "biome": "Village"
       },
       {
-        "type": "berry_consumed_count_gte",
-        "biome": "Village",
-        "value": 1
+        "type": "standing_gte",
+        "faction": "Millwright's Union",
+        "channel": "access",
+        "value": 0.02,
+        "width": 0.008
       }
     ],
     "standing_grants": {
@@ -204,33 +318,31 @@
     "arc_quest": {
       "type": 1,
       "category": "ARC",
-      "body": "Apprentice to the Mill — show the Millwright's Union you know the Village's grain and gears, and they will teach you the windmill (💨/🔨).",
-      "hint": "Become FAMILIAR with the Village: Berry-track its registers, ripen them, and incorporate. This quest lives on the Arc tab (X → I): accept it there (R on its row), then work Village berries until it reads READY and claim it on that same row — the claim is when the Millwrights teach you the windmill (💨/🔨). Only a word you know can be planted: after the claim, Icon hat (5) R on an empty Village plot offers it, and the gears wake. When a faction's word lives in a land, their board opens there — that is how every country ahead will open.",
+      "body": "Apprentice to the Mill — keep Millwright contracts until the Union counts you reliable, and they will teach you the windmill (💨/🔨).",
+      "hint": "C opens the board; Y is the market tab. Accept a Millwright delivery (its row key, then R) — the board counts only what you gather AFTER you accept, so accept first, harvest fresh, then claim in Commitments (C → U, row key, R). Each kept delivery raises access; the have/target line moves. The claim of THIS quest is the teaching: the Millwrights say the windmill (💨/🔨) slowly enough to keep, and the word joins your signature. Only a word you know can be planted: Icon hat (5), R on an empty Village plot offers it, and the gears wake. When a faction's word lives in a land, their board opens there — that is how every country ahead will open.",
       "faction": "Millwright's Union",
       "state_predicates": [
         {
-          "type": "berry_consumed_count_gte",
-          "biome": "Village",
-          "value": 3
+          "type": "standing_gte",
+          "faction": "Millwright's Union",
+          "channel": "access",
+          "value": 0.06,
+          "width": 0.01
         }
       ],
       "reward_north": "💨",
       "reward_south": "🔨",
       "reward_icon_north": "💨",
       "reward_icon_south": "🔨",
-      "math_note": "Count gate on Village berry_consumed_count ≥ 3 — fires exactly at 3 consumed berries in the Village register."
+      "math_note": "Soft gate on Millwright's Union access, center 0.06, width 0.01 — fires at access ≈0.069, about 3 kept deliveries at +0.02 each; the Act-0 contracts step's own delivery is the first."
     }
   },
   {
     "id": "new_voices",
     "display_name": "New Voices",
     "act": 2,
-    "arc_beat": "The village listens for new voices: Icon hat (5), an EMPTY plot, R — plant a word (costs 🌱). Or track a live loop (Icon-hat F) until it ripens, then R incorporates it. Every act ahead asks for more words than the enclave seeded you — your signature is your reach.",
+    "arc_beat": "A word was taught to you and now it wants ground. The village listens for new voices: Icon hat (5), an EMPTY plot, R — plant a word you know (costs 🌱). A planted word is a new qubit, and a new qubit is new law: the Hamiltonian you farm is the one you author. Every act ahead asks for more words than the enclave seeded you — your signature is your reach.",
     "predicates": [
-      {
-        "type": "story_flag_set",
-        "id": "loop_remembers"
-      },
       {
         "type": "story_flag_set",
         "id": "village_stirs"
@@ -238,18 +350,53 @@
     ],
     "standing_grants": {},
     "arc_quest": {
-      "body": "Plant a New Voice — grow your signature past what this run has already taught you.",
-      "hint": "Two doors, one ritual. PLANT: Icon hat (5), pick an EMPTY plot (G H J K L ; past the live bubbles) and press R — a picker opens; Q/E choose the icon, R/its key plants it (costs 🌱). HARVEST: on a live plot, Icon-hat F tracks its loop; when the R chip reads Incorporate, press R and the word is yours.",
+      "body": "Plant a New Voice — put a word you know into the ground and hear the biome change key.",
+      "hint": "Icon hat (5), pick an EMPTY plot (G H J K L ; past the live bubbles) and press R — a picker opens; Q/E choose the icon, R/its key plants it (costs 🌱 + the south pole's emoji). The picker shows what the planting does to the land's spectrum before you commit. Planting is how taught words become worked land — and later, past the hedge, the forest will teach you how to take words no faction owns.",
       "faction": "Millwright's Union",
       "state_predicates": [
         {
-          "type": "signature_growth_gte",
-          "value": 0.5,
-          "width": 0.4
+          "type": "gate_sequence_contains",
+          "gate": "plant",
+          "count": 1
         }
       ],
-      "math_note": "Soft gate on signature growth past the run's seeded baseline, center 0.5, width 0.4 — fires once growth passes ≈0.85 icons, i.e. after 1 more incorporation this run."
+      "math_note": "Structural count over the recorded action history: 1.0 the instant one plant lands (clamped hits/count, same law as the tutorial's strike and reap gates). Session-scoped history — after a load the next plant re-satisfies it."
     }
+  },
+  {
+    "id": "two_tables",
+    "display_name": "Two Tables",
+    "act": 2,
+    "arc_beat": "The quartermaster chalks your deliveries; the kitchen remembers your water. Two tables now keep a place for you, and each watches what you carry to the other. The windmill grinds what the kettle pours — one village, one Hamiltonian, two dreams for it. Nobody asks you to choose. Everybody counts.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "village_stirs"
+      },
+      {
+        "type": "standing_gte",
+        "faction": "Millwright's Union",
+        "channel": "access",
+        "value": 0.05,
+        "width": 0.01
+      },
+      {
+        "type": "standing_gte",
+        "faction": "Hearth Keepers",
+        "channel": "trust",
+        "value": 0.35,
+        "width": 0.02
+      }
+    ],
+    "standing_grants": {
+      "Millwright's Union": {
+        "attention": 0.02
+      },
+      "Hearth Keepers": {
+        "attention": 0.02
+      }
+    },
+    "arc_quest": null
   },
   {
     "id": "woodlot_door",
@@ -351,21 +498,23 @@
     "arc_quest": {
       "type": 1,
       "category": "ARC",
-      "body": "The Teaching — show the Millwright's Union the village's own grain and they will teach you timber (🪵/🪓).",
-      "hint": "This quest lives on the Arc tab (X → I): accept it there (R on its row), then work Village berries — Icon hat (5), F tracks a register, ripen, R incorporates — until the row reads READY, then claim it on that same row. The claim IS the teaching: 🪵/🪓 joins your signature. Contracts pay goods and standing; only a teaching grows your words.",
+      "body": "The Teaching — keep the Union's timber contracts moving and they will teach you timber itself (🪵/🪓).",
+      "hint": "This quest lives on the Arc tab (X → I): accept it there (R on its row), then keep Millwright deliveries — C opens the board, Y the market tab, accept, gather fresh, claim in Commitments (C → U) — until the row reads READY, then claim it on that same row. The claim IS the teaching: 🪵/🪓 joins your signature. Contracts pay goods and standing; only a teaching grows your words.",
       "faction": "Millwright's Union",
       "state_predicates": [
         {
-          "type": "berry_consumed_count_gte",
-          "biome": "Village",
-          "value": 4
+          "type": "standing_gte",
+          "faction": "Millwright's Union",
+          "channel": "access",
+          "value": 0.1,
+          "width": 0.01
         }
       ],
       "reward_north": "🪵",
       "reward_south": "🪓",
       "reward_icon_north": "🪵",
       "reward_icon_south": "🪓",
-      "math_note": "Count gate on Village berry_consumed_count ≥ 4 — fires exactly at 4 consumed berries."
+      "math_note": "Soft gate on Millwright's Union access, center 0.10, width 0.01 — fires at access ≈0.109, about 2 kept deliveries past the flag's own 0.05 gate (each +0.02, plus the chapter's standing grants en route)."
     }
   },
   {
@@ -409,16 +558,18 @@
     "id": "timber_rhythm",
     "display_name": "Timber Country — The Timber Rhythm",
     "act": 2,
-    "arc_beat": "Woodlot and village keep one time now, and you have begun harvesting the beat itself — signatures pulled straight from timber country's qubits. At the gear-bench the Union's elders say your name and the word 'factory' in the same breath.",
+    "arc_beat": "Woodlot and village keep one time now, and the Union's ledgers show it — timber moving on your word, season after season. At the gear-bench the elders say your name and the word 'factory' in the same breath.",
     "predicates": [
       {
         "type": "story_flag_set",
         "id": "woodlot_wakes"
       },
       {
-        "type": "berry_consumed_count_gte",
-        "biome": "Woodlot",
-        "value": 2
+        "type": "standing_gte",
+        "faction": "Millwright's Union",
+        "channel": "access",
+        "value": 0.13,
+        "width": 0.01
       }
     ],
     "standing_grants": {
@@ -430,21 +581,23 @@
     "arc_quest": {
       "type": 1,
       "category": "ARC",
-      "body": "The Gear-Bench — keep working the woodlot's registers and the Union will teach you its deep word: the factory axis (🏭/⚙).",
-      "hint": "The teaching ritual, second verse: Arc tab (X → I), accept (R), then Woodlot berries — Icon hat (5), F track, ripen, R incorporate — until READY, then claim on that row. 🏭/⚙ is the word the industrial quarter will one day open through.",
+      "body": "The Gear-Bench — keep timber country's contracts turning and the Union will teach you its deep word: the factory axis (🏭/⚙).",
+      "hint": "The teaching ritual, second verse: Arc tab (X → I), accept (R), then keep Millwright deliveries (C board, accept → gather fresh → claim in C → U) until READY, then claim on that row. 🏭/⚙ is the word the industrial quarter will one day open through.",
       "faction": "Millwright's Union",
       "state_predicates": [
         {
-          "type": "berry_consumed_count_gte",
-          "biome": "Woodlot",
-          "value": 4
+          "type": "standing_gte",
+          "faction": "Millwright's Union",
+          "channel": "access",
+          "value": 0.17,
+          "width": 0.01
         }
       ],
       "reward_north": "🏭",
       "reward_south": "⚙",
       "reward_icon_north": "🏭",
       "reward_icon_south": "⚙",
-      "math_note": "Count gate on Woodlot berry_consumed_count ≥ 4 — fires exactly at 4 consumed berries."
+      "math_note": "Soft gate on Millwright's Union access, center 0.17, width 0.01 — fires at access ≈0.179, about 2 kept deliveries past the flag's 0.13 gate; the whole Millwright chapter climbs one access ladder."
     }
   },
   {
@@ -545,21 +698,23 @@
     "arc_quest": {
       "type": 1,
       "category": "ARC",
-      "body": "The Teaching — show the Hearth Keepers you still tend the forest that fills their kettles, and they will teach you water (💧/🌊).",
-      "hint": "This quest lives on the Arc tab (X → I): accept it there (R on its row), then work StarterForest berries — Icon hat (5), F tracks a register, ripen, R incorporates — until the row reads READY, then claim it on that same row. The claim IS the teaching: 💧/🌊 joins your signature. Deliveries pay goods and trust; only a teaching grows your words.",
+      "body": "The Teaching — keep carrying water for the Hearth Keepers, and they will teach you water itself (💧/🌊).",
+      "hint": "This quest lives on the Arc tab (X → I): accept it there (R on its row), then keep Hearth Keeper deliveries — C board, Y market tab, accept, gather fresh, claim in Commitments (C → U) — until the row reads READY, then claim it on that same row. The claim IS the teaching: 💧/🌊 joins your signature. Deliveries pay goods and trust; only a teaching grows your words.",
       "faction": "Hearth Keepers",
       "state_predicates": [
         {
-          "type": "berry_consumed_count_gte",
-          "biome": "StarterForest",
-          "value": 8
+          "type": "standing_gte",
+          "faction": "Hearth Keepers",
+          "channel": "trust",
+          "value": 0.5,
+          "width": 0.02
         }
       ],
       "reward_north": "💧",
       "reward_south": "🌊",
       "reward_icon_north": "💧",
       "reward_icon_south": "🌊",
-      "math_note": "Count gate on StarterForest berry_consumed_count ≥ 8 — fires exactly at 8 consumed berries."
+      "math_note": "Soft gate on Hearth Keepers trust, center 0.50, width 0.02 — fires at trust ≈0.517, about 2 kept deliveries past the flag's 0.42 gate (each +0.05, plus the chapter's grants en route)."
     }
   },
   {
@@ -608,11 +763,6 @@
       {
         "type": "story_flag_set",
         "id": "spring_wakes"
-      },
-      {
-        "type": "berry_consumed_count_gte",
-        "biome": "FreshwaterSpring",
-        "value": 2
       }
     ],
     "standing_grants": {

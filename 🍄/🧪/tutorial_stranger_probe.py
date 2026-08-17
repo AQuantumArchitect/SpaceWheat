@@ -68,8 +68,8 @@ def main():
                     return str(s.get("key")).lower()
             return ""
 
-        _ORDER = ["core_loop", "vocabulary", "reap_season", "superposition",
-                  "entanglement", "contracts", "vocab_escape"]
+        _ORDER = ["core_loop", "reap_season", "contracts", "wayfinding",
+                  "superposition", "entanglement"]
 
         def chain_advanced_past(teach):
             # The Act-0 chain is strictly linear (each claim unlocks the next), so a LATER
@@ -126,37 +126,43 @@ def main():
             press("q", settle=10)
         run_step("core_loop", drive0)
 
-        # STEP 1 vocabulary — hint: Icon hat (5), F track, ripen, R incorporate.
-        def drive1(rnd):
-            press(fk, settle=8)
-            press("0", settle=4)
-            press("ghjkl;"[rnd % 6], settle=4)
-            press("e", settle=6)
-            press("5", settle=4)
-            press("ghjkl;"[rnd % 6], settle=4)
-            press("f", settle=6)
-            t("time_skip", phrames=900)
-            press("ghjkl;"[rnd % 6], settle=4)
-            press("r", settle=8)
-        run_step("vocabulary", drive1, rounds=14)
-
-        # STEP 2 reap_season — hint: Ace hat (8), Shift+F.
-        def drive2(_rnd):
+        # STEP 1 reap_season — hint: Ace hat (8), Shift+F.
+        def drive1(_rnd):
             press(dk, settle=8)
             press("8", settle=4)
             press("f", settle=12, shift=True)
-        run_step("reap_season", drive2)
+        run_step("reap_season", drive1)
 
-        # STEP 3 superposition — hint: Druid hat (0), E Hadamard, coherence>=0.3.
-        def drive3(rnd):
+        # STEP 2 contracts — hint: C board, accept, deliver 2x🌾. (The 2026-08-17
+        # reorder moved the ceremony up: it now rides the same Ace verbs step 0
+        # taught, and the granary usually holds the grain already.)
+        def drive2(_rnd):
+            if float(wallet().get("🌾", 0)) < 2:
+                press(dk, settle=6)
+                press("8", settle=4)
+                press("g", settle=4)
+                press("f", settle=8)
+                press("r", settle=10)
+                press("q", settle=8)
+        run_step("contracts", drive2, rounds=8)
+
+        # STEP 3 wayfinding — hint: the biome tabs; arrival IS the gate
+        # (active_biome_is). The berry ritual that used to wall both personas
+        # here is mid-game content now (act-3 first_breath).
+        def drive3(_rnd):
+            press(fk, settle=10)
+        run_step("wayfinding", drive3)
+
+        # STEP 4 superposition — hint: Druid hat (0), E Hadamard, coherence>=0.3.
+        def drive4(rnd):
             press(fk, settle=8)
             press("0", settle=4)
             press("ghjkl;"[rnd % 6], settle=4)
             press("e", settle=8)
-        run_step("superposition", drive3)
+        run_step("superposition", drive4)
 
-        # STEP 4 entanglement — hint: Operator (9), Shift-check two plots, R, pick Bell (Q).
-        def drive4(_rnd):
+        # STEP 5 entanglement — hint: Operator (9), Shift-check two plots, R, pick Bell (Q).
+        def drive5(_rnd):
             press(fk, settle=8)
             press("9", settle=4)
             # Stray checks accumulate from plain re-presses (re-press on the
@@ -171,23 +177,7 @@ def main():
             press("r", settle=10)      # opens the gate picker
             press("q", settle=12)      # Bell
             t("time_skip", phrames=300)
-        run_step("entanglement", drive4, rounds=8)
-
-        # STEP 5 contracts — hint: C board, accept, deliver 2x🌾.
-        def drive5(_rnd):
-            if float(wallet().get("🌾", 0)) < 2:
-                press(dk, settle=6)
-                press("8", settle=4)
-                press("g", settle=4)
-                press("f", settle=8)
-                press("r", settle=10)
-                press("q", settle=8)
-        run_step("contracts", drive5, rounds=8)
-
-        # STEP 6 vocab_escape — signature>=4: keep incorporating. Ripeness is a
-        # genuine random walk since the Born-seed fix (PT6), so the 4th icon's
-        # arrival round varies run-to-run — give it real headroom.
-        run_step("vocab_escape", drive1, rounds=28)
+        run_step("entanglement", drive5, rounds=8)
 
         print("\ncompleted steps:", completed)
         print("final wallet:", json.dumps(wallet(), ensure_ascii=False))

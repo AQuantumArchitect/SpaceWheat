@@ -120,26 +120,55 @@ def test_focusing_empty_ground_is_not_silent() -> None:
     )
 
 
-def test_the_vocabulary_step_teaches_the_whole_ritual_in_one_banner() -> None:
+def test_act0_teaches_no_berry_ritual() -> None:
+    """The 2026-08-17 reorder: berry phase is mid-game content ('we're not
+    trying to teach a physics class' — owner). Act 0 must contain no track/
+    incorporate step, and no tutorial gate may ask for signature growth —
+    both walls the 2026-08-10 playtest personas hit in the first two minutes."""
+    for s in steps():
+        assert str(s.get("tutorial_teaches", "")) not in ("vocabulary", "vocab_escape"), (
+            "the berry/vocabulary steps moved to the act-3 chapter "
+            "(first_breath, story_flags.json) — they must not regrow here"
+        )
+        for p in s.get("state_predicates", []) or []:
+            assert str(p.get("type", "")) not in (
+                "signature_size_gte", "signature_growth_gte",
+                "berry_consumed_count_gte", "berry_total_phase_gte",
+            ), (
+                "step %s gates on the berry/signature ritual — that is mid-game "
+                "content now" % s.get("tutorial_step")
+            )
+
+
+def test_the_incorporation_teaching_survives_the_banner_and_names_the_wait() -> None:
     """Incorporating an icon is press-5 → F → WAIT → R. The wait is the part a
     player cannot guess, and the original hint omitted it entirely, so both
     personas fell back on the explore/strike verbs they already knew and got
-    nowhere."""
-    step1 = [s for s in steps() if int(s.get("tutorial_step", -1)) == 1]
-    assert step1, "tutorial step 1 (vocabulary) is missing"
-    hint = str(step1[0]["tutorial_hint"])
-    assert len(hint) <= max_chars(), (
-        "step 1's hint must fit the banner whole (%d chars): its four beats are "
-        "one ritual and a player who sees only the first two cannot finish it"
-        % max_chars()
+    nowhere. The teaching now lives on the act-3 beat `first_breath`
+    (story_flags.json) — same banner physics apply: the first sentence is what
+    a player actually reads (arc hints sentence-cut at OBJECTIVE_MAX_CHARS),
+    and it must name the hat, the tracking verb, and the honest wait."""
+    flags = json.loads((ROOT / "Core/Quests/data/story_flags.json").read_text(encoding="utf-8"))
+    fb = next((f for f in flags if f.get("id") == "first_breath"), None)
+    assert fb is not None, "first_breath (the incorporation teaching) is missing"
+    assert int(fb.get("act", -1)) >= 3, (
+        "first_breath is the berry chapter's opener — mid-game (act 3+), never "
+        "the on-ramp (the 2026-08-17 reorder)"
     )
-    assert "5" in hint, "must name the Icon hat key"
-    assert re.search(r"\bF\b", hint) and re.search(r"\bR\b", hint), (
-        "must name both verbs: F tracks, R incorporates"
+    hint = str((fb.get("arc_quest") or {}).get("hint", ""))
+    first = re.split(r"(?<=[.!?])\s", hint)[0]
+    assert len(first) <= max_chars(), (
+        "first_breath's hint lead is %d chars, over the %d-char banner — the one "
+        "line a player reads would be a stump" % (len(first), max_chars())
     )
+    assert "5" in first, "the lead must name the Icon hat key"
+    assert re.search(r"\bF\b", first), "the lead must name the tracking verb F"
+    assert re.search(r"\bR\b", hint), "the hint must name R (incorporate)"
     assert re.search(r"wait|orbit|ripe|clock|⏩", hint, re.I), (
         "must name the TIME beat — the loop ripens in real time, and that is the "
-        "only step of the ritual that isn't a key press. Naming the clock is the "
-        "better answer than naming a duration: two legs measured ~90s at ×1, so "
-        "an authored '~30s' was simply wrong, and it pointed at no remedy."
+        "only step of the ritual that isn't a key press."
+    )
+    assert "90" in hint, (
+        "must carry the honest duration: two legs measured ~90s at ×1, and the "
+        "old authored '~30s'/'half a minute' was simply wrong"
     )

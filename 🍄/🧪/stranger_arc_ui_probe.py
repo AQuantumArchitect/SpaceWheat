@@ -53,8 +53,10 @@ SEL_KEYS = ["g", "h", "j", "k", "l", ";"]
 # The Act-0 chain, in unlock order (tutorial_arc.json). The chain is strictly linear
 # (each step's claim unlocks the next), so a LATER step being live proves an earlier one
 # completed — even when it auto-claimed the instant its condition was already met.
-EXPECTED = ["core_loop", "vocabulary", "reap_season", "superposition",
-            "entanglement", "contracts", "vocab_escape"]
+# 2026-08-17 reorder: berry/vocabulary left Act 0 for the act-3 chapter; the
+# contracts ceremony moved up; wayfinding makes the crossing its own beat.
+EXPECTED = ["core_loop", "reap_season", "contracts", "wayfinding",
+            "superposition", "entanglement"]
 
 
 def main():
@@ -212,68 +214,26 @@ def main():
             press("q", settle=10)
         run_auto("core_loop", drive0)
 
-        # STEP 1 vocabulary — Icon hat (5): F track, ripen, R incorporate → signature 3.
-        def drive1(rnd):
-            press(fk, settle=8)
-            press("0", settle=4)
-            press("ghjkl;"[rnd % 6], settle=4)
-            press("e", settle=6)
-            press("5", settle=4)
-            press("ghjkl;"[rnd % 6], settle=4)
-            press("f", settle=6)
-            t("time_skip", phrames=900)
-            press("ghjkl;"[rnd % 6], settle=4)
-            press("r", settle=8)
-        run_auto("vocabulary", drive1, rounds=14)
-
-        # STEP 2 reap_season — Ace hat (8): Shift+F.
-        def drive2(_rnd):
+        # STEP 1 reap_season — Ace hat (8): Shift+F.
+        def drive1(_rnd):
             press(dk, settle=8)
             press("8", settle=4)
             press("f", settle=12, shift=True)
-        run_auto("reap_season", drive2)
+        run_auto("reap_season", drive1)
 
-        # STEP 3 superposition — Druid hat (0): E Hadamard until coherence ≥ 0.3.
-        def drive3(rnd):
-            press(fk, settle=8)
-            press("0", settle=4)
-            press("ghjkl;"[rnd % 6], settle=4)
-            press("e", settle=8)
-        run_auto("superposition", drive3)
-
-        # BREAK #2 GATE: completing step 3 must have fired forest_listener, or the
-        # Operator hat stays locked and step 4 (below) cannot be driven at all.
-        ff = flags_fired()
-        if "forest_listener" in ff:
-            print("  ✓ forest_listener fired from the tutorial — Operator hat unlocked for step 4")
-        else:
-            note("forest_listener did NOT fire on step-3 completion — Operator hat stays locked "
-                 "under player-parity enforcement, dead-ending the entanglement step (Break #2)")
-
-        # STEP 4 entanglement — Operator hat (9): Shift-check a pair, R, Bell (Q).
-        def drive4(_rnd):
-            press(fk, settle=8)
-            press("9", settle=4)
-            if t("instrument_state").get("checked_plots"):
-                t("press_key", keycode=39, settle_frames=6)  # ' = bulk clear
-            press("g", settle=6, shift=True)
-            press("h", settle=6, shift=True)
-            press("r", settle=10)   # gate picker
-            press("q", settle=12)   # Bell
-            t("time_skip", phrames=300)
-        run_auto("entanglement", drive4, rounds=8)
-
-        # STEP 5 contracts — the MANUAL ceremony, real keys only.
-        where, q5 = find_step("contracts")
+        # STEP 2 contracts — the MANUAL ceremony, real keys only. Moved up in the
+        # 2026-08-17 reorder: it rides the same Ace verbs step 0 taught, and the
+        # accept→gather→claim grammar is the early game's whole economy now.
+        where, q2 = find_step("contracts")
         if where != "offer":
             note("contracts step is not an accept-me offer (where=%s) — it must NOT auto-accept" % where)
         else:
             if accept_via_arc_ui("is buying"):
-                where2, q5b = find_step("contracts")
+                where2, q2b = find_step("contracts")
                 if where2 != "active":
                     note("contracts step did not go active after the X→Arc R-accept (where=%s)" % where2)
                 else:
-                    qid = int(q5b.get("id", -1))
+                    qid = int(q2b.get("id", -1))
                     delivered = False
                     for rnd in range(12):
                         if float(wallet().get("🌾", 0)) < 2:
@@ -295,9 +255,42 @@ def main():
                     if not delivered:
                         note("contracts step never delivered through the Commitments UI (silent stall)")
 
-        # STEP 6 vocab_escape — signature ≥ 4: keep incorporating (drive1). Ripeness is a
-        # genuine random walk (PT6 Born-seed fix), so give it real headroom.
-        run_auto("vocab_escape", drive1, rounds=28)
+        # STEP 3 wayfinding — the crossing is the whole ask (active_biome_is).
+        def drive3(_rnd):
+            press(fk, settle=10)
+        run_auto("wayfinding", drive3)
+
+        # STEP 4 superposition — Druid hat (0): E Hadamard until coherence ≥ 0.3.
+        def drive4(rnd):
+            press(fk, settle=8)
+            press("0", settle=4)
+            press("ghjkl;"[rnd % 6], settle=4)
+            press("e", settle=8)
+        run_auto("superposition", drive4)
+
+        # BREAK #2 GATE: completing step 4 must have fired loom_opens, or the
+        # Operator hat stays locked and step 5 (below) cannot be driven at all.
+        # (forest_listener, the old handoff, now fires naturally in the act-3
+        # berry chapter — the tutorial no longer force-fires it.)
+        ff = flags_fired()
+        if "loom_opens" in ff:
+            print("  ✓ loom_opens fired from the tutorial — Operator hat unlocked for step 5")
+        else:
+            note("loom_opens did NOT fire on step-4 completion — Operator hat stays locked "
+                 "under player-parity enforcement, dead-ending the entanglement step (Break #2)")
+
+        # STEP 5 entanglement — Operator hat (9): Shift-check a pair, R, Bell (Q).
+        def drive5(_rnd):
+            press(fk, settle=8)
+            press("9", settle=4)
+            if t("instrument_state").get("checked_plots"):
+                t("press_key", keycode=39, settle_frames=6)  # ' = bulk clear
+            press("g", settle=6, shift=True)
+            press("h", settle=6, shift=True)
+            press("r", settle=10)   # gate picker
+            press("q", settle=12)   # Bell
+            t("time_skip", phrames=300)
+        run_auto("entanglement", drive5, rounds=8)
 
         print("\ncompleted steps:", completed)
         print("final wallet:", json.dumps(wallet(), ensure_ascii=False))
