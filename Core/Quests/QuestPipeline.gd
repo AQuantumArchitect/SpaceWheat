@@ -46,6 +46,12 @@ static func from_market_contract(contract, biome) -> Dictionary:
 	var planned := QuestRewards.plan_resource_rewards(raw, faction_dict)
 	if not planned.is_empty():
 		raw["reward_resources"] = planned
+		# Reputation pays: bake the ROLL-TIME trust bonus onto the offer so the
+		# board can show the number this roll actually used (preview == claim —
+		# trust earned after accepting never retro-boosts a rolled contract).
+		var rep := QuestRewards.standing_reward_bonus(str(raw.get("faction", "")))
+		if rep > 0.0:
+			raw["standing_reward_bonus"] = rep
 	var quest := Quest.normalize(raw, Quest.SOURCE_MARKET)
 	QuestVoice.apply(quest)  # faction-voiced body/full_text (replaces the bland projection line)
 	return quest

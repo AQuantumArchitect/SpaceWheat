@@ -1045,7 +1045,14 @@ func _offer_reward_text(offer: Dictionary) -> String:
 			parts.append("%s×%d" % [e.emoji, int(round(e.amount))])
 		if entries.size() > 3:
 			parts.append("…")
-		return "pays " + " ".join(parts)
+		var text := "pays " + " ".join(parts)
+		# Reputation pays — the trust bonus BAKED INTO this roll (stamped at
+		# offer creation, QuestPipeline). The loop must be legible: kept
+		# contracts → trust → better pay → more contracts.
+		var rep := float(offer.get("standing_reward_bonus", 0.0))
+		if rep > 0.005:
+			text += "  ⭐+%d%%" % int(round(rep * 100.0))
+		return text
 	return "pays ?"
 
 
