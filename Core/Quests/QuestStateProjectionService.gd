@@ -30,8 +30,8 @@ func observe_biome(biome, delta: float = 0.0) -> Dictionary:
 	_last_biome = biome
 	var obs = FactionStateMatcher.extract_observables(null, biome)
 	var biome_name = ""
-	if biome and biome.has_method("get"):
-		biome_name = str(biome.get("biome_name"))
+	if biome and biome.has_method("get_biome_type"):
+		biome_name = str(biome.get_biome_type())
 	# Predicates read the PURE-STATE coherence scale (reachable [0,1]); the
 	# legacy alignment scale caps at ~1/dim² and made every coherence_at_least
 	# ≥ 0.3 unreachable (tutorial superposition, pond_breathes, the_crossing).
