@@ -28,6 +28,7 @@ const SAMPLES := {
 	"biome_spectral_gap_lte":   {"type": "biome_spectral_gap_lte", "biome": "Village", "value": 0.55},
 	"gate_sequence_contains":   {"type": "gate_sequence_contains", "gate": "hadamard", "count": 3},
 	"biome_evolving":           {"type": "biome_evolving", "biome": "BloodLedger"},
+	"active_biome_is":          {"type": "active_biome_is", "biome": "Village"},
 	# What Turns (gauge/holonomy):
 	"biome_betti_gte":          {"type": "biome_betti_gte", "biome": "StarterForest", "count": 1},
 	"biome_loop_closed_upstairs": {"type": "biome_loop_closed_upstairs", "biome": "StarterForest"},
