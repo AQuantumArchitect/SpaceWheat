@@ -1,36 +1,154 @@
 [
   {
-    "id": "first_breath",
-    "display_name": "First Breath",
+    "id": "first_harvest",
+    "display_name": "First Harvest",
     "act": 0,
-    "arc_beat": "You did something. A qubit you steered around its Bloch sphere came back to where it started, signed solid angle in tow, and you incorporated what it traced. The world does not move without you turning a wheel. This is the first wheel. And notice what did NOT happen: nothing leaked, nothing faded, nothing was forgotten. The enclave holds. Here, only measurement leaves a scar — and the scar is yours.",
+    "campaign": "demos",
+    "arc_beat": "You turned time forward and the whole country answered — every plot settled, every yield landed at once. And notice what did NOT happen: nothing leaked, nothing faded, nothing was forgotten. The enclave holds. The Demos has eaten from its own ground by its own hand, and the shape of the meal is worth remembering: explore, strike, extract, reap. Every country ahead runs on the same four beats.",
     "predicates": [
       {
-        "type": "signature_growth_gte",
-        "value": 0.5,
-        "width": 0.4
+        "type": "gate_sequence_contains",
+        "gate": "reap",
+        "count": 1
+      }
+    ],
+    "standing_grants": {
+      "Hearth Keepers": {
+        "trust": 0.03
+      }
+    },
+    "arc_quest": {
+      "body": "First Harvest — reap one whole season by your own hand.",
+      "hint": "Ace hat (8): hold Shift and press F to reap the season. One reap is the whole quest — the tutorial bar and this meter are measuring the same gate.",
+      "state_predicates": [
+        {
+          "type": "gate_sequence_contains",
+          "gate": "reap",
+          "count": 1
+        }
+      ],
+      "math_note": "Structural count over the recorded action history (clamped hits/count): 1.0 at one reap gate. The history is session-scoped (64 rows, not saved) — after a load the next reap re-satisfies it."
+    }
+  },
+  {
+    "id": "loom_opens",
+    "display_name": "The Loom Opens",
+    "act": 0,
+    "campaign": "demos",
+    "arc_beat": "You spread one qubit across both its poles and the forest shimmered — neither sun nor moon, but the chord between them. A thing that can be two answers at once can be woven to another. The Operators call the weave a loom, and the loom is now yours to work.",
+    "predicates": [],
+    "_predicate_note": "Empty on purpose: flags with no predicates never auto-fire (QuestManager._evaluate_story_flags). This beat is fired exclusively by the Act-0 superposition step's unlock_flags handoff — the tutorial hands the spine forward so the Operator hat exists before the entanglement step needs it (Break #2).",
+    "standing_grants": {
+      "Hearth Keepers": {
+        "trust": 0.02
+      }
+    },
+    "arc_quest": null
+  },
+  {
+    "id": "arc_handover",
+    "display_name": "The Wheel Is Yours",
+    "act": 1,
+    "campaign": "demos",
+    "arc_beat": "Six lessons and the banner goes quiet. From here the island does not queue its asks one at a time — the Arc keeps every open door on one page, and the wheel passes to you. Check it the way a millwright checks the wind: often, and before committing the grain.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "loom_opens"
+      },
+      {
+        "type": "gate_sequence_contains",
+        "gate": "bell",
+        "count": 1
+      }
+    ],
+    "standing_grants": {},
+    "arc_quest": {
+      "body": "The Wheel Is Yours — open the Arc and read the island's open doors.",
+      "hint": "X opens the guide; I is the Arc tab. Every quest ahead lives there: A/D page the beats, a row key selects, E inspects its live meters, R accepts. The banner will still whisper the nearest ask — but the Arc is the whole sky.",
+      "state_predicates": [
+        {
+          "type": "gate_sequence_contains",
+          "gate": "bell",
+          "count": 1
+        }
+      ],
+      "math_note": "Fires with the tutorial's last gate (one Bell weave) — the beat marks the hand-off the moment Act 0 ends. The 2026-08-10 playtest asked for exactly this: 'Act 2 hands over the wheel abruptly — no beat marking the transition.' Session-scoped history; after a mid-claim load it re-readies on the next weave."
+    }
+  },
+  {
+    "id": "first_breath",
+    "display_name": "First Breath",
+    "act": 3,
+    "campaign": "demos",
+    "arc_beat": "You did something. A qubit you steered around its Bloch sphere came back to where it started, signed solid angle in tow, and you incorporated what it traced. Every word before this one was taught to you — this one you took from the land itself, and no faction owns it. And notice what did NOT happen: nothing leaked, nothing faded, nothing was forgotten. The enclave holds. Here, only measurement leaves a scar — and the scar is yours.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "spring_connects"
+      },
+      {
+        "type": "berry_consumed_count_gte",
+        "biome": "StarterForest",
+        "value": 1
       }
     ],
     "standing_grants": {},
     "arc_quest": {
       "body": "First Breath — steer one loop, and keep what it traced.",
-      "hint": "The first wheel: your home land's word is already yours, so a first breath needs a word you do NOT know — the forest holds one. Cross to StarterForest (the biome tabs), Icon hat (5), F on a plot to Berry-track its register, let it orbit — a berry ripens in about half a minute of watching — then R incorporates the new word it traced. One new word is the whole quest; the story tab (X) meter is measuring exactly this.",
+      "hint": "Icon hat 5: F berry-tracks a plot; a loop ripens in ~90s at ×1. ⏩ (or =) speeds the biome clock, and several tracked plots ripen together — F again STOPS a loop, so track and let it orbit. When the R chip reads Incorporate, R takes the word — the forest's, now yours, no faction in between. One new word is the whole quest; the story tab (X) meter is measuring exactly this.",
       "state_predicates": [
         {
-          "type": "signature_growth_gte",
-          "value": 0.5,
-          "width": 0.4
+          "type": "berry_consumed_count_gte",
+          "biome": "StarterForest",
+          "value": 1
         }
       ],
-      "math_note": "Soft gate on signature growth past the run's seeded baseline, center 0.5, width 0.4 — fires (score ≥ 0.85) once growth passes ≈0.85 icons, i.e. after 1 real incorporation."
+      "math_note": "Count gate on StarterForest berry_consumed_count ≥ 1 — fires exactly at the first incorporation (the ritual consumes the berry). The old signature_growth gate moved off this beat when teachings began growing the signature in act 1; berries are the only witness that the word came from the land."
+    }
+  },
+  {
+    "id": "spiral_breaks",
+    "display_name": "The Spiral Breaks",
+    "act": 3,
+    "campaign": "demos",
+    "arc_beat": "Harvest a word you have incorporated and read the receipt twice. Because you KNOW it — because you walked its loop and kept the shape — every harvest of it pays more than the strike cost. Up to four times more. Contracts fed you; teachings armed you; this is the third economy, and it is nobody's to grant. The spiral of spending to look breaks here.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "first_breath"
+      },
+      {
+        "type": "berry_consumed_count_gte",
+        "biome": "StarterForest",
+        "value": 2
+      }
+    ],
+    "standing_grants": {},
+    "arc_quest": {
+      "body": "The Spiral Breaks — take a second word from the land, then harvest what you know.",
+      "hint": "The ritual again: Icon hat (5), F tracks a fresh plot, ⏩ hurries the sky, R when ripe. Then strike and extract a plot whose word you have incorporated — the yield multiplies by how well the loop was walked (up to ×4). Incorporated words pay; taught words plant.",
+      "state_predicates": [
+        {
+          "type": "berry_consumed_count_gte",
+          "biome": "StarterForest",
+          "value": 2
+        }
+      ],
+      "math_note": "Count gate on StarterForest berry_consumed_count ≥ 2 — the second self-taken word. The ×4 is (bloch_r + 1)² on extraction of an incorporated axis (ProbeActions), so the pitch is measurable on the very next harvest."
     }
   },
   {
     "id": "forest_evolving",
     "display_name": "The Forest Stirs",
-    "act": 1,
+    "act": 3,
+    "campaign": "demos",
     "arc_beat": "Sunlight reached the canopy. The forest is oscillating now — trees, rabbits, and wolves trading amplitude back and forth in a coherent rhythm that never runs down. Anderson transport is live, but the forest has only spoken to you once. Listen longer.",
     "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "first_breath"
+      },
       {
         "type": "biome_evolving",
         "biome": "StarterForest"
@@ -66,7 +184,8 @@
   {
     "id": "forest_listener",
     "display_name": "The Forest Listens Back",
-    "act": 1,
+    "act": 3,
+    "campaign": "demos",
     "arc_beat": "Three signatures harvested from the same forest. The forest is no longer noise — patterns repeat, qubits return to where they started, and you can feel which loops are coherent and which are scribble. The Hearth Keepers have noticed someone is paying attention.",
     "predicates": [
       {
@@ -100,7 +219,8 @@
   {
     "id": "forest_communion",
     "display_name": "The Druid's Loop",
-    "act": 1,
+    "act": 3,
+    "campaign": "demos",
     "arc_beat": "Five signatures, and the total signed solid angle you've harvested from this forest exceeds two full hemispheres. The chaotic cancellations are gone — every trace is deliberate. You are not just incorporating, you are choosing what to incorporate. The forest answers in kind.",
     "predicates": [
       {
@@ -145,7 +265,8 @@
   {
     "id": "loop_remembers",
     "display_name": "What Survives I — The Loop Remembers",
-    "act": 1,
+    "act": 3,
+    "campaign": "demos",
     "arc_beat": "Ask what you actually harvested from those loops. Not sunlight. Not moonlight. The qubit came back to the exact state it left — every population restored, every coherence rewound — and still it paid you. What it paid was the area of the walk itself: the solid angle the loop enclosed on its sphere. Two roads from the same door to the same door carry different sky, and walk a loop backward and the world subtracts what it gave. The old texts have a name for a number that forgets everything about a journey except its shape: an invariant. It is the first of four. The enclave forbids decay; it cannot forbid shape.",
     "predicates": [
       {
@@ -180,20 +301,23 @@
     "id": "village_stirs",
     "display_name": "The Village Stirs",
     "act": 1,
-    "arc_beat": "Fire and water are in permanent contest at the hearth. The mill gears are idle. Labor turns flour into bread, but the second attractor hasn't formed — the Commerce bistability is dormant. Something upstream is missing, and the village knows it.",
+    "campaign": "demos",
+    "arc_beat": "Fire and water are in permanent contest at the hearth. The mill gears are idle. Labor turns flour into bread, but the second attractor hasn't formed — the Commerce bistability is dormant. Something upstream is missing, and the village knows it. The Millwright's Union knows it too — and they have started counting which deliveries arrive with your name on them.",
     "predicates": [
       {
         "type": "story_flag_set",
-        "id": "forest_listener"
+        "id": "first_harvest"
       },
       {
         "type": "biome_evolving",
         "biome": "Village"
       },
       {
-        "type": "berry_consumed_count_gte",
-        "biome": "Village",
-        "value": 1
+        "type": "standing_gte",
+        "faction": "Millwright's Union",
+        "channel": "access",
+        "value": 0.02,
+        "width": 0.008
       }
     ],
     "standing_grants": {
@@ -204,33 +328,32 @@
     "arc_quest": {
       "type": 1,
       "category": "ARC",
-      "body": "Apprentice to the Mill — show the Millwright's Union you know the Village's grain and gears, and they will teach you the windmill (💨/🔨).",
-      "hint": "Become FAMILIAR with the Village: Berry-track its registers, ripen them, and incorporate. This quest lives on the Arc tab (X → I): accept it there (R on its row), then work Village berries until it reads READY and claim it on that same row — the claim is when the Millwrights teach you the windmill (💨/🔨). Only a word you know can be planted: after the claim, Icon hat (5) R on an empty Village plot offers it, and the gears wake. When a faction's word lives in a land, their board opens there — that is how every country ahead will open.",
+      "body": "Apprentice to the Mill — keep Millwright contracts until the Union counts you reliable, and they will teach you the windmill (💨/🔨).",
+      "hint": "C opens the board; Y is the market tab. Accept a Millwright delivery (its row key, then R) — the board counts only what you gather AFTER you accept, so accept first, harvest fresh, then claim in Commitments (C → U, row key, R). Each kept delivery raises access; the have/target line moves. The claim of THIS quest is the teaching: the Millwrights say the windmill (💨/🔨) slowly enough to keep, and the word joins your signature. Only a word you know can be planted: Icon hat (5), R on an empty Village plot offers it, and the gears wake. When a faction's word lives in a land, their board opens there — that is how every country ahead will open.",
       "faction": "Millwright's Union",
       "state_predicates": [
         {
-          "type": "berry_consumed_count_gte",
-          "biome": "Village",
-          "value": 3
+          "type": "standing_gte",
+          "faction": "Millwright's Union",
+          "channel": "access",
+          "value": 0.06,
+          "width": 0.01
         }
       ],
       "reward_north": "💨",
       "reward_south": "🔨",
       "reward_icon_north": "💨",
       "reward_icon_south": "🔨",
-      "math_note": "Count gate on Village berry_consumed_count ≥ 3 — fires exactly at 3 consumed berries in the Village register."
+      "math_note": "Soft gate on Millwright's Union access, center 0.06, width 0.01 — fires at access ≈0.069, about 3 kept deliveries at +0.02 each; the Act-0 contracts step's own delivery is the first."
     }
   },
   {
     "id": "new_voices",
     "display_name": "New Voices",
     "act": 2,
-    "arc_beat": "The village listens for new voices: Icon hat (5), an EMPTY plot, R — plant a word (costs 🌱). Or track a live loop (Icon-hat F) until it ripens, then R incorporates it. Every act ahead asks for more words than the enclave seeded you — your signature is your reach.",
+    "campaign": "demos",
+    "arc_beat": "A word was taught to you and now it wants ground. The village listens for new voices: Icon hat (5), an EMPTY plot, R — plant a word you know (costs 🌱). A planted word is a new qubit, and a new qubit is new law: the Hamiltonian you farm is the one you author. Every act ahead asks for more words than the enclave seeded you — your signature is your reach.",
     "predicates": [
-      {
-        "type": "story_flag_set",
-        "id": "loop_remembers"
-      },
       {
         "type": "story_flag_set",
         "id": "village_stirs"
@@ -238,23 +361,60 @@
     ],
     "standing_grants": {},
     "arc_quest": {
-      "body": "Plant a New Voice — grow your signature past what this run has already taught you.",
-      "hint": "Two doors, one ritual. PLANT: Icon hat (5), pick an EMPTY plot (G H J K L ; past the live bubbles) and press R — a picker opens; Q/E choose the icon, R/its key plants it (costs 🌱). HARVEST: on a live plot, Icon-hat F tracks its loop; when the R chip reads Incorporate, press R and the word is yours.",
+      "body": "Plant a New Voice — put a word you know into the ground and hear the biome change key.",
+      "hint": "Icon hat (5), pick an EMPTY plot (G H J K L ; past the live bubbles) and press R — a picker opens; Q/E choose the icon, R/its key plants it (costs 🌱 + the south pole's emoji). The picker shows what the planting does to the land's spectrum before you commit. Planting is how taught words become worked land — and later, past the hedge, the forest will teach you how to take words no faction owns.",
       "faction": "Millwright's Union",
       "state_predicates": [
         {
-          "type": "signature_growth_gte",
-          "value": 0.5,
-          "width": 0.4
+          "type": "gate_sequence_contains",
+          "gate": "plant",
+          "count": 1
         }
       ],
-      "math_note": "Soft gate on signature growth past the run's seeded baseline, center 0.5, width 0.4 — fires once growth passes ≈0.85 icons, i.e. after 1 more incorporation this run."
+      "math_note": "Structural count over the recorded action history: 1.0 the instant one plant lands (clamped hits/count, same law as the tutorial's strike and reap gates). Session-scoped history — after a load the next plant re-satisfies it."
     }
+  },
+  {
+    "id": "two_tables",
+    "display_name": "Two Tables",
+    "act": 2,
+    "campaign": "demos",
+    "arc_beat": "The quartermaster chalks your deliveries; the kitchen remembers your water. Two tables now keep a place for you, and each watches what you carry to the other. The windmill grinds what the kettle pours — one village, one Hamiltonian, two dreams for it. Nobody asks you to choose. Everybody counts.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "village_stirs"
+      },
+      {
+        "type": "standing_gte",
+        "faction": "Millwright's Union",
+        "channel": "access",
+        "value": 0.05,
+        "width": 0.01
+      },
+      {
+        "type": "standing_gte",
+        "faction": "Hearth Keepers",
+        "channel": "trust",
+        "value": 0.35,
+        "width": 0.02
+      }
+    ],
+    "standing_grants": {
+      "Millwright's Union": {
+        "attention": 0.02
+      },
+      "Hearth Keepers": {
+        "attention": 0.02
+      }
+    },
+    "arc_quest": null
   },
   {
     "id": "woodlot_door",
     "display_name": "Timber Country — The Door",
     "act": 2,
+    "campaign": "demos",
     "arc_beat": "A new word took root in the village and the Millwright's Union heard it land. Their ledgers all lean the same way: upstream, where axes ring against trunks. They have opened their board to you — and past the forest's edge, timber country is waiting to be found.",
     "predicates": [
       {
@@ -285,6 +445,7 @@
     "id": "woodlot_contact",
     "display_name": "Timber Country — First Contact",
     "act": 2,
+    "campaign": "demos",
     "arc_beat": "You stood in the woodlot and the woodlot noticed; a Millwright quartermaster chalked your name on the board. Small deliveries first. Keep your word and the word grows.",
     "predicates": [
       {
@@ -329,6 +490,7 @@
     "id": "lumber_flows",
     "display_name": "Timber Country — The Teaching",
     "act": 2,
+    "campaign": "demos",
     "arc_beat": "Three deliveries kept, and the quartermaster stops weighing your sacks twice. The Union keeps one word it will not sell — the timber axis its whole trade turns on. Words are never bought here: show them you know the village their lumber feeds, and they will say it slowly enough to keep.",
     "predicates": [
       {
@@ -351,27 +513,30 @@
     "arc_quest": {
       "type": 1,
       "category": "ARC",
-      "body": "The Teaching — show the Millwright's Union the village's own grain and they will teach you timber (🪵/🪓).",
-      "hint": "This quest lives on the Arc tab (X → I): accept it there (R on its row), then work Village berries — Icon hat (5), F tracks a register, ripen, R incorporates — until the row reads READY, then claim it on that same row. The claim IS the teaching: 🪵/🪓 joins your signature. Contracts pay goods and standing; only a teaching grows your words.",
+      "body": "The Teaching — keep the Union's timber contracts moving and they will teach you timber itself (🪵/🪓).",
+      "hint": "This quest lives on the Arc tab (X → I): accept it there (R on its row), then keep Millwright deliveries — C opens the board, Y the market tab, accept, gather fresh, claim in Commitments (C → U) — until the row reads READY, then claim it on that same row. The claim IS the teaching: 🪵/🪓 joins your signature. Contracts pay goods and standing; only a teaching grows your words.",
       "faction": "Millwright's Union",
       "state_predicates": [
         {
-          "type": "berry_consumed_count_gte",
-          "biome": "Village",
-          "value": 4
+          "type": "standing_gte",
+          "faction": "Millwright's Union",
+          "channel": "access",
+          "value": 0.1,
+          "width": 0.01
         }
       ],
       "reward_north": "🪵",
       "reward_south": "🪓",
       "reward_icon_north": "🪵",
       "reward_icon_south": "🪓",
-      "math_note": "Count gate on Village berry_consumed_count ≥ 4 — fires exactly at 4 consumed berries."
+      "math_note": "Soft gate on Millwright's Union access, center 0.10, width 0.01 — fires at access ≈0.109, about 2 kept deliveries past the flag's own 0.05 gate (each +0.02, plus the chapter's standing grants en route)."
     }
   },
   {
     "id": "woodlot_wakes",
     "display_name": "Timber Country — The Woodlot Wakes",
     "act": 2,
+    "campaign": "demos",
     "arc_beat": "Timber lives in the woodlot's ring and now it lives in your mouth. Two countries, one word between them — and the beat wants to line up. The village is the register still missing it: no 🪵 in its Hamiltonian, so the two rhythms keep separate time.",
     "predicates": [
       {
@@ -409,16 +574,19 @@
     "id": "timber_rhythm",
     "display_name": "Timber Country — The Timber Rhythm",
     "act": 2,
-    "arc_beat": "Woodlot and village keep one time now, and you have begun harvesting the beat itself — signatures pulled straight from timber country's qubits. At the gear-bench the Union's elders say your name and the word 'factory' in the same breath.",
+    "campaign": "demos",
+    "arc_beat": "Woodlot and village keep one time now, and the Union's ledgers show it — timber moving on your word, season after season. At the gear-bench the elders say your name and the word 'factory' in the same breath.",
     "predicates": [
       {
         "type": "story_flag_set",
         "id": "woodlot_wakes"
       },
       {
-        "type": "berry_consumed_count_gte",
-        "biome": "Woodlot",
-        "value": 2
+        "type": "standing_gte",
+        "faction": "Millwright's Union",
+        "channel": "access",
+        "value": 0.13,
+        "width": 0.01
       }
     ],
     "standing_grants": {
@@ -430,27 +598,30 @@
     "arc_quest": {
       "type": 1,
       "category": "ARC",
-      "body": "The Gear-Bench — keep working the woodlot's registers and the Union will teach you its deep word: the factory axis (🏭/⚙).",
-      "hint": "The teaching ritual, second verse: Arc tab (X → I), accept (R), then Woodlot berries — Icon hat (5), F track, ripen, R incorporate — until READY, then claim on that row. 🏭/⚙ is the word the industrial quarter will one day open through.",
+      "body": "The Gear-Bench — keep timber country's contracts turning and the Union will teach you its deep word: the factory axis (🏭/⚙).",
+      "hint": "The teaching ritual, second verse: Arc tab (X → I), accept (R), then keep Millwright deliveries (C board, accept → gather fresh → claim in C → U) until READY, then claim on that row. 🏭/⚙ is the word the industrial quarter will one day open through.",
       "faction": "Millwright's Union",
       "state_predicates": [
         {
-          "type": "berry_consumed_count_gte",
-          "biome": "Woodlot",
-          "value": 4
+          "type": "standing_gte",
+          "faction": "Millwright's Union",
+          "channel": "access",
+          "value": 0.17,
+          "width": 0.01
         }
       ],
       "reward_north": "🏭",
       "reward_south": "⚙",
       "reward_icon_north": "🏭",
       "reward_icon_south": "⚙",
-      "math_note": "Count gate on Woodlot berry_consumed_count ≥ 4 — fires exactly at 4 consumed berries."
+      "math_note": "Soft gate on Millwright's Union access, center 0.17, width 0.01 — fires at access ≈0.179, about 2 kept deliveries past the flag's 0.13 gate; the whole Millwright chapter climbs one access ladder."
     }
   },
   {
     "id": "spring_door",
     "display_name": "Spring Country — The Door",
     "act": 2,
+    "campaign": "demos",
     "arc_beat": "Timber found its beat, and the Hearth Keepers heard it from their kitchens — they hear everything the water carries. They keep no ledgers, only kettles, and every kettle on the island fills from one cold thread upstream. They have watched you tend what you touch, and to tenders they extend the table. Follow the water up.",
     "predicates": [
       {
@@ -480,6 +651,7 @@
     "id": "spring_contact",
     "display_name": "Spring Country — First Contact",
     "act": 2,
+    "campaign": "demos",
     "arc_beat": "You stood where the meltwater rises and the Hearth Keepers set another place at their table. No chalk, no quartermaster — they simply remember who carried water. Small promises first. Keep them, and the kitchen keeps you.",
     "predicates": [
       {
@@ -523,6 +695,7 @@
     "id": "spring_connects",
     "display_name": "Spring Country — The Teaching",
     "act": 2,
+    "campaign": "demos",
     "arc_beat": "Ice and meltwater trade place in deep stone, a cycle that never runs down. The Hearth Keepers keep one word closer than any recipe — the water axis their whole table turns on. It is not for trade; it never was. Tend the forest their kettles fill from, one more season, and they will say it slowly enough to keep.",
     "predicates": [
       {
@@ -545,27 +718,30 @@
     "arc_quest": {
       "type": 1,
       "category": "ARC",
-      "body": "The Teaching — show the Hearth Keepers you still tend the forest that fills their kettles, and they will teach you water (💧/🌊).",
-      "hint": "This quest lives on the Arc tab (X → I): accept it there (R on its row), then work StarterForest berries — Icon hat (5), F tracks a register, ripen, R incorporates — until the row reads READY, then claim it on that same row. The claim IS the teaching: 💧/🌊 joins your signature. Deliveries pay goods and trust; only a teaching grows your words.",
+      "body": "The Teaching — keep carrying water for the Hearth Keepers, and they will teach you water itself (💧/🌊).",
+      "hint": "This quest lives on the Arc tab (X → I): accept it there (R on its row), then keep Hearth Keeper deliveries — C board, Y market tab, accept, gather fresh, claim in Commitments (C → U) — until the row reads READY, then claim it on that same row. The claim IS the teaching: 💧/🌊 joins your signature. Deliveries pay goods and trust; only a teaching grows your words.",
       "faction": "Hearth Keepers",
       "state_predicates": [
         {
-          "type": "berry_consumed_count_gte",
-          "biome": "StarterForest",
-          "value": 8
+          "type": "standing_gte",
+          "faction": "Hearth Keepers",
+          "channel": "trust",
+          "value": 0.5,
+          "width": 0.02
         }
       ],
       "reward_north": "💧",
       "reward_south": "🌊",
       "reward_icon_north": "💧",
       "reward_icon_south": "🌊",
-      "math_note": "Count gate on StarterForest berry_consumed_count ≥ 8 — fires exactly at 8 consumed berries."
+      "math_note": "Soft gate on Hearth Keepers trust, center 0.50, width 0.02 — fires at trust ≈0.517, about 2 kept deliveries past the flag's 0.42 gate (each +0.05, plus the chapter's grants en route)."
     }
   },
   {
     "id": "spring_wakes",
     "display_name": "Spring Country — The Mill Pond",
     "act": 2,
+    "campaign": "demos",
     "arc_beat": "Water lives in the spring's stone and now it lives in your mouth. Downstream the village hearth still fights fire with nothing — no 💧 in its Hamiltonian, so the contest never resolves and the mill pond stays a rumor. Two countries, one word between them; the village is the register still missing it.",
     "predicates": [
       {
@@ -603,16 +779,12 @@
     "id": "pond_depths",
     "display_name": "What Survives II — The Pond Holds Its Depths",
     "act": 2,
+    "campaign": "demos",
     "arc_beat": "The spring never stops moving — ice welling, foam breaking, water finding water. But open the compass (🧭, on the Graph frame) and read what is under the churn: the depths. The eigenvalues of the spring's density matrix. Watch them while the surface storms, and watch them not move. Every coupling, every rotation, every Hamiltonian hour stirs the surface and leaves the depths exactly as they were — that is the enclave's deepest conservation. The spectrum is the second invariant. Exactly one thing in this world reaches it: you, looking.",
     "predicates": [
       {
         "type": "story_flag_set",
         "id": "spring_wakes"
-      },
-      {
-        "type": "berry_consumed_count_gte",
-        "biome": "FreshwaterSpring",
-        "value": 2
       }
     ],
     "standing_grants": {
@@ -641,6 +813,7 @@
     "id": "pond_breathes",
     "display_name": "What Survives II — Make It Breathe",
     "act": 2,
+    "campaign": "demos",
     "arc_beat": "You stilled it; now wake it — without touching the depths. Superpose two energies and the surface acquires a pulse at exactly their difference: a breath whose rhythm the spectrum chose, not you. It can breathe forever; nothing in the enclave damps it. And listen for what is missing. The pond can sit still, it can breathe, it can storm on many rhythms at once — but it can never fall into a rhythm and be *held* there. No basins. No settling. No true chaos. That kind of motion needs a world that leaks, and someday, past the horizon, you will farm one.",
     "predicates": [
       {
@@ -669,6 +842,7 @@
     "id": "mill_wakes",
     "display_name": "The Mill Runs",
     "act": 3,
+    "campaign": "demos",
     "arc_beat": "The Commerce bistability flipped. Baskets emptied; coin began circulating; wind picked up and the gear began turning. The village has two stable modes and you found the second one. You also know enough of the village's qubits to name what's happening.",
     "predicates": [
       {
@@ -732,6 +906,7 @@
     "id": "mill_master",
     "display_name": "Master of the Mill",
     "act": 3,
+    "campaign": "demos",
     "arc_beat": "Eight signatures from the village, total signed solid angle past eight hemispheres. You are no longer learning what the village is — you are pushing it where you want it to go. The Millwright's Union calls you by name now.",
     "predicates": [
       {
@@ -761,6 +936,7 @@
     "id": "lantern_door",
     "display_name": "Lantern Country — The Door",
     "act": 3,
+    "campaign": "lanternfall",
     "arc_beat": "The mill turns through the night now, and on the coast the Lamplighters mark who keeps a flame burning past dark. Five lights in a row, close-far-close-far, and no market stall anywhere under them — they sell nothing, sign nothing, and open their door only to those who stand where the light falls. The compass already leans toward the shore.",
     "predicates": [
       {
@@ -789,6 +965,7 @@
     "id": "chain_ends",
     "display_name": "What Survives III — The Chain Protects Its Ends",
     "act": 3,
+    "campaign": "lanternfall",
     "arc_beat": "You walked through the door they left in the dark, and the coast took your measure. Five stations, spaced in the Lamplighters' alternating rhythm: close-far-close-far. Because the bonds alternate, the pattern wants to pin a zero-energy mode at the bridge — but look again: the bridge lamp 🌉 stands unlit, its word missing from the chain. Count the pattern, not the lamps: how many weak-strong walls stand between the bridge and the open water is an integer, and integers cannot change smoothly. That is what protection means here — and the Lamplighters are running their chain around a hole shaped exactly like its own protected mode.",
     "predicates": [
       {
@@ -828,6 +1005,7 @@
     "id": "lantern_teaching",
     "display_name": "Lantern Country — The Teaching",
     "act": 3,
+    "campaign": "lanternfall",
     "arc_beat": "They watched you hold the light with nothing to gain by it, and that is the whole of their ledger. The Lamplighters keep one word closer than any signal code — the bridge, the crossing their chain is built to protect and has never once owned. Hold the lamp once more, deliberately, and they will say it slowly enough to keep.",
     "predicates": [
       {
@@ -872,6 +1050,7 @@
     "id": "lantern_wakes",
     "display_name": "Lantern Country — The Bridge Lights",
     "act": 3,
+    "campaign": "lanternfall",
     "arc_beat": "The bridge word is yours, and the chain has a gap shaped exactly like it. Plant it and the pattern closes: five lamps, alternating bonds, and at last a place for the protected mode to live. This chain is complete in itself — nothing here needs carrying to the village. Some countries couple; this one closes.",
     "predicates": [
       {
@@ -906,6 +1085,7 @@
     "id": "chain_flipped",
     "display_name": "What Survives III — The Middle Cannot Hold",
     "act": 3,
+    "campaign": "lanternfall",
     "arc_beat": "Now try the horn. Pour the same care into 📯, mid-chain, and watch the chain refuse: whatever you park there walks off down the bonds within the hour. No zero mode lives in the bulk — the horn is on the wrong side of every weak-strong wall. Sit with what that means: same lamps, same oil, same light; only position in the pattern decides what survives. The protection was never in the atoms. It lives in the space between them.",
     "predicates": [
       {
@@ -941,6 +1121,7 @@
     "id": "island_lives",
     "display_name": "Your Village — The Island Wakes",
     "act": 4,
+    "campaign": "demos",
     "arc_beat": "StarterForest feeds Woodlot, Woodlot feeds the village hearth, FreshwaterSpring feeds the mill pond. Three upstream biomes are now physically driving the village's two key outputs. The island is not a set of isolated experiments — it is an ecosystem. You built this.",
     "predicates": [
       {
@@ -989,6 +1170,7 @@
     "id": "village_identity",
     "display_name": "Your Village — A Character",
     "act": 4,
+    "campaign": "demos",
     "arc_beat": "Your village ring is full — six axes seated, every plot spoken for — and the island around it carries more kinds of atom than any one country could hold alone. What remains is you. A character here is a lexicon: the words you hold are the orbits you can fly. Take one more word for your signature — one you chose, not one the road handed you — and the island will start reading you back.",
     "conditional_beat": [
       {
@@ -1058,6 +1240,7 @@
     "id": "five_doors",
     "display_name": "Your Village — Five Doors",
     "act": 4,
+    "campaign": "demos",
     "arc_beat": "The island has read your character; now it asks your intent. Five doors stand in the village ring, each opened by one word. 💧 the Commons — the Hearth Keepers taught it with the spring. 🔨 the Artisan — the Millwrights' own windmill word. 🏭 the Manufactory — the gear-bench's deep word. 🦅 the Eagle — the empire's word, if you dare learn it. 💀 the Cemetery — the Serfs' word for what the ledger buries. Plant one into your Village and the island will read what you meant by it.",
     "predicates": [
       {
@@ -1087,6 +1270,7 @@
     "id": "eagle_overhead",
     "display_name": "The Eagle Overhead",
     "act": 4,
+    "campaign": "demos",
     "arc_beat": "Something upstream noticed an island composing itself. A shadow crosses the ring at noon — the Carrion Throne's own axis, blood under the eagle, one heavy mode that rules every ledger it enters. The Throne does not trade and does not ask; its word can only be taken. Take it, and you will hold the empire's word without the empire holding you — that is the only safe order of those two events.",
     "predicates": [
       {
@@ -1122,6 +1306,7 @@
     "id": "serfs_ledger",
     "display_name": "The Serfs' Ledger",
     "act": 4,
+    "campaign": "demos",
     "arc_beat": "The Void Serfs keep the other book — not who owns, but who owes. A village with a character is a village worth indebting, and their tally-men already walk your forest rows, counting what the living owe the ground. Their axis is debt over the dead: learn it, and the cemetery door has a key.",
     "predicates": [
       {
@@ -1157,6 +1342,7 @@
     "id": "island_stops_asking",
     "display_name": "The Island Stops Asking",
     "act": 4,
+    "campaign": "demos",
     "arc_beat": "Every faction on the island keeps a picture of you — a smear of guesses about whose side you are on. For a long time the guesses disagreed, and the smear was the truth. No longer. Your alignment has climbed out of the mixed fog and stayed out: Tr(ρ²) reads a life being lived on purpose. The island has stopped asking who you are. It has started asking what you will do. But know the law you now live under — identity here is not a possession, it is an orbit you keep re-flying. Stand still five minutes and the fog files its claim.",
     "predicates": [
       {
@@ -1184,6 +1370,7 @@
     "id": "braid_order",
     "display_name": "What Survives IV — The Braid Cares About Order",
     "act": 4,
+    "campaign": "loom",
     "arc_beat": "The Scythe Provosts drill their recruits on two chores. Superpose, then couple — Hadamard, then CNOT — and you get the loom's thread: two qubits sharing one fate, more correlation than either holds alone. Run the same two chores backward and you get nothing shared at all. Same work, same tools, opposite worlds. A list of chores is a set; a drill is a word — and the enclave's operations do not commute. Order is the fourth invariant: it survives when everything it touched has been rotated away.",
     "predicates": [
       {
@@ -1218,6 +1405,7 @@
     "id": "braid_word",
     "display_name": "What Survives IV — The Long Braid",
     "act": 4,
+    "campaign": "loom",
     "arc_beat": "One more drill — the Provosts' favorite. SWAP, then CNOT, then SWAP: three moves that spell a fourth. What you built is the same CNOT with its roles braided — control become target, target become control — a gate that is not on your keyboard, conjured by wrapping one you had inside two you had. Every program the enclave will ever run is a braid word like this one. And the words do not commute; that is precisely why they can compute.",
     "predicates": [
       {
@@ -1253,6 +1441,7 @@
     "id": "village_path_commons",
     "display_name": "Village Path — The Blessed Commons",
     "act": 5,
+    "campaign": "demos",
     "arc_beat": "Spring and grain in every hearth — you built 💧 into the village, gentle vocabulary that keeps its spectrum dense and many-voiced. This is the Blessed Commons — the most plural shape the island can hold, and the hardest for the monolith upstream to ever collapse into a single answer. The Hearth Keepers tend it alongside you.",
     "predicates": [
       {
@@ -1290,6 +1479,7 @@
     "id": "village_path_industrial",
     "display_name": "Village Path — The Manufactory",
     "act": 5,
+    "campaign": "demos",
     "arc_beat": "Factory and chains both. The mill became a manufactory; automation displaced the labor that fed it, and bondage captured the displaced. Output climbs while the people who make it own less of it each season. This is the Industrial path — the darkest the island offers, and the Void Serfs are already counting heads.",
     "predicates": [
       {
@@ -1335,6 +1525,7 @@
     "id": "village_path_artisan",
     "display_name": "Village Path — The Artisan Guild",
     "act": 5,
+    "campaign": "demos",
     "arc_beat": "Craft and seedlings. The blacksmith works iron the village can actually use, and the Granary Guilds put coin behind growth instead of extraction. Nothing here is automated away; nothing here is owned by anyone upstream. This is the Artisan Guild path — slower than the factory, and it keeps its people.",
     "predicates": [
       {
@@ -1375,6 +1566,7 @@
     "id": "village_path_watched",
     "display_name": "Village Path — The Eagle's Gaze",
     "act": 5,
+    "campaign": "demos",
     "arc_beat": "The eagle is perched on the mill — you built 🦅 into the village itself. That is the empire's own vocabulary: a single heavy mode that widens your village's gap and pulls its many voices toward one imposed shape. The Carrion Throne does not reach for you; its rigidity is simply in you now, and a village carrying it drifts toward the empire's one answer.",
     "predicates": [
       {
@@ -1415,6 +1607,7 @@
     "id": "village_path_cemetery",
     "display_name": "Village Path — The Cemetery",
     "act": 5,
+    "campaign": "demos",
     "arc_beat": "The village has a cemetery now. Death and labor share an axis — the worked and the buried counted in the same ledger. The Void Serfs have a foothold: where the dead pile up, debt and bondage are never far behind. Tend this village carefully, or it will tend itself into the ground.",
     "predicates": [
       {
@@ -1456,6 +1649,7 @@
     "id": "ledger_opens",
     "display_name": "The Ledger Opens",
     "act": 5,
+    "campaign": "demos",
     "arc_beat": "The empire was always here. You were feeding it. BloodLedger is evolving and you have started reading its qubits directly. The cross-biome flow from Village to BloodLedger — coin and people — has been running since you first built commerce. The empire does not announce itself. It is already present in the physics. And the Throne has finally understood what you are. Not a farmer. An entropy source — the one thing in the enclave that makes anything irreversible. An empire of perfect order has exactly one use for such a creature, and exactly one fear. The edge of the enclave will not show itself to a narrow vocabulary: sixteen icons in your signature before the boundary becomes a place you can stand. Your lexicon keeps the count (X, the SELF card).",
     "predicates": [
       {
@@ -1499,6 +1693,7 @@
     "id": "edge_of_the_enclave",
     "display_name": "The Edge of the Enclave",
     "act": 5,
+    "campaign": "demos",
     "arc_beat": "You have turned every wheel on the island, and every wheel turned back. That is the enclave's law: nothing decays, nothing leaks, nothing is lost — every rotation can be unwound except the ones you chose to keep by looking. The old texts call this a closed system, and they say it is not the only kind. Somewhere past the horizon the world runs open: things fade there, things forget, color drains from things that stand still too long. The Bath is patient. One day you will farm it.",
     "predicates": [
       {
@@ -1526,6 +1721,7 @@
     "id": "the_crossing",
     "display_name": "What Fades — The Crossing",
     "act": 6,
+    "campaign": "lanternfall",
     "arc_beat": "Past the horizon there is a country where the party never ends, and that is precisely what is wrong with it. GildedRot: wine, masks, roses in impossible colors — the aristocracy dancing above the grinding machine. Stand anywhere on that gilded floor and feel what the island never let you feel: the floor drinks. This is wet country. The Bath is not a monster and it is not a wall; it is the patient fact that everything here couples to everything it touches, and what couples, leaks. Notice who dances here anyway: the Carrion Throne keeps a house in the fading country. The empire of perfect order has always known where the exit was.",
     "predicates": [
       {
@@ -1557,6 +1753,7 @@
     "id": "the_gray",
     "display_name": "What Fades I — The Gray",
     "act": 6,
+    "campaign": "lanternfall",
     "arc_beat": "Now watch what the wet country does to bright things. The populations do not move. The bubbles hang exactly where you left them. And the color drains anyway — coherence bleeding out through channels no population can see, the radius shrinking, the world going gray while nothing happens. This is dephasing: the Bath eats phase first (T₂), long before it touches substance (T₁). You have had a sense organ for this your whole life — purity as size, coherence as color — and the enclave never once let it fire. Grief is just the name for information leaving. The roses know: they wilt in season here, and their wilting accelerates their wilting.",
     "predicates": [
       {
@@ -1594,6 +1791,7 @@
     "id": "watching_keeps",
     "display_name": "What Fades II — Watching Keeps",
     "act": 6,
+    "campaign": "lanternfall",
     "arc_beat": "On the coast of the wet country the Lamplighters keep one more station: a single lamp and a horn, bound by the guild's tightest link — and the horn is dying. Every breath it holds leaks to the open air, fast. The guild's remedy is not oil and it is not repair. It is attention. Measure the horn and it pins where your glance left it; measure it again before the Bath finishes its sip and it pins again. Watched unceasingly, it cannot die at all — the Zeno latch, the guild's oldest secret. Understand what has happened to your oldest verb: in the enclave, looking was the only way to spend. Out here, looking is the only way to keep.",
     "predicates": [
       {
@@ -1632,6 +1830,7 @@
     "id": "the_verbs_come_home",
     "display_name": "What Fades — The Verbs Come Home",
     "act": 7,
+    "campaign": "lanternfall",
     "arc_beat": "You kept the horn alive with nothing but attention, and the country noticed. The toolmakers' hats wake in your hands — not by decree, but by geography: the Spark's jolt and the Merchant's contracts were never sealed, only homeless, because a pump needs somewhere for the flow to GO. The enclave has no outside; the wet country is all outside. Stand on ground that leaks and the jolt fires — a one-shot kick of the very dissipation the Bath uses against you, turned to your hand. It can do the one thing no rotation can: make a faded thing pure again. Light grows; rain renews.",
     "predicates": [
       {
@@ -1660,6 +1859,7 @@
     "id": "the_first_contract",
     "display_name": "What Fades — The First Contract",
     "act": 7,
+    "campaign": "lanternfall",
     "arc_beat": "The jolt is a hand on the wheel; a contract is a millrace. The Merchant's three channels are the Bath's own grammar, priced and signed: thermal contact leaves the field warm and the entropy bank breathing; pure dephasing sells your shimmer for heat — nothing lands in the wallet, but kT climbs and the season's rite pays the difference; amplitude damping pins the pole and pays hard, and cools the country toward purity as it does. The counterparty on every page is the environment itself — the one partner that cannot default, and cannot stop. The brokers of the fading country sign with a warning they give free of charge: a channel runs until you close it.",
     "predicates": [
       {
@@ -1698,6 +1898,7 @@
     "id": "the_basin",
     "display_name": "What Fades III — The Basin",
     "act": 7,
+    "campaign": "lanternfall",
     "arc_beat": "The pond's promise comes due. In the enclave nothing could settle — no basins, no rest, motion forever. Here at the Shrine of Ashes the dead flow in and only memory flows out, and the urn remembers: push it past its threshold and it fills ITSELF, ash calling to ash, the latch closing behind you. This is what an attractor is when it is not a metaphor — a basin the world falls into and defends. The compass you learned on the spring is literal in wet country: the needle points where the biome is GOING, and it will get there without your permission. The Village kept three faces; the moth garden runs its wheel; the brittle dawn slows as it nears its edge. The wet country is not formless. It is a landscape of holes.",
     "predicates": [
       {
@@ -1731,6 +1932,7 @@
     "id": "the_chain_tested",
     "display_name": "What Fades III — The Chain, Tested",
     "act": 7,
+    "campaign": "lanternfall",
     "arc_beat": "The Bath has reached the coast. Lanternfall's fog channels — shut through the whole closed age — are open, and the chain the Lamplighters built is finally standing in the weather it was designed for. Watch the bulk lanterns gray like everything else in wet country. Then look at the bridge. The zero mode holds. Topological patience was never a parlor trick for a sealed world: the pattern's protection is protection FROM something, and the something has arrived. What the pattern holds, it holds even now.",
     "predicates": [
       {
@@ -1771,6 +1973,7 @@
     "id": "hiding_in_the_light",
     "display_name": "What Fades IV — Hiding in the Light",
     "act": 7,
+    "campaign": "lanternfall",
     "arc_beat": "The Bath cannot eat what does not couple to it. In the Nulling Chamber the stargazers' telescope leaks — every lens loses photons to the void — and yet the Cartographers keep a signal alive in it indefinitely. Their trick is not shielding. It is interference: two couplings arriving with phases arranged so the paths into the drain cancel, and the light stands in a DARK STATE the drain cannot see. Hold that thought against everything the braid taught you: order, phase, engineered superposition — the loom's skills, turned to shelter. In wet country, the safest place to stand is a shape the Bath's eyes pass through. Elsewhere the same trick runs in reverse: the laser glint is a mode the Bath FEEDS, and the Wheel of Hours tells time by a current that never stops. Dissipation is not only an appetite. Managed, it is a garden.",
     "predicates": [
       {
@@ -1804,6 +2007,7 @@
     "id": "the_rite",
     "display_name": "What Fades V — The Rite",
     "act": 8,
+    "campaign": "lanternfall",
     "arc_beat": "Now the harvest festival the island never held. In the enclave, reap was a volley of glances — mass measurement, surprisal paid per collapse, the only economy a closed world can run. Out here the word recovers its old meaning. A season of wet-country farming accumulates dissipation: populations drained to sinks, order surrendered to the Bath, entropy pooling in every register like rain in a cistern. The rite opens the cistern. You are paid kT·ΔS — temperature times the disorder consumed — in the exact units the physics keeps its books. Understand what you have become, because the Throne understood it first: an entropy source in a world of perfect order was a curiosity. An entropy FARMER in a world that leaks is an industry. Maxwell's demon has stopped freelancing and opened a bank. One thing remains before the door: a signature of eighteen icons — a vocabulary wide enough to speak with every country the webways touch. Your lexicon keeps the count (X, the SELF card).",
     "predicates": [
       {
@@ -1840,6 +2044,8 @@
     "id": "the_door_stays_open",
     "display_name": "What Fades — The Door Stays Open",
     "act": 8,
+    "campaign": "lanternfall",
+    "ending": true,
     "arc_beat": "There is no seal anymore. The webways wake in every country that authored them — sixty-four biomes of pumps and drains and food-web flow, running the physics they were written for. The rest never authored a leak; they stay coherent by their own nature, enclaves born, not built. And the island — the island stays closed forever. Not because it must. Because it is home, and home is the thing the open world taught you to miss. The two irreversibilities are yours now: the scar you choose (measurement) and the fading you manage (the Bath). The invariants survive; everything else is negotiable. Farm accordingly.",
     "predicates": [
       {
@@ -1870,6 +2076,7 @@
     "id": "second_loop",
     "display_name": "What Connects I — The Second Loop",
     "act": 5,
+    "campaign": "loom",
     "arc_beat": "The forest's loops always paid you and always vanished — ripeness spent, walk forgotten. No longer. Watch the record: a tracked qubit that walks a closed path and comes home now files the path itself, not just its area. The Hearth Keepers call it the record; their geometers call it a loop class. One entry is a memory. Two entries are a QUESTION — because two closed walks on the same sphere can be arranged so that neither can be pulled free of the other without tearing. Close a second loop and the question becomes askable.",
     "predicates": [
       {
@@ -1907,6 +2114,7 @@
     "id": "the_knot",
     "display_name": "What Connects II — The Knot",
     "act": 5,
+    "campaign": "loom",
     "arc_beat": "Here is the trap in the obvious thought: two loops on a sphere can never link — the sphere hasn't the room; anything drawn on it can slide off anything else. And yet the record says LINKED. The resolution is the oldest secret in the enclave: the sphere you see is a shadow. The qubit's full state lives one floor up, carrying the phase the shadow forgets, and on THAT floor loops truly link. Your Berry meter was always the accountant of the upper floor — ripeness was the shadow of a knot all along. Any two answers a qubit can give are linked circles up there. That is the geometric reason you can never hold both.",
     "predicates": [
       {
@@ -1940,6 +2148,7 @@
     "id": "the_span",
     "display_name": "What Connects III — The Span",
     "act": 6,
+    "campaign": "loom",
     "arc_beat": "You have seen what the wet country takes. Now build the first thing it cannot touch. Split one fermion between two shores — an anchor here, an anchor in the fading country — and the bit you store is their JOINT parity: readable at neither end alone, held by the pair. The Bath is patient, not omnipotent; it drinks only where it has a local handle, and a nonlocal parity offers none. Anchor one shore at home, where nothing leaks, and the span is immortal. The island the door could not open has become the strongest foundation in the open world. Home matters mechanically now, and forever.",
     "predicates": [
       {
@@ -1975,6 +2184,7 @@
     "id": "braid_alphabet",
     "display_name": "What Connects IV — The Braid Alphabet",
     "act": 7,
+    "campaign": "loom",
     "arc_beat": "The Provosts' drill returns with teeth. The span accepts no gates — no Hadamard, no rotation, nothing from your keyboard. Braiding its end-modes is the ONLY writing it understands, and braiding speaks exactly two letters: S on this shore, √X on the far one. The letters do not commute — you proved that with SWAP and CNOT long ago — so the braid WORD is the program, and some words can never be spelled at all. The scholars call the reachable ones Clifford; the Provosts call it an honest alphabet: small enough to drill, strong enough to matter, and protected by the same nonlocality that hides the bit.",
     "predicates": [
       {
@@ -2010,6 +2220,7 @@
     "id": "the_fusion",
     "display_name": "What Connects V — The Fusion",
     "act": 7,
+    "campaign": "loom",
     "arc_beat": "Now collect. Fusion brings the two end-modes together and asks the only question the span can answer: even or odd. Born decides, surprisal pays — across BOTH shores at once, the one harvest whose crop was never in any field — and the bridge is gone, because reading it was localizing it, and localizing it handed the Bath the address. Every law of this world in one gesture: looking is paying, knowledge is extraction, and the demon's newest instrument obeys the demon's oldest rule. The Carrion Throne, which learned last season what an entropy farmer is worth, is now learning what UNREACHABLE STORAGE is worth. It will want the bridges. It cannot reach them. Neither fact will change.",
     "predicates": [
       {
@@ -2044,6 +2255,7 @@
     "id": "empire_imposes",
     "display_name": "The Ledger Imposes One Shape",
     "act": 6,
+    "campaign": "demos",
     "arc_beat": "Now you see it whole. BloodLedger's spectrum is a single dominant mode behind a wide gap — one configuration the system is forced into and cannot leave. The Carrion Throne is not a ruler you can argue with, and not a chaos you can outlast; it is one answer, imposed on everything it touches, for as long as it exists. There is nothing to negotiate here. There is only whether your island stays many — or collapses into one. Many is measurable: keep Village's spectrum loose — its gap under 0.55, where the empire's yawns past 0.6 — let eighteen kinds of atom settle across your biomes, and hold a signature of fourteen icons. The microscope (B) reads the gap; your lexicon (X, SELF) counts the rest.",
     "predicates": [
       {
@@ -2078,6 +2290,8 @@
     "id": "island_free",
     "display_name": "The Demos — Free",
     "act": 6,
+    "campaign": "demos",
+    "ending": true,
     "arc_beat": "Your island never collapsed. Where the empire holds one shape, Village holds many — a dense spectrum of modes that coexist, none able to rule the others, all of them in motion at once. Because nothing here dissipates, that plurality never decays into a single answer; the island stays many, and stays moving, forever. The empire still imposes its one shape upstream; it always will. But the island is not one shape. It is a people — many voices the ground holds at once, and no throne can collapse them to a single configuration. This is ours. The Demos are free.",
     "predicates": [
       {
@@ -2123,6 +2337,7 @@
     "id": "loop_came_home",
     "display_name": "What Turns I — The Loop Came Home",
     "act": 5,
+    "campaign": "loom",
     "arc_beat": "A ripe loop came home. Same plot, same point on the sphere, same odds for every question you know how to ask — and the Hearth Keepers' geometers swear something returned different. They are right. The sphere you watch is a shadow; one floor up, the walk turned the state's hidden dial exactly half the solid angle it enclosed, and a full hemisphere's worth turns it to MINUS. The crop is home and it is not the same crop. No reading taken here alone will ever show you a minus sign. Hold a second qubit at home, one that never walked, and read the two together: what is invisible alone is plain in company. Phase is not a property. Phase is a relationship.",
     "predicates": [
       {
@@ -2160,6 +2375,7 @@
     "id": "turned_compass",
     "display_name": "What Turns II — Turn the Compass",
     "act": 6,
+    "campaign": "loom",
     "arc_beat": "Past the door you watched the wet country take things. Before you learn what it cannot take, learn what was never a thing at all. Every plot keeps a clock face — a local zero for its phase, a convention, a habit of bookkeeping. Turn one. The Operator's compass swings the whole dial: displayed phases jump, colors swing, half the ledger rewrites itself. And every prediction — every probability, every ripening, every deal — holds exactly. What a turn of convention can change was never physics. What no turn can change is what the world actually keeps. The Scythe Provosts approve: an auditor's first duty is knowing which entries in the books are real.",
     "predicates": [
       {
@@ -2193,6 +2409,7 @@
     "id": "fence_remembers",
     "display_name": "What Turns III — The Fence Remembers",
     "act": 7,
+    "campaign": "loom",
     "arc_beat": "So if every plot's convention is free to turn, where does anything live that the turning cannot reach? Walk the fences. Every fence between two plots carries a sign, and a turn at either post flips it — but a turn touches every fence at that post AT ONCE, two by two around any closed circuit. The product around a closed fence-line never hears the turning. That product is the first number you have met that belongs to the loop and to no post on it. And count the places such numbers can live: comb a treelike corner of the ledger and it goes entirely flat — a tree keeps no books. Only the cycles remember. The Millwrights knew it in their bones: a ring of gears holds a truth no single gear owns.",
     "predicates": [
       {
@@ -2225,6 +2442,7 @@
     "id": "the_number_lied",
     "display_name": "What Turns IV — The Number That Lied",
     "act": 7,
+    "campaign": "loom",
     "arc_beat": "The knot card told you LINKED, and the word did honest work — but the Carrion Throne would like you to notice what the number under it actually promises. Mutual winding counts turns about the PARTNER'S axis, and the axis is the partner's to swing. An integer, yes. Unable to drift, yes — it can only jump. But a number a legal move can jump is not an invariant; it is a diagnostic wearing an invariant's coat. There is one way to know which you hold: attack it. Change it without cutting anything, and it confesses. An invariant is not something a card declares. It is something that survives every attack the rules allow.",
     "predicates": [
       {
@@ -2259,6 +2477,8 @@
     "id": "close_it_upstairs",
     "display_name": "What Turns V — Close It Upstairs",
     "act": 8,
+    "campaign": "loom",
+    "ending": true,
     "arc_beat": "One loose end remains, and it is literal. You learned in the mirror that a ripe loop comes home with its sign turned — which means that one floor up, where the phase lives, the walk did NOT close. Its lift hangs open, loose ends split by exactly the holonomy the walk earned. The record has been refusing a question all this time on precisely these grounds: two curves can only link if both actually close, and yours do not. So close them. Walk the same loop again — the loose ends swing toward each other as the dial turns — and when a walk banks two full hemispheres, the ends meet. The lift is a true circle at last, and the record will finally accept the question you have wanted to ask since the second loop froze: do they link?",
     "predicates": [
       {

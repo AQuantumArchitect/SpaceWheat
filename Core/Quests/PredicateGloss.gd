@@ -40,6 +40,7 @@ const TARGETS := {
 	"biome_spectral_gap_lte":   {"kind": "menu", "key": "B"},
 	"gate_sequence_contains":   {"kind": "gate"},
 	"biome_evolving":           {"kind": "biome"},
+	"active_biome_is":          {"kind": "biome"},
 	# What Turns (gauge/holonomy): compass verbs live on Operator, the mirror
 	# and the loop-walking on Icon.
 	"biome_betti_gte":          {"kind": "hat", "frame": "icon"},
@@ -163,6 +164,11 @@ static func summary(pred: Dictionary, qm = null) -> String:
 			if loaded:
 				return "%s evolving" % evb
 			return "%s awake — discover it first (Captain 7: R), then work its plots" % evb
+		"active_biome_is":
+			# The wayfinding gate: arrival is the whole ask. The objective banner's
+			# travel line already names the literal tab key while you're elsewhere;
+			# this gloss names the row so the two never disagree on the verb.
+			return "stand in %s — the biome tabs (T Y U row, or tap one) carry you there" % str(pred.get("biome", "?"))
 		"story_flag_set":
 			# Speak the beat's display name, not the internal id ("flag
 			# 'village_identity' set" read as a dead end to playtesters).

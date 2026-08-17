@@ -8,6 +8,11 @@
 {"op":"set","path":"quest_rewards.biome_novelty_multiplier","value":1.10}
 {"op":"set","path":"quest_rewards.icon_novelty_multiplier","value":1.10}
 {"op":"set","path":"quest_rewards.novelty_multiplier_cap","value":1.20}
+# Reputation pays (owner ruling 2026-08-17): a faction's contracts pay better as its
+# trust climbs — bonus = min(cap, trust × per_trust), multiplicative with novelty,
+# computed at roll time so board preview and claim agree. At trust 0.5 → +30%.
+{"op":"set","path":"quest_rewards.standing_reward_bonus_per_trust","value":0.6}
+{"op":"set","path":"quest_rewards.standing_reward_bonus_cap","value":0.5}
 {"op":"set","path":"tuning.pop_base_yield_scale","value":13.0}
 {"op":"set","path":"tuning.reap_base_yield","value":8.0}
 {"op":"set","path":"tuning.reap_evolution_cycles","value":13}

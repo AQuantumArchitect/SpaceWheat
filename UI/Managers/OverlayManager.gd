@@ -540,6 +540,21 @@ func reset() -> void:
 	quest_manager = null
 
 
+## The objective portal's tap (ActFilament): open the playthrough surface
+## landed on the Arc tab — X → I in one touch, the mouse/touch door the
+## parity audits kept flagging. Radio-button semantics like toggle_overlay,
+## but never CLOSES: re-tapping the portal re-asserts the Arc instead of
+## bouncing the overlay shut under the player's finger.
+func open_controls_on_arc() -> void:
+	if not overlays.has("controls"):
+		return
+	var overlay = overlays["controls"]
+	if not (overlay_stack and overlay_stack.has_overlay(overlay)):
+		toggle_overlay("controls")
+	if overlay.has_method("show_tab_arc"):
+		overlay.show_tab_arc()
+
+
 func toggle_overlay(_name: String) -> void:
 	# Toggle an overlay open/closed.
 

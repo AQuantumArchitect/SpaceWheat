@@ -1,5 +1,5 @@
 {
-  "_doc": "Act-0 onboarding chain. A linear sequence of pipeline quests; the loader links each step to unlock the next (chain_unlocks). Each step teaches ONE mechanic; completion is a SOFT predicate (unified vocabulary) the player watches fill — the progress bar is the teacher. Authored body/hint are preserved by the pipeline (voice never clobbers them). Every hint names the real keys (ToolConfig is the authority); every gate fires on the mechanic its step teaches.",
+  "_doc": "Act-0 onboarding chain. A linear sequence of pipeline quests; the loader links each step to unlock the next (chain_unlocks). Each step teaches ONE mechanic; completion is a SOFT predicate (unified vocabulary) the player watches fill — the progress bar is the teacher. Authored body/hint are preserved by the pipeline (voice never clobbers them). Every hint names the real keys (ToolConfig is the authority); every gate fires on the mechanic its step teaches. Act 0 teaches only the farm verbs — instant, legible, no waits: loop, reap, contracts, travel, superposition, entanglement. Vocabulary (berry tracking + incorporation) is deliberately ABSENT here: it is mid-game content, taught by the act-3 chapter; early words come from faction teachings on the road (story_flags.json).",
   "steps": [
     {
       "tutorial_step": 0,
@@ -15,18 +15,6 @@
     },
     {
       "tutorial_step": 1,
-      "tutorial_teaches": "vocabulary",
-      "faction": "Hearth Keepers",
-      "biome": "StarterForest",
-      "body": "A qubit that walks a closed loop remembers the sky it swept. Ripeness is that memory — and a ripe pair can teach you a new word: an icon. Your vocabulary is your power here.",
-      "tutorial_hint": "Icon hat: press 5. F tracks a plot. ⏩ speeds the clock. R when ripe.",
-      "math_note": "Fires when your signature (farm.known_icons) reaches 3 icons — a count gate, so 3 means exactly 3, no soft-gate overshoot.",
-      "state_predicates": [
-        {"type": "signature_size_gte", "value": 3}
-      ]
-    },
-    {
-      "tutorial_step": 2,
       "tutorial_teaches": "reap_season",
       "faction": "Hearth Keepers",
       "biome": "TheDemos",
@@ -38,7 +26,31 @@
       ]
     },
     {
+      "tutorial_step": 2,
+      "tutorial_teaches": "contracts",
+      "faction": "Millwright's Union",
+      "biome": "TheDemos",
+      "type": "DELIVERY",
+      "resource": "🌾",
+      "quantity": 2,
+      "body": "The Millwright's Union is buying. Accept their contract and deliver 2× 🌾 from your stores. Kept contracts are how a small country eats — and how factions come to know your name.",
+      "tutorial_hint": "Gather 2× 🌾: Ace hat (8), strike (R), extract (Q). The granary you already hold counts too. Then deliver it: press C, then U, pick this contract's row (G–;) and press R. (To accept it in the first place: X, then the Arc tab I, pick its row, R — every other quest works the same way.)",
+      "math_note": "A DELIVERY quest, not a soft gate — fires the instant your 🌾 stores hold quantity ≥ 2 and you complete the contract. This step alone is NOT auto-accepted/claimed: you learn the real accept→do→claim ceremony every market contract uses."
+    },
+    {
       "tutorial_step": 3,
+      "tutorial_teaches": "wayfinding",
+      "faction": "Hearth Keepers",
+      "biome": "StarterForest",
+      "body": "The Demos is one country on a wider island. Past the hedge the forest keeps older words. Go and stand under its canopy.",
+      "tutorial_hint": "The biome tabs (T Y U row, or tap one) carry you between countries. Stand in StarterForest and this step completes on arrival.",
+      "math_note": "Structural predicate (active_biome_is): scores 1.0 the instant StarterForest is the biome under your feet, 0.0 otherwise — arrival is the whole ask, no soft gate. The objective banner's travel line names the literal key while you are elsewhere and drops the moment you arrive.",
+      "state_predicates": [
+        {"type": "active_biome_is", "biome": "StarterForest"}
+      ]
+    },
+    {
+      "tutorial_step": 4,
       "tutorial_teaches": "superposition",
       "faction": "Hearth Keepers",
       "biome": "StarterForest",
@@ -48,11 +60,11 @@
       "state_predicates": [
         {"type": "coherence_at_least", "value": 0.3}
       ],
-      "unlock_flags": ["forest_listener"],
-      "_unlock_note": "Completing this step fires the forest_listener spine flag, which unlocks the Operator hat (UIProgression.HAT_UNLOCK_FLAGS) the NEXT step (entanglement) needs — the tutorial hands the spine forward instead of racing it (Break #2)."
+      "unlock_flags": ["loom_opens"],
+      "_unlock_note": "Completing this step fires the loom_opens spine flag, which unlocks the Operator hat (UIProgression.HAT_UNLOCK_FLAGS) the NEXT step (entanglement) needs — the tutorial hands the spine forward instead of racing it (Break #2). The forest_listener handoff this replaced now lives in the act-3 berry chapter, where that flag's own predicates fire it naturally."
     },
     {
-      "tutorial_step": 4,
+      "tutorial_step": 5,
       "tutorial_teaches": "entanglement",
       "faction": "Hearth Keepers",
       "biome": "StarterForest",
@@ -61,54 +73,6 @@
       "math_note": "Fires the instant your action history records 1 bell gate (a single Bell weave) — a structural count, not a soft gate.",
       "state_predicates": [
         {"type": "gate_sequence_contains", "gate": "bell", "count": 1}
-      ]
-    },
-    {
-      "tutorial_step": 5,
-      "tutorial_teaches": "contracts",
-      "faction": "Millwright's Union",
-      "biome": "TheDemos",
-      "type": "DELIVERY",
-      "resource": "🌾",
-      "quantity": 2,
-      "body": "The Millwright's Union is buying. Accept their contract and deliver 2× 🌾 from your stores.",
-      "tutorial_hint": "Gather 2× 🌾: Ace hat (8), strike (R), extract (Q). Then deliver it: press C, then U, pick this contract's row (G–;) and press R. (To accept it in the first place: X, then the Arc tab I, pick its row, R — every other quest works the same way.)",
-      "math_note": "A DELIVERY quest, not a soft gate — fires the instant your 🌾 stores hold quantity ≥ 2 and you complete the contract. This step alone is NOT auto-accepted/claimed: you learn the real accept→do→claim ceremony every market contract uses."
-    },
-    {
-      "tutorial_step": 6,
-      "tutorial_teaches": "vocab_escape",
-      "faction": "Hearth Keepers",
-      "biome": "Village",
-      "body": "You are The Demos. Plant your vocabulary in the Village and harvest its people — because you KNOW them, every harvest pays more than it costs. This is how the spiral breaks.",
-      "tutorial_hint": "Grow your signature to 4+. Harvesting icons you KNOW (like 👥 in the Village) yields up to ×4 — net positive forever.",
-      "math_note": "Fires when your signature (farm.known_icons) reaches 4 icons — a count gate, so 4 means exactly 4, no soft-gate overshoot.",
-      "state_predicates": [
-        {"type": "signature_size_gte", "value": 4}
-      ],
-      "chain_branch": [
-        {
-          "when": {"type": "standing_gte", "faction": "Hearth Keepers", "channel": "trust", "value": 0.15},
-          "unlock": {
-            "source": "story",
-            "faction": "Hearth Keepers",
-            "biome": "StarterForest",
-            "body": "The Hearth Keepers trust you. The forest's deeper rhythms open — walk the Druid's Loop and let the canopy speak.",
-            "tutorial_hint": "Your path leans to the forest. Build coherence and berry-phase with the Hearth Keepers.",
-            "math_note": "Branch picked when Hearth Keepers trust ≥ 0.15 scores higher than the Millwright branch (each a soft gate, width 0.05, scoring exactly 0.5 at trust = 0.15); the higher-scoring branch wins, and it must clear 0.5 to fire at all."
-          }
-        },
-        {
-          "when": {"type": "standing_gte", "faction": "Millwright's Union", "channel": "trust", "value": 0.15},
-          "unlock": {
-            "source": "story",
-            "faction": "Millwright's Union",
-            "biome": "Village",
-            "body": "The Millwright's Union counts you an ally. The mill wants to run — feed it lumber and watch ⚙ rise.",
-            "tutorial_hint": "Your path leans to the mill. Drive the Village's ⚙ attractor with the Millwright's Union.",
-            "math_note": "Branch picked when Millwright's Union trust ≥ 0.15 scores higher than the Hearth Keepers branch (each a soft gate, width 0.05, scoring exactly 0.5 at trust = 0.15); the higher-scoring branch wins, and it must clear 0.5 to fire at all."
-          }
-        }
       ]
     }
   ]

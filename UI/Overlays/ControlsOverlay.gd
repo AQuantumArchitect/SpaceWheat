@@ -2209,6 +2209,12 @@ func _make_empty_row(key_str: String) -> Control:
 # SURFACE WIRING
 # =============================================================================
 
+## Public door for the objective portal (ActFilament tap): land this surface
+## on the Arc tab — X → I in one touch. Kept name-stable for has_method checks.
+func show_tab_arc() -> void:
+	_show_tab(Tab.ARC)
+
+
 func _show_tab(tab: int) -> void:
 	if _current_tab == tab and frame_id == TAB_TO_FRAME.get(tab, frame_id):
 		return

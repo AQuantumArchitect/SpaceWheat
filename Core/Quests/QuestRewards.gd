@@ -16,6 +16,8 @@ const QUEST_REWARD_TUNING_KEYS: Array = [
 	"icon_novelty_multiplier",
 	"novelty_multiplier_cap",
 	"reward_kT",
+	"standing_reward_bonus_per_trust",
+	"standing_reward_bonus_cap",
 ]
 
 static var _quest_reward_tuning_overrides: Dictionary = {}
@@ -284,6 +286,13 @@ static func _apply_reward_tuning(rewards: Dictionary, quest: Dictionary) -> Dict
 		multiplier += float(tuning.get("icon_novelty_multiplier")) - 1.0
 	var cap = float(tuning.get("novelty_multiplier_cap"))
 	multiplier = min(multiplier, cap)
+	# Reputation pays (owner ruling 2026-08-17, the reorder's one sanctioned new
+	# mechanic): the faction that trusts you pays you like it — multiplicative
+	# with novelty, under its own cap. Applied HERE, inside the pre-roll, so the
+	# board's preview and the eventual claim show the same numbers (this file's
+	# determinism law); trust earned after accepting does not retro-boost a
+	# rolled contract.
+	multiplier *= 1.0 + standing_reward_bonus(str(quest.get("faction", "")))
 	if multiplier <= 1.0:
 		return rewards
 	for emoji in rewards.keys():
@@ -291,6 +300,31 @@ static func _apply_reward_tuning(rewards: Dictionary, quest: Dictionary) -> Dict
 		var scaled = max(1.0, round(base * multiplier))
 		rewards[emoji] = int(scaled)
 	return rewards
+
+
+## Reputation-pay bonus for one faction, in [0, cap]: min(cap, trust × per_trust).
+## Reads the live farm's standing (same autoload path the rest of the UI uses);
+## no farm / no standing / zeroed tuning all mean 0.0 — fail quiet, never fail
+## loud, because this runs inside offer generation. QuestBoard renders the same
+## number ("⭐ +N%"), so the loop teaches itself: kept contracts → trust →
+## better pay → more contracts.
+static func standing_reward_bonus(faction_name: String) -> float:
+	if faction_name == "":
+		return 0.0
+	var tuning = get_reward_tuning()
+	var per_trust: float = float(tuning.get("standing_reward_bonus_per_trust", 0.0))
+	var bonus_cap: float = float(tuning.get("standing_reward_bonus_cap", 0.0))
+	if per_trust <= 0.0 or bonus_cap <= 0.0:
+		return 0.0
+	var ml = Engine.get_main_loop()
+	var gsm = ml.root.get_node_or_null("GameStateManager") if (ml != null and ml.root != null) else null
+	var farm = gsm.get_active_farm() if (gsm != null and gsm.has_method("get_active_farm")) else null
+	if farm == null or not ("faction_standings" in farm) or farm.faction_standings == null:
+		return 0.0
+	var standing = farm.faction_standings.get(faction_name, null)
+	if standing == null:
+		return 0.0
+	return clampf(float(standing.trust) * per_trust, 0.0, bonus_cap)
 
 
 static func _get_faction_dynamic_data(faction_name: String, fallback_cloud: Array) -> Dictionary:

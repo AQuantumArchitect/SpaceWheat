@@ -27,7 +27,11 @@ const HAT_UNLOCK_FLAGS: Dictionary = {
 	ToolConfig.FRAME_ACE: "",
 	ToolConfig.FRAME_ICON: "",
 	ToolConfig.FRAME_DRUID: "",
-	ToolConfig.FRAME_OPERATOR: "forest_listener",
+	# Any-of: loom_opens is the Act-0 superposition step's handoff (the road
+	# forward); forest_listener is the legacy unlock — banked saves fired it
+	# before the berry chapter moved to act 3, and losing a hat on load is the
+	# exact anti-gating violation these tables must never commit.
+	ToolConfig.FRAME_OPERATOR: ["loom_opens", "forest_listener"],
 	ToolConfig.FRAME_MERCHANT: "village_stirs",
 	# woodlot_door, not island_lives: the proven campaign road discovers the
 	# Woodlot (Captain's biome) right after the woodlot_door beat — island_lives
@@ -37,14 +41,15 @@ const HAT_UNLOCK_FLAGS: Dictionary = {
 	ToolConfig.FRAME_SPARK: "edge_of_the_enclave",
 }
 
-## Menu id (MenuRegistry) → surfacing flag ("" = always).
+## Menu id (MenuRegistry) → surfacing flag ("" = always; Array = ANY of —
+## first entry is the live road, the rest are legacy flags banked saves hold).
 const MENU_UNLOCK_FLAGS: Dictionary = {
 	"play": "",
 	"system": "",
 	"controls": "",
 	"quests": "",
-	"atlas": "first_breath",
-	"biome_detail": "forest_evolving",
+	"atlas": ["first_harvest", "first_breath"],
+	"biome_detail": ["loom_opens", "forest_evolving"],
 	"inspector": "village_stirs",
 	"map_meta": "village_stirs",
 	"neighborhood_graph": "village_stirs",
@@ -53,11 +58,11 @@ const MENU_UNLOCK_FLAGS: Dictionary = {
 ## Menu id → minimum tutorial_step at which it surfaces (checked ALONGSIDE
 ## MENU_UNLOCK_FLAGS, not instead of — a menu needs both its flag AND its step
 ## satisfied). Only Quest Board carries an entry: nothing in tutorial steps
-## 0-4 needs it, and step 5 ("contracts") is literally where it's taught.
+## 0-1 needs it, and step 2 ("contracts") is literally where it's taught.
 ## Missing from this table = no step gate, same fail-open law as everywhere
 ## else in this file.
 const MENU_UNLOCK_STEP: Dictionary = {
-	"quests": 5,
+	"quests": 2,
 }
 
 
@@ -70,7 +75,17 @@ static func _flags() -> Dictionary:
 	return {}
 
 
-static func _unlocked(flag: String, flags: Dictionary) -> bool:
+## flag_spec: "" = always; String = that flag must be fired; Array = ANY of
+## the named flags satisfies it (relocated flag + its legacy id, so banked
+## saves that fired the old road keep their chrome — the tables fail closed
+## with a live farm, and a stranded hat is unrecoverable).
+static func _unlocked(flag_spec, flags: Dictionary) -> bool:
+	if flag_spec is Array:
+		for f in flag_spec:
+			if _unlocked(f, flags):
+				return true
+		return false
+	var flag := str(flag_spec)
 	return flag == "" or flags.has(flag)
 
 
@@ -78,7 +93,7 @@ static func is_hat_visible(frame_name: String) -> bool:
 	var flags := _flags()
 	if flags.is_empty() and _no_farm():
 		return true
-	return _unlocked(str(HAT_UNLOCK_FLAGS.get(frame_name, "")), flags)
+	return _unlocked(HAT_UNLOCK_FLAGS.get(frame_name, ""), flags)
 
 
 ## Viz overlay id → surfacing flag ("" = always). Same fail-open law: an
@@ -97,14 +112,14 @@ static func is_viz_visible(overlay_id: String) -> bool:
 	var flags := _flags()
 	if flags.is_empty() and _no_farm():
 		return true
-	return _unlocked(str(VIZ_UNLOCK_FLAGS.get(overlay_id, "")), flags)
+	return _unlocked(VIZ_UNLOCK_FLAGS.get(overlay_id, ""), flags)
 
 
 static func is_menu_visible(menu_id: String) -> bool:
 	var flags := _flags()
 	if flags.is_empty() and _no_farm():
 		return true
-	if not _unlocked(str(MENU_UNLOCK_FLAGS.get(menu_id, "")), flags):
+	if not _unlocked(MENU_UNLOCK_FLAGS.get(menu_id, ""), flags):
 		return false
 	if MENU_UNLOCK_STEP.has(menu_id):
 		return current_tutorial_step() >= int(MENU_UNLOCK_STEP[menu_id])
@@ -174,8 +189,8 @@ static func is_escape_tab_active(tab_id: String) -> bool:
 const NO_TUTORIAL_SENTINEL := 999
 
 ## VERB_UNLOCK_STEP entries pinned here stay locked for the whole Act-0
-## tutorial (steps 0-6) without picking a real step to unlock at — comfortably
-## above the highest real step (6), and visually distinct from
+## tutorial (steps 0-5) without picking a real step to unlock at — comfortably
+## above the highest real step (5), and visually distinct from
 ## NO_TUTORIAL_SENTINEL so a reader can tell "locked all of Act 0" apart from
 ## "no signal, fully open."
 const VERB_LOCKED_FOR_ACT0 := 90
@@ -203,29 +218,33 @@ static func current_tutorial_step() -> int:
 const VERB_UNLOCK_STEP: Dictionary = {
 	# Step 0 (core_loop): Ace F (explore/fast-forward), R (strike), Q (extract).
 	# ace:E (Pause) is deliberately absent — harmless utility taught in the
-	# same hint, never locked.
+	# same hint, never locked. Steps 1 (reap) and 2 (contracts) ride these same
+	# Ace verbs; step 3 (wayfinding) is travel-only — no verb to unlock.
 	"ace:F": 0,
 	"ace:R": 0,
 	"ace:Q": 0,
 
-	# Step 1 (vocabulary): Icon F (track berry-phase), R (incorporate icon).
-	# icon:Q (remove_icon, destructive) and icon:E (inspect) stay locked for
-	# the rest of Act 0 — explicit, not omitted.
-	"icon:F": 1,
-	"icon:R": 1,
+	# Icon F (track berry-phase) and R (incorporate/plant) are locked for ALL
+	# of Act 0 — vocabulary is mid-game content (the act-3 berry chapter), and
+	# Act 0 deliberately teaches only instant verbs. Verb enforcement dies with
+	# Act 0, so these open the moment the tutorial ends (act-1 planting needs
+	# icon:R free). icon:Q (remove_icon, destructive) and icon:E (inspect)
+	# stay locked too — explicit, not omitted.
+	"icon:F": VERB_LOCKED_FOR_ACT0,
+	"icon:R": VERB_LOCKED_FOR_ACT0,
 	"icon:Q": VERB_LOCKED_FOR_ACT0,
 	"icon:E": VERB_LOCKED_FOR_ACT0,
 
-	# Step 3 (superposition): Druid E (Hadamard). druid:Q/R (rotations) stay
+	# Step 4 (superposition): Druid E (Hadamard). druid:Q/R (rotations) stay
 	# locked for the rest of Act 0 — explicit.
-	"druid:E": 3,
+	"druid:E": 4,
 	"druid:Q": VERB_LOCKED_FOR_ACT0,
 	"druid:R": VERB_LOCKED_FOR_ACT0,
 
-	# Step 4 (entanglement): Operator R (build_gate — the Bell weave).
+	# Step 5 (entanglement): Operator R (build_gate — the Bell weave).
 	# operator:Q (remove_gates, destructive) stays locked for the rest of
 	# Act 0 — explicit.
-	"operator:R": 4,
+	"operator:R": 5,
 	"operator:Q": VERB_LOCKED_FOR_ACT0,
 }
 
@@ -330,16 +349,21 @@ static func objective_target() -> Dictionary:
 		# actually happens (from_tutorial_def copies it onto the quest dict
 		# verbatim) -- dropping it here left the spotlight pulsing the verb
 		# chip alone, on whatever biome the player already stood on. A player
-		# who never learns to switch biomes first (step 1's Icon-hat lesson
-		# needs StarterForest; TheDemos's only word is already the player's
-		# own starting signature) hits a real dead end with no visual cue to
-		# leave. Mouse-only campaign wave 4.
+		# who never learns to switch biomes first hits a real dead end with no
+		# visual cue to leave (mouse-only campaign wave 4; now step 3
+		# "wayfinding" makes the crossing itself the taught beat).
 		var step_biome := str(best.get("biome", ""))
 		for entry_key in VERB_UNLOCK_STEP:
 			if int(VERB_UNLOCK_STEP[entry_key]) == step:
 				var hat_key := _hat_key_for_frame(str(entry_key).split(":")[0])
 				if hat_key != "":
 					return {"key": hat_key, "biome": step_biome}
+		# No verb entry for this step (reap/contracts ride step-0 Ace verbs;
+		# wayfinding is travel-only): the biome IS the target. The spotlight
+		# pulses the biome tab while the player stands elsewhere and goes
+		# honestly dark once they arrive — never a guessed key.
+		if step_biome != "":
+			return {"key": "", "biome": step_biome}
 		return {}
 	# Active ARC quest: 42/72 authored state_predicates carry a biome, 13 an
 	# atom — structured targets exist one level down, no new authoring needed.
@@ -479,6 +503,46 @@ static func _act_by_flag(qm: Node) -> Dictionary:
 			if flag is Dictionary:
 				out[str(flag.get("id", ""))] = int(flag.get("act", 0))
 	return out
+
+
+## The nearest unfired story beat's display name — the objective portal's
+## "Next:" line (ActFilament). Frontier rule: the lowest-act unfired beat
+## whose story_flag_set prereqs are ALL satisfied — a door the player can
+## actually walk toward now, not a distant rumor. Data order breaks ties
+## (same file-order tiebreak the Arc tab uses). "" when nothing is ahead
+## (story finished) or before a farm exists. Read-only, same authority
+## chain as objective_text() — never a second guess about the CURRENT
+## objective, only about what stands behind it.
+static func next_objective_title() -> String:
+	var qm := _quest_manager()
+	if qm == null or not qm.has_method("get_all_story_flags"):
+		return ""
+	var gsm = Engine.get_main_loop().root.get_node_or_null("GameStateManager") if Engine.get_main_loop() else null
+	var farm = gsm.get_active_farm() if (gsm and gsm.has_method("get_active_farm")) else null
+	if farm == null or not ("story_flags_fired" in farm):
+		return ""
+	var fired: Dictionary = farm.story_flags_fired
+	var best_name := ""
+	var best_act := 0x7FFFFFFF
+	for flag in qm.get_all_story_flags():
+		if not (flag is Dictionary):
+			continue
+		var fid := str(flag.get("id", ""))
+		if fid == "" or fired.has(fid):
+			continue
+		var prereqs_met := true
+		for pred in flag.get("predicates", []):
+			if pred is Dictionary and str(pred.get("type", "")) == "story_flag_set" \
+					and not fired.has(str(pred.get("id", ""))):
+				prereqs_met = false
+				break
+		if not prereqs_met:
+			continue
+		var act := int(flag.get("act", 99))
+		if act < best_act:
+			best_act = act
+			best_name = str(flag.get("display_name", fid))
+	return best_name
 
 
 # ============================================================================

@@ -19,16 +19,26 @@ const LANE_PREFIXES := {
 }
 
 
-## The Demos' four-movement spine, keyed off an act number (single source = act).
-## (Moved verbatim from ControlsOverlay so Core-side consumers can speak it.)
+## The Demos' spine in movements, keyed off an act number (single source = act).
+## Re-cut for the 2026-08-17 reorder: act 0 is the farm-verb loop, acts 1-2 the
+## teachings-first village-and-countries arc, act 3 the relocated berry chapter
+## ("what the land remembers" — first_breath + the forest staircase), act 4 the
+## island hub, and the old lumped "acts 5-8" movement splits so the ending act
+## (6) and the after-the-door epilogue lanes (7-8) stop wearing one label.
 static func chapter_for_act(act: int) -> String:
-	if act <= 1:
-		return "Chapter I — Vocabulary"
-	elif act <= 3:
+	if act <= 0:
+		return "Chapter I — The Loop"
+	elif act <= 2:
 		return "Chapter II — The Village"
+	elif act == 3:
+		return "Chapter III — What the Land Remembers"
 	elif act == 4:
-		return "Chapter III — The Island & Its People"
-	return "Chapter IV — The Empire & The Escape"
+		return "Chapter IV — The Island & Its People"
+	elif act == 5:
+		return "Chapter V — The Empire"
+	elif act == 6:
+		return "Chapter VI — The Door"
+	return "Chapter VII — After the Door"
 
 
 ## Parse a flag's display_name for its narrative lane. 22 flags carry

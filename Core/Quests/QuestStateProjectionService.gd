@@ -137,6 +137,15 @@ func evaluate_predicate(predicate: Dictionary) -> float:
 		"coherence_at_least":
 			var target := float(predicate.get("value", 0.0))
 			return QuestMath.soft_gate(float(_last_observables.get("coherence", 0.0)), target)
+		"active_biome_is":
+			# Arrival gate (Act-0 wayfinding): structural 1/0 on the biome under the
+			# player's feet. biome_evolving can't express this — every scenario biome
+			# is loaded from boot — and no travel action reaches the history, so the
+			# observer's own frame-stamped biome name is the one honest witness.
+			var want := str(predicate.get("biome", "")).strip_edges()
+			if want == "":
+				return 0.0
+			return 1.0 if str(_last_observables.get("biome", "")) == want else 0.0
 		"entropy_at_most":
 			var target := float(predicate.get("value", 1.0))
 			return QuestMath.soft_gate_inv(float(_last_observables.get("entropy", 1.0)), target)

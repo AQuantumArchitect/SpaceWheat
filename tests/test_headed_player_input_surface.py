@@ -1,4 +1,5 @@
 import json
+import re
 
 from conftest import ROOT, read_source as _read
 
@@ -252,29 +253,32 @@ def test_action_chip_click_threads_shift_state_for_reap_season() -> None:
     assert "_dispatch_action_key(action_key, shift)" in qii_src
 
 
-def test_tutorial_step1_hint_survives_the_objective_banners_truncation() -> None:
+def test_tutorial_hints_survive_the_objective_banners_truncation() -> None:
     # Wave-5 sensor wall (literalist): UIProgression._short_line() truncates
     # tutorial_hint at the first sentence boundary within a ~100-char
-    # lookahead (OBJECTIVE_MAX_CHARS=70 + 30) -- the first fix's two-sentence
-    # hint ("Cross to StarterForest first... Icon hat (5): F tracks...") put
-    # the ACTIONABLE second sentence past that boundary, so it silently never
-    # rendered on screen at all; the banner stayed byte-identical before and
-    # after crossing biomes, with no instruction for what to do once there.
-    # Pin the hint under OBJECTIVE_MAX_CHARS so the whole thing always shows.
+    # lookahead (OBJECTIVE_MAX_CHARS=70 + 30) -- a hint whose ACTIONABLE
+    # sentence sits past that boundary silently never renders on screen at
+    # all; the banner stays byte-identical while the player stalls.
     #
-    # 2026-08-10: the destination moved OUT of the prose. Cramming "Cross to
-    # StarterForest" into the hint made the banner repeat a journey the player
-    # had already made — the literalist read a standing order it had obeyed,
-    # and the lost-lamb called it LOOPING. UIProgression._travel_line() now
-    # derives the crossing from the step's own `biome` field and drops it the
-    # moment you arrive, so the hint is free to spend all 70 chars on the
-    # ritual. The destination is still asserted — just at its real authority.
+    # 2026-08-10: the destination moved OUT of the prose and onto the step's
+    # own `biome` field (UIProgression._travel_line derives the crossing and
+    # drops it on arrival). 2026-08-17: the berry/vocabulary step itself moved
+    # to the act-3 chapter (first_breath — pinned in
+    # test_tutorial_objective_travel.py), and the wayfinding step (index 3)
+    # now makes the crossing a first-class taught beat. What this pins: every
+    # step's FIRST sentence fits the banner, and the wayfinding step declares
+    # the destination the spotlight pulses.
     OBJECTIVE_MAX_CHARS = 70
     data = json.loads(_read("Core/Quests/data/tutorial_arc.json"))
-    step1 = next(s for s in data["steps"] if s.get("tutorial_step") == 1)
-    assert len(step1["tutorial_hint"]) <= OBJECTIVE_MAX_CHARS
-    assert step1["biome"] == "StarterForest"
-    assert "Icon hat" in step1["tutorial_hint"]
+    for s in data["steps"]:
+        hint = str(s.get("tutorial_hint", "")).strip()
+        first = re.split(r"(?<=[.!?])\s", hint)[0]
+        assert len(first) <= OBJECTIVE_MAX_CHARS, (
+            "step %s lead sentence is %d chars" % (s.get("tutorial_step"), len(first))
+        )
+    wayfinding = next(s for s in data["steps"] if s.get("tutorial_teaches") == "wayfinding")
+    assert wayfinding["biome"] == "StarterForest"
+    assert "StarterForest" in wayfinding["tutorial_hint"]
 
 
 def test_tutorial_objective_spotlight_honors_the_steps_own_biome() -> None:

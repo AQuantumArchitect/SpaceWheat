@@ -266,7 +266,7 @@ func _handle_shell_action(event: InputEvent) -> bool:
 	if not menu_entry.is_empty():
 		# Progressive disclosure (phase-2 funnel): a locked menu's key redirects
 		# instead of acting. Z/X never lock. C ("quests") gates on tutorial step
-		# 5 (UIProgression.MENU_UNLOCK_STEP) layered on its always-unlocked
+		# 2 (UIProgression.MENU_UNLOCK_STEP) layered on its always-unlocked
 		# MENU_UNLOCK_FLAGS entry; the 5 fully-gated surfaces (atlas V,
 		# biome_detail B, inspector N, map_meta M, neighborhood_graph [) gate on
 		# a story flag instead.
