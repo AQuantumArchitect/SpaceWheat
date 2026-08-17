@@ -381,6 +381,7 @@ func _requires_quantum_instrument(action: String) -> bool:
 		"resource_mutations",
 		"story_flags",
 		"consume_berry",
+		"grant_standing",
 		"bridge_build",
 		"bridge_braid",
 		"bridge_fuse",
@@ -757,6 +758,25 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "rig_resource_injection_disabled"}
 			else:
 				result["set"] = bool(_instrument.set_resource(emoji, amount, "rig_set").get("ok", false))
+
+		"grant_standing":
+			# Test-only: apply faction standing deltas directly through
+			# Farm.apply_standing_deltas, bypassing the market/delivery grind.
+			# Mirrors consume_berry — quest readiness (state_predicates) and
+			# flag predicates both read farm.faction_standings live, so tests
+			# that need a specific access/trust level don't have to replay N
+			# kept contracts (2026-08-17 campaign reorder moved several arc
+			# quests, e.g. village_stirs/spring_connects, onto standing gates).
+			var gs_faction: String = str(cmd.get("faction", ""))
+			var gs_deltas = cmd.get("deltas", {})
+			if not _allow_rig_resource_injection():
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "rig_resource_injection_disabled"}
+			elif _farm == null or gs_faction == "" or not (gs_deltas is Dictionary) or gs_deltas.is_empty():
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "bad_args"}
+			else:
+				_farm.apply_standing_deltas(gs_faction, gs_deltas)
+				var gs_standing = _farm.get_or_create_standing(gs_faction)
+				result["standing"] = gs_standing.to_dict()
 
 		"resource_mutations":
 			var limit = int(cmd.get("limit", 40))
