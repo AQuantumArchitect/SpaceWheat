@@ -334,10 +334,21 @@ Predicate families (`QuestManager.gd`):
   legitimacy/entanglement).
 
 ### 7.2 The arc (The Demos playthrough, `story_flags.json`)
-- **Act 0 — tutorial** (`tutorial_arc.json`): teaches R/E/Q, incorporation, reap,
-  superposition, contracts.
-- **Acts 1–3 — awaken & couple:** Forest wakes → berries → Village stirs → upstream
-  biomes (Woodlot 🪵, Spring 💧) couple in → the Mill's `⚙` attractor forms.
+Reordered 2026-08-17 (`docs/CAMPAIGN_REORDER_2026-08-17.md`): the early game
+teaches only enough physics to play — farm verbs and contracts — and raises
+the bar per act; every beat also carries a `campaign` tag (the split's
+phase-0 partition, `tests/test_campaign_partition.py`).
+- **Act 0 — tutorial** (`tutorial_arc.json`): the instant verbs only — the
+  explore/strike/extract loop, reap, the contract ceremony, wayfinding (the
+  first crossing), superposition, entanglement. No berry ritual here.
+- **Acts 1–2 — teachings-first:** kept contracts raise standing; factions teach
+  their words at trust (the claim IS the teaching); planting taught words
+  couples the countries (Woodlot 🪵, Spring 💧) and the Mill's `⚙` attractor
+  forms. Reputation raises market pay (⭐, `quest_rewards.standing_reward_*`).
+- **Act 3 — What the Land Remembers:** the berry chapter (`first_breath` + the
+  forest staircase): Berry-tracking, incorporation, the first invariant — and
+  the **×4 harvest bonus**, which rides `farm.incorporated_icons` (the ritual's
+  ledger), never mere teaching.
 - **Act 4 — the hub:** all biomes coupled (`island_lives`); `village_identity`
   ("A Character") gates on Village at its 12-atom cap + island diversity + the
   full 15-word island vocabulary; `five_doors` names the five path keys and the

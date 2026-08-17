@@ -62,15 +62,28 @@ Four verbs, same directions on every surface:
 Re-press the active hat to fall back to Ace. `Tab` cycles hats. `Shift` +
 Q/E/R applies the verb to every valid plot.
 
-## Berries — how the story moves
+## Contracts and teachings — how the early story moves
 
-The acts advance on **incorporated berries**, and the loop is short: pick a
-plot (`G H J K L ;`), put on the Icon hat (`5`), press **F** to track its
-walk (⌖). Let time run — Ace-hat F fast-forwards. When the loop has swept
-enough sky it **ripens**, and the Icon-hat **R** chip reads *Incorporate*:
-press it. One incorporation = one berry consumed + one new word in your
-signature. The Arc tab (**X → I**) shows exactly how many berries each act
-asks of which biome.
+The early acts advance on **kept contracts**: accept a delivery on the board
+(**C**, market tab **Y**), gather fresh, claim it in Commitments (**C → U**).
+Every kept contract raises that faction's standing — and standing is the
+early game's whole ladder: factions **teach** you their words when they
+count you reliable (the claim of a teaching quest IS the lesson), taught
+words **plant** (Icon-hat R on an empty plot authors the biome's
+Hamiltonian), and a faction that trusts you **pays better** (the ⭐ bonus on
+its board rows). The objective portal (top-right) always names the one live
+task and the next door behind it; tap it for the Arc.
+
+## Berries — how the mid-game moves
+
+From act 3 (*What the Land Remembers*) the acts advance on **incorporated
+berries**, and the loop is short: pick a plot (`G H J K L ;`), put on the
+Icon hat (`5`), press **F** to track its walk (⌖). Let time run — Ace-hat F
+fast-forwards. When the loop has swept enough sky it **ripens**, and the
+Icon-hat **R** chip reads *Incorporate*: press it. One incorporation = one
+berry consumed + one new word in your signature — a word no faction taught
+you, and the only kind that earns the **×4 harvest bonus**. The Arc tab
+(**X → I**) shows exactly how many berries each act asks of which biome.
 
 Three things the impatient learn the hard way: loops only ripen while **time
 flows** (E pauses the world; F plays it on — the ⏸/▶ toast tells you which);
