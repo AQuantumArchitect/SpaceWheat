@@ -6,16 +6,20 @@ extends "res://UI/Core/OverlayBase.gd"
 ## or ESC) is the human ACTION that begins the tutorial: tutorial_seen fires on dismiss, not at
 ## boot — matching the principle that flags fire from human action.
 
+## Story first (owner ruling 2026-08-17): a brand-new player used to meet
+## eleven rows of keymap; the fiction was one line among them. Now the fiction
+## leads, and only the three keys the first minute needs appear — the full
+## keymap lives where it always did, in the Guide (X → O), and the objective
+## portal (top-right) carries the player from there.
 const _ROWS := [
 	"You are The Demos — a people learning the quantum language of your own ground.",
 	"",
-	"THE LOOP   ·   F explores a plot (🍞) — R strikes it and the answer locks in (👥) — Q extracts, free.",
-	"Rare answers pay more. Extracting earns emojis and teaches you icons — your vocabulary, your power here.",
+	"Your whole vocabulary is one word: 🌾/👥 — wheat and people, the axis your island turns on.",
+	"The factions past the hedge keep older words, and they teach the ones who keep their contracts.",
 	"",
-	"KEYBOARD   ·   plots  [ G H J K L ; ]  ·  verbs  [ Q E R F ]  ·  hats  [ 4 – 0 ]  ·  menus  [ Z X C V B N M ].",
+	"THE FIRST MINUTE   ·   F explores a plot (costs 🍞)  ·  R strikes it — the answer locks in (costs 👥)  ·  Q extracts the yield, free.",
 	"",
-	"New here?   Your first task is already live — the banner names it.  X → Arc  ( I )  lists your quests;  R  accepts the one you pick.  Guide  ( O )  is the full how-to-play.",
-	"Open  B  on any biome to see how it behaves (rigid vs. plural), and  C  for contracts + commitments.  Z  (or ESC) is the system menu — save, load, settings.",
+	"The gold banner (top-right) always names your one live task — tap it any time for the Arc, the island's list of open doors.  The Guide (X → O) is the full how-to-play.",
 	"",
 	"Tap anywhere  (or press  F)  to begin.",
 ]
@@ -46,8 +50,8 @@ func _build_content(container: Control) -> void:
 		lbl.text = str(row)
 		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		var emphasis := str(row).begins_with("THE LOOP") or str(row).begins_with("TOOLS") \
-			or str(row).begins_with("KEYBOARD") or str(row).begins_with("Tap anywhere")
+		var emphasis := str(row).begins_with("THE FIRST MINUTE") \
+			or str(row).begins_with("Tap anywhere")
 		lbl.add_theme_font_size_override("font_size", 15 if emphasis else 13)
 		lbl.add_theme_color_override("font_color",
 			Color(0.85, 0.95, 0.88) if emphasis else Color(0.78, 0.82, 0.88))

@@ -2252,6 +2252,38 @@ func restore_from_save_dict(data: Dictionary) -> void:
 	completed_quests = saved_completed.duplicate(true) if saved_completed is Array else []
 	var saved_failed = data.get("failed", [])
 	failed_quests = saved_failed.duplicate(true) if saved_failed is Array else []
+	# Tutorial re-sync (2026-08-17 reorder): a saved TUTORIAL quest embeds its
+	# authored fields verbatim — tutorial_step index, predicates, and the whole
+	# welded remaining chain (chain_unlocks) — from whatever tutorial_arc.json
+	# shipped when the save was written. UIProgression's verb/menu tables key on
+	# the CURRENT indices, so a stale save can point the funnel at the wrong
+	# step, or at one that no longer exists (vocabulary/vocab_escape moved to
+	# the act-3 chapter). Re-key each restored step by its tutorial_teaches name
+	# against the loaded _tutorial_steps; a step with no current counterpart
+	# RETIRES (the same third terminal the act-2 sweep uses — never a fail).
+	var _stale_tutorial_ids: Array = []
+	for rqid in active_quests:
+		var rq: Dictionary = active_quests[rqid]
+		if str(rq.get("category", "")) != "TUTORIAL":
+			continue
+		var teaches := str(rq.get("tutorial_teaches", ""))
+		var cur: Dictionary = {}
+		for step in _tutorial_steps:
+			if step is Dictionary and str(step.get("tutorial_teaches", "")) == teaches:
+				cur = step
+				break
+		if cur.is_empty():
+			_stale_tutorial_ids.append(rqid)
+			continue
+		for field in ["tutorial_step", "state_predicates", "chain_unlocks",
+				"body", "tutorial_hint", "math_note", "biome", "unlock_flags"]:
+			if cur.has(field):
+				var v = cur[field]
+				rq[field] = v.duplicate(true) if (v is Dictionary or v is Array) else v
+			elif rq.has(field):
+				rq.erase(field)
+	for rqid in _stale_tutorial_ids:
+		retire_quest(rqid, "step left the tutorial (campaign reorder)")
 	# Monotonic: never rewind below ids already handed out this session, or
 	# fresh offers would collide with restored quest ids.
 	next_quest_id = maxi(next_quest_id, int(data.get("next_quest_id", 0)))

@@ -505,6 +505,46 @@ static func _act_by_flag(qm: Node) -> Dictionary:
 	return out
 
 
+## The nearest unfired story beat's display name — the objective portal's
+## "Next:" line (ActFilament). Frontier rule: the lowest-act unfired beat
+## whose story_flag_set prereqs are ALL satisfied — a door the player can
+## actually walk toward now, not a distant rumor. Data order breaks ties
+## (same file-order tiebreak the Arc tab uses). "" when nothing is ahead
+## (story finished) or before a farm exists. Read-only, same authority
+## chain as objective_text() — never a second guess about the CURRENT
+## objective, only about what stands behind it.
+static func next_objective_title() -> String:
+	var qm := _quest_manager()
+	if qm == null or not qm.has_method("get_all_story_flags"):
+		return ""
+	var gsm = Engine.get_main_loop().root.get_node_or_null("GameStateManager") if Engine.get_main_loop() else null
+	var farm = gsm.get_active_farm() if (gsm and gsm.has_method("get_active_farm")) else null
+	if farm == null or not ("story_flags_fired" in farm):
+		return ""
+	var fired: Dictionary = farm.story_flags_fired
+	var best_name := ""
+	var best_act := 0x7FFFFFFF
+	for flag in qm.get_all_story_flags():
+		if not (flag is Dictionary):
+			continue
+		var fid := str(flag.get("id", ""))
+		if fid == "" or fired.has(fid):
+			continue
+		var prereqs_met := true
+		for pred in flag.get("predicates", []):
+			if pred is Dictionary and str(pred.get("type", "")) == "story_flag_set" \
+					and not fired.has(str(pred.get("id", ""))):
+				prereqs_met = false
+				break
+		if not prereqs_met:
+			continue
+		var act := int(flag.get("act", 99))
+		if act < best_act:
+			best_act = act
+			best_name = str(flag.get("display_name", fid))
+	return best_name
+
+
 # ============================================================================
 # THE REDIRECT TOAST — what a locked key says instead of acting. Rate-limited
 # to one toast per 3s no matter how fast keys are mashed (anti-gating law:
