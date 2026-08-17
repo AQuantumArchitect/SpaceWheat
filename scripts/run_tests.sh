@@ -81,6 +81,7 @@ SMOKE_TESTS=(
     native_async_methods_smoke
     native_async_compute_smoke
     native_async_lane_smoke
+    loop_card_smoke
 )
 # Known-red / not wired: NONE (2026-08-03 fable push — the #429 leftovers all
 # closed: m_surface's phantom KEY_2 sort chord replaced with the real

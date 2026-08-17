@@ -141,6 +141,16 @@ def test_title_menu_restart_path_reaches_arc_handover(rig_boot) -> None:
         press("E", frames=8)
     # 5 entanglement — Operator: pair, R, Bell (fires arc_handover).
     press("9", frames=4)
+    # Step 4's plot-select (G) can coincide with whatever plot was already
+    # focused from wayfinding — a re-press on the SAME plot toggles its
+    # checkbox (by design, docs/UI/Core/QuantumInstrumentInput.gd
+    # _handle_plot_row_input). That stray check would eat one of the two
+    # slots Shift+G/Shift+H mean to mark here, so clear first — apostrophe
+    # clears when non-empty, bulk-checks when empty, so only clear if the
+    # rig reports something is already marked.
+    pre_state = step("instrument_state")
+    if pre_state.get("checked_plots"):
+        step("press_key", key="'", settle_frames=6)
     step("press_key", key="G", shift=True, settle_frames=6)
     step("press_key", key="H", shift=True, settle_frames=6)
     press("R", frames=10)

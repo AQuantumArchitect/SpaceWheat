@@ -152,9 +152,16 @@ def test_the_meta_state_gate_shows_a_number_and_names_a_verb() -> None:
     way rather than do X in biome Y. With no live value and no named verb it read
     as the first ask in six acts with no next step."""
     src = GLOSS.read_text(encoding="utf-8")
-    seg = src.split('"soul_purity_gte":')[1].split('"biome_evolving"')[0]
+    # "soul_purity_gte" now ALSO appears in TARGETS (2026-08-13: it gained a
+    # real hat-spotlight target like every other predicate) — split on the
+    # LAST occurrence so this lands in summary()'s match arm, not the dict.
+    seg = src.rsplit('"soul_purity_gte":', 1)[1].split('"biome_evolving"')[0]
     assert "soul_purity_now" in seg, "it must show where the player stands right now"
-    assert "Icon hat 5" in seg, (
+    # 2026-08-13: reworded to "Icon (5)" (dropped "hat") to fit the banner's
+    # OBJECTIVE_MAX_CHARS budget while still naming the hat digit in (N) form
+    # (predicate_target_smoke pins the spotlight off that digit) — the verb
+    # is still named, just not with the word "hat".
+    assert "Icon (5)" in seg, (
         "and name the verb that moves it — incorporation pumps the owning faction "
         "(Farm._pump_for_icon), which is what sharpens ρ out of the fog"
     )

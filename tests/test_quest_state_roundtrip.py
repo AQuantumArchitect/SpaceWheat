@@ -116,4 +116,12 @@ def test_quest_ledger_survives_save_load_roundtrip(rig_boot) -> None:
     final_completed_flags = {str(q.get("source_flag", "")) for q in final["completed"]}
     assert {"village_stirs", "spring_connects"} <= final_completed_flags, final
     assert not any(int(q.get("id", -1)) == sc_id for q in final["active"]), final
-    assert offers_by_flag() == {}, "offer resurrected for a completed teaching"
+    # Neither completed teaching resurrects. new_voices (a pair-less guidance
+    # quest cascaded by village_stirs, not itself completed) legitimately
+    # DOES reappear here — StoryEngine._restore_arc_quests_after_load's
+    # resume-guidance pass (2026-08-13) re-offers at most one such quest on
+    # load so a reloading player doesn't lose the next-step nudge. Assert the
+    # dedup this test actually pins, not a blanket empty board.
+    final_offers = offers_by_flag()
+    assert "village_stirs" not in final_offers, final_offers
+    assert "spring_connects" not in final_offers, final_offers

@@ -82,8 +82,15 @@ def test_arc_teaching_offer_reborn_on_load_and_claimed_pair_stays_claimed(rig_bo
     claim_arc("spring_connects", "Hearth Keepers", "trust", 0.8)
     assert ("💧", "🌊") in signature_icons()
 
-    # And a further roundtrip re-offers nothing — both teachings are held.
+    # And a further roundtrip re-offers neither claimed teaching — both are
+    # held. new_voices (a pair-less guidance quest cascaded by village_stirs,
+    # itself never completed here) legitimately DOES reappear:
+    # StoryEngine._restore_arc_quests_after_load's resume-guidance pass
+    # (2026-08-13) re-offers at most one such quest on load so a reloading
+    # player doesn't lose the next-step nudge.
     assert step("save_game_path", path=str(save_path)).get("saved", False)
     assert step("load_game_path", path=str(save_path)).get("loaded", False)
-    assert offers_by_flag() == {}, offers_by_flag()
+    final_offers = offers_by_flag()
+    assert "village_stirs" not in final_offers, final_offers
+    assert "spring_connects" not in final_offers, final_offers
     assert {("💨", "🔨"), ("💧", "🌊")} <= signature_icons()
