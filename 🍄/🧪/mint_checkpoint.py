@@ -111,7 +111,10 @@ def main() -> int:
             return float(wallet().get(resource, 0)) >= quantity
 
         def tutorial_drive():
-            # The six Act-0 steps, by keyboard (order: tutorial_arc.json).
+            # The six Act-0 steps, by keyboard (order: tutorial_arc.json,
+            # 2026-08-17 capstone order — reap moved LAST; the entanglement
+            # step's claim grants the 🍼 that pays it, and Shift+F is
+            # funnel-locked until the capstone step is live).
             # 0 core_loop — explore/strike/extract on TheDemos.
             press("t", settle=8)
             press("8", settle=4)
@@ -119,9 +122,7 @@ def main() -> int:
             press("f", settle=10)
             press("r", settle=12)
             press("q", settle=10)
-            # 1 reap_season — Shift+F. (fires first_harvest too)
-            t("press_key", key="f", shift=True, settle_frames=12)
-            # 2 contracts — accept on the Arc tab, deliver 2×🌾 in Commitments.
+            # 1 contracts — accept on the Arc tab, deliver 2×🌾 in Commitments.
             #   demos_normal boots with 21×🌾, so the granary covers it.
             press("x", settle=6)
             press("i", settle=6)
@@ -133,20 +134,31 @@ def main() -> int:
             press("g", settle=6)   # the delivery is the first commitment row
             press("r", settle=12)  # deliver
             press("escape", settle=6)
-            # 3 wayfinding — stand in StarterForest; arrival is the gate.
+            # 2 wayfinding — stand in StarterForest; arrival is the gate.
             press("u", settle=12)
-            # 4 superposition — Druid E until coherence ≥ 0.3 (fires loom_opens).
+            # 3 superposition — Druid E until coherence ≥ 0.3 (fires loom_opens).
             for pk in "ghj":
                 press("0", settle=4)
                 press(pk, settle=4)
                 press("e", settle=8)
-            # 5 entanglement — Operator: pair, R, Bell (fires arc_handover).
+            # 4 entanglement — Operator: pair, R, Bell (auto-claim grants 1 🍼).
             press("9", settle=4)
             t("press_key", key="g", shift=True, settle_frames=6)
             t("press_key", key="h", shift=True, settle_frames=6)
             press("r", settle=10)
             press("q", settle=12)
             t("time_skip", phrames=300)
+            press("'", settle=60)  # let the bell completion offer the capstone
+            # 5 reap_season — the capstone: come home, put the field in play
+            #   (reap only has material when explored plots are still in the
+            #   season), then Ace Shift+F.
+            #   (fires first_harvest, then arc_handover = loom_opens ∧ first_harvest)
+            press("t", settle=8)
+            press("8", settle=4)
+            for pk in "gh":
+                press(pk, settle=4)
+                press("f", settle=8)
+            t("press_key", key="f", shift=True, settle_frames=12)
 
         def millwright_deliveries(max_contracts=6):
             # Keep Millwright market deliveries until village_stirs fires —

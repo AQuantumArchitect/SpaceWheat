@@ -505,14 +505,13 @@ func _commitments_inspect_text() -> String:
 		return ""
 	var quest: Dictionary = rows[_selected_index]
 	var farm = InstrumentLocator.resolve_active_farm(self)
+	# Faction + the real ask. The old fallback rendered raw resource×quantity,
+	# which for a predicate quest (no resource field) read "Faction ·  × 1".
+	var ask_line := "%s · %s" % [str(quest.get("faction", "?")), _commitment_ask_text(quest, true)]
 	var card_tip: String = _faction_card_tooltip(str(quest.get("faction", "")), farm)
 	if card_tip == "":
-		return "%s · %s × %d" % [
-			str(quest.get("faction", "?")),
-			str(quest.get("resource", "?")),
-			int(quest.get("quantity", 0)),
-		]
-	return card_tip
+		return ask_line
+	return ask_line + "\n" + card_tip
 
 func _manifold_inspect_text() -> String:
 	if current_biome == null or current_biome.quantum_computer == null:
@@ -656,10 +655,28 @@ func _current_verb_labels() -> Dictionary:
 				return {"Q": "Cancel", "E": "—", "R": "—", "F": "⚠ Confirm Abandon"}
 			var f_label := "Lock"
 			var crows := _commitments_rows()
-			if quest_manager and quest_manager.has_method("is_quest_locked") and _selected_index >= 0 and _selected_index < crows.size():
-				if quest_manager.is_quest_locked(int(crows[_selected_index].get("id", -1))):
+			var sel_quest: Dictionary = {}
+			if _selected_index >= 0 and _selected_index < crows.size() and crows[_selected_index] is Dictionary:
+				sel_quest = crows[_selected_index]
+			if quest_manager and quest_manager.has_method("is_quest_locked") and not sel_quest.is_empty():
+				if quest_manager.is_quest_locked(int(sel_quest.get("id", -1))):
 					f_label = "Unlock"
-			return {"Q": "Abandon", "E": "—", "R": "Complete", "F": f_label}
+			# R speaks the selected row's truth, not a one-size "Complete": a
+			# READY row wants a claim, an active DELIVERY wants the goods, and
+			# an active predicate quest wants nothing from R at all — its bar
+			# fills from the live state (the not-ready toast already explains).
+			var r_label := "Complete"
+			if not sel_quest.is_empty():
+				var sel_status := str(sel_quest.get("status", "")).to_lower()
+				var sel_type = sel_quest.get("type", 0)
+				var sel_ti := int(sel_type) if (typeof(sel_type) == TYPE_INT or typeof(sel_type) == TYPE_FLOAT) else int(QuestTypes.Type.DELIVERY)
+				if sel_status == "ready":
+					r_label = "Claim"
+				elif sel_ti == int(QuestTypes.Type.DELIVERY):
+					r_label = "Deliver"
+				else:
+					r_label = "—"
+			return {"Q": "Abandon", "E": "Inspect", "R": r_label, "F": f_label}
 	return {"Q": "—", "E": "—", "R": "—", "F": "—"}
 
 # =============================================================================
@@ -1270,6 +1287,25 @@ func _make_commitment_row(quest: Dictionary, key_str: String, selected: bool) ->
 			tail_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
 			vbox.add_child(tail_lbl)
 
+	# The authored WHAT. Until 2026-08-17 this board never rendered `body` at
+	# all — the 💡 hint (a HOW) was the only prose, so a row led with
+	# instructions for a thing it never stated ("the hint text is coming before
+	# the text — the text isn't there"). Same order the X Arc rows use:
+	# body → progress → hint → math.
+	if not is_history:
+		var body_text := str(quest.get("body", ""))
+		if body_text != "":
+			var body_lbl := Label.new()
+			body_lbl.text = "    " + body_text
+			body_lbl.add_theme_font_size_override("font_size", 11)
+			body_lbl.add_theme_color_override("font_color",
+				UIStyleFactory.COLOR_ITEM_IDLE if not selected else UIStyleFactory.COLOR_VALUE)
+			if selected:
+				body_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			else:
+				body_lbl.clip_text = true
+			vbox.add_child(body_lbl)
+
 	# Active non-delivery quests: soft progress bar — watching it fill IS the teaching.
 	if not is_history:
 		var prog := float(quest.get("progress", quest.get("predicate_score", 0.0)))
@@ -1425,7 +1461,13 @@ func _commitments_rows() -> Array:
 	# mechanic), and reordering broke the campaign (act3_5 mill_wakes went
 	# dark when this was briefly newest-first). The just-accepted contract is
 	# surfaced by the accept toast + ContractChip pin instead.
-	if quest_manager and "active_quests" in quest_manager and quest_manager.active_quests is Dictionary:
+	# commitment_quests() filters out auto-advancing tutorial steps (contract
+	# purity: a verb lesson does not belong under a CONTRACTS title); the
+	# has_method fallback keeps test mocks and older stubs working unfiltered.
+	if quest_manager and quest_manager.has_method("commitment_quests"):
+		for q in quest_manager.commitment_quests():
+			rows.append(q)
+	elif quest_manager and "active_quests" in quest_manager and quest_manager.active_quests is Dictionary:
 		for q in quest_manager.active_quests.values():
 			rows.append(q)
 	return rows

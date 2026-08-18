@@ -13,17 +13,19 @@ It also runs at PLAYER PARITY — RIG_UNLOCK_ALL=0, progressive-disclosure
 enforcement ON — so a hat the tutorial names but the spine has not yet unlocked
 (the Operator hat at the entanglement step) is a hard stall this probe will catch.
 That is the second break: the tutorial must hand the spine forward (fire
-forest_listener) so the Operator hat is live before step 4 asks for it.
+loom_opens) so the Operator hat is live before step 4 asks for it. The same
+parity also gates the capstone: Shift+F (reap) stays funnel-locked until the
+reap_season step itself is live.
 
-Design contract exercised here:
-  · steps 0-4, 6 are predicate-driven — they AUTO-accept and AUTO-claim (the
+Design contract exercised here (2026-08-17 capstone order):
+  · steps 0, 2-5 are predicate-driven — they AUTO-accept and AUTO-claim (the
     progress bar is the teacher). The probe just does the mechanic and watches
     the step advance; it presses NO accept/claim key for them.
-  · step 5 (contracts) stays MANUAL: accept it on the X→Arc tab (real R), gather
+  · step 1 (contracts) stays MANUAL: accept it on the X→Arc tab (real R), gather
     2× 🌾, deliver it on the C→Commitments tab (real R) — the market-contract
     grammar every player must learn.
 
-Asserts all 7 steps advance with no silent stall. This is Track 2's pass/fail gate.
+Asserts all 6 steps advance with no silent stall. This is Track 2's pass/fail gate.
 No resource injection: the boot wallet must carry the whole chain.
 """
 import json
@@ -55,8 +57,10 @@ SEL_KEYS = ["g", "h", "j", "k", "l", ";"]
 # completed — even when it auto-claimed the instant its condition was already met.
 # 2026-08-17 reorder: berry/vocabulary left Act 0 for the act-3 chapter; the
 # contracts ceremony moved up; wayfinding makes the crossing its own beat.
-EXPECTED = ["core_loop", "reap_season", "contracts", "wayfinding",
-            "superposition", "entanglement"]
+# 2026-08-17 capstone order: reap moved LAST (once-affordable early, funnel-
+# locked until its step; the entanglement claim grants the 🍼 that pays it).
+EXPECTED = ["core_loop", "contracts", "wayfinding",
+            "superposition", "entanglement", "reap_season"]
 
 
 def main():
@@ -214,14 +218,7 @@ def main():
             press("q", settle=10)
         run_auto("core_loop", drive0)
 
-        # STEP 1 reap_season — Ace hat (8): Shift+F.
-        def drive1(_rnd):
-            press(dk, settle=8)
-            press("8", settle=4)
-            press("f", settle=12, shift=True)
-        run_auto("reap_season", drive1)
-
-        # STEP 2 contracts — the MANUAL ceremony, real keys only. Moved up in the
+        # STEP 1 contracts — the MANUAL ceremony, real keys only. Moved up in the
         # 2026-08-17 reorder: it rides the same Ace verbs step 0 taught, and the
         # accept→gather→claim grammar is the early game's whole economy now.
         where, q2 = find_step("contracts")
@@ -255,12 +252,12 @@ def main():
                     if not delivered:
                         note("contracts step never delivered through the Commitments UI (silent stall)")
 
-        # STEP 3 wayfinding — the crossing is the whole ask (active_biome_is).
+        # STEP 2 wayfinding — the crossing is the whole ask (active_biome_is).
         def drive3(_rnd):
             press(fk, settle=10)
         run_auto("wayfinding", drive3)
 
-        # STEP 4 superposition — Druid hat (0): E Hadamard until coherence ≥ 0.3.
+        # STEP 3 superposition — Druid hat (0): E Hadamard until coherence ≥ 0.3.
         def drive4(rnd):
             press(fk, settle=8)
             press("0", settle=4)
@@ -268,18 +265,18 @@ def main():
             press("e", settle=8)
         run_auto("superposition", drive4)
 
-        # BREAK #2 GATE: completing step 4 must have fired loom_opens, or the
-        # Operator hat stays locked and step 5 (below) cannot be driven at all.
+        # BREAK #2 GATE: completing step 3 must have fired loom_opens, or the
+        # Operator hat stays locked and step 4 (below) cannot be driven at all.
         # (forest_listener, the old handoff, now fires naturally in the act-3
         # berry chapter — the tutorial no longer force-fires it.)
         ff = flags_fired()
         if "loom_opens" in ff:
-            print("  ✓ loom_opens fired from the tutorial — Operator hat unlocked for step 5")
+            print("  ✓ loom_opens fired from the tutorial — Operator hat unlocked for step 4")
         else:
             note("loom_opens did NOT fire on step-4 completion — Operator hat stays locked "
                  "under player-parity enforcement, dead-ending the entanglement step (Break #2)")
 
-        # STEP 5 entanglement — Operator hat (9): Shift-check a pair, R, Bell (Q).
+        # STEP 4 entanglement — Operator hat (9): Shift-check a pair, R, Bell (Q).
         def drive5(_rnd):
             press(fk, settle=8)
             press("9", settle=4)
@@ -291,6 +288,19 @@ def main():
             press("q", settle=12)   # Bell
             t("time_skip", phrames=300)
         run_auto("entanglement", drive5, rounds=8)
+
+        # STEP 5 reap_season — the CAPSTONE: come home, put the field in play
+        # (reap only has material when explored plots are still in the season),
+        # then Ace hat (8), Shift+F. Locked by the funnel until this step is
+        # live; the entanglement claim's 🍼 pays its cost, so a refusal here
+        # is a real finding.
+        def drive_reap(rnd):
+            press(dk, settle=8)
+            press("8", settle=4)
+            press("ghjkl;"[rnd % 6], settle=4)
+            press("f", settle=8)           # explore — puts the plot in play
+            press("f", settle=12, shift=True)
+        run_auto("reap_season", drive_reap)
 
         print("\ncompleted steps:", completed)
         print("final wallet:", json.dumps(wallet(), ensure_ascii=False))
@@ -306,7 +316,7 @@ def main():
     for f in findings:
         print(" -", f)
     if not findings:
-        print("PASS: all 7 Act-0 steps advanced through real UI at player parity.")
+        print("PASS: all 6 Act-0 steps advanced through real UI at player parity.")
     return 1 if findings else 0
 
 

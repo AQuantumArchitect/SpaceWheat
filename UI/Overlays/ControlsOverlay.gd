@@ -254,11 +254,23 @@ func _declare_tab_actions() -> void:
 				"F": {"label": "▶ Play"},
 			}
 		Tab.ARC:
-			infos = {
-				"Q": {"label": "Dismiss"},
-				"E": {"label": "Refresh"},
-				"R": {"label": "Accept"},
-			}
+			# Row-kind honesty: Q (dismiss) and R (accept) only act on offer
+			# rows — a story-flag row took the keypress and silently refused
+			# while the chips promised Accept/Dismiss for the whole tab.
+			# Blank labels here make OverlayBase render "—" chips AND speak
+			# ("nothing on R here") on both keyboard and chip-tap paths.
+			# Re-declared on every selection/page change (see _select_arc_row,
+			# _select_item_in_tab, _on_navigate).
+			if _selected_arc_kind() == "arc_quest":
+				infos = {
+					"Q": {"label": "Dismiss"},
+					"E": {"label": "Refresh"},
+					"R": {"label": "Accept"},
+				}
+			else:
+				infos = {
+					"E": {"label": "Refresh"},
+				}
 		Tab.SELF:
 			infos = {
 				"R": {"label": "Assign"},
@@ -1879,7 +1891,7 @@ func _build_arc_body() -> void:
 	if page_count > 1:
 		_body_box.add_child(_make_arc_pager(page_count))
 	_body_box.add_child(_make_spacer(6))
-	_body_box.add_child(_make_muted_label("Q dismiss  ·  R accept  ·  E refresh  ·  GHJKL; pick  ·  A/D page", 11))
+	_body_box.add_child(_make_muted_label("Q dismiss / R accept on offer rows  ·  E refresh  ·  GHJKL; pick  ·  A/D page", 11))
 
 ## Builds Arc tab rows: arc-quest offers first, then unfired flags (by score
 ## desc), then fired flags. (The manifold "on-edge" boost lives on C; X has no
@@ -1948,10 +1960,41 @@ func _arc_rows() -> Array:
 ## as pressing its key chip's keyboard letter.
 func _select_arc_row(idx: int) -> void:
 	var rows: Array = _arc_rows()
-	if idx < 0 or idx >= rows.size() or _arc_selected_idx == idx:
+	if idx < 0 or idx >= rows.size():
+		return
+	if _arc_selected_idx == idx:
+		# Already selected — but the row invites the click (pointing-hand
+		# cursor), and row 0 is selected by DEFAULT, so a fresh Arc tab's
+		# first row must not read as dead. Flash instead of silently
+		# returning; no _refresh_body (a full rebuild flickers without
+		# communicating anything).
+		_flash_arc_row(idx)
 		return
 	_arc_selected_idx = idx
 	_refresh_body()
+	_declare_tab_actions()
+
+
+## The selected Arc row's kind ("arc_quest" / "flag_unfired" / "flag_fired"),
+## or "" out of range. Verb declarations key on it.
+func _selected_arc_kind() -> String:
+	var rows: Array = _arc_rows()
+	if _arc_selected_idx < 0 or _arc_selected_idx >= rows.size():
+		return ""
+	return str(rows[_arc_selected_idx].get("kind", ""))
+
+
+## One-shot brightness bounce on a visible Arc row — the same feedback shape
+## ContractChip's accept pulse uses, for "yes, this row, it's already yours".
+func _flash_arc_row(idx: int) -> void:
+	if _body_box == null:
+		return
+	var row := _body_box.find_child("ArcRow_%d" % idx, true, false)
+	if row == null or not (row is Control):
+		return
+	var tw := create_tween()
+	tw.tween_property(row, "modulate", Color(1.35, 1.3, 1.1), 0.12)
+	tw.tween_property(row, "modulate", Color.WHITE, 0.18)
 
 
 ## Mouse parity for A/D paging (wave-3 sensor wall, reconfirmed wave-4: the
@@ -2172,6 +2215,9 @@ func _accept_selected_arc() -> void:
 		return
 	var entry: Dictionary = rows[_arc_selected_idx]
 	if str(entry.get("kind", "")) != "arc_quest":
+		# Normally unreachable (blank verb chips gate R off flag rows), but
+		# any direct-call path must still speak, not die (anti-gating law).
+		RefusalVoice.note("story beat — nothing to accept; R works on offer rows")
 		return
 	var data: Dictionary = entry.get("data", {})
 	if qm.has_method("accept_quest") and qm.accept_quest(data):
@@ -2186,6 +2232,8 @@ func _acknowledge_selected_arc() -> void:
 		return
 	var entry: Dictionary = rows[_arc_selected_idx]
 	if str(entry.get("kind", "")) != "arc_quest":
+		# Normally unreachable (blank verb chips gate Q off flag rows) — speak anyway.
+		RefusalVoice.note("story beat — nothing to dismiss; Q works on offer rows")
 		return
 	var qid: int = int(entry.get("data", {}).get("id", -1))
 	if qid >= 0 and qm.has_method("dismiss_story_offer"):
@@ -2303,9 +2351,15 @@ func _select_item_in_tab(slot: int) -> void:
 			# GHJKL; selects an arc beat on the CURRENT page (A/D pages).
 			var rows: Array = _arc_rows()
 			var abs_idx: int = _arc_page * MAX_VISIBLE_ITEMS + slot
-			if slot < MAX_VISIBLE_ITEMS and abs_idx < rows.size() and _arc_selected_idx != abs_idx:
-				_arc_selected_idx = abs_idx
-				_refresh_body()
+			if slot < MAX_VISIBLE_ITEMS and abs_idx < rows.size():
+				if _arc_selected_idx == abs_idx:
+					# Same feedback law as the mouse path: the default-selected
+					# row's own key must not read as dead.
+					_flash_arc_row(abs_idx)
+				else:
+					_arc_selected_idx = abs_idx
+					_refresh_body()
+					_declare_tab_actions()
 		Tab.GUIDE:
 			if slot < GUIDE_ITEMS.size() and _guide_item != slot:
 				_guide_item = slot
@@ -2378,6 +2432,7 @@ func _on_navigate(direction: Vector2i) -> void:
 						_arc_page * MAX_VISIBLE_ITEMS,
 						mini((_arc_page + 1) * MAX_VISIBLE_ITEMS, maxi(rows.size(), 1)) - 1)
 				_refresh_body()
+				_declare_tab_actions()
 		_:
 			pass
 

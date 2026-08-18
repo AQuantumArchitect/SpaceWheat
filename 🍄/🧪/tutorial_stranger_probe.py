@@ -68,8 +68,10 @@ def main():
                     return str(s.get("key")).lower()
             return ""
 
-        _ORDER = ["core_loop", "reap_season", "contracts", "wayfinding",
-                  "superposition", "entanglement"]
+        # 2026-08-17 capstone order: reap moved LAST (once-affordable early,
+        # funnel-locked until its step; the entanglement claim pays it).
+        _ORDER = ["core_loop", "contracts", "wayfinding",
+                  "superposition", "entanglement", "reap_season"]
 
         def chain_advanced_past(teach):
             # The Act-0 chain is strictly linear (each claim unlocks the next), so a LATER
@@ -126,14 +128,7 @@ def main():
             press("q", settle=10)
         run_step("core_loop", drive0)
 
-        # STEP 1 reap_season — hint: Ace hat (8), Shift+F.
-        def drive1(_rnd):
-            press(dk, settle=8)
-            press("8", settle=4)
-            press("f", settle=12, shift=True)
-        run_step("reap_season", drive1)
-
-        # STEP 2 contracts — hint: C board, accept, deliver 2x🌾. (The 2026-08-17
+        # STEP 1 contracts — hint: C board, accept, deliver 2x🌾. (The 2026-08-17
         # reorder moved the ceremony up: it now rides the same Ace verbs step 0
         # taught, and the granary usually holds the grain already.)
         def drive2(_rnd):
@@ -146,14 +141,14 @@ def main():
                 press("q", settle=8)
         run_step("contracts", drive2, rounds=8)
 
-        # STEP 3 wayfinding — hint: the biome tabs; arrival IS the gate
+        # STEP 2 wayfinding — hint: the biome tabs; arrival IS the gate
         # (active_biome_is). The berry ritual that used to wall both personas
         # here is mid-game content now (act-3 first_breath).
         def drive3(_rnd):
             press(fk, settle=10)
         run_step("wayfinding", drive3)
 
-        # STEP 4 superposition — hint: Druid hat (0), E Hadamard, coherence>=0.3.
+        # STEP 3 superposition — hint: Druid hat (0), E Hadamard, coherence>=0.3.
         def drive4(rnd):
             press(fk, settle=8)
             press("0", settle=4)
@@ -161,7 +156,7 @@ def main():
             press("e", settle=8)
         run_step("superposition", drive4)
 
-        # STEP 5 entanglement — hint: Operator (9), Shift-check two plots, R, pick Bell (Q).
+        # STEP 4 entanglement — hint: Operator (9), Shift-check two plots, R, pick Bell (Q).
         def drive5(_rnd):
             press(fk, settle=8)
             press("9", settle=4)
@@ -178,6 +173,19 @@ def main():
             press("q", settle=12)      # Bell
             t("time_skip", phrames=300)
         run_step("entanglement", drive5, rounds=8)
+
+        # STEP 5 reap_season — the CAPSTONE: come home, put the field in play
+        # (reap only has material when explored plots are still in the season),
+        # then Ace hat (8), Shift+F. Locked by the funnel until this step is
+        # live; the entanglement claim's 🍼 pays its cost, so a refusal here
+        # is a real finding.
+        def drive_reap(rnd):
+            press(dk, settle=8)
+            press("8", settle=4)
+            press("ghjkl;"[rnd % 6], settle=4)
+            press("f", settle=8)           # explore — puts the plot in play
+            press("f", settle=12, shift=True)
+        run_step("reap_season", drive_reap)
 
         print("\ncompleted steps:", completed)
         print("final wallet:", json.dumps(wallet(), ensure_ascii=False))

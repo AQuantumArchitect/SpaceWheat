@@ -2421,6 +2421,14 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				for row in qp_snap.get("recent_actions", []):
 					qp_hist.append(str(row.get("action", "")))
 				result["recent_actions"] = qp_hist
+				# The durable ledger gate_sequence_contains actually scores against
+				# (recent_actions above is the ORDERED ring, used only by gate_order).
+				var qp_counters: Dictionary = {}
+				var raw_counters = qp_snap.get("gate_counters", {})
+				if raw_counters is Dictionary:
+					for ck in raw_counters:
+						qp_counters[str(ck)] = int(raw_counters[ck])
+				result["gate_counters"] = qp_counters
 
 		"quest_pred_scores":
 			# Diagnostic: per-predicate soft scores for an active quest — the same

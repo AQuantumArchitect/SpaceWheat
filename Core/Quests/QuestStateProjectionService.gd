@@ -2,7 +2,10 @@ class_name QuestStateProjectionService
 extends RefCounted
 
 
-const MAX_ACTION_HISTORY: int = 64
+## Ring size for ORDERED reads (gate_order braid words). Counts live in
+## gate_counters below and never evict; the ring only needs to be deep enough
+## that a braid word survives normal play between its first and last letter.
+const MAX_ACTION_HISTORY: int = 256
 
 ## Completion threshold: evaluate_all() must reach this to mark a quest ready.
 const COMPLETION_THRESHOLD: float = 0.85
@@ -23,9 +26,17 @@ var _coherence_watermark: Dictionary = {}
 ## (eviction, clear) restarts the window: a change across a cut proves nothing.
 var _winding_witness: Dictionary = {}
 
-## Campaign facts that outlive the 64-row session action buffer. Written when
+## Campaign facts that outlive the session action buffer. Written when
 ## the ritual succeeds; save/load must not un-teach a completed compare.
 var lesson_receipts: Dictionary = {}
+
+## The durable gate ledger: action_name -> lifetime count. Where the ring
+## above answers "in what ORDER?", this answers "how many, EVER?" — and it is
+## the table gate_sequence_contains reads, so a counted gate can never be
+## evicted by later play or forgotten by save/load (both stall modes shipped:
+## a reap done 65 keypresses before its quest, and a reap done before a save).
+## Persisted through QuestManager.to_save_dict alongside lesson_receipts.
+var gate_counters: Dictionary = {}
 
 
 func observe_biome(biome, delta: float = 0.0) -> Dictionary:
@@ -97,6 +108,14 @@ func observe_biome(biome, delta: float = 0.0) -> Dictionary:
 
 
 func record_action(action_name: String, payload: Dictionary = {}) -> void:
+	# A refused action never happened. Instruments report every attempt (the
+	# reap path records unconditionally and Shift+F bypasses the validator), so
+	# the filter lives here: an explicit success:false must not satisfy a quest
+	# predicate — a broke player mashing Shift+F was getting "Need 🍼×1" toasts
+	# while silently completing the reap step. Payloads that carry no success
+	# key (accept/offer/travel bookkeeping) still count, as before.
+	if payload.has("success") and not bool(payload.get("success", false)):
+		return
 	var row = {
 		"action": action_name,
 		"time_msec": Time.get_ticks_msec(),
@@ -105,6 +124,7 @@ func record_action(action_name: String, payload: Dictionary = {}) -> void:
 	_action_history.append(row)
 	if _action_history.size() > MAX_ACTION_HISTORY:
 		_action_history.pop_front()
+	gate_counters[action_name] = int(gate_counters.get(action_name, 0)) + 1
 	_stamp_lesson_receipt(action_name, payload)
 
 
@@ -130,10 +150,24 @@ func restore_receipts(data: Dictionary) -> void:
 	lesson_receipts = data.duplicate(true) if data is Dictionary else {}
 
 
+func serialize_gate_counters() -> Dictionary:
+	return gate_counters.duplicate(true)
+
+
+func restore_gate_counters(data: Dictionary) -> void:
+	# Pre-ledger saves carry no counters: restore {} and the next gate of each
+	# kind re-satisfies its predicate — strictly no worse than the old ring.
+	gate_counters = {}
+	if data is Dictionary:
+		for key in data:
+			gate_counters[str(key)] = int(data[key])
+
+
 func get_snapshot() -> Dictionary:
 	return {
 		"observables": _last_observables.duplicate(true),
-		"recent_actions": _action_history.duplicate(true)
+		"recent_actions": _action_history.duplicate(true),
+		"gate_counters": gate_counters.duplicate(true)
 	}
 
 
@@ -181,11 +215,15 @@ func evaluate_predicate(predicate: Dictionary) -> float:
 			var min_count := maxf(1.0, float(predicate.get("count", 1)))
 			if pattern == "":
 				return 0.0
+			# Read the DURABLE ledger, not the ring: gate counts survive both
+			# eviction (a reap done 65 keypresses before its quest was being
+			# forgotten) and save/load (the counters ride the save alongside
+			# lesson_receipts). Substring match preserves the existing
+			# "bell" ↔ "gate_inject:bell" semantics.
 			var hits := 0.0
-			for row in _action_history:
-				var action_name := str(row.get("action", "")).to_lower()
-				if action_name.find(pattern) >= 0:
-					hits += 1.0
+			for counted_name in gate_counters:
+				if str(counted_name).to_lower().find(pattern) >= 0:
+					hits += float(gate_counters[counted_name])
 			# A STRUCTURAL count, not a soft gate — the tutorial math_notes promise
 			# "fires the instant your action history records N" and gate_order below
 			# already scores as a completed fraction. The old soft_gate(hits, min_count,

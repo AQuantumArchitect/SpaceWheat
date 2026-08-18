@@ -378,6 +378,15 @@ func _dispatch_action_key(key: String, shift: bool = false) -> void:
 					if not UIProgression.is_verb_active(ToolConfig.get_current_frame(), "F"):
 						UIProgression.redirect_locked()
 						return
+					# The shifted verb carries its OWN funnel gate on top of the base
+					# key's: Ace Shift+F (reap) unlocks at the Act-0 capstone step,
+					# because reap is once-affordable early (Fibonacci 🍼 costs) and
+					# reaps every biome at once — an early mash must not spend the
+					# only bottle on an undeveloped field. Redirect names the live
+					# objective, per the funnel law.
+					if not UIProgression.is_verb_active(ToolConfig.get_current_frame(), "shift+F"):
+						UIProgression.redirect_locked()
+						return
 					# Shift+F = the season-scale time verb (Ace: Reap Season).
 					# Biome-wide — no checked-plot batch, dispatch directly.
 					_run_action(str(f_action["shift_action"]), str(f_action.get("emoji", "")),

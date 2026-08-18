@@ -80,6 +80,30 @@ def test_unlock_tables_name_real_flags():
                 )
 
 
+def test_reap_capstone_is_last_and_funded():
+    """The reap capstone contract (2026-08-17): reap is once-affordable early
+    (Fibonacci 🍼 costs, wallet floor 1) and reaps EVERY biome at once, so it
+    must be the LAST Act-0 step — landed on a field the player actually built
+    — and some earlier step must grant >= 1 🍼 so the capstone is always
+    solvent, even on a degenerate save that lost the session floor."""
+    steps = _steps()
+    assert steps, "tutorial arc is empty"
+    assert str(steps[-1].get("tutorial_teaches", "")) == "reap_season", (
+        "reap_season must be the Act-0 capstone (last step) — it is "
+        "once-affordable early and lands biggest on a developed field; found "
+        "%r last" % steps[-1].get("tutorial_teaches")
+    )
+    milk = 0
+    for s in steps[:-1]:
+        rewards = s.get("reward_resources") or {}
+        milk += int(rewards.get("🍼", 0))
+    assert milk >= 1, (
+        "no earlier step grants 🍼 — the capstone reap costs 1 🍼 and the "
+        "starting wallet holds exactly 1; without a granted bottle a wasted "
+        "or missing floor bricks Act 0"
+    )
+
+
 def test_act0_has_a_fireable_spine_beat():
     """StoryAtlas.current_act walks a contiguous fired prefix over acts present.
     Act 0 must therefore keep at least one beat a fresh player actually fires

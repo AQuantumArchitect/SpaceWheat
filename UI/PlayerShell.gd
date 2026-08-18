@@ -176,7 +176,7 @@ func _mark_input_handled() -> void:
 
 ## Spawn an ephemeral corner-toast. importance: 1=blue, 2=teal, 3=gold.
 ## Importance < 2 is logged only; no toast is shown.
-const MAX_LIVE_TOASTS := 4
+const MAX_LIVE_TOASTS := 5
 
 func show_hint(bbcode_text: String, importance: int = 1, path: String = "") -> void:
 	if importance < 2:
@@ -189,14 +189,27 @@ func show_hint(bbcode_text: String, importance: int = 1, path: String = "") -> v
 	if top != null and top.matches(bbcode_text):
 		top.bump()
 		return
-	# Cap: bursts must not overflow the corner region — oldest toasts yield.
+	# Cap: bursts must not overflow the corner region. Gold (persistent)
+	# toasts wait to be READ — evict the oldest non-persistent one first,
+	# and only take a persistent victim when the whole stack is gold (a
+	# bounded stack still outranks immortality).
 	while _hint_toast_stack.get_child_count() >= MAX_LIVE_TOASTS:
-		var oldest := _hint_toast_stack.get_child(0)
-		_hint_toast_stack.remove_child(oldest)
-		oldest.queue_free()
+		var victim: Node = pick_toast_eviction_victim(_hint_toast_stack)
+		_hint_toast_stack.remove_child(victim)
+		victim.queue_free()
 	var toast := HintToast.new()
 	_hint_toast_stack.add_child(toast)
 	toast.show_text(bbcode_text, importance, path)
+
+
+## Overflow policy, one static home (smoke-testable without a shell): the
+## oldest NON-persistent toast dies first; the oldest of all only when every
+## live toast is persistent.
+static func pick_toast_eviction_victim(stack: Node) -> Node:
+	for child in stack.get_children():
+		if child is HintToast and not (child as HintToast).is_persistent():
+			return child
+	return stack.get_child(0)
 
 
 ## Returns the most-recently-spawned live toast, or null.
@@ -634,7 +647,12 @@ func _ready() -> void:
 	overlay_layer.add_child(fps_display)
 	_verbose.info("ui", "✅", "FPS display created")
 
-	# Hint-toast stack (bottom-right corner; ephemeral pop-ups)
+	# Hint-toast stack (bottom-right corner; ephemeral pop-ups). The band is
+	# tall enough for MAX_LIVE_TOASTS multi-line toasts now that gold ones
+	# persist until dismissed (the old 140px band overflowed at four);
+	# ALIGNMENT_END keeps the resting look bottom-anchored and unchanged.
+	# The container stays MOUSE_FILTER_IGNORE — each toast PANEL is the click
+	# target, so empty band space never eats clicks meant for the field.
 	_hint_toast_stack = VBoxContainer.new()
 	_hint_toast_stack.name = "HintToastStack"
 	_hint_toast_stack.alignment = BoxContainer.ALIGNMENT_END
@@ -642,7 +660,7 @@ func _ready() -> void:
 	_hint_toast_stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_hint_toast_stack.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	_hint_toast_stack.offset_left = -340
-	_hint_toast_stack.offset_top = -260
+	_hint_toast_stack.offset_top = -560
 	_hint_toast_stack.offset_right = -16
 	_hint_toast_stack.offset_bottom = -120
 	# Above every overlay tier (OverlayStackManager tops out at Z_TIER_SYSTEM 18 + stack size)
@@ -834,6 +852,20 @@ func connect_to_quantum_input() -> void:
 	if quest_manager and quest_manager.has_signal("story_flag_fired") \
 			and not quest_manager.story_flag_fired.is_connected(_on_progression_flag_fired):
 		quest_manager.story_flag_fired.connect(_on_progression_flag_fired)
+	# ...and from every tutorial-step transition. The C chip's gate is a STEP
+	# condition (MENU_UNLOCK_STEP), not a flag — with only the flag signal
+	# wired, the chip stayed hidden after its step unlocked until some
+	# unrelated flag happened to fire (while the banner said "press C").
+	# active_quests_changed covers accept/ready/claim/complete/expiry;
+	# quest_offered covers the offered-but-unaccepted contracts-step window.
+	if quest_manager:
+		for prog_sig in ["active_quests_changed", "quest_offered"]:
+			if quest_manager.has_signal(prog_sig):
+				var prog_callable := Callable(self, "_queue_progression_refresh")
+				if not quest_manager.is_connected(prog_sig, prog_callable):
+					var argc: int = 1 if prog_sig == "quest_offered" else 0
+					quest_manager.connect(prog_sig,
+						prog_callable.unbind(argc) if argc > 0 else prog_callable)
 	_refresh_ui_progression()
 
 	if ui_context_controller:
@@ -843,6 +875,24 @@ func connect_to_quantum_input() -> void:
 
 
 func _on_progression_flag_fired(_flag_id: String, _flag_data: Dictionary) -> void:
+	_refresh_ui_progression()
+
+
+## Coalesce per-quest signal bursts (market refresh offers each quest
+## individually) into one row rebuild per frame. The rebuild itself is cheap
+## and idempotent; the debounce just keeps bursts from doing it N times.
+var _progression_refresh_queued: bool = false
+
+
+func _queue_progression_refresh() -> void:
+	if _progression_refresh_queued:
+		return
+	_progression_refresh_queued = true
+	call_deferred("_run_queued_progression_refresh")
+
+
+func _run_queued_progression_refresh() -> void:
+	_progression_refresh_queued = false
 	_refresh_ui_progression()
 
 

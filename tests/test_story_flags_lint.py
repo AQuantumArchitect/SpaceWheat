@@ -37,7 +37,13 @@ DEFAULT_SCENARIO = PROJECT_ROOT / "Scenarios" / "demos_normal.tres"
 # owed them, but they carry arcs anyway. Remaining debt: acts 0-1 forest beats.
 TODO_TEACH_BEFORE_PLANT = set()  # every plant has a teacher upstream — keep it so
 TODO_STANDING_WIDTH = set()  # all standing gates carry authored widths — keep it so
-TODO_ARC_QUEST = set()  # emptied 2026-07-15 — every referenced numeric gate has a visible quest
+# first_harvest (2026-08-17): its arc_quest is null ON PURPOSE — the Act-0
+# reap capstone tutorial step IS the visible quest for this gate (same
+# gate_sequence_contains reap ×1; the old arc_quest here asked for the reap
+# the player had just done, its own hint admitting "the tutorial bar and this
+# meter are measuring the same gate"). The rule's intent — a numeric climb the
+# player can SEE — is satisfied by the tutorial bar, not violated.
+TODO_ARC_QUEST = {"first_harvest"}
 
 
 def _load_flags():

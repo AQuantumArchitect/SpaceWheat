@@ -18,6 +18,7 @@ extends Node
 ## itself; it only reaches into ActionBarManager's existing rows.
 
 const UIProgression = preload("res://UI/Core/UIProgression.gd")
+const MenuRegistry = preload("res://UI/Core/MenuRegistry.gd")
 
 const POLL_S := 0.5
 const PULSE_SCALE := Vector2(1.22, 1.22)
@@ -29,6 +30,9 @@ var _accum: float = 0.0
 var _current_key: String = ""
 var _pulsing_node: Control = null
 var _tween: Tween = null
+# Self-heal latch: which pulse target we already tried to heal a stale menu
+# row for (see _refresh) — one heal attempt per target change, not per poll.
+var _healed_for_key: String = ""
 
 
 func setup(action_bar_manager) -> void:
@@ -62,8 +66,35 @@ func _refresh() -> void:
 	if pulse_id == "":
 		return
 	var target := _resolve_target(pulse_id)
+	if target == null and _healed_for_key != pulse_id:
+		# A menu-ring key with no chip is one of two things: genuinely gated
+		# (progressive disclosure — stay dark; the banner and redirect toast
+		# already speak, and pulsing a hidden chip is impossible) or a STALE
+		# ROW that missed its rebuild trigger. Only the second is ours to fix:
+		# refresh the row once per target change and retry. This is a UI
+		# rebuild, not game-state mutation — still reads-never-writes on the
+		# game. The warning makes staleness fail loudly in dev instead of
+		# silently pulsing nothing while every text surface says "press C".
+		_healed_for_key = pulse_id
+		var menu_id := _menu_id_for_key(pulse_id)
+		if menu_id != "" and UIProgression.is_menu_visible(menu_id):
+			var row = _action_bar_manager.get("menu_selection_row") if _action_bar_manager != null else null
+			if row != null and is_instance_valid(row) and row.has_method("refresh_progression"):
+				push_warning("ObjectiveSpotlight: menu row was stale for visible '%s' — self-healed" % menu_id)
+				row.refresh_progression()
+				target = _resolve_target(pulse_id)
 	if target != null:
 		_start_pulse(target)
+
+
+## Menu id for a menu-ring key label ("C" → "quests"); "" for non-menu keys.
+func _menu_id_for_key(key: String) -> String:
+	if not (key in ["Z", "X", "C", "V", "B", "N", "M"]):
+		return ""
+	for entry in MenuRegistry.TOP_LEVEL_MENUS:
+		if entry is Dictionary and str(entry.get("key_label", "")) == key:
+			return str(entry.get("id", ""))
+	return ""
 
 
 func _active_biome_name() -> String:

@@ -173,6 +173,17 @@ func _on_quest_completed(qid: int, rewards: Dictionary) -> void:
 
 
 func _on_quest_ready_to_claim(qid: int) -> void:
+	# An auto-advancing tutorial step claims ITSELF one line after this signal
+	# (mark_quest_ready → claim_quest) — a gold "C then U, then R" toast for it
+	# is advice for an action the player cannot take by the time they read it
+	# (anti-gating: false-help). The signal fires while the quest is still in
+	# active_quests, so we can ask. Importance-1 keeps the beat in the
+	# ACTIVITY feed without a toast; the story-flag/act toasts carry the moment.
+	if _quest_manager != null and _quest_manager.has_method("tutorial_auto_advances"):
+		var q = _quest_manager.active_quests.get(qid) if "active_quests" in _quest_manager else null
+		if q is Dictionary and _quest_manager.tutorial_auto_advances(q):
+			_push("✅ %s — step complete" % _quest_name(qid), 1, "✅", "quest", "Q")
+			return
 	# "C board" is one key short of the truth: C opens the market, and claiming
 	# lives on its Commitments tab. A main-road playthrough repeatedly pressed C,
 	# landed on the wrong tab and read the toast as a lie — while the newer

@@ -1,5 +1,5 @@
 {
-  "_doc": "Act-0 onboarding chain. A linear sequence of pipeline quests; the loader links each step to unlock the next (chain_unlocks). Each step teaches ONE mechanic; completion is a SOFT predicate (unified vocabulary) the player watches fill — the progress bar is the teacher. Authored body/hint are preserved by the pipeline (voice never clobbers them). Every hint names the real keys (ToolConfig is the authority); every gate fires on the mechanic its step teaches. Act 0 teaches only the farm verbs — instant, legible, no waits: loop, reap, contracts, travel, superposition, entanglement. Vocabulary (berry tracking + incorporation) is deliberately ABSENT here: it is mid-game content, taught by the act-3 chapter; early words come from faction teachings on the road (story_flags.json).",
+  "_doc": "Act-0 onboarding chain. A linear sequence of pipeline quests; the loader links each step to unlock the next (chain_unlocks). Each step teaches ONE mechanic; completion is a SOFT predicate (unified vocabulary) the player watches fill — the progress bar is the teacher. Authored body/hint are preserved by the pipeline (voice never clobbers them). Every hint LEADS WITH THE WHAT (first sentence = the ask, ≤70 chars, stands alone — the banner clips to it) and follows with the HOW; every gate fires on the mechanic its step teaches. Act 0 teaches only the farm verbs — instant, legible, no waits: loop, contracts, travel, superposition, entanglement, and then the capstone: reap. Reap comes LAST on purpose — it is once-affordable early (Fibonacci 🍼 costs) and reaps every biome at once, so it lands after the player has built a field worth reaping; the entanglement step's claim pays its cost. Vocabulary (berry tracking + incorporation) is deliberately ABSENT here: it is mid-game content, taught by the act-3 chapter; early words come from faction teachings on the road (story_flags.json).",
   "steps": [
     {
       "tutorial_step": 0,
@@ -7,26 +7,14 @@
       "faction": "Hearth Keepers",
       "biome": "TheDemos",
       "body": "The Demos sleeps — wheat and people, waiting. Explore a plot, strike its qubit to collapse it, then extract what the collapse leaves behind.",
-      "tutorial_hint": "Pick a plot with G H J K L ; — or just tap it. F explores it (an expedition costs 🍞), R strikes (a social encounter costs 👥), Q extracts the yield — free. Ace is your starting hat (8); the number row 4-0 swaps hats for new Q/E/R/F verbs. E pauses to look; F plays on.",
-      "math_note": "Fires the instant your action history records 1 measure gate (a single R-strike) — a structural count, not a soft gate.",
+      "tutorial_hint": "Strike a plot (R), then extract the yield (Q). Pick plots with G H J K L ; — or just tap one. F explores new ground (an expedition costs 🍞), R strikes (a social encounter costs 👥), Q extracts — free. Ace is your starting hat (8); the number row 4-0 swaps hats for new Q/E/R/F verbs. E pauses to look; F plays on.",
+      "math_note": "Fires the instant the gate ledger records 1 measure gate (a single R-strike) — a structural count, not a soft gate.",
       "state_predicates": [
         {"type": "gate_sequence_contains", "gate": "measure", "count": 1}
       ]
     },
     {
       "tutorial_step": 1,
-      "tutorial_teaches": "reap_season",
-      "faction": "Hearth Keepers",
-      "biome": "TheDemos",
-      "body": "Time is the pump. Reap the season — let the Hamiltonian work, and gather the yield across the whole biome.",
-      "tutorial_hint": "Ace hat (8): hold Shift and press F to reap the season. Time runs forward, every plot settles, and the harvest lands at once.",
-      "math_note": "Fires the instant your action history records 1 reap gate (a single Shift+F) — a structural count, not a soft gate.",
-      "state_predicates": [
-        {"type": "gate_sequence_contains", "gate": "reap", "count": 1}
-      ]
-    },
-    {
-      "tutorial_step": 2,
       "tutorial_teaches": "contracts",
       "faction": "Millwright's Union",
       "biome": "TheDemos",
@@ -38,24 +26,24 @@
       "math_note": "A DELIVERY quest, not a soft gate — fires the instant your 🌾 stores hold quantity ≥ 2 and you complete the contract. This step alone is NOT auto-accepted/claimed: you learn the real accept→do→claim ceremony every market contract uses."
     },
     {
-      "tutorial_step": 3,
+      "tutorial_step": 2,
       "tutorial_teaches": "wayfinding",
       "faction": "Hearth Keepers",
       "biome": "StarterForest",
       "body": "The Demos is one country on a wider island. Past the hedge the forest keeps older words. Go and stand under its canopy.",
-      "tutorial_hint": "The biome tabs (T Y U row, or tap one) carry you between countries. Stand in StarterForest and this step completes on arrival.",
+      "tutorial_hint": "Go to StarterForest — stand under its canopy. The biome tabs (T Y U row, or tap one) carry you between countries; this step completes on arrival.",
       "math_note": "Structural predicate (active_biome_is): scores 1.0 the instant StarterForest is the biome under your feet, 0.0 otherwise — arrival is the whole ask, no soft gate. The objective banner's travel line names the literal key while you are elsewhere and drops the moment you arrive.",
       "state_predicates": [
         {"type": "active_biome_is", "biome": "StarterForest"}
       ]
     },
     {
-      "tutorial_step": 4,
+      "tutorial_step": 3,
       "tutorial_teaches": "superposition",
       "faction": "Hearth Keepers",
       "biome": "StarterForest",
       "body": "A qubit need not pick a side. Superpose it — spread it across both poles — and the forest shimmers between states.",
-      "tutorial_hint": "Druid hat (0): press E to lay a Hadamard on the selected plot. Raise the biome's coherence past ~0.3 — watch the bar fill as the shimmer spreads.",
+      "tutorial_hint": "Superpose the forest — raise coherence past 0.3. Druid hat (0): E lays a Hadamard on the selected plot; watch the bar fill as the shimmer spreads.",
       "math_note": "Soft gate on StarterForest coherence, center 0.3, width 0.05 (default) — the bar crosses fire-ready (score ≥ 0.85) at coherence ≈ 0.34, a hair past the stated 0.3.",
       "state_predicates": [
         {"type": "coherence_at_least", "value": 0.3}
@@ -64,15 +52,28 @@
       "_unlock_note": "Completing this step fires the loom_opens spine flag, which unlocks the Operator hat (UIProgression.HAT_UNLOCK_FLAGS) the NEXT step (entanglement) needs — the tutorial hands the spine forward instead of racing it (Break #2). The forest_listener handoff this replaced now lives in the act-3 berry chapter, where that flag's own predicates fire it naturally."
     },
     {
-      "tutorial_step": 5,
+      "tutorial_step": 4,
       "tutorial_teaches": "entanglement",
       "faction": "Hearth Keepers",
       "biome": "StarterForest",
       "body": "A qubit alone is a wheel. Two qubits woven together are a loom — touch one and the other answers, however far apart they drift.",
-      "tutorial_hint": "Operator hat: press 9. Shift + two plot keys picks a pair. R opens the gate picker — then Q weaves the Bell. Watch the gold thread between their bubbles — each weave pulls them closer, and the bar fills as you weave.",
-      "math_note": "Fires the instant your action history records 1 bell gate (a single Bell weave) — a structural count, not a soft gate.",
+      "tutorial_hint": "Weave two plots into one Bell pair. Operator hat: press 9. Shift + two plot keys picks the pair, R opens the gate picker — then Q weaves the Bell. Watch the gold thread between their bubbles — each weave pulls them closer, and the bar fills as you weave.",
+      "math_note": "Fires the instant the gate ledger records 1 bell gate (a single Bell weave) — a structural count, not a soft gate. Completing this weave hands you 1 🍼 — the reap capstone's cost, paid forward.",
       "state_predicates": [
         {"type": "gate_sequence_contains", "gate": "bell", "count": 1}
+      ],
+      "reward_resources": {"🍼": 1}
+    },
+    {
+      "tutorial_step": 5,
+      "tutorial_teaches": "reap_season",
+      "faction": "Hearth Keepers",
+      "biome": "TheDemos",
+      "body": "Explore, strike, extract — you have the beats. Now turn time itself: reap the season, and every plot the country holds settles and pays at once. Every country ahead runs on these same four verbs.",
+      "tutorial_hint": "Reap the season — the whole country pays at once. Come home to TheDemos and put the field in play: F explores fresh plots (each costs 🍞). Then Ace hat (8), hold Shift and press F — time runs forward, every explored plot settles, and the harvest lands together. Costs 1 🍼 — the bottle you carry is for exactly this.",
+      "math_note": "Fires on 1 recorded reap gate — a structural count over the durable gate ledger (survives save/load; a refused reap does not count). Reap only has material when explored plots are still in play (an extracted plot left the season). Reap costs follow the sequence 1,1,2,3,5,8,…🍼; the entanglement step's claim paid your first.",
+      "state_predicates": [
+        {"type": "gate_sequence_contains", "gate": "reap", "count": 1}
       ]
     }
   ]

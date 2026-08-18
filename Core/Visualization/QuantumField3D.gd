@@ -1348,33 +1348,52 @@ func _bubble_shown(b: Dictionary) -> bool:
 
 
 ## Static Hamiltonian-coupling edges — the biome's PERMANENT wiring (icons.json), not a live
-## measurement. Same authority the 2D metro-line renderer uses (QuantumEdgeRenderer.gd
-## _rebuild_metro_cache): viz_cache.get_hamiltonian_couplings(emoji), aggregated to qubit
-## pairs by max |J|, colored from BiomeVisualTheme's global line_palette.
+## measurement. Same authority the 2D metro-line renderer uses (QuantumEdgeRenderer.gd):
+## viz_cache.get_hamiltonian_couplings(emoji).
+##
+## EMOJI-LEVEL (2026-08-17, owner request "arrows between the emojis, not the icons"):
+## endpoints are the POLE positions of the coupled emojis, not orb centres. H couplings are
+## authored emoji→emoji in icons.json (source icon → one specific target emoji), and the old
+## qubit-pair collapse here threw that away — "there's no visual indication of how the
+## Hamiltonian is expressed". IconRegistry copies an icon's couplings onto BOTH its pole
+## atoms, so iterating get_emojis() naturally yields both physical stamps (pole_0→target and
+## pole_1→target, HamiltonianBuilder.gd) as separate segments. Same-orb couplings (an icon's
+## own north↔south) draw as a short intra-orb segment beside the measurement axis — real
+## physics that no view showed. One segment per unordered EMOJI pair, max |J|. Lines, not
+## arrows: H is Hermitian — a direction would be a lie.
 func _recompute_metro_segs(vc) -> Array:
 	var segs: Array = []
-	if not vc.has_method("get_hamiltonian_couplings") or not vc.has_method("get_qubit") or _bubbles.size() < 2:
+	if not vc.has_method("get_hamiltonian_couplings") or not vc.has_method("get_qubit") or _bubbles.is_empty():
 		return segs
 	var pos_by_reg: Dictionary = {}
 	for b in _bubbles:
 		if _bubble_shown(b):   # reveal gate: no transit lines into unexplored fog
 			pos_by_reg[int(b.reg)] = b.pos
 
-	var strength_by_pair: Dictionary = {}  # Vector2i(min,max) qubit -> max |J|
+	var has_pole: bool = vc.has_method("get_pole")
+	var strength_by_pair: Dictionary = {}  # "emojiA|emojiB" (sorted) -> max |J|
+	var ends_by_pair: Dictionary = {}      # same key -> [Vector3, Vector3]
 	for emoji in vc.get_emojis():
-		var q_src: int = vc.get_qubit(emoji)
-		if q_src < 0 or not pos_by_reg.has(q_src):
+		var src_e := str(emoji)
+		var src_pos = _emoji_pole_pos(vc, src_e, pos_by_reg, has_pole)
+		if src_pos == null:
 			continue
 		var couplings: Dictionary = vc.get_hamiltonian_couplings(emoji)
 		for target_emoji in couplings:
-			var q_tgt: int = vc.get_qubit(target_emoji)
-			if q_tgt < 0 or q_tgt == q_src or not pos_by_reg.has(q_tgt):
-				continue
+			var tgt_e := str(target_emoji)
+			if tgt_e == src_e:
+				continue   # degenerate self-coupling: no segment to draw
 			var mag := _coupling_magnitude(couplings[target_emoji])
 			if mag < 0.001:
 				continue
-			var key := Vector2i(mini(q_src, q_tgt), maxi(q_src, q_tgt))
-			strength_by_pair[key] = maxf(float(strength_by_pair.get(key, 0.0)), mag)
+			var tgt_pos = _emoji_pole_pos(vc, tgt_e, pos_by_reg, has_pole)
+			if tgt_pos == null:
+				continue
+			var key := "%s|%s" % [src_e, tgt_e] if src_e < tgt_e else "%s|%s" % [tgt_e, src_e]
+			if mag > float(strength_by_pair.get(key, 0.0)):
+				strength_by_pair[key] = mag
+			if not ends_by_pair.has(key):
+				ends_by_pair[key] = [src_pos, tgt_pos]
 
 	if strength_by_pair.is_empty():
 		return segs
@@ -1390,12 +1409,32 @@ func _recompute_metro_segs(vc) -> Array:
 		var alpha := clampf(0.35 + 0.5 * tanh(rel), 0.35, 0.85)
 		var col: Color = palette[idx % palette.size()]
 		col.a = alpha
-		var pa: Vector3 = pos_by_reg[key.x]
-		var pb: Vector3 = pos_by_reg[key.y]
+		var ends: Array = ends_by_pair[key]
+		var pa: Vector3 = ends[0]
+		var pb: Vector3 = ends[1]
 		var off := _perp_offset(pa, pb)
 		segs.append([pa - off, pb - off, col])
 		idx += 1
 	return segs
+
+
+## An emoji's anchor point for coupling lines: its pole sprite position —
+## north above the orb, south below, the same analytic offsets _spawn and
+## _reposition_bubble_visuals keep the sprites glued to (never the sprite
+## node itself: _pole_sprite returns null on a texture miss). Falls back to
+## the orb centre when the cache predates get_pole. Returns null (not
+## Vector3) when the emoji's register is unrevealed or unknown.
+func _emoji_pole_pos(vc, emoji: String, pos_by_reg: Dictionary, has_pole: bool):
+	var q: int = vc.get_qubit(emoji)
+	if q < 0 or not pos_by_reg.has(q):
+		return null
+	var base: Vector3 = pos_by_reg[q]
+	if not has_pole:
+		return base
+	match vc.get_pole(emoji):
+		0: return base + Vector3(0, R + 0.12, 0)
+		1: return base + Vector3(0, -(R + 0.12), 0)
+		_: return base
 
 
 func _coupling_magnitude(value) -> float:
@@ -1403,6 +1442,11 @@ func _coupling_magnitude(value) -> float:
 		return absf(float(value))
 	if value is Vector2:
 		return value.length()
+	if value is Array and value.size() == 2:
+		# JSON complex coupling [re, im] arrives as a raw Array — it scored
+		# 0.0 here (and still does in the 2D twin), silently hiding every
+		# complex-valued line.
+		return Vector2(float(value[0]), float(value[1])).length()
 	if value is String and value.is_valid_float():
 		return absf(value.to_float())
 	return 0.0

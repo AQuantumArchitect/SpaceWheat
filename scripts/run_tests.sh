@@ -82,6 +82,10 @@ SMOKE_TESTS=(
     native_async_compute_smoke
     native_async_lane_smoke
     loop_card_smoke
+    hint_toast_lifecycle_smoke
+    menu_row_progression_smoke
+    arc_tab_verbs_smoke
+    gate_ledger_smoke
 )
 # Known-red / not wired: NONE (2026-08-03 fable push — the #429 leftovers all
 # closed: m_surface's phantom KEY_2 sort chord replaced with the real

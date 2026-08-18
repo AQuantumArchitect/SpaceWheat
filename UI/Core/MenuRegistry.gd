@@ -23,7 +23,7 @@ const TOP_LEVEL_MENUS := [
 		"display_name": "Playthrough",
 		"description": "Self, story, balance, guide — this run",
 		"menu_group": "shell",
-		"button_emoji": "⌨",
+		"button_emoji": "📖",
 		"touch_button": false,
 	},
 	{

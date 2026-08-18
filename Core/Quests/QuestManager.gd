@@ -1017,7 +1017,7 @@ func offer_tutorial_quest(quest_def: Dictionary) -> int:
 	# Break #1 — the offer-with-no-progress dead end. A predicate-driven tutorial step (whose
 	# soft bar IS the teacher) is accepted FOR the player: it goes straight into active_quests
 	# so the progress bar advances the instant the mechanic is done — no hidden X→Arc R-accept a
-	# new player was never taught. The contracts step (5, a DELIVERY with no predicates) is the
+	# new player was never taught. The contracts step (1, a DELIVERY with no predicates) is the
 	# one exception: it keeps the real accept→do→claim board ceremony. See _tutorial_auto_advances.
 	if _tutorial_auto_advances(q):
 		accept_quest(q)
@@ -1034,6 +1034,30 @@ func _tutorial_auto_advances(quest: Dictionary) -> bool:
 		return false
 	var preds = quest.get("state_predicates", [])
 	return preds is Array and not preds.is_empty()
+
+
+## Public face of the rule above — PlayerEventBridge asks it to keep "ready to
+## claim" advice off steps that claim themselves, and the Commitments filter
+## below leans on it. One home; no drift-prone duplicates.
+func tutorial_auto_advances(quest: Dictionary) -> bool:
+	return _tutorial_auto_advances(quest)
+
+
+## The quests that belong on the C board's Commitments tab (and the HUD
+## ContractChip): everything the player COMMITTED to — market contracts, arc
+## quests, and the one manual tutorial DELIVERY (the step that teaches the
+## board ceremony). Auto-advancing tutorial steps are excluded: they accepted
+## themselves, they claim themselves, and a panel titled CONTRACTS is exactly
+## where a verb lesson does not belong (contract purity — contracts are
+## delivery-of-goods or state asks, never "press this key"). Those steps still
+## render in full on the X Arc tab and the banner. Insertion order is preserved
+## — claim-by-index is a contract downstream (see _commitments_rows).
+func commitment_quests() -> Array:
+	var out: Array = []
+	for q in active_quests.values():
+		if q is Dictionary and not _tutorial_auto_advances(q):
+			out.append(q)
+	return out
 
 
 ## True if any story or active quest has source_flag == flag_id (for save/load restore check).
@@ -2230,12 +2254,16 @@ func to_save_dict() -> Dictionary:
 	var receipts: Dictionary = {}
 	if _state_projection and _state_projection.has_method("serialize_receipts"):
 		receipts = _state_projection.serialize_receipts()
+	var counters: Dictionary = {}
+	if _state_projection and _state_projection.has_method("serialize_gate_counters"):
+		counters = _state_projection.serialize_gate_counters()
 	return {
 		"active": active_out,
 		"completed": completed_out,
 		"failed": failed_out,
 		"next_quest_id": next_quest_id,
 		"lesson_receipts": receipts,
+		"gate_counters": counters,
 		"guidance_dismissed": guidance_dismissed.duplicate(true),
 	}
 
@@ -2305,12 +2333,50 @@ func restore_from_save_dict(data: Dictionary) -> void:
 				rq.erase(field)
 	for rqid in _stale_tutorial_ids:
 		retire_quest(rqid, "step left the tutorial (campaign reorder)")
+	# Reorder healing: a re-keyed step may now sit at a LATER index than when the
+	# save was written (reap moved from step 1 to the capstone), which silently
+	# skips the steps in between — and any spine flag those steps hand off
+	# (loom_opens → Operator hat) would never fire, deadlocking the run. Fire
+	# every earlier current step's unlock_flags; _fire_story_flag no-ops flags
+	# the save already carries, so the happy path is untouched.
+	for rqid in active_quests:
+		var rq2: Dictionary = active_quests[rqid]
+		if str(rq2.get("category", "")) != "TUTORIAL":
+			continue
+		var restored_idx := int(rq2.get("tutorial_step", 0))
+		for step in _tutorial_steps:
+			if step is Dictionary and int(step.get("tutorial_step", 99)) < restored_idx:
+				_fire_tutorial_unlock_flags(step)
+	# Reorder healing: an ARC quest restored from a save can outlive its author —
+	# if the flag it came from no longer spawns an arc_quest (first_harvest's
+	# duplicate reap quest was deleted), the banked copy is asking for something
+	# the campaign no longer asks. Retire it (never a fail), same third terminal
+	# the stale-tutorial sweep above uses.
+	var _orphaned_arc_ids: Array = []
+	for rqid in active_quests:
+		var rq3: Dictionary = active_quests[rqid]
+		if str(rq3.get("category", "")) != "ARC":
+			continue
+		var src := str(rq3.get("source_flag", ""))
+		if src == "":
+			continue
+		var src_flag := _story_flag_by_id(src)
+		if src_flag.is_empty():
+			continue
+		var cur_arc = src_flag.get("arc_quest")
+		if cur_arc == null or not (cur_arc is Dictionary) or (cur_arc as Dictionary).is_empty():
+			_orphaned_arc_ids.append(rqid)
+	for rqid in _orphaned_arc_ids:
+		retire_quest(rqid, "its flag no longer asks this (campaign reorder)")
 	# Monotonic: never rewind below ids already handed out this session, or
 	# fresh offers would collide with restored quest ids.
 	next_quest_id = maxi(next_quest_id, int(data.get("next_quest_id", 0)))
 	var saved_receipts = data.get("lesson_receipts", {})
 	if _state_projection and saved_receipts is Dictionary:
 		_state_projection.restore_receipts(saved_receipts)
+	var saved_counters = data.get("gate_counters", {})
+	if _state_projection and _state_projection.has_method("restore_gate_counters"):
+		_state_projection.restore_gate_counters(saved_counters if saved_counters is Dictionary else {})
 	var saved_dismissed = data.get("guidance_dismissed", {})
 	guidance_dismissed = saved_dismissed.duplicate(true) if saved_dismissed is Dictionary else {}
 	# Re-arm expiry timers. Timer nodes don't serialize, so ELAPSED TIME RESETS:

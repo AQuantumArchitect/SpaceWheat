@@ -14,6 +14,13 @@ extends PanelContainer
 const MAX_ROWS := 2
 const ACCENT := Color(1.0, 0.8, 0.3)
 
+# The COMMITMENTS board's row letters (QuestBoard.ITEM_KEYS) — the chip labels
+# its rows with the same letters so "the second quest" in this corner and
+# "row H on the board" are one thing, not two orderings to reconcile.
+const BOARD_KEYS := ["G", "H", "J", "K", "L", ";"]
+
+const PredicateGloss = preload("res://Core/Quests/PredicateGloss.gd")
+
 var _quest_manager: Node = null
 var _rows_box: VBoxContainer
 
@@ -85,27 +92,31 @@ func _refresh() -> void:
 	for child in _rows_box.get_children():
 		child.queue_free()
 
+	# Same list, same order, as the COMMITMENTS board: commitment_quests()
+	# filters out auto-advancing tutorial steps (contract purity), which was
+	# the real cause of the old "oldest quest pinned here forever" problem —
+	# the reverse() that papered over it made the chip's "quest two" a
+	# DIFFERENT row than the board's row H. One list, one order, shared
+	# letters. has_method fallback keeps test mocks working.
 	var quests: Array = []
-	if _quest_manager and _quest_manager.has_method("get_active_quests"):
+	if _quest_manager and _quest_manager.has_method("commitment_quests"):
+		quests = _quest_manager.commitment_quests()
+	elif _quest_manager and _quest_manager.has_method("get_active_quests"):
 		quests = _quest_manager.get_active_quests()
 	if quests.is_empty():
 		visible = false
 		return
 	visible = true
-	# Goal thread shows the NEWEST commitments. Insertion order pinned the
-	# oldest active quest here forever — a skipped Act-0 tutorial step was
-	# still the headline at the door (act 8). Display-only: the COMMITMENTS
-	# board keeps insertion order (claim-by-index is a contract there).
-	quests = quests.duplicate()
-	quests.reverse()
 
 	var shown := 0
-	for quest in quests:
+	for i in range(quests.size()):
 		if shown >= MAX_ROWS:
 			break
+		var quest = quests[i]
 		if not (quest is Dictionary):
 			continue
-		_rows_box.add_child(_build_row(quest))
+		var key_str: String = BOARD_KEYS[i] if i < BOARD_KEYS.size() else "·"
+		_rows_box.add_child(_build_row(quest, key_str))
 		shown += 1
 
 	if quests.size() > MAX_ROWS:
@@ -116,24 +127,44 @@ func _refresh() -> void:
 		_rows_box.add_child(more)
 
 
-func _build_row(quest: Dictionary) -> Control:
+func _build_row(quest: Dictionary, key_str: String = "") -> Control:
 	var row := VBoxContainer.new()
 	row.add_theme_constant_override("separation", 2)
 
 	var head := HBoxContainer.new()
 	head.add_theme_constant_override("separation", 4)
 
-	var glyph := EmojiDisplay.new()
-	glyph.font_size = 18
-	glyph.emoji = str(quest.get("resource", ""))
-	glyph.custom_minimum_size = Vector2(22, 22)
-	head.add_child(glyph)
+	if key_str != "":
+		var key_lbl := Label.new()
+		key_lbl.text = "[%s]" % key_str
+		key_lbl.add_theme_font_size_override("font_size", 12)
+		key_lbl.add_theme_color_override("font_color", Color(0.65, 0.75, 0.85, 0.9))
+		head.add_child(key_lbl)
 
 	var ready: bool = str(quest.get("status", "")) == "ready"
-	var label := Label.new()
 	var faction := str(quest.get("faction", ""))
-	label.text = "×%d — %s" % [int(quest.get("quantity", 1)), faction] \
-			if faction != "" else "×%d" % int(quest.get("quantity", 1))
+	var resource := str(quest.get("resource", ""))
+	var label := Label.new()
+	if resource != "":
+		var glyph := EmojiDisplay.new()
+		glyph.font_size = 18
+		glyph.emoji = resource
+		glyph.custom_minimum_size = Vector2(22, 22)
+		head.add_child(glyph)
+		label.text = "×%d — %s" % [int(quest.get("quantity", 1)), faction] \
+				if faction != "" else "×%d" % int(quest.get("quantity", 1))
+	else:
+		# Predicate/state quest: no deliverable to glyph — gloss the ask
+		# instead of rendering a blank emoji and a meaningless "×1".
+		var gloss := ""
+		var preds = quest.get("state_predicates", [])
+		if preds is Array and not preds.is_empty() and preds[0] is Dictionary:
+			gloss = PredicateGloss.summary(preds[0], _quest_manager)
+			if preds.size() > 1:
+				gloss += " …"
+		if gloss == "":
+			gloss = str(quest.get("display_name", "commitment"))
+		label.text = "%s — %s" % [gloss, faction] if faction != "" else gloss
 	if ready:
 		label.text += "  ✓ ready"
 	label.add_theme_font_size_override("font_size", 14)

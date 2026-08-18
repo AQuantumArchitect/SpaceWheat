@@ -57,12 +57,12 @@ const MENU_UNLOCK_FLAGS: Dictionary = {
 
 ## Menu id → minimum tutorial_step at which it surfaces (checked ALONGSIDE
 ## MENU_UNLOCK_FLAGS, not instead of — a menu needs both its flag AND its step
-## satisfied). Only Quest Board carries an entry: nothing in tutorial steps
-## 0-1 needs it, and step 2 ("contracts") is literally where it's taught.
+## satisfied). Only Quest Board carries an entry: nothing in tutorial step 0
+## needs it, and step 1 ("contracts") is literally where it's taught.
 ## Missing from this table = no step gate, same fail-open law as everywhere
 ## else in this file.
 const MENU_UNLOCK_STEP: Dictionary = {
-	"quests": 2,
+	"quests": 1,
 }
 
 
@@ -197,8 +197,12 @@ const VERB_LOCKED_FOR_ACT0 := 90
 
 
 ## Which Act-0 tutorial step is currently live — the same active-TUTORIAL-quest
-## lookup _objective_rank() already does (reused, not reinvented). Returns
-## NO_TUTORIAL_SENTINEL when there's no active TUTORIAL quest to read.
+## lookup _objective_rank() already does (reused, not reinvented). Also scans
+## story_offers: the manual contracts step waits there for a real R-accept,
+## and while it did, this used to return the sentinel — the whole funnel
+## (menus, verbs, escape tabs) briefly believed Act 0 was over, then slammed
+## shut again on accept. Returns NO_TUTORIAL_SENTINEL only when no TUTORIAL
+## quest is live in either pool.
 static func current_tutorial_step() -> int:
 	var qm := _quest_manager()
 	if qm == null or not ("active_quests" in qm):
@@ -206,6 +210,10 @@ static func current_tutorial_step() -> int:
 	for q in qm.active_quests.values():
 		if q is Dictionary and str(q.get("category", "")) == "TUTORIAL":
 			return int(q.get("tutorial_step", 0))
+	if "story_offers" in qm:
+		for q in qm.story_offers.values():
+			if q is Dictionary and str(q.get("category", "")) == "TUTORIAL":
+				return int(q.get("tutorial_step", 0))
 	return NO_TUTORIAL_SENTINEL
 
 
@@ -218,11 +226,18 @@ static func current_tutorial_step() -> int:
 const VERB_UNLOCK_STEP: Dictionary = {
 	# Step 0 (core_loop): Ace F (explore/fast-forward), R (strike), Q (extract).
 	# ace:E (Pause) is deliberately absent — harmless utility taught in the
-	# same hint, never locked. Steps 1 (reap) and 2 (contracts) ride these same
-	# Ace verbs; step 3 (wayfinding) is travel-only — no verb to unlock.
+	# same hint, never locked. Step 1 (contracts) rides these same Ace verbs;
+	# step 2 (wayfinding) is travel-only — no verb to unlock.
 	"ace:F": 0,
 	"ace:R": 0,
 	"ace:Q": 0,
+
+	# Step 5 (reap_season, the capstone): Ace Shift+F. Locked until the step
+	# that teaches it, on purpose — reap is once-affordable early (Fibonacci 🍼
+	# costs, wallet starts with 1) and reaps EVERY biome at once, so an early
+	# mash must not spend the only bottle on an undeveloped field. The redirect
+	# toast names the live objective, per the funnel law.
+	"ace:shift+F": 5,
 
 	# Icon F (track berry-phase) and R (incorporate/plant) are locked for ALL
 	# of Act 0 — vocabulary is mid-game content (the act-3 berry chapter), and
@@ -235,16 +250,16 @@ const VERB_UNLOCK_STEP: Dictionary = {
 	"icon:Q": VERB_LOCKED_FOR_ACT0,
 	"icon:E": VERB_LOCKED_FOR_ACT0,
 
-	# Step 4 (superposition): Druid E (Hadamard). druid:Q/R (rotations) stay
+	# Step 3 (superposition): Druid E (Hadamard). druid:Q/R (rotations) stay
 	# locked for the rest of Act 0 — explicit.
-	"druid:E": 4,
+	"druid:E": 3,
 	"druid:Q": VERB_LOCKED_FOR_ACT0,
 	"druid:R": VERB_LOCKED_FOR_ACT0,
 
-	# Step 5 (entanglement): Operator R (build_gate — the Bell weave).
+	# Step 4 (entanglement): Operator R (build_gate — the Bell weave).
 	# operator:Q (remove_gates, destructive) stays locked for the rest of
 	# Act 0 — explicit.
-	"operator:R": 5,
+	"operator:R": 4,
 	"operator:Q": VERB_LOCKED_FOR_ACT0,
 }
 
@@ -284,7 +299,7 @@ static func _best_objective() -> Dictionary:
 	var best_rank := 0x7FFFFFFF
 	# Candidate pool: ACTIVE tutorial/arc quests, plus tutorial-chain OFFERS.
 	# Predicate-driven tutorial steps auto-accept (QuestManager), so they live in
-	# active_quests; the contracts step (5) still waits in story_offers for a real
+	# active_quests; the contracts step (1) still waits in story_offers for a real
 	# R-accept, and it IS the live objective then. Market contracts are the ContractChip's job.
 	var pools: Array = [qm.active_quests.values()]
 	if "story_offers" in qm:
@@ -545,8 +560,21 @@ static func next_objective_title() -> String:
 	if farm == null or not ("story_flags_fired" in farm):
 		return ""
 	var fired: Dictionary = farm.story_flags_fired
+	# Lane discipline: "Next:" stays inside the campaigns the player has
+	# ENTERED (a lane is entered once any of its flags has fired; demos is
+	# home). Without this, a cross-lane beat whose prereqs happen to be
+	# demos flags (e.g. a loom act-5 door off a demos act-3 flag) could
+	# headline the HUD mid-Demos — accurate, but disorienting. The Arc tab
+	# still shows the whole sky; only this one-liner goes in-lane, and it
+	# falls back to the out-of-lane winner when no in-lane candidate exists.
+	var entered: Dictionary = {"demos": true}
+	for flag in qm.get_all_story_flags():
+		if flag is Dictionary and fired.has(str(flag.get("id", ""))):
+			entered[str(flag.get("campaign", "demos"))] = true
 	var best_name := ""
 	var best_act := 0x7FFFFFFF
+	var fallback_name := ""
+	var fallback_act := 0x7FFFFFFF
 	for flag in qm.get_all_story_flags():
 		if not (flag is Dictionary):
 			continue
@@ -562,10 +590,14 @@ static func next_objective_title() -> String:
 		if not prereqs_met:
 			continue
 		var act := int(flag.get("act", 99))
-		if act < best_act:
-			best_act = act
-			best_name = str(flag.get("display_name", fid))
-	return best_name
+		if entered.has(str(flag.get("campaign", "demos"))):
+			if act < best_act:
+				best_act = act
+				best_name = str(flag.get("display_name", fid))
+		elif act < fallback_act:
+			fallback_act = act
+			fallback_name = str(flag.get("display_name", fid))
+	return best_name if best_name != "" else fallback_name
 
 
 # ============================================================================
