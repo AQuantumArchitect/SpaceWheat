@@ -6,9 +6,9 @@ extends HBoxContainer
 ## rounded chip; state reads as a gentle whole-chip tint plus a gold underline
 ## on the selected item. Subclasses provide specs and handle selection.
 
-const CHIP_BG := Color(0.07, 0.08, 0.10, 0.60)
+const CHIP_BG := UIStyleFactory.COLOR_CHIP_BG
 const CHIP_CORNER_RADIUS := 7
-const SELECT_UNDERLINE_COLOR := Color(1.0, 0.8, 0.3, 0.95)  # global accent gold
+const SELECT_UNDERLINE_COLOR := Color(UIStyleFactory.COLOR_ACCENT_GOLD, 0.95)
 
 # State tints applied via modulate on the WHOLE chip (bg + glyph + label).
 var selected_color: Color = Color(1.25, 1.18, 0.95)  # warm lift
@@ -47,6 +47,10 @@ func _ready():
 	# and receive their clicks directly; the row itself must be transparent.
 	mouse_filter = MOUSE_FILTER_IGNORE
 	size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	# The dressing tray in _draw hugs the chip cluster's live rects — repaint
+	# whenever the container reflows them (progressive disclosure adds chips,
+	# band repositioning moves them).
+	sort_children.connect(queue_redraw)
 
 
 ## Pointer twin of PlayerShell's keyboard bleed-through guard. GUI picking
@@ -336,6 +340,20 @@ func set_layout_manager(mgr) -> void:
 
 
 func _draw() -> void:
+	# Dressing tray: one fitted backing behind the CLUSTER of visible chips
+	# (not the full band — rows overlap within a band, and full-width trays
+	# would double-paint; a hull hugs only this row's own chips). Drawn first,
+	# so chips and the underline paint over it.
+	var hull := Rect2()
+	var have_hull := false
+	for btn_data in buttons:
+		var c: Control = btn_data.container
+		if c == null or not is_instance_valid(c) or not c.visible:
+			continue
+		hull = c.get_rect() if not have_hull else hull.merge(c.get_rect())
+		have_hull = true
+	if have_hull:
+		UIStyleFactory.draw_trim(self, hull.grow(5.0))
 	# Quiet gold underline marks the selected chip (the WASD-crawl amber ring
 	# around whole rows died 2026-07-08 with the crawl itself).
 	if selected_id >= 0:

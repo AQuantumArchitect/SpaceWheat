@@ -12,7 +12,7 @@ extends Control
 ## action_performed — the same pattern as SFXRegistry — and never touches
 ## mechanics. Sits on the PlayerShell overlay layer below toasts (z 100).
 
-const ACCENT := Color(1.0, 0.8, 0.3)
+const ACCENT := UIStyleFactory.COLOR_ACCENT_GOLD
 
 ## Big-moment punctuation (rare): only genuinely surprising pops (high surprisal
 ## `rel`) earn a hitstop + gold flash + a brief Music-bus duck. rel = tanh(credits/40)
@@ -305,7 +305,7 @@ class RingBurst extends Node2D:
 			alpha = v
 			queue_redraw()
 	var width: float = 2.0
-	var color: Color = Color(1.0, 0.8, 0.3, 0.9)
+	var color: Color = Color(UIStyleFactory.COLOR_ACCENT_GOLD, 0.9)
 
 	func _draw() -> void:
 		if alpha <= 0.01:

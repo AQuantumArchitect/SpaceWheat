@@ -40,6 +40,22 @@ const COLOR_TEXT_HIGHLIGHT = Color(1.0, 0.9, 0.3)  # Gold
 ## Selection highlight
 const COLOR_SELECTION = Color(1.0, 0.9, 0.0)
 
+## The global accent gold + shared chip ink, promoted from per-widget literals
+## (dressing pass 2026-08-24: the same two values were hand-copied across
+## SelectionButtonRow, ActionPreviewRow, ContractChip, ActFilament,
+## FloatingRewardLayer and FpsDisplay — one spelling now).
+const COLOR_ACCENT_GOLD = Color(1.0, 0.8, 0.3)
+const COLOR_CHIP_BG = Color(0.07, 0.08, 0.10, 0.60)
+
+## Quiet trim vocabulary (dressing pass 2026-08-24). Deliberately a whisper —
+## the Apple-minimal pass (2026-07-08) removed loud borders on purpose, and
+## trim must never fight the reserved state grammars: gold 0.95α = selection/
+## attention, green 3px = would-fire, blue/teal/gold 1-2px = toast importance.
+const COLOR_TRIM_INK = Color(0.06, 0.07, 0.09, 0.55)   # ResourcePanel's ink, promoted
+const COLOR_TRIM_LINE = Color(0.42, 0.52, 0.65, 0.38)  # muted steel hairline
+const COLOR_TRIM_GOLD = Color(1.0, 0.8, 0.3, 0.10)     # accent gold at whisper alpha
+const TRIM_RADIUS = 8
+
 # =============================================================================
 # OVERLAY INTERACTION PALETTE (single source for tab/item/card chrome)
 # =============================================================================
@@ -118,6 +134,33 @@ static func create_panel_style(
 	style.set_corner_radius_all(corner_radius)
 	style.set_content_margin_all(content_margin)
 	return style
+
+
+static func create_trim_style(
+	ink: Color = COLOR_TRIM_INK,
+	line: Color = COLOR_TRIM_LINE,
+	radius: int = TRIM_RADIUS,
+	draw_ink: bool = true
+) -> StyleBoxFlat:
+	# 1px hairline + optional translucent backing ink. Width is ALWAYS 1 —
+	# 2px and 3px are reserved state cues (HintToast importance, would-fire).
+	var style := StyleBoxFlat.new()
+	style.draw_center = draw_ink
+	style.bg_color = ink
+	style.border_color = line
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(radius)
+	style.anti_aliasing = true
+	return style
+
+
+static func draw_trim(ci: CanvasItem, rect: Rect2,
+		ink: Color = COLOR_TRIM_INK, line: Color = COLOR_TRIM_LINE,
+		radius: int = TRIM_RADIUS, draw_ink: bool = true) -> void:
+	# For widgets that paint in _draw() (ResourcePanel/ActionPreviewRow idiom)
+	# rather than carrying a Panel child — zero picking risk. Cheap: _draw only
+	# runs on queue_redraw (these widgets fire it on resize, not per frame).
+	ci.draw_style_box(create_trim_style(ink, line, radius, draw_ink), rect)
 
 
 static func create_slot_style(

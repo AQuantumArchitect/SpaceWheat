@@ -23,7 +23,7 @@ extends Control
 
 const UIProgression = preload("res://UI/Core/UIProgression.gd")
 
-const ACCENT := Color(1.0, 0.8, 0.3)
+const ACCENT := UIStyleFactory.COLOR_ACCENT_GOLD
 const ACT_MUTED := Color(0.78, 0.72, 0.45, 0.9)
 const NEXT_MUTED := Color(0.65, 0.62, 0.52, 0.85)
 const POLL_S := 0.5

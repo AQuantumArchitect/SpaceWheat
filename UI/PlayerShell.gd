@@ -17,6 +17,7 @@ extends Control
 const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
 const MenuSelectionRowClass = preload("res://UI/Widgets/MenuSelectionRow.gd")
 const FpsDisplay = preload("res://UI/HUD/FpsDisplay.gd")
+const ChromeFrameClass = preload("res://UI/Widgets/ChromeFrame.gd")
 const UIProgression = preload("res://UI/Core/UIProgression.gd")
 
 var current_farm_ui = null  # FarmUI instance (from scene)
@@ -38,6 +39,7 @@ var advanced_mode_enabled: bool = false
 # quantum_hud_panel REMOVED - content merged into InspectorOverlay (N key)
 var menu_row: MenuSelectionRowClass = null  # Bottom-stack ZXCVBNM ring (owned by ActionBarManager)
 var fps_display: Control = null  # Top-left FPS projection display
+var chrome_frame: Control = null  # Decorative viewport frame + vignette (dressing pass)
 var _hint_toast_stack: VBoxContainer = null  # Bottom-right stack of ephemeral hint toasts
 var _quest_biome_connected: bool = false
 var _overlay_open_frame: Dictionary = {}  # overlay_name -> Engine frame opened
@@ -686,6 +688,12 @@ func _ready() -> void:
 	# Above every overlay tier (OverlayStackManager tops out at Z_TIER_SYSTEM 18 + stack size)
 	_hint_toast_stack.z_index = 100
 	overlay_layer.add_child(_hint_toast_stack)
+
+	# Decorative viewport frame + vignette (dressing pass) — child of the shell
+	# itself with absolute z 55; IGNORE, so tree-order picking is moot.
+	chrome_frame = ChromeFrameClass.new()
+	add_child(chrome_frame)
+
 	_apply_top_strip_layout()
 	if layout_manager and layout_manager.has_signal("layout_changed"):
 		InstrumentLocator._safe_connect(layout_manager.layout_changed, _on_layout_changed)
@@ -726,6 +734,8 @@ func set_farm_attached(attached: bool) -> void:
 		menu_row.visible = attached
 	if fps_display:
 		fps_display.visible = attached
+	if chrome_frame:
+		chrome_frame.visible = attached
 
 
 func is_farm_attached() -> bool:

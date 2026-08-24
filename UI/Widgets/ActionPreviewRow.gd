@@ -52,6 +52,10 @@ func _ready():
 	# chips are STOP children and receive clicks directly.
 	mouse_filter = MOUSE_FILTER_IGNORE
 	size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	# The row is re-anchored by ActionBarManager on every layout pass — the
+	# dressing tray below draws from `size`, so it must repaint on resize
+	# (ResourcePanel idiom).
+	resized.connect(queue_redraw)
 
 	# Create Q, E, R, F action buttons (matches 1234 button style)
 	for action_key in ACTION_KEYS:
@@ -123,6 +127,15 @@ func debug_layout() -> String:
 	return debug_text
 
 
+func _draw() -> void:
+	# Quiet tray behind the QERF chips (dressing pass). ROW level only — the
+	# 3px green would-fire border stays the only border a chip ever wears.
+	# _draw paints beneath child chips and adds no node, so the hard-won row
+	# IGNORE above and the STOP chips' picking are untouched, and the row's
+	# rect never changes → get_free_band() reads identical values (#520).
+	UIStyleFactory.draw_trim(self, Rect2(Vector2.ZERO, size))
+
+
 func _create_action_button(action_key: String) -> Dictionary:
 	# Create an action button with texture background, icon glyph, and text label.
 	# Matches the styling of ToolSelectionRow buttons (BtnBtmMidl.svg).
@@ -147,7 +160,7 @@ func _create_action_button(action_key: String) -> Dictionary:
 	var texture_rect = Panel.new()
 	texture_rect.name = "BtnChip"
 	var chip_style := StyleBoxFlat.new()
-	chip_style.bg_color = Color(0.07, 0.08, 0.10, 0.60)
+	chip_style.bg_color = UIStyleFactory.COLOR_CHIP_BG
 	chip_style.set_corner_radius_all(7)
 	chip_style.set_border_width_all(0)
 	chip_style.border_color = would_fire_border_color

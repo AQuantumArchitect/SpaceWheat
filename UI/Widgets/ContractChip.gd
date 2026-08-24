@@ -12,7 +12,7 @@ extends PanelContainer
 ## Purely cosmetic: C still opens the full board; nothing is gated here.
 
 const MAX_ROWS := 2
-const ACCENT := Color(1.0, 0.8, 0.3)
+const ACCENT := UIStyleFactory.COLOR_ACCENT_GOLD
 
 # The COMMITMENTS board's row letters (QuestBoard.ITEM_KEYS) — the chip labels
 # its rows with the same letters so "the second quest" in this corner and

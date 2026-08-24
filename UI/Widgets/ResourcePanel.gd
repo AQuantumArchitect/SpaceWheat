@@ -31,8 +31,13 @@ func _ready():
 
 
 func _draw():
-	# Flat, quiet strip (Apple-minimal pass): translucent ink, no HUD border.
-	draw_rect(Rect2(Vector2.ZERO, size), Color(0.06, 0.07, 0.09, 0.55))
+	# Framed strip (dressing pass): the same translucent ink as before
+	# (COLOR_TRIM_INK IS the old literal here), now a rounded chip with the
+	# 1px steel hairline, inset so the line doesn't kiss the screen edge.
+	var r := Rect2(Vector2(6.0, 3.0), size - Vector2(12.0, 6.0))
+	if r.size.x <= 0.0 or r.size.y <= 0.0:
+		return
+	UIStyleFactory.draw_trim(self, r)
 
 
 func set_layout_manager(layout_mgr: Node):
@@ -272,6 +277,14 @@ func _create_ui():
 	var main_spacing = int(20 * scale_factor)
 
 	add_theme_constant_override("separation", main_spacing)
+
+	# Breathing room between the new left hairline and the first counter —
+	# IGNORE like everything in this strip, and invisible to the sorting code
+	# (it indexes resources_hbox children, not panel children).
+	var lead := Control.new()
+	lead.custom_minimum_size = Vector2(int(14 * scale_factor), 0)
+	lead.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(lead)
 
 	# Create container for all resource displays
 	resources_hbox = HBoxContainer.new()

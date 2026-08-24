@@ -17,6 +17,7 @@ var _paused: bool = false
 func _ready() -> void:
 	_build_ui()
 	_resolve_shell()
+	resized.connect(queue_redraw)
 	if RuntimeEnv.debug_readout_enabled():
 		var timer := Timer.new()
 		timer.wait_time = 0.5
@@ -40,7 +41,15 @@ func _on_paused_changed(is_paused: bool) -> void:
 	if _flow_label:
 		_flow_label.text = "⏸" if is_paused else "▶"
 		_flow_label.add_theme_color_override("font_color",
-			Color(1.0, 0.8, 0.3, 0.95) if is_paused else Color(0.75, 0.82, 0.88, 0.7))
+			Color(UIStyleFactory.COLOR_ACCENT_GOLD, 0.95) if is_paused else Color(0.75, 0.82, 0.88, 0.7))
+
+
+func _draw() -> void:
+	# Trim backing (dressing pass): this floats over the resource strip's right
+	# end and is a real tappable control — the quiet chip backing makes it read
+	# as one, composed with the framed strip instead of loose over it.
+	if size.x > 0.0 and size.y > 0.0:
+		UIStyleFactory.draw_trim(self, Rect2(Vector2.ZERO, size))
 
 
 func _gui_input(event: InputEvent) -> void:
