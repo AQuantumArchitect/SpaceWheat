@@ -32,13 +32,14 @@ signal mode_selected(frame_name: String, mode_index: int)
 
 
 func _ready() -> void:
-	# Same band as the hat row it annotates, so it must draw above it.
+	# One band below the hat row it annotates, so relative z barely matters —
+	# kept above its band-mates for the same pick-order reason as before.
 	z_index = 6
 	compact = true
-	# Hug the right edge (MenuSelectionRow's corner-cluster pattern). The hat
-	# chips stay centred; ActionBarManager insets the hat row so the two
-	# clusters can never overlap even on a narrow window.
-	alignment = BoxContainer.ALIGNMENT_END
+	# Hug the LEFT edge: the mode chips sit directly UNDER the hats they
+	# annotate (2026-08-24 re-band; they used to ride the hat band's far right,
+	# a screen-width away from the hat they described).
+	alignment = BoxContainer.ALIGNMENT_BEGIN
 	super._ready()
 	if not button_selected.is_connected(_on_button_selected):
 		button_selected.connect(_on_button_selected)

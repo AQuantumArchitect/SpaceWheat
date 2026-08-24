@@ -15,6 +15,11 @@ extends RefCounted
 
 const PerfOptimizer = preload("res://Core/Settings/PerformanceOptimizer.gd")
 
+## Vertical block the objective banner (ActFilament) occupies above the
+## ContractChip in the pinned contract corner: banner height + margin (the
+## historical hand-tuned offsets were 140 and 202 — this is their 62px gap).
+const ACT_BANNER_BLOCK := 62.0
+
 var _verbose  # Injected from BootManager (VerboseConfig)
 
 
@@ -344,15 +349,25 @@ func stage_ui(farm: Node, shell: Node, quantum_viz: Node, world_builder) -> void
 		_verbose.info("boot", "✨", "FloatingRewardLayer ready (pop → +N flier)")
 
 		if "quest_manager" in shell and shell.quest_manager:
+			# The contract corner derives its tops from the layout manager —
+			# the old hand-tuned 140/202 tracked "resource bar + one chip band"
+			# and went stale every re-band. ACT_BANNER_BLOCK is the banner's
+			# own height + margin (the historical 202 − 140).
+			var lm = shell.get("layout_manager")
+			var corner_top := 140.0
+			if lm != null and lm.has_method("get_resource_bar_height") \
+					and lm.has_method("get_action_row_height"):
+				corner_top = float(lm.get_resource_bar_height()) \
+					+ float(lm.get_action_row_height())
+
 			var contract_chip = ContractChip.new()
 			contract_chip.name = "ContractChip"
 			contract_chip.z_index = 90
 			shell_overlay_layer.add_child(contract_chip)
 			contract_chip.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-			# Below the (now compact) resource strip + menu/hat/biome chip rows,
-			# AND below the objective banner (ActFilament, 140 + 58px tall —
-			# the banner grew an act line).
-			contract_chip.offset_top = 202.0
+			# Below the resource strip + first chip band, AND below the
+			# objective banner (ActFilament — the banner grew an act line).
+			contract_chip.offset_top = corner_top + ACT_BANNER_BLOCK
 			contract_chip.offset_right = -10.0
 			contract_chip.offset_left = -190.0
 			contract_chip.grow_horizontal = Control.GROW_DIRECTION_BEGIN
@@ -366,7 +381,7 @@ func stage_ui(farm: Node, shell: Node, quantum_viz: Node, world_builder) -> void
 			act_filament.z_index = 90
 			shell_overlay_layer.add_child(act_filament)
 			act_filament.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-			act_filament.offset_top = 140.0
+			act_filament.offset_top = corner_top
 			act_filament.offset_right = -10.0
 			act_filament.offset_left = -200.0
 			act_filament.grow_horizontal = Control.GROW_DIRECTION_BEGIN

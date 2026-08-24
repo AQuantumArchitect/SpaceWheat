@@ -71,24 +71,32 @@ func create_action_bars(parent: Control) -> void:
 		push_error("ActionBarManager: UILayoutManager is required before creating action bars")
 		return
 
+	# EVERY row gets the layout manager, and gets it BEFORE add_child (the
+	# scale is copied once in _ready → _rebuild_buttons). Only the menu row
+	# received it for months, so at 720p the menu chips rendered 1.5× the size
+	# of everything else — half of what made the top strip read as mucky.
 	tool_selection_row = ToolSelectionRow.new()
 	tool_selection_row.name = "ToolSelectionRow"
+	if layout_manager:
+		tool_selection_row.set_layout_manager(layout_manager)
 	parent.add_child(tool_selection_row)
 
-	# Sub-mode chips ride the hat band, right-aligned. Added AFTER the tool row
-	# so it wins the pick in any overlap (GUI picking is tree order, not
-	# z_index) — though _position_tool_row also insets the hats so they cannot
-	# reach this cluster in the first place.
+	# Sub-mode chips sit one band below, directly under the hats they annotate.
+	# Added AFTER the tool row so it wins the pick in any overlap (GUI picking
+	# is tree order, not z_index).
 	mode_selection_row = _ModeSelectionRow.new()
 	mode_selection_row.name = "ModeSelectionRow"
+	if layout_manager:
+		mode_selection_row.set_layout_manager(layout_manager)
 	parent.add_child(mode_selection_row)
 
-	# Clock chips ride the third band's right corner (the hat band's right
-	# corner already belongs to ModeSelectionRow). The biome bar that used to
-	# hold this band's left half died 2026-08-24 — the field's portal rail
-	# (labelled orbs, left edge) is the mouse biome door now.
+	# Clock chips ride the second band's right corner (the biome bar that used
+	# to hold a third band died 2026-08-24 — the field's portal rail is the
+	# mouse biome door now).
 	clock_speed_row = _ClockSpeedRow.new()
 	clock_speed_row.name = "ClockSpeedRow"
+	if layout_manager:
+		clock_speed_row.set_layout_manager(layout_manager)
 	parent.add_child(clock_speed_row)
 
 	menu_selection_row = MenuSelectionRow.new()
@@ -99,6 +107,8 @@ func create_action_bars(parent: Control) -> void:
 
 	action_preview_row = ActionPreviewRow.new()
 	action_preview_row.name = "ActionPreviewRow"
+	if layout_manager:
+		action_preview_row.set_layout_manager(layout_manager)
 	parent.add_child(action_preview_row)
 
 	# GODOT 4 BEST PRACTICE: Connect to parent's resized signal
@@ -119,11 +129,11 @@ func _on_parent_resized() -> void:
 	_reposition_all_rows()
 
 
-## Layout: top → bottom
-##   top idx 0: menu  (ZXCVBNM — surface ring, below resource bar)
-##   top idx 1: tool  (4-0 hats)
-##   top idx 2: clock (right corner only — the biome bar died 2026-08-24;
-##               TYUIOP biomes are the field's portal rail + keyboard ring now)
+## Layout: top → bottom (two bands since 2026-08-24 — was three + biome bar)
+##   top idx 0: tool (4-0 hats, LEFT) + menu (ZXCVBNM surface ring, RIGHT)
+##   top idx 1: mode (under the hats, LEFT) + clock (right corner, inset past
+##              the contract corner; TYUIOP biomes = the field's portal rail
+##              + keyboard ring now)
 ##   [open farm view / game space — PlotTile cyan border is plot selection UI]
 ##   bottom  0: action (QERF — not a selection ring)
 func _position_row_at_index(row: Control, idx: int) -> void:
@@ -165,28 +175,27 @@ const CONTRACT_CORNER_INSET := 210.0
 
 
 func _position_tool_row() -> void:
-	# Hats hug the LEFT (HBoxContainer default), so they never reach the
-	# right-aligned mode cluster — no inset needed here.
-	_position_top_row(tool_selection_row, 1)
+	# Band 0 LEFT — level with the menu chips (owner ask 2026-08-24: "those two
+	# information sets on the same vertical level"; band 0's left half sat
+	# empty since the hats lived a band lower). Hats hug the LEFT (HBoxContainer
+	# default), menus hug the RIGHT — they cannot collide (@1280, both clusters
+	# at scale 1.5: ≈519px + ≈594px < 1260px usable).
+	_position_top_row(tool_selection_row, 0)
 
 
 func _position_mode_row() -> void:
-	# Same band as the hats (top idx 1), right-aligned — costs no vertical
-	# space and sits beside the hat it belongs to.
+	# Band 1 LEFT — directly UNDER the hats the mode chips annotate (they used
+	# to sit far right of the hat band; under the active hat reads closer).
+	# Left-aligned via ModeSelectionRow's own alignment, so the contract-corner
+	# inset is unnecessary — the cluster can't reach the right edge.
 	_position_top_row(mode_selection_row, 1)
-	# The contract corner (ContractChip + ActFilament, ~190px) owns the top
-	# right. Inset past it or the mode chips draw straight over the act banner
-	# — the same squeeze _position_biome_row already applies one band down.
-	if mode_selection_row:
-		mode_selection_row.offset_right = -CONTRACT_CORNER_INSET
 
 
 func _position_clock_row() -> void:
-	# Third band (top idx 2), right-aligned — the hat band's right corner is
-	# already the mode cluster's, and two right-aligned clusters on one row
-	# collide on a narrow window.
-	_position_top_row(clock_speed_row, 2)
-	# Clear the pinned contract corner (ContractChip + ActFilament, top-right).
+	# Band 1 RIGHT — the strip is two bands now (was three + the biome bar).
+	# Right-aligned, clear of the pinned contract corner (ContractChip +
+	# ActFilament) which also starts at this band's height.
+	_position_top_row(clock_speed_row, 1)
 	if clock_speed_row:
 		clock_speed_row.offset_right = -CONTRACT_CORNER_INSET
 
@@ -204,11 +213,11 @@ func _position_action_row() -> void:
 ##
 ## This manager owns every row that boxes the play space, so it is the only thing that
 ## can answer honestly. The 3D field centres on THIS rather than on
-## UILayoutManager.play_area_rect: that rect models the 2D rack's layout, where
-## top_bar_height is 6% of the window — while the real top chrome is the resource bar
-## plus three stacked selection rows, ~37% at 720p. Centring on the model instead of the
-## screen put the cloud ~180px too high, with orbs behind the biome tabs and the bottom
-## third of the screen empty (#520).
+## UILayoutManager.play_area_rect: that rect models the 2D rack's layout — while the
+## real top chrome is the resource strip plus two stacked selection bands (~26% at
+## 720p; it was three bands + a mismatched strip height when centring on the model
+## put the cloud ~180px too high, with orbs behind the then-biome tabs and the bottom
+## third of the screen empty — #520).
 func get_free_band() -> Vector2:
 	var layer: Control = action_preview_row.get_parent() if action_preview_row else null
 	if layer == null or not is_instance_valid(layer):

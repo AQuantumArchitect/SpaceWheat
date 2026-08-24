@@ -46,7 +46,6 @@ const ACTION_ROW_MIN_HEIGHT = 55        # Minimum height in pixels
 const ACTION_ROW_MAX_PERCENT = 0.40     # Max 40% of viewport for both rows combined
 
 # Component constants
-const RESOURCE_BAR_BASE_HEIGHT = 50.0
 const TOP_STRIP_GAP_BASE = 4.0
 const TOP_STRIP_SIDE_INSET_BASE = 200.0
 const QUANTUM_INDICATOR_WIDTH_BASE = 200.0
@@ -448,8 +447,11 @@ func get_action_row_height() -> float:
 
 
 func get_resource_bar_height() -> float:
-	# Height of top resource strip in the normalized 540px design space.
-	return h(RESOURCE_BAR_BASE_HEIGHT)
+	# Height of the top resource strip — the SAME 6% FarmUI actually draws
+	# (_apply_parametric_sizing). Two authorities used to disagree here (h(50)
+	# ≈ 9.3% vs the drawn 6%), leaving a ~23px band of dead air between the
+	# strip and the first chip row at 720p.
+	return viewport_size.y * TOP_BAR_HEIGHT_PERCENT
 
 
 func get_top_strip_gap() -> float:

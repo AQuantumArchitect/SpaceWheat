@@ -465,8 +465,9 @@ func _toast(msg: String) -> void:
 		shell.show_hint("[color=#8899aa]•[/color] %s" % msg, 2)
 
 
-## Centre the field on the PLAY AREA, not the window: ~283px of top chrome (resource bar
-## + 3 action rows) vs ~72px bottom at 720p means the window centre sits well above the
+## Centre the field on the PLAY AREA, not the window: ~187px of top chrome (resource bar
+## + 2 chip bands since the 2026-08-24 re-band) vs ~72px bottom at 720p still means the
+## window centre sits above the
 ## usable strip's centre, sliding top orbs under the HUD. Camera h/v_offset pans the frame
 ## so the pivot projects at UILayoutManager.get_play_area_center() — unproject_position
 ## includes the offsets, so picking stays exact. The standalone cognifold instrument has
