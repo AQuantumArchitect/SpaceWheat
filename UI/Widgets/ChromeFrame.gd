@@ -1,9 +1,12 @@
 class_name ChromeFrame
 extends Control
 
-## ChromeFrame — decorative dressing around the whole game viewport
-## (dressing pass 2026-08-24): a soft edge vignette that settles the field
-## into the window, then a 1px steel hairline with an inner gold whisper.
+## ChromeFrame — decorative dressing around the whole game viewport.
+## Border-weight pass (2026-08-24, owner ask: "approaching brass picture frame
+## or clockwork machinery"): a soft edge vignette that settles the field into
+## the window, then a beveled BRASS MOLDING — several thin concentric strokes
+## stepping dark→bright→mid→dark, which reads as a raised picture-frame edge —
+## plus a small rivet ornament at each corner (the "clockwork" read).
 ##
 ## Pure _draw(), NO child nodes, mouse_filter IGNORE: a decorative node that
 ## can never eat a click (the codebase's worst failure class — see
@@ -13,12 +16,29 @@ extends Control
 ## is correct), the QERF row (60), the contract corner (130) and toasts (140).
 ## Never a row — ActionBarManager.get_free_band() (#520) is untouched by
 ## design: this node has no band and reserves no space.
+##
+## Every ring of the molding still draws at the reserved 1px width
+## (create_trim_style/draw_trim's own hard-coded set_border_width_all(1)) — the
+## bolder read comes from LAYERING rings into a bevel, not from widening any
+## single stroke past what 2px (toast importance) / 3px (would-fire) mean
+## elsewhere in the HUD.
 
-const EDGE_INSET := 3.0
-const GOLD_INSET := 5.0
+## Molding rings, outer → inner: the stepping dark→bright→mid→dark is what
+## reads as a bevel rather than a flat line.
+const MOLD_OUTER_INSET := 4.0
+const MOLD_INNER_INSET := 14.5
+const MOLD_RING_TONES: Array = ["shadow", "highlight", "mid", "shadow"]
+
+## Corner rivets: a small circle plus radiating ticks (the "clockwork" read),
+## centered inside the molding band.
+const RIVET_INSET := 9.0
+const RIVET_RADIUS := 4.0
+const RIVET_TICK_LEN := 6.0
+const RIVET_TICK_COUNT := 6
+
 ## Edge vignette: translucent ink fading to nothing over VIGNETTE_DEPTH px.
-## One-constant removable — zero VIGNETTE_ALPHA and only the hairlines stay.
-const VIGNETTE_DEPTH := 64.0
+## One-constant removable — zero VIGNETTE_ALPHA and only the molding stays.
+const VIGNETTE_DEPTH := 56.0
 const VIGNETTE_ALPHA := 0.14
 const VIGNETTE_INK := Color(0.03, 0.04, 0.06)
 
@@ -36,16 +56,43 @@ func _draw() -> void:
 	if size.x <= 0.0 or size.y <= 0.0:
 		return
 	_draw_vignette()
-	var steel := Rect2(Vector2(EDGE_INSET, EDGE_INSET),
-		size - Vector2(EDGE_INSET, EDGE_INSET) * 2.0)
-	var gold := Rect2(Vector2(GOLD_INSET, GOLD_INSET),
-		size - Vector2(GOLD_INSET, GOLD_INSET) * 2.0)
-	if steel.size.x <= 0.0 or steel.size.y <= 0.0:
-		return
-	UIStyleFactory.draw_trim(self, steel, Color(),
-		UIStyleFactory.COLOR_TRIM_LINE, UIStyleFactory.TRIM_RADIUS, false)
-	UIStyleFactory.draw_trim(self, gold, Color(),
-		UIStyleFactory.COLOR_TRIM_GOLD, UIStyleFactory.TRIM_RADIUS - 1, false)
+	_draw_molding()
+	_draw_corner_rivet(Vector2(RIVET_INSET, RIVET_INSET))
+	_draw_corner_rivet(Vector2(size.x - RIVET_INSET, RIVET_INSET))
+	_draw_corner_rivet(Vector2(RIVET_INSET, size.y - RIVET_INSET))
+	_draw_corner_rivet(Vector2(size.x - RIVET_INSET, size.y - RIVET_INSET))
+
+
+func _molding_color(tone: String) -> Color:
+	match tone:
+		"highlight":
+			return UIStyleFactory.COLOR_BRASS_HIGHLIGHT
+		"mid":
+			return UIStyleFactory.COLOR_BRASS_MID
+		_:
+			return UIStyleFactory.COLOR_BRASS_SHADOW
+
+
+func _draw_molding() -> void:
+	var n := MOLD_RING_TONES.size()
+	for i in range(n):
+		var t := float(i) / float(n - 1)
+		var inset := lerpf(MOLD_OUTER_INSET, MOLD_INNER_INSET, t)
+		var rect := Rect2(Vector2(inset, inset), size - Vector2(inset, inset) * 2.0)
+		if rect.size.x <= 0.0 or rect.size.y <= 0.0:
+			return
+		UIStyleFactory.draw_trim(self, rect, Color(),
+			_molding_color(MOLD_RING_TONES[i]), UIStyleFactory.TRIM_RADIUS, false)
+
+
+func _draw_corner_rivet(center: Vector2) -> void:
+	draw_circle(center, RIVET_RADIUS, UIStyleFactory.COLOR_BRASS_SHADOW)
+	draw_arc(center, RIVET_RADIUS, 0.0, TAU, 12, UIStyleFactory.COLOR_BRASS_HIGHLIGHT, 1.0, true)
+	for i in range(RIVET_TICK_COUNT):
+		var ang := TAU * float(i) / float(RIVET_TICK_COUNT)
+		var dir := Vector2(cos(ang), sin(ang))
+		draw_line(center + dir * RIVET_RADIUS, center + dir * (RIVET_RADIUS + RIVET_TICK_LEN),
+			UIStyleFactory.COLOR_BRASS_MID, 1.0, true)
 
 
 func _draw_vignette() -> void:

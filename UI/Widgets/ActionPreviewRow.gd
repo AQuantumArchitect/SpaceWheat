@@ -133,7 +133,12 @@ func _draw() -> void:
 	# _draw paints beneath child chips and adds no node, so the hard-won row
 	# IGNORE above and the STOP chips' picking are untouched, and the row's
 	# rect never changes → get_free_band() reads identical values (#520).
-	UIStyleFactory.draw_trim(self, Rect2(Vector2.ZERO, size))
+	var r := Rect2(Vector2.ZERO, size)
+	# Double-stroke (border-weight pass 2026-08-24): see ResourcePanel — a
+	# second brass line just inside the tray reads bolder at the reserved 1px.
+	UIStyleFactory.draw_trim(self, r.grow(-3.0), Color(), UIStyleFactory.COLOR_BRASS_SHADOW,
+		UIStyleFactory.TRIM_RADIUS - 2, false)
+	UIStyleFactory.draw_trim(self, r)
 
 
 func _create_action_button(action_key: String) -> Dictionary:

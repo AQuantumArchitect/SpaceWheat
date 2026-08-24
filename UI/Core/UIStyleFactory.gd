@@ -56,6 +56,18 @@ const COLOR_TRIM_LINE = Color(0.42, 0.52, 0.65, 0.38)  # muted steel hairline
 const COLOR_TRIM_GOLD = Color(1.0, 0.8, 0.3, 0.10)     # accent gold at whisper alpha
 const TRIM_RADIUS = 8
 
+## Brass molding palette (border-weight pass 2026-08-24 — owner ask: "approaching
+## brass picture frame or clockwork machinery"). Deliberately a THIRD palette,
+## not a reuse of COLOR_ACCENT_GOLD: accent gold is reserved for "look here"
+## selection cues (chip underlines, spotlight pulses), and the frame's brass must
+## never compete with that meaning. Each stroke that uses these still draws at
+## the reserved 1px width (create_trim_style/draw_trim) — the bolder read comes
+## from layering several strokes into a bevel, never from widening any one of
+## them past what 2px (toast importance) / 3px (would-fire) already mean.
+const COLOR_BRASS_HIGHLIGHT = Color(0.95, 0.80, 0.45, 0.9)
+const COLOR_BRASS_MID = Color(0.72, 0.55, 0.25, 0.85)
+const COLOR_BRASS_SHADOW = Color(0.28, 0.19, 0.08, 0.9)
+
 # =============================================================================
 # OVERLAY INTERACTION PALETTE (single source for tab/item/card chrome)
 # =============================================================================

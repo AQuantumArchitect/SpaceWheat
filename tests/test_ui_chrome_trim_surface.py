@@ -64,3 +64,36 @@ def test_accent_gold_has_one_spelling_in_ui() -> None:
         "accent gold spelled as a raw literal (use UIStyleFactory.COLOR_ACCENT_GOLD "
         "so the accent stays one value): %s" % offenders
     )
+
+
+def test_frame_is_a_molding_not_a_flat_line() -> None:
+    # Border-weight pass (2026-08-24, owner ask: "approaching brass picture
+    # frame or clockwork machinery"). The bolder read comes from LAYERING
+    # several reserved-1px rings into a bevel (drawn via a loop over
+    # MOLD_RING_TONES, not repeated call sites -- the loop IS the dedup this
+    # codebase favors), not from widening any single stroke -- collapsing the
+    # tone list to 1-2 entries makes the frame a flat line again, leaving the
+    # reserved 2px/3px state-cue widths as the only way left to look "bold,"
+    # exactly the collision the trim vocabulary was written to prevent.
+    frame = read_source("UI/Widgets/ChromeFrame.gd")
+    tones_block = frame.split("MOLD_RING_TONES: Array = [", 1)[1].split("]", 1)[0]
+    assert tones_block.count('"') >= 6, "need >=3 quoted tones in MOLD_RING_TONES"
+    assert "UIStyleFactory.draw_trim(" in frame
+    assert "COLOR_BRASS_HIGHLIGHT" in frame
+    assert "COLOR_BRASS_SHADOW" in frame
+
+
+def test_brass_palette_has_one_spelling_in_ui() -> None:
+    offenders = []
+    for path in (ROOT / "UI").rglob("*.gd"):
+        rel = path.relative_to(ROOT).as_posix()
+        if rel == "UI/Core/UIStyleFactory.gd":
+            continue
+        text = path.read_text(encoding="utf-8")
+        if "Color(0.95, 0.80, 0.45" in text or "Color(0.72, 0.55, 0.25" in text \
+                or "Color(0.28, 0.19, 0.08" in text:
+            offenders.append(rel)
+    assert offenders == [], (
+        "brass molding tone spelled as a raw literal (use "
+        "UIStyleFactory.COLOR_BRASS_* so the frame stays one recipe): %s" % offenders
+    )

@@ -37,6 +37,11 @@ func _draw():
 	var r := Rect2(Vector2(6.0, 3.0), size - Vector2(12.0, 6.0))
 	if r.size.x <= 0.0 or r.size.y <= 0.0:
 		return
+	# Double-stroke (border-weight pass 2026-08-24): a second brass line just
+	# outside the original ink-backed one reads bolder without widening either
+	# stroke past the reserved 1px (2px/3px stay toast/would-fire cues).
+	UIStyleFactory.draw_trim(self, r.grow(3.0), Color(), UIStyleFactory.COLOR_BRASS_SHADOW,
+		UIStyleFactory.TRIM_RADIUS + 2, false)
 	UIStyleFactory.draw_trim(self, r)
 
 
