@@ -1740,8 +1740,11 @@ func handle_bubble_tap(grid_pos: Vector2i, shift: bool = false) -> Dictionary:
 	if _tap_blocked_by_overlay():
 		return {"success": false, "error": "overlay_open", "message": ""}
 
-	# A tap is "any other input" — cancel a pending destructive confirm.
-	_confirm_pending = {}
+	# A tap is "any other input" — cancel a pending destructive confirm,
+	# through the ONE cancel authority so it says so out loud (a bare direct
+	# clear here used to cancel silently, the exact keyboard/mouse divergence
+	# _cancel_pending_confirm's own doc-comment forbids).
+	_cancel_pending_confirm()
 
 	var biome_name: String = ""
 	if farm.grid.has_method("get_plot_biome_assignment"):
@@ -1926,7 +1929,7 @@ func _perform_action(action_key: String) -> void:
 						var arrow := "▼" if after < cur - 0.005 else ("▲" if after > cur + 0.005 else "→")
 						gap_note = "  ·  gap %.2f→%.2f %s" % [cur, after, arrow]
 			shell.show_hint(
-				"[color=#ff9966]⚠ %s[/color]%s  —  press [b]F[/b] to confirm, any other key cancels" \
+				"[color=#ff9966]⚠ %s[/color]%s  —  press [b]F[/b] to confirm; any other key or tap cancels" \
 				% [action_info.get("label", action_name), gap_note], 3)
 		return
 
@@ -2089,7 +2092,7 @@ func _perform_shift_key_action(action_key: String) -> void:
 		var shell := _resolve_player_shell()
 		if shell and shell.has_method("show_hint"):
 			shell.show_hint(
-				"[color=#ff9966]⚠ %s ×%d[/color]  —  press [b]F[/b] to confirm, any other key cancels" \
+				"[color=#ff9966]⚠ %s ×%d[/color]  —  press [b]F[/b] to confirm; any other key or tap cancels" \
 				% [log_label, positions.size()], 3)
 		return
 
