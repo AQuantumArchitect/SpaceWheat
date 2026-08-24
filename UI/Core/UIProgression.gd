@@ -283,8 +283,24 @@ static func is_verb_active(frame_name: String, key: String) -> bool:
 # ============================================================================
 
 const OBJECTIVE_MAX_CHARS := 70
-const OFFER_LINE := "📜 new offer — X then I (Arc)"
-const REDIRECT_FALLBACK := "follow the Arc (X → I)"
+const OFFER_LINE := "📜 new offer — tap the gold banner for the Arc [X→I]"
+const REDIRECT_FALLBACK := "follow the Arc — tap the gold banner [X→I]"
+
+
+## One spelling per door — every surface that names a route composes from
+## these. The ready-toast and the objective banner used to spell the claim
+## route two ways ("C board" vs "Commitments (C → U)") and the older one sent
+## players to the wrong screen; PlayerEventBridge preloads this script so the
+## drift can't reopen. Voice rule: the click comes first, keys ride as
+## bracketed accelerators — every action named here has a real hitbox
+## (docs/MOUSE_PARITY_AUDIT.md: zero keyboard-only gaps), so copy that only
+## says "press R" lies by omission to a mouse-and-trackpad player.
+static func route_accept() -> String:
+	return "tap the gold banner [X→I], its row, then Accept [R]"
+
+
+static func route_claim() -> String:
+	return "tap 📋 [C], Commitments [U], its row twice (Claim [R])"
 
 
 ## The single ranked winning quest/offer — shared by objective_text() (the
@@ -402,17 +418,18 @@ static func _hat_key_for_frame(frame_name: String) -> String:
 	return ""
 
 
-## Lead the one live objective with the KEY it needs, when it needs one. The two moments a new
-## player stalls (both survived the old data-shortcut probe): an OFFER awaiting the R-accept it
-## was never taught (the contracts step, every arc offer), and a quest that has gone READY but
-## sits unclaimed. Naming the key + the surface is the whole fix. In-progress quests keep just
-## their hint — the bar is already teaching.
+## Lead the one live objective with the ROUTE it needs, when it needs one. The two moments a
+## new player stalls (both survived the old data-shortcut probe): an OFFER awaiting the accept
+## it was never taught (the contracts step, every arc offer), and a quest that has gone READY
+## but sits unclaimed. Naming the route + the surface is the whole fix — spoken click-first
+## from the route_* authorities above. In-progress quests keep just their hint — the bar is
+## already teaching.
 static func _decorate_objective(q: Dictionary) -> String:
 	var status := str(q.get("status", ""))
 	if status == Quest.STATUS_STORY:
-		return "▸ press R to accept it on the Arc tab (X → I)"
+		return "▸ to accept: " + route_accept()
 	if status == "ready":
-		return "▸ press R to claim it in Commitments (C → U)"
+		return "▸ to claim: " + route_claim()
 	var travel := _travel_line(q)
 	if travel != "":
 		return travel
@@ -452,7 +469,7 @@ static func _travel_line(q: Dictionary) -> String:
 		# No tab reaches it yet. Stay silent rather than name a key that isn't
 		# there — a lie costs more than the missing nudge.
 		return ""
-	return "▸ press %s to cross to %s — this step happens there" % [key, want]
+	return "▸ tap the %s tab to cross to %s — this step happens there" % [key, want]
 
 
 static func _active_biome_manager() -> Node:

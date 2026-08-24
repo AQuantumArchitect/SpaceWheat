@@ -233,7 +233,7 @@ func stage_start_simulation(farm: Node) -> void:
 	# unseen on the quest board — nothing else tells a new player to press C.
 	var shell = InstrumentLocator.resolve_player_shell(farm)
 	if shell != null and shell.has_method("show_hint"):
-		shell.show_hint("🌾 the forest is asleep — C quests · X guide · N inspector · M map", 2, "")
+		shell.show_hint("🌾 the forest is asleep — the top chips open the doors: 📋 quests [C] · 📖 guide [X] · 🕸 network [N] · 🗺 map [M]", 2, "")
 
 
 func ensure_quantum_instrument(farm: Node):

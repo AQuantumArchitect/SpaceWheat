@@ -322,7 +322,7 @@ func _build_title() -> void:
 	version_lbl.offset_bottom = -12
 
 	_title_hint = Label.new()
-	_title_hint.text = "Press F to play  ·  X for menu"
+	_title_hint.text = "Click — or F — to play  ·  X for menu"
 	_title_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_title_hint.add_theme_font_size_override("font_size", 24)
 	_title_hint.add_theme_color_override("font_color", Color(0.95, 0.97, 0.88, 1.0))

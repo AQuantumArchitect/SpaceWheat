@@ -573,9 +573,9 @@ func _refresh_close_hint() -> void:
 	var paging_hint := "  ·  A/D page" if _current_row_count() > MAX_VISIBLE_ITEMS else ""
 	if frame_id == FRAME_MARKET:
 		var sort_label := str(MARKET_SORT_LABELS.get(_market_sort_mode, "?"))
-		_close_hint.text = "ESC close  ·  T Y U tabs%s  ·  [1] Comfort↓  [2] Magnitude↓  [3] Tension↓  ·  active: %s" % [paging_hint, sort_label]
+		_close_hint.text = "tap a row — again to accept  ·  ESC close  ·  T Y U tabs%s  ·  [1] Comfort↓  [2] Magnitude↓  [3] Tension↓  ·  active: %s" % [paging_hint, sort_label]
 	else:
-		_close_hint.text = "ESC close   ·   T Y U tabs%s" % paging_hint
+		_close_hint.text = "tap a row — again to act  ·  ESC close   ·   T Y U tabs%s" % paging_hint
 
 func _refresh_status() -> void:
 	if not _status_line:
@@ -1026,7 +1026,7 @@ func _build_market_body() -> void:
 		var empty_msg: String = _market_status_note
 		if empty_msg == "":
 			empty_msg = "no offers here yet"
-		empty_msg += "\nthe market follows your active biome — walk somewhere with factions, or press E to refresh"
+		empty_msg += "\nthe market follows your active biome — walk somewhere with factions, or tap Refresh [E]"
 		_body_box.add_child(_make_muted_label(empty_msg, 12))
 		return
 	# One page of offers per GHJKL; ring. BoardRow_N stays SLOT-named (0-5) so

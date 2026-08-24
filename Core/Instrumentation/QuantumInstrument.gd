@@ -494,7 +494,7 @@ func action_measure(grid_pos: Vector2i) -> Dictionary:
 		var explore_cost: Dictionary = ActionCostRuntime.get_action_cost(economy, "explore", {})
 		var bread_amount := int(round(float(explore_cost.get("🍞", 1))))
 		return {"success": false, "error": "not_explored",
-			"message": "Unexplored — press F to explore this plot first (%d🍞)." % bread_amount, "blocked": true}
+			"message": "Unexplored — tap this plot (or F) to explore it first (%d🍞)." % bread_amount, "blocked": true}
 
 	# Resolve the biome from whichever binding the terminal carries (bound OR already
 	# measured) so the call reaches the single measure authority. ProbeActions.action_measure

@@ -54,7 +54,7 @@
     "standing_grants": {},
     "arc_quest": {
       "body": "The Wheel Is Yours — open the Arc and read the island's open doors.",
-      "hint": "Open the Arc: X, then the I tab. Every quest ahead lives there: A/D page the beats, a row key selects, E inspects its live meters, R accepts. The banner will still whisper the nearest ask — but the Arc is the whole sky.",
+      "hint": "Open the Arc: tap the gold banner — or X, then the I tab. Every quest ahead lives there: tap a row to select (A/D page, GHJKL; by key), E inspects its live meters, Accept [R] takes an offer. The banner will still whisper the nearest ask — but the Arc is the whole sky.",
       "state_predicates": [
         {
           "type": "gate_sequence_contains",

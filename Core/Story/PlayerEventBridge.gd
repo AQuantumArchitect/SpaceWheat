@@ -5,6 +5,11 @@ extends Node
 ## subsystems (quest_manager, economy, farm). Headless-safe: only writes to
 ## PlayerEventLog; spawning UI toasts is PlayerShell's job.
 
+# Route phrases (accept/claim doors) come from the objective authority so the
+# toast and the banner can never drift apart again. Core→UI preload is
+# precedented (QuantumEdgeRenderer, BatchedBubbleRenderer do the same).
+const UIProgression = preload("res://UI/Core/UIProgression.gd")
+
 var _farm: Node = null
 var _quest_manager: Node = null
 var _economy: Node = null
@@ -184,13 +189,11 @@ func _on_quest_ready_to_claim(qid: int) -> void:
 		if q is Dictionary and _quest_manager.tutorial_auto_advances(q):
 			_push("✅ %s — step complete" % _quest_name(qid), 1, "✅", "quest", "Q")
 			return
-	# "C board" is one key short of the truth: C opens the market, and claiming
-	# lives on its Commitments tab. A main-road playthrough repeatedly pressed C,
-	# landed on the wrong tab and read the toast as a lie — while the newer
-	# objective-banner copy right beside it already says the full path
-	# ("▸ press R to claim it in Commitments (C → U)"). Two spellings of one
-	# route, and the older one sent people to the wrong screen.
-	_push("🏆 [b]%s ready to claim[/b] — C then U, then R on its row" % _quest_name(qid),
+	# One spelling of the claim route, shared with the objective banner
+	# (UIProgression.route_claim). This toast and the banner used to drift —
+	# "C board" vs "Commitments (C → U)" — and the older spelling sent a
+	# main-road playthrough to the wrong screen.
+	_push("🏆 [b]%s ready to claim[/b] — %s" % [_quest_name(qid), UIProgression.route_claim()],
 			3, "🏆", "quest", "Q")
 
 
@@ -242,7 +245,9 @@ func _on_quest_offered(quest: Dictionary) -> void:
 	var imp: int = 3 if is_arc else 1
 	# Say WHERE: offers wait on the Arc tab, and no surface pointed there —
 	# every blind round-1 tester starved two keypresses from the on-ramp.
-	_push("📜 New offer from %s — X then I (Arc) to read & accept" % fac, imp, "📜", "quest", "Q")
+	# Route phrase shared with the banner (click-first, keys as accelerators).
+	_push("📜 New offer from %s — to read & accept: %s" % [fac, UIProgression.route_accept()],
+			imp, "📜", "quest", "Q")
 
 
 func _on_quest_failed(qid: int, reason: String) -> void:
@@ -252,7 +257,7 @@ func _on_quest_failed(qid: int, reason: String) -> void:
 func _on_quest_expired(_qid: int) -> void:
 	# Importance 2: at 1 this was dropped by show_hint and commitments
 	# vanished silently (fleet: "accepted quest disappears without a word").
-	_push("⌛ a commitment ran out of time — C then U to see it", 2, "⌛", "quest", "Q")
+	_push("⌛ a commitment ran out of time — tap 📋 [C], then Commitments [U] to see it", 2, "⌛", "quest", "Q")
 
 
 func _on_purchase_failed(reason: String) -> void:

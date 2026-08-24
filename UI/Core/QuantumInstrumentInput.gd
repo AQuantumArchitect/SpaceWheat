@@ -2069,7 +2069,7 @@ func _perform_shift_key_action(action_key: String) -> void:
 	var positions = _instrument.checked_plots.duplicate()
 	if positions.is_empty():
 		# Honest refusal (anti-gating law): a silent mass-op reads as a dead key.
-		_toast_player("%s needs checked plots — Shift+G H J K L ; marks them first." % log_label)
+		_toast_player("%s needs checked plots — Shift+click plots (or Shift+G H J K L ;) to mark them first." % log_label)
 		return
 
 	# Destructive bulk actions confirm before firing — same QF confirm chord the

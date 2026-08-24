@@ -17,7 +17,7 @@ const _ROWS := [
 	"Your whole vocabulary is one word: 🌾/👥 — wheat and people, the axis your island turns on.",
 	"The factions past the hedge keep older words, and they teach the ones who keep their contracts.",
 	"",
-	"THE FIRST MINUTE   ·   F explores a plot (costs 🍞)  ·  R strikes it — the answer locks in (costs 👥)  ·  Q extracts the yield, free.",
+	"THE FIRST MINUTE   ·   tap a plot to explore it [F] (costs 🍞)  ·  tap its bubble to strike — the answer locks in [R] (costs 👥)  ·  tap the frozen bubble to extract the yield [Q], free.",
 	"",
 	"The gold banner (top-right) always names your one live task — tap it any time for the Arc, the island's list of open doors.  The Guide (X → O) is the full how-to-play.",
 	"",

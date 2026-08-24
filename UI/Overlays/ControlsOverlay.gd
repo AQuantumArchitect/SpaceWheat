@@ -200,7 +200,7 @@ func _build_content(container: Control) -> void:
 	container.add_child(_body_box)
 
 	_close_hint = Label.new()
-	_close_hint.text = "ESC close   ·   T Y I O tabs   ·   G H J K L ; ' items"
+	_close_hint.text = "tabs and rows are tappable   ·   ESC close   ·   T Y I O tabs   ·   G H J K L ; ' items"
 	_close_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_close_hint.add_theme_font_size_override("font_size", 11)
 	_close_hint.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
@@ -351,7 +351,7 @@ func _build_self_next_pointer() -> void:
 		row.add_child(obj_lbl)
 	if next_title != "":
 		var next_lbl := Label.new()
-		next_lbl.text = "Next: %s  ·  see the Arc tab [I]" % next_title
+		next_lbl.text = "Next: %s  ·  tap here for the Arc [I]" % next_title
 		next_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		next_lbl.add_theme_font_size_override("font_size", 11)
 		next_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
@@ -1450,7 +1450,7 @@ func _guide_core_loop() -> void:
 	var strike_people := int(round(float(strike_cost.get("👥", 1))))
 
 	_body_box.add_child(_make_section_header("the core loop: F · R · Q (tap · tap · tap)"))
-	_body_box.add_child(_make_body("Press 8 to enter the Ace frame (you start there), then:"))
+	_body_box.add_child(_make_body("Ace is your starting frame — tap its hat chip (or press 8) to return any time. Then:"))
 	_body_box.add_child(_make_action_row("F", "Explore", "Mount an expedition to an unexplored plot — costs %d🍞 (breaking bread opens doors). Binds the register so it can be struck. A tap on an unexplored plot does the same." % explore_bread))
 	_body_box.add_child(_make_action_row("R", "Strike", "Collapse the quantum state (Born rule) — the game's one irreversible act; a social encounter that costs %d👥 base (unfamiliar pairs cost more). The bubble freezes cyan with its answer. A tap on a live bubble does the same." % strike_people))
 	_body_box.add_child(_make_action_row("Q", "Extract", "Harvest the frozen answer, free — reward = surprisal −kT·log p, rare pays more (a certain outcome pays the floor: let the state evolve before you strike). The bubble returns to live evolution. A tap on a frozen bubble does the same."))
@@ -1458,7 +1458,7 @@ func _guide_core_loop() -> void:
 	_body_box.add_child(_make_body(
 		"F explores, R strikes, Q extracts — that's the farming heartbeat, and tapping a plot walks the same three beats. "
 		+ "On an explored plot F returns to its other meaning: play on / fast-forward (double down and let the odds spin). "
-		+ "Shift+F reaps the whole season — time runs, every plot settles, the harvest lands at once."))
+		+ "Shift+F — or Shift+click the F chip; the ⇧ line on a chip IS its Shift verb — reaps the whole season: time runs, every plot settles, the harvest lands at once."))
 
 func _guide_four_tools() -> void:
 	_body_box.add_child(_make_section_header("the seven archetype frames (4-0)"))
@@ -1471,8 +1471,8 @@ func _guide_four_tools() -> void:
 	_body_box.add_child(_make_action_row("0", "Druid",     "Unitary rotations + Hadamard. 1/2/3 = X / Y / Z."))
 	_body_box.add_child(_make_spacer(4))
 	_body_box.add_child(_make_body(
-		"Re-press the active hat to toggle back to Ace (default toolkit). "
-		+ "Hold Shift+Q/E/R to apply the verb to every valid plot at once."))
+		"Re-press (or re-tap) the active hat to toggle back to Ace (default toolkit). "
+		+ "Hold Shift+Q/E/R — or Shift+click the chip — to apply the verb to every valid plot at once."))
 
 func _guide_biomes_economy() -> void:
 	_body_box.add_child(_make_section_header("biomes"))
@@ -1526,7 +1526,7 @@ func _guide_quick_reference() -> void:
 	_body_box.add_child(_make_action_row("G-H-J-K-L-;", "Plots",   ""))
 	_body_box.add_child(_make_action_row("Z-X-C-V-B-N-M", "Surfaces", "Top-level menus (system / self / quests / atlas / biome / network / map)"))
 	_body_box.add_child(_make_action_row("'",            "Bulk plots","Toggle: check all plots in active biome, or clear if any are checked"))
-	_body_box.add_child(_make_action_row("Shift+QER",    "Bulk",    "apply to all valid plots"))
+	_body_box.add_child(_make_action_row("Shift+QER",    "Bulk",    "apply to all valid plots — Shift+click the chip does the same"))
 
 # Verbs reference — moved here from EscapeMenu's old Verbs tab. Reads the
 # 7-hat × QERF table out of ToolConfig so it stays in sync with whatever the
@@ -2254,7 +2254,7 @@ func _accept_selected_arc() -> void:
 	if str(entry.get("kind", "")) != "arc_quest":
 		# Normally unreachable (blank verb chips gate R off flag rows), but
 		# any direct-call path must still speak, not die (anti-gating law).
-		RefusalVoice.note("story beat — nothing to accept; R works on offer rows")
+		RefusalVoice.note("story beat — nothing to accept; Accept [R] works on offer rows")
 		return
 	var data: Dictionary = entry.get("data", {})
 	if qm.has_method("accept_quest") and qm.accept_quest(data):
@@ -2270,7 +2270,7 @@ func _acknowledge_selected_arc() -> void:
 	var entry: Dictionary = rows[_arc_selected_idx]
 	if str(entry.get("kind", "")) != "arc_quest":
 		# Normally unreachable (blank verb chips gate Q off flag rows) — speak anyway.
-		RefusalVoice.note("story beat — nothing to dismiss; Q works on offer rows")
+		RefusalVoice.note("story beat — nothing to dismiss; Dismiss [Q] works on offer rows")
 		return
 	var qid: int = int(entry.get("data", {}).get("id", -1))
 	if qid >= 0 and qm.has_method("dismiss_story_offer"):
