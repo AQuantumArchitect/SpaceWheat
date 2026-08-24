@@ -627,7 +627,7 @@ const REDIRECT_COOLDOWN_MS := 3000
 static var _last_redirect_ms: int = -REDIRECT_COOLDOWN_MS
 
 
-static func redirect_locked() -> void:
+static func redirect_locked(what: String = "") -> void:
 	var now := Time.get_ticks_msec()
 	if now - _last_redirect_ms < REDIRECT_COOLDOWN_MS:
 		return
@@ -635,6 +635,20 @@ static func redirect_locked() -> void:
 	var obj := objective_text()
 	if obj == "":
 		obj = REDIRECT_FALLBACK
+	# Name WHAT is locked when the caller knows (playtest 2026-08-24: five
+	# straight reap refusals read as a BUG because "🔒 not yet" never said the
+	# reap itself was the story-gated thing with a road that unlocks it). And
+	# the lock toast is a DOOR: when the live objective is an offer awaiting
+	# accept (or a quest gone ready), a body-tap opens the exact surface the
+	# words point at (route ids resolve in PlayerShell).
+	var route := ""
+	var status := str(_best_objective().get("status", ""))
+	if status == Quest.STATUS_STORY:
+		route = "arc"
+	elif status == "ready":
+		route = "commitments"
+	var line := ("🔒 %s unlocks further down Act 0 — now: %s" % [what, obj]) if what != "" \
+			else ("🔒 not yet — now: %s" % obj)
 	var shell := _shell()
 	if shell != null and shell.has_method("show_hint"):
-		shell.show_hint("🔒 not yet — now: %s" % obj, 2)
+		shell.show_hint(line, 2, "", route)

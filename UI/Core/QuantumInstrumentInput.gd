@@ -251,7 +251,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		# instead of acting. Ace/Icon/Druid never lock (starter kit); the
 		# fall-back-to-Ace re-press path always passes.
 		if not UIProgression.is_hat_active(target_frame):
-			UIProgression.redirect_locked()
+			UIProgression.redirect_locked("the %s hat" % target_frame)
 			get_viewport().set_input_as_handled()
 			return
 		_select_frame_hat(target_frame)
@@ -384,7 +384,7 @@ func _dispatch_action_key(key: String, shift: bool = false) -> void:
 					# to be checked here too — gated on the BASE key (F), same as
 					# the plain-F dispatch below.
 					if not UIProgression.is_verb_active(ToolConfig.get_current_frame(), "F"):
-						UIProgression.redirect_locked()
+						UIProgression.redirect_locked(str(f_action.get("label", "")))
 						return
 					# The shifted verb carries its OWN funnel gate on top of the base
 					# key's: Ace Shift+F (reap) unlocks at the Act-0 capstone step,
@@ -393,7 +393,7 @@ func _dispatch_action_key(key: String, shift: bool = false) -> void:
 					# only bottle on an undeveloped field. Redirect names the live
 					# objective, per the funnel law.
 					if not UIProgression.is_verb_active(ToolConfig.get_current_frame(), "shift+F"):
-						UIProgression.redirect_locked()
+						UIProgression.redirect_locked(str(f_action.get("shift_label", "")))
 						return
 					# Shift+F = the season-scale time verb (Ace: Reap Season).
 					# Biome-wide — no checked-plot batch, dispatch directly.
@@ -1863,7 +1863,8 @@ func _perform_action(action_key: String) -> void:
 	# hat-select guard in _unhandled_key_input. Act-0-only; every other verb
 	# and every verb once Act 0 ends compares true here.
 	if not UIProgression.is_verb_active(current_frame_name, action_key):
-		UIProgression.redirect_locked()
+		UIProgression.redirect_locked(
+				str(ToolConfig.get_action(current_frame_name, action_key).get("label", "")))
 		return
 	var action_info = ToolConfig.get_action(current_frame_name, action_key)
 	# Apply contextual chip resolver so dispatch matches what the chip displayed.
@@ -2060,7 +2061,8 @@ func _perform_shift_key_action(action_key: String) -> void:
 	# path from _perform_action (Shift+Q/E/R bulk-apply), so it needs its own
 	# verb-lock guard — same table, same redirect.
 	if not UIProgression.is_verb_active(current_frame_name, action_key):
-		UIProgression.redirect_locked()
+		UIProgression.redirect_locked(
+				str(ToolConfig.get_action(current_frame_name, action_key).get("shift_label", "")))
 		return
 	var action_info = ToolConfig.get_action(current_frame_name, action_key)
 	if action_info.is_empty():

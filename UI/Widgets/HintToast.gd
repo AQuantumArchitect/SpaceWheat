@@ -53,6 +53,9 @@ var _on_tap: Callable = Callable()
 
 
 func _init() -> void:
+	# A stable name so click-driving harnesses (mouse_seat clickables) can
+	# address a toast as "HintToast" instead of an anonymous @PanelContainer@.
+	name = "HintToast"
 	# The panel takes the mouse (children stay IGNORE so it receives every
 	# event over the whole toast — the biggest possible dismiss target).
 	mouse_filter = Control.MOUSE_FILTER_STOP

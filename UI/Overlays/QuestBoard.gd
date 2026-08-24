@@ -1037,6 +1037,17 @@ func _emoji_marginals_with_qubit(qc) -> Dictionary:
 # =============================================================================
 
 func _build_market_body() -> void:
+	# Cross-pointer (playtest 2026-08-24: two blind mouse seats searched THIS
+	# tab for a pending STORY offer and burned ~20% of their runs before
+	# finding the Arc). Story offers live on the Arc; this board is the
+	# market — say so, right where the search happens, only while one pends.
+	if quest_manager and "story_offers" in quest_manager \
+			and quest_manager.story_offers is Dictionary \
+			and not quest_manager.story_offers.is_empty():
+		var pending: int = quest_manager.story_offers.size()
+		_body_box.add_child(_make_muted_label(
+			"📜 %d story offer%s waiting on the ARC, not this board — tap the gold banner [X→I]"
+			% [pending, "s" if pending > 1 else ""], 11))
 	var visible_offers: Array = _get_visible_offers()
 	if visible_offers.is_empty():
 		# Honest empty state: say WHY (the status note from _refresh_pool names

@@ -1368,6 +1368,16 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 							var ck_t := str((ck_k as Label).text).strip_edges()
 							if ck_t != "":
 								ck_kids.append(ck_t)
+						elif ck_k != ck_c and ck_k is RichTextLabel \
+								and (ck_k as RichTextLabel).is_visible_in_tree():
+							# HintToast carries its message in a RichTextLabel;
+							# without this branch a routed "tap here" toast listed
+							# as an unlabeled panel, and blind seats couldn't
+							# connect the screen text to the clickable (playtest
+							# 2026-08-24: both seats' toast clicks hit the field).
+							var ck_rt := str((ck_k as RichTextLabel).get_parsed_text()).strip_edges()
+							if ck_rt != "":
+								ck_kids.append(ck_rt)
 					ck_label = " ".join(ck_kids)
 				ck_out.append({
 					"name": str(ck_c.name),
