@@ -171,6 +171,8 @@ func _connect_visualization_ui_signals() -> void:
 			if _verbose:
 				_verbose.warn("ui", "⚠️", "Failed to connect node_clicked signal")
 		renderer.chain_swiped.connect(_on_chain_swiped)
+		if renderer.has_signal("biome_confirmed"):
+			renderer.biome_confirmed.connect(_on_biome_confirmed)
 		if _verbose:
 			_verbose.info("ui", "✅", "Quantum viz signals connected")
 
@@ -220,6 +222,19 @@ func _on_quantum_node_clicked(grid_pos: Vector2i, button_index: int, shift: bool
 			_verbose.error("ui", "❌", "Bubble tap: no QuantumInstrumentInput attached")
 		return
 	instrument_input.handle_bubble_tap(grid_pos, shift)
+
+
+func _on_biome_confirmed(old_biome: String, new_biome: String, key: String) -> void:
+	# The rail dive already switched the biome (set-then-confirm, same grammar as the
+	# keyboard TYUIOP path); this speaks the shared confirm tail — "→ Village" toast,
+	# Focus repoint into the new biome, pending-confirm cancel, submenu close. Liveness
+	# resolution matches _on_chain_swiped: the instrument, not FarmView.farm, decides.
+	var instrument_input = shell.current_farm_ui.instrument_input if shell and shell.current_farm_ui else null
+	if not instrument_input:
+		if _verbose:
+			_verbose.error("ui", "❌", "Rail dive: no QuantumInstrumentInput attached")
+		return
+	instrument_input.confirm_biome_switch(old_biome, new_biome, key)
 
 
 func _on_chain_swiped(positions: Array) -> void:

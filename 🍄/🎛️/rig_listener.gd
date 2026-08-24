@@ -1396,18 +1396,48 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 		"biome_slots":
 			# Read-only: the TYUIOP slot → biome mapping. grid_snapshot lists biomes in a
 			# different (sorted) order, so a driver must use THIS to press the right biome key.
+			# Each slot also carries `orb_center` — the live screen point of that biome's rail
+			# orb (the 3D field's portal rail, the MOUSE path to a biome switch; the rail is
+			# 3D meshes, so the Control-walking `clickables` verb cannot list it by design).
+			# `portals` appends any non-slot orbs (fractal children). orb_center is absent for
+			# the ACTIVE biome (its orb leaves the rail) and for a slot with no live orb.
 			var bsl_abm = get_root().get_node_or_null("/root/ActiveBiomeManager")
 			if bsl_abm == null:
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_active_biome_manager"}
 			else:
+				var bsl_orbs: Dictionary = {}
+				var bsl_extra: Array = []
+				var bsl_stack: Array = [get_root()]
+				while not bsl_stack.is_empty():
+					var bsl_n: Node = bsl_stack.pop_back()
+					for bsl_ch in bsl_n.get_children():
+						bsl_stack.push_back(bsl_ch)
+					if bsl_n.has_method("rig_portals"):
+						for bsl_p in bsl_n.rig_portals():
+							bsl_orbs[str(bsl_p.get("name", ""))] = bsl_p
+						break
 				var bsl_slots: Array = []
 				var n_slots: int = InputBindingRegistry.get_biome_keys().size()
 				for si in range(n_slots):
 					var bn := str(bsl_abm.get_biome_for_slot(si)) if bsl_abm.has_method("get_biome_for_slot") else ""
 					var sk := str(bsl_abm.get_slot_key(si)) if bsl_abm.has_method("get_slot_key") else ""
 					if bn != "":
-						bsl_slots.append({"slot": si, "key": sk, "biome": bn})
+						var bsl_row := {"slot": si, "key": sk, "biome": bn}
+						if bsl_orbs.has(bn):
+							bsl_row["orb_center"] = bsl_orbs[bn].get("screen_pos", [-1, -1])
+							bsl_row["orb_placeholder"] = bool(bsl_orbs[bn].get("placeholder", false))
+						bsl_slots.append(bsl_row)
+				for bsl_nm in bsl_orbs.keys():
+					var bsl_in_slot := false
+					for bsl_row2 in bsl_slots:
+						if str(bsl_row2.get("biome", "")) == str(bsl_nm):
+							bsl_in_slot = true
+							break
+					if not bsl_in_slot:
+						bsl_extra.append(bsl_orbs[bsl_nm])
 				result["slots"] = bsl_slots
+				if not bsl_extra.is_empty():
+					result["portals"] = bsl_extra
 				result["active"] = str(bsl_abm.get_active_biome()) if bsl_abm.has_method("get_active_biome") else ""
 
 		"board_visible":

@@ -197,7 +197,8 @@ def cmd_look(seat: str) -> dict:
     return {"ok": True, "screen_text": screen, "field": field, "plots": plots,
             "wearing_hat": frame,
             "wallet": rs.get("resources", rs.get("snapshot", {})),
-            "biome_tabs": [{"key": s.get("key"), "biome": s.get("biome")}
+            "biome_tabs": [{"key": s.get("key"), "biome": s.get("biome"),
+                            "orb_center": s.get("orb_center")}
                            for s in slots.get("slots", []) if s.get("biome")],
             "active_biome": slots.get("active", ""),
             "buttons": buttons}
@@ -207,8 +208,10 @@ def cmd_press(*_a, **_k) -> dict:
     return {"ok": False, "error": "no_keyboard",
             "hint": "this seat is MOUSE ONLY by construction. Use `tap` (a "
                     "bubble by grid pos), `click` (a named button from look's "
-                    "`buttons`), or `click_at` (a raw point). If a thing can "
-                    "only be reached by a key, that IS the finding — report it."}
+                    "`buttons`), or `click_at` (a raw point — e.g. a biome's "
+                    "`orb_center` from look's `biome_tabs` to switch biomes "
+                    "via its orb on the left rail). If a thing can only be "
+                    "reached by a key, that IS the finding — report it."}
 
 
 def cmd_tap(seat: str, gx: int, gy: int, shift: bool = False) -> dict:

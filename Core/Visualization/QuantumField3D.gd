@@ -28,9 +28,10 @@ extends SubViewportContainer
 #
 # Two distinct navigation layers share this field, both docs/architecture/fractal_atlas.md
 # calls "fractal" but which are genuinely different mechanics:
-#   • the sibling portal rail (_rebuild_portals): every OTHER already-loaded biome as a
-#     themed orb on the fixed left rail — lateral, one level, calls ActiveBiomeManager
-#     directly (a navigation concern, not an economy-gated mechanic);
+#   • the sibling portal rail (_rebuild_portals): every OTHER assigned biome as a labelled
+#     orb on the fixed left rail (slot order = TYUIOP) — lateral, one level. A dive sets
+#     ActiveBiomeManager then emits biome_confirmed, which FarmView routes to the shared
+#     QII.confirm_biome_switch tail (toast, Focus repoint, confirm-cancel — mouse parity);
 #   • descend/ascend (_rebuild_fractal_portals): a small indigo satellite per register
 #     (enter_icon — real recursive icon→world depth, FractalAtlas/FractalWorldService/
 #     ProceduralIconBiome) and a single cyan ascend portal shown only when the active
@@ -48,6 +49,10 @@ extends SubViewportContainer
 
 signal quantum_node_selected(node)
 signal biome_selected(biome_name: String)
+## Rail-dive confirm tail (mouse parity): emitted ONLY when a sibling-portal click
+## actually switched the biome. FarmView routes it to QII.confirm_biome_switch — the
+## same toast/Focus-repoint/cancel/close tail the keyboard TYUIOP path speaks.
+signal biome_confirmed(old_biome: String, new_biome: String, key: String)
 signal node_clicked(grid_pos: Vector2i, button_index: int, shift: bool)   # tap on an orb → handle_bubble_tap
 signal chain_swiped(positions: Array)                        # swipe across 2+ orbs → apply_chain_gate
 
@@ -79,6 +84,10 @@ const REPEL_MARGIN := R * 2.3       # minimum comfortable separation between two
 const FOG_SAT := 0.16               # desaturate toward grey — hue survives, vibrancy does not
 const FOG_VAL := 0.44
 const FOG_ALPHA := 0.22             # vs 0.12 live: no dot inside, so the shell carries the shape
+const PORTAL_LABEL_COLOR := Color(0.88, 0.93, 0.98, 0.85)   # UIStyleFactory.COLOR_HEADER family
+## Hover lift on a rail orb — matches the HUD chips' hover_color (SelectionButtonRow 1.35)
+## so "the pointer is over something clickable" reads identically in 2D and 3D.
+const RAIL_HOVER_LIFT := Color(1.35, 1.35, 1.35)
 ## Below this the reported free band is a layout still settling, not a real strip —
 ## fall back to the play-area centre rather than jam the cloud into a sliver.
 const MIN_FIELD_BAND_PX := 120.0
@@ -94,7 +103,8 @@ var _world: Node3D
 var _pivot: Node3D
 var _cam: Camera3D
 var _bubbles: Array = []            # {reg, mesh, ring, sprite, dot, mat, rmat, pos, grid_pos}
-var _portals: Array = []            # {mesh, sprite, name, pos} — other biomes, click to dive
+var _portals: Array = []            # {mesh, hue_ring, sprite, label, name, key, pos, placeholder}
+var _rail_hover_name := ""          # rail orb under the pointer ("" = none) — hover lift + hand cursor
 const DESCEND_HUE_COLOR := Color(0.55, 0.35, 0.95)  # fixed indigo — "go deeper", never a biome hue
 var _descend_portals: Array = []    # {mesh, ring, sprite, biome_name, register_id} — per register, click to enter_icon
 var _ascend_portal = null           # {mesh, ring, sprite} or null — only present inside a fractal child world
@@ -149,6 +159,15 @@ func _ready() -> void:
 	stretch = true
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
+	# The rail is slot-ordered (TYUIOP): a slot rebind or unlock must reflow the orbs
+	# even while the active biome stays put. Blanking _last_biome forces the next tick's
+	# full rebuild (the fade-in guard reads _last_biome != "", so no spurious fade).
+	var abm_boot = get_node_or_null("/root/ActiveBiomeManager")
+	if abm_boot != null:
+		if abm_boot.has_signal("biome_order_changed"):
+			abm_boot.biome_order_changed.connect(func(_order): _last_biome = "")
+		if abm_boot.has_signal("slot_assignment_changed"):
+			abm_boot.slot_assignment_changed.connect(func(_i, _n): _last_biome = "")
 	_sv = SubViewport.new()
 	_sv.own_world_3d = true
 	_sv.transparent_bg = false
@@ -768,23 +787,44 @@ func _clear_bubbles() -> void:
 
 
 # ------------------------------------------------------- fractal biome portals
-## Every OTHER loaded biome becomes a small themed portal orb ringed around the field.
-## Clicking one dives into it (set_active_biome) — the fractal navigation from the demo.
+## Every OTHER assigned biome becomes a labelled portal orb on the fixed left rail.
+## Rail order = TYUIOP slot order, so the orb the copy names and the key it brackets
+## always agree. An assigned slot whose biome isn't renderable yet (save/load, boot
+## ordering) still gets a fog-styled placeholder orb: keyboard T/Y switches there
+## regardless, so the mouse must be able to as well. Loaded non-slot biomes (fractal
+## children) append below the slots with no key label.
 func _rebuild_portals(active_name: String) -> void:
 	_clear_portals()
 	_clear_fractal_portals()
 	var grid = _farm_grid()
 	if grid == null or not grid.has_method("get_all_biomes"):
 		return
-	var others := []
+	var by_name := {}
 	for bb in grid.get_all_biomes().values():
-		if not _biome_ok(bb):
+		var loaded_nm := str(bb.get_biome_type()) if bb != null and bb.has_method("get_biome_type") else ""
+		if loaded_nm != "":
+			by_name[loaded_nm] = bb
+	var abm = get_node_or_null("/root/ActiveBiomeManager")
+	var entries := []   # {name, key, biome (null → placeholder)}
+	var slotted := {}
+	if abm != null and abm.has_method("get_slot_count"):
+		for si in range(int(abm.get_slot_count())):
+			var nm := str(abm.get_biome_for_slot(si))
+			if nm == "":
+				continue
+			slotted[nm] = true
+			if nm == active_name:
+				continue
+			var bb2 = by_name.get(nm)
+			entries.append({"name": nm, "key": str(abm.get_slot_key(si)),
+				"biome": bb2 if _biome_ok(bb2) else null})
+	for nm3 in by_name.keys():
+		if str(nm3) == active_name or slotted.has(nm3):
 			continue
-		var nm := str(bb.get_biome_type()) if bb.has_method("get_biome_type") else ""
-		if nm == "" or nm == active_name:
+		if not _biome_ok(by_name[nm3]):
 			continue
-		others.append(bb)
-	var n := others.size()
+		entries.append({"name": str(nm3), "key": "", "biome": by_name[nm3]})
+	var n := entries.size()
 	for i in range(n):
 		# a fixed vertical "travel rail" down the empty left side — never occluded by the
 		# field or its bloom, always clickable to dive into that biome. x=−4.2 mirrors the
@@ -792,7 +832,11 @@ func _rebuild_portals(active_name: String) -> void:
 		# a lopsided composition with ≥2 biomes loaded).
 		var t := (float(i) + 0.5) / float(max(1, n))   # 0..1, centered
 		var pos := Vector3(-4.2, 0.8 - t * 3.6, 0.0)
-		_spawn_portal(others[i], pos)
+		var e: Dictionary = entries[i]
+		if e.biome != null:
+			_spawn_portal(e.biome, pos, str(e.key))
+		else:
+			_spawn_placeholder_portal(str(e.name), pos, str(e.key))
 
 	_rebuild_fractal_portals(active_name)
 
@@ -920,7 +964,7 @@ func _clear_fractal_portals() -> void:
 		_ascend_portal = null
 
 
-func _spawn_portal(biome, pos: Vector3) -> void:
+func _spawn_portal(biome, pos: Vector3, key: String = "") -> void:
 	var nm := str(biome.get_biome_type()) if biome.has_method("get_biome_type") else ""
 	var theme: Dictionary = BVT.get_theme(nm)
 	var hue: float = float(theme.get("base", Color(0.1, 0.1, 0.1)).h)
@@ -965,15 +1009,74 @@ func _spawn_portal(biome, pos: Vector3) -> void:
 		sp.position = pos
 		_world.add_child(sp)
 
-	_portals.append({"mesh": mi, "hue_ring": pring, "sprite": sp, "name": nm, "pos": pos})
+	var lbl := _spawn_portal_label(nm, key, pos)
+	_portals.append({"mesh": mi, "hue_ring": pring, "sprite": sp, "label": lbl,
+		"name": nm, "key": key, "pos": pos, "placeholder": false})
+
+
+## An assigned slot whose biome isn't renderable yet still needs a rail orb — the
+## keyboard switches there regardless, so the mouse must too (mouse parity). Fog
+## styling (FOG_SAT/FOG_VAL, same ruling as unexplored registers): inert matter,
+## not a live instrument. Clicking it runs the same dive; the field then says
+## honestly why it can't draw the far side (_field_blocked / _biome_gap).
+func _spawn_placeholder_portal(nm: String, pos: Vector3, key: String) -> void:
+	var theme: Dictionary = BVT.get_theme(nm)
+	var hue: float = float(theme.get("base", Color(0.1, 0.1, 0.1)).h)
+	var mi := MeshInstance3D.new()
+	var sm := SphereMesh.new(); sm.radius = 0.19; sm.height = 0.38
+	sm.radial_segments = 20; sm.rings = 12
+	mi.mesh = sm
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.albedo_color = Color.from_hsv(hue, FOG_SAT, FOG_VAL, FOG_ALPHA)
+	mi.material_override = mat
+	mi.position = pos
+	_world.add_child(mi)
+
+	var pring := MeshInstance3D.new()
+	var ptm := TorusMesh.new(); ptm.inner_radius = 0.205; ptm.outer_radius = 0.235
+	ptm.rings = 44; ptm.ring_segments = 14
+	pring.mesh = ptm
+	var pmat := StandardMaterial3D.new()
+	pmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	pmat.albedo_color = Color.from_hsv(hue, FOG_SAT, FOG_VAL)
+	pring.material_override = pmat
+	pring.position = pos
+	pring.rotation_degrees = Vector3(90, 0, 0)
+	_world.add_child(pring)
+
+	var lbl := _spawn_portal_label(nm, key, pos)
+	_portals.append({"mesh": mi, "hue_ring": pring, "sprite": null, "label": lbl,
+		"name": nm, "key": key, "pos": pos, "placeholder": true})
+
+
+## The orb must say which country it is — "say the click" needs a name on screen,
+## and the bracketed key keeps the keyboard copy honest (BiomeSelectionRow rendered
+## "🌲 Starter Forest [T]"; the rail speaks RAW biome names, the same words the
+## "→ Village" toast and the travel line already use). Label idiom:
+## CognifoldForecastField's billboarded Label3D markers.
+func _spawn_portal_label(nm: String, key: String, pos: Vector3) -> Label3D:
+	var lbl := Label3D.new()
+	lbl.text = ("%s [%s]" % [nm, key]) if key != "" else nm
+	lbl.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	lbl.no_depth_test = true
+	lbl.font_size = 34
+	lbl.pixel_size = 0.0022
+	lbl.outline_size = 8
+	lbl.modulate = PORTAL_LABEL_COLOR
+	lbl.position = pos + Vector3(0, -0.34, 0)
+	_world.add_child(lbl)
+	return lbl
 
 
 func _clear_portals() -> void:
 	for p in _portals:
-		for k in ["mesh", "hue_ring", "sprite"]:
+		for k in ["mesh", "hue_ring", "sprite", "label"]:
 			if p.get(k) != null and is_instance_valid(p[k]):
 				p[k].queue_free()
 	_portals.clear()
+	_rail_hover_name = ""
 
 
 func _process(dt: float) -> void:
@@ -1558,6 +1661,9 @@ func _gui_input(ev: InputEvent) -> void:
 			_dragging = false
 	elif ev is InputEventMouseButton and ev.button_index == MOUSE_BUTTON_RIGHT and ev.pressed:
 		_try_pick(ev.position, ev.button_index, ev.shift_pressed)
+	elif ev is InputEventMouseMotion and ev.button_mask == 0:
+		# Plain hover (no button held): the rail answers with a lift + hand cursor.
+		_update_rail_hover(ev.position)
 	elif ev is InputEventMouseMotion and (ev.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
 		if not _press_moved and ev.position.distance_to(_press_pos) > 7.0:
 			_press_moved = true
@@ -1582,6 +1688,52 @@ func _orb_hit_radius() -> float:
 
 func _portal_hit_radius() -> float:
 	return maxf(46.0, size.y * 0.055)
+
+
+## Hover feedback for the portal rail only (a handful of orbs — cheap per-motion test).
+## The lift matches the HUD chips' hover (modulate 1.35) and the cursor flips to the
+## hand, so the pointer itself says "clickable" — port of the 2D graph's
+## cursor-on-hover (QuantumForceGraph), which the 3D field never had.
+func _update_rail_hover(screen_pos: Vector2) -> void:
+	if _cam == null:
+		return
+	var hov := ""
+	var best_d := _portal_hit_radius()
+	for p in _portals:
+		if not is_instance_valid(p.mesh) or _cam.is_position_behind(p.mesh.global_position):
+			continue
+		var d := _cam.unproject_position(p.mesh.global_position).distance_to(screen_pos)
+		if d < best_d:
+			best_d = d
+			hov = str(p.name)
+	if hov == _rail_hover_name:
+		return
+	_rail_hover_name = hov
+	for p in _portals:
+		var on := str(p.name) == hov
+		if p.get("hue_ring") != null and is_instance_valid(p.hue_ring):
+			p.hue_ring.scale = Vector3.ONE * (1.18 if on else 1.0)
+		if p.get("sprite") != null and is_instance_valid(p.sprite):
+			p.sprite.modulate = RAIL_HOVER_LIFT if on else Color.WHITE
+		if p.get("label") != null and is_instance_valid(p.label):
+			p.label.modulate = Color(1, 1, 1, 1) if on else PORTAL_LABEL_COLOR
+	Input.set_default_cursor_shape(
+		Input.CURSOR_POINTING_HAND if hov != "" else Input.CURSOR_ARROW)
+
+
+func _notification(what: int) -> void:
+	# Leaving the field entirely must hand the arrow back — a sticky hand cursor over
+	# the HUD would promise clicks the HUD may not offer.
+	if what == NOTIFICATION_MOUSE_EXIT and _rail_hover_name != "":
+		_rail_hover_name = ""
+		for p in _portals:
+			if p.get("hue_ring") != null and is_instance_valid(p.hue_ring):
+				p.hue_ring.scale = Vector3.ONE
+			if p.get("sprite") != null and is_instance_valid(p.sprite):
+				p.sprite.modulate = Color.WHITE
+			if p.get("label") != null and is_instance_valid(p.label):
+				p.label.modulate = PORTAL_LABEL_COLOR
+		Input.set_default_cursor_shape(Input.CURSOR_ARROW)
 
 
 ## Nearest register orb to a screen point within the orb hit radius (bubbles only, no
@@ -1654,6 +1806,29 @@ func _draw_chain() -> void:
 	cm.surface_end()
 
 
+## Shared rail-dive: set the active biome, then speak the confirm tail. The old
+## direct set_active_biome here switched SILENTLY — no "→ Village" toast, no Focus
+## repoint, a pending destructive confirm left armed: byte-for-byte the wave-5
+## defect the bar's biome_confirmed grammar was built to fix. The emit happens ONLY
+## when the switch actually landed (set_active_biome silently no-ops mid-transition,
+## and a click that does nothing must say so — anti-gating).
+func _dive_to_biome(nm: String) -> void:
+	var abm = get_node_or_null("/root/ActiveBiomeManager")
+	if abm == null or not abm.has_method("set_active_biome"):
+		return
+	var old := str(abm.get_active_biome()) if abm.has_method("get_active_biome") else ""
+	abm.set_active_biome(nm)
+	var now := str(abm.get_active_biome()) if abm.has_method("get_active_biome") else nm
+	if now == nm and nm != old:
+		var key := ""
+		if abm.has_method("get_slot_for_biome") and abm.has_method("get_slot_key"):
+			key = str(abm.get_slot_key(int(abm.get_slot_for_biome(nm))))
+		biome_confirmed.emit(old, nm, key)
+	elif now != nm:
+		_toast("mid-crossing — tap %s again in a moment" % nm)
+	biome_selected.emit(nm)
+
+
 func _try_pick(screen_pos: Vector2, button: int, shift: bool = false) -> void:
 	if _cam == null:
 		return
@@ -1681,10 +1856,7 @@ func _try_pick(screen_pos: Vector2, button: int, shift: bool = false) -> void:
 			bestp_d = dp
 			bestp = p
 	if bestp != null:
-		var abm = get_node_or_null("/root/ActiveBiomeManager")
-		if abm != null and abm.has_method("set_active_biome"):
-			abm.set_active_biome(str(bestp.name))
-		biome_selected.emit(str(bestp.name))
+		_dive_to_biome(str(bestp.name))
 		_consume_tap()
 		return
 	# Orb vs descend satellite: the satellite sits only ~0.42 units off its orb, well inside
@@ -1919,6 +2091,27 @@ func rig_bubble_state() -> Array:
 			"register_id": int(b.reg),
 			"axis": "%s%s" % [str(b.get("north_e", "")), str(b.get("south_e", ""))],
 			"screen_pos": [int(sp.x), int(sp.y)],
+		})
+	return out
+
+
+## Rig support: the rail as data — name, key, live screen center, placeholder flag —
+## so a blind mouse seat can enumerate and click the biome doors. The rail is 3D
+## meshes: the Control-walking `clickables` verb cannot see it by design, so this is
+## the seat's ONLY enumeration of the mouse biome-switch affordance.
+func rig_portals() -> Array:
+	var out: Array = []
+	for p in _portals:
+		if not is_instance_valid(p.mesh):
+			continue
+		var sp := Vector2(-1, -1)
+		if _cam != null and not _cam.is_position_behind(p.mesh.global_position):
+			sp = _cam.unproject_position(p.mesh.global_position)
+		out.append({
+			"name": str(p.name),
+			"key": str(p.get("key", "")),
+			"screen_pos": [int(sp.x), int(sp.y)],
+			"placeholder": bool(p.get("placeholder", false)),
 		})
 	return out
 
