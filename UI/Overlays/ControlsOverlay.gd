@@ -25,6 +25,7 @@ extends "res://UI/Core/Surface.gd"
 
 const PredicateGloss = preload("res://Core/Quests/PredicateGloss.gd")
 const ToolConfig      = preload("res://Core/GameState/ToolConfig.gd")
+const UIProgression   = preload("res://UI/Core/UIProgression.gd")
 
 # =============================================================================
 # TABS / FRAMES
@@ -325,8 +326,44 @@ func _refresh_body() -> void:
 # BODY: SELF — the mirror. 12-axis alignment strip + faction standings.
 # =============================================================================
 
+## The Self tab is the book's default landing page — opening the 📖 icon
+## always lands here, unlike the ambient ActFilament HUD portal (top-right,
+## outside this panel) which taps straight to Arc. A player who opens the
+## book directly instead of the portal got no cue Arc was even where the
+## story lives (playtest 2026-08-17: "opens to a page about self, no
+## indication to go to Arc"). Same UIProgression authority as the portal —
+## one objective source, two doors, both now name the destination.
+func _build_self_next_pointer() -> void:
+	var obj := UIProgression.objective_text()
+	var next_title := UIProgression.next_objective_title()
+	if obj == "" and next_title == "":
+		return
+	var row := VBoxContainer.new()
+	row.mouse_filter = Control.MOUSE_FILTER_STOP
+	row.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	row.add_theme_constant_override("separation", 2)
+	if obj != "":
+		var obj_lbl := Label.new()
+		obj_lbl.text = "→ %s" % obj
+		obj_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		obj_lbl.add_theme_font_size_override("font_size", 13)
+		obj_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_TAB_ACTIVE)
+		row.add_child(obj_lbl)
+	if next_title != "":
+		var next_lbl := Label.new()
+		next_lbl.text = "Next: %s  ·  see the Arc tab [I]" % next_title
+		next_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		next_lbl.add_theme_font_size_override("font_size", 11)
+		next_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
+		row.add_child(next_lbl)
+	ClickWire.attach(row, _show_tab.bind(Tab.ARC))
+	_body_box.add_child(row)
+	_body_box.add_child(_make_spacer(6))
+
 func _build_self_body() -> void:
 	var farm = InstrumentLocator.resolve_active_farm(self)
+
+	_build_self_next_pointer()
 
 	# The Demos - the player neighborhood rendered as icons + marginal bars.
 	# This self view does not advance the neighborhood's live state here, so

@@ -22,14 +22,21 @@ campaign forbids.
 Usage:
   mouse_seat.py start <seat> [--fresh] [--checkpoint NAME]
   mouse_seat.py look <seat>              screen text, field, wallet, buttons
-  mouse_seat.py tap <seat> <gx> <gy>     click the bubble/plot at grid pos
-  mouse_seat.py click <seat> <Name> [--under Parent]
+  mouse_seat.py tap <seat> <gx> <gy> [--shift]
+                                         click the bubble/plot at grid pos
+  mouse_seat.py click <seat> <Name> [--under Parent] [--shift]
                                          click a named button's centre
-  mouse_seat.py click_at <seat> <x> <y>  click a raw screen point
+  mouse_seat.py click_at <seat> <x> <y> [--shift]
+                                         click a raw screen point
   mouse_seat.py wait <seat> <seconds>
   mouse_seat.py screenshot <seat> <name>
   mouse_seat.py bank <seat> <name>
   mouse_seat.py stop <seat>
+
+--shift holds the Shift key for the click — a real mouse-and-keyboard
+player's hand, not a keyboard-only escape hatch (`press` stays refused).
+Several chips carry a shift variant (e.g. Ace's F chip: click = Explore,
+shift+click = Reap Season) named in the chip's own "(⇧ ...)" label.
 
 All output is one JSON object on stdout.
 """
@@ -204,16 +211,16 @@ def cmd_press(*_a, **_k) -> dict:
                     "only be reached by a key, that IS the finding — report it."}
 
 
-def cmd_tap(seat: str, gx: int, gy: int) -> dict:
+def cmd_tap(seat: str, gx: int, gy: int, shift: bool = False) -> dict:
     st = _load_state(seat)
     c = _client(seat)
-    r = _turn(seat, st, c, "tap", pos=[gx, gy], settle_frames=10)
+    r = _turn(seat, st, c, "tap", pos=[gx, gy], settle_frames=10, shift=shift)
     if not r.get("ok", False):
         return {"ok": False, "error": r.get("error", "tap_failed"), "pos": [gx, gy]}
     return {"ok": True, "tapped_grid": [gx, gy], "at_screen": r.get("tapped")}
 
 
-def cmd_click(seat: str, name: str, under: str = "") -> dict:
+def cmd_click(seat: str, name: str, under: str = "", shift: bool = False) -> dict:
     st = _load_state(seat)
     c = _client(seat)
     if not under:
@@ -241,14 +248,14 @@ def cmd_click(seat: str, name: str, under: str = "") -> dict:
         return {"ok": False, "error": "control_not_visible", "name": name,
                 "hint": "a player cannot click what isn't on screen"}
     cx, cy = rect.get("center", [-1, -1])
-    r = _turn(seat, st, c, "tap", screen=[cx, cy], settle_frames=10)
+    r = _turn(seat, st, c, "tap", screen=[cx, cy], settle_frames=10, shift=shift)
     return {"ok": bool(r.get("ok", False)), "clicked": name, "at_screen": [cx, cy]}
 
 
-def cmd_click_at(seat: str, x: int, y: int) -> dict:
+def cmd_click_at(seat: str, x: int, y: int, shift: bool = False) -> dict:
     st = _load_state(seat)
     c = _client(seat)
-    r = _turn(seat, st, c, "tap", screen=[x, y], settle_frames=10)
+    r = _turn(seat, st, c, "tap", screen=[x, y], settle_frames=10, shift=shift)
     return {"ok": bool(r.get("ok", False)), "clicked_screen": [x, y]}
 
 
@@ -318,11 +325,11 @@ def main() -> int:
         elif cmd == "press":
             out = cmd_press()
         elif cmd == "tap":
-            out = cmd_tap(seat, int(args[2]), int(args[3]))
+            out = cmd_tap(seat, int(args[2]), int(args[3]), "--shift" in args)
         elif cmd == "click":
-            out = cmd_click(seat, args[2], _arg_after(args, "--under"))
+            out = cmd_click(seat, args[2], _arg_after(args, "--under"), "--shift" in args)
         elif cmd == "click_at":
-            out = cmd_click_at(seat, int(args[2]), int(args[3]))
+            out = cmd_click_at(seat, int(args[2]), int(args[3]), "--shift" in args)
         elif cmd == "wait":
             out = cmd_wait(seat, float(args[2]))
         elif cmd == "screenshot":
