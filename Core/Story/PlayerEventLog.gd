@@ -10,13 +10,18 @@ const MAX_EVENTS := 100
 var _log: Array[Dictionary] = []
 
 
-func push(message: String, importance: int = 1, icon: String = "", category: String = "", path: String = "") -> void:
+## route: optional door id ("arc", "commitments[:qid]", "commitments_history")
+## resolved to a tap Callable by PlayerShell at toast-spawn time. A STRING on
+## purpose: this ring outlives UI nodes and is re-read by the Story ACTIVITY
+## feed, so a Callable here would dangle — Core stays UI-free.
+func push(message: String, importance: int = 1, icon: String = "", category: String = "", path: String = "", route: String = "") -> void:
 	var entry := {
 		"message": message,
 		"importance": importance,
 		"icon": icon,
 		"category": category,
 		"path": path,
+		"route": route,
 		"timestamp": Time.get_ticks_msec()
 	}
 	_log.append(entry)

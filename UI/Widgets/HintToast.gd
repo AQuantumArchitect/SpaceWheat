@@ -7,11 +7,17 @@ extends PanelContainer
 ## target for E/F. Importance 1=blue, 2=teal, 3=gold.
 ##
 ## Mouse grammar (2026-08-17): the whole panel is a click target — click to
-## dismiss (the ✕ in the corner is the invitation, not the hitbox). Hovering
-## pauses decay; leaving restarts a fresh hold. Gold (importance ≥ 3) toasts
-## PERSIST until explicitly dismissed — story beats were fading before a
-## playtester could read them, and the keyboard dismissal (E/F) is dead
-## exactly when bursts happen (the Ace hat owns both keys during reap).
+## dismiss. Hovering pauses decay; leaving restarts a fresh hold. Gold
+## (importance ≥ 3) toasts PERSIST until explicitly dismissed — story beats
+## were fading before a playtester could read them, and the keyboard
+## dismissal (E/F) is dead exactly when bursts happen (the Ace hat owns both
+## keys during reap).
+##
+## Routed toasts (2026-08-24): a toast that names a destination ("tap here")
+## can carry an on_tap Callable — a body click travels there AND dismisses;
+## the ✕ corner becomes the pure-dismiss hitbox (positional test only — every
+## child keeps MOUSE_FILTER_IGNORE so the hover grammar is untouched). A
+## routeless toast keeps the whole-panel click-to-dismiss exactly as before.
 
 const FADE_IN_SEC := 0.18
 const HOLD_SEC := 4.5
@@ -43,6 +49,7 @@ var _persistent: bool = false
 var _hovering: bool = false
 var _raw_bbcode: String = ""
 var _bump_count: int = 1
+var _on_tap: Callable = Callable()
 
 
 func _init() -> void:
@@ -97,9 +104,10 @@ func _init() -> void:
 	mouse_exited.connect(_on_mouse_exited)
 
 
-func show_text(bbcode: String, importance: int = 1, path: String = "") -> void:
+func show_text(bbcode: String, importance: int = 1, path: String = "", on_tap: Callable = Callable()) -> void:
 	_raw_bbcode = bbcode
 	_persistent = importance >= PERSIST_IMPORTANCE
+	_on_tap = on_tap
 	if _label:
 		_label.text = bbcode
 	if _style:
@@ -157,6 +165,12 @@ func flatten() -> void:
 func _on_gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 		accept_event()
+		# Routed toast: the body travels, the ✕ corner just dismisses. The
+		# rect test keeps children on MOUSE_FILTER_IGNORE (hover grammar).
+		var on_close := _close_label != null \
+				and _close_label.get_global_rect().has_point(event.global_position)
+		if _on_tap.is_valid() and not on_close:
+			_on_tap.call()
 		flatten()
 
 

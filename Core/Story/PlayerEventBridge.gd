@@ -109,12 +109,12 @@ func _wire_instrument_signals() -> void:
 
 # ─────────────── handlers ───────────────
 
-func _push(message: String, importance: int, icon: String, category: String, path: String = "") -> void:
+func _push(message: String, importance: int, icon: String, category: String, path: String = "", route: String = "") -> void:
 	# Guarded /root/ lookup — bare autoload identifiers are compile bombs under
 	# --check-only harnesses (same law as the GameStateManager lookup above).
 	var log_node := get_node_or_null("/root/PlayerEventLog")
 	if log_node and log_node.has_method("push"):
-		log_node.push(message, importance, icon, category, path)
+		log_node.push(message, importance, icon, category, path, route)
 
 
 func _on_icon_learned(north: String, south: String, faction: String) -> void:
@@ -192,9 +192,11 @@ func _on_quest_ready_to_claim(qid: int) -> void:
 	# One spelling of the claim route, shared with the objective banner
 	# (UIProgression.route_claim). This toast and the banner used to drift —
 	# "C board" vs "Commitments (C → U)" — and the older spelling sent a
-	# main-road playthrough to the wrong screen.
-	_push("🏆 [b]%s ready to claim[/b] — %s" % [_quest_name(qid), UIProgression.route_claim()],
-			3, "🏆", "quest", "Q")
+	# main-road playthrough to the wrong screen. The toast is now itself a
+	# door: its route carries the quest id, so a body-tap lands on this very
+	# contract's Commitments row (claim stays a deliberate click there).
+	_push("🏆 [b]%s ready to claim[/b] — tap here, or %s" % [_quest_name(qid), UIProgression.route_claim()],
+			3, "🏆", "quest", "Q", "commitments:%d" % qid)
 
 
 ## Player words for a quest id. Raw ids leaked into toasts ("❌ Quest
@@ -242,12 +244,18 @@ func _on_quest_offered(quest: Dictionary) -> void:
 	var fac := str(quest.get("faction", ""))
 	if fac.strip_edges() == "":
 		fac = "the story"
-	var imp: int = 3 if is_arc else 1
 	# Say WHERE: offers wait on the Arc tab, and no surface pointed there —
 	# every blind round-1 tester starved two keypresses from the on-ramp.
 	# Route phrase shared with the banner (click-first, keys as accelerators).
-	_push("📜 New offer from %s — to read & accept: %s" % [fac, UIProgression.route_accept()],
-			imp, "📜", "quest", "Q")
+	# The gold toast is itself a door ("tap here" → Arc); the market branch is
+	# log-only (importance 1 never toasts), so its line must not say "here" —
+	# in the Story ACTIVITY feed there is no here to tap.
+	if is_arc:
+		_push("📜 New offer from %s — tap here to read & accept (or %s)" % [fac, UIProgression.route_accept()],
+				3, "📜", "quest", "Q", "arc")
+	else:
+		_push("📜 New offer from %s — to read & accept: %s" % [fac, UIProgression.route_accept()],
+				1, "📜", "quest", "Q")
 
 
 func _on_quest_failed(qid: int, reason: String) -> void:
@@ -257,7 +265,10 @@ func _on_quest_failed(qid: int, reason: String) -> void:
 func _on_quest_expired(_qid: int) -> void:
 	# Importance 2: at 1 this was dropped by show_hint and commitments
 	# vanished silently (fleet: "accepted quest disappears without a word").
-	_push("⌛ a commitment ran out of time — tap 📋 [C], then Commitments [U] to see it", 2, "⌛", "quest", "Q")
+	# Routes to the History sub-view — expired commitments land in
+	# failed_quests, which only that view renders.
+	_push("⌛ a commitment ran out of time — tap here to see it (📋 Commitments · History)",
+			2, "⌛", "quest", "Q", "commitments_history")
 
 
 func _on_purchase_failed(reason: String) -> void:

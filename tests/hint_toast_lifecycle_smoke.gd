@@ -80,4 +80,48 @@ func _run() -> void:
 	_check(PlayerShellScript.pick_toast_eviction_victim(stack) == gold_a,
 		"an all-gold stack evicts its oldest")
 
+	# --- routed toasts: the body travels, the ✕ just dismisses (2026-08-24) --
+	# Offer/ready/expiry toasts carry an on_tap door. A body-click must fire
+	# it AND dismiss; a click inside the ✕ corner must dismiss WITHOUT firing;
+	# routeless toasts keep the plain whole-panel dismiss (pinned above).
+	var fired: Array = []
+	var routed := HintToast.new()
+	root.add_child(routed)
+	routed.show_text("📜 tap here for the Arc", 3, "", func() -> void: fired.append(true))
+	await process_frame
+	await process_frame
+	var body_click := InputEventMouseButton.new()
+	body_click.button_index = MOUSE_BUTTON_LEFT
+	body_click.pressed = true
+	body_click.global_position = routed.get_global_rect().position + Vector2(4.0, 4.0)
+	routed._on_gui_input(body_click)
+	_check(fired.size() == 1, "routed toast body-click fires the door",
+		"fired %d times" % fired.size())
+	frames = 0
+	while is_instance_valid(routed) and not routed.is_queued_for_deletion() and frames < 240:
+		await process_frame
+		frames += 1
+	_check(not is_instance_valid(routed) or routed.is_queued_for_deletion(),
+		"routed toast dismisses after travelling")
+
+	var fired2: Array = []
+	var routed2 := HintToast.new()
+	root.add_child(routed2)
+	routed2.show_text("📜 tap here for the Arc", 3, "", func() -> void: fired2.append(true))
+	await process_frame
+	await process_frame
+	var close_click := InputEventMouseButton.new()
+	close_click.button_index = MOUSE_BUTTON_LEFT
+	close_click.pressed = true
+	close_click.global_position = routed2._close_label.get_global_rect().get_center()
+	routed2._on_gui_input(close_click)
+	_check(fired2.is_empty(), "✕ click dismisses WITHOUT firing the door",
+		"fired %d times" % fired2.size())
+	frames = 0
+	while is_instance_valid(routed2) and not routed2.is_queued_for_deletion() and frames < 240:
+		await process_frame
+		frames += 1
+	_check(not is_instance_valid(routed2) or routed2.is_queued_for_deletion(),
+		"✕ click still frees the toast")
+
 	_finish("HintToast lifecycle smoke")

@@ -204,6 +204,14 @@ func pending_confirm_label() -> String:
 ## keyboard and mouse (mouse-only campaign wave 15: a mouse tap on an
 ## unrelated chip left a destructive confirm armed, and a LATER unrelated F
 ## tap silently fired it instead of its own labeled verb).
+## Public twin for tap routes (the ⚠ confirm toast's body-click, via
+## PlayerShell._route_to_callable "cancel_confirm"): dismissing that toast
+## used to leave the confirm ARMED with no visible prompt, so a later
+## unrelated F fired it blind. No-op when nothing is pending.
+func cancel_pending_confirm() -> void:
+	_cancel_pending_confirm()
+
+
 func _cancel_pending_confirm() -> void:
 	if _confirm_pending.is_empty():
 		return
@@ -1930,7 +1938,7 @@ func _perform_action(action_key: String) -> void:
 						gap_note = "  ·  gap %.2f→%.2f %s" % [cur, after, arrow]
 			shell.show_hint(
 				"[color=#ff9966]⚠ %s[/color]%s  —  press [b]F[/b] to confirm; any other key or tap cancels" \
-				% [action_info.get("label", action_name), gap_note], 3)
+				% [action_info.get("label", action_name), gap_note], 3, "", "cancel_confirm")
 		return
 
 	_run_action(action_name, emoji if emoji != "" else action_name, action_info.get("label", action_name))
@@ -2093,7 +2101,7 @@ func _perform_shift_key_action(action_key: String) -> void:
 		if shell and shell.has_method("show_hint"):
 			shell.show_hint(
 				"[color=#ff9966]⚠ %s ×%d[/color]  —  press [b]F[/b] to confirm; any other key or tap cancels" \
-				% [log_label, positions.size()], 3)
+				% [log_label, positions.size()], 3, "", "cancel_confirm")
 		return
 
 	_run_shift_batch(action_name, positions, symbol, log_label)

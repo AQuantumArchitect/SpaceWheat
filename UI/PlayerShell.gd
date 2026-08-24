@@ -178,7 +178,7 @@ func _mark_input_handled() -> void:
 ## Importance < 2 is logged only; no toast is shown.
 const MAX_LIVE_TOASTS := 5
 
-func show_hint(bbcode_text: String, importance: int = 1, path: String = "") -> void:
+func show_hint(bbcode_text: String, importance: int = 1, path: String = "", route: String = "") -> void:
 	if importance < 2:
 		return
 	if not _hint_toast_stack or not is_inside_tree():
@@ -199,7 +199,38 @@ func show_hint(bbcode_text: String, importance: int = 1, path: String = "") -> v
 		victim.queue_free()
 	var toast := HintToast.new()
 	_hint_toast_stack.add_child(toast)
-	toast.show_text(bbcode_text, importance, path)
+	toast.show_text(bbcode_text, importance, path, _route_to_callable(route))
+
+
+## Resolve a route id (a plain string — Core's PlayerEventLog must never hold
+## Callables) into the toast's tap action. Unknown or unresolvable routes
+## return an invalid Callable and the toast degrades to plain click-dismiss,
+## so a route landing before its door exists is safe by construction.
+## "commitments:<qid>" carries the quest id → the door selects that row.
+func _route_to_callable(route: String) -> Callable:
+	if route == "":
+		return Callable()
+	if route == "arc":
+		if overlay_manager != null and overlay_manager.has_method("open_controls_on_arc"):
+			return Callable(overlay_manager, "open_controls_on_arc")
+		return Callable()
+	if route == "commitments_history":
+		if overlay_manager != null and overlay_manager.has_method("open_board_on_commitments"):
+			return Callable(overlay_manager, "open_board_on_commitments").bind(-1, "history")
+		return Callable()
+	if route.begins_with("commitments"):
+		if overlay_manager != null and overlay_manager.has_method("open_board_on_commitments"):
+			var qid := -1
+			var parts := route.split(":")
+			if parts.size() == 2 and parts[1].is_valid_int():
+				qid = int(parts[1])
+			return Callable(overlay_manager, "open_board_on_commitments").bind(qid, "active")
+		return Callable()
+	if route == "cancel_confirm":
+		if instrument_input != null and instrument_input.has_method("cancel_pending_confirm"):
+			return Callable(instrument_input, "cancel_pending_confirm")
+		return Callable()
+	return Callable()
 
 
 ## Overflow policy, one static home (smoke-testable without a shell): the
@@ -958,4 +989,5 @@ func _on_player_event_added(entry: Dictionary) -> void:
 	var imp: int = int(entry.get("importance", 1))
 	if imp < 2:
 		return
-	show_hint(str(entry.get("message", "")), imp, str(entry.get("path", "")))
+	show_hint(str(entry.get("message", "")), imp, str(entry.get("path", "")),
+			str(entry.get("route", "")))
