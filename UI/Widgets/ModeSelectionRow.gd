@@ -32,13 +32,16 @@ signal mode_selected(frame_name: String, mode_index: int)
 
 
 func _ready() -> void:
-	# One band below the hat row it annotates, so relative z barely matters —
-	# kept above its band-mates for the same pick-order reason as before.
+	# SAME band as the hat row now (2026-08-24: both moved to the bottom,
+	# right above QERF), carved into a fixed right-hand dock by
+	# ActionBarManager._position_mode_row rather than a band of its own.
+	# Relative z barely matters — kept above its band-mates for the same
+	# pick-order reason as before.
 	z_index = 6
 	compact = true
-	# Hug the LEFT edge: the mode chips sit directly UNDER the hats they
-	# annotate (2026-08-24 re-band; they used to ride the hat band's far right,
-	# a screen-width away from the hat they described).
+	# Hug the LEFT edge of ITS narrow dock, so the chips sit as close to the
+	# (centered) hat cluster as the dock allows, reading as "just past the
+	# hats" rather than adrift at the band's far right.
 	alignment = BoxContainer.ALIGNMENT_BEGIN
 	super._ready()
 	if not button_selected.is_connected(_on_button_selected):

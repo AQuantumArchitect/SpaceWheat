@@ -28,9 +28,11 @@ signal speed_step_requested(delta: int)
 
 
 func _ready() -> void:
-	# Rides the biome band's right corner. The hat band already carries
-	# ModeSelectionRow's cluster, so putting the clock there would put two
-	# right-aligned clusters on one row and let them collide on a narrow window.
+	# Rides its own top band's right corner, alone — the menu row is ALSO
+	# right-aligned (ALIGNMENT_END), so merging the two into one band would put
+	# two right-aligned clusters on one row and let them collide on a narrow
+	# window (the same reasoning that kept ModeSelectionRow off this row before
+	# it moved to the bottom with the hats, 2026-08-24).
 	z_index = 6
 	compact = true
 	alignment = BoxContainer.ALIGNMENT_END

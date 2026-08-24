@@ -75,24 +75,28 @@ func create_action_bars(parent: Control) -> void:
 	# scale is copied once in _ready → _rebuild_buttons). Only the menu row
 	# received it for months, so at 720p the menu chips rendered 1.5× the size
 	# of everything else — half of what made the top strip read as mucky.
+	# Hats moved to the bottom stack 2026-08-24 (owner ask: "close to the
+	# actions"), centered directly above QERF.
 	tool_selection_row = ToolSelectionRow.new()
 	tool_selection_row.name = "ToolSelectionRow"
 	if layout_manager:
 		tool_selection_row.set_layout_manager(layout_manager)
 	parent.add_child(tool_selection_row)
 
-	# Sub-mode chips sit one band below, directly under the hats they annotate.
-	# Added AFTER the tool row so it wins the pick in any overlap (GUI picking
-	# is tree order, not z_index).
+	# Sub-mode chips share the SAME band as the hats now (a fixed right-hand
+	# dock, see _position_mode_row) rather than a band of their own — the move
+	# to the bottom stays height-neutral-ish (one new band, not two). Added
+	# AFTER the tool row so it wins the pick in any overlap (GUI picking is
+	# tree order, not z_index).
 	mode_selection_row = _ModeSelectionRow.new()
 	mode_selection_row.name = "ModeSelectionRow"
 	if layout_manager:
 		mode_selection_row.set_layout_manager(layout_manager)
 	parent.add_child(mode_selection_row)
 
-	# Clock chips ride the second band's right corner (the biome bar that used
-	# to hold a third band died 2026-08-24 — the field's portal rail is the
-	# mouse biome door now).
+	# Clock chips ride the top strip's remaining band, right corner (the biome
+	# bar that used to hold a third top band died 2026-08-24 — the field's
+	# portal rail is the mouse biome door now).
 	clock_speed_row = _ClockSpeedRow.new()
 	clock_speed_row.name = "ClockSpeedRow"
 	if layout_manager:
@@ -132,12 +136,19 @@ func _on_parent_resized() -> void:
 	_reposition_all_rows()
 
 
-## Layout: top → bottom (two bands since 2026-08-24 — was three + biome bar)
-##   top idx 0: tool (4-0 hats, LEFT) + menu (ZXCVBNM surface ring, RIGHT)
-##   top idx 1: mode (under the hats, LEFT) + clock (right corner, inset past
-##              the contract corner; TYUIOP biomes = the field's portal rail
-##              + keyboard ring now)
+## Layout: top → bottom (re-banded 2026-08-24: hats+mode moved to the bottom,
+## "close to the actions" — owner ask; was top idx 0)
+##   top idx 0: menu (ZXCVBNM surface ring, RIGHT — left half now empty
+##              transparent space, not a styled box: SelectionButtonRow's
+##              dressing tray only ever hugs its own chip hull, never the full
+##              band, so an empty half reads as open space, not the old muck)
+##   top idx 1: clock (right corner, inset past the contract corner; TYUIOP
+##              biomes = the field's portal rail + keyboard ring now)
 ##   [open farm view / game space — PlotTile cyan border is plot selection UI]
+##   bottom  1: tool (4-0 hats, CENTERED) + mode (its sub-modes, fixed
+##              right-hand dock inside the SAME band — ClockSpeedRow's
+##              fixed-inset technique, not a second band, so the move costs
+##              the field only one band's height, not two)
 ##   bottom  0: action (QERF — not a selection ring)
 func _position_row_at_index(row: Control, idx: int) -> void:
 	if not row:
@@ -173,31 +184,45 @@ func _position_top_row(row: Control, idx: int) -> void:
 
 
 ## Right-edge inset that clears the pinned contract corner (ContractChip +
-## ActFilament). Shared by the biome row and the sub-mode row.
+## ActFilament). Used by the clock row.
 const CONTRACT_CORNER_INSET := 210.0
+
+## Fixed width of the mode row's carved-out dock inside the shared hat band
+## (ClockSpeedRow's fixed-inset technique, not a second band). Comfortably
+## fits mode's 2-3 compact chips; the centered hat cluster tops out ~360px, so
+## even at 1280px width both clusters keep clear margin.
+const MODE_DOCK_WIDTH := 220.0
 
 
 func _position_tool_row() -> void:
-	# Band 0 LEFT — level with the menu chips (owner ask 2026-08-24: "those two
-	# information sets on the same vertical level"; band 0's left half sat
-	# empty since the hats lived a band lower). Hats hug the LEFT (HBoxContainer
-	# default), menus hug the RIGHT — they cannot collide (@1280, both clusters
-	# at scale 1.5: ≈519px + ≈594px < 1260px usable).
-	_position_top_row(tool_selection_row, 0)
+	# Bottom band, one above QERF — "close to the actions" (owner ask
+	# 2026-08-24). Centered, not edge-hugging: "aesthetically settled between
+	# the circular center [field] and the action bar."
+	_position_row_at_index(tool_selection_row, 1)
+	if tool_selection_row:
+		tool_selection_row.alignment = BoxContainer.ALIGNMENT_CENTER
 
 
 func _position_mode_row() -> void:
-	# Band 1 LEFT — directly UNDER the hats the mode chips annotate (they used
-	# to sit far right of the hat band; under the active hat reads closer).
-	# Left-aligned via ModeSelectionRow's own alignment, so the contract-corner
-	# inset is unnecessary — the cluster can't reach the right edge.
-	_position_top_row(mode_selection_row, 1)
+	# SAME band as the hats (idx 1) — a fixed right-hand dock carved out of
+	# that band, not a band of its own, so hats+mode together cost the field
+	# only one band's height. ModeSelectionRow's own ALIGNMENT_BEGIN hugs the
+	# left edge of THIS narrow box, reading as "just past the hats" without
+	# ever reaching into the centered hat cluster.
+	_position_row_at_index(mode_selection_row, 1)
+	if mode_selection_row and mode_selection_row.get_parent():
+		# Derive from the PARENT's width, not the row's own `size` — after
+		# _position_row_at_index the row's rect is anchor-driven and may not
+		# have re-measured synchronously, but the parent (ActionBarLayer,
+		# already validated inside_tree with size > 0) is stable.
+		var parent_w: float = mode_selection_row.get_parent().size.x
+		mode_selection_row.offset_left = parent_w - 20.0 - MODE_DOCK_WIDTH
+		mode_selection_row.offset_right = -20.0
 
 
 func _position_clock_row() -> void:
-	# Band 1 RIGHT — the strip is two bands now (was three + the biome bar).
-	# Right-aligned, clear of the pinned contract corner (ContractChip +
-	# ActFilament) which also starts at this band's height.
+	# The strip's remaining top band, right-aligned, clear of the pinned
+	# contract corner (ContractChip + ActFilament) which also starts here.
 	_position_top_row(clock_speed_row, 1)
 	if clock_speed_row:
 		clock_speed_row.offset_right = -CONTRACT_CORNER_INSET
@@ -228,12 +253,17 @@ func get_free_band() -> Vector2:
 	var band := layer.get_global_rect()
 	var top := band.position.y
 	var bottom := band.end.y
-	for row in [menu_selection_row, tool_selection_row, mode_selection_row,
-			clock_speed_row]:
+	# Top rows: only menu + clock live up here now (hats + their sub-modes
+	# moved to the bottom stack 2026-08-24, right above the actions they
+	# trigger — see the band-map comment on create_action_bars).
+	for row in [menu_selection_row, clock_speed_row]:
 		if row != null and is_instance_valid(row) and row.visible:
 			top = maxf(top, row.get_global_rect().end.y)
-	if action_preview_row != null and is_instance_valid(action_preview_row) and action_preview_row.visible:
-		bottom = minf(bottom, action_preview_row.get_global_rect().position.y)
+	# Bottom stack: QERF and the hat/mode band both eat into the free band
+	# from below — take whichever visible row sits highest.
+	for row in [action_preview_row, tool_selection_row, mode_selection_row]:
+		if row != null and is_instance_valid(row) and row.visible:
+			bottom = minf(bottom, row.get_global_rect().position.y)
 	return Vector2(top, bottom)
 
 
