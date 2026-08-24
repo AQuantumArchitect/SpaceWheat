@@ -111,6 +111,11 @@ func _create_button(spec: Dictionary) -> Dictionary:
 	container.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	container.size_flags_stretch_ratio = 1.0
 	container.mouse_filter = Control.MOUSE_FILTER_STOP
+	# The pointer itself says "clickable" (feel pass 2026-08-24): the hand
+	# cursor appeared over every ClickWire'd surface but went dead over these
+	# chips — the HUD's most-clicked controls. Disabled chips hand back the
+	# arrow in set_button_enabled (a hand over a dead chip is false help).
+	container.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 
 	# Flat chip background
 	var chip = Panel.new()
@@ -324,6 +329,8 @@ func set_button_enabled(button_id: int, enabled: bool) -> void:
 	if btn_data.is_empty():
 		return
 	btn_data.disabled = not enabled
+	btn_data.container.mouse_default_cursor_shape = \
+		Control.CURSOR_POINTING_HAND if enabled else Control.CURSOR_ARROW
 	if not enabled:
 		btn_data.texture.modulate = disabled_color
 	else:

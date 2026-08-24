@@ -53,6 +53,7 @@ func setup(_quest_manager: Node, _farm: Node, overlay_manager: Node) -> void:
 	# the vertical room the wrapped objective line needs.
 	offset_bottom = offset_top + BANNER_HEIGHT
 	mouse_filter = Control.MOUSE_FILTER_STOP
+	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND  # tap opens the Arc
 	if _act_label == null:
 		# The ambient campaign position: "Act 5 · Chapter IV — …", always on
 		# screen for the whole run (the acts were invisible before this line).

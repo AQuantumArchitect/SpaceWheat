@@ -154,6 +154,9 @@ func _create_action_button(action_key: String) -> Dictionary:
 	container.size_flags_stretch_ratio = 1.0
 	container.custom_minimum_size = Vector2(0, 42 * scale_factor)
 	container.mouse_filter = Control.MOUSE_FILTER_STOP
+	# Hand cursor = "this chip fires" (feel pass); _apply_button_projection
+	# hands the arrow back while the chip is disabled.
+	container.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 
 	# Flat chip background (Apple-minimal pass — glossy SVG chrome removed).
 	# Kept under the legacy "texture" key: state tints modulate the chip node.
@@ -273,6 +276,8 @@ func _apply_button_projection(action_key: String, action_info: Dictionary) -> vo
 
 	btn_data.disabled = is_disabled
 	btn_data.available = is_available
+	btn_data.container.mouse_default_cursor_shape = \
+		Control.CURSOR_ARROW if is_disabled else Control.CURSOR_POINTING_HAND
 	btn_data.would_fire = bool(action_info.get("would_fire", false))
 	btn_data.texture.modulate = _resolve_button_color(btn_data)
 	_apply_would_fire_border(btn_data)

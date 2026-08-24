@@ -18,6 +18,7 @@ func _ready() -> void:
 	_build_ui()
 	_resolve_shell()
 	resized.connect(queue_redraw)
+	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND  # tap toggles pause
 	if RuntimeEnv.debug_readout_enabled():
 		var timer := Timer.new()
 		timer.wait_time = 0.5

@@ -40,6 +40,18 @@ def test_trim_is_one_pixel_forever() -> None:
     assert "set_border_width_all(1)" in trim
 
 
+def test_the_pointer_tells_the_truth_over_chips() -> None:
+    # Feel pass: the hand cursor appeared over every ClickWire'd surface
+    # (ClickWire.gd sets it on attach) but went dead over the chip rows --
+    # the HUD's most-clicked controls. Both chip factories set it now, and
+    # both hand the ARROW back on a disabled chip (a hand over a dead chip
+    # promises a click that won't fire -- the anti-gating law's cursor form).
+    for rel in ("UI/Widgets/SelectionButtonRow.gd", "UI/Widgets/ActionPreviewRow.gd"):
+        src = read_source(rel)
+        assert "CURSOR_POINTING_HAND" in src, rel
+        assert "CURSOR_ARROW" in src, rel
+
+
 def test_accent_gold_has_one_spelling_in_ui() -> None:
     offenders = []
     for path in (ROOT / "UI").rglob("*.gd"):

@@ -191,6 +191,7 @@ func _build_row(quest: Dictionary, key_str: String = "") -> Control:
 		row.add_child(where)
 	if ready or biome != "":
 		row.mouse_filter = Control.MOUSE_FILTER_STOP
+		row.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		row.tooltip_text = "Tap to claim on the board" if ready else "Tap to focus %s" % biome
 		row.gui_input.connect(_on_row_gui_input.bind(biome, int(quest.get("id", -1)), ready))
 

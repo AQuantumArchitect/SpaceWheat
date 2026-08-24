@@ -249,6 +249,7 @@ func _build_verb_chips(container: Control) -> void:
 		cell.add_theme_constant_override("separation", 2)
 		cell.custom_minimum_size = Vector2(90, 0)
 		cell.mouse_filter = Control.MOUSE_FILTER_STOP
+		cell.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		cell.gui_input.connect(_on_verb_chip_gui_input.bind(key))
 		_verb_chip_box.add_child(cell)
 
@@ -1067,6 +1068,7 @@ func _build_market_body() -> void:
 		if abs_i < visible_offers.size():
 			var offer_row := _make_offer_row(visible_offers[abs_i], ITEM_KEYS[i], abs_i == _selected_index)
 			offer_row.name = "BoardRow_%d" % i
+			offer_row.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 			offer_row.gui_input.connect(_on_row_gui_input.bind(abs_i))
 			_body_box.add_child(offer_row)
 		else:
@@ -1220,6 +1222,7 @@ func _build_commitments_body() -> void:
 		if abs_i < rows.size():
 			var c_row := _make_commitment_row(rows[abs_i], ITEM_KEYS[i], abs_i == _selected_index)
 			c_row.name = "BoardRow_%d" % i
+			c_row.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 			c_row.gui_input.connect(_on_row_gui_input.bind(abs_i))
 			_body_box.add_child(c_row)
 		else:
