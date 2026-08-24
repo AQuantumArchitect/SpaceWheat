@@ -19,13 +19,17 @@ from conftest import read_source
 def test_every_row_receives_the_layout_manager() -> None:
     src = read_source("UI/Managers/ActionBarManager.gd")
     create = src.split("func create_action_bars", 1)[1].split("\nfunc ", 1)[0]
-    # tool, mode, clock, menu, action_preview -- five rows, five handoffs,
-    # each BEFORE add_child (the scale is copied once in _ready).
-    assert create.count(".set_layout_manager(layout_manager)") == 5, (
-        "a row built without the layout manager renders at scale 1.0 while its "
-        "band-mates render at the snapped viewport scale -- the mismatched-chip "
-        "muck this wave removed"
+    # tool, mode, clock, menu -- the four TOP rows, each handed the manager
+    # BEFORE add_child (the scale is copied once in _ready). The QERF dock is
+    # deliberately absent: its labels are prose and truncate at 1.5x
+    # (screenshot pass 2026-08-24) -- words outrank chip size down there.
+    assert create.count(".set_layout_manager(layout_manager)") == 4, (
+        "a top row built without the layout manager renders at scale 1.0 while "
+        "its band-mates render at the snapped viewport scale -- the "
+        "mismatched-chip muck this wave removed"
     )
+    apr_block = create.split("action_preview_row = ActionPreviewRow.new()", 1)[1]
+    assert ".set_layout_manager" not in apr_block.split("parent.add_child(action_preview_row)", 1)[0]
 
 
 def test_resource_bar_height_has_one_authority() -> None:

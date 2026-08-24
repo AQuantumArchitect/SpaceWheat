@@ -105,10 +105,13 @@ func create_action_bars(parent: Control) -> void:
 		menu_selection_row.set_layout_manager(layout_manager)
 	parent.add_child(menu_selection_row)
 
+	# The QERF dock deliberately does NOT take the layout manager: its labels
+	# are PROSE (verb + cost + teaching hint), and at scale 1.5 the words
+	# truncate ("[Q] Extract (Mass Extr…") — screenshot pass 2026-08-24. The
+	# top rows are emoji glyphs and scale cleanly; the dock's words outrank
+	# its chip size.
 	action_preview_row = ActionPreviewRow.new()
 	action_preview_row.name = "ActionPreviewRow"
-	if layout_manager:
-		action_preview_row.set_layout_manager(layout_manager)
 	parent.add_child(action_preview_row)
 
 	# GODOT 4 BEST PRACTICE: Connect to parent's resized signal
