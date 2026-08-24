@@ -356,7 +356,7 @@ func stage_ui(farm: Node, shell: Node, quantum_viz: Node, world_builder) -> void
 			contract_chip.offset_right = -10.0
 			contract_chip.offset_left = -190.0
 			contract_chip.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-			contract_chip.setup(shell.quest_manager)
+			contract_chip.setup(shell.quest_manager, shell.overlay_manager)
 			_verbose.info("boot", "📋", "ContractChip ready (pinned active contracts)")
 
 			# Act filament — the objective banner: the ONE live objective as

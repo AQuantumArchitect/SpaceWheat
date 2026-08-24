@@ -10,8 +10,29 @@ extends "res://tests/smoke_test_base.gd"
 ## contracts behind a dead-end message.
 
 
+class StubQuestManager:
+	extends Node
+	var rows: Array = []
+	func commitment_quests() -> Array:
+		return rows
+
+
 func _init() -> void:
 	call_deferred("_run")
+
+
+func _make_commitments(n: int) -> Array:
+	var out: Array = []
+	for i in range(n):
+		out.append({
+			"id": 2000 + i,
+			"faction": "TestFaction",
+			"resource": "🌾",
+			"quantity": i + 1,
+			"status": "active",
+			"category": "DELIVERY",
+		})
+	return out
 
 
 func _make_offers(n: int) -> Array:
@@ -147,5 +168,38 @@ func _run() -> void:
 	await process_frame
 	_check(board._item_page == 0, "changing tab resets to page 0", "got %d" % board._item_page)
 
+	# --- show_commitments_focused: the HUD door lands selected + DISARMED ----
+	# ContractChip's ready-glow route is navigation ONLY: the door must land on
+	# Commitments, select the quest's own row, drag the page to it, and leave
+	# the second-click confirm DISARMED — _select() arms it, and an armed
+	# arrival would turn the player's first click into a claim.
+	var stub_qm := StubQuestManager.new()
+	stub_qm.rows = _make_commitments(8)
+	root.add_child(stub_qm)
+	board.quest_manager = stub_qm
+	board.set_frame(QuestBoard.FRAME_MARKET)
+	await process_frame
+	board.show_commitments_focused(2006)   # 7th row → past the 6-key ring
+	await process_frame
+	_check(board.frame_id == QuestBoard.FRAME_COMMITMENTS,
+		"door lands on Commitments", "got %s" % board.frame_id)
+	_check(board._selected_index == 6, "door selects the quest's own row (abs idx 6)",
+		"got %d" % board._selected_index)
+	_check(board._item_page == 1, "door drags the page to the selected row",
+		"got %d" % board._item_page)
+	_check(board._row_confirm_armed == false,
+		"door leaves the second-click confirm DISARMED", "armed")
+	_check(board._commitments_view == "active", "door defaults to the active view",
+		"got %s" % board._commitments_view)
+	board.show_commitments_focused(-1, "history")
+	await process_frame
+	_check(board._commitments_view == "history", "door honors the view param",
+		"got %s" % board._commitments_view)
+	board.show_commitments_focused(-1, "nonsense")
+	await process_frame
+	_check(board._commitments_view == "active", "an unknown view falls back to active",
+		"got %s" % board._commitments_view)
+
 	board.queue_free()
+	stub_qm.queue_free()
 	_finish("QuestBoard paging")

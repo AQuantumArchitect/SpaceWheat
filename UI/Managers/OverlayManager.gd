@@ -555,6 +555,20 @@ func open_controls_on_arc() -> void:
 		overlay.show_tab_arc()
 
 
+## The commitments door — same semantics as open_controls_on_arc but for the
+## quest board: open (never close) landed on Commitments, optionally with one
+## quest's row selected. ContractChip's ready-glow taps here; toast routes
+## will share it.
+func open_board_on_commitments(quest_id: int = -1, view: String = "active") -> void:
+	if not overlays.has("quests"):
+		return
+	var overlay = overlays["quests"]
+	if not (overlay_stack and overlay_stack.has_overlay(overlay)):
+		toggle_overlay("quests")
+	if overlay.has_method("show_commitments_focused"):
+		overlay.show_commitments_focused(quest_id, view)
+
+
 func toggle_overlay(_name: String) -> void:
 	# Toggle an overlay open/closed.
 

@@ -156,6 +156,25 @@ func set_biome(biome: Node) -> void:
 		if visible:
 			_render_all()
 
+## The HUD door: land the board on Commitments with one quest's row selected
+## (ContractChip's ready-glow taps through OverlayManager.open_board_on_
+## commitments to get here). Navigation ONLY — the claim stays a deliberate
+## click on the board, so _row_confirm_armed is forced false afterwards:
+## _select() arms the second-click confirm, and a programmatic focus must not
+## turn the player's very first click into a claim.
+func show_commitments_focused(quest_id: int = -1, view: String = "active") -> void:
+	_commitments_view = view if COMMITMENTS_VIEW_LABELS.has(view) else "active"
+	if frame_id != FRAME_COMMITMENTS:
+		set_frame(FRAME_COMMITMENTS)
+	if quest_id >= 0:
+		var rows := _commitments_rows()
+		for i in range(rows.size()):
+			if rows[i] is Dictionary and int(rows[i].get("id", -1)) == quest_id:
+				_select(i)
+				break
+	_row_confirm_armed = false
+	_render_all()
+
 # =============================================================================
 # UI BUILD
 # =============================================================================

@@ -22,11 +22,16 @@ const BOARD_KEYS := ["G", "H", "J", "K", "L", ";"]
 const PredicateGloss = preload("res://Core/Quests/PredicateGloss.gd")
 
 var _quest_manager: Node = null
+var _overlay_manager: Node = null
 var _rows_box: VBoxContainer
 
 
-func setup(quest_manager: Node) -> void:
+## overlay_manager is optional (old tests/mocks pass only the quest manager):
+## with it, a READY row's tap opens the board on its own Commitments row —
+## the glow used to invite a click that could only focus a biome.
+func setup(quest_manager: Node, overlay_manager: Node = null) -> void:
 	_quest_manager = quest_manager
+	_overlay_manager = overlay_manager
 	# Rows are tappable (tap → focus the contract's biome); the panel itself
 	# stops mouse so taps don't leak through to the field behind it.
 	mouse_filter = Control.MOUSE_FILTER_STOP
@@ -172,7 +177,11 @@ func _build_row(quest: Dictionary, key_str: String = "") -> Control:
 	head.add_child(label)
 	row.add_child(head)
 
-	# "Where do I go?" — the contract's biome, tappable to focus it.
+	# "Where do I go?" — the contract's biome, tappable to focus it. A READY
+	# row's tap goes further: to its own row on the board's Commitments tab,
+	# where the claim waits on a deliberate click (chip taps stay navigation-
+	# only). Biome-less predicate quests used to be dead rows here; their
+	# ready state is tappable now too.
 	var biome := str(quest.get("biome", ""))
 	if biome != "":
 		var where := Label.new()
@@ -180,9 +189,10 @@ func _build_row(quest: Dictionary, key_str: String = "") -> Control:
 		where.add_theme_font_size_override("font_size", 11)
 		where.add_theme_color_override("font_color", Color(0.72, 0.80, 0.88, 0.85))
 		row.add_child(where)
+	if ready or biome != "":
 		row.mouse_filter = Control.MOUSE_FILTER_STOP
-		row.tooltip_text = "Tap to focus %s" % biome
-		row.gui_input.connect(_on_row_gui_input.bind(biome))
+		row.tooltip_text = "Tap to claim on the board" if ready else "Tap to focus %s" % biome
+		row.gui_input.connect(_on_row_gui_input.bind(biome, int(quest.get("id", -1)), ready))
 
 	var bar := ProgressBar.new()
 	bar.custom_minimum_size = Vector2(150, 5)
@@ -202,12 +212,21 @@ func _build_row(quest: Dictionary, key_str: String = "") -> Control:
 	return row
 
 
-func _on_row_gui_input(event: InputEvent, biome: String) -> void:
+func _on_row_gui_input(event: InputEvent, biome: String, qid: int = -1, ready: bool = false) -> void:
 	# Tap a contract row → bring its biome forward (navigation only, no verb).
+	# A READY row navigates further: to its own board row — the door disarms
+	# the board's second-click confirm on the way in, so the claim there is
+	# still a deliberate, separate click.
 	if (event is InputEventMouseButton and event.pressed
 			and event.button_index == MOUSE_BUTTON_LEFT) \
 			or (event is InputEventScreenTouch and event.pressed):
-		var abm := get_node_or_null("/root/ActiveBiomeManager")
-		if abm != null and abm.has_method("set_active_biome"):
-			abm.set_active_biome(biome)
+		if ready and _overlay_manager != null \
+				and _overlay_manager.has_method("open_board_on_commitments"):
+			_overlay_manager.open_board_on_commitments(qid)
 			accept_event()
+			return
+		if biome != "":
+			var abm := get_node_or_null("/root/ActiveBiomeManager")
+			if abm != null and abm.has_method("set_active_biome"):
+				abm.set_active_biome(biome)
+				accept_event()
