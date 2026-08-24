@@ -153,6 +153,12 @@ var _self_picker_page: int = 0     # page of known_icons (6 per page)
 var _arc_selected_idx: int = 0        # GHJKL; cursor — ABSOLUTE index into _arc_rows()
 var _arc_page: int = 0                # A/D page over the 6-row window (57 flags, 6 slots)
 var _arc_signal_connected: bool = false
+# Mouse second-click confirm — QuestBoard._row_confirm_armed parity: row 0 is
+# selected by DEFAULT, so idx == _arc_selected_idx is trivially true on a fresh
+# tab's very first click; without the arm flag that first look would fire the
+# accept instead of selecting. Armed by a real selection (click or keyboard),
+# cleared by anything that reshuffles the rows under the cursor.
+var _arc_row_confirm_armed: bool = false
 
 # UI refs.
 var _status_line: Label = null
@@ -1906,6 +1912,7 @@ func _ensure_arc_signal() -> void:
 
 func _on_arc_flag_changed(_flag_id: String, _flag: Dictionary) -> void:
 	if _current_tab == Tab.ARC:
+		_disarm_arc_confirm()  # a fired beat reorders _arc_rows() under the cursor
 		_refresh_body()
 
 func _build_arc_body() -> void:
@@ -1928,7 +1935,39 @@ func _build_arc_body() -> void:
 	if page_count > 1:
 		_body_box.add_child(_make_arc_pager(page_count))
 	_body_box.add_child(_make_spacer(6))
-	_body_box.add_child(_make_muted_label("Q dismiss / R accept on offer rows  ·  E refresh  ·  GHJKL; pick  ·  A/D page", 11))
+	_body_box.add_child(_make_arc_footer())
+
+
+## The Arc footer: live tappable verb labels when an offer row is selected —
+## the old footer was inert keyboard text ("Q dismiss / R accept …") sitting
+## in the exact place the offer toast sends a mouse player. Dispatch goes
+## through handle_action, the same door the global bottom-bar chips use, so
+## the per-row declarations, refusals, and kind guards all stay live. Rebuilt
+## by every _refresh_body — it tracks the selected row's kind automatically.
+func _make_arc_footer() -> Control:
+	var box := HBoxContainer.new()
+	box.name = "ArcFooter"
+	box.add_theme_constant_override("separation", 12)
+	box.alignment = BoxContainer.ALIGNMENT_CENTER
+	if _selected_arc_kind() == "arc_quest":
+		var accept_lbl := Label.new()
+		accept_lbl.name = "ArcFooterAccept"
+		accept_lbl.text = "[R] Accept"
+		accept_lbl.add_theme_font_size_override("font_size", 11)
+		accept_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_TAB_ACTIVE)
+		ClickWire.attach(accept_lbl, func() -> void: handle_action("R"))
+		box.add_child(accept_lbl)
+		var dismiss_lbl := Label.new()
+		dismiss_lbl.name = "ArcFooterDismiss"
+		dismiss_lbl.text = "[Q] Dismiss"
+		dismiss_lbl.add_theme_font_size_override("font_size", 11)
+		dismiss_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
+		ClickWire.attach(dismiss_lbl, func() -> void: handle_action("Q"))
+		box.add_child(dismiss_lbl)
+		box.add_child(_make_muted_label("or tap the row again  ·  E refresh  ·  GHJKL; pick  ·  A/D page", 11))
+	else:
+		box.add_child(_make_muted_label("Accept [R] / Dismiss [Q] act on offer rows  ·  E refresh  ·  GHJKL; pick  ·  A/D page", 11))
+	return box
 
 ## Builds Arc tab rows: arc-quest offers first, then unfired flags (by score
 ## desc), then fired flags. (The manifold "on-edge" boost lives on C; X has no
@@ -2000,16 +2039,28 @@ func _select_arc_row(idx: int) -> void:
 	if idx < 0 or idx >= rows.size():
 		return
 	if _arc_selected_idx == idx:
-		# Already selected — but the row invites the click (pointing-hand
-		# cursor), and row 0 is selected by DEFAULT, so a fresh Arc tab's
-		# first row must not read as dead. Flash instead of silently
-		# returning; no _refresh_body (a full rebuild flickers without
-		# communicating anything).
+		# Second click on the selected row: QuestBoard grammar — fire the
+		# primary verb (accept), but ONLY armed and ONLY on an offer row.
+		# The kind is re-read LIVE at fire time, so a stale armed flag can
+		# never accept a story-flag row; flag rows keep the flash. An
+		# un-armed first click (row 0 is selected by DEFAULT) must flash and
+		# arm, never fire — the row still must not read as dead, and a full
+		# _refresh_body here would flicker without communicating anything.
+		if _arc_row_confirm_armed and _selected_arc_kind() == "arc_quest":
+			_arc_row_confirm_armed = false
+			_on_action_r()
+			return
 		_flash_arc_row(idx)
+		_arc_row_confirm_armed = true
 		return
 	_arc_selected_idx = idx
+	_arc_row_confirm_armed = true
 	_refresh_body()
 	_declare_tab_actions()
+
+
+func _disarm_arc_confirm() -> void:
+	_arc_row_confirm_armed = false
 
 
 ## The selected Arc row's kind ("arc_quest" / "flag_unfired" / "flag_fired"),
@@ -2258,6 +2309,7 @@ func _accept_selected_arc() -> void:
 		return
 	var data: Dictionary = entry.get("data", {})
 	if qm.has_method("accept_quest") and qm.accept_quest(data):
+		_disarm_arc_confirm()  # the accepted offer leaves the list; rows shift
 		_refresh_body()
 
 func _acknowledge_selected_arc() -> void:
@@ -2275,6 +2327,7 @@ func _acknowledge_selected_arc() -> void:
 	var qid: int = int(entry.get("data", {}).get("id", -1))
 	if qid >= 0 and qm.has_method("dismiss_story_offer"):
 		qm.dismiss_story_offer(qid)
+	_disarm_arc_confirm()  # the dismissed offer leaves the list; rows shift
 	_refresh_body()
 
 func _ratio_bar(ratio: float, length: int) -> String:
@@ -2303,6 +2356,7 @@ func show_tab_arc() -> void:
 func _show_tab(tab: int) -> void:
 	if _current_tab == tab and frame_id == TAB_TO_FRAME.get(tab, frame_id):
 		return
+	_disarm_arc_confirm()  # a tab change reshuffles what "the selected row" means
 	_current_tab = tab
 	var target_frame: String = TAB_TO_FRAME.get(tab, FRAME_SELF)
 	if frame_id != target_frame:
@@ -2393,8 +2447,13 @@ func _select_item_in_tab(slot: int) -> void:
 					# Same feedback law as the mouse path: the default-selected
 					# row's own key must not read as dead.
 					_flash_arc_row(abs_idx)
+					_arc_row_confirm_armed = true
 				else:
 					_arc_selected_idx = abs_idx
+					# Keyboard selection arms the mouse confirm, same as
+					# QuestBoard._select — a deliberate pick by key makes the
+					# next click on that row a confirm, not a re-select.
+					_arc_row_confirm_armed = true
 					_refresh_body()
 					_declare_tab_actions()
 		Tab.GUIDE:
@@ -2464,6 +2523,7 @@ func _on_navigate(direction: Vector2i) -> void:
 			var max_page: int = max(0, int(float(maxi(rows.size(), 1) - 1) / float(MAX_VISIBLE_ITEMS)))
 			var new_page: int = clampi(_arc_page + step, 0, max_page)
 			if new_page != _arc_page:
+				_disarm_arc_confirm()  # the cursor is re-clamped onto a new row
 				_arc_page = new_page
 				_arc_selected_idx = clampi(_arc_selected_idx,
 						_arc_page * MAX_VISIBLE_ITEMS,

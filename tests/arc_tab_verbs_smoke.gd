@@ -49,8 +49,11 @@ class FarmStub:
 	var story_flags_fired: Dictionary = {}
 	var quest_manager: Node = null
 	# MusicManager polls the active farm every frame; a stub without this
-	# property spams script errors from its fallback probe.
+	# property spams script errors from its fallback probe. Same story for
+	# grid (Self-tab build + per-frame consumers probe it).
 	var terminal_pool = null
+	var grid = null
+	var faction_density = null
 
 
 func _init() -> void:
@@ -124,6 +127,53 @@ func _run() -> void:
 		"re-declaration follows the selection back to the offer row")
 	overlay._accept_selected_arc()
 	_check(qm.accepted.size() == 1, "accept on the offer row commits it")
+
+	# --- 2.4: second-click-fires grammar (QuestBoard parity) ----------------
+	# Fresh overlay: row 0 (the offer) is default-selected and UNARMED — the
+	# very first click must flash+arm, never fire (QuestBoard._row_confirm_
+	# armed rationale); the second click accepts; flag rows never fire.
+	overlay.queue_free()
+	await process_frame
+	qm.accepted.clear()
+	overlay = ControlsOverlay.new()
+	root.add_child(overlay)
+	await process_frame
+	overlay._show_tab(ControlsOverlay.Tab.ARC)
+	await process_frame
+	_check(overlay._arc_row_confirm_armed == false, "fresh Arc tab is UNARMED")
+	overlay._select_arc_row(0)
+	await process_frame
+	_check(qm.accepted.is_empty(), "first click on the default row does NOT accept")
+	_check(overlay._arc_row_confirm_armed, "first click flashes and arms")
+	overlay._select_arc_row(0)
+	await process_frame
+	_check(qm.accepted.size() == 1, "second click on the armed offer row accepts")
+	_check(overlay._arc_row_confirm_armed == false, "the fired confirm disarms")
+
+	qm.accepted.clear()
+	overlay._select_arc_row(1)
+	await process_frame
+	overlay._select_arc_row(1)
+	await process_frame
+	_check(qm.accepted.is_empty(), "flag-row double-click never accepts")
+	_check(overlay._arc_selected_idx == 1, "flag-row selection holds through the flash")
+
+	overlay._select_arc_row(0)
+	await process_frame
+	_check(overlay._arc_row_confirm_armed, "re-selection arms before the tab change")
+	overlay._show_tab(ControlsOverlay.Tab.SELF)
+	await process_frame
+	overlay._show_tab(ControlsOverlay.Tab.ARC)
+	await process_frame
+	_check(overlay._arc_row_confirm_armed == false, "tab away and back DISARMS")
+
+	# --- 2.4: live footer tracks the selected row's kind --------------------
+	_check(overlay._body_box.find_child("ArcFooterAccept", true, false) != null,
+		"offer row renders the tappable [R] Accept footer label")
+	overlay._select_arc_row(1)
+	await process_frame
+	_check(overlay._body_box.find_child("ArcFooterAccept", true, false) == null,
+		"flag row renders no Accept footer label")
 
 	# --- ready-to-claim toast law (PlayerEventBridge) ---
 	var bridge = root.get_node_or_null("/root/PlayerEventBridge")
