@@ -31,7 +31,7 @@ filmstrip; defaults to the committed filmstrip).
 | Steel lines between orbs, static | **Metro lines** — permanent Hamiltonian coupling (potential: what is wired to what) | icons.json H / trace edges kind `zz`/`xy`/`bridge` | Static per biome ("H only moves on incorporation"); NOT evidence the pair is currently correlated |
 | **Bright mint** lines, appearing/disappearing | **Live mutual information** — beliefs *actually sharing information right now* (bits) | MI sensor / trace edges kind `"mi"` | Distinct channel from metro lines (bits ≠ \|J\|; parallel-track offset so they never overlap). Mostly absent at rest — the substrate decorrelates on observation; MI fires on transients |
 | Green cone at a pole / red cone at the other | **Lindblad flow** — pump in (green, north) / drain out (red, south) | `BasePlot.lindblad_pump_active/_drain_active` | Binary flags, register-local — an arrow is presence of flow, not its magnitude |
-| Themed orbs on the left rail | Sibling portals — every other loaded biome, click to dive | ActiveBiomeManager | Navigation, not physics |
+| Themed orbs on the left rail | Sibling portals — every other ASSIGNED biome (slot order = TYUIOP; fog placeholder if not yet renderable), click to dive | ActiveBiomeManager | Navigation, not physics. Each orb carries a "Name [key]" label; a dive speaks the shared confirm tail (→ toast, Focus repoint) via `biome_confirmed` |
 | Small **indigo** satellite per orb; **cyan** portal | Descend into the register's icon-world; ascend back out | FractalWorldService | Indigo is fixed ("go deeper"), never a biome hue |
 
 ## Instrument-only channels — CognifoldForecastField.gd header + constants

@@ -31,8 +31,8 @@
       "faction": "Hearth Keepers",
       "biome": "StarterForest",
       "body": "The Demos is one country on a wider island. Past the hedge the forest keeps older words. Go and stand under its canopy.",
-      "tutorial_hint": "Go to StarterForest — stand under its canopy. The biome tabs (T Y U row, or tap one) carry you between countries; this step completes on arrival.",
-      "math_note": "Structural predicate (active_biome_is): scores 1.0 the instant StarterForest is the biome under your feet, 0.0 otherwise — arrival is the whole ask, no soft gate. The objective banner's travel line names the literal key while you are elsewhere and drops the moment you arrive.",
+      "tutorial_hint": "Go to StarterForest — stand under its canopy. Tap its orb on the left rail (or press its key, T Y U row) to cross; this step completes on arrival.",
+      "math_note": "Structural predicate (active_biome_is): scores 1.0 the instant StarterForest is the biome under your feet, 0.0 otherwise — arrival is the whole ask, no soft gate. The objective banner's travel line names the orb and its key while you are elsewhere and drops the moment you arrive.",
       "state_predicates": [
         {"type": "active_biome_is", "biome": "StarterForest"}
       ]

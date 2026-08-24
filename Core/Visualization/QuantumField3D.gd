@@ -105,6 +105,8 @@ var _cam: Camera3D
 var _bubbles: Array = []            # {reg, mesh, ring, sprite, dot, mat, rmat, pos, grid_pos}
 var _portals: Array = []            # {mesh, hue_ring, sprite, label, name, key, pos, placeholder}
 var _rail_hover_name := ""          # rail orb under the pointer ("" = none) — hover lift + hand cursor
+var _spotlight_biome := ""          # rail orb the ObjectiveSpotlight wants breathing ("" = none)
+var _spot_t := 0.0                  # spotlight breath clock — reset on retarget so the cycle starts at 1.0
 const DESCEND_HUE_COLOR := Color(0.55, 0.35, 0.95)  # fixed indigo — "go deeper", never a biome hue
 var _descend_portals: Array = []    # {mesh, ring, sprite, biome_name, register_id} — per register, click to enter_icon
 var _ascend_portal = null           # {mesh, ring, sprite} or null — only present inside a fractal child world
@@ -1079,9 +1081,44 @@ func _clear_portals() -> void:
 	_rail_hover_name = ""
 
 
+## ObjectiveSpotlight's cross-biome cue lives HERE now: the bar's tab chip died with
+## the bar, so the "go there" pulse breathes the named rail orb instead — same
+## amplitude family as ObjectiveSpotlight.PULSE_SCALE (1.22), the field's per-frame
+## animation style. Purely cosmetic (anti-gating law): reads, never writes.
+func set_spotlight_biome(nm: String) -> void:
+	if nm == _spotlight_biome:
+		return
+	_spotlight_biome = nm
+	_spot_t = 0.0
+	if nm == "":
+		_reset_rail_scales()
+
+
+func _tick_rail_spotlight(dt: float) -> void:
+	if _spotlight_biome == "":
+		return
+	_spot_t += dt
+	# 1.0 → 1.22 → 1.0 breath every 0.8s; cosine, so the loop seam never snaps.
+	var s := 1.0 + 0.11 * (1.0 - cos(TAU * _spot_t / 0.8))
+	for p in _portals:
+		if str(p.name) != _spotlight_biome:
+			continue
+		for k in ["mesh", "hue_ring", "sprite", "label"]:
+			if p.get(k) != null and is_instance_valid(p[k]):
+				p[k].scale = Vector3.ONE * s
+
+
+func _reset_rail_scales() -> void:
+	for p in _portals:
+		for k in ["mesh", "hue_ring", "sprite", "label"]:
+			if p.get(k) != null and is_instance_valid(p[k]):
+				p[k].scale = Vector3.ONE
+
+
 func _process(dt: float) -> void:
 	var t0 := Time.get_ticks_usec()
 	_tick_field(dt)
+	_tick_rail_spotlight(dt)
 	var used := Time.get_ticks_usec() - t0
 	FrameCostLedger.add_us("viz_field3d", used)
 	var vc = get_node_or_null("/root/VerboseConfig")

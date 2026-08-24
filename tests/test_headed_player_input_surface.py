@@ -298,29 +298,27 @@ def test_tutorial_objective_spotlight_honors_the_steps_own_biome() -> None:
 
 
 def test_mouse_biome_tab_click_gets_the_same_confirm_as_keyboard() -> None:
-    # Wave-5 sensor wall (lost-lamb): a StarterForest plot bubble's orbit can
-    # coincide with BiomeSelectionRow's fixed tab band, so a tap meant for
-    # the bubble switches biomes instead -- reproduced 2/2, with NO toast and
-    # NO Focus repoint either way, because the mouse path called
-    # ActiveBiomeManager.set_active_biome() directly instead of going
-    # through QuantumInstrumentInput._select_biome() (the keyboard TYUIOP
-    # path), which is the only place that repoints the Focus cursor and
-    # shows the "-> Village" confirm toast (added because "4 of 6 testers
-    # couldn't tell it worked"). Root cause: two divergent code paths for
-    # the same action. Fixed by routing both through a shared tail.
-    row_src = _read("UI/Widgets/BiomeSelectionRow.gd")
-    assert "signal biome_confirmed(old_biome: String, new_biome: String, key: String)" in row_src
-    assert "var old_biome = active_biome_router.get_active_biome()" in row_src
-    assert "biome_confirmed.emit(old_biome, biome_name, active_biome_router.get_slot_key(slot_idx))" in row_src
+    # Wave-5 sensor wall (lost-lamb): the mouse biome switch called
+    # ActiveBiomeManager.set_active_biome() directly instead of going through
+    # the keyboard TYUIOP path's tail -- NO toast, NO Focus repoint (added
+    # because "4 of 6 testers couldn't tell it worked"). Root cause: two
+    # divergent code paths for the same action. Fixed by routing both through
+    # a shared tail. The mouse door moved 2026-08-24 (the biome tab bar died;
+    # the field's portal rail carries the click now), but the LAW is the
+    # same: whatever surface takes the mouse biome switch must speak
+    # confirm_biome_switch. The rail's own grammar is pinned in depth by
+    # tests/test_biome_rail_first_class.py; this keeps the tail itself whole.
+    field_src = _read("Core/Visualization/QuantumField3D.gd")
+    assert "signal biome_confirmed(old_biome: String, new_biome: String, key: String)" in field_src
+    assert "biome_confirmed.emit(old, nm, key)" in field_src
 
     qii_src = _read("UI/Core/QuantumInstrumentInput.gd")
     assert "func confirm_biome_switch(old_biome: String, new_biome: String, key: String) -> void:" in qii_src
     assert "_apply_biome_switch(old_biome, new_biome, key)" in qii_src
 
-    shell_src = _read("UI/PlayerShell.gd")
-    assert "biome_row.biome_confirmed.connect(_route_biome_confirm)" in shell_src
-    assert "func _route_biome_confirm(old_biome: String, new_biome: String, key: String) -> void:" in shell_src
-    assert "instrument_input.confirm_biome_switch(old_biome, new_biome, key)" in shell_src
+    fv_src = _read("UI/FarmView.gd")
+    assert "renderer.biome_confirmed.connect(_on_biome_confirmed)" in fv_src
+    assert "instrument_input.confirm_biome_switch(old_biome, new_biome, key)" in fv_src
 
 
 def test_shift_tap_toggles_multiselect_check_for_entanglement() -> None:
@@ -416,7 +414,8 @@ def test_submenu_actions_write_to_dispatch_ledger() -> None:
 
 def test_selection_button_row_defers_to_a_live_3d_pick_target() -> None:
     # Wave-7 documented lead (lost-lamb), fixed 2026-08-06 per owner ruling "defer to
-    # 3D for all things, 2D is being deprecated": BiomeSelectionRow's fixed HUD band
+    # 3D for all things, 2D is being deprecated": the since-removed biome tab
+    # row's fixed HUD band
     # structurally overlaps the 3D field's live orbit space, so a tap aimed at a
     # drifting StarterForest orb could land on a biome-tab chip instead -- and unlike
     # an ordinary miss, the biome switch shows a legible, CONFIRMING "-> Village"
@@ -425,7 +424,7 @@ def test_selection_button_row_defers_to_a_live_3d_pick_target() -> None:
     # it) to check QuantumField3D.has_pickable_target() before claiming a click, and
     # forward to receive_deferred_tap() instead of doing chip selection when a real 3D
     # target is there. Live-verified via the rig: a tap that landed on an orb sitting
-    # inside BiomeSelectionRow's own rect dispatched "explore" (a plot action) with
+    # inside the biome tab row's own rect dispatched "explore" (a plot action) with
     # active_biome unchanged, instead of switching biomes.
     row_src = _read("UI/Widgets/SelectionButtonRow.gd")
     assert "func _live_field3d() -> Node:" in row_src

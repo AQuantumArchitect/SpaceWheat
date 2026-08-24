@@ -696,7 +696,7 @@
     },
     "arc_quest": {
       "body": "The Forest Stirs — hear the forest speak once.",
-      "hint": "Stand in StarterForest (the biome tabs along the top). Icon hat (5): F tracks a forest register, wait for its berry to ripen, R incorporates. One forest berry consumed and the forest has spoken to you. If nothing moves, give it time — the rhythm never runs down, but it is a rhythm.",
+      "hint": "Stand in StarterForest (tap its orb on the left rail). Icon hat (5): F tracks a forest register, wait for its berry to ripen, R incorporates. One forest berry consumed and the forest has spoken to you. If nothing moves, give it time — the rhythm never runs down, but it is a rhythm.",
       "state_predicates": [
         {
           "type": "biome_evolving",

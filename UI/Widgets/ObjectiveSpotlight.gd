@@ -58,12 +58,24 @@ func _refresh() -> void:
 	if biome != "" and biome != _active_biome_name():
 		pulse_id = "biome:%s" % biome
 	# Unchanged AND the pulsed node survived (a progression-triggered row
-	# rebuild frees and recreates chip nodes) — nothing to do.
-	if pulse_id == _current_key and _pulsing_node != null and is_instance_valid(_pulsing_node):
-		return
+	# rebuild frees and recreates chip nodes) — nothing to do. A biome pulse
+	# has no Control node: the field owns that animation and survives its own
+	# rebuilds, so unchanged is unconditionally nothing-to-do (re-arming every
+	# poll would reset the breath clock mid-cycle — visible stutter).
+	if pulse_id == _current_key:
+		if pulse_id.begins_with("biome:"):
+			return
+		if _pulsing_node != null and is_instance_valid(_pulsing_node):
+			return
 	_current_key = pulse_id
 	_stop_pulse()
 	if pulse_id == "":
+		return
+	if pulse_id.begins_with("biome:"):
+		# The rail orb IS the target now — the biome bar's tab chip died with
+		# the bar (2026-08-24). The field breathes the named orb; placeholders
+		# breathe too, so the cue never goes dark on an unrenderable biome.
+		_set_field_spotlight(pulse_id.trim_prefix("biome:"))
 		return
 	var target := _resolve_target(pulse_id)
 	if target == null and _healed_for_key != pulse_id:
@@ -103,20 +115,28 @@ func _active_biome_name() -> String:
 
 
 func _resolve_target(pulse_id: String) -> Control:
+	# biome: ids never reach here — they route to the field in _refresh.
 	if _action_bar_manager == null:
 		return null
 	var row = null
-	var lookup := pulse_id
-	if pulse_id.begins_with("biome:"):
-		row = _action_bar_manager.get("biome_selection_row")
-		lookup = pulse_id.trim_prefix("biome:")
-	elif pulse_id in ["Z", "X", "C", "V", "B", "N", "M"]:
+	if pulse_id in ["Z", "X", "C", "V", "B", "N", "M"]:
 		row = _action_bar_manager.get("menu_selection_row")
 	else:
 		row = _action_bar_manager.get("tool_selection_row")
 	if row == null or not is_instance_valid(row) or not row.has_method("get_button_pulse_target"):
 		return null
-	return row.get_button_pulse_target(lookup)
+	return row.get_button_pulse_target(pulse_id)
+
+
+## The 3D field hosts the cross-biome cue (group lookup, same idiom as
+## SelectionButtonRow._live_field3d: no shared parent until AppRoot, and the
+## field may not exist yet the first time this fires — then there is nothing
+## to animate anyway).
+func _set_field_spotlight(biome_name: String) -> void:
+	var tree := get_tree()
+	var field = tree.get_first_node_in_group("quantum_field_3d") if tree != null else null
+	if field != null and field.has_method("set_spotlight_biome"):
+		field.set_spotlight_biome(biome_name)
 
 
 func _start_pulse(target: Control) -> void:
@@ -137,3 +157,4 @@ func _stop_pulse() -> void:
 	if _pulsing_node != null and is_instance_valid(_pulsing_node):
 		_pulsing_node.scale = Vector2.ONE
 	_pulsing_node = null
+	_set_field_spotlight("")

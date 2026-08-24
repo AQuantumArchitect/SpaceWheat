@@ -184,7 +184,7 @@ func _apply_pointer_bleed_guard() -> void:
 		menu_open = not transparent
 	# The mode chips share the hat band, so they need the same guard — without
 	# it a click aimed at an open overlay could land on a sub-mode chip instead.
-	for row in [action_bar_manager.get_tool_row(), action_bar_manager.get_biome_row(),
+	for row in [action_bar_manager.get_tool_row(),
 			action_bar_manager.get_mode_row()]:
 		if row and row.has_method("set_pointer_enabled"):
 			row.set_pointer_enabled(not menu_open)

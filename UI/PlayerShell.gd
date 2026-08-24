@@ -372,13 +372,6 @@ func _route_action_key(action_key: String, shift: bool = false) -> void:
 		instrument_input.invoke_action(action_key, shift)
 
 
-## Route a tapped/clicked biome tab to the same confirm+repoint tail as the
-## keyboard TYUIOP path. Connected to BiomeSelectionRow.biome_confirmed.
-func _route_biome_confirm(old_biome: String, new_biome: String, key: String) -> void:
-	if instrument_input and instrument_input.has_method("confirm_biome_switch"):
-		instrument_input.confirm_biome_switch(old_biome, new_biome, key)
-
-
 ## Cursor-layer paint hook. The amber active-ring border died with the WASD
 ## crawl (2026-07-08) — the only remaining render-side effect is the plot
 ## grid's ring state (selected-plot lifecycle visuals).
@@ -626,13 +619,9 @@ func _ready() -> void:
 	if apr and apr.has_signal("action_pressed"):
 		apr.action_pressed.connect(_route_action_key)
 
-	# Wire biome tab clicks → same confirm+repoint tail as keyboard TYUIOP.
-	# Without this a mouse click switches biome with zero feedback (mouse-only
-	# campaign wave 5: silent tab-bar pointer-bleed).
-	var biome_row = action_bar_manager.get_biome_row()
-	if biome_row and biome_row.has_signal("biome_confirmed"):
-		biome_row.biome_confirmed.connect(_route_biome_confirm)
-
+	# (Mouse biome switches live on the field's portal rail now: QuantumField3D
+	# emits biome_confirmed and FarmView routes it to the same confirm+repoint
+	# tail as keyboard TYUIOP — the biome tab bar died 2026-08-24.)
 	_verbose.info("ui", "✅", "Action bars created")
 	# ═══════════════════════════════════════════════════════════════
 

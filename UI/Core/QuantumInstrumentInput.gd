@@ -810,7 +810,7 @@ func _execute_toggle_berry_track() -> Dictionary:
 	var biome = _get_current_biome()
 	if biome == null:
 		return {"success": false, "error": "no_biome",
-				"message": "Track needs a biome underfoot — T Y U switch biomes."}
+				"message": "Track needs a biome underfoot — tap a biome orb on the left rail (T Y U)."}
 	var qc = biome.quantum_computer
 	if qc == null or qc.berry_register == null:
 		return {"success": false, "error": "no_quantum_computer",
@@ -1297,15 +1297,15 @@ func _select_biome(biome_idx: int, key: String) -> void:
 
 
 ## Shared tail for any biome-switch trigger (TYUIOP direct-pick here, and mouse
-## tab clicks via PlayerShell — see BiomeSelectionRow.biome_confirmed). Repoints
+## rail-orb dives via FarmView — see QuantumField3D.biome_confirmed). Repoints
 ## the Focus and confirms the switch in text (fleet: 4 of 6 testers couldn't
-## tell it worked) — without this, a mouse click landing on the biome tab bar
-## switches biomes with zero visible feedback (mouse-only campaign wave 5).
+## tell it worked) — without this, a mouse biome switch lands with zero visible
+## feedback (mouse-only campaign wave 5, on the since-removed biome tab bar).
 func confirm_biome_switch(old_biome: String, new_biome: String, key: String) -> void:
 	# Same cancel keyboard gets for free via _unhandled_key_input's top-level
 	# check — this is the shared tail for BOTH keyboard (TYUIOP) and mouse
-	# (BiomeSelectionRow tap) biome switches, so without it a mouse biome
-	# switch left a pending confirm armed (mouse-only campaign wave 15).
+	# (rail-orb dive) biome switches, so without it a mouse biome switch
+	# left a pending confirm armed (mouse-only campaign wave 15).
 	_cancel_pending_confirm()
 	# Same for an open submenu (#511) — see _select_frame_hat's matching call
 	# for the full failure mode. A mouse biome-tab tap reaches this directly,

@@ -233,9 +233,10 @@ func _on_button_input(event: InputEvent, button_id: int) -> void:
 ## "2D is being deprecated" (owner ruling, 2026-08-06): wherever this row's fixed HUD
 ## band structurally overlaps the 3D field's live orbit space, a real 3D pick target wins
 ## the dispute outright. Without this, a tap aimed at a drifting StarterForest orb that
-## happened to land on the biome tab row switched biomes with a legible, CONFIRMING
-## "→ Village" toast — worse than a silent miss, since it read as a deliberate success
-## (mouse-only campaign wave 7, lost-lamb). Group lookup instead of a typed reference:
+## happened to land on the (since-removed) biome tab row switched biomes with a legible,
+## CONFIRMING "→ Village" toast — worse than a silent miss, since it read as a deliberate
+## success (mouse-only campaign wave 7, lost-lamb). The hatch outlives that row: the hat
+## and menu bands still border drifting-orb space. Group lookup instead of a typed reference:
 ## this row and the field mount in separate branches of the tree with no shared parent
 ## until AppRoot, and the field may not exist yet the first time this fires.
 var _field3d_cache: Node = null

@@ -124,7 +124,8 @@ in a few beats instead of a season.
 
 ## Navigation
 
-`T Y U I O P` — biome slots. `G H J K L ;` — plots. `'` — select all
+`T Y U I O P` — biome slots (or tap a biome's labelled orb on the field's
+left rail). `G H J K L ;` — plots. `'` — select all
 plots. `W A S D` — spin the selection cylinder (frames / biomes / plots /
 surfaces).
 

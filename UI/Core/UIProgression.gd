@@ -438,7 +438,7 @@ static func _decorate_objective(q: Dictionary) -> String:
 
 ## A tutorial step whose mechanic lives in another biome has exactly one honest
 ## next action: go there. objective_target() already knew this — it pulses the
-## biome tab before the verb chip — but the TEXT did not, so the banner kept
+## biome's rail orb before the verb chip — but the TEXT did not, so the banner kept
 ## repeating the step's full instruction while the player stood in the wrong
 ## country and nothing they did could satisfy it. Both keyboard personas walled
 ## on precisely that: the literalist read "Cross to StarterForest…" as a
@@ -466,10 +466,10 @@ static func _travel_line(q: Dictionary) -> String:
 		return ""
 	var key := str(abm.get_slot_key(slot)).to_upper()
 	if key == "":
-		# No tab reaches it yet. Stay silent rather than name a key that isn't
-		# there — a lie costs more than the missing nudge.
+		# No slot key reaches it yet. Stay silent rather than name a key that
+		# isn't there — a lie costs more than the missing nudge.
 		return ""
-	return "▸ tap the %s tab to cross to %s — this step happens there" % [key, want]
+	return "▸ tap %s's orb on the left rail [%s] to cross" % [want, key]
 
 
 static func _active_biome_manager() -> Node:

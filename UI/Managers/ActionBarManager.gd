@@ -17,7 +17,6 @@ const _ClockSpeedRow = preload("res://UI/Widgets/ClockSpeedRow.gd")
 
 var tool_selection_row: Control = null
 var mode_selection_row: Control = null
-var biome_selection_row: Control = null
 var clock_speed_row: Control = null
 var menu_selection_row: Control = null
 var action_preview_row: Control = null
@@ -46,8 +45,6 @@ func _reposition_all_rows() -> void:
 		_position_tool_row()
 	if mode_selection_row and mode_selection_row.is_inside_tree():
 		_position_mode_row()
-	if biome_selection_row and biome_selection_row.is_inside_tree():
-		_position_biome_row()
 	if clock_speed_row and clock_speed_row.is_inside_tree():
 		_position_clock_row()
 	if menu_selection_row and menu_selection_row.is_inside_tree():
@@ -86,13 +83,10 @@ func create_action_bars(parent: Control) -> void:
 	mode_selection_row.name = "ModeSelectionRow"
 	parent.add_child(mode_selection_row)
 
-	biome_selection_row = BiomeSelectionRow.new()
-	biome_selection_row.name = "BiomeSelectionRow"
-	parent.add_child(biome_selection_row)
-
-	# Clock chips ride the biome band's right corner (the hat band's right
-	# corner already belongs to ModeSelectionRow). Added AFTER the biome row so
-	# it wins the pick in any overlap — GUI picking is tree order, not z_index.
+	# Clock chips ride the third band's right corner (the hat band's right
+	# corner already belongs to ModeSelectionRow). The biome bar that used to
+	# hold this band's left half died 2026-08-24 — the field's portal rail
+	# (labelled orbs, left edge) is the mouse biome door now.
 	clock_speed_row = _ClockSpeedRow.new()
 	clock_speed_row.name = "ClockSpeedRow"
 	parent.add_child(clock_speed_row)
@@ -128,7 +122,8 @@ func _on_parent_resized() -> void:
 ## Layout: top → bottom
 ##   top idx 0: menu  (ZXCVBNM — surface ring, below resource bar)
 ##   top idx 1: tool  (4-0 hats)
-##   top idx 2: biome (TYUIOP)
+##   top idx 2: clock (right corner only — the biome bar died 2026-08-24;
+##               TYUIOP biomes are the field's portal rail + keyboard ring now)
 ##   [open farm view / game space — PlotTile cyan border is plot selection UI]
 ##   bottom  0: action (QERF — not a selection ring)
 func _position_row_at_index(row: Control, idx: int) -> void:
@@ -186,23 +181,12 @@ func _position_mode_row() -> void:
 		mode_selection_row.offset_right = -CONTRACT_CORNER_INSET
 
 
-func _position_biome_row() -> void:
-	_position_top_row(biome_selection_row, 2)
-	# The contract corner (ContractChip + ActFilament, top-right, ~190px wide)
-	# shares this band — inset the biome row's right edge so its chips never
-	# slide under the pinned contracts (playtest 2: "ugly overlap with the
-	# biome bar... fixed by squeezing the biome bar in more").
-	if biome_selection_row:
-		biome_selection_row.offset_right = -CONTRACT_CORNER_INSET
-
-
 func _position_clock_row() -> void:
-	# Same band as the biome tabs (top idx 2), right-aligned — the hat band's
-	# right corner is already the mode cluster's, and two right-aligned clusters
-	# on one row collide on a narrow window.
+	# Third band (top idx 2), right-aligned — the hat band's right corner is
+	# already the mode cluster's, and two right-aligned clusters on one row
+	# collide on a narrow window.
 	_position_top_row(clock_speed_row, 2)
-	# Clear the pinned contract corner, exactly like the biome row it shares the
-	# band with. The biome chips hug the LEFT, so they cannot reach this cluster.
+	# Clear the pinned contract corner (ContractChip + ActFilament, top-right).
 	if clock_speed_row:
 		clock_speed_row.offset_right = -CONTRACT_CORNER_INSET
 
@@ -233,7 +217,7 @@ func get_free_band() -> Vector2:
 	var top := band.position.y
 	var bottom := band.end.y
 	for row in [menu_selection_row, tool_selection_row, mode_selection_row,
-			biome_selection_row, clock_speed_row]:
+			clock_speed_row]:
 		if row != null and is_instance_valid(row) and row.visible:
 			top = maxf(top, row.get_global_rect().end.y)
 	if action_preview_row != null and is_instance_valid(action_preview_row) and action_preview_row.visible:
@@ -243,10 +227,6 @@ func get_free_band() -> Vector2:
 
 func get_tool_row() -> Control:
 	return tool_selection_row
-
-
-func get_biome_row() -> Control:
-	return biome_selection_row
 
 
 func get_menu_row() -> Control:

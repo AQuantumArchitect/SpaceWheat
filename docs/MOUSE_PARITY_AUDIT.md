@@ -1063,7 +1063,7 @@ separate bug and this section should be reopened.
 | Q/E/R/F action chips | `ActionPreviewRow` → `PlayerShell._route_action_key` → `OverlayBase.handle_action` | `ActionBtn_Q/E/R/F`, built once at boot (never rebuilt), safe to `control_rect` unscoped |
 | Top-level menu row (Z X C V B N M + play) | `MenuSelectionRow` | verified 2x: fresh boot (2 unlocked) and act1_complete (8 unlocked) — every button opens+closes correctly |
 | Hat row (4-0) | `ToolSelectionRow` (`SelectionButtonRow`) | |
-| Biome row (T-P) | `BiomeSelectionRow` (`SelectionButtonRow`) | |
+| Biome row (T-P) | `BiomeSelectionRow` (`SelectionButtonRow`) | REMOVED 2026-08-24 — the field's portal rail (labelled orbs, `QuantumField3D.biome_confirmed` → `confirm_biome_switch`) is the mouse biome door now; see the rail-promotion wave entry at the end of this log |
 | Top-level menu open/close (Z X C V B N M) | `MenuSelectionRow` (`SelectionButtonRow`) — verified live 2026-08-05: click opens EscapeMenu, second click closes it | was previously untestable by name-based lookup — see fixed bug below |
 | Most overlay tab/row clicks | `UI/Core/ClickWire.gd` helper — EscapeMenu tabs+verb chips, ControlsOverlay tabs, InspectorOverlay, QubitAtlasOverlay card selection, MapMetaOverlay, QuestBoard | |
 
@@ -1366,3 +1366,34 @@ unifies these with mouse today, but this campaign is testing `InputEventMouseBut
 clicks specifically per the literal request ("only using the mouse, only
 clicking"). A touch-specific wave through the same autoload is a natural
 follow-up, not built here.
+
+---
+
+## Rail promotion wave (2026-08-24) — the biome bar retires
+
+The biome selection bar (`BiomeSelectionRow`, top band idx 2) was REMOVED as
+redundant with the field's sibling portal rail. Before removal the rail was
+upgraded to first-class door status, because it had the geometry but not the
+grammar:
+
+- **Silent switch fixed**: rail clicks used to call
+  `ActiveBiomeManager.set_active_biome` directly with `biome_selected` unheard
+  (the wave-5 defect, reborn in 3D). Now `QuantumField3D._dive_to_biome`
+  captures `old` before the set, emits `biome_confirmed(old,new,key)` only when
+  the switch landed (a mid-transition refusal speaks a toast), and FarmView
+  routes it to the shared `QII.confirm_biome_switch` tail — same toast, Focus
+  repoint, pending-confirm cancel, submenu close as keyboard TYUIOP.
+- **Orbs got words**: slot-ordered rail (TYUIOP order), billboarded
+  "Name [key]" labels, hover lift + hand cursor; fog placeholder orbs for
+  assigned-but-unrenderable biomes so the mouse can follow the keyboard
+  everywhere.
+- **Seats can see it**: `QuantumField3D.rig_portals()` + `biome_slots`
+  `orb_center` — the rail is 3D meshes, invisible to the Control-walking
+  `clickables` verb by design, so this is the blind seat's enumeration.
+- **Spotlight follows**: ObjectiveSpotlight's cross-biome `biome:` pulse now
+  breathes the named rail orb (`QuantumField3D.set_spotlight_biome`) instead of
+  a bar chip.
+
+Ratchets: `tests/test_biome_rail_first_class.py`;
+`test_mouse_biome_tab_click_gets_the_same_confirm_as_keyboard` re-pins the
+rail tail.

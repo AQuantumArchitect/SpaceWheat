@@ -74,6 +74,24 @@ def test_rail_covers_every_assigned_slot() -> None:
     assert "slot_assignment_changed.connect" in field
 
 
+def test_cross_biome_spotlight_reaches_the_rail() -> None:
+    # The bar's tab chip was the spotlight's cross-biome pulse target; with the
+    # bar gone the cue must land on the rail orb or the guidance system's two
+    # halves disagree again (travel line says "tap the orb", nothing pulses --
+    # the exact failure test_tutorial_objective_travel was written about).
+    spot = read_source("UI/Widgets/ObjectiveSpotlight.gd")
+    assert "biome_selection_row" not in spot
+    assert "_set_field_spotlight(pulse_id.trim_prefix(\"biome:\"))" in spot
+    # _stop_pulse clears the field cue too -- a stale breathing orb after the
+    # objective moves on would be false guidance (anti-gating).
+    stop_body = spot.split("func _stop_pulse", 1)[1].split("func ", 1)[0]
+    assert '_set_field_spotlight("")' in stop_body
+
+    field = _field()
+    assert "func set_spotlight_biome(nm: String) -> void:" in field
+    assert "func _tick_rail_spotlight(dt: float) -> void:" in field
+
+
 def test_rail_is_enumerable_by_a_blind_mouse_seat() -> None:
     field = _field()
     assert "func rig_portals() -> Array:" in field

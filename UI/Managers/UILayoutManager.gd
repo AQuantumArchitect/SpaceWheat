@@ -46,7 +46,6 @@ const ACTION_ROW_MIN_HEIGHT = 55        # Minimum height in pixels
 const ACTION_ROW_MAX_PERCENT = 0.40     # Max 40% of viewport for both rows combined
 
 # Component constants
-const TAB_BAR_MIN_HEIGHT = 40           # Minimum tab bar height
 const RESOURCE_BAR_BASE_HEIGHT = 50.0
 const TOP_STRIP_GAP_BASE = 4.0
 const TOP_STRIP_SIDE_INSET_BASE = 200.0
@@ -458,9 +457,6 @@ func get_top_strip_gap() -> float:
 	return h(TOP_STRIP_GAP_BASE)
 
 
-func get_biome_tab_height() -> float:
-	# Height of biome tab row.
-	return max(TAB_BAR_MIN_HEIGHT, h(40.0))
 
 
 func get_top_strip_side_inset() -> float:
