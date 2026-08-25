@@ -26,6 +26,14 @@ var update_counter: int = 0
 
 func _ready():
 	_create_ui()
+	# Absolute z, one above ChromeFrame's 55 (border-weight pass 2026-08-25):
+	# decorative chrome must never out-rank real HUD content it happens to
+	# overlap. Without this, ResourcePanel's effective z was whatever its
+	# ancestor chain gave it (MainContainer's relative z_index=5) — well
+	# under the frame, so the molding/rivet painted OVER resource emojis in
+	# the corner (owner screenshot, 2026-08-25).
+	z_as_relative = false
+	z_index = 56
 	# Connect to resized signal to redraw background when size changes
 	resized.connect(queue_redraw)
 
@@ -287,7 +295,7 @@ func _create_ui():
 	# IGNORE like everything in this strip, and invisible to the sorting code
 	# (it indexes resources_hbox children, not panel children).
 	var lead := Control.new()
-	lead.custom_minimum_size = Vector2(int(14 * scale_factor), 0)
+	lead.custom_minimum_size = Vector2(int(20 * scale_factor), 0)
 	lead.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(lead)
 

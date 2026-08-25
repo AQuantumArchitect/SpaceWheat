@@ -18,6 +18,17 @@ from pathlib import Path
 from conftest import ROOT, read_source
 
 
+def test_resource_panel_paints_above_the_frame() -> None:
+    # Corner-declutter pass (2026-08-25, owner screenshot): ChromeFrame draws
+    # at absolute z 55. ResourcePanel had no z override, so its effective z
+    # was whatever its ancestor chain gave it (well under 55) -- the frame's
+    # molding/rivet painted OVER resource emojis in the corner. Decorative
+    # chrome must never out-rank real HUD content it happens to overlap.
+    panel = read_source("UI/Widgets/ResourcePanel.gd")
+    assert "z_as_relative = false" in panel
+    assert "z_index = 56" in panel
+
+
 def test_chrome_frame_cannot_eat_clicks() -> None:
     src = read_source("UI/Widgets/ChromeFrame.gd")
     assert "mouse_filter = Control.MOUSE_FILTER_IGNORE" in src
