@@ -15,11 +15,6 @@ extends RefCounted
 
 const PerfOptimizer = preload("res://Core/Settings/PerformanceOptimizer.gd")
 
-## Vertical block the objective banner (ActFilament) occupies above the
-## ContractChip in the pinned contract corner: banner height + margin (the
-## historical hand-tuned offsets were 140 and 202 — this is their 62px gap).
-const ACT_BANNER_BLOCK := 62.0
-
 var _verbose  # Injected from BootManager (VerboseConfig)
 
 
@@ -349,44 +344,57 @@ func stage_ui(farm: Node, shell: Node, quantum_viz: Node, world_builder) -> void
 		_verbose.info("boot", "✨", "FloatingRewardLayer ready (pop → +N flier)")
 
 		if "quest_manager" in shell and shell.quest_manager:
-			# The contract corner derives its tops from the layout manager —
+			# The contract corner derives its top from the layout manager —
 			# the old hand-tuned 140/202 tracked "resource bar + one chip band"
-			# and went stale every re-band. ACT_BANNER_BLOCK is the banner's
-			# own height + margin (the historical 202 − 140).
+			# and went stale every re-band.
 			var lm = shell.get("layout_manager")
 			var corner_top := 140.0
 			if lm != null and lm.has_method("get_resource_bar_height") \
 					and lm.has_method("get_action_row_height"):
 				corner_top = float(lm.get_resource_bar_height()) \
 					+ float(lm.get_action_row_height())
+				# + the TimeBar placeholder (2026-08-25), which now sits between
+				# the resource strip and the first chip band.
+				if lm.has_method("get_time_bar_height"):
+					corner_top += float(lm.get_time_bar_height())
 
 			var contract_chip = ContractChip.new()
 			contract_chip.name = "ContractChip"
 			contract_chip.z_index = 90
 			shell_overlay_layer.add_child(contract_chip)
 			contract_chip.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-			# Below the resource strip + first chip band, AND below the
-			# objective banner (ActFilament — the banner grew an act line).
-			contract_chip.offset_top = corner_top + ACT_BANNER_BLOCK
-			contract_chip.offset_right = -10.0
+			# Sits directly at corner_top now — ActFilament moved out from
+			# above it (bottom-left declutter, 2026-08-25), so no extra
+			# vertical block is needed to clear the banner anymore.
+			contract_chip.offset_top = corner_top
+			contract_chip.offset_right = -20.0
 			contract_chip.offset_left = -190.0
 			contract_chip.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 			contract_chip.setup(shell.quest_manager, shell.overlay_manager)
 			_verbose.info("boot", "📋", "ContractChip ready (pinned active contracts)")
 
 			# Act filament — the objective banner: the ONE live objective as
-			# screen text, ambient in the contract corner. Tap opens X (Arc).
+			# screen text. Moved bottom-left (2026-08-25, owner ask: the
+			# top-right corner was a "cluster fuck" of ContractChip + this
+			# banner + toasts + the resource strip's tail + the window's own
+			# min/max/close buttons). Now it's "close to the actions," and
+			# PlayerShell's HintToastStack stacks upward from just above it.
+			# Tap still opens X (Arc).
 			var act_filament = ActFilament.new()
 			act_filament.name = "ActFilament"
 			act_filament.z_index = 90
 			shell_overlay_layer.add_child(act_filament)
-			act_filament.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-			act_filament.offset_top = corner_top
-			act_filament.offset_right = -10.0
-			act_filament.offset_left = -200.0
-			act_filament.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+			act_filament.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+			act_filament.offset_left = 20.0
+			# QERF band + hat/mode band (2026-08-24 re-band) + a breathing gap,
+			# so the banner sits just above the bottom action-bar stack rather
+			# than touching it. PlayerShell's HintToastStack mirrors this exact
+			# formula to know where the banner's TOP edge lands.
+			var bottom_reserved := 2.0 * float(lm.get_action_row_height()) + 16.0 if lm != null and lm.has_method("get_action_row_height") else 158.0
+			act_filament.offset_bottom = -bottom_reserved
+			act_filament.grow_horizontal = Control.GROW_DIRECTION_END
 			act_filament.setup(shell.quest_manager, farm, shell.overlay_manager)
-			_verbose.info("boot", "🧵", "ActFilament ready (objective banner)")
+			_verbose.info("boot", "🧵", "ActFilament ready (objective banner, bottom-left)")
 
 			# Objective spotlight — the SAME live objective ActFilament speaks,
 			# but shown: a looping pulse on whichever menu/hat chip is next.

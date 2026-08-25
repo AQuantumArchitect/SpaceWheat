@@ -18,6 +18,7 @@ const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
 const MenuSelectionRowClass = preload("res://UI/Widgets/MenuSelectionRow.gd")
 const FpsDisplay = preload("res://UI/HUD/FpsDisplay.gd")
 const ChromeFrameClass = preload("res://UI/Widgets/ChromeFrame.gd")
+const TimeBarClass = preload("res://UI/Widgets/TimeBar.gd")
 const UIProgression = preload("res://UI/Core/UIProgression.gd")
 
 var current_farm_ui = null  # FarmUI instance (from scene)
@@ -40,6 +41,7 @@ var advanced_mode_enabled: bool = false
 var menu_row: MenuSelectionRowClass = null  # Bottom-stack ZXCVBNM ring (owned by ActionBarManager)
 var fps_display: Control = null  # Top-left FPS projection display
 var chrome_frame: Control = null  # Decorative viewport frame + vignette (dressing pass)
+var time_bar: Control = null  # Inert full-width history-scrubber placeholder (2026-08-25)
 var _hint_toast_stack: VBoxContainer = null  # Bottom-right stack of ephemeral hint toasts
 var _quest_biome_connected: bool = false
 var _overlay_open_frame: Dictionary = {}  # overlay_name -> Engine frame opened
@@ -669,9 +671,12 @@ func _ready() -> void:
 	overlay_layer.add_child(fps_display)
 	_verbose.info("ui", "✅", "FPS display created")
 
-	# Hint-toast stack (bottom-right corner; ephemeral pop-ups). The band is
-	# tall enough for MAX_LIVE_TOASTS multi-line toasts now that gold ones
-	# persist until dismissed (the old 140px band overflowed at four);
+	# Hint-toast stack (bottom-LEFT since 2026-08-25 — moved off the
+	# top-right ActFilament/ContractChip corner and now stacks UPWARD from
+	# just above the objective banner, which moved to bottom-left too: "the
+	# toasts are above it," the owner's own words for the declutter). The
+	# band is tall enough for MAX_LIVE_TOASTS multi-line toasts now that gold
+	# ones persist until dismissed (the old 140px band overflowed at four);
 	# ALIGNMENT_END keeps the resting look bottom-anchored and unchanged.
 	# The container stays MOUSE_FILTER_IGNORE — each toast PANEL is the click
 	# target, so empty band space never eats clicks meant for the field.
@@ -680,11 +685,19 @@ func _ready() -> void:
 	_hint_toast_stack.alignment = BoxContainer.ALIGNMENT_END
 	_hint_toast_stack.add_theme_constant_override("separation", 6)
 	_hint_toast_stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_hint_toast_stack.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	_hint_toast_stack.offset_left = -340
-	_hint_toast_stack.offset_top = -560
-	_hint_toast_stack.offset_right = -16
-	_hint_toast_stack.offset_bottom = -120
+	_hint_toast_stack.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	# Mirrors RuntimeMount's ActFilament placement exactly (same formula, two
+	# call sites — RuntimeMount doesn't exist yet when PlayerShell._ready
+	# runs, so this can't just read the banner's rect) so the stack's bottom
+	# edge lands just above the banner's top edge, not overlapping it.
+	var toast_bottom_reserved: float = 2.0 * layout_manager.get_action_row_height() + 16.0 \
+		if layout_manager and layout_manager.has_method("get_action_row_height") else 158.0
+	const ACT_FILAMENT_HEIGHT := 72.0  # ActFilament.BANNER_HEIGHT
+	var act_filament_top: float = -toast_bottom_reserved - ACT_FILAMENT_HEIGHT
+	_hint_toast_stack.offset_left = 20
+	_hint_toast_stack.offset_right = 20 + 324
+	_hint_toast_stack.offset_bottom = act_filament_top - 16.0
+	_hint_toast_stack.offset_top = _hint_toast_stack.offset_bottom - 440
 	# Above every overlay tier (OverlayStackManager tops out at Z_TIER_SYSTEM 18 + stack size)
 	_hint_toast_stack.z_index = 100
 	overlay_layer.add_child(_hint_toast_stack)
@@ -693,6 +706,13 @@ func _ready() -> void:
 	# itself with absolute z 55; IGNORE, so tree-order picking is moot.
 	chrome_frame = ChromeFrameClass.new()
 	add_child(chrome_frame)
+
+	# Inert full-width history-scrubber placeholder (2026-08-25) — sits
+	# between the resource strip and the first top chip band. Positioned in
+	# _apply_top_strip_layout, same as everything else that derives from the
+	# layout manager.
+	time_bar = TimeBarClass.new()
+	add_child(time_bar)
 
 	_apply_top_strip_layout()
 	if layout_manager and layout_manager.has_signal("layout_changed"):
@@ -736,6 +756,8 @@ func set_farm_attached(attached: bool) -> void:
 		fps_display.visible = attached
 	if chrome_frame:
 		chrome_frame.visible = attached
+	if time_bar:
+		time_bar.visible = attached
 
 
 func is_farm_attached() -> bool:
@@ -781,6 +803,16 @@ func _apply_top_strip_layout() -> void:
 		fps_display.offset_top = 4
 		fps_display.offset_right = -8
 		fps_display.offset_bottom = 28
+
+	if time_bar and layout_manager and layout_manager.has_method("get_resource_bar_height") \
+			and layout_manager.has_method("get_time_bar_height"):
+		var tb_top: float = layout_manager.get_resource_bar_height()
+		var tb_height: float = layout_manager.get_time_bar_height()
+		time_bar.set_anchors_preset(Control.PRESET_TOP_WIDE)
+		time_bar.offset_top = tb_top
+		time_bar.offset_bottom = tb_top + tb_height
+		time_bar.offset_left = 20
+		time_bar.offset_right = -20
 
 
 func _connect_overlay_signals() -> void:

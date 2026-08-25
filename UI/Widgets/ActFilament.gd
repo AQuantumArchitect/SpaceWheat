@@ -49,9 +49,16 @@ var _next_text: String = ""
 func setup(_quest_manager: Node, _farm: Node, overlay_manager: Node) -> void:
 	_overlay_manager = overlay_manager
 	custom_minimum_size = Vector2(BANNER_WIDTH, BANNER_HEIGHT)
-	# RuntimeMount anchors us top-right and sets offset_top/left/right; claim
-	# the vertical room the wrapped objective line needs.
-	offset_bottom = offset_top + BANNER_HEIGHT
+	# RuntimeMount anchors us to a screen corner and sets left/right plus
+	# whichever vertical offset is the FIXED edge for that corner (offset_top
+	# when top-anchored, offset_bottom when bottom-anchored — bottom-left
+	# since 2026-08-25, "close to the actions" declutter). Derive the other
+	# vertical offset from whichever one is fixed, so the banner claims
+	# BANNER_HEIGHT of room regardless of which corner it's pinned to.
+	if anchor_top >= 1.0:
+		offset_top = offset_bottom - BANNER_HEIGHT
+	else:
+		offset_bottom = offset_top + BANNER_HEIGHT
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND  # tap opens the Arc
 	if _act_label == null:

@@ -50,6 +50,7 @@ const TOP_STRIP_GAP_BASE = 4.0
 const TOP_STRIP_SIDE_INSET_BASE = 200.0
 const QUANTUM_INDICATOR_WIDTH_BASE = 200.0
 const QUANTUM_INDICATOR_HEIGHT_BASE = 40.0
+const TIME_BAR_HEIGHT_BASE = 14.0
 
 # Current viewport dimensions (updated on resize)
 var viewport_size: Vector2
@@ -457,6 +458,15 @@ func get_resource_bar_height() -> float:
 func get_top_strip_gap() -> float:
 	# Vertical gap between top resource strip and overlayed top controls.
 	return h(TOP_STRIP_GAP_BASE)
+
+
+func get_time_bar_height() -> float:
+	# Height of the TimeBar placeholder strip (2026-08-25) — a thin, inert
+	# full-width band reserved for a future history-scrubber, sitting between
+	# the resource strip and the first top chip band. Every top-row offset
+	# that starts from get_resource_bar_height() must also add this, or the
+	# time bar silently paints under band 0.
+	return h(TIME_BAR_HEIGHT_BASE)
 
 
 

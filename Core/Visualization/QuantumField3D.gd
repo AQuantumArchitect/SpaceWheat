@@ -91,6 +91,9 @@ const RAIL_HOVER_LIFT := Color(1.35, 1.35, 1.35)
 ## Below this the reported free band is a layout still settling, not a real strip —
 ## fall back to the play-area centre rather than jam the cloud into a sliver.
 const MIN_FIELD_BAND_PX := 120.0
+## Perceptual-balance nudge below the free band's pure geometric midpoint —
+## see _update_camera_framing.
+const CENTER_BIAS_DOWN_PX := 14.0
 
 var selected_plot_positions: Dictionary = {}
 var farm_ref = null
@@ -465,11 +468,13 @@ func _toast(msg: String) -> void:
 		shell.show_hint("[color=#8899aa]•[/color] %s" % msg, 2)
 
 
-## Centre the field on the PLAY AREA, not the window: ~187px of top chrome (resource bar
-## + 2 chip bands since the 2026-08-24 re-band) vs ~72px bottom at 720p still means the
-## window centre sits above the
-## usable strip's centre, sliding top orbs under the HUD. Camera h/v_offset pans the frame
-## so the pivot projects at UILayoutManager.get_play_area_center() — unproject_position
+## Centre the field on the PLAY AREA, not the window: top chrome (resource bar + TimeBar
+## placeholder + menu/clock band, 2026-08-25) still outweighs bottom chrome (QERF + the
+## hat/mode band, 2026-08-24 re-band) at typical resolutions, so the window centre sits
+## above the usable strip's centre, sliding top orbs under the HUD — CENTER_BIAS_DOWN_PX
+## nudges the pivot a touch further down than the pure midpoint for that reason. Camera
+## h/v_offset pans the frame so the pivot projects at
+## UILayoutManager.get_play_area_center() — unproject_position
 ## includes the offsets, so picking stays exact. The standalone cognifold instrument has
 ## no shell/layout manager and keeps the plain window-centred frame.
 func _update_camera_framing() -> void:
@@ -486,7 +491,12 @@ func _update_camera_framing() -> void:
 	if abm != null and abm.has_method("get_free_band"):
 		var band: Vector2 = abm.get_free_band()
 		if band.y - band.x > MIN_FIELD_BAND_PX:
-			pc.y = (band.x + band.y) * 0.5
+			# Deliberate nudge below the pure geometric midpoint (2026-08-25,
+			# owner ask): a mathematically-centered pivot still READS a touch
+			# high once the top chrome outweighs the bottom (resource strip +
+			# TimeBar + 2 chip bands vs QERF + hat/mode) — this is perceptual
+			# balance, not a bug fix. Zero it out if it overshoots on review.
+			pc.y = (band.x + band.y) * 0.5 + CENTER_BIAS_DOWN_PX
 	var vc: Vector2 = size * 0.5
 	var dist := _cam.position.length()   # camera → pivot origin
 	var world_per_px := 2.0 * dist * tan(deg_to_rad(_cam.fov * 0.5)) / size.y

@@ -161,8 +161,11 @@ func _position_row_at_index(row: Control, idx: int) -> void:
 	var row_h = layout_manager.get_action_row_height()
 	row.offset_top = -float(idx + 1) * row_h
 	row.offset_bottom = -float(idx) * row_h
-	row.offset_left = 10
-	row.offset_right = -10
+	# 20px, not 10 (border-weight pass 2026-08-25): the brass molding's inner
+	# ring reaches MOLD_INNER_INSET (14.5px) — a 10px margin sat content
+	# INSIDE the frame's ornament band, not just near it.
+	row.offset_left = 20
+	row.offset_right = -20
 	row.custom_minimum_size = Vector2(0, row_h)
 
 
@@ -175,11 +178,14 @@ func _position_top_row(row: Control, idx: int) -> void:
 	row.set("layout_mode", 1)  # Control.LayoutMode.ANCHORS (enum not exposed to GDScript)
 	row.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	var row_h = layout_manager.get_action_row_height()
-	var top_offset = layout_manager.get_resource_bar_height()
+	# + get_time_bar_height(): the new full-width TimeBar placeholder sits
+	# between the resource strip and this row (2026-08-25) — every top-row
+	# offset must clear it or the time bar silently paints under band 0.
+	var top_offset = layout_manager.get_resource_bar_height() + layout_manager.get_time_bar_height()
 	row.offset_top = top_offset + float(idx) * row_h
 	row.offset_bottom = top_offset + float(idx + 1) * row_h
-	row.offset_left = 10
-	row.offset_right = -10
+	row.offset_left = 20
+	row.offset_right = -20
 	row.custom_minimum_size = Vector2(0, row_h)
 
 

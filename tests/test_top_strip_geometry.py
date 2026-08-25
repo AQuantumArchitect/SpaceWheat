@@ -48,4 +48,7 @@ def test_contract_corner_derives_from_the_layout_manager() -> None:
     assert "offset_top = 140.0" not in rm
     assert "offset_top = 202.0" not in rm
     assert "get_resource_bar_height" in rm and "get_action_row_height" in rm
-    assert "corner_top + ACT_BANNER_BLOCK" in rm
+    # ActFilament moved bottom-left 2026-08-25 (corner declutter) -- ContractChip
+    # no longer needs an extra block to clear it, so it sits at corner_top directly.
+    assert "contract_chip.offset_top = corner_top" in rm
+    assert "ACT_BANNER_BLOCK" not in rm
