@@ -133,10 +133,13 @@ func _draw() -> void:
 	# _draw paints beneath child chips and adds no node, so the hard-won row
 	# IGNORE above and the STOP chips' picking are untouched, and the row's
 	# rect never changes → get_free_band() reads identical values (#520).
-	# The dock's casing — the same shared recipe every other HUD region wears
-	# (this row used to spell the double-stroke inside-out, with its own radius
-	# arithmetic, which is exactly the drift draw_casing exists to end).
-	UIStyleFactory.draw_casing(self, Rect2(Vector2.ZERO, size))
+	# A DOCKED PANEL at the bottom of the chassis: left, right and bottom all
+	# meet the bezel, so the only drawn edge is the top one facing the field.
+	# Before this the dock's rounded bottom corners crossed the whole molding
+	# band and buried the corner rivets under themselves — overlap by accident,
+	# which is what the docking pass replaced with overlap by rule.
+	UIStyleFactory.draw_casing(self, Rect2(Vector2.ZERO, size),
+		UIStyleFactory.CasingTone.STEEL, 2, true, UIStyleFactory.CasingEdge.TOP)
 
 
 func _create_action_button(action_key: String) -> Dictionary:

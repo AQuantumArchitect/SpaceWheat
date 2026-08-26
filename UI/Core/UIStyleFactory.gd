@@ -225,10 +225,28 @@ static func draw_trim(ci: CanvasItem, rect: Rect2,
 const CASING_RING_STEP := 3.0
 const CASING_RADIUS := TRIM_RADIUS
 
+## THE CHASSIS. The viewport molding (ChromeFrame) is the bezel every docked
+## panel seats into, so both sides read its geometry from HERE rather than each
+## keeping its own copy — the whole docking system is the claim that a panel
+## edge and the bezel's inner ring land on the SAME line, and two constants
+## that have to agree will not stay agreeing.
+const BEZEL_OUTER_INSET := 4.0
+const BEZEL_RING_COUNT := 4
+const BEZEL_INNER_INSET := BEZEL_OUTER_INSET + CASING_RING_STEP * float(BEZEL_RING_COUNT - 1)
+
 ## Tones name a casing's job, not its color, so the palette can move under them.
 ##   STEEL — the default HUD region (resource strip, chip trays, the timeline)
 ##   BRASS — an edge the frame itself owns (ChromeFrame's molding rings)
 enum CasingTone { STEEL, BRASS }
+
+## Which edges of a casing are FREE — drawn, rounded, facing open space. The
+## rest are DOCKED: they meet the bezel, so they carry no line of their own and
+## their corners go square. Owner ruling 2026-08-25, after spotting that the
+## trim overlapped the frame top and bottom but not the sides: "embrace the
+## overlap as a type of locked system." A seated panel does not wear its own
+## frame on the edges the chassis already holds — the bezel's inner ring IS
+## that edge — and it reads square where it seats and round where it doesn't.
+enum CasingEdge { NONE = 0, TOP = 1, RIGHT = 2, BOTTOM = 4, LEFT = 8, ALL = 15 }
 
 
 static func casing_ring_color(tone: int, ring: int, ring_count: int) -> Color:
@@ -242,10 +260,41 @@ static func casing_ring_color(tone: int, ring: int, ring_count: int) -> Color:
 	return COLOR_TRIM_LINE if ring == ring_count - 1 else COLOR_BRASS_SHADOW
 
 
+static func _casing_ring_style(line: Color, radius: int, filled: bool,
+		free_edges: int) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.draw_center = filled
+	style.bg_color = COLOR_TRIM_INK
+	style.border_color = line
+	style.anti_aliasing = true
+	# Width is ALWAYS 1 on a free edge and 0 on a docked one — 2px and 3px stay
+	# reserved state cues (HintToast importance, would-fire).
+	style.set_border_width(SIDE_TOP, 1 if (free_edges & CasingEdge.TOP) != 0 else 0)
+	style.set_border_width(SIDE_RIGHT, 1 if (free_edges & CasingEdge.RIGHT) != 0 else 0)
+	style.set_border_width(SIDE_BOTTOM, 1 if (free_edges & CasingEdge.BOTTOM) != 0 else 0)
+	style.set_border_width(SIDE_LEFT, 1 if (free_edges & CasingEdge.LEFT) != 0 else 0)
+	# A corner is rounded only where two FREE edges meet. One docked edge is
+	# enough to square it: that corner is a joint, not a silhouette.
+	style.set_corner_radius(CORNER_TOP_LEFT,
+		radius if _edges_free(free_edges, CasingEdge.TOP | CasingEdge.LEFT) else 0)
+	style.set_corner_radius(CORNER_TOP_RIGHT,
+		radius if _edges_free(free_edges, CasingEdge.TOP | CasingEdge.RIGHT) else 0)
+	style.set_corner_radius(CORNER_BOTTOM_RIGHT,
+		radius if _edges_free(free_edges, CasingEdge.BOTTOM | CasingEdge.RIGHT) else 0)
+	style.set_corner_radius(CORNER_BOTTOM_LEFT,
+		radius if _edges_free(free_edges, CasingEdge.BOTTOM | CasingEdge.LEFT) else 0)
+	return style
+
+
+static func _edges_free(free_edges: int, pair: int) -> bool:
+	return (free_edges & pair) == pair
+
+
 ## Draw a casing. `filled` backs the innermost ring with COLOR_TRIM_INK; pass
 ## false for a region that must not dim what it frames (the viewport molding).
+## `free_edges` is the docking mask — see CasingEdge.
 static func draw_casing(ci: CanvasItem, rect: Rect2, tone: int = CasingTone.STEEL,
-		rings: int = 2, filled: bool = true) -> void:
+		rings: int = 2, filled: bool = true, free_edges: int = CasingEdge.ALL) -> void:
 	if rect.size.x <= 0.0 or rect.size.y <= 0.0:
 		return
 	var n := maxi(rings, 1)
@@ -258,8 +307,9 @@ static func draw_casing(ci: CanvasItem, rect: Rect2, tone: int = CasingTone.STEE
 		# Radius shrinks with the inset so corners stay concentric — the bug
 		# ChromeFrame carried in its own copy of this loop.
 		var radius := maxi(int(round(CASING_RADIUS - step)), 2)
-		draw_trim(ci, r, COLOR_TRIM_INK, casing_ring_color(tone, i, n), radius,
-			filled and innermost)
+		ci.draw_style_box(
+			_casing_ring_style(casing_ring_color(tone, i, n), radius,
+				filled and innermost, free_edges), r)
 
 
 static func create_slot_style(

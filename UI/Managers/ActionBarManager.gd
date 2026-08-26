@@ -257,6 +257,16 @@ func _position_menu_row() -> void:
 func _position_action_row() -> void:
 	# QERF action chips at the very bottom — not part of the cylinder.
 	_position_row_at_index(action_preview_row, 0)
+	if action_preview_row:
+		# DOCKED (2026-08-25): the row's rect ends on the bezel's inner ring on
+		# three sides instead of running off the viewport edge, so its casing
+		# seats into the chassis rather than crossing the molding. offset_top is
+		# left alone on purpose — get_free_band() reads it, and the field must
+		# not resize just because the dock's trim changed.
+		var bezel: float = UIStyleFactory.BEZEL_INNER_INSET
+		action_preview_row.offset_left = bezel
+		action_preview_row.offset_right = -bezel
+		action_preview_row.offset_bottom = -bezel
 
 
 ## The vertical strip the HUD leaves free, in global screen coords: (top_y, bottom_y).

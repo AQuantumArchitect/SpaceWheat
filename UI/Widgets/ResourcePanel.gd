@@ -24,16 +24,31 @@ var update_counter: int = 0
 
 
 
+## Air between the seated panel's free (bottom) edge and the counter glyphs.
+const GLYPH_FREE_MARGIN := 8.0
+
+
+## The strip's band height — the layout manager is the authority; the fallback
+## only matters in isolated widget tests that never hand one over.
+func _band_height() -> float:
+	if layout_manager and layout_manager.has_method("get_resource_bar_height"):
+		return float(layout_manager.get_resource_bar_height())
+	return size.y if size.y > 0.0 else 40.0
+
+
 func _ready():
 	_create_ui()
-	# Absolute z, one above ChromeFrame's 55 (border-weight pass 2026-08-25):
-	# decorative chrome must never out-rank real HUD content it happens to
-	# overlap. Without this, ResourcePanel's effective z was whatever its
-	# ancestor chain gave it (MainContainer's relative z_index=5) — well
-	# under the frame, so the molding/rivet painted OVER resource emojis in
-	# the corner (owner screenshot, 2026-08-25).
-	z_as_relative = false
-	z_index = 56
+	# NO z override any more (docking pass 2026-08-25). This used to punch to
+	# z 56, one above ChromeFrame, because the molding was painting over the
+	# resource emojis. Under the docking system the bezel is ALWAYS on top —
+	# it is the chassis this panel seats into — and the collision is prevented
+	# geometrically instead: the counters are laid out below BEZEL_INNER_INSET,
+	# so they never enter the molding's band and never need to out-rank it.
+	# A docked band spans rail to rail. Without this the HBox sized to its own
+	# content, so the seated panel's one drawn edge stopped in mid-air wherever
+	# the wallet happened to end — a panel that docks on the left and simply
+	# stops on the right is the asymmetry this pass exists to remove.
+	size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	# Connect to resized signal to redraw background when size changes
 	resized.connect(queue_redraw)
 
@@ -44,17 +59,19 @@ func _draw():
 	# recipe instead of spelling it — one place to swap when the real casing
 	# art lands.
 	#
-	# SIDE_INSET matches the 20px every other HUD region is positioned at, so
-	# the strip's box and the TimeBar's box directly below it share both edges
-	# and the top of the screen reads as two stacked bands rather than two
-	# unrelated shapes. TOP_INSET clears the brass molding's inner ring (14.5px
-	# from the viewport edge is the frame's, not ours) without the two lines
-	# landing on the same row.
-	const SIDE_INSET := 20.0
-	const TOP_INSET := 5.0
-	const BOTTOM_INSET := 3.0
-	UIStyleFactory.draw_casing(self, Rect2(Vector2(SIDE_INSET, TOP_INSET),
-		size - Vector2(SIDE_INSET * 2.0, TOP_INSET + BOTTOM_INSET)))
+	# A DOCKED PANEL. Three of its edges face the screen edge, so they seat into
+	# the bezel at BEZEL_INNER_INSET and carry no line of their own — the
+	# molding's inner ring IS the strip's top, left and right. Only the bottom
+	# edge faces open space, so it is the only one drawn, and every corner goes
+	# square because none of them is a free-to-free meeting. That is the owner's
+	# "locked system": before this the trim overlapped the frame top and bottom
+	# but held a 7px channel on the sides, which told three different stories
+	# about one relationship.
+	const FREE_EDGE_INSET := 3.0
+	var bezel := UIStyleFactory.BEZEL_INNER_INSET
+	UIStyleFactory.draw_casing(self,
+		Rect2(Vector2(bezel, bezel), size - Vector2(bezel * 2.0, bezel + FREE_EDGE_INSET)),
+		UIStyleFactory.CasingTone.STEEL, 2, true, UIStyleFactory.CasingEdge.BOTTOM)
 
 
 func set_layout_manager(layout_mgr: Node):
@@ -114,9 +131,17 @@ func _ensure_display_exists(emoji: String) -> void:
 	var icon_font_size = layout_manager.get_scaled_font_size(17) if layout_manager else 17
 	var label_font_size = layout_manager.get_scaled_font_size(14) if layout_manager else 14
 
-	# Create container for this resource
+	# The counters live in the band BELOW the bezel the strip docks into: the
+	# panel spans the full band from y=0, but the bezel owns its top
+	# BEZEL_INNER_INSET, so a container that centred in the whole band would put
+	# glyphs under the molding. Bottom-aligning a container of exactly the free
+	# height keeps every counter inside the seated panel, which is what lets the
+	# strip drop its z-override and sit under the chassis like a real panel.
+	var free_h := maxf(16.0, _band_height() - UIStyleFactory.BEZEL_INNER_INSET)
 	var container = HBoxContainer.new()
 	container.add_theme_constant_override("separation", 2)
+	container.custom_minimum_size = Vector2(0.0, free_h)
+	container.size_flags_vertical = Control.SIZE_SHRINK_END
 
 	var value_label = Label.new()
 	value_label.text = "0"
@@ -127,17 +152,12 @@ func _ensure_display_exists(emoji: String) -> void:
 	var icon = EmojiDisplay.new()
 	icon.emoji = emoji
 	icon.font_size = icon_font_size
-	# Sized from the BAND, not from the font (casing pass 2026-08-25). A font
-	# multiple is blind to how tall the strip actually is, so glyphs whose SVG
-	# art runs to the edge of its canvas (🌾, 🪵) drew straight through the
-	# strip's own casing while padded ones (👥, 🍞) looked fine — the counters
-	# have to sit INSIDE the box, all of them. GLYPH_BAND_MARGIN is the casing's
-	# insets plus its ring thickness plus a hair of air.
-	const GLYPH_BAND_MARGIN := 12.0
-	var band_h: float = layout_manager.get_resource_bar_height() \
-		if layout_manager and layout_manager.has_method("get_resource_bar_height") \
-		else float(icon_font_size) * 1.5 + GLYPH_BAND_MARGIN
-	var glyph_px := maxf(14.0, band_h - GLYPH_BAND_MARGIN)
+	# Sized from the free height the seated panel actually offers, not from the
+	# font (a font multiple is blind to the band, so glyphs whose SVG art runs to
+	# the edge of its canvas — 🌾, 🪵 — drew straight through the casing while
+	# padded ones — 👥, 🍞 — looked fine) and not from the whole band either,
+	# since the bezel owns its top.
+	var glyph_px := maxf(14.0, free_h - GLYPH_FREE_MARGIN)
 	icon.custom_minimum_size = Vector2(glyph_px, glyph_px)
 	icon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER

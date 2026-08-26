@@ -18,15 +18,20 @@ from pathlib import Path
 from conftest import ROOT, read_source
 
 
-def test_resource_panel_paints_above_the_frame() -> None:
-    # Corner-declutter pass (2026-08-25, owner screenshot): ChromeFrame draws
-    # at absolute z 55. ResourcePanel had no z override, so its effective z
-    # was whatever its ancestor chain gave it (well under 55) -- the frame's
-    # molding/rivet painted OVER resource emojis in the corner. Decorative
-    # chrome must never out-rank real HUD content it happens to overlap.
+def test_the_bezel_is_never_out_ranked_by_a_panel_it_holds() -> None:
+    # INVERTED by the docking pass (2026-08-25). ResourcePanel used to punch to
+    # z 56, one above ChromeFrame, because the molding painted over resource
+    # emojis in the corner. Under the docking system the frame is the CHASSIS
+    # and is always on top; the collision is prevented GEOMETRICALLY instead --
+    # the counters lay out below BEZEL_INNER_INSET, so they never enter the
+    # molding's band. A panel that re-grows a z override is a panel that has
+    # stopped seating into the frame and started floating over it.
     panel = read_source("UI/Widgets/ResourcePanel.gd")
-    assert "z_as_relative = false" in panel
-    assert "z_index = 56" in panel
+    assert "z_index = 56" not in panel
+    assert "UIStyleFactory.BEZEL_INNER_INSET" in panel, (
+        "the strip has to lay its counters out from the bezel it docks into, "
+        "or they drift back under the molding"
+    )
 
 
 def test_chrome_frame_cannot_eat_clicks() -> None:
@@ -91,7 +96,12 @@ def test_frame_is_a_molding_not_a_flat_line() -> None:
     # ring count now, so the layering law is pinned at the factory.
     frame = read_source("UI/Widgets/ChromeFrame.gd")
     assert "UIStyleFactory.CasingTone.BRASS" in frame
-    ring_count = int(frame.split("const MOLD_RING_COUNT :=", 1)[1].split("\n", 1)[0].strip())
+    # The ring count lives on the factory now, with the inset the panels dock
+    # to -- a bezel whose geometry drifted from that line would un-seat every
+    # docked panel at once, so the two constants share one home.
+    assert "UIStyleFactory.BEZEL_RING_COUNT" in frame
+    factory = read_source("UI/Core/UIStyleFactory.gd")
+    ring_count = int(factory.split("const BEZEL_RING_COUNT :=", 1)[1].split("\n", 1)[0].strip())
     assert ring_count >= 3, "a 1-2 ring molding is a flat line again"
 
     factory = read_source("UI/Core/UIStyleFactory.gd")

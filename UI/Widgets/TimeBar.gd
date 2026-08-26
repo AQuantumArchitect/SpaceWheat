@@ -46,12 +46,15 @@ func _ready() -> void:
 func _draw() -> void:
 	if size.x <= 0.0 or size.y <= 0.0:
 		return
-	# The band's casing — the same bounding box every other HUD region wears
-	# (casing pass 2026-08-25: the timeline was the one band with no box, so it
-	# read as a loose line drawn across the screen rather than as a region).
+	# A DOCKED PANEL, seated between the chassis's two side rails: left and
+	# right meet the bezel and carry no line, top and bottom face open space and
+	# do. Square corners throughout, because no corner here is a free-to-free
+	# meeting — that squareness IS the "locked" read the owner asked for.
 	# It boxes the transport chips too: ClockSpeedRow declines its own tray for
 	# exactly this reason.
-	UIStyleFactory.draw_casing(self, Rect2(Vector2.ZERO, size))
+	UIStyleFactory.draw_casing(self, Rect2(Vector2.ZERO, size),
+		UIStyleFactory.CasingTone.STEEL, 2, true,
+		UIStyleFactory.CasingEdge.TOP | UIStyleFactory.CasingEdge.BOTTOM)
 	var mid_y := roundf(size.y * 0.5)
 	var track_left := TRACK_INSET
 	var track_right := size.x - TRACK_INSET

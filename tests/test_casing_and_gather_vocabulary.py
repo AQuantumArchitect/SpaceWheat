@@ -91,6 +91,81 @@ def test_the_counters_fit_inside_the_strips_own_box() -> None:
     assert "icon_font_size * 1.5" not in panel and "icon_font_size * 1.8" not in panel
 
 
+# ------------------------------------------------------------------ docking
+
+# Panels SEAT into the chassis: their screen-facing edges meet the bezel and
+# carry no line of their own. Cards FLOAT on the field: all four edges drawn,
+# all four corners rounded, inset clear of the frame. Each entry is
+# (file, the CasingEdge names that must be FREE).
+DOCKED_PANELS = (
+    ("UI/Widgets/ResourcePanel.gd", ("BOTTOM",)),
+    ("UI/Widgets/TimeBar.gd", ("TOP", "BOTTOM")),
+    ("UI/Widgets/ActionPreviewRow.gd", ("TOP",)),
+)
+FLOATING_CARDS = (
+    "UI/Widgets/SelectionButtonRow.gd",
+    "UI/HUD/FpsDisplay.gd",
+)
+
+
+def test_the_chassis_geometry_has_one_home() -> None:
+    # The docking system's whole claim is that a panel edge and the bezel's
+    # inner ring land on the SAME line. Two constants that have to agree will
+    # not stay agreeing, so ChromeFrame reads its geometry off the factory.
+    factory = read_source("UI/Core/UIStyleFactory.gd")
+    for const in ("BEZEL_OUTER_INSET", "BEZEL_RING_COUNT", "BEZEL_INNER_INSET"):
+        assert "const %s" % const in factory, const
+    frame = read_source("UI/Widgets/ChromeFrame.gd")
+    assert "UIStyleFactory.BEZEL_OUTER_INSET" in frame
+    assert "UIStyleFactory.BEZEL_RING_COUNT" in frame
+
+
+def test_panels_seat_into_the_bezel_on_every_screen_facing_edge() -> None:
+    for rel, free in DOCKED_PANELS:
+        src = read_source(rel)
+        call = src.split("UIStyleFactory.draw_casing(", 1)[1].split("\n\n", 1)[0]
+        for edge in ("TOP", "RIGHT", "BOTTOM", "LEFT"):
+            named = "CasingEdge.%s" % edge in call
+            assert named == (edge in free), (
+                "%s: edge %s should be %s" % (rel, edge, "FREE" if edge in free else "DOCKED")
+            )
+        assert "CasingEdge.ALL" not in call, rel
+
+
+def test_cards_still_float_free() -> None:
+    # The contrast is the point: if everything docked, nothing would read as
+    # sitting ON the field, and the chassis would stop meaning anything.
+    for rel in FLOATING_CARDS:
+        call = read_source(rel).split("UIStyleFactory.draw_casing(", 1)[1].split("\n\n", 1)[0]
+        assert "CasingEdge." not in call, (
+            "%s is a floating card — it takes the default all-edges casing" % rel
+        )
+
+
+def test_docked_panels_actually_reach_the_bezel() -> None:
+    # A docked EDGE with an undocked RECT is the worst of both: no line drawn
+    # and a visible gap where the line used to be.
+    assert "UIStyleFactory.BEZEL_INNER_INSET" in read_source("UI/Widgets/ResourcePanel.gd")
+    shell = read_source("UI/PlayerShell.gd")
+    tb = shell.split("if time_bar and layout_manager", 1)[1].split("\n\n", 1)[0]
+    assert "BEZEL_INNER_INSET" in tb and "offset_left = 20" not in tb
+    abm = read_source("UI/Managers/ActionBarManager.gd")
+    dock = abm.split("func _position_action_row", 1)[1].split("\nfunc ", 1)[0]
+    assert "BEZEL_INNER_INSET" in dock
+    assert "offset_bottom = -bezel" in dock, (
+        "the dock used to run off the viewport edge, crossing the whole molding "
+        "band and burying the corner rivets under its own rounded corners"
+    )
+
+
+def test_a_docked_band_spans_rail_to_rail() -> None:
+    # ResourcePanel is an HBoxContainer; left to itself it sizes to its own
+    # content, so the seated panel's one drawn edge stopped in mid-air wherever
+    # the wallet happened to end.
+    assert "size_flags_horizontal = Control.SIZE_EXPAND_FILL" in read_source(
+        "UI/Widgets/ResourcePanel.gd")
+
+
 # --------------------------------------------------------------- vocabulary
 
 def test_the_q_chip_says_gather() -> None:

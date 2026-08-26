@@ -25,12 +25,14 @@ extends Control
 
 ## Molding rings, outer → inner: the stepping dark→bright→mid→dark is what
 ## reads as a bevel rather than a flat line.
-const MOLD_OUTER_INSET := 4.0
+const MOLD_OUTER_INSET := UIStyleFactory.BEZEL_OUTER_INSET
 ## Four layered 1px rings — the bevel that reads "brass picture frame" without
 ## widening any single stroke past the reserved 1px (2px/3px are state cues).
-## The tone sequence lives in UIStyleFactory.casing_ring_color now, with every
-## other casing's, so the whole HUD re-skins from one place.
-const MOLD_RING_COUNT := 4
+## Both the tone sequence and the ring geometry live in UIStyleFactory now, with
+## every other casing's: this frame is the CHASSIS that docked panels seat into
+## (BEZEL_INNER_INSET), and a bezel whose inner ring drifted from the line the
+## panels dock to would silently un-seat every one of them.
+const MOLD_RING_COUNT := UIStyleFactory.BEZEL_RING_COUNT
 
 ## Corner rivets: a small circle plus radiating ticks (the "clockwork" read),
 ## centered inside the molding band.

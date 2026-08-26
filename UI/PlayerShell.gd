@@ -829,8 +829,11 @@ func _apply_top_strip_layout() -> void:
 		time_bar.set_anchors_preset(Control.PRESET_TOP_WIDE)
 		time_bar.offset_top = tb_top
 		time_bar.offset_bottom = tb_top + tb_height
-		time_bar.offset_left = 20
-		time_bar.offset_right = -20
+		# Reaches the bezel's inner ring on both sides — a docked panel seats
+		# INTO the chassis; a 20px inset would leave the channel that made the
+		# old trim read as three different relationships at once.
+		time_bar.offset_left = UIStyleFactory.BEZEL_INNER_INSET
+		time_bar.offset_right = -UIStyleFactory.BEZEL_INNER_INSET
 
 
 func _connect_overlay_signals() -> void:
