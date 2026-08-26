@@ -8,9 +8,10 @@ scenario_id = "demos_normal"
 save_timestamp = 0
 game_time = 0.0
 all_emoji_credits = {
-"👥": 55,
-"🍞": 34,
-"🌾": 21,
+"👥": 89,
+"🍞": 55,
+"🌾": 34,
+"🧺": 21,
 "❄️": 13,
 "🪵": 8,
 "💧": 5,

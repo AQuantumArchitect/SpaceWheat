@@ -283,7 +283,7 @@ const ARCHETYPE_FRAMES: Dictionary = {
 		"emoji": "O",
 		"icon": "res://Assets/UI/Science/Measure.svg",
 		"time_scale": "discrete",
-		"description": "Player vantage — F explores/plays (expeditions cost 🍞), R strikes (👥, collapse), Q extracts free, E pauses",
+		"description": "Player vantage — F explores/plays (expeditions cost 🍞), R strikes (👥, collapse), Q gathers the yield (🧺), E pauses",
 		"modes": ["probe"],
 		"mode_labels": ["?"],
 		"mode_emojis": ["?"],
@@ -292,7 +292,7 @@ const ARCHETYPE_FRAMES: Dictionary = {
 			"probe": {
 				"Q": {"action": "pop", "label": "Extract", "emoji": "^",
 					  "icon": "res://Assets/UI/Science/Pop-Harvest.svg",
-					  "hint": "Cash out — pull the realized reward off a collapsed register into inventory, free. Reward = surprisal −kT·log p (rare collapse pays more; certain ones pay the floor).",
+					  "hint": "Cash out — pull the realized reward off a collapsed register into inventory; the gathering costs 🧺, flat. Reward = surprisal −kT·log p (rare collapse pays more; certain ones pay the floor).",
 					  "shift_action": "pop", "shift_label": "Mass Extract"},
 				"E": {"action": "", "label": "Pause", "emoji": "⏸",
 					  "icon": "",

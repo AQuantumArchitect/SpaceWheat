@@ -1108,11 +1108,10 @@ func _make_balance_action_row(idx: int, slot_idx: int) -> Control:
 	var costs: Dictionary = _balance_snapshot.get("action_costs", {})
 	var cost_lbl := Label.new()
 	cost_lbl.text = _format_cost(costs.get(action_name, {}))
-	# Measure's authored cost is a BASE scaled by pair affinity at the plot
-	# (ProbeActions → PhysicsCostScaling) — showing the bare base read as a
-	# lie to a tester who paid 3👥 against "measure: 👥1". Say the rule.
-	if action_name == "measure" and cost_lbl.text != "":
-		cost_lbl.text += "  (base — scales with pair affinity)"
+	# (No footnote any more: every action cost in this table is the flat price
+	# the wallet actually loses. The footnote existed because measure secretly
+	# scaled with pair affinity — a tester paid 3👥 against "measure: 👥1" —
+	# and 2026-08-25 deleted the multiplier instead of annotating it.)
 	cost_lbl.add_theme_font_size_override("font_size", 12)
 	cost_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_VALUE)
 	row.add_child(cost_lbl)

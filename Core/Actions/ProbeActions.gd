@@ -219,17 +219,15 @@ static func action_measure(terminal, biome, economy = null, farm = null) -> Dict
 		}
 
 	# 2b. Preflight cost (after validation gates).
-	# Scale by pair affinity — unfamiliar factions cost more to collapse.
-	# (Owner ruling 2026-07-11: costs stay physics-scaled — the game is the
-	# race to a self-sustaining economy; a flat market is "dumb and boring".)
-	var pair_affinity = FactionAffinity.get_pair_affinity(
-		terminal.north_emoji, terminal.south_emoji, farm)
+	# FLAT — the JSONL sticker price, no affinity multiplier (owner ruling
+	# 2026-08-25: "strike should be reduced to only costing 1👥"). Gather is
+	# flat now too: the DOOR's price is legible, and the chaos the economy
+	# needs lives where it always belonged — in the deal, i.e. the surprisal
+	# reward (−kT·log p), not in a hidden multiplier on the entry fee.
 	# Override-aware: route through ActionCostRuntime so balance-board action_cost
 	# overrides actually reach measure (EconomyConstants is the fallback inside it).
-	var base_measure_cost = ActionCostRuntime.get_action_cost(farm, "measure", {})
-	var scaled_measure_cost = PhysicsCostScaling.scale_measure_cost(
-		base_measure_cost, pair_affinity)
-	var measure_cost_gate = _preflight_cost(economy, scaled_measure_cost)
+	var measure_cost = ActionCostRuntime.get_action_cost(farm, "measure", {})
+	var measure_cost_gate = _preflight_cost(economy, measure_cost)
 	if not measure_cost_gate.get("ok", true):
 		var cost = measure_cost_gate.get("cost", {})
 		var missing = cost.keys()[0] if cost.size() > 0 else "resources"
@@ -291,7 +289,7 @@ static func action_measure(terminal, biome, economy = null, farm = null) -> Dict
 	_finalize_measurement_terminal(terminal, outcome, recorded_probability, snapshot)
 
 	# 6. Commit cost after successful measurement
-	if not _commit_cost(economy, scaled_measure_cost, "measure"):
+	if not _commit_cost(economy, measure_cost, "measure"):
 		return {
 			"success": false,
 			"error": "cost_commit_failed",
@@ -968,16 +966,19 @@ static func _prepare_pop_result(terminal, terminal_pool, economy = null, farm = 
 	var resource_amount = maxi(int(reward_ctx.get("resource_amount", credits)), 1)
 
 	if economy:
-		var base_cost = ActionCostRuntime.get_action_cost(farm, "pop", {})
-		var scaled_cost = PhysicsCostScaling.scale_pop_cost(base_cost, p_emoji, bloch_r)
-		var pop_cost_gate = _preflight_cost(economy, scaled_cost)
+		# Flat, like strike: the badge on the Q chip and the number the wallet
+		# loses have to be the same number. A concentrated yield already pays
+		# differently — through the surprisal REWARD below — so scaling the
+		# basket fee on top of that taxed the same physics twice, invisibly.
+		var pop_cost = ActionCostRuntime.get_action_cost(farm, "pop", {})
+		var pop_cost_gate = _preflight_cost(economy, pop_cost)
 		if not pop_cost_gate.get("ok", true):
 			return {
 				"success": false,
 				"error": "insufficient_resources",
-				"message": "Need %s to pop." % _format_cost(scaled_cost)
+				"message": "Need %s to pop." % _format_cost(pop_cost)
 			}
-		if not _commit_cost(economy, scaled_cost, "pop"):
+		if not _commit_cost(economy, pop_cost, "pop"):
 			return {
 				"success": false,
 				"error": "cost_commit_failed",

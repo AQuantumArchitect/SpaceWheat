@@ -16,8 +16,15 @@ ICON_SUBMENU = PROJECT_ROOT / "UI" / "Core" / "Submenus" / "IconInjectionSubmenu
 def test_probe_actions_uses_cost_helpers() -> None:
     src = PROBE_ACTIONS.read_text(encoding="utf-8")
     assert '_preflight_action(economy, "explore")' in src
-    assert "_preflight_cost(economy, scaled_measure_cost)" in src
-    assert "_preflight_cost(economy, scaled_cost)" in src
+    # Strike is FLAT since 2026-08-25 (owner: "only costing 1👥") — the cost
+    # goes straight from ActionCostRuntime to the preflight with no scaler
+    # in between, which is what makes the chip badge and the wallet agree.
+    assert "_preflight_cost(economy, measure_cost)" in src
+    assert "scale_measure_cost" not in src
+    # Gather (pop) went flat in the same ruling — scale_pop_cost is gone too,
+    # so its preflight reads the plain cost as well.
+    assert "_preflight_cost(economy, pop_cost)" in src
+    assert "PhysicsCostScaling" not in src
     assert "_preflight_cost(economy, reap_cost)" in src
     assert '_commit_cost(economy, explore_cost, "explore")' in src
     assert '_commit_cost(economy, reap_cost, "reap")' in src

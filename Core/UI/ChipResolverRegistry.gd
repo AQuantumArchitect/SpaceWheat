@@ -60,12 +60,8 @@ static func annotate_cost(action_info: Dictionary, ctx) -> Dictionary:
 	if action_name == "":
 		return out
 	var cost: Dictionary = ActionCostRuntime.get_action_cost(ctx.farm, action_name, {})
-	if action_name == "measure" and not cost.is_empty():
-		var axis: Dictionary = ctx.focused_axis()
-		if not axis.is_empty():
-			var pair_affinity = FactionAffinity.get_pair_affinity(
-				str(axis.get("north", "")), str(axis.get("south", "")), ctx.farm)
-			cost = PhysicsCostScaling.scale_measure_cost(cost, pair_affinity)
+	# (No measure branch: strike is flat 1👥 since 2026-08-25 — the badge and
+	# the wallet read the same number with nothing in between to scale it.)
 	if cost.is_empty():
 		return out
 	# Whole-unit resources: the JSONL board stores values as floats (1.0);

@@ -10,16 +10,16 @@ extends "res://UI/Core/OverlayBase.gd"
 ## eleven rows of keymap; the fiction was one line among them. Now the fiction
 ## leads, and only the three keys the first minute needs appear — the full
 ## keymap lives where it always did, in the Guide (X → O), and the objective
-## portal (top-right) carries the player from there.
+## portal (bottom-right) carries the player from there.
 const _ROWS := [
 	"You are The Demos — a people learning the quantum language of your own ground.",
 	"",
 	"Your whole vocabulary is one word: 🌾/👥 — wheat and people, the axis your island turns on.",
 	"The factions past the hedge keep older words, and they teach the ones who keep their contracts.",
 	"",
-	"THE FIRST MINUTE   ·   tap a plot to explore it [F] (costs 🍞)  ·  tap its bubble to strike — the answer locks in [R] (costs 👥)  ·  tap the frozen bubble to extract the yield [Q], free.",
+	"THE FIRST MINUTE   ·   tap a plot to explore it [F] (costs 🍞)  ·  tap its bubble to strike — the answer locks in [R] (costs 👥)  ·  tap the frozen bubble to gather the yield [Q] (costs 🧺).",
 	"",
-	"The gold banner (top-right) always names your one live task — tap it any time for the Arc, the island's list of open doors.  The Guide (X → O) is the full how-to-play.",
+	"The gold banner (bottom-right) always names your one live task — tap it any time for the Arc, the island's list of open doors.  The Guide (X → O) is the full how-to-play.",
 	"",
 	"Tap anywhere  (or press  F)  to begin.",
 ]
