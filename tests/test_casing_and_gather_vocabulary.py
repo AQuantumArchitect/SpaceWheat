@@ -76,10 +76,13 @@ def test_a_box_never_nests_inside_a_box() -> None:
     clock = read_source("UI/Widgets/ClockSpeedRow.gd")
     declined = clock.split("func _draws_own_casing() -> bool:", 1)[1].split("\n\n", 1)[0]
     assert "return false" in declined
-    # Same rule for the debug readout: it left the TimeBar band rather than
-    # sit boxed inside a boxed region.
+    # Same rule for the debug readout: it left the TimeBar band rather than sit
+    # boxed inside a boxed region, and it clears every OTHER band by deriving
+    # its top from them — a card floats on the field, never inside a panel.
     shell = read_source("UI/PlayerShell.gd")
-    assert "PRESET_BOTTOM_LEFT" in shell.split("if fps_display:", 2)[2].split("\n\n", 1)[0]
+    fps_block = shell.split("if fps_display:", 2)[2].split("\n\n", 1)[0]
+    assert "get_resource_bar_height()" in fps_block
+    assert "get_time_bar_height()" in fps_block
 
 
 def test_the_counters_fit_inside_the_strips_own_box() -> None:

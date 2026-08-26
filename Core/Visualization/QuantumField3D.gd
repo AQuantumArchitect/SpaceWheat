@@ -1078,7 +1078,7 @@ func _spawn_portal_label(nm: String, key: String, pos: Vector3) -> Label3D:
 	lbl.pixel_size = 0.0022
 	lbl.outline_size = 8
 	lbl.modulate = PORTAL_LABEL_COLOR
-	lbl.position = pos + Vector3(0, -0.34, 0)
+	lbl.position = pos + Vector3(0, -0.46, 0)
 	_world.add_child(lbl)
 	return lbl
 

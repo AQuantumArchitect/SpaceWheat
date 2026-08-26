@@ -807,20 +807,22 @@ func _apply_top_strip_layout() -> void:
 			_menu_row_height = layout_manager.get_action_row_height()
 
 	if fps_display:
-		# Bottom-LEFT, in the corner the objective banner vacated. Debug builds
-		# only (see set_farm_attached). It briefly sat in the TimeBar's band,
-		# but once that band grew a casing of its own (2026-08-25) a boxed
-		# readout inside a boxed region read as a box in a box — the exact
-		# clutter the casing pass was sent to remove. A developer readout does
-		# not share a region box with player chrome.
-		var fps_bottom: float = -20.0
-		if layout_manager and layout_manager.has_method("get_action_row_height"):
-			fps_bottom = -(2.0 * layout_manager.get_action_row_height() + 16.0)
-		fps_display.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+		# Debug builds only (see set_farm_attached), and a FLOATING CARD: it sits
+		# on the field just under the timeline, not inside any region's box (a
+		# boxed readout inside a boxed band was a box in a box) and not in the
+		# bottom-left corner either, where it landed on the portal rail's lowest
+		# orb label. This strip of field is genuinely empty — the menu card is
+		# right-aligned.
+		var fps_top: float = 20.0
+		if layout_manager and layout_manager.has_method("get_resource_bar_height") \
+				and layout_manager.has_method("get_time_bar_height"):
+			fps_top = layout_manager.get_resource_bar_height() \
+				+ layout_manager.get_time_bar_height() + 8.0
+		fps_display.set_anchors_preset(Control.PRESET_TOP_LEFT)
 		fps_display.offset_left = 20
 		fps_display.offset_right = 330
-		fps_display.offset_bottom = fps_bottom
-		fps_display.offset_top = fps_bottom - 26.0
+		fps_display.offset_top = fps_top
+		fps_display.offset_bottom = fps_top + 26.0
 
 	if time_bar and layout_manager and layout_manager.has_method("get_resource_bar_height") \
 			and layout_manager.has_method("get_time_bar_height"):

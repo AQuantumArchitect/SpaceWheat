@@ -131,8 +131,11 @@ def test_the_debug_readout_never_parks_on_the_resource_strip() -> None:
     shell = read_source("UI/PlayerShell.gd")
     assert "fps_display.visible = attached and RuntimeEnv.debug_readout_enabled()" in shell
     fps_block = shell.split("if fps_display:", 2)[2].split("\n\n", 1)[0]
-    # It is out of the top strip entirely now (casing pass moved it to the
-    # bottom-left corner the objective banner vacated), so it can neither
-    # overlap the strip nor sit boxed inside the TimeBar's own box.
+    # It is out of the top strip entirely now, and out of every band: it is a
+    # floating card on open field, below the timeline. It briefly sat in the
+    # bottom-left corner and landed on the portal rail's lowest orb label.
     assert "PRESET_TOP_RIGHT" not in fps_block
-    assert "PRESET_BOTTOM_LEFT" in fps_block
+    assert "PRESET_BOTTOM_LEFT" not in fps_block
+    assert "get_time_bar_height()" in fps_block, (
+        "the readout clears the bands by deriving from them, not by a literal"
+    )

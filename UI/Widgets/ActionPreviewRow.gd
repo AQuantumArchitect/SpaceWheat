@@ -40,6 +40,21 @@ var scale_factor: float = 1.0
 signal action_pressed(action_key: String, shift: bool)
 
 
+## Chip lanes (tidy pass 2026-08-25). A QERF chip is three things side by
+## side — verb glyph, label, cost badge — and every one of them used to be
+## anchored across the WHOLE chip, so they drew on top of each other: the icon
+## covered the "[R]", and the 40px cost glyph overflowed a 24px-tall badge lane
+## and hung below the dock's own casing. One lane each, and the label takes
+## what is left between them.
+const ICON_LANE_LEFT := 8.0
+const ICON_LANE_RIGHT := 36.0
+const ICON_LANE_PAD := 6.0
+const COST_LANE_WIDTH := 74.0
+const COST_GLYPH_PX := 26.0
+## Where the label starts once a verb glyph is showing — clear of the icon lane.
+const LABEL_LANE_LEFT := ICON_LANE_RIGHT + 8.0
+
+
 func _ready():
 	# Escape ActionBarLayer's z and sit above all overlays (max ~53).
 	z_as_relative = false
@@ -184,8 +199,12 @@ func _create_action_button(action_key: String) -> Dictionary:
 	icon_rect.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
 	icon_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	icon_rect.set_anchors_preset(Control.PRESET_LEFT_WIDE)
-	icon_rect.offset_left = 8 * scale_factor
-	icon_rect.offset_right = 40 * scale_factor
+	icon_rect.offset_left = ICON_LANE_LEFT * scale_factor
+	icon_rect.offset_right = ICON_LANE_RIGHT * scale_factor
+	# Keeps the glyph off the chip's top and bottom edges — at full height a
+	# wide SVG scaled to the chip's height and hung over the dock's own casing.
+	icon_rect.offset_top = ICON_LANE_PAD * scale_factor
+	icon_rect.offset_bottom = -ICON_LANE_PAD * scale_factor
 	icon_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	icon_rect.visible = false  # Hidden by default, shown when icon is set
 	container.add_child(icon_rect)
@@ -196,12 +215,12 @@ func _create_action_button(action_key: String) -> Dictionary:
 	cost_container.layout_mode = 1  # Anchors-based positioning
 	cost_container.size_flags_horizontal = Control.SIZE_SHRINK_END
 	cost_container.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	cost_container.custom_minimum_size = Vector2(110 * scale_factor, 24 * scale_factor)
+	cost_container.custom_minimum_size = Vector2(COST_LANE_WIDTH * scale_factor, 24 * scale_factor)
 	cost_container.set_anchors_preset(Control.PRESET_RIGHT_WIDE)
-	cost_container.offset_left = -120 * scale_factor
+	cost_container.offset_left = -(COST_LANE_WIDTH + 6.0) * scale_factor
 	cost_container.offset_right = -6 * scale_factor
-	cost_container.offset_top = 6 * scale_factor
-	cost_container.offset_bottom = -6 * scale_factor
+	cost_container.offset_top = ICON_LANE_PAD * scale_factor
+	cost_container.offset_bottom = -ICON_LANE_PAD * scale_factor
 	cost_container.add_theme_constant_override("separation", int(2 * scale_factor))
 	cost_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	cost_container.visible = false
@@ -216,6 +235,12 @@ func _create_action_button(action_key: String) -> Dictionary:
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.set_anchors_preset(Control.PRESET_FULL_RECT)
+	# BETWEEN the two lanes, not across the whole chip. A full-rect centred
+	# label drew its text straight under the verb icon on the left and the cost
+	# badge on the right — "[R] Strike" rendered as "] Strike" with the glyph
+	# sitting on the key.
+	label.offset_left = LABEL_LANE_LEFT * scale_factor
+	label.offset_right = -(COST_LANE_WIDTH + 16.0) * scale_factor
 	label.add_theme_font_size_override("font_size", int(15 * scale_factor))
 	label.add_theme_color_override("font_color", Color(0.94, 0.94, 0.94))
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -273,8 +298,11 @@ func _apply_button_projection(action_key: String, action_info: Dictionary) -> vo
 	if has_icon:
 		btn_data.label.text = "[%s] %s%s%s" % [
 				action_key, label_text, " (%s)" % shift_hint if shift_hint != "" else "", hint_suffix]
-		btn_data.label.offset_left = 40 * scale_factor
-		btn_data.base_label_offset = 40 * scale_factor
+		# Same lane the chip was built with — this runtime path overrides the
+		# construction-time offsets, so it has to read the same constants or the
+		# source describes a layout the game never draws.
+		btn_data.label.offset_left = LABEL_LANE_LEFT * scale_factor
+		btn_data.base_label_offset = LABEL_LANE_LEFT * scale_factor
 	else:
 		var prefix = ("%s " % emoji) if emoji != "" else ""
 		var suffix = " (%s)" % shift_hint if shift_hint != "" else ""
@@ -293,7 +321,8 @@ func _apply_button_projection(action_key: String, action_info: Dictionary) -> vo
 	_adjust_label_for_cost(btn_data, has_cost)
 
 
-func _adjust_label_for_cost(btn_data: Dictionary, has_cost: bool, cost_width: int = 130) -> void:
+func _adjust_label_for_cost(btn_data: Dictionary, has_cost: bool,
+		cost_width: int = int(COST_LANE_WIDTH + 16.0)) -> void:
 	var base_offset = btn_data.get("base_label_offset", 0)
 	if btn_data.has("label"):
 		btn_data.label.offset_left = base_offset
@@ -341,7 +370,7 @@ func _build_cost_entries(container: HBoxContainer, cost: Dictionary) -> void:
 		var amount_f := float(amount)
 		var amount_str := str(int(round(amount_f))) if is_equal_approx(amount_f, round(amount_f)) else String.num(amount_f, 1)
 		amount_label.text = "−%s" % amount_str
-		amount_label.add_theme_font_size_override("font_size", int(18 * scale_factor))
+		amount_label.add_theme_font_size_override("font_size", int(15 * scale_factor))
 		amount_label.add_theme_color_override("font_color", Color(0.95, 0.9, 0.7))
 		amount_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.6))
 		amount_label.add_theme_constant_override("shadow_offset_x", 1)
@@ -351,8 +380,8 @@ func _build_cost_entries(container: HBoxContainer, cost: Dictionary) -> void:
 
 		var display = EmojiDisplay.new()
 		display.emoji = emoji
-		display.font_size = int(22 * scale_factor)
-		display.custom_minimum_size = Vector2(40 * scale_factor, 40 * scale_factor)
+		display.font_size = int(16 * scale_factor)
+		display.custom_minimum_size = Vector2(COST_GLYPH_PX * scale_factor, COST_GLYPH_PX * scale_factor)
 		display.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		display.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		display.mouse_filter = Control.MOUSE_FILTER_IGNORE
