@@ -28,7 +28,7 @@ const FLATTEN_SEC := 0.15
 ## click, an F (when the hat leaves F free), or stack-overflow eviction.
 const PERSIST_IMPORTANCE := 3
 
-const COLOR_PANEL := Color(0.08, 0.10, 0.16, 0.92)
+const COLOR_PANEL := UIStyleFactory.COLOR_TOAST_PANEL
 const COLOR_TEXT := Color(0.92, 0.95, 1.0, 1.0)
 const COLOR_PATH := Color(0.7, 0.85, 0.95, 0.7)
 
@@ -60,15 +60,12 @@ func _init() -> void:
 	# event over the whole toast — the biggest possible dismiss target).
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	custom_minimum_size = Vector2(280, 0)
+	custom_minimum_size = Vector2(UIStyleFactory.TOAST_WIDTH, 0)
 	modulate = Color(1, 1, 1, 0)
 
-	_style = StyleBoxFlat.new()
-	_style.bg_color = COLOR_PANEL
-	_style.border_color = BORDER_COLORS[1]
-	_style.set_border_width_all(1)
-	_style.set_corner_radius_all(8)
-	_style.set_content_margin_all(12)
+	# ONE recipe, shared with ActFilament's objective banner — the two sit in
+	# the same bottom-right column, so their form has to move together.
+	_style = UIStyleFactory.create_toast_style(BORDER_COLORS[1])
 	add_theme_stylebox_override("panel", _style)
 
 	var hbox := HBoxContainer.new()

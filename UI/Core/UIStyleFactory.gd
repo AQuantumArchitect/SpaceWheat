@@ -130,6 +130,32 @@ static func create_card_style(
 	return style
 
 
+## The TOAST FORM — one recipe, shared by every card that speaks to the player
+## from a screen corner (HintToast, ActFilament's objective banner).
+##
+## Owner ask 2026-08-25: "the objective and the toast should have a pleasant
+## harmony in form … maybe the stable objective hint can be a stable toast
+## looking item?" The harmony is structural, not eyeballed — the banner and the
+## toasts now stack in one column drawn from ONE stylebox recipe, so a tweak to
+## the corner radius or the panel ink moves both together and they cannot drift
+## back apart. Border color carries the only difference that means anything:
+## importance for a toast, accent gold for the always-there objective.
+const COLOR_TOAST_PANEL = Color(0.08, 0.10, 0.16, 0.92)
+const TOAST_CORNER_RADIUS = 8
+const TOAST_CONTENT_MARGIN = 12
+const TOAST_WIDTH = 280
+
+
+static func create_toast_style(border_color: Color, border_width: int = 1) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = COLOR_TOAST_PANEL
+	style.border_color = border_color
+	style.set_border_width_all(border_width)
+	style.set_corner_radius_all(TOAST_CORNER_RADIUS)
+	style.set_content_margin_all(TOAST_CONTENT_MARGIN)
+	return style
+
+
 static func create_panel_style(
 	bg_color: Color = COLOR_PANEL_BG,
 	border_color: Color = COLOR_PANEL_BORDER,

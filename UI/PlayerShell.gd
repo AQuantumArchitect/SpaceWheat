@@ -671,13 +671,14 @@ func _ready() -> void:
 	overlay_layer.add_child(fps_display)
 	_verbose.info("ui", "✅", "FPS display created")
 
-	# Hint-toast stack (bottom-LEFT since 2026-08-25 — moved off the
-	# top-right ActFilament/ContractChip corner and now stacks UPWARD from
-	# just above the objective banner, which moved to bottom-left too: "the
-	# toasts are above it," the owner's own words for the declutter). The
-	# band is tall enough for MAX_LIVE_TOASTS multi-line toasts now that gold
-	# ones persist until dismissed (the old 140px band overflowed at four);
-	# ALIGNMENT_END keeps the resting look bottom-anchored and unchanged.
+	# Hint-toast stack (bottom-RIGHT since the 2026-08-25 second pass). It
+	# stacks UPWARD from just above the objective banner — "the toasts are
+	# above it," the owner's own words — and the pair moved together off
+	# bottom-LEFT, where the column sat on top of the field's portal rail (the
+	# labelled biome orbs own the empty left side). The band is tall enough for
+	# MAX_LIVE_TOASTS multi-line toasts now that gold ones persist until
+	# dismissed (the old 140px band overflowed at four); ALIGNMENT_END keeps
+	# the resting look bottom-anchored and unchanged.
 	# The container stays MOUSE_FILTER_IGNORE — each toast PANEL is the click
 	# target, so empty band space never eats clicks meant for the field.
 	_hint_toast_stack = VBoxContainer.new()
@@ -685,17 +686,20 @@ func _ready() -> void:
 	_hint_toast_stack.alignment = BoxContainer.ALIGNMENT_END
 	_hint_toast_stack.add_theme_constant_override("separation", 6)
 	_hint_toast_stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_hint_toast_stack.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	_hint_toast_stack.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	_hint_toast_stack.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	# Mirrors RuntimeMount's ActFilament placement exactly (same formula, two
 	# call sites — RuntimeMount doesn't exist yet when PlayerShell._ready
 	# runs, so this can't just read the banner's rect) so the stack's bottom
 	# edge lands just above the banner's top edge, not overlapping it.
 	var toast_bottom_reserved: float = 2.0 * layout_manager.get_action_row_height() + 16.0 \
 		if layout_manager and layout_manager.has_method("get_action_row_height") else 158.0
-	const ACT_FILAMENT_HEIGHT := 72.0  # ActFilament.BANNER_HEIGHT
-	var act_filament_top: float = -toast_bottom_reserved - ACT_FILAMENT_HEIGHT
-	_hint_toast_stack.offset_left = 20
-	_hint_toast_stack.offset_right = 20 + 324
+	var act_filament_top: float = -toast_bottom_reserved - ActFilament.BANNER_HEIGHT
+	# Right-aligned to the same 20px margin the banner uses, and the same width
+	# — the banner IS a toast now (UIStyleFactory.create_toast_style), so the
+	# column reads as one stack of cards rather than two shapes side by side.
+	_hint_toast_stack.offset_right = -20
+	_hint_toast_stack.offset_left = -20 - ActFilament.BANNER_WIDTH
 	_hint_toast_stack.offset_bottom = act_filament_top - 16.0
 	_hint_toast_stack.offset_top = _hint_toast_stack.offset_bottom - 440
 	# Above every overlay tier (OverlayStackManager tops out at Z_TIER_SYSTEM 18 + stack size)
@@ -753,7 +757,12 @@ func set_farm_attached(attached: bool) -> void:
 	if menu_row:
 		menu_row.visible = attached
 	if fps_display:
-		fps_display.visible = attached
+		# Debug-only since 2026-08-25. In a player's build this widget rendered
+		# one ▶ glyph inside a 302px trim box parked over the resource strip's
+		# right end — the biggest single piece of the top-right clutter the
+		# owner screenshotted, for a control the ⏸ chip on the TimeBar now
+		# carries properly. Debug builds still get the FPS/PhHz readout.
+		fps_display.visible = attached and RuntimeEnv.debug_readout_enabled()
 	if chrome_frame:
 		chrome_frame.visible = attached
 	if time_bar:
@@ -798,11 +807,17 @@ func _apply_top_strip_layout() -> void:
 			_menu_row_height = layout_manager.get_action_row_height()
 
 	if fps_display:
+		# Sits in the TimeBar's band, right end — off the resource strip it
+		# used to overlap, and out of the corner entirely. Debug builds only
+		# (see set_farm_attached), so this real estate is free in a real game.
+		var fps_top: float = 4.0
+		if layout_manager and layout_manager.has_method("get_resource_bar_height"):
+			fps_top = layout_manager.get_resource_bar_height() + 6.0
 		fps_display.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 		fps_display.offset_left = -310
-		fps_display.offset_top = 4
-		fps_display.offset_right = -8
-		fps_display.offset_bottom = 28
+		fps_display.offset_top = fps_top
+		fps_display.offset_right = -20
+		fps_display.offset_bottom = fps_top + 24.0
 
 	if time_bar and layout_manager and layout_manager.has_method("get_resource_bar_height") \
 			and layout_manager.has_method("get_time_bar_height"):

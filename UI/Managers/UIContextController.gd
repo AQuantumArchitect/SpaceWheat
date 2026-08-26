@@ -130,6 +130,14 @@ func bind_quantum_input(instrument_input) -> void:
 		if clock_row and clock_row.has_signal("speed_step_requested"):
 			InstrumentLocator._safe_connect(clock_row.speed_step_requested,
 					Callable(quantum_input, "step_time_controls"))
+		# ⏸/▶ joined the transport when it moved onto the TimeBar (2026-08-25).
+		# It routes to PlayerShell.toggle_paused — the SAME authority E/F and
+		# the escape menu use — so the glyph can never disagree with the world.
+		if clock_row and clock_row.has_signal("pause_toggle_requested"):
+			var shell := _resolve_shell_for_pause(clock_row)
+			if shell != null:
+				InstrumentLocator._safe_connect(clock_row.pause_toggle_requested,
+						Callable(shell, "toggle_paused"))
 
 	refresh()
 
@@ -680,3 +688,15 @@ func _get_farm():
 
 func _get_plot_grid():
 	return current_farm_ui.plot_grid_display if current_farm_ui and "plot_grid_display" in current_farm_ui else null
+
+
+## Walk up from a row to whatever ancestor owns the pause bit (PlayerShell).
+## Same walk FpsDisplay and ClockSpeedRow do — the shell is not injected here,
+## and guessing an absolute node path is how a row ends up wired to nothing.
+func _resolve_shell_for_pause(from: Node) -> Node:
+	var n: Node = from
+	while n != null:
+		if n.has_method("toggle_paused"):
+			return n
+		n = n.get_parent()
+	return null

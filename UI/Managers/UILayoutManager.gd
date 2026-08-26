@@ -50,7 +50,13 @@ const TOP_STRIP_GAP_BASE = 4.0
 const TOP_STRIP_SIDE_INSET_BASE = 200.0
 const QUANTUM_INDICATOR_WIDTH_BASE = 200.0
 const QUANTUM_INDICATOR_HEIGHT_BASE = 40.0
-const TIME_BAR_HEIGHT_BASE = 14.0
+## The time bar's band. It was a 14px hairline when it was pure scaffold
+## (2026-08-25); it carries the transport controls now (owner ask: "the time
+## controls need to start getting integrated into the timebar"), so the band
+## has to be tall enough for one row of compact chips — 38px at the 540p
+## reference plus breathing room — and ClockSpeedRow left the top chip strip
+## to live here, which is the SAME move that un-crowded the top-right corner.
+const TIME_BAR_HEIGHT_BASE = 48.0
 
 # Current viewport dimensions (updated on resize)
 var viewport_size: Vector2

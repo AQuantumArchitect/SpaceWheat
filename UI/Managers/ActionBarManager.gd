@@ -142,8 +142,10 @@ func _on_parent_resized() -> void:
 ##              transparent space, not a styled box: SelectionButtonRow's
 ##              dressing tray only ever hugs its own chip hull, never the full
 ##              band, so an empty half reads as open space, not the old muck)
-##   top idx 1: clock (right corner, inset past the contract corner; TYUIOP
-##              biomes = the field's portal rail + keyboard ring now)
+##   [TimeBar band — not a chip band: the timeline strip PlayerShell owns.
+##              ClockSpeedRow (⏪ ⏸ ⏩) rides its LEFT end, positioned by
+##              _position_clock_row below. TYUIOP biomes = the field's portal
+##              rail + keyboard ring.]
 ##   [open farm view / game space — PlotTile cyan border is plot selection UI]
 ##   bottom  1: tool (4-0 hats, CENTERED) + mode (its sub-modes, fixed
 ##              right-hand dock inside the SAME band — ClockSpeedRow's
@@ -189,10 +191,6 @@ func _position_top_row(row: Control, idx: int) -> void:
 	row.custom_minimum_size = Vector2(0, row_h)
 
 
-## Right-edge inset that clears the pinned contract corner (ContractChip +
-## ActFilament). Used by the clock row.
-const CONTRACT_CORNER_INSET := 210.0
-
 ## Fixed width of the mode row's carved-out dock inside the shared hat band
 ## (ClockSpeedRow's fixed-inset technique, not a second band). Comfortably
 ## fits mode's 2-3 compact chips; the centered hat cluster tops out ~360px, so
@@ -227,11 +225,29 @@ func _position_mode_row() -> void:
 
 
 func _position_clock_row() -> void:
-	# The strip's remaining top band, right-aligned, clear of the pinned
-	# contract corner (ContractChip + ActFilament) which also starts here.
-	_position_top_row(clock_speed_row, 1)
-	if clock_speed_row:
-		clock_speed_row.offset_right = -CONTRACT_CORNER_INSET
+	# NOT a top chip band any more: the transport sits ON the TimeBar's track,
+	# left end (2026-08-25, owner ask "the time controls need to start getting
+	# integrated into the timebar"). PlayerShell positions the strip itself
+	# from the same two layout-manager getters, so both stay pinned to one
+	# band even when the viewport re-scales.
+	if not clock_speed_row:
+		return
+	var parent = clock_speed_row.get_parent()
+	if not parent or parent.size.x <= 0:
+		return
+	clock_speed_row.set("layout_mode", 1)  # Control.LayoutMode.ANCHORS
+	clock_speed_row.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	var band_top: float = layout_manager.get_resource_bar_height()
+	var band_h: float = layout_manager.get_time_bar_height()
+	# Inset inside the band: SelectionButtonRow's dressing tray hugs its chip
+	# hull with a little overhang, and at band height exactly it bled up into
+	# the resource strip's own framed box directly above.
+	const TRACK_INSET := 5.0
+	clock_speed_row.offset_top = band_top + TRACK_INSET
+	clock_speed_row.offset_bottom = band_top + band_h - TRACK_INSET
+	clock_speed_row.offset_left = 20
+	clock_speed_row.offset_right = -20
+	clock_speed_row.custom_minimum_size = Vector2(0, band_h - 2.0 * TRACK_INSET)
 
 
 func _position_menu_row() -> void:
@@ -259,10 +275,11 @@ func get_free_band() -> Vector2:
 	var band := layer.get_global_rect()
 	var top := band.position.y
 	var bottom := band.end.y
-	# Top rows: only menu + clock live up here now (hats + their sub-modes
-	# moved to the bottom stack 2026-08-24, right above the actions they
-	# trigger — see the band-map comment on create_action_bars).
-	for row in [menu_selection_row, clock_speed_row]:
+	# Top rows: only the menu band is a chip band up here now (hats + their
+	# sub-modes moved to the bottom stack 2026-08-24; the clock chips moved
+	# onto the TimeBar's track 2026-08-25, and that strip sits ABOVE the menu
+	# band, so the menu row's bottom edge already speaks for all of it).
+	for row in [menu_selection_row]:
 		if row != null and is_instance_valid(row) and row.visible:
 			top = maxf(top, row.get_global_rect().end.y)
 	# Bottom stack: QERF and the hat/mode band both eat into the free band

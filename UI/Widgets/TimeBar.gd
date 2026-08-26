@@ -1,22 +1,38 @@
 class_name TimeBar
 extends Control
 
-## TimeBar — an INERT full-width placeholder for a future history-scrubber
-## (2026-08-25, owner ask: "get the UI set up for it during this pass" — not
-## the mechanics, just the space). Sits between the resource strip and the
-## first top chip band; a thin track across the whole width with a small
-## marker near the right edge standing in for "now."
+## TimeBar — the full-width timeline strip under the resource bar.
+##
+## Scaffolded inert 2026-08-25 ("get the UI set up for it during this pass" —
+## not the mechanics). Same day, second pass: the transport controls moved IN.
+## The ⏪ ⏸ ⏩ chips (ClockSpeedRow, positioned into this band by
+## ActionBarManager) now ride the track's left end, which is both the owner's
+## ask — "the time controls need to start getting integrated into the timebar"
+## — and what un-crowded the top-right corner, since the clock chips used to
+## own a whole top band up there.
+##
+## What is still SCAFFOLD: the track itself. The ticks are evenly spaced
+## chrome, not real keyframes, and the gold "now" head is pinned to the right
+## end rather than tracking a cursor. Nothing here reads or writes sim time —
+## when the real scrubber lands, THAT is the moment to wire input, and the
+## first honest change is `_ticks_for()` answering from history instead of
+## from a constant.
 ##
 ## Pure _draw(), NO child nodes, mouse_filter IGNORE — same contract as
-## ChromeFrame: a decorative node that can never eat a click. When the real
-## scrubber lands, THAT is the moment to deliberately wire real input
-## handling — never fake interactivity here first.
+## ChromeFrame: this node can never eat a click. The chips that sit on the
+## track are their own Controls with their own hitboxes, parented elsewhere.
 
 const TRACK_COLOR := UIStyleFactory.COLOR_TRIM_LINE
+const TICK_COLOR := Color(UIStyleFactory.COLOR_TRIM_LINE, 0.22)
 const NOW_MARKER_COLOR := UIStyleFactory.COLOR_ACCENT_GOLD
 const NOW_MARKER_RADIUS := 3.0
-## Fraction of the track's width where the "now" marker sits (right end).
-const NOW_MARKER_FRACTION := 0.96
+## Spacing between tick marks, in px — a regular beat that reads as "this is a
+## timeline," not as data. Real keyframes replace them later.
+const TICK_SPACING := 44.0
+const TICK_HEIGHT := 4.0
+## How far in from the right edge the "now" head sits. The future is off the
+## right end of the strip; the past runs left.
+const NOW_MARKER_INSET := 8.0
 
 
 func _ready() -> void:
@@ -28,7 +44,12 @@ func _ready() -> void:
 func _draw() -> void:
 	if size.x <= 0.0 or size.y <= 0.0:
 		return
-	var mid_y := size.y * 0.5
+	var mid_y := roundf(size.y * 0.5)
 	draw_line(Vector2(0.0, mid_y), Vector2(size.x, mid_y), TRACK_COLOR, 1.0, true)
-	var now_x := size.x * NOW_MARKER_FRACTION
+	var x := TICK_SPACING
+	while x < size.x - NOW_MARKER_INSET:
+		draw_line(Vector2(x, mid_y - TICK_HEIGHT), Vector2(x, mid_y + TICK_HEIGHT),
+			TICK_COLOR, 1.0, true)
+		x += TICK_SPACING
+	var now_x := size.x - NOW_MARKER_INSET
 	draw_circle(Vector2(now_x, mid_y), NOW_MARKER_RADIUS, Color(NOW_MARKER_COLOR, 0.9))

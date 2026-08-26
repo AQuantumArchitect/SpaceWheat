@@ -128,8 +128,10 @@ def test_the_dev_screenshot_lane_no_longer_hand_rolls_its_own_re_point() -> None
 
 def test_the_hud_owner_reports_the_band_it_leaves_free() -> None:
     src = body(BARS, "get_free_band")
-    for row in ("menu_selection_row", "tool_selection_row", "mode_selection_row",
-                "clock_speed_row"):
+    # clock_speed_row is deliberately absent: it left the top chip strip for the
+    # TimeBar's track (2026-08-25), and that strip sits ABOVE the menu band, so
+    # the menu row's bottom edge already speaks for every pixel of top chrome.
+    for row in ("menu_selection_row", "tool_selection_row", "mode_selection_row"):
         assert row in src, (
             "%s boxes the play space — a band that ignores it puts orbs behind the "
             "chrome (#520)" % row

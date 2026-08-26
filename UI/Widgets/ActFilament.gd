@@ -1,5 +1,5 @@
 class_name ActFilament
-extends Control
+extends PanelContainer
 
 ## ActFilament — the objective PORTAL: the game's ONE live objective plus the
 ## next door behind it, ambient in the contract corner (phase-2 funnel).
@@ -20,6 +20,14 @@ extends Control
 ## kept flagging.
 ##
 ## Purely cosmetic (anti-gating law) — reads, never writes.
+##
+## FORM (2026-08-25, owner ask): "the objective and the toast should have a
+## pleasant harmony in form … maybe the stable objective hint can be a stable
+## toast looking item?" So it IS one: a PanelContainer wearing
+## UIStyleFactory.create_toast_style — the same ink, radius and padding every
+## HintToast wears, gold-bordered because gold is the persistent tier. It sits
+## at the bottom of the same bottom-right column the toasts stack up from, and
+## reads as the one card in that column that never fades.
 
 const UIProgression = preload("res://UI/Core/UIProgression.gd")
 
@@ -27,13 +35,15 @@ const ACCENT := UIStyleFactory.COLOR_ACCENT_GOLD
 const ACT_MUTED := Color(0.78, 0.72, 0.45, 0.9)
 const NEXT_MUTED := Color(0.65, 0.62, 0.52, 0.85)
 const POLL_S := 0.5
-const BANNER_WIDTH := 190.0
-const BANNER_HEIGHT := 72.0   # act line + wrapped objective + the Next line
-const ACT_LINE_HEIGHT := 14.0
-const NEXT_LINE_HEIGHT := 13.0
-const TEXT_PAD := 8.0   # inner padding so the wrapped line clears the banner edges
-
+## The persistent tier's border — HintToast's importance-3 gold, so a gold
+## toast landing directly above the banner reads as the same family of card.
+const BORDER_GOLD := Color(1.0, 0.82, 0.2, 0.95)
+const BANNER_WIDTH := float(UIStyleFactory.TOAST_WIDTH)  # toasts' own width
+const BANNER_HEIGHT := 92.0   # act line + wrapped objective + the Next line,
+                              # plus the toast form's 12px content margins —
+                              # the old 72 clipped the Next line off its own box.
 var _overlay_manager: Node = null
+var _box: VBoxContainer = null
 var _label: Label = null
 var _act_label: Label = null
 var _next_label: Label = null
@@ -51,16 +61,27 @@ func setup(_quest_manager: Node, _farm: Node, overlay_manager: Node) -> void:
 	custom_minimum_size = Vector2(BANNER_WIDTH, BANNER_HEIGHT)
 	# RuntimeMount anchors us to a screen corner and sets left/right plus
 	# whichever vertical offset is the FIXED edge for that corner (offset_top
-	# when top-anchored, offset_bottom when bottom-anchored — bottom-left
-	# since 2026-08-25, "close to the actions" declutter). Derive the other
-	# vertical offset from whichever one is fixed, so the banner claims
-	# BANNER_HEIGHT of room regardless of which corner it's pinned to.
+	# when top-anchored, offset_bottom when bottom-anchored — bottom-RIGHT
+	# since 2026-08-25: bottom-left put the column straight over the field's
+	# portal rail). Derive the other vertical offset from whichever one is
+	# fixed, so the banner claims BANNER_HEIGHT of room in either corner.
 	if anchor_top >= 1.0:
 		offset_top = offset_bottom - BANNER_HEIGHT
 	else:
 		offset_bottom = offset_top + BANNER_HEIGHT
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND  # tap opens the Arc
+	clip_contents = true  # a long objective crops at the card edge, never bleeds
+	add_theme_stylebox_override("panel", UIStyleFactory.create_toast_style(BORDER_GOLD))
+	if _box == null:
+		# PanelContainer lays out exactly one child inside its content margins,
+		# so the three lines ride a VBox — no hand-placed offsets to go stale
+		# when the card's padding or width changes.
+		_box = VBoxContainer.new()
+		_box.name = "BannerLines"
+		_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_box.add_theme_constant_override("separation", 2)
+		add_child(_box)
 	if _act_label == null:
 		# The ambient campaign position: "Act 5 · Chapter IV — …", always on
 		# screen for the whole run (the acts were invisible before this line).
@@ -70,9 +91,7 @@ func setup(_quest_manager: Node, _farm: Node, overlay_manager: Node) -> void:
 		_act_label.add_theme_color_override("font_color", ACT_MUTED)
 		_act_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_act_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-		_act_label.custom_minimum_size = Vector2(BANNER_WIDTH - TEXT_PAD, ACT_LINE_HEIGHT)
-		add_child(_act_label)
-		_act_label.position = Vector2.ZERO
+		_box.add_child(_act_label)
 	if _label == null:
 		_label = Label.new()
 		_label.name = "ObjectiveLabel"
@@ -81,14 +100,8 @@ func setup(_quest_manager: Node, _farm: Node, overlay_manager: Node) -> void:
 		_label.add_theme_font_size_override("font_size", 11)
 		_label.add_theme_color_override("font_color", ACCENT)
 		_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		# A definite width floor so AUTOWRAP always has a real budget. Without it the label
-		# computes its wrap width before the full-rect anchor propagates the parent's 190px,
-		# collapses to ~1 char, and renders the objective vertically (one glyph per line).
-		_label.custom_minimum_size = Vector2(BANNER_WIDTH - TEXT_PAD, 0.0)
-		add_child(_label)
-		_label.set_anchors_preset(Control.PRESET_FULL_RECT)
-		_label.offset_top = ACT_LINE_HEIGHT  # objective wraps below the act line
-		_label.offset_bottom = -NEXT_LINE_HEIGHT  # and above the Next line
+		_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		_box.add_child(_label)
 	if _next_label == null:
 		# "Next: The Village Stirs" — the road ahead, one door, muted. Reads
 		# from the same frontier rule the Arc tab sorts by; tap for the rest.
@@ -98,10 +111,7 @@ func setup(_quest_manager: Node, _farm: Node, overlay_manager: Node) -> void:
 		_next_label.add_theme_color_override("font_color", NEXT_MUTED)
 		_next_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_next_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-		_next_label.custom_minimum_size = Vector2(BANNER_WIDTH - TEXT_PAD, NEXT_LINE_HEIGHT)
-		add_child(_next_label)
-		_next_label.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-		_next_label.position = Vector2(0.0, BANNER_HEIGHT - NEXT_LINE_HEIGHT)
+		_box.add_child(_next_label)
 	_refresh()
 
 
@@ -173,7 +183,6 @@ func _gui_input(event: InputEvent) -> void:
 			accept_event()
 
 
-func _draw() -> void:
-	# A quiet dark backing so the gold line stays legible over the field.
-	if _text != "" or _act_text != "" or _next_text != "":
-		draw_rect(Rect2(Vector2.ZERO, size), Color(0.0, 0.0, 0.0, 0.35))
+# (No _draw: the toast form's StyleBoxFlat paints the card now — one recipe
+# shared with HintToast instead of a hand-rolled 35%-black rect that could
+# drift away from the toasts stacked directly above it.)

@@ -123,7 +123,11 @@ func _ensure_display_exists(emoji: String) -> void:
 	var icon = EmojiDisplay.new()
 	icon.emoji = emoji
 	icon.font_size = icon_font_size
-	icon.custom_minimum_size = Vector2(icon_font_size * 1.8, icon_font_size * 1.8)
+	# 1.5, not 1.8 (2026-08-25): at 1.8 the tallest glyphs — 🌾, 🧺 — drew past
+	# the strip's own framed box and spilled into the TimeBar band below it.
+	# The counters are meant to sit INSIDE the frame; a glyph hanging out of it
+	# is the "still ugly" the owner screenshotted.
+	icon.custom_minimum_size = Vector2(icon_font_size * 1.5, icon_font_size * 1.5)
 	icon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -303,6 +307,16 @@ func _create_ui():
 	resources_hbox = HBoxContainer.new()
 	resources_hbox.add_theme_constant_override("separation", resource_spacing)
 	add_child(resources_hbox)
+
+	# The mirror of `lead`. A wide-enough wallet used to run its last emoji all
+	# the way into the brass molding's inner ring at the right corner (owner
+	# screenshot 2026-08-25: an emoji visibly cut by the frame) — the z fix
+	# stopped the frame painting OVER the strip, but nothing yet stopped the
+	# strip from reaching under it. This does.
+	var tail := Control.new()
+	tail.custom_minimum_size = Vector2(int(20 * scale_factor), 0)
+	tail.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(tail)
 
 	print("🖼️  ResourcePanel initialized with HUD style background")
 

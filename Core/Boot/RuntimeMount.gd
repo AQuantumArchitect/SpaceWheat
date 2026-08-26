@@ -374,27 +374,31 @@ func stage_ui(farm: Node, shell: Node, quantum_viz: Node, world_builder) -> void
 			_verbose.info("boot", "📋", "ContractChip ready (pinned active contracts)")
 
 			# Act filament — the objective banner: the ONE live objective as
-			# screen text. Moved bottom-left (2026-08-25, owner ask: the
-			# top-right corner was a "cluster fuck" of ContractChip + this
-			# banner + toasts + the resource strip's tail + the window's own
-			# min/max/close buttons). Now it's "close to the actions," and
-			# PlayerShell's HintToastStack stacks upward from just above it.
+			# screen text. Bottom-RIGHT (2026-08-25, second pass). It left the
+			# top-right "cluster fuck" for bottom-LEFT earlier the same day,
+			# which put it straight on top of the field's portal rail — the
+			# labelled biome orbs run down the empty LEFT side
+			# (QuantumField3D._rebuild_portals pins them at x = -4.2). The
+			# right side is the genuinely free corner, so the whole
+			# banner+toast column lives there; PlayerShell's HintToastStack
+			# still stacks upward from just above it.
 			# Tap still opens X (Arc).
 			var act_filament = ActFilament.new()
 			act_filament.name = "ActFilament"
 			act_filament.z_index = 90
 			shell_overlay_layer.add_child(act_filament)
-			act_filament.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-			act_filament.offset_left = 20.0
+			act_filament.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+			act_filament.offset_right = -20.0
+			act_filament.offset_left = -20.0 - ActFilament.BANNER_WIDTH
 			# QERF band + hat/mode band (2026-08-24 re-band) + a breathing gap,
 			# so the banner sits just above the bottom action-bar stack rather
 			# than touching it. PlayerShell's HintToastStack mirrors this exact
 			# formula to know where the banner's TOP edge lands.
 			var bottom_reserved := 2.0 * float(lm.get_action_row_height()) + 16.0 if lm != null and lm.has_method("get_action_row_height") else 158.0
 			act_filament.offset_bottom = -bottom_reserved
-			act_filament.grow_horizontal = Control.GROW_DIRECTION_END
+			act_filament.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 			act_filament.setup(shell.quest_manager, farm, shell.overlay_manager)
-			_verbose.info("boot", "🧵", "ActFilament ready (objective banner, bottom-left)")
+			_verbose.info("boot", "🧵", "ActFilament ready (objective banner, bottom-right)")
 
 			# Objective spotlight — the SAME live objective ActFilament speaks,
 			# but shown: a looping pulse on whichever menu/hat chip is next.
