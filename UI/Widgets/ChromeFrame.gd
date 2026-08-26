@@ -26,8 +26,11 @@ extends Control
 ## Molding rings, outer → inner: the stepping dark→bright→mid→dark is what
 ## reads as a bevel rather than a flat line.
 const MOLD_OUTER_INSET := 4.0
-const MOLD_INNER_INSET := 14.5
-const MOLD_RING_TONES: Array = ["shadow", "highlight", "mid", "shadow"]
+## Four layered 1px rings — the bevel that reads "brass picture frame" without
+## widening any single stroke past the reserved 1px (2px/3px are state cues).
+## The tone sequence lives in UIStyleFactory.casing_ring_color now, with every
+## other casing's, so the whole HUD re-skins from one place.
+const MOLD_RING_COUNT := 4
 
 ## Corner rivets: a small circle plus radiating ticks (the "clockwork" read),
 ## centered inside the molding band.
@@ -63,26 +66,15 @@ func _draw() -> void:
 	_draw_corner_rivet(Vector2(size.x - RIVET_INSET, size.y - RIVET_INSET))
 
 
-func _molding_color(tone: String) -> Color:
-	match tone:
-		"highlight":
-			return UIStyleFactory.COLOR_BRASS_HIGHLIGHT
-		"mid":
-			return UIStyleFactory.COLOR_BRASS_MID
-		_:
-			return UIStyleFactory.COLOR_BRASS_SHADOW
-
-
 func _draw_molding() -> void:
-	var n := MOLD_RING_TONES.size()
-	for i in range(n):
-		var t := float(i) / float(n - 1)
-		var inset := lerpf(MOLD_OUTER_INSET, MOLD_INNER_INSET, t)
-		var rect := Rect2(Vector2(inset, inset), size - Vector2(inset, inset) * 2.0)
-		if rect.size.x <= 0.0 or rect.size.y <= 0.0:
-			return
-		UIStyleFactory.draw_trim(self, rect, Color(),
-			_molding_color(MOLD_RING_TONES[i]), UIStyleFactory.TRIM_RADIUS, false)
+	# The molding IS a casing — the bevel this frame wants is exactly what
+	# draw_casing draws in BRASS tone, and routing through it fixed a bug this
+	# loop carried: every ring used the same corner radius, so the inner rings'
+	# corners were never concentric with the outer ones. Unfilled: the frame
+	# must not dim the viewport it surrounds.
+	UIStyleFactory.draw_casing(self, Rect2(Vector2(MOLD_OUTER_INSET, MOLD_OUTER_INSET),
+		size - Vector2(MOLD_OUTER_INSET, MOLD_OUTER_INSET) * 2.0),
+		UIStyleFactory.CasingTone.BRASS, MOLD_RING_COUNT, false)
 
 
 func _draw_corner_rivet(center: Vector2) -> void:

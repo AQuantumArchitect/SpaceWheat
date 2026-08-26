@@ -39,18 +39,22 @@ func _ready():
 
 
 func _draw():
-	# Framed strip (dressing pass): the same translucent ink as before
-	# (COLOR_TRIM_INK IS the old literal here), now a rounded chip with the
-	# 1px steel hairline, inset so the line doesn't kiss the screen edge.
-	var r := Rect2(Vector2(6.0, 3.0), size - Vector2(12.0, 6.0))
-	if r.size.x <= 0.0 or r.size.y <= 0.0:
-		return
-	# Double-stroke (border-weight pass 2026-08-24): a second brass line just
-	# outside the original ink-backed one reads bolder without widening either
-	# stroke past the reserved 1px (2px/3px stay toast/would-fire cues).
-	UIStyleFactory.draw_trim(self, r.grow(3.0), Color(), UIStyleFactory.COLOR_BRASS_SHADOW,
-		UIStyleFactory.TRIM_RADIUS + 2, false)
-	UIStyleFactory.draw_trim(self, r)
+	# The strip's casing. This widget's old hand-rolled double-stroke is what
+	# UIStyleFactory.draw_casing generalizes, so it now asks for the shared
+	# recipe instead of spelling it — one place to swap when the real casing
+	# art lands.
+	#
+	# SIDE_INSET matches the 20px every other HUD region is positioned at, so
+	# the strip's box and the TimeBar's box directly below it share both edges
+	# and the top of the screen reads as two stacked bands rather than two
+	# unrelated shapes. TOP_INSET clears the brass molding's inner ring (14.5px
+	# from the viewport edge is the frame's, not ours) without the two lines
+	# landing on the same row.
+	const SIDE_INSET := 20.0
+	const TOP_INSET := 5.0
+	const BOTTOM_INSET := 3.0
+	UIStyleFactory.draw_casing(self, Rect2(Vector2(SIDE_INSET, TOP_INSET),
+		size - Vector2(SIDE_INSET * 2.0, TOP_INSET + BOTTOM_INSET)))
 
 
 func set_layout_manager(layout_mgr: Node):
@@ -123,11 +127,18 @@ func _ensure_display_exists(emoji: String) -> void:
 	var icon = EmojiDisplay.new()
 	icon.emoji = emoji
 	icon.font_size = icon_font_size
-	# 1.5, not 1.8 (2026-08-25): at 1.8 the tallest glyphs — 🌾, 🧺 — drew past
-	# the strip's own framed box and spilled into the TimeBar band below it.
-	# The counters are meant to sit INSIDE the frame; a glyph hanging out of it
-	# is the "still ugly" the owner screenshotted.
-	icon.custom_minimum_size = Vector2(icon_font_size * 1.5, icon_font_size * 1.5)
+	# Sized from the BAND, not from the font (casing pass 2026-08-25). A font
+	# multiple is blind to how tall the strip actually is, so glyphs whose SVG
+	# art runs to the edge of its canvas (🌾, 🪵) drew straight through the
+	# strip's own casing while padded ones (👥, 🍞) looked fine — the counters
+	# have to sit INSIDE the box, all of them. GLYPH_BAND_MARGIN is the casing's
+	# insets plus its ring thickness plus a hair of air.
+	const GLYPH_BAND_MARGIN := 12.0
+	var band_h: float = layout_manager.get_resource_bar_height() \
+		if layout_manager and layout_manager.has_method("get_resource_bar_height") \
+		else float(icon_font_size) * 1.5 + GLYPH_BAND_MARGIN
+	var glyph_px := maxf(14.0, band_h - GLYPH_BAND_MARGIN)
+	icon.custom_minimum_size = Vector2(glyph_px, glyph_px)
 	icon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE

@@ -30,6 +30,8 @@ const NOW_MARKER_RADIUS := 3.0
 ## timeline," not as data. Real keyframes replace them later.
 const TICK_SPACING := 44.0
 const TICK_HEIGHT := 4.0
+## Clearance between the casing's inner ring and the track it frames.
+const TRACK_INSET := 10.0
 ## How far in from the right edge the "now" head sits. The future is off the
 ## right end of the strip; the past runs left.
 const NOW_MARKER_INSET := 8.0
@@ -44,12 +46,22 @@ func _ready() -> void:
 func _draw() -> void:
 	if size.x <= 0.0 or size.y <= 0.0:
 		return
+	# The band's casing — the same bounding box every other HUD region wears
+	# (casing pass 2026-08-25: the timeline was the one band with no box, so it
+	# read as a loose line drawn across the screen rather than as a region).
+	# It boxes the transport chips too: ClockSpeedRow declines its own tray for
+	# exactly this reason.
+	UIStyleFactory.draw_casing(self, Rect2(Vector2.ZERO, size))
 	var mid_y := roundf(size.y * 0.5)
-	draw_line(Vector2(0.0, mid_y), Vector2(size.x, mid_y), TRACK_COLOR, 1.0, true)
-	var x := TICK_SPACING
-	while x < size.x - NOW_MARKER_INSET:
+	var track_left := TRACK_INSET
+	var track_right := size.x - TRACK_INSET
+	if track_right <= track_left:
+		return
+	draw_line(Vector2(track_left, mid_y), Vector2(track_right, mid_y), TRACK_COLOR, 1.0, true)
+	var x := track_left + TICK_SPACING
+	while x < track_right - NOW_MARKER_INSET:
 		draw_line(Vector2(x, mid_y - TICK_HEIGHT), Vector2(x, mid_y + TICK_HEIGHT),
 			TICK_COLOR, 1.0, true)
 		x += TICK_SPACING
-	var now_x := size.x - NOW_MARKER_INSET
+	var now_x := track_right - NOW_MARKER_INSET
 	draw_circle(Vector2(now_x, mid_y), NOW_MARKER_RADIUS, Color(NOW_MARKER_COLOR, 0.9))

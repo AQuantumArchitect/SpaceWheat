@@ -201,6 +201,67 @@ static func draw_trim(ci: CanvasItem, rect: Rect2,
 	ci.draw_style_box(create_trim_style(ink, line, radius, draw_ink), rect)
 
 
+# =============================================================================
+# CASING — the one bounding box every HUD region wears
+# =============================================================================
+
+## Owner ask 2026-08-25: "the trims and boundaries are a little messy … I'd
+## like most everything in bounding boxes, just to give some structure that
+## might later be replaced with a custom UI casing."
+##
+## That last clause is the whole design. Before this there were FOUR spellings
+## of the same bevelled box — ResourcePanel outset a brass ghost by +3 at
+## radius+2, ActionPreviewRow inset one by -3 at radius-2, ChromeFrame lerped N
+## rings at a CONSTANT radius (so its inner rings' corners never nested
+## properly), and SelectionButtonRow/FpsDisplay drew a single bare stroke — and
+## a fifth region, the TimeBar, had no box at all. Swapping any of that for a
+## drawn casing later would have meant finding all five.
+##
+## Now: one function, one geometry. A casing is `rings` concentric strokes
+## stepping INWARD from `rect` by CASING_RING_STEP each, with the corner radius
+## shrinking in step so every ring's corner is truly concentric. The innermost
+## ring carries the backing ink; the outer rings are ghosts. Replacing this
+## body with a NinePatchRect blit re-skins the entire HUD at once.
+const CASING_RING_STEP := 3.0
+const CASING_RADIUS := TRIM_RADIUS
+
+## Tones name a casing's job, not its color, so the palette can move under them.
+##   STEEL — the default HUD region (resource strip, chip trays, the timeline)
+##   BRASS — an edge the frame itself owns (ChromeFrame's molding rings)
+enum CasingTone { STEEL, BRASS }
+
+
+static func casing_ring_color(tone: int, ring: int, ring_count: int) -> Color:
+	if tone == CasingTone.BRASS:
+		# Bevel: shadow outside, highlight, mid, shadow innermost — the read
+		# that made the frame "approaching brass picture frame or clockwork".
+		var bevel := [COLOR_BRASS_SHADOW, COLOR_BRASS_HIGHLIGHT, COLOR_BRASS_MID, COLOR_BRASS_SHADOW]
+		return bevel[mini(ring, bevel.size() - 1)]
+	# STEEL: a brass shadow ghost outside the steel hairline, which is what
+	# ResourcePanel's double-stroke already looked like — promoted to the rule.
+	return COLOR_TRIM_LINE if ring == ring_count - 1 else COLOR_BRASS_SHADOW
+
+
+## Draw a casing. `filled` backs the innermost ring with COLOR_TRIM_INK; pass
+## false for a region that must not dim what it frames (the viewport molding).
+static func draw_casing(ci: CanvasItem, rect: Rect2, tone: int = CasingTone.STEEL,
+		rings: int = 2, filled: bool = true) -> void:
+	if rect.size.x <= 0.0 or rect.size.y <= 0.0:
+		return
+	var n := maxi(rings, 1)
+	for i in range(n):
+		var step := CASING_RING_STEP * float(i)
+		var r := rect.grow(-step)
+		if r.size.x <= 0.0 or r.size.y <= 0.0:
+			return
+		var innermost := i == n - 1
+		# Radius shrinks with the inset so corners stay concentric — the bug
+		# ChromeFrame carried in its own copy of this loop.
+		var radius := maxi(int(round(CASING_RADIUS - step)), 2)
+		draw_trim(ci, r, COLOR_TRIM_INK, casing_ring_color(tone, i, n), radius,
+			filled and innermost)
+
+
 static func create_slot_style(
 	bg_color: Color = COLOR_SLOT_EMPTY,
 	border_color: Color = Color(0.5, 0.5, 0.5, 0.6),

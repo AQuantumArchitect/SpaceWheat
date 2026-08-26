@@ -36,9 +36,11 @@ func setup(quest_manager: Node, overlay_manager: Node = null) -> void:
 	# stops mouse so taps don't leak through to the field behind it.
 	mouse_filter = Control.MOUSE_FILTER_STOP
 
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.08, 0.09, 0.11, 0.82)
-	style.set_corner_radius_all(8)
+	# The shared trim recipe, not a hand-rolled near-miss of it (casing pass
+	# 2026-08-25: this chip carried its own bg color, close to but not equal to
+	# COLOR_TRIM_INK, and no border at all — the one top-corner region with no
+	# bounding box).
+	var style := UIStyleFactory.create_trim_style()
 	style.set_content_margin_all(8)
 	add_theme_stylebox_override("panel", style)
 

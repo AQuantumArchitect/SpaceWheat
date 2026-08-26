@@ -346,6 +346,13 @@ func set_layout_manager(mgr) -> void:
 		scale_factor = layout_manager.scale_factor
 
 
+## Does this row draw its own bounding box? True for every row that sits alone
+## in a band. ClockSpeedRow says no: it rides INSIDE the TimeBar's casing, and
+## a box inside a box reads as clutter rather than as structure.
+func _draws_own_casing() -> bool:
+	return true
+
+
 func _draw() -> void:
 	# Dressing tray: one fitted backing behind the CLUSTER of visible chips
 	# (not the full band — rows overlap within a band, and full-width trays
@@ -359,8 +366,8 @@ func _draw() -> void:
 			continue
 		hull = c.get_rect() if not have_hull else hull.merge(c.get_rect())
 		have_hull = true
-	if have_hull:
-		UIStyleFactory.draw_trim(self, hull.grow(5.0))
+	if have_hull and _draws_own_casing():
+		UIStyleFactory.draw_casing(self, hull.grow(6.0))
 	# Quiet gold underline marks the selected chip (the WASD-crawl amber ring
 	# around whole rows died 2026-07-08 with the crawl itself).
 	if selected_id >= 0:

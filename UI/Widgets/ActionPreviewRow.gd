@@ -133,12 +133,10 @@ func _draw() -> void:
 	# _draw paints beneath child chips and adds no node, so the hard-won row
 	# IGNORE above and the STOP chips' picking are untouched, and the row's
 	# rect never changes → get_free_band() reads identical values (#520).
-	var r := Rect2(Vector2.ZERO, size)
-	# Double-stroke (border-weight pass 2026-08-24): see ResourcePanel — a
-	# second brass line just inside the tray reads bolder at the reserved 1px.
-	UIStyleFactory.draw_trim(self, r.grow(-3.0), Color(), UIStyleFactory.COLOR_BRASS_SHADOW,
-		UIStyleFactory.TRIM_RADIUS - 2, false)
-	UIStyleFactory.draw_trim(self, r)
+	# The dock's casing — the same shared recipe every other HUD region wears
+	# (this row used to spell the double-stroke inside-out, with its own radius
+	# arithmetic, which is exactly the drift draw_casing exists to end).
+	UIStyleFactory.draw_casing(self, Rect2(Vector2.ZERO, size))
 
 
 func _create_action_button(action_key: String) -> Dictionary:

@@ -49,8 +49,7 @@ func _draw() -> void:
 	# Trim backing (dressing pass): this floats over the resource strip's right
 	# end and is a real tappable control — the quiet chip backing makes it read
 	# as one, composed with the framed strip instead of loose over it.
-	if size.x > 0.0 and size.y > 0.0:
-		UIStyleFactory.draw_trim(self, Rect2(Vector2.ZERO, size))
+	UIStyleFactory.draw_casing(self, Rect2(Vector2.ZERO, size))
 
 
 func _gui_input(event: InputEvent) -> void:

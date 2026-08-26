@@ -807,17 +807,20 @@ func _apply_top_strip_layout() -> void:
 			_menu_row_height = layout_manager.get_action_row_height()
 
 	if fps_display:
-		# Sits in the TimeBar's band, right end — off the resource strip it
-		# used to overlap, and out of the corner entirely. Debug builds only
-		# (see set_farm_attached), so this real estate is free in a real game.
-		var fps_top: float = 4.0
-		if layout_manager and layout_manager.has_method("get_resource_bar_height"):
-			fps_top = layout_manager.get_resource_bar_height() + 6.0
-		fps_display.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-		fps_display.offset_left = -310
-		fps_display.offset_top = fps_top
-		fps_display.offset_right = -20
-		fps_display.offset_bottom = fps_top + 24.0
+		# Bottom-LEFT, in the corner the objective banner vacated. Debug builds
+		# only (see set_farm_attached). It briefly sat in the TimeBar's band,
+		# but once that band grew a casing of its own (2026-08-25) a boxed
+		# readout inside a boxed region read as a box in a box — the exact
+		# clutter the casing pass was sent to remove. A developer readout does
+		# not share a region box with player chrome.
+		var fps_bottom: float = -20.0
+		if layout_manager and layout_manager.has_method("get_action_row_height"):
+			fps_bottom = -(2.0 * layout_manager.get_action_row_height() + 16.0)
+		fps_display.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+		fps_display.offset_left = 20
+		fps_display.offset_right = 330
+		fps_display.offset_bottom = fps_bottom
+		fps_display.offset_top = fps_bottom - 26.0
 
 	if time_bar and layout_manager and layout_manager.has_method("get_resource_bar_height") \
 			and layout_manager.has_method("get_time_bar_height"):

@@ -69,6 +69,13 @@ func _on_paused_changed(is_paused: bool) -> void:
 	_rebuild_buttons()
 
 
+## The TimeBar draws the box around this whole band (casing pass 2026-08-25) —
+## a chip tray nested inside it would be a box in a box, which is the "messy
+## trims and boundaries" this pass was sent to fix, not structure.
+func _draws_own_casing() -> bool:
+	return false
+
+
 func _rebuild_buttons() -> void:
 	var specs: Array[Dictionary] = [
 		{

@@ -11,7 +11,13 @@ extends Node
 const BASE_RESOLUTION = Vector2(960, 540)  # Static viewport base resolution
 
 # Layout proportions (percentages of viewport)
-const TOP_BAR_HEIGHT_PERCENT = 0.06       # 6% of viewport height
+## 6.5%, up from 6% (casing pass 2026-08-25). The strip wears a bounding box
+## now, and at 6% the band was 43px at 720p — too short to hold a casing, the
+## 34px counter glyphs AND clearance from the brass molding above, so the
+## glyphs sat on the box's own lines. This is the band growing to fit its own
+## contents, NOT padding added below it (the owner ruled that out on 08-25:
+## "don't move the resource bar down any extra").
+const TOP_BAR_HEIGHT_PERCENT = 0.065
 const PLAY_AREA_PERCENT = 0.665           # 66.5% of viewport height (quantum graph center)
 var plots_row_height_percent: float = 0.15  # Dynamic: 15% base (recalculated from GridConfig grid height)
 const ACTIONS_ROW_HEIGHT_PERCENT = 0.125  # 12.5% action buttons row

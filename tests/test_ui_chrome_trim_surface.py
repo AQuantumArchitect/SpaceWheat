@@ -86,12 +86,19 @@ def test_frame_is_a_molding_not_a_flat_line() -> None:
     # tone list to 1-2 entries makes the frame a flat line again, leaving the
     # reserved 2px/3px state-cue widths as the only way left to look "bold,"
     # exactly the collision the trim vocabulary was written to prevent.
+    # The tone sequence moved into UIStyleFactory.casing_ring_color with every
+    # other casing's (casing pass 2026-08-25) — the frame asks for BRASS and a
+    # ring count now, so the layering law is pinned at the factory.
     frame = read_source("UI/Widgets/ChromeFrame.gd")
-    tones_block = frame.split("MOLD_RING_TONES: Array = [", 1)[1].split("]", 1)[0]
-    assert tones_block.count('"') >= 6, "need >=3 quoted tones in MOLD_RING_TONES"
-    assert "UIStyleFactory.draw_trim(" in frame
-    assert "COLOR_BRASS_HIGHLIGHT" in frame
-    assert "COLOR_BRASS_SHADOW" in frame
+    assert "UIStyleFactory.CasingTone.BRASS" in frame
+    ring_count = int(frame.split("const MOLD_RING_COUNT :=", 1)[1].split("\n", 1)[0].strip())
+    assert ring_count >= 3, "a 1-2 ring molding is a flat line again"
+
+    factory = read_source("UI/Core/UIStyleFactory.gd")
+    bevel = factory.split("static func casing_ring_color", 1)[1].split("\nstatic func ", 1)[0]
+    assert "COLOR_BRASS_HIGHLIGHT" in bevel
+    assert "COLOR_BRASS_SHADOW" in bevel
+    assert "COLOR_BRASS_MID" in bevel
 
 
 def test_brass_palette_has_one_spelling_in_ui() -> None:

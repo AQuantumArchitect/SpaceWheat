@@ -131,6 +131,8 @@ def test_the_debug_readout_never_parks_on_the_resource_strip() -> None:
     shell = read_source("UI/PlayerShell.gd")
     assert "fps_display.visible = attached and RuntimeEnv.debug_readout_enabled()" in shell
     fps_block = shell.split("if fps_display:", 2)[2].split("\n\n", 1)[0]
-    assert "get_resource_bar_height()" in fps_block, (
-        "the readout must derive its top from the strip it used to sit on top of"
-    )
+    # It is out of the top strip entirely now (casing pass moved it to the
+    # bottom-left corner the objective banner vacated), so it can neither
+    # overlap the strip nor sit boxed inside the TimeBar's own box.
+    assert "PRESET_TOP_RIGHT" not in fps_block
+    assert "PRESET_BOTTOM_LEFT" in fps_block
