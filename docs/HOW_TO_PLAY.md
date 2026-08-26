@@ -20,7 +20,7 @@ you a chain of small asks on the quest board.
 3. **R** strikes — Born's rule picks an answer and the state collapses.
    The game's one irreversible act, a social encounter that costs 👥; the
    bubble freezes cyan with its answer. (Tapping a live bubble does the same.)
-4. **Q** extracts, free — you are paid the *surprisal* of the outcome,
+4. **Q** gathers (costs 🧺) — you are paid the *surprisal* of the outcome,
    −kT·log p. Rare answers pay more, because you learned more; a certain
    answer pays the floor, so let the state evolve before you strike. The
    bubble returns to live evolution. (Tapping a frozen bubble does the same.)
@@ -38,7 +38,7 @@ That's the core loop. Everything else in the game is a deepening of it.
 
 Four verbs, same directions on every surface:
 
-- **Q** — screw out: less, remove, retreat, extract, fuse.
+- **Q** — screw out: less, remove, retreat, gather, fuse.
 - **E** — pause + inspect: read the state or open detail.
   **E is the universal "tell me more"** — press it on plots, offers,
   factions, bridges, anything.
@@ -55,7 +55,7 @@ Four verbs, same directions on every surface:
 | 5 | **Icon** | The vocabulary hat — **the story runs on it** (see Berries below). Mode **1** is inject: **F tracks** a plot's walk (⌖), **R incorporates** it when ripe. Mode **2** is the mirror 🪞 (see What Turns). R on an empty plot (mode 1) adds an icon, Q trims one. |
 | 6 | **Merchant** | Standing contracts with the Bath (wet country only). 1/2/3 picks the channel — thermal / dephase / damp. Q exports, E reads the order book, R imports, **F settles**. |
 | 7 | **Captain** | Biome lifecycle: cull, compass, discover. |
-| 8 | **Ace** | The default: explore/fast-fwd (F, Shift+F reaps the season) / strike (R) / extract (Q) / pause (E). |
+| 8 | **Ace** | The default: explore/fast-fwd (F, Shift+F reaps the season) / strike (R) / gather (Q) / pause (E). |
 | 9 | **Operator** | Gate building: Bell, CNOT, CZ, SWAP, GHZ. Mode **2** is the compass 🧭 (see What Turns). |
 | 0 | **Druid** | Rotations + Hadamard (E); 1/2/3 pick the X/Y/Z axis. |
 

@@ -166,15 +166,6 @@ var biome_row_map: Dictionary = {}  # biome_name -> row index
 var row_biome_map: Dictionary = {}  # row index -> biome_name
 var lindblad_rainbow_accumulators: Dictionary = {}  # emoji -> fractional credits remainder
 
-# Special gather actions (not plantable, not buildings)
-const GATHER_ACTIONS = {
-	"forest_harvest": {
-		"cost": {},  # Free - gather natural detritus from forest
-		"yields": {"🍂": 5},  # Collect 5 detritus (leaf litter, deadwood)
-		"biome_required": "Forest"  # Only works in Forest biome
-	}
-}
-
 # Signals - emitted when game state changes (no UI callbacks needed)
 signal state_changed(state_data: Dictionary)
 signal grid_resized(new_config)  # Emitted when grid dimensions change

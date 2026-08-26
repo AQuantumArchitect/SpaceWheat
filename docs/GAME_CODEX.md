@@ -198,7 +198,7 @@ Re-pressing the active hat returns to Ace. No hat = **Ace** (default).
 | 5 | **Icon** 📖 | Trim / Inspect / **Add-or-Incorporate** / **Track** (Berry) | the progression tool |
 | 6 | **Merchant** 🤝 | import / price / export / tip | **DLC-gated** (hidden in closed mode) |
 | 7 | **Captain** ✳ | Cull / Compass / Add Biome / — | biome lifecycle |
-| 8 | **Ace** ○ | Extract (free) / Pause / **Strike (measure, 👥)** / Explore (🍞) · Fast-Fwd | player vantage; works in every mode |
+| 8 | **Ace** ○ | Gather (🧺) / Pause / **Strike (measure, 👥)** / Explore (🍞) · Fast-Fwd | player vantage; works in every mode |
 | 9 | **Operator** ⚙ | Break / Inspect / Build gate / — | entangling gates |
 | 0 | **Druid** V | rot− / **Hadamard** / rot+ / — | single-qubit unitary; `1/2/3` = X/Y/Z axis |
 
@@ -215,7 +215,7 @@ build will find 4 and 6 unavailable — that is intended, not a bug.
             |
             E  (time−: pause / inspect / snapshot)
 ```
-- **Q** = extract / withdraw. **R** = invest / commit.
+- **Q** = gather / withdraw. **R** = invest / commit.
 - **E** = pause + inspect. **F** = play + advance (also confirms armed destructive
   actions, and closes submenus).
 Meaning is contextual: the active **hat** and **surface** decide what Q/E/R/F do.
@@ -278,7 +278,7 @@ override, e.g. Icon-R "Add" vs "Incorporate") → `_run_action` →
 2. **R = Measure (Strike)** — Born-sample the qubit; it collapses to one emoji;
    the probability bar shows how rare that outcome was. Closed mode projects
    (purity stays 1).
-3. **Q = Extract (Pop/Harvest)** — cash the outcome for resources; reward is the
+3. **Q = Gather (`pop`)** — cash the outcome for resources; reward is the
    surprisal `−kT·log p`, times an **incorporation bonus** if that icon is already
    in your signature (closed mode: ~4× flat).
 
@@ -339,7 +339,7 @@ teaches only enough physics to play — farm verbs and contracts — and raises
 the bar per act; every beat also carries a `campaign` tag (the split's
 phase-0 partition, `tests/test_campaign_partition.py`).
 - **Act 0 — tutorial** (`tutorial_arc.json`): the instant verbs only — the
-  explore/strike/extract loop, reap, the contract ceremony, wayfinding (the
+  explore/strike/gather loop, reap, the contract ceremony, wayfinding (the
   first crossing), superposition, entanglement. No berry ritual here.
 - **Acts 1–2 — teachings-first:** kept contracts raise standing; factions teach
   their words at trust (the claim IS the teaching); planting taught words

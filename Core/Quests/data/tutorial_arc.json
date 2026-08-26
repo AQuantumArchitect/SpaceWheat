@@ -6,8 +6,8 @@
       "tutorial_teaches": "core_loop",
       "faction": "Hearth Keepers",
       "biome": "TheDemos",
-      "body": "The Demos sleeps — wheat and people, waiting. Explore a plot, strike its qubit to collapse it, then extract what the collapse leaves behind.",
-      "tutorial_hint": "Strike a plot (R), then extract the yield (Q). Pick plots with G H J K L ; — or just tap one. F explores new ground (an expedition costs 🍞), R strikes (a social encounter costs 👥), Q gathers the yield (costs 🧺). Ace is your starting hat (8); the number row 4-0 swaps hats for new Q/E/R/F verbs. E pauses to look; F plays on.",
+      "body": "The Demos sleeps — wheat and people, waiting. Explore a plot, strike its qubit to collapse it, then gather what the collapse leaves behind.",
+      "tutorial_hint": "Strike a plot (R), then gather the yield (Q). Pick plots with G H J K L ; — or just tap one. F explores new ground (an expedition costs 🍞), R strikes (a social encounter costs 👥), Q gathers the yield (costs 🧺). Ace is your starting hat (8); the number row 4-0 swaps hats for new Q/E/R/F verbs. E pauses to look; F plays on.",
       "math_note": "Fires the instant the gate ledger records 1 measure gate (a single R-strike) — a structural count, not a soft gate.",
       "state_predicates": [
         {"type": "gate_sequence_contains", "gate": "measure", "count": 1}
@@ -22,7 +22,7 @@
       "resource": "🌾",
       "quantity": 2,
       "body": "The Millwright's Union is buying. Accept their contract and deliver 2× 🌾 from your stores. Kept contracts are how a small country eats — and how factions come to know your name.",
-      "tutorial_hint": "Gather 2× 🌾: strike [R], extract [Q] — or just tap the bubbles. The granary you already hold counts too. Then deliver: tap 📋 [C], Commitments [U], this contract's row — tap it twice (Deliver [R]). (To accept it in the first place: tap the gold banner [X→I], its row, then Accept [R] — every quest ahead works the same way.)",
+      "tutorial_hint": "Gather 2× 🌾: strike [R], gather [Q] — or just tap the bubbles. The granary you already hold counts too. Then deliver: tap 📋 [C], Commitments [U], this contract's row — tap it twice (Deliver [R]). (To accept it in the first place: tap the gold banner [X→I], its row, then Accept [R] — every quest ahead works the same way.)",
       "math_note": "A DELIVERY quest, not a soft gate — fires the instant your 🌾 stores hold quantity ≥ 2 and you complete the contract. This step alone is NOT auto-accepted/claimed: you learn the real accept→do→claim ceremony every market contract uses."
     },
     {
@@ -69,9 +69,9 @@
       "tutorial_teaches": "reap_season",
       "faction": "Hearth Keepers",
       "biome": "TheDemos",
-      "body": "Explore, strike, extract — you have the beats. Now turn time itself: reap the season, and every plot the country holds settles and pays at once. Every country ahead runs on these same four verbs.",
+      "body": "Explore, strike, gather — you have the beats. Now turn time itself: reap the season, and every plot the country holds settles and pays at once. Every country ahead runs on these same four verbs.",
       "tutorial_hint": "Reap the season — the whole country pays at once. Come home to TheDemos and put the field in play: tap unexplored plots (or F — each costs 🍞). Then Ace hat (8): Shift+click the F chip — its ⇧ line names Reap Season — or hold Shift and press F. Time runs forward, every explored plot settles, and the harvest lands together. Costs 1 🍼 — the bottle you carry is for exactly this.",
-      "math_note": "Fires on 1 recorded reap gate — a structural count over the durable gate ledger (survives save/load; a refused reap does not count). Reap only has material when explored plots are still in play (an extracted plot left the season). Reap costs follow the sequence 1,1,2,3,5,8,…🍼; the entanglement step's claim paid your first.",
+      "math_note": "Fires on 1 recorded reap gate — a structural count over the durable gate ledger (survives save/load; a refused reap does not count). Reap only has material when explored plots are still in play (a gathered plot left the season). Reap costs follow the sequence 1,1,2,3,5,8,…🍼; the entanglement step's claim paid your first.",
       "state_predicates": [
         {"type": "gate_sequence_contains", "gate": "reap", "count": 1}
       ]

@@ -280,7 +280,7 @@ func _on_purchase_failed(reason: String) -> void:
 # appeared after a refused action"; it was StarterForest's drain trickle).
 const REASON_WORDS := {
 	"quest_completion": "quest",
-	"plot_harvest": "harvest",
+	"plot_harvest": "gather",
 	"trade": "trade",
 	"synthesis": "synthesis",
 	"lindblad_drain": "field drain",

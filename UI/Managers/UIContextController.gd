@@ -527,7 +527,7 @@ func _apply_probe_preview(actions: Dictionary) -> void:
 			measured_terminals.append(terminal)
 	if not measured_terminals.is_empty() and actions.has("Q"):
 		var measured_terminal = measured_terminals[0]
-		actions["Q"].label = "Extract (%s)" % str(measured_terminal.measured_outcome if measured_terminal.measured_outcome else "?")
+		actions["Q"].label = "Gather (%s)" % str(measured_terminal.measured_outcome if measured_terminal.measured_outcome else "?")
 
 
 ## Which chip would a tap on the FOCUSED plot fire right now? Deliberately

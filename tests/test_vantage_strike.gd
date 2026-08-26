@@ -37,7 +37,7 @@ func _run() -> void:
 	# --- Pure ToolConfig assertions (no farm needed) ---
 	print("[ToolConfig] Ace QERF mapping:")
 	_check(str(ToolConfig.get_action("ace", "Q").get("action", "")) == "pop", "Q → pop (Extract)")
-	_check(str(ToolConfig.get_action("ace", "Q").get("label", "")) == "Extract", "Q labelled 'Extract'")
+	_check(str(ToolConfig.get_action("ace", "Q").get("label", "")) == "Gather", "Q labelled 'Gather'")
 	_check(str(ToolConfig.get_action("ace", "E").get("action", "")) == "", "E → '' (Pause, no tool verb)")
 	_check(str(ToolConfig.get_action("ace", "R").get("action", "")) == "measure", "R → measure (Strike)")
 	_check(str(ToolConfig.get_action("ace", "R").get("label", "")) == "Strike", "R labelled 'Strike'")

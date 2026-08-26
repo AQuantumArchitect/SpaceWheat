@@ -102,7 +102,7 @@ static func action_explore(terminal_pool, biome, economy = null, register_id: in
 		return {
 			"success": false,
 			"error": "insufficient_resources",
-			"message": "Need %s to explore — contracts pay it (C board), and Q-extraction earns on plots you already hold." % missing
+			"message": "Need %s to explore — contracts pay it (C board), and Q-gathering earns on plots you already hold." % missing
 		}
 
 	# 4. Emoji pair for the chosen register (for terminal display)

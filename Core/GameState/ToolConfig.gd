@@ -290,10 +290,10 @@ const ARCHETYPE_FRAMES: Dictionary = {
 		"pauses_sim": true,
 		"actions": {
 			"probe": {
-				"Q": {"action": "pop", "label": "Extract", "emoji": "^",
+				"Q": {"action": "pop", "label": "Gather", "emoji": "^",
 					  "icon": "res://Assets/UI/Science/Pop-Harvest.svg",
 					  "hint": "Cash out — pull the realized reward off a collapsed register into inventory; the gathering costs 🧺, flat. Reward = surprisal −kT·log p (rare collapse pays more; certain ones pay the floor).",
-					  "shift_action": "pop", "shift_label": "Mass Extract"},
+					  "shift_action": "pop", "shift_label": "Mass Gather"},
 				"E": {"action": "", "label": "Pause", "emoji": "⏸",
 					  "icon": "",
 					  "hint": "Pause — freeze time to read the odds (global side-effect; no tool verb)",

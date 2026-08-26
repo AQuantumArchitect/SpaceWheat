@@ -1461,10 +1461,10 @@ func _guide_core_loop() -> void:
 	_body_box.add_child(_make_body("Ace is your starting frame — tap its hat chip (or press 8) to return any time. Then:"))
 	_body_box.add_child(_make_action_row("F", "Explore", "Mount an expedition to an unexplored plot — costs %d🍞 (breaking bread opens doors). Binds the register so it can be struck. A tap on an unexplored plot does the same." % explore_bread))
 	_body_box.add_child(_make_action_row("R", "Strike", "Collapse the quantum state (Born rule) — the game's one irreversible act; a social encounter, flat %d👥. The bubble freezes cyan with its answer. A tap on a live bubble does the same." % strike_people))
-	_body_box.add_child(_make_action_row("Q", "Extract", "Gather the frozen answer — costs a flat %d🧺. Reward = surprisal −kT·log p, rare pays more (a certain outcome pays the floor: let the state evolve before you strike). The bubble returns to live evolution. A tap on a frozen bubble does the same." % gather_baskets))
+	_body_box.add_child(_make_action_row("Q", "Gather", "Gather the frozen answer — costs a flat %d🧺. Reward = surprisal −kT·log p, rare pays more (a certain outcome pays the floor: let the state evolve before you strike). The bubble returns to live evolution. A tap on a frozen bubble does the same." % gather_baskets))
 	_body_box.add_child(_make_action_row("E", "Pause", "Stop time and look — E is the universal \"tell me more\" on every surface."))
 	_body_box.add_child(_make_body(
-		"F explores, R strikes, Q extracts — that's the farming heartbeat, and tapping a plot walks the same three beats. "
+		"F explores, R strikes, Q gathers — that's the farming heartbeat, and tapping a plot walks the same three beats. "
 		+ "On an explored plot F returns to its other meaning: play on / fast-forward (double down and let the odds spin). "
 		+ "Shift+F — or Shift+click the F chip; the ⇧ line on a chip IS its Shift verb — reaps the whole season: time runs, every plot settles, the harvest lands at once."))
 

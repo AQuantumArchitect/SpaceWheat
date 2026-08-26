@@ -48,7 +48,7 @@ right. Spark and Druid bookend the set.
 | `5` | Icon      | (Self, Q, F)   | Signature growth: F-track a qubit's Berry phase → ripen → R-incorporate into your signature (empty plot: R injects) |
 | `6` | Merchant  | (Self, C, F)   | Standing Bath contracts: thermal / dephase / damp     |
 | `7` | Captain   | (World, C, F)  | Biome lifecycle (discover / cull)          |
-| `8` | Ace       | (Self, C, P)   | Player vantage (extract / pause / strike / fast-fwd) |
+| `8` | Ace       | (Self, C, P)   | Player vantage (gather / pause / strike / fast-fwd) |
 | `9` | Operator  | (World, Q, F)  | Gate building (build / inspect / break)    |
 | `0` | Druid     | (World, Q, P)  | Unitary (X/Y/Z rotations, Hadamard)        |
 
@@ -70,7 +70,7 @@ right. Spark and Druid bookend the set.
 | Icon      | inject 📖 / mirror 🪞    | Trim icon · Release | Inspect qubit · **Compare** 🪞 (Δγ + spinor sign vs reference) | Add icon / **Incorporate** (tracked+ripe) · **Stay Home** ⌂ | **Track** ⌖ (Berry phase) · — |
 | Merchant  | thermal ~ / dephase . / damp \| | Export 📤 | Order book !             | Import 📥 (dephase: refused) | Settle ✔ |
 | Captain   | biomes                   | Cull           | Compass (discover peek)   | Add Biome     | —                  |
-| Ace       | probe                    | Extract        | Pause ⏸                   | Strike !      | Fast-Fwd ⏩        |
+| Ace       | probe                    | Gather         | Pause ⏸                   | Strike !      | Fast-Fwd ⏩        |
 | Operator  | gate )( / compass 🧭     | Break gate · **Comb** 🪮 (tree gauge-fix) | Inspect · **Loops** 🔍 (β₁, Wilson) | Build gate · **Turn** 🧭 (gauge flip) | — · **Shake** 🎲 (scramble) |
 | Druid     | X / Y / Z                | rot−           | Hadamard                  | rot+          | —                  |
 
@@ -93,7 +93,7 @@ right. Spark and Druid bookend the set.
   (pure phase damping — export only; no contract sells phase back), damp
   (one-way, pins and pays). F settles; E reads the real order book.
 - **Captain** handles biome lifecycle.
-- **Ace** is the player vantage: extract / pause / strike / fast-forward.
+- **Ace** is the player vantage: gather / pause / strike / fast-forward.
 - **Operator** handles gate building.
 - **Druid** handles unitary gates.
 

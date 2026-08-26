@@ -60,7 +60,7 @@ Each biome runs a **density matrix simulation** of its quantum state. A biome is
 
 1. **Strike** a qubit (Ace **R**): Born-sample it; it collapses to one emoji.
    (**F** = Explore first to open the register and see the odds; Strike costs 👥.)
-2. **Extract** (Ace **Q**, free): cash the outcome for resources — reward is the
+2. **Gather** (Ace **Q**, costs 🧺): cash the outcome for resources — reward is the
    surprisal `−kT·log p` (rarer = richer), with a bonus if the icon is in your
    signature.
 3. **Track & Incorporate** (Icon **F** then **R**): let a qubit accumulate Berry
@@ -81,7 +81,7 @@ player wears:
 | **5** | **Icon** | Inject a dual-emoji qubit from the neighborhood's installed signature. |
 | **6** | **Merchant** | Standing contracts with the Bath (wet ground): thermal / dephase / damp channels; export, order book, import, settle. Price = −kT·log p. |
 | **7** | **Captain** | Biome lifecycle: cull, discover. |
-| **8** | **Ace** | The player vantage — measurement is the verb: Extract (Q), Pause (E), Strike (R), Fast-Fwd (F). |
+| **8** | **Ace** | The player vantage — measurement is the verb: Gather (Q), Pause (E), Strike (R), Fast-Fwd (F). |
 | **9** | **Operator** | Gate building: Bell, CNOT, CZ, SWAP, GHZ, cluster. |
 | **0** | **Druid** | Unitary rotations + Hadamard (X/Y/Z axes on 1/2/3). |
 
@@ -95,7 +95,7 @@ keyboard, with **E as the universal "inspect / more information"**):
 ### The Core Loop
 
 ```
-STRIKE (R)  -->  EXTRACT (Q)  -->  FAST-FWD (F)  -->  repeat
+STRIKE (R)  -->  GATHER (Q)  -->  FAST-FWD (F)  -->  repeat
     |                |                  |
  Born sample     surprisal payout   H respreads
  collapse state  E = −kT·log p      the odds
@@ -103,7 +103,7 @@ STRIKE (R)  -->  EXTRACT (Q)  -->  FAST-FWD (F)  -->  repeat
 
 1. **Strike** samples the qubit via Born's rule and collapses it — the game's single
    irreversible act, seeded deterministically so a save-load replays the same universe.
-2. **Extract** pays the *surprisal* of what you learned: improbable outcomes pay more
+2. **Gather** pays the *surprisal* of what you learned: improbable outcomes pay more
    because you learned more. The player is Maxwell's demon on a payroll
    (`docs/inspiration/DEMON_AT_THE_GATE.md`).
 3. **Fast-forward** lets the Hamiltonian spin the odds back up. (Plant — the population

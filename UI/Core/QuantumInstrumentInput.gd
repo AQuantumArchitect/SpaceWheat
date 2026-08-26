@@ -1807,7 +1807,7 @@ func handle_bubble_tap(grid_pos: Vector2i, shift: bool = false) -> Dictionary:
 		"measure":
 			return _run_action("measure", "📊", "Strike")
 		_:
-			return _run_action("pop", "🎉", "Extract")
+			return _run_action("pop", "🎉", "Gather")
 
 
 ## What a tap on grid_pos would fire RIGHT NOW: measure on a live bubble, pop on
@@ -1999,7 +1999,7 @@ func _block_reason_for_player(action_name: String) -> String:
 		"pop", "reap":
 			if not _has_focused_plot():
 				return "no plot selected — G H J K L ; picks one"
-			return "nothing measured to extract here — R strikes first"
+			return "nothing measured to gather here — R strikes first"
 		_:
 			return "not possible on this plot right now"
 

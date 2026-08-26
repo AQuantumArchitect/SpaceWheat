@@ -4,7 +4,7 @@
     "display_name": "First Harvest",
     "act": 0,
     "campaign": "demos",
-    "arc_beat": "You turned time forward and the whole country answered — every plot settled, every yield landed at once. And notice what did NOT happen: nothing leaked, nothing faded, nothing was forgotten. The enclave holds. The Demos has eaten from its own ground by its own hand, and the shape of the meal is worth remembering: explore, strike, extract, reap. Every country ahead runs on the same four beats.",
+    "arc_beat": "You turned time forward and the whole country answered — every plot settled, every yield landed at once. And notice what did NOT happen: nothing leaked, nothing faded, nothing was forgotten. The enclave holds. The Demos has eaten from its own ground by its own hand, and the shape of the meal is worth remembering: explore, strike, gather, reap. Every country ahead runs on the same four beats.",
     "predicates": [
       {
         "type": "gate_sequence_contains",
@@ -198,7 +198,7 @@
     },
     "arc_quest": {
       "body": "Find the Woodlot — follow the discovery compass upstream until timber country turns under your feet.",
-      "hint": "Captain hat (7): F reads the discovery compass — the story is pulling it toward Woodlot. R discovers the top-ranked biome (costs 21🦅; harvest eagles from StarterForest with the Ace hat — strike R, extract Q). A discovered biome evolves on its own; press its biome key to stand in it.",
+      "hint": "Captain hat (7): F reads the discovery compass — the story is pulling it toward Woodlot. R discovers the top-ranked biome (costs 21🦅; harvest eagles from StarterForest with the Ace hat — strike R, gather Q). A discovered biome evolves on its own; press its biome key to stand in it.",
       "faction": "Millwright's Union",
       "state_predicates": [
         {
@@ -657,7 +657,7 @@
     "standing_grants": {},
     "arc_quest": {
       "body": "The Spiral Breaks — take a second word from the land, then harvest what you know.",
-      "hint": "The ritual again: Icon hat (5), F tracks a fresh plot, ⏩ hurries the sky, R when ripe. Then strike and extract a plot whose word you have incorporated — the yield multiplies by how well the loop was walked (up to ×4). Incorporated words pay; taught words plant.",
+      "hint": "The ritual again: Icon hat (5), F tracks a fresh plot, ⏩ hurries the sky, R when ripe. Then strike and gather a plot whose word you have incorporated — the yield multiplies by how well the loop was walked (up to ×4). Incorporated words pay; taught words plant.",
       "state_predicates": [
         {
           "type": "berry_consumed_count_gte",
@@ -665,7 +665,7 @@
           "value": 2
         }
       ],
-      "math_note": "Count gate on StarterForest berry_consumed_count ≥ 2 — the second self-taken word. The ×4 is (bloch_r + 1)² on extraction of an incorporated axis (ProbeActions), so the pitch is measurable on the very next harvest."
+      "math_note": "Count gate on StarterForest berry_consumed_count ≥ 2 — the second self-taken word. The ×4 is (bloch_r + 1)² on gathering an incorporated axis (ProbeActions), so the pitch is measurable on the very next harvest."
     }
   },
   {

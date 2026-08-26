@@ -148,7 +148,7 @@ Right-hand rule. Curl the fingers of your right hand around a screw.
   pumping, **investing** (Plant / Buy / Spark-north). "Save and resume"
   lives on R: screw back into the session.
 - **Q = screw OUT** = thumb toward you. Leaving, retreating, undoing,
-  draining, **extracting** (Harvest / Sell / Spark-south). "Quit" lives
+  draining, **gathering** (Gather / Sell / Spark-south). "Quit" lives
   on Q: unscrew yourself from the session.
 
 **Ace is the player-character vantage** (see *Hats and frames*). It is the
@@ -159,7 +159,7 @@ makes the register strikeable); on an explored plot F keeps its other
 meaning, play/fast-forward (double down and let H spin the odds; **E**
 pauses to read them). **R = Strike** collapses the explored register to
 one classical outcome (the irreversible act, a social encounter that
-costs 👥), and **Q = Extract** cashes out the realized reward free
+costs 👥), and **Q = Gather** cashes out the realized reward for 🧺
 (surprisal `−kT·log p` — a rare collapse pays more; a certain one pays
 the floor). Selection stays a free, transient cursor move that renders
 the live bubble straight from the QC — looking costs nothing, acting does.
@@ -172,7 +172,7 @@ the live bubble straight from the QC — looking costs nothing, acting does.
 > refuse per-plot wherever the target biome's regime runs closed, and run
 > live wherever it leaks (the wet landmarks boot open before the endgame
 > door). **Plant** (the population drive) is gone from Ace entirely — it
-> lives only on Spark; Ace is the measurement vantage (Explore-Fast-Fwd / Extract /
+> lives only on Spark; Ace is the measurement vantage (Explore-Fast-Fwd / Gather /
 > Pause / Strike). See `docs/CLOSED_SYSTEM.md`.
 
 #### The session is the axis, not the target
@@ -295,7 +295,7 @@ still exists and the row still has four slots. Source of truth:
 | 5  | Icon      | inject 📖 / mirror 🪞    | Trim Icon · Release | (open picker; pause) · Compare 🪞 | Add Icon · Stay Home ⌂ | Track ⌖ · (disabled) |
 | 6  | Merchant  | thermal / dephase / damp | Export 📤     | Order book !          | Import 📥 (dephase: refused) | Settle ✔  |
 | 7  | Captain   | biomes (single)          | Cull          | Compass               | Discover      | (global F)       |
-| 8  | Ace       | probe (single)           | Extract       | Pause ⏸               | Strike !      | Explore 🧭 / Fast-Fwd ⏩ |
+| 8  | Ace       | probe (single)           | Gather        | Pause ⏸               | Strike !      | Explore 🧭 / Fast-Fwd ⏩ |
 | 9  | Operator  | gate )( / compass 🧭     | Break gate · Comb 🪮 | Inspect · Loops 🔍 | Build gate · Turn 🧭 | (global F) · Shake 🎲 |
 | 0  | Druid     | X / Y / Z                | rot−          | Hadamard              | rot+          | (global F)       |
 
@@ -310,7 +310,7 @@ are FREE: bookkeeping isn't physics, and pricing it would teach the opposite.
 🔒 = open-quantum DLC only; renders disabled (greyed + 🔒) in the closed (default) build.
 Ace's **E = Pause** and **F = Fast-Fwd** are the time-scrub pair (E freezes to read the
 odds, F advances so H spins them); on an UNEXPLORED plot **F = Explore** (🍞) binds the
-register first; **R = Strike** (👥) is the collapse, **Q = Extract** the free cash-out.
+register first; **R = Strike** (👥) is the collapse, **Q = Gather** the 🧺 cash-out.
 
 F is handled globally by PlayerShell — frames don't define a per-mode F
 verb. The only way a per-frame F appears is if a frame has a verb that
@@ -384,7 +384,7 @@ confirm.** The split is deliberate: making *every* Q-verb ask "are you
 sure?" trains the player to mash F reflexively, which defeats the guard
 on the verbs that actually matter.
 
-- **Safe / reversible** (Ace **Extract** — it only cashes out an
+- **Safe / reversible** (Ace **Gather** — it only cashes out an
   already-collapsed register; load/save slot menus; most navigation) →
   **fire on the first press**, no confirm.
 - **Destructive / irreversible** (Trim icon, Cull biome, Break gate, and
@@ -488,7 +488,7 @@ playtesters get stuck.
 ## Modifiers and overloads
 
 - **`Shift + Q/E/R`** applies the verb to **every checked plot at once**
-  (bulk). `Shift + Q` is the canonical "Mass Harvest."
+  (bulk). `Shift + Q` is the canonical "Mass Gather."
 - **`Shift + GHJKL;`** toggles a plot's checkbox without moving the
   cursor highlight (multi-select gesture).
 - **`'`** (apostrophe) toggles bulk select / clear all on the active
