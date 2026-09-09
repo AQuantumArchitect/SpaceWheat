@@ -63,6 +63,9 @@ const GATE_FRAMES := {
 	"gauge_flip": "operator", "wilson_inspect": "operator",
 	"gauge_fix": "operator", "gauge_scramble": "operator",
 	"mark_reference": "icon", "interfere": "icon",
+	# Farm verbs — Ace's Q/R/F. Without these, summary() printed "REAP ×1"
+	# with no hat home, and the Arc face taught a gate name instead of a tap.
+	"measure": "ace", "reap": "ace", "pop": "ace", "explore": "ace",
 }
 
 
@@ -243,9 +246,22 @@ static func summary(pred: Dictionary, qm = null) -> String:
 			return "entanglement (MI) ≥ %.2f" % float(pred.get("value", 0.5))
 		"gate_sequence_contains":
 			var gname := str(pred.get("gate", "?")).strip_edges().to_lower()
+			var gcount := int(pred.get("count", 1))
+			# Farm verbs speak as taps, not as gate names. Digit form "(8)" is
+			# load-bearing: predicate_target_smoke pins hat-kind prose to the
+			# same digit target() returns.
+			match gname:
+				"measure":
+					return "Strike ×%d — %s: tap a live bubble (or R)" % [gcount, verb_home("ace")]
+				"reap":
+					return "Reap the season ×%d — %s: Shift+click F (or Shift+F)" % [gcount, verb_home("ace")]
+				"pop":
+					return "Gather ×%d — %s: tap a frozen bubble (or Q)" % [gcount, verb_home("ace")]
+				"explore":
+					return "Explore ×%d — %s: tap a sleeping plot (or F)" % [gcount, verb_home("ace")]
 			var gframe := str(GATE_FRAMES.get(gname, ""))
 			var ghome := (" — %s: gate a focused plot" % verb_home(gframe)) if gframe != "" else ""
-			return "%s ×%d%s" % [gate_glyph(str(pred.get("gate", "?"))), int(pred.get("count", 1)), ghome]
+			return "%s ×%d%s" % [gate_glyph(str(pred.get("gate", "?"))), gcount, ghome]
 		"gate_order":
 			# The braid word, spelled as the player will drill it: "H → CNOT".
 			var word: Array = pred.get("gates", [])
@@ -311,7 +327,16 @@ static func summary(pred: Dictionary, qm = null) -> String:
 ## d1-02: rendered on Arc E-inspect (ControlsOverlay) beside summary().
 static func formula(pred: Dictionary, qm = null) -> String:
 	var t := str(pred.get("type", "?"))
-	var center: float = float(pred.get("value", 0.0))
+	# Structural gate-ledger counts author `count`, not `value`. Reading
+	# value (default 0) printed "gate_sequence_contains.reap ≥ 0 ·
+	# soft_gate(x, 0, 0.05), fires ~0.043" on the Arc face — engine dialect
+	# for "do this once".
+	if t == "gate_sequence_contains":
+		var n := int(pred.get("count", 1))
+		return "%s ×%d  ·  structural count, fires at %d" % [_formula_subject(pred, t), n, n]
+	if t == "gate_order":
+		return "in-order subsequence  ·  structural fraction"
+	var center: float = float(pred.get("value", pred.get("count", 0.0)))
 	var is_count: bool = bool(qm != null and qm.has_method("predicate_is_count_gate") and qm.predicate_is_count_gate(pred))
 	var width: float = float(qm.predicate_width(pred)) if (qm and qm.has_method("predicate_width")) else float(pred.get("width", 0.05))
 	var fire_target: float = float(qm.predicate_fire_target(pred)) if (qm and qm.has_method("predicate_fire_target")) else center
@@ -358,6 +383,10 @@ static func gate_glyph(gate_name: String) -> String:
 		"bell": return "Bell"
 		"ghz": return "GHZ"
 		"cluster": return "Cluster"
+		"measure": return "Strike"
+		"reap": return "Reap"
+		"pop": return "Gather"
+		"explore": return "Explore"
 		"pauli_x": return "X"
 		"pauli_y": return "Y"
 		"pauli_z": return "Z"

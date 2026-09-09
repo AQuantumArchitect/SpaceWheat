@@ -1,39 +1,28 @@
 class_name WelcomeOverlay
 extends "res://UI/Core/OverlayBase.gd"
 
-## Welcome / how-to-play splash — shown ONCE on a fresh game (first run, before tutorial_seen).
-## Points the player at the X → Guide tab for the full instructions. Dismissing it (F = Begin,
-## or ESC) is the human ACTION that begins the tutorial: tutorial_seen fires on dismiss, not at
-## boot — matching the principle that flags fire from human action.
+## Welcome splash — shown ONCE on a fresh game (first run, before tutorial_seen).
+## Dismissing it (F = Begin, or any tap/key) is the human ACTION that begins
+## the tutorial: tutorial_seen fires on dismiss, not at boot.
+##
+## Form (2026-09-08): a scene, not a wall of labels. Fiction leads. Three
+## verb cards name the first minute. The dimmer is a glass, not a blackout —
+## the field is the illustration. Copy lives in IntroVoice so the toast and
+## the Arc postcard cannot drift from this first sentence.
 
-## Story first (owner ruling 2026-08-17): a brand-new player used to meet
-## eleven rows of keymap; the fiction was one line among them. Now the fiction
-## leads, and only the three keys the first minute needs appear — the full
-## keymap lives where it always did, in the Guide (X → O), and the objective
-## portal (bottom-right) carries the player from there.
-const _ROWS := [
-	"You are The Demos — a people learning the quantum language of your own ground.",
-	"",
-	"Your whole vocabulary is one word: 🌾/👥 — wheat and people, the axis your island turns on.",
-	"The factions past the hedge keep older words, and they teach the ones who keep their contracts.",
-	"",
-	"THE FIRST MINUTE   ·   tap a plot to explore it [F] (costs 🍞)  ·  tap its bubble to strike — the answer locks in [R] (costs 👥)  ·  tap the frozen bubble to gather the yield [Q] (costs 🧺).",
-	"",
-	"The gold banner (bottom-right) always names your one live task — tap it any time for the Arc, the island's list of open doors.  The Guide (X → O) is the full how-to-play.",
-	"",
-	"Tap anywhere  (or press  F)  to begin.",
-]
+const IntroVoice := preload("res://Core/Story/IntroVoice.gd")
 
 
 func _init() -> void:
 	name = "WelcomeOverlay"
 	overlay_name = "welcome"
-	panel_title = "🌾  Welcome to SpaceWheat"
-	panel_title_size = 24
-	panel_size_mode = PanelSizeMode.MEDIUM
+	panel_title = "🌾  " + IntroVoice.welcome_title()
+	panel_title_size = 26
+	panel_size_mode = PanelSizeMode.LARGE
 	panel_border_color = Color(0.40, 0.70, 0.50, 0.9)
 	show_dimmer = true
-	dimmer_color = Color(0, 0, 0, 0.82)
+	# Glass, not a curtain: the farm has to be visible as the illustration.
+	dimmer_color = Color(0, 0, 0, 0.45)
 	use_scroll_container = false
 	navigation_mode = NavigationMode.NONE
 	overlay_tier = 18  # system/modal tier — above gameplay and info overlays
@@ -42,20 +31,86 @@ func _init() -> void:
 
 func _build_content(container: Control) -> void:
 	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 6)
+	box.add_theme_constant_override("separation", 10)
 	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	container.add_child(box)
-	for row in _ROWS:
+
+	for line in IntroVoice.welcome_fiction():
 		var lbl := Label.new()
-		lbl.text = str(row)
+		lbl.text = str(line)
 		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		var emphasis := str(row).begins_with("THE FIRST MINUTE") \
-			or str(row).begins_with("Tap anywhere")
-		lbl.add_theme_font_size_override("font_size", 15 if emphasis else 13)
-		lbl.add_theme_color_override("font_color",
-			Color(0.85, 0.95, 0.88) if emphasis else Color(0.78, 0.82, 0.88))
+		lbl.add_theme_font_size_override("font_size", 16)
+		lbl.add_theme_color_override("font_color", Color(0.88, 0.93, 0.86))
 		box.add_child(lbl)
+
+	box.add_child(_make_spacer(6))
+
+	var verbs := HBoxContainer.new()
+	verbs.alignment = BoxContainer.ALIGNMENT_CENTER
+	verbs.add_theme_constant_override("separation", 10)
+	verbs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.add_child(verbs)
+	for spec in IntroVoice.welcome_verbs():
+		verbs.add_child(_make_verb_card(spec))
+
+	box.add_child(_make_spacer(8))
+
+	var footer := Label.new()
+	footer.text = IntroVoice.welcome_footer()
+	footer.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	footer.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	footer.add_theme_font_size_override("font_size", 14)
+	footer.add_theme_color_override("font_color", Color(0.85, 0.95, 0.88))
+	box.add_child(footer)
+
+
+func _make_verb_card(spec: Dictionary) -> Control:
+	var card := PanelContainer.new()
+	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	card.custom_minimum_size = Vector2(160, 0)
+	card.add_theme_stylebox_override("panel",
+			UIStyleFactory.create_toast_style(Color(0.45, 0.78, 0.55, 0.85), 1))
+	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 4)
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(v)
+
+	var title := Label.new()
+	title.text = "[%s]  %s" % [str(spec.get("key", "")), str(spec.get("verb", ""))]
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 16)
+	title.add_theme_color_override("font_color", Color(0.95, 0.98, 0.88))
+	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(title)
+
+	var story := Label.new()
+	story.text = str(spec.get("story", ""))
+	story.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	story.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	story.add_theme_font_size_override("font_size", 13)
+	story.add_theme_color_override("font_color", Color(0.85, 0.92, 0.82))
+	story.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(story)
+
+	var how := Label.new()
+	how.text = str(spec.get("how", ""))
+	how.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	how.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	how.add_theme_font_size_override("font_size", 11)
+	how.add_theme_color_override("font_color", Color(0.70, 0.85, 0.95, 0.85))
+	how.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(how)
+	return card
+
+
+func _make_spacer(h: int) -> Control:
+	var c := Control.new()
+	c.custom_minimum_size = Vector2(0, h)
+	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return c
 
 
 # ANY key — or tap/click — dismisses the welcome (standard "press any key" splash) so the

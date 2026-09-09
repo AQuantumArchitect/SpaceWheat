@@ -65,17 +65,28 @@ def test_route_authorities_speak_click_first():
         )
 
 
+INTRO_VOICE = ROOT / "Core" / "Story" / "IntroVoice.gd"
+
+
 def test_event_bridge_composes_toasts_from_the_route_authority():
     """The offer and ready toasts once spelled the same routes their own way
     ('C then U, then R on its row') and drifted from the banner. They must
     compose from UIProgression.route_* — one spelling, two speakers."""
     src = EVENT_BRIDGE.read_text(encoding="utf-8")
-    assert "UIProgression.route_accept()" in src, "offer toast left the route authority"
+    assert "IntroVoice.toast_for_offer" in src, (
+        "offer toast left IntroVoice — the first-minute voice authority"
+    )
     assert "UIProgression.route_claim()" in src, "ready toast left the route authority"
     assert 'preload("res://UI/Core/UIProgression.gd")' in src
+    intro = INTRO_VOICE.read_text(encoding="utf-8")
+    assert "UIProgression.route_accept()" in intro, (
+        "accept-door copy left IntroVoice; the toast and the banner will drift"
+    )
     # No resurrected keyboard-only route spellings in player-facing strings.
-    for line in src.splitlines():
-        if "_push(" in line and PRESS_RE.search(line):
-            assert CLICK_RE.search(line), (
-                "keyboard-only 'press' crept back into a toast: %r" % line.strip()
-            )
+    for path, text in ((EVENT_BRIDGE, src), (INTRO_VOICE, intro)):
+        for line in text.splitlines():
+            if ("_push(" in line or "return {" in line or '"message"' in line) and PRESS_RE.search(line):
+                assert CLICK_RE.search(line), (
+                    "keyboard-only 'press' crept back into %s: %r"
+                    % (path.name, line.strip())
+                )

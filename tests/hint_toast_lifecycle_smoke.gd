@@ -124,4 +124,20 @@ func _run() -> void:
 	_check(not is_instance_valid(routed2) or routed2.is_queued_for_deletion(),
 		"✕ click still frees the toast")
 
+	# --- expand-then-travel (first-minute "tap for more") ---
+	var fired3: Array = []
+	var more := HintToast.new()
+	root.add_child(more)
+	more.show_text("🌾 the lesson", 3, "", func() -> void: fired3.append(true), "the how")
+	await process_frame
+	var more_click := InputEventMouseButton.new()
+	more_click.button_index = MOUSE_BUTTON_LEFT
+	more_click.pressed = true
+	more_click.global_position = more.get_global_rect().position + Vector2(6.0, 6.0)
+	more._on_gui_input(more_click)
+	_check(more.is_expanded(), "detail toast expands on the first tap")
+	_check(fired3.is_empty(), "first tap on a detail toast does not travel")
+	more._on_gui_input(more_click)
+	_check(fired3.size() == 1, "second tap travels")
+
 	_finish("HintToast lifecycle smoke")

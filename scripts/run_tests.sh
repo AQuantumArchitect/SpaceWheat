@@ -83,6 +83,7 @@ SMOKE_TESTS=(
     native_async_lane_smoke
     loop_card_smoke
     hint_toast_lifecycle_smoke
+    intro_flow_smoke
     menu_row_progression_smoke
     arc_tab_verbs_smoke
     gate_ledger_smoke

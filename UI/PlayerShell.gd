@@ -182,7 +182,7 @@ func _mark_input_handled() -> void:
 ## Importance < 2 is logged only; no toast is shown.
 const MAX_LIVE_TOASTS := 5
 
-func show_hint(bbcode_text: String, importance: int = 1, path: String = "", route: String = "") -> void:
+func show_hint(bbcode_text: String, importance: int = 1, path: String = "", route: String = "", detail: String = "") -> void:
 	if importance < 2:
 		return
 	if not _hint_toast_stack or not is_inside_tree():
@@ -203,7 +203,7 @@ func show_hint(bbcode_text: String, importance: int = 1, path: String = "", rout
 		victim.queue_free()
 	var toast := HintToast.new()
 	_hint_toast_stack.add_child(toast)
-	toast.show_text(bbcode_text, importance, path, _route_to_callable(route))
+	toast.show_text(bbcode_text, importance, path, _route_to_callable(route), detail)
 
 
 ## Resolve a route id (a plain string — Core's PlayerEventLog must never hold
@@ -1044,4 +1044,4 @@ func _on_player_event_added(entry: Dictionary) -> void:
 	if imp < 2:
 		return
 	show_hint(str(entry.get("message", "")), imp, str(entry.get("path", "")),
-			str(entry.get("route", "")))
+			str(entry.get("route", "")), str(entry.get("detail", "")))

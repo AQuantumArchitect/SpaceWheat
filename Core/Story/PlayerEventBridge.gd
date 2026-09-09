@@ -9,6 +9,7 @@ extends Node
 # toast and the banner can never drift apart again. Core→UI preload is
 # precedented (QuantumEdgeRenderer, BatchedBubbleRenderer do the same).
 const UIProgression = preload("res://UI/Core/UIProgression.gd")
+const IntroVoice = preload("res://Core/Story/IntroVoice.gd")
 
 var _farm: Node = null
 var _quest_manager: Node = null
@@ -109,12 +110,12 @@ func _wire_instrument_signals() -> void:
 
 # ─────────────── handlers ───────────────
 
-func _push(message: String, importance: int, icon: String, category: String, path: String = "", route: String = "") -> void:
+func _push(message: String, importance: int, icon: String, category: String, path: String = "", route: String = "", detail: String = "") -> void:
 	# Guarded /root/ lookup — bare autoload identifiers are compile bombs under
 	# --check-only harnesses (same law as the GameStateManager lookup above).
 	var log_node := get_node_or_null("/root/PlayerEventLog")
 	if log_node and log_node.has_method("push"):
-		log_node.push(message, importance, icon, category, path, route)
+		log_node.push(message, importance, icon, category, path, route, detail)
 
 
 func _on_icon_learned(north: String, south: String, faction: String) -> void:
@@ -234,28 +235,15 @@ func _quest_name(qid: int) -> String:
 
 
 func _on_quest_offered(quest: Dictionary) -> void:
-	# A story/arc/tutorial offer deserves an actual toast, not a log-only
-	# entry — this used to check is_arc/from_story_flag, fields QuestPipeline
-	# never sets (dead code; every offer landed at importance 1 and never hit
-	# the screen). category and source_flag ARE the real fields
-	# from_tutorial_def/from_story_def populate (Core/Quests/QuestPipeline.gd).
-	var is_arc := str(quest.get("category", "")) == "TUTORIAL" \
-		or str(quest.get("source_flag", "")).strip_edges() != ""
-	var fac := str(quest.get("faction", ""))
-	if fac.strip_edges() == "":
-		fac = "the story"
-	# Say WHERE: offers wait on the Arc tab, and no surface pointed there —
-	# every blind round-1 tester starved two keypresses from the on-ramp.
-	# Route phrase shared with the banner (click-first, keys as accelerators).
-	# The gold toast is itself a door ("tap here" → Arc); the market branch is
-	# log-only (importance 1 never toasts), so its line must not say "here" —
-	# in the Story ACTIVITY feed there is no here to tap.
-	if is_arc:
-		_push("📜 New offer from %s — tap here to read & accept (or %s)" % [fac, UIProgression.route_accept()],
-				3, "📜", "quest", "Q", "arc")
-	else:
-		_push("📜 New offer from %s — to read & accept: %s" % [fac, UIProgression.route_accept()],
-				1, "📜", "quest", "Q")
+	# Voice lives in IntroVoice so the first toast, the welcome, and the Arc
+	# postcard cannot name three different first verbs. Auto-accepted tutorial
+	# steps never say "tap here to accept" (the accept already happened).
+	var toast: Dictionary = IntroVoice.toast_for_offer(quest, _quest_manager)
+	if toast.is_empty():
+		return
+	_push(str(toast.get("message", "")), int(toast.get("importance", 1)),
+			str(toast.get("icon", "📜")), "quest", str(toast.get("path", "Q")),
+			str(toast.get("route", "")), str(toast.get("detail", "")))
 
 
 func _on_quest_failed(qid: int, reason: String) -> void:

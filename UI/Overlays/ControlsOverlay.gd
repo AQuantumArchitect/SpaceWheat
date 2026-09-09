@@ -26,6 +26,7 @@ extends "res://UI/Core/Surface.gd"
 const PredicateGloss = preload("res://Core/Quests/PredicateGloss.gd")
 const ToolConfig      = preload("res://Core/GameState/ToolConfig.gd")
 const UIProgression   = preload("res://UI/Core/UIProgression.gd")
+const IntroVoice      = preload("res://Core/Story/IntroVoice.gd")
 
 # =============================================================================
 # TABS / FRAMES
@@ -271,12 +272,12 @@ func _declare_tab_actions() -> void:
 			if _selected_arc_kind() == "arc_quest":
 				infos = {
 					"Q": {"label": "Dismiss"},
-					"E": {"label": "Refresh"},
+					"E": {"label": "More"},
 					"R": {"label": "Accept"},
 				}
 			else:
 				infos = {
-					"E": {"label": "Refresh"},
+					"E": {"label": "More"},
 				}
 		Tab.SELF:
 			infos = {
@@ -289,7 +290,17 @@ func _declare_tab_actions() -> void:
 func _refresh_status_line() -> void:
 	if not _status_line:
 		return
-	_status_line.text = "Z · self mirror"
+	match _current_tab:
+		Tab.SELF:
+			_status_line.text = "this run · who you are"
+		Tab.STORY:
+			_status_line.text = "this run · what has been said"
+		Tab.ARC:
+			_status_line.text = "this run · open doors"
+		Tab.GUIDE:
+			_status_line.text = "this run · how to play"
+		_:
+			_status_line.text = "this run"
 
 func _refresh_tab_row() -> void:
 	if _tab_labels.is_empty():
@@ -1848,7 +1859,7 @@ func _on_action_e() -> void:
 			_story_inspect_open = not _story_inspect_open  # E = pause + inspect (toggle panel)
 			_refresh_body()
 		Tab.ARC:
-			_refresh_body()  # E = refresh the arc timeline
+			_refresh_body()  # E = more: OverlayBase then toasts get_inspect_text()
 		_:
 			pass
 
@@ -1966,9 +1977,9 @@ func _make_arc_footer() -> Control:
 		dismiss_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
 		ClickWire.attach(dismiss_lbl, func() -> void: handle_action("Q"))
 		box.add_child(dismiss_lbl)
-		box.add_child(_make_muted_label("or tap the row again  ·  E refresh  ·  GHJKL; pick  ·  A/D page", 11))
+		box.add_child(_make_muted_label("or tap the row again  ·  E for more  ·  GHJKL; pick  ·  A/D page", 11))
 	else:
-		box.add_child(_make_muted_label("Accept [R] / Dismiss [Q] act on offer rows  ·  E refresh  ·  GHJKL; pick  ·  A/D page", 11))
+		box.add_child(_make_muted_label("E for more  ·  GHJKL; pick  ·  A/D page", 11))
 	return box
 
 ## Builds Arc tab rows: arc-quest offers first, then unfired flags (by score
@@ -1979,6 +1990,13 @@ func _arc_rows() -> Array:
 	var qm = _arc_quest_manager()
 	if qm == null:
 		return rows
+	# Featured door: the live auto-accepted tutorial step. It is NOT in
+	# story_offers (accept already happened), so without this the Arc led
+	# with First Harvest — the capstone — while the banner said "strike".
+	if "active_quests" in qm and qm.active_quests is Dictionary:
+		for q in qm.active_quests.values():
+			if q is Dictionary and str(q.get("category", "")) == "TUTORIAL":
+				rows.append({"kind": "live_tutorial", "data": q})
 	if qm.has_method("get_story_offers"):
 		for q in qm.get_story_offers():
 			if q is Dictionary and str(q.get("category", "")) in ["ARC", "TUTORIAL"]:
@@ -2152,58 +2170,57 @@ func _make_arc_row(entry: Dictionary, key_str: String, selected: bool, idx: int)
 	vbox.add_child(top_hbox)
 	top_hbox.add_child(_make_key_chip(key_str))
 
-	if kind == "arc_quest":
+	if kind == "live_tutorial" or kind == "arc_quest":
 		var data: Dictionary = entry.get("data", {})
+		var card: Dictionary = IntroVoice.quest_postcard(data)
 		var badge := Label.new()
-		badge.text = "[QUEST]"
+		badge.text = "NOW" if kind == "live_tutorial" else "OPEN"
 		badge.add_theme_font_size_override("font_size", 11)
 		badge.add_theme_color_override("font_color", Color(0.5, 0.9, 0.55, 0.95))
-		badge.custom_minimum_size = Vector2(60, 0)
+		badge.custom_minimum_size = Vector2(52, 0)
 		top_hbox.add_child(badge)
-		var body_lbl := Label.new()
-		body_lbl.text = str(data.get("body", str(data.get("source_flag", "campaign quest"))))
-		body_lbl.add_theme_font_size_override("font_size", 12)
-		body_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_TAB_ACTIVE if selected else UIStyleFactory.COLOR_ITEM_IDLE)
-		body_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		body_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART if selected else TextServer.AUTOWRAP_OFF
-		body_lbl.clip_text = not selected
-		top_hbox.add_child(body_lbl)
+		var title_lbl := Label.new()
+		title_lbl.text = str(card.get("title", "a door"))
+		title_lbl.add_theme_font_size_override("font_size", 13)
+		title_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_TAB_ACTIVE if selected else UIStyleFactory.COLOR_ITEM_IDLE)
+		title_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		top_hbox.add_child(title_lbl)
 		if selected:
-			var hint_str: String = str(data.get("hint", data.get("tutorial_hint", "")))
-			if hint_str != "":
+			var beat := str(card.get("beat", "")).strip_edges()
+			if beat != "":
+				var beat_lbl := Label.new()
+				beat_lbl.text = beat
+				beat_lbl.add_theme_font_size_override("font_size", 12)
+				beat_lbl.add_theme_color_override("font_color", Color(0.88, 0.92, 0.84, 0.95))
+				beat_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+				vbox.add_child(beat_lbl)
+			for ask in card.get("asks", []):
+				var ask_str := str(ask).strip_edges()
+				if ask_str == "":
+					continue
 				var hint_lbl := Label.new()
-				hint_lbl.text = "    hint: %s" % hint_str
+				hint_lbl.text = ask_str
 				hint_lbl.add_theme_font_size_override("font_size", 11)
 				hint_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
 				hint_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 				vbox.add_child(hint_lbl)
-			# d1-01: the literalist's line — the actual firing rule in plain math,
-			# hand-authored per quest def but dimmer/smaller than the flavor body above.
-			var math_note_str: String = str(data.get("math_note", ""))
-			if math_note_str != "":
-				var math_lbl := Label.new()
-				math_lbl.text = "    math: %s" % math_note_str
-				math_lbl.add_theme_font_size_override("font_size", 10)
-				math_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
-				math_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-				vbox.add_child(math_lbl)
+			vbox.add_child(_make_muted_label("E for the physics", 10))
 		return row
 
 	var flag: Dictionary = entry.get("flag", {})
-	var act_n: int = int(flag.get("act", 0))
-	var act_lbl := Label.new()
-	# Lane tag: the What-Survives/Connects/Fades ladders were invisible as
-	# lanes — 22 flags carried them only inside display_name prose.
-	var lane_tag := StoryAtlas.lane_tag(str(flag.get("display_name", "")))
-	act_lbl.text = ("act %d · %s" % [act_n, lane_tag]) if lane_tag != "" else "act %d" % act_n
-	act_lbl.add_theme_font_size_override("font_size", 11)
-	act_lbl.add_theme_color_override("font_color",
-			LANE_COLORS.get(str(StoryAtlas.lane_of(str(flag.get("display_name", "")))["lane"]), COLOR_ARC_HEADER))
-	act_lbl.custom_minimum_size = Vector2(48, 0)
-	top_hbox.add_child(act_lbl)
+	var postcard: Dictionary = IntroVoice.flag_postcard(flag, entry.get("pred_scores", []), _arc_quest_manager())
+	var lane_tag := str(postcard.get("lane", ""))
+	if lane_tag != "":
+		var act_lbl := Label.new()
+		act_lbl.text = lane_tag
+		act_lbl.add_theme_font_size_override("font_size", 11)
+		act_lbl.add_theme_color_override("font_color",
+				LANE_COLORS.get(str(StoryAtlas.lane_of(str(flag.get("display_name", "")))["lane"]), COLOR_ARC_HEADER))
+		act_lbl.custom_minimum_size = Vector2(48, 0)
+		top_hbox.add_child(act_lbl)
 
 	var name_lbl := Label.new()
-	name_lbl.text = str(flag.get("display_name", flag.get("id", "?")))
+	name_lbl.text = str(postcard.get("title", flag.get("id", "?")))
 	name_lbl.add_theme_font_size_override("font_size", 13)
 	name_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_TAB_ACTIVE if selected else UIStyleFactory.COLOR_ITEM_IDLE)
 	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -2211,39 +2228,42 @@ func _make_arc_row(entry: Dictionary, key_str: String, selected: bool, idx: int)
 
 	if kind == "flag_fired":
 		var fired_lbl := Label.new()
-		fired_lbl.text = "✓ FIRED"
+		fired_lbl.text = "remembered"
 		fired_lbl.add_theme_font_size_override("font_size", 11)
 		fired_lbl.add_theme_color_override("font_color", COLOR_ARC_FIRED)
 		top_hbox.add_child(fired_lbl)
 		return row
 
-	# Unfired — show score + per-predicate breakdown. Percent-of-threshold
-	# leads: the filament chip says "91%", so this must say 91% too (fleet #4
-	# read "0.77/0.85" and "91%" as two different systems).
+	# Unfired — percent-of-threshold only (no 0.00/0.85 dump). The formula
+	# lives behind E. Fleet #4 needed the percent to match the banner; they
+	# did not need the fire-threshold algebra on the face.
 	var score: float = float(entry.get("score", 0.0))
 	var score_lbl := Label.new()
-	score_lbl.text = "%d%% %s (%.2f / 0.85)" % [int(round(clampf(score / 0.85, 0.0, 1.0) * 100.0)), _ratio_bar(score / 0.85, 6), score]
+	score_lbl.text = "%d%% %s" % [int(round(clampf(score / 0.85, 0.0, 1.0) * 100.0)), _ratio_bar(score / 0.85, 6)]
 	score_lbl.add_theme_font_size_override("font_size", 11)
 	score_lbl.add_theme_color_override("font_color", _score_color(score))
 	top_hbox.add_child(score_lbl)
 
 	if selected:
-		var pred_scores: Array = entry.get("pred_scores", [])
-		for ps in pred_scores:
-			var pred: Dictionary = ps.get("pred", {})
-			var ps_score: float = float(ps.get("score", 0.0))
+		var beat := str(postcard.get("beat", "")).strip_edges()
+		if beat != "":
+			var beat_lbl := Label.new()
+			beat_lbl.text = beat
+			beat_lbl.add_theme_font_size_override("font_size", 12)
+			beat_lbl.add_theme_color_override("font_color", Color(0.88, 0.92, 0.84, 0.95))
+			beat_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			vbox.add_child(beat_lbl)
+		for ask in postcard.get("asks", []):
+			var ask_str := str(ask).strip_edges()
+			if ask_str == "":
+				continue
 			var pred_lbl := Label.new()
-			pred_lbl.text = "    %s · %.2f %s" % [PredicateGloss.summary(pred, _arc_quest_manager()), ps_score, _ratio_bar(ps_score, 5)]
-			pred_lbl.add_theme_font_size_override("font_size", 10)
-			pred_lbl.add_theme_color_override("font_color", _score_color(ps_score))
+			pred_lbl.text = ask_str
+			pred_lbl.add_theme_font_size_override("font_size", 11)
+			pred_lbl.add_theme_color_override("font_color", Color(0.78, 0.82, 0.70, 0.95))
+			pred_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			vbox.add_child(pred_lbl)
-			# d1-02: the literal rule, generated from config — dimmer/smaller than the
-			# player-voice summary above it (the math game's literalist deserves the formula).
-			var formula_lbl := Label.new()
-			formula_lbl.text = "        %s" % PredicateGloss.formula(pred, _arc_quest_manager())
-			formula_lbl.add_theme_font_size_override("font_size", 9)
-			formula_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
-			vbox.add_child(formula_lbl)
+		vbox.add_child(_make_muted_label("E for the physics  ·  tap again to hold this door", 10))
 
 	return row
 
@@ -2269,30 +2289,39 @@ func _arc_inspect_text() -> String:
 		return ""
 	var entry: Dictionary = rows[_arc_selected_idx]
 	var kind := str(entry.get("kind", ""))
-	if kind == "arc_quest":
+	if kind == "arc_quest" or kind == "live_tutorial":
 		var data: Dictionary = entry.get("data", {})
-		var body := str(data.get("body", str(data.get("source_flag", "campaign quest"))))
-		var hint := str(data.get("hint", ""))
-		var math_note := str(data.get("math_note", ""))
-		var out := body
-		if hint != "":
-			out += "\nhint: %s" % hint
+		var card: Dictionary = IntroVoice.quest_postcard(data)
+		var lines: Array[String] = []
+		lines.append(str(card.get("title", "")))
+		var beat := str(card.get("beat", "")).strip_edges()
+		if beat != "":
+			lines.append(beat)
+		for ask in card.get("asks", []):
+			var ask_str := str(ask).strip_edges()
+			if ask_str != "":
+				lines.append(ask_str)
+		var math_note := str(data.get("math_note", "")).strip_edges()
 		if math_note != "":
-			out += "\nmath: %s" % math_note
-		return out
-	var flag: Dictionary = entry.get("flag", {})
-	var lines: Array[String] = []
-	lines.append("%s · act %d" % [str(flag.get("display_name", flag.get("id", "?"))), int(flag.get("act", 0))])
-	lines.append("The Demos · %s" % StoryAtlas.chapter_for_act(int(flag.get("act", 0))))
-	if kind == "flag_fired":
-		lines.append("✓ FIRED")
+			lines.append(math_note)
 		return "\n".join(lines)
-	# unfired — show predicate summaries + the literal formula beneath each (d1-02)
+	var flag: Dictionary = entry.get("flag", {})
+	var postcard: Dictionary = IntroVoice.flag_postcard(flag, entry.get("pred_scores", []), _arc_quest_manager())
+	var flag_lines: Array[String] = []
+	flag_lines.append(str(postcard.get("title", flag.get("id", "?"))))
+	flag_lines.append("The Demos · %s" % StoryAtlas.chapter_for_act(int(flag.get("act", 0))))
+	var flag_beat := str(postcard.get("beat", "")).strip_edges()
+	if flag_beat != "":
+		flag_lines.append(flag_beat)
+	if kind == "flag_fired":
+		flag_lines.append("remembered")
+		return "\n".join(flag_lines)
+	# Physics last — E is "tell me more", including the literalist formula.
 	for ps in entry.get("pred_scores", []):
 		var pred: Dictionary = ps.get("pred", {})
-		lines.append("· %s · %.2f" % [PredicateGloss.summary(pred, _arc_quest_manager()), float(ps.get("score", 0.0))])
-		lines.append("    %s" % PredicateGloss.formula(pred, _arc_quest_manager()))
-	return "\n".join(lines)
+		flag_lines.append("· %s" % PredicateGloss.summary(pred, _arc_quest_manager()))
+		flag_lines.append("    %s" % PredicateGloss.formula(pred, _arc_quest_manager()))
+	return "\n".join(flag_lines)
 
 ## Accept the selected arc/tutorial offer into active quests (R). Without this,
 ## arc offers could only be dismissed, never worked on — they would dead-end.

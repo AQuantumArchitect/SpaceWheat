@@ -14,7 +14,7 @@ var _log: Array[Dictionary] = []
 ## resolved to a tap Callable by PlayerShell at toast-spawn time. A STRING on
 ## purpose: this ring outlives UI nodes and is re-read by the Story ACTIVITY
 ## feed, so a Callable here would dangle — Core stays UI-free.
-func push(message: String, importance: int = 1, icon: String = "", category: String = "", path: String = "", route: String = "") -> void:
+func push(message: String, importance: int = 1, icon: String = "", category: String = "", path: String = "", route: String = "", detail: String = "") -> void:
 	var entry := {
 		"message": message,
 		"importance": importance,
@@ -22,6 +22,7 @@ func push(message: String, importance: int = 1, icon: String = "", category: Str
 		"category": category,
 		"path": path,
 		"route": route,
+		"detail": detail,
 		"timestamp": Time.get_ticks_msec()
 	}
 	_log.append(entry)

@@ -105,8 +105,8 @@ func _run() -> void:
 		"flag row blanks R to the dash chip")
 	_check(str(overlay.get_action_info("Q").get("label", "")) == "—",
 		"flag row blanks Q to the dash chip")
-	_check(str(overlay.get_action_info("E").get("label", "")) == "Refresh",
-		"E stays declared on flag rows")
+	_check(str(overlay.get_action_info("E").get("label", "")) == "More",
+		"E stays declared on flag rows as More")
 	_check(not overlay._action_key_declared_live("R"), "R is gated off flag rows")
 
 	# Re-selecting the selected row must not crash and must not be a silent

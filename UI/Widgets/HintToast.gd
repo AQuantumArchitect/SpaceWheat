@@ -48,6 +48,8 @@ var _paused: bool = false
 var _persistent: bool = false
 var _hovering: bool = false
 var _raw_bbcode: String = ""
+var _detail: String = ""
+var _expanded: bool = false
 var _bump_count: int = 1
 var _on_tap: Callable = Callable()
 
@@ -104,12 +106,14 @@ func _init() -> void:
 	mouse_exited.connect(_on_mouse_exited)
 
 
-func show_text(bbcode: String, importance: int = 1, path: String = "", on_tap: Callable = Callable()) -> void:
+func show_text(bbcode: String, importance: int = 1, path: String = "", on_tap: Callable = Callable(), detail: String = "") -> void:
 	_raw_bbcode = bbcode
+	_detail = str(detail).strip_edges()
+	_expanded = false
 	_persistent = importance >= PERSIST_IMPORTANCE
 	_on_tap = on_tap
 	if _label:
-		_label.text = bbcode
+		_label.text = _face_text()
 	if _style:
 		_style.border_color = BORDER_COLORS.get(importance, BORDER_COLORS[1])
 		_style.set_border_width_all(2 if importance >= 3 else 1)
@@ -120,6 +124,32 @@ func show_text(bbcode: String, importance: int = 1, path: String = "", on_tap: C
 		else:
 			_path_label.visible = false
 	_run_lifecycle()
+
+
+func _face_text() -> String:
+	if _detail == "":
+		return _raw_bbcode
+	return "%s\n[color=#aac]tap for more[/color]" % _raw_bbcode
+
+
+func is_expanded() -> bool:
+	return _expanded
+
+
+func expand() -> void:
+	if _expanded or _detail == "":
+		return
+	_expanded = true
+	_persistent = true
+	if _label:
+		var tail := _detail
+		if _on_tap.is_valid():
+			tail += "\n[color=#aac]tap again to open the Arc[/color]"
+		_label.text = "%s\n\n%s" % [_raw_bbcode, tail]
+	if _tween and _tween.is_valid():
+		_tween.kill()
+	_tween = null
+	modulate.a = 1.0
 
 
 ## True when this toast never auto-fades (gold story beats). The spawner's
@@ -169,7 +199,16 @@ func _on_gui_input(event: InputEvent) -> void:
 		# rect test keeps children on MOUSE_FILTER_IGNORE (hover grammar).
 		var on_close := _close_label != null \
 				and _close_label.get_global_rect().has_point(event.global_position)
-		if _on_tap.is_valid() and not on_close:
+		if on_close:
+			flatten()
+			return
+		# A toast that has more to say expands first. Second tap travels
+		# (if routed) and dismisses. Routeless toasts with no detail still
+		# flatten on the first body click — the classic grammar.
+		if _detail != "" and not _expanded:
+			expand()
+			return
+		if _on_tap.is_valid():
 			_on_tap.call()
 		flatten()
 
