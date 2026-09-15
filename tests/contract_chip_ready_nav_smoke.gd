@@ -1,12 +1,8 @@
 extends "res://tests/smoke_test_base.gd"
 
-## ContractChip ready-glow navigation (Wave 2.2) — the chip "glows when one is
-## ready to claim", but its tap could only focus a biome: the one always-on
-## ready indicator invited a click that couldn't reach the claim. Now a READY
-## row's tap opens the quest board on its own Commitments row through
-## OverlayManager.open_board_on_commitments (navigation ONLY — the claim stays
-## a deliberate click on the board), while a non-ready row keeps the old
-## biome-focus behavior and a null overlay_manager (old mocks) degrades to it.
+## ContractChip ClickLadder (2026-09-09) — tracker + link. First tap is HOME
+## (OverlayManager.open_board_on_commitments); second scoots. The how lives
+## on the board, not on the chip. A null overlay_manager skips HOME.
 
 class StubQM:
 	extends Node
@@ -64,30 +60,31 @@ func _run() -> void:
 	var rows := _quest_rows(chip)
 	_check(rows.size() == 2, "chip renders both quest rows", "got %d" % rows.size())
 	if rows.size() == 2:
-		# READY row (biome-less predicate quest — a dead row before this fix):
-		# tap routes to the board with its own quest id, and does NOT claim.
+		_check(str(rows[0].tooltip_text).contains("[C] opens the board"),
+			"face names the C key, not tap", "got %s" % rows[0].tooltip_text)
+		# Click 1: HOME — opens the board on this quest.
 		rows[0].gui_input.emit(_tap())
 		await process_frame
-		_check(om.calls.size() == 1, "ready row tap opens the board door",
+		_check(om.calls.size() == 1, "first tap opens the board door",
 			"got %d calls" % om.calls.size())
 		if om.calls.size() == 1:
 			_check(int(om.calls[0][0]) == 3001, "door receives the ready quest's id",
 				"got %s" % str(om.calls[0][0]))
-			_check(str(om.calls[0][1]) == "active", "door lands on the active view",
+			_check(str(om.calls[0][1]) == "active", "door lands on live Commitments",
 				"got %s" % str(om.calls[0][1]))
-		_check(str(rows[0].tooltip_text) == "Tap to claim on the board",
-			"ready row says where its tap goes", "got %s" % rows[0].tooltip_text)
+		rows = _quest_rows(chip)
+		_check(str(rows[0].tooltip_text).contains("tap again to go there")
+				or str(rows[0].tooltip_text).contains("tap to go there"),
+			"after home, the chip invites the scoot", "got %s" % rows[0].tooltip_text)
 
-		# Non-ready row: biome-focus behavior, no board door.
+		# Other row's first tap is also HOME (its own door), not a reprint.
+		rows = _quest_rows(chip)
 		rows[1].gui_input.emit(_tap())
 		await process_frame
-		_check(om.calls.size() == 1, "non-ready row tap does NOT open the board",
+		_check(om.calls.size() == 2, "other row's first tap opens its board door",
 			"got %d calls" % om.calls.size())
-		_check(str(rows[1].tooltip_text) == "Tap to focus TestBiome",
-			"non-ready row keeps the biome-focus tooltip", "got %s" % rows[1].tooltip_text)
 
-	# Null overlay_manager (old mocks / partial boots): ready tap degrades to
-	# the biome path without erroring.
+	# Null overlay_manager (old mocks / partial boots): never reaches the door.
 	var bare := ContractChip.new()
 	root.add_child(bare)
 	bare.setup(qm)
@@ -97,7 +94,7 @@ func _run() -> void:
 	if bare_rows.size() >= 1:
 		bare_rows[0].gui_input.emit(_tap())
 		await process_frame
-	_check(om.calls.size() == 1, "null overlay_manager never reaches the door",
+	_check(om.calls.size() == 2, "null overlay_manager never reaches the door",
 		"got %d calls" % om.calls.size())
 
 	chip.queue_free()

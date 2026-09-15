@@ -80,14 +80,12 @@ func _run() -> void:
 	_check(row.get_button_pulse_target("C") == null, "no C chip while gated")
 	_check(row.get_button_pulse_target("X") != null, "X chip renders while C is gated")
 
-	# The offered-but-unaccepted window: the contracts step (1) waits in
-	# story_offers for a real R-accept. The step must read 1 (not the
-	# everything-unlocked sentinel), the gate must open, and a
-	# refresh_progression() must surface the chip.
-	qm.active_quests = {}
-	qm.story_offers = {7: {"category": "TUTORIAL", "tutorial_step": 1}}
+	# The mill is in the lane: step 1 auto-accepts into active_quests.
+	# C must unlock, and refresh_progression() must surface the chip.
+	qm.active_quests = {7: {"category": "TUTORIAL", "tutorial_step": 1}}
+	qm.story_offers = {}
 	_check(UIProgressionScript.current_tutorial_step() == 1,
-		"step reads from story_offers while the contracts step awaits accept")
+		"step 1 reads from active_quests (the mill is auto-accepted)")
 	_check(UIProgressionScript.is_menu_visible("quests"), "C unlocks at the contracts step")
 	row.refresh_progression()
 	await process_frame

@@ -22,8 +22,8 @@ After the walk we score:
     readiness       = ⟨10|ρ|10⟩                 will tap the right thing
     confusion       = 1 − Tr(ρ²)                pulled two ways
 
-The NEW intro is the one shipping: welcome scene, story toast with
-tap-for-more, Arc postcard, field visible through glass.
+The NEW intro is the one shipping: identity welcome, story toast as
+tracker+link (tap opens Arc), Arc postcard, field visible through glass.
 The OLD intro is the screenshot: keymap wall, 'accept' toast, Arc
 formula. Tests assert NEW dominates OLD across archetypes.
 
@@ -155,11 +155,11 @@ OLD = {
 
 # NEW first-minute (this pass).
 NEW = {
-    "welcome": ch(KET_STORY_LISTEN, 0.70),     # scene, field as illustration
-    "toast": ch(KET_STORY_LISTEN, 0.75),       # "The Demos sleeps"
+    "welcome": ch(KET_STORY_LISTEN, 0.70),     # identity, field as illustration
+    "toast": ch(KET_STORY_LISTEN, 0.75),       # title + link; tap opens Arc
     "banner": ch(KET_STORY_DO, 0.55),          # same live ask, now agreed
     "arc": ch(KET_STORY_LISTEN, 0.65),         # postcard, featured NOW door
-    "expand": ch(KET_STORY_DO, 0.50),          # tap-for-more → the how, then the field
+    "expand": ch(KET_STORY_LISTEN, 0.35),      # E inspect — physics, opt-in
     "field": ch(KET_STORY_DO, 0.55),           # field visible, first tap is strike
 }
 
@@ -172,37 +172,37 @@ Walk = List[str]  # keys into OLD/NEW
 ARCHETYPES: Dict[str, Dict] = {
     "reader": {
         "rho0": rho_pure(KET_STORY_LISTEN),
-        "walk": ["welcome", "toast", "expand", "arc", "banner", "field"],
-        "note": "Reads everything, taps for more, opens Arc, then the field.",
+        "walk": ["welcome", "banner", "field"],
+        "note": "Reads the identity splash, follows the auto-accepted gold ask, acts.",
     },
     "masher": {
         "rho0": rho_pure(KET_MACHINE_DO),
-        "walk": ["welcome", "field", "banner"],
-        "note": "Any-key dismiss, ignores toast, looks at the field, maybe the banner.",
+        "walk": ["welcome", "banner", "field"],
+        "note": "Any-key dismiss, ignores toast, follows the banner onto the field.",
     },
     "lost_lamb": {
         "rho0": rho_mixed([(0.5, KET_STORY_LISTEN), (0.5, KET_MACHINE_LISTEN)]),
-        "walk": ["welcome", "toast", "arc", "expand"],
-        "note": "Dismisses, taps the toast, lands on Arc. The postcard has to hold them.",
+        "walk": ["welcome", "banner"],
+        "note": "Dismisses. No first toast. The gold ask has to hold them.",
     },
     "mouse": {
         "rho0": rho_pure(KET_STORY_LISTEN),
-        "walk": ["welcome", "toast", "expand", "banner", "field"],
-        "note": "Tap begin, tap toast for more, tap the gold banner, tap a plot.",
+        "walk": ["welcome", "banner", "field"],
+        "note": "Tap begin, read the gold ask, tap a plot.",
     },
     "keyboard": {
         "rho0": rho_pure(KET_STORY_LISTEN),
-        "walk": ["welcome", "banner", "arc", "field"],
-        "note": "F to begin, reads the banner, X→I for Arc, then the field.",
+        "walk": ["welcome", "banner", "field"],
+        "note": "F to begin, the banner is already the live ask, then the field.",
     },
     "skip_welcome": {
         "rho0": rho_mixed([(0.6, KET_STORY_LISTEN), (0.4, KET_STORY_DO)]),
-        "walk": ["toast", "banner", "field"],
-        "note": "Returning / rig skip: no splash. Recap + banner must still agree.",
+        "walk": ["banner", "field"],
+        "note": "Returning / rig skip: no splash. Banner is the live ask.",
     },
     "arc_first": {
         "rho0": rho_pure(KET_MACHINE_LISTEN),
-        "walk": ["arc", "expand", "banner", "field"],
+        "walk": ["arc", "field"],
         "note": "Opens Arc before doing anything. Featured door must be the live lesson, not First Harvest.",
     },
 }
@@ -243,9 +243,9 @@ def compare_all() -> List[Dict[str, object]]:
 def spine_tokens() -> Dict[str, str]:
     """The live-ask the NEW surfaces must agree on at minute one.
 
-    Banner, first toast, and Arc featured door all name 'strike' — the
-    first irreversible tap. First Harvest / reap is the capstone, not
-    the first door.
+    The 1D lane auto-accepts: banner, first toast, and Arc NOW door all
+    name 'strike' — the first irreversible tap. First Harvest / reap is
+    the capstone, not the first door. Optional offers wait on Arc.
     """
     return {
         "welcome_first_verb": "strike",  # the middle card; explore wakes, strike locks

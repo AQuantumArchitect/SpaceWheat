@@ -228,12 +228,9 @@ func stage_start_simulation(farm: Node) -> void:
 	# The Gallery: postcards — F12 captures the view with a physics watermark
 	# strip in the pixels + a sidecar certificate (user://postcards/).
 	PostcardCapture.maybe_attach(farm)
-
-	# The signpost: one toast naming the doors. Without it the tutorial can sit
-	# unseen on the quest board — nothing else tells a new player to press C.
-	var shell = InstrumentLocator.resolve_player_shell(farm)
-	if shell != null and shell.has_method("show_hint"):
-		shell.show_hint("🌾 the forest is asleep — the top chips open the doors: 📋 quests [C] · 📖 guide [X] · 🕸 network [N] · 🗺 map [M]", 2, "")
+	# No boot keymap toast. The 1D lane auto-accepts onto the banner; optional
+	# doors wait on the Arc. A chip-legend signpost here was leftover chrome
+	# from before that law, and it doubled the first-minute cards.
 
 
 func ensure_quantum_instrument(farm: Node):

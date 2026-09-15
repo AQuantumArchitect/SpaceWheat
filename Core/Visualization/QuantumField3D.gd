@@ -10,7 +10,9 @@ extends SubViewportContainer
 #     the physics — plus (under the B microscope) its vector and fading trail;
 #   • a thin gold RIPENESS ring (gold = the global ripeness/value colour in every biome)
 #     that grows with the honest VisualizationConstants.ripeness(p0,p1);
-#   • a bright selection torus on the focused orb (set_focused_plot).
+#   • a camera-space CIRCLE around the focused orb (set_focused_plot) —
+#     a stroke on the view, not a mesh on the ball, so the Bloch globe
+#     stays readable. Multi-select uses the same overlay in cyan — no checkbox glyph.
 # No passive camera drift: a playtester read the old idle auto-rotation as meaningful
 # motion when it wasn't, so every visible movement is now either real physics (state
 # evolution, force dynamics below) or the player's own camera drag — nothing spins on
@@ -85,6 +87,9 @@ const FOG_SAT := 0.16               # desaturate toward grey — hue survives, v
 const FOG_VAL := 0.44
 const FOG_ALPHA := 0.22             # vs 0.12 live: no dot inside, so the shell carries the shape
 const PORTAL_LABEL_COLOR := Color(0.88, 0.93, 0.98, 0.85)   # UIStyleFactory.COLOR_HEADER family
+const SLOT_KEYS := ["G", "H", "J", "K", "L", ";"]
+const SLOT_LABEL_COLOR := Color(0.95, 0.97, 0.88, 0.95)
+const CHECK_CYAN := Color(0.0, 1.0, 1.0, 0.95)
 ## Hover lift on a rail orb — matches the HUD chips' hover_color (SelectionButtonRow 1.35)
 ## so "the pointer is over something clickable" reads identically in 2D and 3D.
 const RAIL_HOVER_LIFT := Color(1.35, 1.35, 1.35)
@@ -114,11 +119,12 @@ const DESCEND_HUE_COLOR := Color(0.55, 0.35, 0.95)  # fixed indigo — "go deepe
 var _descend_portals: Array = []    # {mesh, ring, sprite, biome_name, register_id} — per register, click to enter_icon
 var _ascend_portal = null           # {mesh, ring, sprite} or null — only present inside a fractal child world
 # Focused-plot selection (QII.selection_changed → FarmView → set_focused_plot). plot_idx ≡
-# register_id (the plot-register invariant), so the ring finds its orb by register. A slot
-# with no register keeps the ring hidden — the honest refusal toast is the cue there.
+# register_id (the plot-register invariant), so the reticle finds its orb by register. A slot
+# with no register keeps the circle hidden — the honest refusal toast is the cue there.
 var _sel_plot_idx := -1
 var _sel_biome := ""
-var _sel_ring: MeshInstance3D = null
+var _sel_reticle: Control = null   # screen-space circle, child overlay — not a 3D mesh
+var _sel_pulse := 0.0
 # B-microscope contract (mirrors QuantumForceGraph.on_overlay_changed): the default view
 # is the clean metro map — deep-physics webs (live MI edges, state vectors + trails) draw
 # only while the B biome microscope is open. Wired in RuntimeMount.
@@ -253,19 +259,15 @@ func _ready() -> void:
 	_chain_mesh.material_override = cmat
 	_pivot.add_child(_chain_mesh)
 
-	# THE selection ring: one bright horizontal torus that sits on whichever orb the
-	# player's plot cursor focuses (keyboard G-; or tap). One shared node, moved between
-	# orbs — the 3D replacement for the hidden 2D rack's cyan tile border.
-	_sel_ring = MeshInstance3D.new()
-	var stm := TorusMesh.new(); stm.inner_radius = R + 0.19; stm.outer_radius = R + 0.23
-	stm.rings = 60; stm.ring_segments = 12
-	_sel_ring.mesh = stm
-	var selmat := StandardMaterial3D.new()
-	selmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	selmat.albedo_color = Color(0.92, 0.99, 1.0)
-	_sel_ring.material_override = selmat
-	_sel_ring.visible = false
-	_pivot.add_child(_sel_ring)
+	# THE selection cursor: a circle on the CAMERA, not a mesh on the ball.
+	# A filled gold shell sat on the globe and hid the plot; a 3D torus
+	# read as a second ripeness ring. This overlay strokes around the
+	# qubit's screen position so the Bloch ball stays fully visible.
+	_sel_reticle = CameraReticle.new()
+	_sel_reticle.host = self
+	_sel_reticle.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_sel_reticle.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(_sel_reticle)
 
 
 # ------------------------------------------------- interface (FarmView contract)
@@ -361,6 +363,11 @@ func _set_bubble_revealed(b: Dictionary, revealed: bool) -> void:
 	# harvest pops the bubble back to unexplored.
 	if not revealed:
 		b["trail"] = []
+	var slot_lbl = b.get("slot_lbl")
+	if slot_lbl != null and is_instance_valid(slot_lbl):
+		# Fog balls wear the select letter in the middle; explored orbs already
+		# have pole emojis, so the letter steps aside.
+		slot_lbl.visible = not revealed
 
 
 func teardown() -> void:
@@ -379,6 +386,10 @@ func _on_plot_selection_changed(grid_pos: Vector2i, is_selected: bool) -> void:
 		selected_plot_positions[grid_pos] = true
 	else:
 		selected_plot_positions.erase(grid_pos)
+	for b in _bubbles:
+		if b.get("grid_pos") == grid_pos:
+			_apply_check_visual(b)
+			return
 
 
 ## Focused-plot channel (the single cursor, keyboard G-; or tap) — fed by
@@ -403,16 +414,12 @@ func _selected_bubble() -> Dictionary:
 
 
 func _update_selection_visuals() -> void:
-	var b := _selected_bubble()
-	# Deliberately NOT reveal-gated: the ring is the CURSOR, and a cursor you cannot see
-	# while it sits on unexplored ground is the silent-focus defect all over again. Since
-	# unexplored registers now draw a fog ball, the ring has something real to sit on.
-	var has_orb: bool = (not b.is_empty()) and is_instance_valid(b.get("mesh"))
-	if _sel_ring != null and is_instance_valid(_sel_ring):
-		_sel_ring.visible = has_orb
-		if has_orb:
-			_sel_ring.position = b.pos
+	# Deliberately NOT reveal-gated: the circle is the CURSOR, and a cursor you cannot
+	# see while it sits on unexplored ground is the silent-focus defect all over again.
+	# Fog balls still have a mesh, so the reticle has something real to ring.
 	_update_descend_visibility()
+	if _sel_reticle != null and is_instance_valid(_sel_reticle):
+		_sel_reticle.queue_redraw()
 
 
 ## Descend satellites show ONLY on the focused, revealed orb — they exist as an affordance
@@ -759,15 +766,39 @@ func _spawn(reg: int, pos: Vector3, north_emoji: String, south_emoji: String, gr
 	ring.position = pos
 	_pivot.add_child(ring)
 
+	var slot_lbl := _spawn_slot_label(reg, pos)
 	var b := {"reg": reg, "mesh": mi, "eq": eq, "axisline": axisline, "np": np,
 		"spr": spr, "dot": dot, "ring": ring, "pos": pos, "anchor": pos, "grid_pos": grid_pos,
-		"trail": [], "north_e": north_emoji, "south_e": south_emoji, "revealed": false}
+		"trail": [], "north_e": north_emoji, "south_e": south_emoji, "revealed": false,
+		"slot_lbl": slot_lbl}
 	_bubbles.append(b)
 	# Explore-on-action (owner ruling 2026-08-02): a register stays UNLABELLED until the
 	# player actually explores its plot — mirrors QuantumForceGraph's own reveal gate so
 	# 2D and 3D agree on what "explored" means. Since 2026-08-11 the ball itself always
 	# draws (dimmed), so the biome's shape is constant and every plot has a click target.
+	# The SLOT LETTER stays on unexplored fog so G H J K L ; are findable.
 	_set_bubble_revealed(b, _is_plot_revealed(grid_pos))
+	_apply_check_visual(b)
+
+
+func _spawn_slot_label(reg: int, pos: Vector3) -> Label3D:
+	var lbl := Label3D.new()
+	lbl.text = SLOT_KEYS[reg] if (reg >= 0 and reg < SLOT_KEYS.size()) else str(reg)
+	lbl.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	lbl.no_depth_test = true
+	lbl.font_size = 64
+	lbl.pixel_size = 0.0034
+	lbl.outline_size = 12
+	lbl.modulate = SLOT_LABEL_COLOR
+	lbl.position = pos
+	_pivot.add_child(lbl)
+	return lbl
+
+
+func _apply_check_visual(_b: Dictionary) -> void:
+	# The cyan camera-circle is the checkbox now. No glyph on the orb.
+	if _sel_reticle != null and is_instance_valid(_sel_reticle):
+		_sel_reticle.queue_redraw()
 
 
 func _pole_sprite(e: String, at: Vector3, sz: float) -> Sprite3D:
@@ -787,7 +818,8 @@ func _pole_sprite(e: String, at: Vector3, sz: float) -> Sprite3D:
 
 func _clear_bubbles() -> void:
 	for b in _bubbles:
-		for k in ["mesh", "eq", "axisline", "np", "spr", "dot", "ring"]:
+		for k in ["mesh", "eq", "axisline", "np", "spr", "dot", "ring",
+				"slot_lbl"]:
 			if b.get(k) != null and is_instance_valid(b[k]):
 				b[k].queue_free()
 	_bubbles.clear()
@@ -1148,6 +1180,10 @@ func _tick_field(dt: float) -> void:
 		# stretch=true must keep the render target in lockstep with the container —
 		# any divergence breaks centring AND picking together (unproject vs ev.position).
 		_sv.size = Vector2i(size)
+	if _sel_reticle != null and is_instance_valid(_sel_reticle) and _sel_reticle.size != size:
+		# Container parents can forget a non-viewport child's anchors; the
+		# reticle has to cover the same pixels unproject_position speaks.
+		_sel_reticle.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	_update_camera_framing()
 
@@ -1225,6 +1261,10 @@ func _tick_field(dt: float) -> void:
 		# ripeness (value) grows the gold ring
 		var rip := clampf(VC.ripeness(p0, p1), 0.0, 1.0)
 		b.ring.scale = Vector3.ONE * (0.92 + 0.35 * rip)
+	# Camera-circle breathes so the cursor is never a static stroke you can miss.
+	_sel_pulse += dt * 5.2
+	if _sel_reticle != null and is_instance_valid(_sel_reticle):
+		_sel_reticle.queue_redraw()
 	var t3 := Time.get_ticks_usec()
 	_update_edges(vc)
 	var t4 := Time.get_ticks_usec()
@@ -1363,10 +1403,9 @@ func _reposition_bubble_visuals(b: Dictionary) -> void:
 				if node != null and is_instance_valid(node):
 					node.position = dpos
 			dp.pos = dpos
-	# the selection ring rides with the focused orb
-	if _sel_ring != null and is_instance_valid(_sel_ring) and _sel_ring.visible \
-			and _sel_plot_idx == int(b.reg):
-		_sel_ring.position = pos
+	var slot_lbl = b.get("slot_lbl")
+	if slot_lbl != null and is_instance_valid(slot_lbl):
+		slot_lbl.position = pos
 
 
 ## Combine live MI (primary, 0.7 weight) and static H-coupling magnitude (secondary, 0.3
@@ -1502,16 +1541,12 @@ func _bubble_shown(b: Dictionary) -> bool:
 ## measurement. Same authority the 2D metro-line renderer uses (QuantumEdgeRenderer.gd):
 ## viz_cache.get_hamiltonian_couplings(emoji).
 ##
-## EMOJI-LEVEL (2026-08-17, owner request "arrows between the emojis, not the icons"):
-## endpoints are the POLE positions of the coupled emojis, not orb centres. H couplings are
-## authored emoji→emoji in icons.json (source icon → one specific target emoji), and the old
-## qubit-pair collapse here threw that away — "there's no visual indication of how the
-## Hamiltonian is expressed". IconRegistry copies an icon's couplings onto BOTH its pole
-## atoms, so iterating get_emojis() naturally yields both physical stamps (pole_0→target and
-## pole_1→target, HamiltonianBuilder.gd) as separate segments. Same-orb couplings (an icon's
-## own north↔south) draw as a short intra-orb segment beside the measurement axis — real
-## physics that no view showed. One segment per unordered EMOJI pair, max |J|. Lines, not
-## arrows: H is Hermitian — a direction would be a lie.
+## One strand per coupling: orb-centre to orb-centre, qubit-pair aggregated.
+## IconRegistry copies couplings onto BOTH pole atoms, so emoji-pair metro
+## drew two parallel threads between the same orbs (the harvest leftover).
+## Intra-orb north↔south is the measurement axis — not a second metro.
+## Fog endpoints are omitted (`pos_by_reg` only holds revealed bubbles), so
+## reap cannot leave a mangled half-web. Bell gold is `_chain_mesh`, not this.
 func _recompute_metro_segs(vc) -> Array:
 	var segs: Array = []
 	if not vc.has_method("get_hamiltonian_couplings") or not vc.has_method("get_qubit") or _bubbles.is_empty():
@@ -1521,26 +1556,25 @@ func _recompute_metro_segs(vc) -> Array:
 		if _bubble_shown(b):   # reveal gate: no transit lines into unexplored fog
 			pos_by_reg[int(b.reg)] = b.pos
 
-	var has_pole: bool = vc.has_method("get_pole")
-	var strength_by_pair: Dictionary = {}  # "emojiA|emojiB" (sorted) -> max |J|
+	var strength_by_pair: Dictionary = {}  # "qA|qB" (sorted) -> max |J|
 	var ends_by_pair: Dictionary = {}      # same key -> [Vector3, Vector3]
 	for emoji in vc.get_emojis():
 		var src_e := str(emoji)
-		var src_pos = _emoji_pole_pos(vc, src_e, pos_by_reg, has_pole)
-		if src_pos == null:
+		var q_src: int = int(vc.get_qubit(src_e))
+		if q_src < 0 or not pos_by_reg.has(q_src):
 			continue
+		var src_pos: Vector3 = pos_by_reg[q_src]
 		var couplings: Dictionary = vc.get_hamiltonian_couplings(emoji)
 		for target_emoji in couplings:
 			var tgt_e := str(target_emoji)
-			if tgt_e == src_e:
-				continue   # degenerate self-coupling: no segment to draw
+			var q_tgt: int = int(vc.get_qubit(tgt_e))
+			if q_tgt < 0 or q_tgt == q_src or not pos_by_reg.has(q_tgt):
+				continue
 			var mag := _coupling_magnitude(couplings[target_emoji])
 			if mag < 0.001:
 				continue
-			var tgt_pos = _emoji_pole_pos(vc, tgt_e, pos_by_reg, has_pole)
-			if tgt_pos == null:
-				continue
-			var key := "%s|%s" % [src_e, tgt_e] if src_e < tgt_e else "%s|%s" % [tgt_e, src_e]
+			var tgt_pos: Vector3 = pos_by_reg[q_tgt]
+			var key := "%d|%d" % [q_src, q_tgt] if q_src < q_tgt else "%d|%d" % [q_tgt, q_src]
 			if mag > float(strength_by_pair.get(key, 0.0)):
 				strength_by_pair[key] = mag
 			if not ends_by_pair.has(key):
@@ -2261,3 +2295,55 @@ func dev_tap_portal(idx: int) -> String:
 		return "<none>"
 	_try_pick(_cam.unproject_position(p.mesh.global_position), MOUSE_BUTTON_LEFT)
 	return str(p.name)
+
+
+## Screen-space targeting circle. Lives as a Control child of this container so it
+## paints ON the camera view, never as a mesh on the Bloch ball.
+class CameraReticle extends Control:
+	var host = null
+
+	func _ready() -> void:
+		mouse_filter = MOUSE_FILTER_IGNORE
+		set_anchors_and_offsets_preset(PRESET_FULL_RECT)
+		resized.connect(queue_redraw)
+
+	func _draw() -> void:
+		if host != null:
+			host._paint_camera_reticle()
+
+
+## Stroke a camera-facing circle around each checked plot, then a gold one around
+## the focused qubit. Radius is the projected orb size plus padding so the stroke
+## sits AROUND the globe instead of on it. Fog plots still get a circle — this is
+## the cursor, not a readout.
+func _paint_camera_reticle() -> void:
+	if _sel_reticle == null or _cam == null:
+		return
+	for b in _bubbles:
+		if selected_plot_positions.has(b.get("grid_pos", Vector2i(-1, -1))):
+			_stroke_camera_circle(b, CHECK_CYAN, 2.4, 1.16)
+	var focused := _selected_bubble()
+	if focused.is_empty() or not is_instance_valid(focused.get("mesh")):
+		return
+	var pulse := 1.0 + 0.05 * (0.5 + 0.5 * sin(_sel_pulse))
+	_stroke_camera_circle(focused, Color(1.0, 0.90, 0.32, 0.98), 3.4, 1.32 * pulse)
+
+
+func _stroke_camera_circle(b: Dictionary, color: Color, width: float, radius_scale: float) -> void:
+	var mesh = b.get("mesh")
+	if mesh == null or not is_instance_valid(mesh):
+		return
+	var wp: Vector3 = mesh.global_position
+	if _cam.is_position_behind(wp):
+		return
+	var center := _cam.unproject_position(wp)
+	var right := _cam.global_transform.basis.x.normalized()
+	var edge := _cam.unproject_position(wp + right * R)
+	var radius := center.distance_to(edge) * radius_scale + 6.0
+	if radius < 8.0:
+		return
+	var stroke := maxf(width, size.y * 0.0032)
+	# Dark understroke so gold reads against the gold ripeness torus and cyan
+	# against the Bloch shell — the circle is a camera glyph, not another 3D ring.
+	_sel_reticle.draw_arc(center, radius, 0.0, TAU, 72, Color(0.04, 0.04, 0.07, 0.88), stroke + 2.4, true)
+	_sel_reticle.draw_arc(center, radius, 0.0, TAU, 72, color, stroke, true)

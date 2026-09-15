@@ -5,11 +5,8 @@ extends Node
 ## subsystems (quest_manager, economy, farm). Headless-safe: only writes to
 ## PlayerEventLog; spawning UI toasts is PlayerShell's job.
 
-# Route phrases (accept/claim doors) come from the objective authority so the
-# toast and the banner can never drift apart again. Core→UI preload is
-# precedented (QuantumEdgeRenderer, BatchedBubbleRenderer do the same).
-const UIProgression = preload("res://UI/Core/UIProgression.gd")
 const IntroVoice = preload("res://Core/Story/IntroVoice.gd")
+const UIProgression = preload("res://UI/Core/UIProgression.gd")
 
 var _farm: Node = null
 var _quest_manager: Node = null
@@ -22,6 +19,10 @@ var _wired := false
 ## (not persisted) — purely a one-time nudge, never a gate; re-injecting after
 ## this fires is silent, same as any other repeat action.
 var _fractal_intro_shown := false
+## Offer toasts the bridge has already spoken. quest_offered can fire, then
+## farm_ready backfill walks the same story_offers — without this, one door
+## is two gold cards.
+var _announced_offer_ids: Dictionary = {}
 
 
 func _ready() -> void:
@@ -40,6 +41,10 @@ func _on_farm_ready(farm: Node, _state) -> void:
 	# — ACTIVITY read "No events yet" forever on loaded saves (marathon #8).
 	if farm == null or farm == _farm:
 		return
+	# Quest ids restart with the board. Stale ids from the previous farm
+	# would swallow the next run's doors.
+	_announced_offer_ids.clear()
+	_fractal_intro_shown = false
 	_farm = farm
 	# The quest manager lives on the SHELL, not the farm — resolving it off
 	# the farm returned null every boot, so quest events (offers, ready,
@@ -55,19 +60,25 @@ func _on_farm_ready(farm: Node, _state) -> void:
 	_wire_farm_signals()
 	_wire_instrument_signals()
 	_wired = true
-	# Seed the act-entry announcer from the LOADED position so resuming a
-	# mid-campaign save doesn't replay "Act N" toasts for acts already lived.
-	_announced_act = _current_act_now()
 	# Boot-race backfill: offers born during connect_to_farm (the tutorial
 	# quest, StoryEngine re-offers) emit quest_offered BEFORE this bridge
 	# wires — the announcement vanished and ACTIVITY read "No events yet" at
 	# fresh boot (stooge round 1: 3/3 blind players never found the Arc tab).
-	# Pending offers are still pending, so announcing them on (re)wire is
-	# re-orientation, not a duplicate.
+	# _on_quest_offered is idempotent per quest id, so a later rewire does
+	# not double the door.
+	# Returning player: recap is the one card. Re-toasting every unsigned
+	# offer on load stacked a second gold door on the same beat.
+	var returning: bool = "story_flags_fired" in farm and farm.story_flags_fired.has("tutorial_seen")
 	if _quest_manager != null and "story_offers" in _quest_manager:
 		for q in _quest_manager.story_offers.values():
-			if q is Dictionary:
-				_on_quest_offered(q)
+			if not (q is Dictionary):
+				continue
+			if returning:
+				var qid := int(q.get("id", -1))
+				if qid >= 0:
+					_announced_offer_ids[qid] = true
+				continue
+			_on_quest_offered(q)
 
 
 func _resolve(farm: Node, prop: String) -> Node:
@@ -119,63 +130,22 @@ func _push(message: String, importance: int, icon: String, category: String, pat
 
 
 func _on_icon_learned(north: String, south: String, faction: String) -> void:
-	_push("📖 [b]%s / %s[/b]  taught by %s" % [north, south, faction], 2, "📖", "vocab", "V")
-
-
-# ─────────────── act-entry announcement ───────────────
-# The campaign's acts were invisible: no transition was ever announced
-# anywhere (the postcard fires on act COMPLETION, headed-only, and act 5's
-# was unreachable). When the contiguous-prefix current act grows, mark the
-# entry once — a gold toast naming the act and its chapter movement.
-
-var _announced_act: int = -1
-
-
-func _current_act_now() -> int:
-	if _farm == null or not ("story_flags_fired" in _farm) \
-			or _quest_manager == null or not _quest_manager.has_method("get_all_story_flags"):
-		return -1
-	return StoryAtlas.current_act(_farm.story_flags_fired, _quest_manager.get_all_story_flags())
-
-
-func _maybe_announce_act_entry() -> void:
-	var act := _current_act_now()
-	if act < 0 or _announced_act < 0 or act <= _announced_act:
-		_announced_act = maxi(_announced_act, act)
-		return
-	_announced_act = act
-	_push("🎬 [b]Act %d[/b] — %s" % [act, StoryAtlas.chapter_for_act(act)],
-			3, "🎬", "story", "XI")
+	_push("📖 [b]%s / %s[/b]  taught by %s" % [north, south, faction], 2, "📖", "vocab", "V", "V")
 
 
 func _on_story_flag_fired(flag_id: String, flag_data: Dictionary) -> void:
-	_maybe_announce_act_entry()
-	var display := str(flag_data.get("display_name", flag_id))
-	# Sentence-boundary cut, not .left(80): beats run 300-700 chars and the
-	# old hard cut showed ~13% of the average beat, sliced mid-word. The [XY]
-	# path chip is the breadcrumb to the full prose (X→Y story log).
-	var beat := StoryAtlas.sentence_cut(str(flag_data.get("arc_beat", "")), 160)
-	var grants: Dictionary = flag_data.get("standing_grants", {})
-	var msg := "✨ [b]%s[/b]  %s" % [display, beat]
-	if not grants.is_empty():
-		var parts: Array[String] = []
-		for f in grants:
-			# standing_grants is {faction: {channel: delta}} (story_flags.json) — the
-			# per-channel dict, NOT a scalar. float(<Dictionary>) threw "Nonexistent
-			# 'float' constructor" on every grant-bearing flag (forest_evolving, …); flatten
-			# to one "faction channel +Δ" fragment per channel. (Flat {faction: delta} tolerated.)
-			var ch = grants[f]
-			if ch is Dictionary:
-				for c in ch:
-					parts.append("%s %s %+.2f" % [str(f), str(c), float(ch[c])])
-			else:
-				parts.append("%s %+.2f" % [str(f), float(ch)])
-		msg += "\n   " + ", ".join(parts)
-	_push(msg, 3, "✨", "story", "XY")
+	# No Act-N entry card: the flag toast or the door offer already names
+	# the beat. A third gold card on every chapter door was leftover.
+	var toast: Dictionary = IntroVoice.toast_for_flag(flag_id, flag_data)
+	if toast.is_empty():
+		return
+	_push(str(toast.get("message", "")), int(toast.get("importance", 3)),
+			str(toast.get("icon", "✨")), "story",
+			str(toast.get("path", "XY")), str(toast.get("route", "story")))
 
 
 func _on_quest_completed(qid: int, rewards: Dictionary) -> void:
-	_push("✅ %s — %s" % [_quest_name(qid), _format_rewards(rewards)], 1, "✅", "quest", "Q")
+	_push("✅ %s — %s" % [_quest_name(qid), _format_rewards(rewards)], 1, "✅", "quest", "C")
 
 
 func _on_quest_ready_to_claim(qid: int) -> void:
@@ -185,19 +155,31 @@ func _on_quest_ready_to_claim(qid: int) -> void:
 	# (anti-gating: false-help). The signal fires while the quest is still in
 	# active_quests, so we can ask. Importance-1 keeps the beat in the
 	# ACTIVITY feed without a toast; the story-flag/act toasts carry the moment.
-	if _quest_manager != null and _quest_manager.has_method("tutorial_auto_advances"):
+	if _quest_manager != null:
 		var q = _quest_manager.active_quests.get(qid) if "active_quests" in _quest_manager else null
-		if q is Dictionary and _quest_manager.tutorial_auto_advances(q):
-			_push("✅ %s — step complete" % _quest_name(qid), 1, "✅", "quest", "Q")
-			return
+		if q is Dictionary:
+			var silent := false
+			if _quest_manager.has_method("silent_auto_claims"):
+				silent = bool(_quest_manager.silent_auto_claims(q))
+			elif _quest_manager.has_method("tutorial_auto_advances"):
+				silent = bool(_quest_manager.tutorial_auto_advances(q))
+			# Banner already tracks the live ask (mill DELIVERY included).
+			# A gold 🏆 on top of "Deliver 2× 🌾" was a second card.
+			if not silent:
+				var live: Dictionary = IntroVoice.live_quest()
+				if int(live.get("id", -2)) == qid:
+					silent = true
+			if silent:
+				_push("✅ %s — step complete" % _quest_name(qid), 1, "✅", "quest", "C")
+				return
 	# One spelling of the claim route, shared with the objective banner
 	# (UIProgression.route_claim). This toast and the banner used to drift —
 	# "C board" vs "Commitments (C → U)" — and the older spelling sent a
 	# main-road playthrough to the wrong screen. The toast is now itself a
 	# door: its route carries the quest id, so a body-tap lands on this very
 	# contract's Commitments row (claim stays a deliberate click there).
-	_push("🏆 [b]%s ready to claim[/b] — tap here, or %s" % [_quest_name(qid), UIProgression.route_claim()],
-			3, "🏆", "quest", "Q", "commitments:%d" % qid)
+	_push("🏆 [b]%s ready[/b]" % _quest_name(qid),
+			3, "🏆", "quest", "C", "commitments:%d" % qid)
 
 
 ## Player words for a quest id. Raw ids leaked into toasts ("❌ Quest
@@ -235,9 +217,14 @@ func _quest_name(qid: int) -> String:
 
 
 func _on_quest_offered(quest: Dictionary) -> void:
-	# Voice lives in IntroVoice so the first toast, the welcome, and the Arc
-	# postcard cannot name three different first verbs. Auto-accepted tutorial
-	# steps never say "tap here to accept" (the accept already happened).
+	# Lane steps are silent (banner already tracks them). Unsigned offers
+	# toast as a room-change: tap opens Arc. Empty dict = no toast.
+	# Idempotent: signal + farm_ready backfill used to speak the same door twice.
+	var qid := int(quest.get("id", -1))
+	if qid >= 0:
+		if _announced_offer_ids.has(qid):
+			return
+		_announced_offer_ids[qid] = true
 	var toast: Dictionary = IntroVoice.toast_for_offer(quest, _quest_manager)
 	if toast.is_empty():
 		return
@@ -247,7 +234,7 @@ func _on_quest_offered(quest: Dictionary) -> void:
 
 
 func _on_quest_failed(qid: int, reason: String) -> void:
-	_push("❌ %s failed — %s" % [_quest_name(qid), reason], 2, "❌", "quest", "Q")
+	_push("❌ %s failed — %s" % [_quest_name(qid), reason], 2, "❌", "quest", "C", "C")
 
 
 func _on_quest_expired(_qid: int) -> void:
@@ -255,8 +242,8 @@ func _on_quest_expired(_qid: int) -> void:
 	# vanished silently (fleet: "accepted quest disappears without a word").
 	# Routes to the History sub-view — expired commitments land in
 	# failed_quests, which only that view renders.
-	_push("⌛ a commitment ran out of time — tap here to see it (📋 Commitments · History)",
-			2, "⌛", "quest", "Q", "commitments_history")
+	_push("⌛ a commitment ran out of time",
+			2, "⌛", "quest", "C", "commitments_history")
 
 
 func _on_purchase_failed(reason: String) -> void:
@@ -289,12 +276,14 @@ func _on_resource_mutated(emoji: String, delta: float, reason: String, _amount: 
 func _on_standing_changed(faction: String, channel: String, delta: float, new_value: float) -> void:
 	if absf(delta) < 0.05:
 		return
-	# Plain words, not a ledger line — "🤝 Packlords · trust +0.12 → 0.45"
-	# read as noise to a playtester ("some toast about packlords and 🤝 or
-	# something, no idea what that means").
-	var direction := "grows" if delta >= 0 else "slips"
-	var msg := "🤝 Your %s with the %s %s (%+.2f)" % [channel, faction, direction, delta]
-	_push(msg, 2, "🤝", "faction", "XT")
+	# The 1D lane is the ask. Standing weather stacking over Strike / mill /
+	# the loom (playtest: three 🤝 cards plus a refusal while the banner
+	# said "weave") hid the live verb. Self still holds the snapshot.
+	if UIProgression.current_tutorial_step() != UIProgression.NO_TUTORIAL_SENTINEL:
+		return
+	# Felt weather, not a ledger. ±0.12 lives behind E on Self.
+	var msg := "🤝 %s" % IntroVoice.felt_standing(faction, channel, delta)
+	_push(msg, 2, "🤝", "faction", "XT", "self")
 
 
 func _on_biome_loaded(biome_name: String, _biome_ref) -> void:

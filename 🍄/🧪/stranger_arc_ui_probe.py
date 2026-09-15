@@ -218,39 +218,31 @@ def main():
             press("q", settle=10)
         run_auto("core_loop", drive0)
 
-        # STEP 1 contracts — the MANUAL ceremony, real keys only. Moved up in the
-        # 2026-08-17 reorder: it rides the same Ace verbs step 0 taught, and the
-        # accept→gather→claim grammar is the early game's whole economy now.
+        # STEP 1 contracts — auto-accepted with the lane. Fill on Commitments.
         where, q2 = find_step("contracts")
-        if where != "offer":
-            note("contracts step is not an accept-me offer (where=%s) — it must NOT auto-accept" % where)
+        if where != "active":
+            note("contracts step did not auto-accept (where=%s) — the mill is in the lane" % where)
         else:
-            if accept_via_arc_ui("is buying"):
-                where2, q2b = find_step("contracts")
-                if where2 != "active":
-                    note("contracts step did not go active after the X→Arc R-accept (where=%s)" % where2)
+            qid = int(q2.get("id", -1))
+            delivered = False
+            for rnd in range(12):
+                if float(wallet().get("🌾", 0)) < 2:
+                    press(dk, settle=6)
+                    press("8", settle=4)
+                    press("g", settle=4)
+                    press("f", settle=8)
+                    press("r", settle=10)
+                    press("q", settle=8)
                 else:
-                    qid = int(q2b.get("id", -1))
-                    delivered = False
-                    for rnd in range(12):
-                        if float(wallet().get("🌾", 0)) < 2:
-                            # gather 2× 🌾 — Ace strike+extract on TheDemos
-                            press(dk, settle=6)
-                            press("8", settle=4)
-                            press("g", settle=4)
-                            press("f", settle=8)
-                            press("r", settle=10)
-                            press("q", settle=8)
-                        else:
-                            deliver_via_commitments_ui(qid)
-                        if find_step("contracts")[0] == "":
-                            print("  ✓ contracts delivered via C→Commitments UI (round %d)" % (rnd + 1))
-                            completed.append("contracts")
-                            delivered = True
-                            break
-                        print("    [contracts r%d] 🌾=%s" % (rnd, wallet().get("🌾", 0)))
-                    if not delivered:
-                        note("contracts step never delivered through the Commitments UI (silent stall)")
+                    deliver_via_commitments_ui(qid)
+                if find_step("contracts")[0] == "":
+                    print("  ✓ contracts delivered via C→Commitments UI (round %d)" % (rnd + 1))
+                    completed.append("contracts")
+                    delivered = True
+                    break
+                print("    [contracts r%d] 🌾=%s" % (rnd, wallet().get("🌾", 0)))
+            if not delivered:
+                note("contracts step never delivered through the Commitments UI (silent stall)")
 
         # STEP 2 wayfinding — the crossing is the whole ask (active_biome_is).
         def drive3(_rnd):

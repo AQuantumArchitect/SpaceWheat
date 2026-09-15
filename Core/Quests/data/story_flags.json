@@ -54,15 +54,9 @@
     "standing_grants": {},
     "arc_quest": {
       "body": "The Wheel Is Yours — open the Arc and read the island's open doors.",
-      "hint": "Open the Arc: tap the gold banner — or X, then the I tab. Every quest ahead lives there: tap a row to select (A/D page, GHJKL; by key), E inspects its live meters, Accept [R] takes an offer. The banner will still whisper the nearest ask — but the Arc is the whole sky.",
-      "state_predicates": [
-        {
-          "type": "gate_sequence_contains",
-          "gate": "reap",
-          "count": 1
-        }
-      ],
-      "math_note": "Fires with the tutorial's last gate (the capstone reap) — the beat marks the hand-off the moment Act 0 ends. The 2026-08-10 playtest asked for exactly this: 'Act 2 hands over the wheel abruptly — no beat marking the transition.' The gate ledger is durable (saved with the run), so a mid-claim load keeps it ready."
+      "hint": "Open the Arc. Tap a row; Accept [R] takes an unsigned door.",
+      "state_predicates": [],
+      "math_note": "Handshake, not a second reap. The old state_predicates asked for gate_sequence_contains reap×1 — the same durable ledger count first_harvest and the tutorial capstone already spent. Accepting on the Arc IS the beat; the quest auto-claims. Parallel-dev leftover: a ready stall on C for work the player had just finished."
     }
   },
   {
@@ -75,6 +69,10 @@
       {
         "type": "story_flag_set",
         "id": "first_harvest"
+      },
+      {
+        "type": "story_flag_set",
+        "id": "arc_handover"
       },
       {
         "type": "biome_evolving",
@@ -97,7 +95,7 @@
       "type": 1,
       "category": "ARC",
       "body": "Apprentice to the Mill — keep Millwright contracts until the Union counts you reliable, and they will teach you the windmill (💨/🔨).",
-      "hint": "C opens the board; Y is the market tab. Accept a Millwright delivery (its row key, then R) — whatever your granary already holds counts toward it, so accept, top up what's missing, then claim in Commitments (C → U, row key, R). Each kept delivery raises access; the have/target line moves. The claim of THIS quest is the teaching: the Millwrights say the windmill (💨/🔨) slowly enough to keep, and the word joins your signature. Only a word you know can be planted: Icon hat (5), R on an empty Village plot offers it, and the gears wake. When a faction's word lives in a land, their board opens there — that is how every country ahead will open.",
+      "hint": "Keep mill deliveries until they teach you the windmill.",
       "faction": "Millwright's Union",
       "state_predicates": [
         {
@@ -112,7 +110,7 @@
       "reward_south": "🔨",
       "reward_icon_north": "💨",
       "reward_icon_south": "🔨",
-      "math_note": "Soft gate on Millwright's Union access, center 0.06, width 0.01 — fires at access ≈0.069, about 3 kept deliveries at +0.02 each; the Act-0 contracts step's own delivery is the first."
+      "math_note": "Standing gate on Millwright's Union access, authored 0.06 (N means N). Three kept deliveries at +0.02 each; the Act-0 contracts step's own delivery is the first."
     }
   },
   {

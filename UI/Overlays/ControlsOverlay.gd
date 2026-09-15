@@ -18,7 +18,7 @@ extends "res://UI/Core/Surface.gd"
 ##   F ↑   = flatten: collapses whatever E opened. No open panel → no-op.
 ##            F is never "back" and never navigation — those belong to ESC / [ ].
 ##   W/S    = navigate items within the active tab (page / cycle action)
-##   1/2/3  = sub-mode within the active tab (icon slot, picker target)
+##   1/2/3/4/5/6 = identity qubit on Self (biome plots, cap 6); Story 1/2/3 still picks expression icons.
 ##   Z/ESC  = close
 ##
 ## frame_ids = [self, story, arc, guide] — one per tab.
@@ -119,7 +119,7 @@ var _glossary_reg: GlossaryRegistry = null
 var _story_focus_node: String = ""    # current ui_focus; "" = use density.argmax
 var _story_edge_idx: int = 0          # cursor into focused node's outgoing edges (read-only context)
 var _story_chatter_idx: int = 0       # GHJKL; cursor into visible chatter feed (the QERF target)
-var _story_icon_idx: int = 0          # 0/1/2; selected via 1/2/3 keys
+var _story_icon_idx: int = 0          # identity-qubit index (0..5); selected via 1–6
 var _story_chatter_connected: bool = false
 var _story_attractor_cache: Dictionary = {}  # biome_name → {emojis, gap, phrame}
 # Story-tab rebuild is DEBOUNCED: chatter/trajectory/activity signals only mark
@@ -146,7 +146,7 @@ var _story_inspect_open: bool = false        # E toggles a chatter detail panel;
 const ATTRACTOR_CACHE_TTL: int = 60          # ~1 second at 60Hz physics
 
 # Self tab icon picker state.
-var _self_picker_slot: int = 0     # which active slot (0/1/2) is being rebound
+var _self_picker_slot: int = 0     # which identity-biome qubit is being dressed
 var _self_picker_icon: int = 0     # cursor into known_icons (GHJKL; navigates)
 var _self_picker_page: int = 0     # page of known_icons (6 per page)
 
@@ -154,12 +154,13 @@ var _self_picker_page: int = 0     # page of known_icons (6 per page)
 var _arc_selected_idx: int = 0        # GHJKL; cursor — ABSOLUTE index into _arc_rows()
 var _arc_page: int = 0                # A/D page over the 6-row window (57 flags, 6 slots)
 var _arc_signal_connected: bool = false
-# Mouse second-click confirm — QuestBoard._row_confirm_armed parity: row 0 is
-# selected by DEFAULT, so idx == _arc_selected_idx is trivially true on a fresh
-# tab's very first click; without the arm flag that first look would fire the
-# accept instead of selecting. Armed by a real selection (click or keyboard),
-# cleared by anything that reshuffles the rows under the cursor.
+# Mouse second-click used to Accept (QuestBoard market parity) — that was
+# a breach of what Arc is for. Arc is a catalog: inspect-on-tap, then
+# shunt-on-the-next-tap (contract → C, verb → field). Accept is R only.
+# The arm flag tracks "this row was deliberately picked" so a flash still
+# happens; it never fires accept.
 var _arc_row_confirm_armed: bool = false
+var _arc_inspect_open: bool = false        # E / first tap unfolds physics in the row; F flattens. No toast.
 
 # UI refs.
 var _status_line: Label = null
@@ -272,13 +273,15 @@ func _declare_tab_actions() -> void:
 			if _selected_arc_kind() == "arc_quest":
 				infos = {
 					"Q": {"label": "Dismiss"},
-					"E": {"label": "More"},
+					"E": {"label": "Flatten" if _arc_inspect_open else "Inspect"},
 					"R": {"label": "Accept"},
 				}
 			else:
 				infos = {
-					"E": {"label": "More"},
+					"E": {"label": "Flatten" if _arc_inspect_open else "Inspect"},
 				}
+			if _arc_inspect_open:
+				infos["F"] = {"label": "Flatten"}
 		Tab.SELF:
 			infos = {
 				"R": {"label": "Assign"},
@@ -351,28 +354,13 @@ func _refresh_body() -> void:
 ## indication to go to Arc"). Same UIProgression authority as the portal —
 ## one objective source, two doors, both now name the destination.
 func _build_self_next_pointer() -> void:
-	var obj := UIProgression.objective_text()
-	var next_title := UIProgression.next_objective_title()
-	if obj == "" and next_title == "":
-		return
-	var row := VBoxContainer.new()
+	# Navigation cue only — do not reprint the live ask (that's the banner).
+	var row := Label.new()
+	row.text = "the live door is on Arc [I]  ·  tap"
+	row.add_theme_font_size_override("font_size", 13)
+	row.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
 	row.mouse_filter = Control.MOUSE_FILTER_STOP
 	row.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	row.add_theme_constant_override("separation", 2)
-	if obj != "":
-		var obj_lbl := Label.new()
-		obj_lbl.text = "→ %s" % obj
-		obj_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		obj_lbl.add_theme_font_size_override("font_size", 13)
-		obj_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_TAB_ACTIVE)
-		row.add_child(obj_lbl)
-	if next_title != "":
-		var next_lbl := Label.new()
-		next_lbl.text = "Next: %s  ·  tap here for the Arc [I]" % next_title
-		next_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		next_lbl.add_theme_font_size_override("font_size", 11)
-		next_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
-		row.add_child(next_lbl)
 	ClickWire.attach(row, _show_tab.bind(Tab.ARC))
 	_body_box.add_child(row)
 	_body_box.add_child(_make_spacer(6))
@@ -389,126 +377,54 @@ func _build_self_body() -> void:
 	_build_our_faction_view(farm)
 
 	_body_box.add_child(_make_spacer(8))
+	_build_felt_weather(farm)
+	_body_box.add_child(_make_muted_label("E for the numbers", 13))
+	_body_box.add_child(_make_spacer(8))
 	_build_icon_picker(farm)
 	_body_box.add_child(_make_spacer(8))
-	_body_box.add_child(_make_section_header("alignment"))
-
-	# Derive per-axis bias from weighted faction standings.
-	# axis_bias[i] = probability the player leans toward pole_1 on axis i.
-	# Pure mixed state (0.5 on every axis) is the starting condition.
-	var axis_bias: Array = []
-	axis_bias.resize(FactionAxes.AXIS_COUNT)
-	for i in range(FactionAxes.AXIS_COUNT):
-		axis_bias[i] = 0.5
-
-	var standings: Dictionary = farm.faction_standings if farm and "faction_standings" in farm else {}
-	if not standings.is_empty():
-		# Build atom → [axis_index, bit] map from canonical axes.
-		var atom_axis: Dictionary = {}
-		for i in range(FactionAxes.AXIS_COUNT):
-			var ax := FactionAxes.get_axis(i)
-			atom_axis[str(ax.get("pole_0", ""))] = [i, 0]
-			atom_axis[str(ax.get("pole_1", ""))] = [i, 1]
-
-		var weighted_bits: Array = []
-		var weight_per_axis: Array = []
-		weighted_bits.resize(FactionAxes.AXIS_COUNT)
-		weight_per_axis.resize(FactionAxes.AXIS_COUNT)
-		for i in range(FactionAxes.AXIS_COUNT):
-			weighted_bits[i] = 0.0
-			weight_per_axis[i] = 0.0
-
-		var faction_reg := FactionRegistry.get_shared()
-		for fname in standings.keys():
-			var s = standings[fname]
-			if s == null:
-				continue
-			var sc: float = s.scalar() if s.has_method("scalar") else 0.0
-			if absf(sc) < 0.0001:
-				continue
-			var faction = faction_reg.get_by_name(fname)
-			if faction == null:
-				continue
-			var w := absf(sc)
-			for atom in faction.cloud:
-				if atom in atom_axis:
-					var info: Array = atom_axis[atom]
-					weighted_bits[info[0]] += w * float(info[1])
-					weight_per_axis[info[0]] += w
-
-		for i in range(FactionAxes.AXIS_COUNT):
-			if weight_per_axis[i] > 0.0:
-				axis_bias[i] = clampf(weighted_bits[i] / weight_per_axis[i], 0.0, 1.0)
-
-	# Render alignment strip — two columns of 6 axes each.
-	var grid := GridContainer.new()
-	grid.columns = 2
-	grid.add_theme_constant_override("h_separation", 18)
-	grid.add_theme_constant_override("v_separation", 2)
-	_body_box.add_child(grid)
-
-	for i in range(FactionAxes.AXIS_COUNT):
-		var axis_def := FactionAxes.get_axis(i)
-		var pole0 := str(axis_def.get("pole_0", ""))
-		var pole1 := str(axis_def.get("pole_1", ""))
-		var label0 := str(axis_def.get("label_0", "?"))
-		var label1 := str(axis_def.get("label_1", "?"))
-		var bias: float = axis_bias[i]
-
-		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 6)
-		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-
-		var name_lbl := Label.new()
-		name_lbl.text = "%s %s" % [pole0, label0]
-		name_lbl.add_theme_font_size_override("font_size", 11)
-		name_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
-		name_lbl.custom_minimum_size = Vector2(100, 0)
-		row.add_child(name_lbl)
-
-		var bar_lbl := Label.new()
-		var filled := int(round(bias * 8.0))
-		bar_lbl.text = "█".repeat(filled) + "░".repeat(8 - filled)
-		bar_lbl.add_theme_font_size_override("font_size", 11)
-		bar_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_VALUE)
-		row.add_child(bar_lbl)
-
-		var pct_lbl := Label.new()
-		pct_lbl.text = "%s %s" % [label1, pole1]
-		pct_lbl.add_theme_font_size_override("font_size", 11)
-		pct_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
-		row.add_child(pct_lbl)
-
-		grid.add_child(row)
-
-	if standings.is_empty():
-		_body_box.add_child(_make_spacer(4))
-		_body_box.add_child(_make_muted_label(
-			"no faction standing yet — alignment is pure mixed state (50/50 on every axis).", 11,
-		))
-
-	# Faction standings — full 6-channel breakdown + signature progress.
-	if not standings.is_empty():
-		_body_box.add_child(_make_spacer(8))
-		_body_box.add_child(_make_section_header("faction standings"))
-		_render_faction_standings_grid(farm, standings)
-
-		# Spotlight the top-magnitude other faction (not "The Demos")
-		# with a FactionCard so the player sees its nature, not just its number.
-		var spot: String = _top_other_faction_by_magnitude(standings)
-		if spot != "":
-			_body_box.add_child(_make_spacer(6))
-			_body_box.add_child(_make_section_header("spotlight · %s" % spot))
-			_render_faction_card(farm, spot)
-
-	# Alignment panel — read-only: who you are pinned as, and how every other
-	# faction overlaps your alignment state.
-	_body_box.add_child(_make_spacer(8))
-	_render_faction_attachment_panel(farm)
-
-	# Vocabulary lexicon
-	_body_box.add_child(_make_spacer(8))
 	_build_lexicon_section(farm)
+
+
+## One felt line + nearest faction. Spreadsheet (12-axis, 6-channel, overlap)
+## lives behind E — `_self_inspect_text`.
+func _build_felt_weather(farm) -> void:
+	_body_box.add_child(_make_section_header("standing"))
+	if farm == null or not "faction_standings" in farm:
+		_body_box.add_child(_make_muted_label("No one has taken your measure yet", 14))
+		return
+	var standings: Dictionary = farm.faction_standings
+	var spot: String = _top_other_faction_by_magnitude(standings)
+	if spot == "":
+		_body_box.add_child(_make_muted_label("No one has taken your measure yet", 14))
+		return
+	var s = standings[spot]
+	var sc: float = s.scalar() if (s != null and s.has_method("scalar")) else 0.0
+	var channel := _dominant_standing_channel(s)
+	var line := Label.new()
+	line.text = IntroVoice.felt_standing_snapshot(spot, channel, sc)
+	line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	line.add_theme_font_size_override("font_size", 14)
+	line.add_theme_color_override("font_color", UIStyleFactory.COLOR_VALUE)
+	_body_box.add_child(line)
+	var pinned: String = farm.get_pinned_faction_name() if farm.has_method("get_pinned_faction_name") else ""
+	if pinned != "":
+		_body_box.add_child(_make_muted_label("you are %s" % pinned, 13))
+
+
+func _dominant_standing_channel(s) -> String:
+	if s == null:
+		return ""
+	var best_name := ""
+	var best_mag := 0.0
+	for ch in ["trust", "debt", "attention", "access", "legitimacy", "entanglement"]:
+		if not ch in s:
+			continue
+		var mag := absf(float(s.get(ch)))
+		if mag > best_mag:
+			best_mag = mag
+			best_name = ch
+	return best_name
+
 
 ## Alignment panel — read-only. Renders the pinned faction (who you ARE, set
 ## by the scenario) and every other faction ranked by overlap with your
@@ -724,42 +640,20 @@ func _build_lexicon_section(farm) -> void:
 		row.add_theme_color_override("font_color", UIStyleFactory.COLOR_VALUE)
 		_body_box.add_child(row)
 
-## Z Self tab — Icon Picker. The player's 3 active expression slots, with
-## a paginated list of known_icons for rebinding via 1/2/3 + GHJKL; + E.
+## Self tab — known-icon pool. Identity qubits live in `_build_our_faction_view`
+## (GHJKL; matching the home biome, up to 6). This list is the words you can
+## assign onto a selected qubit. No leftover [1][2][3] clone row.
 ##
-## Controls (Self tab only):
-##   1/2/3      — pick which slot (0/1/2) to rebind
-##   GHJKL;     — cursor through visible known_icons (page of 6)
-##   W/S        — page through known_icons (6 per page)
-##   E          — assign cursor's icon to selected slot
+##   tap a demos qubit — pick which identity qubit to dress
+##   GHJKL;             — cursor through visible known_icons (page of 6)
+##   A/D                — page
+##   R                  — assign cursor's icon onto the selected qubit
 func _build_icon_picker(farm) -> void:
-	_body_box.add_child(_make_section_header("icons · expression"))
+	_body_box.add_child(_make_section_header("icons · words you know"))
 	if farm == null or not farm.has_method("get_known_icons"):
-		_body_box.add_child(_make_muted_label("incorporate icons to unlock expression slots", 11))
+		_body_box.add_child(_make_muted_label("incorporate icons to grow the demos", 11))
 		return
 	var icons: Array = farm.get_known_icons()
-	var slots: Array = farm.active_icon_slots if "active_icon_slots" in farm else [0,1,2]
-
-	# Active slots row (1/2/3)
-	var slot_row := HBoxContainer.new()
-	slot_row.add_theme_constant_override("separation", 14)
-	for i in range(3):
-		var slot_idx: int = int(slots[i]) if i < slots.size() else i
-		var icon_str := "?"
-		if slot_idx >= 0 and slot_idx < icons.size():
-			var icon: Dictionary = icons[slot_idx]
-			icon_str = "%s%s" % [str(icon.get("north", "·")), str(icon.get("south", "·"))]
-		var sel := (i == _self_picker_slot)
-		var lbl := Label.new()
-		lbl.text = "[%d] %s" % [i + 1, icon_str]
-		lbl.add_theme_font_size_override("font_size", 14)
-		lbl.add_theme_color_override("font_color",
-			UIStyleFactory.COLOR_TAB_ACTIVE if sel else UIStyleFactory.COLOR_ITEM_IDLE)
-		slot_row.add_child(lbl)
-	_body_box.add_child(slot_row)
-	_body_box.add_child(_make_spacer(4))
-
-	# Known-icons page (GHJKL; cursor)
 	if icons.is_empty():
 		_body_box.add_child(_make_muted_label("(no known icons yet — incorporate icons via the Icon hat)", 11))
 		return
@@ -783,49 +677,77 @@ func _build_icon_picker(farm) -> void:
 		lbl.add_theme_font_size_override("font_size", 13)
 		lbl.add_theme_color_override("font_color",
 			UIStyleFactory.COLOR_TAB_ACTIVE if sel else UIStyleFactory.COLOR_ITEM_IDLE)
+		lbl.mouse_filter = Control.MOUSE_FILTER_STOP
+		lbl.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		ClickWire.attach(lbl, _pick_known_icon.bind(i))
 		pair_row.add_child(lbl)
 	_body_box.add_child(pair_row)
 
-	# Page indicator + hints
 	var hint := Label.new()
-	hint.text = "page %d/%d   ·   1/2/3 slot   ·   GHJKL; cursor   ·   A/D page   ·   R assign" % [_self_picker_page + 1, max_page + 1]
+	hint.text = "page %d/%d   ·   tap a demos qubit   ·   GHJKL; pick a word   ·   R assign" % [_self_picker_page + 1, max_page + 1]
 	hint.add_theme_font_size_override("font_size", 10)
 	hint.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
 	_body_box.add_child(hint)
 	if max_page > 0:
 		_body_box.add_child(_make_nav_pager("page %d/%d" % [_self_picker_page + 1, max_page + 1]))
 
+
+func _pick_known_icon(idx: int) -> void:
+	_self_picker_icon = idx
+	_refresh_body()
+
 func _build_our_faction_view(farm) -> void:
 	_body_box.add_child(_make_section_header("the demos"))
+	var biome_name := "TheDemos"
+	if farm != null and farm.has_method("identity_biome_name"):
+		var home := str(farm.identity_biome_name())
+		if home != "":
+			biome_name = home
 	var biome = null
 	if farm and farm.grid and farm.grid.has_method("get_biome"):
-		biome = farm.grid.get_biome("TheDemos")
+		biome = farm.grid.get_biome(biome_name)
 	# QC may be null on first open (farm still settling); degrade gracefully.
 	var qc = null
 	if biome != null and biome.get("quantum_computer") != null:
 		qc = biome.quantum_computer
-	# Autoload by node path, not bare identifier (see _render_faction_standings_grid).
-	var icon_registry = (Engine.get_main_loop().root.get_node_or_null("/root/IconRegistry")
-		if Engine.get_main_loop() and Engine.get_main_loop().root else null)
-	var icons: Array = (icon_registry.get_icons_for_faction("The Demos")
-		if icon_registry != null else [])
-	if icons.is_empty():
-		_body_box.add_child(_make_muted_label("the demos has no icons yet.", 11))
-		return
-	for q in range(icons.size()):
-		var icon: Dictionary = icons[q] if (icons[q] is Dictionary) else {}
-		var p0 := str(icon.get("pole_0", "?"))
-		var p1 := str(icon.get("pole_1", "?"))
-		var binding_name := str(icon.get("name", ""))
-		var m0: float = qc.get_marginal(q, 0) if (qc != null and qc.has_method("get_marginal")) else 0.5
-		var bias: float = clampf(1.0 - m0, 0.0, 1.0)  # how far toward pole_1
+	if farm != null and farm.has_method("normalize_active_icon_slots"):
+		farm.normalize_active_icon_slots()
+	var n: int = farm.identity_slot_count() if (farm != null and farm.has_method("identity_slot_count")) else 1
+	n = mini(n, ITEM_KEYS.size())
+	_self_picker_slot = clampi(_self_picker_slot, 0, maxi(n - 1, 0))
+	var known: Array = farm.get_known_icons() if (farm != null and farm.has_method("get_known_icons")) else []
+	var slots: Array = farm.active_icon_slots if (farm != null and "active_icon_slots" in farm) else []
+	var emojis: Array = biome.emojis if (biome != null and "emojis" in biome and biome.emojis is Array) else []
+	for q in range(n):
+		var slot_idx: int = int(slots[q]) if q < slots.size() else -1
+		var p0: String = str(emojis[q]) if q < emojis.size() else "·"
+		var p1 := "—"
+		var binding_name := "empty"
+		if slot_idx >= 0 and slot_idx < known.size() and known[slot_idx] is Dictionary:
+			var icon: Dictionary = known[slot_idx]
+			p0 = str(icon.get("north", p0))
+			p1 = str(icon.get("south", "·"))
+			binding_name = str(icon.get("name", ""))
+		var m0: float = 0.5
+		if qc != null and qc.has_method("get_marginal") and qc.has_method("get_qubit_count"):
+			if q < int(qc.get_qubit_count()):
+				m0 = float(qc.get_marginal(q, 0))
+		elif qc != null and qc.has_method("get_marginal"):
+			m0 = float(qc.get_marginal(q, 0))
+		var bias: float = clampf(1.0 - m0, 0.0, 1.0)
+		var sel := (q == _self_picker_slot)
 		var row := HBoxContainer.new()
+		row.name = "IdentityQubit_%d" % q
 		row.add_theme_constant_override("separation", 6)
 		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.mouse_filter = Control.MOUSE_FILTER_STOP
+		row.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		ClickWire.attach(row, _select_identity_qubit.bind(q))
 		var name_lbl := Label.new()
 		name_lbl.text = "%s %s" % [p0, binding_name]
-		name_lbl.add_theme_font_size_override("font_size", 11)
-		name_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
+		name_lbl.add_theme_font_size_override("font_size", 13)
+		name_lbl.add_theme_color_override("font_color",
+			UIStyleFactory.COLOR_TAB_ACTIVE if sel else UIStyleFactory.COLOR_MUTED)
 		name_lbl.custom_minimum_size = Vector2(120, 0)
 		row.add_child(name_lbl)
 		var bar_lbl := Label.new()
@@ -836,12 +758,18 @@ func _build_our_faction_view(farm) -> void:
 		row.add_child(bar_lbl)
 		var pole_lbl := Label.new()
 		pole_lbl.text = p1
-		pole_lbl.add_theme_font_size_override("font_size", 11)
-		pole_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
+		pole_lbl.add_theme_font_size_override("font_size", 13)
+		pole_lbl.add_theme_color_override("font_color",
+			UIStyleFactory.COLOR_TAB_ACTIVE if sel else UIStyleFactory.COLOR_MUTED)
 		row.add_child(pole_lbl)
 		_body_box.add_child(row)
 
 	_render_faction_card(farm, "The Demos")
+
+
+func _select_identity_qubit(idx: int) -> void:
+	_self_picker_slot = idx
+	_refresh_body()
 
 ## Render a faction's nature card: signature, affinity, biomes-of-presence,
 ## alignment couplings, standing. Reusable for player or NPC inspection.
@@ -981,122 +909,58 @@ func _build_story_body() -> void:
 	_fill_story_static_mid(engine, focus_id, focus_node, outgoing)
 	_fill_story_live_bot(engine)
 
-## Live top section: activity feed. Cheap; refilled by the chatter debounce.
+## Live top section: chapter + lens. Activity lives on the toast ring.
 func _fill_story_live_top() -> void:
 	var box := _story_live_top
-	# === ACTIVITY FEED (PlayerEventLog ring buffer, newest first) ===
-	const ACTIVITY_VISIBLE := 12
-	var player_event_log = get_node_or_null("/root/PlayerEventLog")
-	var recent_events: Array = player_event_log.get_recent(ACTIVITY_VISIBLE, 1) if player_event_log and player_event_log.has_method("get_recent") else []
-	var total_events: int = player_event_log.get_recent(player_event_log.MAX_EVENTS, 1).size() if player_event_log and player_event_log.has_method("get_recent") else 0
-	var header_text: String = "activity"
-	if total_events > recent_events.size():
-		header_text = "activity (%d of %d)" % [recent_events.size(), total_events]
-	box.add_child(_make_section_header(header_text))
-	if recent_events.is_empty():
-		box.add_child(_make_muted_label("No events yet.", 12))
-	else:
-		for ev in recent_events:
-			var ev_lbl := RichTextLabel.new()
-			ev_lbl.bbcode_enabled = true
-			var path_str: String = str(ev.get("path", ""))
-			var path_chip: String = "  [color=#7faab8][%s][/color]" % path_str if path_str != "" else ""
-			ev_lbl.text = str(ev.get("message", "")) + path_chip
-			ev_lbl.fit_content = true
-			ev_lbl.scroll_active = false
-			ev_lbl.add_theme_font_size_override("normal_font_size", 12)
-			box.add_child(ev_lbl)
+	var chapter := Label.new()
+	chapter.text = IntroVoice.chapter_line()
+	chapter.add_theme_font_size_override("font_size", 13)
+	chapter.add_theme_color_override("font_color", Color(0.78, 0.72, 0.45, 0.95))
+	box.add_child(chapter)
+	var lens: Dictionary = IntroVoice.lens_beat()
+	var lens_title := str(lens.get("title", "")).strip_edges()
+	if lens_title != "":
+		box.add_child(_make_muted_label("leaning toward %s" % lens_title, 13))
 	box.add_child(_make_spacer(8))
 
 ## Static middle section: berry phase, story log, focus, edges, icons, actions.
 ## The expensive paragraphs live here — rebuilt only on full _refresh_body().
-func _fill_story_static_mid(engine, focus_id: String, focus_node, outgoing: Array) -> void:
+func _fill_story_static_mid(engine, _focus_id: String, _focus_node, outgoing: Array) -> void:
 	var box := _story_static_mid
-	# === BERRY PHASE (gates story flags forest_evolving → forest_communion) ===
-	var berry_farm = InstrumentLocator.resolve_active_farm(self)
-	if berry_farm != null:
-		_render_berry_phase_section(berry_farm, box)
+	# Berry 4π, charge, density, trajectory: behind E (inspect panel).
 
-	# === STORY LOG (fired arc beats, newest first) ===
+	# === MEMOIR (remembered beats, newest first) ===
 	var story_farm = InstrumentLocator.resolve_active_farm(self)
-	var story_log: Array = story_farm.story_log if story_farm != null and "story_log" in story_farm else []
-	if not story_log.is_empty():
-		var log_visible: int = mini(story_log.size(), STORY_LOG_VISIBLE)
-		box.add_child(_make_section_header("story (%d)" % story_log.size()))
-		for i in range(log_visible):
-			var entry: Dictionary = story_log[story_log.size() - 1 - i]
-			var act_n: int = int(entry.get("act", 0))
-			var beat_text: String = str(entry.get("arc_beat", ""))
-			if beat_text == "":
+	var memories: Array = IntroVoice.memoir(12)
+	if not memories.is_empty():
+		box.add_child(_make_section_header("memoir"))
+		for i in range(memories.size()):
+			var mem: Dictionary = memories[i]
+			var title := str(mem.get("title", "")).strip_edges()
+			var prose := str(mem.get("prose", "")).strip_edges()
+			if title == "" and prose == "":
 				continue
-			var beat_lbl := Label.new()
-			beat_lbl.text = "Act %d — %s" % [act_n, beat_text]
-			beat_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			beat_lbl.add_theme_font_size_override("font_size", 12)
-			beat_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_VALUE if i == 0 else UIStyleFactory.COLOR_MUTED)
-			box.add_child(beat_lbl)
-		if story_log.size() > log_visible:
-			box.add_child(_make_muted_label(
-				"… %d older entries" % (story_log.size() - log_visible), 11))
+			var title_lbl := Label.new()
+			title_lbl.text = title
+			title_lbl.add_theme_font_size_override("font_size", 13)
+			title_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_VALUE if i == 0 else UIStyleFactory.COLOR_MUTED)
+			box.add_child(title_lbl)
+			if prose != "":
+				var beat_lbl := Label.new()
+				beat_lbl.text = prose
+				beat_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+				beat_lbl.add_theme_font_size_override("font_size", 13)
+				beat_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_VALUE if i == 0 else UIStyleFactory.COLOR_MUTED)
+				box.add_child(beat_lbl)
+		var older: int = 0
+		if story_farm != null and "story_log" in story_farm and story_farm.story_log is Array:
+			older = story_farm.story_log.size() - memories.size()
+		if older > 0:
+			box.add_child(_make_muted_label("%d older" % older, 13))
 		box.add_child(_make_spacer(8))
 
-	# === FOCUS NODE ===
-	# Focus = where graph ATTENTION sits (boot seeds density on the act-0 node),
-	# NOT what has happened. The beat prose narrates a past event, so it renders
-	# only once the flag actually fired — before that, the pane looks forward.
-	var focus_fired: bool = story_farm != null and "story_flags_fired" in story_farm \
-			and story_farm.story_flags_fired.has(focus_id)
-	# "lens" in the header: FOCUS follows the expressed faction/spine — it is a
-	# viewpoint, not your position. A fleet winner read a lens switch as the
-	# story "regressing Act 5 → Act 0".
-	var focus_header := "focus (lens) · %s · act %d" % [focus_node.display_name, focus_node.act]
-	if not focus_fired:
-		focus_header += " · approaching"
-	box.add_child(_make_section_header(focus_header))
 	box.add_child(_make_nav_pager("A crawl back · crawl forward D"))
-	if focus_fired:
-		var beat := Label.new()
-		beat.text = str(focus_node.arc_beat) if focus_node.arc_beat != "" else "(no beat text)"
-		beat.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		beat.add_theme_font_size_override("font_size", 13)
-		beat.add_theme_color_override("font_color", UIStyleFactory.COLOR_VALUE)
-		box.add_child(beat)
-	else:
-		var ahead := _make_muted_label(
-			"Nothing has happened here yet — the story is leaning this way. Its beat is written when you make it true.", 12)
-		box.add_child(ahead)
-		var focus_qm = _arc_quest_manager()
-		if focus_qm != null and not focus_node.predicates.is_empty():
-			var fscore: float = focus_qm.evaluate_flag_score({"predicates": focus_node.predicates})
-			var fire_at: float = focus_qm.FLAG_FIRE_THRESHOLD
-			var prog := Label.new()
-			prog.text = "%.2f / %.2f %s" % [fscore, fire_at, _ratio_bar(fscore / fire_at, 6)]
-			prog.add_theme_font_size_override("font_size", 11)
-			prog.add_theme_color_override("font_color", _score_color(fscore))
-			box.add_child(prog)
-	box.add_child(_make_spacer(6))
-
-	# Faction charge bar
-	var charge: Dictionary = focus_node.faction_charge()
-	if not charge.is_empty():
-		var charge_text := ""
-		for f in charge:
-			charge_text += "%s %+.2f   " % [str(f), float(charge[f])]
-		var charge_lbl := Label.new()
-		charge_lbl.text = "charge: " + charge_text
-		charge_lbl.add_theme_font_size_override("font_size", 11)
-		charge_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
-		box.add_child(charge_lbl)
-
-	# Density / coherence summary
-	var density_w: float = float(engine.graph.density.get(focus_id, 0.0))
-	var coh: float = engine.graph.coherence()
-	var coh_word: String = "diffuse" if coh < 0.35 else ("moderate" if coh < 0.7 else "focused")
-	var summary := Label.new()
-	summary.text = "attention here: %.2f   ·   narrative focus: %.2f (%s)" % [density_w, coh, coh_word]
-	summary.add_theme_font_size_override("font_size", 11)
-	summary.add_theme_color_override("font_color", COLOR_HEADER)
-	box.add_child(summary)
+	box.add_child(_make_muted_label("Q harmonize / R express — lean this voice. E for the physics.", 13))
 	box.add_child(_make_spacer(8))
 
 	# === EDGES ===
@@ -1127,16 +991,21 @@ func _fill_story_static_mid(engine, focus_id: String, focus_node, outgoing: Arra
 	var icons: Array = _story_icons()
 	var icon_row := HBoxContainer.new()
 	icon_row.add_theme_constant_override("separation", 18)
-	for i in range(3):
-		var icon: Dictionary = icons[i] if i < icons.size() else {}
-		var sel := (i == _story_icon_idx)
-		var icon_text := "%s%s" % [str(icon.get("north", "·")), str(icon.get("south", "·"))]
-		var ilbl := Label.new()
-		ilbl.text = "[%d] %s" % [i + 1, icon_text]
-		ilbl.add_theme_font_size_override("font_size", 14)
-		ilbl.add_theme_color_override("font_color",
-			UIStyleFactory.COLOR_TAB_ACTIVE if sel else UIStyleFactory.COLOR_ITEM_IDLE)
-		icon_row.add_child(ilbl)
+	if icons.is_empty():
+		icon_row.add_child(_make_muted_label("(no words in the demos yet)", 12))
+	else:
+		_story_icon_idx = clampi(_story_icon_idx, 0, icons.size() - 1)
+		for i in range(icons.size()):
+			var icon: Dictionary = icons[i] if (icons[i] is Dictionary) else {}
+			var sel := (i == _story_icon_idx)
+			var icon_text := "%s%s" % [str(icon.get("north", "·")), str(icon.get("south", "·"))]
+			var key_str: String = str(ITEM_KEYS[i]) if i < ITEM_KEYS.size() else str(i + 1)
+			var ilbl := Label.new()
+			ilbl.text = "[%s] %s" % [key_str, icon_text]
+			ilbl.add_theme_font_size_override("font_size", 14)
+			ilbl.add_theme_color_override("font_color",
+				UIStyleFactory.COLOR_TAB_ACTIVE if sel else UIStyleFactory.COLOR_ITEM_IDLE)
+			icon_row.add_child(ilbl)
 	box.add_child(icon_row)
 	box.add_child(_make_spacer(4))
 
@@ -1156,7 +1025,7 @@ func _fill_story_static_mid(engine, focus_id: String, focus_node, outgoing: Arra
 func _fill_story_live_bot(engine) -> void:
 	var box := _story_live_bot
 	# === CHATTER BUBBLES (cursor target for QERF) ===
-	box.add_child(_make_section_header("chatter — GHJKL; selects target"))
+	box.add_child(_make_section_header("murmur"))
 	var chatter: Array = engine.recent_chatter(6)
 	if chatter.is_empty():
 		box.add_child(_make_muted_label("(silence so far — wait for socialites)", 10))
@@ -1203,24 +1072,24 @@ func _fill_story_live_bot(engine) -> void:
 		box.add_child(_make_story_inspect_panel())
 	box.add_child(_make_spacer(8))
 
-	# === TRAJECTORY ===
-	box.add_child(_make_section_header("trajectory (last 5)"))
-	var traj: Array = engine.trajectory.last(5) if engine.trajectory != null else []
-	if traj.is_empty():
-		box.add_child(_make_muted_label("(no steps yet)", 10))
-	else:
-		for entry in traj:
-			var verb := str(entry.get("verb", ""))
-			var verb_chip := ("[%s] " % verb) if verb != "" else ""
-			var spk := str(entry.get("speaker", ""))
-			var t := Label.new()
-			t.text = "  %s%s · %s → %s" % [verb_chip, spk, str(entry.get("from_node", "")), str(entry.get("to_node", ""))]
-			t.add_theme_font_size_override("font_size", 10)
-			t.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
-			box.add_child(t)
+	if _story_inspect_open:
+		box.add_child(_make_section_header("trajectory (last 5)"))
+		var traj: Array = engine.trajectory.last(5) if engine.trajectory != null else []
+		if traj.is_empty():
+			box.add_child(_make_muted_label("(no steps yet)", 13))
+		else:
+			for entry in traj:
+				var verb := str(entry.get("verb", ""))
+				var verb_chip := ("[%s] " % verb) if verb != "" else ""
+				var spk := str(entry.get("speaker", ""))
+				var t := Label.new()
+				t.text = "  %s%s · %s → %s" % [verb_chip, spk, str(entry.get("from_node", "")), str(entry.get("to_node", ""))]
+				t.add_theme_font_size_override("font_size", 11)
+				t.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
+				box.add_child(t)
 
 	box.add_child(_make_spacer(8))
-	box.add_child(_make_muted_label("GHJKL; pick chatter   ·   1/2/3 pick icon   ·   Q harmonize / R express / E inspect / F flatten   ·   W parent / S child node", 10))
+	box.add_child(_make_muted_label("GHJKL; pick murmur  ·  Q harmonize / R express / E inspect", 13))
 
 func _make_story_inspect_panel() -> Control:
 	# Detail panel for the selected chatter line. Surfaces the data Q/R will
@@ -1301,8 +1170,7 @@ func _story_engine() -> Node:
 		return root.get_node("StoryEngine")
 	return null
 
-## Pick the player's 3 active Icons. Golden cut: top 3 known icons by harvest count
-## (or just the first 3 if no count). Falls back to the default label if none.
+## Pick the player's assigned identity icons (no leftover 3-clone pad).
 func _story_icons() -> Array:
 	var farm = InstrumentLocator.resolve_active_farm(self)
 	if farm == null or not farm.has_method("get_known_icons"):
@@ -1310,9 +1178,18 @@ func _story_icons() -> Array:
 	var icons: Array = farm.get_known_icons()
 	if icons.is_empty():
 		return []
-	# No harvest-count metric in the golden cut; just take first 3.
-	var slice := icons.slice(0, mini(3, icons.size()))
-	return slice
+	var slots: Array = farm.active_icon_slots if "active_icon_slots" in farm else []
+	var out: Array = []
+	var seen: Dictionary = {}
+	for s in slots:
+		var i := int(s)
+		if i < 0 or i >= icons.size() or seen.has(i):
+			continue
+		seen[i] = true
+		out.append(icons[i])
+	if out.is_empty():
+		out.append(icons[0])
+	return out
 
 func _ensure_story_chatter_wired() -> void:
 	if _story_chatter_connected:
@@ -1806,7 +1683,9 @@ func get_inspect_text() -> String:
 		Tab.SELF:
 			return _self_inspect_text()
 		Tab.ARC:
-			return _arc_inspect_text()
+			# Unfolds in the selected row (_arc_inspect_open). A toast here
+			# was a second copy of the same postcard — the menu is the room.
+			return ""
 		_:
 			return ""
 
@@ -1824,28 +1703,101 @@ func _story_inspect_text() -> String:
 	return msg
 
 func _self_inspect_text() -> String:
-	# When Self tab is showing, E pops up the spotlight faction's nature card
-	# in toast form (useful when the spotlight panel is below-fold on the
-	# scroll container).
+	# Spreadsheet: 6-channel, 12-axis, overlap, FactionCard. Face is felt weather.
 	var farm = InstrumentLocator.resolve_active_farm(self)
-	if farm == null or not "faction_standings" in farm:
-		return ""
-	var standings: Dictionary = farm.faction_standings
-	var spot: String = _top_other_faction_by_magnitude(standings)
-	if spot == "":
-		return ""
-	var card: Dictionary = FactionCard.gather(spot, farm)
-	if not bool(card.get("present", false)):
+	if farm == null:
 		return ""
 	var lines: Array[String] = []
-	lines.append("%s · standing %+.2f" % [spot, float(card.get("standing", 0.0))])
-	var cloud: Array = card.get("cloud", [])
-	if not cloud.is_empty():
-		lines.append("speaks: " + " ".join(cloud))
-	var bio: Array = card.get("biomes_of_presence", [])
-	if not bio.is_empty():
-		lines.append("biomes: " + ", ".join(bio))
+	var standings: Dictionary = farm.faction_standings if "faction_standings" in farm else {}
+	var spot: String = _top_other_faction_by_magnitude(standings)
+	if spot != "":
+		var s = standings[spot]
+		var sc: float = s.scalar() if (s != null and s.has_method("scalar")) else 0.0
+		lines.append("%s · standing %+.2f" % [spot, sc])
+		if s != null:
+			lines.append("trst %+.2f  dbt %+.2f  attn %+.2f  acc %+.2f  leg %+.2f  ent %+.2f" % [
+				float(s.trust), float(s.debt), float(s.attention),
+				float(s.access), float(s.legitimacy), float(s.entanglement),
+			])
+		var card: Dictionary = FactionCard.gather(spot, farm)
+		if bool(card.get("present", false)):
+			var cloud: Array = card.get("cloud", [])
+			if not cloud.is_empty():
+				lines.append("speaks: " + " ".join(cloud))
+			var bio: Array = card.get("biomes_of_presence", [])
+			if not bio.is_empty():
+				lines.append("biomes: " + ", ".join(bio))
+	var axis_bias: Array = _axis_bias_from_standings(farm)
+	if not axis_bias.is_empty():
+		lines.append("alignment")
+		for i in range(mini(axis_bias.size(), FactionAxes.AXIS_COUNT)):
+			var axis_def := FactionAxes.get_axis(i)
+			var filled := int(round(float(axis_bias[i]) * 8.0))
+			lines.append("%s %s %s%s %s %s" % [
+				str(axis_def.get("pole_0", "")), str(axis_def.get("label_0", "?")),
+				"█".repeat(filled), "░".repeat(8 - filled),
+				str(axis_def.get("label_1", "?")), str(axis_def.get("pole_1", "")),
+			])
+	if farm.has_method("get_pinned_faction_name") and "player_alignment" in farm and farm.player_alignment != null:
+		var pinned_name: String = farm.get_pinned_faction_name()
+		var registry = null
+		if "faction_density" in farm and farm.faction_density != null \
+				and farm.faction_density.has_method("get_registry"):
+			registry = farm.faction_density.get_registry()
+		if registry != null and registry.has_method("get_all"):
+			var player_ag = farm.player_alignment
+			for f in registry.get_all():
+				if f == null or not "name" in f or f.alignment == null:
+					continue
+				var ov: float = float(player_ag.overlap(f.alignment))
+				var tag := "[pinned] " if str(f.name) == pinned_name else ""
+				lines.append("%s%s overlap %.2f" % [tag, str(f.name), ov])
 	return "\n".join(lines)
+
+
+func _axis_bias_from_standings(farm) -> Array:
+	var axis_bias: Array = []
+	axis_bias.resize(FactionAxes.AXIS_COUNT)
+	for i in range(FactionAxes.AXIS_COUNT):
+		axis_bias[i] = 0.5
+	if farm == null or not "faction_standings" in farm:
+		return axis_bias
+	var standings: Dictionary = farm.faction_standings
+	if standings.is_empty():
+		return axis_bias
+	var atom_axis: Dictionary = {}
+	for i in range(FactionAxes.AXIS_COUNT):
+		var ax := FactionAxes.get_axis(i)
+		atom_axis[str(ax.get("pole_0", ""))] = [i, 0]
+		atom_axis[str(ax.get("pole_1", ""))] = [i, 1]
+	var weighted_bits: Array = []
+	var weight_per_axis: Array = []
+	weighted_bits.resize(FactionAxes.AXIS_COUNT)
+	weight_per_axis.resize(FactionAxes.AXIS_COUNT)
+	for i in range(FactionAxes.AXIS_COUNT):
+		weighted_bits[i] = 0.0
+		weight_per_axis[i] = 0.0
+	var faction_reg := FactionRegistry.get_shared()
+	for fname in standings.keys():
+		var s = standings[fname]
+		if s == null:
+			continue
+		var sc: float = s.scalar() if s.has_method("scalar") else 0.0
+		if absf(sc) < 0.0001:
+			continue
+		var faction = faction_reg.get_by_name(fname)
+		if faction == null:
+			continue
+		var w := absf(sc)
+		for atom in faction.cloud:
+			if atom in atom_axis:
+				var info: Array = atom_axis[atom]
+				weighted_bits[info[0]] += w * float(info[1])
+				weight_per_axis[info[0]] += w
+	for i in range(FactionAxes.AXIS_COUNT):
+		if weight_per_axis[i] > 0.0:
+			axis_bias[i] = clampf(weighted_bits[i] / weight_per_axis[i], 0.0, 1.0)
+	return axis_bias
 
 func _on_action_q() -> void:
 	match _current_tab:
@@ -1859,7 +1811,9 @@ func _on_action_e() -> void:
 			_story_inspect_open = not _story_inspect_open  # E = pause + inspect (toggle panel)
 			_refresh_body()
 		Tab.ARC:
-			_refresh_body()  # E = more: OverlayBase then toasts get_inspect_text()
+			_arc_inspect_open = not _arc_inspect_open
+			_refresh_body()
+			_declare_tab_actions()
 		_:
 			pass
 
@@ -1888,6 +1842,11 @@ func _on_action_f() -> void:
 			if _story_inspect_open:
 				_story_inspect_open = false
 				_refresh_body()
+		Tab.ARC:
+			if _arc_inspect_open:
+				_arc_inspect_open = false
+				_refresh_body()
+				_declare_tab_actions()
 		_: pass
 
 func _story_apply_verb(verb: String) -> void:
@@ -1931,7 +1890,7 @@ func _on_arc_flag_changed(_flag_id: String, _flag: Dictionary) -> void:
 func _build_arc_body() -> void:
 	var rows: Array = _arc_rows()
 	if rows.is_empty():
-		_body_box.add_child(_make_muted_label("no story flags loaded", 12))
+		_body_box.add_child(_make_muted_label("the next door hasn't opened", 12))
 		return
 	# A/D pages the 6-row window over ALL rows — 57 flags used to compete for
 	# six slots with a muted "… N more not shown" and no way to reach them.
@@ -1966,10 +1925,11 @@ func _make_arc_footer() -> Control:
 		var accept_lbl := Label.new()
 		accept_lbl.name = "ArcFooterAccept"
 		accept_lbl.text = "[R] Accept"
-		accept_lbl.add_theme_font_size_override("font_size", 11)
-		accept_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_TAB_ACTIVE)
+		accept_lbl.add_theme_font_size_override("font_size", 13)
+		accept_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_ACCENT_GOLD)
 		ClickWire.attach(accept_lbl, func() -> void: handle_action("R"))
 		box.add_child(accept_lbl)
+		call_deferred("_start_hint_pulse", accept_lbl)
 		var dismiss_lbl := Label.new()
 		dismiss_lbl.name = "ArcFooterDismiss"
 		dismiss_lbl.text = "[Q] Dismiss"
@@ -1977,106 +1937,117 @@ func _make_arc_footer() -> Control:
 		dismiss_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
 		ClickWire.attach(dismiss_lbl, func() -> void: handle_action("Q"))
 		box.add_child(dismiss_lbl)
-		box.add_child(_make_muted_label("or tap the row again  ·  E for more  ·  GHJKL; pick  ·  A/D page", 11))
+		box.add_child(_make_muted_label("tap the row to inspect  ·  R accepts  ·  GHJKL; pick", 11))
 	else:
-		box.add_child(_make_muted_label("E for more  ·  GHJKL; pick  ·  A/D page", 11))
+		var n := IntroVoice.remembered_count()
+		var remembered := ("%d beats remembered — Story [Y]" % n) if n > 0 else "tap a row  ·  tap again for the work"
+		box.add_child(_make_muted_label(remembered, 13))
 	return box
 
 ## Builds Arc tab rows: arc-quest offers first, then unfired flags (by score
 ## desc), then fired flags. (The manifold "on-edge" boost lives on C; X has no
 ## edge scope, so rows sort purely by score then fired-state.)
 func _arc_rows() -> Array:
-	var rows: Array = []
-	var qm = _arc_quest_manager()
-	if qm == null:
-		return rows
-	# Featured door: the live auto-accepted tutorial step. It is NOT in
-	# story_offers (accept already happened), so without this the Arc led
-	# with First Harvest — the capstone — while the banner said "strike".
-	if "active_quests" in qm and qm.active_quests is Dictionary:
-		for q in qm.active_quests.values():
-			if q is Dictionary and str(q.get("category", "")) == "TUTORIAL":
-				rows.append({"kind": "live_tutorial", "data": q})
-	if qm.has_method("get_story_offers"):
-		for q in qm.get_story_offers():
-			if q is Dictionary and str(q.get("category", "")) in ["ARC", "TUTORIAL"]:
-				rows.append({"kind": "arc_quest", "data": q})
-
-	if not qm.has_method("get_all_story_flags"):
-		return rows
-
-	var farm = InstrumentLocator.resolve_active_farm(self)
-	var fired_set: Dictionary = {}
-	if farm != null and "story_flags_fired" in farm:
-		fired_set = farm.story_flags_fired
-
-	var unfired: Array = []
-	var fired: Array = []
-	for flag in qm.get_all_story_flags():
-		var fid := str(flag.get("id", ""))
-		if fired_set.has(fid):
-			fired.append({"kind": "flag_fired", "flag": flag})
-		else:
-			var pred_scores: Array = []
-			for pred in flag.get("predicates", []):
-				if pred is Dictionary:
-					pred_scores.append({"pred": pred, "score": qm.evaluate_predicate_score(pred)})
-			unfired.append({
-				"kind": "flag_unfired",
-				"flag": flag,
-				"score": qm.evaluate_flag_score(flag),
-				"pred_scores": pred_scores,
-			})
-
-	# Spine order: earliest act first, then score. Pure score-desc buried the
-	# next SPINE gate (village_identity, act 4, low score pre-buildout) below
-	# high-scoring side-branch beats and past the 6-row cap — three marathons
-	# of agents never saw the buildout row and diagnosed the campaign as
-	# deadlocked. "What's next" must lead the list.
-	var by_spine = func(a, b):
-		var aa := int(a.flag.get("act", 99))
-		var ab := int(b.flag.get("act", 99))
-		if aa != ab:
-			return aa < ab
-		# Within an act: spine before lane rows ("what's next" leads; the
-		# What-Survives/Connects/Fades teaching ladders follow), then score.
-		var a_lane: bool = StoryAtlas.lane_of(str(a.flag.get("display_name", "")))["lane"] != ""
-		var b_lane: bool = StoryAtlas.lane_of(str(b.flag.get("display_name", "")))["lane"] != ""
-		if a_lane != b_lane:
-			return b_lane
-		return float(a.score) > float(b.score)
-	unfired.sort_custom(by_spine)
-	for u in unfired: rows.append(u)
-	for f in fired: rows.append(f)
-	return rows
+	# One chapter of doors from the spine. Fired beats live on Story memoir.
+	return IntroVoice.doors_ahead(6, _arc_quest_manager(), InstrumentLocator.resolve_active_farm(self))
 
 ## Mouse parity for GHJKL; row selection (wave-4 sensor wall: rows had no
 ## click affordance at all, only the R-accept chip did — a mouse player
 ## could never pick WHICH row to accept). Clicking a row selects it, same
-## as pressing its key chip's keyboard letter.
+## as pressing its key chip's keyboard letter. A second click on the same
+## row shunts to the puzzle (C or the field). It never accepts.
 func _select_arc_row(idx: int) -> void:
 	var rows: Array = _arc_rows()
 	if idx < 0 or idx >= rows.size():
 		return
-	if _arc_selected_idx == idx:
-		# Second click on the selected row: QuestBoard grammar — fire the
-		# primary verb (accept), but ONLY armed and ONLY on an offer row.
-		# The kind is re-read LIVE at fire time, so a stale armed flag can
-		# never accept a story-flag row; flag rows keep the flash. An
-		# un-armed first click (row 0 is selected by DEFAULT) must flash and
-		# arm, never fire — the row still must not read as dead, and a full
-		# _refresh_body here would flicker without communicating anything.
-		if _arc_row_confirm_armed and _selected_arc_kind() == "arc_quest":
-			_arc_row_confirm_armed = false
-			_on_action_r()
-			return
-		_flash_arc_row(idx)
+	if _arc_selected_idx != idx:
+		_arc_selected_idx = idx
+		_arc_inspect_open = true
 		_arc_row_confirm_armed = true
+		_refresh_body()
+		_declare_tab_actions()
 		return
-	_arc_selected_idx = idx
+	# Same row. First tap inspects. Next tap shunts to the work.
+	# Never accept — Arc is a catalog; sign-on is Accept [R].
+	if not _arc_inspect_open:
+		_arc_inspect_open = true
+		_arc_row_confirm_armed = true
+		_flash_arc_row(idx)
+		_refresh_body()
+		_declare_tab_actions()
+		return
 	_arc_row_confirm_armed = true
-	_refresh_body()
-	_declare_tab_actions()
+	_tunnel_from_arc()
+
+
+## Catalog click-through: land on the puzzle, never accept the door.
+## Contract → C Commitments (fill/claim). Verb / flag → close and stand
+## on the field (spotlight names the tool; applying it is often a tap).
+## Unsigned optional stays here — Accept [R] is the sign-on.
+func _tunnel_from_arc() -> void:
+	var rows: Array = _arc_rows()
+	if _arc_selected_idx < 0 or _arc_selected_idx >= rows.size():
+		return
+	var entry: Dictionary = rows[_arc_selected_idx]
+	var home := _arc_shunt_kind(entry)
+	if home == "commitments":
+		var qid: int = int(entry.get("data", {}).get("id", -1))
+		var om = _arc_overlay_manager()
+		if om != null and om.has_method("open_board_on_commitments"):
+			om.open_board_on_commitments(qid)
+		return
+	if home == "field":
+		_scoot_from_arc()
+		return
+	# Unsigned optional: flash the row. R is still the door.
+	_flash_arc_row(_arc_selected_idx)
+
+
+func _arc_shunt_kind(entry: Dictionary) -> String:
+	var kind := str(entry.get("kind", ""))
+	# Unsigned catalog entry: sign-on is Accept [R], never a row tap.
+	if kind == "arc_quest":
+		return ""
+	if kind == "live_tutorial":
+		return UIProgression.puzzle_home(entry.get("data", {}))
+	# Unfired flags are not a puzzle yet — stay. Fired beats live on Story.
+	if kind == "flag_fired":
+		return "field"
+	return ""
+
+
+func _arc_overlay_manager():
+	var shell = InstrumentLocator.resolve_player_shell(self)
+	if shell != null and "overlay_manager" in shell:
+		return shell.overlay_manager
+	return null
+
+
+func _scoot_from_arc() -> void:
+	var biome := ""
+	var rows: Array = _arc_rows()
+	if _arc_selected_idx >= 0 and _arc_selected_idx < rows.size():
+		var entry: Dictionary = rows[_arc_selected_idx]
+		var kind := str(entry.get("kind", ""))
+		if kind == "live_tutorial" or kind == "arc_quest":
+			var data: Dictionary = entry.get("data", {})
+			biome = str(data.get("biome", ""))
+		else:
+			var flag: Dictionary = entry.get("flag", {})
+			biome = str(flag.get("biome", ""))
+			if biome == "":
+				for pred in flag.get("predicates", []):
+					if pred is Dictionary and str(pred.get("biome", "")) != "":
+						biome = str(pred.get("biome", ""))
+						break
+	var om = _arc_overlay_manager()
+	if om != null and om.has_method("scoot_toward"):
+		om.scoot_toward(biome)
+		return
+	if biome != "":
+		var abm := get_node_or_null("/root/ActiveBiomeManager")
+		if abm != null and abm.has_method("set_active_biome"):
+			abm.set_active_biome(biome)
 
 
 func _disarm_arc_confirm() -> void:
@@ -2186,6 +2157,15 @@ func _make_arc_row(entry: Dictionary, key_str: String, selected: bool, idx: int)
 		title_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		top_hbox.add_child(title_lbl)
 		if selected:
+			if kind == "arc_quest":
+				var r_lbl := Label.new()
+				r_lbl.name = "ArcRowAccept"
+				r_lbl.text = "[R] Accept"
+				r_lbl.add_theme_font_size_override("font_size", 13)
+				r_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_ACCENT_GOLD)
+				ClickWire.attach(r_lbl, func() -> void: handle_action("R"))
+				top_hbox.add_child(r_lbl)
+				call_deferred("_start_hint_pulse", r_lbl)
 			var beat := str(card.get("beat", "")).strip_edges()
 			if beat != "":
 				var beat_lbl := Label.new()
@@ -2204,7 +2184,12 @@ func _make_arc_row(entry: Dictionary, key_str: String, selected: bool, idx: int)
 				hint_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
 				hint_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 				vbox.add_child(hint_lbl)
-			vbox.add_child(_make_muted_label("E for the physics", 10))
+			if _arc_inspect_open:
+				_append_arc_inspect(vbox, entry)
+			elif kind == "arc_quest":
+				vbox.add_child(_make_muted_label("tap to inspect  ·  R accepts", 10))
+			else:
+				vbox.add_child(_make_muted_label("tap to inspect  ·  tap again for the work", 10))
 		return row
 
 	var flag: Dictionary = entry.get("flag", {})
@@ -2263,7 +2248,10 @@ func _make_arc_row(entry: Dictionary, key_str: String, selected: bool, idx: int)
 			pred_lbl.add_theme_color_override("font_color", Color(0.78, 0.82, 0.70, 0.95))
 			pred_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			vbox.add_child(pred_lbl)
-		vbox.add_child(_make_muted_label("E for the physics  ·  tap again to hold this door", 10))
+		if _arc_inspect_open:
+			_append_arc_inspect(vbox, entry)
+		else:
+			vbox.add_child(_make_muted_label("tap to inspect  ·  tap again for the work", 10))
 
 	return row
 
@@ -2276,35 +2264,21 @@ func _make_arc_chapter_header() -> Control:
 ## fired: act-5's second_loop needs only an act-1 flag, so a player who closed
 ## a second loop in act 2 used to read "Chapter IV" here (act inflation).
 func _current_chapter_label() -> String:
-	var farm = InstrumentLocator.resolve_active_farm(self)
-	var qm = _arc_quest_manager()
-	var act := 0
-	if farm != null and "story_flags_fired" in farm and qm != null and qm.has_method("get_all_story_flags"):
-		act = StoryAtlas.current_act(farm.story_flags_fired, qm.get_all_story_flags())
-	return "The Demos · %s" % StoryAtlas.chapter_for_act(act)
+	return IntroVoice.chapter_line()
 
 func _arc_inspect_text() -> String:
 	var rows: Array = _arc_rows()
 	if _arc_selected_idx < 0 or _arc_selected_idx >= rows.size():
 		return ""
-	var entry: Dictionary = rows[_arc_selected_idx]
+	return _arc_inspect_physics(rows[_arc_selected_idx])
+
+
+func _arc_inspect_physics(entry: Dictionary) -> String:
 	var kind := str(entry.get("kind", ""))
 	if kind == "arc_quest" or kind == "live_tutorial":
 		var data: Dictionary = entry.get("data", {})
-		var card: Dictionary = IntroVoice.quest_postcard(data)
-		var lines: Array[String] = []
-		lines.append(str(card.get("title", "")))
-		var beat := str(card.get("beat", "")).strip_edges()
-		if beat != "":
-			lines.append(beat)
-		for ask in card.get("asks", []):
-			var ask_str := str(ask).strip_edges()
-			if ask_str != "":
-				lines.append(ask_str)
 		var math_note := str(data.get("math_note", "")).strip_edges()
-		if math_note != "":
-			lines.append(math_note)
-		return "\n".join(lines)
+		return math_note
 	var flag: Dictionary = entry.get("flag", {})
 	var postcard: Dictionary = IntroVoice.flag_postcard(flag, entry.get("pred_scores", []), _arc_quest_manager())
 	var flag_lines: Array[String] = []
@@ -2322,6 +2296,51 @@ func _arc_inspect_text() -> String:
 		flag_lines.append("· %s" % PredicateGloss.summary(pred, _arc_quest_manager()))
 		flag_lines.append("    %s" % PredicateGloss.formula(pred, _arc_quest_manager()))
 	return "\n".join(flag_lines)
+
+
+func _append_arc_inspect(vbox: VBoxContainer, entry: Dictionary) -> void:
+	var physics := _arc_inspect_physics(entry).strip_edges()
+	if physics == "":
+		vbox.add_child(_make_muted_label("nothing more on this door", 11))
+		return
+	var panel := PanelContainer.new()
+	panel.name = "ArcInspect"
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.06, 0.09, 0.08, 0.92)
+	sb.border_color = UIStyleFactory.COLOR_ACCENT_GOLD
+	sb.set_border_width_all(1)
+	sb.set_corner_radius_all(3)
+	sb.content_margin_left = 8
+	sb.content_margin_right = 8
+	sb.content_margin_top = 6
+	sb.content_margin_bottom = 6
+	panel.add_theme_stylebox_override("panel", sb)
+	var body := Label.new()
+	body.text = physics
+	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	body.add_theme_font_size_override("font_size", 12)
+	body.add_theme_color_override("font_color", Color(0.88, 0.90, 0.82, 0.95))
+	panel.add_child(body)
+	vbox.add_child(panel)
+	var kind := str(entry.get("kind", ""))
+	if kind == "arc_quest":
+		vbox.add_child(_make_muted_label("R accepts  ·  E/F flatten", 10))
+	else:
+		vbox.add_child(_make_muted_label("tap again for the work  ·  E/F flatten", 10))
+
+
+func _start_hint_pulse(node: Control) -> void:
+	if node == null or not is_instance_valid(node):
+		return
+	if node.size != Vector2.ZERO:
+		node.pivot_offset = node.size / 2.0
+	var tw := node.create_tween()
+	tw.set_loops()
+	tw.tween_property(node, "scale", Vector2(1.18, 1.18), 0.35) \
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_property(node, "scale", Vector2.ONE, 0.45) \
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+
 
 ## Accept the selected arc/tutorial offer into active quests (R). Without this,
 ## arc offers could only be dismissed, never worked on — they would dead-end.
@@ -2381,13 +2400,44 @@ func _make_empty_row(key_str: String) -> Control:
 ## Public door for the objective portal (ActFilament tap): land this surface
 ## on the Arc tab — X → I in one touch. Kept name-stable for has_method checks.
 func show_tab_arc() -> void:
-	_show_tab(Tab.ARC)
+	show_tab_named("arc")
+
+
+## Notification / portal door: land this surface on a named tab
+## (self / story / arc / guide). Unknown names keep the current tab.
+func show_tab_named(tab_name: String) -> void:
+	match str(tab_name).strip_edges().to_lower():
+		"self", "t":
+			_show_tab(Tab.SELF)
+		"story", "y":
+			_show_tab(Tab.STORY)
+		"arc", "i":
+			_show_tab(Tab.ARC)
+		"guide", "o":
+			_show_tab(Tab.GUIDE)
+		_:
+			pass
+
+
+func is_on_tab(tab_name: String) -> bool:
+	match str(tab_name).strip_edges().to_lower():
+		"self", "t":
+			return _current_tab == Tab.SELF
+		"story", "y":
+			return _current_tab == Tab.STORY
+		"arc", "i":
+			return _current_tab == Tab.ARC
+		"guide", "o":
+			return _current_tab == Tab.GUIDE
+		_:
+			return false
 
 
 func _show_tab(tab: int) -> void:
 	if _current_tab == tab and frame_id == TAB_TO_FRAME.get(tab, frame_id):
 		return
 	_disarm_arc_confirm()  # a tab change reshuffles what "the selected row" means
+	_arc_inspect_open = false
 	_current_tab = tab
 	var target_frame: String = TAB_TO_FRAME.get(tab, FRAME_SELF)
 	if frame_id != target_frame:
@@ -2400,6 +2450,10 @@ func _show_tab(tab: int) -> void:
 			_story_edge_idx = 0
 		if tab == Tab.ARC:
 			_ensure_arc_signal()  # live-refresh the timeline when a beat fires while open
+	if tab == Tab.ARC:
+		var shell = InstrumentLocator.resolve_player_shell(self)
+		if shell != null and shell.has_method("flatten_toasts_for_home"):
+			shell.flatten_toasts_for_home("arc")
 	_render_all()
 
 func _on_frame_changed(new_frame_id: String, _prev_frame_id: String) -> void:
@@ -2411,6 +2465,17 @@ func _on_frame_changed(new_frame_id: String, _prev_frame_id: String) -> void:
 # =============================================================================
 # INPUT
 # =============================================================================
+
+func _identity_digit_slot(keycode: int) -> int:
+	match keycode:
+		KEY_1: return 0
+		KEY_2: return 1
+		KEY_3: return 2
+		KEY_4: return 3
+		KEY_5: return 4
+		KEY_6: return 5
+		_: return -1
+
 
 func _on_unhandled_key(keycode: int, _event: InputEvent) -> bool:
 	if TAB_BY_KEYCODE.has(keycode):
@@ -2430,36 +2495,24 @@ func _on_unhandled_key(keycode: int, _event: InputEvent) -> bool:
 	if ctrl_item >= 0:
 		_select_item_in_tab(ctrl_item)
 		return true
-	# Icon slot selection (1/2/3) on Story tab — the player's 3 expression icons.
-	if _current_tab == Tab.STORY:
-		match keycode:
-			KEY_1:
-				_story_icon_idx = 0
+	# Identity-qubit digits (1–6): Story picks which assigned word to
+	# express; Self picks which biome qubit to dress. Same map, not the
+	# leftover 3-slot [1][2][3] chrome. GHJKL; stay the face labels.
+	var digit_slot := _identity_digit_slot(keycode)
+	if digit_slot >= 0:
+		if _current_tab == Tab.STORY:
+			var story_icons: Array = _story_icons()
+			if digit_slot < story_icons.size():
+				_story_icon_idx = digit_slot
 				_refresh_body()
-				return true
-			KEY_2:
-				_story_icon_idx = 1
+			return true
+		if _current_tab == Tab.SELF:
+			var farm_self = InstrumentLocator.resolve_active_farm(self)
+			var n: int = farm_self.identity_slot_count() if (farm_self != null and farm_self.has_method("identity_slot_count")) else 1
+			if digit_slot < n:
+				_self_picker_slot = digit_slot
 				_refresh_body()
-				return true
-			KEY_3:
-				_story_icon_idx = 2
-				_refresh_body()
-				return true
-	# Icon slot selection (1/2/3) on Self tab — picker target slot.
-	if _current_tab == Tab.SELF:
-		match keycode:
-			KEY_1:
-				_self_picker_slot = 0
-				_refresh_body()
-				return true
-			KEY_2:
-				_self_picker_slot = 1
-				_refresh_body()
-				return true
-			KEY_3:
-				_self_picker_slot = 2
-				_refresh_body()
-				return true
+			return true
 	if InputBindingRegistry.plot_index_for_keycode(keycode, ITEM_KEYS.size()) >= 0:
 		return true
 	for kc in TAB_BY_KEYCODE.keys():
@@ -2471,22 +2524,11 @@ func _select_item_in_tab(slot: int) -> void:
 	match _current_tab:
 		Tab.ARC:
 			# GHJKL; selects an arc beat on the CURRENT page (A/D pages).
+			# Same authority as a mouse tap: inspect, then shunt. Never accept.
 			var rows: Array = _arc_rows()
 			var abs_idx: int = _arc_page * MAX_VISIBLE_ITEMS + slot
 			if slot < MAX_VISIBLE_ITEMS and abs_idx < rows.size():
-				if _arc_selected_idx == abs_idx:
-					# Same feedback law as the mouse path: the default-selected
-					# row's own key must not read as dead.
-					_flash_arc_row(abs_idx)
-					_arc_row_confirm_armed = true
-				else:
-					_arc_selected_idx = abs_idx
-					# Keyboard selection arms the mouse confirm, same as
-					# QuestBoard._select — a deliberate pick by key makes the
-					# next click on that row a confirm, not a re-select.
-					_arc_row_confirm_armed = true
-					_refresh_body()
-					_declare_tab_actions()
+				_select_arc_row(abs_idx)
 		Tab.GUIDE:
 			if slot < GUIDE_ITEMS.size() and _guide_item != slot:
 				_guide_item = slot

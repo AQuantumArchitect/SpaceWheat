@@ -133,6 +133,8 @@ func _refresh_runtime_bindings() -> void:
 			farm.set_incorporated_icons(current_state.incorporated_icons)
 		if "active_icon_slots" in farm and current_state.active_icon_slots is Array:
 			farm.active_icon_slots = (current_state.active_icon_slots as Array).duplicate()
+			if farm.has_method("normalize_active_icon_slots"):
+				farm.normalize_active_icon_slots()
 
 
 # Capture/apply own a back-reference to the lazy serializer + the FarmView

@@ -328,7 +328,7 @@ func request_restart() -> void:
 	await restart_into(target_slot)
 
 
-func request_fresh_restart(_reset_progress: bool = true, scenario_id: String = "") -> void:
+func request_fresh_restart(reset_progress: bool = true, scenario_id: String = "") -> void:
 	if _gsm.phase == SessionPhase.RESTARTING or _gsm.phase == SessionPhase.QUITTING:
 		return
 	_gsm.last_active_slot = -1
@@ -336,6 +336,15 @@ func request_fresh_restart(_reset_progress: bool = true, scenario_id: String = "
 	var sid = scenario_id.strip_edges()
 	if sid != "":
 		_gsm.current_scenario_id = sid
+
+	# Title-screen F passes false so a mash-to-play never deletes Keep slots.
+	# In-game "full reset" and reset.bat pass true: the HUD reads
+	# story_flags_fired off the save, so a leftover tutorial_seen keeps the
+	# welcome down and the hats/menus unlocked.
+	if reset_progress:
+		var n: int = SaveStore.wipe_play_state()
+		if _verbose:
+			_verbose.info("save", "🧹", "wiped %d save artifacts for a fresh Demos" % n)
 
 	if _verbose:
 		_verbose.info("save", "🔄", "Fresh restart requested (%s)" % _gsm.current_scenario_id)

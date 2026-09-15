@@ -19,6 +19,7 @@ extends Node
 
 const UIProgression = preload("res://UI/Core/UIProgression.gd")
 const MenuRegistry = preload("res://UI/Core/MenuRegistry.gd")
+const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
 
 const POLL_S := 0.5
 const PULSE_SCALE := Vector2(1.22, 1.22)
@@ -51,12 +52,17 @@ func _refresh() -> void:
 	var target_info := UIProgression.objective_target()
 	var key := str(target_info.get("key", ""))
 	var biome := str(target_info.get("biome", ""))
+	var hat := str(target_info.get("hat", "")).strip_edges()
 	# One pulse at a time, the LITERAL next key: if the target lives in a
 	# biome that isn't focused, the next key is that biome's tab (TYUIOP) —
-	# pulse it; once focused, pulse the verb's chip.
+	# pulse it; once focused, pulse the verb's chip. A hat that isn't the
+	# current frame comes first (reap is Ace F; after the loom the player
+	# is still on Operator).
 	var pulse_id := key
 	if biome != "" and biome != _active_biome_name():
 		pulse_id = "biome:%s" % biome
+	elif hat != "" and hat != _current_hat_key():
+		pulse_id = hat
 	# Unchanged AND the pulsed node survived (a progression-triggered row
 	# rebuild frees and recreates chip nodes) — nothing to do. A biome pulse
 	# has no Control node: the field owns that animation and survives its own
@@ -114,6 +120,16 @@ func _active_biome_name() -> String:
 	return str(abm.active_biome) if (abm != null and "active_biome" in abm) else ""
 
 
+func _current_hat_key() -> String:
+	var frame := str(ToolConfig.get_current_frame())
+	if frame == "":
+		return ""
+	for hat_key in ToolConfig.HAT_KEY_TO_FRAME:
+		if str(ToolConfig.HAT_KEY_TO_FRAME[hat_key]) == frame:
+			return str(hat_key)
+	return ""
+
+
 func _resolve_target(pulse_id: String) -> Control:
 	# biome: ids never reach here — they route to the field in _refresh.
 	if _action_bar_manager == null:
@@ -121,6 +137,8 @@ func _resolve_target(pulse_id: String) -> Control:
 	var row = null
 	if pulse_id in ["Z", "X", "C", "V", "B", "N", "M"]:
 		row = _action_bar_manager.get("menu_selection_row")
+	elif pulse_id in ["Q", "E", "R", "F"]:
+		row = _action_bar_manager.get("action_preview_row")
 	else:
 		row = _action_bar_manager.get("tool_selection_row")
 	if row == null or not is_instance_valid(row) or not row.has_method("get_button_pulse_target"):

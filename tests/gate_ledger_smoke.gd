@@ -82,10 +82,13 @@ func _run() -> void:
 	var market := {"id": 3, "category": "", "resource": "🪵", "quantity": 4}
 	var arc := {"id": 4, "category": "ARC",
 		"state_predicates": [{"type": "coherence_at_least", "value": 0.3}]}
-	_check(qm.tutorial_auto_advances(auto_step), "predicate tutorial steps auto-advance")
+	_check(qm.tutorial_auto_accepts(auto_step), "predicate tutorial steps auto-accept")
+	_check(qm.tutorial_auto_accepts(manual_delivery), "the mill is in the auto-accept lane")
+	_check(qm.tutorial_auto_advances(auto_step), "predicate tutorial steps auto-claim")
 	_check(not qm.tutorial_auto_advances(manual_delivery),
-		"the manual DELIVERY step does not auto-advance")
-	_check(not qm.tutorial_auto_advances(arc), "ARC quests never auto-advance")
+		"the mill DELIVERY does not auto-claim — Commitments is the fill")
+	_check(not qm.tutorial_auto_accepts(arc), "ARC quests never auto-accept")
+	_check(not qm.tutorial_auto_advances(arc), "ARC quests never auto-claim")
 	qm.active_quests = {1: auto_step, 2: manual_delivery, 3: market, 4: arc}
 	var commitments: Array = qm.commitment_quests()
 	var ids: Array = []

@@ -18,6 +18,8 @@ static func resolve(action_info: Dictionary, ctx) -> Dictionary:
 			patch = IconChipResolvers.resolve_r(ctx)
 		"ace.f_explore":
 			patch = AceChipResolvers.resolve_f(ctx)
+		"ace.e_superpose":
+			patch = AceChipResolvers.resolve_e(ctx)
 		_:
 			return action_info
 	if patch.is_empty():

@@ -3,11 +3,10 @@ extends "res://tests/smoke_test_base.gd"
 ## QuestBoard item paging — the six GHJKL; keys must be able to reach EVERY row
 ## of a longer list, not just the first six.
 ##
-## Regression guard for the 2026-08-10 fix: Manifold / Market / Commitments each
+## Regression guard for the 2026-08-10 fix: Manifold / Market / History each
 ## rendered exactly MAX_VISIBLE_ITEMS rows and then printed "… N more not shown".
-## Rows past the sixth were never added to the scene tree at all, so no amount of
-## scrolling reached them — with MARKET_FETCH_LIMIT = 24 that could strand 18
-## contracts behind a dead-end message.
+## 2026-09-09: Market is a stall board — held pin the ring, offers fill the
+## free hands (HANDS_MAX = 6). Offers no longer page independently.
 
 
 class StubQuestManager:
@@ -60,14 +59,14 @@ func _visible_row_names(board) -> Array:
 
 
 func _quantities_on_page(board) -> Array:
-	# The quantity of each offer the current page is actually rendering, read
-	# back out of the live list + page offset (the same slice the keys address).
-	var offers: Array = board._get_visible_offers()
+	# Quantities on the live stall board (held + free-hand offers).
+	var rows: Array = board._market_rows()
 	var start: int = board._item_page * board.MAX_VISIBLE_ITEMS
 	var out: Array = []
 	for i in range(board.MAX_VISIBLE_ITEMS):
-		if start + i < offers.size():
-			out.append(int(offers[start + i].get("quantity", -1)))
+		if start + i < rows.size():
+			var data = rows[start + i].get("data", {})
+			out.append(int(data.get("quantity", -1)) if data is Dictionary else -1)
 	return out
 
 
@@ -86,55 +85,38 @@ func _run() -> void:
 	board._render_all()
 	await process_frame
 
-	# --- the list length is told truthfully -------------------------------
-	_check(board._current_row_count() == 15, "row count reports the full list (15)",
+	# --- stall cap: 15 offers and empty hands fill exactly 6 stalls --------
+	_check(board._current_row_count() == 6, "empty hands show 6 offer stalls, not the 15-deep pool",
 		"got %d" % board._current_row_count())
-	_check(board._item_page_count(15) == 3, "15 rows over a 6-key ring = 3 pages",
-		"got %d" % board._item_page_count(15))
+	_check(board._item_page_count(6) == 1, "six stalls fit on one page",
+		"got %d" % board._item_page_count(6))
 	_check(board._item_page == 0, "opens on page 0")
 
-	# --- page 0 shows rows 1-6 --------------------------------------------
 	var page0 := _quantities_on_page(board)
-	_check(page0 == [15, 14, 13, 12, 11, 10], "page 0 renders offers 1-6",
+	_check(page0 == [15, 14, 13, 12, 11, 10], "stalls pin the top 6 by magnitude",
 		"got %s" % str(page0))
 	_check(_visible_row_names(board).size() == 6, "page 0 puts 6 rows in the tree",
 		"got %d" % _visible_row_names(board).size())
 
-	# --- D pages forward, and drags the cursor with it --------------------
+	# --- D does not invent a second page of offers ------------------------
 	board._on_navigate(Vector2i(1, 0))
 	await process_frame
-	_check(board._item_page == 1, "A/D navigate steps to page 1", "got %d" % board._item_page)
-	_check(board._selected_index == 6, "cursor follows onto the new page (absolute idx 6)",
-		"got %d" % board._selected_index)
-	var page1 := _quantities_on_page(board)
-	_check(page1 == [9, 8, 7, 6, 5, 4], "page 1 renders offers 7-12", "got %s" % str(page1))
-
-	# --- the tail page is reachable, and clamps ---------------------------
-	board._on_navigate(Vector2i(1, 0))
-	await process_frame
-	var page2 := _quantities_on_page(board)
-	_check(board._item_page == 2, "page 2 reachable", "got %d" % board._item_page)
-	_check(page2 == [3, 2, 1], "page 2 renders the remaining 3 offers", "got %s" % str(page2))
-	board._on_navigate(Vector2i(1, 0))
-	await process_frame
-	_check(board._item_page == 2, "paging past the end clamps instead of wrapping to empty",
+	_check(board._item_page == 0, "offers past the stall cap stay off the board",
 		"got %d" % board._item_page)
 
 	# --- G-; select ABSOLUTE rows on the current page ----------------------
-	# Slot 1 (H) on page 2 = absolute index 13, the second-to-last offer — a row
-	# the pre-fix board could never address with any key.
-	board._select(board._item_page * board.MAX_VISIBLE_ITEMS + 1)
+	board._select(1)
 	await process_frame
-	_check(board._selected_index == 13, "G-; selects an absolute row on the current page",
+	_check(board._selected_index == 1, "G-; selects an absolute stall",
 		"got %d" % board._selected_index)
 	var sel: Dictionary = board._get_selected_offer()
-	_check(int(sel.get("quantity", -1)) == 2, "the selected offer is the 14th of 15",
+	_check(int(sel.get("quantity", -1)) == 14, "the selected offer is stall 2",
 		"got %s" % str(sel.get("quantity", -1)))
 
 	# --- selecting off-page drags the page to the cursor ------------------
 	board._select(0)
 	await process_frame
-	_check(board._item_page == 0, "selecting row 0 pulls the page back to 0",
+	_check(board._item_page == 0, "selecting row 0 stays on page 0",
 		"got %d" % board._item_page)
 
 	# --- a list that shrinks under the cursor must not strand the page ----
@@ -150,16 +132,16 @@ func _run() -> void:
 	_check(_visible_row_names(board).size() == 4, "4 offers render 4 real rows",
 		"got %d" % _visible_row_names(board).size())
 
-	# --- the snapshot stops lying about page counts ------------------------
+	# --- the snapshot reports stalls, not the hidden pool ------------------
 	board._offer_pool = _make_offers(15)
 	board._render_all()
 	await process_frame
 	var snap: Dictionary = board.get_snapshot()
-	_check(int(snap.get("total_pages", -1)) == 3, "snapshot reports 3 item pages",
+	_check(int(snap.get("total_pages", -1)) == 1, "snapshot reports 1 stall page",
 		"got %s" % str(snap.get("total_pages")))
-	_check(int(snap.get("row_count", -1)) == 15, "snapshot reports the full row count",
+	_check(int(snap.get("row_count", -1)) == 6, "snapshot reports 6 stalls",
 		"got %s" % str(snap.get("row_count")))
-	_check(snap.get("slots", []).size() == 15, "snapshot exposes every row as a slot",
+	_check(snap.get("slots", []).size() == 6, "snapshot exposes the six stalls",
 		"got %d" % snap.get("slots", []).size())
 
 	# --- switching tabs resets the cursor ---------------------------------
@@ -182,23 +164,27 @@ func _run() -> void:
 	board.show_commitments_focused(2006)   # 7th row → past the 6-key ring
 	await process_frame
 	_check(board.frame_id == QuestBoard.FRAME_COMMITMENTS,
-		"door lands on Commitments", "got %s" % board.frame_id)
+		"door lands on Commitments (U) — the fill tab", "got %s" % board.frame_id)
 	_check(board._selected_index == 6, "door selects the quest's own row (abs idx 6)",
 		"got %d" % board._selected_index)
 	_check(board._item_page == 1, "door drags the page to the selected row",
 		"got %d" % board._item_page)
 	_check(board._row_confirm_armed == false,
 		"door leaves the second-click confirm DISARMED", "armed")
-	_check(board._commitments_view == "active", "door defaults to the active view",
+	_check(board._commitments_view == "active", "door defaults to live Commitments",
 		"got %s" % board._commitments_view)
 	board.show_commitments_focused(-1, "history")
 	await process_frame
 	_check(board._commitments_view == "history", "door honors the view param",
 		"got %s" % board._commitments_view)
+	_check(board.frame_id == QuestBoard.FRAME_COMMITMENTS,
+		"history door lands on History [U]", "got %s" % board.frame_id)
 	board.show_commitments_focused(-1, "nonsense")
 	await process_frame
-	_check(board._commitments_view == "active", "an unknown view falls back to active",
+	_check(board._commitments_view == "active", "an unknown view falls back to live Commitments",
 		"got %s" % board._commitments_view)
+	_check(board.frame_id == QuestBoard.FRAME_COMMITMENTS,
+		"unknown view still lands on Commitments (U)", "got %s" % board.frame_id)
 
 	board.queue_free()
 	stub_qm.queue_free()

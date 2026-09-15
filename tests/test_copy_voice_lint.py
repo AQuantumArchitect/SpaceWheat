@@ -69,19 +69,25 @@ INTRO_VOICE = ROOT / "Core" / "Story" / "IntroVoice.gd"
 
 
 def test_event_bridge_composes_toasts_from_the_route_authority():
-    """The offer and ready toasts once spelled the same routes their own way
-    ('C then U, then R on its row') and drifted from the banner. They must
-    compose from UIProgression.route_* — one spelling, two speakers."""
+    """Toasts are a tracker + a link. They must not reprint the banner's
+    route_accept/route_claim copy — that reprint was the bulked popup the
+    playtest cut. Offer voice lives on IntroVoice; a ready contract routes
+    onto its Commitments row. Banner still owns the how (route_*)."""
     src = EVENT_BRIDGE.read_text(encoding="utf-8")
     assert "IntroVoice.toast_for_offer" in src, (
         "offer toast left IntroVoice — the first-minute voice authority"
     )
-    assert "UIProgression.route_claim()" in src, "ready toast left the route authority"
-    assert 'preload("res://UI/Core/UIProgression.gd")' in src
-    intro = INTRO_VOICE.read_text(encoding="utf-8")
-    assert "UIProgression.route_accept()" in intro, (
-        "accept-door copy left IntroVoice; the toast and the banner will drift"
+    assert "commitments:%d" in src, (
+        "ready toast must land on the fill row, not reprint the claim route"
     )
+    assert "UIProgression.route_claim()" not in src, (
+        "ready toast reprinted the claim route; popups are tracker + link"
+    )
+    intro = INTRO_VOICE.read_text(encoding="utf-8")
+    offer = intro.split("func toast_for_offer")[1].split("func flag_postcard")[0]
+    assert "UIProgression.route_accept()" not in intro
+    assert '"detail": ""' in offer
+    assert "Tap here to read & accept" not in offer
     # No resurrected keyboard-only route spellings in player-facing strings.
     for path, text in ((EVENT_BRIDGE, src), (INTRO_VOICE, intro)):
         for line in text.splitlines():

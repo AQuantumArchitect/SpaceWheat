@@ -9,6 +9,7 @@ extends Node
 
 const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
 const UIProgression = preload("res://UI/Core/UIProgression.gd")
+const AceChipResolvers = preload("res://Core/UI/AceChipResolvers.gd")
 
 var action_bar_manager = null
 var overlay_stack = null
@@ -138,6 +139,19 @@ func bind_quantum_input(instrument_input) -> void:
 			if shell != null:
 				InstrumentLocator._safe_connect(clock_row.pause_toggle_requested,
 						Callable(shell, "toggle_paused"))
+		# MULTI chip: sticky checkbox mode. QII owns the bit; the chip only asks.
+		var multi_row = action_bar_manager.get_multi_select_row()
+		if multi_row and multi_row.has_signal("mode_toggle_requested"):
+			InstrumentLocator._safe_connect(multi_row.mode_toggle_requested,
+					Callable(quantum_input, "toggle_multi_select_mode"))
+		if multi_row and quantum_input.has_signal("multi_select_mode_changed") \
+				and multi_row.has_method("sync_from"):
+			InstrumentLocator._safe_connect(quantum_input.multi_select_mode_changed,
+					Callable(multi_row, "sync_from"))
+			var n := 0
+			if quantum_input.has_method("get_checked_plots"):
+				n = quantum_input.get_checked_plots().size()
+			multi_row.sync_from(bool(quantum_input.multi_select_mode), n)
 
 	refresh()
 
@@ -345,7 +359,18 @@ func _build_frame_actions(frame_name: String) -> Dictionary:
 			if action_key == "F":
 				action_info = {"action": "", "label": "▶ Play", "emoji": ""}
 			elif action_key == "E":
-				action_info = {"action": "", "label": "⏸ Pause", "emoji": ""}
+				# Empty-E hats still pause. Superpose is the better word when
+				# that's the live door (AceChipResolvers.resolve_e).
+				var superpose := AceChipResolvers.resolve_e(null)
+				if not superpose.is_empty():
+					action_info = {
+						"action": "",
+						"label": str(superpose.get("label", "Superpose")),
+						"emoji": "",
+						"disabled": false,
+					}
+				else:
+					action_info = {"action": "", "label": "⏸ Pause", "emoji": ""}
 		elif not UIProgression.is_verb_active(frame_name, action_key):
 			# Progressive disclosure (phase-3 funnel, Act-0 only): a verb this hat
 			# HAS but the tutorial hasn't taught yet renders locked — same visual

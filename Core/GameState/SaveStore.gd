@@ -23,6 +23,31 @@ static func ensure_save_dir() -> void:
 		dir.make_dir("saves")
 
 
+## Playtest / full-reset wipe: every file under user://saves/ (manual slots,
+## autosave ring, emoji sidecars, the artifact index). Settings, logs, and
+## shader cache stay. reset.bat on Windows does the same from outside the
+## process so a locked exe cannot keep a stale tutorial_seen alive.
+static func wipe_play_state() -> int:
+	ensure_save_dir()
+	var dir := DirAccess.open(SAVE_DIR)
+	if dir == null:
+		return 0
+	var removed := 0
+	dir.list_dir_begin()
+	var entry := dir.get_next()
+	while entry != "":
+		if entry != "." and entry != "..":
+			if dir.current_is_dir():
+				# Nested save folders are not a thing we write; skip rather than
+				# recurse into something unexpected.
+				pass
+			elif dir.remove(entry) == OK:
+				removed += 1
+		entry = dir.get_next()
+	dir.list_dir_end()
+	return removed
+
+
 static func get_save_path(slot: int) -> String:
 	return SAVE_DIR + "save_slot_" + str(slot) + ".tres"
 

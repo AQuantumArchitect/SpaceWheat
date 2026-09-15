@@ -196,13 +196,10 @@ const NO_TUTORIAL_SENTINEL := 999
 const VERB_LOCKED_FOR_ACT0 := 90
 
 
-## Which Act-0 tutorial step is currently live — the same active-TUTORIAL-quest
-## lookup _objective_rank() already does (reused, not reinvented). Also scans
-## story_offers: the manual contracts step waits there for a real R-accept,
-## and while it did, this used to return the sentinel — the whole funnel
-## (menus, verbs, escape tabs) briefly believed Act 0 was over, then slammed
-## shut again on accept. Returns NO_TUTORIAL_SENTINEL only when no TUTORIAL
-## quest is live in either pool.
+## Which Act-0 tutorial step is currently live. The lane auto-accepts into
+## active_quests; story_offers is still scanned so a stray unsigned tutorial
+## cannot look like "Act 0 is over." Returns NO_TUTORIAL_SENTINEL only when
+## no TUTORIAL quest is live in either pool.
 static func current_tutorial_step() -> int:
 	var qm := _quest_manager()
 	if qm == null or not ("active_quests" in qm):
@@ -283,8 +280,8 @@ static func is_verb_active(frame_name: String, key: String) -> bool:
 # ============================================================================
 
 const OBJECTIVE_MAX_CHARS := 70
-const OFFER_LINE := "📜 new offer — tap the gold banner for the Arc [X→I]"
-const REDIRECT_FALLBACK := "follow the Arc — tap the gold banner [X→I]"
+const OFFER_LINE := "📜 new offer — tap 📖 [X], then Arc [I]"
+const REDIRECT_FALLBACK := "follow the Arc — tap 📖 [X], then [I]"
 
 
 ## One spelling per door — every surface that names a route composes from
@@ -296,39 +293,66 @@ const REDIRECT_FALLBACK := "follow the Arc — tap the gold banner [X→I]"
 ## (docs/MOUSE_PARITY_AUDIT.md: zero keyboard-only gaps), so copy that only
 ## says "press R" lies by omission to a mouse-and-trackpad player.
 static func route_accept() -> String:
-	return "tap the gold banner [X→I], its row, then Accept [R]"
+	return "tap 📖 [X], Arc [I], its row, then Accept [R]"
 
 
 static func route_claim() -> String:
-	return "tap 📋 [C], Commitments [U], its row twice (Claim [R])"
+	return "tap 📋 [C], its row twice (Claim [R])"
+
+
+## True when the live ask is a goods delivery (the mill, a market stall).
+## Verb-lesson tutorials have no resource; they stay on the field.
+static func _is_goods_ask(q: Dictionary) -> bool:
+	if str(q.get("resource", "")).strip_edges() == "":
+		return false
+	return int(q.get("quantity", 0)) > 0
+
+
+## Where a banner tap goes. Empty = the ask is on the field (label only).
+## "commitments" = fill/claim. Unsigned offers never reach the banner.
+static func banner_home() -> String:
+	var best := _best_objective()
+	if best.is_empty() or str(best.get("status", "")) == Quest.STATUS_STORY:
+		return ""
+	if str(best.get("status", "")) == "ready" or _is_goods_ask(best):
+		return "commitments"
+	return ""
+
+
+## Where a catalog click-through should land. Arc is a directory, not a
+## verb — a row tap never accepts. Empty = stay (unsigned optional: Accept
+## [R] is the sign-on). "commitments" = the contract's stall (fill/claim on
+## C). "field" = close the menu and stand on the puzzle (pick the tool,
+## apply it — often a tap). Same shape for Arc rows, C shortfalls, chips.
+static func puzzle_home(q: Dictionary) -> String:
+	if q.is_empty():
+		return ""
+	if str(q.get("status", "")) == Quest.STATUS_STORY:
+		return ""
+	if str(q.get("status", "")) == "ready" or _is_goods_ask(q):
+		return "commitments"
+	return "field"
+
+
+## The live objective's how-line — tutorial_hint / hint. Empty when the
+## banner has nothing more to say than objective_text() already does.
+static func objective_detail() -> String:
+	var best := _best_objective()
+	if best.is_empty():
+		return ""
+	var hint := str(best.get("tutorial_hint", "")).strip_edges()
+	if hint == "":
+		hint = str(best.get("hint", "")).strip_edges()
+	return hint
 
 
 ## The single ranked winning quest/offer — shared by objective_text() (the
 ## text banner) and objective_target_key() (the visual spotlight), so both
 ## always agree on what "the one live objective" is. {} when there's none.
 static func _best_objective() -> Dictionary:
-	var qm := _quest_manager()
-	if qm == null or not ("active_quests" in qm):
-		return {}
-	var act_by_flag := _act_by_flag(qm)
-	var best: Dictionary = {}
-	var best_rank := 0x7FFFFFFF
-	# Candidate pool: ACTIVE tutorial/arc quests, plus tutorial-chain OFFERS.
-	# Predicate-driven tutorial steps auto-accept (QuestManager), so they live in
-	# active_quests; the contracts step (1) still waits in story_offers for a real
-	# R-accept, and it IS the live objective then. Market contracts are the ContractChip's job.
-	var pools: Array = [qm.active_quests.values()]
-	if "story_offers" in qm:
-		pools.append(qm.story_offers.values())
-	for pool in pools:
-		for q in pool:
-			if not (q is Dictionary):
-				continue
-			var rank := _objective_rank(q, act_by_flag)
-			if rank < best_rank:
-				best_rank = rank
-				best = q
-	return best
+	# One ranker: IntroVoice.live_quest. Banner, spotlight, and Arc NOW
+	# cannot pick three different doors.
+	return IntroVoice.live_quest()
 
 
 static func objective_text() -> String:
@@ -336,11 +360,12 @@ static func objective_text() -> String:
 	if qm == null or not ("active_quests" in qm):
 		return ""
 	var best := _best_objective()
-	if not best.is_empty():
-		return _decorate_objective(best)
-	if ("story_offers" in qm) and not qm.story_offers.is_empty():
-		return OFFER_LINE
-	return ""
+	# Banner tracks accepted work only. Unaccepted offers live on the Arc —
+	# a gold "go accept this" chip before the door is taken is a second
+	# helping system. Hide until the player actually holds the quest.
+	if best.is_empty() or str(best.get("status", "")) == Quest.STATUS_STORY:
+		return ""
+	return _decorate_objective(best)
 
 
 ## Visual companion to objective_text() — which literal key is the next thing
@@ -361,18 +386,15 @@ static func objective_target_key() -> String:
 ## UNSATISFIED predicate with a table entry wins; none → honest dark.
 static func objective_target() -> Dictionary:
 	var best := _best_objective()
-	if best.is_empty():
-		# Mirror objective_text's OFFER_LINE fallback: an arc offer waiting
-		# with no active quest means the next key IS X — the banner says
-		# "X then I" and the spotlight must pulse the same key, not go dark.
-		var qm := _quest_manager()
-		if qm != null and ("story_offers" in qm) and not qm.story_offers.is_empty():
-			return {"key": "X", "biome": ""}
+	if best.is_empty() or str(best.get("status", "")) == Quest.STATUS_STORY:
+		# Offers wait on the Arc. No banner, no spotlight-on-X — the
+		# toast already linked there; pulsing a second door is slop.
 		return {}
 	var status := str(best.get("status", ""))
-	if status == Quest.STATUS_STORY:
-		return {"key": "X", "biome": ""}
 	if status == "ready":
+		return {"key": "C", "biome": ""}
+	# A goods ask is filled on Commitments — pulse C, not a field verb.
+	if _is_goods_ask(best):
 		return {"key": "C", "biome": ""}
 	if str(best.get("category", "")) == "TUTORIAL":
 		var step := int(best.get("tutorial_step", -1))
@@ -384,6 +406,15 @@ static func objective_target() -> Dictionary:
 		# visual cue to leave (mouse-only campaign wave 4; now step 3
 		# "wayfinding" makes the crossing itself the taught beat).
 		var step_biome := str(best.get("biome", ""))
+		# Pulse the VERB chip, carrying the hat so spotlight can switch first.
+		# Returning the hat key as `key` left superposition pulsing 0 forever
+		# (never E) — mash E on Ace paused the sim instead of Hadamarding.
+		if step == 3:
+			return {"key": "E", "hat": _hat_key_for_frame("druid"), "biome": step_biome}
+		if step == 4:
+			return {"key": "R", "hat": _hat_key_for_frame("operator"), "biome": step_biome}
+		if step == 5:
+			return {"key": "F", "hat": _hat_key_for_frame("ace"), "biome": step_biome}
 		for entry_key in VERB_UNLOCK_STEP:
 			if int(VERB_UNLOCK_STEP[entry_key]) == step:
 				var hat_key := _hat_key_for_frame(str(entry_key).split(":")[0])
@@ -433,7 +464,10 @@ static func _decorate_objective(q: Dictionary) -> String:
 	var travel := _travel_line(q)
 	if travel != "":
 		return travel
-	return _short_line(q)
+	var verb := _verb_line(q)
+	if verb != "":
+		return verb
+	return IntroVoice.ask_line(q)
 
 
 ## A tutorial step whose mechanic lives in another biome has exactly one honest
@@ -469,7 +503,72 @@ static func _travel_line(q: Dictionary) -> String:
 		# No slot key reaches it yet. Stay silent rather than name a key that
 		# isn't there — a lie costs more than the missing nudge.
 		return ""
-	return "▸ tap %s's orb on the left rail [%s] to cross" % [want, key]
+	# Keyboard-first (wave 4 mill chip named C). If a menu is open, name
+	# ONLY ESC — the board rebinds T/Y/U, so naming [U] while [U]
+	# COMMITMENTS is still on screen is the dual-key wall (wave 7
+	# literalist; wave 5's "ESC closes — then [U]" still printed [U]
+	# twice). After ESC, this line becomes "[U] crosses …" with no rival.
+	if _menu_open():
+		return "▸ ESC closes"
+	return "▸ [%s] crosses to %s" % [key, want]
+
+
+## Once the player stands in the step's biome, the banner must name the
+## next key the same way travel names the rail key.
+##
+## Wave 5: Superpose named no key. Wave 6: naming `[E] Superpose` while Ace
+## still labels `[E] Pause` is the dual-key wall (SENSOR.md: same key, two
+## jobs). Name the HAT first. After they wear it, E is Superpose
+## and the banner can name `[E]`. Hats are toggles — once worn, stop naming
+## the hat digit so a lost-lamb does not drop back to Ace. `_maybe_wear_live_hat`
+## still auto-wears if they mash the verb anyway.
+##
+## Authored tutorial_hint stays English. Keys are derived, like travel.
+static func _verb_line(q: Dictionary) -> String:
+	if str(q.get("category", "")) != "TUTORIAL":
+		return ""
+	var step := int(q.get("tutorial_step", -1))
+	if step != 3 and step != 4:
+		return ""
+	var tgt := objective_target()
+	var key := str(tgt.get("key", "")).strip_edges().to_upper()
+	var hat := str(tgt.get("hat", "")).strip_edges()
+	if key == "":
+		return ""
+	var ask := IntroVoice.ask_line(q)
+	if ask == "":
+		return ""
+	var need_frame := ""
+	if hat != "" and ToolConfig.HAT_KEY_TO_FRAME.has(hat):
+		need_frame = str(ToolConfig.HAT_KEY_TO_FRAME[hat])
+	var wearing := str(ToolConfig.get_current_frame())
+	if need_frame != "" and wearing != need_frame:
+		return "▸ [%s] %s" % [hat.to_upper(), need_frame.capitalize()]
+	if ("[%s]" % key) in ask:
+		return ask
+	return "▸ [%s] %s" % [key, ask]
+
+
+static func _menu_open() -> bool:
+	# Wave 5: find_child("OverlayManager") missed the runtime instance
+	# (added in code, not a scene child). PlayerShell lives in group
+	# "player_shell"; its overlay_manager knows the stack.
+	var ml := Engine.get_main_loop()
+	if not (ml is SceneTree):
+		return false
+	var tree := ml as SceneTree
+	var shell: Node = null
+	var shells := tree.get_nodes_in_group("player_shell")
+	if not shells.is_empty():
+		shell = shells[0]
+	if shell == null and tree.root != null:
+		shell = tree.root.get_node_or_null("/root/FarmView/PlayerShell")
+	if shell == null or not ("overlay_manager" in shell) or shell.overlay_manager == null:
+		return false
+	var om = shell.overlay_manager
+	if om.has_method("is_event_home_open") and bool(om.is_event_home_open("board")):
+		return true
+	return om.has_method("is_overlay_active") and bool(om.is_overlay_active())
 
 
 static func _active_biome_manager() -> Node:
@@ -521,19 +620,9 @@ static func _clip_banner(t: String) -> String:
 
 
 static func _short_line(q: Dictionary) -> String:
-	# ARC: lead with the live unsatisfied predicate gloss (number + verb).
-	# Authored hints are paragraphs; they truncate into a first sentence that
-	# names a hat and drops the lever (#515 / island_stops_asking).
-	var t := ""
-	if str(q.get("category", "")) == "ARC":
-		t = _first_unsatisfied_gloss(q)
-	if t == "":
-		t = str(q.get("tutorial_hint", "")).strip_edges()
-	if t == "":
-		t = str(q.get("hint", "")).strip_edges()
-	if t == "":
-		t = str(q.get("body", "")).strip_edges()
-	return _clip_banner(t.replace("\n", " "))
+	# Alias of the spine ask — kept so older tests that name this helper
+	# still compose from one author.
+	return IntroVoice.ask_line(q)
 
 
 static func _shell() -> Node:

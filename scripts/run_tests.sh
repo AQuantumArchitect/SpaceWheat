@@ -88,6 +88,7 @@ SMOKE_TESTS=(
     arc_tab_verbs_smoke
     gate_ledger_smoke
     contract_chip_ready_nav_smoke
+    click_ladder_smoke
 )
 # Known-red / not wired: NONE (2026-08-03 fable push — the #429 leftovers all
 # closed: m_surface's phantom KEY_2 sort chord replaced with the real

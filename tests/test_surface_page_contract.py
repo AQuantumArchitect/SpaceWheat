@@ -107,6 +107,7 @@ def test_c_surface_stays_on_contract_board_pages() -> None:
     for token in [
         "Manifold",
         "Market",
+        "History",
         "Commitments",
         "scope_mode",
         "scope_source",

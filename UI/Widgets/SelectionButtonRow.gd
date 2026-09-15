@@ -98,16 +98,22 @@ func _create_button(spec: Dictionary) -> Dictionary:
 	var label_text = spec.get("text", "")
 	var icon_path = spec.get("icon_path", "")
 	var enabled = spec.get("enabled", true)
+	var caption_text := str(spec.get("caption", "")).strip_edges()
+	var caption_h := (15.0 * scale_factor) if caption_text != "" else 0.0
+	var chip_h := (compact_chip_size.y if compact else 40.0) * scale_factor
 
-	# Container to hold chip background, icon, and label
+	# Container to hold chip background, icon, label, and optional caption box
 	var container = Control.new()
 	container.name = "SelectBtn_%d" % button_id
 	if compact:
 		container.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-		container.custom_minimum_size = compact_chip_size * scale_factor
+		container.custom_minimum_size = Vector2(
+			compact_chip_size.x * scale_factor,
+			chip_h + caption_h
+		)
 	else:
 		container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		container.custom_minimum_size = Vector2(0, 40 * scale_factor)
+		container.custom_minimum_size = Vector2(0, chip_h + caption_h)
 	container.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	container.size_flags_stretch_ratio = 1.0
 	container.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -125,6 +131,7 @@ func _create_button(spec: Dictionary) -> Dictionary:
 	chip_style.set_corner_radius_all(CHIP_CORNER_RADIUS)
 	chip.add_theme_stylebox_override("panel", chip_style)
 	chip.set_anchors_preset(Control.PRESET_FULL_RECT)
+	chip.offset_bottom = -caption_h
 	chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	container.add_child(chip)
 
@@ -135,11 +142,12 @@ func _create_button(spec: Dictionary) -> Dictionary:
 	icon_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	if compact and label_text == "":
 		# Icon-only chip: glyph fills the chip with a small margin.
+		# Bottom inset leaves room for the caption box when present.
 		icon_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
 		icon_rect.offset_left = 6 * scale_factor
 		icon_rect.offset_top = 5 * scale_factor
 		icon_rect.offset_right = -6 * scale_factor
-		icon_rect.offset_bottom = -5 * scale_factor
+		icon_rect.offset_bottom = -5 * scale_factor - caption_h
 	else:
 		icon_rect.set_anchors_preset(Control.PRESET_LEFT_WIDE)
 		icon_rect.offset_left = 8 * scale_factor
@@ -175,12 +183,44 @@ func _create_button(spec: Dictionary) -> Dictionary:
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.set_anchors_preset(Control.PRESET_FULL_RECT)
+	label.offset_bottom = -caption_h
 	label.add_theme_font_size_override("font_size", int((18 if compact else 15) * scale_factor))
 	label.add_theme_color_override("font_color", Color(0.94, 0.94, 0.94))
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	label.clip_text = true
 	label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	container.add_child(label)
+
+	# Little name box under the chip so a new player can read which hat/menu
+	# this is without hunting a tooltip (wave 6–7: icon-only chips hid the
+	# names that Superpose / Board already speak).
+	var caption: Label = null
+	if caption_text != "":
+		var cap_box := Panel.new()
+		cap_box.name = "CaptionBox"
+		cap_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		cap_box.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+		cap_box.offset_top = -caption_h
+		cap_box.offset_bottom = 0
+		var cap_style := StyleBoxFlat.new()
+		cap_style.bg_color = Color(0.06, 0.07, 0.09, 0.82)
+		cap_style.set_corner_radius_all(3)
+		cap_style.content_margin_left = 2
+		cap_style.content_margin_right = 2
+		cap_box.add_theme_stylebox_override("panel", cap_style)
+		caption = Label.new()
+		caption.name = "Caption"
+		caption.text = caption_text
+		caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		caption.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		caption.set_anchors_preset(Control.PRESET_FULL_RECT)
+		caption.add_theme_font_size_override("font_size", int(9 * scale_factor))
+		caption.add_theme_color_override("font_color", Color(0.86, 0.86, 0.84, 0.95))
+		caption.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		caption.clip_text = true
+		caption.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		cap_box.add_child(caption)
+		container.add_child(cap_box)
 
 	# Connect input events
 	container.gui_input.connect(_on_button_input.bind(button_id))
@@ -198,6 +238,8 @@ func _create_button(spec: Dictionary) -> Dictionary:
 		"texture": container,
 		"icon": icon_rect,
 		"label": label,
+		"caption": caption,
+		"chip_h": chip_h,
 		"id": button_id,
 		"disabled": not enabled,
 		"tooltip": tooltip,
@@ -374,5 +416,6 @@ func _draw() -> void:
 		for btn_data in buttons:
 			if btn_data.id == selected_id:
 				var r: Rect2 = btn_data.container.get_rect()
-				draw_rect(Rect2(r.position.x, r.end.y - 2.0, r.size.x, 2.0), SELECT_UNDERLINE_COLOR, true)
+				var chip_bottom: float = r.position.y + float(btn_data.get("chip_h", r.size.y))
+				draw_rect(Rect2(r.position.x, chip_bottom - 2.0, r.size.x, 2.0), SELECT_UNDERLINE_COLOR, true)
 				break

@@ -69,11 +69,22 @@ static func load_from_file(path: String):
 
 
 static func _pick_seed(graph) -> String:
-	# Prefer the act-0 node if any; else the first node by insertion order.
+	# Prefer an act-0 node that is NOT the reap capstone. Seeding
+	# first_harvest made the Story lens say Harvest while the banner said
+	# strike. loom_opens is the first act-0 recognition that isn't the end
+	# of the tutorial.
+	var fallback := ""
 	for nid in graph.nodes.keys():
 		var n = graph.nodes[nid]
-		if n != null and n.act == 0:
-			return nid
+		if n == null or n.act != 0:
+			continue
+		if str(nid) == "first_harvest":
+			if fallback == "":
+				fallback = nid
+			continue
+		return nid
+	if fallback != "":
+		return fallback
 	if graph.nodes.is_empty():
 		return ""
 	return graph.nodes.keys()[0]

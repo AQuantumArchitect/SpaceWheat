@@ -67,7 +67,7 @@ class TestFarm:
 			faction_standings[name] = FS.new()
 		return faction_standings[name]
 
-	func apply_standing_deltas(faction_name: String, deltas: Dictionary) -> void:
+	func apply_standing_deltas(faction_name: String, deltas: Dictionary, _announce: bool = true) -> void:
 		if faction_name == "" or deltas == null or deltas.is_empty():
 			return
 		var s = get_or_create_standing(faction_name)

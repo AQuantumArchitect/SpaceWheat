@@ -336,6 +336,19 @@ func stage_ui(farm: Node, shell: Node, quantum_viz: Node, world_builder) -> void
 	# the pinned contract chip. Cosmetic-only listeners on existing signals.
 	var shell_overlay_layer = shell.get_node_or_null("OverlayLayer")
 	if shell_overlay_layer:
+		# Tear down leftover session chrome FIRST. Minting FloatingRewardLayer
+		# before this loop used to queue_free the brand-new gather fliers
+		# (ContractChip / ActFilament survived only because they are created
+		# after the sweep).
+		if "quest_manager" in shell and shell.quest_manager:
+			for leftover in ["ContractChip", "ActFilament", "FloatingRewardLayer"]:
+				var old = shell_overlay_layer.get_node_or_null(leftover)
+				if old and is_instance_valid(old):
+					old.queue_free()
+			var old_spot = shell.get_node_or_null("ObjectiveSpotlight")
+			if old_spot and is_instance_valid(old_spot):
+				old_spot.queue_free()
+
 		var reward_layer = FloatingRewardLayer.new()
 		reward_layer.name = "FloatingRewardLayer"
 		reward_layer.z_index = 90  # above overlays (≤18), below toasts (100)
@@ -385,7 +398,11 @@ func stage_ui(farm: Node, shell: Node, quantum_viz: Node, world_builder) -> void
 			# Tap still opens X (Arc).
 			var act_filament = ActFilament.new()
 			act_filament.name = "ActFilament"
-			act_filament.z_index = 90
+			# Absolute z with the toast stack (140): relative 90 used to DRAW
+			# under a later full-rect menu's pick. PlayerShell raises this
+			# column to last-child after mint so tree order matches the z.
+			act_filament.z_as_relative = false
+			act_filament.z_index = 140
 			shell_overlay_layer.add_child(act_filament)
 			act_filament.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 			act_filament.offset_right = -20.0
@@ -398,6 +415,8 @@ func stage_ui(farm: Node, shell: Node, quantum_viz: Node, world_builder) -> void
 			act_filament.offset_bottom = -bottom_reserved
 			act_filament.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 			act_filament.setup(shell.quest_manager, farm, shell.overlay_manager)
+			if shell.has_method("raise_notification_column"):
+				shell.raise_notification_column()
 			_verbose.info("boot", "🧵", "ActFilament ready (objective banner, bottom-right)")
 
 			# Objective spotlight — the SAME live objective ActFilament speaks,
@@ -432,9 +451,7 @@ func stage_ui(farm: Node, shell: Node, quantum_viz: Node, world_builder) -> void
 						return
 					var cap = farm_ref.get_tree().get_first_node_in_group("postcard_capture")
 					if cap != null and cap.has_method("capture"):
-						cap.capture()
-						if shell.has_method("show_hint"):
-							shell.show_hint("📮 Act %d complete — postcard saved" % act, 3)
+						cap.capture("📮 Act %d complete — postcard saved" % act)
 				if not shell.quest_manager.story_flag_fired.is_connected(act_cb):
 					shell.quest_manager.story_flag_fired.connect(act_cb)
 					_verbose.info("boot", "📮", "Act-postcard listener armed")

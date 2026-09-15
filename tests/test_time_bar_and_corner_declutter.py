@@ -75,6 +75,34 @@ def test_the_transport_rides_the_time_bar_not_a_top_band() -> None:
     )
 
 
+def test_multi_select_toggle_rides_the_time_bar_right() -> None:
+    """3D multi-select is a visible, tappable chip — not a hidden Shift chord."""
+    abm = read_source("UI/Managers/ActionBarManager.gd")
+    assert "MultiSelectToggle" in abm
+    pos = abm.split("func _position_multi_select_row", 1)[1].split("\nfunc ", 1)[0]
+    assert "get_resource_bar_height()" in pos
+    assert "get_time_bar_height()" in pos
+    row = read_source("UI/Widgets/MultiSelectToggle.gd")
+    assert "mode_toggle_requested" in row
+    assert "ALIGNMENT_END" in row
+    assert '"MULTI"' in row or "MULTI" in row
+    qii = read_source("UI/Core/QuantumInstrumentInput.gd")
+    assert "var multi_select_mode: bool = false" in qii
+    assert "func toggle_multi_select_mode" in qii
+    assert "if shift or multi_select_mode:" in qii
+    field = read_source("Core/Visualization/QuantumField3D.gd")
+    assert "_sel_reticle" in field
+    assert "_paint_camera_reticle" in field
+    assert "draw_arc" in field
+    assert "_sel_halo" not in field
+    assert "_sel_ring" not in field
+    assert "_restore_ball_focus" not in field
+    assert "_spawn_check_mark" not in field
+    assert "☑" not in field
+    ctx = read_source("UI/Managers/UIContextController.gd")
+    assert "toggle_multi_select_mode" in ctx
+
+
 def test_the_transport_carries_pause_and_never_owns_the_bit() -> None:
     row = read_source("UI/Widgets/ClockSpeedRow.gd")
     assert "pause_toggle_requested" in row
@@ -107,12 +135,39 @@ def test_objective_banner_and_toasts_share_one_corner_and_one_form() -> None:
     # how the two drifted into overlapping before.
     assert "ActFilament.BANNER_HEIGHT" in toast_block
     assert "ActFilament.BANNER_WIDTH" in toast_block
+    # Toasts must DRAW and PICK above full-rect menus. z_index alone is
+    # paint; GUI picking is tree order, so the column is raised last-child
+    # and the live stack is STOP (gaps used to fall through).
+    assert "z_as_relative = false" in toast_block
+    assert "_raise_notification_column" in shell
+    assert "_sync_toast_stack_mouse" in shell
+    toast = read_source("UI/Widgets/HintToast.gd")
+    assert "InputEventScreenTouch" in toast
+    assert "set_input_as_handled" in toast
+    banner = read_source("UI/Widgets/ActFilament.gd")
+    apply_home = banner.split("func _apply_banner_home", 1)[1].split("\nfunc ", 1)[0]
+    assert "mouse_filter = Control.MOUSE_FILTER_STOP" in apply_home
+    assert "leak taps" in apply_home or "menu drawn behind" in apply_home
 
     # ONE recipe for the card, shared by both, so a tweak moves them together.
     factory = read_source("UI/Core/UIStyleFactory.gd")
     assert "static func create_toast_style(" in factory
     for rel in ("UI/Widgets/HintToast.gd", "UI/Widgets/ActFilament.gd"):
         assert "UIStyleFactory.create_toast_style(" in read_source(rel), rel
+
+
+def test_gather_fliers_are_not_killed_as_leftover_chrome() -> None:
+    """Playtest: gather emojis used to float into the resource bar, then
+    vanished. RuntimeMount minted FloatingRewardLayer and immediately
+    queue_freed it as leftover session chrome. Sweep must run first."""
+    rm = read_source("Core/Boot/RuntimeMount.gd")
+    leftover_at = rm.find('for leftover in ["ContractChip", "ActFilament", "FloatingRewardLayer"]')
+    mint_at = rm.find("FloatingRewardLayer.new()")
+    assert leftover_at != -1 and mint_at != -1
+    assert leftover_at < mint_at, (
+        "leftover sweep still runs after FloatingRewardLayer.new() — "
+        "that queue_frees the gather fliers on every boot"
+    )
 
 
 def test_contract_chip_keeps_the_top_right_corner_alone() -> None:

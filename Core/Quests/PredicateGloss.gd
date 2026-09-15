@@ -259,6 +259,8 @@ static func summary(pred: Dictionary, qm = null) -> String:
 					return "Gather ×%d — %s: tap a frozen bubble (or Q)" % [gcount, verb_home("ace")]
 				"explore":
 					return "Explore ×%d — %s: tap a sleeping plot (or F)" % [gcount, verb_home("ace")]
+				"hadamard":
+					return "Superpose ×%d — %s: tap E" % [gcount, verb_home("druid")]
 			var gframe := str(GATE_FRAMES.get(gname, ""))
 			var ghome := (" — %s: gate a focused plot" % verb_home(gframe)) if gframe != "" else ""
 			return "%s ×%d%s" % [gate_glyph(str(pred.get("gate", "?"))), gcount, ghome]

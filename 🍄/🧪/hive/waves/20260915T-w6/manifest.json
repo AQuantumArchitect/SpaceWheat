@@ -1,0 +1,44 @@
+{
+  "stamp": "20260915T-w6",
+  "chapter": "act0_fresh",
+  "checkpoint": "",
+  "model": "grok-4.5",
+  "host": "grok-build",
+  "jobs": 1,
+  "repo": "/home/primearchitect/ws/SpaceWheat",
+  "legs": [
+    {
+      "persona": "literalist",
+      "seat": "w_15T-w6_lite",
+      "chapter": "act0_fresh",
+      "checkpoint": "",
+      "max_presses": 25,
+      "log": "/home/primearchitect/ws/SpaceWheat/\ud83c\udf44/\ud83e\uddea/hive/waves/20260915T-w6/literalist.md"
+    },
+    {
+      "persona": "lost-lamb",
+      "seat": "w_15T-w6_lost",
+      "chapter": "act0_fresh",
+      "checkpoint": "",
+      "max_presses": 20,
+      "log": "/home/primearchitect/ws/SpaceWheat/\ud83c\udf44/\ud83e\uddea/hive/waves/20260915T-w6/lost-lamb.md"
+    },
+    {
+      "persona": "earnest",
+      "seat": "w_15T-w6_earn",
+      "chapter": "act0_fresh",
+      "checkpoint": "",
+      "max_presses": 25,
+      "log": "/home/primearchitect/ws/SpaceWheat/\ud83c\udf44/\ud83e\uddea/hive/waves/20260915T-w6/earnest.md"
+    },
+    {
+      "persona": "masher",
+      "seat": "w_15T-w6_mash",
+      "chapter": "act0_fresh",
+      "checkpoint": "",
+      "max_presses": 20,
+      "log": "/home/primearchitect/ws/SpaceWheat/\ud83c\udf44/\ud83e\uddea/hive/waves/20260915T-w6/masher.md"
+    }
+  ],
+  "note": "Parent launches legs sequentially (prompts/GROK.md). This script writes packs; it does not spawn Godot."
+}

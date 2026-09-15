@@ -23,7 +23,11 @@ var economy  # FarmEconomy type
 var _loaded_biome_count: int = 0  # Track how many biomes loaded successfully
 var known_icons: Array = []  # Player icons (canonical, farm-owned)
 var incorporated_icons: Array = []  # DELIBERATE ripening-incorporation ledger (Icon-hat R success path only) — gates fractal descent; separate from known_icons, which grows on mere injection/discovery too
-var active_icon_slots: Array = [0, 1, 2]  # 3 indices into known_icons — the player's active expression voice
+## Indices into known_icons, one per identity-biome qubit (cap 6). -1 = empty
+## qubit. Old 3-slot clones of the same pair were leftover chrome — a biome
+## is the identity, and unused qubits stay empty until a word is assigned.
+const IDENTITY_SLOT_MAX := 6
+var active_icon_slots: Array = [0]
 var reap_count: int = 0  # Number of global seasonal reaps completed
 var faction_density: FactionDensityMatrix = FactionDensityMatrix.new()  # ρ over factions; drives affinity
 var bridge_register: BridgeRegister = BridgeRegister.new()  # Majorana bridges: nonlocal 2×2 registers spanning biome pairs (What Connects)
@@ -494,8 +498,10 @@ func discorporate_icon(north: String, south: String) -> bool:
 		return false  # never empty the signature
 	known_icons.remove_at(idx)
 	for sidx in range(active_icon_slots.size()):
-		if int(active_icon_slots[sidx]) >= known_icons.size():
-			active_icon_slots[sidx] = max(0, known_icons.size() - 1)
+		if int(active_icon_slots[sidx]) == idx:
+			active_icon_slots[sidx] = -1
+		elif int(active_icon_slots[sidx]) > idx:
+			active_icon_slots[sidx] = int(active_icon_slots[sidx]) - 1
 	_sync_current_state_signature()
 	return true
 
@@ -579,10 +585,11 @@ func get_or_create_standing(faction_name: String) -> FactionStanding:
 	return faction_standings[faction_name]
 
 
-func apply_standing_deltas(faction_name: String, deltas: Dictionary) -> void:
+func apply_standing_deltas(faction_name: String, deltas: Dictionary, announce: bool = true) -> void:
 	# Apply per-channel deltas to a faction's standing. Channel keys:
 	# trust / debt / attention / access / legitimacy / entanglement.
 	# Unknown keys are ignored. Faction record is created if needed.
+	# announce=false: story-flag grants — the ✨/📜 card already spoke this beat.
 	if faction_name == "" or deltas == null or deltas.is_empty():
 		return
 	var s = get_or_create_standing(faction_name)
@@ -611,7 +618,8 @@ func apply_standing_deltas(faction_name: String, deltas: Dictionary) -> void:
 				new_val = s.entanglement
 			_:
 				continue
-		standing_changed.emit(faction_name, str(key), v, new_val)
+		if announce:
+			standing_changed.emit(faction_name, str(key), v, new_val)
 	# Settlement rotation: positive trust → player_alignment rotates toward the
 	# faction's bits (Hamiltonian, unitary — no decoherence). Factions live in
 	# pure-state Hamiltonian space; the player's substrate moves toward them
@@ -849,26 +857,79 @@ func _sync_current_state_signature() -> void:
 		gsm.current_state.known_icons = get_known_icons()
 		if "incorporated_icons" in gsm.current_state:
 			gsm.current_state.incorporated_icons = get_incorporated_icons()
-		# Clamp slots to current pairs and mirror to state.
-		var max_idx: int = max(0, known_icons.size() - 1)
-		var clamped: Array = []
-		for s in active_icon_slots:
-			clamped.append(clampi(int(s), 0, max_idx))
-		while clamped.size() < 3:
-			clamped.append(clamped.back() if clamped.size() > 0 else 0)
-		active_icon_slots = clamped
-		gsm.current_state.active_icon_slots = clamped.duplicate()
+		normalize_active_icon_slots()
+		gsm.current_state.active_icon_slots = active_icon_slots.duplicate()
 
 
-# Public setter so the Z Self icon picker can rebind a slot without poking
-# into the array directly. slot_idx in [0,2]; icon_idx is index into known_icons.
+## How many identity qubits the player faction currently wears. The Demos
+## starts at two (people / wheat); a later home biome can fill up to 6.
+func identity_slot_count() -> int:
+	var n := _identity_biome_qubit_count()
+	if n <= 0:
+		n = 1
+	return mini(IDENTITY_SLOT_MAX, n)
+
+
+func _identity_biome_qubit_count() -> int:
+	var biome_name := identity_biome_name()
+	if biome_name == "":
+		biome_name = "TheDemos"
+	if grid == null or not grid.has_method("get_biome"):
+		return 0
+	var biome = grid.get_biome(biome_name)
+	if biome == null:
+		return 0
+	var from_qc := 0
+	if biome.has_method("get_total_register_count"):
+		from_qc = int(biome.get_total_register_count())
+	var from_emojis := 0
+	if "emojis" in biome and biome.emojis is Array:
+		from_emojis = int(biome.emojis.size())
+	if from_qc > 0 and from_emojis > 0:
+		return mini(from_qc, from_emojis)
+	if from_qc > 0:
+		return from_qc
+	return from_emojis
+
+
+## Collapse leftover 3-slot clones: each known icon occupies at most one
+## qubit, unused qubits stay -1, length matches the identity biome (≤6).
+func normalize_active_icon_slots() -> void:
+	var want := identity_slot_count()
+	var max_idx: int = known_icons.size() - 1
+	var used: Dictionary = {}
+	var out: Array = []
+	for s in active_icon_slots:
+		if out.size() >= want:
+			break
+		var i := int(s)
+		if i < 0 or i > max_idx or used.has(i):
+			out.append(-1)
+			continue
+		used[i] = true
+		out.append(i)
+	while out.size() < want:
+		out.append(-1)
+	active_icon_slots = out
+
+
+# Public setter so the Self identity picker can rebind a qubit without poking
+# into the array directly. slot_idx in [0, IDENTITY_SLOT_MAX); icon_idx is
+# index into known_icons, or -1 to clear.
 func set_active_icon_slot(slot_idx: int, icon_idx: int) -> bool:
-	if slot_idx < 0 or slot_idx >= 3:
+	if slot_idx < 0 or slot_idx >= IDENTITY_SLOT_MAX:
 		return false
-	if icon_idx < 0 or icon_idx >= known_icons.size():
+	if icon_idx < -1 or icon_idx >= known_icons.size():
 		return false
-	while active_icon_slots.size() < 3:
-		active_icon_slots.append(0)
+	normalize_active_icon_slots()
+	while active_icon_slots.size() <= slot_idx:
+		active_icon_slots.append(-1)
+	if slot_idx >= identity_slot_count():
+		return false
+	if icon_idx >= 0:
+		for i in range(active_icon_slots.size()):
+			if i != slot_idx and int(active_icon_slots[i]) == icon_idx:
+				active_icon_slots[i] = -1
 	active_icon_slots[slot_idx] = icon_idx
 	_sync_current_state_signature()
 	return true

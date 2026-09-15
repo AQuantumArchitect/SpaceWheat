@@ -6,18 +6,17 @@ extends PanelContainer
 ## and dismiss). Multiple toasts stack vertically; the topmost is the active
 ## target for E/F. Importance 1=blue, 2=teal, 3=gold.
 ##
-## Mouse grammar (2026-08-17): the whole panel is a click target — click to
-## dismiss. Hovering pauses decay; leaving restarts a fresh hold. Gold
-## (importance ≥ 3) toasts PERSIST until explicitly dismissed — story beats
-## were fading before a playtester could read them, and the keyboard
-## dismissal (E/F) is dead exactly when bursts happen (the Ace hat owns both
-## keys during reap).
+## Mouse grammar (2026-09-09): ClickLadder. Notifications are a TRACKER + a
+## LINK — body clicks climb home → scoot. DETAIL is refused: the how and the
+## story body live in the menu the tap opens (Arc / Story / board / Atlas).
+## ✕ is always pure-dismiss (positional test only — children stay
+## MOUSE_FILTER_IGNORE so the hover grammar is untouched).
+## Hovering pauses decay; leaving restarts a fresh hold. Gold (importance ≥ 3)
+## toasts PERSIST until explicitly dismissed — story beats were fading before
+## a playtester could read them, and the keyboard dismissal (E/F) is dead
+## exactly when bursts happen (the Ace hat owns both keys during reap).
 ##
-## Routed toasts (2026-08-24): a toast that names a destination ("tap here")
-## can carry an on_tap Callable — a body click travels there AND dismisses;
-## the ✕ corner becomes the pure-dismiss hitbox (positional test only — every
-## child keeps MOUSE_FILTER_IGNORE so the hover grammar is untouched). A
-## routeless toast keeps the whole-panel click-to-dismiss exactly as before.
+## A routeless toast with no detail still flattens on the first body click.
 
 const FADE_IN_SEC := 0.18
 const HOLD_SEC := 4.5
@@ -52,6 +51,10 @@ var _detail: String = ""
 var _expanded: bool = false
 var _bump_count: int = 1
 var _on_tap: Callable = Callable()
+var _on_scoot: Callable = Callable()
+var _ladder: ClickLadder = ClickLadder.new()
+## Route/path key this toast climbs toward. Arriving at that home flattens it.
+var home_key: String = ""
 
 
 func _init() -> void:
@@ -106,12 +109,20 @@ func _init() -> void:
 	mouse_exited.connect(_on_mouse_exited)
 
 
-func show_text(bbcode: String, importance: int = 1, path: String = "", on_tap: Callable = Callable(), detail: String = "") -> void:
+func show_text(bbcode: String, importance: int = 1, path: String = "", on_tap: Callable = Callable(), detail: String = "", on_scoot: Callable = Callable(), home_name: String = "the Arc") -> void:
 	_raw_bbcode = bbcode
-	_detail = str(detail).strip_edges()
+	_detail = ""  # HUD toasts never reprint the menu. Callers that pass
+	              # detail are ignored — tap opens the home instead.
 	_expanded = false
 	_persistent = importance >= PERSIST_IMPORTANCE
 	_on_tap = on_tap
+	_on_scoot = on_scoot
+	_ladder = ClickLadder.new()
+	_ladder.has_detail = false
+	_ladder.has_home = _on_tap.is_valid()
+	_ladder.has_scoot = _on_scoot.is_valid()
+	_ladder.home_name = home_name if home_name != "" else "the Arc"
+	_ladder.home_key = ClickLadder.key_for_home(_ladder.home_name)
 	if _label:
 		_label.text = _face_text()
 	if _style:
@@ -127,9 +138,10 @@ func show_text(bbcode: String, importance: int = 1, path: String = "", on_tap: C
 
 
 func _face_text() -> String:
-	if _detail == "":
+	var cue := _ladder.prompt()
+	if cue == "":
 		return _raw_bbcode
-	return "%s\n[color=#aac]tap for more[/color]" % _raw_bbcode
+	return "%s\n[color=#aac]%s[/color]" % [_raw_bbcode, cue]
 
 
 func is_expanded() -> bool:
@@ -141,15 +153,24 @@ func expand() -> void:
 		return
 	_expanded = true
 	_persistent = true
-	if _label:
-		var tail := _detail
-		if _on_tap.is_valid():
-			tail += "\n[color=#aac]tap again to open the Arc[/color]"
-		_label.text = "%s\n\n%s" % [_raw_bbcode, tail]
+	_refresh_body()
 	if _tween and _tween.is_valid():
 		_tween.kill()
 	_tween = null
 	modulate.a = 1.0
+
+
+func _refresh_body() -> void:
+	if _label == null:
+		return
+	var cue := _ladder.prompt()
+	var cue_line := ("\n[color=#aac]%s[/color]" % cue) if cue != "" else ""
+	if _expanded and _detail != "":
+		_label.text = "%s\n\n%s%s" % [_raw_bbcode, _detail, cue_line]
+	elif cue != "":
+		_label.text = "%s\n[color=#aac]%s[/color]" % [_raw_bbcode, cue]
+	else:
+		_label.text = _raw_bbcode
 
 
 ## True when this toast never auto-fades (gold story beats). The spawner's
@@ -193,24 +214,42 @@ func flatten() -> void:
 
 
 func _on_gui_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
-		accept_event()
-		# Routed toast: the body travels, the ✕ corner just dismisses. The
-		# rect test keeps children on MOUSE_FILTER_IGNORE (hover grammar).
-		var on_close := _close_label != null \
-				and _close_label.get_global_rect().has_point(event.global_position)
-		if on_close:
-			flatten()
-			return
-		# A toast that has more to say expands first. Second tap travels
-		# (if routed) and dismisses. Routeless toasts with no detail still
-		# flatten on the first body click — the classic grammar.
-		if _detail != "" and not _expanded:
-			expand()
-			return
-		if _on_tap.is_valid():
-			_on_tap.call()
+	var tapped: bool = (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed) \
+			or (event is InputEventScreenTouch and event.pressed)
+	if not tapped:
+		return
+	accept_event()
+	if is_inside_tree():
+		get_viewport().set_input_as_handled()
+	# Routed toast: the body travels, the ✕ corner just dismisses. The
+	# rect test keeps children on MOUSE_FILTER_IGNORE (hover grammar).
+	var on_close := _close_label != null \
+			and event is InputEventMouseButton \
+			and _close_label.get_global_rect().has_point(event.global_position)
+	if on_close:
 		flatten()
+		return
+	# ClickLadder: home → scoot. A routeless toast flattens. DETAIL is
+	# never a rung on a notification.
+	var action := _ladder.next_action()
+	_ladder.commit(action)
+	match action:
+		"expand":
+			expand()
+		"home":
+			if _on_tap.is_valid():
+				_on_tap.call()
+			if not _ladder.has_scoot:
+				flatten()
+			else:
+				_persistent = true
+				_refresh_body()
+		"scoot":
+			if _on_scoot.is_valid():
+				_on_scoot.call()
+			flatten()
+		_:
+			flatten()
 
 
 func _on_mouse_entered() -> void:

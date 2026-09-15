@@ -33,7 +33,7 @@ signal frame_selected(frame_name: String)
 func _ready():
 	# Z-index: ActionBarLayer(50) + 5 = 55 total, below quest(100)
 	z_index = 5
-	compact = true  # icon-only chips (Apple-minimal pass) — words live in tooltips
+	compact = true  # icon chips; a small caption box under each names the hat
 	super._ready()
 	_rebuild_buttons()
 	select_frame(ToolConfig.get_current_frame())
@@ -78,6 +78,7 @@ func _rebuild_buttons() -> void:
 			"icon_path": icon_path,
 			"enabled": true,
 			"tooltip": tip,
+			"caption": label_name,
 		})
 	build_buttons(button_specs)
 	if not button_selected.is_connected(_on_button_selected):

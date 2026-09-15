@@ -12,6 +12,7 @@ extends Node
 
 # Unified overlay stack system
 const OverlayBaseClass = preload("res://UI/Core/OverlayBase.gd")
+const UIProgression = preload("res://UI/Core/UIProgression.gd")
 
 # Overlay instances
 var quest_board: QuestBoard  # New modal 4-slot quest board (primary interface)
@@ -540,19 +541,128 @@ func reset() -> void:
 	quest_manager = null
 
 
-## The objective portal's tap (ActFilament): open the playthrough surface
-## landed on the Arc tab — X → I in one touch, the mouse/touch door the
-## parity audits kept flagging. Radio-button semantics like toggle_overlay,
-## but never CLOSES: re-tapping the portal re-asserts the Arc instead of
-## bouncing the overlay shut under the player's finger.
+## The objective portal's tap (ActFilament): the LINK half of tracker +
+## link. Opens the playthrough surface landed on the Arc tab — X → I in
+## one touch, the mouse/touch door the parity audits kept flagging.
+## Radio-button semantics like toggle_overlay, but never CLOSES: re-tapping
+## the portal re-asserts the Arc instead of bouncing the overlay shut.
 func open_controls_on_arc() -> void:
-	if not overlays.has("controls"):
+	open_event_home("arc")
+
+
+## Open (never close) the menu a notification's path chip names.
+## Path is the breadcrumb on the toast (`[XY]`, `[V]`, `[C]`); route ids
+## (`arc`, `commitments:12`) share this door so a body-tap never expands
+## in place — it goes where the information is stored.
+func open_event_home(key: String, quest_id: int = -1) -> void:
+	var k := str(key).strip_edges()
+	var ku := k.to_upper()
+	_flatten_toasts_for_home(k)
+	if k.begins_with("commitments"):
+		var view := "history" if k == "commitments_history" else "active"
+		var qid := quest_id
+		var parts := k.split(":")
+		if parts.size() == 2 and parts[1].is_valid_int():
+			qid = int(parts[1])
+		open_board_on_commitments(qid, view)
 		return
-	var overlay = overlays["controls"]
+	if ku == "ARC" or ku == "XI" or ku == "I":
+		_ensure_open("controls")
+		var controls = overlays.get("controls")
+		if controls != null and controls.has_method("show_tab_named"):
+			controls.show_tab_named("arc")
+		elif controls != null and controls.has_method("show_tab_arc"):
+			controls.show_tab_arc()
+		return
+	if ku == "STORY" or ku == "XY" or ku == "Y":
+		_ensure_open("controls")
+		var story = overlays.get("controls")
+		if story != null and story.has_method("show_tab_named"):
+			story.show_tab_named("story")
+		return
+	if ku == "SELF" or ku == "XT":
+		_ensure_open("controls")
+		var self_tab = overlays.get("controls")
+		if self_tab != null and self_tab.has_method("show_tab_named"):
+			self_tab.show_tab_named("self")
+		return
+	if ku == "GUIDE" or ku == "XO" or ku == "O":
+		_ensure_open("controls")
+		var guide = overlays.get("controls")
+		if guide != null and guide.has_method("show_tab_named"):
+			guide.show_tab_named("guide")
+		return
+	if ku == "V" or ku == "ATLAS":
+		_ensure_open("atlas")
+		return
+	if ku == "Q" or ku == "C" or ku == "QUESTS" or ku == "BOARD":
+		open_board_on_commitments()
+		return
+	if ku == "N" or ku == "INSPECTOR":
+		_ensure_open("inspector")
+		return
+	if ku == "M" or ku == "MAP":
+		_ensure_open("map_meta")
+		return
+	if ku == "B" or ku == "BIOME":
+		_ensure_open("biome_detail")
+		return
+	if ku == "Z" or ku == "SYSTEM":
+		_ensure_open("escape_menu")
+		return
+	if ku == "X" or ku == "CONTROLS":
+		_ensure_open("controls")
+
+
+func is_event_home_open(key: String) -> bool:
+	var k := str(key).strip_edges()
+	var ku := k.to_upper()
+	if k.begins_with("commitments") or ku == "Q" or ku == "C" or ku == "QUESTS" or ku == "BOARD":
+		return _overlay_is_open("quests")
+	if ku == "ARC" or ku == "XI" or ku == "I":
+		if not _overlay_is_open("controls"):
+			return false
+		var controls = overlays.get("controls")
+		return controls != null and controls.has_method("is_on_tab") and bool(controls.is_on_tab("arc"))
+	if ku == "STORY" or ku == "XY" or ku == "Y":
+		if not _overlay_is_open("controls"):
+			return false
+		var story = overlays.get("controls")
+		return story != null and story.has_method("is_on_tab") and bool(story.is_on_tab("story"))
+	if ku == "SELF" or ku == "XT":
+		if not _overlay_is_open("controls"):
+			return false
+		var self_tab = overlays.get("controls")
+		return self_tab != null and self_tab.has_method("is_on_tab") and bool(self_tab.is_on_tab("self"))
+	if ku == "GUIDE" or ku == "XO" or ku == "O":
+		if not _overlay_is_open("controls"):
+			return false
+		var guide = overlays.get("controls")
+		return guide != null and guide.has_method("is_on_tab") and bool(guide.is_on_tab("guide"))
+	if ku == "V" or ku == "ATLAS":
+		return _overlay_is_open("atlas")
+	return false
+
+
+func _overlay_is_open(overlay_name: String) -> bool:
+	if not overlays.has(overlay_name):
+		return false
+	var overlay = overlays[overlay_name]
+	return overlay != null and overlay_stack != null and overlay_stack.has_overlay(overlay)
+
+
+func _flatten_toasts_for_home(key: String) -> void:
+	var shell = InstrumentLocator.resolve_player_shell(self)
+	if shell != null and shell.has_method("flatten_toasts_for_home"):
+		shell.flatten_toasts_for_home(key)
+
+
+func _ensure_open(overlay_name: String) -> void:
+	if not overlays.has(overlay_name):
+		return
+	var overlay = overlays[overlay_name]
 	if not (overlay_stack and overlay_stack.has_overlay(overlay)):
-		toggle_overlay("controls")
-	if overlay.has_method("show_tab_arc"):
-		overlay.show_tab_arc()
+		toggle_overlay(overlay_name)
 
 
 ## The commitments door — same semantics as open_controls_on_arc but for the
@@ -567,6 +677,28 @@ func open_board_on_commitments(quest_id: int = -1, view: String = "active") -> v
 		toggle_overlay("quests")
 	if overlay.has_method("show_commitments_focused"):
 		overlay.show_commitments_focused(quest_id, view)
+
+
+## ClickLadder rung 3: close whatever menu is open and walk toward the
+## task. An explicit biome wins; otherwise UIProgression.objective_target()
+## names it. Empty biome still closes — standing on the field IS the scoot
+## when the next verb is already here.
+func scoot_toward(biome: String = "") -> void:
+	var target := str(biome).strip_edges()
+	if target == "":
+		target = str(UIProgression.objective_target().get("biome", "")).strip_edges()
+	if target != "":
+		var abm = get_node_or_null("/root/ActiveBiomeManager")
+		# Only stand in a country that's already on the rail. Woodlot is in
+		# BIOME_ORDER, so set_active_biome would dump a player into an empty
+		# field before Captain has discovered it — the loom-then-lumber-yard
+		# stall. Close the catalog anyway; the spotlight names the tool.
+		var on_rail := true
+		if abm != null and abm.has_method("get_slot_for_biome"):
+			on_rail = int(abm.get_slot_for_biome(target)) >= 0
+		if on_rail and abm != null and abm.has_method("set_active_biome"):
+			abm.set_active_biome(target)
+	close_all_overlays()
 
 
 func toggle_overlay(_name: String) -> void:

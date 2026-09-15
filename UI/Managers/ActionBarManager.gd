@@ -14,10 +14,12 @@ const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
 ## until Godot re-imports, and this file must parse on a cold checkout.
 const _ModeSelectionRow = preload("res://UI/Widgets/ModeSelectionRow.gd")
 const _ClockSpeedRow = preload("res://UI/Widgets/ClockSpeedRow.gd")
+const _MultiSelectToggle = preload("res://UI/Widgets/MultiSelectToggle.gd")
 
 var tool_selection_row: Control = null
 var mode_selection_row: Control = null
 var clock_speed_row: Control = null
+var multi_select_row: Control = null
 var menu_selection_row: Control = null
 var action_preview_row: Control = null
 var layout_manager: Node = null  # UILayoutManager reference for responsive sizing
@@ -47,6 +49,8 @@ func _reposition_all_rows() -> void:
 		_position_mode_row()
 	if clock_speed_row and clock_speed_row.is_inside_tree():
 		_position_clock_row()
+	if multi_select_row and multi_select_row.is_inside_tree():
+		_position_multi_select_row()
 	if menu_selection_row and menu_selection_row.is_inside_tree():
 		_position_menu_row()
 	if action_preview_row and action_preview_row.is_inside_tree():
@@ -103,6 +107,15 @@ func create_action_bars(parent: Control) -> void:
 		clock_speed_row.set_layout_manager(layout_manager)
 	parent.add_child(clock_speed_row)
 
+	# MULTI chip rides the RIGHT end of the same TimeBar track the transport
+	# sits on. Pointer door into the 3D checkbox set (Shift-tap is the
+	# keyboard twin a mouse player never finds).
+	multi_select_row = _MultiSelectToggle.new()
+	multi_select_row.name = "MultiSelectToggle"
+	if layout_manager:
+		multi_select_row.set_layout_manager(layout_manager)
+	parent.add_child(multi_select_row)
+
 	menu_selection_row = MenuSelectionRow.new()
 	menu_selection_row.name = "MenuSelectionRow"
 	if layout_manager:
@@ -143,9 +156,9 @@ func _on_parent_resized() -> void:
 ##              dressing tray only ever hugs its own chip hull, never the full
 ##              band, so an empty half reads as open space, not the old muck)
 ##   [TimeBar band — not a chip band: the timeline strip PlayerShell owns.
-##              ClockSpeedRow (⏪ ⏸ ⏩) rides its LEFT end, positioned by
-##              _position_clock_row below. TYUIOP biomes = the field's portal
-##              rail + keyboard ring.]
+##              ClockSpeedRow (⏪ ⏸ ⏩) rides its LEFT end; MultiSelectToggle
+##              (one / MULTI) rides the RIGHT. TYUIOP biomes = the field's
+##              portal rail + keyboard ring.]
 ##   [open farm view / game space — PlotTile cyan border is plot selection UI]
 ##   bottom  1: tool (4-0 hats, CENTERED) + mode (its sub-modes, fixed
 ##              right-hand dock inside the SAME band — ClockSpeedRow's
@@ -250,6 +263,27 @@ func _position_clock_row() -> void:
 	clock_speed_row.custom_minimum_size = Vector2(0, band_h - 2.0 * TRACK_INSET)
 
 
+func _position_multi_select_row() -> void:
+	# SAME TimeBar band as the transport, RIGHT end. MultiSelectToggle's own
+	# ALIGNMENT_END hugs that edge; the row itself is full-width IGNORE so
+	# it never steals clicks from the ⏪⏸⏩ chips on the left.
+	if not multi_select_row:
+		return
+	var parent = multi_select_row.get_parent()
+	if not parent or parent.size.x <= 0:
+		return
+	multi_select_row.set("layout_mode", 1)
+	multi_select_row.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	var band_top: float = layout_manager.get_resource_bar_height()
+	var band_h: float = layout_manager.get_time_bar_height()
+	const TRACK_INSET := 5.0
+	multi_select_row.offset_top = band_top + TRACK_INSET
+	multi_select_row.offset_bottom = band_top + band_h - TRACK_INSET
+	multi_select_row.offset_left = 20
+	multi_select_row.offset_right = -20
+	multi_select_row.custom_minimum_size = Vector2(0, band_h - 2.0 * TRACK_INSET)
+
+
 func _position_menu_row() -> void:
 	_position_top_row(menu_selection_row, 0)
 
@@ -326,6 +360,10 @@ func get_mode_row() -> Control:
 
 func get_clock_row() -> Control:
 	return clock_speed_row
+
+
+func get_multi_select_row() -> Control:
+	return multi_select_row
 
 
 func render_action_projection(projection: Dictionary) -> void:

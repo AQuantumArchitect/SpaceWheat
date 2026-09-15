@@ -77,9 +77,9 @@ def test_story_flags_fire_from_action_not_boot(rig_boot) -> None:
 
 def test_story_tab_never_narrates_unfired_beats(rig_boot) -> None:
     # Owner P0 (2026-07-11): a FRESH boot, X→Y, showed first_breath's past-tense
-    # "You did something..." prose with zero player actions taken. The FOCUS pane
-    # shows where graph ATTENTION sits (boot seeds density on the act-0 node) —
-    # attention is not history, so beat prose renders only for FIRED flags.
+    # "You did something..." prose with zero player actions taken. Story is
+    # memoir (behind) + murmur (beside). Attention may name a live lens
+    # ("leaning toward …") but beat prose renders only for FIRED flags.
     # Guard for ALL flags: open the story tab fresh and assert no un-fired
     # flag's arc_beat prose is visible anywhere.
     import json
@@ -120,7 +120,16 @@ def test_story_tab_never_narrates_unfired_beats(rig_boot) -> None:
     text_row = rig.run_turn(4, "overlay_text", timeout_s=30.0)
     assert text_row.get("ok", False), text_row
     visible = "\n".join(str(line.get("text", "")) for line in text_row.get("lines", []))
-    assert "FOCUS" in visible.upper(), f"story tab did not render a focus section:\n{visible[:2000]}"
+    visible_up = visible.upper()
+    assert "FOCUS" not in visible_up, (
+        "FOCUS pane came back — Story is memoir + murmur, not a second plot:\n"
+        f"{visible[:2000]}"
+    )
+    assert (
+        "MURMUR" in visible_up
+        or "LEANING TOWARD" in visible_up
+        or "MEMOIR" in visible_up
+    ), f"story tab did not render memoir/murmur:\n{visible[:2000]}"
 
     leaks = []
     for fid, frags in prose_by_flag.items():

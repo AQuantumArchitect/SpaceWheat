@@ -40,6 +40,8 @@ const GranularityController = preload("res://Core/Utilities/GranularityControlle
 const UIProgression = preload("res://UI/Core/UIProgression.gd")
 const SpectralPreview = preload("res://Core/QuantumSubstrate/SpectralPreview.gd")
 const LoopCardCls = preload("res://UI/Overlays/LoopCard.gd")
+const IntroVoice = preload("res://Core/Story/IntroVoice.gd")
+const AceChipResolvers = preload("res://Core/UI/AceChipResolvers.gd")
 
 ## Ace F (Fast-Forward) advances the closed evolution by this many phrames per press.
 const ACE_FAST_FORWARD_PHRAMES := 4
@@ -85,6 +87,14 @@ signal frame_changed(frame: String)
 signal frame_mode_changed(frame: String, mode_index: int, mode_label: String)
 signal submenu_changed(submenu_name: String, submenu_actions: Dictionary)
 signal plot_checked(grid_pos: Vector2i, is_checked: bool)  # Multi-select checkbox toggled
+## Sticky multi-select (the TimeBar MULTI chip). Shift-tap is still the
+## momentary twin; this bit is the on-screen mode a pointer player can see.
+signal multi_select_mode_changed(on: bool, count: int)
+
+## When true, a tap on an orb toggles the checkbox set instead of firing the
+## Ace verb cycle. The TimeBar MULTI chip is the mouse door; Shift-tap still
+## works as a one-shot even while this is off.
+var multi_select_mode: bool = false
 ## Cylinder outer-ring step. Emitted when A/D fires on layer=0 (ZXCVBNM surface ring).
 ## PlayerShell listens and dispatches to _cycle_menu_overlay.
 signal surface_ring_step_requested(delta: int)
@@ -351,6 +361,10 @@ func _dispatch_action_key(key: String, shift: bool = false) -> void:
 			elif shift:
 				_perform_shift_key_action(key)
 			else:
+				# Mash the spotlight key on the wrong hat: wear the hat, then
+				# do the verb. Superpose used to pause the sim (Ace E) instead
+				# of Hadamarding (Druid E).
+				_maybe_wear_live_hat(key)
 				_perform_action(key)
 		"F":
 			# F = confirm a pending QF destructive action, or page/close a
@@ -377,6 +391,24 @@ func _dispatch_action_key(key: String, shift: bool = false) -> void:
 				else:
 					_close_submenu()
 			else:
+				# Capstone: after the Bell weave the player is still on Operator
+				# in the forest. Operator gate-mode has no F, so mash F used to
+				# say "nothing on F in this hat" — they never reaped, then Arc
+				# offered Village / Woodlot. F is the mashable door for this
+				# one step, whatever hat they walked out of the loom wearing.
+				var live_q: Dictionary = IntroVoice.live_quest()
+				if str(live_q.get("tutorial_teaches", "")) == "reap_season":
+					if str(ToolConfig.get_current_frame()) != ToolConfig.FRAME_ACE:
+						_select_frame_hat(ToolConfig.FRAME_ACE)
+					var capstone: Dictionary = AceChipResolvers.resolve_f(_build_chip_context())
+					var cap_action := str(capstone.get("action", ""))
+					if cap_action == "reap" or cap_action == "explore":
+						if cap_action == "reap" and not UIProgression.is_verb_active(ToolConfig.FRAME_ACE, "shift+F"):
+							UIProgression.redirect_locked(str(capstone.get("label", "Reap")))
+							return
+						_run_action(cap_action, str(capstone.get("emoji", "")),
+							str(capstone.get("label", "")))
+						return
 				var f_action = ToolConfig.get_action(ToolConfig.get_current_frame(), "F")
 				if shift and str(f_action.get("shift_action", "")) != "":
 					# This branch bypasses _perform_action/ActionValidator entirely
@@ -402,7 +434,25 @@ func _dispatch_action_key(key: String, shift: bool = false) -> void:
 				elif not f_action.is_empty():
 					_perform_action("F")
 				else:
-					RefusalVoice.note("nothing on F in this hat")
+					var tgt: Dictionary = UIProgression.objective_target()
+					if str(tgt.get("key", "")).strip_edges() != "" \
+							or str(tgt.get("hat", "")).strip_edges() != "":
+						UIProgression.redirect_locked("F")
+					else:
+						RefusalVoice.note("nothing on F in this hat")
+
+
+func _maybe_wear_live_hat(key: String) -> void:
+	var tgt: Dictionary = UIProgression.objective_target()
+	var need_key := str(tgt.get("key", "")).strip_edges().to_upper()
+	var need_hat := str(tgt.get("hat", "")).strip_edges()
+	if need_hat == "" or need_key != key.to_upper():
+		return
+	if not ToolConfig.HAT_KEY_TO_FRAME.has(need_hat):
+		return
+	var need_frame := str(ToolConfig.HAT_KEY_TO_FRAME[need_hat])
+	if need_frame != "" and str(ToolConfig.get_current_frame()) != need_frame:
+		_select_frame_hat(need_frame)
 
 
 # The biome/plot/subspace selection rows used to live in a SECOND input callback
@@ -1383,6 +1433,15 @@ func _select_plot(plot_idx: int, key: String) -> void:
 	if _chain_tracker:
 		_chain_tracker.record_observation(key, plot_idx, biome_name, 0)
 
+	# MULTI mode: every pick adds/drops the plot. Focus follows so the
+	# halo tells you which one you just touched.
+	if multi_select_mode:
+		_focus_plot(plot_idx, biome_name)
+		if target_grid_pos.x >= 0:
+			toggle_check(target_grid_pos)
+		_verbose.debug("input", "☑", "MULTI pick plot %d in %s" % [plot_idx, biome_name])
+		return
+
 	# Second tap on the highlighted plot toggles only the checkbox state.
 	if was_highlighted:
 		# Focus/toggle is not exploration — reveal only fires from the real
@@ -1616,6 +1675,8 @@ func toggle_check(grid_pos: Vector2i) -> void:
 
 	# Emit signal so PlotGridDisplay can update visual checkbox
 	plot_checked.emit(grid_pos, not was_checked)
+	if multi_select_mode:
+		multi_select_mode_changed.emit(true, _instrument.checked_plots.size())
 
 
 func clear_all_checks() -> void:
@@ -1624,6 +1685,33 @@ func clear_all_checks() -> void:
 		plot_checked.emit(pos, false)
 	_instrument.checked_plots.clear()
 	_verbose.debug("input", "☐", "Cleared all checkmarks")
+	if multi_select_mode:
+		multi_select_mode_changed.emit(true, 0)
+
+
+func toggle_multi_select_mode() -> void:
+	set_multi_select_mode(not multi_select_mode)
+
+
+func set_multi_select_mode(on: bool) -> void:
+	if multi_select_mode == on:
+		return
+	multi_select_mode = on
+	var n := 0
+	if _instrument:
+		n = _instrument.checked_plots.size()
+	# Entering MULTI with a focused plot and an empty set: seed that plot so
+	# the first tap isn't a no-op and the halo + checkbox agree.
+	if on and n == 0 and _instrument:
+		var gp := _get_grid_position()
+		if gp.x >= 0:
+			toggle_check(gp)
+			n = _instrument.checked_plots.size()
+	multi_select_mode_changed.emit(on, n)
+	if on:
+		_toast_note("MULTI — tap plots to add them. Tap MULTI again to go back.")
+	else:
+		_toast_note("one plot — taps explore / strike / gather again")
 
 
 func _toggle_bulk_check_active_biome() -> void:
@@ -1780,11 +1868,13 @@ func handle_bubble_tap(grid_pos: Vector2i, shift: bool = false) -> Dictionary:
 
 	# Shift-tap = the mouse twin of Shift+GHJKL; (_toggle_check_at_plot_idx):
 	# toggle the multi-select checkbox WITHOUT moving focus or running the
-	# Ace verb cycle below. Without this, hats that build a selection (e.g.
-	# Operator's Bell weave — "hold Shift and tap two plot keys") had no
-	# mouse path at all, the true Act-1 mouse-only ceiling (wave 6, earnest).
-	if shift:
+	# Ace verb cycle below. MULTI mode (the TimeBar chip) is the sticky
+	# version a pointer player can see and tap into — same checkbox, and
+	# focus follows so the halo names the last plot touched.
+	if shift or multi_select_mode:
 		toggle_check(grid_pos)
+		if multi_select_mode and not shift:
+			_focus_plot(grid_pos.x, biome_name)
 		return {"success": true, "action": "toggle_check", "checked": grid_pos in _instrument.checked_plots}
 
 	# Selection FIRST, so the verb targets exactly what was tapped and every

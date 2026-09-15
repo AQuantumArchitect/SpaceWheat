@@ -1,8 +1,9 @@
 extends "res://tests/smoke_test_base.gd"
 
 ## First-minute information flow. Instantiates Welcome, Arc, the offer toast
-## path, HintToast expand-on-tap, and PredicateGloss farm-verb copy so a
+## path, HintToast tracker+link, and PredicateGloss farm-verb copy so a
 ## screenshot of "act 0 / REAP ×1 / soft_gate(x, 0, 0.05)" cannot ship again.
+## The lane is silent (banner is the ask). Unsigned offers toast to Arc.
 ##
 ## Run: godot --headless --path . --script tests/intro_flow_smoke.gd
 
@@ -72,8 +73,12 @@ func _run() -> void:
 
 func _check_intro_voice() -> void:
 	_check(IntroVoice.welcome_title().contains("The Demos"), "welcome title names The Demos")
-	_check(IntroVoice.welcome_verbs().size() == 3, "welcome has three verb cards")
-	_check(IntroVoice.welcome_fiction().size() >= 2, "welcome fiction is more than one line")
+	_check(IntroVoice.welcome_verbs().size() == 3, "spine still names the three first verbs")
+	_check(IntroVoice.welcome_fiction().size() == 2, "welcome fiction is identity, not a lesson")
+	_check(IntroVoice.welcome_footer().to_lower().contains("tap"),
+			"welcome footer is a dismiss, not a second door")
+	_check(not IntroVoice.welcome_footer().to_lower().contains("arc"),
+			"welcome is identity; the 1D lane auto-accepts onto the banner")
 	var step0 := {
 		"category": "TUTORIAL",
 		"tutorial_teaches": "core_loop",
@@ -82,25 +87,31 @@ func _check_intro_voice() -> void:
 		"state_predicates": [{"type": "gate_sequence_contains", "gate": "measure", "count": 1}],
 	}
 	_check(IntroVoice.live_ask_token(step0) == "strike", "step 0 live ask is strike")
-	_check(IntroVoice.is_auto_tutorial(step0, null), "step 0 auto-advances")
+	_check(IntroVoice.is_auto_tutorial(step0, null), "step 0 is the auto-accepted lane")
 	var toast: Dictionary = IntroVoice.toast_for_offer(step0, null)
-	_check(int(toast.get("importance", 0)) == 3, "first lesson is a gold toast")
-	var msg := str(toast.get("message", ""))
-	_check(msg.contains("The Demos sleeps"), "first toast speaks the lesson", msg)
-	_check(not msg.to_lower().contains("accept"), "auto-tutorial toast does not say accept", msg)
-	_check(str(toast.get("detail", "")).contains("Strike"), "toast detail is the how")
-	_check(str(toast.get("route", "")) == "arc", "toast tap still doors to Arc")
+	_check(toast.is_empty(), "auto-tutorial does not dual-gold the banner")
 
 	var contracts := {
 		"category": "TUTORIAL",
 		"tutorial_teaches": "contracts",
 		"body": "The Millwright's Union is buying.",
-		"tutorial_hint": "Tap 📋 [C].",
+		"tutorial_hint": "Deliver 2× 🌾 to the mill.",
 		"state_predicates": [],
 	}
+	_check(IntroVoice.is_auto_tutorial(contracts, null), "the mill is in the lane")
 	var ctoast: Dictionary = IntroVoice.toast_for_offer(contracts, null)
-	_check(str(ctoast.get("detail", "")).to_lower().contains("accept"),
-			"contracts step still teaches the accept door")
+	_check(ctoast.is_empty(), "mill offer is silent — Commitments is the fill room")
+
+	var optional := {
+		"category": "ARC",
+		"source_flag": "village_stirs",
+		"body": "The village stirs.",
+		"faction": "Hearth Keepers",
+	}
+	var otoast: Dictionary = IntroVoice.toast_for_offer(optional, null)
+	_check(str(otoast.get("message", "")).to_lower().contains("arc"),
+			"unsigned offer names the Arc as the door")
+	_check(str(otoast.get("route", "")) == "arc", "unsigned toast doors to Arc")
 
 
 func _check_gloss() -> void:
@@ -122,16 +133,15 @@ func _check_welcome() -> void:
 	var overlay := WelcomeOverlay.new()
 	root.add_child(overlay)
 	await process_frame
-	_check(int(overlay.panel_size_mode) == int(OverlayBase.PanelSizeMode.LARGE), "welcome is LARGE")
+	_check(int(overlay.panel_size_mode) == int(OverlayBase.PanelSizeMode.MEDIUM), "welcome is MEDIUM")
 	_check(overlay.dimmer_color.a <= 0.50, "welcome dimmer is glass",
 			"alpha %.2f" % overlay.dimmer_color.a)
 	_check(overlay.panel_title.contains("The Demos"), "welcome chrome names The Demos")
-	# Walk the tree for the three verb titles.
 	var titles := _collect_label_text(overlay)
-	_check(titles.contains("Explore"), "welcome card Explore", titles)
-	_check(titles.contains("Strike"), "welcome card Strike", titles)
-	_check(titles.contains("Gather"), "welcome card Gather", titles)
-	_check(titles.contains("Wake a sleeping plot"), "welcome card story", titles)
+	_check(titles.contains("quantum language"), "welcome speaks identity", titles)
+	_check(titles.to_lower().contains("tap anywhere"), "welcome footer is a dismiss", titles)
+	_check(not titles.to_lower().contains("arc"), "welcome is not a second door to Arc", titles)
+	_check(not titles.contains("Wake a sleeping plot"), "welcome does not reprint the verb cards", titles)
 	_check(not titles.contains("THE FIRST MINUTE"), "welcome is not a keymap wall")
 	overlay.queue_free()
 	await process_frame
@@ -153,33 +163,55 @@ func _collect_label_text_into(n: Node, bits: Array) -> void:
 
 
 func _check_toast_expand() -> void:
+	# Intro toasts are tracker + link: no detail reprint, first tap opens
+	# the Arc. Unique ephemeral detail (non-intro) still expands in place.
 	var fired: Array = []
 	var toast := HintToast.new()
 	root.add_child(toast)
-	toast.show_text("🌾 [b]The Demos sleeps[/b]\nwheat and people, waiting.", 3, "",
+	toast.show_text("🌾 [b]The Demos sleeps[/b]", 3, "",
 			func() -> void: fired.append(true),
-			"Strike a plot — tap a live bubble (or R).")
+			"")
 	await process_frame
-	_check(str(toast._label.text).contains("tap for more"),
-			"unexpanded toast invites tap for more")
+	_check(str(toast._label.text).contains("tap to open the Arc"),
+			"tracker toast invites the Arc, not tap-for-more")
+	_check(not toast.is_expanded(), "tracker toast has no expand rung")
 	var click := InputEventMouseButton.new()
 	click.button_index = MOUSE_BUTTON_LEFT
 	click.pressed = true
 	click.global_position = toast.get_global_rect().position + Vector2(8, 8)
+	var scooted: Array = []
+	toast._on_scoot = func() -> void: scooted.append(true)
+	toast._ladder.has_scoot = true
 	toast._on_gui_input(click)
-	_check(toast.is_expanded(), "first tap expands")
-	_check(fired.is_empty(), "first tap does NOT travel")
+	_check(fired.size() == 1, "first tap travels to Arc")
+	_check(scooted.is_empty(), "first tap does not scoot")
+	_check(not toast.is_expanded(), "first tap does not expand")
 	_check(is_instance_valid(toast) and not toast.is_queued_for_deletion(),
-			"expanded toast stays")
-	_check(toast._label.text.contains("Strike a plot"), "expanded toast shows the how")
+			"home tap keeps the toast for the scoot")
 	toast._on_gui_input(click)
-	_check(fired.size() == 1, "second tap travels to Arc")
+	_check(scooted.size() == 1, "second tap scoots")
 	var frames := 0
 	while is_instance_valid(toast) and not toast.is_queued_for_deletion() and frames < 240:
 		await process_frame
 		frames += 1
 	_check(not is_instance_valid(toast) or toast.is_queued_for_deletion(),
-			"second tap flattens")
+			"scoot flattens")
+
+	var unique := HintToast.new()
+	root.add_child(unique)
+	unique.show_text("⏳ a pause", 2, "", Callable(), "E holds time. F plays on.")
+	await process_frame
+	_check(str(unique._label.text).contains("tap to go there") or not unique._ladder.has_detail,
+			"notification refuses detail even when a how-line is passed")
+	_check(not unique.is_expanded(), "notification does not start expanded")
+	var unique_click := InputEventMouseButton.new()
+	unique_click.button_index = MOUSE_BUTTON_LEFT
+	unique_click.pressed = true
+	unique_click.global_position = unique.get_global_rect().position + Vector2(8, 8)
+	unique._on_gui_input(unique_click)
+	_check(not unique.is_expanded(), "notification does not expand on tap")
+	unique.queue_free()
+	await process_frame
 
 
 func _check_arc_postcard() -> void:
@@ -201,6 +233,7 @@ func _check_arc_postcard() -> void:
 		"tutorial_teaches": "core_loop",
 		"body": "The Demos sleeps — wheat and people, waiting.",
 		"tutorial_hint": "Strike a plot (R), then gather the yield (Q).",
+		"math_note": "Fires the instant the gate ledger records 1 measure gate (a single R-strike) — a structural count, not a soft gate.",
 		"state_predicates": [{"type": "gate_sequence_contains", "gate": "measure", "count": 1}],
 	}}
 
@@ -211,11 +244,19 @@ func _check_arc_postcard() -> void:
 	await process_frame
 
 	var rows: Array = overlay._arc_rows()
-	_check(rows.size() >= 2, "Arc has the live lesson and First Harvest")
+	_check(rows.size() >= 1, "Arc has the live lesson")
 	_check(str(rows[0].get("kind", "")) == "live_tutorial",
 			"live tutorial leads the Arc", str(rows[0].get("kind", "")))
-	_check(str(rows[1].get("kind", "")) == "flag_unfired",
-			"First Harvest follows as a flag, not the featured door")
+	var kinds: Array = []
+	var titles: Array = []
+	for r in rows:
+		kinds.append(str(r.get("kind", "")))
+		var beat: Dictionary = r.get("beat", {})
+		titles.append(str(beat.get("title", r.get("flag", {}).get("display_name", ""))))
+	_check(not titles.has("First Harvest"),
+			"First Harvest is a toast, not an Arc door", ",".join(titles))
+	_check(not titles.has("Timber Country — The Door"),
+			"Woodlot does not peek during the strike lesson", ",".join(titles))
 
 	var face := _collect_label_text(overlay)
 	_check(face.contains("NOW"), "Arc wears NOW on the live lesson", face)
@@ -224,18 +265,13 @@ func _check_arc_postcard() -> void:
 	_check(not face.contains("soft_gate"), "Arc face has no soft_gate", face)
 	_check(not face.contains("0.00 / 0.85"), "Arc face has no 0.00/0.85", face)
 	_check(not face.contains("gate_sequence_contains"), "Arc face has no raw predicate", face)
-	_check(overlay.get_action_info("E").get("label", "") == "More", "E is More")
+	_check(overlay.get_action_info("E").get("label", "") == "Inspect", "E is Inspect")
 
-	# Select First Harvest (row 1) and confirm the beat, not the formula, is on the face.
-	overlay._select_arc_row(1)
+	# Inspect the live lesson — physics stays on E, not the face.
+	overlay._select_arc_row(0)
 	await process_frame
-	var harvest_face := _collect_label_text(overlay)
-	_check(harvest_face.contains("First Harvest"), "First Harvest still listed", harvest_face)
-	_check(harvest_face.contains("whole country answered") or harvest_face.contains("First Harvest"),
-			"First Harvest selected shows story, not just a meter", harvest_face)
-	_check(not harvest_face.contains("soft_gate"), "selected First Harvest has no soft_gate", harvest_face)
 	var inspect := overlay._arc_inspect_text()
-	_check(inspect.contains("structural count") or inspect.contains("Reap"),
+	_check(inspect.contains("structural count") or inspect.contains("Strike") or inspect.contains("measure"),
 			"E-inspect still has the physics", inspect)
 
 	gsm.active_farm = prev
@@ -266,12 +302,46 @@ func _check_offer_toast() -> void:
 	}
 	bridge._on_quest_offered(step0)
 	var gold: Array = event_log.get_recent(5, 3)
-	_check(gold.size() == 1, "auto-tutorial offer pushes a gold toast")
+	_check(gold.size() == 0, "auto-tutorial offer does not dual-gold the banner")
+	var optional := {
+		"id": 8,
+		"category": "ARC",
+		"source_flag": "village_stirs",
+		"faction": "Hearth Keepers",
+		"body": "The village stirs.",
+	}
+	bridge._on_quest_offered(optional)
+	gold = event_log.get_recent(5, 3)
+	_check(gold.size() == 1, "unsigned offer is a gold toast")
 	if gold.size() == 1:
-		var msg := str(gold[0].get("message", ""))
-		_check(msg.contains("The Demos sleeps"), "gold toast is the lesson", msg)
-		_check(not msg.to_lower().contains("accept"), "gold toast does not say accept", msg)
-		_check(str(gold[0].get("detail", "")).contains("Strike"), "gold toast carries the how as detail")
-		_check(str(gold[0].get("route", "")) == "arc", "gold toast still doors to Arc")
+		_check(str(gold[0].get("route", "")) == "arc", "unsigned toast doors to Arc")
+		_check(not str(gold[0].get("message", "")).to_lower().contains("accept"),
+				"unsigned toast does not dump the accept how")
+	bridge._on_quest_offered(optional)
+	gold = event_log.get_recent(5, 3)
+	_check(gold.size() == 1, "rewire/backfill does not double the door toast")
+	var door_flag := IntroVoice.toast_for_flag("arc_handover", {
+		"display_name": "The Wheel Is Yours",
+		"arc_quest": {"body": "Open the Arc and read the island's open doors."},
+	})
+	_check(door_flag.is_empty(), "a flag that opens a door does not also gold-card the flag")
+	var beat_flag := IntroVoice.toast_for_flag("first_harvest", {
+		"display_name": "First Harvest",
+		"arc_quest": null,
+		"predicates": [{"type": "gate_sequence_contains", "gate": "reap", "count": 1}],
+	})
+	_check(beat_flag.is_empty(),
+			"First Harvest is the Wheel's beat — no second gold card to Story")
+	var recognition := IntroVoice.toast_for_flag("two_tables", {
+		"display_name": "Two Tables",
+		"predicates": [{"type": "story_flag_set", "id": "village_stirs"}],
+	})
+	_check(str(recognition.get("message", "")).contains("Two Tables"),
+			"a flag with no door still toasts the beat")
+	var handoff := IntroVoice.toast_for_flag("loom_opens", {
+		"display_name": "The Loom Opens",
+		"predicates": [],
+	})
+	_check(handoff.is_empty(), "hat-unlock handoff flags do not gold-card mid-lane")
 	bridge._quest_manager = null
 	qm.queue_free()

@@ -342,7 +342,8 @@ def test_shift_tap_toggles_multiselect_check_for_entanglement() -> None:
 
     qii_src = _read("UI/Core/QuantumInstrumentInput.gd")
     assert "func handle_bubble_tap(grid_pos: Vector2i, shift: bool = false) -> Dictionary:" in qii_src
-    assert 'if shift:\n\t\ttoggle_check(grid_pos)' in qii_src
+    assert "if shift or multi_select_mode:" in qii_src
+    assert "toggle_check(grid_pos)" in qii_src
 
     shell_src = _read("UI/FarmView.gd")
     assert "func _on_quantum_node_clicked(grid_pos: Vector2i, button_index: int, shift: bool = false) -> void:" in shell_src

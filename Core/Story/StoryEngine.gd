@@ -156,7 +156,9 @@ func _on_story_flag_fired(flag_id: String, flag_data: Dictionary) -> void:
 	var grants: Dictionary = flag_data.get("standing_grants", {})
 	if _farm != null and not grants.is_empty():
 		for faction_name in grants:
-			_farm.apply_standing_deltas(faction_name, grants[faction_name])
+			# Silent: the flag/offer toast is the beat. Emitting standing_changed
+			# here minted a second 🤝 card for the same door (parallel-dev leftover).
+			_farm.apply_standing_deltas(faction_name, grants[faction_name], false)
 	# Arc quest — offer the live quest payload directly when the flag defines one.
 	var arc_quest = flag_data.get("arc_quest")
 	if arc_quest is Dictionary and not arc_quest.is_empty() and _quest_manager != null:
@@ -472,11 +474,11 @@ static func _coupling_magnitude(value) -> float:
 
 
 # =============================================================================
-# PLAYER ICONS (the player faction's 3 active expression slots)
+# PLAYER ICONS (identity-biome qubits, cap 6 — empty slots are skipped)
 # =============================================================================
 
-## Resolve player's 3 active icons via active_icon_slots → known_icons[index].
-## Falls back to the first 3 known icons if slot state is missing/invalid.
+## Resolve player's assigned identity icons via active_icon_slots.
+## Empty qubits (-1) are skipped; no cloned leftover 3-slot voice.
 func _resolve_player_icons() -> Array:
 	var farm = InstrumentLocator.resolve_active_farm(self)
 	if farm == null or not farm.has_method("get_known_icons"):
@@ -488,14 +490,17 @@ func _resolve_player_icons() -> Array:
 	if "active_icon_slots" in farm:
 		slots = farm.active_icon_slots
 	if slots.is_empty():
-		return icons.slice(0, mini(3, icons.size()))
+		return icons.slice(0, mini(1, icons.size()))
 	var resolved: Array = []
+	var seen: Dictionary = {}
 	for slot_idx in slots:
 		var i := int(slot_idx)
-		if i >= 0 and i < icons.size():
-			resolved.append(icons[i])
+		if i < 0 or i >= icons.size() or seen.has(i):
+			continue
+		seen[i] = true
+		resolved.append(icons[i])
 	if resolved.is_empty():
-		resolved = icons.slice(0, mini(3, icons.size()))
+		resolved = icons.slice(0, mini(1, icons.size()))
 	return resolved
 
 
@@ -530,7 +535,7 @@ const BACK_PROP_EXPRESS_MULTIPLIER: float = 2.5  # E commits stronger shift than
 ## Express the active icon onto a chatter line. Mutates the player faction
 ## (The Demos) in the runtime FactionRegistry — never touches data/*.json.
 ##
-##   icon_idx:       0/1/2 — which active icon slot
+##   icon_idx:       0..5 — which assigned identity qubit (empty slots skipped)
 ##   verb:           "Q"/"R"/"F"/"E"
 ##   chatter_emojis: Array[String] — the emoji sequence the player is responding to
 ##   chatter_faction: String — which faction said it (for trajectory record)

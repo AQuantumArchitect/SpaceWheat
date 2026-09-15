@@ -24,11 +24,14 @@ const PredicateGloss = preload("res://Core/Quests/PredicateGloss.gd")
 var _quest_manager: Node = null
 var _overlay_manager: Node = null
 var _rows_box: VBoxContainer
+var _ladders: Dictionary = {}  # quest id -> ClickLadder
 
 
 ## overlay_manager is optional (old tests/mocks pass only the quest manager):
-## with it, a READY row's tap opens the board on its own Commitments row —
-## the glow used to invite a click that could only focus a biome.
+## with it, clicks climb ClickLadder as a tracker + link — the board row,
+## then scoot to the contract's biome. The how lives on C; this chip does
+## not reprint it. A missing overlay_manager skips HOME and scoots on the
+## first tap when a biome is named.
 func setup(quest_manager: Node, overlay_manager: Node = null) -> void:
 	_quest_manager = quest_manager
 	_overlay_manager = overlay_manager
@@ -179,23 +182,28 @@ func _build_row(quest: Dictionary, key_str: String = "") -> Control:
 	head.add_child(label)
 	row.add_child(head)
 
-	# "Where do I go?" — the contract's biome, tappable to focus it. A READY
-	# row's tap goes further: to its own row on the board's Commitments tab,
-	# where the claim waits on a deliberate click (chip taps stay navigation-
-	# only). Biome-less predicate quests used to be dead rows here; their
-	# ready state is tappable now too.
+	# ClickLadder: every row is tappable. First tap opens the board on this
+	# row; second scoots to the biome. Tracker only — no how-line reprint.
 	var biome := str(quest.get("biome", ""))
+	var qid: int = int(quest.get("id", -1))
 	if biome != "":
 		var where := Label.new()
 		where.text = "→ %s" % biome
 		where.add_theme_font_size_override("font_size", 11)
 		where.add_theme_color_override("font_color", Color(0.72, 0.80, 0.88, 0.85))
 		row.add_child(where)
-	if ready or biome != "":
-		row.mouse_filter = Control.MOUSE_FILTER_STOP
-		row.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-		row.tooltip_text = "Tap to claim on the board" if ready else "Tap to focus %s" % biome
-		row.gui_input.connect(_on_row_gui_input.bind(biome, int(quest.get("id", -1)), ready))
+	var ladder: ClickLadder = _ladder_for(qid)
+	var cue := ladder.prompt()
+	if cue != "":
+		var cue_lbl := Label.new()
+		cue_lbl.text = cue
+		cue_lbl.add_theme_font_size_override("font_size", 10)
+		cue_lbl.add_theme_color_override("font_color", Color(0.70, 0.82, 0.92, 0.9))
+		row.add_child(cue_lbl)
+	row.mouse_filter = Control.MOUSE_FILTER_STOP
+	row.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	row.tooltip_text = cue if cue != "" else ClickLadder.tap_home("the board")
+	row.gui_input.connect(_on_row_gui_input.bind(biome, qid, ready))
 
 	var bar := ProgressBar.new()
 	bar.custom_minimum_size = Vector2(150, 5)
@@ -215,21 +223,48 @@ func _build_row(quest: Dictionary, key_str: String = "") -> Control:
 	return row
 
 
+func _ladder_for(qid: int) -> ClickLadder:
+	if not _ladders.has(qid):
+		var ladder := ClickLadder.new()
+		ladder.home_name = "the board"
+		ladder.home_key = "C"
+		ladder.has_detail = false
+		ladder.has_home = _overlay_manager != null \
+				and _overlay_manager.has_method("open_board_on_commitments")
+		ladder.has_scoot = true
+		_ladders[qid] = ladder
+	return _ladders[qid]
+
+
 func _on_row_gui_input(event: InputEvent, biome: String, qid: int = -1, ready: bool = false) -> void:
-	# Tap a contract row → bring its biome forward (navigation only, no verb).
-	# A READY row navigates further: to its own board row — the door disarms
-	# the board's second-click confirm on the way in, so the claim there is
-	# still a deliberate, separate click.
-	if (event is InputEventMouseButton and event.pressed
+	if not ((event is InputEventMouseButton and event.pressed
 			and event.button_index == MOUSE_BUTTON_LEFT) \
-			or (event is InputEventScreenTouch and event.pressed):
-		if ready and _overlay_manager != null \
-				and _overlay_manager.has_method("open_board_on_commitments"):
-			_overlay_manager.open_board_on_commitments(qid)
-			accept_event()
-			return
-		if biome != "":
-			var abm := get_node_or_null("/root/ActiveBiomeManager")
-			if abm != null and abm.has_method("set_active_biome"):
-				abm.set_active_biome(biome)
-				accept_event()
+			or (event is InputEventScreenTouch and event.pressed)):
+		return
+	accept_event()
+	var ladder := _ladder_for(qid)
+	var action := ladder.next_action()
+	ladder.commit(action)
+	match action:
+		"home":
+			if _overlay_manager != null \
+					and _overlay_manager.has_method("open_board_on_commitments"):
+				_overlay_manager.open_board_on_commitments(qid)
+			_refresh()
+		"scoot":
+			if biome != "":
+				var abm := get_node_or_null("/root/ActiveBiomeManager")
+				if abm != null and abm.has_method("set_active_biome"):
+					abm.set_active_biome(biome)
+			elif _overlay_manager != null and _overlay_manager.has_method("scoot_toward"):
+				_overlay_manager.scoot_toward()
+			ladder.reset()
+			_refresh()
+		_:
+			if ready and _overlay_manager != null \
+					and _overlay_manager.has_method("open_board_on_commitments"):
+				_overlay_manager.open_board_on_commitments(qid)
+			elif biome != "":
+				var abm2 := get_node_or_null("/root/ActiveBiomeManager")
+				if abm2 != null and abm2.has_method("set_active_biome"):
+					abm2.set_active_biome(biome)

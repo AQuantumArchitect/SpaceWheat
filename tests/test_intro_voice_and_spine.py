@@ -3,8 +3,8 @@
 The live Godot smoke (intro_flow_smoke.gd) instantiates the overlays.
 This file is the compiler for the *laws* so a later edit cannot silently
 put formula back on the Arc face, resurrect 'tap here to accept' on an
-auto-accepted tutorial step, or let welcome / toast / Arc name three
-different first verbs.
+auto-accepted tutorial step, reprint a lesson on the welcome splash, or
+let welcome / toast / Arc name three different first verbs.
 """
 import json
 import re
@@ -26,6 +26,15 @@ def src(p: Path) -> str:
     return p.read_text(encoding="utf-8")
 
 
+def test_arc_now_row_does_not_ask_accept():
+    """Auto-accepted NOW doors inspect then shunt; OPEN (optional) doors pulse R."""
+    row = _make_arc_row_body()
+    assert "[R] Accept" in row
+    assert 'kind == "arc_quest"' in row
+    assert '_make_muted_label("tap to inspect  ·  R accepts"' in row
+    assert '_make_muted_label("tap to inspect  ·  tap again for the work"' in row
+
+
 def _make_arc_row_body() -> str:
     text = src(ARC)
     start = text.find("func _make_arc_row(")
@@ -38,9 +47,15 @@ def test_welcome_composes_from_intro_voice():
     w = src(WELCOME)
     assert "IntroVoice.welcome_title()" in w
     assert "IntroVoice.welcome_fiction()" in w
-    assert "IntroVoice.welcome_verbs()" in w
     assert "IntroVoice.welcome_footer()" in w
-    assert "PanelSizeMode.LARGE" in w
+    # Identity splash — the how lives on Guide; the 1D lane auto-accepts
+    # onto the banner. Optional offers wait on Arc.
+    footer = src(INTRO).split("static func welcome_footer")[1].split("static func ")[0]
+    assert "Tap anywhere" in footer
+    assert "Arc" not in footer
+    assert "IntroVoice.welcome_verbs()" not in w
+    assert "Wake a sleeping plot" not in w
+    assert "PanelSizeMode.MEDIUM" in w
     assert "0.45" in w, "welcome dimmer must be glass (field visible), not a blackout"
 
 
@@ -58,26 +73,39 @@ def test_first_toast_is_the_lesson_not_an_accept_door():
     intro = src(INTRO)
     assert "func toast_for_offer" in intro
     assert "is_auto_tutorial" in intro
-    # Auto-accepted steps must not tell the player to accept.
     auto_fn = intro.split("func toast_for_offer")[1].split("func flag_postcard")[0]
-    # The auto branch returns before the accept-door copy.
-    assert "Tap here to read & accept" in intro  # still used for the contracts step
+    # Lane steps are silent. Unsigned offers wait on the Arc. Never reprint accept.
+    assert "Tap here to read & accept" not in intro
+    assert "return {}" in auto_fn
+    assert "waiting on the Arc" in auto_fn
+    assert "New offer from" in auto_fn
     assert "The Demos sleeps" in intro
     assert "IntroVoice.toast_for_offer" in src(BRIDGE)
+    flag_fn = intro.split("func toast_for_flag")[1].split("func recap")[0]
+    assert "arc_quest" in flag_fn
+    assert "return {}" in flag_fn
+    assert 'flag_data.has("predicates")' in flag_fn
+    bridge = src(BRIDGE)
+    assert "_announced_offer_ids" in bridge
+    offered = bridge.split("func _on_quest_offered")[1].split("func _on_quest_failed")[0]
+    assert "_announced_offer_ids.has(qid)" in offered
+    fired = bridge.split("func _on_story_flag_fired")[1].split("func _on_quest_completed")[0]
+    assert "toast.is_empty()" in fired
 
 
-def test_toast_expands_on_first_tap():
+def test_toast_is_tracker_plus_link():
     t = src(TOAST)
-    assert "func expand()" in t
-    assert "tap for more" in t
-    assert "tap again to open the Arc" in t
-    # First tap with detail must NOT flatten.
+    assert "ClickLadder" in t
+    show = t.split("func show_text")[1].split("\nfunc ")[0]
+    assert "has_detail = false" in show
+    assert '_detail = ""' in show
     gui = t.split("func _on_gui_input")[1].split("func _on_mouse_entered")[0]
-    assert "_detail != " in gui and "expand()" in gui
-    # ✕ still flattens first; the body path must expand before it travels.
     body = gui.split("if on_close:")[1]
-    assert body.find("expand()") < body.find("_on_tap.call()")
-    assert "expand()" in body.split("_on_tap.call()")[0]
+    assert '"home"' in body and '"scoot"' in body
+    ladder = src(ROOT / "UI" / "Core" / "ClickLadder.gd")
+    assert "tap to open %s" in ladder
+    assert "[%s] opens %s" in ladder
+    assert "tap again to go there" in ladder
 
 
 def test_arc_face_is_a_postcard_not_a_ledger():
@@ -97,6 +125,22 @@ def test_arc_inspect_keeps_the_formula_for_the_literalist():
     inspect = src(ARC).split("func _arc_inspect_text")[1].split("\nfunc _accept_selected")[0]
     assert "PredicateGloss.formula" in inspect
     assert 'flag.get("arc_beat"' in src(INTRO)
+
+
+def test_arc_inspects_in_the_menu_not_a_toast():
+    """X→I→G E unfolds in the Arc row. Tap inspects; next tap shunts; R accepts."""
+    arc = src(ARC)
+    get_fn = arc.split("func get_inspect_text")[1].split("func _story_inspect_text")[0]
+    assert 'Tab.ARC:' in get_fn
+    assert 'return ""' in get_fn
+    assert "_append_arc_inspect" in arc
+    select = arc.split("func _select_arc_row")[1].split("\nfunc ")[0]
+    assert "_on_action_r()" not in select
+    assert "accept_quest" not in select
+    assert "_arc_inspect_open" in select
+    assert "_tunnel_from_arc" in select
+    assert 'r_lbl.text = "[R] Accept"' in arc
+    assert "COLOR_ACCENT_GOLD" in arc.split("func _make_arc_row")[1].split("func _make_arc_chapter_header")[0]
 
 
 def test_reap_formula_is_a_structural_count_not_a_soft_gate_at_zero():

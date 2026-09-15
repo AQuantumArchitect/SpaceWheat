@@ -105,6 +105,13 @@ func _physics_process(delta: float) -> void:
 
 		var quest_type = quest.get("type", QuestTypes.Type.DELIVERY)
 
+		# DELIVERY progress is inventory/ask — the gold bar on the chip and
+		# the Commitments row. requires_tracking() is false (no physics poll)
+		# but gathering wheat must still fill the bar.
+		if quest_type == QuestTypes.Type.DELIVERY:
+			_update_delivery_quest(quest)
+			continue
+
 		# Only track quest types that need continuous monitoring
 		if not QuestTypes.requires_tracking(quest_type):
 			continue
@@ -467,7 +474,7 @@ func _quest_predicate_score(pred: Dictionary, farm) -> float:
 ## penalty is docked. Outgrowing an Act-0 tutorial step is not a broken promise.
 ##
 ## Both pools are swept. active_quests is the one that actually reaches act 8 —
-## offer_tutorial_quest auto-accepts any predicate-carrying step, so a step whose
+## offer_tutorial_quest auto-accepts the whole Act-0 lane, so a step whose
 ## predicate the player never satisfies sits in the ledger forever, survives
 ## save/load, and (via UIProgression._objective_rank, where any TUTORIAL entry
 ## outranks every arc quest) hijacks the objective banner and the spotlight for
@@ -636,7 +643,13 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 				return 0.0
 			return 1.0 if StoryAtlas.current_act(farm.story_flags_fired, get_all_story_flags()) >= int(pred.get("value", 0)) else 0.0
 		"story_flag_set":
-			return 1.0 if farm.story_flags_fired.has(str(pred.get("id", ""))) else 0.0
+			# Fired is not enough when the parent still holds an unsigned
+			# door. Parallel-dev leftover: first_harvest → village_stirs →
+			# new_voices → woodlot_door all scored true in ONE evaluate pass
+			# (Village is evolving at boot, the mill tutorial already paid
+			# access 0.02), so a player who had just learned the loom got
+			# mill + plant + lumber-yard offered at once and never found reap.
+			return 1.0 if _story_flag_parent_resolved(str(pred.get("id", "")), farm) else 0.0
 		"story_flag_any":
 			# OR over a set of flags — the branch-choice predicate. Lets a
 			# quest stay ACTIVE ("choose one door") until ANY alternative
@@ -678,7 +691,12 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 			# in fixed contract-sized steps (+0.02 access per delivery), so the
 			# default 0.05 width silently prices a 0.2 gate at ~2 extra deliveries.
 			# Authors declare "width" to pin a gate to a delivery count.
-			return QuestMath.soft_gate(current, float(pred.get("value", 0.0)), _pred_width(pred, "standing_gte"))
+			# N means N: plain soft_gate is 0.5 AT the authored value, so the
+			# mill tutorial's access 0.02 left village_stirs stuck at ~84%
+			# (smooth_and of 1,1,1,0.5) and Arc empty after the Wheel.
+			var width := _pred_width(pred, "standing_gte")
+			var center := float(pred.get("value", 0.0))
+			return QuestMath.count_gate(current, center, width, FLAG_FIRE_THRESHOLD)
 		"biome_state_gte":
 			if farm.grid == null:
 				return 0.0
@@ -1014,44 +1032,81 @@ func offer_tutorial_quest(quest_def: Dictionary) -> int:
 	if not _announced_offers.has(quest_id):
 		_announced_offers[quest_id] = true
 		quest_offered.emit(q)
-	# Break #1 — the offer-with-no-progress dead end. A predicate-driven tutorial step (whose
-	# soft bar IS the teacher) is accepted FOR the player: it goes straight into active_quests
-	# so the progress bar advances the instant the mechanic is done — no hidden X→Arc R-accept a
-	# new player was never taught. The contracts step (1, a DELIVERY with no predicates) is the
-	# one exception: it keeps the real accept→do→claim board ceremony. See _tutorial_auto_advances.
-	if _tutorial_auto_advances(q):
+	# The 1D lane auto-accepts EVERY tutorial step, mill included. Optional
+	# work (story-flag offers, later arcs) waits on the Arc for Accept [R].
+	# Predicate steps also auto-claim (the bar is the teacher). The mill is
+	# a real DELIVERY: it is accepted for you, then filled on Commitments.
+	if _tutorial_auto_accepts(q):
 		accept_quest(q)
 	return quest_id
 
 
-## A tutorial step auto-advances (auto-accept on offer + auto-claim on ready) when its completion
-## is physics-driven — it carries state_predicates whose soft bar the player watches fill
-## (tutorial_arc.json's own stated intent: "the progress bar is the teacher"). The contracts step
-## is the sole tutorial step with NO predicates (a DELIVERY ask); it stays manual so the player
-## learns the real accept→do→claim grammar they will need for every market contract.
+## The one-dimensional lane. Every TUTORIAL step is taken for the player so
+## the banner is already the live ask. Story offers never match.
+func _tutorial_auto_accepts(quest: Dictionary) -> bool:
+	return str(quest.get("category", "")) == "TUTORIAL"
+
+
+func tutorial_auto_accepts(quest: Dictionary) -> bool:
+	return _tutorial_auto_accepts(quest)
+
+
+## Auto-claim = the bar is the teacher. Predicate-driven tutorial steps
+## claim themselves. The mill (a DELIVERY, no predicates) is held on
+## Commitments and filled on purpose. Optional arcs never match.
 func _tutorial_auto_advances(quest: Dictionary) -> bool:
-	if str(quest.get("category", "")) != "TUTORIAL":
+	if not _tutorial_auto_accepts(quest):
 		return false
 	var preds = quest.get("state_predicates", [])
 	return preds is Array and not preds.is_empty()
 
 
-## Public face of the rule above — PlayerEventBridge asks it to keep "ready to
-## claim" advice off steps that claim themselves, and the Commitments filter
-## below leans on it. One home; no drift-prone duplicates.
+## Public face of auto-claim. PlayerEventBridge keeps "ready to claim"
+## advice off steps that claim themselves; commitment_quests() excludes
+## them. One home; no drift-prone duplicates.
 func tutorial_auto_advances(quest: Dictionary) -> bool:
 	return _tutorial_auto_advances(quest)
 
 
+func tutorial_auto_claims(quest: Dictionary) -> bool:
+	return _tutorial_auto_advances(quest)
+
+
+## Ready toasts and the C board stay quiet for anything that claims itself:
+## the 1D lane's predicate steps, and handshake arcs (Accept is the beat).
+func silent_auto_claims(quest: Dictionary) -> bool:
+	return _tutorial_auto_advances(quest) or _handshake_auto_claims(quest)
+
+
+## Pair-less story/arc with no delivery ask whose predicates are empty or
+## already true. Parallel-dev leftover: the Wheel asked for the same reap
+## first_harvest had just spent, then sat READY on C. Accept is the handshake.
+func _handshake_auto_claims(quest: Dictionary) -> bool:
+	var src := str(quest.get("source", ""))
+	var cat := str(quest.get("category", ""))
+	if src != Quest.SOURCE_STORY and cat != "ARC":
+		return false
+	if str(quest.get("resource", "")).strip_edges() != "":
+		return false
+	if str(quest.get("reward_north", "")).strip_edges() != "" \
+			or str(quest.get("reward_south", "")).strip_edges() != "":
+		return false
+	var preds = quest.get("state_predicates", [])
+	if not (preds is Array) or preds.is_empty():
+		return true
+	for p in preds:
+		if not (p is Dictionary):
+			return false
+		if evaluate_predicate_score(p) < 0.85:
+			return false
+	return true
+
+
 ## The quests that belong on the C board's Commitments tab (and the HUD
-## ContractChip): everything the player COMMITTED to — market contracts, arc
-## quests, and the one manual tutorial DELIVERY (the step that teaches the
-## board ceremony). Auto-advancing tutorial steps are excluded: they accepted
-## themselves, they claim themselves, and a panel titled CONTRACTS is exactly
-## where a verb lesson does not belong (contract purity — contracts are
-## delivery-of-goods or state asks, never "press this key"). Those steps still
-## render in full on the X Arc tab and the banner. Insertion order is preserved
-## — claim-by-index is a contract downstream (see _commitments_rows).
+## ContractChip): everything the player holds to FILL — market contracts,
+## arc quests, and the mill DELIVERY. Verb-lesson tutorial steps are
+## excluded (they accept and claim themselves; a panel titled CONTRACTS
+## is not "press this key"). Insertion order is preserved.
 func commitment_quests() -> Array:
 	var out: Array = []
 	for q in active_quests.values():
@@ -1532,6 +1587,11 @@ func accept_quest(quest_data: Dictionary) -> bool:
 
 	quest_accepted.emit(quest_id)
 	active_quests_changed.emit()
+	# Handshake arcs (Wheel, and any pair-less already-true leftover):
+	# Accept IS the beat. Do not park a ready stall on C for work the
+	# player has already done.
+	if _handshake_auto_claims(quest_data):
+		mark_quest_ready(quest_id, "handshake")
 	return true
 
 # =============================================================================
@@ -1838,11 +1898,10 @@ func mark_quest_ready(quest_id: int, completion_reason: String = "conditions_met
 	quest_ready_to_claim.emit(quest_id)
 	active_quests_changed.emit()
 
-	# Break #1 (claim half): a predicate-driven tutorial step auto-claims the instant its bar
-	# fills, so doing the mechanic both completes the step AND unlocks the next one — no hidden
-	# C→Commitments R-claim. (The contracts step never reaches here; a DELIVERY completes via
-	# complete_quest, not the ready→claim path.)
-	if _tutorial_auto_advances(quest):
+	# Predicate tutorial steps auto-claim when the bar fills. Handshake
+	# arcs (Accept is the beat) claim here too. The mill is a DELIVERY —
+	# it completes via complete_quest on Commitments, not here.
+	if silent_auto_claims(quest):
 		claim_quest(quest_id)
 
 
@@ -1960,6 +2019,21 @@ func _observable_value(obs: Dictionary, name: String) -> float:
 		var pb := float(obs.get(key_b, 0.0))
 		return pa / (pa + pb) if (pa + pb) > 1e-9 else 0.5
 	return float(obs.get(name, 0.0))
+
+
+func _update_delivery_quest(quest: Dictionary) -> void:
+	var resource := str(quest.get("resource", "")).strip_edges()
+	var qty: int = int(quest.get("quantity", 0))
+	if resource == "" or qty <= 0:
+		return
+	var held := 0
+	if economy != null and economy.has_method("get_resource"):
+		held = int(economy.get_resource(resource))
+	var now: float = clampf(float(held) / float(qty), 0.0, 1.0)
+	if absf(now - float(quest.get("progress", 0.0))) < 0.001:
+		return
+	quest["progress"] = now
+	active_quests_changed.emit()
 
 
 func _update_shape_achieve_quest(quest: Dictionary, _delta: float) -> void:
@@ -2209,6 +2283,31 @@ func has_completed_flag(flag_id: String) -> bool:
 
 func is_guidance_dismissed(flag_id: String) -> bool:
 	return bool(guidance_dismissed.get(flag_id, false))
+
+
+## True when flag_id may unlock its children. A parent with no arc_quest is
+## done the moment it fires (First Harvest). A parent with a door (Wheel,
+## mill teaching, plant, Woodlot) stays shut until that quest is claimed
+## or dismissed — one path, not a cascade of four OPEN rows.
+func flag_door_is_resolved(flag_id: String) -> bool:
+	return _flag_door_is_resolved(flag_id)
+
+
+func _flag_door_is_resolved(flag_id: String) -> bool:
+	var flag := _story_flag_by_id(flag_id)
+	if flag.is_empty():
+		return true
+	var aq = flag.get("arc_quest")
+	if not (aq is Dictionary) or aq.is_empty():
+		return true
+	return has_completed_flag(flag_id) or is_guidance_dismissed(flag_id)
+
+
+func _story_flag_parent_resolved(flag_id: String, farm) -> bool:
+	if farm == null or not farm.story_flags_fired.has(flag_id):
+		return false
+	return _flag_door_is_resolved(flag_id)
+
 
 func get_quest_by_id(quest_id: int) -> Dictionary:
 	# Get quest data by ID (active quests first, then pending story offers).

@@ -162,6 +162,14 @@ func _run() -> void:
 		_check(str(redirect_verbs.get("Q", "")) == "cancel", "the redirect confirm's Q cancels, never confirms")
 		menu._dismiss_confirm()
 
+	# --- playtest reset: wipe_play_state drops every artifact in user://saves
+	_check(SaveStore.save_exists(0), "slot 0 exists before the wipe")
+	var wiped: int = SaveStore.wipe_play_state()
+	_check(wiped >= 1, "wipe_play_state removes at least the slot we wrote",
+		"removed %d" % wiped)
+	_check(not SaveStore.save_exists(0), "wipe_play_state clears manual slots")
+	_check(not SaveStore.auto_save_exists(0), "wipe_play_state clears the autosave ring")
+
 	_finish()
 
 

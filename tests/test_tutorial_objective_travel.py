@@ -56,6 +56,70 @@ def test_travel_is_derived_from_the_step_biome_not_written_into_prose() -> None:
         "resolve targets through PredicateGloss. A second, coarser travel rule "
         "for them would be the parallel authority UIProgression exists to avoid."
     )
+    assert "tap %s's orb" not in src, (
+        "travel must name the key, not 'tap the orb' — keyboard players "
+        "could not follow that (wave 4 mill-chip class)"
+    )
+    assert "[%s] crosses to %s" in src
+    assert 'return "▸ ESC closes"' in src, (
+        "while a menu is open name ONLY ESC — do not also print [U] "
+        "(wave 7: 'ESC then [U]' still left [U] COMMITMENTS as a second job)"
+    )
+    assert "player_shell" in src, (
+        "menu-open must find PlayerShell via its group — find_child(OverlayManager) "
+        "misses the runtime instance (wave 5 literalist still saw dual-[U])"
+    )
+
+
+def test_superpose_and_bell_name_the_verb_key() -> None:
+    """Wave 5: Superpose named no key. Wave 6: `[E] Superpose` while Ace
+    still labels `[E] Pause` is the dual-key wall.
+
+    Name the hat first (`[0] Druid` / `[9] Operator`). After they wear it,
+    name the verb (`[E]` / `[R]`). Authored tutorial_hint stays English.
+    """
+    src = PROGRESSION.read_text(encoding="utf-8")
+    assert "func _verb_line(" in src, (
+        "after travel, the banner must name Superpose/Bell"
+    )
+    body = src.split("static func _verb_line(")[1].split("\nstatic func ")[0]
+    assert "tutorial_step" in body
+    assert 'step != 3' in body and 'step != 4' in body
+    assert "get_current_frame" in body, (
+        "must read the worn hat — naming [E] on Ace collides with Pause"
+    )
+    assert "HAT_KEY_TO_FRAME" in body
+    assert "[%s] %s" in body
+    hints = {int(s["tutorial_step"]): s.get("tutorial_hint", "") for s in steps()}
+    assert hints[3] == "Superpose a forest plot."
+    assert "E" not in hints[3] and "[0]" not in hints[3]
+    assert hints[4] == "Weave two plots into one Bell pair."
+    assert "[R]" not in hints[4]
+
+
+def test_e_chip_prefers_superpose_over_pause_on_the_live_door() -> None:
+    """E always pauses on Ace. The chip does not need the word Pause when
+    Superpose is the better term for what that key currently does."""
+    ace = (ROOT / "Core/UI/AceChipResolvers.gd").read_text(encoding="utf-8")
+    assert "func resolve_e" in ace
+    assert "Superpose" in ace
+    druid = (ROOT / "Core/GameState/ToolConfig.gd").read_text(encoding="utf-8")
+    assert '"label": "Superpose"' in druid
+    assert '"label": "H-Gate"' not in druid
+
+
+def test_gate_empty_chip_names_how_to_check_two_plots() -> None:
+    """Wave 6: Gate UI Q said 'Select 2+ qubits' but Q is disabled.
+    The mark is Shift-click / Shift+G H. Name that, not a fake Q verb.
+    """
+    gate = (ROOT / "UI/Core/Submenus/GateSelectionSubmenu.gd").read_text(
+        encoding="utf-8"
+    )
+    assert "Select 2+ qubits" not in gate, (
+        "Q must not look like the select verb"
+    )
+    assert "Shift+G H" in gate
+    assert "Shift-click" in gate
 
 
 def test_no_hint_hardcodes_a_journey() -> None:

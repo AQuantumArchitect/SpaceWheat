@@ -30,6 +30,34 @@ setlocal
 cd /d "%~dp0"
 start "" "%~dp0SpaceWheat.exe"
 EOF
+
+  # Playtest reset: Godot keeps user:// under AppData, NOT next to the exe.
+  # Wiping only this folder left tutorial_seen / hats / the gold banner alive.
+  cat > "$target_root/reset.bat" <<'EOF'
+@echo off
+setlocal
+title SpaceWheat - reset play state
+echo.
+echo  This wipes saves, autosaves, and the tutorial flag so the next
+echo  launch is a fresh Demos (welcome + locked chrome).
+echo  Settings and logs stay.
+echo.
+set USERDIR=%APPDATA%\Godot\app_userdata\SpaceWheat - Quantum Farm
+echo  user:// = %USERDIR%
+echo.
+taskkill /IM SpaceWheat.exe /F >nul 2>&1
+if exist "%USERDIR%\saves" (
+  rmdir /s /q "%USERDIR%\saves"
+  echo  wiped saves\
+)
+if exist "%USERDIR%\fractal_atlas.json" del /f /q "%USERDIR%\fractal_atlas.json"
+if exist "%USERDIR%\operator_cache" rmdir /s /q "%USERDIR%\operator_cache"
+if not exist "%USERDIR%\saves" mkdir "%USERDIR%\saves"
+echo.
+echo  Reset complete. Run launch.bat for a new game.
+echo.
+pause
+EOF
 }
 
 sw_windows_copy_file_via_windows() {

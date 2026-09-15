@@ -21,6 +21,8 @@ extends RefCounted
 ## DIFFERENT refusals, which is exactly the silence this class exists to end.
 ## (PlayerShell.show_hint additionally folds identical live toasts into ×N.)
 
+const UIProgression = preload("res://UI/Core/UIProgression.gd")
+
 const PER_MESSAGE_COOLDOWN_MS := 1500
 
 static var _last_ms_by_text: Dictionary = {}
@@ -44,7 +46,13 @@ static func _speak(text: String) -> void:
 		_last_ms_by_text.clear()  # bounded memory; a rare double-toast beats a leak
 	var shell := _shell()
 	if shell != null and shell.has_method("show_hint"):
-		shell.show_hint(text, 2)
+		# Dead-key notes ("nothing on R here") must not sit on the banner
+		# during the 1D lane. refuse() still speaks — a blocked action is news.
+		var imp := 2
+		if text.begins_with("• ") \
+				and UIProgression.current_tutorial_step() != UIProgression.NO_TUTORIAL_SENTINEL:
+			imp = 1
+		shell.show_hint(text, imp)
 
 
 static func _shell() -> Node:

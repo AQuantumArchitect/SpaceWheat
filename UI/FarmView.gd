@@ -151,6 +151,14 @@ func _connect_visualization_ui_signals() -> void:
 				var selected = plot_grid_display.get_selected_plots()
 				for pos in selected:
 					renderer.selected_plot_positions[pos] = true
+		# The live multi-select authority is QII.plot_checked (Shift-tap / Shift+GHJKL; / ').
+		# The 2D rack's plot_selection_changed never fired on that path, so the 3D field
+		# had no cyan checkmarks even while the batch verbs ran.
+		var instrument_input_early = farm_ui.instrument_input if farm_ui and ("instrument_input" in farm_ui) else null
+		if instrument_input_early and instrument_input_early.has_signal("plot_checked") \
+				and renderer.has_method("_on_plot_selection_changed"):
+			if not instrument_input_early.plot_checked.is_connected(renderer._on_plot_selection_changed):
+				instrument_input_early.plot_checked.connect(renderer._on_plot_selection_changed)
 
 		# Focused-plot channel: QII.selection_changed is the shared tail of BOTH keyboard
 		# picks (_focus_plot) and taps (handle_bubble_tap) — one connection gives the

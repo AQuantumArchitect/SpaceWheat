@@ -56,7 +56,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		capture()
 
 
-func capture() -> void:
+func capture(toast_override: String = "") -> void:
 	# Show the watermark, let one frame draw so it lands in the pixels,
 	# grab the viewport, hide the strip, write image + certificate.
 	if _busy:
@@ -82,7 +82,12 @@ func capture() -> void:
 	# and F12 is advertised in three player-facing places, so this toast is the
 	# headline feature's only pointer to its own output. Globalize it so the
 	# player can actually open the folder.
-	_toast("📮 postcard: %s.png" % ProjectSettings.globalize_path(base))
+	# One toast. Auto-act capture used to also fire a second "Act N complete"
+	# card from RuntimeMount — same beat, two gold 📮.
+	if toast_override != "":
+		_toast(toast_override)
+	else:
+		_toast("📮 postcard: %s.png" % ProjectSettings.globalize_path(base))
 
 
 func _watermark_line(cert: Dictionary) -> String:

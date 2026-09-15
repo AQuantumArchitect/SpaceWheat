@@ -187,6 +187,14 @@ func show_hint(bbcode_text: String, importance: int = 1, path: String = "", rout
 		return
 	if not _hint_toast_stack or not is_inside_tree():
 		return
+	var home_key := str(route).strip_edges()
+	if home_key == "":
+		home_key = str(path).strip_edges()
+	# Never gold-toast "go here" when the player is already here. Accepting
+	# the Wheel on Arc used to mint a second mill-teaching card that said
+	# waiting on the Arc.
+	if home_key != "" and _home_already_open(home_key):
+		return
 	# Dedupe: the same message re-fired while its toast is live folds into a
 	# ×N tally instead of stacking (unthrottled producers burst under load).
 	var top := _topmost_toast()
@@ -203,7 +211,51 @@ func show_hint(bbcode_text: String, importance: int = 1, path: String = "", rout
 		victim.queue_free()
 	var toast := HintToast.new()
 	_hint_toast_stack.add_child(toast)
-	toast.show_text(bbcode_text, importance, path, _route_to_callable(route), detail)
+	toast.home_key = home_key
+	var home := _route_to_callable(home_key)
+	var scoot := Callable()
+	if home_key != "" and home_key != "cancel_confirm" \
+			and overlay_manager != null and overlay_manager.has_method("scoot_toward"):
+		scoot = Callable(overlay_manager, "scoot_toward")
+	var home_name := _home_name_for(home_key)
+	# Notifications never carry menu copy. The tap opens the home; detail is
+	# ignored even if a caller still passes one.
+	toast.show_text(bbcode_text, importance, path, home, "", scoot, home_name)
+	_sync_toast_stack_mouse()
+	_raise_notification_column()
+
+
+## Live toasts own their column: STOP so gaps between cards absorb taps
+## instead of falling through to the menu behind. Empty stack stays IGNORE.
+func _sync_toast_stack_mouse() -> void:
+	if _hint_toast_stack == null or not is_instance_valid(_hint_toast_stack):
+		return
+	var live := false
+	for c in _hint_toast_stack.get_children():
+		if is_instance_valid(c) and not c.is_queued_for_deletion():
+			live = true
+			break
+	_hint_toast_stack.mouse_filter = (
+		Control.MOUSE_FILTER_STOP if live else Control.MOUSE_FILTER_IGNORE
+	)
+
+
+## GUI picking is tree order, not z_index. Keep the toast column (and the
+## banner under it) as the last OverlayLayer children so they beat any
+## full-rect menu behind them.
+func raise_notification_column() -> void:
+	_raise_notification_column()
+
+
+func _raise_notification_column() -> void:
+	var layer := get_node_or_null("OverlayLayer")
+	if layer == null:
+		return
+	var banner := layer.get_node_or_null("ActFilament")
+	if banner != null:
+		layer.move_child(banner, layer.get_child_count() - 1)
+	if _hint_toast_stack != null and _hint_toast_stack.get_parent() == layer:
+		layer.move_child(_hint_toast_stack, layer.get_child_count() - 1)
 
 
 ## Resolve a route id (a plain string — Core's PlayerEventLog must never hold
@@ -214,6 +266,13 @@ func show_hint(bbcode_text: String, importance: int = 1, path: String = "", rout
 func _route_to_callable(route: String) -> Callable:
 	if route == "":
 		return Callable()
+	if route == "cancel_confirm":
+		if instrument_input != null and instrument_input.has_method("cancel_pending_confirm"):
+			return Callable(instrument_input, "cancel_pending_confirm")
+		return Callable()
+	if overlay_manager != null and overlay_manager.has_method("open_event_home"):
+		return Callable(overlay_manager, "open_event_home").bind(route)
+	# Fallback for partial boots / tests that stub only the named doors.
 	if route == "arc":
 		if overlay_manager != null and overlay_manager.has_method("open_controls_on_arc"):
 			return Callable(overlay_manager, "open_controls_on_arc")
@@ -230,11 +289,63 @@ func _route_to_callable(route: String) -> Callable:
 				qid = int(parts[1])
 			return Callable(overlay_manager, "open_board_on_commitments").bind(qid, "active")
 		return Callable()
-	if route == "cancel_confirm":
-		if instrument_input != null and instrument_input.has_method("cancel_pending_confirm"):
-			return Callable(instrument_input, "cancel_pending_confirm")
-		return Callable()
 	return Callable()
+
+
+static func _home_name_for(key: String) -> String:
+	var ku := str(key).strip_edges().to_upper()
+	if ku.begins_with("COMMITMENTS") or ku == "Q" or ku == "C" or ku == "QUESTS" or ku == "BOARD":
+		return "the board"
+	if ku == "V" or ku == "ATLAS":
+		return "the Atlas"
+	if ku == "STORY" or ku == "XY" or ku == "Y":
+		return "Story"
+	if ku == "SELF" or ku == "XT":
+		return "Self"
+	if ku == "GUIDE" or ku == "XO" or ku == "O":
+		return "the Guide"
+	if ku == "N" or ku == "INSPECTOR":
+		return "the network"
+	if ku == "M" or ku == "MAP":
+		return "the map"
+	if ku == "B" or ku == "BIOME":
+		return "the inspector"
+	return "the Arc"
+
+
+func flatten_toasts_for_home(key: String) -> void:
+	if _hint_toast_stack == null:
+		return
+	var want := _normalize_home_key(key)
+	if want == "":
+		return
+	for child in _hint_toast_stack.get_children():
+		if not (child is HintToast):
+			continue
+		var toast := child as HintToast
+		if _normalize_home_key(toast.home_key) == want:
+			toast.flatten()
+
+
+func _home_already_open(key: String) -> bool:
+	if overlay_manager != null and overlay_manager.has_method("is_event_home_open"):
+		return bool(overlay_manager.is_event_home_open(key))
+	return false
+
+
+static func _normalize_home_key(key: String) -> String:
+	var k := str(key).strip_edges().to_lower()
+	if k.begins_with("commitments") or k in ["q", "c", "quests", "board"]:
+		return "board"
+	if k in ["arc", "xi", "i"]:
+		return "arc"
+	if k in ["story", "xy", "y"]:
+		return "story"
+	if k in ["self", "xt", "t"]:
+		return "self"
+	if k in ["guide", "xo", "o"]:
+		return "guide"
+	return k
 
 
 ## Overflow policy, one static home (smoke-testable without a shell): the
@@ -631,6 +742,7 @@ func _ready() -> void:
 
 	# Create overlay manager and add to overlay layer
 	overlay_manager = OverlayManager.new()
+	overlay_manager.name = "OverlayManager"
 	overlay_layer.add_child(overlay_manager)
 
 	# Setup overlay manager with proper dependencies
@@ -679,8 +791,10 @@ func _ready() -> void:
 	# MAX_LIVE_TOASTS multi-line toasts now that gold ones persist until
 	# dismissed (the old 140px band overflowed at four); ALIGNMENT_END keeps
 	# the resting look bottom-anchored and unchanged.
-	# The container stays MOUSE_FILTER_IGNORE — each toast PANEL is the click
-	# target, so empty band space never eats clicks meant for the field.
+	# The stack is IGNORE while empty so the field stays clickable. The
+	# moment a toast is live it becomes STOP — Godot GUI picking ignores
+	# z_index, and a full-rect overlay behind this column was winning taps
+	# through the gaps / the 440px empty band. Content-sized, grows up.
 	_hint_toast_stack = VBoxContainer.new()
 	_hint_toast_stack.name = "HintToastStack"
 	_hint_toast_stack.alignment = BoxContainer.ALIGNMENT_END
@@ -688,6 +802,7 @@ func _ready() -> void:
 	_hint_toast_stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_hint_toast_stack.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	_hint_toast_stack.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_hint_toast_stack.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	# Mirrors RuntimeMount's ActFilament placement exactly (same formula, two
 	# call sites — RuntimeMount doesn't exist yet when PlayerShell._ready
 	# runs, so this can't just read the banner's rect) so the stack's bottom
@@ -701,10 +816,15 @@ func _ready() -> void:
 	_hint_toast_stack.offset_right = -20
 	_hint_toast_stack.offset_left = -20 - ActFilament.BANNER_WIDTH
 	_hint_toast_stack.offset_bottom = act_filament_top - 16.0
-	_hint_toast_stack.offset_top = _hint_toast_stack.offset_bottom - 440
-	# Above every overlay tier (OverlayStackManager tops out at Z_TIER_SYSTEM 18 + stack size)
-	_hint_toast_stack.z_index = 100
+	# Absolute z: OverlayLayer is 30, QERF chips sit at global 60, menus at
+	# ~41–48. Relative z=100 used to DRAW on top and still LOSE the pick to
+	# a later full-rect overlay. Global 140 + last-child raise is both.
+	_hint_toast_stack.z_as_relative = false
+	_hint_toast_stack.z_index = 140
 	overlay_layer.add_child(_hint_toast_stack)
+	_hint_toast_stack.child_entered_tree.connect(func(_n): _sync_toast_stack_mouse())
+	_hint_toast_stack.child_exiting_tree.connect(func(_n): call_deferred("_sync_toast_stack_mouse"))
+	_raise_notification_column()
 
 	# Decorative viewport frame + vignette (dressing pass) — child of the shell
 	# itself with absolute z 55; IGNORE, so tree-order picking is moot.
@@ -868,6 +988,35 @@ func clear_farm_ui() -> void:
 			node.queue_free()
 	snapshot_service = null
 	quantum_instrument = null
+	_reset_session_chrome()
+
+
+## Session-scoped HUD that RuntimeMount re-creates each boot. Without this,
+## a restart stacked a second ContractChip / ActFilament on the old ones
+## (Godot renamed them ContractChip2) — the rainbow of emojis and the gold
+## banner kept showing the previous run after reset.bat / full reset.
+func _reset_session_chrome() -> void:
+	if _hint_toast_stack:
+		for child in _hint_toast_stack.get_children():
+			child.queue_free()
+	var overlay_layer := get_node_or_null("OverlayLayer")
+	if overlay_layer:
+		for child_name in ["ContractChip", "ActFilament", "FloatingRewardLayer"]:
+			var node = overlay_layer.get_node_or_null(child_name)
+			if node and is_instance_valid(node):
+				node.queue_free()
+		# Duplicates from a prior missed teardown (ContractChip2, …).
+		for child in overlay_layer.get_children():
+			var n := str(child.name)
+			if n.begins_with("ContractChip") or n.begins_with("ActFilament") \
+					or n.begins_with("FloatingRewardLayer"):
+				child.queue_free()
+	var spotlight := get_node_or_null("ObjectiveSpotlight")
+	if spotlight and is_instance_valid(spotlight):
+		spotlight.queue_free()
+	if overlay_manager and overlay_manager.has_method("reset"):
+		overlay_manager.reset()
+	_refresh_ui_progression()
 
 
 func load_farm_ui(farm_ui: Control) -> void:

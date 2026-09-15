@@ -52,7 +52,7 @@ class FakeFarm extends RefCounted:
 	func get_market_lattice():
 		return lattice
 
-	func apply_standing_deltas(_faction_name: String, _deltas: Dictionary) -> void:
+	func apply_standing_deltas(_faction_name: String, _deltas: Dictionary, _announce: bool = true) -> void:
 		pass
 
 

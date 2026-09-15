@@ -480,6 +480,7 @@ class RigClient:
                 stderr=subprocess.STDOUT,
                 text=True,
                 env=env,
+                start_new_session=True,
             )
         if log_handle is not None:
             log_handle.close()

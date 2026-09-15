@@ -58,8 +58,13 @@ def test_commitment_filter_excludes_auto_advancing_tutorials_at_source():
     m = re.search(r"func commitment_quests\(\).*?return out", src, re.S)
     assert m, "QuestManager.commitment_quests() missing"
     assert "_tutorial_auto_advances" in m.group(0), (
-        "commitment_quests() must exclude via the ONE auto-advance rule "
+        "commitment_quests() must exclude auto-claiming verb lessons "
         "(_tutorial_auto_advances), not a drift-prone re-implementation"
+    )
+    assert "func tutorial_auto_accepts" in src
+    offer = src.split("func offer_tutorial_quest")[1].split("func _tutorial_auto_accepts")[0]
+    assert "_tutorial_auto_accepts" in offer, (
+        "the lane auto-accepts every tutorial step, mill included"
     )
 
 
@@ -76,6 +81,17 @@ def test_first_harvest_dedupe_and_handover_repredication():
                if p.get("type") == "story_flag_set"}
     assert {"loom_opens", "first_harvest"} <= prereqs, (
         f"arc_handover must gate on Act 0's real completion, got {prereqs}"
+    )
+    mill_prereqs = {p.get("id") for p in flags["village_stirs"]["predicates"]
+                    if p.get("type") == "story_flag_set"}
+    assert "arc_handover" in mill_prereqs, (
+        "village_stirs must wait on the Wheel handshake — otherwise mill, "
+        "plant, and Woodlot cascade on the same reap"
+    )
+    wheel_preds = flags["arc_handover"].get("arc_quest", {}).get("state_predicates") or []
+    assert wheel_preds == [], (
+        "Wheel is a handshake — Accept on Arc is the beat. The old reap×1 "
+        "predicate asked for the same ledger count first_harvest had just spent."
     )
 
 

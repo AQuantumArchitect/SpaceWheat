@@ -227,6 +227,8 @@ func _attach_state_to_fresh_farm(state: GameState) -> void:
 		_gsm.active_farm.set_incorporated_icons(state.incorporated_icons)
 	if _gsm.active_farm and "active_icon_slots" in _gsm.active_farm and state.active_icon_slots is Array:
 		_gsm.active_farm.active_icon_slots = (state.active_icon_slots as Array).duplicate()
+		if _gsm.active_farm.has_method("normalize_active_icon_slots"):
+			_gsm.active_farm.normalize_active_icon_slots()
 	# This lane builds a NEW Farm without rebuilding the view, so every UI holder is
 	# still pointing at the farm the player just left. Re-point them here — at the one
 	# place that swaps the farm — or the 3D field renders the old world forever (#519).

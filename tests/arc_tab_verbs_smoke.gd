@@ -25,6 +25,7 @@ class ArcQMStub:
 			"act": 0,
 			"campaign": "demos",
 			"predicates": [{"type": "gate_sequence_contains", "gate": "reap", "count": 1}],
+			"arc_quest": {"body": "a door", "hint": "open it"},
 		}]
 
 	func evaluate_predicate_score(_p) -> float:
@@ -86,9 +87,9 @@ func _run() -> void:
 	overlay._show_tab(ControlsOverlay.Tab.ARC)
 	await process_frame
 
-	# Row 0 = the offer (offers sort first), row 1 = the unfired flag.
+	# Catalog is live + open offers. Unfired flags are not rows.
 	var rows: Array = overlay._arc_rows()
-	_check(rows.size() == 2, "stub yields one offer row and one flag row")
+	_check(rows.size() == 1, "stub yields the open offer only")
 	_check(str(rows[0].get("kind", "")) == "arc_quest", "offer row leads the list")
 	_check(overlay._arc_selected_idx == 0, "row 0 is the default selection")
 	_check(str(overlay.get_action_info("R").get("label", "")) == "Accept",
@@ -96,42 +97,16 @@ func _run() -> void:
 	_check(str(overlay.get_action_info("Q").get("label", "")) == "Dismiss",
 		"offer row declares Q = Dismiss")
 
-	# Selecting the flag row blanks Q/R (push_action_infos normalizes missing
-	# keys to the "—" chip; OverlayBase then no-ops them and speaks the
-	# refusal on both input paths — no silent dead key).
-	overlay._select_arc_row(1)
-	await process_frame
-	_check(str(overlay.get_action_info("R").get("label", "")) == "—",
-		"flag row blanks R to the dash chip")
-	_check(str(overlay.get_action_info("Q").get("label", "")) == "—",
-		"flag row blanks Q to the dash chip")
-	_check(str(overlay.get_action_info("E").get("label", "")) == "More",
-		"E stays declared on flag rows as More")
-	_check(not overlay._action_key_declared_live("R"), "R is gated off flag rows")
-
-	# Re-selecting the selected row must not crash and must not be a silent
-	# no-op path (the flash tween is the feedback; here we just pin no-crash
-	# and that selection holds).
-	overlay._select_arc_row(1)
-	await process_frame
-	_check(overlay._arc_selected_idx == 1, "same-row re-select keeps the selection")
-
-	# Accept on a flag row refuses without touching quest state.
-	overlay._accept_selected_arc()
-	_check(qm.accepted.is_empty(), "accept on a story-flag row leaves quest state untouched")
-
-	# Back on the offer row, accept goes through.
 	overlay._select_arc_row(0)
 	await process_frame
 	_check(str(overlay.get_action_info("R").get("label", "")) == "Accept",
-		"re-declaration follows the selection back to the offer row")
+		"re-declaration follows the selection on the offer row")
 	overlay._accept_selected_arc()
 	_check(qm.accepted.size() == 1, "accept on the offer row commits it")
 
-	# --- 2.4: second-click-fires grammar (QuestBoard parity) ----------------
-	# Fresh overlay: row 0 (the offer) is default-selected and UNARMED — the
-	# very first click must flash+arm, never fire (QuestBoard._row_confirm_
-	# armed rationale); the second click accepts; flag rows never fire.
+	# --- 2.4: tap inspects, next tap shunts, R accepts (never accept on tap)
+	# Fresh overlay: row 0 (the unsigned offer) is default-selected. First
+	# tap unfolds inspect; second tap still does not accept (sign-on is R).
 	overlay.queue_free()
 	await process_frame
 	qm.accepted.clear()
@@ -140,24 +115,55 @@ func _run() -> void:
 	await process_frame
 	overlay._show_tab(ControlsOverlay.Tab.ARC)
 	await process_frame
-	_check(overlay._arc_row_confirm_armed == false, "fresh Arc tab is UNARMED")
+	_check(overlay._arc_inspect_open == false, "fresh Arc tab is not already inspecting")
 	overlay._select_arc_row(0)
 	await process_frame
 	_check(qm.accepted.is_empty(), "first click on the default row does NOT accept")
-	_check(overlay._arc_row_confirm_armed, "first click flashes and arms")
+	_check(overlay._arc_inspect_open, "first click unfolds inspect in the menu")
+	_check(overlay._arc_shunt_kind(overlay._arc_rows()[0]) == "",
+		"unsigned offer has no puzzle shunt — sign-on is R")
 	overlay._select_arc_row(0)
 	await process_frame
-	_check(qm.accepted.size() == 1, "second click on the armed offer row accepts")
-	_check(overlay._arc_row_confirm_armed == false, "the fired confirm disarms")
+	_check(qm.accepted.is_empty(), "second click still does NOT accept")
+	_check(overlay._arc_inspect_open, "unsigned offer stays inspected; R is the door")
+	overlay._accept_selected_arc()
+	_check(qm.accepted.size() == 1, "Accept [R] is the only door that commits")
 
+	# --- 2.5: live tutorial shunts to the puzzle, never accepts ------------
+	qm.story_offers.clear()
+	qm.active_quests = {21: {
+		"id": 21, "category": "TUTORIAL", "tutorial_teaches": "contracts",
+		"status": "active", "resource": "🌾", "quantity": 2, "body": "mill",
+	}}
+	overlay._show_tab(ControlsOverlay.Tab.ARC)
+	await process_frame
+	var mill_rows: Array = overlay._arc_rows()
+	_check(str(mill_rows[0].get("kind", "")) == "live_tutorial",
+		"mill is the live Arc row")
+	_check(overlay._arc_shunt_kind(mill_rows[0]) == "commitments",
+		"mill row shunts to Commitments")
 	qm.accepted.clear()
-	overlay._select_arc_row(1)
-	await process_frame
-	overlay._select_arc_row(1)
-	await process_frame
-	_check(qm.accepted.is_empty(), "flag-row double-click never accepts")
-	_check(overlay._arc_selected_idx == 1, "flag-row selection holds through the flash")
+	overlay._arc_selected_idx = 0
+	overlay._arc_inspect_open = true
+	overlay._tunnel_from_arc()
+	_check(qm.accepted.is_empty(), "mill shunt does not accept")
 
+	qm.active_quests = {22: {
+		"id": 22, "category": "TUTORIAL", "tutorial_teaches": "core_loop",
+		"status": "active", "body": "strike",
+		"state_predicates": [{"type": "gate_sequence_contains", "gate": "measure", "count": 1}],
+	}}
+	overlay._show_tab(ControlsOverlay.Tab.ARC)
+	await process_frame
+	var strike_rows: Array = overlay._arc_rows()
+	_check(overlay._arc_shunt_kind(strike_rows[0]) == "field",
+		"strike row shunts to the field")
+
+	qm.story_offers = {3: {"id": 3, "category": "ARC", "faction": "Hearth Keepers",
+		"body": "an offer", "state_predicates": []}}
+	qm.active_quests = {}
+	overlay._show_tab(ControlsOverlay.Tab.ARC)
+	await process_frame
 	overlay._select_arc_row(0)
 	await process_frame
 	_check(overlay._arc_row_confirm_armed, "re-selection arms before the tab change")
@@ -170,10 +176,8 @@ func _run() -> void:
 	# --- 2.4: live footer tracks the selected row's kind --------------------
 	_check(overlay._body_box.find_child("ArcFooterAccept", true, false) != null,
 		"offer row renders the tappable [R] Accept footer label")
-	overlay._select_arc_row(1)
-	await process_frame
-	_check(overlay._body_box.find_child("ArcFooterAccept", true, false) == null,
-		"flag row renders no Accept footer label")
+	_check(overlay._arc_rows().size() == 1,
+		"unfired flags are not catalog rows")
 
 	# --- ready-to-claim toast law (PlayerEventBridge) ---
 	var bridge = root.get_node_or_null("/root/PlayerEventBridge")

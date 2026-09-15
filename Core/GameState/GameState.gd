@@ -98,10 +98,11 @@ const CURRENT_SAVE_VERSION := 7
 ## completed yet (fresh game, or any pre-v7 save with nothing to migrate).
 @export var incorporated_icons: Array = []
 
-## Active icon slots — 3 indices into known_icons. The player faction's active
-## expression voice. Defaults to [0,1,2]; clamped to known_icons size on load.
-## Tunable via Z surface Self tab icon picker.
-@export var active_icon_slots: Array = [0, 1, 2]
+## Active icon slots — one index into known_icons per identity-biome qubit
+## (cap 6). -1 = empty qubit. Defaults to [0] (the starter pair); Farm
+## normalize_active_icon_slots() grows this to the home biome's qubit count
+## and refuses to clone the same pair across unused qubits.
+@export var active_icon_slots: Array = [0]
 
 ## DERIVED: known_emojis is computed from known_icons.
 ## Live code should not write this field directly. Use get_known_emojis() for reads.

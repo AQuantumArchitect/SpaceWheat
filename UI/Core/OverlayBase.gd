@@ -359,6 +359,7 @@ func _on_action_e() -> void:
 ## Inspect text for the currently-focused item. Override per overlay to return
 ## a string the player can read on E-press. Default returns "". When non-empty,
 ## OverlayBase routes it to PlayerShell.show_hint() as a teal toast on every E.
+## Return "" and unfold in-menu when the overlay IS the room (Arc inspect).
 ##
 ## Convention: keep it short (one item's worth of detail). Use \n between lines.
 ## Empty string means "no inspect content here" — E continues to do its normal

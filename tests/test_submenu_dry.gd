@@ -184,7 +184,7 @@ func test_gate_selection_empty():
 	# 1 qubit
 	var single = GateSelectionSubmenu.generate_submenu(null, null, [Vector2i(0, 0)], 0)
 	assert_true(single.get("_disabled", false), "1 qubit: disabled")
-	assert_eq(single["actions"]["Q"]["label"], "Select 2+ qubits", "1 qubit: shows message")
+	assert_eq(single["actions"]["Q"]["label"], "Shift-click two plots (or Shift+G H)", "1 qubit: names the check, not a fake Q verb")
 
 
 func test_sorting():

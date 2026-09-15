@@ -110,6 +110,21 @@ func set_layout_manager(mgr) -> void:
 # PRIVATE METHODS
 # ============================================================================
 
+func get_button_pulse_target(action_key: String) -> Control:
+	# ObjectiveSpotlight / Arc accept-hint: pulse the literal R (or Q/E/F)
+	# chip, same contract MenuSelectionRow already offers for X/C.
+	if not action_buttons.has(action_key):
+		return null
+	var btn = action_buttons[action_key]
+	if btn.get("disabled", false):
+		return null
+	var label = btn.get("label", null)
+	if label != null and is_instance_valid(label):
+		return label
+	var container = btn.get("container", null)
+	return container if (container != null and is_instance_valid(container)) else null
+
+
 func get_snapshot() -> Dictionary:
 	# Return structured snapshot of current action button state.
 	var actions: Dictionary = {}
@@ -280,9 +295,10 @@ func _apply_button_projection(action_key: String, action_info: Dictionary) -> vo
 	# Producer-computed consequence annotation (IconInjectionSubmenu's
 	# "+2 new atoms · gap 0.61→0.54 ▼" etc.) — this is the only place it's
 	# ever rendered; the projection carries it through but no widget read it.
-	var hint_suffix := str(action_info.get("hint", "")).strip_edges().trim_prefix("· ").strip_edges()
-	if hint_suffix != "":
-		hint_suffix = " · %s" % hint_suffix
+	# Chips are verbs. Hint/surprisal essays belong on inspect and Guide —
+	# the first moment after Act 0 used to dump "Cash out — pull the realized
+	# reward off a collapsed…" over the Q chip while the Wheel was the ask.
+	var hint_suffix := ""
 	var is_disabled = bool(action_info.get("disabled", false))
 	var is_available = bool(action_info.get("available", false))
 	var has_icon = false

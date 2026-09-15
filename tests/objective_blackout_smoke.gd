@@ -9,8 +9,8 @@ extends "res://tests/smoke_test_base.gd"
 ## permanently dark for acts 4-8. This smoke drives the static authority with
 ## a stub shell in the player_shell group:
 ##   1. an ACTIVE act-5 arc quest → text non-empty; "C" once ready.
-##   2. only a pending offer      → OFFER_LINE + key "X" (banner says
-##      "X then I"; the spotlight must pulse the same key, not go dark).
+##   2. only a pending offer      → empty (offers live on the Arc; the
+##      banner does not help-accept before the door is taken).
 ##   3. no quest, no offer        → "" (the EARNED endgame quiet, not an
 ##      act cutoff).
 ##
@@ -59,15 +59,15 @@ func _run() -> void:
 	_check(UIProgression.objective_target_key() == "C", "ready arc quest targets C",
 			"got: %s" % UIProgression.objective_target_key())
 
-	# --- 2. Offer-only late game: banner + spotlight must agree on X. --------
+	# --- 2. Offer-only: banner stays dark. The Arc is the door. -------------
 	qm.active_quests = {}
 	qm.story_offers = {9: {
 		"id": 9, "category": "ARC", "status": Quest.STATUS_STORY,
 		"source_flag": "the_crossing",
 	}}
-	_check(UIProgression.objective_text() == UIProgression.OFFER_LINE,
-			"offer-only text is the OFFER_LINE", "got: %s" % UIProgression.objective_text())
-	_check(UIProgression.objective_target_key() == "X", "offer-only target is X",
+	_check(UIProgression.objective_text() == "",
+			"offer-only banner is empty (Arc holds the door)", "got: %s" % UIProgression.objective_text())
+	_check(UIProgression.objective_target_key() == "", "offer-only spotlight is dark",
 			"got: %s" % UIProgression.objective_target_key())
 
 	# --- 3. Nothing at all → the earned quiet. -------------------------------

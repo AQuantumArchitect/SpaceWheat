@@ -127,7 +127,7 @@ func capture_state_from_farm(farm: Node, current_state: GameState, scenario_id: 
 		state.incorporated_icons = _resolve_incorporated_icons_for_capture(farm)
 		_log("debug", "save", "🧬", "Captured incorporation ledger: %d icon(s)" % state.incorporated_icons.size())
 
-	# Active icon slots (3 indices into known_icons — player's expression voice).
+	# Active icon slots (identity-biome qubits, cap 6).
 	if farm and "active_icon_slots" in farm:
 		state.active_icon_slots = (farm.active_icon_slots as Array).duplicate()
 
@@ -429,18 +429,19 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 			" (migrated from FX_* biome_states)" if state.save_version <= 6 else ""
 		])
 
-	# Restore active icon slots (3 indices into known_icons).
+	# Restore active icon slots (one per identity-biome qubit, cap 6).
+	# Old saves stored exactly 3 clones of the starter pair — Farm.normalize
+	# collapses those into unique assignments + empty qubits.
 	if farm and "active_icon_slots" in farm:
 		var slots: Array = []
 		if "active_icon_slots" in state and state.active_icon_slots is Array:
 			for s in state.active_icon_slots:
 				slots.append(int(s))
-		if slots.size() != 3:
-			slots = [0, 1, 2]
-		var max_idx: int = max(0, farm.known_icons.size() - 1)
-		for i in range(slots.size()):
-			slots[i] = clampi(slots[i], 0, max_idx)
+		if slots.is_empty():
+			slots = [0]
 		farm.active_icon_slots = slots
+		if farm.has_method("normalize_active_icon_slots"):
+			farm.normalize_active_icon_slots()
 
 	# Restore biome unlock/exploration progression before grid refresh so layout sync is correct.
 	_restore_biome_progression_state(state)

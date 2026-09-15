@@ -99,9 +99,17 @@ def test_no_surface_still_promises_that_gathering_is_free() -> None:
     )
 
 
-def test_the_welcome_card_points_at_the_banner_that_exists() -> None:
-    # The banner moved twice on 2026-08-25; the card that tells a brand-new
-    # player where to look is the one place a stale corner name is fatal.
+def test_the_welcome_card_is_identity_not_a_second_door() -> None:
+    # Welcome is who you are. The 1D lane auto-accepts onto the banner after
+    # dismiss; pointing at Arc here was a second helper. Optional offers wait
+    # on Arc for a deliberate Accept [R].
     welcome = read_source("UI/Overlays/WelcomeOverlay.gd")
-    assert "gold banner (bottom-right)" in welcome
-    assert "top-right" not in welcome
+    intro = read_source("Core/Story/IntroVoice.gd")
+    footer = intro.split("static func welcome_footer")[1].split("static func ")[0]
+    assert "Tap anywhere" in footer
+    assert "Arc" not in footer
+    assert "gold banner" not in footer
+    assert "IntroVoice.welcome_footer()" in welcome
+    for blob in (welcome, footer):
+        assert "top-right" not in blob
+        assert "bottom-right" not in blob

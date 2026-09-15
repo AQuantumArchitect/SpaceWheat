@@ -102,29 +102,16 @@ def test_title_menu_restart_path_reaches_arc_handover(rig_boot) -> None:
     press("F", frames=8)   # explore
     press("R", frames=10)  # strike
     press("Q", frames=8)   # extract
-    # 1 contracts — accept on the Arc tab, deliver 2×🌾 in Commitments.
-    #   demos_normal boots with 21×🌾, so the granary already covers it
-    #   (and the hint now says so honestly — live stores count).
-    #   Find the contracts row by its tutorial_teaches tag instead of
-    #   assuming row 0 (GHJKL; ordinal matches ControlsOverlay._arc_rows(),
-    #   which walks get_story_offers() in the same order the rig returns).
-    press("X", frames=6)
-    press("I", frames=6)
-    row_keys = "GHJKL;"
+    # 1 contracts — auto-accepted with the lane. Deliver 2×🌾 on Commitments.
+    #   demos_normal boots with 21×🌾, so the granary already covers it.
     deadline = time.time() + 15.0
-    contracts_idx = None
-    while time.time() < deadline and contracts_idx is None:
-        offers = step("story_offers").get("story_offers", []) or []
-        for i, o in enumerate(offers):
-            if o.get("tutorial_teaches") == "contracts":
-                contracts_idx = i
-                break
-        if contracts_idx is None:
+    contracts_live = False
+    while time.time() < deadline and not contracts_live:
+        actives = step("active_quests", full=True).get("quests", []) or []
+        contracts_live = any(o.get("tutorial_teaches") == "contracts" for o in actives)
+        if not contracts_live:
             time.sleep(0.25)
-    assert contracts_idx is not None, "contracts step never offered after core_loop"
-    press(row_keys[contracts_idx], frames=6)  # the contracts offer's row
-    press("R", frames=10)  # accept
-    press("ESCAPE", frames=6)
+    assert contracts_live, "contracts step never auto-accepted after core_loop"
     press("C", frames=6)
     press("U", frames=6)
     press("G", frames=6)   # the delivery is the first commitment row
@@ -137,7 +124,7 @@ def test_title_menu_restart_path_reaches_arc_handover(rig_boot) -> None:
         if s["biome"] == "StarterForest"
     )
     press(forest_key, frames=12)
-    # 3 superposition — Druid E until coherence ≥ 0.3 (fires loom_opens).
+    # 3 superposition — Druid E (hadamard×1; forest weather must not auto-claim).
     for pk in "GHJ":
         press("0", frames=4)
         press(pk, frames=4)

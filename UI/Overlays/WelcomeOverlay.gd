@@ -5,10 +5,11 @@ extends "res://UI/Core/OverlayBase.gd"
 ## Dismissing it (F = Begin, or any tap/key) is the human ACTION that begins
 ## the tutorial: tutorial_seen fires on dismiss, not at boot.
 ##
-## Form (2026-09-08): a scene, not a wall of labels. Fiction leads. Three
-## verb cards name the first minute. The dimmer is a glass, not a blackout —
-## the field is the illustration. Copy lives in IntroVoice so the toast and
-## the Arc postcard cannot drift from this first sentence.
+## Form (2026-09-09): identity, not a lesson. Fiction names who you are.
+## The how (Explore / Strike / Gather) lives on Guide; the first live ask
+## lives on the banner after dismiss. The splash is a tracker (you are The Demos) plus a
+## begin-link (tap anywhere / F). The dimmer is a glass, not a blackout —
+## the field is the illustration. Copy lives in IntroVoice.
 
 const IntroVoice := preload("res://Core/Story/IntroVoice.gd")
 
@@ -18,7 +19,7 @@ func _init() -> void:
 	overlay_name = "welcome"
 	panel_title = "🌾  " + IntroVoice.welcome_title()
 	panel_title_size = 26
-	panel_size_mode = PanelSizeMode.LARGE
+	panel_size_mode = PanelSizeMode.MEDIUM
 	panel_border_color = Color(0.40, 0.70, 0.50, 0.9)
 	show_dimmer = true
 	# Glass, not a curtain: the farm has to be visible as the illustration.
@@ -44,16 +45,6 @@ func _build_content(container: Control) -> void:
 		lbl.add_theme_color_override("font_color", Color(0.88, 0.93, 0.86))
 		box.add_child(lbl)
 
-	box.add_child(_make_spacer(6))
-
-	var verbs := HBoxContainer.new()
-	verbs.alignment = BoxContainer.ALIGNMENT_CENTER
-	verbs.add_theme_constant_override("separation", 10)
-	verbs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	box.add_child(verbs)
-	for spec in IntroVoice.welcome_verbs():
-		verbs.add_child(_make_verb_card(spec))
-
 	box.add_child(_make_spacer(8))
 
 	var footer := Label.new()
@@ -63,47 +54,6 @@ func _build_content(container: Control) -> void:
 	footer.add_theme_font_size_override("font_size", 14)
 	footer.add_theme_color_override("font_color", Color(0.85, 0.95, 0.88))
 	box.add_child(footer)
-
-
-func _make_verb_card(spec: Dictionary) -> Control:
-	var card := PanelContainer.new()
-	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	card.custom_minimum_size = Vector2(160, 0)
-	card.add_theme_stylebox_override("panel",
-			UIStyleFactory.create_toast_style(Color(0.45, 0.78, 0.55, 0.85), 1))
-	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
-
-	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 4)
-	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	card.add_child(v)
-
-	var title := Label.new()
-	title.text = "[%s]  %s" % [str(spec.get("key", "")), str(spec.get("verb", ""))]
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 16)
-	title.add_theme_color_override("font_color", Color(0.95, 0.98, 0.88))
-	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	v.add_child(title)
-
-	var story := Label.new()
-	story.text = str(spec.get("story", ""))
-	story.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	story.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	story.add_theme_font_size_override("font_size", 13)
-	story.add_theme_color_override("font_color", Color(0.85, 0.92, 0.82))
-	story.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	v.add_child(story)
-
-	var how := Label.new()
-	how.text = str(spec.get("how", ""))
-	how.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	how.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	how.add_theme_font_size_override("font_size", 11)
-	how.add_theme_color_override("font_color", Color(0.70, 0.85, 0.95, 0.85))
-	how.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	v.add_child(how)
-	return card
 
 
 func _make_spacer(h: int) -> Control:

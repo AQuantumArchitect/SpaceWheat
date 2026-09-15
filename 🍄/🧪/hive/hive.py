@@ -216,7 +216,15 @@ def main() -> int:
         elif cmd == "protocol":
             out = cmd_protocol()
         elif cmd == "wall":
-            out = cmd_wall(args[1], " ".join(args[2:]) or "unreported")
+            if len(args) < 2 or args[1].startswith("-"):
+                out = {"ok": False, "error": "wall needs a chapter name (not a flag)"}
+            elif "--file" in args:
+                i = args.index("--file")
+                path = args[i + 1] if i + 1 < len(args) else ""
+                report = Path(path).read_text(encoding="utf-8") if path else ""
+                out = cmd_wall(args[1], report.strip() or "unreported")
+            else:
+                out = cmd_wall(args[1], " ".join(args[2:]) or "unreported")
         elif cmd == "audit":
             out = cmd_audit(flag("claim").get("claim"), flag("checked").get("checked"))
         elif cmd == "down":
