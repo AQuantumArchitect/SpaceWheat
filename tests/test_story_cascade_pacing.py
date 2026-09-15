@@ -167,16 +167,18 @@ def test_superposition_spotlight_is_e_not_the_druid_hat():
     assert 'step == 3' in target
     assert '"E"' in target
     qii = src(ROOT / "UI" / "Core" / "QuantumInstrumentInput.gd")
-    assert "func _maybe_wear_live_hat" in qii
+    assert "_maybe_wear_live_hat" not in qii
+    verb = src(PROG).split("static func _verb_line(")[1].split("static func ")[0]
+    assert "get_current_frame" in verb
 
 
-def test_mash_f_on_operator_is_the_reap_door():
+def test_f_on_operator_does_not_secretly_reap():
+    """No hat back doors. Reap is Ace Shift+F. Mash F on Operator must not
+    swap to Ace and reap for them."""
     qii = src(ROOT / "UI" / "Core" / "QuantumInstrumentInput.gd")
     dispatch = qii.split("func _dispatch_action_key")[1].split("func _handle_biome_row_input")[0]
-    assert "reap_season" in dispatch
-    assert "AceChipResolvers.resolve_f" in dispatch
-    assert "FRAME_ACE" in dispatch
-    assert "redirect_locked" in dispatch
+    assert "reap_season" not in dispatch
+    assert "AceChipResolvers.resolve_f" not in dispatch
     scoot = src(ROOT / "UI" / "Managers" / "OverlayManager.gd")
     toward = scoot.split("func scoot_toward")[1].split("func toggle_overlay")[0]
     assert "get_slot_for_biome" in toward
@@ -284,8 +286,12 @@ def test_superposition_is_a_hadamard_not_forest_weather():
     assert "current_tutorial_step" in standing
 
 
-def test_reap_chip_on_bound_plot_is_the_mashable_door():
+def test_ace_f_on_a_bound_plot_is_not_silently_reap():
+    """Ace F stays Explore/Fast-Fwd. Reap is Shift+F, named on the banner."""
     ace = src(ACE)
     resolve = ace.split("static func resolve_f")[1]
-    assert "reap_season" in resolve
-    assert '"reap"' in resolve
+    assert "reap_season" not in resolve
+    assert '"reap"' not in resolve
+    prog = src(PROG)
+    verb = prog.split("static func _verb_line(")[1].split("static func ")[0]
+    assert "Shift+F" in verb

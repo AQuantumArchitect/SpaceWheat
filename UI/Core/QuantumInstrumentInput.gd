@@ -40,8 +40,6 @@ const GranularityController = preload("res://Core/Utilities/GranularityControlle
 const UIProgression = preload("res://UI/Core/UIProgression.gd")
 const SpectralPreview = preload("res://Core/QuantumSubstrate/SpectralPreview.gd")
 const LoopCardCls = preload("res://UI/Overlays/LoopCard.gd")
-const IntroVoice = preload("res://Core/Story/IntroVoice.gd")
-const AceChipResolvers = preload("res://Core/UI/AceChipResolvers.gd")
 
 ## Ace F (Fast-Forward) advances the closed evolution by this many phrames per press.
 const ACE_FAST_FORWARD_PHRAMES := 4
@@ -361,10 +359,10 @@ func _dispatch_action_key(key: String, shift: bool = false) -> void:
 			elif shift:
 				_perform_shift_key_action(key)
 			else:
-				# Mash the spotlight key on the wrong hat: wear the hat, then
-				# do the verb. Superpose used to pause the sim (Ace E) instead
-				# of Hadamarding (Druid E).
-				_maybe_wear_live_hat(key)
+				# No hat back doors. Ace E pauses. Druid E Superposes. The
+				# player wears the hat (banner names [0] Druid) then presses
+				# the verb. Never silently swap frames and fire the other
+				# hat's gate.
 				_perform_action(key)
 		"F":
 			# F = confirm a pending QF destructive action, or page/close a
@@ -391,24 +389,8 @@ func _dispatch_action_key(key: String, shift: bool = false) -> void:
 				else:
 					_close_submenu()
 			else:
-				# Capstone: after the Bell weave the player is still on Operator
-				# in the forest. Operator gate-mode has no F, so mash F used to
-				# say "nothing on F in this hat" — they never reaped, then Arc
-				# offered Village / Woodlot. F is the mashable door for this
-				# one step, whatever hat they walked out of the loom wearing.
-				var live_q: Dictionary = IntroVoice.live_quest()
-				if str(live_q.get("tutorial_teaches", "")) == "reap_season":
-					if str(ToolConfig.get_current_frame()) != ToolConfig.FRAME_ACE:
-						_select_frame_hat(ToolConfig.FRAME_ACE)
-					var capstone: Dictionary = AceChipResolvers.resolve_f(_build_chip_context())
-					var cap_action := str(capstone.get("action", ""))
-					if cap_action == "reap" or cap_action == "explore":
-						if cap_action == "reap" and not UIProgression.is_verb_active(ToolConfig.FRAME_ACE, "shift+F"):
-							UIProgression.redirect_locked(str(capstone.get("label", "Reap")))
-							return
-						_run_action(cap_action, str(capstone.get("emoji", "")),
-							str(capstone.get("label", "")))
-						return
+				# Reap is Ace Shift+F. Do not swap hats or remap F for them.
+				# The banner names [8] Ace, then Shift+F.
 				var f_action = ToolConfig.get_action(ToolConfig.get_current_frame(), "F")
 				if shift and str(f_action.get("shift_action", "")) != "":
 					# This branch bypasses _perform_action/ActionValidator entirely
@@ -440,19 +422,6 @@ func _dispatch_action_key(key: String, shift: bool = false) -> void:
 						UIProgression.redirect_locked("F")
 					else:
 						RefusalVoice.note("nothing on F in this hat")
-
-
-func _maybe_wear_live_hat(key: String) -> void:
-	var tgt: Dictionary = UIProgression.objective_target()
-	var need_key := str(tgt.get("key", "")).strip_edges().to_upper()
-	var need_hat := str(tgt.get("hat", "")).strip_edges()
-	if need_hat == "" or need_key != key.to_upper():
-		return
-	if not ToolConfig.HAT_KEY_TO_FRAME.has(need_hat):
-		return
-	var need_frame := str(ToolConfig.HAT_KEY_TO_FRAME[need_hat])
-	if need_frame != "" and str(ToolConfig.get_current_frame()) != need_frame:
-		_select_frame_hat(need_frame)
 
 
 # The biome/plot/subspace selection rows used to live in a SECOND input callback

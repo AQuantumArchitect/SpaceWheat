@@ -517,24 +517,21 @@ static func _travel_line(q: Dictionary) -> String:
 ## next key the same way travel names the rail key.
 ##
 ## Wave 5: Superpose named no key. Wave 6: naming `[E] Superpose` while Ace
-## still labels `[E] Pause` is the dual-key wall (SENSOR.md: same key, two
-## jobs). Name the HAT first. After they wear it, E is Superpose
-## and the banner can name `[E]`. Hats are toggles — once worn, stop naming
-## the hat digit so a lost-lamb does not drop back to Ace. `_maybe_wear_live_hat`
-## still auto-wears if they mash the verb anyway.
+## still labels `[E] Pause` is the dual-key wall. Name the HAT first. After
+## they wear it, E is Superpose and the banner can name `[E]`. Hats are
+## toggles — once worn, stop naming the hat digit so a lost-lamb does not
+## drop back to Ace. Never auto-wear: Ace E always pauses; Druid E Superposes.
 ##
 ## Authored tutorial_hint stays English. Keys are derived, like travel.
 static func _verb_line(q: Dictionary) -> String:
 	if str(q.get("category", "")) != "TUTORIAL":
 		return ""
 	var step := int(q.get("tutorial_step", -1))
-	if step != 3 and step != 4:
+	if step != 3 and step != 4 and step != 5:
 		return ""
 	var tgt := objective_target()
 	var key := str(tgt.get("key", "")).strip_edges().to_upper()
 	var hat := str(tgt.get("hat", "")).strip_edges()
-	if key == "":
-		return ""
 	var ask := IntroVoice.ask_line(q)
 	if ask == "":
 		return ""
@@ -544,6 +541,11 @@ static func _verb_line(q: Dictionary) -> String:
 	var wearing := str(ToolConfig.get_current_frame())
 	if need_frame != "" and wearing != need_frame:
 		return "▸ [%s] %s" % [hat.to_upper(), need_frame.capitalize()]
+	# Reap is Ace Shift+F — never remapped onto plain F, never a hat swap.
+	if step == 5:
+		return "▸ Shift+F %s" % ask
+	if key == "":
+		return ""
 	if ("[%s]" % key) in ask:
 		return ask
 	return "▸ [%s] %s" % [key, ask]

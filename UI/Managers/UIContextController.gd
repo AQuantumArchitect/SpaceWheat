@@ -9,7 +9,6 @@ extends Node
 
 const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
 const UIProgression = preload("res://UI/Core/UIProgression.gd")
-const AceChipResolvers = preload("res://Core/UI/AceChipResolvers.gd")
 
 var action_bar_manager = null
 var overlay_stack = null
@@ -359,18 +358,7 @@ func _build_frame_actions(frame_name: String) -> Dictionary:
 			if action_key == "F":
 				action_info = {"action": "", "label": "▶ Play", "emoji": ""}
 			elif action_key == "E":
-				# Empty-E hats still pause. Superpose is the better word when
-				# that's the live door (AceChipResolvers.resolve_e).
-				var superpose := AceChipResolvers.resolve_e(null)
-				if not superpose.is_empty():
-					action_info = {
-						"action": "",
-						"label": str(superpose.get("label", "Superpose")),
-						"emoji": "",
-						"disabled": false,
-					}
-				else:
-					action_info = {"action": "", "label": "⏸ Pause", "emoji": ""}
+				action_info = {"action": "", "label": "⏸ Pause", "emoji": ""}
 		elif not UIProgression.is_verb_active(frame_name, action_key):
 			# Progressive disclosure (phase-3 funnel, Act-0 only): a verb this hat
 			# HAS but the tutorial hasn't taught yet renders locked — same visual

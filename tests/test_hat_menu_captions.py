@@ -1,9 +1,8 @@
-"""Hats, menus, and the E chip name themselves.
+"""Hats and menus name themselves. Ace never does Druid things.
 
-Wave 6: Ace E said Pause next to a Superpose banner (dual-[E]).
-Wave 7: Superpose is followable once the hat is named; icon-only chips
-still hid which hat/menu was which. Captions and Superpose-on-E are
-the same mill-chip class as [C] opens the board.
+Superpose is Druid E. Ace E is Pause, always. The banner names [0] Druid
+then [E] Superpose — the player walks that door. No auto-wear, no Ace
+chip that advertises Superpose.
 """
 from pathlib import Path
 
@@ -21,18 +20,18 @@ def test_druid_e_is_superpose_not_h_gate() -> None:
     assert src.count("hadamard") >= 3
 
 
-def test_ace_e_renames_to_superpose_on_the_live_door() -> None:
-    ace = _read("Core/UI/AceChipResolvers.gd")
-    assert "func resolve_e" in ace
-    assert "superposition" in ace
-    assert '"label": "Superpose"' in ace
-    assert '"disabled": false' in ace
-    registry = _read("Core/UI/ChipResolverRegistry.gd")
-    assert "ace.e_superpose" in registry
+def test_ace_e_is_always_pause_never_superpose() -> None:
     cfg = _read("Core/GameState/ToolConfig.gd")
-    assert "ace.e_superpose" in cfg
-    # Ace still pauses the rest of the time.
+    ace = _read("Core/UI/AceChipResolvers.gd")
+    qii = _read("UI/Core/QuantumInstrumentInput.gd")
+    registry = _read("Core/UI/ChipResolverRegistry.gd")
     assert '"label": "Pause"' in cfg
+    assert "ace.e_superpose" not in cfg
+    assert "ace.e_superpose" not in registry
+    assert "func resolve_e" not in ace
+    assert "_maybe_wear_live_hat" not in qii
+    ctx = _read("UI/Managers/UIContextController.gd")
+    assert "AceChipResolvers.resolve_e" not in ctx
 
 
 def test_hat_and_menu_chips_carry_a_caption_box() -> None:

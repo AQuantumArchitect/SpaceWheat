@@ -84,7 +84,8 @@ def test_superpose_and_bell_name_the_verb_key() -> None:
     )
     body = src.split("static func _verb_line(")[1].split("\nstatic func ")[0]
     assert "tutorial_step" in body
-    assert 'step != 3' in body and 'step != 4' in body
+    assert "step != 3" in body and "step != 4" in body
+    assert "step != 5" in body or "Shift+F" in body
     assert "get_current_frame" in body, (
         "must read the worn hat — naming [E] on Ace collides with Pause"
     )
@@ -97,15 +98,18 @@ def test_superpose_and_bell_name_the_verb_key() -> None:
     assert "[R]" not in hints[4]
 
 
-def test_e_chip_prefers_superpose_over_pause_on_the_live_door() -> None:
-    """E always pauses on Ace. The chip does not need the word Pause when
-    Superpose is the better term for what that key currently does."""
+def test_ace_never_does_druid_things() -> None:
+    """No back doors: Ace E pauses. Superpose is Druid E. The banner names
+    the hat, then the verb — the player walks it."""
+    qii = (ROOT / "UI/Core/QuantumInstrumentInput.gd").read_text(encoding="utf-8")
+    assert "_maybe_wear_live_hat" not in qii
     ace = (ROOT / "Core/UI/AceChipResolvers.gd").read_text(encoding="utf-8")
-    assert "func resolve_e" in ace
-    assert "Superpose" in ace
+    assert "func resolve_e" not in ace
+    assert "reap_season" not in ace
     druid = (ROOT / "Core/GameState/ToolConfig.gd").read_text(encoding="utf-8")
     assert '"label": "Superpose"' in druid
     assert '"label": "H-Gate"' not in druid
+    assert '"label": "Pause"' in druid
 
 
 def test_gate_empty_chip_names_how_to_check_two_plots() -> None:
