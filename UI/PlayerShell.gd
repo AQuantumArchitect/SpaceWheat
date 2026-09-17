@@ -95,17 +95,39 @@ func _input(event: InputEvent) -> void:
 		# would toast noise over it (sweep_main hit it mid plant-picker).
 		var qii_owns_ef: bool = instrument_input != null \
 				and instrument_input.has_method("owns_ef_keys") and bool(instrument_input.owns_ef_keys())
-		if paused and (overlay_stack == null or overlay_stack.is_empty()) and not qii_owns_ef:
+		# Wave 24 lost-lamb: Druid E is Superpose. Peek still paused the sim,
+		# so E did two jobs. Ace E action is empty (Pause). A hat that names
+		# a verb on E must only do that verb.
+		var e_spec: Dictionary = ToolConfig.get_action(ToolConfig.get_current_frame(), "E")
+		var hat_e_is_verb: bool = not e_spec.is_empty() \
+				and str(e_spec.get("action", "")).strip_edges() != ""
+		if paused and (overlay_stack == null or overlay_stack.is_empty()) \
+				and not qii_owns_ef and not hat_e_is_verb:
 			show_hint("⏸ time paused — F plays on", 2)
 		# The hint above was already suppressed when a submenu/confirm owns E/F
 		# (E is a real picker verb there, not pause) — but the actual pause
 		# side-effect below fired unconditionally regardless, silently
 		# stepping on the submenu's own E-slot interaction (sweep_main,
 		# first-arc pass). Gate it on the same check.
-		if not qii_owns_ef:
+		if not qii_owns_ef and not hat_e_is_verb:
 			_set_global_paused(true)
 	elif event.keycode == KEY_F:
 		_set_global_paused(false)
+
+	# Live toast owns F only when it advertises a home ([F] opens …).
+	# Refusal / mark toasts have no home — Ace F is still Explore.
+	# Shift+F is Reap — never intercept. Confirm/submenu still own E/F.
+	if event.keycode == KEY_F and not event.is_shift_pressed():
+		var top_toast := _topmost_toast()
+		var modal_owns_ef: bool = instrument_input != null \
+				and instrument_input.has_method("owns_ef_keys") \
+				and bool(instrument_input.owns_ef_keys())
+		var toast_owns_f: bool = top_toast != null and not modal_owns_ef \
+				and top_toast.has_method("owns_f") and bool(top_toast.owns_f())
+		if toast_owns_f:
+			top_toast.follow()
+			_mark_input_handled()
+			return
 
 	var stack_size = overlay_stack.size() if overlay_stack else 0
 	_verbose.debug("input", "⌨️", "PlayerShell._input() KEY: %s, overlay_stack: %d" % [event.keycode, stack_size])
@@ -358,7 +380,15 @@ static func pick_toast_eviction_victim(stack: Node) -> Node:
 	return stack.get_child(0)
 
 
-## Returns the most-recently-spawned live toast, or null.
+## Ace F chip text while a toast owns F. Empty = leave Explore / Fast-Fwd.
+func toast_f_chip_label() -> String:
+	var t := _topmost_toast()
+	if t != null and t.has_method("owns_f") and bool(t.owns_f()) \
+			and t.has_method("f_chip_label"):
+		return str(t.f_chip_label())
+	return ""
+
+
 func _topmost_toast() -> HintToast:
 	if not _hint_toast_stack:
 		return null
@@ -390,19 +420,11 @@ func _handle_shell_action(event: InputEvent) -> bool:
 	# TAB: current-tool mode-cycle alias (only when no menu active)
 	var keycode = event.keycode
 
-	# Toast grammar: F flattens topmost toast, E pauses its decay — but ONLY when
-	# the key would otherwise be idle. A toast must never shadow a primary verb
-	# (anti-gating: no silent hindrance): not a modal's E/F (submenu slot, the
-	# Cull/Trim/Break confirm chord), and not a frame-declared E/F verb (Icon-F
-	# Track, Ace-F Fast-Fwd, Merchant-F Settle, …). The old form intercepted F
-	# whenever ANY toast was live, so the first Track/confirm press silently
-	# flattened a hint instead of acting ("press F twice" bug).
+	# E still pauses a toast's decay when the hat has no E verb. F is
+	# intercepted earlier in _input so overlays cannot swallow it.
 	var top_toast := _topmost_toast()
 	var modal_owns_ef: bool = instrument_input != null and instrument_input.has_method("owns_ef_keys") and bool(instrument_input.owns_ef_keys())
 	if top_toast != null and not modal_owns_ef:
-		if keycode == KEY_F and ToolConfig.get_action(ToolConfig.get_current_frame(), "F").is_empty():
-			top_toast.flatten()
-			return true
 		if keycode == KEY_E and ToolConfig.get_action(ToolConfig.get_current_frame(), "E").is_empty():
 			top_toast.pause_decay()
 			return true

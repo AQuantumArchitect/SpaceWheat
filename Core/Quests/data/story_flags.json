@@ -95,7 +95,7 @@
       "type": 1,
       "category": "ARC",
       "body": "Apprentice to the Mill — keep Millwright contracts until the Union counts you reliable, and they will teach you the windmill (💨/🔨).",
-      "hint": "Keep mill deliveries until they teach you the windmill.",
+      "hint": "[C] opens the board; Market [Y] takes a Millwright delivery.",
       "faction": "Millwright's Union",
       "state_predicates": [
         {
@@ -128,12 +128,12 @@
     "standing_grants": {},
     "arc_quest": {
       "body": "Plant a New Voice — put a word you know into the ground and hear the biome change key.",
-      "hint": "Icon hat (5), pick an EMPTY plot (G H J K L ; past the live bubbles) and press R — a picker opens; Q/E choose the icon, R/its key plants it (costs 🌱 + the south pole's emoji). The picker shows what the planting does to the land's spectrum before you commit. Planting is how taught words become worked land — and later, past the hedge, the forest will teach you how to take words no faction owns.",
+      "hint": "Need 🌱×5 from Forest. Then Icon [5], empty plot, [R].",
       "faction": "Millwright's Union",
       "state_predicates": [
         {
           "type": "gate_sequence_contains",
-          "gate": "plant",
+          "gate": "inject_icon",
           "count": 1
         }
       ],
@@ -196,7 +196,7 @@
     },
     "arc_quest": {
       "body": "Find the Woodlot — follow the discovery compass upstream until timber country turns under your feet.",
-      "hint": "Captain hat (7): F reads the discovery compass — the story is pulling it toward Woodlot. R discovers the top-ranked biome (costs 21🦅; harvest eagles from StarterForest with the Ace hat — strike R, gather Q). A discovered biome evolves on its own; press its biome key to stand in it.",
+      "hint": "Need 🦅×21 from Forest. Then Captain [7], [R] Add Biome.",
       "faction": "Millwright's Union",
       "state_predicates": [
         {
@@ -238,7 +238,7 @@
     },
     "arc_quest": {
       "body": "Prove Reliable — finish Millwright deliveries until your access with the Union clears 0.05.",
-      "hint": "C opens the board; Y is the market tab. Accept a Millwright delivery (its row key, then R) — whatever your stores already hold counts toward it, so accept, top up what's missing, then claim on the Commitments tab (C → U, row key, R). Every kept delivery raises access +0.02; watch the have/target line move.",
+      "hint": "[C] board, [Y] Market. Accept a Millwright row, then claim.",
       "faction": "Millwright's Union",
       "state_predicates": [
         {
@@ -280,7 +280,7 @@
       "type": 1,
       "category": "ARC",
       "body": "The Teaching — keep the Union's timber contracts moving and they will teach you timber itself (🪵/🪓).",
-      "hint": "This quest lives on the Arc tab (X → I): accept it there (R on its row), then keep Millwright deliveries — C opens the board, Y the market tab, accept, gather fresh, claim in Commitments (C → U) — until the row reads READY, then claim it on that same row. The claim IS the teaching: 🪵/🪓 joins your signature. Contracts pay goods and standing; only a teaching grows your words.",
+      "hint": "Arc [X] [I] [R] accept. Then [C] board, [Y] Market, keep deliveries.",
       "faction": "Millwright's Union",
       "state_predicates": [
         {
@@ -324,7 +324,7 @@
     "arc_quest": {
       "type": "DELIVER",
       "body": "Couple the Countries — plant 🪵 into the Village so woodlot and village share one rhythm.",
-      "hint": "Icon hat (5) in the Village: pick an EMPTY plot (G H J K L ; past the live bubbles), R opens the picker, choose timber (🪵/🪓) and plant it (costs 🌱 + the south pole's emoji). The law of every country ahead: when a faction's word lives in a land, their board opens there.",
+      "hint": "Village [Y], Icon [5], empty plot, [R], pick 🪵.",
       "faction": "Millwright's Union",
       "state_predicates": [
         {
@@ -402,7 +402,7 @@
     },
     "arc_quest": {
       "body": "Find the Spring — follow the discovery compass upstream to the cold water.",
-      "hint": "The ritual you already know, second verse: Captain hat (7), F reads the compass — the story is pulling it toward FreshwaterSpring — R discovers it (costs 21🦅). Stand in it; discovered land evolves on its own.",
+      "hint": "Need 🦅×21 from Forest. Then Captain [7], [R] Add Biome.",
       "faction": "Hearth Keepers",
       "state_predicates": [
         {

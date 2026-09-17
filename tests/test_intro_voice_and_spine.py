@@ -77,7 +77,7 @@ def test_first_toast_is_the_lesson_not_an_accept_door():
     # Lane steps are silent. Unsigned offers wait on the Arc. Never reprint accept.
     assert "Tap here to read & accept" not in intro
     assert "return {}" in auto_fn
-    assert "waiting on the Arc" in auto_fn
+    assert "[X] then Arc [I]" in auto_fn
     assert "New offer from" in auto_fn
     assert "The Demos sleeps" in intro
     assert "IntroVoice.toast_for_offer" in src(BRIDGE)
@@ -106,6 +106,8 @@ def test_toast_is_tracker_plus_link():
     assert "tap to open %s" in ladder
     assert "[%s] opens %s" in ladder
     assert "tap again to go there" in ladder
+    assert "[F] opens" in t
+    assert "func follow(" in t
 
 
 def test_arc_face_is_a_postcard_not_a_ledger():

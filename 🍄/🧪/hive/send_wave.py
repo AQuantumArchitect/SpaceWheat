@@ -24,13 +24,16 @@ REPO = HERE.parents[2]  # 🍄/🧪/hive -> repo root
 PROMPTS = HERE / "prompts"
 WAVES = HERE / "waves"
 
-PERSONAS = ("masher", "literalist", "earnest", "lost-lamb")
+PERSONAS = ("masher", "literalist", "earnest", "lost-lamb", "tap-lamb")
 DEFAULT_PRESSES = {
     "masher": 20,
     "literalist": 25,
     "earnest": 25,
     "lost-lamb": 20,
+    "tap-lamb": 20,
 }
+MEMORYLESS = ("lost-lamb", "tap-lamb")
+MOUSE_SEATS = ("tap-lamb",)
 
 # Sensor class. This host's catalog is grok-4.6 / grok-4.5; no grok-mini.
 MODEL = os.environ.get("HIVE_SENSOR_MODEL", "grok-4.5")
@@ -38,11 +41,22 @@ GROK = os.environ.get("GROK_BIN", shutil.which("grok") or "")
 
 
 def spawn_prompt(persona: str, seat: str, chapter: str, max_presses: int, checkpoint: str) -> str:
+    mouse = persona in MOUSE_SEATS
+    seat_py = "🍄/🧪/mouse_seat.py" if mouse else "🍄/🧪/player_seat.py"
     ckpt = ""
-    if checkpoint and persona != "lost-lamb":
-        ckpt = f"Start with --checkpoint {checkpoint} (lost-lamb ignores this; it always --fresh).\n"
-    elif not checkpoint:
+    if checkpoint:
+        ckpt = (
+            f"Start with --checkpoint {checkpoint}. "
+            "This save was earned by clearing the previous chapter — not a shortcut. "
+            "Lost-lamb / tap-lamb: still look before every input; no intra-session plan.\n"
+        )
+    else:
         ckpt = "Start from true zero (no --checkpoint). Welcome splash may be up.\n"
+    verbs = (
+        "Then play that persona. press is refused — use look / click / tap / click_at.\n"
+        if mouse else
+        f"Then play that persona through:\n  python3 {seat_py} <cmd> {seat} ...\n"
+    )
     return (
         f"You are a SpaceWheat SENSOR playtester.\n"
         f"Persona: {persona}\n"
@@ -55,9 +69,8 @@ def spawn_prompt(persona: str, seat: str, chapter: str, max_presses: int, checkp
         f"  🍄/🧪/hive/prompts/HOST.md\n"
         f"  🍄/🧪/hive/prompts/{persona}.md\n"
         f"Do not guess the seat CLI. Fetch it.\n\n"
-        f"Then play that persona through:\n"
-        f"  python3 🍄/🧪/player_seat.py <cmd> {seat} ...\n"
-        f"from this repo root. Report through:\n"
+        f"{verbs}"
+        f"from this repo root, via {seat_py}. Report through:\n"
         f"  python3 🍄/🧪/hive/hive.py wall {chapter} --file /tmp/sw_wall_{seat}.txt\n"
         f"Bank and stop when the persona says to.\n\n"
         f"Never edit code, data, or saves. Read + Bash only.\n"
@@ -72,11 +85,12 @@ def spawn_prompt(persona: str, seat: str, chapter: str, max_presses: int, checkp
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--personas", default=",".join(PERSONAS),
-                    help="comma list from: " + ",".join(PERSONAS))
+    ap.add_argument("--personas", default="masher,literalist,earnest,lost-lamb",
+                    help="comma list from: " + ",".join(PERSONAS)
+                    + " (tap-lamb is headed mouse_seat — opt in)")
     ap.add_argument("--chapter", default="act0_fresh")
     ap.add_argument("--checkpoint", default="",
-                    help="optional save stem under 🍄/🧪/checkpoints/ (ignored by lost-lamb)")
+                    help="optional save stem under 🍄/🧪/checkpoints/ (earned banks are legal for lost-lamb)")
     ap.add_argument("--max-presses", type=int, default=0,
                     help="override per-persona default budgets")
     ap.add_argument("--stamp", default="",

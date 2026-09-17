@@ -39,6 +39,7 @@ var _ladder: ClickLadder = ClickLadder.new()
 ## farm are resolved by UIProgression (one authority), so only the overlay
 ## manager is retained (tap → Commitments when the ask is a fill).
 func setup(_quest_manager: Node, _farm: Node, overlay_manager: Node) -> void:
+	add_to_group("objective_chrome")
 	_overlay_manager = overlay_manager
 	custom_minimum_size = Vector2(BANNER_WIDTH, BANNER_HEIGHT)
 	# RuntimeMount anchors us to a screen corner and sets left/right plus
@@ -73,6 +74,11 @@ func setup(_quest_manager: Node, _farm: Node, overlay_manager: Node) -> void:
 	_ladder.has_detail = false
 	_ladder.has_scoot = false
 	_apply_banner_home()
+	_refresh()
+
+
+func force_refresh() -> void:
+	_accum = 0.0
 	_refresh()
 
 

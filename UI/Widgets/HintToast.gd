@@ -2,9 +2,11 @@ class_name HintToast
 extends PanelContainer
 
 ## HintToast — small corner pop-up for ephemeral player-facing dialogue.
-## Universal grammar: E pauses decay (halts decoherence), F flattens (collapse
-## and dismiss). Multiple toasts stack vertically; the topmost is the active
-## target for E/F. Importance 1=blue, 2=teal, 3=gold.
+## Universal grammar: E pauses decay (halts decoherence). F FOLLOWS a live
+## toast into its named menu (ClickLadder home) and the card stays put so
+## its text rides through the overlay. F dismisses only when there is no
+## home, or the home is already open. Multiple toasts stack vertically;
+## the topmost is the active target for E/F. Importance 1=blue, 2=teal, 3=gold.
 ##
 ## Mouse grammar (2026-09-09): ClickLadder. Notifications are a TRACKER + a
 ## LINK — body clicks climb home → scoot. DETAIL is refused: the how and the
@@ -137,8 +139,41 @@ func show_text(bbcode: String, importance: int = 1, path: String = "", on_tap: C
 	_run_lifecycle()
 
 
+func _follow_cue() -> String:
+	# Keyboard F is the toast-follow key (PlayerShell intercepts it) when
+	# the field is up. While a menu is open, name the home's own key —
+	# Market F is "—" (wave 16 literalist).
+	if not (_ladder.has_home and _ladder.rung != ClickLadder.Rung.HOME):
+		return ""
+	if _overlay_is_open():
+		var k := str(_ladder.home_key).strip_edges().to_upper()
+		if k == "":
+			k = ClickLadder.key_for_home(_ladder.home_name)
+		if k != "":
+			return "[%s] opens %s" % [k, _ladder.home_name]
+	# Wave 19: do not print [F] opens Arc while Ace F is Explore.
+	if not owns_f():
+		return ""
+	return "[F] opens %s" % _ladder.home_name
+
+
+func _overlay_is_open() -> bool:
+	var ml := Engine.get_main_loop()
+	if not (ml is SceneTree):
+		return false
+	var shells := (ml as SceneTree).get_nodes_in_group("player_shell")
+	if shells.is_empty():
+		return false
+	var shell = shells[0]
+	if shell == null or not ("overlay_stack" in shell) or shell.overlay_stack == null:
+		return false
+	return shell.overlay_stack.has_method("is_empty") and not bool(shell.overlay_stack.is_empty())
+
+
 func _face_text() -> String:
-	var cue := _ladder.prompt()
+	var cue := _follow_cue()
+	if cue == "":
+		cue = _ladder.prompt()
 	if cue == "":
 		return _raw_bbcode
 	return "%s\n[color=#aac]%s[/color]" % [_raw_bbcode, cue]
@@ -163,7 +198,9 @@ func expand() -> void:
 func _refresh_body() -> void:
 	if _label == null:
 		return
-	var cue := _ladder.prompt()
+	var cue := _follow_cue()
+	if cue == "":
+		cue = _ladder.prompt()
 	var cue_line := ("\n[color=#aac]%s[/color]" % cue) if cue != "" else ""
 	if _expanded and _detail != "":
 		_label.text = "%s\n\n%s%s" % [_raw_bbcode, _detail, cue_line]
@@ -204,7 +241,52 @@ func pause_decay() -> void:
 	_paused = true
 
 
-## F pressed (or the toast clicked) — collapse and dismiss now.
+## True only when F would open this toast's named menu. Refusal toasts
+## ("F explores first") have no home — Ace F must still Explore
+## (wave 12 earnest: any live toast ate F and the first plot never woke).
+func owns_f() -> bool:
+	# Wave 16: Market F is "—" and OverlayBase ate F before follow
+	# (`[F] opens Self` vs `nothing on F here`). While a menu is up, F is
+	# that menu's verb — the toast names the home's own key instead.
+	if _overlay_is_open():
+		return false
+	# Wave 19: Arc toast [F] vs Ace [F] Explore on an unbound 🌱 plot.
+	# Field Explore wins; follow can wait. Do not steal the expedition.
+	var UIProgression = load("res://UI/Core/UIProgression.gd")
+	if UIProgression != null and UIProgression.ace_f_would_explore():
+		return false
+	return _ladder.has_home and _ladder.rung != ClickLadder.Rung.HOME
+
+
+## Ace F chip must match the intercept (wave 13: [F] opens the Arc vs
+## [F] Fast-Fwd). Do not change what F fires — PlayerShell already follows.
+func f_chip_label() -> String:
+	if not owns_f():
+		return ""
+	var n := str(_ladder.home_name).strip_edges()
+	if n.to_lower().begins_with("the "):
+		n = n.substr(4)
+	if n == "":
+		return "Arc"
+	return n[0].to_upper() + n.substr(1)
+
+
+## Keyboard F — open this toast's home and KEEP the card. The literalist
+## walks the menu with the side text still in view. Does not accept, fill,
+## or apply a gate; it only opens the advertised surface. Dismisses when
+## there is no home left to open.
+func follow() -> void:
+	if owns_f():
+		_ladder.commit("home")
+		if _on_tap.is_valid():
+			_on_tap.call()
+		_persistent = true
+		_refresh_body()
+		return
+	flatten()
+
+
+## F pressed with nothing to follow, or the ✕ — collapse and dismiss now.
 func flatten() -> void:
 	if _tween and _tween.is_valid():
 		_tween.kill()

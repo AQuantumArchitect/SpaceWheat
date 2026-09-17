@@ -37,7 +37,13 @@ var _healed_for_key: String = ""
 
 
 func setup(action_bar_manager) -> void:
+	add_to_group("objective_chrome")
 	_action_bar_manager = action_bar_manager
+	_refresh()
+
+
+func force_refresh() -> void:
+	_accum = 0.0
 	_refresh()
 
 

@@ -127,6 +127,7 @@ var _close_hint: Label = null
 
 func _init() -> void:
 	name = "QuestBoard"
+	add_to_group("quest_board")
 	panel_title = "CONTRACTS"
 	panel_title_size = 24
 	panel_border_color = Color(0.5, 0.4, 0.6, 0.8)
@@ -1550,6 +1551,7 @@ func _refresh_pool() -> void:
 			return
 		_offer_pool = _adapt_contracts_for_view(pair_offers)
 		MarketView.annotate(_offer_pool, _get_inventory())
+		_ensure_live_faction_offers(lattice)
 		return
 
 	_ensure_biome()
@@ -1571,6 +1573,7 @@ func _refresh_pool() -> void:
 			return
 		_offer_pool = _adapt_contracts_for_view(raw)
 		MarketView.annotate(_offer_pool, _get_inventory())
+		_ensure_live_faction_offers(lattice)
 		return
 
 	# Fallback: the active biome has no neighborhood spec — fall back to the highest-tension
@@ -1586,6 +1589,7 @@ func _refresh_pool() -> void:
 			if not fb_offers.is_empty():
 				_offer_pool = _adapt_contracts_for_view(fb_offers)
 				MarketView.annotate(_offer_pool, _get_inventory())
+				_ensure_live_faction_offers(lattice)
 				return
 	_market_status_note = "market unavailable: no neighborhood partner"
 
@@ -1640,9 +1644,101 @@ func clear_pair_scope() -> void:
 	_offer_pool.clear()
 	_reset_item_cursor()
 
+func _ensure_live_faction_offers(lattice) -> void:
+	var want := _live_board_faction()
+	if want == "" or lattice == null or current_biome == null:
+		return
+	for o in _offer_pool:
+		if o is Dictionary and str(o.get("faction", "")) == want:
+			return
+	if not lattice.has_method("propose_faction_offers"):
+		return
+	var extra: Array = lattice.propose_faction_offers(current_biome, want, 3)
+	if extra.is_empty():
+		return
+	_offer_pool.append_array(_adapt_contracts_for_view(extra))
+	MarketView.annotate(_offer_pool, _get_inventory())
+
+
+func _held_shortfall(hq: Dictionary) -> Dictionary:
+	if not _is_fill_stall(hq):
+		return {}
+	var res := str(hq.get("resource", "")).strip_edges()
+	var need := int(hq.get("quantity", 0))
+	var have := 0
+	var econ = _get_economy()
+	if econ:
+		have = int(econ.get_resource(res))
+	if have >= need:
+		return {}
+	return {"res": res, "have": have, "need": need}
+
+
+## Closed-board gather / abandon cue. Empty if the live stall is fillable.
+func fill_shortfall_cue(q: Dictionary) -> String:
+	var want := str(q.get("faction", "")).strip_edges()
+	if quest_manager == null or not quest_manager.has_method("commitment_quests"):
+		return ""
+	for hq in quest_manager.commitment_quests():
+		if not (hq is Dictionary) or not _is_fill_stall(hq):
+			continue
+		if want != "" and str(hq.get("faction", "")) != want:
+			continue
+		var s: Dictionary = _held_shortfall(hq)
+		if s.is_empty():
+			continue
+		var res := str(s.get("res", "?"))
+		var have := int(s.get("have", 0))
+		var need := int(s.get("need", 0))
+		if have * 2 < need:
+			return "▸ [C] then [Q] Abandon — you hold %s %d/%d" % [res, have, need]
+		return "▸ gather %s %d/%d — [F] Explore then [R] Strike" % [res, have, need]
+	return ""
+
+
+func _offer_is_keepable(o: Dictionary) -> bool:
+	var need := int(o.get("quantity", 0))
+	if need <= 0:
+		return false
+	if need <= 8:
+		return true
+	var res := str(o.get("resource", "")).strip_edges()
+	var have := 0
+	var econ = _get_economy()
+	if econ:
+		have = int(econ.get_resource(res))
+	return have * 2 >= need
+
+
 func _get_visible_offers() -> Array:
 	var sorted: Array = MarketView.sort_view(_offer_pool, _get_inventory(), _market_sort_mode)
-	return sorted
+	# Live mill stall first so [G] is the advertised faction, not a random
+	# Fencebreaker. Unkeepable 👥×200 stalls go to the back (wave 15).
+	# Does not accept for them.
+	var want := _live_board_faction()
+	if want == "":
+		return sorted
+	var keepable: Array = []
+	var stretch: Array = []
+	var rest: Array = []
+	for o in sorted:
+		if o is Dictionary and str(o.get("faction", "")) == want:
+			if _offer_is_keepable(o):
+				keepable.append(o)
+			else:
+				stretch.append(o)
+		else:
+			rest.append(o)
+	keepable.append_array(rest)
+	keepable.append_array(stretch)
+	return keepable
+
+
+func _live_board_faction() -> String:
+	var q: Dictionary = IntroVoice.live_quest()
+	if q.is_empty():
+		return ""
+	return str(q.get("faction", "")).strip_edges()
 
 func _get_selected_offer() -> Dictionary:
 	var row: Dictionary = _selected_market_row()
@@ -1654,21 +1750,120 @@ func _get_selected_offer() -> Dictionary:
 
 func _held_count() -> int:
 	if quest_manager and quest_manager.has_method("commitment_quests"):
-		return quest_manager.commitment_quests().size()
+		var n := 0
+		for q in quest_manager.commitment_quests():
+			if q is Dictionary and _is_fill_stall(q):
+				n += 1
+		return n
 	return 0
 
 
+## Market stalls are fillable deliveries. Arc / standing quests (mill
+## apprentice) live on Arc and Commitments — parking them on G made R
+## "Go there" and dumped lost-lambs to the farm (waves 10–11).
+func _is_fill_stall(q: Dictionary) -> bool:
+	if str(q.get("resource", "")).strip_edges() == "":
+		return false
+	return int(q.get("quantity", 0)) > 0
+
+
+## Banner cue while this board is open. Names the next pressable key for
+## the live faction's stall — Accept / Deliver / Refresh. Does not accept
+## or fill for them.
+func board_walk_cue(q: Dictionary) -> String:
+	var want := str(q.get("faction", "")).strip_edges()
+	if frame_id != FRAME_MARKET:
+		return "▸ Market [Y] takes a delivery"
+	var rows: Array = _market_rows()
+	var start: int = _item_page_start(rows.size())
+	for i in range(rows.size()):
+		var entry: Dictionary = rows[i]
+		var data = entry.get("data", {})
+		if not (data is Dictionary):
+			continue
+		var fac := str(data.get("faction", ""))
+		if want != "" and fac != want:
+			continue
+		var vis: int = i - start
+		var key := ""
+		if vis >= 0 and vis < ITEM_KEYS.size():
+			key = str(ITEM_KEYS[vis])
+		if str(entry.get("kind", "")) == "held":
+			var short: Dictionary = _held_shortfall(data)
+			if not short.is_empty():
+				var res := str(short.get("res", "?"))
+				var have := int(short.get("have", 0))
+				var need := int(short.get("need", 0))
+				# Wave 14 lost-lamb: 104/221 and ▸ still named Deliver.
+				if have * 2 < need:
+					if i == _selected_index:
+						return "▸ [Q] Abandon — you hold %s %d/%d" % [res, have, need]
+					if key == "":
+						return "▸ [Q] Abandon — you hold %s %d/%d" % [res, have, need]
+					return "▸ [%s] then [Q] Abandon" % key
+				return "▸ ESC closes — gather %s %d/%d" % [res, have, need]
+			var verb := "Claim" if str(data.get("status", "")).to_lower() == "ready" else "Deliver"
+			# Once the row is selected, name ONLY [R] — "[G] then [R]" after
+			# G is already the caret is the dual-key wall (wave 12 lost-lamb).
+			if i == _selected_index:
+				return "▸ [R] %s" % verb
+			if key == "":
+				return "▸ [U] then [R] %s" % verb
+			return "▸ [%s] then [R] %s" % [key, verb]
+		if str(entry.get("kind", "")) == "offer":
+			if i == _selected_index:
+				return "▸ [R] Accept"
+			if key == "":
+				return "▸ [R] Accept"
+			return "▸ [%s] then [R] Accept" % key
+	if want != "":
+		return "▸ [E] Refresh for a %s offer" % want
+	return "▸ [E] Refresh"
+
+
+## READY claim on Commitments — not Market Accept (wave 15 literalist).
+func claim_walk_cue(q: Dictionary) -> String:
+	if frame_id != FRAME_COMMITMENTS:
+		return "▸ [U] then [R] Claim"
+	var want_id := int(q.get("id", -1))
+	var want := str(q.get("faction", "")).strip_edges()
+	var rows: Array = _commitments_rows()
+	var start: int = _item_page_start(rows.size())
+	for i in range(rows.size()):
+		var data = rows[i]
+		if not (data is Dictionary):
+			continue
+		if str(data.get("status", "")).to_lower() != "ready":
+			continue
+		var id_hit: bool = want_id >= 0 and int(data.get("id", -2)) == want_id
+		var fac_hit: bool = want != "" and str(data.get("faction", "")) == want
+		if not id_hit and not fac_hit:
+			continue
+		var vis: int = i - start
+		var key := ""
+		if vis >= 0 and vis < ITEM_KEYS.size():
+			key = str(ITEM_KEYS[vis])
+		if i == _selected_index:
+			return "▸ [R] Claim"
+		if key == "":
+			return "▸ [R] Claim"
+		return "▸ [%s] then [R] Claim" % key
+	return "▸ [U] then [R] Claim"
+
+
 func _market_rows() -> Array:
-	# Held stalls first, then as many offers as free hands. The offer pool
-	# itself can be 24 deep — we only pin the top-sorted free_n onto the ring.
+	# Fillable held stalls first, then as many offers as free hands. The
+	# offer pool itself can be 24 deep — we only pin the top-sorted free_n
+	# onto the ring. Arc quests are not stalls.
 	var rows: Array = []
-	var held: Array = []
+	var fill: Array = []
 	if quest_manager and quest_manager.has_method("commitment_quests"):
-		held = quest_manager.commitment_quests()
-	for q in held:
-		if q is Dictionary:
-			rows.append({"kind": "held", "data": q})
-	var free_n: int = maxi(0, HANDS_MAX - held.size())
+		for q in quest_manager.commitment_quests():
+			if q is Dictionary and _is_fill_stall(q):
+				fill.append(q)
+	for q in fill:
+		rows.append({"kind": "held", "data": q})
+	var free_n: int = maxi(0, HANDS_MAX - fill.size())
 	if free_n > 0:
 		var offers: Array = _get_visible_offers()
 		for i in range(mini(free_n, offers.size())):

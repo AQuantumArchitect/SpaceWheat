@@ -1,6 +1,6 @@
 # Playtester Personas
 
-Four sensor archetypes for grok-4.5 legs on `player_seat.py`.
+Five sensor archetypes for grok-4.5 legs. Keyboard four on `player_seat.py`. **tap-lamb** is headed `mouse_seat.py`.
 
 **Humans read this page.** Agents fetch `prompts/` — do not paste packs into a spawn.
 
@@ -10,6 +10,7 @@ Four sensor archetypes for grok-4.5 legs on `player_seat.py`.
 | **literalist** | Do exactly what `screen_text` names. Gaps are walls. | `prompts/literalist.md` |
 | **earnest** | Competent newcomer. The control. | `prompts/earnest.md` |
 | **lost-lamb** | No short-term memory. LOOPING / DRIFT are the defects. | `prompts/lost-lamb.md` |
+| **tap-lamb** | Mouse-only lost-lamb. Keyboard-only doors are walls. | `prompts/tap-lamb.md` |
 
 Every sensor also fetches `prompts/SENSOR.md` (laws, seat CLI) and `prompts/HOST.md` (native WSL vs Windows wrap). Coordinator fetches `prompts/GROK.md`. Index: `prompts/INDEX.md`.
 
@@ -22,9 +23,11 @@ python3 🍄/🧪/hive/send_wave.py --dry-run --chapter act0_fresh
 python3 🍄/🧪/hive/send_wave.py --personas literalist,lost-lamb,earnest --chapter act0_fresh --dry-run
 ```
 
-Packs land in `🍄/🧪/hive/waves/<stamp>/`. Parent launches the legs (see `prompts/GROK.md`). Four parallel Godot boots on this host (2026-09-15) all came back STALE — do not raise `--jobs` without measuring.
+Packs land in `🍄/🧪/hive/waves/<stamp>/`. Parent launches the legs (see `prompts/GROK.md`), or run `/hive-wave` (sequential sensors + recap + auto-promote). Four parallel Godot boots on this host (2026-09-15) all came back STALE — do not raise `--jobs` without measuring.
 
-Latest recaps: `waves/20260915T-w6.md` (dual `[E]`), `waves/20260915T-w7.md` (Superpose `[0]` then `[E]` followed; Bell is the live door).
+**Auto-promote:** `promote.py` records a per-persona chapter. A **clear** advances only when that seat banked a real `🍄/🧪/checkpoints/<name>.tres`. Lost-lamb stays memoryless inside a session; an earned checkpoint is where they stand, not a skip. Open-play band starts at `village_identity` (lost-lamb playing around there is the acceptable-case success). Finale: `edge_of_the_enclave`.
+
+Latest recaps: `waves/20260915T-w8.md` (Bell walk followed; Arc named `[X]` then `[I]`), `waves/20260915T-w9b.md` (mill apprentice `[C]` then Market `[Y]`; next door is Plant a New Voice).
 
 ## Laws (three lines)
 
@@ -44,4 +47,6 @@ Discoverability and legibility are different defects. For a *legibility* leg it 
 
 ## Mouse-only
 
-Same persona, swap the seat: `🍄/🧪/mouse_seat.py`. `press` is refused; `look` carries `buttons`. Details in `prompts/SENSOR.md`. Headed — keep concurrent mouse seats to 2–3.
+**tap-lamb** is the dedicated mouse lost-lamb (`mouse_seat.py`). Default `--fresh`; an earned campaign checkpoint is legal, same as lost-lamb. `press` is refused; `look` carries `buttons`. Headed — one live Godot on this host (same as keyboard waves). Do not add tap-lamb to a keyboard wave without measuring; it opens a real window.
+
+Other personas can swap the seat the same way for a mouse-only fly. Details in `prompts/SENSOR.md`.

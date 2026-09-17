@@ -29,11 +29,13 @@ def test_ladder_names_the_three_rungs():
 
 
 def test_board_home_names_the_c_key():
-    """Keyboard-first mill chip: C opens the board. Arc stays tap."""
+    """Keyboard-first mill chip: C opens the board. Arc names X (wave 8:
+    'tap to open the Arc' / [XI] was not a pressable key)."""
     text = src(LADDER)
     assert 'KEY_OPENS := "[%s] opens %s"' in text
     assert "func key_for_home" in text
     assert 'return "C"' in text
+    assert 'return "X"' in text
     chip = src(CHIP)
     assert 'home_name = "the board"' in chip
     assert 'home_key = "C"' in chip
@@ -73,6 +75,40 @@ def test_hud_toasts_skip_detail():
     show = text.split("func show_text")[1].split("\nfunc ")[0]
     assert "has_detail = false" in show
     assert '_detail = ""' in show
+
+
+def test_f_follows_a_live_toast_into_its_menu():
+    """Literalist: F on a live toast opens the named home and the card stays.
+    Shift+F is still Reap. Confirm/submenu still own E/F. Opening the home
+    must not flatten the instruction."""
+    toast = src(TOAST)
+    assert "func follow(" in toast
+    assert "func owns_f(" in toast
+    assert "func f_chip_label(" in toast
+    assert "_overlay_is_open" in toast
+    ob = src(ROOT / "UI" / "Core" / "OverlayBase.gd")
+    fgate = ob.split("get_action_keycode(\"F\")")[1].split("func ")[0]
+    assert "return false" in fgate
+    follow = toast.split("func follow(")[1].split("\nfunc ")[0]
+    assert "owns_f()" in follow
+    assert '_ladder.commit("home")' in follow
+    assert "_on_tap.call()" in follow
+    assert "flatten()" in follow
+    assert "[F] opens" in toast
+    shell = src(ROOT / "UI" / "PlayerShell.gd")
+    inp = shell.split("func _input(")[1].split("func _mark_input_handled")[0]
+    assert "top_toast.follow()" in inp
+    assert "owns_f" in inp
+    assert "toast_f_chip_label" in shell
+    ace = src(ROOT / "Core" / "UI" / "AceChipResolvers.gd")
+    assert "_toast_f_chip_label" in ace
+    assert "is_shift_pressed" in inp
+    assert "owns_ef_keys" in inp
+    om = src(OM)
+    home = om.split("func open_event_home")[1].split("func ")[0]
+    assert "_flatten_toasts_for_home" not in home
+    assert "_raise_toast_column" in home
+    assert "func _raise_toast_column" in om
 
 
 def test_arc_row_is_inspect_then_shunt_never_accept():

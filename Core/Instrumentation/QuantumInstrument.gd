@@ -702,6 +702,10 @@ func action_inject_icon_pair(biome_name: String, icon: Dictionary) -> Dictionary
 		result["cost"] = gate.get("cost", {})
 		# The player faction's socialites engaged these emojis — tell the story substrate.
 		_notify_story([north_emoji, south_emoji], "inject")
+		# Wave 23 earnest: +1 qubit toast fired, Plant ×1 never moved.
+		# Ace Rabi is also named "plant" — do not alias. This is the Icon verb
+		# new_voices counts. Do not plant for them.
+		_notify_quest_projection("inject_icon", result)
 
 	action_performed.emit("inject_icon", result)
 	return result

@@ -34,6 +34,21 @@ def test_ace_e_is_always_pause_never_superpose() -> None:
     assert "AceChipResolvers.resolve_e" not in ctx
 
 
+def test_operator_r_is_gate_not_weave() -> None:
+    """Buttons only do what they advertise. Operator R opens Gate. Bell is
+    submenu Q after two plots are marked. Ace never weaves."""
+    cfg = _read("Core/GameState/ToolConfig.gd")
+    op = cfg.split("FRAME_OPERATOR: {")[1].split("FRAME_DRUID:")[0]
+    assert '"label": "Gate"' in op
+    assert '"label": "Weave"' not in op
+    assert '"submenu": "gate_selection"' in op
+    qii = _read("UI/Core/QuantumInstrumentInput.gd")
+    assert "_maybe_wear_live_hat" not in qii
+    ace = _read("Core/UI/AceChipResolvers.gd")
+    assert "weave" not in ace.lower()
+    assert "bell" not in ace.lower()
+
+
 def test_hat_and_menu_chips_carry_a_caption_box() -> None:
     row = _read("UI/Widgets/SelectionButtonRow.gd")
     assert 'spec.get("caption"' in row

@@ -35,7 +35,7 @@ Every command prints **one JSON object** on stdout. Read it. Do not invent field
 | field | meaning |
 |---|---|
 | `screen_text` | hints, banner, toasts — the instruction sheet |
-| `field` | visible plots. Live keys: `pos`, `biome`, `key` (G H J K L ;), `focused`, `measured`, `revealed`, `empty`. A focused empty plot is not a bug — the game will say so if it speaks. |
+| `field` | visible plots. Live keys: `pos`, `biome`, `key` (G H J K L ;), `focused`, `measured`, `revealed`, `empty`, `checked` (Shift+G H marks a plot for a Bell weave). A focused empty plot is not a bug — the game will say so if it speaks. |
 | `wearing_hat` | current archetype frame (`ace` / `druid` / `operator` / …). Hats are toggles — re-pressing the active hat returns to Ace. |
 | `wallet` | resources (emoji → amount) |
 | `biome_tabs` | `{key, biome}` for unlocked biome slots (T Y U …) |
@@ -87,6 +87,8 @@ Bank names: letters, digits, underscores only.
 
 A late-game system needs a checkpoint sitting *immediately before* the moment under test, not "in the neighborhood." Fetch `🍄/🧪/hive/PERSONAS.md` § "Testing a specific late-game system" if you were given a `--checkpoint` and are unsure.
 
+**Auto-promote:** if you CLEAR the chapter, bank as `<persona_stem>_<chapter>_clear` (hyphens → underscores, e.g. `lost_lamb_new_voices_clear`). `promote.py` will load that save next wave. No bank file → no promotion. Do not claim a clear you did not walk.
+
 ## Mouse-only variant
 
-Same persona, different seat: `🍄/🧪/mouse_seat.py`. `press` is refused. `look` carries `buttons`. Fetch that file's docstring if you were told mouse-only. Headed; keep concurrent mouse seats to 2–3.
+**tap-lamb** (and any mouse-only fly): `🍄/🧪/mouse_seat.py`. `press` is refused. `look` carries `buttons`. Fetch that file's docstring. Headed; **one live Godot** on this host.

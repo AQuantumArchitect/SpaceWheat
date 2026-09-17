@@ -76,7 +76,9 @@ def test_superpose_and_bell_name_the_verb_key() -> None:
     still labels `[E] Pause` is the dual-key wall.
 
     Name the hat first (`[0] Druid` / `[9] Operator`). After they wear it,
-    name the verb (`[E]` / `[R]`). Authored tutorial_hint stays English.
+    name the verb (`[E]` Superpose). Bell is a walk: mark two plots, then
+    `[R] Gate` (the chip), then `[Q] Bell` (submenu Q, not R — R is CZ).
+    Authored tutorial_hint stays English.
     """
     src = PROGRESSION.read_text(encoding="utf-8")
     assert "func _verb_line(" in src, (
@@ -91,6 +93,10 @@ def test_superpose_and_bell_name_the_verb_key() -> None:
     )
     assert "HAT_KEY_TO_FRAME" in body
     assert "[%s] %s" in body
+    assert "[Q] Bell" in body, "once Gate is open, Bell is on Q — not R"
+    assert "[R] Gate" in body, "Operator R is Gate, never Weave"
+    assert "Shift+G then Shift+H" in body, "name the mark before Gate"
+    assert "[R] Weave" not in body
     hints = {int(s["tutorial_step"]): s.get("tutorial_hint", "") for s in steps()}
     assert hints[3] == "Superpose a forest plot."
     assert "E" not in hints[3] and "[0]" not in hints[3]
@@ -110,6 +116,28 @@ def test_ace_never_does_druid_things() -> None:
     assert '"label": "Superpose"' in druid
     assert '"label": "H-Gate"' not in druid
     assert '"label": "Pause"' in druid
+    # Operator R is Gate, always. Do not relabel it Weave (that would be a
+    # lying advertisement — R opens a picker, Q applies Bell).
+    assert '"label": "Gate"' in druid
+    assert '"label": "Weave"' not in druid
+
+
+def test_marking_a_plot_speaks() -> None:
+    """Wave 7 lost-lamb looped Shift+G: check had no screen_text. Toast the
+    mark. Refresh Gate if it is already open so Bell appears on Q."""
+    qii = QII.read_text(encoding="utf-8")
+    body = qii.split("func toggle_check(")[1].split("\nfunc ")[0]
+    assert "_toast_player" in body
+    assert "marked" in body
+    assert "_refresh_gate_submenu_if_open" in body
+    assert "_refresh_objective_chrome" in body
+    assert "enter_submenu" in qii.split("func _refresh_gate_submenu_if_open")[1].split("\nfunc ")[0]
+    chrome = qii.split("func _refresh_objective_chrome")[1].split("\nfunc ")[0]
+    assert "objective_chrome" in chrome
+    assert "force_refresh" in chrome
+    filament = (ROOT / "UI/Widgets/ActFilament.gd").read_text(encoding="utf-8")
+    assert "func force_refresh" in filament
+    assert 'add_to_group("objective_chrome")' in filament
 
 
 def test_gate_empty_chip_names_how_to_check_two_plots() -> None:

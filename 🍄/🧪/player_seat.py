@@ -200,6 +200,21 @@ def cmd_look(seat: str, graph: bool = True) -> dict:
     # press, and reports the resulting misfire as "the game did something I
     # didn't ask for". Parity-safe: it is on screen, just not as text.
     frame = _turn(seat, st, c, "confirm_state").get("current_frame", "")
+    # Sighted players see checkboxes on plots. Overlay instrument_state so
+    # a bubble_state field (no `checked` key) still reports the marks.
+    inst = _turn(seat, st, c, "instrument_state")
+    checks = set()
+    for cpos in inst.get("checked_plots") or []:
+        if isinstance(cpos, (list, tuple)) and len(cpos) >= 2:
+            checks.add((int(cpos[0]), int(cpos[1])))
+    if isinstance(field, list):
+        for item in field:
+            if isinstance(item, dict):
+                pos = item.get("pos")
+                if isinstance(pos, (list, tuple)) and len(pos) >= 2:
+                    item["checked"] = (int(pos[0]), int(pos[1])) in checks
+                elif "checked" not in item:
+                    item["checked"] = False
     out = {"ok": True, "screen_text": screen, "field": field,
            "wearing_hat": frame,
            "wallet": rs.get("resources", rs.get("snapshot", {})),

@@ -113,16 +113,20 @@ static func quest_detail(quest: Dictionary) -> String:
 static func toast_for_offer(quest: Dictionary, qm = null) -> Dictionary:
 	if is_auto_tutorial(quest, qm):
 		return {}
+	# Wave 23: plant-short banner already names Forest. A gold Arc toast
+	# on top sent earnest to the picker at 🌱×3 (dual gold).
+	if _offer_is_plant(quest) and _sprouts_are_short():
+		return {}
 	var category := str(quest.get("category", ""))
 	var is_arc := category == "TUTORIAL" or str(quest.get("source_flag", "")).strip_edges() != ""
 	var title := quest_title(quest)
 	if is_arc:
 		return {
-			"message": "📜 [b]%s[/b]\nwaiting on the Arc" % title,
+			"message": "📜 [b]%s[/b]\n▸ [X] then Arc [I]" % title,
 			"detail": "",
 			"importance": 3,
 			"icon": "📜",
-			"path": "XI",
+			"path": "X",
 			"route": "arc",
 		}
 	# Market: log only. Do not say "here" — there is no here to tap.
@@ -685,6 +689,25 @@ static func _first_unsatisfied_gloss(q: Dictionary) -> String:
 		if g != "":
 			return g
 	return ""
+
+
+static func _offer_is_plant(quest: Dictionary) -> bool:
+	for pred in quest.get("state_predicates", []):
+		if not (pred is Dictionary):
+			continue
+		if str(pred.get("type", "")) != "gate_sequence_contains":
+			continue
+		var g := str(pred.get("gate", "")).to_lower()
+		if g == "inject_icon" or g == "plant":
+			return true
+	return false
+
+
+static func _sprouts_are_short() -> bool:
+	# Lazy load: UIProgression already talks to IntroVoice. A preload cycle
+	# would compile-bomb the HUD smokes.
+	var Prog = load("res://UI/Core/UIProgression.gd")
+	return Prog != null and bool(Prog._sprout_short())
 
 
 static func _quest_manager() -> Node:

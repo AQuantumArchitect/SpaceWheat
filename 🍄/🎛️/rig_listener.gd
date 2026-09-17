@@ -1108,6 +1108,11 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 						var pg_cb = pg_qii._get_current_biome()
 						pg_focus_biome = BiomeBase.type_name(pg_cb) if pg_cb else ""
 				var pg_keys := "GHJKL;"
+				var pg_checked := {}
+				if pg_qii and ("_instrument" in pg_qii) and pg_qii._instrument \
+						and ("checked_plots" in pg_qii._instrument):
+					for pg_cpos in pg_qii._instrument.checked_plots:
+						pg_checked[pg_cpos] = true
 				var pg_rows: Array = []
 				var pg_assignments: Dictionary = pg_grid.get_plot_biome_assignments()
 				var pg_positions: Array = pg_assignments.keys()
@@ -1131,6 +1136,7 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 						"revealed": pg_is_revealed,
 						"measured": (pg_plot.terminal != null and bool(pg_plot.terminal.is_measured)) if pg_plot else false,
 						"focused": pg_col == pg_focus_col and pg_bname == pg_focus_biome,
+						"checked": pg_checked.has(pg_pos),
 					}
 					# A revealed bubble wears its word (🦅/🐇 on its face) — the
 					# glyphs tell a player WHERE a resource lives. Fog-honest:

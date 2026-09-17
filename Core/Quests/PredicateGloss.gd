@@ -66,6 +66,8 @@ const GATE_FRAMES := {
 	# Farm verbs — Ace's Q/R/F. Without these, summary() printed "REAP ×1"
 	# with no hat home, and the Arc face taught a gate name instead of a tap.
 	"measure": "ace", "reap": "ace", "pop": "ace", "explore": "ace",
+	# Wave 22: PLANT ×1 named no hat, so literalist read Ace QERF instead.
+	"plant": "icon", "inject_icon": "icon",
 }
 
 
@@ -146,7 +148,7 @@ static func summary(pred: Dictionary, qm = null) -> String:
 			var have_str := ""
 			if qm and qm.has_method("standing_channel_now"):
 				have_str = "%.2f/" % qm.standing_channel_now(sg_faction, sg_channel)
-			return "standing %s.%s %s%.2f — their contracts (C board) raise it" % [sg_faction, sg_channel, have_str, tgt]
+			return "standing %s.%s %s%.2f — their contracts ([C]) raise it" % [sg_faction, sg_channel, have_str, tgt]
 		"biome_state_gte":
 			return "%s.%s ≥ %.2f" % [str(pred.get("biome", "")), str(pred.get("atom", "")), tgt]
 		"biome_state_lte":
@@ -169,7 +171,7 @@ static func summary(pred: Dictionary, qm = null) -> String:
 			var loaded := bool(qm.atom_count_in(evb) > 0) if (qm and qm.has_method("atom_count_in")) else true
 			if loaded:
 				return "%s evolving" % evb
-			return "%s awake — discover it first (Captain 7: R), then work its plots" % evb
+			return "%s awake — 🦅×21 from Forest, then Captain [7] [R] Add Biome" % evb
 		"active_biome_is":
 			# The wayfinding gate: arrival is the whole ask. The objective banner's
 			# travel line already names the orb + key while you're elsewhere; this
@@ -259,6 +261,8 @@ static func summary(pred: Dictionary, qm = null) -> String:
 					return "Gather ×%d — %s: tap a frozen bubble (or Q)" % [gcount, verb_home("ace")]
 				"explore":
 					return "Explore ×%d — %s: tap a sleeping plot (or F)" % [gcount, verb_home("ace")]
+				"plant", "inject_icon":
+					return "Plant ×%d — %s: empty plot, R (need 🌱×5 from Forest)" % [gcount, verb_home("icon")]
 				"hadamard":
 					return "Superpose ×%d — %s: tap E" % [gcount, verb_home("druid")]
 			var gframe := str(GATE_FRAMES.get(gname, ""))

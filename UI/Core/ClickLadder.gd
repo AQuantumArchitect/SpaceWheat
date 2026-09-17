@@ -87,7 +87,6 @@ func prompt() -> String:
 
 
 ## Keyboard-first: name the key when we know it. Mouse still clicks the chip.
-## Arc (and other unmapped homes) keep the tap line — that copy is a later door.
 func _resolved_home_key() -> String:
 	if home_key != "":
 		return home_key
@@ -113,6 +112,8 @@ static func key_for_home(name: String) -> String:
 	var n := str(name).strip_edges().to_lower()
 	if n == "the board" or n == "board" or n == "commitments":
 		return "C"
+	if n == "the arc" or n == "arc" or n == "story":
+		return "X"
 	return ""
 
 

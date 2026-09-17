@@ -288,9 +288,10 @@ func handle_input(event: InputEvent) -> bool:
 	if keycode == InputBindingRegistry.get_action_keycode("F"):
 		if _action_key_declared_live("F"):
 			_on_action_f()
-		else:
-			RefusalVoice.note("nothing on F here")
-		return true
+			return true
+		# Dead F must not eat a live toast-follow (wave 16: Market "—"
+		# toasted `nothing on F here` over `[F] opens Self`).
+		return false
 
 	# ENTER/SPACE keys - activate selected item
 	if InputBindingRegistry.is_menu_confirm_key(keycode):

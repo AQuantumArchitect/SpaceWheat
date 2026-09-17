@@ -115,6 +115,69 @@ func propose_offers(biome, n: int = 1) -> Array:
 	return offers
 
 
+## Same generator as propose_offers, but only stalls whose issuer is
+## `faction_name`. Wave 14: Market [Y] named a Millwright delivery while
+## the pool had only Debt Wardens / Plague Vectors. Does not accept or
+## fill — it only makes the advertised stall exist.
+func propose_faction_offers(biome, faction_name: String, n: int = 3) -> Array:
+	if biome == null or _farm == null or faction_name.strip_edges() == "":
+		return []
+	var biome_name: String = BiomeBase.type_name(biome)
+	if biome_name == "":
+		return []
+	var qc = biome.quantum_computer if "quantum_computer" in biome else null
+	if qc == null or qc.register_map == null:
+		return []
+	var emojis: Array = []
+	var num_qubits = qc.register_map.num_qubits
+	for q in range(num_qubits):
+		var pair: Dictionary = qc.get_emoji_pair_for_qubit(q) if qc.has_method("get_emoji_pair_for_qubit") else {}
+		var north = str(pair.get("north", ""))
+		var south = str(pair.get("south", ""))
+		if north != "":
+			emojis.append({"emoji": north, "pole": 0})
+		if south != "":
+			emojis.append({"emoji": south, "pole": 1})
+	if emojis.is_empty():
+		return []
+	var fdm = _farm.faction_density if "faction_density" in _farm else null
+	if fdm == null:
+		return []
+	emojis.shuffle()
+	var offers: Array = []
+	var taken: int = 0
+	var want := faction_name.strip_edges()
+	for entry in emojis:
+		if taken >= n:
+			break
+		var emoji: String = entry["emoji"]
+		var pole: int = entry["pole"]
+		var speakers: Array = []
+		if fdm.has_method("factions_speaking"):
+			speakers = fdm.factions_speaking(emoji)
+		if speakers.is_empty():
+			continue
+		var names: Array = []
+		for s in speakers:
+			names.append(str(s))
+		if not (want in names):
+			continue
+		var expiry: int = _current_phrame + HamiltonianConfig.CONTRACT_DEFAULT_EXPIRY_PHRAMES
+		var c = MarketContract.make(emoji, want, biome_name, pole, _current_phrame, 0.0, expiry, emoji, 0.0)
+		c.price_paid = PriceModel.price_contract(c, _farm)
+		# Apprentice-scale: neighborhood energy can mint 👥×200 stalls
+		# (wave 14–15). Cap the injected walk so a keepable Millwright
+		# delivery exists. Player still delivers it.
+		var amt: int = maxi(1, int(round(float(c.price_paid))))
+		amt = mini(amt, 8)
+		c.price_paid = amt
+		c.cost_amount = amt
+		register_offer(c)
+		offers.append(c)
+		taken += 1
+	return offers
+
+
 ## Pair-tensor offer generation: for each shared emoji between biome_a and biome_b,
 ## emit a contract whose price reflects the |P_A − P_B| disagreement on that emoji.
 ## Cross-axis bridges (where the two biomes pair the same emoji on different qubits)

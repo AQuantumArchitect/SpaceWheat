@@ -21,6 +21,8 @@ Every game/hive command is one `wsl bash -lc` string. No `$` in that string (Pow
 wsl bash -lc "cd /home/primearchitect/ws/SpaceWheat && python3 🍄/🧪/player_seat.py look SEAT"
 wsl bash -lc "cd /home/primearchitect/ws/SpaceWheat && python3 🍄/🧪/player_seat.py press SEAT e"
 wsl bash -lc "cd /home/primearchitect/ws/SpaceWheat && python3 🍄/🧪/player_seat.py press SEAT f --shift"
+wsl bash -lc "cd /home/primearchitect/ws/SpaceWheat && python3 🍄/🧪/mouse_seat.py look SEAT"
+wsl bash -lc "cd /home/primearchitect/ws/SpaceWheat && python3 🍄/🧪/mouse_seat.py click SEAT HintToast"
 wsl bash -lc "cd /home/primearchitect/ws/SpaceWheat && python3 🍄/🧪/hive/hive.py wall CHAPTER REPORT"
 ```
 

@@ -34,7 +34,7 @@ def test_lane_auto_accepts_all_tutorial_including_the_mill():
 def test_auto_tutorial_has_no_toast():
     offer = src(INTRO).split("func toast_for_offer")[1].split("func flag_postcard")[0]
     assert "return {}" in offer.split("is_auto_tutorial")[1]
-    assert "waiting on the Arc" in offer
+    assert "[X] then Arc [I]" in offer
     flag_fn = src(INTRO).split("func toast_for_flag")[1].split("func recap")[0]
     assert 'flag_data.has("arc_quest")' in flag_fn
 
@@ -102,6 +102,151 @@ def test_handover_does_not_send_you_through_the_banner():
     assert "gold banner" not in hint
     assert "Arc" in hint
     assert len(hint) <= 70
+
+
+def test_mill_apprentice_names_the_board_key():
+    """Wave 8/9b: first post-intro door said 'Keep mill deliveries' with no
+    key. Name [C] and Market [Y]. Do not accept or fill for them."""
+    flags = json.loads(HANDOVER.read_text(encoding="utf-8"))
+    mill = next(f for f in flags if f.get("id") == "village_stirs")
+    hint = str(mill.get("arc_quest", {}).get("hint", ""))
+    assert "[C]" in hint
+    assert "[Y]" in hint
+    assert len(hint) <= 70
+    prog = src(PROG)
+    assert "func _is_board_ask" in prog
+    assert "standing_gte" in prog.split("func _is_board_ask")[1].split("func ")[0]
+    assert "func _board_walk_line" in prog
+    assert "func _board_ask_biome" in prog
+    assert '"Village"' in prog.split("func _board_ask_biome")[1].split("func ")[0]
+    assert "board_walk_cue" in prog
+    assert "_live_board_faction" in src(BOARD)
+    assert "func propose_faction_offers" in src(ROOT / "Core" / "Markets" / "MarketLattice.gd")
+    assert "func fill_shortfall_cue" in src(BOARD)
+    assert "[Q] Abandon" in src(BOARD)
+    assert "func _claim_walk_line" in src(PROG)
+    assert "func claim_walk_cue" in src(BOARD)
+    assert "_offer_is_keepable" in src(BOARD)
+    lattice = src(ROOT / "Core" / "Markets" / "MarketLattice.gd")
+    assert "mini(amt, 8)" in lattice
+    board = src(BOARD)
+    assert "func _is_fill_stall" in board
+    assert "func board_walk_cue" in board
+    market = board.split("func _market_rows")[1].split("\nfunc ")[0]
+    assert "_is_fill_stall" in market
+    assert "[E] Refresh" in board
+    cue = board.split("func board_walk_cue")[1].split("\nfunc ")[0]
+    assert "_selected_index" in cue
+    assert 'return "▸ [R] %s"' in cue
+
+
+def test_plant_walk_names_the_icon_hat_key():
+    """Wave 11: 'Icon hat (5)' named no bracketed key. Derive [5] then [R].
+    Do not plant for them. Unaffordable picker axes name the cost."""
+    prog = src(PROG)
+    assert "func _is_plant_ask" in prog
+    assert "func _plant_walk_line" in prog
+    plant = prog.split("func _plant_walk_line")[1].split("\nstatic func ")[0]
+    assert "[5]" in plant
+    assert "[R]" in plant
+    assert "_empty_plot_key" in prog
+    assert "_sprout_gather_line" in prog
+    assert "StarterForest" in prog
+    assert "never call that a" in prog or "🐺" in prog
+    assert "[8] Ace" in prog
+    assert "[Q] gather" in prog
+    assert "_sprout_short" in prog
+    assert "ace_f_would_explore" in prog
+    assert "_plot_bound" in prog
+    toast = src(ROOT / "UI" / "Widgets" / "HintToast.gd")
+    owns = toast.split("func owns_f")[1].split("\nfunc ")[0]
+    assert "ace_f_would_explore" in owns
+    qii = src(ROOT / "UI" / "Core" / "QuantumInstrumentInput.gd")
+    disabled = qii.split("if not action_data.get(\"enabled\"")[1].split("\nfunc ")[0]
+    assert "can_afford" in disabled
+    assert "cost_display" in disabled
+    assert "not available" in disabled
+
+
+def test_plant_short_does_not_advertise_c_or_icon_first():
+    """Wave 18-22: PLANT ×1 + [C] opens the board + Icon 5 while 🌱×3.
+    Forest is the live beat until 🌱×5. Do not plant for them."""
+    prog = src(PROG)
+    target = prog.split("static func objective_target()")[1].split("static func ")[0]
+    assert '_is_plant_ask(best) and _sprout_short()' in target
+    assert '"StarterForest"' in target
+    home = prog.split("static func banner_home()")[1].split("static func ")[0]
+    assert "_banner_quest()" in home
+    assert "_is_plant_ask(best)" in home
+    gather = prog.split("static func _sprout_gather_line()")[1].split("\nstatic func ")[0]
+    assert "_measured_glyph" in gather
+    assert '[Q] take %s' in gather
+    chip = src(ROOT / "UI" / "Widgets" / "ContractChip.gd")
+    assert "Board does not plant" in chip
+    assert "func _row_is_plant" in chip
+    intro = src(INTRO)
+    offer = intro.split("func toast_for_offer")[1].split("func flag_postcard")[0]
+    assert "_offer_is_plant" in offer
+    assert "_sprouts_are_short" in offer
+    flags = json.loads(HANDOVER.read_text(encoding="utf-8"))
+    voices = next(f for f in flags if f.get("id") == "new_voices")
+    hint = str(voices.get("arc_quest", {}).get("hint", ""))
+    assert "Forest" in hint
+    assert "🌱" in hint
+    assert "[5]" in hint
+    assert "[R]" in hint
+    assert "GHJKL" not in hint
+    assert len(hint) <= 70
+    gloss = src(ROOT / "Core" / "Quests" / "PredicateGloss.gd")
+    assert "need 🌱×5 from Forest" in gloss
+    assert '"plant": "icon"' in gloss
+    voices_pred = voices.get("arc_quest", {}).get("state_predicates", [{}])[0]
+    assert voices_pred.get("gate") == "inject_icon"
+    inst = src(ROOT / "Core" / "Instrumentation" / "QuantumInstrument.gd")
+    inject = inst.split("func action_inject_icon_pair")[1].split("\nfunc ")[0]
+    assert '_notify_quest_projection("inject_icon"' in inject
+    assert "Ace Rabi is also named" in inject
+    gather = prog.split("static func _sprout_gather_line()")[1].split("\nstatic func ")[0]
+    assert "ace_f_would_explore()" in gather
+    assert "[0] Druid" in gather
+    assert "_already_superposed" in gather
+    assert "FRAME_DRUID" in gather
+    plant_ask = prog.split("static func _is_plant_ask")[1].split("\nstatic func ")[0]
+    assert "inject_icon" in plant_ask
+    assert "func _is_discover_ask" in prog
+    assert "func _discover_walk_line" in prog
+    assert "func _eagle_gather_line" in prog
+    assert "[7] Captain" in prog
+    disc = prog.split("static func _discover_walk_line()")[1].split("\nstatic func ")[0]
+    assert "_eagle_short" in disc
+    assert "[R] Add Biome" in disc
+    wood = next(f for f in flags if f.get("id") == "woodlot_door")
+    whint = str(wood.get("arc_quest", {}).get("hint", ""))
+    assert "🦅" in whint
+    assert "Forest" in whint
+    assert "[7]" in whint
+    assert "[R]" in whint
+    assert "F reads" not in whint
+    assert len(whint) <= 70
+    contact = next(f for f in flags if f.get("id") == "woodlot_contact")
+    chint = str(contact.get("arc_quest", {}).get("hint", ""))
+    assert "[C]" in chint and "[Y]" in chint
+    assert len(chint) <= 70
+    teach = next(f for f in flags if f.get("id") == "lumber_flows")
+    thint = str(teach.get("arc_quest", {}).get("hint", ""))
+    assert "[C]" in thint and "[Y]" in thint
+    assert "[X]" in thint
+    assert len(thint) <= 70
+    obj = prog.split("static func objective_text()")[1].split("static func ")[0]
+    assert "if _is_plant_ask(best):" in obj
+    assert "return _plant_walk_line()" in obj
+    shell = src(ROOT / "UI" / "PlayerShell.gd")
+    peek = shell.split("if event.keycode == KEY_E:")[1].split("elif event.keycode == KEY_F:")[0]
+    assert "hat_e_is_verb" in peek
+    assert "not hat_e_is_verb" in peek
+    gather = prog.split("static func _sprout_gather_line()")[1].split("\nstatic func ")[0]
+    assert "_sim_paused" in gather
+    assert "[F] Play" in gather
 
 
 def test_arc_row_never_accepts_it_shunts_to_the_puzzle():

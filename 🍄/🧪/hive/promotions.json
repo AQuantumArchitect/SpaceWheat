@@ -1,0 +1,48 @@
+{
+  "updated": "2026-09-17T07:21:09Z",
+  "personas": {
+    "literalist": {
+      "chapter": "woodlot_wakes",
+      "checkpoint": "literalist_lumber_flows_clear",
+      "cleared": [
+        "act0_fresh",
+        "village_stirs",
+        "new_voices",
+        "woodlot_door",
+        "woodlot_contact",
+        "lumber_flows"
+      ],
+      "outcome": "promoted",
+      "seeded_from": "wave17_mill_clear",
+      "note": "Ace cleared The Teaching; memoir Timber Country \u2014 The Teaching; Arc to Find the Spring.",
+      "beaten": false
+    },
+    "lost-lamb": {
+      "chapter": "new_voices",
+      "checkpoint": "lost_lamb_new_voices_wall",
+      "cleared": [
+        "act0_fresh",
+        "village_stirs"
+      ],
+      "outcome": "wall",
+      "seeded_from": "wave17_mill_clear",
+      "note": "Filed Superpose loop at \ud83c\udf31 3/5 on \ud83d\udc80\ud83c\udf31 under Druid hat."
+    },
+    "earnest": {
+      "chapter": "woodlot_wakes",
+      "checkpoint": "earnest_lumber_flows_clear",
+      "cleared": [
+        "act0_fresh",
+        "village_stirs",
+        "new_voices",
+        "woodlot_door",
+        "woodlot_contact",
+        "lumber_flows"
+      ],
+      "outcome": "promoted",
+      "seeded_from": "wave17_mill_clear",
+      "note": "Ace walked Prove Reliable \u2192 Millwright \u2192 Claim The Teaching; next door Find the Spring.",
+      "beaten": false
+    }
+  }
+}

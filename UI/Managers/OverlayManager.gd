@@ -415,6 +415,7 @@ func open_overlay(_name: String) -> bool:
 	_verbose.info("ui", "📖", "Opened overlay: %s" % _name)
 	_log_overlay_open_next_frame(_name, overlay)
 	overlay_changed.emit(_name, true)
+	_raise_toast_column()
 	return true
 
 
@@ -557,7 +558,10 @@ func open_controls_on_arc() -> void:
 func open_event_home(key: String, quest_id: int = -1) -> void:
 	var k := str(key).strip_edges()
 	var ku := k.to_upper()
-	_flatten_toasts_for_home(k)
+	# Do not flatten the toast that sent us here. The card stays above the
+	# menu so its text rides with the player (wave 8 literalist lost the
+	# Arc instruction the moment X opened).
+	_raise_toast_column()
 	if k.begins_with("commitments"):
 		var view := "history" if k == "commitments_history" else "active"
 		var qid := quest_id
@@ -655,6 +659,12 @@ func _flatten_toasts_for_home(key: String) -> void:
 	var shell = InstrumentLocator.resolve_player_shell(self)
 	if shell != null and shell.has_method("flatten_toasts_for_home"):
 		shell.flatten_toasts_for_home(key)
+
+
+func _raise_toast_column() -> void:
+	var shell = InstrumentLocator.resolve_player_shell(self)
+	if shell != null and shell.has_method("raise_notification_column"):
+		shell.raise_notification_column()
 
 
 func _ensure_open(overlay_name: String) -> void:

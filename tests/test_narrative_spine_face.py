@@ -53,7 +53,7 @@ def test_offer_toast_is_title_only():
     offer = intro.split("func toast_for_offer")[1].split("func flag_postcard")[0]
     assert "return {}" in offer
     assert offer.count('"detail": ""') >= 2
-    assert "waiting on the Arc" in offer
+    assert "[X] then Arc [I]" in offer
     assert "New offer from" in offer
     assert "Tap here to read & accept" not in intro
 

@@ -308,13 +308,29 @@ static func _is_goods_ask(q: Dictionary) -> bool:
 	return int(q.get("quantity", 0)) > 0
 
 
+## Standing gates are filled on the board, same as goods. Do not leave them
+## as a field label with no key (wave 9b: "Keep mill deliveries" named no
+## pressable key). Still does not accept or fill for them.
+static func _is_board_ask(q: Dictionary) -> bool:
+	if _is_goods_ask(q):
+		return true
+	for pred in q.get("state_predicates", []):
+		if pred is Dictionary and str(pred.get("type", "")) == "standing_gte":
+			return true
+	return false
+
+
 ## Where a banner tap goes. Empty = the ask is on the field (label only).
 ## "commitments" = fill/claim. Unsigned offers never reach the banner.
 static func banner_home() -> String:
-	var best := _best_objective()
+	# Wave 23: plant is a field verb. C does not plant. Use the same
+	# ranker the banner speaks from so Forest and the home cannot dual.
+	var best := _banner_quest()
 	if best.is_empty() or str(best.get("status", "")) == Quest.STATUS_STORY:
 		return ""
-	if str(best.get("status", "")) == "ready" or _is_goods_ask(best):
+	if _is_plant_ask(best):
+		return ""
+	if str(best.get("status", "")) == "ready" or _is_board_ask(best):
 		return "commitments"
 	return ""
 
@@ -329,7 +345,7 @@ static func puzzle_home(q: Dictionary) -> String:
 		return ""
 	if str(q.get("status", "")) == Quest.STATUS_STORY:
 		return ""
-	if str(q.get("status", "")) == "ready" or _is_goods_ask(q):
+	if str(q.get("status", "")) == "ready" or _is_board_ask(q):
 		return "commitments"
 	return "field"
 
@@ -337,8 +353,12 @@ static func puzzle_home(q: Dictionary) -> String:
 ## The live objective's how-line — tutorial_hint / hint. Empty when the
 ## banner has nothing more to say than objective_text() already does.
 static func objective_detail() -> String:
-	var best := _best_objective()
+	var best := _banner_quest()
 	if best.is_empty():
+		return ""
+	# Wave 21 earnest: authored plant how-to (Icon + empty plot) outran the
+	# 🌱 gather walk. One live beat. Do not plant for them.
+	if _is_plant_ask(best) and _sprout_short():
 		return ""
 	var hint := str(best.get("tutorial_hint", "")).strip_edges()
 	if hint == "":
@@ -355,11 +375,51 @@ static func _best_objective() -> Dictionary:
 	return IntroVoice.live_quest()
 
 
+static func _unsigned_plant_offer() -> Dictionary:
+	var qm := _quest_manager()
+	if qm == null or not qm.has_method("get_story_offers"):
+		return {}
+	for q in qm.get_story_offers():
+		if q is Dictionary and _is_plant_ask(q):
+			return q
+	return {}
+
+
+static func _unsigned_discover_offer() -> Dictionary:
+	var qm := _quest_manager()
+	if qm == null or not qm.has_method("get_story_offers"):
+		return {}
+	for q in qm.get_story_offers():
+		if q is Dictionary and _is_discover_ask(q):
+			return q
+	return {}
+
+
+static func _banner_quest() -> Dictionary:
+	var best := _best_objective()
+	if not best.is_empty() and str(best.get("status", "")) != Quest.STATUS_STORY:
+		return best
+	var plant := _unsigned_plant_offer()
+	if not plant.is_empty():
+		return plant
+	var disc := _unsigned_discover_offer()
+	if not disc.is_empty():
+		return disc
+	return best
+
+
 static func objective_text() -> String:
 	var qm := _quest_manager()
 	if qm == null or not ("active_quests" in qm):
 		return ""
-	var best := _best_objective()
+	var best := _banner_quest()
+	# Wave 24 literalist: gathered 🌱 3→21, then chrome-only. Unsigned plant
+	# is STORY — hiding the banner after the gather walk ate Icon [5].
+	# Plant is the live beat whether or not they have signed the Arc.
+	if _is_plant_ask(best):
+		return _plant_walk_line()
+	if _is_discover_ask(best):
+		return _discover_walk_line()
 	# Banner tracks accepted work only. Unaccepted offers live on the Arc —
 	# a gold "go accept this" chip before the door is taken is a second
 	# helping system. Hide until the player actually holds the quest.
@@ -385,7 +445,21 @@ static func objective_target_key() -> String:
 ## speaks from) — no parallel hand-authored lookup to drift. First
 ## UNSATISFIED predicate with a table entry wins; none → honest dark.
 static func objective_target() -> Dictionary:
-	var best := _best_objective()
+	var best := _banner_quest()
+	# Wave 23: plant-short pulses Forest, not Icon 5 and not C. PredicateGloss
+	# target() for gate=plant is the Icon hat — true only after 🌱×5.
+	if _is_plant_ask(best) and _sprout_short():
+		return {"key": "", "biome": "StarterForest"}
+	if _is_plant_ask(best):
+		var icon_hat := _hat_key_for_frame("icon")
+		if str(ToolConfig.get_current_frame()) != ToolConfig.FRAME_ICON:
+			return {"key": icon_hat, "hat": icon_hat, "biome": ""}
+		return {"key": _empty_plot_key(), "hat": icon_hat, "biome": ""}
+	if _is_discover_ask(best) and _eagle_short():
+		return {"key": "", "biome": "StarterForest"}
+	if _is_discover_ask(best):
+		var cap := _hat_key_for_frame("captain")
+		return {"key": cap, "hat": cap, "biome": ""}
 	if best.is_empty() or str(best.get("status", "")) == Quest.STATUS_STORY:
 		# Offers wait on the Arc. No banner, no spotlight-on-X — the
 		# toast already linked there; pulsing a second door is slop.
@@ -393,8 +467,8 @@ static func objective_target() -> Dictionary:
 	var status := str(best.get("status", ""))
 	if status == "ready":
 		return {"key": "C", "biome": ""}
-	# A goods ask is filled on Commitments — pulse C, not a field verb.
-	if _is_goods_ask(best):
+	# Goods and standing asks are filled on the board — pulse C, not a field verb.
+	if _is_board_ask(best):
 		return {"key": "C", "biome": ""}
 	if str(best.get("category", "")) == "TUTORIAL":
 		var step := int(best.get("tutorial_step", -1))
@@ -412,7 +486,16 @@ static func objective_target() -> Dictionary:
 		if step == 3:
 			return {"key": "E", "hat": _hat_key_for_frame("druid"), "biome": step_biome}
 		if step == 4:
-			return {"key": "R", "hat": _hat_key_for_frame("operator"), "biome": step_biome}
+			# Bell is a walk, not a skip. Pulse the hat, then the mark, then
+			# Gate, then Bell-on-Q. Never pulse R (Gate) while they still
+			# need two checks — that was the dual-[R] Weave lie.
+			var bell := {"key": "", "hat": _hat_key_for_frame("operator"), "biome": step_biome}
+			var n := _checked_count()
+			if _in_gate_submenu() and n >= 2:
+				bell["key"] = "Q"
+			elif n >= 2:
+				bell["key"] = "R"
+			return bell
 		if step == 5:
 			return {"key": "F", "hat": _hat_key_for_frame("ace"), "biome": step_biome}
 		for entry_key in VERB_UNLOCK_STEP:
@@ -457,9 +540,18 @@ static func _hat_key_for_frame(frame_name: String) -> String:
 ## already teaching.
 static func _decorate_objective(q: Dictionary) -> String:
 	var status := str(q.get("status", ""))
+	# Wave 19 earnest: Arc Accept while 🌱×3/5. Gather is the live beat;
+	# signing the Arc does not grow sprouts. Do not plant for them.
+	if _is_plant_ask(q) and _sprout_short():
+		return _plant_walk_line()
 	if status == Quest.STATUS_STORY:
 		return "▸ to accept: " + route_accept()
 	if status == "ready":
+		# Wave 15: "tap C, its row twice" while Market was already open and
+		# [R] still said Accept. Name one key. Fallback keeps route_claim().
+		var claim := _claim_walk_line(q)
+		if claim != "":
+			return claim
 		return "▸ to claim: " + route_claim()
 	var travel := _travel_line(q)
 	if travel != "":
@@ -467,6 +559,18 @@ static func _decorate_objective(q: Dictionary) -> String:
 	var verb := _verb_line(q)
 	if verb != "":
 		return verb
+	# Standing/goods live on the board. Derive the walk the same way travel
+	# derives the rail key — even when the authored hint already names [C].
+	# Wave 10/11: Market [Y] + first row was the apprentice (Go there), not
+	# a Millwright delivery. Name Accept / Refresh / Deliver from the board.
+	if _is_board_ask(q):
+		var walk := _board_walk_line(q)
+		if walk != "":
+			return walk
+	if _is_plant_ask(q):
+		return _plant_walk_line()
+	if _is_discover_ask(q):
+		return _discover_walk_line()
 	return IntroVoice.ask_line(q)
 
 
@@ -522,6 +626,10 @@ static func _travel_line(q: Dictionary) -> String:
 ## toggles — once worn, stop naming the hat digit so a lost-lamb does not
 ## drop back to Ace. Never auto-wear: Ace E always pauses; Druid E Superposes.
 ##
+## Wave 7 Bell: `[R] Weave` while Operator R is Gate and submenu-R is CZ.
+## Name the walk: mark two plots, then `[R] Gate`, then `[Q] Bell`. Never
+## apply the weave, never auto-check, never remap Ace R.
+##
 ## Authored tutorial_hint stays English. Keys are derived, like travel.
 static func _verb_line(q: Dictionary) -> String:
 	if str(q.get("category", "")) != "TUTORIAL":
@@ -544,11 +652,588 @@ static func _verb_line(q: Dictionary) -> String:
 	# Reap is Ace Shift+F — never remapped onto plain F, never a hat swap.
 	if step == 5:
 		return "▸ Shift+F %s" % ask
+	# Bell pair: Operator R opens Gate. Bell sits on Q once two plots are marked.
+	if step == 4:
+		var n := _checked_count()
+		if _in_gate_submenu() and n >= 2:
+			return "▸ [Q] Bell"
+		if n >= 2:
+			return "▸ [R] Gate"
+		if n == 1:
+			return "▸ Shift+%s marks the second plot" % _next_unmarked_plot_key()
+		return "▸ Shift+G then Shift+H marks two plots"
 	if key == "":
 		return ""
 	if ("[%s]" % key) in ask:
 		return ask
 	return "▸ [%s] %s" % [key, ask]
+
+
+static func _instrument():
+	# QuantumInstrument holds checked_plots + current_submenu_name.
+	# PlayerShell is in group player_shell (same as _menu_open).
+	var ml := Engine.get_main_loop()
+	if not (ml is SceneTree):
+		return null
+	var tree := ml as SceneTree
+	var shells := tree.get_nodes_in_group("player_shell")
+	if shells.is_empty():
+		return null
+	var shell = shells[0]
+	if shell != null and "quantum_instrument" in shell:
+		return shell.quantum_instrument
+	return null
+
+
+static func _checked_count() -> int:
+	var inst = _instrument()
+	if inst == null or not ("checked_plots" in inst):
+		return 0
+	return int(inst.checked_plots.size())
+
+
+static func _in_gate_submenu() -> bool:
+	var inst = _instrument()
+	if inst == null or not ("current_submenu_name" in inst):
+		return false
+	return str(inst.current_submenu_name) == "gate_selection"
+
+
+static func _in_icon_submenu() -> bool:
+	var inst = _instrument()
+	if inst == null or not ("current_submenu_name" in inst):
+		return false
+	return str(inst.current_submenu_name) == "icon_injection"
+
+
+static func _is_plant_ask(q: Dictionary) -> bool:
+	# Icon injection is the planted word. Ace Rabi is also ledgered as
+	# "plant" — that is a different verb. Count inject_icon as the door.
+	for pred in q.get("state_predicates", []):
+		if not (pred is Dictionary):
+			continue
+		if str(pred.get("type", "")) != "gate_sequence_contains":
+			continue
+		var g := str(pred.get("gate", "")).to_lower()
+		if g == "inject_icon" or g == "plant":
+			return true
+	return false
+
+
+static func _is_discover_ask(q: Dictionary) -> bool:
+	for pred in q.get("state_predicates", []):
+		if not (pred is Dictionary):
+			continue
+		if str(pred.get("type", "")) != "biome_evolving":
+			continue
+		var b := str(pred.get("biome", "")).strip_edges()
+		if b != "" and not _biome_unlocked(b):
+			return true
+	return false
+
+
+static func _biome_unlocked(bname: String) -> bool:
+	var abm := _active_biome_manager()
+	if abm == null or not abm.has_method("get_slot_for_biome"):
+		return false
+	return int(abm.get_slot_for_biome(bname)) >= 0
+
+
+const PLOT_HOMEROW := "GHJKL;"
+
+
+static func _active_farm():
+	var gsm = Engine.get_main_loop().root.get_node_or_null("GameStateManager") if Engine.get_main_loop() else null
+	return gsm.get_active_farm() if (gsm and gsm.has_method("get_active_farm")) else null
+
+
+static func _sprout_have() -> float:
+	var farm = _active_farm()
+	if farm == null or not ("economy" in farm) or farm.economy == null:
+		return 0.0
+	if not farm.economy.has_method("get_resource"):
+		return 0.0
+	return float(farm.economy.get_resource("🌱"))
+
+
+static func _sprout_short() -> bool:
+	# Match can_afford: plant costs 5 🌱 credits, not a gather-on-Village lie.
+	# No farm yet: do not pretend they are short (that would gold-banner Forest
+	# before the mill door).
+	var farm = _active_farm()
+	if farm == null or not ("economy" in farm) or farm.economy == null:
+		return false
+	if not farm.economy.has_method("get_resource"):
+		return false
+	return _sprout_have() < 5.0
+
+
+static func _col_key(col: int) -> String:
+	if col < 0 or col >= PLOT_HOMEROW.length():
+		return ""
+	var k := PLOT_HOMEROW.substr(col, 1)
+	return k if k == ";" else k.to_upper()
+
+
+static func _cross_to(want: String) -> String:
+	if _menu_open():
+		return "▸ ESC closes"
+	var abm := _active_biome_manager()
+	if abm == null:
+		return ""
+	if str(abm.get_active_biome()) == want:
+		return ""
+	var slot := int(abm.get_slot_for_biome(want))
+	if slot < 0:
+		return ""
+	var key := str(abm.get_slot_key(slot)).to_upper()
+	if key == "":
+		return ""
+	return "▸ [%s] crosses to %s" % [key, want]
+
+
+static func _empty_plot_key() -> String:
+	# Wave 18 literalist: "empty plot" named no key. Empty = column past
+	# the biome's live qubits (plot_glance `empty`). Do not plant for them.
+	var farm = _active_farm()
+	var abm := _active_biome_manager()
+	if farm == null or abm == null or farm.grid == null:
+		return "J"
+	var bname := str(abm.get_active_biome())
+	var biome = farm.grid.get_biome(bname) if farm.grid.has_method("get_biome") else null
+	var nq := 0
+	if biome != null and biome.quantum_computer != null and biome.quantum_computer.register_map != null:
+		nq = int(biome.quantum_computer.register_map.num_qubits)
+	var inst = _instrument()
+	if inst != null and "current_plot_idx" in inst and int(inst.current_plot_idx) >= nq:
+		var focused := _col_key(int(inst.current_plot_idx))
+		if focused != "":
+			return focused
+	if farm.grid.has_method("get_plot_biome_assignments"):
+		var cols: Array = []
+		var assignments: Dictionary = farm.grid.get_plot_biome_assignments()
+		for pos in assignments.keys():
+			if str(assignments[pos]) != bname:
+				continue
+			var col := int(pos.x) if pos is Vector2i else int(pos.x)
+			if col >= nq:
+				cols.append(col)
+		cols.sort()
+		if not cols.is_empty():
+			var k := _col_key(int(cols[0]))
+			if k != "":
+				return k
+	return _col_key(nq) if _col_key(nq) != "" else "J"
+
+
+static func _sprout_plot_key() -> String:
+	return _glyph_plot_key("🌱")
+
+
+static func _glyph_plot_key(glyph: String) -> String:
+	# Fog-honest: name a glyph bubble only when a sighted player can read it.
+	# Wave 20: Forest G is 🐺🦌 — never call that a 🌱 plot. Scout unrevealed
+	# live plots (H J K L) until the glyph shows. Empty columns (;) are plant seats.
+	var farm = _active_farm()
+	var bname := _active_biome_name()
+	if farm == null or farm.grid == null or bname == "":
+		return ""
+	var biome = farm.grid.get_biome(bname) if farm.grid.has_method("get_biome") else null
+	if biome == null:
+		return ""
+	var nq := 0
+	if biome.quantum_computer != null and biome.quantum_computer.register_map != null:
+		nq = int(biome.quantum_computer.register_map.num_qubits)
+	var revealed: Dictionary = {}
+	if "revealed_plots" in farm:
+		for rp in farm.revealed_plots:
+			revealed[rp] = true
+	if not farm.grid.has_method("get_plot_biome_assignments"):
+		return ""
+	var assignments: Dictionary = farm.grid.get_plot_biome_assignments()
+	var sprout_cols: Array = []
+	var scout_cols: Array = []
+	for pos in assignments.keys():
+		if str(assignments[pos]) != bname:
+			continue
+		var col := int(pos.x)
+		if col < 0 or col >= nq:
+			continue
+		if revealed.has(pos) and biome.viz_cache != null and biome.viz_cache.has_method("get_axis"):
+			var axis: Dictionary = biome.viz_cache.get_axis(col)
+			var pair := str(axis.get("north", "")) + str(axis.get("south", ""))
+			if glyph in pair:
+				sprout_cols.append(col)
+				continue
+		if not revealed.has(pos):
+			scout_cols.append(col)
+	sprout_cols.sort()
+	if not sprout_cols.is_empty():
+		return _col_key(int(sprout_cols[0]))
+	scout_cols.sort()
+	if not scout_cols.is_empty():
+		return _col_key(int(scout_cols[0]))
+	return ""
+
+
+static func _focused_col() -> int:
+	var inst = _instrument()
+	if inst == null or not ("current_plot_idx" in inst):
+		return -1
+	return int(inst.current_plot_idx)
+
+
+static func _active_biome_name() -> String:
+	var abm := _active_biome_manager()
+	if abm == null:
+		return ""
+	return str(abm.get_active_biome())
+
+
+static func _plot_at(col: int):
+	# ChipContext.bind reads farm.grid.get_plot(pos).terminal — match that.
+	# Wave 20: terminal_pool.get_terminal_for_register missed a measured 🌱
+	# plot, so the banner said [F] Explore after Strike had already landed.
+	var farm = _active_farm()
+	var bname := _active_biome_name()
+	if farm == null or farm.grid == null or col < 0 or bname == "":
+		return null
+	if not farm.grid.has_method("get_plot_biome_assignments"):
+		return null
+	var assignments: Dictionary = farm.grid.get_plot_biome_assignments()
+	for p in assignments.keys():
+		if int(p.x) != col:
+			continue
+		if str(assignments[p]) != bname:
+			continue
+		return farm.grid.get_plot(p)
+	return null
+
+
+static func _plot_terminal(col: int):
+	var plot = _plot_at(col)
+	if plot == null:
+		return null
+	return plot.terminal
+
+
+static func _plot_bound(col: int) -> bool:
+	return _plot_terminal(col) != null
+
+
+static func _plot_measured(col: int) -> bool:
+	var term = _plot_terminal(col)
+	return term != null and bool(term.is_measured)
+
+
+static func _measured_glyph(col: int) -> String:
+	var plot = _plot_at(col)
+	if plot == null:
+		return ""
+	if plot.has_method("get_measured_outcome"):
+		return str(plot.get_measured_outcome())
+	if "measured_outcome" in plot:
+		return str(plot.measured_outcome)
+	return ""
+
+
+static func _sprout_is_south(col: int) -> bool:
+	# Fog-honest: only when the player can read both poles.
+	var farm = _active_farm()
+	if farm == null or not ("revealed_plots" in farm):
+		return false
+	var revealed := false
+	for rp in farm.revealed_plots:
+		if int(rp.x) == col:
+			revealed = true
+			break
+	if not revealed:
+		return false
+	var bname := _active_biome_name()
+	if farm.grid == null or bname == "":
+		return false
+	var biome = farm.grid.get_biome(bname) if farm.grid.has_method("get_biome") else null
+	if biome == null or biome.viz_cache == null or not biome.viz_cache.has_method("get_axis"):
+		return false
+	var axis: Dictionary = biome.viz_cache.get_axis(col)
+	var north := str(axis.get("north", ""))
+	var south := str(axis.get("south", ""))
+	return "🌱" in south and "🌱" not in north
+
+
+static func _plot_bloch_z(col: int) -> float:
+	# Sighted lean: the bubble's north/south tilt. Missing cache → 0
+	# (do not Superpose-guess).
+	var farm = _active_farm()
+	var bname := _active_biome_name()
+	if farm == null or farm.grid == null or bname == "":
+		return 0.0
+	var biome = farm.grid.get_biome(bname) if farm.grid.has_method("get_biome") else null
+	if biome == null or biome.viz_cache == null or not biome.viz_cache.has_method("get_bloch"):
+		return 0.0
+	var bloch: Dictionary = biome.viz_cache.get_bloch(col)
+	if bloch.is_empty():
+		return 0.0
+	return float(bloch.get("z", 0.0))
+
+
+static func _biased_against_sprout(col: int) -> bool:
+	if not _sprout_is_south(col):
+		return false
+	return _plot_bloch_z(col) > 0.35
+
+
+static func _already_superposed(col: int) -> bool:
+	var farm = _active_farm()
+	var bname := _active_biome_name()
+	if farm == null or farm.grid == null or bname == "":
+		return false
+	var biome = farm.grid.get_biome(bname) if farm.grid.has_method("get_biome") else null
+	if biome == null or biome.viz_cache == null or not biome.viz_cache.has_method("get_bloch"):
+		return false
+	var bloch: Dictionary = biome.viz_cache.get_bloch(col)
+	if bloch.is_empty():
+		return false
+	return absf(float(bloch.get("x", 0.0))) > 0.25 \
+			or absf(float(bloch.get("y", 0.0))) > 0.25
+
+
+static func _sim_paused() -> bool:
+	var ml := Engine.get_main_loop()
+	if not (ml is SceneTree):
+		return false
+	var shells := (ml as SceneTree).get_nodes_in_group("player_shell")
+	if shells.is_empty():
+		return false
+	var shell = shells[0]
+	return shell != null and ("paused" in shell) and bool(shell.paused)
+
+
+static func ace_f_would_explore() -> bool:
+	# Toast must not own F when Ace F is Explore (wave 19 dual-F).
+	if str(ToolConfig.get_current_frame()) != ToolConfig.FRAME_ACE:
+		return false
+	if _menu_open() or _in_icon_submenu():
+		return false
+	var col := _focused_col()
+	if col < 0:
+		return false
+	return not _plot_bound(col)
+
+
+static func _sprout_gather_line() -> String:
+	# Wave 18 earnest: Ace Q on Village 👥🌾 paid people, not seeds.
+	# 🌱 lives in StarterForest. One next key. Do not gather for them.
+	# Wave 19: name Explore only when Ace F actually Explores (unbound).
+	if _in_icon_submenu() or _menu_open():
+		return "▸ ESC closes"
+	if _sim_paused():
+		return "▸ [F] Play"
+	var have := int(_sprout_have())
+	var need := "🌱 %d/5" % have
+	var cross := _cross_to("StarterForest")
+	if cross != "":
+		return cross + " for " + need
+	var wearing := str(ToolConfig.get_current_frame())
+	# Druid Superpose is the even-coin on 💀🌱. Ace never Superposes.
+	if wearing != ToolConfig.FRAME_ACE and wearing != ToolConfig.FRAME_DRUID:
+		return "▸ [8] Ace for " + need
+	var want := _sprout_plot_key()
+	var focused := _focused_col()
+	var token := ";" if want == ";" else want.to_upper()
+	var want_col := PLOT_HOMEROW.find(token) if want != "" else -1
+	# Wave 23 literalist: banner [F] Explore vs Ace [F] Fast-Fwd on a
+	# marked plot. Only name Explore when Ace F actually Explores.
+	if want != "" and focused != want_col:
+		return "▸ [%s] for %s" % [want, need]
+	if not _plot_bound(focused):
+		if ace_f_would_explore():
+			return "▸ [F] Explore for " + need
+		if want != "":
+			return "▸ [%s] for %s" % [want, need]
+		return "▸ pick a sleeping 🌱 plot"
+	if not _plot_measured(focused):
+		# 💀🌱 — Superpose evens the coin. Name Druid from Ace only while
+		# the Bloch is still north-heavy and not already on the equator
+		# (wave 25 hat-toggle: Superpose then Ace then Druid again).
+		if _biased_against_sprout(focused) and not _already_superposed(focused):
+			if wearing != ToolConfig.FRAME_DRUID:
+				return "▸ [0] Druid for " + need
+			return "▸ [E] Superpose for " + need
+		if wearing == ToolConfig.FRAME_DRUID:
+			return "▸ [8] Ace for " + need
+		return "▸ [R] Strike for " + need
+	# Wave 23: J is 💀🌱. A 💀 strike is not a 🌱 gather. One next key.
+	var got := _measured_glyph(focused)
+	if "🌱" in got:
+		return "▸ [Q] gather 🌱 (%d/5)" % have
+	if got != "":
+		return "▸ [Q] take %s" % got
+	return "▸ [Q] gather"
+
+
+static func _plant_walk_line() -> String:
+	# Wave 11: "Icon hat (5)" named no bracketed key. Name [5], then [R].
+	# Wave 18: name the empty-plot key; short 🌱 walks Forest, not Village Q.
+	# Do not plant for them.
+	if _sprout_short():
+		return _sprout_gather_line()
+	var wearing := str(ToolConfig.get_current_frame())
+	if wearing != ToolConfig.FRAME_ICON:
+		return "▸ [5] Icon, [%s] empty plot, [R] opens picker" % _empty_plot_key()
+	if _in_icon_submenu():
+		return "▸ [Q]/[E] pick a word (need 🌱×5 + south×13)"
+	return "▸ [%s] empty plot, [R] opens picker" % _empty_plot_key()
+
+
+static func _eagle_have() -> float:
+	var farm = _active_farm()
+	if farm == null or not ("economy" in farm) or farm.economy == null:
+		return 0.0
+	if not farm.economy.has_method("get_resource"):
+		return 0.0
+	return float(farm.economy.get_resource("🦅"))
+
+
+static func _eagle_short() -> bool:
+	var farm = _active_farm()
+	if farm == null or not ("economy" in farm) or farm.economy == null:
+		return false
+	if not farm.economy.has_method("get_resource"):
+		return false
+	return _eagle_have() < 21.0
+
+
+static func _eagle_gather_line() -> String:
+	# Wave 25 earnest: Captain R refused 21🦅 with 0 on hand. Same walk as
+	# sprouts: Forest, Ace, the 🦅 plot (H is 🦅🐇). Do not discover for them.
+	if _in_icon_submenu() or _menu_open():
+		return "▸ ESC closes"
+	if _sim_paused():
+		return "▸ [F] Play"
+	var have := int(_eagle_have())
+	var need := "🦅 %d/21" % have
+	var cross := _cross_to("StarterForest")
+	if cross != "":
+		return cross + " for " + need
+	var wearing := str(ToolConfig.get_current_frame())
+	if wearing != ToolConfig.FRAME_ACE:
+		return "▸ [8] Ace for " + need
+	var want := _glyph_plot_key("🦅")
+	var focused := _focused_col()
+	var token := ";" if want == ";" else want.to_upper()
+	var want_col := PLOT_HOMEROW.find(token) if want != "" else -1
+	if want != "" and focused != want_col:
+		return "▸ [%s] for %s" % [want, need]
+	if not _plot_bound(focused):
+		if ace_f_would_explore():
+			return "▸ [F] Explore for " + need
+		if want != "":
+			return "▸ [%s] for %s" % [want, need]
+		return "▸ pick a sleeping 🦅 plot"
+	if not _plot_measured(focused):
+		return "▸ [R] Strike for " + need
+	var got := _measured_glyph(focused)
+	if "🦅" in got:
+		return "▸ [Q] gather 🦅 (%d/21)" % have
+	if got != "":
+		return "▸ [Q] take %s" % got
+	return "▸ [Q] gather"
+
+
+static func _discover_walk_line() -> String:
+	# Captain R is Add Biome. Hint F=compass was a lie (Captain E is Compass,
+	# F is Play). Gather 🦅 first. Do not discover for them.
+	if _eagle_short():
+		return _eagle_gather_line()
+	if _in_icon_submenu() or _menu_open():
+		return "▸ ESC closes"
+	var wearing := str(ToolConfig.get_current_frame())
+	if wearing != ToolConfig.FRAME_CAPTAIN:
+		return "▸ [7] Captain, [R] Add Biome"
+	return "▸ [R] Add Biome"
+
+
+static func _quest_board():
+	var ml := Engine.get_main_loop()
+	if not (ml is SceneTree):
+		return null
+	var nodes := (ml as SceneTree).get_nodes_in_group("quest_board")
+	if nodes.is_empty():
+		return null
+	return nodes[0]
+
+
+static func _board_ask_biome(q: Dictionary) -> String:
+	var b := str(q.get("biome", "")).strip_edges()
+	if b != "":
+		return b
+	# Millwright standing is a Village board. Wave 13 lost-lamb Refresh'd
+	# Demos stalls forever. Do not guess a biome for tutorial goods.
+	if str(q.get("category", "")) == "ARC" \
+			and "Millwright" in str(q.get("faction", "")):
+		return "Village"
+	return ""
+
+
+static func _claim_walk_line(q: Dictionary) -> String:
+	if not _menu_open():
+		return "▸ [C] then [R] Claim"
+	var board = _quest_board()
+	if board != null and board.has_method("claim_walk_cue"):
+		var cue := str(board.claim_walk_cue(q)).strip_edges()
+		if cue != "":
+			return cue
+	return "▸ [U] then [R] Claim"
+
+
+static func _board_walk_line(q: Dictionary) -> String:
+	# Village first (when that's the stall's country), then [C]. Board open
+	# on the wrong biome: ESC only — Y is Market, not Village, while C is up.
+	var want := _board_ask_biome(q)
+	if want != "":
+		var abm := _active_biome_manager()
+		if abm != null and str(abm.get_active_biome()) != want:
+			if _menu_open():
+				return "▸ ESC closes"
+			var slot := int(abm.get_slot_for_biome(want))
+			if slot >= 0:
+				var key := str(abm.get_slot_key(slot)).to_upper()
+				if key != "":
+					return "▸ [%s] crosses to %s" % [key, want]
+	var board = _quest_board()
+	if board != null and board.has_method("fill_shortfall_cue"):
+		var short := str(board.fill_shortfall_cue(q)).strip_edges()
+		if short != "":
+			if _menu_open() and "Abandon" not in short:
+				return "▸ ESC closes"
+			if _menu_open() and "Abandon" in short:
+				return short.replace("▸ [C] then ", "▸ ")
+			return short
+	if not _menu_open():
+		return "▸ [C] opens the board"
+	if board != null and board.has_method("board_walk_cue"):
+		var cue := str(board.board_walk_cue(q)).strip_edges()
+		if cue != "":
+			return cue
+	return "▸ Market [Y] takes a delivery"
+
+
+static func _next_unmarked_plot_key() -> String:
+	var keys := "GHJKL;"
+	var marked := {}
+	var inst = _instrument()
+	if inst != null and "checked_plots" in inst:
+		for pos in inst.checked_plots:
+			if pos is Vector2i:
+				marked[int(pos.x)] = true
+	for i in range(keys.length()):
+		if not marked.has(i):
+			var k := keys.substr(i, 1)
+			if k == ";":
+				return ";"
+			return k.to_upper()
+	return "G"
 
 
 static func _menu_open() -> bool:

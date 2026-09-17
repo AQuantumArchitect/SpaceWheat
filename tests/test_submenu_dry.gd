@@ -166,6 +166,8 @@ func test_gate_selection_submenu():
 	assert_true(submenu_2["actions"].has("Q"), "Has Q action")
 	assert_eq(submenu_2["actions"]["Q"]["action"], "build_gate", "Q action is build_gate")
 	assert_true(submenu_2["actions"]["Q"].has("gate_type"), "Q has gate_type")
+	assert_eq(submenu_2["actions"]["Q"]["gate_type"], "bell", "Bell is on Q — R is CZ, not Weave")
+	assert_eq(submenu_2["actions"]["Q"]["label"], "Bell", "Q advertises Bell")
 
 	# 3 qubits selected - should have GHZ/Cluster options
 	var selection_3 = [Vector2i(0, 0), Vector2i(1, 0), Vector2i(2, 0)]

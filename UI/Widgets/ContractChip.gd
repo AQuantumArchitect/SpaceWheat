@@ -192,8 +192,11 @@ func _build_row(quest: Dictionary, key_str: String = "") -> Control:
 		where.add_theme_font_size_override("font_size", 11)
 		where.add_theme_color_override("font_color", Color(0.72, 0.80, 0.88, 0.85))
 		row.add_child(where)
-	var ladder: ClickLadder = _ladder_for(qid)
-	var cue := ladder.prompt()
+	var plant := _row_is_plant(quest)
+	var ladder: ClickLadder = _ladder_for(qid, plant)
+	# Wave 23: board does not plant. [C] opens the board was dual gold
+	# against the Forest banner, and lost-lamb looped C on PLANT ×1.
+	var cue := "" if plant else ladder.prompt()
 	if cue != "":
 		var cue_lbl := Label.new()
 		cue_lbl.text = cue
@@ -202,7 +205,10 @@ func _build_row(quest: Dictionary, key_str: String = "") -> Control:
 		row.add_child(cue_lbl)
 	row.mouse_filter = Control.MOUSE_FILTER_STOP
 	row.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	row.tooltip_text = cue if cue != "" else ClickLadder.tap_home("the board")
+	if plant:
+		row.tooltip_text = ""
+	else:
+		row.tooltip_text = cue if cue != "" else ClickLadder.tap_home("the board")
 	row.gui_input.connect(_on_row_gui_input.bind(biome, qid, ready))
 
 	var bar := ProgressBar.new()
@@ -223,15 +229,28 @@ func _build_row(quest: Dictionary, key_str: String = "") -> Control:
 	return row
 
 
-func _ladder_for(qid: int) -> ClickLadder:
+func _row_is_plant(quest: Dictionary) -> bool:
+	for pred in quest.get("state_predicates", []):
+		if not (pred is Dictionary):
+			continue
+		if str(pred.get("type", "")) != "gate_sequence_contains":
+			continue
+		var g := str(pred.get("gate", "")).to_lower()
+		if g == "inject_icon" or g == "plant":
+			return true
+	return false
+
+
+func _ladder_for(qid: int, plant: bool = false) -> ClickLadder:
 	if not _ladders.has(qid):
 		var ladder := ClickLadder.new()
 		ladder.home_name = "the board"
 		ladder.home_key = "C"
 		ladder.has_detail = false
-		ladder.has_home = _overlay_manager != null \
+		# Board does not plant. Mill/standing still climb to C.
+		ladder.has_home = (not plant) and _overlay_manager != null \
 				and _overlay_manager.has_method("open_board_on_commitments")
-		ladder.has_scoot = true
+		ladder.has_scoot = not plant
 		_ladders[qid] = ladder
 	return _ladders[qid]
 

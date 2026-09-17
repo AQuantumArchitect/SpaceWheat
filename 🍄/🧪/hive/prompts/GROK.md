@@ -12,7 +12,7 @@ No Claude. `send_wave.py` writes spawn packs; the parent launches legs.
 
 1. One live headless Godot per machine. **Sequential seats.** Wave 1 (four parallel boots) all STALE.
 2. Default four personas: `literalist`, `earnest`, `lost-lamb`, `masher`.
-3. Act 0 from true zero unless the spawn named a checkpoint (lost-lamb always `--fresh`).
+3. Act 0 from true zero unless the spawn named a checkpoint. Lost-lamb may load an *earned* checkpoint from `promote.py` (they walked that chapter). Intra-session they stay memoryless. `/hive-wave` auto-promotes a **clear** only when `🍄/🧪/checkpoints/<bank>.tres` exists.
 4. After each leg: `player_seat.py stop <seat>` before the next `start`.
 5. Sensors never edit. Parent may edit between waves (path repairs, not tester patches).
 
@@ -52,4 +52,6 @@ Writes `🍄/🧪/hive/waves/<stamp>/{manifest.json,prompts.json}`.
 
 Write `🍄/🧪/hive/waves/<stamp>.md` — one table: persona / presses / outcome / one-line note. Humans read that. Raw walls stay in `walls.jsonl`.
 
-Wave 4–7 (2026-09-15, grok-4.5): mill `[C]`, forest-cross `ESC` then `[U]`, Superpose `[0]` then `[E]` are keyboard-followable. Next door: Bell pair (Shift+G H has no check feedback; Weave asks 🔬 the wallet does not have). Legs ~2–4 min. One Godot. umweltd down is OK — local walls.jsonl is record.
+Wave 8–9b (2026-09-15, grok-4.5): mill `[C]`, forest-cross ESC, Superpose `[0]` then `[E]`, Bell (Shift+G H, `[R] Gate`, `[Q] Bell`), Reap Shift+F, Arc `[X]` then `[I]` are keyboard-followable. Mill apprentice: `[C]` then Market `[Y]`. Next door: Plant a New Voice (Icon 5, empty plot, R — do not plant for them).
+
+Live toast owns F (`[F] opens …`); the card stays above menus. **tap-lamb** is the mouse-only lost-lamb (`mouse_seat.py`, headed, opt-in). Orchestration: `/hive-wave` (sequential seats, then recap). Legs ~2–4 min. One Godot. umweltd down is OK — local walls.jsonl is record.

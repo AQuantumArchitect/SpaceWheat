@@ -710,7 +710,13 @@ func _handle_submenu_action(action_key: String) -> void:
 		# no toast, no wallet change, no menu close. Same silent-picker class
 		# marathon #9 fixed nearby for the bare-{north,south} path; this
 		# disabled branch was missed.
-		_toast_player("✗ %s — not available" % str(action_data.get("label", action_key)))
+		# Wave 11 earnest: plant Q/E said "not available" while the real
+		# door was cost (🌱 + south). Name the cost. Do not plant for them.
+		var why := "not available"
+		if action_data.has("can_afford") and not bool(action_data.get("can_afford", true)):
+			var cost_s := str(action_data.get("cost_display", "")).strip_edges()
+			why = cost_s if cost_s != "" else "can't afford"
+		_toast_player("✗ %s — %s" % [str(action_data.get("label", action_key)), why])
 		return  # Stay in submenu
 
 	var action = action_data.get("action", "")
@@ -1646,6 +1652,18 @@ func toggle_check(grid_pos: Vector2i) -> void:
 	plot_checked.emit(grid_pos, not was_checked)
 	if multi_select_mode:
 		multi_select_mode_changed.emit(true, _instrument.checked_plots.size())
+	# Headless seats cannot see the checkbox. Speak the mark so screen_text
+	# and the banner agree (wave 7: Shift+G looped with no feedback).
+	var n: int = _instrument.checked_plots.size()
+	var plot_key := _homerow_key_for_col(int(grid_pos.x))
+	if was_checked:
+		_toast_player("unmarked %s (%d/2)" % [plot_key, n])
+	else:
+		_toast_player("marked %s (%d/2)" % [plot_key, n])
+	_refresh_gate_submenu_if_open()
+	# ActFilament polls at 0.5s. Wave 10 literalist marked H (2/2) then
+	# looked immediately and still read Shift+H. Refresh the banner now.
+	_refresh_objective_chrome()
 
 
 func clear_all_checks() -> void:
@@ -1656,6 +1674,35 @@ func clear_all_checks() -> void:
 	_verbose.debug("input", "☐", "Cleared all checkmarks")
 	if multi_select_mode:
 		multi_select_mode_changed.emit(true, 0)
+
+
+func _homerow_key_for_col(col: int) -> String:
+	var keys := "GHJKL;"
+	if col < 0 or col >= keys.length():
+		return "?"
+	return keys.substr(col, 1).to_upper() if keys.substr(col, 1) != ";" else ";"
+
+
+func _refresh_objective_chrome() -> void:
+	if not is_inside_tree():
+		return
+	for n in get_tree().get_nodes_in_group("objective_chrome"):
+		if n != null and n.has_method("force_refresh"):
+			n.force_refresh()
+
+
+func _refresh_gate_submenu_if_open() -> void:
+	# Checking plots while Gate is open must show Bell on Q — a stale empty
+	# picker after the player marked two plots is a silent door. Still does
+	# not apply Bell; they pick Q themselves.
+	if _instrument == null or not _instrument.is_in_submenu():
+		return
+	if str(_instrument.current_submenu_name) != "gate_selection":
+		return
+	var context = _build_context_dict()
+	var submenu_data = _instrument.enter_submenu("gate_selection", context, _submenu_page)
+	_current_submenu = submenu_data
+	submenu_changed.emit("gate_selection", submenu_data.get("actions", {}))
 
 
 func toggle_multi_select_mode() -> void:

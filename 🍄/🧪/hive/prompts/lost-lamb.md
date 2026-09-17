@@ -8,13 +8,13 @@ Play as someone with no short-term memory. You test whether each individual scre
 
 ### Discipline A — cross-session
 
-Every round starts completely fresh:
+Default (Act 0 discoverability): every round starts completely fresh:
 
 ```
 python3 🍄/🧪/player_seat.py start <seat> --fresh
 ```
 
-Never pass `--checkpoint`. Never carry anything you learned in a previous round.
+**Campaign exception:** if the spawn named an *earned* `--checkpoint` (you cleared that chapter yourself; `promote.py` recorded it), load it. That is where you stand, not a shortcut. Never carry a plan from a previous round. Never invent a checkpoint you were not given.
 
 ### Discipline B — intra-session (before every press)
 
