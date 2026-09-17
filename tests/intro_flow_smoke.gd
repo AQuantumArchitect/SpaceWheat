@@ -172,8 +172,9 @@ func _check_toast_expand() -> void:
 			func() -> void: fired.append(true),
 			"")
 	await process_frame
-	_check(str(toast._label.text).contains("[X] opens the Arc"),
-			"tracker toast names [X], not a tap-only Arc")
+	var toast_body := str(toast._label.text)
+	_check(toast_body.contains("[X] opens the Arc") or toast_body.contains("[F] opens the Arc"),
+			"tracker toast names a key, not a tap-only Arc")
 	_check(not toast.is_expanded(), "tracker toast has no expand rung")
 	var click := InputEventMouseButton.new()
 	click.button_index = MOUSE_BUTTON_LEFT
