@@ -1,0 +1,21 @@
+name: hive-ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Dry referee: physics-adjacent python + sunshine honesty.
+# Sensors still fly on wargen. No Godot on GitHub-hosted runners.
+
+jobs:
+  hive-referee:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: pytest hive honesty
+        run: python3 -m pytest tests/test_hive_promote.py tests/test_sunshine_gates.py -q
