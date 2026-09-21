@@ -149,6 +149,16 @@ def main() -> int:
         "note": "Parent launches legs sequentially (prompts/GROK.md). "
                 "This script writes packs; it does not spawn Godot.",
     }
+    try:
+        import sunshine as sw_sun
+        flake = sw_sun.load_flake()
+        manifest["sunshine"] = {
+            "ready": sw_sun.sun_ready(flake),
+            "prefer_web": sw_sun.prefer_web(flake),
+            "dark": flake is None,
+        }
+    except Exception:
+        manifest["sunshine"] = {"dark": True}
     (wave_dir / "manifest.json").write_text(
         json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     (wave_dir / "prompts.json").write_text(
