@@ -939,7 +939,7 @@
     },
     "arc_quest": {
       "body": "Find Lanternfall — follow the discovery compass to the coast where five lights stand in a row.",
-      "hint": "The ritual, third verse: Captain hat (7), F reads the compass — the story is pulling it toward Lanternfall — R discovers it (costs 21🦅). Stand in it; discovered land evolves on its own. And learn this country's law before you walk in: the Lamplighters keep no board you can reach from here. First contact is by witness — they count who holds the light, not who carries baskets.",
+      "hint": "[7] Captain; 21🦅 then [R]; slots full: [Q] culls a named biome.",
       "faction": "Lamplighters",
       "state_predicates": [
         {

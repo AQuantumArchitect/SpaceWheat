@@ -43,13 +43,20 @@ def test_identity_biome_has_one_accessor() -> None:
 
 def test_cull_gate_refuses_the_identity_biome() -> None:
     farm = src(FARM)
-    gate = farm.split("func can_remove_biome()")[1].split("\nfunc ")[0]
+    can = farm.split("func can_remove_biome()")[1].split("\nfunc ")[0]
+    assert "_cull_gate_for(" in can, (
+        "can_remove_biome must consult the identity rule through _cull_gate_for. "
+        "It is the ONE gate both the keyboard and mouse paths reach "
+        "(ActionValidator pre-press) and that remove_biome re-checks."
+    )
+    gate = farm.split("func _cull_gate_for(")[1].split("\nfunc ")[0]
     assert "identity_biome_name()" in gate, (
-        "can_remove_biome must consult the identity rule. It is the ONE gate both the "
-        "keyboard and mouse paths reach (ActionValidator pre-press) and that remove_biome "
-        "re-checks, so the rule belongs here and only here."
+        "the identity rule belongs in _cull_gate_for so named_cull_target "
+        "cannot pick a home biome when slots are full"
     )
     assert "cannot cull your own home" in gate, "the refusal must say why, in player words"
+    named = farm.split("func named_cull_target()")[1].split("\nfunc ")[0]
+    assert "_cull_gate_for(" in named, "the picker must reuse the same cull rule"
 
 
 def test_seed_biomes_are_declared_once() -> None:
