@@ -140,6 +140,44 @@ def test_mill_apprentice_names_the_board_key():
     assert 'return "▸ [R] %s"' in cue
 
 
+def test_commerce_walk_names_the_market_key():
+    """mill_wakes Hold Commerce: banner named Village Icon [5] plant, not
+    Market. Unsigned commerce still paints. Do not plant for them."""
+    prog = src(PROG)
+    assert "func _unsigned_board_offer" in prog
+    assert "func _preds_still_open" in prog
+    board = prog.split("func _is_board_ask")[1].split("\nstatic func ")[0]
+    assert "biome_attractor_emoji_gte" in board
+    assert "⚙" in board
+    assert "biome_state_gte" in board
+    text_fn = prog.split("static func objective_text()")[1].split("static func ")[0]
+    assert "_is_board_ask(best)" in text_fn
+    assert "_board_walk_line(best)" in text_fn
+    banner = prog.split("static func _banner_quest()")[1].split("static func ")[0]
+    assert "_unsigned_board_offer()" in banner
+    assert banner.index("_unsigned_board_offer") < banner.index("_unsigned_plant_offer")
+    target = prog.split("static func objective_target()")[1].split("static func ")[0]
+    assert "_is_board_ask(best)" in target
+    intro = src(INTRO)
+    assert "func _unsigned_still_open" in intro
+    best_fn = intro.split("func _best_unsigned_offer")[1].split("\nstatic func ")[0]
+    assert "_unsigned_still_open" in best_fn
+    flags = json.loads(HANDOVER.read_text(encoding="utf-8"))
+    mill = next(f for f in flags if f.get("id") == "mill_wakes")
+    aq = mill.get("arc_quest", {})
+    hint = str(aq.get("hint", ""))
+    assert "[C]" in hint
+    assert "[Y]" in hint
+    assert "⚙" in hint
+    assert "[5]" not in hint
+    assert "[R]" not in hint
+    assert "plant" not in hint.lower()
+    assert len(hint) <= 70
+    assert "Millwright" in str(aq.get("faction", ""))
+    walk = prog.split("func _board_walk_line")[1].split("\nstatic func ")[0]
+    assert "Market [Y]" in walk
+
+
 def test_berry_walk_names_one_first_breath_key():
     """first_breath live door: Farm/System/Story/Board + QERF named no key.
     Unsigned berry still paints. One next key, not a paragraph of F/=/R/X."""

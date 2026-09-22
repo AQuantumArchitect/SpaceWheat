@@ -638,6 +638,22 @@ static func _flag_parents_resolved(flag: Dictionary, fired: Dictionary, qm = nul
 	return true
 
 
+static func _unsigned_still_open(q: Dictionary, qm) -> bool:
+	# Skip already-satisfied unsigned offers so Arc NOW is the live door
+	# (mill_wakes: Accept on paid Long Way Home named no farm key).
+	var preds = q.get("state_predicates", [])
+	if not (preds is Array) or preds.is_empty():
+		return true
+	for pred in preds:
+		if not (pred is Dictionary):
+			continue
+		if qm != null and qm.has_method("evaluate_predicate_score") \
+				and float(qm.evaluate_predicate_score(pred)) >= 0.85:
+			continue
+		return true
+	return false
+
+
 static func _best_unsigned_offer(qm) -> Dictionary:
 	if qm == null or not qm.has_method("get_story_offers"):
 		return {}
@@ -649,6 +665,8 @@ static func _best_unsigned_offer(qm) -> Dictionary:
 			continue
 		var cat := str(q.get("category", ""))
 		if cat not in ["ARC", "TUTORIAL"]:
+			continue
+		if not _unsigned_still_open(q, qm):
 			continue
 		var rank := 1000 + int(act_by_flag.get(str(q.get("source_flag", "")), 99))
 		if cat == "TUTORIAL":

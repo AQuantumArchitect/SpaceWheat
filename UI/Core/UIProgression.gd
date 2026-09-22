@@ -315,7 +315,15 @@ static func _is_board_ask(q: Dictionary) -> bool:
 	if _is_goods_ask(q):
 		return true
 	for pred in q.get("state_predicates", []):
-		if pred is Dictionary and str(pred.get("type", "")) == "standing_gte":
+		if not (pred is Dictionary):
+			continue
+		var t := str(pred.get("type", ""))
+		if t == "standing_gte":
+			return true
+		# mill_wakes Hold Commerce: ⚙ is a Market stall, not a planted word.
+		if t == "biome_attractor_emoji_gte" and str(pred.get("emoji", "")) == "⚙":
+			return true
+		if t == "biome_state_gte" and str(pred.get("atom", "")) == "⚙":
 			return true
 	return false
 
@@ -377,12 +385,39 @@ static func _best_objective() -> Dictionary:
 	return IntroVoice.live_quest()
 
 
+static func _preds_still_open(q: Dictionary) -> bool:
+	# Already-satisfied unsigned offers are not the live ask (wave mill_wakes:
+	# Arc Accept on Long Way Home whose phase was already paid).
+	var preds = q.get("state_predicates", [])
+	if not (preds is Array) or preds.is_empty():
+		return true
+	var qm := _quest_manager()
+	for pred in preds:
+		if not (pred is Dictionary):
+			continue
+		if qm != null and qm.has_method("evaluate_predicate_score") \
+				and float(qm.evaluate_predicate_score(pred)) >= 0.85:
+			continue
+		return true
+	return false
+
+
+static func _unsigned_board_offer() -> Dictionary:
+	var qm := _quest_manager()
+	if qm == null or not qm.has_method("get_story_offers"):
+		return {}
+	for q in qm.get_story_offers():
+		if q is Dictionary and _is_board_ask(q) and _preds_still_open(q):
+			return q
+	return {}
+
+
 static func _unsigned_plant_offer() -> Dictionary:
 	var qm := _quest_manager()
 	if qm == null or not qm.has_method("get_story_offers"):
 		return {}
 	for q in qm.get_story_offers():
-		if q is Dictionary and _is_plant_ask(q):
+		if q is Dictionary and _is_plant_ask(q) and _preds_still_open(q):
 			return q
 	return {}
 
@@ -392,7 +427,7 @@ static func _unsigned_discover_offer() -> Dictionary:
 	if qm == null or not qm.has_method("get_story_offers"):
 		return {}
 	for q in qm.get_story_offers():
-		if q is Dictionary and _is_discover_ask(q):
+		if q is Dictionary and _is_discover_ask(q) and _preds_still_open(q):
 			return q
 	return {}
 
@@ -402,7 +437,7 @@ static func _unsigned_berry_offer() -> Dictionary:
 	if qm == null or not qm.has_method("get_story_offers"):
 		return {}
 	for q in qm.get_story_offers():
-		if q is Dictionary and _is_berry_ask(q):
+		if q is Dictionary and _is_berry_ask(q) and _preds_still_open(q):
 			return q
 	return {}
 
@@ -411,6 +446,10 @@ static func _banner_quest() -> Dictionary:
 	var best := _best_objective()
 	if not best.is_empty() and str(best.get("status", "")) != Quest.STATUS_STORY:
 		return best
+	# mill_wakes Hold Commerce is a board ask. Plant must not steal it.
+	var board := _unsigned_board_offer()
+	if not board.is_empty():
+		return board
 	var plant := _unsigned_plant_offer()
 	if not plant.is_empty():
 		return plant
@@ -439,6 +478,10 @@ static func objective_text() -> String:
 	# + QERF with no quest line. Field walk is the live ask, like plant.
 	if _is_berry_ask(best):
 		return _berry_walk_line()
+	# Wave mill_wakes: unsigned Hold Commerce painted Village plant, not
+	# Market. Board walk is the live ask, like plant/berry.
+	if _is_board_ask(best):
+		return _board_walk_line(best)
 	# Banner tracks accepted work only. Unaccepted offers live on the Arc —
 	# a gold "go accept this" chip before the door is taken is a second
 	# helping system. Hide until the player actually holds the quest.
@@ -489,6 +532,8 @@ static func objective_target() -> Dictionary:
 		if not _berry_tracking():
 			return {"key": "F", "hat": berry_hat, "biome": berry_biome}
 		return {"key": "", "hat": berry_hat, "biome": berry_biome}
+	if _is_board_ask(best):
+		return {"key": "C", "biome": _board_ask_biome(best)}
 	if best.is_empty() or str(best.get("status", "")) == Quest.STATUS_STORY:
 		# Offers wait on the Arc. No banner, no spotlight-on-X — the
 		# toast already linked there; pulsing a second door is slop.
