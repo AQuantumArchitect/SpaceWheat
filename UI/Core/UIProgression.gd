@@ -330,6 +330,8 @@ static func banner_home() -> String:
 		return ""
 	if _is_plant_ask(best):
 		return ""
+	if _is_berry_ask(best):
+		return ""
 	if str(best.get("status", "")) == "ready" or _is_board_ask(best):
 		return "commitments"
 	return ""
@@ -395,6 +397,16 @@ static func _unsigned_discover_offer() -> Dictionary:
 	return {}
 
 
+static func _unsigned_berry_offer() -> Dictionary:
+	var qm := _quest_manager()
+	if qm == null or not qm.has_method("get_story_offers"):
+		return {}
+	for q in qm.get_story_offers():
+		if q is Dictionary and _is_berry_ask(q):
+			return q
+	return {}
+
+
 static func _banner_quest() -> Dictionary:
 	var best := _best_objective()
 	if not best.is_empty() and str(best.get("status", "")) != Quest.STATUS_STORY:
@@ -405,6 +417,9 @@ static func _banner_quest() -> Dictionary:
 	var disc := _unsigned_discover_offer()
 	if not disc.is_empty():
 		return disc
+	var berry := _unsigned_berry_offer()
+	if not berry.is_empty():
+		return berry
 	return best
 
 
@@ -420,6 +435,10 @@ static func objective_text() -> String:
 		return _plant_walk_line()
 	if _is_discover_ask(best):
 		return _discover_walk_line()
+	# Wave first_breath: unsigned berry door painted Farm/System/Story/Board
+	# + QERF with no quest line. Field walk is the live ask, like plant.
+	if _is_berry_ask(best):
+		return _berry_walk_line()
 	# Banner tracks accepted work only. Unaccepted offers live on the Arc —
 	# a gold "go accept this" chip before the door is taken is a second
 	# helping system. Hide until the player actually holds the quest.
@@ -460,6 +479,16 @@ static func objective_target() -> Dictionary:
 	if _is_discover_ask(best):
 		var cap := _hat_key_for_frame("captain")
 		return {"key": cap, "hat": cap, "biome": ""}
+	if _is_berry_ask(best):
+		var berry_hat := _hat_key_for_frame("icon")
+		var berry_biome := _berry_ask_biome(best)
+		if str(ToolConfig.get_current_frame()) != ToolConfig.FRAME_ICON:
+			return {"key": berry_hat, "hat": berry_hat, "biome": berry_biome}
+		if _berry_ripe():
+			return {"key": "R", "hat": berry_hat, "biome": berry_biome}
+		if not _berry_tracking():
+			return {"key": "F", "hat": berry_hat, "biome": berry_biome}
+		return {"key": "", "hat": berry_hat, "biome": berry_biome}
 	if best.is_empty() or str(best.get("status", "")) == Quest.STATUS_STORY:
 		# Offers wait on the Arc. No banner, no spotlight-on-X — the
 		# toast already linked there; pulsing a second door is slop.
@@ -571,6 +600,8 @@ static func _decorate_objective(q: Dictionary) -> String:
 		return _plant_walk_line()
 	if _is_discover_ask(q):
 		return _discover_walk_line()
+	if _is_berry_ask(q):
+		return _berry_walk_line(q)
 	return IntroVoice.ask_line(q)
 
 
@@ -730,6 +761,26 @@ static func _is_discover_ask(q: Dictionary) -> bool:
 		if b != "" and not _biome_unlocked(b):
 			return true
 	return false
+
+
+static func _is_berry_ask(q: Dictionary) -> bool:
+	for pred in q.get("state_predicates", []):
+		if not (pred is Dictionary):
+			continue
+		var t := str(pred.get("type", ""))
+		if t == "berry_consumed_count_gte" or t == "berry_total_phase_gte":
+			return true
+	return false
+
+
+static func _berry_ask_biome(q: Dictionary) -> String:
+	for pred in q.get("state_predicates", []):
+		if not (pred is Dictionary):
+			continue
+		var t := str(pred.get("type", ""))
+		if t == "berry_consumed_count_gte" or t == "berry_total_phase_gte":
+			return str(pred.get("biome", "")).strip_edges()
+	return ""
 
 
 static func _biome_unlocked(bname: String) -> bool:
@@ -1084,6 +1135,66 @@ static func _plant_walk_line() -> String:
 	if _in_icon_submenu():
 		return "▸ [Q]/[E] pick a word (need 🌱×5 + south×13)"
 	return "▸ [%s] empty plot, [R] opens picker" % _empty_plot_key()
+
+
+static func _berry_register():
+	var farm = _active_farm()
+	var bname := _active_biome_name()
+	if farm == null or farm.grid == null or bname == "":
+		return null
+	if not farm.grid.has_method("get_biome"):
+		return null
+	var biome = farm.grid.get_biome(bname)
+	if biome == null or biome.quantum_computer == null:
+		return null
+	return biome.quantum_computer.berry_register
+
+
+static func _berry_tracking() -> bool:
+	var reg = _berry_register()
+	if reg == null or not reg.has_method("is_tracked"):
+		return false
+	var qid := _focused_col()
+	if qid < 0:
+		return false
+	return bool(reg.is_tracked(qid))
+
+
+static func _berry_ripe() -> bool:
+	var reg = _berry_register()
+	if reg == null or not reg.has_method("is_ripe"):
+		return false
+	var qid := _focused_col()
+	if qid < 0:
+		return false
+	return bool(reg.is_ripe(qid))
+
+
+static func _berry_walk_line(q: Dictionary = {}) -> String:
+	# first_breath live door: one next key. Do not dump F / = / R / X.
+	# Do not incorporate for them. Unsigned berry still paints (like plant).
+	if _in_icon_submenu() or _menu_open():
+		return "▸ ESC closes"
+	if q.is_empty():
+		q = _banner_quest()
+	var want := _berry_ask_biome(q)
+	if want != "":
+		var cross := _cross_to(want)
+		if cross != "":
+			return cross
+	var wearing := str(ToolConfig.get_current_frame())
+	if wearing != ToolConfig.FRAME_ICON:
+		return "▸ [5] Icon"
+	# Icon F is Track; while a loop is live, F would stop it. Ace F Plays.
+	if _sim_paused() and _berry_tracking():
+		return "▸ [8] Ace"
+	if not _plot_bound(_focused_col()):
+		return "▸ [G] a living plot"
+	if not _berry_tracking():
+		return "▸ [F] Track"
+	if _berry_ripe():
+		return "▸ [R] Incorporate"
+	return "▸ wait — loop ripens (~90s)"
 
 
 static func _eagle_have() -> float:

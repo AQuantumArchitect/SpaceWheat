@@ -140,6 +140,40 @@ def test_mill_apprentice_names_the_board_key():
     assert 'return "▸ [R] %s"' in cue
 
 
+def test_berry_walk_names_one_first_breath_key():
+    """first_breath live door: Farm/System/Story/Board + QERF named no key.
+    Unsigned berry still paints. One next key, not a paragraph of F/=/R/X."""
+    prog = src(PROG)
+    assert "func _is_berry_ask" in prog
+    assert "func _berry_walk_line" in prog
+    assert "func _unsigned_berry_offer" in prog
+    berry = prog.split("func _berry_walk_line")[1].split("\nstatic func ")[0]
+    assert "[5]" in berry
+    assert "[F] Track" in berry
+    assert "[R] Incorporate" in berry
+    assert "[G]" in berry
+    assert "wait" in berry
+    assert "⏩" not in berry
+    assert "[=]" not in berry
+    assert "[X]" not in berry
+    text_fn = prog.split("static func objective_text()")[1].split("static func ")[0]
+    assert "_is_berry_ask(best)" in text_fn
+    assert "_berry_walk_line()" in text_fn
+    home = prog.split("static func banner_home()")[1].split("static func ")[0]
+    assert "_is_berry_ask(best)" in home
+    banner = prog.split("static func _banner_quest()")[1].split("static func ")[0]
+    assert "_unsigned_berry_offer()" in banner
+    flags = json.loads(HANDOVER.read_text(encoding="utf-8"))
+    breath = next(f for f in flags if f.get("id") == "first_breath")
+    hint = str(breath.get("arc_quest", {}).get("hint", ""))
+    assert "[5]" in hint
+    assert "[F]" in hint
+    assert "[R]" in hint
+    assert "90" in hint
+    assert len(hint) <= 70
+    assert "⏩" not in hint
+
+
 def test_plant_walk_names_the_icon_hat_key():
     """Wave 11: 'Icon hat (5)' named no bracketed key. Derive [5] then [R].
     Do not plant for them. Unaffordable picker axes name the cost."""
