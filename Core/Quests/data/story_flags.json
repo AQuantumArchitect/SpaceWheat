@@ -624,7 +624,7 @@
     "standing_grants": {},
     "arc_quest": {
       "body": "First Breath — steer one loop, and keep what it traced.",
-      "hint": "Icon hat 5: F berry-tracks a plot; a loop ripens in ~90s at ×1. ⏩ (or =) speeds the biome clock, and several tracked plots ripen together — F again STOPS a loop, so track and let it orbit. When the R chip reads Incorporate, R takes the word — the forest's, now yours, no faction in between. One new word is the whole quest; the story tab (X) meter is measuring exactly this.",
+      "hint": "Icon [5]: [F] tracks a plot; wait ~90s; [R] Incorporate.",
       "state_predicates": [
         {
           "type": "berry_consumed_count_gte",
