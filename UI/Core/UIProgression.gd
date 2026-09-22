@@ -521,6 +521,17 @@ static func objective_target() -> Dictionary:
 		return {"key": "", "biome": "StarterForest"}
 	if _is_discover_ask(best):
 		var cap := _hat_key_for_frame("captain")
+		if _slots_full():
+			var cull := _named_cull_target()
+			if str(ToolConfig.get_current_frame()) != ToolConfig.FRAME_CAPTAIN:
+				return {"key": cap, "hat": cap, "biome": cull}
+			if cull != "":
+				var abm := _active_biome_manager()
+				if abm != null and str(abm.get_active_biome()) != cull:
+					var slot := int(abm.get_slot_for_biome(cull))
+					var rail := str(abm.get_slot_key(slot)).to_upper() if slot >= 0 else ""
+					return {"key": rail, "hat": cap, "biome": cull}
+				return {"key": "Q", "hat": cap, "biome": cull}
 		return {"key": cap, "hat": cap, "biome": ""}
 	if _is_berry_ask(best):
 		var berry_hat := _hat_key_for_frame("icon")
@@ -1300,14 +1311,59 @@ static func _eagle_gather_line() -> String:
 static func _discover_walk_line() -> String:
 	# Captain R is Add Biome. Hint F=compass was a lie (Captain E is Compass,
 	# F is Play). Gather 🦅 first. Do not discover for them.
+	# lantern_door: slots full made ▸ still [R] with no named cull.
 	if _eagle_short():
 		return _eagle_gather_line()
 	if _in_icon_submenu() or _menu_open():
 		return "▸ ESC closes"
+	if _slots_full():
+		return _cull_walk_line()
 	var wearing := str(ToolConfig.get_current_frame())
 	if wearing != ToolConfig.FRAME_CAPTAIN:
 		return "▸ [7] Captain, [R] Add Biome"
 	return "▸ [R] Add Biome"
+
+
+static func _slots_full() -> bool:
+	var abm := _active_biome_manager()
+	if abm == null or not abm.has_method("has_open_biome_slot"):
+		return false
+	return not bool(abm.has_open_biome_slot())
+
+
+static func _named_cull_target() -> String:
+	var farm = _active_farm()
+	if farm == null or not farm.has_method("named_cull_target"):
+		return ""
+	var gate = farm.named_cull_target()
+	if not (gate is Dictionary) or not bool(gate.get("ok", false)):
+		return ""
+	return str(gate.get("biome_name", "")).strip_edges()
+
+
+static func _cull_walk_line() -> String:
+	# One next key. Name the cull target. Do not cull for them.
+	# Captain Q is Cull; F confirm stays on the destructive chord.
+	if _in_icon_submenu() or _menu_open():
+		return "▸ ESC closes"
+	var want := _named_cull_target()
+	if want == "":
+		return "▸ slots full — no named cull"
+	var wearing := str(ToolConfig.get_current_frame())
+	if wearing != ToolConfig.FRAME_CAPTAIN:
+		return "▸ [7] Captain — cull %s" % want
+	var cross := _cross_to(want)
+	if cross != "":
+		return cross
+	return "▸ [Q] culls %s" % want
+
+
+static func slots_full_refusal() -> String:
+	# Captain-R Add Biome when the spindle is full. Name the cull, not a dead [R].
+	var rest := _cull_walk_line().replace("▸ ", "").strip_edges()
+	if rest == "" or rest == "ESC closes":
+		return "Biome slots full"
+	return "slots full — %s" % rest
 
 
 static func _quest_board():

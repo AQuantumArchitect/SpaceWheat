@@ -2063,6 +2063,12 @@ func _block_reason_for_player(action_name: String) -> String:
 			if farm and farm.has_method("can_discover_biome"):
 				var gate: Dictionary = farm.can_discover_biome()
 				var gmsg := str(gate.get("message", ""))
+				# lantern_door: "Biome slots full" named no cull target and no
+				# key. Banner and toast share UIProgression.slots_full_refusal.
+				if not bool(gate.get("ok", false)) and gmsg == "Biome slots full":
+					var named := UIProgression.slots_full_refusal()
+					if named != "":
+						return named
 				# "Insufficient resources" without the number cost marathon #6
 				# three legs — name the cost and the holdings.
 				if not bool(gate.get("ok", false)) and gmsg != "" and gmsg != "Insufficient resources":

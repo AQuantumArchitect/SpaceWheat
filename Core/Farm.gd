@@ -1781,7 +1781,44 @@ func can_remove_biome() -> Dictionary:
 	if not biome_router:
 		return {"ok": false, "message": "ActiveBiomeManager not available"}
 
-	var biome_name = str(biome_router.get_active_biome())
+	return _cull_gate_for(str(biome_router.get_active_biome()), observation_frame)
+
+
+func named_cull_target() -> Dictionary:
+	# When TYUIOP is full, name one biome the player may cull. Does not cull.
+	# Does not switch active. Same rules as can_remove_biome (identity / seed /
+	# Demos). Prefer the standing biome when it is legal.
+	var observation_frame = get_node_or_null("/root/ObservationFrame")
+	if not observation_frame:
+		return {"ok": false, "message": "ObservationFrame not available"}
+	var biome_router = _get_active_biome_router()
+	if not biome_router:
+		return {"ok": false, "message": "ActiveBiomeManager not available"}
+	var names: Array[String] = []
+	var active := str(biome_router.get_active_biome())
+	if active != "":
+		names.append(active)
+	for b in observation_frame.get_unlocked_biomes():
+		var n := str(b)
+		if n != "" and not names.has(n):
+			names.append(n)
+	for biome_name in names:
+		var gate := _cull_gate_for(biome_name, observation_frame)
+		if bool(gate.get("ok", false)):
+			return gate
+	return {"ok": false, "message": "no cullable biome in a slot"}
+
+
+func _cull_gate_for(biome_name: String, observation_frame = null) -> Dictionary:
+	# One cull rule. can_remove_biome asks it for the standing biome;
+	# named_cull_target walks the spindle so a full-slot refusal can name
+	# a target instead of a dead [R].
+	if observation_frame == null:
+		observation_frame = get_node_or_null("/root/ObservationFrame")
+	if not observation_frame:
+		return {"ok": false, "message": "ObservationFrame not available"}
+
+	biome_name = str(biome_name)
 	if biome_name == "":
 		return {"ok": false, "message": "No active biome"}
 	if observation_frame.get_unlocked_biomes().size() <= 1:

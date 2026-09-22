@@ -178,6 +178,44 @@ def test_commerce_walk_names_the_market_key():
     assert "Market [Y]" in walk
 
 
+def test_slots_full_names_cull_target_and_q():
+    """lantern_door: biome slots full; ▸ still [R]; no named cull target.
+    Refusal names the cull and the one key that does it. Do not cull for them."""
+    prog = src(PROG)
+    assert "func _slots_full" in prog
+    assert "func _named_cull_target" in prog
+    assert "func _cull_walk_line" in prog
+    assert "func slots_full_refusal" in prog
+    disc = prog.split("static func _discover_walk_line()")[1].split("\nstatic func ")[0]
+    assert "_slots_full" in disc
+    assert "_cull_walk_line" in disc
+    cull = prog.split("func _cull_walk_line")[1].split("\nstatic func ")[0]
+    assert "[Q] culls" in cull
+    assert "[7] Captain" in cull
+    assert "[R] Add Biome" not in cull
+    target = prog.split("static func objective_target()")[1].split("static func ")[0]
+    assert "_slots_full()" in target
+    assert '"Q"' in target
+    farm = src(ROOT / "Core" / "Farm.gd")
+    assert "func named_cull_target()" in farm
+    assert "func _cull_gate_for(" in farm
+    can = farm.split("func can_remove_biome()")[1].split("\nfunc ")[0]
+    assert "_cull_gate_for(" in can
+    qii = src(ROOT / "UI" / "Core" / "QuantumInstrumentInput.gd")
+    disc_arm = qii.split('"discover_biome":')[1].split('"remove_biome":')[0]
+    assert "Biome slots full" in disc_arm
+    assert "slots_full_refusal" in disc_arm
+    flags = json.loads(HANDOVER.read_text(encoding="utf-8"))
+    lantern = next(f for f in flags if f.get("id") == "lantern_door")
+    hint = str(lantern.get("arc_quest", {}).get("hint", ""))
+    assert "[7]" in hint
+    assert "[Q]" in hint
+    assert "[R]" in hint
+    assert "cull" in hint.lower()
+    assert "F reads" not in hint
+    assert len(hint) <= 70
+
+
 def test_berry_walk_names_one_first_breath_key():
     """first_breath live door: Farm/System/Story/Board + QERF named no key.
     Unsigned berry still paints. One next key, not a paragraph of F/=/R/X."""
