@@ -178,6 +178,45 @@ def test_commerce_walk_names_the_market_key():
     assert "Market [Y]" in walk
 
 
+def test_eagle_short_names_gather_key():
+    """lantern_door: 21 eagles from Forest, Captain [R] Add Biome, no gather
+    key. Origin next-key was Forest with a blank chip. Name Forest rail,
+    [8] Ace, then [R]/[Q]. Do not discover for them."""
+    prog = src(PROG)
+    assert "func _eagle_gather_target" in prog
+    assert "func eagle_short_refusal" in prog
+    target = prog.split("static func objective_target()")[1].split("static func ")[0]
+    assert "_eagle_short()" in target
+    assert "_eagle_gather_target()" in target
+    assert '{"key": "", "biome": "StarterForest"}' not in target.split("_eagle_short()")[1].split("if _is_discover_ask")[0]
+    gather = prog.split("static func _eagle_gather_target()")[1].split("\nstatic func ")[0]
+    assert '"8"' in gather or "hat_key_for_frame" in gather or "ace" in gather
+    assert '"R"' in gather
+    assert '"Q"' in gather
+    assert "StarterForest" in gather
+    detail = prog.split("static func objective_detail()")[1].split("static func ")[0]
+    assert "_eagle_short()" in detail
+    disc = prog.split("static func _discover_walk_line()")[1].split("\nstatic func ")[0]
+    assert "_eagle_short" in disc
+    assert "_eagle_gather_line" in disc
+    qii = src(ROOT / "UI" / "Core" / "QuantumInstrumentInput.gd")
+    disc_arm = qii.split('"discover_biome":')[1].split('"remove_biome":')[0]
+    assert "eagle_short_refusal" in disc_arm
+    assert disc_arm.index("eagle_short_refusal") < disc_arm.index("slots_full_refusal")
+    flags = json.loads(HANDOVER.read_text(encoding="utf-8"))
+    lantern = next(f for f in flags if f.get("id") == "lantern_door")
+    hint = str(lantern.get("arc_quest", {}).get("hint", ""))
+    assert "Forest" in hint
+    assert "[8]" in hint
+    assert "🦅" in hint
+    assert "[7]" in hint
+    assert "[Q]" in hint
+    assert "[R]" in hint
+    assert "cull" in hint.lower()
+    assert "F reads" not in hint
+    assert len(hint) <= 70
+
+
 def test_slots_full_names_cull_target_and_q():
     """lantern_door: biome slots full; ▸ still [R]; no named cull target.
     Refusal names the cull and the one key that does it. Do not cull for them."""
