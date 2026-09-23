@@ -1271,10 +1271,10 @@ static func _eagle_have() -> float:
 
 
 static func _eagle_short() -> bool:
+	# lantern_door: empty/unreadable wallet never named Village 🧺 [Q].
+	# No farm yet is not a wallet. Mute economy is 0 eagles, so short.
 	var farm = _active_farm()
-	if farm == null or not ("economy" in farm) or farm.economy == null:
-		return false
-	if not farm.economy.has_method("get_resource"):
+	if farm == null:
 		return false
 	return _eagle_have() < 21.0
 
@@ -1290,10 +1290,9 @@ static func _basket_have() -> float:
 
 static func _basket_short() -> bool:
 	# Match pop cost: gather costs 1🧺, flat. Strike does not mint it.
+	# lantern_door: mute wallet is 0🧺 — fail toward Village 🧺 [Q].
 	var farm = _active_farm()
-	if farm == null or not ("economy" in farm) or farm.economy == null:
-		return false
-	if not farm.economy.has_method("get_resource"):
+	if farm == null:
 		return false
 	return _basket_have() < 1.0
 
@@ -1460,6 +1459,7 @@ static func _discover_walk_line() -> String:
 	# Captain R is Add Biome. Hint F=compass was a lie (Captain E is Compass,
 	# F is Play). Gather 🦅 first. Do not discover for them.
 	# lantern_door: slots full made ▸ still [R] with no named cull.
+	# lantern_door: unreadable wallet is eagle-short — fail toward the gather.
 	if _eagle_short():
 		return _eagle_gather_line()
 	if _in_icon_submenu() or _menu_open():

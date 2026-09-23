@@ -269,6 +269,40 @@ def test_basket_short_names_village_q_not_strike():
     assert len(hint) <= 70
 
 
+def test_unreadable_wallet_fails_toward_village_basket():
+    """lantern_door: empty/unreadable wallet, [R] Find Lanternfall does not
+    pay 🧺. Origin _eagle_short/_basket_short returned false when economy
+    was missing or mute, so discover walk kept compass prose. Mute wallet
+    is 0; fail toward Village 🧺 [Q]. Do not discover for them."""
+    prog = src(PROG)
+    eagle = prog.split("static func _eagle_short()")[1].split("\nstatic func ")[0]
+    basket = prog.split("static func _basket_short()")[1].split("\nstatic func ")[0]
+    assert "farm == null" in eagle
+    assert "_eagle_have()" in eagle
+    assert eagle.count("return false") == 1
+    assert 'has_method("get_resource")' not in eagle
+    assert 'not ("economy" in farm)' not in eagle
+    assert "farm == null" in basket
+    assert "_basket_have()" in basket
+    assert basket.count("return false") == 1
+    assert 'has_method("get_resource")' not in basket
+    assert 'not ("economy" in farm)' not in basket
+    disc = prog.split("static func _discover_walk_line()")[1].split("\nstatic func ")[0]
+    assert "_eagle_short" in disc
+    assert "_eagle_gather_line" in disc
+    gather = prog.split("static func _eagle_gather_line()")[1].split("\nstatic func ")[0]
+    assert "_basket_short" in gather
+    assert "_basket_pay_line" in gather
+    pay = prog.split("static func _basket_pay_line()")[1].split("\nstatic func ")[0]
+    assert "Village" in pay
+    assert "[Q] gather 🧺" in pay
+    eagle_ref = prog.split("static func eagle_short_refusal()")[1].split("\nstatic func ")[0]
+    assert "basket_short_refusal" in eagle_ref
+    qii = src(ROOT / "UI" / "Core" / "QuantumInstrumentInput.gd")
+    disc_arm = qii.split('"discover_biome":')[1].split('"remove_biome":')[0]
+    assert "eagle_short_refusal" in disc_arm
+
+
 def test_slots_full_names_cull_target_and_q():
     """lantern_door: biome slots full; ▸ still [R]; no named cull target.
     Refusal names the cull and the one key that does it. Do not cull for them."""
