@@ -536,7 +536,11 @@ static func objective_target() -> Dictionary:
 					var rail := str(abm.get_slot_key(slot)).to_upper() if slot >= 0 else ""
 					return {"key": rail, "hat": cap, "biome": cull}
 				return {"key": "Q", "hat": cap, "biome": cull}
-		return {"key": cap, "hat": cap, "biome": ""}
+		# lantern_door: paid eagles + open slots still named no coast.
+		var coast := _named_discover_target()
+		if str(ToolConfig.get_current_frame()) != ToolConfig.FRAME_CAPTAIN:
+			return {"key": cap, "hat": cap, "biome": coast}
+		return {"key": "R", "hat": cap, "biome": coast}
 	if _is_berry_ask(best):
 		var berry_hat := _hat_key_for_frame("icon")
 		var berry_biome := _berry_ask_biome(best)
@@ -1345,6 +1349,24 @@ static func _eagle_gather_line() -> String:
 	return "▸ [Q] gather"
 
 
+static func _named_discover_target() -> String:
+	# Live biome_evolving ask that is not yet on the spindle. lantern_door
+	# wants Lanternfall; the flag predicates carry no biome, so the banner
+	# must read the arc quest. Do not discover for them.
+	var q := _banner_quest()
+	if q.is_empty() or not _is_discover_ask(q):
+		return ""
+	for pred in q.get("state_predicates", []):
+		if not (pred is Dictionary):
+			continue
+		if str(pred.get("type", "")) != "biome_evolving":
+			continue
+		var b := str(pred.get("biome", "")).strip_edges()
+		if b != "" and not _biome_unlocked(b):
+			return b
+	return ""
+
+
 static func _discover_walk_line() -> String:
 	# Captain R is Add Biome. Hint F=compass was a lie (Captain E is Compass,
 	# F is Play). Gather 🦅 first. Do not discover for them.
@@ -1355,9 +1377,14 @@ static func _discover_walk_line() -> String:
 		return "▸ ESC closes"
 	if _slots_full():
 		return _cull_walk_line()
+	var coast := _named_discover_target()
 	var wearing := str(ToolConfig.get_current_frame())
 	if wearing != ToolConfig.FRAME_CAPTAIN:
+		if coast != "":
+			return "▸ [7] Captain — Add Biome for %s" % coast
 		return "▸ [7] Captain, [R] Add Biome"
+	if coast != "":
+		return "▸ [R] Add Biome — %s" % coast
 	return "▸ [R] Add Biome"
 
 
