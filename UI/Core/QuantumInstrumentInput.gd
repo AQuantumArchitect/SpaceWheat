@@ -2103,6 +2103,10 @@ func _block_reason_for_player(action_name: String) -> String:
 				return short2
 			return "nothing valid to act on here"
 		"explore":
+			# lantern_door: Village 🧺 Explore did not pay a basket. Speak.
+			var basket_ex := UIProgression.basket_short_refusal()
+			if basket_ex != "":
+				return "Explore does not pay 🧺 — %s" % basket_ex
 			return "no unbound plot to explore here"
 		"measure":
 			# "F explores first" is FALSE HELP when nothing is focused — in that
@@ -2112,8 +2116,20 @@ func _block_reason_for_player(action_name: String) -> String:
 			var track_hint := _tracked_elsewhere_hint()
 			if track_hint != "":
 				return track_hint
+			# lantern_door: Strike costs 👥 and does not mint 🧺.
+			var basket_m := UIProgression.basket_short_refusal()
+			if basket_m != "":
+				return "Strike does not pay 🧺 — %s" % basket_m
 			return "nothing live to strike — F explores first"
 		"pop", "reap":
+			# lantern_door: Q gather toasted a dead Strike while 🧺 was 0.
+			if action_name == "pop":
+				var basket := UIProgression.basket_short_refusal()
+				if basket != "":
+					return basket
+			var short_pop := _cost_shortfall_words(action_name)
+			if short_pop != "":
+				return short_pop
 			if not _has_focused_plot():
 				return "no plot selected — G H J K L ; picks one"
 			return "nothing measured to gather here — R strikes first"
