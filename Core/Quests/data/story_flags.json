@@ -939,7 +939,7 @@
     },
     "arc_quest": {
       "body": "Find Lanternfall — follow the discovery compass to the coast where five lights stand in a row.",
-      "hint": "Forest [8] Ace; 🦅 [R]/[Q]; [7] Captain [R]; slots full [Q] culls",
+      "hint": "Forest [8] Ace; 🦅 [R]/[Q]; [7] Captain [R] Lanternfall; [Q] culls",
       "faction": "Lamplighters",
       "state_predicates": [
         {

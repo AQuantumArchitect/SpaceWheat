@@ -31,6 +31,12 @@ const FLOOR = 0.05
 ## per pressured biome, vs an overlap-only biome at ~1.05). Tunable via configure().
 const PRESSURE_BOOST = 6.0
 
+## Extra mass when the LIVE door's biome_evolving ask names this biome
+## (lantern_door → Lanternfall). Flag predicates on the door itself often
+## carry no biome; the 20-wide demos pool would otherwise spend the gather
+## on GildedRot. Stacks on PRESSURE_BOOST. Tunable via configure().
+const LIVE_DISCOVER_BOOST = 18.0
+
 ## Mutable overrides for rig/test configure_discovery.
 static var _weights: Dictionary = {}
 
@@ -51,7 +57,9 @@ static func compute_weights(farm, unexplored: Array) -> Array[float]:
 	var player_alignment = farm.player_alignment if "player_alignment" in farm else null
 	var w_floor = _w("floor", FLOOR)
 	var w_pressure = _w("pressure_boost", PRESSURE_BOOST)
+	var w_live = _w("live_discover_boost", LIVE_DISCOVER_BOOST)
 	var pressured := _biomes_under_pressure(farm)
+	var live := _live_discover_biomes(farm)
 
 	for biome_name in unexplored:
 		var biome_alignment = _biome_alignment_from_name(biome_name, farm)
@@ -59,13 +67,18 @@ static func compute_weights(farm, unexplored: Array) -> Array[float]:
 		if player_alignment != null and biome_alignment != null:
 			alignment = player_alignment.overlap(biome_alignment)
 		var pressure: float = w_pressure if pressured.has(biome_name) else 0.0
+		if live.has(biome_name):
+			pressure += w_live
 		weights.append(w_floor + alignment + pressure)
 
 	return weights
 
 
-## Biomes an UNFIRED story beat or active quest requires — discovery is pulled toward them
-## (quest/market pressure). Reads biome references from unfired-flag predicates + active quests.
+## Biomes an UNFIRED story beat or live door requires — discovery is pulled toward them
+## (quest/market pressure). Reads biome references from unfired-flag predicates, the
+## flag's arc_quest state_predicates (lantern_door keeps Lanternfall off the flag
+## predicates so the beat can fire and offer Find-the-coast), unsigned offers, and
+## accepted arcs whose handshake is still open.
 ##
 ## Only the NEXT-REACHABLE beats exert pressure: a flag contributes its biomes only once all
 ## of its story_flag_set prerequisites have already fired. This keeps the discovery pull focused
@@ -93,24 +106,80 @@ static func _biomes_under_pressure(farm) -> Dictionary:
 						break
 			if not reachable:
 				continue
-			for pred in flag.get("predicates", []):
-				if pred is Dictionary and str(pred.get("biome", "")) != "":
-					pressured[str(pred["biome"])] = true
+			_collect_biome_names(pressured, flag.get("predicates", []))
+			var arc = flag.get("arc_quest")
+			if arc is Dictionary:
+				_collect_biome_names(pressured, arc.get("state_predicates", []))
+	# Unsigned offers are the live handshake. Their source flag has usually
+	# already fired — that is when the door was minted. They must steer.
+	# Accepted arcs steer only while the door is still open; a resolved
+	# handshake must not drag its biome forever (chain_ends idle starved
+	# the act-5 BloodLedger hunt).
+	if "story_offers" in qm and qm.story_offers is Dictionary:
+		for q in qm.story_offers.values():
+			if q is Dictionary:
+				_collect_quest_biomes(pressured, q)
 	if "active_quests" in qm and qm.active_quests is Dictionary:
 		for q in qm.active_quests.values():
-			if q is Dictionary:
-				# A quest whose SOURCE FLAG has already fired must not steer discovery:
-				# the story moved on, but an accepted-and-idle arc quest would otherwise
-				# pull its biome forever (observed live: chain_ends long fired, its arc
-				# quest kept dragging Lanternfall into 13 of 16 captain draws and starved
-				# the act-5 BloodLedger hunt).
-				var src := str(q.get("source_flag", ""))
-				if src != "" and fired.has(src):
-					continue
-				var b := str(q.get("biome", q.get("biome_name", "")))
-				if b != "":
-					pressured[b] = true
+			if not (q is Dictionary):
+				continue
+			var src := str(q.get("source_flag", ""))
+			if src != "" and _source_door_resolved(qm, fired, src):
+				continue
+			_collect_quest_biomes(pressured, q)
 	return pressured
+
+
+static func _collect_biome_names(pressured: Dictionary, preds) -> void:
+	if not (preds is Array):
+		return
+	for pred in preds:
+		if pred is Dictionary and str(pred.get("biome", "")) != "":
+			pressured[str(pred["biome"])] = true
+
+
+static func _collect_quest_biomes(pressured: Dictionary, q: Dictionary) -> void:
+	var b := str(q.get("biome", q.get("biome_name", "")))
+	if b != "":
+		pressured[b] = true
+	_collect_biome_names(pressured, q.get("state_predicates", []))
+
+
+static func _source_door_resolved(qm, fired: Dictionary, src: String) -> bool:
+	if qm != null and qm.has_method("flag_door_is_resolved"):
+		return bool(qm.flag_door_is_resolved(src))
+	return fired.has(src)
+
+
+static func _live_discover_biomes(farm) -> Dictionary:
+	# biome_evolving asks on the live handshake. lantern_door's coast lives
+	# here, not on the flag predicates.
+	var live: Dictionary = {}
+	var qm = InstrumentLocator.resolve_quest_manager(farm, farm)
+	if qm == null:
+		return live
+	var fired: Dictionary = farm.story_flags_fired if "story_flags_fired" in farm else {}
+	var pools: Array = []
+	if "story_offers" in qm and qm.story_offers is Dictionary:
+		pools.append(qm.story_offers.values())
+	if "active_quests" in qm and qm.active_quests is Dictionary:
+		pools.append(qm.active_quests.values())
+	for pool in pools:
+		for q in pool:
+			if not (q is Dictionary):
+				continue
+			var src := str(q.get("source_flag", ""))
+			if src != "" and _source_door_resolved(qm, fired, src):
+				continue
+			for pred in q.get("state_predicates", []):
+				if not (pred is Dictionary):
+					continue
+				if str(pred.get("type", "")) != "biome_evolving":
+					continue
+				var b := str(pred.get("biome", "")).strip_edges()
+				if b != "":
+					live[b] = true
+	return live
 
 
 static func _biome_alignment_from_name(biome_name: String, farm) -> Object:

@@ -213,6 +213,7 @@ def test_eagle_short_names_gather_key():
     assert "[Q]" in hint
     assert "[R]" in hint
     assert "cull" in hint.lower()
+    assert "Lanternfall" in hint
     assert "F reads" not in hint
     assert len(hint) <= 70
 
@@ -247,6 +248,53 @@ def test_slots_full_names_cull_target_and_q():
     flags = json.loads(HANDOVER.read_text(encoding="utf-8"))
     lantern = next(f for f in flags if f.get("id") == "lantern_door")
     hint = str(lantern.get("arc_quest", {}).get("hint", ""))
+    assert "[7]" in hint
+    assert "[Q]" in hint
+    assert "[R]" in hint
+    assert "cull" in hint.lower()
+    assert "F reads" not in hint
+    assert len(hint) <= 70
+
+
+def test_paid_eagles_name_lanternfall_and_the_add_biome_key():
+    """lantern_door: eagles paid, slots open, Captain [R] Add Biome landed
+    GildedRot and the banner named no coast. Live ask names Lanternfall and
+    the one key that discovers it. Compass leans the coast. Pressure reads
+    the arc quest, not only flag predicates. Do not discover for them."""
+    prog = src(PROG)
+    assert "func _named_discover_target" in prog
+    disc = prog.split("static func _discover_walk_line()")[1].split("\nstatic func ")[0]
+    assert "_named_discover_target" in disc
+    assert "Add Biome for" in disc
+    assert "[R] Add Biome —" in disc
+    named = prog.split("static func _named_discover_target()")[1].split("\nstatic func ")[0]
+    assert "biome_evolving" in named
+    assert "_biome_unlocked" in named
+    target = prog.split("static func objective_target()")[1].split("static func ")[0]
+    paid = target.split("if _slots_full():")[1]
+    assert "_named_discover_target()" in paid
+    assert '"R"' in paid
+    forecast = src(ROOT / "Core" / "Gameplay" / "BiomeDiscoveryForecastService.gd")
+    assert "LIVE_DISCOVER_BOOST" in forecast
+    assert "arc_quest" in forecast.split("static func _biomes_under_pressure")[1].split("static func _biome_alignment")[0]
+    assert "story_offers" in forecast
+    assert "func _live_discover_biomes" in forecast
+    assert "flag_door_is_resolved" in forecast
+    qii = src(ROOT / "UI" / "Core" / "QuantumInstrumentInput.gd")
+    compass = qii.split("func _execute_discovery_forecast")[1].split("\nfunc ")[0]
+    assert "_named_discover_target" in compass
+    assert "leans" in compass
+    flags = json.loads(HANDOVER.read_text(encoding="utf-8"))
+    lantern = next(f for f in flags if f.get("id") == "lantern_door")
+    hint = str(lantern.get("arc_quest", {}).get("hint", ""))
+    preds = lantern.get("predicates") or []
+    assert not any(p.get("biome") for p in preds)
+    arc_preds = (lantern.get("arc_quest") or {}).get("state_predicates") or []
+    assert any(p.get("biome") == "Lanternfall" for p in arc_preds)
+    assert "Lanternfall" in hint
+    assert "Forest" in hint
+    assert "[8]" in hint
+    assert "🦅" in hint
     assert "[7]" in hint
     assert "[Q]" in hint
     assert "[R]" in hint

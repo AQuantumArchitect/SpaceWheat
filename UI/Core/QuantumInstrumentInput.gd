@@ -2880,7 +2880,12 @@ func _execute_discovery_forecast() -> Dictionary:
 		})
 	entries.sort_custom(func(a, b): return float(a.prob) > float(b.prob))
 
-	var lines: PackedStringArray = ["[color=#a8d5a2]🧭 Compass:[/color]"]
+	# lantern_door: compass listed GildedRot first and never named the coast.
+	var coast := UIProgression._named_discover_target()
+	var heading := "[color=#a8d5a2]🧭 Compass:[/color]"
+	if coast != "":
+		heading = "[color=#a8d5a2]🧭 Compass:[/color] leans %s" % coast
+	var lines: PackedStringArray = [heading]
 	var shown := 0
 	for e in entries:
 		if shown >= 4:
