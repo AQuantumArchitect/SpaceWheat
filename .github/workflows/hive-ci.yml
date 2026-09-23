@@ -18,4 +18,6 @@ jobs:
         with:
           python-version: "3.12"
       - name: pytest hive honesty
-        run: python3 -m pytest tests/test_hive_promote.py tests/test_sunshine_gates.py -q
+        run: |
+          python3 -m pip install pytest
+          python3 -m pytest tests/test_hive_promote.py tests/test_sunshine_gates.py -q
