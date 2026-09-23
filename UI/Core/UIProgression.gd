@@ -370,6 +370,9 @@ static func objective_detail() -> String:
 	# 🌱 gather walk. One live beat. Do not plant for them.
 	if _is_plant_ask(best) and _sprout_short():
 		return ""
+	# lantern_door: authored [7] Captain [R] outran the 🦅 gather walk.
+	if _is_discover_ask(best) and _eagle_short():
+		return ""
 	var hint := str(best.get("tutorial_hint", "")).strip_edges()
 	if hint == "":
 		hint = str(best.get("hint", "")).strip_edges()
@@ -518,7 +521,8 @@ static func objective_target() -> Dictionary:
 			return {"key": icon_hat, "hat": icon_hat, "biome": ""}
 		return {"key": _empty_plot_key(), "hat": icon_hat, "biome": ""}
 	if _is_discover_ask(best) and _eagle_short():
-		return {"key": "", "biome": "StarterForest"}
+		# lantern_door: empty next-key while 🦅 short named Forest, no gather.
+		return _eagle_gather_target()
 	if _is_discover_ask(best):
 		var cap := _hat_key_for_frame("captain")
 		if _slots_full():
@@ -1271,6 +1275,39 @@ static func _eagle_short() -> bool:
 	return _eagle_have() < 21.0
 
 
+static func _eagle_gather_target() -> Dictionary:
+	# Same walk as _eagle_gather_line: Forest rail, [8] Ace, then [R]/[Q].
+	# Spotlight must name the chip, not Forest with a blank key.
+	var forest := "StarterForest"
+	var ace := _hat_key_for_frame("ace")
+	if _in_icon_submenu() or _menu_open():
+		return {"key": "", "hat": ace, "biome": forest}
+	if _sim_paused():
+		return {"key": "F", "hat": ace, "biome": forest}
+	var abm := _active_biome_manager()
+	if abm != null and str(abm.get_active_biome()) != forest:
+		var slot := int(abm.get_slot_for_biome(forest))
+		var rail := str(abm.get_slot_key(slot)).to_upper() if slot >= 0 else ""
+		return {"key": rail, "hat": ace, "biome": forest}
+	if str(ToolConfig.get_current_frame()) != ToolConfig.FRAME_ACE:
+		return {"key": ace, "hat": ace, "biome": forest}
+	var want := _glyph_plot_key("🦅")
+	var focused := _focused_col()
+	var token := ";" if want == ";" else want.to_upper()
+	var want_col := PLOT_HOMEROW.find(token) if want != "" else -1
+	if want != "" and focused != want_col:
+		return {"key": token, "hat": ace, "biome": forest}
+	if not _plot_bound(focused):
+		if ace_f_would_explore():
+			return {"key": "F", "hat": ace, "biome": forest}
+		if want != "":
+			return {"key": token, "hat": ace, "biome": forest}
+		return {"key": "", "hat": ace, "biome": forest}
+	if not _plot_measured(focused):
+		return {"key": "R", "hat": ace, "biome": forest}
+	return {"key": "Q", "hat": ace, "biome": forest}
+
+
 static func _eagle_gather_line() -> String:
 	# Wave 25 earnest: Captain R refused 21🦅 with 0 on hand. Same walk as
 	# sprouts: Forest, Ace, the 🦅 plot (H is 🦅🐇). Do not discover for them.
@@ -1356,6 +1393,16 @@ static func _cull_walk_line() -> String:
 	if cross != "":
 		return cross
 	return "▸ [Q] culls %s" % want
+
+
+static func eagle_short_refusal() -> String:
+	# Captain-R Add Biome while 🦅 short. Name the gather walk, not a dead [R].
+	if not _eagle_short():
+		return ""
+	var rest := _eagle_gather_line().replace("▸ ", "").strip_edges()
+	if rest == "" or rest == "ESC closes":
+		return "needs 21🦅"
+	return "needs 21🦅 — %s" % rest
 
 
 static func slots_full_refusal() -> String:

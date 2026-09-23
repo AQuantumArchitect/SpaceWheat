@@ -2060,6 +2060,11 @@ func _get_block_reason(_action_name: String) -> String:
 func _block_reason_for_player(action_name: String) -> String:
 	match action_name:
 		"discover_biome":
+			# lantern_door: 21 eagles named Forest, no gather key. Banner and
+			# toast share UIProgression.eagle_short_refusal.
+			var eagle := UIProgression.eagle_short_refusal()
+			if eagle != "":
+				return eagle
 			if farm and farm.has_method("can_discover_biome"):
 				var gate: Dictionary = farm.can_discover_biome()
 				var gmsg := str(gate.get("message", ""))
