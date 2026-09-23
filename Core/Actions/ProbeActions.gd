@@ -976,7 +976,7 @@ static func _prepare_pop_result(terminal, terminal_pool, economy = null, farm = 
 			return {
 				"success": false,
 				"error": "insufficient_resources",
-				"message": "Need %s to pop." % _format_cost(pop_cost)
+				"message": "Need %s to pop — Village 🧺 [Q] pays a basket." % _format_cost(pop_cost)
 			}
 		if not _commit_cost(economy, pop_cost, "pop"):
 			return {

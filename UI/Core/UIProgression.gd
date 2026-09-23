@@ -1279,9 +1279,31 @@ static func _eagle_short() -> bool:
 	return _eagle_have() < 21.0
 
 
+static func _basket_have() -> float:
+	var farm = _active_farm()
+	if farm == null or not ("economy" in farm) or farm.economy == null:
+		return 0.0
+	if not farm.economy.has_method("get_resource"):
+		return 0.0
+	return float(farm.economy.get_resource("🧺"))
+
+
+static func _basket_short() -> bool:
+	# Match pop cost: gather costs 1🧺, flat. Strike does not mint it.
+	var farm = _active_farm()
+	if farm == null or not ("economy" in farm) or farm.economy == null:
+		return false
+	if not farm.economy.has_method("get_resource"):
+		return false
+	return _basket_have() < 1.0
+
+
 static func _eagle_gather_target() -> Dictionary:
 	# Same walk as _eagle_gather_line: Forest rail, [8] Ace, then [R]/[Q].
 	# Spotlight must name the chip, not Forest with a blank key.
+	# lantern_door: 🧺 short — Q gather still named Strike. Strike does not pay.
+	if _basket_short():
+		return _basket_pay_target()
 	var forest := "StarterForest"
 	var ace := _hat_key_for_frame("ace")
 	if _in_icon_submenu() or _menu_open():
@@ -1312,6 +1334,37 @@ static func _eagle_gather_target() -> Dictionary:
 	return {"key": "Q", "hat": ace, "biome": forest}
 
 
+static func _basket_pay_target() -> Dictionary:
+	# Same walk as _basket_pay_line: Village rail, [8] Ace, 🧺 plot, then [Q].
+	# Q pays the basket. Do not spotlight Strike.
+	var village := "Village"
+	var ace := _hat_key_for_frame("ace")
+	if _in_icon_submenu() or _menu_open():
+		return {"key": "", "hat": ace, "biome": village}
+	if _sim_paused():
+		return {"key": "F", "hat": ace, "biome": village}
+	var abm := _active_biome_manager()
+	if abm != null and str(abm.get_active_biome()) != village:
+		var slot := int(abm.get_slot_for_biome(village))
+		var rail := str(abm.get_slot_key(slot)).to_upper() if slot >= 0 else ""
+		return {"key": rail, "hat": ace, "biome": village}
+	if str(ToolConfig.get_current_frame()) != ToolConfig.FRAME_ACE:
+		return {"key": ace, "hat": ace, "biome": village}
+	var want := _glyph_plot_key("🧺")
+	var focused := _focused_col()
+	var token := ";" if want == ";" else want.to_upper()
+	var want_col := PLOT_HOMEROW.find(token) if want != "" else -1
+	if want != "" and focused != want_col:
+		return {"key": token, "hat": ace, "biome": village}
+	if not _plot_bound(focused):
+		if ace_f_would_explore():
+			return {"key": "F", "hat": ace, "biome": village}
+		if want != "":
+			return {"key": token, "hat": ace, "biome": village}
+		return {"key": "", "hat": ace, "biome": village}
+	return {"key": "Q", "hat": ace, "biome": village}
+
+
 static func _eagle_gather_line() -> String:
 	# Wave 25 earnest: Captain R refused 21🦅 with 0 on hand. Same walk as
 	# sprouts: Forest, Ace, the 🦅 plot (H is 🦅🐇). Do not discover for them.
@@ -1319,6 +1372,9 @@ static func _eagle_gather_line() -> String:
 		return "▸ ESC closes"
 	if _sim_paused():
 		return "▸ [F] Play"
+	# lantern_door: 🧺 0, banner still named Strike. Strike does not mint 🧺.
+	if _basket_short():
+		return _basket_pay_line()
 	var have := int(_eagle_have())
 	var need := "🦅 %d/21" % have
 	var cross := _cross_to("StarterForest")
@@ -1347,6 +1403,39 @@ static func _eagle_gather_line() -> String:
 	if got != "":
 		return "▸ [Q] take %s" % got
 	return "▸ [Q] gather"
+
+
+static func _basket_pay_line() -> String:
+	# lantern_door: 🦅 gather costs 🧺. Strike costs 👥 and does not mint it.
+	# Village 🧺 [Q] pays a basket. One next key. Do not gather for them.
+	if _in_icon_submenu() or _menu_open():
+		return "▸ ESC closes"
+	if _sim_paused():
+		return "▸ [F] Play"
+	var have := int(_basket_have())
+	var need := "🧺 %d/1" % have
+	var cross := _cross_to("Village")
+	if cross != "":
+		return cross + " for " + need
+	var wearing := str(ToolConfig.get_current_frame())
+	if wearing != ToolConfig.FRAME_ACE:
+		return "▸ [8] Ace for " + need
+	var want := _glyph_plot_key("🧺")
+	var focused := _focused_col()
+	var token := ";" if want == ";" else want.to_upper()
+	var want_col := PLOT_HOMEROW.find(token) if want != "" else -1
+	if want != "" and focused != want_col:
+		return "▸ [%s] for %s" % [want, need]
+	if not _plot_bound(focused):
+		if ace_f_would_explore():
+			return "▸ [F] Explore for " + need
+		if want != "":
+			return "▸ [%s] for %s" % [want, need]
+		return "▸ pick a sleeping 🧺 plot"
+	var got := _measured_glyph(focused)
+	if "🧺" in got or got == "":
+		return "▸ [Q] gather 🧺 (%d/1)" % have
+	return "▸ [Q] take %s" % got
 
 
 static func _named_discover_target() -> String:
@@ -1424,12 +1513,25 @@ static func _cull_walk_line() -> String:
 
 static func eagle_short_refusal() -> String:
 	# Captain-R Add Biome while 🦅 short. Name the gather walk, not a dead [R].
+	# lantern_door: 🧺 short is the live gate — Strike does not mint a basket.
+	if _basket_short():
+		return basket_short_refusal()
 	if not _eagle_short():
 		return ""
 	var rest := _eagle_gather_line().replace("▸ ", "").strip_edges()
 	if rest == "" or rest == "ESC closes":
 		return "needs 21🦅"
 	return "needs 21🦅 — %s" % rest
+
+
+static func basket_short_refusal() -> String:
+	# Ace Q / Strike / Explore while 🧺 is 0. Name Village 🧺 [Q], not Strike.
+	if not _basket_short():
+		return ""
+	var rest := _basket_pay_line().replace("▸ ", "").strip_edges()
+	if rest == "" or rest == "ESC closes":
+		return "needs 🧺"
+	return "needs 🧺 — %s" % rest
 
 
 static func slots_full_refusal() -> String:

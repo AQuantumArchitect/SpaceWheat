@@ -218,6 +218,57 @@ def test_eagle_short_names_gather_key():
     assert len(hint) <= 70
 
 
+def test_basket_short_names_village_q_not_strike():
+    """lantern_door: 🧺 0, Q gather still named Strike. Strike costs 👥
+    and does not mint 🧺. Live ask names Village 🧺 and the one key that
+    pays a basket. Refusal speaks when Strike/Explore/Q cannot. Do not
+    gather for them."""
+    prog = src(PROG)
+    assert "func _basket_short" in prog
+    assert "func _basket_pay_line" in prog
+    assert "func _basket_pay_target" in prog
+    assert "func basket_short_refusal" in prog
+    gather = prog.split("static func _eagle_gather_line()")[1].split("\nstatic func ")[0]
+    assert "_basket_short" in gather
+    assert "_basket_pay_line" in gather
+    basket = prog.split("static func _basket_pay_line()")[1].split("\nstatic func ")[0]
+    assert "Village" in basket
+    assert "🧺" in basket
+    assert "[Q] gather 🧺" in basket
+    assert "[R] Strike" not in basket
+    target = prog.split("static func _eagle_gather_target()")[1].split("\nstatic func ")[0]
+    assert "_basket_short" in target
+    assert "_basket_pay_target" in target
+    pay_t = prog.split("static func _basket_pay_target()")[1].split("\nstatic func ")[0]
+    assert '"Q"' in pay_t
+    assert "Village" in pay_t
+    assert '"R"' not in pay_t
+    eagle_ref = prog.split("static func eagle_short_refusal()")[1].split("\nstatic func ")[0]
+    assert "basket_short_refusal" in eagle_ref
+    qii = src(ROOT / "UI" / "Core" / "QuantumInstrumentInput.gd")
+    block = qii.split("func _block_reason_for_player")[1].split("func _tracked_elsewhere_hint")[0]
+    assert "basket_short_refusal" in block
+    assert "Explore does not pay" in block
+    assert "Strike does not pay" in block
+    probe = src(ROOT / "Core" / "Actions" / "ProbeActions.gd")
+    assert "Village 🧺 [Q] pays a basket" in probe
+    flags = json.loads(HANDOVER.read_text(encoding="utf-8"))
+    lantern = next(f for f in flags if f.get("id") == "lantern_door")
+    hint = str(lantern.get("arc_quest", {}).get("hint", ""))
+    assert "🧺" in hint
+    assert "Village" in hint
+    assert "Forest" in hint
+    assert "[8]" in hint
+    assert "🦅" in hint
+    assert "[7]" in hint
+    assert "[Q]" in hint
+    assert "[R]" in hint
+    assert "cull" in hint.lower()
+    assert "Lanternfall" in hint
+    assert "F reads" not in hint
+    assert len(hint) <= 70
+
+
 def test_slots_full_names_cull_target_and_q():
     """lantern_door: biome slots full; ▸ still [R]; no named cull target.
     Refusal names the cull and the one key that does it. Do not cull for them."""
