@@ -235,7 +235,8 @@ func get_binding_info() -> Dictionary:
 
 ## Check if this terminal can be used for EXPLORE action
 func can_explore() -> bool:
-	return not is_bound
+	# Strike releases is_bound but keeps is_measured until Q. Recycle is wipe.
+	return not is_bound and not is_measured
 
 
 ## Check if this terminal can be used for MEASURE action

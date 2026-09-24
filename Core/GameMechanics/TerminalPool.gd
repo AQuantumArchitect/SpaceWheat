@@ -53,7 +53,8 @@ func _initialize_pool() -> void:
 ## Get the first unbound terminal, or null if all are bound
 func get_unbound_terminal() -> RefCounted:
 	for terminal in terminals:
-		if not terminal.is_bound:
+		# Measured snapshots still occupy until pop. Do not recycle as Explore.
+		if not terminal.is_bound and not terminal.is_measured:
 			return terminal
 	return null
 
@@ -62,7 +63,7 @@ func get_unbound_terminal() -> RefCounted:
 func get_unbound_terminals() -> Array:
 	var result: Array = []
 	for terminal in terminals:
-		if not terminal.is_bound:
+		if not terminal.is_bound and not terminal.is_measured:
 			result.append(terminal)
 	return result
 
@@ -89,6 +90,15 @@ func get_terminal_for_register(register_id: int, biome_name: String) -> RefCount
 	# Query Terminal objects directly to find binding by biome NAME (not object reference)
 	for terminal in terminals:
 		if terminal.is_bound and terminal.bound_register_id == register_id and terminal.bound_biome_name == biome_name:
+			return terminal
+	return null
+
+
+func get_measured_terminal_for_register(register_id: int, biome_name: String) -> RefCounted:
+	# Strike releases is_bound and keeps measured_register_id until pop.
+	for terminal in terminals:
+		if terminal.is_measured and int(terminal.measured_register_id) == register_id \
+				and str(terminal.measured_biome_name) == biome_name:
 			return terminal
 	return null
 

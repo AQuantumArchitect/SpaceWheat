@@ -93,6 +93,18 @@ static func action_explore(terminal_pool, biome, economy = null, register_id: in
 				"message": "Register %d in %s is already explored." % [resolved_register, biome_name],
 				"blocked": true
 			}
+		# lantern_door: Strike frees is_bound. Explore rebound the same axis
+		# and wiped the 🦅 snapshot. Q harvests; F does not.
+		if terminal_pool.has_method("get_measured_terminal_for_register"):
+			var frozen = terminal_pool.get_measured_terminal_for_register(
+				resolved_register, biome_name)
+			if frozen != null:
+				return {
+					"success": false,
+					"error": "already_measured",
+					"message": "Already measured — Q harvests it.",
+					"blocked": true
+				}
 
 	# 3. Preflight cost (after availability gates)
 	var explore_cost_gate = _preflight_action(economy, "explore")
