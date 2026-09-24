@@ -821,7 +821,13 @@ func build_chip_context() -> ChipContext:
 	var bound := false
 	if farm and farm.grid and ctx_pos != GridSentinel.INVALID_POSITION:
 		var ctx_plot = farm.grid.get_plot(ctx_pos)
-		bound = ctx_plot != null and ctx_plot.terminal != null
+		var term = ctx_plot.terminal if ctx_plot else null
+		if term == null and farm.terminal_pool \
+				and farm.terminal_pool.has_method("get_terminal_at_grid_pos"):
+			term = farm.terminal_pool.get_terminal_at_grid_pos(ctx_pos)
+		# Strike releases is_bound; the frozen measure still occupies the plot.
+		# Ace F must stay Fast-Fwd, not Explore-over-harvest.
+		bound = term != null and (bool(term.is_bound) or bool(term.is_measured))
 	return ChipContext.new(qc, qid, bound, farm)
 
 
@@ -2107,6 +2113,12 @@ func _block_reason_for_player(action_name: String) -> String:
 			var basket_ex := UIProgression.basket_short_refusal()
 			if basket_ex != "":
 				return "Explore does not pay 🧺 — %s" % basket_ex
+			# lantern_door: after Strike, F Explore wiped the 🦅 measure.
+			if predict_tap_verb_for_focus() == "pop":
+				var eagle_ex := UIProgression.eagle_short_refusal()
+				if eagle_ex != "":
+					return "Explore does not harvest 🦅 — %s" % eagle_ex
+				return "Already measured — Q harvests it."
 			return "no unbound plot to explore here"
 		"measure":
 			# "F explores first" is FALSE HELP when nothing is focused — in that

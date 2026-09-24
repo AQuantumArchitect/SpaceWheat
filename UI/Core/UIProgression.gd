@@ -1027,12 +1027,24 @@ static func _plot_at(col: int):
 
 static func _plot_terminal(col: int):
 	var plot = _plot_at(col)
-	if plot == null:
+	if plot != null and plot.terminal != null:
+		return plot.terminal
+	# lantern_door: Strike calls release_register (is_bound→false). The
+	# frozen measure still sits in the pool until Q. Plot.terminal can lag
+	# that snapshot; look up by grid pos (bound OR measured).
+	var farm = _active_farm()
+	if farm == null or farm.terminal_pool == null:
 		return null
-	return plot.terminal
+	if not farm.terminal_pool.has_method("get_terminal_at_grid_pos"):
+		return null
+	if plot == null or not ("grid_position" in plot):
+		return null
+	return farm.terminal_pool.get_terminal_at_grid_pos(plot.grid_position)
 
 
 static func _plot_bound(col: int) -> bool:
+	# Occupied: a live probe or a frozen measure waiting for Q. Strike
+	# frees the register; the snapshot still owns the plot.
 	return _plot_terminal(col) != null
 
 
@@ -1042,6 +1054,9 @@ static func _plot_measured(col: int) -> bool:
 
 
 static func _measured_glyph(col: int) -> String:
+	var term = _plot_terminal(col)
+	if term != null and str(term.measured_outcome) != "":
+		return str(term.measured_outcome)
 	var plot = _plot_at(col)
 	if plot == null:
 		return ""
@@ -1132,6 +1147,9 @@ static func ace_f_would_explore() -> bool:
 		return false
 	var col := _focused_col()
 	if col < 0:
+		return false
+	# lantern_door: after Strike, is_bound drops. Q harvests. Do not Explore.
+	if _plot_measured(col):
 		return false
 	return not _plot_bound(col)
 
@@ -1322,15 +1340,17 @@ static func _eagle_gather_target() -> Dictionary:
 	var want_col := PLOT_HOMEROW.find(token) if want != "" else -1
 	if want != "" and focused != want_col:
 		return {"key": token, "hat": ace, "biome": forest}
+	# lantern_door: after Strike, is_bound drops and Ace F named Explore.
+	# The one next key stays [Q] until the eagle lands.
+	if _plot_measured(focused):
+		return {"key": "Q", "hat": ace, "biome": forest}
 	if not _plot_bound(focused):
 		if ace_f_would_explore():
 			return {"key": "F", "hat": ace, "biome": forest}
 		if want != "":
 			return {"key": token, "hat": ace, "biome": forest}
 		return {"key": "", "hat": ace, "biome": forest}
-	if not _plot_measured(focused):
-		return {"key": "R", "hat": ace, "biome": forest}
-	return {"key": "Q", "hat": ace, "biome": forest}
+	return {"key": "R", "hat": ace, "biome": forest}
 
 
 static func _basket_pay_target() -> Dictionary:
@@ -1388,20 +1408,22 @@ static func _eagle_gather_line() -> String:
 	var want_col := PLOT_HOMEROW.find(token) if want != "" else -1
 	if want != "" and focused != want_col:
 		return "▸ [%s] for %s" % [want, need]
+	# lantern_door: after Strike, is_bound drops. Banner named [F] Explore;
+	# F cleared the measure with no 🦅. Name [Q] until the eagle lands.
+	if _plot_measured(focused):
+		var got := _measured_glyph(focused)
+		if "🦅" in got:
+			return "▸ [Q] gather 🦅 (%d/21)" % have
+		if got != "":
+			return "▸ [Q] take %s" % got
+		return "▸ [Q] gather"
 	if not _plot_bound(focused):
 		if ace_f_would_explore():
 			return "▸ [F] Explore for " + need
 		if want != "":
 			return "▸ [%s] for %s" % [want, need]
 		return "▸ pick a sleeping 🦅 plot"
-	if not _plot_measured(focused):
-		return "▸ [R] Strike for " + need
-	var got := _measured_glyph(focused)
-	if "🦅" in got:
-		return "▸ [Q] gather 🦅 (%d/21)" % have
-	if got != "":
-		return "▸ [Q] take %s" % got
-	return "▸ [Q] gather"
+	return "▸ [R] Strike for " + need
 
 
 static func _basket_pay_line() -> String:

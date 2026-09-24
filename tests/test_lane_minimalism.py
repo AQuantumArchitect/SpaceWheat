@@ -303,6 +303,41 @@ def test_unreadable_wallet_fails_toward_village_basket():
     assert "eagle_short_refusal" in disc_arm
 
 
+def test_eagle_after_strike_names_q_not_explore():
+    """lantern_door: after 🧺, [R] Strike then [F] Explore; 🦅 stuck, [Q]
+    not the next key. Strike releases is_bound; Ace F named Explore and
+    wiped the measure. Name [Q] until the eagle lands. Do not Explore."""
+    prog = src(PROG)
+    ace = prog.split("static func ace_f_would_explore()")[1].split("\nstatic func ")[0]
+    assert "_plot_measured(col)" in ace
+    gather = prog.split("static func _eagle_gather_line()")[1].split("\nstatic func ")[0]
+    assert "_plot_measured(focused)" in gather
+    assert gather.index("_plot_measured(focused)") < gather.index("ace_f_would_explore()")
+    assert "[Q] gather 🦅" in gather.split("_plot_measured(focused)")[1].split("if not _plot_bound")[0]
+    target = prog.split("static func _eagle_gather_target()")[1].split("\nstatic func ")[0]
+    assert target.index("_plot_measured(focused)") < target.index("ace_f_would_explore()")
+    assert '"Q"' in target.split("_plot_measured(focused)")[1].split("if not _plot_bound")[0]
+    term = prog.split("static func _plot_terminal(")[1].split("\nstatic func ")[0]
+    assert "get_terminal_at_grid_pos" in term
+    pool = src(ROOT / "Core" / "GameMechanics" / "TerminalPool.gd")
+    free = pool.split("func get_unbound_terminal()")[1].split("\nfunc ")[0]
+    assert "is_measured" in free
+    assert "func get_measured_terminal_for_register" in pool
+    probe = src(ROOT / "Core" / "Actions" / "ProbeActions.gd")
+    explore = probe.split("static func action_explore")[1].split("static func _first_unbound_register")[0]
+    assert "get_measured_terminal_for_register" in explore
+    assert "Already measured — Q harvests it." in explore
+    can = src(ROOT / "Core" / "GameMechanics" / "Terminal.gd")
+    expl = can.split("func can_explore()")[1].split("\nfunc ")[0]
+    assert "is_measured" in expl
+    qii = src(ROOT / "UI" / "Core" / "QuantumInstrumentInput.gd")
+    ctx = qii.split("func build_chip_context()")[1].split("\nfunc ")[0]
+    assert "is_measured" in ctx
+    block = qii.split("func _block_reason_for_player")[1].split("func _tracked_elsewhere_hint")[0]
+    assert "Explore does not harvest" in block
+    assert "Already measured — Q harvests it." in block
+
+
 def test_slots_full_names_cull_target_and_q():
     """lantern_door: biome slots full; ▸ still [R]; no named cull target.
     Refusal names the cull and the one key that does it. Do not cull for them."""
