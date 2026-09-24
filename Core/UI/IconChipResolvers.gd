@@ -12,6 +12,12 @@ static func resolve_r(ctx: ChipContext) -> Dictionary:
 	#   full + untracked             → blank (R has no work; F is for tracking)
 	#   full + tracked + unripe      → "Not ready" (visible feedback for engaged player)
 	#   full + tracked + ripe        → "Incorporate" (harvest the learned icon)
+	# lantern_teaching: Track-first is not the lamp. Name [0] Druid.
+	var Prog = load("res://UI/Core/UIProgression.gd")
+	if Prog != null:
+		var teach := str(Prog.teaching_wrong_hat_refusal())
+		if teach != "":
+			return {"action": "", "label": "[0] Druid", "disabled": true, "reason": teach}
 	if ctx == null or not ctx.has_focused_qubit():
 		return {}
 	var register = ctx.get_berry_register()

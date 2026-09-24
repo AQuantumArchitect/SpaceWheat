@@ -338,6 +338,75 @@ def test_eagle_after_strike_names_q_not_explore():
     assert "Already measured — Q harvests it." in block
 
 
+def test_lantern_teaching_names_one_next_key():
+    """lantern_teaching: toast R-holds-reference / E-compares vs action bar
+    Track-first / Loops, Ace [8] vs Icon [5]. Origin ask_line dumped the
+    paragraph. One next key: Arc accept, rail, [0] Druid, [E], then [C].
+    Do not dump the paragraph. Do not mill leftover first_breath."""
+    prog = src(PROG)
+    assert "func _is_teaching_ask" in prog
+    assert "func _teaching_walk_line" in prog
+    assert "func _teaching_target" in prog
+    assert "func _unsigned_teaching_offer" in prog
+    assert "func teaching_wrong_hat_refusal" in prog
+    ask = prog.split("static func _is_teaching_ask")[1].split("\nstatic func ")[0]
+    assert "lantern_teaching" in ask
+    assert "biome_state_gte" in ask
+    assert "🪔" in ask
+    assert "biome_evolving" not in ask
+    walk = prog.split("static func _teaching_walk_line()")[1].split("\nstatic func ")[0]
+    assert "[X] Arc" in walk
+    assert "[R] Accept" in walk
+    assert "_cross_to" in walk
+    assert "Lanternfall" in walk
+    assert "[0] Druid" in walk
+    assert "[E] Superpose" in walk
+    assert "_claim_walk_line" in walk
+    assert "ask_line" not in walk
+    target = prog.split("static func _teaching_target()")[1].split("\nstatic func ")[0]
+    assert '"X"' in target
+    assert '"0"' in target or "druid" in target
+    assert '"E"' in target
+    assert '"C"' in target
+    assert "Lanternfall" in target
+    text_fn = prog.split("static func objective_text()")[1].split("static func ")[0]
+    assert "_is_teaching_ask(best)" in text_fn
+    assert "_teaching_walk_line()" in text_fn
+    banner = prog.split("static func _banner_quest()")[1].split("static func ")[0]
+    assert "_unsigned_teaching_offer()" in banner
+    assert banner.index("_unsigned_teaching_offer") < banner.index("_unsigned_berry_offer")
+    obj_t = prog.split("static func objective_target()")[1].split("static func ")[0]
+    assert "_teaching_target()" in obj_t
+    detail = prog.split("static func objective_detail()")[1].split("static func ")[0]
+    assert "_is_teaching_ask(best)" in detail
+    qii = src(ROOT / "UI" / "Core" / "QuantumInstrumentInput.gd")
+    assert "teaching_wrong_hat_refusal" in qii
+    tracked = qii.split("func _tracked_elsewhere_hint()")[1].split("\nfunc ")[0]
+    assert "teaching_wrong_hat_refusal" in tracked
+    assert "return teach" in tracked
+    rest = tracked.split("return teach", 1)[1]
+    assert "Icon hat (5)" in rest
+    chips = src(ROOT / "Core" / "UI" / "IconChipResolvers.gd")
+    resolve = chips.split("static func resolve_r")[1].split("\nstatic func ")[0]
+    assert "teaching_wrong_hat_refusal" in resolve
+    assert "[0] Druid" in resolve
+    flags = json.loads(HANDOVER.read_text(encoding="utf-8"))
+    teach = next(f for f in flags if f.get("id") == "lantern_teaching")
+    hint = str(teach.get("arc_quest", {}).get("hint", ""))
+    assert "Lanternfall" in hint
+    assert "[0]" in hint
+    assert "[E]" in hint
+    assert "🪔" in hint
+    assert "[C]" in hint
+    assert "[X]" in hint
+    assert "Druid" in hint
+    assert len(hint) <= 70
+    assert "Icon hat (5)" not in hint
+    assert "holds a reference" not in hint
+    assert "Track first" not in hint
+    assert "Commitments tab" not in hint
+
+
 def test_slots_full_names_cull_target_and_q():
     """lantern_door: biome slots full; ▸ still [R]; no named cull target.
     Refusal names the cull and the one key that does it. Do not cull for them."""
