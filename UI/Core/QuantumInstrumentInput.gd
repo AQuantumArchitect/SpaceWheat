@@ -1994,6 +1994,11 @@ func _perform_action(action_key: String) -> void:
 		# wall (Icon-hat R on a full untracked plot did nothing, and three relay
 		# legs never found the incorporate/plant ritual). A disabled chip with
 		# NO authored reason still speaks (generic), never dies silently.
+		# lantern_teaching: Ace E Pause / Icon Track-first are not the lamp.
+		var teach_disabled := UIProgression.teaching_wrong_hat_refusal()
+		if teach_disabled != "":
+			_toast_player("✗ %s" % teach_disabled)
+			return
 		var disabled_reason := str(action_info.get("reason", ""))
 		if disabled_reason != "":
 			_toast_player("✗ %s" % disabled_reason)
@@ -2064,6 +2069,13 @@ func _get_block_reason(_action_name: String) -> String:
 ## Player-words reason the validator refused an action — checks the same
 ## authorities the validator consulted, so the toast tells the truth.
 func _block_reason_for_player(action_name: String) -> String:
+	# lantern_teaching: Ace Strike / Icon Track-first / mirror Compare are
+	# not the lamp. Banner and toast share UIProgression.teaching_wrong_hat_refusal.
+	var teach := UIProgression.teaching_wrong_hat_refusal()
+	if teach != "" and action_name in [
+			"measure", "explore", "inject_icon", "remove_icon", "incorporate_icon",
+			"toggle_berry_track", "mark_reference", "interfere"]:
+		return teach
 	match action_name:
 		"discover_biome":
 			# lantern_door: 21 eagles named Forest, no gather key. Banner and
@@ -2156,6 +2168,11 @@ func _block_reason_for_player(action_name: String) -> String:
 ## explore (wave-2 sensor wall: 32 presses, no cost ever charged). Name the
 ## other hat's verb when the focused qubit is mid-track.
 func _tracked_elsewhere_hint() -> String:
+	# lantern_teaching: Ace R on a tracked plot toasted Icon 5. The lamp
+	# is Druid [0], not incorporate.
+	var teach := UIProgression.teaching_wrong_hat_refusal()
+	if teach != "":
+		return teach
 	var biome = _get_current_biome()
 	if biome == null or biome.quantum_computer == null or biome.quantum_computer.berry_register == null:
 		return ""

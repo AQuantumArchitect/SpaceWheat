@@ -373,6 +373,9 @@ static func objective_detail() -> String:
 	# lantern_door: authored [7] Captain [R] outran the 🦅 gather walk.
 	if _is_discover_ask(best) and _eagle_short():
 		return ""
+	# lantern_teaching: do not dump the Arc/Druid/E/C paragraph beside the walk.
+	if _is_teaching_ask(best):
+		return ""
 	var hint := str(best.get("tutorial_hint", "")).strip_edges()
 	if hint == "":
 		hint = str(best.get("hint", "")).strip_edges()
@@ -435,6 +438,16 @@ static func _unsigned_discover_offer() -> Dictionary:
 	return {}
 
 
+static func _unsigned_teaching_offer() -> Dictionary:
+	var qm := _quest_manager()
+	if qm == null or not qm.has_method("get_story_offers"):
+		return {}
+	for q in qm.get_story_offers():
+		if q is Dictionary and _is_teaching_ask(q) and _preds_still_open(q):
+			return q
+	return {}
+
+
 static func _unsigned_berry_offer() -> Dictionary:
 	var qm := _quest_manager()
 	if qm == null or not qm.has_method("get_story_offers"):
@@ -459,6 +472,10 @@ static func _banner_quest() -> Dictionary:
 	var disc := _unsigned_discover_offer()
 	if not disc.is_empty():
 		return disc
+	# lantern_teaching: leftover first_breath berry must not steal the lamp.
+	var teach := _unsigned_teaching_offer()
+	if not teach.is_empty():
+		return teach
 	var berry := _unsigned_berry_offer()
 	if not berry.is_empty():
 		return berry
@@ -477,6 +494,9 @@ static func objective_text() -> String:
 		return _plant_walk_line()
 	if _is_discover_ask(best):
 		return _discover_walk_line()
+	# lantern_teaching: biome_state_gte 🪔 is not discover. Name one next key.
+	if _is_teaching_ask(best):
+		return _teaching_walk_line()
 	# Wave first_breath: unsigned berry door painted Farm/System/Story/Board
 	# + QERF with no quest line. Field walk is the live ask, like plant.
 	if _is_berry_ask(best):
@@ -541,6 +561,8 @@ static func objective_target() -> Dictionary:
 		if str(ToolConfig.get_current_frame()) != ToolConfig.FRAME_CAPTAIN:
 			return {"key": cap, "hat": cap, "biome": coast}
 		return {"key": "R", "hat": cap, "biome": coast}
+	if _is_teaching_ask(best):
+		return _teaching_target()
 	if _is_berry_ask(best):
 		var berry_hat := _hat_key_for_frame("icon")
 		var berry_biome := _berry_ask_biome(best)
@@ -664,6 +686,8 @@ static func _decorate_objective(q: Dictionary) -> String:
 		return _plant_walk_line()
 	if _is_discover_ask(q):
 		return _discover_walk_line()
+	if _is_teaching_ask(q):
+		return _teaching_walk_line()
 	if _is_berry_ask(q):
 		return _berry_walk_line(q)
 	return IntroVoice.ask_line(q)
@@ -823,6 +847,21 @@ static func _is_discover_ask(q: Dictionary) -> bool:
 			continue
 		var b := str(pred.get("biome", "")).strip_edges()
 		if b != "" and not _biome_unlocked(b):
+			return true
+	return false
+
+
+static func _is_teaching_ask(q: Dictionary) -> bool:
+	# lantern_teaching: hold 🪔 in Lanternfall. Not mill ⚙. Not discover.
+	if str(q.get("source_flag", "")).strip_edges() == "lantern_teaching":
+		return true
+	for pred in q.get("state_predicates", []):
+		if not (pred is Dictionary):
+			continue
+		if str(pred.get("type", "")) != "biome_state_gte":
+			continue
+		var atom := str(pred.get("atom", pred.get("emoji", ""))).strip_edges()
+		if atom == "🪔":
 			return true
 	return false
 
@@ -1497,6 +1536,78 @@ static func _discover_walk_line() -> String:
 	if coast != "":
 		return "▸ [R] Add Biome — %s" % coast
 	return "▸ [R] Add Biome"
+
+
+static func _teaching_walk_line() -> String:
+	# lantern_teaching: one next key. Unsigned Arc accept; rail; [0] Druid;
+	# [E] Superpose until 🪔 55%; then [C] claim. Do not dump the paragraph.
+	var q := _banner_quest()
+	if str(q.get("status", "")) == Quest.STATUS_STORY:
+		if _menu_open():
+			return "▸ [R] Accept"
+		return "▸ [X] Arc"
+	if str(q.get("status", "")) == "ready":
+		return _claim_walk_line(q)
+	if _in_icon_submenu() or _menu_open():
+		return "▸ ESC closes"
+	var cross := _cross_to("Lanternfall")
+	if cross != "":
+		return cross
+	if str(ToolConfig.get_current_frame()) != ToolConfig.FRAME_DRUID:
+		return "▸ [0] Druid"
+	var want := _glyph_plot_key("🪔")
+	var focused := _focused_col()
+	var token := ";" if want == ";" else want.to_upper()
+	var want_col := PLOT_HOMEROW.find(token) if want != "" else -1
+	if want != "" and focused != want_col:
+		return "▸ [%s] the beacon" % token
+	return "▸ [E] Superpose"
+
+
+static func _teaching_target() -> Dictionary:
+	# Same walk as _teaching_walk_line. Spotlight names one chip.
+	var q := _banner_quest()
+	var druid := _hat_key_for_frame("druid")
+	var coast := "Lanternfall"
+	if str(q.get("status", "")) == Quest.STATUS_STORY:
+		if _menu_open():
+			return {"key": "R", "hat": druid, "biome": ""}
+		return {"key": "X", "hat": druid, "biome": ""}
+	if str(q.get("status", "")) == "ready":
+		return {"key": "C", "hat": druid, "biome": coast}
+	if _in_icon_submenu() or _menu_open():
+		return {"key": "", "hat": druid, "biome": coast}
+	var abm := _active_biome_manager()
+	if abm != null and str(abm.get_active_biome()) != coast:
+		var slot := int(abm.get_slot_for_biome(coast))
+		var rail := str(abm.get_slot_key(slot)).to_upper() if slot >= 0 else ""
+		return {"key": rail, "hat": druid, "biome": coast}
+	if str(ToolConfig.get_current_frame()) != ToolConfig.FRAME_DRUID:
+		return {"key": druid, "hat": druid, "biome": coast}
+	var want := _glyph_plot_key("🪔")
+	var focused := _focused_col()
+	var token := ";" if want == ";" else want.to_upper()
+	var want_col := PLOT_HOMEROW.find(token) if want != "" else -1
+	if want != "" and focused != want_col:
+		return {"key": token, "hat": druid, "biome": coast}
+	return {"key": "E", "hat": druid, "biome": coast}
+
+
+static func teaching_wrong_hat_refusal() -> String:
+	# Ace/Icon R and E are not the lamp. Name [0] Druid. Do not excite for them.
+	var q := _banner_quest()
+	if q.is_empty() or not _is_teaching_ask(q):
+		return ""
+	if str(q.get("status", "")) == Quest.STATUS_STORY:
+		return ""
+	if str(q.get("status", "")) == "ready":
+		return ""
+	if str(ToolConfig.get_current_frame()) == ToolConfig.FRAME_DRUID:
+		return ""
+	var rest := _teaching_walk_line().replace("▸ ", "").strip_edges()
+	if rest == "" or rest == "ESC closes":
+		return "The Teaching holds the lamp — [0] Druid"
+	return "The Teaching holds the lamp — %s" % rest
 
 
 static func _slots_full() -> bool:
