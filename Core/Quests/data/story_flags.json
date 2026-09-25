@@ -1046,9 +1046,10 @@
         "id": "lantern_teaching"
       },
       {
-        "type": "atom_in_biome",
-        "biome": "Lanternfall",
-        "atom": "🌉"
+        "type": "gate_sequence_contains",
+        "gate": "inject_icon",
+        "count": 1,
+        "biome": "Lanternfall"
       }
     ],
     "standing_grants": {
@@ -1058,13 +1059,14 @@
     },
     "arc_quest": {
       "body": "Light the Bridge — plant the bridge word (🌉/🪔) into Lanternfall and close the chain.",
-      "hint": "Icon hat (5) in Lanternfall: pick an EMPTY plot (G H J K L ; past the live bubbles), R opens the picker, choose the bridge (🌉/🪔) and plant it (costs 🌱 + 🪔 — harvest lamp-oil from the beacon with the Ace hat). Watch the spectrum when it lands: the chain snaps shut and a true gap opens. The chain is complete in itself; the bridge belongs to the coast.",
+      "hint": "Lanternfall [5] Icon, empty [R] plant 🌉; full [Q] unseats.",
       "faction": "Lamplighters",
       "state_predicates": [
         {
-          "type": "atom_in_biome",
-          "biome": "Lanternfall",
-          "atom": "🌉"
+          "type": "gate_sequence_contains",
+          "gate": "inject_icon",
+          "count": 1,
+          "biome": "Lanternfall"
         }
       ]
     }

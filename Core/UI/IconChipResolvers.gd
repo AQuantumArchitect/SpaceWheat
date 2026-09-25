@@ -18,6 +18,9 @@ static func resolve_r(ctx: ChipContext) -> Dictionary:
 		var teach := str(Prog.teaching_wrong_hat_refusal())
 		if teach != "":
 			return {"action": "", "label": "[0] Druid", "disabled": true, "reason": teach}
+		var plant_full := str(Prog.plant_full_refusal())
+		if plant_full != "":
+			return {"action": "", "label": "[Q] unseats", "disabled": true, "reason": plant_full}
 	if ctx == null or not ctx.has_focused_qubit():
 		return {}
 	var register = ctx.get_berry_register()

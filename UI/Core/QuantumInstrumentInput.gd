@@ -1999,6 +1999,10 @@ func _perform_action(action_key: String) -> void:
 		if teach_disabled != "":
 			_toast_player("✗ %s" % teach_disabled)
 			return
+		var plant_disabled := UIProgression.plant_full_refusal()
+		if plant_disabled != "":
+			_toast_player("✗ %s" % plant_disabled)
+			return
 		var disabled_reason := str(action_info.get("reason", ""))
 		if disabled_reason != "":
 			_toast_player("✗ %s" % disabled_reason)
@@ -2076,6 +2080,11 @@ func _block_reason_for_player(action_name: String) -> String:
 			"measure", "explore", "inject_icon", "remove_icon", "incorporate_icon",
 			"toggle_berry_track", "mark_reference", "interfere"]:
 		return teach
+	var plant_full := UIProgression.plant_full_refusal()
+	if plant_full != "" and action_name in [
+			"measure", "explore", "inject_icon", "incorporate_icon",
+			"toggle_berry_track", "mark_reference", "interfere"]:
+		return plant_full
 	match action_name:
 		"discover_biome":
 			# lantern_door: 21 eagles named Forest, no gather key. Banner and
@@ -2173,6 +2182,9 @@ func _tracked_elsewhere_hint() -> String:
 	var teach := UIProgression.teaching_wrong_hat_refusal()
 	if teach != "":
 		return teach
+	var plant_full := UIProgression.plant_full_refusal()
+	if plant_full != "":
+		return plant_full
 	var biome = _get_current_biome()
 	if biome == null or biome.quantum_computer == null or biome.quantum_computer.berry_register == null:
 		return ""
