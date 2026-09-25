@@ -376,6 +376,9 @@ static func objective_detail() -> String:
 	# lantern_teaching: do not dump the Arc/Druid/E/C paragraph beside the walk.
 	if _is_teaching_ask(best):
 		return ""
+	# lantern_wakes: authored empty-plot how-to outran a full Lanternfall ring.
+	if _is_plant_ask(best) and not _empty_plot_exists(_plant_ask_biome(best)):
+		return ""
 	var hint := str(best.get("tutorial_hint", "")).strip_edges()
 	if hint == "":
 		hint = str(best.get("hint", "")).strip_edges()
@@ -537,9 +540,12 @@ static func objective_target() -> Dictionary:
 		return {"key": "", "biome": "StarterForest"}
 	if _is_plant_ask(best):
 		var icon_hat := _hat_key_for_frame("icon")
+		var plant_biome := _plant_ask_biome(best)
 		if str(ToolConfig.get_current_frame()) != ToolConfig.FRAME_ICON:
-			return {"key": icon_hat, "hat": icon_hat, "biome": ""}
-		return {"key": _empty_plot_key(), "hat": icon_hat, "biome": ""}
+			return {"key": icon_hat, "hat": icon_hat, "biome": plant_biome}
+		if not _empty_plot_exists(plant_biome):
+			return {"key": "Q", "hat": icon_hat, "biome": plant_biome}
+		return {"key": _empty_plot_key(), "hat": icon_hat, "biome": plant_biome}
 	if _is_discover_ask(best) and _eagle_short():
 		# lantern_door: empty next-key while 🦅 short named Forest, no gather.
 		return _eagle_gather_target()
@@ -946,6 +952,52 @@ static func _cross_to(want: String) -> String:
 	return "▸ [%s] crosses to %s" % [key, want]
 
 
+static func _empty_plot_exists(biome_name: String = "") -> bool:
+	# lantern_wakes: Lanternfall's five lamps fill the ring. J is not empty
+	# just because _empty_plot_key falls back to J. Do not plant for them.
+	var farm = _active_farm()
+	var abm := _active_biome_manager()
+	if farm == null or farm.grid == null:
+		return false
+	var bname := biome_name.strip_edges()
+	if bname == "" and abm != null:
+		bname = str(abm.get_active_biome())
+	if bname == "":
+		return false
+	var biome = farm.grid.get_biome(bname) if farm.grid.has_method("get_biome") else null
+	var nq := 0
+	if biome != null and biome.quantum_computer != null and biome.quantum_computer.register_map != null:
+		nq = int(biome.quantum_computer.register_map.num_qubits)
+	if not farm.grid.has_method("get_plot_biome_assignments"):
+		return false
+	var assignments: Dictionary = farm.grid.get_plot_biome_assignments()
+	for pos in assignments.keys():
+		if str(assignments[pos]) != bname:
+			continue
+		var col := int(pos.x) if pos is Vector2i else int(pos.x)
+		if col >= nq:
+			return true
+	return false
+
+
+static func _plant_ask_biome(q: Dictionary) -> String:
+	for pred in q.get("state_predicates", []):
+		if not (pred is Dictionary):
+			continue
+		var t := str(pred.get("type", ""))
+		if t == "gate_sequence_contains":
+			var g := str(pred.get("gate", "")).to_lower()
+			if g == "inject_icon" or g == "plant":
+				var b := str(pred.get("biome", "")).strip_edges()
+				if b != "":
+					return b
+		if t == "atom_in_biome":
+			var b2 := str(pred.get("biome", "")).strip_edges()
+			if b2 != "":
+				return b2
+	return ""
+
+
 static func _empty_plot_key() -> String:
 	# Wave 18 literalist: "empty plot" named no key. Empty = column past
 	# the biome's live qubits (plot_glance `empty`). Do not plant for them.
@@ -1247,14 +1299,26 @@ static func _sprout_gather_line() -> String:
 static func _plant_walk_line() -> String:
 	# Wave 11: "Icon hat (5)" named no bracketed key. Name [5], then [R].
 	# Wave 18: name the empty-plot key; short 🌱 walks Forest, not Village Q.
+	# lantern_wakes: a full Lanternfall ring is not an empty J. Name [Q] unseat.
 	# Do not plant for them.
 	if _sprout_short():
 		return _sprout_gather_line()
+	if _in_icon_submenu() or _menu_open():
+		if _in_icon_submenu():
+			return "▸ [Q]/[E] pick a word (need 🌱×5 + south×13)"
+		return "▸ ESC closes"
+	var plant_biome := _plant_ask_biome(_banner_quest())
+	if plant_biome != "":
+		var cross := _cross_to(plant_biome)
+		if cross != "":
+			return cross
 	var wearing := str(ToolConfig.get_current_frame())
 	if wearing != ToolConfig.FRAME_ICON:
+		if not _empty_plot_exists(plant_biome):
+			return "▸ [5] Icon — [Q] unseats"
 		return "▸ [5] Icon, [%s] empty plot, [R] opens picker" % _empty_plot_key()
-	if _in_icon_submenu():
-		return "▸ [Q]/[E] pick a word (need 🌱×5 + south×13)"
+	if not _empty_plot_exists(plant_biome):
+		return "▸ [Q] unseats"
 	return "▸ [%s] empty plot, [R] opens picker" % _empty_plot_key()
 
 
@@ -1673,6 +1737,22 @@ static func slots_full_refusal() -> String:
 	if rest == "" or rest == "ESC closes":
 		return "Biome slots full"
 	return "slots full — %s" % rest
+
+
+static func plant_full_refusal() -> String:
+	# lantern_wakes: Icon R Track-first on a full Lanternfall ring. Name [Q]
+	# unseat, then plant. Do not skip to Middle Cannot Hold.
+	var q := _banner_quest()
+	if q.is_empty() or not _is_plant_ask(q):
+		return ""
+	if _sprout_short():
+		return ""
+	if _empty_plot_exists(_plant_ask_biome(q)):
+		return ""
+	var rest := _plant_walk_line().replace("▸ ", "").strip_edges()
+	if rest == "" or rest == "ESC closes":
+		return "ring full — [Q] unseats"
+	return rest
 
 
 static func _quest_board():

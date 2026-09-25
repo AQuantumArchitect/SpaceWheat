@@ -407,6 +407,57 @@ def test_lantern_teaching_names_one_next_key():
     assert "Commitments tab" not in hint
 
 
+def test_lantern_wakes_names_unseat_then_plant():
+    """lantern_wakes: Lanternfall ring full; banner named empty J; Icon R
+    Track-first; next beat Middle Cannot Hold. Authored 🌉 in the biome
+    must not skip the plant. Name [Q] unseat, then plant. Do not mill leftover."""
+    prog = src(PROG)
+    assert "func _empty_plot_exists" in prog
+    assert "func _plant_ask_biome" in prog
+    assert "func plant_full_refusal" in prog
+    walk = prog.split("static func _plant_walk_line()")[1].split("\nstatic func ")[0]
+    assert "_empty_plot_exists" in walk
+    assert "[Q] unseats" in walk
+    assert "_cross_to" in walk
+    target = prog.split("static func objective_target()")[1].split("static func ")[0]
+    assert "_empty_plot_exists" in target
+    assert '"Q"' in target
+    assert "_plant_ask_biome" in target
+    detail = prog.split("static func objective_detail()")[1].split("static func ")[0]
+    assert "_empty_plot_exists" in detail
+    chips = src(ROOT / "Core" / "UI" / "IconChipResolvers.gd")
+    resolve = chips.split("static func resolve_r")[1].split("\nstatic func ")[0]
+    assert "plant_full_refusal" in resolve
+    assert "[Q] unseats" in resolve
+    qii = src(ROOT / "UI" / "Core" / "QuantumInstrumentInput.gd")
+    assert "plant_full_refusal" in qii
+    proj = src(ROOT / "Core" / "Quests" / "QuestStateProjectionService.gd")
+    assert 'action_name == "inject_icon"' in proj
+    assert 'predicate.get("biome"' in proj
+    inst = src(ROOT / "Core" / "Instrumentation" / "QuantumInstrument.gd")
+    assert 'result["biome"] = biome_name' in inst
+    flags = json.loads(HANDOVER.read_text(encoding="utf-8"))
+    wakes = next(f for f in flags if f.get("id") == "lantern_wakes")
+    preds = wakes.get("predicates") or []
+    assert any(p.get("type") == "gate_sequence_contains" and p.get("gate") == "inject_icon"
+               and p.get("biome") == "Lanternfall" for p in preds)
+    assert not any(p.get("type") == "atom_in_biome" for p in preds)
+    aq = wakes.get("arc_quest") or {}
+    sp = aq.get("state_predicates") or []
+    assert any(p.get("type") == "gate_sequence_contains" and p.get("gate") == "inject_icon"
+               and p.get("biome") == "Lanternfall" for p in sp)
+    hint = str(aq.get("hint", ""))
+    assert "[5]" in hint
+    assert "[R]" in hint
+    assert "[Q]" in hint
+    assert "Lanternfall" in hint
+    assert "unseat" in hint.lower()
+    assert len(hint) <= 70
+    assert "Icon hat (5)" not in hint
+    assert "Track first" not in hint
+    assert "Middle Cannot Hold" not in hint
+
+
 def test_slots_full_names_cull_target_and_q():
     """lantern_door: biome slots full; ▸ still [R]; no named cull target.
     Refusal names the cull and the one key that does it. Do not cull for them."""

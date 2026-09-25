@@ -699,6 +699,7 @@ func action_inject_icon_pair(biome_name: String, icon: Dictionary) -> Dictionary
 			result["fractal"] = _fr
 		result["north_emoji"] = north_emoji
 		result["south_emoji"] = south_emoji
+		result["biome"] = biome_name
 		result["cost"] = gate.get("cost", {})
 		# The player faction's socialites engaged these emojis — tell the story substrate.
 		_notify_story([north_emoji, south_emoji], "inject")

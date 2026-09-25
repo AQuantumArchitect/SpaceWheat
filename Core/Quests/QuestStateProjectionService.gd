@@ -125,6 +125,12 @@ func record_action(action_name: String, payload: Dictionary = {}) -> void:
 	if _action_history.size() > MAX_ACTION_HISTORY:
 		_action_history.pop_front()
 	gate_counters[action_name] = int(gate_counters.get(action_name, 0)) + 1
+	# lantern_wakes: a Village plant must not light the coast. Stamp the
+	# biome onto a durable key so gate_sequence_contains can ask for it.
+	var biome := str(payload.get("biome", payload.get("biome_name", ""))).strip_edges()
+	if action_name == "inject_icon" and biome != "":
+		var bkey := action_name + "|" + biome
+		gate_counters[bkey] = int(gate_counters.get(bkey, 0)) + 1
 	_stamp_lesson_receipt(action_name, payload)
 
 
@@ -220,10 +226,19 @@ func evaluate_predicate(predicate: Dictionary) -> float:
 			# forgotten) and save/load (the counters ride the save alongside
 			# lesson_receipts). Substring match preserves the existing
 			# "bell" ↔ "gate_inject:bell" semantics.
+			# lantern_wakes: optional biome pins the plant to one country.
+			var want_biome := str(predicate.get("biome", "")).strip_edges()
 			var hits := 0.0
-			for counted_name in gate_counters:
-				if str(counted_name).to_lower().find(pattern) >= 0:
-					hits += float(gate_counters[counted_name])
+			if want_biome != "":
+				var bkey := pattern + "|" + want_biome.to_lower()
+				for counted_name in gate_counters:
+					if str(counted_name).to_lower() == bkey:
+						hits += float(gate_counters[counted_name])
+			else:
+				for counted_name in gate_counters:
+					if str(counted_name).to_lower().find(pattern) >= 0 \
+							and str(counted_name).find("|") < 0:
+						hits += float(gate_counters[counted_name])
 			# A STRUCTURAL count, not a soft gate — the tutorial math_notes promise
 			# "fires the instant your action history records N" and gate_order below
 			# already scores as a completed fraction. The old soft_gate(hits, min_count,
