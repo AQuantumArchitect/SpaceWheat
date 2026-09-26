@@ -490,6 +490,27 @@ def test_eagle_overhead_track_keeps_sticky_focus():
     assert "[R] Incorporate" in walk
 
 
+def test_braid_order_refreshes_mi_after_gate():
+    """braid_order: Two Chores Bell scores 0 because gate invalidate
+    clears lookahead MI and frozen refill leaves the cache empty/stale.
+    Refresh MI from the live ρ after the gate. Do not mill leftover."""
+    qc = src(ROOT / "Core" / "QuantumSubstrate" / "QuantumComputer.gd")
+    assert "func refresh_cached_mi" in qc
+    assert "compute_all_mutual_information" in qc.split("func refresh_cached_mi")[1].split("\nfunc ")[0]
+    inj = src(ROOT / "Core" / "QuantumSubstrate" / "GateInjector.gd")
+    inv = inj.split("static func _invalidate_lookahead")[1].split("static func ")[0]
+    assert "refresh_cached_mi" in inv
+    qsps = src(ROOT / "Core" / "Quests" / "QuestStateProjectionService.gd")
+    mi = qsps.split('"mutual_information_at_least"')[1].split("\n\t\t\"")[0]
+    assert "get_cached_max_mutual_information" in mi
+    flags = json.loads(HANDOVER.read_text(encoding="utf-8"))
+    braid = next(f for f in flags if f.get("id") == "braid_order")
+    aq = braid.get("arc_quest") or {}
+    sp = aq.get("state_predicates") or []
+    assert any(p.get("type") == "mutual_information_at_least" for p in sp)
+    assert any(p.get("type") == "gate_order" for p in sp)
+
+
 def test_slots_full_names_cull_target_and_q():
     """lantern_door: biome slots full; ▸ still [R]; no named cull target.
     Refusal names the cull and the one key that does it. Do not cull for them."""

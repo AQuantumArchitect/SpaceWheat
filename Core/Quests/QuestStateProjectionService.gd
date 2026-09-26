@@ -365,9 +365,17 @@ func evaluate_predicate(predicate: Dictionary) -> float:
 			# Entanglement teacher: max pairwise MI in the active biome, in bits
 			# (Bell pair = 2.0, product state = 0). Wider gate (±0.1) than the
 			# defaults because the MI scale runs 0–2, not 0–1.
+			# braid_order: missing cache is unknown, not a scored 0. Gate
+			# inject refreshes MI onto the live ρ so a Bell can move the bar.
 			var target := float(predicate.get("value", 0.5))
-			return QuestMath.soft_gate(
-				float(_last_observables.get("max_mutual_information", 0.0)), target, 0.1)
+			var mi := float(_last_observables.get("max_mutual_information", -1.0))
+			if mi < 0.0 and _last_biome != null and _last_biome.get("quantum_computer") != null:
+				var qc = _last_biome.quantum_computer
+				if qc.has_method("get_cached_max_mutual_information"):
+					mi = float(qc.get_cached_max_mutual_information())
+			if mi < 0.0:
+				return 0.0
+			return QuestMath.soft_gate(mi, target, 0.1)
 		"attractor_emoji_gte":
 			var attractor: Dictionary = _last_observables.get("attractor", {})
 			return QuestMath.soft_gate(attractor.get(str(predicate.get("emoji", "")), 0.0),

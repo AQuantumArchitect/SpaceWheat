@@ -245,7 +245,7 @@ static func inject_named_gate_2q(biome, qubit_a: int, qubit_b: int, gate_name: S
 	return result
 
 
-static func _invalidate_lookahead(_biome, farm = null) -> void:
+static func _invalidate_lookahead(biome, farm = null) -> void:
 	# Notify the evolution batcher that lookahead buffer is stale.
 
 	# Called after any gate injection to force refill of pre-computed frames.
@@ -267,3 +267,8 @@ static func _invalidate_lookahead(_biome, farm = null) -> void:
 	# Signal the batcher to invalidate lookahead
 	if batcher and batcher.has_method("signal_user_action"):
 		batcher.signal_user_action()
+	# braid_order: refill MI from the live ρ now. Frozen lookahead would
+	# otherwise leave a just-built Bell scoring 0 until the next evolve_with_mi.
+	if biome != null and biome.get("quantum_computer") != null \
+			and biome.quantum_computer.has_method("refresh_cached_mi"):
+		biome.quantum_computer.refresh_cached_mi()

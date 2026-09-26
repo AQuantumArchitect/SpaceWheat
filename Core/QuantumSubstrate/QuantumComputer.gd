@@ -1956,6 +1956,29 @@ func get_cached_max_mutual_information() -> float:
 	return best
 
 
+func refresh_cached_mi() -> void:
+	# braid_order: a gate invalidates lookahead MI. Frozen refill then leaves
+	# the cache empty/stale so a just-built Bell scores 0. Score the live ρ
+	# once. Not a per-frame path.
+	if density_matrix == null or register_map == null:
+		return
+	var n: int = register_map.num_qubits
+	if n < 2:
+		return
+	if not ClassDB.class_exists("QuantumEvolutionEngine"):
+		return
+	var rho: PackedFloat64Array = density_matrix._to_packed()
+	if rho.is_empty():
+		return
+	var e = ClassDB.instantiate("QuantumEvolutionEngine")
+	if e == null or not e.has_method("compute_all_mutual_information"):
+		return
+	e.set_dimension(register_map.dim())
+	if e.has_method("finalize"):
+		e.finalize()
+	_cached_mi_values = e.compute_all_mutual_information(rho, n)
+
+
 
 func get_coherence(emoji_a: String, emoji_b: String):
 	# Get coherence (off-diagonal element) between two emojis.
