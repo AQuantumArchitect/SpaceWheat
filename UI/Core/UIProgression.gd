@@ -569,6 +569,8 @@ static func objective_target() -> Dictionary:
 		return {"key": "R", "hat": cap, "biome": coast}
 	if _is_teaching_ask(best):
 		return _teaching_target()
+	if _is_braid_ask(best):
+		return _braid_target()
 	if _is_berry_ask(best):
 		var berry_hat := _hat_key_for_frame("icon")
 		var berry_biome := _berry_ask_biome(best)
@@ -694,6 +696,8 @@ static func _decorate_objective(q: Dictionary) -> String:
 		return _discover_walk_line()
 	if _is_teaching_ask(q):
 		return _teaching_walk_line()
+	if _is_braid_ask(q):
+		return _braid_walk_line()
 	if _is_berry_ask(q):
 		return _berry_walk_line(q)
 	return IntroVoice.ask_line(q)
@@ -870,6 +874,75 @@ static func _is_teaching_ask(q: Dictionary) -> bool:
 		if atom == "🪔":
 			return true
 	return false
+
+
+static func _is_braid_ask(q: Dictionary) -> bool:
+	# Two Chores: Hadamard then CNOT. Do not treat Bell (H+CNOT) as the word.
+	if str(q.get("source_flag", "")).strip_edges() == "braid_order":
+		return true
+	for pred in q.get("state_predicates", []):
+		if not (pred is Dictionary):
+			continue
+		if str(pred.get("type", "")) != "gate_order":
+			continue
+		var word: Array = pred.get("gates", [])
+		if not (word is Array) or word.size() < 2:
+			continue
+		var names: Array = []
+		for g in word:
+			names.append(str(g).strip_edges().to_lower())
+		if "hadamard" in names and "cnot" in names:
+			return true
+	return false
+
+
+static func _braid_walk_line() -> String:
+	# After honest Superpose, name [9] then [R] Gate then [E] CNOT.
+	# Bell sits on Q in the same picker — that restacks H and is not the word.
+	if _menu_open():
+		return "▸ ESC closes"
+	var op := _hat_key_for_frame("operator")
+	var wearing := str(ToolConfig.get_current_frame())
+	if wearing != ToolConfig.FRAME_OPERATOR:
+		var col := _focused_col()
+		if wearing != ToolConfig.FRAME_DRUID and not _already_superposed(col):
+			return "▸ [0] Druid"
+		if wearing == ToolConfig.FRAME_DRUID and not _already_superposed(col):
+			return "▸ [E] Superpose"
+		return "▸ [%s] Operator" % op.to_upper()
+	var n := _checked_count()
+	if _in_gate_submenu() and n >= 2:
+		return "▸ [E] CNOT"
+	if n >= 2:
+		return "▸ [R] Gate"
+	if n == 1:
+		return "▸ Shift+%s marks the second plot" % _next_unmarked_plot_key()
+	return "▸ Shift+G then Shift+H marks two plots"
+
+
+static func _braid_target() -> Dictionary:
+	var op := _hat_key_for_frame("operator")
+	var out := {"key": "", "hat": op, "biome": ""}
+	if str(ToolConfig.get_current_frame()) != ToolConfig.FRAME_OPERATOR:
+		var col := _focused_col()
+		if str(ToolConfig.get_current_frame()) != ToolConfig.FRAME_DRUID \
+				and not _already_superposed(col):
+			out["key"] = "0"
+			out["hat"] = "0"
+			return out
+		if str(ToolConfig.get_current_frame()) == ToolConfig.FRAME_DRUID \
+				and not _already_superposed(col):
+			out["key"] = "E"
+			out["hat"] = "0"
+			return out
+		out["key"] = op
+		return out
+	var n := _checked_count()
+	if _in_gate_submenu() and n >= 2:
+		out["key"] = "E"
+	elif n >= 2:
+		out["key"] = "R"
+	return out
 
 
 static func _is_berry_ask(q: Dictionary) -> bool:

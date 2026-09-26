@@ -245,7 +245,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		_cancel_pending_confirm()
 
 	# Auto-close submenu when any non-action key is pressed
-	if _instrument.is_in_submenu() and key not in ["Q", "E", "R", "F"]:
+	if _instrument != null and is_instance_valid(_instrument) \
+			and _instrument.is_in_submenu() and key not in ["Q", "E", "R", "F"]:
 		_close_submenu()
 
 	# Archetype hat row: 4, 5, 6, 7, 8, 9, 0 → frame.
@@ -260,10 +261,10 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		# fall-back-to-Ace re-press path always passes.
 		if not UIProgression.is_hat_active(target_frame):
 			UIProgression.redirect_locked("the %s hat" % target_frame)
-			get_viewport().set_input_as_handled()
+			_mark_key_handled()
 			return
 		_select_frame_hat(target_frame)
-		get_viewport().set_input_as_handled()
+		_mark_key_handled()
 		return
 
 	# Direct sub-mode select within current frame: 1, 2, 3 → modes 0..2
@@ -471,11 +472,24 @@ func _handle_subspace_row_input(event: InputEvent) -> bool:
 ## ARCHETYPE FRAME MANAGEMENT
 ## ============================================================================
 
+func _mark_key_handled() -> void:
+	# QII is a Node; after a farm rebuild it can receive the hat key while
+	# off-tree. Null viewport here used to kill the seat (braid_order [9]).
+	if not is_inside_tree():
+		return
+	var vp := get_viewport()
+	if vp:
+		vp.set_input_as_handled()
+
+
 func _select_frame_hat(frame_name: String) -> void:
 	# Select an archetype frame (hat row 4-0). Empty string = Ace.
 	if not ToolConfig.select_frame(frame_name):
 		_verbose.warn("input", "⚠️", "Ignored invalid frame selection '%s'" % frame_name)
 		return
+	if _instrument != null and is_instance_valid(_instrument) \
+			and _instrument.has_method("set_frame"):
+		_instrument.set_frame(frame_name)
 	# Same cancel keyboard gets for free via _unhandled_key_input's top-level
 	# check — this is the single hat-switch entry for BOTH keyboard and mouse
 	# (ToolSelectionRow taps land here too), so without it a mouse hat switch
@@ -491,7 +505,11 @@ func _select_frame_hat(frame_name: String) -> void:
 	# instead of the hat the player thinks they're using — spending
 	# resources/burning a register slot on an option they never chose.
 	_close_submenu()
+	# Chips first, then the ring write. PlayerShell used to set_cursor_layer
+	# before this ran; after honest Druid Hadamard that paint killed Godot.
+	# keep_plot_selection: hat switches tools, not the workpiece (fleet #4).
 	frame_changed.emit(frame_name)
+	set_cursor_layer(1, true)
 
 	# Icon-hat focus: do NOT clear here. Lesson I is 5 → pick → 2 (mirror)
 	# and needs the plot. Add Icon still gets an unfocused inject mode via
@@ -672,7 +690,9 @@ func _cycle_submenu_page() -> void:
 
 func _close_submenu() -> void:
 	# Close the active submenu and reset all submenu state.
-	_instrument.exit_submenu()
+	if _instrument != null and is_instance_valid(_instrument) \
+			and _instrument.has_method("exit_submenu"):
+		_instrument.exit_submenu()
 	_in_submenu = false
 	_current_submenu = {}
 	submenu_changed.emit("", {})
@@ -3080,6 +3100,8 @@ func _get_selected_positions() -> Array[Vector2i]:
 	# Register-first: there is always a focused qubit. This mirrors _get_grid_position()'s
 	# off-ring fallback, so plot-targeted gates behave like measure (which never no-ops off-ring).
 	var positions: Array[Vector2i] = []
+	if _instrument == null or not is_instance_valid(_instrument):
+		return positions
 	if _instrument.current_plot_idx >= 0:
 		positions.append(_get_grid_position())
 	elif _instrument.last_selected_position != GridSentinel.INVALID_POSITION:
