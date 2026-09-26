@@ -511,6 +511,53 @@ def test_braid_order_refreshes_mi_after_gate():
     assert any(p.get("type") == "gate_order" for p in sp)
 
 
+def test_braid_order_operator_after_hadamard_names_cnot():
+    """braid_order: [9] after honest Druid Hadamard killed the seat
+    because PlayerShell set_cursor_layer then QII._select_frame_hat
+    interleaved. Hat layer write lives in _select_frame_hat. Name CNOT
+    (E in Gate), not Bell-on-Q. Do not mill leftover."""
+    shell = src(ROOT / "UI" / "PlayerShell.gd")
+    hat_anchor = shell.split(
+        "if kc in [KEY_Z, KEY_X, KEY_C, KEY_V, KEY_B, KEY_N, KEY_M]:"
+    )[1].split("elif kc in [KEY_T")[0]
+    assert "instrument_input.set_cursor_layer(1" not in hat_anchor
+    assert "elif kc in [KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9, KEY_0]:" not in shell
+    qii = src(ROOT / "UI" / "Core" / "QuantumInstrumentInput.gd")
+    select = qii.split("func _select_frame_hat")[1].split("\nfunc ")[0]
+    assert "set_cursor_layer(1, true)" in select
+    assert "set_frame" in select
+    assert "is_instance_valid(_instrument)" in select
+    assert "func _mark_key_handled" in qii
+    hat_keys = qii.split("if ToolConfig.HAT_KEY_TO_FRAME.has(key):")[1].split(
+        "\n\t# Direct sub-mode"
+    )[0]
+    assert "_mark_key_handled()" in hat_keys
+    assert "get_viewport().set_input_as_handled()" not in hat_keys
+    prog = src(PROG)
+    assert "func _is_braid_ask" in prog
+    assert "func _braid_walk_line" in prog
+    decorate = prog.split("static func _decorate_objective")[1].split("static func ")[0]
+    assert "_is_braid_ask(q)" in decorate
+    assert "_braid_walk_line()" in decorate
+    target = prog.split("static func objective_target()")[1].split("static func ")[0]
+    assert "_is_braid_ask(best)" in target
+    assert "_braid_target()" in target
+    walk = prog.split("func _braid_walk_line")[1].split("\nstatic func ")[0]
+    assert "[E] CNOT" in walk
+    assert "[R] Gate" in walk
+    assert "] Operator" in walk
+    assert "[Q] Bell" not in walk
+    flags = json.loads(HANDOVER.read_text(encoding="utf-8"))
+    braid = next(f for f in flags if f.get("id") == "braid_order")
+    aq = braid.get("arc_quest") or {}
+    sp = aq.get("state_predicates") or []
+    assert any(
+        p.get("type") == "gate_order"
+        and "cnot" in [str(g).lower() for g in (p.get("gates") or [])]
+        for p in sp
+    )
+
+
 def test_slots_full_names_cull_target_and_q():
     """lantern_door: biome slots full; ▸ still [R]; no named cull target.
     Refusal names the cull and the one key that does it. Do not cull for them."""

@@ -171,11 +171,11 @@ func _input(event: InputEvent) -> void:
 		var kc = event.keycode
 		if kc in [KEY_Z, KEY_X, KEY_C, KEY_V, KEY_B, KEY_N, KEY_M]:
 			instrument_input.set_cursor_layer(0)
-		elif kc in [KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9, KEY_0]:
-			# keep_plot_selection: a hat pick switches tools, not workpieces —
-			# the focused plot must survive (fleet #4 P1: every hat switch
-			# dropped focus, so the first verb after it refused).
-			instrument_input.set_cursor_layer(1, true)
+		# Hat row 4-0 is not anchored here. QII._select_frame_hat owns the
+		# layer write (keep_plot_selection) so a locked/redirected 9 cannot
+		# paint a plot-ring leave before the Operator chips exist.
+		# braid_order: KEY_9 after honest Druid Hadamard killed the seat
+		# when this early set_cursor_layer ran first.
 		elif kc in [KEY_T, KEY_Y, KEY_U, KEY_I, KEY_O, KEY_P]:
 			# keep_plot_selection: the biome-switch handler re-maps the SAME
 			# slot letter into the new biome; clearing here forced it to G.
