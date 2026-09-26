@@ -1083,10 +1083,20 @@ static func _glyph_plot_key(glyph: String) -> String:
 
 
 static func _focused_col() -> int:
+	# eagle_overhead: Icon inject can clear current_plot_idx while look.field
+	# still names Village G. Sticky last-selected is the workpiece F/R hit.
 	var inst = _instrument()
-	if inst == null or not ("current_plot_idx" in inst):
+	if inst == null:
 		return -1
-	return int(inst.current_plot_idx)
+	if "current_plot_idx" in inst:
+		var qid := int(inst.current_plot_idx)
+		if qid >= 0:
+			return qid
+	if "last_selected_position" in inst:
+		var pos = inst.last_selected_position
+		if pos is Vector2i and int(pos.x) >= 0:
+			return int(pos.x)
+	return -1
 
 
 static func _active_biome_name() -> String:

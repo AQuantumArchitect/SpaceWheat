@@ -530,13 +530,11 @@ func _on_mode_changed(frame_name: String, mode_index: int) -> void:
 	var mode_emoji = ToolConfig.get_frame_mode_emoji(frame_name)
 	frame_mode_changed.emit(frame_name, mode_index, mode_label)
 	_verbose.info("input", "~", "Mode: %s (%s)" % [mode_label, mode_emoji])
-	# Inject (Icon mode 0) needs an unfocused plot so mouse can see Add Icon.
-	# Mirror (mode 1) must KEEP the plot — that is Lesson I.
+	# Inject (Icon mode 0) unfocuses the live cursor so mouse can see Add Icon.
+	# eagle_overhead: do not wipe last_selected — Village G is still the
+	# workpiece F tracks / R incorporates. Empty-plot plant still picks J.
 	if frame_name == ToolConfig.FRAME_ICON and mode_index == 0 and _instrument:
 		_instrument.current_plot_idx = -1
-		_instrument.last_selected_position = GridSentinel.INVALID_POSITION
-		if plot_grid_display:
-			plot_grid_display.set_selected_plot(GridSentinel.INVALID_POSITION)
 
 
 ## ============================================================================
@@ -835,6 +833,19 @@ func _build_chip_context() -> ChipContext:
 	return build_chip_context()
 
 
+func _sticky_qubit_id() -> int:
+	# Off the plot ring (hat switch / Icon inject) last-focused register is
+	# still the target. Same law as build_chip_context / _get_selected_positions.
+	if not _instrument:
+		return -1
+	var qid: int = int(_instrument.current_plot_idx)
+	if qid >= 0:
+		return qid
+	if _instrument.last_selected_position != GridSentinel.INVALID_POSITION:
+		return int(_instrument.last_selected_position.x)
+	return -1
+
+
 func _execute_toggle_berry_track() -> Dictionary:
 	# Toggle Berry-phase tracking on the focused qubit. The integrator seeds
 	# itself from the next slice's Bloch vector — no explicit seed needed.
@@ -846,7 +857,7 @@ func _execute_toggle_berry_track() -> Dictionary:
 	if qc == null or qc.berry_register == null:
 		return {"success": false, "error": "no_quantum_computer",
 				"message": "This biome isn't evolving yet — nothing to track."}
-	var qid: int = int(_instrument.current_plot_idx) if _instrument else -1
+	var qid: int = _sticky_qubit_id()
 	if qid < 0 or qid >= qc.register_map.num_qubits:
 		_verbose.info("input", "⌖", "No focused qubit to track")
 		return {"success": false, "error": "no_qubit",
@@ -891,7 +902,7 @@ func _execute_incorporate_icon() -> Dictionary:
 	# translates the keypress into the command and mirrors the result for display.
 	if _instrument == null:
 		return {"success": false, "error": "no_instrument"}
-	var result: Dictionary = _instrument.action_incorporate()
+	var result: Dictionary = _instrument.action_incorporate(_sticky_qubit_id())
 	# Success and refusal both speak (anti-gating law, same as inject_icon):
 	# _toast_berry_whisper existed but nothing called it — the harvest was mute,
 	# and a silent success reads exactly like a dead key.

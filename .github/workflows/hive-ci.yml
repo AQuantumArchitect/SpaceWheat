@@ -20,4 +20,4 @@ jobs:
       - name: pytest hive honesty
         run: |
           python3 -m pip install pytest
-          python3 -m pytest tests/test_hive_promote.py tests/test_sunshine_gates.py -q
+          python3 -m pytest tests/test_hive_promote.py tests/test_sunshine_gates.py tests/test_lane_minimalism.py -q

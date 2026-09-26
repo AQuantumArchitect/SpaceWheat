@@ -458,6 +458,38 @@ def test_lantern_wakes_names_unseat_then_plant():
     assert "Middle Cannot Hold" not in hint
 
 
+def test_eagle_overhead_track_keeps_sticky_focus():
+    """eagle_overhead: Village G focused; Icon 5; F said Track needs a focused
+    plot; farm toast lagged. Sticky last-selected is the workpiece. F/R and
+    the berry banner must use it. Do not mill leftover."""
+    qii = src(ROOT / "UI" / "Core" / "QuantumInstrumentInput.gd")
+    assert "func _sticky_qubit_id" in qii
+    toggle = qii.split("func _execute_toggle_berry_track")[1].split("\nfunc ")[0]
+    assert "_sticky_qubit_id" in toggle
+    inc = qii.split("func _execute_incorporate_icon")[1].split("\nfunc ")[0]
+    assert "_sticky_qubit_id" in inc
+    mode = qii.split("func _on_mode_changed")[1].split("\nfunc ")[0]
+    assert "last_selected_position = GridSentinel.INVALID_POSITION" not in mode
+    prog = src(PROG)
+    focused = prog.split("static func _focused_col()")[1].split("static func ")[0]
+    assert "last_selected_position" in focused
+    inst = src(ROOT / "Core" / "Instrumentation" / "QuantumInstrument.gd")
+    incorporate = inst.split("func action_incorporate")[1].split("\nfunc ")[0]
+    assert "last_selected_position" in incorporate
+    flags = json.loads(HANDOVER.read_text(encoding="utf-8"))
+    eagle = next(f for f in flags if f.get("id") == "eagle_overhead")
+    aq = eagle.get("arc_quest") or {}
+    sp = aq.get("state_predicates") or []
+    assert any(
+        p.get("type") == "berry_consumed_count_gte" and p.get("biome") == "Village"
+        and int(p.get("value", 0)) == 9
+        for p in sp
+    )
+    walk = prog.split("static func _berry_walk_line")[1].split("static func ")[0]
+    assert "[F] Track" in walk
+    assert "[R] Incorporate" in walk
+
+
 def test_slots_full_names_cull_target_and_q():
     """lantern_door: biome slots full; ▸ still [R]; no named cull target.
     Refusal names the cull and the one key that does it. Do not cull for them."""
