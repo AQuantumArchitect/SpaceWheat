@@ -796,6 +796,8 @@ func action_incorporate(qubit_idx: int = -1) -> Dictionary:
 	if qc == null or qc.berry_register == null:
 		return {"success": false, "error": "no_quantum_computer"}
 	var qid: int = qubit_idx if qubit_idx >= 0 else int(current_plot_idx)
+	if qid < 0 and last_selected_position != GridSentinel.INVALID_POSITION:
+		qid = int(last_selected_position.x)
 	if qid < 0 or qid >= qc.register_map.num_qubits:
 		return {"success": false, "error": "no_qubit",
 				"message": "Incorporate needs a focused plot — G H J K L ; picks one."}
