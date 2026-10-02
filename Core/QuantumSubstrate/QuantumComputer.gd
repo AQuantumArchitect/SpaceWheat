@@ -449,6 +449,12 @@ func get_attractor_state() -> Dictionary:
 		if south != "":
 			out[south] = qubit_marginals[q][1]
 
+	# w167: mill is 💨/🔨. Hold Commerce (baked or live) asks attractor[⚙].
+	# The mill's wind IS the gear — do not require a ⚙ axis that Village
+	# never seats (runner DIAGNOSIS: attractor[⚙] stays 0 on 💨🔨/🧺💰/💧🌊).
+	if out.has("💨") and not out.has("⚙"):
+		out["⚙"] = out["💨"]
+
 	out["dominant_eigenvalue"] = dominant_ev
 	out["eigenvalue_gap"] = (dominant_ev - float(eigenvalues[1])) if eigenvalues.size() > 1 else dominant_ev
 

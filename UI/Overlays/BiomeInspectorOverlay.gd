@@ -198,7 +198,7 @@ func handle_input(_event: InputEvent) -> bool:
 	# inspecting. The 4 Hz _process rebuild reflects the action immediately.
 	return false
 
-func handle_action(_action_key: String) -> bool:
+func handle_action(_action_key: String, _shift: bool = false) -> bool:
 	# Chip taps mirror the keyboard: not consumed here → PlayerShell falls
 	# through to instrument_input.invoke_action on the plot beneath.
 	return false

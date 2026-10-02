@@ -1,5 +1,5 @@
 {
-  "_doc": "Act-0 onboarding chain. A linear sequence of pipeline quests; the loader links each step to unlock the next (chain_unlocks). Each step teaches ONE mechanic. The lane auto-accepts every step (banner is the ask); predicate steps also auto-claim (the bar is the teacher). The mill DELIVERY is auto-accepted then filled on Commitments. Hints ARE the ask (≤70 chars, first sentence stands alone) — the how lives in the world (spotlight + affordance), inspect is physics, Guide is the book. Act 0 teaches the farm verbs: loop, contracts, travel, superposition, entanglement, reap last. Vocabulary is mid-game (act-3); early words come from faction teachings on the road (story_flags.json).",
+  "_doc": "Act-0 onboarding chain. A linear sequence of pipeline quests; the loader links each step to unlock the next (chain_unlocks). Each step teaches ONE mechanic. Predicate / verb lessons auto-accept so the banner is the ask; they also auto-claim (the bar is the teacher). Fill stalls (the mill) wait for Market [Y] Accept — the player picks the contract up, then delivers on Commitments [U]. Hints ARE the ask (≤70 chars, first sentence stands alone) — the how lives in the world (spotlight + affordance), inspect is physics, Guide is the book. Act 0 teaches the farm verbs: loop, contracts, travel, superposition, entanglement, reap last. Vocabulary is mid-game (act-3); early words come from faction teachings on the road (story_flags.json).",
   "steps": [
     {
       "tutorial_step": 0,
@@ -21,9 +21,9 @@
       "type": "DELIVERY",
       "resource": "🌾",
       "quantity": 2,
-      "body": "The Millwright's Union is buying. Accept their contract and deliver 2× 🌾 from your stores. Kept contracts are how a small country eats — and how factions come to know your name.",
-      "tutorial_hint": "Deliver 2× 🌾 to the mill.",
-      "math_note": "A DELIVERY quest, not a soft gate — fires the instant your 🌾 stores hold quantity ≥ 2 and you complete the contract on Commitments. Auto-accepted with the lane; filled on purpose (not auto-claimed)."
+      "body": "The Millwright's Union is buying. Accept their contract on Market [Y], then deliver 2× 🌾 on Commitments [U]. Kept contracts are how a small country eats — and how factions come to know your name.",
+      "tutorial_hint": "Market [Y] then [R] Accept.",
+      "math_note": "A DELIVERY quest, not a soft gate — Accept is a player press on Market [Y]. Deliver on Commitments [U] when stores hold 🌾 ≥ 2. Never auto-accepted; never auto-claimed."
     },
     {
       "tutorial_step": 2,

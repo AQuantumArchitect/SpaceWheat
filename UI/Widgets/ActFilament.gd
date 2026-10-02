@@ -4,9 +4,10 @@ extends PanelContainer
 ## ActFilament — the objective PORTAL: the game's ONE live ask.
 ##
 ## Face law: one readable line (the live ACCEPTED ask). Chapter and "Next"
-## live on the Arc. This chip is a tracker. Tap opens a menu only when the
-## ask is a fill/claim verb (Commitments). Field work is a label — the
-## spotlight names the control. Hides until a quest is accepted.
+## live on the Arc. This chip is a tracker. Tap opens Market when the ask
+## is pickup, Commitments when a stall is already held. Field work is a
+## label — the spotlight names the control. Hides until a quest is accepted
+## (unsigned mill/goods still show — pickup is the walk).
 ##
 ## Purely cosmetic (anti-gating law) — reads, never writes.
 ##
@@ -133,7 +134,12 @@ func _apply_banner_home() -> void:
 	_ladder.has_home = home != ""
 	_ladder.has_scoot = false
 	if home == "commitments":
-		_ladder.home_name = "the board"
+		_ladder.home_name = "Commitments"
+		_ladder.home_key = "C"
+	elif home == "market":
+		# C opens the overlay; Y is the Market tab. Do not set home_key to
+		# Y — open_event_home treats Y as Story.
+		_ladder.home_name = "Market"
 		_ladder.home_key = "C"
 	else:
 		_ladder.home_name = "the Arc"
@@ -154,6 +160,9 @@ func _open_banner_home() -> void:
 	if _overlay_manager == null:
 		return
 	var home := UIProgression.banner_home()
+	if home == "market" and _overlay_manager.has_method("open_board_on_market"):
+		_overlay_manager.open_board_on_market()
+		return
 	if home == "commitments" and _overlay_manager.has_method("open_board_on_commitments"):
 		_overlay_manager.open_board_on_commitments()
 		return

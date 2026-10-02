@@ -22,7 +22,6 @@ extends "res://UI/Core/Surface.gd"
 ##   Q/R/F  = empty — V is read-only reference, no session state to commit
 ##   ESC    = close
 
-const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
 const HAT_INCLUSION_THRESHOLD := 0.45  # matches AuthorityAdapter
 
 # Surface frames (TYUIOP)

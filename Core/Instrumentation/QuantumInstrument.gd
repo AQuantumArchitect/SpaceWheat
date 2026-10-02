@@ -17,6 +17,7 @@ const GaugeActionHandler = preload("res://Core/Instrumentation/Handlers/GaugeAct
 const GranularityController = preload("res://Core/Utilities/GranularityController.gd")
 const GameStateSerializerClass = preload("res://Core/GameState/GameStateSerializer.gd")
 const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
+const ProbeActions = preload("res://Core/Actions/ProbeActions.gd")
 
 const DEFAULT_TIMESCALE_OBJECTIVE: Dictionary = {
 	"focus_emojis": [],
@@ -485,6 +486,23 @@ func action_measure(grid_pos: Vector2i) -> Dictionary:
 
 	var _plot = farm.grid.get_plot(grid_pos) if farm.grid else null
 	var terminal = _plot.terminal if _plot else null
+	# w80: banner named [R] Strike on Village 🧺 but the plot was unbound.
+	# Explore on this axis is already free. Bind, then strike — the well
+	# must be enterable. Other plots still refuse honestly.
+	var well: bool = false
+	var bn := str(farm.grid.get_plot_biome_assignment(grid_pos)) if farm.grid else ""
+	var b = farm.grid.get_biome(bn) if (farm.grid and bn != "") else null
+	if b != null and b.quantum_computer != null and b.quantum_computer.register_map != null:
+		var axw: Dictionary = b.quantum_computer.register_map.axis(grid_pos.x)
+		var poles_w := str(axw.get("north", "")) + str(axw.get("south", ""))
+		var norm_w := poles_w.replace("\uFE0F", "").replace("\uFE0E", "")
+		well = norm_w.contains("🧺") or norm_w.contains("🦅") or norm_w.contains("🍞")
+	if not terminal and well and bn != "":
+		var bind := action_explore(bn, grid_pos)
+		if not bind.get("success", false):
+			return bind
+		_plot = farm.grid.get_plot(grid_pos) if farm.grid else null
+		terminal = _plot.terminal if _plot else null
 	if not terminal:
 		# Explore is its own verb now (owner ruling 2026-07-11: F mounts the
 		# expedition for 🍞; the strike is a separate 👥-priced act). A strike
@@ -493,6 +511,9 @@ func action_measure(grid_pos: Vector2i) -> Dictionary:
 		# the chip badge uses — never hardcoded (d1-03 literalist finding).
 		var explore_cost: Dictionary = ActionCostRuntime.get_action_cost(economy, "explore", {})
 		var bread_amount := int(round(float(explore_cost.get("🍞", 1))))
+		if well:
+			return {"success": false, "error": "not_explored",
+				"message": "Unexplored — [F] Explore (🧺 well, no 🍞).", "blocked": true}
 		return {"success": false, "error": "not_explored",
 			"message": "Unexplored — tap this plot (or F) to explore it first (%d🍞)." % bread_amount, "blocked": true}
 
@@ -813,11 +834,31 @@ func action_incorporate(qubit_idx: int = -1) -> Dictionary:
 	var gsm = _get_autoload("GameStateManager")
 	if gsm == null or gsm.player_progress == null:
 		return {"success": false, "error": "no_player_progress"}
+	# w197: consume-then-refuse wasted the BloodLedger berry when 🦅
+	# already anchored 🦅🐇. Uniqueness first; the berry stays ripe.
+	if "known_icons" in farm and farm.known_icons is Array:
+		for taken in farm.known_icons:
+			if not (taken is Dictionary):
+				continue
+			if str(taken.get("north", "")) != north:
+				continue
+			if str(taken.get("south", "")) == south:
+				break
+			return {
+				"success": false,
+				"error": "north_taken",
+				"message": "%s already anchors %s%s — pick a plot whose pole is new" % [
+					north, str(taken.get("north", "")), str(taken.get("south", "")),
+				],
+			}
 	# Read the banked phase BEFORE consume erases the entry — the success toast
 	# quotes the solid angle the walk actually enclosed.
+	# w188: discover_icon first rebuilt identity / pumped the market while
+	# this biome's berry entry was still live; BloodLedger 🏰📜 killed the
+	# headless seat. Harvest first, then learn the word.
 	var ripe_phase: float = float(qc.berry_register.get_phase(qid))
-	var added: bool = gsm.player_progress.discover_icon(north, south)
 	qc.berry_register.consume(qid)
+	var added: bool = gsm.player_progress.discover_icon(north, south)
 	# discover_icon refuses two ways and the difference matters to the player:
 	# the exact pair already known (honest re-harvest) vs the NORTH emoji already
 	# anchoring another signature word (the word is NOT learned — the surviving

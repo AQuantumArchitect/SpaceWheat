@@ -136,7 +136,7 @@ func test_empty_state_handling():
 	# No selection
 	var empty = GateSelectionSubmenu.generate_submenu(mock_biome, mock_farm, [], 0)
 	assert_true(empty.get("_disabled", false), "0 qubits: disabled")
-	assert_eq(empty["actions"]["Q"]["label"], "Shift-click two plots (or Shift+G H)", "Shows how to check two plots")
+	assert_eq(empty["actions"]["Q"]["label"], "⇧ or MULTI — two plots", "Shows how to check two plots")
 
 	# Single selection
 	var single = GateSelectionSubmenu.generate_submenu(mock_biome, mock_farm, [Vector2i(0, 0)], 0)

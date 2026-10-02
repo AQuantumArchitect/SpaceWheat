@@ -64,7 +64,7 @@ def test_commitment_filter_excludes_auto_advancing_tutorials_at_source():
     assert "func tutorial_auto_accepts" in src
     offer = src.split("func offer_tutorial_quest")[1].split("func _tutorial_auto_accepts")[0]
     assert "_tutorial_auto_accepts" in offer, (
-        "the lane auto-accepts every tutorial step, mill included"
+        "the lane still calls _tutorial_auto_accepts (verb lessons yes, mill no)"
     )
 
 

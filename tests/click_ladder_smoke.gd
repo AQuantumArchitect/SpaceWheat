@@ -13,7 +13,7 @@ class StubOM:
 		homes.append("arc")
 	func open_board_on_commitments(quest_id: int = -1, view: String = "active") -> void:
 		homes.append(["board", quest_id, view])
-	func scoot_toward(biome: String = "") -> void:
+	func scoot_toward(biome: String = "", _plot_idx: int = -1, _glyph: String = "") -> void:
 		scoots.append(biome)
 	func toggle_overlay(_name: String) -> void:
 		pass
@@ -111,16 +111,22 @@ func _check_market_stalls() -> void:
 	board.set_frame(QuestBoard.FRAME_MARKET)
 	board._render_all()
 	var rows: Array = board._market_rows()
-	_check(rows.size() == 6, "2 held + 4 free stalls (not 10 offers)",
+	_check(rows.size() == 10, "Market lists offers, not mixed with held",
 		"got %d" % rows.size())
-	_check(str(rows[0].get("kind", "")) == "held", "held pin the first stalls")
-	_check(str(rows[2].get("kind", "")) == "offer", "offers fill remaining stalls")
-	_check(board._held_count() == 2, "hands 2/6")
-	stub.rows = stub.rows + stub.rows + stub.rows  # 6 held
-	rows = board._market_rows()
-	_check(rows.size() == 6, "full hands show no offers", "got %d" % rows.size())
 	for r in rows:
-		_check(str(r.get("kind", "")) == "held", "every stall is held when hands are full")
+		_check(str(r.get("kind", "")) == "offer", "Market is pickup only")
+	_check(board._held_count() == 2, "hands 2/6")
+	board.set_frame(QuestBoard.FRAME_COMMITMENTS)
+	board._commitments_view = "active"
+	var held_rows: Array = board._commitments_rows()
+	_check(held_rows.size() == 2, "Commitments holds the two deliveries",
+		"got %d" % held_rows.size())
+	stub.rows = stub.rows + stub.rows + stub.rows  # 6 held
+	_check(board._held_count() == 6, "hands full at 6")
+	board.set_frame(QuestBoard.FRAME_MARKET)
+	rows = board._market_rows()
+	_check(rows.size() == 10, "full hands still show offers (Accept will refuse)",
+		"got %d" % rows.size())
 	board.queue_free()
 	stub.queue_free()
 

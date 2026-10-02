@@ -187,6 +187,7 @@ static func inject_gate_2q(biome, qubit_a: int, qubit_b: int, gate_matrix, farm 
 	if success:
 		# Invalidate lookahead buffer
 		_invalidate_lookahead(biome, farm)
+		_refill_mi_after_two_qubit(biome, farm)
 
 	return {
 		"success": success,
@@ -267,3 +268,16 @@ static func _invalidate_lookahead(_biome, farm = null) -> void:
 	# Signal the batcher to invalidate lookahead
 	if batcher and batcher.has_method("signal_user_action"):
 		batcher.signal_user_action()
+
+
+static func _refill_mi_after_two_qubit(biome, farm = null) -> void:
+	if biome == null:
+		return
+	var batcher = null
+	if farm and "biome_evolution_batcher" in farm and farm.biome_evolution_batcher:
+		batcher = farm.biome_evolution_batcher
+	if batcher == null:
+		return
+	var bname := str(biome.biome_name) if "biome_name" in biome else str(biome.name)
+	if batcher.has_method("refill_mi_after_two_qubit") and bname != "":
+		batcher.refill_mi_after_two_qubit(bname)

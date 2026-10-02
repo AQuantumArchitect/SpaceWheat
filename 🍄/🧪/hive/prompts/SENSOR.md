@@ -77,6 +77,8 @@ python3 🍄/🧪/player_seat.py stop <seat>
 
 The file is one line: `<PERSONA>: tried <…>; saw <…>; expected <…>`
 
+**Runner only** may add a second line after a curtain-peek: `DIAGNOSIS: <path>:<line> <mechanical why>. Still a wall — do not patch.` Minis do not read game source.
+
 `hive.py wall` always ledgers locally even if umweltd is down. That write is the report of record. Do not pass a flag as the chapter (`wall --help` is not a chapter).
 
 If the run was a clean clear (no wall), skip `hive.py wall`, still bank and stop, and print a short positive note.

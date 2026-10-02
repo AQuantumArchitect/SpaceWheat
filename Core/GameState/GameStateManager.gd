@@ -79,6 +79,8 @@ func _apply_loaded_state_deferred(state: GameState) -> void:
 		return
 	await session_lifecycle.await_farm_ready(active_farm)
 	await apply_state_to_game(state)
+	if active_farm.has_method("ensure_village_commerce"):
+		active_farm.ensure_village_commerce()
 	# Announce the new farm exactly like the boot lane (complete_session_boot
 	# emits AFTER state application). Without this, every farm_ready listener
 	# (PlayerEventBridge, progression, chatter) stayed bound to the previous

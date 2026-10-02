@@ -6,11 +6,11 @@ Humans read `../PERSONAS.md` (the table). Agents fetch only the files named belo
 |---|---|
 | Coordinator (sending a wave) | `GROK.md` then `HOST.md` |
 | Any sensor | `SENSOR.md` then `HOST.md` then `<persona>.md` |
-| masher / literalist / earnest / lost-lamb / tap-lamb | the matching file in this folder |
+| masher / literalist / earnest / lost-lamb / tap-lamb / runner | the matching file in this folder |
 
 Optional (only if the spawn named it):
 
 - `../HIVE_PROTOCOL.md` — full constitution
-- `../PERSONAS.md` — late-game checkpoint rule, mouse-seat swap
+- `../PERSONAS.md` — late-game checkpoint rule, mouse-seat swap, runner curtain-peek
 
 Wave logs: `../waves/<stamp>/`. Walls: `../walls.jsonl` via `hive.py wall --file`.

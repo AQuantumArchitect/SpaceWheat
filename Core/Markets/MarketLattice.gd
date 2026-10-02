@@ -116,7 +116,7 @@ func propose_offers(biome, n: int = 1) -> Array:
 
 
 ## Same generator as propose_offers, but only stalls whose issuer is
-## `faction_name`. Wave 14: Market [Y] named a Millwright delivery while
+## `faction_name`. Wave 14: Market [Y] named a Millwright pickup while
 ## the pool had only Debt Wardens / Plague Vectors. Does not accept or
 ## fill — it only makes the advertised stall exist.
 func propose_faction_offers(biome, faction_name: String, n: int = 3) -> Array:

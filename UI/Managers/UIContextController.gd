@@ -39,13 +39,19 @@ func setup(action_bar_mgr, stack_mgr, overlay_mgr = null) -> void:
 	action_bar_manager = action_bar_mgr
 	overlay_stack = stack_mgr
 	if overlay_stack and overlay_stack.has_signal("stack_changed"):
-		InstrumentLocator._safe_connect(overlay_stack.stack_changed, refresh)
+		InstrumentLocator._safe_connect(overlay_stack.stack_changed, Callable(self, "_on_stack_changed"))
 
 	_connect_toolbar_inputs()
 	if overlay_mgr:
 		bind_overlay_manager(overlay_mgr)
 
 	refresh()
+
+
+func _on_stack_changed() -> void:
+	# w222: stack_changed from overlay close ran refresh on the input stack
+	# and rebuilt chips while the Control was still in _input.
+	call_deferred("refresh")
 
 
 func reset() -> void:
@@ -351,6 +357,25 @@ func _build_frame_actions(frame_name: String) -> Dictionary:
 			# Price on the chip: every verb advertises what it would charge
 			# (playtest 6: "all the actions need to display their costs").
 			action_info = ChipResolverRegistry.annotate_cost(action_info, chip_ctx)
+		if action_key == "R" and str(UIProgression.last_lantern_strike) != "" \
+				and UIProgression.lantern_well_live():
+			action_info = action_info.duplicate()
+			action_info["label"] = str(UIProgression.last_lantern_strike)
+		# w54 literalist: ▸ [I] cull-cross while Captain R still said Add Biome.
+		if str(action_info.get("action", "")) == "discover_biome":
+			var farm = _get_farm()
+			if farm != null and farm.has_method("can_discover_biome"):
+				var gate: Dictionary = farm.can_discover_biome()
+				if not bool(gate.get("ok", true)):
+					action_info = action_info.duplicate()
+					var msg := str(gate.get("message", "")).to_lower()
+					action_info["label"] = "cull first" if "cull" in msg else "slots full"
+			# w60: Ace Strike vs Captain Add Biome while still short 🦅.
+			var UIProgression = load("res://UI/Core/UIProgression.gd")
+			if UIProgression != null and UIProgression._eagle_short():
+				action_info = action_info.duplicate()
+				action_info["label"] = "need 🦅"
+				action_info["disabled"] = true
 		# Honest chips for the E/F side-effect peek (PlayerShell._input): in
 		# frames with no E/F verb the keys STILL pause/resume the sim, so a
 		# dash chip is a lie ("[F] - but F resumes play" — fleet playtest).
@@ -545,7 +570,7 @@ func _apply_probe_preview(actions: Dictionary) -> void:
 
 ## Which chip would a tap on the FOCUSED plot fire right now? Deliberately
 ## separate from _apply_probe_preview above, which keys off get_selected_plots()
-## — the Shift-click multi-select checkbox set, empty on an ordinary tap/focus
+## — the Shift / MULTI checkbox set, empty on an ordinary tap/focus
 ## and therefore the wrong source for "what does a plain click do". The focused
 ## plot (predict_tap_verb_for_focus, same cursor handle_bubble_tap itself acts
 ## on) is right regardless of whether anything is multi-selected.

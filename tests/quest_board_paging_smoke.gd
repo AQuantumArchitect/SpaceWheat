@@ -5,8 +5,8 @@ extends "res://tests/smoke_test_base.gd"
 ##
 ## Regression guard for the 2026-08-10 fix: Manifold / Market / History each
 ## rendered exactly MAX_VISIBLE_ITEMS rows and then printed "… N more not shown".
-## 2026-09-09: Market is a stall board — held pin the ring, offers fill the
-## free hands (HANDS_MAX = 6). Offers no longer page independently.
+## 2026-09-17: Market is pickup — offers page independently. Held deliveries
+## live on Commitments [U]. Hands still cap Accept, not the offer list.
 
 
 class StubQuestManager:
@@ -85,23 +85,23 @@ func _run() -> void:
 	board._render_all()
 	await process_frame
 
-	# --- stall cap: 15 offers and empty hands fill exactly 6 stalls --------
-	_check(board._current_row_count() == 6, "empty hands show 6 offer stalls, not the 15-deep pool",
+	# --- 15 offers page: six visible, the rest one D away -----------------
+	_check(board._current_row_count() == 15, "Market lists the whole offer pool",
 		"got %d" % board._current_row_count())
-	_check(board._item_page_count(6) == 1, "six stalls fit on one page",
-		"got %d" % board._item_page_count(6))
+	_check(board._item_page_count(15) == 3, "fifteen offers take three pages",
+		"got %d" % board._item_page_count(15))
 	_check(board._item_page == 0, "opens on page 0")
 
 	var page0 := _quantities_on_page(board)
-	_check(page0 == [15, 14, 13, 12, 11, 10], "stalls pin the top 6 by magnitude",
+	_check(page0 == [15, 14, 13, 12, 11, 10], "page 0 is the top 6 by magnitude",
 		"got %s" % str(page0))
 	_check(_visible_row_names(board).size() == 6, "page 0 puts 6 rows in the tree",
 		"got %d" % _visible_row_names(board).size())
 
-	# --- D does not invent a second page of offers ------------------------
+	# --- D pages to the next six offers --------------------------------
 	board._on_navigate(Vector2i(1, 0))
 	await process_frame
-	_check(board._item_page == 0, "offers past the stall cap stay off the board",
+	_check(board._item_page == 1, "D pages Market offers past the first six",
 		"got %d" % board._item_page)
 
 	# --- G-; select ABSOLUTE rows on the current page ----------------------
@@ -132,16 +132,16 @@ func _run() -> void:
 	_check(_visible_row_names(board).size() == 4, "4 offers render 4 real rows",
 		"got %d" % _visible_row_names(board).size())
 
-	# --- the snapshot reports stalls, not the hidden pool ------------------
+	# --- the snapshot reports the offer pool, paged -----------------------
 	board._offer_pool = _make_offers(15)
 	board._render_all()
 	await process_frame
 	var snap: Dictionary = board.get_snapshot()
-	_check(int(snap.get("total_pages", -1)) == 1, "snapshot reports 1 stall page",
+	_check(int(snap.get("total_pages", -1)) == 3, "snapshot reports 3 offer pages",
 		"got %s" % str(snap.get("total_pages")))
-	_check(int(snap.get("row_count", -1)) == 6, "snapshot reports 6 stalls",
+	_check(int(snap.get("row_count", -1)) == 15, "snapshot reports 15 offers",
 		"got %s" % str(snap.get("row_count")))
-	_check(snap.get("slots", []).size() == 6, "snapshot exposes the six stalls",
+	_check(snap.get("slots", []).size() == 15, "snapshot exposes every offer",
 		"got %d" % snap.get("slots", []).size())
 
 	# --- switching tabs resets the cursor ---------------------------------

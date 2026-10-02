@@ -19,6 +19,8 @@ extends Control
 ##   4. Override navigation: _on_navigate(direction) or set navigation_mode
 
 
+const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
+
 # =============================================================================
 # SIGNALS
 # =============================================================================
@@ -266,28 +268,20 @@ func handle_input(event: InputEvent) -> bool:
 	# legacy behavior. F takes the SAME gate as Q/E/R (it was keyboard-only
 	# ungated while chip-tap-F was gated — an input-path asymmetry), and a
 	# gated-off key speaks instead of dying silently (anti-gating law).
+	# Shift rides the same chip: a declared shift_label / shift_action fires
+	# the shift handler; otherwise Shift+key is the same verb (mouse parity).
+	var shift: bool = false
+	if event is InputEventWithModifiers:
+		shift = (event as InputEventWithModifiers).is_shift_pressed()
 	if keycode == InputBindingRegistry.get_action_keycode("Q"):
-		if _action_key_declared_live("Q"):
-			_on_action_q()
-		else:
-			RefusalVoice.note("nothing on Q here")
-		return true
+		return _dispatch_action_key("Q", shift)
 	if keycode == InputBindingRegistry.get_action_keycode("E"):
-		if _action_key_declared_live("E"):
-			_on_action_e()
-			_maybe_show_inspect_toast()
-		else:
-			RefusalVoice.note("nothing on E here")
-		return true
+		return _dispatch_action_key("E", shift)
 	if keycode == InputBindingRegistry.get_action_keycode("R"):
-		if _action_key_declared_live("R"):
-			_on_action_r()
-		else:
-			RefusalVoice.note("nothing on R here")
-		return true
+		return _dispatch_action_key("R", shift)
 	if keycode == InputBindingRegistry.get_action_keycode("F"):
 		if _action_key_declared_live("F"):
-			_on_action_f()
+			_fire_action_key("F", shift)
 			return true
 		# Dead F must not eat a live toast-follow (wave 16: Market "—"
 		# toasted `nothing on F here` over `[F] opens Self`).
@@ -310,23 +304,51 @@ func _on_unhandled_key(_keycode: int, _event: InputEvent) -> bool:
 ## Route an action verb (Q/E/R/F) from a non-keyboard source (button tap, touch).
 ## Mirrors handle_input() for QERF without needing a key event.
 ## Called by PlayerShell._route_action_key() when action chips are tapped.
-func handle_action(action_key: String) -> bool:
+## `shift` is the same modifier the keyboard path reads — Shift+click on a
+## chip must fire the advertised shift verb (Market Shift+F Lock, Ace Reap).
+func handle_action(action_key: String, shift: bool = false) -> bool:
 	if not is_active:
 		return false
 	match action_key:
 		"Q", "E", "R", "F":
-			if _action_key_declared_live(action_key):
-				match action_key:
-					"Q": _on_action_q()
-					"E":
-						_on_action_e()
-						_maybe_show_inspect_toast()
-					"R": _on_action_r()
-					"F": _on_action_f()
-			else:
-				RefusalVoice.note("nothing on %s here" % action_key)
-			return true
+			return _dispatch_action_key(action_key, shift)
 	return false
+
+
+func _dispatch_action_key(key: String, shift: bool = false) -> bool:
+	if _action_key_declared_live(key):
+		_fire_action_key(key, shift)
+	else:
+		RefusalVoice.note("nothing on %s here" % key)
+	return true
+
+
+func _has_shift_action(key: String) -> bool:
+	var info = _action_infos.get(key, {})
+	if not (info is Dictionary):
+		return false
+	if str(info.get("shift_label", "")).strip_edges() != "":
+		return true
+	if str(info.get("shift_action", "")).strip_edges() != "":
+		return true
+	return false
+
+
+func _fire_action_key(key: String, shift: bool = false) -> void:
+	if shift and _has_shift_action(key):
+		match key:
+			"Q": _on_action_shift_q()
+			"E": _on_action_shift_e()
+			"R": _on_action_shift_r()
+			"F": _on_action_shift_f()
+		return
+	match key:
+		"Q": _on_action_q()
+		"E":
+			_on_action_e()
+			_maybe_show_inspect_toast()
+		"R": _on_action_r()
+		"F": _on_action_f()
 
 
 ## Chip-honesty gate: true when this key may fire its handler. Overlays that
@@ -410,6 +432,25 @@ func _on_action_f() -> void:
 	action_performed.emit("f", {"selected": selected_index})
 
 
+## Shift+QERF — default is the unshifted verb so a held Shift never eats the
+## advertised action. Overlays that bind a real shift_label override these.
+func _on_action_shift_q() -> void:
+	_on_action_q()
+
+
+func _on_action_shift_e() -> void:
+	_on_action_e()
+	_maybe_show_inspect_toast()
+
+
+func _on_action_shift_r() -> void:
+	_on_action_r()
+
+
+func _on_action_shift_f() -> void:
+	_on_action_f()
+
+
 # =============================================================================
 # OVERLAY INTERFACE
 # =============================================================================
@@ -445,6 +486,19 @@ func push_action_label_strings(labels: Dictionary) -> void:
 	for key in ["Q", "E", "R", "F"]:
 		set_action_info(key, {"label": str(labels.get(key, "—"))})
 	action_labels_changed.emit()
+
+
+## One spelling of this overlay's live chip for toasts, banners, notes.
+## Reads the same _action_infos the HUD bar already shows.
+func action_cue(key: String, shift: bool = false) -> String:
+	var k := str(key).strip_edges().to_upper()
+	var info = _action_infos.get(k, {})
+	if not (info is Dictionary):
+		info = {}
+	var label := str(info.get("label", action_labels.get(k, "")))
+	if shift:
+		label = str(info.get("shift_label", ""))
+	return ToolConfig.cue(k, label, shift)
 
 
 # =============================================================================

@@ -101,6 +101,7 @@ func _wire_quest_signals() -> void:
 	_connect_once(_quest_manager, "quest_completed", _on_quest_completed)
 	_connect_once(_quest_manager, "quest_ready_to_claim", _on_quest_ready_to_claim)
 	_connect_once(_quest_manager, "quest_offered", _on_quest_offered)
+	_connect_once(_quest_manager, "quest_accepted", _on_quest_accepted)
 	_connect_once(_quest_manager, "quest_failed", _on_quest_failed)
 	_connect_once(_quest_manager, "quest_expired", _on_quest_expired)
 
@@ -214,6 +215,18 @@ func _quest_name(qid: int) -> String:
 		if fac != "":
 			return "%s quest" % fac
 	return "Quest %d" % qid
+
+
+func _on_quest_accepted(_qid: int) -> void:
+	# Gold Arc toast persists until flatten. After Accept the door is held —
+	# w35 literalist: toast still said [X] Arc while Arc read empty.
+	var shells := get_tree().get_nodes_in_group("player_shell") if get_tree() else []
+	if shells.is_empty():
+		return
+	var shell = shells[0]
+	if shell != null and shell.has_method("flatten_toasts_for_home"):
+		shell.flatten_toasts_for_home("arc")
+		shell.flatten_toasts_for_home("X")
 
 
 func _on_quest_offered(quest: Dictionary) -> void:

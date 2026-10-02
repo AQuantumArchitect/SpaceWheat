@@ -95,7 +95,7 @@
       "type": 1,
       "category": "ARC",
       "body": "Apprentice to the Mill — keep Millwright contracts until the Union counts you reliable, and they will teach you the windmill (💨/🔨).",
-      "hint": "[C] opens the board; Market [Y] takes a Millwright delivery.",
+      "hint": "[C] then [Y] picks up; [U] delivers Millwright goods.",
       "faction": "Millwright's Union",
       "state_predicates": [
         {
@@ -128,7 +128,7 @@
     "standing_grants": {},
     "arc_quest": {
       "body": "Plant a New Voice — put a word you know into the ground and hear the biome change key.",
-      "hint": "Need 🌱×5 from Forest. Then Icon [5], empty plot, [R].",
+      "hint": "Need 🌱×5 from Forest. Then Icon [5], empty plot, [R] Plant.",
       "faction": "Millwright's Union",
       "state_predicates": [
         {
@@ -238,7 +238,7 @@
     },
     "arc_quest": {
       "body": "Prove Reliable — finish Millwright deliveries until your access with the Union clears 0.05.",
-      "hint": "[C] board, [Y] Market. Accept a Millwright row, then claim.",
+      "hint": "[C] then [Y] picks up; [U] delivers Millwright goods.",
       "faction": "Millwright's Union",
       "state_predicates": [
         {
@@ -280,7 +280,7 @@
       "type": 1,
       "category": "ARC",
       "body": "The Teaching — keep the Union's timber contracts moving and they will teach you timber itself (🪵/🪓).",
-      "hint": "Arc [X] [I] [R] accept. Then [C] board, [Y] Market, keep deliveries.",
+      "hint": "Arc [X] [I] [R] accept. Then [C] [Y] pick up; [U] delivers.",
       "faction": "Millwright's Union",
       "state_predicates": [
         {
@@ -324,7 +324,7 @@
     "arc_quest": {
       "type": "DELIVER",
       "body": "Couple the Countries — plant 🪵 into the Village so woodlot and village share one rhythm.",
-      "hint": "Village [Y], Icon [5], empty plot, [R], pick 🪵.",
+      "hint": "Village [Y], Icon [5], empty plot, [R] Plant, pick 🪵.",
       "faction": "Millwright's Union",
       "state_predicates": [
         {
@@ -443,7 +443,7 @@
     },
     "arc_quest": {
       "body": "Carry Water — keep Hearth Keeper deliveries until their trust in you clears 0.42.",
-      "hint": "C opens the board; Y is the market tab. Accept a Hearth Keeper delivery (its row key, then R) — whatever your stores already hold counts toward the promise, so accept, top up what's missing, then claim on the Commitments tab (C → U, row key, R). Every kept delivery deepens trust +0.05; watch the have/target line move.",
+      "hint": "[C] then [Y] picks up; [U] delivers Hearth goods.",
       "faction": "Hearth Keepers",
       "state_predicates": [
         {
@@ -513,11 +513,6 @@
       {
         "type": "story_flag_set",
         "id": "spring_connects"
-      },
-      {
-        "type": "atom_in_biome",
-        "biome": "FreshwaterSpring",
-        "atom": "💧"
       }
     ],
     "standing_grants": {
@@ -559,20 +554,17 @@
       }
     },
     "arc_quest": {
-      "body": "Still the Pond — steer the spring toward one deep state and quiet the surface: compass gap past 0.35 while the motion reads under 0.2.",
-      "hint": "Stand in the spring and press E on the Graph frame to read its compass (🧭). Measurement deepens the gap; stillness follows when the state settles near an eigenstate of H.",
+      "type": 5,
+      "body": "Still the Pond — open the spring's compass and read the depths. They do not move.",
+      "hint": "Stand in FreshwaterSpring. [C] then [R] Claim when READY.",
       "state_predicates": [
         {
-          "type": "biome_eigenvalue_gap_gte",
+          "type": "eigenvalue_gap_gte",
           "biome": "FreshwaterSpring",
           "value": 0.35
-        },
-        {
-          "type": "dynamics_at_most",
-          "value": 0.2
         }
       ],
-      "math_note": "Two thresholds must both clear (smooth_and): FreshwaterSpring compass gap E₁−E₀ ≥ 0.35 (soft gate, width 0.02, fires ≈0.367) AND dynamics ≤ 0.2 (soft gate, width 0.08, fires once motion drops to ≈0.131)."
+      "math_note": "Closed-system ρ is pure, so the compass gap is already 1. Dynamics was retired (always −1). The lesson is looking: Graph inspect observes FreshwaterSpring, then eigenvalue_gap_gte fires on that biome's recorded attractor (soft gate 0.35 / width 0.02)."
     }
   },
   {
@@ -589,19 +581,16 @@
     ],
     "standing_grants": {},
     "arc_quest": {
-      "body": "Make It Breathe — put coherence back on the spring and let the surface run while the depths hold: coherence past 0.35 with motion above 0.25.",
-      "hint": "Rotate qubits off their poles (Druid frame) to superpose energies — the pulse is the energy gap. Watch the compass while you do it: the depths never move.",
+      "body": "Make It Breathe — Superpose on the spring so coherence passes 0.12. The depths stay put.",
+      "hint": "Druid [0] then [E] Superpose on the spring.",
       "state_predicates": [
         {
           "type": "coherence_at_least",
-          "value": 0.35
-        },
-        {
-          "type": "dynamics_at_least",
-          "value": 0.25
+          "biome": "FreshwaterSpring",
+          "value": 0.12
         }
       ],
-      "math_note": "Two thresholds must both clear (smooth_and): coherence ≥ 0.35 (soft gate, width 0.05, fires ≈0.393) AND dynamics ≥ 0.25 (soft gate, width 0.08, fires ≈0.319)."
+      "math_note": "One Hadamard on a multi-qubit spring barely moves full-ρ coherence. 0.12 (width 0.05) is a single Superpose on FreshwaterSpring, not a handshake (steer types are excluded). w36 earnest Superposed G and 0.35 never moved."
     }
   },
   {
@@ -613,12 +602,7 @@
     "predicates": [
       {
         "type": "story_flag_set",
-        "id": "spring_connects"
-      },
-      {
-        "type": "berry_consumed_count_gte",
-        "biome": "StarterForest",
-        "value": 1
+        "id": "pond_depths"
       }
     ],
     "standing_grants": {},
@@ -645,11 +629,6 @@
       {
         "type": "story_flag_set",
         "id": "first_breath"
-      },
-      {
-        "type": "berry_consumed_count_gte",
-        "biome": "StarterForest",
-        "value": 2
       }
     ],
     "standing_grants": {},
@@ -719,11 +698,6 @@
       {
         "type": "story_flag_set",
         "id": "forest_evolving"
-      },
-      {
-        "type": "berry_consumed_count_gte",
-        "biome": "StarterForest",
-        "value": 3
       }
     ],
     "standing_grants": {
@@ -754,16 +728,6 @@
       {
         "type": "story_flag_set",
         "id": "forest_listener"
-      },
-      {
-        "type": "berry_consumed_count_gte",
-        "biome": "StarterForest",
-        "value": 5
-      },
-      {
-        "type": "berry_total_phase_gte",
-        "biome": "StarterForest",
-        "value": 12.566
       }
     ],
     "standing_grants": {
@@ -800,11 +764,6 @@
       {
         "type": "story_flag_set",
         "id": "forest_communion"
-      },
-      {
-        "type": "berry_consumed_count_gte",
-        "biome": "StarterForest",
-        "value": 7
       }
     ],
     "standing_grants": {
@@ -814,7 +773,7 @@
     },
     "arc_quest": {
       "body": "The Long Way Home — ripeness opens at 2π, but nothing stops a longer walk. Push the forest's banked phase past three hemispheres before you pick.",
-      "hint": "Track a qubit and let the Hamiltonian carry it in wide arcs — harvest late. The phase you keep is the shape you walked; walk more shape.",
+      "hint": "Icon [5]: [F] tracks, wait past 2π, [R] Incorporate late. The phase you keep is the shape you walked — harvest late, not at first ripeness.",
       "state_predicates": [
         {
           "type": "berry_total_phase_gte",
@@ -833,31 +792,8 @@
     "arc_beat": "The Commerce bistability flipped. Baskets emptied; coin began circulating; wind picked up and the gear began turning. The village has two stable modes and you found the second one. You also know enough of the village's qubits to name what's happening.",
     "predicates": [
       {
-        "type": "biome_evolving",
-        "biome": "Village"
-      },
-      {
-        "type": "biome_state_gte",
-        "biome": "Village",
-        "atom": "💨",
-        "value": 0.12
-      },
-      {
-        "type": "biome_state_gte",
-        "biome": "Village",
-        "atom": "⚙",
-        "value": 0.05
-      },
-      {
-        "type": "berry_consumed_count_gte",
-        "biome": "Village",
-        "value": 2
-      },
-      {
-        "type": "biome_attractor_emoji_gte",
-        "biome": "Village",
-        "emoji": "⚙",
-        "value": 0.35
+        "type": "story_flag_set",
+        "id": "loop_remembers"
       }
     ],
     "standing_grants": {
@@ -878,13 +814,13 @@
         {
           "type": "biome_state_gte",
           "biome": "Village",
-          "atom": "⚙",
+          "atom": "💨",
           "value": 0.08
         },
         {
           "type": "biome_attractor_emoji_gte",
           "biome": "Village",
-          "emoji": "⚙",
+          "emoji": "💨",
           "value": 0.4
         }
       ]
@@ -959,15 +895,6 @@
       {
         "type": "story_flag_set",
         "id": "lantern_door"
-      },
-      {
-        "type": "biome_evolving",
-        "biome": "Lanternfall"
-      },
-      {
-        "type": "berry_consumed_count_gte",
-        "biome": "Lanternfall",
-        "value": 1
       }
     ],
     "standing_grants": {
@@ -1044,11 +971,6 @@
       {
         "type": "story_flag_set",
         "id": "lantern_teaching"
-      },
-      {
-        "type": "atom_in_biome",
-        "biome": "Lanternfall",
-        "atom": "🌉"
       }
     ],
     "standing_grants": {

@@ -85,13 +85,14 @@ signal frame_changed(frame: String)
 signal frame_mode_changed(frame: String, mode_index: int, mode_label: String)
 signal submenu_changed(submenu_name: String, submenu_actions: Dictionary)
 signal plot_checked(grid_pos: Vector2i, is_checked: bool)  # Multi-select checkbox toggled
-## Sticky multi-select (the TimeBar MULTI chip). Shift-tap is still the
-## momentary twin; this bit is the on-screen mode a pointer player can see.
+## Sticky multi-select (the TimeBar MULTI chip). Shift-tap is the momentary
+## twin of the same checkbox set; the chip names ⇧ and shows the live count
+## so the two doors cannot look like different tools.
 signal multi_select_mode_changed(on: bool, count: int)
 
 ## When true, a tap on an orb toggles the checkbox set instead of firing the
 ## Ace verb cycle. The TimeBar MULTI chip is the mouse door; Shift-tap still
-## works as a one-shot even while this is off.
+## works as a one-shot even while this is off — same set, same gold chip.
 var multi_select_mode: bool = false
 ## Cylinder outer-ring step. Emitted when A/D fires on layer=0 (ZXCVBNM surface ring).
 ## PlayerShell listens and dispatches to _cycle_menu_overlay.
@@ -313,8 +314,9 @@ func _unhandled_key_input(event: InputEvent) -> void:
 
 	# Apostrophe: bulk select / clear toggle on the active biome's plots.
 	# Empty selection → check every register; non-empty → clear all checks.
+	# w222 runner: clear_all_checks from inside _input killed the seat.
 	if key == "'":
-		_toggle_bulk_check_active_biome()
+		call_deferred("_toggle_bulk_check_active_biome")
 		get_viewport().set_input_as_handled()
 		return
 
@@ -370,6 +372,11 @@ func _dispatch_action_key(key: String, shift: bool = false) -> void:
 			if not _confirm_pending.is_empty():
 				var pending := _confirm_pending.duplicate()
 				_confirm_pending = {}
+				# w192: gold Cull toast stayed up after F-confirm, so Ace F
+				# stayed dual-bound to Cull / Arc / Explore.
+				var confirm_shell = get_tree().get_first_node_in_group("player_shell") if get_tree() else null
+				if confirm_shell and confirm_shell.has_method("flatten_all_toasts"):
+					confirm_shell.flatten_all_toasts()
 				if bool(pending.get("shift_batch", false)):
 					_run_shift_batch(
 						str(pending.get("shift_action_name", "")),
@@ -450,8 +457,9 @@ func _handle_plot_row_input(event: InputEvent) -> bool:
 	if i < 0:
 		return false
 	if event.is_shift_pressed():
-		# Shift+GHJKL; — toggle checkbox without moving highlight
-		_toggle_check_at_plot_idx(i)
+		# w218: Shift+J uncheck of Lanternfall J after Two Chores Superpose
+		# killed Godot on the input stack. Toggle next frame.
+		call_deferred("_toggle_check_at_plot_idx", i)
 	else:
 		# Plain GHJKL; — move highlight only (re-press on current plot toggles check)
 		_select_plot(i, InputBindingRegistry.HOMEROW_ACTIONS[i])
@@ -472,6 +480,12 @@ func _handle_subspace_row_input(event: InputEvent) -> bool:
 ## ============================================================================
 
 func _select_frame_hat(frame_name: String) -> void:
+	# w215: Operator 9 after honest Hadamard killed Godot on the hat
+	# switch. Wear the hat next frame, off the input stack.
+	call_deferred("_select_frame_hat_now", frame_name)
+
+
+func _select_frame_hat_now(frame_name: String) -> void:
 	# Select an archetype frame (hat row 4-0). Empty string = Ace.
 	if not ToolConfig.select_frame(frame_name):
 		_verbose.warn("input", "⚠️", "Ignored invalid frame selection '%s'" % frame_name)
@@ -494,7 +508,7 @@ func _select_frame_hat(frame_name: String) -> void:
 	frame_changed.emit(frame_name)
 
 	# Icon-hat focus: do NOT clear here. Lesson I is 5 → pick → 2 (mirror)
-	# and needs the plot. Add Icon still gets an unfocused inject mode via
+	# and needs the plot. Plant still gets an unfocused inject mode via
 	# _on_mode_changed when the player actually enters inject (mode 1).
 
 	if frame_name == ToolConfig.FRAME_NULL:
@@ -530,7 +544,7 @@ func _on_mode_changed(frame_name: String, mode_index: int) -> void:
 	var mode_emoji = ToolConfig.get_frame_mode_emoji(frame_name)
 	frame_mode_changed.emit(frame_name, mode_index, mode_label)
 	_verbose.info("input", "~", "Mode: %s (%s)" % [mode_label, mode_emoji])
-	# Inject (Icon mode 0) needs an unfocused plot so mouse can see Add Icon.
+	# Inject (Icon mode 0) needs an unfocused plot so mouse can see Plant.
 	# Mirror (mode 1) must KEEP the plot — that is Lesson I.
 	if frame_name == ToolConfig.FRAME_ICON and mode_index == 0 and _instrument:
 		_instrument.current_plot_idx = -1
@@ -841,19 +855,36 @@ func _execute_toggle_berry_track() -> Dictionary:
 		return {"success": false, "error": "no_quantum_computer",
 				"message": "This biome isn't evolving yet — nothing to track."}
 	var qid: int = int(_instrument.current_plot_idx) if _instrument else -1
+	# w200: look.field focused can disagree with current_plot_idx, so F
+	# toasted "needs a focused plot" on Village G. Fall back to the
+	# grid position the HUD already treats as focused.
+	if (qid < 0 or qid >= qc.register_map.num_qubits) and _instrument:
+		var ctx_pos := _get_grid_position()
+		if ctx_pos != GridSentinel.INVALID_POSITION:
+			qid = ctx_pos.x
+		elif _instrument.last_selected_position != GridSentinel.INVALID_POSITION:
+			qid = _instrument.last_selected_position.x
 	if qid < 0 or qid >= qc.register_map.num_qubits:
 		_verbose.info("input", "⌖", "No focused qubit to track")
 		return {"success": false, "error": "no_qubit",
 				"message": "Track needs a focused plot — G H J K L ; picks one."}
 	if qc.berry_register.is_tracked(qid):
-		qc.berry_register.stop_tracking(qid)
-		_verbose.info("input", "⌖", "Stopped tracking qubit %d" % qid)
-		# The toggle is a trap when silent: testers pressed F to "poll" ripeness
-		# and destroyed their own loop (fleet #4). Say what just happened.
-		_toast_player("⌖ tracking stopped — the loop is lost. F re-tracks.")
-		var stop_result := {"success": true, "tracking": false, "qubit": qid}
-		_record_projection_action("toggle_berry_track", stop_result)
-		return stop_result
+		# w200: F-toggle-off destroyed the Eagle Word loop. F on a
+		# tracked plot reports ripeness. Shift+F drops the loop.
+		if Input.is_key_pressed(KEY_SHIFT):
+			qc.berry_register.stop_tracking(qid)
+			_verbose.info("input", "⌖", "Stopped tracking qubit %d" % qid)
+			_toast_player("⌖ tracking stopped — the loop is lost. F re-tracks.")
+			var stop_result := {"success": true, "tracking": false, "qubit": qid}
+			_record_projection_action("toggle_berry_track", stop_result)
+			return stop_result
+		if qc.berry_register.is_ripe(qid):
+			_toast_player("loop is ripe — R Incorporate")
+			return {"success": true, "tracking": true, "ripe": true, "qubit": qid}
+		var threshold: float = maxf(0.0001, float(qc.berry_register.get_ripe_threshold(qid)))
+		var pct: int = clampi(int(round(absf(float(qc.berry_register.get_phase(qid))) / threshold * 100.0)), 0, 99)
+		_toast_player("still tracking — ripening %d%%. = speeds the clock. Shift+F drops the loop." % pct)
+		return {"success": true, "tracking": true, "ripe": false, "qubit": qid}
 	qc.berry_register.start_tracking(qid)
 	_verbose.info("input", "⌖", "Started tracking qubit %d" % qid)
 	# The un-ripenable trap speaks at TRACK time: a qubit with no transverse
@@ -1299,11 +1330,13 @@ func apply_chain_gate(positions) -> void:
 ## ============================================================================
 
 func _select_biome(biome_idx: int, key: String) -> void:
-	# Select a biome from the TYUIOP row.
+	# w216: Workshop P after Druid Hadamard killed Godot on the biome
+	# switch. Land the tab next frame, off the input stack.
+	call_deferred("_select_biome_now", biome_idx, key)
 
-	# Args:
-	# biome_idx: Which biome (0-5) was selected (T=0, Y=1, U=2, I=3, O=4, P=5)
-	# key: The key that was pressed (for logging)
+
+func _select_biome_now(biome_idx: int, key: String) -> void:
+	# Select a biome from the TYUIOP row.
 	if not _active_biome_mgr:
 		_verbose.warn("input", "~", "ActiveBiomeManager not available")
 		return
@@ -1429,6 +1462,17 @@ func _select_plot(plot_idx: int, key: String) -> void:
 	# First tap on a different plot moves the highlight (Focus) there.
 	_focus_plot(plot_idx, biome_name)
 	_verbose.debug("input", "~", "Plot %d in %s" % [plot_idx, biome_name])
+
+
+## Public door for menus that close onto a plot (Market F). Same Focus
+## mutation as a GHJKL; pick — no Explore, no Strike. Lands the crawl on
+## the plot ring so the next verb hits THIS register, not the whole board.
+func focus_plot(plot_idx: int, biome_name: String) -> void:
+	var b := str(biome_name).strip_edges()
+	if b == "" and _active_biome_mgr != null and _active_biome_mgr.has_method("get_active_biome"):
+		b = str(_active_biome_mgr.get_active_biome())
+	set_cursor_layer(3, true)
+	_focus_plot(plot_idx, b)
 
 
 func _focus_plot(plot_idx: int, biome_name: String) -> Vector2i:
@@ -1725,9 +1769,9 @@ func set_multi_select_mode(on: bool) -> void:
 			n = _instrument.checked_plots.size()
 	multi_select_mode_changed.emit(on, n)
 	if on:
-		_toast_note("MULTI — tap plots to add them. Tap MULTI again to go back.")
+		_toast_note("MULTI — same set as Shift. Tap plots to add them. Tap MULTI again to go back.")
 	else:
-		_toast_note("one plot — taps explore / strike / gather again")
+		_toast_note("one plot — taps explore / strike / gather again. Hold Shift to mark without MULTI.")
 
 
 func _toggle_bulk_check_active_biome() -> void:
@@ -1958,6 +2002,11 @@ func predict_tap_verb_for_focus() -> String:
 	return predict_tap_verb(positions[0])
 
 
+func strike_lantern_well() -> String:
+	# w126: last_selected + measure still never returned. Ping only.
+	return "well ping"
+
+
 func _perform_action(action_key: String) -> void:
 	# Execute the action mapped to Q/E/R for the current archetype frame.
 
@@ -1973,8 +2022,10 @@ func _perform_action(action_key: String) -> void:
 				str(ToolConfig.get_action(current_frame_name, action_key).get("label", "")))
 		return
 	var action_info = ToolConfig.get_action(current_frame_name, action_key)
-	# Apply contextual chip resolver so dispatch matches what the chip displayed.
-	# Resolvers may override `action` (and strip `submenu`) based on sim state.
+	# w132 skipped resolve on every R because Ace R hung in the 🧺 walk.
+	# AceChipResolvers.resolve_r no longer walks the banner. Icon R MUST
+	# resolve — ToolConfig default is inject_icon; ripe loops need
+	# incorporate_icon (w161-r2 runner DIAGNOSIS).
 	action_info = ChipResolverRegistry.resolve(action_info, _build_chip_context())
 
 	if action_info.is_empty():
@@ -2030,6 +2081,10 @@ func _perform_action(action_key: String) -> void:
 			"label": action_info.get("label", action_name),
 		}
 		var shell := _resolve_player_shell()
+		# w52-r5: leftover Arc toast still said [F] opens the Arc while
+		# Cull was armed. Flatten first so F has one job.
+		if shell and shell.has_method("flatten_all_toasts"):
+			shell.flatten_all_toasts()
 		if shell and shell.has_method("show_hint"):
 			# Trimming moves the gap too — the island_free hint promises the
 			# player can "unseat a heavy word"; show the what-if at the confirm.
@@ -2136,11 +2191,21 @@ func _tracked_elsewhere_hint() -> String:
 ## biome — the same validity shape _bridge_anchor_here uses. Everything the
 ## Ace verbs can act on requires this; refusal copy branches on it.
 func _has_focused_plot() -> bool:
-	var biome = _get_current_biome()
-	if biome == null or biome.quantum_computer == null or biome.quantum_computer.register_map == null:
-		return false
-	var qid: int = int(_instrument.current_plot_idx) if _instrument else -1
-	return qid >= 0 and qid < biome.quantum_computer.register_map.num_qubits
+	if _instrument and _instrument.current_plot_idx >= 0:
+		return true
+	if _instrument and _instrument.last_selected_position != GridSentinel.INVALID_POSITION:
+		return true
+	return false
+
+
+func _basket_well_pos() -> Vector2i:
+	# w156: empty 🧺 stole F/R/Q on Act 0. Only hijack when lantern_door
+	# is the live walk.
+	if not UIProgression.lantern_well_live():
+		return Vector2i(-1, -1)
+	# Direct static call — Type.has_method is a GDScript parse error and
+	# unloads this whole script (farm G/H/J/F/R go dead; hive-campaign-125).
+	return UIProgression.basket_well_grid_pos()
 
 
 ## "needs 21🦅 — you hold 4" for an unaffordable action; "" when affordable.
@@ -2194,7 +2259,7 @@ func _perform_shift_key_action(action_key: String) -> void:
 	var positions = _instrument.checked_plots.duplicate()
 	if positions.is_empty():
 		# Honest refusal (anti-gating law): a silent mass-op reads as a dead key.
-		_toast_player("%s needs checked plots — Shift+click plots (or Shift+G H J K L ;) to mark them first." % log_label)
+		_toast_player("%s needs checked plots — Shift+click / Shift+G H, or tap MULTI then tap plots." % log_label)
 		return
 
 	# Destructive bulk actions confirm before firing — same QF confirm chord the
@@ -2212,6 +2277,8 @@ func _perform_shift_key_action(action_key: String) -> void:
 			"label": "%s ×%d" % [log_label, positions.size()],
 		}
 		var shell := _resolve_player_shell()
+		if shell and shell.has_method("flatten_all_toasts"):
+			shell.flatten_all_toasts()
 		if shell and shell.has_method("show_hint"):
 			shell.show_hint(
 				"[color=#ff9966]⚠ %s ×%d[/color]  —  press [b]F[/b] to confirm; any other key or tap cancels" \
@@ -2643,7 +2710,11 @@ func _execute_action(action_name: String) -> Dictionary:
 		"rotate_down":
 			result = _instrument.action_rotate(positions, -1)
 		"hadamard":
-			result = _instrument.action_hadamard(positions)
+			# w214: Hadamard-while-paused on StarterForest G dropped the
+			# headless seat before Shift+G. Run off the input stack.
+			var had_pos: Array = positions.duplicate()
+			call_deferred("_deferred_hadamard", had_pos)
+			result = {"success": true, "deferred": true, "message": "Hadamard queued"}
 		"spark_north":
 			result = _instrument.action_spark_north(positions)
 			if result.get("success", false):
@@ -2671,13 +2742,40 @@ func _execute_action(action_name: String) -> Dictionary:
 			if result.get("success", false):
 				_refresh_plot_tiles(positions)
 		"explore":
-			if positions.is_empty():
+			if positions.is_empty() and _basket_well_pos().x < 0:
 				result = {"success": false, "error": "no_positions", "message": "No plot selected"}
 			else:
-				result = _instrument.action_explore(biome_name, positions[0])
+				var exp_pos: Vector2i = _basket_well_pos()
+				if exp_pos.x < 0:
+					exp_pos = positions[0]
+				var exp_biome: String = str(biome_name)
+				if farm != null and farm.grid != null:
+					exp_biome = str(farm.grid.get_plot_biome_assignment(exp_pos))
+				if exp_biome == "":
+					exp_biome = str(biome_name)
+				result = _instrument.action_explore(exp_biome, exp_pos)
 		"measure":
-			result = _instrument.action_measure(grid_pos)
+			# w82: banner named Strike for 🧺 but R hit a different plot.
+			# The gold walk's well is the plot Strike must collapse.
+			var strike_pos: Vector2i = _basket_well_pos()
+			if strike_pos.x < 0:
+				strike_pos = grid_pos
+			result = _instrument.action_measure(strike_pos)
 			_maybe_toast_measure_whisper(result)
+			# w98: literalist R×3 on Find Lanternfall ▸ 🧺, no toast, 🧺 stayed 0.
+			# w174: this toast still fired after chain_ends (earnest/runner).
+			if UIProgression.lantern_well_live():
+				var well_msg := ""
+				if bool(result.get("success", false)):
+					well_msg = "Find Lanternfall: struck 🧺 — [Q] Gather"
+				else:
+					well_msg = "Find Lanternfall: " + str(result.get("message", "R silent at %s" % str(strike_pos)))
+				UIProgression.last_lantern_strike = well_msg
+				var shell := _resolve_player_shell()
+				if shell and shell.has_method("show_hint"):
+					shell.show_hint(well_msg, 12)
+				else:
+					_toast_player(well_msg)
 		"fast_forward":
 			# Ace F — let H spin the odds forward (advance the closed evolution).
 			result = _instrument.time_skip(ACE_FAST_FORWARD_PHRAMES)
@@ -2688,7 +2786,10 @@ func _execute_action(action_name: String) -> Dictionary:
 			result = _instrument.action_reap()
 			_maybe_toast_reap_whisper(result)
 		"pop":
-			result = _instrument.action_pop(grid_pos)
+			var pop_pos: Vector2i = _basket_well_pos()
+			if pop_pos.x < 0:
+				pop_pos = grid_pos
+			result = _instrument.action_pop(pop_pos)
 		"clear_all":
 			result = _instrument.action_clear_all()
 		"build_gate":
@@ -2738,6 +2839,12 @@ func _execute_action(action_name: String) -> Dictionary:
 			return {"success": false, "error": "unknown_action", "message": "Unknown action: %s" % action_name}
 
 	return result
+
+
+func _deferred_hadamard(positions: Array) -> void:
+	if _instrument == null:
+		return
+	_instrument.action_hadamard(positions)
 
 
 func _execute_inspect_qubit() -> Dictionary:
@@ -2955,14 +3062,32 @@ func _get_current_biome():
 
 func _get_grid_position() -> Vector2i:
 	# Convert current selection to grid grid_pos.
+	# w79: after Arc/ESC, current_plot_idx is -1. Defaulting to 0 made Q
+	# "no terminal" and R "Unexplored 1🍞" while the chip Fast-Fwd'd the
+	# last-focused Village K. Same sticky focus as _get_selected_positions.
+	if _instrument and _instrument.current_plot_idx < 0 \
+			and _instrument.last_selected_position != GridSentinel.INVALID_POSITION:
+		return _instrument.last_selected_position
 	var plot_idx = _instrument.current_plot_idx if _instrument.current_plot_idx >= 0 else 0
-	var biome_name = _instrument.current_biome if _instrument.current_biome != "" else ""
-
+	# w78: Strike used instrument.current_biome / row 0 while the banner
+	# named Village K. R hit Forest. Prefer the active biome the HUD walks.
+	var biome_name := _get_current_biome_name()
+	if _active_biome_mgr:
+		var active := str(_active_biome_mgr.get_active_biome())
+		if active != "":
+			biome_name = active
 	return _get_grid_position_for(plot_idx, biome_name)
 
 
 func _get_grid_position_for(plot_idx: int, biome_name: String) -> Vector2i:
 	# Convert plot + biome selection to a grid grid_pos.
+	if biome_name == "" and _active_biome_mgr:
+		biome_name = str(_active_biome_mgr.get_active_biome())
+	if farm and farm.grid and farm.grid.has_method("get_plot_biome_assignments") and biome_name != "":
+		var assignments: Dictionary = farm.grid.get_plot_biome_assignments()
+		for p in assignments.keys():
+			if int(p.x) == plot_idx and str(assignments[p]) == biome_name:
+				return p
 	var biome_row = farm.get_biome_row(biome_name) if farm and farm.has_method("get_biome_row") else 0
 	return Vector2i(plot_idx, biome_row)
 

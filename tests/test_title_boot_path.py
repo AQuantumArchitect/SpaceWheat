@@ -102,20 +102,25 @@ def test_title_menu_restart_path_reaches_arc_handover(rig_boot) -> None:
     press("F", frames=8)   # explore
     press("R", frames=10)  # strike
     press("Q", frames=8)   # extract
-    # 1 contracts — auto-accepted with the lane. Deliver 2×🌾 on Commitments.
+    # 1 contracts — player Accepts on Market [Y], then delivers on U.
     #   demos_normal boots with 21×🌾, so the granary already covers it.
     deadline = time.time() + 15.0
     contracts_live = False
     while time.time() < deadline and not contracts_live:
         actives = step("active_quests", full=True).get("quests", []) or []
-        contracts_live = any(o.get("tutorial_teaches") == "contracts" for o in actives)
+        offers = step("story_offers").get("story_offers", []) or []
+        pool = list(actives) + list(offers)
+        contracts_live = any(o.get("tutorial_teaches") == "contracts" for o in pool)
         if not contracts_live:
             time.sleep(0.25)
-    assert contracts_live, "contracts step never auto-accepted after core_loop"
+    assert contracts_live, "contracts step never appeared after core_loop"
     press("C", frames=6)
+    press("Y", frames=6)   # Market pickup — do not skip to U
+    press("G", frames=6)
+    press("R", frames=12)  # Accept (player press, never auto)
     press("U", frames=6)
-    press("G", frames=6)   # the delivery is the first commitment row
-    press("R", frames=12)  # deliver
+    press("G", frames=6)
+    press("R", frames=12)  # Deliver
     press("ESCAPE", frames=6)
     # 2 wayfinding — stand in StarterForest; arrival is the gate.
     slots_row = step("biome_slots")

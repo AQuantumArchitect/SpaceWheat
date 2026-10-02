@@ -47,6 +47,50 @@ def test_gather_costs_a_village_basket() -> None:
     assert _action_costs().get("action_costs.pop.🧺") == 1
 
 
+def test_exploring_the_basket_well_does_not_spend_bread() -> None:
+    probe = read_source("Core/Actions/ProbeActions.gd")
+    explore = probe.split("static func action_explore")[1].split("\nstatic func ")[0]
+    assert "well" in explore
+    assert 'contains("🧺")' in explore or '== "🧺"' in explore
+
+
+def test_validator_allows_strike_on_basket_well() -> None:
+    src = read_source("UI/Core/ActionValidator.gd")
+    assert "_plot_is_basket_well" in src
+    measure = src.split("static func _can_execute_measure")[1].split("static func ")[0]
+    assert "_plot_is_basket_well" in measure
+    assert "basket_well_grid_pos" in src
+
+
+def test_striking_the_basket_well_binds_if_unexplored() -> None:
+    qi = read_source("Core/Instrumentation/QuantumInstrument.gd")
+    measure = qi.split("func action_measure(")[1].split("\nfunc ")[0]
+    assert "action_explore" in measure
+    assert 'contains("🧺")' in measure
+
+
+def test_striking_the_basket_well_does_not_spend_people() -> None:
+    probe = read_source("Core/Actions/ProbeActions.gd")
+    measure = probe.split("static func action_measure")[1].split("\nstatic func ")[0]
+    assert 'erase("👥")' in measure
+    chips = read_source("Core/UI/ChipResolverRegistry.gd")
+    assert 'action_name == "measure"' in chips
+    assert 'erase("👥")' in chips
+
+
+def test_gathering_a_basket_does_not_spend_a_basket() -> None:
+    # w63: wallet 0, Village F/R/Q blocked. Commerce yields 🧺 — that
+    # gather is the well, not a gift. Other pops still cost 1🧺.
+    probe = read_source("Core/Actions/ProbeActions.gd")
+    prep = probe.split("static func _prepare_pop_result")[1].split("\nstatic func ")[0]
+    assert 'resource == "🧺"' in prep
+    assert 'erase("🧺")' in prep
+    assert "north_emoji" in prep or 'ax.get("north"' in prep
+    chips = read_source("Core/UI/ChipResolverRegistry.gd")
+    assert 'erase("🧺")' in chips
+    assert "_ctx_measured_glyph" in chips
+
+
 def test_the_chip_badge_and_the_wallet_agree() -> None:
     # No multiplier survives anywhere between ActionCostRuntime and the spend.
     # This is the whole point of the ruling: the badge said −1 and the wallet

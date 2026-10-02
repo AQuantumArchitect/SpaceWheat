@@ -35,6 +35,17 @@ def test_self_tab_drops_the_three_clone_row():
     assert 'for i in range(3):' not in picker
     assert '"[%d] %s"' not in picker
     assert "1/2/3 slot" not in picker
+    assert "_unassigned_icon_indices" in overlay
+    unused = overlay.split("func _unassigned_icon_indices")[1].split("\nfunc ")[0]
+    assert "worn" in unused
+    picker = overlay.split("func _build_icon_picker")[1].split("\nfunc ")[0]
+    empty_unused = picker.split("unused.is_empty()")[1].split("var page_size")[0]
+    assert "this is who you are" in empty_unused
+    assert "incorporate more via the Icon hat" not in empty_unused
+    assign = overlay.split("func _on_action_r")[1].split("\nfunc ")[0]
+    assert "would_steal" in assign
+    self_declare = overlay.split("Tab.SELF:")[1].split("Tab.")[0]
+    assert '"Numbers"' in self_declare or '"E": {"label": "Numbers"}' in overlay
     demos = overlay.split("func _build_our_faction_view")[1].split("\nfunc ")[0]
     assert "identity_slot_count" in demos
     assert "IdentityQubit_" in demos

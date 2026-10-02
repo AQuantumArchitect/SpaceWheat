@@ -142,9 +142,9 @@ const ARCHETYPE_FRAMES: Dictionary = {
 					  "hint": "Remove an icon from the active biome", "destructive": true},
 				"E": {"action": "inspect_qubit", "label": "Loops", "emoji": "🔍", "icon": "",
 					  "hint": "Read this biome's loop card: frozen walks, Wilson cycles, β₁. Same ledger as Operator 🧭 E."},
-				"R": {"action": "inject_icon", "label": "Add Icon", "emoji": "+",
+				"R": {"action": "inject_icon", "label": "Plant", "emoji": "+",
 					  "icon": "res://Assets/UI/Biome/BiomeAssign.svg",
-					  "hint": "Empty plot: inject icon. Tracked + ripe: incorporate icon into your signature.",
+					  "hint": "Empty plot: Plant a word into the ground. Tracked + ripe: incorporate icon into your signature.",
 					  "submenu": "icon_injection",
 					  "chip_resolver": "icon.r_state"},
 				"F": {"action": "toggle_berry_track", "label": "Track", "emoji": "⌖", "icon": "",
@@ -300,6 +300,7 @@ const ARCHETYPE_FRAMES: Dictionary = {
 					  "disabled": true},
 				"R": {"action": "measure", "label": "Strike", "emoji": "!",
 					  "icon": "res://Assets/UI/Science/Measure.svg",
+					  "chip_resolver": "ace.r_well",
 					  "hint": "Strike — collapse the selected register to one classical outcome (a social encounter costs 👥). Needs an explored plot — F explores first."},
 				"F": {"action": "fast_forward", "label": "Fast-Fwd", "emoji": "⏩",
 					  "icon": "",
@@ -580,7 +581,30 @@ static func get_action(frame: String, key: String) -> Dictionary:
 
 
 static func get_action_label(frame: String, key: String) -> String:
-	return get_action(frame, key).get("label", "")
+	return str(get_action(frame, key).get("label", ""))
+
+
+## One spelling of a chip for toasts, banners, gloss, Guide.
+## Hats, overlays, and authored notes all compose through this so a rename
+## cannot leave a second hand-written name behind. Empty / dash chips stay
+## "[R]" / "[Shift+R]".
+static func cue(key: String, label: String, shift: bool = false) -> String:
+	var k := str(key).strip_edges().to_upper()
+	var lab := str(label).strip_edges()
+	var bracket := ("[Shift+%s]" % k) if shift else ("[%s]" % k)
+	if lab == "" or lab == "—" or lab == "-":
+		return bracket
+	return "%s %s" % [bracket, lab]
+
+
+## Hat-chip spelling. "[R] Plant" from get_action_label, not a second name.
+static func action_cue(frame: String, key: String, shift: bool = false) -> String:
+	var k := str(key).strip_edges().to_upper()
+	var info: Dictionary = get_action(frame, k)
+	var label := str(info.get("label", "")).strip_edges()
+	if shift:
+		label = str(info.get("shift_label", "")).strip_edges()
+	return cue(k, label, shift)
 
 
 static func get_action_emoji(frame: String, key: String) -> String:

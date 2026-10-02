@@ -292,7 +292,7 @@ still exists and the row still has four slots. Source of truth:
 | Hat | Frame    | Sub-mode (1/2/3 active?)  | Q (out/less)  | E (pause + inspect)   | R (in/more)   | F (play/flatten) |
 |----|-----------|--------------------------|---------------|-----------------------|---------------|------------------|
 | 4  | Spark     | shift ⚡ / bridge 🌉      | Spark S · Fuse | Gauge 🔍 · Bridge card | Spark N · Span | (global F) · Braid 🪢 |
-| 5  | Icon      | inject 📖 / mirror 🪞    | Trim Icon · Release | (open picker; pause) · Compare 🪞 | Add Icon · Stay Home ⌂ | Track ⌖ · (disabled) |
+| 5  | Icon      | inject 📖 / mirror 🪞    | Trim Icon · Release | (open picker; pause) · Compare 🪞 | Plant · Stay Home ⌂ | Track ⌖ · (disabled) |
 | 6  | Merchant  | thermal / dephase / damp | Export 📤     | Order book !          | Import 📥 (dephase: refused) | Settle ✔  |
 | 7  | Captain   | biomes (single)          | Cull          | Compass               | Discover      | (global F)       |
 | 8  | Ace       | probe (single)           | Gather        | Pause ⏸               | Strike !      | Explore 🧭 / Fast-Fwd ⏩ |

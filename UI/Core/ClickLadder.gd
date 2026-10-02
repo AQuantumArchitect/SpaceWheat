@@ -110,7 +110,7 @@ func _open_again_cue() -> String:
 ## Homes a keyboard player can open by one named key. Empty = mouse "tap".
 static func key_for_home(name: String) -> String:
 	var n := str(name).strip_edges().to_lower()
-	if n == "the board" or n == "board" or n == "commitments":
+	if n == "the board" or n == "board" or n == "commitments" or n == "market":
 		return "C"
 	if n == "the arc" or n == "arc" or n == "story":
 		return "X"

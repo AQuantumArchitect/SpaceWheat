@@ -4,17 +4,17 @@ Humans: `../PERSONAS.md`. This file is for the parent agent that launches legs.
 
 ## Catalog (this host, 2026-09-15)
 
-Grok Build `grok models` lists **grok-4.6** (default) and **grok-4.5**. There is no `grok-mini` in the catalog. Sensor class = **grok-4.5**, low effort — the discount/speed stand-in.
+Grok Build `grok models` lists **grok-4.6** (default) and **grok-4.5**. There is no `grok-mini` in the catalog. Mini sensor class = **grok-4.5**, low effort — the discount/speed stand-in. **runner** = **grok-4.6** medium effort — full-brain scout from zero, late-game topology in scope.
 
 No Claude. `send_wave.py` writes spawn packs; the parent launches legs.
 
 ## Shape of a wave
 
 1. One live headless Godot per machine. **Sequential seats.** Wave 1 (four parallel boots) all STALE.
-2. Default four personas: `literalist`, `earnest`, `lost-lamb`, `masher`.
+2. Default minis: `literalist`, `earnest`. Lost-lamb is parked at mid-game (no quantum winding). Optional scout: `runner` (grok-4.6, from zero). `masher` / `tap-lamb` stay opt-in.
 3. Act 0 from true zero unless the spawn named a checkpoint. Lost-lamb may load an *earned* checkpoint from `promote.py` (they walked that chapter). Intra-session they stay memoryless. `/hive-wave` auto-promotes a **clear** only when `🍄/🧪/checkpoints/<bank>.tres` exists.
 4. After each leg: `player_seat.py stop <seat>` before the next `start`.
-5. Sensors never edit. Parent may edit between waves (path repairs, not tester patches).
+5. Sensors never edit. Parent may edit between waves (path repairs, not tester patches). **Runner exception:** when stuck, grok-4.6 may *read* game source and file `DIAGNOSIS: path:line why` with the wall. That is a sensor reading, not a patch. Parent treats a runner DIAGNOSIS as the named why unless `flags_fired` / the seat journal contradict it.
 
 ## Launch one leg
 

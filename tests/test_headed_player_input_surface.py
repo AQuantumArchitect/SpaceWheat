@@ -17,6 +17,57 @@ def test_rig_listener_exposes_player_input_backend_and_key_commands() -> None:
     assert '"vocabulary"|"semantic_map"' not in src
 
 
+def test_hat_keys_wait_for_empty_overlay_stack() -> None:
+    """w210: Operator 9 after Manifold ESC killed Godot mid set_cursor_layer."""
+    src = _read("UI/PlayerShell.gd")
+    anchors = src.split("Direct-pick keys")[1].split("LAYER 2: Shell actions")[0]
+    assert "get_top" in anchors
+    assert "stack_busy" in anchors
+    assert "_mark_input_handled" not in anchors
+    assert "if not stack_busy:" in anchors
+    assert "_layer_anchor_lock_until_ms" in src
+    hats = src.split("KEY_4, KEY_5")[1].split("KEY_T, KEY_Y")[0]
+    assert "set_cursor_layer(1, true)" not in hats
+
+
+def test_f_play_defers_unpause() -> None:
+    """w207: F Play after CNOT unpaused from inside _input and killed Godot."""
+    src = _read("UI/PlayerShell.gd")
+    peek = src.split("elif event.keycode == KEY_F:")[1].split("Live toast owns F")[0]
+    assert "call_deferred" in peek
+    assert "_set_global_paused" in peek
+
+
+def test_overlay_tab_switches_are_deferred() -> None:
+    """w220: Y Story / T Manifold on a live overlay killed Godot."""
+    overlay = _read("UI/Overlays/ControlsOverlay.gd")
+    assert 'call_deferred("_show_tab_now"' in overlay or "call_deferred(\"_show_tab_now\"" in overlay
+    surface = _read("UI/Core/Surface.gd")
+    assert 'call_deferred("_set_frame_now"' in surface or "call_deferred(\"_set_frame_now\"" in surface
+
+
+def test_operator_c_does_not_open_market() -> None:
+    """w219: Operator C opened Market mid-Two-Chores instead of leaving E as CNOT."""
+    src = _read("UI/PlayerShell.gd")
+    tog = src.split("func _toggle_farm_overlay(")[1].split("func _toggle_farm_overlay_now")[0]
+    assert "FRAME_OPERATOR" in tog
+    assert "_close_all_menus_now" in src
+
+
+def test_board_c_defers_toggle() -> None:
+    """w217: C opened quests overlay on the input stack and killed Godot."""
+    src = _read("UI/PlayerShell.gd")
+    assert 'call_deferred("_toggle_farm_overlay_now"' in src or "call_deferred(\"_toggle_farm_overlay_now\"" in src
+
+
+def test_overlay_open_swallows_board_c() -> None:
+    """w203: C stacked Board on Playthrough and killed Godot."""
+    src = _read("UI/PlayerShell.gd")
+    assert "MenuRegistry.get_menu_for_keycode" in src
+    swallow = src.split("Bleed-through guard")[1].split("Direct-pick keys")[0]
+    assert "get_menu_for_keycode" in swallow
+
+
 def test_player_input_backend_does_not_hide_direct_fallbacks() -> None:
     src = _read("UI/Core/QuantumInstrumentInput.gd")
     assert "class_name QuantumInstrumentInput" in src
@@ -468,3 +519,32 @@ def test_install_checkpoint_verb_reuses_canonical_slot_load() -> None:
     assert '"install_checkpoint":' in src
     assert "DirAccess.copy_absolute(ckpt_path, dest_abs)" in src
     assert "SaveStore.get_save_path(install_slot)" in src
+
+
+def test_esc_close_all_emits_overlay_key_not_node_name() -> None:
+    """w222 runner: ESC OverlayManager close killed the seat after Two Chores."""
+    src = _read("UI/Managers/OverlayManager.gd")
+    now = src.split("func _close_all_overlays_now")[1].split("\nfunc ")[0]
+    assert "overlay_stack.close_all()" in now
+    assert "overlay_changed.emit(name, false)" not in now
+    assert "overlay_changed.emit(overlay_key, false)" in now
+    closer = src.split("func close_all_overlays()")[1].split("func _close_all_overlays_now")[0]
+    assert 'call_deferred("_close_all_overlays_now")' in closer
+
+
+def test_apostrophe_defers_bulk_check() -> None:
+    """w222 runner: apostrophe clear_all_checks from inside _input killed the seat."""
+    src = _read("UI/Core/QuantumInstrumentInput.gd")
+    peek = src.split('if key == "\'":')[1].split("return")[0]
+    assert 'call_deferred("_toggle_bulk_check_active_biome")' in peek
+    assert "_toggle_bulk_check_active_biome()" not in peek
+
+
+def test_stack_changed_defers_bar_refresh() -> None:
+    """w222: overlay stack_changed rebuilt chips on the input stack."""
+    src = _read("UI/Managers/UIContextController.gd")
+    setup = src.split("func setup(")[1].split("\nfunc ")[0]
+    assert "stack_changed, refresh)" not in setup
+    assert '_on_stack_changed' in setup
+    handler = src.split("func _on_stack_changed")[1].split("\nfunc ")[0]
+    assert 'call_deferred("refresh")' in handler

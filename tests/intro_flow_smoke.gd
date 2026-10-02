@@ -95,12 +95,14 @@ func _check_intro_voice() -> void:
 		"category": "TUTORIAL",
 		"tutorial_teaches": "contracts",
 		"body": "The Millwright's Union is buying.",
-		"tutorial_hint": "Deliver 2× 🌾 to the mill.",
+		"tutorial_hint": "Market [Y] then [R] Accept.",
+		"resource": "🌾",
+		"quantity": 2,
 		"state_predicates": [],
 	}
-	_check(IntroVoice.is_auto_tutorial(contracts, null), "the mill is in the lane")
+	_check(not IntroVoice.is_auto_tutorial(contracts, null), "the mill waits for Market Accept")
 	var ctoast: Dictionary = IntroVoice.toast_for_offer(contracts, null)
-	_check(ctoast.is_empty(), "mill offer is silent — Commitments is the fill room")
+	_check(ctoast.is_empty(), "mill offer is silent — banner names Market Accept")
 
 	var optional := {
 		"category": "ARC",

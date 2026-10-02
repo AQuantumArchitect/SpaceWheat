@@ -250,12 +250,31 @@ func owns_f() -> bool:
 	# that menu's verb — the toast names the home's own key instead.
 	if _overlay_is_open():
 		return false
+	# w52-r5 literalist: Q armed Cull, leftover Arc toast still said
+	# [F] opens the Arc. Confirm owns F — the card must not advertise a
+	# second job.
+	if _confirm_pending():
+		return false
 	# Wave 19: Arc toast [F] vs Ace [F] Explore on an unbound 🌱 plot.
 	# Field Explore wins; follow can wait. Do not steal the expedition.
 	var UIProgression = load("res://UI/Core/UIProgression.gd")
 	if UIProgression != null and UIProgression.ace_f_would_explore():
 		return false
 	return _ladder.has_home and _ladder.rung != ClickLadder.Rung.HOME
+
+
+func _confirm_pending() -> bool:
+	var ml := Engine.get_main_loop()
+	if not (ml is SceneTree):
+		return false
+	var shells := (ml as SceneTree).get_nodes_in_group("player_shell")
+	if shells.is_empty():
+		return false
+	var shell = shells[0]
+	if shell == null or not ("instrument_input" in shell):
+		return false
+	var qii = shell.instrument_input
+	return qii != null and qii.has_method("has_pending_confirm") and bool(qii.has_pending_confirm())
 
 
 ## Ace F chip must match the intercept (wave 13: [F] opens the Arc vs

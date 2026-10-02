@@ -157,6 +157,11 @@ func get_transitions() -> Array:
 
 ## Set current frame and emit signals. No-op if frame_id is already current.
 func set_frame(new_frame_id: String) -> void:
+	# w220: Market→Manifold T killed Godot on the input stack.
+	call_deferred("_set_frame_now", new_frame_id)
+
+
+func _set_frame_now(new_frame_id: String) -> void:
 	if new_frame_id == frame_id:
 		return
 	var prev := frame_id

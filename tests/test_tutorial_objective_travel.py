@@ -154,6 +154,333 @@ def test_gate_empty_chip_names_how_to_check_two_plots() -> None:
     assert "Shift-click" in gate
 
 
+def test_opening_a_menu_flattens_field_toasts() -> None:
+	"""w37: Market [R] Accept vs sticky 'R plants'. Overlay open → flatten."""
+	om = (ROOT / "UI/Managers/OverlayManager.gd").read_text(encoding="utf-8")
+	open_fn = om.split("overlay_changed.emit")[1].split("return true")[0]
+	assert "flatten_all_toasts" in open_fn
+	shell = (ROOT / "UI/PlayerShell.gd").read_text(encoding="utf-8")
+	assert "func flatten_all_toasts" in shell
+
+
+def test_wandered_off_banner_names_the_door_back() -> None:
+    """Toast/banner must not dump the in-room recipe while the player is
+    looking at the wrong menu. Name ESC (or the hat, or the rail) first."""
+    src = PROGRESSION.read_text(encoding="utf-8")
+    assert "func _wrong_room_line(" in src
+    empty = src.split("static func _empty_plot_key(")[1].split("\nstatic func ")[0]
+    assert "_plot_bound" in empty, (
+        "w51: empty-plot key named J while Village J was a live qubit — "
+        "Plant refused, Track first (F) was the chip"
+    )
+    plant = src.split("static func _plant_walk_line(")[1].split("\nstatic func ")[0]
+    assert "_wrong_room_line" in plant
+    assert '"▸ [5] Icon"' in plant or "▸ [5] Icon" in plant
+    assert "action_cue" in plant
+    assert "FRAME_ICON" in plant
+    assert "empty plot, [R]" not in plant
+    assert "_cross_to" in plant
+    assert "_plant_target_biome" in plant
+    assert "_plant_atom_seated" in plant
+    assert "[X] then Arc [I]" in plant
+    assert "Ace to free a plot" in plant
+    assert "gather to empty a plot" in plant
+    empty = src.split("static func _empty_plot_key(")[1].split("\nstatic func ")[0]
+    assert "fallback >= 6" in empty
+    ask = src.split("static func _is_plant_ask(")[1].split("\nstatic func ")[0]
+    assert "atom_in_biome" in ask
+    verb = src.split("static func _verb_line(")[1].split("\nstatic func ")[0]
+    assert "_wrong_room_line" in verb
+    eagle = src.split("static func _eagle_gather_line(")[1].split("\nstatic func ")[0]
+    assert "lantern_well_live" in eagle.split("var have")[0], (
+        "eagle walk named Forest before 🧺 — Forest↔Village ping-pong"
+    )
+    assert eagle.find("_plot_measured") < eagle.find("ace_f_would_explore"), (
+        "w157: measured 🦅 named [F] Explore; F cleared the strike"
+    )
+    assert 'want = "H"' in eagle
+    assert "pick a sleeping" not in eagle
+    assert "[Q] clear" in eagle
+    assert "hold_lamp_live" in src
+    assert "_hold_lamp_walk_line" in src
+    assert "lantern_bridge_live" in src
+    assert "teaching_claim_live" in src
+    assert "_sig_has" in src
+    assert "_bridge_seated" in src
+    assert "knot_live" in src
+    assert "_is_spinor_ask" in src
+    assert "sixteen_live" in src
+    assert "[2] 🪞" in src
+    assert "stay-home on" in src
+    assert "_horn_walk_line" in src
+    disc = src.split("static func _discover_walk_line(")[1].split("\nstatic func ")[0]
+    assert "is_hat_visible" in disc
+    ace_f = src.split("static func ace_f_would_explore(")[1].split("\nstatic func ")[0]
+    assert "_is_horn_ask" in ace_f
+    gate = (ROOT / "Core/Instrumentation/Handlers/GateActionHandler.gd").read_text(encoding="utf-8")
+    apply = gate.split("func _apply_single_qubit_gate(")[1].split("\nfunc ")[0]
+    assert "stale_biome" in apply
+    assert "is_inside_tree" in apply
+    batcher = (ROOT / "Core/Environment/BiomeEvolutionBatcher.gd").read_text(encoding="utf-8")
+    inv = batcher.split("func invalidate_biome_buffer(")[1].split("\nfunc ")[0]
+    assert "_prime_single_biome_frozen" in inv
+    assert "refill_mi_after_two_qubit" in batcher
+    qii = (ROOT / "UI/Core/QuantumInstrumentInput.gd").read_text(encoding="utf-8")
+    assert "_deferred_hadamard" in qii
+    assert "_select_frame_hat_now" in qii
+    assert "_select_biome_now" in qii
+    assert 'call_deferred("_toggle_check_at_plot_idx"' in qii or "call_deferred(\"_toggle_check_at_plot_idx\"" in qii
+    farm_src3 = (ROOT / "Core/Farm.gd").read_text(encoding="utf-8")
+    assert "last_removed_biome" in farm_src3
+    cull = farm_src3.split("func first_cull_candidate(")[1].split("\nfunc ")[0]
+    assert 'biome_name == "BloodLedger"' in cull
+    rem = farm_src3.split("func remove_biome(")[1].split("\nfunc ")[0]
+    assert "biome.queue_free" not in rem
+    assert "call_deferred" not in rem
+    assert "biome.visible = false" in rem
+    can = farm_src3.split("func can_remove_biome(")[1].split("\nfunc ")[0]
+    assert "BloodLedger" in can
+    pump = farm_src3.split("func _pump_for_icon(")[1].split("\nfunc ")[0]
+    assert "str(owner)" not in pump
+    assert "lex == null" in pump
+    inc = (ROOT / "Core/Instrumentation/QuantumInstrument.gd").read_text(encoding="utf-8")
+    track = (ROOT / "UI/Core/QuantumInstrumentInput.gd").read_text(encoding="utf-8")
+    tog = track.split("func _execute_toggle_berry_track(")[1].split("\nfunc ")[0]
+    assert "Shift+F drops the loop" in tog
+    assert "loop is ripe — R Incorporate" in tog
+    body = inc.split("func action_incorporate(")[1].split("\nfunc ")[0]
+    assert body.find("berry_register.consume") < body.find("discover_icon(north, south)")
+    assert "north_taken" in body
+    assert body.find("north_taken") < body.find("berry_register.consume")
+    discov = farm_src3.split("func discover_biome(")[1].split("func remove_biome(")[0]
+    assert "if not pool.is_empty():" not in discov
+    assert "Just culled that country" in discov
+    press = src.split("static func _pressured_discover_name(")[1].split("\nstatic func ")[0]
+    assert "last_removed_biome" in press
+    spinor_fn = src.split("static func _spinor_walk_line(")[1].split("\nstatic func ")[0]
+    assert "home_q < 0" in spinor_fn
+    qb = (ROOT / "UI/Overlays/QuestBoard.gd").read_text(encoding="utf-8")
+    short = qb.split("func fill_shortfall_cue(")[1].split("\nfunc ")[0]
+    assert "have < need" in short
+    assert "VERB_ABANDON" not in short or "gather" in short
+    sixteen = src.split("static func _sixteen_walk_line(")[1].split("\nstatic func ")[0]
+    assert "_ledger_walk_line" in sixteen
+    assert "BloodLedger" in sixteen
+    assert "_cull_walk_line()" not in sixteen
+    assert "_eagle_gather_line" not in sixteen
+    spinor = src.split("static func _spinor_walk_line(")[1].split("\nstatic func ")[0]
+    assert '_overlay_open("quests")' in spinor
+    assert "_claim_walk_line" in spinor
+    assert "traveler" in spinor
+    assert "get_mirror_reference" in spinor
+    assert "register_id" in spinor
+    assert "[X] then Arc [I]" in spinor
+    sixteen = src.split("static func sixteen_live(")[1].split("\nstatic func ")[0]
+    assert "_is_spinor_ask" in sixteen
+    farm_src2 = (ROOT / "Core/Farm.gd").read_text(encoding="utf-8")
+    assert "func _reseat_unslotted_lanternfall(" in farm_src2
+    assert "_reseat_unslotted_lanternfall()" in farm_src2.split("func discover_biome(")[1].split("\nfunc ")[0]
+    farm_src = (ROOT / "Core/Farm.gd").read_text(encoding="utf-8")
+    cull = farm_src.split("func first_cull_candidate(")[1].split("\nfunc ")[0]
+    assert 'biome_name == "Lanternfall"' in cull
+    qii = (ROOT / "UI/Core/QuantumInstrumentInput.gd").read_text(encoding="utf-8")
+    struck = qii.split("Find Lanternfall: struck")[0]
+    assert "if UIProgression.lantern_well_live()" in struck[-600:]
+    knot_fn = src.split("static func knot_live(")[1].split("\nstatic func ")[0]
+    assert "_is_knot_ask" in knot_fn
+    assert "the_span" in knot_fn
+    detail = src.split("static func objective_detail(")[1].split("\nstatic func ")[0]
+    assert "knot_live" in detail
+    bridge = src.split("static func lantern_bridge_live(")[1].split("\nstatic func ")[0]
+    assert "return _flag_fired(\"lantern_teaching\") and not _bridge_seated()" in bridge
+    lamp = src.split("static func _hold_lamp_walk_line(")[1].split("\nstatic func ")[0]
+    assert "[F] Explore" in lamp
+    assert lamp.find("_plot_bound") < lamp.find("[E] Superpose")
+    assert "_claim_walk_line" in lamp
+    well = src.split("static func lantern_well_live(")[1].split("\nstatic func ")[0]
+    assert 'chain_ends' in well
+    mill = json.loads((ROOT / "Core/Quests/data/story_flags.json").read_text(encoding="utf-8"))
+    wakes = next(f for f in mill if f.get("id") == "mill_wakes")
+    atoms = [p.get("atom") for p in wakes.get("arc_quest", {}).get("state_predicates", []) if p.get("type") == "biome_state_gte"]
+    assert "💨" in atoms
+    assert "⚙" not in atoms
+    attr = [p.get("emoji") for p in wakes.get("arc_quest", {}).get("state_predicates", []) if p.get("type") == "biome_attractor_emoji_gte"]
+    assert "💨" in attr
+    assert "⚙" not in attr
+    qm_src = (ROOT / "Core/Quests/QuestManager.gd").read_text(encoding="utf-8")
+    gte = qm_src.split('"biome_state_gte":')[1].split('"biome_state_lte"')[0]
+    assert "export_bloch_packet" in gte
+    assert "psum" in gte
+    qc = (ROOT / "Core/QuantumSubstrate/QuantumComputer.gd").read_text(encoding="utf-8")
+    attr_fn = qc.split("func get_attractor_state(")[1].split("\nfunc ")[0]
+    assert 'out.has("💨")' in attr_fn
+    assert 'out["⚙"]' in attr_fn
+    gte_attr = qm_src.split('"biome_attractor_emoji_gte":')[1].split('"biome_eigenvalue_gap_gte"')[0]
+    assert 'emoji_a == "⚙"' in gte_attr
+    obj = src.split("static func objective_text()")[1].split("static func ")[0]
+    assert obj.find("hold_lamp_live") < obj.find("_eagle_gather_line"), (
+        "w160-r2: Hold the Lamp drowned in 🦅 18/21 after chain_ends minted"
+    )
+    detail = src.split("static func objective_detail(")[1].split("\nstatic func ")[0]
+    assert "_is_discover_ask" in detail
+    assert "_biome_has_atoms" in src
+    disc = src.split("static func _is_discover_ask")[1].split("static func ")[0]
+    assert "_biome_has_atoms" in disc
+    atoms = src.split("static func _biome_has_atoms")[1].split("static func ")[0]
+    assert "atom_count_in" in atoms
+    assert "num_qubits" not in atoms
+    assert "lantern_well_live" in detail
+    waiting = src.split("static func _unsigned_arc_waiting(")[1].split("\nstatic func ")[0]
+    assert "_unsigned_discover_offer" in waiting
+    decorate = src.split("static func _decorate_objective(")[1].split("\nstatic func ")[0]
+    story = decorate.split("Quest.STATUS_STORY")[1].split("if status == \"ready\"")[0]
+    assert "_discover_walk_line" in story
+    disc = src.split("static func _discover_walk_line(")[1].split("\nstatic func ")[0]
+    assert "_wrong_room_line" in disc
+    assert '"▸ [7] Captain"' in disc or "▸ [7] Captain" in disc
+    assert "_cull_walk_line" in disc
+    assert "_pressured_discover_name" in disc
+    assert "Add Biome —" in disc
+    cull = src.split("static func _cull_walk_line(")[1].split("\nstatic func ")[0]
+    assert "has_open_biome_slot" in cull
+    assert "first_cull_candidate" in cull
+    assert "[Q] cull" in cull
+    assert "slots full" in cull
+    assert "_cross_to" in cull
+    assert "Forest not in TYUIOP" in src
+    ot = src.split("static func objective_text(")[1].split("static func ")[0]
+    assert "lantern_well_live" in ot
+    assert "lantern_door_fired" in ot
+    assert "_eagle_short" in ot
+    fil = (ROOT / "UI/Widgets/ActFilament.gd").read_text(encoding="utf-8")
+    assert "is_overlay_active" not in fil.split("func _process")[1].split("func ")[0]
+    assert "not in TYUIOP" in src.split("static func _cross_to(")[1].split("\nstatic func ")[0]
+    gloss = (ROOT / "Core/Quests/PredicateGloss.gd").read_text(encoding="utf-8")
+    evolving = gloss.split('"biome_evolving":')[2].split('"active_biome_is":')[0]
+    returns = [ln for ln in evolving.splitlines() if "return " in ln]
+    assert returns, evolving
+    spoken = "\n".join(returns)
+    assert "[7]" not in spoken
+    assert "Add Biome" not in spoken
+    assert "still dark" in spoken
+    assert "has_pending_confirm" in cull
+    assert "[F] confirm" in cull
+    assert "func _instrument_input(" in src
+    farm_src = (ROOT / "Core/Farm.gd").read_text(encoding="utf-8")
+    assert "func first_cull_candidate(" in farm_src
+    assert "cull %s first" in farm_src
+    assert "first_pressured" in farm_src.split("func discover_biome(")[1].split("func remove_biome(")[0]
+    chips = (ROOT / "UI/Managers/UIContextController.gd").read_text(encoding="utf-8")
+    assert "cull first" in chips
+    assert "discover_biome" in chips.split("func _build_frame_actions")[1].split("func _build_submenu_actions")[0]
+    forecast = (ROOT / "Core/Gameplay/BiomeDiscoveryForecastService.gd").read_text(encoding="utf-8")
+    assert "flag_door_is_resolved" in forecast
+    assert "story_offers" in forecast
+    assert "func _quest_biome(" in forecast
+    assert "func first_pressured(" in forecast
+    pressure = forecast.split("static func _biomes_under_pressure")[1].split("static func _quest_biome")[0]
+    assert "flag_door_is_resolved" in pressure
+    assert "if src != \"\" and fired.has(src):" not in pressure
+    assert "BloodLedger" in forecast.split("static func _biomes_under_pressure")[1].split("static func first_pressured")[0]
+    sixteen = src.split("static func _sixteen_walk_line(")[1].split("\nstatic func ")[0]
+    assert "Add Biome — %s" in sixteen or "Add Biome —" in sixteen
+    assert "_cull_walk_line()" not in sixteen
+    ledger = src.split("static func _ledger_walk_line(")[1].split("\nstatic func ")[0]
+    assert "BloodLedger" in ledger
+    assert "[R] Incorporate" in ledger
+    disc = src.split("static func _discover_walk_line(")[1].split("\nstatic func ")[0]
+    assert "_ledger_walk_line" in disc
+    obj = src.split("static func objective_text(")[1].split("\nstatic func ")[0]
+    assert "_ledger_walk_line" in obj
+    assert "_overlay_stack_open()" in obj.split("if hold_lamp_live")[0]
+    om = (ROOT / "UI/Managers/OverlayManager.gd").read_text(encoding="utf-8")
+    assert "call_deferred(\"_close_overlay_now\")" in om or 'call_deferred("_close_overlay_now")' in om
+    assert "call_deferred(\"_close_all_overlays_now\")" in om or 'call_deferred("_close_all_overlays_now")' in om
+    berry = src.split("static func _berry_walk_line(")[1].split("\nstatic func ")[0]
+    assert "_cross_to" in berry
+    assert "[5] Icon" in berry
+    assert "[F] tracks" in berry
+    berry_ask = src.split("static func _is_berry_ask(")[1].split("\nstatic func ")[0]
+    assert "berry_total_phase_gte" in berry_ask
+    plant_ask = src.split("static func _is_plant_ask(")[1].split("\nstatic func ")[0]
+    assert "mill_wakes" in plant_ask
+    flags = json.loads((ROOT / "Core/Quests/data/story_flags.json").read_text(encoding="utf-8"))
+    spiral = next(f for f in flags if f.get("id") == "spiral_breaks")
+    spreds = [str(p.get("type")) for p in (spiral.get("predicates") or [])]
+    assert "berry_consumed_count_gte" not in spreds, (
+        "spiral_breaks FLAG required a second berry to mint the quest that "
+        "asks for that berry — Arc stayed empty after First Breath"
+    )
+    listener = next(f for f in flags if f.get("id") == "forest_listener")
+    lpreds = [str(p.get("type")) for p in (listener.get("predicates") or [])]
+    assert "berry_consumed_count_gte" not in lpreds, (
+        "forest_listener FLAG required berry 3 to mint the quest that asks "
+        "for berry 3 — Arc emptied after Spiral Breaks claim"
+    )
+    communion = next(f for f in flags if f.get("id") == "forest_communion")
+    cpreds = [str(p.get("type")) for p in (communion.get("predicates") or [])]
+    assert "berry_consumed_count_gte" not in cpreds
+    loop = next(f for f in flags if f.get("id") == "loop_remembers")
+    rpreds = [str(p.get("type")) for p in (loop.get("predicates") or [])]
+    assert "berry_consumed_count_gte" not in rpreds
+    loop_hint = str((loop.get("arc_quest") or {}).get("hint", ""))
+    loop_first = re.split(r"(?<=[.!?])\s", loop_hint)[0]
+    assert "[5]" in loop_first and "[F]" in loop_first and "[R]" in loop_first, loop_first
+    assert len(loop_first) <= max_chars(), loop_first
+    mill = next(f for f in flags if f.get("id") == "mill_wakes")
+    mill_hint = str((mill.get("arc_quest") or {}).get("hint", ""))
+    mill_first = re.split(r"(?<=[.!?])\s", mill_hint)[0]
+    assert "[5]" in mill_first and "Village" in mill_first, mill_first
+    assert "Market" not in mill_first
+    assert len(mill_first) <= max_chars(), mill_first
+    lantern = next(f for f in flags if f.get("id") == "lantern_door")
+    lantern_hint = str((lantern.get("arc_quest") or {}).get("hint", ""))
+    lantern_first = re.split(r"(?<=[.!?])\s", lantern_hint)[0]
+    assert "F reads" not in lantern_hint
+    assert "[F]" not in lantern_first
+    # w72: authored Captain [7][R] sat in front of the gold 🧺 walk.
+    assert "[7]" not in lantern_hint
+    assert "🧺" in lantern_hint
+    assert "🦅" in lantern_hint
+    assert "Forest" in lantern_hint
+    assert len(lantern_hint) <= max_chars(), lantern_hint
+    assert len(lantern_first) <= max_chars(), lantern_first
+    chain = next(f for f in flags if f.get("id") == "chain_ends")
+    cpreds = [str(p.get("type")) for p in (chain.get("predicates") or [])]
+    assert "berry_consumed_count_gte" not in cpreds, (
+        "chain_ends FLAG required a Lanternfall berry to mint Hold the Lamp — "
+        "Arc stayed empty after Find Lanternfall claimed"
+    )
+    assert "biome_evolving" not in cpreds
+    wakes = next(f for f in flags if f.get("id") == "spring_wakes")
+    wpreds = [str(p.get("type")) for p in (wakes.get("predicates") or [])]
+    assert "atom_in_biome" not in wpreds, (
+        "w40: spring_wakes FLAG required 💧 already in the spring to mint "
+        "Couple the Spring (plant 💧 in Village) — earnest never saw the door"
+    )
+    lwakes = next(f for f in flags if f.get("id") == "lantern_wakes")
+    lwpreds = [str(p.get("type")) for p in (lwakes.get("predicates") or [])]
+    assert "atom_in_biome" not in lwpreds, (
+        "w53: lantern_wakes FLAG required 🌉 already in Lanternfall to mint "
+        "Light the Bridge — Arc emptied after Teaching claim"
+    )
+    cross = src.split("static func _cross_to(")[1].split("\nstatic func ")[0]
+    assert "biome [%s]" in cross
+    assert 'key == "Y"' in cross
+    assert "func _is_knot_ask(" in src
+    assert "func _knot_walk_line(" in src
+    knot = src.split("static func _knot_walk_line(")[1].split("\nstatic func ")[0]
+    assert "[X] then Arc [I]" in knot
+    assert "[5] Icon" in knot
+    assert "[0] Druid" not in knot
+    compass = src.split("static func _compass_walk_line(")[1].split("\nstatic func ")[0]
+    assert "_cross_to" in compass
+    assert "_claim_walk_line" in compass
+    assert "[P] Graph" not in compass
+    assert "[M] Map" not in compass
+    assert "ESC then" not in compass
+
+
 def test_no_hint_hardcodes_a_journey() -> None:
     for s in steps():
         hint = str(s.get("tutorial_hint", ""))
@@ -247,6 +574,11 @@ def test_the_incorporation_teaching_survives_the_banner_and_names_the_wait() -> 
     flags = json.loads((ROOT / "Core/Quests/data/story_flags.json").read_text(encoding="utf-8"))
     fb = next((f for f in flags if f.get("id") == "first_breath"), None)
     assert fb is not None, "first_breath (the incorporation teaching) is missing"
+    flag_preds = [str(p.get("type")) for p in (fb.get("predicates") or [])]
+    assert "berry_consumed_count_gte" not in flag_preds, (
+        "w37: first_breath's FLAG required a berry to mint the quest that "
+        "asks for a berry — Arc stayed empty after the spring chapter"
+    )
     assert int(fb.get("act", -1)) >= 3, (
         "first_breath is the berry chapter's opener — mid-game (act 3+), never "
         "the on-ramp (the 2026-08-17 reorder)"

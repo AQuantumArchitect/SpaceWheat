@@ -11,6 +11,7 @@ extends RefCounted
 ## - QuantumInstrumentInput for pre-execution validation
 
 const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
+const UIProgression = preload("res://UI/Core/UIProgression.gd")
 
 
 ## ============================================================================
@@ -254,6 +255,10 @@ static func _can_execute_measure(farm, selected_plots: Array[Vector2i]) -> bool:
 	# the strike is a separate 👥-priced act), so the chip is live only where a
 	# bound terminal can measure — mirroring the mouse path's ground-truth verb
 	# pick (QuantumInstrumentInput picks "explore" when terminal == null).
+	if UIProgression._basket_short():
+		var well_pos: Vector2i = UIProgression.basket_well_grid_pos()
+		if well_pos.x >= 0:
+			return true
 	if not farm or selected_plots.is_empty():
 		return false
 	var grid = farm.get("grid") if farm else null
@@ -264,8 +269,25 @@ static func _can_execute_measure(farm, selected_plots: Array[Vector2i]) -> bool:
 		var terminal = plot.terminal if plot else null
 		if terminal and terminal.can_measure():
 			return true
+		# w80: Village 🧺 well is enterable. Strike may bind then collapse.
+		if _plot_is_basket_well(farm, pos):
+			return true
 
 	return false
+
+
+static func _plot_is_basket_well(farm, pos: Vector2i) -> bool:
+	if farm == null or farm.grid == null:
+		return false
+	var bn := str(farm.grid.get_plot_biome_assignment(pos)) if farm.grid.has_method("get_plot_biome_assignment") else ""
+	if bn == "":
+		return false
+	var biome = farm.grid.get_biome(bn) if farm.grid.has_method("get_biome") else null
+	if biome == null or biome.quantum_computer == null or biome.quantum_computer.register_map == null:
+		return false
+	var ax: Dictionary = biome.quantum_computer.register_map.axis(pos.x)
+	var poles := (str(ax.get("north", "")) + str(ax.get("south", ""))).replace("\uFE0F", "").replace("\uFE0E", "")
+	return poles.contains("🧺") or poles.contains("🦅") or poles.contains("🍞")
 
 
 static func _can_execute_pop(farm, selected_plots: Array[Vector2i]) -> bool:

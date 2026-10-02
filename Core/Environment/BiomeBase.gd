@@ -767,9 +767,15 @@ func apply_atomic_drain(emoji: String, pole: int, eta: float) -> Dictionary:
 	}
 
 func get_register_emoji_pair(register_id: int) -> Dictionary:
-	if not viz_cache:
-		return {}
-	return viz_cache.get_axis(register_id)
+	if viz_cache:
+		var seen: Dictionary = viz_cache.get_axis(register_id)
+		if not seen.is_empty():
+			return seen
+	# Fog-empty unrevealed plots still have a register. Explore/well
+	# must read the axis, not the sighted cache.
+	if quantum_computer != null and quantum_computer.register_map != null:
+		return quantum_computer.register_map.axis(register_id)
+	return {}
 
 func get_coherence_with_other_registers(register_id: int) -> float:
 	if not viz_cache or viz_cache.get_num_qubits() <= 1:

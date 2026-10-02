@@ -632,6 +632,24 @@ static func _apply_single_qubit_gate(farm, position: Vector2i, gate_name: String
 	var biome = resolved.get("biome", null)
 	var register_id: int = int(resolved.get("register_id", -1))
 
+	# w204: Superpose on focused The Demos H after CNOT cleared checks
+	# killed headless Godot. Refuse a culled / out-of-tree biome instead
+	# of injecting into a stale native QC.
+	if biome != null and not is_instance_valid(biome):
+		return {
+			"success": false,
+			"error": "stale_biome",
+			"message": "that plot is gone",
+			"position": position,
+		}
+	if biome != null and biome.has_method("is_inside_tree") and not biome.is_inside_tree():
+		return {
+			"success": false,
+			"error": "stale_biome",
+			"message": "that country isn't in the field",
+			"position": position,
+		}
+
 	# Validate biome and register. The message reaches the player via
 	# _apply_gate_batch's message lift → _run_action's toast tail — a refused
 	# verb must SAY so (anti-gating law).

@@ -10,12 +10,14 @@ Usage (from SpaceWheat repo root):
   python3 🍄/🧪/hive/promote.py record --persona earnest --chapter new_voices \\
       --outcome clear --checkpoint earnest_new_voices_clear
   python3 🍄/🧪/hive/promote.py seed
+  python3 🍄/🧪/hive/promote.py sync [--personas a,b]
   python3 🍄/🧪/hive/promote.py status
 """
 from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -180,12 +182,131 @@ def checkpoint_exists(name: str) -> bool:
     return (CKPT / ("%s.tres" % name)).is_file()
 
 
+def flags_from_tres(path: Path) -> list[str]:
+    """Parse story_flags_fired keys from a campaign .tres. Empty on miss."""
+    if not path or not path.is_file():
+        return []
+    text = path.read_text(encoding="utf-8", errors="replace")
+    start = text.find("story_flags_fired = {")
+    if start < 0:
+        return []
+    end = text.find("\n}", start)
+    if end < 0:
+        return []
+    return re.findall(r'"([^"]+)"\s*:', text[start:end])
+
+
+def checkpoint_flags(name: str) -> list[str]:
+    """Flags the bank actually fired. Prefer a non-empty JSON sidecar; tres is referee."""
+    if not name:
+        return []
+    jpath = CKPT / ("%s.json" % name)
+    if jpath.is_file():
+        try:
+            data = json.loads(jpath.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            data = {}
+        flags = data.get("flags_fired") or data.get("story_flags_fired") or []
+        if isinstance(flags, list):
+            kept = [str(x) for x in flags if str(x).strip()]
+            if kept:
+                return kept
+    return flags_from_tres(CKPT / ("%s.tres" % name))
+
+
+def load_children() -> dict[str, list[str]]:
+    """flag id → flags that story_flag_set it. A child firing means the parent door was claimed."""
+    raw = json.loads(FLAGS.read_text(encoding="utf-8"))
+    kids: dict[str, list[str]] = {}
+    if not isinstance(raw, list):
+        return kids
+    for flag in raw:
+        if not isinstance(flag, dict):
+            continue
+        fid = str(flag.get("id", "")).strip()
+        for pred in flag.get("predicates") or []:
+            if isinstance(pred, dict) and pred.get("type") == "story_flag_set":
+                parent = str(pred.get("id", "")).strip()
+                if parent:
+                    kids.setdefault(parent, []).append(fid)
+    return kids
+
+
+def furthest_live(fired: set[str], ladder: list[dict],
+                  children: dict[str, list[str]] | None = None) -> tuple[list[str], dict]:
+    """Cleared = fired ladder ids. Chapter = earliest still-open minted door.
+
+    FLAG fire mints the door. A story_flag_set child firing means the parent
+    was claimed. mill_wakes and second_loop both mint after loop_remembers —
+    furthest-fired would skip Hold Commerce for Act 5. Spine-order earliest
+    minted flag with no fired child is the live door.
+    """
+    children = children if children is not None else load_children()
+    last_i = 0
+    open_i = None
+    cleared: list[str] = []
+    for i, row in enumerate(ladder):
+        fid = row["id"]
+        if fid == "act0_fresh" or fid in fired:
+            last_i = i
+            if fid not in cleared:
+                cleared.append(fid)
+            if fid == "act0_fresh":
+                continue
+            kids = children.get(fid) or []
+            # No child in the graph → cannot tell claimed from minted; skip.
+            if not kids:
+                continue
+            if not any(k in fired for k in kids) and open_i is None:
+                open_i = i
+    return cleared, ladder[open_i if open_i is not None else last_i]
+
+
+def newest_bank(persona: str, current: str) -> str:
+    """Furthest earned bank: more flags win, then newer mtime.
+
+    w160-r2: runner_spring_wakes_wall sat next to ledger checkpoint
+    runner_the_teaching_clear because the recap bank field lagged.
+    """
+    stem = persona_stem(persona)
+    best = current
+    best_n = len(checkpoint_flags(current)) if current else -1
+    best_mt = 0.0
+    cur = CKPT / ("%s.tres" % current) if current else None
+    if cur is not None and cur.is_file():
+        best_mt = cur.stat().st_mtime
+    for p in CKPT.glob(stem + "_*.tres"):
+        n = p.stem
+        if not (n.endswith("_clear") or n.endswith("_wall")):
+            continue
+        flags_n = len(checkpoint_flags(n))
+        mt = p.stat().st_mtime
+        if flags_n > best_n or (flags_n == best_n and mt > best_mt):
+            best_n = flags_n
+            best_mt = mt
+            best = n
+    return best
+
+
 def persona_start(persona: str, ledger: dict, ladder: list[dict]) -> dict:
     row = (ledger.get("personas") or {}).get(persona) or {}
     chapter = canonical(str(row.get("chapter") or "act0_fresh"), ladder)
     ckpt = str(row.get("checkpoint") or "")
     if ckpt and not checkpoint_exists(ckpt):
         ckpt = ""
+    parked = bool(row.get("parked"))
+    if not parked:
+        latest = newest_bank(persona, ckpt)
+        if latest and checkpoint_exists(latest):
+            old_n = len(checkpoint_flags(ckpt)) if ckpt else -1
+            if len(checkpoint_flags(latest)) > old_n:
+                ckpt = latest
+        if ckpt:
+            fired = set(checkpoint_flags(ckpt))
+            if fired:
+                _cleared, live = furthest_live(fired, ladder)
+                if live:
+                    chapter = str(live.get("id") or chapter)
     info = door_of(chapter, ladder)
     beaten = bool(row.get("beaten")) or info.get("id") == "the_door_stays_open"
     return {
@@ -218,8 +339,22 @@ def cmd_starts(personas: list[str], as_json: bool) -> int:
     return 0
 
 
+def _first_existing_bank(checkpoint: str) -> str:
+    """Recap sometimes concatenates runner multi-chapter banks with commas."""
+    raw = (checkpoint or "").strip()
+    if not raw:
+        return ""
+    parts = [p.strip() for p in raw.replace(";", ",").split(",") if p.strip()]
+    for name in reversed(parts):
+        stem = name.split()[0] if name else ""
+        if stem and checkpoint_exists(stem):
+            return stem
+    return parts[-1] if parts else raw
+
+
 def _record_one(persona: str, chapter: str, outcome: str, checkpoint: str,
                 note: str, ladder: list[dict], ledger: dict) -> dict:
+    checkpoint = _first_existing_bank(checkpoint)
     chapter = canonical(chapter, ladder)
     stem = persona_stem(persona)
     personas = ledger.setdefault("personas", {})
@@ -269,6 +404,7 @@ def _record_one(persona: str, chapter: str, outcome: str, checkpoint: str,
             result["band"] = nxt["band"]
         if note:
             row["note"] = note
+        _overlay_from_bank(row, result, ladder)
         return result
     if outcome in ("wall", "failed", "crash", "plateau"):
         row["outcome"] = outcome
@@ -280,6 +416,7 @@ def _record_one(persona: str, chapter: str, outcome: str, checkpoint: str,
         result["checkpoint"] = str(row.get("checkpoint") or "")
         if note:
             row["note"] = note
+        _overlay_from_bank(row, result, ladder)
         return result
     if outcome in ("playing", "open"):
         # Lost-lamb acceptable-case: reached open customization and is playing.
@@ -290,9 +427,30 @@ def _record_one(persona: str, chapter: str, outcome: str, checkpoint: str,
         result["reason"] = "playing"
         result["chapter"] = chapter
         result["checkpoint"] = str(row.get("checkpoint") or "")
+        _overlay_from_bank(row, result, ladder)
         return result
     result["reason"] = "ignored:" + outcome
     return result
+
+
+def _overlay_from_bank(row: dict, result: dict, ladder: list[dict]) -> None:
+    """The bank's flags are ground truth. Recap chapter names lag."""
+    bank = str(row.get("checkpoint") or "")
+    if not checkpoint_exists(bank):
+        return
+    fired = set(checkpoint_flags(bank))
+    if not fired:
+        return
+    cleared, live = furthest_live(fired, ladder)
+    row["cleared"] = cleared
+    row["chapter"] = live["id"]
+    result["chapter"] = live["id"]
+    result["door"] = live.get("door", live["id"])
+    result["band"] = live.get("band", "spine")
+    result["checkpoint"] = bank
+    why = str(result.get("reason") or "")
+    if why and "+synced" not in why:
+        result["reason"] = why + "+synced"
 
 
 def cmd_record(persona: str, chapter: str, outcome: str, checkpoint: str,
@@ -389,6 +547,70 @@ def cmd_seed() -> int:
     return 0 if not missing else 1
 
 
+def cmd_sync(personas: list[str]) -> int:
+    """Move the promotions ledger to match banked save flags, not recap names.
+
+    Recap agents name the chapter they were *sent* to. Saves walk past that.
+    Sync reads flags_fired on the current checkpoint and sets chapter to the
+    next ladder door after the furthest fired flag.
+    """
+    ladder = load_ladder()
+    ledger = load_ledger()
+    people = personas or list((ledger.get("personas") or {}).keys())
+    results = []
+    for persona in people:
+        row = (ledger.setdefault("personas", {})).setdefault(persona, {
+            "chapter": "act0_fresh",
+            "checkpoint": "",
+            "cleared": [],
+            "outcome": "",
+        })
+        ckpt = newest_bank(persona, str(row.get("checkpoint") or ""))
+        if not checkpoint_exists(ckpt):
+            results.append({
+                "persona": persona,
+                "reason": "no_bank:" + ckpt,
+                "promoted": False,
+            })
+            continue
+        fired = set(checkpoint_flags(ckpt))
+        if not fired:
+            results.append({
+                "persona": persona,
+                "reason": "no_flags:" + ckpt,
+                "checkpoint": ckpt,
+                "promoted": False,
+            })
+            continue
+        was = str(row.get("chapter") or "")
+        cleared, nxt = furthest_live(fired, ladder)
+        row["cleared"] = cleared
+        row["chapter"] = nxt["id"]
+        row["checkpoint"] = ckpt
+        row["outcome"] = "synced"
+        row["note"] = "synced from %s flags; live door %s" % (
+            ckpt, nxt.get("door", nxt["id"]))
+        row["beaten"] = bool(row.get("beaten")) and nxt["id"] in fired
+        results.append({
+            "persona": persona,
+            "from": was,
+            "chapter": nxt["id"],
+            "door": nxt.get("door", nxt["id"]),
+            "band": nxt.get("band", "spine"),
+            "checkpoint": ckpt,
+            "cleared": cleared,
+            "reason": "synced" if was != nxt["id"] else "already",
+            "promoted": was != nxt["id"],
+        })
+    save_ledger(ledger)
+    print(json.dumps({
+        "ok": True,
+        "results": results,
+        "starts": [persona_start(p, ledger, ladder) for p in people],
+    }, indent=2))
+    return 0
+
+
 def cmd_status() -> int:
     ladder = load_ladder()
     ledger = load_ledger()
@@ -422,6 +644,9 @@ def main() -> int:
     aply = sub.add_parser("apply", help="apply a recap JSON (rows + optional markdown)")
     aply.add_argument("--file", required=True)
 
+    syn = sub.add_parser("sync", help="set chapter from checkpoint flags_fired")
+    syn.add_argument("--personas", default="")
+
     sub.add_parser("seed", help="seed Act 1 clears from wave 17 banks")
     sub.add_parser("status", help="print ledger + ladder size")
     sub.add_parser("ladder", help="print the live-door ladder")
@@ -437,6 +662,9 @@ def main() -> int:
         return cmd_apply(Path(args.file))
     if args.cmd == "seed":
         return cmd_seed()
+    if args.cmd == "sync":
+        personas = [p.strip() for p in (args.personas or "").split(",") if p.strip()]
+        return cmd_sync(personas)
     if args.cmd == "status":
         return cmd_status()
     if args.cmd == "ladder":

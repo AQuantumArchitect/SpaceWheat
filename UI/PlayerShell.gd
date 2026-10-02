@@ -48,6 +48,9 @@ var _overlay_open_frame: Dictionary = {}  # overlay_name -> Engine frame opened
 
 ## Unified Overlay Stack Management (replaces modal_stack)
 var overlay_stack: OverlayStackManager = null
+## After ESC closes an overlay, hat/biome layer anchors must wait a beat
+## (w212: U after C-contracts ESC still set_cursor_layer(2) and killed Godot).
+var _layer_anchor_lock_until_ms: int = 0
 ## Permanent bottom-of-stack sentinel. Makes gameplay a navigable surface-ring position.
 var play_base: PlayBaseOverlay = null  # stack sentinel — NOT the farm container (UI/FarmView.gd)
 
@@ -87,14 +90,14 @@ func _input(event: InputEvent) -> void:
 	# Side-effect peek: E pauses, F resumes. No set_input_as_handled,
 	# no return — fall through to normal dispatch so tools/menus still
 	# receive their primary E/F verb.
+	var qii_owns_ef: bool = instrument_input != null \
+			and instrument_input.has_method("owns_ef_keys") and bool(instrument_input.owns_ef_keys())
 	if event.keycode == KEY_E:
 		# Re-pressing E while already paused on the bare field is silent —
 		# blind round-1 testers read it as "stuck in pause". Re-show the way
 		# out. Only when no overlay is up AND no QII submenu/confirm owns E/F:
 		# there E is a real verb (Refresh/Inspect/picker select) and this
 		# would toast noise over it (sweep_main hit it mid plant-picker).
-		var qii_owns_ef: bool = instrument_input != null \
-				and instrument_input.has_method("owns_ef_keys") and bool(instrument_input.owns_ef_keys())
 		# Wave 24 lost-lamb: Druid E is Superpose. Peek still paused the sim,
 		# so E did two jobs. Ace E action is empty (Pause). A hat that names
 		# a verb on E must only do that verb.
@@ -112,7 +115,18 @@ func _input(event: InputEvent) -> void:
 		if not qii_owns_ef and not hat_e_is_verb:
 			_set_global_paused(true)
 	elif event.keycode == KEY_F:
-		_set_global_paused(false)
+		# w52-r5: F confirming Cull also resumed play (and toasted
+		# "time flows") — dual-job. Confirm/submenu owns F.
+		# w60: Ace F Explore still Fast-Fwd peeked. A hat that names
+		# a verb on F must only do that verb — except when paused:
+		# w62 earnest: banner [F] Play, F Explored and never resumed.
+		var f_spec: Dictionary = ToolConfig.get_action(ToolConfig.get_current_frame(), "F")
+		var hat_f_is_verb: bool = not f_spec.is_empty() \
+				and str(f_spec.get("action", "")).strip_edges() != ""
+		if not qii_owns_ef and (paused or not hat_f_is_verb):
+			# w207: F Play after CNOT unpaused the whole sim from inside
+			# _input and killed headless Godot. Resume next frame.
+			call_deferred("_set_global_paused", false)
 
 	# Live toast owns F only when it advertises a home ([F] opens …).
 	# Refusal / mark toasts have no home — Ace F is still Explore.
@@ -135,12 +149,20 @@ func _input(event: InputEvent) -> void:
 	# LAYER 1: Overlay input (highest priority) - uses unified OverlayStackManager
 	if overlay_stack and not overlay_stack.is_empty():
 		var top_overlay = overlay_stack.get_top()
-		_verbose.debug("input", "→", "Routing to overlay: %s" % top_overlay.name)
-		var consumed = overlay_stack.route_input(event)
-		_verbose.debug("input", "→", "Overlay consumed: %s" % consumed)
-		if consumed:
-			_mark_input_handled()
-			return
+		# w109: Accept deactivate() hid Arc but left it on the stack.
+		# Hidden overlays still ate R as Accept. Pop ghosts.
+		if top_overlay and not top_overlay.is_visible_in_tree():
+			if overlay_manager and overlay_manager.has_method("close_overlay"):
+				overlay_manager.close_overlay()
+			UIProgression.last_lantern_strike = "popped hidden overlay"
+			# Fall through to field input on this same key.
+		else:
+			_verbose.debug("input", "→", "Routing to overlay: %s" % top_overlay.name)
+			var consumed = overlay_stack.route_input(event)
+			_verbose.debug("input", "→", "Overlay consumed: %s" % consumed)
+			if consumed:
+				_mark_input_handled()
+				return
 
 		# Bleed-through guard (one input authority). When a real menu is open above
 		# the farm base, that menu owns the gameplay action keys. If its surface did
@@ -150,16 +172,29 @@ func _input(event: InputEvent) -> void:
 		# exception: they pass QERF through to the plot beneath by design. ESC and
 		# ring navigation (ZXCVBNM / WSAD) are never gameplay-action keys, so
 		# back-out and surface-switching keep working while a menu is up.
-		if _any_menu_open() and not _overlay_is_transparent(top_overlay) and _is_gameplay_action_key(event.keycode):
-			_verbose.debug("input", "🚧", "Swallowed gameplay key %d — menu open, not a menu action" % event.keycode)
-			# Honest swallow (fleet: "pressed 5, nothing changed" — the guard
-			# ate it silently). Debounced so key-mash doesn't stack toasts.
-			var now := Time.get_ticks_msec()
-			if now - _last_swallow_toast_ms > 4000:
-				_last_swallow_toast_ms = now
-				show_hint("Menu open — Esc to act on the field.", 2)
-			_mark_input_handled()
-			return
+		# w203: C opened Board while Playthrough (X) was still stacked and
+		# killed headless Godot. Menu keys are not gameplay-action keys, so
+		# they were not swallowed. Overlay owns the keys — ESC closes.
+		if _any_menu_open() and not _overlay_is_transparent(top_overlay) \
+				and (_is_gameplay_action_key(event.keycode) \
+					or not MenuRegistry.get_menu_for_keycode(event.keycode).is_empty()):
+			# w108: Arc Accept hid the panel but left it on the stack.
+			# Field R for the 🧺 well was swallowed. Pop and let R through.
+			if event.keycode == KEY_R and UIProgression.lantern_well_live() \
+					and overlay_manager and overlay_manager.has_method("close_overlay"):
+				overlay_manager.close_overlay()
+				UIProgression.last_lantern_strike = "popped overlay for 🧺"
+				# Fall through so this same R is the well Strike.
+			else:
+				_verbose.debug("input", "🚧", "Swallowed gameplay key %d — menu open, not a menu action" % event.keycode)
+				# Honest swallow (fleet: "pressed 5, nothing changed" — the guard
+				# ate it silently). Debounced so key-mash doesn't stack toasts.
+				var now := Time.get_ticks_msec()
+				if now - _last_swallow_toast_ms > 4000:
+					_last_swallow_toast_ms = now
+					show_hint("Menu open — Esc to act on the field.", 2)
+				_mark_input_handled()
+				return
 
 	# Direct-pick keys anchor the instrument's internal cursor_layer (it drives
 	# the plot-ring lifecycle: entering layer 3 auto-selects a plot, which
@@ -169,19 +204,34 @@ func _input(event: InputEvent) -> void:
 	# Anchors do NOT mark the event as handled.
 	if event is InputEventKey and instrument_input:
 		var kc = event.keycode
-		if kc in [KEY_Z, KEY_X, KEY_C, KEY_V, KEY_B, KEY_N, KEY_M]:
-			instrument_input.set_cursor_layer(0)
-		elif kc in [KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9, KEY_0]:
-			# keep_plot_selection: a hat pick switches tools, not workpieces —
-			# the focused plot must survive (fleet #4 P1: every hat switch
-			# dropped focus, so the first verb after it refused).
-			instrument_input.set_cursor_layer(1, true)
-		elif kc in [KEY_T, KEY_Y, KEY_U, KEY_I, KEY_O, KEY_P]:
-			# keep_plot_selection: the biome-switch handler re-maps the SAME
-			# slot letter into the new biome; clearing here forced it to G.
-			instrument_input.set_cursor_layer(2, true)
-		elif kc in [KEY_G, KEY_H, KEY_J, KEY_K, KEY_L, KEY_SEMICOLON]:
-			instrument_input.set_cursor_layer(3)
+		# w210: hat 9 / 0 after ESC from Manifold still called
+		# set_cursor_layer while the overlay stack was mid-deferred-pop
+		# and killed Godot. Don't switch layers until the stack is empty.
+		var stack_busy := false
+		if overlay_manager and overlay_manager.overlay_stack \
+				and overlay_manager.overlay_stack.has_method("get_top"):
+			stack_busy = overlay_manager.overlay_stack.get_top() != null
+		if overlay_manager and overlay_manager.has_method("is_overlay_active") \
+				and overlay_manager.is_overlay_active():
+			stack_busy = true
+		if Time.get_ticks_msec() < _layer_anchor_lock_until_ms:
+			stack_busy = true
+		# w211: early-return ate ESC so Playthrough never closed. Skip
+		# layer anchors only; ESC still reaches _handle_shell_action.
+		if not stack_busy:
+			if kc in [KEY_Z, KEY_X, KEY_C, KEY_V, KEY_B, KEY_N, KEY_M]:
+				instrument_input.set_cursor_layer(0)
+			elif kc in [KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9, KEY_0]:
+				# w221: Operator 9 after re-Hadamard still died on
+				# set_cursor_layer(1) even with deferred hat wear. Skip
+				# the layer switch; _select_frame_hat_now owns the hat.
+				pass
+			elif kc in [KEY_T, KEY_Y, KEY_U, KEY_I, KEY_O, KEY_P]:
+				# keep_plot_selection: the biome-switch handler re-maps the SAME
+				# slot letter into the new biome; clearing here forced it to G.
+				instrument_input.set_cursor_layer(2, true)
+			elif kc in [KEY_G, KEY_H, KEY_J, KEY_K, KEY_L, KEY_SEMICOLON]:
+				instrument_input.set_cursor_layer(3)
 
 	# LAYER 2: Shell actions
 	if _handle_shell_action(event):
@@ -235,8 +285,13 @@ func show_hint(bbcode_text: String, importance: int = 1, path: String = "", rout
 	_hint_toast_stack.add_child(toast)
 	toast.home_key = home_key
 	var home := _route_to_callable(home_key)
+	# Verb rooms (Arc Accept, Market Accept, Commitments Deliver/Claim):
+	# open the room only. A second tap used to scoot_toward and close the
+	# menu before the player pressed the verb — same cheat as Market
+	# dumping onto a held contract.
 	var scoot := Callable()
 	if home_key != "" and home_key != "cancel_confirm" \
+			and not _is_verb_room_home(home_key) \
 			and overlay_manager != null and overlay_manager.has_method("scoot_toward"):
 		scoot = Callable(overlay_manager, "scoot_toward")
 	var home_name := _home_name_for(home_key)
@@ -314,8 +369,18 @@ func _route_to_callable(route: String) -> Callable:
 	return Callable()
 
 
+static func _is_verb_room_home(key: String) -> bool:
+	var k := str(key).strip_edges()
+	var ku := k.to_upper()
+	if k.begins_with("commitments") or k.begins_with("market"):
+		return true
+	return ku in ["ARC", "MARKET", "C", "Q", "BOARD", "QUESTS", "XI", "I"]
+
+
 static func _home_name_for(key: String) -> String:
 	var ku := str(key).strip_edges().to_upper()
+	if ku.begins_with("MARKET"):
+		return "Market"
 	if ku.begins_with("COMMITMENTS") or ku == "Q" or ku == "C" or ku == "QUESTS" or ku == "BOARD":
 		return "the board"
 	if ku == "V" or ku == "ATLAS":
@@ -347,6 +412,16 @@ func flatten_toasts_for_home(key: String) -> void:
 		var toast := child as HintToast
 		if _normalize_home_key(toast.home_key) == want:
 			toast.flatten()
+
+
+## Wandered-off law: once a menu is up, field toasts (R plants, Superpose)
+## must not sit next to the overlay's own R. Banner already says ESC.
+func flatten_all_toasts() -> void:
+	if _hint_toast_stack == null:
+		return
+	for child in _hint_toast_stack.get_children():
+		if child is HintToast:
+			(child as HintToast).flatten()
 
 
 func _home_already_open(key: String) -> bool:
@@ -382,6 +457,10 @@ static func pick_toast_eviction_victim(stack: Node) -> Node:
 
 ## Ace F chip text while a toast owns F. Empty = leave Explore / Fast-Fwd.
 func toast_f_chip_label() -> String:
+	# Confirm owns F. Do not print Arc/home on the chip while Cull is armed.
+	if instrument_input != null and instrument_input.has_method("has_pending_confirm") \
+			and bool(instrument_input.has_pending_confirm()):
+		return ""
 	var t := _topmost_toast()
 	if t != null and t.has_method("owns_f") and bool(t.owns_f()) \
 			and t.has_method("f_chip_label"):
@@ -436,6 +515,7 @@ func _handle_shell_action(event: InputEvent) -> bool:
 	if keycode == KEY_ESCAPE:
 		if _any_menu_open():
 			_close_all_menus()
+			_layer_anchor_lock_until_ms = Time.get_ticks_msec() + 400
 			return true
 		if instrument_input and instrument_input.has_method("try_escape_unwind") \
 				and instrument_input.try_escape_unwind():
@@ -502,7 +582,7 @@ func _route_action_key(action_key: String, shift: bool = false) -> void:
 	# Overlay first — mirrors the keyboard fallthrough order.
 	if overlay_stack and not overlay_stack.is_empty():
 		var top = overlay_stack.get_top()
-		if top and top.has_method("handle_action") and top.handle_action(action_key):
+		if top and top.has_method("handle_action") and top.handle_action(action_key, shift):
 			return
 	# No overlay — route to instrument actions (gameplay Q/E/R/F).
 	if instrument_input and instrument_input.has_method("invoke_action"):
@@ -567,7 +647,11 @@ func _overlay_is_transparent(ov) -> bool:
 
 
 func _close_all_menus() -> void:
-	# Close all open menus (shell and farm).
+	# w219: ESC after Operator C→Market killed Godot on the input stack.
+	call_deferred("_close_all_menus_now")
+
+
+func _close_all_menus_now() -> void:
 	if overlay_manager:
 		overlay_manager.close_all_overlays()
 
@@ -598,9 +682,19 @@ func _toggle_shell_menu(menu_name: String) -> void:
 
 
 func _toggle_farm_overlay(overlay_name: String) -> void:
-	# Toggle a farm overlay (C, V, B, N keys).
+	# w219: Operator C opened Market mid-Two-Chores (E is CNOT). Don't
+	# steal the gate hat's C for the contract board.
+	if overlay_name == "quests" and ToolConfig.get_current_frame() == ToolConfig.FRAME_OPERATOR:
+		if instrument_input:
+			instrument_input._toast_player("C is the contract board. Two Chores is [E] CNOT on the checked pair.")
+		return
+	# w217: C opened quests with Playthrough already closed and killed
+	# Godot on the input stack. Open next frame.
+	call_deferred("_toggle_farm_overlay_now", overlay_name)
 
-	# Farm overlays close all other menus when opening.
+
+func _toggle_farm_overlay_now(overlay_name: String) -> void:
+	# Toggle a farm overlay (C, V, B, N keys).
 	if not overlay_manager:
 		return
 

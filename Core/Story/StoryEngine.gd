@@ -268,33 +268,117 @@ func _restore_arc_quests_after_load() -> void:
 	if _farm == null or _quest_manager == null:
 		return
 	var known: Array = _farm.get_known_icons() if _farm.has_method("get_known_icons") else []
-	var offered_guidance := false
-	for flag_id in _farm.story_flags_fired:
+	# Teachings: re-offer every unclaimed reward pair.
+	for flag_data in _quest_manager._story_flags:
+		var flag_id := str(flag_data.get("id", ""))
+		if flag_id == "" or not _farm.story_flags_fired.has(flag_id):
+			continue
 		if _quest_manager.has_quest_for_flag(flag_id):
 			continue
 		if _quest_manager.has_completed_flag(flag_id):
 			continue
 		if _quest_manager.is_guidance_dismissed(flag_id):
 			continue
-		# Find the raw flag data from QuestManager's loaded flags
-		for flag_data in _quest_manager._story_flags:
-			if str(flag_data.get("id", "")) != flag_id:
+		var arc_quest = flag_data.get("arc_quest")
+		if not (arc_quest is Dictionary) or arc_quest.is_empty():
+			continue
+		var pair_less := str(arc_quest.get("reward_north", "")) == "" \
+				and str(arc_quest.get("reward_south", "")) == ""
+		if pair_less:
+			continue
+		if _arc_still_teaches(arc_quest, known):
+			_quest_manager.offer_story_quest(arc_quest.duplicate(), flag_id)
+	# Pair-less: furthest_live first. If that quest is already claimed,
+	# walk EVERY fired pair-less (not only later ones). w202: the_knot
+	# stays furthest_live until the_span, so Two Chores (braid_order,
+	# earlier in the file) never reappeared on Arc. Do not gift loom_opens.
+	var live_id := _furthest_live_flag_id()
+	if not _try_offer_pair_less(live_id):
+		for later_data in _quest_manager._story_flags:
+			if not (later_data is Dictionary):
 				continue
-			var arc_quest = flag_data.get("arc_quest")
-			if not (arc_quest is Dictionary) or arc_quest.is_empty():
+			var later_id := str(later_data.get("id", ""))
+			if later_id == live_id:
+				continue
+			if _try_offer_pair_less(later_id):
 				break
-			var pair_less := str(arc_quest.get("reward_north", "")) == "" \
-					and str(arc_quest.get("reward_south", "")) == ""
-			if pair_less:
-				# At most one guidance teacher in the six-slot picker.
-				# The rest stay on the Arc spine as resume, not a flood.
-				if offered_guidance:
-					break
-				_quest_manager.offer_story_quest(arc_quest.duplicate(), flag_id)
-				offered_guidance = true
-			elif _arc_still_teaches(arc_quest, known):
-				_quest_manager.offer_story_quest(arc_quest.duplicate(), flag_id)
-			break
+
+
+func _try_offer_pair_less(flag_id: String) -> bool:
+	if _farm == null or _quest_manager == null or flag_id == "":
+		return false
+	if not _farm.story_flags_fired.has(flag_id):
+		return false
+	if _quest_manager.has_completed_flag(flag_id):
+		return false
+	for flag_data in _quest_manager._story_flags:
+		if str(flag_data.get("id", "")) != flag_id:
+			continue
+		var aq = flag_data.get("arc_quest")
+		if not (aq is Dictionary) or aq.is_empty():
+			return false
+		var pair_less := str(aq.get("reward_north", "")) == "" \
+				and str(aq.get("reward_south", "")) == ""
+		if not pair_less:
+			return false
+		if _quest_manager.has_quest_for_flag(flag_id):
+			return true
+		# w189: bots dismiss the live beat. Dismiss cannot hide it.
+		if _quest_manager.is_guidance_dismissed(flag_id):
+			_quest_manager.guidance_dismissed.erase(flag_id)
+		_quest_manager.offer_story_quest(aq.duplicate(), flag_id)
+		return true
+	return false
+
+
+## Same rule as hive/promote.py furthest_live: earliest fired flag that has
+## children, none of which have fired. Flags with no children are skipped
+## (cannot tell minted from claimed). Empty → last fired id.
+func _furthest_live_flag_id() -> String:
+	if _farm == null or _quest_manager == null:
+		return ""
+	var open_id := ""
+	var last_id := ""
+	for flag_data in _quest_manager._story_flags:
+		if not (flag_data is Dictionary):
+			continue
+		var fid := str(flag_data.get("id", ""))
+		if fid == "" or not _farm.story_flags_fired.has(fid):
+			continue
+		last_id = fid
+		var child_state := _flag_child_state(fid)
+		if not bool(child_state.get("has_child", false)):
+			continue
+		if bool(child_state.get("any_fired", false)):
+			continue
+		if open_id == "":
+			open_id = fid
+	return open_id if open_id != "" else last_id
+
+
+func _flag_child_state(flag_id: String) -> Dictionary:
+	var has_child := false
+	var any_fired := false
+	if _farm == null or _quest_manager == null or flag_id == "":
+		return {"has_child": false, "any_fired": false}
+	for child_data in _quest_manager._story_flags:
+		if not (child_data is Dictionary):
+			continue
+		var preds = child_data.get("predicates", [])
+		if not (preds is Array):
+			continue
+		for pred in preds:
+			if not (pred is Dictionary):
+				continue
+			if str(pred.get("type", "")) != "story_flag_set":
+				continue
+			if str(pred.get("id", "")) != flag_id:
+				continue
+			has_child = true
+			var child_id := str(child_data.get("id", ""))
+			if child_id != "" and _farm.story_flags_fired.has(child_id):
+				any_fired = true
+	return {"has_child": has_child, "any_fired": any_fired}
 
 
 ## True when the arc quest's reward pair is a teaching the player has not yet

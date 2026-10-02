@@ -35,6 +35,7 @@ var icon_atlas: IconRegistry = null  # Pair-Icon atlas (lazy-init on first use)
 var faction_standings: Dictionary = {}  # faction_name -> FactionStanding (6-channel rep; written by QuestManager, read by FactionAffinity)
 var story_log: Array = []              # Array[Dictionary] — fired story flag entries {id, act, display_name, arc_beat, fired_at}
 var story_flags_fired: Dictionary = {} # flag_id -> phrame_index (int); prevents re-firing
+var last_removed_biome: String = "" # w180: Add Biome must not redraw the guest just culled
 var revealed_plots: Dictionary = {}    # Vector2i -> true; plots the player has focused at least once. COSMETIC ONLY (bubble reveal) — never gate mechanics on it. Persisted.
 ## Player's 12-qubit affinity substrate. Starts at |+⟩^⊗12 (no preferred pole);
 ## evolves via icon-learn rotations and settlement Lindblad jumps. Read by the
@@ -325,6 +326,7 @@ func finalize_initial_biome_boot() -> bool:
 		return biome_enabled
 
 	_loaded_biome_count = grid.get_biome_names().size() if grid else 0
+	ensure_village_commerce()
 
 	if _loaded_biome_count > 0:
 		biome_enabled = true
@@ -808,6 +810,8 @@ func _pump_for_icon(north: String, south: String) -> void:
 	# - ICON_PUMP_SHARED_RATE on every other faction whose sig contains either pole
 	# - register anonymous in lexicon if no faction owns the icon
 	var lex = _ensure_icon_atlas()
+	if lex == null:
+		return
 	if lex.find_icon_by_pair(north, south).is_empty():
 		lex.register_anonymous(north, south)
 	var owner_name: String = ""
@@ -815,10 +819,10 @@ func _pump_for_icon(north: String, south: String) -> void:
 		var candidate := ""
 		if faction_owner is String:
 			candidate = str(faction_owner)
+		elif faction_owner is Dictionary:
+			candidate = str(faction_owner.get("name", ""))
 		elif faction_owner != null and "name" in faction_owner:
 			candidate = str(faction_owner.name)
-		else:
-			candidate = str(owner)
 		if candidate == "":
 			continue
 		if owner_name == "":
@@ -1756,6 +1760,9 @@ func can_discover_biome() -> Dictionary:
 	if not biome_router:
 		return {"ok": false, "message": "ActiveBiomeManager not available"}
 	if biome_router.has_method("has_open_biome_slot") and not biome_router.has_open_biome_slot():
+		var cand := first_cull_candidate()
+		if cand != "":
+			return {"ok": false, "message": "Biome slots full — cull %s first" % cand}
 		return {"ok": false, "message": "Biome slots full"}
 
 	var unexplored = observation_frame.get_unexplored_biomes()
@@ -1841,6 +1848,10 @@ func _cull_gate_for(biome_name: String, observation_frame = null) -> Dictionary:
 	# is destroyed, and say so out loud.
 	if observation_frame.has_method("is_seed_biome") and observation_frame.is_seed_biome(biome_name):
 		return {"ok": false, "message": "%s is seed country — the frame needs it to stand on" % biome_name}
+	if biome_name == "Lanternfall":
+		return {"ok": false, "message": "Lanternfall is lantern-chain country — you cannot cull it"}
+	if biome_name == "BloodLedger" and not story_flags_fired.has("ledger_opens"):
+		return {"ok": false, "message": "BloodLedger is ledger country — you cannot cull it yet"}
 
 	# The player IS a faction (The Demos), and the biome whose native faction
 	# is the player's pin is their own seat. Culling it is self-erasure — a
@@ -1856,6 +1867,45 @@ func _cull_gate_for(biome_name: String, observation_frame = null) -> Dictionary:
 			return {"ok": false, "message": "%s is your own country — The Demos cannot cull themselves" % biome_name}
 
 	return {"ok": true, "biome_name": biome_name}
+
+
+func first_cull_candidate() -> String:
+	# HUD naming helper. The press still goes through can_remove_biome.
+	# w52 literalist: slots full, banner still said [R] Add Biome, no named target.
+	var observation_frame = get_node_or_null("/root/ObservationFrame")
+	if not observation_frame:
+		return ""
+	var biome_router = _get_active_biome_router()
+	if not biome_router:
+		return ""
+	if biome_router.has_method("has_open_biome_slot") and biome_router.has_open_biome_slot():
+		return ""
+	if observation_frame.get_unlocked_biomes().size() <= 1:
+		return ""
+	var identity := identity_biome_name()
+	var pinned := get_pinned_faction_name()
+	for raw in observation_frame.get_unlocked_biomes():
+		var biome_name := str(raw)
+		if biome_name == "" or biome_name == identity:
+			continue
+		if observation_frame.has_method("is_seed_biome") and observation_frame.is_seed_biome(biome_name):
+			continue
+		# w174: first_cull_candidate named Lanternfall as a guest. The
+		# lantern chain is spine country — never a cull target.
+		if biome_name == "Lanternfall":
+			continue
+		# w192: Sixteen Words lives on BloodLedger. Naming it as the cull
+		# guest sent Captain Q into queue_free and killed the headless seat.
+		if biome_name == "BloodLedger":
+			continue
+		if pinned != "":
+			var canonical = BiomeRegistry.get_shared().get_by_name(biome_name)
+			if canonical != null and str(canonical.first_native_faction()) == pinned:
+				continue
+		if not _get_loaded_biome_ref(biome_name):
+			continue
+		return biome_name
+	return ""
 
 
 ## The biome this run BEGAN in — the player's home, and under the owner's hard
@@ -1892,6 +1942,34 @@ func identity_biome_name() -> String:
 	_identity_biome_cache = home
 	return home
 
+func _reseat_unslotted_lanternfall() -> bool:
+	# w175: Add Biome drew Woodlot because Lanternfall was unlocked
+	# but unslotted (not in unexplored). Put it back on TYUIOP.
+	var biome_router = _get_active_biome_router()
+	if biome_router == null:
+		return false
+	if not biome_router.has_method("get_slot_for_biome"):
+		return false
+	if not biome_router.has_method("ensure_slotted"):
+		return false
+	if biome_router.get_slot_for_biome("Lanternfall") >= 0:
+		return false
+	var of = get_node_or_null("/root/ObservationFrame")
+	if of == null or not of.has_method("get_unlocked_biomes"):
+		return false
+	var lantern_known: bool = false
+	for raw in of.get_unlocked_biomes():
+		if str(raw) == "Lanternfall":
+			lantern_known = true
+			break
+	if not lantern_known:
+		return false
+	biome_router.ensure_slotted("Lanternfall")
+	_load_biome_dynamically("Lanternfall")
+	refresh_grid_for_biomes()
+	return true
+
+
 func discover_biome() -> Dictionary:
 	# Explore and unlock a random new biome (4E action)
 
@@ -1913,16 +1991,33 @@ func discover_biome() -> Dictionary:
 		_log_debug("❌ ObservationFrame not found")
 		return {"success": false, "message": "ObservationFrame not available"}
 
-	# Get unexplored biomes
+	if _reseat_unslotted_lanternfall():
+		return {"success": true, "biome_name": "Lanternfall", "message": "Lanternfall returned to the row"}
+
+	# Get unexplored biomes. Never redraw the guest just culled — even when
+	# it is the only name in the pool (w187: Woodlot-only unexplored after
+	# queue_free, Add Biome reloaded it and the headless seat died).
 	var unexplored = gate.get("unexplored", observation_frame.get_unexplored_biomes())
+	var pool: Array = []
+	for raw in unexplored:
+		if str(raw) != last_removed_biome:
+			pool.append(raw)
+	unexplored = pool
 	_log_debug("🗺️ Unexplored biomes: %s" % str(unexplored))
 
 	if unexplored.is_empty():
-		_log_debug("❌ All biomes already explored")
-		return {"success": false, "message": "All biomes already explored!"}
+		_log_debug("❌ No live country to add (just culled)")
+		return {
+			"success": false,
+			"blocked": true,
+			"message": "Just culled that country — a different land has to open first",
+		}
 
 	var weights = BiomeDiscoveryForecastService.compute_weights(self, unexplored)
-	var new_biome = BiomeDiscoveryForecastService.weighted_random_pick(unexplored, weights)
+	# w55: after cull, weighted draw restored Woodlot instead of Lanternfall.
+	# A live story door names the biome — Add Biome should add that one.
+	var forced := BiomeDiscoveryForecastService.first_pressured(self, unexplored)
+	var new_biome = forced if forced != "" else BiomeDiscoveryForecastService.weighted_random_pick(unexplored, weights)
 	_log_debug("🗺️ Selected biome: %s (weighted discovery)" % new_biome)
 
 	# Unlock it
@@ -1996,6 +2091,7 @@ func remove_biome() -> Dictionary:
 	# answer is the point of no return; nothing irreversible happens above it.
 	if observation_frame and not observation_frame.lock_biome(biome_name):
 		return {"success": false, "message": "Failed to remove biome from observation frame"}
+	last_removed_biome = biome_name
 
 	var liquidation = _liquidate_biome_resources(biome_name, biome)
 	_release_terminals_in_biome(biome_name)
@@ -2011,8 +2107,12 @@ func remove_biome() -> Dictionary:
 	_clear_loaded_biome_ref(biome_name)
 	_loaded_biome_count = maxi(0, _loaded_biome_count - 1)
 
+	# w193: even deferred queue_free + refresh_grid_for_biomes killed
+	# headless Godot on F-confirm cull. Unregister is the cull; do not
+	# destroy the node this frame.
 	if is_instance_valid(biome):
-		biome.queue_free()
+		biome.visible = false
+		biome.set_process(false)
 
 	refresh_grid_for_biomes()
 
@@ -2068,9 +2168,101 @@ func _load_biome_dynamically(biome_name: String) -> bool:
 	var already = result.get("already_loaded", false)
 	if not already:
 		_log_debug("🗺️ Dynamically loaded and registered biome: %s" % biome_name)
-
+	if biome_name == "Village":
+		ensure_village_commerce()
 
 	return true
+
+
+func ensure_village_commerce() -> void:
+	# w69: Village banner said no 🧺 plot seated. Old saves built before
+	# Granary owned Commerce. Seat 🧺|💰 on a free axis. Not a gifted basket.
+	# w72: allocating at num_qubits parked 🧺 on qubit 6+ with no GHJKL;
+	# key, so the banner still said "no 🧺 plot seated". Homerow only.
+	# w73: 🧺 on qubit 5 named [;] while Village only has four assigned
+	# plots — Explore on an empty column left 🧺 at 0/1. Seat on a
+	# Village-assigned column.
+	if grid == null or not grid.has_method("get_biome"):
+		return
+	var village = grid.get_biome("Village")
+	if village == null or village.quantum_computer == null \
+			or village.quantum_computer.register_map == null:
+		return
+	var qc = village.quantum_computer
+	var rm = qc.register_map
+	var nq := int(rm.num_qubits)
+	var cap := 4
+	if village.has_meta("plot_layout"):
+		var pl = village.get_meta("plot_layout")
+		if pl is Array and int(pl.size()) > 0:
+			cap = int(pl.size())
+	var cols: Array = _assigned_cols_for_biome("Village")
+	if cols.is_empty() and has_method("refresh_grid_for_biomes"):
+		refresh_grid_for_biomes()
+		cols = _assigned_cols_for_biome("Village")
+	# Grid assigns the full GHJKL; ring to every biome. Village's
+	# plot_layout is 4 — a 🧺 on qubit 5 names [;], an empty plant seat.
+	var live: Array = []
+	for c in cols:
+		if int(c) < nq and int(c) < cap:
+			live.append(int(c))
+	if live.is_empty():
+		for i in range(mini(maxi(nq, 1), cap)):
+			live.append(i)
+	if live.is_empty():
+		live.append(0)
+	cols = live
+	var seated_at := -1
+	for i in range(nq):
+		var ax: Dictionary = rm.axis(i) if rm.has_method("axis") else {}
+		if _pole_has_glyph(str(ax.get("north", "")) + str(ax.get("south", "")), "🧺"):
+			seated_at = i
+			break
+	if seated_at >= 0 and cols.has(seated_at):
+		return
+	var idx := -1
+	for col in cols:
+		var ax2: Dictionary = rm.axis(int(col)) if rm.has_method("axis") else {}
+		if str(ax2.get("north", "")) == "" and str(ax2.get("south", "")) == "":
+			idx = int(col)
+			break
+	if idx < 0:
+		for i in range(cols.size() - 1, -1, -1):
+			var col2 := int(cols[i])
+			var ax3: Dictionary = rm.axis(col2) if rm.has_method("axis") else {}
+			var pair := str(ax3.get("north", "")) + str(ax3.get("south", ""))
+			if _pole_has_glyph(pair, "👥") or _pole_has_glyph(pair, "🍞"):
+				continue
+			idx = col2
+			break
+	if idx < 0:
+		idx = int(cols[cols.size() - 1])
+	qc.allocate_axis(idx, "🧺", "💰")
+	if has_method("refresh_grid_for_biomes"):
+		refresh_grid_for_biomes()
+
+
+func _assigned_cols_for_biome(biome_name: String) -> Array:
+	var cols: Array = []
+	if grid == null or not grid.has_method("get_plot_biome_assignments"):
+		return cols
+	var assignments: Dictionary = grid.get_plot_biome_assignments()
+	for pos in assignments.keys():
+		if str(assignments[pos]) != biome_name:
+			continue
+		var col := int(pos.x)
+		if col < 0 or col >= 6:
+			continue
+		if not cols.has(col):
+			cols.append(col)
+	cols.sort()
+	return cols
+
+
+func _pole_has_glyph(pair: String, glyph: String) -> bool:
+	var p := pair.replace("\uFE0F", "").replace("\uFE0E", "")
+	var g := glyph.replace("\uFE0F", "").replace("\uFE0E", "")
+	return g != "" and p.contains(g)
 
 func entangle_plots(pos1: Vector2i, pos2: Vector2i, bell_state: String = "phi_plus") -> bool:
 	# Create entanglement between two plots with specified Bell state

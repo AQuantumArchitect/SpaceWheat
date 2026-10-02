@@ -1,6 +1,6 @@
 # Playtester Personas
 
-Five sensor archetypes for grok-4.5 legs. Keyboard four on `player_seat.py`. **tap-lamb** is headed `mouse_seat.py`.
+Six sensor archetypes. Minis (grok-4.5) grind one unsigned gate. **runner** is grok-4.6 medium, walking the whole campaign. Keyboard five on `player_seat.py`. **tap-lamb** is headed `mouse_seat.py`.
 
 **Humans read this page.** Agents fetch `prompts/` — do not paste packs into a spawn.
 
@@ -11,6 +11,11 @@ Five sensor archetypes for grok-4.5 legs. Keyboard four on `player_seat.py`. **t
 | **earnest** | Competent newcomer. The control. | `prompts/earnest.md` |
 | **lost-lamb** | No short-term memory. LOOPING / DRIFT are the defects. | `prompts/lost-lamb.md` |
 | **tap-lamb** | Mouse-only lost-lamb. Keyboard-only doors are walls. | `prompts/tap-lamb.md` |
+| **runner** | Full-brain grok-4.6 scout. Starts at zero; walks far; curtain-peeks when stuck. | `prompts/runner.md` |
+
+**Lost-lamb ceiling (mid-game).** A memoryless walker is not asked to Superpose, Bell, lantern winding, or the knot. Park them at mill + plant / `woodlot_door`. Open-play from `village_identity` is the acceptable-case success. Do not send lost-lamb at `lantern_door` or later spine topology.
+
+**Runner.** Latest Grok, medium effort. Starts from true zero (or an earned checkpoint). May clear several chapters in one sitting. Late-game topology is in scope once they walk there. Still a sensor — Ace never does Druid things; no gifts; player walks doors. One Godot: runner sits *after* the minis in a sequential wave. **When stuck, the runner may read GDScript / ToolConfig (curtain-peek) and file a `DIAGNOSIS:` line with the wall. They still never edit.**
 
 Every sensor also fetches `prompts/SENSOR.md` (laws, seat CLI) and `prompts/HOST.md` (native WSL vs Windows wrap). Coordinator fetches `prompts/GROK.md`. Index: `prompts/INDEX.md`.
 

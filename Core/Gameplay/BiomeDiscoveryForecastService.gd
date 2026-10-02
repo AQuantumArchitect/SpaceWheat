@@ -96,21 +96,64 @@ static func _biomes_under_pressure(farm) -> Dictionary:
 			for pred in flag.get("predicates", []):
 				if pred is Dictionary and str(pred.get("biome", "")) != "":
 					pressured[str(pred["biome"])] = true
+			var aq = flag.get("arc_quest")
+			if aq is Dictionary:
+				var ab := _quest_biome(aq)
+				if ab != "":
+					pressured[ab] = true
+	# Live story doors (offers + active) pull until claimed or dismissed.
+	# FLAG fire MINTS the door — it is not a claim. w53 literalist: lantern_door
+	# had fired, Find Lanternfall still unsigned, Add Biome drew Woodlot /
+	# VolcanicWorlds / RevolutionSquare because FLAG-fired skipped the pull.
+	var bags: Array = []
+	if "story_offers" in qm and qm.story_offers is Dictionary:
+		bags.append(qm.story_offers)
 	if "active_quests" in qm and qm.active_quests is Dictionary:
-		for q in qm.active_quests.values():
-			if q is Dictionary:
-				# A quest whose SOURCE FLAG has already fired must not steer discovery:
-				# the story moved on, but an accepted-and-idle arc quest would otherwise
-				# pull its biome forever (observed live: chain_ends long fired, its arc
-				# quest kept dragging Lanternfall into 13 of 16 captain draws and starved
-				# the act-5 BloodLedger hunt).
-				var src := str(q.get("source_flag", ""))
-				if src != "" and fired.has(src):
-					continue
-				var b := str(q.get("biome", q.get("biome_name", "")))
-				if b != "":
-					pressured[b] = true
+		bags.append(qm.active_quests)
+	for bag in bags:
+		for q in bag.values():
+			if not (q is Dictionary):
+				continue
+			var src := str(q.get("source_flag", ""))
+			if src != "" and qm.has_method("flag_door_is_resolved") and qm.flag_door_is_resolved(src):
+				continue
+			var b := _quest_biome(q)
+			if b != "":
+				pressured[b] = true
+	# w185: Sixteen Words named Add Biome with no country, so R seated
+	# ZenoLatch/PowerStation. BloodLedger is the authored monolith (📜/🏰)
+	# once the knot is minted and the lexicon is nearly full.
+	if fired.has("the_knot") and not fired.has("ledger_opens") and not fired.has("edge_of_the_enclave"):
+		var n := 0
+		if farm.has_method("get_known_icons"):
+			n = int(farm.get_known_icons().size())
+		elif "known_icons" in farm and farm.known_icons != null:
+			n = int(farm.known_icons.size())
+		if n >= 13:
+			pressured["BloodLedger"] = true
 	return pressured
+
+
+static func _quest_biome(q: Dictionary) -> String:
+	var b := str(q.get("biome", q.get("biome_name", ""))).strip_edges()
+	if b != "":
+		return b
+	for pred in q.get("state_predicates", []):
+		if pred is Dictionary:
+			var pb := str(pred.get("biome", "")).strip_edges()
+			if pb != "":
+				return pb
+	return ""
+
+
+static func first_pressured(farm, unexplored: Array) -> String:
+	# HUD naming helper. The press still goes through weighted_random_pick.
+	var pressured := _biomes_under_pressure(farm)
+	for raw in unexplored:
+		var name := str(raw)
+		if name != "" and pressured.has(name):
+			return name
+	return ""
 
 
 static func _biome_alignment_from_name(biome_name: String, farm) -> Object:

@@ -155,6 +155,10 @@ def test_sweep_runs_even_without_a_live_biome() -> None:
     body = src(QM).split("func _physics_process(")[1].split("\nfunc ")[0]
     sweep_at = body.find("_sweep_retired_quests()")
     guard_at = body.find("if current_biome == null")
+    if guard_at == -1:
+        # Hive: a freed biome is not == null. Rebind from ActiveBiomeManager,
+        # then early-return on watched invalid — sweep still has to run first.
+        guard_at = body.find("if watched == null or not is_instance_valid(watched)")
     assert sweep_at != -1, "_physics_process must sweep retirements"
     assert guard_at != -1, "the current_biome guard moved — recheck this ordering"
     assert sweep_at < guard_at, (

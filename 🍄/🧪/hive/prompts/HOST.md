@@ -2,7 +2,7 @@
 
 Two hosts exist. Try the native form first; if it fails, use the Windows wrap. Do not invent a third.
 
-Waves are **Grok Build** (model grok-4.5 for sensors). No Claude. Coordinator: `GROK.md`.
+Waves are **Grok Build** (model grok-4.5 for minis; grok-4.6 medium for **runner**). No Claude. Coordinator: `GROK.md`.
 
 ## Native (agent already in WSL, cwd = SpaceWheat repo)
 

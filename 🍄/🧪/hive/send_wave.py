@@ -24,13 +24,14 @@ REPO = HERE.parents[2]  # 🍄/🧪/hive -> repo root
 PROMPTS = HERE / "prompts"
 WAVES = HERE / "waves"
 
-PERSONAS = ("masher", "literalist", "earnest", "lost-lamb", "tap-lamb")
+PERSONAS = ("masher", "literalist", "earnest", "lost-lamb", "tap-lamb", "runner")
 DEFAULT_PRESSES = {
     "masher": 20,
     "literalist": 25,
     "earnest": 25,
     "lost-lamb": 20,
     "tap-lamb": 20,
+    "runner": 80,
 }
 MEMORYLESS = ("lost-lamb", "tap-lamb")
 MOUSE_SEATS = ("tap-lamb",)
@@ -57,11 +58,20 @@ def spawn_prompt(persona: str, seat: str, chapter: str, max_presses: int, checkp
         if mouse else
         f"Then play that persona through:\n  python3 {seat_py} <cmd> {seat} ...\n"
     )
+    model = "grok-4.6" if persona == "runner" else MODEL
+    peek = ""
+    if persona == "runner":
+        peek = (
+            "Runner: if stuck (dual-key, mute chrome, chip vs banner, 3+ dead presses), "
+            "you MAY Read GDScript / ToolConfig / UIProgression to name the mechanical why. "
+            "File a DIAGNOSIS: path:line line with the wall. Still never edit.\n"
+        )
     return (
         f"You are a SpaceWheat SENSOR playtester.\n"
         f"Persona: {persona}\n"
         f"Seat: {seat}\n"
         f"Chapter: {chapter}\n"
+        f"Model: {model}\n"
         f"Press budget: {max_presses} (or the persona's own stop rule, whichever comes first).\n"
         f"{ckpt}\n"
         f"BEFORE any press, READ these files with the Read tool:\n"
@@ -74,6 +84,7 @@ def spawn_prompt(persona: str, seat: str, chapter: str, max_presses: int, checkp
         f"  python3 🍄/🧪/hive/hive.py wall {chapter} --file /tmp/sw_wall_{seat}.txt\n"
         f"Bank and stop when the persona says to.\n\n"
         f"Never edit code, data, or saves. Read + Bash only.\n"
+        f"{peek}"
         f"When done, print an 8-line report:\n"
         f"  persona / seat / presses / outcome (wall|clear|plateau|crash)\n"
         f"  last screen_text (one line)\n"

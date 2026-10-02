@@ -18,7 +18,7 @@ object_focus, visible_data, available_actions, transitions}`.
 | farm   | `UI/Core/FarmSurface.gd` (headless participant; same snapshot contract as UI surfaces) | derived from plane: `coherent` / `dissipative` / `probe` |
 | Z      | `UI/Overlays/EscapeMenu.gd` (system)           | Now / Save / New / Balance / Dev — see EscapeMenu.gd header (`TAB_ROW`) |
 | X      | `UI/Overlays/ControlsOverlay.gd` (playthrough) | Self / Story / · / Arc / Guide (U slot honestly empty) — see ControlsOverlay.gd header (`TAB_ROW`) |
-| C      | `UI/Overlays/QuestBoard.gd`                    | Manifold / Market / History — see QuestBoard.gd header (`TAB_ROW`; held contracts pin Market stalls; Arc moved to X) |
+| C      | `UI/Overlays/QuestBoard.gd`                    | Manifold / Market / Commitments — see QuestBoard.gd header (`TAB_ROW`; Market picks up, U delivers; Arc moved to X) |
 | V      | `UI/Overlays/QubitAtlasOverlay.gd`             | Lexicon / Affinity / Alignment / Coverage / Hints / Subspace — see QubitAtlasOverlay.gd header (`TAB_ROW`) |
 | B      | `UI/Overlays/BiomeInspectorOverlay.gd`         | `supports` (single — pure visual overlay; keys forward to surface beneath) |
 | N      | `UI/Overlays/InspectorOverlay.gd`              | Network / Bridges / Selector / Live / Whole / Matrix — see InspectorOverlay.gd header (`TAB_ROW`; Bridges sub-paginates G/H/J) |
@@ -35,10 +35,11 @@ object_focus, visible_data, available_actions, transitions}`.
 - C is the contract board. It consumes the N→C handoff when present and
   falls back to current-biome scope when no handoff exists. Its visible
   snapshot surfaces `scope_mode`, `scope_source`, and `scope_counterparty`.
-  The tabs are pipeline-aligned (manifold → market → history). Market is
-  one board: held commitments occupy stalls, offers fill the free ones
-  (hands N/6). Sort modes stay a 1/2/3 chord. History (U) is the ledger
-  of past contracts. The Arc tab moved to X.
+  The tabs are pipeline-aligned (manifold → market → commitments). Market
+  (Y) is pickup: offers only, Accept [R], Refresh Shift+E. Commitments (U)
+  is delivery: Deliver/Claim [R], Plot [F], Lock Shift+F, Abandon [Q].
+  Hands N/6 cap how many you can hold; History is a U chord (1/2). The
+  Arc tab moved to X.
 - V is the canonical knowledge surface for atoms, icons, signature, and
   affinity. It is the signature and inspection atlas.
 - B is the biome microscope, **a pure visual overlay**: single page,

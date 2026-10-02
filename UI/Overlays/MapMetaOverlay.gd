@@ -437,34 +437,62 @@ func _eigen_inspect_text() -> String:
 	return "\n".join(lines)
 
 
+func is_graph_frame() -> bool:
+	return frame_id == FRAME_GRAPH
+
+
+func graph_zoom_name() -> String:
+	return _graph_zoom
+
+
+func graph_selected_biome() -> String:
+	if _graph_selected_idx >= 0 and _graph_selected_idx < _graph_selectable.size():
+		return str(_graph_selectable[_graph_selected_idx])
+	return ""
+
+
+func graph_biome_key(biome_name: String) -> String:
+	var i: int = _graph_selectable.find(biome_name)
+	if i < 0:
+		return ""
+	var keys := ["G", "H", "J", "K", "L", ";"]
+	if i < keys.size():
+		return keys[i]
+	return "W"
+
+
 func _graph_inspect_text() -> String:
 	if _graph_zoom == "broad":
-		if _graph_broad_view != null and is_instance_valid(_graph_broad_view) \
-				and _graph_selected_idx >= 0 and _graph_selected_idx < _graph_selectable.size():
-			return _graph_broad_view.inspect_text_for(str(_graph_selectable[_graph_selected_idx]))
-		return ""
-	var lines: Array[String] = []
+		var lines: Array[String] = []
+		var sel := graph_selected_biome()
+		if _graph_broad_view != null and is_instance_valid(_graph_broad_view) and sel != "":
+			lines.append(str(_graph_broad_view.inspect_text_for(sel)))
+		var compass := _compass_line(sel) if sel != "" else ""
+		if compass != "":
+			lines.append(compass)
+		return "\n".join(lines)
+	var nlines: Array[String] = []
 	if _graph_neigh_view != null and is_instance_valid(_graph_neigh_view):
-		lines.append(str(_graph_neigh_view.inspect_text()))
-	var compass := _compass_line(_graph_zoom)
-	if compass != "":
-		lines.append(compass)
+		nlines.append(str(_graph_neigh_view.inspect_text()))
+	var ncompass := _compass_line(_graph_zoom)
+	if ncompass != "":
+		nlines.append(ncompass)
 		var wet := _regime_line(_graph_zoom)
 		if wet != "":
-			lines.append(wet)
+			nlines.append(wet)
 		else:
-			lines.append("The depths (the eigenvalues of ρ) are conserved — no unitary motion can change them. Exactly one act reaches them: measurement.")
+			nlines.append("The depths (the eigenvalues of ρ) are conserved — no unitary motion can change them. Exactly one act reaches them: measurement.")
 	var knot := _knot_line(_graph_zoom)
 	if knot != "":
-		lines.append(knot)
+		nlines.append(knot)
 	if _biome_closed_here(_graph_zoom):
 		var canonical = _canonical_biome(_graph_zoom)
 		if _biome_has_webway(canonical):
 			var speaker := str(canonical.first_native_faction()) if canonical.has_method("first_native_faction") else ""
 			var whisper := QuestVoice.webway_whisper(speaker)
 			if whisper != "":
-				lines.append("💬 %s“%s”" % [("%s — " % speaker) if speaker != "" else "", whisper])
-	return "\n".join(lines)
+				nlines.append("💬 %s“%s”" % [("%s — " % speaker) if speaker != "" else "", whisper])
+	return "\n".join(nlines)
 
 
 ## Is the named biome effectively closed? Prefers the live QC's per-biome regime
@@ -1463,9 +1491,11 @@ func _build_graph_status_card() -> Control:
 	vbox.add_child(body)
 
 	# The eigenstate compass: what the biome most IS right now, and how decidedly
-	# (dominant eigenstate of ρ + eigenvalue gap). Press E for the conservation law.
-	if _graph_zoom != "broad":
-		var compass := _compass_line(_graph_zoom)
+	# (dominant eigenstate of ρ + eigenvalue gap). On federation, the selected
+	# biome's needle still prints — wave w32 earnest never saw 🧭 until drill-in.
+	var compass_biome := _graph_zoom if _graph_zoom != "broad" else graph_selected_biome()
+	if compass_biome != "":
+		var compass := _compass_line(compass_biome)
 		if compass != "":
 			var cl := Label.new()
 			cl.text = compass
@@ -1475,7 +1505,7 @@ func _build_graph_status_card() -> Control:
 			vbox.add_child(cl)
 		# Wet-country passport (What Fades): this biome runs open — say so where
 		# the player is already reading.
-		var wet := _regime_line(_graph_zoom)
+		var wet := _regime_line(compass_biome)
 		if wet != "":
 			var wl2 := Label.new()
 			wl2.text = wet
@@ -1484,7 +1514,7 @@ func _build_graph_status_card() -> Control:
 			wl2.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			vbox.add_child(wl2)
 		# Knot card (What Connects): frozen loop records + the pair invariant.
-		var knot := _knot_line(_graph_zoom)
+		var knot := _knot_line(compass_biome)
 		if knot != "":
 			var kl := Label.new()
 			kl.text = knot
@@ -1570,6 +1600,9 @@ func _compass_line(biome_name: String) -> String:
 	var top := str(order[0])
 	var p := float(attractor.get(top, 0.0))
 	var gap := float(attractor.get("eigenvalue_gap", 0.0))
+	# Still the Pond: printing the needle IS looking. Record this biome so
+	# eigenvalue_gap_gte can fire. Do not complete the quest from here.
+	_observe_biome_named(biome_name)
 	# In wet country the compass is LITERAL: dissipation contracts toward the
 	# deep state, so the needle points where the biome is actually going.
 	if qc.has_method("is_open_here") and qc.is_open_here():
@@ -1635,6 +1668,26 @@ func _live_qc_for(biome_name: String):
 		if b != null and "quantum_computer" in b:
 			return b.quantum_computer
 	return null
+
+
+func _observe_biome_named(biome_name: String) -> void:
+	if biome_name == "" or farm == null or farm.grid == null:
+		return
+	if not farm.grid.has_method("get_biome"):
+		return
+	var b = farm.grid.get_biome(biome_name)
+	if b == null:
+		return
+	var qm = null
+	qm = get("quest_manager")
+	if qm == null and farm != null:
+		qm = farm.get("quest_manager")
+	if qm == null:
+		var shell = get_tree().get_first_node_in_group("player_shell") if get_tree() else null
+		if shell != null:
+			qm = shell.get("quest_manager")
+	if qm != null and qm.has_method("observe_biome"):
+		qm.observe_biome(b)
 
 
 func _activate_biome(biome_name: String) -> void:

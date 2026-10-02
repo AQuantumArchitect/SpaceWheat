@@ -319,6 +319,43 @@ func get_slot_for_biome(biome_name: String) -> int:
 	return -1
 
 
+func ensure_slotted(biome_name: String) -> int:
+	# Unlocked biomes past the first six fall off TYUIOP. w69: Forest
+	# was the 🦅 well with no key. Bind it to an empty slot, or displace
+	# a guest — never seed / identity. Not a gift; the biome is already
+	# unlocked.
+	var want := str(biome_name)
+	if want == "":
+		return -1
+	var have := get_slot_for_biome(want)
+	if have >= 0:
+		return have
+	if not want in BIOME_ORDER:
+		return -1
+	for i in range(_slot_assignment.size()):
+		if str(_slot_assignment[i]) == "":
+			set_slot_assignment(i, want)
+			return i
+	var identity := ""
+	var farm = Engine.get_main_loop().root.get_node_or_null("GameStateManager") if Engine.get_main_loop() else null
+	if farm != null and farm.has_method("get_active_farm"):
+		var af = farm.get_active_farm()
+		if af != null and af.has_method("identity_biome_name"):
+			identity = str(af.identity_biome_name())
+	var of = Engine.get_main_loop().root.get_node_or_null("ObservationFrame") if Engine.get_main_loop() else null
+	for i in range(_slot_assignment.size() - 1, -1, -1):
+		var cur := str(_slot_assignment[i])
+		if cur == "" or cur == want:
+			continue
+		if cur == identity:
+			continue
+		if of != null and of.has_method("is_seed_biome") and of.is_seed_biome(cur):
+			continue
+		set_slot_assignment(i, want)
+		return i
+	return -1
+
+
 func _rebuild_slot_assignment() -> void:
 	# Slots follow BIOME_ORDER (the scenario's authored unlock order) onto
 	# TYUIOP, first six. No biome is pinned to a key — the order is content

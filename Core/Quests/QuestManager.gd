@@ -72,10 +72,25 @@ func _physics_process(delta: float) -> void:
 	# A save/load frees the old farm's biomes: a stale (freed) current_biome is
 	# not == null, and touching it aborts this whole frame BEFORE the quest
 	# readiness loop — claims then never flip READY (act-4 marathon).
-	if current_biome == null or not is_instance_valid(current_biome):
+	# Stand where the player stands. connect_to_biome is a boot inject;
+	# it must not freeze observation on Village while they are in the spring
+	# (w34: 🧭 1.00 on FreshwaterSpring, pond quest 0% — last_observables
+	# was still the boot biome).
+	var watched = current_biome
+	var abm = get_tree().root.get_node_or_null("/root/ActiveBiomeManager") if get_tree() else null
+	var farm = _get_active_farm()
+	if abm != null and farm != null and farm.grid != null and abm.has_method("get_active_biome") \
+			and farm.grid.has_method("get_biome"):
+		var live_name := str(abm.get_active_biome())
+		if live_name != "":
+			var live_b = farm.grid.get_biome(live_name)
+			if live_b != null and is_instance_valid(live_b):
+				watched = live_b
+				current_biome = live_b
+	if watched == null or not is_instance_valid(watched):
 		return
 	if _state_projection:
-		_state_projection.observe_biome(current_biome, delta)
+		_state_projection.observe_biome(watched, delta)
 
 	for quest in active_quests.values():
 		# Skip quests already ready to claim
@@ -712,7 +727,23 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 			var pole := int(coord.get("pole", 0))
 			if qubit < 0:
 				return 0.0
-			var snap: Dictionary = biome.viz_cache.get_snapshot(qubit)
+			var snap: Dictionary = {}
+			if biome.viz_cache != null and biome.viz_cache.has_method("get_snapshot"):
+				snap = biome.viz_cache.get_snapshot(qubit)
+			# w165 runner: Trim+inject left bloch_cache empty; p0 read as 0
+			# while field north_pct was 1.0. Refill from the mill's ρ.
+			# w166: stale {p0:0,p1:0} is not empty, so refill never ran.
+			var psum: float = float(snap.get("p0", 0.0)) + float(snap.get("p1", 0.0))
+			if (snap.is_empty() or psum < 0.05) \
+					and biome.quantum_computer.has_method("export_bloch_packet") \
+					and biome.viz_cache != null and biome.viz_cache.has_method("update_from_bloch_packet"):
+				var packed: PackedFloat64Array = biome.quantum_computer.export_bloch_packet()
+				var nq: int = int(reg.num_qubits)
+				if packed.size() >= nq * 9:
+					biome.viz_cache.update_from_bloch_packet(packed, nq)
+					snap = biome.viz_cache.get_snapshot(qubit)
+			if snap.is_empty():
+				return 0.0
 			var marginal: float = float(snap.get("p1" if pole == 1 else "p0", 0.0))
 			return QuestMath.soft_gate(marginal, float(pred.get("value", 0.0)))
 		"biome_state_lte":
@@ -929,8 +960,12 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 			if biome == null or not biome.has_method("get_attractor_state"):
 				return 0.0
 			var attractor: Dictionary = biome.get_attractor_state()
-			return QuestMath.soft_gate(attractor.get(str(pred.get("emoji", "")), 0.0),
-					float(pred.get("value", 0.5)))
+			var emoji_a := str(pred.get("emoji", ""))
+			var have_a: float = float(attractor.get(emoji_a, 0.0))
+			# Baked Hold Commerce still asks ⚙; mill axis is 💨.
+			if have_a <= 0.0 and emoji_a == "⚙":
+				have_a = float(attractor.get("💨", 0.0))
+			return QuestMath.soft_gate(have_a, float(pred.get("value", 0.5)))
 		"biome_eigenvalue_gap_gte":
 			if farm.grid == null:
 				return 0.0
@@ -974,7 +1009,15 @@ func evaluate_predicate_score(pred: Dictionary) -> float:
 	var farm = _get_active_farm()
 	if farm == null or not (pred is Dictionary):
 		return 0.0
-	return _check_flag_predicate(pred, farm)
+	return _quest_predicate_score(pred, farm)
+
+
+## Graph / microscope looking. Records this biome so stillness and compass
+## predicates can fire — you cannot claim a country you have not watched.
+func observe_biome(biome, delta: float = 0.0) -> void:
+	if _state_projection == null or biome == null or not is_instance_valid(biome):
+		return
+	_state_projection.observe_biome(biome, delta)
 
 
 ## Public: combined `smooth_and` score for a whole flag's predicates.
@@ -1032,19 +1075,23 @@ func offer_tutorial_quest(quest_def: Dictionary) -> int:
 	if not _announced_offers.has(quest_id):
 		_announced_offers[quest_id] = true
 		quest_offered.emit(q)
-	# The 1D lane auto-accepts EVERY tutorial step, mill included. Optional
-	# work (story-flag offers, later arcs) waits on the Arc for Accept [R].
-	# Predicate steps also auto-claim (the bar is the teacher). The mill is
-	# a real DELIVERY: it is accepted for you, then filled on Commitments.
+	# Verb lessons auto-accept so the banner is the live ask. Fill stalls
+	# (the mill, any Market contract) wait for Market [Y] Accept — never
+	# park a held delivery on U that the player did not pick up.
 	if _tutorial_auto_accepts(q):
 		accept_quest(q)
 	return quest_id
 
 
-## The one-dimensional lane. Every TUTORIAL step is taken for the player so
-## the banner is already the live ask. Story offers never match.
+## The one-dimensional lane. Predicate / verb TUTORIAL steps are taken so
+## the banner is already the live ask. Goods contracts are not — Accept is
+## a player press on Market [Y]. Story offers never match.
 func _tutorial_auto_accepts(quest: Dictionary) -> bool:
-	return str(quest.get("category", "")) == "TUTORIAL"
+	if str(quest.get("category", "")) != "TUTORIAL":
+		return false
+	if str(quest.get("resource", "")).strip_edges() != "" and int(quest.get("quantity", 0)) > 0:
+		return false
+	return true
 
 
 func tutorial_auto_accepts(quest: Dictionary) -> bool:
@@ -1094,8 +1141,20 @@ func _handshake_auto_claims(quest: Dictionary) -> bool:
 	var preds = quest.get("state_predicates", [])
 	if not (preds is Array) or preds.is_empty():
 		return true
+	# Player-steer beats are not handshakes. Accept is not Superpose, and
+	# it is not looking at the spring (w35: Make It Breathe vanished off
+	# Arc the instant they signed, toast still said go to Arc).
+	var steer := {
+		"coherence_at_least": true, "coherence_fell": true,
+		"eigenvalue_gap_gte": true, "biome_eigenvalue_gap_gte": true,
+		"dynamics_at_most": true, "dynamics_at_least": true,
+		"gate_sequence_contains": true, "gate_order": true,
+		"berry_consumed_count_gte": true,
+	}
 	for p in preds:
 		if not (p is Dictionary):
+			return false
+		if steer.has(str(p.get("type", ""))):
 			return false
 		if evaluate_predicate_score(p) < 0.85:
 			return false

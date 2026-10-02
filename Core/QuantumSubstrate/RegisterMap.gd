@@ -173,7 +173,13 @@ func qubits_with_axis(north_emoji: String, south_emoji: String) -> Array:
 
 func axis(qubit_index: int) -> Dictionary:
 	# Get {north: emoji, south: emoji} for qubit.
-	return axes.get(qubit_index, {})
+	# Saves sometimes rehydrate axis keys as strings.
+	if axes.has(qubit_index):
+		return axes[qubit_index]
+	var as_str := str(qubit_index)
+	if axes.has(as_str):
+		return axes[as_str]
+	return {}
 
 
 func dim() -> int:

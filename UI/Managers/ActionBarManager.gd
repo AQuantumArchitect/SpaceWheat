@@ -108,8 +108,8 @@ func create_action_bars(parent: Control) -> void:
 	parent.add_child(clock_speed_row)
 
 	# MULTI chip rides the RIGHT end of the same TimeBar track the transport
-	# sits on. Pointer door into the 3D checkbox set (Shift-tap is the
-	# keyboard twin a mouse player never finds).
+	# sits on. Pointer door into the 3D checkbox set; the chip names ⇧ so
+	# Shift-tap and tap-MULTI read as one set.
 	multi_select_row = _MultiSelectToggle.new()
 	multi_select_row.name = "MultiSelectToggle"
 	if layout_manager:

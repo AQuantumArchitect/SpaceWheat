@@ -194,6 +194,10 @@ func route_input(event: InputEvent) -> bool:
 
 	# Returns true if input was consumed by an overlay.
 	var top = get_top()
+	# w131: hidden Arc still consumed R as Accept after deactivate().
+	if top and not top.is_visible_in_tree():
+		pop()
+		return false
 	if top and top.has_method("handle_input"):
 		return top.handle_input(event)
 	return false

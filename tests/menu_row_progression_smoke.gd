@@ -85,7 +85,7 @@ func _run() -> void:
 	qm.active_quests = {7: {"category": "TUTORIAL", "tutorial_step": 1}}
 	qm.story_offers = {}
 	_check(UIProgressionScript.current_tutorial_step() == 1,
-		"step 1 reads from active_quests (the mill is auto-accepted)")
+		"step 1 reads from active_quests (test plants the mill as held)")
 	_check(UIProgressionScript.is_menu_visible("quests"), "C unlocks at the contracts step")
 	row.refresh_progression()
 	await process_frame

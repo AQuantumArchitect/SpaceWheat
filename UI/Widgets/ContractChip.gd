@@ -192,11 +192,13 @@ func _build_row(quest: Dictionary, key_str: String = "") -> Control:
 		where.add_theme_font_size_override("font_size", 11)
 		where.add_theme_color_override("font_color", Color(0.72, 0.80, 0.88, 0.85))
 		row.add_child(where)
-	var plant := _row_is_plant(quest)
-	var ladder: ClickLadder = _ladder_for(qid, plant)
+	var field := _row_is_plant(quest) or _row_is_discover(quest)
+	var ladder: ClickLadder = _ladder_for(qid, field)
 	# Wave 23: board does not plant. [C] opens the board was dual gold
 	# against the Forest banner, and lost-lamb looped C on PLANT ×1.
-	var cue := "" if plant else ladder.prompt()
+	# w72: same lie for Find Lanternfall — chip named Captain [7][R]
+	# while the gold banner said Ace for 🧺.
+	var cue := "" if field else ladder.prompt()
 	if cue != "":
 		var cue_lbl := Label.new()
 		cue_lbl.text = cue
@@ -205,7 +207,7 @@ func _build_row(quest: Dictionary, key_str: String = "") -> Control:
 		row.add_child(cue_lbl)
 	row.mouse_filter = Control.MOUSE_FILTER_STOP
 	row.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	if plant:
+	if field:
 		row.tooltip_text = ""
 	else:
 		row.tooltip_text = cue if cue != "" else ClickLadder.tap_home("the board")
@@ -237,6 +239,13 @@ func _row_is_plant(quest: Dictionary) -> bool:
 			continue
 		var g := str(pred.get("gate", "")).to_lower()
 		if g == "inject_icon" or g == "plant":
+			return true
+	return false
+
+
+func _row_is_discover(quest: Dictionary) -> bool:
+	for pred in quest.get("state_predicates", []):
+		if pred is Dictionary and str(pred.get("type", "")) == "biome_evolving":
 			return true
 	return false
 

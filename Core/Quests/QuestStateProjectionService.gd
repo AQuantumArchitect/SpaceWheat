@@ -196,6 +196,9 @@ func evaluate_predicate(predicate: Dictionary) -> float:
 			var lost := QuestMath.soft_gate_inv(float(_last_observables.get("coherence", 1.0)), to)
 			return QuestMath.smooth_and([had, lost])
 		"coherence_at_least":
+			var want_c := str(predicate.get("biome", "")).strip_edges()
+			if want_c != "" and str(_last_observables.get("biome", "")) != want_c:
+				return 0.0
 			var target := float(predicate.get("value", 0.0))
 			return QuestMath.soft_gate(float(_last_observables.get("coherence", 0.0)), target)
 		"active_biome_is":
@@ -358,6 +361,11 @@ func evaluate_predicate(predicate: Dictionary) -> float:
 			return QuestMath.soft_gate(attractor.get(str(predicate.get("emoji", "")), 0.0),
 					float(predicate.get("value", 0.5)))
 		"eigenvalue_gap_gte":
+			# Still the Pond: the needle only counts for the biome you looked
+			# at. Village's last frame must not clear a spring lesson.
+			var want_b := str(predicate.get("biome", "")).strip_edges()
+			if want_b != "" and str(_last_observables.get("biome", "")) != want_b:
+				return 0.0
 			var attractor: Dictionary = _last_observables.get("attractor", {})
 			return QuestMath.soft_gate(attractor.get("eigenvalue_gap", 0.0),
 					float(predicate.get("value", 0.10)), 0.02)

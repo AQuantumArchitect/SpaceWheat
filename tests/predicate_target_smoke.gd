@@ -26,6 +26,8 @@ const SAMPLES := {
 	"standing_gte":             {"type": "standing_gte", "faction": "Hearth Keepers", "channel": "trust", "value": 0.15},
 	"biome_spectral_gap_gte":   {"type": "biome_spectral_gap_gte", "biome": "BloodLedger", "value": 0.6},
 	"biome_spectral_gap_lte":   {"type": "biome_spectral_gap_lte", "biome": "Village", "value": 0.55},
+	"biome_eigenvalue_gap_gte": {"type": "biome_eigenvalue_gap_gte", "biome": "FreshwaterSpring", "value": 0.35},
+	"eigenvalue_gap_gte":       {"type": "eigenvalue_gap_gte", "biome": "FreshwaterSpring", "value": 0.1},
 	"gate_sequence_contains":   {"type": "gate_sequence_contains", "gate": "hadamard", "count": 3},
 	"biome_evolving":           {"type": "biome_evolving", "biome": "BloodLedger"},
 	"active_biome_is":          {"type": "active_biome_is", "biome": "Village"},

@@ -86,6 +86,11 @@ def test_multi_select_toggle_rides_the_time_bar_right() -> None:
     assert "mode_toggle_requested" in row
     assert "ALIGNMENT_END" in row
     assert '"MULTI"' in row or "MULTI" in row
+    assert "⇧" in row
+    assert "_shift_held" in row
+    assert "Same set" in row
+    proc = row.split("func _process(")[1].split("\nfunc ")[0]
+    assert "_rebuild_buttons()" not in proc
     qii = read_source("UI/Core/QuantumInstrumentInput.gd")
     assert "var multi_select_mode: bool = false" in qii
     assert "func toggle_multi_select_mode" in qii

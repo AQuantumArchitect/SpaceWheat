@@ -24,11 +24,12 @@ static func generate_submenu(biome, farm, selection: Array, page: int = 0) -> Di
 	# Submenu with gate options appropriate for selection count
 	if selection.size() < 2:
 		# Wave 6: Q carried a "select N qubits" label as if Q selected. Q is
-		# disabled. The real mark is Shift-click / Shift+G H (toggle_check).
+		# disabled. The real mark is the checkbox set: Shift-click / Shift+G H
+		# or the TimeBar MULTI chip, then tap. Same set.
 		return BaseSubmenu.empty_submenu(
 			"gate_selection",
 			"Build Gate",
-			"Shift-click two plots (or Shift+G H)"
+			"⇧ or MULTI — two plots"
 		)
 
 	var options = _collect_options(selection)

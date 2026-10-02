@@ -38,6 +38,8 @@ const TARGETS := {
 	"standing_gte":             {"kind": "menu", "key": "C"},
 	"biome_spectral_gap_gte":   {"kind": "menu", "key": "B"},
 	"biome_spectral_gap_lte":   {"kind": "menu", "key": "B"},
+	"biome_eigenvalue_gap_gte": {"kind": "biome"},
+	"eigenvalue_gap_gte":       {"kind": "biome"},
 	"gate_sequence_contains":   {"kind": "gate"},
 	"biome_evolving":           {"kind": "biome"},
 	"active_biome_is":          {"kind": "biome"},
@@ -167,11 +169,13 @@ static func summary(pred: Dictionary, qm = null) -> String:
 			# A biome you haven't found yet reads as an impossible ask (marathon
 			# #4: "requires BloodLedger to be active" with no verb) — teach
 			# discovery when it isn't loaded.
+			# w72: chip/gloss used to name Captain Add Biome while the gold
+			# banner said Ace for 🧺. Dual gold. The banner owns the walk.
 			var evb := str(pred.get("biome", ""))
 			var loaded := bool(qm.atom_count_in(evb) > 0) if (qm and qm.has_method("atom_count_in")) else true
 			if loaded:
 				return "%s evolving" % evb
-			return "%s awake — 🦅×21 from Forest, then Captain [7] [R] Add Biome" % evb
+			return "%s is still dark — banner names 🧺 then 🦅×21" % evb
 		"active_biome_is":
 			# The wayfinding gate: arrival is the whole ask. The objective banner's
 			# travel line already names the orb + key while you're elsewhere; this
@@ -218,7 +222,7 @@ static func summary(pred: Dictionary, qm = null) -> String:
 		"biome_attractor_emoji_gte":
 			return "%s attractor[%s] ≥ %.2f" % [str(pred.get("biome", "")), str(pred.get("emoji", "")), tgt]
 		"biome_eigenvalue_gap_gte":
-			return "%s gap ≥ %.2f" % [str(pred.get("biome", "")), tgt]
+			return "%s 🧭 gap ≥ %.2f — Map (M) Graph [P] reads it" % [str(pred.get("biome", "")), tgt]
 		"biome_spectral_gap_gte":
 			# Live now→target, same shape as atom_count_gte's N/M — the gap
 			# gates the ENDING and read as a black box with no current value.
@@ -262,7 +266,12 @@ static func summary(pred: Dictionary, qm = null) -> String:
 				"explore":
 					return "Explore ×%d — %s: tap a sleeping plot (or F)" % [gcount, verb_home("ace")]
 				"plant", "inject_icon":
-					return "Plant ×%d — %s: empty plot, R (need 🌱×5 from Forest)" % [gcount, verb_home("icon")]
+					var plant := ToolConfig.get_action_label(ToolConfig.FRAME_ICON, "R")
+					if plant == "" or plant == "—" or plant == "-":
+						plant = "Plant"
+					return "%s ×%d — %s: empty plot, %s (need 🌱×5 from Forest)" % [
+							plant, gcount, verb_home("icon"),
+							ToolConfig.action_cue(ToolConfig.FRAME_ICON, "R")]
 				"hadamard":
 					return "Superpose ×%d — %s: tap E" % [gcount, verb_home("druid")]
 			var gframe := str(GATE_FRAMES.get(gname, ""))
@@ -286,7 +295,10 @@ static func summary(pred: Dictionary, qm = null) -> String:
 		"attractor_emoji_gte":
 			return "deep state[%s] ≥ %.2f" % [str(pred.get("emoji", "")), float(pred.get("value", 0.5))]
 		"eigenvalue_gap_gte":
-			return "compass gap ≥ %.2f" % float(pred.get("value", 0.1))
+			var eg_b := str(pred.get("biome", "")).strip_edges()
+			if eg_b != "":
+				return "%s 🧭 gap ≥ %.2f — stand there, then Claim" % [eg_b, float(pred.get("value", 0.1))]
+			return "compass gap ≥ %.2f — stand in the country, then Claim" % float(pred.get("value", 0.1))
 		"frozen_loops_gte":
 			return "close %d berry loop%s — %s: F tracks" % [int(pred.get("count", 1)), "s" if int(pred.get("count", 1)) != 1 else "", verb_home("icon")]
 		"loops_linked":

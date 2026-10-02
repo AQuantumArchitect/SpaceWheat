@@ -21,10 +21,12 @@ def src(p: Path) -> str:
     return p.read_text(encoding="utf-8")
 
 
-def test_lane_auto_accepts_all_tutorial_including_the_mill():
+def test_lane_auto_accepts_verb_lessons_not_fill_stalls():
     text = src(QM)
     accepts = text.split("func _tutorial_auto_accepts")[1].split("\nfunc ")[0]
-    assert '== "TUTORIAL"' in accepts
+    assert '"TUTORIAL"' in accepts
+    assert 'get("resource"' in accepts
+    assert 'get("quantity"' in accepts
     claims = text.split("func _tutorial_auto_advances")[1].split("\nfunc ")[0]
     assert "state_predicates" in claims
     offer = text.split("func offer_tutorial_quest")[1].split("func _tutorial_auto_accepts")[0]
@@ -67,24 +69,62 @@ def test_story_beats_do_not_stack_parallel_gold_cards():
     assert 'cap.capture("📮 Act' in mount
 
 
+def test_ace_r_default_chip_is_strike_not_lanternfall():
+    """w159 literalist: banner [R] Strike for 🦅 vs chip Find Lanternfall.
+    ToolConfig default is Strike; ace.r_well patches only while the 🧺 well
+    is the live lantern_door walk."""
+    cfg = src(ROOT / "Core" / "GameState" / "ToolConfig.gd")
+    assert '"chip_resolver": "ace.r_well"' in cfg
+    ace_r = cfg.split('"chip_resolver": "ace.r_well"')[0][-500:]
+    assert '"label": "Strike"' in ace_r
+    assert "Find Lanternfall" not in ace_r
+    ace = src(ROOT / "Core" / "UI" / "AceChipResolvers.gd")
+    r = ace.split("func resolve_r")[1].split("\nstatic func ")[0]
+    assert "lantern_well_live" in r
+    assert "Find Lanternfall" in r
+
+
+def test_captain_unlocks_before_woodlot_door():
+    """w159 runner: Find the Woodlot named [7] Captain, hat locked on
+    woodlot_door — the flag you get AFTER Add Biome. Unlock on new_voices."""
+    hats = src(PROG).split("const HAT_UNLOCK_FLAGS")[1].split("\n}")[0]
+    assert "new_voices" in hats
+    cap = hats.split("FRAME_CAPTAIN")[1].split("FRAME_SPARK")[0]
+    assert "new_voices" in cap
+
+
 def test_banner_links_only_for_fill():
     prog = src(PROG)
     assert "static func banner_home" in prog
     home = prog.split("static func banner_home")[1].split("static func ")[0]
     assert '"commitments"' in home
+    assert '"market"' in home
+    assert "_held_fill_for_ask" in home
     assert "open_controls_on_arc" not in home
     filament = src(BANNER)
+    assert "open_board_on_market" in filament
     assert "open_board_on_commitments" in filament
     assert "has_scoot = false" in filament
     setup = filament.split("func setup")[1].split("func _process")[0]
     assert "open_controls_on_arc" not in setup
+    om = src(ROOT / "UI" / "Managers" / "OverlayManager.gd")
+    assert "func open_board_on_market" in om
+    board = src(BOARD)
+    assert "func show_market_focused" in board
+    assert "_row_confirm_armed = false" in board.split("func show_market_focused")[1].split("func ")[0]
+    mill = json.loads(TUTORIAL.read_text(encoding="utf-8"))["steps"]
+    contracts = next(s for s in mill if s.get("tutorial_teaches") == "contracts")
+    hint = str(contracts.get("tutorial_hint", ""))
+    assert "Accept" in hint
+    assert "never auto-accepted" in str(contracts.get("math_note", "")).lower()
+    assert "takes a delivery" not in hint.lower()
 
 
 def test_act0_hints_are_the_ask_not_a_keymap():
     steps = json.loads(TUTORIAL.read_text(encoding="utf-8"))["steps"]
     by_teach = {s["tutorial_teaches"]: s for s in steps}
     assert by_teach["core_loop"]["tutorial_hint"] == "Strike a sleeping plot."
-    assert by_teach["contracts"]["tutorial_hint"] == "Deliver 2× 🌾 to the mill."
+    assert by_teach["contracts"]["tutorial_hint"] == "Market [Y] then [R] Accept."
     assert "StarterForest" in by_teach["wayfinding"]["tutorial_hint"]
     for s in steps:
         hint = s["tutorial_hint"]
@@ -106,12 +146,16 @@ def test_handover_does_not_send_you_through_the_banner():
 
 def test_mill_apprentice_names_the_board_key():
     """Wave 8/9b: first post-intro door said 'Keep mill deliveries' with no
-    key. Name [C] and Market [Y]. Do not accept or fill for them."""
+    key. Name [C] Market [Y] pickup and [U] delivery. Do not accept or fill
+    for them."""
     flags = json.loads(HANDOVER.read_text(encoding="utf-8"))
     mill = next(f for f in flags if f.get("id") == "village_stirs")
     hint = str(mill.get("arc_quest", {}).get("hint", ""))
     assert "[C]" in hint
     assert "[Y]" in hint
+    assert "[U]" in hint
+    assert "picks up" in hint
+    assert "delivers" in hint
     assert len(hint) <= 70
     prog = src(PROG)
     assert "func _is_board_ask" in prog
@@ -123,21 +167,39 @@ def test_mill_apprentice_names_the_board_key():
     assert "_live_board_faction" in src(BOARD)
     assert "func propose_faction_offers" in src(ROOT / "Core" / "Markets" / "MarketLattice.gd")
     assert "func fill_shortfall_cue" in src(BOARD)
-    assert "[Q] Abandon" in src(BOARD)
+    assert "VERB_ABANDON" in src(BOARD)
     assert "func _claim_walk_line" in src(PROG)
     assert "func claim_walk_cue" in src(BOARD)
     assert "_offer_is_keepable" in src(BOARD)
+    vis = src(BOARD).split("func _get_visible_offers")[1].split("\nfunc ")[0]
+    assert "any_want" in vis
     lattice = src(ROOT / "Core" / "Markets" / "MarketLattice.gd")
     assert "mini(amt, 8)" in lattice
     board = src(BOARD)
     assert "func _is_fill_stall" in board
     assert "func board_walk_cue" in board
+    assert "func held_fill_for" in board
+    assert "func _pickup_walk_cue" in board
+    assert "func _deliver_walk_cue" in board
     market = board.split("func _market_rows")[1].split("\nfunc ")[0]
-    assert "_is_fill_stall" in market
-    assert "[E] Refresh" in board
+    assert "_is_fill_stall" not in market
+    assert "_get_visible_offers" in market
+    assert 'kind": "offer"' in market
+    assert "VERB_REFRESH" in board
     cue = board.split("func board_walk_cue")[1].split("\nfunc ")[0]
-    assert "_selected_index" in cue
-    assert 'return "▸ [R] %s"' in cue
+    assert "held_fill_for" in cue
+    assert "_pickup_walk_cue" in cue
+    assert "_deliver_walk_cue" in cue
+    pickup = board.split("func _pickup_walk_cue")[1].split("\nfunc ")[0]
+    assert "Market [Y] picks up" in pickup
+    assert "VERB_ACCEPT" in pickup
+    deliver = board.split("func _deliver_walk_cue")[1].split("\nfunc ")[0]
+    assert "[U] then" in deliver
+    assert "VERB_DELIVER" in deliver
+    overlay = src(ROOT / "UI" / "Core" / "OverlayBase.gd")
+    assert "func action_cue(" in overlay
+    cfg = src(ROOT / "Core" / "GameState" / "ToolConfig.gd")
+    assert "static func cue(" in cfg
 
 
 def test_commerce_walk_names_the_market_key():
@@ -258,7 +320,17 @@ def test_plant_walk_names_the_icon_hat_key():
     assert "func _plant_walk_line" in prog
     plant = prog.split("func _plant_walk_line")[1].split("\nstatic func ")[0]
     assert "[5]" in plant
-    assert "[R]" in plant
+    assert "action_cue" in plant
+    assert "FRAME_ICON" in plant
+    assert "_cross_to" in plant
+    assert "_plant_target_biome" in plant
+    assert "_plant_picker_line" in plant
+    picker = prog.split("func _plant_picker_line")[1].split("\nstatic func ")[0]
+    assert "[%s] pick %s" in picker
+    assert "[F] more" in picker
+    ask = prog.split("func _is_plant_ask")[1].split("\nstatic func ")[0]
+    assert "atom_in_biome" in ask
+    assert "inject_icon" in ask
     assert "_empty_plot_key" in prog
     assert "_sprout_gather_line" in prog
     assert "StarterForest" in prog
@@ -271,6 +343,7 @@ def test_plant_walk_names_the_icon_hat_key():
     toast = src(ROOT / "UI" / "Widgets" / "HintToast.gd")
     owns = toast.split("func owns_f")[1].split("\nfunc ")[0]
     assert "ace_f_would_explore" in owns
+    assert "_confirm_pending" in owns
     qii = src(ROOT / "UI" / "Core" / "QuantumInstrumentInput.gd")
     disabled = qii.split("if not action_data.get(\"enabled\"")[1].split("\nfunc ")[0]
     assert "can_afford" in disabled
@@ -294,17 +367,23 @@ def test_plant_short_does_not_advertise_c_or_icon_first():
     chip = src(ROOT / "UI" / "Widgets" / "ContractChip.gd")
     assert "Board does not plant" in chip
     assert "func _row_is_plant" in chip
+    assert "func _row_is_discover" in chip
     intro = src(INTRO)
     offer = intro.split("func toast_for_offer")[1].split("func flag_postcard")[0]
     assert "_offer_is_plant" in offer
     assert "_sprouts_are_short" in offer
+    assert "_offer_is_discover" in offer
+    assert "_discovery_well_is_short" in offer
+    ask = intro.split("func ask_line")[1].split("func ")[0]
+    assert "_discover_walk_line" in ask
+    assert "objective_text" not in ask
     flags = json.loads(HANDOVER.read_text(encoding="utf-8"))
     voices = next(f for f in flags if f.get("id") == "new_voices")
     hint = str(voices.get("arc_quest", {}).get("hint", ""))
     assert "Forest" in hint
     assert "🌱" in hint
     assert "[5]" in hint
-    assert "[R]" in hint
+    assert "[R] Plant" in hint
     assert "GHJKL" not in hint
     assert len(hint) <= 70
     gloss = src(ROOT / "Core" / "Quests" / "PredicateGloss.gd")
@@ -350,6 +429,78 @@ def test_plant_short_does_not_advertise_c_or_icon_first():
     obj = prog.split("static func objective_text()")[1].split("static func ")[0]
     assert "if _is_plant_ask(best):" in obj
     assert "return _plant_walk_line()" in obj
+    assert "_is_compass_ask" in obj
+    assert "return _compass_walk_line()" in obj
+    assert "return _board_walk_line()" not in obj
+    assert "return _board_walk_line(best)" in obj or "return _board_walk_line(q)" in src(PROG)
+    assert "_unsigned_arc_waiting" in obj
+    assert "[X] then Arc [I]" in obj
+    restore = src(ROOT / "Core" / "Story" / "StoryEngine.gd").split("func _restore_arc_quests_after_load")[1].split("\nfunc ")[0]
+    assert "_story_flags" in restore
+    assert "frontier_act" not in restore
+    assert "_furthest_live_flag_id" in restore
+    assert "_try_offer_pair_less" in restore
+    assert "passed_live" not in restore
+    try_fn = src(ROOT / "Core" / "Story" / "StoryEngine.gd").split("func _try_offer_pair_less")[1].split("\nfunc ")[0]
+    assert "guidance_dismissed.erase" in try_fn
+    live_fn = src(ROOT / "Core" / "Story" / "StoryEngine.gd").split("func _furthest_live_flag_id")[1].split("\nfunc ")[0]
+    assert "_flag_child_state" in live_fn
+    overlay = src(ARC)
+    accept = overlay.split("func _accept_selected_arc(")[1].split("\nfunc ")[0]
+    assert "call_deferred(\"_accept_arc_now\"" in accept or 'call_deferred("_accept_arc_now"' in accept
+    assert "or UIProgression._basket_have()" not in accept
+    assert "StoryEdge_" in overlay
+    assert "StoryMurmur_" in overlay
+    assert "_select_story_edge" in overlay
+    edges = overlay.split("# === EDGES ===")[1].split("# === ICON ROW ===")[0]
+    assert "ITEM_KEYS[i]" not in edges
+    pond = next(f for f in flags if f.get("id") == "pond_depths")
+    phint = str(pond.get("arc_quest", {}).get("hint", ""))
+    first = phint.split(".")[0] + "."
+    assert "FreshwaterSpring" in first
+    assert "[P]" not in phint
+    assert len(first) <= 70
+    assert "[C]" in phint and "[R]" in phint
+    preds = pond.get("arc_quest", {}).get("state_predicates", [])
+    kinds = [str(p.get("type", "")) for p in preds]
+    assert "dynamics_at_most" not in kinds, (
+        "dynamics channel is retired (−1 always) — pond_depths must not gate on it"
+    )
+    assert "eigenvalue_gap_gte" in kinds
+    assert any(p.get("biome") == "FreshwaterSpring" for p in preds)
+    breathe = next(f for f in flags if f.get("id") == "pond_breathes")
+    bpreds = breathe.get("arc_quest", {}).get("state_predicates", [])
+    assert "dynamics_at_least" not in [str(p.get("type", "")) for p in bpreds]
+    assert any(p.get("type") == "coherence_at_least" and p.get("biome") == "FreshwaterSpring" for p in bpreds)
+    map_src = src(ROOT / "UI" / "Overlays" / "MapMetaOverlay.gd")
+    qm = src(QM)
+    assert "func observe_biome(" in qm
+    assert "func _is_breathe_ask" in prog
+    breathe_walk = prog.split("static func _breathe_walk_line()")[1].split("\nstatic func ")[0]
+    assert "[0] Druid" in breathe_walk
+    assert "[E] Superpose" in breathe_walk
+    hearth = prog.split("static func _board_ask_biome")[1].split("\nstatic func ")[0]
+    assert "Hearth" in hearth
+    assert '"Village"' in hearth
+    bridge = src(ROOT / "Core" / "Story" / "PlayerEventBridge.gd")
+    assert "quest_accepted" in bridge
+    assert "flatten_toasts_for_home" in bridge.split("func _on_quest_accepted")[1].split("\nfunc ")[0]
+    rank = src(ROOT / "Core" / "Story" / "IntroVoice.gd").split("static func _quest_rank")[1].split("\nstatic func ")[0]
+    assert "_campaign_past_tutorial" in rank
+    assert "TUTORIAL" in rank
+    live = src(ROOT / "Core" / "Story" / "IntroVoice.gd").split("static func live_quest")[1].split("static func live_door")[0]
+    assert "_campaign_past_tutorial" in live
+    step = src(PROG).split("static func current_tutorial_step")[1].split("static func ")[0]
+    assert "village_stirs" in step
+    handshake = src(QM).split("func _handshake_auto_claims")[1].split("\nfunc ")[0]
+    assert "coherence_at_least" in handshake
+    assert "STEER" in handshake or "steer" in handshake.lower()
+    self_ptr = src(ROOT / "UI" / "Overlays" / "ControlsOverlay.gd").split("func _build_self_next_pointer")[1].split("\nfunc ")[0]
+    assert "doors_ahead" in self_ptr
+    assert "the live door is the banner" in self_ptr
+    phys = qm.split("func _physics_process")[1].split("\nfunc ")[0]
+    assert "ActiveBiomeManager" in phys
+    assert "get_active_biome" in phys
     shell = src(ROOT / "UI" / "PlayerShell.gd")
     peek = shell.split("if event.keycode == KEY_E:")[1].split("elif event.keycode == KEY_F:")[0]
     assert "hat_e_is_verb" in peek

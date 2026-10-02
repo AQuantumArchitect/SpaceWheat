@@ -10,6 +10,7 @@ extends RefCounted
 ## Law: HUD popups are a tracker + a link.
 
 const PredicateGloss = preload("res://Core/Quests/PredicateGloss.gd")
+const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
 
 ## Tutorial-step id → a short door title. Body/arc_beat remain the prose;
 ## this is only the bold beat name on the toast and the NOW card.
@@ -48,13 +49,13 @@ static func welcome_verbs() -> Array:
 			"how": "tap it  ·  costs 🍞",
 		},
 		{
-			"verb": "Strike",
+			"verb": ToolConfig.get_action_label(ToolConfig.FRAME_ACE, "R"),
 			"key": "R",
 			"story": "Lock an answer in.",
 			"how": "tap the bubble  ·  costs 👥",
 		},
 		{
-			"verb": "Gather",
+			"verb": ToolConfig.get_action_label(ToolConfig.FRAME_ACE, "Q"),
 			"key": "Q",
 			"story": "Take what collapse leaves.",
 			"how": "tap the frozen bubble  ·  costs 🧺",
@@ -71,7 +72,12 @@ static func welcome_footer() -> String:
 static func is_auto_tutorial(quest: Dictionary, qm = null) -> bool:
 	if qm != null and qm.has_method("tutorial_auto_accepts"):
 		return bool(qm.tutorial_auto_accepts(quest))
-	return str(quest.get("category", "")) == "TUTORIAL"
+	if str(quest.get("category", "")) != "TUTORIAL":
+		return false
+	# Fill stalls wait for Market Accept even without a QuestManager.
+	if str(quest.get("resource", "")).strip_edges() != "" and int(quest.get("quantity", 0)) > 0:
+		return false
+	return true
 
 
 static func quest_title(quest: Dictionary) -> String:
@@ -117,6 +123,13 @@ static func toast_for_offer(quest: Dictionary, qm = null) -> Dictionary:
 	# on top sent earnest to the picker at 🌱×3 (dual gold).
 	if _offer_is_plant(quest) and _sprouts_are_short():
 		return {}
+	# w72: unsigned Find Lanternfall toast sent literalist to Arc, where
+	# the chip named Captain [7][R] while the banner said Ace for 🧺.
+	if _offer_is_discover(quest) and _discovery_well_is_short():
+		return {}
+	# Mill / market goods: banner names Market [Y] Accept. No second gold.
+	if str(quest.get("resource", "")).strip_edges() != "" and int(quest.get("quantity", 0)) > 0:
+		return {}
 	var category := str(quest.get("category", ""))
 	var is_arc := category == "TUTORIAL" or str(quest.get("source_flag", "")).strip_edges() != ""
 	var title := quest_title(quest)
@@ -129,18 +142,9 @@ static func toast_for_offer(quest: Dictionary, qm = null) -> Dictionary:
 			"path": "X",
 			"route": "arc",
 		}
-	# Market: log only. Do not say "here" — there is no here to tap.
-	var fac := str(quest.get("faction", "")).strip_edges()
-	if fac == "":
-		fac = "the market"
-	return {
-		"message": "📜 New offer from %s" % fac,
-		"detail": "",
-		"importance": 1,
-		"icon": "📜",
-		"path": "Q",
-		"route": "",
-	}
+	# No silent Q-path onto the board. Goods already returned above;
+	# leftover faction pings stay in ACTIVITY (importance 1, no toast).
+	return {}
 
 
 ## Arc selected-row postcard. Story first; the ask is one player-voice line;
@@ -257,6 +261,10 @@ static func live_quest(qm = null) -> Dictionary:
 	for pool in pools:
 		for q in pool:
 			if not (q is Dictionary):
+				continue
+			# Ranking last is not enough: a leftover Demos sleeps as the
+			# only quest still WINS. Skip Act-0 once Village has stirred.
+			if str(q.get("category", "")) == "TUTORIAL" and _campaign_past_tutorial():
 				continue
 			var rank := _quest_rank(q, act_by_flag)
 			if rank < best_rank:
@@ -511,6 +519,24 @@ static func beat_from_quest(quest: Dictionary, tense: String) -> Dictionary:
 
 
 static func ask_line(quest: Dictionary) -> String:
+	# w86: Arc OPEN still printed the baked Captain Add Biome hint from
+	# an old save. The gold banner owns the walk — Arc must say the same.
+	var Prog = load("res://UI/Core/UIProgression.gd")
+	if Prog != null:
+		# Call the walk lines directly. The banner decorator can ask_line
+		# back, which hid the filament on w87.
+		if bool(Prog._is_discover_ask(quest)):
+			var disc := str(Prog._discover_walk_line())
+			if disc != "":
+				return disc
+		if bool(Prog._is_plant_ask(quest)) and bool(Prog._sprout_short()):
+			var plant := str(Prog._plant_walk_line())
+			if plant != "":
+				return plant
+		if bool(Prog._basket_short()):
+			var well := str(Prog._basket_walk_line())
+			if well != "":
+				return well
 	var hint := str(quest.get("tutorial_hint", "")).strip_edges()
 	if hint == "":
 		hint = str(quest.get("hint", "")).strip_edges()
@@ -680,10 +706,26 @@ static func _best_unsigned_offer(qm) -> Dictionary:
 static func _quest_rank(q: Dictionary, act_by_flag: Dictionary) -> int:
 	var cat := str(q.get("category", ""))
 	if cat == "TUTORIAL":
+		# w42: leftover "The Demos sleeps" (tutorial_step 0) outranked First
+		# Breath for the whole pond chapter. Act 0 only.
+		if _campaign_past_tutorial():
+			return 0x7FFFFFFF
 		return int(q.get("tutorial_step", 0))
 	if cat == "ARC" and str(q.get("status", "")) != "story":
 		return 1000 + int(act_by_flag.get(str(q.get("source_flag", "")), 99))
 	return 0x7FFFFFFF
+
+
+static func _campaign_past_tutorial() -> bool:
+	var farm = _farm()
+	if farm == null or not ("story_flags_fired" in farm):
+		return false
+	if farm.story_flags_fired.has("village_stirs"):
+		return true
+	var qm := _quest_manager()
+	if qm != null and qm.has_method("get_all_story_flags"):
+		return StoryAtlas.current_act(farm.story_flags_fired, qm.get_all_story_flags()) >= 1
+	return false
 
 
 static func _act_by_flag(qm: Node) -> Dictionary:
@@ -726,6 +768,20 @@ static func _sprouts_are_short() -> bool:
 	# would compile-bomb the HUD smokes.
 	var Prog = load("res://UI/Core/UIProgression.gd")
 	return Prog != null and bool(Prog._sprout_short())
+
+
+static func _offer_is_discover(quest: Dictionary) -> bool:
+	for pred in quest.get("state_predicates", []):
+		if pred is Dictionary and str(pred.get("type", "")) == "biome_evolving":
+			return true
+	return false
+
+
+static func _discovery_well_is_short() -> bool:
+	var Prog = load("res://UI/Core/UIProgression.gd")
+	if Prog == null:
+		return false
+	return bool(Prog._basket_short()) or bool(Prog._eagle_short())
 
 
 static func _quest_manager() -> Node:

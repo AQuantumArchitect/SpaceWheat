@@ -18,6 +18,8 @@ static func resolve(action_info: Dictionary, ctx) -> Dictionary:
 			patch = IconChipResolvers.resolve_r(ctx)
 		"ace.f_explore":
 			patch = AceChipResolvers.resolve_f(ctx)
+		"ace.r_well":
+			patch = AceChipResolvers.resolve_r(ctx)
 		_:
 			return action_info
 	if patch.is_empty():
@@ -37,6 +39,20 @@ static func resolve(action_info: Dictionary, ctx) -> Dictionary:
 ## against (measure additionally physics-scaled by pair unfamiliarity, exactly
 ## as action_measure charges it). Producer-supplied costs (e.g. the injection
 ## submenu) win; free actions stay badge-less.
+static func _ctx_measured_glyph(ctx) -> String:
+	if ctx == null or ctx.farm == null or ctx.farm.grid == null:
+		return ""
+	var qid: int = int(ctx.qubit_index)
+	if qid < 0:
+		return ""
+	var plot = ctx.farm.grid.get_plot(Vector2i(qid, 0))
+	if plot == null or plot.terminal == null:
+		return ""
+	if not bool(plot.terminal.is_measured):
+		return ""
+	return str(plot.terminal.measured_outcome)
+
+
 static func annotate_cost(action_info: Dictionary, ctx) -> Dictionary:
 	if action_info.is_empty() or ctx == null or ctx.farm == null:
 		return action_info
@@ -60,6 +76,42 @@ static func annotate_cost(action_info: Dictionary, ctx) -> Dictionary:
 	if action_name == "":
 		return out
 	var cost: Dictionary = ActionCostRuntime.get_action_cost(ctx.farm, action_name, {})
+	# Match ProbeActions: gathering 🧺 does not spend 🧺.
+	if (action_name == "pop" or action_name == "gather") and cost is Dictionary and cost.has("🧺"):
+		var yield_g := _ctx_measured_glyph(ctx)
+		var axis: Dictionary = ctx.focused_axis() if ctx.has_method("focused_axis") else {}
+		var well: bool = "🧺" in yield_g \
+				or str(axis.get("north", "")) == "🧺" \
+				or str(axis.get("south", "")) == "🧺"
+		var eagle_pop: bool = "🦅" in yield_g \
+				or str(axis.get("north", "")).contains("🦅") \
+				or str(axis.get("south", "")).contains("🦅")
+		if well:
+			cost = cost.duplicate()
+			cost.erase("🧺")
+		if eagle_pop:
+			cost = cost.duplicate()
+			cost.erase("🧺")
+	# w74: Explore on the 🧺 well is free — match ProbeActions.
+	# w157/w160: 🦅 lantern and 🍞 Village plots too (chip must match F).
+	if action_name == "explore" and cost is Dictionary and cost.has("🍞"):
+		var axis_e: Dictionary = ctx.focused_axis() if ctx.has_method("focused_axis") else {}
+		var north_e := str(axis_e.get("north", "")).replace("\uFE0F", "").replace("\uFE0E", "")
+		var south_e := str(axis_e.get("south", "")).replace("\uFE0F", "").replace("\uFE0E", "")
+		var well_e: bool = north_e.contains("🧺") or south_e.contains("🧺") \
+				or north_e.contains("🦅") or south_e.contains("🦅") \
+				or north_e.contains("🍞") or south_e.contains("🍞")
+		if well_e:
+			cost = cost.duplicate()
+			cost.erase("🍞")
+	if action_name == "measure" and cost is Dictionary and cost.has("👥"):
+		var axis_m: Dictionary = ctx.focused_axis() if ctx.has_method("focused_axis") else {}
+		var north_m := str(axis_m.get("north", "")).replace("\uFE0F", "").replace("\uFE0E", "")
+		var south_m := str(axis_m.get("south", "")).replace("\uFE0F", "").replace("\uFE0E", "")
+		var well_m: bool = north_m.contains("🧺") or south_m.contains("🧺")
+		if well_m:
+			cost = cost.duplicate()
+			cost.erase("👥")
 	# (No measure branch: strike is flat 1👥 since 2026-08-25 — the badge and
 	# the wallet read the same number with nothing in between to scale it.)
 	if cost.is_empty():

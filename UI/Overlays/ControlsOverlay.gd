@@ -24,7 +24,6 @@ extends "res://UI/Core/Surface.gd"
 ## frame_ids = [self, story, arc, guide] — one per tab.
 
 const PredicateGloss = preload("res://Core/Quests/PredicateGloss.gd")
-const ToolConfig      = preload("res://Core/GameState/ToolConfig.gd")
 const UIProgression   = preload("res://UI/Core/UIProgression.gd")
 const IntroVoice      = preload("res://Core/Story/IntroVoice.gd")
 
@@ -284,6 +283,7 @@ func _declare_tab_actions() -> void:
 				infos["F"] = {"label": "Flatten"}
 		Tab.SELF:
 			infos = {
+				"E": {"label": "Numbers"},
 				"R": {"label": "Assign"},
 			}
 		_:
@@ -355,13 +355,18 @@ func _refresh_body() -> void:
 ## one objective source, two doors, both now name the destination.
 func _build_self_next_pointer() -> void:
 	# Navigation cue only — do not reprint the live ask (that's the banner).
+	# w36: Self named Arc [I] while Arc read "the next door hasn't opened".
 	var row := Label.new()
-	row.text = "the live door is on Arc [I]  ·  tap"
+	var doors: Array = IntroVoice.doors_ahead(1, _arc_quest_manager(), InstrumentLocator.resolve_active_farm(self))
+	if doors.is_empty():
+		row.text = "the live door is the banner"
+	else:
+		row.text = "the live door is on Arc [I]  ·  tap"
+		row.mouse_filter = Control.MOUSE_FILTER_STOP
+		row.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		ClickWire.attach(row, _show_tab.bind(Tab.ARC))
 	row.add_theme_font_size_override("font_size", 13)
 	row.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
-	row.mouse_filter = Control.MOUSE_FILTER_STOP
-	row.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	ClickWire.attach(row, _show_tab.bind(Tab.ARC))
 	_body_box.add_child(row)
 	_body_box.add_child(_make_spacer(6))
 
@@ -645,9 +650,28 @@ func _build_lexicon_section(farm) -> void:
 ## assign onto a selected qubit. No leftover [1][2][3] clone row.
 ##
 ##   tap a demos qubit — pick which identity qubit to dress
-##   GHJKL;             — cursor through visible known_icons (page of 6)
+##   GHJKL;             — cursor through UNUSED known_icons (page of 6)
 ##   A/D                — page
 ##   R                  — assign cursor's icon onto the selected qubit
+## Worn words stay off the picker: assigning a word already on another
+## qubit stole it (w182 tap-lamb: G fills then R empties, bars oscillate).
+func _unassigned_icon_indices(farm) -> Array:
+	var out: Array = []
+	if farm == null or not farm.has_method("get_known_icons"):
+		return out
+	var icons: Array = farm.get_known_icons()
+	var worn: Dictionary = {}
+	var slots: Array = farm.active_icon_slots if "active_icon_slots" in farm else []
+	for s in slots:
+		var si := int(s)
+		if si >= 0:
+			worn[si] = true
+	for ii in range(icons.size()):
+		if not worn.has(ii):
+			out.append(ii)
+	return out
+
+
 func _build_icon_picker(farm) -> void:
 	_body_box.add_child(_make_section_header("icons · words you know"))
 	if farm == null or not farm.has_method("get_known_icons"):
@@ -657,21 +681,30 @@ func _build_icon_picker(farm) -> void:
 	if icons.is_empty():
 		_body_box.add_child(_make_muted_label("(no known icons yet — incorporate icons via the Icon hat)", 11))
 		return
+	var unused: Array = _unassigned_icon_indices(farm)
+	if unused.is_empty():
+		# w183 tap-lamb: this line named Icon hat while Self was open and
+		# the Icon chip was absent (Act 0 hat still locked). Worn words
+		# already sit on the demos rows above. Do not invent a hat door.
+		_body_box.add_child(_make_muted_label("all words worn — this is who you are", 11))
+		return
 
 	var page_size := ITEM_KEYS.size()  # 6
-	var max_page: int = max(0, int(float(icons.size() - 1) / float(page_size)))
+	var max_page: int = max(0, int(float(unused.size() - 1) / float(page_size)))
 	_self_picker_page = clampi(_self_picker_page, 0, max_page)
 	var start := _self_picker_page * page_size
-	var end := mini(start + page_size, icons.size())
-	_self_picker_icon = clampi(_self_picker_icon, start, end - 1)
+	var end := mini(start + page_size, unused.size())
+	if not unused.has(_self_picker_icon):
+		_self_picker_icon = int(unused[start])
 
 	var pair_row := HBoxContainer.new()
 	pair_row.add_theme_constant_override("separation", 10)
 	for i in range(start, end):
-		var icon: Dictionary = icons[i]
+		var icon_idx: int = int(unused[i])
+		var icon: Dictionary = icons[icon_idx]
 		var key_str: String = ITEM_KEYS[i - start]
 		var icon_str := "%s%s" % [str(icon.get("north", "·")), str(icon.get("south", "·"))]
-		var sel := (i == _self_picker_icon)
+		var sel := (icon_idx == _self_picker_icon)
 		var lbl := Label.new()
 		lbl.text = "[%s] %s" % [key_str, icon_str]
 		lbl.add_theme_font_size_override("font_size", 13)
@@ -679,12 +712,12 @@ func _build_icon_picker(farm) -> void:
 			UIStyleFactory.COLOR_TAB_ACTIVE if sel else UIStyleFactory.COLOR_ITEM_IDLE)
 		lbl.mouse_filter = Control.MOUSE_FILTER_STOP
 		lbl.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-		ClickWire.attach(lbl, _pick_known_icon.bind(i))
+		ClickWire.attach(lbl, _pick_known_icon.bind(icon_idx))
 		pair_row.add_child(lbl)
 	_body_box.add_child(pair_row)
 
 	var hint := Label.new()
-	hint.text = "page %d/%d   ·   tap a demos qubit   ·   GHJKL; pick a word   ·   R assign" % [_self_picker_page + 1, max_page + 1]
+	hint.text = "page %d/%d   ·   tap a demos qubit   ·   unused GHJKL;   ·   R assign" % [_self_picker_page + 1, max_page + 1]
 	hint.add_theme_font_size_override("font_size", 10)
 	hint.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
 	_body_box.add_child(hint)
@@ -970,18 +1003,23 @@ func _fill_story_static_mid(engine, _focus_id: String, _focus_node, outgoing: Ar
 	else:
 		for i in range(outgoing.size()):
 			var edge = outgoing[i]
-			var key_str: String = ITEM_KEYS[i] if i < ITEM_KEYS.size() else " "
 			var target = engine.graph.nodes.get(edge.to_node, null)
 			var target_name: String = target.display_name if target != null else edge.to_node
 			var is_selected := (i == _story_edge_idx)
 			var marker := "▶ " if is_selected else "  "
 			var fired_glyph := " ✓" if edge.fired else ""
-			var line := "%s[%s] → %s%s" % [marker, key_str, target_name, fired_glyph]
+			# w184: printed [G] here while GHJKL actually picks murmur — dual
+			# bind. Edges are tap-to-select (again to crawl), no key chip.
+			var line := "%s→ %s%s" % [marker, target_name, fired_glyph]
 			var lbl := Label.new()
+			lbl.name = "StoryEdge_%d" % i
 			lbl.text = line
 			lbl.add_theme_font_size_override("font_size", 12)
 			lbl.add_theme_color_override("font_color",
 				UIStyleFactory.COLOR_TAB_ACTIVE if is_selected else UIStyleFactory.COLOR_ITEM_IDLE)
+			lbl.mouse_filter = Control.MOUSE_FILTER_STOP
+			lbl.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+			ClickWire.attach(lbl, _select_story_edge.bind(i))
 			box.add_child(lbl)
 
 	box.add_child(_make_spacer(8))
@@ -1035,7 +1073,7 @@ func _fill_story_live_bot(engine) -> void:
 		for i in range(chatter.size()):
 			var sel := (i == _story_chatter_idx)
 			var key_str: String = ITEM_KEYS[i] if i < ITEM_KEYS.size() else " "
-			box.add_child(_make_chatter_bubble(chatter[i], sel, key_str))
+			box.add_child(_make_chatter_bubble(chatter[i], sel, key_str, i))
 		# Attractor state for the selected chatter's biome — what it's "trying to become".
 		var sel_ev: Dictionary = chatter[_story_chatter_idx] if _story_chatter_idx < chatter.size() else {}
 		var sel_biome_name: String = str(sel_ev.get("biome", ""))
@@ -1302,6 +1340,9 @@ func _refresh_story_live() -> void:
 # =============================================================================
 
 func _build_guide_body() -> void:
+	if GUIDE_ITEMS.is_empty():
+		return
+	_guide_item = clampi(_guide_item, 0, GUIDE_ITEMS.size() - 1)
 	_body_box.add_child(_make_section_header("pick a section"))
 	var picker := HBoxContainer.new()
 	picker.add_theme_constant_override("separation", 12)
@@ -1359,7 +1400,8 @@ func _guide_core_loop() -> void:
 func _guide_four_tools() -> void:
 	_body_box.add_child(_make_section_header("the seven archetype frames (4-0)"))
 	_body_box.add_child(_make_action_row("4", "Spark",     "One-shot Lindblad jolt — fires only on open (wet) ground; on closed ground the chips grey (openness is a place). The dissipative kick that re-purifies. E reads the gauge. Mode 2 (🌉): Majorana bridges — R spans, F braids, Q fuses, E reads the card — never sealed, any regime."))
-	_body_box.add_child(_make_action_row("5", "Icon",      "Inject a dual-emoji qubit from the neighborhood's installed signature."))
+	_body_box.add_child(_make_action_row("5", "Icon",
+			"%s a dual-emoji qubit from the neighborhood's installed signature." % ToolConfig.get_action_label(ToolConfig.FRAME_ICON, "R")))
 	_body_box.add_child(_make_action_row("6", "Merchant", "Standing contracts with the country you stand in (wet ground only). 1/2/3 picks the channel: thermal ~ (keeps the field warm) · dephase . (sells phase for heat; no buying it back) · damp | (pins and pays). Q=Export, E=order book, R=Import, F=Settle. Price = −kT·log p."))
 	_body_box.add_child(_make_action_row("7", "Captain",   "Biome lifecycle: Q=cull, E=compass, R=discover."))
 	_body_box.add_child(_make_action_row("8", "Ace", "Measurement vantage: Q=gather the yield (🧺), E=pause+inspect, R=strike (collapse), F=fast-forward / reap the season."))
@@ -1564,8 +1606,25 @@ const CHATTER_MAX_CONNECTIONS := 6
 ##   header: speaker chip (left) + topic biome chip (right)
 ##   body: emojis sized + alpha-modulated by per-qubit measurement marginal
 ##   footer: connection chips (other live biomes the speaker is native to)
-func _make_chatter_bubble(ev: Dictionary, selected: bool, key_str: String) -> PanelContainer:
+func _select_story_edge(idx: int) -> void:
+	if _story_edge_idx != idx:
+		_story_edge_idx = idx
+		_refresh_body()
+		return
+	_story_crawl(1)
+
+
+func _select_story_chatter(idx: int) -> void:
+	if _story_chatter_idx == idx:
+		return
+	_story_chatter_idx = idx
+	_refresh_body()
+
+
+func _make_chatter_bubble(ev: Dictionary, selected: bool, key_str: String, chatter_idx: int = -1) -> PanelContainer:
 	var bubble := PanelContainer.new()
+	bubble.name = "StoryMurmur_%d_%s" % [chatter_idx, key_str]
+	bubble.tooltip_text = "[%s] murmur" % key_str
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.10, 0.12, 0.16, 0.88)
 	sb.border_color = UIStyleFactory.COLOR_TAB_ACTIVE if selected else Color(0.25, 0.30, 0.38, 0.9)
@@ -1646,6 +1705,10 @@ func _make_chatter_bubble(ev: Dictionary, selected: bool, key_str: String) -> Pa
 			footer.add_child(more_label)
 		vbox.add_child(footer)
 
+	bubble.mouse_filter = Control.MOUSE_FILTER_STOP
+	bubble.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	if chatter_idx >= 0:
+		ClickWire.attach(bubble, _select_story_chatter.bind(chatter_idx))
 	return bubble
 
 ## Small chip helper — used for biome / connection labels in chatter bubbles.
@@ -1829,6 +1892,15 @@ func _on_action_r() -> void:
 			var icons: Array = farm.get_known_icons()
 			if icons.is_empty() or _self_picker_icon < 0 or _self_picker_icon >= icons.size():
 				return
+			# Do not steal a word already worn on another qubit (w182 oscillation).
+			var worn_slots: Array = farm.active_icon_slots if "active_icon_slots" in farm else []
+			var would_steal := false
+			for wsi in range(worn_slots.size()):
+				if wsi != _self_picker_slot and int(worn_slots[wsi]) == _self_picker_icon:
+					would_steal = true
+					break
+			if would_steal:
+				return
 			var instr = InstrumentLocator.resolve_quantum_instrument(self)
 			if instr and instr.has_method("action_set_active_icon_slot"):
 				instr.action_set_active_icon_slot(_self_picker_slot, _self_picker_icon)
@@ -1990,6 +2062,12 @@ func _tunnel_from_arc() -> void:
 		return
 	var entry: Dictionary = rows[_arc_selected_idx]
 	var home := _arc_shunt_kind(entry)
+	if home == "market":
+		var mqid: int = int(entry.get("data", {}).get("id", -1))
+		var mom = _arc_overlay_manager()
+		if mom != null and mom.has_method("open_board_on_market"):
+			mom.open_board_on_market(mqid)
+		return
 	if home == "commitments":
 		var qid: int = int(entry.get("data", {}).get("id", -1))
 		var om = _arc_overlay_manager()
@@ -2358,9 +2436,30 @@ func _accept_selected_arc() -> void:
 		RefusalVoice.note("story beat — nothing to accept; Accept [R] works on offer rows")
 		return
 	var data: Dictionary = entry.get("data", {})
+	# w213: even deferred _refresh_body after accept_quest killed Godot
+	# on Two Chores. Run the accept off the overlay input stack.
+	call_deferred("_accept_arc_now", data.duplicate(true))
+
+
+func _accept_arc_now(data: Dictionary) -> void:
+	var qm = _arc_quest_manager()
+	if qm == null:
+		return
 	if qm.has_method("accept_quest") and qm.accept_quest(data):
-		_disarm_arc_confirm()  # the accepted offer leaves the list; rows shift
+		_disarm_arc_confirm()
 		_refresh_body()
+	# w105: Accept on Find Lanternfall is walked on the field — close Arc.
+	# Only close for the lantern discover walk.
+	if UIProgression._is_discover_ask(data):
+		UIProgression.last_lantern_strike = ""
+		var ps = get_tree().get_first_node_in_group("player_shell") if get_tree() else null
+		if ps == null:
+			ps = get_node_or_null("/root/PlayerShell")
+		if ps and "overlay_manager" in ps and ps.overlay_manager \
+				and ps.overlay_manager.has_method("close_overlay"):
+			ps.overlay_manager.close_overlay()
+		else:
+			deactivate()
 
 func _acknowledge_selected_arc() -> void:
 	var qm = _arc_quest_manager()
@@ -2434,6 +2533,12 @@ func is_on_tab(tab_name: String) -> bool:
 
 
 func _show_tab(tab: int) -> void:
+	# w220: Y Story / T Manifold on a live overlay killed Godot. Switch
+	# the tab next frame.
+	call_deferred("_show_tab_now", tab)
+
+
+func _show_tab_now(tab: int) -> void:
 	if _current_tab == tab and frame_id == TAB_TO_FRAME.get(tab, frame_id):
 		return
 	_disarm_arc_confirm()  # a tab change reshuffles what "the selected row" means
@@ -2543,17 +2648,17 @@ func _select_item_in_tab(slot: int) -> void:
 				_story_chatter_idx = slot
 				_refresh_body()
 		Tab.SELF:
-			# GHJKL; moves the picker cursor over visible known_icons.
+			# GHJKL; moves the picker cursor over unused known_icons.
 			var farm = InstrumentLocator.resolve_active_farm(self)
 			if farm == null:
 				return
-			var icons: Array = farm.get_known_icons()
-			if icons.is_empty():
+			var unused: Array = _unassigned_icon_indices(farm)
+			if unused.is_empty():
 				return
 			var page_size := ITEM_KEYS.size()
 			var target := _self_picker_page * page_size + slot
-			if target < icons.size() and _self_picker_icon != target:
-				_self_picker_icon = target
+			if target < unused.size() and _self_picker_icon != int(unused[target]):
+				_self_picker_icon = int(unused[target])
 				_refresh_body()
 		_:
 			pass
@@ -2574,17 +2679,21 @@ func _on_navigate(direction: Vector2i) -> void:
 			# Story crawl walks parent/child along graph topology.
 			_story_crawl(step)
 		Tab.SELF:
-			# Page through known_icons (6 per page).
+			# Page through unused known_icons (6 per page).
 			var farm = InstrumentLocator.resolve_active_farm(self)
 			if farm == null:
 				return
-			var icons: Array = farm.get_known_icons()
-			if icons.is_empty():
+			var unused: Array = _unassigned_icon_indices(farm)
+			if unused.is_empty():
 				return
 			var page_size := ITEM_KEYS.size()
-			var max_page: int = max(0, int(float(icons.size() - 1) / float(page_size)))
+			var max_page: int = max(0, int(float(unused.size() - 1) / float(page_size)))
 			_self_picker_page = clampi(_self_picker_page + step, 0, max_page)
-			_self_picker_icon = clampi(_self_picker_icon, _self_picker_page * page_size, mini((_self_picker_page + 1) * page_size, icons.size()) - 1)
+			var page_start: int = _self_picker_page * page_size
+			var page_end: int = mini(page_start + page_size, unused.size()) - 1
+			if page_start <= page_end:
+				if not unused.has(_self_picker_icon):
+					_self_picker_icon = int(unused[page_start])
 			_refresh_body()
 		Tab.GUIDE:
 			_guide_item = wrapi(_guide_item + step, 0, GUIDE_ITEMS.size())

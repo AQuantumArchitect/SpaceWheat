@@ -2087,6 +2087,19 @@ func mark_for_reregister(biome_name: String) -> void:
 	invalidate_biome_buffer(biome_name)
 
 
+func refill_mi_after_two_qubit(biome_name: String) -> void:
+	# After CNOT/Bell, fill MI cache so Two Chores can score without F Play.
+	if biome_name == "":
+		return
+	var biome = _get_biome_by_name(biome_name)
+	if biome == null:
+		return
+	var biome_id: int = int(_biome_engine_ids.get(biome_name, -1))
+	if lookahead_enabled and lookahead_engine != null and biome_id >= 0:
+		_prime_single_biome(biome, biome_id)
+		_apply_buffered_step(biome, false)
+
+
 func invalidate_biome_buffer(biome_name: String):
 	# Invalidate buffer for a SINGLE biome (player action).
 	#
@@ -2105,7 +2118,9 @@ func invalidate_biome_buffer(biome_name: String):
 	lookahead_buffer.reset_frames()
 	biome_dirty[biome_name] = true
 
-	# Re-prime this biome from current state (frozen 13 phrames)
+	# Frozen prime is safe after 1q Superpose (w214: native prime here
+	# plus Hadamard-while-paused dropped the seat). MI refill after a
+	# 2q Bell is GateInjector.inject_gate_2q → refill_mi_after_two_qubit.
 	var biome = _get_biome_by_name(biome_name)
 	if biome:
 		_prime_single_biome_frozen(biome)

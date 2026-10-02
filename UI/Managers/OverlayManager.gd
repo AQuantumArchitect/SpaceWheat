@@ -415,6 +415,11 @@ func open_overlay(_name: String) -> bool:
 	_verbose.info("ui", "📖", "Opened overlay: %s" % _name)
 	_log_overlay_open_next_frame(_name, overlay)
 	overlay_changed.emit(_name, true)
+	# w37 literalist: Market [R] Accept sat next to a sticky "R plants"
+	# toast. Field recipes go away while a menu is the room.
+	var shell = InstrumentLocator.resolve_player_shell(self)
+	if shell != null and shell.has_method("flatten_all_toasts"):
+		shell.flatten_all_toasts()
 	_raise_toast_column()
 	return true
 
@@ -473,17 +478,22 @@ func _log_overlay_open_next_frame_deferred(_name: String, overlay: Control) -> v
 
 
 func close_overlay() -> void:
-	# Close the top overlay on the stack.
+	# Defer the pop: ESC / Accept close from inside overlay input. Immediate
+	# pop deactivated the Control still on the stack of _input (w191: Godot
+	# vanished on ESC from Story, second Story open, Guide O).
 	if not overlay_stack:
 		return
+	call_deferred("_close_overlay_now")
 
+
+func _close_overlay_now() -> void:
+	if not overlay_stack:
+		return
 	var top = overlay_stack.get_top()
 	if not top:
 		return
-
 	var overlay_name = top.overlay_name if top.get("overlay_name") else top.name
 	overlay_stack.pop()
-
 	_verbose.info("ui", "📕", "Closed overlay: %s" % overlay_name)
 	overlay_changed.emit(overlay_name, false)
 
@@ -516,15 +526,27 @@ func _on_registered_overlay_closed(_name: String) -> void:
 
 
 func close_all_overlays() -> void:
-	# Close all registered overlays (used by logger config for mutual exclusion).
+	# w205: ESC after C-board Manifold popped the stack from inside
+	# _input and killed headless Godot. Same family as w203 C-on-Playthrough.
 	if not overlay_stack:
 		return
+	call_deferred("_close_all_overlays_now")
 
+
+func _close_all_overlays_now() -> void:
+	# w222 runner: ESC after Two Chores Accept emitted overlay_changed with
+	# this node's name, not the overlay key, and popped from a still-hot
+	# stack. close_all() leaves PlayBase; emit each closed key.
+	if not overlay_stack:
+		return
+	var closed: Array = []
 	for overlay_key in overlays.keys():
 		var overlay = overlays[overlay_key]
 		if overlay_stack.has_overlay(overlay):
-			overlay_stack.pop_overlay(overlay)
-			overlay_changed.emit(name, false)
+			closed.append(overlay_key)
+	overlay_stack.close_all()
+	for overlay_key in closed:
+		overlay_changed.emit(overlay_key, false)
 
 
 func reset() -> void:
@@ -570,6 +592,13 @@ func open_event_home(key: String, quest_id: int = -1) -> void:
 			qid = int(parts[1])
 		open_board_on_commitments(qid, view)
 		return
+	if ku == "MARKET" or k.begins_with("market"):
+		var mqid := quest_id
+		var mparts := k.split(":")
+		if mparts.size() == 2 and mparts[1].is_valid_int():
+			mqid = int(mparts[1])
+		open_board_on_market(mqid)
+		return
 	if ku == "ARC" or ku == "XI" or ku == "I":
 		_ensure_open("controls")
 		var controls = overlays.get("controls")
@@ -600,7 +629,9 @@ func open_event_home(key: String, quest_id: int = -1) -> void:
 		_ensure_open("atlas")
 		return
 	if ku == "Q" or ku == "C" or ku == "QUESTS" or ku == "BOARD":
-		open_board_on_commitments()
+		# C itself picks the room (empty hands → Market, held → U).
+		# Never dump a pickup chip onto Commitments.
+		_ensure_open("quests")
 		return
 	if ku == "N" or ku == "INSPECTOR":
 		_ensure_open("inspector")
@@ -621,7 +652,8 @@ func open_event_home(key: String, quest_id: int = -1) -> void:
 func is_event_home_open(key: String) -> bool:
 	var k := str(key).strip_edges()
 	var ku := k.to_upper()
-	if k.begins_with("commitments") or ku == "Q" or ku == "C" or ku == "QUESTS" or ku == "BOARD":
+	if k.begins_with("commitments") or ku == "MARKET" or k.begins_with("market") \
+			or ku == "Q" or ku == "C" or ku == "QUESTS" or ku == "BOARD":
 		return _overlay_is_open("quests")
 	if ku == "ARC" or ku == "XI" or ku == "I":
 		if not _overlay_is_open("controls"):
@@ -645,6 +677,8 @@ func is_event_home_open(key: String) -> bool:
 		return guide != null and guide.has_method("is_on_tab") and bool(guide.is_on_tab("guide"))
 	if ku == "V" or ku == "ATLAS":
 		return _overlay_is_open("atlas")
+	if ku == "M" or ku == "MAP" or k == "map" or k == "map_meta":
+		return _overlay_is_open("map_meta")
 	return false
 
 
@@ -679,6 +713,16 @@ func _ensure_open(overlay_name: String) -> void:
 ## quest board: open (never close) landed on Commitments, optionally with one
 ## quest's row selected. ContractChip's ready-glow taps here; toast routes
 ## will share it.
+func open_board_on_market(quest_id: int = -1) -> void:
+	if not overlays.has("quests"):
+		return
+	var overlay = overlays["quests"]
+	if not (overlay_stack and overlay_stack.has_overlay(overlay)):
+		toggle_overlay("quests")
+	if overlay.has_method("show_market_focused"):
+		overlay.show_market_focused(quest_id)
+
+
 func open_board_on_commitments(quest_id: int = -1, view: String = "active") -> void:
 	if not overlays.has("quests"):
 		return
@@ -693,7 +737,11 @@ func open_board_on_commitments(quest_id: int = -1, view: String = "active") -> v
 ## task. An explicit biome wins; otherwise UIProgression.objective_target()
 ## names it. Empty biome still closes — standing on the field IS the scoot
 ## when the next verb is already here.
-func scoot_toward(biome: String = "") -> void:
+##
+## `plot_idx` / `glyph` land on ONE plot, not the whole board. Glyph is
+## resolved AFTER the biome switch so 🪵 finds Woodlot's plot, not Village's.
+## "empty" is the plant seat (column past live qubits).
+func scoot_toward(biome: String = "", plot_idx: int = -1, glyph: String = "") -> void:
 	var target := str(biome).strip_edges()
 	if target == "":
 		target = str(UIProgression.objective_target().get("biome", "")).strip_edges()
@@ -708,7 +756,33 @@ func scoot_toward(biome: String = "") -> void:
 			on_rail = int(abm.get_slot_for_biome(target)) >= 0
 		if on_rail and abm != null and abm.has_method("set_active_biome"):
 			abm.set_active_biome(target)
+	if plot_idx < 0:
+		plot_idx = _plot_idx_for_glyph(str(glyph).strip_edges())
 	close_all_overlays()
+	if plot_idx >= 0:
+		_focus_field_plot(plot_idx, target)
+
+
+func _plot_idx_for_glyph(glyph: String) -> int:
+	if glyph == "":
+		return -1
+	var key := ""
+	if glyph == "empty":
+		key = str(UIProgression._empty_plot_key())
+	else:
+		key = str(UIProgression._glyph_plot_key(glyph))
+	return UIProgression.plot_idx_from_key(key)
+
+
+func _focus_field_plot(plot_idx: int, biome: String) -> void:
+	var shell = InstrumentLocator.resolve_player_shell(self)
+	if shell == null or not ("instrument_input" in shell):
+		return
+	var qii = shell.instrument_input
+	if qii == null:
+		return
+	if qii.has_method("focus_plot"):
+		qii.focus_plot(plot_idx, biome)
 
 
 func toggle_overlay(_name: String) -> void:

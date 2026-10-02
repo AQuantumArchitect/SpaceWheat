@@ -94,19 +94,40 @@ static func action_explore(terminal_pool, biome, economy = null, register_id: in
 				"blocked": true
 			}
 
-	# 3. Preflight cost (after availability gates)
-	var explore_cost_gate = _preflight_action(economy, "explore")
-	if not explore_cost_gate.get("ok", true):
-		var cost = explore_cost_gate.get("cost", {})
-		var missing = cost.keys()[0] if cost.size() > 0 else "resources"
-		return {
-			"success": false,
-			"error": "insufficient_resources",
-			"message": "Need %s to explore — contracts pay it (C board), and Q-gathering earns on plots you already hold." % missing
-		}
-
 	# 4. Emoji pair for the chosen register (for terminal display)
 	var emoji_pair = biome.get_register_emoji_pair(resolved_register)
+	# w75: viz_cache is fog-empty on unrevealed plots, so the well
+	# check missed 🧺 and Explore still charged 🍞. RegisterMap is truth.
+	if biome.quantum_computer != null and biome.quantum_computer.register_map != null:
+		var ax = biome.quantum_computer.register_map.axis(resolved_register)
+		if ax is Dictionary and not ax.is_empty():
+			emoji_pair = ax
+	# w66: Village G 🧺 well, F no-op at 🍞=0. Commerce must be enterable.
+	var well: bool = false
+	var eagle_well: bool = false
+	var bread_well: bool = false
+	if emoji_pair is Dictionary:
+		var poles := str(emoji_pair.get("north", "")) + str(emoji_pair.get("south", ""))
+		var norm := poles.replace("\uFE0F", "").replace("\uFE0E", "")
+		well = norm.contains("🧺")
+		eagle_well = norm.contains("🦅")
+		bread_well = norm.contains("🍞")
+
+	# 3. Preflight cost (after availability gates). 🧺-axis expeditions
+	# are the well — do not spend 🍞 to reach a basket. w157: 🦅 lantern
+	# plots the same (earnest F blocked on 🍞 with 🧺 in hand).
+	# w160-r2: Village 👥🍞 Explore still charged 🍞 at wallet 0.
+	var explore_cost_gate = {"ok": true, "cost": {}}
+	if not well and not eagle_well and not bread_well:
+		explore_cost_gate = _preflight_action(economy, "explore")
+		if not explore_cost_gate.get("ok", true):
+			var cost = explore_cost_gate.get("cost", {})
+			var missing = cost.keys()[0] if cost.size() > 0 else "resources"
+			return {
+				"success": false,
+				"error": "insufficient_resources",
+				"message": "Need %s to explore — contracts pay it (C board), and Q-gathering earns on plots you already hold." % missing
+			}
 
 	# 5. Bind terminal → register (biome by name; Terminal is single source of truth)
 	var bound = terminal_pool.bind_terminal(terminal, resolved_register, biome_name, emoji_pair)
@@ -227,6 +248,16 @@ static func action_measure(terminal, biome, economy = null, farm = null) -> Dict
 	# Override-aware: route through ActionCostRuntime so balance-board action_cost
 	# overrides actually reach measure (EconomyConstants is the fallback inside it).
 	var measure_cost = ActionCostRuntime.get_action_cost(farm, "measure", {})
+	# w77: Strike on the 🧺 well charged 👥 and earnest R no-op'd at 👥=0.
+	# Explore on this axis is already free; the well must be enterable.
+	if biome != null and biome.quantum_computer != null and biome.quantum_computer.register_map != null:
+		var rid := int(terminal.bound_register_id) if terminal else -1
+		if rid >= 0:
+			var axm: Dictionary = biome.quantum_computer.register_map.axis(rid)
+			var poles_m := str(axm.get("north", "")) + str(axm.get("south", ""))
+			if poles_m.replace("\uFE0F", "").replace("\uFE0E", "").contains("🧺"):
+				measure_cost = measure_cost.duplicate()
+				measure_cost.erase("👥")
 	var measure_cost_gate = _preflight_cost(economy, measure_cost)
 	if not measure_cost_gate.get("ok", true):
 		var cost = measure_cost_gate.get("cost", {})
@@ -971,6 +1002,33 @@ static func _prepare_pop_result(terminal, terminal_pool, economy = null, farm = 
 		# differently — through the surprisal REWARD below — so scaling the
 		# basket fee on top of that taxed the same physics twice, invisibly.
 		var pop_cost = ActionCostRuntime.get_action_cost(farm, "pop", {})
+		# w63/w64: Commerce is 🧺|💰. A 💰 collapse still charged 🧺, so
+		# Village F/R/Q died at wallet 0. Any pop on a 🧺 axis is the well.
+		var well: bool = resource == "🧺"
+		var eagle_axis: bool = false
+		if not well:
+			var ax: Dictionary = {}
+			if farm:
+				var biome = reward_ctx.get("biome")
+				if biome != null and biome.quantum_computer != null \
+						and biome.quantum_computer.register_map != null and register_id >= 0:
+					ax = biome.quantum_computer.register_map.axis(register_id)
+			if "north_emoji" in terminal:
+				well = str(terminal.north_emoji) == "🧺" or str(terminal.south_emoji) == "🧺"
+				eagle_axis = str(terminal.north_emoji).contains("🦅") \
+						or str(terminal.south_emoji).contains("🦅")
+			if not well:
+				well = str(ax.get("north", "")) == "🧺" or str(ax.get("south", "")) == "🧺"
+			if not eagle_axis:
+				eagle_axis = str(ax.get("north", "")).contains("🦅") \
+						or str(ax.get("south", "")).contains("🦅")
+		if well and pop_cost is Dictionary and pop_cost.has("🧺"):
+			pop_cost = pop_cost.duplicate()
+			pop_cost.erase("🧺")
+		# w160-r2: 🦅🐇 miss still charged 🧺, wallet drained gathering 🐇.
+		if eagle_axis and pop_cost is Dictionary and pop_cost.has("🧺"):
+			pop_cost = pop_cost.duplicate()
+			pop_cost.erase("🧺")
 		var pop_cost_gate = _preflight_cost(economy, pop_cost)
 		if not pop_cost_gate.get("ok", true):
 			return {
@@ -984,6 +1042,11 @@ static func _prepare_pop_result(terminal, terminal_pool, economy = null, farm = 
 				"error": "cost_commit_failed",
 				"message": "Pop failed: unable to spend cost."
 			}
+		# w156: Commerce 🧺|💰 Born often paid 💰/🌊, wallet 🧺 stayed 0,
+		# lantern_door deadlocked (Gather costs 🧺; the well is the first 🧺).
+		# The well grows baskets. Born glyph still sits on the terminal.
+		if well:
+			resource = "🧺"
 		economy.add_resource(resource, resource_amount, "pop")
 
 	return {

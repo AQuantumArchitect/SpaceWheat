@@ -36,6 +36,7 @@ All output is one JSON object on stdout.
 """
 import json
 import os
+import re
 import subprocess
 import sys
 # Windows consoles default to cp1252 — emoji JSON then crashes every `look`,
@@ -261,6 +262,20 @@ def cmd_screenshot(seat: str, _name: str) -> dict:
             "hint": "this run is headless — `look` is your eyes"}
 
 
+def _flags_from_tres(path: Path) -> list:
+    """Parse story_flags_fired keys from a campaign .tres. Empty on miss."""
+    if not path or not path.is_file():
+        return []
+    text = path.read_text(encoding="utf-8", errors="replace")
+    start = text.find("story_flags_fired = {")
+    if start < 0:
+        return []
+    end = text.find("\n}", start)
+    if end < 0:
+        return []
+    return re.findall(r'"([^"]+)"\s*:', text[start:end])
+
+
 def cmd_bank(seat: str, name: str) -> dict:
     # Harness-side checkpoint: save the live campaign into the shared
     # checkpoints dir (owner directive: aggressive checkpoints so marathons
@@ -276,6 +291,10 @@ def cmd_bank(seat: str, name: str) -> dict:
     if not r.get("saved", False):
         return {"ok": False, "error": "save_failed", "detail": str(r)[:200]}
     flags = _turn(seat, st, c, "story_flags").get("flags_fired", {}) or {}
+    if not flags:
+        # RPC can return {} while the .tres we just wrote still has the dict.
+        # Sidecar empty-list used to poison promote overlay (JSON won over tres).
+        flags = {k: 1 for k in _flags_from_tres(path)}
     (CHECKPOINT_DIR / ("%s.json" % name)).write_text(json.dumps(
         {"name": name, "banked_from": seat, "time": time.time(),
          "flags_fired": sorted(flags.keys())}, ensure_ascii=False, indent=1))

@@ -77,6 +77,41 @@ def _iter_live_files():
             yield path
 
 
+def test_uiprogression_has_method_is_not_called_on_the_type():
+    """GDScript 4 treats a preloaded script as a type. Type.has_method is a
+    parse error and unloads QuantumInstrumentInput — farm G/H/J/F/R go dead
+    (hive-campaign-125 runner wall). Call basket_well_grid_pos directly."""
+    banned = "UIProgression.has_method"
+    hits = []
+    for rel in (
+        "UI/Core/QuantumInstrumentInput.gd",
+        "UI/Core/ActionValidator.gd",
+        "Core/UI/AceChipResolvers.gd",
+    ):
+        text = (ROOT / rel).read_text(encoding="utf-8")
+        if banned in text:
+            hits.append(rel)
+    assert not hits, "Type.has_method parse-kills QII: " + ", ".join(hits)
+    ace = (ROOT / "Core/UI/AceChipResolvers.gd").read_text(encoding="utf-8")
+    assert "const UIProgression = preload" in ace
+    qii = (ROOT / "UI/Core/QuantumInstrumentInput.gd").read_text(encoding="utf-8")
+    assert "var exp_biome: String" in qii
+    # w161-r2: skipping resolve on every R made Icon R always inject_icon.
+    perform = qii.split("func _perform_action(")[1].split("\nfunc ")[0]
+    assert 'action_key != "R"' not in perform
+    assert "ChipResolverRegistry.resolve" in perform
+    # w155: ProbeActions.gd:1001 `var well := resource == "🧺"` parse-killed
+    # action_explore/measure (base GDScript, no methods). R silent / F mute.
+    for rel in (
+        "Core/Actions/ProbeActions.gd",
+        "Core/Instrumentation/QuantumInstrument.gd",
+        "Core/UI/AceChipResolvers.gd",
+        "Core/UI/ChipResolverRegistry.gd",
+    ):
+        text = (ROOT / rel).read_text(encoding="utf-8")
+        assert "var well :=" not in text, rel
+
+
 def test_archived_residue_not_present_in_live_tree():
     for archived_path in ARCHIVED_PATHS:
         assert not archived_path.exists(), f"archived path still present in live tree: {archived_path}"

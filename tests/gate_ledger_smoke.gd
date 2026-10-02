@@ -83,7 +83,7 @@ func _run() -> void:
 	var arc := {"id": 4, "category": "ARC",
 		"state_predicates": [{"type": "coherence_at_least", "value": 0.3}]}
 	_check(qm.tutorial_auto_accepts(auto_step), "predicate tutorial steps auto-accept")
-	_check(qm.tutorial_auto_accepts(manual_delivery), "the mill is in the auto-accept lane")
+	_check(not qm.tutorial_auto_accepts(manual_delivery), "the mill waits for Market Accept")
 	_check(qm.tutorial_auto_advances(auto_step), "predicate tutorial steps auto-claim")
 	_check(not qm.tutorial_auto_advances(manual_delivery),
 		"the mill DELIVERY does not auto-claim — Commitments is the fill")

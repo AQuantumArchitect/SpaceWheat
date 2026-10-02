@@ -17,6 +17,8 @@ coordinator.
 
 1. **The sensor never holds the hammer.** Legs report; they do not repair.
    A tester with a hammer patches the magic out of the world.
+   The **runner** (grok-4.6) may *read* game source when stuck and file a
+   `DIAGNOSIS:` line. Reading is not the hammer. Editing still is.
 2. **A precise early surrender is a success.** ~8–10 presses without visible
    progress on the current objective → bank, file the wall report
    (*tried / saw / expected*), stop. Forcing through is the failure mode.

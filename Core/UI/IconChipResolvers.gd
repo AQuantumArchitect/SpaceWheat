@@ -4,11 +4,13 @@ extends Object
 ## Chip-text resolvers for the Icon archetype frame. Pure projections from
 ## ChipContext (sim-side state) to action_info patches. No state stored here.
 
+const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
+
 
 
 static func resolve_r(ctx: ChipContext) -> Dictionary:
 	# Four-state contextual chip for Icon-hat R:
-	#   nothing focused / empty plot → static "Add Icon" (default action_info; submenu opens picker)
+	#   nothing focused / empty plot → static "Plant" (default action_info; submenu opens picker)
 	#   full + untracked             → blank (R has no work; F is for tracking)
 	#   full + tracked + unripe      → "Not ready" (visible feedback for engaged player)
 	#   full + tracked + ripe        → "Incorporate" (harvest the learned icon)
@@ -24,7 +26,7 @@ static func resolve_r(ctx: ChipContext) -> Dictionary:
 		# pressed anyway (anti-gating law: three relay legs farmed act 1
 		# perfectly and never found incorporation — the silent R was the wall).
 		return {"action": "", "label": "Track first (F)", "disabled": true,
-				"reason": "nothing to incorporate here — track this loop (F) until it ripens, or pick an empty plot (G H J K L ;) and press R to plant a new icon (costs 🌱)"}
+				"reason": "nothing to incorporate here — track this loop (F) until it ripens, or pick an empty plot (G H J K L ;) and %s a new icon (costs 🌱)" % ToolConfig.action_cue(ToolConfig.FRAME_ICON, "R")}
 	if register.is_ripe(qid):
 		return {"action": "incorporate_icon", "label": "Incorporate", "disabled": false}
 	# Live ripeness percent: "Not ready" with no meter made every ripening
