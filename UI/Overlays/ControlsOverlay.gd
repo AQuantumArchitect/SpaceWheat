@@ -2360,7 +2360,7 @@ func _accept_selected_arc() -> void:
 	var data: Dictionary = entry.get("data", {})
 	if qm.has_method("accept_quest") and qm.accept_quest(data):
 		_disarm_arc_confirm()  # the accepted offer leaves the list; rows shift
-		_refresh_body()
+		call_deferred("_refresh_body")
 
 func _acknowledge_selected_arc() -> void:
 	var qm = _arc_quest_manager()
