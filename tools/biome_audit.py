@@ -460,6 +460,30 @@ def fmt_sign(v: float, width: int = 7) -> str:
     return f"{v:+{width}.3f}"
 
 
+def fe0f_gate_mismatches(biome: dict) -> list[str]:
+    """Gated gates whose stripped form is a biome emoji and whose raw form is not.
+
+    load_biomes(normalize=True) strips U+FE0F from the emojis list only.
+    atom_components keys and gated gate/target strings stay raw, so a gate
+    written with a variation selector (e.g. detective \U0001f575\ufe0f) fails
+    an exact membership test against the stripped cloud (\U0001f575) even
+    though strip_fe0f(gate) is in that cloud. Faction baselines and Lindblad
+    tuples are left untouched; this is a report-only check.
+    """
+    emojis = biome.get("emojis") or []
+    cloud = set(emojis)
+    seen = set()
+    out = []
+    for _src, _tgt, gate, _rate, _power, _inv in extract_biome_lindblad(biome)["gated"]:
+        if not isinstance(gate, str) or not gate or gate in seen:
+            continue
+        bare = strip_fe0f(gate)
+        if gate not in cloud and bare in cloud and bare != gate:
+            seen.add(gate)
+            out.append(f"gated gate {gate} stripped {bare} matches biome emoji; raw form does not")
+    return out
+
+
 def audit_biome(biome: dict, factions: list[dict], verbose: bool = True):
     """Full audit of a single biome. Returns summary dict."""
     name = biome["name"]
@@ -500,6 +524,7 @@ def audit_biome(biome: dict, factions: list[dict], verbose: bool = True):
     issues = []
     if not has_profile:
         issues.append("no .jsonl profile")
+    issues.extend(fe0f_gate_mismatches(biome))
 
     if verbose:
         print()
@@ -656,6 +681,18 @@ def summary_table(biomes: list[dict], factions: list[dict]):
         print(f"  {color}{result['name']:<26s}{reset} {result['emojis']:>6d} {result['axes']:>5d} {result.get('factions_overlap', 0):>8d} {profiled:>8s} {issue_str:>6s}")
     print("─" * 68)
     print(f"  {BOLD}{len(biomes)} biomes | {total_profiled} profiled | {total_issues} total issues{RESET}")
+    # Same FE0F class as the single-biome audit: raw gated gate absent from
+    # the stripped emoji cloud, stripped form present. One line per biome.
+    fe0f_rows = []
+    for b in sorted(biomes, key=lambda x: x["name"]):
+        hits = fe0f_gate_mismatches(b)
+        if hits:
+            fe0f_rows.append((b["name"], hits))
+    if fe0f_rows:
+        print(f"  {YELLOW}FE0F gated-gate mismatches (stripped form in cloud, raw form not):{RESET}")
+        for name, hits in fe0f_rows:
+            for hit in hits:
+                print(f"    • {name}: {hit}")
     print()
 
 
