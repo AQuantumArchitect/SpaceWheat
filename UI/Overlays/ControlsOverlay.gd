@@ -161,6 +161,12 @@ var _arc_signal_connected: bool = false
 # happens; it never fires accept.
 var _arc_row_confirm_armed: bool = false
 var _arc_inspect_open: bool = false        # E / first tap unfolds physics in the row; F flattens. No toast.
+# Accept [R] commits and disarms on this stack. The catalog reshape is posted
+# only after accept_quest returns — a story_flag_fired it emits must not
+# rebuild the body before that return (that froze the live seat).
+var _arc_body_refresh_queued: bool = false
+var _arc_flush_posted: bool = false
+var _arc_accepting: bool = false
 
 # UI refs.
 var _status_line: Label = null
@@ -1265,6 +1271,8 @@ func _on_story_trajectory(_from: String, to_node: String, _edge: String) -> void
 ## Chatter/activity refill only the live section boxes; a trajectory advance
 ## (story-flag fire, rare) rebuilds the whole body since focus/edges moved.
 func _process(delta: float) -> void:
+	if _arc_body_refresh_queued and not _arc_accepting:
+		_post_arc_body_refresh()
 	_story_heartbeat_accum += delta
 	if _story_heartbeat_accum < STORY_HEARTBEAT_S:
 		return
@@ -1885,7 +1893,9 @@ func _ensure_arc_signal() -> void:
 func _on_arc_flag_changed(_flag_id: String, _flag: Dictionary) -> void:
 	if _current_tab == Tab.ARC:
 		_disarm_arc_confirm()  # a fired beat reorders _arc_rows() under the cursor
-		_refresh_body()
+		# Same law as Accept: a flag fired inside accept_quest must not
+		# rebuild the catalog before that call returns.
+		_queue_arc_body_refresh()
 
 func _build_arc_body() -> void:
 	var rows: Array = _arc_rows()
@@ -2344,6 +2354,9 @@ func _start_hint_pulse(node: Control) -> void:
 
 ## Accept the selected arc/tutorial offer into active quests (R). Without this,
 ## arc offers could only be dismissed, never worked on — they would dead-end.
+## accept_quest runs to completion on this stack (the offer is taken and the
+## confirm arm drops) and only THEN is the Arc body queued. Rebuilding inside
+## the call — or from a story_flag_fired it emits — froze the live seat.
 func _accept_selected_arc() -> void:
 	var qm = _arc_quest_manager()
 	if qm == null:
@@ -2358,9 +2371,23 @@ func _accept_selected_arc() -> void:
 		RefusalVoice.note("story beat — nothing to accept; Accept [R] works on offer rows")
 		return
 	var data: Dictionary = entry.get("data", {})
-	if qm.has_method("accept_quest") and qm.accept_quest(data):
+	if not qm.has_method("accept_quest"):
+		return
+	# Suppress the catalog reshape for the whole accept_quest call, including
+	# a story_flag_fired it emits (that signal used to rebuild before return).
+	_arc_accepting = true
+	var accepted := bool(qm.accept_quest(data))
+	_arc_accepting = false
+	if accepted:
 		_disarm_arc_confirm()  # the accepted offer leaves the list; rows shift
-		_refresh_body()
+		# A story flag emitted inside accept_quest may already have queued a
+		# refresh; this direct deferred rebuild covers it without rebuilding
+		# during the accept call or posting a duplicate flush.
+		_arc_body_refresh_queued = false
+		call_deferred("_refresh_body")
+	else:
+		_post_arc_body_refresh()
+
 
 func _acknowledge_selected_arc() -> void:
 	var qm = _arc_quest_manager()
@@ -2380,6 +2407,35 @@ func _acknowledge_selected_arc() -> void:
 	_disarm_arc_confirm()  # the dismissed offer leaves the list; rows shift
 	_refresh_body()
 
+
+## One catalog reshape, posted only once accept_quest is off the stack.
+## Flag signals during the call set the dirty bit and return; _post runs
+## after the call (and again from _process if a nested flush aborted).
+func _queue_arc_body_refresh() -> void:
+	_arc_body_refresh_queued = true
+	_post_arc_body_refresh()
+
+
+func _post_arc_body_refresh() -> void:
+	if _arc_accepting or not _arc_body_refresh_queued or _arc_flush_posted:
+		return
+	_arc_flush_posted = true
+	call_deferred("_flush_arc_body_refresh")
+
+
+func _flush_arc_body_refresh() -> void:
+	_arc_flush_posted = false
+	if _arc_accepting:
+		return
+	if not is_inside_tree():
+		_arc_body_refresh_queued = false
+		return
+	var dirty := _arc_body_refresh_queued
+	_arc_body_refresh_queued = false
+	if not dirty or _current_tab != Tab.ARC:
+		return
+	_refresh_body()
+	_declare_tab_actions()
 func _ratio_bar(ratio: float, length: int) -> String:
 	return OverlayChrome.ratio_bar(ratio, length)
 
