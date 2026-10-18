@@ -46,7 +46,7 @@
   }
  },
  "resources": {
-  "_doc": "Every resource a story step spends, and where it comes from. `plots`: biomes whose registers carry it (gather). `trades`: standing contracts that ALWAYS sit on that biome's board while the biome is loaded — the market is how south poles are earned. A trade in the Village whose `give` a broke player can always raise is the RESCUE: an empty wallet is never a dead end. `low_water`: the objective banner switches to this resource's supply walk before a spend would take the wallet below it.",
+  "_doc": "Every resource a story step spends, and where it comes from. `plots`: biomes whose registers carry it (gather). `trades`: standing contracts that ALWAYS sit on that biome's board while the biome is loaded — the market is how south poles are earned. A trade in the Village whose `give` a broke player can always raise is the RESCUE: an empty wallet is never a dead end. `low_water`: the objective banner switches to this resource's supply walk before a spend would take the wallet below it. Two more routes exist and stay legitimate strategy: ordinary market contracts (issuer rewards), and descending the fractal atlas (] key) into an INCORPORATED word's child world, whose registers carry that word's resources. The validator does not count those two, so a campaign that passes is playable without them.",
   "🧺": {
    "low_water": 3,
    "spent_by": "gather",

@@ -66,6 +66,10 @@ resource it gives:
     Spring, 🔨 and 🧺 in the Village.
   - Every resource also has a Village trade that a broke player can afford.
     That is the rescue: an empty wallet is never a dead end.
+  - Ordinary market contracts and descending the fractal atlas (`]`) into an
+    incorporated word's world are also legitimate sources. The validator
+    leaves them out on purpose, so a campaign that passes is playable even
+    without them.
 - `low_water`: the objective banner switches to the supply walk before a spend
   would take you below it.
 
