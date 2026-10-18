@@ -165,9 +165,9 @@ def test_refused_plant_names_its_south_pole_trade():
     prog = (ROOT / "UI/Core/UIProgression.gd").read_text(encoding="utf-8")
     plant = prog.split("static func _plant_walk_line()")[1].split("\nstatic func ")[0]
     assert plant.index("_sprout_short()") < plant.index("_plant_south_short()")
-    assert "_supply_walk_line(_plant_south_want)" in plant
+    assert "_supply_walk_line(_plant_south_current())" in plant
     target = prog.split("static func objective_target()")[1].split("\nstatic func ")[0]
-    assert "_supply_target(_plant_south_want)" in target
+    assert "_supply_target(_plant_south_current())" in target
 
 
 def test_rescue_probe_covers_every_village_trade_and_the_axe(rescue):
