@@ -334,6 +334,10 @@ Predicate families (`QuestManager.gd`):
   legitimacy/entanglement).
 
 ### 7.2 The arc (The Demos playthrough, `story_flags.json`)
+
+> **Superseded 2026-10-17:** the authoritative structure (three campaigns, act
+> and chapter titles, beat order) is `Core/Campaign/campaign.json`, summarized
+> in `docs/CAMPAIGN.md`. The text below describes the 2026-08 order.
 Reordered 2026-08-17 (`docs/CAMPAIGN_REORDER_2026-08-17.md`): the early game
 teaches only enough physics to play — farm verbs and contracts — and raises
 the bar per act; every beat also carries a `campaign` tag (the split's

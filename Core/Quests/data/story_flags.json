@@ -411,7 +411,7 @@
     "act_title": "Two Countries",
     "chapter": "spring",
     "chapter_title": "Spring Country",
-    "arc_beat": "Timber found its beat, and the Hearth Keepers heard it from their kitchens — they hear everything the water carries. They keep no ledgers, only kettles, and every kettle on the island fills from one cold thread upstream. They have watched you tend what you touch, and to tenders they extend the table. Follow the water up.",
+    "arc_beat": "A new voice took root in the village, and the Hearth Keepers heard it from their kitchens — they hear everything the water carries. They keep no ledgers, only kettles, and every kettle on the island fills from one cold thread upstream. They have watched you tend what you touch, and to tenders they extend the table. Follow the water up.",
     "predicates": [
       {
         "type": "story_flag_set",
@@ -2000,7 +2000,7 @@
     "act_title": "Bridges & Compass",
     "chapter": "bridges",
     "chapter_title": "The Span",
-    "arc_beat": "You have seen what the wet country takes. Now build the first thing it cannot touch. Split one fermion between two shores — an anchor here, an anchor in the fading country — and the bit you store is their JOINT parity: readable at neither end alone, held by the pair. The Bath is patient, not omnipotent; it drinks only where it has a local handle, and a nonlocal parity offers none. Anchor one shore at home, where nothing leaks, and the span is immortal. The island the door could not open has become the strongest foundation in the open world. Home matters mechanically now, and forever.",
+    "arc_beat": "Whatever the world can touch, it can take. Now build the first thing nothing local can touch. Split one fermion between two shores — an anchor here, an anchor on a far shore — and the bit you store is their JOINT parity: readable at neither end alone, held by the pair. The Bath is patient, not omnipotent; it drinks only where it has a local handle, and a nonlocal parity offers none. Anchor one shore at home, where nothing leaks, and the span is immortal. The island the door could not open has become the strongest foundation in the open world. Home matters mechanically now, and forever.",
     "predicates": [
       {
         "type": "story_flag_set",
@@ -2032,7 +2032,7 @@
     "act_title": "Bridges & Compass",
     "chapter": "bridges",
     "chapter_title": "The Span",
-    "arc_beat": "Past the door you watched the wet country take things. Before you learn what it cannot take, learn what was never a thing at all. Every plot keeps a clock face — a local zero for its phase, a convention, a habit of bookkeeping. Turn one. The Operator's compass swings the whole dial: displayed phases jump, colors swing, half the ledger rewrites itself. And every prediction — every probability, every ripening, every deal — holds exactly. What a turn of convention can change was never physics. What no turn can change is what the world actually keeps. The Scythe Provosts approve: an auditor's first duty is knowing which entries in the books are real.",
+    "arc_beat": "Your loops came home and kept their shape. Before you learn what holds, learn what was never a thing at all. Every plot keeps a clock face — a local zero for its phase, a convention, a habit of bookkeeping. Turn one. The Operator's compass swings the whole dial: displayed phases jump, colors swing, half the ledger rewrites itself. And every prediction — every probability, every ripening, every deal — holds exactly. What a turn of convention can change was never physics. What no turn can change is what the world actually keeps. The Scythe Provosts approve: an auditor's first duty is knowing which entries in the books are real.",
     "predicates": [
       {
         "type": "story_flag_set",

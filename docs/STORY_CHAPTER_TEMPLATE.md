@@ -1,5 +1,12 @@
 # The Country Chapter Template
 
+> **2026-10-17:** chapters are now authored in `Core/Campaign/campaign.json`
+> (see `docs/CAMPAIGN.md`), not in `story_flags.json`, which is generated. A
+> beat opens on its `requires` alone and asks for one `objective`; thresholds are
+> `params`; a door beat carries `chart`. Standing ladders are checked by
+> `tools/campaign/validate.py` against the grants the story actually pays —
+> the "~0.30 Hearth trust banked from act 1" assumption below no longer holds.
+
 Every faction's story is one repeatable "country chapter": five beats that take the
 player from *a door glows on the compass* to *the country's market is alive and its
 deep word is yours*. Chapter 1 (Millwrights / Woodlot: `woodlot_door` →
