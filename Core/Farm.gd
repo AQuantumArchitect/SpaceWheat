@@ -2013,35 +2013,9 @@ func discover_biome() -> Dictionary:
 		new_biome = BiomeDiscoveryForecastService.weighted_random_pick(unexplored, weights)
 		_log_debug("🗺️ Selected biome: %s (weighted discovery)" % new_biome)
 
-	# Unlock it
-	var unlocked = observation_frame.unlock_biome(new_biome)
-	if not unlocked:
-		_log_debug("❌ Failed to unlock biome")
-		return {"success": false, "message": "Failed to unlock biome"}
-	_log_debug("✅ Biome unlocked successfully")
-
-	# Expand grid to accommodate newly explored biome
-	refresh_grid_for_biomes()
-
-	# Load the new biome
-	_log_debug("🗺️ Loading biome dynamically...")
-	var biome_load_ok = _load_biome_dynamically(new_biome)
-	if not biome_load_ok:
-		_log_debug("❌ Biome failed to load")
-		return {"success": false, "biome_name": new_biome, "message": "Biome unlocked but failed to load"}
-	_log_debug("✅ Biome loaded successfully")
-
-	# Sync with ActiveBiomeManager
-	var biome_router = _get_active_biome_router()
-	if biome_router:
-		biome_router.set_biome_order(observation_frame.get_unlocked_biomes())
-		_log_debug("✅ Synced with ActiveBiomeManager")
-
-	# Switch to the new biome
-	if biome_router:
-		var direction = 1  # Slide right (new biome appears)
-		biome_router.set_active_biome(new_biome, direction)
-		_log_debug("✅ Switched to new biome: %s" % new_biome)
+	var opened := open_biome(str(new_biome), true)
+	if not opened.get("success", false):
+		return opened
 
 	if charted != "":
 		# Same preflight→commit economy path as discovery, at the chart price.
@@ -2058,6 +2032,50 @@ func discover_biome() -> Dictionary:
 
 	_log_debug("🗺️ Exploration complete: %s" % new_biome)
 	return {"success": true, "biome_name": new_biome, "message": "Discovered %s!" % new_biome}
+
+
+## Unlock + load one named biome — the deterministic tail of discover_biome()
+## (which picks the name by weighted draw, then calls this). No cost, no slot
+## check: callers that need either (discover_biome, CampaignFixture) gate first.
+## switch_to slides the view onto the new biome, as a discovery does.
+func open_biome(biome_name: String, switch_to: bool = false) -> Dictionary:
+	var observation_frame = get_node_or_null("/root/ObservationFrame")
+	if not observation_frame:
+		return {"success": false, "message": "ObservationFrame not available"}
+	if biome_name in observation_frame.get_unlocked_biomes() \
+			and grid != null and grid.get_biome(biome_name) != null:
+		return {"success": true, "biome_name": biome_name, "already_loaded": true}
+
+	# Unlock it (false when already unlocked — still load below).
+	observation_frame.unlock_biome(biome_name)
+	if not (biome_name in observation_frame.get_unlocked_biomes()):
+		_log_debug("❌ Failed to unlock biome")
+		return {"success": false, "message": "Failed to unlock biome"}
+	_log_debug("✅ Biome unlocked successfully")
+
+	# Expand grid to accommodate newly explored biome
+	refresh_grid_for_biomes()
+
+	# Load the new biome
+	_log_debug("🗺️ Loading biome dynamically...")
+	var biome_load_ok = _load_biome_dynamically(biome_name)
+	if not biome_load_ok:
+		_log_debug("❌ Biome failed to load")
+		return {"success": false, "biome_name": biome_name, "message": "Biome unlocked but failed to load"}
+	_log_debug("✅ Biome loaded successfully")
+
+	# Sync with ActiveBiomeManager
+	var biome_router = _get_active_biome_router()
+	if biome_router:
+		biome_router.set_biome_order(observation_frame.get_unlocked_biomes())
+		_log_debug("✅ Synced with ActiveBiomeManager")
+
+	# Switch to the new biome
+	if biome_router and switch_to:
+		var direction = 1  # Slide right (new biome appears)
+		biome_router.set_active_biome(biome_name, direction)
+		_log_debug("✅ Switched to new biome: %s" % biome_name)
+	return {"success": true, "biome_name": biome_name}
 
 
 func remove_biome() -> Dictionary:

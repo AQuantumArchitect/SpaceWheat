@@ -99,7 +99,21 @@ doc for full context.
   (`🍄/🧪/checkpoints/endrun_act7.json`, `endrun_act8.json`) are gitignored
   ... Needs one of: (a) a real Godot campaign run to Act 7 and Act 8 to
   regenerate the two fixtures ..., or (b) a skip guard on the test.~~
-  **Fixed 2026-08-16**: (a) happened. `🍄/🧪/act3_5_drive.py`'s `ACT35_ENDGAME=1`
+  **Superseded 2026-10-17 — the claim below no longer stands.** That
+  "real headless campaign" ran `act3_5_drive.py` with `RIG_UNLOCK_ALL=1`
+  (progressive disclosure bypassed) and resource injection ON, on the
+  pre-restructure story graph; it proved the flags could be reached by a
+  driver that skipped the economy, not that the campaign plays. The banked
+  `endrun_act7/act8/ending` saves are deleted. Late-game states now come from
+  spec-built `start_at_beat` fixtures (`Core/Campaign/CampaignFixture.gd`,
+  `tests/test_campaign_fixtures.py`, `tests/test_campaign_checkpoints.py`),
+  and the honest, player-parity drive of the opening
+  (`🍄/🧪/honest_opening.py`, `tests/test_honest_opening.py`) records exactly
+  how far the real economy carries a fresh run: on 2026-10-17 it played
+  Act 0, Act 1 and Act 2's contact/teaching beats by keys alone and stopped
+  by design at `forest_listener` offered (Act 3), with `woodlot_wakes` not
+  attempted. No end-to-end playthrough at player parity exists yet.
+  ~~**Fixed 2026-08-16**: (a) happened. `🍄/🧪/act3_5_drive.py`'s `ACT35_ENDGAME=1`
   block drives a real headless campaign from a fresh boot through
   `the_door_stays_open`; two bugs blocked it from ever reaching Act 8 before
   this pass — `discover_target()` always retried the same un-cullable biome
@@ -113,7 +127,7 @@ doc for full context.
   (commit `f43a4f0`), with a `.gitignore` exception carved out for just
   those two files, mirroring the `native/bin/` pattern — everything else
   under `🍄/🧪/checkpoints/` stays ignored as re-mintable runtime output.
-  `python3 -m pytest tests/ -q` now reads 298 passed, 0 failed, 17 skipped.
+  `python3 -m pytest tests/ -q` now reads 298 passed, 0 failed, 17 skipped.~~
 - **Fixed during this pass**: 11 files across `🍄/` hardcoded the original
   developer's absolute machine path (`/home/primearchitect/ws/SpaceWheat/...`)
   instead of deriving it from the script's own location — silently breaking

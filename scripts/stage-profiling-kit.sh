@@ -29,7 +29,7 @@ source "$SCRIPT_DIR/lib/log.sh"
 
 KIT_DEST="${KIT_DEST:-/mnt/c/Games/SpaceWheat-Releases/profiling-kit}"
 WEB_ZIP="${WEB_ZIP:-/mnt/c/Games/SpaceWheat-Releases/v1.0-rc3/spacewheat-web-1.0-rc3.zip}"
-ENDGAME_SAVE="${ENDGAME_SAVE:-$PROJECT_DIR/🍄/🧪/checkpoints/endrun_ending.tres}"
+ENDGAME_SAVE="${ENDGAME_SAVE:-$PROJECT_DIR/🍄/🧪/checkpoints/fixture_the_door_stays_open.tres}"  # mint: python3 tools/campaign/mint_fixture_save.py the_door_stays_open
 BUILD_SRC="${BUILD_SRC:-$PROJECT_DIR/releases/local/windows-native}"
 SKIP_BUILD=false
 
