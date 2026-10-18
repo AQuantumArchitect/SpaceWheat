@@ -197,7 +197,7 @@ Re-pressing the active hat returns to Ace. No hat = **Ace** (default).
 | 4 | **Spark** ⚡ | pole shift (Lindblad jolt) | **DLC-gated** (hidden in closed mode) |
 | 5 | **Icon** 📖 | Trim / Inspect / **Add-or-Incorporate** / **Track** (Berry) | the progression tool |
 | 6 | **Merchant** 🤝 | import / price / export / tip | **DLC-gated** (hidden in closed mode) |
-| 7 | **Captain** ✳ | Cull / Compass / Add Biome / — | biome lifecycle |
+| 7 | **Captain** ✳ | Cull / Compass / Add Biome (**Chart** a story door's biome, 🦅×21) / — | biome lifecycle |
 | 8 | **Ace** ○ | Gather (🧺) / Pause / **Strike (measure, 👥)** / Explore (🍞) · Fast-Fwd | player vantage; works in every mode |
 | 9 | **Operator** ⚙ | Break / Inspect / Build gate / — | entangling gates |
 | 0 | **Druid** V | rot− / **Hadamard** / rot+ / — | single-qubit unitary; `1/2/3` = X/Y/Z axis |

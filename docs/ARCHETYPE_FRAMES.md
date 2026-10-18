@@ -69,7 +69,7 @@ right. Spark and Druid bookend the set.
 | Spark     | shift ⚡ / bridge 🌉      | S.Pole · Fuse  | Gauge 🔍 · Bridge card    | N.Pole · Span | — · Braid 🪢       |
 | Icon      | inject 📖 / mirror 🪞    | Trim icon · Release | Inspect qubit · **Compare** 🪞 (Δγ + spinor sign vs reference) | Add icon / **Incorporate** (tracked+ripe) · **Stay Home** ⌂ | **Track** ⌖ (Berry phase) · — |
 | Merchant  | thermal ~ / dephase . / damp \| | Export 📤 | Order book !             | Import 📥 (dephase: refused) | Settle ✔ |
-| Captain   | biomes                   | Cull           | Compass (discover peek)   | Add Biome     | —                  |
+| Captain   | biomes                   | Cull           | Compass (discover peek)   | Add Biome · **Chart** (open story door, 🦅×21) | —                  |
 | Ace       | probe                    | Gather         | Pause ⏸                   | Strike !      | Fast-Fwd ⏩        |
 | Operator  | gate )( / compass 🧭     | Break gate · **Comb** 🪮 (tree gauge-fix) | Inspect · **Loops** 🔍 (β₁, Wilson) | Build gate · **Turn** 🧭 (gauge flip) | — · **Shake** 🎲 (scramble) |
 | Druid     | X / Y / Z                | rot−           | Hadamard                  | rot+          | —                  |

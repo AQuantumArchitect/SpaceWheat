@@ -208,14 +208,12 @@ def test_eagle_short_names_gather_key():
     flags = json.loads(HANDOVER.read_text(encoding="utf-8"))
     lantern = next(f for f in flags if f.get("id") == "lantern_door")
     hint = str(lantern.get("arc_quest", {}).get("hint", ""))
+    # Captain Chart: the authored hint names the 🦅 source and the chart key;
+    # the gather/cull choreography lives in the banner walk, not the hint.
     assert "Forest" in hint
-    assert "[8]" in hint
     assert "🦅" in hint
     assert "[7]" in hint
-    assert "[Q]" in hint
-    assert "[R]" in hint
-    assert "cull" in hint.lower()
-    assert "Lanternfall" in hint
+    assert "[R] Chart Lanternfall" in hint
     assert "F reads" not in hint
     assert len(hint) <= 70
 
@@ -257,16 +255,11 @@ def test_basket_short_names_village_q_not_strike():
     flags = json.loads(HANDOVER.read_text(encoding="utf-8"))
     lantern = next(f for f in flags if f.get("id") == "lantern_door")
     hint = str(lantern.get("arc_quest", {}).get("hint", ""))
-    assert "🧺" in hint
-    assert "Village" in hint
+    # Captain Chart hint: 🦅 source + chart key (the 🧺 walk is the banner's).
     assert "Forest" in hint
-    assert "[8]" in hint
     assert "🦅" in hint
     assert "[7]" in hint
-    assert "[Q]" in hint
-    assert "[R]" in hint
-    assert "cull" in hint.lower()
-    assert "Lanternfall" in hint
+    assert "[R] Chart Lanternfall" in hint
     assert "F reads" not in hint
     assert len(hint) <= 70
 
@@ -592,25 +585,27 @@ def test_slots_full_names_cull_target_and_q():
     flags = json.loads(HANDOVER.read_text(encoding="utf-8"))
     lantern = next(f for f in flags if f.get("id") == "lantern_door")
     hint = str(lantern.get("arc_quest", {}).get("hint", ""))
+    # Captain Chart hint names [7] then [R] Chart; the cull is the banner's.
     assert "[7]" in hint
-    assert "[Q]" in hint
-    assert "[R]" in hint
-    assert "cull" in hint.lower()
+    assert "[R] Chart" in hint
     assert "F reads" not in hint
     assert len(hint) <= 70
 
 
-def test_paid_eagles_name_lanternfall_and_the_add_biome_key():
+def test_paid_eagles_name_lanternfall_and_the_chart_key():
     """lantern_door: eagles paid, slots open, Captain [R] Add Biome landed
-    GildedRot and the banner named no coast. Live ask names Lanternfall and
-    the one key that discovers it. Compass leans the coast. Pressure reads
-    the arc quest, not only flag predicates. Do not discover for them."""
+    GildedRot and the banner named no coast. Captain R now CHARTS the open
+    door's biome (no draw); the live ask names it and the one key that
+    charts it. Compass leans the coast. Pressure reads the arc quest, not
+    only flag predicates. Do not chart for them."""
     prog = src(PROG)
     assert "func _named_discover_target" in prog
     disc = prog.split("static func _discover_walk_line()")[1].split("\nstatic func ")[0]
     assert "_named_discover_target" in disc
-    assert "Add Biome for" in disc
-    assert "[R] Add Biome —" in disc
+    assert "_chart_target_biome()" in disc
+    assert "[7] Captain, then [R] Chart %s" in disc
+    assert "[R] Chart %s" in disc
+    assert "[R] Add Biome —" in disc  # no open door: random draw
     named = prog.split("static func _named_discover_target()")[1].split("\nstatic func ")[0]
     assert "biome_evolving" in named
     assert "_biome_unlocked" in named
@@ -637,12 +632,9 @@ def test_paid_eagles_name_lanternfall_and_the_add_biome_key():
     assert any(p.get("biome") == "Lanternfall" for p in arc_preds)
     assert "Lanternfall" in hint
     assert "Forest" in hint
-    assert "[8]" in hint
     assert "🦅" in hint
     assert "[7]" in hint
-    assert "[Q]" in hint
-    assert "[R]" in hint
-    assert "cull" in hint.lower()
+    assert "[R] Chart Lanternfall" in hint
     assert "F reads" not in hint
     assert len(hint) <= 70
 

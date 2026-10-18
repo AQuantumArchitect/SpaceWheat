@@ -2118,13 +2118,27 @@ func _block_reason_for_player(action_name: String) -> String:
 		return plant_full
 	match action_name:
 		"discover_biome":
+			var gate: Dictionary = {}
+			if farm and farm.has_method("can_discover_biome"):
+				gate = farm.can_discover_biome()
+			# Captain Chart short of the price: name holdings vs need, then
+			# the 🦅 gather walk (Forest) so the refusal is not a dead [R].
+			if bool(gate.get("chart_short", false)):
+				# The toast already leads with the chip label ("Chart X refused —").
+				var chart_msg := str(gate.get("message", "")).trim_prefix(
+						"Chart %s " % str(gate.get("chart", "")))
+				var walk := UIProgression.eagle_short_refusal()
+				if walk.begins_with("needs 21🦅 — "):
+					walk = walk.substr("needs 21🦅 — ".length())
+				elif walk.begins_with("needs 21🦅"):
+					walk = ""
+				return chart_msg if walk == "" else "%s · %s" % [chart_msg, walk]
 			# lantern_door: 21 eagles named Forest, no gather key. Banner and
 			# toast share UIProgression.eagle_short_refusal.
 			var eagle := UIProgression.eagle_short_refusal()
 			if eagle != "":
 				return eagle
-			if farm and farm.has_method("can_discover_biome"):
-				var gate: Dictionary = farm.can_discover_biome()
+			if not gate.is_empty():
 				var gmsg := str(gate.get("message", ""))
 				# lantern_door: "Biome slots full" named no cull target and no
 				# key. Banner and toast share UIProgression.slots_full_refusal.
@@ -2973,6 +2987,11 @@ func _execute_discovery_forecast() -> Dictionary:
 	var heading := "[color=#a8d5a2]🧭 Compass:[/color]"
 	if coast != "":
 		heading = "[color=#a8d5a2]🧭 Compass:[/color] leans %s" % coast
+	# Captain Chart: while a door is open R is no draw — say so above the odds
+	# (they only describe the random Add Biome once the door is charted).
+	var chart := str(farm.chart_target_biome()) if farm.has_method("chart_target_biome") else ""
+	if chart != "":
+		heading = "[color=#a8d5a2]🧭 Compass:[/color] [R] charts %s (no draw) · Add Biome odds after:" % chart
 	var lines: PackedStringArray = [heading]
 	var shown := 0
 	for e in entries:
