@@ -563,7 +563,10 @@ static func objective_target() -> Dictionary:
 					return {"key": rail, "hat": cap, "biome": cull}
 				return {"key": "Q", "hat": cap, "biome": cull}
 		# lantern_door: paid eagles + open slots still named no coast.
-		var coast := _named_discover_target()
+		# Chart names the door's biome first (what R will load).
+		var coast := _chart_target_biome()
+		if coast == "":
+			coast = _named_discover_target()
 		if str(ToolConfig.get_current_frame()) != ToolConfig.FRAME_CAPTAIN:
 			return {"key": cap, "hat": cap, "biome": coast}
 		return {"key": "R", "hat": cap, "biome": coast}
@@ -1663,9 +1666,19 @@ static func _named_discover_target() -> String:
 	return ""
 
 
+static func _chart_target_biome() -> String:
+	# The biome Captain R will CHART (open story door, not on the spindle).
+	# Farm.chart_target is the one authority — chip, refusal and banner agree.
+	var farm = _active_farm()
+	if farm == null or not farm.has_method("chart_target_biome"):
+		return ""
+	return str(farm.chart_target_biome()).strip_edges()
+
+
 static func _discover_walk_line() -> String:
-	# Captain R is Add Biome. Hint F=compass was a lie (Captain E is Compass,
-	# F is Play). Gather 🦅 first. Do not discover for them.
+	# Captain R charts the open door's biome (deterministic, 🦅×21); with no
+	# open door it is the random Add Biome. Hint F=compass was a lie (Captain
+	# E is Compass, F is Play). Gather 🦅 first. Do not chart for them.
 	# lantern_door: slots full made ▸ still [R] with no named cull.
 	# lantern_door: unreadable wallet is eagle-short — fail toward the gather.
 	if _eagle_short():
@@ -1674,12 +1687,17 @@ static func _discover_walk_line() -> String:
 		return "▸ ESC closes"
 	if _slots_full():
 		return _cull_walk_line()
-	var coast := _named_discover_target()
+	var chart := _chart_target_biome()
+	var coast := chart if chart != "" else _named_discover_target()
 	var wearing := str(ToolConfig.get_current_frame())
+	if chart != "":
+		if wearing != ToolConfig.FRAME_CAPTAIN:
+			return "▸ [7] Captain, then [R] Chart %s" % chart
+		return "▸ [R] Chart %s" % chart
 	if wearing != ToolConfig.FRAME_CAPTAIN:
 		if coast != "":
-			return "▸ [7] Captain — Add Biome for %s" % coast
-		return "▸ [7] Captain, [R] Add Biome"
+			return "▸ [7] Captain, then [R] Add Biome for %s" % coast
+		return "▸ [7] Captain, then [R] Add Biome"
 	if coast != "":
 		return "▸ [R] Add Biome — %s" % coast
 	return "▸ [R] Add Biome"
@@ -1792,7 +1810,7 @@ static func _cull_walk_line() -> String:
 
 
 static func eagle_short_refusal() -> String:
-	# Captain-R Add Biome while 🦅 short. Name the gather walk, not a dead [R].
+	# Captain-R Chart / Add Biome while 🦅 short. Name the gather walk, not a dead [R].
 	# lantern_door: 🧺 short is the live gate — Strike does not mint a basket.
 	if _basket_short():
 		return basket_short_refusal()
@@ -1815,7 +1833,7 @@ static func basket_short_refusal() -> String:
 
 
 static func slots_full_refusal() -> String:
-	# Captain-R Add Biome when the spindle is full. Name the cull, not a dead [R].
+	# Captain-R Chart / Add Biome when the spindle is full. Name the cull, not a dead [R].
 	var rest := _cull_walk_line().replace("▸ ", "").strip_edges()
 	if rest == "" or rest == "ESC closes":
 		return "Biome slots full"

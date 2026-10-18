@@ -1759,6 +1759,22 @@ func can_discover_biome() -> Dictionary:
 		return {"ok": false, "message": "Biome slots full"}
 
 	var unexplored = observation_frame.get_unexplored_biomes()
+
+	# Captain Chart (owner decision): while a story door is open and its biome
+	# is not on the spindle, R charts THAT biome — deterministic, not a draw —
+	# at the chart price. Checked before the empty-pool refusal: the story
+	# biome need not sit in the curated random pool to be charted.
+	var chart := chart_target()
+	if not chart.is_empty():
+		var chart_biome := str(chart.get("biome", ""))
+		var chart_cost: Dictionary = CampaignRuntime.chart_cost()
+		var chart_gate = ActionCostRuntime.preflight_cost(economy, chart_cost)
+		if not chart_gate.get("ok", true):
+			return {"ok": false, "chart": chart_biome, "chart_short": true,
+				"cost": chart_cost, "message": chart_shortfall_message(chart_biome, chart_cost)}
+		return {"ok": true, "chart": chart_biome, "chart_beat": str(chart.get("beat", "")),
+			"cost": chart_cost, "unexplored": unexplored}
+
 	if unexplored.is_empty():
 		return {"ok": false, "message": "All biomes already explored!"}
 
@@ -1769,6 +1785,69 @@ func can_discover_biome() -> Dictionary:
 		return {"ok": false, "message": str(cost_gate.get("message", "Insufficient resources"))}
 
 	return {"ok": true, "unexplored": unexplored}
+
+
+## The story biome Captain R will CHART right now: {beat, biome}, or {} when R
+## stays the random Add Biome. A door beat (CampaignRuntime.charts(): beat ->
+## biome) is OPEN while its flag has fired and its arc quest is not yet
+## claimed/dismissed (QuestManager.flag_door_is_resolved). The first open door
+## in story-flag file order whose biome is not on the spindle wins.
+func chart_target() -> Dictionary:
+	var charts: Dictionary = CampaignRuntime.charts()
+	if charts.is_empty() or story_flags_fired.is_empty():
+		return {}
+	var observation_frame = get_node_or_null("/root/ObservationFrame")
+	if not observation_frame:
+		return {}
+	var unlocked: Array = observation_frame.get_unlocked_biomes()
+	var loadable: Array = observation_frame.ALL_BIOMES if "ALL_BIOMES" in observation_frame else []
+	var qm = InstrumentLocator.resolve_quest_manager(self, self)
+	var order: Array[String] = []
+	if qm != null and qm.has_method("get_all_story_flags"):
+		for flag in qm.get_all_story_flags():
+			if flag is Dictionary:
+				var fid := str(flag.get("id", ""))
+				if charts.has(fid) and not order.has(fid):
+					order.append(fid)
+	for k in charts:
+		if not order.has(str(k)):
+			order.append(str(k))
+	for beat_id in order:
+		if not story_flags_fired.has(beat_id):
+			continue
+		if qm != null and qm.has_method("flag_door_is_resolved") \
+				and bool(qm.flag_door_is_resolved(beat_id)):
+			continue
+		var biome := str(charts.get(beat_id, "")).strip_edges()
+		if biome == "" or unlocked.has(biome):
+			continue
+		if not loadable.is_empty() and not loadable.has(biome):
+			continue
+		return {"beat": beat_id, "biome": biome}
+	return {}
+
+
+func chart_target_biome() -> String:
+	return str(chart_target().get("biome", ""))
+
+
+## "Chart Lanternfall needs 🦅×21 — you hold 🦅×5" (every short resource).
+func chart_shortfall_message(biome_name: String, cost: Dictionary) -> String:
+	var need_parts: Array[String] = []
+	var have_parts: Array[String] = []
+	for emoji in cost:
+		var need := int(round(float(cost[emoji])))
+		var have := 0
+		# Costs are emoji-credits (what spend_cost debits) — read the same.
+		if economy != null and economy.has_method("get_resource"):
+			have = int(floor(float(economy.get_resource(str(emoji)))))
+		if have < need:
+			need_parts.append("%s×%d" % [emoji, need])
+			have_parts.append("%s×%d" % [emoji, have])
+	if need_parts.is_empty():
+		return "Chart %s: cannot pay the chart price" % biome_name
+	return "Chart %s needs %s — you hold %s" % [
+		biome_name, ", ".join(need_parts), ", ".join(have_parts)]
 
 
 func can_remove_biome() -> Dictionary:
@@ -1893,7 +1972,9 @@ func identity_biome_name() -> String:
 	return home
 
 func discover_biome() -> Dictionary:
-	# Explore and unlock a random new biome (4E action)
+	# Captain R. While a story door is open (chart_target), CHART its biome —
+	# deterministic, charged CampaignRuntime.chart_cost(). Otherwise explore
+	# and unlock a random (affinity-weighted) new biome.
 
 	# Returns:
 	# Dictionary with:
@@ -1917,13 +1998,20 @@ func discover_biome() -> Dictionary:
 	var unexplored = gate.get("unexplored", observation_frame.get_unexplored_biomes())
 	_log_debug("🗺️ Unexplored biomes: %s" % str(unexplored))
 
-	if unexplored.is_empty():
+	var charted := str(gate.get("chart", ""))
+	if unexplored.is_empty() and charted == "":
 		_log_debug("❌ All biomes already explored")
 		return {"success": false, "message": "All biomes already explored!"}
 
-	var weights = BiomeDiscoveryForecastService.compute_weights(self, unexplored)
-	var new_biome = BiomeDiscoveryForecastService.weighted_random_pick(unexplored, weights)
-	_log_debug("🗺️ Selected biome: %s (weighted discovery)" % new_biome)
+	var new_biome
+	if charted != "":
+		# Captain Chart: the open door's biome, not a draw.
+		new_biome = charted
+		_log_debug("🗺️ Charting biome: %s (door %s)" % [new_biome, str(gate.get("chart_beat", ""))])
+	else:
+		var weights = BiomeDiscoveryForecastService.compute_weights(self, unexplored)
+		new_biome = BiomeDiscoveryForecastService.weighted_random_pick(unexplored, weights)
+		_log_debug("🗺️ Selected biome: %s (weighted discovery)" % new_biome)
 
 	# Unlock it
 	var unlocked = observation_frame.unlock_biome(new_biome)
@@ -1954,6 +2042,16 @@ func discover_biome() -> Dictionary:
 		var direction = 1  # Slide right (new biome appears)
 		biome_router.set_active_biome(new_biome, direction)
 		_log_debug("✅ Switched to new biome: %s" % new_biome)
+
+	if charted != "":
+		# Same preflight→commit economy path as discovery, at the chart price.
+		var chart_cost: Dictionary = gate.get("cost", CampaignRuntime.chart_cost())
+		if economy and not ActionCostRuntime.commit_cost(economy, chart_cost, "chart_biome"):
+			return {"success": false, "biome_name": new_biome, "message": "Chart %s failed: unable to spend cost." % new_biome}
+		_log_debug("🗺️ Chart complete: %s" % new_biome)
+		return {"success": true, "biome_name": new_biome, "charted": true,
+			"chart_beat": str(gate.get("chart_beat", "")), "cost": chart_cost,
+			"message": "Charted %s!" % new_biome}
 
 	if economy and not ActionCostRuntime.commit_action(economy, "discover_biome"):
 		return {"success": false, "biome_name": new_biome, "message": "Explore biome failed: unable to spend cost."}
