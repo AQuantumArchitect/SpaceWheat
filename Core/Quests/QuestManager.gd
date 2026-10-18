@@ -1620,7 +1620,7 @@ func _finalize_quest_completion(quest_id: int, quest: Dictionary, reward, grante
 ## Break #2 — tutorial ↔ story-spine handoff. A completed tutorial step FIRES the spine flags it
 ## hands off to (its authored `unlock_flags`), so the spine advances FROM the tutorial instead of
 ## racing it on a separate clock. The load-bearing case: step 3 fires `forest_listener`, which
-## unlocks the Operator hat (UIProgression.HAT_UNLOCK_FLAGS) that the entanglement step (4) then
+## unlocks the Operator hat (campaign spec: loom_opens on_open.unlock) that the entanglement step (4) then
 ## tells the player to use — without this, a player with progressive-disclosure enforcement ON
 ## hits a locked hat the tutorial is pointing them at. Idempotent: _fire_story_flag no-ops a flag
 ## the spine already fired from the tutorial's own mechanics (first_breath from signature growth,

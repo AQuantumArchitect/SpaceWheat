@@ -171,7 +171,9 @@ def test_commerce_walk_names_the_market_key():
     assert "⚙" in hint
     assert "[5]" not in hint
     assert "[R]" not in hint
-    assert "plant" not in hint.lower()
+    # mill_wakes' ONE objective includes 💨 in the Village (it always did,
+    # silently, as a flag predicate) — the hint names the plant honestly.
+    assert "💨" in hint
     assert len(hint) <= 70
     assert "Millwright" in str(aq.get("faction", ""))
     walk = prog.split("func _board_walk_line")[1].split("\nstatic func ")[0]
@@ -438,7 +440,9 @@ def test_lantern_wakes_names_unseat_then_plant():
     assert 'result["biome"] = biome_name' in inst
     flags = json.loads(HANDOVER.read_text(encoding="utf-8"))
     wakes = next(f for f in flags if f.get("id") == "lantern_wakes")
-    preds = wakes.get("predicates") or []
+    # One objective per beat: the ask lives on the arc quest, the flag opens
+    # on its requires alone (campaign spec).
+    preds = (wakes.get("arc_quest") or {}).get("state_predicates") or []
     assert any(p.get("type") == "gate_sequence_contains" and p.get("gate") == "inject_icon"
                and p.get("biome") == "Lanternfall" for p in preds)
     assert not any(p.get("type") == "atom_in_biome" for p in preds)

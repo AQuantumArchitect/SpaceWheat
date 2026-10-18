@@ -2283,7 +2283,7 @@ func _arc_inspect_physics(entry: Dictionary) -> String:
 	var postcard: Dictionary = IntroVoice.flag_postcard(flag, entry.get("pred_scores", []), _arc_quest_manager())
 	var flag_lines: Array[String] = []
 	flag_lines.append(str(postcard.get("title", flag.get("id", "?"))))
-	flag_lines.append("The Demos · %s" % StoryAtlas.chapter_for_act(int(flag.get("act", 0))))
+	flag_lines.append(StoryAtlas.header_for_flag(flag))
 	var flag_beat := str(postcard.get("beat", "")).strip_edges()
 	if flag_beat != "":
 		flag_lines.append(flag_beat)

@@ -19,51 +19,29 @@ extends RefCounted
 const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
 const PredicateGloss = preload("res://Core/Quests/PredicateGloss.gd")
 
-## Hat → the story flag that surfaces it ("" = always visible).
-## Starter kit is Ace + Icon + Druid — exactly what Act-0 teaches.
-## Spark is the open-regime (Lindblad) verb: useless inside the enclave, so it
-## surfaces when the wet country opens.
-const HAT_UNLOCK_FLAGS: Dictionary = {
-	ToolConfig.FRAME_ACE: "",
-	ToolConfig.FRAME_ICON: "",
-	ToolConfig.FRAME_DRUID: "",
-	# Any-of: loom_opens is the Act-0 superposition step's handoff (the road
-	# forward); forest_listener is the legacy unlock — banked saves fired it
-	# before the berry chapter moved to act 3, and losing a hat on load is the
-	# exact anti-gating violation these tables must never commit.
-	ToolConfig.FRAME_OPERATOR: ["loom_opens", "forest_listener"],
-	ToolConfig.FRAME_MERCHANT: "village_stirs",
-	# woodlot_door, not island_lives: the proven campaign road discovers the
-	# Woodlot (Captain's biome) right after the woodlot_door beat — island_lives
-	# fires mid-campaign (act 4 of 8) and would lock the hat for the whole
-	# early-middle game.
-	ToolConfig.FRAME_CAPTAIN: "woodlot_door",
-	ToolConfig.FRAME_SPARK: "edge_of_the_enclave",
-}
+## Every unlock table (hat → beats, menu → beats, overlay → beats, menu → min
+## tutorial step) is AUTHORED in the campaign spec (Core/Campaign/campaign.json:
+## a beat's on_open.unlock, plus legacy_unlocks for old saves) and compiled into
+## Core/Quests/data/campaign_runtime.json. Read here through CampaignRuntime —
+## no flag ids live in UI code. A name absent from a table is always available
+## (fail-open); Ace + Icon + Druid are the starter kit because no beat gates them.
+static func hat_unlock_flags() -> Dictionary:
+	return CampaignRuntime.unlocks("hats")
 
-## Menu id (MenuRegistry) → surfacing flag ("" = always; Array = ANY of —
-## first entry is the live road, the rest are legacy flags banked saves hold).
-const MENU_UNLOCK_FLAGS: Dictionary = {
-	"play": "",
-	"system": "",
-	"controls": "",
-	"quests": "",
-	"atlas": ["first_harvest", "first_breath"],
-	"biome_detail": ["loom_opens", "forest_evolving"],
-	"inspector": "village_stirs",
-	"map_meta": "village_stirs",
-	"neighborhood_graph": "village_stirs",
-}
 
-## Menu id → minimum tutorial_step at which it surfaces (checked ALONGSIDE
-## MENU_UNLOCK_FLAGS, not instead of — a menu needs both its flag AND its step
-## satisfied). Only Quest Board carries an entry: nothing in tutorial step 0
-## needs it, and step 1 ("contracts") is literally where it's taught.
-## Missing from this table = no step gate, same fail-open law as everywhere
-## else in this file.
-const MENU_UNLOCK_STEP: Dictionary = {
-	"quests": 1,
-}
+static func menu_unlock_flags() -> Dictionary:
+	return CampaignRuntime.unlocks("menus")
+
+
+static func viz_unlock_flags() -> Dictionary:
+	return CampaignRuntime.unlocks("viz")
+
+
+## Menu id → minimum tutorial_step at which it surfaces (checked ALONGSIDE the
+## flag table). Only Quest Board carries an entry: step 1 ("contracts") is
+## literally where it's taught.
+static func menu_unlock_step() -> Dictionary:
+	return CampaignRuntime.menu_steps()
 
 
 static func _flags() -> Dictionary:
@@ -93,36 +71,26 @@ static func is_hat_visible(frame_name: String) -> bool:
 	var flags := _flags()
 	if flags.is_empty() and _no_farm():
 		return true
-	return _unlocked(HAT_UNLOCK_FLAGS.get(frame_name, ""), flags)
+	return _unlocked(hat_unlock_flags().get(frame_name, ""), flags)
 
 
-## Viz overlay id → surfacing flag ("" = always). Same fail-open law: an
-## overlay absent from the table is always drawn. Renderers check once per
-## cache rebuild, not per frame.
-const VIZ_UNLOCK_FLAGS: Dictionary = {
-	# The gauge dial (clock-face ticks on stations) + edge fence glyphs stay
-	# hidden until the compass lesson introduces the very idea of a local
-	# convention — an unexplained rotating dial would read as noise (visual
-	# affordance pairs with the teaching beat, not before it).
-	"gauge_overlay": "turned_compass",
-}
-
-
+## Viz overlays: same table law (gauge_overlay waits on the compass lesson).
 static func is_viz_visible(overlay_id: String) -> bool:
 	var flags := _flags()
 	if flags.is_empty() and _no_farm():
 		return true
-	return _unlocked(VIZ_UNLOCK_FLAGS.get(overlay_id, ""), flags)
+	return _unlocked(viz_unlock_flags().get(overlay_id, ""), flags)
 
 
 static func is_menu_visible(menu_id: String) -> bool:
 	var flags := _flags()
 	if flags.is_empty() and _no_farm():
 		return true
-	if not _unlocked(MENU_UNLOCK_FLAGS.get(menu_id, ""), flags):
+	if not _unlocked(menu_unlock_flags().get(menu_id, ""), flags):
 		return false
-	if MENU_UNLOCK_STEP.has(menu_id):
-		return current_tutorial_step() >= int(MENU_UNLOCK_STEP[menu_id])
+	var steps := menu_unlock_step()
+	if steps.has(menu_id):
+		return current_tutorial_step() >= int(steps[menu_id])
 	return true
 
 
@@ -508,12 +476,49 @@ static func objective_text() -> String:
 	# Market. Board walk is the live ask, like plant/berry.
 	if _is_board_ask(best):
 		return _board_walk_line(best)
-	# Banner tracks accepted work only. Unaccepted offers live on the Arc —
-	# a gold "go accept this" chip before the door is taken is a second
-	# helping system. Hide until the player actually holds the quest.
+	# Nothing accepted: the story is WAITING on an Arc offer. A beat's
+	# children open only once it is accepted and claimed (spec: requires =
+	# complete), so a silent banner here is the classic "nothing moves" wall.
+	# Name the waiting door and the route to Accept — quietly, one line.
 	if best.is_empty() or str(best.get("status", "")) == Quest.STATUS_STORY:
-		return ""
+		return _waiting_arc_line()
 	return _decorate_objective(best)
+
+
+## The Arc offer the story is waiting on: the earliest-act open story offer,
+## INCLUDING ones whose objective already holds (those complete the moment
+## they are accepted — skipping them is how the Wheel handshake stalled).
+static func waiting_arc_offer() -> Dictionary:
+	var qm := _quest_manager()
+	if qm == null or not qm.has_method("get_story_offers"):
+		return {}
+	var acts := {}
+	if qm.has_method("get_all_story_flags"):
+		for f in qm.get_all_story_flags():
+			if f is Dictionary:
+				acts[str(f.get("id", ""))] = int(f.get("act", 0))
+	var best: Dictionary = {}
+	var best_act := 0x7FFFFFFF
+	for q in qm.get_story_offers():
+		if not (q is Dictionary) or str(q.get("category", "")) != "ARC":
+			continue
+		var a := int(acts.get(str(q.get("source_flag", "")), 99))
+		if a < best_act:
+			best_act = a
+			best = q
+	return best
+
+
+static func _waiting_arc_line() -> String:
+	var q := waiting_arc_offer()
+	if q.is_empty():
+		return ""
+	var title := str(q.get("body", "")).split(" — ")[0].strip_edges()
+	var tail := " waits — 📖 [X], Arc [I], Accept [R]"
+	var room := OBJECTIVE_MAX_CHARS - tail.length() - 2
+	if title.length() > room:
+		title = title.substr(0, maxi(room - 1, 8)).strip_edges() + "…"
+	return "📜 " + title + tail
 
 
 ## Visual companion to objective_text() — which literal key is the next thing
@@ -584,8 +589,10 @@ static func objective_target() -> Dictionary:
 	if _is_board_ask(best):
 		return {"key": "C", "biome": _board_ask_biome(best)}
 	if best.is_empty() or str(best.get("status", "")) == Quest.STATUS_STORY:
-		# Offers wait on the Arc. No banner, no spotlight-on-X — the
-		# toast already linked there; pulsing a second door is slop.
+		# The story waits on an Arc offer (objective_text names it): pulse the
+		# book key that opens the Arc, nothing else.
+		if not waiting_arc_offer().is_empty():
+			return {"key": "X", "biome": ""}
 		return {}
 	var status := str(best.get("status", ""))
 	if status == "ready":

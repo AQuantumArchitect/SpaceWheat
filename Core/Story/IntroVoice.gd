@@ -436,7 +436,7 @@ static func chapter_line() -> String:
 	var act := 0
 	if farm != null and "story_flags_fired" in farm and qm != null and qm.has_method("get_all_story_flags"):
 		act = StoryAtlas.current_act(farm.story_flags_fired, qm.get_all_story_flags())
-	return "The Demos · %s" % StoryAtlas.chapter_for_act(act)
+	return "%s · %s" % [CampaignRuntime.campaign(StoryAtlas.MAIN_CAMPAIGN).get("title", "The Demos"), StoryAtlas.chapter_for_act(act)]
 
 
 static func murmur_caption(chatter_ev: Dictionary) -> String:
@@ -587,7 +587,7 @@ static func beat_from_flag(flag: Dictionary, tense: String, qm = null) -> Dictio
 	return {
 		"id": str(flag.get("id", "")),
 		"title": title,
-		"chapter": StoryAtlas.chapter_for_act(int(flag.get("act", 0))),
+		"chapter": StoryAtlas.chapter_for_flag(flag),
 		"act": int(flag.get("act", 0)),
 		"tense": tense,
 		"prose": str(flag.get("arc_beat", "")).strip_edges(),

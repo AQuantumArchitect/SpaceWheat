@@ -447,8 +447,8 @@ func _handle_shell_action(event: InputEvent) -> bool:
 	if not menu_entry.is_empty():
 		# Progressive disclosure (phase-2 funnel): a locked menu's key redirects
 		# instead of acting. Z/X never lock. C ("quests") gates on tutorial step
-		# 2 (UIProgression.MENU_UNLOCK_STEP) layered on its always-unlocked
-		# MENU_UNLOCK_FLAGS entry; the 5 fully-gated surfaces (atlas V,
+		# 2 (UIProgression.menu_unlock_step(), from the campaign spec) layered on its always-unlocked
+		# menu unlock entry; the 5 fully-gated surfaces (atlas V,
 		# biome_detail B, inspector N, map_meta M, neighborhood_graph [) gate on
 		# a story flag instead.
 		if not UIProgression.is_menu_active(str(menu_entry.get("id", ""))):
@@ -1109,7 +1109,7 @@ func connect_to_quantum_input() -> void:
 			and not quest_manager.story_flag_fired.is_connected(_on_progression_flag_fired):
 		quest_manager.story_flag_fired.connect(_on_progression_flag_fired)
 	# ...and from every tutorial-step transition. The C chip's gate is a STEP
-	# condition (MENU_UNLOCK_STEP), not a flag — with only the flag signal
+	# condition (menu_unlock_step()), not a flag — with only the flag signal
 	# wired, the chip stayed hidden after its step unlocked until some
 	# unrelated flag happened to fire (while the banner said "press C").
 	# active_quests_changed covers accept/ready/claim/complete/expiry;

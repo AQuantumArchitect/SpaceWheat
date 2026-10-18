@@ -447,11 +447,11 @@ func stage_ui(farm: Node, shell: Node, quantum_viz: Node, world_builder) -> void
 					# village_path_* doors are mutually optional — requiring
 					# ALL of them made the act-5 postcard unreachable.
 					if not StoryAtlas.act_complete(act, farm_ref.story_flags_fired,
-							qm_ref.get_all_story_flags()):
+							qm_ref.get_all_story_flags(), str(flag.get("campaign", ""))):
 						return
 					var cap = farm_ref.get_tree().get_first_node_in_group("postcard_capture")
 					if cap != null and cap.has_method("capture"):
-						cap.capture("📮 Act %d complete — postcard saved" % act)
+						cap.capture("📮 Act %d complete (%s) — postcard saved" % [int(flag.get("campaign_act", act)), StoryAtlas.campaign_title_for_flag(flag)])
 				if not shell.quest_manager.story_flag_fired.is_connected(act_cb):
 					shell.quest_manager.story_flag_fired.connect(act_cb)
 					_verbose.info("boot", "📮", "Act-postcard listener armed")
@@ -462,8 +462,10 @@ func stage_ui(farm: Node, shell: Node, quantum_viz: Node, world_builder) -> void
 				# already fired when this spawns (pure presentation).
 				var shell_ref = shell
 				var overlay_layer_ref = shell_overlay_layer
-				var ending_cb := func(flag_id: String, _flag: Dictionary):
-					if flag_id != "island_free":
+				var ending_cb := func(_flag_id: String, flag: Dictionary):
+					# The main campaign's ending (spec: campaigns[demos].ending).
+					if not bool(flag.get("ending", false)) \
+							or str(flag.get("campaign", "")) != StoryAtlas.MAIN_CAMPAIGN:
 						return
 					if overlay_layer_ref.get_node_or_null("EndingOverlay") != null:
 						return

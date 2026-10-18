@@ -240,17 +240,19 @@ def test_the_incorporation_teaching_survives_the_banner_and_names_the_wait() -> 
     """Incorporating an icon is press-5 → F → WAIT → R. The wait is the part a
     player cannot guess, and the original hint omitted it entirely, so both
     personas fell back on the explore/strike verbs they already knew and got
-    nowhere. The teaching now lives on the act-3 beat `first_breath`
+    nowhere. The teaching lives on the Act-1 beat `first_breath`
     (story_flags.json) — same banner physics apply: the first sentence is what
     a player actually reads (arc hints sentence-cut at OBJECTIVE_MAX_CHARS),
     and it must name the hat, the tracking verb, and the honest wait."""
     flags = json.loads((ROOT / "Core/Quests/data/story_flags.json").read_text(encoding="utf-8"))
     fb = next((f for f in flags if f.get("id") == "first_breath"), None)
     assert fb is not None, "first_breath (the incorporation teaching) is missing"
-    assert int(fb.get("act", -1)) >= 3, (
-        "first_breath is the berry chapter's opener — mid-game (act 3+), never "
-        "the on-ramp (the 2026-08-17 reorder)"
+    assert int(fb.get("act", -1)) == 1, (
+        "first_breath teaches Incorporate in Act 1, right after the mill "
+        "apprenticeship (owner decision 2026-10-17)"
     )
+    prereqs = {p.get("id") for p in fb.get("predicates", []) if p.get("type") == "story_flag_set"}
+    assert prereqs == {"village_stirs"}, prereqs
     hint = str((fb.get("arc_quest") or {}).get("hint", ""))
     first = re.split(r"(?<=[.!?])\s", hint)[0]
     assert len(first) <= max_chars(), (
