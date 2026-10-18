@@ -73,6 +73,121 @@ static func resources() -> Dictionary:
 	return r if r is Dictionary else {}
 
 
+# ── Supply table helpers (the `resources` block, read by the board's standing
+# trades and the low-water supply walk). Pure lookups — no scene access. ──
+
+static func _bare(emoji: String) -> String:
+	return str(emoji).replace("️", "").strip_edges()
+
+
+## The resources entry for `emoji` ({} when the table does not list it).
+static func resource(emoji: String) -> Dictionary:
+	var table := resources()
+	if table.get(emoji) is Dictionary:
+		return table[emoji]
+	var want := _bare(emoji)
+	for k in table:
+		if _bare(str(k)) == want and table[k] is Dictionary:
+			return table[k]
+	return {}
+
+
+## Reserve mark: the supply walk takes over before a spend would leave the
+## wallet below it. 0 when the table does not list the emoji.
+static func low_water(emoji: String) -> int:
+	return int(resource(emoji).get("low_water", 0))
+
+
+## True when some biome's registers carry `emoji` (gatherable).
+static func has_plots(emoji: String) -> bool:
+	var p = resource(emoji).get("plots", [])
+	return p is Array and not p.is_empty()
+
+
+## Every standing trade that pays `emoji`, each stamped with "emoji".
+static func supply_trades(emoji: String) -> Array:
+	var out: Array = []
+	var tr = resource(emoji).get("trades", [])
+	if not (tr is Array):
+		return out
+	for t in tr:
+		if t is Dictionary:
+			var d: Dictionary = (t as Dictionary).duplicate(true)
+			d["emoji"] = emoji
+			out.append(d)
+	return out
+
+
+## The emoji's trade on `biome_name`'s board ({} if it has none there).
+static func trade_in(emoji: String, biome_name: String) -> Dictionary:
+	for t in supply_trades(emoji):
+		if str(t.get("biome", "")) == biome_name:
+			return t
+	return {}
+
+
+## The Village trade for `emoji` — the rescue every story spend must have.
+static func rescue_trade(emoji: String) -> Dictionary:
+	return trade_in(emoji, "Village")
+
+
+## Standing trades that ALWAYS sit on `biome_name`'s board, table order.
+static func trades_for_biome(biome_name: String) -> Array:
+	var out: Array = []
+	if biome_name == "":
+		return out
+	for emoji in resources():
+		var e := str(emoji)
+		if e.begins_with("_"):
+			continue
+		var t := trade_in(e, biome_name)
+		if not t.is_empty():
+			out.append(t)
+	return out
+
+
+## {emoji: int} the trade asks for.
+static func trade_give(trade: Dictionary) -> Dictionary:
+	var out := {}
+	var g = trade.get("give", {})
+	if g is Dictionary:
+		var keys: Array = (g as Dictionary).keys()
+		keys.sort()
+		for k in keys:
+			out[str(k)] = int(g[k])
+	return out
+
+
+## "👥×6 → 🧺×4" — the deal, in the board's own give → get grammar.
+static func trade_words(trade: Dictionary) -> String:
+	var parts: PackedStringArray = []
+	var give := trade_give(trade)
+	for k in give:
+		parts.append("%s×%d" % [k, int(give[k])])
+	return "%s → %s×%d" % [" + ".join(parts), str(trade.get("emoji", "?")), int(trade.get("get", 0))]
+
+
+## The whole supply walk for `emoji`, generated from the table:
+##   "Village [Y] → [C] board → Market → the 🧺 trade (👥×6 → 🧺×4)"
+## `rail_key` is the biome-rail key that crosses to the trade's biome ("" when
+## unknown or already there). `trade` picks a specific trade (default: rescue).
+## Plot-only resources read "gather 🦅 in StarterForest".
+static func supply_route_words(emoji: String, rail_key: String = "", trade: Dictionary = {}) -> String:
+	var t := trade if not trade.is_empty() else rescue_trade(emoji)
+	if t.is_empty():
+		var trs := supply_trades(emoji)
+		if not trs.is_empty():
+			t = trs[0]
+	if t.is_empty():
+		var plots = resource(emoji).get("plots", [])
+		if plots is Array and not plots.is_empty():
+			return "gather %s in %s" % [emoji, str(plots[0])]
+		return ""
+	var biome := str(t.get("biome", ""))
+	var head := biome if rail_key == "" else "%s [%s]" % [biome, rail_key]
+	return "%s → [C] board → Market → the %s trade (%s)" % [head, emoji, trade_words(t)]
+
+
 static func campaigns() -> Array:
 	var c = data().get("campaigns", [])
 	return c if c is Array else []

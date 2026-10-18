@@ -796,6 +796,7 @@ func _execute_inject_icon(icon: Dictionary) -> void:
 		])
 		# Success speaks too (anti-gating): a silent success reads exactly like a
 		# dead key — the biome grows a qubit off-screen and the player sees nothing.
+		UIProgression.note_plant_south("")
 		_toast_player("✓ %s/%s took root in %s — +1 qubit" % [
 			str(icon.get("north", "")), str(icon.get("south", "")), str(biome.get_biome_type())])
 
@@ -815,7 +816,16 @@ func _execute_inject_icon(icon: Dictionary) -> void:
 		_verbose.warn("input", "+", "Icon injection failed: %s" % result.get("message", result.get("error", "unknown")))
 		# Refusals speak — the picker closing silently after a failed inject
 		# read as "selection doesn't work" (marathon #9).
-		_toast_player("✗ the icon would not take — %s" % str(result.get("message", result.get("error", "unknown reason"))))
+		var why := str(result.get("message", result.get("error", "unknown reason")))
+		# Short of the word's south pole (13🪓 for 🪵/🪓, 13🌊 for 💧/🌊):
+		# name the standing trade that pays it, and keep the banner on it.
+		var south := str(icon.get("south", ""))
+		if south != "" and not CampaignRuntime.supply_trades(south).is_empty():
+			var sup := UIProgression.supply_refusal(south, EconomyConstants.ICON_INJECTION_SOUTH_COST, true)
+			if sup != "":
+				UIProgression.note_plant_south(south)
+				why += " · " + sup
+		_toast_player("✗ the icon would not take — %s" % why)
 		_append_dispatch_ledger("inject_icon", false)
 		action_performed.emit("inject_icon", result)
 
@@ -2175,8 +2185,8 @@ func _block_reason_for_player(action_name: String) -> String:
 				return short2
 			return "nothing valid to act on here"
 		"explore":
-			# lantern_door: Village 🧺 Explore did not pay a basket. Speak.
-			var basket_ex := UIProgression.basket_short_refusal()
+			# lantern_door: Explore does not pay a basket. Speak the 🧺 trade walk.
+			var basket_ex := UIProgression.supply_refusal("🧺", UIProgression.gather_price(), true)
 			if basket_ex != "":
 				return "Explore does not pay 🧺 — %s" % basket_ex
 			# lantern_door: after Strike, F Explore wiped the 🦅 measure.
@@ -2195,14 +2205,14 @@ func _block_reason_for_player(action_name: String) -> String:
 			if track_hint != "":
 				return track_hint
 			# lantern_door: Strike costs 👥 and does not mint 🧺.
-			var basket_m := UIProgression.basket_short_refusal()
+			var basket_m := UIProgression.supply_refusal("🧺", UIProgression.gather_price(), true)
 			if basket_m != "":
 				return "Strike does not pay 🧺 — %s" % basket_m
 			return "nothing live to strike — F explores first"
 		"pop", "reap":
 			# lantern_door: Q gather toasted a dead Strike while 🧺 was 0.
 			if action_name == "pop":
-				var basket := UIProgression.basket_short_refusal()
+				var basket := UIProgression.supply_refusal("🧺", UIProgression.gather_price(), true)
 				if basket != "":
 					return basket
 			var short_pop := _cost_shortfall_words(action_name)
