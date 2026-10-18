@@ -41,7 +41,17 @@ const FLAG_FIRE_THRESHOLD := 0.85
 ## Set while a fixture replays ancestors. Presentation listeners that would
 ## otherwise fire a ceremony for a replayed beat (act postcards, the
 ## island_free ending) read this and stay quiet.
-static var replaying: bool = false
+static var _replaying: bool = false
+static var _replay_frame: int = -1
+## True only inside a start_at_beat replay. Replay is synchronous, so the flag
+## is also scoped to the frame it was raised in: a script error mid-replay can
+## never leave postcards and the ending ceremony muted for the session.
+static var replaying: bool:
+	get:
+		return _replaying and _replay_frame == Engine.get_process_frames()
+	set(value):
+		_replaying = value
+		_replay_frame = Engine.get_process_frames() if value else -1
 
 ## Wallet floor: every resource the spec says a story step spends is topped up
 ## to twice its low-water mark; the staple goods get a flat floor.

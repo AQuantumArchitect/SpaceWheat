@@ -93,3 +93,34 @@ def test_validator_catches_a_broken_campaign():
     assert broken(lambda sp, i: sp["resources"]["🪓"].__setitem__("trades", []))
     assert broken(lambda sp, i: sp["params"]["hub"].__setitem__("signature", 40))
     assert broken(lambda sp, i: sp["params"]["ladder"].__setitem__("timber_teaching", 0.9))
+
+
+def _src(rel):
+    return (ROOT / rel).read_text(encoding="utf-8")
+
+
+def test_old_saves_do_not_reopen_passed_doors_or_leak_postgame():
+    """Review fixes (2026-10-17): a door whose child fired is resolved on any
+    save version (pre-v6 saves have no completed_quests ledger); post-game
+    beats fired under the old single-campaign order stay dormant (no offer,
+    no chart) until the main ending."""
+    qm = _src("Core/Quests/QuestManager.gd")
+    door = qm.split("func _flag_door_is_resolved")[1].split("\nfunc ")[0]
+    assert "_child_has_fired(flag_id)" in door
+    assert "func flag_is_live" in qm and "opens_after" in qm
+    restore = _src("Core/Story/StoryEngine.gd").split("func _restore_arc_quests_after_load")[1].split("\nfunc ")[0]
+    assert "flag_door_is_resolved" in restore and "flag_is_live" in restore
+    chart = _src("Core/Farm.gd").split("func chart_target()")[1].split("\nfunc ")[0]
+    assert "flag_is_live" in chart
+
+
+def test_waiting_banner_prefers_the_critical_path():
+    prog = _src("UI/Core/UIProgression.gd")
+    waiting = prog.split("static func waiting_arc_offer")[1].split("\nstatic func ")[0]
+    assert "blocking" in waiting, "an offer some unfired beat requires must outrank an optional leaf"
+
+
+def test_chart_price_has_one_source():
+    prog = _src("UI/Core/UIProgression.gd")
+    assert "_eagle_have() < 21.0" not in prog
+    assert "CampaignRuntime.chart_cost()" in prog.split("static func _chart_eagles")[1].split("\nstatic func ")[0]

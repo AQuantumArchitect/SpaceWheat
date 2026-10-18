@@ -2349,7 +2349,51 @@ func _flag_door_is_resolved(flag_id: String) -> bool:
 	var aq = flag.get("arc_quest")
 	if not (aq is Dictionary) or aq.is_empty():
 		return true
-	return has_completed_flag(flag_id) or is_guidance_dismissed(flag_id)
+	if has_completed_flag(flag_id) or is_guidance_dismissed(flag_id):
+		return true
+	# A beat whose child has already fired was passed through — true on any
+	# save version (pre-v6 saves carry no completed_quests ledger at all, and
+	# old story orders fired children under different parents).
+	return _child_has_fired(flag_id)
+
+
+var _children_by_flag: Dictionary = {}   # flag id -> Array of flag ids that require it
+
+
+func _child_has_fired(flag_id: String) -> bool:
+	var farm = _get_active_farm()
+	if farm == null or not ("story_flags_fired" in farm):
+		return false
+	if _children_by_flag.is_empty():
+		for f in _story_flags:
+			if not (f is Dictionary):
+				continue
+			for p in f.get("predicates", []):
+				if p is Dictionary and str(p.get("type", "")) == "story_flag_set":
+					var pid := str(p.get("id", ""))
+					if not _children_by_flag.has(pid):
+						_children_by_flag[pid] = []
+					_children_by_flag[pid].append(str(f.get("id", "")))
+	for child in _children_by_flag.get(flag_id, []):
+		if farm.story_flags_fired.has(str(child)):
+			return true
+	return false
+
+
+## A fired beat is LIVE when its campaign is open: post-game campaigns open
+## only after their `opens_after` beat (campaign spec). Saves from the old
+## single-campaign order may hold post-game flags fired before the ending —
+## those stay dormant (no offer, no chart) until the ending lands.
+func flag_is_live(flag_id: String) -> bool:
+	var flag := _story_flag_by_id(flag_id)
+	if flag.is_empty():
+		return false
+	var c := CampaignRuntime.campaign(str(flag.get("campaign", "")))
+	var gate := str(c.get("opens_after", ""))
+	if gate == "" or gate == flag_id:
+		return true
+	var farm = _get_active_farm()
+	return farm != null and "story_flags_fired" in farm and farm.story_flags_fired.has(gate)
 
 
 func _story_flag_parent_resolved(flag_id: String, farm) -> bool:

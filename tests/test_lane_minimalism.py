@@ -258,7 +258,7 @@ def test_basket_short_walks_the_village_trade_not_a_plot():
     assert "_basket_short" in target
     assert "_basket_pay_target" in target
     eagle_ref = prog.split("static func eagle_short_refusal()")[1].split("\nstatic func ")[0]
-    assert "basket_short_refusal" in eagle_ref
+    assert "supply_refusal(\"🧺\", gather_price(), true)" in eagle_ref
     # The board answers the walk with one next key.
     board = src(BOARD)
     cue = board.split("func supply_walk_cue(")[1].split("\nfunc _market_rows")[0]
@@ -320,7 +320,7 @@ def test_unreadable_wallet_fails_toward_village_basket():
     assert "_basket_short" in gather
     assert "_basket_pay_line" in gather
     eagle_ref = prog.split("static func eagle_short_refusal()")[1].split("\nstatic func ")[0]
-    assert "basket_short_refusal" in eagle_ref
+    assert "supply_refusal(\"🧺\", gather_price(), true)" in eagle_ref
     qii = src(ROOT / "UI" / "Core" / "QuantumInstrumentInput.gd")
     disc_arm = qii.split('"discover_biome":')[1].split('"remove_biome":')[0]
     assert "eagle_short_refusal" in disc_arm

@@ -1818,6 +1818,8 @@ func chart_target() -> Dictionary:
 		if qm != null and qm.has_method("flag_door_is_resolved") \
 				and bool(qm.flag_door_is_resolved(beat_id)):
 			continue
+		if qm != null and qm.has_method("flag_is_live") and not bool(qm.flag_is_live(beat_id)):
+			continue
 		var biome := str(charts.get(beat_id, "")).strip_edges()
 		if biome == "" or unlocked.has(biome):
 			continue

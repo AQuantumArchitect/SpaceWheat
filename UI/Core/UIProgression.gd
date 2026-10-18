@@ -489,26 +489,39 @@ static func objective_text() -> String:
 	return _decorate_objective(best)
 
 
-## The Arc offer the story is waiting on: the earliest-act open story offer,
-## INCLUDING ones whose objective already holds (those complete the moment
-## they are accepted — skipping them is how the Wheel handshake stalled).
+## The Arc offer the story is waiting on. Ranked: an offer some UNFIRED beat
+## requires (the critical path) beats an optional leaf (pond_breathes, an
+## un-chosen village path); then earliest act. Satisfied offers count — they
+## complete the moment they are accepted, and skipping them is how the Wheel
+## handshake stalled.
 static func waiting_arc_offer() -> Dictionary:
 	var qm := _quest_manager()
 	if qm == null or not qm.has_method("get_story_offers"):
 		return {}
+	var farm = _active_farm()
+	var fired: Dictionary = farm.story_flags_fired if farm != null and "story_flags_fired" in farm else {}
 	var acts := {}
+	var blocking := {}
 	if qm.has_method("get_all_story_flags"):
 		for f in qm.get_all_story_flags():
-			if f is Dictionary:
-				acts[str(f.get("id", ""))] = int(f.get("act", 0))
+			if not (f is Dictionary):
+				continue
+			var fid := str(f.get("id", ""))
+			acts[fid] = int(f.get("act", 0))
+			if fired.has(fid):
+				continue
+			for p in f.get("predicates", []):
+				if p is Dictionary and str(p.get("type", "")) == "story_flag_set":
+					blocking[str(p.get("id", ""))] = true
 	var best: Dictionary = {}
-	var best_act := 0x7FFFFFFF
+	var best_rank := 0x7FFFFFFF
 	for q in qm.get_story_offers():
 		if not (q is Dictionary) or str(q.get("category", "")) != "ARC":
 			continue
-		var a := int(acts.get(str(q.get("source_flag", "")), 99))
-		if a < best_act:
-			best_act = a
+		var src := str(q.get("source_flag", ""))
+		var rank := int(acts.get(src, 99)) + (0 if blocking.has(src) else 1000)
+		if rank < best_rank:
+			best_rank = rank
 			best = q
 	return best
 
@@ -552,7 +565,7 @@ static func objective_target() -> Dictionary:
 				return bt
 		return {"key": "", "biome": "StarterForest"}
 	if _is_plant_ask(best) and not _in_icon_submenu() and _plant_south_short():
-		var st := _supply_target(_plant_south_want)
+		var st := _supply_target(_plant_south_current())
 		if not st.is_empty():
 			return st
 	if _is_plant_ask(best):
@@ -1416,7 +1429,7 @@ static func _plant_walk_line() -> String:
 	# The word they tried to plant needs 13 of its south pole (🪓 for 🪵/🪓,
 	# 🌊 for 💧/🌊) — those come from a standing trade, not a plot.
 	if not _in_icon_submenu() and _plant_south_short():
-		var south_walk := _supply_walk_line(_plant_south_want)
+		var south_walk := _supply_walk_line(_plant_south_current())
 		if south_walk != "":
 			return south_walk
 	if _in_icon_submenu() or _menu_open():
@@ -1513,7 +1526,12 @@ static func _eagle_short() -> bool:
 	var farm = _active_farm()
 	if farm == null:
 		return false
-	return _eagle_have() < 21.0
+	return _eagle_have() < float(_chart_eagles())
+
+
+## Chart / Add Biome price in 🦅 — the campaign spec's chart_cost.
+static func _chart_eagles() -> int:
+	return int(CampaignRuntime.chart_cost().get("🦅", 21))
 
 
 # =============================================================================
@@ -1524,11 +1542,26 @@ static func _eagle_short() -> bool:
 
 ## South pole of the word the player last tried to plant, noted by the input
 ## layer when a plant was refused for cost; cleared when a word takes root.
-static var _plant_south_want: String = ""
+static var _plant_south_note: String = ""
+static var _plant_south_farm: int = 0
 
 
 static func note_plant_south(south: String) -> void:
-	_plant_south_want = str(south).strip_edges()
+	_plant_south_note = str(south).strip_edges()
+	var farm = _active_farm()
+	_plant_south_farm = farm.get_instance_id() if farm != null else 0
+
+
+## The noted south pole, only for the farm it was noted on (a restart or load
+## forgets it) and only while the banner is still a plant ask.
+static func _plant_south_current() -> String:
+	if _plant_south_note == "":
+		return ""
+	var farm = _active_farm()
+	if farm == null or farm.get_instance_id() != _plant_south_farm:
+		_plant_south_note = ""
+		return ""
+	return _plant_south_note
 
 
 static func _wallet(emoji: String) -> float:
@@ -1711,7 +1744,7 @@ static func _supply_need_now(q: Dictionary) -> String:
 		if _sprout_short():
 			return "🧺" if _basket_short() else ""
 		if _plant_south_short():
-			return _plant_south_want
+			return _plant_south_current()
 		return ""
 	if _is_discover_ask(q) and _eagle_short():
 		return "🧺" if _basket_short() else ""
@@ -1719,7 +1752,7 @@ static func _supply_need_now(q: Dictionary) -> String:
 
 
 static func _plant_south_short() -> bool:
-	var south := _plant_south_want
+	var south := _plant_south_current()
 	if south == "" or CampaignRuntime.supply_trades(south).is_empty():
 		return false
 	return _supply_short(south, EconomyConstants.ICON_INJECTION_SOUTH_COST)
@@ -1728,7 +1761,7 @@ static func _plant_south_short() -> bool:
 static func _supply_cost(emoji: String) -> int:
 	if emoji == "🧺":
 		return gather_price()
-	if emoji == _plant_south_want:
+	if emoji == _plant_south_current():
 		return EconomyConstants.ICON_INJECTION_SOUTH_COST
 	return 1
 
@@ -1992,15 +2025,18 @@ static func _cull_walk_line() -> String:
 
 static func eagle_short_refusal() -> String:
 	# Captain-R Chart / Add Biome while 🦅 short. Name the gather walk, not a dead [R].
-	# lantern_door: 🧺 short is the live gate — Strike does not mint a basket.
-	if _basket_short():
-		return basket_short_refusal()
+	# Only when 🦅 really is short — a full spindle keeps its own (cull) reason.
+	# Baskets are named only when the gather itself is unaffordable.
 	if not _eagle_short():
 		return ""
+	var basket := supply_refusal("🧺", gather_price(), true)
+	if basket != "":
+		return basket
 	var rest := _eagle_gather_line().replace("▸ ", "").strip_edges()
+	var need := "needs %d🦅" % _chart_eagles()
 	if rest == "" or rest == "ESC closes":
-		return "needs 21🦅"
-	return "needs 21🦅 — %s" % rest
+		return need
+	return "%s — %s" % [need, rest]
 
 
 static func basket_short_refusal() -> String:

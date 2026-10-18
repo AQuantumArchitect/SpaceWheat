@@ -141,4 +141,27 @@ walls.
 
 ## Testing and jumping to a beat
 
-<!-- filled in with the fixtures work -->
+Three tiers, none of which tops up resources or forces unlocks:
+
+1. **Static** (no Godot, CI): `python3 tools/campaign/validate.py` and
+   `tests/test_campaign_spec.py`.
+2. **Beat fixtures** (`Core/Campaign/CampaignFixture.gd`):
+   `start_at_beat(beat_id)` builds the state a player has when that beat
+   opens. It replays every ancestor through the real story engine: flags
+   fire, grants apply, doors are accepted and claimed, teachings are learned,
+   charted biomes are loaded, required plants are planted, and standing is
+   raised to each gate. Then it lets the beat open on its own.
+   - It can't reproduce gate-ledger history or physics readings; it reports
+     them under `unreproduced`.
+   - Plan for any beat: `python3 tools/campaign/fixture_order.py <beat_id>`.
+   - Save a fixture as a `.tres`: `tools/campaign/mint_fixture_save.py`.
+   - `tests/test_campaign_fixtures.py` opens one beat per chapter across all
+     three campaigns.
+3. **Honest drive** (`🍄/🧪/honest_opening.py`, run by
+   `tests/test_honest_opening.py`): fresh boot, `RIG_UNLOCK_ALL=0`, no resource
+   injection, keys and screen reads only. It plays from Act 0 into Act 3
+   (`forest_listener` offered). Skip it with `SW_SKIP_LONG=1`.
+
+**Dev jump:** Escape menu (Z) → Dev → "start at beat…" → campaign → act →
+beat. It starts a fresh `demos_normal` game at that beat. The rig verb is
+`start_at_beat {id}`.
