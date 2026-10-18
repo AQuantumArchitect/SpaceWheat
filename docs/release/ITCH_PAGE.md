@@ -61,9 +61,11 @@ and an aftermath. Watching pays.
 - Postcards: every act you complete is captured with its physics certificate
 - No RNG behind a curtain — the only randomness is the Born rule itself
 
-**Alpha.** This is the first public build. The campaign plays end-to-end and
-is verified by an automated battery before every push — but you are among
-the first humans to ever touch it. If something confuses you or breaks,
+**Alpha.** This is the first public build. The opening is played through
+by an automated, keyboard-only run at player parity before every push, and
+every later story beat can be reached by a test fixture — but no one has yet
+played the whole campaign end-to-end at player parity, and you are among the
+first humans to ever touch it. If something confuses you or breaks,
 say so in the comments (Menu → Dev → "copy logs" puts a report on your
 clipboard). Confusion reports are as valuable as crash reports.
 

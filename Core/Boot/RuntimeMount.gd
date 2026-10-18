@@ -438,6 +438,8 @@ func stage_ui(farm: Node, shell: Node, quantum_viz: Node, world_builder) -> void
 				var qm_ref = shell.quest_manager
 				var farm_ref = farm
 				var act_cb := func(flag_id: String, flag: Dictionary):
+					if CampaignFixture.replaying:
+						return  # a start-at-beat fixture replaying ancestors earns no postcards
 					var act: int = int(flag.get("act", -1))
 					if act < 0 or not ("story_flags_fired" in farm_ref):
 						return
@@ -463,7 +465,7 @@ func stage_ui(farm: Node, shell: Node, quantum_viz: Node, world_builder) -> void
 				var shell_ref = shell
 				var overlay_layer_ref = shell_overlay_layer
 				var ending_cb := func(flag_id: String, _flag: Dictionary):
-					if flag_id != "island_free":
+					if flag_id != "island_free" or CampaignFixture.replaying:
 						return
 					if overlay_layer_ref.get_node_or_null("EndingOverlay") != null:
 						return

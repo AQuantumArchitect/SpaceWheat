@@ -1653,6 +1653,69 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 					await _wait_settle_frames(int(cmd.get("settle_frames", 8)))
 					result["fired"] = (_farm != null and "story_flags_fired" in _farm and _farm.story_flags_fired.has(ff_id))
 
+		"start_at_beat":
+			# Test/dev fixture: build the state a player holds when beat {id}
+			# OPENS (Core/Campaign/CampaignFixture.gd — tutorial done, every
+			# ancestor fired + its door claimed, charted biomes loaded), then
+			# let QuestManager open the beat itself on its own evaluator.
+			# {id, wait_frames?=240, force?=false, wallet?=true}. force fires
+			# the beat only if its own trigger never comes true.
+			var sb_qm = _resolve_quest_manager()
+			var sb_id: String = str(cmd.get("id", ""))
+			if sb_qm == null or _farm == null:
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_farm_or_quest_manager"}
+			else:
+				var sb_rep: Dictionary = CampaignFixture.start_at_beat(_farm, sb_qm, sb_id,
+						{"wallet": bool(cmd.get("wallet", true))})
+				if not bool(sb_rep.get("ok", false)):
+					result = {"ok": false, "turn": turn_id, "action": action,
+							"error": str(sb_rep.get("error", "fixture_failed")), "report": sb_rep}
+				else:
+					var sb_wait: int = int(cmd.get("wait_frames", 240))
+					var sb_waited := 0
+					while sb_waited < sb_wait and not _farm.story_flags_fired.has(sb_id):
+						await physics_frame
+						sb_waited += 1
+					var sb_flag: Dictionary = sb_qm._story_flag_by_id(sb_id)
+					var sb_forced := false
+					if not _farm.story_flags_fired.has(sb_id) and bool(cmd.get("force", false)):
+						sb_qm._fire_story_flag(sb_flag, _farm)
+						sb_forced = true
+					await _wait_settle_frames(int(cmd.get("settle_frames", 8)))
+					var sb_offer := false
+					for sb_q in sb_qm.get_story_offers() + sb_qm.get_active_quests():
+						if sb_q is Dictionary and str(sb_q.get("source_flag", "")) == sb_id:
+							sb_offer = true
+					result["id"] = sb_id
+					result["report"] = sb_rep
+					result["fired"] = _farm.story_flags_fired.has(sb_id)
+					result["forced"] = sb_forced
+					result["waited_frames"] = sb_waited
+					result["offer_present"] = sb_offer
+					result["has_arc"] = sb_flag.get("arc_quest") is Dictionary
+					result["score"] = sb_qm.evaluate_flag_score(sb_flag) if not sb_flag.is_empty() else 0.0
+					result["loaded_biomes"] = _farm.grid.get_biome_names() if _farm.grid and _farm.grid.has_method("get_biome_names") else []
+
+		"ui_unlocks":
+			# Read-only: which hats / menus / viz overlays UIProgression shows
+			# right now (is_*_visible — the story-progress disclosure, not the
+			# RIG_UNLOCK_ALL bypass), plus the live tutorial step.
+			var uu_prog = load("res://UI/Core/UIProgression.gd")
+			var uu_hats := {}
+			for uu_frame in ToolConfig.FRAME_IDS:
+				if str(uu_frame) != "":
+					uu_hats[str(uu_frame)] = bool(uu_prog.is_hat_visible(str(uu_frame)))
+			var uu_menus := {}
+			for uu_menu in uu_prog.MENU_UNLOCK_FLAGS:
+				uu_menus[str(uu_menu)] = bool(uu_prog.is_menu_visible(str(uu_menu)))
+			var uu_viz := {}
+			for uu_v in uu_prog.VIZ_UNLOCK_FLAGS:
+				uu_viz[str(uu_v)] = bool(uu_prog.is_viz_visible(str(uu_v)))
+			result["hats"] = uu_hats
+			result["menus"] = uu_menus
+			result["viz"] = uu_viz
+			result["tutorial_step"] = int(uu_prog.current_tutorial_step())
+
 		"berry_track":
 			# Start Berry-phase tracking on qubit(s) of a biome (test harness for the
 			# incorporation loop, bypassing the Icon-hat keypress ritual).

@@ -93,7 +93,22 @@ static func is_hat_visible(frame_name: String) -> bool:
 	var flags := _flags()
 	if flags.is_empty() and _no_farm():
 		return true
-	return _unlocked(HAT_UNLOCK_FLAGS.get(frame_name, ""), flags)
+	return _unlocked(HAT_UNLOCK_FLAGS.get(frame_name, ""), flags) \
+			or _spec_unlocked("hats", frame_name, flags)
+
+
+## The campaign spec's own unlock table (campaign.json on_open.unlock →
+## campaign_runtime.json) is an ANY-of alongside the tables above: a beat the
+## spec says surfaces a hat surfaces it, even where the hand table predates
+## the beat (spring_door hands the Captain hat on the Spring road, which never
+## passes woodlot_door). Only ever widens — a name absent from the spec table
+## leaves the hand table's answer standing.
+static func _spec_unlocked(kind: String, name: String, flags: Dictionary) -> bool:
+	var table: Dictionary = CampaignRuntime.unlocks(kind)
+	if not table.has(name):
+		return false
+	var ids = table[name]
+	return ids is Array and not (ids as Array).is_empty() and _unlocked(ids, flags)
 
 
 ## Viz overlay id → surfacing flag ("" = always). Same fail-open law: an
@@ -112,14 +127,16 @@ static func is_viz_visible(overlay_id: String) -> bool:
 	var flags := _flags()
 	if flags.is_empty() and _no_farm():
 		return true
-	return _unlocked(VIZ_UNLOCK_FLAGS.get(overlay_id, ""), flags)
+	return _unlocked(VIZ_UNLOCK_FLAGS.get(overlay_id, ""), flags) \
+			or _spec_unlocked("viz", overlay_id, flags)
 
 
 static func is_menu_visible(menu_id: String) -> bool:
 	var flags := _flags()
 	if flags.is_empty() and _no_farm():
 		return true
-	if not _unlocked(MENU_UNLOCK_FLAGS.get(menu_id, ""), flags):
+	if not (_unlocked(MENU_UNLOCK_FLAGS.get(menu_id, ""), flags) \
+			or _spec_unlocked("menus", menu_id, flags)):
 		return false
 	if MENU_UNLOCK_STEP.has(menu_id):
 		return current_tutorial_step() >= int(MENU_UNLOCK_STEP[menu_id])
