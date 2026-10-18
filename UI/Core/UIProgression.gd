@@ -366,6 +366,10 @@ static func objective_detail() -> String:
 	var best := _banner_quest()
 	if best.is_empty():
 		return ""
+	# Supply walk live: the how-line is the whole route from the table.
+	var sup := _supply_need_now(best)
+	if sup != "":
+		return supply_refusal(sup, _supply_cost(sup))
 	# Wave 21 earnest: authored plant how-to (Icon + empty plot) outran the
 	# 🌱 gather walk. One live beat. Do not plant for them.
 	if _is_plant_ask(best) and _sprout_short():
@@ -537,7 +541,15 @@ static func objective_target() -> Dictionary:
 	# Wave 23: plant-short pulses Forest, not Icon 5 and not C. PredicateGloss
 	# target() for gate=plant is the Icon hat — true only after 🌱×5.
 	if _is_plant_ask(best) and _sprout_short():
+		if _basket_short():
+			var bt := _basket_pay_target()
+			if not bt.is_empty():
+				return bt
 		return {"key": "", "biome": "StarterForest"}
+	if _is_plant_ask(best) and not _in_icon_submenu() and _plant_south_short():
+		var st := _supply_target(_plant_south_want)
+		if not st.is_empty():
+			return st
 	if _is_plant_ask(best):
 		var icon_hat := _hat_key_for_frame("icon")
 		var plant_biome := _plant_ask_biome(best)
@@ -1336,6 +1348,11 @@ static func _sprout_gather_line() -> String:
 		return "▸ ESC closes"
 	if _sim_paused():
 		return "▸ [F] Play"
+	# Gather costs 🧺 — restock before the walk spends the last basket.
+	if _basket_short():
+		var basket := _basket_pay_line()
+		if basket != "":
+			return basket
 	var have := int(_sprout_have())
 	var need := "🌱 %d/5" % have
 	var cross := _cross_to("StarterForest")
@@ -1386,6 +1403,12 @@ static func _plant_walk_line() -> String:
 	# Do not plant for them.
 	if _sprout_short():
 		return _sprout_gather_line()
+	# The word they tried to plant needs 13 of its south pole (🪓 for 🪵/🪓,
+	# 🌊 for 💧/🌊) — those come from a standing trade, not a plot.
+	if not _in_icon_submenu() and _plant_south_short():
+		var south_walk := _supply_walk_line(_plant_south_want)
+		if south_walk != "":
+			return south_walk
 	if _in_icon_submenu() or _menu_open():
 		if _in_icon_submenu():
 			return "▸ [Q]/[E] pick a word (need 🌱×5 + south×13)"
@@ -1475,7 +1498,7 @@ static func _eagle_have() -> float:
 
 
 static func _eagle_short() -> bool:
-	# lantern_door: empty/unreadable wallet never named Village 🧺 [Q].
+	# lantern_door: empty/unreadable wallet never named the 🧺 supply walk.
 	# No farm yet is not a wallet. Mute economy is 0 eagles, so short.
 	var farm = _active_farm()
 	if farm == null:
@@ -1483,22 +1506,228 @@ static func _eagle_short() -> bool:
 	return _eagle_have() < 21.0
 
 
-static func _basket_have() -> float:
+# =============================================================================
+# SUPPLY WALK — generated from the campaign resource table
+# (CampaignRuntime.resources(): low_water, plots, standing trades). One next
+# key, never a trade made for them. _basket_* below are the 🧺 instances.
+# =============================================================================
+
+## South pole of the word the player last tried to plant, noted by the input
+## layer when a plant was refused for cost; cleared when a word takes root.
+static var _plant_south_want: String = ""
+
+
+static func note_plant_south(south: String) -> void:
+	_plant_south_want = str(south).strip_edges()
+
+
+static func _wallet(emoji: String) -> float:
 	var farm = _active_farm()
 	if farm == null or not ("economy" in farm) or farm.economy == null:
 		return 0.0
 	if not farm.economy.has_method("get_resource"):
 		return 0.0
-	return float(farm.economy.get_resource("🧺"))
+	return float(farm.economy.get_resource(emoji))
 
 
-static func _basket_short() -> bool:
-	# Match pop cost: gather costs 1🧺, flat. Strike does not mint it.
-	# lantern_door: mute wallet is 0🧺 — fail toward Village 🧺 [Q].
+## Ace Q gather price in 🧺 (flat; the action-cost table is the authority).
+static func gather_price() -> int:
+	var farm = _active_farm()
+	if farm != null:
+		var c: Dictionary = ActionCostRuntime.get_action_cost(farm, "pop", {})
+		if c.has("🧺"):
+			return maxi(1, int(round(float(c["🧺"]))))
+	return 1
+
+
+static func _trade_affordable(t: Dictionary) -> bool:
+	var give := CampaignRuntime.trade_give(t)
+	if give.is_empty():
+		return false
+	for g in give:
+		if _wallet(str(g)) < float(give[g]):
+			return false
+	return true
+
+
+## The standing trade the walk takes for `emoji`: the one on the board the
+## player stands at when its ask is in hand, else the Village rescue. When
+## that ask is itself short and has an affordable Village trade, walk THAT
+## first (one level: 🧺 asks 👥, 👥 trades for 🌾). {} = no trade anywhere.
+static func _supply_step(emoji: String) -> Dictionary:
+	var here := _active_biome_name()
+	var t: Dictionary = CampaignRuntime.trade_in(emoji, here) if here != "" else {}
+	if t.is_empty() or not _trade_affordable(t):
+		var rescue := CampaignRuntime.rescue_trade(emoji)
+		if not rescue.is_empty():
+			t = rescue
+	if t.is_empty():
+		var all := CampaignRuntime.supply_trades(emoji)
+		if not all.is_empty():
+			t = all[0]
+	if t.is_empty() or _trade_affordable(t):
+		return t
+	var give := CampaignRuntime.trade_give(t)
+	for g in give:
+		if _wallet(str(g)) >= float(give[g]):
+			continue
+		var sub := CampaignRuntime.rescue_trade(str(g))
+		if not sub.is_empty() and _trade_affordable(sub):
+			return sub
+	return t
+
+
+## Short for a spend of `cost`×`emoji`: unaffordable, or — for a spend SMALLER
+## than the resource's low-water reserve (gather: 1🧺 against 3) — a spend
+## that would leave the wallet under the reserve while the trade that
+## restocks it is in hand (restock BEFORE bottoming out). One-shot spends as
+## big as their reserve (13🪓, 21🦅, 5🌱) switch only when unaffordable: a
+## reserve the size of the spend would send the player round in circles.
+## No farm yet is not a wallet; a mute economy reads 0, so short.
+static func _supply_short(emoji: String, cost: int) -> bool:
 	var farm = _active_farm()
 	if farm == null:
 		return false
-	return _basket_have() < 1.0
+	var have := _wallet(emoji)
+	if have < float(cost):
+		return true
+	var lw := CampaignRuntime.low_water(emoji)
+	if cost >= lw or have - float(cost) >= float(lw):
+		return false
+	var t := _supply_step(emoji)
+	return not t.is_empty() and str(t.get("emoji", "")) == emoji and _trade_affordable(t)
+
+
+static func _rail_key_for(biome_name: String) -> String:
+	var abm := _active_biome_manager()
+	if abm == null or biome_name == "" or str(abm.get_active_biome()) == biome_name:
+		return ""
+	var slot := int(abm.get_slot_for_biome(biome_name))
+	return str(abm.get_slot_key(slot)).to_upper() if slot >= 0 else ""
+
+
+static func _board_open() -> bool:
+	var ml := Engine.get_main_loop()
+	if not (ml is SceneTree):
+		return false
+	var shells := (ml as SceneTree).get_nodes_in_group("player_shell")
+	if shells.is_empty():
+		return false
+	var shell = shells[0]
+	if shell == null or not ("overlay_manager" in shell) or shell.overlay_manager == null:
+		return false
+	var om = shell.overlay_manager
+	return om.has_method("is_event_home_open") and bool(om.is_event_home_open("board"))
+
+
+## The whole route, live rail key included:
+##   "Village [Y] → [C] board → Market → the 🧺 trade (👥×6 → 🧺×4)"
+static func supply_route_line(emoji: String) -> String:
+	var t := _supply_step(emoji)
+	if t.is_empty():
+		return CampaignRuntime.supply_route_words(emoji)
+	return CampaignRuntime.supply_route_words(str(t.get("emoji", emoji)),
+			_rail_key_for(str(t.get("biome", ""))), t)
+
+
+## The supply walk's ONE next key (banner line). "" when the table has no
+## trade for `emoji` (callers keep their own gather walk).
+static func _supply_walk_line(emoji: String) -> String:
+	var t := _supply_step(emoji)
+	if t.is_empty():
+		return ""
+	var e := str(t.get("emoji", emoji))
+	var biome := str(t.get("biome", ""))
+	var tag := "the %s trade (%s)" % [e, CampaignRuntime.trade_words(t)]
+	if _board_open():
+		if _active_biome_name() == biome:
+			var board = _quest_board()
+			if board != null and board.has_method("supply_walk_cue"):
+				var cue := str(board.supply_walk_cue(e)).strip_edges()
+				if cue != "":
+					return cue
+		return "▸ ESC closes"
+	if _in_icon_submenu() or _menu_open():
+		return "▸ ESC closes"
+	var cross := _cross_to(biome)
+	if cross != "":
+		return "%s — %s" % [cross, tag]
+	if _active_biome_name() != biome:
+		return "▸ " + CampaignRuntime.supply_route_words(e, "", t)
+	return "▸ [C] opens the board — %s" % tag
+
+
+static func _first_key(line: String) -> String:
+	var a := line.find("[")
+	var b := line.find("]", a + 1)
+	if a < 0 or b <= a + 1:
+		return ""
+	return line.substr(a + 1, b - a - 1)
+
+
+## Spotlight twin of _supply_walk_line: {key, biome}.
+static func _supply_target(emoji: String) -> Dictionary:
+	var t := _supply_step(emoji)
+	if t.is_empty():
+		return {}
+	return {"key": _first_key(_supply_walk_line(emoji)), "biome": str(t.get("biome", ""))}
+
+
+## Toast / detail words for a starved spend: the whole route from the table.
+## strict = only when the spend is unaffordable — a refusal for some OTHER
+## reason keeps its own true reason (a low wallet is not why Strike failed).
+static func supply_refusal(emoji: String, cost: int, strict: bool = false) -> String:
+	if _active_farm() == null:
+		return ""
+	var have := int(_wallet(emoji))
+	var out := have < cost
+	if strict and not out:
+		return ""
+	if not out and not _supply_short(emoji, cost):
+		return ""
+	var route := supply_route_line(emoji)
+	if out:
+		if route == "":
+			return "needs %s" % emoji
+		return "needs %s (you hold %d) — %s" % [emoji, have, route]
+	return "%s low (%d left) — restock: %s" % [emoji, have, route]
+
+
+## Which resource the banner is supply-walking right now ("" = none).
+static func _supply_need_now(q: Dictionary) -> String:
+	if q.is_empty():
+		return ""
+	if _is_plant_ask(q):
+		if _sprout_short():
+			return "🧺" if _basket_short() else ""
+		if _plant_south_short():
+			return _plant_south_want
+		return ""
+	if _is_discover_ask(q) and _eagle_short():
+		return "🧺" if _basket_short() else ""
+	return ""
+
+
+static func _plant_south_short() -> bool:
+	var south := _plant_south_want
+	if south == "" or CampaignRuntime.supply_trades(south).is_empty():
+		return false
+	return _supply_short(south, EconomyConstants.ICON_INJECTION_SOUTH_COST)
+
+
+static func _supply_cost(emoji: String) -> int:
+	if emoji == "🧺":
+		return gather_price()
+	if emoji == _plant_south_want:
+		return EconomyConstants.ICON_INJECTION_SOUTH_COST
+	return 1
+
+
+# ── 🧺: gather (Ace Q) pays a flat basket. The Village has no 🧺 register;
+# its board's standing 🧺 trade is the restock and the rescue. ──
+
+static func _basket_short() -> bool:
+	return _supply_short("🧺", gather_price())
 
 
 static func _eagle_gather_target() -> Dictionary:
@@ -1540,34 +1769,7 @@ static func _eagle_gather_target() -> Dictionary:
 
 
 static func _basket_pay_target() -> Dictionary:
-	# Same walk as _basket_pay_line: Village rail, [8] Ace, 🧺 plot, then [Q].
-	# Q pays the basket. Do not spotlight Strike.
-	var village := "Village"
-	var ace := _hat_key_for_frame("ace")
-	if _in_icon_submenu() or _menu_open():
-		return {"key": "", "hat": ace, "biome": village}
-	if _sim_paused():
-		return {"key": "F", "hat": ace, "biome": village}
-	var abm := _active_biome_manager()
-	if abm != null and str(abm.get_active_biome()) != village:
-		var slot := int(abm.get_slot_for_biome(village))
-		var rail := str(abm.get_slot_key(slot)).to_upper() if slot >= 0 else ""
-		return {"key": rail, "hat": ace, "biome": village}
-	if str(ToolConfig.get_current_frame()) != ToolConfig.FRAME_ACE:
-		return {"key": ace, "hat": ace, "biome": village}
-	var want := _glyph_plot_key("🧺")
-	var focused := _focused_col()
-	var token := ";" if want == ";" else want.to_upper()
-	var want_col := PLOT_HOMEROW.find(token) if want != "" else -1
-	if want != "" and focused != want_col:
-		return {"key": token, "hat": ace, "biome": village}
-	if not _plot_bound(focused):
-		if ace_f_would_explore():
-			return {"key": "F", "hat": ace, "biome": village}
-		if want != "":
-			return {"key": token, "hat": ace, "biome": village}
-		return {"key": "", "hat": ace, "biome": village}
-	return {"key": "Q", "hat": ace, "biome": village}
+	return _supply_target("🧺")
 
 
 static func _eagle_gather_line() -> String:
@@ -1613,36 +1815,8 @@ static func _eagle_gather_line() -> String:
 
 
 static func _basket_pay_line() -> String:
-	# lantern_door: 🦅 gather costs 🧺. Strike costs 👥 and does not mint it.
-	# Village 🧺 [Q] pays a basket. One next key. Do not gather for them.
-	if _in_icon_submenu() or _menu_open():
-		return "▸ ESC closes"
-	if _sim_paused():
-		return "▸ [F] Play"
-	var have := int(_basket_have())
-	var need := "🧺 %d/1" % have
-	var cross := _cross_to("Village")
-	if cross != "":
-		return cross + " for " + need
-	var wearing := str(ToolConfig.get_current_frame())
-	if wearing != ToolConfig.FRAME_ACE:
-		return "▸ [8] Ace for " + need
-	var want := _glyph_plot_key("🧺")
-	var focused := _focused_col()
-	var token := ";" if want == ";" else want.to_upper()
-	var want_col := PLOT_HOMEROW.find(token) if want != "" else -1
-	if want != "" and focused != want_col:
-		return "▸ [%s] for %s" % [want, need]
-	if not _plot_bound(focused):
-		if ace_f_would_explore():
-			return "▸ [F] Explore for " + need
-		if want != "":
-			return "▸ [%s] for %s" % [want, need]
-		return "▸ pick a sleeping 🧺 plot"
-	var got := _measured_glyph(focused)
-	if "🧺" in got or got == "":
-		return "▸ [Q] gather 🧺 (%d/1)" % have
-	return "▸ [Q] take %s" % got
+	# 🧺 supply walk. Strike costs 👥 and does not mint 🧺. One next key.
+	return _supply_walk_line("🧺")
 
 
 static func _named_discover_target() -> String:
@@ -1805,13 +1979,8 @@ static func eagle_short_refusal() -> String:
 
 
 static func basket_short_refusal() -> String:
-	# Ace Q / Strike / Explore while 🧺 is 0. Name Village 🧺 [Q], not Strike.
-	if not _basket_short():
-		return ""
-	var rest := _basket_pay_line().replace("▸ ", "").strip_edges()
-	if rest == "" or rest == "ESC closes":
-		return "needs 🧺"
-	return "needs 🧺 — %s" % rest
+	# Banner-side: unaffordable OR under the 🧺 reserve. Names the trade walk.
+	return supply_refusal("🧺", gather_price())
 
 
 static func slots_full_refusal() -> String:

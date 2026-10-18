@@ -1472,6 +1472,7 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 						"quantity": vq,
 						"reward_resources": vo.get("reward_resources", {}),
 						"affordable": float(bv_inv.get(vr, 0.0)) >= float(vq),
+						"supply_trade": bool(vo.get("supply_trade", false)),
 					})
 				result["visible"] = bv_out
 
@@ -1500,6 +1501,8 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 							"resource": str(bo.get("resource", "")),
 							"quantity": int(bo.get("quantity", 0)),
 							"reward_resources": bo.get("reward_resources", {}),
+							"supply_trade": bool(bo.get("supply_trade", false)),
+							"supply_emoji": str(bo.get("supply_emoji", "")),
 						})
 					result["offers"] = bs_offers
 				if bs_board.has_method("_commitments_rows"):
@@ -1512,6 +1515,8 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 							"quantity": int(br.get("quantity", 0)),
 							"status": str(br.get("status", "")),
 							"type": str(br.get("type", "")),
+							"supply_trade": bool(br.get("supply_trade", false)),
+							"supply_emoji": str(br.get("supply_emoji", "")),
 						})
 					result["commitments"] = bs_rows
 				result["nb_name"] = (str(bs_board._nb_name) if ("_nb_name" in bs_board) else "")

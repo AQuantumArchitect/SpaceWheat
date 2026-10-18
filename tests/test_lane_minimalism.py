@@ -218,84 +218,97 @@ def test_eagle_short_names_gather_key():
     assert len(hint) <= 70
 
 
-def test_basket_short_names_village_q_not_strike():
-    """lantern_door: 🧺 0, Q gather still named Strike. Strike costs 👥
-    and does not mint 🧺. Live ask names Village 🧺 and the one key that
-    pays a basket. Refusal speaks when Strike/Explore/Q cannot. Do not
-    gather for them."""
+def test_basket_short_walks_the_village_trade_not_a_plot():
+    """No register mints 🧺 — the Village has no 🧺 plot, so the old walk
+    ("Village 🧺 [Q] pays a basket") steered a broke player into a dead end.
+    The 🧺 walk is now the data-driven supply walk: the standing 🧺 trade on
+    the Village board, from the campaign resources table. Strike costs 👥
+    and does not mint 🧺; refusals speak when Strike/Explore/Q cannot. Do
+    not gather or trade for them."""
     prog = src(PROG)
-    assert "func _basket_short" in prog
-    assert "func _basket_pay_line" in prog
-    assert "func _basket_pay_target" in prog
-    assert "func basket_short_refusal" in prog
+    for fn in ("_basket_short", "_basket_pay_line", "_basket_pay_target",
+               "basket_short_refusal", "_supply_short", "_supply_walk_line",
+               "_supply_target", "supply_refusal", "supply_route_line", "_supply_step"):
+        assert "static func %s(" % fn in prog, fn
+    # The 🧺 helpers are thin instances of the generic, table-keyed walk.
+    basket = prog.split("static func _basket_pay_line()")[1].split("\nstatic func ")[0]
+    assert '_supply_walk_line("🧺")' in basket
+    assert "[Q] gather 🧺" not in basket
+    assert "[R] Strike" not in basket
+    pay_t = prog.split("static func _basket_pay_target()")[1].split("\nstatic func ")[0]
+    assert '_supply_target("🧺")' in pay_t
+    short = prog.split("static func _basket_short()")[1].split("\nstatic func ")[0]
+    assert '_supply_short("🧺"' in short
+    # The walk reads the table, not a hard-coded country or price.
+    step = prog.split("static func _supply_step(")[1].split("\nstatic func ")[0]
+    assert "CampaignRuntime.rescue_trade" in step
+    sup_short = prog.split("static func _supply_short(")[1].split("\nstatic func ")[0]
+    assert "CampaignRuntime.low_water" in sup_short
+    walk = prog.split("static func _supply_walk_line(")[1].split("\nstatic func ")[0]
+    assert "supply_walk_cue" in walk
+    assert "[C] opens the board" in walk
+    assert "_cross_to(biome)" in walk
+    # Gather walks restock BEFORE the last basket: sprout and eagle both.
+    sprout = prog.split("static func _sprout_gather_line()")[1].split("\nstatic func ")[0]
+    assert "_basket_short()" in sprout and "_basket_pay_line()" in sprout
     gather = prog.split("static func _eagle_gather_line()")[1].split("\nstatic func ")[0]
     assert "_basket_short" in gather
     assert "_basket_pay_line" in gather
-    basket = prog.split("static func _basket_pay_line()")[1].split("\nstatic func ")[0]
-    assert "Village" in basket
-    assert "🧺" in basket
-    assert "[Q] gather 🧺" in basket
-    assert "[R] Strike" not in basket
     target = prog.split("static func _eagle_gather_target()")[1].split("\nstatic func ")[0]
     assert "_basket_short" in target
     assert "_basket_pay_target" in target
-    pay_t = prog.split("static func _basket_pay_target()")[1].split("\nstatic func ")[0]
-    assert '"Q"' in pay_t
-    assert "Village" in pay_t
-    assert '"R"' not in pay_t
     eagle_ref = prog.split("static func eagle_short_refusal()")[1].split("\nstatic func ")[0]
     assert "basket_short_refusal" in eagle_ref
+    # The board answers the walk with one next key.
+    board = src(BOARD)
+    cue = board.split("func supply_walk_cue(")[1].split("\nfunc _market_rows")[0]
+    assert "Market [Y]" in cue
+    assert "[R] %s" in cue
+    # Refusals: strict (a low wallet is not why Strike failed).
     qii = src(ROOT / "UI" / "Core" / "QuantumInstrumentInput.gd")
     block = qii.split("func _block_reason_for_player")[1].split("func _tracked_elsewhere_hint")[0]
-    assert "basket_short_refusal" in block
+    assert block.count('supply_refusal("🧺", UIProgression.gather_price(), true)') == 3
     assert "Explore does not pay" in block
     assert "Strike does not pay" in block
     probe = src(ROOT / "Core" / "Actions" / "ProbeActions.gd")
-    assert "Village 🧺 [Q] pays a basket" in probe
-    flags = json.loads(HANDOVER.read_text(encoding="utf-8"))
-    lantern = next(f for f in flags if f.get("id") == "lantern_door")
-    hint = str(lantern.get("arc_quest", {}).get("hint", ""))
-    assert "🧺" in hint
-    assert "Village" in hint
-    assert "Forest" in hint
-    assert "[8]" in hint
-    assert "🦅" in hint
-    assert "[7]" in hint
-    assert "[Q]" in hint
-    assert "[R]" in hint
-    assert "cull" in hint.lower()
-    assert "Lanternfall" in hint
-    assert "F reads" not in hint
-    assert len(hint) <= 70
+    assert 'CampaignRuntime.supply_route_words("🧺"' in probe
+    # The dead path is gone everywhere it was spoken.
+    for rel in ("Core/Actions/ProbeActions.gd", "UI/Core/UIProgression.gd",
+                "UI/Core/QuantumInstrumentInput.gd", "UI/Overlays/QuestBoard.gd",
+                "Core/Quests/data/story_flags.json", "Core/Campaign/campaign.json"):
+        text = src(ROOT / rel)
+        assert "Village 🧺 [Q] pays a basket" not in text, rel
+        assert "Village 🧺 plot" not in text, rel
+        assert "sleeping 🧺 plot" not in text, rel
 
 
 def test_unreadable_wallet_fails_toward_village_basket():
     """lantern_door: empty/unreadable wallet, [R] Find Lanternfall does not
     pay 🧺. Origin _eagle_short/_basket_short returned false when economy
     was missing or mute, so discover walk kept compass prose. Mute wallet
-    is 0; fail toward Village 🧺 [Q]. Do not discover for them."""
+    is 0; fail toward the Village 🧺 trade. Do not discover for them."""
     prog = src(PROG)
     eagle = prog.split("static func _eagle_short()")[1].split("\nstatic func ")[0]
-    basket = prog.split("static func _basket_short()")[1].split("\nstatic func ")[0]
     assert "farm == null" in eagle
     assert "_eagle_have()" in eagle
     assert eagle.count("return false") == 1
     assert 'has_method("get_resource")' not in eagle
     assert 'not ("economy" in farm)' not in eagle
-    assert "farm == null" in basket
-    assert "_basket_have()" in basket
-    assert basket.count("return false") == 1
-    assert 'has_method("get_resource")' not in basket
-    assert 'not ("economy" in farm)' not in basket
+    # No farm is not a wallet; a mute economy reads 0 (via _wallet) → short.
+    sup = prog.split("static func _supply_short(")[1].split("\nstatic func ")[0]
+    assert "farm == null" in sup
+    assert "_wallet(emoji)" in sup
+    assert sup.split("var have")[0].count("return false") == 1
+    assert 'has_method("get_resource")' not in sup
+    assert 'not ("economy" in farm)' not in sup
+    wallet = prog.split("static func _wallet(")[1].split("\nstatic func ")[0]
+    assert "return 0.0" in wallet
     disc = prog.split("static func _discover_walk_line()")[1].split("\nstatic func ")[0]
     assert "_eagle_short" in disc
     assert "_eagle_gather_line" in disc
     gather = prog.split("static func _eagle_gather_line()")[1].split("\nstatic func ")[0]
     assert "_basket_short" in gather
     assert "_basket_pay_line" in gather
-    pay = prog.split("static func _basket_pay_line()")[1].split("\nstatic func ")[0]
-    assert "Village" in pay
-    assert "[Q] gather 🧺" in pay
     eagle_ref = prog.split("static func eagle_short_refusal()")[1].split("\nstatic func ")[0]
     assert "basket_short_refusal" in eagle_ref
     qii = src(ROOT / "UI" / "Core" / "QuantumInstrumentInput.gd")

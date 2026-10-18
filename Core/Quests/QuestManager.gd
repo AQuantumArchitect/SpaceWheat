@@ -1710,6 +1710,11 @@ func complete_quest(quest_id: int) -> bool:
 		return false
 
 	var quest = active_quests[quest_id]
+	# Standing supply trades settle at their table price — never through the
+	# lattice exercise, which may refuse to price (and would make the rescue
+	# trade a coin flip).
+	if bool(quest.get("supply_trade", false)):
+		return _complete_supply_trade(quest_id, quest)
 	var required_emoji = str(quest.get("resource", ""))
 	var required_qty = int(quest.get("quantity", 0))
 	if required_emoji.is_empty() or required_qty <= 0:
@@ -1775,6 +1780,50 @@ func complete_quest(quest_id: int) -> bool:
 	_apply_standing_deltas(faction_name, reward.standing_deltas if reward else {})
 
 	_finalize_quest_completion(quest_id, quest, reward, granted_resources)
+	return true
+
+
+## Supply-trade settlement (QuestPipeline.supply_offer): take the whole `give`
+## ask, grant reward_resources EXACTLY, apply the ordinary DELIVERY standing
+## deltas to the faction, finalize. Refusals name the shortfall.
+func _complete_supply_trade(quest_id: int, quest: Dictionary) -> bool:
+	if economy == null:
+		last_complete_error = "no economy"
+		return false
+	var give: Dictionary = {}
+	var g = quest.get("give", {})
+	if g is Dictionary and not (g as Dictionary).is_empty():
+		for k in g:
+			give[str(k)] = int(g[k])
+	else:
+		var res := str(quest.get("resource", ""))
+		if res != "" and int(quest.get("quantity", 0)) > 0:
+			give[res] = int(quest.get("quantity", 0))
+	if give.is_empty():
+		last_complete_error = "it has no delivery ask"
+		return false
+	for e in give:
+		var held := int(economy.get_resource(e))
+		if held < int(give[e]):
+			last_complete_error = "deliver needs %s×%d — you hold %d" % [e, int(give[e]), held]
+			return false
+	for e in give:
+		if not economy.remove_resource(e, int(give[e]), "supply_trade"):
+			last_complete_error = "could not take %s×%d" % [e, int(give[e])]
+			return false
+	var faction_name := str(quest.get("faction", "Unknown"))
+	var granted: Dictionary = {}
+	var rewards = quest.get("reward_resources", {})
+	if rewards is Dictionary:
+		var source := "supply_trade:%s" % faction_name.replace(" ", "_").to_lower()
+		for e in rewards:
+			var amt := int(rewards[e])
+			if amt <= 0:
+				continue
+			economy.add_resource(str(e), amt, source)
+			granted[str(e)] = amt
+	_apply_standing_deltas(faction_name, QuestRewards._standing_deltas_for_quest(quest, true))
+	_finalize_quest_completion(quest_id, quest, null, granted)
 	return true
 
 
