@@ -336,6 +336,12 @@ def validate(spec: dict, report_table: bool = False) -> Report:
             for p in boot_pairs(bs, fs, bn):
                 gather |= set(p)
             market |= market_cloud(bs, fs, owners, bn)
+        # a word planted by an ancestor is a live register: both poles gather
+        # from then on (learn an icon, plant it, harvest into it)
+        for bn, atom in plants:
+            for p in known:
+                if atom in p and bn in avail_biomes:
+                    gather |= set(p)
         # standing trades: always on a loaded biome's board
         for res, info in resources.items():
             for tr in info.get("trades", []):
