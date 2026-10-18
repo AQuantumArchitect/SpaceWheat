@@ -6,11 +6,11 @@
    "_doc": "Faction standing gates. Values are absolute channel levels; the validator replays every guaranteed grant along the path and requires each gate to sit at least one kept delivery above what the story already hands you, and at most `max_deliveries` above.",
    "max_deliveries": 4,
    "mill_teaching": 0.06,
-   "timber_contact": 0.1,
-   "timber_teaching": 0.14,
-   "timber_rhythm": 0.2,
+   "timber_contact": 0.16,
+   "timber_teaching": 0.22,
+   "timber_rhythm": 0.3,
    "spring_contact": 0.45,
-   "spring_teaching": 0.65
+   "spring_teaching": 0.7
   },
   "berry": {
    "_doc": "Incorporation counts (berries consumed) and Berry-phase totals. Counts are cumulative per biome.",

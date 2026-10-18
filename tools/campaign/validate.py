@@ -281,6 +281,11 @@ def validate(spec: dict, report_table: bool = False) -> Report:
             hats |= con["hats"]
             for k, v in con["standing"].items():
                 stand[k] = stand.get(k, 0) + v
+            # the player MET that ancestor's standing gates (standing never decays)
+            for gp in index[x][3].get("objective", []):
+                if gp.get("type") == "standing_gte" and isinstance(gp.get("value"), (int, float)):
+                    k = (gp["faction"], gp["channel"])
+                    stand[k] = max(stand.get(k, 0.0), float(gp["value"]))
             off = index[x][3].get("offer")
             if off:
                 add_standing(stand, off.get("faction", "Unknown"), claim_delta(off))
