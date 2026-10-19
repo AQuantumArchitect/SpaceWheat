@@ -579,6 +579,12 @@ static func _market_held_chord(c: Dictionary, home: String, verb: Array, q: Dict
 ## Gather `res` up to `need` on a biome whose registers carry it (the spec's
 ## resources table): Ace hat, a plot showing the glyph, Explore → Strike →
 ## Gather. Each press is one step, read from the focused plot's state.
+## Strikes that came up the other pole, per resource. After MISS_CAP misses
+## in a row the land is leaning away from it, so the market trade is the route.
+static var _misses := {}
+static var _counted := {}   # this measurement was already counted (next_step runs every frame)
+const MISS_CAP := 3
+
 static func _gather(res: String, need: int, q: Dictionary, depth: int = 0) -> Dictionary:
 	var info := CampaignRuntime.resource(res)
 	var plots: Array = info.get("plots", [])
@@ -593,8 +599,10 @@ static func _gather(res: String, need: int, q: Dictionary, depth: int = 0) -> Di
 				break
 	if where == "":
 		where = _biome_carrying(res)
-	if where == "":
-		return _supply(res, q, depth)
+	if where == "" or int(_misses.get(res, 0)) >= MISS_CAP:
+		var sup := _supply(res, q, depth)
+		if not sup.is_empty() or where == "":
+			return sup
 	var t := _travel(where, q)
 	if not t.is_empty():
 		return t
@@ -604,7 +612,14 @@ static func _gather(res: String, need: int, q: Dictionary, depth: int = 0) -> Di
 	var col := _live_col()
 	var label := "gather %s %d/%d" % [res, int(UIP._wallet(res)), need]
 	if col >= 0 and UIP._plot_measured(col):
+		var got := UIP._measured_glyph(col)
+		if got == res:
+			_misses[res] = 0
+		elif got != "" and not _counted.get(res, false):
+			_misses[res] = int(_misses.get(res, 0)) + 1
+		_counted[res] = true
 		return _cost_or(["gather", "🧺"], _chord(_close_first() + [label, ["Gather", _verb("gather")]], q, "gather"), q, depth)
+	_counted[res] = false
 	if col >= 0 and UIP._plot_bound(col):
 		return _cost_or(["strike", "👥"], _chord(_close_first() + [label, ["Strike", _verb("strike")]], q, "strike"), q, depth)
 	var key := UIP._glyph_plot_key(res)

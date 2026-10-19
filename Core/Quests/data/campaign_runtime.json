@@ -591,6 +591,9 @@
       ],
       "biome_attractor_emoji_gte": [
         "steer"
+      ],
+      "biome_spectral_gap_lte": [
+        "plant_new"
       ]
     }
   }

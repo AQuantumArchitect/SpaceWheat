@@ -6,7 +6,7 @@ GUIDANCE_FROM_THE_SPEC.md). No Godot needed.
     kind Guide.gd implements is one the validator knows
   * every hat key in the keymap is the key ToolConfig binds to that hat
   * every Act 0 lesson and every main-campaign objective type has a walk
-    (the legacy banner is the fallback only for post-game physics asks)
+    (the legacy banner is only the fallback when a walk yields no step)
   * the voices read the resolver: the banner and spotlight ask Guide first,
     the Arc's NOW row is Guide's live beat, and story offers are announced by
     the live-beat transition instead of one generic card each
@@ -59,10 +59,8 @@ def test_main_campaign_and_act0_are_fully_walked():
     report = validate.validate(S.load())
     assert not report.errors, report.errors
     unwalked = [w for w in report.warnings if "no guide walk" in w]
-    # The physics ask still on the legacy banner; the list may only shrink.
-    allowed = {"biome_spectral_gap_lte"}
-    for w in unwalked:
-        assert any(a in w for a in allowed), w
+    # Every objective type now has a walk; the legacy banner is only a fallback.
+    assert not unwalked, unwalked
 
 
 def test_every_voice_reads_the_resolver():
