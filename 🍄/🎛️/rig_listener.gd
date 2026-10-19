@@ -1032,6 +1032,18 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				result["stack"] = us_entries
 				result["size"] = us_entries.size()
 
+		"guide_step":
+			# Read-only: what the guidance resolver says now (Core/Campaign/Guide.gd)
+			# — the live beat, its next step, the keys and why. The banner shows
+			# this text; probes and tests read the structure.
+			var gs_guide = load("res://Core/Campaign/Guide.gd")
+			var gs_step: Dictionary = gs_guide.next_step()
+			var gs_beat: Dictionary = gs_guide.live_beat()
+			result["step"] = gs_step
+			result["live_beat"] = str(gs_beat.get("source_flag", ""))
+			result["live_status"] = str(gs_beat.get("status", ""))
+			result["tutorial_step"] = load("res://UI/Core/UIProgression.gd").current_tutorial_step()
+
 		"overlay_text":
 			# Read-only: every visible Label/RichTextLabel under a named node
 			# (default: whole tree). The text-lie detector — asserts what the

@@ -200,6 +200,12 @@ static func campaign(campaign_id: String) -> Dictionary:
 	return {}
 
 
+## The guide block: keymap + walk templates (Core/Campaign/Guide.gd reads it).
+static func guide() -> Dictionary:
+	var g = data().get("guide", {})
+	return g if g is Dictionary else {}
+
+
 ## Campaigns the spec marks "status": "in_development" (playable, unfinished).
 static func is_in_development(campaign_id: String) -> bool:
 	return str(campaign(campaign_id).get("status", "")) == "in_development"

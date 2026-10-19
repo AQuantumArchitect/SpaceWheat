@@ -9,7 +9,8 @@ presses it took, and how it failed if it did not:
   moved        a story flag fired, or the beat's own Arc quest was claimed
                (contract claims on the way are recorded, not counted)
   no_banner    the banner was empty (nothing tells the player what to do)
-  no_key       the banner names no key a keyboard player can press
+  no_key       the banner names no key a keyboard player can press (a line
+               that says to wait is waited out, up to WAIT_CAP × WAIT_SECONDS)
   stuck        banner and game state stopped changing for STUCK_AFTER presses
   loop         the banner cycled through the same few lines without progress
   cap          press budget spent while things changed but the story did not
@@ -43,6 +44,8 @@ import spec as S  # noqa: E402
 KEY_RE = re.compile(r"\[([^\]\s]{1,8})\]")
 SHIFT_RE = re.compile(r"shift\s*\+?\s*\[([^\]\s]{1,8})\]", re.I)
 STUCK_AFTER = 8
+WAIT_SECONDS = 3.0
+WAIT_CAP = 60          # three minutes of real time per beat
 PRESS_CAP = 150
 # The keys a keyboard player has (player_seat.ALLOWED_KEYS, by name).
 KEYNAMES = {"esc": "escape", "space": "space", "enter": "enter", "tab": "tab",
@@ -126,7 +129,7 @@ def follow(rig, beat: str, cap: int = PRESS_CAP) -> dict:
     claimed_ids0 = {str(q.get("id")) for q in claimed0}
     rep["contract_claims"] = 0
     rep["accepted"] = False
-    same, last_sig, seen_lines = 0, None, []
+    same, last_sig, seen_lines, waits = 0, None, [], 0
     for i in range(cap):
         banner = f.banner()
         line = banner[0] if banner else ""
@@ -149,6 +152,12 @@ def follow(rig, beat: str, cap: int = PRESS_CAP) -> dict:
             break
         ks = parse_keys(line)
         k = ks[0] if ks else None
+        if k is None and re.search(r"\bwait\b", line, re.I) and waits < WAIT_CAP:
+            # The banner says the game needs time, not a press: a trusting
+            # player waits. Time is budgeted separately from presses.
+            waits += 1
+            time.sleep(WAIT_SECONDS)
+            continue
         if k is None:
             rep["outcome"] = "no_key"
             rep["why"] = line
@@ -173,12 +182,68 @@ def follow(rig, beat: str, cap: int = PRESS_CAP) -> dict:
             rep["trail"].append({"banner": line[:120],
                                  "keys": " ".join(("shift+" if sh else "") + k for k, sh in ks)})
         time.sleep(0.15)
+    rep["waits"] = waits
     if rep["outcome"] is None:
         rep["outcome"] = "cap"
     return rep
 
 
-def run_one(beat: str, cap: int) -> dict:
+def journey(rig, start: str, minutes: float = 30.0) -> dict:
+    """Start at one beat's fixture and keep following the banner across beats:
+    how far does trusting the banner take you? Stops when the banner and the
+    game stop changing (STUCK_AFTER presses) or after `minutes`."""
+    f = Follower(rig)
+    rep = {"start": start, "fired": [], "presses": 0, "waits": 0, "stopped": None, "why": None,
+           "trail": [], "lines": {}}
+    if start != "fresh":  # "fresh": a new game, no fixture — Act 0 onward
+        r = f.t("start_at_beat", id=start, wait_frames=300, timeout=240)
+        if not r.get("ok"):
+            rep["stopped"] = "fixture_failed"
+            return rep
+    f.t("press_key", key="escape", settle_frames=4)
+    seen = set((f.t("story_flags").get("flags_fired", {}) or {}).keys())
+    t_end = time.time() + minutes * 60
+    same, last_sig = 0, None
+    while time.time() < t_end:
+        banner = f.banner()
+        line = banner[0] if banner else ""
+        flags = set((f.t("story_flags").get("flags_fired", {}) or {}).keys())
+        for fid in sorted(flags - seen):
+            rep["fired"].append({"flag": fid, "press": rep["presses"], "t": round(time.time() - t_end + minutes * 60)})
+        if flags - seen:
+            same = 0
+        seen |= flags
+        if not line:
+            rep["stopped"], rep["why"] = "no_banner", ""
+            break
+        ks = parse_keys(line)
+        if not ks and re.search(r"\bwait\b", line, re.I):
+            rep["waits"] += 1
+            time.sleep(WAIT_SECONDS)
+            continue
+        if not ks:
+            rep["stopped"], rep["why"] = "no_key", line
+            break
+        qs = f.t("active_quests", full=True).get("quests", []) or []
+        sig = f.signature(banner, qs)
+        same = same + 1 if sig == last_sig else 0
+        last_sig = sig
+        if same >= STUCK_AFTER:
+            rep["stopped"], rep["why"] = "stuck", line
+            break
+        for key, shift in ks:
+            f.t("press_key", key=key, shift=shift, settle_frames=12)
+            rep["presses"] += 1
+        rep["lines"][line] = rep["lines"].get(line, 0) + 1
+        rep["trail"] = (rep["trail"] + [line[:120]])[-80:]
+        time.sleep(0.15)
+    if rep["stopped"] is None:
+        rep["stopped"] = "time"
+    rep["last_banner"] = line
+    return rep
+
+
+def run_one(beat: str, cap: int, chain_minutes: float = 0.0) -> dict:
     from rig_client import RigClient  # noqa: E402
     xdg = Path(tempfile.mkdtemp(prefix="sw_follow_%s_" % beat))
     rig = RigClient(xdg=xdg, root_from_file=RUNNER / "milk_hunt_runner.py")
@@ -191,7 +256,7 @@ def run_one(beat: str, cap: int) -> dict:
     try:
         if not RigClient.wait_for_bridge_sentinel(timeout_s=240, xdg=rig.xdg_root):
             return {"beat": beat, "outcome": "boot_failed"}
-        rep = follow(rig, beat, cap)
+        rep = journey(rig, beat, chain_minutes) if chain_minutes > 0 else follow(rig, beat, cap)
     except Exception as exc:  # report, never hide
         rep = {"beat": beat, "outcome": "error", "why": repr(exc)[:300]}
     finally:
@@ -208,15 +273,22 @@ def main(argv=None) -> int:
     ap.add_argument("--jobs", type=int, default=1)
     ap.add_argument("--cap", type=int, default=PRESS_CAP)
     ap.add_argument("--out", default="")
+    ap.add_argument("--journey", type=float, default=0.0,
+                    help="minutes: from each named beat, keep following across beats")
     args = ap.parse_args(argv)
     beats = list(args.beats)
     if args.campaign:
         beats += [b["id"] for c, _a, _ch, b in S.iter_beats(S.load()) if c["id"] == args.campaign]
     results = []
     with cf.ThreadPoolExecutor(max_workers=max(1, args.jobs)) as ex:
-        for rep in ex.map(lambda b: run_one(b, args.cap), beats):
+        for rep in ex.map(lambda b: run_one(b, args.cap, args.journey), beats):
             results.append(rep)
-            print(json.dumps({k: rep.get(k) for k in ("beat", "outcome", "presses", "accepted", "contract_claims",
+            if args.journey:
+                print(json.dumps({k: rep.get(k) for k in ("start", "stopped", "why", "presses", "waits")},
+                                 ensure_ascii=False), flush=True)
+                print("  fired:", " → ".join(x["flag"] for x in rep.get("fired", [])), flush=True)
+                continue
+            print(json.dumps({k: rep.get(k) for k in ("beat", "outcome", "presses", "waits", "accepted", "contract_claims",
                                                       "why", "moved_by", "seconds")},
                              ensure_ascii=False), flush=True)
     if args.out:

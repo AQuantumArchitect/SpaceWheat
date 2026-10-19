@@ -108,6 +108,7 @@ def compile_runtime(spec: dict) -> dict:
         "charts": charts,
         "chart_cost": spec.get("chart_cost", {}),
         "resources": res,
+        "guide": {k: v for k, v in spec.get("guide", {}).items() if not k.startswith("_")},
     }
 
 
