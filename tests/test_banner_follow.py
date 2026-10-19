@@ -4,6 +4,9 @@ keys the objective banner names. See docs/design/GUIDANCE_FROM_THE_SPEC.md.
 The fast tests pin how a banner line is read. The long test is a ratchet:
 the number of main-campaign beats where following the banner moves the story
 may only go up. Baseline 2026-10-19: 2 of 40 (arc_handover, mill_master).
+With the Guide resolver: 38 of 40; the floor leaves 2 beats of slack for
+measurement luck. The two that stall (first_harvest, loom_opens) are Act 0
+fixtures with nothing planted to reap; a fresh game fires both by banner.
 """
 import os
 import sys
@@ -15,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "🍄" / "🧪"))
 import banner_follow as BF  # noqa: E402
 
-MOVED_FLOOR = 2
+MOVED_FLOOR = 36
 
 
 def test_a_banner_line_reads_as_its_keys_in_order():

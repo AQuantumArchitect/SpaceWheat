@@ -2716,7 +2716,8 @@
     "plant_atom"
    ],
    "biome_state_gte": [
-    "plant_atom"
+    "plant_atom",
+    "steer"
    ],
    "signature_size_gte": [
     "learn_word"

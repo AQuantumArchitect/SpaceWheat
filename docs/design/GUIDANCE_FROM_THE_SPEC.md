@@ -1,7 +1,8 @@
 # Guidance from the spec: the campaign vs. the hint toast
 
-> Investigation, 2026-10-19. Status: proposal. Nothing here is built yet
-> except the measuring stick, `🍄/🧪/banner_follow.py`.
+> Investigation, 2026-10-19. Status: **built** (see "What was built" at the
+> end). The proposal sections below are kept as written; the results of
+> building it are appended.
 
 ## The question
 
@@ -231,3 +232,39 @@ Sources: `🍄/🧪/hive/waves/` (w3–w29), the ant repair cards and late-wave
 notes on the owner's machine (`semantica3/scratch/sw-ant-*.md`, waves up to
 about 50), and the WSL working-tree snapshot pinned by S3 for verification
 (`_wt/spacewheat-s3-current-20261019`, commit `7570985`).
+
+## What was built (2026-10-19, branch `guidance-resolver`)
+
+The proposal, as implemented:
+
+- **`Core/Campaign/campaign.json` → `guide`**: the keymap (hats, surfaces,
+  rows, verbs, boards, reach) and one walk per objective predicate type,
+  plus one `lesson:<teaches>` walk per Act 0 lesson. Every objective type in
+  the spec has a walk; `validate.py` errors on an unknown step or an
+  unwalked Act 0 lesson and warns on an unwalked main-campaign type (now
+  zero).
+- **`Core/Campaign/Guide.gd`**: the resolver. `live_beat()` ranks Arc quests
+  by the story (critical path to every campaign ending first, then act,
+  ready beats ahead of everything). `next_step()` takes the door (accept),
+  then the first unsatisfied step of each open predicate's walk, then the
+  claim. Each step type is one function that checks the UI state first, so
+  "open the Arc" is skipped once the Arc is open and a field chord always
+  closes an open overlay first. Shortfalls insert a gather walk (Ace:
+  explore → strike → gather), falling back to the spec's market trade when
+  the land keeps measuring the other pole.
+- **Voices**: the banner and the key spotlight ask `Guide.next_step()`
+  first and fall back to the legacy lines only when it returns nothing. The
+  Arc's NOW row is `Guide.live_beat()`. Story offers no longer each raise a
+  card; `PlayerEventBridge` raises one gold card when the live beat changes,
+  carrying the resolver's step.
+- **Rig**: a read-only `guide_step` verb returns the resolver's step, live
+  beat and tutorial step.
+
+Not done yet: board cues and refusals still carry their own lines, and the
+legacy `objective_text` branches are not deleted (they are the fallback).
+
+### Iterations
+
+| Run | Result |
+|---|---|
+| Baseline (`main`) | 2/40 fixture beats moved |

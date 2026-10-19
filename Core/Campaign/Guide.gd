@@ -192,17 +192,45 @@ static func next_step() -> Dictionary:
 	var open := _open_predicates(q)
 	if open.is_empty():
 		return _door_claim(q)  # satisfied; the quest flips to ready on its own tick
-	# The first open predicate whose walk has a next step. A predicate the
-	# walks cannot move from here yields to the next one, not to silence.
-	for pred in open:
+	return _across(open, q)
+
+
+## One next step across a beat's open predicates. Each predicate offers the
+## first step of its walk; an action (a key that changes the game) beats a
+## wait, and a wait beats a setup (a hat or a trip). So two predicates that
+## want different hats never trade the hat back and forth: whichever can act
+## in the current hat acts, and the other waits its turn. A held collapse
+## (steer's "hold") is idle, ranked below everything.
+static func _across(preds: Array, q: Dictionary) -> Dictionary:
+	var wait := {}
+	var setup := {}
+	var idle := {}  # a held collapse: nothing to do, and nothing lost by doing something else
+	for pred in preds:
 		var walk = _walks().get(str(pred.get("type", "")), null)
 		if not (walk is Array):
 			continue
 		for step in walk:
 			var r := _step(str(step), pred, q)
-			if not r.is_empty():
+			if r.is_empty():
+				continue
+			var why := str(r.get("why", ""))
+			if why == "hold":
+				if idle.is_empty():
+					idle = r
+			elif why == "hat" or why == "travel":
+				if setup.is_empty():
+					setup = r
+			elif (r.get("keys", []) as Array).is_empty():
+				if wait.is_empty():
+					wait = r
+			else:
 				return r
-	return {}
+			break
+	if not wait.is_empty():
+		return wait
+	if not setup.is_empty():
+		return setup
+	return idle
 
 
 ## No door is open, but a beat with no offer (it fires on its objective
@@ -229,14 +257,9 @@ static func _auto_beat_step() -> Dictionary:
 		if not ready or preds.is_empty():
 			continue
 		var pseudo := {"source_flag": str(f.get("id", "")), "state_predicates": preds}
-		for pred in _open_predicates(pseudo):
-			var walk = _walks().get(str(pred.get("type", "")), null)
-			if not (walk is Array):
-				continue
-			for step in walk:
-				var r := _step(str(step), pred, pseudo)
-				if not r.is_empty():
-					return r
+		var r := _across(_open_predicates(pseudo), pseudo)
+		if not r.is_empty():
+			return r
 	return {}
 
 
@@ -672,9 +695,20 @@ static func _supply(res: String, q: Dictionary, depth: int) -> Dictionary:
 	if not t.is_empty():
 		return t
 	var board = UIP._quest_board()
-	if not (UIP._board_open() and board != null and str(board.get("frame_id")) == "market"):
-		return _open_surface("market", q)
+	if board == null:
+		return {}
+	# Read the ring before opening it: a board with no trade for `res` would
+	# otherwise be opened, found empty, closed by the fallback, and reopened.
 	var rows: Array = board._market_rows()
+	var found := false
+	for r in rows:
+		var d0 = r.get("data", {})
+		if d0 is Dictionary and bool(d0.get("supply_trade", false)) and str(d0.get("supply_emoji", "")) == res:
+			found = true
+	if not found:
+		return {}
+	if not (UIP._board_open() and str(board.get("frame_id")) == "market"):
+		return _open_surface("market", q)
 	for i in range(rows.size()):
 		var d = rows[i].get("data", {})
 		if not (d is Dictionary) or not bool(d.get("supply_trade", false)):
@@ -736,6 +770,9 @@ static func _plant(biome: String, atom: String, fresh: bool, q: Dictionary) -> D
 			return _chord([["more words", "F"]], q, "picker page")
 		return _chord(_close_first(), q, "no fitting word here")
 	var target = farm.grid.get_biome(biome) if biome != "" else null
+	if target != null and atom != "" and target.quantum_computer != null \
+			and target.quantum_computer.register_map != null and target.quantum_computer.register_map.has(atom):
+		return {}  # already planted; what the predicate still wants is a later step (steer)
 	if target != null:
 		var opts: Array = load("res://UI/Core/Submenus/IconInjectionSubmenu.gd")._collect_options(target, farm)
 		var want: Dictionary = {}
@@ -760,11 +797,11 @@ static func _plant(biome: String, atom: String, fresh: bool, q: Dictionary) -> D
 	var t := _travel(biome, q)
 	if not t.is_empty():
 		return t
+	if not UIP._empty_plot_exists(biome):
+		return {}
 	var h := _hat("icon", q)
 	if not h.is_empty():
 		return h
-	if not UIP._empty_plot_exists(biome):
-		return {}
 	var key := UIP._empty_plot_key()
 	var parts: Array = _close_first()
 	if _plot_key(UIP._focused_col()) != key:
