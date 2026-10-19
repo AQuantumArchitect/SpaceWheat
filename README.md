@@ -13,7 +13,7 @@ the engine, and the story fires when the live quantum state crosses a threshold.
 **Built entirely by AI agents I directed; I wrote none of the code.** SpaceWheat
 is where I learned agentic development, starting with one chat assistant and
 ending with a fleet of coding, playtesting and review bots.
-[How it was built →](docs/DEVELOPMENT.md)
+[How it was built →](docs/HOW_THIS_WAS_BUILT.md)
 
 ![Strike, gather, fast-forward on the starter forest](docs/media/tap_loop.gif)
 
@@ -66,7 +66,7 @@ The details are in three places, depending on who you are:
 | Factions | 102, with 367 icons (two-emoji qubit axes) |
 | Gates | 14 exact unitaries (Paulis, H, S, T, rotations, CNOT, CZ, SWAP); Bell, GHZ and cluster states built from them |
 | Simulation | C++ GDExtension on Eigen: exact unitary propagation, Lindblad for open biomes |
-| Code | ~126k lines GDScript, ~44k Python tooling, ~6.5k C++ |
+| Code | ~126k lines GDScript, ~45k Python tooling, ~6.5k C++ |
 | History | 1,250+ commits since December 2025 |
 
 ## Repository
