@@ -325,6 +325,8 @@ static func _step(step: String, pred: Dictionary, q: Dictionary) -> Dictionary:
 			return _superpose(q)
 		"evolve":
 			return _evolve(str(pred.get("biome", "")), q)
+		"steer":
+			return _steer(str(pred.get("biome", "")), str(pred.get("emoji", pred.get("atom", ""))), q)
 	return {}
 
 
@@ -928,3 +930,35 @@ static func _evolve(biome: String, q: Dictionary) -> Dictionary:
 	if b != null and int(GranularityController.get_current_stride([b])) < int(_km().get("clock_max_stride", 32)):
 		return _chord(["let it evolve", ["faster clock", _verb("faster")]], q, "clock")
 	return _wait("let it evolve — wait", q, "evolve")
+
+
+## Pull a biome's attractor toward `emoji`: measure its qubit until the
+## outcome IS that emoji, and hold it there (a collapse is the strongest
+## nudge a player has). Another outcome is gathered away and struck again.
+static func _steer(biome: String, emoji: String, q: Dictionary) -> Dictionary:
+	var t := _travel(biome, q)
+	if not t.is_empty():
+		return t
+	var h := _hat("ace", q)
+	if not h.is_empty():
+		return h
+	var farm = UIP._active_farm()
+	var b = farm.grid.get_biome(biome) if farm != null and farm.grid != null else null
+	if b == null or b.quantum_computer == null or b.quantum_computer.register_map == null:
+		return {}
+	var col := int(b.quantum_computer.register_map.qubit(emoji))
+	if col < 0 or col >= BERRY_ROWS:
+		return {}
+	var parts: Array = _close_first()
+	if _live_col() != col:
+		parts.append(["plot", _plot_key(col)])
+	if UIP._plot_measured(col):
+		if UIP._measured_glyph(col) == emoji:
+			return _wait("%s holds at %s — wait for it to settle" % [emoji, biome], q, "hold")
+		parts.append(["release", _verb("gather")])
+		return _chord(parts, q, "release")
+	if UIP._plot_bound(col):
+		parts.append(["Strike for " + emoji, _verb("strike")])
+		return _chord(parts, q, "steer")
+	parts.append(["Explore", _verb("explore")])
+	return _chord(parts, q, "explore")

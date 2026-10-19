@@ -59,8 +59,8 @@ def test_main_campaign_and_act0_are_fully_walked():
     report = validate.validate(S.load())
     assert not report.errors, report.errors
     unwalked = [w for w in report.warnings if "no guide walk" in w]
-    # The two physics asks still on the legacy banner; the list may only shrink.
-    allowed = {"biome_attractor_emoji_gte", "biome_spectral_gap_lte"}
+    # The physics ask still on the legacy banner; the list may only shrink.
+    allowed = {"biome_spectral_gap_lte"}
     for w in unwalked:
         assert any(a in w for a in allowed), w
 

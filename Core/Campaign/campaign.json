@@ -2769,6 +2769,9 @@
    ],
    "biome_spectral_gap_gte": [
     "evolve"
+   ],
+   "biome_attractor_emoji_gte": [
+    "steer"
    ]
   }
  }
