@@ -71,7 +71,7 @@ which is why the rule below is the one rule that matters.
 ## The two runs
 
 ```
-cd C:\Games\SpaceWheat-Releases\profiling-kit
+cd C:\Games\SpaceWheat\profiling-kit
 
 py -3 run_desktop.py
 py -3 run_web.py

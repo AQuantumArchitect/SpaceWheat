@@ -11,7 +11,7 @@
 #     run_desktop.py     stdlib Python 3; drives SpaceWheat.exe via SW_PERF_LOG
 #     run_web.py         stdlib Python 3; COOP/COEP server + headed browser
 #     build/             a Windows release export CARRYING THE PERF SAMPLER
-#     web/              the v1.0-rc3 browser bundle, unzipped
+#     web/              the newest packaged browser bundle, unzipped
 #     results/           empty; the agent writes here, and WSL reads it back
 #
 # The build is exported fresh rather than reused from releases/: the shipped
@@ -26,9 +26,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 source "$SCRIPT_DIR/lib/log.sh"
+source "$SCRIPT_DIR/lib/release_paths.sh"
+source "$SCRIPT_DIR/lib/windows_desktop_deploy.sh"
 
-KIT_DEST="${KIT_DEST:-/mnt/c/Games/SpaceWheat-Releases/profiling-kit}"
-WEB_ZIP="${WEB_ZIP:-/mnt/c/Games/SpaceWheat-Releases/v1.0-rc3/spacewheat-web-1.0-rc3.zip}"
+KIT_DEST="${KIT_DEST:-$(sw_windows_profiling_root)}"
+# The newest packaged browser bundle (./scripts/release.sh or build-web-local + package-web-build).
+WEB_ZIP="${WEB_ZIP:-$(ls -1t "$(sw_package_root)"/spacewheat-web-*.zip 2>/dev/null | head -1)}"
 ENDGAME_SAVE="${ENDGAME_SAVE:-$PROJECT_DIR/🍄/🧪/checkpoints/fixture_the_door_stays_open.tres}"  # mint: python3 tools/campaign/mint_fixture_save.py the_door_stays_open
 BUILD_SRC="${BUILD_SRC:-$PROJECT_DIR/releases/local/windows-native}"
 SKIP_BUILD=false
@@ -102,6 +105,6 @@ echo "  build/    $STAMP"
 echo "  web/      $(ls "$KIT_DEST/web" 2>/dev/null | wc -l) files"
 echo "  save/     $(basename "$ENDGAME_SAVE")"
 echo
-echo "Windows side:  cd C:\\Games\\SpaceWheat-Releases\\profiling-kit"
+echo "Windows side:  cd $(sw_wsl_to_windows_path "$KIT_DEST" 2>/dev/null || echo "$KIT_DEST")"
 echo "               py -3 run_desktop.py"
 echo "               py -3 run_web.py"

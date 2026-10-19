@@ -19,7 +19,7 @@ See [docs/release/DESKTOP_RELEASE_WORKFLOW.md](docs/release/DESKTOP_RELEASE_WORK
 
 - Export presets were cleaned to exclude test scenes and some dev-only roots.
 - Windows export was manually launch-tested from:
-  - `C:\Games\SpaceWheat Builds\windows-native\SpaceWheat.exe`
+  - `C:\Games\SpaceWheat\SpaceWheat.exe` (the one Windows root since 2026-10-18; see docs/release/RELEASE_ARCHITECTURE.md)
 - Linux headless smoke-test steps live in docs/release/DESKTOP_RELEASE_WORKFLOW.md (writable `/tmp/spacewheat-runtime-*` dirs required).
 
 ## Runtime Authority

@@ -24,6 +24,7 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 source "$SCRIPT_DIR/lib/log.sh"
 source "$SCRIPT_DIR/lib/build_stamp.sh"
 source "$SCRIPT_DIR/lib/release_paths.sh"
+source "$SCRIPT_DIR/lib/windows_desktop_deploy.sh"
 
 PACKAGE_ROOT="$(sw_package_root)"
 REPORT_ROOT="$(sw_report_root)"
@@ -217,6 +218,16 @@ mkdir -p "$PACKAGE_ROOT"
     echo "  popping out of the frame works there."
     echo "- \`scripts/itch-push.sh\` uploads from \`releases/packages\` via butler."
 } > "$MANIFEST"
+
+# Windows-side archive: the same archives + manifest, under the one Windows
+# root (releases/v<version>), newest few kept. No-op off WSL.
+if sw_windows_fs_available; then
+    if sw_windows_archive_release "$VERSION_TAG" "$PACKAGE_ROOT"; then
+        echo "  windows archive: $(sw_windows_releases_root)/v$VERSION_TAG"
+    else
+        warn "Windows archive copy failed (packages are still in $PACKAGE_ROOT)"
+    fi
+fi
 
 echo ""
 log "Release cut: $VERSION_TAG ($SOURCE_ID)"
