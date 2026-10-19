@@ -774,6 +774,8 @@ static func _chart(biome: String, q: Dictionary) -> Dictionary:
 	var cost := int(CampaignRuntime.chart_cost().get("🦅", 21))
 	if UIP._wallet("🦅") < float(cost):
 		return _gather("🦅", cost, q)
+	if UIP._slots_full():
+		return _cull(q)
 	var parts: Array = _close_first()
 	if str(ToolConfig.get_current_frame()) != "captain":
 		parts.append([_hat_name("captain") + " hat", _hat_key("captain")])
@@ -1158,3 +1160,20 @@ static func _make_room(biome: String, atom: String, q: Dictionary) -> Dictionary
 	parts.append(["Trim %s/%s" % [str(ax.get("north", "")), str(ax.get("south", ""))], "Q"])
 	parts.append(["confirm", "F"])
 	return _chord(parts, q, "make room")
+
+
+## Every biome slot is taken: the farm names the land to let go of (its own
+## cull rule). Captain hat, go there, Cull [Q], confirm [F].
+static func _cull(q: Dictionary) -> Dictionary:
+	var want := UIP._named_cull_target()
+	if want == "":
+		return {}
+	var t := _travel(want, q)
+	if not t.is_empty():
+		return t
+	var parts: Array = _close_first() + ["biome slots full"]
+	if str(ToolConfig.get_current_frame()) != "captain":
+		parts.append([_hat_name("captain") + " hat", _hat_key("captain")])
+	parts.append(["Cull " + want, "Q"])
+	parts.append(["confirm", "F"])
+	return _chord(parts, q, "cull")
