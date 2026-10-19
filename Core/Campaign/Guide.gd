@@ -839,7 +839,7 @@ static func _plant(biome: String, atom: String, fresh: bool, q: Dictionary) -> D
 	if not t.is_empty():
 		return t
 	if not UIP._empty_plot_exists(biome):
-		return {}
+		return _make_room(biome, atom, q)
 	var h := _hat("icon", q)
 	if not h.is_empty():
 		return h
@@ -1103,3 +1103,58 @@ static func _free_terminal(q: Dictionary) -> Dictionary:
 		return _chord(parts, q, "free probe")
 	parts.append(["Strike", _verb("strike")])
 	return _chord(parts, q, "free probe")
+
+
+## The ring is full (six seats): trim a word the story no longer asks for,
+## so the plant has a seat. A word is kept if any open or unfired beat names
+## either of its poles (or it is the one being planted). Trim costs 🐺 and
+## three of each pole; a shortfall is gathered first.
+static func _make_room(biome: String, atom: String, q: Dictionary) -> Dictionary:
+	var farm = UIP._active_farm()
+	var qm = UIP._quest_manager()
+	var b = farm.grid.get_biome(biome) if farm != null and farm.grid != null else null
+	if b == null or b.quantum_computer == null or b.quantum_computer.register_map == null or qm == null:
+		return {}
+	var keep := {atom: true}
+	var preds: Array = (q.get("state_predicates", []) as Array).duplicate()
+	var fired: Dictionary = farm.story_flags_fired if "story_flags_fired" in farm else {}
+	if qm.has_method("get_all_story_flags"):
+		for f in qm.get_all_story_flags():
+			if not (f is Dictionary) or fired.has(str(f.get("id", ""))):
+				continue
+			preds.append_array(f.get("predicates", []))
+			if f.get("arc_quest") is Dictionary:
+				preds.append_array(f["arc_quest"].get("state_predicates", []))
+	for p in preds:
+		if p is Dictionary:
+			for k in ["atom", "emoji"]:
+				if str(p.get(k, "")) != "":
+					keep[str(p.get(k, ""))] = true
+	var rm = b.quantum_computer.register_map
+	var col := -1
+	var ax: Dictionary = {}
+	for c in range(mini(int(rm.num_qubits), BERRY_ROWS) - 1, -1, -1):
+		var a: Dictionary = rm.axis(c)
+		if keep.has(str(a.get("north", ""))) or keep.has(str(a.get("south", ""))):
+			continue
+		col = c
+		ax = a
+		break
+	if col < 0:
+		return {}
+	var cost: Dictionary = EconomyConstants.get_icon_removal_cost(str(ax.get("north", "")), str(ax.get("south", "")))
+	for res in cost:
+		if UIP._wallet(str(res)) < float(cost[res]):
+			return _gather(str(res), int(cost[res]), q)
+	var t := _travel(biome, q)
+	if not t.is_empty():
+		return t
+	var h := _hat("icon", q)
+	if not h.is_empty():
+		return h
+	var parts: Array = _close_first() + ["the ring is full"]
+	if UIP._focused_col() != col:
+		parts.append(["plot", _plot_key(col)])
+	parts.append(["Trim %s/%s" % [str(ax.get("north", "")), str(ax.get("south", ""))], "Q"])
+	parts.append(["confirm", "F"])
+	return _chord(parts, q, "make room")
