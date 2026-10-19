@@ -200,6 +200,22 @@ static func campaign(campaign_id: String) -> Dictionary:
 	return {}
 
 
+## Campaigns the spec marks "status": "in_development" (playable, unfinished).
+static func is_in_development(campaign_id: String) -> bool:
+	return str(campaign(campaign_id).get("status", "")) == "in_development"
+
+
+## Titles of the in-development campaigns that open after `flag_id`
+## (["What Fades", "The Loom"] for island_free).
+static func in_development_after(flag_id: String) -> Array:
+	var out: Array = []
+	for c in campaigns():
+		if c is Dictionary and str(c.get("opens_after", "")) == flag_id \
+				and str(c.get("status", "")) == "in_development":
+			out.append(str(c.get("title", c.get("id", ""))))
+	return out
+
+
 ## "Act 2 — Two Countries" style title for a campaign act ("" if unknown).
 static func act_title(campaign_id: String, campaign_act: int) -> String:
 	var c := campaign(campaign_id)

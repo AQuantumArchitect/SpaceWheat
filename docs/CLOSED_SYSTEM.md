@@ -6,7 +6,8 @@ dissipators** (no pump, drain, or decay). Every bubble therefore stays **pure** 
 **r = 1**, i.e. `Tr(ρ²) = 1`.
 
 The earlier **open** system (Lindbladian pump/drain/decay, mixed states, entropy
-extraction) is preserved behind a single flag as the future **open-quantum DLC**.
+extraction) is preserved, and wakes per biome in the post-game campaign *What Fades*
+(in development).
 
 **In-fiction, this document is the law of the enclave.** The story and the physics
 speak one language, and the glossary is the dictionary between them:
@@ -22,7 +23,8 @@ of these.
 `BalanceConfig.physics.system_mode` — `"closed"` (default) | `"open"`.
 Read it via `BalanceConfig.is_closed_system(config := {})` (honours
 `DEFAULTS < _physics_override < explicit config`). Flipping to `"open"` re-enables the
-entire Lindbladian path — that flag *is* the DLC scaffold. Nothing is deleted; the open
+entire Lindbladian path globally; a single biome opens through its own
+`regime_override` (`QuantumComputer.is_open_here()`). Nothing is deleted; the open
 machinery and the `biomes.json` Lindblad authoring are **dormant**, not gone.
 
 ## What changes in closed mode
@@ -56,7 +58,7 @@ machinery and the `biomes.json` Lindblad authoring are **dormant**, not gone.
 
 `biomes.json` (`atom_components`: `decay` / `lindblad_outgoing` / `lindblad_incoming` /
 `gated_lindblad_source` / `cross_biome_flows`) and `icons.json` are **untouched**. The
-Lindblad authoring is dormant DLC content; `icons.json` already owns the Hamiltonian that
+Lindblad authoring is dormant until a biome opens; `icons.json` already owns the Hamiltonian that
 drives closed-system play.
 
 ## Verification

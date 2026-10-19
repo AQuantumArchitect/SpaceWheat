@@ -11,6 +11,10 @@ doc for full context.
 
 ## Player-facing
 
+- **The post-game is unfinished.** *What Fades* and *The Loom* open after the
+  Demos ending and are playable in part; expect rough edges and acts that do
+  not close yet. The game says so at the ending and in the campaign headers.
+
 - **Unrevealed plots have no mouse click target under the default 3D
   renderer.** The Act-0 hint says "or just tap it," which is true for
   revealed plots but not empty ground. Needs a design call (ghost orbs for

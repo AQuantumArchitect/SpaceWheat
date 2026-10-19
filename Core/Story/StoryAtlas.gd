@@ -50,9 +50,13 @@ static func campaign_title_for_flag(flag: Dictionary) -> String:
 	return str(c.get("title", "The Demos")) if not c.is_empty() else "The Demos"
 
 
-## "The Demos · Act 2 — Two Countries"
+## "The Demos · Act 2 — Two Countries"; post-game campaigns still being built
+## say so: "What Fades (in development) · Act 1 — Lantern Country".
 static func header_for_flag(flag: Dictionary) -> String:
-	return "%s · %s" % [campaign_title_for_flag(flag), chapter_for_flag(flag)]
+	var title := campaign_title_for_flag(flag)
+	if CampaignRuntime.is_in_development(str(flag.get("campaign", MAIN_CAMPAIGN))):
+		title += " (in development)"
+	return "%s · %s" % [title, chapter_for_flag(flag)]
 
 
 ## Parse a flag's display_name for its narrative lane. 22 flags carry

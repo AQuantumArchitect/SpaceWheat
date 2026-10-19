@@ -5,6 +5,7 @@
       "id": "demos",
       "title": "The Demos",
       "kind": "main",
+      "status": "complete",
       "ending": "island_free",
       "acts": [
         {
@@ -127,6 +128,7 @@
       "id": "lanternfall",
       "title": "What Fades",
       "kind": "postgame",
+      "status": "in_development",
       "ending": "the_door_stays_open",
       "acts": [
         {
@@ -180,6 +182,7 @@
       "id": "loom",
       "title": "The Loom",
       "kind": "postgame",
+      "status": "in_development",
       "ending": "close_it_upstairs",
       "acts": [
         {
