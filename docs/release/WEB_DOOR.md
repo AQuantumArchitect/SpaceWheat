@@ -157,6 +157,14 @@ Full write-up: `docs/performance/PROFILE_2026-08-12.md` (title) and
   `index.pck` 183 MB). Since the frame rate is no longer near the floor, a
   web-specific asset diet is a **load-time** question only.
 
+**Re-verified 2026-10-18 (`4eeb305`, Godot 4.5, the committed wasm):**
+`gate-web-bundle.mjs` passes all five checks in headless Chromium, including
+"starting a farm does not abort"; `qa-web-export.sh` and
+`test_web_extension_links.py` pass; the bundle is 213 MB unzipped. So the
+wasm below, though older than `a8986d0`, still plays. (The FPS check fails
+there at 7.4 fps because headless Chromium renders on SwiftShader; see the
+hardware run above for the number that counts.)
+
 **One open item, not a regression of the above.** HEAD (`a8986d0`, same day,
 14:52) touched `native/src/multi_biome_lookahead_engine.cpp/.h` again for the
 desktop async-lookahead work; its own commit message says "Web stays sync"

@@ -25,9 +25,11 @@ ending with a fleet of coding, playtesting and review bots.
 - **From source (Linux or Windows):** open the folder in Godot 4.5 and press
   Play. The native physics library is prebuilt for both in `native/bin/`.
 
-Status: **alpha**. The main campaign, *The Demos* (seven acts), is playable from
-the first plot to the ending. Two post-game campaigns, *What Fades* and
-*The Loom*, open after it and are still in development.
+Status: **alpha**. The main campaign, *The Demos*, runs seven acts from the
+first plot to the ending. A validator replays every act against the resources
+a player can actually earn, and a keys-only drive from a fresh boot, with
+nothing injected, currently reaches Act 3. Two post-game campaigns, *What Fades*
+and *The Loom*, open after the ending and are still in development.
 
 ## The game
 
