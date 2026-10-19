@@ -693,8 +693,16 @@ static func _cost_or(spend: Array, step: Dictionary, q: Dictionary, depth: int) 
 
 ## A resource no biome here grows: its standing trade on a board (the spec's
 ## `trades`) — the rescue that keeps an empty wallet from being a dead end.
+## The market ring carries a standing trade for `res` right now. A ring read
+## while closed can be stale (opening it re-deals the offers for this land),
+## so a trade found missing on the open ring is not offered again for a while.
+static var _no_trade_until := {}
+const NO_TRADE_MS := 90000
+
 ## The market ring carries a standing trade for `res` right now.
 static func _supply_listed(res: String) -> bool:
+	if Time.get_ticks_msec() < int(_no_trade_until.get(res, 0)):
+		return false
 	var board = UIP._quest_board()
 	if board == null or not board.has_method("_market_rows"):
 		return false
@@ -737,6 +745,7 @@ static func _supply(res: String, q: Dictionary, depth: int) -> Dictionary:
 		var verb: Array = ["Deliver", _verb("deliver")] if str(rows[i].get("kind", "")) == "held" \
 				else ["Accept", _verb("accept")]
 		return _chord(_page_to(i) + [["trade for %s" % res, _row_key(i % BERRY_ROWS)], verb], q, "supply " + res)
+	_no_trade_until[res] = Time.get_ticks_msec() + NO_TRADE_MS
 	return {}
 
 
