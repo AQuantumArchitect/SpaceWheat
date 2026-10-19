@@ -2665,6 +2665,7 @@
    ],
    "close": "ESC",
    "page_next": "D",
+   "page_prev": "A",
    "verbs": {
     "explore": "F",
     "strike": "R",

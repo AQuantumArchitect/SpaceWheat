@@ -188,6 +188,9 @@ def follow(rig, beat: str, cap: int = PRESS_CAP) -> dict:
     return rep
 
 
+LOOP_WINDOW = 40  # a journey whose last 40 lines are one or two lines, with no flag, is looping
+
+
 def journey(rig, start: str, minutes: float = 30.0) -> dict:
     """Start at one beat's fixture and keep following the banner across beats:
     how far does trusting the banner take you? Stops when the banner and the
@@ -236,6 +239,10 @@ def journey(rig, start: str, minutes: float = 30.0) -> dict:
             rep["presses"] += 1
         rep["lines"][line] = rep["lines"].get(line, 0) + 1
         rep["trail"] = (rep["trail"] + [line[:120]])[-80:]
+        since = rep["presses"] - (rep["fired"][-1]["press"] if rep["fired"] else 0)
+        if since > LOOP_WINDOW and len(set(rep["trail"][-LOOP_WINDOW:])) <= 2:
+            rep["stopped"], rep["why"] = "loop", " ⇄ ".join(sorted(set(rep["trail"][-LOOP_WINDOW:])))
+            break
         time.sleep(0.15)
     if rep["stopped"] is None:
         rep["stopped"] = "time"

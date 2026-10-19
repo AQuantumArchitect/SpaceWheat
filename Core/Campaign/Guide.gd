@@ -557,10 +557,18 @@ static func _deliver_to(faction: String, q: Dictionary) -> Dictionary:
 	return _chord(["no keepable %s contract" % faction, ["Refresh", _verb("refresh")]], q, "refresh")
 
 
+## The page presses that bring row `idx` into view, from the page the board
+## shows now (a board that is about to open starts on page one).
 static func _page_to(idx: int) -> Array:
 	var out: Array = []
-	for _p in range(idx / BERRY_ROWS):
-		out.append(["next page", str(_km().get("page_next", "D"))])
+	var board = UIP._quest_board()
+	var cur := int(board.get("_item_page")) if UIP._board_open() and board != null else 0
+	var want := idx / BERRY_ROWS
+	for _p in range(absi(want - cur)):
+		if want > cur:
+			out.append(["next page", str(_km().get("page_next", "D"))])
+		else:
+			out.append(["previous page", str(_km().get("page_prev", "A"))])
 	return out
 
 
@@ -622,7 +630,7 @@ static func _gather(res: String, need: int, q: Dictionary, depth: int = 0) -> Di
 				break
 	if where == "":
 		where = _biome_carrying(res)
-	if where == "" or int(_misses.get(res, 0)) >= MISS_CAP:
+	if where == "" or (int(_misses.get(res, 0)) >= MISS_CAP and _supply_listed(res)):
 		var sup := _supply(res, q, depth)
 		if not sup.is_empty() or where == "":
 			return sup
@@ -685,6 +693,18 @@ static func _cost_or(spend: Array, step: Dictionary, q: Dictionary, depth: int) 
 
 ## A resource no biome here grows: its standing trade on a board (the spec's
 ## `trades`) — the rescue that keeps an empty wallet from being a dead end.
+## The market ring carries a standing trade for `res` right now.
+static func _supply_listed(res: String) -> bool:
+	var board = UIP._quest_board()
+	if board == null or not board.has_method("_market_rows"):
+		return false
+	for r in board._market_rows():
+		var d = r.get("data", {}) if r is Dictionary else {}
+		if d is Dictionary and bool(d.get("supply_trade", false)) and str(d.get("supply_emoji", "")) == res:
+			return true
+	return false
+
+
 static func _supply(res: String, q: Dictionary, depth: int) -> Dictionary:
 	var trades: Array = CampaignRuntime.supply_trades(res)
 	if trades.is_empty():
@@ -694,19 +714,12 @@ static func _supply(res: String, q: Dictionary, depth: int) -> Dictionary:
 	var t := _travel(home, q)
 	if not t.is_empty():
 		return t
-	var board = UIP._quest_board()
-	if board == null:
-		return {}
 	# Read the ring before opening it: a board with no trade for `res` would
 	# otherwise be opened, found empty, closed by the fallback, and reopened.
-	var rows: Array = board._market_rows()
-	var found := false
-	for r in rows:
-		var d0 = r.get("data", {})
-		if d0 is Dictionary and bool(d0.get("supply_trade", false)) and str(d0.get("supply_emoji", "")) == res:
-			found = true
-	if not found:
+	if not _supply_listed(res):
 		return {}
+	var board = UIP._quest_board()
+	var rows: Array = board._market_rows()
 	if not (UIP._board_open() and str(board.get("frame_id")) == "market"):
 		return _open_surface("market", q)
 	for i in range(rows.size()):
@@ -716,6 +729,8 @@ static func _supply(res: String, q: Dictionary, depth: int) -> Dictionary:
 		if str(d.get("supply_emoji", "")) != res:
 			continue
 		var give: Dictionary = d.get("give", {}) if d.get("give", {}) is Dictionary else {}
+		if give.is_empty() and str(d.get("resource", "")) != "":
+			give = {str(d.get("resource", "")): int(d.get("quantity", 0))}  # as QuestManager settles it
 		for g in give:
 			if UIP._wallet(str(g)) < float(give[g]) and depth < 2:
 				return _gather(str(g), int(give[g]), q, depth + 1)
