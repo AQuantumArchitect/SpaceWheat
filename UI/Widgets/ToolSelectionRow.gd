@@ -3,7 +3,7 @@ extends "res://UI/Widgets/SelectionButtonRow.gd"
 
 ## Bottom-row archetype hat selector. One button per archetype frame, in
 ## hat-row order (4=Spark .. 0=Druid). The keyboard shortcut is the matching
-## hat key. See `docs/ARCHETYPE_FRAMES.md`.
+## hat key. See `docs/design/ARCHETYPE_FRAMES.md`.
 ##
 ## SelectionButtonRow's button IDs are integers, so we use the hat-row index
 ## (0..6) as the button id and translate to/from frame name via FRAME_ORDER.

@@ -21,7 +21,7 @@ func _log(level: String, category: String, emoji: String, message: String) -> vo
 
 @export var biome_name: String = ""
 
-## Per-biome thermodynamic regime — the What Fades seam (docs/OPEN_CAMPAIGN.md).
+## Per-biome thermodynamic regime — the What Fades seam (docs/design/OPEN_CAMPAIGN.md).
 ## "" = inherit the global switches (BalanceConfig); "open" = this biome runs
 ## dissipative even while the world is sealed (wet country: the Fallow, the
 ## circuit shelf); "closed" = this biome stays unitary even after the door
@@ -54,7 +54,7 @@ var density_matrix: ComplexMatrix = null
 var berry_register: BerryPhaseRegister = BerryPhaseRegister.new()
 
 ## Lattice gauge ledger over this biome's coherent coupling graph (the fence
-## ledger — docs/GAUGE_CAMPAIGN.md). Lazy and signature-keyed: rebuilt exactly
+## ledger — docs/design/GAUGE_CAMPAIGN.md). Lazy and signature-keyed: rebuilt exactly
 ## when physics_signature changes (icon inject/remove, operator rebuild),
 ## carrying player-set phases forward by emoji so bookkeeping choices survive
 ## qubit reindexing. Never serialized: conventions re-seed from H on reload;

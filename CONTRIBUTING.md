@@ -11,7 +11,7 @@ decorative "quantum" flavor text standing in for an actual computation.
   truth for the mental model, physics, controls, and campaign structure.
 - Read [`README.md`](README.md) for the tech stack and project layout.
 - For anything touching biome/faction physics data, read
-  [`BIOME_AGENTS.md`](BIOME_AGENTS.md).
+  [`docs/agents/BIOME_AGENTS.md`](docs/agents/BIOME_AGENTS.md).
 
 ## Building
 
@@ -41,7 +41,7 @@ godot --headless --audio-driver Dummy --path . --quit 2>&1 \
 
 If you're touching UI or input handling, also run
 `tests/test_headed_player_input_surface.py` — it pins a long history of real
-mouse/keyboard-parity regressions (see `docs/MOUSE_PARITY_AUDIT.md`).
+mouse/keyboard-parity regressions (see `docs/design/MOUSE_PARITY_AUDIT.md`).
 
 ## Project layout
 
@@ -59,7 +59,7 @@ docs/     Documentation, start at GAME_CODEX.md
 A meaningful share of this codebase — including the `🍄/` automation lane and
 much of the release/test tooling — was built through direct collaboration
 with AI coding agents driving the real game headlessly (see `🍄/README.txt`
-and `BIOME_AGENTS.md`). That's disclosed here deliberately, not hidden: if
+and `docs/agents/BIOME_AGENTS.md`). That's disclosed here deliberately, not hidden: if
 you're contributing via an agent yourself, the same rig and docs work for
 you. Whatever wrote the code, the tests above are the actual bar it has to
 clear.

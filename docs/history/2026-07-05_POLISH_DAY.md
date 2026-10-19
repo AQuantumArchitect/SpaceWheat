@@ -53,7 +53,7 @@ political finale (`empire_imposes` → `island_free`) coexist as parallel arcs.
    always correct; the rig now rebinds. (This false-flagged a "loads wipe
    campaign progress" scare during diagnosis — disproven against the real farm.)
 
-## Gaps closed (see docs/PRE_LAUNCH_GAPS.md)
+## Gaps closed (see docs/design/PRE_LAUNCH_GAPS.md)
 
 - **#6 (P0)**: `tests/test_title_boot_path.py` — title → welcome (any-key dismiss) →
   Act-0 tutorial offered → gameplay verbs → `first_breath`, every suite run, 8s.

@@ -17,7 +17,7 @@ SpaceWheat is a game where every wheat field is a quantum register, every harves
 pure unitary evolution where nothing decays, nothing leaks, and the player's measurements
 are the only irreversible acts. "Measurement IS the economy." The full dissipative
 machinery (Lindblad channels, decoherence, weak measurement) is authored throughout and
-wakes **per-biome**: the post-story campaign *What Fades* (`docs/OPEN_CAMPAIGN.md`)
+wakes **per-biome**: the post-story campaign *What Fades* (`docs/design/OPEN_CAMPAIGN.md`)
 walks the player out of the enclave into the **wet country** — 64 biomes whose authored
 webways run live — and ends with the door open for good, leaving the full 164-biome
 world to explore with open and closed dynamics coexisting. The island the player grew up
@@ -136,19 +136,19 @@ The narrative layer is computed from the quantum state, not bolted on:
   choices keep renewing it — the one open system inside the enclave's walls. The M
   overlay reads it back: `You · Tr(ρ²) = 0.85 — resolved`.
 - **A topology campaign runs through the acts.** "What Survives"
-  (`docs/TOPOLOGY_CAMPAIGN.md`) teaches four genuine topological/geometric invariants
+  (`docs/design/TOPOLOGY_CAMPAIGN.md`) teaches four genuine topological/geometric invariants
   as story arcs: Berry phase (the solid angle a loop encloses), the conserved spectrum
   (with an in-game eigenstate compass 🧭), SSH edge protection (a lantern chain whose
   bridge cannot go dark — real chiral symmetry, authored as icon data), and gate
   non-commutativity (braid words drilled by an imperial guard).
-- **An open-systems campaign is the endgame.** "What Fades" (`docs/OPEN_CAMPAIGN.md`,
+- **An open-systems campaign is the endgame.** "What Fades" (`docs/design/OPEN_CAMPAIGN.md`,
   acts 6–8) walks out of the enclave: dephasing as *the world going gray while nothing
   moves*, the quantum Zeno effect as *watching keeps*, literal attractors with
   hysteresis, decoherence-tested topological protection, EIT dark states as shelter
   built from interference — and the rite: a reap paid kT·ΔS from the season's entropy
   bank. Maxwell's demon stops freelancing and opens a bank.
 - **A nonlocality campaign runs between them.** "What Connects"
-  (`docs/CONNECT_CAMPAIGN.md`, interleaved through acts 5–7) teaches what two systems
+  (`docs/design/CONNECT_CAMPAIGN.md`, interleaved through acts 5–7) teaches what two systems
   share that neither owns: Berry-loop **knots** (the record keeps the walks; mutual
   winding is the integer — ripeness was the shadow of a knot all along) and **Majorana
   bridges** — one fermion split between two biomes, decohering only at the *product* of

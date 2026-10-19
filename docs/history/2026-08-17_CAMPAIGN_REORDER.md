@@ -16,7 +16,7 @@ biome travel + a hat switch + a toggle-trap F + **two ~90 s real-time waits**
 — as the second thing in the game. Both 2026-08-10 personas walled exactly
 there, and all of Act 1 was a berry staircase. Meanwhile the late campaign
 interleaved four storylines on one act counter with the ending in act 6
-(`docs/CAMPAIGN_SPLIT_2026-08-11.md` has the full anatomy).
+(`docs/history/2026-08-11_CAMPAIGN_SPLIT.md` has the full anatomy).
 
 ## The new learning ladder
 
@@ -83,7 +83,7 @@ other two).
    act3 checkpoint's business).
 3. **Run the stranger probes + headed smoke** (`tutorial_stranger_probe.py`,
    `stranger_arc_ui_probe.py` — both updated to the six-step chain).
-4. **Split phases 1–4** per `docs/CAMPAIGN_SPLIT_2026-08-11.md`: guard test
+4. **Split phases 1–4** per `docs/history/2026-08-11_CAMPAIGN_SPLIT.md`: guard test
    over the checkpoint bank FIRST, then campaign-directory resolution +
    unlocks-on-beats + `ending: true` wiring, Lanternfall out (with the two
    world mutators), measure `atom_diversity` before trimming the pool, the

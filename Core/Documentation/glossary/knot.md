@@ -39,6 +39,6 @@ belongs to [measurement](measurement.md)'s own Born rule.
 The gray breaks the walk (below coherence ε the path has no continuation),
 and collapse cuts it — partial loops are forfeit; only completed circles
 enter the record. Played as "What Connects" acts 5+
-(`docs/CONNECT_CAMPAIGN.md`); machinery in
+(`docs/design/CONNECT_CAMPAIGN.md`); machinery in
 `Core/QuantumSubstrate/KnotRegister.gd` and the loop records of
 `BerryPhaseRegister.gd`.

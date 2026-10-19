@@ -178,6 +178,6 @@ The cube is a design vocabulary. The live hat row is defined in
 
 - `UI/Core/KEYBOARD_GRAMMAR.md` — input layer design
 - `UI/Core/SURFACE_MANIFEST.md` — surface inventory
-- `BIOME_AGENTS.md` — Captain/Operator territory (biomes + factions)
+- `docs/agents/BIOME_AGENTS.md` — Captain/Operator territory (biomes + factions)
 - `🍄/🎛️/` — lab tooling
 - `Core/QuantumSubstrate/QuantumGateLibrary.gd` — Druid territory (gates)

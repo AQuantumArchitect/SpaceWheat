@@ -27,8 +27,7 @@ What is still missing:
 - routine use of the native Windows export smoke/profile lane as a release gate
 
 Publishing itself (butler, credentials, pricing, page approval) is not tracked
-here — it belongs to the owner seat, in the yurt:
-`yurt-sync/mail/for-luke-spacewheat-itch-publishing.md`. The repo's lane is
+here — it belongs to the owner, in private ops notes outside this repo. The repo's lane is
 `scripts/itch-push.sh`, and it is done.
 
 ## Web channel

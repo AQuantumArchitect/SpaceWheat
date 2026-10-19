@@ -5,7 +5,7 @@ density matrix; planting, measuring, and harvesting are state preparation,
 Born-rule collapse, and getting paid for what you learned. This page is the
 first ten minutes; the full control grammar lives in
 [UI/Core/KEYBOARD_GRAMMAR.md](../UI/Core/KEYBOARD_GRAMMAR.md) and the frame
-reference in [docs/ARCHETYPE_FRAMES.md](ARCHETYPE_FRAMES.md).
+reference in [docs/design/ARCHETYPE_FRAMES.md](design/ARCHETYPE_FRAMES.md).
 
 ## The first sixty seconds
 

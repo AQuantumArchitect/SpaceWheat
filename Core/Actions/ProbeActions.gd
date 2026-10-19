@@ -636,7 +636,7 @@ static func _advance_reap_cycles(farm, active_biomes: Array, reap_cycles: int) -
 
 
 static func _collect_reap_rewards(active_biomes: Array, economy, farm, flux_to_credits: float) -> Dictionary:
-	# PER-BIOME regime split (What Fades, docs/OPEN_CAMPAIGN.md): each biome reaps
+	# PER-BIOME regime split (What Fades, docs/design/OPEN_CAMPAIGN.md): each biome reaps
 	# in its own thermodynamic country. Closed biomes get the seasonal
 	# mass-measurement (measurement IS the economy — see _closed_reap_rewards);
 	# wet-country biomes get the RITE: sink flux + the entropy bank, payout kT·ΔS —

@@ -2,7 +2,7 @@
 
 > **Historical.** Snapshot from 2026-07-05. Most gaps in this file closed the
 > same week; do not treat the P3 table as a live backlog. Canon:
-> `docs/FOR_PHYSICISTS.md`, `docs/GAME_CODEX.md`, `docs/EXPORT_HEALTH.md`.
+> `docs/FOR_PHYSICISTS.md`, `docs/GAME_CODEX.md`, `docs/design/EXPORT_HEALTH.md`.
 
 *Compiled from 7 headed playtesting sessions (sessions 5–11, 2026-07-04), live codebase
 audit, and the published docs in `docs/`. Perspective: I can press every key and read every
@@ -26,10 +26,10 @@ Before the gaps: a lot is genuinely done.
 - **Gallery G1/G2** (ReelRunner + PostcardCapture) are implemented; `first_light.reel.json`
   exists. Reel boots headlessly.
 - **Export health:** Linux + Windows desktop are both production-ready builds. itch.io desktop
-  packaging exists and works. See `docs/EXPORT_HEALTH.md`.
+  packaging exists and works. See `docs/design/EXPORT_HEALTH.md`.
 - **The Topology Campaign** (4 chapters, 7 flags, eigenstate compass, dynamics tracker) and
   **The Nonlocality Campaign** (5 chapters, 5 flags, BridgeRegister, KnotRegister): all chapters
-  ship per `docs/TOPOLOGY_CAMPAIGN.md` and `docs/CONNECT_CAMPAIGN.md`.
+  ship per `docs/design/TOPOLOGY_CAMPAIGN.md` and `docs/design/CONNECT_CAMPAIGN.md`.
 
 ---
 
@@ -134,7 +134,7 @@ These don't block v1 but should be tracked.
 
 ### 14. Dead code census (~100+ items)
 
-`docs/DEADWOOD_2026-07-05.md` enumerates ~100+ zero-call-site members across QuantumComputer (13),
+`docs/history/2026-07-05_DEADWOOD.md` enumerates ~100+ zero-call-site members across QuantumComputer (13),
 MusicManager (9), BiomeEvolutionBatcher (10), ComplexMatrix (9), QuestManager (8), and ~45 misc.
 None are blocking. A verified cull pass (delete cluster, boot, run suites, keep or revert) would
 trim the binary and reduce maintenance surface.
@@ -187,7 +187,7 @@ now so don't delete — refactor.
 ---
 
 *Report authored from external playtesting sessions. Evidence sources: headed screenshots
-(sessions 5–11), `docs/EXPORT_HEALTH.md`, `docs/TOPOLOGY_CAMPAIGN.md`,
-`docs/CONNECT_CAMPAIGN.md`, `docs/DEADWOOD_2026-07-05.md`, code audit of
+(sessions 5–11), `docs/design/EXPORT_HEALTH.md`, `docs/design/TOPOLOGY_CAMPAIGN.md`,
+`docs/design/CONNECT_CAMPAIGN.md`, `docs/history/2026-07-05_DEADWOOD.md`, code audit of
 `UI/Overlays/QubitAtlasOverlay.gd`, `UI/PlayerShell.gd`, `Core/Audio/SFXRegistry.gd`,
 `Core/GameState/QuantumRigorConfig.gd`, `Core/Environment/Components/BiomeGateOperations.gd`.*

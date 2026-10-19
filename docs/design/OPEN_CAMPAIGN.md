@@ -4,7 +4,7 @@
 > the player in the full game to explore — all 150+ biomes with real open and closed
 > system dynamics."* Descends from `docs/inspiration/OPEN_SYSTEM_ACT2.md` (the seed
 > bank: post-mortem, laws, seam) — this document promotes those seeds to a campaign
-> the way `docs/TOPOLOGY_CAMPAIGN.md` promoted `EXOTIC_TOPOLOGY.md`.
+> the way `docs/design/TOPOLOGY_CAMPAIGN.md` promoted `EXOTIC_TOPOLOGY.md`.
 >
 > **Status: Phases 0–2 and 4–5 SHIPPED (2026-07-04, same day).** The per-biome
 > regime seam (`regime_override` on `QuantumComputer`, honored at the Lindblad build
@@ -30,7 +30,7 @@
 > standing contract, E reads the real order book, and Ace's Plant is a
 > coherent Rabi pulse — legal everywhere, unable to purify (the Spark's jolt
 > is the dissipative counterpoint that can). Phase 6 (Majorana) shipped as
-> "What Connects" (`docs/CONNECT_CAMPAIGN.md`).
+> "What Connects" (`docs/design/CONNECT_CAMPAIGN.md`).
 > **Update, same day — the basins woke.** The 61 authored
 > `gated_lindblad_source` circuits now run at runtime: per-tick mean-field
 > Kraus jumps (`Farm._process_gated_channels`, rate ∝ ρ_gate^power, open
@@ -210,7 +210,7 @@ engine owes the world it farms.
 ### Capstone — The Bridge *(Majorana; reserved machinery, scoped separately)*
 
 The first structure the player builds that the Bath cannot reach: nonlocal storage
-split between two biomes. **Shipped as "What Connects"** (`docs/CONNECT_CAMPAIGN.md`,
+split between two biomes. **Shipped as "What Connects"** (`docs/design/CONNECT_CAMPAIGN.md`,
 interleaved through acts 5–7 per the owner's call): `BridgeRegister` — a standalone
 2×2 ρ anchored to a qubit in each biome, protection *derived* as the product of the
 two ends' local noise rates, an island-anchored end immortal. Knot invariants
@@ -245,7 +245,7 @@ seed bank is empty of everything but chaos.
 | **0 — the seam** | Per-biome regime: `force_open` on `QuantumComputer` honored at the three physics sites; biome-data field (`"regime": "open"`); serializer flag; boot wiring. Global verb seals untouched | core (me) |
 | **1 — the wound** | The Crossing beat + arc; the Fallow authored (canonize GildedRot); the gray reveal (unfreeze mixedness visuals — verify, don't rebuild); first fading quest; `coherence_dropped_below` witness predicate; glossary: **bath**, **fading** | core (me) |
 | **2 — watching keeps** | Zeno arc on ZenoLatch/Clinic; wake `PREVENT_DECOHERENCE`; compass drift line; T₁/T₂ E-inspect teaching cards | core (me) |
-| **3 — the reform** | Role-separation migration: webway recirculation edges → H couplings, L keeps sources/sinks/dephasing; rate retuning; assay regression per biome | biome bots (`BIOME_AGENTS.md`), assay-gated |
+| **3 — the reform** | Role-separation migration: webway recirculation edges → H couplings, L keeps sources/sinks/dephasing; rate retuning; assay regression per biome | biome bots (`docs/agents/BIOME_AGENTS.md`), assay-gated |
 | **4 — the basins** | Chapters III–IV arcs on the circuit shelf; hysteresis/dark-state/gain quests; Lanternfall-under-noise beat | core (me) |
 | **5 — the rite** | Entropy bank + kT·ΔS reap; verb unseals as faction rewards; harvest festival; whisper register for the rite | core (me) + economy validation by testing bots |
 | **6 — the bridge** | Majorana machinery | scoped later |

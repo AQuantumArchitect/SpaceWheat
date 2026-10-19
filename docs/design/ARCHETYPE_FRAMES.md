@@ -1,6 +1,6 @@
 # Archetype Frames — the new outer ring
 
-The 8-archetype cube (`docs/CHARACTER_ARCHETYPES.md`) sits above the
+The 8-archetype cube (`docs/design/CHARACTER_ARCHETYPES.md`) sits above the
 keyboard as the outer frame selector. Pressing a hat key swaps the
 action vocabulary that `1`/`2`/`3` + QERF reaches. Same biome × plot
 grid, same verb cross, different verbs per frame.
@@ -124,6 +124,6 @@ When no hat is pressed, the runtime uses the Ace probe toolkit.
 
 ## Related
 
-- `docs/CHARACTER_ARCHETYPES.md` — the cube vocabulary
+- `docs/design/CHARACTER_ARCHETYPES.md` — the cube vocabulary
 - `UI/Core/KEYBOARD_GRAMMAR.md` — current grammar
 - `Core/GameState/ToolConfig.gd` — live frame configuration

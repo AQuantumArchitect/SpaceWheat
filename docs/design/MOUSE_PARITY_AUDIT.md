@@ -1,7 +1,7 @@
 # Mouse-Only Parity Audit
 
 > **Superseded as the running log by
-> [`PLAYTEST_SWEEP_2026-08-10.md`](PLAYTEST_SWEEP_2026-08-10.md).** That sweep
+> [`PLAYTEST_SWEEP_2026-08-10.md`](../history/2026-08-10_PLAYTEST_SWEEP.md).** That sweep
 > replaced the mouse-only-wave format with `🍄/🧪/mouse_seat.py`, where the
 > keyboard is *removed* rather than discouraged — so "reached X by mouse alone"
 > is structural instead of resting on the tester's honour, which is what every
@@ -463,7 +463,7 @@ Commit: `97c20bd6` — `_select_frame_hat` focus-clear fix, this doc entry.
 
 Per Luke's steer ("push into the unexplored surfaces... though the central quest
 should touch on every aspect of the game"), this wave targeted the Act 5 branch
-fork (`docs/CAMPAIGN_STATE_2026-08-04.md` §2 — "the one real narrative choice") and
+fork (`docs/history/2026-08-04_CAMPAIGN_STATE.md` §2 — "the one real narrative choice") and
 the `island_free` ending ceremony, rather than another quest-loop variant. The
 fork is reached by planting one of 5 candidate atoms (💧/🏭/🔨/🦅/💀) into the
 Village register via the Icon-hat's inject-icon ritual — the same mechanic that

@@ -257,7 +257,7 @@ const MEASURE_WHISPER := {
 ## name "reap" as a placeholder and deliberately gave it no ceremony; this is the
 ## harvest festival designed once, for the mechanic it honors: a season's
 ## accumulated dissipation opened and paid from the entropy bank, kT·ΔS
-## (docs/OPEN_CAMPAIGN.md, Chapter V). Fires only when the extraction was real.
+## (docs/design/OPEN_CAMPAIGN.md, Chapter V). Fires only when the extraction was real.
 const REAP_WHISPER := {
 	"imperial":  "The Throne taxes order. You have learned to tax its opposite. Do not imagine this goes unnoticed.",
 	"guild":     "kT by ΔS, paid in full. The oldest contract there is — signed before there were signatures.",

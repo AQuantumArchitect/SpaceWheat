@@ -1,7 +1,7 @@
 """Mouse-first copy voice lints (2026-08-24 "say the click" pass).
 
 The law (owner playtest, 2026-08-23: "still friction about clicking into
-things"): every quest action has a real mouse path (docs/MOUSE_PARITY_AUDIT.md
+things"): every quest action has a real mouse path (docs/design/MOUSE_PARITY_AUDIT.md
 closed the mechanics waves ago) but the copy kept speaking keyboard-only —
 "press R to accept" over a row that is click-wired. Voice rule: the click
 comes first, keys ride as bracketed accelerators; a string may name a bare

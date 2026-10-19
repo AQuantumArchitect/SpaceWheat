@@ -1,6 +1,6 @@
 # The Web Door — lane and policy
 
-> The Gallery, G4 (`docs/ENGINE_FRONTIER.md`, Part II). Status, **2026-08-15**:
+> The Gallery, G4 (`docs/design/ENGINE_FRONTIER.md`, Part II). Status, **2026-08-15**:
 > **every item in "What still gates the itch web channel" is checked** — the
 > 2026-08-13 "complete" claim below turned out to be one day early (title
 > booted, but pressing F to start a farm silently crashed; see that section

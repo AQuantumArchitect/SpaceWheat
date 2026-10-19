@@ -60,8 +60,8 @@ Status: artifacts ready; publishing is an owner-seat concern, not a repo one
 - `scripts/itch-push.sh` is the push lane (both channels, one command). The
   earlier claim here that no such lane existed was stale.
 - Account operations — installing/logging into butler, credentials, pricing,
-  page approval — deliberately do NOT live in this repo. See the yurt card
-  `yurt-sync/mail/for-luke-spacewheat-itch-publishing.md`. This repo's job ends
+  page approval — deliberately do NOT live in this repo; they are in the
+  owner's private ops notes. This repo's job ends
   at a finished, identifiable artifact.
 
 ### itch.io web upload

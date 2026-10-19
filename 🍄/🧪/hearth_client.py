@@ -38,7 +38,7 @@ Usage as a CLI (this is what scripts/cognifold.sh consumes):
 
 Env overrides (all optional, mirror hearth_lib.sh):
     HEARTH_URL   default http://100.72.177.15:7073
-    YURT_ENV     default /mnt/c/Users/Luke Spooner/ws-win/yurt/config/yurt.env
+    YURT_ENV     default <fleet home>/yurt/config/yurt.env (see 🍄/🎛️/fleet_paths.py)
                  (path to the CRLF yurt.env carrying UMWELTD_API_KEY)
     HEARTH_API_KEY  bypasses YURT_ENV entirely if set (still \\r-stripped)
 """
@@ -49,9 +49,12 @@ import os
 import sys
 import urllib.error
 import urllib.request
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "🍄" / "🎛️"))
+from fleet_paths import fleet_path  # noqa: E402
 
 HEARTH_URL_DEFAULT = "http://100.72.177.15:7073"
-YURT_ENV_DEFAULT = "/mnt/c/Users/Luke Spooner/ws-win/yurt/config/yurt.env"
+YURT_ENV_DEFAULT = str(fleet_path("yurt", "config", "yurt.env"))
 
 
 class HearthDark(RuntimeError):

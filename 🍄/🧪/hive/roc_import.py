@@ -22,13 +22,16 @@ Usage:
 import argparse
 import json
 import re
+import sys
 import time
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "🍄" / "🎛️"))
+from fleet_paths import fleet_path  # noqa: E402
 
 HIVE = Path(__file__).resolve().parent
 LEDGER = HIVE / "roc_runs.jsonl"
 DEFAULT_RESULTS = Path(
-    "/mnt/c/Users/Luke Spooner/ws-win/yurt-sync/workspaces/spacewheat/results")
+    str(fleet_path("yurt-sync", "workspaces", "spacewheat", "results")))
 
 FLAG_BLOCK_RE = re.compile(r"story_flags_fired\s*=\s*\{(.*?)\}", re.S)
 FLAG_KEY_RE = re.compile(r'"([A-Za-z0-9_]+)"\s*:')

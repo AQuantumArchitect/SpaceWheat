@@ -14,7 +14,7 @@ the same keys a human presses and reads back the same UI and physics state a
 human sees, driving the *real* game — not a mock or a simplified harness.
 Agents play SpaceWheat the way a playtester would, headlessly, which is how
 a lot of the bug reports in this repo's `docs/` folder were actually found —
-`docs/PLAYTEST_SWEEP_2026-08-10.md` and `docs/MOUSE_PARITY_AUDIT.md` are both
+`docs/history/2026-08-10_PLAYTEST_SWEEP.md` and `docs/design/MOUSE_PARITY_AUDIT.md` are both
 records of agents walking the game end-to-end and reporting exactly what a
 human would hit.
 
@@ -29,10 +29,10 @@ evaluating the codebase:
   conclusions in public (a software-rasterizer framerate that looked bad was
   later found to be 6x low once measured on real hardware; that correction
   is recorded, not quietly overwritten).
-- **A doc-hygiene discipline.** `docs/DOC_ROT_2026-07-11.md` is an audit that
+- **A doc-hygiene discipline.** `docs/history/2026-07-11_DOC_ROT.md` is an audit that
   found and archived a cluster of dead docs. Status claims in this repo are
   expected to expire and get checked, not accumulate indefinitely.
-- **"Phantom bug" diagnosis.** Several items in `docs/PRE_LAUNCH_GAPS.md` were
+- **"Phantom bug" diagnosis.** Several items in `docs/design/PRE_LAUNCH_GAPS.md` were
   reported as bugs, investigated, and closed as *not actually bugs* once the
   real mechanism was traced — the process is built to catch its own false
   positives, not just rack up fixes.
@@ -42,7 +42,7 @@ evaluating the codebase:
 
 ## For agents working on this repo
 
-If you're an AI agent contributing here: `BIOME_AGENTS.md` scopes
+If you're an AI agent contributing here: `docs/agents/BIOME_AGENTS.md` scopes
 biome/faction physics work specifically; `🍄/README.txt` and
 `🍄/🗺️_ARCHITECTURE.md` are the full rig architecture and data-flow map for
 driving the game headlessly. Read the scoped doc for the area you're

@@ -172,7 +172,7 @@ static func build_from_spec(
 
 	# Build quantum system (H + L)
 	var atom_components: Dictionary = _spec_get(biome_def, "atom_components", {})
-	# Per-biome thermodynamic regime (What Fades seam, docs/OPEN_CAMPAIGN.md):
+	# Per-biome thermodynamic regime (What Fades seam, docs/design/OPEN_CAMPAIGN.md):
 	# "open" = wet country (dissipative while the world is sealed),
 	# "closed" = inviolable enclave (unitary even after the door opens),
 	# "" = inherit the global switches.

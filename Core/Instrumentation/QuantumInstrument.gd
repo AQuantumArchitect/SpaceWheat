@@ -865,7 +865,7 @@ func action_incorporate(qubit_idx: int = -1) -> Dictionary:
 
 
 ## ============================================================================
-## GAUGE VERBS (Operator 🧭 compass + Icon 🪞 mirror — docs/GAUGE_CAMPAIGN.md)
+## GAUGE VERBS (Operator 🧭 compass + Icon 🪞 mirror — docs/design/GAUGE_CAMPAIGN.md)
 ## All engine-side behind the one seam: every input source (keyboard, bot,
 ## mouse chip) gets identical physics, identical action_performed emission,
 ## and identical quest-projection visibility.

@@ -408,7 +408,7 @@ func _mark_lookahead_dirty() -> void:
 		farm.biome_evolution_batcher.mark_for_reregister(get_biome_type())
 
 
-## Runtime thermodynamic-regime change (What Fades, docs/OPEN_CAMPAIGN.md).
+## Runtime thermodynamic-regime change (What Fades, docs/design/OPEN_CAMPAIGN.md).
 ## Story flags carry `regime_changes: {biome: "open"|"closed"}` — the Bath
 ## reaching a coast is a narrative event, never a silent patch. Rebuilds this
 ## biome's Lindblad operators under the new regime and re-registers with the

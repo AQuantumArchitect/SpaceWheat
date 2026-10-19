@@ -28,5 +28,5 @@ Reading is **fusion**: the parity is Born-sampled, paid in surprisal across
 both shores at once, and the bridge is spent — because localizing the answer
 hands the Bath the address. Looking closes it
 ([measurement](measurement.md)'s oldest rule, on its newest instrument).
-Played as acts 5–7 of "What Connects" (`docs/CONNECT_CAMPAIGN.md`);
+Played as acts 5–7 of "What Connects" (`docs/design/CONNECT_CAMPAIGN.md`);
 machinery in `Core/QuantumSubstrate/BridgeRegister.gd`.

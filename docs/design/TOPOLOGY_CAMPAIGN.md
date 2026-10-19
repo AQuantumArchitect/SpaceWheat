@@ -170,7 +170,7 @@ procedural quests to reuse.)*
 ## Reserved for the open door
 
 *(Update, 2026-07: the door is open — "What Fades" shipped — and tiers 4 & 6
-SHIPPED as "What Connects" (`docs/CONNECT_CAMPAIGN.md`), interleaved through
+SHIPPED as "What Connects" (`docs/design/CONNECT_CAMPAIGN.md`), interleaved through
 acts 5–7. Chaos alone stays sealed.)*
 
 Three tiers stay sealed with reasons, recorded in `docs/inspiration/OPEN_SYSTEM_ACT2.md`:

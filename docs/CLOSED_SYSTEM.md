@@ -10,10 +10,10 @@ extraction) is preserved behind a single flag as the future **open-quantum DLC**
 
 **In-fiction, this document is the law of the enclave.** The story and the physics
 speak one language, and the glossary is the dictionary between them:
-[enclave](glossary/enclave.md) (the closed world and its four-clause law),
-[webway](glossary/webway.md) (the authored Lindblad channels, sealed in v0),
-[measurement](glossary/measurement.md) (the single irreversible act — measurement IS
-the economy), [berry](glossary/berry.md) (geometric phase as harvest). When a quest
+[enclave](../Core/Documentation/glossary/enclave.md) (the closed world and its four-clause law),
+[webway](../Core/Documentation/glossary/webway.md) (the authored Lindblad channels, sealed in v0),
+[measurement](../Core/Documentation/glossary/measurement.md) (the single irreversible act — measurement IS
+the economy), [berry](../Core/Documentation/glossary/berry.md) (geometric phase as harvest). When a quest
 beat, a tooltip, or a code comment needs a word for a physics fact, it should be one
 of these.
 

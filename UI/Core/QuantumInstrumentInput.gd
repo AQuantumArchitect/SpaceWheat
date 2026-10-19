@@ -10,7 +10,7 @@ extends Node
 ## operations fuse into a single system. Creates a fractal address to game
 ## state through hierarchical navigation.
 ##
-## Key Layout (Archetype Frames grammar — see docs/ARCHETYPE_FRAMES.md):
+## Key Layout (Archetype Frames grammar — see docs/design/ARCHETYPE_FRAMES.md):
 ##   4 5 6 7 8 9 0 = Archetype hat row (Spark/Icon/Merchant/Captain/
 ##                   Ace/Operator/Druid). Re-press the active hat
 ##                   toggles back to Ace (no frame).
@@ -303,7 +303,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	# overload a bound one). Before this the whole fractal mechanic — which
 	# has a real cost, a gate and save state — was reachable ONLY by clicking
 	# a 3D portal satellite, so a keyboard-only player could never use it
-	# (docs/CAMPAIGN_STATE_2026-08-04.md §5.4).
+	# (docs/history/2026-08-04_CAMPAIGN_STATE.md §5.4).
 	if event.keycode == KEY_BRACKETRIGHT:
 		if event.is_shift_pressed():
 			_ascend_fractal_level()
