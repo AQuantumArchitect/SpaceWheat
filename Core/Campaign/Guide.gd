@@ -630,10 +630,12 @@ static func _gather(res: String, need: int, q: Dictionary, depth: int = 0) -> Di
 				break
 	if where == "":
 		where = _biome_carrying(res)
-	if where == "" or (int(_misses.get(res, 0)) >= MISS_CAP and _supply_listed(res)):
+	if where == "" or (int(_misses.get(res, 0)) >= MISS_CAP and not _trade_ruled_out(res)):
 		var sup := _supply(res, q, depth)
-		if not sup.is_empty() or where == "":
+		if not sup.is_empty():
 			return sup
+		if where == "":
+			return _wait("no %s on the market ring yet — wait for it to turn" % res, q, "no route " + res)
 	var t := _travel(where, q)
 	if not t.is_empty():
 		return t
@@ -693,24 +695,14 @@ static func _cost_or(spend: Array, step: Dictionary, q: Dictionary, depth: int) 
 
 ## A resource no biome here grows: its standing trade on a board (the spec's
 ## `trades`) — the rescue that keeps an empty wallet from being a dead end.
-## The market ring carries a standing trade for `res` right now. A ring read
-## while closed can be stale (opening it re-deals the offers for this land),
-## so a trade found missing on the open ring is not offered again for a while.
+## A trade found missing on the open market ring is ruled out for a while,
+## so a gather that falls back to it does not open, close and reopen the
+## board. (The ring is re-dealt when it opens, so a closed read can't decide.)
 static var _no_trade_until := {}
 const NO_TRADE_MS := 90000
 
-## The market ring carries a standing trade for `res` right now.
-static func _supply_listed(res: String) -> bool:
-	if Time.get_ticks_msec() < int(_no_trade_until.get(res, 0)):
-		return false
-	var board = UIP._quest_board()
-	if board == null or not board.has_method("_market_rows"):
-		return false
-	for r in board._market_rows():
-		var d = r.get("data", {}) if r is Dictionary else {}
-		if d is Dictionary and bool(d.get("supply_trade", false)) and str(d.get("supply_emoji", "")) == res:
-			return true
-	return false
+static func _trade_ruled_out(res: String) -> bool:
+	return Time.get_ticks_msec() < int(_no_trade_until.get(res, 0))
 
 
 static func _supply(res: String, q: Dictionary, depth: int) -> Dictionary:
@@ -722,14 +714,14 @@ static func _supply(res: String, q: Dictionary, depth: int) -> Dictionary:
 	var t := _travel(home, q)
 	if not t.is_empty():
 		return t
-	# Read the ring before opening it: a board with no trade for `res` would
-	# otherwise be opened, found empty, closed by the fallback, and reopened.
-	if not _supply_listed(res):
+	if _trade_ruled_out(res):
 		return {}
 	var board = UIP._quest_board()
-	var rows: Array = board._market_rows()
+	if board == null:
+		return {}
 	if not (UIP._board_open() and str(board.get("frame_id")) == "market"):
 		return _open_surface("market", q)
+	var rows: Array = board._market_rows()
 	for i in range(rows.size()):
 		var d = rows[i].get("data", {})
 		if not (d is Dictionary) or not bool(d.get("supply_trade", false)):
