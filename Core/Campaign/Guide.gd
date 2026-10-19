@@ -195,6 +195,28 @@ static func next_step() -> Dictionary:
 	return _across(open, q)
 
 
+## Debug view for probes: each open predicate of the live beat and the first
+## step its walk offers right now (the inputs to `_across`).
+static func explain() -> Array:
+	var out: Array = []
+	var q := live_beat()
+	if q.is_empty() or UIP.current_tutorial_step() != UIP.NO_TUTORIAL_SENTINEL:
+		return out
+	for pred in _open_predicates(q):
+		var walk = _walks().get(str(pred.get("type", "")), null)
+		var got := {}
+		if walk is Array:
+			for step in walk:
+				var r := _step(str(step), pred, q)
+				if not r.is_empty():
+					got = {"step": str(step), "text": str(r.get("text", "")), "why": str(r.get("why", ""))}
+					break
+		var qm = UIP._quest_manager()
+		var score := float(qm.evaluate_predicate_score(pred)) if qm != null and qm.has_method("evaluate_predicate_score") else -1.0
+		out.append({"type": str(pred.get("type", "")), "score": score, "offers": got})
+	return out
+
+
 ## One next step across a beat's open predicates. Each predicate offers the
 ## first step of its walk; an action (a key that changes the game) beats a
 ## wait, and a wait beats a setup (a hat or a trip). So two predicates that
@@ -655,6 +677,9 @@ static func _gather(res: String, need: int, q: Dictionary, depth: int = 0) -> Di
 	_counted[res] = false
 	if col >= 0 and UIP._plot_bound(col):
 		return _cost_or(["strike", "👥"], _chord(_close_first() + [label, ["Strike", _verb("strike")]], q, "strike"), q, depth)
+	var fr := _free_terminal(q)
+	if not fr.is_empty():
+		return fr
 	var key := UIP._glyph_plot_key(res)
 	if key == "":
 		key = _plot_key(0)
@@ -662,7 +687,7 @@ static func _gather(res: String, need: int, q: Dictionary, depth: int = 0) -> Di
 	if col < 0 or _plot_key(col) != key:
 		parts.append(["plot", key])
 	parts.append(["Explore", _verb("explore")])
-	return _chord(parts, q, "explore")
+	return _cost_or(["explore", "🍞"], _chord(parts, q, "explore"), q, depth)
 
 
 ## A loaded biome whose register carries `glyph` (active biome first).
@@ -1003,20 +1028,23 @@ static func _evolve(biome: String, q: Dictionary) -> Dictionary:
 ## Pull a biome's attractor toward `emoji`: measure its qubit until the
 ## outcome IS that emoji, and hold it there (a collapse is the strongest
 ## nudge a player has). Another outcome is gathered away and struck again.
+## A qubit past the six plots of the ring can't be struck: let it evolve.
 static func _steer(biome: String, emoji: String, q: Dictionary) -> Dictionary:
+	var farm = UIP._active_farm()
+	var b = farm.grid.get_biome(biome) if farm != null and farm.grid != null else null
+	if b == null or b.quantum_computer == null or b.quantum_computer.register_map == null:
+		return {}
+	var col := int(b.quantum_computer.register_map.qubit(emoji))
+	if col < 0:
+		return {}
+	if col >= BERRY_ROWS:
+		return _evolve(biome, q)
 	var t := _travel(biome, q)
 	if not t.is_empty():
 		return t
 	var h := _hat("ace", q)
 	if not h.is_empty():
 		return h
-	var farm = UIP._active_farm()
-	var b = farm.grid.get_biome(biome) if farm != null and farm.grid != null else null
-	if b == null or b.quantum_computer == null or b.quantum_computer.register_map == null:
-		return {}
-	var col := int(b.quantum_computer.register_map.qubit(emoji))
-	if col < 0 or col >= BERRY_ROWS:
-		return {}
 	var parts: Array = _close_first()
 	if _live_col() != col:
 		parts.append(["plot", _plot_key(col)])
@@ -1028,5 +1056,50 @@ static func _steer(biome: String, emoji: String, q: Dictionary) -> Dictionary:
 	if UIP._plot_bound(col):
 		parts.append(["Strike for " + emoji, _verb("strike")])
 		return _chord(parts, q, "steer")
+	var fr := _free_terminal(q)
+	if not fr.is_empty():
+		return fr
 	parts.append(["Explore", _verb("explore")])
 	return _chord(parts, q, "explore")
+
+
+## Every probe is out (the terminal pool is spent): an Explore would be
+## refused. Bring one home: gather a measured probe (strike a bound one
+## first), measured ones away from this beat's biome before the rest.
+static func _free_terminal(q: Dictionary) -> Dictionary:
+	var farm = UIP._active_farm()
+	if farm == null or farm.terminal_pool == null or int(farm.terminal_pool.get_unbound_count()) > 0:
+		return {}
+	var keep := {}
+	for pred in q.get("state_predicates", []):
+		if pred is Dictionary and str(pred.get("biome", "")) != "":
+			keep[str(pred.get("biome", ""))] = true
+	var best = null
+	var best_rank := 1 << 30
+	for t in farm.terminal_pool.get_all_terminals():
+		if t == null or not (bool(t.is_bound) or bool(t.is_measured)):
+			continue
+		var bname := str(t.measured_biome_name if bool(t.is_measured) and str(t.measured_biome_name) != "" else t.bound_biome_name)
+		var rank := (0 if bool(t.is_measured) else 2) + (1 if keep.has(bname) else 0) \
+				+ (0 if bname == UIP._active_biome_name() else 4)
+		if rank < best_rank:
+			best_rank = rank
+			best = t
+	if best == null:
+		return {}
+	var biome := str(best.measured_biome_name if bool(best.is_measured) and str(best.measured_biome_name) != "" else best.bound_biome_name)
+	var col := int(best.measured_register_id if bool(best.is_measured) and int(best.measured_register_id) >= 0 else best.bound_register_id)
+	var tr := _travel(biome, q)
+	if not tr.is_empty():
+		return tr
+	var h := _hat("ace", q)
+	if not h.is_empty():
+		return h
+	var parts: Array = _close_first() + ["all probes are out"]
+	if _live_col() != col:
+		parts.append(["plot", _plot_key(col)])
+	if bool(best.is_measured):
+		parts.append(["Gather", _verb("gather")])
+		return _chord(parts, q, "free probe")
+	parts.append(["Strike", _verb("strike")])
+	return _chord(parts, q, "free probe")

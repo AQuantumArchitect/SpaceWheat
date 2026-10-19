@@ -1043,6 +1043,8 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			result["live_beat"] = str(gs_beat.get("source_flag", ""))
 			result["live_status"] = str(gs_beat.get("status", ""))
 			result["tutorial_step"] = load("res://UI/Core/UIProgression.gd").current_tutorial_step()
+			result["explain"] = gs_guide.explain()
+			result["hat"] = str(ToolConfig.get_current_frame())
 
 		"overlay_text":
 			# Read-only: every visible Label/RichTextLabel under a named node
