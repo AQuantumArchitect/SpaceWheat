@@ -736,6 +736,14 @@ static func _supply(res: String, q: Dictionary, depth: int) -> Dictionary:
 		return {}
 	var tr: Dictionary = trades[0]
 	var home := str(tr.get("biome", "Village"))
+	if _trade_ruled_out(res):
+		return {}
+	# Gather what the trade asks for before walking to the board: a give-gather
+	# found only on the open ring would close it with its first key.
+	var spec_give: Dictionary = CampaignRuntime.trade_give(tr)
+	for g in spec_give:
+		if UIP._wallet(str(g)) < float(spec_give[g]) and depth < 2:
+			return _gather(str(g), int(spec_give[g]), q, depth + 1)
 	var t := _travel(home, q)
 	if not t.is_empty():
 		return t
@@ -1041,6 +1049,10 @@ static func _steer(biome: String, emoji: String, q: Dictionary) -> Dictionary:
 		return {}
 	if col >= BERRY_ROWS:
 		return _evolve(biome, q)
+	var held = farm.terminal_pool.get_measured_terminal_for_register(col, biome) \
+			if farm.terminal_pool != null and farm.terminal_pool.has_method("get_measured_terminal_for_register") else null
+	if held != null and str(held.measured_outcome) == emoji:
+		return _wait("%s holds at %s — wait for it to settle" % [emoji, biome], q, "hold")
 	var t := _travel(biome, q)
 	if not t.is_empty():
 		return t
