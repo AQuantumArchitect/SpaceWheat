@@ -28,17 +28,11 @@ LANTERN_BEATS = {"lantern_door", "chain_ends", "lantern_teaching",
                  "lantern_wakes", "chain_flipped"}
 LOOM_SPINE = {"braid_order", "braid_word"}
 
-# The six doors between campaigns as shipped (dependent -> prereq). Under the
-# split each side campaign needs its own opener; until then these edges are
-# the exact re-point work items (doc: "an afternoon bought that knowledge").
-TODO_CROSS_CAMPAIGN_EDGES = {
-    ("lantern_door", "mill_wakes"),          # lanternfall <- demos (the old act-3 door)
-    ("the_crossing", "edge_of_the_enclave"), # lanternfall <- demos (the wet-country door)
-    ("braid_order", "village_identity"),     # loom <- demos (the braid lessons' hub gate)
-    ("second_loop", "loop_remembers"),       # loom <- demos (needs a new Loom opener)
-    ("the_span", "the_crossing"),            # loom <- lanternfall (doc: drop this dep)
-    ("turned_compass", "the_crossing"),      # loom <- lanternfall (doc: drop this dep)
-}
+# The split is DONE (2026-10-17, Core/Campaign/campaign.json): the two
+# post-game campaigns open only after the Demos ending, so the ONLY edges
+# that cross a campaign boundary are a post-game opener waiting on
+# island_free. Any other cross edge fails immediately.
+POSTGAME_OPENERS = {"lantern_door", "braid_order", "second_loop"}
 
 EXPECTED_ENDINGS = {
     "demos": "island_free",
@@ -92,7 +86,7 @@ def test_exactly_one_ending_per_campaign():
     }, f"endings drifted: {endings}"
 
 
-def test_story_flag_edges_resolve_in_campaign_except_known_doors():
+def test_story_flag_edges_resolve_in_campaign_except_postgame_openers():
     flags = _flags()
     campaign_of = {f["id"]: str(f.get("campaign")) for f in flags}
     cross = set()
@@ -103,10 +97,9 @@ def test_story_flag_edges_resolve_in_campaign_except_known_doors():
             pid = str(p.get("id"))
             if campaign_of.get(pid) != campaign_of[f["id"]]:
                 cross.add((f["id"], pid))
-    assert cross == TODO_CROSS_CAMPAIGN_EDGES, (
-        "cross-campaign edge drift.\n"
-        f"  new (must be re-pointed or allowlisted consciously): {sorted(cross - TODO_CROSS_CAMPAIGN_EDGES)}\n"
-        f"  fixed (remove from allowlist): {sorted(TODO_CROSS_CAMPAIGN_EDGES - cross)}"
+    assert cross == {(o, "island_free") for o in POSTGAME_OPENERS}, (
+        "cross-campaign edges must be exactly the post-game openers waiting on "
+        f"island_free; got {sorted(cross)}"
     )
 
 
@@ -118,19 +111,15 @@ def test_unlock_table_flags_live_in_the_demos_partition():
     belongs to the Loom's compass lesson and MOVES with it in split phase 4;
     until then the viz simply never unlocks in a pure Demos run, which is
     correct (the lesson isn't there either)."""
-    import re
-    src = (ROOT / "UI" / "Core" / "UIProgression.gd").read_text(encoding="utf-8")
+    runtime = json.loads((ROOT / "Core" / "Quests" / "data" / "campaign_runtime.json").read_text(encoding="utf-8"))
     campaign_of = {f["id"]: str(f.get("campaign")) for f in _flags()}
     allowed_outside = {"turned_compass"}
-    for table in ("HAT_UNLOCK_FLAGS", "MENU_UNLOCK_FLAGS"):
-        m = re.search(r"const %s\s*:\s*Dictionary\s*=\s*\{(.*?)\n\}" % table, src, re.S)
-        assert m, f"{table} moved"
-        body = re.sub(r"#[^\n]*", "", m.group(1))
-        for rhs in re.findall(r':\s*("[^"]*"|\[[^\]]*\])', body):
-            for fid in re.findall(r'"([^"]*)"', rhs):
-                if fid == "" or fid in allowed_outside:
+    for kind in ("hats", "menus"):
+        for name, ids in runtime["unlocks"][kind].items():
+            for fid in ids:
+                if fid in allowed_outside:
                     continue
                 assert campaign_of.get(fid) == "demos", (
-                    f"{table} keys on {fid!r} ({campaign_of.get(fid)}) — "
-                    "a fresh Demos run could never unlock it after the split"
+                    f"{kind}.{name} keys on {fid!r} ({campaign_of.get(fid)}) — "
+                    "a fresh Demos run could never unlock it"
                 )

@@ -1,0 +1,423 @@
+{
+  "_generated": "from Core/Campaign/campaign.json by tools/campaign/build.py — do not edit",
+  "campaigns": [
+    {
+      "id": "demos",
+      "title": "The Demos",
+      "kind": "main",
+      "ending": "island_free",
+      "acts": [
+        {
+          "act": 0,
+          "global_act": 0,
+          "title": "The Loop",
+          "chapters": [
+            {
+              "id": "tutorial",
+              "title": "Six Lessons"
+            },
+            {
+              "id": "first_fruits",
+              "title": "First Fruits"
+            }
+          ]
+        },
+        {
+          "act": 1,
+          "global_act": 1,
+          "title": "The Village",
+          "chapters": [
+            {
+              "id": "the_wheel",
+              "title": "The Wheel Is Yours"
+            },
+            {
+              "id": "the_mill",
+              "title": "Apprentice to the Mill"
+            },
+            {
+              "id": "first_taste",
+              "title": "First Breath"
+            },
+            {
+              "id": "new_voices",
+              "title": "New Voices"
+            }
+          ]
+        },
+        {
+          "act": 2,
+          "global_act": 2,
+          "title": "Two Countries",
+          "chapters": [
+            {
+              "id": "timber",
+              "title": "Timber Country"
+            },
+            {
+              "id": "spring",
+              "title": "Spring Country"
+            },
+            {
+              "id": "two_tables",
+              "title": "Two Tables"
+            }
+          ]
+        },
+        {
+          "act": 3,
+          "global_act": 3,
+          "title": "What the Land Remembers",
+          "chapters": [
+            {
+              "id": "forest",
+              "title": "The Forest Listens"
+            },
+            {
+              "id": "mill",
+              "title": "The Mill Wakes"
+            }
+          ]
+        },
+        {
+          "act": 4,
+          "global_act": 4,
+          "title": "The Island & Its People",
+          "chapters": [
+            {
+              "id": "island",
+              "title": "The Island Wakes"
+            },
+            {
+              "id": "dark_teachers",
+              "title": "The Dark Teachers"
+            }
+          ]
+        },
+        {
+          "act": 5,
+          "global_act": 5,
+          "title": "Five Doors",
+          "chapters": [
+            {
+              "id": "village_paths",
+              "title": "The Village Chooses"
+            },
+            {
+              "id": "the_ledger",
+              "title": "The Blood Ledger"
+            }
+          ]
+        },
+        {
+          "act": 6,
+          "global_act": 6,
+          "title": "The Empire",
+          "chapters": [
+            {
+              "id": "empire",
+              "title": "The Empire Imposes"
+            }
+          ]
+        }
+      ],
+      "opens_after": ""
+    },
+    {
+      "id": "lanternfall",
+      "title": "What Fades",
+      "kind": "postgame",
+      "ending": "the_door_stays_open",
+      "acts": [
+        {
+          "act": 1,
+          "global_act": 7,
+          "title": "Lantern Country",
+          "chapters": [
+            {
+              "id": "lantern",
+              "title": "Five Lights"
+            }
+          ]
+        },
+        {
+          "act": 2,
+          "global_act": 8,
+          "title": "The Wet Country",
+          "chapters": [
+            {
+              "id": "fading",
+              "title": "What Fades"
+            }
+          ]
+        },
+        {
+          "act": 3,
+          "global_act": 9,
+          "title": "Open Water",
+          "chapters": [
+            {
+              "id": "open_water",
+              "title": "Verbs of the Open"
+            }
+          ]
+        },
+        {
+          "act": 4,
+          "global_act": 10,
+          "title": "The Door",
+          "chapters": [
+            {
+              "id": "door",
+              "title": "The Door Stays Open"
+            }
+          ]
+        }
+      ],
+      "opens_after": "island_free"
+    },
+    {
+      "id": "loom",
+      "title": "The Loom",
+      "kind": "postgame",
+      "ending": "close_it_upstairs",
+      "acts": [
+        {
+          "act": 1,
+          "global_act": 7,
+          "title": "Braids",
+          "chapters": [
+            {
+              "id": "braids",
+              "title": "Words You Were Never Given"
+            }
+          ]
+        },
+        {
+          "act": 2,
+          "global_act": 8,
+          "title": "Bridges & Compass",
+          "chapters": [
+            {
+              "id": "bridges",
+              "title": "The Span"
+            }
+          ]
+        },
+        {
+          "act": 3,
+          "global_act": 9,
+          "title": "What Holds",
+          "chapters": [
+            {
+              "id": "holds",
+              "title": "What Holds"
+            }
+          ]
+        },
+        {
+          "act": 4,
+          "global_act": 10,
+          "title": "Upstairs",
+          "chapters": [
+            {
+              "id": "upstairs",
+              "title": "Close It Upstairs"
+            }
+          ]
+        }
+      ],
+      "opens_after": "island_free"
+    }
+  ],
+  "unlocks": {
+    "hats": {
+      "operator": [
+        "loom_opens",
+        "forest_listener"
+      ],
+      "merchant": [
+        "village_stirs"
+      ],
+      "captain": [
+        "woodlot_door",
+        "spring_door"
+      ],
+      "spark": [
+        "edge_of_the_enclave"
+      ]
+    },
+    "menus": {
+      "atlas": [
+        "first_harvest",
+        "first_breath"
+      ],
+      "biome_detail": [
+        "loom_opens",
+        "forest_evolving"
+      ],
+      "inspector": [
+        "village_stirs"
+      ],
+      "map_meta": [
+        "village_stirs"
+      ],
+      "neighborhood_graph": [
+        "village_stirs"
+      ]
+    },
+    "viz": {
+      "gauge_overlay": [
+        "turned_compass"
+      ]
+    }
+  },
+  "menu_steps": {
+    "quests": 1
+  },
+  "charts": {
+    "woodlot_door": "Woodlot",
+    "spring_door": "FreshwaterSpring",
+    "ledger_opens": "BloodLedger",
+    "lantern_door": "Lanternfall",
+    "the_crossing": "GildedRot",
+    "watching_keeps": "ZenoLatch",
+    "the_basin": "ShrineOfAshes",
+    "hiding_in_the_light": "NullingChamber"
+  },
+  "chart_cost": {
+    "🦅": 21,
+    "_doc": "Captain [7] Chart: the deliberate, non-random way to reach a story biome while its door beat is open. Same price as a random Add Biome pull."
+  },
+  "resources": {
+    "🧺": {
+      "low_water": 3,
+      "spent_by": "gather",
+      "plots": [],
+      "trades": [
+        {
+          "biome": "Village",
+          "faction": "Hearth Keepers",
+          "give": {
+            "👥": 6
+          },
+          "get": 4
+        }
+      ]
+    },
+    "🌱": {
+      "low_water": 5,
+      "spent_by": "plant",
+      "plots": [
+        "StarterForest",
+        "Woodlot"
+      ],
+      "trades": [
+        {
+          "biome": "Village",
+          "faction": "Hearth Keepers",
+          "give": {
+            "🍞": 6
+          },
+          "get": 5
+        }
+      ]
+    },
+    "🦅": {
+      "low_water": 21,
+      "spent_by": "chart",
+      "plots": [
+        "StarterForest"
+      ],
+      "trades": [
+        {
+          "biome": "Village",
+          "faction": "Millwright's Union",
+          "give": {
+            "🌾": 10
+          },
+          "get": 7
+        }
+      ]
+    },
+    "👥": {
+      "low_water": 3,
+      "spent_by": "strike",
+      "plots": [
+        "TheDemos",
+        "Village"
+      ],
+      "trades": [
+        {
+          "biome": "Village",
+          "faction": "Hearth Keepers",
+          "give": {
+            "🌾": 4
+          },
+          "get": 4
+        }
+      ]
+    },
+    "🔨": {
+      "low_water": 13,
+      "spent_by": "plant 💨/🔨",
+      "plots": [],
+      "trades": [
+        {
+          "biome": "Village",
+          "faction": "Millwright's Union",
+          "give": {
+            "🍞": 8
+          },
+          "get": 4
+        }
+      ]
+    },
+    "🪓": {
+      "low_water": 13,
+      "spent_by": "plant 🪵/🪓",
+      "plots": [],
+      "trades": [
+        {
+          "biome": "Woodlot",
+          "faction": "Millwright's Union",
+          "give": {
+            "🌱": 4
+          },
+          "get": 4
+        },
+        {
+          "biome": "Village",
+          "faction": "Millwright's Union",
+          "give": {
+            "🍞": 10
+          },
+          "get": 3
+        }
+      ]
+    },
+    "🌊": {
+      "low_water": 13,
+      "spent_by": "plant 💧/🌊",
+      "plots": [],
+      "trades": [
+        {
+          "biome": "FreshwaterSpring",
+          "faction": "Hearth Keepers",
+          "give": {
+            "💧": 4
+          },
+          "get": 4
+        },
+        {
+          "biome": "Village",
+          "faction": "Hearth Keepers",
+          "give": {
+            "🍞": 10
+          },
+          "get": 3
+        }
+      ]
+    }
+  }
+}

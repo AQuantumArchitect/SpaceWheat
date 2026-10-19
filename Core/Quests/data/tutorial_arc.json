@@ -1,4 +1,5 @@
 {
+  "_generated": "from Core/Campaign/campaign.json by tools/campaign/build.py — do not edit",
   "_doc": "Act-0 onboarding chain. A linear sequence of pipeline quests; the loader links each step to unlock the next (chain_unlocks). Each step teaches ONE mechanic. The lane auto-accepts every step (banner is the ask); predicate steps also auto-claim (the bar is the teacher). The mill DELIVERY is auto-accepted then filled on Commitments. Hints ARE the ask (≤70 chars, first sentence stands alone) — the how lives in the world (spotlight + affordance), inspect is physics, Guide is the book. Act 0 teaches the farm verbs: loop, contracts, travel, superposition, entanglement, reap last. Vocabulary is mid-game (act-3); early words come from faction teachings on the road (story_flags.json).",
   "steps": [
     {
@@ -10,7 +11,11 @@
       "tutorial_hint": "Strike a sleeping plot.",
       "math_note": "Fires the instant the gate ledger records 1 measure gate (a single R-strike) — a structural count, not a soft gate.",
       "state_predicates": [
-        {"type": "gate_sequence_contains", "gate": "measure", "count": 1}
+        {
+          "type": "gate_sequence_contains",
+          "gate": "measure",
+          "count": 1
+        }
       ]
     },
     {
@@ -34,7 +39,10 @@
       "tutorial_hint": "Go to StarterForest — stand under its canopy.",
       "math_note": "Structural predicate (active_biome_is): scores 1.0 the instant StarterForest is the biome under your feet, 0.0 otherwise — arrival is the whole ask, no soft gate. The objective banner's travel line names the orb and its key while you are elsewhere and drops the moment you arrive.",
       "state_predicates": [
-        {"type": "active_biome_is", "biome": "StarterForest"}
+        {
+          "type": "active_biome_is",
+          "biome": "StarterForest"
+        }
       ]
     },
     {
@@ -46,9 +54,15 @@
       "tutorial_hint": "Superpose a forest plot.",
       "math_note": "Fires the instant the gate ledger records 1 hadamard (a single Druid E) — a structural count, not a soft gate. The forest's resting coherence used to auto-claim this step on arrival, skipping the lesson and handing the Operator hat before the player had superposed.",
       "state_predicates": [
-        {"type": "gate_sequence_contains", "gate": "hadamard", "count": 1}
+        {
+          "type": "gate_sequence_contains",
+          "gate": "hadamard",
+          "count": 1
+        }
       ],
-      "unlock_flags": ["loom_opens"],
+      "unlock_flags": [
+        "loom_opens"
+      ],
       "_unlock_note": "Completing this step fires the loom_opens spine flag, which unlocks the Operator hat (UIProgression.HAT_UNLOCK_FLAGS) the NEXT step (entanglement) needs — the tutorial hands the spine forward instead of racing it (Break #2). The forest_listener handoff this replaced now lives in the act-3 berry chapter, where that flag's own predicates fire it naturally."
     },
     {
@@ -60,9 +74,15 @@
       "tutorial_hint": "Weave two plots into one Bell pair.",
       "math_note": "Fires the instant the gate ledger records 1 bell gate (a single Bell weave) — a structural count, not a soft gate. Completing this weave hands you 1 🍼 — the reap capstone's cost, paid forward.",
       "state_predicates": [
-        {"type": "gate_sequence_contains", "gate": "bell", "count": 1}
+        {
+          "type": "gate_sequence_contains",
+          "gate": "bell",
+          "count": 1
+        }
       ],
-      "reward_resources": {"🍼": 1}
+      "reward_resources": {
+        "🍼": 1
+      }
     },
     {
       "tutorial_step": 5,
@@ -73,7 +93,11 @@
       "tutorial_hint": "Reap the season — the whole country pays at once.",
       "math_note": "Fires on 1 recorded reap gate — a structural count over the durable gate ledger (survives save/load; a refused reap does not count). Reap only has material when explored plots are still in play (a gathered plot left the season). Reap costs follow the sequence 1,1,2,3,5,8,…🍼; the entanglement step's claim paid your first.",
       "state_predicates": [
-        {"type": "gate_sequence_contains", "gate": "reap", "count": 1}
+        {
+          "type": "gate_sequence_contains",
+          "gate": "reap",
+          "count": 1
+        }
       ]
     }
   ]

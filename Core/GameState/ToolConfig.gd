@@ -260,9 +260,12 @@ const ARCHETYPE_FRAMES: Dictionary = {
 				"E": {"action": "forecast_biome_discovery", "label": "Compass", "emoji": "🧭",
 					  "icon": "res://Assets/UI/Science/Explore.svg",
 					  "hint": "Read the discovery compass — see which unexplored biomes your affinity is pulling toward"},
+				# R reads "Chart <Biome>" while a story door is open
+				# (CaptainChipResolvers via Farm.chart_target); else Add Biome.
 				"R": {"action": "discover_biome", "label": "Add Biome", "emoji": "🗺️",
 					  "icon": "res://Assets/UI/Science/Explore.svg",
-					  "hint": "Discover and load a new biome into the spindle"}
+					  "chip_resolver": "captain.r_chart",
+					  "hint": "Discover and load a new biome into the spindle (charts the open story door's biome when one is waiting)"}
 			}
 		}
 	},

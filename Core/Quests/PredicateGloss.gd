@@ -171,6 +171,9 @@ static func summary(pred: Dictionary, qm = null) -> String:
 			var loaded := bool(qm.atom_count_in(evb) > 0) if (qm and qm.has_method("atom_count_in")) else true
 			if loaded:
 				return "%s evolving" % evb
+			# Story biomes (a door's chart) are charted, not drawn.
+			if CampaignRuntime.charts().values().has(evb):
+				return "%s awake — 🦅×21 from Forest, then Captain [7] [R] Chart %s" % [evb, evb]
 			return "%s awake — 🦅×21 from Forest, then Captain [7] [R] Add Biome" % evb
 		"active_biome_is":
 			# The wayfinding gate: arrival is the whole ask. The objective banner's

@@ -985,10 +985,14 @@ static func _prepare_pop_result(terminal, terminal_pool, economy = null, farm = 
 		var pop_cost = ActionCostRuntime.get_action_cost(farm, "pop", {})
 		var pop_cost_gate = _preflight_cost(economy, pop_cost)
 		if not pop_cost_gate.get("ok", true):
+			# No register mints 🧺: the standing trade on the Village board
+			# (campaign resources table) is the restock and the rescue.
+			var route := CampaignRuntime.supply_route_words("🧺", _rail_key_for_trade("🧺"))
 			return {
 				"success": false,
 				"error": "insufficient_resources",
-				"message": "Need %s to pop — Village 🧺 [Q] pays a basket." % _format_cost(pop_cost)
+				"message": ("Need %s to pop — %s." % [_format_cost(pop_cost), route]) if route != "" \
+						else "Need %s to pop." % _format_cost(pop_cost)
 			}
 		if not _commit_cost(economy, pop_cost, "pop"):
 			return {
@@ -1157,6 +1161,23 @@ static func _set_reap_count(farm, value: int) -> void:
 		farm.set_reap_count(value)
 	elif "reap_count" in farm:
 		farm.reap_count = value
+
+
+## Biome-rail key that crosses to `emoji`'s Village rescue trade ("" when
+## already there or unknown). Core-side: reads the ActiveBiomeManager autoload.
+static func _rail_key_for_trade(emoji: String) -> String:
+	var t := CampaignRuntime.rescue_trade(emoji)
+	var ml := Engine.get_main_loop()
+	if t.is_empty() or not (ml is SceneTree):
+		return ""
+	var abm = (ml as SceneTree).root.get_node_or_null("/root/ActiveBiomeManager")
+	if abm == null or not abm.has_method("get_slot_for_biome"):
+		return ""
+	var biome := str(t.get("biome", ""))
+	if str(abm.get_active_biome()) == biome:
+		return ""
+	var slot := int(abm.get_slot_for_biome(biome))
+	return str(abm.get_slot_key(slot)).to_upper() if slot >= 0 else ""
 
 
 static func _format_cost(cost: Dictionary) -> String:

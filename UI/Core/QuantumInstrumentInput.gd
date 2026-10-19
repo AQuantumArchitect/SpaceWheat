@@ -796,6 +796,7 @@ func _execute_inject_icon(icon: Dictionary) -> void:
 		])
 		# Success speaks too (anti-gating): a silent success reads exactly like a
 		# dead key — the biome grows a qubit off-screen and the player sees nothing.
+		UIProgression.note_plant_south("")
 		_toast_player("✓ %s/%s took root in %s — +1 qubit" % [
 			str(icon.get("north", "")), str(icon.get("south", "")), str(biome.get_biome_type())])
 
@@ -815,7 +816,16 @@ func _execute_inject_icon(icon: Dictionary) -> void:
 		_verbose.warn("input", "+", "Icon injection failed: %s" % result.get("message", result.get("error", "unknown")))
 		# Refusals speak — the picker closing silently after a failed inject
 		# read as "selection doesn't work" (marathon #9).
-		_toast_player("✗ the icon would not take — %s" % str(result.get("message", result.get("error", "unknown reason"))))
+		var why := str(result.get("message", result.get("error", "unknown reason")))
+		# Short of the word's south pole (13🪓 for 🪵/🪓, 13🌊 for 💧/🌊):
+		# name the standing trade that pays it, and keep the banner on it.
+		var south := str(icon.get("south", ""))
+		if south != "" and not CampaignRuntime.supply_trades(south).is_empty():
+			var sup := UIProgression.supply_refusal(south, EconomyConstants.ICON_INJECTION_SOUTH_COST, true)
+			if sup != "":
+				UIProgression.note_plant_south(south)
+				why += " · " + sup
+		_toast_player("✗ the icon would not take — %s" % why)
 		_append_dispatch_ledger("inject_icon", false)
 		action_performed.emit("inject_icon", result)
 
@@ -2118,13 +2128,27 @@ func _block_reason_for_player(action_name: String) -> String:
 		return plant_full
 	match action_name:
 		"discover_biome":
+			var gate: Dictionary = {}
+			if farm and farm.has_method("can_discover_biome"):
+				gate = farm.can_discover_biome()
+			# Captain Chart short of the price: name holdings vs need, then
+			# the 🦅 gather walk (Forest) so the refusal is not a dead [R].
+			if bool(gate.get("chart_short", false)):
+				# The toast already leads with the chip label ("Chart X refused —").
+				var chart_msg := str(gate.get("message", "")).trim_prefix(
+						"Chart %s " % str(gate.get("chart", "")))
+				var walk := UIProgression.eagle_short_refusal()
+				if walk.begins_with("needs 21🦅 — "):
+					walk = walk.substr("needs 21🦅 — ".length())
+				elif walk.begins_with("needs 21🦅"):
+					walk = ""
+				return chart_msg if walk == "" else "%s · %s" % [chart_msg, walk]
 			# lantern_door: 21 eagles named Forest, no gather key. Banner and
 			# toast share UIProgression.eagle_short_refusal.
 			var eagle := UIProgression.eagle_short_refusal()
 			if eagle != "":
 				return eagle
-			if farm and farm.has_method("can_discover_biome"):
-				var gate: Dictionary = farm.can_discover_biome()
+			if not gate.is_empty():
 				var gmsg := str(gate.get("message", ""))
 				# lantern_door: "Biome slots full" named no cull target and no
 				# key. Banner and toast share UIProgression.slots_full_refusal.
@@ -2161,8 +2185,8 @@ func _block_reason_for_player(action_name: String) -> String:
 				return short2
 			return "nothing valid to act on here"
 		"explore":
-			# lantern_door: Village 🧺 Explore did not pay a basket. Speak.
-			var basket_ex := UIProgression.basket_short_refusal()
+			# lantern_door: Explore does not pay a basket. Speak the 🧺 trade walk.
+			var basket_ex := UIProgression.supply_refusal("🧺", UIProgression.gather_price(), true)
 			if basket_ex != "":
 				return "Explore does not pay 🧺 — %s" % basket_ex
 			# lantern_door: after Strike, F Explore wiped the 🦅 measure.
@@ -2181,14 +2205,14 @@ func _block_reason_for_player(action_name: String) -> String:
 			if track_hint != "":
 				return track_hint
 			# lantern_door: Strike costs 👥 and does not mint 🧺.
-			var basket_m := UIProgression.basket_short_refusal()
+			var basket_m := UIProgression.supply_refusal("🧺", UIProgression.gather_price(), true)
 			if basket_m != "":
 				return "Strike does not pay 🧺 — %s" % basket_m
 			return "nothing live to strike — F explores first"
 		"pop", "reap":
 			# lantern_door: Q gather toasted a dead Strike while 🧺 was 0.
 			if action_name == "pop":
-				var basket := UIProgression.basket_short_refusal()
+				var basket := UIProgression.supply_refusal("🧺", UIProgression.gather_price(), true)
 				if basket != "":
 					return basket
 			var short_pop := _cost_shortfall_words(action_name)
@@ -2973,6 +2997,11 @@ func _execute_discovery_forecast() -> Dictionary:
 	var heading := "[color=#a8d5a2]🧭 Compass:[/color]"
 	if coast != "":
 		heading = "[color=#a8d5a2]🧭 Compass:[/color] leans %s" % coast
+	# Captain Chart: while a door is open R is no draw — say so above the odds
+	# (they only describe the random Add Biome once the door is charted).
+	var chart := str(farm.chart_target_biome()) if farm.has_method("chart_target_biome") else ""
+	if chart != "":
+		heading = "[color=#a8d5a2]🧭 Compass:[/color] [R] charts %s (no draw) · Add Biome odds after:" % chart
 	var lines: PackedStringArray = [heading]
 	var shown := 0
 	for e in entries:

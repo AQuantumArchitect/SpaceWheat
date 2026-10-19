@@ -25,12 +25,14 @@ def test_ladder_has_act0_mill_plant_and_open_band():
     assert ident["band"] == "open"
 
 
-def test_mill_alias_and_plant_next():
+def test_mill_alias_and_incorporate_next():
+    """After the mill apprenticeship comes First Breath (Incorporate moved to
+    Act 1, owner decision 2026-10-17), then the plant."""
     ladder = promote.load_ladder()
     assert promote.canonical("mill_apprentice", ladder) == "village_stirs"
     nxt = promote.next_of("mill_apprentice", ladder)
     assert nxt is not None
-    assert nxt["id"] == "new_voices"
+    assert nxt["id"] == "first_breath"
 
 
 def test_wave17_seed_banks_exist():

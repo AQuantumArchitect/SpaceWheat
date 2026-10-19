@@ -1428,6 +1428,7 @@ func _guide_quick_reference() -> void:
 # 7-hat × QERF table out of ToolConfig so it stays in sync with whatever the
 # active toolkit actually does.
 const _VERBS_HAT_KEYS := ["4", "5", "6", "7", "8", "9", "0"]
+const _CaptainChipResolvers = preload("res://Core/UI/CaptainChipResolvers.gd")
 const _VERBS_FRAME_ORDER := ["spark", "icon", "merchant", "captain", "ace", "operator", "druid"]
 
 func _guide_verbs_table() -> void:
@@ -1450,6 +1451,13 @@ func _guide_verbs_table() -> void:
 			var info: Dictionary = mode_actions.get(key, {})
 			var verb_label: String = str(info.get("label", ""))
 			var hint: String = str(info.get("hint", ""))
+			# Captain R charts the open story door's biome — say so here too.
+			if str(info.get("chip_resolver", "")) == "captain.r_chart":
+				var chart: Dictionary = _CaptainChipResolvers.chart_patch(
+						InstrumentLocator.resolve_active_farm(self))
+				if not chart.is_empty():
+					verb_label = str(chart.get("label", verb_label))
+					hint = str(chart.get("hint", hint))
 			if verb_label == "" or verb_label == "-":
 				continue
 			_body_box.add_child(_make_action_row(key, verb_label, hint))
@@ -2283,7 +2291,7 @@ func _arc_inspect_physics(entry: Dictionary) -> String:
 	var postcard: Dictionary = IntroVoice.flag_postcard(flag, entry.get("pred_scores", []), _arc_quest_manager())
 	var flag_lines: Array[String] = []
 	flag_lines.append(str(postcard.get("title", flag.get("id", "?"))))
-	flag_lines.append("The Demos · %s" % StoryAtlas.chapter_for_act(int(flag.get("act", 0))))
+	flag_lines.append(StoryAtlas.header_for_flag(flag))
 	var flag_beat := str(postcard.get("beat", "")).strip_edges()
 	if flag_beat != "":
 		flag_lines.append(flag_beat)

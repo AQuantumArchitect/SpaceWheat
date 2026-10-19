@@ -197,7 +197,7 @@ Re-pressing the active hat returns to Ace. No hat = **Ace** (default).
 | 4 | **Spark** ⚡ | pole shift (Lindblad jolt) | **DLC-gated** (hidden in closed mode) |
 | 5 | **Icon** 📖 | Trim / Inspect / **Add-or-Incorporate** / **Track** (Berry) | the progression tool |
 | 6 | **Merchant** 🤝 | import / price / export / tip | **DLC-gated** (hidden in closed mode) |
-| 7 | **Captain** ✳ | Cull / Compass / Add Biome / — | biome lifecycle |
+| 7 | **Captain** ✳ | Cull / Compass / Add Biome (**Chart** a story door's biome, 🦅×21) / — | biome lifecycle |
 | 8 | **Ace** ○ | Gather (🧺) / Pause / **Strike (measure, 👥)** / Explore (🍞) · Fast-Fwd | player vantage; works in every mode |
 | 9 | **Operator** ⚙ | Break / Inspect / Build gate / — | entangling gates |
 | 0 | **Druid** V | rot− / **Hadamard** / rot+ / — | single-qubit unitary; `1/2/3` = X/Y/Z axis |
@@ -334,6 +334,10 @@ Predicate families (`QuestManager.gd`):
   legitimacy/entanglement).
 
 ### 7.2 The arc (The Demos playthrough, `story_flags.json`)
+
+> **Superseded 2026-10-17:** the authoritative structure (three campaigns, act
+> and chapter titles, beat order) is `Core/Campaign/campaign.json`, summarized
+> in `docs/CAMPAIGN.md`. The text below describes the 2026-08 order.
 Reordered 2026-08-17 (`docs/CAMPAIGN_REORDER_2026-08-17.md`): the early game
 teaches only enough physics to play — farm verbs and contracts — and raises
 the bar per act; every beat also carries a `campaign` tag (the split's

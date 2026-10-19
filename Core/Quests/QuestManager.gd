@@ -1620,7 +1620,7 @@ func _finalize_quest_completion(quest_id: int, quest: Dictionary, reward, grante
 ## Break #2 — tutorial ↔ story-spine handoff. A completed tutorial step FIRES the spine flags it
 ## hands off to (its authored `unlock_flags`), so the spine advances FROM the tutorial instead of
 ## racing it on a separate clock. The load-bearing case: step 3 fires `forest_listener`, which
-## unlocks the Operator hat (UIProgression.HAT_UNLOCK_FLAGS) that the entanglement step (4) then
+## unlocks the Operator hat (campaign spec: loom_opens on_open.unlock) that the entanglement step (4) then
 ## tells the player to use — without this, a player with progressive-disclosure enforcement ON
 ## hits a locked hat the tutorial is pointing them at. Idempotent: _fire_story_flag no-ops a flag
 ## the spine already fired from the tutorial's own mechanics (first_breath from signature growth,
@@ -1710,6 +1710,11 @@ func complete_quest(quest_id: int) -> bool:
 		return false
 
 	var quest = active_quests[quest_id]
+	# Standing supply trades settle at their table price — never through the
+	# lattice exercise, which may refuse to price (and would make the rescue
+	# trade a coin flip).
+	if bool(quest.get("supply_trade", false)):
+		return _complete_supply_trade(quest_id, quest)
 	var required_emoji = str(quest.get("resource", ""))
 	var required_qty = int(quest.get("quantity", 0))
 	if required_emoji.is_empty() or required_qty <= 0:
@@ -1775,6 +1780,50 @@ func complete_quest(quest_id: int) -> bool:
 	_apply_standing_deltas(faction_name, reward.standing_deltas if reward else {})
 
 	_finalize_quest_completion(quest_id, quest, reward, granted_resources)
+	return true
+
+
+## Supply-trade settlement (QuestPipeline.supply_offer): take the whole `give`
+## ask, grant reward_resources EXACTLY, apply the ordinary DELIVERY standing
+## deltas to the faction, finalize. Refusals name the shortfall.
+func _complete_supply_trade(quest_id: int, quest: Dictionary) -> bool:
+	if economy == null:
+		last_complete_error = "no economy"
+		return false
+	var give: Dictionary = {}
+	var g = quest.get("give", {})
+	if g is Dictionary and not (g as Dictionary).is_empty():
+		for k in g:
+			give[str(k)] = int(g[k])
+	else:
+		var res := str(quest.get("resource", ""))
+		if res != "" and int(quest.get("quantity", 0)) > 0:
+			give[res] = int(quest.get("quantity", 0))
+	if give.is_empty():
+		last_complete_error = "it has no delivery ask"
+		return false
+	for e in give:
+		var held := int(economy.get_resource(e))
+		if held < int(give[e]):
+			last_complete_error = "deliver needs %s×%d — you hold %d" % [e, int(give[e]), held]
+			return false
+	for e in give:
+		if not economy.remove_resource(e, int(give[e]), "supply_trade"):
+			last_complete_error = "could not take %s×%d" % [e, int(give[e])]
+			return false
+	var faction_name := str(quest.get("faction", "Unknown"))
+	var granted: Dictionary = {}
+	var rewards = quest.get("reward_resources", {})
+	if rewards is Dictionary:
+		var source := "supply_trade:%s" % faction_name.replace(" ", "_").to_lower()
+		for e in rewards:
+			var amt := int(rewards[e])
+			if amt <= 0:
+				continue
+			economy.add_resource(str(e), amt, source)
+			granted[str(e)] = amt
+	_apply_standing_deltas(faction_name, QuestRewards._standing_deltas_for_quest(quest, true))
+	_finalize_quest_completion(quest_id, quest, null, granted)
 	return true
 
 
@@ -2300,7 +2349,51 @@ func _flag_door_is_resolved(flag_id: String) -> bool:
 	var aq = flag.get("arc_quest")
 	if not (aq is Dictionary) or aq.is_empty():
 		return true
-	return has_completed_flag(flag_id) or is_guidance_dismissed(flag_id)
+	if has_completed_flag(flag_id) or is_guidance_dismissed(flag_id):
+		return true
+	# A beat whose child has already fired was passed through — true on any
+	# save version (pre-v6 saves carry no completed_quests ledger at all, and
+	# old story orders fired children under different parents).
+	return _child_has_fired(flag_id)
+
+
+var _children_by_flag: Dictionary = {}   # flag id -> Array of flag ids that require it
+
+
+func _child_has_fired(flag_id: String) -> bool:
+	var farm = _get_active_farm()
+	if farm == null or not ("story_flags_fired" in farm):
+		return false
+	if _children_by_flag.is_empty():
+		for f in _story_flags:
+			if not (f is Dictionary):
+				continue
+			for p in f.get("predicates", []):
+				if p is Dictionary and str(p.get("type", "")) == "story_flag_set":
+					var pid := str(p.get("id", ""))
+					if not _children_by_flag.has(pid):
+						_children_by_flag[pid] = []
+					_children_by_flag[pid].append(str(f.get("id", "")))
+	for child in _children_by_flag.get(flag_id, []):
+		if farm.story_flags_fired.has(str(child)):
+			return true
+	return false
+
+
+## A fired beat is LIVE when its campaign is open: post-game campaigns open
+## only after their `opens_after` beat (campaign spec). Saves from the old
+## single-campaign order may hold post-game flags fired before the ending —
+## those stay dormant (no offer, no chart) until the ending lands.
+func flag_is_live(flag_id: String) -> bool:
+	var flag := _story_flag_by_id(flag_id)
+	if flag.is_empty():
+		return false
+	var c := CampaignRuntime.campaign(str(flag.get("campaign", "")))
+	var gate := str(c.get("opens_after", ""))
+	if gate == "" or gate == flag_id:
+		return true
+	var farm = _get_active_farm()
+	return farm != null and "story_flags_fired" in farm and farm.story_flags_fired.has(gate)
 
 
 func _story_flag_parent_resolved(flag_id: String, farm) -> bool:

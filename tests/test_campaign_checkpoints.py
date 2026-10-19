@@ -1,65 +1,78 @@
-"""Campaign assert gate: the minted checkpoint spine becomes a real pass/fail test.
+"""Campaign assert gate: per-act states survive a save/load roundtrip.
 
-The fixtures already existed unused: every minted checkpoint in 🍄/🧪/checkpoints/
-ships a .flag_progress.json sidecar whose ``flags_fired`` / ``terminal_flags``
-record exactly what the campaign had proven at bank time, in the same shape the
-``story_flags`` / ``flag_progress`` rig verbs return at runtime. Until this file,
-nothing behavioral covered Acts 2-8 — act3_5_drive.py plays the road but asserts
-nothing (diagnostic-only, by design).
+This used to replay minted checkpoint saves (🍄/🧪/checkpoints/act*_complete,
+endrun_*). Those were banked from a pre-restructure graph by a driver that ran
+RIG_UNLOCK_ALL=1 with injected resources, so they asserted nothing about the
+current campaign. The states now come from `start_at_beat` fixtures
+(Core/Campaign/CampaignFixture.gd), built from the spec on a fresh boot.
 
-Two claims per spine checkpoint:
-  1. The .tres still loads in the current build (save-migration canary).
-  2. Every flag fired at bank time is still fired after the load — the
-     "post-load state loss" bug family (quest ledger, berry credit, offer
-     regeneration have each independently lost state on load before) gets a
-     standing per-act tripwire.
+Two claims per spine beat (one per act of the main campaign, plus the
+post-game openers):
+  1. A save written at the moment the beat opens loads back in the current
+     build (save-migration canary).
+  2. Every flag fired and every arc door claimed before the save is still
+     fired / claimed after the load — the "post-load state loss" bug family
+     (quest ledger, berry credit, offer regeneration have each independently
+     lost state on load before) keeps a standing per-act tripwire.
 
 Plus one fire_flag consequence test: forcing a flag through the REAL
 _fire_story_flag path must land it in story_flags_fired, append its beat to the
 story log, and put its arc_quest on the offer board.
+
+Skip with SW_SKIP_LONG=1 (also skipped without godot on PATH).
 """
 
-import json
+import os
+import sys
 from pathlib import Path
 
 import pytest
 
-CHECKPOINTS = Path(__file__).resolve().parents[1] / "🍄" / "🧪" / "checkpoints"
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "tools" / "campaign"))
+import fixture_order as FO  # noqa: E402
 
-# The minted campaign spine (mint_checkpoint.py provenance, .flag_progress.json
-# pinned). Sweep/persona/leg banks are deliberately excluded — only minted
-# checkpoints carry the verified-at-bank-time contract this test replays.
-SPINE = ["act1_complete", "act2_complete", "act3_complete", "act4_hub"]
+LONG = pytest.mark.skipif(os.environ.get("SW_SKIP_LONG") == "1",
+                          reason="SW_SKIP_LONG=1 — headless campaign gate skipped")
 
-
-def _sidecar(name: str) -> dict:
-    path = CHECKPOINTS / ("%s.flag_progress.json" % name)
-    if not path.exists():
-        pytest.skip("no sidecar for %s (checkpoint not minted here)" % name)
-    return json.loads(path.read_text(encoding="utf-8"))
+# act 1 · act 2 · act 3 · act 4 hub · post-game openers
+SPINE = ["village_stirs", "woodlot_contact", "forest_listener", "village_identity",
+         "lantern_door", "braid_order"]
 
 
-@pytest.mark.parametrize("name", SPINE)
-def test_checkpoint_flags_survive_load(rig_boot, name):
-    tres = CHECKPOINTS / ("%s.tres" % name)
-    if not tres.exists():
-        pytest.skip("no %s.tres" % name)
-    expected = sorted(_sidecar(name).get("flags_fired", []))
-    assert expected, "sidecar for %s pins no fired flags — refusing vacuous pass" % name
-
-    rig, proc = rig_boot(prefix="sw_campaign_gate_%s_" % name,
-                         scenario_id="demos_normal", display_mode="headless")
-    loaded = rig.run_turn(1, "load_game_path", path=str(tres), timeout_s=120)
-    assert loaded.get("loaded", False), "checkpoint failed to load: %r" % loaded
-
-    flags = rig.run_turn(2, "story_flags", timeout_s=45)
-    fired = set(flags.get("flags_fired", {}).keys())
-    missing = [f for f in expected if f not in fired]
-    assert not missing, (
-        "%s: %d flag(s) fired at bank time are gone after load: %s"
-        % (name, len(missing), missing))
+def _boot(rig_boot, name):
+    return rig_boot(prefix="sw_campaign_gate_%s_" % name, scenario_id="demos_normal",
+                    display_mode="headless", allow_resource_injection=False,
+                    listener_stdout="null", rig_log_profile="quiet",
+                    sentinel_timeout_s=240.0)
 
 
+@LONG
+@pytest.mark.parametrize("beat", SPINE)
+def test_fixture_state_survives_save_and_load(rig_boot, tmp_path, beat):
+    rig, _proc = _boot(rig_boot, beat)
+    r = rig.run_turn(1, "start_at_beat", id=beat, timeout_s=240)
+    assert r.get("ok") and r.get("fired"), "fixture did not open %s: %r" % (beat, r)
+    before = set(rig.run_turn(2, "story_flags", timeout_s=60).get("flags_fired", {}))
+    assert set(FO.ancestors(beat)) | {beat} <= before
+
+    path = tmp_path / ("gate_%s.tres" % beat)
+    saved = rig.run_turn(3, "save_game_path", path=str(path), timeout_s=120)
+    assert saved.get("saved"), saved
+    loaded = rig.run_turn(4, "load_game_path", path=str(path), timeout_s=240)
+    assert loaded.get("loaded", False), "fixture save failed to load: %r" % loaded
+
+    after = set(rig.run_turn(5, "story_flags", timeout_s=60).get("flags_fired", {}))
+    missing = sorted(before - after)
+    assert not missing, "%s: %d flag(s) fired before save are gone after load: %s" % (
+        beat, len(missing), missing)
+    ledger = rig.run_turn(6, "quest_ledger", timeout_s=60)
+    claimed = {q.get("source_flag") for q in ledger.get("completed", [])}
+    lost = [d for d in FO.plan(beat)["doors"] if d not in claimed]
+    assert not lost, "%s: claimed doors lost on load: %s" % (beat, lost)
+
+
+@LONG
 def test_fire_flag_consequences_react(rig_boot):
     """spring_door forced through the real path: fired + logged + offered."""
     rig, proc = rig_boot(prefix="sw_campaign_gate_fireflag_",
