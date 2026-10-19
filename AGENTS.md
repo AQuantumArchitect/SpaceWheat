@@ -24,7 +24,7 @@ starting work in this repo. Humans: start at [README.md](README.md).
   `python3 tools/campaign/build.py` and `python3 tools/campaign/validate.py`. CI runs
   `build.py --check`, so a hand edit to `story_flags.json` or `tutorial_arc.json` fails.
 - **Windows paths live in one file**, `scripts/lib/windows_desktop_deploy.sh`. A test fails
-  if any other script spells a `C:\Games` path.
+  if any other script or tool spells a `C:\Games` path.
 - **Docs that describe a moment go in [docs/history/](docs/history/)**, dated. Live docs
   describe the code as it is now; when they drift, fix them or move them.
 - **Design docs** for work that is planned or partly built are in [docs/design/](docs/design/).

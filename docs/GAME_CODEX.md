@@ -446,7 +446,7 @@ built from; the loop/UI/physics agents' honest reads are distilled here.)*
 predictor; `scenes/Main.tscn` = entry scene.
 
 **Run / build / test:**
-- Play (Linux headed): `./launch_game.sh`  ·  editor: `./editor_launch.sh`
+- Play (Linux headed): `./scripts/launch_game.sh`  ·  editor: `./scripts/editor_launch.sh`
 - Headless rig (LLM/automation lane): `🍄/🎛️/🟢.sh`; harness docs in `🍄/README.txt`
 - Python tests: `python3 -m pytest tests/ -q` (rig-driven + source-contract)
 - GDScript smoke tests: `godot --headless --path . --script tests/<name>_smoke.gd`

@@ -54,7 +54,7 @@ Options:
   --clean-native           Rebuild godot-cpp/native artifacts
   --skip-export            Stop after native build
   --install-templates      Install Godot export templates if missing
-  --copy-to-windows        Deploy the Windows export into the play folder (C:\Games\SpaceWheat)
+  --copy-to-windows        Deploy the Windows export into the Windows play folder (scripts/lib/windows_desktop_deploy.sh)
   --godot-bin PATH         Godot executable (default: godot)
   --help                   Show this help
 

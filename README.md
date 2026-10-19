@@ -25,18 +25,20 @@ ending with a fleet of coding, playtesting and review bots.
 - **From source (Linux or Windows):** open the folder in Godot 4.5 and press
   Play. The native physics library is prebuilt for both in `native/bin/`.
 
-Status: **alpha**. The main campaign, *The Demos*, runs seven acts from the
-first plot to the ending. A validator replays every act against the resources
-a player can actually earn, and a keys-only drive from a fresh boot, with
-nothing injected, currently reaches Act 3. Two post-game campaigns, *What Fades*
-and *The Loom*, open after the ending and are still in development.
+Status: **alpha**. The main campaign, *The Demos*, has seven acts (0–6) from
+the first plot to the ending. A validator replays every act against the
+resources a player can actually earn. The furthest anyone has verifiably
+played from a fresh boot, keys only and nothing injected, is the opening of
+Act 3. Two post-game campaigns, *What Fades* and *The Loom*, open after the
+ending and are still in development.
 
 ## The game
 
 You farm a small island. A biome is a cloud of emoji "atoms"; a faction's
 **icons** pair two atoms into a qubit (☀️/🌙, 👥/🍞), and every icon you plant
 adds a qubit and its terms to the biome's Hamiltonian. The state evolves exactly,
-under the unitary `U = exp(−iH·dt)`, so purity stays at 1 until you look.
+under the unitary `U = exp(−iH·dt)`, and stays pure: on the home island nothing
+decoheres, and a strike collapses a qubit to one outcome.
 
 | Verb | Physics | Game |
 |---|---|---|
@@ -64,11 +66,11 @@ The details are in three places, depending on who you are:
 
 | | |
 |---|---|
-| Biomes | 164, each with its own Hamiltonian and Lindblad web |
+| Biomes | 164, each with its own Hamiltonian; 66 also carry authored Lindblad (open-system) channels |
 | Factions | 102, with 367 icons (two-emoji qubit axes) |
-| Gates | 14 exact unitaries (Paulis, H, S, T, rotations, CNOT, CZ, SWAP); Bell, GHZ and cluster states built from them |
+| Gates | 14 exact unitaries (Paulis, H, S, T and their inverses, rotations, CNOT, CZ, SWAP); Bell, GHZ and cluster states built from them |
 | Simulation | C++ GDExtension on Eigen: exact unitary propagation, Lindblad for open biomes |
-| Code | ~126k lines GDScript, ~45k Python tooling, ~6.5k C++ |
+| Code | ~126k lines GDScript, ~45k Python (tools, tests and the agent rig), ~6.5k C++ |
 | History | 1,250+ commits since December 2025 |
 
 ## Repository
@@ -88,7 +90,7 @@ Agents start at [AGENTS.md](AGENTS.md). Humans who want to build it start at
 [BUILDING.md](BUILDING.md).
 
 ```bash
-./scripts/launch_game.sh                 # play (Linux)
+./scripts/launch_game.sh                 # play from source (Linux, WSL)
 SW_SKIP_LONG=1 python3 -m pytest tests/  # the test suite
 python3 tools/campaign/validate.py       # prove the campaign is completable on paper
 ```

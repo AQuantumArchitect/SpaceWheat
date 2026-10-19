@@ -12,10 +12,10 @@ places where it went wrong.
 
 | | |
 |---|---|
-| History | 1,260 commits, December 2025 to October 2026 |
-| Agent-written | 1,064 of 1,228 non-merge commits carry a model co-author line; the rest predate the habit or came from tools that didn't add one |
-| Code | ~126k lines GDScript, ~45k Python, ~6.5k C++ |
-| Tests | 79 pytest files plus headless Godot smoke batteries; about 570 tests run in CI |
+| History | 1,250+ commits since December 2025 |
+| Agent-written | over 85% of non-merge commits carry a model co-author line; the rest predate the habit or came from tools that didn't add one |
+| Code | ~126k lines GDScript, ~45k Python (tools, tests and the agent rig), ~6.5k C++ |
+| Tests | about 80 pytest files plus headless Godot smoke batteries; CI runs about 570 tests |
 
 Regenerate these with `python3 tools/repo_stats.py`.
 
@@ -31,15 +31,16 @@ simulator in GDScript, the first biomes, and a lot of UI that fought itself.
 In January an agent moved evolution into a native C++ extension on Eigen
 (`1f6bb43`, "70–100x"). Most commits from this period are small and reactive.
 
-**Giving agents a way to play (Feb – Mar 2026; Sonnet 4.6, Opus 4.6).** An
+**Giving agents a way to play (Feb – Mar 2026; Sonnet 4.5 and 4.6, Opus 4.5 and 4.6).** An
 agent that can't run the game can only guess whether its change works. The
 answer was the rig in [`🍄/`](../🍄/README.txt): a headless listener that
 accepts the same keypresses a human makes and returns the same screen and
 physics state a human sees. It runs the real game, not a mock. From then on an
-agent could check its own change by playing it.
+agent could check its own change by playing it. By spring, OpenAI's Codex was
+running scripted campaign playtests through the same rig.
 
-**Long context and real content (Apr – Jun 2026; Opus 4.7 and 4.8 with 1M
-context).** With a whole subsystem in context at once, agents could take on
+**Long context and real content (Apr – Jun 2026; Sonnet 4.6, then Opus 4.7 and
+4.8 with 1M context).** With a whole subsystem in context at once, agents could take on
 cross-cutting work: 102 factions and their icon vocabularies, the quest system
 rebuild ([plan](design/QUEST_SYSTEM_PLAN.md)), and a story driven by physics
 thresholds instead of scripts.
@@ -52,18 +53,19 @@ commits of any month, 269. Three things made that possible:
   backs it. [`FOR_PHYSICISTS.md`](FOR_PHYSICISTS.md) grades every physics
   claim the game makes as exact, faithful or suggestive.
 - Player-parity seats. Small, cheap models played the game through the same
-  keys and screen text a person gets, and reported where they got stuck.
+  keys and screen text a person gets, and reported where they got stuck. By
+  mid-July even small local models (Qwen through Ollama,
+  [`ollama_seat.py`](../🍄/🧪/hive/ollama_seat.py)) had a seat, as a cheap
+  baseline.
 - A written protocol for the fleet,
   [`HIVE_PROTOCOL.md`](../🍄/🧪/hive/HIVE_PROTOCOL.md), which I ratified on
   July 14. It's described below.
 
-**Personas, other vendors, local models (Aug – Oct 2026; Opus 5, Sonnet 5,
-Fable 5, Opus 5.5).** Playtesters became [personas](../🍄/🧪/hive/PERSONAS.md):
-a literalist, an earnest newcomer, a "lost lamb" with no short-term memory,
-a key-masher, and a mouse-only player. Sensor waves moved to Grok, Codex
-ran campaign playtests, and small local models (Qwen through Ollama) played
-through [`ollama_seat.py`](../🍄/🧪/hive/ollama_seat.py) as a cheap baseline.
-Large decisions went to multi-agent studies; for example, twelve agents worked
+**Personas and other vendors (Aug – Oct 2026; Opus 5, Sonnet 5, Fable 5,
+Opus 5.5).** Playtesters became [personas](../🍄/🧪/hive/PERSONAS.md): a
+literalist, an earnest newcomer, a "lost lamb" with no short-term memory, a
+key-masher, and a mouse-only player. In September the sensor waves moved to
+Grok. Large decisions went to multi-agent studies; for example, twelve agents worked
 on [whether to split the campaign](history/2026-08-11_CAMPAIGN_SPLIT.md). In
 October the whole story was moved into one compiled, validated spec
 ([CAMPAIGN.md](CAMPAIGN.md)).
@@ -96,13 +98,14 @@ The protocol's laws are short:
 
 ## Guardrails that held
 
-- **Tests decide whether something is done.** "Done" means the suite passes,
-  and CI now runs all of it against the real game on every push. Many tests
+- **Tests decide whether something is done.** "Done" means the suite passes.
+  CI runs it against the real game, headless, on every pull request and every
+  push to main; only the long campaign drives are left to the fleet. Many tests
   pin a design decision in words, so an agent that undoes one gets told why
   it existed.
 - **One authority per fact.** The campaign has one source, a compiled JSON
   spec, and CI fails if the generated files drift from it. All Windows
-  paths live in one file. Each physics value is computed in one place. Every
+  paths in scripts and tools live in one file. Each physics value is computed in one place. Every
   time a fact had two homes, the copies diverged and an agent believed the
   wrong one.
 - **Dated records over living status pages.** Session logs go into
@@ -137,8 +140,9 @@ fixes:
 - Fixtures build a beat's real state from the spec alone, so tests can start
   mid-campaign without lying.
 - A new drive, [`honest_opening.py`](../🍄/🧪/honest_opening.py), boots fresh
-  with unlocks off, injects nothing, and uses keys only. It currently reaches
-  Act 3, and that is the claim I make.
+  with unlocks off, injects nothing, and uses keys only. Its best run so far
+  reached the opening of Act 3 (of acts 0–6), skipping optional Act 2 beats.
+  That is the claim I make, and the drive is how the next claim gets made.
 
 **Slop builds up.** Agents add more readily than they remove.
 
@@ -151,9 +155,10 @@ fixes:
 
 Cleanup has to be scheduled work. It doesn't happen by accident.
 
-**Stale numbers.** Before this pass, the README said 64 biomes in one
-paragraph and 164 in another. It also described a fallback deleted three
-months earlier and called the open-system campaign "DLC". Agents write
+**Stale numbers.** Before this pass, the README described a physics fallback
+deleted three months earlier and called the open-system campaign "DLC".
+The launch script it told you to run had been broken since an agent moved
+it into `scripts/` without fixing its paths. Agents write
 confident prose about the state of the code at the moment they write it, and
 that prose doesn't update itself. Counting from the tree
 (`tools/repo_stats.py`) is the fix.

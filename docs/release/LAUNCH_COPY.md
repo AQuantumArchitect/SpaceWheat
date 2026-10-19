@@ -2,8 +2,9 @@
 
 Paste-ready text for the public surfaces. The owner does the pasting and
 clicking; this file is where the words live, so they change in one place.
-Status words must match the README: The Demos is playable to the end, and
-What Fades and The Loom are in development.
+Status words must match the README: The Demos has seven acts, validated end
+to end on paper and verifiably played to the opening of Act 3; What Fades and
+The Loom are in development.
 
 ## GitHub repository
 
@@ -33,14 +34,14 @@ it (`v0.3.0`), so the download link lands on the current game.
 
 > **SpaceWheat v0.3.0: the main campaign, one spec, an honest ending**
 >
-> The Demos, the main campaign, runs seven acts from the first plot to the
+> The Demos, the main campaign, has seven acts from the first plot to the
 > ending. The story is compiled from one spec, and a validator checks that
 > every act can be finished with resources a player can actually earn. Captain's Chart opens each story biome deliberately, and the Village
 > market gets you out of a hole.
 >
 > The ending now says plainly that the two post-game campaigns, *What Fades*
-> and *The Loom*, are still in development. They open, and nothing is gated,
-> but they are unfinished.
+> and *The Loom*, are still in development. They open after the ending with
+> nothing else in the way, but they are unfinished.
 >
 > Windows: unzip, run `SpaceWheat.exe`. Browser: the itch.io page.
 > Known issues: `docs/KNOWN_ISSUES.md`.
@@ -76,7 +77,8 @@ sentence saying so instead of starting; see `WEB_DOOR.md`).
 > physically cannot collapse into one shape. No dialogue tree decides it; the
 > Hamiltonian you built does.
 >
-> **What's here.** The main campaign, seven acts through to the ending.
+> **What's here.** The main campaign, seven acts written through to the
+> ending (alpha: the later acts have had the least play).
 > 164 biomes and 102 factions. Two post-game campaigns, *What Fades* (open
 > quantum systems: decoherence, the Zeno effect) and *The Loom* (braids and
 > topological protection), are **in development**: they open after the

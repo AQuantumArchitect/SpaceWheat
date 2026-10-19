@@ -26,7 +26,7 @@ import sys
 import time
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "🍄" / "🎛️"))
-from fleet_paths import fleet_path  # noqa: E402
+from fleet_paths import fleet_path, fleet_relative  # noqa: E402
 
 HIVE = Path(__file__).resolve().parent
 LEDGER = HIVE / "roc_runs.jsonl"
@@ -83,7 +83,7 @@ def referee_run(run_dir: Path, manifest: dict) -> dict:
         "referee_flags": referee,
         "verdict": verdict,
         "bank_file": tres_files[0].name if tres_files else "",
-        "run_dir": str(run_dir),
+        "run_dir": fleet_relative(run_dir),
         "imported_at": time.time(),
     }
 
