@@ -25,11 +25,13 @@ including the native C++ extension (`cd native && scons`).
 
 ## Testing
 
-This project has a real test suite and PRs are expected to pass it:
+This project has a real test suite, and CI (`.github/workflows/ci.yml`) runs
+all of it against headless Godot on every push and PR:
 
 ```bash
-bash 🍄/🧪/🔬.sh                 # 142 quantum-physics gate tests
-python3 -m pytest tests/ -q      # Python suite (source contracts + rig-driven)
+SW_SKIP_LONG=1 python3 -m pytest tests/ -q   # the suite CI runs
+python3 tools/campaign/validate.py           # after any campaign change
+bash 🍄/🧪/🔬.sh                              # the quantum gate suites on their own
 ```
 
 Boot-error gate (must print `0`):
