@@ -70,4 +70,7 @@ jobs:
       - name: Test suite
         env:
           SW_SKIP_LONG: "1"
-        run: python3 -m pytest tests/ -q -p no:cacheprovider --timeout=600
+        run: |
+          set -o pipefail
+          python3 -m pytest tests/ -q -p no:cacheprovider --timeout=600 -rs 2>&1 | tee pytest.log
+          echo "::notice title=pytest::$(tail -1 pytest.log)"
