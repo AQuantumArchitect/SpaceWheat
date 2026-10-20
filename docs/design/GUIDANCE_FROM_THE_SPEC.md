@@ -265,6 +265,56 @@ legacy `objective_text` branches are not deleted (they are the fallback).
 
 ### Iterations
 
-| Run | Result |
+Two measures. The **fixture sweep** starts each of the 40 main-campaign
+beats from its spec fixture and counts beats where following the banner
+moves the story. The **fresh journey** starts a new game with no fixture
+and follows the banner for up to 45 minutes; it stops at the Demos ending
+(`--until island_free`), on a two-line loop, or on a wait that never
+changes.
+
+| Run | Fixture sweep | Fresh journey |
+|---|---|---|
+| Baseline (`main`) | 2/40 | — |
+| Resolver, first cut | 17/40 | — |
+| + Arc NOW row is the live beat, close-first chords | 23/40 | — |
+| + `_plot_bound` strike rule, mark clearing, Act 0 lesson walks | 38/40 | 20 beats, walls at `mill_wakes` (no walk for the attractor ask) |
+| + steer walk, cross-predicate ranking, trades, probe pool, full ring | 38/40 | 3 of the last 4 fresh games reach `island_free` (the Demos ending), in 5.5–6.3 minutes of play; the other looped in Act 2 and its rule is in (both runs after it reached the ending) |
+
+The two fixture beats that still stall (`first_harvest`, `loom_opens`) are
+Act 0 states the fixture builds with nothing planted to reap; a fresh game
+fires both from the banner within its first 20 seconds.
+
+### What each wall taught the resolver
+
+Each wall below was first a failing journey, then one rule in a step type.
+None added a banner string.
+
+| Wall (as the follower saw it) | Rule |
 |---|---|
-| Baseline (`main`) | 2/40 fixture beats moved |
+| "▸ [G] a living plot" forever | Berry tracking needs a focused column, not a living plot |
+| Accept [R] on an offer past the Arc's six rows | The Arc's NOW row is the resolver's live beat |
+| Row keys pressed inside an open Arc | Every field chord closes an open overlay first |
+| Ace ⇄ Icon hat, forever | Across a beat's open predicates: an action beats a wait, a wait beats a hat or a trip, and a held collapse ranks last |
+| Board ⇄ field ping-pong on a trade | A trade's give is gathered before walking to the board; a trade found missing on the open ring is ruled out for 90 s; the cheapest trade (loaded land, covered give) is tried first |
+| Strike lands on the other pole, again and again | After three wrong-pole strikes the spec's standing trade is the route |
+| Explore refused, banner repeats | When every probe is out, bring one home first, before the trip |
+| Plant with the ring full | Trim a word no open or unfired beat names (Icon Q, confirm F), cost gathered first, decided before the trip |
+| Chart refused, slots full | Cull the farm's named target first |
+| mill_wakes ⚙ attractor (no walk) | `steer`: strike the qubit until it reads the wanted pole and hold it; a qubit past the ring evolves |
+
+### Known gaps
+
+- The fresh journey is stochastic (measurement outcomes). Some runs still
+  loop late in Act 2–3; each loop the follower reports is the next test case.
+- Post-game campaigns (Lanternfall, the Loom) use predicates with no walk
+  yet (`spinor_read` and others); the validator only requires walks for the
+  main campaign and Act 0.
+- Board cues and refusals still carry their own lines; the legacy
+  `objective_text` branches are still the fallback when the resolver
+  returns nothing.
+
+### Reproduce the journey
+
+```bash
+python3 🍄/🧪/banner_follow.py fresh fresh --jobs 2 --journey 45 --until island_free --out j.json
+```
