@@ -59,6 +59,18 @@ def test_offered_beats_open_on_requires_alone():
             assert f.get("branch_group"), f"{f['id']}: opens on {extra} — only choice beats carry a trigger"
 
 
+def test_chain_tested_recharts_lanternfall():
+    """Slots fill; Lanternfall is culled for Shrine. the_chain_tested must
+    Chart the coast again, not assume the ancestor load still stands."""
+    idx = S.beats_by_id(S.load())
+    _camp, _act, _ch, beat = idx["the_chain_tested"]
+    assert beat.get("chart") == "Lanternfall"
+    kinds = [p.get("type") for p in beat.get("objective", [])]
+    biomes = [p.get("biome") for p in beat.get("objective", [])]
+    assert "biome_evolving" in kinds
+    assert "Lanternfall" in biomes
+
+
 def test_story_biomes_have_a_chart_beat():
     flags = json.loads((ROOT / "Core/Quests/data/story_flags.json").read_text(encoding="utf-8"))
     start = {"TheDemos", "Village", "StarterForest"}
@@ -118,6 +130,7 @@ def test_waiting_banner_prefers_the_critical_path():
     prog = _src("UI/Core/UIProgression.gd")
     waiting = prog.split("static func waiting_arc_offer")[1].split("\nstatic func ")[0]
     assert "blocking" in waiting, "an offer some unfired beat requires must outrank an optional leaf"
+    assert "flag_door_is_resolved" in waiting
 
 
 def test_chart_price_has_one_source():

@@ -1091,6 +1091,11 @@ func _handshake_auto_claims(quest: Dictionary) -> bool:
 	if str(quest.get("reward_north", "")).strip_edges() != "" \
 			or str(quest.get("reward_south", "")).strip_edges() != "":
 		return false
+	# Watch It Fade is work you complete by losing. Leftover mixed GildedRot
+	# scored the preds on Accept and handshake-claimed "nothing more on this
+	# door" before Superpose / wait / berry. Never handshake the_gray.
+	if str(quest.get("source_flag", "")).strip_edges() == "the_gray":
+		return false
 	var preds = quest.get("state_predicates", [])
 	if not (preds is Array) or preds.is_empty():
 		return true
@@ -1480,6 +1485,12 @@ func record_quantum_action(action_name: String, payload: Dictionary = {}) -> voi
 	if not _state_projection:
 		return
 	_state_projection.record_action(action_name, payload)
+	# Ace Fast-Fwd is a player wait: the Bath drinks during skip. Witness
+	# coherence so watermark / coherence_fell see the skip, not only later ticks.
+	if action_name == "time_skip" \
+			and current_biome != null and is_instance_valid(current_biome):
+		var dt := float(payload.get("delta", 0.0)) * float(payload.get("phrames", 0))
+		_state_projection.observe_biome(current_biome, dt)
 
 
 func get_state_projection_snapshot() -> Dictionary:
@@ -2307,8 +2318,28 @@ func get_active_quests() -> Array:
 
 
 func get_story_offers() -> Array:
-	# Get all pending story arc offers.
+	# Pending story arc offers. Spent leftover (door already resolved:
+	# claimed, dismissed, or a child fired) is catalog noise — sweep it.
+	# Unresolved leftover (Stay Many, Bring Light In) stays so children open.
+	_sweep_spent_arc_offers()
 	return story_offers.values()
+
+
+func _arc_offer_is_spent(q: Dictionary) -> bool:
+	var src := str(q.get("source_flag", ""))
+	if src == "":
+		return false
+	return _flag_door_is_resolved(src)
+
+
+func _sweep_spent_arc_offers() -> void:
+	var drop: Array = []
+	for qid in story_offers.keys():
+		var q = story_offers[qid]
+		if q is Dictionary and _arc_offer_is_spent(q):
+			drop.append(qid)
+	for qid in drop:
+		story_offers.erase(qid)
 
 
 func dismiss_story_offer(quest_id: int) -> bool:

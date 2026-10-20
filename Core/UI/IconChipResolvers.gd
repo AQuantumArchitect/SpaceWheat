@@ -23,6 +23,18 @@ static func resolve_r(ctx: ChipContext) -> Dictionary:
 			return {"action": "", "label": "[Q] unseats", "disabled": true, "reason": plant_full}
 	if ctx == null or not ctx.has_focused_qubit():
 		return {}
+	var register_early = ctx.get_berry_register()
+	if register_early != null:
+		var qid_early: int = ctx.qubit_index
+		if register_early.is_tracked(qid_early) and register_early.is_ripe(qid_early):
+			return {"action": "incorporate_icon", "label": "Incorporate", "disabled": false}
+	# Village G gathered-empty at nq cap: unbound / blank axis is Add Icon,
+	# not Track first. Track first is for a full bound loop.
+	if not bool(ctx.register_bound):
+		return {}
+	var ax: Dictionary = ctx.focused_axis() if ctx.has_method("focused_axis") else {}
+	if str(ax.get("north", "")) == "" or str(ax.get("south", "")) == "":
+		return {}
 	var register = ctx.get_berry_register()
 	if register == null:
 		return {}

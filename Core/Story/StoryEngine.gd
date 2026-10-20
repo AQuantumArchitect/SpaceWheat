@@ -195,12 +195,36 @@ func _apply_world_changes(flag_data: Dictionary) -> void:
 					b.rebuild_lindblad_for_regime()
 
 
+## Authored wet-country `regime: open` lives on the biome spec, not a flag.
+## QC.regime_override was not exported, so Charted Shrine/ZenoLatch loaded
+## sealed and the gated 💀→⚱ basin never ticked. Re-apply spec first;
+## fired-flag regime_changes still win after.
+func _reapply_spec_regimes_after_load() -> void:
+	if _farm == null or _farm.grid == null or not _farm.grid.has_method("get_biome_names"):
+		return
+	var registry = BiomeRegistry.get_shared()
+	if registry == null or not registry.has_method("get_by_name"):
+		return
+	for bname in _farm.grid.get_biome_names():
+		var spec = registry.get_by_name(str(bname))
+		if spec == null:
+			continue
+		# `in` misses non-export script vars on Biome. Direct read.
+		var want := str(spec.regime)
+		if want == "":
+			continue
+		var biome = _farm.grid.get_biome(str(bname))
+		if biome != null and biome.has_method("set_regime"):
+			biome.set_regime(want)
+
+
 ## On load: re-derive the world's regime/physics state from fired flags, in
 ## flag-file order (later flags win). Keeps the door and every story-driven
 ## regime change durable without touching the save format.
 func _reapply_world_changes_after_load() -> void:
 	if _farm == null or _quest_manager == null:
 		return
+	_reapply_spec_regimes_after_load()
 	for flag_data in _quest_manager._story_flags:
 		if not (flag_data is Dictionary):
 			continue

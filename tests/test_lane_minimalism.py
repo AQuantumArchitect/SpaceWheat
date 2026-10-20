@@ -104,6 +104,250 @@ def test_handover_does_not_send_you_through_the_banner():
     assert len(hint) <= 70
 
 
+def test_unpayable_fill_does_not_mill_abandon():
+    """have*2 < need is a chip, not gold. Unsigned Arc outranks Abandon."""
+    board = src(BOARD)
+    short = board.split("func fill_shortfall_cue")[1].split("\nfunc ")[0]
+    assert "[Q] Abandon" in short
+    cue = board.split("func board_walk_cue")[1].split("\nfunc ")[0]
+    assert "ESC closes — stall" in cue
+    assert 'return "▸ [%s] then [Q] Abandon"' not in cue
+    walk = src(PROG).split("static func _board_walk_line")[1].split("static func ")[0]
+    assert "Abandon" in walk
+    assert "_waiting_arc_line" in walk
+    waiting = src(PROG).split("static func _waiting_arc_line")[1].split("static func ")[0]
+    assert 'is_event_home_open("arc")' in waiting
+    assert "_story_surface_open" in waiting
+    assert "_waiting_arc_row_key" in waiting
+    assert "row_item_cue" in waiting
+    assert "func _waiting_arc_row_key" in src(PROG)
+    row_key = src(PROG).split("static func _waiting_arc_row_key")[1].split("static func ")[0]
+    assert "doors_ahead" in row_key
+    assert "source_flag" in row_key
+    assert "body" in row_key
+    intro = src(INTRO)
+    ahead = intro.split("static func doors_ahead")[1].split("static func remembered_count")[0]
+    assert "_catalog_rank" in ahead
+    assert "sort_custom" in ahead
+    best_u = intro.split("static func _best_unsigned_offer")[1].split("static func ")[0]
+    assert "_catalog_rank" in best_u
+    assert "blocking" in intro.split("static func _catalog_rank_tables")[1].split("static func ")[0]
+    obj = src(PROG).split("static func objective_text")[1].split("static func waiting_arc_offer")[0]
+    assert "_story_surface_open" in obj
+    dump = src(ROOT / "🍄" / "🧪" / "hive" / "dump_checkpoint.py")
+    assert "banner_abandon" in dump
+    grind = src(ROOT / "🍄" / "🧪" / "hive" / "grind_follow.py")
+    assert 'if "abandon" in low:' in grind
+    assert "OFF_WALL_FLAGS" in grind
+
+
+def test_ready_claim_outranks_leftover_arc_accept():
+    """Gear-Bench timber_rhythm READY is already accepted. Board-ask Abandon
+    must not mill leftover unsigned Arc Accept on that row."""
+    obj = src(PROG).split("static func objective_text")[1].split(
+        "static func waiting_arc_offer"
+    )[0]
+    assert obj.index("_live_atom_plant_line") < obj.index('== "ready"')
+    assert obj.index('== "ready"') < obj.index("_is_board_ask")
+    assert obj.index("_claim_walk_line") < obj.index("_waiting_arc_line")
+    prog = src(PROG)
+    assert "func _live_atom_plant_line" in prog
+    assert "func _is_coast_field_ask" in prog
+    assert "func _coast_field_walk_line" in prog
+    assert "func _standing_wet_country_line" in prog
+    assert obj.index("_is_discover_ask") < obj.index("_is_coast_field_ask")
+    assert "_standing_wet_country_line" in obj
+    coast = src(PROG).split("static func _coast_field_walk_line")[1].split("static func ")[0]
+    assert "[0] Druid" in coast
+    assert "[E] Superpose" in coast
+    assert "Never cull Woodlot" in obj or "keep Woodlot" in src(PROG)
+    cull = src(PROG).split("static func _cull_walk_line")[1].split("static func ")[0]
+    assert 'want == "Woodlot"' in cull
+    assert "keep Woodlot" in cull
+    assert 'return "▸ [C] Contracts"' not in cull
+    farm_src = src(ROOT / "Core" / "Farm.gd")
+    gate = farm_src.split("func _cull_gate_for(")[1].split("\nfunc ")[0]
+    assert 'biome_name == "Woodlot"' in gate
+    assert "never cull Woodlot" in gate
+    grind = src(ROOT / "🍄" / "🧪" / "hive" / "grind_follow.py")
+    assert "banner_c_esc_pong" in grind
+    assert '"jolt" in blob.lower()' in grind
+    assert "def farm_gold" in grind
+    assert "opens the arc" in grind
+    dump = src(ROOT / "🍄" / "🧪" / "hive" / "dump_checkpoint.py")
+    assert "lantern_hunt" in dump
+    assert '"cull" not in farm_blob.lower()' in dump
+    intro = src(ROOT / "Core" / "Story" / "IntroVoice.gd")
+    beat = intro.split("static func beat_from_quest")[1].split("\nstatic func ")[0]
+    assert 'tense == "live"' in beat
+    assert 'kind = "live_tutorial"' in beat
+    assert '"claim" not in blob.lower()' in grind
+    wait = src(PROG).split("static func waiting_arc_offer")[1].split("static func _waiting_arc_line")[0]
+    assert "fired.has(src)" in wait
+    assert "flag_door_is_resolved" in wait
+    assert 'camp == "loom"' in wait
+    assert "leftover" in wait
+    coast = src(PROG).split("static func _coast_field_walk_line")[1].split("static func ")[0]
+    standing = src(PROG).split("static func _standing_wet_country_line")[1].split("static func ")[0]
+    fade = src(PROG).split("static func _wait_for_fade_line")[1].split("static func ")[0]
+    fade_walk = src(PROG).split("static func _fade_walk_line")[1].split("static func ")[0]
+    wet = src(PROG).split("static func _wet_workpiece_key")[1].split("static func ")[0]
+    assert "[0] Druid" in coast
+    assert "[E] Superpose" in coast
+    assert "H²=I" in coast
+    assert "[F] Fast-Fwd" in coast
+    assert "ShrineOfAshes" in coast
+    assert "the_basin" in coast
+    assert "STATUS_STORY" in coast
+    assert "_waiting_arc_line" in coast
+    assert "Lanternfall" in coast
+    assert '_named_atom_plant_line("Lanternfall", "🌉")' in coast
+    assert '_empty_plot_exists("Lanternfall")' in coast
+    grind_ff = src(ROOT / "🍄" / "🧪" / "hive" / "grind_follow.py")
+    assert '"fast-fwd" in blob.lower()' not in grind_ff.split("freeze_at = budget")[1].split("else 8")[0] or "the urn fills" in grind_ff
+    assert "the bridge holds" in grind_ff
+    assert "the urn fills" in grind_ff
+    disc = src(PROG).split("static func _discover_walk_line")[1].split("static func ")[0]
+    assert "STATUS_STORY" in disc
+    assert "_waiting_arc_line" in disc
+    assert "_col_is_pole" in coast
+    assert "current_biome" in coast
+    assert "the urn" in coast
+    assert "_bloch_known" in coast
+    assert coast.index("[E] Superpose") < coast.index("the urn fills")
+    keep_ff = src(PROG).split("static func ace_f_keeps_fast_fwd")[1].split("static func ")[0]
+    assert "the_basin" in keep_ff
+    assert "ShrineOfAshes" in keep_ff
+    assert "_berry_tracking" in keep_ff
+    assert "the_chain_tested" in keep_ff
+    assert "Lanternfall" in keep_ff
+    ace_chip = src(ROOT / "Core" / "UI" / "AceChipResolvers.gd")
+    assert "ace_f_keeps_fast_fwd" in ace_chip
+    toast = src(ROOT / "UI" / "Widgets" / "HintToast.gd")
+    owns = toast.split("func owns_f()")[1].split("\nfunc ")[0]
+    assert "ace_f_keeps_fast_fwd" in owns
+    qc = src(ROOT / "Core" / "QuantumSubstrate" / "QuantumComputer.gd")
+    assert "@export var regime_override" in qc
+    story = src(ROOT / "Core" / "Story" / "StoryEngine.gd")
+    assert "_reapply_spec_regimes_after_load" in story
+    reapply = story.split("func _reapply_world_changes_after_load")[1].split("\nfunc ")[0]
+    assert "_reapply_spec_regimes_after_load" in reapply
+    spec_reg = story.split("func _reapply_spec_regimes_after_load")[1].split("\nfunc ")[0]
+    assert "spec.regime" in spec_reg
+    atoms = src(ROOT / "Core" / "Environment" / "BiomeBase.gd")
+    get_atoms = atoms.split("func _get_atom_components")[1].split("\nfunc ")[0]
+    assert "live.atom_components" in get_atoms
+    gated = atoms.split("func get_gated_lindblad_channels")[1].split("\nfunc ")[0]
+    assert "not _gated_channels_cache.is_empty()" in gated
+    kraus = src(ROOT / "Core" / "QuantumSubstrate" / "QuantumComputer.gd")
+    apply_1q = kraus.split("func _apply_lindblad_1q")[1].split("\nfunc ")[0]
+    assert "sqrt_1mp if bit_i == from_pole" in apply_1q
+    assert "1.0 if bit_i == from_pole else sqrt_1mp" not in apply_1q
+    grind = src(ROOT / "🍄" / "🧪" / "hive" / "grind_follow.py")
+    assert '"urn" in blob.lower()' in grind
+    assert '"e" in presses' in grind
+    assert "def accept_row_key" in grind
+    assert "keys[1]" in grind
+    assert "accept_row_key(blob)" in grind
+    assert "Fast-Fwd" in fade
+    assert "[8] Ace" in fade
+    assert "STATUS_STORY" in fade_walk
+    assert fade_walk.index("STATUS_STORY") < fade_walk.index("ESC closes")
+    assert fade_walk.index("_named_atom_plant_line") < fade_walk.index("ESC closes")
+    assert "_wet_workpiece_key" in fade_walk
+    assert "_fade_has_drunk" in fade_walk
+    assert "_berry_walk_line" in fade_walk
+    assert "Strike" in fade_walk
+    assert "collapse the rose" in fade_walk
+    assert "_already_superposed" in fade_walk
+    assert "_col_is_pole" in fade_walk
+    assert "_register_plot_key" in fade_walk
+    assert "pole then Superpose" not in fade_walk
+    assert "_named_atom_plant_line" in fade_walk
+    assert "_atom_in_biome" in fade_walk
+    col_pole = src(PROG).split("static func _col_is_pole")[1].split("static func ")[0]
+    assert "_bloch_known" in col_pole
+    assert "0.25" in col_pole
+    assert "_fade_saw_equator" in fade_walk
+    already = src(PROG).split("static func _already_superposed")[1].split("static func ")[0]
+    assert "0.5" in already
+    assert "Dawn kick" in already or "0.35" in already
+    assert wet.index("🌹") < wet.index("🎭")
+    assert "func _off_pole" in src(PROG)
+    assert "func _pole_plot_key" in src(PROG)
+    assert "func _equator_plot_key" in src(PROG)
+    assert "func _fade_plant_atom" in src(PROG)
+    assert '_atom_in_biome("GildedRot", "🌉")' in fade_walk
+    assert "func _spark_walk_line" in src(PROG)
+    assert "func _is_spark_ask" in src(PROG)
+    spark_walk = src(PROG).split("static func _spark_walk_line")[1].split("static func ")[0]
+    assert "[4] Spark" in spark_walk
+    assert "[R] jolt north" in spark_walk
+    assert "current_plot_idx" in spark_walk
+    assert "_plot_bound" not in spark_walk
+    obj_fn = src(PROG).split("static func objective_text")[1].split("static func waiting_arc_offer")[0]
+    assert "_spark_walk_line" in obj_fn
+    farm_cull = src(ROOT / "Core" / "Farm.gd").split("func named_cull_target")[1].split("func _cull_gate_for")[0]
+    assert "_biome_is_wet" in farm_cull
+    assert "wet_fallback" in farm_cull
+    assert "_glyph_plot_key(\"🌉\", \"GildedRot\", false)" in wet or '_glyph_plot_key("🌉", "GildedRot", false)' in wet
+    assert "_register_plot_key" in wet
+    assert "scout: bool = true" in src(PROG)
+    assert "func _register_plot_key" in src(PROG)
+    qii = src(ROOT / "UI" / "Core" / "QuantumInstrumentInput.gd")
+    assert "ACE_FAST_FORWARD_PHRAMES := 120" in qii
+    qsps = src(ROOT / "Core" / "Quests" / "QuestStateProjectionService.gd")
+    assert "func _max_qubit_equator" in qsps
+    assert "get_marginal_density_matrix" in qsps
+    assert "_last_qubit_coherence" in qsps
+    obs_fn = qsps.split("func observe_biome")[1].split("func serialize_receipts")[0]
+    assert "_max_qubit_equator" in obs_fn
+    assert "peak" in obs_fn
+    rec = src(QM).split("func record_quantum_action")[1].split("\nfunc ")[0]
+    assert "time_skip" in rec
+    assert "observe_biome" in rec
+    gilded = src(ROOT / "Core" / "Biomes" / "data" / "biomes.json")
+    rot = gilded.split('"name": "GildedRot"')[1].split('"name": "BroadcastTower"')[0]
+    rose_atom = rot.split('"atom_components"')[1].split('"🌹"')[1].split('"🎭"')[0]
+    assert "dephasing" in rose_atom
+    rot_atoms = rot.split('"atom_components"')[1].split('"native_factions"')[0]
+    assert '"🌉"' in rot_atoms
+    lantern_atom = rot_atoms.split('"🌉"')[1].split("}")[0]
+    assert "dephasing" in lantern_atom
+    assert "H²=I" in src(PROG).split("static func _wait_for_fade_line")[1].split("static func ")[0] or "H²=I" in src(PROG)
+    assert "_wait_for_fade_line" in standing
+    obj = src(PROG).split("static func objective_text")[1].split(
+        "static func waiting_arc_offer"
+    )[0]
+    assert "_is_fade_ask" in obj
+    assert obj.index("_is_fade_ask") < obj.index("_is_berry_ask")
+    banner = src(PROG).split("static func _banner_quest")[1].split("static func ")[0]
+    assert banner.index("fade_first") < banner.index("_best_objective")
+    assert "_unsigned_fade_offer" in banner
+    assert "_accepted_fade_quest" in banner
+    assert "func _accepted_fade_quest" in src(PROG)
+    acc = src(PROG).split("static func _accepted_fade_quest")[1].split("static func ")[0]
+    assert "active_quests.values()" in acc
+    handshake = src(QM).split("func _handshake_auto_claims")[1].split("\nfunc ")[0]
+    assert 'source_flag' in handshake
+    assert '"the_gray"' in handshake
+    qm = src(QM)
+    offers = qm.split("func get_story_offers")[1].split("\nfunc ")[0]
+    assert "_sweep_spent_arc_offers" in offers
+    assert "func _arc_offer_is_spent" in qm
+    dump = src(ROOT / "🍄" / "🧪" / "hive" / "dump_checkpoint.py")
+    camp_fn = dump.split("def campaign_progress")[1].split("\ndef ")[0]
+    assert "opens_after" in camp_fn
+    assert "postgame" in camp_fn
+    grind = src(ROOT / "🍄" / "🧪" / "hive" / "grind_follow.py")
+    assert "fast-fwd" in grind
+    named = src(PROG).split("static func _named_atom_plant_line")[1].split("static func ")[0]
+    assert "[F] Track" not in named
+    assert "[R] plant" in named
+    assert "_blank_plant_key" in named
+    assert "_live_plot_key" in named
+
+
 def test_mill_apprentice_names_the_board_key():
     """Wave 8/9b: first post-intro door said 'Keep mill deliveries' with no
     key. Name [C] and Market [Y]. Do not accept or fill for them."""
@@ -513,6 +757,8 @@ def test_eagle_overhead_track_keeps_sticky_focus():
     walk = prog.split("static func _berry_walk_line")[1].split("static func ")[0]
     assert "[F] Track" in walk
     assert "[R] Incorporate" in walk
+    assert "[F] Fast-Fwd" in walk
+    assert "wait — loop ripens" not in walk
 
 
 def test_braid_order_refreshes_mi_after_gate():
@@ -596,8 +842,14 @@ def test_slots_full_names_cull_target_and_q():
     assert "_cull_walk_line" in disc
     cull = prog.split("func _cull_walk_line")[1].split("\nstatic func ")[0]
     assert "[Q] culls" in cull
+    assert "[F] confirms cull" in cull
+    assert "_cull_confirm_pending" in cull
     assert "[7] Captain" in cull
     assert "[R] Add Biome" not in cull
+    assert "_waiting_arc_line" in cull
+    assert 'want == "Woodlot"' in cull
+    assert "keep Woodlot" in cull
+    assert 'return "▸ [C] Contracts"' not in cull
     target = prog.split("static func objective_target()")[1].split("static func ")[0]
     assert "_slots_full()" in target
     assert '"Q"' in target
@@ -636,7 +888,11 @@ def test_paid_eagles_name_lanternfall_and_the_chart_key():
     assert "[R] Add Biome —" in disc  # no open door: random draw
     named = prog.split("static func _named_discover_target()")[1].split("\nstatic func ")[0]
     assert "biome_evolving" in named
+    assert "biome_state_gte" in named
     assert "_biome_unlocked" in named
+    disc_ask = prog.split("static func _is_discover_ask")[1].split("\nstatic func ")[0]
+    assert "biome_evolving" in disc_ask
+    assert "biome_state_gte" in disc_ask
     target = prog.split("static func objective_target()")[1].split("static func ")[0]
     paid = target.split("if _slots_full():")[1]
     assert "_named_discover_target()" in paid
@@ -680,6 +936,8 @@ def test_berry_walk_names_one_first_breath_key():
     assert "[R] Incorporate" in berry
     assert "[G]" in berry
     assert "wait" in berry
+    assert "[F] Fast-Fwd" in berry
+    assert "wait — loop ripens" not in berry
     assert "⏩" not in berry
     assert "[=]" not in berry
     assert "[X]" not in berry

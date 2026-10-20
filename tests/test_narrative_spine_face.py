@@ -49,6 +49,8 @@ def test_banner_names_the_arc_offer_the_story_waits_on():
     assert "Quest.STATUS_STORY" in text_fn
     assert "return _decorate_objective(best)" in text_fn
     assert "return _waiting_arc_line()" in text_fn
+    assert text_fn.index('== "ready"') < text_fn.index("return _waiting_arc_line()")
+    assert "_claim_walk_line" in text_fn
     waiting = prog.split("static func waiting_arc_offer")[1].split("\nstatic func ")[0]
     assert "_unsigned_still_open" not in waiting, "satisfied offers block the story too"
     line = prog.split("static func _waiting_arc_line")[1].split("\nstatic func ")[0]
@@ -65,6 +67,8 @@ def test_offer_toast_is_title_only():
     assert offer.count('"detail": ""') >= 2
     assert "[X] then Arc [I]" in offer
     assert "New offer from" in offer
+    assert "live_quest" in offer
+    assert 'status", "")) != "story"' in offer
     assert "Tap here to read & accept" not in intro
 
 

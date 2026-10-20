@@ -1085,8 +1085,8 @@ func _build_market_body() -> void:
 			and not quest_manager.story_offers.is_empty():
 		var pending: int = quest_manager.story_offers.size()
 		_body_box.add_child(_make_muted_label(
-			"📜 %d story offer%s waiting on the ARC, not this board — open the Arc [X→I]"
-			% [pending, "s" if pending > 1 else ""], 11))
+			"📜 %d story offer%s waiting on the ARC, not this board — %s"
+			% [pending, "s" if pending > 1 else "", SurfaceRooms.walk_open_offers("X")], 11))
 	var held_n: int = _held_count()
 	var free_n: int = maxi(0, HANDS_MAX - held_n)
 	var hands := "hands %d/%d" % [held_n, HANDS_MAX]
@@ -1938,11 +1938,9 @@ func board_walk_cue(q: Dictionary) -> String:
 				var need := int(short.get("need", 0))
 				# Wave 14 lost-lamb: 104/221 and ▸ still named Deliver.
 				if have * 2 < need:
-					if i == _selected_index:
-						return "▸ [Q] Abandon — you hold %s %d/%d" % [res, have, need]
-					if key == "":
-						return "▸ [Q] Abandon — you hold %s %d/%d" % [res, have, need]
-					return "▸ [%s] then [Q] Abandon" % key
+					# Q Abandon stays a chip. Gold mills ESC so unsigned
+					# Arc / the live campaign beat can take the banner.
+					return "▸ ESC closes — stall %s %d/%d" % [res, have, need]
 				return "▸ ESC closes — gather %s %d/%d" % [res, have, need]
 			var verb := "Claim" if str(data.get("status", "")).to_lower() == "ready" else "Deliver"
 			# Once the row is selected, name ONLY [R] — "[G] then [R]" after

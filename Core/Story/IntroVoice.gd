@@ -117,6 +117,11 @@ static func toast_for_offer(quest: Dictionary, qm = null) -> Dictionary:
 	# on top sent earnest to the picker at 🌱×3 (dual gold).
 	if _offer_is_plant(quest) and _sprouts_are_short():
 		return {}
+	# READY / accepted live work owns the banner. Leftover unsigned catalog
+	# (Five Doors, Stay Yourself) is Arc, not a second gold toast.
+	var live := live_quest(qm)
+	if not live.is_empty() and str(live.get("status", "")) != "story":
+		return {}
 	var category := str(quest.get("category", ""))
 	var is_arc := category == "TUTORIAL" or str(quest.get("source_flag", "")).strip_edges() != ""
 	var title := quest_title(quest)
@@ -300,6 +305,8 @@ static func doors_ahead(limit: int = 6, qm = null, farm = null) -> Array:
 		rows.append(_row_from_beat(live))
 	var live_quest_id := int(live.get("data", {}).get("id", -1)) if live.get("data", {}) is Dictionary else -1
 	if qm.has_method("get_story_offers"):
+		var tables := _catalog_rank_tables(qm, farm)
+		var offers: Array = []
 		for q in qm.get_story_offers():
 			if not (q is Dictionary):
 				continue
@@ -307,6 +314,14 @@ static func doors_ahead(limit: int = 6, qm = null, farm = null) -> Array:
 				continue
 			if int(q.get("id", -2)) == live_quest_id:
 				continue
+			offers.append(q)
+		# Mill waiting leftover (Fill the Urn) must sit in the GHJKL;
+		# window. Insertion order parked it 7th of 10 while Sign and
+		# Settle tied on rank and took G.
+		offers.sort_custom(func(a, b):
+			return _catalog_rank(a, tables) < _catalog_rank(b, tables)
+		)
+		for q in offers:
 			rows.append({"kind": "arc_quest", "data": q, "beat": beat_from_quest(q, "ahead")})
 			if rows.size() >= limit:
 				return rows
@@ -490,9 +505,14 @@ static func beat_from_quest(quest: Dictionary, tense: String) -> Dictionary:
 	var source_flag := str(quest.get("source_flag", "")).strip_edges()
 	var id := teaches if teaches != "" else (source_flag if source_flag != "" else str(quest.get("id", "")))
 	var cat := str(quest.get("category", ""))
+	var status := str(quest.get("status", "")).strip_edges()
 	var kind := "live_tutorial" if cat == "TUTORIAL" and tense == "live" else "arc_quest"
-	if cat == "TUTORIAL" and str(quest.get("status", "")) == "story":
+	if cat == "TUTORIAL" and status == "story":
 		kind = "arc_quest"
+	# READY / accepted live work is NOW. Arc G must not paint OPEN+[R] Accept
+	# on a quest accept_quest already holds (timber_rhythm handshake).
+	if tense == "live" and status != "" and status != "story":
+		kind = "live_tutorial"
 	return {
 		"id": id,
 		"title": quest_title(quest),
@@ -654,10 +674,54 @@ static func _unsigned_still_open(q: Dictionary, qm) -> bool:
 	return false
 
 
+static func _catalog_rank_tables(qm, farm = null) -> Dictionary:
+	if farm == null:
+		farm = _farm()
+	var fired: Dictionary = farm.story_flags_fired if farm != null and "story_flags_fired" in farm else {}
+	var acts := {}
+	var camps := {}
+	var blocking := {}
+	if qm != null and qm.has_method("get_all_story_flags"):
+		for f in qm.get_all_story_flags():
+			if not (f is Dictionary):
+				continue
+			var fid := str(f.get("id", ""))
+			acts[fid] = int(f.get("act", 0))
+			camps[fid] = str(f.get("campaign", "demos"))
+			if fired.has(fid):
+				continue
+			for p in f.get("predicates", []):
+				if p is Dictionary and str(p.get("type", "")) == "story_flag_set":
+					blocking[str(p.get("id", ""))] = true
+	return {"fired": fired, "acts": acts, "camps": camps, "blocking": blocking}
+
+
+## Same rank as UIProgression.waiting_arc_offer: leftover lanternfall
+## that a live child still needs (Fill the Urn / the_basin) beats a
+## leftover sibling (Sign and Settle) that tied on act+campaign.
+static func _catalog_rank(q: Dictionary, tables: Dictionary) -> int:
+	var src := str(q.get("source_flag", ""))
+	var fired: Dictionary = tables.get("fired", {})
+	var leftover := 2000 if (src != "" and fired.has(src)) else 0
+	var camps: Dictionary = tables.get("camps", {})
+	var camp := str(camps.get(src, "demos"))
+	var camp_pen := 0
+	if camp == "loom":
+		camp_pen = 500
+	elif camp == "demos":
+		camp_pen = 100
+	var blocking: Dictionary = tables.get("blocking", {})
+	var acts: Dictionary = tables.get("acts", {})
+	return leftover + camp_pen + int(acts.get(src, 99)) \
+			+ (0 if blocking.has(src) else 1000)
+
+
 static func _best_unsigned_offer(qm) -> Dictionary:
 	if qm == null or not qm.has_method("get_story_offers"):
 		return {}
-	var act_by_flag := _act_by_flag(qm)
+	var farm = _farm()
+	var tables := _catalog_rank_tables(qm, farm)
+	var fired: Dictionary = tables.get("fired", {})
 	var best: Dictionary = {}
 	var best_rank := 0x7FFFFFFF
 	for q in qm.get_story_offers():
@@ -666,11 +730,22 @@ static func _best_unsigned_offer(qm) -> Dictionary:
 		var cat := str(q.get("category", ""))
 		if cat not in ["ARC", "TUTORIAL"]:
 			continue
+		var src := str(q.get("source_flag", ""))
 		if not _unsigned_still_open(q, qm):
-			continue
-		var rank := 1000 + int(act_by_flag.get(str(q.get("source_flag", "")), 99))
+			# Preds already hold. Skip unless leftover still needs Accept
+			# so children can open (Bring Light In → the_gray).
+			if src == "" or not fired.has(src):
+				continue
+			if qm.has_method("flag_door_is_resolved") \
+					and bool(qm.flag_door_is_resolved(src)):
+				continue
 		if cat == "TUTORIAL":
-			rank = int(q.get("tutorial_step", 0))
+			var trank := int(q.get("tutorial_step", 0))
+			if trank < best_rank:
+				best_rank = trank
+				best = q
+			continue
+		var rank := _catalog_rank(q, tables)
 		if rank < best_rank:
 			best_rank = rank
 			best = q

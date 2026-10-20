@@ -1883,11 +1883,31 @@ func named_cull_target() -> Dictionary:
 		var n := str(b)
 		if n != "" and not names.has(n):
 			names.append(n)
+	# Prefer a dry leftover over wet country. Spark / Merchant still
+	# need a leaking floor; standing GildedRot was culled to chart
+	# ZenoLatch and Rain on the Fields lost its country.
+	var wet_fallback: Dictionary = {}
 	for biome_name in names:
 		var gate := _cull_gate_for(biome_name, observation_frame)
-		if bool(gate.get("ok", false)):
-			return gate
+		if not bool(gate.get("ok", false)):
+			continue
+		if _biome_is_wet(str(biome_name)):
+			if wet_fallback.is_empty():
+				wet_fallback = gate
+			continue
+		return gate
+	if not wet_fallback.is_empty():
+		return wet_fallback
 	return {"ok": false, "message": "no cullable biome in a slot"}
+
+
+func _biome_is_wet(biome_name: String) -> bool:
+	var biome = _get_loaded_biome_ref(biome_name)
+	if biome == null or biome.quantum_computer == null:
+		return false
+	if biome.quantum_computer.has_method("is_open_here"):
+		return bool(biome.quantum_computer.is_open_here())
+	return false
 
 
 func _cull_gate_for(biome_name: String, observation_frame = null) -> Dictionary:
@@ -1922,6 +1942,13 @@ func _cull_gate_for(biome_name: String, observation_frame = null) -> Dictionary:
 	# is destroyed, and say so out loud.
 	if observation_frame.has_method("is_seed_biome") and observation_frame.is_seed_biome(biome_name):
 		return {"ok": false, "message": "%s is seed country — the frame needs it to stand on" % biome_name}
+
+	# Playtest mill law: timber country stays. named_cull_target skipped
+	# Woodlot and gold last-resorted to [C] Contracts; grind ping-ponged
+	# C/ESC on an empty board. Refuse the cull so the mill names the next
+	# legal slot instead of a keyless banner.
+	if biome_name == "Woodlot":
+		return {"ok": false, "message": "Woodlot stays — never cull Woodlot"}
 
 	# The player IS a faction (The Demos), and the biome whose native faction
 	# is the player's pin is their own seat. Culling it is self-erasure — a

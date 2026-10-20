@@ -2194,8 +2194,12 @@
     },
     "arc_quest": {
       "body": "The Bridge Holds — with the Bath drinking at Lanternfall, keep the bridge lantern 🌉 above 35% while the biome grays around it.",
-      "hint": "Feed the ends, trust the pattern. The bulk will fade — that is the point. The edge mode is on nobody's menu.",
+      "hint": "Captain [7], [R] Chart Lanternfall. Feed the ends.",
       "state_predicates": [
+        {
+          "type": "biome_evolving",
+          "biome": "Lanternfall"
+        },
         {
           "type": "biome_state_gte",
           "biome": "Lanternfall",
@@ -2210,7 +2214,8 @@
     },
     "regime_changes": {
       "Lanternfall": "open"
-    }
+    },
+    "chart": "Lanternfall"
   },
   {
     "id": "hiding_in_the_light",

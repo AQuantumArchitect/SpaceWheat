@@ -174,7 +174,8 @@ static func _live_discover_biomes(farm) -> Dictionary:
 			for pred in q.get("state_predicates", []):
 				if not (pred is Dictionary):
 					continue
-				if str(pred.get("type", "")) != "biome_evolving":
+				var t := str(pred.get("type", ""))
+				if t != "biome_evolving" and t != "biome_state_gte":
 					continue
 				var b := str(pred.get("biome", "")).strip_edges()
 				if b != "":

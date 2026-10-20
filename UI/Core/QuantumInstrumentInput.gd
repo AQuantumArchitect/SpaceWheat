@@ -41,8 +41,12 @@ const UIProgression = preload("res://UI/Core/UIProgression.gd")
 const SpectralPreview = preload("res://Core/QuantumSubstrate/SpectralPreview.gd")
 const LoopCardCls = preload("res://UI/Overlays/LoopCard.gd")
 
-## Ace F (Fast-Forward) advances the closed evolution by this many phrames per press.
-const ACE_FAST_FORWARD_PHRAMES := 4
+## Ace F (Fast-Forward) advances evolution by this many phrames per press.
+## PHRAME_HZ=10 so N phrames = N/10 seconds of sim. Lindblad dephasing 0.03
+## is scaled by lindblad_rate_scale 0.1 → rate 0.003/s. Watch It Fade needs
+## coherence 0.3 → 0.12 (about 10 minutes of wall wait). 4 phrames (0.4s)
+## never drank in 80 presses. 120 phrames is 12s of Bath per mash.
+const ACE_FAST_FORWARD_PHRAMES := 120
 
 # Access autoloads safely
 @onready var _verbose = get_node_or_null("/root/VerboseConfig")

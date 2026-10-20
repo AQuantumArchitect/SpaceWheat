@@ -255,6 +255,10 @@ func owns_f() -> bool:
 	var UIProgression = load("res://UI/Core/UIProgression.gd")
 	if UIProgression != null and UIProgression.ace_f_would_explore():
 		return false
+	# Fill the Urn: leftover Arc toasts still own F. Mill names Fast-Fwd
+	# so the gated 💀→⚱ basin can tick; follow can wait.
+	if UIProgression != null and UIProgression.ace_f_keeps_fast_fwd():
+		return false
 	return _ladder.has_home and _ladder.rung != ClickLadder.Rung.HOME
 
 

@@ -89,6 +89,7 @@ const QuantumInstrumentClass = preload("res://Core/Instrumentation/QuantumInstru
 const BiomeAlignmentCalc = preload("res://Core/Quantum/BiomeAlignmentCalculator.gd")
 const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
 const GateActionHandler = preload("res://Core/Instrumentation/Handlers/GateActionHandler.gd")
+const CampaignFixture = preload("res://Core/Campaign/CampaignFixture.gd")
 # PlayerInputMacroRunner removed — macro input not available in headless mode
 
 signal action_executed(turn_id: int, action: String, result: Dictionary)
@@ -526,9 +527,47 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 					for e in pops:
 						pmax = maxf(pmax, float(pops[e]))
 					var sample_price: float = EnergyPricing.surprisal_energy(pmax, kT) if pmax > 0.0 else 0.0
+					var gated_n := 0
+					var gated_rows: Array = []
+					if biome.has_method("get_gated_lindblad_channels"):
+						for ch in biome.get_gated_lindblad_channels():
+							if not (ch is Dictionary):
+								continue
+							gated_n += 1
+							var src := str(ch.get("source", ""))
+							var tgt := str(ch.get("target", ""))
+							var gate := str(ch.get("gate", ""))
+							var p_gate: float = float(qc.get_population(gate)) if qc.has(gate) else 0.0
+							var power := float(ch.get("power", 1.0))
+							var rate := float(ch.get("rate", 0.0))
+							var rate_scale: float = float(BalanceConfig.get_physics().get("lindblad_rate_scale", 1.0))
+							var gate_val: float = pow(p_gate, power) if p_gate > 0.0 else 0.0
+							var rate_eff: float = rate * rate_scale * gate_val
+							var eff_dt: float = 0.0
+							if _farm and _farm.has_method("_get_lindblad_effective_delta_for_biome"):
+								eff_dt = float(_farm._get_lindblad_effective_delta_for_biome(biome, 0.1))
+							gated_rows.append({
+								"source": src, "target": tgt, "gate": gate,
+								"rate": rate, "power": power,
+								"has_s": bool(qc.has(src)),
+								"has_t": bool(qc.has(tgt)),
+								"has_g": bool(qc.has(gate)),
+								"pole_s": int(qc.pole(src)) if qc.has(src) else -9,
+								"pole_t": int(qc.pole(tgt)) if qc.has(tgt) else -9,
+								"pole_g": int(qc.pole(gate)) if qc.has(gate) else -9,
+								"q_s": int(qc.qubit(src)) if qc.has(src) else -9,
+								"q_t": int(qc.qubit(tgt)) if qc.has(tgt) else -9,
+								"p_gate": p_gate, "rate_scale": rate_scale,
+								"rate_eff": rate_eff, "eff_dt": eff_dt,
+								"skip_lindblad": bool(RuntimeEnv.time_skip_skip_lindblad()),
+							})
 					rows.append({
 						"biome": str(bkey), "S": s_val, "purity": purity, "kT": kT,
-						"bank_kTS": kT * s_val, "sample_price": sample_price, "atoms": pops.size()
+						"bank_kTS": kT * s_val, "sample_price": sample_price, "atoms": pops.size(),
+						"open": bool(qc.is_open_here()) if qc.has_method("is_open_here") else false,
+						"regime": str(qc.regime_override),
+						"gated_n": gated_n,
+						"gated": gated_rows,
 					})
 			result["entropy_snapshot"] = rows
 
@@ -2535,6 +2574,8 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 					var v = qp_obs[ok_key]
 					qp_clean[str(ok_key)] = v if (v is float or v is int or v is bool or v is String) else str(v)
 				result["observables"] = qp_clean
+				result["coherence_watermark"] = qp_snap.get("coherence_watermark", {})
+				result["qubit_coherence"] = qp_snap.get("qubit_coherence", 0.0)
 				var qp_hist: Array = []
 				for row in qp_snap.get("recent_actions", []):
 					qp_hist.append(str(row.get("action", "")))

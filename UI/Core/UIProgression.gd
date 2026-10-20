@@ -434,9 +434,29 @@ static func _unsigned_berry_offer() -> Dictionary:
 
 
 static func _banner_quest() -> Dictionary:
+	# Unsigned Watch It Fade outranks leftover accepted braid/wet Superpose.
+	# live_quest Two Chores milled [0] Druid while Arc still held OPEN fade.
+	var fade_first := _unsigned_fade_offer()
+	if fade_first.is_empty():
+		fade_first = _accepted_fade_quest()
+	if not fade_first.is_empty():
+		return fade_first
 	var best := _best_objective()
 	if not best.is_empty() and str(best.get("status", "")) != Quest.STATUS_STORY:
 		return best
+	# Leftover unsigned catalog whose work is Accept (Stay Many after
+	# island_free) must not lose to standing-wet Superpose or leftover
+	# discover. Field offers still win when THEY are the waiting door.
+	var waiting := waiting_arc_offer()
+	if not waiting.is_empty() \
+			and not _is_plant_ask(waiting) \
+			and not _is_discover_ask(waiting) \
+			and not _is_coast_field_ask(waiting) \
+			and not _is_board_ask(waiting) \
+			and not _is_teaching_ask(waiting) \
+			and not _is_berry_ask(waiting) \
+			and not _is_fade_ask(waiting):
+		return waiting
 	# mill_wakes Hold Commerce is a board ask. Plant must not steal it.
 	var board := _unsigned_board_offer()
 	if not board.is_empty():
@@ -447,6 +467,15 @@ static func _banner_quest() -> Dictionary:
 	var disc := _unsigned_discover_offer()
 	if not disc.is_empty():
 		return disc
+	# Chart GildedRot: leftover discover stays OPEN for coherence. Mill
+	# the field verb, not leftover Arc toasts and not another cull.
+	var coast := _unsigned_coast_field_offer()
+	if not coast.is_empty():
+		return coast
+	# the_gray: wait-for-fade outranks leftover berry Incorporate.
+	var fade := _unsigned_fade_offer()
+	if not fade.is_empty():
+		return fade
 	# lantern_teaching: leftover first_breath berry must not steal the lamp.
 	var teach := _unsigned_teaching_offer()
 	if not teach.is_empty():
@@ -462,6 +491,21 @@ static func objective_text() -> String:
 	if qm == null or not ("active_quests" in qm):
 		return ""
 	var best := _banner_quest()
+	# Watch It Fade outranks leftover demos atom_in_biome mill [J]. Fog J
+	# is an unrevealed live qubit, not a plant seat and not a lantern.
+	if _is_fade_ask(best) and str(best.get("status", "")) != "ready":
+		return _fade_walk_line()
+	# Live Demos beat trigger (Village 🏭 → village_path_industrial) outranks
+	# leftover READY claims and Captain cull. Never cull Woodlot.
+	var atom_plant := _live_atom_plant_line()
+	if atom_plant != "":
+		return atom_plant
+	# READY teaching (Gear-Bench timber_rhythm) is already accepted work.
+	# Board-ask Abandon used to yield leftover unsigned Arc Accept, so
+	# grind mashed [R] on an OPEN row that accept_quest no-ops.
+	# Claim outranks leftover catalog. Unsigned STORY still waits on Arc.
+	if str(best.get("status", "")) == "ready":
+		return _claim_walk_line(best)
 	# Wave 24 literalist: gathered 🌱 3→21, then chrome-only. Unsigned plant
 	# is STORY — hiding the banner after the gather walk ate Icon [5].
 	# Plant is the live beat whether or not they have signed the Arc.
@@ -469,6 +513,22 @@ static func objective_text() -> String:
 		return _plant_walk_line()
 	if _is_discover_ask(best):
 		return _discover_walk_line()
+	if _is_coast_field_ask(best):
+		return _coast_field_walk_line()
+	# Story overlay is the Arc chord. Leftover Accept (The Bridge Holds)
+	# must not mill ESC from a later walk while X/I is already open.
+	if _story_surface_open() and not waiting_arc_offer().is_empty():
+		if best.is_empty() or str(best.get("status", "")) == Quest.STATUS_STORY:
+			var arc_home := _waiting_arc_line()
+			if arc_home != "":
+				return arc_home
+	# the_gray: Superpose then wait. Berry Incorporate is the later ask.
+	if _is_fade_ask(best):
+		return _fade_walk_line()
+	# Rain on the Fields: Spark jolt in wet country. Leftover ask_line
+	# was a hint paragraph with no followable key (dump farm empty, chip Q).
+	if _is_spark_ask(best):
+		return _spark_walk_line()
 	# lantern_teaching: biome_state_gte 🪔 is not discover. Name one next key.
 	if _is_teaching_ask(best):
 		return _teaching_walk_line()
@@ -479,12 +539,28 @@ static func objective_text() -> String:
 	# Wave mill_wakes: unsigned Hold Commerce painted Village plant, not
 	# Market. Board walk is the live ask, like plant/berry.
 	if _is_board_ask(best):
-		return _board_walk_line(best)
+		var walk := _board_walk_line(best)
+		# Story overlay is the Arc chord (X → I → R). Overlay ESC here
+		# ping-pongs grind X/ESC and never Accepts.
+		if "ESC" in walk and _story_surface_open():
+			var arc := _waiting_arc_line()
+			if arc != "":
+				return arc
+		return walk
 	# Nothing accepted: the story is WAITING on an Arc offer. A beat's
 	# children open only once it is accepted and claimed (spec: requires =
 	# complete), so a silent banner here is the classic "nothing moves" wall.
 	# Name the waiting door and the route to Accept — quietly, one line.
 	if best.is_empty() or str(best.get("status", "")) == Quest.STATUS_STORY:
+		# Unresolved leftover (Stay Many) outranks standing-wet Superpose.
+		# Coast Superpose only when no waiting catalog row remains.
+		if not waiting_arc_offer().is_empty():
+			return _waiting_arc_line()
+		if not _unsigned_coast_field_offer().is_empty():
+			return _coast_field_walk_line()
+		var wet := _standing_wet_country_line()
+		if wet != "":
+			return wet
 		return _waiting_arc_line()
 	return _decorate_objective(best)
 
@@ -501,6 +577,7 @@ static func waiting_arc_offer() -> Dictionary:
 	var farm = _active_farm()
 	var fired: Dictionary = farm.story_flags_fired if farm != null and "story_flags_fired" in farm else {}
 	var acts := {}
+	var camps := {}
 	var blocking := {}
 	if qm.has_method("get_all_story_flags"):
 		for f in qm.get_all_story_flags():
@@ -508,6 +585,7 @@ static func waiting_arc_offer() -> Dictionary:
 				continue
 			var fid := str(f.get("id", ""))
 			acts[fid] = int(f.get("act", 0))
+			camps[fid] = str(f.get("campaign", "demos"))
 			if fired.has(fid):
 				continue
 			for p in f.get("predicates", []):
@@ -519,7 +597,23 @@ static func waiting_arc_offer() -> Dictionary:
 		if not (q is Dictionary) or str(q.get("category", "")) != "ARC":
 			continue
 		var src := str(q.get("source_flag", ""))
-		var rank := int(acts.get(src, 99)) + (0 if blocking.has(src) else 1000)
+		if src != "" and fired.has(src):
+			# Spent leftover (child fired / claimed). Unresolved leftover
+			# (Stay Many, Bring Light In) still needs Accept.
+			if not qm.has_method("flag_door_is_resolved") \
+					or bool(qm.flag_door_is_resolved(src)):
+				continue
+		# Unfired live door outranks leftover catalog. lanternfall
+		# outranks loom when both open after island_free.
+		var leftover := 2000 if (src != "" and fired.has(src)) else 0
+		var camp := str(camps.get(src, "demos"))
+		var camp_pen := 0
+		if camp == "loom":
+			camp_pen = 500
+		elif camp == "demos":
+			camp_pen = 100
+		var rank := leftover + camp_pen + int(acts.get(src, 99)) \
+				+ (0 if blocking.has(src) else 1000)
 		if rank < best_rank:
 			best_rank = rank
 			best = q
@@ -530,12 +624,51 @@ static func _waiting_arc_line() -> String:
 	var q := waiting_arc_offer()
 	if q.is_empty():
 		return ""
+	var om = _overlay_manager()
+	if om != null and om.has_method("is_event_home_open") and bool(om.is_event_home_open("arc")):
+		# Name the waiting leftover's GHJKL; row. Blind [R] Accept plus
+		# grind G-inject signed Sign and Settle (row G) while Fill the
+		# Urn sat on L. SurfaceRooms: ▸ [R] Accept the [L] Teaching.
+		var row := _waiting_arc_row_key()
+		if row != "":
+			return SurfaceRooms.row_item_cue("X", "[R] Accept", row)
+		return "▸ [R] Accept the teaching"
+	if _story_surface_open():
+		return "▸ Arc [I], then Accept [R]"
 	var title := str(q.get("body", "")).split(" — ")[0].strip_edges()
 	var tail := " waits — 📖 [X], Arc [I], Accept [R]"
 	var room := OBJECTIVE_MAX_CHARS - tail.length() - 2
 	if title.length() > room:
 		title = title.substr(0, maxi(room - 1, 8)).strip_edges() + "…"
 	return "📜 " + title + tail
+
+
+## Arc GHJKL; letter for waiting_arc_offer(). Same catalog as
+## ControlsOverlay._arc_rows() (IntroVoice.doors_ahead). Empty when the
+## waiting leftover is not in the six-row window.
+static func _waiting_arc_row_key() -> String:
+	var q := waiting_arc_offer()
+	if q.is_empty():
+		return ""
+	var rows := IntroVoice.doors_ahead(6, _quest_manager(), _active_farm())
+	var want_id := int(q.get("id", -1))
+	var want_src := str(q.get("source_flag", "")).strip_edges()
+	var keys := ["G", "H", "J", "K", "L", ";", "'"]
+	for i in range(mini(rows.size(), keys.size())):
+		var entry = rows[i]
+		if not (entry is Dictionary):
+			continue
+		var data = entry.get("data", {})
+		if not (data is Dictionary):
+			data = {}
+		if want_id >= 0 and int(data.get("id", -2)) == want_id:
+			return str(keys[i])
+		if want_src != "" and str(data.get("source_flag", "")) == want_src:
+			return str(keys[i])
+		var want_body := str(q.get("body", "")).strip_edges()
+		if want_body != "" and str(data.get("body", "")).strip_edges() == want_body:
+			return str(keys[i])
+	return ""
 
 
 ## Visual companion to objective_text() — which literal key is the next thing
@@ -735,6 +868,8 @@ static func _decorate_objective(q: Dictionary) -> String:
 		return _braid_walk_line()
 	if _is_berry_ask(q):
 		return _berry_walk_line(q)
+	if _is_spark_ask(q):
+		return _spark_walk_line()
 	return IntroVoice.ask_line(q)
 
 
@@ -849,6 +984,28 @@ static func _instrument():
 	return null
 
 
+static func _instrument_input():
+	var ml := Engine.get_main_loop()
+	if not (ml is SceneTree):
+		return null
+	var shells := (ml as SceneTree).get_nodes_in_group("player_shell")
+	if shells.is_empty():
+		return null
+	var shell = shells[0]
+	if shell != null and "instrument_input" in shell:
+		return shell.instrument_input
+	return null
+
+
+static func _cull_confirm_pending() -> bool:
+	# Captain Q arms Cull; any other key cancels. Grind mashed Q and
+	# never F. Name the confirm key while the chord is live.
+	var qii = _instrument_input()
+	if qii == null or not qii.has_method("has_pending_confirm"):
+		return false
+	return bool(qii.has_pending_confirm())
+
+
 static func _checked_count() -> int:
 	var inst = _instrument()
 	if inst == null or not ("checked_plots" in inst):
@@ -885,15 +1042,518 @@ static func _is_plant_ask(q: Dictionary) -> bool:
 
 
 static func _is_discover_ask(q: Dictionary) -> bool:
+	# biome_evolving is the authored Chart ask. biome_state_gte on a
+	# locked biome is the same mill (the_chain_tested: 🌉 in Lanternfall
+	# after the coast was culled for Shrine). Teaching 🪔 is unlocked.
+	for pred in q.get("state_predicates", []):
+		if not (pred is Dictionary):
+			continue
+		var t := str(pred.get("type", ""))
+		if t != "biome_evolving" and t != "biome_state_gte":
+			continue
+		var b := str(pred.get("biome", "")).strip_edges()
+		if b != "" and not _biome_unlocked(b):
+			return true
+	return false
+
+
+static func _is_coast_field_ask(q: Dictionary) -> bool:
+	# Discover quest whose coast is already on the spindle. Remaining
+	# preds are field work (Bring Light In: Superpose in GildedRot).
+	if q.is_empty() or _is_discover_ask(q):
+		return false
 	for pred in q.get("state_predicates", []):
 		if not (pred is Dictionary):
 			continue
 		if str(pred.get("type", "")) != "biome_evolving":
 			continue
 		var b := str(pred.get("biome", "")).strip_edges()
-		if b != "" and not _biome_unlocked(b):
+		if b != "" and _biome_unlocked(b):
 			return true
 	return false
+
+
+static func _unsigned_coast_field_offer() -> Dictionary:
+	var qm := _quest_manager()
+	if qm == null or not qm.has_method("get_story_offers"):
+		return {}
+	for q in qm.get_story_offers():
+		if q is Dictionary and _is_coast_field_ask(q) and _preds_still_open(q):
+			return q
+	return {}
+
+
+static func _coast_field_biome(q: Dictionary) -> String:
+	for pred in q.get("state_predicates", []):
+		if not (pred is Dictionary):
+			continue
+		if str(pred.get("type", "")) != "biome_evolving":
+			continue
+		var b := str(pred.get("biome", "")).strip_edges()
+		if b != "":
+			return b
+	return ""
+
+
+static func _is_fade_ask(q: Dictionary) -> bool:
+	# the_gray: Superpose, then wait while the Bath drinks. Berry
+	# Incorporate is a later predicate, not the mill.
+	if q.is_empty():
+		return false
+	if str(q.get("source_flag", "")).strip_edges() == "the_gray":
+		return true
+	for pred in q.get("state_predicates", []):
+		if pred is Dictionary and str(pred.get("type", "")) == "coherence_fell":
+			return true
+	return false
+
+
+static func _unsigned_fade_offer() -> Dictionary:
+	var qm := _quest_manager()
+	if qm == null or not qm.has_method("get_story_offers"):
+		return {}
+	for q in qm.get_story_offers():
+		if q is Dictionary and _is_fade_ask(q) and _preds_still_open(q):
+			return q
+	return {}
+
+
+static func _accepted_fade_quest() -> Dictionary:
+	# After Accept, Watch It Fade leaves story_offers. Leftover braid
+	# Two Chores then milled [J] and never planted the fade pole.
+	var qm := _quest_manager()
+	if qm == null or not ("active_quests" in qm):
+		return {}
+	for q in qm.active_quests.values():
+		if q is Dictionary and _is_fade_ask(q):
+			return q
+	return {}
+
+
+static func _wait_for_fade_line() -> String:
+	# Ace [F] Fast-Fwd while it fades. Ace E is pause. Do not mash
+	# Druid E (H²=I undoes the Superpose the Bath is drinking).
+	if _in_icon_submenu() or _menu_open():
+		return "▸ ESC closes"
+	if str(ToolConfig.get_current_frame()) != ToolConfig.FRAME_ACE:
+		return "▸ [8] Ace — wait for the fade"
+	if _sim_paused():
+		return "▸ [F] Play"
+	return "▸ [F] Fast-Fwd while it fades"
+
+
+static var _fade_saw_equator: bool = false
+static var _urn_saw_equator: bool = false
+
+
+static func _col_is_pole(col: int) -> bool:
+	# Known |z|>0.25 is a pole Hadamard can mint equator from. Unknown
+	# bloch is not a pole — mill remashed E (H²=I) when viz flickered.
+	if col < 0 or not _bloch_known(col):
+		return false
+	if _already_superposed(col):
+		return false
+	return absf(_plot_bloch_z(col)) > 0.25
+
+
+static func _pole_plot_key() -> String:
+	# Any occupied GildedRot plot still on a pole, including a freshly
+	# planted known word. Inject does not bind a probe; mixed leftover
+	# 🌹/🎭 are skipped. Empty plant seats have no axis.
+	var bname := _active_biome_name()
+	for i in range(PLOT_HOMEROW.length()):
+		var k := _col_key(i)
+		if k == "":
+			continue
+		var pair := _plot_axis_pair(bname, k)
+		if pair == "":
+			continue
+		var wet := false
+		for g in ["🌹", "🎭", "💃", "🍷", "🌉"]:
+			if g in pair:
+				wet = true
+				break
+		if not wet:
+			continue
+		if _col_is_pole(i):
+			return k
+	return ""
+
+
+static func _equator_plot_key() -> String:
+	# Already-superposed occupied plot. A new 🌉 may boot on the equator;
+	# mill Fast-Fwds it instead of planting another seat.
+	var bname := _active_biome_name()
+	for i in range(PLOT_HOMEROW.length()):
+		var k := _col_key(i)
+		if k == "":
+			continue
+		var pair := _plot_axis_pair(bname, k)
+		if pair == "":
+			continue
+		var wet := false
+		for g in ["🌹", "🎭", "💃", "🍷", "🌉"]:
+			if g in pair:
+				wet = true
+				break
+		if not wet:
+			continue
+		if _already_superposed(i):
+			return k
+	return ""
+
+
+static func _fade_plant_atom() -> String:
+	# Icon picker is known_icons. 🌹/🎭 are biome-native, not taught.
+	for atom in ["🌉", "🌾", "🐺", "💀"]:
+		if _icon_known(atom):
+			return atom
+	return ""
+
+
+static func _wet_workpiece_key() -> String:
+	# Fresh 🌉 (ρ ⊗ |0⟩ then Hadamard) is the watermark peak. Leftover
+	# 🌹 Hadamard left coherence at 0.16. After equator, mill T₂ masks.
+	var lantern := _register_plot_key("GildedRot", "🌉")
+	if lantern == "":
+		lantern = _glyph_plot_key("🌉", "GildedRot", false)
+	if lantern != "" and not _fade_saw_equator:
+		return lantern
+	if not _fade_saw_equator:
+		var rose0 := _glyph_plot_key("🌹", "GildedRot", false)
+		if rose0 != "":
+			var rose_tok0 := ";" if rose0 == ";" else rose0.to_upper()
+			var rose_col0 := PLOT_HOMEROW.find(rose_tok0)
+			if rose_col0 >= 0 and (_col_is_pole(rose_col0) or not _bloch_known(rose_col0)):
+				return rose0
+		var pole0 := _pole_plot_key()
+		if pole0 != "":
+			return pole0
+	if lantern != "":
+		return lantern
+	for glyph0 in ["🎭", "💃", "🍷"]:
+		var g0 := _glyph_plot_key(glyph0, "GildedRot", false)
+		if g0 != "":
+			return g0
+	var rose := _glyph_plot_key("🌹", "GildedRot", false)
+	if rose != "":
+		var rose_tok := ";" if rose == ";" else rose.to_upper()
+		var rose_col := PLOT_HOMEROW.find(rose_tok)
+		if rose_col >= 0 and _col_is_pole(rose_col):
+			return rose
+	for glyph in ["🎭", "💃", "🍷"]:
+		var g := _glyph_plot_key(glyph, "GildedRot", false)
+		if g == "":
+			continue
+		var tok := ";" if g == ";" else g.to_upper()
+		var c := PLOT_HOMEROW.find(tok)
+		if c >= 0 and _col_is_pole(c):
+			return g
+	var pole := _pole_plot_key()
+	if pole != "":
+		return pole
+	var equator := _equator_plot_key()
+	if equator != "":
+		return equator
+	for glyph in ["🎭", "💃", "🍷"]:
+		var g2 := _glyph_plot_key(glyph, "GildedRot", false)
+		if g2 != "":
+			return g2
+	if rose != "":
+		return rose
+	if _plot_bound(_focused_col()):
+		return _col_key(_focused_col())
+	return "G"
+
+
+static func _bloch_of(col: int) -> Dictionary:
+	var farm = _active_farm()
+	var bname := _active_biome_name()
+	if farm == null or farm.grid == null or bname == "" or col < 0:
+		return {}
+	var biome = farm.grid.get_biome(bname) if farm.grid.has_method("get_biome") else null
+	if biome == null or biome.viz_cache == null or not biome.viz_cache.has_method("get_bloch"):
+		return {}
+	var bloch: Dictionary = biome.viz_cache.get_bloch(col)
+	return bloch if bloch is Dictionary else {}
+
+
+static func _bloch_known(col: int) -> bool:
+	# Headless viz_cache can be empty. Empty is unknown, not mixed gray.
+	return not _bloch_of(col).is_empty()
+
+
+static func _off_pole(col: int) -> bool:
+	# Wet-country dephasing drinks x,y toward 0 while z stays. |x|>0.25
+	# then goes false and mill mashed E (H²=I). Off-pole is the fade.
+	var bloch := _bloch_of(col)
+	if bloch.is_empty():
+		return false
+	if absf(float(bloch.get("x", 0.0))) > 0.25 \
+			or absf(float(bloch.get("y", 0.0))) > 0.25:
+		return true
+	return absf(float(bloch.get("z", 1.0))) < 0.7
+
+
+static func _fade_has_drunk(q: Dictionary) -> bool:
+	# coherence_fell + purity_at_most both hold. Berry is the remainder.
+	var qm := _quest_manager()
+	if qm == null or not qm.has_method("evaluate_predicate_score"):
+		return false
+	var need := 0
+	var held := 0
+	for pred in q.get("state_predicates", []):
+		if not (pred is Dictionary):
+			continue
+		var t := str(pred.get("type", ""))
+		if t != "coherence_fell" and t != "purity_at_most":
+			continue
+		need += 1
+		if float(qm.evaluate_predicate_score(pred)) >= 0.85:
+			held += 1
+	return need > 0 and held >= need
+
+
+static func _fade_walk_line() -> String:
+	var q := _banner_quest()
+	# Unsigned Watch It Fade: mill Accept, not overlay ESC. ESC here
+	# ping-ponged grind X/I/ESC and never signed the door.
+	if str(q.get("status", "")) == Quest.STATUS_STORY:
+		return _waiting_arc_line()
+	# Leftover 🌹/🎭 are mixed. Superpose cannot mint equator. Plant a
+	# known word on an empty seat so Hadamard has a pole. Pick 🌉 inside
+	# the Icon submenu — ESC here ping-ponged grind R/ESC and never planted.
+	# Leftover GildedRot is already gray (coherence ~0.16). Hadamard on
+	# leftover 🌹 does not peak 0.3. Plant 🌉 (ρ ⊗ |0⟩) then Superpose it.
+	if not _fade_has_drunk(q) and not _atom_in_biome("GildedRot", "🌉"):
+		var atom := _fade_plant_atom()
+		if atom != "" and (_in_icon_submenu() or _empty_plot_exists("GildedRot")):
+			return _named_atom_plant_line("GildedRot", atom)
+	if _in_icon_submenu() or _menu_open():
+		return "▸ ESC closes"
+	var cross := _cross_to("GildedRot")
+	if cross != "":
+		return cross
+	var col := _focused_col()
+	# Leftover Superpose on 🌹 keeps biome coherence up. Strike it only
+	# when 🌉 is not on the register — planted lantern is the workpiece.
+	if _register_plot_key("GildedRot", "🌉") == "":
+		var rose_key := _glyph_plot_key("🌹", "GildedRot", false)
+		if rose_key != "":
+			var rose_tok := ";" if rose_key == ";" else rose_key.to_upper()
+			var rose_col := PLOT_HOMEROW.find(rose_tok)
+			if rose_col >= 0 and _already_superposed(rose_col):
+				if col != rose_col:
+					return "▸ [%s]" % rose_tok
+				if str(ToolConfig.get_current_frame()) != ToolConfig.FRAME_ACE:
+					return "▸ [8] Ace — collapse the rose"
+				return "▸ [R] Strike — collapse the rose"
+	var want := _wet_workpiece_key()
+	var token := ";" if want == ";" else want.to_upper()
+	var want_col := PLOT_HOMEROW.find(token) if want != "" else -1
+	if want != "" and col != want_col:
+		return "▸ [%s]" % token
+	# Superpose a leftover pole once so the session watermark can pass 0.3.
+	# Do not latch leftover mixed 🎭 — that skipped Hadamard while coherence
+	# was already 0.16. Latch only when mill names [E].
+	if _fade_saw_equator and not _fade_has_drunk(q):
+		return _wait_for_fade_line()
+	var need_h := (_col_is_pole(col) or not _bloch_known(col)) \
+			and not _already_superposed(col) and not _fade_has_drunk(q)
+	if need_h:
+		if str(ToolConfig.get_current_frame()) != ToolConfig.FRAME_DRUID:
+			return "▸ [0] Druid"
+		_fade_saw_equator = true
+		return "▸ [E] Superpose"
+	if not _fade_has_drunk(q):
+		return _wait_for_fade_line()
+	return _berry_walk_line(q)
+
+
+static func _is_spark_ask(q: Dictionary) -> bool:
+	# the_verbs_come_home: one Spark jolt in wet country.
+	if q.is_empty():
+		return false
+	if str(q.get("source_flag", "")).strip_edges() == "the_verbs_come_home":
+		return true
+	for pred in q.get("state_predicates", []):
+		if not (pred is Dictionary):
+			continue
+		if str(pred.get("type", "")) != "gate_sequence_contains":
+			continue
+		if str(pred.get("gate", "")).strip_edges().to_lower() == "spark":
+			return true
+	return false
+
+
+static func _biome_is_open_here(name: String) -> bool:
+	var farm = _active_farm()
+	if farm == null or farm.grid == null or name.strip_edges() == "":
+		return false
+	if not farm.grid.has_method("get_biome"):
+		return false
+	var b = farm.grid.get_biome(name)
+	if b == null or b.quantum_computer == null:
+		return false
+	if b.quantum_computer.has_method("is_open_here"):
+		return bool(b.quantum_computer.is_open_here())
+	return str(b.quantum_computer.get("regime_override")) == "open"
+
+
+static func _spark_walk_line() -> String:
+	# Spark hat (4), ⚡ mode: wet plot, R jolts north. Enclave chips grey.
+	if _in_icon_submenu() or _menu_open():
+		return "▸ ESC closes"
+	var here := _active_biome_name()
+	if not _biome_is_open_here(here):
+		for name in ["ZenoLatch", "GildedRot", "ShrineOfAshes"]:
+			if _biome_unlocked(name):
+				var cross := _cross_to(name)
+				if cross != "":
+					return cross
+				break
+	if str(ToolConfig.get_current_frame()) != ToolConfig.FRAME_SPARK:
+		return "▸ [4] Spark"
+	if int(ToolConfig.get_frame_mode_index(ToolConfig.FRAME_SPARK)) != 0:
+		return "▸ [1] ⚡"
+	# Hat 4 leave_plot_ring clears current_plot_idx. Sticky last-selected
+	# is not a Spark seat — mill named [R] and grind no-op mashed it.
+	var live := -1
+	var inst = _instrument()
+	if inst != null and "current_plot_idx" in inst:
+		live = int(inst.current_plot_idx)
+	if live != 0:
+		return "▸ [G]"
+	return "▸ [R] jolt north"
+
+
+static func _coast_field_walk_line() -> String:
+	# Chart landed. Name one field key. Leftover [X] then Arc toasts are
+	# not the mill. Slots-full cull is not the mill.
+	var q := _banner_quest()
+	if q.is_empty() or not _is_coast_field_ask(q):
+		q = _unsigned_coast_field_offer()
+	# Unsigned leftover (The Bridge Holds after the_chain_tested FLAG)
+	# signs on Arc. Overlay ESC here ping-ponged grind X/I/ESC.
+	if str(q.get("status", "")) == Quest.STATUS_STORY:
+		return _waiting_arc_line()
+	var coast := _coast_field_biome(q)
+	# Plant 🌉 before overlay ESC. Icon submenu mill ESC ping-ponged
+	# grind R/ESC and never planted (fade walk already does this).
+	if (coast == "Lanternfall" \
+			or str(q.get("source_flag", "")).strip_edges() == "the_chain_tested") \
+			and not _atom_in_biome("Lanternfall", "🌉"):
+		if _in_icon_submenu() or _empty_plot_exists("Lanternfall"):
+			return _named_atom_plant_line("Lanternfall", "🌉")
+	if _in_icon_submenu() or _menu_open():
+		return "▸ ESC closes"
+	if coast != "":
+		var cross := _cross_to(coast)
+		if cross != "":
+			return cross
+	var col := _focused_col()
+	# Fill the Urn: gated 💀→⚱ is shut at leftover north pole. Superpose
+	# once to seed the gate, then Fast-Fwd so the basin fills itself.
+	# Remashing E after that is H²=I (grind froze 8× Superpose).
+	var coast_name := _coast_field_biome(q)
+	if coast_name == "ShrineOfAshes" \
+			or str(q.get("source_flag", "")).strip_edges() == "the_basin":
+		var urn := _glyph_plot_key("⚱", "ShrineOfAshes", false)
+		if urn == "":
+			urn = _glyph_plot_key("💀", "ShrineOfAshes", false)
+		var token := "G"
+		var want_col := 0
+		if urn != "":
+			token = ";" if urn == ";" else urn.to_upper()
+			want_col = PLOT_HOMEROW.find(token)
+		# Sticky last-selected is Village mill G (empty). Superpose there
+		# no-ops; 💀 stays 1. Seat Shrine's leftover 💀⚱ first.
+		var here := ""
+		var live := -1
+		var inst = _instrument()
+		if inst != null:
+			if "current_biome" in inst:
+				here = str(inst.current_biome)
+			if "current_plot_idx" in inst:
+				live = int(inst.current_plot_idx)
+		if here != "ShrineOfAshes" or live != want_col:
+			return "▸ [%s] the urn" % token
+		# One Superpose seeds the gate. Unknown bloch is not "off pole" —
+		# mill skipped E and Fast-Fwd'd leftover 💀=1. Do not latch on
+		# naming Superpose: grind inject/look then skipped E. After H
+		# lands, off-pole mill Fast-Fwds. A remash is grind's freeze.
+		if _col_is_pole(col) or not _bloch_known(col):
+			if str(ToolConfig.get_current_frame()) != ToolConfig.FRAME_DRUID:
+				return "▸ [0] Druid"
+			return "▸ [E] Superpose — seed the urn"
+		if str(ToolConfig.get_current_frame()) != ToolConfig.FRAME_ACE:
+			return "▸ [8] Ace — the urn fills"
+		if _sim_paused():
+			return "▸ [F] Play"
+		return "▸ [F] Fast-Fwd — the urn fills"
+	# The Bridge Holds: FLAG fired without 🌉 on Lanternfall (🪔🗼 sat
+	# on G). Fast-Fwd on the leftover lamp never made Claim READY.
+	if coast_name == "Lanternfall" \
+			or str(q.get("source_flag", "")).strip_edges() == "the_chain_tested":
+		if not _atom_in_biome("Lanternfall", "🌉"):
+			return _named_atom_plant_line("Lanternfall", "🌉")
+		var br := _glyph_plot_key("🌉", "Lanternfall", false)
+		if br != "":
+			var br_tok := ";" if br == ";" else br.to_upper()
+			var br_col := PLOT_HOMEROW.find(br_tok)
+			if col != br_col:
+				return "▸ [%s] the bridge" % br_tok
+			if _col_is_pole(col) or not _bloch_known(col):
+				if str(ToolConfig.get_current_frame()) != ToolConfig.FRAME_DRUID:
+					return "▸ [0] Druid"
+				return "▸ [E] Superpose — hold the bridge"
+		if str(ToolConfig.get_current_frame()) != ToolConfig.FRAME_ACE:
+			return "▸ [8] Ace — the bridge holds"
+		if _sim_paused():
+			return "▸ [F] Play"
+		return "▸ [F] Fast-Fwd — the bridge holds"
+	# After one Superpose the Bloch is off the pole. Remashing E is H²=I.
+	var off_pole := _bloch_known(col) and not _col_is_pole(col)
+	if _already_superposed(col) or off_pole:
+		# the_crossing wants coherence AT LEAST 0.3 — Fast-Fwd drinks it.
+		# Unsigned leftover mills Accept; fade asks wait. Do not mill
+		# Druid E here (H²=I undoes the Superpose).
+		if _is_fade_ask(q):
+			return _wait_for_fade_line()
+		if str(q.get("status", "")) == Quest.STATUS_STORY:
+			var arc := _waiting_arc_line()
+			if arc != "":
+				return arc
+		if str(ToolConfig.get_current_frame()) != ToolConfig.FRAME_ACE:
+			return "▸ [8] Ace — hold the coast"
+		if _sim_paused():
+			return "▸ [F] Play"
+		return "▸ [F] Fast-Fwd"
+	if str(ToolConfig.get_current_frame()) != ToolConfig.FRAME_DRUID:
+		return "▸ [0] Druid"
+	return "▸ [E] Superpose"
+
+
+static func _standing_wet_country_line() -> String:
+	# After Chart GildedRot the leftover discover offer may not be in
+	# story_offers. Standing in the wet country is Bring Light In.
+	var abm := _active_biome_manager()
+	if abm == null or str(abm.get_active_biome()) != "GildedRot":
+		return ""
+	if _in_icon_submenu() or _menu_open():
+		return "▸ ESC closes"
+	var col := _focused_col()
+	if _already_superposed(col):
+		var q := _banner_quest()
+		if _is_fade_ask(q) or not _unsigned_fade_offer().is_empty():
+			return _wait_for_fade_line()
+		var arc := _waiting_arc_line()
+		if arc != "":
+			return arc
+		return _wait_for_fade_line()
+	if str(ToolConfig.get_current_frame()) != ToolConfig.FRAME_DRUID:
+		return "▸ [0] Druid"
+	return "▸ [E] Superpose"
 
 
 static func _is_teaching_ask(q: Dictionary) -> bool:
@@ -1144,12 +1804,15 @@ static func _sprout_plot_key() -> String:
 	return _glyph_plot_key("🌱")
 
 
-static func _glyph_plot_key(glyph: String) -> String:
+static func _glyph_plot_key(glyph: String, biome_name: String = "", scout: bool = true) -> String:
 	# Fog-honest: name a glyph bubble only when a sighted player can read it.
 	# Wave 20: Forest G is 🐺🦌 — never call that a 🌱 plot. Scout unrevealed
 	# live plots (H J K L) until the glyph shows. Empty columns (;) are plant seats.
+	# scout=false: fade mill. Fog J is not a 🌉.
 	var farm = _active_farm()
-	var bname := _active_biome_name()
+	var bname := biome_name.strip_edges()
+	if bname == "":
+		bname = _active_biome_name()
 	if farm == null or farm.grid == null or bname == "":
 		return ""
 	var biome = farm.grid.get_biome(bname) if farm.grid.has_method("get_biome") else null
@@ -1184,6 +1847,8 @@ static func _glyph_plot_key(glyph: String) -> String:
 	sprout_cols.sort()
 	if not sprout_cols.is_empty():
 		return _col_key(int(sprout_cols[0]))
+	if not scout:
+		return ""
 	scout_cols.sort()
 	if not scout_cols.is_empty():
 		return _col_key(int(scout_cols[0]))
@@ -1205,6 +1870,15 @@ static func _focused_col() -> int:
 		if pos is Vector2i and int(pos.x) >= 0:
 			return int(pos.x)
 	return -1
+
+
+static func _live_plot_key() -> String:
+	# Hat switch 5 clears current_plot_idx. Sticky last-selected is not a
+	# focused plant seat — mill must name GHJKL; again before Icon R.
+	var inst = _instrument()
+	if inst == null or not ("current_plot_idx" in inst):
+		return ""
+	return _col_key(int(inst.current_plot_idx))
 
 
 static func _active_biome_name() -> String:
@@ -1333,8 +2007,10 @@ static func _already_superposed(col: int) -> bool:
 	var bloch: Dictionary = biome.viz_cache.get_bloch(col)
 	if bloch.is_empty():
 		return false
-	return absf(float(bloch.get("x", 0.0))) > 0.25 \
-			or absf(float(bloch.get("y", 0.0))) > 0.25
+	# Dawn kick is Ry(0.35) → |x|≈0.34. That is not Hadamard. 0.25 milled
+	# wait-for-fade on a planted 🌉 and never peaked the watermark.
+	return absf(float(bloch.get("x", 0.0))) > 0.5 \
+			or absf(float(bloch.get("y", 0.0))) > 0.5
 
 
 static func _sim_paused() -> bool:
@@ -1348,11 +2024,40 @@ static func _sim_paused() -> bool:
 	return shell != null and ("paused" in shell) and bool(shell.paused)
 
 
+static func ace_f_keeps_fast_fwd() -> bool:
+	# Ace F on an unbound leftover plot remaps to Explore (chip resolver).
+	# Fill the Urn needs time-skip so the gated 💀→⚱ basin can tick.
+	# Berry Track already Fast-Fwds the ripen; Explore would drop the loop.
+	if _berry_tracking():
+		return true
+	var q := _banner_quest()
+	if q.is_empty():
+		q = _unsigned_coast_field_offer()
+	if str(q.get("source_flag", "")).strip_edges() == "the_basin":
+		return true
+	if _coast_field_biome(q) == "ShrineOfAshes":
+		return true
+	# The Bridge Holds: planted 🌉 is unbound fog. Explore steals F;
+	# Fast-Fwd never dephases so Claim never READY.
+	if str(q.get("source_flag", "")).strip_edges() == "the_chain_tested":
+		return true
+	if _coast_field_biome(q) == "Lanternfall":
+		return true
+	return false
+
+
 static func ace_f_would_explore() -> bool:
 	# Toast must not own F when Ace F is Explore (wave 19 dual-F).
 	if str(ToolConfig.get_current_frame()) != ToolConfig.FRAME_ACE:
 		return false
 	if _menu_open() or _in_icon_submenu():
+		return false
+	# Live berry Track: Ace F Fast-Fwds the ripen. Explore would drop the loop.
+	if _berry_tracking():
+		return false
+	# Fill the Urn: leftover 💀 is unbound fog. Explore steals F; the
+	# gated basin never ticks. Keep Fast-Fwd.
+	if ace_f_keeps_fast_fwd():
 		return false
 	var col := _focused_col()
 	if col < 0:
@@ -1417,6 +2122,274 @@ static func _sprout_gather_line() -> String:
 	if got != "":
 		return "▸ [Q] take %s" % got
 	return "▸ [Q] gather"
+
+
+static func _icon_known(atom: String) -> bool:
+	var farm = _active_farm()
+	if farm == null or not ("known_icons" in farm):
+		return false
+	var want := atom.strip_edges()
+	if want == "":
+		return false
+	for pair in farm.known_icons:
+		if pair is Dictionary:
+			if str(pair.get("north", "")) == want or str(pair.get("south", "")) == want:
+				return true
+		elif pair is Array:
+			for g in pair:
+				if str(g) == want:
+					return true
+		elif want in str(pair):
+			return true
+	return false
+
+
+static func _atom_in_biome(biome: String, atom: String) -> bool:
+	return _register_plot_key(biome, atom) != ""
+
+
+static func _register_plot_key(biome: String, atom: String) -> String:
+	# RegisterMap is truth. Viz cache lags inject and scouts fog.
+	var farm = _active_farm()
+	if farm == null or farm.grid == null or not farm.grid.has_method("get_biome"):
+		return ""
+	var b = farm.grid.get_biome(biome)
+	if b == null or b.get("quantum_computer") == null:
+		return ""
+	var qc = b.quantum_computer
+	if qc == null or qc.register_map == null:
+		return ""
+	var want := atom.strip_edges()
+	if want == "" or not qc.register_map.coordinates.has(want):
+		return ""
+	var qid := -1
+	if qc.register_map.has_method("qubit"):
+		qid = int(qc.register_map.qubit(want))
+	else:
+		qid = int(qc.register_map.coordinates[want].get("qubit", -1))
+	if qid < 0:
+		return ""
+	return _col_key(qid)
+
+
+static func _live_atom_plant_line() -> String:
+	# First unfired in-lane flag whose story_flag_set prereqs are met and
+	# whose remaining predicate is atom_in_biome — compiled from campaign
+	# flags, not a second walk table. 🏭 must already be a known word.
+	var qm := _quest_manager()
+	var farm = _active_farm()
+	if qm == null or farm == null or not qm.has_method("get_all_story_flags"):
+		return ""
+	if not ("story_flags_fired" in farm):
+		return ""
+	var fired: Dictionary = farm.story_flags_fired
+	for flag in qm.get_all_story_flags():
+		if not (flag is Dictionary):
+			continue
+		if str(flag.get("campaign", "demos")) != "demos":
+			continue
+		var fid := str(flag.get("id", ""))
+		if fid == "" or fired.has(fid):
+			continue
+		var atom := ""
+		var biome := ""
+		var prereqs_met := true
+		for pred in flag.get("predicates", []):
+			if not (pred is Dictionary):
+				continue
+			var t := str(pred.get("type", ""))
+			if t == "story_flag_set" and not fired.has(str(pred.get("id", ""))):
+				prereqs_met = false
+				break
+			if t == "atom_in_biome":
+				atom = str(pred.get("atom", "")).strip_edges()
+				biome = str(pred.get("biome", "")).strip_edges()
+		if not prereqs_met or atom == "" or biome == "":
+			continue
+		if _atom_in_biome(biome, atom):
+			continue
+		if not _icon_known(atom):
+			return ""
+		return _named_atom_plant_line(biome, atom)
+	return ""
+
+
+static func _icon_pick_line(atom: String) -> String:
+	var inst = _instrument()
+	if inst == null or not ("current_submenu_data" in inst):
+		return "▸ [R] plant %s" % atom
+	var data = inst.current_submenu_data
+	if not (data is Dictionary):
+		return "▸ [R] plant %s" % atom
+	var actions = data.get("actions", {})
+	if actions is Dictionary:
+		for k in ["Q", "E", "R"]:
+			if not actions.has(k):
+				continue
+			var act = actions[k]
+			if not (act is Dictionary):
+				continue
+			var blob := str(act.get("label", ""))
+			var icon = act.get("icon", {})
+			if icon is Dictionary:
+				blob += str(icon.get("north", "")) + str(icon.get("south", ""))
+			if atom in blob:
+				return "▸ [%s] plant %s" % [k, atom]
+	if int(data.get("max_pages", 1)) > 1:
+		return "▸ [F] page for %s" % atom
+	return "▸ [R] plant %s" % atom
+
+
+static func _named_atom_plant_line(biome: String, atom: String) -> String:
+	var cross := _cross_to(biome)
+	if cross != "":
+		return cross
+	if _in_icon_submenu():
+		return _icon_pick_line(atom)
+	if _menu_open():
+		return "▸ ESC closes"
+	var slot := _empty_plot_key() if _empty_plot_exists(biome) else _blank_plant_key(biome)
+	if slot == "":
+		slot = _non_mill_plot_key(biome)
+	if slot == "":
+		slot = "G"
+	if str(ToolConfig.get_current_frame()) != ToolConfig.FRAME_ICON:
+		return "▸ [5] Icon then plant %s" % atom
+	if _live_plot_key() != slot:
+		return "▸ [%s] then plant %s" % [slot, atom]
+	return "▸ [R] plant %s" % atom
+
+
+static func _plot_axis_pair(biome: String, key: String) -> String:
+	var farm = _active_farm()
+	if farm == null or farm.grid == null or not farm.grid.has_method("get_biome"):
+		return ""
+	var b = farm.grid.get_biome(biome)
+	if b == null:
+		return ""
+	var cache = b.viz_cache if "viz_cache" in b else null
+	if cache == null or not cache.has_method("get_axis"):
+		return ""
+	var keys := "GHJKL;"
+	var col := keys.find(key) if key == ";" else keys.find(key.to_upper())
+	if col < 0:
+		return ""
+	var axis: Dictionary = cache.get_axis(col)
+	return str(axis.get("north", "")) + str(axis.get("south", ""))
+
+
+static func _fog_plant_key(biome: String) -> String:
+	var farm = _active_farm()
+	if farm == null or farm.grid == null or not farm.grid.has_method("get_plot_biome_assignments"):
+		return ""
+	var revealed: Dictionary = {}
+	if "revealed_plots" in farm:
+		for rp in farm.revealed_plots:
+			revealed[rp] = true
+	var cols: Array = []
+	var assignments: Dictionary = farm.grid.get_plot_biome_assignments()
+	for pos in assignments.keys():
+		if str(assignments[pos]) != biome:
+			continue
+		if revealed.has(pos):
+			continue
+		var col := int(pos.x) if pos is Vector2i else int(pos.x)
+		cols.append(col)
+	cols.sort()
+	if cols.is_empty():
+		return ""
+	return _col_key(int(cols[0]))
+
+
+static func _blank_plant_key(biome: String) -> String:
+	# Village G/J/L on the timber wall: blank axis or unbound. Skip mill ⚙/🏭.
+	# Bound leftover-axis fog is Track first — that is not a plant seat.
+	var farm = _active_farm()
+	if farm == null or farm.grid == null or not farm.grid.has_method("get_biome"):
+		return ""
+	var b = farm.grid.get_biome(biome)
+	if b == null or b.quantum_computer == null or b.quantum_computer.register_map == null:
+		return ""
+	if not farm.grid.has_method("get_plot_biome_assignments"):
+		return ""
+	var rm = b.quantum_computer.register_map
+	var pool = farm.terminal_pool if "terminal_pool" in farm else null
+	var assignments: Dictionary = farm.grid.get_plot_biome_assignments()
+	var blanks: Array = []
+	var unbounds: Array = []
+	for pos in assignments.keys():
+		if str(assignments[pos]) != biome:
+			continue
+		var col := int(pos.x) if pos is Vector2i else int(pos.x)
+		if col < 0:
+			continue
+		var ax: Dictionary = rm.axis(col) if rm.has_method("axis") else {}
+		var north := str(ax.get("north", ""))
+		var south := str(ax.get("south", ""))
+		var pair := north + south
+		if "⚙" in pair or "🏭" in pair:
+			continue
+		var bound := false
+		if pool != null and pool.has_method("is_register_bound"):
+			bound = bool(pool.is_register_bound(col, biome))
+		if north == "" or south == "":
+			blanks.append(col)
+		elif not bound:
+			unbounds.append(col)
+	blanks.sort()
+	unbounds.sort()
+	if not blanks.is_empty():
+		return _col_key(int(blanks[0]))
+	if not unbounds.is_empty():
+		return _col_key(int(unbounds[0]))
+	return ""
+
+
+static func _non_mill_plot_key(biome: String) -> String:
+	var farm = _active_farm()
+	if farm == null or farm.grid == null or not farm.grid.has_method("get_biome"):
+		return "G"
+	var b = farm.grid.get_biome(biome)
+	if b == null:
+		return "G"
+	var nq := 0
+	if b.quantum_computer != null and b.quantum_computer.register_map != null:
+		nq = int(b.quantum_computer.register_map.num_qubits)
+	var cache = b.viz_cache if "viz_cache" in b else null
+	var revealed: Dictionary = {}
+	if "revealed_plots" in farm:
+		for rp in farm.revealed_plots:
+			revealed[rp] = true
+	if not farm.grid.has_method("get_plot_biome_assignments"):
+		return "K"
+	var assignments: Dictionary = farm.grid.get_plot_biome_assignments()
+	var empty_key := ""
+	for pos in assignments.keys():
+		if str(assignments[pos]) != biome:
+			continue
+		var col := int(pos.x) if pos is Vector2i else int(pos.x)
+		if col < 0 or col >= nq:
+			continue
+		if not revealed.has(pos):
+			continue
+		var pair := ""
+		if cache != null and cache.has_method("get_axis"):
+			var axis: Dictionary = cache.get_axis(col)
+			pair = str(axis.get("north", "")) + str(axis.get("south", ""))
+		if "⚙" in pair or "🏭" in pair:
+			continue
+		var k := _col_key(col)
+		if k == "":
+			continue
+		if pair == "":
+			if empty_key == "":
+				empty_key = k
+			continue
+		if empty_key == "":
+			return k
+	if empty_key != "":
+		return empty_key
+	return "G"
 
 
 static func _plant_walk_line() -> String:
@@ -1508,7 +2481,13 @@ static func _berry_walk_line(q: Dictionary = {}) -> String:
 		return "▸ [F] Track"
 	if _berry_ripe():
 		return "▸ [R] Incorporate"
-	return "▸ wait — loop ripens (~90s)"
+	# Icon F would stop the live loop. Ace F time-skips the wait.
+	# A keyless ripen line aborted grind (no_followable_key).
+	if wearing != ToolConfig.FRAME_ACE:
+		return "▸ [8] Ace — loop ripens"
+	if _sim_paused():
+		return "▸ [F] Play"
+	return "▸ [F] Fast-Fwd — loop ripens (~90s)"
 
 
 static func _eagle_have() -> float:
@@ -1863,16 +2842,17 @@ static func _basket_pay_line() -> String:
 
 
 static func _named_discover_target() -> String:
-	# Live biome_evolving ask that is not yet on the spindle. lantern_door
-	# wants Lanternfall; the flag predicates carry no biome, so the banner
-	# must read the arc quest. Do not discover for them.
+	# Live Chart ask that is not yet on the spindle. lantern_door wants
+	# Lanternfall via biome_evolving; the_chain_tested via biome_state_gte
+	# after the coast was culled. Do not discover for them.
 	var q := _banner_quest()
 	if q.is_empty() or not _is_discover_ask(q):
 		return ""
 	for pred in q.get("state_predicates", []):
 		if not (pred is Dictionary):
 			continue
-		if str(pred.get("type", "")) != "biome_evolving":
+		var t := str(pred.get("type", ""))
+		if t != "biome_evolving" and t != "biome_state_gte":
 			continue
 		var b := str(pred.get("biome", "")).strip_edges()
 		if b != "" and not _biome_unlocked(b):
@@ -1897,6 +2877,11 @@ static func _discover_walk_line() -> String:
 	# lantern_door: unreadable wallet is eagle-short — fail toward the gather.
 	if _eagle_short():
 		return _eagle_gather_line()
+	var q := _banner_quest()
+	# Unsigned leftover (The Bridge Holds) signs on Arc. Overlay ESC
+	# ping-ponged grind X/I/ESC and never Accepted.
+	if str(q.get("status", "")) == Quest.STATUS_STORY:
+		return _waiting_arc_line()
 	if _in_icon_submenu() or _menu_open():
 		return "▸ ESC closes"
 	if _slots_full():
@@ -2009,9 +2994,32 @@ static func _named_cull_target() -> String:
 static func _cull_walk_line() -> String:
 	# One next key. Name the cull target. Do not cull for them.
 	# Captain Q is Cull; F confirm stays on the destructive chord.
+	var want := _named_cull_target()
+	if want == "Woodlot":
+		var plant := _live_atom_plant_line()
+		if plant != "":
+			return plant
+		# Demos 40/40: leftover discover mill named keep Woodlot with no
+		# followable key. Unsigned Arc is the live catalog. Never cull Woodlot.
+		# Menu-open ESC here ping-ponged grind X/I/ESC and never Accepted.
+		var arc := _waiting_arc_line()
+		if arc != "":
+			return arc
+		# island_free / Demos 40/40: leftover OPEN Arc rows are fired flags.
+		# Keep Woodlot (never cull). An empty board last-resort [C]
+		# ping-ponged grind C/ESC and never named a door.
+		var board := _unsigned_board_offer()
+		if not board.is_empty():
+			return _board_walk_line(board)
+		if _in_icon_submenu() or _menu_open():
+			return "▸ ESC closes"
+		return "▸ slots full — keep Woodlot"
+	if _cull_confirm_pending():
+		if want == "":
+			return "▸ [F] confirms cull"
+		return "▸ [F] confirms cull %s" % want
 	if _in_icon_submenu() or _menu_open():
 		return "▸ ESC closes"
-	var want := _named_cull_target()
 	if want == "":
 		return "▸ slots full — no named cull"
 	var wearing := str(ToolConfig.get_current_frame())
@@ -2119,11 +3127,18 @@ static func _board_walk_line(q: Dictionary) -> String:
 	if board != null and board.has_method("fill_shortfall_cue"):
 		var short := str(board.fill_shortfall_cue(q)).strip_edges()
 		if short != "":
-			if _menu_open() and "Abandon" not in short:
-				return "▸ ESC closes"
-			if _menu_open() and "Abandon" in short:
-				return short.replace("▸ [C] then ", "▸ ")
-			return short
+			# Unpayable held fill (have*2 < need) names [Q] Abandon. That
+			# chip fails the stall. Unsigned Arc / waiting door is the mill.
+			if "Abandon" in short:
+				if _menu_open():
+					return "▸ ESC closes"
+				var arc := _waiting_arc_line()
+				if arc != "":
+					return arc
+			else:
+				if _menu_open():
+					return "▸ ESC closes"
+				return short
 	if not _menu_open():
 		return "▸ [C] opens the board"
 	if board != null and board.has_method("board_walk_cue"):
@@ -2150,13 +3165,13 @@ static func _next_unmarked_plot_key() -> String:
 	return "G"
 
 
-static func _menu_open() -> bool:
+static func _overlay_manager():
 	# Wave 5: find_child("OverlayManager") missed the runtime instance
 	# (added in code, not a scene child). PlayerShell lives in group
 	# "player_shell"; its overlay_manager knows the stack.
 	var ml := Engine.get_main_loop()
 	if not (ml is SceneTree):
-		return false
+		return null
 	var tree := ml as SceneTree
 	var shell: Node = null
 	var shells := tree.get_nodes_in_group("player_shell")
@@ -2164,9 +3179,25 @@ static func _menu_open() -> bool:
 		shell = shells[0]
 	if shell == null and tree.root != null:
 		shell = tree.root.get_node_or_null("/root/FarmView/PlayerShell")
-	if shell == null or not ("overlay_manager" in shell) or shell.overlay_manager == null:
+	if shell == null or not ("overlay_manager" in shell):
+		return null
+	return shell.overlay_manager
+
+
+static func _story_surface_open() -> bool:
+	var om = _overlay_manager()
+	if om == null or not om.has_method("is_event_home_open"):
 		return false
-	var om = shell.overlay_manager
+	return bool(om.is_event_home_open("arc")) \
+		or bool(om.is_event_home_open("story")) \
+		or bool(om.is_event_home_open("self")) \
+		or bool(om.is_event_home_open("guide"))
+
+
+static func _menu_open() -> bool:
+	var om = _overlay_manager()
+	if om == null:
+		return false
 	if om.has_method("is_event_home_open") and bool(om.is_event_home_open("board")):
 		return true
 	return om.has_method("is_overlay_active") and bool(om.is_overlay_active())

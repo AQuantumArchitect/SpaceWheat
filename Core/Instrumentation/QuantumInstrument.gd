@@ -622,6 +622,34 @@ func action_remove_gates(positions: Array[Vector2i]) -> Dictionary:
 # GROUP 4: META ACTIONS
 # ============================================================================
 
+func _register_is_bound(biome, qid: int) -> bool:
+	if terminal_pool == null or biome == null:
+		return false
+	var bname := BiomeBase.type_name(biome)
+	for terminal in terminal_pool.get_all_terminals():
+		if terminal.is_bound and str(terminal.bound_biome_name) == bname \
+				and int(terminal.bound_register_id) == qid:
+			return true
+	return false
+
+
+func _blank_register_id(biome) -> int:
+	# Gathered-empty seats stay inside nq. Plant reuses an unbound register.
+	if biome == null or biome.quantum_computer == null \
+			or biome.quantum_computer.register_map == null:
+		return -1
+	var rm = biome.quantum_computer.register_map
+	var qid := int(current_plot_idx)
+	if qid < 0 or qid >= int(rm.num_qubits):
+		return -1
+	var ax: Dictionary = rm.axis(qid) if rm.has_method("axis") else {}
+	if str(ax.get("north", "")) == "" or str(ax.get("south", "")) == "":
+		return qid
+	if not _register_is_bound(biome, qid):
+		return qid
+	return -1
+
+
 func action_inject_icon(biome_name: String) -> Dictionary:
 	if not farm:
 		return {"success": false, "error": "no_farm", "message": "Farm not initialized"}
@@ -632,7 +660,7 @@ func action_inject_icon(biome_name: String) -> Dictionary:
 
 	var qubit_count = biome.get_total_register_count() if biome.has_method("get_total_register_count") else 0
 	var max_qubits = _get_max_biome_qubits()
-	if qubit_count >= max_qubits:
+	if qubit_count >= max_qubits and _blank_register_id(biome) < 0:
 		return {
 			"success": false,
 			"error": "qubit_cap_reached",
@@ -665,7 +693,8 @@ func action_inject_icon_pair(biome_name: String, icon: Dictionary) -> Dictionary
 
 	var qubit_count = biome.get_total_register_count() if biome.has_method("get_total_register_count") else 0
 	var max_qubits = _get_max_biome_qubits()
-	if qubit_count >= max_qubits:
+	var reuse_idx := _blank_register_id(biome)
+	if qubit_count >= max_qubits and reuse_idx < 0:
 		return {
 			"success": false,
 			"error": "qubit_cap_reached",
@@ -681,7 +710,11 @@ func action_inject_icon_pair(biome_name: String, icon: Dictionary) -> Dictionary
 			"message": _cost_shortfall_message("Icon injection", gate.get("cost", {}))
 		}
 
-	var result = biome.expand_quantum_system(north_emoji, south_emoji)
+	var result: Dictionary
+	if reuse_idx >= 0 and biome.has_method("relabel_axis"):
+		result = biome.relabel_axis(reuse_idx, north_emoji, south_emoji)
+	else:
+		result = biome.expand_quantum_system(north_emoji, south_emoji)
 	if result.get("success", false):
 		if not bool(commit_action_cost("inject_icon", context, "inject_icon").get("ok", false)):
 			return {"success": false, "error": "cost_commit_failed", "message": "Icon injection failed: unable to spend cost."}
@@ -707,9 +740,27 @@ func action_inject_icon_pair(biome_name: String, icon: Dictionary) -> Dictionary
 		# Ace Rabi is also named "plant" — do not alias. This is the Icon verb
 		# new_voices counts. Do not plant for them.
 		_notify_quest_projection("inject_icon", result)
+		_reveal_injected_register(biome_name, _qid)
 
 	action_performed.emit("inject_icon", result)
 	return result
+
+
+func _reveal_injected_register(biome_name: String, qubit_index: int) -> void:
+	if not farm or qubit_index < 0 or not farm.grid:
+		return
+	if not farm.grid.has_method("get_plot_biome_assignments"):
+		return
+	if not farm.has_method("reveal_plot"):
+		return
+	var assignments: Dictionary = farm.grid.get_plot_biome_assignments()
+	for pos in assignments.keys():
+		if str(assignments[pos]) != biome_name:
+			continue
+		if int(pos.x) != qubit_index:
+			continue
+		farm.reveal_plot(pos)
+		return
 
 
 func action_remove_icon(biome_name: String, grid_pos: Vector2i) -> Dictionary:

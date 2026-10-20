@@ -22,6 +22,11 @@ static func resolve_f(ctx) -> Dictionary:
 		return {}
 	if ctx.register_bound:
 		return {}
+	# Fill the Urn / berry ripen: mill names Fast-Fwd. Unbound leftover
+	# 💀 would remap F to Explore and the gated basin never ticks.
+	var UIProgression = load("res://UI/Core/UIProgression.gd")
+	if UIProgression != null and UIProgression.ace_f_keeps_fast_fwd():
+		return {}
 	return {
 		"action": "explore",
 		"label": "Explore",

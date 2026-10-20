@@ -17,7 +17,11 @@ var _last_biome = null  # Retained for on-demand predict_population calls
 ## Per-biome coherence high-watermark — the witness for coherence_fell (What Fades:
 ## the first quests that ask the player to LOSE something need proof there was
 ## something to lose). Session-scoped; resets on load, which only delays the witness.
+## Peaks on max(coherence_pure, max single-qubit equator). Leftover mixed
+## GildedRot drowns l1/dim coherence_pure at ~0.18 even after Superpose of a
+## fresh 🌉 (purity 0.21 caps the full-ρ scale); the reduced 🌉 is still |+⟩.
 var _coherence_watermark: Dictionary = {}
+var _last_qubit_coherence: float = 0.0
 
 ## Per-biome winding-attack witness (What Turns IV, "The Number That Lied"):
 ## the set of max_mutual_winding values observed while no banked record was
@@ -50,10 +54,17 @@ func observe_biome(biome, delta: float = 0.0) -> Dictionary:
 	# Predicates read the PURE-STATE coherence scale (reachable [0,1]); the
 	# legacy alignment scale caps at ~1/dim² and made every coherence_at_least
 	# ≥ 0.3 unreachable (tutorial superposition, pond_breathes, the_crossing).
+	# Fade watermark also reads the brightest reduced qubit: Superpose of a
+	# fresh 🌉 in leftover mixed GildedRot cannot lift full-ρ coherence_pure
+	# past ~0.18, but that qubit's equator is ~1.
+	_last_qubit_coherence = _max_qubit_equator(biome)
 	if biome_name != "":
+		var peak := float(obs.coherence_pure)
+		if _last_qubit_coherence > peak:
+			peak = _last_qubit_coherence
 		var mark := float(_coherence_watermark.get(biome_name, 0.0))
-		if float(obs.coherence_pure) > mark:
-			_coherence_watermark[biome_name] = float(obs.coherence_pure)
+		if peak > mark:
+			_coherence_watermark[biome_name] = peak
 	_last_observables = {
 		"biome": biome_name,
 		"purity": float(obs.purity),
@@ -173,8 +184,35 @@ func get_snapshot() -> Dictionary:
 	return {
 		"observables": _last_observables.duplicate(true),
 		"recent_actions": _action_history.duplicate(true),
-		"gate_counters": gate_counters.duplicate(true)
+		"gate_counters": gate_counters.duplicate(true),
+		"coherence_watermark": _coherence_watermark.duplicate(true),
+		"qubit_coherence": _last_qubit_coherence
 	}
+
+
+func _max_qubit_equator(biome) -> float:
+	# 2|ρ01| of each reduced qubit. |+⟩ scores 1. Headless viz_cache can lag;
+	# the QC partial trace is the witness.
+	if biome == null:
+		return 0.0
+	var qc = biome.get("quantum_computer") if biome else null
+	if qc == null or qc.register_map == null:
+		return 0.0
+	if not qc.has_method("get_marginal_density_matrix"):
+		return 0.0
+	var nq := int(qc.register_map.num_qubits)
+	var best := 0.0
+	for i in range(nq):
+		var rho = qc.get_marginal_density_matrix(null, i)
+		if rho == null or not rho.has_method("get_element"):
+			continue
+		var el = rho.get_element(0, 1)
+		if el == null:
+			continue
+		var eq := 2.0 * sqrt(float(el.re) * float(el.re) + float(el.im) * float(el.im))
+		if eq > best:
+			best = eq
+	return best
 
 
 func evaluate_predicate(predicate: Dictionary) -> float:
