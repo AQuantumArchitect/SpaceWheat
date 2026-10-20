@@ -658,6 +658,10 @@ static func _gather(res: String, need: int, q: Dictionary, depth: int = 0) -> Di
 			return sup
 		if where == "":
 			return _wait("no %s on the market ring yet — wait for it to turn" % res, q, "no route " + res)
+	if not _has_probe_in(where):
+		var fr0 := _free_terminal(q)
+		if not fr0.is_empty():
+			return fr0
 	var t := _travel(where, q)
 	if not t.is_empty():
 		return t
@@ -1079,6 +1083,12 @@ static func _steer(biome: String, emoji: String, q: Dictionary) -> Dictionary:
 	var held = _frozen(col, biome)
 	if held != null and str(held.measured_outcome) == emoji:
 		return _wait("%s holds at %s — wait for it to settle" % [emoji, biome], q, "hold")
+	# Needs a fresh probe and none is free: fetch one before the trip, or the
+	# fetch and the trip pull opposite ways.
+	if held == null and not farm.terminal_pool.is_register_bound(col, biome):
+		var fr0 := _free_terminal(q)
+		if not fr0.is_empty():
+			return fr0
 	var t := _travel(biome, q)
 	if not t.is_empty():
 		return t
@@ -1222,3 +1232,15 @@ static func _frozen(col: int, biome: String):
 	if farm == null or farm.terminal_pool == null or not farm.terminal_pool.has_method("get_measured_terminal_for_register"):
 		return null
 	return farm.terminal_pool.get_measured_terminal_for_register(col, biome)
+
+
+## Some probe is already out on `biome` (bound or measured there).
+static func _has_probe_in(biome: String) -> bool:
+	var farm = UIP._active_farm()
+	if farm == null or farm.terminal_pool == null:
+		return false
+	for t in farm.terminal_pool.get_all_terminals():
+		if t != null and ((bool(t.is_bound) and str(t.bound_biome_name) == biome)
+				or (bool(t.is_measured) and str(t.measured_biome_name) == biome)):
+			return true
+	return false
