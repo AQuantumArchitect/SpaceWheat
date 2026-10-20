@@ -124,20 +124,23 @@ first load downloads about 200 MB.
 
 ## Images
 
-The July store kit is no longer in the repo, so the screenshots need a fresh
-capture from a **release build** (no FPS counter, no dev overlays) at
-1280×720 or larger.
+Captured from the current build with `🍄/🧪/shoot.py` (real gameplay, 1920×1080,
+the Compatibility renderer the browser build uses), in `docs/media/screens/`.
 
-| # | Shot | Why it's there |
+| # | File | Why it's there |
 |---|---|---|
 | Cover (630×500) | `Assets/spacewheat_titlecard.png`, resized | The strongest single image the project has |
-| 1 | The starter forest mid-strike, live and measured bubbles side by side | The loop at a glance |
+| 1 | `screens/gameplay_forest.png` | The farm as you play it: the starter forest's Bloch spheres, the hats, the top line |
 | 2 | `docs/media/tap_loop.gif` | Strike → gather, moving |
-| 3 | The microscope on the Village reading "plural — many modes coexist" | The physics is real and you can inspect it |
-| 4 | The Icon word picker over an empty plot | "You write the physics" |
-| 5 | The Village market with a standing trade | The way out of a hole |
-| 6 | The Arc with a live beat, its next key on the top line | "Never lost" |
-| 7 | The ending's "The door stays open." | Where the campaign goes |
+| 3 | `screens/forest.png` | The same forest with the HUD off: every field is a real quantum system |
+| 4 | `screens/microscope.png` | "plural — many modes coexist", the Village on the winning side |
+| 5 | `screens/qubit_atlas.png` | The words you've learned |
+| 6 | `screens/market.png` | The Village market and its standing trades |
+| 7 | `screens/arc.png` | The Arc: the story's open doors |
+| 8 | `screens/island_measured.png` | The end of The Demos |
+
+More (every biome, the network, the hypercube, social crops and captioned
+cards) comes from the same tool; see its docstring for the steps.
 
 ## Before flipping to Public
 
@@ -145,5 +148,4 @@ capture from a **release build** (no FPS counter, no dev overlays) at
 - [ ] Current build pushed to all three channels from `main`
 - [ ] Browser build opened on the live page (not just locally) and played
       past the first harvest
-- [ ] Screenshots retaken from the release build
 - [ ] README status line and this page say the same thing
