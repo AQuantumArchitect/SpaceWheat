@@ -248,6 +248,13 @@ static func live_quest(qm = null) -> Dictionary:
 		qm = _quest_manager()
 	if qm == null or not ("active_quests" in qm):
 		return {}
+	# After Act 0 there is ONE ranker for the live beat: the guidance resolver
+	# (Core/Campaign/Guide.gd). The Arc's NOW row, the banner and the toasts
+	# all name the same door — and that door is always row one on the Arc.
+	if not _tutorial_live(qm):
+		var g: Dictionary = load("res://Core/Campaign/Guide.gd").live_beat(qm)
+		if not g.is_empty():
+			return g
 	var act_by_flag := _act_by_flag(qm)
 	var best: Dictionary = {}
 	var best_rank := 0x7FFFFFFF
@@ -263,6 +270,14 @@ static func live_quest(qm = null) -> Dictionary:
 				best_rank = rank
 				best = q
 	return best
+
+
+static func _tutorial_live(qm) -> bool:
+	for pool in [qm.active_quests.values(), qm.story_offers.values() if "story_offers" in qm else []]:
+		for q in pool:
+			if q is Dictionary and str(q.get("category", "")) == "TUTORIAL":
+				return true
+	return false
 
 
 static func live_door(qm = null, farm = null) -> Dictionary:
