@@ -869,11 +869,13 @@ static func _plant(biome: String, atom: String, fresh: bool, q: Dictionary) -> D
 		for res in cost:
 			if UIP._wallet(str(res)) < float(cost[res]):
 				return _gather(str(res), int(cost[res]), q)
+	# A full ring is decided before the trip: the trim's own cost may need a
+	# gather elsewhere, and travelling first would undo it.
+	if not UIP._empty_plot_exists(biome):
+		return _make_room(biome, atom, q)
 	var t := _travel(biome, q)
 	if not t.is_empty():
 		return t
-	if not UIP._empty_plot_exists(biome):
-		return _make_room(biome, atom, q)
 	var h := _hat("icon", q)
 	if not h.is_empty():
 		return h
