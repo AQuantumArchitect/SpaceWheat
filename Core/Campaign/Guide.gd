@@ -666,8 +666,9 @@ static func _gather(res: String, need: int, q: Dictionary, depth: int = 0) -> Di
 		return h
 	var col := _live_col()
 	var label := "gather %s %d/%d" % [res, int(UIP._wallet(res)), need]
-	if col >= 0 and UIP._plot_measured(col):
-		var got := UIP._measured_glyph(col)
+	var frozen = _frozen(col, UIP._active_biome_name()) if col >= 0 else null
+	if col >= 0 and (UIP._plot_measured(col) or frozen != null):
+		var got := UIP._measured_glyph(col) if frozen == null else str(frozen.measured_outcome)
 		if got == res:
 			_misses[res] = 0
 		elif got != "" and not _counted.get(res, false):
@@ -1075,8 +1076,7 @@ static func _steer(biome: String, emoji: String, q: Dictionary) -> Dictionary:
 		return {}
 	if col >= BERRY_ROWS:
 		return _evolve(biome, q)
-	var held = farm.terminal_pool.get_measured_terminal_for_register(col, biome) \
-			if farm.terminal_pool != null and farm.terminal_pool.has_method("get_measured_terminal_for_register") else null
+	var held = _frozen(col, biome)
 	if held != null and str(held.measured_outcome) == emoji:
 		return _wait("%s holds at %s — wait for it to settle" % [emoji, biome], q, "hold")
 	var t := _travel(biome, q)
@@ -1088,11 +1088,9 @@ static func _steer(biome: String, emoji: String, q: Dictionary) -> Dictionary:
 	var parts: Array = _close_first()
 	if _live_col() != col:
 		parts.append(["plot", _plot_key(col)])
-	if UIP._plot_measured(col):
-		if UIP._measured_glyph(col) == emoji:
-			return _wait("%s holds at %s — wait for it to settle" % [emoji, biome], q, "hold")
+	if UIP._plot_measured(col) or held != null:
 		parts.append(["release", _verb("gather")])
-		return _chord(parts, q, "release")
+		return _cost_or(["gather", "🧺"], _chord(parts, q, "release"), q, 0)
 	if UIP._plot_bound(col):
 		parts.append(["Strike for " + emoji, _verb("strike")])
 		return _chord(parts, q, "steer")
@@ -1215,3 +1213,12 @@ static func _cull(q: Dictionary) -> Dictionary:
 	parts.append(["Cull " + want, "Q"])
 	parts.append(["confirm", "F"])
 	return _chord(parts, q, "cull")
+
+
+## The pool's measured probe on (col, biome), or null. Explore refuses a
+## register that still has one ("Q harvests it"), whatever the plot shows.
+static func _frozen(col: int, biome: String):
+	var farm = UIP._active_farm()
+	if farm == null or farm.terminal_pool == null or not farm.terminal_pool.has_method("get_measured_terminal_for_register"):
+		return null
+	return farm.terminal_pool.get_measured_terminal_for_register(col, biome)
