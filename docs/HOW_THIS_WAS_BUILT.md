@@ -143,6 +143,13 @@ fixes:
   with unlocks off, injects nothing, and uses keys only. Its best run so far
   reached the opening of Act 3 (of acts 0–6), skipping optional Act 2 beats.
   That is the claim I make, and the drive is how the next claim gets made.
+- The next claim came from the guidance, not the game. A follower that
+  presses only the keys the banner names moved the story from 2 of 40
+  beats: the game was playable, but its hints, written by hand in many
+  places, could not be followed. Replacing them with one resolver computed
+  from the spec ([design](design/GUIDANCE_FROM_THE_SPEC.md)) took that to
+  38 of 40, and the follower now reaches the ending of The Demos from a
+  fresh game in most runs. Every wall it hit became a rule, not a string.
 
 **Slop builds up.** Agents add more readily than they remove.
 
