@@ -188,6 +188,7 @@ def follow(rig, beat: str, cap: int = PRESS_CAP) -> dict:
     return rep
 
 
+JOURNEY_WAIT_CAP = 300  # seconds on one unchanging wait line before a journey calls it a wall
 LOOP_WINDOW = 40  # a journey whose last 40 lines are one or two lines, with no flag, is looping
 
 
@@ -207,6 +208,7 @@ def journey(rig, start: str, minutes: float = 30.0) -> dict:
     seen = set((f.t("story_flags").get("flags_fired", {}) or {}).keys())
     t_end = time.time() + minutes * 60
     same, last_sig = 0, None
+    idle, last_wait = 0, None
     while time.time() < t_end:
         banner = f.banner()
         line = banner[0] if banner else ""
@@ -222,8 +224,14 @@ def journey(rig, start: str, minutes: float = 30.0) -> dict:
         ks = parse_keys(line)
         if not ks and re.search(r"\bwait\b", line, re.I):
             rep["waits"] += 1
+            idle = idle + 1 if line == last_wait else 1
+            last_wait = line
+            if idle * WAIT_SECONDS > JOURNEY_WAIT_CAP:
+                rep["stopped"], rep["why"] = "waiting", line
+                break
             time.sleep(WAIT_SECONDS)
             continue
+        idle, last_wait = 0, None
         if not ks:
             rep["stopped"], rep["why"] = "no_key", line
             break
