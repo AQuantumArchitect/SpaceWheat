@@ -192,7 +192,7 @@ JOURNEY_WAIT_CAP = 300  # seconds on one unchanging wait line before a journey c
 LOOP_WINDOW = 40  # a journey whose last 40 lines are one or two lines, with no flag, is looping
 
 
-def journey(rig, start: str, minutes: float = 30.0) -> dict:
+def journey(rig, start: str, minutes: float = 30.0, until: str = "") -> dict:
     """Start at one beat's fixture and keep following the banner across beats:
     how far does trusting the banner take you? Stops when the banner and the
     game stop changing (STUCK_AFTER presses) or after `minutes`."""
@@ -218,6 +218,9 @@ def journey(rig, start: str, minutes: float = 30.0) -> dict:
         if flags - seen:
             same = 0
         seen |= flags
+        if until and until in seen:
+            rep["stopped"], rep["why"] = "reached", until
+            break
         if not line:
             rep["stopped"], rep["why"] = "no_banner", ""
             break
@@ -258,7 +261,7 @@ def journey(rig, start: str, minutes: float = 30.0) -> dict:
     return rep
 
 
-def run_one(beat: str, cap: int, chain_minutes: float = 0.0) -> dict:
+def run_one(beat: str, cap: int, chain_minutes: float = 0.0, until: str = "") -> dict:
     from rig_client import RigClient  # noqa: E402
     xdg = Path(tempfile.mkdtemp(prefix="sw_follow_%s_" % beat))
     rig = RigClient(xdg=xdg, root_from_file=RUNNER / "milk_hunt_runner.py")
@@ -271,7 +274,7 @@ def run_one(beat: str, cap: int, chain_minutes: float = 0.0) -> dict:
     try:
         if not RigClient.wait_for_bridge_sentinel(timeout_s=240, xdg=rig.xdg_root):
             return {"beat": beat, "outcome": "boot_failed"}
-        rep = journey(rig, beat, chain_minutes) if chain_minutes > 0 else follow(rig, beat, cap)
+        rep = journey(rig, beat, chain_minutes, until) if chain_minutes > 0 else follow(rig, beat, cap)
     except Exception as exc:  # report, never hide
         rep = {"beat": beat, "outcome": "error", "why": repr(exc)[:300]}
     finally:
@@ -290,18 +293,19 @@ def main(argv=None) -> int:
     ap.add_argument("--out", default="")
     ap.add_argument("--journey", type=float, default=0.0,
                     help="minutes: from each named beat, keep following across beats")
+    ap.add_argument("--until", default="", help="journey: stop once this story flag fires (e.g. island_free)")
     args = ap.parse_args(argv)
     beats = list(args.beats)
     if args.campaign:
         beats += [b["id"] for c, _a, _ch, b in S.iter_beats(S.load()) if c["id"] == args.campaign]
     results = []
     with cf.ThreadPoolExecutor(max_workers=max(1, args.jobs)) as ex:
-        for rep in ex.map(lambda b: run_one(b, args.cap, args.journey), beats):
+        for rep in ex.map(lambda b: run_one(b, args.cap, args.journey, args.until), beats):
             results.append(rep)
             if args.journey:
                 print(json.dumps({k: rep.get(k) for k in ("start", "stopped", "why", "presses", "waits")},
                                  ensure_ascii=False), flush=True)
-                print("  fired:", " → ".join(x["flag"] for x in rep.get("fired", [])), flush=True)
+                print("  fired:", " → ".join("%s@%ds" % (x["flag"], x["t"]) for x in rep.get("fired", [])), flush=True)
                 continue
             print(json.dumps({k: rep.get(k) for k in ("beat", "outcome", "presses", "waits", "accepted", "contract_claims",
                                                       "why", "moved_by", "seconds")},
