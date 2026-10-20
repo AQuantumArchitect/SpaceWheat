@@ -436,9 +436,13 @@ static func _unsigned_berry_offer() -> Dictionary:
 static func _banner_quest() -> Dictionary:
 	# Unsigned Watch It Fade outranks leftover accepted braid/wet Superpose.
 	# live_quest Two Chores milled [0] Druid while Arc still held OPEN fade.
-	var fade_first := _unsigned_fade_offer()
-	if fade_first.is_empty():
-		fade_first = _accepted_fade_quest()
+	# After watching_keeps the fade door is resolved. Leftover Watch It Fade
+	# remashes Fast-Fwd for a session watermark. Open the Bank is the mill.
+	var fade_first := {}
+	if not _fade_door_resolved():
+		fade_first = _unsigned_fade_offer()
+		if fade_first.is_empty():
+			fade_first = _accepted_fade_quest()
 	if not fade_first.is_empty():
 		return fade_first
 	var best := _best_objective()
@@ -505,6 +509,15 @@ static func objective_text() -> String:
 	# grind mashed [R] on an OPEN row that accept_quest no-ops.
 	# Claim outranks leftover catalog. Unsigned STORY still waits on Arc.
 	if str(best.get("status", "")) == "ready":
+		return _claim_walk_line(best)
+	# Leftover teaching whose FLAG already fired: Superpose mash is H²=I
+	# (The Dark State, The Bridge Holds). Unsigned leftover signs on Arc.
+	# Berry leftover (Open the Bank) is still the field walk, not Claim.
+	if _leftover_flag_fired_handshake(best):
+		if str(best.get("status", "")) == Quest.STATUS_STORY:
+			return _waiting_arc_line()
+		if _is_berry_ask(best):
+			return _berry_walk_line(best)
 		return _claim_walk_line(best)
 	# Wave 24 literalist: gathered 🌱 3→21, then chrome-only. Unsigned plant
 	# is STORY — hiding the banner after the gather walk ate Icon [5].
@@ -1057,10 +1070,46 @@ static func _is_discover_ask(q: Dictionary) -> bool:
 	return false
 
 
+static func _story_flag_fired(src: String) -> bool:
+	if src.strip_edges() == "":
+		return false
+	var farm = _active_farm()
+	if farm == null or not ("story_flags_fired" in farm):
+		return false
+	return farm.story_flags_fired.has(src)
+
+
+static func _fade_door_resolved() -> bool:
+	# FLAG fires when Watch It Fade opens (parent the_crossing). Skip mill
+	# fade only after a child passed through (watching_keeps) or leftover
+	# teaching was claimed. A 10-key grind does not remash Fast-Fwd.
+	var qm := _quest_manager()
+	if qm == null or not qm.has_method("flag_door_is_resolved"):
+		return false
+	return bool(qm.flag_door_is_resolved("the_gray"))
+
+
+static func _leftover_flag_fired_handshake(q: Dictionary) -> bool:
+	# FLAG already proved the Chart. Leftover field Superpose is not the
+	# mill. Fade teaching is work you complete by losing — until a child
+	# has passed through, then leftover Watch It Fade is handshake Claim.
+	if q.is_empty():
+		return false
+	var src := str(q.get("source_flag", "")).strip_edges()
+	if src == "":
+		return false
+	if src == "the_gray":
+		return _fade_door_resolved()
+	return _story_flag_fired(src)
+
+
 static func _is_coast_field_ask(q: Dictionary) -> bool:
 	# Discover quest whose coast is already on the spindle. Remaining
 	# preds are field work (Bring Light In: Superpose in GildedRot).
+	# FLAG-fired leftover is handshake Claim, not Superpose mash.
 	if q.is_empty() or _is_discover_ask(q):
+		return false
+	if _leftover_flag_fired_handshake(q):
 		return false
 	for pred in q.get("state_predicates", []):
 		if not (pred is Dictionary):
@@ -1097,8 +1146,11 @@ static func _coast_field_biome(q: Dictionary) -> String:
 
 static func _is_fade_ask(q: Dictionary) -> bool:
 	# the_gray: Superpose, then wait while the Bath drinks. Berry
-	# Incorporate is a later predicate, not the mill.
+	# Incorporate is a later predicate, not the mill. After watching_keeps
+	# the door is resolved — leftover teaching remashes Fast-Fwd.
 	if q.is_empty():
+		return false
+	if _fade_door_resolved():
 		return false
 	if str(q.get("source_flag", "")).strip_edges() == "the_gray":
 		return true
@@ -1544,6 +1596,10 @@ static func _standing_wet_country_line() -> String:
 		return "▸ ESC closes"
 	var col := _focused_col()
 	if _already_superposed(col):
+		# watching_keeps already passed through. Superposed leftover 🌹
+		# is not a Fast-Fwd mill. Open the Bank berry is the walk.
+		if _fade_door_resolved():
+			return ""
 		var q := _banner_quest()
 		if _is_fade_ask(q) or not _unsigned_fade_offer().is_empty():
 			return _wait_for_fade_line()
@@ -2457,6 +2513,37 @@ static func _berry_ripe() -> bool:
 	return bool(reg.is_ripe(qid))
 
 
+static func _active_nq() -> int:
+	var farm = _active_farm()
+	var bname := _active_biome_name()
+	if farm == null or farm.grid == null or bname == "":
+		return 0
+	var biome = farm.grid.get_biome(bname) if farm.grid.has_method("get_biome") else null
+	if biome == null or biome.quantum_computer == null \
+			or biome.quantum_computer.register_map == null:
+		return 0
+	return int(biome.quantum_computer.register_map.num_qubits)
+
+
+static func _berry_qubit_live(col: int) -> bool:
+	# Track walks a register qubit. Occupied leftover 🌹 has no probe;
+	# _plot_bound mashed [G] forever. Empty plant seats cannot Track.
+	return col >= 0 and col < _active_nq()
+
+
+static func _living_berry_plot_key() -> String:
+	var want := _berry_ask_biome(_banner_quest())
+	if want == "":
+		want = _active_biome_name()
+	var rose := _glyph_plot_key("🌹", want, false)
+	if rose != "":
+		return rose
+	var nq := _active_nq()
+	if nq <= 0:
+		return "G"
+	return _col_key(0)
+
+
 static func _berry_walk_line(q: Dictionary = {}) -> String:
 	# first_breath live door: one next key. Do not dump F / = / R / X.
 	# Do not incorporate for them. Unsigned berry still paints (like plant).
@@ -2466,23 +2553,44 @@ static func _berry_walk_line(q: Dictionary = {}) -> String:
 		q = _banner_quest()
 	var want := _berry_ask_biome(q)
 	if want != "":
+		# the_rite: GildedRot was culled to Chart later coasts. Cross is
+		# empty off-spindle; mill Superpose on leftover 🔭 is the wrong
+		# country. Chart (cull first if TYUIOP is full). Never cull Woodlot.
+		if not _biome_unlocked(want):
+			if _slots_full():
+				return _cull_walk_line()
+			var wearing_chart := str(ToolConfig.get_current_frame())
+			if wearing_chart != ToolConfig.FRAME_CAPTAIN:
+				return "▸ [7] Captain, then [R] Chart %s" % want
+			return "▸ [R] Chart %s" % want
 		var cross := _cross_to(want)
 		if cross != "":
 			return cross
 	var wearing := str(ToolConfig.get_current_frame())
+	# Live Track: Ace F ripens. Icon F would stop the loop. Do not
+	# ping-pong [5] Icon / [8] Ace (10-key freeze). A keyless ripen
+	# wait aborted grind (no_followable_key).
+	if _berry_tracking() and not _berry_ripe():
+		if wearing != ToolConfig.FRAME_ACE:
+			return "▸ [8] Ace — loop ripens"
+		if _sim_paused():
+			return "▸ [F] Play"
+		return "▸ [F] Fast-Fwd — loop ripens (~90s)"
 	if wearing != ToolConfig.FRAME_ICON:
 		return "▸ [5] Icon"
-	# Icon F is Track; while a loop is live, F would stop it. Ace F Plays.
-	if _sim_paused() and _berry_tracking():
-		return "▸ [8] Ace"
-	if not _plot_bound(_focused_col()):
-		return "▸ [G] a living plot"
+	# Leftover 🌹 is a live qubit with no probe. Naming [G] while G is
+	# already focused mashed G (10-key freeze). Track does not need a
+	# bound terminal.
+	if not _berry_qubit_live(_focused_col()):
+		var live := _living_berry_plot_key()
+		if live == "" or live == "G" or live == "g":
+			return "▸ [G] a living plot"
+		var tok := ";" if live == ";" else live.to_upper()
+		return "▸ [%s] a living plot" % tok
 	if not _berry_tracking():
 		return "▸ [F] Track"
 	if _berry_ripe():
 		return "▸ [R] Incorporate"
-	# Icon F would stop the live loop. Ace F time-skips the wait.
-	# A keyless ripen line aborted grind (no_followable_key).
 	if wearing != ToolConfig.FRAME_ACE:
 		return "▸ [8] Ace — loop ripens"
 	if _sim_paused():

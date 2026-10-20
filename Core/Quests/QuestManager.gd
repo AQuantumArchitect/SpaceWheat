@@ -77,6 +77,21 @@ func _physics_process(delta: float) -> void:
 	if _state_projection:
 		_state_projection.observe_biome(current_biome, delta)
 
+	# Leftover teaching accepted before FLAG fire (The Dark State NOW after
+	# Chart). Handshake on Accept already ran false. Sweep now so mill
+	# Claims instead of remashing Superpose (H²=I). Never the_gray until
+	# the fade door is resolved (watching_keeps already passed through).
+	var handshake_ids: Array = []
+	for quest in active_quests.values():
+		if quest.get("status") == "ready":
+			continue
+		if _handshake_auto_claims(quest):
+			var hid := int(quest.get("id", -1))
+			if hid >= 0:
+				handshake_ids.append(hid)
+	for hid in handshake_ids:
+		mark_quest_ready(hid, "handshake")
+
 	for quest in active_quests.values():
 		# Skip quests already ready to claim
 		if quest.get("status") == "ready":
@@ -1093,9 +1108,27 @@ func _handshake_auto_claims(quest: Dictionary) -> bool:
 		return false
 	# Watch It Fade is work you complete by losing. Leftover mixed GildedRot
 	# scored the preds on Accept and handshake-claimed "nothing more on this
-	# door" before Superpose / wait / berry. Never handshake the_gray.
-	if str(quest.get("source_flag", "")).strip_edges() == "the_gray":
-		return false
+	# door" before Superpose / wait / berry. Never handshake the_gray while
+	# the door is still the mill. After watching_keeps, leftover teaching
+	# remashes Fast-Fwd for a session watermark. Handshake. Humans do not
+	# mash hundreds of F.
+	var src_flag := str(quest.get("source_flag", "")).strip_edges()
+	if src_flag == "the_gray":
+		return flag_door_is_resolved("the_gray")
+	# FLAG already fired (Chart + leftover physics). Leftover teaching still
+	# wants purity_at_most / hold 🔭. Superpose of planted 🌉 is purity 1;
+	# Fast-Fwd never grays (lindblad targets not on the register). Children
+	# stay shut until Claim. Accept — or the process sweep for leftover
+	# already accepted — is the beat. A 10-key grind does not remash E.
+	# Berry / fade / unscored reap is still work (Open the Bank, Watch It
+	# Fade). Handshake only when the leftover Chart already proved the FLAG.
+	if src_flag != "":
+		var farm = _get_active_farm()
+		if farm != null and "story_flags_fired" in farm \
+				and farm.story_flags_fired.has(src_flag):
+			if _leftover_still_field_work(quest):
+				return false
+			return true
 	var preds = quest.get("state_predicates", [])
 	if not (preds is Array) or preds.is_empty():
 		return true
@@ -1105,6 +1138,29 @@ func _handshake_auto_claims(quest: Dictionary) -> bool:
 		if evaluate_predicate_score(p) < 0.85:
 			return false
 	return true
+
+
+## Leftover teaching that still asks for a field season. FLAG fire on the
+## parent Chart must not skip berry / fade / an unscored reap.
+func _leftover_still_field_work(quest: Dictionary) -> bool:
+	var preds = quest.get("state_predicates", [])
+	if not (preds is Array):
+		return false
+	for p in preds:
+		if not (p is Dictionary):
+			continue
+		var t := str(p.get("type", "")).strip_edges()
+		if t == "berry_consumed_count_gte" or t == "berry_total_phase_gte":
+			return true
+		if t == "coherence_fell":
+			return true
+		if t == "gate_order":
+			return true
+		if t == "gate_sequence_contains":
+			var g := str(p.get("gate", "")).strip_edges().to_lower()
+			if g == "reap" and evaluate_predicate_score(p) < 0.85:
+				return true
+	return false
 
 
 ## The quests that belong on the C board's Commitments tab (and the HUD

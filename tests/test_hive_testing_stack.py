@@ -55,7 +55,7 @@ def test_dump_flags_mill_seated_plant_as_lie():
 
 def test_grind_follow_is_player_parity_and_raises_cap():
     grind = src(ROOT / "🍄" / "🧪" / "hive" / "grind_follow.py")
-    assert 'setdefault("SW_PRESS_CAP", "40")' in grind
+    assert 'setdefault("SW_PRESS_CAP", "10")' in grind
     assert 'any(p in ("u", "U") for p in presses)' not in grind
     assert '"deliver" in str(g).lower()' in grind
     assert 'freeze_at = budget if (' in grind
@@ -73,6 +73,9 @@ def test_grind_follow_is_player_parity_and_raises_cap():
     assert "first_press" in grind
     assert "Do not ESC every turn" in grind
     assert "delivered" in grind
+    assert "berry_moved" in grind
+    assert "or berry_moved" in grind
+    assert "incorporate" in grind
     assert "cmd_bank" in grind
     assert "OFF_WALL_FLAGS" in grind
     assert "banner_abandon" in grind

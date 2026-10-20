@@ -2800,8 +2800,20 @@ func _execute_action(action_name: String) -> Dictionary:
 			result = _instrument.action_measure(grid_pos)
 			_maybe_toast_measure_whisper(result)
 		"fast_forward":
-			# Ace F — let H spin the odds forward (advance the closed evolution).
-			result = _instrument.time_skip(ACE_FAST_FORWARD_PHRAMES)
+			# Ace F is one player action. Berry Track then mash F until ripe
+			# was 8+ Fast-Fwds (~90s sim). Skip until ripe in this press.
+			# Cap 900 phrames (90s at PHRAME_HZ=10) so a stuck loop cannot hang.
+			if UIProgression._berry_tracking() and not UIProgression._berry_ripe():
+				var used := 0
+				const BERRY_RIPEN_CAP := 900
+				result = {"success": true}
+				while used < BERRY_RIPEN_CAP and not UIProgression._berry_ripe():
+					result = _instrument.time_skip(ACE_FAST_FORWARD_PHRAMES)
+					used += ACE_FAST_FORWARD_PHRAMES
+					if not bool(result.get("success", true)):
+						break
+			else:
+				result = _instrument.time_skip(ACE_FAST_FORWARD_PHRAMES)
 			# Visible pulse: silent fast-forward reads as "F is broken" (fleet).
 			if result.get("success", true):
 				_toast_player("⏩ the odds spin forward")

@@ -7,7 +7,7 @@ a FLAG moves, gold lies, gold freezes, or the grind press cap.
 Does not boot if another hive Godot / current seat looks live.
 
   python3 🍄/🧪/hive/grind_follow.py literalist_timber_rhythm_wall
-  python3 🍄/🧪/hive/grind_follow.py --budget 40 --bank literalist_timber_rhythm_wall
+  python3 🍄/🧪/hive/grind_follow.py --budget 10 --bank literalist_timber_rhythm_wall
 """
 from __future__ import annotations
 
@@ -19,8 +19,9 @@ import sys
 from pathlib import Path
 import time
 
-# Grind budget is not the LLM Market smash cap.
-os.environ.setdefault("SW_PRESS_CAP", "40")
+# Human-scale sitting. If gold still needs mash after 10 keys, fold the
+# path, the mechanics, or the mill — do not raise the cap.
+os.environ.setdefault("SW_PRESS_CAP", "10")
 
 HERE = Path(__file__).resolve().parent
 SEAT = HERE.parent
@@ -301,19 +302,24 @@ def grind_one(checkpoint: str, budget: int, bank: str) -> dict:
             last_gold = blob
             # Market [Q] Refresh reprints the same gold while the stall
             # rerolls. Freeze at 8 is a field lie; Refresh freeze is budget.
+            # Fast-Fwd / Superpose / ripen mash is a mill lie: one Ace F
+            # ripens, one Superpose seeds. Freeze at 2 so the parent folds.
             freeze_at = budget if (
                 "refresh" in blob.lower()
                 or "accept the teaching" in blob.lower()
                 or "page for" in blob.lower()
-                or "the urn fills" in blob.lower()
-                or "the bridge holds" in blob.lower()
-                or "fades" in blob.lower()
-                or "superposition holds" in blob.lower()
-                or "ripens" in blob.lower()
             ) else 8
-            # One Strike collapses leftover 🌹 Superpose. Mixed-gray Strike
-            # is a dead path (wet drain is not projective).
-            if "collapse the rose" in blob.lower():
+            blob_l = blob.lower()
+            if (
+                "fast-fwd" in blob_l
+                or "superpose" in blob_l
+                or "ripens" in blob_l
+                or "the urn fills" in blob_l
+                or "the bridge holds" in blob_l
+                or "fades" in blob_l
+                or "superposition holds" in blob_l
+                or "collapse the rose" in blob_l
+            ):
                 freeze_at = 2
             if stuck >= freeze_at:
                 stop = "gold_frozen"
@@ -358,7 +364,18 @@ def grind_one(checkpoint: str, budget: int, bank: str) -> dict:
             "deliver" in str(g).lower() and "abandon" not in str(g).lower()
             for g in golds
         )
-        if bank and (spine_moved or delivered):
+        # Open the Bank: Incorporate spends a berry without a FLAG.
+        # Bank-on-FLAG only replayed Track→Fast-Fwd→R every sitting
+        # (GildedRot consumed_count stayed 0). A 10-key grind must bank
+        # the season it just farmed.
+        berry_moved = any(
+            any(
+                w in str(g).lower()
+                for w in ("incorporate", "[f] track", "loop ripens")
+            )
+            for g in golds
+        )
+        if bank and (spine_moved or delivered or berry_moved):
             # w420: standing grind paid ⚙×6 then 👥×5 but did not bank
             # unless a FLAG fired, so the next sitting replayed the wall.
             ps.cmd_bank(seat, bank)

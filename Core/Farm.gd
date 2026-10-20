@@ -1826,6 +1826,31 @@ func chart_target() -> Dictionary:
 		if not loadable.is_empty() and not loadable.has(biome):
 			continue
 		return {"beat": beat_id, "biome": biome}
+	# Live berry country off the spindle (the_rite after GildedRot was
+	# culled to Chart later coasts). Chart is the path; Superpose mash
+	# on leftover 🔭 is the wrong country.
+	var berry_q: Array = []
+	if qm != null:
+		if "active_quests" in qm:
+			for q in qm.active_quests.values():
+				if q is Dictionary:
+					berry_q.append(q)
+		if qm.has_method("get_story_offers"):
+			for q in qm.get_story_offers():
+				if q is Dictionary:
+					berry_q.append(q)
+	for q in berry_q:
+		for pred in q.get("state_predicates", []):
+			if not (pred is Dictionary):
+				continue
+			if str(pred.get("type", "")) != "berry_consumed_count_gte":
+				continue
+			var berry_biome := str(pred.get("biome", "")).strip_edges()
+			if berry_biome == "" or unlocked.has(berry_biome):
+				continue
+			if not loadable.is_empty() and not loadable.has(berry_biome):
+				continue
+			return {"beat": str(q.get("source_flag", "")), "biome": berry_biome}
 	return {}
 
 

@@ -139,6 +139,8 @@ def test_unpayable_fill_does_not_mill_abandon():
     grind = src(ROOT / "🍄" / "🧪" / "hive" / "grind_follow.py")
     assert 'if "abandon" in low:' in grind
     assert "OFF_WALL_FLAGS" in grind
+    assert "berry_moved" in grind
+    assert "or berry_moved" in grind
 
 
 def test_ready_claim_outranks_leftover_arc_accept():
@@ -204,7 +206,10 @@ def test_ready_claim_outranks_leftover_arc_accept():
     assert '_named_atom_plant_line("Lanternfall", "🌉")' in coast
     assert '_empty_plot_exists("Lanternfall")' in coast
     grind_ff = src(ROOT / "🍄" / "🧪" / "hive" / "grind_follow.py")
-    assert '"fast-fwd" in blob.lower()' not in grind_ff.split("freeze_at = budget")[1].split("else 8")[0] or "the urn fills" in grind_ff
+    freeze_budget = grind_ff.split("freeze_at = budget")[1].split("else 8")[0]
+    assert "the urn fills" not in freeze_budget
+    assert "the bridge holds" not in freeze_budget
+    assert "ripens" not in freeze_budget
     assert "the bridge holds" in grind_ff
     assert "the urn fills" in grind_ff
     disc = src(PROG).split("static func _discover_walk_line")[1].split("static func ")[0]
@@ -325,12 +330,67 @@ def test_ready_claim_outranks_leftover_arc_accept():
     assert banner.index("fade_first") < banner.index("_best_objective")
     assert "_unsigned_fade_offer" in banner
     assert "_accepted_fade_quest" in banner
+    assert "_fade_door_resolved" in banner
     assert "func _accepted_fade_quest" in src(PROG)
+    assert "func _fade_door_resolved" in src(PROG)
+    fade_door = src(PROG).split("static func _fade_door_resolved")[1].split("static func ")[0]
+    assert 'flag_door_is_resolved("the_gray")' in fade_door
+    fade_ask = src(PROG).split("static func _is_fade_ask")[1].split("static func ")[0]
+    assert "_fade_door_resolved" in fade_ask
     acc = src(PROG).split("static func _accepted_fade_quest")[1].split("static func ")[0]
     assert "active_quests.values()" in acc
     handshake = src(QM).split("func _handshake_auto_claims")[1].split("\nfunc ")[0]
     assert 'source_flag' in handshake
     assert '"the_gray"' in handshake
+    assert "src_flag" in handshake
+    assert "story_flags_fired.has(src_flag)" in handshake
+    assert "_leftover_still_field_work" in handshake
+    assert 'flag_door_is_resolved("the_gray")' in handshake
+    leftover_hs = src(PROG).split("static func _leftover_flag_fired_handshake")[1].split("static func ")[0]
+    assert "_fade_door_resolved" in leftover_hs
+    standing_wet = src(PROG).split("static func _standing_wet_country_line")[1].split("static func ")[0]
+    assert "_fade_door_resolved" in standing_wet
+    still = src(QM).split("func _leftover_still_field_work")[1].split("\nfunc ")[0]
+    assert "berry_consumed_count_gte" in still
+    assert "coherence_fell" in still
+    assert "reap" in still
+    phys = src(QM).split("func _physics_process")[1].split("\nfunc ")[0]
+    assert "_handshake_auto_claims(quest)" in phys
+    assert 'mark_quest_ready(hid, "handshake")' in phys
+    assert "fade door is resolved" in phys
+    obj_fn = src(PROG).split("static func objective_text")[1].split(
+        "static func waiting_arc_offer"
+    )[0]
+    assert "_leftover_flag_fired_handshake" in obj_fn
+    assert "func _leftover_flag_fired_handshake" in src(PROG)
+    assert "STATUS_STORY" in obj_fn
+    assert "_waiting_arc_line" in obj_fn.split("_leftover_flag_fired_handshake")[1]
+    assert "_is_berry_ask" in obj_fn.split("_leftover_flag_fired_handshake")[1]
+    coast_ask = src(PROG).split("static func _is_coast_field_ask")[1].split("static func ")[0]
+    assert "_leftover_flag_fired_handshake" in coast_ask
+    berry = src(PROG).split("static func _berry_walk_line")[1].split("static func ")[0]
+    assert "_biome_unlocked(want)" in berry
+    assert "Chart %s" in berry
+    assert "_cull_walk_line" in berry
+    assert "_berry_qubit_live" in berry
+    assert "_living_berry_plot_key" in berry
+    assert "_plot_bound(_focused_col())" not in berry
+    assert "func _berry_qubit_live" in src(PROG)
+    assert "func _living_berry_plot_key" in src(PROG)
+    farm_chart = src(ROOT / "Core" / "Farm.gd").split("func chart_target")[1].split("\nfunc ")[0]
+    assert "berry_consumed_count_gte" in farm_chart
+    qii_ff = src(ROOT / "UI" / "Core" / "QuantumInstrumentInput.gd")
+    assert "BERRY_RIPEN_CAP" in qii_ff
+    assert "_berry_ripe()" in qii_ff
+    grind_cap = src(ROOT / "🍄" / "🧪" / "hive" / "grind_follow.py")
+    assert 'setdefault("SW_PRESS_CAP", "10")' in grind_cap
+    freeze_budget = grind_cap.split("freeze_at = budget if")[1].split("else 8")[0]
+    assert "the urn fills" not in freeze_budget
+    assert "the bridge holds" not in freeze_budget
+    assert "ripens" not in freeze_budget
+    assert "freeze_at = 2" in grind_cap
+    assert "fast-fwd" in grind_cap
+    assert "superpose" in grind_cap.lower()
     qm = src(QM)
     offers = qm.split("func get_story_offers")[1].split("\nfunc ")[0]
     assert "_sweep_spent_arc_offers" in offers
@@ -759,6 +819,9 @@ def test_eagle_overhead_track_keeps_sticky_focus():
     assert "[R] Incorporate" in walk
     assert "[F] Fast-Fwd" in walk
     assert "wait — loop ripens" not in walk
+    assert walk.index("_berry_tracking() and not _berry_ripe()") < walk.index(
+        "FRAME_ICON"
+    )
 
 
 def test_braid_order_refreshes_mi_after_gate():
