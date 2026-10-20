@@ -726,18 +726,44 @@ static func _cost_or(spend: Array, step: Dictionary, q: Dictionary, depth: int) 
 static var _no_trade_until := {}
 const NO_TRADE_MS := 90000
 
-static func _trade_ruled_out(res: String) -> bool:
-	return Time.get_ticks_msec() < int(_no_trade_until.get(res, 0))
+## With a biome: that one trade. Without: every trade for `res`.
+static func _trade_ruled_out(res: String, biome: String = "") -> bool:
+	if biome != "":
+		return Time.get_ticks_msec() < int(_no_trade_until.get(res + "|" + biome, 0))
+	for tr in CampaignRuntime.supply_trades(res):
+		if not _trade_ruled_out(res, str(tr.get("biome", ""))):
+			return false
+	return true
 
 
+## Trades not ruled out, cheapest first: one whose land is loaded and whose
+## give the wallet covers, then a loaded land, then the rest.
 static func _supply(res: String, q: Dictionary, depth: int) -> Dictionary:
-	var trades: Array = CampaignRuntime.supply_trades(res)
-	if trades.is_empty():
+	var abm := UIP._active_biome_manager()
+	var best := {}
+	var best_rank := 1 << 30
+	for tr in CampaignRuntime.supply_trades(res):
+		var home := str(tr.get("biome", ""))
+		if _trade_ruled_out(res, home):
+			continue
+		var rank := 0
+		if abm == null or int(abm.get_slot_for_biome(home)) < 0:
+			rank += 2
+		var give: Dictionary = CampaignRuntime.trade_give(tr)
+		for g in give:
+			if UIP._wallet(str(g)) < float(give[g]):
+				rank += 1
+				break
+		if rank < best_rank:
+			best_rank = rank
+			best = tr
+	if best.is_empty():
 		return {}
-	var tr: Dictionary = trades[0]
+	return _supply_via(best, res, q, depth)
+
+
+static func _supply_via(tr: Dictionary, res: String, q: Dictionary, depth: int) -> Dictionary:
 	var home := str(tr.get("biome", "Village"))
-	if _trade_ruled_out(res):
-		return {}
 	# Gather what the trade asks for before walking to the board: a give-gather
 	# found only on the open ring would close it with its first key.
 	var spec_give: Dictionary = CampaignRuntime.trade_give(tr)
@@ -747,8 +773,6 @@ static func _supply(res: String, q: Dictionary, depth: int) -> Dictionary:
 	var t := _travel(home, q)
 	if not t.is_empty():
 		return t
-	if _trade_ruled_out(res):
-		return {}
 	var board = UIP._quest_board()
 	if board == null:
 		return {}
@@ -759,7 +783,7 @@ static func _supply(res: String, q: Dictionary, depth: int) -> Dictionary:
 		var d = rows[i].get("data", {})
 		if not (d is Dictionary) or not bool(d.get("supply_trade", false)):
 			continue
-		if str(d.get("supply_emoji", "")) != res:
+		if str(d.get("supply_emoji", "")) != res or str(d.get("biome", home)) != home:
 			continue
 		var give: Dictionary = d.get("give", {}) if d.get("give", {}) is Dictionary else {}
 		if give.is_empty() and str(d.get("resource", "")) != "":
@@ -770,7 +794,7 @@ static func _supply(res: String, q: Dictionary, depth: int) -> Dictionary:
 		var verb: Array = ["Deliver", _verb("deliver")] if str(rows[i].get("kind", "")) == "held" \
 				else ["Accept", _verb("accept")]
 		return _chord(_page_to(i) + [["trade for %s" % res, _row_key(i % BERRY_ROWS)], verb], q, "supply " + res)
-	_no_trade_until[res] = Time.get_ticks_msec() + NO_TRADE_MS
+	_no_trade_until[res + "|" + home] = Time.get_ticks_msec() + NO_TRADE_MS
 	return {}
 
 
