@@ -23,10 +23,13 @@ Last checked against the game: 2026-10-19 (campaign spec, guide resolver,
 **Genre:** Simulation
 
 **Tags (10):** farming, simulation, physics, quantum, science, educational,
-singleplayer, relaxing, story-rich, godot
+singleplayer, relaxing, story-rich, mouse-only
 
-Leave out "mouse-only", "one-button" and "touch" until the mouse gap in
-`KNOWN_ISSUES.md` is closed: empty ground has no click target yet.
+**Inputs:** Mouse, Keyboard. **Made with:** Godot.
+
+The whole game plays with the mouse alone: unexplored ground draws as a grey
+bubble you can click, and the hats, actions and menus are all on-screen
+buttons. Leave out "touch" until touch drag-select exists (`KNOWN_ISSUES.md`).
 
 **Platforms:** HTML5, Windows, Linux. Mac players use the browser build; a
 native Mac build would need signing and notarization.
@@ -90,14 +93,17 @@ SpaceWheat
 >   *The Loom* (braids, topological protection), **in development**: they
 >   open after the ending, the game tells you so, and they are unfinished
 >
-> **Controls.** Keyboard-first: `G H J K L ;` pick plots, the number row
-> picks your hat, `F R Q E` act. The mouse works on what you can see, but
-> not yet on empty ground. `ESC` opens the menu.
+> **Controls.** Mouse or keyboard, your choice. Click a bubble to pick a
+> plot (grey ones are ground you haven't explored yet), click a hat, click
+> an action. Or keep your hands on the keys: `G H J K L ;` pick plots, the
+> number row picks your hat, `F R Q E` act, `ESC` opens the menu. The line at
+> the top names keys; the hats, actions and menus it points to are on-screen
+> buttons too.
 >
 > **Alpha.** Expect rough edges. If something confuses you or breaks, say so
 > in the comments. To attach a report: `ESC`, then `O` (Dev), then
-> "copy logs" and `R`. That puts your version and recent log on the
-> clipboard. Confusion reports are as useful as crash reports.
+> "copy logs" (click it or press `R`). That puts your version and recent
+> log on the clipboard. Confusion reports are as useful as crash reports.
 >
 > **How it was made.** I directed AI coding agents for the whole project
 > and wrote none of the code myself. The source, the agent fleet that built

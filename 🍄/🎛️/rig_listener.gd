@@ -2651,6 +2651,20 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			var got := DisplayServer.window_get_size()
 			result["window_size"] = {"w": got.x, "h": got.y}
 
+		"presentation":
+			# Capture-only (the rig never ships): hide the transient layers so a
+			# screenshot shows the farm, not this moment's notifications.
+			# {"toasts": false} hides the hint-toast stack; {"banner": false} the
+			# objective banner. Omitted keys are left as they are.
+			var pr_done := {}
+			for pr_pair in [["toasts", "HintToastStack"], ["banner", "BannerLines"]]:
+				if cmd.has(pr_pair[0]):
+					var pr_node = get_root().find_child(str(pr_pair[1]), true, false)
+					if pr_node is CanvasItem:
+						(pr_node as CanvasItem).visible = bool(cmd.get(pr_pair[0]))
+						pr_done[pr_pair[0]] = bool(cmd.get(pr_pair[0]))
+			result["presentation"] = pr_done
+
 		"screenshot":
 			# Capture the rendered viewport to a PNG (headed mode only — headless has no
 			# render target). Returns the globalized absolute path for the caller to read.
