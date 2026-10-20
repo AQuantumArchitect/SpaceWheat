@@ -15,11 +15,6 @@ doc for full context.
   Demos ending and are playable in part; expect rough edges and acts that do
   not close yet. The game says so at the ending and in the campaign headers.
 
-- **Unrevealed plots have no mouse click target under the default 3D
-  renderer.** The Act-0 hint says "or just tap it," which is true for
-  revealed plots but not empty ground. Needs a design call (ghost orbs for
-  empty ground, re-show the 2D rack, or reword the hint) —
-  `docs/history/2026-08-10_PLAYTEST_SWEEP.md`.
 - **Three action chips read fully silent**: spark.R (act 6), operator.F
   (act 7), druid.F (act 8). Not yet confirmed real vs. a phantom (see the
   project's own precedent for that diagnosis in `docs/design/PRE_LAUNCH_GAPS.md`) —

@@ -2651,6 +2651,55 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			var got := DisplayServer.window_get_size()
 			result["window_size"] = {"w": got.x, "h": got.y}
 
+		"presentation":
+			# Capture-only (the rig never ships): hide the transient layers so a
+			# screenshot shows the farm, not this moment's notifications.
+			# {"toasts": false} hides the hint-toast stack; {"banner": false} the
+			# objective banner. Omitted keys are left as they are.
+			var pr_done := {}
+			for pr_pair in [["toasts", "HintToastStack"], ["banner", "BannerLines"]]:
+				if cmd.has(pr_pair[0]):
+					var pr_node = get_root().find_child(str(pr_pair[1]), true, false)
+					if pr_node is CanvasItem:
+						(pr_node as CanvasItem).visible = bool(cmd.get(pr_pair[0]))
+						pr_done[pr_pair[0]] = bool(cmd.get(pr_pair[0]))
+			# {"hud": false} hides everything but the 3D field: the PlayerShell,
+			# every CanvasItem sibling of the field, and every CanvasLayer.
+			# {"hud": true} restores exactly what it hid.
+			var pr_field = get_root().find_child("QuantumField3D", true, false)
+			if cmd.has("hud"):
+				if not bool(cmd.get("hud")):
+					var pr_hidden: Array = []
+					var pr_targets: Array = get_root().find_children("*", "CanvasLayer", true, false)
+					var pr_shell = get_root().find_child("PlayerShell", true, false)
+					if pr_shell != null:
+						pr_targets.append(pr_shell)
+					if pr_field != null and pr_field.get_parent() != null:
+						for pr_sib in pr_field.get_parent().get_children():
+							if pr_sib != pr_field:
+								pr_targets.append(pr_sib)
+					for pr_t in pr_targets:
+						if (pr_t is CanvasItem or pr_t is CanvasLayer) and pr_t.visible \
+								and not (pr_field != null and pr_t.is_ancestor_of(pr_field)):
+							pr_t.visible = false
+							pr_hidden.append(pr_t)
+					set_meta("pr_hidden", pr_hidden)
+					pr_done["hud"] = {"visible": false, "hidden": pr_hidden.size()}
+				else:
+					for pr_t in get_meta("pr_hidden", []):
+						if is_instance_valid(pr_t):
+							pr_t.visible = true
+					set_meta("pr_hidden", [])
+					pr_done["hud"] = {"visible": true}
+			# {"zoom": k} moves the field's camera k× its distance from the pivot
+			# (k < 1 is closer); {"zoom": 1} puts it back.
+			if cmd.has("zoom") and pr_field != null and "_cam" in pr_field and pr_field._cam != null:
+				if not pr_field.has_meta("pr_cam0"):
+					pr_field.set_meta("pr_cam0", pr_field._cam.position)
+				pr_field._cam.position = (pr_field.get_meta("pr_cam0") as Vector3) * float(cmd.get("zoom"))
+				pr_done["zoom"] = float(cmd.get("zoom"))
+			result["presentation"] = pr_done
+
 		"screenshot":
 			# Capture the rendered viewport to a PNG (headed mode only — headless has no
 			# render target). Returns the globalized absolute path for the caller to read.

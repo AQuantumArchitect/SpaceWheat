@@ -252,19 +252,48 @@ func _stats_lines() -> Array:
 	var qm = InstrumentLocator.resolve_quest_manager(self, _farm)
 	if qm != null and "completed_quests" in qm and qm.completed_quests is Array:
 		lines.append("📜 %d contracts honored" % qm.completed_quests.size())
-	var gap := _active_biome_gap()
+	# The gap the ending was judged on: the island_free predicate's own biome
+	# and bound (the Village, ≤ 0.55 in the spec), not whichever biome happens
+	# to be active. The wording follows the number instead of always saying
+	# "plural".
+	var judged := _judged_gap_rule(qm)
+	var gap := _biome_gap(str(judged.get("biome", "")))
 	if gap >= 0.0:
-		lines.append("🕊 spectral gap %.3f — plural, and standing" % gap)
+		var bound := float(judged.get("value", -1.0))
+		if bound < 0.0 or gap <= bound:
+			lines.append("🕊 %s spectral gap %.3f — plural, and standing" % [str(judged.get("biome", "")), gap])
+		else:
+			lines.append("🕊 %s spectral gap %.3f — one heavy mode, still" % [str(judged.get("biome", "")), gap])
 	if lines.is_empty():
 		lines.append("an island, still breathing")
 	return lines
 
 
-func _active_biome_gap() -> float:
+## {biome, value} of the spectral-gap predicate the Demos ending is judged on
+## (story flag island_free); {} if the spec has none.
+func _judged_gap_rule(qm) -> Dictionary:
+	if qm == null or not qm.has_method("get_all_story_flags"):
+		return {}
+	for f in qm.get_all_story_flags():
+		if not (f is Dictionary) or str(f.get("id", "")) != "island_free":
+			continue
+		var preds: Array = []
+		preds.append_array(f.get("predicates", []))
+		if f.get("arc_quest") is Dictionary:
+			preds.append_array(f["arc_quest"].get("state_predicates", []))
+		for p in preds:
+			if p is Dictionary and str(p.get("type", "")) == "biome_spectral_gap_lte":
+				return {"biome": str(p.get("biome", "")), "value": float(p.get("value", -1.0))}
+	return {}
+
+
+## Spectral gap of `biome_name`, or of the active biome when it is "".
+func _biome_gap(biome_name: String) -> float:
 	if _farm == null or not ("grid" in _farm) or _farm.grid == null:
 		return -1.0
 	var abm = get_node_or_null("/root/ActiveBiomeManager")
-	var biome_name: String = str(abm.active_biome) if (abm != null and "active_biome" in abm) else ""
+	if biome_name == "":
+		biome_name = str(abm.active_biome) if (abm != null and "active_biome" in abm) else ""
 	if biome_name == "" or not _farm.grid.has_method("get_biome"):
 		return -1.0
 	var biome = _farm.grid.get_biome(biome_name)

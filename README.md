@@ -27,10 +27,11 @@ ending with a fleet of coding, playtesting and review bots.
 
 Status: **alpha**. The main campaign, *The Demos*, has seven acts (0–6) from
 the first plot to the ending. A validator replays every act against the
-resources a player can actually earn. The furthest anyone has verifiably
-played from a fresh boot, keys only and nothing injected, is the opening of
-Act 3. Two post-game campaigns, *What Fades* and *The Loom*, open after the
-ending and are still in development.
+resources a player can actually earn, and an automated player that presses
+only the keys the on-screen guide names, from a fresh game with nothing
+injected, reaches the ending in most runs. Two post-game campaigns,
+*What Fades* and *The Loom*, open after the ending and are
+still in development.
 
 ## The game
 
