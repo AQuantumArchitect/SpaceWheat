@@ -1,0 +1,36 @@
+{
+  "stamp": "20260916T-w11",
+  "chapter": "mill_apprentice",
+  "checkpoint": "earnest_mill_apprentice_w9b",
+  "model": "grok-4.5",
+  "host": "grok-build",
+  "jobs": 1,
+  "repo": "/home/primearchitect/ws/SpaceWheat",
+  "legs": [
+    {
+      "persona": "literalist",
+      "seat": "w_6T-w11_lite",
+      "chapter": "mill_apprentice",
+      "checkpoint": "earnest_mill_apprentice_w9b",
+      "max_presses": 25,
+      "log": "/home/primearchitect/ws/SpaceWheat/\ud83c\udf44/\ud83e\uddea/hive/waves/20260916T-w11/literalist.md"
+    },
+    {
+      "persona": "lost-lamb",
+      "seat": "w_6T-w11_lost",
+      "chapter": "mill_apprentice",
+      "checkpoint": "earnest_mill_apprentice_w9b",
+      "max_presses": 20,
+      "log": "/home/primearchitect/ws/SpaceWheat/\ud83c\udf44/\ud83e\uddea/hive/waves/20260916T-w11/lost-lamb.md"
+    },
+    {
+      "persona": "earnest",
+      "seat": "w_6T-w11_earn",
+      "chapter": "mill_apprentice",
+      "checkpoint": "earnest_mill_apprentice_w9b",
+      "max_presses": 25,
+      "log": "/home/primearchitect/ws/SpaceWheat/\ud83c\udf44/\ud83e\uddea/hive/waves/20260916T-w11/earnest.md"
+    }
+  ],
+  "note": "Parent launches legs sequentially (prompts/GROK.md). This script writes packs; it does not spawn Godot."
+}

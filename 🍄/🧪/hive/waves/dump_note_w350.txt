@@ -1,0 +1,8 @@
+DUMP-FIRST parent dump earnest_village_path_watched_wall CLEAN. lies []. followable_key U.
+Gold/filament: ▸ biome [U] StarterForest for 🦅 15/21
+You are on BloodLedger farm. Keyboard [U] is the Forest BIOME TAB (T=Demos Y=Village U=Forest I=Woodlot O=Lanternfall P=BloodLedger). Press U to cross to Forest, then harvest 🦅 on Forest H 🦅🐇 toward 21.
+Do NOT mill [U] as Commitments overlay. Do NOT mill Charge [U]. Charge overlay is empty (no charge yet). Arc overlay is empty (the next door hasn't opened). Do not mill [X] Arc.
+Do NOT mill [C]ontracts unless look shows an unsigned board offer. Do NOT mill [Y] as Market — [Y] is Village tab. Market is Contracts overlay then Market row.
+Do NOT click BoardTab_U at ~742,131 — that overlaps System pause Z. Keyboard U is Forest.
+village_path_watched + mill_master + island_free already fired. Village L is 🦅🐇, berries 9. Live mill is Forest eagles 15/21.
+Ace never Superposes. First tap selects. Buttons only advertise. Follow this unless look contradicts.
