@@ -88,23 +88,32 @@ func connect_to_economy(economy: Node) -> void:
 		print("⚠️  ResourcePanel: economy is null, cannot connect signals")
 		return
 
+	# Retire the previous authority before seating the new one. Same-economy
+	# rebind disconnects then reconnects so the signal keeps exactly one callback.
+	if economy_ref and is_instance_valid(economy_ref) and economy_ref.has_signal("resource_changed"):
+		if economy_ref.resource_changed.is_connected(_on_resource_changed):
+			economy_ref.resource_changed.disconnect(_on_resource_changed)
+
 	economy_ref = economy
 
-	# Connect to universal resource_changed signal (check if not already connected)
 	if economy.has_signal("resource_changed"):
 		if not economy.resource_changed.is_connected(_on_resource_changed):
 			economy.resource_changed.connect(_on_resource_changed)
 			print("✅ ResourcePanel connected to economy.resource_changed (HUD style)")
 
-	# Initialize displays with current values (only show non-zero resources)
+	# Wallet shows only positive balances of this authority. Absent or zero
+	# currencies from a retired economy are cleared so they cannot linger.
 	if economy.has_method("get_resource") and "emoji_credits" in economy:
+		var live := {}
 		for emoji in economy.emoji_credits.keys():
-			var credits = economy.get_resource(emoji)
-			if credits > 0:  # Only show resources with value > 0
+			var credits = int(economy.get_resource(emoji))
+			if credits > 0:
+				live[emoji] = credits
 				_ensure_display_exists(emoji)
 				_update_display(emoji, credits)
-
-		# Sort displays by priority then amount
+		for emoji in resource_displays.keys():
+			if not live.has(emoji):
+				_update_display(emoji, 0)
 		_sort_displays()
 
 
