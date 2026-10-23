@@ -542,6 +542,11 @@ static func _berry(q: Dictionary, only: Array = []) -> Dictionary:
 ## Standing is earned by keeping a faction's contracts. On that faction's
 ## board: deliver a held contract the wallet covers; gather for one it does
 ## not; drop one that is far out of reach; else take the most keepable offer.
+static var _refreshes := {}
+static var _counted_refresh := {}   # faction -> the ring signature last counted
+const REFRESH_CAP := 2
+
+
 static func _deliver_to(faction: String, q: Dictionary) -> Dictionary:
 	if faction == "":
 		return {}
@@ -583,11 +588,24 @@ static func _deliver_to(faction: String, q: Dictionary) -> Dictionary:
 		if short < best_short:
 			best_short = short
 			best = i
-	if best >= 0 and best_short <= int(_km().get("reach", 12)):
+	# Refreshing re-deals the ring; after a couple of deals with nothing in
+	# reach, take the nearest offer anyway and gather for it.
+	var stretch: bool = int(_refreshes.get(faction, 0)) >= REFRESH_CAP
+	if best >= 0 and (best_short <= int(_km().get("reach", 12)) or stretch):
+		_refreshes[faction] = 0
 		var d: Dictionary = rows[best].get("data", {})
 		return _chord(_page_to(best) + [["%s %s×%d" % [faction, str(d.get("resource", "")),
 				int(d.get("quantity", 0))], _row_key(best % BERRY_ROWS)], ["Accept", _verb("accept")]],
 				q, "take contract")
+	# Count each deal once: the ring's offer ids change when Refresh lands.
+	var sig := ""
+	for r2 in rows:
+		var d2 = r2.get("data", {})
+		if d2 is Dictionary:
+			sig += str(d2.get("id", "")) + ","
+	if str(_counted_refresh.get(faction, "")) != sig:
+		_refreshes[faction] = int(_refreshes.get(faction, 0)) + 1
+		_counted_refresh[faction] = sig
 	return _chord(["no keepable %s contract" % faction, ["Refresh", _verb("refresh")]], q, "refresh")
 
 
@@ -1146,6 +1164,8 @@ static func _steer(biome: String, emoji: String, q: Dictionary) -> Dictionary:
 	if UIP._plot_bound(col):
 		parts.append(["Strike for " + emoji, _verb("strike")])
 		return _chord(parts, q, "steer")
+	if _tracked(col):
+		return _evolve(biome, q)  # Ace F fast-forwards on a tracked plot; let time steer it
 	var fr := _free_terminal(q)
 	if not fr.is_empty():
 		return fr
