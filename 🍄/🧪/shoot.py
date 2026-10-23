@@ -13,6 +13,7 @@ optionally jumps to a story beat's fixture, then runs steps in order:
   hud:0 / hud:1    hide / show every UI layer, leaving the 3D field alone
   zoom:K           move the field camera to K x its distance (0.65 is close)
   follow:FLAG:N    press what the banner names, up to N presses or FLAG
+  until:TEXT:N     press what the banner names until the banner says TEXT
   act:VERB {json}  any rig verb
 
 Examples:
@@ -98,6 +99,20 @@ try:
             continue
         if step == "toasts":
             t("presentation", toasts=False); continue
+        if step.startswith("until:"):  # until:<text>:<max presses> — follow the banner until it says <text>
+            _, want, cap = step.split(":")
+            fo = BF.Follower(rig); fo.t = lambda a, timeout=60, **kw: t(a, timeout, **kw)
+            pressed = 0
+            while pressed < int(cap):
+                line = (fo.banner() or [""])[0]
+                if want in line:
+                    break
+                ks = BF.parse_keys(line)
+                if not ks:
+                    time.sleep(2); pressed += 1; continue
+                for k, sh in ks:
+                    t("press_key", key=k, shift=sh, settle_frames=12); pressed += 1
+            print("until", want, "->", (fo.banner() or [""])[0][:100]); continue
         if step.startswith("zoom:"):
             print("zoom", t("presentation", zoom=float(step[5:])).get("presentation")); continue
         if step == "clean":

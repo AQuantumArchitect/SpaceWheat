@@ -363,3 +363,20 @@ built, so the board printed "[X] then Arc [Y]" while Y opened Story.
 Superseded: the hive's `room_walk_cue` plan (each overlay spelling its own walk
 cue, `tests/test_surface_rooms.py::test_walk_cues_and_dock_share_one_table`)
 is replaced by the graph; that test still describes the old plan.
+
+**Measured on this branch** (main v0.1.8 + the resolver + the graph):
+
+| Check | Result |
+|---|---|
+| Fixture sweep (40 Demos beats) | 38/40 moved; 0 lines naming a key of a menu not open; 0 stale toasts; 0 verb mismatches |
+| Fresh games, banner only (8 runs) | 4 reached `island_free`, in 3.5–4.5 min of play; the rest stopped late in Act 5 on a probe/travel loop that the new step trace (`Guide.trace`, rig `guide_step`) is there to pin |
+| Fresh games, all checks | 0 off-surface lines, 0 stale toasts; 1 "Explore [F]" per run where F would fast-forward (counted by the follower, not yet fixed) |
+| Fast tests | 5 fewer failures than `main` (the hive's filed failing tests), none new |
+
+`docs/media/screens/charge.png` shows Charge holding a ready beat; with Charge
+open the banner drops its own "📖 [X], Charge [U]" prefix and names only the
+row and Claim — the path is computed from where you are.
+
+Still open: offer hints in the spec carry keys in prose ("[C] opens the
+board…"), and the post-game's Lanternfall beats still fall back to legacy
+lines (e.g. "[R] plant 💧" on the lamp teaching).
