@@ -86,12 +86,15 @@ static func _wait(text: String, beat: Dictionary, why: String) -> Dictionary:
 			"why": why, "wait": true}
 
 
-## Prefix that clears whatever overlay is open, when the next part of the
-## chord needs the field (or a different overlay).
+## Keys from the surface open now back to the field (the menus and
+## submenus are nodes in SurfaceGraph; this is its path to "field").
 static func _close_first() -> Array:
-	if UIP._menu_open() or UIP._in_icon_submenu() or UIP._in_gate_submenu():
-		return [["close", str(_km().get("close", "ESC"))]]
-	return []
+	return SurfaceGraph.path(SurfaceGraph.FIELD)
+
+
+## Keys from the surface open now to `node` ("X/arc", "C/market", …).
+static func _go(node: String) -> Array:
+	return SurfaceGraph.path(node)
 
 
 static func _overlay_manager():
@@ -378,49 +381,40 @@ static func _step(step: String, pred: Dictionary, q: Dictionary) -> Dictionary:
 # ---------------------------------------------------------------- doors
 
 static func _door_accept(q: Dictionary) -> Dictionary:
-	var title := _title(q)
 	var idx := _arc_row_index(q)
 	var row: Array = []
-	if idx >= 0 and idx < BERRY_ROWS:
-		row = [[title, _row_key(idx)]]
-	var om = _overlay_manager()
-	var arc_open: bool = om != null and om.has_method("is_event_home_open") and bool(om.is_event_home_open("arc"))
-	if arc_open:
-		return _chord(row + [["Accept", _verb("accept")]], q, "accept")
-	var surf: Dictionary = _km().get("surfaces", {}).get("arc", {})
-	var opens: Array = surf.get("open", ["X", "I"])
-	var parts: Array = _close_first()
-	parts.append(["📖", str(opens[0])])
-	parts.append([str(surf.get("name", "Arc")), str(opens[1])])
-	return _chord(parts + row + [["Accept", _verb("accept")]], q, "accept")
+	if idx >= 0:
+		row = _page_to(idx) + [[_title(q), _row_key(idx % BERRY_ROWS)]]
+	return _chord(_go("X/arc") + row + [["Accept", _verb("accept")]], q, "accept")
 
 
+## A signed beat is claimed where signed beats live: X's Charge tab.
 static func _door_claim(q: Dictionary) -> Dictionary:
-	return _board_row_chord("commitments", _commitment_index(q), _title(q), "Claim", _verb("claim"), q, "claim")
+	var idx := _charge_index(q)
+	var row: Array = []
+	if idx >= 0:
+		row = _page_to(idx) + [[_title(q), _row_key(idx % BERRY_ROWS)]]
+	return _chord(_go("X/charge") + row + [["Claim", _verb("claim")]], q, "claim")
 
 
 static func _board_row_chord(surface: String, idx: int, label: String, verb_label: String,
 		verb_key: String, q: Dictionary, why: String) -> Dictionary:
-	var surf: Dictionary = _km().get("surfaces", {}).get(surface, {})
-	var opens: Array = surf.get("open", ["C", "U"])
-	var board = UIP._quest_board()
-	var on_tab: bool = UIP._board_open() and board != null and "frame_id" in board \
-			and str(board.frame_id) == surface
-	var parts: Array = []
-	if not on_tab:
-		if UIP._board_open():
-			parts.append([str(surf.get("name", surface.capitalize())), str(opens[1])])
-		else:
-			parts += _close_first()
-			parts.append(["board", str(opens[0])])
-			parts.append([str(surf.get("name", surface.capitalize())), str(opens[1])])
-	if idx >= BERRY_ROWS:
-		for _p in range(idx / BERRY_ROWS):
-			parts.append(["next page", str(_km().get("page_next", "D"))])
+	var parts: Array = _go("C/" + surface)
 	if idx >= 0:
-		parts.append([label, _row_key(idx % BERRY_ROWS)])
+		parts += _page_to(idx) + [[label, _row_key(idx % BERRY_ROWS)]]
 	parts.append([verb_label, verb_key])
 	return _chord(parts, q, why)
+
+
+static func _charge_index(q: Dictionary) -> int:
+	var qm = UIP._quest_manager()
+	if qm == null or not qm.has_method("charge_quests"):
+		return -1
+	var rows: Array = qm.charge_quests()
+	for i in range(rows.size()):
+		if rows[i] is Dictionary and int(rows[i].get("id", -1)) == int(q.get("id", -2)):
+			return i
+	return -1
 
 
 static func _arc_row_index(q: Dictionary) -> int:
@@ -428,17 +422,6 @@ static func _arc_row_index(q: Dictionary) -> int:
 	for i in range(rows.size()):
 		var data = rows[i].get("data", {})
 		if data is Dictionary and int(data.get("id", -1)) == int(q.get("id", -2)):
-			return i
-	return -1
-
-
-static func _commitment_index(q: Dictionary) -> int:
-	var qm = UIP._quest_manager()
-	if qm == null or not qm.has_method("commitment_quests"):
-		return -1
-	var rows: Array = qm.commitment_quests()
-	for i in range(rows.size()):
-		if rows[i] is Dictionary and int(rows[i].get("id", -1)) == int(q.get("id", -2)):
 			return i
 	return -1
 
@@ -498,6 +481,8 @@ static func _berry(q: Dictionary, only: Array = []) -> Dictionary:
 		if not only.is_empty() and not (col in only):
 			continue
 		if bool(reg.is_ripe(col)):
+			if not _is_revealed(biome, col):
+				return _reveal(col, q)
 			var parts: Array = _close_first()
 			if focused != col:
 				parts.append(["plot", _plot_key(col)])
@@ -514,6 +499,8 @@ static func _berry(q: Dictionary, only: Array = []) -> Dictionary:
 		pick = col
 		break
 	if pick >= 0:
+		if not _is_revealed(biome, pick):
+			return _reveal(pick, q)
 		var parts: Array = _close_first()
 		if focused != pick:
 			parts.append(["plot", _plot_key(pick)])
@@ -554,7 +541,7 @@ static func _deliver_to(faction: String, q: Dictionary) -> Dictionary:
 	if not t.is_empty():
 		return t
 	var board = UIP._quest_board()
-	if not (UIP._board_open() and board != null and str(board.get("frame_id")) == "market"):
+	if board == null or not SurfaceGraph.on("C/market"):
 		return _open_surface("market", q)
 	var rows: Array = board._market_rows()
 	var best := -1
@@ -579,12 +566,21 @@ static func _deliver_to(faction: String, q: Dictionary) -> Dictionary:
 	return _chord(["no keepable %s contract" % faction, ["Refresh", _verb("refresh")]], q, "refresh")
 
 
-## The page presses that bring row `idx` into view, from the page the board
-## shows now (a board that is about to open starts on page one).
+## The page presses that bring row `idx` into view on the paged surface the
+## row lives on, from the page it shows now. A surface that is not open yet
+## opens on page one (C and X both reset their page when a tab is shown).
 static func _page_to(idx: int) -> Array:
 	var out: Array = []
-	var board = UIP._quest_board()
-	var cur := int(board.get("_item_page")) if UIP._board_open() and board != null else 0
+	var cur := 0
+	var here := SurfaceGraph.current()
+	if here.begins_with("C/"):
+		var board = UIP._quest_board()
+		cur = int(board.get("_item_page")) if board != null else 0
+	elif here.begins_with("X/"):
+		var om = UIP._overlay_manager()
+		var top = om.get_active_overlay() if om != null and bool(om.is_overlay_active()) else null
+		if top != null and top.has_method("current_page"):
+			cur = int(top.current_page())
 	var want := idx / BERRY_ROWS
 	for _p in range(absi(want - cur)):
 		if want > cur:
@@ -595,16 +591,7 @@ static func _page_to(idx: int) -> Array:
 
 
 static func _open_surface(surface: String, q: Dictionary) -> Dictionary:
-	var surf: Dictionary = _km().get("surfaces", {}).get(surface, {})
-	var opens: Array = surf.get("open", ["C", "Y"])
-	var parts: Array = []
-	if UIP._board_open():
-		parts.append([str(surf.get("name", surface)), str(opens[1])])
-	else:
-		parts += _close_first()
-		parts.append(["board", str(opens[0])])
-		parts.append([str(surf.get("name", surface)), str(opens[1])])
-	return _chord(parts, q, "open " + surface)
+	return _chord(_go("C/" + surface), q, "open " + surface)
 
 
 ## A held contract is a row on the Market tab of its board (held stalls come
@@ -615,7 +602,7 @@ static func _market_held_chord(c: Dictionary, home: String, verb: Array, q: Dict
 	if not t.is_empty():
 		return t
 	var board = UIP._quest_board()
-	if not (UIP._board_open() and board != null and str(board.get("frame_id")) == "market"):
+	if board == null or not SurfaceGraph.on("C/market"):
 		return _open_surface("market", q)
 	var rows: Array = board._market_rows()
 	for i in range(rows.size()):
@@ -781,7 +768,7 @@ static func _supply_via(tr: Dictionary, res: String, q: Dictionary, depth: int) 
 	var board = UIP._quest_board()
 	if board == null:
 		return {}
-	if not (UIP._board_open() and str(board.get("frame_id")) == "market"):
+	if not SurfaceGraph.on("C/market"):
 		return _open_surface("market", q)
 	var rows: Array = board._market_rows()
 	for i in range(rows.size()):
@@ -988,9 +975,16 @@ static func _deliver_lesson(q: Dictionary) -> Dictionary:
 
 ## Select a plot (the focused one if any) and press the hat's verb key.
 static func _plot_verb(key: String, q: Dictionary) -> Dictionary:
+	var biome := UIP._active_biome_name()
+	var col := _live_col() if _live_col() >= 0 else 0
+	if not _is_revealed(biome, col):
+		var other := _first_revealed(biome, col)
+		if other < 0:
+			return _reveal(col, q)
+		col = other
 	var parts: Array = _close_first()
-	if _live_col() < 0:
-		parts.append(["plot", _plot_key(0)])
+	if _live_col() != col:
+		parts.append(["plot", _plot_key(col)])
 	parts.append([str(_km().get("verb_labels", {}).get(key, "do it")), key])
 	return _chord(parts, q, "verb " + key)
 
@@ -1008,6 +1002,10 @@ static func _pair_gate(gate_key: String, q: Dictionary) -> Dictionary:
 	for m in marks:
 		if m is Vector2i:
 			rows[m.y] = true
+	var biome := UIP._active_biome_name()
+	for c in [0, 1]:
+		if not _is_revealed(biome, c):
+			return _reveal(c, q)
 	var good: bool = marks.size() == 2 and rows.size() == 1 and _marks_here(marks)
 	var parts: Array = []
 	if not good:
@@ -1047,10 +1045,13 @@ static func _reap(biome: String, q: Dictionary) -> Dictionary:
 
 ## Put coherence back: Druid hat, Hadamard [E] on the next plot in the ring.
 static func _superpose(q: Dictionary) -> Dictionary:
+	# On a qubit you can see: the Druid's work on a fog ball is invisible.
+	var col := _first_revealed(UIP._active_biome_name(), (_live_col() + 1) % BERRY_ROWS)
+	if col < 0:
+		return _reveal(_first_live_col(UIP._active_biome_name()), q)
 	var h := _hat("druid", q)
 	if not h.is_empty():
 		return h
-	var col := (_live_col() + 1) % BERRY_ROWS
 	return _chord(_close_first() + [["plot", _plot_key(col)], ["Hadamard", "E"]], q, "superpose")
 
 
@@ -1244,3 +1245,67 @@ static func _has_probe_in(biome: String) -> bool:
 				or (bool(t.is_measured) and str(t.measured_biome_name) == biome)):
 			return true
 	return false
+
+
+# ------------------------------------------------------------ explored qubits
+## The Druid, the Operator and the Icon hat act on qubits the player can see.
+## A qubit is shown (not a grey fog ball) while a probe is out on it: Explore
+## reveals it, Gather returns it to fog (Farm.revealed_plots). Their steps
+## explore the target first, so the player watches what the verb does.
+
+static func _plot_pos(biome: String, col: int) -> Vector2i:
+	var farm = UIP._active_farm()
+	if farm == null or farm.grid == null or not farm.grid.has_method("get_plot_biome_assignments"):
+		return Vector2i(-1, -1)
+	var a: Dictionary = farm.grid.get_plot_biome_assignments()
+	for pos in a:
+		if str(a[pos]) == biome and int(pos.x) == col:
+			return pos
+	return Vector2i(-1, -1)
+
+
+static func _is_revealed(biome: String, col: int) -> bool:
+	var farm = UIP._active_farm()
+	var pos := _plot_pos(biome, col)
+	if farm == null or pos.x < 0 or not farm.has_method("is_plot_revealed"):
+		return false
+	return bool(farm.is_plot_revealed(pos))
+
+
+## The first revealed live column, starting at `start` and wrapping; -1 if none.
+static func _first_revealed(biome: String, start: int = 0) -> int:
+	var n := _live_cols(biome)
+	for i in range(n):
+		var c := (start + i) % maxi(n, 1)
+		if _is_revealed(biome, c):
+			return c
+	return -1
+
+
+static func _first_live_col(_biome: String) -> int:
+	return 0
+
+
+static func _live_cols(biome: String) -> int:
+	var farm = UIP._active_farm()
+	var b = farm.grid.get_biome(biome) if farm != null and farm.grid != null else null
+	if b == null or b.quantum_computer == null or b.quantum_computer.register_map == null:
+		return 0
+	return mini(int(b.quantum_computer.register_map.num_qubits), BERRY_ROWS)
+
+
+## Explore `col` on the active biome so the next verb has something to show:
+## Ace hat, the plot, Explore — fetching a probe or bread first if needed.
+## One chord, hat included: a walk that puts on another hat before this step
+## would otherwise take the Ace hat straight back off.
+static func _reveal(col: int, q: Dictionary) -> Dictionary:
+	var fr := _free_terminal(q)
+	if not fr.is_empty():
+		return fr
+	var parts: Array = _close_first() + ["explore it first, so you can see it"]
+	if str(ToolConfig.get_current_frame()) != "ace":
+		parts.append([_hat_name("ace") + " hat", _hat_key("ace")])
+	if _live_col() != col:
+		parts.append(["plot", _plot_key(col)])
+	parts.append(["Explore", _verb("explore")])
+	return _cost_or(["explore", "🍞"], _chord(parts, q, "reveal"), q, 0)

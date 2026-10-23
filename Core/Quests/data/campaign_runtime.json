@@ -445,26 +445,59 @@
         "druid": "Druid"
       },
       "surfaces": {
-        "arc": {
-          "open": [
-            "X",
-            "I"
-          ],
-          "name": "Arc"
+        "_doc": "The UI as a graph. A menu opens with `open` onto `reopens` (or the tab it last showed, when absent); its tabs are reached by their keys; `close` from any menu returns to the field. Guide.gd and every toast compute key paths from here and from the surface that is open right now (SurfaceGraph.gd), never by hand.",
+        "X": {
+          "open": "X",
+          "name": "📖",
+          "tabs": [
+            {
+              "id": "self",
+              "key": "T",
+              "name": "Self"
+            },
+            {
+              "id": "arc",
+              "key": "Y",
+              "name": "Arc"
+            },
+            {
+              "id": "charge",
+              "key": "U",
+              "name": "Charge"
+            },
+            {
+              "id": "guide",
+              "key": "I",
+              "name": "Guide"
+            },
+            {
+              "id": "story",
+              "key": "O",
+              "name": "Story"
+            }
+          ]
         },
-        "market": {
-          "open": [
-            "C",
-            "Y"
-          ],
-          "name": "Market"
-        },
-        "commitments": {
-          "open": [
-            "C",
-            "U"
-          ],
-          "name": "Commitments"
+        "C": {
+          "open": "C",
+          "name": "board",
+          "reopens": "commitments",
+          "tabs": [
+            {
+              "id": "manifold",
+              "key": "T",
+              "name": "Manifold"
+            },
+            {
+              "id": "market",
+              "key": "Y",
+              "name": "Market"
+            },
+            {
+              "id": "commitments",
+              "key": "U",
+              "name": "Commitments"
+            }
+          ]
         }
       },
       "rows": [

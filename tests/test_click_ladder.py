@@ -35,7 +35,9 @@ def test_board_home_names_the_c_key():
     assert 'KEY_OPENS := "[%s] opens %s"' in text
     assert "func key_for_home" in text
     assert 'return "C"' in text
-    assert 'return "X"' in text
+    # X reopens on its last tab, so "[X] opens the Arc" was true only by
+    # luck: the Arc is a tap home, and the banner names the path.
+    assert 'return "X"' not in text
     chip = src(CHIP)
     assert 'home_name = "the board"' in chip
     assert 'home_key = "C"' in chip

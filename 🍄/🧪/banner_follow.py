@@ -114,6 +114,35 @@ class Follower:
         return hashlib.sha1(blob.encode()).hexdigest()[:12]
 
 
+# Keys that are honest as the FIRST press of a line on each kind of surface.
+# A line that starts with anything else names a key of a menu you don't
+# have open — the toast/menu mismatch the surface graph exists to prevent.
+MENU_KEYS = set("TYUIO") | set("GHJKL;'") | {"A", "D", "R", "Q", "E", "F", "C", "X", "ESCAPE"}
+SUBMENU_KEYS = {"Q", "E", "R", "F", "ESCAPE"}
+
+
+def check_surface(f, line: str, rep: dict) -> None:
+    """Record lines whose first key isn't valid where the player stands, and
+    visible toasts that name keys of a surface the player has left."""
+    g = f.t("guide_step")
+    here = str(g.get("surface", "field"))
+    for t in g.get("stale_toasts", []) or []:
+        rep.setdefault("stale_toasts", []).append({"surface": here, "toast": t})
+    ks = parse_keys(line)
+    if not ks:
+        return
+    first = ks[0][0].upper()
+    ok = True
+    if here.startswith("X/") or here.startswith("C/"):
+        ok = first in MENU_KEYS
+    elif here.startswith("menu:"):
+        ok = first == "ESCAPE"
+    elif here in ("field:icon", "field:gate"):
+        ok = first in SUBMENU_KEYS
+    if not ok:
+        rep.setdefault("off_surface", []).append({"surface": here, "line": line[:140]})
+
+
 def follow(rig, beat: str, cap: int = PRESS_CAP) -> dict:
     f = Follower(rig)
     r = f.t("start_at_beat", id=beat, wait_frames=300, timeout=240)
@@ -175,6 +204,7 @@ def follow(rig, beat: str, cap: int = PRESS_CAP) -> dict:
             rep["outcome"] = "loop"
             rep["why"] = " ⇄ ".join(sorted(set(recent)))
             break
+        check_surface(f, line, rep)
         for key, shift in ks:
             f.t("press_key", key=key, shift=shift, settle_frames=12)
             rep["presses"] += 1
@@ -245,6 +275,7 @@ def journey(rig, start: str, minutes: float = 30.0, until: str = "") -> dict:
         if same >= STUCK_AFTER:
             rep["stopped"], rep["why"] = "stuck", line
             break
+        check_surface(f, line, rep)
         for key, shift in ks:
             f.t("press_key", key=key, shift=shift, settle_frames=12)
             rep["presses"] += 1
@@ -306,6 +337,8 @@ def main(argv=None) -> int:
                 print(json.dumps({k: rep.get(k) for k in ("start", "stopped", "why", "presses", "waits")},
                                  ensure_ascii=False), flush=True)
                 print("  fired:", " → ".join("%s@%ds" % (x["flag"], x["t"]) for x in rep.get("fired", [])), flush=True)
+                print("  off-surface lines: %d, stale toasts: %d" % (len(rep.get("off_surface", [])),
+                      len(rep.get("stale_toasts", []))), flush=True)
                 continue
             print(json.dumps({k: rep.get(k) for k in ("beat", "outcome", "presses", "waits", "accepted", "contract_claims",
                                                       "why", "moved_by", "seconds")},

@@ -248,8 +248,10 @@ static func is_verb_active(frame_name: String, key: String) -> bool:
 # ============================================================================
 
 const OBJECTIVE_MAX_CHARS := 70
-const OFFER_LINE := "📜 new offer — tap 📖 [X], then Arc [I]"
-const REDIRECT_FALLBACK := "follow the Arc — tap 📖 [X], then [I]"
+# Menu keys come from SurfaceRooms (mirroring the campaign keymap); a path
+# from wherever the player is comes from SurfaceGraph.path().
+const OFFER_LINE := "📜 new offer — tap 📖 [X], then Arc [" + SurfaceRooms.KEY_OFFERS + "]"
+const REDIRECT_FALLBACK := "follow the Arc — tap 📖 [X], then [" + SurfaceRooms.KEY_OFFERS + "]"
 
 
 ## One spelling per door — every surface that names a route composes from
@@ -261,10 +263,14 @@ const REDIRECT_FALLBACK := "follow the Arc — tap 📖 [X], then [I]"
 ## (docs/design/MOUSE_PARITY_AUDIT.md: zero keyboard-only gaps), so copy that only
 ## says "press R" lies by omission to a mouse-and-trackpad player.
 static func route_accept() -> String:
-	return "tap 📖 [X], Arc [I], its row, then Accept [R]"
+	return "tap 📖 [X], %s [%s], its row, then Accept [R]" % [SurfaceRooms.NAME_ARC, SurfaceRooms.KEY_OFFERS]
 
 
-static func route_claim() -> String:
+## Signed story beats are claimed on X → Charge; market contracts on C.
+static func route_claim(q: Dictionary = {}) -> String:
+	var qm = _quest_manager()
+	if not q.is_empty() and qm != null and qm.has_method("is_charge_hold") and bool(qm.is_charge_hold(q)):
+		return "tap 📖 [X], %s [%s], its row, then Claim [R]" % [SurfaceRooms.NAME_CHARGE, SurfaceRooms.KEY_HELD]
 	return "tap 📋 [C], its row twice (Claim [R])"
 
 
@@ -323,7 +329,11 @@ static func puzzle_home(q: Dictionary) -> String:
 		return ""
 	if str(q.get("status", "")) == Quest.STATUS_STORY:
 		return ""
-	if str(q.get("status", "")) == "ready" or _is_board_ask(q):
+	var qm = _quest_manager()
+	var signed: bool = qm != null and qm.has_method("is_charge_hold") and bool(qm.is_charge_hold(q))
+	if str(q.get("status", "")) == "ready":
+		return "charge" if signed else "commitments"
+	if _is_board_ask(q) and not signed:
 		return "commitments"
 	return "field"
 
@@ -505,6 +515,11 @@ static func objective_text() -> String:
 	var g: Dictionary = _guide().next_step()
 	if not g.is_empty():
 		return str(g.get("text", ""))
+	# The legacy lines below assume the field. With a menu open and nothing
+	# from the resolver, the one true instruction is the way back to it.
+	var sg = load("res://Core/Campaign/SurfaceGraph.gd")
+	if not str(sg.current()).begins_with(sg.FIELD):
+		return "▸ close [%s]" % sg.close_key()
 	var best := _banner_quest()
 	# Watch It Fade outranks leftover demos atom_in_biome mill [J]. Fog J
 	# is an unrevealed live qubit, not a plant seat and not a lantern.
@@ -658,9 +673,9 @@ static func _waiting_arc_line() -> String:
 			return SurfaceRooms.row_item_cue("X", "[R] Accept", row)
 		return "▸ [R] Accept the teaching"
 	if _story_surface_open():
-		return "▸ Arc [I], then Accept [R]"
+		return "▸ %s [%s], then Accept [R]" % [SurfaceRooms.NAME_ARC, SurfaceRooms.KEY_OFFERS]
 	var title := str(q.get("body", "")).split(" — ")[0].strip_edges()
-	var tail := " waits — 📖 [X], Arc [I], Accept [R]"
+	var tail := " waits — 📖 [X], %s [%s], Accept [R]" % [SurfaceRooms.NAME_ARC, SurfaceRooms.KEY_OFFERS]
 	var room := OBJECTIVE_MAX_CHARS - tail.length() - 2
 	if title.length() > room:
 		title = title.substr(0, maxi(room - 1, 8)).strip_edges() + "…"
@@ -875,7 +890,7 @@ static func _decorate_objective(q: Dictionary) -> String:
 		var claim := _claim_walk_line(q)
 		if claim != "":
 			return claim
-		return "▸ to claim: " + route_claim()
+		return "▸ to claim: " + route_claim(q)
 	var travel := _travel_line(q)
 	if travel != "":
 		return travel
@@ -3344,7 +3359,7 @@ static func _objective_rank(q: Dictionary, act_by_flag: Dictionary) -> int:
 	if cat == "TUTORIAL":
 		return int(q.get("tutorial_step", 0))
 	if cat == "ARC" and str(q.get("status", "")) != Quest.STATUS_STORY:
-		# Active arc quests only — arc OFFERS need the X→I acknowledgement first.
+		# Active arc quests only — arc OFFERS need the Arc (X → Y) acknowledgement first.
 		return 1000 + int(act_by_flag.get(str(q.get("source_flag", "")), 99))
 	return 0x7FFFFFFF
 
@@ -3494,7 +3509,9 @@ static func redirect_locked(what: String = "") -> void:
 	if status == Quest.STATUS_STORY:
 		route = "arc"
 	elif status == "ready":
-		route = "commitments"
+		var qm_r = _quest_manager()
+		var best_r := _best_objective()
+		route = "charge" if qm_r != null and qm_r.has_method("is_charge_hold") and bool(qm_r.is_charge_hold(best_r)) else "commitments"
 	var line := ("🔒 %s unlocks further down Act 0 — now: %s" % [what, obj]) if what != "" \
 			else ("🔒 not yet — now: %s" % obj)
 	var shell := _shell()

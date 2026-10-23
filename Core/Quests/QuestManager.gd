@@ -1171,9 +1171,76 @@ func _leftover_still_field_work(quest: Dictionary) -> bool:
 func commitment_quests() -> Array:
 	var out: Array = []
 	for q in active_quests.values():
-		if q is Dictionary and not _tutorial_auto_advances(q):
+		if q is Dictionary and not _tutorial_auto_advances(q) and is_market_hold(q):
 			out.append(q)
 	return out
+
+
+## Held work splits by where it came from (UI/Core/SurfaceRooms.gd): a market
+## hold is a contract taken on a board (C → Commitments); a charge hold is a
+## signed story beat (X → Charge). Act 0 lessons stay with the board — they
+## teach the board.
+func is_charge_hold(q: Dictionary) -> bool:
+	if str(q.get("category", "")) == "TUTORIAL":
+		return false
+	return str(q.get("category", "")) == "ARC" or str(q.get("source", "")) == "story" \
+			or str(q.get("source_flag", "")) != ""
+
+
+func is_market_hold(q: Dictionary) -> bool:
+	return not is_charge_hold(q)
+
+
+## Signed story beats, the newest act first (the one the story is on now),
+## ready ones ahead of the rest within an act. X → Charge lists these.
+func charge_quests() -> Array:
+	var out: Array = []
+	for q in active_quests.values():
+		if q is Dictionary and is_charge_hold(q):
+			out.append(q)
+	var now_act := _furthest_fired_story_act()
+	out.sort_custom(func(a, b):
+		var aa := absi(_story_act_of(a) - now_act)
+		var bb := absi(_story_act_of(b) - now_act)
+		if aa != bb:
+			return aa < bb
+		var ar := str(a.get("status", "")) == "ready"
+		var br := str(b.get("status", "")) == "ready"
+		if ar != br:
+			return ar
+		return int(a.get("id", 0)) < int(b.get("id", 0)))
+	return out
+
+
+func _story_act_of(q: Dictionary) -> int:
+	var fid := str(q.get("source_flag", ""))
+	for f in _story_flags:
+		if f is Dictionary and str(f.get("id", "")) == fid:
+			return int(f.get("act", 0))
+	return 0
+
+
+## Fired flag ids: every flag the last refresh did not leave unfired.
+func _fired_flags() -> Dictionary:
+	var unfired := {}
+	for f in _unfired_flags:
+		if f is Dictionary:
+			unfired[str(f.get("id", ""))] = true
+	var out := {}
+	for f in _story_flags:
+		if f is Dictionary and not unfired.has(str(f.get("id", ""))):
+			out[str(f.get("id", ""))] = true
+	return out
+
+
+## The highest act among story flags that have fired.
+func _furthest_fired_story_act() -> int:
+	var best := 0
+	var fired: Dictionary = _fired_flags()
+	for f in _story_flags:
+		if f is Dictionary and fired.has(str(f.get("id", ""))):
+			best = maxi(best, int(f.get("act", 0)))
+	return best
 
 
 ## True if any story or active quest has source_flag == flag_id (for save/load restore check).

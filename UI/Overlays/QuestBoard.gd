@@ -28,12 +28,13 @@ const FRAME_MANIFOLD := "manifold"
 const FRAME_MARKET := "market"
 const FRAME_COMMITMENTS := "commitments"
 
+## C and X share one grammar (SurfaceRooms; the campaign keymap mirrors it
+## for SurfaceGraph): T identity, Y offers, U what you hold. Commitments are
+## market contracts only — signed story beats live on X → Charge.
 const TAB_ROW := [
-	{"key": "T", "frame": FRAME_MANIFOLD,    "name": "Manifold"},
-	{"key": "Y", "frame": FRAME_MARKET,      "name": "Market"},
-	{"key": "U", "frame": FRAME_COMMITMENTS, "name": "Commitments"},
-	# Arc (I) moved to X / ControlsOverlay — the story spine reads next to Story.
-	# Commitments (held) live on Market now; U is the ledger of past contracts.
+	{"key": SurfaceRooms.KEY_IDENTITY, "frame": FRAME_MANIFOLD,    "name": SurfaceRooms.NAME_MANIFOLD},
+	{"key": SurfaceRooms.KEY_OFFERS,   "frame": FRAME_MARKET,      "name": SurfaceRooms.NAME_MARKET},
+	{"key": SurfaceRooms.KEY_HELD,     "frame": FRAME_COMMITMENTS, "name": SurfaceRooms.NAME_COMMITMENTS},
 ]
 
 # The GHJKL; ring IS the stall count. Held commitments occupy stalls;

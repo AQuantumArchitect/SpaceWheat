@@ -51,8 +51,9 @@ func _process(delta: float) -> void:
 	_announce_live_beat()
 
 
-## One gold card when the live beat changes: its title and the resolver's
-## next step — the banner's own words, so the two can never disagree.
+## One gold card when the live beat changes: what happened, and where it
+## lives. No keys — the banner names the next key from wherever you are, and
+## a toast can't follow you between menus.
 func _announce_live_beat() -> void:
 	var guide = load("res://Core/Campaign/Guide.gd")
 	var q: Dictionary = guide.live_beat(_quest_manager)
@@ -62,12 +63,14 @@ func _announce_live_beat() -> void:
 	_guide_live = live
 	if live == "":
 		return
-	var step: Dictionary = guide.next_step()
 	var title: String = guide._title(q)
-	var line := str(step.get("text", "")).strip_edges()
 	var unsigned := str(q.get("status", "")) == Quest.STATUS_STORY
-	_push("📜 [b]%s[/b]%s" % [title, ("\n" + line) if line != "" else ""], 3, "📜", "quest",
-			"X" if unsigned else "", "arc" if unsigned else "")
+	if unsigned:
+		_push("📜 [b]%s[/b]\na new door on the %s" % [title, SurfaceRooms.NAME_ARC], 3, "📜", "quest",
+				"X" + SurfaceRooms.KEY_OFFERS, "arc")
+	else:
+		_push("📜 [b]%s[/b]\nsigned — it's on %s" % [title, SurfaceRooms.NAME_CHARGE], 2, "📜", "quest",
+				"X" + SurfaceRooms.KEY_HELD, "charge")
 
 
 func _on_farm_ready(farm: Node, _state) -> void:
@@ -177,7 +180,7 @@ func _on_story_flag_fired(flag_id: String, flag_data: Dictionary) -> void:
 		return
 	_push(str(toast.get("message", "")), int(toast.get("importance", 3)),
 			str(toast.get("icon", "✨")), "story",
-			str(toast.get("path", "XY")), str(toast.get("route", "story")))
+			str(toast.get("path", "X" + SurfaceRooms.KEY_STORY)), str(toast.get("route", "story")))
 
 
 func _on_quest_completed(qid: int, rewards: Dictionary) -> void:

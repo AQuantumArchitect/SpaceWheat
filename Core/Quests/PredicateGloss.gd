@@ -1,7 +1,7 @@
 extends RefCounted
 
 ## ONE home for the player-facing one-line gloss of a quest/flag predicate.
-## Used by QuestBoard (C) and the Arc tab (ControlsOverlay X→I) — these were
+## Used by QuestBoard (C) and the Arc tab (ControlsOverlay, X → Y) — these were
 ## two hand-maintained copies that drifted every time a predicate type landed
 ## (merged 2026-07-06). Pass the QuestManager so numeric targets show the REAL
 ## fire threshold (predicate_fire_target inverts the soft-gate); without it,
@@ -125,7 +125,7 @@ static func summary(pred: Dictionary, qm = null) -> String:
 			# leg L4a walled reading 9% as "1-2 of 15" when it held 12).
 			var sig_have := int(qm.signature_size_now()) if (qm and qm.has_method("signature_size_now")) else -1
 			var sig_str := ("%d/%d" % [sig_have, itgt]) if sig_have >= 0 else str(itgt)
-			return "know %s icons — claim teachings (Arc X→I, then C→U); Icon hat (5) R incorporates" % sig_str
+			return "know %s icons — sign teachings on the Arc (X→Y), claim them on Charge (X→U); Icon hat (5) R incorporates" % sig_str
 		"berry_consumed_count_gte":
 			# Nine fleet testers stalled on "berries[X] ≥ 3" — the gloss must teach
 			# the loop, not just name the count. Live N/M: the ladder is cumulative,

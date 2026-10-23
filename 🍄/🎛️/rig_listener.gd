@@ -1083,6 +1083,21 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			result["live_status"] = str(gs_beat.get("status", ""))
 			result["tutorial_step"] = load("res://UI/Core/UIProgression.gd").current_tutorial_step()
 			result["explain"] = gs_guide.explain()
+			# Where the player is on the UI graph, and every visible toast that
+			# names keys but was raised on another surface (should be none:
+			# HintToast collapses those when the player moves).
+			var gs_sg = load("res://Core/Campaign/SurfaceGraph.gd")
+			var gs_here := str(gs_sg.current())
+			result["surface"] = gs_here
+			var gs_stale: Array = []
+			var gs_stack = get_root().find_child("HintToastStack", true, false)
+			if gs_stack != null:
+				for gs_t in gs_stack.get_children():
+					if gs_t is CanvasItem and (gs_t as CanvasItem).visible and gs_t.has_method("_names_keys") \
+							and "_raw_bbcode" in gs_t and bool(gs_t._names_keys(str(gs_t._raw_bbcode))) \
+							and str(gs_t.get("_surface_at_raise")) != gs_here and not bool(gs_t.get("_flattened") if "_flattened" in gs_t else false):
+						gs_stale.append(str(gs_t._raw_bbcode).left(120))
+			result["stale_toasts"] = gs_stale
 			result["hat"] = str(ToolConfig.get_current_frame())
 
 		"overlay_text":

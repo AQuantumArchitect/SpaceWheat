@@ -34,7 +34,9 @@ def test_lane_auto_accepts_all_tutorial_including_the_mill():
 def test_auto_tutorial_has_no_toast():
     offer = src(INTRO).split("func toast_for_offer")[1].split("func flag_postcard")[0]
     assert "return {}" in offer.split("is_auto_tutorial")[1]
-    assert "[X] then Arc [I]" in offer
+    # A toast outlives the menu it was raised on, so it names the place
+    # (SurfaceRooms) and never a key path; the banner names the keys.
+    assert "SurfaceRooms.NAME_ARC" in offer and "Arc [I]" not in offer
     flag_fn = src(INTRO).split("func toast_for_flag")[1].split("func recap")[0]
     assert 'flag_data.has("arc_quest")' in flag_fn
 
