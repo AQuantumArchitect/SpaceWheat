@@ -1083,6 +1083,8 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			result["live_status"] = str(gs_beat.get("status", ""))
 			result["tutorial_step"] = load("res://UI/Core/UIProgression.gd").current_tutorial_step()
 			result["explain"] = gs_guide.explain()
+			gs_guide.next_step()
+			result["trace"] = gs_guide.trace.duplicate()
 			# Where the player is on the UI graph, and every visible toast that
 			# names keys but was raised on another surface (should be none:
 			# HintToast collapses those when the player moves).

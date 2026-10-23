@@ -182,7 +182,18 @@ static func _is_ready(q: Dictionary) -> bool:
 
 # ---------------------------------------------------------------- resolver
 
+## Debug: the chain of step functions that produced the last step (probes
+## read it through the rig's guide_step).
+static var trace: Array = []
+
+
+static func _t(what: String) -> void:
+	if trace.size() < 40:
+		trace.append(what)
+
+
 static func next_step() -> Dictionary:
+	trace = []
 	if UIP.current_tutorial_step() != UIP.NO_TUTORIAL_SENTINEL:
 		return _tutorial_step()
 	var q := live_beat()
@@ -451,6 +462,7 @@ static func _title(q: Dictionary) -> String:
 # ---------------------------------------------------------------- field steps
 
 static func _travel(biome: String, q: Dictionary) -> Dictionary:
+	_t("travel %s" % biome)
 	if biome == "" or UIP._active_biome_name() == biome:
 		return {}
 	var abm := UIP._active_biome_manager()
@@ -639,6 +651,7 @@ static var _counted := {}   # this measurement was already counted (next_step ru
 const MISS_CAP := 3
 
 static func _gather(res: String, need: int, q: Dictionary, depth: int = 0) -> Dictionary:
+	_t("gather %s d%d misses%d" % [res, depth, int(_misses.get(res, 0))])
 	var info := CampaignRuntime.resource(res)
 	var plots: Array = info.get("plots", [])
 	var abm := UIP._active_biome_manager()
@@ -658,6 +671,14 @@ static func _gather(res: String, need: int, q: Dictionary, depth: int = 0) -> Di
 			return sup
 		if where == "":
 			return _wait("no %s on the market ring yet — wait for it to turn" % res, q, "no route " + res)
+	# Decide the route before the trip: a target plot that is tracking a loop
+	# can't be explored (Ace F fast-forwards there), so the trade is the way —
+	# checked here, not on arrival, or the trade's trip and this one cancel.
+	if _tracked_in(where, _qubit_in(where, res)):
+		var sup2 := _supply(res, q, depth)
+		if not sup2.is_empty():
+			return sup2
+		return _wait("%s's plot is tracking a loop — it opens once the loop is taken in" % res, q, "tracked")
 	if not _has_probe_in(where):
 		var fr0 := _free_terminal(q)
 		if not fr0.is_empty():
@@ -688,13 +709,12 @@ static func _gather(res: String, need: int, q: Dictionary, depth: int = 0) -> Di
 	var key := UIP._glyph_plot_key(res)
 	if key == "":
 		key = _plot_key(0)
-	# On a tracked column Ace F fast-forwards the loop instead of exploring
-	# (AceChipResolvers), so that plot can't be opened until it's taken in.
+	# The glyph's own plot is tracked (checked before the trip): open another.
 	if _tracked(_plot_keys().find(key)):
-		var sup := _supply(res, q, depth)
-		if not sup.is_empty():
-			return sup
-		return _wait("%s's plot is tracking a loop — it opens once the loop is taken in" % res, q, "tracked")
+		var free_col := _first_live_col(where)
+		if _tracked(free_col):
+			return _wait("every plot here is tracking a loop — they open once the loops are taken in", q, "tracked")
+		key = _plot_key(free_col)
 	var parts: Array = _close_first() + [label]
 	if col < 0 or _plot_key(col) != key:
 		parts.append(["plot", key])
@@ -775,6 +795,7 @@ static func _supply(res: String, q: Dictionary, depth: int) -> Dictionary:
 
 
 static func _supply_via(tr: Dictionary, res: String, q: Dictionary, depth: int) -> Dictionary:
+	_t("supply %s via %s" % [res, str(tr.get("biome", ""))])
 	var home := str(tr.get("biome", "Village"))
 	# Gather what the trade asks for before walking to the board: a give-gather
 	# found only on the open ring would close it with its first key.
@@ -1136,6 +1157,7 @@ static func _steer(biome: String, emoji: String, q: Dictionary) -> Dictionary:
 ## refused. Bring one home: gather a measured probe (strike a bound one
 ## first), measured ones away from this beat's biome before the rest.
 static func _free_terminal(q: Dictionary) -> Dictionary:
+	_t("free_terminal")
 	var farm = UIP._active_farm()
 	if farm == null or farm.terminal_pool == null or int(farm.terminal_pool.get_unbound_count()) > 0:
 		return {}
@@ -1309,6 +1331,23 @@ static func _first_live_col(biome: String) -> int:
 		if not _tracked(c):
 			return c
 	return 0
+
+
+static func _qubit_in(biome: String, glyph: String) -> int:
+	var farm = UIP._active_farm()
+	var b = farm.grid.get_biome(biome) if farm != null and farm.grid != null else null
+	if b == null or b.quantum_computer == null or b.quantum_computer.register_map == null:
+		return -1
+	return int(b.quantum_computer.register_map.qubit(glyph))
+
+
+static func _tracked_in(biome: String, col: int) -> bool:
+	var farm = UIP._active_farm()
+	var b = farm.grid.get_biome(biome) if farm != null and farm.grid != null else null
+	if col < 0 or b == null or b.quantum_computer == null:
+		return false
+	var reg = b.quantum_computer.berry_register if "berry_register" in b.quantum_computer else null
+	return reg != null and reg.has_method("is_tracked") and bool(reg.is_tracked(col))
 
 
 static func _tracked(col: int) -> bool:
