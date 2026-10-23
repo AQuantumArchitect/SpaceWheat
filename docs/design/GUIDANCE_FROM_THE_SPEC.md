@@ -318,3 +318,48 @@ None added a banner string.
 ```bash
 python3 🍄/🧪/banner_follow.py fresh fresh --jobs 2 --journey 45 --until island_free --out j.json
 ```
+
+## The surface graph (2026-10-23, after the first human playtest of v0.1.8)
+
+The owner played v0.1.8-alpha (the remodel on `main`, without the resolver)
+and reported three things: the toast's keys often did not match the menu
+that was open, accepted Arc beats were mixed into the market's Commitments,
+and the Druid, Operator and Icon hats were steered onto unexplored qubits,
+so the player acted on grey fog balls and never saw what the verb did.
+
+**Why the toast lied.** A key path ("[X], Arc [I], Accept [R]") is only true
+from the surface it was computed on. Toast text was computed once, when the
+toast was raised, and gold toasts never fade. Several legacy banner lines also
+assumed "a menu is open" meant "the board is open", and the X menu reopens on
+its last tab, so "[X] opens the Arc" was true only by luck. Meanwhile
+`SurfaceRooms.gd` declared an X layout (Arc on Y, Charge on U) the overlay never
+built, so the board printed "[X] then Arc [Y]" while Y opened Story.
+
+**What changed.**
+
+- **The UI is a graph** (`Core/Campaign/SurfaceGraph.gd`). Nodes are the field,
+  the Icon and gate submenus, every tab of X and C, and any other overlay.
+  Edges are keys, read from `guide.keymap.surfaces` in the campaign spec: a
+  menu's open key, its tab keys, and ESC back to the field. `current()` reads
+  where the player is from the live UI; `path(target)` is a breadth-first walk
+  from there. Guide.gd builds every menu path from it. Nothing spells a menu
+  path by hand.
+- **X shares C's grammar**: T Self, Y Arc (doors you haven't signed), U Charge
+  (beats you have signed — claimed there with R), I Guide, O Story.
+  Commitments on C now hold market contracts only.
+- **Toasts name places, not keys.** The offer, live-beat and flag toasts say
+  what happened and where it lives ("a new door on the Arc", "signed — it's on
+  Charge") and are tap targets. Any toast that does name keys collapses when
+  the player moves to another surface; its follow cue re-renders for where the
+  player is. The banner is the one live voice for keys.
+- **With a menu open and nothing from the resolver**, the banner says the way
+  back to the field instead of a legacy line written for the field.
+- **Hats act on what you can see.** Druid, Operator and Icon steps explore
+  their target qubit first (Ace hat, plot, Explore in one chord), then act.
+- **The follower checks it.** `banner_follow.py` now records every line whose
+  first key isn't valid on the open surface and every visible toast that names
+  keys of a surface the player has left. Both should stay at zero.
+
+Superseded: the hive's `room_walk_cue` plan (each overlay spelling its own walk
+cue, `tests/test_surface_rooms.py::test_walk_cues_and_dock_share_one_table`)
+is replaced by the graph; that test still describes the old plan.

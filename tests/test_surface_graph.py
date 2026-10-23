@@ -65,7 +65,7 @@ def test_guide_builds_no_menu_path_by_hand():
     for needle in ("_board_open()", 'get("frame_id")', "is_event_home_open"):
         assert needle not in guide, needle
     claim = guide.split("static func _door_claim(")[1].split("\nstatic func ")[0]
-    assert '_go("X/charge")' in claim
+    assert '"X/charge"' in claim and '"C/commitments"' in claim and "is_charge_hold" in claim
     accept = guide.split("static func _door_accept(")[1].split("\nstatic func ")[0]
     assert '_go("X/arc")' in accept
 

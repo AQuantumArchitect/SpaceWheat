@@ -388,13 +388,28 @@ static func _door_accept(q: Dictionary) -> Dictionary:
 	return _chord(_go("X/arc") + row + [["Accept", _verb("accept")]], q, "accept")
 
 
-## A signed beat is claimed where signed beats live: X's Charge tab.
+## Claimed where it is held: a signed story beat on X's Charge tab, a
+## contract (Act 0's lesson included) on C's Commitments.
 static func _door_claim(q: Dictionary) -> Dictionary:
-	var idx := _charge_index(q)
+	var qm = UIP._quest_manager()
+	var signed: bool = qm != null and qm.has_method("is_charge_hold") and bool(qm.is_charge_hold(q))
+	var node := "X/charge" if signed else "C/commitments"
+	var idx := _charge_index(q) if signed else _commitment_index(q)
 	var row: Array = []
 	if idx >= 0:
 		row = _page_to(idx) + [[_title(q), _row_key(idx % BERRY_ROWS)]]
-	return _chord(_go("X/charge") + row + [["Claim", _verb("claim")]], q, "claim")
+	return _chord(_go(node) + row + [["Claim", _verb("claim")]], q, "claim")
+
+
+static func _commitment_index(q: Dictionary) -> int:
+	var qm = UIP._quest_manager()
+	if qm == null or not qm.has_method("commitment_quests"):
+		return -1
+	var rows: Array = qm.commitment_quests()
+	for i in range(rows.size()):
+		if rows[i] is Dictionary and int(rows[i].get("id", -1)) == int(q.get("id", -2)):
+			return i
+	return -1
 
 
 static func _board_row_chord(surface: String, idx: int, label: String, verb_label: String,
@@ -481,8 +496,6 @@ static func _berry(q: Dictionary, only: Array = []) -> Dictionary:
 		if not only.is_empty() and not (col in only):
 			continue
 		if bool(reg.is_ripe(col)):
-			if not _is_revealed(biome, col):
-				return _reveal(col, q)
 			var parts: Array = _close_first()
 			if focused != col:
 				parts.append(["plot", _plot_key(col)])
@@ -675,6 +688,13 @@ static func _gather(res: String, need: int, q: Dictionary, depth: int = 0) -> Di
 	var key := UIP._glyph_plot_key(res)
 	if key == "":
 		key = _plot_key(0)
+	# On a tracked column Ace F fast-forwards the loop instead of exploring
+	# (AceChipResolvers), so that plot can't be opened until it's taken in.
+	if _tracked(_plot_keys().find(key)):
+		var sup := _supply(res, q, depth)
+		if not sup.is_empty():
+			return sup
+		return _wait("%s's plot is tracking a loop — it opens once the loop is taken in" % res, q, "tracked")
 	var parts: Array = _close_first() + [label]
 	if col < 0 or _plot_key(col) != key:
 		parts.append(["plot", key])
@@ -980,7 +1000,7 @@ static func _plot_verb(key: String, q: Dictionary) -> Dictionary:
 	if not _is_revealed(biome, col):
 		var other := _first_revealed(biome, col)
 		if other < 0:
-			return _reveal(col, q)
+			return _reveal(col if not _tracked(col) else _first_live_col(biome), q)
 		col = other
 	var parts: Array = _close_first()
 	if _live_col() != col:
@@ -1004,7 +1024,7 @@ static func _pair_gate(gate_key: String, q: Dictionary) -> Dictionary:
 			rows[m.y] = true
 	var biome := UIP._active_biome_name()
 	for c in [0, 1]:
-		if not _is_revealed(biome, c):
+		if not _is_revealed(biome, c) and not _tracked(c):
 			return _reveal(c, q)
 	var good: bool = marks.size() == 2 and rows.size() == 1 and _marks_here(marks)
 	var parts: Array = []
@@ -1282,8 +1302,25 @@ static func _first_revealed(biome: String, start: int = 0) -> int:
 	return -1
 
 
-static func _first_live_col(_biome: String) -> int:
+## The first column the Ace can explore: not tracking a loop (Ace F there
+## fast-forwards instead), else 0.
+static func _first_live_col(biome: String) -> int:
+	for c in range(_live_cols(biome)):
+		if not _tracked(c):
+			return c
 	return 0
+
+
+static func _tracked(col: int) -> bool:
+	var reg = UIP._berry_register()
+	return col >= 0 and reg != null and reg.has_method("is_tracked") and bool(reg.is_tracked(col))
+
+
+static func _plot_keys() -> Array:
+	var out: Array = []
+	for i in range(BERRY_ROWS):
+		out.append(_plot_key(i))
+	return out
 
 
 static func _live_cols(biome: String) -> int:

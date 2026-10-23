@@ -1098,6 +1098,19 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 							and str(gs_t.get("_surface_at_raise")) != gs_here and not bool(gs_t.get("_flattened") if "_flattened" in gs_t else false):
 						gs_stale.append(str(gs_t._raw_bbcode).left(120))
 			result["stale_toasts"] = gs_stale
+			# What Q/E/R/F actually do on the field right now (the chip resolver
+			# the dispatcher consults), so a probe can check a line's verb names
+			# against what its key will fire.
+			var gs_chips := {}
+			var gs_qiis := get_nodes_in_group("quantum_instrument_input")
+			if not gs_qiis.is_empty() and gs_here.begins_with("field"):
+				var gs_qii = gs_qiis[0]
+				var gs_frame := str(ToolConfig.get_current_frame())
+				var gs_ctx = gs_qii._build_chip_context() if gs_qii.has_method("_build_chip_context") else null
+				for gs_k in ["Q", "E", "R", "F"]:
+					var gs_a = ChipResolverRegistry.resolve(ToolConfig.get_action(gs_frame, gs_k), gs_ctx)
+					gs_chips[gs_k] = {"action": str(gs_a.get("action", "")), "label": str(gs_a.get("label", ""))}
+			result["chips"] = gs_chips
 			result["hat"] = str(ToolConfig.get_current_frame())
 
 		"overlay_text":

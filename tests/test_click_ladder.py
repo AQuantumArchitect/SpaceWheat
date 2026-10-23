@@ -133,5 +133,5 @@ def test_market_is_one_board_with_stalls():
     # Fill tab is Commitments (U). Market (Y) is the stall board. History is
     # a Commitments chord, not a top-level tab.
     tab_row = text.split("const TAB_ROW")[1].split("const HANDS_MAX")[0]
-    assert '"Commitments"' in tab_row
-    assert '"Market"' in tab_row
+    assert 'SurfaceRooms.NAME_COMMITMENTS' in tab_row  # one table: UI/Core/SurfaceRooms.gd
+    assert 'SurfaceRooms.NAME_MARKET' in tab_row

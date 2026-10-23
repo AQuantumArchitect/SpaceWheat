@@ -141,6 +141,19 @@ def check_surface(f, line: str, rep: dict) -> None:
         ok = first in SUBMENU_KEYS
     if not ok:
         rep.setdefault("off_surface", []).append({"surface": here, "line": line[:140]})
+    # On the field, a line that labels a hat verb ("Explore [F]") must name
+    # what that key fires now (the chip resolver), not what it fires elsewhere.
+    chips = g.get("chips", {}) or {}
+    # Only a verb that acts on the plot and hat already in hand can be judged
+    # before the line's own earlier keys (a plot, a hat) are pressed.
+    if "plot [" in line or "hat [" in line or "close [" in line:
+        chips = {}
+    for label, key in re.findall(r"([A-Za-z][A-Za-z ]+?) \[([QERF])\]", line):
+        chip = chips.get(key, {})
+        want = label.strip().split()[-1].lower()
+        have = (str(chip.get("label", "")) + " " + str(chip.get("action", ""))).lower()
+        if chip and want in ("explore", "strike", "gather", "track", "incorporate") and want not in have:
+            rep.setdefault("verb_mismatch", []).append({"line": line[:140], "key": key, "chip": chip})
 
 
 def follow(rig, beat: str, cap: int = PRESS_CAP) -> dict:
@@ -337,8 +350,8 @@ def main(argv=None) -> int:
                 print(json.dumps({k: rep.get(k) for k in ("start", "stopped", "why", "presses", "waits")},
                                  ensure_ascii=False), flush=True)
                 print("  fired:", " → ".join("%s@%ds" % (x["flag"], x["t"]) for x in rep.get("fired", [])), flush=True)
-                print("  off-surface lines: %d, stale toasts: %d" % (len(rep.get("off_surface", [])),
-                      len(rep.get("stale_toasts", []))), flush=True)
+                print("  off-surface lines: %d, stale toasts: %d, verb mismatches: %d" % (len(rep.get("off_surface", [])),
+                      len(rep.get("stale_toasts", [])), len(rep.get("verb_mismatch", []))), flush=True)
                 continue
             print(json.dumps({k: rep.get(k) for k in ("beat", "outcome", "presses", "waits", "accepted", "contract_claims",
                                                       "why", "moved_by", "seconds")},
