@@ -163,7 +163,7 @@ func _on_story_flag_fired(flag_id: String, flag_data: Dictionary) -> void:
 	var arc_quest = flag_data.get("arc_quest")
 	if arc_quest is Dictionary and not arc_quest.is_empty() and _quest_manager != null:
 		_quest_manager.offer_story_quest(arc_quest.duplicate(), flag_id)
-	# World changes: per-biome regime + global physics (What Fades, docs/OPEN_CAMPAIGN.md).
+	# World changes: per-biome regime + global physics (What Fades, docs/design/OPEN_CAMPAIGN.md).
 	_apply_world_changes(flag_data)
 	# Density collapse + trajectory (existing method)
 	on_flag_fired(flag_id)

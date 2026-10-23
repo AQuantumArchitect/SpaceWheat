@@ -18,6 +18,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 LIB = ROOT / "scripts" / "lib" / "windows_desktop_deploy.sh"
 RETIRED = ("/mnt/c/Games", "🌾🚀🌌", "SpaceWheat-Releases", "SpaceWheat Builds", "sw_windows_stage_root")
+# Code may not spell the live root either; docs for the Windows-side user may.
+CODE_ONLY = ("C:\\Games", "C:/Games")
+CODE_SUFFIXES = (".sh", ".py", ".gd", ".bat", ".ps1", ".mjs")
 
 
 def test_no_windows_path_outside_the_lib():
@@ -29,7 +32,8 @@ def test_no_windows_path_outside_the_lib():
             if p == LIB:
                 continue
             text = p.read_text(encoding="utf-8", errors="ignore")
-            for needle in RETIRED:
+            needles = RETIRED + (CODE_ONLY if p.suffix in CODE_SUFFIXES else ())
+            for needle in needles:
                 if needle in text:
                     offenders.append(f"{p.relative_to(ROOT)}: {needle}")
     assert not offenders, "Windows paths belong in scripts/lib/windows_desktop_deploy.sh only:\n  " + "\n  ".join(offenders)

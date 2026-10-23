@@ -445,11 +445,51 @@ def validate(spec: dict, report_table: bool = False) -> Report:
         if not res.startswith("_") and res not in resources:
             R.err(res, "chart cost has no resources entry (supply + rescue)")
 
+    check_guide(spec, R)
+
     if report_table:
         print(f"{'act':>3} {'campaign':<11} {'beat':<24} sig atoms hats / biomes")
         for r in rows:
             print(f"{r[0]:>3} {r[1]:<11} {r[2]:<24} {r[5]:>3} {r[6]:>5} {','.join(r[3])} / {','.join(r[4])}")
     return R
+
+
+# Step kinds Core/Campaign/Guide.gd implements (`kind` or `kind:arg`).
+GUIDE_STEPS = {"travel", "hat", "berry", "deliver_to", "chart", "gate", "plant_atom", "plant_new",
+               "learn_word", "take_door", "go", "strike", "deliver_lesson", "plot_verb", "pair_gate", "reap", "measure", "superpose", "evolve", "steer"}
+
+
+def check_guide(spec: dict, R: "Report") -> None:
+    """The guide block (docs/design/GUIDANCE_FROM_THE_SPEC.md): every step is a
+    kind Guide.gd implements, every hat a walk names has a key, and every
+    objective type the MAIN campaign uses has a walk — a main-road beat with
+    no walk falls back to the legacy banner, which is how the walls came back."""
+    g = spec.get("guide")
+    if not g:
+        R.err("guide", "campaign.json has no guide block")
+        return
+    km, walks = g.get("keymap", {}), g.get("walks", {})
+    for wtype, steps in walks.items():
+        for st in steps:
+            kind, _, arg = str(st).partition(":")
+            if kind not in GUIDE_STEPS:
+                R.err("guide", f"walk {wtype!r} uses unknown step {st!r}")
+            if kind == "hat" and arg not in km.get("hats", {}):
+                R.err("guide", f"walk {wtype!r} names hat {arg!r} with no key")
+    main = next(c for c in spec["campaigns"] if c.get("kind", "main") == "main")
+    for c, a, ch, b in S.iter_beats(spec):
+        if c["id"] != main["id"]:
+            continue
+        for p in b.get("objective", []):
+            if p["type"] not in walks:
+                R.warn(b["id"], f"objective {p['type']} has no guide walk (legacy banner)")
+    for c in spec["campaigns"]:
+        for a in c["acts"]:
+            for ch in a["chapters"]:
+                for st in ch.get("steps", []):
+                    t = st.get("tutorial_teaches")
+                    if t and f"lesson:{t}" not in walks:
+                        R.err(t, f"Act 0 lesson {t} has no guide walk (lesson:{t})")
 
 
 def main(argv):

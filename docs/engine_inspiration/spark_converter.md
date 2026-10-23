@@ -3,7 +3,7 @@
 > **Seed status: SPROUTED (2026-07-05).** The heart of this idea — trading
 > coherence away irreversibly, extraction causing dephasing — shipped as the
 > Merchant's **dephase-export contract** (a pure phase-damping channel; see
-> `docs/ARCHETYPE_FRAMES.md`). No relation to the shipped **Spark frame**
+> `docs/design/ARCHETYPE_FRAMES.md`). No relation to the shipped **Spark frame**
 > (hat 4, the one-shot Lindblad jolt); the name collision is historical.
 
 **Source file:** `Core/QuantumSubstrate/SparkConverter.gd` (archived — file no longer exists)

@@ -23,6 +23,12 @@ var _fractal_intro_shown := false
 ## farm_ready backfill walks the same story_offers — without this, one door
 ## is two gold cards.
 var _announced_offer_ids: Dictionary = {}
+## Auto-toast: the guidance resolver's live beat as last announced. A toast
+## fires when the live beat CHANGES — one card, saying the same next step the
+## banner says — instead of one generic card per offer.
+var _guide_live := ""
+var _guide_poll := 0.0
+const GUIDE_POLL_S := 1.0
 
 
 func _ready() -> void:
@@ -35,6 +41,35 @@ func _ready() -> void:
 		gsm.farm_ready.connect(_on_farm_ready)
 
 
+func _process(delta: float) -> void:
+	if _farm == null:
+		return
+	_guide_poll += delta
+	if _guide_poll < GUIDE_POLL_S:
+		return
+	_guide_poll = 0.0
+	_announce_live_beat()
+
+
+## One gold card when the live beat changes: its title and the resolver's
+## next step — the banner's own words, so the two can never disagree.
+func _announce_live_beat() -> void:
+	var guide = load("res://Core/Campaign/Guide.gd")
+	var q: Dictionary = guide.live_beat(_quest_manager)
+	var live := str(q.get("source_flag", ""))
+	if live == _guide_live:
+		return
+	_guide_live = live
+	if live == "":
+		return
+	var step: Dictionary = guide.next_step()
+	var title: String = guide._title(q)
+	var line := str(step.get("text", "")).strip_edges()
+	var unsigned := str(q.get("status", "")) == Quest.STATUS_STORY
+	_push("📜 [b]%s[/b]%s" % [title, ("\n" + line) if line != "" else ""], 3, "📜", "quest",
+			"X" if unsigned else "", "arc" if unsigned else "")
+
+
 func _on_farm_ready(farm: Node, _state) -> void:
 	# Re-wire on EVERY new farm. The old one-shot guard (_wired) left this
 	# bridge bound to the previous farm after a path-load created a fresh one
@@ -45,6 +80,7 @@ func _on_farm_ready(farm: Node, _state) -> void:
 	# would swallow the next run's doors.
 	_announced_offer_ids.clear()
 	_fractal_intro_shown = false
+	_guide_live = ""
 	_farm = farm
 	# The quest manager lives on the SHELL, not the farm — resolving it off
 	# the farm returned null every boot, so quest events (offers, ready,
@@ -225,6 +261,11 @@ func _on_quest_offered(quest: Dictionary) -> void:
 		if _announced_offer_ids.has(qid):
 			return
 		_announced_offer_ids[qid] = true
+	# Story doors are announced by the live-beat transition (_announce_live_beat)
+	# with the banner's own next step; per-offer gold cards competed with it.
+	if str(quest.get("source_flag", "")).strip_edges() != "" and str(quest.get("category", "")) != "TUTORIAL":
+		_push("📜 %s — on the Arc" % IntroVoice.quest_title(quest), 1, "📜", "quest", "X", "arc")
+		return
 	var toast: Dictionary = IntroVoice.toast_for_offer(quest, _quest_manager)
 	if toast.is_empty():
 		return

@@ -12,8 +12,8 @@ Start Here
 ----------
 - 🗺️ Full architecture & data flow: `🍄/🗺️_ARCHITECTURE.md`  ← READ THIS FIRST
 - Game mental model / physics / controls: `docs/GAME_CODEX.md`
-- Repo-wide operational memory: `MEMORY.md`
-- Biome/faction physics work: `BIOME_AGENTS.md`
+- Repo-wide operational memory: `docs/agents/MEMORY.md`
+- Biome/faction physics work: `docs/agents/BIOME_AGENTS.md`
 
 Quick Start (keyboard rig)
 --------------------------

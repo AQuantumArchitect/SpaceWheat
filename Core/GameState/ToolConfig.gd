@@ -4,7 +4,7 @@ extends RefCounted
 ##
 ## Top of the keyboard hierarchy is now the **archetype hat row** (4-0).
 ## Each hat picks a frame; 1/2/3 picks a sub-mode within that frame; QERF
-## is the four-chip primary action row. See `docs/ARCHETYPE_FRAMES.md`.
+## is the four-chip primary action row. See `docs/design/ARCHETYPE_FRAMES.md`.
 ##
 ## | Hat | Frame      | Live wiring                                    |
 ## |-----|------------|------------------------------------------------|
@@ -150,7 +150,7 @@ const ARCHETYPE_FRAMES: Dictionary = {
 				"F": {"action": "toggle_berry_track", "label": "Track", "emoji": "⌖", "icon": "",
 					  "hint": "Toggle Berry-phase tracking on the focused icon. Press again to stop. Also fires Play."}
 			},
-			# The mirror (docs/GAUGE_CAMPAIGN.md, "The Loop Came Home"): a
+			# The mirror (docs/design/GAUGE_CAMPAIGN.md, "The Loop Came Home"): a
 			# phase is invisible alone, visible in company. Compares the
 			# Berry register's travel logs — non-destructive, ρ untouched.
 			"mirror": {
@@ -340,7 +340,7 @@ const ARCHETYPE_FRAMES: Dictionary = {
 					  "hint": "Build entangling gate",
 					  "submenu": "gate_selection"}
 			},
-			# The fence ledger (docs/GAUGE_CAMPAIGN.md). Every verb is FREE:
+			# The fence ledger (docs/design/GAUGE_CAMPAIGN.md). Every verb is FREE:
 			# changing local bookkeeping costs nothing because nothing
 			# physical changes — that is the lesson, not an oversight.
 			"compass": {

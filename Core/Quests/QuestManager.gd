@@ -431,7 +431,7 @@ const FLAG_PREDICATE_TYPES := [
 	"soul_purity_gte",
 	"bridge_built_gte", "bridge_braids_gte", "bridge_fused_gte",
 	"biome_frozen_loops_gte", "biome_loops_linked",
-	# What Turns (gauge/holonomy — docs/GAUGE_CAMPAIGN.md):
+	# What Turns (gauge/holonomy — docs/design/GAUGE_CAMPAIGN.md):
 	#   biome_betti_gte           — β₁ of the coupling graph: places invariants can live
 	#   biome_loop_closed_upstairs — a stitched Berry walk whose S³ lift genuinely closes
 	#   biome_linking_valid       — two closed lifts on distinct qubits: linking is a legal question

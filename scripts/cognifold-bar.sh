@@ -17,7 +17,9 @@ PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$PROJECT_DIR/scripts/lib/godot_runtime_env.sh"
 GODOT_BIN="$(sw_godot_bin)"
 SCENE="scenes/CognifoldTraceView.tscn"
-WORKSPACE="${VERDANCE_WORKSPACE:-/mnt/c/Users/Luke Spooner/Documents/BAR_Verdance_Workspace}"
+# VERDANCE_WORKSPACE overrides; else the first Windows user Documents folder that has it.
+WORKSPACE="${VERDANCE_WORKSPACE:-$(ls -d /mnt/c/Users/*/Documents/BAR_Verdance_Workspace 2>/dev/null | head -1)}"
+[ -n "$WORKSPACE" ] || { echo "[cognifold-bar] set VERDANCE_WORKSPACE (BAR_Verdance_Workspace not found)" >&2; exit 1; }
 BRIDGE="$WORKSPACE/tools/quantum_bar_ai/verdance_cognifold_bridge.py"
 PORT="${VERDANCE_BRIDGE_PORT:-8098}"
 

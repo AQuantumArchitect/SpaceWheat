@@ -27,9 +27,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from hearth_client import HearthDark, request, worlds as list_worlds  # noqa: E402
+from fleet_paths import fleet_path, to_windows  # noqa: E402  (hearth_client puts 🎛️ on sys.path)
 
 WORLD = "spacewheat-self"
-SPEC_PATH_WINDOWS = "C:\\Users\\Luke Spooner\\ws-win\\yurt\\worlds\\spacewheat_self"
+SPEC_PATH_WINDOWS = to_windows(fleet_path("yurt", "worlds", "spacewheat_self"))
 
 
 # The supervisor's worst case is the spec gate (GATE_TIMEOUT_S=60) PLUS the

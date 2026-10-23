@@ -258,7 +258,7 @@ const REDIRECT_FALLBACK := "follow the Arc — tap 📖 [X], then [I]"
 ## players to the wrong screen; PlayerEventBridge preloads this script so the
 ## drift can't reopen. Voice rule: the click comes first, keys ride as
 ## bracketed accelerators — every action named here has a real hitbox
-## (docs/MOUSE_PARITY_AUDIT.md: zero keyboard-only gaps), so copy that only
+## (docs/design/MOUSE_PARITY_AUDIT.md: zero keyboard-only gaps), so copy that only
 ## says "press R" lies by omission to a mouse-and-trackpad player.
 static func route_accept() -> String:
 	return "tap 📖 [X], Arc [I], its row, then Accept [R]"
@@ -490,10 +490,21 @@ static func _banner_quest() -> Dictionary:
 	return best
 
 
+## Loaded lazily: Guide reads UIProgression's state helpers, so a preload here
+## would be a cycle.
+static func _guide():
+	return load("res://Core/Campaign/Guide.gd")
+
+
 static func objective_text() -> String:
 	var qm := _quest_manager()
 	if qm == null or not ("active_quests" in qm):
 		return ""
+	# The resolver owns every beat it covers (Core/Campaign/Guide.gd, walks in
+	# campaign.json). The lines below are the legacy fallback for the rest.
+	var g: Dictionary = _guide().next_step()
+	if not g.is_empty():
+		return str(g.get("text", ""))
 	var best := _banner_quest()
 	# Watch It Fade outranks leftover demos atom_in_biome mill [J]. Fog J
 	# is an unrevealed live qubit, not a plant seat and not a lantern.
@@ -701,6 +712,14 @@ static func objective_target_key() -> String:
 ## speaks from) — no parallel hand-authored lookup to drift. First
 ## UNSATISFIED predicate with a table entry wins; none → honest dark.
 static func objective_target() -> Dictionary:
+	# The spotlight pulses the resolver's first key — the one the banner names first.
+	var g: Dictionary = _guide().next_step()
+	if not g.is_empty():
+		var keys: Array = g.get("keys", [])
+		var k := str(keys[0]) if not keys.is_empty() else ""
+		if k.to_lower().begins_with("shift+"):
+			k = k.substr(6)
+		return {"key": k.to_upper() if k.length() == 1 else k}
 	var best := _banner_quest()
 	# Wave 23: plant-short pulses Forest, not Icon 5 and not C. PredicateGloss
 	# target() for gate=plant is the Icon hat — true only after 🌱×5.

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """gallery_exhibit.py — build the curated atlas exhibition page.
 
-The Gallery, shop-window lane (docs/ENGINE_FRONTIER.md Part II). Takes the
+The Gallery, shop-window lane (docs/design/ENGINE_FRONTIER.md Part II). Takes the
 plates rendered by tools/atlas_plates.py and binds sixteen of them — the ones
 that carry the campaigns' physics — into a single self-contained HTML page:
 every plate embedded as a data: URI, no external requests, hostable anywhere

@@ -5,6 +5,7 @@
       "id": "demos",
       "title": "The Demos",
       "kind": "main",
+      "status": "complete",
       "ending": "island_free",
       "acts": [
         {
@@ -127,6 +128,7 @@
       "id": "lanternfall",
       "title": "What Fades",
       "kind": "postgame",
+      "status": "in_development",
       "ending": "the_door_stays_open",
       "acts": [
         {
@@ -180,6 +182,7 @@
       "id": "loom",
       "title": "The Loom",
       "kind": "postgame",
+      "status": "in_development",
       "ending": "close_it_upstairs",
       "acts": [
         {
@@ -418,6 +421,182 @@
           },
           "get": 3
         }
+      ]
+    }
+  },
+  "guide": {
+    "keymap": {
+      "hats": {
+        "spark": "4",
+        "icon": "5",
+        "merchant": "6",
+        "captain": "7",
+        "ace": "8",
+        "operator": "9",
+        "druid": "0"
+      },
+      "hat_names": {
+        "spark": "Spark",
+        "icon": "Icon",
+        "merchant": "Merchant",
+        "captain": "Captain",
+        "ace": "Ace",
+        "operator": "Operator",
+        "druid": "Druid"
+      },
+      "surfaces": {
+        "arc": {
+          "open": [
+            "X",
+            "I"
+          ],
+          "name": "Arc"
+        },
+        "market": {
+          "open": [
+            "C",
+            "Y"
+          ],
+          "name": "Market"
+        },
+        "commitments": {
+          "open": [
+            "C",
+            "U"
+          ],
+          "name": "Commitments"
+        }
+      },
+      "rows": [
+        "G",
+        "H",
+        "J",
+        "K",
+        "L",
+        ";"
+      ],
+      "plots": [
+        "G",
+        "H",
+        "J",
+        "K",
+        "L",
+        ";"
+      ],
+      "close": "ESC",
+      "page_next": "D",
+      "page_prev": "A",
+      "verbs": {
+        "explore": "F",
+        "strike": "R",
+        "gather": "Q",
+        "track": "F",
+        "incorporate": "R",
+        "plant": "R",
+        "pick_word": "E",
+        "chart": "R",
+        "accept": "R",
+        "claim": "R",
+        "deliver": "R",
+        "refresh": "E",
+        "faster": "="
+      },
+      "clock_max_stride": 32,
+      "boards": {
+        "Millwright's Union": "Village",
+        "Hearth Keepers": "Village"
+      },
+      "plant_home": "Village",
+      "reach": 12,
+      "verb_labels": {
+        "E": "Hadamard"
+      },
+      "clear_marks": "'"
+    },
+    "walks": {
+      "berry_consumed_count_gte": [
+        "travel",
+        "hat:icon",
+        "berry"
+      ],
+      "berry_total_phase_gte": [
+        "travel",
+        "hat:icon",
+        "berry"
+      ],
+      "standing_gte": [
+        "deliver_to"
+      ],
+      "biome_evolving": [
+        "chart"
+      ],
+      "gate_sequence_contains": [
+        "gate"
+      ],
+      "atom_in_biome": [
+        "plant_atom"
+      ],
+      "biome_state_gte": [
+        "plant_atom",
+        "steer"
+      ],
+      "signature_size_gte": [
+        "learn_word"
+      ],
+      "soul_purity_gte": [
+        "learn_word"
+      ],
+      "atom_count_gte": [
+        "plant_new"
+      ],
+      "atom_diversity_gte": [
+        "plant_new"
+      ],
+      "story_flag_any": [
+        "take_door"
+      ],
+      "lesson:core_loop": [
+        "strike:TheDemos"
+      ],
+      "lesson:contracts": [
+        "deliver_lesson"
+      ],
+      "lesson:wayfinding": [
+        "go:StarterForest"
+      ],
+      "lesson:superposition": [
+        "go:StarterForest",
+        "hat:druid",
+        "plot_verb:E"
+      ],
+      "lesson:entanglement": [
+        "go:StarterForest",
+        "hat:operator",
+        "pair_gate:Q"
+      ],
+      "lesson:reap_season": [
+        "reap:TheDemos"
+      ],
+      "active_biome_is": [
+        "travel"
+      ],
+      "dynamics_at_most": [
+        "measure"
+      ],
+      "coherence_at_least": [
+        "superpose"
+      ],
+      "dynamics_at_least": [
+        "superpose"
+      ],
+      "biome_spectral_gap_gte": [
+        "evolve"
+      ],
+      "biome_attractor_emoji_gte": [
+        "steer"
+      ],
+      "biome_spectral_gap_lte": [
+        "plant_new"
       ]
     }
   }
