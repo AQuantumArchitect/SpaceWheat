@@ -316,9 +316,9 @@ with how critical the path is.
 7. **Identical 4-line "Scope banner" blockquote** copy-pasted verbatim into
    all 11 `docs/biomemissions/*.md` files. Trimmed 10 of them to a one-line
    pointer back to `docs/biomemissions/README.md`, which keeps the full text.
-8. **`MEMORY.md` re-documented the desktop build/package/smoke-test procedure**
+8. **`docs/agents/MEMORY.md` re-documented the desktop build/package/smoke-test procedure**
    that `docs/release/DESKTOP_RELEASE_WORKFLOW.md` already owns and names as
-   canonical. Trimmed `MEMORY.md` to point at it.
+   canonical. Trimmed `docs/agents/MEMORY.md` to point at it.
 
 **Correctly refused, escalated to knots (Tier 8 below):** the 6 byte-identical
 duplicate SVG icon pairs in `Assets/UI/Elements/` vs `Assets/UI/Nature/` +
@@ -332,7 +332,7 @@ Spot-checked beyond each fix's own verification: full `godot --headless`
 boot completes clean (exit 0, no script/parse errors) with the changed
 `EmojiRegistry.gd`/`QuestBoard.gd`/`ClickWire.gd` in the load path; all 12
 touched shell scripts pass `bash -n`; `docs/release/DESKTOP_RELEASE_WORKFLOW.md`
-confirmed to actually exist and be complete before trimming `MEMORY.md`'s
+confirmed to actually exist and be complete before trimming `docs/agents/MEMORY.md`'s
 pointer to it.
 
 ### Wish list — Cycle 2 knots (36)

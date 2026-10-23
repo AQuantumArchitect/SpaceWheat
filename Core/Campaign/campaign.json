@@ -1683,6 +1683,7 @@
    "id": "lanternfall",
    "title": "What Fades",
    "kind": "postgame",
+   "status": "in_development",
    "ending": "the_door_stays_open",
    "opens_after": "island_free",
    "acts": [
@@ -2212,6 +2213,7 @@
    "id": "loom",
    "title": "The Loom",
    "kind": "postgame",
+   "status": "in_development",
    "ending": "close_it_upstairs",
    "opens_after": "island_free",
    "acts": [

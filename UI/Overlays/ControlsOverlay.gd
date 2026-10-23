@@ -429,7 +429,7 @@ func _dominant_standing_channel(s) -> String:
 ## Alignment panel — read-only. Renders the pinned faction (who you ARE, set
 ## by the scenario) and every other faction ranked by overlap with your
 ## alignment state. Attach/detach verbs are future work (tracked in
-## docs/DEADWOOD_2026-07-05.md era notes); until they land this panel shows
+## docs/history/2026-07-05_DEADWOOD.md era notes); until they land this panel shows
 ## only what is true.
 func _render_faction_attachment_panel(farm) -> void:
 	_body_box.add_child(_make_section_header("alignment — who you stand nearest"))

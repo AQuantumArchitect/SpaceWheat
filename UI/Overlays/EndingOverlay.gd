@@ -321,11 +321,25 @@ func _build_door_stage() -> void:
 	box.add_child(_big_label("🚪", 52, Color(0.98, 0.92, 0.62)))
 	box.add_child(_spacer(10))
 	box.add_child(_big_label("The door stays open.", 28, Color(0.95, 0.9, 0.7)))
+	var unfinished := CampaignRuntime.in_development_after("island_free")
+	if not unfinished.is_empty():
+		# An honest notice, not a gate: the post-game campaigns open now and
+		# they are not finished. The player should know before walking through.
+		box.add_child(_spacer(22))
+		box.add_child(_big_label("The Demos is complete. Thank you for playing.", 16, Color(0.9, 0.88, 0.8)))
+		box.add_child(_big_label(post_game_notice(unfinished), 14, Color(0.95, 0.75, 0.5)))
 	box.add_child(_spacer(18))
 	box.add_child(_big_label("tap anywhere to return to your island", 14, Color(0.75, 0.8, 0.72, 0.85)))
 	box.modulate.a = 0.0
 	var tw := create_tween()
 	tw.tween_property(box, "modulate:a", 1.0, 1.0)
+
+
+## "Beyond it: What Fades and The Loom. Both are still in development, …"
+static func post_game_notice(titles: Array) -> String:
+	var names := " and ".join(PackedStringArray(titles))
+	var verb := "It is" if titles.size() == 1 else ("Both are" if titles.size() == 2 else "They are")
+	return "Beyond it: %s. %s still in development,\nplayable in part, with rough edges and unfinished acts." % [names, verb]
 
 
 # =============================================================================

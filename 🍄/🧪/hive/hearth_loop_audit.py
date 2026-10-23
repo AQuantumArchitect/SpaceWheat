@@ -85,10 +85,12 @@ import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "🍄" / "🎛️"))
+from fleet_paths import fleet_path  # noqa: E402
 from typing import Any
 
 DEFAULT_VITALS_DIR = (
-    "/mnt/c/Users/Luke Spooner/ws-win/yurt-sync/commons/vitals"
+    str(fleet_path("yurt-sync", "commons", "vitals"))
 )
 
 

@@ -1,7 +1,7 @@
 # What Turns — the Bookkeeping Campaign
 
 > Campaign design + ship record, 2026-08-10, seams closed 2026-08-12.
-> The fourth lane, promoted from `docs/ENGINE_FRONTIER.md` the way the first
+> The fourth lane, promoted from `docs/design/ENGINE_FRONTIER.md` the way the first
 > three campaigns were promoted from their seed banks. Owner directives
 > honored: the lessons **interleave** into acts 5–8 rather than trailing the
 > door, and the ending is **untouched** (`the_door_stays_open` still closes

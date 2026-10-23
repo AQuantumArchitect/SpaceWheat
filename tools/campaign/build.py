@@ -84,6 +84,7 @@ def compile_runtime(spec: dict) -> dict:
                              for ch in act["chapters"]],
             })
         campaigns.append({"id": camp["id"], "title": camp["title"], "kind": camp.get("kind", "main"),
+                          "status": camp.get("status", "complete"),
                           "ending": camp.get("ending", ""), "acts": acts,
                           "opens_after": camp.get("opens_after", "")})
     for camp, act, ch, b in S.iter_beats(spec):

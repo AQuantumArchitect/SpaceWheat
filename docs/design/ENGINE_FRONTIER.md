@@ -1,11 +1,11 @@
 # The Last Machinery — engine frontier plan
 
 > **Historical.** Planning document from 2026-07. Part I and Part II shipped;
-> What Turns was promoted out to `docs/GAUGE_CAMPAIGN.md`. This file is the
+> What Turns was promoted out to `docs/design/GAUGE_CAMPAIGN.md`. This file is the
 > audit trail, not live status. Canon: `docs/FOR_PHYSICISTS.md`,
-> `docs/GAME_CODEX.md`, `docs/CONNECT_CAMPAIGN.md`, `docs/GAUGE_CAMPAIGN.md`.
+> `docs/GAME_CODEX.md`, `docs/design/CONNECT_CAMPAIGN.md`, `docs/design/GAUGE_CAMPAIGN.md`.
 
-> **Status: Part I SHIPPED (2026-07-04, same day) — see `docs/CONNECT_CAMPAIGN.md`
+> **Status: Part I SHIPPED (2026-07-04, same day) — see `docs/design/CONNECT_CAMPAIGN.md`
 > for the ship record.** C0–C4 landed: loop records + the repaired Berry
 > integration seam (the audit's biggest find — `integrate_step` had NO live call
 > site; live Berry accumulation never ran until now), `KnotRegister`,
@@ -161,7 +161,7 @@ exclusivity (that story belongs to the Born rule; see glossary/knot.md).
     That Lied") instead of overclaiming. **Promoted + SHIPPED 2026-08-10:** the
     gauge lessons ("Turn the Compass", "The Fence Remembers") and the closure/
     winding sequels became the fourth campaign lane, **What Turns I–V** — see
-    `docs/GAUGE_CAMPAIGN.md` (GaugeField wiring, compass 🧭 + mirror 🪞 verbs,
+    `docs/design/GAUGE_CAMPAIGN.md` (GaugeField wiring, compass 🧭 + mirror 🪞 verbs,
     six predicates, station dial + fence glyph).
 - **Graph knots as puzzles, not invariants.** Reidemeister moves on the webway /
   entanglement graph ("unknot the ecology to maximize throughput") depend on the

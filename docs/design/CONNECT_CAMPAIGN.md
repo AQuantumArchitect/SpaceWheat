@@ -1,7 +1,7 @@
 # What Connects — the Nonlocality Campaign
 
 > Campaign design + ship record, 2026-07-04. The third movement of the trilogy,
-> promoted from `docs/ENGINE_FRONTIER.md` (Part I) the way the first two campaigns
+> promoted from `docs/design/ENGINE_FRONTIER.md` (Part I) the way the first two campaigns
 > were promoted from their seed banks. Owner directives honored: the save-format
 > touch is **blessed** (GameState.bridges), the chapters **interleave** into acts
 > 5–7 rather than trailing the door, and this cycle is **mechanics only**.
@@ -45,7 +45,7 @@ lull; chapter III requires the wet country (act 6's `the_crossing`) so protectio
 *means* something; chapters IV–V ride act 7 beside the basin arcs, and the braid
 alphabet explicitly collects the act-4 `braid_word` debt.
 
-## The machinery (docs/ENGINE_FRONTIER.md, as built)
+## The machinery (docs/design/ENGINE_FRONTIER.md, as built)
 
 **The repaired seam first.** The audit's biggest find was a wound, not a gap:
 `BerryPhaseRegister.integrate_step` had **no call site** — written against a
@@ -113,7 +113,7 @@ shores' temperatures, split across both anchor atoms. Verbs in Spark 🌉 mode
 ## Addendum (2026-08-10)
 
 The knot thread's two honesty sequels live in the fourth lane, **What Turns**
-(`docs/GAUGE_CAMPAIGN.md`): the winding attack ("The Number That Lied" — mutual
+(`docs/design/GAUGE_CAMPAIGN.md`): the winding attack ("The Number That Lied" — mutual
 winding demoted from invariant to attackable diagnostic) and lift closure
 ("Close It Upstairs" — `gauss_linking` now refuses open lifts; the player walks
 a loop twice to close its S³ lift before the linking question is legal). Also

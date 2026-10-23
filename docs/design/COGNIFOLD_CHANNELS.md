@@ -60,4 +60,6 @@ out loud, not to act.
 
 Vocabulary rules for the glyphs themselves (poles, node icons, "transcribe don't
 invent"): `umwelt/docs/VOCABULARY_CONVENTION.md`. The cross-system map of what worlds
-exist and where their fields are served: `yurt/ATLAS.md`.
+exist and where their fields are served: `yurt/ATLAS.md`. (`umwelt` and `yurt` are
+private sibling repos of the owner's agent fleet; their paths resolve through
+`🍄/🎛️/fleet_paths.py`.)

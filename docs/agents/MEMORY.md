@@ -4,7 +4,7 @@ Operational notes for future release/build work and other repeated tasks.
 
 ## Desktop Release Path
 
-See [docs/release/DESKTOP_RELEASE_WORKFLOW.md](docs/release/DESKTOP_RELEASE_WORKFLOW.md) for the full build → package → validate flow (`build-desktop-local.sh`, `package-desktop-builds.sh`, `validate-desktop-release.sh`, headless smoke-test steps).
+See [docs/release/DESKTOP_RELEASE_WORKFLOW.md](../release/DESKTOP_RELEASE_WORKFLOW.md) for the full build → package → validate flow (`build-desktop-local.sh`, `package-desktop-builds.sh`, `validate-desktop-release.sh`, headless smoke-test steps).
 
 ## Key Facts
 
@@ -33,12 +33,12 @@ See [docs/release/DESKTOP_RELEASE_WORKFLOW.md](docs/release/DESKTOP_RELEASE_WORK
 
 For the fuller workflow, see:
 
-- [docs/release/DESKTOP_RELEASE_WORKFLOW.md](docs/release/DESKTOP_RELEASE_WORKFLOW.md)
+- [docs/release/DESKTOP_RELEASE_WORKFLOW.md](../release/DESKTOP_RELEASE_WORKFLOW.md)
 
 ## Claude Code on the web (cloud sessions)
 
 If a cloud session is cutting a release or pushing tags, read
-[docs/CLOUD_SESSION_HANDOFF_2026-08-17.md](docs/CLOUD_SESSION_HANDOFF_2026-08-17.md)
+[docs/history/2026-08-17_CLOUD_SESSION_HANDOFF.md](../history/2026-08-17_CLOUD_SESSION_HANDOFF.md)
 first — it documents real, confirmed constraints of that environment: git
 push is credential-scoped to a single branch (tag pushes and pushes to
 `main` get a hard 403, not fixable from inside the session), there's no
@@ -52,13 +52,13 @@ cloud-installed native toolchain that isn't byte-reproducible run-to-run.
 
 Read these first:
 
-- [`🍄/README.txt`](🍄/README.txt)
+- [`🍄/README.txt`](../../🍄/README.txt)
   - top-level purpose, quick-start commands, artifact policy
-- [`🍄/🎛️/📘.md`](🍄/🎛️/📘.md)
+- [`🍄/🎛️/📘.md`](../../🍄/🎛️/📘.md)
   - canonical live-rig / QA operator guide
-- [`🍄/🎛️/🧠🗺️.md`](🍄/🎛️/🧠🗺️.md)
+- [`🍄/🎛️/🧠🗺️.md`](../../🍄/🎛️/🧠🗺️.md)
   - rig intent, action surface, and planned extensions
-- [`🍄/artifacts_whitelist/README.txt`](🍄/artifacts_whitelist/README.txt)
+- [`🍄/artifacts_whitelist/README.txt`](../../🍄/artifacts_whitelist/README.txt)
   - only place under `🍄` where committed runtime artifacts belong
 
 Practical structure:

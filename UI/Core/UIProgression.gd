@@ -258,7 +258,7 @@ const REDIRECT_FALLBACK := "follow the Arc — tap 📖 [X], then [I]"
 ## players to the wrong screen; PlayerEventBridge preloads this script so the
 ## drift can't reopen. Voice rule: the click comes first, keys ride as
 ## bracketed accelerators — every action named here has a real hitbox
-## (docs/MOUSE_PARITY_AUDIT.md: zero keyboard-only gaps), so copy that only
+## (docs/design/MOUSE_PARITY_AUDIT.md: zero keyboard-only gaps), so copy that only
 ## says "press R" lies by omission to a mouse-and-trackpad player.
 static func route_accept() -> String:
 	return "tap 📖 [X], Arc [I], its row, then Accept [R]"

@@ -39,7 +39,7 @@ Usage:
     python3 semantica_compiler.py <world_module_dir> [--out DIR] [--biome-name NAME]
 
     # yurt_mood, from this repo:
-    python3 semantica_compiler.py "/mnt/c/Users/Luke Spooner/ws-win/yurt/worlds/yurt_mood"
+    python3 semantica_compiler.py "$SW_FLEET_HOME/yurt/worlds/yurt_mood"   # see 🍄/🎛️/fleet_paths.py
 
 Emits into --out (default Core/Config/semantica/, relative to the SpaceWheat repo
 root two levels up from this file's 🍄/🧪 home):
@@ -56,11 +56,14 @@ import sys
 from pathlib import Path
 from typing import Any
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "🍄" / "🎛️"))
+from fleet_paths import fleet_path, fleet_relative  # noqa: E402
+
 # ── repo anchors ──────────────────────────────────────────────────────────────────
 HERE = Path(__file__).resolve().parent               # .../SpaceWheat/🍄/🧪
 REPO_ROOT = HERE.parent.parent                        # .../SpaceWheat
 DEFAULT_OUT = REPO_ROOT / "Core" / "Config" / "semantica"
-UMWELT_SRC_DEFAULT = "/mnt/c/Users/Luke Spooner/ws-win/umwelt/src"
+UMWELT_SRC_DEFAULT = str(fleet_path("umwelt", "src"))
 
 # ── house scale constants (measured off Core/Factions/data/icons.json and
 #    Core/Biomes/data/biomes.json 2026-07-17; see compile manifest for the run's
@@ -319,7 +322,7 @@ def compile_world(world_dir: Path, out_dir: Path, biome_name: str | None,
     manifest = {
         "compiler": "semantica_compiler.py",
         "source_world": spec.name,
-        "source_path": str(world_dir),
+        "source_path": fleet_relative(world_dir),
         "vocabulary_source": vocab_source,
         "biome_name": biome_slug_name,
         "organ_count": len(organs),

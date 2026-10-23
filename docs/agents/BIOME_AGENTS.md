@@ -56,7 +56,7 @@ Two layers, different jobs:
   `self_energies`, `atom_components`, faction `sig`, biome `emojis`. ~227 unique.
 - **Pair-icons** (`{name, pole_0, pole_1}` like `{Combat, ⚔, ⚱}`) are the
   *named* two-state axes the player ever sees by name. They are owned by
-  **factions** (`icons[]`), registered in `IconLexicon`. ~166 pairs / ~160
+  **factions** (`icons[]`), indexed by `IconRegistry` (`Core/Factions/IconRegistry.gd`). ~166 pairs / ~160
   names. **Biomes do NOT own icons** — a biome is a cloud of atoms + Lindblad L.
   The icons a biome hosts are *inferred from its `native_factions`* at
   neighborhood-realization time (`Biome.get_neighborhood_icons()`); pole-pairing
@@ -65,9 +65,9 @@ Two layers, different jobs:
 The word "icon" is reserved for pair-icons. The single-emoji-keyed Lindblad
 spec on each biome is `atom_components` (formerly `icon_components`).
 Player-facing vocab discovery flows through pair-icons via
-`IconLexicon.is_pair_discovered(p0, p1, discovered_set)` —
-`VocabularyEvolution.discovered_vocabulary` is the source of truth for which
-pairs the player has seen.
+`IconRegistry.is_icon_discovered(p0, p1, discovered)`, where `discovered`
+comes from `IconRegistry.discovered_set_from_icons(known_icons)` over the
+player's incorporated words.
 
 ---
 
@@ -313,7 +313,7 @@ know which one you're touching.
 - `tools/emoji_graph.py` — if it exists / whatever other supporting scripts
 
 **Read-only references:**
-- `BIOME_AGENTS.md` (this file)
+- `docs/agents/BIOME_AGENTS.md` (this file)
 - `Core/Factions/FactionAxes.gd` — the 12-axis `bits` taxonomy (read to
   choose reasonable `bits` vectors for new factions)
 

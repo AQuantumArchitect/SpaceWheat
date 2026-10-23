@@ -273,6 +273,6 @@ campaign" is a non-sequitur — the *supply* left. That is §3 above.
   Spark "useless inside the enclave." Keeping the unlock is right for banked
   saves, but the hat becomes a dead affordance and should say so.
 - **Two owner-reserved questions this does not answer**
-  (`docs/OPEN_CAMPAIGN.md:260-264`): where the wet-country door ships, and
+  (`docs/design/OPEN_CAMPAIGN.md:260-264`): where the wet-country door ships, and
   whether the enclave is inviolable forever. Standalone Lanternfall makes both
   *easier* to answer later; it must not be read as answering either.
