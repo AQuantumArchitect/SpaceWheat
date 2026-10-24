@@ -16,7 +16,7 @@ def src(rel: str) -> str:
 def test_verb_grammar_is_the_qerf_table() -> None:
     g = src("UI/Core/VerbGrammar.gd")
     assert 'MASS_EXPLORE_TOAST := "SHIFT [F] to multi explore"' in g
-    assert 'REAP_CHORD := "Ctrl+Shift+Space"' in g
+    assert 'REAP_CHORD := "Ctrl+Shift+F"' in g
     assert 'REAP_PULSE := "REAP"' in g
     assert 'REAP_UNLOCK_KEY := "reap"' in g
     assert "func project_chip" in g
