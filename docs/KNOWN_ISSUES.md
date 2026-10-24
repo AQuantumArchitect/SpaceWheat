@@ -136,3 +136,12 @@ doc for full context.
   their root via `Path(__file__).resolve()` (or the bash equivalent). See
   `docs/history/2026-07-29_SLOP_PATROL.md`, which already flagged this as a known
   portability gap.
+
+## Test suite baseline (2026-10-24)
+
+`tests/known_failures.txt` lists 77 tests that already failed before the guidance
+work landed. They test code that was never written (harvest balloons, discover
+confirm submenu), old wording, or Windows-only paths. CI runs them as non-strict
+xfail, so the suite is green only while nothing outside the list breaks. A listed
+test that starts passing shows as XPASS: delete its line. Do not add a line for a
+test that passed before.
