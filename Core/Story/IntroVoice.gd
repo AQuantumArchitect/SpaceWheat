@@ -127,11 +127,13 @@ static func toast_for_offer(quest: Dictionary, qm = null) -> Dictionary:
 	var title := quest_title(quest)
 	if is_arc:
 		return {
-			"message": "📜 [b]%s[/b]\n▸ [X] then Arc [I]" % title,
+			# No key path here: a toast outlives the surface it was raised on.
+			# The line at the top names the keys from wherever you are.
+			"message": "📜 [b]%s[/b]\na new door on the %s" % [title, SurfaceRooms.NAME_ARC],
 			"detail": "",
 			"importance": 3,
 			"icon": "📜",
-			"path": "X",
+			"path": "X" + SurfaceRooms.KEY_OFFERS,
 			"route": "arc",
 		}
 	# Market: log only. Do not say "here" — there is no here to tap.
@@ -253,6 +255,13 @@ static func live_quest(qm = null) -> Dictionary:
 		qm = _quest_manager()
 	if qm == null or not ("active_quests" in qm):
 		return {}
+	# After Act 0 there is ONE ranker for the live beat: the guidance resolver
+	# (Core/Campaign/Guide.gd). The Arc's NOW row, the banner and the toasts
+	# all name the same door — and that door is always row one on the Arc.
+	if not _tutorial_live(qm):
+		var g: Dictionary = load("res://Core/Campaign/Guide.gd").live_beat(qm)
+		if not g.is_empty():
+			return g
 	var act_by_flag := _act_by_flag(qm)
 	var best: Dictionary = {}
 	var best_rank := 0x7FFFFFFF
@@ -268,6 +277,14 @@ static func live_quest(qm = null) -> Dictionary:
 				best_rank = rank
 				best = q
 	return best
+
+
+static func _tutorial_live(qm) -> bool:
+	for pool in [qm.active_quests.values(), qm.story_offers.values() if "story_offers" in qm else []]:
+		for q in pool:
+			if q is Dictionary and str(q.get("category", "")) == "TUTORIAL":
+				return true
+	return false
 
 
 static func live_door(qm = null, farm = null) -> Dictionary:
@@ -301,7 +318,9 @@ static func doors_ahead(limit: int = 6, qm = null, farm = null) -> Array:
 		return rows
 	var live := live_door(qm, farm)
 	var live_id := str(live.get("id", ""))
-	if not live.is_empty():
+	# The Arc lists doors you have not signed. A signed story beat lives on
+	# Charge (X → U), beside nothing else; Act 0 lessons stay here.
+	if not live.is_empty() and not _is_signed_story(live.get("data", {}), qm):
 		rows.append(_row_from_beat(live))
 	var live_quest_id := int(live.get("data", {}).get("id", -1)) if live.get("data", {}) is Dictionary else -1
 	if qm.has_method("get_story_offers"):
@@ -329,6 +348,14 @@ static func doors_ahead(limit: int = 6, qm = null, farm = null) -> Array:
 	# Listing a 99% Village / Woodlot row shunted players out of the loom
 	# into a country whose quest did not exist yet.
 	return rows
+
+
+static func _is_signed_story(q, qm) -> bool:
+	if not (q is Dictionary) or q.is_empty():
+		return false
+	if qm == null or not qm.has_method("is_charge_hold") or not ("active_quests" in qm):
+		return false
+	return qm.active_quests.has(int(q.get("id", -1))) and bool(qm.is_charge_hold(q))
 
 
 static func remembered_count() -> int:
@@ -415,7 +442,7 @@ static func toast_for_flag(flag_id: String, flag_data: Dictionary) -> Dictionary
 		"detail": "",
 		"importance": 3,
 		"icon": "✨",
-		"path": "XY",
+		"path": "X" + SurfaceRooms.KEY_STORY,
 		"route": "story",
 	}
 

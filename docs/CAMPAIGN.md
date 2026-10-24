@@ -27,7 +27,10 @@ CI runs `build.py --check` and `validate.py` on every push.
 
 - **The Demos** — the main story, Acts 0–6, ends at `island_free`.
 - **What Fades** (Lanternfall) and **The Loom** — post-game campaigns. Both open
-  after `island_free`, and neither feeds the main story.
+  after `island_free`, and neither feeds the main story. Both are **in
+  development** (`"status": "in_development"` in the spec): their headers say so
+  in game, and the ending ceremony warns the player before they walk through.
+  Nothing is gated.
 
 A **beat** is one story step:
 

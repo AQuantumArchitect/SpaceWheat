@@ -134,7 +134,7 @@ Set `SW_GODOT_BIN` to the Windows executable path under `/mnt/c/...`; the shared
 launcher rewrites repo-local WSL paths to Windows-visible paths.
 
 ```bash
-export SW_GODOT_BIN='/mnt/c/Users/Luke Spooner/Documents/antigravity_i_guess/Godot/Godot_v4.6.2-stable_win64_console.exe'
+export SW_GODOT_BIN='/mnt/c/path/to/Godot_v4.x-stable_win64_console.exe'
 ```
 
 **Note on performance numbers from WSL: don't.** WSL has no GPU passthrough

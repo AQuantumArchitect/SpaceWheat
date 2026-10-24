@@ -23,5 +23,5 @@ actually keeps.
 Nothing here persists in a save, and that too is the lesson: reload, and your
 conventions re-seed from the Hamiltonian while every loop product comes back
 exactly — the invariant content never depended on your bookkeeping. Played as
-"What Turns" (`docs/GAUGE_CAMPAIGN.md`); machinery in
+"What Turns" (`docs/design/GAUGE_CAMPAIGN.md`); machinery in
 `Core/QuantumSubstrate/GaugeField.gd`.

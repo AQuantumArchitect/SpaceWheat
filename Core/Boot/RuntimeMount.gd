@@ -388,7 +388,7 @@ func stage_ui(farm: Node, shell: Node, quantum_viz: Node, world_builder) -> void
 
 			# Act filament — the objective banner: the ONE live objective as
 			# screen text. Bottom-RIGHT (2026-08-25, second pass). It left the
-			# top-right "cluster fuck" for bottom-LEFT earlier the same day,
+			# crowded top-right corner for bottom-LEFT earlier the same day,
 			# which put it straight on top of the field's portal rail — the
 			# labelled biome orbs run down the empty LEFT side
 			# (QuantumField3D._rebuild_portals pins them at x = -4.2). The

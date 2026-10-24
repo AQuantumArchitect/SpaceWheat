@@ -128,9 +128,9 @@ def test_story_tab_never_narrates_unfired_beats(rig_boot) -> None:
     assert boot_row.get("ok", False), boot_row
     fired = set(boot_row.get("flags_fired", {}) or {})
 
-    # Open X (playthrough) → Y (story tab), then read what the player SEES.
+    # Open X (playthrough) → O (story tab), then read what the player SEES.
     rig.run_turn(2, "press_key", key="x", settle_frames=10)
-    rig.run_turn(3, "press_key", key="y", settle_frames=10)
+    rig.run_turn(3, "press_key", key="o", settle_frames=10)
     text_row = rig.run_turn(4, "overlay_text", timeout_s=30.0)
     assert text_row.get("ok", False), text_row
     visible = "\n".join(str(line.get("text", "")) for line in text_row.get("lines", []))

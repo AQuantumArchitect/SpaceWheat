@@ -291,7 +291,7 @@ func evaluate_predicate(predicate: Dictionary) -> float:
 			# {"type": "gate_order", "gates": ["hadamard", "cnot"]} scores the
 			# fraction of the word spelled IN ORDER (each history row consumes at
 			# most one step). Where gate_sequence_contains counts, this one reads —
-			# non-commuting operations are words, not sets (docs/TOPOLOGY_CAMPAIGN.md,
+			# non-commuting operations are words, not sets (docs/design/TOPOLOGY_CAMPAIGN.md,
 			# Chapter 4). Progress bar = how much of the braid word is spelled.
 			var word: Array = predicate.get("gates", [])
 			if not (word is Array) or word.is_empty():
@@ -314,7 +314,7 @@ func evaluate_predicate(predicate: Dictionary) -> float:
 			# The knot witness: two frozen loops whose mutual winding is nonzero —
 			# loop A turns about loop B's area axis. On the Bloch sphere nothing
 			# links; the invariant lives one floor up (the Berry lift), and this
-			# integer is its shadow (docs/ENGINE_FRONTIER.md, Machine 2).
+			# integer is its shadow (docs/design/ENGINE_FRONTIER.md, Machine 2).
 			var w := float(absi(int(_last_observables.get("max_mutual_winding", 0))))
 			var have := QuestMath.soft_gate(float(_last_observables.get("frozen_loops", 0)), 2.0, 0.75)
 			var linked := QuestMath.soft_gate(w, maxf(1.0, float(predicate.get("value", 1))), 0.5)

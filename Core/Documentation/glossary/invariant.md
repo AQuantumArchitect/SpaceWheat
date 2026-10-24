@@ -13,7 +13,7 @@ drift. It does not decay. If it changes at all, it *jumps*, and a jump needs an 
 enclave counts as irreversible.
 
 Measurement is the enclave's *thermodynamic* irreversibility. Invariants are its
-*geometric* one — and the topology campaign (`docs/TOPOLOGY_CAMPAIGN.md`, "What
+*geometric* one — and the topology campaign (`docs/design/TOPOLOGY_CAMPAIGN.md`, "What
 Survives") teaches four of them, one per chapter:
 
 1. **The solid angle a closed loop encloses** — the [berry](berry.md). Two roads from

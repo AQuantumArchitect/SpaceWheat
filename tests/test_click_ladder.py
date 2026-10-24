@@ -35,7 +35,9 @@ def test_board_home_names_the_c_key():
     assert 'KEY_OPENS := "[%s] opens %s"' in text
     assert "func key_for_home" in text
     assert 'return "C"' in text
-    assert 'return "X"' in text
+    # X reopens on its last tab, so "[X] opens the Arc" was true only by
+    # luck: the Arc is a tap home, and the banner names the path.
+    assert 'return "X"' not in text
     chip = src(CHIP)
     assert 'home_name = "the board"' in chip
     assert 'home_key = "C"' in chip
@@ -131,5 +133,5 @@ def test_market_is_one_board_with_stalls():
     # Fill tab is Commitments (U). Market (Y) is the stall board. History is
     # a Commitments chord, not a top-level tab.
     tab_row = text.split("const TAB_ROW")[1].split("const HANDS_MAX")[0]
-    assert '"Commitments"' in tab_row
-    assert '"Market"' in tab_row
+    assert 'SurfaceRooms.NAME_COMMITMENTS' in tab_row  # one table: UI/Core/SurfaceRooms.gd
+    assert 'SurfaceRooms.NAME_MARKET' in tab_row

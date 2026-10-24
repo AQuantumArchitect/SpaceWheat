@@ -112,8 +112,9 @@ static func key_for_home(name: String) -> String:
 	var n := str(name).strip_edges().to_lower()
 	if n == "the board" or n == "board" or n == "commitments":
 		return "C"
-	if n == "the arc" or n == "arc" or n == "story":
-		return "X"
+	# X reopens on whatever tab it last showed, so "[X] opens the Arc" was
+	# true only by luck. The menu's own path lives in SurfaceGraph and the
+	# banner names it; a toast says "tap" (or [F] on the field).
 	return ""
 
 

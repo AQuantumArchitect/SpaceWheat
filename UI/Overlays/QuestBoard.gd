@@ -28,12 +28,13 @@ const FRAME_MANIFOLD := "manifold"
 const FRAME_MARKET := "market"
 const FRAME_COMMITMENTS := "commitments"
 
+## C and X share one grammar (SurfaceRooms; the campaign keymap mirrors it
+## for SurfaceGraph): T identity, Y offers, U what you hold. Commitments are
+## market contracts only — signed story beats live on X → Charge.
 const TAB_ROW := [
-	{"key": "T", "frame": FRAME_MANIFOLD,    "name": "Manifold"},
-	{"key": "Y", "frame": FRAME_MARKET,      "name": "Market"},
-	{"key": "U", "frame": FRAME_COMMITMENTS, "name": "Commitments"},
-	# Arc (I) moved to X / ControlsOverlay — the story spine reads next to Story.
-	# Commitments (held) live on Market now; U is the ledger of past contracts.
+	{"key": SurfaceRooms.KEY_IDENTITY, "frame": FRAME_MANIFOLD,    "name": SurfaceRooms.NAME_MANIFOLD},
+	{"key": SurfaceRooms.KEY_OFFERS,   "frame": FRAME_MARKET,      "name": SurfaceRooms.NAME_MARKET},
+	{"key": SurfaceRooms.KEY_HELD,     "frame": FRAME_COMMITMENTS, "name": SurfaceRooms.NAME_COMMITMENTS},
 ]
 
 # The GHJKL; ring IS the stall count. Held commitments occupy stalls;
@@ -1553,6 +1554,33 @@ func _supply_offers() -> Array:
 		if quest_manager and "active_quests" in quest_manager \
 				and quest_manager.active_quests.has(offer.get("id", -1)):
 			continue
+		out.append(offer)
+	# A signed lesson that teaches the board loop guarantees its own contract:
+	# while it is held, its lesson_offer stands on the lesson's board.
+	for lo in _lesson_offers(bname):
+		if quest_manager and "active_quests" in quest_manager \
+				and quest_manager.active_quests.has(lo.get("id", -1)):
+			continue
+		out.append(lo)
+	return out
+
+
+func _lesson_offers(bname: String) -> Array:
+	var out: Array = []
+	if quest_manager == null or not ("active_quests" in quest_manager):
+		return out
+	for q in quest_manager.active_quests.values():
+		if not (q is Dictionary) or str(q.get("category", "")) != "TUTORIAL":
+			continue
+		var lo = q.get("lesson_offer", null)
+		if not (lo is Dictionary) or str(q.get("biome", "")) != bname:
+			continue
+		var trade: Dictionary = (lo as Dictionary).duplicate(true)
+		trade["biome"] = bname
+		var offer := QuestPipeline.supply_offer(trade)
+		if offer.is_empty():
+			continue
+		offer["lesson_offer"] = true
 		out.append(offer)
 	return out
 

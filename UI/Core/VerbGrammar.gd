@@ -11,7 +11,7 @@ extends Object
 const BalanceService = preload("res://Core/GameMechanics/BalanceService.gd")
 
 const REAP_KEYCODE := KEY_SPACE
-const REAP_CHORD := "Ctrl+Shift+Space"
+const REAP_CHORD := "Ctrl+Shift+F"
 const REAP_LABEL := "Reap"
 const REAP_PULSE := "REAP"
 const REAP_UNLOCK_KEY := "reap"

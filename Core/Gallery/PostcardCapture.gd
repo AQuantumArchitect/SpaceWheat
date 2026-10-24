@@ -1,7 +1,7 @@
 class_name PostcardCapture
 extends CanvasLayer
 
-## The Gallery, G2 (docs/ENGINE_FRONTIER.md, Part II): postcards.
+## The Gallery, G2 (docs/design/ENGINE_FRONTIER.md, Part II): postcards.
 ##
 ## F12 captures the current view with a physics watermark strip rendered INTO
 ## the pixels — biome, act, purity, entanglement, sim age — and writes a

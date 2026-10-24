@@ -218,12 +218,17 @@
          "faction": "Hearth Keepers",
          "biome": "TheDemos",
          "body": "The Demos sleeps — wheat and people, waiting. Explore a plot, strike its qubit to collapse it, then gather what the collapse leaves behind.",
-         "tutorial_hint": "Strike a sleeping plot.",
-         "math_note": "Fires the instant the gate ledger records 1 measure gate (a single R-strike) — a structural count, not a soft gate.",
+         "tutorial_hint": "Explore a plot, strike it, then gather the harvest.",
+         "math_note": "Fires once the gate ledger records 1 measure gate (an R-strike, which banks its harvest on the plot) and 1 pop (the Q gather that pays the bank and returns the plot to fog) — structural counts, not soft gates.",
          "state_predicates": [
           {
            "type": "gate_sequence_contains",
            "gate": "measure",
+           "count": 1
+          },
+          {
+           "type": "gate_sequence_contains",
+           "gate": "pop",
            "count": 1
           }
          ]
@@ -233,12 +238,25 @@
          "tutorial_teaches": "contracts",
          "faction": "Millwright's Union",
          "biome": "TheDemos",
-         "type": "DELIVERY",
-         "resource": "🌾",
-         "quantity": 2,
-         "body": "The Millwright's Union is buying. Accept their contract and deliver 2× 🌾 from your stores. Kept contracts are how a small country eats — and how factions come to know your name.",
-         "tutorial_hint": "Deliver 2× 🌾 to the mill.",
-         "math_note": "A DELIVERY quest, not a soft gate — fires the instant your 🌾 stores hold quantity ≥ 2 and you complete the contract on Commitments. Auto-accepted with the lane; filled on purpose (not auto-claimed)."
+         "body": "The Millwright's Union is buying. This lesson is a whole loop: sign it on the Arc, take one of their contracts from the board's Market, keep it by delivering on Commitments, then come back to Charge and close the lesson. Kept contracts are how a small country eats — and how factions come to know your name.",
+         "tutorial_hint": "Take a Millwright contract on the Market, deliver it, claim on Charge.",
+         "math_note": "Signed lesson (not auto-accepted, not auto-claimed): Accept on the Arc puts it on Charge. contracts_kept_gte counts market contracts kept for the faction; one Millwright 🌾 contract is guaranteed on the board while the lesson is open (lesson_offer: a standing deal on the lesson's own board, 🌾×2 for 🍞×3, held from Accept until the lesson closes). Claim on Charge.",
+         "signed": true,
+         "lesson_offer": {
+          "faction": "Millwright's Union",
+          "give": {
+           "🌾": 2
+          },
+          "emoji": "🍞",
+          "get": 3
+         },
+         "state_predicates": [
+          {
+           "type": "contracts_kept_gte",
+           "faction": "Millwright's Union",
+           "value": 1
+          }
+         ]
         },
         {
          "tutorial_step": 2,
@@ -260,8 +278,8 @@
          "tutorial_teaches": "superposition",
          "faction": "Hearth Keepers",
          "biome": "StarterForest",
-         "body": "A qubit need not pick a side. Superpose it — spread it across both poles — and the forest shimmers between states.",
-         "tutorial_hint": "Superpose a forest plot.",
+         "body": "The forest keeps its words in fog. Open the whole field first — Shift+F explores every plot at once — so you can watch what happens next. Then: a qubit need not pick a side. Superpose one — spread it across both poles — and it shimmers between states.",
+         "tutorial_hint": "Explore the whole forest, then superpose a plot with the Druid.",
          "math_note": "Fires the instant the gate ledger records 1 hadamard (a single Druid E) — a structural count, not a soft gate. The forest's resting coherence used to auto-claim this step on arrival, skipping the lesson and handing the Operator hat before the player had superposed.",
          "state_predicates": [
           {
@@ -281,7 +299,7 @@
          "faction": "Hearth Keepers",
          "biome": "StarterForest",
          "body": "A qubit alone is a wheel. Two qubits woven together are a loom — touch one and the other answers, however far apart they drift.",
-         "tutorial_hint": "Weave two plots into one Bell pair.",
+         "tutorial_hint": "Mark any two plots, then weave them into a Bell pair.",
          "math_note": "Fires the instant the gate ledger records 1 bell gate (a single Bell weave) — a structural count, not a soft gate. Completing this weave hands you 1 🍼 — the reap capstone's cost, paid forward.",
          "state_predicates": [
           {
@@ -1683,6 +1701,7 @@
    "id": "lanternfall",
    "title": "What Fades",
    "kind": "postgame",
+   "status": "in_development",
    "ending": "the_door_stays_open",
    "opens_after": "island_free",
    "acts": [
@@ -2212,6 +2231,7 @@
    "id": "loom",
    "title": "The Loom",
    "kind": "postgame",
+   "status": "in_development",
    "ending": "close_it_upstairs",
    "opens_after": "island_free",
    "acts": [
@@ -2605,5 +2625,220 @@
     }
    ]
   }
- ]
+ ],
+ "guide": {
+  "_doc": "How each kind of objective is DONE, as data. Core/Campaign/Guide.gd turns the live beat plus the game and UI state into the next press; the banner, spotlight and guide toasts all read it. Keys are spelled only in `keymap`. Each `walks` entry is the ordered steps for one objective predicate type; a step is done when its check holds, and the first step not done is the one shown. Docs: docs/design/GUIDANCE_FROM_THE_SPEC.md.",
+  "keymap": {
+   "hats": {
+    "spark": "4",
+    "icon": "5",
+    "merchant": "6",
+    "captain": "7",
+    "ace": "8",
+    "operator": "9",
+    "druid": "0"
+   },
+   "hat_names": {
+    "spark": "Spark",
+    "icon": "Icon",
+    "merchant": "Merchant",
+    "captain": "Captain",
+    "ace": "Ace",
+    "operator": "Operator",
+    "druid": "Druid"
+   },
+   "surfaces": {
+    "_doc": "The UI as a graph. A menu opens with `open` onto `reopens` (or the tab it last showed, when absent); its tabs are reached by their keys; `close` from any menu returns to the field. Guide.gd and every toast compute key paths from here and from the surface that is open right now (SurfaceGraph.gd), never by hand.",
+    "X": {
+     "open": "X",
+     "name": "📖",
+     "tabs": [
+      {
+       "id": "self",
+       "key": "T",
+       "name": "Self"
+      },
+      {
+       "id": "arc",
+       "key": "Y",
+       "name": "Arc"
+      },
+      {
+       "id": "charge",
+       "key": "U",
+       "name": "Charge"
+      },
+      {
+       "id": "guide",
+       "key": "I",
+       "name": "Guide"
+      },
+      {
+       "id": "story",
+       "key": "O",
+       "name": "Story"
+      }
+     ]
+    },
+    "C": {
+     "open": "C",
+     "name": "board",
+     "reopens": "commitments",
+     "tabs": [
+      {
+       "id": "manifold",
+       "key": "T",
+       "name": "Manifold"
+      },
+      {
+       "id": "market",
+       "key": "Y",
+       "name": "Market"
+      },
+      {
+       "id": "commitments",
+       "key": "U",
+       "name": "Commitments"
+      }
+     ]
+    }
+   },
+   "rows": [
+    "G",
+    "H",
+    "J",
+    "K",
+    "L",
+    ";"
+   ],
+   "plots": [
+    "G",
+    "H",
+    "J",
+    "K",
+    "L",
+    ";"
+   ],
+   "close": "ESC",
+   "page_next": "D",
+   "page_prev": "A",
+   "verbs": {
+    "explore": "F",
+    "strike": "R",
+    "gather": "Q",
+    "track": "F",
+    "incorporate": "R",
+    "plant": "R",
+    "pick_word": "E",
+    "chart": "R",
+    "accept": "R",
+    "claim": "R",
+    "deliver": "R",
+    "refresh": "E",
+    "faster": "="
+   },
+   "clock_max_stride": 32,
+   "boards": {
+    "Millwright's Union": "Village",
+    "Hearth Keepers": "Village"
+   },
+   "plant_home": "Village",
+   "reach": 12,
+   "verb_labels": {
+    "E": "Hadamard"
+   },
+   "clear_marks": "'"
+  },
+  "walks": {
+   "berry_consumed_count_gte": [
+    "travel",
+    "hat:icon",
+    "berry"
+   ],
+   "berry_total_phase_gte": [
+    "travel",
+    "hat:icon",
+    "berry"
+   ],
+   "standing_gte": [
+    "deliver_to"
+   ],
+   "biome_evolving": [
+    "chart"
+   ],
+   "gate_sequence_contains": [
+    "gate"
+   ],
+   "atom_in_biome": [
+    "plant_atom"
+   ],
+   "biome_state_gte": [
+    "plant_atom",
+    "steer"
+   ],
+   "signature_size_gte": [
+    "learn_word"
+   ],
+   "soul_purity_gte": [
+    "learn_word"
+   ],
+   "atom_count_gte": [
+    "plant_new"
+   ],
+   "atom_diversity_gte": [
+    "plant_new"
+   ],
+   "story_flag_any": [
+    "take_door"
+   ],
+   "lesson:core_loop": [
+    "strike:TheDemos"
+   ],
+   "lesson:contracts": [
+    "deliver_to"
+   ],
+   "lesson:wayfinding": [
+    "go:StarterForest"
+   ],
+   "lesson:superposition": [
+    "go:StarterForest",
+    "survey",
+    "hat:druid",
+    "plot_verb:E"
+   ],
+   "lesson:entanglement": [
+    "go:StarterForest",
+    "survey",
+    "hat:operator",
+    "pair_gate:Q"
+   ],
+   "lesson:reap_season": [
+    "reap:TheDemos"
+   ],
+   "active_biome_is": [
+    "travel"
+   ],
+   "dynamics_at_most": [
+    "measure"
+   ],
+   "coherence_at_least": [
+    "superpose"
+   ],
+   "dynamics_at_least": [
+    "superpose"
+   ],
+   "biome_spectral_gap_gte": [
+    "evolve"
+   ],
+   "biome_attractor_emoji_gte": [
+    "steer"
+   ],
+   "biome_spectral_gap_lte": [
+    "plant_new"
+   ],
+   "contracts_kept_gte": [
+    "deliver_to"
+   ]
+  }
+ }
 }

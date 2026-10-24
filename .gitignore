@@ -134,3 +134,4 @@ scratch_cognifold_sample.json
 # deleted immediately after — it belongs to a pack, never to the tree.
 Core/Config/build_stamp.json
 Core/Config/build_stamp.json.uid
+dist/
