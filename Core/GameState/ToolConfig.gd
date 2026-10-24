@@ -295,7 +295,7 @@ const ARCHETYPE_FRAMES: Dictionary = {
 			"probe": {
 				"Q": {"action": "pop", "label": "Gather", "emoji": "^",
 					  "icon": "res://Assets/UI/Science/Pop-Harvest.svg",
-					  "hint": "Cash out — pull the realized reward off a collapsed register into inventory; the gathering costs 🧺, flat. Reward = surprisal −kT·log p (rare collapse pays more; certain ones pay the floor).",
+					  "hint": "Gather — pull every strike banked on the plot into inventory and return it to fog (explore again to strike it); the gathering costs 🧺, flat. Reward = surprisal −kT·log p (rare collapse pays more; certain ones pay the floor).",
 					  "shift_action": "pop", "shift_label": "Mass Gather"},
 				"E": {"action": "", "label": "Pause", "emoji": "⏸",
 					  "icon": "",
@@ -303,12 +303,12 @@ const ARCHETYPE_FRAMES: Dictionary = {
 					  "disabled": true},
 				"R": {"action": "measure", "label": "Strike", "emoji": "!",
 					  "icon": "res://Assets/UI/Science/Measure.svg",
-					  "hint": "Strike — collapse the selected register to one classical outcome (a social encounter costs 👥). Needs an explored plot — F explores first."},
+					  "hint": "Strike — collapse the selected register to one classical outcome and bank what it pays on the plot (a social encounter costs 👥). Strike as often as you like; Q gathers the bank. Needs an explored plot — F explores first."},
 				"F": {"action": "fast_forward", "label": "Fast-Fwd", "emoji": "⏩",
 					  "icon": "",
 					  "chip_resolver": "ace.f_explore",
 					  "shift_action": "reap", "shift_label": "Reap Season",
-					  "hint": "Fast-forward — let the Hamiltonian spin the odds (advance time). Also resumes play. On an unexplored plot F mounts an expedition instead: explore it for 🍞. Shift+F reaps the whole season (biome-wide harvest, 🍼)."}
+					  "hint": "Fast-forward — let the Hamiltonian spin the odds (advance time). Also resumes play. On an unexplored plot F mounts an expedition instead: explore it for 🍞. Shift+F explores every unexplored plot here (or the checked ones); Ctrl+Shift+F reaps the whole season (biome-wide harvest, 🍼)."}
 			}
 		}
 	},

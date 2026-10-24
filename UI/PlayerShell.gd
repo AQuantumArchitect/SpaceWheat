@@ -116,7 +116,7 @@ func _input(event: InputEvent) -> void:
 
 	# Live toast owns F only when it advertises a home ([F] opens …).
 	# Refusal / mark toasts have no home — Ace F is still Explore.
-	# Shift+F is Reap — never intercept. Confirm/submenu still own E/F.
+	# Shift+F is mass explore, Ctrl+Shift+F is Reap — never intercept. Confirm/submenu still own E/F.
 	if event.keycode == KEY_F and not event.is_shift_pressed():
 		var top_toast := _topmost_toast()
 		var modal_owns_ef: bool = instrument_input != null \

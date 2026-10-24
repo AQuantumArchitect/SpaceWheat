@@ -85,8 +85,8 @@ def test_banner_links_only_for_fill():
 def test_act0_hints_are_the_ask_not_a_keymap():
     steps = json.loads(TUTORIAL.read_text(encoding="utf-8"))["steps"]
     by_teach = {s["tutorial_teaches"]: s for s in steps}
-    assert by_teach["core_loop"]["tutorial_hint"] == "Strike a sleeping plot."
-    assert by_teach["contracts"]["tutorial_hint"] == "Deliver 2× 🌾 to the mill."
+    assert "gather" in by_teach["core_loop"]["tutorial_hint"]
+    assert "Market" in by_teach["contracts"]["tutorial_hint"] and "Charge" in by_teach["contracts"]["tutorial_hint"]
     assert "StarterForest" in by_teach["wayfinding"]["tutorial_hint"]
     for s in steps:
         hint = s["tutorial_hint"]
@@ -342,12 +342,12 @@ def test_ready_claim_outranks_leftover_arc_accept():
     acc = src(PROG).split("static func _accepted_fade_quest")[1].split("static func ")[0]
     assert "active_quests.values()" in acc
     handshake = src(QM).split("func _handshake_auto_claims")[1].split("\nfunc ")[0]
-    assert 'source_flag' in handshake
     assert '"the_gray"' in handshake
-    assert "src_flag" in handshake
-    assert "story_flags_fired.has(src_flag)" in handshake
-    assert "_leftover_still_field_work" in handshake
     assert 'flag_door_is_resolved("the_gray")' in handshake
+    # Accept is the whole beat only when the beat asks for nothing: a fired
+    # source_flag never claims a beat that still has an objective.
+    assert "story_flags_fired.has(src_flag)" not in handshake
+    assert "preds.is_empty()" in handshake
     leftover_hs = src(PROG).split("static func _leftover_flag_fired_handshake")[1].split("static func ")[0]
     assert "_fade_door_resolved" in leftover_hs
     standing_wet = src(PROG).split("static func _standing_wet_country_line")[1].split("static func ")[0]

@@ -592,18 +592,20 @@
         "strike:TheDemos"
       ],
       "lesson:contracts": [
-        "deliver_lesson"
+        "deliver_to"
       ],
       "lesson:wayfinding": [
         "go:StarterForest"
       ],
       "lesson:superposition": [
         "go:StarterForest",
+        "survey",
         "hat:druid",
         "plot_verb:E"
       ],
       "lesson:entanglement": [
         "go:StarterForest",
+        "survey",
         "hat:operator",
         "pair_gate:Q"
       ],
@@ -630,6 +632,9 @@
       ],
       "biome_spectral_gap_lte": [
         "plant_new"
+      ],
+      "contracts_kept_gte": [
+        "deliver_to"
       ]
     }
   }

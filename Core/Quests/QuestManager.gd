@@ -426,7 +426,7 @@ func _evaluate_flag_predicates(predicates: Array, farm) -> float:
 const FLAG_PREDICATE_TYPES := [
 	"act_at_least",
 	"story_flag_set", "story_flag_any", "biome_evolving", "berry_consumed_count_gte", "berry_total_phase_gte",
-	"standing_gte", "biome_state_gte", "biome_state_lte", "signature_size_gte", "signature_growth_gte", "atom_count_gte", "atom_in_biome",
+	"standing_gte", "contracts_kept_gte", "biome_state_gte", "biome_state_lte", "signature_size_gte", "signature_growth_gte", "atom_count_gte", "atom_in_biome",
 	"atom_diversity_gte", "biome_attractor_emoji_gte",
 	"soul_purity_gte",
 	"bridge_built_gte", "bridge_braids_gte", "bridge_fused_gte",
@@ -696,6 +696,15 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 				return 0.0
 			var phase: float = biome.quantum_computer.berry_register.get_consumed_phase()
 			return QuestMath.soft_gate(phase, float(pred.get("value", 0.0)), PREDICATE_SOFT_WIDTH["berry_total_phase_gte"])
+		"contracts_kept_gte":
+			# Market contracts kept (delivered) for a faction — the board loop
+			# itself, counted, so a lesson can ask the player to run it.
+			var kept := 0
+			for cq in completed_quests:
+				if cq is Dictionary and is_market_hold(cq) and str(cq.get("category", "")) != "TUTORIAL" \
+						and str(cq.get("faction", "")) == str(pred.get("faction", "")):
+					kept += 1
+			return 1.0 if kept >= int(pred.get("value", 1)) else 0.0
 		"standing_gte":
 			var standing = farm.faction_standings.get(str(pred.get("faction", "")))
 			if standing == null:
@@ -1059,7 +1068,9 @@ func offer_tutorial_quest(quest_def: Dictionary) -> int:
 ## The one-dimensional lane. Every TUTORIAL step is taken for the player so
 ## the banner is already the live ask. Story offers never match.
 func _tutorial_auto_accepts(quest: Dictionary) -> bool:
-	return str(quest.get("category", "")) == "TUTORIAL"
+	# A "signed" lesson teaches the handshake itself (Arc → Charge → claim):
+	# the player accepts it and claims it. Nothing is done for them.
+	return str(quest.get("category", "")) == "TUTORIAL" and not bool(quest.get("signed", false))
 
 
 func tutorial_auto_accepts(quest: Dictionary) -> bool:
@@ -1115,29 +1126,15 @@ func _handshake_auto_claims(quest: Dictionary) -> bool:
 	var src_flag := str(quest.get("source_flag", "")).strip_edges()
 	if src_flag == "the_gray":
 		return flag_door_is_resolved("the_gray")
-	# FLAG already fired (Chart + leftover physics). Leftover teaching still
-	# wants purity_at_most / hold 🔭. Superpose of planted 🌉 is purity 1;
-	# Fast-Fwd never grays (lindblad targets not on the register). Children
-	# stay shut until Claim. Accept — or the process sweep for leftover
-	# already accepted — is the beat. A 10-key grind does not remash E.
-	# Berry / fade / unscored reap is still work (Open the Bank, Watch It
-	# Fade). Handshake only when the leftover Chart already proved the FLAG.
-	if src_flag != "":
-		var farm = _get_active_farm()
-		if farm != null and "story_flags_fired" in farm \
-				and farm.story_flags_fired.has(src_flag):
-			if _leftover_still_field_work(quest):
-				return false
-			return true
+	# Accept is the whole beat only when the beat asks for nothing. A beat
+	# with an objective is the player's work: its predicates mark it ready
+	# (the ordinary sweep) and the player claims it on Charge. This used to
+	# also handshake any beat whose source_flag had fired — and every story
+	# beat's source_flag is its own trigger, already fired when offered — so
+	# ~15 beats from Act 1 to the ending (planting, charting, the standing
+	# gates, the fork, island_free) claimed themselves on Accept.
 	var preds = quest.get("state_predicates", [])
-	if not (preds is Array) or preds.is_empty():
-		return true
-	for p in preds:
-		if not (p is Dictionary):
-			return false
-		if evaluate_predicate_score(p) < 0.85:
-			return false
-	return true
+	return not (preds is Array) or preds.is_empty()
 
 
 ## Leftover teaching that still asks for a field season. FLAG fire on the
@@ -1182,7 +1179,7 @@ func commitment_quests() -> Array:
 ## teach the board.
 func is_charge_hold(q: Dictionary) -> bool:
 	if str(q.get("category", "")) == "TUTORIAL":
-		return false
+		return bool(q.get("signed", false))
 	return str(q.get("category", "")) == "ARC" or str(q.get("source", "")) == "story" \
 			or str(q.get("source_flag", "")) != ""
 

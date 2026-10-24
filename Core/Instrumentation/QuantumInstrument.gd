@@ -551,6 +551,8 @@ func action_pop(grid_pos: Vector2i) -> Dictionary:
 	var result = ProbeActions.action_pop(terminal, terminal_pool, economy, farm)
 	_emit_farm_action("pop", result, grid_pos)
 	action_performed.emit("pop", result)
+	# Quest-visible: the first lesson is the whole loop (explore, strike, gather).
+	_notify_quest_projection("pop", {"biome": str(result.get("biome_name", "")), "success": result.get("success", false)})
 	return result
 
 

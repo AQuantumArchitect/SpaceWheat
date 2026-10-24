@@ -71,7 +71,9 @@ static func _chord(parts: Array, beat: Dictionary = {}, why: String = "") -> Dic
 			var label := str(p[0])
 			var key := str(p[1])
 			keys.append(key)
-			if key.to_lower().begins_with("shift+"):
+			if key.to_lower().begins_with("ctrl+shift+"):
+				words.append(("%s CTRL+SHIFT [%s]" % [label, key.substr(11)]).strip_edges())
+			elif key.to_lower().begins_with("shift+"):
 				words.append(("%s SHIFT [%s]" % [label, key.substr(6)]).strip_edges())
 			else:
 				words.append(("%s [%s]" % [label, key]).strip_edges())
@@ -314,6 +316,13 @@ static func _tutorial_step() -> Dictionary:
 				q = t
 	if q.is_empty():
 		return {}
+	# A signed lesson runs the whole handshake: Accept on the Arc, do the work,
+	# Claim on Charge — the same door every story beat uses.
+	if bool(q.get("signed", false)):
+		if str(q.get("status", "")) == Quest.STATUS_STORY:
+			return _door_accept(q)
+		if _is_ready(q):
+			return _door_claim(q)
 	var walk = _walks().get("lesson:" + str(q.get("tutorial_teaches", "")), null)
 	if not (walk is Array):
 		return {}
@@ -352,8 +361,12 @@ static func _step(step: String, pred: Dictionary, q: Dictionary) -> Dictionary:
 			return _hat(arg, q)
 		"berry":
 			return _berry(q)
+		"survey":
+			return _survey(q)
 		"deliver_to":
-			return _deliver_to(str(pred.get("faction", "")), q)
+			# A lesson keeps its contract on its own board (lesson_offer).
+			var lesson_home := str(q.get("biome", "")) if q.get("lesson_offer", null) is Dictionary else ""
+			return _deliver_to(str(pred.get("faction", "")), q, lesson_home)
 		"chart":
 			return _chart(str(pred.get("biome", "")), q)
 		"gate":
@@ -547,10 +560,10 @@ static var _counted_refresh := {}   # faction -> the ring signature last counted
 const REFRESH_CAP := 2
 
 
-static func _deliver_to(faction: String, q: Dictionary) -> Dictionary:
+static func _deliver_to(faction: String, q: Dictionary, home_override: String = "") -> Dictionary:
 	if faction == "":
 		return {}
-	var home := str(_km().get("boards", {}).get(faction, "Village"))
+	var home := home_override if home_override != "" else str(_km().get("boards", {}).get(faction, "Village"))
 	var qm = UIP._quest_manager()
 	var held: Array = []
 	if qm != null and qm.has_method("commitment_quests"):
@@ -579,7 +592,9 @@ static func _deliver_to(faction: String, q: Dictionary) -> Dictionary:
 	for i in range(rows.size()):
 		var r: Dictionary = rows[i]
 		var d = r.get("data", {})
-		if str(r.get("kind", "")) != "offer" or not (d is Dictionary) or bool(d.get("supply_trade", false)):
+		if str(r.get("kind", "")) != "offer" or not (d is Dictionary):
+			continue
+		if bool(d.get("supply_trade", false)) and not bool(d.get("lesson_offer", false)):
 			continue
 		if str(d.get("faction", "")) != faction:
 			continue
@@ -1064,7 +1079,7 @@ static func _pair_gate(gate_key: String, q: Dictionary) -> Dictionary:
 	var biome := UIP._active_biome_name()
 	for c in [0, 1]:
 		if not _is_revealed(biome, c) and not _tracked(c):
-			return _reveal(c, q)
+			return _reveal(c, q, [0, 1])
 	var good: bool = marks.size() == 2 and rows.size() == 1 and _marks_here(marks)
 	var parts: Array = []
 	if not good:
@@ -1074,6 +1089,27 @@ static func _pair_gate(gate_key: String, q: Dictionary) -> Dictionary:
 		parts.append(["mark", "shift+" + _plot_key(1)])
 	parts.append(["Build gate", "R"])
 	return _chord(parts, q, "pair gate")
+
+
+## Explore every unexplored plot of the biome you stand in: Ace, Shift+F.
+## {} when nothing here is still fog.
+static func _survey(q: Dictionary) -> Dictionary:
+	var biome := UIP._active_biome_name()
+	var fog := false
+	for c in range(_live_cols(biome)):
+		if not _is_revealed(biome, c):
+			fog = true
+			break
+	if not fog:
+		return {}
+	var parts: Array = _close_first() + ["explore the whole field, so you can see what you work on"]
+	if str(ToolConfig.get_current_frame()) != "ace":
+		parts.append([_hat_name("ace") + " hat", _hat_key("ace")])
+	var inst = UIP._instrument()
+	if inst != null and "checked_plots" in inst and not inst.checked_plots.is_empty():
+		parts.append(["clear marks", str(_km().get("clear_marks", "'"))])
+	parts.append(["Mass Explore", "shift+" + _verb("explore")])
+	return _cost_or(["explore", "🍞"], _chord(parts, q, "survey"), q, 0)
 
 
 static func _marks_here(marks: Array) -> bool:
@@ -1098,7 +1134,7 @@ static func _reap(biome: String, q: Dictionary) -> Dictionary:
 	var parts: Array = _close_first()
 	if _live_col() < 0:
 		parts.append(["plot", _plot_key(0)])
-	parts.append(["Reap the season", "shift+F"])
+	parts.append(["Reap the season", "ctrl+shift+F"])
 	return _chord(parts, q, "reap")
 
 
@@ -1176,7 +1212,7 @@ static func _steer(biome: String, emoji: String, q: Dictionary) -> Dictionary:
 ## Every probe is out (the terminal pool is spent): an Explore would be
 ## refused. Bring one home: gather a measured probe (strike a bound one
 ## first), measured ones away from this beat's biome before the rest.
-static func _free_terminal(q: Dictionary) -> Dictionary:
+static func _free_terminal(q: Dictionary, protect: Array = []) -> Dictionary:
 	_t("free_terminal")
 	var farm = UIP._active_farm()
 	if farm == null or farm.terminal_pool == null or int(farm.terminal_pool.get_unbound_count()) > 0:
@@ -1191,8 +1227,14 @@ static func _free_terminal(q: Dictionary) -> Dictionary:
 		if t == null or not (bool(t.is_bound) or bool(t.is_measured)):
 			continue
 		var bname := str(t.measured_biome_name if bool(t.is_measured) and str(t.measured_biome_name) != "" else t.bound_biome_name)
+		var tcol := int(t.measured_register_id if bool(t.is_measured) and int(t.measured_register_id) >= 0 else t.bound_register_id)
+		var here := bname == UIP._active_biome_name()
+		# Never free a plot this step stands on: gathering the plot you just
+		# explored for the gate sends the player round an F→R→Q loop forever.
+		if here and protect.has(tcol):
+			continue
 		var rank := (0 if bool(t.is_measured) else 2) + (1 if keep.has(bname) else 0) \
-				+ (0 if bname == UIP._active_biome_name() else 4)
+				+ (0 if here else 4)
 		if rank < best_rank:
 			best_rank = rank
 			best = t
@@ -1209,7 +1251,7 @@ static func _free_terminal(q: Dictionary) -> Dictionary:
 	var parts: Array = _close_first() + ["all probes are out"]
 	if _live_col() != col:
 		parts.append(["plot", _plot_key(col)])
-	if bool(best.is_measured):
+	if bool(best.is_measured) or (best.has_method("has_banked") and best.has_banked()):
 		parts.append(["Gather", _verb("gather")])
 		return _chord(parts, q, "free probe")
 	parts.append(["Strike", _verb("strike")])
@@ -1394,8 +1436,8 @@ static func _live_cols(biome: String) -> int:
 ## Ace hat, the plot, Explore — fetching a probe or bread first if needed.
 ## One chord, hat included: a walk that puts on another hat before this step
 ## would otherwise take the Ace hat straight back off.
-static func _reveal(col: int, q: Dictionary) -> Dictionary:
-	var fr := _free_terminal(q)
+static func _reveal(col: int, q: Dictionary, protect: Array = []) -> Dictionary:
+	var fr := _free_terminal(q, protect)
 	if not fr.is_empty():
 		return fr
 	var parts: Array = _close_first() + ["explore it first, so you can see it"]

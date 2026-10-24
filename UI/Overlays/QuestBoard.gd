@@ -1555,6 +1555,33 @@ func _supply_offers() -> Array:
 				and quest_manager.active_quests.has(offer.get("id", -1)):
 			continue
 		out.append(offer)
+	# A signed lesson that teaches the board loop guarantees its own contract:
+	# while it is held, its lesson_offer stands on the lesson's board.
+	for lo in _lesson_offers(bname):
+		if quest_manager and "active_quests" in quest_manager \
+				and quest_manager.active_quests.has(lo.get("id", -1)):
+			continue
+		out.append(lo)
+	return out
+
+
+func _lesson_offers(bname: String) -> Array:
+	var out: Array = []
+	if quest_manager == null or not ("active_quests" in quest_manager):
+		return out
+	for q in quest_manager.active_quests.values():
+		if not (q is Dictionary) or str(q.get("category", "")) != "TUTORIAL":
+			continue
+		var lo = q.get("lesson_offer", null)
+		if not (lo is Dictionary) or str(q.get("biome", "")) != bname:
+			continue
+		var trade: Dictionary = (lo as Dictionary).duplicate(true)
+		trade["biome"] = bname
+		var offer := QuestPipeline.supply_offer(trade)
+		if offer.is_empty():
+			continue
+		offer["lesson_offer"] = true
+		out.append(offer)
 	return out
 
 

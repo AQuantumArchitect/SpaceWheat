@@ -56,10 +56,11 @@ def parse_keys(line: str) -> list:
     """Every pressable key the line names, in reading order — a literal
     player reads "📖 [X], Arc [I], Accept [R]" as three presses."""
     out, pos = [], 0
-    for m in re.finditer(r"(shift\s*\+?\s*)?\[([^\]\s]{1,8})\]", line, re.I):
+    for m in re.finditer(r"((?:(?:ctrl|shift)\s*\+?\s*)*)\[([^\]\s]{1,8})\]", line, re.I):
         t = KEYNAMES.get(m.group(2).strip().lower(), m.group(2).strip().lower())
+        mods = m.group(1).lower()
         if len(t) == 1 or t in KEYNAMES.values():
-            out.append((t, bool(m.group(1))))
+            out.append((("ctrl+" if "ctrl" in mods else "") + t, "shift" in mods))
     if not out and re.search(r"\bESC\b", line):
         out.append(("escape", False))
     return out

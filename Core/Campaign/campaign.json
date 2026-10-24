@@ -218,12 +218,17 @@
          "faction": "Hearth Keepers",
          "biome": "TheDemos",
          "body": "The Demos sleeps — wheat and people, waiting. Explore a plot, strike its qubit to collapse it, then gather what the collapse leaves behind.",
-         "tutorial_hint": "Strike a sleeping plot.",
-         "math_note": "Fires the instant the gate ledger records 1 measure gate (a single R-strike) — a structural count, not a soft gate.",
+         "tutorial_hint": "Explore a plot, strike it, then gather the harvest.",
+         "math_note": "Fires once the gate ledger records 1 measure gate (an R-strike, which banks its harvest on the plot) and 1 pop (the Q gather that pays the bank and returns the plot to fog) — structural counts, not soft gates.",
          "state_predicates": [
           {
            "type": "gate_sequence_contains",
            "gate": "measure",
+           "count": 1
+          },
+          {
+           "type": "gate_sequence_contains",
+           "gate": "pop",
            "count": 1
           }
          ]
@@ -233,12 +238,25 @@
          "tutorial_teaches": "contracts",
          "faction": "Millwright's Union",
          "biome": "TheDemos",
-         "type": "DELIVERY",
-         "resource": "🌾",
-         "quantity": 2,
-         "body": "The Millwright's Union is buying. Accept their contract and deliver 2× 🌾 from your stores. Kept contracts are how a small country eats — and how factions come to know your name.",
-         "tutorial_hint": "Deliver 2× 🌾 to the mill.",
-         "math_note": "A DELIVERY quest, not a soft gate — fires the instant your 🌾 stores hold quantity ≥ 2 and you complete the contract on Commitments. Auto-accepted with the lane; filled on purpose (not auto-claimed)."
+         "body": "The Millwright's Union is buying. This lesson is a whole loop: sign it on the Arc, take one of their contracts from the board's Market, keep it by delivering on Commitments, then come back to Charge and close the lesson. Kept contracts are how a small country eats — and how factions come to know your name.",
+         "tutorial_hint": "Take a Millwright contract on the Market, deliver it, claim on Charge.",
+         "math_note": "Signed lesson (not auto-accepted, not auto-claimed): Accept on the Arc puts it on Charge. contracts_kept_gte counts market contracts kept for the faction; one Millwright 🌾 contract is guaranteed on the board while the lesson is open (lesson_offer: a standing deal on the lesson's own board, 🌾×2 for 🍞×3, held from Accept until the lesson closes). Claim on Charge.",
+         "signed": true,
+         "lesson_offer": {
+          "faction": "Millwright's Union",
+          "give": {
+           "🌾": 2
+          },
+          "emoji": "🍞",
+          "get": 3
+         },
+         "state_predicates": [
+          {
+           "type": "contracts_kept_gte",
+           "faction": "Millwright's Union",
+           "value": 1
+          }
+         ]
         },
         {
          "tutorial_step": 2,
@@ -260,8 +278,8 @@
          "tutorial_teaches": "superposition",
          "faction": "Hearth Keepers",
          "biome": "StarterForest",
-         "body": "A qubit need not pick a side. Superpose it — spread it across both poles — and the forest shimmers between states.",
-         "tutorial_hint": "Superpose a forest plot.",
+         "body": "The forest keeps its words in fog. Open the whole field first — Shift+F explores every plot at once — so you can watch what happens next. Then: a qubit need not pick a side. Superpose one — spread it across both poles — and it shimmers between states.",
+         "tutorial_hint": "Explore the whole forest, then superpose a plot with the Druid.",
          "math_note": "Fires the instant the gate ledger records 1 hadamard (a single Druid E) — a structural count, not a soft gate. The forest's resting coherence used to auto-claim this step on arrival, skipping the lesson and handing the Operator hat before the player had superposed.",
          "state_predicates": [
           {
@@ -281,7 +299,7 @@
          "faction": "Hearth Keepers",
          "biome": "StarterForest",
          "body": "A qubit alone is a wheel. Two qubits woven together are a loom — touch one and the other answers, however far apart they drift.",
-         "tutorial_hint": "Weave two plots into one Bell pair.",
+         "tutorial_hint": "Mark any two plots, then weave them into a Bell pair.",
          "math_note": "Fires the instant the gate ledger records 1 bell gate (a single Bell weave) — a structural count, not a soft gate. Completing this weave hands you 1 🍼 — the reap capstone's cost, paid forward.",
          "state_predicates": [
           {
@@ -2777,18 +2795,20 @@
     "strike:TheDemos"
    ],
    "lesson:contracts": [
-    "deliver_lesson"
+    "deliver_to"
    ],
    "lesson:wayfinding": [
     "go:StarterForest"
    ],
    "lesson:superposition": [
     "go:StarterForest",
+    "survey",
     "hat:druid",
     "plot_verb:E"
    ],
    "lesson:entanglement": [
     "go:StarterForest",
+    "survey",
     "hat:operator",
     "pair_gate:Q"
    ],
@@ -2815,6 +2835,9 @@
    ],
    "biome_spectral_gap_lte": [
     "plant_new"
+   ],
+   "contracts_kept_gte": [
+    "deliver_to"
    ]
   }
  }

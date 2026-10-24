@@ -2679,14 +2679,21 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				result["slots"] = slots
 
 		"press_key":
-			var keycode = _extract_keycode(cmd)
+			# "ctrl+f" names a Ctrl chord (Reap is Ace Ctrl+Shift+F).
+			var pk_cmd: Dictionary = cmd.duplicate()
+			var pk_ctrl := bool(cmd.get("ctrl", false))
+			if str(pk_cmd.get("key", "")).to_lower().begins_with("ctrl+"):
+				pk_ctrl = true
+				pk_cmd["key"] = str(pk_cmd["key"]).substr(5)
+			var keycode = _extract_keycode(pk_cmd)
 			if keycode == KEY_UNKNOWN:
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "unknown_key"}
 			else:
 				result["press_key"] = await _press_key(
 					keycode,
 					bool(cmd.get("shift", false)),
-					int(cmd.get("settle_frames", 2))
+					int(cmd.get("settle_frames", 2)),
+					pk_ctrl
 				)
 
 		"key_sequence":
@@ -3311,7 +3318,7 @@ func _route_rig_key_event(event: InputEventKey) -> void:
 		_shell._input(event)
 
 
-func _push_key_event(keycode: int, pressed: bool, shift: bool = false) -> bool:
+func _push_key_event(keycode: int, pressed: bool, shift: bool = false, ctrl: bool = false) -> bool:
 	if keycode == KEY_UNKNOWN or keycode <= 0:
 		return false
 	var event := InputEventKey.new()
@@ -3320,6 +3327,7 @@ func _push_key_event(keycode: int, pressed: bool, shift: bool = false) -> bool:
 	event.pressed = pressed
 	event.echo = false
 	event.shift_pressed = shift
+	event.ctrl_pressed = ctrl
 	_route_rig_key_event(event)
 	return true
 
@@ -3329,11 +3337,11 @@ func _wait_settle_frames(count: int = 2) -> void:
 		await process_frame
 
 
-func _press_key(keycode: int, shift: bool = false, settle_frames: int = 2) -> Dictionary:
-	if not _push_key_event(keycode, true, shift):
+func _press_key(keycode: int, shift: bool = false, settle_frames: int = 2, ctrl: bool = false) -> Dictionary:
+	if not _push_key_event(keycode, true, shift, ctrl):
 		return {"ok": false, "error": "unknown_keycode", "keycode": keycode}
 	await process_frame
-	_push_key_event(keycode, false, shift)
+	_push_key_event(keycode, false, shift, ctrl)
 	await _wait_settle_frames(settle_frames)
 	return {
 		"ok": true,

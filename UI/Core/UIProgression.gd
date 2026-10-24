@@ -995,9 +995,9 @@ static func _verb_line(q: Dictionary) -> String:
 	var wearing := str(ToolConfig.get_current_frame())
 	if need_frame != "" and wearing != need_frame:
 		return "▸ [%s] %s" % [hat.to_upper(), need_frame.capitalize()]
-	# Reap is Ace Shift+F — never remapped onto plain F, never a hat swap.
+	# Reap is Ace Ctrl+Shift+F — never remapped onto plain F, never a hat swap.
 	if step == 5:
-		return "▸ Shift+F %s" % ask
+		return "▸ Ctrl+Shift+F %s" % ask
 	# Bell pair: Operator R opens Gate. Bell sits on Q once two plots are marked.
 	if step == 4:
 		var n := _checked_count()
@@ -2023,7 +2023,7 @@ static func _plot_bound(col: int) -> bool:
 
 static func _plot_measured(col: int) -> bool:
 	var term = _plot_terminal(col)
-	return term != null and bool(term.is_measured)
+	return term != null and (bool(term.is_measured) or (term.has_method("has_banked") and term.has_banked()))
 
 
 static func _measured_glyph(col: int) -> String:

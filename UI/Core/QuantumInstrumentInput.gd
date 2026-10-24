@@ -339,7 +339,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	# Action keys — one dispatch authority shared with pointer chips (invoke_action).
 	match key:
 		"Q", "E", "R", "F":
-			_dispatch_action_key(key, event.is_shift_pressed())
+			_dispatch_action_key(key, event.is_shift_pressed(), event.is_ctrl_pressed() or event.is_meta_pressed())
 			get_viewport().set_input_as_handled()
 
 
@@ -348,7 +348,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 ## PlayerShell._route_action_key) — MUST land here, so the "submenu owns
 ## Q/E/R/F while open" rule can never diverge between them (#266: chip clicks
 ## bypassed the submenu branch and fired the frame verb underneath the picker).
-func _dispatch_action_key(key: String, shift: bool = false) -> void:
+func _dispatch_action_key(key: String, shift: bool = false, ctrl: bool = false) -> void:
 	# Keyboard's own cancel-on-any-non-F-key already ran by the time this is
 	# reached via _unhandled_key_input (harmless no-op here, second time).
 	# Pointer/touch chips reach this DIRECTLY with no such upstream check, so
@@ -394,10 +394,13 @@ func _dispatch_action_key(key: String, shift: bool = false) -> void:
 				else:
 					_close_submenu()
 			else:
-				# Reap is Ace Shift+F. Do not swap hats or remap F for them.
-				# The banner names [8] Ace, then Shift+F.
+				# Reap is Ace Ctrl+Shift+F; Shift+F alone is mass explore (the
+				# checked plots, or every unexplored plot of this biome). Do not
+				# swap hats or remap F for them.
 				var f_action = ToolConfig.get_action(ToolConfig.get_current_frame(), "F")
-				if shift and str(f_action.get("shift_action", "")) != "":
+				if shift and not ctrl and str(ToolConfig.get_current_frame()) == "ace":
+					_mass_explore()
+				elif shift and ctrl and str(f_action.get("shift_action", "")) != "":
 					# This branch bypasses _perform_action/ActionValidator entirely
 					# (today only Ace's Shift+F reap), so the verb-level funnel has
 					# to be checked here too — gated on the BASE key (F), same as
@@ -1863,8 +1866,32 @@ func _select_subspace(subspace_idx: int, key: String) -> void:
 ## Routes through _dispatch_action_key — the SAME authority as the keyboard —
 ## so an open submenu's Q/E/R chips select options (and F closes) instead of
 ## firing the frame verb hidden underneath the picker (#266).
-func invoke_action(action_key: String, shift: bool = false) -> void:
-	_dispatch_action_key(action_key, shift)
+func invoke_action(action_key: String, shift: bool = false, ctrl: bool = false) -> void:
+	_dispatch_action_key(action_key, shift, ctrl)
+
+
+## Shift+F (Ace): explore every checked plot, or — none checked — every
+## unexplored plot of the biome you stand in. One press opens a whole field.
+func _mass_explore() -> void:
+	if not UIProgression.is_verb_active(ToolConfig.get_current_frame(), "F"):
+		UIProgression.redirect_locked(VerbGrammar.MASS_EXPLORE_LABEL)
+		return
+	var positions: Array = _instrument.checked_plots.duplicate() if _instrument else []
+	if positions.is_empty() and farm and farm.grid and farm.grid.has_method("get_plot_biome_assignments"):
+		var here := str(_instrument.current_biome) if _instrument else ""
+		var a: Dictionary = farm.grid.get_plot_biome_assignments()
+		var keys: Array = a.keys()
+		keys.sort_custom(func(x, y): return x.x < y.x if x.y == y.y else x.y < y.y)
+		for pos in keys:
+			if str(a[pos]) != here:
+				continue
+			var plot = farm.grid.get_plot(pos)
+			if plot != null and plot.terminal == null:
+				positions.append(pos)
+	if positions.is_empty():
+		_toast_player("Mass Explore: every plot here is already explored.")
+		return
+	_run_shift_batch("explore", positions, "⇧F", VerbGrammar.MASS_EXPLORE_LABEL)
 
 
 ## Public entry point for a bubble tap (mouse/touch) — the tap IS the farming
