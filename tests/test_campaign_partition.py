@@ -1,4 +1,4 @@
-"""Campaign partition lint (docs/CAMPAIGN_SPLIT_2026-08-11.md, phase 0).
+"""Campaign partition lint (docs/history/2026-08-11_CAMPAIGN_SPLIT.md, phase 0).
 
 The campaign is four lanes wearing one act counter; the split's smallest first
 step tags every beat with its future campaign — inert metadata until the

@@ -551,6 +551,8 @@ func action_pop(grid_pos: Vector2i) -> Dictionary:
 	var result = ProbeActions.action_pop(terminal, terminal_pool, economy, farm)
 	_emit_farm_action("pop", result, grid_pos)
 	action_performed.emit("pop", result)
+	# Quest-visible: the first lesson is the whole loop (explore, strike, gather).
+	_notify_quest_projection("pop", {"biome": str(result.get("biome_name", "")), "success": result.get("success", false)})
 	return result
 
 
@@ -916,7 +918,7 @@ func action_incorporate(qubit_idx: int = -1) -> Dictionary:
 
 
 ## ============================================================================
-## GAUGE VERBS (Operator 🧭 compass + Icon 🪞 mirror — docs/GAUGE_CAMPAIGN.md)
+## GAUGE VERBS (Operator 🧭 compass + Icon 🪞 mirror — docs/design/GAUGE_CAMPAIGN.md)
 ## All engine-side behind the one seam: every input source (keyboard, bot,
 ## mouse chip) gets identical physics, identical action_performed emission,
 ## and identical quest-projection visibility.

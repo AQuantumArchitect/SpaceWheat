@@ -1,6 +1,6 @@
 # The Web Door — lane and policy
 
-> The Gallery, G4 (`docs/ENGINE_FRONTIER.md`, Part II). Status, **2026-08-15**:
+> The Gallery, G4 (`docs/design/ENGINE_FRONTIER.md`, Part II). Status, **2026-08-15**:
 > **every item in "What still gates the itch web channel" is checked** — the
 > 2026-08-13 "complete" claim below turned out to be one day early (title
 > booted, but pressing F to start a farm silently crashed; see that section
@@ -156,6 +156,14 @@ Full write-up: `docs/performance/PROFILE_2026-08-12.md` (title) and
 - Note: the shipped bundle is **192,622,078 bytes zipped** (~184 MiB;
   `index.pck` 183 MB). Since the frame rate is no longer near the floor, a
   web-specific asset diet is a **load-time** question only.
+
+**Re-verified 2026-10-18 (`4eeb305`, Godot 4.5, the committed wasm):**
+`gate-web-bundle.mjs` passes all five checks in headless Chromium, including
+"starting a farm does not abort"; `qa-web-export.sh` and
+`test_web_extension_links.py` pass; the bundle is 213 MB unzipped. So the
+wasm below, though older than `a8986d0`, still plays. (The FPS check fails
+there at 7.4 fps because headless Chromium renders on SwiftShader; see the
+hardware run above for the number that counts.)
 
 **One open item, not a regression of the above.** HEAD (`a8986d0`, same day,
 14:52) touched `native/src/multi_biome_lookahead_engine.cpp/.h` again for the

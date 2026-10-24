@@ -1071,6 +1071,50 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				result["stack"] = us_entries
 				result["size"] = us_entries.size()
 
+		"guide_step":
+			# Read-only: what the guidance resolver says now (Core/Campaign/Guide.gd)
+			# — the live beat, its next step, the keys and why. The banner shows
+			# this text; probes and tests read the structure.
+			var gs_guide = load("res://Core/Campaign/Guide.gd")
+			var gs_step: Dictionary = gs_guide.next_step()
+			var gs_beat: Dictionary = gs_guide.live_beat()
+			result["step"] = gs_step
+			result["live_beat"] = str(gs_beat.get("source_flag", ""))
+			result["live_status"] = str(gs_beat.get("status", ""))
+			result["tutorial_step"] = load("res://UI/Core/UIProgression.gd").current_tutorial_step()
+			result["explain"] = gs_guide.explain()
+			gs_guide.next_step()
+			result["trace"] = gs_guide.trace.duplicate()
+			# Where the player is on the UI graph, and every visible toast that
+			# names keys but was raised on another surface (should be none:
+			# HintToast collapses those when the player moves).
+			var gs_sg = load("res://Core/Campaign/SurfaceGraph.gd")
+			var gs_here := str(gs_sg.current())
+			result["surface"] = gs_here
+			var gs_stale: Array = []
+			var gs_stack = get_root().find_child("HintToastStack", true, false)
+			if gs_stack != null:
+				for gs_t in gs_stack.get_children():
+					if gs_t is CanvasItem and (gs_t as CanvasItem).visible and gs_t.has_method("_names_keys") \
+							and "_raw_bbcode" in gs_t and bool(gs_t._names_keys(str(gs_t._raw_bbcode))) \
+							and str(gs_t.get("_surface_at_raise")) != gs_here and not bool(gs_t.get("_flattened") if "_flattened" in gs_t else false):
+						gs_stale.append(str(gs_t._raw_bbcode).left(120))
+			result["stale_toasts"] = gs_stale
+			# What Q/E/R/F actually do on the field right now (the chip resolver
+			# the dispatcher consults), so a probe can check a line's verb names
+			# against what its key will fire.
+			var gs_chips := {}
+			var gs_qiis := get_nodes_in_group("quantum_instrument_input")
+			if not gs_qiis.is_empty() and gs_here.begins_with("field"):
+				var gs_qii = gs_qiis[0]
+				var gs_frame := str(ToolConfig.get_current_frame())
+				var gs_ctx = gs_qii._build_chip_context() if gs_qii.has_method("_build_chip_context") else null
+				for gs_k in ["Q", "E", "R", "F"]:
+					var gs_a = ChipResolverRegistry.resolve(ToolConfig.get_action(gs_frame, gs_k), gs_ctx)
+					gs_chips[gs_k] = {"action": str(gs_a.get("action", "")), "label": str(gs_a.get("label", ""))}
+			result["chips"] = gs_chips
+			result["hat"] = str(ToolConfig.get_current_frame())
+
 		"overlay_text":
 			# Read-only: every visible Label/RichTextLabel under a named node
 			# (default: whole tree). The text-lie detector — asserts what the
@@ -2635,14 +2679,21 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				result["slots"] = slots
 
 		"press_key":
-			var keycode = _extract_keycode(cmd)
+			# "ctrl+f" names a Ctrl chord (Reap is Ace Ctrl+Shift+F).
+			var pk_cmd: Dictionary = cmd.duplicate()
+			var pk_ctrl := bool(cmd.get("ctrl", false))
+			if str(pk_cmd.get("key", "")).to_lower().begins_with("ctrl+"):
+				pk_ctrl = true
+				pk_cmd["key"] = str(pk_cmd["key"]).substr(5)
+			var keycode = _extract_keycode(pk_cmd)
 			if keycode == KEY_UNKNOWN:
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "unknown_key"}
 			else:
 				result["press_key"] = await _press_key(
 					keycode,
 					bool(cmd.get("shift", false)),
-					int(cmd.get("settle_frames", 2))
+					int(cmd.get("settle_frames", 2)),
+					pk_ctrl
 				)
 
 		"key_sequence":
@@ -2677,6 +2728,55 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			await process_frame
 			var got := DisplayServer.window_get_size()
 			result["window_size"] = {"w": got.x, "h": got.y}
+
+		"presentation":
+			# Capture-only (the rig never ships): hide the transient layers so a
+			# screenshot shows the farm, not this moment's notifications.
+			# {"toasts": false} hides the hint-toast stack; {"banner": false} the
+			# objective banner. Omitted keys are left as they are.
+			var pr_done := {}
+			for pr_pair in [["toasts", "HintToastStack"], ["banner", "BannerLines"]]:
+				if cmd.has(pr_pair[0]):
+					var pr_node = get_root().find_child(str(pr_pair[1]), true, false)
+					if pr_node is CanvasItem:
+						(pr_node as CanvasItem).visible = bool(cmd.get(pr_pair[0]))
+						pr_done[pr_pair[0]] = bool(cmd.get(pr_pair[0]))
+			# {"hud": false} hides everything but the 3D field: the PlayerShell,
+			# every CanvasItem sibling of the field, and every CanvasLayer.
+			# {"hud": true} restores exactly what it hid.
+			var pr_field = get_root().find_child("QuantumField3D", true, false)
+			if cmd.has("hud"):
+				if not bool(cmd.get("hud")):
+					var pr_hidden: Array = []
+					var pr_targets: Array = get_root().find_children("*", "CanvasLayer", true, false)
+					var pr_shell = get_root().find_child("PlayerShell", true, false)
+					if pr_shell != null:
+						pr_targets.append(pr_shell)
+					if pr_field != null and pr_field.get_parent() != null:
+						for pr_sib in pr_field.get_parent().get_children():
+							if pr_sib != pr_field:
+								pr_targets.append(pr_sib)
+					for pr_t in pr_targets:
+						if (pr_t is CanvasItem or pr_t is CanvasLayer) and pr_t.visible \
+								and not (pr_field != null and pr_t.is_ancestor_of(pr_field)):
+							pr_t.visible = false
+							pr_hidden.append(pr_t)
+					set_meta("pr_hidden", pr_hidden)
+					pr_done["hud"] = {"visible": false, "hidden": pr_hidden.size()}
+				else:
+					for pr_t in get_meta("pr_hidden", []):
+						if is_instance_valid(pr_t):
+							pr_t.visible = true
+					set_meta("pr_hidden", [])
+					pr_done["hud"] = {"visible": true}
+			# {"zoom": k} moves the field's camera k× its distance from the pivot
+			# (k < 1 is closer); {"zoom": 1} puts it back.
+			if cmd.has("zoom") and pr_field != null and "_cam" in pr_field and pr_field._cam != null:
+				if not pr_field.has_meta("pr_cam0"):
+					pr_field.set_meta("pr_cam0", pr_field._cam.position)
+				pr_field._cam.position = (pr_field.get_meta("pr_cam0") as Vector3) * float(cmd.get("zoom"))
+				pr_done["zoom"] = float(cmd.get("zoom"))
+			result["presentation"] = pr_done
 
 		"screenshot":
 			# Capture the rendered viewport to a PNG (headed mode only — headless has no
@@ -3218,7 +3318,7 @@ func _route_rig_key_event(event: InputEventKey) -> void:
 		_shell._input(event)
 
 
-func _push_key_event(keycode: int, pressed: bool, shift: bool = false) -> bool:
+func _push_key_event(keycode: int, pressed: bool, shift: bool = false, ctrl: bool = false) -> bool:
 	if keycode == KEY_UNKNOWN or keycode <= 0:
 		return false
 	var event := InputEventKey.new()
@@ -3227,6 +3327,7 @@ func _push_key_event(keycode: int, pressed: bool, shift: bool = false) -> bool:
 	event.pressed = pressed
 	event.echo = false
 	event.shift_pressed = shift
+	event.ctrl_pressed = ctrl
 	_route_rig_key_event(event)
 	return true
 
@@ -3236,11 +3337,11 @@ func _wait_settle_frames(count: int = 2) -> void:
 		await process_frame
 
 
-func _press_key(keycode: int, shift: bool = false, settle_frames: int = 2) -> Dictionary:
-	if not _push_key_event(keycode, true, shift):
+func _press_key(keycode: int, shift: bool = false, settle_frames: int = 2, ctrl: bool = false) -> Dictionary:
+	if not _push_key_event(keycode, true, shift, ctrl):
 		return {"ok": false, "error": "unknown_keycode", "keycode": keycode}
 	await process_frame
-	_push_key_event(keycode, false, shift)
+	_push_key_event(keycode, false, shift, ctrl)
 	await _wait_settle_frames(settle_frames)
 	return {
 		"ok": true,

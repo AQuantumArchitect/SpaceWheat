@@ -137,3 +137,20 @@ def test_chart_price_has_one_source():
     prog = _src("UI/Core/UIProgression.gd")
     assert "_eagle_have() < 21.0" not in prog
     assert "CampaignRuntime.chart_cost()" in prog.split("static func _chart_eagles")[1].split("\nstatic func ")[0]
+
+
+def test_the_ending_warns_that_the_post_game_is_in_development():
+    """No gate, but the player is told (owner decision 2026-10-18)."""
+    runtime = json.loads(_src("Core/Quests/data/campaign_runtime.json"))
+    status = {c["id"]: c.get("status") for c in runtime["campaigns"]}
+    assert status == {"demos": "complete", "lanternfall": "in_development", "loom": "in_development"}
+    import shutil
+    import subprocess
+    import pytest
+    if shutil.which("godot") is None:
+        pytest.skip("godot not available on PATH")
+    r = subprocess.run(["godot", "--headless", "--script", "tests/postgame_notice_smoke.gd"],
+                       cwd=ROOT, capture_output=True, text=True, timeout=300)
+    tail = (r.stdout + r.stderr)[-2000:]
+    assert r.returncode == 0 and " 0 failed" in r.stdout, tail
+    assert "SCRIPT ERROR" not in r.stdout + r.stderr, tail

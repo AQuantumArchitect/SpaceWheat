@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The Gallery, G3 (docs/ENGINE_FRONTIER.md, Part II): atlas plates.
+"""The Gallery, G3 (docs/design/ENGINE_FRONTIER.md, Part II): atlas plates.
 
 Renders every biome in Core/Biomes/data/biomes.json as an SVG *plate* — the
 atom cloud on a ring, the authored webway drawn from data truth — plus an

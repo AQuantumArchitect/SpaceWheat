@@ -1,7 +1,7 @@
 class_name BridgeRegister
 extends RefCounted
 
-## The Majorana bridge bank (docs/ENGINE_FRONTIER.md, Machine 1).
+## The Majorana bridge bank (docs/design/ENGINE_FRONTIER.md, Machine 1).
 ##
 ## Each bridge is one nonlocal fermion split between two biomes: a standalone
 ## 2×2 density matrix over the parity basis {|even⟩, |odd⟩}, anchored to a

@@ -6,6 +6,12 @@ extends Object
 ##   Y  the board of offers (Market / Arc)
 ##   U  what you have taken on (Commitments / Charge)
 ##   I  information (Guide, on X)
+##   O  the world's chatter (Story, on X)
+##
+## The keys mirror guide.keymap.surfaces in Core/Campaign/campaign.json,
+## which SurfaceGraph walks to compute every menu path; a test holds the two
+## equal. Text that only NAMES a place uses these; text that tells you how
+## to get there asks SurfaceGraph.path().
 ##
 ## Commitments hold market contracts only. Charge holds signed teachings.
 ## The item noun is Contract on C, Teaching on X — toasts, tabs, and
@@ -15,6 +21,7 @@ const KEY_IDENTITY := "T"
 const KEY_OFFERS := "Y"
 const KEY_HELD := "U"
 const KEY_INFO := "I"
+const KEY_STORY := "O"
 
 const ROOM_MANIFOLD := "manifold"
 const ROOM_MARKET := "market"
@@ -31,6 +38,7 @@ const NAME_SELF := "Self"
 const NAME_ARC := "Arc"
 const NAME_CHARGE := "Charge"
 const NAME_GUIDE := "Guide"
+const NAME_STORY := "Story"
 
 const NOUN_C := "Contract"
 const NOUN_X := "Teaching"

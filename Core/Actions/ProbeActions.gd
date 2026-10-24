@@ -297,8 +297,14 @@ static func action_measure(terminal, biome, economy = null, farm = null) -> Dict
 			"message": "Measurement collapse failed: biome quantum state unavailable."
 		}
 
-	# 5. Mark terminal as measured and free the register.
-	_finalize_measurement_terminal(terminal, outcome, recorded_probability, snapshot)
+	# 5. Bank the strike. The probe stays on the plot (bound, unmeasured), so
+	#    R can strike again; Q pays the bank and returns the plot to fog. The
+	#    reward is priced NOW, from the strike-time probability (−kT·log p) —
+	#    a re-strike right after a collapse finds p≈1 and pays the floor, so
+	#    letting the Hamiltonian re-spread the qubit is what pays.
+	var bloch_r := clampf(float(snapshot.get("r", 0.5)), 0.0, 1.0)
+	var amount := _strike_reward_amount(biome, farm, outcome, recorded_probability, bloch_r, register_id)
+	terminal.bank_strike(outcome, amount, recorded_probability)
 
 	# 6. Commit cost after successful measurement
 	if not _commit_cost(economy, measure_cost, "measure"):
@@ -311,6 +317,9 @@ static func action_measure(terminal, biome, economy = null, farm = null) -> Dict
 	return {
 		"success": true,
 		"outcome": outcome,
+		"amount": amount,
+		"banked": terminal.banked_totals(),
+		"strikes": terminal.strikes.size(),
 		"probability": recorded_probability,
 		"recorded_probability": recorded_probability,
 		"was_entangled": was_entangled,
@@ -547,6 +556,21 @@ static func _icon_incorporated(farm, north: String, south: String) -> bool:
 	return false
 
 
+## What one strike of `resource` at strike-time probability `p` pays: the
+## same price as a gather of a frozen measurement (−kT·log p × affinity ×
+## incorporation), at least 1.
+static func _strike_reward_amount(biome, farm, resource: String, p: float, bloch_r: float, register_id: int) -> int:
+	var kT = EnergyPricing.biome_temperature(biome, farm)
+	var energy: float = EnergyPricing.surprisal_energy(clampf(p, 0.0, 1.0), kT)
+	var affinity = FactionAffinity.get_affinity(resource, farm)
+	var affinity_bonus = 1.0 + HamiltonianConfig.AFFINITY_REWARD_MAX * affinity
+	var axis: Dictionary = {}
+	if biome and biome.quantum_computer and biome.quantum_computer.register_map and register_id >= 0:
+		axis = biome.quantum_computer.register_map.axis(register_id)
+	var sig_mult = _incorporation_reward_multiplier(str(axis.get("north", "")), str(axis.get("south", "")), bloch_r, farm)
+	return maxi(int(round(energy * affinity_bonus * sig_mult)), 1)
+
+
 static func _resolve_pop_reward_context(terminal, farm = null) -> Dictionary:
 	if not terminal:
 		return {}
@@ -636,7 +660,7 @@ static func _advance_reap_cycles(farm, active_biomes: Array, reap_cycles: int) -
 
 
 static func _collect_reap_rewards(active_biomes: Array, economy, farm, flux_to_credits: float) -> Dictionary:
-	# PER-BIOME regime split (What Fades, docs/OPEN_CAMPAIGN.md): each biome reaps
+	# PER-BIOME regime split (What Fades, docs/design/OPEN_CAMPAIGN.md): each biome reaps
 	# in its own thermodynamic country. Closed biomes get the seasonal
 	# mass-measurement (measurement IS the economy — see _closed_reap_rewards);
 	# wet-country biomes get the RITE: sink flux + the entropy bank, payout kT·ΔS —
@@ -943,6 +967,9 @@ static func _prepare_pop_result(terminal, terminal_pool, economy = null, farm = 
 			"blocked": true
 		}
 
+	if terminal.has_banked():
+		return _pay_bank(terminal, economy, farm)
+
 	if not terminal.can_pop():
 		if terminal.is_bound and not terminal.is_measured:
 			# Auto-measure: Born sample from live state and project
@@ -1015,6 +1042,43 @@ static func _prepare_pop_result(terminal, terminal_pool, economy = null, farm = 
 		"terminal_id": terminal_id,
 		"register_id": register_id,
 		"biome_name": biome_name
+	}
+
+
+## Q on a struck plot: pay the gather fee once, credit every banked strike.
+static func _pay_bank(terminal, economy, farm) -> Dictionary:
+	var totals: Dictionary = terminal.banked_totals()
+	var n: int = terminal.strikes.size()
+	var first: Dictionary = terminal.strikes[0]
+	var register_id := int(terminal.bound_register_id)
+	var biome_name := str(terminal.bound_biome_name)
+	if economy:
+		var pop_cost = ActionCostRuntime.get_action_cost(farm, "pop", {})
+		if not _preflight_cost(economy, pop_cost).get("ok", true):
+			var route := CampaignRuntime.supply_route_words("🧺", _rail_key_for_trade("🧺"))
+			return {"success": false, "error": "insufficient_resources",
+				"message": ("Need %s to gather — %s." % [_format_cost(pop_cost), route]) if route != "" \
+						else "Need %s to gather." % _format_cost(pop_cost)}
+		if not _commit_cost(economy, pop_cost, "pop"):
+			return {"success": false, "error": "cost_commit_failed", "message": "Gather failed: unable to spend cost."}
+		for e in totals:
+			economy.add_resource(str(e), int(totals[e]), "pop")
+	var main := str(first.get("resource", ""))
+	var best := -1
+	for e in totals:
+		if int(totals[e]) > best:
+			best = int(totals[e])
+			main = str(e)
+	return {
+		"success": true,
+		"resource": main,
+		"amount": int(totals.get(main, 0)),
+		"banked": totals,
+		"strikes": n,
+		"recorded_probability": float(first.get("probability", 0.0)),
+		"terminal_id": str(terminal.terminal_id),
+		"register_id": register_id,
+		"biome_name": biome_name,
 	}
 
 

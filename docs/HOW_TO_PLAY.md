@@ -5,7 +5,7 @@ density matrix; planting, measuring, and harvesting are state preparation,
 Born-rule collapse, and getting paid for what you learned. This page is the
 first ten minutes; the full control grammar lives in
 [UI/Core/KEYBOARD_GRAMMAR.md](../UI/Core/KEYBOARD_GRAMMAR.md) and the frame
-reference in [docs/ARCHETYPE_FRAMES.md](ARCHETYPE_FRAMES.md).
+reference in [docs/design/ARCHETYPE_FRAMES.md](design/ARCHETYPE_FRAMES.md).
 
 ## The first sixty seconds
 
@@ -135,7 +135,7 @@ Wake the forest and the story takes over: loops that remember (ripeness is
 Berry phase), depths that never move (the spectrum), a chain that protects
 its ends, braids that care about order — and after the story's door opens,
 the **wet country**, where the Bath drinks phase and looking becomes the
-only way to keep. Ripe qubits teach you words; words make you somebody
+only way to keep. (The two post-game campaigns are still in development.) Ripe qubits teach you words; words make you somebody
 (watch your purity resolve in M → Eigenstate); being somebody changes how
 every faction treats you.
 

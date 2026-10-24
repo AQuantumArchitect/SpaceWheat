@@ -98,9 +98,9 @@ def test_superpose_and_bell_name_the_verb_key() -> None:
     assert "Shift+G then Shift+H" in body, "name the mark before Gate"
     assert "[R] Weave" not in body
     hints = {int(s["tutorial_step"]): s.get("tutorial_hint", "") for s in steps()}
-    assert hints[3] == "Superpose a forest plot."
-    assert "E" not in hints[3] and "[0]" not in hints[3]
-    assert hints[4] == "Weave two plots into one Bell pair."
+    assert "superpose" in hints[3] and "whole forest" in hints[3]
+    assert "[E]" not in hints[3] and "[0]" not in hints[3]
+    assert "Bell pair" in hints[4]
     assert "[R]" not in hints[4]
 
 

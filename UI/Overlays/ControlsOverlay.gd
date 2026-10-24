@@ -32,22 +32,26 @@ const IntroVoice      = preload("res://Core/Story/IntroVoice.gd")
 # TABS / FRAMES
 # =============================================================================
 
-enum Tab { SELF, STORY, ARC, GUIDE }
+enum Tab { SELF, STORY, ARC, GUIDE, CHARGE }
 
+## X shares C's grammar (UI/Core/SurfaceRooms.gd): T identity, Y the offers
+## (Arc), U what you've taken on (Charge), I information (Guide). Story — the
+## world's chatter — keeps O. The keys are the campaign keymap's
+## (guide.keymap.surfaces.X); tests/test_surface_graph.py holds them equal.
 const TAB_ROW := [
-	{"key": "T", "tab": Tab.SELF,    "name": "Self",    "frame": "self"},
-	{"key": "Y", "tab": Tab.STORY,   "name": "Story",   "frame": "story"},
-	# U slot intentionally empty — live quest pipeline lives on C (QuestBoard).
-	{"key": "I", "tab": Tab.ARC,     "name": "Arc",     "frame": "arc"},
-	{"key": "O", "tab": Tab.GUIDE,   "name": "Guide",   "frame": "guide"},
+	{"key": SurfaceRooms.KEY_IDENTITY, "tab": Tab.SELF,   "name": SurfaceRooms.NAME_SELF,   "frame": "self"},
+	{"key": SurfaceRooms.KEY_OFFERS,   "tab": Tab.ARC,    "name": SurfaceRooms.NAME_ARC,    "frame": "arc"},
+	{"key": SurfaceRooms.KEY_HELD,     "tab": Tab.CHARGE, "name": SurfaceRooms.NAME_CHARGE, "frame": "charge"},
+	{"key": SurfaceRooms.KEY_INFO,     "tab": Tab.GUIDE,  "name": SurfaceRooms.NAME_GUIDE,  "frame": "guide"},
+	{"key": SurfaceRooms.KEY_STORY,    "tab": Tab.STORY,  "name": SurfaceRooms.NAME_STORY,  "frame": "story"},
 ]
 
 const TAB_BY_KEYCODE := {
 	KEY_T: Tab.SELF,
-	KEY_Y: Tab.STORY,
-	# KEY_U intentionally empty (quest pipeline → C)
-	KEY_I: Tab.ARC,
-	KEY_O: Tab.GUIDE,
+	KEY_Y: Tab.ARC,
+	KEY_U: Tab.CHARGE,
+	KEY_I: Tab.GUIDE,
+	KEY_O: Tab.STORY,
 }
 
 # Left-to-right slot keys (same convention as X).
@@ -59,18 +63,21 @@ const FRAME_SELF    := "self"
 const FRAME_STORY   := "story"
 const FRAME_ARC     := "arc"
 const FRAME_GUIDE   := "guide"
+const FRAME_CHARGE  := "charge"
 
 const TAB_TO_FRAME := {
 	Tab.SELF:    FRAME_SELF,
 	Tab.STORY:   FRAME_STORY,
 	Tab.ARC:     FRAME_ARC,
 	Tab.GUIDE:   FRAME_GUIDE,
+	Tab.CHARGE:  FRAME_CHARGE,
 }
 const FRAME_TO_TAB := {
 	FRAME_SELF:    Tab.SELF,
 	FRAME_STORY:   Tab.STORY,
 	FRAME_ARC:     Tab.ARC,
 	FRAME_GUIDE:   Tab.GUIDE,
+	FRAME_CHARGE:  Tab.CHARGE,
 }
 
 # Arc tab (I) — the Demos story spine: fired/unfired story flags + arc-quest offers.
@@ -162,6 +169,10 @@ var _arc_signal_connected: bool = false
 var _arc_row_confirm_armed: bool = false
 var _arc_inspect_open: bool = false        # E / first tap unfolds physics in the row; F flattens. No toast.
 
+# Charge tab state: the story beats you have signed (QuestManager.charge_quests).
+var _charge_selected_idx: int = 0
+var _charge_page: int = 0
+
 # UI refs.
 var _status_line: Label = null
 var _tab_row_box: HBoxContainer = null
@@ -182,7 +193,7 @@ func _init() -> void:
 	use_scroll_container = true
 	content_spacing = 8
 	surface_id = "X"
-	frame_ids = [FRAME_SELF, FRAME_STORY, FRAME_ARC, FRAME_GUIDE]
+	frame_ids = [FRAME_SELF, FRAME_ARC, FRAME_CHARGE, FRAME_GUIDE, FRAME_STORY]
 	frame_id = TAB_TO_FRAME.get(_current_tab, FRAME_SELF)
 
 # =============================================================================
@@ -208,7 +219,7 @@ func _build_content(container: Control) -> void:
 	container.add_child(_body_box)
 
 	_close_hint = Label.new()
-	_close_hint.text = "tabs and rows are tappable   ·   ESC close   ·   T Y I O tabs   ·   G H J K L ; ' items"
+	_close_hint.text = "tabs and rows are tappable   ·   ESC close   ·   T Y U I O tabs   ·   G H J K L ; ' items"
 	_close_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_close_hint.add_theme_font_size_override("font_size", 11)
 	_close_hint.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
@@ -286,6 +297,11 @@ func _declare_tab_actions() -> void:
 			infos = {
 				"R": {"label": "Assign"},
 			}
+		Tab.CHARGE:
+			if _selected_charge_ready():
+				infos = {"R": {"label": "Claim"}}
+			else:
+				infos = {}
 		_:
 			infos = {}
 	push_action_infos(infos)
@@ -302,6 +318,8 @@ func _refresh_status_line() -> void:
 			_status_line.text = "this run · open doors"
 		Tab.GUIDE:
 			_status_line.text = "this run · how to play"
+		Tab.CHARGE:
+			_status_line.text = "this run · what you have signed"
 		_:
 			_status_line.text = "this run"
 
@@ -321,6 +339,10 @@ func _refresh_tab_row() -> void:
 		var name_str := str(entry.get("name", ""))
 		if tab_enum == Tab.ARC and arc_waiting > 0:
 			name_str = "%s 📜%d" % [name_str, arc_waiting]
+		if tab_enum == Tab.CHARGE:
+			var ready_n := _charge_ready_count()
+			if ready_n > 0:
+				name_str = "%s ✓%d" % [name_str, ready_n]
 		var lbl: Label = _tab_labels.get(key_str, null)
 		if lbl == null:
 			continue
@@ -341,6 +363,7 @@ func _refresh_body() -> void:
 		Tab.STORY:   _build_story_body()
 		Tab.ARC:     _build_arc_body()
 		Tab.GUIDE:   _build_guide_body()
+		Tab.CHARGE:  _build_charge_body()
 
 # =============================================================================
 # BODY: SELF — the mirror. 12-axis alignment strip + faction standings.
@@ -356,7 +379,8 @@ func _refresh_body() -> void:
 func _build_self_next_pointer() -> void:
 	# Navigation cue only — do not reprint the live ask (that's the banner).
 	var row := Label.new()
-	row.text = "the live door is on Arc [I]  ·  tap"
+	row.text = "open doors are on %s [%s], signed ones on %s [%s]  ·  tap" % [
+			SurfaceRooms.NAME_ARC, SurfaceRooms.KEY_OFFERS, SurfaceRooms.NAME_CHARGE, SurfaceRooms.KEY_HELD]
 	row.add_theme_font_size_override("font_size", 13)
 	row.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
 	row.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -429,7 +453,7 @@ func _dominant_standing_channel(s) -> String:
 ## Alignment panel — read-only. Renders the pinned faction (who you ARE, set
 ## by the scenario) and every other faction ranked by overlap with your
 ## alignment state. Attach/detach verbs are future work (tracked in
-## docs/DEADWOOD_2026-07-05.md era notes); until they land this panel shows
+## docs/history/2026-07-05_DEADWOOD.md era notes); until they land this panel shows
 ## only what is true.
 func _render_faction_attachment_panel(farm) -> void:
 	_body_box.add_child(_make_section_header("alignment — who you stand nearest"))
@@ -1354,7 +1378,7 @@ func _guide_core_loop() -> void:
 	_body_box.add_child(_make_body(
 		"F explores, R strikes, Q gathers — that's the farming heartbeat, and tapping a plot walks the same three beats. "
 		+ "On an explored plot F returns to its other meaning: play on / fast-forward (double down and let the odds spin). "
-		+ "Shift+F — or Shift+click the F chip; the ⇧ line on a chip IS its Shift verb — reaps the whole season: time runs, every plot settles, the harvest lands at once."))
+		+ "Ctrl+Shift+F — or the season button — reaps the whole season: time runs, every plot settles, the harvest lands at once."))
 
 func _guide_four_tools() -> void:
 	_body_box.add_child(_make_section_header("the seven archetype frames (4-0)"))
@@ -1829,6 +1853,7 @@ func _on_action_r() -> void:
 	match _current_tab:
 		Tab.STORY:   _story_apply_verb("E")  # R label "Express" → engine E (strong commit / mass shift)
 		Tab.ARC:     _accept_selected_arc()  # R = accept the arc/tutorial quest into active
+		Tab.CHARGE:  _claim_selected_charge()
 		Tab.SELF:
 			# R = screw in = commit: assign cursor's icon to the selected icon slot.
 			var farm = InstrumentLocator.resolve_active_farm(self)
@@ -1948,7 +1973,7 @@ func _make_arc_footer() -> Control:
 		box.add_child(_make_muted_label("tap the row to inspect  ·  R accepts  ·  GHJKL; pick", 11))
 	else:
 		var n := IntroVoice.remembered_count()
-		var remembered := ("%d beats remembered — Story [Y]" % n) if n > 0 else "tap a row  ·  tap again for the work"
+		var remembered := ("%d beats remembered — %s [%s]" % [n, SurfaceRooms.NAME_STORY, SurfaceRooms.KEY_STORY]) if n > 0 else "tap a row  ·  tap again for the work"
 		box.add_child(_make_muted_label(remembered, 13))
 	return box
 
@@ -2006,6 +2031,9 @@ func _tunnel_from_arc() -> void:
 		return
 	if home == "field":
 		_scoot_from_arc()
+		return
+	if home == "charge":
+		_show_tab(Tab.CHARGE)
 		return
 	# Unsigned optional: flash the row. R is still the door.
 	_flash_arc_row(_arc_selected_idx)
@@ -2402,6 +2430,186 @@ func _make_empty_row(key_str: String) -> Control:
 	return OverlayChrome.empty_row(_make_key_chip(key_str))
 
 # =============================================================================
+# BODY: CHARGE — the story beats you have signed (X → U).
+# =============================================================================
+## Commitments (C → U) holds market contracts; Charge holds signed story
+## beats, the same Offers → Held shape on the story's own menu. A beat whose
+## objective holds is ready: R claims it here. Anything else is work on the
+## field — the line at the top names the next key.
+
+func _charge_rows() -> Array:
+	var qm = _arc_quest_manager()
+	if qm == null or not qm.has_method("charge_quests"):
+		return []
+	return qm.charge_quests()
+
+
+func _charge_ready_count() -> int:
+	var n := 0
+	for q in _charge_rows():
+		if q is Dictionary and str(q.get("status", "")) == "ready":
+			n += 1
+	return n
+
+
+func _selected_charge_ready() -> bool:
+	var rows: Array = _charge_rows()
+	if _charge_selected_idx < 0 or _charge_selected_idx >= rows.size():
+		return false
+	return str(rows[_charge_selected_idx].get("status", "")) == "ready"
+
+
+func _build_charge_body() -> void:
+	var rows: Array = _charge_rows()
+	if rows.is_empty():
+		_body_box.add_child(_make_muted_label("nothing signed yet — open doors wait on %s [%s]" % [
+				SurfaceRooms.NAME_ARC, SurfaceRooms.KEY_OFFERS], 12))
+		return
+	var page_count: int = maxi(1, int(ceil(float(rows.size()) / float(MAX_VISIBLE_ITEMS))))
+	_charge_page = clampi(_charge_page, 0, page_count - 1)
+	_charge_selected_idx = clampi(_charge_selected_idx, 0, rows.size() - 1)
+	var base: int = _charge_page * MAX_VISIBLE_ITEMS
+	for i in range(MAX_VISIBLE_ITEMS):
+		var idx: int = base + i
+		if idx < rows.size():
+			_body_box.add_child(_make_charge_row(rows[idx], ITEM_KEYS[i], idx == _charge_selected_idx, idx))
+		else:
+			_body_box.add_child(_make_empty_row(ITEM_KEYS[i]))
+	if page_count > 1:
+		_body_box.add_child(_make_muted_label("page %d/%d  ·  A/D" % [_charge_page + 1, page_count], 11))
+	_body_box.add_child(_make_spacer(6))
+	if _selected_charge_ready():
+		var claim_lbl := Label.new()
+		claim_lbl.name = "ChargeFooterClaim"
+		claim_lbl.text = "[R] Claim"
+		claim_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		claim_lbl.add_theme_font_size_override("font_size", 13)
+		claim_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_ACCENT_GOLD)
+		ClickWire.attach(claim_lbl, func() -> void: handle_action("R"))
+		_body_box.add_child(claim_lbl)
+	else:
+		_body_box.add_child(_make_muted_label("ESC closes, the work is on the field  ·  the line at the top names it", 11))
+
+
+func _make_charge_row(q: Dictionary, key_str: String, selected: bool, idx: int) -> Control:
+	var ready := str(q.get("status", "")) == "ready"
+	var row := PanelContainer.new()
+	row.name = "ChargeRow_%d" % idx
+	var sb := StyleBoxFlat.new()
+	sb.set_corner_radius_all(3)
+	sb.content_margin_left = 8
+	sb.content_margin_right = 8
+	sb.content_margin_top = 4
+	sb.content_margin_bottom = 4
+	sb.border_width_top = 1
+	sb.border_width_right = 1
+	sb.border_width_bottom = 1
+	sb.border_width_left = 4 if selected else 1
+	sb.bg_color = Color(0.12, 0.11, 0.06, 0.92) if ready else Color(0.08, 0.10, 0.12, 0.88)
+	if selected:
+		sb.bg_color = sb.bg_color.lightened(0.08)
+	sb.border_color = UIStyleFactory.COLOR_ACCENT_GOLD if ready else Color(0.35, 0.5, 0.6, 0.6 if not selected else 0.95)
+	row.add_theme_stylebox_override("panel", sb)
+	ClickWire.attach(row, _select_charge_row.bind(idx))
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 2)
+	row.add_child(vbox)
+	var top := HBoxContainer.new()
+	top.add_theme_constant_override("separation", 10)
+	vbox.add_child(top)
+	top.add_child(_make_key_chip(key_str))
+	var card: Dictionary = IntroVoice.quest_postcard(q)
+	var badge := Label.new()
+	badge.text = "READY" if ready else "%d%%" % int(round(_charge_progress(q) * 100.0))
+	badge.add_theme_font_size_override("font_size", 11)
+	badge.add_theme_color_override("font_color", UIStyleFactory.COLOR_ACCENT_GOLD if ready else Color(0.6, 0.75, 0.85, 0.95))
+	badge.custom_minimum_size = Vector2(52, 0)
+	top.add_child(badge)
+	var title := Label.new()
+	title.text = str(card.get("title", q.get("title", "a beat")))
+	title.add_theme_font_size_override("font_size", 13)
+	title.add_theme_color_override("font_color", UIStyleFactory.COLOR_TAB_ACTIVE if selected else UIStyleFactory.COLOR_ITEM_IDLE)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top.add_child(title)
+	if selected:
+		for ask in card.get("asks", []):
+			var ask_str := str(ask).strip_edges()
+			if ask_str == "":
+				continue
+			var ask_lbl := Label.new()
+			ask_lbl.text = ask_str
+			ask_lbl.add_theme_font_size_override("font_size", 11)
+			ask_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
+			ask_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			vbox.add_child(ask_lbl)
+	return row
+
+
+## Mean predicate score of a signed beat (0..1); 1.0 once ready.
+func _charge_progress(q: Dictionary) -> float:
+	if str(q.get("status", "")) == "ready":
+		return 1.0
+	var qm = _arc_quest_manager()
+	var preds = q.get("state_predicates", [])
+	if qm == null or not qm.has_method("evaluate_predicate_score") or not (preds is Array) or preds.is_empty():
+		return float(q.get("progress", 0.0))
+	var total := 0.0
+	for p in preds:
+		if p is Dictionary:
+			total += clampf(float(qm.evaluate_predicate_score(p)), 0.0, 1.0)
+	return total / float(preds.size())
+
+
+## First tap selects; a second tap on a row that isn't ready goes to the work.
+func _select_charge_row(idx: int) -> void:
+	var rows: Array = _charge_rows()
+	if idx < 0 or idx >= rows.size():
+		return
+	if _charge_selected_idx != idx:
+		_charge_selected_idx = idx
+		_refresh_body()
+		_declare_tab_actions()
+		return
+	if _selected_charge_ready():
+		return
+	var om = _arc_overlay_manager()
+	var home := UIProgression.puzzle_home(rows[idx])
+	if home == "commitments" and om != null and om.has_method("open_board_on_commitments"):
+		om.open_board_on_commitments(int(rows[idx].get("id", -1)))
+	elif om != null and om.has_method("scoot_toward"):
+		om.scoot_toward(str(rows[idx].get("biome", "")))
+
+
+func _claim_selected_charge() -> void:
+	var rows: Array = _charge_rows()
+	if _charge_selected_idx < 0 or _charge_selected_idx >= rows.size():
+		return
+	var q: Dictionary = rows[_charge_selected_idx]
+	var qm = _arc_quest_manager()
+	if qm == null:
+		return
+	if str(q.get("status", "")) != "ready":
+		RefusalVoice.note("not ready yet — %s" % str(IntroVoice.quest_postcard(q).get("title", "this beat")))
+		return
+	var ok := false
+	if qm.has_method("complete_or_claim"):
+		ok = bool(qm.complete_or_claim(int(q.get("id", -1))))
+	elif qm.has_method("claim_quest"):
+		ok = bool(qm.claim_quest(int(q.get("id", -1))))
+	if ok:
+		_charge_selected_idx = 0
+		_charge_page = 0
+	_render_all()
+
+
+func _tab_label(tab: int) -> String:
+	for entry in TAB_ROW:
+		if int(entry.get("tab", -1)) == tab:
+			return str(entry.get("name", ""))
+	return ""
+
+
+# =============================================================================
 # SURFACE WIRING
 # =============================================================================
 
@@ -2414,31 +2622,23 @@ func show_tab_arc() -> void:
 ## Notification / portal door: land this surface on a named tab
 ## (self / story / arc / guide). Unknown names keep the current tab.
 func show_tab_named(tab_name: String) -> void:
-	match str(tab_name).strip_edges().to_lower():
-		"self", "t":
-			_show_tab(Tab.SELF)
-		"story", "y":
-			_show_tab(Tab.STORY)
-		"arc", "i":
-			_show_tab(Tab.ARC)
-		"guide", "o":
-			_show_tab(Tab.GUIDE)
-		_:
-			pass
+	var t := _tab_for_name(tab_name)
+	if t >= 0:
+		_show_tab(t)
+
+
+## "arc" / "charge" / … or the tab's key letter ("Y", "U", …) → Tab, or -1.
+func _tab_for_name(tab_name: String) -> int:
+	var n := str(tab_name).strip_edges().to_lower()
+	for entry in TAB_ROW:
+		if n == str(entry.get("frame", "")) or n == str(entry.get("key", "")).to_lower():
+			return int(entry.get("tab", -1))
+	return -1
 
 
 func is_on_tab(tab_name: String) -> bool:
-	match str(tab_name).strip_edges().to_lower():
-		"self", "t":
-			return _current_tab == Tab.SELF
-		"story", "y":
-			return _current_tab == Tab.STORY
-		"arc", "i":
-			return _current_tab == Tab.ARC
-		"guide", "o":
-			return _current_tab == Tab.GUIDE
-		_:
-			return false
+	var t := _tab_for_name(tab_name)
+	return t >= 0 and _current_tab == t
 
 
 func _show_tab(tab: int) -> void:
@@ -2446,6 +2646,12 @@ func _show_tab(tab: int) -> void:
 		return
 	_disarm_arc_confirm()  # a tab change reshuffles what "the selected row" means
 	_arc_inspect_open = false
+	# Every tab opens on its first page with the first row picked, so a path
+	# computed before it opened (SurfaceGraph) still lands on the same row.
+	_arc_page = 0
+	_arc_selected_idx = 0
+	_charge_page = 0
+	_charge_selected_idx = 0
 	_current_tab = tab
 	var target_frame: String = TAB_TO_FRAME.get(tab, FRAME_SELF)
 	if frame_id != target_frame:
@@ -2458,11 +2664,19 @@ func _show_tab(tab: int) -> void:
 			_story_edge_idx = 0
 		if tab == Tab.ARC:
 			_ensure_arc_signal()  # live-refresh the timeline when a beat fires while open
-	if tab == Tab.ARC:
+	if tab == Tab.ARC or tab == Tab.CHARGE:
 		var shell = InstrumentLocator.resolve_player_shell(self)
 		if shell != null and shell.has_method("flatten_toasts_for_home"):
-			shell.flatten_toasts_for_home("arc")
+			shell.flatten_toasts_for_home("arc" if tab == Tab.ARC else "charge")
 	_render_all()
+
+
+## The page the active tab shows (Guide.gd pages rows from here).
+func current_page() -> int:
+	match _current_tab:
+		Tab.ARC: return _arc_page
+		Tab.CHARGE: return _charge_page
+	return 0
 
 func _on_frame_changed(new_frame_id: String, _prev_frame_id: String) -> void:
 	var target_tab: int = FRAME_TO_TAB.get(new_frame_id, Tab.SELF)
@@ -2537,6 +2751,11 @@ func _select_item_in_tab(slot: int) -> void:
 			var abs_idx: int = _arc_page * MAX_VISIBLE_ITEMS + slot
 			if slot < MAX_VISIBLE_ITEMS and abs_idx < rows.size():
 				_select_arc_row(abs_idx)
+		Tab.CHARGE:
+			var crows: Array = _charge_rows()
+			var cabs: int = _charge_page * MAX_VISIBLE_ITEMS + slot
+			if slot < MAX_VISIBLE_ITEMS and cabs < crows.size():
+				_select_charge_row(cabs)
 		Tab.GUIDE:
 			if slot < GUIDE_ITEMS.size() and _guide_item != slot:
 				_guide_item = slot
@@ -2571,8 +2790,11 @@ func _on_navigate(direction: Vector2i) -> void:
 	#   W/S = step OUTER (tabs)
 	#   A/D = step INNER (items / pages within active tab)
 	if direction.y != 0:
-		var n := TAB_ROW.size()
-		_show_tab(wrapi(_current_tab + signi(direction.y), 0, n))
+		var order: Array = []
+		for entry in TAB_ROW:
+			order.append(int(entry.get("tab", 0)))
+		var at := maxi(0, order.find(_current_tab))
+		_show_tab(int(order[wrapi(at + signi(direction.y), 0, order.size())]))
 		return
 	if direction.x == 0:
 		return
@@ -2597,6 +2819,16 @@ func _on_navigate(direction: Vector2i) -> void:
 		Tab.GUIDE:
 			_guide_item = wrapi(_guide_item + step, 0, GUIDE_ITEMS.size())
 			_refresh_body()
+		Tab.CHARGE:
+			var crows2: Array = _charge_rows()
+			var cmax: int = max(0, int(float(maxi(crows2.size(), 1) - 1) / float(MAX_VISIBLE_ITEMS)))
+			var cnew: int = clampi(_charge_page + step, 0, cmax)
+			if cnew != _charge_page:
+				_charge_page = cnew
+				_charge_selected_idx = clampi(_charge_selected_idx, _charge_page * MAX_VISIBLE_ITEMS,
+						mini((_charge_page + 1) * MAX_VISIBLE_ITEMS, maxi(crows2.size(), 1)) - 1)
+				_refresh_body()
+				_declare_tab_actions()
 		Tab.ARC:
 			# Page the 6-row window; the selection follows onto the new page
 			# so GHJKL; and QER always act on something visible.
@@ -2621,7 +2853,7 @@ func _on_navigate(direction: Vector2i) -> void:
 func get_visible_data() -> Dictionary:
 	var payload: Dictionary = {
 		"tab": _current_tab,
-		"frame_label": str(TAB_ROW[_current_tab].get("name", "")) if _current_tab < TAB_ROW.size() else "",
+		"frame_label": _tab_label(_current_tab),
 		"guide_section": str(GUIDE_ITEMS[_guide_item].get("id", "")) if _current_tab == Tab.GUIDE else "",
 	}
 	return payload

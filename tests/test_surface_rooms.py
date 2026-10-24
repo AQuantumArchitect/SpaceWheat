@@ -54,8 +54,8 @@ def test_c_and_x_tabs_read_surface_rooms() -> None:
         "FRAME_CHARGE",
     ):
         assert token in arc, token
-    assert "Tab.STORY" not in arc
-    assert "FRAME_STORY" not in arc
+    # Story (the world's chatter) keeps a tab, on O — after the shared TYUI.
+    assert "SurfaceRooms.KEY_STORY" in arc
 
 
 def test_commitments_are_market_holds_charge_is_story() -> None:
@@ -106,9 +106,11 @@ def test_walk_cues_and_dock_share_one_table() -> None:
 
 def test_overlay_manager_xy_is_arc_xu_is_charge_xi_is_guide() -> None:
     om = src("UI/Managers/OverlayManager.gd")
+    # One alias table serves both open_event_home and is_event_home_open.
+    table = om.split("static func _x_tab_for")[1].split("\nfunc ")[0]
+    assert 'ku == "ARC" or ku == "XY"' in table
+    assert 'ku == "CHARGE" or ku == "XU"' in table
+    assert 'ku == "GUIDE" or ku == "XI"' in table
+    assert 'ku == "STORY" or ku == "XO"' in table
     home = om.split("func open_event_home")[1].split("func is_event_home_open")[0]
-    assert 'ku == "ARC" or ku == "XY"' in home
-    assert 'ku == "CHARGE" or ku == "XU"' in home
-    assert 'ku == "GUIDE" or ku == "XI"' in home
-    assert 'show_tab_named("self")' in home
-    assert 'show_tab_named("charge")' in home
+    assert "_x_tab_for(ku)" in home and "show_tab_named(x_tab)" in home

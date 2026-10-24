@@ -65,7 +65,9 @@ def test_offer_toast_is_title_only():
     offer = intro.split("func toast_for_offer")[1].split("func flag_postcard")[0]
     assert "return {}" in offer
     assert offer.count('"detail": ""') >= 2
-    assert "[X] then Arc [I]" in offer
+    # A toast outlives the menu it was raised on, so it names the place
+    # (SurfaceRooms) and never a key path; the banner names the keys.
+    assert "SurfaceRooms.NAME_ARC" in offer and "Arc [I]" not in offer
     assert "New offer from" in offer
     assert "live_quest" in offer
     assert 'status", "")) != "story"' in offer
