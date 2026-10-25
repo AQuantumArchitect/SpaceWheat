@@ -50,6 +50,7 @@
     },
     {
       "tutorial_step": 2,
+      "signed": true,
       "tutorial_teaches": "wayfinding",
       "faction": "Hearth Keepers",
       "biome": "StarterForest",
@@ -65,6 +66,7 @@
     },
     {
       "tutorial_step": 3,
+      "signed": true,
       "tutorial_teaches": "superposition",
       "faction": "Hearth Keepers",
       "biome": "StarterForest",
@@ -85,6 +87,7 @@
     },
     {
       "tutorial_step": 4,
+      "signed": true,
       "tutorial_teaches": "entanglement",
       "faction": "Hearth Keepers",
       "biome": "StarterForest",
@@ -104,6 +107,7 @@
     },
     {
       "tutorial_step": 5,
+      "signed": true,
       "tutorial_teaches": "reap_season",
       "faction": "Hearth Keepers",
       "biome": "TheDemos",

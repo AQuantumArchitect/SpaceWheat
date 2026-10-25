@@ -154,7 +154,14 @@ def check_surface(f, line: str, rep: dict) -> None:
         want = label.strip().split()[-1].lower()
         have = (str(chip.get("label", "")) + " " + str(chip.get("action", ""))).lower()
         if chip and want in ("explore", "strike", "gather", "track", "incorporate") and want not in have:
-            rep.setdefault("verb_mismatch", []).append({"line": line[:140], "key": key, "chip": chip})
+            # The first frame after a boot or a surface change can read the
+            # chip before its resolver settles; only a mismatch that survives
+            # a second look is the player's.
+            time.sleep(0.4)
+            again = (f.t("guide_step").get("chips", {}) or {}).get(key, {})
+            have = (str(again.get("label", "")) + " " + str(again.get("action", ""))).lower()
+            if again and want not in have:
+                rep.setdefault("verb_mismatch", []).append({"line": line[:140], "key": key, "chip": again})
 
 
 def follow(rig, beat: str, cap: int = PRESS_CAP) -> dict:
