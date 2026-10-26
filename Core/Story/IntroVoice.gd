@@ -19,7 +19,7 @@ const TEACHES_TITLE := {
 	"wayfinding": "Past the hedge",
 	"superposition": "Both poles at once",
 	"entanglement": "The loom",
-	"reap_season": "First Harvest",
+	"reap_season": "Reap the season",
 }
 
 
@@ -75,6 +75,9 @@ static func is_auto_tutorial(quest: Dictionary, qm = null) -> bool:
 
 
 static func quest_title(quest: Dictionary) -> String:
+	var named := str(quest.get("display_name", "")).strip_edges()
+	if named != "":
+		return named
 	var teaches := str(quest.get("tutorial_teaches", "")).strip_edges()
 	if TEACHES_TITLE.has(teaches):
 		return str(TEACHES_TITLE[teaches])
@@ -548,7 +551,9 @@ static func beat_from_quest(quest: Dictionary, tense: String) -> Dictionary:
 		"tense": tense,
 		"prose": str(quest.get("body", "")).strip_edges(),
 		"ask": ask_line(quest),
-		"physics": str(quest.get("math_note", "")).strip_edges(),
+		# math_note is the designer's note on the gate (thresholds, history);
+		# it is not written for the player and went stale. Not shown.
+		"physics": "",
 		"source": "tutorial" if cat == "TUTORIAL" else "flag",
 		"live_ask": live_ask_token(quest),
 		"kind": kind,

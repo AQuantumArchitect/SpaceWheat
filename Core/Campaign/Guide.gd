@@ -468,8 +468,23 @@ static func _arc_row_index(q: Dictionary) -> int:
 static func _title(q: Dictionary) -> String:
 	var t := str(q.get("display_name", "")).strip_edges()
 	if t == "":
-		t = str(q.get("body", "")).split(" — ")[0].strip_edges()
+		# Lessons have no display_name of their own in the runtime JSON unless
+		# the spec gives one; IntroVoice keeps the short titles. Falling back
+		# to the body put a 300-character paragraph in the banner.
+		t = IntroVoice.quest_title(q)
 	return t
+
+
+## Biome ids are CamelCase code names (StarterForest); the rail, the atlas and
+## the story all show them spaced. The banner does too.
+static func biome_label(biome: String) -> String:
+	var out := ""
+	for i in range(biome.length()):
+		var ch := biome[i]
+		if i > 0 and ch == ch.to_upper() and ch != ch.to_lower() and biome[i - 1] != " ":
+			out += " "
+		out += ch
+	return out
 
 
 # ---------------------------------------------------------------- field steps
@@ -485,7 +500,7 @@ static func _travel(biome: String, q: Dictionary) -> Dictionary:
 	if slot < 0:
 		return _chart(biome, q)
 	var key := str(abm.get_slot_key(slot)).to_upper()
-	return _chord(_close_first() + [["to " + biome, key]], q, "travel")
+	return _chord(_close_first() + [["to " + biome_label(biome), key]], q, "travel")
 
 
 ## The plot the field cursor is on right now. Ace's F/R/Q act on this one

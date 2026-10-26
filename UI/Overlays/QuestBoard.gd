@@ -562,9 +562,6 @@ func _commitments_inspect_text_for(quest: Dictionary) -> String:
 		hint = str(quest.get("hint", "")).strip_edges()
 	if hint != "":
 		lines.append(hint)
-	var math_note := str(quest.get("math_note", "")).strip_edges()
-	if math_note != "":
-		lines.append(math_note)
 	var card_tip: String = _faction_card_tooltip(str(quest.get("faction", "")), farm)
 	if card_tip != "":
 		lines.append(card_tip)

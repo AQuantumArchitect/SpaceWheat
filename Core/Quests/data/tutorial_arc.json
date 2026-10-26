@@ -21,14 +21,15 @@
           "gate": "pop",
           "count": 1
         }
-      ]
+      ],
+      "display_name": "The Demos Sleeps"
     },
     {
       "tutorial_step": 1,
       "tutorial_teaches": "contracts",
       "faction": "Millwright's Union",
       "biome": "TheDemos",
-      "body": "The Millwright's Union is buying. This lesson is a whole loop: sign it on the Arc, take one of their contracts from the board's Market, keep it by delivering on Commitments, then come back to Charge and close the lesson. Kept contracts are how a small country eats — and how factions come to know your name.",
+      "body": "The Millwright's Union is buying wheat. Take one of their contracts from the Market, deliver it on Commitments, then come back here to Charge and close the lesson. Kept contracts are how a small country eats — and how factions learn your name.",
       "tutorial_hint": "Take a Millwright contract on the Market, deliver it, claim on Charge.",
       "math_note": "Signed lesson (not auto-accepted, not auto-claimed): Accept on the Arc puts it on Charge. contracts_kept_gte counts market contracts kept for the faction; one Millwright 🌾 contract is guaranteed on the board while the lesson is open (lesson_offer: a standing deal on the lesson's own board, 🌾×2 for 🍞×3, held from Accept until the lesson closes). Claim on Charge.",
       "signed": true,
@@ -46,7 +47,8 @@
           "faction": "Millwright's Union",
           "value": 1
         }
-      ]
+      ],
+      "display_name": "A Kept Contract"
     },
     {
       "tutorial_step": 2,
@@ -54,15 +56,16 @@
       "tutorial_teaches": "wayfinding",
       "faction": "Hearth Keepers",
       "biome": "StarterForest",
-      "body": "The Demos is one country on a wider island. Past the hedge the forest keeps older words. Go and stand under its canopy.",
-      "tutorial_hint": "Go to StarterForest — stand under its canopy.",
+      "body": "The Demos is one country on a wider island. Past the hedge, the Starter Forest keeps older words. Go and stand under its canopy.",
+      "tutorial_hint": "Go to the Starter Forest — stand under its canopy.",
       "math_note": "Structural predicate (active_biome_is): scores 1.0 the instant StarterForest is the biome under your feet, 0.0 otherwise — arrival is the whole ask, no soft gate. The objective banner's travel line names the orb and its key while you are elsewhere and drops the moment you arrive.",
       "state_predicates": [
         {
           "type": "active_biome_is",
           "biome": "StarterForest"
         }
-      ]
+      ],
+      "display_name": "Past the Hedge"
     },
     {
       "tutorial_step": 3,
@@ -70,7 +73,7 @@
       "tutorial_teaches": "superposition",
       "faction": "Hearth Keepers",
       "biome": "StarterForest",
-      "body": "The forest keeps its words in fog. Open the whole field first — Shift+F explores every plot at once — so you can watch what happens next. Then: a qubit need not pick a side. Superpose one — spread it across both poles — and it shimmers between states.",
+      "body": "The forest keeps its words in fog. Open the whole field first, so you can watch what happens next. Then: a qubit need not pick a side. Superpose one — spread it across both poles — and it shimmers between states.",
       "tutorial_hint": "Explore the whole forest, then superpose a plot with the Druid.",
       "math_note": "Fires the instant the gate ledger records 1 hadamard (a single Druid E) — a structural count, not a soft gate. The forest's resting coherence used to auto-claim this step on arrival, skipping the lesson and handing the Operator hat before the player had superposed.",
       "state_predicates": [
@@ -83,7 +86,8 @@
       "unlock_flags": [
         "loom_opens"
       ],
-      "_unlock_note": "Completing this step fires the loom_opens spine flag, which unlocks the Operator hat (UIProgression.HAT_UNLOCK_FLAGS) the NEXT step (entanglement) needs — the tutorial hands the spine forward instead of racing it (Break #2). The forest_listener handoff this replaced now lives in the act-3 berry chapter, where that flag's own predicates fire it naturally."
+      "_unlock_note": "Completing this step fires the loom_opens spine flag, which unlocks the Operator hat (UIProgression.HAT_UNLOCK_FLAGS) the NEXT step (entanglement) needs — the tutorial hands the spine forward instead of racing it (Break #2). The forest_listener handoff this replaced now lives in the act-3 berry chapter, where that flag's own predicates fire it naturally.",
+      "display_name": "Both Poles at Once"
     },
     {
       "tutorial_step": 4,
@@ -91,7 +95,7 @@
       "tutorial_teaches": "entanglement",
       "faction": "Hearth Keepers",
       "biome": "StarterForest",
-      "body": "A qubit alone is a wheel. Two qubits woven together are a loom — touch one and the other answers, however far apart they drift.",
+      "body": "A qubit alone is a wheel. Two qubits woven together are a loom — touch one and the other answers, however far apart they drift. The weave leaves you a 🍼: the price of turning a season, paid forward.",
       "tutorial_hint": "Mark any two plots, then weave them into a Bell pair.",
       "math_note": "Fires the instant the gate ledger records 1 bell gate (a single Bell weave) — a structural count, not a soft gate. Completing this weave hands you 1 🍼 — the reap capstone's cost, paid forward.",
       "state_predicates": [
@@ -103,7 +107,8 @@
       ],
       "reward_resources": {
         "🍼": 1
-      }
+      },
+      "display_name": "The Loom"
     },
     {
       "tutorial_step": 5,
@@ -111,7 +116,7 @@
       "tutorial_teaches": "reap_season",
       "faction": "Hearth Keepers",
       "biome": "TheDemos",
-      "body": "Explore, strike, gather — you have the beats. Now turn time itself: reap the season, and every plot the country holds settles and pays at once. Every country ahead runs on these same four verbs.",
+      "body": "Explore, strike, gather — three verbs. The fourth turns time itself: reap the season, and every plot the country holds settles and pays at once. Every country ahead runs on these four verbs.",
       "tutorial_hint": "Reap the season — the whole country pays at once.",
       "math_note": "Fires on 1 recorded reap gate — a structural count over the durable gate ledger (survives save/load; a refused reap does not count). Reap only has material when explored plots are still in play (a gathered plot left the season). Reap costs follow the sequence 1,1,2,3,5,8,…🍼; the entanglement step's claim paid your first.",
       "state_predicates": [
@@ -120,7 +125,8 @@
           "gate": "reap",
           "count": 1
         }
-      ]
+      ],
+      "display_name": "Reap the Season"
     }
   ]
 }
