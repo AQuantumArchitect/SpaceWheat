@@ -1877,8 +1877,13 @@ func _mass_explore() -> void:
 		UIProgression.redirect_locked(VerbGrammar.MASS_EXPLORE_LABEL)
 		return
 	var positions: Array = _instrument.checked_plots.duplicate() if _instrument else []
+	var here := str(_instrument.current_biome) if _instrument else ""
+	if farm and farm.grid and farm.grid.has_method("get_plot_biome_assignments"):
+		# Marks are grid positions and survive a crossing; a mark left in the
+		# last country must not turn this one's Mass Explore into a no-op.
+		var a0: Dictionary = farm.grid.get_plot_biome_assignments()
+		positions = positions.filter(func(p): return str(a0.get(p, "")) == here)
 	if positions.is_empty() and farm and farm.grid and farm.grid.has_method("get_plot_biome_assignments"):
-		var here := str(_instrument.current_biome) if _instrument else ""
 		var a: Dictionary = farm.grid.get_plot_biome_assignments()
 		var keys: Array = a.keys()
 		keys.sort_custom(func(x, y): return x.x < y.x if x.y == y.y else x.y < y.y)

@@ -1,6 +1,6 @@
 {
   "_generated": "from Core/Campaign/campaign.json by tools/campaign/build.py — do not edit",
-  "_doc": "Act-0 onboarding chain. A linear sequence of pipeline quests; the loader links each step to unlock the next (chain_unlocks). Each step teaches ONE mechanic. The lane auto-accepts every step (banner is the ask); predicate steps also auto-claim (the bar is the teacher). The mill DELIVERY is auto-accepted then filled on Commitments. Hints ARE the ask (≤70 chars, first sentence stands alone) — the how lives in the world (spotlight + affordance), inspect is physics, Guide is the book. Act 0 teaches the farm verbs: loop, contracts, travel, superposition, entanglement, reap last. Vocabulary is mid-game (act-3); early words come from faction teachings on the road (story_flags.json).",
+  "_doc": "Act-0 onboarding chain. A linear sequence of lessons; the loader links each step to unlock the next (chain_unlocks). Each step teaches ONE mechanic and the player does it: lessons are `signed` — accepted on the Arc, held on Charge, claimed there when the gate holds (QuestManager.is_charge_hold). Step 0 (core_loop) is the one exception: it is live from the first frame so the first banner is a verb, not a menu. Hints ARE the ask (≤70 chars, first sentence stands alone); the how lives in the world (banner + spotlight), inspect is physics, Guide is the book. display_name is the Arc row title and the banner's name for the lesson. Act 0 teaches the farm verbs: loop, contracts, travel, superposition, entanglement, reap last. Vocabulary is mid-game (act-3); early words come from faction teachings on the road (story_flags.json).",
   "steps": [
     {
       "tutorial_step": 0,
@@ -95,7 +95,7 @@
       "tutorial_teaches": "entanglement",
       "faction": "Hearth Keepers",
       "biome": "StarterForest",
-      "body": "A qubit alone is a wheel. Two qubits woven together are a loom — touch one and the other answers, however far apart they drift. The weave leaves you a 🍼: the price of turning a season, paid forward.",
+      "body": "A qubit alone is a wheel. Two qubits woven together are a loom — touch one and the other answers, however far apart they drift. The weave leaves you a 🍼: an age of effort, ensouled — the only thing that can turn a season.",
       "tutorial_hint": "Mark any two plots, then weave them into a Bell pair.",
       "math_note": "Fires the instant the gate ledger records 1 bell gate (a single Bell weave) — a structural count, not a soft gate. Completing this weave hands you 1 🍼 — the reap capstone's cost, paid forward.",
       "state_predicates": [
@@ -116,7 +116,7 @@
       "tutorial_teaches": "reap_season",
       "faction": "Hearth Keepers",
       "biome": "TheDemos",
-      "body": "Explore, strike, gather — three verbs. The fourth turns time itself: reap the season, and every plot the country holds settles and pays at once. Every country ahead runs on these four verbs.",
+      "body": "Explore, strike, gather — three verbs. The fourth turns time itself: reap the season. Every plot the country holds collapses and pays at once, the quantum state is spent, and the round ends. It costs the 🍼 the loom left you. Every country ahead runs on these four verbs.",
       "tutorial_hint": "Reap the season — the whole country pays at once.",
       "math_note": "Fires on 1 recorded reap gate — a structural count over the durable gate ledger (survives save/load; a refused reap does not count). Reap only has material when explored plots are still in play (a gathered plot left the season). Reap costs follow the sequence 1,1,2,3,5,8,…🍼; the entanglement step's claim paid your first.",
       "state_predicates": [

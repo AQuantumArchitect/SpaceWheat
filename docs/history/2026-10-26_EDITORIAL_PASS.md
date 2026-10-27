@@ -74,35 +74,42 @@ skimmed.
   "the first of four". Numerals removed from the Demos titles; both say "one
   of four".
 
-## Seen, not fixed (needs a design call or more than text)
+## Second pass (same day): the leftovers, fixed
 
-1. **Lesson 3 survey asks to "clear marks" on a fresh game.** The banner read
-   "explore the whole field…, clear marks ['], Mass Explore SHIFT [F]" with
-   nothing the player had marked — the guide's own plot pick counts as a mark.
-   `Guide._survey` should ignore the focus plot.
-2. **First banner line is "▸ Explore [F]" with no plot focused**, and the F
-   chip reads Fast-Fwd (the one verb mismatch per run). Line 2 corrects to
-   "plot [G], Explore [F]". `_reveal` should emit the plot pick on the first
-   frame too.
-3. **`spiral_breaks` teaches a lesson it does not require.** The beat is about
-   striking a plot whose word you have incorporated (×4 yield); the objective
-   is just the second berry. In the run it fired on one "Incorporate [R]"
-   without any strike. Either add a predicate (a measure gate on an
-   incorporated axis) or move the ×4 prose to a later beat.
-4. **Act-0 lessons other than Millwright still auto-accept and auto-claim**
-   (the `_doc` on the tutorial chapter still describes that as the design).
-   The playtest asked for the player to do things; the chapter `_doc` should
-   be rewritten once that decision is final.
-5. **`new_voices` can be true at open** (counts earlier plants); `forest_listener`
-   re-unlocks the Operator hat that Act 0 already gave.
-6. **Plant costs are stated three ways** ("costs 🌱", "🌱×5", "10🌱 + 4× its
-   south pole"). Check `ToolConfig` and pick one wording; a hint that quotes
-   a number should pull it from `params`.
-7. **Travel loop late in Act 5** (StarterForest⇄Village, 1 in 4 fresh runs) —
-   still open from the 10-24 pass.
-8. **Post-game text** uses `BloodLedger`/`GildedRot`/`Lanternfall` code names
-   and "What Fades I–V / What Survives III–IV" numbering; leave until those
-   campaigns leave `in_development`.
-9. **Tutorial chapter `_doc`** says "Hints ARE the ask (≤70 chars)". 27 Demos
-   hints were over 70 before this pass; about 10 still are (Act 4–6). If the
-   rule stands, `validate.py` should enforce it.
+1. **Survey "clear marks" on a fresh game.** Marks are grid positions and
+   survived the crossing from The Demos, so Mass Explore in the forest would
+   have explored the Demos mark. `_mass_explore` now ignores marks outside the
+   active country; `Guide._survey` asks to clear marks only when one is here.
+2. **First banner line "Explore [F]" with nothing focused.** `current_plot_idx`
+   starts at 0, so the guide believed plot G was focused while F fast-forwarded.
+   `Guide._live_col` now counts a focus only after a plot was picked in this
+   country (`last_selected_position`, `current_biome`).
+3. **`spiral_breaks` now requires the lesson it preaches.** A strike on a
+   register whose axis is incorporated records a `strike_known` gate
+   (`ProbeActions.action_measure` → `QuantumInstrument`); the beat's objective
+   is the second berry AND one `strike_known`; `Guide._strike_known` walks it.
+4. **Tutorial chapter `_doc`** rewritten: lessons are signed and the player
+   accepts, does, and claims; step 0 is the exception (live from frame one).
+5. **🍼** is now named in the loom and reap lessons and in the Guide book: an
+   age of effort, ensouled — the only thing that turns a season; reap spends
+   the quantum state and ends the round.
+6. **Plant cost** stated one way (🌱×5 + 13 of the south pole, from
+   `EconomyConstants`); `five_doors` had the stale "10🌱 + 4×".
+7. **Stale keys in in-world copy:** `PredicateGloss` and the reap refusal
+   said Shift+F reaps; the Guide book and HOW_TO_PLAY said the bubble "freezes
+   cyan" and Q "returns it to live evolution" (pre-banking). All now describe
+   banking: R banks and the probe stays, Q pays the bank and the plot sleeps.
+8. `forest_listener` no longer re-unlocks the Operator hat.
+9. Late hints (Act 3–6) trimmed to one how-line each; the five village paths
+   now say how (Icon [5] in the Village: track, ripen, [R] — five words)
+   instead of only a mood line.
+
+## Still open
+
+- **Travel loop late in Act 5** (StarterForest⇄Village, 1 in 4 fresh runs).
+- **`new_voices` can be true at open** (counts earlier plants).
+- **Post-game text** uses code names and I–V numbering; leave until those
+  campaigns leave `in_development`.
+- **Hint cap.** "Hints ARE the ask (≤70 chars)" — eight Demos hints are still
+  over 130 (first sentence short). If the rule stands, `validate.py` should
+  enforce it.

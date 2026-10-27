@@ -236,8 +236,7 @@
   "unlocks": {
     "hats": {
       "operator": [
-        "loom_opens",
-        "forest_listener"
+        "loom_opens"
       ],
       "merchant": [
         "village_stirs"

@@ -510,6 +510,16 @@ static func _live_col() -> int:
 	var inst = UIP._instrument()
 	if inst == null or not ("current_plot_idx" in inst):
 		return -1
+	# current_plot_idx starts at 0 before any plot was ever picked, but F on an
+	# unpicked field fast-forwards. A focus counts only once a plot was picked
+	# in THIS country: the first banner line must say "plot [G]" too.
+	if "last_selected_position" in inst:
+		var pos = inst.last_selected_position
+		if not (pos is Vector2i) or int(pos.x) < 0:
+			return -1
+	if "current_biome" in inst and str(inst.current_biome) != "" \
+			and str(inst.current_biome) != UIP._active_biome_name():
+		return -1
 	return int(inst.current_plot_idx)
 
 
@@ -901,6 +911,8 @@ static func _gate(pred: Dictionary, q: Dictionary) -> Dictionary:
 	var gate := str(pred.get("gate", "")).to_lower()
 	if gate == "reap":
 		return _reap(str(_km().get("reap_home", "TheDemos")), q)
+	if gate == "strike_known":
+		return _strike_known(q)
 	if gate != "inject_icon" and gate != "plant":
 		return {}
 	return _plant(str(_km().get("plant_home", "Village")), "", false, q)
@@ -1051,6 +1063,36 @@ static func _strike_once(biome: String, q: Dictionary) -> Dictionary:
 	return _chord(parts, q, "explore")
 
 
+## spiral_breaks: strike a plot whose word you have incorporated. Finds such a
+## register on the active biome (the forest the berries came from), explores
+## it if it is in fog, then Ace R. Nothing to show when no word here is known.
+static func _strike_known(q: Dictionary) -> Dictionary:
+	var biome := UIP._active_biome_name()
+	var farm = UIP._active_farm()
+	var b = farm.grid.get_biome(biome) if farm != null and farm.grid != null else null
+	if b == null or b.quantum_computer == null or b.quantum_computer.register_map == null:
+		return {}
+	var rm = b.quantum_computer.register_map
+	var col := -1
+	for c in range(_live_cols(biome)):
+		var ax: Dictionary = rm.axis(c)
+		if ProbeActions._icon_incorporated(farm, str(ax.get("north", "")), str(ax.get("south", ""))):
+			col = c
+			break
+	if col < 0:
+		return {}
+	var h := _hat("ace", q)
+	if not h.is_empty():
+		return h
+	if not _is_revealed(biome, col):
+		return _reveal(col, q, [col])
+	var parts: Array = _close_first()
+	if _live_col() != col:
+		parts.append(["plot", _plot_key(col)])
+	parts.append(["Strike", _verb("strike")])
+	return _chord(parts, q, "strike known")
+
+
 ## A lesson that is a delivery (resource × quantity): gather it, then claim.
 static func _deliver_lesson(q: Dictionary) -> Dictionary:
 	var res := str(q.get("resource", ""))
@@ -1121,10 +1163,23 @@ static func _survey(q: Dictionary) -> Dictionary:
 	if str(ToolConfig.get_current_frame()) != "ace":
 		parts.append([_hat_name("ace") + " hat", _hat_key("ace")])
 	var inst = UIP._instrument()
-	if inst != null and "checked_plots" in inst and not inst.checked_plots.is_empty():
+	if inst != null and "checked_plots" in inst and _any_mark_here(inst.checked_plots):
 		parts.append(["clear marks", str(_km().get("clear_marks", "'"))])
 	parts.append(["Mass Explore", "shift+" + _verb("explore")])
 	return _cost_or(["explore", "🍞"], _chord(parts, q, "survey"), q, 0)
+
+
+## True when at least one mark sits on a plot of the active biome. Marks in
+## another country are ignored by Mass Explore, so they need no clearing.
+static func _any_mark_here(marks: Array) -> bool:
+	var farm = UIP._active_farm()
+	if farm == null or farm.grid == null or not farm.grid.has_method("get_plot_biome_assignments"):
+		return not marks.is_empty()
+	var a: Dictionary = farm.grid.get_plot_biome_assignments()
+	for m in marks:
+		if m is Vector2i and str(a.get(m, "")) == UIP._active_biome_name():
+			return true
+	return false
 
 
 static func _marks_here(marks: Array) -> bool:

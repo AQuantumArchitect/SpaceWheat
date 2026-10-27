@@ -535,6 +535,8 @@ func action_measure(grid_pos: Vector2i) -> Dictionary:
 	# Quest-visible: the Zeno arc counts watching (gate_sequence_contains "measure").
 	# In the wet country, repeated measurement is how a state is KEPT.
 	_notify_quest_projection("measure", {"biome": biome_name, "success": result.get("success", false)})
+	if bool(result.get("success", false)) and bool(result.get("known", false)):
+		_notify_quest_projection("strike_known", {"biome": biome_name, "success": true})
 	return result
 
 

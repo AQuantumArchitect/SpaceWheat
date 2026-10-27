@@ -161,14 +161,19 @@
     ],
     "standing_grants": {},
     "arc_quest": {
-      "body": "The Spiral Breaks — take a second word from the land, then harvest what you know.",
-      "hint": "Icon [5]: track a fresh plot, ripen, [R]. Then strike a plot whose word you know — it pays up to ×4.",
-      "math_note": "Count gate on StarterForest berry_consumed_count ≥ 2 — the second self-taken word. The ×4 is (bloch_r + 1)² on gathering an incorporated axis (ProbeActions), so the pitch is measurable on the very next harvest.",
+      "body": "The Spiral Breaks — take a second word from the land, then strike a plot whose word you know.",
+      "hint": "Icon [5]: track a fresh plot, ripen, [R]. Then Ace [8]: strike a plot whose word you know — it pays up to ×4.",
+      "math_note": "Count gate on StarterForest berry_consumed_count ≥ 2 AND one strike_known gate: a measure on a register whose axis is in farm.incorporated_icons (ProbeActions.action_measure → QuantumInstrument records strike_known). The ×4 is (bloch_r + 1)² on an incorporated axis.",
       "state_predicates": [
         {
           "type": "berry_consumed_count_gte",
           "biome": "StarterForest",
           "value": 2
+        },
+        {
+          "type": "gate_sequence_contains",
+          "gate": "strike_known",
+          "count": 1
         }
       ]
     }
@@ -541,7 +546,7 @@
     },
     "arc_quest": {
       "body": "Couple the Spring — plant 💧 into the Village so the spring's rhythm phase-locks with the hearth.",
-      "hint": "Village [Y], Icon [5], empty plot, [R], pick 💧.",
+      "hint": "Village [Y], Icon [5], empty plot, [R], pick 💧 (🌱×5 + 13🌊).",
       "faction": "Hearth Keepers",
       "type": "DELIVER",
       "math_note": "Structural predicate: fires the instant 💧 appears as a register in the Village biome (1.0), no soft gate.",
@@ -715,7 +720,7 @@
     },
     "arc_quest": {
       "body": "The Forest Listens Back — three signatures from the same forest.",
-      "hint": "The same ritual, twice more: Icon hat (5), F to track, ripen, R to incorporate. The bar counts forest berries consumed — three, and the patterns stop being noise.",
+      "hint": "The same ritual, twice more: Icon [5], [F] track, ripen, [R]. Three forest words and the patterns stop being noise.",
       "math_note": "Count gate on StarterForest berry_consumed_count ≥ 3 — fires exactly at 3, not sooner.",
       "state_predicates": [
         {
@@ -750,7 +755,7 @@
     },
     "arc_quest": {
       "body": "The Druid's Loop — five signatures, two full hemispheres of deliberate angle.",
-      "hint": "Keep the loops going: five forest berries in total. The second bar is the signed solid angle your traces have gathered — long, coherent orbits add to it; jittery scribble cancels itself. Track, let it swing wide, then reap. Choosing WHAT to incorporate is the lesson.",
+      "hint": "Five forest words in all. The second bar is signed solid angle — long, coherent orbits add to it; scribble cancels. Track, let it swing wide, then [R].",
       "math_note": "Two thresholds must both clear (smooth_and): berry_consumed_count ≥ 5 in StarterForest (count gate, exact at 5) AND berry_total_phase ≥ 12.566 rad = 2 hemispheres (soft gate, width 0.1, fires ≈12.65).",
       "state_predicates": [
         {
@@ -789,7 +794,7 @@
     },
     "arc_quest": {
       "body": "The Long Way Home — ripeness opens at 2π, but nothing stops a longer walk. Push the forest's banked phase past three hemispheres before you pick.",
-      "hint": "Track a qubit and let the Hamiltonian carry it in wide arcs — harvest late. The phase you keep is the shape you walked; walk more shape.",
+      "hint": "Track a qubit and let the Hamiltonian carry it in wide arcs — incorporate late. The phase you keep is the shape you walked.",
       "math_note": "Soft gate on StarterForest berry_total_phase, center 18.85 rad = 3 hemispheres, width 0.1 — fires at phase ≈18.94.",
       "state_predicates": [
         {
@@ -974,7 +979,7 @@
     "standing_grants": {},
     "arc_quest": {
       "body": "A Character — the village built to its cap, the island varied, your signature one word deeper.",
-      "hint": "Three bars: the Village ring (10 atoms), the island's atom variety (22 kinds), and 12 words in your signature. Plant the words you were taught; for the rest find a register whose word you do not know yet — Icon hat (5), F tracks it, ripen, R incorporates.",
+      "hint": "Three bars: 10 atoms in the Village ring, 22 kinds across the island, 12 words in your signature. Plant what you were taught; Icon [5] tracks a word you lack.",
       "state_predicates": [
         {
           "type": "atom_count_gte",
@@ -1011,7 +1016,7 @@
     "standing_grants": {},
     "arc_quest": {
       "body": "Five Doors — choose one: 💧 Commons · 🔨 Artisan · 🏭 Manufactory (after Timber Rhythm) · 🦅 Eagle (after The Eagle Overhead) · 💀 Cemetery (after The Serfs' Ledger). Seat one key in the Village ring and the island reads your intent.",
-      "hint": "The ring is full: six seats, all taken. To seat a key, Icon hat (5): Q unseats an icon you can spare (costs 13🐺 + 3 of each pole; Q arms, F confirms), then R on the empty plot plants the key (costs 10🌱 + 4× its south pole). When a word lives in a land, its faction's board opens there — a door is a market as much as a fate.",
+      "hint": "The ring is full: six seats, all taken. Icon [5]: [Q] unseats a word you can spare (13🐺 + 3 of each pole; Q arms, F confirms), then [R] on the empty plot plants the key (🌱×5 + 13 of its south pole). When a word lives in a land, its faction's board opens there.",
       "state_predicates": [
         {
           "type": "story_flag_any",
@@ -1125,7 +1130,7 @@
     "standing_grants": {},
     "arc_quest": {
       "body": "Stay Yourself — hold your alignment purity above the fog while the island watches.",
-      "hint": "Icon hat: press 5. F tracks a loop on a plot, time ripens it, R takes the icon — and taking it pumps mass into the faction that owns it, which is what sharpens you out of the fog. Icons from ONE faction sharpen fastest; a scatter of owners keeps you mixed. Read the number on the M overlay's Eigen tab (You · Tr(ρ²)) and watch it move on each take. It fades back toward the fog in about five minutes, so the ask is a run of takes, not one. Hold it near 0.55.",
+      "hint": "Icon [5]: track, ripen, [R] — take words from ONE faction. Purity fades in ~5 min, so keep taking. Read Tr(ρ²) on M → Eigen; hold 0.55.",
       "state_predicates": [
         {
           "type": "soul_purity_gte",
@@ -1163,7 +1168,7 @@
     },
     "arc_quest": {
       "body": "Hold the Commons — keep working the village's grain-and-water rhythm so it stays the people's own.",
-      "hint": "A shared village answers to the hands that tend it, not the ledger upstream.",
+      "hint": "A shared village answers to the hands that tend it. Icon [5] in the Village: track, ripen, [R] — five words.",
       "faction": "Mycelial Web",
       "type": "DELIVER",
       "state_predicates": [
@@ -1213,7 +1218,7 @@
     },
     "arc_quest": {
       "body": "Feed the Manufactory — keep the works running, whatever it costs the hands that turn them.",
-      "hint": "Productivity has a price, and the hands that turn the works are paying it.",
+      "hint": "The hands that turn the works are paying for it. Icon [5] in the Village: track, ripen, [R] — five words.",
       "faction": "Millwright's Union",
       "type": "DELIVER",
       "state_predicates": [
@@ -1258,7 +1263,7 @@
     },
     "arc_quest": {
       "body": "Keep the Forge Honest — sustain craft and growth together so neither crowds the other out.",
-      "hint": "Made things and grown things, in the same hands. That is the whole of it.",
+      "hint": "Made things and grown things, in the same hands. Icon [5] in the Village: track, ripen, [R] — five words.",
       "faction": "Hearth Keepers",
       "type": "DELIVER",
       "state_predicates": [
@@ -1303,7 +1308,7 @@
     },
     "arc_quest": {
       "body": "Read the Watcher — learn how the eagle's heavy mode widens your village's gap and pulls its many voices toward a single imposed shape.",
-      "hint": "You built the empire's own vocabulary into your home. Read how its rigidity collapses your plurality.",
+      "hint": "You built the empire's word into your home. Icon [5] in the Village: track, ripen, [R] — five words.",
       "faction": "Carrion Throne",
       "type": "DELIVER",
       "state_predicates": [
@@ -1349,7 +1354,7 @@
     },
     "arc_quest": {
       "body": "Bury the Dead Honestly — keep the village alive enough that the cemetery does not outgrow it.",
-      "hint": "Death and labor on one axis is a debt the living pay. Watch which way it tips.",
+      "hint": "Death and labor on one axis is a debt the living pay. Icon [5] in the Village: track, ripen, [R] — five words.",
       "faction": "Void Serfs",
       "type": "DELIVER",
       "state_predicates": [
@@ -1425,7 +1430,7 @@
     "standing_grants": {},
     "arc_quest": {
       "body": "14 Words — the enclave's vocabulary runs out; what the island cannot grow, the countries teach.",
-      "hint": "The island's words are finite: track and incorporate what its registers still hold (Icon hat 5 — F tracks, time ripens, R incorporates), and when the ground refuses you, a word must be taught instead. Claim a teaching on the Arc tab when its row reads READY — the eagle overhead (🩸/🦅), the serfs' ledger (💸/💀), the Ledger's monolith (📜/🏰) — and the edge is behind you.",
+      "hint": "Icon [5] where a word still grows: track, ripen, [R]. When the ground refuses, claim a teaching on the Arc when its row reads READY.",
       "state_predicates": [
         {
           "type": "signature_size_gte",
@@ -1491,7 +1496,7 @@
     "standing_grants": {},
     "arc_quest": {
       "body": "Stay Many — hold the island loose, varied, and word-rich while the empire holds one shape.",
-      "hint": "Three bars, and the island you built already carries them: Village's gap under 0.55 — the microscope (B) reads it; if the ring stiffens, unseat a heavy word (Icon hat Q) and seat a stranger one (R) — 18 kinds of atom across your lands, and 12 words in your signature. Many is measurable. Measure it.",
+      "hint": "Three bars: the Village's gap under 0.55 (microscope [B]; if the ring stiffens, Icon [Q] unseats a heavy word, [R] seats a stranger one), 18 kinds of atom, 12 words.",
       "state_predicates": [
         {
           "type": "biome_spectral_gap_lte",

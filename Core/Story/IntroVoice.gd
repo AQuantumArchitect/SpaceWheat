@@ -50,14 +50,14 @@ static func welcome_verbs() -> Array:
 		{
 			"verb": "Strike",
 			"key": "R",
-			"story": "Lock an answer in.",
+			"story": "Lock an answer in — it banks on the plot.",
 			"how": "tap the bubble  ·  costs 👥",
 		},
 		{
 			"verb": "Gather",
 			"key": "Q",
-			"story": "Take what collapse leaves.",
-			"how": "tap the frozen bubble  ·  costs 🧺",
+			"story": "Take what collapse leaves; the plot sleeps.",
+			"how": "tap the struck bubble  ·  costs 🧺",
 		},
 	]
 

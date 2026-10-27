@@ -18,12 +18,15 @@ you a chain of small asks on the quest board.
    doors). The register binds and its bubble wakes. (The first tap on an
    unexplored plot does the same.)
 3. **R** strikes — Born's rule picks an answer and the state collapses.
-   The game's one irreversible act, a social encounter that costs 👥; the
-   bubble freezes cyan with its answer. (Tapping a live bubble does the same.)
-4. **Q** gathers (costs 🧺) — you are paid the *surprisal* of the outcome,
-   −kT·log p. Rare answers pay more, because you learned more; a certain
-   answer pays the floor, so let the state evolve before you strike. The
-   bubble returns to live evolution. (Tapping a frozen bubble does the same.)
+   The game's one irreversible act, a social encounter that costs 👥. The
+   answer is *banked* on the plot and priced right then: the surprisal of
+   the outcome, −kT·log p. Rare answers pay more, because you learned more;
+   a certain answer pays the floor. The probe stays, so once the state has
+   spread back out you can strike again and bank another. (Tapping a live
+   bubble does the same.)
+4. **Q** gathers (one flat 🧺) — pays out everything banked on the plot,
+   and the plot goes back to fog. Explore it again before the next strike.
+   (Tapping a struck bubble does the same.)
 5. **E** pauses time (and on menu surfaces, E is "tell me more"); **F**
    always plays time on — and on an explored plot F doubles down:
    fast-forward and let the odds spin.
@@ -45,7 +48,9 @@ Four verbs, same directions on every surface:
 - **R** — screw in: more, add, advance, strike, span.
 - **F** — play + flatten: close what E opened, advance time. In the Ace
   hat, **F explores** a fresh plot (1🍞) or fast-forwards an explored one;
-  **Shift+F reaps the season** — the whole biome's yield lands at once.
+  **Shift+F explores every plot in the country**; **Ctrl+Shift+F reaps the
+  season** — every plot settles and pays at once, the state is spent, and the
+  round ends (costs 🍼).
 
 ## The seven hats (number row 4–0)
 
@@ -55,7 +60,7 @@ Four verbs, same directions on every surface:
 | 5 | **Icon** | The vocabulary hat — **the story runs on it** (see Berries below). Mode **1** is inject: **F tracks** a plot's walk (⌖), **R incorporates** it when ripe. Mode **2** is the mirror 🪞 (see What Turns). R on an empty plot (mode 1) adds an icon, Q trims one. |
 | 6 | **Merchant** | Standing contracts with the Bath (wet country only). 1/2/3 picks the channel — thermal / dephase / damp. Q exports, E reads the order book, R imports, **F settles**. |
 | 7 | **Captain** | Biome lifecycle: cull, compass, discover. |
-| 8 | **Ace** | The default: explore/fast-fwd (F, Shift+F reaps the season) / strike (R) / gather (Q) / pause (E). |
+| 8 | **Ace** | The default: explore/fast-fwd (F; Shift+F explores all; Ctrl+Shift+F reaps the season) / strike (R, banks; strike again when it spreads) / gather (Q, pays the bank) / pause (E). |
 | 9 | **Operator** | Gate building: Bell, CNOT, CZ, SWAP, GHZ. Mode **2** is the compass 🧭 (see What Turns). |
 | 0 | **Druid** | Rotations + Hadamard (E); 1/2/3 pick the X/Y/Z axis. |
 
