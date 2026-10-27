@@ -104,3 +104,23 @@ def test_no_player_text_says_shift_f_reaps():
                 continue
             if "reap" in line.lower() and "Shift+F" in line and "Ctrl+Shift+F" not in line:
                 raise AssertionError("%s: %s" % (rel, line.strip()[:90]))
+
+
+def test_offered_beats_do_not_claim_the_deed_before_it_is_done():
+    """`beat` is read at open; a payoff belongs in `done` (read on claim)."""
+    b = _beats()
+    for bid in ("first_breath", "spiral_breaks", "forest_listener", "forest_communion", "mill_wakes",
+                "mill_master", "village_identity", "island_stops_asking", "ledger_opens", "island_free"):
+        assert str(b[bid].get("done", "")).strip(), bid
+    flags = {f["id"]: f for f in json.loads(src("Core/Quests/data/story_flags.json"))}
+    assert "The Demos are free" in flags["island_free"]["arc_quest"]["done_beat"]
+    assert "The Demos are free" not in flags["island_free"]["arc_beat"]
+    eng = src("Core/Story/StoryEngine.gd")
+    assert "done_beat_read" in eng and '"done_beat"' in eng
+    assert "_on_done_beat_read" in src("Core/Story/PlayerEventBridge.gd")
+
+
+def test_berry_counts_in_prose_match_the_gates():
+    b = _beats()
+    assert "Four" in b["forest_listener"]["done"] and "four" in b["forest_listener"]["offer"]["body"]
+    assert "once more" in b["forest_evolving"]["offer"]["body"]

@@ -46,6 +46,8 @@ var _recent_player_actions: Array = []
 var _recent_player_emojis: Array = []   # rebuilt from _recent_player_actions
 const RECENT_ACTION_LIFETIME_TICKS: int = 30  # ~30 seconds at 1Hz
 
+## A door's payoff prose, read on claim (campaign.json `done`).
+signal done_beat_read(flag_id: String, prose: String)
 signal chatter_emitted(speaker: String, faction: String, line: String, topic_node: String)
 signal trajectory_advanced(from_node: String, to_node: String, edge_id: String)
 signal density_shifted(node_id: String, new_weight: float)
@@ -255,10 +257,28 @@ func _on_arc_quest_completed(quest_id: int, _rewards: Dictionary) -> void:
 	if _quest_manager == null or graph == null:
 		return
 	var source_flag := ""
+	var done_quest: Dictionary = {}
 	for q in _quest_manager.completed_quests:
 		if int(q.get("id", -1)) == quest_id:
 			source_flag = str(q.get("source_flag", ""))
+			done_quest = q
 			break
+	# The payoff beat: a door's `beat` is read when it opens, its `done` when
+	# the player has actually done the thing. Logged like a fired flag so the
+	# Story tab remembers both halves.
+	var done := str(done_quest.get("done_beat", "")).strip_edges()
+	if done != "" and _farm != null and "story_log" in _farm:
+		var title := source_flag
+		if _quest_manager.has_method("flag_display_name"):
+			title = str(_quest_manager.flag_display_name(source_flag))
+		_farm.story_log.append({
+			"id": source_flag + ":done",
+			"act": int(done_quest.get("act", 0)),
+			"display_name": title,
+			"arc_beat": done,
+			"fired_at": Engine.get_physics_frames(),
+		})
+		done_beat_read.emit(source_flag, done)
 	if source_flag == "" or not graph.nodes.has(source_flag):
 		return
 	var successors: Array = graph.outgoing.get(source_flag, [])

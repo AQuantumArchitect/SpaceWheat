@@ -45,6 +45,11 @@ A **beat** is one story step:
 - **`on_open`** effects apply when the beat opens: `standing` grants, `unlock`
   (`hats`, `menus`, `viz`), `regime_changes`, `physics_changes`.
 - `offer.teaches: [north, south]` is the word the claim teaches.
+- **`beat`** is read when the beat opens, so it sets the scene and poses the
+  ask; it must not describe the deed as already done. The optional **`done`**
+  is read when the player claims (compiled to `arc_quest.done_beat`; the Story
+  tab logs it as `<id>:done` and a 📜 toast carries its first sentence). Write
+  the payoff there.
 - `chart: <Biome>` marks a **door**. While it is open, the Captain can chart that
   biome deliberately (not a random pull) for `chart_cost`.
 
