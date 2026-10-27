@@ -98,7 +98,7 @@
         {
           "act": 5,
           "global_act": 5,
-          "title": "Five Doors",
+          "title": "Five Keys",
           "chapters": [
             {
               "id": "village_paths",
@@ -293,6 +293,57 @@
     "_doc": "Captain [7] Chart: the deliberate, non-random way to reach a story biome while its door beat is open. Same price as a random Add Biome pull."
   },
   "resources": {
+    "👥": {
+      "low_water": 3,
+      "spent_by": "strike",
+      "plots": [
+        "TheDemos",
+        "Village"
+      ],
+      "trades": [
+        {
+          "biome": "Village",
+          "faction": "Hearth Keepers",
+          "give": {
+            "🌾": 4
+          },
+          "get": 4
+        },
+        {
+          "biome": "Village",
+          "faction": "Hearth Keepers",
+          "give": {
+            "🐇": 4
+          },
+          "get": 4
+        }
+      ]
+    },
+    "🍞": {
+      "low_water": 3,
+      "spent_by": "explore",
+      "plots": [
+        "Village"
+      ],
+      "trades": [
+        {
+          "biome": "Village",
+          "faction": "Hearth Keepers",
+          "give": {
+            "🌾": 4
+          },
+          "get": 4
+        },
+        {
+          "biome": "Village",
+          "faction": "Hearth Keepers",
+          "give": {
+            "🐇": 3
+          },
+          "get": 4
+        }
+      ]
+    },
     "🧺": {
       "low_water": 3,
       "spent_by": "gather",
@@ -305,6 +356,14 @@
             "👥": 6
           },
           "get": 4
+        },
+        {
+          "biome": "Village",
+          "faction": "Hearth Keepers",
+          "give": {
+            "🐇": 3
+          },
+          "get": 3
         }
       ]
     },
@@ -340,24 +399,6 @@
             "🌾": 10
           },
           "get": 7
-        }
-      ]
-    },
-    "👥": {
-      "low_water": 3,
-      "spent_by": "strike",
-      "plots": [
-        "TheDemos",
-        "Village"
-      ],
-      "trades": [
-        {
-          "biome": "Village",
-          "faction": "Hearth Keepers",
-          "give": {
-            "🌾": 4
-          },
-          "get": 4
         }
       ]
     },

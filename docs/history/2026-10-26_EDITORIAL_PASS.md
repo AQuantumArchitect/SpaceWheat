@@ -128,12 +128,12 @@ Also from the walk:
   beat field `done` → `arc_quest.done_beat`, logged to the Story tab as
   `<id>:done` and toasted on claim. Those ten beats are split into scene /
   payoff. CAMPAIGN.md documents it.
-- **Five Doors says "choose one"** but two paths (Commons, Artisan) fire the
+- **Five Doors said "choose one"** but two paths (Commons, Artisan) fire the
   moment it opens, because 💧 and 🔨 were planted on the road in Acts 2–3;
   `branch_group` only means "act complete when any fires", not exclusivity.
-  Text now says a door opens for every key seated. Design question for Luke:
-  should the choice be real (triggers count only plants after five_doors
-  opens), or is "your road already chose" the intended reading?
+  Luke's call (2026-10-26): it is not a choice — drop the verbiage. Now
+  **Five Keys**: every seated key opens its path, take them in any order or
+  all at once (a human accepts the lot; a bot may go one at a time).
 - Berry counts in prose vs gates: forest_evolving said "once" (gate: 3rd
   forest word), forest_listener said "three" (gate: 4). Fixed.
 - "Graph frame" (pond beats) → Operator hat, mode 2; "Chart BloodLedger" in
@@ -152,4 +152,10 @@ Also from the walk:
 - **Hint cap.** "Hints ARE the ask (≤70 chars)" — eight Demos hints are still
   over 130 (first sentence short). If the rule stands, `validate.py` should
   enforce it.
-- **Five Doors exclusivity** (above) is a design call.
+- **Market as rescue (Luke, 2026-10-26).** The staples of the economy loop —
+  👥 (strike), 🍞 (explore), 🧺 (gather) — now each carry a second Village
+  trade priced in 🐇, the forest's commonest harvest, beside the 🌾-priced
+  primary, so a player with only forest produce can buy back in; 🍞 gained a
+  resources entry. The ring sorts staples first within the urgent and calm
+  groups (`QuestBoard.STAPLES`). Not yet done: a smarter auto-sort by what is
+  rare *for you*; the low-water "urgent" rule is the only such bias.

@@ -46,7 +46,58 @@
   }
  },
  "resources": {
-  "_doc": "Every resource a story step spends, and where it comes from. `plots`: biomes whose registers carry it (gather). `trades`: standing contracts that ALWAYS sit on that biome's board while the biome is loaded — the market is how south poles are earned. A trade in the Village whose `give` a broke player can always raise is the RESCUE: an empty wallet is never a dead end. `low_water`: the objective banner switches to this resource's supply walk before a spend would take the wallet below it. Two more routes exist and stay legitimate strategy: ordinary market contracts (issuer rewards), and descending the fractal atlas (] key) into an INCORPORATED word's child world, whose registers carry that word's resources. The validator does not count those two, so a campaign that passes is playable without them.",
+  "_doc": "Every resource a story step spends, and where it comes from. `plots`: biomes whose registers carry it (gather). `trades`: standing contracts that ALWAYS sit on that biome's board while the biome is loaded — the market is how south poles are earned. A trade in the Village whose `give` a broke player can always raise is the RESCUE: an empty wallet is never a dead end. `low_water`: the objective banner switches to this resource's supply walk before a spend would take the wallet below it. Two more routes exist and stay legitimate strategy: ordinary market contracts (issuer rewards), and descending the fractal atlas (] key) into an INCORPORATED word's child world, whose registers carry that word's resources. The validator does not count those two, so a campaign that passes is playable without them. The three staples of the economy loop — 👥 (strike), 🍞 (explore), 🧺 (gather) — each have a rescue trade priced in 🐇, the forest's commonest harvest, so a player with only forest produce can buy back into the loop; the board sorts staples first.",
+  "👥": {
+   "low_water": 3,
+   "spent_by": "strike",
+   "plots": [
+    "TheDemos",
+    "Village"
+   ],
+   "trades": [
+    {
+     "biome": "Village",
+     "faction": "Hearth Keepers",
+     "give": {
+      "🌾": 4
+     },
+     "get": 4
+    },
+    {
+     "biome": "Village",
+     "faction": "Hearth Keepers",
+     "give": {
+      "🐇": 4
+     },
+     "get": 4
+    }
+   ]
+  },
+  "🍞": {
+   "low_water": 3,
+   "spent_by": "explore",
+   "plots": [
+    "Village"
+   ],
+   "trades": [
+    {
+     "biome": "Village",
+     "faction": "Hearth Keepers",
+     "give": {
+      "🌾": 4
+     },
+     "get": 4
+    },
+    {
+     "biome": "Village",
+     "faction": "Hearth Keepers",
+     "give": {
+      "🐇": 3
+     },
+     "get": 4
+    }
+   ]
+  },
   "🧺": {
    "low_water": 3,
    "spent_by": "gather",
@@ -59,6 +110,14 @@
       "👥": 6
      },
      "get": 4
+    },
+    {
+     "biome": "Village",
+     "faction": "Hearth Keepers",
+     "give": {
+      "🐇": 3
+     },
+     "get": 3
     }
    ]
   },
@@ -94,24 +153,6 @@
       "🌾": 10
      },
      "get": 7
-    }
-   ]
-  },
-  "👥": {
-   "low_water": 3,
-   "spent_by": "strike",
-   "plots": [
-    "TheDemos",
-    "Village"
-   ],
-   "trades": [
-    {
-     "biome": "Village",
-     "faction": "Hearth Keepers",
-     "give": {
-      "🌾": 4
-     },
-     "get": 4
     }
    ]
   },
@@ -1259,8 +1300,8 @@
         },
         {
          "id": "five_doors",
-         "display_name": "Your Village — Five Doors",
-         "beat": "The island has read your character; now it reads your intent. Five doors stand in the village ring, each opened by one word. 💧 the Commons — the Hearth Keepers taught it with the spring. 🔨 the Artisan — the Millwrights' own windmill word. 🏭 the Manufactory — the gear-bench's deep word. 🦅 the Eagle — the empire's word, if you dare learn it. 💀 the Cemetery — the Serfs' word for what the ledger buries. Every key seated in your Village opens its door — the words you planted on the road were choices too.",
+         "display_name": "Your Village — Five Keys",
+         "beat": "The island has read your character; now it reads your intent. Five words can be seated in the village ring, and each one wakes a path the island will walk with you. 💧 the Commons — the Hearth Keepers taught it with the spring. 🔨 the Artisan — the Millwrights' own windmill word. 🏭 the Manufactory — the gear-bench's deep word. 🦅 the Eagle — the empire's word, if you dare learn it. 💀 the Cemetery — the Serfs' word for what the ledger buries. Every key you have seated has already opened its path; the rest open as you learn and plant them. Take them in any order, or all at once.",
          "requires": [
           "village_identity"
          ],
@@ -1277,8 +1318,8 @@
           }
          ],
          "offer": {
-          "body": "Five Doors — 💧 Commons · 🔨 Artisan · 🏭 Manufactory (after Timber Rhythm) · 🦅 Eagle (after The Eagle Overhead) · 💀 Cemetery (after The Serfs' Ledger). A door opens for every key seated in the Village ring; seat one more, or walk through what is already open.",
-          "hint": "The ring is full: six seats, all taken. Icon [5]: [Q] unseats a word you can spare (13🐺 + 3 of each pole; Q arms, F confirms), then [R] on the empty plot plants the key (🌱×5 + 13 of its south pole). When a word lives in a land, its faction's board opens there."
+          "body": "Five Keys — 💧 Commons · 🔨 Artisan · 🏭 Manufactory (after Timber Rhythm) · 🦅 Eagle (after The Eagle Overhead) · 💀 Cemetery (after The Serfs' Ledger). Any key seated in the Village ring opens its path.",
+          "hint": "The ring is full: six seats. Icon [5]: [Q] unseats a word you can spare (13🐺 + 3 of each pole; Q arms, F confirms), then [R] on the empty plot plants a key (🌱×5 + 13 of its south pole)."
          }
         }
        ]
@@ -1378,7 +1419,7 @@
     },
     {
      "act": 5,
-     "title": "Five Doors",
+     "title": "Five Keys",
      "chapters": [
       {
        "id": "village_paths",

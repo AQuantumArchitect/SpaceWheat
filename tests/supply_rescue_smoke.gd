@@ -163,11 +163,17 @@ func _run() -> void:
 	for r in board._market_rows():
 		var rd = r.get("data", {})
 		if rd is Dictionary and bool(rd.get("supply_trade", false)):
-			on_ring[str(rd.get("supply_emoji", ""))] = true
+			# One staple can carry two trades (🌾-priced and the 🐇 rescue):
+			# key by emoji + what it asks for.
+			var g: Dictionary = rd.get("give", {}) if rd.get("give", {}) is Dictionary else {}
+			var gk := str(g.keys()[0]) if not g.is_empty() else str(rd.get("resource", ""))
+			on_ring[str(rd.get("supply_emoji", "")) + "|" + gk] = true
 	_out["village_trades"] = want_trades.size()
 	_out["village_trades_on_ring"] = on_ring.size()
 	for t in want_trades:
-		if not on_ring.has(str(t.get("emoji", ""))):
+		var tg: Dictionary = CampaignRuntime.trade_give(t)
+		var tk := str(t.get("emoji", "")) + "|" + (str(tg.keys()[0]) if not tg.is_empty() else "")
+		if not on_ring.has(tk):
 			_fail("Village board is missing the standing %s trade" % str(t.get("emoji", "")))
 
 	# A refused plant names its south pole's trade (🪓 for 🪵/🪓).

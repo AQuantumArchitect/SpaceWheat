@@ -48,10 +48,12 @@ def _start_wallet() -> dict:
 
 
 def _village_gatherable() -> set:
-    """Poles a player can gather in the Village neighborhood (Village + TheDemos)."""
+    """Poles a player can gather on the starting island (Village + TheDemos +
+    StarterForest). The forest is in because 🐇, its commonest harvest, prices
+    the staple rescues (owner 2026-10-26: "as long as you have some rabbits")."""
     fs, bs, _ = V.load_world()
     out: set = set()
-    for name in ("Village", "TheDemos"):
+    for name in ("Village", "TheDemos", "StarterForest"):
         for pair in V.boot_pairs(bs, fs, name):
             out |= set(pair)
     return out
@@ -67,7 +69,7 @@ def test_every_resource_has_a_village_trade_a_broke_player_can_pay():
     for emoji, info in resources.items():
         rescue = [t for t in info.get("trades", []) if t.get("biome") == "Village"]
         assert rescue, f"{emoji}: no Village rescue trade"
-        for t in rescue:
+        for i, t in enumerate(rescue):
             assert t.get("faction"), f"{emoji}: Village trade names no faction"
             assert int(t.get("get", 0)) > 0, f"{emoji}: Village trade pays nothing"
             give = t.get("give", {})
@@ -82,8 +84,11 @@ def test_every_resource_has_a_village_trade_a_broke_player_can_pay():
                 # paid by another Village trade…
                 assert g in gatherable or g in village_paid, (
                     f"{emoji}: Village trade asks {g}, which nothing in the Village yields")
-                # …and the opening wallet already covers it several times.
-                assert wallet.get(g, 0) >= 2 * int(qty), (
+                # …and the opening wallet already covers the PRIMARY rescue
+                # several times. A second trade for the same staple (the 🐇
+                # rescue for a player holding only forest produce) is a route,
+                # not the guarantee.
+                assert i > 0 or wallet.get(g, 0) >= 2 * int(qty), (
                     f"{emoji}: the opening wallet holds {wallet.get(g, 0)}{g}, "
                     f"under two rounds of the {int(qty)}{g} rescue")
 
@@ -107,7 +112,7 @@ def test_supply_trades_flow_through_the_canonical_quest_path():
     pipeline = (ROOT / "Core/Quests/QuestPipeline.gd").read_text(encoding="utf-8")
     offer = pipeline.split("static func supply_offer(")[1].split("\nstatic func ")[0]
     for needle in ('"supply_trade": true', '"reward_resources": {emoji: get_n}',
-                   "supply_offer_id(emoji, biome_name)", "QuestVoice.apply(q)",
+                   "supply_offer_id(emoji, biome_name, give_key)", "QuestVoice.apply(q)",
                    '"time_limit": -1.0'):
         assert needle in offer, needle
     board = (ROOT / "UI/Overlays/QuestBoard.gd").read_text(encoding="utf-8")

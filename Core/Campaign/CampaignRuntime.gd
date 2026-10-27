@@ -140,9 +140,11 @@ static func trades_for_biome(biome_name: String) -> Array:
 		var e := str(emoji)
 		if e.begins_with("_"):
 			continue
-		var t := trade_in(e, biome_name)
-		if not t.is_empty():
-			out.append(t)
+		# Every trade for `e` on this board, not only the first: a staple may
+		# have a 🌾-priced trade and a 🐇-priced rescue side by side.
+		for t in supply_trades(e):
+			if str(t.get("biome", "")) == biome_name:
+				out.append(t)
 	return out
 
 

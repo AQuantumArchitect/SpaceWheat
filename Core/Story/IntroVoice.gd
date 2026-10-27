@@ -121,7 +121,7 @@ static func toast_for_offer(quest: Dictionary, qm = null) -> Dictionary:
 	if _offer_is_plant(quest) and _sprouts_are_short():
 		return {}
 	# READY / accepted live work owns the banner. Leftover unsigned catalog
-	# (Five Doors, Stay Yourself) is Arc, not a second gold toast.
+	# (Five Keys, Stay Yourself) is Arc, not a second gold toast.
 	var live := live_quest(qm)
 	if not live.is_empty() and str(live.get("status", "")) != "story":
 		return {}
