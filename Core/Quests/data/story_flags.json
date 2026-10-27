@@ -1013,7 +1013,7 @@
     "act_title": "The Island & Its People",
     "chapter": "island",
     "chapter_title": "The Island Wakes",
-    "arc_beat": "The island has read your character; now it asks your intent. Five doors stand in the village ring, each opened by one word. 💧 the Commons — the Hearth Keepers taught it with the spring. 🔨 the Artisan — the Millwrights' own windmill word. 🏭 the Manufactory — the gear-bench's deep word. 🦅 the Eagle — the empire's word, if you dare learn it. 💀 the Cemetery — the Serfs' word for what the ledger buries. Plant one into your Village and the island will read what you meant by it.",
+    "arc_beat": "The island has read your character; now it reads your intent. Five doors stand in the village ring, each opened by one word. 💧 the Commons — the Hearth Keepers taught it with the spring. 🔨 the Artisan — the Millwrights' own windmill word. 🏭 the Manufactory — the gear-bench's deep word. 🦅 the Eagle — the empire's word, if you dare learn it. 💀 the Cemetery — the Serfs' word for what the ledger buries. Every key seated in your Village opens its door — the words you planted on the road were choices too.",
     "predicates": [
       {
         "type": "story_flag_set",
@@ -1022,7 +1022,7 @@
     ],
     "standing_grants": {},
     "arc_quest": {
-      "body": "Five Doors — choose one: 💧 Commons · 🔨 Artisan · 🏭 Manufactory (after Timber Rhythm) · 🦅 Eagle (after The Eagle Overhead) · 💀 Cemetery (after The Serfs' Ledger). Seat one key in the Village ring and the island reads your intent.",
+      "body": "Five Doors — 💧 Commons · 🔨 Artisan · 🏭 Manufactory (after Timber Rhythm) · 🦅 Eagle (after The Eagle Overhead) · 💀 Cemetery (after The Serfs' Ledger). A door opens for every key seated in the Village ring; seat one more, or walk through what is already open.",
       "hint": "The ring is full: six seats, all taken. Icon [5]: [Q] unseats a word you can spare (13🐺 + 3 of each pole; Q arms, F confirms), then [R] on the empty plot plants the key (🌱×5 + 13 of its south pole). When a word lives in a land, its faction's board opens there.",
       "state_predicates": [
         {
