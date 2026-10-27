@@ -63,6 +63,12 @@ Every threshold is a named parameter (`params.ladder`, `params.berry`,
 `params.hub`), written `"$hub.signature"` in a predicate. Text can quote one as
 `{$hub.signature}`, so a hint never states a stale number.
 
+### Hints
+
+A hint is the ask. Its first sentence must stand alone on the banner, so it is
+capped at 70 characters (`validate.py` errors past it); later sentences carry
+the keys. Thresholds the bar already shows stay out of offers and hints.
+
 ### Resources: plots, trades, rescue
 
 The `resources` table lists every resource a story step spends. For each
