@@ -124,3 +124,11 @@ def test_berry_counts_in_prose_match_the_gates():
     b = _beats()
     assert "Four" in b["forest_listener"]["done"] and "four" in b["forest_listener"]["offer"]["body"]
     assert "once more" in b["forest_evolving"]["offer"]["body"]
+
+
+def test_gather_decides_fees_before_the_trip():
+    """Act-5 loop: Forest said 'buy 🧺 in the Village', the Village said 'go to the
+    Forest' because the fee was only checked on arrival."""
+    g = src("Core/Campaign/Guide.gd").split("static func _gather(")[1].split("\nstatic func ")[0]
+    fees = g.index('for fee in ["🧺", "👥"]')
+    assert fees < g.index("var t := _travel(where, q)")

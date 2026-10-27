@@ -736,11 +736,22 @@ static func _gather(res: String, need: int, q: Dictionary, depth: int = 0) -> Di
 		var sup2 := _supply(res, q, depth)
 		if not sup2.is_empty():
 			return sup2
-		return _wait("%s's plot is tracking a loop — it opens once the loop is taken in" % res, q, "tracked")
+		# No trade for it: take the loop in ourselves. A wait with no key
+		# stranded a keys-only player here ("it opens once the loop is taken in").
+		return _take_in_loop(where, _qubit_in(where, res), res, q)
 	if not _has_probe_in(where):
 		var fr0 := _free_terminal(q)
 		if not fr0.is_empty():
 			return fr0
+	# Decide the fees before the trip too. Arriving with no 🧺 for the gather
+	# (or no 👥 for the strike) sent the player back to the market, and the
+	# market's land then sent them here again — the Act-5 Forest⇄Village loop.
+	if where != UIP._active_biome_name() and depth < 2:
+		for fee in ["🧺", "👥"]:
+			if UIP._wallet(fee) < 1.0 and not _trade_ruled_out(fee):
+				var supf := _supply(fee, q, depth + 1)
+				if not supf.is_empty():
+					return supf
 	var t := _travel(where, q)
 	if not t.is_empty():
 		return t
@@ -902,7 +913,7 @@ static func _chart(biome: String, q: Dictionary) -> Dictionary:
 	var parts: Array = _close_first()
 	if str(ToolConfig.get_current_frame()) != "captain":
 		parts.append([_hat_name("captain") + " hat", _hat_key("captain")])
-	parts.append(["Chart " + biome, _verb("chart")])
+	parts.append(["Chart " + biome_label(biome), _verb("chart")])
 	return _chord(parts, q, "chart")
 
 
@@ -1471,6 +1482,33 @@ static func _qubit_in(biome: String, glyph: String) -> int:
 	if b == null or b.quantum_computer == null or b.quantum_computer.register_map == null:
 		return -1
 	return int(b.quantum_computer.register_map.qubit(glyph))
+
+
+## The plot we need is tracking a loop: go there, Icon hat, Incorporate when
+## ripe, else hurry the clock. Every line names a key.
+static func _take_in_loop(biome: String, col: int, res: String, q: Dictionary) -> Dictionary:
+	var t := _travel(biome, q)
+	if not t.is_empty():
+		return t
+	var h := _hat("icon", q)
+	if not h.is_empty():
+		return h
+	var farm = UIP._active_farm()
+	var b = farm.grid.get_biome(biome) if farm != null and farm.grid != null else null
+	var reg = b.quantum_computer.berry_register if b != null and b.quantum_computer != null \
+			and "berry_register" in b.quantum_computer else null
+	var label := "%s's plot is tracking a loop" % res
+	if reg != null and reg.has_method("is_ripe") and bool(reg.is_ripe(col)):
+		var parts: Array = _close_first() + [label]
+		if _live_col() != col:
+			parts.append(["plot", _plot_key(col)])
+		parts.append(["Incorporate", _verb("incorporate")])
+		return _chord(parts, q, "take in loop")
+	if UIP._sim_paused():
+		return _chord(_close_first() + [label, ["Ace hat", _hat_key("ace")], ["resume", "E"]], q, "resume")
+	if b != null and int(GranularityController.get_current_stride([b])) < int(_km().get("clock_max_stride", 32)):
+		return _chord(_close_first() + [label, ["faster clock", _verb("faster")]], q, "clock")
+	return _wait(label + " — wait for it to ripen, then Incorporate [R]", q, "tracked")
 
 
 static func _tracked_in(biome: String, col: int) -> bool:

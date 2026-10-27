@@ -104,12 +104,52 @@ skimmed.
    now say how (Icon [5] in the Village: track, ripen, [R] — five words)
    instead of only a mood line.
 
+## Third pass: the walk to the ending
+
+A fresh keys-only run now reaches `island_free` in 452 presses / 6 minutes
+with 0 off-surface lines, 0 stale toasts, 0 verb mismatches. Two walls fell:
+
+1. **The Act-5 Forest⇄Village travel loop, diagnosed.** `banner_follow` now
+   records the resolver's own trace when it detects a loop. The cause: while
+   gathering 🦅 for the Ledger chart, the Forest said "buy 🧺 in the Village"
+   (no basket for the gather fee) and the Village said "go to the Forest",
+   because `Guide._gather` only checked the fee after arriving. Fees (🧺 for
+   gather, 👥 for strike) are now decided before the trip.
+2. **A keyless wait.** "🌱's plot is tracking a loop — it opens once the loop
+   is taken in" named no key and no "wait", so a keys-only player (and the
+   referee) stopped dead. `Guide._take_in_loop` walks it: travel, Icon hat,
+   Incorporate when ripe, else hurry the clock.
+
+Also from the walk:
+- **Beat prose was read before the deed.** A flag fires when its door
+  OPENS, so `beat` is read then; ten beats narrated the deed in the past tense
+  (first_breath "You did something", mill_wakes "the village flipped", the
+  island_free victory speech) before the player had done it. New optional
+  beat field `done` → `arc_quest.done_beat`, logged to the Story tab as
+  `<id>:done` and toasted on claim. Those ten beats are split into scene /
+  payoff. CAMPAIGN.md documents it.
+- **Five Doors says "choose one"** but two paths (Commons, Artisan) fire the
+  moment it opens, because 💧 and 🔨 were planted on the road in Acts 2–3;
+  `branch_group` only means "act complete when any fires", not exclusivity.
+  Text now says a door opens for every key seated. Design question for Luke:
+  should the choice be real (triggers count only plants after five_doors
+  opens), or is "your road already chose" the intended reading?
+- Berry counts in prose vs gates: forest_evolving said "once" (gate: 3rd
+  forest word), forest_listener said "three" (gate: 4). Fixed.
+- "Graph frame" (pond beats) → Operator hat, mode 2; "Chart BloodLedger" in
+  the banner → "Chart Blood Ledger".
+- **Pacing note:** `edge_of_the_enclave` (14 words) and `empire_imposes` are
+  both already satisfied when they open on this road — Acts 5–6 are ten
+  presses of Accept/Claim. The reading beats are intentional, but the ending
+  arrives faster than the prose around it suggests.
+
 ## Still open
 
-- **Travel loop late in Act 5** (StarterForest⇄Village, 1 in 4 fresh runs).
 - **`new_voices` can be true at open** (counts earlier plants).
-- **Post-game text** uses code names and I–V numbering; leave until those
-  campaigns leave `in_development`.
+- **Post-game text** uses code names and I–V numbering; `ledger_opens`
+  fixture journeys end stuck on "▸ [R] plant 🦅" in What Fades. Leave until
+  those campaigns leave `in_development`.
 - **Hint cap.** "Hints ARE the ask (≤70 chars)" — eight Demos hints are still
   over 130 (first sentence short). If the rule stands, `validate.py` should
   enforce it.
+- **Five Doors exclusivity** (above) is a design call.
