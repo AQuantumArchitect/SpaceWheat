@@ -468,8 +468,23 @@ static func _arc_row_index(q: Dictionary) -> int:
 static func _title(q: Dictionary) -> String:
 	var t := str(q.get("display_name", "")).strip_edges()
 	if t == "":
-		t = str(q.get("body", "")).split(" — ")[0].strip_edges()
+		# Lessons have no display_name of their own in the runtime JSON unless
+		# the spec gives one; IntroVoice keeps the short titles. Falling back
+		# to the body put a 300-character paragraph in the banner.
+		t = IntroVoice.quest_title(q)
 	return t
+
+
+## Biome ids are CamelCase code names (StarterForest); the rail, the atlas and
+## the story all show them spaced. The banner does too.
+static func biome_label(biome: String) -> String:
+	var out := ""
+	for i in range(biome.length()):
+		var ch := biome[i]
+		if i > 0 and ch == ch.to_upper() and ch != ch.to_lower() and biome[i - 1] != " ":
+			out += " "
+		out += ch
+	return out
 
 
 # ---------------------------------------------------------------- field steps
@@ -485,7 +500,7 @@ static func _travel(biome: String, q: Dictionary) -> Dictionary:
 	if slot < 0:
 		return _chart(biome, q)
 	var key := str(abm.get_slot_key(slot)).to_upper()
-	return _chord(_close_first() + [["to " + biome, key]], q, "travel")
+	return _chord(_close_first() + [["to " + biome_label(biome), key]], q, "travel")
 
 
 ## The plot the field cursor is on right now. Ace's F/R/Q act on this one
@@ -494,6 +509,16 @@ static func _travel(biome: String, q: Dictionary) -> Dictionary:
 static func _live_col() -> int:
 	var inst = UIP._instrument()
 	if inst == null or not ("current_plot_idx" in inst):
+		return -1
+	# current_plot_idx starts at 0 before any plot was ever picked, but F on an
+	# unpicked field fast-forwards. A focus counts only once a plot was picked
+	# in THIS country: the first banner line must say "plot [G]" too.
+	if "last_selected_position" in inst:
+		var pos = inst.last_selected_position
+		if not (pos is Vector2i) or int(pos.x) < 0:
+			return -1
+	if "current_biome" in inst and str(inst.current_biome) != "" \
+			and str(inst.current_biome) != UIP._active_biome_name():
 		return -1
 	return int(inst.current_plot_idx)
 
@@ -711,11 +736,22 @@ static func _gather(res: String, need: int, q: Dictionary, depth: int = 0) -> Di
 		var sup2 := _supply(res, q, depth)
 		if not sup2.is_empty():
 			return sup2
-		return _wait("%s's plot is tracking a loop — it opens once the loop is taken in" % res, q, "tracked")
+		# No trade for it: take the loop in ourselves. A wait with no key
+		# stranded a keys-only player here ("it opens once the loop is taken in").
+		return _take_in_loop(where, _qubit_in(where, res), res, q)
 	if not _has_probe_in(where):
 		var fr0 := _free_terminal(q)
 		if not fr0.is_empty():
 			return fr0
+	# Decide the fees before the trip too. Arriving with no 🧺 for the gather
+	# (or no 👥 for the strike) sent the player back to the market, and the
+	# market's land then sent them here again — the Act-5 Forest⇄Village loop.
+	if where != UIP._active_biome_name() and depth < 2:
+		for fee in ["🧺", "👥"]:
+			if UIP._wallet(fee) < 1.0 and not _trade_ruled_out(fee):
+				var supf := _supply(fee, q, depth + 1)
+				if not supf.is_empty():
+					return supf
 	var t := _travel(where, q)
 	if not t.is_empty():
 		return t
@@ -877,7 +913,7 @@ static func _chart(biome: String, q: Dictionary) -> Dictionary:
 	var parts: Array = _close_first()
 	if str(ToolConfig.get_current_frame()) != "captain":
 		parts.append([_hat_name("captain") + " hat", _hat_key("captain")])
-	parts.append(["Chart " + biome, _verb("chart")])
+	parts.append(["Chart " + biome_label(biome), _verb("chart")])
 	return _chord(parts, q, "chart")
 
 
@@ -886,6 +922,8 @@ static func _gate(pred: Dictionary, q: Dictionary) -> Dictionary:
 	var gate := str(pred.get("gate", "")).to_lower()
 	if gate == "reap":
 		return _reap(str(_km().get("reap_home", "TheDemos")), q)
+	if gate == "strike_known":
+		return _strike_known(q)
 	if gate != "inject_icon" and gate != "plant":
 		return {}
 	return _plant(str(_km().get("plant_home", "Village")), "", false, q)
@@ -1036,6 +1074,36 @@ static func _strike_once(biome: String, q: Dictionary) -> Dictionary:
 	return _chord(parts, q, "explore")
 
 
+## spiral_breaks: strike a plot whose word you have incorporated. Finds such a
+## register on the active biome (the forest the berries came from), explores
+## it if it is in fog, then Ace R. Nothing to show when no word here is known.
+static func _strike_known(q: Dictionary) -> Dictionary:
+	var biome := UIP._active_biome_name()
+	var farm = UIP._active_farm()
+	var b = farm.grid.get_biome(biome) if farm != null and farm.grid != null else null
+	if b == null or b.quantum_computer == null or b.quantum_computer.register_map == null:
+		return {}
+	var rm = b.quantum_computer.register_map
+	var col := -1
+	for c in range(_live_cols(biome)):
+		var ax: Dictionary = rm.axis(c)
+		if ProbeActions._icon_incorporated(farm, str(ax.get("north", "")), str(ax.get("south", ""))):
+			col = c
+			break
+	if col < 0:
+		return {}
+	var h := _hat("ace", q)
+	if not h.is_empty():
+		return h
+	if not _is_revealed(biome, col):
+		return _reveal(col, q, [col])
+	var parts: Array = _close_first()
+	if _live_col() != col:
+		parts.append(["plot", _plot_key(col)])
+	parts.append(["Strike", _verb("strike")])
+	return _chord(parts, q, "strike known")
+
+
 ## A lesson that is a delivery (resource × quantity): gather it, then claim.
 static func _deliver_lesson(q: Dictionary) -> Dictionary:
 	var res := str(q.get("resource", ""))
@@ -1106,10 +1174,23 @@ static func _survey(q: Dictionary) -> Dictionary:
 	if str(ToolConfig.get_current_frame()) != "ace":
 		parts.append([_hat_name("ace") + " hat", _hat_key("ace")])
 	var inst = UIP._instrument()
-	if inst != null and "checked_plots" in inst and not inst.checked_plots.is_empty():
+	if inst != null and "checked_plots" in inst and _any_mark_here(inst.checked_plots):
 		parts.append(["clear marks", str(_km().get("clear_marks", "'"))])
 	parts.append(["Mass Explore", "shift+" + _verb("explore")])
 	return _cost_or(["explore", "🍞"], _chord(parts, q, "survey"), q, 0)
+
+
+## True when at least one mark sits on a plot of the active biome. Marks in
+## another country are ignored by Mass Explore, so they need no clearing.
+static func _any_mark_here(marks: Array) -> bool:
+	var farm = UIP._active_farm()
+	if farm == null or farm.grid == null or not farm.grid.has_method("get_plot_biome_assignments"):
+		return not marks.is_empty()
+	var a: Dictionary = farm.grid.get_plot_biome_assignments()
+	for m in marks:
+		if m is Vector2i and str(a.get(m, "")) == UIP._active_biome_name():
+			return true
+	return false
 
 
 static func _marks_here(marks: Array) -> bool:
@@ -1401,6 +1482,33 @@ static func _qubit_in(biome: String, glyph: String) -> int:
 	if b == null or b.quantum_computer == null or b.quantum_computer.register_map == null:
 		return -1
 	return int(b.quantum_computer.register_map.qubit(glyph))
+
+
+## The plot we need is tracking a loop: go there, Icon hat, Incorporate when
+## ripe, else hurry the clock. Every line names a key.
+static func _take_in_loop(biome: String, col: int, res: String, q: Dictionary) -> Dictionary:
+	var t := _travel(biome, q)
+	if not t.is_empty():
+		return t
+	var h := _hat("icon", q)
+	if not h.is_empty():
+		return h
+	var farm = UIP._active_farm()
+	var b = farm.grid.get_biome(biome) if farm != null and farm.grid != null else null
+	var reg = b.quantum_computer.berry_register if b != null and b.quantum_computer != null \
+			and "berry_register" in b.quantum_computer else null
+	var label := "%s's plot is tracking a loop" % res
+	if reg != null and reg.has_method("is_ripe") and bool(reg.is_ripe(col)):
+		var parts: Array = _close_first() + [label]
+		if _live_col() != col:
+			parts.append(["plot", _plot_key(col)])
+		parts.append(["Incorporate", _verb("incorporate")])
+		return _chord(parts, q, "take in loop")
+	if UIP._sim_paused():
+		return _chord(_close_first() + [label, ["Ace hat", _hat_key("ace")], ["resume", "E"]], q, "resume")
+	if b != null and int(GranularityController.get_current_stride([b])) < int(_km().get("clock_max_stride", 32)):
+		return _chord(_close_first() + [label, ["faster clock", _verb("faster")]], q, "clock")
+	return _wait(label + " — wait for it to ripen, then Incorporate [R]", q, "tracked")
 
 
 static func _tracked_in(biome: String, col: int) -> bool:

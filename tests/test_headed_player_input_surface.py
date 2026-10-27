@@ -278,7 +278,9 @@ def test_tutorial_hints_survive_the_objective_banners_truncation() -> None:
         )
     wayfinding = next(s for s in data["steps"] if s.get("tutorial_teaches") == "wayfinding")
     assert wayfinding["biome"] == "StarterForest"
-    assert "StarterForest" in wayfinding["tutorial_hint"]
+    # The hint names the destination the way the rail spells it (spaced), not
+    # by its code name (editorial pass 2026-10-26).
+    assert "Starter Forest" in wayfinding["tutorial_hint"]
 
 
 def test_tutorial_objective_spotlight_honors_the_steps_own_biome() -> None:

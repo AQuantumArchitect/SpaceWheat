@@ -87,7 +87,7 @@ def test_act0_hints_are_the_ask_not_a_keymap():
     by_teach = {s["tutorial_teaches"]: s for s in steps}
     assert "gather" in by_teach["core_loop"]["tutorial_hint"]
     assert "Market" in by_teach["contracts"]["tutorial_hint"] and "Charge" in by_teach["contracts"]["tutorial_hint"]
-    assert "StarterForest" in by_teach["wayfinding"]["tutorial_hint"]
+    assert "Starter Forest" in by_teach["wayfinding"]["tutorial_hint"]
     for s in steps:
         hint = s["tutorial_hint"]
         assert "GHJKL" not in hint

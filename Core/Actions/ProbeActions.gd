@@ -305,6 +305,12 @@ static func action_measure(terminal, biome, economy = null, farm = null) -> Dict
 	var bloch_r := clampf(float(snapshot.get("r", 0.5)), 0.0, 1.0)
 	var amount := _strike_reward_amount(biome, farm, outcome, recorded_probability, bloch_r, register_id)
 	terminal.bank_strike(outcome, amount, recorded_probability)
+	# spiral_breaks: a strike on a word you have incorporated is the lesson
+	# ("harvest what you know"); the quest ledger counts it as strike_known.
+	var known := false
+	if biome and biome.quantum_computer and biome.quantum_computer.register_map and register_id >= 0:
+		var ax: Dictionary = biome.quantum_computer.register_map.axis(register_id)
+		known = _icon_incorporated(farm, str(ax.get("north", "")), str(ax.get("south", "")))
 
 	# 6. Commit cost after successful measurement
 	if not _commit_cost(economy, measure_cost, "measure"):
@@ -318,6 +324,7 @@ static func action_measure(terminal, biome, economy = null, farm = null) -> Dict
 		"success": true,
 		"outcome": outcome,
 		"amount": amount,
+		"known": known,
 		"banked": terminal.banked_totals(),
 		"strikes": terminal.strikes.size(),
 		"probability": recorded_probability,
@@ -885,7 +892,7 @@ static func action_reap(farm, economy = null) -> Dictionary:
 		return {
 			"success": false,
 			"error": "no_active_biomes",
-			"message": "Nothing to reap — explore plots first (tap one, or F); then Shift+F (or Shift+click the F chip) reaps every explored plot still in play."
+			"message": "Nothing to reap — explore plots first (tap one, or F); then Ctrl+Shift+F (or the season button) reaps every explored plot still in play."
 		}
 
 	var reap_count_before = _get_reap_count(farm)

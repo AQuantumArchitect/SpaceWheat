@@ -1372,13 +1372,13 @@ func _guide_core_loop() -> void:
 	_body_box.add_child(_make_section_header("the core loop: F · R · Q (tap · tap · tap)"))
 	_body_box.add_child(_make_body("Ace is your starting frame — tap its hat chip (or press 8) to return any time. Then:"))
 	_body_box.add_child(_make_action_row("F", "Explore", "Mount an expedition to an unexplored plot — costs %d🍞 (breaking bread opens doors). Binds the register so it can be struck. A tap on an unexplored plot does the same." % explore_bread))
-	_body_box.add_child(_make_action_row("R", "Strike", "Collapse the quantum state (Born rule) — the game's one irreversible act; a social encounter, flat %d👥. The bubble freezes cyan with its answer. A tap on a live bubble does the same." % strike_people))
-	_body_box.add_child(_make_action_row("Q", "Gather", "Gather the frozen answer — costs a flat %d🧺. Reward = surprisal −kT·log p, rare pays more (a certain outcome pays the floor: let the state evolve before you strike). The bubble returns to live evolution. A tap on a frozen bubble does the same." % gather_baskets))
+	_body_box.add_child(_make_action_row("R", "Strike", "Collapse the qubit (Born rule) — the game's one irreversible act; a social encounter, flat %d👥. The answer is banked on the plot and the probe stays, so you can strike again once the state has spread back out. Reward = surprisal −kT·log p: rare pays more, a certain outcome pays the floor. A tap on a live bubble does the same." % strike_people))
+	_body_box.add_child(_make_action_row("Q", "Gather", "Gather everything banked on the plot — one flat %d🧺 for the whole bank, however many strikes. The plot goes back to fog (explore it again before the next strike). A tap on a banked bubble does the same." % gather_baskets))
 	_body_box.add_child(_make_action_row("E", "Pause", "Stop time and look — E is the universal \"tell me more\" on every surface."))
 	_body_box.add_child(_make_body(
 		"F explores, R strikes, Q gathers — that's the farming heartbeat, and tapping a plot walks the same three beats. "
 		+ "On an explored plot F returns to its other meaning: play on / fast-forward (double down and let the odds spin). "
-		+ "Ctrl+Shift+F — or the season button — reaps the whole season: time runs, every plot settles, the harvest lands at once."))
+		+ "Ctrl+Shift+F — or the season button — reaps the whole season: every plot settles and pays at once, the quantum state is spent, and the round ends. It costs 🍼, which only the loom (a Bell weave) leaves you."))
 
 func _guide_four_tools() -> void:
 	_body_box.add_child(_make_section_header("the seven archetype frames (4-0)"))
@@ -1386,13 +1386,13 @@ func _guide_four_tools() -> void:
 	_body_box.add_child(_make_action_row("5", "Icon",      "Inject a dual-emoji qubit from the neighborhood's installed signature."))
 	_body_box.add_child(_make_action_row("6", "Merchant", "Standing contracts with the country you stand in (wet ground only). 1/2/3 picks the channel: thermal ~ (keeps the field warm) · dephase . (sells phase for heat; no buying it back) · damp | (pins and pays). Q=Export, E=order book, R=Import, F=Settle. Price = −kT·log p."))
 	_body_box.add_child(_make_action_row("7", "Captain",   "Biome lifecycle: Q=cull, E=compass, R=discover."))
-	_body_box.add_child(_make_action_row("8", "Ace", "Measurement vantage: Q=gather the yield (🧺), E=pause+inspect, R=strike (collapse), F=fast-forward / reap the season."))
+	_body_box.add_child(_make_action_row("8", "Ace", "Measurement vantage: Q=gather the bank (🧺), E=pause+inspect, R=strike (collapse, banks), F=explore / fast-forward, Shift+F=explore all, Ctrl+Shift+F=reap the season."))
 	_body_box.add_child(_make_action_row("9", "Operator",  "Gate building: Q=break, E=inspect, R=gate."))
 	_body_box.add_child(_make_action_row("0", "Druid",     "Unitary rotations + Hadamard. 1/2/3 = X / Y / Z."))
 	_body_box.add_child(_make_spacer(4))
 	_body_box.add_child(_make_body(
 		"Re-press (or re-tap) the active hat to toggle back to Ace (default toolkit). "
-		+ "Hold Shift+Q/E/R — or Shift+click the chip — to apply the verb to every valid plot at once."))
+		+ "Hold Shift+Q/E/R — or Shift+click the chip — to apply the verb to every valid plot at once; Shift+F explores every plot in the country."))
 
 func _guide_biomes_economy() -> void:
 	_body_box.add_child(_make_section_header("biomes"))

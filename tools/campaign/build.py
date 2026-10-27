@@ -52,6 +52,10 @@ def compile_flag(camp: dict, act: dict, ch: dict, b: dict) -> dict:
     if offer is not None:
         aq = {k: offer[k] for k in OFFER_KEYS if k in offer}
         aq["state_predicates"] = b.get("objective", [])
+        # `done` is the payoff prose, read when the quest is claimed. `beat`
+        # is read when the door opens, so it must not describe the deed as done.
+        if str(b.get("done", "")).strip():
+            aq["done_beat"] = b["done"]
         teaches = offer.get("teaches")
         if teaches:
             n, s = teaches

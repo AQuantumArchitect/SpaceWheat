@@ -305,6 +305,10 @@ def journey(rig, start: str, minutes: float = 30.0, until: str = "") -> dict:
         since = rep["presses"] - (rep["fired"][-1]["press"] if rep["fired"] else 0)
         if since > LOOP_WINDOW and len(set(rep["trail"][-LOOP_WINDOW:])) <= 2:
             rep["stopped"], rep["why"] = "loop", " ⇄ ".join(sorted(set(rep["trail"][-LOOP_WINDOW:])))
+            # Why: the resolver's own account on both sides of the loop.
+            g = f.t("guide_step")
+            rep["loop_guide"] = [{"live_beat": g.get("live_beat"), "step": g.get("step"),
+                                  "trace": g.get("trace"), "explain": g.get("explain")}]
             break
         time.sleep(0.15)
     if rep["stopped"] is None:

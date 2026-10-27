@@ -562,9 +562,6 @@ func _commitments_inspect_text_for(quest: Dictionary) -> String:
 		hint = str(quest.get("hint", "")).strip_edges()
 	if hint != "":
 		lines.append(hint)
-	var math_note := str(quest.get("math_note", "")).strip_edges()
-	if math_note != "":
-		lines.append(math_note)
 	var card_tip: String = _faction_card_tooltip(str(quest.get("faction", "")), farm)
 	if card_tip != "":
 		lines.append(card_tip)
@@ -2106,13 +2103,31 @@ func _market_rows() -> Array:
 			lead_n += 1
 	for i in range(lead_n):
 		rows.append({"kind": "offer", "data": normal[i]})
-	for o in urgent:
+	# The economy loop's staples (👥 strike · 🍞 explore · 🧺 gather) lead
+	# their group: with none of them the loop cannot turn, so they are the
+	# rescue a stranded player is looking for.
+	for o in _staples_first(urgent):
 		rows.append({"kind": "offer", "data": o})
 	for i in range(lead_n, normal.size()):
 		rows.append({"kind": "offer", "data": normal[i]})
-	for o in calm:
+	for o in _staples_first(calm):
 		rows.append({"kind": "offer", "data": o})
 	return rows
+
+
+const STAPLES: Array = ["👥", "🍞", "🧺"]
+
+## Stable: staples in STAPLES order, then the rest in table order.
+func _staples_first(offers: Array) -> Array:
+	var out: Array = []
+	for st in STAPLES:
+		for o in offers:
+			if str(o.get("supply_emoji", "")) == st:
+				out.append(o)
+	for o in offers:
+		if not (str(o.get("supply_emoji", "")) in STAPLES):
+			out.append(o)
+	return out
 
 
 func _selected_market_row() -> Dictionary:

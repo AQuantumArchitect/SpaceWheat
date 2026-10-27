@@ -142,6 +142,18 @@ func _wire_quest_signals() -> void:
 	_connect_once(_quest_manager, "quest_offered", _on_quest_offered)
 	_connect_once(_quest_manager, "quest_failed", _on_quest_failed)
 	_connect_once(_quest_manager, "quest_expired", _on_quest_expired)
+	var ml = Engine.get_main_loop()
+	var se = (ml as SceneTree).root.get_node_or_null("/root/StoryEngine") if ml is SceneTree else null
+	_connect_once(se, "done_beat_read", _on_done_beat_read)
+
+
+## The payoff half of a door, read when the player claims it (campaign `done`).
+func _on_done_beat_read(flag_id: String, prose: String) -> void:
+	var title := flag_id
+	if _quest_manager != null and _quest_manager.has_method("flag_display_name"):
+		title = str(_quest_manager.flag_display_name(flag_id))
+	_push("📜 [b]%s[/b]  %s" % [title, StoryAtlas.sentence_cut(prose, 140)], 3, "📜", "story",
+			"X" + SurfaceRooms.KEY_STORY, "story")
 
 
 func _wire_economy_signals() -> void:
