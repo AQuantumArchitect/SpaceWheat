@@ -132,3 +132,45 @@ def test_gather_decides_fees_before_the_trip():
     g = src("Core/Campaign/Guide.gd").split("static func _gather(")[1].split("\nstatic func ")[0]
     fees = g.index('for fee in ["🧺", "👥"]')
     assert fees < g.index("var t := _travel(where, q)")
+
+
+def test_coast_fast_fwd_rules_apply_only_on_the_coast():
+    """Fourth pass: with lantern_door on the banner (biome_evolving Lanternfall),
+    Ace F in the Starter Forest kept Fast-Fwd, so "gather 🦅, Explore [F]" never
+    explored. The coast's keep-Fast-Fwd rules are scoped to the active biome."""
+    prog = (ROOT / "UI" / "Core" / "UIProgression.gd").read_text(encoding="utf-8")
+    keep = prog.split("static func ace_f_keeps_fast_fwd")[1].split("static func ")[0]
+    assert 'here == "Lanternfall"' in keep
+    assert 'here == "ShrineOfAshes"' in keep
+    assert keep.count('here == "Lanternfall"') >= 2
+
+
+def test_hint_first_sentence_cap_is_enforced():
+    """validate.py errors on a main-campaign hint whose first sentence is over 70."""
+    import importlib, sys
+    sys.path.insert(0, str(ROOT / "tools" / "campaign"))
+    V = importlib.import_module("validate")
+    S = importlib.import_module("spec")
+    spec = S.load()
+    R = V.Report()
+    V.check_hints(spec, R)
+    assert not R.errors, R.errors
+    V.HINT_FIRST_SENTENCE_MAX, cap = 10, V.HINT_FIRST_SENTENCE_MAX
+    try:
+        R2 = V.Report()
+        V.check_hints(spec, R2)
+        assert R2.errors
+    finally:
+        V.HINT_FIRST_SENTENCE_MAX = cap
+
+
+def test_legacy_plant_banner_skips_keys_the_wallet_cannot_pay():
+    """Fourth pass: after lantern_teaching the unsigned Village-paths banner asked
+    "[Q] plant 🦅" with no 🩸 for its south pole, forever. The legacy picker now
+    skips a key the player cannot afford."""
+    prog = (ROOT / "UI" / "Core" / "UIProgression.gd").read_text(encoding="utf-8")
+    live = prog.split("static func _live_atom_plant_line")[1].split("\nstatic func ")[0]
+    assert "_plant_affordable(farm, biome, atom)" in live
+    assert "static func _plant_affordable" in prog
+    aff = prog.split("static func _plant_affordable")[1].split("\nstatic func ")[0]
+    assert "_get_injection_cost" in aff and "_wallet" in aff

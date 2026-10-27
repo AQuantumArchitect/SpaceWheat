@@ -8,7 +8,7 @@
     "act_title": "The Loop",
     "chapter": "first_fruits",
     "chapter_title": "First Fruits",
-    "arc_beat": "You turned time forward and the whole country answered — every plot settled, every yield landed at once. The Demos has eaten from its own ground by its own hand, and the shape of the meal is worth remembering: explore, strike, gather, reap. Every country ahead runs on the same four verbs.",
+    "arc_beat": "You turned time forward and the whole country answered — every plot settled, every yield landed at once. The Demos has eaten from its own ground by its own hand, and the shape of the meal is worth remembering: explore, strike, gather, reap.",
     "predicates": [
       {
         "type": "gate_sequence_contains",
@@ -189,7 +189,7 @@
     "act_title": "The Village",
     "chapter": "new_voices",
     "chapter_title": "New Voices",
-    "arc_beat": "A word was taught to you and now it wants ground. The village listens for new voices: plant a word you know into an empty plot. A planted word is a new qubit, and a new qubit is new law: the Hamiltonian you farm is the one you author. Every act ahead asks for more words than the enclave seeded you — your signature is your reach.",
+    "arc_beat": "Every word taught to you wants ground. The village listens for new voices: put a word you know into an empty plot — if one already stands there, the village heard it land. A planted word is a new qubit, and a new qubit is new law: the Hamiltonian you farm is the one you author. Every act ahead asks for more words than the enclave seeded you — your signature is your reach.",
     "predicates": [
       {
         "type": "story_flag_set",
@@ -352,7 +352,7 @@
     },
     "arc_quest": {
       "body": "Couple the Countries — plant 🪵 into the Village so woodlot and village share one rhythm.",
-      "hint": "Village [Y], Icon [5], empty plot, [R], pick 🪵.",
+      "hint": "Village [Y], Icon [5], empty plot, [R], pick 🪵 (🌱×5 + 13🪓).",
       "faction": "Millwright's Union",
       "type": "DELIVER",
       "math_note": "Structural predicate: fires the instant 🪵 appears as a register in the Village biome (1.0), no soft gate.",
@@ -570,7 +570,7 @@
     "act_title": "Two Countries",
     "chapter": "spring",
     "chapter_title": "Spring Country",
-    "arc_beat": "The spring never stops moving — ice welling, foam breaking, water finding water. But open the compass (🧭, Operator hat, mode 2) and read what is under the churn: the depths. The eigenvalues of the spring's density matrix. Watch them while the surface storms, and watch them not move. Every coupling, every rotation, every Hamiltonian hour stirs the surface and leaves the depths exactly as they were — that is the enclave's deepest conservation. The spectrum is an invariant — one of four you will meet. Exactly one thing in this world reaches it: you, looking.",
+    "arc_beat": "The spring never stops moving — ice welling, foam breaking, water finding water. But open the compass 🧭 and read what is under the churn: the depths. The eigenvalues of the spring's density matrix. Watch them while the surface storms, and watch them not move. Every coupling, every rotation, every Hamiltonian hour stirs the surface and leaves the depths exactly as they were — that is the enclave's deepest conservation. The spectrum is an invariant — one of four you will meet. Exactly one thing in this world reaches it: you, looking.",
     "predicates": [
       {
         "type": "story_flag_set",
@@ -583,7 +583,7 @@
       }
     },
     "arc_quest": {
-      "body": "Still the Pond — stand in the spring and quiet its surface until the motion reads under 0.2.",
+      "body": "Still the Pond — stand in the spring and quiet its surface until it all but stills.",
       "hint": "In the spring: Operator [9], mode 2, [E] reads the compass 🧭. Strike to deepen the gap; the surface stills near an eigenstate.",
       "math_note": "Stand in the spring and let it settle near an eigenstate of H. Replaces biome_eigenvalue_gap_gte, which is identically ~1 in a closed system (always true).",
       "state_predicates": [
@@ -616,7 +616,7 @@
     ],
     "standing_grants": {},
     "arc_quest": {
-      "body": "Make It Breathe — put coherence back on the spring and let the surface run while the depths hold: coherence past 0.35 with motion above 0.25.",
+      "body": "Make It Breathe — put coherence back on the spring and let the surface run while the depths hold.",
       "hint": "Druid [0]: rotate qubits off their poles to superpose energies — the pulse is the energy gap. The compass shows the depths never move.",
       "math_note": "Two thresholds must both clear (smooth_and): coherence ≥ 0.35 (soft gate, width 0.05, fires ≈0.393) AND dynamics ≥ 0.25 (soft gate, width 0.08, fires ≈0.319).",
       "state_predicates": [
@@ -708,7 +708,7 @@
     "act_title": "What the Land Remembers",
     "chapter": "forest",
     "chapter_title": "The Forest Listens",
-    "arc_beat": "Two words from the forest, and already the noise has edges. Listen for two more and the patterns will start to repeat — qubits returning to where they started, some loops coherent, some scribble.",
+    "arc_beat": "Three words from the forest, and already the noise has edges. Listen for one more and the patterns will start to repeat — qubits returning to where they started, some loops coherent, some scribble.",
     "predicates": [
       {
         "type": "story_flag_set",
@@ -798,7 +798,7 @@
     },
     "arc_quest": {
       "body": "The Long Way Home — ripeness opens at 2π, but nothing stops a longer walk. Push the forest's banked phase past three hemispheres before you pick.",
-      "hint": "Track a qubit and let the Hamiltonian carry it in wide arcs — incorporate late. The phase you keep is the shape you walked.",
+      "hint": "Track a qubit; let it swing in wide arcs, incorporate late. The phase you keep is the shape you walked.",
       "math_note": "Soft gate on StarterForest berry_total_phase, center 18.85 rad = 3 hemispheres, width 0.1 — fires at phase ≈18.94.",
       "state_predicates": [
         {
@@ -839,8 +839,8 @@
       }
     },
     "arc_quest": {
-      "body": "Hold Commerce — plant 💨 in the Village past 12%, incorporate two Village words, and hold the mill attractor ⚙ above 40%.",
-      "hint": "Plant 💨 in the Village; [C] board, Market [Y] 👥 deepens ⚙.",
+      "body": "Hold Commerce — put wind 💨 in the Village, incorporate two Village words, and hold the mill attractor ⚙.",
+      "hint": "Plant 💨, two Village words. [C] board, Market [Y] 👥 deepens ⚙.",
       "faction": "Millwright's Union",
       "type": "MAINTAIN_COHERENCE",
       "state_predicates": [
@@ -1023,7 +1023,7 @@
     "standing_grants": {},
     "arc_quest": {
       "body": "Five Keys — 💧 Commons · 🔨 Artisan · 🏭 Manufactory (after Timber Rhythm) · 🦅 Eagle (after The Eagle Overhead) · 💀 Cemetery (after The Serfs' Ledger). Any key seated in the Village ring opens its path.",
-      "hint": "The ring is full: six seats. Icon [5]: [Q] unseats a word you can spare (13🐺 + 3 of each pole; Q arms, F confirms), then [R] on the empty plot plants a key (🌱×5 + 13 of its south pole).",
+      "hint": "Icon [5], empty plot, [R] plants a key (🌱×5 + 13 of its south pole). Six seats in the ring; if all are taken, [Q] unseats a word you can spare (13🐺 + 3 of each pole; Q arms, F confirms).",
       "state_predicates": [
         {
           "type": "story_flag_any",
@@ -1137,7 +1137,7 @@
     "standing_grants": {},
     "arc_quest": {
       "body": "Stay Yourself — hold your alignment purity above the fog while the island watches.",
-      "hint": "Icon [5]: track, ripen, [R] — take words from ONE faction. Purity fades in ~5 min, so keep taking. Read Tr(ρ²) on M → Eigen; hold 0.55.",
+      "hint": "Icon [5]: track, ripen, [R] — take words from ONE faction. Purity fades in ~5 min, so keep taking. [M] Eigen reads Tr(ρ²); hold 0.55.",
       "state_predicates": [
         {
           "type": "soul_purity_gte",
@@ -1177,7 +1177,7 @@
     "arc_quest": {
       "body": "Hold the Commons — keep working the village's grain-and-water rhythm so it stays the people's own.",
       "hint": "A shared village answers to the hands that tend it. Icon [5] in the Village: track, ripen, [R] — five words.",
-      "faction": "Mycelial Web",
+      "faction": "Hearth Keepers",
       "type": "DELIVER",
       "state_predicates": [
         {
@@ -1272,7 +1272,7 @@
     "arc_quest": {
       "body": "Keep the Forge Honest — sustain craft and growth together so neither crowds the other out.",
       "hint": "Made things and grown things, in the same hands. Icon [5] in the Village: track, ripen, [R] — five words.",
-      "faction": "Hearth Keepers",
+      "faction": "Granary Guilds",
       "type": "DELIVER",
       "state_predicates": [
         {
@@ -1384,7 +1384,7 @@
     "act_title": "Five Keys",
     "chapter": "the_ledger",
     "chapter_title": "The Blood Ledger",
-    "arc_beat": "The empire was always here. You were feeding it. The cross-biome flow from the Village to the Blood Ledger — coin and people — has been running since you first built commerce. The empire does not announce itself; it is already present in the physics. Find the Ledger and read its qubits directly. One more thing: the edge of the enclave will not show itself to a narrow vocabulary — 14 icons in your signature before the boundary becomes a place you can stand. Your lexicon keeps the count (X, the SELF card).",
+    "arc_beat": "The empire was always here. You were feeding it. The cross-biome flow from the Village to the Blood Ledger — coin and people — has been running since you first built commerce. The empire does not announce itself; it is already present in the physics. Find the Ledger and read its qubits directly. One more thing: the edge of the enclave will not show itself to a narrow vocabulary — 14 icons in your signature before the boundary becomes a place you can stand. Your lexicon keeps the count.",
     "predicates": [
       {
         "type": "story_flag_set",
@@ -1480,7 +1480,7 @@
           "value": 0.6
         }
       ],
-      "done_beat": "There is nothing to negotiate here. Many is measurable: keep the Village's spectrum loose — its gap under 0.55, where the empire's yawns past 0.6 — let 18 kinds of atom settle across your biomes, and hold a signature of 12 icons. The microscope (B) reads the gap; your lexicon (X, SELF) counts the rest."
+      "done_beat": "There is nothing to negotiate here. One answer, imposed on everything it touches, for as long as it exists. The only question left is whether your island stays many."
     }
   },
   {
@@ -1562,14 +1562,14 @@
   },
   {
     "id": "chain_ends",
-    "display_name": "What Survives III — The Chain Protects Its Ends",
+    "display_name": "What Survives — The Chain Protects Its Ends",
     "act": 7,
     "campaign": "lanternfall",
     "campaign_act": 1,
     "act_title": "Lantern Country",
     "chapter": "lantern",
     "chapter_title": "Five Lights",
-    "arc_beat": "You walked through the door they left in the dark, and the coast took your measure. Five stations, spaced in the Lamplighters' alternating rhythm: close-far-close-far. Because the bonds alternate, the pattern wants to pin a zero-energy mode at the bridge — but look again: the bridge lamp 🌉 stands unlit, its word missing from the chain. Count the pattern, not the lamps: how many weak-strong walls stand between the bridge and the open water is an integer, and integers cannot change smoothly. That is what protection means here — and the Lamplighters are running their chain around a hole shaped exactly like its own protected mode.",
+    "arc_beat": "You walked through the door they left in the dark, and the coast took your measure. Five stations, spaced in the Lamplighters' alternating rhythm: close-far-close-far. Because the bonds alternate, the pattern wants to pin a zero-energy mode at the bridge — but look again: the bridge lamp 🌉 stands unlit, its word missing from the chain. Count the pattern, not the lamps: how many weak-strong walls stand between the bridge and the open water is an integer, and integers cannot change smoothly. That is what protection means here — the third invariant of the four — and the Lamplighters are running their chain around a hole shaped exactly like its own protected mode.",
     "predicates": [
       {
         "type": "story_flag_set",
@@ -1583,7 +1583,7 @@
     },
     "arc_quest": {
       "body": "Hold the Lamp — keep the beacon 🪔 bright while the chain runs; witness is the only contract they honor.",
-      "hint": "Feed the chain at its ends, not its middle. Druid hat (0) on the beacon's plot, E excites it; let it run and hold 🪔 above 52%. The bridge lamp cannot be lit yet — its word is not in the chain.",
+      "hint": "Feed the chain at its ends, not its middle. Druid [0] on the beacon's plot: [E] excites 🪔; let it run and hold the beacon bright. The bridge lamp 🌉 cannot be lit yet — its word is not in the chain.",
       "faction": "Lamplighters",
       "state_predicates": [
         {
@@ -1618,7 +1618,7 @@
     },
     "arc_quest": {
       "body": "The Teaching — hold the beacon once more, deliberately, and the Lamplighters will teach you the bridge (🌉/🪔).",
-      "hint": "Arc [X]; Lanternfall [0] Druid [E] 🪔>55%; [C] claim",
+      "hint": "Arc [X] accept. Lanternfall, Druid [0]: [E] excites 🪔. Claim [C].",
       "faction": "Lamplighters",
       "type": 1,
       "category": "ARC",
@@ -1660,7 +1660,7 @@
     },
     "arc_quest": {
       "body": "Light the Bridge — plant the bridge word (🌉/🪔) into Lanternfall and close the chain.",
-      "hint": "Lanternfall [5] Icon, empty [R] plant 🌉; full [Q] unseats.",
+      "hint": "Lanternfall: Icon [5], empty plot, [R] plants 🌉. Full? [Q] unseats.",
       "faction": "Lamplighters",
       "state_predicates": [
         {
@@ -1674,7 +1674,7 @@
   },
   {
     "id": "chain_flipped",
-    "display_name": "What Survives III — The Middle Cannot Hold",
+    "display_name": "What Survives — The Middle Cannot Hold",
     "act": 7,
     "campaign": "lanternfall",
     "campaign_act": 1,
@@ -1694,8 +1694,8 @@
       }
     },
     "arc_quest": {
-      "body": "The Middle Cannot Hold — let the horn go dark and keep the bridge burning: settle 📯 under 25% while 🌉 still holds 35%.",
-      "hint": "Push 📯 bright first if you want to watch the bulk disperse it — then stop fighting the pattern. The chain keeps its ends, not its middle.",
+      "body": "The Middle Cannot Hold — let the horn go dark and keep the bridge burning: let 📯 settle while 🌉 still burns.",
+      "hint": "Druid [0] on the horn's plot: [E] excites 📯 — then stop and watch the bulk disperse it. The chain keeps its ends, not its middle.",
       "state_predicates": [
         {
           "type": "biome_state_lte",
@@ -1899,7 +1899,7 @@
     "act_title": "The Wet Country",
     "chapter": "fading",
     "chapter_title": "What Fades",
-    "arc_beat": "Past the horizon there is a country where the party never ends, and that is precisely what is wrong with it. GildedRot: wine, masks, roses in impossible colors — the aristocracy dancing above the grinding machine. Stand anywhere on that gilded floor and feel what the island never let you feel: the floor drinks. This is wet country. The Bath is not a monster and it is not a wall; it is the patient fact that everything here couples to everything it touches, and what couples, leaks. Notice who dances here anyway: the Carrion Throne keeps a house in the fading country. The empire of perfect order has always known where the exit was.",
+    "arc_beat": "Past the horizon there is a country where the party never ends, and that is precisely what is wrong with it. The Gilded Rot: wine, masks, roses in impossible colors — the aristocracy dancing above the grinding machine. Stand anywhere on that gilded floor and feel what the island never let you feel: the floor drinks. This is wet country. The Bath is not a monster and it is not a wall; it is the patient fact that everything here couples to everything it touches, and what couples, leaks. Notice who dances here anyway: the Carrion Throne keeps a house in the fading country. The empire of perfect order has always known where the exit was.",
     "predicates": [
       {
         "type": "story_flag_set",
@@ -1912,8 +1912,8 @@
       }
     },
     "arc_quest": {
-      "body": "Bring Light In — carry something coherent into the gilded rot: superpose a qubit there and hold its coherence past 0.3.",
-      "hint": "Discover GildedRot (Captain frame), stand in it, and rotate a qubit off its poles (Druid frame). You are setting the table. What happens to bright things here is the next lesson.",
+      "body": "Bring Light In — carry something coherent into the gilded rot: superpose a qubit there and hold its coherence.",
+      "hint": "Need 🦅×21. Captain [7], [R] Chart the Gilded Rot. Then Druid [0]: rotate a qubit off its poles and hold it. What happens to bright things here is the next lesson.",
       "state_predicates": [
         {
           "type": "biome_evolving",
@@ -1949,8 +1949,8 @@
       }
     },
     "arc_quest": {
-      "body": "Watch It Fade — hold coherence past 0.3 in the wet country, then stand witness while the Bath drinks it below 0.12, and let the biome gray to Tr(ρ²) ≤ 0.85.",
-      "hint": "The first ask in this world that you complete by LOSING. Superpose, then wait, watching the color drain. The E-inspect card on the Graph frame reads the fading live.",
+      "body": "Watch It Fade — take one word from the wet country, hold a qubit coherent, then stand witness while the Bath drinks the color out and the biome grays.",
+      "hint": "The first ask you complete by losing. Icon [5]: one Gilded word (track, ripen, [R]). Then Druid [0] superpose, and wait while the color drains — Operator [9], mode 2, [E] reads the fading live.",
       "state_predicates": [
         {
           "type": "berry_consumed_count_gte",
@@ -1991,8 +1991,8 @@
       }
     },
     "arc_quest": {
-      "body": "Keep the Horn — the Lamplighters' horn is dying into the open air. Watch it alive: measure it over and over, and hold 📯 above 35%.",
-      "hint": "Measurement pins what it touches. Stop watching and the drain wins within a breath. Six glances is a start; a vigil is better.",
+      "body": "Keep the Horn — the Lamplighters' horn is dying into the open air. Watch it alive: measure it over and over, and keep 📯 burning.",
+      "hint": "Need 🦅×21. Captain [7], [R] Chart the Zeno Latch. Then Ace [8]: strike 📯 again and again — stop watching and the drain wins. Six glances is a start; a vigil is better.",
       "state_predicates": [
         {
           "type": "biome_evolving",

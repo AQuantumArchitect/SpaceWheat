@@ -446,6 +446,7 @@ def validate(spec: dict, report_table: bool = False) -> Report:
             R.err(res, "chart cost has no resources entry (supply + rescue)")
 
     check_guide(spec, R)
+    check_hints(spec, R)
 
     if report_table:
         print(f"{'act':>3} {'campaign':<11} {'beat':<24} sig atoms hats / biomes")
@@ -490,6 +491,35 @@ def check_guide(spec: dict, R: "Report") -> None:
                     t = st.get("tutorial_teaches")
                     if t and f"lesson:{t}" not in walks:
                         R.err(t, f"Act 0 lesson {t} has no guide walk (lesson:{t})")
+
+
+HINT_FIRST_SENTENCE_MAX = 70
+
+
+def check_hints(spec: dict, R: "Report") -> None:
+    """Hints ARE the ask: the first sentence of every main-campaign hint must stand
+    alone on the banner, so it is capped at HINT_FIRST_SENTENCE_MAX characters.
+    Later sentences carry the keys and may run longer."""
+    main = next(c for c in spec["campaigns"] if c.get("kind", "main") == "main")
+    for c, a, ch, b in S.iter_beats(spec):
+        if c["id"] != main["id"]:
+            continue
+        h = str((b.get("offer") or {}).get("hint", "") or b.get("tutorial_hint", ""))
+        if not h:
+            continue
+        first = re.split(r"(?<=[.;:!?])\s", h, maxsplit=1)[0]
+        if len(first) > HINT_FIRST_SENTENCE_MAX:
+            R.err(b["id"], f"hint's first sentence is {len(first)} chars (> {HINT_FIRST_SENTENCE_MAX}): {first!r}")
+    for c in spec["campaigns"]:
+        if c["id"] != main["id"]:
+            continue
+        for a in c["acts"]:
+            for ch in a["chapters"]:
+                for st in ch.get("steps", []):
+                    h = str(st.get("tutorial_hint", ""))
+                    first = re.split(r"(?<=[.;:!?])\s", h, maxsplit=1)[0]
+                    if len(first) > HINT_FIRST_SENTENCE_MAX:
+                        R.err(st.get("tutorial_teaches", "lesson"), f"hint's first sentence is {len(first)} chars (> {HINT_FIRST_SENTENCE_MAX})")
 
 
 def main(argv):
