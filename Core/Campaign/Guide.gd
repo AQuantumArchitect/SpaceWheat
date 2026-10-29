@@ -463,7 +463,17 @@ static func _door_claim(q: Dictionary) -> Dictionary:
 	var row: Array = []
 	if idx >= 0:
 		row = _page_to(idx) + [[_title(q), _row_key(idx % BERRY_ROWS)]]
-	return _chord(_go(node) + row + [["Claim", _verb("claim")]], q, "claim")
+	var view: Array = [] if signed else _active_view_first()
+	return _chord(_go(node) + view + row + [["Claim", _verb("claim")]], q, "claim")
+
+
+## The Commitments tab can be left on its History view; its rows then are the
+## past, and Deliver/Claim do nothing. One press of [1] returns to Active.
+static func _active_view_first() -> Array:
+	var board = UIP._quest_board()
+	if board != null and SurfaceGraph.on("C/commitments") and str(board.get("_commitments_view")) == "history":
+		return [["Active", "1"]]
+	return []
 
 
 static func _commitment_index(q: Dictionary) -> int:
@@ -565,9 +575,20 @@ static func _live_col() -> int:
 
 
 static func _hat(hat: String, q: Dictionary) -> Dictionary:
-	if str(ToolConfig.get_current_frame()) == hat:
+	# Every step the guide gives is a hat's first mode (Icon: inject, not
+	# mirror; Operator: gate, not compass). A hat left in another mode makes
+	# the same key do another verb, so the mode is part of "wearing the hat".
+	# The Druid's verbs are the same in all three of its axes.
+	var worn: bool = str(ToolConfig.get_current_frame()) == hat
+	var wrong_mode: bool = hat != "druid" and int(ToolConfig.get_frame_mode_index(hat)) != 0
+	if worn and not wrong_mode:
 		return {}
-	return _chord(_close_first() + [[_hat_name(hat) + " hat", _hat_key(hat)]], q, "hat")
+	var parts: Array = _close_first()
+	if not worn:
+		parts.append([_hat_name(hat) + " hat", _hat_key(hat)])
+	if wrong_mode:
+		parts.append([_hat_name(hat) + " first mode", "1"])
+	return _chord(parts, q, "hat")
 
 
 ## Berry ritual on the active biome: incorporate a ripe loop, else track a
@@ -729,7 +750,7 @@ static func _market_held_chord(c: Dictionary, _home: String, verb: Array, q: Dic
 	var i := _commitment_index(c)
 	if i < 0:
 		return {}
-	var parts: Array = _page_to(i) + [["%s %s×%d" % [str(c.get("faction", "")), str(c.get("resource", "")),
+	var parts: Array = _active_view_first() + _page_to(i) + [["%s %s×%d" % [str(c.get("faction", "")), str(c.get("resource", "")),
 			int(c.get("quantity", 0))], _row_key(i % BERRY_ROWS)], verb]
 	if not tail.is_empty():
 		parts.append(tail)

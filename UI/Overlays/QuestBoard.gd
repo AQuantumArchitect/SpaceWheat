@@ -345,6 +345,9 @@ func _on_activated() -> void:
 	# this immediately via show_commitments_focused.
 	if frame_id != FRAME_COMMITMENTS:
 		set_frame(FRAME_COMMITMENTS)
+	# Opening the board reads the live list: History is a look back you chose,
+	# not a state the next visit should inherit (R acts on Active only).
+	_commitments_view = "active"
 	_ensure_biome()
 	var here := _board_biome_name()
 	if _offer_pool.is_empty() or here != _pool_biome:

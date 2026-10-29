@@ -69,6 +69,16 @@ def deviations(rng: random.Random) -> list[tuple[str, list[tuple[str, bool]]]]:
         ("travel_a_biome", [(rng.choice(list("tyu")), False)]),
         ("random_keys", [(rng.choice(list("qerf") + PLOTS + list("456789")), False) for _ in range(3)]),
         ("escape", [("escape", False)]),
+        # Anything a hat can do, sometimes with the confirm chord: Cull Biome,
+        # Trim Icon, Break, Add Biome, Import/Export, gauge verbs.
+        ("hat_verb_roulette", [(h(), False), (p(), False), (rng.choice(list("qerf")), False)]
+                              + ([("f", False)] if rng.random() < 0.5 else [])),
+        ("hat_verb_roulette", [(h(), False), (p(), False), (rng.choice(list("qerf")), False),
+                               (rng.choice(list("qer")), False)]),
+        ("mode_switch", [(h(), False), (rng.choice(list("123")), False)]),
+        ("arc_dismiss_first", [("x", False), ("y", False), ("g", False), ("q", False)]),
+        ("arc_dismiss_row", [("x", False), ("y", False), (p(), False), ("q", False), ("f", False)]),
+        ("charge_claim_row", [("x", False), ("u", False), (p(), False), ("r", False)]),
     ]
 
 
@@ -178,7 +188,7 @@ def walk(rig, seed: int, minutes: float, rate: float, until: str, start: str, sa
             kind, why = stall
             diag = snapshot(f)
             if save_dir:
-                sp = str(Path(save_dir) / ("stall_seed%d_%s.tres" % (seed, kind)))
+                sp = str(Path(save_dir) / ("stall_seed%d_%s_t%d.tres" % (seed, kind, int(time.time() - t0))))
                 rep["stall_save"] = f.t("save_game_path", path=sp).get("path", sp)
             # Is it a soft lock, or does getting out of the way clear it?
             for _ in range(2):
