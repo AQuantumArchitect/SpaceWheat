@@ -1314,16 +1314,24 @@ var _charge_live_accum: float = 0.0
 var _charge_live_sig: String = ""
 
 func _tick_charge_live(delta: float) -> void:
-	if _current_tab != Tab.CHARGE or not is_active or not visible:
+	if (_current_tab != Tab.CHARGE and _current_tab != Tab.ARC) or not is_active or not visible:
 		return
 	_charge_live_accum += delta
 	if _charge_live_accum < 0.4:
 		return
 	_charge_live_accum = 0.0
-	var sig := ""
-	for q in _charge_rows():
-		sig += "%s:%s," % [str(q.get("id", "")), str(q.get("status", ""))]
-	sig += "|%d" % _charge_selected_idx
+	var sig := "%d|" % _current_tab
+	if _current_tab == Tab.CHARGE:
+		for q in _charge_rows():
+			sig += "%s:%s," % [str(q.get("id", "")), str(q.get("status", ""))]
+		sig += "|%d" % _charge_selected_idx
+	else:
+		# Arc: an offer appearing, being accepted elsewhere, or a beat firing
+		# changes what R means on the selected row.
+		for r in _arc_rows():
+			var rd = r.get("data", {})
+			sig += "%s:%s:%s," % [str(r.get("kind", "")), str(rd.get("id", "") if rd is Dictionary else ""), str(rd.get("status", "") if rd is Dictionary else "")]
+		sig += "|%d" % _arc_selected_idx
 	if sig == _charge_live_sig:
 		return
 	_charge_live_sig = sig

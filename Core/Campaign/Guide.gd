@@ -114,10 +114,19 @@ static func _overlay_manager():
 ## earliest act; an accepted quest beats an unsigned one of the same rank.
 ## Optional branches (the pond, the forest's deeper verses) wait their turn.
 static func live_beat(qm = null) -> Dictionary:
+	var ranked := ranked_beats(qm)
+	return ranked[0] if not ranked.is_empty() else {}
+
+
+## Every campaign beat the player holds or is offered, best first (the rank
+## `live_beat` always used; the head is THE live beat). next_step walks down
+## the list when the head has no step, so one stuck beat never silences the
+## banner while another could be worked.
+static func ranked_beats(qm = null) -> Array:
 	if qm == null:
 		qm = UIP._quest_manager()
 	if qm == null or not ("active_quests" in qm):
-		return {}
+		return []
 	var farm = UIP._active_farm()
 	var fired: Dictionary = farm.story_flags_fired if farm != null and "story_flags_fired" in farm else {}
 	var acts := {}
@@ -134,8 +143,7 @@ static func live_beat(qm = null) -> Dictionary:
 					req.append(str(p.get("id", "")))
 			requires[fid] = req
 	var blocking := _critical_path(requires, fired)
-	var best: Dictionary = {}
-	var best_rank := 0x7FFFFFFF
+	var scored: Array = []
 	var pools: Array = [qm.active_quests.values()]
 	if qm.has_method("get_story_offers"):
 		pools.append(qm.get_story_offers())
@@ -154,10 +162,31 @@ static func live_beat(qm = null) -> Dictionary:
 				rank += 1
 			if _is_ready(q):
 				rank -= 2000
-			if rank < best_rank:
-				best_rank = rank
-				best = q
-	return best
+			scored.append({"rank": rank, "i": scored.size(), "q": q})
+	# Ties keep pool order (the sort is not stable), as the single-best scan did.
+	scored.sort_custom(func(a, b):
+		if int(a["rank"]) != int(b["rank"]):
+			return int(a["rank"]) < int(b["rank"])
+		return int(a["i"]) < int(b["i"]))
+	var out: Array = []
+	for e in scored:
+		out.append(e["q"])
+	return out
+
+
+## Every beat some other beat requires: a gate. A gate can be postponed but
+## never given up — what hangs off it (words it teaches, doors it opens) is
+## only reachable through it. Leaves (nothing requires them) are optional.
+static func gate_flags(qm) -> Dictionary:
+	var out := {}
+	if qm != null and qm.has_method("get_all_story_flags"):
+		for f in qm.get_all_story_flags():
+			if not (f is Dictionary):
+				continue
+			for p in f.get("predicates", []):
+				if p is Dictionary and str(p.get("type", "")) == "story_flag_set":
+					out[str(p.get("id", ""))] = true
+	return out
 
 
 ## Every unfired beat a campaign ending needs, transitively (the endings
@@ -198,9 +227,19 @@ static func next_step() -> Dictionary:
 	trace = []
 	if UIP.current_tutorial_step() != UIP.NO_TUTORIAL_SENTINEL:
 		return _tutorial_step()
-	var q := live_beat()
-	if q.is_empty():
+	var ranked := ranked_beats()
+	if ranked.is_empty():
 		return _auto_beat_step()
+	# The best beat first; a beat the guide has no step for (its way in is
+	# closed right now) hands the banner to the next, never to silence.
+	for q in ranked:
+		var step := _beat_step(q)
+		if not step.is_empty():
+			return step
+	return {}
+
+
+static func _beat_step(q: Dictionary) -> Dictionary:
 	if str(q.get("status", "")) == Quest.STATUS_STORY:
 		return _door_accept(q)
 	if _is_ready(q):

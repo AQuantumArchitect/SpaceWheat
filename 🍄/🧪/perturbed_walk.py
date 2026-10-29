@@ -85,6 +85,39 @@ def snapshot(f: Follower) -> dict:
     }
 
 
+VERB_RE = re.compile(r"([A-Za-z]+) \[([QERF])\]\s*$")
+
+
+def reads_wrong_check(f: Follower, line: str, ks: list, rep: dict) -> int:
+    """Menus must show the verb the banner is about to ask for. On an X or C
+    surface, a line ending `<Verb> [R]` (Accept, Claim, Deliver) is checked
+    against the menu's own text BEFORE the verb key is pressed: if the chip
+    does not read that verb, the banner and the menu disagree — the player
+    presses R and gets "nothing on R here". The row keys are pressed first so
+    the chip reflects the selected row."""
+    m = VERB_RE.search(line.strip())
+    if not m or len(ks) < 2:
+        return 0
+    here = str(f.t("guide_step").get("surface", ""))
+    if not (here.startswith("X/") or here.startswith("C/")):
+        return 0
+    verb, vkey = m.group(1), m.group(2)
+    if ks[-1][0] != vkey.lower():
+        return 0
+    for key, shift in ks[:-1]:
+        f.t("press_key", key=key, shift=shift, settle_frames=12)
+        rep["presses"] += 1
+    time.sleep(0.5)
+    under = "ControlsOverlay" if here.startswith("X/") else "QuestBoard"
+    texts = [str(x.get("text", "")) for x in f.t("overlay_text", under=under).get("lines", [])]
+    ok = any(verb.lower() in t.lower() and vkey in t for t in texts)
+    rep["verb_checks"] = rep.get("verb_checks", 0) + 1
+    if not ok:
+        rep.setdefault("reads_wrong", []).append({"t": rep.get("presses"), "line": line[:100], "surface": here,
+                                                   "menu_text": texts[:24]})
+    return len(ks) - 1   # the row keys are pressed; the caller presses the verb
+
+
 def walk(rig, seed: int, minutes: float, rate: float, until: str, start: str, save_dir: str = "") -> dict:
     rng = random.Random(seed)
     f = Follower(rig)
@@ -185,9 +218,10 @@ def walk(rig, seed: int, minutes: float, rate: float, until: str, start: str, sa
                 steps_since_flag += 1
                 continue
         check_surface(f, line, rep)
+        done = reads_wrong_check(f, line, ks, rep)
         gs = f.t("guide_step")
         pre = {"line": line[:90], "surface": gs.get("surface"), "hat": gs.get("hat")}
-        for key, shift in ks:
+        for key, shift in ks[done:]:
             f.t("press_key", key=key, shift=shift, settle_frames=12)
             rep["presses"] += 1
         gs2 = f.t("guide_step")

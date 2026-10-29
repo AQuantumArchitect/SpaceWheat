@@ -2412,6 +2412,10 @@ func _arc_offer_is_spent(q: Dictionary) -> bool:
 	var src := str(q.get("source_flag", ""))
 	if src == "":
 		return false
+	# A gate nobody has claimed is still owed (what hangs off it was reached
+	# some other way, e.g. a dismissal made before gates were protected).
+	if _flag_is_on_the_road(src) and not has_completed_flag(src):
+		return false
 	return _flag_door_is_resolved(src)
 
 
@@ -2431,6 +2435,11 @@ func dismiss_story_offer(quest_id: int) -> bool:
 		return false
 	var q: Dictionary = story_offers[quest_id]
 	var flag_id := str(q.get("source_flag", ""))
+	if flag_id != "" and _flag_is_on_the_road(flag_id):
+		# One stray Dismiss used to strand a run: later beats need what this
+		# one teaches or opens. It stays on the Arc until it is taken.
+		RefusalVoice.note("other beats hang off this one — it stays on the Arc until you take it")
+		return false
 	if flag_id != "":
 		guidance_dismissed[flag_id] = true
 	story_offers.erase(quest_id)
@@ -2445,7 +2454,15 @@ func has_completed_flag(flag_id: String) -> bool:
 
 
 func is_guidance_dismissed(flag_id: String) -> bool:
+	# A dismissal recorded for a beat on the road no longer counts (saves made
+	# before the road was protected heal on load).
+	if _flag_is_on_the_road(flag_id):
+		return false
 	return bool(guidance_dismissed.get(flag_id, false))
+
+
+func _flag_is_on_the_road(flag_id: String) -> bool:
+	return Guide.gate_flags(self).has(flag_id)
 
 
 ## True when flag_id may unlock its children. A parent with no arc_quest is
