@@ -361,6 +361,8 @@ static func _step(step: String, pred: Dictionary, q: Dictionary) -> Dictionary:
 			return _hat(arg, q)
 		"berry":
 			return _berry(q)
+		"berry_axis":
+			return _berry(q, _axis_cols(UIP._active_biome_name(), str(pred.get("north", "")), str(pred.get("south", ""))))
 		"survey":
 			return _survey(q)
 		"deliver_to":
@@ -677,26 +679,22 @@ static func _open_surface(surface: String, q: Dictionary) -> Dictionary:
 	return _chord(_go("C/" + surface), q, "open " + surface)
 
 
-## A held contract is a row on the Market tab of its board (held stalls come
-## first there): travel, open, select it, then the verb.
-static func _market_held_chord(c: Dictionary, home: String, verb: Array, q: Dictionary,
+## A held contract is a row on the Commitments tab of the board (C → [U]).
+## Held work is not on the Market ring: open Commitments, select it, press
+## the verb. The faction's board biome does not matter for settling it.
+static func _market_held_chord(c: Dictionary, _home: String, verb: Array, q: Dictionary,
 		why: String, tail: Array = []) -> Dictionary:
-	var t := _travel(home, q)
-	if not t.is_empty():
-		return t
 	var board = UIP._quest_board()
-	if board == null or not SurfaceGraph.on("C/market"):
-		return _open_surface("market", q)
-	var rows: Array = board._market_rows()
-	for i in range(rows.size()):
-		var d = rows[i].get("data", {})
-		if str(rows[i].get("kind", "")) == "held" and d is Dictionary and int(d.get("id", -1)) == int(c.get("id", -2)):
-			var parts: Array = _page_to(i) + [["%s %s×%d" % [str(c.get("faction", "")), str(c.get("resource", "")),
-					int(c.get("quantity", 0))], _row_key(i % BERRY_ROWS)], verb]
-			if not tail.is_empty():
-				parts.append(tail)
-			return _chord(parts, q, why)
-	return {}
+	if board == null or not SurfaceGraph.on("C/commitments"):
+		return _chord(_go("C/commitments"), q, why)
+	var i := _commitment_index(c)
+	if i < 0:
+		return {}
+	var parts: Array = _page_to(i) + [["%s %s×%d" % [str(c.get("faction", "")), str(c.get("resource", "")),
+			int(c.get("quantity", 0))], _row_key(i % BERRY_ROWS)], verb]
+	if not tail.is_empty():
+		parts.append(tail)
+	return _chord(parts, q, why)
 
 
 ## Gather `res` up to `need` on a biome whose registers carry it (the spec's
@@ -872,6 +870,21 @@ static func _supply_via(tr: Dictionary, res: String, q: Dictionary, depth: int) 
 	for g in spec_give:
 		if UIP._wallet(str(g)) < float(spec_give[g]) and depth < 2:
 			return _gather(str(g), int(spec_give[g]), q, depth + 1)
+	# A trade already accepted is held on Commitments: settle it there.
+	var qm = UIP._quest_manager()
+	if qm != null and qm.has_method("commitment_quests"):
+		for c in qm.commitment_quests():
+			if not (c is Dictionary) or not bool(c.get("supply_trade", false)):
+				continue
+			if str(c.get("supply_emoji", "")) != res or str(c.get("biome", home)) != home:
+				continue
+			var cgive: Dictionary = c.get("give", {}) if c.get("give", {}) is Dictionary else {}
+			if cgive.is_empty() and str(c.get("resource", "")) != "":
+				cgive = {str(c.get("resource", "")): int(c.get("quantity", 0))}
+			for g in cgive:
+				if UIP._wallet(str(g)) < float(cgive[g]) and depth < 2:
+					return _gather(str(g), int(cgive[g]), q, depth + 1)
+			return _market_held_chord(c, home, ["Deliver", _verb("deliver")], q, "supply " + res)
 	var t := _travel(home, q)
 	if not t.is_empty():
 		return t
@@ -893,9 +906,7 @@ static func _supply_via(tr: Dictionary, res: String, q: Dictionary, depth: int) 
 		for g in give:
 			if UIP._wallet(str(g)) < float(give[g]) and depth < 2:
 				return _gather(str(g), int(give[g]), q, depth + 1)
-		var verb: Array = ["Deliver", _verb("deliver")] if str(rows[i].get("kind", "")) == "held" \
-				else ["Accept", _verb("accept")]
-		return _chord(_page_to(i) + [["trade for %s" % res, _row_key(i % BERRY_ROWS)], verb], q, "supply " + res)
+		return _chord(_page_to(i) + [["trade for %s" % res, _row_key(i % BERRY_ROWS)], ["Accept", _verb("accept")]], q, "supply " + res)
 	_no_trade_until[res + "|" + home] = Time.get_ticks_msec() + NO_TRADE_MS
 	return {}
 
@@ -1017,6 +1028,23 @@ static func _learn_word(q: Dictionary) -> Dictionary:
 				return h
 			return _berry(q, _unknown_cols(str(b)))
 	return {}
+
+
+## Columns of `biome` whose axis is the word north/south (either pole order).
+static func _axis_cols(biome: String, north: String, south: String) -> Array:
+	var farm = UIP._active_farm()
+	var out: Array = []
+	var b = farm.grid.get_biome(biome) if farm != null and farm.grid != null else null
+	if b == null or b.quantum_computer == null or b.quantum_computer.register_map == null:
+		return out
+	var rm = b.quantum_computer.register_map
+	for col in range(mini(int(rm.num_qubits), BERRY_ROWS)):
+		var ax: Dictionary = rm.axis(col)
+		var a := str(ax.get("north", ""))
+		var c := str(ax.get("south", ""))
+		if (a == north and c == south) or (a == south and c == north):
+			out.append(col)
+	return out
 
 
 static func _unknown_cols(biome: String) -> Array:

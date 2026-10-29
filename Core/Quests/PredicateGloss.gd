@@ -41,6 +41,8 @@ const TARGETS := {
 	"gate_sequence_contains":   {"kind": "gate"},
 	"biome_evolving":           {"kind": "biome"},
 	"active_biome_is":          {"kind": "biome"},
+	"biome_explored":           {"kind": "biome"},
+	"icon_incorporated":        {"kind": "hat", "frame": "icon"},
 	# What Turns (gauge/holonomy): compass verbs live on Operator, the mirror
 	# and the loop-walking on Icon.
 	"biome_betti_gte":          {"kind": "hat", "frame": "icon"},
@@ -175,6 +177,8 @@ static func summary(pred: Dictionary, qm = null) -> String:
 			if CampaignRuntime.charts().values().has(evb):
 				return "%s awake — 🦅×21 from Forest, then Captain [7] [R] Chart %s" % [evb, evb]
 			return "%s awake — 🦅×21 from Forest, then Captain [7] [R] Add Biome" % evb
+		"biome_explored":
+			return "explore every plot in %s — Ace hat [8], then Shift+F" % str(pred.get("biome", "?"))
 		"active_biome_is":
 			# The wayfinding gate: arrival is the whole ask. The objective banner's
 			# travel line already names the orb + key while you're elsewhere; this

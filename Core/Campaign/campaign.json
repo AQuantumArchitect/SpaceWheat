@@ -307,12 +307,16 @@
          "tutorial_teaches": "wayfinding",
          "faction": "Hearth Keepers",
          "biome": "StarterForest",
-         "body": "The Demos is one country on a wider island. Past the hedge, the Starter Forest keeps older words. Go and stand under its canopy.",
-         "tutorial_hint": "Go to the Starter Forest — stand under its canopy.",
-         "math_note": "Structural predicate (active_biome_is): scores 1.0 the instant StarterForest is the biome under your feet, 0.0 otherwise — arrival is the whole ask, no soft gate. The objective banner's travel line names the orb and its key while you are elsewhere and drops the moment you arrive.",
+         "body": "The Demos is one country on a wider island. Past the hedge, the Starter Forest keeps older words in fog. Go and stand under its canopy, then open the whole field: mass-explore every bubble.",
+         "tutorial_hint": "Go to the Starter Forest and explore every bubble.",
+         "math_note": "Two structural predicates (smooth_and): active_biome_is scores 1.0 the instant StarterForest is the biome under your feet, and biome_explored scores 1.0 once every plot of the forest is out of the fog. This is the mass-explore lesson; the next step superposes ONE explored qubit. The objective banner's travel line names the orb and its key while you are elsewhere and drops the moment you arrive.",
          "state_predicates": [
           {
            "type": "active_biome_is",
+           "biome": "StarterForest"
+          },
+          {
+           "type": "biome_explored",
            "biome": "StarterForest"
           }
          ],
@@ -324,8 +328,8 @@
          "tutorial_teaches": "superposition",
          "faction": "Hearth Keepers",
          "biome": "StarterForest",
-         "body": "The forest keeps its words in fog. Open the whole field first, so you can watch what happens next. Then: a qubit need not pick a side. Superpose one — spread it across both poles — and it shimmers between states.",
-         "tutorial_hint": "Explore the whole forest, then superpose a plot with the Druid.",
+         "body": "A qubit need not pick a side. Pick one of the bubbles you opened and superpose it with the Druid: spread it across both poles, and it shimmers between states.",
+         "tutorial_hint": "Pick one explored plot and superpose it with the Druid.",
          "math_note": "Fires the instant the gate ledger records 1 hadamard (a single Druid E) — a structural count, not a soft gate. The forest's resting coherence used to auto-claim this step on arrival, skipping the lesson and handing the Operator hat before the player had superposed.",
          "state_predicates": [
           {
@@ -523,11 +527,17 @@
         {
          "id": "first_breath",
          "display_name": "First Breath",
-         "beat": "The forest keeps more than fog. Take a qubit for a walk around its sphere — track it, let the Hamiltonian carry it, and when it comes back to where it began, keep the shape of the walk. Every word you hold so far was taught to you. This one you will take from the land itself, and no faction owns it.",
+         "beat": "The forest keeps more than fog. Take the eagle and the rabbit for a walk: track their qubit, let the Hamiltonian carry it around its sphere, and when it comes back to where it began, keep the shape of the walk. Every word you hold so far was taught to you. This one you will take from the land itself, and no faction owns it. 🦅 and 🐇 are the hunter and the hunted, the two ends of everything you will strike and gather.",
          "requires": [
           "village_stirs"
          ],
          "objective": [
+          {
+           "type": "icon_incorporated",
+           "biome": "StarterForest",
+           "north": "🦅",
+           "south": "🐇"
+          },
           {
            "type": "berry_consumed_count_gte",
            "biome": "StarterForest",
@@ -536,7 +546,7 @@
          ],
          "offer": {
           "body": "First Breath — track one loop, and keep what it traced.",
-          "hint": "Icon [5]: [F] tracks a plot; wait ~90s; [R] Incorporate.",
+          "hint": "Icon [5]: [F] tracks the 🦅/🐇 plot; wait ~90s; [R] Incorporate.",
           "math_note": "Count gate on StarterForest berry_consumed_count ≥ 1 — fires exactly at the first incorporation (the ritual consumes the berry). The old signature_growth gate moved off this beat when teachings began growing the signature in act 1; berries are the only witness that the word came from the land."
          },
          "done": "You did something. A qubit you tracked came back to where it started, and you incorporated the shape of its walk — the signed solid angle the loop enclosed. And notice what did NOT happen: nothing leaked, nothing faded, nothing was forgotten. The enclave holds. Here, only measurement leaves a scar — and the scar is yours."
@@ -2817,6 +2827,11 @@
    "clear_marks": "'"
   },
   "walks": {
+   "icon_incorporated": [
+    "travel",
+    "hat:icon",
+    "berry_axis"
+   ],
    "berry_consumed_count_gte": [
     "travel",
     "hat:icon",
@@ -2865,11 +2880,11 @@
     "deliver_to"
    ],
    "lesson:wayfinding": [
-    "go:StarterForest"
+    "go:StarterForest",
+    "survey"
    ],
    "lesson:superposition": [
     "go:StarterForest",
-    "survey",
     "hat:druid",
     "plot_verb:E"
    ],

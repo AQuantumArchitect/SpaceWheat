@@ -111,7 +111,7 @@ def test_unpayable_fill_does_not_mill_abandon():
     board = src(BOARD)
     short = board.split("func fill_shortfall_cue")[1].split("\nfunc ")[0]
     assert "[Q] Abandon" in short
-    cue = board.split("func board_walk_cue")[1].split("\nfunc ")[0]
+    cue = board.split("func _held_walk_cue")[1].split("\nfunc ")[0]
     assert "ESC closes — stall" in cue
     assert 'return "▸ [%s] then [Q] Abandon"' not in cue
     walk = src(PROG).split("static func _board_walk_line")[1].split("static func ")[0]
@@ -439,11 +439,14 @@ def test_mill_apprentice_names_the_board_key():
     assert "func _is_fill_stall" in board
     assert "func board_walk_cue" in board
     market = board.split("func _market_rows")[1].split("\nfunc ")[0]
-    assert "_is_fill_stall" in market
+    # Accepted contracts live on Commitments only; the Market ring is offers.
+    assert '"held"' not in market
     assert "[E] Refresh" in board
     cue = board.split("func board_walk_cue")[1].split("\nfunc ")[0]
-    assert "_selected_index" in cue
-    assert 'return "▸ [R] %s"' in cue
+    assert "_held_walk_cue" in cue
+    held_cue = board.split("func _held_walk_cue")[1].split("\nfunc ")[0]
+    assert "_selected_index" in held_cue
+    assert 'return "▸ [R] %s"' in held_cue
 
 
 def test_commerce_walk_names_the_market_key():

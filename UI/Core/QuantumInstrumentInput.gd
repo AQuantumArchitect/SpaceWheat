@@ -1326,8 +1326,8 @@ func _execute_build_gate(gate_type: String) -> void:
 	if result.get("success", false):
 		_verbose.info("input", "⚛️", "Built %s gate on %d qubits" % [gate_type, positions.size()])
 
-		# Clear selections after successful gate build
-		clear_all_checks()
+		# The marks stay: a selection is sturdy, and only the season ending
+		# (reap) or an explicit clear lets it go.
 	else:
 		_verbose.warn("input", "⚛️", "Failed to build %s: %s" % [gate_type, result.get("error", result.get("message", "unknown"))])
 

@@ -587,6 +587,11 @@
       "clear_marks": "'"
     },
     "walks": {
+      "icon_incorporated": [
+        "travel",
+        "hat:icon",
+        "berry_axis"
+      ],
       "berry_consumed_count_gte": [
         "travel",
         "hat:icon",
@@ -635,11 +640,11 @@
         "deliver_to"
       ],
       "lesson:wayfinding": [
-        "go:StarterForest"
+        "go:StarterForest",
+        "survey"
       ],
       "lesson:superposition": [
         "go:StarterForest",
-        "survey",
         "hat:druid",
         "plot_verb:E"
       ],

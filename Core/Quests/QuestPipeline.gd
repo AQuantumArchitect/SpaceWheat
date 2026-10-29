@@ -34,7 +34,7 @@ static func from_market_contract(contract, biome) -> Dictionary:
 	if raw.is_empty():
 		return {}
 	raw["type"] = QuestTypes.Type.DELIVERY
-	raw["time_limit"] = 120.0
+	raw["time_limit"] = -1.0   # no clocks: a contract waits for you (puzzle, not timer)
 	raw["reward_multiplier"] = 1.0
 	# No icon reward — market quests pay in resources, derived from the faction's
 	# coupling-cloud (can include resources the player has no mass in yet).

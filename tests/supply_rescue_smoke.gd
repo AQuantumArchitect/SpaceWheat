@@ -158,7 +158,15 @@ func _run() -> void:
 	if n_same != 1:
 		_fail("re-rolled board carries the 🧺 trade %d times" % n_same)
 	# Every Village standing trade is on the ring (paged past six if need be).
-	var want_trades: Array = CampaignRuntime.trades_for_biome("Village")
+	# A standing trade is a rescue: on the ring only while its resource is
+	# short (zero for the vitals 👥 🍞 🧺, else under the table's low-water).
+	var want_trades: Array = []
+	for t0 in CampaignRuntime.trades_for_biome("Village"):
+		var e0 := str(t0.get("emoji", ""))
+		var line0: int = 1 if e0 in ["👥", "🍞", "🧺"] else maxi(1, CampaignRuntime.low_water(e0))
+		if int(econ.get_resource(e0)) >= line0:
+			continue
+		want_trades.append(t0)
 	var on_ring := {}
 	for r in board._market_rows():
 		var rd = r.get("data", {})
@@ -214,14 +222,18 @@ func _run() -> void:
 			break
 
 	# --- deliver -----------------------------------------------------------
-	rows = board._market_rows()
+	# Accepted work is delivered on Commitments, never from the Market ring.
+	for r in board._market_rows():
+		if str(r.get("kind", "")) == "held":
+			_fail("a held trade is still on the Market ring")
+	board.set_frame("commitments")
 	var held_i := -1
-	for i in range(rows.size()):
-		var d3 = rows[i].get("data", {})
-		if str(rows[i].get("kind", "")) == "held" and d3 is Dictionary and int(d3.get("id", -1)) == qid:
+	var crows: Array = board._commitments_rows()
+	for i in range(crows.size()):
+		if int(crows[i].get("id", -1)) == qid:
 			held_i = i
 	if held_i < 0:
-		_fail("held trade not on the Market ring")
+		_fail("held trade not on Commitments")
 		_finish()
 		return
 	board._select(held_i)
@@ -241,6 +253,16 @@ func _run() -> void:
 	for o in board._offer_pool:
 		if int(o.get("id", -2)) == qid:
 			back = true
+	# The rescue deal answers an empty vital: with 🧺 in hand again it stays off
+	# the board (it returns only if 🧺 runs back to zero).
+	if back:
+		_fail("rescue trade is still on the board with 🧺 in hand")
+	econ.remove_resource("🧺", int(econ.get_resource("🧺")), "supply_rescue_smoke")
+	board._on_quest_pool_changed()
+	back = false
+	for o in board._offer_pool:
+		if int(o.get("id", -2)) == qid:
+			back = true
 	if not back:
-		_fail("standing trade did not return to the board after completion")
+		_fail("rescue trade did not return once 🧺 ran to zero")
 	_finish()

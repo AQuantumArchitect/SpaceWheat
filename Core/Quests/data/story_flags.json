@@ -122,7 +122,7 @@
     "act_title": "The Village",
     "chapter": "first_taste",
     "chapter_title": "First Breath",
-    "arc_beat": "The forest keeps more than fog. Take a qubit for a walk around its sphere — track it, let the Hamiltonian carry it, and when it comes back to where it began, keep the shape of the walk. Every word you hold so far was taught to you. This one you will take from the land itself, and no faction owns it.",
+    "arc_beat": "The forest keeps more than fog. Take the eagle and the rabbit for a walk: track their qubit, let the Hamiltonian carry it around its sphere, and when it comes back to where it began, keep the shape of the walk. Every word you hold so far was taught to you. This one you will take from the land itself, and no faction owns it. 🦅 and 🐇 are the hunter and the hunted, the two ends of everything you will strike and gather.",
     "predicates": [
       {
         "type": "story_flag_set",
@@ -132,9 +132,15 @@
     "standing_grants": {},
     "arc_quest": {
       "body": "First Breath — track one loop, and keep what it traced.",
-      "hint": "Icon [5]: [F] tracks a plot; wait ~90s; [R] Incorporate.",
+      "hint": "Icon [5]: [F] tracks the 🦅/🐇 plot; wait ~90s; [R] Incorporate.",
       "math_note": "Count gate on StarterForest berry_consumed_count ≥ 1 — fires exactly at the first incorporation (the ritual consumes the berry). The old signature_growth gate moved off this beat when teachings began growing the signature in act 1; berries are the only witness that the word came from the land.",
       "state_predicates": [
+        {
+          "type": "icon_incorporated",
+          "biome": "StarterForest",
+          "north": "🦅",
+          "south": "🐇"
+        },
         {
           "type": "berry_consumed_count_gte",
           "biome": "StarterForest",
