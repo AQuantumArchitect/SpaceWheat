@@ -233,7 +233,9 @@ func _build_content(container: Control) -> void:
 # activation, or the badge is invisible exactly where it matters most:
 # the first open.
 func _on_activated() -> void:
-	_refresh_tab_row()
+	# Reopening a menu shows the state as it is NOW: a beat that turned ready
+	# while the menu was shut must read ready, with its Claim chip live.
+	_render_all()
 
 func _build_tab_row(container: Control) -> void:
 	_tab_row_box = HBoxContainer.new()
@@ -1289,6 +1291,7 @@ func _on_story_trajectory(_from: String, to_node: String, _edge: String) -> void
 ## Chatter/activity refill only the live section boxes; a trajectory advance
 ## (story-flag fire, rare) rebuilds the whole body since focus/edges moved.
 func _process(delta: float) -> void:
+	_tick_charge_live(delta)
 	_story_heartbeat_accum += delta
 	if _story_heartbeat_accum < STORY_HEARTBEAT_S:
 		return
@@ -1303,6 +1306,29 @@ func _process(delta: float) -> void:
 			_refresh_body()
 		else:
 			_refresh_story_live()
+
+## Charge is a live list: a beat turns ready while the tab is open (or the
+## player walks away and back). The rows, the percent and the Claim chip must
+## follow, or the banner says Claim while R is gated off as "nothing on R here".
+var _charge_live_accum: float = 0.0
+var _charge_live_sig: String = ""
+
+func _tick_charge_live(delta: float) -> void:
+	if _current_tab != Tab.CHARGE or not is_active or not visible:
+		return
+	_charge_live_accum += delta
+	if _charge_live_accum < 0.4:
+		return
+	_charge_live_accum = 0.0
+	var sig := ""
+	for q in _charge_rows():
+		sig += "%s:%s," % [str(q.get("id", "")), str(q.get("status", ""))]
+	sig += "|%d" % _charge_selected_idx
+	if sig == _charge_live_sig:
+		return
+	_charge_live_sig = sig
+	_render_all()
+
 
 ## Refill ONLY the live story sections (activity feed + chatter/trajectory).
 ## The static middle (berry, story log, focus, edges — the ~15ms-per-paragraph
@@ -2571,6 +2597,7 @@ func _select_charge_row(idx: int) -> void:
 		_declare_tab_actions()
 		return
 	if _selected_charge_ready():
+		_declare_tab_actions()   # the chip must say Claim before R is pressed
 		return
 	var om = _arc_overlay_manager()
 	var home := UIProgression.puzzle_home(rows[idx])
@@ -2643,6 +2670,7 @@ func is_on_tab(tab_name: String) -> bool:
 
 func _show_tab(tab: int) -> void:
 	if _current_tab == tab and frame_id == TAB_TO_FRAME.get(tab, frame_id):
+		_render_all()   # re-pressing the open tab re-reads it
 		return
 	_disarm_arc_confirm()  # a tab change reshuffles what "the selected row" means
 	_arc_inspect_open = false
