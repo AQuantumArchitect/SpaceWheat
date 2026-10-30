@@ -1137,7 +1137,9 @@ def test_plant_short_does_not_advertise_c_or_icon_first():
 
 
 def test_arc_row_never_accepts_it_shunts_to_the_puzzle():
-    """Arc is a catalog. Aggressive clicking tunnels to C or the field."""
+    """Arc: a confirm tap accepts an unsigned offer (playtest 2026-10-29, via
+    the same _accept_selected_arc as R); every other row tunnels to C or the
+    field. The first tap never accepts."""
     arc = src(ARC)
     select = arc.split("func _select_arc_row")[1].split("\nfunc ")[0]
     assert "_on_action_r()" not in select
@@ -1145,6 +1147,7 @@ def test_arc_row_never_accepts_it_shunts_to_the_puzzle():
     assert "_tunnel_from_arc" in select
     tunnel = arc.split("func _tunnel_from_arc")[1].split("\nfunc ")[0]
     assert "accept_quest" not in tunnel
+    assert "_accept_selected_arc()" in tunnel
     assert "open_board_on_commitments" in tunnel
     assert "_scoot_from_arc" in tunnel
     shunt = arc.split("func _arc_shunt_kind")[1].split("\nfunc ")[0]

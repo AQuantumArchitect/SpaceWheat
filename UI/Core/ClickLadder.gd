@@ -37,8 +37,9 @@ extends RefCounted
 ##   SelectionButtonRow verb: pick hat / biome
 ##   QuestBoard row     in-menu: select then act (accept/claim/deliver).
 ##                      not-ready / shortfall: scoot to the field puzzle.
-##   Arc row            in-menu: inspect, then shunt (contract → C,
-##                      verb → field). Never accept — sign-on is Accept [R].
+##   Arc row            in-menu: inspect, then a confirm tap accepts an
+##                      unsigned offer (same path as Accept [R]); other
+##                      rows shunt (contract → C, verb → field).
 ##   TimeBar            chrome, mouse-filter IGNORE
 
 enum Rung { FACE, DETAIL, HOME, DONE }

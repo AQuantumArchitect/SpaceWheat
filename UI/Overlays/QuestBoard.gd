@@ -381,7 +381,12 @@ func _on_row_gui_input(event: InputEvent, idx: int) -> void:
 	# for row 0 the instant the board opens (default selection), so without the
 	# arm flag a first look at row 0 would fire the verb immediately instead
 	# of just selecting it.
-	if not (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed):
+	# Acts on PRESS, not release: the 1 s board heartbeat (_process →
+	# _render_all) rebuilds every row node, and a click whose press and
+	# release straddled a rebuild lost its release with the freed node — so a
+	# double-tap on a market contract sometimes never accepted (playtest
+	# 2026-10-29). The node a press lands on always exists.
+	if not (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed):
 		return
 	accept_event()
 	if idx == _selected_index and _row_confirm_armed:
