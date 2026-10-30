@@ -557,6 +557,18 @@ static func _travel(biome: String, q: Dictionary) -> Dictionary:
 ## The plot the field cursor is on right now. Ace's F/R/Q act on this one
 ## (no focus: F fast-forwards instead of exploring); Icon's track/incorporate
 ## also accept the sticky last plot, which UIP._focused_col() reports.
+## Picking a plot: with marks on the field a plain plot key edits the marks
+## ("unmarked G (0/2)") and focuses nothing, so the verb after it hits no
+## plot. Marks survive gates and menus now, so clear them first.
+static func _pick_plot(col: int) -> Array:
+	var inst = UIP._instrument()
+	var out: Array = []
+	if inst != null and "checked_plots" in inst and not inst.checked_plots.is_empty():
+		out.append(["clear marks", str(_km().get("clear_marks", "'"))])
+	out.append(["plot", _plot_key(col)])
+	return out
+
+
 static func _live_col() -> int:
 	var inst = UIP._instrument()
 	if inst == null or not ("current_plot_idx" in inst):
@@ -616,7 +628,7 @@ static func _berry(q: Dictionary, only: Array = []) -> Dictionary:
 		if bool(reg.is_ripe(col)):
 			var parts: Array = _close_first()
 			if focused != col:
-				parts.append(["plot", _plot_key(col)])
+				parts.append_array(_pick_plot(col))
 			parts.append(["Incorporate", _verb("incorporate")])
 			return _chord(parts, q, "incorporate")
 	var pick := -1
@@ -634,7 +646,7 @@ static func _berry(q: Dictionary, only: Array = []) -> Dictionary:
 			return _reveal(pick, q)
 		var parts: Array = _close_first()
 		if focused != pick:
-			parts.append(["plot", _plot_key(pick)])
+			parts.append_array(_pick_plot(pick))
 		parts.append(["Track", _verb("track")])
 		return _chord(parts, q, "track")
 	if UIP._sim_paused():
@@ -1128,10 +1140,19 @@ static func _unknown_cols(biome: String) -> Array:
 			anchored[str(ic.get("north", ""))] = true
 			anchored[str(ic.get("south", ""))] = true
 	var rm = b.quantum_computer.register_map
+	var br = b.quantum_computer.berry_register
 	for col in range(mini(int(rm.num_qubits), BERRY_ROWS)):
 		var ax: Dictionary = rm.axis(col)
-		if not anchored.has(str(ax.get("north", ""))):
-			out.append(col)
+		if anchored.has(str(ax.get("north", ""))):
+			continue
+		# A word the ritual cannot reach (no transverse term: it never moves,
+		# so it never ripens) is not learnable here; counting it sent the
+		# banner to this biome and, finding nothing to do, back out again.
+		var tracked: bool = br != null and bool(br.is_tracked(col))
+		if not tracked and b.quantum_computer.has_method("qubit_has_transverse_term") \
+				and not b.quantum_computer.qubit_has_transverse_term(col):
+			continue
+		out.append(col)
 	return out
 
 
@@ -1161,7 +1182,7 @@ static func _strike_once(biome: String, q: Dictionary) -> Dictionary:
 	# (Ace F on an explored plot fast-forwards and drops the focus, so "plot
 	# [G], Explore [F]" for a plot already explored repeated for ever.)
 	var pick := col if col >= 0 else _strike_pick(biome)
-	var pre: Array = [] if col >= 0 else [["plot", _plot_key(pick)]]
+	var pre: Array = [] if col >= 0 else _pick_plot(pick)
 	if UIP._plot_measured(pick):
 		return _chord(_close_first() + pre + [["Gather", _verb("gather")]], q, "gather")
 	if UIP._plot_bound(pick):
@@ -1171,7 +1192,7 @@ static func _strike_once(biome: String, q: Dictionary) -> Dictionary:
 		return stop
 	var parts: Array = _close_first()
 	if col < 0:
-		parts.append(["plot", _plot_key(pick)])
+		parts.append_array(_pick_plot(pick))
 	parts.append(["Explore", _verb("explore")])
 	return _chord(parts, q, "explore")
 
@@ -1210,7 +1231,7 @@ static func _strike_known(q: Dictionary) -> Dictionary:
 		return _reveal(col, q, [col])
 	var parts: Array = _close_first()
 	if _live_col() != col:
-		parts.append(["plot", _plot_key(col)])
+		parts.append_array(_pick_plot(col))
 	parts.append(["Strike", _verb("strike")])
 	return _chord(parts, q, "strike known")
 
@@ -1237,7 +1258,7 @@ static func _plot_verb(key: String, q: Dictionary) -> Dictionary:
 		col = other
 	var parts: Array = _close_first()
 	if _live_col() != col:
-		parts.append(["plot", _plot_key(col)])
+		parts.append_array(_pick_plot(col))
 	parts.append([str(_km().get("verb_labels", {}).get(key, "do it")), key])
 	return _chord(parts, q, "verb " + key)
 
@@ -1335,7 +1356,7 @@ static func _reap(biome: String, q: Dictionary) -> Dictionary:
 			return _reveal(col, q)
 	var parts: Array = _close_first()
 	if _live_col() < 0:
-		parts.append(["plot", _plot_key(0)])
+		parts.append_array(_pick_plot(0))
 	parts.append(["Reap the season", "ctrl+shift+F"])
 	return _chord(parts, q, "reap")
 
@@ -1349,7 +1370,7 @@ static func _superpose(q: Dictionary) -> Dictionary:
 	var h := _hat("druid", q)
 	if not h.is_empty():
 		return h
-	return _chord(_close_first() + [["plot", _plot_key(col)], ["Hadamard", "E"]], q, "superpose")
+	return _chord(_close_first() + _pick_plot(col) + [["Hadamard", "E"]], q, "superpose")
 
 
 ## Let a biome evolve and read itself: stand in it and run its clock fast.
@@ -1395,7 +1416,7 @@ static func _steer(biome: String, emoji: String, q: Dictionary) -> Dictionary:
 		return h
 	var parts: Array = _close_first()
 	if _live_col() != col:
-		parts.append(["plot", _plot_key(col)])
+		parts.append_array(_pick_plot(col))
 	if UIP._plot_measured(col) or held != null:
 		parts.append(["release", _verb("gather")])
 		return _cost_or(["gather", "🧺"], _chord(parts, q, "release"), q, 0)
@@ -1452,7 +1473,7 @@ static func _free_terminal(q: Dictionary, protect: Array = []) -> Dictionary:
 		return h
 	var parts: Array = _close_first() + ["all probes are out"]
 	if _live_col() != col:
-		parts.append(["plot", _plot_key(col)])
+		parts.append_array(_pick_plot(col))
 	if bool(best.is_measured) or (best.has_method("has_banked") and best.has_banked()):
 		parts.append(["Gather", _verb("gather")])
 		return _chord(parts, q, "free probe")
@@ -1509,7 +1530,7 @@ static func _make_room(biome: String, atom: String, q: Dictionary) -> Dictionary
 		return h
 	var parts: Array = _close_first() + ["the ring is full"]
 	if UIP._focused_col() != col:
-		parts.append(["plot", _plot_key(col)])
+		parts.append_array(_pick_plot(col))
 	parts.append(["Trim %s/%s" % [str(ax.get("north", "")), str(ax.get("south", ""))], "Q"])
 	parts.append(["confirm", "F"])
 	return _chord(parts, q, "make room")
@@ -1622,7 +1643,7 @@ static func _take_in_loop(biome: String, col: int, res: String, q: Dictionary) -
 	if reg != null and reg.has_method("is_ripe") and bool(reg.is_ripe(col)):
 		var parts: Array = _close_first() + [label]
 		if _live_col() != col:
-			parts.append(["plot", _plot_key(col)])
+			parts.append_array(_pick_plot(col))
 		parts.append(["Incorporate", _verb("incorporate")])
 		return _chord(parts, q, "take in loop")
 	if UIP._sim_paused():
@@ -1672,7 +1693,7 @@ static func _release_tracking(col: int, q: Dictionary) -> Dictionary:
 	if str(ToolConfig.get_current_frame()) != "icon":
 		parts.append([_hat_name("icon") + " hat", _hat_key("icon")])
 	if UIP._focused_col() != col:
-		parts.append(["plot", _plot_key(col)])
+		parts.append_array(_pick_plot(col))
 	if bool(reg.is_ripe(col)):
 		parts.append(["Incorporate", _verb("incorporate")])
 		return _chord(parts, q, "incorporate before exploring")
@@ -1697,6 +1718,6 @@ static func _reveal(col: int, q: Dictionary, protect: Array = []) -> Dictionary:
 	if str(ToolConfig.get_current_frame()) != "ace":
 		parts.append([_hat_name("ace") + " hat", _hat_key("ace")])
 	if _live_col() != col:
-		parts.append(["plot", _plot_key(col)])
+		parts.append_array(_pick_plot(col))
 	parts.append(["Explore", _verb("explore")])
 	return _cost_or(["explore", "🍞"], _chord(parts, q, "reveal"), q, 0)

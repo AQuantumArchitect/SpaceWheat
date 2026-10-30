@@ -29,14 +29,16 @@ minutes; under heavy deviation it takes 14-18, so give it `--minutes 14+`.
 | `Explore [F]` does nothing | A tracked loop keeps Ace F as Fast-Fwd | The guide incorporates a ripe loop or stops tracking before it names Explore |
 | `plot [G], Explore [F]` repeats | With no plot focused the guide judged the wrong plot; the focus test trusted a lagging `current_biome` | `_strike_once` judges the plot it names; the focus test asks the grid which biome owns the picked plot |
 
+| Late `to Freshwater Spring [O]` ⇄ `to Village [Y]` ping-pong (a clean walk) | `_unknown_cols` counted words that can never ripen (no transverse term), so the learn-a-word step travelled to a biome with nothing to do, then hopped back | Only words the ritual can reach count; marks are cleared before any plot pick (`_pick_plot`) because marks now survive gates |
+
 ## Still open
 
-- Seed 62 (saves `stall_seed62_stuck_t45` in a perturbed run at rate 0.45)
-  stalls in the first minute on `plot [G], Explore [F]`: after G the chip reads
-  Fast-Fwd, Q Gather and R Strike (a bound register) while the guide's
-  `UIP._plot_bound(0)` is false. The guide and `ChipContext.register_bound`
-  disagree on what "explored" means for a plot; unify them on one authority.
-
+- Seed 62 stalls in the first minute on `plot [G], Explore [F]` (perturbed
+  run, rate 0.45; reproduce with a walk, not a save reload: a reloaded save
+  can leave the guide's instrument and the input script's instrument out of
+  step, which looks the same). The F chip reads Fast-Fwd and the picked plot
+  never becomes the focus. Not diagnosed. Marks now survive gates, so every
+  plot pick in the guide clears them first (`_pick_plot`).
 - One clean `banner_follow` run stuck once on `Explore [F]` after `mill_wakes`
   (two clean reruns passed). The armed-confirm case above is the likely cause
   for deviation runs; the clean-run flake is not explained.
