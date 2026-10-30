@@ -462,6 +462,21 @@
           "get": 3
         }
       ]
+    },
+    "🔥": {
+      "low_water": 2,
+      "spent_by": "superpose (Druid E)",
+      "plots": [],
+      "trades": [
+        {
+          "biome": "Village",
+          "faction": "Hearth Keepers",
+          "give": {
+            "🌾": 6
+          },
+          "get": 4
+        }
+      ]
     }
   },
   "guide": {
