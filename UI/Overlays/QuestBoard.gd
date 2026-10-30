@@ -93,6 +93,11 @@ var _nb_auto_scoped: bool = false
 
 var _offer_pool: Array = []
 var _pool_biome: String = ""   # the biome the ring was dealt for
+## The player's icon count when the ring was dealt (known + incorporated). A new
+## icon changes which factions deal with you and what the neighborhood wants, so
+## the next board open re-deals for free (playtest 2026-10-29: the Demos market
+## kept showing the old offers after incorporating new icons).
+var _pool_signature: int = -1
 var _selected_index: int = 0
 # _selected_index defaults to 0, so row 0 reads as "already selected" the instant the
 # board opens. Without this flag, a tap-to-look at row 0 (idx == _selected_index on the
@@ -350,7 +355,7 @@ func _on_activated() -> void:
 	_commitments_view = "active"
 	_ensure_biome()
 	var here := _board_biome_name()
-	if _offer_pool.is_empty() or here != _pool_biome:
+	if _offer_pool.is_empty() or here != _pool_biome or _signature_stamp() != _pool_signature:
 		_refresh_pool()
 		_pool_biome = here
 	_render_all()
@@ -1494,6 +1499,21 @@ func _refresh_pool() -> void:
 	# the current biome's board ALWAYS, regardless of the lattice's RNG.
 	_refresh_market_pool()
 	_inject_supply_offers()
+	_pool_signature = _signature_stamp()
+
+
+## Size of the player's icon vocabulary (known + incorporated). Any growth means
+## the market must be recomputed against the new signature.
+func _signature_stamp() -> int:
+	var farm = InstrumentLocator.resolve_active_farm(self)
+	if farm == null:
+		return _pool_signature
+	var n := 0
+	if "known_icons" in farm and farm.known_icons is Array:
+		n += farm.known_icons.size()
+	if "incorporated_icons" in farm and farm.incorporated_icons is Array:
+		n += 1000 * farm.incorporated_icons.size()
+	return n
 
 
 ## Standing supply trades (campaign `resources` table) for the biome this
