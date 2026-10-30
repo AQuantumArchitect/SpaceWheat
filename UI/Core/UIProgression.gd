@@ -2166,6 +2166,11 @@ static func _sprout_gather_line() -> String:
 		return "▸ ESC closes"
 	if _sim_paused():
 		return "▸ [F] Play"
+	# Short 🌱 with a payable 🌱 trade: walk that trade, not baskets.
+	if _trade_walk_ok("🌱"):
+		var walk := _supply_walk_line("🌱")
+		if walk != "":
+			return walk
 	# Gather costs 🧺 — restock before the walk spends the last basket.
 	if _basket_short():
 		var basket := _basket_pay_line()
@@ -2863,13 +2868,33 @@ static func _supply_need_now(q: Dictionary) -> String:
 		return ""
 	if _is_plant_ask(q):
 		if _sprout_short():
-			return "🧺" if _basket_short() else ""
+			return _need_or_basket("🌱")
 		if _plant_south_short():
 			return _plant_south_current()
 		return ""
 	if _is_discover_ask(q) and _eagle_short():
-		return "🧺" if _basket_short() else ""
+		return _need_or_basket("🦅")
 	return ""
+
+
+## Which resource to walk when `emoji` is short. Playtest 2026-10-29: out of
+## 🦅, the banner sent the player for 🧺 — it always walked baskets (the
+## gather fee) even when the missing resource has its OWN market trade the
+## player can pay for (🦅: 10🌾 → 7🦅 at the Village). The direct trade is the
+## honest route; baskets are named only when there is no payable trade for
+## `emoji` and the gather that would mint it can't be paid. "" = callers keep
+## their own gather walk.
+static func _need_or_basket(emoji: String) -> String:
+	if _trade_walk_ok(emoji):
+		return emoji
+	return "🧺" if _basket_short() else ""
+
+
+## True when the trade table has a trade that pays `emoji` itself and the
+## player can afford it right now.
+static func _trade_walk_ok(emoji: String) -> bool:
+	var t := _supply_step(emoji)
+	return not t.is_empty() and str(t.get("emoji", "")) == emoji and _trade_affordable(t)
 
 
 static func _plant_south_short() -> bool:
@@ -2882,6 +2907,10 @@ static func _plant_south_short() -> bool:
 static func _supply_cost(emoji: String) -> int:
 	if emoji == "🧺":
 		return gather_price()
+	if emoji == "🦅":
+		return _chart_eagles()
+	if emoji == "🌱":
+		return 5
 	if emoji == _plant_south_current():
 		return EconomyConstants.ICON_INJECTION_SOUTH_COST
 	return 1
@@ -2897,6 +2926,10 @@ static func _basket_short() -> bool:
 static func _eagle_gather_target() -> Dictionary:
 	# Same walk as _eagle_gather_line: Forest rail, [8] Ace, then [R]/[Q].
 	# Spotlight must name the chip, not Forest with a blank key.
+	if _trade_walk_ok("🦅"):
+		var tgt := _supply_target("🦅")
+		if not tgt.is_empty():
+			return tgt
 	# lantern_door: 🧺 short — Q gather still named Strike. Strike does not pay.
 	if _basket_short():
 		return _basket_pay_target()
@@ -2943,6 +2976,11 @@ static func _eagle_gather_line() -> String:
 		return "▸ ESC closes"
 	if _sim_paused():
 		return "▸ [F] Play"
+	# Short 🦅 with a payable 🦅 trade: walk that trade, not baskets.
+	if _trade_walk_ok("🦅"):
+		var walk := _supply_walk_line("🦅")
+		if walk != "":
+			return walk
 	# lantern_door: 🧺 0, banner still named Strike. Strike does not mint 🧺.
 	if _basket_short():
 		return _basket_pay_line()
@@ -3179,6 +3217,11 @@ static func eagle_short_refusal() -> String:
 	# Baskets are named only when the gather itself is unaffordable.
 	if not _eagle_short():
 		return ""
+	# A payable 🦅 trade is the route — not the 🧺 that gathering would cost.
+	if _trade_walk_ok("🦅"):
+		var direct := supply_refusal("🦅", _chart_eagles())
+		if direct != "":
+			return direct
 	var basket := supply_refusal("🧺", gather_price(), true)
 	if basket != "":
 		return basket
