@@ -1,10 +1,9 @@
 """Rescue trades — owner rulings 2026-10-29.
 
-- No trade is paid with 🐇. The three staples (👥 🍞 🧺) are bought with 🌾
-  or 👥 only; every other resource with 🍞 only (no 🌱, no 💧).
-- 🧺 has a 🌾 trade as well as the 👥 one.
-- Staple rescues are ALWAYS on the Village board; 🔨 🪓 🌊 🦅 only while a
-  live quest asks for them.
+- No trade is paid with 🐇. 👥 and 🍞 are bought with 🌾, 🧺 with 👥 only;
+  every other resource with 🍞 only (no 🌱, no 💧).
+- Staple rescues stand on the Village board only while critical (≤ 2 held);
+  🌱 🔥 🔨 🪓 🌊 🦅 only while a live quest asks for them.
 - A refusal caused by a short staple toasts a route to the Village Market
   board with that trade selected — it never accepts the trade.
 """
@@ -31,16 +30,16 @@ def _fn(p: Path, name: str) -> str:
 
 def test_trade_currencies_follow_the_ruling():
     for emoji, info in _resources().items():
-        allowed = {"🌾", "👥"} if emoji in STAPLES else {"🍞"}
+        allowed = {"👥"} if emoji == "🧺" else ({"🌾"} if emoji in STAPLES else {"🍞"})
         for t in info.get("trades", []):
             gives = set(t["give"])
             assert "🐇" not in gives, (emoji, t)
             assert gives <= allowed, "%s trade pays with %s; allowed %s" % (emoji, gives, allowed)
 
 
-def test_baskets_buyable_with_wheat_and_people():
+def test_baskets_bought_with_people_only():
     gives = {g for t in _resources()["🧺"]["trades"] for g in t["give"]}
-    assert gives == {"🌾", "👥"}
+    assert gives == {"👥"}
 
 
 def test_every_rescue_is_on_the_village_board():
@@ -50,16 +49,19 @@ def test_every_rescue_is_on_the_village_board():
 
 def test_board_visibility_rules():
     body = _fn(QB, "_rescue_open")
-    assert body.index("if emoji in STAPLES:") < body.index("return true")
+    assert "return _vital_stock(emoji) <= STAPLE_CRITICAL" in body
     assert "UIProgression.quest_requests_resource(emoji)" in body
     src = QB.read_text(encoding="utf-8")
-    assert 'const QUEST_GATED_RESCUES: Array = ["🔨", "🪓", "🌊", "🦅"]' in src
+    assert 'const QUEST_GATED_RESCUES: Array = ["🌱", "🔥", "🔨", "🪓", "🌊", "🦅"]' in src
+    assert "const STAPLE_CRITICAL: int = 2" in src
 
 
 def test_quest_request_reads_the_live_quests():
     body = UIP.read_text(encoding="utf-8").split("static func quest_requests_resource(")[1].split("\nstatic func ")[0]
     assert "_live_quests()" in body
     assert '_is_discover_ask(q)' in body
+    assert '_is_plant_ask(q)' in body
+    assert '_quest_asks_gate(q, "hadamard")' in body
     assert "CampaignRuntime.plant_north_for(emoji)" in body
 
 

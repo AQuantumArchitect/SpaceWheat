@@ -1585,18 +1585,18 @@ func _vital_stock(emoji: String) -> int:
 
 
 ## When a standing (rescue) trade is on its board. The three vitals (👥 people,
-## 🍞 bread, 🧺 baskets) always are; 🔨 🪓 🌊 🦅 only while a live quest asks
-## for them; anything else while it is below the campaign table's low-water
-## mark. Everything else on a board is procedural or arc-spawned.
+## 🍞 bread, 🧺 baskets) while critical (2 or fewer); 🌱 🔥 🔨 🪓 🌊 🦅 only
+## while a live quest asks for them; anything else while it is below the
+## campaign table's low-water mark. Everything else on a board is procedural or arc-spawned.
 func _rescue_open(emoji: String) -> bool:
 	if emoji == "":
 		return false
-	# Owner ruling 2026-10-29. The three staples (👥 🍞 🧺) are ALWAYS on the
-	# Village board — running out of baskets must never be a dead end.
+	# Owner ruling 2026-10-29. A staple's rescue (👥 🍞 🧺) stands on the
+	# Village board while that staple is critical — STAPLE_CRITICAL or fewer.
 	if emoji in STAPLES:
-		return true
-	# 🔨 🪓 🌊 🦅 stand only while a live quest asks for them: not before
-	# (no stockpiling ahead of the story), not after (the door closes).
+		return _vital_stock(emoji) <= STAPLE_CRITICAL
+	# 🌱 🔥 🔨 🪓 🌊 🦅 stand only while a live quest asks for them: not
+	# before (no stockpiling ahead of the story), not after (the door closes).
 	if emoji in QUEST_GATED_RESCUES:
 		return UIProgression.quest_requests_resource(emoji)
 	return _vital_stock(emoji) < maxi(1, CampaignRuntime.low_water(emoji))
@@ -2214,7 +2214,8 @@ func _market_rows() -> Array:
 
 
 const STAPLES: Array = ["👥", "🍞", "🧺"]
-const QUEST_GATED_RESCUES: Array = ["🔨", "🪓", "🌊", "🦅"]
+const QUEST_GATED_RESCUES: Array = ["🌱", "🔥", "🔨", "🪓", "🌊", "🦅"]
+const STAPLE_CRITICAL: int = 2
 
 ## Stable: staples in STAPLES order, then the rest in table order.
 func _staples_first(offers: Array) -> Array:

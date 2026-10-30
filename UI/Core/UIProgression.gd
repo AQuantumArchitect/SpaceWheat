@@ -2898,11 +2898,12 @@ static func _trade_walk_ok(emoji: String) -> bool:
 
 
 ## True while a live quest is asking for `emoji` — the banner's quest or any
-## accepted one. Owner ruling 2026-10-29: the 🔨 🪓 🌊 🦅 rescue trades stand
-## on the board only then ("not before, and not after"). 🦅: a Chart ask
-## (_is_discover_ask). Planting costs: an objective that plants the north pole
-## whose south is `emoji` (atom_in_biome 💨 → asks 🔨), or a plant the player
-## just tried that needed it (_plant_south_current).
+## accepted one. Owner ruling 2026-10-29: the 🌱 🔥 🔨 🪓 🌊 🦅 rescue trades
+## stand on the board only then ("not before, and not after"). 🦅: a Chart
+## ask (_is_discover_ask). 🌱: a plant ask (planting costs 5🌱). 🔥: a
+## Superpose ask (gate hadamard). Pole costs: an objective that plants the
+## north pole whose south is `emoji` (atom_in_biome 💨 → asks 🔨), or a plant
+## the player just tried that needed it (_plant_south_current).
 static func quest_requests_resource(emoji: String) -> bool:
 	if emoji == "":
 		return false
@@ -2911,6 +2912,10 @@ static func quest_requests_resource(emoji: String) -> bool:
 	var north := CampaignRuntime.plant_north_for(emoji)
 	for q in _live_quests():
 		if emoji == "🦅" and _is_discover_ask(q):
+			return true
+		if emoji == "🌱" and _is_plant_ask(q):
+			return true
+		if emoji == "🔥" and _quest_asks_gate(q, "hadamard"):
 			return true
 		if north != "" and _quest_plants_atom(q, north):
 			return true
@@ -2931,6 +2936,15 @@ static func _live_quests() -> Array:
 			if q is Dictionary and not seen.has(q.get("id", -1)):
 				out.append(q)
 	return out
+
+
+static func _quest_asks_gate(q: Dictionary, gate: String) -> bool:
+	for key in ["state_predicates", "predicates"]:
+		for pred in q.get(key, []):
+			if pred is Dictionary and str(pred.get("type", "")) == "gate_sequence_contains" \
+					and str(pred.get("gate", "")).to_lower() == gate:
+				return true
+	return false
 
 
 static func _quest_plants_atom(q: Dictionary, atom: String) -> bool:

@@ -340,14 +340,6 @@
             "👥": 6
           },
           "get": 4
-        },
-        {
-          "biome": "Village",
-          "faction": "Hearth Keepers",
-          "give": {
-            "🌾": 6
-          },
-          "get": 4
         }
       ]
     },

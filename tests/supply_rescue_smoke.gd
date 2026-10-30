@@ -158,16 +158,17 @@ func _run() -> void:
 	if n_same != 1:
 		_fail("re-rolled board carries the 🧺 trade %d times" % n_same)
 	# Every Village standing trade that should stand is on the ring (paged past
-	# six if need be). Owner ruling 2026-10-29: the vitals 👥 🍞 🧺 ALWAYS
-	# stand; 🔨 🪓 🌊 🦅 only while a live quest asks for them; anything else
-	# while under the table's low-water mark.
+	# six if need be). Owner ruling 2026-10-29: the vitals 👥 🍞 🧺 stand
+	# while critical (≤ 2 held); 🌱 🔥 🔨 🪓 🌊 🦅 only while a live quest asks
+	# for them; anything else while under the table's low-water mark.
 	var want_trades: Array = []
 	for t0 in CampaignRuntime.trades_for_biome("Village"):
 		var e0 := str(t0.get("emoji", ""))
 		if e0 in ["👥", "🍞", "🧺"]:
-			want_trades.append(t0)
+			if int(econ.get_resource(e0)) <= 2:
+				want_trades.append(t0)
 			continue
-		if e0 in ["🔨", "🪓", "🌊", "🦅"]:
+		if e0 in ["🌱", "🔥", "🔨", "🪓", "🌊", "🦅"]:
 			if UIProgression.quest_requests_resource(e0):
 				want_trades.append(t0)
 			continue
@@ -177,7 +178,7 @@ func _run() -> void:
 	for r in board._market_rows():
 		var rd = r.get("data", {})
 		if rd is Dictionary and bool(rd.get("supply_trade", false)):
-			# One staple can carry two trades (🧺: 👥-priced and 🌾-priced):
+			# A resource could carry two trades (different prices):
 			# key by emoji + what it asks for.
 			var g: Dictionary = rd.get("give", {}) if rd.get("give", {}) is Dictionary else {}
 			var gk := str(g.keys()[0]) if not g.is_empty() else str(rd.get("resource", ""))
@@ -262,10 +263,10 @@ func _run() -> void:
 	for o in board._offer_pool:
 		if int(o.get("id", -2)) == qid:
 			back = true
-	# Owner ruling 2026-10-29: vital rescues (👥 🍞 🧺) ALWAYS stand on the
-	# Village board — settled, the 🧺 trade is offered again at once.
-	if not back:
-		_fail("🧺 rescue trade did not return to the board after settling")
+	# Owner ruling 2026-10-29: a vital rescue stands only while that vital is
+	# critical (≤ 2). Settled with 🧺×%d in hand, it stays off the board.
+	if back and b_end > 2:
+		_fail("rescue trade is still on the board with %d🧺 in hand" % b_end)
 	econ.remove_resource("🧺", int(econ.get_resource("🧺")), "supply_rescue_smoke")
 	board._on_quest_pool_changed()
 	back = false
