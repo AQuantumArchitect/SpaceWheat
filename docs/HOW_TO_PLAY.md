@@ -13,20 +13,24 @@ You wake in **The Demos** — your own people, wheat and folk — wearing the **
 that's the `8` key). A toast names the doors; the Hearth Keepers have left
 you a chain of small asks on the quest board.
 
-1. Pick a plot: `G H J K L ;` (left to right) — or just tap it.
+1. Pick a plot: `G H J K L ;` (left to right) — or just tap it. **With a mouse or
+   touch, the first tap on a plot only selects it; tapping the selected plot again
+   does the recommended thing** (Explore, Strike or Gather — the lit Ace chip names
+   which). Keep tapping the same plot to walk the loop; tap a different plot to
+   move the selection.
 2. **F** explores — mount an expedition (costs 🍞: breaking bread opens
-   doors). The register binds and its bubble wakes. (The first tap on an
-   unexplored plot does the same.)
+   doors). The register binds and its bubble wakes. (Tap the selected,
+   unexplored plot again to do the same.)
 3. **R** strikes — Born's rule picks an answer and the state collapses.
    The game's one irreversible act, a social encounter that costs 👥. The
    answer is *banked* on the plot and priced right then: the surprisal of
    the outcome, −kT·log p. Rare answers pay more, because you learned more;
    a certain answer pays the floor. The probe stays, so once the state has
-   spread back out you can strike again and bank another. (Tapping a live
+   spread back out you can strike again and bank another. (Tapping the selected live
    bubble does the same.)
 4. **Q** gathers (one flat 🧺) — pays out everything banked on the plot,
    and the plot goes back to fog. Explore it again before the next strike.
-   (Tapping a struck bubble does the same.)
+   (Tapping the selected struck bubble does the same.)
 5. **E** pauses time (and on menu surfaces, E is "tell me more"); **F**
    always plays time on — and on an explored plot F doubles down:
    fast-forward and let the odds spin.

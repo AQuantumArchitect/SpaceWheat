@@ -45,19 +45,19 @@ static func welcome_verbs() -> Array:
 			"verb": "Explore",
 			"key": "F",
 			"story": "Wake a sleeping plot.",
-			"how": "tap it  ·  costs 🍞",
+			"how": "tap to select, tap again  ·  costs 🍞",
 		},
 		{
 			"verb": "Strike",
 			"key": "R",
 			"story": "Lock an answer in — it banks on the plot.",
-			"how": "tap the bubble  ·  costs 👥",
+			"how": "tap the bubble again  ·  costs 👥",
 		},
 		{
 			"verb": "Gather",
 			"key": "Q",
 			"story": "Take what collapse leaves; the plot sleeps.",
-			"how": "tap the struck bubble  ·  costs 🧺",
+			"how": "tap the struck bubble again  ·  costs 🧺",
 		},
 	]
 
