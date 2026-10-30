@@ -1,6 +1,8 @@
 class_name QuestBoard
 extends "res://UI/Core/Surface.gd"
 
+const UIProgression = preload("res://UI/Core/UIProgression.gd")
+
 ## C — Contract Surface, pipeline-aligned.
 ##
 ## Tabs map one-to-one onto the manifold→market→quest pipeline:
@@ -170,6 +172,29 @@ func set_biome(biome: Node) -> void:
 		_reset_item_cursor()
 		if visible:
 			_render_all()
+
+## The supply door (OverlayManager.open_board_on_supply): land on Market with
+## the standing trade that pays `emoji` selected. Navigation ONLY — the row is
+## left disarmed, so the player still taps it twice (or presses R) to accept.
+func show_supply_focused(emoji: String) -> void:
+	if frame_id != FRAME_MARKET:
+		set_frame(FRAME_MARKET)
+	_ensure_biome()
+	var here := _board_biome_name()
+	if _offer_pool.is_empty() or here != _pool_biome:
+		_refresh_pool()
+		_pool_biome = here
+	else:
+		_inject_supply_offers()
+	var rows: Array = _market_rows()
+	for i in range(rows.size()):
+		var data = rows[i].get("data", {})
+		if data is Dictionary and _is_supply(data) and str(data.get("supply_emoji", "")) == emoji:
+			_select(i)
+			break
+	_row_confirm_armed = false
+	_render_all()
+
 
 ## The HUD door: land on Commitments (U) for a held quest (or History when
 ## view == "history"). C and the contract chip open the fill tab, not Market.
@@ -358,6 +383,10 @@ func _on_activated() -> void:
 	if _offer_pool.is_empty() or here != _pool_biome or _signature_stamp() != _pool_signature:
 		_refresh_pool()
 		_pool_biome = here
+	else:
+		# Standing trades come and go with the live quest (🔨 🪓 🌊 🦅 stand
+		# only while asked for) — re-sync them on every open.
+		_sync_supply_offers()
 	_render_all()
 
 # =============================================================================
@@ -1555,16 +1584,22 @@ func _vital_stock(emoji: String) -> int:
 	return int(econ.get_resource(emoji)) if econ else 0
 
 
-## Standing trades are rescues, not stock: one is on the board only while its
-## resource is short. The three vitals (👥 people, 🍞 bread, 🧺 baskets) wait
-## until the wallet is at zero; every other resource until it falls below the
-## campaign table's low-water mark. Everything else on a board is procedural
-## or arc-spawned.
+## When a standing (rescue) trade is on its board. The three vitals (👥 people,
+## 🍞 bread, 🧺 baskets) always are; 🔨 🪓 🌊 🦅 only while a live quest asks
+## for them; anything else while it is below the campaign table's low-water
+## mark. Everything else on a board is procedural or arc-spawned.
 func _rescue_open(emoji: String) -> bool:
 	if emoji == "":
 		return false
-	var line: int = 1 if emoji in STAPLES else maxi(1, CampaignRuntime.low_water(emoji))
-	return _vital_stock(emoji) < line
+	# Owner ruling 2026-10-29. The three staples (👥 🍞 🧺) are ALWAYS on the
+	# Village board — running out of baskets must never be a dead end.
+	if emoji in STAPLES:
+		return true
+	# 🔨 🪓 🌊 🦅 stand only while a live quest asks for them: not before
+	# (no stockpiling ahead of the story), not after (the door closes).
+	if emoji in QUEST_GATED_RESCUES:
+		return UIProgression.quest_requests_resource(emoji)
+	return _vital_stock(emoji) < maxi(1, CampaignRuntime.low_water(emoji))
 
 
 func _was_completed(quest_id) -> bool:
@@ -2179,6 +2214,7 @@ func _market_rows() -> Array:
 
 
 const STAPLES: Array = ["👥", "🍞", "🧺"]
+const QUEST_GATED_RESCUES: Array = ["🔨", "🪓", "🌊", "🦅"]
 
 ## Stable: staples in STAPLES order, then the rest in table order.
 func _staples_first(offers: Array) -> Array:

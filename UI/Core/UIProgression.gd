@@ -2897,6 +2897,51 @@ static func _trade_walk_ok(emoji: String) -> bool:
 	return not t.is_empty() and str(t.get("emoji", "")) == emoji and _trade_affordable(t)
 
 
+## True while a live quest is asking for `emoji` — the banner's quest or any
+## accepted one. Owner ruling 2026-10-29: the 🔨 🪓 🌊 🦅 rescue trades stand
+## on the board only then ("not before, and not after"). 🦅: a Chart ask
+## (_is_discover_ask). Planting costs: an objective that plants the north pole
+## whose south is `emoji` (atom_in_biome 💨 → asks 🔨), or a plant the player
+## just tried that needed it (_plant_south_current).
+static func quest_requests_resource(emoji: String) -> bool:
+	if emoji == "":
+		return false
+	if _plant_south_current() == emoji:
+		return true
+	var north := CampaignRuntime.plant_north_for(emoji)
+	for q in _live_quests():
+		if emoji == "🦅" and _is_discover_ask(q):
+			return true
+		if north != "" and _quest_plants_atom(q, north):
+			return true
+	return false
+
+
+## The banner's quest plus every accepted quest (deduplicated by id).
+static func _live_quests() -> Array:
+	var out: Array = []
+	var seen := {}
+	var banner := _banner_quest()
+	if not banner.is_empty():
+		out.append(banner)
+		seen[banner.get("id", -1)] = true
+	var qm := _quest_manager()
+	if qm != null and "active_quests" in qm:
+		for q in qm.active_quests.values():
+			if q is Dictionary and not seen.has(q.get("id", -1)):
+				out.append(q)
+	return out
+
+
+static func _quest_plants_atom(q: Dictionary, atom: String) -> bool:
+	for key in ["state_predicates", "predicates"]:
+		for pred in q.get(key, []):
+			if pred is Dictionary and str(pred.get("type", "")) == "atom_in_biome" \
+					and str(pred.get("atom", "")) == atom:
+				return true
+	return false
+
+
 static func _plant_south_short() -> bool:
 	var south := _plant_south_current()
 	if south == "" or CampaignRuntime.supply_trades(south).is_empty():

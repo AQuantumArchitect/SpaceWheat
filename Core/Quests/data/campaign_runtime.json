@@ -308,14 +308,6 @@
             "🌾": 4
           },
           "get": 4
-        },
-        {
-          "biome": "Village",
-          "faction": "Hearth Keepers",
-          "give": {
-            "🐇": 4
-          },
-          "get": 4
         }
       ]
     },
@@ -331,14 +323,6 @@
           "faction": "Hearth Keepers",
           "give": {
             "🌾": 4
-          },
-          "get": 4
-        },
-        {
-          "biome": "Village",
-          "faction": "Hearth Keepers",
-          "give": {
-            "🐇": 3
           },
           "get": 4
         }
@@ -361,9 +345,9 @@
           "biome": "Village",
           "faction": "Hearth Keepers",
           "give": {
-            "🐇": 3
+            "🌾": 6
           },
-          "get": 3
+          "get": 4
         }
       ]
     },
@@ -396,7 +380,7 @@
           "biome": "Village",
           "faction": "Millwright's Union",
           "give": {
-            "🌾": 10
+            "🍞": 10
           },
           "get": 7
         }
@@ -423,14 +407,6 @@
       "plots": [],
       "trades": [
         {
-          "biome": "Woodlot",
-          "faction": "Millwright's Union",
-          "give": {
-            "🌱": 4
-          },
-          "get": 4
-        },
-        {
           "biome": "Village",
           "faction": "Millwright's Union",
           "give": {
@@ -445,14 +421,6 @@
       "spent_by": "plant 💧/🌊",
       "plots": [],
       "trades": [
-        {
-          "biome": "FreshwaterSpring",
-          "faction": "Hearth Keepers",
-          "give": {
-            "💧": 4
-          },
-          "get": 4
-        },
         {
           "biome": "Village",
           "faction": "Hearth Keepers",
@@ -472,7 +440,7 @@
           "biome": "Village",
           "faction": "Hearth Keepers",
           "give": {
-            "🌾": 6
+            "🍞": 6
           },
           "get": 4
         }

@@ -316,6 +316,8 @@ func _route_to_callable(route: String) -> Callable:
 
 static func _home_name_for(key: String) -> String:
 	var ku := str(key).strip_edges().to_upper()
+	if ku.begins_with("SUPPLY:"):
+		return "the Village market"
 	if ku.begins_with("COMMITMENTS") or ku == "Q" or ku == "C" or ku == "QUESTS" or ku == "BOARD":
 		return "the board"
 	if ku == "V" or ku == "ATLAS":

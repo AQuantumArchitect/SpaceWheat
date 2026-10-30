@@ -157,21 +157,27 @@ func _run() -> void:
 			n_same += 1
 	if n_same != 1:
 		_fail("re-rolled board carries the 🧺 trade %d times" % n_same)
-	# Every Village standing trade is on the ring (paged past six if need be).
-	# A standing trade is a rescue: on the ring only while its resource is
-	# short (zero for the vitals 👥 🍞 🧺, else under the table's low-water).
+	# Every Village standing trade that should stand is on the ring (paged past
+	# six if need be). Owner ruling 2026-10-29: the vitals 👥 🍞 🧺 ALWAYS
+	# stand; 🔨 🪓 🌊 🦅 only while a live quest asks for them; anything else
+	# while under the table's low-water mark.
 	var want_trades: Array = []
 	for t0 in CampaignRuntime.trades_for_biome("Village"):
 		var e0 := str(t0.get("emoji", ""))
-		var line0: int = 1 if e0 in ["👥", "🍞", "🧺"] else maxi(1, CampaignRuntime.low_water(e0))
-		if int(econ.get_resource(e0)) >= line0:
+		if e0 in ["👥", "🍞", "🧺"]:
+			want_trades.append(t0)
 			continue
-		want_trades.append(t0)
+		if e0 in ["🔨", "🪓", "🌊", "🦅"]:
+			if UIProgression.quest_requests_resource(e0):
+				want_trades.append(t0)
+			continue
+		if int(econ.get_resource(e0)) < maxi(1, CampaignRuntime.low_water(e0)):
+			want_trades.append(t0)
 	var on_ring := {}
 	for r in board._market_rows():
 		var rd = r.get("data", {})
 		if rd is Dictionary and bool(rd.get("supply_trade", false)):
-			# One staple can carry two trades (🌾-priced and the 🐇 rescue):
+			# One staple can carry two trades (🧺: 👥-priced and 🌾-priced):
 			# key by emoji + what it asks for.
 			var g: Dictionary = rd.get("give", {}) if rd.get("give", {}) is Dictionary else {}
 			var gk := str(g.keys()[0]) if not g.is_empty() else str(rd.get("resource", ""))
@@ -189,6 +195,9 @@ func _run() -> void:
 	if axes > 0:
 		econ.remove_resource("🪓", axes, "supply_rescue_smoke")
 	UIProgression.note_plant_south("🪓")
+	# A refused 🪵/🪓 plant is the live ask for 🪓 — the quest-gated 🪓 trade
+	# now stands; a board open re-syncs its standing trades.
+	board._sync_supply_offers()
 	if not UIProgression._plant_south_short():
 		_fail("0🪓 after a refused 🪵/🪓 plant does not read as short")
 	var axe_walk: String = UIProgression._supply_walk_line("🪓")
@@ -253,10 +262,10 @@ func _run() -> void:
 	for o in board._offer_pool:
 		if int(o.get("id", -2)) == qid:
 			back = true
-	# The rescue deal answers an empty vital: with 🧺 in hand again it stays off
-	# the board (it returns only if 🧺 runs back to zero).
-	if back:
-		_fail("rescue trade is still on the board with 🧺 in hand")
+	# Owner ruling 2026-10-29: vital rescues (👥 🍞 🧺) ALWAYS stand on the
+	# Village board — settled, the 🧺 trade is offered again at once.
+	if not back:
+		_fail("🧺 rescue trade did not return to the board after settling")
 	econ.remove_resource("🧺", int(econ.get_resource("🧺")), "supply_rescue_smoke")
 	board._on_quest_pool_changed()
 	back = false
