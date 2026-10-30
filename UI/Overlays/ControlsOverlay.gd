@@ -2004,7 +2004,7 @@ func _make_arc_footer() -> Control:
 		dismiss_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
 		ClickWire.attach(dismiss_lbl, func() -> void: handle_action("Q"))
 		box.add_child(dismiss_lbl)
-		box.add_child(_make_muted_label("tap the row to inspect  ·  R accepts  ·  GHJKL; pick", 11))
+		box.add_child(_make_muted_label("tap a row to inspect, again to accept  ·  R accepts  ·  GHJKL; pick", 11))
 	else:
 		var n := IntroVoice.remembered_count()
 		var remembered := ("%d beats remembered — %s [%s]" % [n, SurfaceRooms.NAME_STORY, SurfaceRooms.KEY_STORY]) if n > 0 else "tap a row  ·  tap again for the work"
@@ -2021,8 +2021,10 @@ func _arc_rows() -> Array:
 ## Mouse parity for GHJKL; row selection (wave-4 sensor wall: rows had no
 ## click affordance at all, only the R-accept chip did — a mouse player
 ## could never pick WHICH row to accept). Clicking a row selects it, same
-## as pressing its key chip's keyboard letter. A second click on the same
-## row shunts to the puzzle (C or the field). It never accepts.
+## as pressing its key chip's keyboard letter. A confirm click on the same
+## row ACCEPTS an unsigned offer (playtest 2026-10-29: R was the only way to
+## sign on, which a touch player can't press) and shunts every other row to
+## its puzzle (C or the field).
 func _select_arc_row(idx: int) -> void:
 	var rows: Array = _arc_rows()
 	if idx < 0 or idx >= rows.size():
@@ -2034,8 +2036,8 @@ func _select_arc_row(idx: int) -> void:
 		_refresh_body()
 		_declare_tab_actions()
 		return
-	# Same row. First tap inspects. Next tap shunts to the work.
-	# Never accept — Arc is a catalog; sign-on is Accept [R].
+	# Same row. First tap inspects. Next tap accepts an offer, or shunts
+	# any other row to the work.
 	if not _arc_inspect_open:
 		_arc_inspect_open = true
 		_arc_row_confirm_armed = true
@@ -2069,13 +2071,17 @@ func _tunnel_from_arc() -> void:
 	if home == "charge":
 		_show_tab(Tab.CHARGE)
 		return
-	# Unsigned optional: flash the row. R is still the door.
+	# Unsigned offer: the confirm tap signs on, exactly like Accept [R]
+	# (same _accept_selected_arc path, same refusals).
+	if str(entry.get("kind", "")) == "arc_quest":
+		_accept_selected_arc()
+		return
 	_flash_arc_row(_arc_selected_idx)
 
 
 func _arc_shunt_kind(entry: Dictionary) -> String:
 	var kind := str(entry.get("kind", ""))
-	# Unsigned catalog entry: sign-on is Accept [R], never a row tap.
+	# Unsigned offer: no puzzle home yet — the confirm tap / Accept [R] signs on.
 	if kind == "arc_quest":
 		return ""
 	if kind == "live_tutorial":
@@ -2257,7 +2263,7 @@ func _make_arc_row(entry: Dictionary, key_str: String, selected: bool, idx: int)
 			if _arc_inspect_open:
 				_append_arc_inspect(vbox, entry)
 			elif kind == "arc_quest":
-				vbox.add_child(_make_muted_label("tap to inspect  ·  R accepts", 10))
+				vbox.add_child(_make_muted_label("tap to inspect  ·  tap again to accept (or R)", 10))
 			else:
 				vbox.add_child(_make_muted_label("tap to inspect  ·  tap again for the work", 10))
 		return row

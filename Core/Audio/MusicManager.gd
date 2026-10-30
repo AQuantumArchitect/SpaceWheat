@@ -137,6 +137,9 @@ var _inactive_player: AudioStreamPlayer
 var _current_track: String = ""
 var _crossfade_tween: Tween = null
 var _last_crossfade_time: float = 0.0
+## A crossfade request the rate limit dropped; _tick_health plays it once the
+## window passes (two quick biome switches used to strand the first track).
+var _pending_track: String = ""
 var _health_check_timer: float = 0.0  # 10Hz health check
 
 ## Track position preservation with ghost timer (evolution-synced)
@@ -234,6 +237,10 @@ func _tick_health(delta: float) -> void:
 	if _health_check_timer < 0.1:
 		return
 	_health_check_timer = 0.0
+	if not _pending_track.is_empty() and Time.get_ticks_msec() / 1000.0 - _last_crossfade_time >= MIN_CROSSFADE_INTERVAL:
+		var deferred := _pending_track
+		_pending_track = ""
+		crossfade_to(deferred)
 	if _current_track.is_empty() or _active_player.playing or _layer3_stopped:
 		return
 	if _crossfade_tween != null and _crossfade_tween.is_valid():
@@ -980,9 +987,11 @@ func crossfade_to(track_key: String) -> void:
 	# Prevent rapid successive crossfades (minimum MIN_CROSSFADE_INTERVAL between calls)
 	var now = Time.get_ticks_msec() / 1000.0
 	if now - _last_crossfade_time < MIN_CROSSFADE_INTERVAL:
-		_log_info("Rate limited - skipping crossfade")
+		_log_info("Rate limited - deferring crossfade")
+		_pending_track = track_key
 		return
 	_last_crossfade_time = now
+	_pending_track = ""
 
 	if not TRACKS.has(track_key):
 		push_warning("MusicManager: Unknown track '%s'" % track_key)
@@ -1068,6 +1077,7 @@ func stop(fade_out: bool = true) -> void:
 	# Stop music playback
 	if _disabled:
 		return
+	_pending_track = ""  # a deliberate stop must not be undone by a deferred crossfade
 
 	if _crossfade_tween and _crossfade_tween.is_valid():
 		_crossfade_tween.kill()
@@ -1133,6 +1143,7 @@ func reset() -> void:
 	_current_track = ""
 	_stream_cache.clear()
 	_last_crossfade_time = 0.0
+	_pending_track = ""
 	_health_check_timer = 0.0
 	_track_positions.clear()  # Clear saved positions on reset
 
@@ -1251,14 +1262,18 @@ func _is_headless() -> bool:
 ## Uses cos²(θ) similarity between IconMap state and biome vectors to select
 ## the most harmonically appropriate track based on current quantum state.
 ##
-## Vectors are computed from biomes_merged.json and cached. Cache auto-rebuilds
+## Vectors are computed from biomes.json / factions.json and cached. Cache auto-rebuilds
 ## when source files change.
 
-const BIOMES_JSON_PATH := "res://Core/Biomes/data/biomes_merged.json"
-const FACTIONS_JSON_PATH := "res://Core/Factions/data/factions_merged.json"
+# The *_merged.json files were retired. Loading them failed silently
+# (required:false) and left _biome_vectors empty, which killed Layer 4 (122 of
+# 164 biomes fell back to entropy_garden, TheDemos included) and the whole
+# IconMap refinement layer (playtest 2026-10-29: "music isn't updating").
+const BIOMES_JSON_PATH := "res://Core/Biomes/data/biomes.json"
+const FACTIONS_JSON_PATH := "res://Core/Factions/data/factions.json"
 const CACHE_PATH := "user://cache/music_vectors.json"
 ## Bump this when the vector-building logic changes to force cache invalidation
-const CACHE_VERSION := 2
+const CACHE_VERSION := 3  # 3: real source paths; caches saved with empty vectors must rebuild
 
 ## Cached data (loaded on demand, rebuilt when sources change)
 var _emoji_index: Array = []  # Unified emoji space
@@ -1552,6 +1567,10 @@ func get_iconmap_similarities(icon_map: Dictionary) -> Array:
 		return results
 
 	for biome_name in _biome_vectors.keys():
+		# Only biomes with a dedicated track can win: unmapped ones all score
+		# as FALLBACK_TRACK and would drag refinement back to entropy_garden.
+		if not BIOME_TRACKS.has(biome_name):
+			continue
 		var biome_data: Dictionary = _biome_vectors[biome_name]
 		var emojis: Array = biome_data["emojis"]
 		var weights: Array = biome_data["weights"]
@@ -1567,7 +1586,7 @@ func get_iconmap_similarities(icon_map: Dictionary) -> Array:
 		results.append({
 			"biome": biome_name,
 			"similarity": cos2,
-			"track": BIOME_TRACKS.get(biome_name, FALLBACK_TRACK)
+			"track": BIOME_TRACKS[biome_name]
 		})
 
 	results.sort_custom(func(a, b): return a["similarity"] > b["similarity"])

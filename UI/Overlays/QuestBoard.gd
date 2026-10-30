@@ -1,6 +1,8 @@
 class_name QuestBoard
 extends "res://UI/Core/Surface.gd"
 
+const UIProgression = preload("res://UI/Core/UIProgression.gd")
+
 ## C — Contract Surface, pipeline-aligned.
 ##
 ## Tabs map one-to-one onto the manifold→market→quest pipeline:
@@ -93,6 +95,11 @@ var _nb_auto_scoped: bool = false
 
 var _offer_pool: Array = []
 var _pool_biome: String = ""   # the biome the ring was dealt for
+## The player's icon count when the ring was dealt (known + incorporated). A new
+## icon changes which factions deal with you and what the neighborhood wants, so
+## the next board open re-deals for free (playtest 2026-10-29: the Demos market
+## kept showing the old offers after incorporating new icons).
+var _pool_signature: int = -1
 var _selected_index: int = 0
 # _selected_index defaults to 0, so row 0 reads as "already selected" the instant the
 # board opens. Without this flag, a tap-to-look at row 0 (idx == _selected_index on the
@@ -165,6 +172,29 @@ func set_biome(biome: Node) -> void:
 		_reset_item_cursor()
 		if visible:
 			_render_all()
+
+## The supply door (OverlayManager.open_board_on_supply): land on Market with
+## the standing trade that pays `emoji` selected. Navigation ONLY — the row is
+## left disarmed, so the player still taps it twice (or presses R) to accept.
+func show_supply_focused(emoji: String) -> void:
+	if frame_id != FRAME_MARKET:
+		set_frame(FRAME_MARKET)
+	_ensure_biome()
+	var here := _board_biome_name()
+	if _offer_pool.is_empty() or here != _pool_biome:
+		_refresh_pool()
+		_pool_biome = here
+	else:
+		_inject_supply_offers()
+	var rows: Array = _market_rows()
+	for i in range(rows.size()):
+		var data = rows[i].get("data", {})
+		if data is Dictionary and _is_supply(data) and str(data.get("supply_emoji", "")) == emoji:
+			_select(i)
+			break
+	_row_confirm_armed = false
+	_render_all()
+
 
 ## The HUD door: land on Commitments (U) for a held quest (or History when
 ## view == "history"). C and the contract chip open the fill tab, not Market.
@@ -350,9 +380,13 @@ func _on_activated() -> void:
 	_commitments_view = "active"
 	_ensure_biome()
 	var here := _board_biome_name()
-	if _offer_pool.is_empty() or here != _pool_biome:
+	if _offer_pool.is_empty() or here != _pool_biome or _signature_stamp() != _pool_signature:
 		_refresh_pool()
 		_pool_biome = here
+	else:
+		# Standing trades come and go with the live quest (🔨 🪓 🌊 🦅 stand
+		# only while asked for) — re-sync them on every open.
+		_sync_supply_offers()
 	_render_all()
 
 # =============================================================================
@@ -376,7 +410,12 @@ func _on_row_gui_input(event: InputEvent, idx: int) -> void:
 	# for row 0 the instant the board opens (default selection), so without the
 	# arm flag a first look at row 0 would fire the verb immediately instead
 	# of just selecting it.
-	if not (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed):
+	# Acts on PRESS, not release: the 1 s board heartbeat (_process →
+	# _render_all) rebuilds every row node, and a click whose press and
+	# release straddled a rebuild lost its release with the freed node — so a
+	# double-tap on a market contract sometimes never accepted (playtest
+	# 2026-10-29). The node a press lands on always exists.
+	if not (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed):
 		return
 	accept_event()
 	if idx == _selected_index and _row_confirm_armed:
@@ -1494,6 +1533,21 @@ func _refresh_pool() -> void:
 	# the current biome's board ALWAYS, regardless of the lattice's RNG.
 	_refresh_market_pool()
 	_inject_supply_offers()
+	_pool_signature = _signature_stamp()
+
+
+## Size of the player's icon vocabulary (known + incorporated). Any growth means
+## the market must be recomputed against the new signature.
+func _signature_stamp() -> int:
+	var farm = InstrumentLocator.resolve_active_farm(self)
+	if farm == null:
+		return _pool_signature
+	var n := 0
+	if "known_icons" in farm and farm.known_icons is Array:
+		n += farm.known_icons.size()
+	if "incorporated_icons" in farm and farm.incorporated_icons is Array:
+		n += 1000 * farm.incorporated_icons.size()
+	return n
 
 
 ## Standing supply trades (campaign `resources` table) for the biome this
@@ -1530,16 +1584,22 @@ func _vital_stock(emoji: String) -> int:
 	return int(econ.get_resource(emoji)) if econ else 0
 
 
-## Standing trades are rescues, not stock: one is on the board only while its
-## resource is short. The three vitals (👥 people, 🍞 bread, 🧺 baskets) wait
-## until the wallet is at zero; every other resource until it falls below the
-## campaign table's low-water mark. Everything else on a board is procedural
-## or arc-spawned.
+## When a standing (rescue) trade is on its board. The three vitals (👥 people,
+## 🍞 bread, 🧺 baskets) while critical (2 or fewer); 🌱 🔥 🔨 🪓 🌊 🦅 only
+## while a live quest asks for them; anything else while it is below the
+## campaign table's low-water mark. Everything else on a board is procedural or arc-spawned.
 func _rescue_open(emoji: String) -> bool:
 	if emoji == "":
 		return false
-	var line: int = 1 if emoji in STAPLES else maxi(1, CampaignRuntime.low_water(emoji))
-	return _vital_stock(emoji) < line
+	# Owner ruling 2026-10-29. A staple's rescue (👥 🍞 🧺) stands on the
+	# Village board while that staple is critical — STAPLE_CRITICAL or fewer.
+	if emoji in STAPLES:
+		return _vital_stock(emoji) <= STAPLE_CRITICAL
+	# 🌱 🔥 🔨 🪓 🌊 🦅 stand only while a live quest asks for them: not
+	# before (no stockpiling ahead of the story), not after (the door closes).
+	if emoji in QUEST_GATED_RESCUES:
+		return UIProgression.quest_requests_resource(emoji)
+	return _vital_stock(emoji) < maxi(1, CampaignRuntime.low_water(emoji))
 
 
 func _was_completed(quest_id) -> bool:
@@ -2154,6 +2214,8 @@ func _market_rows() -> Array:
 
 
 const STAPLES: Array = ["👥", "🍞", "🧺"]
+const QUEST_GATED_RESCUES: Array = ["🌱", "🔥", "🔨", "🪓", "🌊", "🦅"]
+const STAPLE_CRITICAL: int = 2
 
 ## Stable: staples in STAPLES order, then the rest in table order.
 func _staples_first(offers: Array) -> Array:

@@ -2111,8 +2111,9 @@ func _perform_action(action_key: String) -> void:
 		# Refusals speak (anti-gating law). This branch was verbose-only —
 		# marathon #5 lost three legs to Captain-R 'Add Biome' silently
 		# refusing on an unaffordable discovery (21🦅 vs 4 held).
+		var refusal := _block_reason_for_player(action_name)
 		_toast_player("%s refused — %s" % [
-			str(action_info.get("label", action_name)), _block_reason_for_player(action_name)])
+			str(action_info.get("label", action_name)), refusal], _supply_route_for(action_name, refusal))
 		return
 
 	if action_info.get("destructive", false):
@@ -2559,8 +2560,31 @@ func _run_action(action_name: String, log_symbol: String, action_label: String) 
 	# failures like "Need ❄️ to measure" never showed.) If a started action fails and
 	# carries a message, the player sees it.
 	if not bool(result.get("success", true)):
-		_toast_refusal(action_label, result)
+		_toast_refusal(action_label, result, _supply_route_for(action_name, str(result.get("message", ""))))
 	return result
+
+
+## Staple each farm verb spends: Gather 🧺, Strike 👥, Explore 🍞.
+const STAPLE_FOR_VERB := {"pop": "🧺", "measure": "👥", "explore": "🍞"}
+
+
+## Tap route for a refusal caused by a short staple (owner ruling 2026-10-29):
+## "supply:<emoji>" — tapping the toast takes the player to the Village Market
+## board with that rescue trade selected. It NEVER accepts the trade for them.
+## The verb's own staple first; a 🧺-walk refusal on Explore/Strike (those
+## refusals name the basket trade) routes to baskets. "" when no staple is short.
+func _supply_route_for(action_name: String, message: String = "") -> String:
+	if farm == null or not ("economy" in farm) or farm.economy == null \
+			or not farm.economy.has_method("get_resource"):
+		return ""
+	var staple := str(STAPLE_FOR_VERB.get(action_name, ""))
+	if staple != "":
+		var need := int(ActionCostRuntime.get_action_cost(farm, action_name).get(staple, 0))
+		if need > 0 and int(farm.economy.get_resource(staple)) < need:
+			return "supply:" + staple
+	if "🧺" in message and int(farm.economy.get_resource("🧺")) < UIProgression.gather_price():
+		return "supply:🧺"
+	return ""
 
 
 ## The ONE player-facing refusal toast (anti-gating law: a refused verb must SAY so).
@@ -2574,7 +2598,7 @@ func _run_action(action_name: String, log_symbol: String, action_label: String) 
 ## "🪢 no bridge anchored in Village" and "Span refused (no_bridge_here)" at the
 ## same time. Those handlers now carry their sentence in `message`, and the code
 ## still reaches the log below — the player's chair is not the debugger's chair.
-func _toast_refusal(action_label: String, result: Dictionary) -> void:
+func _toast_refusal(action_label: String, result: Dictionary, route: String = "") -> void:
 	var msg := str(result.get("message", ""))
 	if msg == "" or msg == "unknown":
 		_verbose.warn("input", "✗", "%s refused with no message; error=%s" % [
@@ -2582,7 +2606,7 @@ func _toast_refusal(action_label: String, result: Dictionary) -> void:
 		msg = "%s isn't available right now" % action_label
 	var shell := _resolve_player_shell()
 	if shell and shell.has_method("show_hint"):
-		shell.show_hint("[color=#ff9966]✗ %s[/color]" % msg, 3)
+		shell.show_hint("[color=#ff9966]✗ %s[/color]" % msg, 3, "", route)
 
 
 func _run_cleanup_action(action_name: String, log_symbol: String, action_label: String) -> void:
@@ -3075,10 +3099,10 @@ func _resolve_player_shell() -> Node:
 
 ## Player-facing toast (anti-gating law: refusals are spoken; confirmations
 ## for otherwise-invisible state changes too). Logs when no shell exists (rig).
-func _toast_player(message: String) -> void:
+func _toast_player(message: String, route: String = "") -> void:
 	var shell := _resolve_player_shell()
 	if shell and shell.has_method("show_hint"):
-		shell.show_hint(message, 2)
+		shell.show_hint(message, 2, "", route)
 	_verbose.info("input", "•", message)
 
 

@@ -551,6 +551,13 @@ func action_pop(grid_pos: Vector2i) -> Dictionary:
 
 	_detach_terminal_from_plot(terminal)
 	var result = ProbeActions.action_pop(terminal, terminal_pool, economy, farm)
+	if not result.get("success", false):
+		# A refused gather (short 🧺, cost commit failure, …) released nothing:
+		# the terminal is still bound in the pool and still holds its bank.
+		# Left detached, the plot is dead — Explore says "already explored"
+		# (pool still binds the register), Strike says "Unexplored", Gather
+		# says "No terminal" (playtest 2026-10-29). Put the probe back.
+		_reattach_terminal_to_plot(terminal)
 	_emit_farm_action("pop", result, grid_pos)
 	action_performed.emit("pop", result)
 	# Quest-visible: the first lesson is the whole loop (explore, strike, gather).
@@ -1635,6 +1642,8 @@ func probe_cycle(biome_name: String, register_id: int = -1) -> Dictionary:
 
 	_detach_terminal_from_plot(terminal)
 	var pop = ProbeActions.action_pop(terminal, terminal_pool, economy, farm)
+	if not pop.get("success", false):
+		_reattach_terminal_to_plot(terminal)
 	_emit_farm_action("pop", pop)
 
 	var probe_result = {"success": true, "explore": explore, "measure": measure, "pop": pop, "active_biome": biome_name}
@@ -1719,6 +1728,7 @@ func victory_lap() -> Dictionary:
 			harvest_total += 1
 			_emit_farm_action("pop", pop)
 		else:
+			_reattach_terminal_to_plot(terminal)
 			harvest_failures.append({
 				"terminal": terminal.terminal_id,
 				"error": str(pop.get("error", "unknown")),
@@ -1803,6 +1813,7 @@ func victory_lap_partial(selected_biomes: Array[String] = [], max_registers: int
 			popped_total += 1
 			_emit_farm_action("pop", pop)
 		else:
+			_reattach_terminal_to_plot(terminal)
 			pop_failures.append({"biome": t_biome, "error": str(pop.get("error", "unknown"))})
 
 	var milk_amount = 0.0
@@ -1927,6 +1938,16 @@ func _detach_terminal_from_plot(t) -> void:
 		var plot = farm.grid.get_plot(t.grid_position)
 		if plot:
 			plot.terminal = null
+
+
+## Undo _detach_terminal_from_plot after a REFUSED pop. Unlike
+## _attach_terminal_to_plot it keeps the plot's measurement memory: nothing
+## was harvested or released, so nothing about the plot changed.
+func _reattach_terminal_to_plot(t) -> void:
+	if t and t.grid_position != GridSentinel.INVALID_POSITION and farm and farm.grid:
+		var plot = farm.grid.get_plot(t.grid_position)
+		if plot and plot.terminal == null:
+			plot.terminal = t
 
 
 func _notify_autoload(node_name: String, method: String, args: Array) -> void:

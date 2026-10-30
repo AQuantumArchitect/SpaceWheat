@@ -94,6 +94,19 @@ static func resource(emoji: String) -> Dictionary:
 
 ## Reserve mark: the supply walk takes over before a spend would leave the
 ## wallet below it. 0 when the table does not list the emoji.
+## The north pole you plant that SPENDS `emoji` as its south pole, read from
+## the resources table's `spent_by` ("plant 💨/🔨" → 💨 for 🔨). "" when
+## `emoji` isn't a planting cost. One authority: the table, not a code map.
+static func plant_north_for(emoji: String) -> String:
+	var by := str(resource(emoji).get("spent_by", "")).strip_edges()
+	if not by.begins_with("plant "):
+		return ""
+	var pair := by.substr(6).strip_edges().split("/")
+	if pair.size() == 2 and str(pair[1]).strip_edges() == emoji:
+		return str(pair[0]).strip_edges()
+	return ""
+
+
 static func low_water(emoji: String) -> int:
 	return int(resource(emoji).get("low_water", 0))
 

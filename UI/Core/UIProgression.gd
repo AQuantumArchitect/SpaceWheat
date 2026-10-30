@@ -2166,6 +2166,11 @@ static func _sprout_gather_line() -> String:
 		return "▸ ESC closes"
 	if _sim_paused():
 		return "▸ [F] Play"
+	# Short 🌱 with a payable 🌱 trade: walk that trade, not baskets.
+	if _trade_walk_ok("🌱"):
+		var walk := _supply_walk_line("🌱")
+		if walk != "":
+			return walk
 	# Gather costs 🧺 — restock before the walk spends the last basket.
 	if _basket_short():
 		var basket := _basket_pay_line()
@@ -2863,13 +2868,92 @@ static func _supply_need_now(q: Dictionary) -> String:
 		return ""
 	if _is_plant_ask(q):
 		if _sprout_short():
-			return "🧺" if _basket_short() else ""
+			return _need_or_basket("🌱")
 		if _plant_south_short():
 			return _plant_south_current()
 		return ""
 	if _is_discover_ask(q) and _eagle_short():
-		return "🧺" if _basket_short() else ""
+		return _need_or_basket("🦅")
 	return ""
+
+
+## Which resource to walk when `emoji` is short. Playtest 2026-10-29: out of
+## 🦅, the banner sent the player for 🧺 — it always walked baskets (the
+## gather fee) even when the missing resource has its OWN market trade the
+## player can pay for (🦅: 10🌾 → 7🦅 at the Village). The direct trade is the
+## honest route; baskets are named only when there is no payable trade for
+## `emoji` and the gather that would mint it can't be paid. "" = callers keep
+## their own gather walk.
+static func _need_or_basket(emoji: String) -> String:
+	if _trade_walk_ok(emoji):
+		return emoji
+	return "🧺" if _basket_short() else ""
+
+
+## True when the trade table has a trade that pays `emoji` itself and the
+## player can afford it right now.
+static func _trade_walk_ok(emoji: String) -> bool:
+	var t := _supply_step(emoji)
+	return not t.is_empty() and str(t.get("emoji", "")) == emoji and _trade_affordable(t)
+
+
+## True while a live quest is asking for `emoji` — the banner's quest or any
+## accepted one. Owner ruling 2026-10-29: the 🌱 🔥 🔨 🪓 🌊 🦅 rescue trades
+## stand on the board only then ("not before, and not after"). 🦅: a Chart
+## ask (_is_discover_ask). 🌱: a plant ask (planting costs 5🌱). 🔥: a
+## Superpose ask (gate hadamard). Pole costs: an objective that plants the
+## north pole whose south is `emoji` (atom_in_biome 💨 → asks 🔨), or a plant
+## the player just tried that needed it (_plant_south_current).
+static func quest_requests_resource(emoji: String) -> bool:
+	if emoji == "":
+		return false
+	if _plant_south_current() == emoji:
+		return true
+	var north := CampaignRuntime.plant_north_for(emoji)
+	for q in _live_quests():
+		if emoji == "🦅" and _is_discover_ask(q):
+			return true
+		if emoji == "🌱" and _is_plant_ask(q):
+			return true
+		if emoji == "🔥" and _quest_asks_gate(q, "hadamard"):
+			return true
+		if north != "" and _quest_plants_atom(q, north):
+			return true
+	return false
+
+
+## The banner's quest plus every accepted quest (deduplicated by id).
+static func _live_quests() -> Array:
+	var out: Array = []
+	var seen := {}
+	var banner := _banner_quest()
+	if not banner.is_empty():
+		out.append(banner)
+		seen[banner.get("id", -1)] = true
+	var qm := _quest_manager()
+	if qm != null and "active_quests" in qm:
+		for q in qm.active_quests.values():
+			if q is Dictionary and not seen.has(q.get("id", -1)):
+				out.append(q)
+	return out
+
+
+static func _quest_asks_gate(q: Dictionary, gate: String) -> bool:
+	for key in ["state_predicates", "predicates"]:
+		for pred in q.get(key, []):
+			if pred is Dictionary and str(pred.get("type", "")) == "gate_sequence_contains" \
+					and str(pred.get("gate", "")).to_lower() == gate:
+				return true
+	return false
+
+
+static func _quest_plants_atom(q: Dictionary, atom: String) -> bool:
+	for key in ["state_predicates", "predicates"]:
+		for pred in q.get(key, []):
+			if pred is Dictionary and str(pred.get("type", "")) == "atom_in_biome" \
+					and str(pred.get("atom", "")) == atom:
+				return true
+	return false
 
 
 static func _plant_south_short() -> bool:
@@ -2882,6 +2966,10 @@ static func _plant_south_short() -> bool:
 static func _supply_cost(emoji: String) -> int:
 	if emoji == "🧺":
 		return gather_price()
+	if emoji == "🦅":
+		return _chart_eagles()
+	if emoji == "🌱":
+		return 5
 	if emoji == _plant_south_current():
 		return EconomyConstants.ICON_INJECTION_SOUTH_COST
 	return 1
@@ -2897,6 +2985,10 @@ static func _basket_short() -> bool:
 static func _eagle_gather_target() -> Dictionary:
 	# Same walk as _eagle_gather_line: Forest rail, [8] Ace, then [R]/[Q].
 	# Spotlight must name the chip, not Forest with a blank key.
+	if _trade_walk_ok("🦅"):
+		var tgt := _supply_target("🦅")
+		if not tgt.is_empty():
+			return tgt
 	# lantern_door: 🧺 short — Q gather still named Strike. Strike does not pay.
 	if _basket_short():
 		return _basket_pay_target()
@@ -2943,6 +3035,11 @@ static func _eagle_gather_line() -> String:
 		return "▸ ESC closes"
 	if _sim_paused():
 		return "▸ [F] Play"
+	# Short 🦅 with a payable 🦅 trade: walk that trade, not baskets.
+	if _trade_walk_ok("🦅"):
+		var walk := _supply_walk_line("🦅")
+		if walk != "":
+			return walk
 	# lantern_door: 🧺 0, banner still named Strike. Strike does not mint 🧺.
 	if _basket_short():
 		return _basket_pay_line()
@@ -3179,6 +3276,11 @@ static func eagle_short_refusal() -> String:
 	# Baskets are named only when the gather itself is unaffordable.
 	if not _eagle_short():
 		return ""
+	# A payable 🦅 trade is the route — not the 🧺 that gathering would cost.
+	if _trade_walk_ok("🦅"):
+		var direct := supply_refusal("🦅", _chart_eagles())
+		if direct != "":
+			return direct
 	var basket := supply_refusal("🧺", gather_price(), true)
 	if basket != "":
 		return basket
