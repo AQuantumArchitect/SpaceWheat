@@ -25,7 +25,17 @@ minutes; under heavy deviation it takes 14-18, so give it `--minutes 14+`.
 | `Plant [R]` fires "Stay Home" | The Icon hat was left in its mirror mode; same key, other verb | The guide treats a hat's mode as part of wearing it: `[hat] [1]` |
 | `Explore [F]` repeats and nothing changes | An armed Trim/Cull/Break confirm owns F ("any other key cancels"); F would have confirmed a destructive action | The armed confirm is a surface (`field:confirm`); the guide leads with `close [ESC]` |
 
+| `Reap the season` repeats into "Nothing to reap" | Every explored plot had been gathered back to fog (or time paused) | The guide checks the reap precondition and explores (or resumes) first |
+| `Explore [F]` does nothing | A tracked loop keeps Ace F as Fast-Fwd | The guide incorporates a ripe loop or stops tracking before it names Explore |
+| `plot [G], Explore [F]` repeats | With no plot focused the guide judged the wrong plot; the focus test trusted a lagging `current_biome` | `_strike_once` judges the plot it names; the focus test asks the grid which biome owns the picked plot |
+
 ## Still open
+
+- Seed 62 (saves `stall_seed62_stuck_t45` in a perturbed run at rate 0.45)
+  stalls in the first minute on `plot [G], Explore [F]`: after G the chip reads
+  Fast-Fwd, Q Gather and R Strike (a bound register) while the guide's
+  `UIP._plot_bound(0)` is false. The guide and `ChipContext.register_bound`
+  disagree on what "explored" means for a plot; unify them on one authority.
 
 - One clean `banner_follow` run stuck once on `Explore [F]` after `mill_wakes`
   (two clean reruns passed). The armed-confirm case above is the likely cause

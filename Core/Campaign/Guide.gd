@@ -568,9 +568,15 @@ static func _live_col() -> int:
 		var pos = inst.last_selected_position
 		if not (pos is Vector2i) or int(pos.x) < 0:
 			return -1
-	if "current_biome" in inst and str(inst.current_biome) != "" \
-			and str(inst.current_biome) != UIP._active_biome_name():
-		return -1
+	# The picked plot must sit in THIS country. Ask the grid which biome owns
+	# it: the instrument's own current_biome can lag the active biome (a hat
+	# swap, a load), which made "plot [G]" repeat for ever.
+	var farm = UIP._active_farm()
+	if farm != null and farm.grid != null and farm.grid.has_method("get_plot_biome_assignments") \
+			and "last_selected_position" in inst and inst.last_selected_position is Vector2i:
+		var owner := str(farm.grid.get_plot_biome_assignments().get(inst.last_selected_position, ""))
+		if owner != "" and owner != UIP._active_biome_name():
+			return -1
 	return int(inst.current_plot_idx)
 
 
@@ -1151,15 +1157,32 @@ static func _strike_once(biome: String, q: Dictionary) -> Dictionary:
 	if not h.is_empty():
 		return h
 	var col := _live_col()
-	if col >= 0 and UIP._plot_measured(col):
-		return _chord(_close_first() + [["Gather", _verb("gather")]], q, "gather")
-	if col >= 0 and UIP._plot_bound(col):
-		return _chord(_close_first() + [["Strike", _verb("strike")]], q, "strike")
+	# Nothing focused: name the plot we are about to pick, and judge THAT plot.
+	# (Ace F on an explored plot fast-forwards and drops the focus, so "plot
+	# [G], Explore [F]" for a plot already explored repeated for ever.)
+	var pick := col if col >= 0 else _strike_pick(biome)
+	var pre: Array = [] if col >= 0 else [["plot", _plot_key(pick)]]
+	if UIP._plot_measured(pick):
+		return _chord(_close_first() + pre + [["Gather", _verb("gather")]], q, "gather")
+	if UIP._plot_bound(pick):
+		return _chord(_close_first() + pre + [["Strike", _verb("strike")]], q, "strike")
+	var stop := _release_tracking(pick, q)
+	if not stop.is_empty():
+		return stop
 	var parts: Array = _close_first()
 	if col < 0:
-		parts.append(["plot", _plot_key(0)])
+		parts.append(["plot", _plot_key(pick)])
 	parts.append(["Explore", _verb("explore")])
 	return _chord(parts, q, "explore")
+
+
+## The plot a banner picks when none is focused: one already explored in
+## `biome` if there is one (it can be struck now), else the first.
+static func _strike_pick(biome: String) -> int:
+	for c in range(_live_cols(biome)):
+		if UIP._plot_measured(c) or UIP._plot_bound(c):
+			return c
+	return 0
 
 
 ## spiral_breaks: strike a plot whose word you have incorporated. Finds such a
@@ -1300,6 +1323,16 @@ static func _reap(biome: String, q: Dictionary) -> Dictionary:
 	var h := _hat("ace", q)
 	if not h.is_empty():
 		return h
+	# The season pays only what is explored and in play. A player who gathered
+	# their plots back into fog, or paused time, would be told to reap into
+	# "Nothing to reap" for ever: put the precondition back first.
+	var farm = UIP._active_farm()
+	if farm != null and ProbeActions._get_active_biomes_for_reap(farm).is_empty():
+		if UIP._sim_paused():
+			return _chord(_close_first() + [["resume", "E"]], q, "resume")
+		var col := _first_live_col(biome)
+		if col >= 0:
+			return _reveal(col, q)
 	var parts: Array = _close_first()
 	if _live_col() < 0:
 		parts.append(["plot", _plot_key(0)])
@@ -1628,6 +1661,25 @@ static func _live_cols(biome: String) -> int:
 	return mini(int(b.quantum_computer.register_map.num_qubits), BERRY_ROWS)
 
 
+## A tracked loop on the plot about to be explored: Ace F on a tracked plot
+## stays Fast-Fwd, so Explore cannot fire. Incorporate it if it is ripe, else
+## stop tracking it (Icon F toggles). {} when `col` is not tracked.
+static func _release_tracking(col: int, q: Dictionary) -> Dictionary:
+	var reg = UIP._berry_register()
+	if reg == null or col < 0 or not bool(reg.is_tracked(col)):
+		return {}
+	var parts: Array = _close_first()
+	if str(ToolConfig.get_current_frame()) != "icon":
+		parts.append([_hat_name("icon") + " hat", _hat_key("icon")])
+	if UIP._focused_col() != col:
+		parts.append(["plot", _plot_key(col)])
+	if bool(reg.is_ripe(col)):
+		parts.append(["Incorporate", _verb("incorporate")])
+		return _chord(parts, q, "incorporate before exploring")
+	parts.append(["stop tracking", _verb("track")])
+	return _chord(parts, q, "release the loop")
+
+
 ## Explore `col` on the active biome so the next verb has something to show:
 ## Ace hat, the plot, Explore — fetching a probe or bread first if needed.
 ## One chord, hat included: a walk that puts on another hat before this step
@@ -1636,6 +1688,11 @@ static func _reveal(col: int, q: Dictionary, protect: Array = []) -> Dictionary:
 	var fr := _free_terminal(q, protect)
 	if not fr.is_empty():
 		return fr
+	# While a loop is tracked, Ace F stays Fast-Fwd (it carries the ripening),
+	# so Explore cannot fire: finish the loop, or let it go, first.
+	var stop := _release_tracking(col, q)
+	if not stop.is_empty():
+		return stop
 	var parts: Array = _close_first() + ["explore it first, so you can see it"]
 	if str(ToolConfig.get_current_frame()) != "ace":
 		parts.append([_hat_name("ace") + " hat", _hat_key("ace")])
