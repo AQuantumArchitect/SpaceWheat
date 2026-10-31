@@ -276,21 +276,26 @@ const engine = new Engine(GODOT_CONFIG);
 				window.sessionStorage.setItem(RETRY_KEY, '1');
 			} catch (err) { /* storage refused; the flag above already covers it */ }
 
-			let registrationPromise;
+			// Register (or reuse) the worker, then reload only once it is ACTIVE —
+			// a reload before activation loads an uncontrolled page again, and the
+			// one-retry guard above then shows the failure notice (seen serving
+			// from GitHub Pages / any header-less host, 2026-10-31). An existing
+			// but non-controlling worker (e.g. after a hard reload, which bypasses
+			// it) just needs the one reload. `ready` can stall; cap the wait.
+			let installPromise;
 			try {
-				registrationPromise = navigator.serviceWorker.getRegistration();
-			} catch (err) {
-				registrationPromise = Promise.reject(new Error('Service worker registration failed.'));
-			}
-			Promise.race([
-				registrationPromise.then((registration) => {
-					if (registration != null) {
-						return Promise.reject(new Error('Service worker already exists.'));
+				installPromise = navigator.serviceWorker.getRegistration().then((registration) => {
+					if (registration == null) {
+						return engine.installServiceWorker();
 					}
 					return registration;
-				}).then(() => engine.installServiceWorker()),
-				// `getRegistration()` can stall; do not wait on it forever.
-				new Promise((resolve) => { setTimeout(() => resolve(), 2000); }),
+				}).then(() => navigator.serviceWorker.ready);
+			} catch (err) {
+				installPromise = Promise.reject(new Error('Service worker registration failed.'));
+			}
+			Promise.race([
+				installPromise,
+				new Promise((resolve) => { setTimeout(() => resolve(), 15000); }),
 			]).then(() => {
 				window.location.reload();
 			}).catch((err) => {
