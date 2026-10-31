@@ -210,6 +210,13 @@ func _ready() -> void:
 	_verbose = OS.get_environment("MUSIC_VERBOSE") == "1"
 	if _verbose:
 		_log_info("[MusicManager] _ready() called")
+	# The GitHub Pages "lite" web build ships without Assets/Audio/Music/**
+	# (export preset "Web Pages (lite)", custom feature pages_lite). Stay
+	# silent instead of failing a load on every biome change.
+	if OS.has_feature("pages_lite"):
+		_disabled = true
+		set_process(false)
+		return
 
 	process_mode = Node.PROCESS_MODE_ALWAYS  # Volume control works when paused
 	_setup_audio_players()
