@@ -97,6 +97,18 @@ signal multi_select_mode_changed(on: bool, count: int)
 ## Ace verb cycle. The TimeBar MULTI chip is the mouse door; Shift-tap still
 ## works as a one-shot even while this is off.
 var multi_select_mode: bool = false
+
+## Two-step tap: the plot a TAP last selected. A pointer tap on any other plot
+## only selects it (and arms it here); a tap on the plot that is already armed
+## AND still focused runs the recommended verb (predict_tap_verb). Every other
+## focus move (_focus_plot from keys, biome switches, leaving the ring) disarms
+## it, so the stale-arm case — tap a plot, wander off by keyboard, come back —
+## still takes one selecting tap first. INVALID_POSITION = nothing armed.
+var _tap_armed_pos: Vector2i = GridSentinel.INVALID_POSITION
+## How many more times the select-only tap may say what a second tap will do.
+## It teaches the rule a few times per run, then goes quiet (halo + the lit Ace
+## chip, UIContextController._apply_tap_preview_highlight, carry it from there).
+var _tap_select_hints_left: int = 3
 ## Cylinder outer-ring step. Emitted when A/D fires on layer=0 (ZXCVBNM surface ring).
 ## PlayerShell listens and dispatches to _cycle_menu_overlay.
 signal surface_ring_step_requested(delta: int)
@@ -1494,6 +1506,9 @@ func _focus_plot(plot_idx: int, biome_name: String) -> Vector2i:
 	# by Measure). plot_idx ≡ register_id. NO checkbox semantics here — the
 	# second-tap check toggle belongs to _select_plot alone.
 	var target_grid_pos = _get_grid_position_for(plot_idx, biome_name)
+	# Any focus move disarms the two-step tap; handle_bubble_tap re-arms AFTER
+	# its own _focus_plot call, so only a tap-made selection stays armed.
+	_tap_armed_pos = GridSentinel.INVALID_POSITION
 	_instrument.current_plot_idx = plot_idx
 	_instrument.last_plot_idx = plot_idx
 	_instrument.current_biome = biome_name
@@ -1900,7 +1915,9 @@ func _mass_explore() -> void:
 
 
 ## Public entry point for a bubble tap (mouse/touch) — the tap IS the farming
-## gesture. Focuses the tapped plot, then fires hat-INDEPENDENT Ace verbs:
+## gesture, in TWO steps: the first tap on a plot only selects it (returns
+## {"action": "select", "next_verb": …}); a tap on the plot already selected by
+## a tap then fires hat-INDEPENDENT Ace verbs — see handle_bubble_tap below.
 ## True when a stacked overlay above the gameplay base should block field
 ## taps. The biome microscope ("biome_detail") is the lens exception.
 func _tap_blocked_by_overlay() -> bool:
@@ -1956,6 +1973,7 @@ func handle_bubble_tap(grid_pos: Vector2i, shift: bool = false) -> Dictionary:
 		_active_biome_mgr.set_active_biome(biome_name)
 		_apply_biome_switch(active_biome, biome_name, "tap")
 		_focus_plot(grid_pos.x, biome_name)
+		_tap_armed_pos = grid_pos  # a tap made this selection: the next tap on it acts
 		return {"success": true, "action": "focus_biome"}
 
 	# Same range guards as the keyboard pick (_select_plot).
@@ -1976,11 +1994,31 @@ func handle_bubble_tap(grid_pos: Vector2i, shift: bool = false) -> Dictionary:
 			_focus_plot(grid_pos.x, biome_name)
 		return {"success": true, "action": "toggle_check", "checked": grid_pos in _instrument.checked_plots}
 
-	# Selection FIRST, so the verb targets exactly what was tapped and every
-	# downstream reader (action bar, B overlay) agrees with the tap. Focus
-	# alone does not reveal — the bubble wakes only on the actual Explore
-	# dispatch below (mirrors _focus_plot's own doc comment).
-	_focus_plot(grid_pos.x, biome_name)
+	# TWO-STEP TAP. The first tap on a plot only SELECTS it; a tap on the plot
+	# that is already selected-by-tap runs the recommended verb. A pointer
+	# player gets to look at what they hit (halo, the lit Ace chip naming the
+	# verb) before anything fires — the old one-tap behavior struck/gathered
+	# the moment a finger landed, which is unrecoverable on a touch screen.
+	# "Selected" is _tap_armed_pos AND the live cursor agreeing, never the cursor
+	# alone: the cursor starts on plot 0, so cursor-alone would let the very
+	# first tap of a run act. Taps on a plot that is already armed keep acting
+	# (explore → strike → gather → explore …) until focus moves elsewhere.
+	var already_selected: bool = (
+		_tap_armed_pos == grid_pos
+		and _instrument.current_plot_idx == grid_pos.x
+		and _instrument.current_biome == biome_name
+	)
+	if not already_selected:
+		# Selection FIRST, so the verb the second tap fires targets exactly
+		# what was tapped and every downstream reader (action bar, B overlay)
+		# agrees with the tap. Focus alone does not reveal — the bubble wakes
+		# only on the actual Explore dispatch below (mirrors _focus_plot's own
+		# doc comment).
+		_focus_plot(grid_pos.x, biome_name)
+		_tap_armed_pos = grid_pos
+		var next_verb := predict_tap_verb(grid_pos)
+		_note_tap_selected(next_verb)
+		return {"success": true, "action": "select", "next_verb": next_verb}
 
 	var verb := predict_tap_verb(grid_pos)
 
@@ -1997,6 +2035,17 @@ func handle_bubble_tap(grid_pos: Vector2i, shift: bool = false) -> Dictionary:
 			return _run_action("measure", "📊", "Strike")
 		_:
 			return _run_action("pop", "🎉", "Gather")
+
+
+## The select-only tap's one-liner: names what the NEXT tap on this plot will do.
+## Says it only a few times per run (_tap_select_hints_left) — it exists to teach
+## the rule, not to narrate every tap. Words only; no mechanics.
+func _note_tap_selected(next_verb: String) -> void:
+	if _tap_select_hints_left <= 0:
+		return
+	_tap_select_hints_left -= 1
+	var label := "Gather" if next_verb == "pop" else ("Strike" if next_verb == "measure" else "Explore")
+	_toast_note("selected — tap again to %s" % label)
 
 
 ## What a tap on grid_pos would fire RIGHT NOW: measure on a live bubble, pop on

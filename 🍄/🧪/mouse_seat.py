@@ -23,7 +23,9 @@ Usage:
   mouse_seat.py start <seat> [--fresh] [--checkpoint NAME]
   mouse_seat.py look <seat>              screen text, field, wallet, buttons
   mouse_seat.py tap <seat> <gx> <gy> [--shift]
-                                         click the bubble/plot at grid pos
+                                         click the bubble/plot at grid pos.
+                                         TWO-STEP: the first tap on a plot only
+                                         selects it; tap the same pos again to act
   mouse_seat.py click <seat> <Name> [--under Parent] [--shift]
                                          click a named button's centre
   mouse_seat.py click_at <seat> <x> <y> [--shift]
