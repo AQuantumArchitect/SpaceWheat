@@ -210,10 +210,10 @@ func _ready() -> void:
 	_verbose = OS.get_environment("MUSIC_VERBOSE") == "1"
 	if _verbose:
 		_log_info("[MusicManager] _ready() called")
-	# The GitHub Pages "lite" web build ships without Assets/Audio/Music/**
-	# (export preset "Web Pages (lite)", custom feature pages_lite). Stay
-	# silent instead of failing a load on every biome change.
-	if OS.has_feature("pages_lite"):
+	# The Web-Slim build (GitHub Pages, custom feature "slim") ships without
+	# Assets/Audio/Music/**. Stay silent instead of trying a load on every
+	# biome change.
+	if OS.has_feature("slim"):
 		_disabled = true
 		set_process(false)
 		return

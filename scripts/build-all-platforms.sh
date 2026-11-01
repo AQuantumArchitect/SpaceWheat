@@ -29,8 +29,13 @@ source "$SCRIPT_DIR/lib/native_build_state.sh"
 #
 # Read the truth out of a running export: the engine prints
 # "Build configuration: Emscripten <version>, multi-threaded, GDExtension support."
-# in the browser console at boot. Match this to that.
-SW_EMSDK_VERSION="4.0.10"
+# in the browser console at boot. Match this to that. Without a browser:
+#   unzip -p <templates>/4.6.2.stable/web_dlink_release.zip godot.js \
+#     | grep -o 'allocString("[0-9.]*")'
+# Godot 4.6.2's templates are 4.0.20. The 4.0.10 pin outlived the 4.5 -> 4.6
+# engine bump, and both web wasms then died at the first D_METHOD with
+# "null function or function signature mismatch" (2026-10-31).
+SW_EMSDK_VERSION="4.0.20"
 
 # Options
 DO_CLEAN=false
@@ -188,27 +193,8 @@ if [ "$WINDOWS_ONLY" = true ]; then
     fi
 fi
 
-if [ "$WEB_ONLY" = true ]; then
-    # Source staleness alone is not enough for web: the toolchain is an input.
-    # A cached .a built by a different emsdk is exactly the bug this pin exists
-    # to prevent, so a toolchain change invalidates the cache like a source edit.
-    SW_CPP_EMSTAMP="bin/.emsdk-version"
-    SW_CPP_TOOLCHAIN_CHANGED=false
-    [ "$(cat "$SW_CPP_EMSTAMP" 2>/dev/null)" = "$SW_EMSDK_VERSION" ] || SW_CPP_TOOLCHAIN_CHANGED=true
-
-    if [ "$DO_CLEAN" = true ] || [ "$SW_CPP_TOOLCHAIN_CHANGED" = true ] || sw_output_is_stale "bin/libgodot-cpp.web.template_release.wasm32.a" "${GODOT_CPP_INPUTS[@]}"; then
-        if [ "$SW_CPP_TOOLCHAIN_CHANGED" = true ]; then
-            log "Emscripten pin is $SW_EMSDK_VERSION; cached godot-cpp web build does not match. Rebuilding."
-            rm -f bin/libgodot-cpp.web.template_release.wasm32.a
-        fi
-        log "Building godot-cpp for Web..."
-        scons platform=web target=template_release api_version=4.6 -j$(nproc)
-        mkdir -p bin && printf '%s\n' "$SW_EMSDK_VERSION" > "$SW_CPP_EMSTAMP"
-        success "godot-cpp Web built"
-    else
-        success "godot-cpp Web already built (cached)"
-    fi
-fi
+# Web: godot-cpp is built by native/SConstruct itself (see the web extension
+# step below), so its flags and the extension's can never drift apart.
 
 # Copy platform-specific static libraries into native/lib so the local and
 # release build paths consume the same inputs.
@@ -224,10 +210,6 @@ if [ "$WINDOWS_ONLY" = true ] && [ -f "$GODOT_CPP_DIR/bin/libgodot-cpp.windows.t
        "$NATIVE_DIR/lib/libgodot-cpp.windows.template_release.x86_64.a"
 fi
 
-if [ "$WEB_ONLY" = true ] && [ -f "$GODOT_CPP_DIR/bin/libgodot-cpp.web.template_release.wasm32.a" ]; then
-    cp "$GODOT_CPP_DIR/bin/libgodot-cpp.web.template_release.wasm32.a" \
-       "$NATIVE_DIR/lib/libgodot-cpp.web.template_release.wasm32.a"
-fi
 
 # Build SpaceWheat extensions
 cd "$NATIVE_DIR"
@@ -281,28 +263,24 @@ if [ "$WEB_ONLY" = true ]; then
     SW_EXT_TOOLCHAIN_CHANGED=false
     [ "$(cat "$SW_EXT_EMSTAMP" 2>/dev/null)" = "$SW_EMSDK_VERSION" ] || SW_EXT_TOOLCHAIN_CHANGED=true
 
-    if [ "$DO_CLEAN" = true ] || [ "$SW_EXT_TOOLCHAIN_CHANGED" = true ] || sw_output_is_stale "bin/web/libquantummatrix.wasm" "${NATIVE_INPUTS[@]}" "lib/libgodot-cpp.web.template_release.wasm32.a"; then
+    if [ "$DO_CLEAN" = true ] || [ "$SW_EXT_TOOLCHAIN_CHANGED" = true ] || sw_output_is_stale "bin/web/libquantummatrix.wasm" "${NATIVE_INPUTS[@]}" SConstruct; then
         if [ "$SW_EXT_TOOLCHAIN_CHANGED" = true ]; then
             log "Emscripten pin is $SW_EMSDK_VERSION; cached web extension does not match. Rebuilding."
         fi
-        # find(1) instead of src/*/*.cpp: subdirs hold only build artifacts, so the
-        # glob stays literal and em++ hard-fails on the phantom input.
-        # -pthread: must match the shipped engine variant (thread_support=true in the
-        # web preset). A nothreads side module inside a shared-memory engine is an ABI
-        # mismatch Godot refuses at load ("No GDExtension library found ... web.wasm32").
-        em++ -std=c++17 -O3 -pthread -s SIDE_MODULE=1 -s EXPORT_ALL=1 \
-        -I./include \
-        -I./include/godot_cpp \
-        -I./include/gdextension \
-        -DWEB_ENABLED -DGDEXTENSION -DSPACEWHEAT_WITH_GODOT -DSPACEWHEAT_WEB_BUILD \
-        $(find src -name '*.cpp') \
-        ./lib/libgodot-cpp.web.template_release.wasm32.a \
-        -o bin/web/libquantummatrix.wasm || { error "em++ web build failed"; exit 1; }
+        # Both variants go through godot-cpp's own SCons env (native/SConstruct):
+        # threaded for the "Web" preset (thread_support=true), nothreads for
+        # Web-Slim. A hand-written em++ line drifted from godot-cpp's flags and
+        # produced wasms that loaded and then died in _bind_methods.
+        for SW_THREADS in yes no; do
+            scons platform=web target=template_release api_version=4.6 \
+                threads=$SW_THREADS disable_exceptions=no -j$(nproc) \
+                || { error "web build (threads=$SW_THREADS) failed"; exit 1; }
+        done
         printf '%s\n' "$SW_EMSDK_VERSION" > "$SW_EXT_EMSTAMP"
     fi
 
-    if [ -f "bin/web/libquantummatrix.wasm" ]; then
-        SIZE=$(ls -lh bin/web/libquantummatrix.wasm | awk '{print $5}')
+    if [ -f "bin/web/libquantummatrix.wasm" ] && [ -f "bin/web/libquantummatrix.nothreads.wasm" ]; then
+        SIZE=$(ls -lh bin/web/libquantummatrix.wasm bin/web/libquantummatrix.nothreads.wasm | awk '{print $5}' | paste -sd/)
         success "Web extension built ($SIZE)"
         warn "Web extension build is enabled, but browser/runtime validation is still required before release."
     else

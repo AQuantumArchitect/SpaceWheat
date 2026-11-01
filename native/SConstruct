@@ -1,0 +1,39 @@
+#!/usr/bin/env python
+# SpaceWheat native extension, built through godot-cpp's own SCons environment.
+#
+# Used for the WEB builds (scripts/build-all-platforms.sh --web-only). A web
+# side module must be compiled with exactly the flags and defines its
+# libgodot-cpp was: THREADS_ENABLED, -sUSE_PTHREADS, SUPPORT_LONGJMP=wasm,
+# UNIX_ENABLED, NDEBUG ... The old hand-written em++ line drifted from those,
+# and after the godot-cpp 10 / Godot 4.6.2 bump both web wasms loaded and then
+# died inside QuantumMatrixNative::_bind_methods with "null function or
+# function signature mismatch". Inheriting godot-cpp's env makes drift
+# impossible.
+#
+#   scons platform=web target=template_release api_version=4.6 threads=yes disable_exceptions=no
+#   scons platform=web target=template_release api_version=4.6 threads=no  disable_exceptions=no
+#
+# disable_exceptions=no: axial_manifold, hermitian_eigensolver and
+# mythos_graph_core throw std:: exceptions on bad input.
+
+env = SConscript("../godot-cpp/SConstruct")
+
+# godot-cpp's include paths come first, so <godot_cpp/...> resolves to the
+# submodule's generated headers; native/include supplies Eigen.
+env.Append(CPPPATH=["src/", "include/"])
+env.Append(CPPDEFINES=["SPACEWHEAT_WITH_GODOT"])
+if env["platform"] == "web":
+    env.Append(CPPDEFINES=["SPACEWHEAT_WEB_BUILD"])
+    # Build objects per variant so the threaded and nothreads builds never
+    # share .o files compiled with the other's flags.
+    variant = "build/web-threads" if env["threads"] else "build/web-nothreads"
+    VariantDir(variant, "src", duplicate=False)
+    sources = Glob(variant + "/*.cpp")
+    name = "bin/web/libquantummatrix" + ("" if env["threads"] else ".nothreads") + ".wasm"
+else:
+    sources = Glob("src/*.cpp")
+    name = "bin/{}/libquantummatrix{}{}".format(env["platform"], env["suffix"], env["SHLIBSUFFIX"])
+
+library = env.SharedLibrary(name, source=sources)
+env.NoCache(library)
+Default(library)

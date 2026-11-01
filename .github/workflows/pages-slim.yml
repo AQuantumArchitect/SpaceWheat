@@ -1,12 +1,19 @@
-# Deploys the Web-Slim export (no music, no big rasters, non-threaded engine)
-# to GitHub Pages. Non-threaded = no COOP/COEP headers needed, which Pages
-# cannot send. Uses the committed native/bin/web/libquantummatrix.nothreads.wasm
-# (built with Emscripten 4.0.10: scons threads=no + em++ without -pthread).
+# Builds both shipping exports from the same commit and deploys Web-Slim to
+# GitHub Pages.
+#
+# - Web-Slim: no music, no raster art (SVG only), non-threaded engine +
+#   native/bin/web/libquantummatrix.nothreads.wasm, so Pages needs no COOP/COEP.
+# - Windows Desktop: the full itch build (checked for the exe and native DLL,
+#   not uploaded — 260 MB; releases go through tools/release.ps1).
+#
+# Pull requests build both (no deploy). Only a push to main deploys, so the
+# live site changes only through a merged PR.
 name: Pages (Web-Slim)
 
 on:
   push:
-    branches: [main, slim-web]
+    branches: [main]
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -15,7 +22,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages
+  group: pages-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -46,18 +53,22 @@ jobs:
           curl -fsSL -o /tmp/tpl.tpz "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_export_templates.tpz"
           unzip -q /tmp/tpl.tpz -d /tmp/tpl
           mv /tmp/tpl/templates ~/.local/share/godot/export_templates/4.6.2.stable
-      - name: Import + export Web-Slim
+      - name: Export Web-Slim
+        run: GODOT4=~/godot/godot ./scripts/build-web-slim.sh
+      - name: Export Windows Desktop (full build, check only)
         run: |
-          mkdir -p build/web-slim
-          ~/godot/godot --headless --path . --import || true
-          ~/godot/godot --headless --path . --export-release "Web-Slim" build/web-slim/index.html
-          touch build/web-slim/.nojekyll
-          du -sh build/web-slim; ls -la build/web-slim
+          mkdir -p build/windows
+          ~/godot/godot --headless --path . --export-release "Windows Desktop" build/windows/SpaceWheat.exe
+          test -f build/windows/SpaceWheat.exe
+          test -f build/windows/libquantummatrix.windows.template_release.x86_64.dll
+          du -sh build/windows
       - uses: actions/upload-pages-artifact@v3
+        if: github.event_name != 'pull_request'
         with:
           path: build/web-slim
 
   deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
     environment:

@@ -144,10 +144,15 @@ jobs:
 
   build-web:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # only used by the PR write-back step below
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+          # On a PR, build the branch itself (not the merge ref) so the
+          # write-back step below can push to it.
+          ref: ${{ github.event.pull_request.head.ref || github.ref }}
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -165,7 +170,7 @@ jobs:
           # Emscripten), not a preference. A mismatched side module links,
           # loads, and then aborts on an unresolved libc++ symbol the first
           # time a farm boots; see that script's comment for the history.
-          version: 4.0.10
+          version: 4.0.20
 
       - name: Build SpaceWheat extension (Web)
         # --clean: a fresh CI checkout gives the committed native/bin/web/*
@@ -179,6 +184,24 @@ jobs:
         with:
           name: web-extension
           path: native/bin/web/*.wasm
+
+      # The web wasms are committed (the Pages build and every export consume
+      # them), but the pinned Emscripten is only installable where the network
+      # is open. So on a same-repo PR the CI build IS the source of truth: if
+      # the freshly built wasms differ from the branch's, commit them back.
+      # Pushes made with GITHUB_TOKEN do not retrigger workflows; push any
+      # follow-up commit to re-run CI on the new binaries.
+      - name: Commit rebuilt web wasms to the PR branch
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        run: |
+          git add native/bin/web/libquantummatrix.wasm native/bin/web/libquantummatrix.nothreads.wasm native/bin/web/.emsdk-version
+          if git diff --cached --quiet; then
+            echo "web wasms already match this toolchain"; exit 0
+          fi
+          git -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -m "Rebuild web wasms with Emscripten 4.0.20 (CI)"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
 
   combine-artifacts:
     runs-on: ubuntu-latest
