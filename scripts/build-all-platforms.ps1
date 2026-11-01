@@ -17,8 +17,8 @@
   Toolchain (see RELEASE.md "Location"):
     - Python 3 with SCons:           pip install scons
     - MinGW-w64 g++ (WinLibs UCRT):  winget install BrechtSanders.WinLibs.POSIX.UCRT
-    - emsdk, pinned:                 C:\Users\<you>\emsdk  (emsdk install 4.0.10; emsdk activate 4.0.10)
-      The web export template was built with Emscripten 4.0.10; a side module from any
+    - emsdk, pinned:                 C:\Users\<you>\emsdk  (emsdk install 4.0.20; emsdk activate 4.0.20)
+      The 4.6.2 web export template was built with Emscripten 4.0.20; a side module from any
       other version links, loads, then aborts on unresolved libc++ symbols.
   godot-cpp is the git submodule, pinned at 10.0.0-stable (api_version=4.6).
 #>
@@ -29,7 +29,7 @@ param(
   [int]$Jobs = [Environment]::ProcessorCount
 )
 $ErrorActionPreference = 'Stop'
-$EmsdkVersion = '4.0.10'
+$EmsdkVersion = '4.0.20'
 $ApiVersion   = '4.6'
 if (-not $Windows -and -not $Web) { $Windows = $true; $Web = $true }
 

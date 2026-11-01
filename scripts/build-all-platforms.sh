@@ -29,8 +29,13 @@ source "$SCRIPT_DIR/lib/native_build_state.sh"
 #
 # Read the truth out of a running export: the engine prints
 # "Build configuration: Emscripten <version>, multi-threaded, GDExtension support."
-# in the browser console at boot. Match this to that.
-SW_EMSDK_VERSION="4.0.10"
+# in the browser console at boot. Match this to that. Without a browser:
+#   unzip -p <templates>/4.6.2.stable/web_dlink_release.zip godot.js \
+#     | grep -o 'allocString("[0-9.]*")'
+# Godot 4.6.2's templates are 4.0.20. The 4.0.10 pin outlived the 4.5 -> 4.6
+# engine bump, and both web wasms then died at the first D_METHOD with
+# "null function or function signature mismatch" (2026-10-31).
+SW_EMSDK_VERSION="4.0.20"
 
 # Options
 DO_CLEAN=false
@@ -201,8 +206,10 @@ if [ "$WEB_ONLY" = true ]; then
             log "Emscripten pin is $SW_EMSDK_VERSION; cached godot-cpp web build does not match. Rebuilding."
             rm -f bin/libgodot-cpp.web.template_release.wasm32.a
         fi
-        log "Building godot-cpp for Web..."
+        rm -f bin/libgodot-cpp.web.template_release.wasm32.nothreads.a
+        log "Building godot-cpp for Web (threaded + nothreads)..."
         scons platform=web target=template_release api_version=4.6 -j$(nproc)
+        scons platform=web target=template_release api_version=4.6 threads=no -j$(nproc)
         mkdir -p bin && printf '%s\n' "$SW_EMSDK_VERSION" > "$SW_CPP_EMSTAMP"
         success "godot-cpp Web built"
     else
@@ -224,9 +231,10 @@ if [ "$WINDOWS_ONLY" = true ] && [ -f "$GODOT_CPP_DIR/bin/libgodot-cpp.windows.t
        "$NATIVE_DIR/lib/libgodot-cpp.windows.template_release.x86_64.a"
 fi
 
-if [ "$WEB_ONLY" = true ] && [ -f "$GODOT_CPP_DIR/bin/libgodot-cpp.web.template_release.wasm32.a" ]; then
-    cp "$GODOT_CPP_DIR/bin/libgodot-cpp.web.template_release.wasm32.a" \
-       "$NATIVE_DIR/lib/libgodot-cpp.web.template_release.wasm32.a"
+if [ "$WEB_ONLY" = true ]; then
+    for SW_LIB in libgodot-cpp.web.template_release.wasm32.a libgodot-cpp.web.template_release.wasm32.nothreads.a; do
+        [ -f "$GODOT_CPP_DIR/bin/$SW_LIB" ] && cp "$GODOT_CPP_DIR/bin/$SW_LIB" "$NATIVE_DIR/lib/$SW_LIB"
+    done
 fi
 
 # Build SpaceWheat extensions
@@ -298,11 +306,22 @@ if [ "$WEB_ONLY" = true ]; then
         $(find src -name '*.cpp') \
         ./lib/libgodot-cpp.web.template_release.wasm32.a \
         -o bin/web/libquantummatrix.wasm || { error "em++ web build failed"; exit 1; }
+        # The nothreads twin, for the Web-Slim preset (thread_support=false, the
+        # one GitHub Pages serves because Pages cannot send COOP/COEP headers).
+        # Same rule in reverse: no -pthread, linked against godot-cpp threads=no.
+        em++ -std=c++17 -O3 -s SIDE_MODULE=1 -s EXPORT_ALL=1 \
+        -I./include \
+        -I./include/godot_cpp \
+        -I./include/gdextension \
+        -DWEB_ENABLED -DGDEXTENSION -DSPACEWHEAT_WITH_GODOT -DSPACEWHEAT_WEB_BUILD \
+        $(find src -name '*.cpp') \
+        ./lib/libgodot-cpp.web.template_release.wasm32.nothreads.a \
+        -o bin/web/libquantummatrix.nothreads.wasm || { error "em++ nothreads web build failed"; exit 1; }
         printf '%s\n' "$SW_EMSDK_VERSION" > "$SW_EXT_EMSTAMP"
     fi
 
-    if [ -f "bin/web/libquantummatrix.wasm" ]; then
-        SIZE=$(ls -lh bin/web/libquantummatrix.wasm | awk '{print $5}')
+    if [ -f "bin/web/libquantummatrix.wasm" ] && [ -f "bin/web/libquantummatrix.nothreads.wasm" ]; then
+        SIZE=$(ls -lh bin/web/libquantummatrix.wasm bin/web/libquantummatrix.nothreads.wasm | awk '{print $5}' | paste -sd/)
         success "Web extension built ($SIZE)"
         warn "Web extension build is enabled, but browser/runtime validation is still required before release."
     else

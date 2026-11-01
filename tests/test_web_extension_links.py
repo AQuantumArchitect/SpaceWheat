@@ -25,6 +25,7 @@ recurring; this test is the assertion that the pin is doing its job.
 
 from __future__ import annotations
 
+import re
 import subprocess
 import zipfile
 from pathlib import Path
@@ -136,8 +137,13 @@ def _godot_version() -> str | None:
     except (OSError, subprocess.SubprocessError):
         return None
     # "4.5.stable.official.876b29033" -> "4.5.stable"
+    # "4.6.2.stable.official.71f334935" -> "4.6.2.stable" (patch releases have
+    # four leading parts; cutting at a fixed three skipped every 4.x.y engine)
     parts = out.split(".")
-    return ".".join(parts[:3]) if len(parts) >= 3 else None
+    for i, part in enumerate(parts):
+        if not part.isdigit():
+            return ".".join(parts[: i + 1]) if i >= 2 else None
+    return None
 
 
 def _find_template_zip() -> Path | None:
@@ -263,3 +269,47 @@ def test_the_allowlist_stays_a_short_list_of_runtime_symbols():
     """
     assert len(RUNTIME_PROVIDED) <= 4, RUNTIME_PROVIDED
     assert RUNTIME_PROVIDED_PREFIXES == ("_ZTH",)
+
+
+def _template_emscripten_version(template: Path) -> str | None:
+    """The Emscripten the engine template was built with, read from its JS glue.
+
+    godot.js answers `godot_js_emscripten_get_version` with a literal
+    `emscriptenVersionPtr=GodotRuntime.allocString("<version>")`; that string is the engine's own
+    report, the same one the browser console prints at boot.
+    """
+    with zipfile.ZipFile(template) as zf:
+        if "godot.js" not in zf.namelist():
+            return None
+        js = zf.read("godot.js").decode("utf-8", "replace")
+    m = re.search(r'emscriptenVersionPtr\s*=\s*GodotRuntime\.allocString\("([0-9.]+)"\)', js)
+    return m.group(1) if m else None
+
+
+def test_emsdk_pin_matches_the_template():
+    """The build pin, and the toolchain the committed wasms were built with,
+    must equal the template's Emscripten.
+
+    The symbol sweep above cannot see this: after the 4.5 -> 4.6.2 engine bump
+    the 4.0.10-built wasms still resolved every import by name and type, then
+    both web builds died at the first D_METHOD with "null function or function
+    signature mismatch" because the template had moved to 4.0.20.
+    """
+    template = _find_template_zip()
+    if template is None:
+        pytest.skip(f"no {TEMPLATE_ZIP_NAME} for the installed engine")
+    engine = _template_emscripten_version(template)
+    if engine is None:
+        pytest.skip(f"could not read the Emscripten version out of {template.name}")
+    script = (REPO / "scripts" / "build-all-platforms.sh").read_text()
+    pin = re.search(r'^SW_EMSDK_VERSION="([0-9.]+)"', script, re.M)
+    assert pin and pin.group(1) == engine, (
+        f"scripts/build-all-platforms.sh pins Emscripten {pin and pin.group(1)}, "
+        f"but the installed engine's web template was built with {engine}."
+    )
+    stamp = REPO / "native" / "bin" / "web" / ".emsdk-version"
+    if stamp.is_file():
+        assert stamp.read_text().strip() == engine, (
+            f"the committed web wasms were built with Emscripten {stamp.read_text().strip()}, "
+            f"the template with {engine}. Rebuild them (CI's build-web job does this on a PR)."
+        )

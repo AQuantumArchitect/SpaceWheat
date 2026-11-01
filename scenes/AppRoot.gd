@@ -283,7 +283,7 @@ func _build_title() -> void:
 
 	# Centered titlecard image, letterboxed to whatever viewport shape.
 	var titlecard := TextureRect.new()
-	# The Pages "lite" web build prunes raster art (pages_lite); the title
+	# The Web-Slim build (feature "slim") ships no raster art; the title
 	# layer then shows its background and text only.
 	const TITLECARD_PATH := "res://Assets/spacewheat_titlecard.png"
 	if ResourceLoader.exists(TITLECARD_PATH):
