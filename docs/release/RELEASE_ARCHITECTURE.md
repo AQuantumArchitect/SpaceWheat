@@ -53,7 +53,21 @@ the floor. `releases/web-fix/`, `releases/demo/`, `releases/linux/`,
 `releases/windows/` are historical scratch dirs from before this shape existed;
 nothing in the repo references them.
 
-All four paths are declared once, in `scripts/lib/release_paths.sh`. They used
+All four paths are declared once, in `scripts/lib/release_paths.sh`.
+
+### The Windows side
+
+All Windows paths live in `scripts/lib/windows_desktop_deploy.sh`, under one root:
+
+| Windows path | Holds | Written by |
+|---|---|---|
+| `C:\Games\SpaceWheat\` | the play folder: exe, DLL, launch, reset and saves `.bat` files, `README.txt`, `VERSION.txt` | `deploy-windows-desktop.sh` / `build-desktop-local.sh --copy-to-windows` |
+| `C:\Games\SpaceWheat\releases\vX.Y.Z\` | that version's archives, the `RELEASE-*.md` manifest and `SHA256` (newest 3 kept) | `release.sh` |
+| `C:\Games\SpaceWheat\profiling-kit\` | the Windows-native profiling lane | `stage-profiling-kit.sh` |
+
+GitHub Releases is the permanent public record. The Windows `releases\` folder
+is a convenience cache. Version numbers: the June v0.2.0 GitHub release predates
+the August numbering reset, and the live line is `0.1.x-alpha`. They used
 to be declared inline in eight scripts as `${VAR:-…}` defaults, and two of them
 drifted — see below.
 

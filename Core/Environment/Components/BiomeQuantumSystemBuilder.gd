@@ -28,6 +28,31 @@ func set_dependencies(qc, res_registry, atoms: Dictionary = {}) -> void:
 # Quantum System Expansion (BUILD Mode)
 # ============================================================================
 
+func relabel_axis(qubit_index: int, north_emoji: String, south_emoji: String) -> Dictionary:
+	if not quantum_computer or quantum_computer.register_map == null:
+		return {"success": false, "error": "no_quantum_computer"}
+	var nq := int(quantum_computer.register_map.num_qubits)
+	if qubit_index < 0 or qubit_index >= nq:
+		return {"success": false, "error": "no_blank_qubit"}
+	var old_dim = quantum_computer.register_map.dim()
+	quantum_computer.allocate_axis(qubit_index, north_emoji, south_emoji)
+	if resource_registry:
+		resource_registry.add_emoji_pair_to_producible(north_emoji, south_emoji)
+	rebuild_operators_from_register_map()
+	if quantum_computer.density_matrix != null \
+			and quantum_computer.density_matrix.n == quantum_computer.register_map.dim():
+		quantum_computer.apply_ry(qubit_index, quantum_computer.DAWN_KICK_RAD)
+	return {
+		"success": true,
+		"qubit_index": qubit_index,
+		"reused": true,
+		"old_dim": old_dim,
+		"new_dim": quantum_computer.register_map.dim(),
+		"north_emoji": north_emoji,
+		"south_emoji": south_emoji
+	}
+
+
 func expand_quantum_system(north_emoji: String, south_emoji: String) -> Dictionary:
 	# Expand the biome's quantum computer to include a new emoji axis.
 

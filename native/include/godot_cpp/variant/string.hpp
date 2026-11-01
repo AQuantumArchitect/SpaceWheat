@@ -33,6 +33,7 @@
 #pragma once
 
 #include <godot_cpp/core/defs.hpp>
+#include <godot_cpp/core/math_defs.hpp>
 
 #include <godot_cpp/classes/global_constants.hpp>
 #include <godot_cpp/variant/char_string.hpp>
@@ -80,7 +81,7 @@ struct Vector4i;
 
 class String {
 	static constexpr size_t STRING_SIZE = 8;
-	uint8_t opaque[STRING_SIZE] = {};
+	alignas(8) uint8_t opaque[STRING_SIZE] = {};
 
 	friend class Variant;
 	friend class StringName;

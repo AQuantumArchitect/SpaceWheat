@@ -1759,6 +1759,22 @@ func can_discover_biome() -> Dictionary:
 		return {"ok": false, "message": "Biome slots full"}
 
 	var unexplored = observation_frame.get_unexplored_biomes()
+
+	# Captain Chart (owner decision): while a story door is open and its biome
+	# is not on the spindle, R charts THAT biome — deterministic, not a draw —
+	# at the chart price. Checked before the empty-pool refusal: the story
+	# biome need not sit in the curated random pool to be charted.
+	var chart := chart_target()
+	if not chart.is_empty():
+		var chart_biome := str(chart.get("biome", ""))
+		var chart_cost: Dictionary = CampaignRuntime.chart_cost()
+		var chart_gate = ActionCostRuntime.preflight_cost(economy, chart_cost)
+		if not chart_gate.get("ok", true):
+			return {"ok": false, "chart": chart_biome, "chart_short": true,
+				"cost": chart_cost, "message": chart_shortfall_message(chart_biome, chart_cost)}
+		return {"ok": true, "chart": chart_biome, "chart_beat": str(chart.get("beat", "")),
+			"cost": chart_cost, "unexplored": unexplored}
+
 	if unexplored.is_empty():
 		return {"ok": false, "message": "All biomes already explored!"}
 
@@ -1769,6 +1785,96 @@ func can_discover_biome() -> Dictionary:
 		return {"ok": false, "message": str(cost_gate.get("message", "Insufficient resources"))}
 
 	return {"ok": true, "unexplored": unexplored}
+
+
+## The story biome Captain R will CHART right now: {beat, biome}, or {} when R
+## stays the random Add Biome. A door beat (CampaignRuntime.charts(): beat ->
+## biome) is OPEN while its flag has fired and its arc quest is not yet
+## claimed/dismissed (QuestManager.flag_door_is_resolved). The first open door
+## in story-flag file order whose biome is not on the spindle wins.
+func chart_target() -> Dictionary:
+	var charts: Dictionary = CampaignRuntime.charts()
+	if charts.is_empty() or story_flags_fired.is_empty():
+		return {}
+	var observation_frame = get_node_or_null("/root/ObservationFrame")
+	if not observation_frame:
+		return {}
+	var unlocked: Array = observation_frame.get_unlocked_biomes()
+	var loadable: Array = observation_frame.ALL_BIOMES if "ALL_BIOMES" in observation_frame else []
+	var qm = InstrumentLocator.resolve_quest_manager(self, self)
+	var order: Array[String] = []
+	if qm != null and qm.has_method("get_all_story_flags"):
+		for flag in qm.get_all_story_flags():
+			if flag is Dictionary:
+				var fid := str(flag.get("id", ""))
+				if charts.has(fid) and not order.has(fid):
+					order.append(fid)
+	for k in charts:
+		if not order.has(str(k)):
+			order.append(str(k))
+	for beat_id in order:
+		if not story_flags_fired.has(beat_id):
+			continue
+		if qm != null and qm.has_method("flag_door_is_resolved") \
+				and bool(qm.flag_door_is_resolved(beat_id)):
+			continue
+		if qm != null and qm.has_method("flag_is_live") and not bool(qm.flag_is_live(beat_id)):
+			continue
+		var biome := str(charts.get(beat_id, "")).strip_edges()
+		if biome == "" or unlocked.has(biome):
+			continue
+		if not loadable.is_empty() and not loadable.has(biome):
+			continue
+		return {"beat": beat_id, "biome": biome}
+	# Live berry country off the spindle (the_rite after GildedRot was
+	# culled to Chart later coasts). Chart is the path; Superpose mash
+	# on leftover 🔭 is the wrong country.
+	var berry_q: Array = []
+	if qm != null:
+		if "active_quests" in qm:
+			for q in qm.active_quests.values():
+				if q is Dictionary:
+					berry_q.append(q)
+		if qm.has_method("get_story_offers"):
+			for q in qm.get_story_offers():
+				if q is Dictionary:
+					berry_q.append(q)
+	for q in berry_q:
+		for pred in q.get("state_predicates", []):
+			if not (pred is Dictionary):
+				continue
+			if str(pred.get("type", "")) != "berry_consumed_count_gte":
+				continue
+			var berry_biome := str(pred.get("biome", "")).strip_edges()
+			if berry_biome == "" or unlocked.has(berry_biome):
+				continue
+			if not loadable.is_empty() and not loadable.has(berry_biome):
+				continue
+			return {"beat": str(q.get("source_flag", "")), "biome": berry_biome}
+	return {}
+
+
+func chart_target_biome() -> String:
+	return str(chart_target().get("biome", ""))
+
+
+## "Chart Lanternfall needs 🦅×21 — you hold 🦅×5" (every short resource).
+func chart_shortfall_message(biome_name: String, cost: Dictionary) -> String:
+	var need_parts: Array[String] = []
+	var have_parts: Array[String] = []
+	for emoji in cost:
+		var need := int(round(float(cost[emoji])))
+		var have := 0
+		# Costs are emoji-credits (what spend_cost debits) — read the same.
+		if economy != null and economy.has_method("get_resource"):
+			have = int(floor(float(economy.get_resource(str(emoji)))))
+		if have < need:
+			need_parts.append("%s×%d" % [emoji, need])
+			have_parts.append("%s×%d" % [emoji, have])
+	if need_parts.is_empty():
+		return "Chart %s: cannot pay the chart price" % biome_name
+	return "Chart %s needs %s — you hold %s" % [
+		biome_name, ", ".join(need_parts), ", ".join(have_parts)]
 
 
 func can_remove_biome() -> Dictionary:
@@ -1802,11 +1908,31 @@ func named_cull_target() -> Dictionary:
 		var n := str(b)
 		if n != "" and not names.has(n):
 			names.append(n)
+	# Prefer a dry leftover over wet country. Spark / Merchant still
+	# need a leaking floor; standing GildedRot was culled to chart
+	# ZenoLatch and Rain on the Fields lost its country.
+	var wet_fallback: Dictionary = {}
 	for biome_name in names:
 		var gate := _cull_gate_for(biome_name, observation_frame)
-		if bool(gate.get("ok", false)):
-			return gate
+		if not bool(gate.get("ok", false)):
+			continue
+		if _biome_is_wet(str(biome_name)):
+			if wet_fallback.is_empty():
+				wet_fallback = gate
+			continue
+		return gate
+	if not wet_fallback.is_empty():
+		return wet_fallback
 	return {"ok": false, "message": "no cullable biome in a slot"}
+
+
+func _biome_is_wet(biome_name: String) -> bool:
+	var biome = _get_loaded_biome_ref(biome_name)
+	if biome == null or biome.quantum_computer == null:
+		return false
+	if biome.quantum_computer.has_method("is_open_here"):
+		return bool(biome.quantum_computer.is_open_here())
+	return false
 
 
 func _cull_gate_for(biome_name: String, observation_frame = null) -> Dictionary:
@@ -1841,6 +1967,13 @@ func _cull_gate_for(biome_name: String, observation_frame = null) -> Dictionary:
 	# is destroyed, and say so out loud.
 	if observation_frame.has_method("is_seed_biome") and observation_frame.is_seed_biome(biome_name):
 		return {"ok": false, "message": "%s is seed country — the frame needs it to stand on" % biome_name}
+
+	# Playtest mill law: timber country stays. named_cull_target skipped
+	# Woodlot and gold last-resorted to [C] Contracts; grind ping-ponged
+	# C/ESC on an empty board. Refuse the cull so the mill names the next
+	# legal slot instead of a keyless banner.
+	if biome_name == "Woodlot":
+		return {"ok": false, "message": "Woodlot stays — never cull Woodlot"}
 
 	# The player IS a faction (The Demos), and the biome whose native faction
 	# is the player's pin is their own seat. Culling it is self-erasure — a
@@ -1893,7 +2026,9 @@ func identity_biome_name() -> String:
 	return home
 
 func discover_biome() -> Dictionary:
-	# Explore and unlock a random new biome (4E action)
+	# Captain R. While a story door is open (chart_target), CHART its biome —
+	# deterministic, charged CampaignRuntime.chart_cost(). Otherwise explore
+	# and unlock a random (affinity-weighted) new biome.
 
 	# Returns:
 	# Dictionary with:
@@ -1917,17 +2052,57 @@ func discover_biome() -> Dictionary:
 	var unexplored = gate.get("unexplored", observation_frame.get_unexplored_biomes())
 	_log_debug("🗺️ Unexplored biomes: %s" % str(unexplored))
 
-	if unexplored.is_empty():
+	var charted := str(gate.get("chart", ""))
+	if unexplored.is_empty() and charted == "":
 		_log_debug("❌ All biomes already explored")
 		return {"success": false, "message": "All biomes already explored!"}
 
-	var weights = BiomeDiscoveryForecastService.compute_weights(self, unexplored)
-	var new_biome = BiomeDiscoveryForecastService.weighted_random_pick(unexplored, weights)
-	_log_debug("🗺️ Selected biome: %s (weighted discovery)" % new_biome)
+	var new_biome
+	if charted != "":
+		# Captain Chart: the open door's biome, not a draw.
+		new_biome = charted
+		_log_debug("🗺️ Charting biome: %s (door %s)" % [new_biome, str(gate.get("chart_beat", ""))])
+	else:
+		var weights = BiomeDiscoveryForecastService.compute_weights(self, unexplored)
+		new_biome = BiomeDiscoveryForecastService.weighted_random_pick(unexplored, weights)
+		_log_debug("🗺️ Selected biome: %s (weighted discovery)" % new_biome)
 
-	# Unlock it
-	var unlocked = observation_frame.unlock_biome(new_biome)
-	if not unlocked:
+	var opened := open_biome(str(new_biome), true)
+	if not opened.get("success", false):
+		return opened
+
+	if charted != "":
+		# Same preflight→commit economy path as discovery, at the chart price.
+		var chart_cost: Dictionary = gate.get("cost", CampaignRuntime.chart_cost())
+		if economy and not ActionCostRuntime.commit_cost(economy, chart_cost, "chart_biome"):
+			return {"success": false, "biome_name": new_biome, "message": "Chart %s failed: unable to spend cost." % new_biome}
+		_log_debug("🗺️ Chart complete: %s" % new_biome)
+		return {"success": true, "biome_name": new_biome, "charted": true,
+			"chart_beat": str(gate.get("chart_beat", "")), "cost": chart_cost,
+			"message": "Charted %s!" % new_biome}
+
+	if economy and not ActionCostRuntime.commit_action(economy, "discover_biome"):
+		return {"success": false, "biome_name": new_biome, "message": "Explore biome failed: unable to spend cost."}
+
+	_log_debug("🗺️ Exploration complete: %s" % new_biome)
+	return {"success": true, "biome_name": new_biome, "message": "Discovered %s!" % new_biome}
+
+
+## Unlock + load one named biome — the deterministic tail of discover_biome()
+## (which picks the name by weighted draw, then calls this). No cost, no slot
+## check: callers that need either (discover_biome, CampaignFixture) gate first.
+## switch_to slides the view onto the new biome, as a discovery does.
+func open_biome(biome_name: String, switch_to: bool = false) -> Dictionary:
+	var observation_frame = get_node_or_null("/root/ObservationFrame")
+	if not observation_frame:
+		return {"success": false, "message": "ObservationFrame not available"}
+	if biome_name in observation_frame.get_unlocked_biomes() \
+			and grid != null and grid.get_biome(biome_name) != null:
+		return {"success": true, "biome_name": biome_name, "already_loaded": true}
+
+	# Unlock it (false when already unlocked — still load below).
+	observation_frame.unlock_biome(biome_name)
+	if not (biome_name in observation_frame.get_unlocked_biomes()):
 		_log_debug("❌ Failed to unlock biome")
 		return {"success": false, "message": "Failed to unlock biome"}
 	_log_debug("✅ Biome unlocked successfully")
@@ -1937,10 +2112,10 @@ func discover_biome() -> Dictionary:
 
 	# Load the new biome
 	_log_debug("🗺️ Loading biome dynamically...")
-	var biome_load_ok = _load_biome_dynamically(new_biome)
+	var biome_load_ok = _load_biome_dynamically(biome_name)
 	if not biome_load_ok:
 		_log_debug("❌ Biome failed to load")
-		return {"success": false, "biome_name": new_biome, "message": "Biome unlocked but failed to load"}
+		return {"success": false, "biome_name": biome_name, "message": "Biome unlocked but failed to load"}
 	_log_debug("✅ Biome loaded successfully")
 
 	# Sync with ActiveBiomeManager
@@ -1950,16 +2125,11 @@ func discover_biome() -> Dictionary:
 		_log_debug("✅ Synced with ActiveBiomeManager")
 
 	# Switch to the new biome
-	if biome_router:
+	if biome_router and switch_to:
 		var direction = 1  # Slide right (new biome appears)
-		biome_router.set_active_biome(new_biome, direction)
-		_log_debug("✅ Switched to new biome: %s" % new_biome)
-
-	if economy and not ActionCostRuntime.commit_action(economy, "discover_biome"):
-		return {"success": false, "biome_name": new_biome, "message": "Explore biome failed: unable to spend cost."}
-
-	_log_debug("🗺️ Exploration complete: %s" % new_biome)
-	return {"success": true, "biome_name": new_biome, "message": "Discovered %s!" % new_biome}
+		biome_router.set_active_biome(biome_name, direction)
+		_log_debug("✅ Switched to new biome: %s" % biome_name)
+	return {"success": true, "biome_name": biome_name}
 
 
 func remove_biome() -> Dictionary:

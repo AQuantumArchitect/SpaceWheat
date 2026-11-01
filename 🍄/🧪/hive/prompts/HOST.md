@@ -18,12 +18,12 @@ This is what `send_wave.py` uses.
 Every game/hive command is one `wsl bash -lc` string. No `$` in that string (PowerShell eats it). Use `&&`, never `;`.
 
 ```
-wsl bash -lc "cd /home/primearchitect/ws/SpaceWheat && python3 🍄/🧪/player_seat.py look SEAT"
-wsl bash -lc "cd /home/primearchitect/ws/SpaceWheat && python3 🍄/🧪/player_seat.py press SEAT e"
-wsl bash -lc "cd /home/primearchitect/ws/SpaceWheat && python3 🍄/🧪/player_seat.py press SEAT f --shift"
-wsl bash -lc "cd /home/primearchitect/ws/SpaceWheat && python3 🍄/🧪/mouse_seat.py look SEAT"
-wsl bash -lc "cd /home/primearchitect/ws/SpaceWheat && python3 🍄/🧪/mouse_seat.py click SEAT HintToast"
-wsl bash -lc "cd /home/primearchitect/ws/SpaceWheat && python3 🍄/🧪/hive/hive.py wall CHAPTER REPORT"
+wsl bash -lc "cd ~/ws/SpaceWheat && python3 🍄/🧪/player_seat.py look SEAT"
+wsl bash -lc "cd ~/ws/SpaceWheat && python3 🍄/🧪/player_seat.py press SEAT e"
+wsl bash -lc "cd ~/ws/SpaceWheat && python3 🍄/🧪/player_seat.py press SEAT f --shift"
+wsl bash -lc "cd ~/ws/SpaceWheat && python3 🍄/🧪/mouse_seat.py look SEAT"
+wsl bash -lc "cd ~/ws/SpaceWheat && python3 🍄/🧪/mouse_seat.py click SEAT HintToast"
+wsl bash -lc "cd ~/ws/SpaceWheat && python3 🍄/🧪/hive/hive.py wall CHAPTER REPORT"
 ```
 
 Replace SEAT / CHAPTER with the values from your spawn.
@@ -32,7 +32,7 @@ Replace SEAT / CHAPTER with the values from your spawn.
 
 ```
 wsl bash -lc "printf '%s\n' 'PERSONA: tried ...; saw ...; expected ...' > /tmp/sw_wall_SEAT.txt"
-wsl bash -lc "cd /home/primearchitect/ws/SpaceWheat && python3 🍄/🧪/hive/hive.py wall CHAPTER --file /tmp/sw_wall_SEAT.txt"
+wsl bash -lc "cd ~/ws/SpaceWheat && python3 🍄/🧪/hive/hive.py wall CHAPTER --file /tmp/sw_wall_SEAT.txt"
 ```
 
 Repo UNC (for the Read tool on Windows):

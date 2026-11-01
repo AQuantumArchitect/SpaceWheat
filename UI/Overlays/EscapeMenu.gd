@@ -61,6 +61,10 @@ const DEV_ACTIONS := [
 	{"id": "validate_biomes",      "label": "validate biomes",      "desc": "check data integrity of exportable set"},
 	{"id": "print_batcher",        "label": "print batcher metrics","desc": "snapshot batcher state to console"},
 	{"id": "copy_logs",            "label": "copy logs",            "desc": "version + recent log tail → clipboard (paste in a bug report)"},
+	# Opens the beat picker (campaign → act → beat); R on a beat starts a
+	# fresh Demos run and builds that beat's opening state
+	# (Core/Campaign/CampaignFixture.gd). Same gate as the rest of this tab.
+	{"id": "start_at_beat",        "label": "start at beat…",       "desc": "fresh Demos run, jumped to the moment a story beat opens"},
 	# LAST on purpose: the cursor boots on row 0, and a save wipe must never be
 	# the default-armed action of a tab reachable from the pause menu (QA:
 	# a button-masher reached R→Q-confirm in three reflex presses).
@@ -122,6 +126,15 @@ var _run_peeking: bool = false   # E toggles expanded run-stats inspector
 var _new_item: int = 0           # selected scenario index in New tab
 var _new_peeking: bool = false   # E toggles scenario detail panel
 var _dev_action_idx: int = 0
+
+# Dev → "start at beat…" picker. Level 0 = closed; 1 = campaigns, 2 = acts of
+# the picked campaign, 3 = beats of the picked act. GHJKL; picks within the
+# page, A/D pages, R opens/starts, F steps back up, Q closes.
+var _beat_pick_level: int = 0
+var _beat_pick_idx: int = 0
+var _beat_pick_page: int = 0
+var _beat_pick_campaign: String = ""
+var _beat_pick_act: int = -1
 
 # Balance tab — live economy/system tunables board + read-only action-cost inspector.
 var _balance_action_idx: int = 0   # cursor into the read-only action inspector
@@ -408,6 +421,8 @@ func _current_verb_labels() -> Dictionary:
 		Tab.BALANCE:
 			return {"Q": "− value", "E": "reset", "R": "+ value", "F": ""}
 		Tab.DEV:
+			if _beat_pick_level > 0:
+				return {"Q": "close", "E": "refresh", "R": "start here" if _beat_pick_level == 3 else "open", "F": "back"}
 			return {"Q": "", "E": "refresh", "R": "run action", "F": ""}
 	return {}
 
@@ -830,6 +845,9 @@ func _build_dev_body() -> void:
 
 	# ── Dev actions ──────────────────────────────────────────────────────────
 	_body_box.add_child(_make_spacer(4))
+	if _beat_pick_level > 0:
+		_build_beat_picker()
+		return
 	_body_box.add_child(_make_section_header("actions"))
 	for i in range(DEV_ACTIONS.size()):
 		_body_box.add_child(_make_dev_action_row(i))
@@ -892,11 +910,147 @@ func _execute_dev_action(idx: int) -> void:
 				for k in keys:
 					print("  %s: %s" % [k, str(m[k])])
 			_refresh_body()
+		"start_at_beat":
+			_beat_pick_level = 1
+			_beat_pick_idx = 0
+			_beat_pick_page = 0
+			_refresh_body()
+			_refresh_verb_chips()
 		"copy_logs":
 			var report := _gather_log_report()
 			DisplayServer.clipboard_set(report)
 			print("📋 Log report copied to clipboard (%d chars) — paste it in your bug report" % report.length())
 			_refresh_body()
+
+# -----------------------------------------------------------------------------
+# Dev → start at beat… (campaign → act → beat), read from the compiled spec:
+# campaign_runtime.json for the campaign/act titles, story_flags.json for beats.
+# -----------------------------------------------------------------------------
+
+## Rows at the current picker level: [{id, label, desc}].
+func _beat_pick_rows() -> Array:
+	var rows: Array = []
+	match _beat_pick_level:
+		1:
+			for c in CampaignRuntime.campaigns():
+				if c is Dictionary:
+					rows.append({"id": str(c.get("id", "")), "label": str(c.get("title", c.get("id", ""))),
+							"desc": "%d acts" % (c.get("acts", []) as Array).size()})
+		2:
+			for a in CampaignRuntime.campaign(_beat_pick_campaign).get("acts", []):
+				if a is Dictionary:
+					rows.append({"id": int(a.get("act", 0)), "label": "Act %d — %s" % [int(a.get("act", 0)), str(a.get("title", ""))],
+							"desc": "%d chapters" % (a.get("chapters", []) as Array).size()})
+		3:
+			for f in _beat_pick_flags():
+				if str(f.get("campaign", "")) == _beat_pick_campaign \
+						and int(f.get("campaign_act", -1)) == _beat_pick_act:
+					var auto := not (f.get("arc_quest") is Dictionary)
+					rows.append({"id": str(f.get("id", "")), "label": str(f.get("display_name", f.get("id", ""))),
+							"desc": "%s%s" % [str(f.get("chapter_title", f.get("chapter", ""))), "  · auto" if auto else ""]})
+	return rows
+
+
+func _beat_pick_flags() -> Array:
+	var qm = InstrumentLocator.resolve_quest_manager(self, InstrumentLocator.resolve_active_farm(self))
+	if qm != null and qm.has_method("get_all_story_flags") and not (qm.get_all_story_flags() as Array).is_empty():
+		return qm.get_all_story_flags()
+	var res: Dictionary = preload("res://Core/Config/JsonFileLoader.gd").load_json(
+		"res://Core/Quests/data/story_flags.json", {"context": "EscapeMenu", "required": false})
+	return res.get("data", []) if res.get("ok", false) and res.get("data") is Array else []
+
+
+func _build_beat_picker() -> void:
+	var crumbs := "start at beat"
+	if _beat_pick_level >= 2:
+		crumbs += "  ›  " + str(CampaignRuntime.campaign(_beat_pick_campaign).get("title", _beat_pick_campaign))
+	if _beat_pick_level >= 3:
+		crumbs += "  ›  act %d" % _beat_pick_act
+	_body_box.add_child(_make_section_header(crumbs))
+	var rows := _beat_pick_rows()
+	var page_size := ITEM_KEYS.size()
+	var max_page: int = max(0, int(float(rows.size() - 1) / float(page_size)))
+	_beat_pick_page = clampi(_beat_pick_page, 0, max_page)
+	var start := _beat_pick_page * page_size
+	for i in range(start, mini(start + page_size, rows.size())):
+		var row := HBoxContainer.new()
+		ClickWire.attach(row, _select_item_in_tab.bind(i - start))
+		row.add_theme_constant_override("separation", 10)
+		row.add_child(_make_key_chip(ITEM_KEYS[i - start]))
+		var name_lbl := Label.new()
+		name_lbl.text = str(rows[i].get("label", ""))
+		name_lbl.add_theme_font_size_override("font_size", 13)
+		name_lbl.custom_minimum_size = Vector2(160, 0)
+		var selected := i == _beat_pick_idx
+		name_lbl.add_theme_color_override("font_color",
+				UIStyleFactory.COLOR_TAB_ACTIVE if selected else UIStyleFactory.COLOR_ITEM_IDLE)
+		if selected:
+			name_lbl.text = "▸ " + name_lbl.text
+		row.add_child(name_lbl)
+		var desc_lbl := Label.new()
+		desc_lbl.text = str(rows[i].get("desc", ""))
+		desc_lbl.add_theme_font_size_override("font_size", 11)
+		desc_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
+		desc_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(desc_lbl)
+		_body_box.add_child(row)
+	if max_page > 0:
+		_body_box.add_child(_make_nav_pager("page %d/%d · A/D" % [_beat_pick_page + 1, max_page + 1]))
+	_body_box.add_child(_make_spacer(4))
+	var verb := "start here" if _beat_pick_level == 3 else "open"
+	_body_box.add_child(_make_muted_label("GHJKL; pick  ·  R %s  ·  F back  ·  Q close" % verb, 11))
+
+
+func _beat_pick_select(slot: int) -> void:
+	var idx := _beat_pick_page * ITEM_KEYS.size() + slot
+	if idx < _beat_pick_rows().size() and idx != _beat_pick_idx:
+		_beat_pick_idx = idx
+		_refresh_body()
+
+
+func _beat_pick_page_step(step: int) -> void:
+	var rows := _beat_pick_rows()
+	var page_size := ITEM_KEYS.size()
+	var max_page: int = max(0, int(float(rows.size() - 1) / float(page_size)))
+	_beat_pick_page = clampi(_beat_pick_page + step, 0, max_page)
+	_beat_pick_idx = clampi(_beat_pick_idx, _beat_pick_page * page_size,
+			maxi(_beat_pick_page * page_size, mini((_beat_pick_page + 1) * page_size, rows.size()) - 1))
+	_refresh_body()
+
+
+## R: descend a level, or start the run at the picked beat.
+func _beat_pick_advance() -> void:
+	var rows := _beat_pick_rows()
+	if _beat_pick_idx < 0 or _beat_pick_idx >= rows.size():
+		return
+	var picked = rows[_beat_pick_idx].get("id")
+	match _beat_pick_level:
+		1:
+			_beat_pick_campaign = str(picked)
+		2:
+			_beat_pick_act = int(picked)
+		3:
+			var beat_id := str(picked)
+			_beat_pick_level = 0
+			deactivate()
+			if not CampaignFixture.jump(beat_id):
+				_toast_shell("could not start at %s — no session to restart" % beat_id)
+			return
+	_beat_pick_level += 1
+	_beat_pick_idx = 0
+	_beat_pick_page = 0
+	_refresh_body()
+	_refresh_verb_chips()
+
+
+## F: back up one level (closing the picker from the top level).
+func _beat_pick_back() -> void:
+	_beat_pick_level = maxi(0, _beat_pick_level - 1)
+	_beat_pick_idx = 0
+	_beat_pick_page = 0
+	_refresh_body()
+	_refresh_verb_chips()
+
 
 ## Build the clipboard payload for a bug report: version + platform header,
 ## then the tail of the engine log (push_error/warnings land there via
@@ -1311,6 +1465,7 @@ func _show_tab(tab: int) -> void:
 		return
 	_keep_peeking = false
 	_run_peeking = false
+	_beat_pick_level = 0
 	_current_tab = tab
 	var target_frame: String = TAB_TO_FRAME.get(tab, FRAME_RUN)
 	if frame_id != target_frame:
@@ -1346,7 +1501,13 @@ func _on_action_q() -> void:
 		Tab.KEEP:    _load_from_selected_slot()
 		Tab.NEW:     _start_new_scenario()                    # Q = leave current run for a new one
 		Tab.BALANCE: _nudge_balance_setting(-1)              # Q = − value
-		Tab.DEV:     RefusalVoice.note("nothing on Q in Dev — G H J picks an action, R runs it")
+		Tab.DEV:
+			if _beat_pick_level > 0:
+				_beat_pick_level = 0
+				_refresh_body()
+				_refresh_verb_chips()
+			else:
+				RefusalVoice.note("nothing on Q in Dev — G H J picks an action, R runs it")
 
 func _on_action_e() -> void:
 	if _pending_action != PendingAction.NONE:
@@ -1377,7 +1538,11 @@ func _on_action_r() -> void:
 		Tab.KEEP:    _save_to_selected_slot()
 		Tab.NEW:     RefusalVoice.note("nothing on R here — Q starts the selected scenario")
 		Tab.BALANCE: _nudge_balance_setting(1)              # R = + value
-		Tab.DEV:     _execute_dev_action(_dev_action_idx)
+		Tab.DEV:
+			if _beat_pick_level > 0:
+				_beat_pick_advance()
+			else:
+				_execute_dev_action(_dev_action_idx)
 
 func _on_action_f() -> void:
 	# QF chord: if we're in a quit-confirm, F = quit without saving.
@@ -1398,6 +1563,9 @@ func _on_action_f() -> void:
 		return
 	if _new_peeking:
 		_toggle_new_peek()
+		return
+	if _current_tab == Tab.DEV and _beat_pick_level > 0:
+		_beat_pick_back()
 		return
 	# Run tab: F = universal continue. Resume if a game is live; otherwise
 	# load the last-touched slot, or start the default scenario.
@@ -1467,7 +1635,9 @@ func _select_item_in_tab(slot: int) -> void:
 				_balance_setting_idx = global_idx
 				_refresh_body()
 		Tab.DEV:
-			if slot < DEV_ACTIONS.size() and _dev_action_idx != slot:
+			if _beat_pick_level > 0:
+				_beat_pick_select(slot)
+			elif slot < DEV_ACTIONS.size() and _dev_action_idx != slot:
 				_dev_action_idx = slot
 				_refresh_body()
 		_:
@@ -1516,8 +1686,11 @@ func _on_navigate(direction: Vector2i) -> void:
 				mini((_balance_setting_page + 1) * page_size, _balance_settings.size()) - 1)
 			_refresh_body()
 		Tab.DEV:
-			_dev_action_idx = wrapi(_dev_action_idx + step, 0, DEV_ACTIONS.size())
-			_refresh_body()
+			if _beat_pick_level > 0:
+				_beat_pick_page_step(step)
+			else:
+				_dev_action_idx = wrapi(_dev_action_idx + step, 0, DEV_ACTIONS.size())
+				_refresh_body()
 		_:
 			pass
 

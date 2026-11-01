@@ -562,6 +562,9 @@ func open_event_home(key: String, quest_id: int = -1) -> void:
 	# menu so its text rides with the player (wave 8 literalist lost the
 	# Arc instruction the moment X opened).
 	_raise_toast_column()
+	if k.begins_with("supply:"):
+		open_board_on_supply(k.substr(7))
+		return
 	if k.begins_with("commitments"):
 		var view := "history" if k == "commitments_history" else "active"
 		var qid := quest_id
@@ -570,31 +573,14 @@ func open_event_home(key: String, quest_id: int = -1) -> void:
 			qid = int(parts[1])
 		open_board_on_commitments(qid, view)
 		return
-	if ku == "ARC" or ku == "XI" or ku == "I":
+	# X's tabs share C's grammar (SurfaceRooms): XT Self, XY Arc, XU Charge,
+	# XI Guide, XO Story.
+	var x_tab := _x_tab_for(ku)
+	if x_tab != "":
 		_ensure_open("controls")
 		var controls = overlays.get("controls")
 		if controls != null and controls.has_method("show_tab_named"):
-			controls.show_tab_named("arc")
-		elif controls != null and controls.has_method("show_tab_arc"):
-			controls.show_tab_arc()
-		return
-	if ku == "STORY" or ku == "XY" or ku == "Y":
-		_ensure_open("controls")
-		var story = overlays.get("controls")
-		if story != null and story.has_method("show_tab_named"):
-			story.show_tab_named("story")
-		return
-	if ku == "SELF" or ku == "XT":
-		_ensure_open("controls")
-		var self_tab = overlays.get("controls")
-		if self_tab != null and self_tab.has_method("show_tab_named"):
-			self_tab.show_tab_named("self")
-		return
-	if ku == "GUIDE" or ku == "XO" or ku == "O":
-		_ensure_open("controls")
-		var guide = overlays.get("controls")
-		if guide != null and guide.has_method("show_tab_named"):
-			guide.show_tab_named("guide")
+			controls.show_tab_named(x_tab)
 		return
 	if ku == "V" or ku == "ATLAS":
 		_ensure_open("atlas")
@@ -618,31 +604,34 @@ func open_event_home(key: String, quest_id: int = -1) -> void:
 		_ensure_open("controls")
 
 
+## X tab named by a home key: a tab name ("ARC") or X plus its key ("XY").
+static func _x_tab_for(ku: String) -> String:
+	if ku == "ARC" or ku == "XY":
+		return "arc"
+	if ku == "CHARGE" or ku == "XU":
+		return "charge"
+	if ku == "GUIDE" or ku == "XI":
+		return "guide"
+	if ku == "STORY" or ku == "XO":
+		return "story"
+	if ku == "SELF" or ku == "XT":
+		return "self"
+	return ""
+
+
 func is_event_home_open(key: String) -> bool:
 	var k := str(key).strip_edges()
 	var ku := k.to_upper()
+	if k.begins_with("supply:"):
+		return false  # the walk can be needed while the board is open on another biome/tab
 	if k.begins_with("commitments") or ku == "Q" or ku == "C" or ku == "QUESTS" or ku == "BOARD":
 		return _overlay_is_open("quests")
-	if ku == "ARC" or ku == "XI" or ku == "I":
+	var x_tab := _x_tab_for(ku)
+	if x_tab != "":
 		if not _overlay_is_open("controls"):
 			return false
 		var controls = overlays.get("controls")
-		return controls != null and controls.has_method("is_on_tab") and bool(controls.is_on_tab("arc"))
-	if ku == "STORY" or ku == "XY" or ku == "Y":
-		if not _overlay_is_open("controls"):
-			return false
-		var story = overlays.get("controls")
-		return story != null and story.has_method("is_on_tab") and bool(story.is_on_tab("story"))
-	if ku == "SELF" or ku == "XT":
-		if not _overlay_is_open("controls"):
-			return false
-		var self_tab = overlays.get("controls")
-		return self_tab != null and self_tab.has_method("is_on_tab") and bool(self_tab.is_on_tab("self"))
-	if ku == "GUIDE" or ku == "XO" or ku == "O":
-		if not _overlay_is_open("controls"):
-			return false
-		var guide = overlays.get("controls")
-		return guide != null and guide.has_method("is_on_tab") and bool(guide.is_on_tab("guide"))
+		return controls != null and controls.has_method("is_on_tab") and bool(controls.is_on_tab(x_tab))
 	if ku == "V" or ku == "ATLAS":
 		return _overlay_is_open("atlas")
 	return false
@@ -687,6 +676,34 @@ func open_board_on_commitments(quest_id: int = -1, view: String = "active") -> v
 		toggle_overlay("quests")
 	if overlay.has_method("show_commitments_focused"):
 		overlay.show_commitments_focused(quest_id, view)
+
+
+## The supply door (toast route "supply:<emoji>", owner ruling 2026-10-29):
+## stand in the biome whose board carries the rescue trade for `emoji` (the
+## Village), open the board on Market, and select that trade's row. Navigation
+## ONLY — the row is left disarmed, so the player's own two taps (or R) accept.
+func open_board_on_supply(emoji: String) -> void:
+	var e := str(emoji).strip_edges()
+	var biome := ""
+	for t in CampaignRuntime.supply_trades(e):
+		var b := str(t.get("biome", ""))
+		if b == "Village":
+			biome = b
+			break
+		if biome == "":
+			biome = b
+	if biome != "":
+		var abm = get_node_or_null("/root/ActiveBiomeManager")
+		if abm != null and abm.has_method("get_slot_for_biome") \
+				and int(abm.get_slot_for_biome(biome)) >= 0 and abm.has_method("set_active_biome"):
+			abm.set_active_biome(biome)
+	if not overlays.has("quests"):
+		return
+	var overlay = overlays["quests"]
+	if not (overlay_stack and overlay_stack.has_overlay(overlay)):
+		toggle_overlay("quests")
+	if overlay.has_method("show_supply_focused"):
+		overlay.show_supply_focused(e)
 
 
 ## ClickLadder rung 3: close whatever menu is open and walk toward the

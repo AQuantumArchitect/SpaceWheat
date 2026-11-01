@@ -4,7 +4,7 @@ extends RefCounted
 ##
 ## Top of the keyboard hierarchy is now the **archetype hat row** (4-0).
 ## Each hat picks a frame; 1/2/3 picks a sub-mode within that frame; QERF
-## is the four-chip primary action row. See `docs/ARCHETYPE_FRAMES.md`.
+## is the four-chip primary action row. See `docs/design/ARCHETYPE_FRAMES.md`.
 ##
 ## | Hat | Frame      | Live wiring                                    |
 ## |-----|------------|------------------------------------------------|
@@ -57,15 +57,17 @@ const HAT_KEY_TO_FRAME: Dictionary = {
 static var current_frame: String = FRAME_ACE
 
 ## Sub-mode index within each frame (selected by 1/2/3 in the new grammar).
-static var frame_mode_indices: Dictionary = {
+## Every frame starts on mode 0 except the Druid, which starts on Z (index 2).
+const DEFAULT_FRAME_MODES := {
 	FRAME_SPARK: 0,
 	FRAME_ICON: 0,
 	FRAME_MERCHANT: 0,
 	FRAME_CAPTAIN: 0,
 	FRAME_ACE: 0,
 	FRAME_OPERATOR: 0,
-	FRAME_DRUID: 0,
+	FRAME_DRUID: 2,
 }
+static var frame_mode_indices: Dictionary = DEFAULT_FRAME_MODES.duplicate()
 
 # =============================================================================
 # ARCHETYPE FRAME DEFINITIONS
@@ -150,7 +152,7 @@ const ARCHETYPE_FRAMES: Dictionary = {
 				"F": {"action": "toggle_berry_track", "label": "Track", "emoji": "⌖", "icon": "",
 					  "hint": "Toggle Berry-phase tracking on the focused icon. Press again to stop. Also fires Play."}
 			},
-			# The mirror (docs/GAUGE_CAMPAIGN.md, "The Loop Came Home"): a
+			# The mirror (docs/design/GAUGE_CAMPAIGN.md, "The Loop Came Home"): a
 			# phase is invisible alone, visible in company. Compares the
 			# Berry register's travel logs — non-destructive, ρ untouched.
 			"mirror": {
@@ -260,9 +262,12 @@ const ARCHETYPE_FRAMES: Dictionary = {
 				"E": {"action": "forecast_biome_discovery", "label": "Compass", "emoji": "🧭",
 					  "icon": "res://Assets/UI/Science/Explore.svg",
 					  "hint": "Read the discovery compass — see which unexplored biomes your affinity is pulling toward"},
+				# R reads "Chart <Biome>" while a story door is open
+				# (CaptainChipResolvers via Farm.chart_target); else Add Biome.
 				"R": {"action": "discover_biome", "label": "Add Biome", "emoji": "🗺️",
 					  "icon": "res://Assets/UI/Science/Explore.svg",
-					  "hint": "Discover and load a new biome into the spindle"}
+					  "chip_resolver": "captain.r_chart",
+					  "hint": "Discover and load a new biome into the spindle (charts the open story door's biome when one is waiting)"}
 			}
 		}
 	},
@@ -292,7 +297,7 @@ const ARCHETYPE_FRAMES: Dictionary = {
 			"probe": {
 				"Q": {"action": "pop", "label": "Gather", "emoji": "^",
 					  "icon": "res://Assets/UI/Science/Pop-Harvest.svg",
-					  "hint": "Cash out — pull the realized reward off a collapsed register into inventory; the gathering costs 🧺, flat. Reward = surprisal −kT·log p (rare collapse pays more; certain ones pay the floor).",
+					  "hint": "Gather — pull every strike banked on the plot into inventory and return it to fog (explore again to strike it); the gathering costs 🧺, flat. Reward = surprisal −kT·log p (rare collapse pays more; certain ones pay the floor).",
 					  "shift_action": "pop", "shift_label": "Mass Gather"},
 				"E": {"action": "", "label": "Pause", "emoji": "⏸",
 					  "icon": "",
@@ -300,12 +305,12 @@ const ARCHETYPE_FRAMES: Dictionary = {
 					  "disabled": true},
 				"R": {"action": "measure", "label": "Strike", "emoji": "!",
 					  "icon": "res://Assets/UI/Science/Measure.svg",
-					  "hint": "Strike — collapse the selected register to one classical outcome (a social encounter costs 👥). Needs an explored plot — F explores first."},
+					  "hint": "Strike — collapse the selected register to one classical outcome and bank what it pays on the plot (a social encounter costs 👥). Strike as often as you like; Q gathers the bank. Needs an explored plot — F explores first."},
 				"F": {"action": "fast_forward", "label": "Fast-Fwd", "emoji": "⏩",
 					  "icon": "",
 					  "chip_resolver": "ace.f_explore",
 					  "shift_action": "reap", "shift_label": "Reap Season",
-					  "hint": "Fast-forward — let the Hamiltonian spin the odds (advance time). Also resumes play. On an unexplored plot F mounts an expedition instead: explore it for 🍞. Shift+F reaps the whole season (biome-wide harvest, 🍼)."}
+					  "hint": "Fast-forward — let the Hamiltonian spin the odds (advance time). Also resumes play. On an unexplored plot F mounts an expedition instead: explore it for 🍞. Shift+F explores every unexplored plot here (or the checked ones); Ctrl+Shift+F reaps the whole season (biome-wide harvest, 🍼)."}
 			}
 		}
 	},
@@ -337,7 +342,7 @@ const ARCHETYPE_FRAMES: Dictionary = {
 					  "hint": "Build entangling gate",
 					  "submenu": "gate_selection"}
 			},
-			# The fence ledger (docs/GAUGE_CAMPAIGN.md). Every verb is FREE:
+			# The fence ledger (docs/design/GAUGE_CAMPAIGN.md). Every verb is FREE:
 			# changing local bookkeeping costs nothing because nothing
 			# physical changes — that is the lesson, not an oversight.
 			"compass": {
@@ -554,8 +559,7 @@ static func get_frame_mode_emoji(frame_name: String) -> String:
 
 
 static func reset_frame_modes() -> void:
-	for key in frame_mode_indices:
-		frame_mode_indices[key] = 0
+	frame_mode_indices = DEFAULT_FRAME_MODES.duplicate()
 
 
 # =============================================================================

@@ -25,6 +25,9 @@ windows.release.x86_64 = "res://native/bin/windows/libquantummatrix.windows.temp
 ; so a nothreads lib can never link into a shared-memory engine (or vice versa).
 ; The lib is compiled with -pthread to match (scripts/build-all-platforms.sh).
 web.threads.wasm32 = "res://native/bin/web/libquantummatrix.wasm"
+; Non-threaded side module for the Web-Slim preset (thread_support=false):
+; runs without COOP/COEP headers, so it works on GitHub Pages.
+web.nothreads.wasm32 = "res://native/bin/web/libquantummatrix.nothreads.wasm"
 
 ; macOS (optional)
 ; macos.debug = "res://native/bin/macos/libquantummatrix.macos.template_debug.framework"

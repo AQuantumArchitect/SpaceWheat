@@ -283,7 +283,11 @@ func _build_title() -> void:
 
 	# Centered titlecard image, letterboxed to whatever viewport shape.
 	var titlecard := TextureRect.new()
-	titlecard.texture = load("res://Assets/spacewheat_titlecard.png")
+	# The Pages "lite" web build prunes raster art (pages_lite); the title
+	# layer then shows its background and text only.
+	const TITLECARD_PATH := "res://Assets/spacewheat_titlecard.png"
+	if ResourceLoader.exists(TITLECARD_PATH):
+		titlecard.texture = load(TITLECARD_PATH)
 	titlecard.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	titlecard.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	titlecard.mouse_filter = Control.MOUSE_FILTER_IGNORE

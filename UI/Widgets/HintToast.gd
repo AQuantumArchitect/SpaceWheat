@@ -57,6 +57,15 @@ var _on_scoot: Callable = Callable()
 var _ladder: ClickLadder = ClickLadder.new()
 ## Route/path key this toast climbs toward. Arriving at that home flattens it.
 var home_key: String = ""
+## The surface (SurfaceGraph.current()) this toast was raised on. A toast that
+## names keys was true only there: when the player moves, its follow cue is
+## re-rendered for the new surface and a key path in its own text collapses
+## it — the line at the top is the one live voice for keys.
+var _surface_at_raise: String = ""
+var _surface_poll: float = 0.0
+const SURFACE_POLL_SEC := 0.25
+const KEY_CHORD := "\\[[A-Z;'=]{1,3}\\]|\\bESC\\b|SHIFT \\["
+var _key_rx: RegEx = null
 
 
 func _init() -> void:
@@ -136,7 +145,36 @@ func show_text(bbcode: String, importance: int = 1, path: String = "", on_tap: C
 			_path_label.visible = true
 		else:
 			_path_label.visible = false
+	_surface_at_raise = _surface_now()
 	_run_lifecycle()
+
+
+static func _surface_now() -> String:
+	var sg = load("res://Core/Campaign/SurfaceGraph.gd")
+	return str(sg.current()) if sg != null else ""
+
+
+func _names_keys(text: String) -> bool:
+	if _key_rx == null:
+		_key_rx = RegEx.new()
+		_key_rx.compile(KEY_CHORD)
+	return _key_rx.search(text) != null
+
+
+func _process(delta: float) -> void:
+	_surface_poll += delta
+	if _surface_poll < SURFACE_POLL_SEC:
+		return
+	_surface_poll = 0.0
+	var now := _surface_now()
+	if now == _surface_at_raise or _surface_at_raise == "":
+		return
+	_surface_at_raise = now
+	if _names_keys(_raw_bbcode):
+		flatten()
+		return
+	if _label and not _expanded:
+		_label.text = _face_text()
 
 
 func _follow_cue() -> String:
@@ -146,11 +184,9 @@ func _follow_cue() -> String:
 	if not (_ladder.has_home and _ladder.rung != ClickLadder.Rung.HOME):
 		return ""
 	if _overlay_is_open():
-		var k := str(_ladder.home_key).strip_edges().to_upper()
-		if k == "":
-			k = ClickLadder.key_for_home(_ladder.home_name)
-		if k != "":
-			return "[%s] opens %s" % [k, _ladder.home_name]
+		# A menu is open: its keys are the menu's, not ours. The toast is
+		# still a tap target.
+		return "tap to open %s" % _ladder.home_name
 	# Wave 19: do not print [F] opens Arc while Ace F is Explore.
 	if not owns_f():
 		return ""
@@ -254,6 +290,10 @@ func owns_f() -> bool:
 	# Field Explore wins; follow can wait. Do not steal the expedition.
 	var UIProgression = load("res://UI/Core/UIProgression.gd")
 	if UIProgression != null and UIProgression.ace_f_would_explore():
+		return false
+	# Fill the Urn: leftover Arc toasts still own F. Mill names Fast-Fwd
+	# so the gated 💀→⚱ basin can tick; follow can wait.
+	if UIProgression != null and UIProgression.ace_f_keeps_fast_fwd():
 		return false
 	return _ladder.has_home and _ladder.rung != ClickLadder.Rung.HOME
 

@@ -21,14 +21,15 @@ func _log(level: String, category: String, emoji: String, message: String) -> vo
 
 @export var biome_name: String = ""
 
-## Per-biome thermodynamic regime — the What Fades seam (docs/OPEN_CAMPAIGN.md).
+## Per-biome thermodynamic regime — the What Fades seam (docs/design/OPEN_CAMPAIGN.md).
 ## "" = inherit the global switches (BalanceConfig); "open" = this biome runs
 ## dissipative even while the world is sealed (wet country: the Fallow, the
 ## circuit shelf); "closed" = this biome stays unitary even after the door
 ## opens (the island enclave — inviolable, owner decision 2026-07-04).
 ## Honored at the three physics sites: the Lindblad build gate, the exact-unitary
-## evolve kernel, and ground-state init.
-var regime_override: String = ""
+## evolve kernel, and ground-state init. @export so a Charted wet-country
+## biome still runs open after save/load (non-export dropped it to "").
+@export var regime_override: String = ""
 
 
 ## Is THIS biome's dissipative generator active? (per-biome regime, then global)
@@ -54,7 +55,7 @@ var density_matrix: ComplexMatrix = null
 var berry_register: BerryPhaseRegister = BerryPhaseRegister.new()
 
 ## Lattice gauge ledger over this biome's coherent coupling graph (the fence
-## ledger — docs/GAUGE_CAMPAIGN.md). Lazy and signature-keyed: rebuilt exactly
+## ledger — docs/design/GAUGE_CAMPAIGN.md). Lazy and signature-keyed: rebuilt exactly
 ## when physics_signature changes (icon inject/remove, operator rebuild),
 ## carrying player-set phases forward by emoji so bookkeeping choices survive
 ## qubit reindexing. Never serialized: conventions re-seed from H on reload;
@@ -1397,7 +1398,7 @@ func _apply_lindblad_1q(qubit_index: int, from_pole: int, to_pole: int,
 	# ρ → K₀ρK₀† + K₁ρK₁†
 	# where:
 	# p = 1 - exp(-γ·dt)          (transition probability)
-	# K₀ = |from⟩⟨from| + √(1-p)|to⟩⟨to| + Σ_other |k⟩⟨k|  (no-jump)
+	# K₀ = √(1-p)|from⟩⟨from| + |to⟩⟨to| + Σ_other |k⟩⟨k|  (no-jump)
 	# K₁ = √p |to⟩⟨from|                                      (jump)
 
 	# This is trace-preserving and completely positive BY CONSTRUCTION —
@@ -1421,7 +1422,9 @@ func _apply_lindblad_1q(qubit_index: int, from_pole: int, to_pole: int,
 	# Apply Kraus map element-by-element:
 	#   ρ'[i,j] = K₀[i,·] ρ K₀†[·,j] + K₁[i,·] ρ K₁†[·,j]
 	#
-	# K₀ is diagonal: K₀[k,k] = 1 if qubit has from_pole, √(1-p) if to_pole
+	# Standard AD toward `to`: K₀ = √(1-p)|from⟩⟨from| + |to⟩⟨to|
+	# (source survives, target stays). K₀[from]=1 was inverted — mixed
+	# 50/50 was a fixed point so Fill the Urn never moved after Superpose.
 	# K₁ has one nonzero per block: K₁[k',k] = √p where k has from_pole, k'=flip(k)
 	var rho_new = ComplexMatrix.zeros(dim)
 	for i in range(dim):
@@ -1430,8 +1433,8 @@ func _apply_lindblad_1q(qubit_index: int, from_pole: int, to_pole: int,
 			var bit_j = (j >> shift) & 1
 
 			# K₀ ρ K₀† term: K₀ is diagonal, so K₀ρK₀†[i,j] = K₀[i,i] * ρ[i,j] * K₀[j,j]
-			var k0_i = 1.0 if bit_i == from_pole else sqrt_1mp
-			var k0_j = 1.0 if bit_j == from_pole else sqrt_1mp
+			var k0_i = sqrt_1mp if bit_i == from_pole else 1.0
+			var k0_j = sqrt_1mp if bit_j == from_pole else 1.0
 			var rho_ij = density_matrix.get_element(i, j)
 			var term0 = rho_ij.scale(k0_i * k0_j)
 

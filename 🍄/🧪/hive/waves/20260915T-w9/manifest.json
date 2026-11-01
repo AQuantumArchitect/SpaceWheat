@@ -1,0 +1,36 @@
+{
+  "stamp": "20260915T-w9",
+  "chapter": "five_doors",
+  "checkpoint": "fork_ready",
+  "model": "grok-4.5",
+  "host": "grok-build",
+  "jobs": 1,
+  "repo": "/home/primearchitect/ws/SpaceWheat",
+  "legs": [
+    {
+      "persona": "literalist",
+      "seat": "w_15T-w9_lite",
+      "chapter": "five_doors",
+      "checkpoint": "fork_ready",
+      "max_presses": 25,
+      "log": "/home/primearchitect/ws/SpaceWheat/\ud83c\udf44/\ud83e\uddea/hive/waves/20260915T-w9/literalist.md"
+    },
+    {
+      "persona": "earnest",
+      "seat": "w_15T-w9_earn",
+      "chapter": "five_doors",
+      "checkpoint": "fork_ready",
+      "max_presses": 25,
+      "log": "/home/primearchitect/ws/SpaceWheat/\ud83c\udf44/\ud83e\uddea/hive/waves/20260915T-w9/earnest.md"
+    },
+    {
+      "persona": "masher",
+      "seat": "w_15T-w9_mash",
+      "chapter": "five_doors",
+      "checkpoint": "fork_ready",
+      "max_presses": 25,
+      "log": "/home/primearchitect/ws/SpaceWheat/\ud83c\udf44/\ud83e\uddea/hive/waves/20260915T-w9/masher.md"
+    }
+  ],
+  "note": "Parent launches legs sequentially (prompts/GROK.md). This script writes packs; it does not spawn Godot."
+}

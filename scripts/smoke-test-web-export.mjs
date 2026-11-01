@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // smoke-test-web-export.mjs — the browser smoke lane for the Web export
-// (The Gallery, G4 — docs/ENGINE_FRONTIER.md Part II; docs/release/WEB_DOOR.md).
+// (The Gallery, G4 — docs/design/ENGINE_FRONTIER.md Part II; docs/release/WEB_DOOR.md).
 //
 // Boots the exported bundle in real Chromium and verifies what the static QA
 // (scripts/qa-web-export.sh) cannot: that the engine actually starts, renders

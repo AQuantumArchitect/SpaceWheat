@@ -35,7 +35,9 @@ def test_board_home_names_the_c_key():
     assert 'KEY_OPENS := "[%s] opens %s"' in text
     assert "func key_for_home" in text
     assert 'return "C"' in text
-    assert 'return "X"' in text
+    # X reopens on its last tab, so "[X] opens the Arc" was true only by
+    # luck: the Arc is a tap home, and the banner names the path.
+    assert 'return "X"' not in text
     chip = src(CHIP)
     assert 'home_name = "the board"' in chip
     assert 'home_key = "C"' in chip
@@ -112,14 +114,15 @@ def test_f_follows_a_live_toast_into_its_menu():
 
 
 def test_arc_row_is_inspect_then_shunt_never_accept():
-    """Arc is a catalog. Mash through it to the puzzle; R is the only accept."""
+    """Arc: first tap inspects; a confirm tap accepts an offer (same path as
+    R) or shunts any other row to its puzzle. Selecting never accepts."""
     arc = src(ROOT / "UI" / "Overlays" / "ControlsOverlay.gd")
     select = arc.split("func _select_arc_row")[1].split("\nfunc ")[0]
     assert "_tunnel_from_arc" in select
     assert "accept_quest" not in select
     assert "_on_action_r()" not in select
     ladder = src(LADDER)
-    assert "Never accept" in ladder
+    assert "confirm tap accepts" in ladder
 
 
 def test_market_is_one_board_with_stalls():
@@ -131,5 +134,5 @@ def test_market_is_one_board_with_stalls():
     # Fill tab is Commitments (U). Market (Y) is the stall board. History is
     # a Commitments chord, not a top-level tab.
     tab_row = text.split("const TAB_ROW")[1].split("const HANDS_MAX")[0]
-    assert '"Commitments"' in tab_row
-    assert '"Market"' in tab_row
+    assert 'SurfaceRooms.NAME_COMMITMENTS' in tab_row  # one table: UI/Core/SurfaceRooms.gd
+    assert 'SurfaceRooms.NAME_MARKET' in tab_row

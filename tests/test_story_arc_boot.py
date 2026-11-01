@@ -44,21 +44,24 @@ def test_story_flags_fire_from_action_not_boot(rig_boot) -> None:
     assert boot_row.get("ok", False), boot_row
     assert "first_breath" not in boot_row.get("flags_fired", {}), boot_row
 
-    # Positive half: the flag fires FROM the action. forest_evolving gates on
-    # story_flag_set(first_breath) + biome_evolving(StarterForest) +
-    # berry_consumed_count_gte 1 (the 2026-08-17 reorder relocated the whole
-    # berry chapter, first_breath included, to act 3 and added the story_flag_set
-    # leg onto forest_evolving). first_breath's own chain runs through
-    # spring_connects' standing ladder — orthogonal to what this test pins (that
-    # flags fire from action, not boot) — so force-fire it the same way the rig's
-    # other prerequisite-setup tests do, then let the berry consumption be the
-    # real action that fires forest_evolving through the live evaluator.
-    setup_row = rig.run_turn(50, "fire_flag", id="first_breath", timeout_s=30.0)
-    assert setup_row.get("ok", False) and setup_row.get("fired", False), setup_row
+    # Positive half: the flag fires FROM the action. The berry chapter sits in
+    # act 3 behind two act-2 teachings (forest_evolving requires lumber_flows
+    # AND spring_connects), so build that state honestly-by-construction with
+    # the spec fixture: start_at_beat replays every ancestor door through the
+    # real claim path and lets QuestManager open forest_evolving itself.
+    fx = rig.run_turn(50, "start_at_beat", id="forest_evolving", timeout_s=240.0)
+    assert fx.get("ok", False) and fx.get("fired", False) and not fx.get("forced"), fx
+    assert fx.get("offer_present", False), fx
+    pre = rig.run_turn(51, "story_flags", timeout_s=30.0).get("flags_fired", {})
+    assert "forest_listener" not in pre, "forest_listener fired without the berries"
 
-    # under soft geometry needs ~2.3 berries to cross the 0.85 fire threshold —
-    # so consume a few. (The full forest→village→empire chain is covered
-    # end-to-end by act3_5_drive.py.)
+    # The action: accept the forest's offer, incorporate berries until its
+    # count gate (3 in StarterForest) fills, claim — and forest_listener (the
+    # next beat, door rule) fires from that claim, not from anything at boot.
+    offers = rig.run_turn(52, "story_offers", timeout_s=30.0).get("story_offers", [])
+    q = next(o for o in offers if o.get("source_flag") == "forest_evolving")
+    acc = rig.run_turn(53, "accept_quest", quest_id=int(q["id"]), timeout_s=30.0)
+    assert acc.get("accepted", False), acc
     berry_row = rig.run_turn(
         99,
         "consume_berry",
@@ -68,11 +71,22 @@ def test_story_flags_fire_from_action_not_boot(rig_boot) -> None:
         phase_each=3.14159,
     )
     assert berry_row.get("ok", False), berry_row
-    story_row = _wait_for_story_flag(rig, "forest_evolving", timeout_s=20.0)
+    deadline = time.time() + 20.0
+    turn = 100
+    while time.time() < deadline:
+        qs = rig.run_turn(turn, "active_quests", full=True, timeout_s=30.0).get("quests", [])
+        mine = [a for a in qs if a.get("source_flag") == "forest_evolving"]
+        if not mine:
+            break  # claimed already
+        if mine[0].get("status") == "ready":
+            rig.run_turn(turn + 1, "claim_quest", quest_id=int(mine[0]["id"]), timeout_s=30.0)
+        turn += 2
+        time.sleep(0.25)
+    story_row = _wait_for_story_flag(rig, "forest_listener", timeout_s=20.0)
     flags_fired = story_row.get("flags_fired", {})
-    assert "forest_evolving" in flags_fired, story_row
+    assert "forest_listener" in flags_fired, story_row
     story_log = story_row.get("story_log", [])
-    assert any(str(entry.get("id", "")) == "forest_evolving" for entry in story_log), story_row
+    assert any(str(entry.get("id", "")) == "forest_listener" for entry in story_log), story_row
 
 
 def test_story_tab_never_narrates_unfired_beats(rig_boot) -> None:
@@ -114,9 +128,9 @@ def test_story_tab_never_narrates_unfired_beats(rig_boot) -> None:
     assert boot_row.get("ok", False), boot_row
     fired = set(boot_row.get("flags_fired", {}) or {})
 
-    # Open X (playthrough) → Y (story tab), then read what the player SEES.
+    # Open X (playthrough) → O (story tab), then read what the player SEES.
     rig.run_turn(2, "press_key", key="x", settle_frames=10)
-    rig.run_turn(3, "press_key", key="y", settle_frames=10)
+    rig.run_turn(3, "press_key", key="o", settle_frames=10)
     text_row = rig.run_turn(4, "overlay_text", timeout_s=30.0)
     assert text_row.get("ok", False), text_row
     visible = "\n".join(str(line.get("text", "")) for line in text_row.get("lines", []))

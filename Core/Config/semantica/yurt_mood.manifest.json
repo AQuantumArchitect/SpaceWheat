@@ -1,7 +1,7 @@
 {
   "compiler": "semantica_compiler.py",
   "source_world": "yurt-mood",
-  "source_path": "/mnt/c/Users/Luke Spooner/ws-win/yurt/worlds/yurt_mood",
+  "source_path": "yurt/worlds/yurt_mood",
   "vocabulary_source": "authored_table(__main__)",
   "biome_name": "YurtMood",
   "organ_count": 7,

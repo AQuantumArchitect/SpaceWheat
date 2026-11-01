@@ -12,8 +12,8 @@ Start Here
 ----------
 - 🗺️ Full architecture & data flow: `🍄/🗺️_ARCHITECTURE.md`  ← READ THIS FIRST
 - Game mental model / physics / controls: `docs/GAME_CODEX.md`
-- Repo-wide operational memory: `MEMORY.md`
-- Biome/faction physics work: `BIOME_AGENTS.md`
+- Repo-wide operational memory: `docs/agents/MEMORY.md`
+- Biome/faction physics work: `docs/agents/BIOME_AGENTS.md`
 
 Quick Start (keyboard rig)
 --------------------------
@@ -37,6 +37,20 @@ Quick Start (keyboard rig)
 4) Run a ready-made probe (headed screenshots, UI health, etc.):
      python3 🍄/🧪/screenshot_probe.py
      python3 🍄/🧪/ui_health_probe.py
+
+Start at any story beat
+-----------------------
+  c.run_turn(1, "start_at_beat", id="woodlot_contact")
+builds the state a player holds the moment that beat OPENS, from the spec alone
+(Core/Campaign/CampaignFixture.gd): Act 0 claimed, every ancestor fired and its
+arc door claimed through the real claim path, charted biomes loaded, a modest
+wallet. The beat itself opens on QuestManager's own evaluator. The result's
+`report.unreproduced` lists what the fixture could not put in the world (gate
+ledgers, physics readings). Plan it offline with
+`python3 tools/campaign/fixture_order.py <beat>`; bank one as a save with
+`python3 tools/campaign/mint_fixture_save.py <beat>`; in-game: Z → Dev [O] →
+"start at beat…". The honest, player-parity drive of the opening (no seams) is
+`python3 🍄/🧪/honest_opening.py`.
 
 Core Paths
 ----------

@@ -66,8 +66,11 @@ def test_village_stirs_waits_on_the_wheel():
     flags = _flags()
     prereqs = {p.get("id") for p in flags["village_stirs"]["predicates"]
                if p.get("type") == "story_flag_set"}
-    assert "arc_handover" in prereqs
-    assert "first_harvest" in prereqs
+    assert prereqs == {"arc_handover"}, prereqs
+    # first_harvest is reached through the Wheel (one door, one path).
+    wheel = {p.get("id") for p in flags["arc_handover"]["predicates"]
+             if p.get("type") == "story_flag_set"}
+    assert "first_harvest" in wheel
 
 
 def test_one_reap_does_not_open_the_woodlot():
@@ -89,15 +92,22 @@ def test_one_reap_does_not_open_the_woodlot():
     assert "village_stirs" in newly2
     assert "new_voices" not in newly2, newly2
     assert "woodlot_door" not in newly2, newly2
-    # Mill teaching claimed → plant may open.
+    # Mill teaching claimed → Incorporate (First Breath, Act 1) may open.
     completed.add("village_stirs")
     newly3 = _pass(flags, order, fired, completed, physics_true=True)
-    assert "new_voices" in newly3
+    assert "first_breath" in newly3
+    assert "new_voices" not in newly3, newly3
     assert "woodlot_door" not in newly3, newly3
-    # Plant claimed → lumber yard.
-    completed.add("new_voices")
+    # Incorporate claimed → plant may open.
+    completed.add("first_breath")
     newly4 = _pass(flags, order, fired, completed, physics_true=True)
-    assert "woodlot_door" in newly4
+    assert "new_voices" in newly4
+    assert "woodlot_door" not in newly4, newly4
+    # Plant claimed → both country doors.
+    completed.add("new_voices")
+    newly5 = _pass(flags, order, fired, completed, physics_true=True)
+    assert "woodlot_door" in newly5
+    assert "spring_door" in newly5
 
 
 def test_engine_requires_parent_door_resolved():
@@ -133,16 +143,19 @@ def test_act0_chips_do_not_dump_surprisal():
 
 
 def test_standing_gte_fires_at_the_authored_value():
-    """Mill tutorial pays access 0.02. village_stirs is standing_gte 0.02.
-    Plain soft_gate is 0.5 AT center, so the Wheel handshake left Arc empty."""
+    """Standing gates use count_gate so N means N (plain soft_gate is 0.5 AT
+    center). village_stirs now opens on the Wheel alone; its ONE objective is
+    the mill apprenticeship's access gate (campaign spec param)."""
     qm = src(QM)
     standing = qm.split('"standing_gte":')[1].split('"biome_state_gte"')[0]
     assert "count_gate" in standing
     assert "FLAG_FIRE_THRESHOLD" in standing
     flags = _flags()
-    access = next(p for p in flags["village_stirs"]["predicates"]
+    assert not any(p.get("type") == "standing_gte" for p in flags["village_stirs"]["predicates"]), \
+        "one objective per beat: the opening condition is the Wheel, nothing else"
+    access = next(p for p in flags["village_stirs"]["arc_quest"]["state_predicates"]
                   if p.get("type") == "standing_gte")
-    assert float(access["value"]) == 0.02
+    assert float(access["value"]) > 0.02  # at least one kept delivery past the tutorial's
     hint = str(flags["village_stirs"]["arc_quest"]["hint"])
     assert len(hint) <= 70
     assert "GHJKL" not in hint

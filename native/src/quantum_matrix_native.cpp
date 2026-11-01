@@ -346,7 +346,7 @@ PackedColorArray QuantumMatrixNative::heatmap_colors(int max_dim) const {
                 // Sat  = magnitude (zero coherence → grey, no spurious hue).
                 // Val  = 0.15 + 0.85·m (never fully black, bright at high coherence).
                 const float phase = static_cast<float>(std::atan2(im, re));
-                const float hue   = std::fmod(phase / (2.0f * Math_PI) + 1.0f, 1.0f);
+                const float hue   = std::fmod(phase / (2.0f * Math::PI) + 1.0f, 1.0f);
                 const float sat   = m;
                 const float val   = 0.15f + 0.85f * m;
                 ptr[i * dim + j] = Color::from_hsv(hue, sat, val, 1.0f);

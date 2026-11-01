@@ -1,7 +1,7 @@
 class_name ReelRunner
 extends Node
 
-## The Gallery, G1 (docs/ENGINE_FRONTIER.md, Part II): attract reels.
+## The Gallery, G1 (docs/design/ENGINE_FRONTIER.md, Part II): attract reels.
 ##
 ## A reel is DATA — a JSON file of timed presentation steps driven through the
 ## same action surface the rig uses. The piece plays itself: a kiosk loop for

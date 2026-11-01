@@ -33,6 +33,7 @@
 #pragma once
 
 #include <godot_cpp/core/defs.hpp>
+#include <godot_cpp/core/math_defs.hpp>
 
 #include <gdextension_interface.h>
 
@@ -44,7 +45,7 @@ class Variant;
 
 class Dictionary {
 	static constexpr size_t DICTIONARY_SIZE = 8;
-	uint8_t opaque[DICTIONARY_SIZE] = {};
+	alignas(8) uint8_t opaque[DICTIONARY_SIZE] = {};
 
 	friend class Variant;
 
@@ -157,7 +158,9 @@ public:
 	Dictionary &operator=(Dictionary &&p_other);
 	const Variant &operator[](const Variant &p_key) const;
 	Variant &operator[](const Variant &p_key);
+#if GODOT_VERSION_MINOR >= 4
 	void set_typed(uint32_t p_key_type, const StringName &p_key_class_name, const Variant &p_key_script, uint32_t p_value_type, const StringName &p_value_class_name, const Variant &p_value_script);
+#endif
 };
 
 } // namespace godot

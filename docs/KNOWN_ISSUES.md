@@ -4,36 +4,35 @@ A published, honest list of what's open, instead of a growing internal
 backlog nobody outside the repo reads. This is the right shape for an
 Early-Access-style release: ship with a stated roadmap, not silence.
 
-Sourced from `docs/PLAYTEST_SWEEP_2026-08-10.md`, `docs/MOUSE_PARITY_AUDIT.md`,
-`docs/SLOP_PATROL_2026-07-29.md`, `docs/CAMPAIGN_STATE_2026-08-04.md`, and
+Sourced from `docs/history/2026-08-10_PLAYTEST_SWEEP.md`, `docs/design/MOUSE_PARITY_AUDIT.md`,
+`docs/history/2026-07-29_SLOP_PATROL.md`, `docs/history/2026-08-04_CAMPAIGN_STATE.md`, and
 `docs/performance/PROFILE_2026-08-16.md`. Each item links back to its source
 doc for full context.
 
 ## Player-facing
 
-- **Unrevealed plots have no mouse click target under the default 3D
-  renderer.** The Act-0 hint says "or just tap it," which is true for
-  revealed plots but not empty ground. Needs a design call (ghost orbs for
-  empty ground, re-show the 2D rack, or reword the hint) —
-  `docs/PLAYTEST_SWEEP_2026-08-10.md`.
+- **The post-game is unfinished.** *What Fades* and *The Loom* open after the
+  Demos ending and are playable in part; expect rough edges and acts that do
+  not close yet. The game says so at the ending and in the campaign headers.
+
 - **Three action chips read fully silent**: spark.R (act 6), operator.F
   (act 7), druid.F (act 8). Not yet confirmed real vs. a phantom (see the
-  project's own precedent for that diagnosis in `docs/PRE_LAUNCH_GAPS.md`) —
-  `docs/MOUSE_PARITY_AUDIT.md`, Wave 15.
+  project's own precedent for that diagnosis in `docs/design/PRE_LAUNCH_GAPS.md`) —
+  `docs/design/MOUSE_PARITY_AUDIT.md`, Wave 15.
 - **Mouse-vs-keyboard refusal/toast text parity** has never been fully
   confirmed, open since Wave 2 of the mouse-parity audit —
-  `docs/MOUSE_PARITY_AUDIT.md`.
+  `docs/design/MOUSE_PARITY_AUDIT.md`.
 - **The Act-7 gate `Tr(ρ²) ≥ 0.54` has no legible player-facing lever** —
-  `docs/PLAYTEST_SWEEP_2026-08-10.md`.
+  `docs/history/2026-08-10_PLAYTEST_SWEEP.md`.
 - **Arc-offer queueing at the Act-4 fork** buries 4 quest offers behind one
-  banner line, 12 pages deep — `docs/PLAYTEST_SWEEP_2026-08-10.md`.
+  banner line, 12 pages deep — `docs/history/2026-08-10_PLAYTEST_SWEEP.md`.
 - **Hat-key toggles (number row) have no visual affordance** for which hat
   is currently worn — a deliberate, still-open design question, not a bug —
-  `docs/PLAYTEST_SWEEP_2026-08-10.md`.
+  `docs/history/2026-08-10_PLAYTEST_SWEEP.md`.
 - **Touch drag selection is unimplemented** (`UI/PlotGridDisplay.gd`) and the
   neighborhood-graph overlay is reachable only via the literal `[` key with
   no button-row slot. Mobile-port-only; not a desktop-blocking gap —
-  `docs/SLOP_PATROL_2026-07-29.md` knot #41.
+  `docs/history/2026-07-29_SLOP_PATROL.md` knot #41.
 
 ## Performance
 
@@ -60,13 +59,13 @@ doc for full context.
 - **`FarmEconomy.preflight_gate`/`commit_gate`** (and their `EconomyConstants`
   twins) have zero gameplay callers — gates are currently honestly free.
   Whether they should cost anything is a balance decision, not a bug —
-  `docs/SLOP_PATROL_2026-07-29.md` knot #38.
+  `docs/history/2026-07-29_SLOP_PATROL.md` knot #38.
 - **Standing's "inert" status is repeatedly re-flagged as ambiguous** across
   audit passes even though it already feeds `PriceModel` pricing. This is an
   intentional, owner-accepted half-state; the ambiguity keeps resurfacing
   purely because nothing documents it as deliberate — one-line doc fix, not
-  a code fix — `docs/CAMPAIGN_STATE_2026-08-04.md` §5 item 12.
-- **`docs/STATE_VECTOR_PLAN.md`** (replacing the closed-system density matrix
+  a code fix — `docs/history/2026-08-04_CAMPAIGN_STATE.md` §5 item 12.
+- **`docs/design/STATE_VECTOR_PLAN.md`** (replacing the closed-system density matrix
   ρ with a pure state `|ψ⟩` behind a `QuantumState` interface) is fully
   scoped, five-stage migration planned, zero code written. No player-facing
   payoff on its own — owner call on whether/when to start it.
@@ -75,22 +74,22 @@ doc for full context.
 
 - **`run_executor.py`'s command-builder API is dead** and duplicates (stale)
   what `milk_hunt_batch.py` hand-rolls inline — either delete it or bring it
-  to flag parity and switch callers over — `docs/SLOP_PATROL_2026-07-29.md`
+  to flag parity and switch callers over — `docs/history/2026-07-29_SLOP_PATROL.md`
   knot #27.
 - **Four dead, unreferenced GDScript test harnesses** (`SimplifiedQuestBoardTest.gd`
   and siblings) reimplement the same "quest completion nukes the pool" check.
   Safe to delete once the live-coverage question is confirmed —
-  `docs/SLOP_PATROL_2026-07-29.md` knot #31.
+  `docs/history/2026-07-29_SLOP_PATROL.md` knot #31.
 - **Two unmerged native-engine proposals in `llm_inbox/`** independently
   redefine the same math (`AxialField`/`FactionField`/`IconEdge`) two
   incompatible ways. Unbuilt, not live — flagged for whoever picks either
-  seed up — `docs/SLOP_PATROL_2026-07-29.md` knot #36.
+  seed up — `docs/history/2026-07-29_SLOP_PATROL.md` knot #36.
 - **`QuantumInstrumentInput._focus_plot` writes selection state directly**
   instead of through `QuantumInstrument.select_plot()` — a parallel-authority
-  smell, behavior-identical today — `docs/SLOP_PATROL_2026-07-29.md` knot #39.
+  smell, behavior-identical today — `docs/history/2026-07-29_SLOP_PATROL.md` knot #39.
 - **`QuantumField3D.rig_bubble_state` reports `measured:false` unconditionally**
   (known, noted in-code) — the rig reads authoritative measured state from
-  the farm separately — `docs/SLOP_PATROL_2026-07-29.md` knot #40.
+  the farm separately — `docs/history/2026-07-29_SLOP_PATROL.md` knot #40.
 
 ## Test-suite gap found during this pass
 
@@ -99,7 +98,21 @@ doc for full context.
   (`🍄/🧪/checkpoints/endrun_act7.json`, `endrun_act8.json`) are gitignored
   ... Needs one of: (a) a real Godot campaign run to Act 7 and Act 8 to
   regenerate the two fixtures ..., or (b) a skip guard on the test.~~
-  **Fixed 2026-08-16**: (a) happened. `🍄/🧪/act3_5_drive.py`'s `ACT35_ENDGAME=1`
+  **Superseded 2026-10-17 — the claim below no longer stands.** That
+  "real headless campaign" ran `act3_5_drive.py` with `RIG_UNLOCK_ALL=1`
+  (progressive disclosure bypassed) and resource injection ON, on the
+  pre-restructure story graph; it proved the flags could be reached by a
+  driver that skipped the economy, not that the campaign plays. The banked
+  `endrun_act7/act8/ending` saves are deleted. Late-game states now come from
+  spec-built `start_at_beat` fixtures (`Core/Campaign/CampaignFixture.gd`,
+  `tests/test_campaign_fixtures.py`, `tests/test_campaign_checkpoints.py`),
+  and the honest, player-parity drive of the opening
+  (`🍄/🧪/honest_opening.py`, `tests/test_honest_opening.py`) records exactly
+  how far the real economy carries a fresh run: on 2026-10-17 it played
+  Act 0, Act 1 and Act 2's contact/teaching beats by keys alone and stopped
+  by design at `forest_listener` offered (Act 3), with `woodlot_wakes` not
+  attempted. No end-to-end playthrough at player parity exists yet.
+  ~~**Fixed 2026-08-16**: (a) happened. `🍄/🧪/act3_5_drive.py`'s `ACT35_ENDGAME=1`
   block drives a real headless campaign from a fresh boot through
   `the_door_stays_open`; two bugs blocked it from ever reaching Act 8 before
   this pass — `discover_target()` always retried the same un-cullable biome
@@ -113,7 +126,7 @@ doc for full context.
   (commit `f43a4f0`), with a `.gitignore` exception carved out for just
   those two files, mirroring the `native/bin/` pattern — everything else
   under `🍄/🧪/checkpoints/` stays ignored as re-mintable runtime output.
-  `python3 -m pytest tests/ -q` now reads 298 passed, 0 failed, 17 skipped.
+  `python3 -m pytest tests/ -q` now reads 298 passed, 0 failed, 17 skipped.~~
 - **Fixed during this pass**: 11 files across `🍄/` hardcoded the original
   developer's absolute machine path (`/home/primearchitect/ws/SpaceWheat/...`)
   instead of deriving it from the script's own location — silently breaking
@@ -121,5 +134,14 @@ doc for full context.
   scripts for anyone checked out anywhere else. Found because it broke
   `tests/test_mouse_seat_contract.py` in this sandbox; all 11 now resolve
   their root via `Path(__file__).resolve()` (or the bash equivalent). See
-  `docs/SLOP_PATROL_2026-07-29.md`, which already flagged this as a known
+  `docs/history/2026-07-29_SLOP_PATROL.md`, which already flagged this as a known
   portability gap.
+
+## Test suite baseline (2026-10-24)
+
+`tests/known_failures.txt` lists 77 tests that already failed before the guidance
+work landed. They test code that was never written (harvest balloons, discover
+confirm submenu), old wording, or Windows-only paths. CI runs them as non-strict
+xfail, so the suite is green only while nothing outside the list breaks. A listed
+test that starts passing shows as XPASS: delete its line. Do not add a line for a
+test that passed before.

@@ -34,15 +34,18 @@ class IconModification:
 		BOOST_SELF_ENERGY,  # Increase self-energy (stability)
 	}
 
-	var quest_type: Type
+	# `type`, not `quest_type`: every writer (generate_icon_modification) and
+	# reader (_format_icon_modification) says mod.type — the old name made the
+	# first claim of a quantum-typed arc quest a script error mid-reward.
+	var type: Type
 	var icon_emoji: String = ""
 	var parameters: Dictionary = {}  # Type-specific params
 
 	func _init():
-		quest_type = Type.MODIFY_COUPLING
+		type = Type.MODIFY_COUPLING
 
 	func _to_string() -> String:
-		return "IconMod<%s>[%s]" % [Type.keys()[quest_type], icon_emoji]
+		return "IconMod<%s>[%s]" % [Type.keys()[type], icon_emoji]
 
 
 class QuestReward:

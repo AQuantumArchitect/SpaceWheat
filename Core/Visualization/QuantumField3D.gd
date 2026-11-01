@@ -795,6 +795,47 @@ func _spawn_slot_label(reg: int, pos: Vector3) -> Label3D:
 	return lbl
 
 
+## What a struck plot has banked for Q: one emoji + count per resource, beside
+## the ball. The qubit stays live under it (waiting between strikes pays more),
+## so the badge sits alongside the bubble, never replaces it. Rebuilt only when
+## the bank's contents change.
+func _update_bank_badge(b: Dictionary, bname: String) -> void:
+	var totals: Dictionary = {}
+	if farm_ref != null and is_instance_valid(farm_ref) and farm_ref.get("terminal_pool") != null:
+		var term = farm_ref.terminal_pool.get_terminal_for_register(int(b.reg), bname)
+		if term != null and term.has_method("banked_totals"):
+			totals = term.banked_totals()
+	var sig := str(totals)
+	if sig == str(b.get("bank_sig", "{}")) and b.get("bank_nodes") != null:
+		return
+	b["bank_sig"] = sig
+	for n in b.get("bank_nodes", []):
+		if n != null and is_instance_valid(n):
+			n.queue_free()
+	var nodes: Array = []
+	var row := 0
+	for emoji in totals:
+		if row >= 3:
+			break
+		var at: Vector3 = b.pos + Vector3(R + 0.3, 0.2 - 0.3 * row, 0)
+		var sp := _pole_sprite(str(emoji), at, 0.3)
+		if sp != null:
+			nodes.append(sp)
+		var lbl := Label3D.new()
+		lbl.text = "×%d" % int(totals[emoji])
+		lbl.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		lbl.no_depth_test = true
+		lbl.font_size = 64
+		lbl.pixel_size = 0.0034
+		lbl.outline_size = 12
+		lbl.modulate = SLOT_LABEL_COLOR
+		lbl.position = at + Vector3(0.28, 0, 0)
+		_pivot.add_child(lbl)
+		nodes.append(lbl)
+		row += 1
+	b["bank_nodes"] = nodes
+
+
 func _apply_check_visual(_b: Dictionary) -> void:
 	# The cyan camera-circle is the checkbox now. No glyph on the orb.
 	if _sel_reticle != null and is_instance_valid(_sel_reticle):
@@ -822,6 +863,9 @@ func _clear_bubbles() -> void:
 				"slot_lbl"]:
 			if b.get(k) != null and is_instance_valid(b[k]):
 				b[k].queue_free()
+		for n in b.get("bank_nodes", []):
+			if n != null and is_instance_valid(n):
+				n.queue_free()
 	_bubbles.clear()
 	_mi_segs.clear()
 	_mi_dirty = true
@@ -1233,6 +1277,7 @@ func _tick_field(dt: float) -> void:
 	_apply_force_dynamics(vc, dt)
 	var t2 := Time.get_ticks_usec()
 	for b in _bubbles:
+		_update_bank_badge(b, bname)
 		var snap = vc.get_snapshot(b.reg)
 		if typeof(snap) != TYPE_DICTIONARY:
 			continue

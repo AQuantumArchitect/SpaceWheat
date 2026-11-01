@@ -116,7 +116,7 @@ func _input(event: InputEvent) -> void:
 
 	# Live toast owns F only when it advertises a home ([F] opens …).
 	# Refusal / mark toasts have no home — Ace F is still Explore.
-	# Shift+F is Reap — never intercept. Confirm/submenu still own E/F.
+	# Shift+F is mass explore, Ctrl+Shift+F is Reap — never intercept. Confirm/submenu still own E/F.
 	if event.keycode == KEY_F and not event.is_shift_pressed():
 		var top_toast := _topmost_toast()
 		var modal_owns_ef: bool = instrument_input != null \
@@ -316,16 +316,20 @@ func _route_to_callable(route: String) -> Callable:
 
 static func _home_name_for(key: String) -> String:
 	var ku := str(key).strip_edges().to_upper()
+	if ku.begins_with("SUPPLY:"):
+		return "the Village market"
 	if ku.begins_with("COMMITMENTS") or ku == "Q" or ku == "C" or ku == "QUESTS" or ku == "BOARD":
 		return "the board"
 	if ku == "V" or ku == "ATLAS":
 		return "the Atlas"
-	if ku == "STORY" or ku == "XY" or ku == "Y":
+	if ku == "STORY" or ku == "XO":
 		return "Story"
 	if ku == "SELF" or ku == "XT":
 		return "Self"
-	if ku == "GUIDE" or ku == "XO" or ku == "O":
+	if ku == "GUIDE" or ku == "XI":
 		return "the Guide"
+	if ku == "CHARGE" or ku == "XU":
+		return "Charge"
 	if ku == "N" or ku == "INSPECTOR":
 		return "the network"
 	if ku == "M" or ku == "MAP":
@@ -359,13 +363,15 @@ static func _normalize_home_key(key: String) -> String:
 	var k := str(key).strip_edges().to_lower()
 	if k.begins_with("commitments") or k in ["q", "c", "quests", "board"]:
 		return "board"
-	if k in ["arc", "xi", "i"]:
+	if k in ["arc", "xy"]:
 		return "arc"
-	if k in ["story", "xy", "y"]:
+	if k in ["charge", "xu"]:
+		return "charge"
+	if k in ["story", "xo"]:
 		return "story"
-	if k in ["self", "xt", "t"]:
+	if k in ["self", "xt"]:
 		return "self"
-	if k in ["guide", "xo", "o"]:
+	if k in ["guide", "xi"]:
 		return "guide"
 	return k
 
@@ -447,8 +453,8 @@ func _handle_shell_action(event: InputEvent) -> bool:
 	if not menu_entry.is_empty():
 		# Progressive disclosure (phase-2 funnel): a locked menu's key redirects
 		# instead of acting. Z/X never lock. C ("quests") gates on tutorial step
-		# 2 (UIProgression.MENU_UNLOCK_STEP) layered on its always-unlocked
-		# MENU_UNLOCK_FLAGS entry; the 5 fully-gated surfaces (atlas V,
+		# 2 (UIProgression.menu_unlock_step(), from the campaign spec) layered on its always-unlocked
+		# menu unlock entry; the 5 fully-gated surfaces (atlas V,
 		# biome_detail B, inspector N, map_meta M, neighborhood_graph [) gate on
 		# a story flag instead.
 		if not UIProgression.is_menu_active(str(menu_entry.get("id", ""))):
@@ -1109,7 +1115,7 @@ func connect_to_quantum_input() -> void:
 			and not quest_manager.story_flag_fired.is_connected(_on_progression_flag_fired):
 		quest_manager.story_flag_fired.connect(_on_progression_flag_fired)
 	# ...and from every tutorial-step transition. The C chip's gate is a STEP
-	# condition (MENU_UNLOCK_STEP), not a flag — with only the flag signal
+	# condition (menu_unlock_step()), not a flag — with only the flag signal
 	# wired, the chip stayed hidden after its step unlocked until some
 	# unrelated flag happened to fire (while the banner said "press C").
 	# active_quests_changed covers accept/ready/claim/complete/expiry;

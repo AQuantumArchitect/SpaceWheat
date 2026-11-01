@@ -36,7 +36,7 @@ func _ready() -> void:
 	# ask: "the time controls need to start getting integrated into the
 	# timebar"). It used to own a whole top band in the right corner, inset
 	# past the contract chip — three separate things stacked in one corner,
-	# which is the "cluster fuck" the same pass was sent to fix. Down here the
+	# which is the clutter the same pass was sent to fix. Down here the
 	# transport reads left-to-right against the timeline it drives, and the top
 	# strip is one band shorter.
 	z_index = 6

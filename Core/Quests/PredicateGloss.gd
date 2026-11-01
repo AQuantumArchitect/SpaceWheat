@@ -1,7 +1,7 @@
 extends RefCounted
 
 ## ONE home for the player-facing one-line gloss of a quest/flag predicate.
-## Used by QuestBoard (C) and the Arc tab (ControlsOverlay X→I) — these were
+## Used by QuestBoard (C) and the Arc tab (ControlsOverlay, X → Y) — these were
 ## two hand-maintained copies that drifted every time a predicate type landed
 ## (merged 2026-07-06). Pass the QuestManager so numeric targets show the REAL
 ## fire threshold (predicate_fire_target inverts the soft-gate); without it,
@@ -41,6 +41,8 @@ const TARGETS := {
 	"gate_sequence_contains":   {"kind": "gate"},
 	"biome_evolving":           {"kind": "biome"},
 	"active_biome_is":          {"kind": "biome"},
+	"biome_explored":           {"kind": "biome"},
+	"icon_incorporated":        {"kind": "hat", "frame": "icon"},
 	# What Turns (gauge/holonomy): compass verbs live on Operator, the mirror
 	# and the loop-walking on Icon.
 	"biome_betti_gte":          {"kind": "hat", "frame": "icon"},
@@ -125,7 +127,7 @@ static func summary(pred: Dictionary, qm = null) -> String:
 			# leg L4a walled reading 9% as "1-2 of 15" when it held 12).
 			var sig_have := int(qm.signature_size_now()) if (qm and qm.has_method("signature_size_now")) else -1
 			var sig_str := ("%d/%d" % [sig_have, itgt]) if sig_have >= 0 else str(itgt)
-			return "know %s icons — claim teachings (Arc X→I, then C→U); Icon hat (5) R incorporates" % sig_str
+			return "know %s icons — sign teachings on the Arc (X→Y), claim them on Charge (X→U); Icon hat (5) R incorporates" % sig_str
 		"berry_consumed_count_gte":
 			# Nine fleet testers stalled on "berries[X] ≥ 3" — the gloss must teach
 			# the loop, not just name the count. Live N/M: the ladder is cumulative,
@@ -171,7 +173,12 @@ static func summary(pred: Dictionary, qm = null) -> String:
 			var loaded := bool(qm.atom_count_in(evb) > 0) if (qm and qm.has_method("atom_count_in")) else true
 			if loaded:
 				return "%s evolving" % evb
+			# Story biomes (a door's chart) are charted, not drawn.
+			if CampaignRuntime.charts().values().has(evb):
+				return "%s awake — 🦅×21 from Forest, then Captain [7] [R] Chart %s" % [evb, evb]
 			return "%s awake — 🦅×21 from Forest, then Captain [7] [R] Add Biome" % evb
+		"biome_explored":
+			return "explore every plot in %s — Ace hat [8], then Shift+F" % str(pred.get("biome", "?"))
 		"active_biome_is":
 			# The wayfinding gate: arrival is the whole ask. The objective banner's
 			# travel line already names the orb + key while you're elsewhere; this
@@ -254,15 +261,15 @@ static func summary(pred: Dictionary, qm = null) -> String:
 			# same digit target() returns.
 			match gname:
 				"measure":
-					return "Strike ×%d — %s: tap a live bubble (or R)" % [gcount, verb_home("ace")]
+					return "Strike ×%d — %s: select a live bubble, tap it again (or R); strike again when it has spread" % [gcount, verb_home("ace")]
 				"reap":
-					return "Reap the season ×%d — %s: Shift+click F (or Shift+F)" % [gcount, verb_home("ace")]
+					return "Reap the season ×%d — %s: the season button (or Ctrl+Shift+F)" % [gcount, verb_home("ace")]
 				"pop":
-					return "Gather ×%d — %s: tap a frozen bubble (or Q)" % [gcount, verb_home("ace")]
+					return "Gather ×%d — %s: select a struck bubble, tap it again (or Q)" % [gcount, verb_home("ace")]
 				"explore":
-					return "Explore ×%d — %s: tap a sleeping plot (or F)" % [gcount, verb_home("ace")]
+					return "Explore ×%d — %s: select a sleeping plot, tap it again (or F)" % [gcount, verb_home("ace")]
 				"plant", "inject_icon":
-					return "Plant ×%d — %s: empty plot, R (need 🌱×5 from Forest)" % [gcount, verb_home("icon")]
+					return "Plant ×%d — %s: empty plot, R (need 🌱×5 from Forest + 13 of the south pole)" % [gcount, verb_home("icon")]
 				"hadamard":
 					return "Superpose ×%d — %s: tap E" % [gcount, verb_home("druid")]
 			var gframe := str(GATE_FRAMES.get(gname, ""))

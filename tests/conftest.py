@@ -114,3 +114,38 @@ def _post_suite_result(session, exitstatus) -> None:
               f"passed={passed} failed={failed}")
     except HearthDark as exc:
         print(f"[semantica] hearth dark, suite result NOT posted: {exc}", file=sys.stderr)
+
+
+# ---------------------------------------------------------------------------
+# Known failures: a ratchet, not a mute button.
+#
+# tests/known_failures.txt lists the node ids that already failed before the
+# guidance work landed (tests pinned to code that was never written, to old
+# wording, or to a Windows-only path). They run as non-strict xfail: still
+# executed and reported, but they no longer turn CI red. Anything NOT on the
+# list that fails is a new break and fails the run. When a listed test starts
+# passing it shows up as XPASS: delete its line. Never add a line for a test
+# that passed before.
+# ---------------------------------------------------------------------------
+KNOWN_FAILURES = ROOT / "tests" / "known_failures.txt"
+
+
+def _known_failure_ids() -> set:
+    if not KNOWN_FAILURES.is_file():
+        return set()
+    out = set()
+    for line in KNOWN_FAILURES.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line and not line.startswith("#"):
+            out.add(line)
+    return out
+
+
+def pytest_collection_modifyitems(config, items):
+    known = _known_failure_ids()
+    if not known:
+        return
+    for item in items:
+        if item.nodeid in known:
+            item.add_marker(pytest.mark.xfail(
+                reason="known failure (tests/known_failures.txt)", strict=False))

@@ -19,26 +19,44 @@ const LANE_PREFIXES := {
 }
 
 
-## The Demos' spine in movements, keyed off an act number (single source = act).
-## Re-cut for the 2026-08-17 reorder: act 0 is the farm-verb loop, acts 1-2 the
-## teachings-first village-and-countries arc, act 3 the relocated berry chapter
-## ("what the land remembers" — first_breath + the forest staircase), act 4 the
-## island hub, and the old lumped "acts 5-8" movement splits so the ending act
-## (6) and the after-the-door epilogue lanes (7-8) stop wearing one label.
+## Act headers come from the campaign spec (Core/Campaign/campaign.json →
+## campaign_runtime.json): each campaign's acts carry their own titles, so a
+## reorder re-titles the HUD with no code change. Global act numbers: the main
+## campaign (The Demos) owns 0..6; the post-game campaigns share 7+ (their own
+## act 1 = global 7), so a flag's own campaign/campaign_act is the precise key.
+const MAIN_CAMPAIGN := "demos"
+const POSTGAME_ACT_BASE := 7
+
+
 static func chapter_for_act(act: int) -> String:
-	if act <= 0:
-		return "Chapter I — The Loop"
-	elif act <= 2:
-		return "Chapter II — The Village"
-	elif act == 3:
-		return "Chapter III — What the Land Remembers"
-	elif act == 4:
-		return "Chapter IV — The Island & Its People"
-	elif act == 5:
-		return "Chapter V — The Empire"
-	elif act == 6:
-		return "Chapter VI — The Door"
-	return "Chapter VII — After the Door"
+	if act >= POSTGAME_ACT_BASE:
+		return "After the Ending"
+	var title := CampaignRuntime.act_title(MAIN_CAMPAIGN, act)
+	return "Act %d — %s" % [act, title] if title != "" else "Act %d" % act
+
+
+## "Act 2 — Two Countries" for a compiled story flag, in its own campaign.
+static func chapter_for_flag(flag: Dictionary) -> String:
+	var title := str(flag.get("act_title", ""))
+	var n := int(flag.get("campaign_act", flag.get("act", 0)))
+	if title == "":
+		return chapter_for_act(int(flag.get("act", 0)))
+	return "Act %d — %s" % [n, title]
+
+
+## "The Demos" / "What Fades" / "The Loom" for a compiled story flag.
+static func campaign_title_for_flag(flag: Dictionary) -> String:
+	var c := CampaignRuntime.campaign(str(flag.get("campaign", MAIN_CAMPAIGN)))
+	return str(c.get("title", "The Demos")) if not c.is_empty() else "The Demos"
+
+
+## "The Demos · Act 2 — Two Countries"; post-game campaigns still being built
+## say so: "What Fades (in development) · Act 1 — Lantern Country".
+static func header_for_flag(flag: Dictionary) -> String:
+	var title := campaign_title_for_flag(flag)
+	if CampaignRuntime.is_in_development(str(flag.get("campaign", MAIN_CAMPAIGN))):
+		title += " (in development)"
+	return "%s · %s" % [title, chapter_for_flag(flag)]
 
 
 ## Parse a flag's display_name for its narrative lane. 22 flags carry
@@ -77,6 +95,9 @@ static func current_act(fired: Dictionary, all_flags: Array) -> int:
 	for flag in all_flags:
 		if not (flag is Dictionary):
 			continue
+		# The main campaign's act counter; post-game campaigns keep their own.
+		if str(flag.get("campaign", MAIN_CAMPAIGN)) != MAIN_CAMPAIGN:
+			continue
 		var act := int(flag.get("act", 0))
 		acts_present[act] = true
 		if fired.has(str(flag.get("id", ""))):
@@ -92,16 +113,19 @@ static func current_act(fired: Dictionary, all_flags: Array) -> int:
 	return current
 
 
-## Is an act COMPLETE? Every flag of that act with no `branch_group` fired,
+## Is an act COMPLETE (optionally within one campaign — post-game campaigns
+## share global act numbers)? Every flag of that act with no `branch_group` fired,
 ## AND at least one member fired per branch group present in the act. Branch
 ## groups are mutually-optional alternatives (the five village_path_* doors
 ## share "village_door") — requiring ALL of them made the act-5 postcard
 ## unreachable on any normal playthrough.
-static func act_complete(act: int, fired: Dictionary, all_flags: Array) -> bool:
+static func act_complete(act: int, fired: Dictionary, all_flags: Array, campaign: String = "") -> bool:
 	var saw_any := false
 	var group_satisfied := {}   # branch_group -> bool (any member fired)
 	for flag in all_flags:
 		if not (flag is Dictionary) or int(flag.get("act", -1)) != act:
+			continue
+		if campaign != "" and str(flag.get("campaign", MAIN_CAMPAIGN)) != campaign:
 			continue
 		saw_any = true
 		var flag_fired: bool = fired.has(str(flag.get("id", "")))

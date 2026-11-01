@@ -37,15 +37,27 @@ def test_spine_owns_the_live_door():
     assert 'Act %d' not in recap.split("func _show_boot_recap")[1].split("func ")[0]
 
 
-def test_banner_stays_dark_until_the_door_is_taken():
+def test_banner_names_the_arc_offer_the_story_waits_on():
+    """Accepting stays manual (owner decision 2026-10-17), and a beat's
+    children open only once it is accepted and claimed. So when the player
+    holds no accepted work, the banner must NOT go dark: it names the Arc
+    offer the story is waiting on (satisfied ones included — those complete
+    on accept) and the spotlight pulses the book key [X]. Accepted work still
+    wins the banner."""
     prog = src(ROOT / "UI" / "Core" / "UIProgression.gd")
     text_fn = prog.split("static func objective_text")[1].split("static func objective_target_key")[0]
     assert "Quest.STATUS_STORY" in text_fn
     assert "return _decorate_objective(best)" in text_fn
-    assert "OFFER_LINE" not in text_fn
+    assert "return _waiting_arc_line()" in text_fn
+    assert text_fn.index('== "ready"') < text_fn.index("return _waiting_arc_line()")
+    assert "_claim_walk_line" in text_fn
+    waiting = prog.split("static func waiting_arc_offer")[1].split("\nstatic func ")[0]
+    assert "_unsigned_still_open" not in waiting, "satisfied offers block the story too"
+    line = prog.split("static func _waiting_arc_line")[1].split("\nstatic func ")[0]
+    assert "Accept [R]" in line and "[X]" in line
     target_fn = prog.split("static func objective_target()")[1].split("static func _hat_key_for_frame")[0]
     assert "Quest.STATUS_STORY" in target_fn
-    assert '{"key": "X"' not in target_fn
+    assert '{"key": "X"' in target_fn
 
 
 def test_offer_toast_is_title_only():
@@ -53,8 +65,12 @@ def test_offer_toast_is_title_only():
     offer = intro.split("func toast_for_offer")[1].split("func flag_postcard")[0]
     assert "return {}" in offer
     assert offer.count('"detail": ""') >= 2
-    assert "[X] then Arc [I]" in offer
+    # A toast outlives the menu it was raised on, so it names the place
+    # (SurfaceRooms) and never a key path; the banner names the keys.
+    assert "SurfaceRooms.NAME_ARC" in offer and "Arc [I]" not in offer
     assert "New offer from" in offer
+    assert "live_quest" in offer
+    assert 'status", "")) != "story"' in offer
     assert "Tap here to read & accept" not in intro
 
 

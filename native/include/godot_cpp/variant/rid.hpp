@@ -33,6 +33,7 @@
 #pragma once
 
 #include <godot_cpp/core/defs.hpp>
+#include <godot_cpp/core/math_defs.hpp>
 
 #include <gdextension_interface.h>
 
@@ -44,7 +45,7 @@ class Variant;
 
 class RID {
 	static constexpr size_t RID_SIZE = 8;
-	uint8_t opaque[RID_SIZE] = {};
+	alignas(8) uint8_t opaque[RID_SIZE] = {};
 
 	friend class Variant;
 
