@@ -96,6 +96,10 @@ static func _kind_for_pred(pred: Dictionary) -> String:
 			return "discover" if b != "" and b not in BOOT_BIOMES else "travel"
 		"active_biome_is":
 			return "travel"
+		"biome_explored":
+			return "gate"
+		"icon_incorporated":
+			return "berry"
 		"gate_sequence_contains", "gate_order", "lesson_receipt":
 			return "gate"
 		"berry_consumed_count_gte", "berry_total_phase_gte":
@@ -163,7 +167,7 @@ static func _append_pred_keys(keys: PackedStringArray, pred: Dictionary, unlocke
 			_append(keys, "5")
 			_append(keys, "F")
 			_append(keys, "R")
-		"active_biome_is", "biome_state_gte", "biome_attractor_emoji_gte", "biome_evolving":
+		"active_biome_is", "biome_explored", "biome_state_gte", "biome_attractor_emoji_gte", "biome_evolving":
 			_append_all(keys, ACE_KEYS)
 
 

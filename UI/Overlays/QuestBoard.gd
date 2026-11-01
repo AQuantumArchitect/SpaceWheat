@@ -1,6 +1,8 @@
 class_name QuestBoard
 extends "res://UI/Core/Surface.gd"
 
+const UIProgression = preload("res://UI/Core/UIProgression.gd")
+
 ## C — Contract Surface, pipeline-aligned.
 ##
 ## Tabs map one-to-one onto the manifold→market→quest pipeline:
@@ -92,6 +94,12 @@ var _nb_name: String = ""
 var _nb_auto_scoped: bool = false
 
 var _offer_pool: Array = []
+var _pool_biome: String = ""   # the biome the ring was dealt for
+## The player's icon count when the ring was dealt (known + incorporated). A new
+## icon changes which factions deal with you and what the neighborhood wants, so
+## the next board open re-deals for free (playtest 2026-10-29: the Demos market
+## kept showing the old offers after incorporating new icons).
+var _pool_signature: int = -1
 var _selected_index: int = 0
 # _selected_index defaults to 0, so row 0 reads as "already selected" the instant the
 # board opens. Without this flag, a tap-to-look at row 0 (idx == _selected_index on the
@@ -154,6 +162,8 @@ func set_quest_manager(quest_mgr: Node) -> void:
 			quest_manager.quest_offered.connect(_on_quest_pool_changed)
 		if quest_manager.has_signal("active_quests_changed") and not quest_manager.active_quests_changed.is_connected(_on_quest_pool_changed):
 			quest_manager.active_quests_changed.connect(_on_quest_pool_changed)
+		if quest_manager.has_signal("quest_completed") and not quest_manager.quest_completed.is_connected(_on_quest_completed):
+			quest_manager.quest_completed.connect(_on_quest_completed)
 
 func set_biome(biome: Node) -> void:
 	if biome != current_biome:
@@ -162,6 +172,29 @@ func set_biome(biome: Node) -> void:
 		_reset_item_cursor()
 		if visible:
 			_render_all()
+
+## The supply door (OverlayManager.open_board_on_supply): land on Market with
+## the standing trade that pays `emoji` selected. Navigation ONLY — the row is
+## left disarmed, so the player still taps it twice (or presses R) to accept.
+func show_supply_focused(emoji: String) -> void:
+	if frame_id != FRAME_MARKET:
+		set_frame(FRAME_MARKET)
+	_ensure_biome()
+	var here := _board_biome_name()
+	if _offer_pool.is_empty() or here != _pool_biome:
+		_refresh_pool()
+		_pool_biome = here
+	else:
+		_inject_supply_offers()
+	var rows: Array = _market_rows()
+	for i in range(rows.size()):
+		var data = rows[i].get("data", {})
+		if data is Dictionary and _is_supply(data) and str(data.get("supply_emoji", "")) == emoji:
+			_select(i)
+			break
+	_row_confirm_armed = false
+	_render_all()
+
 
 ## The HUD door: land on Commitments (U) for a held quest (or History when
 ## view == "history"). C and the contract chip open the fill tab, not Market.
@@ -342,8 +375,18 @@ func _on_activated() -> void:
 	# this immediately via show_commitments_focused.
 	if frame_id != FRAME_COMMITMENTS:
 		set_frame(FRAME_COMMITMENTS)
+	# Opening the board reads the live list: History is a look back you chose,
+	# not a state the next visit should inherit (R acts on Active only).
+	_commitments_view = "active"
 	_ensure_biome()
-	_refresh_pool()
+	var here := _board_biome_name()
+	if _offer_pool.is_empty() or here != _pool_biome or _signature_stamp() != _pool_signature:
+		_refresh_pool()
+		_pool_biome = here
+	else:
+		# Standing trades come and go with the live quest (🔨 🪓 🌊 🦅 stand
+		# only while asked for) — re-sync them on every open.
+		_sync_supply_offers()
 	_render_all()
 
 # =============================================================================
@@ -367,7 +410,12 @@ func _on_row_gui_input(event: InputEvent, idx: int) -> void:
 	# for row 0 the instant the board opens (default selection), so without the
 	# arm flag a first look at row 0 would fire the verb immediately instead
 	# of just selecting it.
-	if not (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed):
+	# Acts on PRESS, not release: the 1 s board heartbeat (_process →
+	# _render_all) rebuilds every row node, and a click whose press and
+	# release straddled a rebuild lost its release with the freed node — so a
+	# double-tap on a market contract sometimes never accepted (playtest
+	# 2026-10-29). The node a press lands on always exists.
+	if not (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed):
 		return
 	accept_event()
 	if idx == _selected_index and _row_confirm_armed:
@@ -388,9 +436,6 @@ func _toast_feedback(text: String) -> void:
 func _on_action_q() -> void:
 	# Q = leave / change current run state.
 	match frame_id:
-		FRAME_MARKET:
-			if str(_selected_market_row().get("kind", "")) == "held":
-				_abandon_selected()
 		FRAME_COMMITMENTS:
 			if _commitments_view != "history":
 				_abandon_selected()
@@ -420,11 +465,8 @@ func _on_action_r() -> void:
 	_disarm_abandon()
 	match frame_id:
 		FRAME_MARKET:
-			var kind := str(_selected_market_row().get("kind", ""))
-			if kind == "offer":
+			if str(_selected_market_row().get("kind", "")) == "offer":
 				_accept_selected()
-			elif kind == "held":
-				_complete_selected()
 		FRAME_COMMITMENTS:
 			if _commitments_view != "history":
 				_complete_selected()
@@ -432,34 +474,10 @@ func _on_action_r() -> void:
 			pass
 
 func _on_action_f() -> void:
-	# F = pin/unpin a commitment. A locked commitment never expires, so you can accept a
-	# contract you can't yet afford, go gather the deliverable, and come back to turn it in.
-	# While an abandon is armed, F is its confirm (confirm-chord law).
-	match frame_id:
-		FRAME_MARKET:
-			if str(_selected_market_row().get("kind", "")) == "held":
-				if _abandon_arm_qid >= 0:
-					_abandon_confirmed()
-				else:
-					_toggle_lock_selected()
-		FRAME_COMMITMENTS:
-			if _commitments_view != "history":
-				if _abandon_arm_qid >= 0:
-					_abandon_confirmed()
-				else:
-					_toggle_lock_selected()
-		_:
-			pass
-
-func _toggle_lock_selected() -> void:
-	if quest_manager == null or not quest_manager.has_method("set_quest_locked"):
-		return
-	var quest: Dictionary = _selected_held_quest()
-	var qid: int = int(quest.get("id", -1))
-	if qid < 0:
-		return
-	quest_manager.set_quest_locked(qid, not quest_manager.is_quest_locked(qid))
-	_render_all()
+	# F = confirm an armed abandon (confirm-chord law). Commitments have no
+	# clock, so there is nothing to pin: F does nothing else.
+	if frame_id == FRAME_COMMITMENTS and _commitments_view != "history" and _abandon_arm_qid >= 0:
+		_abandon_confirmed()
 
 # =============================================================================
 # INSPECT TEXT — what E pops up as a toast (OverlayBase calls get_inspect_text).
@@ -719,10 +737,6 @@ func _held_verb_labels(hq: Dictionary) -> Dictionary:
 		return {"Q": "Cancel", "E": "—", "R": "—", "F": "⚠ Confirm Abandon"}
 	if hq.is_empty():
 		return {"Q": "—", "E": "Inspect", "R": "—", "F": "—"}
-	var f_label := "Lock"
-	if quest_manager and quest_manager.has_method("is_quest_locked"):
-		if quest_manager.is_quest_locked(int(hq.get("id", -1))):
-			f_label = "Unlock"
 	var r_label := "Complete"
 	var h_status := str(hq.get("status", "")).to_lower()
 	var h_type = hq.get("type", 0)
@@ -733,7 +747,7 @@ func _held_verb_labels(hq: Dictionary) -> Dictionary:
 		r_label = "Deliver"
 	else:
 		r_label = "Go there"
-	return {"Q": "Abandon", "E": "Inspect", "R": r_label, "F": f_label}
+	return {"Q": "Abandon", "E": "Inspect", "R": r_label, "F": "—"}
 
 # =============================================================================
 # MANIFOLD BODY (T tab — physics tracer)
@@ -1089,9 +1103,9 @@ func _build_market_body() -> void:
 	var free_n: int = maxi(0, HANDS_MAX - held_n)
 	var hands := "hands %d/%d" % [held_n, HANDS_MAX]
 	if free_n == 0:
-		hands += " — full. claim or abandon a stall to see new offers"
+		hands += " — full. deliver or abandon a commitment [U] to take another"
 	else:
-		hands += " · %d stall%s open" % [free_n, "" if free_n == 1 else "s"]
+		hands += " · %d open" % free_n
 	_body_box.add_child(_make_muted_label(hands, 11))
 	var rows: Array = _market_rows()
 	if rows.is_empty():
@@ -1332,20 +1346,6 @@ func _make_commitment_row(quest: Dictionary, key_str: String, selected: bool) ->
 	ask_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hbox.add_child(ask_lbl)
 
-	# Timed contracts died in silence — the deadline lived nowhere on this
-	# board, and failure surfaced only in History as "timeout" (two sweep
-	# runners burned contracts on it). The heartbeat re-render makes this a
-	# live countdown for free.
-	if not is_history and quest_manager != null and quest_manager.has_method("get_quest_time_remaining"):
-		var left: float = quest_manager.get_quest_time_remaining(int(quest.get("id", -1)))
-		if left >= 0.0:
-			var clock_lbl := Label.new()
-			clock_lbl.text = "⌛ %d:%02d" % [int(left) / 60, int(left) % 60]
-			clock_lbl.add_theme_font_size_override("font_size", 12)
-			clock_lbl.add_theme_color_override("font_color",
-				UIStyleFactory.COLOR_MUTED if left > 30.0 else Color(0.9, 0.45, 0.35))
-			hbox.add_child(clock_lbl)
-
 	# History tail: reward summary for completions, reason for failures.
 	if is_history:
 		var tail: String = ""
@@ -1533,6 +1533,21 @@ func _refresh_pool() -> void:
 	# the current biome's board ALWAYS, regardless of the lattice's RNG.
 	_refresh_market_pool()
 	_inject_supply_offers()
+	_pool_signature = _signature_stamp()
+
+
+## Size of the player's icon vocabulary (known + incorporated). Any growth means
+## the market must be recomputed against the new signature.
+func _signature_stamp() -> int:
+	var farm = InstrumentLocator.resolve_active_farm(self)
+	if farm == null:
+		return _pool_signature
+	var n := 0
+	if "known_icons" in farm and farm.known_icons is Array:
+		n += farm.known_icons.size()
+	if "incorporated_icons" in farm and farm.incorporated_icons is Array:
+		n += 1000 * farm.incorporated_icons.size()
+	return n
 
 
 ## Standing supply trades (campaign `resources` table) for the biome this
@@ -1551,6 +1566,8 @@ func _supply_offers() -> Array:
 		if quest_manager and "active_quests" in quest_manager \
 				and quest_manager.active_quests.has(offer.get("id", -1)):
 			continue
+		if not _rescue_open(str(offer.get("supply_emoji", ""))):
+			continue
 		out.append(offer)
 	# A signed lesson that teaches the board loop guarantees its own contract:
 	# while it is held, its lesson_offer stands on the lesson's board.
@@ -1560,6 +1577,38 @@ func _supply_offers() -> Array:
 			continue
 		out.append(lo)
 	return out
+
+
+func _vital_stock(emoji: String) -> int:
+	var econ = _get_economy()
+	return int(econ.get_resource(emoji)) if econ else 0
+
+
+## When a standing (rescue) trade is on its board. The three vitals (👥 people,
+## 🍞 bread, 🧺 baskets) while critical (2 or fewer); 🌱 🔥 🔨 🪓 🌊 🦅 only
+## while a live quest asks for them; anything else while it is below the
+## campaign table's low-water mark. Everything else on a board is procedural or arc-spawned.
+func _rescue_open(emoji: String) -> bool:
+	if emoji == "":
+		return false
+	# Owner ruling 2026-10-29. A staple's rescue (👥 🍞 🧺) stands on the
+	# Village board while that staple is critical — STAPLE_CRITICAL or fewer.
+	if emoji in STAPLES:
+		return _vital_stock(emoji) <= STAPLE_CRITICAL
+	# 🌱 🔥 🔨 🪓 🌊 🦅 stand only while a live quest asks for them: not
+	# before (no stockpiling ahead of the story), not after (the door closes).
+	if emoji in QUEST_GATED_RESCUES:
+		return UIProgression.quest_requests_resource(emoji)
+	return _vital_stock(emoji) < maxi(1, CampaignRuntime.low_water(emoji))
+
+
+func _was_completed(quest_id) -> bool:
+	if quest_manager == null or not ("completed_quests" in quest_manager):
+		return false
+	for q in quest_manager.completed_quests:
+		if q is Dictionary and q.get("id", -2) == quest_id:
+			return true
+	return false
 
 
 func _lesson_offers(bname: String) -> Array:
@@ -1576,6 +1625,9 @@ func _lesson_offers(bname: String) -> Array:
 		trade["biome"] = bname
 		var offer := QuestPipeline.supply_offer(trade)
 		if offer.is_empty():
+			continue
+		# A one-time contract: once it has been delivered it does not return.
+		if _was_completed(offer.get("id", -1)):
 			continue
 		offer["lesson_offer"] = true
 		out.append(offer)
@@ -1605,6 +1657,9 @@ func _sync_supply_offers() -> void:
 	var kept: Array = []
 	for o in _offer_pool:
 		if _is_supply(o) and quest_manager.active_quests.has(o.get("id", -1)):
+			continue
+		if _is_supply(o) and not bool(o.get("lesson_offer", false)) \
+				and not _rescue_open(str(o.get("supply_emoji", ""))):
 			continue
 		kept.append(o)
 	_offer_pool = kept
@@ -1749,6 +1804,43 @@ func clear_pair_scope() -> void:
 	_nb_auto_scoped = false
 	_offer_pool.clear()
 	_reset_item_cursor()
+
+func _drop_from_pool(offer_id) -> void:
+	var kept: Array = []
+	for o in _offer_pool:
+		if o is Dictionary and o.get("id", -1) == offer_id:
+			continue
+		kept.append(o)
+	_offer_pool = kept
+
+
+## A delivered contract re-deals that faction's offers, and only theirs.
+func _on_quest_completed(quest_id: int, _rewards: Dictionary = {}) -> void:
+	if quest_manager == null or not ("completed_quests" in quest_manager):
+		return
+	var faction := ""
+	for q in quest_manager.completed_quests:
+		if q is Dictionary and int(q.get("id", -1)) == quest_id:
+			faction = str(q.get("faction", "")).strip_edges()
+	if faction == "" or _offer_pool.is_empty():
+		return
+	var kept: Array = []
+	for o in _offer_pool:
+		if o is Dictionary and not _is_supply(o) and str(o.get("faction", "")) == faction:
+			continue
+		kept.append(o)
+	_offer_pool = kept
+	_ensure_biome()
+	var farm = InstrumentLocator.resolve_active_farm(self)
+	if farm != null and current_biome != null and farm.has_method("_ensure_market_lattice"):
+		var lattice = farm._ensure_market_lattice()
+		if lattice != null and lattice.has_method("propose_faction_offers"):
+			var fresh: Array = lattice.propose_faction_offers(current_biome, faction, 3)
+			_offer_pool.append_array(_adapt_contracts_for_view(fresh))
+			MarketView.annotate(_offer_pool, _get_inventory())
+	if visible:
+		_render_all()
+
 
 func _ensure_live_faction_offers(lattice) -> void:
 	var want := _live_board_faction()
@@ -1937,6 +2029,9 @@ func _is_fill_stall(q: Dictionary) -> bool:
 ## or fill for them.
 func board_walk_cue(q: Dictionary) -> String:
 	var want := str(q.get("faction", "")).strip_edges()
+	var held_cue := _held_walk_cue(want)
+	if held_cue != "":
+		return held_cue
 	if frame_id != FRAME_MARKET:
 		return "▸ Market [Y] takes a delivery"
 	var rows: Array = _market_rows()
@@ -1955,26 +2050,6 @@ func board_walk_cue(q: Dictionary) -> String:
 		var key := ""
 		if vis >= 0 and vis < ITEM_KEYS.size():
 			key = str(ITEM_KEYS[vis])
-		if str(entry.get("kind", "")) == "held":
-			var short: Dictionary = _held_shortfall(data)
-			if not short.is_empty():
-				var res := str(short.get("res", "?"))
-				var have := int(short.get("have", 0))
-				var need := int(short.get("need", 0))
-				# Wave 14 lost-lamb: 104/221 and ▸ still named Deliver.
-				if have * 2 < need:
-					# Q Abandon stays a chip. Gold mills ESC so unsigned
-					# Arc / the live campaign beat can take the banner.
-					return "▸ ESC closes — stall %s %d/%d" % [res, have, need]
-				return "▸ ESC closes — gather %s %d/%d" % [res, have, need]
-			var verb := "Claim" if str(data.get("status", "")).to_lower() == "ready" else "Deliver"
-			# Once the row is selected, name ONLY [R] — "[G] then [R]" after
-			# G is already the caret is the dual-key wall (wave 12 lost-lamb).
-			if i == _selected_index:
-				return "▸ [R] %s" % verb
-			if key == "":
-				return "▸ [U] then [R] %s" % verb
-			return "▸ [%s] then [R] %s" % [key, verb]
 		if str(entry.get("kind", "")) == "offer":
 			if i == _selected_index:
 				return "▸ [R] Accept"
@@ -1984,6 +2059,38 @@ func board_walk_cue(q: Dictionary) -> String:
 	if want != "":
 		return "▸ [E] Refresh for a %s offer" % want
 	return "▸ [E] Refresh"
+
+
+## A contract already accepted is delivered on Commitments, not on the Market.
+## "" when `want`'s board holds none.
+func _held_walk_cue(want: String) -> String:
+	var rows: Array = _commitments_rows()
+	var start: int = _item_page_start(rows.size())
+	for i in range(rows.size()):
+		var data = rows[i]
+		if not (data is Dictionary) or not _is_fill_stall(data) or _is_supply(data):
+			continue
+		if want != "" and str(data.get("faction", "")) != want:
+			continue
+		var short: Dictionary = _held_shortfall(data)
+		if not short.is_empty():
+			var res := str(short.get("res", "?"))
+			var have := int(short.get("have", 0))
+			var need := int(short.get("need", 0))
+			# Wave 14 lost-lamb: 104/221 and ▸ still named Deliver.
+			if have * 2 < need:
+				return "▸ ESC closes — stall %s %d/%d" % [res, have, need]
+			return "▸ ESC closes — gather %s %d/%d" % [res, have, need]
+		var verb := "Claim" if str(data.get("status", "")).to_lower() == "ready" else "Deliver"
+		if frame_id != FRAME_COMMITMENTS:
+			return "▸ [U] then [R] %s" % verb
+		if i == _selected_index:
+			return "▸ [R] %s" % verb
+		var vis: int = i - start
+		if vis < 0 or vis >= ITEM_KEYS.size():
+			return "▸ [R] %s" % verb
+		return "▸ [%s] then [R] %s" % [ITEM_KEYS[vis], verb]
+	return ""
 
 
 ## READY claim on Commitments — not Market Accept (wave 15 literalist).
@@ -2072,17 +2179,8 @@ func _market_rows() -> Array:
 	# hand offers, paged past six): urgent ones right after the live faction's
 	# lead stalls, the rest at the tail. They never spend a hand.
 	var rows: Array = []
-	var fill: Array = []
-	var hands_used := 0
-	if quest_manager and quest_manager.has_method("commitment_quests"):
-		for q in quest_manager.commitment_quests():
-			if q is Dictionary and _is_fill_stall(q):
-				fill.append(q)
-				if not _is_supply(q):
-					hands_used += 1
-	for q in fill:
-		rows.append({"kind": "held", "data": q})
-	var free_n: int = maxi(0, HANDS_MAX - hands_used)
+	# Accepted contracts live on Commitments only; this ring is for what is
+	# still on offer.
 	var normal: Array = []
 	var urgent: Array = []
 	var calm: Array = []
@@ -2094,7 +2192,7 @@ func _market_rows() -> Array:
 				urgent.append(o)
 			else:
 				calm.append(o)
-		elif normal.size() < free_n:
+		else:
 			normal.append(o)
 	var want := _live_board_faction()
 	var lead_n := 0
@@ -2116,6 +2214,8 @@ func _market_rows() -> Array:
 
 
 const STAPLES: Array = ["👥", "🍞", "🧺"]
+const QUEST_GATED_RESCUES: Array = ["🌱", "🔥", "🔨", "🪓", "🌊", "🦅"]
+const STAPLE_CRITICAL: int = 2
 
 ## Stable: staples in STAPLES order, then the rest in table order.
 func _staples_first(offers: Array) -> Array:
@@ -2229,17 +2329,17 @@ func _accept_selected() -> void:
 		# name that case honestly instead of blaming the cost.
 		var offer_id = offer.get("id", -1)
 		if "active_quests" in quest_manager and quest_manager.active_quests.has(offer_id):
-			_toast_feedback("• already accepted — it's a stall on this board")
+			_toast_feedback("• already accepted — it's on Commitments [U]")
 			return
 		if _held_count() >= HANDS_MAX and not _is_supply(offer):
 			_toast_feedback("• hands full (%d/%d) — claim or abandon a stall first" % [_held_count(), HANDS_MAX])
 			return
 		if quest_manager.accept_quest(offer):
 			quest_accepted.emit(offer)
-			# Accepting must CHANGE something on screen (playtest 2: "pressing
-			# R had no visual effect on the contract itself"). Re-pull the pool
-			# (the accepted offer leaves the market) and say where it went.
-			_refresh_pool()
+			# The accepted offer leaves the ring and the rest stay put: accepting
+			# never re-deals the board. A delivery re-deals that faction's
+			# offers (_on_quest_completed).
+			_drop_from_pool(offer.get("id", -1))
 			_render_all()
 			# Raw economy: accepting beyond your means is LEGAL (chaos in the
 			# deal) — but the gap must speak, and Lock is the tool for it
@@ -2254,7 +2354,7 @@ func _accept_selected() -> void:
 			if _is_supply(offer):
 				_toast_feedback("✓ trade accepted — [R] on its stall delivers %s" % _supply_deal_words(offer))
 			elif ask_qty > 0 and held < ask_qty:
-				_toast_feedback("✓ accepted — you hold %s %d/%d. It can expire: F (Lock) on this stall pauses the clock while you gather" \
+				_toast_feedback("✓ accepted — you hold %s %d/%d. It waits on Commitments [U] while you gather" \
 						% [ask_res, held, ask_qty])
 			else:
 				_toast_feedback("✓ contract accepted — pinned on Commitments [U]")
@@ -2302,7 +2402,7 @@ func _complete_selected() -> void:
 			quest_completed.emit(qid, {})
 			if _is_supply(quest):
 				# The standing trade re-opens on the board at once.
-				_refresh_pool()
+				_sync_supply_offers()
 			_render_all()
 			if _is_supply(quest):
 				_toast_feedback("✓ traded %s" % _supply_deal_words(quest))

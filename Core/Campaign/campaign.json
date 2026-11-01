@@ -46,7 +46,7 @@
   }
  },
  "resources": {
-  "_doc": "Every resource a story step spends, and where it comes from. `plots`: biomes whose registers carry it (gather). `trades`: standing contracts that ALWAYS sit on that biome's board while the biome is loaded — the market is how south poles are earned. A trade in the Village whose `give` a broke player can always raise is the RESCUE: an empty wallet is never a dead end. `low_water`: the objective banner switches to this resource's supply walk before a spend would take the wallet below it. Two more routes exist and stay legitimate strategy: ordinary market contracts (issuer rewards), and descending the fractal atlas (] key) into an INCORPORATED word's child world, whose registers carry that word's resources. The validator does not count those two, so a campaign that passes is playable without them. The three staples of the economy loop — 👥 (strike), 🍞 (explore), 🧺 (gather) — each have a rescue trade priced in 🐇, the forest's commonest harvest, so a player with only forest produce can buy back into the loop; the board sorts staples first.",
+  "_doc": "Every resource a story step spends, and where it comes from. `plots`: biomes whose registers carry it (gather). `trades`: standing contracts that ALWAYS sit on that biome's board while the biome is loaded — the market is how south poles are earned. A trade in the Village whose `give` a broke player can always raise is the RESCUE: an empty wallet is never a dead end. `low_water`: the objective banner switches to this resource's supply walk before a spend would take the wallet below it. Two more routes exist and stay legitimate strategy: ordinary market contracts (issuer rewards), and descending the fractal atlas (] key) into an INCORPORATED word's child world, whose registers carry that word's resources. The validator does not count those two, so a campaign that passes is playable without them. The three staples of the economy loop — 👥 (strike), 🍞 (explore), 🧺 (gather) — each have a rescue trade priced in 🐇, the forest's commonest harvest, so a player with only forest produce can buy back into the loop; the board sorts staples first. Paying (owner ruling 2026-10-29): 👥 and 🍞 are bought with 🌾, 🧺 with 👥; every other resource with 🍞 only. Visibility (QuestBoard._rescue_open): a staple's rescue stands only while it is critical (2 or fewer held); 🌱 🔥 🔨 🪓 🌊 🦅 stand only while a live quest asks for them.",
   "👥": {
    "low_water": 3,
    "spent_by": "strike",
@@ -60,14 +60,6 @@
      "faction": "Hearth Keepers",
      "give": {
       "🌾": 4
-     },
-     "get": 4
-    },
-    {
-     "biome": "Village",
-     "faction": "Hearth Keepers",
-     "give": {
-      "🐇": 4
      },
      "get": 4
     }
@@ -87,14 +79,6 @@
       "🌾": 4
      },
      "get": 4
-    },
-    {
-     "biome": "Village",
-     "faction": "Hearth Keepers",
-     "give": {
-      "🐇": 3
-     },
-     "get": 4
     }
    ]
   },
@@ -110,14 +94,6 @@
       "👥": 6
      },
      "get": 4
-    },
-    {
-     "biome": "Village",
-     "faction": "Hearth Keepers",
-     "give": {
-      "🐇": 3
-     },
-     "get": 3
     }
    ]
   },
@@ -150,7 +126,7 @@
      "biome": "Village",
      "faction": "Millwright's Union",
      "give": {
-      "🌾": 10
+      "🍞": 10
      },
      "get": 7
     }
@@ -177,14 +153,6 @@
    "plots": [],
    "trades": [
     {
-     "biome": "Woodlot",
-     "faction": "Millwright's Union",
-     "give": {
-      "🌱": 4
-     },
-     "get": 4
-    },
-    {
      "biome": "Village",
      "faction": "Millwright's Union",
      "give": {
@@ -200,20 +168,27 @@
    "plots": [],
    "trades": [
     {
-     "biome": "FreshwaterSpring",
-     "faction": "Hearth Keepers",
-     "give": {
-      "💧": 4
-     },
-     "get": 4
-    },
-    {
      "biome": "Village",
      "faction": "Hearth Keepers",
      "give": {
       "🍞": 10
      },
      "get": 3
+    }
+   ]
+  },
+  "🔥": {
+   "low_water": 2,
+   "spent_by": "superpose (Druid E)",
+   "plots": [],
+   "trades": [
+    {
+     "biome": "Village",
+     "faction": "Hearth Keepers",
+     "give": {
+      "🍞": 6
+     },
+     "get": 4
     }
    ]
   }
@@ -307,12 +282,16 @@
          "tutorial_teaches": "wayfinding",
          "faction": "Hearth Keepers",
          "biome": "StarterForest",
-         "body": "The Demos is one country on a wider island. Past the hedge, the Starter Forest keeps older words. Go and stand under its canopy.",
-         "tutorial_hint": "Go to the Starter Forest — stand under its canopy.",
-         "math_note": "Structural predicate (active_biome_is): scores 1.0 the instant StarterForest is the biome under your feet, 0.0 otherwise — arrival is the whole ask, no soft gate. The objective banner's travel line names the orb and its key while you are elsewhere and drops the moment you arrive.",
+         "body": "The Demos is one country on a wider island. Past the hedge, the Starter Forest keeps older words in fog. Go and stand under its canopy, then open the whole field: mass-explore every bubble.",
+         "tutorial_hint": "Go to the Starter Forest and explore every bubble.",
+         "math_note": "Two structural predicates (smooth_and): active_biome_is scores 1.0 the instant StarterForest is the biome under your feet, and biome_explored scores 1.0 once every plot of the forest is out of the fog. This is the mass-explore lesson; the next step superposes ONE explored qubit. The objective banner's travel line names the orb and its key while you are elsewhere and drops the moment you arrive.",
          "state_predicates": [
           {
            "type": "active_biome_is",
+           "biome": "StarterForest"
+          },
+          {
+           "type": "biome_explored",
            "biome": "StarterForest"
           }
          ],
@@ -324,8 +303,8 @@
          "tutorial_teaches": "superposition",
          "faction": "Hearth Keepers",
          "biome": "StarterForest",
-         "body": "The forest keeps its words in fog. Open the whole field first, so you can watch what happens next. Then: a qubit need not pick a side. Superpose one — spread it across both poles — and it shimmers between states.",
-         "tutorial_hint": "Explore the whole forest, then superpose a plot with the Druid.",
+         "body": "A qubit need not pick a side. Pick one of the bubbles you opened and superpose it with the Druid: spread it across both poles, and it shimmers between states.",
+         "tutorial_hint": "Pick one explored plot and superpose it with the Druid.",
          "math_note": "Fires the instant the gate ledger records 1 hadamard (a single Druid E) — a structural count, not a soft gate. The forest's resting coherence used to auto-claim this step on arrival, skipping the lesson and handing the Operator hat before the player had superposed.",
          "state_predicates": [
           {
@@ -523,11 +502,17 @@
         {
          "id": "first_breath",
          "display_name": "First Breath",
-         "beat": "The forest keeps more than fog. Take a qubit for a walk around its sphere — track it, let the Hamiltonian carry it, and when it comes back to where it began, keep the shape of the walk. Every word you hold so far was taught to you. This one you will take from the land itself, and no faction owns it.",
+         "beat": "The forest keeps more than fog. Take the eagle and the rabbit for a walk: track their qubit, let the Hamiltonian carry it around its sphere, and when it comes back to where it began, keep the shape of the walk. Every word you hold so far was taught to you. This one you will take from the land itself, and no faction owns it. 🦅 and 🐇 are the hunter and the hunted, the two ends of everything you will strike and gather.",
          "requires": [
           "village_stirs"
          ],
          "objective": [
+          {
+           "type": "icon_incorporated",
+           "biome": "StarterForest",
+           "north": "🦅",
+           "south": "🐇"
+          },
           {
            "type": "berry_consumed_count_gte",
            "biome": "StarterForest",
@@ -536,7 +521,7 @@
          ],
          "offer": {
           "body": "First Breath — track one loop, and keep what it traced.",
-          "hint": "Icon [5]: [F] tracks a plot; wait ~90s; [R] Incorporate.",
+          "hint": "Icon [5]: [F] tracks the 🦅/🐇 plot; wait ~90s; [R] Incorporate.",
           "math_note": "Count gate on StarterForest berry_consumed_count ≥ 1 — fires exactly at the first incorporation (the ritual consumes the berry). The old signature_growth gate moved off this beat when teachings began growing the signature in act 1; berries are the only witness that the word came from the land."
          },
          "done": "You did something. A qubit you tracked came back to where it started, and you incorporated the shape of its walk — the signed solid angle the loop enclosed. And notice what did NOT happen: nothing leaked, nothing faded, nothing was forgotten. The enclave holds. Here, only measurement leaves a scar — and the scar is yours."
@@ -2817,6 +2802,11 @@
    "clear_marks": "'"
   },
   "walks": {
+   "icon_incorporated": [
+    "travel",
+    "hat:icon",
+    "berry_axis"
+   ],
    "berry_consumed_count_gte": [
     "travel",
     "hat:icon",
@@ -2865,11 +2855,11 @@
     "deliver_to"
    ],
    "lesson:wayfinding": [
-    "go:StarterForest"
+    "go:StarterForest",
+    "survey"
    ],
    "lesson:superposition": [
     "go:StarterForest",
-    "survey",
     "hat:druid",
     "plot_verb:E"
    ],

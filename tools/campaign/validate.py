@@ -119,7 +119,7 @@ PRED_HAT = {
     "bridge_built_gte": "spark", "bridge_braids_gte": "spark", "bridge_fused_gte": "spark",
     "biome_frozen_loops_gte": "icon", "spinor_read": "icon",
 }
-BERRY_TYPES = {"berry_consumed_count_gte", "berry_total_phase_gte"}
+BERRY_TYPES = {"berry_consumed_count_gte", "berry_total_phase_gte", "icon_incorporated"}
 
 
 def hats_needed(pred: dict) -> set:
@@ -457,7 +457,7 @@ def validate(spec: dict, report_table: bool = False) -> Report:
 
 # Step kinds Core/Campaign/Guide.gd implements (`kind` or `kind:arg`).
 GUIDE_STEPS = {"travel", "hat", "berry", "deliver_to", "chart", "gate", "plant_atom", "plant_new",
-               "learn_word", "take_door", "go", "strike", "deliver_lesson", "plot_verb", "pair_gate", "reap", "measure", "superpose", "evolve", "steer", "survey"}
+               "learn_word", "berry_axis", "take_door", "go", "strike", "deliver_lesson", "plot_verb", "pair_gate", "reap", "measure", "superpose", "evolve", "steer", "survey"}
 
 
 def check_guide(spec: dict, R: "Report") -> None:

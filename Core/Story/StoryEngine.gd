@@ -322,7 +322,10 @@ func _restore_arc_quests_after_load() -> void:
 		if _quest_manager.is_guidance_dismissed(flag_id):
 			continue
 		# Passed through already (a child fired) or its campaign isn't open yet.
-		if _quest_manager.flag_door_is_resolved(flag_id) or not _quest_manager.flag_is_live(flag_id):
+		# A beat on the road is re-offered even when a child already fired: it
+		# was never taken, and what it teaches or opens is still owed.
+		var on_road: bool = _quest_manager.has_method("_flag_is_on_the_road") and bool(_quest_manager._flag_is_on_the_road(flag_id))
+		if (_quest_manager.flag_door_is_resolved(flag_id) and not on_road) or not _quest_manager.flag_is_live(flag_id):
 			continue
 		var arc_quest = flag_data.get("arc_quest")
 		if not (arc_quest is Dictionary) or arc_quest.is_empty():

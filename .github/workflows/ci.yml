@@ -15,7 +15,7 @@ concurrency:
 # campaign drives, which run on the playtest fleet instead.
 
 env:
-  GODOT_VERSION: "4.5-stable"
+  GODOT_VERSION: "4.6.2-stable"
 
 jobs:
   test:

@@ -78,7 +78,7 @@ def test_every_voice_reads_the_resolver():
 
 
 def test_ranking_follows_the_story_not_the_ask_kind():
-    rank = GUIDE.split("static func live_beat(")[1].split("\nstatic func ")[0]
+    rank = GUIDE.split("static func ranked_beats(")[1].split("\nstatic func ")[0]
     assert "_critical_path(" in rank
     assert "_is_plant_ask" not in GUIDE and "lantern_teaching" not in GUIDE, \
         "no ask-kind ladders or beat ids in the resolver"

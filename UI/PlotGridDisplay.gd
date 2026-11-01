@@ -828,6 +828,17 @@ func _berry_rate_sample(biome_name: String, qid: int, phase_abs: float) -> Dicti
 	return {"rate": rate, "eta_s": eta}
 
 
+## "🌾×3 🧺×2": what a strike has banked on this plot, waiting for Q.
+func _bank_text(terminal) -> String:
+	if terminal == null or not terminal.has_method("banked_totals"):
+		return ""
+	var parts: PackedStringArray = []
+	var totals: Dictionary = terminal.banked_totals()
+	for emoji in totals:
+		parts.append("%s×%d" % [emoji, int(totals[emoji])])
+	return " ".join(parts)
+
+
 func _transform_plot_to_ui_data(pos: Vector2i, plot, terminal = null) -> Dictionary:
 	# Transform WheatPlot/Terminal state → plot display dictionary.
 	#
@@ -857,6 +868,7 @@ func _transform_plot_to_ui_data(pos: Vector2i, plot, terminal = null) -> Diction
 		"north_probability": 0.0,
 		"south_probability": 0.0,
 		"has_been_measured": terminal != null and terminal.is_measured,
+		"bank_text": _bank_text(terminal),
 		"memory_visible": memory_visible,
 		"memory_outcome": str(memory.get("outcome", "")),
 		"memory_north_emoji": str(memory.get("north_emoji", "")),

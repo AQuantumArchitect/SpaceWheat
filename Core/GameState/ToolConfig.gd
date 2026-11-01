@@ -57,15 +57,17 @@ const HAT_KEY_TO_FRAME: Dictionary = {
 static var current_frame: String = FRAME_ACE
 
 ## Sub-mode index within each frame (selected by 1/2/3 in the new grammar).
-static var frame_mode_indices: Dictionary = {
+## Every frame starts on mode 0 except the Druid, which starts on Z (index 2).
+const DEFAULT_FRAME_MODES := {
 	FRAME_SPARK: 0,
 	FRAME_ICON: 0,
 	FRAME_MERCHANT: 0,
 	FRAME_CAPTAIN: 0,
 	FRAME_ACE: 0,
 	FRAME_OPERATOR: 0,
-	FRAME_DRUID: 0,
+	FRAME_DRUID: 2,
 }
+static var frame_mode_indices: Dictionary = DEFAULT_FRAME_MODES.duplicate()
 
 # =============================================================================
 # ARCHETYPE FRAME DEFINITIONS
@@ -557,8 +559,7 @@ static func get_frame_mode_emoji(frame_name: String) -> String:
 
 
 static func reset_frame_modes() -> void:
-	for key in frame_mode_indices:
-		frame_mode_indices[key] = 0
+	frame_mode_indices = DEFAULT_FRAME_MODES.duplicate()
 
 
 # =============================================================================

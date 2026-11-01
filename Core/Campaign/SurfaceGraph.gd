@@ -85,6 +85,13 @@ static func current() -> String:
 		# The biome microscope is transparent: field keys pass through it.
 		if oname != "biome_inspector":
 			return "menu:" + oname
+	# An armed destructive confirm (Trim/Cull/Break) owns F until it is
+	# answered: the field's own F (Explore) would confirm it instead. Leaving
+	# it is one key (any other key cancels), so it is a surface to step out of.
+	var shell = UIP._shell()
+	var qii = shell.get("instrument_input") if shell != null else null
+	if qii != null and qii.has_method("has_pending_confirm") and bool(qii.has_pending_confirm()):
+		return "field:confirm"
 	if UIP._in_icon_submenu():
 		return "field:icon"
 	if UIP._in_gate_submenu():

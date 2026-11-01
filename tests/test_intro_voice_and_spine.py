@@ -31,7 +31,7 @@ def test_arc_now_row_does_not_ask_accept():
     row = _make_arc_row_body()
     assert "[R] Accept" in row
     assert 'kind == "arc_quest"' in row
-    assert '_make_muted_label("tap to inspect  ·  R accepts"' in row
+    assert '_make_muted_label("tap to inspect  ·  tap again to accept (or R)"' in row
     assert '_make_muted_label("tap to inspect  ·  tap again for the work"' in row
 
 

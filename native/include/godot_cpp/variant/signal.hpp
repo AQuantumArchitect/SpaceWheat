@@ -33,6 +33,7 @@
 #pragma once
 
 #include <godot_cpp/core/defs.hpp>
+#include <godot_cpp/core/math_defs.hpp>
 
 #include <gdextension_interface.h>
 
@@ -47,7 +48,7 @@ class Variant;
 
 class Signal {
 	static constexpr size_t SIGNAL_SIZE = 16;
-	uint8_t opaque[SIGNAL_SIZE] = {};
+	alignas(8) uint8_t opaque[SIGNAL_SIZE] = {};
 
 	friend class Variant;
 

@@ -56,12 +56,16 @@
       "tutorial_teaches": "wayfinding",
       "faction": "Hearth Keepers",
       "biome": "StarterForest",
-      "body": "The Demos is one country on a wider island. Past the hedge, the Starter Forest keeps older words. Go and stand under its canopy.",
-      "tutorial_hint": "Go to the Starter Forest — stand under its canopy.",
-      "math_note": "Structural predicate (active_biome_is): scores 1.0 the instant StarterForest is the biome under your feet, 0.0 otherwise — arrival is the whole ask, no soft gate. The objective banner's travel line names the orb and its key while you are elsewhere and drops the moment you arrive.",
+      "body": "The Demos is one country on a wider island. Past the hedge, the Starter Forest keeps older words in fog. Go and stand under its canopy, then open the whole field: mass-explore every bubble.",
+      "tutorial_hint": "Go to the Starter Forest and explore every bubble.",
+      "math_note": "Two structural predicates (smooth_and): active_biome_is scores 1.0 the instant StarterForest is the biome under your feet, and biome_explored scores 1.0 once every plot of the forest is out of the fog. This is the mass-explore lesson; the next step superposes ONE explored qubit. The objective banner's travel line names the orb and its key while you are elsewhere and drops the moment you arrive.",
       "state_predicates": [
         {
           "type": "active_biome_is",
+          "biome": "StarterForest"
+        },
+        {
+          "type": "biome_explored",
           "biome": "StarterForest"
         }
       ],
@@ -73,8 +77,8 @@
       "tutorial_teaches": "superposition",
       "faction": "Hearth Keepers",
       "biome": "StarterForest",
-      "body": "The forest keeps its words in fog. Open the whole field first, so you can watch what happens next. Then: a qubit need not pick a side. Superpose one — spread it across both poles — and it shimmers between states.",
-      "tutorial_hint": "Explore the whole forest, then superpose a plot with the Druid.",
+      "body": "A qubit need not pick a side. Pick one of the bubbles you opened and superpose it with the Druid: spread it across both poles, and it shimmers between states.",
+      "tutorial_hint": "Pick one explored plot and superpose it with the Druid.",
       "math_note": "Fires the instant the gate ledger records 1 hadamard (a single Druid E) — a structural count, not a soft gate. The forest's resting coherence used to auto-claim this step on arrival, skipping the lesson and handing the Operator hat before the player had superposed.",
       "state_predicates": [
         {

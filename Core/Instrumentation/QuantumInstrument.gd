@@ -551,6 +551,13 @@ func action_pop(grid_pos: Vector2i) -> Dictionary:
 
 	_detach_terminal_from_plot(terminal)
 	var result = ProbeActions.action_pop(terminal, terminal_pool, economy, farm)
+	if not result.get("success", false):
+		# A refused gather (short 🧺, cost commit failure, …) released nothing:
+		# the terminal is still bound in the pool and still holds its bank.
+		# Left detached, the plot is dead — Explore says "already explored"
+		# (pool still binds the register), Strike says "Unexplored", Gather
+		# says "No terminal" (playtest 2026-10-29). Put the probe back.
+		_reattach_terminal_to_plot(terminal)
 	_emit_farm_action("pop", result, grid_pos)
 	action_performed.emit("pop", result)
 	# Quest-visible: the first lesson is the whole loop (explore, strike, gather).
@@ -564,6 +571,9 @@ func action_reap() -> Dictionary:
 		return {"success": false, "error": "no_farm", "message": "Farm not ready"}
 
 	var result = ProbeActions.action_reap(farm, economy)
+	# The season ending is the one thing that lets a selection go.
+	if bool(result.get("success", false)):
+		clear_checked_plots()
 	_emit_farm_action("reap", result)
 	action_performed.emit("reap", result)
 	# Quest-visible: the Rite arc counts seasons reaped (gate_sequence_contains "reap").
@@ -750,6 +760,43 @@ func action_inject_icon_pair(biome_name: String, icon: Dictionary) -> Dictionary
 	return result
 
 
+## A word the player has just earned (incorporated, or taught by the Millwright)
+## takes a seat in TheDemos, the home country: a new register while there is
+## room, else it replaces the 6th location. No cost: the ritual already paid.
+func seat_icon_in_demos(north_emoji: String, south_emoji: String) -> Dictionary:
+	const HOME := "TheDemos"
+	if not farm or north_emoji == "" or south_emoji == "" or north_emoji == south_emoji:
+		return {"success": false, "error": "invalid_icon"}
+	var biome = _resolve_biome(HOME)
+	if biome == null or biome.quantum_computer == null or biome.quantum_computer.register_map == null:
+		return {"success": false, "error": "no_home"}
+	var rm = biome.quantum_computer.register_map
+	for q in range(int(rm.num_qubits)):
+		var ax: Dictionary = rm.axis(q)
+		var a := str(ax.get("north", ""))
+		var b := str(ax.get("south", ""))
+		if (a == north_emoji and b == south_emoji) or (a == south_emoji and b == north_emoji):
+			return {"success": true, "already_seated": true, "qubit_index": q}
+	var count := int(rm.num_qubits)
+	var result: Dictionary
+	if count < _get_max_biome_qubits():
+		result = biome.expand_quantum_system(north_emoji, south_emoji)
+	else:
+		result = biome.relabel_axis(mini(5, count - 1), north_emoji, south_emoji)
+	if not result.get("success", false):
+		return result
+	var qid := int(result.get("qubit_index", -1))
+	if qid < 0:
+		qid = int(rm.num_qubits) - 1 if count < _get_max_biome_qubits() else mini(5, count - 1)
+	var fw = _fractal()
+	if fw:
+		fw.on_inject(HOME, qid, "%s/%s" % [north_emoji, south_emoji], north_emoji, south_emoji)
+	_reveal_injected_register(HOME, qid)
+	result["biome"] = HOME
+	result["qubit_index"] = qid
+	return result
+
+
 func _reveal_injected_register(biome_name: String, qubit_index: int) -> void:
 	if not farm or qubit_index < 0 or not farm.grid:
 		return
@@ -897,9 +944,11 @@ func action_incorporate(qubit_idx: int = -1) -> Dictionary:
 	if (added or already_known) and farm.has_method("mark_icon_incorporated"):
 		farm.mark_icon_incorporated(north, south)
 
+	var seated: Dictionary = {}
 	if added:
 		_log("info", "instrument", "🧬", "Incorporated %s/%s from qubit %d into signature" % [north, south, qid])
 		_notify_story([north, south], "incorporate")
+		seated = seat_icon_in_demos(north, south)
 	elif already_known:
 		_log("info", "instrument", "🧬", "Re-harvested %s/%s (already in signature) — phase counted" % [north, south])
 	else:
@@ -913,6 +962,7 @@ func action_incorporate(qubit_idx: int = -1) -> Dictionary:
 		"qubit": qid,
 		"biome": biome.name,
 		"phase": ripe_phase,
+		"seated_in_demos": bool(seated.get("success", false)) and not bool(seated.get("already_seated", false)),
 	}
 	action_performed.emit("incorporate_icon", result)
 	_notify_quest_projection("incorporate_icon", result)
@@ -1592,6 +1642,8 @@ func probe_cycle(biome_name: String, register_id: int = -1) -> Dictionary:
 
 	_detach_terminal_from_plot(terminal)
 	var pop = ProbeActions.action_pop(terminal, terminal_pool, economy, farm)
+	if not pop.get("success", false):
+		_reattach_terminal_to_plot(terminal)
 	_emit_farm_action("pop", pop)
 
 	var probe_result = {"success": true, "explore": explore, "measure": measure, "pop": pop, "active_biome": biome_name}
@@ -1676,6 +1728,7 @@ func victory_lap() -> Dictionary:
 			harvest_total += 1
 			_emit_farm_action("pop", pop)
 		else:
+			_reattach_terminal_to_plot(terminal)
 			harvest_failures.append({
 				"terminal": terminal.terminal_id,
 				"error": str(pop.get("error", "unknown")),
@@ -1760,6 +1813,7 @@ func victory_lap_partial(selected_biomes: Array[String] = [], max_registers: int
 			popped_total += 1
 			_emit_farm_action("pop", pop)
 		else:
+			_reattach_terminal_to_plot(terminal)
 			pop_failures.append({"biome": t_biome, "error": str(pop.get("error", "unknown"))})
 
 	var milk_amount = 0.0
@@ -1884,6 +1938,16 @@ func _detach_terminal_from_plot(t) -> void:
 		var plot = farm.grid.get_plot(t.grid_position)
 		if plot:
 			plot.terminal = null
+
+
+## Undo _detach_terminal_from_plot after a REFUSED pop. Unlike
+## _attach_terminal_to_plot it keeps the plot's measurement memory: nothing
+## was harvested or released, so nothing about the plot changed.
+func _reattach_terminal_to_plot(t) -> void:
+	if t and t.grid_position != GridSentinel.INVALID_POSITION and farm and farm.grid:
+		var plot = farm.grid.get_plot(t.grid_position)
+		if plot and plot.terminal == null:
+			plot.terminal = t
 
 
 func _notify_autoload(node_name: String, method: String, args: Array) -> void:

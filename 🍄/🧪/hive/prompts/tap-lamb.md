@@ -35,6 +35,8 @@ Commands:
 4. Else if it names a plot you can see in `plots`/`field`, `tap` its `pos`.
 5. Else **STOP**. File a wall. Do not guess a node name. Do not fall back on "the F chip usually explores."
 
+**Plots are two-step.** The first `tap` on a plot only SELECTS it (halo; a short "selected — tap again to …" toast the first few times). `tap` the same `pos` again and it does the recommended verb (Explore, Strike or Gather — the lit Ace chip names it). A select-only tap is progress, not LOOPING; tapping a *different* plot moves the selection and acts on nothing.
+
 Hats, menus, and toasts are buttons. A live toast named `HintToast` is the instruction sheet — tap it to open the advertised menu. The toast should stay on screen as you go through.
 
 ## Failure shapes (name which one)

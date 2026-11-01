@@ -114,10 +114,19 @@ static func _overlay_manager():
 ## earliest act; an accepted quest beats an unsigned one of the same rank.
 ## Optional branches (the pond, the forest's deeper verses) wait their turn.
 static func live_beat(qm = null) -> Dictionary:
+	var ranked := ranked_beats(qm)
+	return ranked[0] if not ranked.is_empty() else {}
+
+
+## Every campaign beat the player holds or is offered, best first (the rank
+## `live_beat` always used; the head is THE live beat). next_step walks down
+## the list when the head has no step, so one stuck beat never silences the
+## banner while another could be worked.
+static func ranked_beats(qm = null) -> Array:
 	if qm == null:
 		qm = UIP._quest_manager()
 	if qm == null or not ("active_quests" in qm):
-		return {}
+		return []
 	var farm = UIP._active_farm()
 	var fired: Dictionary = farm.story_flags_fired if farm != null and "story_flags_fired" in farm else {}
 	var acts := {}
@@ -134,8 +143,7 @@ static func live_beat(qm = null) -> Dictionary:
 					req.append(str(p.get("id", "")))
 			requires[fid] = req
 	var blocking := _critical_path(requires, fired)
-	var best: Dictionary = {}
-	var best_rank := 0x7FFFFFFF
+	var scored: Array = []
 	var pools: Array = [qm.active_quests.values()]
 	if qm.has_method("get_story_offers"):
 		pools.append(qm.get_story_offers())
@@ -154,10 +162,31 @@ static func live_beat(qm = null) -> Dictionary:
 				rank += 1
 			if _is_ready(q):
 				rank -= 2000
-			if rank < best_rank:
-				best_rank = rank
-				best = q
-	return best
+			scored.append({"rank": rank, "i": scored.size(), "q": q})
+	# Ties keep pool order (the sort is not stable), as the single-best scan did.
+	scored.sort_custom(func(a, b):
+		if int(a["rank"]) != int(b["rank"]):
+			return int(a["rank"]) < int(b["rank"])
+		return int(a["i"]) < int(b["i"]))
+	var out: Array = []
+	for e in scored:
+		out.append(e["q"])
+	return out
+
+
+## Every beat some other beat requires: a gate. A gate can be postponed but
+## never given up — what hangs off it (words it teaches, doors it opens) is
+## only reachable through it. Leaves (nothing requires them) are optional.
+static func gate_flags(qm) -> Dictionary:
+	var out := {}
+	if qm != null and qm.has_method("get_all_story_flags"):
+		for f in qm.get_all_story_flags():
+			if not (f is Dictionary):
+				continue
+			for p in f.get("predicates", []):
+				if p is Dictionary and str(p.get("type", "")) == "story_flag_set":
+					out[str(p.get("id", ""))] = true
+	return out
 
 
 ## Every unfired beat a campaign ending needs, transitively (the endings
@@ -198,9 +227,19 @@ static func next_step() -> Dictionary:
 	trace = []
 	if UIP.current_tutorial_step() != UIP.NO_TUTORIAL_SENTINEL:
 		return _tutorial_step()
-	var q := live_beat()
-	if q.is_empty():
+	var ranked := ranked_beats()
+	if ranked.is_empty():
 		return _auto_beat_step()
+	# The best beat first; a beat the guide has no step for (its way in is
+	# closed right now) hands the banner to the next, never to silence.
+	for q in ranked:
+		var step := _beat_step(q)
+		if not step.is_empty():
+			return step
+	return {}
+
+
+static func _beat_step(q: Dictionary) -> Dictionary:
 	if str(q.get("status", "")) == Quest.STATUS_STORY:
 		return _door_accept(q)
 	if _is_ready(q):
@@ -361,6 +400,8 @@ static func _step(step: String, pred: Dictionary, q: Dictionary) -> Dictionary:
 			return _hat(arg, q)
 		"berry":
 			return _berry(q)
+		"berry_axis":
+			return _berry(q, _axis_cols(UIP._active_biome_name(), str(pred.get("north", "")), str(pred.get("south", ""))))
 		"survey":
 			return _survey(q)
 		"deliver_to":
@@ -422,7 +463,17 @@ static func _door_claim(q: Dictionary) -> Dictionary:
 	var row: Array = []
 	if idx >= 0:
 		row = _page_to(idx) + [[_title(q), _row_key(idx % BERRY_ROWS)]]
-	return _chord(_go(node) + row + [["Claim", _verb("claim")]], q, "claim")
+	var view: Array = [] if signed else _active_view_first()
+	return _chord(_go(node) + view + row + [["Claim", _verb("claim")]], q, "claim")
+
+
+## The Commitments tab can be left on its History view; its rows then are the
+## past, and Deliver/Claim do nothing. One press of [1] returns to Active.
+static func _active_view_first() -> Array:
+	var board = UIP._quest_board()
+	if board != null and SurfaceGraph.on("C/commitments") and str(board.get("_commitments_view")) == "history":
+		return [["Active", "1"]]
+	return []
 
 
 static func _commitment_index(q: Dictionary) -> int:
@@ -506,6 +557,18 @@ static func _travel(biome: String, q: Dictionary) -> Dictionary:
 ## The plot the field cursor is on right now. Ace's F/R/Q act on this one
 ## (no focus: F fast-forwards instead of exploring); Icon's track/incorporate
 ## also accept the sticky last plot, which UIP._focused_col() reports.
+## Picking a plot: with marks on the field a plain plot key edits the marks
+## ("unmarked G (0/2)") and focuses nothing, so the verb after it hits no
+## plot. Marks survive gates and menus now, so clear them first.
+static func _pick_plot(col: int) -> Array:
+	var inst = UIP._instrument()
+	var out: Array = []
+	if inst != null and "checked_plots" in inst and not inst.checked_plots.is_empty():
+		out.append(["clear marks", str(_km().get("clear_marks", "'"))])
+	out.append(["plot", _plot_key(col)])
+	return out
+
+
 static func _live_col() -> int:
 	var inst = UIP._instrument()
 	if inst == null or not ("current_plot_idx" in inst):
@@ -517,16 +580,33 @@ static func _live_col() -> int:
 		var pos = inst.last_selected_position
 		if not (pos is Vector2i) or int(pos.x) < 0:
 			return -1
-	if "current_biome" in inst and str(inst.current_biome) != "" \
-			and str(inst.current_biome) != UIP._active_biome_name():
-		return -1
+	# The picked plot must sit in THIS country. Ask the grid which biome owns
+	# it: the instrument's own current_biome can lag the active biome (a hat
+	# swap, a load), which made "plot [G]" repeat for ever.
+	var farm = UIP._active_farm()
+	if farm != null and farm.grid != null and farm.grid.has_method("get_plot_biome_assignments") \
+			and "last_selected_position" in inst and inst.last_selected_position is Vector2i:
+		var owner := str(farm.grid.get_plot_biome_assignments().get(inst.last_selected_position, ""))
+		if owner != "" and owner != UIP._active_biome_name():
+			return -1
 	return int(inst.current_plot_idx)
 
 
 static func _hat(hat: String, q: Dictionary) -> Dictionary:
-	if str(ToolConfig.get_current_frame()) == hat:
+	# Every step the guide gives is a hat's first mode (Icon: inject, not
+	# mirror; Operator: gate, not compass). A hat left in another mode makes
+	# the same key do another verb, so the mode is part of "wearing the hat".
+	# The Druid's verbs are the same in all three of its axes.
+	var worn: bool = str(ToolConfig.get_current_frame()) == hat
+	var wrong_mode: bool = hat != "druid" and int(ToolConfig.get_frame_mode_index(hat)) != 0
+	if worn and not wrong_mode:
 		return {}
-	return _chord(_close_first() + [[_hat_name(hat) + " hat", _hat_key(hat)]], q, "hat")
+	var parts: Array = _close_first()
+	if not worn:
+		parts.append([_hat_name(hat) + " hat", _hat_key(hat)])
+	if wrong_mode:
+		parts.append([_hat_name(hat) + " first mode", "1"])
+	return _chord(parts, q, "hat")
 
 
 ## Berry ritual on the active biome: incorporate a ripe loop, else track a
@@ -548,7 +628,7 @@ static func _berry(q: Dictionary, only: Array = []) -> Dictionary:
 		if bool(reg.is_ripe(col)):
 			var parts: Array = _close_first()
 			if focused != col:
-				parts.append(["plot", _plot_key(col)])
+				parts.append_array(_pick_plot(col))
 			parts.append(["Incorporate", _verb("incorporate")])
 			return _chord(parts, q, "incorporate")
 	var pick := -1
@@ -566,7 +646,7 @@ static func _berry(q: Dictionary, only: Array = []) -> Dictionary:
 			return _reveal(pick, q)
 		var parts: Array = _close_first()
 		if focused != pick:
-			parts.append(["plot", _plot_key(pick)])
+			parts.append_array(_pick_plot(pick))
 		parts.append(["Track", _verb("track")])
 		return _chord(parts, q, "track")
 	if UIP._sim_paused():
@@ -677,26 +757,22 @@ static func _open_surface(surface: String, q: Dictionary) -> Dictionary:
 	return _chord(_go("C/" + surface), q, "open " + surface)
 
 
-## A held contract is a row on the Market tab of its board (held stalls come
-## first there): travel, open, select it, then the verb.
-static func _market_held_chord(c: Dictionary, home: String, verb: Array, q: Dictionary,
+## A held contract is a row on the Commitments tab of the board (C → [U]).
+## Held work is not on the Market ring: open Commitments, select it, press
+## the verb. The faction's board biome does not matter for settling it.
+static func _market_held_chord(c: Dictionary, _home: String, verb: Array, q: Dictionary,
 		why: String, tail: Array = []) -> Dictionary:
-	var t := _travel(home, q)
-	if not t.is_empty():
-		return t
 	var board = UIP._quest_board()
-	if board == null or not SurfaceGraph.on("C/market"):
-		return _open_surface("market", q)
-	var rows: Array = board._market_rows()
-	for i in range(rows.size()):
-		var d = rows[i].get("data", {})
-		if str(rows[i].get("kind", "")) == "held" and d is Dictionary and int(d.get("id", -1)) == int(c.get("id", -2)):
-			var parts: Array = _page_to(i) + [["%s %s×%d" % [str(c.get("faction", "")), str(c.get("resource", "")),
-					int(c.get("quantity", 0))], _row_key(i % BERRY_ROWS)], verb]
-			if not tail.is_empty():
-				parts.append(tail)
-			return _chord(parts, q, why)
-	return {}
+	if board == null or not SurfaceGraph.on("C/commitments"):
+		return _chord(_go("C/commitments"), q, why)
+	var i := _commitment_index(c)
+	if i < 0:
+		return {}
+	var parts: Array = _active_view_first() + _page_to(i) + [["%s %s×%d" % [str(c.get("faction", "")), str(c.get("resource", "")),
+			int(c.get("quantity", 0))], _row_key(i % BERRY_ROWS)], verb]
+	if not tail.is_empty():
+		parts.append(tail)
+	return _chord(parts, q, why)
 
 
 ## Gather `res` up to `need` on a biome whose registers carry it (the spec's
@@ -872,6 +948,21 @@ static func _supply_via(tr: Dictionary, res: String, q: Dictionary, depth: int) 
 	for g in spec_give:
 		if UIP._wallet(str(g)) < float(spec_give[g]) and depth < 2:
 			return _gather(str(g), int(spec_give[g]), q, depth + 1)
+	# A trade already accepted is held on Commitments: settle it there.
+	var qm = UIP._quest_manager()
+	if qm != null and qm.has_method("commitment_quests"):
+		for c in qm.commitment_quests():
+			if not (c is Dictionary) or not bool(c.get("supply_trade", false)):
+				continue
+			if str(c.get("supply_emoji", "")) != res or str(c.get("biome", home)) != home:
+				continue
+			var cgive: Dictionary = c.get("give", {}) if c.get("give", {}) is Dictionary else {}
+			if cgive.is_empty() and str(c.get("resource", "")) != "":
+				cgive = {str(c.get("resource", "")): int(c.get("quantity", 0))}
+			for g in cgive:
+				if UIP._wallet(str(g)) < float(cgive[g]) and depth < 2:
+					return _gather(str(g), int(cgive[g]), q, depth + 1)
+			return _market_held_chord(c, home, ["Deliver", _verb("deliver")], q, "supply " + res)
 	var t := _travel(home, q)
 	if not t.is_empty():
 		return t
@@ -893,9 +984,7 @@ static func _supply_via(tr: Dictionary, res: String, q: Dictionary, depth: int) 
 		for g in give:
 			if UIP._wallet(str(g)) < float(give[g]) and depth < 2:
 				return _gather(str(g), int(give[g]), q, depth + 1)
-		var verb: Array = ["Deliver", _verb("deliver")] if str(rows[i].get("kind", "")) == "held" \
-				else ["Accept", _verb("accept")]
-		return _chord(_page_to(i) + [["trade for %s" % res, _row_key(i % BERRY_ROWS)], verb], q, "supply " + res)
+		return _chord(_page_to(i) + [["trade for %s" % res, _row_key(i % BERRY_ROWS)], ["Accept", _verb("accept")]], q, "supply " + res)
 	_no_trade_until[res + "|" + home] = Time.get_ticks_msec() + NO_TRADE_MS
 	return {}
 
@@ -1019,6 +1108,23 @@ static func _learn_word(q: Dictionary) -> Dictionary:
 	return {}
 
 
+## Columns of `biome` whose axis is the word north/south (either pole order).
+static func _axis_cols(biome: String, north: String, south: String) -> Array:
+	var farm = UIP._active_farm()
+	var out: Array = []
+	var b = farm.grid.get_biome(biome) if farm != null and farm.grid != null else null
+	if b == null or b.quantum_computer == null or b.quantum_computer.register_map == null:
+		return out
+	var rm = b.quantum_computer.register_map
+	for col in range(mini(int(rm.num_qubits), BERRY_ROWS)):
+		var ax: Dictionary = rm.axis(col)
+		var a := str(ax.get("north", ""))
+		var c := str(ax.get("south", ""))
+		if (a == north and c == south) or (a == south and c == north):
+			out.append(col)
+	return out
+
+
 static func _unknown_cols(biome: String) -> Array:
 	var farm = UIP._active_farm()
 	var out: Array = []
@@ -1034,10 +1140,19 @@ static func _unknown_cols(biome: String) -> Array:
 			anchored[str(ic.get("north", ""))] = true
 			anchored[str(ic.get("south", ""))] = true
 	var rm = b.quantum_computer.register_map
+	var br = b.quantum_computer.berry_register
 	for col in range(mini(int(rm.num_qubits), BERRY_ROWS)):
 		var ax: Dictionary = rm.axis(col)
-		if not anchored.has(str(ax.get("north", ""))):
-			out.append(col)
+		if anchored.has(str(ax.get("north", ""))):
+			continue
+		# A word the ritual cannot reach (no transverse term: it never moves,
+		# so it never ripens) is not learnable here; counting it sent the
+		# banner to this biome and, finding nothing to do, back out again.
+		var tracked: bool = br != null and bool(br.is_tracked(col))
+		if not tracked and b.quantum_computer.has_method("qubit_has_transverse_term") \
+				and not b.quantum_computer.qubit_has_transverse_term(col):
+			continue
+		out.append(col)
 	return out
 
 
@@ -1063,15 +1178,32 @@ static func _strike_once(biome: String, q: Dictionary) -> Dictionary:
 	if not h.is_empty():
 		return h
 	var col := _live_col()
-	if col >= 0 and UIP._plot_measured(col):
-		return _chord(_close_first() + [["Gather", _verb("gather")]], q, "gather")
-	if col >= 0 and UIP._plot_bound(col):
-		return _chord(_close_first() + [["Strike", _verb("strike")]], q, "strike")
+	# Nothing focused: name the plot we are about to pick, and judge THAT plot.
+	# (Ace F on an explored plot fast-forwards and drops the focus, so "plot
+	# [G], Explore [F]" for a plot already explored repeated for ever.)
+	var pick := col if col >= 0 else _strike_pick(biome)
+	var pre: Array = [] if col >= 0 else _pick_plot(pick)
+	if UIP._plot_measured(pick):
+		return _chord(_close_first() + pre + [["Gather", _verb("gather")]], q, "gather")
+	if UIP._plot_bound(pick):
+		return _chord(_close_first() + pre + [["Strike", _verb("strike")]], q, "strike")
+	var stop := _release_tracking(pick, q)
+	if not stop.is_empty():
+		return stop
 	var parts: Array = _close_first()
 	if col < 0:
-		parts.append(["plot", _plot_key(0)])
+		parts.append_array(_pick_plot(pick))
 	parts.append(["Explore", _verb("explore")])
 	return _chord(parts, q, "explore")
+
+
+## The plot a banner picks when none is focused: one already explored in
+## `biome` if there is one (it can be struck now), else the first.
+static func _strike_pick(biome: String) -> int:
+	for c in range(_live_cols(biome)):
+		if UIP._plot_measured(c) or UIP._plot_bound(c):
+			return c
+	return 0
 
 
 ## spiral_breaks: strike a plot whose word you have incorporated. Finds such a
@@ -1099,7 +1231,7 @@ static func _strike_known(q: Dictionary) -> Dictionary:
 		return _reveal(col, q, [col])
 	var parts: Array = _close_first()
 	if _live_col() != col:
-		parts.append(["plot", _plot_key(col)])
+		parts.append_array(_pick_plot(col))
 	parts.append(["Strike", _verb("strike")])
 	return _chord(parts, q, "strike known")
 
@@ -1126,7 +1258,7 @@ static func _plot_verb(key: String, q: Dictionary) -> Dictionary:
 		col = other
 	var parts: Array = _close_first()
 	if _live_col() != col:
-		parts.append(["plot", _plot_key(col)])
+		parts.append_array(_pick_plot(col))
 	parts.append([str(_km().get("verb_labels", {}).get(key, "do it")), key])
 	return _chord(parts, q, "verb " + key)
 
@@ -1212,9 +1344,19 @@ static func _reap(biome: String, q: Dictionary) -> Dictionary:
 	var h := _hat("ace", q)
 	if not h.is_empty():
 		return h
+	# The season pays only what is explored and in play. A player who gathered
+	# their plots back into fog, or paused time, would be told to reap into
+	# "Nothing to reap" for ever: put the precondition back first.
+	var farm = UIP._active_farm()
+	if farm != null and ProbeActions._get_active_biomes_for_reap(farm).is_empty():
+		if UIP._sim_paused():
+			return _chord(_close_first() + [["resume", "E"]], q, "resume")
+		var col := _first_live_col(biome)
+		if col >= 0:
+			return _reveal(col, q)
 	var parts: Array = _close_first()
 	if _live_col() < 0:
-		parts.append(["plot", _plot_key(0)])
+		parts.append_array(_pick_plot(0))
 	parts.append(["Reap the season", "ctrl+shift+F"])
 	return _chord(parts, q, "reap")
 
@@ -1228,7 +1370,7 @@ static func _superpose(q: Dictionary) -> Dictionary:
 	var h := _hat("druid", q)
 	if not h.is_empty():
 		return h
-	return _chord(_close_first() + [["plot", _plot_key(col)], ["Hadamard", "E"]], q, "superpose")
+	return _chord(_close_first() + _pick_plot(col) + [["Hadamard", "E"]], q, "superpose")
 
 
 ## Let a biome evolve and read itself: stand in it and run its clock fast.
@@ -1274,7 +1416,7 @@ static func _steer(biome: String, emoji: String, q: Dictionary) -> Dictionary:
 		return h
 	var parts: Array = _close_first()
 	if _live_col() != col:
-		parts.append(["plot", _plot_key(col)])
+		parts.append_array(_pick_plot(col))
 	if UIP._plot_measured(col) or held != null:
 		parts.append(["release", _verb("gather")])
 		return _cost_or(["gather", "🧺"], _chord(parts, q, "release"), q, 0)
@@ -1331,7 +1473,7 @@ static func _free_terminal(q: Dictionary, protect: Array = []) -> Dictionary:
 		return h
 	var parts: Array = _close_first() + ["all probes are out"]
 	if _live_col() != col:
-		parts.append(["plot", _plot_key(col)])
+		parts.append_array(_pick_plot(col))
 	if bool(best.is_measured) or (best.has_method("has_banked") and best.has_banked()):
 		parts.append(["Gather", _verb("gather")])
 		return _chord(parts, q, "free probe")
@@ -1388,7 +1530,7 @@ static func _make_room(biome: String, atom: String, q: Dictionary) -> Dictionary
 		return h
 	var parts: Array = _close_first() + ["the ring is full"]
 	if UIP._focused_col() != col:
-		parts.append(["plot", _plot_key(col)])
+		parts.append_array(_pick_plot(col))
 	parts.append(["Trim %s/%s" % [str(ax.get("north", "")), str(ax.get("south", ""))], "Q"])
 	parts.append(["confirm", "F"])
 	return _chord(parts, q, "make room")
@@ -1501,7 +1643,7 @@ static func _take_in_loop(biome: String, col: int, res: String, q: Dictionary) -
 	if reg != null and reg.has_method("is_ripe") and bool(reg.is_ripe(col)):
 		var parts: Array = _close_first() + [label]
 		if _live_col() != col:
-			parts.append(["plot", _plot_key(col)])
+			parts.append_array(_pick_plot(col))
 		parts.append(["Incorporate", _verb("incorporate")])
 		return _chord(parts, q, "take in loop")
 	if UIP._sim_paused():
@@ -1540,6 +1682,25 @@ static func _live_cols(biome: String) -> int:
 	return mini(int(b.quantum_computer.register_map.num_qubits), BERRY_ROWS)
 
 
+## A tracked loop on the plot about to be explored: Ace F on a tracked plot
+## stays Fast-Fwd, so Explore cannot fire. Incorporate it if it is ripe, else
+## stop tracking it (Icon F toggles). {} when `col` is not tracked.
+static func _release_tracking(col: int, q: Dictionary) -> Dictionary:
+	var reg = UIP._berry_register()
+	if reg == null or col < 0 or not bool(reg.is_tracked(col)):
+		return {}
+	var parts: Array = _close_first()
+	if str(ToolConfig.get_current_frame()) != "icon":
+		parts.append([_hat_name("icon") + " hat", _hat_key("icon")])
+	if UIP._focused_col() != col:
+		parts.append_array(_pick_plot(col))
+	if bool(reg.is_ripe(col)):
+		parts.append(["Incorporate", _verb("incorporate")])
+		return _chord(parts, q, "incorporate before exploring")
+	parts.append(["stop tracking", _verb("track")])
+	return _chord(parts, q, "release the loop")
+
+
 ## Explore `col` on the active biome so the next verb has something to show:
 ## Ace hat, the plot, Explore — fetching a probe or bread first if needed.
 ## One chord, hat included: a walk that puts on another hat before this step
@@ -1548,10 +1709,15 @@ static func _reveal(col: int, q: Dictionary, protect: Array = []) -> Dictionary:
 	var fr := _free_terminal(q, protect)
 	if not fr.is_empty():
 		return fr
+	# While a loop is tracked, Ace F stays Fast-Fwd (it carries the ripening),
+	# so Explore cannot fire: finish the loop, or let it go, first.
+	var stop := _release_tracking(col, q)
+	if not stop.is_empty():
+		return stop
 	var parts: Array = _close_first() + ["explore it first, so you can see it"]
 	if str(ToolConfig.get_current_frame()) != "ace":
 		parts.append([_hat_name("ace") + " hat", _hat_key("ace")])
 	if _live_col() != col:
-		parts.append(["plot", _plot_key(col)])
+		parts.append_array(_pick_plot(col))
 	parts.append(["Explore", _verb("explore")])
 	return _cost_or(["explore", "🍞"], _chord(parts, q, "reveal"), q, 0)

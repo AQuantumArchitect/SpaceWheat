@@ -308,14 +308,6 @@
             "🌾": 4
           },
           "get": 4
-        },
-        {
-          "biome": "Village",
-          "faction": "Hearth Keepers",
-          "give": {
-            "🐇": 4
-          },
-          "get": 4
         }
       ]
     },
@@ -333,14 +325,6 @@
             "🌾": 4
           },
           "get": 4
-        },
-        {
-          "biome": "Village",
-          "faction": "Hearth Keepers",
-          "give": {
-            "🐇": 3
-          },
-          "get": 4
         }
       ]
     },
@@ -356,14 +340,6 @@
             "👥": 6
           },
           "get": 4
-        },
-        {
-          "biome": "Village",
-          "faction": "Hearth Keepers",
-          "give": {
-            "🐇": 3
-          },
-          "get": 3
         }
       ]
     },
@@ -396,7 +372,7 @@
           "biome": "Village",
           "faction": "Millwright's Union",
           "give": {
-            "🌾": 10
+            "🍞": 10
           },
           "get": 7
         }
@@ -423,14 +399,6 @@
       "plots": [],
       "trades": [
         {
-          "biome": "Woodlot",
-          "faction": "Millwright's Union",
-          "give": {
-            "🌱": 4
-          },
-          "get": 4
-        },
-        {
           "biome": "Village",
           "faction": "Millwright's Union",
           "give": {
@@ -446,20 +414,27 @@
       "plots": [],
       "trades": [
         {
-          "biome": "FreshwaterSpring",
-          "faction": "Hearth Keepers",
-          "give": {
-            "💧": 4
-          },
-          "get": 4
-        },
-        {
           "biome": "Village",
           "faction": "Hearth Keepers",
           "give": {
             "🍞": 10
           },
           "get": 3
+        }
+      ]
+    },
+    "🔥": {
+      "low_water": 2,
+      "spent_by": "superpose (Druid E)",
+      "plots": [],
+      "trades": [
+        {
+          "biome": "Village",
+          "faction": "Hearth Keepers",
+          "give": {
+            "🍞": 6
+          },
+          "get": 4
         }
       ]
     }
@@ -587,6 +562,11 @@
       "clear_marks": "'"
     },
     "walks": {
+      "icon_incorporated": [
+        "travel",
+        "hat:icon",
+        "berry_axis"
+      ],
       "berry_consumed_count_gte": [
         "travel",
         "hat:icon",
@@ -635,11 +615,11 @@
         "deliver_to"
       ],
       "lesson:wayfinding": [
-        "go:StarterForest"
+        "go:StarterForest",
+        "survey"
       ],
       "lesson:superposition": [
         "go:StarterForest",
-        "survey",
         "hat:druid",
         "plot_verb:E"
       ],

@@ -39,6 +39,7 @@ var growth_bar: ProgressBar
 var selection_border: ColorRect
 var territory_border: ColorRect  # Shows Icon control
 var number_label: Label
+var bank_label: Label   # what a struck plot has banked for Q: "🌾×3 🧺×2"
 var checkbox_label: Label  # NEW: Multi-select checkbox (☐/☑)
 var lindblad_indicator: Label  # Persistent Lindblad pump/drain indicator
 var entanglement_indicator: Control  # Visual ring showing entanglement status
@@ -174,6 +175,18 @@ func _create_ui_elements():
 	number_label.add_theme_color_override("font_color", Color(1.0, 1.0, 0.0, 0.9))  # Phase 3: Bright yellow
 	number_label.z_index = 5  # Above all other elements for visibility
 	add_child(number_label)
+
+	# Bank badge (bottom edge): the live qubit stays drawn; the bank rides beside it.
+	bank_label = Label.new()
+	bank_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	bank_label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	bank_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bank_label.add_theme_font_size_override("font_size", 14)
+	bank_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3, 1.0))
+	bank_label.text = ""
+	bank_label.z_index = 5
+	bank_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(bank_label)
 
 	# Checkbox label (shows multi-select checkbox - NEW)
 	checkbox_label = Label.new()
@@ -661,6 +674,8 @@ func set_plot_data(plot_data, pos: Vector2i, index: int = -1):
 
 	plot_ui_data = plot_data
 	_visuals_dirty = true
+	if bank_label:
+		bank_label.text = str(plot_data.get("bank_text", "")) if plot_data is Dictionary else ""
 	var is_planted = plot_data != null and bool(plot_data.get("is_planted", false))
 	if is_processing() != is_planted:
 		set_process(is_planted)
@@ -676,6 +691,8 @@ func _structural_same(cur: Dictionary, nxt) -> bool:
 	if bool(cur.get("memory_visible", false)) != bool(nxt.get("memory_visible", false)):
 		return false
 	if bool(cur.get("has_been_measured", false)) != bool(nxt.get("has_been_measured", false)):
+		return false
+	if str(cur.get("bank_text", "")) != str(nxt.get("bank_text", "")):
 		return false
 	if str(cur.get("north_emoji", "")) != str(nxt.get("north_emoji", "")):
 		return false

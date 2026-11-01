@@ -118,7 +118,7 @@ class Follower:
 # Keys that are honest as the FIRST press of a line on each kind of surface.
 # A line that starts with anything else names a key of a menu you don't
 # have open — the toast/menu mismatch the surface graph exists to prevent.
-MENU_KEYS = set("TYUIO") | set("GHJKL;'") | {"A", "D", "R", "Q", "E", "F", "C", "X", "ESCAPE"}
+MENU_KEYS = set("TYUIO") | set("GHJKL;'") | {"A", "D", "R", "Q", "E", "F", "C", "X", "ESCAPE", "1", "2", "3"}
 SUBMENU_KEYS = {"Q", "E", "R", "F", "ESCAPE"}
 
 
@@ -138,7 +138,7 @@ def check_surface(f, line: str, rep: dict) -> None:
         ok = first in MENU_KEYS
     elif here.startswith("menu:"):
         ok = first == "ESCAPE"
-    elif here in ("field:icon", "field:gate"):
+    elif here in ("field:icon", "field:gate", "field:confirm"):
         ok = first in SUBMENU_KEYS
     if not ok:
         rep.setdefault("off_surface", []).append({"surface": here, "line": line[:140]})

@@ -111,7 +111,7 @@ def test_unpayable_fill_does_not_mill_abandon():
     board = src(BOARD)
     short = board.split("func fill_shortfall_cue")[1].split("\nfunc ")[0]
     assert "[Q] Abandon" in short
-    cue = board.split("func board_walk_cue")[1].split("\nfunc ")[0]
+    cue = board.split("func _held_walk_cue")[1].split("\nfunc ")[0]
     assert "ESC closes — stall" in cue
     assert 'return "▸ [%s] then [Q] Abandon"' not in cue
     walk = src(PROG).split("static func _board_walk_line")[1].split("static func ")[0]
@@ -439,11 +439,14 @@ def test_mill_apprentice_names_the_board_key():
     assert "func _is_fill_stall" in board
     assert "func board_walk_cue" in board
     market = board.split("func _market_rows")[1].split("\nfunc ")[0]
-    assert "_is_fill_stall" in market
+    # Accepted contracts live on Commitments only; the Market ring is offers.
+    assert '"held"' not in market
     assert "[E] Refresh" in board
     cue = board.split("func board_walk_cue")[1].split("\nfunc ")[0]
-    assert "_selected_index" in cue
-    assert 'return "▸ [R] %s"' in cue
+    assert "_held_walk_cue" in cue
+    held_cue = board.split("func _held_walk_cue")[1].split("\nfunc ")[0]
+    assert "_selected_index" in held_cue
+    assert 'return "▸ [R] %s"' in held_cue
 
 
 def test_commerce_walk_names_the_market_key():
@@ -1134,7 +1137,9 @@ def test_plant_short_does_not_advertise_c_or_icon_first():
 
 
 def test_arc_row_never_accepts_it_shunts_to_the_puzzle():
-    """Arc is a catalog. Aggressive clicking tunnels to C or the field."""
+    """Arc: a confirm tap accepts an unsigned offer (playtest 2026-10-29, via
+    the same _accept_selected_arc as R); every other row tunnels to C or the
+    field. The first tap never accepts."""
     arc = src(ARC)
     select = arc.split("func _select_arc_row")[1].split("\nfunc ")[0]
     assert "_on_action_r()" not in select
@@ -1142,6 +1147,7 @@ def test_arc_row_never_accepts_it_shunts_to_the_puzzle():
     assert "_tunnel_from_arc" in select
     tunnel = arc.split("func _tunnel_from_arc")[1].split("\nfunc ")[0]
     assert "accept_quest" not in tunnel
+    assert "_accept_selected_arc()" in tunnel
     assert "open_board_on_commitments" in tunnel
     assert "_scoot_from_arc" in tunnel
     shunt = arc.split("func _arc_shunt_kind")[1].split("\nfunc ")[0]
