@@ -8,7 +8,6 @@ starting work in this repo. Humans: start at [README.md](README.md).
 
 | If you are… | Read |
 |---|---|
-| picking up the 2026-10-24 session | [docs/agents/HANDOFF_2026-10-24.md](docs/agents/HANDOFF_2026-10-24.md): state, what changed, open items |
 | doing any work at all | [docs/GAME_CODEX.md](docs/GAME_CODEX.md): the canonical mental model of the game, physics and controls |
 | building, packaging or releasing | [docs/agents/MEMORY.md](docs/agents/MEMORY.md): operational memory (release path, native DLL, Windows layout) |
 | touching the story, quests or acts | [docs/CAMPAIGN.md](docs/CAMPAIGN.md): the campaign spec lives in `Core/Campaign/campaign.json`; never hand-edit the compiled JSON |

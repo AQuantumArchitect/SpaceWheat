@@ -1,5 +1,9 @@
 # SpaceWheat handoff — 2026-10-24 (cloud session → WSL CLI)
 
+> **History.** A snapshot of 2026-10-24; the state below is not current. Canonical dev
+> moved to Windows (issue #47, `RELEASE.md`). Kept for the headless-playtest recipe
+> and the open-items list.
+
 Cheap load order: read this file (≈2 min), then `AGENTS.md`, then only the doc your task names.
 Do not read `docs/history/` or `GAME_CODEX.md` unless the task needs them.
 
