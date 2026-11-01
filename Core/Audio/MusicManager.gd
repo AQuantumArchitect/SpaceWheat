@@ -1192,6 +1192,10 @@ func _get_or_load_stream(track_key: String) -> AudioStream:
 	if _stream_cache.has(track_key):
 		return _stream_cache[track_key]
 
+	# Slim web build (custom feature "slim") ships no music: stay silent, no error spam.
+	if OS.has_feature("slim"):
+		return null
+
 	var path = TRACKS.get(track_key, "")
 	if path.is_empty():
 		push_warning("MusicManager: Track key '%s' not found in TRACKS" % track_key)

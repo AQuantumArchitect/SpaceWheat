@@ -38,13 +38,13 @@
 
 #include <godot_cpp/variant/variant.hpp>
 
+#include <godot_cpp/templates/local_vector.hpp>
+
 #include <godot_cpp/classes/object.hpp>
 
 #include <godot_cpp/godot.hpp>
 
 #include <gdextension_interface.h>
-
-#include <vector>
 
 #define ADD_SIGNAL(m_signal) ::godot::ClassDB::add_signal(get_class_static(), m_signal)
 #define ADD_GROUP(m_name, m_prefix) ::godot::ClassDB::add_property_group(get_class_static(), m_name, m_prefix)
@@ -65,12 +65,12 @@ struct MethodInfo {
 	PropertyInfo return_val;
 	uint32_t flags;
 	int id = 0;
-	std::vector<PropertyInfo> arguments;
-	std::vector<Variant> default_arguments;
+	LocalVector<PropertyInfo> arguments;
+	LocalVector<Variant> default_arguments;
 	GDExtensionClassMethodArgumentMetadata return_val_metadata;
-	std::vector<GDExtensionClassMethodArgumentMetadata> arguments_metadata;
+	LocalVector<GDExtensionClassMethodArgumentMetadata> arguments_metadata;
 
-	inline bool operator==(const MethodInfo &p_method) const { return id == p_method.id; }
+	inline bool operator==(const MethodInfo &p_method) const { return id == p_method.id && name == p_method.name; }
 	inline bool operator<(const MethodInfo &p_method) const { return id == p_method.id ? (name < p_method.name) : (id < p_method.id); }
 
 	operator Dictionary() const;
@@ -92,58 +92,46 @@ struct MethodInfo {
 
 template <typename... Args>
 MethodInfo::MethodInfo(StringName p_name, const Args &...args) :
-		name(p_name), flags(GDEXTENSION_METHOD_FLAG_NORMAL) {
-	arguments = { args... };
-}
+		name(p_name), flags(GDEXTENSION_METHOD_FLAG_NORMAL), arguments({ args... }) {}
 
 template <typename... Args>
 MethodInfo::MethodInfo(Variant::Type ret, StringName p_name, const Args &...args) :
-		name(p_name), flags(GDEXTENSION_METHOD_FLAG_NORMAL) {
+		name(p_name), flags(GDEXTENSION_METHOD_FLAG_NORMAL), arguments({ args... }) {
 	return_val.type = ret;
-	arguments = { args... };
 }
 
 template <typename... Args>
 MethodInfo::MethodInfo(const PropertyInfo &p_ret, StringName p_name, const Args &...args) :
-		name(p_name), return_val(p_ret), flags(GDEXTENSION_METHOD_FLAG_NORMAL) {
-	arguments = { args... };
+		name(p_name), return_val(p_ret), flags(GDEXTENSION_METHOD_FLAG_NORMAL), arguments({ args... }) {
 }
 
 class ObjectDB {
 public:
 	static Object *get_instance(uint64_t p_object_id) {
-		GDExtensionObjectPtr obj = internal::gdextension_interface_object_get_instance_from_id(p_object_id);
+		GDExtensionObjectPtr obj = ::godot::gdextension_interface::object_get_instance_from_id(p_object_id);
 		if (obj == nullptr) {
 			return nullptr;
 		}
-		return internal::get_object_instance_binding(obj);
+		return ::godot::internal::get_object_instance_binding(obj);
 	}
 };
 
 template <typename T>
 T *Object::cast_to(Object *p_object) {
-	if (p_object == nullptr) {
-		return nullptr;
-	}
-	StringName class_name = T::get_class_static();
-	GDExtensionObjectPtr casted = internal::gdextension_interface_object_cast_to(p_object->_owner, internal::gdextension_interface_classdb_get_class_tag(class_name._native_ptr()));
-	if (casted == nullptr) {
-		return nullptr;
-	}
-	return dynamic_cast<T *>(internal::get_object_instance_binding(casted));
+#if GODOT_VERSION_MINOR >= 7
+	return p_object && p_object->is_class(T::get_class_static()) ? static_cast<T *>(p_object) : nullptr;
+#else
+	return p_object ? dynamic_cast<T *>(p_object) : nullptr;
+#endif
 }
 
 template <typename T>
 const T *Object::cast_to(const Object *p_object) {
-	if (p_object == nullptr) {
-		return nullptr;
-	}
-	StringName class_name = T::get_class_static();
-	GDExtensionObjectPtr casted = internal::gdextension_interface_object_cast_to(p_object->_owner, internal::gdextension_interface_classdb_get_class_tag(class_name._native_ptr()));
-	if (casted == nullptr) {
-		return nullptr;
-	}
-	return dynamic_cast<const T *>(internal::get_object_instance_binding(casted));
+#if GODOT_VERSION_MINOR >= 7
+	return p_object && p_object->is_class(T::get_class_static()) ? static_cast<const T *>(p_object) : nullptr;
+#else
+	return p_object ? dynamic_cast<const T *>(p_object) : nullptr;
+#endif
 }
 
 } // namespace godot

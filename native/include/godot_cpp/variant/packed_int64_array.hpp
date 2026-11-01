@@ -33,6 +33,7 @@
 #pragma once
 
 #include <godot_cpp/core/defs.hpp>
+#include <godot_cpp/core/math_defs.hpp>
 
 #include <godot_cpp/core/error_macros.hpp>
 #include <initializer_list>
@@ -48,7 +49,7 @@ class Variant;
 
 class PackedInt64Array {
 	static constexpr size_t PACKED_INT64_ARRAY_SIZE = 16;
-	uint8_t opaque[PACKED_INT64_ARRAY_SIZE] = {};
+	alignas(8) uint8_t opaque[PACKED_INT64_ARRAY_SIZE] = {};
 
 	friend class Variant;
 
@@ -122,8 +123,8 @@ public:
 	PackedInt64Array slice(int64_t p_begin, int64_t p_end = 2147483647) const;
 	PackedByteArray to_byte_array() const;
 	void sort();
-	int64_t bsearch(int64_t p_value, bool p_before = true);
-	PackedInt64Array duplicate();
+	int64_t bsearch(int64_t p_value, bool p_before = true) const;
+	PackedInt64Array duplicate() const;
 	int64_t find(int64_t p_value, int64_t p_from = 0) const;
 	int64_t rfind(int64_t p_value, int64_t p_from = -1) const;
 	int64_t count(int64_t p_value) const;
