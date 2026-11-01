@@ -261,13 +261,13 @@ static func summary(pred: Dictionary, qm = null) -> String:
 			# same digit target() returns.
 			match gname:
 				"measure":
-					return "Strike ×%d — %s: tap a live bubble (or R); strike again when it has spread" % [gcount, verb_home("ace")]
+					return "Strike ×%d — %s: select a live bubble, tap it again (or R); strike again when it has spread" % [gcount, verb_home("ace")]
 				"reap":
 					return "Reap the season ×%d — %s: the season button (or Ctrl+Shift+F)" % [gcount, verb_home("ace")]
 				"pop":
-					return "Gather ×%d — %s: tap a struck bubble (or Q)" % [gcount, verb_home("ace")]
+					return "Gather ×%d — %s: select a struck bubble, tap it again (or Q)" % [gcount, verb_home("ace")]
 				"explore":
-					return "Explore ×%d — %s: tap a sleeping plot (or F)" % [gcount, verb_home("ace")]
+					return "Explore ×%d — %s: select a sleeping plot, tap it again (or F)" % [gcount, verb_home("ace")]
 				"plant", "inject_icon":
 					return "Plant ×%d — %s: empty plot, R (need 🌱×5 from Forest + 13 of the south pole)" % [gcount, verb_home("icon")]
 				"hadamard":

@@ -255,7 +255,11 @@ override, e.g. Icon-R "Add" vs "Incorporate") → `_run_action` →
   the legacy 2D force graph survives one release behind `--classic-2d` /
   `SW_CLASSIC_2D` (an explicit 2D request wins over an explicit 3D one). Same
   tap contract — a node tap in the field dispatches through `handle_bubble_tap`
-  exactly like a 2D bubble tap.
+  exactly like a 2D bubble tap. **Taps are two-step:** the first tap on a plot only
+  selects it (`{"action": "select"}`); a tap on the plot already selected by a tap
+  runs the recommended verb (`predict_tap_verb`: explore, strike or gather). Any
+  other focus move (keys, biome switch) disarms it. Shift-tap and MULTI mode are
+  unchanged. Authority: `UI/Core/QuantumInstrumentInput.gd`, `_tap_armed_pos`.
 - **The Witness organ** (`Core/Witness/WitnessOrgan.gd`, autoload) is an
   advisory belief field: one small density-matrix cluster per discovered biome
   plus a self cluster, relaxing toward uncertainty and moved only by weak

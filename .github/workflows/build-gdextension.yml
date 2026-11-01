@@ -34,7 +34,7 @@ jobs:
       - name: Build godot-cpp (Linux)
         run: |
           cd godot-cpp
-          scons platform=linux target=template_release -j$(nproc)
+          scons platform=linux target=template_release api_version=4.6 -j$(nproc)
 
       - name: Copy godot-cpp library
         run: |
@@ -76,7 +76,7 @@ jobs:
       - name: Build godot-cpp (Windows)
         run: |
           cd godot-cpp
-          scons platform=windows target=template_release -j4
+          scons platform=windows target=template_release api_version=4.6 -j4
         shell: cmd
 
       - name: Copy godot-cpp library
@@ -121,7 +121,7 @@ jobs:
       - name: Build godot-cpp (macOS)
         run: |
           cd godot-cpp
-          scons platform=macos target=template_release arch=universal -j$(sysctl -n hw.logicalcpu)
+          scons platform=macos target=template_release api_version=4.6 arch=universal -j$(sysctl -n hw.logicalcpu)
 
       - name: Create platform directory
         run: mkdir -p native/bin/macos
