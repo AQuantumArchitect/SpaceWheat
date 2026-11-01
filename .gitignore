@@ -135,3 +135,7 @@ scratch_cognifold_sample.json
 Core/Config/build_stamp.json
 Core/Config/build_stamp.json.uid
 dist/
+
+# native/SConstruct per-variant objects and SCons state
+native/build/
+.sconsign*.dblite
