@@ -9,7 +9,7 @@ See [docs/release/DESKTOP_RELEASE_WORKFLOW.md](../release/DESKTOP_RELEASE_WORKFL
 ## Key Facts
 
 - Windows native shipping is required. GDScript fallback is too slow to ship.
-- Windows native DLL build is working from WSL using MinGW.
+- Canonical dev is Windows (`C:\Users\Luke Spooner\ws-win\SpaceWheat`, issue #47): the native DLL and both web wasms build with `scripts/build-all-platforms.ps1` (MinGW + emsdk 4.0.10). Release facts live in `RELEASE.md`.
 - The Windows DLL path is:
   - `native/bin/windows/libquantummatrix.windows.template_release.x86_64.dll`
 - The Linux native path is:

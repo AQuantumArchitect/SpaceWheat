@@ -6,12 +6,14 @@
 
 # Native GDExtension Build
 
-**Location:** `~/ws/SpaceWheat/native/`
+**Location:** `native/` in the repo. Canonical dev is Windows now: build with
+`scripts\build-all-platforms.ps1` (see `RELEASE.md`); the Makefile path below is
+the Linux/WSL route.
 
 ## Quick Build
 
 ```bash
-cd ~/ws/SpaceWheat/native
+cd native
 make clean && make -j$(nproc)
 ```
 
