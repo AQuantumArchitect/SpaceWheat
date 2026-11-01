@@ -283,7 +283,9 @@ func _build_title() -> void:
 
 	# Centered titlecard image, letterboxed to whatever viewport shape.
 	var titlecard := TextureRect.new()
-	titlecard.texture = load("res://Assets/spacewheat_titlecard.png")
+	# Slim web build strips big rasters; a missing titlecard just leaves the bg.
+	if ResourceLoader.exists("res://Assets/spacewheat_titlecard.png"):
+		titlecard.texture = load("res://Assets/spacewheat_titlecard.png")
 	titlecard.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	titlecard.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	titlecard.mouse_filter = Control.MOUSE_FILTER_IGNORE
