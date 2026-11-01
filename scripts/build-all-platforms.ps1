@@ -11,8 +11,8 @@
 
   Produces (commit them; never ship uncommitted binaries):
     native/bin/windows/libquantummatrix.windows.template_{release,debug}.x86_64.dll
-    native/bin/web/libquantummatrix.wasm            (-pthread; preset "Web", threaded engine)
-    native/bin/web/libquantummatrix.nothreads.wasm  (no -pthread; preset "Web-Slim", Pages)
+    native/bin/web/libquantummatrix.wasm            (threads=yes; preset "Web", threaded engine)
+    native/bin/web/libquantummatrix.nothreads.wasm  (threads=no; preset "Web-Slim", Pages)
 
   Toolchain (see RELEASE.md "Location"):
     - Python 3 with SCons:           pip install scons
@@ -75,19 +75,8 @@ try {
     Step "godot-cpp windows (api_version=$ApiVersion)"
     Run 'scons' @('platform=windows', 'target=template_release', "api_version=$ApiVersion", 'use_mingw=yes', "-j$Jobs")
   }
-  if ($Web) {
-    # A cached web .a built by a different emsdk is the bug the pin exists for.
-    $stamp = 'bin/.emsdk-version'
-    if ((Test-Path $stamp) -and ((Get-Content $stamp -Raw).Trim() -ne $EmsdkVersion)) {
-      Get-ChildItem 'bin' -Filter 'libgodot-cpp.web.*' | Remove-Item -Force
-    }
-    Step "godot-cpp web threaded (api_version=$ApiVersion)"
-    Run 'scons' @('platform=web', 'target=template_release', "api_version=$ApiVersion", "-j$Jobs")
-    Step "godot-cpp web nothreads (api_version=$ApiVersion)"
-    Run 'scons' @('platform=web', 'target=template_release', "api_version=$ApiVersion", 'threads=no', "-j$Jobs")
-    New-Item -ItemType Directory -Force 'bin' | Out-Null
-    Set-Content $stamp $EmsdkVersion
-  }
+  # Web: godot-cpp is built by native/SConstruct itself (below), so its flags
+  # and the extension's can never drift apart.
 } finally { Pop-Location }
 
 # Same inputs as the bash path: copy the static libs into native/lib.
@@ -95,7 +84,6 @@ $lib = Join-Path $Native 'lib'
 New-Item -ItemType Directory -Force $lib | Out-Null
 $libs = @()
 if ($Windows) { $libs += 'libgodot-cpp.windows.template_release.x86_64.a' }
-if ($Web)     { $libs += 'libgodot-cpp.web.template_release.wasm32.a', 'libgodot-cpp.web.template_release.wasm32.nothreads.a' }
 foreach ($l in $libs) {
   $src = Join-Path $GodotCpp "bin/$l"
   if (-not (Test-Path $src)) { Fail "godot-cpp did not produce $l" }
@@ -120,16 +108,14 @@ try {
   }
 
   if ($Web) {
+    # Both variants go through godot-cpp's own SCons env (native/SConstruct), the
+    # same as the bash build: a hand-written em++ line drifted from libgodot-cpp's
+    # flags and produced wasms that loaded, then died in _bind_methods.
     New-Item -ItemType Directory -Force 'bin/web' | Out-Null
-    $common = @('-std=c++17', '-O3', '-s', 'SIDE_MODULE=1', '-s', 'EXPORT_ALL=1') + $includes +
-              @('-DWEB_ENABLED', '-DGDEXTENSION', '-DSPACEWHEAT_WITH_GODOT', '-DSPACEWHEAT_WEB_BUILD')
-    Step 'libquantummatrix web threaded (-pthread)'
-    # -pthread must match the threaded engine (preset "Web"): a nothreads module in a
-    # shared-memory engine is an ABI mismatch Godot refuses at load.
-    Run 'em++' ($common + @('-pthread') + $sources + @('./lib/libgodot-cpp.web.template_release.wasm32.a', '-o', 'bin/web/libquantummatrix.wasm'))
-    Step 'libquantummatrix web nothreads'
-    # No -pthread: matches the non-threaded engine (preset "Web-Slim", GitHub Pages).
-    Run 'em++' ($common + $sources + @('./lib/libgodot-cpp.web.template_release.wasm32.nothreads.a', '-o', 'bin/web/libquantummatrix.nothreads.wasm'))
+    foreach ($t in @('yes', 'no')) {
+      Step "libquantummatrix web threads=$t"
+      Run 'scons' @('platform=web', 'target=template_release', "api_version=$ApiVersion", "threads=$t", 'disable_exceptions=no', "-j$Jobs")
+    }
     Set-Content 'bin/web/.emsdk-version' $EmsdkVersion
   }
 } finally { Pop-Location }
