@@ -37,50 +37,49 @@
 #include <godot_cpp/core/type_info.hpp>
 
 #include <array>
-#include <vector>
 
 namespace godot {
 
-#define VARIANT_ENUM_CAST(m_enum)                                      \
-	namespace godot {                                                  \
-	MAKE_ENUM_TYPE_INFO(m_enum)                                        \
-	template <>                                                        \
-	struct VariantCaster<m_enum> {                                     \
-		static _FORCE_INLINE_ m_enum cast(const Variant &p_variant) {  \
-			return (m_enum)p_variant.operator int64_t();               \
-		}                                                              \
-	};                                                                 \
-	template <>                                                        \
-	struct PtrToArg<m_enum> {                                          \
-		_FORCE_INLINE_ static m_enum convert(const void *p_ptr) {      \
-			return m_enum(*reinterpret_cast<const int64_t *>(p_ptr));  \
-		}                                                              \
-		typedef int64_t EncodeT;                                       \
+#define VARIANT_ENUM_CAST(m_enum) \
+	namespace godot { \
+	MAKE_ENUM_TYPE_INFO(m_enum) \
+	template <> \
+	struct VariantCaster<m_enum> { \
+		static _FORCE_INLINE_ m_enum cast(const Variant &p_variant) { \
+			return (m_enum)p_variant.operator int64_t(); \
+		} \
+	}; \
+	template <> \
+	struct PtrToArg<m_enum> { \
+		_FORCE_INLINE_ static m_enum convert(const void *p_ptr) { \
+			return m_enum(*reinterpret_cast<const int64_t *>(p_ptr)); \
+		} \
+		typedef int64_t EncodeT; \
 		_FORCE_INLINE_ static void encode(m_enum p_val, void *p_ptr) { \
-			*reinterpret_cast<int64_t *>(p_ptr) = p_val;               \
-		}                                                              \
-	};                                                                 \
+			*reinterpret_cast<int64_t *>(p_ptr) = static_cast<int64_t>(p_val); \
+		} \
+	}; \
 	}
 
-#define VARIANT_BITFIELD_CAST(m_enum)                                            \
-	namespace godot {                                                            \
-	MAKE_BITFIELD_TYPE_INFO(m_enum)                                              \
-	template <>                                                                  \
-	struct VariantCaster<BitField<m_enum>> {                                     \
-		static _FORCE_INLINE_ BitField<m_enum> cast(const Variant &p_variant) {  \
-			return BitField<m_enum>(p_variant.operator int64_t());               \
-		}                                                                        \
-	};                                                                           \
-	template <>                                                                  \
-	struct PtrToArg<BitField<m_enum>> {                                          \
-		_FORCE_INLINE_ static BitField<m_enum> convert(const void *p_ptr) {      \
-			return BitField<m_enum>(*reinterpret_cast<const int64_t *>(p_ptr));  \
-		}                                                                        \
-		typedef int64_t EncodeT;                                                 \
+#define VARIANT_BITFIELD_CAST(m_enum) \
+	namespace godot { \
+	MAKE_BITFIELD_TYPE_INFO(m_enum) \
+	template <> \
+	struct VariantCaster<BitField<m_enum>> { \
+		static _FORCE_INLINE_ BitField<m_enum> cast(const Variant &p_variant) { \
+			return BitField<m_enum>(p_variant.operator int64_t()); \
+		} \
+	}; \
+	template <> \
+	struct PtrToArg<BitField<m_enum>> { \
+		_FORCE_INLINE_ static BitField<m_enum> convert(const void *p_ptr) { \
+			return BitField<m_enum>(*reinterpret_cast<const int64_t *>(p_ptr)); \
+		} \
+		typedef int64_t EncodeT; \
 		_FORCE_INLINE_ static void encode(BitField<m_enum> p_val, void *p_ptr) { \
-			*reinterpret_cast<int64_t *>(p_ptr) = p_val;                         \
-		}                                                                        \
-	};                                                                           \
+			*reinterpret_cast<int64_t *>(p_ptr) = static_cast<int64_t>(p_val); \
+		} \
+	}; \
 	}
 
 template <typename T>
@@ -148,7 +147,7 @@ template <typename T>
 struct VariantCasterAndValidate {
 	static _FORCE_INLINE_ T cast(const Variant **p_args, uint32_t p_arg_idx, GDExtensionCallError &r_error) {
 		GDExtensionVariantType argtype = GDExtensionVariantType(GetTypeInfo<T>::VARIANT_TYPE);
-		if (!internal::gdextension_interface_variant_can_convert_strict(static_cast<GDExtensionVariantType>(p_args[p_arg_idx]->get_type()), argtype) ||
+		if (!::godot::gdextension_interface::variant_can_convert_strict(static_cast<GDExtensionVariantType>(p_args[p_arg_idx]->get_type()), argtype) ||
 				!VariantObjectClassChecker<T>::check(p_args[p_arg_idx])) {
 			r_error.error = GDEXTENSION_CALL_ERROR_INVALID_ARGUMENT;
 			r_error.argument = p_arg_idx;
@@ -163,7 +162,7 @@ template <typename T>
 struct VariantCasterAndValidate<T &> {
 	static _FORCE_INLINE_ T cast(const Variant **p_args, uint32_t p_arg_idx, GDExtensionCallError &r_error) {
 		GDExtensionVariantType argtype = GDExtensionVariantType(GetTypeInfo<T>::VARIANT_TYPE);
-		if (!internal::gdextension_interface_variant_can_convert_strict(static_cast<GDExtensionVariantType>(p_args[p_arg_idx]->get_type()), argtype) ||
+		if (!::godot::gdextension_interface::variant_can_convert_strict(static_cast<GDExtensionVariantType>(p_args[p_arg_idx]->get_type()), argtype) ||
 				!VariantObjectClassChecker<T>::check(p_args[p_arg_idx])) {
 			r_error.error = GDEXTENSION_CALL_ERROR_INVALID_ARGUMENT;
 			r_error.argument = p_arg_idx;
@@ -178,7 +177,7 @@ template <typename T>
 struct VariantCasterAndValidate<const T &> {
 	static _FORCE_INLINE_ T cast(const Variant **p_args, uint32_t p_arg_idx, GDExtensionCallError &r_error) {
 		GDExtensionVariantType argtype = GDExtensionVariantType(GetTypeInfo<T>::VARIANT_TYPE);
-		if (!internal::gdextension_interface_variant_can_convert_strict(static_cast<GDExtensionVariantType>(p_args[p_arg_idx]->get_type()), argtype) ||
+		if (!::godot::gdextension_interface::variant_can_convert_strict(static_cast<GDExtensionVariantType>(p_args[p_arg_idx]->get_type()), argtype) ||
 				!VariantObjectClassChecker<T>::check(p_args[p_arg_idx])) {
 			r_error.error = GDEXTENSION_CALL_ERROR_INVALID_ARGUMENT;
 			r_error.argument = p_arg_idx;
@@ -233,7 +232,7 @@ template <typename T, typename... P, size_t... Is>
 void call_with_variant_args_helper(T *p_instance, void (T::*p_method)(P...), const Variant **p_args, GDExtensionCallError &r_error, IndexSequence<Is...>) {
 	r_error.error = GDEXTENSION_CALL_OK;
 
-#ifdef DEBUG_METHODS_ENABLED
+#ifdef DEBUG_ENABLED
 	(p_instance->*p_method)(VariantCasterAndValidate<P>::cast(p_args, Is, r_error)...);
 #else
 	(p_instance->*p_method)(VariantCaster<P>::cast(*p_args[Is])...);
@@ -245,7 +244,7 @@ template <typename T, typename... P, size_t... Is>
 void call_with_variant_argsc_helper(T *p_instance, void (T::*p_method)(P...) const, const Variant **p_args, GDExtensionCallError &r_error, IndexSequence<Is...>) {
 	r_error.error = GDEXTENSION_CALL_OK;
 
-#ifdef DEBUG_METHODS_ENABLED
+#ifdef DEBUG_ENABLED
 	(p_instance->*p_method)(VariantCasterAndValidate<P>::cast(p_args, Is, r_error)...);
 #else
 	(p_instance->*p_method)(VariantCaster<P>::cast(*p_args[Is])...);
@@ -257,23 +256,24 @@ template <typename T, typename R, typename... P, size_t... Is>
 void call_with_variant_args_ret_helper(T *p_instance, R (T::*p_method)(P...), const Variant **p_args, Variant &r_ret, GDExtensionCallError &r_error, IndexSequence<Is...>) {
 	r_error.error = GDEXTENSION_CALL_OK;
 
-#ifdef DEBUG_METHODS_ENABLED
+#ifdef DEBUG_ENABLED
 	r_ret = (p_instance->*p_method)(VariantCasterAndValidate<P>::cast(p_args, Is, r_error)...);
 #else
 	r_ret = (p_instance->*p_method)(VariantCaster<P>::cast(*p_args[Is])...);
 #endif
+	(void)p_args; // Avoid warning.
 }
 
 template <typename T, typename R, typename... P, size_t... Is>
 void call_with_variant_args_retc_helper(T *p_instance, R (T::*p_method)(P...) const, const Variant **p_args, Variant &r_ret, GDExtensionCallError &r_error, IndexSequence<Is...>) {
 	r_error.error = GDEXTENSION_CALL_OK;
 
-#ifdef DEBUG_METHODS_ENABLED
+#ifdef DEBUG_ENABLED
 	r_ret = (p_instance->*p_method)(VariantCasterAndValidate<P>::cast(p_args, Is, r_error)...);
 #else
 	r_ret = (p_instance->*p_method)(VariantCaster<P>::cast(*p_args[Is])...);
 #endif
-	(void)p_args;
+	(void)p_args; // Avoid warning.
 }
 
 template <typename T, typename... P>
@@ -331,7 +331,7 @@ void call_with_variant_args_retc(T *p_instance, R (T::*p_method)(P...) const, co
 }
 
 template <typename T, typename... P>
-void call_with_variant_args_dv(T *p_instance, void (T::*p_method)(P...), const GDExtensionConstVariantPtr *p_args, int p_argcount, GDExtensionCallError &r_error, const std::vector<Variant> &default_values) {
+void call_with_variant_args_dv(T *p_instance, void (T::*p_method)(P...), const GDExtensionConstVariantPtr *p_args, int p_argcount, GDExtensionCallError &r_error, const LocalVector<Variant> &default_values) {
 #ifdef DEBUG_ENABLED
 	if ((size_t)p_argcount > sizeof...(P)) {
 		r_error.error = GDEXTENSION_CALL_ERROR_TOO_MANY_ARGUMENTS;
@@ -366,7 +366,7 @@ void call_with_variant_args_dv(T *p_instance, void (T::*p_method)(P...), const G
 }
 
 template <typename T, typename... P>
-void call_with_variant_argsc_dv(T *p_instance, void (T::*p_method)(P...) const, const GDExtensionConstVariantPtr *p_args, int p_argcount, GDExtensionCallError &r_error, const std::vector<Variant> &default_values) {
+void call_with_variant_argsc_dv(T *p_instance, void (T::*p_method)(P...) const, const GDExtensionConstVariantPtr *p_args, int p_argcount, GDExtensionCallError &r_error, const LocalVector<Variant> &default_values) {
 #ifdef DEBUG_ENABLED
 	if ((size_t)p_argcount > sizeof...(P)) {
 		r_error.error = GDEXTENSION_CALL_ERROR_TOO_MANY_ARGUMENTS;
@@ -401,7 +401,7 @@ void call_with_variant_argsc_dv(T *p_instance, void (T::*p_method)(P...) const, 
 }
 
 template <typename T, typename R, typename... P>
-void call_with_variant_args_ret_dv(T *p_instance, R (T::*p_method)(P...), const GDExtensionConstVariantPtr *p_args, int p_argcount, Variant &r_ret, GDExtensionCallError &r_error, const std::vector<Variant> &default_values) {
+void call_with_variant_args_ret_dv(T *p_instance, R (T::*p_method)(P...), const GDExtensionConstVariantPtr *p_args, int p_argcount, Variant &r_ret, GDExtensionCallError &r_error, const LocalVector<Variant> &default_values) {
 #ifdef DEBUG_ENABLED
 	if ((size_t)p_argcount > sizeof...(P)) {
 		r_error.error = GDEXTENSION_CALL_ERROR_TOO_MANY_ARGUMENTS;
@@ -436,7 +436,7 @@ void call_with_variant_args_ret_dv(T *p_instance, R (T::*p_method)(P...), const 
 }
 
 template <typename T, typename R, typename... P>
-void call_with_variant_args_retc_dv(T *p_instance, R (T::*p_method)(P...) const, const GDExtensionConstVariantPtr *p_args, int p_argcount, Variant &r_ret, GDExtensionCallError &r_error, const std::vector<Variant> &default_values) {
+void call_with_variant_args_retc_dv(T *p_instance, R (T::*p_method)(P...) const, const GDExtensionConstVariantPtr *p_args, int p_argcount, Variant &r_ret, GDExtensionCallError &r_error, const LocalVector<Variant> &default_values) {
 #ifdef DEBUG_ENABLED
 	if ((size_t)p_argcount > sizeof...(P)) {
 		r_error.error = GDEXTENSION_CALL_ERROR_TOO_MANY_ARGUMENTS;
@@ -472,7 +472,7 @@ void call_with_variant_args_retc_dv(T *p_instance, R (T::*p_method)(P...) const,
 
 // GCC raises "parameter 'p_args' set but not used" when P = {},
 // it's not clever enough to treat other P values as making this branch valid.
-#if defined(DEBUG_METHODS_ENABLED) && defined(__GNUC__) && !defined(__clang__)
+#if defined(DEBUG_ENABLED) && defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-but-set-parameter"
 #endif
@@ -540,7 +540,7 @@ template <typename... P, size_t... Is>
 void call_with_variant_args_static(void (*p_method)(P...), const Variant **p_args, GDExtensionCallError &r_error, IndexSequence<Is...>) {
 	r_error.error = GDEXTENSION_CALL_OK;
 
-#ifdef DEBUG_METHODS_ENABLED
+#ifdef DEBUG_ENABLED
 	(p_method)(VariantCasterAndValidate<P>::cast(p_args, Is, r_error)...);
 #else
 	(p_method)(VariantCaster<P>::cast(*p_args[Is])...);
@@ -548,7 +548,7 @@ void call_with_variant_args_static(void (*p_method)(P...), const Variant **p_arg
 }
 
 template <typename... P>
-void call_with_variant_args_static_dv(void (*p_method)(P...), const GDExtensionConstVariantPtr *p_args, int p_argcount, GDExtensionCallError &r_error, const std::vector<Variant> &default_values) {
+void call_with_variant_args_static_dv(void (*p_method)(P...), const GDExtensionConstVariantPtr *p_args, int p_argcount, GDExtensionCallError &r_error, const LocalVector<Variant> &default_values) {
 #ifdef DEBUG_ENABLED
 	if ((size_t)p_argcount > sizeof...(P)) {
 		r_error.error = GDEXTENSION_CALL_ERROR_TOO_MANY_ARGUMENTS;
@@ -632,7 +632,7 @@ template <typename R, typename... P, size_t... Is>
 void call_with_variant_args_static_ret(R (*p_method)(P...), const Variant **p_args, Variant &r_ret, GDExtensionCallError &r_error, IndexSequence<Is...>) {
 	r_error.error = GDEXTENSION_CALL_OK;
 
-#ifdef DEBUG_METHODS_ENABLED
+#ifdef DEBUG_ENABLED
 	r_ret = (p_method)(VariantCasterAndValidate<P>::cast(p_args, Is, r_error)...);
 #else
 	r_ret = (p_method)(VariantCaster<P>::cast(*p_args[Is])...);
@@ -640,7 +640,7 @@ void call_with_variant_args_static_ret(R (*p_method)(P...), const Variant **p_ar
 }
 
 template <typename R, typename... P>
-void call_with_variant_args_static_ret_dv(R (*p_method)(P...), const GDExtensionConstVariantPtr *p_args, int p_argcount, Variant &r_ret, GDExtensionCallError &r_error, const std::vector<Variant> &default_values) {
+void call_with_variant_args_static_ret_dv(R (*p_method)(P...), const GDExtensionConstVariantPtr *p_args, int p_argcount, Variant &r_ret, GDExtensionCallError &r_error, const LocalVector<Variant> &default_values) {
 #ifdef DEBUG_ENABLED
 	if ((size_t)p_argcount > sizeof...(P)) {
 		r_error.error = GDEXTENSION_CALL_ERROR_TOO_MANY_ARGUMENTS;

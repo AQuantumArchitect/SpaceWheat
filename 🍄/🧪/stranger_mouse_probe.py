@@ -129,6 +129,8 @@ def main():
         check(bool(vis), "a bubble anchor exists to click with zero keyboard input")
         if vis:
             pos = vis[0]["pos"]
+            # taps are two-step: the first tap on a plot only SELECTS it
+            t("tap", pos=pos, settle_frames=16)
             click_r = t("tap", pos=pos, settle_frames=16)
             print("bubble tap1:", click_r.get("tapped"))
             after1 = [b for b in bubbles() if b.get("pos") == pos]

@@ -33,6 +33,7 @@
 #pragma once
 
 #include <godot_cpp/core/defs.hpp>
+#include <godot_cpp/core/math_defs.hpp>
 
 #include <godot_cpp/variant/vector2.hpp>
 
@@ -52,7 +53,7 @@ struct Vector2;
 
 class PackedVector2Array {
 	static constexpr size_t PACKED_VECTOR2_ARRAY_SIZE = 16;
-	uint8_t opaque[PACKED_VECTOR2_ARRAY_SIZE] = {};
+	alignas(8) uint8_t opaque[PACKED_VECTOR2_ARRAY_SIZE] = {};
 
 	friend class Variant;
 
@@ -127,8 +128,8 @@ public:
 	PackedVector2Array slice(int64_t p_begin, int64_t p_end = 2147483647) const;
 	PackedByteArray to_byte_array() const;
 	void sort();
-	int64_t bsearch(const Vector2 &p_value, bool p_before = true);
-	PackedVector2Array duplicate();
+	int64_t bsearch(const Vector2 &p_value, bool p_before = true) const;
+	PackedVector2Array duplicate() const;
 	int64_t find(const Vector2 &p_value, int64_t p_from = 0) const;
 	int64_t rfind(const Vector2 &p_value, int64_t p_from = -1) const;
 	int64_t count(const Vector2 &p_value) const;

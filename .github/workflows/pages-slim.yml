@@ -1,0 +1,68 @@
+# Deploys the Web-Slim export (no music, no big rasters, non-threaded engine)
+# to GitHub Pages. Non-threaded = no COOP/COEP headers needed, which Pages
+# cannot send. Uses the committed native/bin/web/libquantummatrix.nothreads.wasm
+# (built with Emscripten 4.0.10: scons threads=no + em++ without -pthread).
+name: Pages (Web-Slim)
+
+on:
+  push:
+    branches: [main, slim-web]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+env:
+  GODOT_VERSION: "4.6.2-stable"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - name: Cache Godot + templates
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/godot
+            ~/.local/share/godot/export_templates
+          key: godot-web-${{ env.GODOT_VERSION }}
+      - name: Install Godot + export templates
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/godot ~/.local/share/godot/export_templates
+          curl -fsSL -o /tmp/godot.zip "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          unzip -q /tmp/godot.zip -d ~/godot
+          mv ~/godot/Godot_v${GODOT_VERSION}_linux.x86_64 ~/godot/godot
+          curl -fsSL -o /tmp/tpl.tpz "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_export_templates.tpz"
+          unzip -q /tmp/tpl.tpz -d /tmp/tpl
+          mv /tmp/tpl/templates ~/.local/share/godot/export_templates/4.6.2.stable
+      - name: Import + export Web-Slim
+        run: |
+          mkdir -p build/web-slim
+          ~/godot/godot --headless --path . --import || true
+          ~/godot/godot --headless --path . --export-release "Web-Slim" build/web-slim/index.html
+          touch build/web-slim/.nojekyll
+          du -sh build/web-slim; ls -la build/web-slim
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web-slim
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

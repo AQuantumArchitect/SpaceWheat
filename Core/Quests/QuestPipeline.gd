@@ -34,7 +34,7 @@ static func from_market_contract(contract, biome) -> Dictionary:
 	if raw.is_empty():
 		return {}
 	raw["type"] = QuestTypes.Type.DELIVERY
-	raw["time_limit"] = 120.0
+	raw["time_limit"] = -1.0   # no clocks: a contract waits for you (puzzle, not timer)
 	raw["reward_multiplier"] = 1.0
 	# No icon reward — market quests pay in resources, derived from the faction's
 	# coupling-cloud (can include resources the player has no mass in yet).
@@ -65,8 +65,13 @@ static func from_market_contract(contract, biome) -> Dictionary:
 ## re-proposes the SAME contract and never duplicates an accepted one.
 const SUPPLY_ID_BASE: int = 900000000
 
-static func supply_offer_id(emoji: String, biome_name: String) -> int:
-	return SUPPLY_ID_BASE + absi(("supply|%s|%s" % [emoji, biome_name]).hash()) % 1000000
+static func supply_offer_id(emoji: String, biome_name: String, give_key: String = "") -> int:
+	# give_key distinguishes two trades for the same emoji on one board (the
+	# 🌾-priced trade and the 🐇-priced rescue). "" keeps the old ids stable.
+	var tag := "supply|%s|%s" % [emoji, biome_name]
+	if give_key != "":
+		tag += "|" + give_key
+	return SUPPLY_ID_BASE + absi(tag.hash()) % 1000000
 
 
 static func supply_offer(trade: Dictionary) -> Dictionary:
@@ -80,8 +85,10 @@ static func supply_offer(trade: Dictionary) -> Dictionary:
 	# The board's single-ask row grammar reads resource × quantity; a
 	# multi-give trade keeps the full ask in `give` (completion removes all).
 	var ask: String = str(give.keys()[0])
+	var first := CampaignRuntime.trade_in(emoji, biome_name)
+	var give_key := "" if CampaignRuntime.trade_give(first) == give else ask
 	var q := Quest.make(Quest.SOURCE_MARKET, {
-		"id": supply_offer_id(emoji, biome_name),
+		"id": supply_offer_id(emoji, biome_name, give_key),
 		"status": Quest.STATUS_OFFERED,
 		"type": QuestTypes.Type.DELIVERY,
 		"faction": faction,

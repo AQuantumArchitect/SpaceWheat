@@ -46,9 +46,12 @@ def test_beats_with_an_objective_are_not_claimed_on_accept():
 
 def test_forest_lessons_survey_the_field_first():
     walks = json.loads(src("Core/Campaign/campaign.json"))["guide"]["walks"]
-    for k in ("lesson:superposition", "lesson:entanglement"):
-        w = walks[k]
-        assert w.index("survey") < next(i for i, s in enumerate(w) if s.startswith("hat:")), k
+    # Mass-explore is its own lesson (wayfinding); superposing one explored
+    # qubit does not survey, and the pair gate still opens the field first.
+    assert "survey" in walks["lesson:wayfinding"]
+    assert "survey" not in walks["lesson:superposition"]
+    w = walks["lesson:entanglement"]
+    assert w.index("survey") < next(i for i, s in enumerate(w) if s.startswith("hat:"))
     guide = src("Core/Campaign/Guide.gd")
     assert '"shift+" + _verb("explore")' in guide.split("static func _survey(")[1].split("\nstatic func ")[0]
 

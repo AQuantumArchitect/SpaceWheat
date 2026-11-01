@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  mutex_lock.hpp                                                        */
+/*  open_xr_spatial_capability_configuration_aruco.hpp                    */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                             GODOT ENGINE                               */
@@ -28,29 +28,57 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
+// THIS FILE IS GENERATED. EDITS WILL BE LOST.
+
 #pragma once
 
-#include <godot_cpp/classes/mutex.hpp>
+#include <godot_cpp/classes/open_xr_spatial_capability_configuration_base_header.hpp>
+#include <godot_cpp/classes/ref.hpp>
+#include <godot_cpp/variant/packed_int64_array.hpp>
+
+#include <godot_cpp/core/class_db.hpp>
+
+#include <type_traits>
 
 namespace godot {
 
-class MutexLock {
-	const Mutex &mutex;
+class OpenXRSpatialCapabilityConfigurationAruco : public OpenXRSpatialCapabilityConfigurationBaseHeader {
+	GDEXTENSION_CLASS(OpenXRSpatialCapabilityConfigurationAruco, OpenXRSpatialCapabilityConfigurationBaseHeader)
 
 public:
-	_ALWAYS_INLINE_ explicit MutexLock(const Mutex &p_mutex) :
-			mutex(p_mutex) {
-		const_cast<Mutex *>(&mutex)->lock();
+	enum ArucoDict {
+		ARUCO_DICT_4X4_50 = 1,
+		ARUCO_DICT_4X4_100 = 2,
+		ARUCO_DICT_4X4_250 = 3,
+		ARUCO_DICT_4X4_1000 = 4,
+		ARUCO_DICT_5X5_50 = 5,
+		ARUCO_DICT_5X5_100 = 6,
+		ARUCO_DICT_5X5_250 = 7,
+		ARUCO_DICT_5X5_1000 = 8,
+		ARUCO_DICT_6X6_50 = 9,
+		ARUCO_DICT_6X6_100 = 10,
+		ARUCO_DICT_6X6_250 = 11,
+		ARUCO_DICT_6X6_1000 = 12,
+		ARUCO_DICT_7X7_50 = 13,
+		ARUCO_DICT_7X7_100 = 14,
+		ARUCO_DICT_7X7_250 = 15,
+		ARUCO_DICT_7X7_1000 = 16,
+	};
+
+	PackedInt64Array get_enabled_components() const;
+	void set_aruco_dict(OpenXRSpatialCapabilityConfigurationAruco::ArucoDict p_aruco_dict);
+	OpenXRSpatialCapabilityConfigurationAruco::ArucoDict get_aruco_dict() const;
+
+protected:
+	template <typename T, typename B>
+	static void register_virtuals() {
+		OpenXRSpatialCapabilityConfigurationBaseHeader::register_virtuals<T, B>();
 	}
 
-	_ALWAYS_INLINE_ ~MutexLock() {
-		const_cast<Mutex *>(&mutex)->unlock();
-	}
+public:
 };
 
-#define _THREAD_SAFE_CLASS_ mutable Mutex _thread_safe_;
-#define _THREAD_SAFE_METHOD_ MutexLock _thread_safe_method_(_thread_safe_);
-#define _THREAD_SAFE_LOCK_ _thread_safe_.lock();
-#define _THREAD_SAFE_UNLOCK_ _thread_safe_.unlock();
-
 } // namespace godot
+
+VARIANT_ENUM_CAST(OpenXRSpatialCapabilityConfigurationAruco::ArucoDict);
+

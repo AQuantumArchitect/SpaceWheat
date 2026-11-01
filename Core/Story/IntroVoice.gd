@@ -19,7 +19,7 @@ const TEACHES_TITLE := {
 	"wayfinding": "Past the hedge",
 	"superposition": "Both poles at once",
 	"entanglement": "The loom",
-	"reap_season": "First Harvest",
+	"reap_season": "Reap the season",
 }
 
 
@@ -45,19 +45,19 @@ static func welcome_verbs() -> Array:
 			"verb": "Explore",
 			"key": "F",
 			"story": "Wake a sleeping plot.",
-			"how": "tap it  ·  costs 🍞",
+			"how": "tap to select, tap again  ·  costs 🍞",
 		},
 		{
 			"verb": "Strike",
 			"key": "R",
-			"story": "Lock an answer in.",
-			"how": "tap the bubble  ·  costs 👥",
+			"story": "Lock an answer in — it banks on the plot.",
+			"how": "tap the bubble again  ·  costs 👥",
 		},
 		{
 			"verb": "Gather",
 			"key": "Q",
-			"story": "Take what collapse leaves.",
-			"how": "tap the frozen bubble  ·  costs 🧺",
+			"story": "Take what collapse leaves; the plot sleeps.",
+			"how": "tap the struck bubble again  ·  costs 🧺",
 		},
 	]
 
@@ -75,6 +75,9 @@ static func is_auto_tutorial(quest: Dictionary, qm = null) -> bool:
 
 
 static func quest_title(quest: Dictionary) -> String:
+	var named := str(quest.get("display_name", "")).strip_edges()
+	if named != "":
+		return named
 	var teaches := str(quest.get("tutorial_teaches", "")).strip_edges()
 	if TEACHES_TITLE.has(teaches):
 		return str(TEACHES_TITLE[teaches])
@@ -118,7 +121,7 @@ static func toast_for_offer(quest: Dictionary, qm = null) -> Dictionary:
 	if _offer_is_plant(quest) and _sprouts_are_short():
 		return {}
 	# READY / accepted live work owns the banner. Leftover unsigned catalog
-	# (Five Doors, Stay Yourself) is Arc, not a second gold toast.
+	# (Five Keys, Stay Yourself) is Arc, not a second gold toast.
 	var live := live_quest(qm)
 	if not live.is_empty() and str(live.get("status", "")) != "story":
 		return {}
@@ -548,7 +551,9 @@ static func beat_from_quest(quest: Dictionary, tense: String) -> Dictionary:
 		"tense": tense,
 		"prose": str(quest.get("body", "")).strip_edges(),
 		"ask": ask_line(quest),
-		"physics": str(quest.get("math_note", "")).strip_edges(),
+		# math_note is the designer's note on the gate (thresholds, history);
+		# it is not written for the player and went stale. Not shown.
+		"physics": "",
 		"source": "tutorial" if cat == "TUTORIAL" else "flag",
 		"live_ask": live_ask_token(quest),
 		"kind": kind,

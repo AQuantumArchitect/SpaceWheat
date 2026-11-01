@@ -98,7 +98,7 @@
         {
           "act": 5,
           "global_act": 5,
-          "title": "Five Doors",
+          "title": "Five Keys",
           "chapters": [
             {
               "id": "village_paths",
@@ -236,8 +236,7 @@
   "unlocks": {
     "hats": {
       "operator": [
-        "loom_opens",
-        "forest_listener"
+        "loom_opens"
       ],
       "merchant": [
         "village_stirs"
@@ -294,6 +293,41 @@
     "_doc": "Captain [7] Chart: the deliberate, non-random way to reach a story biome while its door beat is open. Same price as a random Add Biome pull."
   },
   "resources": {
+    "👥": {
+      "low_water": 3,
+      "spent_by": "strike",
+      "plots": [
+        "TheDemos",
+        "Village"
+      ],
+      "trades": [
+        {
+          "biome": "Village",
+          "faction": "Hearth Keepers",
+          "give": {
+            "🌾": 4
+          },
+          "get": 4
+        }
+      ]
+    },
+    "🍞": {
+      "low_water": 3,
+      "spent_by": "explore",
+      "plots": [
+        "Village"
+      ],
+      "trades": [
+        {
+          "biome": "Village",
+          "faction": "Hearth Keepers",
+          "give": {
+            "🌾": 4
+          },
+          "get": 4
+        }
+      ]
+    },
     "🧺": {
       "low_water": 3,
       "spent_by": "gather",
@@ -338,27 +372,9 @@
           "biome": "Village",
           "faction": "Millwright's Union",
           "give": {
-            "🌾": 10
+            "🍞": 10
           },
           "get": 7
-        }
-      ]
-    },
-    "👥": {
-      "low_water": 3,
-      "spent_by": "strike",
-      "plots": [
-        "TheDemos",
-        "Village"
-      ],
-      "trades": [
-        {
-          "biome": "Village",
-          "faction": "Hearth Keepers",
-          "give": {
-            "🌾": 4
-          },
-          "get": 4
         }
       ]
     },
@@ -383,14 +399,6 @@
       "plots": [],
       "trades": [
         {
-          "biome": "Woodlot",
-          "faction": "Millwright's Union",
-          "give": {
-            "🌱": 4
-          },
-          "get": 4
-        },
-        {
           "biome": "Village",
           "faction": "Millwright's Union",
           "give": {
@@ -406,20 +414,27 @@
       "plots": [],
       "trades": [
         {
-          "biome": "FreshwaterSpring",
-          "faction": "Hearth Keepers",
-          "give": {
-            "💧": 4
-          },
-          "get": 4
-        },
-        {
           "biome": "Village",
           "faction": "Hearth Keepers",
           "give": {
             "🍞": 10
           },
           "get": 3
+        }
+      ]
+    },
+    "🔥": {
+      "low_water": 2,
+      "spent_by": "superpose (Druid E)",
+      "plots": [],
+      "trades": [
+        {
+          "biome": "Village",
+          "faction": "Hearth Keepers",
+          "give": {
+            "🍞": 6
+          },
+          "get": 4
         }
       ]
     }
@@ -547,6 +562,11 @@
       "clear_marks": "'"
     },
     "walks": {
+      "icon_incorporated": [
+        "travel",
+        "hat:icon",
+        "berry_axis"
+      ],
       "berry_consumed_count_gte": [
         "travel",
         "hat:icon",
@@ -595,11 +615,11 @@
         "deliver_to"
       ],
       "lesson:wayfinding": [
-        "go:StarterForest"
+        "go:StarterForest",
+        "survey"
       ],
       "lesson:superposition": [
         "go:StarterForest",
-        "survey",
         "hat:druid",
         "plot_verb:E"
       ],

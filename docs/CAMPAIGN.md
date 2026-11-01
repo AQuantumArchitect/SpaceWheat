@@ -45,6 +45,11 @@ A **beat** is one story step:
 - **`on_open`** effects apply when the beat opens: `standing` grants, `unlock`
   (`hats`, `menus`, `viz`), `regime_changes`, `physics_changes`.
 - `offer.teaches: [north, south]` is the word the claim teaches.
+- **`beat`** is read when the beat opens, so it sets the scene and poses the
+  ask; it must not describe the deed as already done. The optional **`done`**
+  is read when the player claims (compiled to `arc_quest.done_beat`; the Story
+  tab logs it as `<id>:done` and a 📜 toast carries its first sentence). Write
+  the payoff there.
 - `chart: <Biome>` marks a **door**. While it is open, the Captain can chart that
   biome deliberately (not a random pull) for `chart_cost`.
 
@@ -120,8 +125,8 @@ walls.
 | 3 What the Land Remembers | The Mill Wakes | mill_wakes, mill_master |
 | 4 The Island & Its People | The Island Wakes | island_lives, village_identity, five_doors |
 | 4 The Island & Its People | The Dark Teachers | eagle_overhead, serfs_ledger, island_stops_asking |
-| 5 Five Doors | The Village Chooses | village_path_* (choose one or more) |
-| 5 Five Doors | The Blood Ledger | ledger_opens, edge_of_the_enclave |
+| 5 Five Keys | The Village Chooses | village_path_* (every seated key opens its path; take them in any order) |
+| 5 Five Keys | The Blood Ledger | ledger_opens, edge_of_the_enclave |
 | 6 The Empire | The Empire Imposes | empire_imposes, island_free |
 
 ### What Fades — post-game, opens after `island_free`, ending: `the_door_stays_open`

@@ -46,6 +46,8 @@ var _recent_player_actions: Array = []
 var _recent_player_emojis: Array = []   # rebuilt from _recent_player_actions
 const RECENT_ACTION_LIFETIME_TICKS: int = 30  # ~30 seconds at 1Hz
 
+## A door's payoff prose, read on claim (campaign.json `done`).
+signal done_beat_read(flag_id: String, prose: String)
 signal chatter_emitted(speaker: String, faction: String, line: String, topic_node: String)
 signal trajectory_advanced(from_node: String, to_node: String, edge_id: String)
 signal density_shifted(node_id: String, new_weight: float)
@@ -255,10 +257,28 @@ func _on_arc_quest_completed(quest_id: int, _rewards: Dictionary) -> void:
 	if _quest_manager == null or graph == null:
 		return
 	var source_flag := ""
+	var done_quest: Dictionary = {}
 	for q in _quest_manager.completed_quests:
 		if int(q.get("id", -1)) == quest_id:
 			source_flag = str(q.get("source_flag", ""))
+			done_quest = q
 			break
+	# The payoff beat: a door's `beat` is read when it opens, its `done` when
+	# the player has actually done the thing. Logged like a fired flag so the
+	# Story tab remembers both halves.
+	var done := str(done_quest.get("done_beat", "")).strip_edges()
+	if done != "" and _farm != null and "story_log" in _farm:
+		var title := source_flag
+		if _quest_manager.has_method("flag_display_name"):
+			title = str(_quest_manager.flag_display_name(source_flag))
+		_farm.story_log.append({
+			"id": source_flag + ":done",
+			"act": int(done_quest.get("act", 0)),
+			"display_name": title,
+			"arc_beat": done,
+			"fired_at": Engine.get_physics_frames(),
+		})
+		done_beat_read.emit(source_flag, done)
 	if source_flag == "" or not graph.nodes.has(source_flag):
 		return
 	var successors: Array = graph.outgoing.get(source_flag, [])
@@ -302,7 +322,10 @@ func _restore_arc_quests_after_load() -> void:
 		if _quest_manager.is_guidance_dismissed(flag_id):
 			continue
 		# Passed through already (a child fired) or its campaign isn't open yet.
-		if _quest_manager.flag_door_is_resolved(flag_id) or not _quest_manager.flag_is_live(flag_id):
+		# A beat on the road is re-offered even when a child already fired: it
+		# was never taken, and what it teaches or opens is still owed.
+		var on_road: bool = _quest_manager.has_method("_flag_is_on_the_road") and bool(_quest_manager._flag_is_on_the_road(flag_id))
+		if (_quest_manager.flag_door_is_resolved(flag_id) and not on_road) or not _quest_manager.flag_is_live(flag_id):
 			continue
 		var arc_quest = flag_data.get("arc_quest")
 		if not (arc_quest is Dictionary) or arc_quest.is_empty():

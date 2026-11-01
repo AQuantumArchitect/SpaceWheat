@@ -157,17 +157,38 @@ func _run() -> void:
 			n_same += 1
 	if n_same != 1:
 		_fail("re-rolled board carries the 🧺 trade %d times" % n_same)
-	# Every Village standing trade is on the ring (paged past six if need be).
-	var want_trades: Array = CampaignRuntime.trades_for_biome("Village")
+	# Every Village standing trade that should stand is on the ring (paged past
+	# six if need be). Owner ruling 2026-10-29: the vitals 👥 🍞 🧺 stand
+	# while critical (≤ 2 held); 🌱 🔥 🔨 🪓 🌊 🦅 only while a live quest asks
+	# for them; anything else while under the table's low-water mark.
+	var want_trades: Array = []
+	for t0 in CampaignRuntime.trades_for_biome("Village"):
+		var e0 := str(t0.get("emoji", ""))
+		if e0 in ["👥", "🍞", "🧺"]:
+			if int(econ.get_resource(e0)) <= 2:
+				want_trades.append(t0)
+			continue
+		if e0 in ["🌱", "🔥", "🔨", "🪓", "🌊", "🦅"]:
+			if UIProgression.quest_requests_resource(e0):
+				want_trades.append(t0)
+			continue
+		if int(econ.get_resource(e0)) < maxi(1, CampaignRuntime.low_water(e0)):
+			want_trades.append(t0)
 	var on_ring := {}
 	for r in board._market_rows():
 		var rd = r.get("data", {})
 		if rd is Dictionary and bool(rd.get("supply_trade", false)):
-			on_ring[str(rd.get("supply_emoji", ""))] = true
+			# A resource could carry two trades (different prices):
+			# key by emoji + what it asks for.
+			var g: Dictionary = rd.get("give", {}) if rd.get("give", {}) is Dictionary else {}
+			var gk := str(g.keys()[0]) if not g.is_empty() else str(rd.get("resource", ""))
+			on_ring[str(rd.get("supply_emoji", "")) + "|" + gk] = true
 	_out["village_trades"] = want_trades.size()
 	_out["village_trades_on_ring"] = on_ring.size()
 	for t in want_trades:
-		if not on_ring.has(str(t.get("emoji", ""))):
+		var tg: Dictionary = CampaignRuntime.trade_give(t)
+		var tk := str(t.get("emoji", "")) + "|" + (str(tg.keys()[0]) if not tg.is_empty() else "")
+		if not on_ring.has(tk):
 			_fail("Village board is missing the standing %s trade" % str(t.get("emoji", "")))
 
 	# A refused plant names its south pole's trade (🪓 for 🪵/🪓).
@@ -175,6 +196,9 @@ func _run() -> void:
 	if axes > 0:
 		econ.remove_resource("🪓", axes, "supply_rescue_smoke")
 	UIProgression.note_plant_south("🪓")
+	# A refused 🪵/🪓 plant is the live ask for 🪓 — the quest-gated 🪓 trade
+	# now stands; a board open re-syncs its standing trades.
+	board._sync_supply_offers()
 	if not UIProgression._plant_south_short():
 		_fail("0🪓 after a refused 🪵/🪓 plant does not read as short")
 	var axe_walk: String = UIProgression._supply_walk_line("🪓")
@@ -208,14 +232,18 @@ func _run() -> void:
 			break
 
 	# --- deliver -----------------------------------------------------------
-	rows = board._market_rows()
+	# Accepted work is delivered on Commitments, never from the Market ring.
+	for r in board._market_rows():
+		if str(r.get("kind", "")) == "held":
+			_fail("a held trade is still on the Market ring")
+	board.set_frame("commitments")
 	var held_i := -1
-	for i in range(rows.size()):
-		var d3 = rows[i].get("data", {})
-		if str(rows[i].get("kind", "")) == "held" and d3 is Dictionary and int(d3.get("id", -1)) == qid:
+	var crows: Array = board._commitments_rows()
+	for i in range(crows.size()):
+		if int(crows[i].get("id", -1)) == qid:
 			held_i = i
 	if held_i < 0:
-		_fail("held trade not on the Market ring")
+		_fail("held trade not on Commitments")
 		_finish()
 		return
 	board._select(held_i)
@@ -235,6 +263,16 @@ func _run() -> void:
 	for o in board._offer_pool:
 		if int(o.get("id", -2)) == qid:
 			back = true
+	# Owner ruling 2026-10-29: a vital rescue stands only while that vital is
+	# critical (≤ 2). Settled with 🧺×%d in hand, it stays off the board.
+	if back and b_end > 2:
+		_fail("rescue trade is still on the board with %d🧺 in hand" % b_end)
+	econ.remove_resource("🧺", int(econ.get_resource("🧺")), "supply_rescue_smoke")
+	board._on_quest_pool_changed()
+	back = false
+	for o in board._offer_pool:
+		if int(o.get("id", -2)) == qid:
+			back = true
 	if not back:
-		_fail("standing trade did not return to the board after completion")
+		_fail("rescue trade did not return once 🧺 ran to zero")
 	_finish()

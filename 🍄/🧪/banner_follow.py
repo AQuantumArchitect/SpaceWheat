@@ -118,7 +118,7 @@ class Follower:
 # Keys that are honest as the FIRST press of a line on each kind of surface.
 # A line that starts with anything else names a key of a menu you don't
 # have open — the toast/menu mismatch the surface graph exists to prevent.
-MENU_KEYS = set("TYUIO") | set("GHJKL;'") | {"A", "D", "R", "Q", "E", "F", "C", "X", "ESCAPE"}
+MENU_KEYS = set("TYUIO") | set("GHJKL;'") | {"A", "D", "R", "Q", "E", "F", "C", "X", "ESCAPE", "1", "2", "3"}
 SUBMENU_KEYS = {"Q", "E", "R", "F", "ESCAPE"}
 
 
@@ -138,7 +138,7 @@ def check_surface(f, line: str, rep: dict) -> None:
         ok = first in MENU_KEYS
     elif here.startswith("menu:"):
         ok = first == "ESCAPE"
-    elif here in ("field:icon", "field:gate"):
+    elif here in ("field:icon", "field:gate", "field:confirm"):
         ok = first in SUBMENU_KEYS
     if not ok:
         rep.setdefault("off_surface", []).append({"surface": here, "line": line[:140]})
@@ -154,7 +154,14 @@ def check_surface(f, line: str, rep: dict) -> None:
         want = label.strip().split()[-1].lower()
         have = (str(chip.get("label", "")) + " " + str(chip.get("action", ""))).lower()
         if chip and want in ("explore", "strike", "gather", "track", "incorporate") and want not in have:
-            rep.setdefault("verb_mismatch", []).append({"line": line[:140], "key": key, "chip": chip})
+            # The first frame after a boot or a surface change can read the
+            # chip before its resolver settles; only a mismatch that survives
+            # a second look is the player's.
+            time.sleep(0.4)
+            again = (f.t("guide_step").get("chips", {}) or {}).get(key, {})
+            have = (str(again.get("label", "")) + " " + str(again.get("action", ""))).lower()
+            if again and want not in have:
+                rep.setdefault("verb_mismatch", []).append({"line": line[:140], "key": key, "chip": again})
 
 
 def follow(rig, beat: str, cap: int = PRESS_CAP) -> dict:
@@ -298,6 +305,10 @@ def journey(rig, start: str, minutes: float = 30.0, until: str = "") -> dict:
         since = rep["presses"] - (rep["fired"][-1]["press"] if rep["fired"] else 0)
         if since > LOOP_WINDOW and len(set(rep["trail"][-LOOP_WINDOW:])) <= 2:
             rep["stopped"], rep["why"] = "loop", " ⇄ ".join(sorted(set(rep["trail"][-LOOP_WINDOW:])))
+            # Why: the resolver's own account on both sides of the loop.
+            g = f.t("guide_step")
+            rep["loop_guide"] = [{"live_beat": g.get("live_beat"), "step": g.get("step"),
+                                  "trace": g.get("trace"), "explain": g.get("explain")}]
             break
         time.sleep(0.15)
     if rep["stopped"] is None:
