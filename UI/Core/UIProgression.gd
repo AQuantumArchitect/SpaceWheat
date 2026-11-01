@@ -2123,15 +2123,19 @@ static func ace_f_keeps_fast_fwd() -> bool:
 	var q := _banner_quest()
 	if q.is_empty():
 		q = _unsigned_coast_field_offer()
-	if str(q.get("source_flag", "")).strip_edges() == "the_basin":
+	# The coast rules below are about the coast's OWN plots. Away from it —
+	# in the Starter Forest gathering 🦅 to chart Lanternfall — F must still
+	# Explore, or "gather 🦅, Explore [F]" fast-forwards forever (walk 2026-10-26).
+	var here := _active_biome_name()
+	if str(q.get("source_flag", "")).strip_edges() == "the_basin" and here == "ShrineOfAshes":
 		return true
-	if _coast_field_biome(q) == "ShrineOfAshes":
+	if _coast_field_biome(q) == "ShrineOfAshes" and here == "ShrineOfAshes":
 		return true
 	# The Bridge Holds: planted 🌉 is unbound fog. Explore steals F;
 	# Fast-Fwd never dephases so Claim never READY.
-	if str(q.get("source_flag", "")).strip_edges() == "the_chain_tested":
+	if str(q.get("source_flag", "")).strip_edges() == "the_chain_tested" and here == "Lanternfall":
 		return true
-	if _coast_field_biome(q) == "Lanternfall":
+	if _coast_field_biome(q) == "Lanternfall" and here == "Lanternfall":
 		return true
 	return false
 
@@ -2305,8 +2309,36 @@ static func _live_atom_plant_line() -> String:
 			continue
 		if not _icon_known(atom):
 			return ""
+		# A key the player cannot pay for is not an ask: "[Q] plant 🦅" with
+		# no 🩸 for its south pole repeated forever after lantern_teaching
+		# (walk 2026-10-26). Skip it; the next candidate or the signed quest
+		# takes the banner.
+		if not _plant_affordable(farm, biome, atom):
+			continue
 		return _named_atom_plant_line(biome, atom)
 	return ""
+
+
+## Whether the wallet covers planting `atom` into `biome` (🌱×5 + 13 of the
+## south pole), read from the same injection submenu the player will open.
+static func _plant_affordable(farm, biome_name: String, atom: String) -> bool:
+	if farm == null or farm.grid == null or not farm.grid.has_method("get_biome"):
+		return true
+	var target = farm.grid.get_biome(biome_name)
+	if target == null:
+		return true
+	var Sub = load("res://UI/Core/Submenus/IconInjectionSubmenu.gd")
+	for o in Sub._collect_options(target, farm):
+		if not (o is Dictionary):
+			continue
+		if str(o.get("north", "")) != atom and str(o.get("south", "")) != atom:
+			continue
+		var cost: Dictionary = Sub._get_injection_cost(farm, str(o.get("south", "")))
+		for res in cost:
+			if _wallet(str(res)) < float(cost[res]):
+				return false
+		return true
+	return true
 
 
 static func _icon_pick_line(atom: String) -> String:

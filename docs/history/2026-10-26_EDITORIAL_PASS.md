@@ -143,15 +143,69 @@ Also from the walk:
   presses of Accept/Claim. The reading beats are intentional, but the ending
   arrives faster than the prose around it suggests.
 
+## Fourth pass: the hint cap, the last Demos nits, a jaunt into What Fades
+
+Demos, text:
+- **Hint cap is now law.** `validate.py check_hints`: the first sentence of
+  every main-campaign hint ≤ 70 chars (one offender, `loop_remembers`, trimmed).
+  The old "≤70 total" rule was dead — eight hints were over 130 — so the rule
+  is what the banner needs: a first sentence that stands alone. CAMPAIGN.md
+  and the tutorial `_doc` say so.
+- **Numbers out of offers** where the bar shows them: pond_depths (0.2),
+  pond_breathes (0.35/0.25), mill_wakes (12%/40%).
+- **Counts vs gates:** forest_listener said "two words… two more" at a moment
+  the player holds three and needs one. Fixed.
+- **Five Keys hint** said "the ring is full: six seats" — village_identity
+  needs 10 atoms (5 of the 6 seats), so one seat is usually free. Now: plant
+  first; unseat only if the ring is full.
+- **Keys out of beats:** pond_depths "(🧭, Operator hat, mode 2)",
+  ledger_opens "(X, the SELF card)", empire_imposes' done (which also
+  duplicated island_free's ask).
+- **Faction tags:** village_path_commons was tagged Mycelial Web while its
+  beat credits the Hearth Keepers; the Artisan path was tagged Hearth Keepers
+  while its beat names the blacksmith and the Granary Guilds. Tags now match
+  the prose (Hearth Keepers / Granary Guilds).
+- `new_voices` beat is tense-neutral: it can be true at open when a word was
+  planted earlier, and that is fine (accept, claim) — the prose no longer
+  insists the deed is ahead.
+- mill_wakes' hint now names the two Village words; woodlot_wakes' hint
+  states the plant cost like spring_wakes'; first_harvest no longer repeats
+  Lesson 5's closing line.
+
+What Fades, Act 1 (Lantern Country) and the first three beats of Act 2:
+- Hints rewritten in the Demos register (`Druid [0]`, `Captain [7]`,
+  `Icon [5]`) — they had "Druid hat (0)", "Captain frame", "Graph frame",
+  "E-inspect card".
+- Code names out: GildedRot → the Gilded Rot; Chart the Zeno Latch is now
+  asked for (watching_keeps' objective wanted the biome but the text never
+  said to find it); the_gray's objective wants a Gilded word — now asked.
+- "What Survives III" → "What Survives" (the beat says "the third invariant of
+  the four"); the What Fades I–V numerals are left for that campaign's own pass.
+- Numbers out of offers (chain_flipped, the_crossing, the_gray, watching_keeps).
+
+The walk (fresh, keys-only) reaches `island_free` at ~365s and now continues
+through `chain_ends` and `lantern_teaching`. Two post-game walls fell:
+1. **Coast F rules fired off the coast.** With lantern_door on the banner,
+   `ace_f_keeps_fast_fwd` kept F as Fast-Fwd *everywhere*, so "gather 🦅,
+   Explore [F]" in the Starter Forest fast-forwarded forever. The
+   ShrineOfAshes/Lanternfall rules are scoped to the active biome.
+2. **An unaffordable key as the ask.** The legacy Village-paths banner asked
+   "[Q] plant 🦅" with no 🩸 for its south pole, forever. `_live_atom_plant_line`
+   skips keys the wallet cannot pay.
+
+Next wall (left): after `lantern_teaching`, What Fades and The Loom are both
+open; the banner alternates "[C] then [R] Claim" (legacy claim line for one
+quest) with "close [ESC]" (the Guide's close-first for `loop_came_home`, whose
+`spinor_read` objective has no walk). Post-game beats need Guide walks — or
+the Guide should not emit a close-first for a beat it cannot walk. Leave until
+those campaigns leave `in_development`.
+
 ## Still open
 
 - **`new_voices` can be true at open** (counts earlier plants).
 - **Post-game text** uses code names and I–V numbering; `ledger_opens`
   fixture journeys end stuck on "▸ [R] plant 🦅" in What Fades. Leave until
   those campaigns leave `in_development`.
-- **Hint cap.** "Hints ARE the ask (≤70 chars)" — eight Demos hints are still
-  over 130 (first sentence short). If the rule stands, `validate.py` should
-  enforce it.
 - **Market as rescue (Luke, 2026-10-26).** The staples of the economy loop —
   👥 (strike), 🍞 (explore), 🧺 (gather) — now each carry a second Village
   trade priced in 🐇, the forest's commonest harvest, beside the 🌾-priced
