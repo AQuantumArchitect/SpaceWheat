@@ -101,6 +101,10 @@ def main():
         check(not b0.get("measured", True), "bubble starts LIVE (no terminal)")
         shot("tap_live")
 
+        # TAP 0 → SELECT only (taps are two-step: the first tap on a plot just
+        # selects it; QII._tap_armed_pos). The acting taps follow.
+        t("tap", pos=pos, settle_frames=14)
+
         # TAP 1 → measure (Strike)
         r1 = t("tap", pos=pos, settle_frames=14)
         print("tap1:", r1.get("ok"), r1.get("tapped"))

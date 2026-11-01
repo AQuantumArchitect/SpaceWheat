@@ -75,7 +75,8 @@ def main():
         for i in range(6):
             shot("f%02d" % i, settle=3, dest=FRAMES)
         if target:
-            t("tap", pos=target, settle_frames=2)  # pop → burst + flier
+            t("tap", pos=target, settle_frames=2)  # two-step taps: select …
+            t("tap", pos=target, settle_frames=2)  # … then pop → burst + flier
         for i in range(6, 22):
             shot("f%02d" % i, settle=3, dest=FRAMES)
 

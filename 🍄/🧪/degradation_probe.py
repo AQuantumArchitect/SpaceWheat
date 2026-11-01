@@ -136,7 +136,8 @@ def main():
         mouse_health(0)
 
         for r in range(1, ROUNDS + 1):
-            # Play: measure + pop by tap (bubble 0)
+            # Play by tap (bubble 0): taps are two-step, so these two taps are
+            # select + the recommended verb, not measure + pop
             bs = t("bubble_state")
             vis = [b for b in bs.get("bubbles", []) if b.get("visible")]
             if vis:
