@@ -164,7 +164,7 @@
         "gated_lindblad_source": [
           {
             "target": "💰",
-            "gate": "🕵️",
+            "gate": "🕵",
             "rate": 0.04,
             "power": 1.0,
             "inverse": false
