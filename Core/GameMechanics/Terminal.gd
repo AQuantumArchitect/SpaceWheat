@@ -60,13 +60,6 @@ var measured_register_id: int = -1
 var measured_biome_name: String = ""
 var measured_snapshot: Dictionary = {}
 
-## The harvest banked by strikes on this plot, waiting for Q: one entry per
-## strike, {resource, amount, probability}. A strike collapses the qubit and
-## banks what it paid, but the probe stays on the plot, so R can strike again
-## (the Hamiltonian re-spreads the state between strikes; waiting pays more).
-## Q pays the bank out and returns the plot to fog.
-var strikes: Array = []
-
 
 func _init(id: String = ""):
 	terminal_id = id if id else "T_%d" % randi()
@@ -89,7 +82,6 @@ func bind_to_register(register_id: int, biome_name: String, emoji_pair: Dictiona
 	measured_register_id = -1
 	measured_biome_name = ""
 	measured_snapshot.clear()
-	strikes.clear()
 
 	# Store emoji pair if provided
 	if emoji_pair.has("north"):
@@ -121,7 +113,6 @@ func unbind() -> void:
 	measured_register_id = -1
 	measured_biome_name = ""
 	measured_snapshot.clear()
-	strikes.clear()
 	current_emoji = ""
 	north_emoji = ""
 	south_emoji = ""
@@ -206,7 +197,6 @@ func get_state() -> Dictionary:
 		"measured_outcome": measured_outcome,
 		"measured_probability": measured_probability,
 		"measured_snapshot": measured_snapshot,
-		"strikes": strikes.duplicate(true),
 		"current_emoji": current_emoji,
 		"north_emoji": north_emoji,
 		"south_emoji": south_emoji,
@@ -245,8 +235,7 @@ func get_binding_info() -> Dictionary:
 
 ## Check if this terminal can be used for EXPLORE action
 func can_explore() -> bool:
-	# Strike releases is_bound but keeps is_measured until Q. Recycle is wipe.
-	return not is_bound and not is_measured
+	return not is_bound
 
 
 ## Check if this terminal can be used for MEASURE action
@@ -254,28 +243,9 @@ func can_measure() -> bool:
 	return is_bound and not is_measured
 
 
-## Bank one strike's harvest on this plot (see `strikes`).
-func bank_strike(resource: String, amount: int, probability: float) -> void:
-	strikes.append({"resource": resource, "amount": amount, "probability": probability})
-	current_emoji = resource
-	state_changed.emit(self)
-
-
-func has_banked() -> bool:
-	return not strikes.is_empty()
-
-
-## {emoji: total} waiting for Q.
-func banked_totals() -> Dictionary:
-	var out := {}
-	for s in strikes:
-		out[str(s.get("resource", ""))] = int(out.get(str(s.get("resource", "")), 0)) + int(s.get("amount", 0))
-	return out
-
-
 ## Check if this terminal can be used for POP action
 func can_pop() -> bool:
-	return is_measured or has_banked()
+	return is_measured
 
 
 ## Validate that terminal state is internally consistent

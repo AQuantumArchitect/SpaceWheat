@@ -19,7 +19,7 @@ INSTALL_TEMPLATES=false
 CLEAN_NATIVE=false
 SKIP_EXPORT=false
 COPY_TO_WINDOWS=false
-WINDOWS_PLAY_OUT="$(sw_windows_player_root)"
+WINDOWS_STAGE_OUT="${WINDOWS_STAGE_OUT:-${WINDOWS_STAGE_ROOT:-$(sw_windows_stage_root)}/windows-native}"
 
 source "$SCRIPT_DIR/lib/log.sh"
 
@@ -38,7 +38,6 @@ run_godot_export() {
 }
 
 source "$SCRIPT_DIR/lib/build_stamp.sh"
-source "$SCRIPT_DIR/lib/release_paths.sh"
 trap remove_build_stamp EXIT
 
 show_help() {
@@ -54,7 +53,7 @@ Options:
   --clean-native           Rebuild godot-cpp/native artifacts
   --skip-export            Stop after native build
   --install-templates      Install Godot export templates if missing
-  --copy-to-windows        Deploy the Windows export into the Windows play folder (scripts/lib/windows_desktop_deploy.sh)
+  --copy-to-windows        Copy the Windows export into the Windows staging folder
   --godot-bin PATH         Godot executable (default: godot)
   --help                   Show this help
 
@@ -154,12 +153,11 @@ if [ ! -f "$LINUX_OUT/launch.sh" ]; then
 fi
 
 if [ "$COPY_TO_WINDOWS" = true ]; then
-    log "Deploying to the Windows play folder"
-    if SW_DEPLOY_VERSION_LINE="v$(sw_project_version) · $(build_id) · $(date -u +%Y-%m-%d)" \
-            sw_windows_deploy_tree "$WINDOWS_OUT" "$WINDOWS_PLAY_OUT" 1; then
-        success "Windows play folder updated: $WINDOWS_PLAY_OUT"
+    log "Refreshing Windows staging folder"
+    if sw_windows_deploy_tree "$WINDOWS_OUT" "$WINDOWS_STAGE_OUT" 0; then
+        success "Windows staging folder refreshed: $WINDOWS_STAGE_OUT"
     else
-        warn "Windows deploy failed"
+        warn "Windows staging folder refresh failed"
     fi
 fi
 

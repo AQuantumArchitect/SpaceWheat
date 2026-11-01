@@ -32,27 +32,25 @@ This produces:
 - `releases/local/windows-native/SpaceWheat.exe`
 - `releases/local/linux-native/SpaceWheat.x86_64`
 
-To put the built export into the Windows play folder (either command):
+To refresh the Windows staging folder from the built export:
 
 ```bash
 ./scripts/build-desktop-local.sh --copy-to-windows
+```
+
+Default Windows staging folder:
+
+- `C:\Games\SpaceWheat Builds\windows-native`
+
+To deploy that staged build into the player-facing Windows folder:
+
+```bash
 ./scripts/deploy-windows-desktop.sh
 ```
 
-There is ONE Windows root, `C:\Games\SpaceWheat`, defined only in
-`scripts/lib/windows_desktop_deploy.sh`:
+Default player folder:
 
-- `C:\Games\SpaceWheat\` is the play folder: exe, DLL, `launch.bat`, `reset.bat`,
-  `saves.bat`, `README.txt`, and `VERSION.txt` naming the build.
-- `C:\Games\SpaceWheat\releases\vX.Y.Z\` holds archived packages, the release
-  manifest and `SHA256`. `release.sh` writes it, and the newest 3 versions are kept.
-- `C:\Games\SpaceWheat\profiling-kit\` is written by `stage-profiling-kit.sh`.
-
-Deploying replaces only the exe and DLL; it never wipes the folder.
-`tests/test_windows_paths_single_source.py` fails if any script spells a
-`C:\Games` path outside that lib file. (Retired 2026-10-18: the emoji play
-folder, `SpaceWheat Builds\windows-native` staging, a stray plain `SpaceWheat`
-copy, and `SpaceWheat-Releases`.)
+- `C:\Games\🌾🚀🌌SpaceWheat`
 
 ## 3. Package archives
 
@@ -134,7 +132,7 @@ Set `SW_GODOT_BIN` to the Windows executable path under `/mnt/c/...`; the shared
 launcher rewrites repo-local WSL paths to Windows-visible paths.
 
 ```bash
-export SW_GODOT_BIN='/mnt/c/path/to/Godot_v4.x-stable_win64_console.exe'
+export SW_GODOT_BIN='/mnt/c/Users/Luke Spooner/Documents/antigravity_i_guess/Godot/Godot_v4.6.2-stable_win64_console.exe'
 ```
 
 **Note on performance numbers from WSL: don't.** WSL has no GPU passthrough
@@ -178,7 +176,8 @@ XDG_DATA_HOME=/tmp/spacewheat-runtime-data \
 - Release export presets now exclude test scenes and other dev-only roots.
 - Windows native shipping is supported through MinGW cross-compilation in WSL.
 - The desktop workflow is now centered on `build-desktop-local.sh`, `build-web-local.sh`, `package-desktop-builds.sh`, `deploy-windows-desktop.sh`, and `validate-desktop-release.sh`.
-- `--copy-to-windows` and `deploy-windows-desktop.sh` both write the one play folder, `C:\Games\SpaceWheat`.
+- `./scripts/build-desktop-local.sh --copy-to-windows` refreshes the staging folder, not the player folder.
+- `./scripts/deploy-windows-desktop.sh` is the only step that writes into the player-facing Windows folder.
 
 ---
 

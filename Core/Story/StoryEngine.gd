@@ -46,8 +46,6 @@ var _recent_player_actions: Array = []
 var _recent_player_emojis: Array = []   # rebuilt from _recent_player_actions
 const RECENT_ACTION_LIFETIME_TICKS: int = 30  # ~30 seconds at 1Hz
 
-## A door's payoff prose, read on claim (campaign.json `done`).
-signal done_beat_read(flag_id: String, prose: String)
 signal chatter_emitted(speaker: String, faction: String, line: String, topic_node: String)
 signal trajectory_advanced(from_node: String, to_node: String, edge_id: String)
 signal density_shifted(node_id: String, new_weight: float)
@@ -165,7 +163,7 @@ func _on_story_flag_fired(flag_id: String, flag_data: Dictionary) -> void:
 	var arc_quest = flag_data.get("arc_quest")
 	if arc_quest is Dictionary and not arc_quest.is_empty() and _quest_manager != null:
 		_quest_manager.offer_story_quest(arc_quest.duplicate(), flag_id)
-	# World changes: per-biome regime + global physics (What Fades, docs/design/OPEN_CAMPAIGN.md).
+	# World changes: per-biome regime + global physics (What Fades, docs/OPEN_CAMPAIGN.md).
 	_apply_world_changes(flag_data)
 	# Density collapse + trajectory (existing method)
 	on_flag_fired(flag_id)
@@ -197,36 +195,12 @@ func _apply_world_changes(flag_data: Dictionary) -> void:
 					b.rebuild_lindblad_for_regime()
 
 
-## Authored wet-country `regime: open` lives on the biome spec, not a flag.
-## QC.regime_override was not exported, so Charted Shrine/ZenoLatch loaded
-## sealed and the gated 💀→⚱ basin never ticked. Re-apply spec first;
-## fired-flag regime_changes still win after.
-func _reapply_spec_regimes_after_load() -> void:
-	if _farm == null or _farm.grid == null or not _farm.grid.has_method("get_biome_names"):
-		return
-	var registry = BiomeRegistry.get_shared()
-	if registry == null or not registry.has_method("get_by_name"):
-		return
-	for bname in _farm.grid.get_biome_names():
-		var spec = registry.get_by_name(str(bname))
-		if spec == null:
-			continue
-		# `in` misses non-export script vars on Biome. Direct read.
-		var want := str(spec.regime)
-		if want == "":
-			continue
-		var biome = _farm.grid.get_biome(str(bname))
-		if biome != null and biome.has_method("set_regime"):
-			biome.set_regime(want)
-
-
 ## On load: re-derive the world's regime/physics state from fired flags, in
 ## flag-file order (later flags win). Keeps the door and every story-driven
 ## regime change durable without touching the save format.
 func _reapply_world_changes_after_load() -> void:
 	if _farm == null or _quest_manager == null:
 		return
-	_reapply_spec_regimes_after_load()
 	for flag_data in _quest_manager._story_flags:
 		if not (flag_data is Dictionary):
 			continue
@@ -257,28 +231,10 @@ func _on_arc_quest_completed(quest_id: int, _rewards: Dictionary) -> void:
 	if _quest_manager == null or graph == null:
 		return
 	var source_flag := ""
-	var done_quest: Dictionary = {}
 	for q in _quest_manager.completed_quests:
 		if int(q.get("id", -1)) == quest_id:
 			source_flag = str(q.get("source_flag", ""))
-			done_quest = q
 			break
-	# The payoff beat: a door's `beat` is read when it opens, its `done` when
-	# the player has actually done the thing. Logged like a fired flag so the
-	# Story tab remembers both halves.
-	var done := str(done_quest.get("done_beat", "")).strip_edges()
-	if done != "" and _farm != null and "story_log" in _farm:
-		var title := source_flag
-		if _quest_manager.has_method("flag_display_name"):
-			title = str(_quest_manager.flag_display_name(source_flag))
-		_farm.story_log.append({
-			"id": source_flag + ":done",
-			"act": int(done_quest.get("act", 0)),
-			"display_name": title,
-			"arc_beat": done,
-			"fired_at": Engine.get_physics_frames(),
-		})
-		done_beat_read.emit(source_flag, done)
 	if source_flag == "" or not graph.nodes.has(source_flag):
 		return
 	var successors: Array = graph.outgoing.get(source_flag, [])
@@ -294,43 +250,66 @@ func _on_arc_quest_completed(quest_id: int, _rewards: Dictionary) -> void:
 
 
 ## On reconnect after save/load: quest offers are session state, so a load
-## DERIVES them from persisted truth. Every open door comes back — a fired
-## flag with an arc quest that is not active, not completed and not dismissed
-## is exactly a beat the player has not finished, and the campaign spec's
-## `requires` means its children wait on it. (The old rule re-offered at most
-## one guidance arc per load and dropped teachings whose pair was already
-## known, which stranded doors forever — e.g. learning 💨/🔨 by planting
-## before claiming village_stirs locked the whole Act-2 road after a reload.)
-## No standing pump: a claimed door is in completed_quests and never returns.
+## regenerates them from persisted truth (story_flags_fired × known_icons).
+## Only arcs that still TEACH come back: a reward pair not yet in the
+## signature. A claimed teaching leaves its pair in known_icons (the claim IS
+## the teaching), so claimed arcs never re-offer — no double-teach, no
+## standing pump via save/load cycling. Guidance arcs (no reward pair) fired
+## in a past session live on in the story log and the Arc tab's spine rows;
+## re-offering them flooded the six picker slots and buried the one live
+## teaching past the cap (leg L2i: spring_connects unreachable under 17 rows).
 ##
-## Save v6 interplay: both load lanes run QuestManager.restore_from_save_dict
-## BEFORE connect_to_farm reaches here, so has_quest_for_flag sees restored
-## actives and an accepted-but-unclaimed beat keeps its live commitment.
+## Save v6 interplay: the quest LEDGER now persists, and both load lanes run
+## QuestManager.restore_from_save_dict BEFORE connect_to_farm reaches here —
+## so has_quest_for_flag below sees restored actives and an ACCEPTED-but-
+## unclaimed teaching keeps its live commitment instead of gaining a duplicate
+## offer for the same flag.
 func _restore_arc_quests_after_load() -> void:
 	if _farm == null or _quest_manager == null:
 		return
-	for flag_data in _quest_manager._story_flags:
-		if not (flag_data is Dictionary):
-			continue
-		var flag_id := str(flag_data.get("id", ""))
-		if flag_id == "" or not _farm.story_flags_fired.has(flag_id):
-			continue
+	var known: Array = _farm.get_known_icons() if _farm.has_method("get_known_icons") else []
+	var offered_guidance := false
+	for flag_id in _farm.story_flags_fired:
 		if _quest_manager.has_quest_for_flag(flag_id):
 			continue
 		if _quest_manager.has_completed_flag(flag_id):
 			continue
 		if _quest_manager.is_guidance_dismissed(flag_id):
 			continue
-		# Passed through already (a child fired) or its campaign isn't open yet.
-		# A beat on the road is re-offered even when a child already fired: it
-		# was never taken, and what it teaches or opens is still owed.
-		var on_road: bool = _quest_manager.has_method("_flag_is_on_the_road") and bool(_quest_manager._flag_is_on_the_road(flag_id))
-		if (_quest_manager.flag_door_is_resolved(flag_id) and not on_road) or not _quest_manager.flag_is_live(flag_id):
-			continue
-		var arc_quest = flag_data.get("arc_quest")
-		if not (arc_quest is Dictionary) or arc_quest.is_empty():
-			continue
-		_quest_manager.offer_story_quest(arc_quest.duplicate(), flag_id)
+		# Find the raw flag data from QuestManager's loaded flags
+		for flag_data in _quest_manager._story_flags:
+			if str(flag_data.get("id", "")) != flag_id:
+				continue
+			var arc_quest = flag_data.get("arc_quest")
+			if not (arc_quest is Dictionary) or arc_quest.is_empty():
+				break
+			var pair_less := str(arc_quest.get("reward_north", "")) == "" \
+					and str(arc_quest.get("reward_south", "")) == ""
+			if pair_less:
+				# At most one guidance teacher in the six-slot picker.
+				# The rest stay on the Arc spine as resume, not a flood.
+				if offered_guidance:
+					break
+				_quest_manager.offer_story_quest(arc_quest.duplicate(), flag_id)
+				offered_guidance = true
+			elif _arc_still_teaches(arc_quest, known):
+				_quest_manager.offer_story_quest(arc_quest.duplicate(), flag_id)
+			break
+
+
+## True when the arc quest's reward pair is a teaching the player has not yet
+## received. Pair-less (guidance) arcs never re-offer post-load; an exact pair
+## already in the signature means the teaching was consumed.
+static func _arc_still_teaches(arc_quest: Dictionary, known_icons: Array) -> bool:
+	var north := str(arc_quest.get("reward_north", ""))
+	var south := str(arc_quest.get("reward_south", ""))
+	if north == "" or south == "":
+		return false
+	for icon in known_icons:
+		if icon is Dictionary and str(icon.get("north", "")) == north \
+				and str(icon.get("south", "")) == south:
+			return false
+	return true
 
 
 ## Called by QuestManager._fire_story_flag(). Records system-driven advances

@@ -61,7 +61,7 @@ fi
 # The gap between `fresh` and `endgame` is the number that decides whether a
 # long game stays playable.
 SCENARIOS="${PROFILE_SCENARIOS:-title fresh endgame}"
-ENDGAME_SAVE="${PROFILE_ENDGAME_SAVE:-$ROOT_DIR/🍄/🧪/checkpoints/fixture_the_door_stays_open.tres}"  # mint: python3 tools/campaign/mint_fixture_save.py the_door_stays_open
+ENDGAME_SAVE="${PROFILE_ENDGAME_SAVE:-$ROOT_DIR/🍄/🧪/checkpoints/endrun_ending.tres}"
 
 mkdir -p "$OUT_DIR" "$PROFILE_HOME" "$PROFILE_CONFIG_HOME" "$PROFILE_DATA_HOME"
 FAILED=()
@@ -161,7 +161,7 @@ for scenario in $SCENARIOS; do
 
 	mapfile -t EXTRA < <(scenario_env "$scenario")
 	if [ "$scenario" = "endgame" ] && [ ! -f "$ENDGAME_SAVE" ]; then
-		echo "skipped — no save at $ENDGAME_SAVE (mint one: python3 tools/campaign/mint_fixture_save.py the_door_stays_open)"
+		echo "skipped — no save at $ENDGAME_SAVE"
 		FAILED+=("$scenario:no_save")
 		echo
 		continue

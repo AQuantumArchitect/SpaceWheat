@@ -46,9 +46,6 @@ HIVE_RUNTIME_DIR = ROOT / "🍄" / "🧪" / "hive"
 # one-shot 2b72ac19 migration scaffold, since deleted along with its gen/validate
 # siblings) is data about the tree's history, not resurrected code.
 SLOP_PATROL_GLOB = "SLOP_PATROL_*.md"
-# docs/history/ holds the dated session records (slop patrol among them): they
-# quote retired names on purpose, as findings.
-HISTORY_DIR = ROOT / "docs" / "history"
 ARCHIVED_PATHS = {
     ROOT / "tests" / "contract_market_smoke.gd",
     ROOT / "docs" / "biomemissions" / "STARTERFOREST_VILLAGE_CONNECTIONS.md",
@@ -71,7 +68,7 @@ def _iter_live_files():
                 continue
             if HIVE_RUNTIME_DIR in path.parents and path.suffix == ".jsonl":
                 continue
-            if path.match(SLOP_PATROL_GLOB) or HISTORY_DIR in path.parents:
+            if path.match(SLOP_PATROL_GLOB):
                 continue
             if path.suffix not in TEXT_SUFFIXES:
                 continue

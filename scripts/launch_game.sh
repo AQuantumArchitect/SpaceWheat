@@ -1,10 +1,16 @@
 #!/usr/bin/env bash
-# Play SpaceWheat from source (Linux or WSL), headed. Extra arguments go to Godot.
 set -euo pipefail
+cd "$(dirname "$(realpath "$0")")"
+source "$(pwd)/scripts/lib/godot_runtime_env.sh"
 
-SCRIPT_DIR="$(cd "$(dirname "$(realpath "${BASH_SOURCE[0]}")")" && pwd)"
-PROJECT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
-source "${SCRIPT_DIR}/lib/godot_runtime_env.sh"
+# Optional: export any env vars (e.g., for headless testing)
+# export GODOT_HEADLESS=1
 
-sw_prepare_runtime_env "interactive"
-sw_godot --path "${PROJECT_DIR}" "$@"
+# Prepare log directory
+LOG_DIR="$(pwd)/tests/logs"
+mkdir -p "$LOG_DIR"
+# Override VerboseConfig log path so Godot doesn’t try to write to user://
+export VERBOSE_LOG_PATH="$LOG_DIR"
+sw_prepare_runtime_env "headless"
+# Launch Godot with the project, directing logs to tests/logs/godot.log
+sw_godot --headless --log-file "$LOG_DIR/godot.log" --path . "$@"

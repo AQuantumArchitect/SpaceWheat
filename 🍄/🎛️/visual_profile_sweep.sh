@@ -2,7 +2,7 @@
 # visual_profile_sweep.sh — smoke-test every profile through the phrame bridge.
 #
 # Prerequisites:
-#   RIG_PHRAME_BRIDGE=1 ./scripts/dev_launch.sh   (in another terminal)
+#   RIG_PHRAME_BRIDGE=1 ./dev_launch.sh   (in another terminal)
 #
 # Environment overrides:
 #   MAX_LOOPS  — hunt loops per profile (default: 13)
@@ -27,7 +27,7 @@ SENTINEL_PATH="$(cd "${SCRIPT_DIR}" && python3 -c "from rig_client import RigCli
 if [[ ! -f "${SENTINEL_PATH}" ]]; then
     echo "[sweep] ERROR: bridge sentinel not found."
     echo "[sweep]   Expected: ${SENTINEL_PATH}"
-    echo "[sweep]   Start the game with: RIG_PHRAME_BRIDGE=1 ./scripts/dev_launch.sh"
+    echo "[sweep]   Start the game with: RIG_PHRAME_BRIDGE=1 ./dev_launch.sh"
     exit 1
 fi
 

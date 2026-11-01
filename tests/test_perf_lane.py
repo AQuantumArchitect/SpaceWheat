@@ -7,7 +7,7 @@ and friends. Nothing has ever parsed those flags. The one file that could
 (`tests/test_headed_runtime_profile.gd`) read `PROFILE_*` environment variables
 instead, was invoked by nothing, and lived under `tests/`, which every export
 preset excludes. So the lane launched a game, waited, found no JSON, and
-reported the missing output as a build failure. `docs/design/EXPORT_HEALTH.md` and
+reported the missing output as a build failure. `docs/EXPORT_HEALTH.md` and
 `scripts/validate-desktop-release.sh --profile` both trusted it.
 
 The failure was not "a script broke". It was that an instrument addressed

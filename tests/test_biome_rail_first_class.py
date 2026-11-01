@@ -5,7 +5,7 @@ switch biomes but not SPEAK: it called ActiveBiomeManager.set_active_biome()
 directly and its biome_selected signal had zero listeners, so a rail click gave
 no "-> Village" toast, no Focus repoint, and left a pending destructive confirm
 armed. That is byte-for-byte the wave-5 defect the biome bar's biome_confirmed
-grammar was built to fix (docs/design/MOUSE_PARITY_AUDIT.md, "silent switch"). These
+grammar was built to fix (docs/MOUSE_PARITY_AUDIT.md, "silent switch"). These
 ratchets pin the rail's grammar so the bar can be removed without regressing
 the mouse-first pass:
 

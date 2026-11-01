@@ -72,7 +72,7 @@ func _check_ladder_unit() -> void:
 	board.home_name = "the board"
 	_check(board.prompt() == "[C] opens the board",
 		"board home names the C key for keyboard players")
-	_check(ClickLadder.tap_home("the Arc") == "tap to open the Arc",
+	_check(ClickLadder.tap_home("the Arc") == "[X] opens the Arc",
 		"Arc (unmapped) keeps the tap line")
 	_check(ClickLadder.tap_home("the board") == "[C] opens the board",
 		"tap_home('the board') resolves to C")

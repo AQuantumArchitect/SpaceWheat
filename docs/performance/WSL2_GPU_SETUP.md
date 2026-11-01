@@ -42,12 +42,12 @@ godot --rendering-driver opengl3 --rendering-method gl_compatibility
 
 ## Updated Launch Scripts
 
-### `scripts/dev_launch.sh` (Main Development)
+### `dev_launch.sh` (Main Development)
 ✅ **Already updated** - Launches with D3D12 GPU by default
 
 Usage:
 ```bash
-./scripts/dev_launch.sh
+./dev_launch.sh
 ```
 
 ### `🍄/🧪/🥛🖥️⚡.sh` (Milk Hunt Visual)
@@ -97,7 +97,7 @@ echo $LIBGL_ALWAYS_SOFTWARE  # Should be empty or unset
 Try forcing software as fallback:
 ```bash
 export LIBGL_ALWAYS_SOFTWARE=1
-./scripts/dev_launch.sh  # Will use llvmpipe CPU (21 FPS)
+./dev_launch.sh  # Will use llvmpipe CPU (21 FPS)
 ```
 
 ### Verify GPU is active:
@@ -153,4 +153,4 @@ We use **Native C++ compute** instead of GPU compute shaders, which is actually 
 **Performance:** 50 FPS, 30% GPU usage
 **Bottleneck:** Now CPU-bound on quantum simulation (good - GPU freed up!)
 
-**Launch:** Just run `./scripts/dev_launch.sh` - GPU acceleration is now the default!
+**Launch:** Just run `./dev_launch.sh` - GPU acceleration is now the default!

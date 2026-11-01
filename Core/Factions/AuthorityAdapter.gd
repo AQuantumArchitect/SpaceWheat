@@ -56,7 +56,7 @@ const BIOME_AXIS_HEURISTICS: Dictionary = {
 ## ===========================================================================
 ## PARAMETRIC KNOB #2 — per-hat affinity over the 12 alignment axes
 ## ===========================================================================
-## Authored from docs/design/ARCHETYPE_FRAMES.md operator-type + time-scale hints.
+## Authored from docs/ARCHETYPE_FRAMES.md operator-type + time-scale hints.
 ## Each row is a per-axis preference for biomes-of-that-character. Higher =
 ## the hat thrives in biomes that score high on that axis. Cosine-compared
 ## to biome fingerprint to score (hat × biome) fit.

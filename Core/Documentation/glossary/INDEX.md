@@ -67,11 +67,11 @@ Reading paths that teach the game in order:
 
 - **The physics story:** enclave → measurement → berry → webway → resonance
 - **The topology campaign:** berry → invariant — then play "What Survives"
-  (`docs/design/TOPOLOGY_CAMPAIGN.md`), four invariants across acts 1–4
+  (`docs/TOPOLOGY_CAMPAIGN.md`), four invariants across acts 1–4
 - **The open campaign:** enclave → bath → fading — then play "What Fades"
-  (`docs/design/OPEN_CAMPAIGN.md`), the wet country across acts 6–8
+  (`docs/OPEN_CAMPAIGN.md`), the wet country across acts 6–8
 - **The nonlocal campaign:** berry → knot, and bath → bridge — then play
-  "What Connects" (`docs/design/CONNECT_CAMPAIGN.md`), interleaved through acts 5–7
+  "What Connects" (`docs/CONNECT_CAMPAIGN.md`), interleaved through acts 5–7
 - **The self:** faction → soul → resonance — then press M → Eigenstate and
   read who you are becoming
 - **The matter stack:** atom → cloud → icon → (sibling, family)
@@ -87,4 +87,4 @@ Every `related:` reference resolves (the registry validates this on load).
 
 For the reader who wants the physics *without* the fiction — every concept, what
 the player does with it, and an honesty grade per claim — see
-[`docs/FOR_PHYSICISTS.md`](../../../docs/FOR_PHYSICISTS.md).
+[`docs/FOR_PHYSICISTS.md`](../FOR_PHYSICISTS.md).

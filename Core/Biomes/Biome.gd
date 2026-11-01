@@ -70,7 +70,7 @@ var tags: Array = []
 ## BiomeVisualTheme uses `color` as the palette seed hue.
 var visual_config: Dictionary = {}
 
-## Thermodynamic regime (What Fades seam, docs/design/OPEN_CAMPAIGN.md):
+## Thermodynamic regime (What Fades seam, docs/OPEN_CAMPAIGN.md):
 ## "" = inherit global switches; "open" = wet country (dissipative while the
 ## world is sealed); "closed" = inviolable enclave (unitary even after the
 ## door opens). Story flags may change it at runtime via regime_changes.

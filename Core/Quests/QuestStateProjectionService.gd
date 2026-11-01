@@ -17,11 +17,7 @@ var _last_biome = null  # Retained for on-demand predict_population calls
 ## Per-biome coherence high-watermark — the witness for coherence_fell (What Fades:
 ## the first quests that ask the player to LOSE something need proof there was
 ## something to lose). Session-scoped; resets on load, which only delays the witness.
-## Peaks on max(coherence_pure, max single-qubit equator). Leftover mixed
-## GildedRot drowns l1/dim coherence_pure at ~0.18 even after Superpose of a
-## fresh 🌉 (purity 0.21 caps the full-ρ scale); the reduced 🌉 is still |+⟩.
 var _coherence_watermark: Dictionary = {}
-var _last_qubit_coherence: float = 0.0
 
 ## Per-biome winding-attack witness (What Turns IV, "The Number That Lied"):
 ## the set of max_mutual_winding values observed while no banked record was
@@ -54,17 +50,10 @@ func observe_biome(biome, delta: float = 0.0) -> Dictionary:
 	# Predicates read the PURE-STATE coherence scale (reachable [0,1]); the
 	# legacy alignment scale caps at ~1/dim² and made every coherence_at_least
 	# ≥ 0.3 unreachable (tutorial superposition, pond_breathes, the_crossing).
-	# Fade watermark also reads the brightest reduced qubit: Superpose of a
-	# fresh 🌉 in leftover mixed GildedRot cannot lift full-ρ coherence_pure
-	# past ~0.18, but that qubit's equator is ~1.
-	_last_qubit_coherence = _max_qubit_equator(biome)
 	if biome_name != "":
-		var peak := float(obs.coherence_pure)
-		if _last_qubit_coherence > peak:
-			peak = _last_qubit_coherence
 		var mark := float(_coherence_watermark.get(biome_name, 0.0))
-		if peak > mark:
-			_coherence_watermark[biome_name] = peak
+		if float(obs.coherence_pure) > mark:
+			_coherence_watermark[biome_name] = float(obs.coherence_pure)
 	_last_observables = {
 		"biome": biome_name,
 		"purity": float(obs.purity),
@@ -136,12 +125,6 @@ func record_action(action_name: String, payload: Dictionary = {}) -> void:
 	if _action_history.size() > MAX_ACTION_HISTORY:
 		_action_history.pop_front()
 	gate_counters[action_name] = int(gate_counters.get(action_name, 0)) + 1
-	# lantern_wakes: a Village plant must not light the coast. Stamp the
-	# biome onto a durable key so gate_sequence_contains can ask for it.
-	var biome := str(payload.get("biome", payload.get("biome_name", ""))).strip_edges()
-	if action_name == "inject_icon" and biome != "":
-		var bkey := action_name + "|" + biome
-		gate_counters[bkey] = int(gate_counters.get(bkey, 0)) + 1
 	_stamp_lesson_receipt(action_name, payload)
 
 
@@ -184,35 +167,8 @@ func get_snapshot() -> Dictionary:
 	return {
 		"observables": _last_observables.duplicate(true),
 		"recent_actions": _action_history.duplicate(true),
-		"gate_counters": gate_counters.duplicate(true),
-		"coherence_watermark": _coherence_watermark.duplicate(true),
-		"qubit_coherence": _last_qubit_coherence
+		"gate_counters": gate_counters.duplicate(true)
 	}
-
-
-func _max_qubit_equator(biome) -> float:
-	# 2|ρ01| of each reduced qubit. |+⟩ scores 1. Headless viz_cache can lag;
-	# the QC partial trace is the witness.
-	if biome == null:
-		return 0.0
-	var qc = biome.get("quantum_computer") if biome else null
-	if qc == null or qc.register_map == null:
-		return 0.0
-	if not qc.has_method("get_marginal_density_matrix"):
-		return 0.0
-	var nq := int(qc.register_map.num_qubits)
-	var best := 0.0
-	for i in range(nq):
-		var rho = qc.get_marginal_density_matrix(null, i)
-		if rho == null or not rho.has_method("get_element"):
-			continue
-		var el = rho.get_element(0, 1)
-		if el == null:
-			continue
-		var eq := 2.0 * sqrt(float(el.re) * float(el.re) + float(el.im) * float(el.im))
-		if eq > best:
-			best = eq
-	return best
 
 
 func evaluate_predicate(predicate: Dictionary) -> float:
@@ -264,19 +220,10 @@ func evaluate_predicate(predicate: Dictionary) -> float:
 			# forgotten) and save/load (the counters ride the save alongside
 			# lesson_receipts). Substring match preserves the existing
 			# "bell" ↔ "gate_inject:bell" semantics.
-			# lantern_wakes: optional biome pins the plant to one country.
-			var want_biome := str(predicate.get("biome", "")).strip_edges()
 			var hits := 0.0
-			if want_biome != "":
-				var bkey := pattern + "|" + want_biome.to_lower()
-				for counted_name in gate_counters:
-					if str(counted_name).to_lower() == bkey:
-						hits += float(gate_counters[counted_name])
-			else:
-				for counted_name in gate_counters:
-					if str(counted_name).to_lower().find(pattern) >= 0 \
-							and str(counted_name).find("|") < 0:
-						hits += float(gate_counters[counted_name])
+			for counted_name in gate_counters:
+				if str(counted_name).to_lower().find(pattern) >= 0:
+					hits += float(gate_counters[counted_name])
 			# A STRUCTURAL count, not a soft gate — the tutorial math_notes promise
 			# "fires the instant your action history records N" and gate_order below
 			# already scores as a completed fraction. The old soft_gate(hits, min_count,
@@ -291,7 +238,7 @@ func evaluate_predicate(predicate: Dictionary) -> float:
 			# {"type": "gate_order", "gates": ["hadamard", "cnot"]} scores the
 			# fraction of the word spelled IN ORDER (each history row consumes at
 			# most one step). Where gate_sequence_contains counts, this one reads —
-			# non-commuting operations are words, not sets (docs/design/TOPOLOGY_CAMPAIGN.md,
+			# non-commuting operations are words, not sets (docs/TOPOLOGY_CAMPAIGN.md,
 			# Chapter 4). Progress bar = how much of the braid word is spelled.
 			var word: Array = predicate.get("gates", [])
 			if not (word is Array) or word.is_empty():
@@ -314,7 +261,7 @@ func evaluate_predicate(predicate: Dictionary) -> float:
 			# The knot witness: two frozen loops whose mutual winding is nonzero —
 			# loop A turns about loop B's area axis. On the Bloch sphere nothing
 			# links; the invariant lives one floor up (the Berry lift), and this
-			# integer is its shadow (docs/design/ENGINE_FRONTIER.md, Machine 2).
+			# integer is its shadow (docs/ENGINE_FRONTIER.md, Machine 2).
 			var w := float(absi(int(_last_observables.get("max_mutual_winding", 0))))
 			var have := QuestMath.soft_gate(float(_last_observables.get("frozen_loops", 0)), 2.0, 0.75)
 			var linked := QuestMath.soft_gate(w, maxf(1.0, float(predicate.get("value", 1))), 0.5)
@@ -403,17 +350,9 @@ func evaluate_predicate(predicate: Dictionary) -> float:
 			# Entanglement teacher: max pairwise MI in the active biome, in bits
 			# (Bell pair = 2.0, product state = 0). Wider gate (±0.1) than the
 			# defaults because the MI scale runs 0–2, not 0–1.
-			# braid_order: missing cache is unknown, not a scored 0. Gate
-			# inject refreshes MI onto the live ρ so a Bell can move the bar.
 			var target := float(predicate.get("value", 0.5))
-			var mi := float(_last_observables.get("max_mutual_information", -1.0))
-			if mi < 0.0 and _last_biome != null and _last_biome.get("quantum_computer") != null:
-				var qc = _last_biome.quantum_computer
-				if qc.has_method("get_cached_max_mutual_information"):
-					mi = float(qc.get_cached_max_mutual_information())
-			if mi < 0.0:
-				return 0.0
-			return QuestMath.soft_gate(mi, target, 0.1)
+			return QuestMath.soft_gate(
+				float(_last_observables.get("max_mutual_information", 0.0)), target, 0.1)
 		"attractor_emoji_gte":
 			var attractor: Dictionary = _last_observables.get("attractor", {})
 			return QuestMath.soft_gate(attractor.get(str(predicate.get("emoji", "")), 0.0),

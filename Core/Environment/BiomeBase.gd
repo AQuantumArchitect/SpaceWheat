@@ -228,12 +228,8 @@ func _get_atom_components() -> Dictionary:
 	if _name != "":
 		var registry = load("res://Core/Biomes/BiomeRegistry.gd").new()
 		var live = registry.get_by_name(_name)
-		# `in` misses non-export script vars. Direct read so Charted
-		# Shrine still sees gated_lindblad_source after save/load.
-		if live != null:
-			var atoms = live.atom_components
-			if atoms is Dictionary and not atoms.is_empty():
-				return atoms
+		if live and "atom_components" in live and live.atom_components is Dictionary:
+			return live.atom_components
 	var spec = get_meta("biome_def", null)
 	if spec is Dictionary and spec.has("atom_components") and spec["atom_components"] is Dictionary:
 		return spec["atom_components"]
@@ -250,10 +246,9 @@ var _gated_channels_cache: Array = []
 var _gated_channels_parsed: bool = false
 
 func get_gated_lindblad_channels() -> Array:
-	# Do not latch an empty parse. Boot/load can ask before the registry
-	# atom_components are readable; a sealed empty cache froze Fill the Urn.
-	if _gated_channels_parsed and not _gated_channels_cache.is_empty():
+	if _gated_channels_parsed:
 		return _gated_channels_cache
+	_gated_channels_parsed = true
 	_gated_channels_cache = []
 	var atoms = _get_atom_components()
 	for source_emoji in atoms.keys():
@@ -279,8 +274,6 @@ func get_gated_lindblad_channels() -> Array:
 				"power": float(entry.get("power", 1.0)),
 				"inverse": bool(entry.get("inverse", false)),
 			})
-	if not _gated_channels_cache.is_empty():
-		_gated_channels_parsed = true
 	return _gated_channels_cache
 
 
@@ -415,7 +408,7 @@ func _mark_lookahead_dirty() -> void:
 		farm.biome_evolution_batcher.mark_for_reregister(get_biome_type())
 
 
-## Runtime thermodynamic-regime change (What Fades, docs/design/OPEN_CAMPAIGN.md).
+## Runtime thermodynamic-regime change (What Fades, docs/OPEN_CAMPAIGN.md).
 ## Story flags carry `regime_changes: {biome: "open"|"closed"}` — the Bath
 ## reaching a coast is a narrative event, never a silent patch. Rebuilds this
 ## biome's Lindblad operators under the new regime and re-registers with the
@@ -902,21 +895,6 @@ func batch_measure_plots(grid_pos: Vector2i) -> Dictionary:
 # ============================================================================
 # FACADE: Quantum System Builder Methods
 # ============================================================================
-
-func relabel_axis(qubit_index: int, north_emoji: String, south_emoji: String) -> Dictionary:
-	# Reuse a gathered-empty register. Does not grow nq.
-	_wire_component_dependencies()
-	if _system_builder == null or not _system_builder.has_method("relabel_axis"):
-		return {"success": false, "error": "no_relabel"}
-	var result = _system_builder.relabel_axis(qubit_index, north_emoji, south_emoji)
-	if result.get("success", false):
-		_refresh_effective_icons()
-		if viz_cache:
-			viz_cache.clear_metadata()
-		_seed_viz_metadata()
-		_mark_lookahead_dirty()
-	return result
-
 
 func expand_quantum_system(north_emoji: String, south_emoji: String) -> Dictionary:
 	_wire_component_dependencies()

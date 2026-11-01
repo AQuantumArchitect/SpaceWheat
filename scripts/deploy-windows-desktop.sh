@@ -7,8 +7,6 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 SOURCE_ROOT="${SOURCE_ROOT:-$PROJECT_DIR/releases/local/windows-native}"
 source "$PROJECT_DIR/scripts/lib/windows_desktop_deploy.sh"
-source "$PROJECT_DIR/scripts/lib/build_stamp.sh"
-source "$PROJECT_DIR/scripts/lib/release_paths.sh"
 TARGET_ROOT="${TARGET_ROOT:-$(sw_windows_player_root)}"
 CREATE_LAUNCHER="${CREATE_LAUNCHER:-1}"
 
@@ -23,7 +21,7 @@ Usage:
 
 Options:
   --source-root PATH       Source export folder (default: ./releases/local/windows-native)
-  --target-root PATH       Target Windows folder (default: the play folder, see scripts/lib/windows_desktop_deploy.sh)
+  --target-root PATH       Target Windows folder (default: /mnt/c/Games/🌾🚀🌌SpaceWheat)
   --no-launcher            Do not write launch.bat
   --help                   Show this help
 EOF
@@ -54,8 +52,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 log "Deploying Windows desktop build"
-SW_DEPLOY_VERSION_LINE="v$(sw_project_version) · $(build_id) · $(date -u +%Y-%m-%d)" \
-    sw_windows_deploy_tree "$SOURCE_ROOT" "$TARGET_ROOT" "$CREATE_LAUNCHER"
+sw_windows_deploy_tree "$SOURCE_ROOT" "$TARGET_ROOT" "$CREATE_LAUNCHER"
 
 success "Windows build deployed to $TARGET_ROOT"
 echo ""

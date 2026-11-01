@@ -25,28 +25,14 @@ def test_ladder_has_act0_mill_plant_and_open_band():
     assert ident["band"] == "open"
 
 
-def test_mill_alias_and_incorporate_next():
-    """After the mill apprenticeship comes First Breath (Incorporate moved to
-    Act 1, owner decision 2026-10-17), then the plant."""
+def test_mill_alias_and_plant_next():
     ladder = promote.load_ladder()
     assert promote.canonical("mill_apprentice", ladder) == "village_stirs"
     nxt = promote.next_of("mill_apprentice", ladder)
     assert nxt is not None
-    assert nxt["id"] == "first_breath"
+    assert nxt["id"] == "new_voices"
 
 
 def test_wave17_seed_banks_exist():
-    """Earned banks live on wargen. GHA clone only has endrun_* in git.
-    Skip when the seed tres is missing; assert when the mill is sitting
-    on a machine that actually earned them."""
-    missing = [
-        spec["checkpoint"]
-        for spec in promote.SEED.values()
-        if not promote.checkpoint_exists(spec["checkpoint"])
-    ]
-    if missing:
-        import pytest
-
-        pytest.skip("seed banks live on wargen, not this clone: " + ", ".join(missing))
     for spec in promote.SEED.values():
         assert promote.checkpoint_exists(spec["checkpoint"]), spec["checkpoint"]

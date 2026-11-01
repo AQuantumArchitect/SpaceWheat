@@ -31,7 +31,7 @@ def test_arc_now_row_does_not_ask_accept():
     row = _make_arc_row_body()
     assert "[R] Accept" in row
     assert 'kind == "arc_quest"' in row
-    assert '_make_muted_label("tap to inspect  ·  tap again to accept (or R)"' in row
+    assert '_make_muted_label("tap to inspect  ·  R accepts"' in row
     assert '_make_muted_label("tap to inspect  ·  tap again for the work"' in row
 
 
@@ -77,9 +77,7 @@ def test_first_toast_is_the_lesson_not_an_accept_door():
     # Lane steps are silent. Unsigned offers wait on the Arc. Never reprint accept.
     assert "Tap here to read & accept" not in intro
     assert "return {}" in auto_fn
-    # A toast outlives the menu it was raised on, so it names the place
-    # (SurfaceRooms) and never a key path; the banner names the keys.
-    assert "SurfaceRooms.NAME_ARC" in auto_fn and "Arc [I]" not in auto_fn
+    assert "[X] then Arc [I]" in auto_fn
     assert "New offer from" in auto_fn
     assert "The Demos sleeps" in intro
     assert "IntroVoice.toast_for_offer" in src(BRIDGE)

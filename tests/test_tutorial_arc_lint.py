@@ -61,15 +61,23 @@ def test_exactly_one_unlock_flags_handoff_and_it_resolves():
 
 
 def test_unlock_tables_name_real_flags():
-    """Unlock tables are authored in the campaign spec and compiled into
-    campaign_runtime.json; every beat they name must exist. They fail CLOSED
-    with a live farm: a phantom flag is a permanently lost surface."""
-    runtime = json.loads((ROOT / "Core" / "Quests" / "data" / "campaign_runtime.json").read_text(encoding="utf-8"))
+    src = PROGRESSION.read_text(encoding="utf-8")
     known = _flag_ids()
-    for kind, table in runtime["unlocks"].items():
-        for name, ids in table.items():
-            for fid in ids:
-                assert fid in known, "%s.%s names %r — not a story_flags.json id" % (kind, name, fid)
+    for table in ("HAT_UNLOCK_FLAGS", "MENU_UNLOCK_FLAGS", "VIZ_UNLOCK_FLAGS"):
+        m = re.search(r"const %s\s*:\s*Dictionary\s*=\s*\{(.*?)\n\}" % table, src, re.S)
+        assert m, "%s moved — update this test's extraction" % table
+        body = re.sub(r"#[^\n]*", "", m.group(1))  # strip comments before reading values
+        # Values are either "flag" strings or ["new", "legacy"] any-of arrays;
+        # keys (menu/frame ids) sit left of ':' — take only right-hand strings.
+        for rhs in re.findall(r':\s*("[^"]*"|\[[^\]]*\])', body):
+            for fid in re.findall(r'"([^"]*)"', rhs):
+                if fid == "":
+                    continue  # "" = always unlocked
+                assert fid in known, (
+                    "%s names %r — not a story_flags.json id. These tables fail "
+                    "CLOSED with a live farm: a phantom flag is a permanently "
+                    "lost surface." % (table, fid)
+                )
 
 
 def test_reap_capstone_is_last_and_funded():

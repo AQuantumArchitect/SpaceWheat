@@ -32,7 +32,7 @@ cross-biome flows. These are working references, not tutorials.
 narrative structure: all story paths (A–Q), cross_biome_flow topology, how faction atoms
 bridge biomes, and campaign pacing across the starter island and beyond.
 
-**Archived reference: `STARTERFOREST_VILLAGE_CONNECTIONS.md`** (removed from the tree; see git history) — historical faction-Hamiltonian bridge note kept only for reference. It describes the old starter-island coupling model and should not be treated as live architecture.
+**Archived reference: [STARTERFOREST_VILLAGE_CONNECTIONS.md](../../archive/docs/biomemissions/STARTERFOREST_VILLAGE_CONNECTIONS.md)** — historical faction-Hamiltonian bridge note kept only for reference. It describes the old starter-island coupling model and should not be treated as live architecture.
 
 **[STARTER_ISLAND_STORY_FLAGS.md](STARTER_ISLAND_STORY_FLAGS.md)** — the live starter-island
 story flags that drive the Arc tab narrative chain. Each flag is a threshold condition on

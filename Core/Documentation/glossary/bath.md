@@ -13,7 +13,7 @@ It has no malice and no mercy. It is uniform, inexhaustible, and incapable of
 stopping — the [enclave](enclave.md)'s exact opposite and its definition by contrast.
 
 Mechanically the Bath is the Lindblad generator, running live wherever a biome's
-regime is open (the What Fades seam, `docs/design/OPEN_CAMPAIGN.md`): the
+regime is open (the What Fades seam, `docs/OPEN_CAMPAIGN.md`): the
 [webway](webway.md)'s channels flowing, sinks drinking, pumps feeding, phase
 [fading](fading.md) before population. Of the world's 162 biomes, 64 author real
 Lindblad structure — the Bath's country. The other 98 never wrote a leak and stay

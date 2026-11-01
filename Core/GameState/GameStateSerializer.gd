@@ -194,10 +194,6 @@ func capture_state_from_farm(farm: Node, current_state: GameState, scenario_id: 
 				if has_live_measurement:
 					plot_data["measured_outcome"] = plot.measured_outcome
 					plot_data["measured_probability"] = plot.measured_probability
-				# Strikes banked on the plot, waiting for Q (Terminal.strikes). Without
-				# this a save/load silently threw the whole bank away.
-				if plot.terminal and "strikes" in plot.terminal and not plot.terminal.strikes.is_empty():
-					plot_data["strikes"] = plot.terminal.strikes.duplicate(true)
 			elif has_memory and plot.has_method("get_measurement_memory"):
 				var memory = plot.get_measurement_memory()
 				plot_data["north_emoji"] = str(memory.get("north_emoji", ""))
@@ -508,10 +504,6 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 							var terminal_bound := bool(tp.bind_terminal(t, saved_register, saved_biome, emoji_pair))
 							if terminal_bound:
 								plot.attach_terminal(t)
-								# bind_to_register cleared strikes; put the saved bank back.
-								var saved_strikes = plot_data.get("strikes", [])
-								if saved_strikes is Array and not saved_strikes.is_empty():
-									t.strikes = saved_strikes.duplicate(true)
 							else:
 								_log("warn", "save", "⚠️", "Terminal restore bind rejected at %s for register %d in %s" % [
 									str(pos), saved_register, saved_biome

@@ -116,7 +116,7 @@ func _input(event: InputEvent) -> void:
 
 	# Live toast owns F only when it advertises a home ([F] opens …).
 	# Refusal / mark toasts have no home — Ace F is still Explore.
-	# Shift+F is mass explore, Ctrl+Shift+F is Reap — never intercept. Confirm/submenu still own E/F.
+	# Shift+F is Reap — never intercept. Confirm/submenu still own E/F.
 	if event.keycode == KEY_F and not event.is_shift_pressed():
 		var top_toast := _topmost_toast()
 		var modal_owns_ef: bool = instrument_input != null \
@@ -171,11 +171,11 @@ func _input(event: InputEvent) -> void:
 		var kc = event.keycode
 		if kc in [KEY_Z, KEY_X, KEY_C, KEY_V, KEY_B, KEY_N, KEY_M]:
 			instrument_input.set_cursor_layer(0)
-		# Hat row 4-0 is not anchored here. QII._select_frame_hat owns the
-		# layer write (keep_plot_selection) so a locked/redirected 9 cannot
-		# paint a plot-ring leave before the Operator chips exist.
-		# braid_order: KEY_9 after honest Druid Hadamard killed the seat
-		# when this early set_cursor_layer ran first.
+		elif kc in [KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9, KEY_0]:
+			# keep_plot_selection: a hat pick switches tools, not workpieces —
+			# the focused plot must survive (fleet #4 P1: every hat switch
+			# dropped focus, so the first verb after it refused).
+			instrument_input.set_cursor_layer(1, true)
 		elif kc in [KEY_T, KEY_Y, KEY_U, KEY_I, KEY_O, KEY_P]:
 			# keep_plot_selection: the biome-switch handler re-maps the SAME
 			# slot letter into the new biome; clearing here forced it to G.
@@ -320,14 +320,12 @@ static func _home_name_for(key: String) -> String:
 		return "the board"
 	if ku == "V" or ku == "ATLAS":
 		return "the Atlas"
-	if ku == "STORY" or ku == "XO":
+	if ku == "STORY" or ku == "XY" or ku == "Y":
 		return "Story"
 	if ku == "SELF" or ku == "XT":
 		return "Self"
-	if ku == "GUIDE" or ku == "XI":
+	if ku == "GUIDE" or ku == "XO" or ku == "O":
 		return "the Guide"
-	if ku == "CHARGE" or ku == "XU":
-		return "Charge"
 	if ku == "N" or ku == "INSPECTOR":
 		return "the network"
 	if ku == "M" or ku == "MAP":
@@ -361,15 +359,13 @@ static func _normalize_home_key(key: String) -> String:
 	var k := str(key).strip_edges().to_lower()
 	if k.begins_with("commitments") or k in ["q", "c", "quests", "board"]:
 		return "board"
-	if k in ["arc", "xy"]:
+	if k in ["arc", "xi", "i"]:
 		return "arc"
-	if k in ["charge", "xu"]:
-		return "charge"
-	if k in ["story", "xo"]:
+	if k in ["story", "xy", "y"]:
 		return "story"
-	if k in ["self", "xt"]:
+	if k in ["self", "xt", "t"]:
 		return "self"
-	if k in ["guide", "xi"]:
+	if k in ["guide", "xo", "o"]:
 		return "guide"
 	return k
 
@@ -451,8 +447,8 @@ func _handle_shell_action(event: InputEvent) -> bool:
 	if not menu_entry.is_empty():
 		# Progressive disclosure (phase-2 funnel): a locked menu's key redirects
 		# instead of acting. Z/X never lock. C ("quests") gates on tutorial step
-		# 2 (UIProgression.menu_unlock_step(), from the campaign spec) layered on its always-unlocked
-		# menu unlock entry; the 5 fully-gated surfaces (atlas V,
+		# 2 (UIProgression.MENU_UNLOCK_STEP) layered on its always-unlocked
+		# MENU_UNLOCK_FLAGS entry; the 5 fully-gated surfaces (atlas V,
 		# biome_detail B, inspector N, map_meta M, neighborhood_graph [) gate on
 		# a story flag instead.
 		if not UIProgression.is_menu_active(str(menu_entry.get("id", ""))):
@@ -1113,7 +1109,7 @@ func connect_to_quantum_input() -> void:
 			and not quest_manager.story_flag_fired.is_connected(_on_progression_flag_fired):
 		quest_manager.story_flag_fired.connect(_on_progression_flag_fired)
 	# ...and from every tutorial-step transition. The C chip's gate is a STEP
-	# condition (menu_unlock_step()), not a flag — with only the flag signal
+	# condition (MENU_UNLOCK_STEP), not a flag — with only the flag signal
 	# wired, the chip stayed hidden after its step unlocked until some
 	# unrelated flag happened to fire (while the banner said "press C").
 	# active_quests_changed covers accept/ready/claim/complete/expiry;

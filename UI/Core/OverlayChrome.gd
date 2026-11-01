@@ -15,7 +15,7 @@ extends RefCounted
 ## colors. Do not "harmonize" those parameters without a screenshot pass.
 ##
 ## Deliberately NOT extracted (load-bearing per-overlay forks — see
-## docs/history/2026-07-29_SLOP_PATROL.md knots #17/#18/#20): tab-row builders
+## docs/SLOP_PATROL_2026-07-29.md knots #17/#18/#20): tab-row builders
 ## (ControlsOverlay/EscapeMenu key off local enums, the frame-keyed four off
 ## frame_id), EscapeMenu's tab click handling (entangled with its
 ## pending-confirmation guard), and open/close/input-swallow wiring

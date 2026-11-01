@@ -1,7 +1,7 @@
 """Mouse-first copy voice lints (2026-08-24 "say the click" pass).
 
 The law (owner playtest, 2026-08-23: "still friction about clicking into
-things"): every quest action has a real mouse path (docs/design/MOUSE_PARITY_AUDIT.md
+things"): every quest action has a real mouse path (docs/MOUSE_PARITY_AUDIT.md
 closed the mechanics waves ago) but the copy kept speaking keyboard-only —
 "press R to accept" over a row that is click-wired. Voice rule: the click
 comes first, keys ride as bracketed accelerators; a string may name a bare
@@ -51,13 +51,13 @@ def test_route_authorities_speak_click_first():
     doors. They must lead with the click; every speaker composes from them."""
     src = UI_PROGRESSION.read_text(encoding="utf-8")
     for fn in ("route_accept", "route_claim"):
-        m = re.search(r"func %s\([^)]*\) -> String:[\s\S]*?\treturn \"(.+?)\"" % fn, src)
+        m = re.search(r"func %s\(\) -> String:\n\treturn \"(.+?)\"" % fn, src)
         assert m, "UIProgression lost its %s() route authority" % fn
         assert m.group(1).startswith("tap "), (
             "%s no longer leads with the click: %r" % (fn, m.group(1))
         )
     # The banner's decorate lines and both fallback consts stay click-first.
-    assert "route_accept()" in src and "route_claim(" in src
+    assert "route_accept()" in src and "route_claim()" in src
     for const in ("OFFER_LINE", "REDIRECT_FALLBACK"):
         cm = re.search(r"const %s := \"(.+?)\"" % const, src)
         assert cm and CLICK_RE.search(cm.group(1)), (

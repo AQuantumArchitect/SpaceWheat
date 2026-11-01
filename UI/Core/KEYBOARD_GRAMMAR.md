@@ -78,7 +78,7 @@ or bottom.
 - **`Z-X-C-V-B-N-M`** — OUTER ring. Top-level surfaces (see *Surfaces*
   below). Each key direct-jumps to its surface; WASD-with-cursor-on-outer
   cycles between open surfaces.
-- **`4-0`** select the **archetype hat** (see `docs/design/ARCHETYPE_FRAMES.md`).
+- **`4-0`** select the **archetype hat** (see `docs/ARCHETYPE_FRAMES.md`).
   Two roles per key: *action role* (active toolkit verbs Q/E/R/F) and
   *selection role* (upper cylinder ring; future will gate which biomes
   appear in TYUIOP). Sticky. Re-pressing the active hat toggles back to

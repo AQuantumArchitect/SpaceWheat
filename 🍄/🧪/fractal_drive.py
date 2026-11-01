@@ -13,11 +13,10 @@ ROOT = Path(os.environ.get("PROJECT_ROOT", Path(__file__).resolve().parents[2]))
 sys.path.insert(0, str(ROOT / "🍄" / "🎛️"))
 
 from rig_client import RigClient  # type: ignore  # noqa: E402
-from fleet_paths import fleet_path  # noqa: E402
 
 VITALS = Path(os.environ.get(
     "BUTLER_VITALS",
-    str(fleet_path("yurt-sync", "commons", "vitals")),
+    "/mnt/c/Users/Luke Spooner/ws-win/yurt-sync/commons/vitals",
 ))
 
 

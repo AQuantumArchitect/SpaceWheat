@@ -28,7 +28,7 @@ extends RefCounted
 ## field is a ledger ABOUT the coupling graph: player gauge moves never feed
 ## back into U(t), and nothing here is persisted — local conventions are
 ## exactly the thing that is not physical, so a reload re-seeds from H and
-## every Wilson loop survives on its own. Campaign: docs/design/GAUGE_CAMPAIGN.md
+## every Wilson loop survives on its own. Campaign: docs/GAUGE_CAMPAIGN.md
 ## ("Turn the Compass", "The Fence Remembers"); audit row in FOR_PHYSICISTS.md.
 
 # Insertion-ordered node ids (Variant keys: plot indices, biome names, ...).

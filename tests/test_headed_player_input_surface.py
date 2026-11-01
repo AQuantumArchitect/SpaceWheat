@@ -249,8 +249,8 @@ def test_action_chip_click_threads_shift_state_for_reap_season() -> None:
     assert "instrument_input.invoke_action(action_key, shift)" in shell_src
 
     qii_src = _read("UI/Core/QuantumInstrumentInput.gd")
-    assert "func invoke_action(action_key: String, shift: bool = false, ctrl: bool = false) -> void:" in qii_src
-    assert "_dispatch_action_key(action_key, shift, ctrl)" in qii_src
+    assert "func invoke_action(action_key: String, shift: bool = false) -> void:" in qii_src
+    assert "_dispatch_action_key(action_key, shift)" in qii_src
 
 
 def test_tutorial_hints_survive_the_objective_banners_truncation() -> None:
@@ -278,9 +278,7 @@ def test_tutorial_hints_survive_the_objective_banners_truncation() -> None:
         )
     wayfinding = next(s for s in data["steps"] if s.get("tutorial_teaches") == "wayfinding")
     assert wayfinding["biome"] == "StarterForest"
-    # The hint names the destination the way the rail spells it (spaced), not
-    # by its code name (editorial pass 2026-10-26).
-    assert "Starter Forest" in wayfinding["tutorial_hint"]
+    assert "StarterForest" in wayfinding["tutorial_hint"]
 
 
 def test_tutorial_objective_spotlight_honors_the_steps_own_biome() -> None:

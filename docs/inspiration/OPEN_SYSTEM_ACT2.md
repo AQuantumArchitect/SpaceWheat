@@ -1,7 +1,7 @@
 # The Open System — Act 2 Design Notes
 
 **Status: seed bank → PROMOTED (2026-07-04).** The campaign built from these seeds is
-`docs/design/OPEN_CAMPAIGN.md` ("What Fades") — owner-directed: the endgame leaves the player
+`docs/OPEN_CAMPAIGN.md` ("What Fades") — owner-directed: the endgame leaves the player
 in the full 162-biome world with open and closed dynamics coexisting. The post-mortem,
 laws, and seam below remain the authoritative diagnosis; the campaign doc carries the
 chapters and the implementation ladder. v0 ships closed (`docs/CLOSED_SYSTEM.md`).
@@ -65,7 +65,7 @@ The star channel of Act 2 is **dephasing**, for three reasons:
 
 The counterplay to dissipation should be the verb the player already owns. Repeated
 measurement pins a state against Lindblad evolution — the quantum Zeno effect, already
-demonstrated on the circuit shelf (`ZenoLatch`, see `docs/agents/BIOME_AGENTS.md`). So in an open
+demonstrated on the circuit shelf (`ZenoLatch`, see `BIOME_AGENTS.md`). So in an open
 zone:
 
 - A qubit is dying (T₁ decay toward the sink).
@@ -92,7 +92,7 @@ mechanic it actually honors.
 
 ### Reserved: the topology tiers that need the door open (2026-07-04)
 
-The topology campaign (`docs/design/TOPOLOGY_CAMPAIGN.md`) ships four chapters inside the
+The topology campaign (`docs/TOPOLOGY_CAMPAIGN.md`) ships four chapters inside the
 enclave — Berry loops, the conserved spectrum, SSH chains, braid order — and leaves
 three things here on purpose:
 

@@ -18,7 +18,7 @@ const BERRY_DEFAULT_RIPE_THRESHOLD: float = TAU  # default ripeness: 2π solid a
 const BERRY_DECAY_PER_STEP: float = 0.0001       # ~1.5%/sec at 156 steps/sec; half-life ~47s untracked
 const BERRY_RESIDUAL_MIN: float = 0.001          # below this, drop the entry
 
-## The walk (loop records for KnotRegister — docs/design/ENGINE_FRONTIER.md, Machine 2).
+## The walk (loop records for KnotRegister — docs/ENGINE_FRONTIER.md, Machine 2).
 ## Tracked qubits also keep a decimated polyline of their Bloch path; when the
 ## walk returns to its seed vertex having enclosed real solid angle, the loop
 ## freezes into a record that outlives harvest. Records carry the running Ω per

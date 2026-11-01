@@ -27,8 +27,6 @@ TOOLS = ROOT / "\U0001F344" / "\U0001F9EA"
 HIVE = TOOLS / "hive"
 sys.path.insert(0, str(TOOLS))
 sys.path.insert(0, str(HIVE))
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "🍄" / "🎛️"))
-from fleet_paths import fleet_path  # noqa: E402
 
 witness_hearth = pytest.importorskip("witness_hearth")
 witness_readings = pytest.importorskip("witness_readings")
@@ -138,7 +136,7 @@ def test_sensor_ids_match_the_hearth_world_spec():
     feeder — an unmatched reading is invisible ingest, an unfed binding is a
     belief that can only ever decay. Skips where the yurt tree isn't mounted.
     """
-    world_dir = fleet_path("yurt", "worlds", "spacewheat_self")
+    world_dir = Path("/mnt/c/Users/Luke Spooner/ws-win/yurt/worlds/spacewheat_self")
     if not (world_dir / "world.py").exists():
         pytest.skip("yurt worlds tree not mounted on this machine")
     src = (world_dir / "world.py").read_text(encoding="utf-8")

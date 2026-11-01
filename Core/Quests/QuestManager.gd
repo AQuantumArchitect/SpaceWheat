@@ -35,6 +35,9 @@ var failed_quests: Array = []
 var next_quest_id: int = 0
 var _announced_offers: Dictionary = {}  # quest_id -> true; dedup for quest_offered emit
 
+# Quest timers
+var quest_timers: Dictionary = {}  # quest_id -> Timer
+
 # References (set via dependency injection)
 var economy: Node = null
 var faction_manager: Node = null
@@ -73,21 +76,6 @@ func _physics_process(delta: float) -> void:
 		return
 	if _state_projection:
 		_state_projection.observe_biome(current_biome, delta)
-
-	# Leftover teaching accepted before FLAG fire (The Dark State NOW after
-	# Chart). Handshake on Accept already ran false. Sweep now so mill
-	# Claims instead of remashing Superpose (H²=I). Never the_gray until
-	# the fade door is resolved (watching_keeps already passed through).
-	var handshake_ids: Array = []
-	for quest in active_quests.values():
-		if quest.get("status") == "ready":
-			continue
-		if _handshake_auto_claims(quest):
-			var hid := int(quest.get("id", -1))
-			if hid >= 0:
-				handshake_ids.append(hid)
-	for hid in handshake_ids:
-		mark_quest_ready(hid, "handshake")
 
 	for quest in active_quests.values():
 		# Skip quests already ready to claim
@@ -422,13 +410,13 @@ func _evaluate_flag_predicates(predicates: Array, farm) -> float:
 ## tutorial + arc + market quests all draw from one unified predicate language.
 const FLAG_PREDICATE_TYPES := [
 	"act_at_least",
-	"story_flag_set", "story_flag_any", "biome_evolving", "biome_explored", "icon_incorporated", "berry_consumed_count_gte", "berry_total_phase_gte",
-	"standing_gte", "contracts_kept_gte", "biome_state_gte", "biome_state_lte", "signature_size_gte", "signature_growth_gte", "atom_count_gte", "atom_in_biome",
+	"story_flag_set", "story_flag_any", "biome_evolving", "berry_consumed_count_gte", "berry_total_phase_gte",
+	"standing_gte", "biome_state_gte", "biome_state_lte", "signature_size_gte", "signature_growth_gte", "atom_count_gte", "atom_in_biome",
 	"atom_diversity_gte", "biome_attractor_emoji_gte",
 	"soul_purity_gte",
 	"bridge_built_gte", "bridge_braids_gte", "bridge_fused_gte",
 	"biome_frozen_loops_gte", "biome_loops_linked",
-	# What Turns (gauge/holonomy — docs/design/GAUGE_CAMPAIGN.md):
+	# What Turns (gauge/holonomy — docs/GAUGE_CAMPAIGN.md):
 	#   biome_betti_gte           — β₁ of the coupling graph: places invariants can live
 	#   biome_loop_closed_upstairs — a stitched Berry walk whose S³ lift genuinely closes
 	#   biome_linking_valid       — two closed lifts on distinct qubits: linking is a legal question
@@ -551,6 +539,7 @@ func retire_quest(quest_id: int, reason: String = "outgrown") -> void:
 	quest["retire_reason"] = reason
 
 	active_quests.erase(quest_id)
+	_stop_quest_timer(quest_id)
 	active_quests_changed.emit()
 
 
@@ -676,38 +665,6 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 				return 0.0
 			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
 			return 1.0 if (biome != null and biome.get("quantum_computer") != null) else 0.0
-		"icon_incorporated":
-			# This exact word (either pole order) is on the deliberate
-			# incorporation ledger. Structural 1/0.
-			var ina := str(pred.get("north", ""))
-			var inb := str(pred.get("south", ""))
-			for ic in farm.incorporated_icons:
-				var ia := str(ic.get("north", ""))
-				var ib := str(ic.get("south", ""))
-				if (ia == ina and ib == inb) or (ia == inb and ib == ina):
-					return 1.0
-			return 0.0
-		"biome_explored":
-			# Every plot of the biome is out of the fog (structural 1/0). Plots
-			# already revealed stay revealed, so this only ever turns true.
-			if farm.grid == null or not farm.grid.has_method("get_plot_biome_assignments"):
-				return 0.0
-			var want := str(pred.get("biome", ""))
-			var seen := 0
-			var a: Dictionary = farm.grid.get_plot_biome_assignments()
-			# Only plots with a live register can be explored (the same set
-			# Mass Explore and the guide walk see).
-			var live := 0
-			var wb = farm.grid.get_biome(want)
-			if wb != null and wb.get("quantum_computer") != null and wb.quantum_computer.register_map != null:
-				live = int(wb.quantum_computer.register_map.num_qubits)
-			for pos in a:
-				if str(a[pos]) != want or int(pos.x) >= live:
-					continue
-				if not farm.is_plot_revealed(pos):
-					return 0.0
-				seen += 1
-			return 1.0 if seen > 0 else 0.0
 		"berry_consumed_count_gte":
 			if farm.grid == null:
 				return 0.0
@@ -724,15 +681,6 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 				return 0.0
 			var phase: float = biome.quantum_computer.berry_register.get_consumed_phase()
 			return QuestMath.soft_gate(phase, float(pred.get("value", 0.0)), PREDICATE_SOFT_WIDTH["berry_total_phase_gte"])
-		"contracts_kept_gte":
-			# Market contracts kept (delivered) for a faction — the board loop
-			# itself, counted, so a lesson can ask the player to run it.
-			var kept := 0
-			for cq in completed_quests:
-				if cq is Dictionary and is_market_hold(cq) and str(cq.get("category", "")) != "TUTORIAL" \
-						and str(cq.get("faction", "")) == str(pred.get("faction", "")):
-					kept += 1
-			return 1.0 if kept >= int(pred.get("value", 1)) else 0.0
 		"standing_gte":
 			var standing = farm.faction_standings.get(str(pred.get("faction", "")))
 			if standing == null:
@@ -1096,9 +1044,7 @@ func offer_tutorial_quest(quest_def: Dictionary) -> int:
 ## The one-dimensional lane. Every TUTORIAL step is taken for the player so
 ## the banner is already the live ask. Story offers never match.
 func _tutorial_auto_accepts(quest: Dictionary) -> bool:
-	# A "signed" lesson teaches the handshake itself (Arc → Charge → claim):
-	# the player accepts it and claims it. Nothing is done for them.
-	return str(quest.get("category", "")) == "TUTORIAL" and not bool(quest.get("signed", false))
+	return str(quest.get("category", "")) == "TUTORIAL"
 
 
 func tutorial_auto_accepts(quest: Dictionary) -> bool:
@@ -1145,47 +1091,15 @@ func _handshake_auto_claims(quest: Dictionary) -> bool:
 	if str(quest.get("reward_north", "")).strip_edges() != "" \
 			or str(quest.get("reward_south", "")).strip_edges() != "":
 		return false
-	# Watch It Fade is work you complete by losing. Leftover mixed GildedRot
-	# scored the preds on Accept and handshake-claimed "nothing more on this
-	# door" before Superpose / wait / berry. Never handshake the_gray while
-	# the door is still the mill. After watching_keeps, leftover teaching
-	# remashes Fast-Fwd for a session watermark. Handshake. Humans do not
-	# mash hundreds of F.
-	var src_flag := str(quest.get("source_flag", "")).strip_edges()
-	if src_flag == "the_gray":
-		return flag_door_is_resolved("the_gray")
-	# Accept is the whole beat only when the beat asks for nothing. A beat
-	# with an objective is the player's work: its predicates mark it ready
-	# (the ordinary sweep) and the player claims it on Charge. This used to
-	# also handshake any beat whose source_flag had fired — and every story
-	# beat's source_flag is its own trigger, already fired when offered — so
-	# ~15 beats from Act 1 to the ending (planting, charting, the standing
-	# gates, the fork, island_free) claimed themselves on Accept.
 	var preds = quest.get("state_predicates", [])
-	return not (preds is Array) or preds.is_empty()
-
-
-## Leftover teaching that still asks for a field season. FLAG fire on the
-## parent Chart must not skip berry / fade / an unscored reap.
-func _leftover_still_field_work(quest: Dictionary) -> bool:
-	var preds = quest.get("state_predicates", [])
-	if not (preds is Array):
-		return false
+	if not (preds is Array) or preds.is_empty():
+		return true
 	for p in preds:
 		if not (p is Dictionary):
-			continue
-		var t := str(p.get("type", "")).strip_edges()
-		if t == "berry_consumed_count_gte" or t == "berry_total_phase_gte":
-			return true
-		if t == "coherence_fell":
-			return true
-		if t == "gate_order":
-			return true
-		if t == "gate_sequence_contains":
-			var g := str(p.get("gate", "")).strip_edges().to_lower()
-			if g == "reap" and evaluate_predicate_score(p) < 0.85:
-				return true
-	return false
+			return false
+		if evaluate_predicate_score(p) < 0.85:
+			return false
+	return true
 
 
 ## The quests that belong on the C board's Commitments tab (and the HUD
@@ -1196,76 +1110,9 @@ func _leftover_still_field_work(quest: Dictionary) -> bool:
 func commitment_quests() -> Array:
 	var out: Array = []
 	for q in active_quests.values():
-		if q is Dictionary and not _tutorial_auto_advances(q) and is_market_hold(q):
+		if q is Dictionary and not _tutorial_auto_advances(q):
 			out.append(q)
 	return out
-
-
-## Held work splits by where it came from (UI/Core/SurfaceRooms.gd): a market
-## hold is a contract taken on a board (C → Commitments); a charge hold is a
-## signed story beat (X → Charge). Act 0 lessons stay with the board — they
-## teach the board.
-func is_charge_hold(q: Dictionary) -> bool:
-	if str(q.get("category", "")) == "TUTORIAL":
-		return bool(q.get("signed", false))
-	return str(q.get("category", "")) == "ARC" or str(q.get("source", "")) == "story" \
-			or str(q.get("source_flag", "")) != ""
-
-
-func is_market_hold(q: Dictionary) -> bool:
-	return not is_charge_hold(q)
-
-
-## Signed story beats, the newest act first (the one the story is on now),
-## ready ones ahead of the rest within an act. X → Charge lists these.
-func charge_quests() -> Array:
-	var out: Array = []
-	for q in active_quests.values():
-		if q is Dictionary and is_charge_hold(q):
-			out.append(q)
-	var now_act := _furthest_fired_story_act()
-	out.sort_custom(func(a, b):
-		var aa := absi(_story_act_of(a) - now_act)
-		var bb := absi(_story_act_of(b) - now_act)
-		if aa != bb:
-			return aa < bb
-		var ar := str(a.get("status", "")) == "ready"
-		var br := str(b.get("status", "")) == "ready"
-		if ar != br:
-			return ar
-		return int(a.get("id", 0)) < int(b.get("id", 0)))
-	return out
-
-
-func _story_act_of(q: Dictionary) -> int:
-	var fid := str(q.get("source_flag", ""))
-	for f in _story_flags:
-		if f is Dictionary and str(f.get("id", "")) == fid:
-			return int(f.get("act", 0))
-	return 0
-
-
-## Fired flag ids: every flag the last refresh did not leave unfired.
-func _fired_flags() -> Dictionary:
-	var unfired := {}
-	for f in _unfired_flags:
-		if f is Dictionary:
-			unfired[str(f.get("id", ""))] = true
-	var out := {}
-	for f in _story_flags:
-		if f is Dictionary and not unfired.has(str(f.get("id", ""))):
-			out[str(f.get("id", ""))] = true
-	return out
-
-
-## The highest act among story flags that have fired.
-func _furthest_fired_story_act() -> int:
-	var best := 0
-	var fired: Dictionary = _fired_flags()
-	for f in _story_flags:
-		if f is Dictionary and fired.has(str(f.get("id", ""))):
-			best = maxi(best, int(f.get("act", 0)))
-	return best
 
 
 ## True if any story or active quest has source_flag == flag_id (for save/load restore check).
@@ -1348,12 +1195,6 @@ func _grant_icon_rewards(reward, faction_name: String) -> void:
 		var was_new = _discover_icon(north, south)
 		if was_new:
 			icon_learned.emit(north, south, faction_name)
-			# The Millwright's lesson word takes a seat in the home country too.
-			var seat_farm = _get_active_farm()
-			if faction_name == "Millwright's Union" and seat_farm != null \
-					and seat_farm.get("instrument") != null \
-					and seat_farm.instrument.has_method("seat_icon_in_demos"):
-				seat_farm.instrument.seat_icon_in_demos(str(north), str(south))
 			if _verbose:
 				_verbose.info("quest", "📖", "%s taught you: %s/%s axis" % [faction_name, north, south])
 		else:
@@ -1639,12 +1480,6 @@ func record_quantum_action(action_name: String, payload: Dictionary = {}) -> voi
 	if not _state_projection:
 		return
 	_state_projection.record_action(action_name, payload)
-	# Ace Fast-Fwd is a player wait: the Bath drinks during skip. Witness
-	# coherence so watermark / coherence_fell see the skip, not only later ticks.
-	if action_name == "time_skip" \
-			and current_biome != null and is_instance_valid(current_biome):
-		var dt := float(payload.get("delta", 0.0)) * float(payload.get("phrames", 0))
-		_state_projection.observe_biome(current_biome, dt)
 
 
 func get_state_projection_snapshot() -> Dictionary:
@@ -1746,6 +1581,10 @@ func accept_quest(quest_data: Dictionary) -> bool:
 	# Store
 	active_quests[quest_id] = quest_data
 
+	# Start timer if quest has time limit
+	if quest_data.get("time_limit", -1) > 0:
+		_start_quest_timer(quest_id, quest_data["time_limit"])
+
 	quest_accepted.emit(quest_id)
 	active_quests_changed.emit()
 	# Handshake arcs (Wheel, and any pair-less already-true leftover):
@@ -1767,6 +1606,7 @@ func _finalize_quest_completion(quest_id: int, quest: Dictionary, reward, grante
 	quest["reward_payload"] = _build_reward_payload(reward, granted_resources)
 	active_quests.erase(quest_id)
 	completed_quests.append(quest)
+	_stop_quest_timer(quest_id)
 	quest_completed.emit(quest_id, _build_reward_payload(reward, granted_resources))
 	active_quests_changed.emit()
 	# Break #2 — hand the story spine off FROM the tutorial before unlocking the next step, so
@@ -1780,7 +1620,7 @@ func _finalize_quest_completion(quest_id: int, quest: Dictionary, reward, grante
 ## Break #2 — tutorial ↔ story-spine handoff. A completed tutorial step FIRES the spine flags it
 ## hands off to (its authored `unlock_flags`), so the spine advances FROM the tutorial instead of
 ## racing it on a separate clock. The load-bearing case: step 3 fires `forest_listener`, which
-## unlocks the Operator hat (campaign spec: loom_opens on_open.unlock) that the entanglement step (4) then
+## unlocks the Operator hat (UIProgression.HAT_UNLOCK_FLAGS) that the entanglement step (4) then
 ## tells the player to use — without this, a player with progressive-disclosure enforcement ON
 ## hits a locked hat the tutorial is pointing them at. Idempotent: _fire_story_flag no-ops a flag
 ## the spine already fired from the tutorial's own mechanics (first_breath from signature growth,
@@ -1870,11 +1710,6 @@ func complete_quest(quest_id: int) -> bool:
 		return false
 
 	var quest = active_quests[quest_id]
-	# Standing supply trades settle at their table price — never through the
-	# lattice exercise, which may refuse to price (and would make the rescue
-	# trade a coin flip).
-	if bool(quest.get("supply_trade", false)):
-		return _complete_supply_trade(quest_id, quest)
 	var required_emoji = str(quest.get("resource", ""))
 	var required_qty = int(quest.get("quantity", 0))
 	if required_emoji.is_empty() or required_qty <= 0:
@@ -1943,50 +1778,6 @@ func complete_quest(quest_id: int) -> bool:
 	return true
 
 
-## Supply-trade settlement (QuestPipeline.supply_offer): take the whole `give`
-## ask, grant reward_resources EXACTLY, apply the ordinary DELIVERY standing
-## deltas to the faction, finalize. Refusals name the shortfall.
-func _complete_supply_trade(quest_id: int, quest: Dictionary) -> bool:
-	if economy == null:
-		last_complete_error = "no economy"
-		return false
-	var give: Dictionary = {}
-	var g = quest.get("give", {})
-	if g is Dictionary and not (g as Dictionary).is_empty():
-		for k in g:
-			give[str(k)] = int(g[k])
-	else:
-		var res := str(quest.get("resource", ""))
-		if res != "" and int(quest.get("quantity", 0)) > 0:
-			give[res] = int(quest.get("quantity", 0))
-	if give.is_empty():
-		last_complete_error = "it has no delivery ask"
-		return false
-	for e in give:
-		var held := int(economy.get_resource(e))
-		if held < int(give[e]):
-			last_complete_error = "deliver needs %s×%d — you hold %d" % [e, int(give[e]), held]
-			return false
-	for e in give:
-		if not economy.remove_resource(e, int(give[e]), "supply_trade"):
-			last_complete_error = "could not take %s×%d" % [e, int(give[e])]
-			return false
-	var faction_name := str(quest.get("faction", "Unknown"))
-	var granted: Dictionary = {}
-	var rewards = quest.get("reward_resources", {})
-	if rewards is Dictionary:
-		var source := "supply_trade:%s" % faction_name.replace(" ", "_").to_lower()
-		for e in rewards:
-			var amt := int(rewards[e])
-			if amt <= 0:
-				continue
-			economy.add_resource(str(e), amt, source)
-			granted[str(e)] = amt
-	_apply_standing_deltas(faction_name, QuestRewards._standing_deltas_for_quest(quest, true))
-	_finalize_quest_completion(quest_id, quest, null, granted)
-	return true
-
-
 func complete_or_claim(quest_id: int) -> bool:
 	# Complete delivery quests or claim ready non-delivery quests.
 	if not active_quests.has(quest_id):
@@ -2029,6 +1820,9 @@ func fail_quest(quest_id: int, reason: String = "player_action") -> void:
 	# Move to failed list
 	active_quests.erase(quest_id)
 	failed_quests.append(quest)
+
+	# Stop timer
+	_stop_quest_timer(quest_id)
 
 	# Apply faction standing penalties for failure
 	var fname: String = quest.get("faction", "")
@@ -2138,6 +1932,69 @@ func claim_quest(quest_id: int) -> bool:
 	_finalize_quest_completion(quest_id, quest, reward, granted_resources)
 	return true
 
+
+# =============================================================================
+# QUEST TIMERS
+# =============================================================================
+
+func _start_quest_timer(quest_id: int, duration: float) -> void:
+	# Start countdown timer for quest
+	var timer = Timer.new()
+	timer.wait_time = duration
+	timer.one_shot = true
+	timer.timeout.connect(_on_quest_timeout.bind(quest_id))
+
+	add_child(timer)
+	quest_timers[quest_id] = timer
+	timer.start()
+
+func _stop_quest_timer(quest_id: int) -> void:
+	# Stop and remove quest timer
+	if quest_timers.has(quest_id):
+		var timer = quest_timers[quest_id]
+		timer.stop()
+		timer.queue_free()
+		quest_timers.erase(quest_id)
+
+func _on_quest_timeout(quest_id: int) -> void:
+	# Handle quest timer expiration
+	if active_quests.has(quest_id):
+		# Locked commitments never expire — the player pinned them to go gather the
+		# deliverable and come back. (Defensive: locking also stops the timer.)
+		if bool(active_quests[quest_id].get("locked", false)):
+			return
+		fail_quest(quest_id, "timeout")
+		quest_expired.emit(quest_id)
+
+
+## Pin/unpin a commitment. A locked commitment never expires, so the player can accept a
+## contract they can't yet afford, go gather the deliverable, and come back to turn it in.
+## Returns the new locked state (false if the quest isn't active).
+func set_quest_locked(quest_id: int, locked: bool) -> bool:
+	if not active_quests.has(quest_id):
+		return false
+	active_quests[quest_id]["locked"] = locked
+	if locked:
+		_stop_quest_timer(quest_id)            # pinned → countdown halted
+	else:
+		var tl: float = float(active_quests[quest_id].get("time_limit", -1))
+		if tl > 0 and not quest_timers.has(quest_id):
+			_start_quest_timer(quest_id, tl)   # un-pinned → resume the clock
+	active_quests_changed.emit()
+	return locked
+
+func is_quest_locked(quest_id: int) -> bool:
+	return active_quests.has(quest_id) and bool(active_quests[quest_id].get("locked", false))
+
+func get_quest_time_remaining(quest_id: int) -> float:
+	# Get seconds remaining on quest timer
+
+	# Returns:
+	# -1 if no time limit or timer not found
+	if not quest_timers.has(quest_id):
+		return -1.0
+
+	return quest_timers[quest_id].time_left
 
 # =============================================================================
 # QUEST TYPE TRACKING (non-delivery quests)
@@ -2401,32 +2258,8 @@ func get_active_quests() -> Array:
 
 
 func get_story_offers() -> Array:
-	# Pending story arc offers. Spent leftover (door already resolved:
-	# claimed, dismissed, or a child fired) is catalog noise — sweep it.
-	# Unresolved leftover (Stay Many, Bring Light In) stays so children open.
-	_sweep_spent_arc_offers()
+	# Get all pending story arc offers.
 	return story_offers.values()
-
-
-func _arc_offer_is_spent(q: Dictionary) -> bool:
-	var src := str(q.get("source_flag", ""))
-	if src == "":
-		return false
-	# A gate nobody has claimed is still owed (what hangs off it was reached
-	# some other way, e.g. a dismissal made before gates were protected).
-	if _flag_is_on_the_road(src) and not has_completed_flag(src):
-		return false
-	return _flag_door_is_resolved(src)
-
-
-func _sweep_spent_arc_offers() -> void:
-	var drop: Array = []
-	for qid in story_offers.keys():
-		var q = story_offers[qid]
-		if q is Dictionary and _arc_offer_is_spent(q):
-			drop.append(qid)
-	for qid in drop:
-		story_offers.erase(qid)
 
 
 func dismiss_story_offer(quest_id: int) -> bool:
@@ -2435,11 +2268,6 @@ func dismiss_story_offer(quest_id: int) -> bool:
 		return false
 	var q: Dictionary = story_offers[quest_id]
 	var flag_id := str(q.get("source_flag", ""))
-	if flag_id != "" and _flag_is_on_the_road(flag_id):
-		# One stray Dismiss used to strand a run: later beats need what this
-		# one teaches or opens. It stays on the Arc until it is taken.
-		RefusalVoice.note("other beats hang off this one — it stays on the Arc until you take it")
-		return false
 	if flag_id != "":
 		guidance_dismissed[flag_id] = true
 	story_offers.erase(quest_id)
@@ -2454,15 +2282,7 @@ func has_completed_flag(flag_id: String) -> bool:
 
 
 func is_guidance_dismissed(flag_id: String) -> bool:
-	# A dismissal recorded for a beat on the road no longer counts (saves made
-	# before the road was protected heal on load).
-	if _flag_is_on_the_road(flag_id):
-		return false
 	return bool(guidance_dismissed.get(flag_id, false))
-
-
-func _flag_is_on_the_road(flag_id: String) -> bool:
-	return Guide.gate_flags(self).has(flag_id)
 
 
 ## True when flag_id may unlock its children. A parent with no arc_quest is
@@ -2480,51 +2300,7 @@ func _flag_door_is_resolved(flag_id: String) -> bool:
 	var aq = flag.get("arc_quest")
 	if not (aq is Dictionary) or aq.is_empty():
 		return true
-	if has_completed_flag(flag_id) or is_guidance_dismissed(flag_id):
-		return true
-	# A beat whose child has already fired was passed through — true on any
-	# save version (pre-v6 saves carry no completed_quests ledger at all, and
-	# old story orders fired children under different parents).
-	return _child_has_fired(flag_id)
-
-
-var _children_by_flag: Dictionary = {}   # flag id -> Array of flag ids that require it
-
-
-func _child_has_fired(flag_id: String) -> bool:
-	var farm = _get_active_farm()
-	if farm == null or not ("story_flags_fired" in farm):
-		return false
-	if _children_by_flag.is_empty():
-		for f in _story_flags:
-			if not (f is Dictionary):
-				continue
-			for p in f.get("predicates", []):
-				if p is Dictionary and str(p.get("type", "")) == "story_flag_set":
-					var pid := str(p.get("id", ""))
-					if not _children_by_flag.has(pid):
-						_children_by_flag[pid] = []
-					_children_by_flag[pid].append(str(f.get("id", "")))
-	for child in _children_by_flag.get(flag_id, []):
-		if farm.story_flags_fired.has(str(child)):
-			return true
-	return false
-
-
-## A fired beat is LIVE when its campaign is open: post-game campaigns open
-## only after their `opens_after` beat (campaign spec). Saves from the old
-## single-campaign order may hold post-game flags fired before the ending —
-## those stay dormant (no offer, no chart) until the ending lands.
-func flag_is_live(flag_id: String) -> bool:
-	var flag := _story_flag_by_id(flag_id)
-	if flag.is_empty():
-		return false
-	var c := CampaignRuntime.campaign(str(flag.get("campaign", "")))
-	var gate := str(c.get("opens_after", ""))
-	if gate == "" or gate == flag_id:
-		return true
-	var farm = _get_active_farm()
-	return farm != null and "story_flags_fired" in farm and farm.story_flags_fired.has(gate)
+	return has_completed_flag(flag_id) or is_guidance_dismissed(flag_id)
 
 
 func _story_flag_parent_resolved(flag_id: String, farm) -> bool:
@@ -2556,7 +2332,8 @@ static func _quest_save_copy(q: Dictionary) -> Dictionary:
 
 
 ## Serializable snapshot of the quest ledger: active commitments, contract
-## history, and the id counter. Commitments have no clock: nothing here expires.
+## history, and the id counter. quest_timers hold Timer NODES and are NOT
+## serialized — restore_from_save_dict re-arms them from time_limit.
 ## story_offers are deliberately absent: offers are session state, regenerated
 ## on load by StoryEngine._restore_arc_quests_after_load / the market board.
 func to_save_dict() -> Dictionary:
@@ -2602,6 +2379,8 @@ func to_save_dict() -> Dictionary:
 func restore_from_save_dict(data: Dictionary) -> void:
 	if data == null or data.is_empty():
 		return
+	for quest_id in quest_timers.keys():
+		_stop_quest_timer(quest_id)
 	active_quests = {}
 	var saved_active = data.get("active", {})
 	if saved_active is Dictionary:
@@ -2699,6 +2478,14 @@ func restore_from_save_dict(data: Dictionary) -> void:
 		_state_projection.restore_gate_counters(saved_counters if saved_counters is Dictionary else {})
 	var saved_dismissed = data.get("guidance_dismissed", {})
 	guidance_dismissed = saved_dismissed.duplicate(true) if saved_dismissed is Dictionary else {}
+	# Re-arm expiry timers. Timer nodes don't serialize, so ELAPSED TIME RESETS:
+	# a reloaded timed contract gets its full time_limit again (generous, and
+	# honest about what a save can carry). Locked (pinned) commitments stay
+	# timerless, mirroring set_quest_locked.
+	for qid in active_quests:
+		var q: Dictionary = active_quests[qid]
+		if float(q.get("time_limit", -1)) > 0 and not bool(q.get("locked", false)):
+			_start_quest_timer(qid, float(q.get("time_limit", -1)))
 	# Defensive dedup: if an arc offer for the same flag somehow landed before
 	# this restore ran, the restored active quest is the truth — drop the shadow.
 	for oid in story_offers.keys():
@@ -2718,6 +2505,8 @@ func restore_from_save_dict(data: Dictionary) -> void:
 
 func clear_all_quests() -> void:
 	# Clear all quest data (testing only)
+	for quest_id in quest_timers.keys():
+		_stop_quest_timer(quest_id)
 
 	active_quests.clear()
 	story_offers.clear()

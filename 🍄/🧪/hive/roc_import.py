@@ -22,16 +22,13 @@ Usage:
 import argparse
 import json
 import re
-import sys
 import time
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "🍄" / "🎛️"))
-from fleet_paths import fleet_path, fleet_relative  # noqa: E402
 
 HIVE = Path(__file__).resolve().parent
 LEDGER = HIVE / "roc_runs.jsonl"
 DEFAULT_RESULTS = Path(
-    str(fleet_path("yurt-sync", "workspaces", "spacewheat", "results")))
+    "/mnt/c/Users/Luke Spooner/ws-win/yurt-sync/workspaces/spacewheat/results")
 
 FLAG_BLOCK_RE = re.compile(r"story_flags_fired\s*=\s*\{(.*?)\}", re.S)
 FLAG_KEY_RE = re.compile(r'"([A-Za-z0-9_]+)"\s*:')
@@ -83,7 +80,7 @@ def referee_run(run_dir: Path, manifest: dict) -> dict:
         "referee_flags": referee,
         "verdict": verdict,
         "bank_file": tres_files[0].name if tres_files else "",
-        "run_dir": fleet_relative(run_dir),
+        "run_dir": str(run_dir),
         "imported_at": time.time(),
     }
 

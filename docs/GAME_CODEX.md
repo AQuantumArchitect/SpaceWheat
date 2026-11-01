@@ -72,11 +72,8 @@ Hold these five ideas and everything else follows.
 
 5. **The system is closed and unitary by default.** `ρ` stays pure (`Tr(ρ²) = 1`)
    forever; evolution is the exact propagator `U = exp(−iH·dt)`. The dissipative
-   (open / Lindblad) path is fully built and wakes **per biome**: a biome whose
-   `regime_override` is `"open"` runs dissipative while the island stays unitary.
-   The wet country is the post-game campaign *What Fades*, which is in development.
-   Authority: `QuantumComputer.is_open_here()`, `Core/GameMechanics/BalanceConfig.gd`
-   (`physics_switches`), `docs/CLOSED_SYSTEM.md`.
+   (open / Lindblad) path exists but is **off by default** — it is DLC. Authority:
+   `Core/GameMechanics/BalanceConfig.gd` (`physics_switches`), `docs/CLOSED_SYSTEM.md`.
 
 The design consequence of #4 + #5: **the player authors narrative by authoring
 physics.** They cannot talk their way to an ending; they build a Hamiltonian whose
@@ -133,7 +130,7 @@ qubit), cross-icon couplings (ZZ-like), scales by `hamiltonian_coupling_scale`,
 then Hermitianizes `H = (H + H†)/2`. Some icons carry a periodic `driver`
 (e.g. the sun/moon Solar axis) that modulates `H`'s diagonal each frame.
 
-### 4.3 Dissipative authority — `biomes.json` (inert until a biome opens)
+### 4.3 Dissipative authority — `biomes.json` (DLC / inert by default)
 When `dissipative_dynamics = true`, `LindbladBuilder.gd` reads a biome's
 `atom_components` (`lindblad_outgoing/incoming`, `decay`, `gated_lindblad_source`)
 and builds jump operators `L_k`. **In the shipped closed mode this returns an
@@ -197,18 +194,18 @@ Re-pressing the active hat returns to Ace. No hat = **Ace** (default).
 
 | Key | Hat | Q / E / R / F | Notes |
 |----:|-----|---------------|-------|
-| 4 | **Spark** ⚡ | pole shift (Lindblad jolt) | unlocks in Act 5 (`edge_of_the_enclave`); fires only on open ground |
+| 4 | **Spark** ⚡ | pole shift (Lindblad jolt) | **DLC-gated** (hidden in closed mode) |
 | 5 | **Icon** 📖 | Trim / Inspect / **Add-or-Incorporate** / **Track** (Berry) | the progression tool |
-| 6 | **Merchant** 🤝 | import / price / export / tip | unlocks in Act 1 (`village_stirs`) |
-| 7 | **Captain** ✳ | Cull / Compass / Add Biome (**Chart** a story door's biome, 🦅×21) / — | biome lifecycle |
+| 6 | **Merchant** 🤝 | import / price / export / tip | **DLC-gated** (hidden in closed mode) |
+| 7 | **Captain** ✳ | Cull / Compass / Add Biome / — | biome lifecycle |
 | 8 | **Ace** ○ | Gather (🧺) / Pause / **Strike (measure, 👥)** / Explore (🍞) · Fast-Fwd | player vantage; works in every mode |
 | 9 | **Operator** ⚙ | Break / Inspect / Build gate / — | entangling gates |
 | 0 | **Druid** V | rot− / **Hadamard** / rot+ / — | single-qubit unitary; `1/2/3` = X/Y/Z axis |
 
-**Hats unlock with the story.** The unlock table is compiled from
-`Core/Campaign/campaign.json` (`on_open.unlock.hats`) into
-`campaign_runtime.json`; a new game starts with Ace, Icon and Druid and earns the
-rest. A hat that is still locked on a fresh save is the campaign, not a bug.
+**Closed-mode reality:** because Spark(4) and Merchant(6) are DLC
+(`_CLOSED_HIDDEN_FRAMES` in `ToolConfig.gd`), the shipped hat set is effectively
+**Icon / Captain / Ace / Operator / Druid**. A reviewer testing on the default
+build will find 4 and 6 unavailable — that is intended, not a bug.
 
 ### 5.3 The QERF cross (ACTION)
 ```
@@ -269,7 +266,7 @@ override, e.g. Icon-R "Add" vs "Incorporate") → `_run_action` →
   `SW_COGNIFOLD_TRACE`); extra channels (gauge, Berry-phase odometer, surprise
   flare) light up only when the trace exposes them, so the shipped game is
   unaffected. The channel legend — every visual channel, its data source, and
-  its honesty caveat — is `docs/design/COGNIFOLD_CHANNELS.md`.
+  its honesty caveat — is `docs/COGNIFOLD_CHANNELS.md`.
 
 ---
 
@@ -337,11 +334,7 @@ Predicate families (`QuestManager.gd`):
   legitimacy/entanglement).
 
 ### 7.2 The arc (The Demos playthrough, `story_flags.json`)
-
-> **Superseded 2026-10-17:** the authoritative structure (three campaigns, act
-> and chapter titles, beat order) is `Core/Campaign/campaign.json`, summarized
-> in `docs/CAMPAIGN.md`. The text below describes the 2026-08 order.
-Reordered 2026-08-17 (`docs/history/2026-08-17_CAMPAIGN_REORDER.md`): the early game
+Reordered 2026-08-17 (`docs/CAMPAIGN_REORDER_2026-08-17.md`): the early game
 teaches only enough physics to play — farm verbs and contracts — and raises
 the bar per act; every beat also carries a `campaign` tag (the split's
 phase-0 partition, `tests/test_campaign_partition.py`).
@@ -386,7 +379,7 @@ will see "story is the physics." A reviewer who just clicks will find Acts 1–3
 engaging and Acts 4–5 grindy. The most valuable fresh perspective would probe:
 
 **Fun / legibility** *(status refreshed after the 2026-08-04 fable push — see
-`docs/history/2026-08-04_CAMPAIGN_STATE.md`'s addendum for the change list)*
+`docs/CAMPAIGN_STATE_2026-08-04.md`'s addendum for the change list)*
 1. **Does the loop scale?** R/E/Q is crisp with 1–2 biomes; by Act 5 there are ~6
    and it turns repetitive. *Partially addressed:* the per-biome `−`/`=` clock
    dial is now taught at first berry-track, and tracked plots show a ripening
@@ -423,9 +416,9 @@ engaging and Acts 4–5 grindy. The most valuable fresh perspective would probe:
    `MultiBiomeLookaheadEngine` is the only evolver; BootManager refuses to boot
    without it. `physics_signature` is the drift check between live H/L and the
    C++ copy, not a dual-kernel proof.
-10. **The open system** (Lindblad, drain, the Spark hat on open ground) is a
-    large conditional surface that only the in-development post-game exercises,
-    so it is less tested than the closed core.
+10. **The open-system DLC** adds a large conditional surface (Lindblad, drain,
+    Spark/Merchant hats) that is off by default and less tested. Keep it primed, or
+    is it dead weight on comprehension?
 
 *(Raw material for these: the four internal comprehension maps this codex was
 built from; the loop/UI/physics agents' honest reads are distilled here.)*
@@ -446,7 +439,7 @@ built from; the loop/UI/physics agents' honest reads are distilled here.)*
 predictor; `scenes/Main.tscn` = entry scene.
 
 **Run / build / test:**
-- Play (Linux headed): `./scripts/launch_game.sh`  ·  editor: `./scripts/editor_launch.sh`
+- Play (Linux headed): `./launch_game.sh`  ·  editor: `./editor_launch.sh`
 - Headless rig (LLM/automation lane): `🍄/🎛️/🟢.sh`; harness docs in `🍄/README.txt`
 - Python tests: `python3 -m pytest tests/ -q` (rig-driven + source-contract)
 - GDScript smoke tests: `godot --headless --path . --script tests/<name>_smoke.gd`
@@ -462,18 +455,18 @@ The following are the surviving canonical references (this codex supersedes the
 sprawl that was pruned alongside it — see the same commit).
 
 - **Controls:** `UI/Core/KEYBOARD_GRAMMAR.md`, `UI/Core/SURFACE_MANIFEST.md`
-- **Archetypes:** `docs/design/ARCHETYPE_FRAMES.md`, `docs/design/CHARACTER_ARCHETYPES.md`
+- **Archetypes:** `docs/ARCHETYPE_FRAMES.md`, `docs/CHARACTER_ARCHETYPES.md`
 - **Physics:** `docs/CLOSED_SYSTEM.md`, `docs/FOR_PHYSICISTS.md`
-- **Campaign status snapshot:** `docs/history/2026-08-04_CAMPAIGN_STATE.md` — act-by-act
+- **Campaign status snapshot:** `docs/CAMPAIGN_STATE_2026-08-04.md` — act-by-act
   flag map, biome ship-status, known-issues ledger, test-coverage verdict
   (a fable-push briefing; re-verify before trusting if stale).
-- **Narrative content:** `docs/biomemissions/` (biome arcs — post-game, open-system scope;
-  see each file's banner), `docs/design/QUEST_SYSTEM_PLAN.md`
+- **Narrative content:** `docs/biomemissions/` (biome arcs — open-DLC scope;
+  see each file's banner), `docs/QUEST_SYSTEM_PLAN.md`
   (The December-2025 `reference/` and `architecture/` docs were archived
-  2026-07-11 — see `docs/history/2026-07-11_DOC_ROT.md`; they predate the
+  2026-07-11 — see `docs/DOC_ROT_2026-07-11.md`; they predate the
   closed-system migration and the hat/QERF grammar.)
 - **Vocabulary:** `Core/Documentation/glossary/`
 - **Player-facing:** `docs/HOW_TO_PLAY.md`
-- **Build/ops:** `BUILDING.md`, `docs/design/EXPORT_HEALTH.md`,
+- **Build/ops:** `BUILDING.md`, `docs/EXPORT_HEALTH.md`,
   `docs/release/DESKTOP_RELEASE_WORKFLOW.md`, `docs/performance/`
-- **Agent onboarding:** `docs/agents/BIOME_AGENTS.md`, `🍄/README.txt`
+- **Agent onboarding:** `BIOME_AGENTS.md`, `🍄/README.txt`

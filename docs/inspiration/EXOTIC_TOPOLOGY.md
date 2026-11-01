@@ -1,7 +1,7 @@
 # Exotic Topology Mechanics — Tier System
 
 > **Audited, promoted to a campaign, and SHIPPED, 2026-07** — see
-> `docs/design/TOPOLOGY_CAMPAIGN.md` ("What Survives"): four chapters live across acts 1–4,
+> `docs/TOPOLOGY_CAMPAIGN.md` ("What Survives"): four chapters live across acts 1–4,
 > staged on StarterForest, FreshwaterSpring, Lanternfall, and the Operator/Druid
 > frames. Per-tier fates from the audit:
 > - **Tier 0** shipped — it *is* the game's foundation.
@@ -18,14 +18,14 @@
 >   `gate_order` predicate. Chapter 4.
 > - **Tiers 4 & 6** (Majorana bridges, knots) and **true chaos** were reserved for the
 >   open door — noted in `docs/inspiration/OPEN_SYSTEM_ACT2.md`. **Both tiers are now
->   SHIPPED** as "What Connects" (`docs/design/CONNECT_CAMPAIGN.md`, via the
->   `docs/design/ENGINE_FRONTIER.md` plan): the bridge as a standalone 2×2 ρ with emergent
+>   SHIPPED** as "What Connects" (`docs/CONNECT_CAMPAIGN.md`, via the
+>   `docs/ENGINE_FRONTIER.md` plan): the bridge as a standalone 2×2 ρ with emergent
 >   Γ-product protection (`BridgeRegister`), the knot as Berry-loop path records +
 >   mutual-winding invariants on the Berry lift (`KnotRegister`). All six tiers of
 >   this document are live. Chaos alone stays in the seed bank.
 >
 > **Tier 7 — Gauge & Holonomy — added and SHIPPED, 2026-08-10** as the fourth
-> campaign lane, "What Turns" (`docs/design/GAUGE_CAMPAIGN.md`): a Z₂/U(1) lattice
+> campaign lane, "What Turns" (`docs/GAUGE_CAMPAIGN.md`): a Z₂/U(1) lattice
 > gauge ledger over each biome's coupling graph (`GaugeField` — gauge
 > transforms, Wilson loops, tree gauge fixing, β₁), reference-qubit
 > interference revealing the spinor sign flip of a ripe Berry loop, the

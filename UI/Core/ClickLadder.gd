@@ -37,9 +37,8 @@ extends RefCounted
 ##   SelectionButtonRow verb: pick hat / biome
 ##   QuestBoard row     in-menu: select then act (accept/claim/deliver).
 ##                      not-ready / shortfall: scoot to the field puzzle.
-##   Arc row            in-menu: inspect, then a confirm tap accepts an
-##                      unsigned offer (same path as Accept [R]); other
-##                      rows shunt (contract → C, verb → field).
+##   Arc row            in-menu: inspect, then shunt (contract → C,
+##                      verb → field). Never accept — sign-on is Accept [R].
 ##   TimeBar            chrome, mouse-filter IGNORE
 
 enum Rung { FACE, DETAIL, HOME, DONE }
@@ -113,9 +112,8 @@ static func key_for_home(name: String) -> String:
 	var n := str(name).strip_edges().to_lower()
 	if n == "the board" or n == "board" or n == "commitments":
 		return "C"
-	# X reopens on whatever tab it last showed, so "[X] opens the Arc" was
-	# true only by luck. The menu's own path lives in SurfaceGraph and the
-	# banner names it; a toast says "tap" (or [F] on the field).
+	if n == "the arc" or n == "arc" or n == "story":
+		return "X"
 	return ""
 
 

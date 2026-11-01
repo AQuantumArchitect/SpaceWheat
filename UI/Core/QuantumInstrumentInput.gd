@@ -10,7 +10,7 @@ extends Node
 ## operations fuse into a single system. Creates a fractal address to game
 ## state through hierarchical navigation.
 ##
-## Key Layout (Archetype Frames grammar — see docs/design/ARCHETYPE_FRAMES.md):
+## Key Layout (Archetype Frames grammar — see docs/ARCHETYPE_FRAMES.md):
 ##   4 5 6 7 8 9 0 = Archetype hat row (Spark/Icon/Merchant/Captain/
 ##                   Ace/Operator/Druid). Re-press the active hat
 ##                   toggles back to Ace (no frame).
@@ -41,12 +41,8 @@ const UIProgression = preload("res://UI/Core/UIProgression.gd")
 const SpectralPreview = preload("res://Core/QuantumSubstrate/SpectralPreview.gd")
 const LoopCardCls = preload("res://UI/Overlays/LoopCard.gd")
 
-## Ace F (Fast-Forward) advances evolution by this many phrames per press.
-## PHRAME_HZ=10 so N phrames = N/10 seconds of sim. Lindblad dephasing 0.03
-## is scaled by lindblad_rate_scale 0.1 → rate 0.003/s. Watch It Fade needs
-## coherence 0.3 → 0.12 (about 10 minutes of wall wait). 4 phrames (0.4s)
-## never drank in 80 presses. 120 phrames is 12s of Bath per mash.
-const ACE_FAST_FORWARD_PHRAMES := 120
+## Ace F (Fast-Forward) advances the closed evolution by this many phrames per press.
+const ACE_FAST_FORWARD_PHRAMES := 4
 
 # Access autoloads safely
 @onready var _verbose = get_node_or_null("/root/VerboseConfig")
@@ -249,8 +245,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		_cancel_pending_confirm()
 
 	# Auto-close submenu when any non-action key is pressed
-	if _instrument != null and is_instance_valid(_instrument) \
-			and _instrument.is_in_submenu() and key not in ["Q", "E", "R", "F"]:
+	if _instrument.is_in_submenu() and key not in ["Q", "E", "R", "F"]:
 		_close_submenu()
 
 	# Archetype hat row: 4, 5, 6, 7, 8, 9, 0 → frame.
@@ -265,10 +260,10 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		# fall-back-to-Ace re-press path always passes.
 		if not UIProgression.is_hat_active(target_frame):
 			UIProgression.redirect_locked("the %s hat" % target_frame)
-			_mark_key_handled()
+			get_viewport().set_input_as_handled()
 			return
 		_select_frame_hat(target_frame)
-		_mark_key_handled()
+		get_viewport().set_input_as_handled()
 		return
 
 	# Direct sub-mode select within current frame: 1, 2, 3 → modes 0..2
@@ -307,7 +302,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	# overload a bound one). Before this the whole fractal mechanic — which
 	# has a real cost, a gate and save state — was reachable ONLY by clicking
 	# a 3D portal satellite, so a keyboard-only player could never use it
-	# (docs/history/2026-08-04_CAMPAIGN_STATE.md §5.4).
+	# (docs/CAMPAIGN_STATE_2026-08-04.md §5.4).
 	if event.keycode == KEY_BRACKETRIGHT:
 		if event.is_shift_pressed():
 			_ascend_fractal_level()
@@ -339,7 +334,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	# Action keys — one dispatch authority shared with pointer chips (invoke_action).
 	match key:
 		"Q", "E", "R", "F":
-			_dispatch_action_key(key, event.is_shift_pressed(), event.is_ctrl_pressed() or event.is_meta_pressed())
+			_dispatch_action_key(key, event.is_shift_pressed())
 			get_viewport().set_input_as_handled()
 
 
@@ -348,7 +343,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 ## PlayerShell._route_action_key) — MUST land here, so the "submenu owns
 ## Q/E/R/F while open" rule can never diverge between them (#266: chip clicks
 ## bypassed the submenu branch and fired the frame verb underneath the picker).
-func _dispatch_action_key(key: String, shift: bool = false, ctrl: bool = false) -> void:
+func _dispatch_action_key(key: String, shift: bool = false) -> void:
 	# Keyboard's own cancel-on-any-non-F-key already ran by the time this is
 	# reached via _unhandled_key_input (harmless no-op here, second time).
 	# Pointer/touch chips reach this DIRECTLY with no such upstream check, so
@@ -394,13 +389,10 @@ func _dispatch_action_key(key: String, shift: bool = false, ctrl: bool = false) 
 				else:
 					_close_submenu()
 			else:
-				# Reap is Ace Ctrl+Shift+F; Shift+F alone is mass explore (the
-				# checked plots, or every unexplored plot of this biome). Do not
-				# swap hats or remap F for them.
+				# Reap is Ace Shift+F. Do not swap hats or remap F for them.
+				# The banner names [8] Ace, then Shift+F.
 				var f_action = ToolConfig.get_action(ToolConfig.get_current_frame(), "F")
-				if shift and not ctrl and str(ToolConfig.get_current_frame()) == "ace":
-					_mass_explore()
-				elif shift and ctrl and str(f_action.get("shift_action", "")) != "":
+				if shift and str(f_action.get("shift_action", "")) != "":
 					# This branch bypasses _perform_action/ActionValidator entirely
 					# (today only Ace's Shift+F reap), so the verb-level funnel has
 					# to be checked here too — gated on the BASE key (F), same as
@@ -479,24 +471,11 @@ func _handle_subspace_row_input(event: InputEvent) -> bool:
 ## ARCHETYPE FRAME MANAGEMENT
 ## ============================================================================
 
-func _mark_key_handled() -> void:
-	# QII is a Node; after a farm rebuild it can receive the hat key while
-	# off-tree. Null viewport here used to kill the seat (braid_order [9]).
-	if not is_inside_tree():
-		return
-	var vp := get_viewport()
-	if vp:
-		vp.set_input_as_handled()
-
-
 func _select_frame_hat(frame_name: String) -> void:
 	# Select an archetype frame (hat row 4-0). Empty string = Ace.
 	if not ToolConfig.select_frame(frame_name):
 		_verbose.warn("input", "⚠️", "Ignored invalid frame selection '%s'" % frame_name)
 		return
-	if _instrument != null and is_instance_valid(_instrument) \
-			and _instrument.has_method("set_frame"):
-		_instrument.set_frame(frame_name)
 	# Same cancel keyboard gets for free via _unhandled_key_input's top-level
 	# check — this is the single hat-switch entry for BOTH keyboard and mouse
 	# (ToolSelectionRow taps land here too), so without it a mouse hat switch
@@ -512,11 +491,7 @@ func _select_frame_hat(frame_name: String) -> void:
 	# instead of the hat the player thinks they're using — spending
 	# resources/burning a register slot on an option they never chose.
 	_close_submenu()
-	# Chips first, then the ring write. PlayerShell used to set_cursor_layer
-	# before this ran; after honest Druid Hadamard that paint killed Godot.
-	# keep_plot_selection: hat switches tools, not the workpiece (fleet #4).
 	frame_changed.emit(frame_name)
-	set_cursor_layer(1, true)
 
 	# Icon-hat focus: do NOT clear here. Lesson I is 5 → pick → 2 (mirror)
 	# and needs the plot. Add Icon still gets an unfocused inject mode via
@@ -555,11 +530,13 @@ func _on_mode_changed(frame_name: String, mode_index: int) -> void:
 	var mode_emoji = ToolConfig.get_frame_mode_emoji(frame_name)
 	frame_mode_changed.emit(frame_name, mode_index, mode_label)
 	_verbose.info("input", "~", "Mode: %s (%s)" % [mode_label, mode_emoji])
-	# Inject (Icon mode 0) unfocuses the live cursor so mouse can see Add Icon.
-	# eagle_overhead: do not wipe last_selected — Village G is still the
-	# workpiece F tracks / R incorporates. Empty-plot plant still picks J.
+	# Inject (Icon mode 0) needs an unfocused plot so mouse can see Add Icon.
+	# Mirror (mode 1) must KEEP the plot — that is Lesson I.
 	if frame_name == ToolConfig.FRAME_ICON and mode_index == 0 and _instrument:
 		_instrument.current_plot_idx = -1
+		_instrument.last_selected_position = GridSentinel.INVALID_POSITION
+		if plot_grid_display:
+			plot_grid_display.set_selected_plot(GridSentinel.INVALID_POSITION)
 
 
 ## ============================================================================
@@ -697,9 +674,7 @@ func _cycle_submenu_page() -> void:
 
 func _close_submenu() -> void:
 	# Close the active submenu and reset all submenu state.
-	if _instrument != null and is_instance_valid(_instrument) \
-			and _instrument.has_method("exit_submenu"):
-		_instrument.exit_submenu()
+	_instrument.exit_submenu()
 	_in_submenu = false
 	_current_submenu = {}
 	submenu_changed.emit("", {})
@@ -803,7 +778,6 @@ func _execute_inject_icon(icon: Dictionary) -> void:
 		])
 		# Success speaks too (anti-gating): a silent success reads exactly like a
 		# dead key — the biome grows a qubit off-screen and the player sees nothing.
-		UIProgression.note_plant_south("")
 		_toast_player("✓ %s/%s took root in %s — +1 qubit" % [
 			str(icon.get("north", "")), str(icon.get("south", "")), str(biome.get_biome_type())])
 
@@ -823,16 +797,7 @@ func _execute_inject_icon(icon: Dictionary) -> void:
 		_verbose.warn("input", "+", "Icon injection failed: %s" % result.get("message", result.get("error", "unknown")))
 		# Refusals speak — the picker closing silently after a failed inject
 		# read as "selection doesn't work" (marathon #9).
-		var why := str(result.get("message", result.get("error", "unknown reason")))
-		# Short of the word's south pole (13🪓 for 🪵/🪓, 13🌊 for 💧/🌊):
-		# name the standing trade that pays it, and keep the banner on it.
-		var south := str(icon.get("south", ""))
-		if south != "" and not CampaignRuntime.supply_trades(south).is_empty():
-			var sup := UIProgression.supply_refusal(south, EconomyConstants.ICON_INJECTION_SOUTH_COST, true)
-			if sup != "":
-				UIProgression.note_plant_south(south)
-				why += " · " + sup
-		_toast_player("✗ the icon would not take — %s" % why)
+		_toast_player("✗ the icon would not take — %s" % str(result.get("message", result.get("error", "unknown reason"))))
 		_append_dispatch_ledger("inject_icon", false)
 		action_performed.emit("inject_icon", result)
 
@@ -856,31 +821,12 @@ func build_chip_context() -> ChipContext:
 	var bound := false
 	if farm and farm.grid and ctx_pos != GridSentinel.INVALID_POSITION:
 		var ctx_plot = farm.grid.get_plot(ctx_pos)
-		var term = ctx_plot.terminal if ctx_plot else null
-		if term == null and farm.terminal_pool \
-				and farm.terminal_pool.has_method("get_terminal_at_grid_pos"):
-			term = farm.terminal_pool.get_terminal_at_grid_pos(ctx_pos)
-		# Strike releases is_bound; the frozen measure still occupies the plot.
-		# Ace F must stay Fast-Fwd, not Explore-over-harvest.
-		bound = term != null and (bool(term.is_bound) or bool(term.is_measured))
+		bound = ctx_plot != null and ctx_plot.terminal != null
 	return ChipContext.new(qc, qid, bound, farm)
 
 
 func _build_chip_context() -> ChipContext:
 	return build_chip_context()
-
-
-func _sticky_qubit_id() -> int:
-	# Off the plot ring (hat switch / Icon inject) last-focused register is
-	# still the target. Same law as build_chip_context / _get_selected_positions.
-	if not _instrument:
-		return -1
-	var qid: int = int(_instrument.current_plot_idx)
-	if qid >= 0:
-		return qid
-	if _instrument.last_selected_position != GridSentinel.INVALID_POSITION:
-		return int(_instrument.last_selected_position.x)
-	return -1
 
 
 func _execute_toggle_berry_track() -> Dictionary:
@@ -894,7 +840,7 @@ func _execute_toggle_berry_track() -> Dictionary:
 	if qc == null or qc.berry_register == null:
 		return {"success": false, "error": "no_quantum_computer",
 				"message": "This biome isn't evolving yet — nothing to track."}
-	var qid: int = _sticky_qubit_id()
+	var qid: int = int(_instrument.current_plot_idx) if _instrument else -1
 	if qid < 0 or qid >= qc.register_map.num_qubits:
 		_verbose.info("input", "⌖", "No focused qubit to track")
 		return {"success": false, "error": "no_qubit",
@@ -939,7 +885,7 @@ func _execute_incorporate_icon() -> Dictionary:
 	# translates the keypress into the command and mirrors the result for display.
 	if _instrument == null:
 		return {"success": false, "error": "no_instrument"}
-	var result: Dictionary = _instrument.action_incorporate(_sticky_qubit_id())
+	var result: Dictionary = _instrument.action_incorporate()
 	# Success and refusal both speak (anti-gating law, same as inject_icon):
 	# _toast_berry_whisper existed but nothing called it — the harvest was mute,
 	# and a silent success reads exactly like a dead key.
@@ -1326,8 +1272,8 @@ func _execute_build_gate(gate_type: String) -> void:
 	if result.get("success", false):
 		_verbose.info("input", "⚛️", "Built %s gate on %d qubits" % [gate_type, positions.size()])
 
-		# The marks stay: a selection is sturdy, and only the season ending
-		# (reap) or an explicit clear lets it go.
+		# Clear selections after successful gate build
+		clear_all_checks()
 	else:
 		_verbose.warn("input", "⚛️", "Failed to build %s: %s" % [gate_type, result.get("error", result.get("message", "unknown"))])
 
@@ -1866,37 +1812,8 @@ func _select_subspace(subspace_idx: int, key: String) -> void:
 ## Routes through _dispatch_action_key — the SAME authority as the keyboard —
 ## so an open submenu's Q/E/R chips select options (and F closes) instead of
 ## firing the frame verb hidden underneath the picker (#266).
-func invoke_action(action_key: String, shift: bool = false, ctrl: bool = false) -> void:
-	_dispatch_action_key(action_key, shift, ctrl)
-
-
-## Shift+F (Ace): explore every checked plot, or — none checked — every
-## unexplored plot of the biome you stand in. One press opens a whole field.
-func _mass_explore() -> void:
-	if not UIProgression.is_verb_active(ToolConfig.get_current_frame(), "F"):
-		UIProgression.redirect_locked(VerbGrammar.MASS_EXPLORE_LABEL)
-		return
-	var positions: Array = _instrument.checked_plots.duplicate() if _instrument else []
-	var here := str(_instrument.current_biome) if _instrument else ""
-	if farm and farm.grid and farm.grid.has_method("get_plot_biome_assignments"):
-		# Marks are grid positions and survive a crossing; a mark left in the
-		# last country must not turn this one's Mass Explore into a no-op.
-		var a0: Dictionary = farm.grid.get_plot_biome_assignments()
-		positions = positions.filter(func(p): return str(a0.get(p, "")) == here)
-	if positions.is_empty() and farm and farm.grid and farm.grid.has_method("get_plot_biome_assignments"):
-		var a: Dictionary = farm.grid.get_plot_biome_assignments()
-		var keys: Array = a.keys()
-		keys.sort_custom(func(x, y): return x.x < y.x if x.y == y.y else x.y < y.y)
-		for pos in keys:
-			if str(a[pos]) != here:
-				continue
-			var plot = farm.grid.get_plot(pos)
-			if plot != null and plot.terminal == null:
-				positions.append(pos)
-	if positions.is_empty():
-		_toast_player("Mass Explore: every plot here is already explored.")
-		return
-	_run_shift_batch("explore", positions, "⇧F", VerbGrammar.MASS_EXPLORE_LABEL)
+func invoke_action(action_key: String, shift: bool = false) -> void:
+	_dispatch_action_key(action_key, shift)
 
 
 ## Public entry point for a bubble tap (mouse/touch) — the tap IS the farming
@@ -2071,15 +1988,6 @@ func _perform_action(action_key: String) -> void:
 		# wall (Icon-hat R on a full untracked plot did nothing, and three relay
 		# legs never found the incorporate/plant ritual). A disabled chip with
 		# NO authored reason still speaks (generic), never dies silently.
-		# lantern_teaching: Ace E Pause / Icon Track-first are not the lamp.
-		var teach_disabled := UIProgression.teaching_wrong_hat_refusal()
-		if teach_disabled != "":
-			_toast_player("✗ %s" % teach_disabled)
-			return
-		var plant_disabled := UIProgression.plant_full_refusal()
-		if plant_disabled != "":
-			_toast_player("✗ %s" % plant_disabled)
-			return
 		var disabled_reason := str(action_info.get("reason", ""))
 		if disabled_reason != "":
 			_toast_player("✗ %s" % disabled_reason)
@@ -2150,41 +2058,15 @@ func _get_block_reason(_action_name: String) -> String:
 ## Player-words reason the validator refused an action — checks the same
 ## authorities the validator consulted, so the toast tells the truth.
 func _block_reason_for_player(action_name: String) -> String:
-	# lantern_teaching: Ace Strike / Icon Track-first / mirror Compare are
-	# not the lamp. Banner and toast share UIProgression.teaching_wrong_hat_refusal.
-	var teach := UIProgression.teaching_wrong_hat_refusal()
-	if teach != "" and action_name in [
-			"measure", "explore", "inject_icon", "remove_icon", "incorporate_icon",
-			"toggle_berry_track", "mark_reference", "interfere"]:
-		return teach
-	var plant_full := UIProgression.plant_full_refusal()
-	if plant_full != "" and action_name in [
-			"measure", "explore", "inject_icon", "incorporate_icon",
-			"toggle_berry_track", "mark_reference", "interfere"]:
-		return plant_full
 	match action_name:
 		"discover_biome":
-			var gate: Dictionary = {}
-			if farm and farm.has_method("can_discover_biome"):
-				gate = farm.can_discover_biome()
-			# Captain Chart short of the price: name holdings vs need, then
-			# the 🦅 gather walk (Forest) so the refusal is not a dead [R].
-			if bool(gate.get("chart_short", false)):
-				# The toast already leads with the chip label ("Chart X refused —").
-				var chart_msg := str(gate.get("message", "")).trim_prefix(
-						"Chart %s " % str(gate.get("chart", "")))
-				var walk := UIProgression.eagle_short_refusal()
-				if walk.begins_with("needs 21🦅 — "):
-					walk = walk.substr("needs 21🦅 — ".length())
-				elif walk.begins_with("needs 21🦅"):
-					walk = ""
-				return chart_msg if walk == "" else "%s · %s" % [chart_msg, walk]
 			# lantern_door: 21 eagles named Forest, no gather key. Banner and
 			# toast share UIProgression.eagle_short_refusal.
 			var eagle := UIProgression.eagle_short_refusal()
 			if eagle != "":
 				return eagle
-			if not gate.is_empty():
+			if farm and farm.has_method("can_discover_biome"):
+				var gate: Dictionary = farm.can_discover_biome()
 				var gmsg := str(gate.get("message", ""))
 				# lantern_door: "Biome slots full" named no cull target and no
 				# key. Banner and toast share UIProgression.slots_full_refusal.
@@ -2221,16 +2103,6 @@ func _block_reason_for_player(action_name: String) -> String:
 				return short2
 			return "nothing valid to act on here"
 		"explore":
-			# lantern_door: Explore does not pay a basket. Speak the 🧺 trade walk.
-			var basket_ex := UIProgression.supply_refusal("🧺", UIProgression.gather_price(), true)
-			if basket_ex != "":
-				return "Explore does not pay 🧺 — %s" % basket_ex
-			# lantern_door: after Strike, F Explore wiped the 🦅 measure.
-			if predict_tap_verb_for_focus() == "pop":
-				var eagle_ex := UIProgression.eagle_short_refusal()
-				if eagle_ex != "":
-					return "Explore does not harvest 🦅 — %s" % eagle_ex
-				return "Already measured — Q harvests it."
 			return "no unbound plot to explore here"
 		"measure":
 			# "F explores first" is FALSE HELP when nothing is focused — in that
@@ -2240,20 +2112,8 @@ func _block_reason_for_player(action_name: String) -> String:
 			var track_hint := _tracked_elsewhere_hint()
 			if track_hint != "":
 				return track_hint
-			# lantern_door: Strike costs 👥 and does not mint 🧺.
-			var basket_m := UIProgression.supply_refusal("🧺", UIProgression.gather_price(), true)
-			if basket_m != "":
-				return "Strike does not pay 🧺 — %s" % basket_m
 			return "nothing live to strike — F explores first"
 		"pop", "reap":
-			# lantern_door: Q gather toasted a dead Strike while 🧺 was 0.
-			if action_name == "pop":
-				var basket := UIProgression.supply_refusal("🧺", UIProgression.gather_price(), true)
-				if basket != "":
-					return basket
-			var short_pop := _cost_shortfall_words(action_name)
-			if short_pop != "":
-				return short_pop
 			if not _has_focused_plot():
 				return "no plot selected — G H J K L ; picks one"
 			return "nothing measured to gather here — R strikes first"
@@ -2268,14 +2128,6 @@ func _block_reason_for_player(action_name: String) -> String:
 ## explore (wave-2 sensor wall: 32 presses, no cost ever charged). Name the
 ## other hat's verb when the focused qubit is mid-track.
 func _tracked_elsewhere_hint() -> String:
-	# lantern_teaching: Ace R on a tracked plot toasted Icon 5. The lamp
-	# is Druid [0], not incorporate.
-	var teach := UIProgression.teaching_wrong_hat_refusal()
-	if teach != "":
-		return teach
-	var plant_full := UIProgression.plant_full_refusal()
-	if plant_full != "":
-		return plant_full
 	var biome = _get_current_biome()
 	if biome == null or biome.quantum_computer == null or biome.quantum_computer.berry_register == null:
 		return ""
@@ -2832,20 +2684,8 @@ func _execute_action(action_name: String) -> Dictionary:
 			result = _instrument.action_measure(grid_pos)
 			_maybe_toast_measure_whisper(result)
 		"fast_forward":
-			# Ace F is one player action. Berry Track then mash F until ripe
-			# was 8+ Fast-Fwds (~90s sim). Skip until ripe in this press.
-			# Cap 900 phrames (90s at PHRAME_HZ=10) so a stuck loop cannot hang.
-			if UIProgression._berry_tracking() and not UIProgression._berry_ripe():
-				var used := 0
-				const BERRY_RIPEN_CAP := 900
-				result = {"success": true}
-				while used < BERRY_RIPEN_CAP and not UIProgression._berry_ripe():
-					result = _instrument.time_skip(ACE_FAST_FORWARD_PHRAMES)
-					used += ACE_FAST_FORWARD_PHRAMES
-					if not bool(result.get("success", true)):
-						break
-			else:
-				result = _instrument.time_skip(ACE_FAST_FORWARD_PHRAMES)
+			# Ace F — let H spin the odds forward (advance the closed evolution).
+			result = _instrument.time_skip(ACE_FAST_FORWARD_PHRAMES)
 			# Visible pulse: silent fast-forward reads as "F is broken" (fleet).
 			if result.get("success", true):
 				_toast_player("⏩ the odds spin forward")
@@ -3040,17 +2880,7 @@ func _execute_discovery_forecast() -> Dictionary:
 		})
 	entries.sort_custom(func(a, b): return float(a.prob) > float(b.prob))
 
-	# lantern_door: compass listed GildedRot first and never named the coast.
-	var coast := UIProgression._named_discover_target()
-	var heading := "[color=#a8d5a2]🧭 Compass:[/color]"
-	if coast != "":
-		heading = "[color=#a8d5a2]🧭 Compass:[/color] leans %s" % coast
-	# Captain Chart: while a door is open R is no draw — say so above the odds
-	# (they only describe the random Add Biome once the door is charted).
-	var chart := str(farm.chart_target_biome()) if farm.has_method("chart_target_biome") else ""
-	if chart != "":
-		heading = "[color=#a8d5a2]🧭 Compass:[/color] [R] charts %s (no draw) · Add Biome odds after:" % chart
-	var lines: PackedStringArray = [heading]
+	var lines: PackedStringArray = ["[color=#a8d5a2]🧭 Compass:[/color]"]
 	var shown := 0
 	for e in entries:
 		if shown >= 4:
@@ -3177,8 +3007,6 @@ func _get_selected_positions() -> Array[Vector2i]:
 	# Register-first: there is always a focused qubit. This mirrors _get_grid_position()'s
 	# off-ring fallback, so plot-targeted gates behave like measure (which never no-ops off-ring).
 	var positions: Array[Vector2i] = []
-	if _instrument == null or not is_instance_valid(_instrument):
-		return positions
 	if _instrument.current_plot_idx >= 0:
 		positions.append(_get_grid_position())
 	elif _instrument.last_selected_position != GridSentinel.INVALID_POSITION:

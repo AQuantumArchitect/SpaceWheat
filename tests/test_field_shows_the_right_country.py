@@ -191,29 +191,29 @@ def test_loading_an_empty_slot_says_no() -> None:
     )
 
 
-def test_the_endgame_fixtures_are_not_all_the_same_state() -> None:
+def test_the_endgame_checkpoints_are_not_all_the_same_state() -> None:
     """The whole point of #514: endrun_act7/act8/ending were one 49-flag state
-    wearing three names, so no leg could walk act7 -> act8 -> ending.
-
-    Those minted saves are gone (pre-restructure graph, driven with
-    RIG_UNLOCK_ALL=1 and injected resources). Late-game states now come from
-    `start_at_beat` fixtures built from the spec, so distinctness is a property
-    of the requires graph: a later beat's fixture strictly extends an earlier
-    one's."""
-    import sys
-    sys.path.insert(0, str(ROOT / "tools" / "campaign"))
-    import fixture_order as FO
-    rite = set(FO.ancestors("the_rite"))
-    door = set(FO.ancestors("the_door_stays_open"))
-    assert rite < door, (
-        "the_door_stays_open's fixture must strictly extend the_rite's. If these "
-        "ever collapse to the same set, the endgame is untestable."
+    wearing three names, so no leg could walk act7 -> act8 -> ending."""
+    import json
+    d = ROOT / "🍄/🧪/checkpoints"
+    counts = {}
+    for name in ("endrun_act7", "endrun_act8"):
+        p = d / (name + ".json")
+        assert p.exists(), "%s is a shipped fixture — do not remove it silently" % name
+        fired = json.loads(p.read_text(encoding="utf-8"))["flags_fired"]
+        counts[name] = set(fired if isinstance(fired, list) else fired)
+    assert counts["endrun_act7"] < counts["endrun_act8"], (
+        "act8 must strictly extend act7. If these ever collapse to the same set "
+        "again, the endgame is untestable and the fixtures are lying about which "
+        "act they represent."
     )
-    assert "the_rite" in door, "the door opens only after the rite"
-    for beat in ("the_crossing", "watching_keeps", "hiding_in_the_light"):
-        assert beat in rite, "the_rite's fixture must carry real Lanternfall play — %s is missing" % beat
-    for beat in ("the_knot", "fence_remembers", "the_number_lied"):
-        assert beat in FO.ancestors("close_it_upstairs"), "the loom's last beat is missing %s" % beat
+    for beat in ("braid_alphabet", "the_fusion", "the_number_lied"):
+        assert beat in counts["endrun_act7"], (
+            "endrun_act7 must carry real act-7 play, not a post-ending state "
+            "mislabelled — %s is missing" % beat
+        )
+    for beat in ("the_rite", "the_door_stays_open"):
+        assert beat in counts["endrun_act8"], "endrun_act8 is missing %s" % beat
 
 
 def test_the_lever_named_in_the_gloss_is_the_lever_in_the_code() -> None:

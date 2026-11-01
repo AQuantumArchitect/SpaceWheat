@@ -19,7 +19,7 @@ const TEACHES_TITLE := {
 	"wayfinding": "Past the hedge",
 	"superposition": "Both poles at once",
 	"entanglement": "The loom",
-	"reap_season": "Reap the season",
+	"reap_season": "First Harvest",
 }
 
 
@@ -50,14 +50,14 @@ static func welcome_verbs() -> Array:
 		{
 			"verb": "Strike",
 			"key": "R",
-			"story": "Lock an answer in — it banks on the plot.",
+			"story": "Lock an answer in.",
 			"how": "tap the bubble  ·  costs 👥",
 		},
 		{
 			"verb": "Gather",
 			"key": "Q",
-			"story": "Take what collapse leaves; the plot sleeps.",
-			"how": "tap the struck bubble  ·  costs 🧺",
+			"story": "Take what collapse leaves.",
+			"how": "tap the frozen bubble  ·  costs 🧺",
 		},
 	]
 
@@ -75,9 +75,6 @@ static func is_auto_tutorial(quest: Dictionary, qm = null) -> bool:
 
 
 static func quest_title(quest: Dictionary) -> String:
-	var named := str(quest.get("display_name", "")).strip_edges()
-	if named != "":
-		return named
 	var teaches := str(quest.get("tutorial_teaches", "")).strip_edges()
 	if TEACHES_TITLE.has(teaches):
 		return str(TEACHES_TITLE[teaches])
@@ -120,23 +117,16 @@ static func toast_for_offer(quest: Dictionary, qm = null) -> Dictionary:
 	# on top sent earnest to the picker at 🌱×3 (dual gold).
 	if _offer_is_plant(quest) and _sprouts_are_short():
 		return {}
-	# READY / accepted live work owns the banner. Leftover unsigned catalog
-	# (Five Keys, Stay Yourself) is Arc, not a second gold toast.
-	var live := live_quest(qm)
-	if not live.is_empty() and str(live.get("status", "")) != "story":
-		return {}
 	var category := str(quest.get("category", ""))
 	var is_arc := category == "TUTORIAL" or str(quest.get("source_flag", "")).strip_edges() != ""
 	var title := quest_title(quest)
 	if is_arc:
 		return {
-			# No key path here: a toast outlives the surface it was raised on.
-			# The line at the top names the keys from wherever you are.
-			"message": "📜 [b]%s[/b]\na new door on the %s" % [title, SurfaceRooms.NAME_ARC],
+			"message": "📜 [b]%s[/b]\n▸ [X] then Arc [I]" % title,
 			"detail": "",
 			"importance": 3,
 			"icon": "📜",
-			"path": "X" + SurfaceRooms.KEY_OFFERS,
+			"path": "X",
 			"route": "arc",
 		}
 	# Market: log only. Do not say "here" — there is no here to tap.
@@ -258,13 +248,6 @@ static func live_quest(qm = null) -> Dictionary:
 		qm = _quest_manager()
 	if qm == null or not ("active_quests" in qm):
 		return {}
-	# After Act 0 there is ONE ranker for the live beat: the guidance resolver
-	# (Core/Campaign/Guide.gd). The Arc's NOW row, the banner and the toasts
-	# all name the same door — and that door is always row one on the Arc.
-	if not _tutorial_live(qm):
-		var g: Dictionary = load("res://Core/Campaign/Guide.gd").live_beat(qm)
-		if not g.is_empty():
-			return g
 	var act_by_flag := _act_by_flag(qm)
 	var best: Dictionary = {}
 	var best_rank := 0x7FFFFFFF
@@ -280,14 +263,6 @@ static func live_quest(qm = null) -> Dictionary:
 				best_rank = rank
 				best = q
 	return best
-
-
-static func _tutorial_live(qm) -> bool:
-	for pool in [qm.active_quests.values(), qm.story_offers.values() if "story_offers" in qm else []]:
-		for q in pool:
-			if q is Dictionary and str(q.get("category", "")) == "TUTORIAL":
-				return true
-	return false
 
 
 static func live_door(qm = null, farm = null) -> Dictionary:
@@ -321,14 +296,10 @@ static func doors_ahead(limit: int = 6, qm = null, farm = null) -> Array:
 		return rows
 	var live := live_door(qm, farm)
 	var live_id := str(live.get("id", ""))
-	# The Arc lists doors you have not signed. A signed story beat lives on
-	# Charge (X → U), beside nothing else; Act 0 lessons stay here.
-	if not live.is_empty() and not _is_signed_story(live.get("data", {}), qm):
+	if not live.is_empty():
 		rows.append(_row_from_beat(live))
 	var live_quest_id := int(live.get("data", {}).get("id", -1)) if live.get("data", {}) is Dictionary else -1
 	if qm.has_method("get_story_offers"):
-		var tables := _catalog_rank_tables(qm, farm)
-		var offers: Array = []
 		for q in qm.get_story_offers():
 			if not (q is Dictionary):
 				continue
@@ -336,14 +307,6 @@ static func doors_ahead(limit: int = 6, qm = null, farm = null) -> Array:
 				continue
 			if int(q.get("id", -2)) == live_quest_id:
 				continue
-			offers.append(q)
-		# Mill waiting leftover (Fill the Urn) must sit in the GHJKL;
-		# window. Insertion order parked it 7th of 10 while Sign and
-		# Settle tied on rank and took G.
-		offers.sort_custom(func(a, b):
-			return _catalog_rank(a, tables) < _catalog_rank(b, tables)
-		)
-		for q in offers:
 			rows.append({"kind": "arc_quest", "data": q, "beat": beat_from_quest(q, "ahead")})
 			if rows.size() >= limit:
 				return rows
@@ -351,14 +314,6 @@ static func doors_ahead(limit: int = 6, qm = null, farm = null) -> Array:
 	# Listing a 99% Village / Woodlot row shunted players out of the loom
 	# into a country whose quest did not exist yet.
 	return rows
-
-
-static func _is_signed_story(q, qm) -> bool:
-	if not (q is Dictionary) or q.is_empty():
-		return false
-	if qm == null or not qm.has_method("is_charge_hold") or not ("active_quests" in qm):
-		return false
-	return qm.active_quests.has(int(q.get("id", -1))) and bool(qm.is_charge_hold(q))
 
 
 static func remembered_count() -> int:
@@ -445,7 +400,7 @@ static func toast_for_flag(flag_id: String, flag_data: Dictionary) -> Dictionary
 		"detail": "",
 		"importance": 3,
 		"icon": "✨",
-		"path": "X" + SurfaceRooms.KEY_STORY,
+		"path": "XY",
 		"route": "story",
 	}
 
@@ -481,7 +436,7 @@ static func chapter_line() -> String:
 	var act := 0
 	if farm != null and "story_flags_fired" in farm and qm != null and qm.has_method("get_all_story_flags"):
 		act = StoryAtlas.current_act(farm.story_flags_fired, qm.get_all_story_flags())
-	return "%s · %s" % [CampaignRuntime.campaign(StoryAtlas.MAIN_CAMPAIGN).get("title", "The Demos"), StoryAtlas.chapter_for_act(act)]
+	return "The Demos · %s" % StoryAtlas.chapter_for_act(act)
 
 
 static func murmur_caption(chatter_ev: Dictionary) -> String:
@@ -535,14 +490,9 @@ static func beat_from_quest(quest: Dictionary, tense: String) -> Dictionary:
 	var source_flag := str(quest.get("source_flag", "")).strip_edges()
 	var id := teaches if teaches != "" else (source_flag if source_flag != "" else str(quest.get("id", "")))
 	var cat := str(quest.get("category", ""))
-	var status := str(quest.get("status", "")).strip_edges()
 	var kind := "live_tutorial" if cat == "TUTORIAL" and tense == "live" else "arc_quest"
-	if cat == "TUTORIAL" and status == "story":
+	if cat == "TUTORIAL" and str(quest.get("status", "")) == "story":
 		kind = "arc_quest"
-	# READY / accepted live work is NOW. Arc G must not paint OPEN+[R] Accept
-	# on a quest accept_quest already holds (timber_rhythm handshake).
-	if tense == "live" and status != "" and status != "story":
-		kind = "live_tutorial"
 	return {
 		"id": id,
 		"title": quest_title(quest),
@@ -551,9 +501,7 @@ static func beat_from_quest(quest: Dictionary, tense: String) -> Dictionary:
 		"tense": tense,
 		"prose": str(quest.get("body", "")).strip_edges(),
 		"ask": ask_line(quest),
-		# math_note is the designer's note on the gate (thresholds, history);
-		# it is not written for the player and went stale. Not shown.
-		"physics": "",
+		"physics": str(quest.get("math_note", "")).strip_edges(),
 		"source": "tutorial" if cat == "TUTORIAL" else "flag",
 		"live_ask": live_ask_token(quest),
 		"kind": kind,
@@ -639,7 +587,7 @@ static func beat_from_flag(flag: Dictionary, tense: String, qm = null) -> Dictio
 	return {
 		"id": str(flag.get("id", "")),
 		"title": title,
-		"chapter": StoryAtlas.chapter_for_flag(flag),
+		"chapter": StoryAtlas.chapter_for_act(int(flag.get("act", 0))),
 		"act": int(flag.get("act", 0)),
 		"tense": tense,
 		"prose": str(flag.get("arc_beat", "")).strip_edges(),
@@ -706,54 +654,10 @@ static func _unsigned_still_open(q: Dictionary, qm) -> bool:
 	return false
 
 
-static func _catalog_rank_tables(qm, farm = null) -> Dictionary:
-	if farm == null:
-		farm = _farm()
-	var fired: Dictionary = farm.story_flags_fired if farm != null and "story_flags_fired" in farm else {}
-	var acts := {}
-	var camps := {}
-	var blocking := {}
-	if qm != null and qm.has_method("get_all_story_flags"):
-		for f in qm.get_all_story_flags():
-			if not (f is Dictionary):
-				continue
-			var fid := str(f.get("id", ""))
-			acts[fid] = int(f.get("act", 0))
-			camps[fid] = str(f.get("campaign", "demos"))
-			if fired.has(fid):
-				continue
-			for p in f.get("predicates", []):
-				if p is Dictionary and str(p.get("type", "")) == "story_flag_set":
-					blocking[str(p.get("id", ""))] = true
-	return {"fired": fired, "acts": acts, "camps": camps, "blocking": blocking}
-
-
-## Same rank as UIProgression.waiting_arc_offer: leftover lanternfall
-## that a live child still needs (Fill the Urn / the_basin) beats a
-## leftover sibling (Sign and Settle) that tied on act+campaign.
-static func _catalog_rank(q: Dictionary, tables: Dictionary) -> int:
-	var src := str(q.get("source_flag", ""))
-	var fired: Dictionary = tables.get("fired", {})
-	var leftover := 2000 if (src != "" and fired.has(src)) else 0
-	var camps: Dictionary = tables.get("camps", {})
-	var camp := str(camps.get(src, "demos"))
-	var camp_pen := 0
-	if camp == "loom":
-		camp_pen = 500
-	elif camp == "demos":
-		camp_pen = 100
-	var blocking: Dictionary = tables.get("blocking", {})
-	var acts: Dictionary = tables.get("acts", {})
-	return leftover + camp_pen + int(acts.get(src, 99)) \
-			+ (0 if blocking.has(src) else 1000)
-
-
 static func _best_unsigned_offer(qm) -> Dictionary:
 	if qm == null or not qm.has_method("get_story_offers"):
 		return {}
-	var farm = _farm()
-	var tables := _catalog_rank_tables(qm, farm)
-	var fired: Dictionary = tables.get("fired", {})
+	var act_by_flag := _act_by_flag(qm)
 	var best: Dictionary = {}
 	var best_rank := 0x7FFFFFFF
 	for q in qm.get_story_offers():
@@ -762,22 +666,11 @@ static func _best_unsigned_offer(qm) -> Dictionary:
 		var cat := str(q.get("category", ""))
 		if cat not in ["ARC", "TUTORIAL"]:
 			continue
-		var src := str(q.get("source_flag", ""))
 		if not _unsigned_still_open(q, qm):
-			# Preds already hold. Skip unless leftover still needs Accept
-			# so children can open (Bring Light In → the_gray).
-			if src == "" or not fired.has(src):
-				continue
-			if qm.has_method("flag_door_is_resolved") \
-					and bool(qm.flag_door_is_resolved(src)):
-				continue
-		if cat == "TUTORIAL":
-			var trank := int(q.get("tutorial_step", 0))
-			if trank < best_rank:
-				best_rank = trank
-				best = q
 			continue
-		var rank := _catalog_rank(q, tables)
+		var rank := 1000 + int(act_by_flag.get(str(q.get("source_flag", "")), 99))
+		if cat == "TUTORIAL":
+			rank = int(q.get("tutorial_step", 0))
 		if rank < best_rank:
 			best_rank = rank
 			best = q

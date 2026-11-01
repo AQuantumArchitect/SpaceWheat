@@ -11,7 +11,7 @@ extends RefCounted
 ## Two loops on S² cannot link: linking needs three dimensions and the sphere
 ## hasn't the room. The honest invariants live one floor up — on S³, where the
 ## global phase the Bloch projection forgets still turns — and these functions
-## are their computable shadows (docs/design/ENGINE_FRONTIER.md, Machine 2):
+## are their computable shadows (docs/ENGINE_FRONTIER.md, Machine 2):
 ##
 ## - area_axis:          the loop's signed-area vector (its enclosed-area normal)
 ## - winding_about_axis: signed turn count of a loop around any axis

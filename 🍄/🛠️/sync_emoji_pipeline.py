@@ -23,8 +23,6 @@ import sys
 import urllib.request
 import urllib.error
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "🍄" / "🎛️"))
-from fleet_paths import fleet_path  # noqa: E402
 
 # ── Paths ──────────────────────────────────────────────────────────────────────
 ROOT = Path(__file__).resolve().parent.parent.parent
@@ -51,7 +49,7 @@ CDN           = "https://cdn.jsdelivr.net/gh/jdecked/twemoji@latest/assets/svg/{
 # round-trips (run Godot headed, read "no SVG for X" warnings out of the log, hand-collect them,
 # re-run this pipeline) — found the hard way across the hive-ops/yurt-mood/project_membrane fixes,
 # 2026-08-02. Scanning it here closes that loop.
-YURT_WORLDS_DIR_DEFAULT = str(fleet_path("yurt", "worlds"))
+YURT_WORLDS_DIR_DEFAULT = "/mnt/c/Users/Luke Spooner/ws-win/yurt/worlds"
 
 # ── Custom SVG entries (Tier 1) ────────────────────────────────────────────────
 # Single authoritative source for hand-crafted emoji → SVG mappings.

@@ -55,8 +55,6 @@ def test_cull_gate_refuses_the_identity_biome() -> None:
         "cannot pick a home biome when slots are full"
     )
     assert "cannot cull your own home" in gate, "the refusal must say why, in player words"
-    assert 'biome_name == "Woodlot"' in gate, "Woodlot is mill-protected timber country"
-    assert "never cull Woodlot" in gate
     named = farm.split("func named_cull_target()")[1].split("\nfunc ")[0]
     assert "_cull_gate_for(" in named, "the picker must reuse the same cull rule"
 

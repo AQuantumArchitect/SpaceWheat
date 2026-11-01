@@ -34,7 +34,7 @@ static func from_market_contract(contract, biome) -> Dictionary:
 	if raw.is_empty():
 		return {}
 	raw["type"] = QuestTypes.Type.DELIVERY
-	raw["time_limit"] = -1.0   # no clocks: a contract waits for you (puzzle, not timer)
+	raw["time_limit"] = 120.0
 	raw["reward_multiplier"] = 1.0
 	# No icon reward — market quests pay in resources, derived from the faction's
 	# coupling-cloud (can include resources the player has no mass in yet).
@@ -55,60 +55,6 @@ static func from_market_contract(contract, biome) -> Dictionary:
 	var quest := Quest.normalize(raw, Quest.SOURCE_MARKET)
 	QuestVoice.apply(quest)  # faction-voiced body/full_text (replaces the bland projection line)
 	return quest
-
-
-## SUPPLY source: a standing trade from the campaign `resources` table
-## (CampaignRuntime.trades_for_biome) as a canonical market DELIVERY quest.
-## Deliver `give` to the faction, receive EXACTLY get×emoji — no lattice
-## pricing, no RNG (QuestManager.complete_quest settles supply_trade quests on
-## their own branch). The id is stable per (emoji, biome) so a re-rolled board
-## re-proposes the SAME contract and never duplicates an accepted one.
-const SUPPLY_ID_BASE: int = 900000000
-
-static func supply_offer_id(emoji: String, biome_name: String, give_key: String = "") -> int:
-	# give_key distinguishes two trades for the same emoji on one board (the
-	# 🌾-priced trade and the 🐇-priced rescue). "" keeps the old ids stable.
-	var tag := "supply|%s|%s" % [emoji, biome_name]
-	if give_key != "":
-		tag += "|" + give_key
-	return SUPPLY_ID_BASE + absi(tag.hash()) % 1000000
-
-
-static func supply_offer(trade: Dictionary) -> Dictionary:
-	var emoji := str(trade.get("emoji", ""))
-	var biome_name := str(trade.get("biome", ""))
-	var faction := str(trade.get("faction", ""))
-	var get_n := int(trade.get("get", 0))
-	var give := CampaignRuntime.trade_give(trade)
-	if emoji == "" or biome_name == "" or get_n <= 0 or give.is_empty():
-		return {}
-	# The board's single-ask row grammar reads resource × quantity; a
-	# multi-give trade keeps the full ask in `give` (completion removes all).
-	var ask: String = str(give.keys()[0])
-	var first := CampaignRuntime.trade_in(emoji, biome_name)
-	var give_key := "" if CampaignRuntime.trade_give(first) == give else ask
-	var q := Quest.make(Quest.SOURCE_MARKET, {
-		"id": supply_offer_id(emoji, biome_name, give_key),
-		"status": Quest.STATUS_OFFERED,
-		"type": QuestTypes.Type.DELIVERY,
-		"faction": faction,
-		"biome": biome_name,
-		"biome_name": biome_name,
-		"resource": ask,
-		"quantity": int(give[ask]),
-		"give": give,
-		"time_limit": -1.0,   # a standing trade never expires
-		"supply_trade": true,
-		"supply_emoji": emoji,
-		"reward_resources": {emoji: get_n},
-		"offered_at": Time.get_ticks_msec(),
-	})
-	QuestVoice.apply(q)
-	var deal := CampaignRuntime.trade_words(trade)
-	q["body"] = "%s · standing trade %s" % [str(q.get("body", "")), deal]
-	q["full_text"] = "%s — standing trade: %s, any time you stand in %s" % [
-		str(q.get("full_text", "")), deal, biome_name]
-	return q
 
 
 ## STORY source: build a canonical story/arc quest from a story_flags.json arc_quest def.

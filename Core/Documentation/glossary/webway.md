@@ -70,7 +70,7 @@ feed `p`), and a biome's temperature `kT` scales with its entropy `S`. The reap
 There is **no separate schema key** for the webway — it *is* the non-sink subset
 of the existing `lindblad_outgoing`/`lindblad_incoming` edges. "Webway" names the
 ecological reading of that data; "decay" names the sink reading. See
-`docs/agents/BIOME_AGENTS.md` for the `atom_components` Lindblad schema.
+`BIOME_AGENTS.md` for the `atom_components` Lindblad schema.
 
 **Anti-pattern:** do not confuse a webway edge with a `decay` edge. `🌿 →(L) 🍂`
 inside the biome is webway (recirculation); `🌿 →(decay) 🗑` is sink loss. Same

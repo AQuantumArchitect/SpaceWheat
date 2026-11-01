@@ -58,8 +58,6 @@ import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "🍄" / "🎛️"))
-from fleet_paths import fleet_path  # noqa: E402
 from typing import Callable, Iterable, Sequence
 
 # A derivative smaller than this is not a direction, it is a dead zone.
@@ -266,7 +264,7 @@ SHIPPED_DECLARES = AGREES
 # stale verdict about its own subject is the exact failure this module exists to catch.
 # (It went stale once already, minutes after the first fix. Hence this.)
 _SHIPPED_BY_NORMALIZER = {"forecast_zflip": "zflip+observe"}
-DEFAULT_WORLD = str(fleet_path("yurt", "worlds", "spacewheat_self", "world.py"))
+DEFAULT_WORLD = "/mnt/c/Users/Luke Spooner/ws-win/yurt/worlds/spacewheat_self/world.py"
 
 
 def _force_observe_values(src: str, normalizer_marker: str) -> set[bool]:
