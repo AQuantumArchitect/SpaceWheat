@@ -1,0 +1,13 @@
+{
+  "title": "Keep the resource HUD faithful when its economy is rebound",
+  "goal": "Repair ResourcePanel.connect_to_economy so the displayed wallet contains only positive balances of the newly selected authoritative economy. Retired economy emissions must not update the current HUD. Rebinding the same economy must keep exactly one signal connection; current-source live zero balances must disappear. Preserve current labels, sorting and styling. Do not edit physics, balances, progression, story, or tests.",
+  "read_paths": [
+    "UI/Widgets/ResourcePanel.gd",
+    "UI/Core/UIStyleFactory.gd",
+    "UI/FarmUI.gd",
+    "tests/s3_wallet_rebind.py"
+  ],
+  "write_paths": [
+    "UI/Widgets/ResourcePanel.gd"
+  ]
+}

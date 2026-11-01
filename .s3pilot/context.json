@@ -1,0 +1,65 @@
+{
+  "title": "Keep the resource HUD faithful when its economy is rebound",
+  "role": "builder",
+  "repo": "/home/primearchitect/ws/_wt/spacewheat-s3-pilot",
+  "branch": "codex/s3-spacewheat-pilot",
+  "upstream_baseline": "5c64f23f2afb9bf7e2059f70484c9a6f10484ded",
+  "base_commit": "965cf58c24ca3fa90596eef8bf9b0651284aaead",
+  "goal": "Repair ResourcePanel.connect_to_economy so the displayed wallet contains only positive balances of the newly selected authoritative economy. Retired economy emissions must not update the current HUD. Rebinding the same economy must keep exactly one signal connection; current-source live zero balances must disappear. Preserve current labels, sorting and styling. Do not edit physics, balances, progression, story, or tests.",
+  "read_paths": [
+    "UI/Widgets/ResourcePanel.gd",
+    "UI/Core/UIStyleFactory.gd",
+    "UI/FarmUI.gd",
+    "tests/s3_wallet_rebind.py"
+  ],
+  "write_paths": [
+    "UI/Widgets/ResourcePanel.gd"
+  ],
+  "allowed_paths": [
+    "UI/Widgets/ResourcePanel.gd"
+  ],
+  "source_sha256": "9b3854e5e70ae21b0e351ca1fd0813da31a25d239328ca432d8d69e62c8d8f9f",
+  "trusted_referee": {
+    "path": "tests/s3_wallet_rebind.py",
+    "sha256": "e49c7034a124b585e29b43a8414008ceb8cf0e9512a546e89378a0cfcffd195c",
+    "style_dependency": "UI/Core/UIStyleFactory.gd",
+    "style_sha256": "774a4425c9510df62e9c9e10efeceafa743a672346c20be5a6cfdfdb412038cb"
+  },
+  "check": [
+    "/usr/bin/python3",
+    "tests/s3_wallet_rebind.py",
+    "--source-root",
+    "/work",
+    "--godot",
+    "/home/primearchitect/.local/bin/godot"
+  ],
+  "host_check": [
+    "python3",
+    "tests/s3_wallet_rebind.py",
+    "--source-root",
+    ".",
+    "--godot",
+    "/home/primearchitect/.local/bin/godot"
+  ],
+  "readonly_dependency_mounts": [
+    "/home/primearchitect/.local/bin"
+  ],
+  "baseline": {
+    "exit_code": 1,
+    "parse_errors": 0,
+    "failures": [
+      "rebind must remove currencies absent or zero in new wallet",
+      "old authority must disconnect on rebind",
+      "retired economy must not change current wallet display",
+      "new authority signals must update live wallet",
+      "live zero balance must disappear"
+    ]
+  },
+  "acceptance": "Referee exits zero and prints S3_WALLET_REBIND_PASS without SCRIPT ERROR, Parse Error or ERROR. It executes the actual candidate widget and Godot controls, synthetic authoritative economies and an inert glyph-art adapter in an isolated temporary project.",
+  "dirty_exclusion": "UI/Widgets/ResourcePanel.gd is absent from canonical SpaceWheat tracked-dirty paths; canonical repository is not edited.",
+  "budget": {
+    "maximum_fill_attempts": 3,
+    "maximum_concurrent_writers": 1
+  },
+  "limitations": "This is a real widget-level rebind defect, not a claim of a completed headed campaign reproduction. Glyph imagery is omitted; wallet labels/sorting/source signals run in actual Godot. No publish, merge, or canonical checkout edits."
+}
