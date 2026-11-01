@@ -33,6 +33,7 @@
 #pragma once
 
 #include <godot_cpp/core/defs.hpp>
+#include <godot_cpp/core/math_defs.hpp>
 
 #include <godot_cpp/variant/callable_custom.hpp>
 
@@ -48,7 +49,7 @@ class Variant;
 
 class Callable {
 	static constexpr size_t CALLABLE_SIZE = 16;
-	uint8_t opaque[CALLABLE_SIZE] = {};
+	alignas(8) uint8_t opaque[CALLABLE_SIZE] = {};
 
 	friend class Variant;
 

@@ -33,6 +33,7 @@
 #pragma once
 
 #include <godot_cpp/core/defs.hpp>
+#include <godot_cpp/core/math_defs.hpp>
 
 #include <godot_cpp/variant/color.hpp>
 
@@ -51,7 +52,7 @@ class Variant;
 
 class PackedColorArray {
 	static constexpr size_t PACKED_COLOR_ARRAY_SIZE = 16;
-	uint8_t opaque[PACKED_COLOR_ARRAY_SIZE] = {};
+	alignas(8) uint8_t opaque[PACKED_COLOR_ARRAY_SIZE] = {};
 
 	friend class Variant;
 
@@ -125,8 +126,8 @@ public:
 	PackedColorArray slice(int64_t p_begin, int64_t p_end = 2147483647) const;
 	PackedByteArray to_byte_array() const;
 	void sort();
-	int64_t bsearch(const Color &p_value, bool p_before = true);
-	PackedColorArray duplicate();
+	int64_t bsearch(const Color &p_value, bool p_before = true) const;
+	PackedColorArray duplicate() const;
 	int64_t find(const Color &p_value, int64_t p_from = 0) const;
 	int64_t rfind(const Color &p_value, int64_t p_from = -1) const;
 	int64_t count(const Color &p_value) const;

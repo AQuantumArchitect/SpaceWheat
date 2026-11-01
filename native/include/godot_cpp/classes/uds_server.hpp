@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  search_array.hpp                                                      */
+/*  uds_server.hpp                                                        */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                             GODOT ENGINE                               */
@@ -28,41 +28,38 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
+// THIS FILE IS GENERATED. EDITS WILL BE LOST.
+
 #pragma once
 
-#include <godot_cpp/templates/sort_array.hpp>
+#include <godot_cpp/classes/global_constants.hpp>
+#include <godot_cpp/classes/ref.hpp>
+#include <godot_cpp/classes/socket_server.hpp>
+
+#include <godot_cpp/core/class_db.hpp>
+
+#include <type_traits>
 
 namespace godot {
 
-template <typename T, typename Comparator = _DefaultComparator<T>>
-class SearchArray {
-public:
-	Comparator compare;
+class StreamPeerUDS;
+class String;
 
-	inline int64_t bisect(const T *p_array, int64_t p_len, const T &p_value, bool p_before) const {
-		int64_t lo = 0;
-		int64_t hi = p_len;
-		if (p_before) {
-			while (lo < hi) {
-				const int64_t mid = (lo + hi) / 2;
-				if (compare(p_array[mid], p_value)) {
-					lo = mid + 1;
-				} else {
-					hi = mid;
-				}
-			}
-		} else {
-			while (lo < hi) {
-				const int64_t mid = (lo + hi) / 2;
-				if (compare(p_value, p_array[mid])) {
-					hi = mid;
-				} else {
-					lo = mid + 1;
-				}
-			}
-		}
-		return lo;
+class UDSServer : public SocketServer {
+	GDEXTENSION_CLASS(UDSServer, SocketServer)
+
+public:
+	Error listen(const String &p_path);
+	Ref<StreamPeerUDS> take_connection();
+
+protected:
+	template <typename T, typename B>
+	static void register_virtuals() {
+		SocketServer::register_virtuals<T, B>();
 	}
+
+public:
 };
 
 } // namespace godot
+

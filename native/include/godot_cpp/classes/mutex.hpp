@@ -39,7 +39,7 @@
 
 #include <type_traits>
 
-namespace godot {
+namespace godot::CoreBind {
 
 class Mutex : public RefCounted {
 	GDEXTENSION_CLASS(Mutex, RefCounted)

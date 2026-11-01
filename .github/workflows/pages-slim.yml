@@ -19,7 +19,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  GODOT_VERSION: "4.5-stable"
+  GODOT_VERSION: "4.6.2-stable"
 
 jobs:
   build:
@@ -45,7 +45,7 @@ jobs:
           mv ~/godot/Godot_v${GODOT_VERSION}_linux.x86_64 ~/godot/godot
           curl -fsSL -o /tmp/tpl.tpz "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_export_templates.tpz"
           unzip -q /tmp/tpl.tpz -d /tmp/tpl
-          mv /tmp/tpl/templates ~/.local/share/godot/export_templates/4.5.stable
+          mv /tmp/tpl/templates ~/.local/share/godot/export_templates/4.6.2.stable
       - name: Import + export Web-Slim
         run: |
           mkdir -p build/web-slim

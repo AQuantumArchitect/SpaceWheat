@@ -171,7 +171,7 @@ GODOT_CPP_INPUTS=(SConstruct src include gen)
 if [ "$LINUX_ONLY" = true ]; then
     if [ "$DO_CLEAN" = true ] || sw_output_is_stale "bin/libgodot-cpp.linux.template_release.x86_64.a" "${GODOT_CPP_INPUTS[@]}"; then
         log "Building godot-cpp for Linux..."
-        scons platform=linux target=template_release -j$(nproc)
+        scons platform=linux target=template_release api_version=4.6 -j$(nproc)
         success "godot-cpp Linux built"
     else
         success "godot-cpp Linux already built (cached)"
@@ -181,7 +181,7 @@ fi
 if [ "$WINDOWS_ONLY" = true ]; then
     if [ "$DO_CLEAN" = true ] || sw_output_is_stale "bin/libgodot-cpp.windows.template_release.x86_64.a" "${GODOT_CPP_INPUTS[@]}"; then
         log "Building godot-cpp for Windows..."
-        scons platform=windows target=template_release use_mingw=yes -j$(nproc)
+        scons platform=windows target=template_release api_version=4.6 use_mingw=yes -j$(nproc)
         success "godot-cpp Windows built"
     else
         success "godot-cpp Windows already built (cached)"
@@ -202,7 +202,7 @@ if [ "$WEB_ONLY" = true ]; then
             rm -f bin/libgodot-cpp.web.template_release.wasm32.a
         fi
         log "Building godot-cpp for Web..."
-        scons platform=web target=template_release -j$(nproc)
+        scons platform=web target=template_release api_version=4.6 -j$(nproc)
         mkdir -p bin && printf '%s\n' "$SW_EMSDK_VERSION" > "$SW_CPP_EMSTAMP"
         success "godot-cpp Web built"
     else
