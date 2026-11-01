@@ -1,14 +1,23 @@
 <#
   tools/release.ps1 - build ONE game from a clean, tagged commit and push it to itch.
 
-  Usage (PowerShell, from anywhere):
-    .\tools\release.ps1 -Channel windows            # build + push
+  Usage (PowerShell 7, from anywhere):
+    .\tools\release.ps1 -Channel windows            # build + push (needs a tag, clean tree)
     .\tools\release.ps1 -Channel windows -DryRun    # build only, no push
-    .\tools\release.ps1 -Channel windows -AllowUntagged -DryRun   # test build
+    .\tools\release.ps1 -Channel windows -AllowUntagged -DryRun   # test build of an untagged HEAD
 
-  Needs: butler on PATH, BUTLER_API_KEY in the environment (never printed),
-  and the engine path below (or env GODOT4 / UNITY_EDITOR).
-  Version = the git tag on HEAD (git tag v1.2.3). Settings live in RELEASE.md + the block below.
+  Needs: Godot 4.6.2 (path below, or env GODOT4) with its export templates;
+  for a push also butler on PATH and BUTLER_API_KEY in the environment (never printed).
+  Version = the git tag on HEAD (git tag v0.3.1-alpha). It must match
+  config/version in project.godot ("0.3.1-alpha"), so the title-screen stamp and
+  the itch userversion can't disagree. Settings live in RELEASE.md + the block below.
+
+  Safety rules (all enforced, none skippable on a real push):
+    - only committed code ships: a dirty tree is refused unless -DryRun
+    - only a tagged HEAD is pushed: -AllowUntagged is for -DryRun only
+    - the tag must match project.godot's config/version
+    - the Godot binary must report the pinned version
+    - the build output must contain the exe and the native DLL
 #>
 param(
   [Parameter(Mandatory=$true)][string]$Channel,
@@ -23,61 +32,70 @@ $ItchTarget   = 'aquantumarchitect/spacewheat'
 $GodotVersion = '4.6.2'
 $GodotExe     = 'C:\Users\Luke Spooner\Documents\antigravity_i_guess\Godot\Godot_v4.6.2-stable_win64_console.exe'
 $Channels = @{
-  windows = @{ Kind='godot'; Preset='Windows Desktop'; File='SpaceWheat.exe'; Out='build/release/windows'; Check='libquantummatrix.windows.template_release.x86_64.dll' }
+  windows = @{ Preset='Windows Desktop'; File='SpaceWheat.exe'; Out='build/release/windows';
+               Check=@('SpaceWheat.exe', 'libquantummatrix.windows.template_release.x86_64.dll') }
 }
 # -----------------------------------------------------------------------------
 
-if (-not $Channels.ContainsKey($Channel)) { throw "Unknown channel '$Channel'. Known: $($Channels.Keys -join ', ')" }
+function Fail([string]$msg) { throw "release.ps1: $msg" }
+
+if (-not $Channels.ContainsKey($Channel)) { Fail "Unknown channel '$Channel'. Known: $($Channels.Keys -join ', ')" }
+if ($AllowUntagged -and -not $DryRun) { Fail "-AllowUntagged is only for -DryRun; itch gets tagged builds only." }
 $C = $Channels[$Channel]
 
 Push-Location $Root
 try {
+  # ---- source state ---------------------------------------------------------
   $dirty = git status --porcelain --untracked-files=no
-  if ($dirty -and -not $AllowUntagged) { throw "Working tree has uncommitted changes. Commit first; releases ship only committed code." }
-  $Version = git describe --tags --exact-match 2>$null
-  if (-not $Version) {
-    if (-not $AllowUntagged) { throw "HEAD has no tag. Tag it first, e.g.: git tag v0.3.1" }
-    $Version = (git describe --tags --always --dirty) + '-untagged'
+  if ($dirty) {
+    if (-not $DryRun) { Fail "Working tree has uncommitted changes. Commit first; releases ship only committed code." }
+    Write-Warning "Working tree is dirty; this dry-run build is NOT what a release would ship."
   }
+  $Tag = git describe --tags --exact-match 2>$null
+  if ($LASTEXITCODE -ne 0) { $Tag = $null }
+  if (-not $Tag) {
+    if (-not $AllowUntagged) { Fail "HEAD has no tag. Tag it first, e.g.: git tag v0.3.1-alpha" }
+    $Version = (git describe --tags --always --dirty) + '-untagged'
+  } else {
+    $Version = $Tag
+  }
+  # The tag must name the version the game shows on its title screen.
+  $projVersion = (Select-String -Path (Join-Path $Root 'project.godot') -Pattern '^config/version="([^"]+)"').Matches.Groups[1].Value
+  if ($Tag -and ($Tag.TrimStart('v') -ne $projVersion)) {
+    $msg = "Tag $Tag does not match project.godot config/version '$projVersion'."
+    if ($DryRun) { Write-Warning $msg } else { Fail "$msg Bump config/version or retag." }
+  }
+
+  # ---- tools (checked before the long build, not after) ---------------------
+  $godot = if ($env:GODOT4) { $env:GODOT4 } else { $GodotExe }
+  if (-not (Test-Path $godot)) { Fail "Godot $GodotVersion not found at $godot (set env GODOT4)" }
+  $godotVer = (& $godot --version 2>$null | Select-Object -Last 1)
+  if (-not ($godotVer -like "$GodotVersion*")) { Fail "Godot at $godot reports '$godotVer', expected $GodotVersion" }
+  if (-not $DryRun) {
+    if (-not (Get-Command butler -ErrorAction SilentlyContinue)) { Fail "butler is not on PATH" }
+    if (-not $env:BUTLER_API_KEY) { Fail "BUTLER_API_KEY is not set" }
+  }
+
+  # ---- build ----------------------------------------------------------------
   $Out = Join-Path $Root $C.Out
   if (Test-Path $Out) { Remove-Item $Out -Recurse -Force }
   New-Item -ItemType Directory -Force $Out | Out-Null
-  Write-Host "== $ItchTarget`:$Channel  version $Version  ->  $Out"
+  Write-Host "== $ItchTarget`:$Channel  version $Version  (Godot $godotVer)  ->  $Out"
 
-  switch ($C.Kind) {
-    'godot' {
-      $godot = if ($env:GODOT4) { $env:GODOT4 } else { $GodotExe }
-      if (-not (Test-Path $godot)) { throw "Godot $GodotVersion not found at $godot (set env GODOT4)" }
-      & $godot --headless --path $Root --import | Out-Null
-      & $godot --headless --path $Root --export-release $C.Preset (Join-Path $Out $C.File)
-      if ($LASTEXITCODE -ne 0) { throw "Godot export failed ($LASTEXITCODE)" }
-    }
-    'unity' {
-      $unity = if ($env:UNITY_EDITOR) { $env:UNITY_EDITOR } else { $UnityExe }
-      if (-not (Test-Path $unity)) { throw "Unity $UnityVersion not found at $unity (set env UNITY_EDITOR)" }
-      $log = Join-Path $Root 'Logs\release-build.log'
-      $p = Start-Process $unity -ArgumentList @('-batchmode','-quit','-projectPath',"`"$Root`"",'-executeMethod',$C.Method,'-logFile',"`"$log`"") -Wait -PassThru
-      if ($p.ExitCode -ne 0) { throw "Unity build failed ($($p.ExitCode)); see $log" }
-      Copy-Item (Join-Path $Root $C.BuiltDir '*') $Out -Recurse -Force
-    }
-    'static' {
-      $src = Join-Path $Root $C.Source
-      if ($C.Include) { foreach ($i in $C.Include) { Copy-Item (Join-Path $src $i) $Out -Recurse -Force } }
-      else { Copy-Item (Join-Path $src '*') $Out -Recurse -Force }
-    }
-    'script' {
-      & (Join-Path $Root $C.Script) @($C.ScriptArgs)
-      if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) { throw "Build script failed ($LASTEXITCODE)" }
-      Copy-Item (Join-Path $Root $C.BuiltDir '*') $Out -Recurse -Force
-    }
-    default { throw "Unknown kind $($C.Kind)" }
-  }
+  & $godot --headless --path $Root --import 2>&1 | Out-Null
+  & $godot --headless --path $Root --export-release $C.Preset (Join-Path $Out $C.File)
+  # Godot's exit code is not reliable for export failures; the file checks below are the gate.
+  if ($LASTEXITCODE -ne 0) { Write-Warning "Godot exited $LASTEXITCODE during export" }
+
   Set-Content -Path (Join-Path $Out 'VERSION.txt') -Value "$Version`n$(git rev-parse HEAD)"
-  if ($C.Check -and -not (Test-Path (Join-Path $Out $C.Check))) { throw "Build output is missing $($C.Check)" }
+  foreach ($f in $C.Check) {
+    if (-not (Test-Path (Join-Path $Out $f))) { Fail "Build output is missing $f" }
+  }
+  $size = '{0:N1} MB' -f ((Get-ChildItem $Out -Recurse -File | Measure-Object Length -Sum).Sum / 1MB)
+  Write-Host "Built $Out ($size)"
 
   if ($DryRun) { Write-Host "DryRun: built $Out, not pushed."; return }
-  if (-not $env:BUTLER_API_KEY) { throw "BUTLER_API_KEY is not set" }
   butler push $Out "$ItchTarget`:$Channel" --userversion $Version
-  if ($LASTEXITCODE -ne 0) { throw "butler push failed" }
+  if ($LASTEXITCODE -ne 0) { Fail "butler push failed" }
   Write-Host "Pushed $Version. Now download it from itch, play 2 minutes, then update 'Last verified build' in RELEASE.md."
 } finally { Pop-Location }
