@@ -56,6 +56,7 @@ jobs:
       - name: Export Web-Slim
         run: GODOT4=~/godot/godot ./scripts/build-web-slim.sh
       - name: Browser smoke test (Playwright)
+        timeout-minutes: 10
         working-directory: tools/web_smoke
         run: |
           npm ci || npm install
