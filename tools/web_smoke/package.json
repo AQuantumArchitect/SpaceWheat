@@ -1,0 +1,8 @@
+{
+  "name": "spacewheat-web-smoke",
+  "private": true,
+  "type": "module",
+  "description": "Headless-browser smoke test for the Web-Slim export",
+  "scripts": { "smoke": "node smoke.mjs" },
+  "dependencies": { "playwright": "^1.49.0" }
+}
