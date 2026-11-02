@@ -39,7 +39,7 @@ godot --path .
 ## Prerequisites
 
 ### All Platforms
-- **Godot Engine 4.5+** - [Download from godotengine.org](https://godotengine.org/download/)
+- **Godot Engine 4.6.2** - [Download from godotengine.org](https://godotengine.org/download/)
 - **Git** - For cloning the repository
 - **Python 3.8+** - Required by SCons build system
 - **SCons 4.0+** - Build tool (`pip install scons`)
@@ -467,5 +467,5 @@ SpaceWheat is open source. See [LICENSE](LICENSE) for details.
 ---
 
 **Last Updated:** 2026-02-11
-**Godot Version:** 4.5.stable
+**Godot Version:** 4.6.2.stable
 **Supported Platforms:** Linux desktop, Windows desktop, experimental Web export
