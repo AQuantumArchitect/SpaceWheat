@@ -55,6 +55,19 @@ jobs:
           mv /tmp/tpl/templates ~/.local/share/godot/export_templates/4.6.2.stable
       - name: Export Web-Slim
         run: GODOT4=~/godot/godot ./scripts/build-web-slim.sh
+      - name: Browser smoke test (Playwright)
+        timeout-minutes: 10
+        working-directory: tools/web_smoke
+        run: |
+          npm ci || npm install
+          npx playwright install --with-deps chromium
+          node smoke.mjs ../../build/web-slim --screenshot ../../build/smoke.png
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: web-smoke-screenshots
+          path: build/smoke*.png
+          if-no-files-found: ignore
       - name: Export Windows Desktop (full build, check only)
         run: |
           mkdir -p build/windows
