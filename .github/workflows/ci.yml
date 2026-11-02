@@ -10,7 +10,7 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
-# The whole suite against the real game: Godot 4.5 headless + the prebuilt
+# The whole suite against the real game: Godot 4.6.2 headless + the prebuilt
 # native library in native/bin/linux. SW_SKIP_LONG=1 skips the multi-minute
 # campaign drives, which run on the playtest fleet instead.
 
@@ -74,3 +74,53 @@ jobs:
           set -o pipefail
           python3 -m pytest tests/ -q -p no:cacheprovider --timeout=600 -rs 2>&1 | tee pytest.log
           echo "::notice title=pytest::$(tail -1 pytest.log)"
+
+  # The shipping exports, built by the same script a release uses (tools/build.ps1).
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          lfs: true
+
+      - name: Cache Godot + templates
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/godot
+            ~/.local/share/godot/export_templates
+          key: godot-web-${{ env.GODOT_VERSION }}
+
+      - name: Install Godot + export templates
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/godot ~/.local/share/godot/export_templates
+          curl -fsSL -o /tmp/godot.zip "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          unzip -q /tmp/godot.zip -d ~/godot
+          mv ~/godot/Godot_v${GODOT_VERSION}_linux.x86_64 ~/godot/godot
+          curl -fsSL -o /tmp/tpl.tpz "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_export_templates.tpz"
+          unzip -q /tmp/tpl.tpz -d /tmp/tpl
+          mv /tmp/tpl/templates ~/.local/share/godot/export_templates/4.6.2.stable
+
+      - name: Export Windows
+        run: pwsh -File tools/build.ps1 -Preset windows -Out "$PWD/build/windows" -Godot "$HOME/godot/godot"
+
+      - name: Export Web-Slim
+        run: pwsh -File tools/build.ps1 -Preset web-slim -Out "$PWD/build/web-slim" -Godot "$HOME/godot/godot"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: build/windows
+          if-no-files-found: error
+          retention-days: 7
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-slim
+          path: build/web-slim
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 7
