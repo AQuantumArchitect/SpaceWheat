@@ -6,7 +6,7 @@
     .\tools\release.ps1 -Channel windows -DryRun    # build only, no push
     .\tools\release.ps1 -Channel windows -AllowUntagged -DryRun   # test build of an untagged HEAD
 
-  Needs: Godot 4.6.2 (path below, or env GODOT4) with its export templates;
+  Needs: Godot 4.6.2 with its export templates (see tools/build.ps1 for how it is found);
   for a push also butler on PATH and BUTLER_API_KEY in the environment (never printed).
   Version = the git tag on HEAD (git tag v0.3.1-alpha). It must match
   config/version in project.godot ("0.3.1-alpha"), so the title-screen stamp and
@@ -16,8 +16,7 @@
     - only committed code ships: a dirty tree is refused unless -DryRun
     - only a tagged HEAD is pushed: -AllowUntagged is for -DryRun only
     - the tag must match project.godot's config/version
-    - the Godot binary must report the pinned version
-    - the build output must contain the exe and the native DLL
+    - tools/build.ps1 does the export: pinned Godot, committed native DLL, exe + DLL in the output
 #>
 param(
   [Parameter(Mandatory=$true)][string]$Channel,
@@ -29,11 +28,8 @@ $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 
 # ---- per-game config (keep in sync with RELEASE.md) -------------------------
 $ItchTarget   = 'aquantumarchitect/spacewheat'
-$GodotVersion = '4.6.2'
-$GodotExe     = 'C:\Users\Luke Spooner\Documents\antigravity_i_guess\Godot\Godot_v4.6.2-stable_win64_console.exe'
 $Channels = @{
-  windows = @{ Preset='Windows Desktop'; File='SpaceWheat.exe'; Out='build/release/windows';
-               Check=@('SpaceWheat.exe', 'libquantummatrix.windows.template_release.x86_64.dll') }
+  windows = @{ Preset='windows'; Out='build/release/windows' }
 }
 # -----------------------------------------------------------------------------
 
@@ -66,33 +62,18 @@ try {
     if ($DryRun) { Write-Warning $msg } else { Fail "$msg Bump config/version or retag." }
   }
 
-  # ---- tools (checked before the long build, not after) ---------------------
-  $godot = if ($env:GODOT4) { $env:GODOT4 } else { $GodotExe }
-  if (-not (Test-Path $godot)) { Fail "Godot $GodotVersion not found at $godot (set env GODOT4)" }
-  $godotVer = (& $godot --version 2>$null | Select-Object -Last 1)
-  if (-not ($godotVer -like "$GodotVersion*")) { Fail "Godot at $godot reports '$godotVer', expected $GodotVersion" }
+  # ---- tools (butler is checked before the long build, not after) -----------
   if (-not $DryRun) {
     if (-not (Get-Command butler -ErrorAction SilentlyContinue)) { Fail "butler is not on PATH" }
     if (-not $env:BUTLER_API_KEY) { Fail "BUTLER_API_KEY is not set" }
   }
 
-  # ---- build ----------------------------------------------------------------
+  # ---- build: tools/build.ps1 owns Godot, the native-binary gate and the export --
   $Out = Join-Path $Root $C.Out
-  if (Test-Path $Out) { Remove-Item $Out -Recurse -Force }
-  New-Item -ItemType Directory -Force $Out | Out-Null
-  Write-Host "== $ItchTarget`:$Channel  version $Version  (Godot $godotVer)  ->  $Out"
-
-  & $godot --headless --path $Root --import 2>&1 | Out-Null
-  & $godot --headless --path $Root --export-release $C.Preset (Join-Path $Out $C.File)
-  # Godot's exit code is not reliable for export failures; the file checks below are the gate.
-  if ($LASTEXITCODE -ne 0) { Write-Warning "Godot exited $LASTEXITCODE during export" }
+  Write-Host "== $ItchTarget`:$Channel  version $Version"
+  & (Join-Path $PSScriptRoot 'build.ps1') -Preset $C.Preset -Out $Out
 
   Set-Content -Path (Join-Path $Out 'VERSION.txt') -Value "$Version`n$(git rev-parse HEAD)"
-  foreach ($f in $C.Check) {
-    if (-not (Test-Path (Join-Path $Out $f))) { Fail "Build output is missing $f" }
-  }
-  $size = '{0:N1} MB' -f ((Get-ChildItem $Out -Recurse -File | Measure-Object Length -Sum).Sum / 1MB)
-  Write-Host "Built $Out ($size)"
 
   if ($DryRun) { Write-Host "DryRun: built $Out, not pushed."; return }
   butler push $Out "$ItchTarget`:$Channel" --userversion $Version
