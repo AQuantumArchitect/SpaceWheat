@@ -2360,9 +2360,17 @@ func _arc_inspect_text() -> String:
 func _arc_inspect_physics(entry: Dictionary) -> String:
 	var kind := str(entry.get("kind", ""))
 	if kind == "arc_quest" or kind == "live_tutorial":
+		# Player prose only. math_note is the designer's note on the gate
+		# (IntroVoice: "not written for the player"); it leaked here as "Count
+		# gate on StarterForest berry_consumed_count ≥ 2 AND one strike_known
+		# gate … (ProbeActions.action_measure → …)" (lost-lamb, wave 4).
 		var data: Dictionary = entry.get("data", {})
-		var math_note := str(data.get("math_note", "")).strip_edges()
-		return math_note
+		var lines: Array[String] = []
+		for key in ["body", "hint"]:
+			var t := str(data.get(key, "")).strip_edges()
+			if t != "" and not lines.has(t):
+				lines.append(t)
+		return "\n".join(lines)
 	var flag: Dictionary = entry.get("flag", {})
 	var postcard: Dictionary = IntroVoice.flag_postcard(flag, entry.get("pred_scores", []), _arc_quest_manager())
 	var flag_lines: Array[String] = []
