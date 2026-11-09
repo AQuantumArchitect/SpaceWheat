@@ -51,13 +51,13 @@ morning. Branch: `overnight/2026-11-09-hive` (one PR, pushed after every fold).
 
 | chapter | entry | status |
 |---|---|---|
-| act0_fresh (tutorial) | `--fresh` | Loom wall folded (2624078f); re-fly pending |
+| act0_fresh (tutorial) | `--fresh` | Loom wall folded (a4d7db78); re-fly pending |
 
 ## Ledger
 
 | # | time | wave | legs (persona → outcome) | walls → class | fold / commit |
 |---|---|---|---|---|---|
-| 0 | 00:40 | win-w1 | earnest → wall @ The Loom (4/6 lessons, ~68 presses) | cross-biome Bell silent + half-applied H → legibility+bug | 2624078f |
+| 0 | 00:40 | win-w1 | earnest → wall @ The Loom (4/6 lessons, ~68 presses) | cross-biome Bell silent + half-applied H → legibility+bug | a4d7db78 |
 
 ## For Luke (needs a decision, not folded)
 
