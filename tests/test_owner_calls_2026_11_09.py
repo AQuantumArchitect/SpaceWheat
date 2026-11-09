@@ -112,3 +112,16 @@ def test_lane_files_unlink_with_retry_on_windows():
 def test_learn_word_explores_before_the_icon_hat():
     lw = src("Core/Campaign/Guide.gd").split("static func _learn_word(")[1].split("\nstatic func ")[0]
     assert lw.index("_berry_needs_reveal(cols)") < lw.index('_hat("icon", q)')
+
+
+def test_focus_biome_follows_the_active_biome_after_a_load():
+    qii = src("UI/Core/QuantumInstrumentInput.gd")
+    keys = qii.split("func _unhandled_key_input(")[1].split("\nfunc ")[0]
+    assert "_sync_focus_biome()" in keys
+    mass = qii.split("func _mass_explore(")[1].split("\nfunc ")[0]
+    assert "not farm.is_plot_revealed(pos)" in mass
+
+
+def test_explore_heals_a_held_but_fogged_plot():
+    ex = src("Core/Instrumentation/QuantumInstrument.gd").split("func action_explore(")[1].split("\nfunc ")[0]
+    assert '"already_bound"' in ex and '"healed": true' in ex and "farm.reveal_plot(grid_pos)" in ex

@@ -454,6 +454,25 @@ func action_explore(biome_name: String, grid_pos: Vector2i = GridSentinel.INVALI
 	var target_register_id = grid_pos.x if grid_pos != GridSentinel.INVALID_POSITION else -1
 
 	var result = ProbeActions.action_explore(terminal_pool, biome, economy, target_register_id)
+	# Heal a held-but-fogged plot: the register is bound, yet this plot was
+	# never revealed (the bind landed on another plot's position), so Explore
+	# refused "already explored" forever while biome_explored waited on the
+	# fog — Past the Hedge stuck at 50% (distractible ds3, 2026-11-09).
+	# Re-seat the held terminal on this plot and reveal it; no second cost.
+	if not result.get("success", false) and str(result.get("error", "")) == "already_bound" 			and grid_pos != GridSentinel.INVALID_POSITION and farm.has_method("is_plot_revealed") 			and not farm.is_plot_revealed(grid_pos):
+		var held = terminal_pool.get_terminal_for_register(target_register_id, biome_name)
+		if held != null:
+			if held.grid_position != grid_pos:
+				_detach_terminal_from_plot(held)
+				held.grid_position = grid_pos
+				_attach_terminal_to_plot(held)
+			farm.reveal_plot(grid_pos)
+			result = {"success": true, "healed": true, "terminal": held,
+					"register_id": target_register_id,
+					"message": "explored — this plot was already held"}
+			_emit_farm_action("explore", result, grid_pos)
+			action_performed.emit("explore", result)
+			return result
 	# Attach terminal to its grid plot. Under the plot_idx ≡ register_id
 	# invariant, the canonical grid position for any register is always
 	# (register_id, biome_row). If the caller supplied a grid_pos, use it

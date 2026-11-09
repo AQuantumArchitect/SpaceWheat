@@ -254,6 +254,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		return
 
 	var key = InputBindingRegistry.get_label_for_keycode(event.keycode)
+	_sync_focus_biome()
 
 	# Any key other than F cancels a pending confirm-chord. Only destructive
 	# verbs (Trim/Cull/Break) arm the chord now; safe verbs fire immediately.
@@ -1911,7 +1912,9 @@ func _mass_explore() -> void:
 			if str(a[pos]) != here:
 				continue
 			var plot = farm.grid.get_plot(pos)
-			if plot != null and plot.terminal == null:
+			# A held plot still in fog counts too: action_explore re-seats and
+			# reveals it (ds3: G held, fogged, skipped → Past the Hedge 50%).
+			if plot != null and (plot.terminal == null or not farm.is_plot_revealed(pos)):
 				positions.append(pos)
 		# Only columns this biome has registers for. A 1-axis TheDemos has six
 		# plot slots; exploring all six sprayed five "Column N has no register"
@@ -1923,6 +1926,21 @@ func _mass_explore() -> void:
 		_toast_player("Mass Explore: every plot here is already explored.")
 		return
 	_run_shift_batch("explore", positions, "⇧F", VerbGrammar.MASS_EXPLORE_LABEL)
+
+
+## The Focus biome follows the biome under the player's feet. A load restores
+## the active biome without walking _apply_biome_switch, so the instrument kept
+## the boot biome (TheDemos): Mass Explore in the Starter Forest explored the
+## Demos ("every plot here is already explored") and Past the Hedge sat at 50%
+## (distractible ds3, 2026-11-09). Cheap, so it runs before every key.
+func _sync_focus_biome() -> void:
+	if _instrument == null or _active_biome_mgr == null or not _active_biome_mgr.has_method("get_active_biome"):
+		return
+	var active := str(_active_biome_mgr.get_active_biome())
+	if active != "" and str(_instrument.current_biome) != active:
+		# Biome only: the cursor stays unpicked until the player picks a plot
+		# (the Guide reads "no pick yet" as its own state).
+		_instrument.current_biome = active
 
 
 ## Registers (axes) the named biome's quantum computer holds; 0 when unknown.
