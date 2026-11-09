@@ -53,7 +53,7 @@ morning. Branch: `overnight/2026-11-09-hive` (one PR, pushed after every fold).
 |---|---|---|
 | act0_fresh (tutorial) | `--fresh` | **CLEARED** wave 2 by earnest (~95 presses) and lost-lamb (65, memoryless) |
 | act1_mill (Apprentice to the Mill → First Breath → Spiral Breaks) | `--checkpoint earnest_act0_fresh_clear` | **CLEARED** by earnest, wave 3 (3 beats claimed, ~58 presses) |
-| act1_voices (Plant a New Voice →) | `--checkpoint earnest_act1_mill_w3` | wave 4 flying |
+| act1_voices (Plant a New Voice →) | `--checkpoint earnest_act1_mill_w3` | wave 4 found a save/load **soft-lock** on this very save (fixed cd786e1d); re-fly = wave 5 |
 
 ## Ledger
 
@@ -64,8 +64,9 @@ morning. Branch: `overnight/2026-11-09-hive` (one PR, pushed after every fold).
 
 | 2 | 01:35 | on-2 | earnest → **CLEAR** (6/6, ~95) · lost-lamb → **CLEAR** (65 presses) · masher (mashed mid-lesson-2) → reported soft-lock in Past the Hedge; refereed: NOT a lock — objective was already claimable, old Column-5 spam hid it (that seat booted before 58151a06) | chord banners read as lists (4th sensor) → legibility · Column-5 spam → bug | 58151a06, 2101ddc9 |
 | 3 | 02:00 | on-3 | earnest → claimed Apprentice to the Mill, First Breath, The Spiral Breaks; walled at Plant a New Voice "gather 🌱 3/5" (67 presses) · literalist → wall at press 4: [Y] has 3 jobs on one screen · masher→recover (40 keys mid-Apprentice) → reported soft-lock "Apprentice stuck 9%, no Millwright on Market" | literalist: banner X→Y→G→R works when followed → tester-strict (theme: contextual keys → For Luke) · masher: NOT a lock — banner routes to the Village board, Refresh yields a Millwright; the quest hint never named which board → legibility · New Voice: 🌱 is a 15% pole, ≈40-press grind → pacing (For Luke) | d2ace2e2 |
+| 4 | 02:20 | on-4 | earnest (patient grind) → 0 🌱 in 21 presses, "✗ Terminal in invalid state: INVALID: measured but no outcome recorded" · masher→recover (Icon hat) → same invalid plot, wallet unchanged by 40 random keys · lost-lamb → claimed Wheel, Apprentice, First Breath; DRIFT wall in The Spiral Breaks | **SOFT-LOCK (bug):** a bound plot saved with only measurement memory loaded as "measured, no outcome"; Q/R dead forever, banked 💀 ungatherable (2 legs, reproduced) · Arc inspect showed the designer's math_note (gate formula + code paths) → legibility regression of the 10-26 editorial rule | cd786e1d, 9c077746 |
 
-Pytest floor on this host (godot.exe on PATH + PYTHONUTF8 via the python3 shim): **652 passed, 6 failed, 50 skipped** — the 6 are host-path tests (Windows separators, POSIX-only deploy scripts, no HOME), unchanged by every fold.
+Pytest floor on this host (godot.exe on PATH + PYTHONUTF8 via the python3 shim): **655 passed, 6 failed, 50 skipped** (as of cd786e1d; +3 new tests) — the 6 are host-path tests (Windows separators, POSIX-only deploy scripts, no HOME), unchanged by every fold.
 
 ## For Luke (needs a decision, not folded)
 
@@ -78,3 +79,5 @@ Pytest floor on this host (godot.exe on PATH + PYTHONUTF8 via the python3 shim):
 - **Plant a New Voice pacing:** "gather 🌱 3/5" on Starter Forest's 💀🌱 plot, which is about 85% 💀. With ≈15% per strike, that's ~40 presses of F→R→Q, and nothing on screen offers a better lever. Earnest walled under Law 2 after 8 presses. Is this grind intended, or should the plot or the hint change? (Physics/economy, so not folded.)
 - **Saves keep accepted quests' hint text.** A hint fix (e.g. d2ace2e2) reaches quests accepted *after* the fix, not ones already sitting on Charge in an existing save. Consider re-reading hints from the spec on load.
 - **First R on a fresh Arc row sometimes only inspects.** Earnest: "the first R showed no toast and the item stayed OPEN"; the second R accepted it. Probably the two-step tap rule (#44) leaking into the keyboard path. Not reproduced yet.
+- **Tests ignore rule:** `.gitignore`'s `Tests/` matches `tests/` on Windows (case-insensitive), so new test files need `git add -f`. Consider anchoring it (`/Tests/`) or dropping it.
+- **Banner flips between looks with no input** (lost-lamb, Spiral Breaks): "plot [G] → Track [F]", then "clear marks ['] → plot [H] → Track [F]". Probably real-time ripening changing the Guide's pick. Not reproduced; worth a look.
