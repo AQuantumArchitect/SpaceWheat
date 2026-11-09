@@ -8,6 +8,7 @@ morning. Branch: `overnight/2026-11-09-hive` (one PR, pushed after every fold).
 
 **Where a brand-new player gets now.**
 - A fresh **Haiku earnest** (wave 11, all fixes in) made the **tutorial at press 56, Act 2 at 120, Act 3 at 214** (20 flags, 17 beats claimed), with no wall. At the start of the night a fresh Haiku couldn't finish the tutorial.
+- A **memoryless Haiku lost-lamb** from zero (wave 12): **tutorial at press 55, Act 2 at 129** (15 flags). The first lost-lamb of the night walled at lesson 1 after 10 presses.
 - A **strict memoryless follower**, which presses only the first key the banner names, beats the **tutorial in 55 presses** from zero. From the tutorial-clear save it reached **Act 4** (24 flags) once the Icon⇄Ace ping-pong was fixed. From zero, once the Trim-confirm loop was fixed, it runs on to **37 flags** (14 Words, One Shape, Stay Many…).
 - The scripted `banner_follow` tutorial baseline went **62 → 55 presses**, with 0 off-surface / stale / mismatch throughout.
 - Sensors that started from earned saves reached **Act 4 "The Island & Its People"**.
@@ -118,6 +119,7 @@ morning. Branch: `overnight/2026-11-09-hive` (one PR, pushed after every fold).
 
 | 10 | 07:10 | on-10 (fresh e2e) | **earnest from true zero → Act 2 at press 122** (tutorial at 66; 15 flags; 14 beats), walled at The Teaching · strict follower (no model) from tutorial-clear → 400 presses, 21 flags, then Icon⇄Ace ping-pong | Teaching: two lessons share the title; the banner worked the Millwright one while the sensor did Hearth Keepers → ladder prefix now names the faction · ping-pong: hat:icon ran before berry's reveal → Guide loop | 36497260 |
 | 11 | 08:00 | on-11 (fresh e2e) | **earnest from zero → tutorial 56, Act 2 120, Act 3 214, no wall** (20 flags, 283 presses, 240 s waits) · strict follower from zero → 900 presses, stuck at 21 flags in a Trim Q/ESC loop | Trim loop: an armed confirm read as "open", so the chord led with ESC (which cancels) → Guide loop; fixed, strict follower then 21 → 37 flags | Trim-confirm fold |
+| 12 | 08:30 | on-12 (fresh e2e) | **lost-lamb from zero → tutorial 55, Act 2 129** (15 flags, 194 presses); wall at "The Teaching (Millwright's Union) 85% → … Refresh [E]", where E paused the game | refereed: no loop — the strict follower from its save claims the Millwright Teaching, accepts the Hearth one, gathers 🔥 and delivers (15 → 16 flags). E = Refresh on the Market but Pause on the field → contextual keys (For Luke) | — |
 
 Pytest floor on this host (godot.exe on PATH + PYTHONUTF8 via the python3 shim): **655 passed, 6 failed, 50 skipped** (as of cd786e1d; +3 new tests) — the 6 are host-path tests (Windows separators, POSIX-only deploy scripts, no HOME), unchanged by every fold.
 
@@ -148,3 +150,4 @@ Pytest floor on this host (godot.exe on PATH + PYTHONUTF8 via the python3 shim):
 - **Haiku at Act 4 depth:** sensors reach Act 4 but then drift off the banner (4 quests on Charge, multi-minute ripening). For Act 4+ coverage, consider Sonnet-class sensors or a stronger "trust the banner" line in the persona packs.
 - **' (clear marks) also opens the Memoir panel in the Icon hat** (burst-masher): the banner says "clear marks ['] → plot [H] → Track [F]". The marks do clear, but a Memoir panel opens and needs an ESC. Small key overlap.
 - **Enter opens the PAUSED overlay, and Q there quits** (burst-masher, didn't press it). A masher one key away from quitting the game is worth a confirm, if there isn't one.
+- **E is Refresh on the Market and Pause on the field.** A memoryless sensor pressed the banner's "Refresh [E]" after the board had closed and paused the game ("⏸ time paused — F plays on"). This is one more instance of the contextual-keys item above.
