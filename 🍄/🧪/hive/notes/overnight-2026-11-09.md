@@ -95,6 +95,15 @@ Found while chasing the G/H Bell report:
 Tools: `strict_follow.py ... --until TEXT` cuts a checkpoint at a banner; the rig command
 `predicate_score {pred}` scores any predicate and returns the observables (referee use).
 
+Still open from the day-2 sensors (not folded yet):
+- **Overlay key leakage** (keeper): with the Story/Memoir overlay open, F sometimes opens the
+  Memoir instead of tracking, G marks a plot, and Y after ESC can open the paused save-slot menu.
+- **Hat toggle surprise** (keeper): re-pressing the hat you wear drops to Ace silently, so R/F
+  change meaning. It's documented but still costs presses.
+- **Resource gaps the banner names anyway:** "Trim Icon" needs 13 🐺 with 3 held; Read the
+  Ledger's Monolith needs 🦅×21 with 5 held. Not locks (the banner has supply routes), but slow.
+- **Still the Pond's "stillness" meaning** needs a design call (see above).
+
 ## Owner's orders (2026-11-09, before bed)
 
 - **Scope:** tutorial first, then onward — promote sensors chapter by chapter
@@ -173,6 +182,8 @@ Tools: `strict_follow.py ... --until TEXT` cuts a checkpoint at a banner; the ri
 | 13 | 09:00 | on-13 | earnest from the Act 3 save → Couple the Countries, Couple the Spring, The Gear-Bench claimed; walled at "gather 🪓 0/3" (65 presses) · burst-masher (5 bursts, fresh) → every burst recovered in 2 presses; then a **real stall** at "gather 🦅 17/21" for 30 presses | refereed: no loop — following the banner from its save, Strike → Gather pays 🪓 10, then Trim confirm (befa861c holds), plant, Incorporate, claim Hold Commerce, accept A Character = Act 4 in 16 presses → tester (left the banner) · 🦅 stall: **Guide bug** — misses never counted under the strike-bank model (trace "misses0"), so the MISS_CAP → trade fallback was dead; fixed, strict follower then 10 → 15 flags | miss-counter fold |
 | 14 | 09:50 | strict-zero-2 + on-14 | **strict follower from TRUE ZERO, all fixes in → 37 flags** (1199 presses), then a Cull Q/ESC loop · lost-lamb (fresh) → tutorial at 55 again, Act 1 through The Spiral Breaks (8 flags, 116 presses); walled at "gather 🌱 3/5 → Strike again [R]" after ~8 presses | Cull: same armed-confirm/ESC trap as the Trim → Guide loop, fixed; follower then charts a new biome (Lanternfall). A later "Find Lanternfall → Claim [R]" stall did NOT reproduce after reload (R claims in Ace and in Captain), possibly a stale Charge selection index → noted · lost-lamb 🌱 wall: refereed not a loop — the strict follower crossed the same section (laps, then MISS_CAP → 🍞→🌱 trade) → pacing | cull-confirm fold |
 | 15 | 10:40 | on-15 (deep, from the strict follower's 37-flag save) | earnest → **Act 6 "The Empire"**, 43 flags: Find Lanternfall, The Record Opens, Hold the Lamp, Wind Twice, The Teaching claimed in 38 presses; walled at "gather 🔨 1/3" · masher (3 bursts × 15 keys, Captain hat included) → **no soft-lock**: 6 biome tabs intact, every overlay closed with one ESC; then the same "gather 🔨 1/3" spot | 🔨 gather: refereed not a loop — strict_follow from e2e15_end passes it and works "gather 🐺 3/13 → 6/13"; but it finds a **Trim⇄Plant churn** (see For Luke). Harness note: at 43 flags each press takes ~1–2 min (6 biomes of live simulation); fine for one seat, slow for sensors | — |
+| 16 | afternoon | day-1 (keeper, 2× distractible, strict) | **keeper sitting 1 from the Act 3 save → Act 4** (21 → 25 flags: Hold Commerce, The Forest Stirs); walled on an Icon⇄Ace banner swap · distractible from zero → Past the Hedge stuck at 50% after a mid-step save/load · distractible from Act 1 → charted the wrong biome, 🦅 spent (banner recovers from its save: not a lock) · strict from 37 flags → "Find Lanternfall → Claim [R]" stall | Past the Hedge: **load soft-lock** — the biome-change handler was bound to the pre-load farm, so travel after a load never reached quests (024c0345) · Lanternfall: Claim named before the quest ticked ready → "settling — wait" (54395f6e) · Icon⇄Ace: learn_word asked for the Icon before the fogged plot was explored (baee5849) | ds1, kp1 |
+| 17 | afternoon | day-2 (keeper sitting 2, distractible re-fly) | **keeper sitting 2 → Act 5 "Five Keys"** (25 → 35 flags, 7 beats: Still the Pond, The Forest Listens Back, Make It Breathe, A Character, Five Keys, Master of the Mill, The Druid's Loop), no wall · distractible from zero → Past the Hedge stuck again: G held but fogged, Mass Explore "already explored" | **load soft-lock #2** — the instrument kept the boot biome after a load, so Mass Explore explored The Demos; plus held-but-fogged plots now heal on Explore (4358770f) | ds3 |
 
 Pytest floor on this host (godot.exe on PATH + PYTHONUTF8 via the python3 shim): **655 passed, 6 failed, 50 skipped** (as of cd786e1d; +3 new tests) — the 6 are host-path tests (Windows separators, POSIX-only deploy scripts, no HOME), unchanged by every fold.
 
