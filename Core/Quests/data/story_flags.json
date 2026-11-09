@@ -93,7 +93,7 @@
     },
     "arc_quest": {
       "body": "Apprentice to the Mill — keep Millwright contracts until the Union counts you reliable, and they will teach you the windmill (💨/🔨).",
-      "hint": "[C] opens the board; Market [Y] takes a Millwright delivery.",
+      "hint": "In the Village, board [C] → Market [Y] takes a Millwright delivery.",
       "faction": "Millwright's Union",
       "type": 1,
       "category": "ARC",
