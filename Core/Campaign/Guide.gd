@@ -410,7 +410,7 @@ static func _step(step: String, pred: Dictionary, q: Dictionary) -> Dictionary:
 		"deliver_to":
 			# A lesson keeps its contract on its own board (lesson_offer).
 			var lesson_home := str(q.get("biome", "")) if q.get("lesson_offer", null) is Dictionary else ""
-			return _deliver_to(str(pred.get("faction", "")), q, lesson_home)
+			return _with_progress(_deliver_to(str(pred.get("faction", "")), q, lesson_home), q, pred)
 		"chart":
 			return _chart(str(pred.get("biome", "")), q)
 		"gate":
@@ -666,6 +666,29 @@ static func _berry(q: Dictionary, only: Array = []) -> Dictionary:
 static var _refreshes := {}
 static var _counted_refresh := {}   # faction -> the ring signature last counted
 const REFRESH_CAP := 2
+
+
+## A standing ladder (keep a faction's contracts until they count you
+## reliable) is many identical Market → Accept → Commitments → Deliver laps.
+## Without the why and how-far, three sensors in two waves read the laps as a
+## loop and walled. Prefix the lap with the beat's title and the same score
+## the Charge badge shows: "▸ The Teaching 40% → Market [Y]".
+static func _with_progress(step: Dictionary, q: Dictionary, pred: Dictionary) -> Dictionary:
+	if step.is_empty() or bool(step.get("wait", false)):
+		return step
+	var text := str(step.get("text", ""))
+	if not text.begins_with("▸ "):
+		return step
+	var qm = UIP._quest_manager()
+	if qm == null or not qm.has_method("evaluate_predicate_score"):
+		return step
+	var pct := int(round(clampf(float(qm.evaluate_predicate_score(pred)), 0.0, 1.0) * 100.0))
+	var title := _title(q)
+	if title == "":
+		return step
+	var out := step.duplicate()
+	out["text"] = "▸ %s %d%% → %s" % [title, pct, text.substr(2)]
+	return out
 
 
 static func _deliver_to(faction: String, q: Dictionary, home_override: String = "") -> Dictionary:
