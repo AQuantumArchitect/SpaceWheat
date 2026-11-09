@@ -1656,6 +1656,14 @@ static func _make_room(biome: String, atom: String, q: Dictionary) -> Dictionary
 	var h := _hat("icon", q)
 	if not h.is_empty():
 		return h
+	# Q arms the trim; the armed confirm read as "something open", so the
+	# chord led with close [ESC] — which cancels it. A first-key follower
+	# alternated Q, ESC for 800 presses (strict follower from zero, 21 flags).
+	if UIP._cull_confirm_pending():
+		var qii = UIP._instrument_input()
+		var lbl := str(qii.pending_confirm_label()) if qii != null and qii.has_method("pending_confirm_label") else ""
+		if lbl.begins_with("Trim"):
+			return _chord(["the ring is full", ["confirm " + lbl, "F"]], q, "make room confirm")
 	var parts: Array = _close_first() + ["the ring is full"]
 	if UIP._focused_col() != col:
 		parts.append_array(_pick_plot(col))
