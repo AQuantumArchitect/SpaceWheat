@@ -1913,10 +1913,26 @@ func _mass_explore() -> void:
 			var plot = farm.grid.get_plot(pos)
 			if plot != null and plot.terminal == null:
 				positions.append(pos)
+		# Only columns this biome has registers for. A 1-axis TheDemos has six
+		# plot slots; exploring all six sprayed five "Column N has no register"
+		# refusals over the capstone banner (three wave-1 sensors, 2026-11-09).
+		var nq := _biome_register_count(here)
+		if nq > 0:
+			positions = positions.filter(func(p): return int(p.x) < nq)
 	if positions.is_empty():
 		_toast_player("Mass Explore: every plot here is already explored.")
 		return
 	_run_shift_batch("explore", positions, "⇧F", VerbGrammar.MASS_EXPLORE_LABEL)
+
+
+## Registers (axes) the named biome's quantum computer holds; 0 when unknown.
+func _biome_register_count(biome_name: String) -> int:
+	if biome_name == "" or not farm or not farm.grid or not farm.grid.has_method("get_biome"):
+		return 0
+	var biome = farm.grid.get_biome(biome_name)
+	if biome == null or biome.quantum_computer == null or biome.quantum_computer.register_map == null:
+		return 0
+	return int(biome.quantum_computer.register_map.num_qubits)
 
 
 ## Public entry point for a bubble tap (mouse/touch) — the tap IS the farming
