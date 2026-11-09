@@ -107,3 +107,8 @@ def test_lane_files_unlink_with_retry_on_windows():
     rc = src("🍄/🎛️/rig_client.py")
     clear = rc.split("def clear_rig_files(")[1].split("\n    def ")[0]
     assert "_unlink_retry(self.queue_file)" in clear and "except PermissionError" in rc
+
+
+def test_learn_word_explores_before_the_icon_hat():
+    lw = src("Core/Campaign/Guide.gd").split("static func _learn_word(")[1].split("\nstatic func ")[0]
+    assert lw.index("_berry_needs_reveal(cols)") < lw.index('_hat("icon", q)')

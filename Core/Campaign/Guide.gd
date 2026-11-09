@@ -1228,10 +1228,17 @@ static func _learn_word(q: Dictionary) -> Dictionary:
 			var t := _travel(str(b), q)
 			if not t.is_empty():
 				return t
+			# A fogged word needs the Ace's explore before the Icon can track
+			# it: putting the Icon hat on first made _berry's reveal ask for the
+			# Ace hat again — "Icon hat [5]" ⇄ "explore it first → Ace hat [8]"
+			# forever (keeper sitting 1 and a strict follower, Master of the Mill).
+			var cols := _unknown_cols(str(b))
+			if _berry_needs_reveal(cols):
+				return _berry(q, cols)
 			var h := _hat("icon", q)
 			if not h.is_empty():
 				return h
-			return _berry(q, _unknown_cols(str(b)))
+			return _berry(q, cols)
 	return {}
 
 
