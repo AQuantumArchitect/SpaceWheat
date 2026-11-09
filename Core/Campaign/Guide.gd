@@ -73,7 +73,11 @@ static func _row_selected(idx: int) -> bool:
 	if here.begins_with("X/"):
 		var om = UIP._overlay_manager()
 		var top = om.get_active_overlay() if om != null and bool(om.is_overlay_active()) else null
-		if top != null and "_arc_selected_idx" in top and "_arc_inspect_open" in top:
+		if top == null:
+			return false
+		if here == "X/charge" and "_charge_selected_idx" in top:
+			return int(top.get("_charge_selected_idx")) == idx
+		if "_arc_selected_idx" in top and "_arc_inspect_open" in top:
 			return int(top.get("_arc_selected_idx")) == idx and bool(top.get("_arc_inspect_open"))
 	return false
 
@@ -1350,10 +1354,26 @@ static func _pair_gate(gate_key: String, q: Dictionary) -> Dictionary:
 	var good: bool = marks.size() == 2 and rows.size() == 1 and _marks_here(marks)
 	var parts: Array = []
 	if not good:
-		if not marks.is_empty():
+		# Clear only marks that are WRONG (another biome's, or more than two).
+		# One valid mark here is half the pair: name the other plot. "clear
+		# marks [']" first on a lone good mark made a memoryless player clear
+		# it, re-mark G and loop (lost-lamb, wave 9b: 4 cycles at The Loom).
+		var bad: bool = marks.size() > 2 or rows.size() > 1 or (not marks.is_empty() and not _marks_here(marks))
+		if bad:
 			parts.append(["clear marks", str(_km().get("clear_marks", "'"))])
-		parts.append(["mark", "shift+" + _plot_key(0)])
-		parts.append(["mark", "shift+" + _plot_key(1)])
+			parts.append(["mark", "shift+" + _plot_key(0)])
+			parts.append(["mark", "shift+" + _plot_key(1)])
+		else:
+			var have := {}
+			for m in marks:
+				if m is Vector2i:
+					have[int(m.x)] = true
+			for c in [0, 1, 2, 3, 4, 5]:
+				if have.size() + (parts.size()) >= 2:
+					break
+				if have.has(c) or not _is_revealed(biome, c):
+					continue
+				parts.append(["mark", "shift+" + _plot_key(c)])
 	parts.append(["Build gate", "R"])
 	return _chord(parts, q, "pair gate")
 
