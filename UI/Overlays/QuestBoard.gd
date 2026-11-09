@@ -149,7 +149,7 @@ func _init() -> void:
 	surface_id = "C"
 	frame_ids = [FRAME_MANIFOLD, FRAME_MARKET, FRAME_COMMITMENTS]
 	frame_id = FRAME_COMMITMENTS
-	action_labels = {"Q": "—", "E": "Refresh", "R": "—", "F": "—"}
+	action_labels = {"Q": "—", "E": "Inspect", "R": "—", "F": "Refresh"}
 
 # =============================================================================
 # EXTERNAL API (OverlayManager / TestAutorun)
@@ -443,22 +443,11 @@ func _on_action_q() -> void:
 			pass
 
 func _on_action_e() -> void:
-	# E = pause + inspect / refresh.
+	# E = pause + inspect (the toast OverlayBase raises after this call).
+	# Refresh moved to F (owner call 2026-11-09): E is "tell me more", F is
+	# "move forward" — a Market E that refreshed while the field E paused made
+	# one key mean two things.
 	_disarm_abandon()
-	match frame_id:
-		FRAME_MANIFOLD:
-			_refresh_pool()
-			_render_all()
-		FRAME_MARKET:
-			_refresh_pool()
-			_render_all()
-			# Refresh must visibly land even when the list stays empty —
-			# a silent E reads as a dead key (playtest 2).
-			var n: int = _offer_pool.size()
-			if n <= 0:
-				_toast_feedback("🛒 %s" % (_market_status_note if _market_status_note != "" else "no offers yet"))
-		_:
-			pass
 
 func _on_action_r() -> void:
 	# R = stay / commit current run state forward.
@@ -474,10 +463,19 @@ func _on_action_r() -> void:
 			pass
 
 func _on_action_f() -> void:
-	# F = confirm an armed abandon (confirm-chord law). Commitments have no
-	# clock, so there is nothing to pin: F does nothing else.
+	# F = forward: confirm an armed abandon (confirm-chord law), else Refresh
+	# the Market / Manifold pool. Commitments have no clock: nothing to pin.
 	if frame_id == FRAME_COMMITMENTS and _commitments_view != "history" and _abandon_arm_qid >= 0:
 		_abandon_confirmed()
+		return
+	if frame_id == FRAME_MANIFOLD or frame_id == FRAME_MARKET:
+		_disarm_abandon()
+		_refresh_pool()
+		_render_all()
+		# Refresh must visibly land even when the list stays empty —
+		# a silent refresh reads as a dead key (playtest 2).
+		if frame_id == FRAME_MARKET and _offer_pool.size() <= 0:
+			_toast_feedback("🛒 %s" % (_market_status_note if _market_status_note != "" else "no offers yet"))
 
 # =============================================================================
 # INSPECT TEXT — what E pops up as a toast (OverlayBase calls get_inspect_text).
@@ -719,12 +717,15 @@ func _refresh_verb_chips() -> void:
 func _current_verb_labels() -> Dictionary:
 	match frame_id:
 		FRAME_MANIFOLD:
-			return {"Q": "—", "E": "Refresh", "R": "—", "F": "—"}
+			return {"Q": "—", "E": "Inspect", "R": "—", "F": "Refresh"}
 		FRAME_MARKET:
 			var mrow: Dictionary = _selected_market_row()
 			if str(mrow.get("kind", "")) == "held":
-				return _held_verb_labels(mrow.get("data", {}))
-			return {"Q": "—", "E": "Refresh", "R": "Accept", "F": "—"}
+				var hl: Dictionary = _held_verb_labels(mrow.get("data", {}))
+				if str(hl.get("F", "—")) == "—":
+					hl["F"] = "Refresh"
+				return hl
+			return {"Q": "—", "E": "Inspect", "R": "Accept", "F": "Refresh"}
 		FRAME_COMMITMENTS:
 			if _commitments_view == "history":
 				return {"Q": "—", "E": "Inspect", "R": "—", "F": "—"}
@@ -1112,7 +1113,7 @@ func _build_market_body() -> void:
 		var empty_msg: String = _market_status_note
 		if empty_msg == "":
 			empty_msg = "no offers here yet"
-		empty_msg += "\nthe market follows your active biome — walk somewhere with factions, or tap Refresh [E]"
+		empty_msg += "\nthe market follows your active biome — walk somewhere with factions, or tap Refresh [F]"
 		_body_box.add_child(_make_muted_label(empty_msg, 12))
 		return
 	var start: int = _item_page_start(rows.size())
@@ -2057,8 +2058,8 @@ func board_walk_cue(q: Dictionary) -> String:
 				return "▸ [R] Accept"
 			return "▸ [%s] then [R] Accept" % key
 	if want != "":
-		return "▸ [E] Refresh for a %s offer" % want
-	return "▸ [E] Refresh"
+		return "▸ [F] Refresh for a %s offer" % want
+	return "▸ [F] Refresh"
 
 
 ## A contract already accepted is delivered on Commitments, not on the Market.
