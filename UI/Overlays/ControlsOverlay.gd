@@ -1957,7 +1957,15 @@ func _on_arc_flag_changed(_flag_id: String, _flag: Dictionary) -> void:
 func _build_arc_body() -> void:
 	var rows: Array = _arc_rows()
 	if rows.is_empty():
-		_body_box.add_child(_make_muted_label("the next door hasn't opened", 12))
+		# Just after Accept the signed step LEAVES the Arc for Charge, so a bare
+		# "the next door hasn't opened" read as "Accept did nothing" (lost-lamb
+		# wall, 2026-11-09). Say where the step went when something is held.
+		var held: int = _charge_rows().size()
+		if held > 0:
+			_body_box.add_child(_make_muted_label("accepted — %d on %s [%s]; the next door opens when it is claimed" % [
+					held, SurfaceRooms.NAME_CHARGE, SurfaceRooms.KEY_HELD], 12))
+		else:
+			_body_box.add_child(_make_muted_label("the next door hasn't opened", 12))
 		return
 	# A/D pages the 6-row window over ALL rows — 57 flags used to compete for
 	# six slots with a muted "… N more not shown" and no way to reach them.
