@@ -97,6 +97,12 @@ def _seat_is_live(seat: str) -> bool:
     pid = int(st.get("pid", 0))
     if pid <= 0:
         return False
+    if os.name == "nt":  # os.kill(pid, 0) on Windows TERMINATES the process
+        try:
+            import psutil
+            return psutil.pid_exists(pid)
+        except ImportError:
+            return False
     try:
         os.kill(pid, 0)
         return True
