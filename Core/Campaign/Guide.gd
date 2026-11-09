@@ -54,6 +54,30 @@ static func _row_key(i: int) -> String:
 	return str(rows[i]) if i >= 0 and i < rows.size() else ""
 
 
+## A chord part that picks row `idx` (absolute) — or just its label, keyless,
+## when that row is ALREADY the selection here. "▸ Millwright's Union 👥×8 [G]
+## → Accept [R]" on a selected row made G a no-op the banner kept naming
+## first: a memoryless player pressed G nine times (lost-lamb, wave 9; also
+## waves 5 and 7).
+static func _row(label: String, idx: int) -> Array:
+	if _row_selected(idx):
+		return [label]
+	return [[label, _row_key(idx % BERRY_ROWS)]]
+
+
+static func _row_selected(idx: int) -> bool:
+	var here := SurfaceGraph.current()
+	if here.begins_with("C/"):
+		var board = UIP._quest_board()
+		return board != null and "_selected_index" in board and int(board.get("_selected_index")) == idx
+	if here.begins_with("X/"):
+		var om = UIP._overlay_manager()
+		var top = om.get_active_overlay() if om != null and bool(om.is_overlay_active()) else null
+		if top != null and "_arc_selected_idx" in top and "_arc_inspect_open" in top:
+			return int(top.get("_arc_selected_idx")) == idx and bool(top.get("_arc_inspect_open"))
+	return false
+
+
 static func _plot_key(col: int) -> String:
 	var plots: Array = _km().get("plots", [])
 	return str(plots[col]) if col >= 0 and col < plots.size() else ""
@@ -452,7 +476,7 @@ static func _door_accept(q: Dictionary) -> Dictionary:
 	var idx := _arc_row_index(q)
 	var row: Array = []
 	if idx >= 0:
-		row = _page_to(idx) + [[_title(q), _row_key(idx % BERRY_ROWS)]]
+		row = _page_to(idx) + _row(_title(q), idx)
 	return _chord(_go("X/arc") + row + [["Accept", _verb("accept")]], q, "accept")
 
 
@@ -465,7 +489,7 @@ static func _door_claim(q: Dictionary) -> Dictionary:
 	var idx := _charge_index(q) if signed else _commitment_index(q)
 	var row: Array = []
 	if idx >= 0:
-		row = _page_to(idx) + [[_title(q), _row_key(idx % BERRY_ROWS)]]
+		row = _page_to(idx) + _row(_title(q), idx)
 	var view: Array = [] if signed else _active_view_first()
 	return _chord(_go(node) + view + row + [["Claim", _verb("claim")]], q, "claim")
 
@@ -494,7 +518,7 @@ static func _board_row_chord(surface: String, idx: int, label: String, verb_labe
 		verb_key: String, q: Dictionary, why: String) -> Dictionary:
 	var parts: Array = _go("C/" + surface)
 	if idx >= 0:
-		parts += _page_to(idx) + [[label, _row_key(idx % BERRY_ROWS)]]
+		parts += _page_to(idx) + _row(label, idx)
 	parts.append([verb_label, verb_key])
 	return _chord(parts, q, why)
 
@@ -740,8 +764,8 @@ static func _deliver_to(faction: String, q: Dictionary, home_override: String = 
 	if best >= 0 and (best_short <= int(_km().get("reach", 12)) or stretch):
 		_refreshes[faction] = 0
 		var d: Dictionary = rows[best].get("data", {})
-		return _chord(_page_to(best) + [["%s %s×%d" % [faction, str(d.get("resource", "")),
-				int(d.get("quantity", 0))], _row_key(best % BERRY_ROWS)], ["Accept", _verb("accept")]],
+		return _chord(_page_to(best) + _row("%s %s×%d" % [faction, str(d.get("resource", "")),
+				int(d.get("quantity", 0))], best) + [["Accept", _verb("accept")]],
 				q, "take contract")
 	# Count each deal once: the ring's offer ids change when Refresh lands.
 	var sig := ""
@@ -794,8 +818,8 @@ static func _market_held_chord(c: Dictionary, _home: String, verb: Array, q: Dic
 	var i := _commitment_index(c)
 	if i < 0:
 		return {}
-	var parts: Array = _active_view_first() + _page_to(i) + [["%s %s×%d" % [str(c.get("faction", "")), str(c.get("resource", "")),
-			int(c.get("quantity", 0))], _row_key(i % BERRY_ROWS)], verb]
+	var parts: Array = _active_view_first() + _page_to(i) + _row("%s %s×%d" % [str(c.get("faction", "")), str(c.get("resource", "")),
+			int(c.get("quantity", 0))], i) + [verb]
 	if not tail.is_empty():
 		parts.append(tail)
 	return _chord(parts, q, why)
@@ -1025,7 +1049,7 @@ static func _supply_via(tr: Dictionary, res: String, q: Dictionary, depth: int) 
 		for g in give:
 			if UIP._wallet(str(g)) < float(give[g]) and depth < 2:
 				return _gather(str(g), int(give[g]), q, depth + 1)
-		return _chord(_page_to(i) + [["trade for %s" % res, _row_key(i % BERRY_ROWS)], ["Accept", _verb("accept")]], q, "supply " + res)
+		return _chord(_page_to(i) + _row("trade for %s" % res, i) + [["Accept", _verb("accept")]], q, "supply " + res)
 	_no_trade_until[res + "|" + home] = Time.get_ticks_msec() + NO_TRADE_MS
 	return {}
 
