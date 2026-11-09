@@ -45,6 +45,56 @@ morning. Branch: `overnight/2026-11-09-hive` (one PR, pushed after every fold).
 3. Contextual keys (Y/U/R/G/F) are the #1 friction overall.
 4. Plant a New Voice's 🌱 pacing.
 
+## Owner's calls (2026-11-09, after the night) and what was done
+
+Luke's answers to the "For Luke" list, and the follow-up work done the same day:
+
+- **Titles are free to change** (all bot-written). The three "The Teaching" quests are now
+  **The Timber Teaching**, **The Water Teaching** and **The Bridge Teaching**.
+- **Hints must match what the thing offers.** Still the Pond's hint named the Operator compass,
+  which is the gauge/loop tool. Worse, its gate read the `dynamics` channel, which has been
+  retired since 2026-07 (always −1), so **the quest could never complete**. Make It Breathe read
+  the same channel. Interim fix: Still the Pond = in the spring, drop coherence from its resting
+  ~0.85 below 0.55 (Druid spins toward the poles reach it in a few presses; ready latches).
+  Make It Breathe = in the spring, coherence ≥ 0.35. The new Guide step `still` names the
+  Druid spin. **Still needs a design call:** the spring's H keeps coherence at 0.5–0.9 even with
+  both qubits near a pole, so a true "stillness" (<0.15) is not reachable by any key.
+- **Market Refresh moved from E to F.** E is inspect/pause; F is forward. Labels, board walk cue
+  and empty-board text updated; the Guide's keymap verb `refresh` is F.
+- **🌱 pacing: use the Druid.** New Guide step before the first strike on a fresh plot that
+  leans away from the resource you need (p < 40%): "tip it from 💀 toward 🌱, then strike", Spin
+  ± until ≥ 60%, then Ace Strike. Post-tutorial only (the Act 0 drive stays 55 presses).
+- **Mouse-only reap exists** (a button at the top of the screen) — struck from the list.
+- **Strict-follower banners for the whole game, but players get fading hints.** New
+  `Core/Campaign/GuideFade.gd`: the banner always speaks through the tutorial; after that it
+  hides while the player is making progress (flag fired, quest accepted / readied / claimed)
+  and returns after `guide.fade_after_s` seconds without progress — 15 s early, rising to
+  300 s by the end of the story (indexed by the share of story flags fired). Headless seats
+  default to always-on; `SW_GUIDE_MODE=fade|always|off` overrides. Verified in a seat: hidden
+  at 0 s and 12 s after a load, back by 37 s.
+- **The real soft-lock class is off-path play.** New persona **distractible**
+  (`prompts/distractible.md`): detours every 2–4 presses (off-target, out of order, menu and hat
+  wander, side doors, save/load mid-step), hunting SOFT-LOCK / FALSE PRAISE / NARROW GATE.
+  New persona **keeper** (`prompts/keeper.md`): one player across sittings, with a journal in
+  `hive/journals/` and a resume save `<journal>_latest`. First keeper: `keeper-demos`, from
+  the Act 3 save.
+
+Found while chasing the G/H Bell report:
+- **The Loom already accepts any pair** (gate ledger counts any Bell), and an off-path Bell on
+  J+K claims fine. The G/H story most likely came from one of two bugs, both fixed:
+  the silent cross-biome Bell (fixed overnight), or the one below.
+- **Soft-lock: saving while a signed tutorial door waits on the Arc lost the tutorial.** Offers
+  are not saved; on load `tutorial_seen` blocked a restart, so The Loom and Reap never came back.
+  `QuestManager._heal_tutorial_lane` re-offers the step after the highest completed one when
+  the lane holds nothing live (repro: `strict_follow.py <seat> --fresh 60 --until Loom`, load
+  `<seat>_until`).
+- **Old saves keep dead gates.** An accepted Arc quest stored its predicates verbatim, so a
+  campaign fix never reached it. Restore now re-keys non-ready ARC quests' predicates, hint,
+  body and math_note from the flag's current `arc_quest`.
+
+Tools: `strict_follow.py ... --until TEXT` cuts a checkpoint at a banner; the rig command
+`predicate_score {pred}` scores any predicate and returns the observables (referee use).
+
 ## Owner's orders (2026-11-09, before bed)
 
 - **Scope:** tutorial first, then onward — promote sensors chapter by chapter
@@ -128,7 +178,7 @@ Pytest floor on this host (godot.exe on PATH + PYTHONUTF8 via the python3 shim):
 
 ## For Luke (needs a decision, not folded)
 
-- **Mouse-only reap may be impossible.** A shift-click on the F chip reaches the game as Shift without Ctrl, which is now mass-explore. So the Act 0 capstone may have no mouse path unless "the season button" covers it. Needs a headed `mouse_seat` check; I can't test it headless.
+- ~~**Mouse-only reap may be impossible.**~~ (Luke: there is a button at the top of the screen.) A shift-click on the F chip reaches the game as Shift without Ctrl, which is now mass-explore. So the Act 0 capstone may have no mouse path unless "the season button" covers it. Needs a headed `mouse_seat` check; I can't test it headless.
 - ~~Chord banners read as unordered lists~~ folded in 2101ddc9 (" → "). Original note: ("board [C], Market [Y]"). Two sensors pressed the later key first. On the farm Y means Village, so the step is lost (the Guide does recover). A separator change (" → " or "then") touches ~10 test files, so I'm deferring it until the Godot-driven tests run on this host.
 - **Pytest on this host (fixed via the shim, not the repo):** was 14 failures, mostly Windows text encoding (the tests read files without utf-8), plus 70 skips because `godot` isn't found as an .exe. Harness fixes are queued for the loop.
 - **Lesson 1 wording:** the objective says "one Millwright 🌾 contract is guaranteed", but the Market row is "Millwright's Union 👥 × 8 → pays 💨×3 🏭×3 🔨×2". The sensors took it anyway. This is story/spec prose, so I left it for you.
