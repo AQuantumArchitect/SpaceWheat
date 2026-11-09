@@ -310,6 +310,10 @@ const ARCHETYPE_FRAMES: Dictionary = {
 					  "icon": "",
 					  "chip_resolver": "ace.f_explore",
 					  "shift_action": "reap", "shift_label": "Reap Season",
+					  # Reap is Ctrl+Shift+F (Shift+F alone mass-explores). The chip
+					  # said "⇧ Reap Season" while the banner said CTRL+SHIFT [F]
+					  # (earnest wall @ capstone, 2026-11-09).
+					  "shift_mod": "Ctrl+⇧",
 					  "hint": "Fast-forward — let the Hamiltonian spin the odds (advance time). Also resumes play. On an unexplored plot F mounts an expedition instead: explore it for 🍞. Shift+F explores every unexplored plot here (or the checked ones); Ctrl+Shift+F reaps the whole season (biome-wide harvest, 🍼)."}
 			}
 		}

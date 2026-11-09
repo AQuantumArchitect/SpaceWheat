@@ -17,7 +17,7 @@ From the SpaceWheat repo root:
 ```
 python3 🍄/🧪/player_seat.py start <seat> [--fresh] [--checkpoint NAME]
 python3 🍄/🧪/player_seat.py look  <seat> [--no-graph]
-python3 🍄/🧪/player_seat.py press <seat> <key> [--shift]
+python3 🍄/🧪/player_seat.py press <seat> <key> [--shift] [--ctrl]
 python3 🍄/🧪/player_seat.py wait  <seat> <seconds>
 python3 🍄/🧪/player_seat.py forecast <seat> [secs]
 python3 🍄/🧪/player_seat.py bank  <seat> <name>
