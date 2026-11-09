@@ -4,17 +4,17 @@ Runbook + ledger. The coordinator (Claude, this session) re-reads this file at t
 top of every loop iteration and appends to it at the bottom. Luke reads it in the
 morning. Branch: `overnight/2026-11-09-hive` (one PR, pushed after every fold).
 
-## Morning summary (as of 07:20)
+## Morning summary (as of 08:00)
 
 **Where a brand-new player gets now.**
-- A fresh **Haiku earnest** reached **Act 2 at press 122** (15 flags, 14 beats claimed). At the start of the night a fresh Haiku couldn't finish the tutorial.
-- A **strict memoryless follower**, which presses only the first key the banner names, beats the **tutorial in 55 presses** from zero. From the tutorial-clear save it reached **Act 4** (24 flags) once the Icon⇄Ace ping-pong was fixed.
+- A fresh **Haiku earnest** (wave 11, all fixes in) made the **tutorial at press 56, Act 2 at 120, Act 3 at 214** (20 flags, 17 beats claimed), with no wall. At the start of the night a fresh Haiku couldn't finish the tutorial.
+- A **strict memoryless follower**, which presses only the first key the banner names, beats the **tutorial in 55 presses** from zero. From the tutorial-clear save it reached **Act 4** (24 flags) once the Icon⇄Ace ping-pong was fixed. From zero, once the Trim-confirm loop was fixed, it runs on to **37 flags** (14 Words, One Shape, Stay Many…).
 - The scripted `banner_follow` tutorial baseline went **62 → 55 presses**, with 0 off-surface / stale / mismatch throughout.
 - Sensors that started from earned saves reached **Act 4 "The Island & Its People"**.
 
 **Soft-locks.**
 - **One real soft-lock found and fixed:** save/load turned a plot with only measurement memory into "INVALID: measured but no outcome recorded". Every verb on it was dead and its banked strikes were lost (cd786e1d). The fix also repairs existing saves.
-- **Four guide loops** that trapped banner-followers are fixed: selected-row no-op key (ea5d6721), Loom "clear marks" on a lone good mark, the Charge-row no-op (47ba780d), and the Icon⇄Ace ping-pong (36497260).
+- **Five guide loops** that trapped banner-followers are fixed: selected-row no-op key (ea5d6721), Loom "clear marks" on a lone good mark, the Charge-row no-op (47ba780d), the Icon⇄Ace ping-pong (36497260), and ESC cancelling an armed Trim (see the Trim commit).
 - **No soft-lock from chaos:**
   - mashers in the Icon, Captain and Operator hats (40 random keys each, mid-quest)
   - a burst-masher (96 random keys sprinkled through tutorial + Act 1, every burst recovered in 1–5 presses)
@@ -117,6 +117,7 @@ morning. Branch: `overnight/2026-11-09-hive` (one PR, pushed after every fold).
 **Memoryless milestone (06:45):** a strict first-key-only follower (`C:/tmp/sw_strict.py`: press only the first bracketed key the banner names, no judgement) now beats the tutorial **from true zero in 55 presses, 0 waits**. banner_follow's baseline is also 55 (62 at the start of the night).
 
 | 10 | 07:10 | on-10 (fresh e2e) | **earnest from true zero → Act 2 at press 122** (tutorial at 66; 15 flags; 14 beats), walled at The Teaching · strict follower (no model) from tutorial-clear → 400 presses, 21 flags, then Icon⇄Ace ping-pong | Teaching: two lessons share the title; the banner worked the Millwright one while the sensor did Hearth Keepers → ladder prefix now names the faction · ping-pong: hat:icon ran before berry's reveal → Guide loop | 36497260 |
+| 11 | 08:00 | on-11 (fresh e2e) | **earnest from zero → tutorial 56, Act 2 120, Act 3 214, no wall** (20 flags, 283 presses, 240 s waits) · strict follower from zero → 900 presses, stuck at 21 flags in a Trim Q/ESC loop | Trim loop: an armed confirm read as "open", so the chord led with ESC (which cancels) → Guide loop; fixed, strict follower then 21 → 37 flags | Trim-confirm fold |
 
 Pytest floor on this host (godot.exe on PATH + PYTHONUTF8 via the python3 shim): **655 passed, 6 failed, 50 skipped** (as of cd786e1d; +3 new tests) — the 6 are host-path tests (Windows separators, POSIX-only deploy scripts, no HOME), unchanged by every fold.
 
