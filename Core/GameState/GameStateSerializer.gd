@@ -194,6 +194,16 @@ func capture_state_from_farm(farm: Node, current_state: GameState, scenario_id: 
 				if has_live_measurement:
 					plot_data["measured_outcome"] = plot.measured_outcome
 					plot_data["measured_probability"] = plot.measured_probability
+				elif has_memory and plot.has_method("get_measurement_memory"):
+					# A bound, UNmeasured terminal can still carry the ghost of an
+					# earlier collapse. Keep it under its own keys: written as
+					# has_been_measured with no outcome, the load below used to
+					# mark_measured("") the live terminal — "INVALID: measured but
+					# no outcome recorded", a plot nobody could strike or gather
+					# again (soft-lock, overnight wave 4, 2026-11-09).
+					var mem = plot.get_measurement_memory()
+					plot_data["memory_outcome"] = str(mem.get("outcome", ""))
+					plot_data["memory_probability"] = float(mem.get("probability", 0.0))
 				# Strikes banked on the plot, waiting for Q (Terminal.strikes). Without
 				# this a save/load silently threw the whole bank away.
 				if plot.terminal and "strikes" in plot.terminal and not plot.terminal.strikes.is_empty():
@@ -521,14 +531,21 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 					else:
 						_log("warn", "save", "⚠️", "No terminal pool while restoring bound plot at %s" % str(pos))
 
-					# Restore measurement state if present
+					# Restore measurement state if present. A live terminal is marked
+					# measured ONLY with a recorded outcome; without one it stays a
+					# valid BOUND terminal (its banked strikes still gatherable) and
+					# any ghost goes to plot memory. This also repairs saves written
+					# before the save-side fix above.
 					if plot_data.get("has_been_measured", false):
-						var outcome = plot_data.get("measured_outcome", "")
+						var outcome = str(plot_data.get("measured_outcome", ""))
 						var probability = plot_data.get("measured_probability", 0.5)
-						if plot.terminal and plot.terminal.is_bound:
+						if outcome != "" and plot.terminal and plot.terminal.is_bound:
 							plot.terminal.mark_measured(outcome, probability)
 						elif plot.has_method("remember_measurement"):
-							plot.remember_measurement(outcome, probability, saved_north, saved_south)
+							var mem_outcome: String = outcome if outcome != "" else str(plot_data.get("memory_outcome", ""))
+							var mem_prob = probability if outcome != "" else plot_data.get("memory_probability", 0.5)
+							if mem_outcome != "":
+								plot.remember_measurement(mem_outcome, mem_prob, saved_north, saved_south)
 			elif plot_data.get("has_been_measured", false):
 				var memory_outcome = plot_data.get("measured_outcome", "")
 				var memory_probability = plot_data.get("measured_probability", 0.5)
