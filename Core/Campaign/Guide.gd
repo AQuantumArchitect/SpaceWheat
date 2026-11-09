@@ -786,6 +786,9 @@ static func _market_held_chord(c: Dictionary, _home: String, verb: Array, q: Dic
 static var _misses := {}
 static var _counted := {}   # this measurement was already counted (next_step runs every frame)
 const MISS_CAP := 3
+## Strikes banked on one plot before the Guide stops suggesting another and
+## gathers (a missed pole then counts toward MISS_CAP as before).
+const STRIKE_TRIES := 6
 
 static func _gather(res: String, need: int, q: Dictionary, depth: int = 0) -> Dictionary:
 	_t("gather %s d%d misses%d" % [res, depth, int(_misses.get(res, 0))])
@@ -841,6 +844,18 @@ static func _gather(res: String, need: int, q: Dictionary, depth: int = 0) -> Di
 	var label := "gather %s %d/%d" % [res, int(UIP._wallet(res)), need]
 	var frozen = _frozen(col, UIP._active_biome_name()) if col >= 0 else null
 	if col >= 0 and (UIP._plot_measured(col) or frozen != null):
+		# Strike as often as you like; Q gathers the bank (Ace R). When the
+		# bank holds none of `res` yet, another strike on this plot is the
+		# cheap try — a rare pole pays big (−kT·log p). Gathering after every
+		# miss re-explores at the same bad odds: four overnight sensors sat at
+		# "gather 🌱 3/5" for 20+ presses on a 💀-leaning plot, while 5 banked
+		# strikes then one Q paid +51 🌱 (2026-11-09).
+		var term = UIP._plot_terminal(col) if frozen == null else null
+		if term != null and term.is_bound and not bool(term.is_measured) \
+				and term.has_method("banked_totals") and "strikes" in term \
+				and not term.banked_totals().has(res) and term.strikes.size() < STRIKE_TRIES \
+				and UIP._wallet("👥") >= 1.0:
+			return _chord(_close_first() + [label, ["Strike again", _verb("strike")]], q, "strike again")
 		var got := UIP._measured_glyph(col) if frozen == null else str(frozen.measured_outcome)
 		if got == res:
 			_misses[res] = 0
