@@ -52,7 +52,8 @@ morning. Branch: `overnight/2026-11-09-hive` (one PR, pushed after every fold).
 | chapter | entry | status |
 |---|---|---|
 | act0_fresh (tutorial) | `--fresh` | **CLEARED** wave 2 by earnest (~95 presses) and lost-lamb (65, memoryless) |
-| act1_mill (Apprentice to the Mill → Village stirs →) | `--checkpoint earnest_act0_fresh_clear` | wave 3 flying |
+| act1_mill (Apprentice to the Mill → First Breath → Spiral Breaks) | `--checkpoint earnest_act0_fresh_clear` | **CLEARED** by earnest, wave 3 (3 beats claimed, ~58 presses) |
+| act1_voices (Plant a New Voice →) | `--checkpoint earnest_act1_mill_w3` | wave 4 flying |
 
 ## Ledger
 
@@ -62,6 +63,7 @@ morning. Branch: `overnight/2026-11-09-hive` (one PR, pushed after every fold).
 | 1 | 01:05 | on-1 | earnest → wall @ capstone (5/6, 58 presses; **Loom fold held**) · lost-lamb → DRIFT wall after Accept (0/6, 10 presses) · masher→recover → 30 random keys recovered fine, then same capstone wall (5/6) | capstone: chip "⇧ Reap" vs banner CTRL+SHIFT, seat had no Ctrl → legibility+harness (2 legs) · Arc "next door hasn't opened" after Accept → legibility · banner chord keys pressed out of order (Y = Village on the farm) → legibility, deferred | fe5362c8, c6f91c18 |
 
 | 2 | 01:35 | on-2 | earnest → **CLEAR** (6/6, ~95) · lost-lamb → **CLEAR** (65 presses) · masher (mashed mid-lesson-2) → reported soft-lock in Past the Hedge; refereed: NOT a lock — objective was already claimable, old Column-5 spam hid it (that seat booted before 58151a06) | chord banners read as lists (4th sensor) → legibility · Column-5 spam → bug | 58151a06, 2101ddc9 |
+| 3 | 02:00 | on-3 | earnest → claimed Apprentice to the Mill, First Breath, The Spiral Breaks; walled at Plant a New Voice "gather 🌱 3/5" (67 presses) · literalist → wall at press 4: [Y] has 3 jobs on one screen · masher→recover (40 keys mid-Apprentice) → reported soft-lock "Apprentice stuck 9%, no Millwright on Market" | literalist: banner X→Y→G→R works when followed → tester-strict (theme: contextual keys → For Luke) · masher: NOT a lock — banner routes to the Village board, Refresh yields a Millwright; the quest hint never named which board → legibility · New Voice: 🌱 is a 15% pole, ≈40-press grind → pacing (For Luke) | d2ace2e2 |
 
 Pytest floor on this host (godot.exe on PATH + PYTHONUTF8 via the python3 shim): **652 passed, 6 failed, 50 skipped** — the 6 are host-path tests (Windows separators, POSIX-only deploy scripts, no HOME), unchanged by every fold.
 
@@ -72,3 +74,7 @@ Pytest floor on this host (godot.exe on PATH + PYTHONUTF8 via the python3 shim):
 - **Pytest on this host (fixed via the shim, not the repo):** was 14 failures, mostly Windows text encoding (the tests read files without utf-8), plus 70 skips because `godot` isn't found as an .exe. Harness fixes are queued for the loop.
 - **Lesson 1 wording:** the objective says "one Millwright 🌾 contract is guaranteed", but the Market row is "Millwright's Union 👥 × 8 → pays 💨×3 🏭×3 🔨×2". The sensors took it anyway. This is story/spec prose, so I left it for you.
 - **Mouse parity, more broadly:** every sensor tonight is keyboard-only and headless. Mouse-only walls are untested.
+- **Contextual keys are the #1 friction overall (5 sensors).** Y = Arc tab inside Story, the Village biome on the farm, and the Market inside the Board; U = Charge tab vs StarterForest; R = Accept/Claim/Deliver vs Strike; plain G in the Icon hat both tracks and marks a plot ("marked G (1/2)"). The arrows (2101ddc9) and the route banners help, but the key map itself is a design call.
+- **Plant a New Voice pacing:** "gather 🌱 3/5" on Starter Forest's 💀🌱 plot, which is about 85% 💀. With ≈15% per strike, that's ~40 presses of F→R→Q, and nothing on screen offers a better lever. Earnest walled under Law 2 after 8 presses. Is this grind intended, or should the plot or the hint change? (Physics/economy, so not folded.)
+- **Saves keep accepted quests' hint text.** A hint fix (e.g. d2ace2e2) reaches quests accepted *after* the fix, not ones already sitting on Charge in an existing save. Consider re-reading hints from the spec on load.
+- **First R on a fresh Arc row sometimes only inspects.** Earnest: "the first R showed no toast and the item stayed OPEN"; the second R accepted it. Probably the two-step tap rule (#44) leaking into the keyboard path. Not reproduced yet.
