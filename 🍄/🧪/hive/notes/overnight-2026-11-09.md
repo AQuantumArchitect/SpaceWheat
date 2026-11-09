@@ -51,7 +51,8 @@ morning. Branch: `overnight/2026-11-09-hive` (one PR, pushed after every fold).
 
 | chapter | entry | status |
 |---|---|---|
-| act0_fresh (tutorial) | `--fresh` | Loom ✔ (re-fly cleared it); capstone reap folded (c6f91c18); re-fly = wave 2 |
+| act0_fresh (tutorial) | `--fresh` | **CLEARED** wave 2 by earnest (~95 presses) and lost-lamb (65, memoryless) |
+| act1_mill (Apprentice to the Mill → Village stirs →) | `--checkpoint earnest_act0_fresh_clear` | wave 3 flying |
 
 ## Ledger
 
@@ -60,8 +61,14 @@ morning. Branch: `overnight/2026-11-09-hive` (one PR, pushed after every fold).
 | 0 | 00:40 | win-w1 | earnest → wall @ The Loom (4/6 lessons, ~68 presses) | cross-biome Bell silent + half-applied H → legibility+bug | a4d7db78 |
 | 1 | 01:05 | on-1 | earnest → wall @ capstone (5/6, 58 presses; **Loom fold held**) · lost-lamb → DRIFT wall after Accept (0/6, 10 presses) · masher→recover → 30 random keys recovered fine, then same capstone wall (5/6) | capstone: chip "⇧ Reap" vs banner CTRL+SHIFT, seat had no Ctrl → legibility+harness (2 legs) · Arc "next door hasn't opened" after Accept → legibility · banner chord keys pressed out of order (Y = Village on the farm) → legibility, deferred | fe5362c8, c6f91c18 |
 
+| 2 | 01:35 | on-2 | earnest → **CLEAR** (6/6, ~95) · lost-lamb → **CLEAR** (65 presses) · masher (mashed mid-lesson-2) → reported soft-lock in Past the Hedge; refereed: NOT a lock — objective was already claimable, old Column-5 spam hid it (that seat booted before 58151a06) | chord banners read as lists (4th sensor) → legibility · Column-5 spam → bug | 58151a06, 2101ddc9 |
+
+Pytest floor on this host (godot.exe on PATH + PYTHONUTF8 via the python3 shim): **652 passed, 6 failed, 50 skipped** — the 6 are host-path tests (Windows separators, POSIX-only deploy scripts, no HOME), unchanged by every fold.
+
 ## For Luke (needs a decision, not folded)
 
 - **Mouse-only reap may be impossible.** A shift-click on the F chip reaches the game as Shift without Ctrl, which is now mass-explore. So the Act 0 capstone may have no mouse path unless "the season button" covers it. Needs a headed `mouse_seat` check; I can't test it headless.
-- **Chord banners read as unordered lists** ("board [C], Market [Y]"). Two sensors pressed the later key first. On the farm Y means Village, so the step is lost (the Guide does recover). A separator change (" → " or "then") touches ~10 test files, so I'm deferring it until the Godot-driven tests run on this host.
-- **Pytest on this host:** 14 failures, mostly Windows text encoding (the tests read files without utf-8), plus 70 skips because `godot` isn't found as an .exe. Harness fixes are queued for the loop.
+- ~~Chord banners read as unordered lists~~ folded in 2101ddc9 (" → "). Original note: ("board [C], Market [Y]"). Two sensors pressed the later key first. On the farm Y means Village, so the step is lost (the Guide does recover). A separator change (" → " or "then") touches ~10 test files, so I'm deferring it until the Godot-driven tests run on this host.
+- **Pytest on this host (fixed via the shim, not the repo):** was 14 failures, mostly Windows text encoding (the tests read files without utf-8), plus 70 skips because `godot` isn't found as an .exe. Harness fixes are queued for the loop.
+- **Lesson 1 wording:** the objective says "one Millwright 🌾 contract is guaranteed", but the Market row is "Millwright's Union 👥 × 8 → pays 💨×3 🏭×3 🔨×2". The sensors took it anyway. This is story/spec prose, so I left it for you.
+- **Mouse parity, more broadly:** every sensor tonight is keyboard-only and headless. Mouse-only walls are untested.
