@@ -53,7 +53,8 @@ morning. Branch: `overnight/2026-11-09-hive` (one PR, pushed after every fold).
 |---|---|---|
 | act0_fresh (tutorial) | `--fresh` | **CLEARED** wave 2 by earnest (~95 presses) and lost-lamb (65, memoryless) |
 | act1_mill (Apprentice to the Mill → First Breath → Spiral Breaks) | `--checkpoint earnest_act0_fresh_clear` | **CLEARED** by earnest, wave 3 (3 beats claimed, ~58 presses) |
-| act1_voices (Plant a New Voice →) | `--checkpoint earnest_act1_mill_w3` | wave 4 found a save/load **soft-lock** on this very save (fixed cd786e1d); re-fly = wave 5 |
+| act1_voices (Plant a New Voice →) | `--checkpoint earnest_act1_mill_w3` | soft-lock fixed (cd786e1d); 🌱 grind stall fixed in the Guide (12edcbc6); **CLEARED** by lost-lamb, wave 5 |
+| act1_late (Woodlot, Spring, Prove Reliable, Carry Water → The Teaching) | `--checkpoint lost_lamb_act1_w5` | lost-lamb reached Carry Water delivered (13 flags); wave 6 flying |
 
 ## Ledger
 
@@ -65,6 +66,7 @@ morning. Branch: `overnight/2026-11-09-hive` (one PR, pushed after every fold).
 | 2 | 01:35 | on-2 | earnest → **CLEAR** (6/6, ~95) · lost-lamb → **CLEAR** (65 presses) · masher (mashed mid-lesson-2) → reported soft-lock in Past the Hedge; refereed: NOT a lock — objective was already claimable, old Column-5 spam hid it (that seat booted before 58151a06) | chord banners read as lists (4th sensor) → legibility · Column-5 spam → bug | 58151a06, 2101ddc9 |
 | 3 | 02:00 | on-3 | earnest → claimed Apprentice to the Mill, First Breath, The Spiral Breaks; walled at Plant a New Voice "gather 🌱 3/5" (67 presses) · literalist → wall at press 4: [Y] has 3 jobs on one screen · masher→recover (40 keys mid-Apprentice) → reported soft-lock "Apprentice stuck 9%, no Millwright on Market" | literalist: banner X→Y→G→R works when followed → tester-strict (theme: contextual keys → For Luke) · masher: NOT a lock — banner routes to the Village board, Refresh yields a Millwright; the quest hint never named which board → legibility · New Voice: 🌱 is a 15% pole, ≈40-press grind → pacing (For Luke) | d2ace2e2 |
 | 4 | 02:20 | on-4 | earnest (patient grind) → 0 🌱 in 21 presses, "✗ Terminal in invalid state: INVALID: measured but no outcome recorded" · masher→recover (Icon hat) → same invalid plot, wallet unchanged by 40 random keys · lost-lamb → claimed Wheel, Apprentice, First Breath; DRIFT wall in The Spiral Breaks | **SOFT-LOCK (bug):** a bound plot saved with only measurement memory loaded as "measured, no outcome"; Q/R dead forever, banked 💀 ungatherable (2 legs, reproduced) · Arc inspect showed the designer's math_note (gate formula + code paths) → legibility regression of the 10-26 editorial rule | cd786e1d, 9c077746 |
+| 5 | 03:10 | on-5 | earnest (re-fly, patient) → save fix held; 0 🌱 in 25 presses · lost-lamb → **no wall**, ~90 presses: Spiral Breaks, Plant a New Voice, Find the Woodlot, Find the Spring, Prove Reliable claimed, Carry Water delivered · save-scummer → 11 save/reload cycles at awkward moments: wallet, plots, marks, contracts all survive; tracked loop progress does not (see For Luke) | 🌱 grind: the Guide sent Explore→1 Strike→Gather at ~5% odds; 5 banked strikes + 1 Q paid +51 🌱 → Guide routing (legibility) · "Plant [R]" vs Q: refereed, banner correct (R opens the picker, Q picks the word) → tester | 12edcbc6 |
 
 Pytest floor on this host (godot.exe on PATH + PYTHONUTF8 via the python3 shim): **655 passed, 6 failed, 50 skipped** (as of cd786e1d; +3 new tests) — the 6 are host-path tests (Windows separators, POSIX-only deploy scripts, no HOME), unchanged by every fold.
 
@@ -81,3 +83,8 @@ Pytest floor on this host (godot.exe on PATH + PYTHONUTF8 via the python3 shim):
 - **First R on a fresh Arc row sometimes only inspects.** Earnest: "the first R showed no toast and the item stayed OPEN"; the second R accepted it. Probably the two-step tap rule (#44) leaking into the keyboard path. Not reproduced yet.
 - **Tests ignore rule:** `.gitignore`'s `Tests/` matches `tests/` on Windows (case-insensitive), so new test files need `git add -f`. Consider anchoring it (`/Tests/`) or dropping it.
 - **Banner flips between looks with no input** (lost-lamb, Spiral Breaks): "plot [G] → Track [F]", then "clear marks ['] → plot [H] → Track [F]". Probably real-time ripening changing the Guide's pick. Not reproduced; worth a look.
+- **Tracked loops don't survive a reload** (save-scummer, scum_6 and scum_11). Saved at "Ripening 8%". After reload, F printed "tracking stopped — the loop is lost. F re-tracks.", and re-tracking showed "Incorporate [R]" *immediately*, i.e. ripe on arrival. Not a lock (incorporate worked), but it could be a free-ripening exploit via save/reload. Saves: `🍄/🧪/checkpoints/scum_6.tres`, `scum_11.tres`.
+- **Hats and overlays reset on reload** (always back to Ace, menus closed). Consistent; probably intended.
+- **The F chip changes job while a 📜 story card is up**: it reads "[F] 📋 Charge" instead of Explore/Fast-Fwd, so a player pressing F for Explore opens Charge. The banner never names F at those moments, but sensors trip on it.
+- **Banner "Plant [R]" vs the chip "Add Icon"**: same action, two names.
+- **Stale banners right after Accept** (lost-lamb): "▸ Arc [Y] → Carry Water [G] → Accept [R]" was still shown after Carry Water was accepted. Not reproduced yet.
