@@ -1098,7 +1098,9 @@ static func _plant(biome: String, atom: String, fresh: bool, q: Dictionary) -> D
 		for key in ["Q", "E", "R"]:
 			var a = actions.get(key, {})
 			if a is Dictionary and _word_fits(a.get("icon", {}), atom) and bool(a.get("can_afford", true)):
-				return _chord([[str(a.get("label", "word")), key]], q, "pick word")
+				# "▸ 🌾/👥 [E]" named a key with no verb; an earnest sensor kept
+				# pressing R (another word) at the picker (wave 9, fresh e2e).
+				return _chord([["plant " + str(a.get("label", "word")), key]], q, "pick word")
 		if int(data.get("max_pages", 1)) > 1:
 			return _chord([["more words", "F"]], q, "picker page")
 		return _chord(_close_first(), q, "no fitting word here")
