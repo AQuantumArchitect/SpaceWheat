@@ -79,7 +79,10 @@ static func _chord(parts: Array, beat: Dictionary = {}, why: String = "") -> Dic
 				words.append(("%s [%s]" % [label, key]).strip_edges())
 		else:
 			words.append(str(p))
-	return {"text": "▸ " + ", ".join(words), "keys": keys,
+	# " → " not ", ": a chord is a SEQUENCE. Read as a list, four overnight
+	# sensors (2026-11-09) pressed a later key first — "board [C], Market [Y]"
+	# → Y on the farm, which is the Village tab, not the Market.
+	return {"text": "▸ " + " → ".join(words), "keys": keys,
 			"beat": str(beat.get("source_flag", "")), "why": why}
 
 
