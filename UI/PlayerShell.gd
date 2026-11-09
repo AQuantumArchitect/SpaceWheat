@@ -1185,7 +1185,14 @@ func _connect_quest_manager_to_biomes(farm_ui: Control) -> void:
 	var abm = get_node_or_null("/root/ActiveBiomeManager")
 
 	if abm and abm.has_signal("active_biome_changed"):
-		var biome_callable = Callable(self, "_handle_active_biome_change").bind(farm_ref)
+		# Unbound on purpose: a .bind(farm) callable carried the farm of the
+		# FIRST wiring, and after a save/load freed it Godot refused every call
+		# ("Cannot convert argument 3 from Object to Object") before the body
+		# ran — so after any load, travel never reached QuestManager and every
+		# active_biome_is gate (Past the Hedge, Still the Pond) froze until the
+		# next load (distractible ds1, 2026-11-09). The body resolves the live farm.
+		_quest_farm_fallback = weakref(farm_ref)
+		var biome_callable = Callable(self, "_handle_active_biome_change")
 		InstrumentLocator._safe_connect(abm.active_biome_changed, biome_callable)
 		var active_biome = abm.get_active_biome() if abm.has_method("get_active_biome") else ""
 		if active_biome != "":
@@ -1194,7 +1201,15 @@ func _connect_quest_manager_to_biomes(farm_ui: Control) -> void:
 	_quest_biome_connected = true
 
 
-func _handle_active_biome_change(biome_name: String, _old_biome: String, farm_ref: Node) -> void:
+var _quest_farm_fallback: WeakRef = null
+
+
+func _handle_active_biome_change(biome_name: String, _old_biome: String) -> void:
+	var farm_ref: Node = null
+	if _quest_farm_fallback != null:
+		var fb = _quest_farm_fallback.get_ref()
+		if fb != null and is_instance_valid(fb):
+			farm_ref = fb
 	# The farm bound at wiring time goes STALE after a save/load rebuilds the farm
 	# (act-4 marathon: on a resumed run every claim stayed "active" forever —
 	# current_biome kept pointing into the dead farm, so QuestManager's readiness
