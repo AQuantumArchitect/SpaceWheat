@@ -1685,6 +1685,14 @@ static func _cull(q: Dictionary) -> Dictionary:
 	var want := UIP._named_cull_target()
 	if want == "":
 		return {}
+	# Same trap as the Trim (befa861c): Q arms the cull, the armed confirm
+	# read as an open surface, the chord led with ESC, ESC cancelled it. A
+	# strict follower from zero hit it at 37 flags and alternated Q/ESC.
+	if UIP._cull_confirm_pending():
+		var qii = UIP._instrument_input()
+		var lbl := str(qii.pending_confirm_label()) if qii != null and qii.has_method("pending_confirm_label") else ""
+		if lbl.begins_with("Cull"):
+			return _chord(["biome slots full", ["confirm " + lbl, "F"]], q, "cull confirm")
 	var t := _travel(want, q)
 	if not t.is_empty():
 		return t
