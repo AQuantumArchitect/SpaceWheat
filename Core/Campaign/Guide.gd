@@ -949,6 +949,13 @@ static func _gather(res: String, need: int, q: Dictionary, depth: int = 0) -> Di
 				and UIP._wallet("👥") >= 1.0:
 			return _chord(_close_first() + [label, ["Strike again", _verb("strike")]], q, "strike again")
 		var got := UIP._measured_glyph(col) if frozen == null else str(frozen.measured_outcome)
+		# Strike-bank model: a plot holding banked strikes is not "measured",
+		# so measured_outcome is "" and no miss was ever counted — MISS_CAP's
+		# trade fallback could never fire. A strict follower looped Explore →
+		# Strike ×6 → Gather on "gather 🦅 17/21" forever, the bank all 🐇
+		# (misses0 in the Guide trace; burst-masher wave 13). Judge the bank.
+		if term != null and term.has_method("banked_totals") and term.has_method("has_banked") and term.has_banked():
+			got = res if term.banked_totals().has(res) else "miss"
 		if got == res:
 			_misses[res] = 0
 		elif got != "" and not _counted.get(res, false):
