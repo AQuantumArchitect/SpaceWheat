@@ -9,13 +9,17 @@ the signature of a guide loop a memoryless player cannot escape: tonight it
 found the selected-row no-op, the Loom clear-marks loop and the Icon⇄Ace
 ping-pong, at zero token cost.
 
-    python3 🍄/🧪/strict_follow.py <seat> <checkpoint|--fresh> <max_presses>
+    python3 🍄/🧪/strict_follow.py <seat> <checkpoint|--fresh> <max_presses> [--until TEXT]
+
+--until TEXT stops (and banks <seat>_until) the first time the banner contains
+TEXT: the way to cut a checkpoint right at a lesson for off-path probes.
 
 Seats run in their own lane via player_seat.py (start/look/press/wait/bank/stop).
 Banks <seat>_end at the end.
 """
 import json, re, subprocess, sys
 seat, ckpt, steps = sys.argv[1], sys.argv[2], int(sys.argv[3])
+until = sys.argv[sys.argv.index("--until") + 1] if "--until" in sys.argv else ""
 def run(*a):
     r = subprocess.run(["sh", "-c", " ".join(["python3", "'🍄/🧪/player_seat.py'"] + [f"'{x}'" for x in a])], capture_output=True, text=True, encoding="utf-8")
     try: return json.loads(r.stdout.strip().splitlines()[-1])
@@ -27,6 +31,10 @@ for i in range(steps):
     t = d.get("screen_text", [])
     ban = next((l for l in t if l.startswith("▸")), "")
     if ban != last: changes.append(ban)
+    if until and until in ban:
+        print("UNTIL hit after", presses, "presses:", ban)
+        b = run("bank", seat, seat + "_until"); print("bank", b.get("flags"))
+        run("stop", seat); sys.exit(0)
     same = same + 1 if ban == last else 0
     last = ban
     waity = ("wait" in ban) or ("ripening" in ban)

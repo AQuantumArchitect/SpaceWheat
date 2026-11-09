@@ -44,6 +44,20 @@ def _scan_rig_listener_pids() -> List[int]:
     return [int(x) for x in proc.stdout.split() if x.strip().isdigit()]
 
 
+def _unlink_retry(path: Path, tries: int = 40, pause_s: float = 0.25) -> None:
+    """unlink, tolerating Windows' sharing lock while a just-killed Godot lets
+    go of the lane's files (WinError 32 on `start --fresh` right after `stop`:
+    three sensors hit it on 2026-11-09). POSIX unlinks open files at once."""
+    for i in range(tries):
+        try:
+            path.unlink(missing_ok=True)
+            return
+        except PermissionError:
+            if i == tries - 1:
+                raise
+            time.sleep(pause_s)
+
+
 def _windows_godot_bin(env: Dict[str, str]) -> str:
     """Native-Windows Godot executable: SW_GODOT_BIN / GODOT_BIN / GODOT4, else an .exe on PATH."""
     import shutil
@@ -229,11 +243,11 @@ class RigClient:
             except OSError:
                 pass
             self._queue_writer = None
-        self.queue_file.unlink(missing_ok=True)
-        self.results_file.unlink(missing_ok=True)
+        _unlink_retry(self.queue_file)
+        _unlink_retry(self.results_file)
         sentinel = self._bridge_sentinel_path(self.xdg_root)
         if not preserve_live_sentinel or not self._bridge_sentinel_is_ready(self.xdg_root):
-            sentinel.unlink(missing_ok=True)
+            _unlink_retry(sentinel)
         self._results_offset = 0
         self._results_partial = ""
         self._results_by_turn.clear()

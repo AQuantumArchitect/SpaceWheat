@@ -1714,6 +1714,19 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 					result["threshold"] = fp_qm.FLAG_FIRE_THRESHOLD
 					result["predicates"] = fp_scored
 
+		"predicate_score":
+			# Read-only: score any predicate dict exactly as quests do, plus the
+			# observer's last observables (referee tool: is this gate reachable?).
+			var ps_qm = _resolve_quest_manager()
+			var ps_pred = cmd.get("pred", {})
+			if ps_qm == null or not (ps_pred is Dictionary):
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_quest_manager"}
+			else:
+				result["score"] = ps_qm.evaluate_predicate_score(ps_pred)
+				var ps_sp = ps_qm.get("_state_projection")
+				if ps_sp != null and "_last_observables" in ps_sp:
+					result["observables"] = ps_sp._last_observables.duplicate(true)
+
 		"fire_flag":
 			# Test-only: force-fire a story flag by id through the REAL firing
 			# path (_fire_story_flag → story_flag_fired → every listener:
