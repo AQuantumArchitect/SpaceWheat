@@ -1324,6 +1324,7 @@ func _execute_build_gate(gate_type: String) -> void:
 
 	if positions.size() < 2:
 		_verbose.warn("input", "⚛️", "Need 2+ qubits selected for %s gate" % gate_type)
+		_toast_player("mark two plots first (%d/2 marked)" % positions.size())
 		_append_dispatch_ledger("build_gate", false)
 		action_performed.emit("build_gate", {"success": false, "error": "need_more_qubits"})
 		return
@@ -1342,6 +1343,10 @@ func _execute_build_gate(gate_type: String) -> void:
 		# (reap) or an explicit clear lets it go.
 	else:
 		_verbose.warn("input", "⚛️", "Failed to build %s: %s" % [gate_type, result.get("error", result.get("message", "unknown"))])
+		# A refused weave must SAY so (anti-gating law). Wall 2026-11-09: a
+		# cross-biome Bell pair failed with no toast and the Loom sat at 0%.
+		var why := str(result.get("message", ""))
+		_toast_player(why if why != "" else "the %s gate did not take" % gate_type)
 
 	_append_dispatch_ledger("build_gate", bool(result.get("success", false)))
 	action_performed.emit("build_gate", result)

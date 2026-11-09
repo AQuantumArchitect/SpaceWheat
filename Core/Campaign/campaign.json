@@ -326,7 +326,7 @@
          "faction": "Hearth Keepers",
          "biome": "StarterForest",
          "body": "A qubit alone is a wheel. Two qubits woven together are a loom — touch one and the other answers, however far apart they drift. The weave leaves you a 🍼: an age of effort, ensouled — the only thing that can turn a season.",
-         "tutorial_hint": "Mark any two plots, then weave them into a Bell pair.",
+         "tutorial_hint": "Mark two plots in the same biome, then weave them into a Bell pair.",
          "math_note": "Fires the instant the gate ledger records 1 bell gate (a single Bell weave) — a structural count, not a soft gate. Completing this weave hands you 1 🍼 — the reap capstone's cost, paid forward.",
          "state_predicates": [
           {
