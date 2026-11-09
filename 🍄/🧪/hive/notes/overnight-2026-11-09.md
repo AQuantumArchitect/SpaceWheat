@@ -4,6 +4,46 @@ Runbook + ledger. The coordinator (Claude, this session) re-reads this file at t
 top of every loop iteration and appends to it at the bottom. Luke reads it in the
 morning. Branch: `overnight/2026-11-09-hive` (one PR, pushed after every fold).
 
+## Morning summary (as of 07:20)
+
+**Where a brand-new player gets now.**
+- A fresh **Haiku earnest** reached **Act 2 at press 122** (15 flags, 14 beats claimed). At the start of the night a fresh Haiku couldn't finish the tutorial.
+- A **strict memoryless follower**, which presses only the first key the banner names, beats the **tutorial in 55 presses** from zero. From the tutorial-clear save it reached **Act 4** (24 flags) once the Icon⇄Ace ping-pong was fixed.
+- The scripted `banner_follow` tutorial baseline went **62 → 55 presses**, with 0 off-surface / stale / mismatch throughout.
+- Sensors that started from earned saves reached **Act 4 "The Island & Its People"**.
+
+**Soft-locks.**
+- **One real soft-lock found and fixed:** save/load turned a plot with only measurement memory into "INVALID: measured but no outcome recorded". Every verb on it was dead and its banked strikes were lost (cd786e1d). The fix also repairs existing saves.
+- **Four guide loops** that trapped banner-followers are fixed: selected-row no-op key (ea5d6721), Loom "clear marks" on a lone good mark, the Charge-row no-op (47ba780d), and the Icon⇄Ace ping-pong (36497260).
+- **No soft-lock from chaos:**
+  - mashers in the Icon, Captain and Operator hats (40 random keys each, mid-quest)
+  - a burst-masher (96 random keys sprinkled through tutorial + Act 1, every burst recovered in 1–5 presses)
+  - a save-scummer (11 reloads at awkward moments)
+  - a quitter (abandon a story contract, Refresh spam, back out of doors, spend needed resources)
+
+**Fixes on the PR (16 commits of game/harness code + this ledger).**
+- Windows host: rig, seat, static DLL link.
+- The Loom: cross-biome refusal.
+- Capstone: Ctrl+⇧ chip, plus `--ctrl` for the seat.
+- Arc: "accepted, on Charge" line; inspect no longer shows the math_note.
+- Mass Explore: register filter.
+- Guide arrows (" → ").
+- Apprentice hint names the Village board.
+- Save/load fix.
+- Guide: strike again before gathering; ladder progress % with faction; selected-row key; lone-mark pairing; Icon picker verb; hat ping-pong.
+- New probe: `🍄/🧪/strict_follow.py`.
+
+**Gate on every fold:**
+- banner_follow fresh → first_harvest, now 55 presses, 0/0/0
+- full pytest floor: 655 passed; the same 6 Windows-host failures every time (path separators, POSIX-only deploy scripts)
+- live repro from the sensor's own save
+
+**Needs you:** see "For Luke" at the bottom. Top four:
+1. Two lessons share the title "The Teaching".
+2. Still the Pond's hint doesn't match the Operator chips.
+3. Contextual keys (Y/U/R/G/F) are the #1 friction overall.
+4. Plant a New Voice's 🌱 pacing.
+
 ## Owner's orders (2026-11-09, before bed)
 
 - **Scope:** tutorial first, then onward — promote sensors chapter by chapter
@@ -76,6 +116,7 @@ morning. Branch: `overnight/2026-11-09-hive` (one PR, pushed after every fold).
 
 **Memoryless milestone (06:45):** a strict first-key-only follower (`C:/tmp/sw_strict.py`: press only the first bracketed key the banner names, no judgement) now beats the tutorial **from true zero in 55 presses, 0 waits**. banner_follow's baseline is also 55 (62 at the start of the night).
 
+| 10 | 07:10 | on-10 (fresh e2e) | **earnest from true zero → Act 2 at press 122** (tutorial at 66; 15 flags; 14 beats), walled at The Teaching · strict follower (no model) from tutorial-clear → 400 presses, 21 flags, then Icon⇄Ace ping-pong | Teaching: two lessons share the title; the banner worked the Millwright one while the sensor did Hearth Keepers → ladder prefix now names the faction · ping-pong: hat:icon ran before berry's reveal → Guide loop | 36497260 |
 
 Pytest floor on this host (godot.exe on PATH + PYTHONUTF8 via the python3 shim): **655 passed, 6 failed, 50 skipped** (as of cd786e1d; +3 new tests) — the 6 are host-path tests (Windows separators, POSIX-only deploy scripts, no HOME), unchanged by every fold.
 
