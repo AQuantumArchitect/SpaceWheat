@@ -908,6 +908,22 @@ static func _gather(res: String, need: int, q: Dictionary, depth: int = 0) -> Di
 			return sup
 		if where == "":
 			return _wait("no %s on the market ring yet — wait for it to turn" % res, q, "no route " + res)
+	# Fee deadlock: farming `res` ends in a Gather that costs 🧺, and none is
+	# held. When `res` itself is for sale for goods already in the wallet, buy
+	# it. A strict follower sat on "gather 👥 2/6 → Gather [Q]" with 0 🧺 (🧺 is
+	# bought with 👥, 👥 is farmed with 🧺) while 34 🌾 could buy 👥 in the
+	# Village (sf2, 558 presses deep, 2026-11-09).
+	if UIP._wallet("🧺") < 1.0 and res != "🧺":
+		for tr in CampaignRuntime.supply_trades(res):
+			if _trade_ruled_out(res, str(tr.get("biome", ""))):
+				continue
+			var tgive: Dictionary = CampaignRuntime.trade_give(tr)
+			var can := not tgive.is_empty()
+			for g in tgive:
+				if UIP._wallet(str(g)) < float(tgive[g]):
+					can = false
+			if can:
+				return _supply_via(tr, res, q, depth)
 	# Decide the route before the trip: a target plot that is tracking a loop
 	# can't be explored (Ace F fast-forwards there), so the trade is the way —
 	# checked here, not on arrival, or the trade's trip and this one cancel.
@@ -1799,8 +1815,13 @@ static func _is_revealed(biome: String, col: int) -> bool:
 ## (🌱 on a 💀-leaning plot), the Druid tips it toward `res`: a strike then
 ## mostly lands on `res`, and the bank keeps paying it (owner call
 ## 2026-11-09 — the Druid lesson put to work, instead of 20 strikes at 26%).
-## Hysteresis (tip from <40%, stop at ≥60%) so free evolution can't ping-pong
+## Hysteresis (tip from <40%, stop at ≥50%) so free evolution can't ping-pong
 ## Druid⇄Ace. Post-tutorial only: Act 0 drives keep their exact press count.
+const TIP_MS := 20000         # tip for at most this long per plot …
+const TIP_FORGET_MS := 120000  # … then leave that plot to the strike for a while
+static var _tips := {}
+
+
 static func _tip_toward(res: String, q: Dictionary) -> Dictionary:
 	if UIP.current_tutorial_step() != UIP.NO_TUTORIAL_SENTINEL:
 		return {}
@@ -1819,7 +1840,16 @@ static func _tip_toward(res: String, q: Dictionary) -> Dictionary:
 	if not north_is:
 		p = 1.0 - p
 	var in_druid: bool = str(ToolConfig.get_current_frame()) == "druid"
-	if p >= (0.6 if in_druid else 0.4):
+	if p >= (0.5 if in_druid else 0.4):
+		return {}
+	# A stirring biome can swing the plot back between spins (sf2: 33%↔59% for
+	# a dozen spins). Tip for a short while, then strike whatever the odds.
+	# (Timed, not counted: the banner re-reads this every half second.)
+	var tkey := "%s|%d|%s" % [biome, col, res]
+	var now := Time.get_ticks_msec()
+	if not _tips.has(tkey) or now - int(_tips[tkey]) > TIP_FORGET_MS:
+		_tips[tkey] = now
+	if now - int(_tips[tkey]) > TIP_MS:
 		return {}
 	var hd := _hat("druid", q)
 	if not hd.is_empty():

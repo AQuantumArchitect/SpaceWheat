@@ -87,7 +87,7 @@ def test_druid_tips_toward_the_resource_before_the_first_strike():
     assert gather.index("_tip_toward(res, q)") < gather.index('_hat("ace", q)')
     tip = g.split("static func _tip_toward(")[1].split("\nstatic func ")[0]
     assert "NO_TUTORIAL_SENTINEL" in tip and "strikes.size() > 0" in tip
-    assert re.search(r"0\.6 if in_druid else 0\.4", tip)
+    assert re.search(r"0\.5 if in_druid else 0\.4", tip) and "TIP_MS" in tip
 
 
 def test_biome_change_reaches_quests_after_a_load():
@@ -125,3 +125,8 @@ def test_focus_biome_follows_the_active_biome_after_a_load():
 def test_explore_heals_a_held_but_fogged_plot():
     ex = src("Core/Instrumentation/QuantumInstrument.gd").split("func action_explore(")[1].split("\nfunc ")[0]
     assert '"already_bound"' in ex and '"healed": true' in ex and "farm.reveal_plot(grid_pos)" in ex
+
+
+def test_gather_buys_the_resource_when_no_basket_is_held():
+    g = src("Core/Campaign/Guide.gd").split("static func _gather(")[1].split("\nstatic func ")[0]
+    assert 'UIP._wallet("🧺") < 1.0 and res != "🧺"' in g and "_supply_via(tr, res, q, depth)" in g
