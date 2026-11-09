@@ -313,7 +313,7 @@
       }
     },
     "arc_quest": {
-      "body": "The Teaching — keep the Union's timber contracts moving and they will teach you timber itself (🪵/🪓).",
+      "body": "The Timber Teaching — keep the Union's timber contracts moving and they will teach you timber itself (🪵/🪓).",
       "hint": "Arc [X] [I] [R] accept. Then [C] board, [Y] Market, keep deliveries.",
       "faction": "Millwright's Union",
       "type": 1,
@@ -509,7 +509,7 @@
       }
     },
     "arc_quest": {
-      "body": "The Teaching — keep carrying water for the Hearth Keepers, and they will teach you water itself (💧/🌊).",
+      "body": "The Water Teaching — keep carrying water for the Hearth Keepers, and they will teach you water itself (💧/🌊).",
       "hint": "Arc [X] [I] [R] accept. Then keep Hearth Keeper deliveries until READY; claim on the Arc row.",
       "faction": "Hearth Keepers",
       "type": 1,
@@ -590,16 +590,17 @@
     },
     "arc_quest": {
       "body": "Still the Pond — stand in the spring and quiet its surface until it all but stills.",
-      "hint": "In the spring: Operator [9], mode 2, [E] reads the compass 🧭. Strike to deepen the gap; the surface stills near an eigenstate.",
-      "math_note": "Stand in the spring and let it settle near an eigenstate of H. Replaces biome_eigenvalue_gap_gte, which is identically ~1 in a closed system (always true).",
+      "hint": "In the spring, Druid [0]: spin each plot toward its nearer pole until the churn settles.",
+      "math_note": "Stand in the spring and halve its churn: coherence (pure-state scale) from its resting ~0.85 below 0.55 (fires ≈0.55; Druid spins toward the poles reach ≈0.53 in a few presses, gathering a plot ≈0.45). The spring's H keeps stirring, so a full stillness (<0.15) was not reachable by any key — interim gate, see the 2026-11-09 ledger. Was dynamics_at_most, which read the channel retired with BiomeDynamicsTracker (-1 forever, never completable — 2026-11-09). Ready latches, so one still moment is enough.",
       "state_predicates": [
         {
           "type": "active_biome_is",
           "biome": "FreshwaterSpring"
         },
         {
-          "type": "dynamics_at_most",
-          "value": 0.2
+          "type": "coherence_fell",
+          "from": 0.3,
+          "to": 0.55
         }
       ]
     }
@@ -624,15 +625,15 @@
     "arc_quest": {
       "body": "Make It Breathe — put coherence back on the spring and let the surface run while the depths hold.",
       "hint": "Druid [0]: rotate qubits off their poles to superpose energies — the pulse is the energy gap. The compass shows the depths never move.",
-      "math_note": "Two thresholds must both clear (smooth_and): coherence ≥ 0.35 (soft gate, width 0.05, fires ≈0.393) AND dynamics ≥ 0.25 (soft gate, width 0.08, fires ≈0.319).",
+      "math_note": "In the spring, coherence ≥ 0.35 (soft gate, width 0.05, fires ≈0.393). The dynamics ≥ 0.25 half read the retired dynamics channel (-1 forever) and was dropped 2026-11-09.",
       "state_predicates": [
+        {
+          "type": "active_biome_is",
+          "biome": "FreshwaterSpring"
+        },
         {
           "type": "coherence_at_least",
           "value": 0.35
-        },
-        {
-          "type": "dynamics_at_least",
-          "value": 0.25
         }
       ]
     }
@@ -1623,7 +1624,7 @@
       }
     },
     "arc_quest": {
-      "body": "The Teaching — hold the beacon once more, deliberately, and the Lamplighters will teach you the bridge (🌉/🪔).",
+      "body": "The Bridge Teaching — hold the beacon once more, deliberately, and the Lamplighters will teach you the bridge (🌉/🪔).",
       "hint": "Arc [X] accept. Lanternfall, Druid [0]: [E] excites 🪔. Claim [C].",
       "faction": "Lamplighters",
       "type": 1,

@@ -277,7 +277,10 @@ static func _beat_step(q: Dictionary) -> Dictionary:
 		return _door_claim(q)
 	var open := _open_predicates(q)
 	if open.is_empty():
-		return _door_claim(q)  # satisfied; the quest flips to ready on its own tick
+		# Satisfied, but the quest flips to ready on its own tick. Naming
+		# "Claim [R]" before then made R a refusal ("not ready yet") a strict
+		# follower pressed ten times (Find Lanternfall, after Chart; wave 16).
+		return _wait("%s is settling — wait a moment, then claim" % _title(q), q, "settle")
 	return _across(open, q)
 
 
@@ -475,6 +478,8 @@ static func _step(step: String, pred: Dictionary, q: Dictionary) -> Dictionary:
 			return _strike_once(UIP._active_biome_name(), q)
 		"superpose":
 			return _superpose(q)
+		"still":
+			return _still(q)
 		"evolve":
 			return _evolve(str(pred.get("biome", "")), q)
 		"steer":
@@ -929,6 +934,9 @@ static func _gather(res: String, need: int, q: Dictionary, depth: int = 0) -> Di
 	var t := _travel(where, q)
 	if not t.is_empty():
 		return t
+	var tip := _tip_toward(res, q)
+	if not tip.is_empty():
+		return tip
 	var h := _hat("ace", q)
 	if not h.is_empty():
 		return h
@@ -1508,6 +1516,36 @@ static func _superpose(q: Dictionary) -> Dictionary:
 	return _chord(_close_first() + _pick_plot(col) + [["Hadamard", "E"]], q, "superpose")
 
 
+## Quiet a biome's surface (coherence_fell): the Druid spins the plot that
+## sits most on its side toward its nearer pole (Spin + up, Spin − down).
+## Still the Pond used to read the retired dynamics channel, -1 forever: no
+## key could finish it (2026-11-09).
+static func _still(q: Dictionary) -> Dictionary:
+	var biome := UIP._active_biome_name()
+	var col := -1
+	var side := 2.0
+	var north := 0.5
+	for c in range(_live_cols(biome)):
+		if not _is_revealed(biome, c):
+			continue
+		var n := _north_pct(biome, c)
+		if abs(n - 0.5) < side:
+			side = abs(n - 0.5)
+			col = c
+			north = n
+	if col < 0:
+		return _reveal(_first_live_col(biome), q)
+	var h := _hat("druid", q)
+	if not h.is_empty():
+		return h
+	var parts: Array = _close_first()
+	if _live_col() != col:
+		parts.append_array(_pick_plot(col))
+	parts.append("spin it toward its nearer pole until the churn settles")
+	parts.append(["Spin +", "R"] if north >= 0.5 else ["Spin −", "Q"])
+	return _chord(parts, q, "still")
+
+
 ## Let a biome evolve and read itself: stand in it and run its clock fast.
 static func _evolve(biome: String, q: Dictionary) -> Dictionary:
 	var t := _travel(biome, q)
@@ -1748,6 +1786,68 @@ static func _is_revealed(biome: String, col: int) -> bool:
 	if farm == null or pos.x < 0 or not farm.has_method("is_plot_revealed"):
 		return false
 	return bool(farm.is_plot_revealed(pos))
+
+
+## Before the first strike on a fresh plot whose other pole is likelier
+## (🌱 on a 💀-leaning plot), the Druid tips it toward `res`: a strike then
+## mostly lands on `res`, and the bank keeps paying it (owner call
+## 2026-11-09 — the Druid lesson put to work, instead of 20 strikes at 26%).
+## Hysteresis (tip from <40%, stop at ≥60%) so free evolution can't ping-pong
+## Druid⇄Ace. Post-tutorial only: Act 0 drives keep their exact press count.
+static func _tip_toward(res: String, q: Dictionary) -> Dictionary:
+	if UIP.current_tutorial_step() != UIP.NO_TUTORIAL_SENTINEL:
+		return {}
+	var biome := UIP._active_biome_name()
+	var col := _live_col()
+	if col < 0 or not UIP._plot_bound(col) or UIP._plot_measured(col) or _frozen(col, biome) != null:
+		return {}
+	var term = UIP._plot_terminal(col)
+	if term == null or not ("strikes" in term) or term.strikes.size() > 0:
+		return {}
+	var axis := _axis_glyphs(biome, col)
+	var north_is := axis.size() == 2 and str(axis[0]) == res
+	if axis.size() != 2 or (not north_is and str(axis[1]) != res):
+		return {}
+	var p := _north_pct(biome, col)
+	if not north_is:
+		p = 1.0 - p
+	var in_druid: bool = str(ToolConfig.get_current_frame()) == "druid"
+	if p >= (0.6 if in_druid else 0.4):
+		return {}
+	var hd := _hat("druid", q)
+	if not hd.is_empty():
+		return hd
+	var other := str(axis[1]) if north_is else str(axis[0])
+	var parts: Array = _close_first() + ["tip it from %s toward %s, then strike (%d%%)" % [other, res, int(round(p * 100.0))]]
+	parts.append(["Spin +", "R"] if north_is else ["Spin −", "Q"])
+	return _chord(parts, q, "tip")
+
+
+## [north, south] glyphs a revealed plot wears; [] when unknown.
+static func _axis_glyphs(biome: String, col: int) -> Array:
+	var farm = UIP._active_farm()
+	if farm == null or farm.grid == null:
+		return []
+	var b = farm.grid.get_biome(biome)
+	if b == null or not ("viz_cache" in b) or b.viz_cache == null or not b.viz_cache.has_metadata():
+		return []
+	var ax: Dictionary = b.viz_cache.get_axis(col)
+	if ax.is_empty():
+		return []
+	return [str(ax.get("north", "")), str(ax.get("south", ""))]
+
+
+## Weight toward a plot's north glyph (the bubble's visible size/tint), 0.5
+## when unknown — the same viz_cache Bloch read the field draws from.
+static func _north_pct(biome: String, col: int) -> float:
+	var farm = UIP._active_farm()
+	if farm == null or farm.grid == null:
+		return 0.5
+	var b = farm.grid.get_biome(biome)
+	if b == null or not ("viz_cache" in b) or b.viz_cache == null or not b.viz_cache.has_metadata():
+		return 0.5
+	var bl: Dictionary = b.viz_cache.get_bloch(col)
+	return float(bl.get("p0", 0.5)) if not bl.is_empty() else 0.5
 
 
 ## The first revealed live column, starting at `start` and wrapping; -1 if none.

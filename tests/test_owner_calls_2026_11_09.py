@@ -88,3 +88,22 @@ def test_druid_tips_toward_the_resource_before_the_first_strike():
     tip = g.split("static func _tip_toward(")[1].split("\nstatic func ")[0]
     assert "NO_TUTORIAL_SENTINEL" in tip and "strikes.size() > 0" in tip
     assert re.search(r"0\.6 if in_druid else 0\.4", tip)
+
+
+def test_biome_change_reaches_quests_after_a_load():
+    """A .bind(farm) callable died with the farm on load: after any load,
+    travel never reached QuestManager (Past the Hedge froze at 50%)."""
+    shell = src("UI/PlayerShell.gd")
+    assert 'Callable(self, "_handle_active_biome_change").bind(' not in shell
+    assert "func _handle_active_biome_change(biome_name: String, _old_biome: String) -> void:" in shell
+
+
+def test_satisfied_but_unready_quest_waits_instead_of_naming_claim():
+    beat = src("Core/Campaign/Guide.gd").split("static func _beat_step(")[1].split("\nstatic func ")[0]
+    assert "is settling" in beat
+
+
+def test_lane_files_unlink_with_retry_on_windows():
+    rc = src("🍄/🎛️/rig_client.py")
+    clear = rc.split("def clear_rig_files(")[1].split("\n    def ")[0]
+    assert "_unlink_retry(self.queue_file)" in clear and "except PermissionError" in rc

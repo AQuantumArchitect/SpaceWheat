@@ -440,6 +440,17 @@
     }
   },
   "guide": {
+    "fade_after_s": [
+      15,
+      30,
+      45,
+      60,
+      90,
+      120,
+      180,
+      240,
+      300
+    ],
     "keymap": {
       "hats": {
         "spark": "4",
@@ -546,7 +557,7 @@
         "accept": "R",
         "claim": "R",
         "deliver": "R",
-        "refresh": "E",
+        "refresh": "F",
         "faster": "="
       },
       "clock_max_stride": 32,
@@ -637,6 +648,9 @@
       ],
       "dynamics_at_most": [
         "measure"
+      ],
+      "coherence_fell": [
+        "still"
       ],
       "coherence_at_least": [
         "superpose"

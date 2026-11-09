@@ -3241,8 +3241,8 @@ static func teaching_wrong_hat_refusal() -> String:
 		return ""
 	var rest := _teaching_walk_line().replace("▸ ", "").strip_edges()
 	if rest == "" or rest == "ESC closes":
-		return "The Teaching holds the lamp — [0] Druid"
-	return "The Teaching holds the lamp — %s" % rest
+		return "The Bridge Teaching holds the lamp — [0] Druid"
+	return "The Bridge Teaching holds the lamp — %s" % rest
 
 
 static func _slots_full() -> bool:
