@@ -428,6 +428,14 @@ static func _step(step: String, pred: Dictionary, q: Dictionary) -> Dictionary:
 		"travel":
 			return _travel(str(pred.get("biome", "")), q)
 		"hat":
+			# The Icon walks track a plot next; if it is still fog, explore it
+			# first in Ace (the berry step routes that) instead of donning Icon.
+			if arg == "icon":
+				var only: Array = []
+				if str(pred.get("type", "")) == "icon_incorporated":
+					only = _axis_cols(UIP._active_biome_name(), str(pred.get("north", "")), str(pred.get("south", "")))
+				if _berry_needs_reveal(only):
+					return {}
 			return _hat(arg, q)
 		"berry":
 			return _berry(q)
@@ -643,6 +651,34 @@ static func _hat(hat: String, q: Dictionary) -> Dictionary:
 ## Berry ritual on the active biome: incorporate a ripe loop, else track a
 ## qubit that is not tracked yet (any qubit — tracking needs a focused
 ## register column, not an explored plot), else let time ripen the loops.
+## True when _berry's next act would be a reveal (no ripe loop; the plot it
+## would track is still fog). The walks run "hat:icon" before "berry", so in
+## Ace the hat step won ("▸ Icon hat [5]"), then in Icon _berry sent the
+## player back to Ace to explore — a strict banner-follower ping-ponged
+## between hats forever (overnight strict-follower run, 21 flags in).
+static func _berry_needs_reveal(only: Array = []) -> bool:
+	var reg = UIP._berry_register()
+	var biome := UIP._active_biome_name()
+	var farm = UIP._active_farm()
+	if reg == null or farm == null or farm.grid == null or farm.grid.get_biome(biome) == null:
+		return false
+	var qc = farm.grid.get_biome(biome).quantum_computer
+	var nq: int = int(qc.register_map.num_qubits) if qc != null and qc.register_map != null else 0
+	var n := mini(nq, BERRY_ROWS)
+	for col in range(n):
+		if (only.is_empty() or col in only) and bool(reg.is_ripe(col)):
+			return false
+	for col in range(n):
+		if not only.is_empty() and not (col in only):
+			continue
+		if bool(reg.is_tracked(col)):
+			continue
+		if qc.has_method("qubit_has_transverse_term") and not qc.qubit_has_transverse_term(col):
+			continue
+		return not _is_revealed(biome, col)
+	return false
+
+
 static func _berry(q: Dictionary, only: Array = []) -> Dictionary:
 	var reg = UIP._berry_register()
 	var biome := UIP._active_biome_name()
@@ -714,6 +750,11 @@ static func _with_progress(step: Dictionary, q: Dictionary, pred: Dictionary) ->
 	var title := _title(q)
 	if title == "":
 		return step
+	# Two lessons share the title "The Teaching" (Millwright, Hearth Keepers):
+	# a sensor delivered for one while the banner worked the other (wave 10).
+	var faction := str(pred.get("faction", "")).strip_edges()
+	if faction != "":
+		title = "%s (%s)" % [title, faction]
 	var out := step.duplicate()
 	out["text"] = "▸ %s %d%% → %s" % [title, pct, text.substr(2)]
 	return out
