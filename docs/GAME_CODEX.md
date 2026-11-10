@@ -410,8 +410,9 @@ engaging and Acts 4–5 grindy. The most valuable fresh perspective would probe:
    per-flag `x/0.85` score bars + per-predicate breakdowns with real fire
    points; glosses carry live have/target values (berries, atoms, standing, gap).
 5. **Is the chatter readable or noise?** Still open. It carries real state but
-   scrolls by (emoji streams, 32-entry ring, no history surface). A different
-   push's question.
+   scrolls by (32-entry ring, no history surface). *Partially addressed:* each
+   line now also carries its glyph-language sentence (`|ket⟩`, `[p]` marginals,
+   a `⟨bra|` on the least-sure register; see `docs/GLYPH_LANGUAGE.md`).
 
 **Elegance / architecture**
 6. **Standing feeds `PriceModel`.** The six channels are not cosmetic: they

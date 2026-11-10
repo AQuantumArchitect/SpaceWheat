@@ -887,6 +887,13 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			result["active_biome"] = str(cf_abm.get_active_biome()) if cf_abm and cf_abm.has_method("get_active_biome") else ""
 			result["current_frame"] = str(ToolConfig.get_current_frame()) if ToolConfig else ""
 
+		"story_chatter":
+			# Read-only: the last N chatter events, each carrying its glyph-language
+			# sentence (Core/Story/GlyphLanguage.gd). Rendering never measures.
+			var sc_engine = get_root().get_node_or_null("/root/StoryEngine")
+			var sc_n: int = int(cmd.get("n", 8))
+			result["chatter"] = sc_engine.recent_chatter(sc_n) if sc_engine != null and sc_engine.has_method("recent_chatter") else []
+
 		"story_flags":
 			var farm = _farm
 			if farm == null:

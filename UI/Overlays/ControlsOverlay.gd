@@ -1160,6 +1160,10 @@ func _make_story_inspect_panel() -> Control:
 	var emojis: Array = ev.get("emojis", [])
 	if not emojis.is_empty():
 		box.add_child(_make_kv_row("emojis", " ".join(PackedStringArray(emojis))))
+	var glyph_ev = ev.get("glyph", {})
+	var glyph_sentence := str(glyph_ev.get("sentence", "")) if glyph_ev is Dictionary else ""
+	if glyph_sentence != "":
+		box.add_child(_make_kv_row("glyph", glyph_sentence))
 
 	var faction: String = str(ev.get("faction", ""))
 	if faction != "":
@@ -1690,6 +1694,18 @@ func _make_chatter_bubble(ev: Dictionary, selected: bool, key_str: String) -> Pa
 		atom.modulate = Color(1.0, 1.0, 1.0, alpha)
 		body.add_child(atom)
 	vbox.add_child(body)
+
+	# === GLYPH: the same measurement as a sentence (docs/GLYPH_LANGUAGE.md) ===
+	# |ket⟩ is what was drawn; ⟨bra| is the register the speaker is least sure of.
+	var glyph_ev = ev.get("glyph", {})
+	var glyph_short := str(glyph_ev.get("short", "")) if glyph_ev is Dictionary else ""
+	if glyph_short != "":
+		var glyph_label := Label.new()
+		glyph_label.text = glyph_short
+		glyph_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		glyph_label.add_theme_font_size_override("font_size", 11)
+		glyph_label.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
+		vbox.add_child(glyph_label)
 
 	# === FOOTER: connection chips ===
 	var connections: Array = ev.get("connections", [])

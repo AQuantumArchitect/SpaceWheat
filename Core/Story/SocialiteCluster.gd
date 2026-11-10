@@ -15,6 +15,7 @@ extends RefCounted
 
 const Socialite := preload("res://Core/Story/Socialite.gd")
 const BiomeMeasurementSampler := preload("res://Core/Story/BiomeMeasurementSampler.gd")
+const GlyphLanguage := preload("res://Core/Story/GlyphLanguage.gd")
 
 # Demos is the player faction; included so player-faction state surfaces
 # alongside NPC voices via the same measurement mechanism.
@@ -75,7 +76,9 @@ func populate(graph, n: int) -> void:
 ## overlaps biome atoms), samples the QC, emits the result.
 ##
 ## Event shapes:
-##   {kind: "chatter", speaker, faction, topic_node, biome, emojis, line}
+##   {kind: "chatter", speaker, faction, topic_node, biome, emojis, line, glyph}
+##   (glyph: the same measurement written in the glyph language — see
+##   Core/Story/GlyphLanguage.gd and docs/GLYPH_LANGUAGE.md)
 ##   {kind: "step",    speaker, faction, from_node, to_node}   (graph walk)
 func tick(graph) -> Array:
 	var events: Array = []
@@ -134,6 +137,7 @@ func tick(graph) -> Array:
 			"marginals": marginals,
 			"connections": connections,
 			"line": " ".join(emojis),
+			"glyph": GlyphLanguage.compose_chatter(emojis, marginals, biome_label),
 		}
 		events.append(ev)
 		_push_chatter(ev)

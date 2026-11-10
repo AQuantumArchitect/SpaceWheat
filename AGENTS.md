@@ -12,6 +12,7 @@ starting work in this repo. Humans: start at [README.md](README.md).
 | building, packaging or releasing | [docs/agents/MEMORY.md](docs/agents/MEMORY.md): operational memory (release path, native DLL, Windows layout) |
 | touching the story, quests or acts | [docs/CAMPAIGN.md](docs/CAMPAIGN.md): the campaign spec lives in `Core/Campaign/campaign.json`; never hand-edit the compiled JSON |
 | tuning biomes, factions or Lindbladians | [docs/agents/BIOME_AGENTS.md](docs/agents/BIOME_AGENTS.md) |
+| touching chatter, or writing state as emoji sentences | [docs/GLYPH_LANGUAGE.md](docs/GLYPH_LANGUAGE.md): biomes as scopes, kets, bras, dark `?` |
 | playing the game headlessly (playtest bots) | [🍄/README.txt](🍄/README.txt), then [🍄/🗺️_ARCHITECTURE.md](🍄/🗺️_ARCHITECTURE.md) |
 | working on the native C++ simulation | [docs/build/NATIVE_BUILD.md](docs/build/NATIVE_BUILD.md) |
 
