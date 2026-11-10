@@ -1702,7 +1702,7 @@
     },
     "arc_quest": {
       "body": "The Middle Cannot Hold — let the horn go dark and keep the bridge burning: let 📯 settle while 🌉 still burns.",
-      "hint": "Druid [0] on the horn's plot: [E] excites 📯 — then stop and watch the bulk disperse it. The chain keeps its ends, not its middle.",
+      "hint": "In Lanternfall: Druid [0] on the horn's plot: [E] excites 📯 — then stop and watch the bulk disperse it. The chain keeps its ends, not its middle.",
       "state_predicates": [
         {
           "type": "biome_state_lte",
@@ -1821,7 +1821,7 @@
     },
     "arc_quest": {
       "body": "The Record Opens — track a forest qubit around a second closed walk and bank both loops in the record.",
-      "hint": "Icon frame F tracks; time and the day/night Hamiltonian drive the walk. A loop freezes when it returns near its seed having enclosed real solid angle. E-inspect shows the record the moment it holds an entry.",
+      "hint": "In the Starter Forest: Icon frame F tracks; time and the day/night Hamiltonian drive the walk. A loop freezes when it returns near its seed having enclosed real solid angle. E-inspect shows the record the moment it holds an entry.",
       "state_predicates": [
         {
           "type": "biome_frozen_loops_gte",
@@ -1854,7 +1854,7 @@
     },
     "arc_quest": {
       "body": "Wind Twice — arrange two recorded loops whose mutual winding reaches 2: one walk that turns twice about the other's axis.",
-      "hint": "Drive one loop tight around the pole with Druid rotations, then walk the second qubit's loop around a different axis. The knot card (E-inspect) reads the pair's winding live.",
+      "hint": "In the Starter Forest: Drive one loop tight around the pole with Druid rotations, then walk the second qubit's loop around a different axis. The knot card (E-inspect) reads the pair's winding live.",
       "state_predicates": [
         {
           "type": "biome_loops_linked",
@@ -2527,7 +2527,7 @@
     },
     "arc_quest": {
       "body": "Walk It Twice — close a lift upstairs on each of two qubits, until the record accepts the linking question.",
-      "hint": "Icon hat (5): track a qubit and let it walk its ripe loop TWICE without stopping (Ω = 4π closes the lift; the record stitches consecutive banked loops itself). Then do it again on a second qubit. The knot card's experimental line stops refusing the moment both lifts truly close.",
+      "hint": "In the Starter Forest: Icon hat (5): track a qubit and let it walk its ripe loop TWICE without stopping (Ω = 4π closes the lift; the record stitches consecutive banked loops itself). Then do it again on a second qubit. The knot card's experimental line stops refusing the moment both lifts truly close.",
       "math_note": "Lift closes iff Ω ≡ 0 (mod 4π). gauss_linking(open lift) = NAN — refusal, not failure; earn the closed curve and the number becomes real.",
       "state_predicates": [
         {
