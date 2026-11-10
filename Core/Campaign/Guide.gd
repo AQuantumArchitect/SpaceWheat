@@ -497,9 +497,12 @@ static func _step(step: String, pred: Dictionary, q: Dictionary) -> Dictionary:
 
 static func _door_accept(q: Dictionary) -> Dictionary:
 	var idx := _arc_row_index(q)
-	var row: Array = []
-	if idx >= 0:
-		row = _page_to(idx) + _row(_title(q), idx)
+	# Not on the Arc: never name a bare "Accept [R]" — it accepts whatever row
+	# is selected. Strict from zero (45 flags) looped "Arc [Y] → Accept [R]" and
+	# signed doors nobody chose (night 2, sfz6).
+	if idx < 0:
+		return {}
+	var row: Array = _page_to(idx) + _row(_title(q), idx)
 	return _chord(_go("X/arc") + row + [["Accept", _verb("accept")]], q, "accept")
 
 

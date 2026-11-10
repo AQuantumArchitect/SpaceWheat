@@ -331,3 +331,8 @@ def test_open_country_drops_the_dlc_padlock():
     ucc = src("UI/Managers/UIContextController.gd")
     assert "not BalanceConfig.dissipative_enabled() and not _active_biome_open()" in ucc
     assert "is_open_here()" in ucc.split("func _active_biome_open(")[1].split("\nfunc ")[0]
+
+
+def test_guide_never_names_a_blind_arc_accept():
+    da = src("Core/Campaign/Guide.gd").split("static func _door_accept(")[1].split("\nstatic func ")[0]
+    assert da.index("if idx < 0:") < da.index('["Accept", _verb("accept")]')
