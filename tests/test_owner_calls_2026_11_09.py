@@ -142,3 +142,25 @@ def test_weaves_refuse_an_empty_mark_before_the_hadamard():
         assert body.index('_refuse_no_qubit(farm, positions, "%s")' % what) < body.index('_apply_single_qubit_gate(')
     helper = gh.split("static func _refuse_no_qubit(")[1].split("\nstatic func ")[0]
     assert "explore it first" in helper and "[" not in helper.split('"message":')[1].split("\n")[0].replace("% [what, key]", "")
+
+
+def test_tracked_unbound_plot_names_the_way_out():
+    # Wave 19 keeper: a gathered plot whose loop was still tracked kept Ace F
+    # on Fast-Fwd, so it could never be explored and Strike/Gather refused
+    # with "R incorporates there" only. The refusal now names untracking.
+    qii = src("UI/Core/QuantumInstrumentInput.gd")
+    hint = qii.split("func _tracked_elsewhere_hint(")[1].split("\nfunc ")[0]
+    assert "plot.terminal == null" in hint and "F stops tracking; then Ace F explores it again" in hint
+    block = qii.split("func _block_reason_for_player(")[1].split("\nfunc ")[0]
+    pop = block.split('"pop", "reap":')[1]
+    assert pop.index("_tracked_elsewhere_hint()") < pop.index("nothing measured to gather here")
+
+
+def test_staple_rescue_stands_while_the_gather_fee_is_short():
+    # Wave 19 strict follower: 0 🧺, 3 👥 — 👥 rescue shut (3 > critical),
+    # 🧺 costs more 👥 than held, Q costs 🧺. The rescue now stands during
+    # the fee deadlock, and the Guide only routes to a rescue the board shows.
+    qb = src("UI/Overlays/QuestBoard.gd").split("func _rescue_open(")[1].split("\nfunc ")[0]
+    assert qb.index('emoji != "🧺" and _vital_stock("🧺") < UIProgression.gather_price()') < qb.index("return _vital_stock(emoji) <= STAPLE_CRITICAL")
+    g = src("Core/Campaign/Guide.gd").split("static func _gather(")[1].split("\nstatic func ")[0]
+    assert "fee_board._rescue_open(res)" in g

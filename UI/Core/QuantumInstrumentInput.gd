@@ -2345,6 +2345,9 @@ func _block_reason_for_player(action_name: String) -> String:
 				return short_pop
 			if not _has_focused_plot():
 				return "no plot selected — G H J K L ; picks one"
+			var track_pop := _tracked_elsewhere_hint()
+			if track_pop.begins_with("this plot's loop is still tracked"):
+				return track_pop
 			return "nothing measured to gather here — R strikes first"
 		_:
 			return "not possible on this plot right now"
@@ -2370,6 +2373,12 @@ func _tracked_elsewhere_hint() -> String:
 		return ""
 	var qid: int = int(_instrument.current_plot_idx) if _instrument else -1
 	if qid >= 0 and biome.quantum_computer.berry_register.is_tracked(qid):
+		# Wave 19 keeper: a gathered (unbound) plot whose loop was still tracked
+		# kept Ace F on Fast-Fwd, so it could never be explored again and every
+		# Strike/Gather refused — name the way out (stop tracking or incorporate).
+		var plot = farm.grid.get_plot(_get_grid_position()) if farm and farm.grid else null
+		if plot != null and plot.terminal == null:
+			return "this plot's loop is still tracked, so F fast-forwards instead of exploring — Icon hat (5): R incorporates when ripe, or F stops tracking; then Ace F explores it again"
 		return "this plot is being tracked — switch to Icon hat (5), R incorporates there"
 	return ""
 
