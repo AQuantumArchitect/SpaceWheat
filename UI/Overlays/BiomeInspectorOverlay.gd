@@ -33,6 +33,8 @@ const COLOR_COUPLING := Color(0.6, 0.45, 0.9, 0.9)
 const COLOR_LINDBLAD := Color(0.9, 0.4, 0.3, 0.8)
 const COLOR_ENTANGLE := Color(0.3, 0.9, 0.6, 0.8)
 const COLOR_MUTED := Color(0.5, 0.55, 0.65)
+const COLOR_VOICE := Color(0.95, 0.85, 0.55)
+const GlyphLanguageCls := preload("res://Core/Story/GlyphLanguage.gd")
 
 # Transparent to input routing — UIContextController shows frame actions, not overlay actions.
 var is_transparent_overlay: bool = true
@@ -341,6 +343,7 @@ func _build_active_plot_view() -> void:
 		_render_icon_card(card_dict)
 
 	_build_entanglement_section()
+	_build_voices_section(north, south)
 
 func _make_marginals_strip(p_north: float, p_south: float, north: String, south: String) -> Control:
 	var hbox := HBoxContainer.new()
@@ -624,6 +627,44 @@ func _build_entanglement_section() -> void:
 
 	if shown == 0:
 		box.add_child(_muted_label("No significant entanglement (MI < 0.1)", 11))
+
+## Voices — the factions connected to this biome (the market's rule: they own an
+## icon matching one of its qubit pairs), each with its latest line in the glyph
+## language (docs/GLYPH_LANGUAGE.md §8). Lines that mention this plot's poles are
+## lit; `g?` is an icon that faction deals in and you hold nowhere.
+func _build_voices_section(north: String, south: String) -> void:
+	var engine = get_node_or_null("/root/StoryEngine")
+	if engine == null or not engine.has_method("faction_lines_for_biome") or not _active_biome:
+		return
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 3)
+	_content_box.add_child(box)
+	var sep := HSeparator.new()
+	sep.add_theme_constant_override("separation", 8)
+	box.add_child(sep)
+	var title := Label.new()
+	title.text = "Voices"
+	title.add_theme_font_size_override("font_size", 13)
+	title.add_theme_color_override("font_color", COLOR_VOICE)
+	box.add_child(title)
+	var lines: Array = engine.faction_lines_for_biome(_active_biome, 6)
+	if lines.is_empty():
+		box.add_child(_muted_label("No faction has spoken of this biome yet.", 11))
+		return
+	var n := GlyphLanguageCls.canonical(north)
+	var s := GlyphLanguageCls.canonical(south)
+	for ev in lines:
+		var glyph = ev.get("glyph", {})
+		var short := str(glyph.get("short", "")) if glyph is Dictionary else ""
+		var mentions: bool = ev.get("emojis", []).has(n) or ev.get("emojis", []).has(s)
+		for d in ev.get("darks", []):
+			mentions = mentions or str(d).contains(n) or str(d).contains(s)
+		var lbl := Label.new()
+		lbl.text = "%s %s   %s" % [str(ev.get("speaker", "")), str(ev.get("faction", "")), short]
+		lbl.add_theme_font_size_override("font_size", 12)
+		lbl.add_theme_color_override("font_color", COLOR_VOICE if mentions else COLOR_MUTED)
+		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		box.add_child(lbl)
 
 # =============================================================================
 # UI HELPERS

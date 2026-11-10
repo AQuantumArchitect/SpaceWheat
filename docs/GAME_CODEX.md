@@ -410,9 +410,11 @@ engaging and Acts 4–5 grindy. The most valuable fresh perspective would probe:
    per-flag `x/0.85` score bars + per-predicate breakdowns with real fire
    points; glosses carry live have/target values (berries, atoms, standing, gap).
 5. **Is the chatter readable or noise?** Still open. It carries real state but
-   scrolls by (32-entry ring, no history surface). *Partially addressed:* each
-   line now also carries its glyph-language sentence (`|ket⟩`, `[p]` marginals,
-   a `⟨bra|` on the least-sure register; see `docs/GLYPH_LANGUAGE.md`).
+   scrolls by (no history surface). *Partially addressed:* chatter now speaks
+   the glyph language (`docs/GLYPH_LANGUAGE.md`). Factions speak their own scope,
+   and dark `🐇🦌?` registers hint at icons you lack. It lives in the Story room
+   (by standing), B (factions connected to the biome) and N (biomes, and
+   between biomes), never on the farm.
 
 **Elegance / architecture**
 6. **Standing feeds `PriceModel`.** The six channels are not cosmetic: they

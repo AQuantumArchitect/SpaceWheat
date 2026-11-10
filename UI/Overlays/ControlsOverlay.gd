@@ -1046,15 +1046,24 @@ func _fill_story_static_mid(engine, _focus_id: String, _focus_node, outgoing: Ar
 	box.add_child(_make_action_row("F", f_label, f_desc))
 	box.add_child(_make_spacer(8))
 
+## The Story room's lines: factions speaking their own scope, drawn by standing
+## (StoryEngine.story_chatter; docs/GLYPH_LANGUAGE.md §8).
+func _story_lines(engine) -> Array:
+	if engine == null:
+		return []
+	if engine.has_method("story_chatter"):
+		return engine.story_chatter(6)
+	return engine.recent_chatter(6)
+
 ## Live bottom section: chatter bubbles, inspect panel, trajectory, key hints.
 ## Refilled by the chatter debounce.
 func _fill_story_live_bot(engine) -> void:
 	var box := _story_live_bot
 	# === CHATTER BUBBLES (cursor target for QERF) ===
 	box.add_child(_make_section_header("murmur"))
-	var chatter: Array = engine.recent_chatter(6)
+	var chatter: Array = _story_lines(engine)
 	if chatter.is_empty():
-		box.add_child(_make_muted_label("(silence so far — wait for socialites)", 10))
+		box.add_child(_make_muted_label("(quiet so far — your people, and factions you stand well with, talk here)", 10))
 		_story_chatter_idx = 0
 	else:
 		_story_chatter_idx = clampi(_story_chatter_idx, 0, chatter.size() - 1)
@@ -1143,7 +1152,7 @@ func _make_story_inspect_panel() -> Control:
 		box.add_child(lbl)
 		return panel
 
-	var chatter: Array = engine.recent_chatter(6)
+	var chatter: Array = _story_lines(engine)
 	if chatter.is_empty():
 		var lbl2 := Label.new()
 		lbl2.text = "(no chatter to inspect)"
@@ -1936,7 +1945,7 @@ func _story_apply_verb(verb: String) -> void:
 	var engine = _story_engine()
 	if engine == null:
 		return
-	var chatter: Array = engine.recent_chatter(6)
+	var chatter: Array = _story_lines(engine)
 	if chatter.is_empty():
 		return
 	var idx := clampi(_story_chatter_idx, 0, chatter.size() - 1)
@@ -2823,7 +2832,7 @@ func _select_item_in_tab(slot: int) -> void:
 			var engine = _story_engine()
 			if engine == null:
 				return
-			var chatter: Array = engine.recent_chatter(6)
+			var chatter: Array = _story_lines(engine)
 			if slot < chatter.size() and _story_chatter_idx != slot:
 				_story_chatter_idx = slot
 				_refresh_body()

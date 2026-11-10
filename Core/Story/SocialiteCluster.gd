@@ -137,7 +137,8 @@ func tick(graph) -> Array:
 			"marginals": marginals,
 			"connections": connections,
 			"line": " ".join(emojis),
-			"glyph": GlyphLanguage.compose_chatter(emojis, marginals, biome_label),
+			"glyph": GlyphLanguage.compose_chatter(emojis, marginals,
+				GlyphLanguage.biome_scope(biome_label, _biome_pairs(picked_biome)), _ask_draws(emojis.size())),
 		}
 		events.append(ev)
 		_push_chatter(ev)
@@ -176,6 +177,29 @@ func _pick_biome_from_names(names: Array, biomes_dict: Dictionary) -> Dictionary
 		if r <= acc:
 			return {"biome": biomes[i], "liveliness": lives[i]}
 	return {"biome": biomes[biomes.size() - 1], "liveliness": lives[biomes.size() - 1]}
+
+
+## The biome's vocabulary as ordered pole pairs — what its scope tag hashes.
+static func _biome_pairs(biome) -> Array:
+	var out: Array = []
+	if biome == null or not ("quantum_computer" in biome) or biome.quantum_computer == null:
+		return out
+	var rm = biome.quantum_computer.register_map
+	if rm == null:
+		return out
+	for q in range(int(rm.num_qubits)):
+		var axis: Dictionary = rm.axes.get(q, {})
+		out.append([str(axis.get("north", "")), str(axis.get("south", ""))])
+	return out
+
+
+## One uniform draw per register: GlyphLanguage asks about register j iff its
+## draw falls under the register's binary entropy (stable states, churning asks).
+static func _ask_draws(n: int) -> Array:
+	var out: Array = []
+	for _i in range(n):
+		out.append(randf())
+	return out
 
 
 func _biome_name_of(biome) -> String:

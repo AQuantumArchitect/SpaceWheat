@@ -11,8 +11,9 @@ extends SceneTree
 ## Set SW_PROBE_USER_DIR_PREFIX to refuse to boot unless user:// resolves under it
 ## (keeps a probe from writing into a player's real save directory).
 
-const WAIT_FRAMES := 3600   # ~60 s at 60 Hz
+const WAIT_FRAMES := 3600   # ~60 s at 60 Hz (the story engine ticks at 1 Hz)
 const WANT := 4
+const WANT_LINES := 12
 
 
 func _init() -> void:
@@ -53,9 +54,11 @@ func _run() -> void:
 		quit(1)
 		return
 	var chatter: Array = []
+	var lines: Array = []
 	for _i in range(WAIT_FRAMES):
 		chatter = engine.recent_chatter(16)
-		if chatter.size() >= WANT:
+		lines = engine.voices.recent(96) if engine.voices != null else []
+		if chatter.size() >= WANT and lines.size() >= WANT_LINES:
 			break
 		await process_frame
 	for ev in chatter:
@@ -68,5 +71,22 @@ func _run() -> void:
 			"marginals": ev.get("marginals", []),
 			"glyph": ev.get("glyph", null),
 		}))
-	print("GLYPH_PROBE done chatter=%d" % chatter.size())
+	for ev in lines:
+		print("GLYPH_LINE " + JSON.stringify(ev))
+	# B's query for each biome, so the surface path is exercised too.
+	var biomes: Dictionary = farm_biomes(get_root())
+	for bname in biomes:
+		var b_lines: Array = engine.faction_lines_for_biome(biomes[bname], 6)
+		print("GLYPH_B %s %d" % [bname, b_lines.size()])
+	print("GLYPH_PROBE done chatter=%d lines=%d story=%d between=%d" % [
+		chatter.size(), lines.size(), engine.story_chatter(96).size(), engine.between_chatter(96).size()])
 	quit(0)
+
+
+static func farm_biomes(root) -> Dictionary:
+	var app = root.get_node_or_null("AppRoot")
+	var gr = app.game_root if app != null and "game_root" in app else null
+	var farm = gr.farm if gr != null else null
+	if farm == null or farm.grid == null or not farm.grid.has_method("get_all_biomes"):
+		return {}
+	return farm.grid.get_all_biomes()
