@@ -2887,6 +2887,9 @@
    "gate_order": [
     "gate_word"
    ],
+   "spinor_read": [
+    "spinor"
+   ],
    "mutual_information_at_least": [
     "hat:operator",
     "pair_gate:Q"
