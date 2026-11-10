@@ -298,3 +298,8 @@ def test_gather_buys_lap_staples_before_the_trip():
     assert g.index('for staple in ["🍞", "👥"]') < g.index("var t := _travel(where, q)")
     sf = src("🍄/🧪/strict_follow.py")
     assert "STUCK (ping-pong)" in sf
+
+
+def test_learn_word_buys_bread_before_the_trip():
+    lw = src("Core/Campaign/Guide.gd").split("static func _learn_word(")[1].split("\nstatic func ")[0]
+    assert lw.index('_supply("🍞", q, 1)') < lw.index("var t := _travel(str(b), q)")

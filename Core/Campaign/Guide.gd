@@ -1270,6 +1270,12 @@ static func _learn_word(q: Dictionary) -> Dictionary:
 		if int(abm.get_slot_for_biome(str(b))) < 0:
 			continue
 		if not _unknown_cols(str(b)).is_empty():
+			# A fogged word costs an Explore (🍞): buy it before the trip, or
+			# "to Freshwater Spring" ⇄ "to Village" (strict from zero, 33 flags).
+			if str(b) != UIP._active_biome_name() and UIP._wallet("🍞") < 1.0:
+				var pre := _supply("🍞", q, 1)
+				if not pre.is_empty():
+					return pre
 			var t := _travel(str(b), q)
 			if not t.is_empty():
 				return t
