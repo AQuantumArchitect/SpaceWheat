@@ -323,3 +323,11 @@ def test_confirm_prompt_toast_leaves_with_the_confirm():
     assert "func dismiss_toasts_with_home(" in src("UI/PlayerShell.gd")
     qii = src("UI/Core/QuantumInstrumentInput.gd")
     assert qii.count('dismiss_toasts_with_home("cancel_confirm")') >= 2
+
+
+def test_open_country_drops_the_dlc_padlock():
+    # Keeper 14: the Spark jolt fired in Gilded Rot (open country) but its chip
+    # wore the closed-mode 🔒, so it was never pressed.
+    ucc = src("UI/Managers/UIContextController.gd")
+    assert "not BalanceConfig.dissipative_enabled() and not _active_biome_open()" in ucc
+    assert "is_open_here()" in ucc.split("func _active_biome_open(")[1].split("\nfunc ")[0]

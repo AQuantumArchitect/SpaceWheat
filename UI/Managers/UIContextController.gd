@@ -289,6 +289,16 @@ func _refresh_from_overlay_signal(_a = null, _b = null) -> void:
 	refresh()
 
 
+func _active_biome_open() -> bool:
+	var farm = UIProgression._active_farm()
+	if farm == null or farm.grid == null:
+		return false
+	var b = farm.grid.get_biome(UIProgression._active_biome_name()) if farm.grid.has_method("get_biome") else null
+	if b == null or b.quantum_computer == null or not b.quantum_computer.has_method("is_open_here"):
+		return false
+	return bool(b.quantum_computer.is_open_here())
+
+
 func _build_action_projection() -> Dictionary:
 	var projection := {
 		"context": "frame",
@@ -457,7 +467,10 @@ const CLOSED_BLOCKED_ACTIONS := [
 
 func _apply_runtime_state(actions: Dictionary) -> void:
 	var runtime_availability = _resolve_runtime_availability()
-	var closed_mode := not BalanceConfig.dissipative_enabled()
+	# Open country (QuantumComputer.is_open_here — the jolt's own gate) runs the
+	# open verbs even in a closed game: keeper sitting 14 never pressed a
+	# working Spark jolt in Gilded Rot because the chip wore the DLC 🔒.
+	var closed_mode := not BalanceConfig.dissipative_enabled() and not _active_biome_open()
 	for action_key in ACTION_KEYS:
 		if not actions.has(action_key):
 			continue
