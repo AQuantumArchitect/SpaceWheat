@@ -1473,9 +1473,14 @@ func _select_plot(plot_idx: int, key: String) -> void:
 	# Get current active biome
 	var biome_name = _active_biome_mgr.get_active_biome()
 	var target_grid_pos = _get_grid_position_for(plot_idx, biome_name)
+	# The recorded selection must be THIS plot too. After a load (or the focus
+	# biome sync) current_plot_idx/current_biome can match while nothing was
+	# picked, so the first G toggled a mark instead of picking — the Guide's
+	# "plot [G]" then repeated for ever (wave 20 strict follower, 47 flags).
 	var was_highlighted = (
 		_instrument.current_plot_idx == plot_idx and
-		_instrument.current_biome == biome_name
+		_instrument.current_biome == biome_name and
+		_instrument.last_selected_position == target_grid_pos
 	)
 
 	# Record the observation in the chain tracker

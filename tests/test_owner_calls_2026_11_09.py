@@ -197,3 +197,26 @@ def test_every_tool_config_user_preloads_it():
         if not re.search(r"ToolConfig\s*(:?=)\s*(pre)?load\(", t):
             bad.append(str(p.relative_to(ROOT)))
     assert not bad, bad
+
+
+def test_gate_order_doors_have_a_walk():
+    # Wave 20 keeper: "Two Chores, One Thread" (gate_order hadamard→cnot,
+    # mutual_information_at_least) had no Guide walk; the banner never named it.
+    import json
+    camp = json.loads(src("Core/Campaign/campaign.json"))
+    walks = camp["guide"]["walks"]
+    assert walks["gate_order"] == ["gate_word"]
+    assert walks["mutual_information_at_least"][-1].startswith("pair_gate")
+    g = src("Core/Campaign/Guide.gd").split("static func _gate_word(")[1].split("\nstatic func ")[0]
+    assert '_hat("druid", q)' in g and '_hat("operator", q)' in g
+    assert 'str(a.get("gate_type", "")) == nxt' in g  # key read from the live picker
+    assert '"gate_word"' in src("tools/campaign/validate.py")
+
+
+def test_first_plot_press_after_a_load_picks_not_marks():
+    # Wave 20 strict follower (47 flags): after a load current_plot_idx and
+    # current_biome matched G while nothing was picked, so G toggled a mark
+    # and the Guide's "plot [G]" repeated for ever.
+    sel = src("UI/Core/QuantumInstrumentInput.gd").split("func _select_plot(")[1].split("\nfunc ")[0]
+    hl = sel.split("var was_highlighted = (")[1].split(")")[0]
+    assert "_instrument.last_selected_position == target_grid_pos" in hl
