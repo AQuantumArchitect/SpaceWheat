@@ -11,9 +11,9 @@ extends SceneTree
 ## Set SW_PROBE_USER_DIR_PREFIX to refuse to boot unless user:// resolves under it
 ## (keeps a probe from writing into a player's real save directory).
 
-const WAIT_FRAMES := 3600   # ~60 s at 60 Hz (the story engine ticks at 1 Hz)
+const WAIT_MS := 90000      # wall clock: the story engine ticks at 1 Hz and factions speak on news
 const WANT := 4
-const WANT_LINES := 12
+const WANT_LINES := 8
 
 
 func _init() -> void:
@@ -55,10 +55,11 @@ func _run() -> void:
 		return
 	var chatter: Array = []
 	var lines: Array = []
-	for _i in range(WAIT_FRAMES):
+	var t0 := Time.get_ticks_msec()
+	while Time.get_ticks_msec() - t0 < WAIT_MS:
 		chatter = engine.recent_chatter(16)
 		lines = engine.voices.recent(96) if engine.voices != null else []
-		if chatter.size() >= WANT and lines.size() >= WANT_LINES:
+		if chatter.size() >= WANT and lines.size() >= WANT_LINES and engine.story_chatter(96).size() > 0:
 			break
 		await process_frame
 	for ev in chatter:

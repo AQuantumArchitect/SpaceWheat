@@ -138,7 +138,8 @@ func tick(graph) -> Array:
 			"connections": connections,
 			"line": " ".join(emojis),
 			"glyph": GlyphLanguage.compose_chatter(emojis, marginals,
-				GlyphLanguage.biome_scope(biome_label, _biome_pairs(picked_biome)), _ask_draws(emojis.size())),
+				GlyphLanguage.biome_scope(biome_label, _biome_pairs(picked_biome)), _ask_draws(emojis.size()),
+				_tie_draws(picked_biome, emojis.size())),
 		}
 		events.append(ev)
 		_push_chatter(ev)
@@ -190,6 +191,18 @@ static func _biome_pairs(biome) -> Array:
 	for q in range(int(rm.num_qubits)):
 		var axis: Dictionary = rm.axes.get(q, {})
 		out.append([str(axis.get("north", "")), str(axis.get("south", ""))])
+	return out
+
+
+## Ties for a biome line: qubit j is written ⌢ qubit j+1 with probability equal
+## to the mutual information (bits) of their pole outcomes in the biome's basis
+## distribution — the distribution the line itself was drawn from.
+static func _tie_draws(biome, n: int) -> Array:
+	var out: Array = []
+	var states: Array = BiomeMeasurementSampler.pole_states(biome)
+	for j in range(maxi(0, n - 1)):
+		var mi := BiomeMeasurementSampler.pair_mutual_information(states, j, j + 1)
+		out.append(randf() < GlyphLanguage.tie_probability(mi))
 	return out
 
 

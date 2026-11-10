@@ -32,7 +32,7 @@ PROBE = "tests/glyph_chatter_ingame_probe.gd"
 #              | dark { " " dark }                         (no scope: undefined)
 #   clause    := ket "  " pops | darks | asks              (in that order, each once)
 #   scope     := ("spacewheat" | "faction") "/" Name { "⊗" Name } "@" hex4
-#   ket       := "|" glyph+ "⟩"
+#   ket       := "|" glyph { ["⌢"] glyph } "⟩"             (⌢: these two are tied)
 #   pops      := "[" num "]" glyph { " " … }               (spell the ket, in order)
 #   darks     := glyphs "?" { " " … }                      (a pole, or a pole pair)
 #   asks      := "⟨" glyph "|" { " " … }                   (each a ket glyph)
@@ -55,7 +55,7 @@ def num_value(n: str) -> float:
 
 def parse(sentence: str) -> dict:
     """Parse one line. Raises ValueError on anything off-grammar."""
-    empty = {"scope": "", "ket": [], "pops": [], "darks": [], "asks": []}
+    empty = {"scope": "", "ket": [], "ties": [], "pops": [], "darks": [], "asks": []}
     if sentence == "":
         return empty
     if NOT_CANONICAL.search(sentence):
@@ -86,8 +86,7 @@ def parse(sentence: str) -> dict:
                 raise ValueError(f"bad population {tok!r}")
             out["pops"].append((m.group(2), m.group(1)))
         out["ket"] = [g for g, _ in out["pops"]]
-        if "".join(out["ket"]) != km.group(1):
-            raise ValueError("populations do not spell the ket, glyph for glyph")
+        out["ties"] = parse_ket_body(km.group(1), out["ket"])
         rest = rest[2:]
     if rest and rest[0].endswith("?"):
         for tok in rest[0].split(" "):
@@ -110,6 +109,23 @@ def parse(sentence: str) -> dict:
     return out
 
 
+def parse_ket_body(body: str, glyphs: list) -> list:
+    """The ket must spell the populations' glyphs in order, with ⌢ allowed only
+    between two of them. Returns ties[i] = glyph i is tied to glyph i+1."""
+    pos, ties = 0, []
+    for i, g in enumerate(glyphs):
+        if not body.startswith(g, pos):
+            raise ValueError("populations do not spell the ket, glyph for glyph")
+        pos += len(g)
+        if i < len(glyphs) - 1:
+            tied = body.startswith("⌢", pos)
+            ties.append(tied)
+            pos += 1 if tied else 0
+    if pos != len(body):
+        raise ValueError("populations do not spell the ket, glyph for glyph")
+    return ties
+
+
 def render(p: dict) -> str:
     """Inverse of parse: the round trip must reproduce the line exactly."""
     darks = " ".join(f"{d}?" for d in p["darks"])
@@ -117,7 +133,8 @@ def render(p: dict) -> str:
         return darks
     clauses = [p["scope"]]
     if p["ket"]:
-        clauses += ["|" + "".join(p["ket"]) + "⟩", " ".join(f"[{n}]{g}" for g, n in p["pops"])]
+        body = p["ket"][0] + "".join(("⌢" if t else "") + g for t, g in zip(p["ties"], p["ket"][1:]))
+        clauses += ["|" + body + "⟩", " ".join(f"[{n}]{g}" for g, n in p["pops"])]
     if p["darks"]:
         clauses.append(darks)
     if p["asks"]:
@@ -169,11 +186,12 @@ def entropy_bits(p: float) -> float:
 GOLDEN = {
     "village": "spacewheat/Village@4ed9  |🔥👥⚙⟩  [.82]🔥 [.61]👥 [.97]⚙  ⟨👥| ⟨⚙|",
     "village_no_draws": "spacewheat/Village@4ed9  |🔥👥⚙⟩  [.82]🔥 [.61]👥 [.97]⚙",
+    "village_tied": "spacewheat/Village@4ed9  |🔥⌢👥⚙⟩  [.82]🔥 [.61]👥 [.97]⚙",
     "partly_dark": "spacewheat/BioticFlux@0000  |☀⟩  [.9]☀  🌾? 🍄?  ⟨☀|",
     "no_scope": "🌾? 👥?",
     "selector": "spacewheat/StellarForges@0000  |⚙🔧⟩  [1]⚙ [.25]🔧  ⟨🔧|",
     "empty": "",
-    "faction": "faction/Swift Herd@9985  |🦌🌿⟩  [.71]🦌 [.88]🌿  🐇🦌?  ⟨🦌|",
+    "faction": "faction/Swift Herd@9985  |🦌⌢🌿⟩  [.71]🦌 [.88]🌿  🐇🦌?  ⟨🦌|",
     "faction_all_dark": "faction/The Demos@c9ec  👥🌾?",
     "between": "spacewheat/BioticFlux⊗StarterForest@408a  ⚠ [.82]☀₁ [.31]☀₂",
     "sampler": "spacewheat/TheDemos@0000  |🌾👥⟩  [.9]🌾 [.65]👥  ⟨👥|",
@@ -202,6 +220,7 @@ def smoke():
         "cases": {r["name"]: r for r in _rows(result.stdout, "GLYPH_CASE")},
         "tags": _rows(result.stdout, "GLYPH_TAG"),
         "voices": _rows(result.stdout, "GLYPH_VOICE"),
+        "lifts": _rows(result.stdout, "GLYPH_LIFT"),
     }
 
 
@@ -218,6 +237,12 @@ def test_scope_tags_are_sha256_of_the_pole_pairs(smoke):
     # Normalisation reaches the tag: ⚙️ and ⚙ declare the same scope.
     assert any(r["text"] == "⚙/🔧" for r in smoke["tags"])
     assert GOLDEN["village"].split("  ")[0].endswith("@" + scope_tag("🔥/❄,👥/🍞,⚙/💨"))
+
+
+def test_lifts_and_bell_pair_reported_by_the_smoke(smoke):
+    lifts = {r["label"]: r["counts"] for r in smoke["lifts"]}
+    assert lifts["open"]["asks"] > lifts["plain"]["asks"]
+    assert lifts["open"]["darks"] > lifts["plain"]["darks"]
 
 
 def test_asks_follow_the_draws_and_the_binary_entropy(smoke):
@@ -263,6 +288,8 @@ def test_reference_parser_refuses_off_grammar_lines():
         "spacewheat/Village@4ed9  |🔥⟩  [.8]🔥  ⟨👥|",             # asks about the unsaid
         "spacewheat/Village@4ed9  |🔥⟩  [.8]🔥  ⟨🔥|  🌾?",       # clauses out of order
         "|🔥👥⟩ ⟨🔥|",                                              # a ket with no scope
+        "spacewheat/Village@4ed9  |⌢🔥👥⟩  [.8]🔥 [.6]👥",         # a tie with nothing before it
+        "spacewheat/Village@4ed9  |🔥👥⌢⟩  [.8]🔥 [.6]👥",         # a tie with nothing after it
     ]
     for s in bad:
         with pytest.raises(ValueError):

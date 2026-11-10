@@ -6,41 +6,52 @@ extends RefCounted
 ## world those registers live. Each line is one faction reading some of its
 ## registers off the live biomes:
 ##
-##   faction/Swift Herd@9c1e  |🦌🌿⟩  [.71]🦌 [.88]🌿  🐇🦌?  ⟨🦌|
+##   faction/Pack Lords@3fce  |🐺⌢🦅⟩  [.84]🐺 [.83]🦅  🌾🐑?  ⟨🦅|
 ##
-## Everything a line contains is driven by the physics, with no thresholds:
-##   * who speaks      factions connected to the player's biomes, weighted by how
-##                     much their registers moved (they talk about what changes);
-##                     the Story room draws separately, weighted by standing
-##   * line length     each register comes up with mention_probability(motion):
-##                     a quiet world mutters one glyph, a churned one runs on
-##   * questions       each register is asked about with ask_probability(p):
-##                     settled registers are stated, undecided ones asked
-##   * dark registers  icons the player holds nowhere are written as their
-##                     pole pair, `🐇🦌?`; they come up as often as the speaker
-##                     is talkative. A faction that keeps saying `🐇🦌?` deals
-##                     in something you lack.
-##   * between lines   when a register a faction mentions lives in two biomes,
-##                     it compares them in their product scope: ⚠ when the two
-##                     lean to different poles, 🟰 when the same — again only
-##                     when the gap between them has moved since last time.
-##   * cadence         whether anyone speaks this tick follows the same motion:
-##                     a still world speaks about once in 1/SPEAK_FLOOR ticks.
+## Three of Shannon's quantities drive the grammar, one each, with no tuned
+## thresholds:
 ##
-## State: the marginals each faction last spoke of (for motion) and a ring of
-## recent lines. Random draws use the global RNG (seed() it in tests).
+##   relative entropy → what comes up. A register comes up with probability
+##       1 − e^(−D), D = the relative entropy (nats) of the reading now from what
+##       this faction last said of it. A faction speaks when something comes up:
+##       cadence and length both follow the news. Never spoken of: D = ∞.
+##   entropy          → what is asked. Each register in the line gets a ⟨bra|
+##       with probability h(p): settled registers are stated, undecided ones asked.
+##   mutual info      → what is tied. Registers of one biome come along with a
+##       register that came up, and are written tied ⌢ to their neighbour, with
+##       probability MI (bits, of their pole outcomes; 1 for a Bell pair).
+##       Different biomes are separate states: never tied.
+##
+## Poles are drawn jointly per biome from the biome's basis distribution, so
+## correlated registers come out correlated.
+##
+## Your relationship with a faction lifts four of those chances,
+## q → q^(1/(1+c)), one channel each (FactionStanding):
+##   🤝 trust        → mentions: a trusted faction tells you more
+##   🧿 attention    → asks: a faction watching you asks more (⟨| is attend)
+##   🗝 access       → darks: hidden information, the icons you hold nowhere
+##   🕸 entanglement → ties: shared secrets, what is bound to what
+## Debt and legitimacy act through scalar(): who talks to you in the Story room.
+##
+## Dark registers (icons the player holds nowhere) are written as their pole
+## pair, `🐇🦌?`, and come up in proportion to how much of its lit vocabulary
+## the faction brought up. Between lines compare one register read in two biomes
+## (⚠ the readings lean to different poles, 🟰 the same), when that gap is news.
+##
+## State: what each faction last said of each register, and a ring of lines.
+## Random draws use the global RNG (seed() it in tests).
 
 const GlyphLanguage := preload("res://Core/Story/GlyphLanguage.gd")
+const BiomeMeasurementSampler := preload("res://Core/Story/BiomeMeasurementSampler.gd")
 
-const MOTION_TAU := 0.05        # marginal motion that makes a mention ~63% likely
-const SPEAK_FLOOR := 0.05       # a still faction can still speak, rarely
+const NEWS_CAP := 20.0           # nats; weighs "never spoken of" (∞) against finite news
 const PLAYER_FACTION := "The Demos"
 const PLAYER_STORY_WEIGHT := 0.25  # your own people talk to you without standing
 const RING_SIZE := 96
 # Registry buckets that own icons but are not voices.
 const NOT_SPEAKERS := ["orphaned_icons"]
 
-var _heard: Dictionary = {}     # faction → {entry_key → p_north last spoken of}
+var _heard: Dictionary = {}     # faction → {entry key → p_north last said; "between:…" → [pa, pb]}
 var _lines: Array = []
 
 
@@ -59,33 +70,45 @@ func tick(biomes: Dictionary, icon_registry, faction_registry, standings: Dictio
 		return events
 	var world := index_world(biomes)
 	var connected: Array = _connected_factions(biomes)
-	# General draw: anyone connected to the player's biomes (B and N read these).
-	var general := _weigh(connected, world, icon_registry, {}, false)
-	# Cadence follows motion too: a still world speaks rarely, a churned one
-	# every tick. Weights are SPEAK_FLOOR + motion, so the top weight is the news.
-	if randf() < maxf(SPEAK_FLOOR, GlyphLanguage.mention_probability(_top(general) - SPEAK_FLOOR, MOTION_TAU)):
-		var speaker := _pick(general)
-		if speaker != "":
-			events.append_array(_speak(speaker, world, icon_registry, faction_registry, false, connected))
-	# Story draw: weighted by standing; fires with probability min(1, Σ standing).
 	var story_weights: Dictionary = {}
 	for fname in standings:
 		var s = standings[fname]
 		var v: float = float(s.scalar()) if s != null and s.has_method("scalar") else 0.0
-		if v > 0.0:
+		if v > 0.0 and not NOT_SPEAKERS.has(str(fname)):
 			story_weights[str(fname)] = v
 	if not story_weights.has(PLAYER_FACTION):
 		story_weights[PLAYER_FACTION] = PLAYER_STORY_WEIGHT
+
+	# Each candidate's news this tick: which of its registers came up.
+	var plans: Dictionary = {}
+	for fname in connected + story_weights.keys():
+		if not plans.has(fname):
+			plans[fname] = _plan(str(fname), world, icon_registry, _channels(str(fname), standings))
+
+	# The room: one voice per tick from whoever has something to say, weighted by news.
+	var general: Dictionary = {}
+	for fname in connected:
+		if not plans[fname]["fired"].is_empty():
+			general[fname] = minf(float(plans[fname]["news"]), NEWS_CAP)
+	var speaker := _pick(general)
+	# The Story room's own draw: weighted by standing, among those with news.
+	var teller := ""
 	var total := 0.0
 	for k in story_weights:
 		total += float(story_weights[k])
-	var story := _weigh(story_weights.keys(), world, icon_registry, {}, false)
-	var story_news := GlyphLanguage.mention_probability(_top(story) - SPEAK_FLOOR, MOTION_TAU)
-	if randf() < minf(1.0, total) * maxf(SPEAK_FLOOR, story_news):
-		story = _weigh(story_weights.keys(), world, icon_registry, story_weights, true)
-		var teller := _pick(story)
-		if teller != "":
-			events.append_array(_speak(teller, world, icon_registry, faction_registry, true, connected))
+	if randf() < minf(1.0, total):
+		var story: Dictionary = {}
+		for fname in story_weights:
+			if not plans[fname]["fired"].is_empty():
+				story[fname] = float(story_weights[fname]) * maxf(minf(float(plans[fname]["news"]), NEWS_CAP), 1e-6)
+		teller = _pick(story)
+
+	# Every line from a faction you stand well with (or your own people) belongs
+	# to the Story room; the standing draw above gives those factions extra air.
+	if speaker != "":
+		events.append_array(_speak(speaker, plans[speaker], world, faction_registry, story_weights.has(speaker), connected))
+	if teller != "" and teller != speaker:
+		events.append_array(_speak(teller, plans[teller], world, faction_registry, true, connected))
 	for ev in events:
 		_lines.append(ev)
 	while _lines.size() > RING_SIZE:
@@ -108,11 +131,12 @@ func recent(n: int, filter: Callable = Callable()) -> Array:
 
 # --- the world as registers ----------------------------------------------------
 
-## {pair key "n|s" → [{biome, q, north, south, p_north, key}]} plus each biome's
-## ordered pairs (for scope tags) under "_pairs".
+## {pair key "n|s" → [{biome, q, north, south, p_north, key}]}, plus "_pairs"
+## (each biome's ordered pole pairs, for scope tags) and "_biomes" (name → biome).
 static func index_world(biomes: Dictionary) -> Dictionary:
 	var index: Dictionary = {}
 	var pairs_by_biome: Dictionary = {}
+	var by_name: Dictionary = {}
 	for bname in biomes:
 		var biome = biomes[bname]
 		if biome == null or not ("quantum_computer" in biome) or biome.quantum_computer == null:
@@ -121,6 +145,7 @@ static func index_world(biomes: Dictionary) -> Dictionary:
 		var rm = qc.register_map
 		if rm == null:
 			continue
+		by_name[str(bname)] = biome
 		var pairs: Array = []
 		for q in range(int(rm.num_qubits)):
 			var axis: Dictionary = rm.axes.get(q, {})
@@ -129,15 +154,16 @@ static func index_world(biomes: Dictionary) -> Dictionary:
 			if north == "" or south == "":
 				continue
 			pairs.append([north, south])
-			var p_north := _p_north(biome, qc, q)
 			var entry := {"biome": str(bname), "q": q, "north": north, "south": south,
-				"p_north": p_north, "key": "%s:%d" % [bname, q]}
+				"p_north": _p_north(biome, qc, q), "key": "%s:%d" % [bname, q]}
 			var k := "%s|%s" % [north, south]
 			if not index.has(k):
 				index[k] = []
 			index[k].append(entry)
 		pairs_by_biome[str(bname)] = pairs
 	index["_pairs"] = pairs_by_biome
+	index["_biomes"] = by_name
+	index["_states"] = {}
 	return index
 
 
@@ -149,6 +175,20 @@ static func _p_north(biome, qc, q: int) -> float:
 	if qc.has_method("get_marginal"):
 		return clampf(float(qc.get_marginal(q, 0)), 0.0, 1.0)
 	return 0.5
+
+
+## Mutual information (bits) of two registers' pole outcomes in one biome, from
+## the tick's pole-state distribution (cached in world["_states"]).
+static func _mutual_information(world: Dictionary, biome_name: String, a: int, b: int) -> float:
+	return BiomeMeasurementSampler.pair_mutual_information(_states(world, biome_name), a, b)
+
+
+static func _states(world: Dictionary, biome_name: String) -> Array:
+	var cache: Dictionary = world.get("_states", {})
+	if not cache.has(biome_name):
+		cache[biome_name] = BiomeMeasurementSampler.pole_states(world.get("_biomes", {}).get(biome_name, null))
+		world["_states"] = cache
+	return cache[biome_name]
 
 
 ## A faction's registers: [{pair:[n,s], entries:[…]}] in signature order.
@@ -168,12 +208,23 @@ static func faction_registers(faction_name: String, world: Dictionary, icon_regi
 	return out
 
 
-func _motion(faction_name: String, entry: Dictionary) -> float:
+func _news(faction_name: String, entry: Dictionary) -> float:
 	var heard: Dictionary = _heard.get(faction_name, {})
 	var key := str(entry.get("key", ""))
 	if not heard.has(key):
-		return 1.0  # never spoken of: all news
-	return absf(float(entry.get("p_north", 0.5)) - float(heard[key]))
+		return INF  # never spoken of: all news
+	return GlyphLanguage.relative_entropy(float(entry.get("p_north", 0.5)), float(heard[key]))
+
+
+static func _channels(faction_name: String, standings: Dictionary) -> Dictionary:
+	var s = standings.get(faction_name, null)
+	var out := {"trust": 0.0, "attention": 0.0, "access": 0.0, "entanglement": 0.0}
+	if s == null:
+		return out
+	for k in out.keys():
+		if k in s:
+			out[k] = float(s.get(k))
+	return out
 
 
 func _connected_factions(biomes: Dictionary) -> Array:
@@ -183,29 +234,6 @@ func _connected_factions(biomes: Dictionary) -> Array:
 			if not NOT_SPEAKERS.has(str(f)):
 				seen[str(f)] = true
 	return seen.keys()
-
-
-## {faction → weight}: (floor + total motion), times standing for the Story draw.
-func _weigh(names: Array, world: Dictionary, icon_registry, standing_weights: Dictionary, story: bool) -> Dictionary:
-	var out: Dictionary = {}
-	for fname in names:
-		var motion := 0.0
-		for reg in faction_registers(str(fname), world, icon_registry):
-			for e in reg["entries"]:
-				motion += _motion(str(fname), e)
-		var w := SPEAK_FLOOR + motion
-		if story:
-			w *= float(standing_weights.get(fname, 0.0))
-		if w > 0.0:
-			out[str(fname)] = w
-	return out
-
-
-static func _top(weights: Dictionary) -> float:
-	var top := 0.0
-	for k in weights:
-		top = maxf(top, float(weights[k]))
-	return top
 
 
 static func _pick(weights: Dictionary) -> String:
@@ -225,73 +253,113 @@ static func _pick(weights: Dictionary) -> String:
 	return last
 
 
-# --- one line ------------------------------------------------------------------
+# --- what a faction would say --------------------------------------------------
 
-func _speak(faction_name: String, world: Dictionary, icon_registry, faction_registry, story: bool, connected: Array) -> Array:
+## Which registers come up this tick. Returns {regs, fired: [reg index], news,
+## channels}. Each lit register is read in the biome where it is most news.
+func _plan(faction_name: String, world: Dictionary, icon_registry, ch: Dictionary) -> Dictionary:
 	var regs := faction_registers(faction_name, world, icon_registry)
-	if regs.is_empty():
-		return []
-	var scope_pairs: Array = []
-	var candidates: Array = []   # {reg_index, entry, motion}
-	var darks_all: Array = []
+	var fired: Array = []
+	var news_total := 0.0
 	for i in range(regs.size()):
 		var reg: Dictionary = regs[i]
-		scope_pairs.append(reg["pair"])
 		var entries: Array = reg["entries"]
 		if entries.is_empty():
-			# Dark: the whole register, written as its pole pair (the sphere, not a
-			# direction) — an icon this faction deals in that the player holds nowhere.
+			continue
+		var best: Dictionary = entries[0]
+		var best_d := _news(faction_name, best)
+		for e in entries:
+			var d := _news(faction_name, e)
+			if d > best_d:
+				best = e
+				best_d = d
+		reg["entry"] = best
+		reg["news"] = best_d
+		news_total += minf(best_d, NEWS_CAP)
+		var p := GlyphLanguage.lift(GlyphLanguage.mention_probability(best_d), float(ch["trust"]))
+		if randf() < p:
+			fired.append(i)
+	return {"regs": regs, "fired": fired, "news": news_total, "channels": ch}
+
+
+# --- one line ------------------------------------------------------------------
+
+func _speak(faction_name: String, plan: Dictionary, world: Dictionary, faction_registry, story: bool, connected: Array) -> Array:
+	var regs: Array = plan["regs"]
+	var ch: Dictionary = plan["channels"]
+	var chosen: Dictionary = {}   # reg index → entry
+	for i in plan["fired"]:
+		chosen[i] = regs[i]["entry"]
+	# Mutual information pulls partners along: a register of the same biome joins
+	# one that came up with probability MI (lifted by 🕸).
+	var fired_now: Array = chosen.keys()
+	for i in fired_now:
+		var e: Dictionary = chosen[i]
+		for j in range(regs.size()):
+			if chosen.has(j):
+				continue
+			for f in regs[j]["entries"]:
+				if f["biome"] != e["biome"]:
+					continue
+				var mi := _mutual_information(world, str(e["biome"]), int(e["q"]), int(f["q"]))
+				if randf() < GlyphLanguage.lift(GlyphLanguage.tie_probability(mi), float(ch["entanglement"])):
+					chosen[j] = f
+				break
+
+	var lit_total := 0
+	var darks_all: Array = []
+	var scope_pairs: Array = []
+	for reg in regs:
+		scope_pairs.append(reg["pair"])
+		if reg["entries"].is_empty():
 			var dark_pair: String = str(reg["pair"][0]) + str(reg["pair"][1])
 			if not darks_all.has(dark_pair):
 				darks_all.append(dark_pair)
-			continue
-		# The biome this register is read in: the one that moved most for this speaker.
-		var best: Dictionary = entries[0]
-		var best_m := _motion(faction_name, best)
-		for e in entries:
-			var m := _motion(faction_name, e)
-			if m > best_m:
-				best = e
-				best_m = m
-		candidates.append({"i": i, "entry": best, "motion": best_m, "entries": entries})
-
-	var chosen: Array = []
-	for c in candidates:
-		if randf() < GlyphLanguage.mention_probability(float(c["motion"]), MOTION_TAU):
-			chosen.append(c)
-	if chosen.is_empty() and not candidates.is_empty():
-		var top: Dictionary = candidates[0]
-		for c in candidates:
-			if float(c["motion"]) > float(top["motion"]):
-				top = c
-		chosen.append(top)
-
-	var fill := 1.0 if candidates.is_empty() else float(chosen.size()) / float(candidates.size())
+		else:
+			lit_total += 1
+	var fill := 1.0 if lit_total == 0 else float(plan["fired"].size()) / float(lit_total)
 	var darks: Array = []
 	for d in darks_all:
-		if randf() < fill:
+		if randf() < GlyphLanguage.lift(fill, float(ch["access"])):
 			darks.append(d)
 
+	# Group by biome (in order of first appearance), qubit order within; draw
+	# each group's poles jointly from that biome's basis distribution.
+	var order: Array = chosen.keys()
+	order.sort()
+	var groups: Dictionary = {}
+	var group_order: Array = []
+	for i in order:
+		var b: String = chosen[i]["biome"]
+		if not groups.has(b):
+			groups[b] = []
+			group_order.append(b)
+		groups[b].append(chosen[i])
 	var lit: Array = []
 	var emojis: Array = []
 	var marginals: Array = []
 	var asks: Array = []
-	var biomes_spoken: Array = []
 	var heard: Dictionary = _heard.get(faction_name, {})
-	for c in chosen:
-		var e: Dictionary = c["entry"]
-		var pn := float(e["p_north"])
-		var north_drawn := randf() < pn
-		var g: String = e["north"] if north_drawn else e["south"]
-		var p := pn if north_drawn else 1.0 - pn
-		lit.append({"glyph": g, "p": p})
-		emojis.append(g)
-		marginals.append(p)
-		if randf() < GlyphLanguage.ask_probability(p):
-			asks.append(g)
-		if not biomes_spoken.has(e["biome"]):
-			biomes_spoken.append(e["biome"])
-		heard[str(e["key"])] = pn
+	for b in group_order:
+		var group: Array = groups[b]
+		group.sort_custom(func(x, y): return int(x["q"]) < int(y["q"]))
+		var draws := joint_draw(_states(world, b), group)
+		for k in range(group.size()):
+			var e: Dictionary = group[k]
+			var north: bool = draws[k]
+			var pn := float(e["p_north"])
+			var g: String = e["north"] if north else e["south"]
+			var p := pn if north else 1.0 - pn
+			var tie := false
+			if k > 0:
+				var mi := _mutual_information(world, b, int(group[k - 1]["q"]), int(e["q"]))
+				tie = randf() < GlyphLanguage.lift(GlyphLanguage.tie_probability(mi), float(ch["entanglement"]))
+			lit.append({"glyph": g, "p": p, "tie": tie})
+			emojis.append(g)
+			marginals.append(p)
+			if randf() < GlyphLanguage.lift(GlyphLanguage.ask_probability(p), float(ch["attention"])):
+				asks.append(g)
+			heard[str(e["key"])] = pn
 	_heard[faction_name] = heard
 
 	var scope := GlyphLanguage.faction_scope(faction_name, scope_pairs)
@@ -306,9 +374,9 @@ func _speak(faction_name: String, world: Dictionary, icon_registry, faction_regi
 		"emojis": emojis,
 		"marginals": marginals,
 		"darks": darks,
-		"biome": biomes_spoken[0] if not biomes_spoken.is_empty() else "",
-		"connections": biomes_spoken.slice(1),
-		"biomes": biomes_spoken,
+		"biome": group_order[0] if not group_order.is_empty() else "",
+		"connections": group_order.slice(1),
+		"biomes": group_order,
 		"story": story,
 		"connected": connected.has(faction_name),
 		"topic_node": "",
@@ -316,45 +384,76 @@ func _speak(faction_name: String, world: Dictionary, icon_registry, faction_regi
 		"glyph": glyph,
 	}
 	var out: Array = [ev]
-	var between := _between(faction_name, chosen, world)
+	var between := _between(faction_name, chosen, regs, world)
 	if not between.is_empty():
 		out.append(between)
 	return out
 
 
-## Compare one mentioned register across two biomes in their product scope.
-func _between(faction_name: String, chosen: Array, world: Dictionary) -> Dictionary:
-	for c in chosen:
-		var entries: Array = c["entries"]
+## Draw the poles of one biome's registers jointly: marginalise the biome's
+## pole-state distribution onto them and sample once. Returns [bool north, …]
+## in the group's order. Independent draws if the distribution is unavailable.
+static func joint_draw(states: Array, group: Array) -> Array:
+	var out: Array = []
+	var dist: Dictionary = {}
+	var total := 0.0
+	for s in states:
+		var key := ""
+		for e in group:
+			key += "1" if int(s["bits"][int(e["q"])]) == 1 else "0"
+		dist[key] = float(dist.get(key, 0.0)) + float(s["p"])
+		total += float(s["p"])
+	if dist.is_empty() or total <= 0.0:
+		for e in group:
+			out.append(randf() < float(e["p_north"]))
+		return out
+	var r := randf() * total
+	var acc := 0.0
+	var picked := ""
+	for key in dist:
+		acc += float(dist[key])
+		picked = key
+		if r <= acc:
+			break
+	for c in picked:
+		out.append(c == "1")
+	return out
+
+
+## Compare one mentioned register across two biomes in their product scope,
+## when the readings moved since this faction last compared them (the same
+## 1 − e^(−D) rule, D summed over both sides).
+func _between(faction_name: String, chosen: Dictionary, regs: Array, world: Dictionary) -> Dictionary:
+	var heard: Dictionary = _heard.get(faction_name, {})
+	for i in chosen:
+		var entries: Array = regs[i]["entries"]
 		if entries.size() < 2:
 			continue
-		# The two readings furthest apart.
 		var a: Dictionary = entries[0]
 		var b: Dictionary = entries[1]
 		var spread := -1.0
-		for i in range(entries.size()):
-			for j in range(i + 1, entries.size()):
-				var d := absf(float(entries[i]["p_north"]) - float(entries[j]["p_north"]))
+		for x in range(entries.size()):
+			for y in range(x + 1, entries.size()):
+				var d := absf(float(entries[x]["p_north"]) - float(entries[y]["p_north"]))
 				if d > spread:
 					spread = d
-					a = entries[i]
-					b = entries[j]
+					a = entries[x]
+					b = entries[y]
+		var pa := float(a["p_north"])
+		var pb := float(b["p_north"])
+		var gap_key := "between:%s|%s" % [str(a["key"]), str(b["key"])]
+		var news := INF
+		if heard.has(gap_key):
+			news = GlyphLanguage.relative_entropy(pa, float(heard[gap_key][0])) \
+				+ GlyphLanguage.relative_entropy(pb, float(heard[gap_key][1]))
+		if randf() >= GlyphLanguage.mention_probability(news):
+			continue
+		heard[gap_key] = [pa, pb]
+		_heard[faction_name] = heard
 		var pairs_by_biome: Dictionary = world.get("_pairs", {})
 		var names := [str(a["biome"]), str(b["biome"])]
 		var scope := GlyphLanguage.product_scope(names,
 			[pairs_by_biome.get(names[0], []), pairs_by_biome.get(names[1], [])])
-		var pa := float(a["p_north"])
-		var pb := float(b["p_north"])
-		# Compared again only when the gap between the two biomes has moved since
-		# this faction last compared them.
-		var heard: Dictionary = _heard.get(faction_name, {})
-		var gap_key := "between:%s|%s" % [str(a["key"]), str(b["key"])]
-		var gap := pa - pb
-		var gap_motion := absf(gap - float(heard[gap_key])) if heard.has(gap_key) else 1.0
-		if randf() >= GlyphLanguage.mention_probability(gap_motion, MOTION_TAU):
-			continue
-		heard[gap_key] = gap
-		_heard[faction_name] = heard
 		var verb := GlyphLanguage.between_verb(pa, pb)
 		var glyph := GlyphLanguage.compose_between(scope, verb,
 			[{"glyph": a["north"], "p": pa}, {"glyph": b["north"], "p": pb}])

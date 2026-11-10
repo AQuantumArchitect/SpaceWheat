@@ -45,6 +45,8 @@ const BRA_OPEN := "⟨"
 const BRA_CLOSE := "|"
 const DARK := "?"
 const PRODUCT := "⊗"
+const TIE := "⌢"
+const EPS := 1e-6
 const CLAUSE_SEP := "  "
 const SUBSCRIPTS := ["₀", "₁", "₂", "₃", "₄", "₅", "₆", "₇", "₈", "₉"]
 
@@ -133,10 +135,13 @@ static func fmt_number(p: float) -> String:
 	return "." + ("%02d" % hundredths).rstrip("0")
 
 
-static func ket(glyphs: Array) -> String:
+## |g₁g₂…⟩; ties[i] true writes g_i⌢g_(i+1): those two are not independent.
+static func ket(glyphs: Array, ties: Array = []) -> String:
 	var body := ""
-	for g in glyphs:
-		body += canonical(str(g))
+	for i in range(glyphs.size()):
+		if i > 0 and i - 1 < ties.size() and bool(ties[i - 1]):
+			body += TIE
+		body += canonical(str(glyphs[i]))
 	return KET_OPEN + body + KET_CLOSE
 
 
@@ -171,12 +176,43 @@ static func ask_probability(p: float) -> float:
 	return clampf(-(q * log(q) + (1.0 - q) * log(1.0 - q)) / log(2.0), 0.0, 1.0)
 
 
-## How likely a register is to come up, from how far its marginal moved since
-## the speaker last spoke of it. τ sets the scale; no threshold anywhere.
-static func mention_probability(motion: float, tau: float) -> float:
-	if tau <= 0.0:
+## Relative entropy (nats) of a register's reading now (p) from what the speaker
+## last said of it (q): Bernoulli north marginals. 0 when nothing changed; small
+## for a coin wobbling (.5→.6 ≈ 0.02); large for a certainty breaking (.99→.9 ≈
+## 0.15, .9→.1 ≈ 1.8); ∞ for a certainty overturned.
+static func relative_entropy(p: float, q: float) -> float:
+	var a := clampf(p, EPS, 1.0 - EPS)
+	var b := clampf(q, EPS, 1.0 - EPS)
+	return a * log(a / b) + (1.0 - a) * log((1.0 - a) / (1.0 - b))
+
+
+## A register comes up with probability 1 − e^(−D), D = relative entropy of the
+## news in nats. No free parameter: a speaker keeps quiet about a register about
+## as often as its last word still covers the truth. Never spoken of: D = ∞.
+static func mention_probability(news_nats: float) -> float:
+	if is_inf(news_nats):
 		return 1.0
-	return clampf(1.0 - exp(-maxf(motion, 0.0) / tau), 0.0, 1.0)
+	return clampf(1.0 - exp(-maxf(news_nats, 0.0)), 0.0, 1.0)
+
+
+## A tie ⌢ between two registers of one biome is written with probability
+## equal to the mutual information (bits) of their pole outcomes, read from the
+## same basis distribution the line's poles are drawn from: 1 for a Bell pair,
+## 0 for independent poles. Registers in different biomes are separate states
+## and are never tied. A ket states pole outcomes, so ⌢ says exactly that these
+## outcomes do not come independently.
+static func tie_probability(mutual_information_bits: float) -> float:
+	return clampf(mutual_information_bits, 0.0, 1.0)
+
+
+## A relationship lifts a chance: q^(1/(1+c)). c = 0 leaves q alone; a positive
+## channel opens the speaker up (√q at c = 1), a negative one closes them (q² at
+## c = −½). 0 and 1 are fixed points: no channel invents what is not there.
+static func lift(q: float, c: float) -> float:
+	var p := clampf(q, 0.0, 1.0)
+	if p <= 0.0 or p >= 1.0:
+		return p
+	return pow(p, 1.0 / (1.0 + clampf(c, -0.9, 4.0)))
 
 
 ## Classical fidelity of two readings of one register (p, q = north marginals).
@@ -207,7 +243,8 @@ static func _is_number(v) -> bool:
 
 ## Compose one line.
 ##   scope   a scope string ("" → undefined: everything is written dark)
-##   lit     [{glyph, p}, …] — drawn pole and its marginal, in scope order
+##   lit     [{glyph, p, tie?}, …] — drawn pole and its marginal, in scope
+##           order; tie = written ⌢ to the previous lit glyph
 ##   darks   [glyph, …] — registers no measurement reaches
 ##   asks    [glyph, …] — each must be a lit glyph
 ## Returns {scope, ket, populations, darks, asks, short, sentence}.
@@ -216,11 +253,14 @@ static func compose(scope: String, lit: Array, darks: Array, asks: Array) -> Dic
 		"short": "", "sentence": ""}
 	var glyphs: Array = []
 	var pops: Array = []
+	var ties: Array = []   # ties[i]: glyph i is tied to glyph i+1
 	for r in lit:
 		var g := canonical(str(r.get("glyph", "")))
 		if g == "":
 			continue
 		if scope != "" and _is_number(r.get("p", null)):
+			if not glyphs.is_empty():
+				ties.append(bool(r.get("tie", false)))
 			glyphs.append(g)
 			pops.append(population(g, float(r.get("p"))))
 		else:
@@ -245,7 +285,7 @@ static func compose(scope: String, lit: Array, darks: Array, asks: Array) -> Dic
 	var short_parts: Array = []
 	var clauses: Array = [scope]
 	if not glyphs.is_empty():
-		out["ket"] = ket(glyphs)
+		out["ket"] = ket(glyphs, ties)
 		short_parts.append(out["ket"])
 		clauses.append(out["ket"])
 		clauses.append(" ".join(PackedStringArray(pops)))
@@ -264,8 +304,9 @@ static func compose(scope: String, lit: Array, darks: Array, asks: Array) -> Dic
 
 ## A biome-scope line from one basis-state draw (SocialiteCluster): every qubit
 ## comes up (the draw is joint); register j is asked about iff ask_draws[j] <
-## ask_probability(marginal j). Missing marginals are dark.
-static func compose_chatter(emojis: Array, marginals: Array, scope: String, ask_draws: Array = []) -> Dictionary:
+## ask_probability(marginal j); ties[j] writes qubit j ⌢ qubit j+1. Missing
+## marginals are dark.
+static func compose_chatter(emojis: Array, marginals: Array, scope: String, ask_draws: Array = [], ties: Array = []) -> Dictionary:
 	var lit: Array = []
 	var asks: Array = []
 	for j in range(emojis.size()):
@@ -273,7 +314,8 @@ static func compose_chatter(emojis: Array, marginals: Array, scope: String, ask_
 		if g == "":
 			continue
 		var has_p: bool = j < marginals.size() and _is_number(marginals[j])
-		lit.append({"glyph": g, "p": float(marginals[j]) if has_p else null})
+		var tied: bool = j > 0 and j - 1 < ties.size() and bool(ties[j - 1])
+		lit.append({"glyph": g, "p": float(marginals[j]) if has_p else null, "tie": tied})
 		if has_p and j < ask_draws.size() and _is_number(ask_draws[j]) \
 				and float(ask_draws[j]) < ask_probability(float(marginals[j])):
 			asks.append(g)

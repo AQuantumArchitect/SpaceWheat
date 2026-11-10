@@ -21,6 +21,7 @@ session, as a handoff to the next one.
 | 2026-08-11 | [Campaign split](2026-08-11_CAMPAIGN_SPLIT.md) | Twelve-agent study on splitting the advanced physics out of the main campaign. |
 | 2026-08-17 | [Campaign reorder](2026-08-17_CAMPAIGN_REORDER.md) | Re-sequencing the early acts so incorporation isn't the first thing a player meets. |
 | 2026-08-17 | [Cloud session handoff](2026-08-17_CLOUD_SESSION_HANDOFF.md) | Wrap-up when the work moved from cloud sessions to a local-first setup. |
+| 2026-11-10 | [Glyph chatter experiments](2026-11-10_GLYPH_CHATTER_EXPERIMENTS.md) | Settling what drives chatter (relative entropy, entropy, mutual information); found strikes overwritten with lookahead on. |
 
 The October 2026 campaign restructure, which replaced the hand-wired story
 flags with one compiled spec, is described in [CAMPAIGN](../CAMPAIGN.md) rather

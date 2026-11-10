@@ -165,3 +165,57 @@ static func _label_to_emojis(label: String) -> Array:
 			emojis.append(ch)
 		i += 1
 	return emojis
+
+
+## The biome's basis distribution as pole outcomes: [{bits: [1 north / 0 south
+## per qubit], p}]. Empty when the QC has no distribution or a label does not
+## split into one glyph per qubit. Chatter draws and ties read this, so a line's
+## poles and its ⌢ marks come from one and the same distribution.
+static func pole_states(biome) -> Array:
+	var out: Array = []
+	if biome == null or not ("quantum_computer" in biome) or biome.quantum_computer == null:
+		return out
+	var qc = biome.quantum_computer
+	if qc.register_map == null or not qc.has_method("get_basis_state_probabilities"):
+		return out
+	var n: int = int(qc.register_map.num_qubits)
+	var norths: Array = []
+	for q in range(n):
+		norths.append(_strip_selectors(str(qc.register_map.axes.get(q, {}).get("north", ""))))
+	for s in qc.get_basis_state_probabilities():
+		var glyphs: Array = _label_to_emojis(str(s.get("label", "")))
+		if glyphs.size() != n:
+			return []
+		var bits: Array = []
+		for q in range(n):
+			bits.append(1 if _strip_selectors(str(glyphs[q])) == norths[q] else 0)
+		out.append({"bits": bits, "p": maxf(0.0, float(s.get("probability", 0.0)))})
+	return out
+
+
+## Mutual information (bits) between two qubits' pole outcomes in pole_states.
+## 0 for independent poles; 1 for a Bell pair. ≤ 1 for two qubits.
+static func pair_mutual_information(states: Array, a: int, b: int) -> float:
+	if states.is_empty() or a == b:
+		return 0.0
+	var joint := {"00": 0.0, "01": 0.0, "10": 0.0, "11": 0.0}
+	var total := 0.0
+	for s in states:
+		var k := "%d%d" % [int(s["bits"][a]), int(s["bits"][b])]
+		joint[k] += float(s["p"])
+		total += float(s["p"])
+	if total <= 0.0:
+		return 0.0
+	var pa := [(joint["00"] + joint["01"]) / total, (joint["10"] + joint["11"]) / total]
+	var pb := [(joint["00"] + joint["10"]) / total, (joint["01"] + joint["11"]) / total]
+	var mi := 0.0
+	for x in range(2):
+		for y in range(2):
+			var pxy: float = joint["%d%d" % [x, y]] / total
+			if pxy > 0.0 and pa[x] > 0.0 and pb[y] > 0.0:
+				mi += pxy * log(pxy / (pa[x] * pb[y]))
+	return maxf(0.0, mi / log(2.0))
+
+
+static func _strip_selectors(glyph: String) -> String:
+	return glyph.replace(char(0xFE0F), "").replace(char(0xFE0E), "")
