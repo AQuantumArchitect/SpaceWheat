@@ -7,8 +7,8 @@ morning. Branch: `overnight/2026-11-09-hive` (one PR, pushed after every fold).
 ## Night 2 summary (running — last update 03:10, waves 19–28)
 
 **Where the game stands for a player who only follows the banner:** a strict follower from
-true zero now reaches **50 flags**, stopping only at Fill the Urn (a design blocker, below).
-The keeper (Haiku with a journal) is at **57 flags**, Act 6.
+true zero now reaches **54 flags** (03:40), stopping only at Fill the Urn (a design blocker, below).
+The keeper (Haiku with a journal) is at **58 flags**, Act 6.
 
 **Soft-locks and Guide loops fixed tonight (each verified live, gated, pushed to PR #63):**
 - Trim ⇄ Plant churn was a Guide bug: plants for Lanternfall went to the Village (074aa414).
@@ -244,6 +244,7 @@ rotate three seats, always one soft-lock hunter (distractible / masher / lost-la
 | 28 | night 2 | keeper 12, lost-lamb Act 2 | **keeper 12 → 57 flags** (Keep the Horn after culling Lanternfall and charting Zeno Latch — the cull text helped); walled on Stay Yourself while working a Zeno Latch plot · lost-lamb (Act 2) walled in 9 presses on plot-hopping between ripening loops | Stay Yourself is signature purity from one faction, not a Zeno plot → tester · lost-lamb: chips show the focused plot, banner names the next plot first; strict from its bank claims Hold Commerce → tester · "F on a live track silently kills it" (4th sensor) → **legibility**: Icon F chip reads "✋ Stop track (loop is lost)" while tracked (209003af) | kp12, ll28, dk37, dg36 |
 | 29 | night 2 | keeper 13, distractible late (keeper_demos_10) | keeper 13 → 57 (no beat), walled on Stay Yourself · distractible late → **clean, 45 flags**, 10 detours: cull (seed countries refuse with reasons), chart + save/load, back-to-back Arc accepts, Operator/Spark sub-modes, X with every tab key — no soft-lock; the new F chip warned as intended | stale "Cull … press F to confirm" toast (3rd sensor) → **legibility** (1117423d) · ab8cc352 had broken an 08-10 ruling test's anchor → fixed (806903da; full floor 692 passed) · Stay Yourself → For Luke | kp13, ds29, dg37 |
 | 30 | night 2 | fresh strict from TRUE ZERO, masher Act 1, keeper 14 | **fresh strict from zero → 45 flags in 669 presses** (fastest yet), then a blind "Arc [Y] → Accept [R]" loop · masher (Act 1) → no soft-lock, 11 flags · keeper 14 → 57, walled at Rain on the Fields (Spark chips padlocked) and Stay Yourself | blind Accept: _door_accept named Accept for a door not on the Arc, signing whatever row was selected → **bug** (51359843; 45 → 47) · Spark jolt worked in Gilded Rot but wore the closed-mode DLC 🔒 → **legibility** (ba3de3e5) · masher's "🍞 spent, 🦅 flat" → tester (trade pays 🦅 +7, then the chart spends 21) | sfz6, sk41, ms30, kp14, dk38–40 |
+| 31 | night 2 | fresh strict continued, keeper 15, lost-lamb from zero (running) | **fresh strict from true zero → 54 flags** (47 → 54), then the Fill the Urn grind (strike/gather/buy fees, Shrine ⇄ Village) · **keeper 15 → 58 flags**: Rain on the Fields claimed with the now-unlocked Spark jolt in Gilded Rot (ba3de3e5 verified); Stay Yourself still flat (Tr(ρ²) 0.060) | urn: the fee cycle works (👥×6 → 🧺×4) — the stop is Fill the Urn itself (For Luke) · Stay Yourself: 💨 says "couple it or it will not ripen" with no visible way to couple; incorporating 🦅 relabelled R to "Add Icon" silently | sfz7, kp15, dk41 |
 
 Pytest floor on this host (godot.exe on PATH + PYTHONUTF8 via the python3 shim): **655 passed, 6 failed, 50 skipped** (as of cd786e1d; +3 new tests) — the 6 are host-path tests (Windows separators, POSIX-only deploy scripts, no HOME), unchanged by every fold.
 
