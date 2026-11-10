@@ -173,3 +173,11 @@ def test_anchored_incorporate_reads_as_counted_not_failed():
     assert "✗ %s already anchors" not in qii and "🧬 loop counted" in qii
     camp = src("Core/Campaign/campaign.json")
     assert "two Ledger loops (any Ledger plot counts)" in camp
+
+
+def test_route_toast_does_not_steal_another_hats_f_verb():
+    # Wave 20 distractible: Icon chip "[F] Track", but a route toast took F
+    # and opened the Story memoir (twice). Only Ace relabels for a toast.
+    owns = src("UI/Widgets/HintToast.gd").split("func owns_f(")[1].split("\nfunc ")[0]
+    assert "frame != ToolConfig.FRAME_ACE" in owns
+    assert owns.index("frame != ToolConfig.FRAME_ACE") < owns.index("ace_f_would_explore")

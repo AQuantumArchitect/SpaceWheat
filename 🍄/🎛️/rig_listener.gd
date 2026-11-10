@@ -901,7 +901,8 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			if _shell == null or not _shell.has_method("show_hint"):
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_shell"}
 			else:
-				_shell.show_hint(str(cmd.get("text", "rig test toast")), int(cmd.get("importance", 2)))
+				_shell.show_hint(str(cmd.get("text", "rig test toast")), int(cmd.get("importance", 2)),
+						"", str(cmd.get("route", "")))
 				result["shown"] = true
 
 		"bubble_state":

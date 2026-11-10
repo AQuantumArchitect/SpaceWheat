@@ -286,6 +286,12 @@ func owns_f() -> bool:
 	# that menu's verb — the toast names the home's own key instead.
 	if _overlay_is_open():
 		return false
+	# Wave 20 (distractible, Act 4): in the Icon hat the chip read "[F] Track"
+	# while a route toast took F and opened the Story memoir. Only the Ace chip
+	# relabels for a toast, so another hat's real F verb wins over the toast.
+	var frame := str(ToolConfig.get_current_frame())
+	if frame != ToolConfig.FRAME_ACE and frame != ToolConfig.FRAME_NULL and str(ToolConfig.get_action(frame, "F").get("action", "")) != "":
+		return false
 	# Wave 19: Arc toast [F] vs Ace [F] Explore on an unbound 🌱 plot.
 	# Field Explore wins; follow can wait. Do not steal the expedition.
 	var UIProgression = load("res://UI/Core/UIProgression.gd")
