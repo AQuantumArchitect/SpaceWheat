@@ -999,7 +999,10 @@ static func _gather(res: String, need: int, q: Dictionary, depth: int = 0) -> Di
 				and term.has_method("banked_totals") and "strikes" in term \
 				and not term.banked_totals().has(res) and term.strikes.size() < STRIKE_TRIES \
 				and UIP._wallet("👥") >= 1.0:
-			return _chord(_close_first() + [label, ["Strike again", _verb("strike")]], q, "strike again")
+			# A lap counter: "Strike again" ×5 with nothing visible read as a loop to
+			# every memoryless sensor (lost-lamb w14, w31; masher). Then Q gathers.
+			var lap := "strike %d of %d, then Gather" % [term.strikes.size() + 1, STRIKE_TRIES]
+			return _chord(_close_first() + [label, lap, ["Strike again", _verb("strike")]], q, "strike again")
 		var got := UIP._measured_glyph(col) if frozen == null else str(frozen.measured_outcome)
 		# Strike-bank model: a plot holding banked strikes is not "measured",
 		# so measured_outcome is "" and no miss was ever counted — MISS_CAP's

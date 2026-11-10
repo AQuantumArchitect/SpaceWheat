@@ -336,3 +336,8 @@ def test_open_country_drops_the_dlc_padlock():
 def test_guide_never_names_a_blind_arc_accept():
     da = src("Core/Campaign/Guide.gd").split("static func _door_accept(")[1].split("\nstatic func ")[0]
     assert da.index("if idx < 0:") < da.index('["Accept", _verb("accept")]')
+
+
+def test_strike_again_shows_a_lap_counter():
+    g = src("Core/Campaign/Guide.gd").split("static func _gather(")[1].split("\nstatic func ")[0]
+    assert '"strike %d of %d, then Gather"' in g
