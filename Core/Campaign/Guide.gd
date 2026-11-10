@@ -1212,8 +1212,22 @@ static func _plant(biome: String, atom: String, fresh: bool, q: Dictionary) -> D
 				# "▸ 🌾/👥 [E]" named a key with no verb; an earnest sensor kept
 				# pressing R (another word) at the picker (wave 9, fresh e2e).
 				return _chord([["plant " + str(a.get("label", "word")), key]], q, "pick word")
-		if int(data.get("max_pages", 1)) > 1:
-			return _chord([["more words", "F"]], q, "picker page")
+		# One lap of the pages, then close: the picker wraps, so with no fitting
+		# word on any page "more words [F]" repeated for ever (fresh strict from
+		# zero, 45 flags, night 2).
+		var page := int(data.get("page", 0))
+		var pages := int(data.get("max_pages", 1))
+		if pages > 1:
+			if int(_picker_seen.get("start", -1)) < 0 or Time.get_ticks_msec() - int(_picker_seen.get("t", 0)) > 30000:
+				_picker_seen = {"start": page, "t": Time.get_ticks_msec(), "laps": 0}
+			elif page == int(_picker_seen["start"]) and int(_picker_seen.get("moved", 0)) == 1:
+				_picker_seen["laps"] = 1
+			if page != int(_picker_seen["start"]):
+				_picker_seen["moved"] = 1
+			_picker_seen["t"] = Time.get_ticks_msec()
+			if int(_picker_seen.get("laps", 0)) == 0:
+				return _chord([["more words", "F"]], q, "picker page")
+		_picker_seen = {}
 		return _chord(_close_first(), q, "no fitting word here")
 	var target = farm.grid.get_biome(biome) if biome != "" else null
 	if target != null and atom != "" and target.quantum_computer != null \
@@ -2011,6 +2025,7 @@ static func _is_revealed(biome: String, col: int) -> bool:
 const TIP_MS := 20000         # tip for at most this long per plot …
 const TIP_FORGET_MS := 120000  # … then leave that plot to the strike for a while
 static var _tips := {}
+static var _picker_seen := {}
 static var _tip_p0 := {}
 const TIP_STALL_MS := 5000
 

@@ -365,3 +365,9 @@ def test_market_empty_slot_clears_the_pick():
     assert "_pick_cleared = true" in sel
     r = qb.split("func _on_action_r(")[1].split("\nfunc ")[0]
     assert r.index("if _pick_cleared:") < r.index("_accept_selected()")
+
+
+def test_plant_picker_pages_one_lap_then_closes():
+    pl = src("Core/Campaign/Guide.gd").split("static func _plant(")[1].split("\nstatic func ")[0]
+    assert "_picker_seen" in pl and pl.index('["more words", "F"]') < pl.index('"no fitting word here"')
+    assert "static var _picker_seen" in src("Core/Campaign/Guide.gd")
