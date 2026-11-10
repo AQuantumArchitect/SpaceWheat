@@ -2231,6 +2231,13 @@ func _perform_action(action_key: String) -> void:
 					if cur >= 0.0 and after >= 0.0:
 						var arrow := "▼" if after < cur - 0.005 else ("▲" if after > cur + 0.005 else "→")
 						gap_note = "  ·  gap %.2f→%.2f %s" % [cur, after, arrow]
+			elif action_name == "remove_biome":
+				# Keeper sitting 11 stopped rather than cull blind: the confirm
+				# never said what a cull costs. (Farm.remove_biome: flux and mass
+				# pay out as credits, every probe is released, and the biome goes
+				# back to the unexplored pool.)
+				gap_note = "  ·  %s leaves your slots: its probes come home, its flux pays out, and it can be charted again later" \
+						% _get_current_biome_name()
 			shell.show_hint(
 				"[color=#ff9966]⚠ %s[/color]%s  —  press [b]F[/b] to confirm; any other key or tap cancels" \
 				% [action_info.get("label", action_name), gap_note], 3, "", "cancel_confirm")

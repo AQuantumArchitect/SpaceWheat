@@ -303,3 +303,8 @@ def test_gather_buys_lap_staples_before_the_trip():
 def test_learn_word_buys_bread_before_the_trip():
     lw = src("Core/Campaign/Guide.gd").split("static func _learn_word(")[1].split("\nstatic func ")[0]
     assert lw.index('_supply("🍞", q, 1)') < lw.index("var t := _travel(str(b), q)")
+
+
+def test_cull_confirm_says_what_it_costs():
+    qii = src("UI/Core/QuantumInstrumentInput.gd")
+    assert 'action_name == "remove_biome"' in qii and "it can be charted again later" in qii
