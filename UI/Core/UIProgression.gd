@@ -3646,7 +3646,9 @@ static func redirect_locked(what: String = "") -> void:
 		var qm_r = _quest_manager()
 		var best_r := _best_objective()
 		route = "charge" if qm_r != null and qm_r.has_method("is_charge_hold") and bool(qm_r.is_charge_hold(best_r)) else "commitments"
-	var line := ("🔒 %s unlocks further down Act 0 — now: %s" % [what, obj]) if what != "" \
+	# Wave 20 distractible: the Spark hat still said "further down Act 0" in Act 4.
+	var when := "further down Act 0" if current_tutorial_step() != NO_TUTORIAL_SENTINEL else "later in the story"
+	var line := ("🔒 %s unlocks %s — now: %s" % [what, when, obj]) if what != "" \
 			else ("🔒 not yet — now: %s" % obj)
 	var shell := _shell()
 	if shell != null and shell.has_method("show_hint"):

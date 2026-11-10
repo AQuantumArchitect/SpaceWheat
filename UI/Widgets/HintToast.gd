@@ -1,6 +1,8 @@
 class_name HintToast
 extends PanelContainer
 
+const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
+
 ## HintToast — small corner pop-up for ephemeral player-facing dialogue.
 ## Universal grammar: E pauses decay (halts decoherence). F FOLLOWS a live
 ## toast into its named menu (ClickLadder home) and the card stays put so

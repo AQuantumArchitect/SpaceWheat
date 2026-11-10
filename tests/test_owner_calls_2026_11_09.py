@@ -181,3 +181,19 @@ def test_route_toast_does_not_steal_another_hats_f_verb():
     owns = src("UI/Widgets/HintToast.gd").split("func owns_f(")[1].split("\nfunc ")[0]
     assert "frame != ToolConfig.FRAME_ACE" in owns
     assert owns.index("frame != ToolConfig.FRAME_ACE") < owns.index("ace_f_would_explore")
+
+
+def test_every_tool_config_user_preloads_it():
+    # ToolConfig has no class_name: a script that calls ToolConfig.* without
+    # the preload fails to parse. 7c0a4808 broke every toast this way and
+    # neither banner_follow nor the suite noticed.
+    import re
+    bad = []
+    for p in list((ROOT / "UI").rglob("*.gd")) + list((ROOT / "Core").rglob("*.gd")):
+        t = p.read_text(encoding="utf-8", errors="ignore")
+        code = "\n".join(line.split("#")[0] for line in t.splitlines())  # comments don't count
+        if p.name == "ToolConfig.gd" or not re.search(r"\bToolConfig\.", code):
+            continue
+        if not re.search(r"ToolConfig\s*(:?=)\s*(pre)?load\(", t):
+            bad.append(str(p.relative_to(ROOT)))
+    assert not bad, bad
