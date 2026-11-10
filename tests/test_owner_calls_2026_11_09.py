@@ -240,13 +240,27 @@ def test_loop_came_home_has_a_walk():
     assert "get_current_frame()) != ToolConfig.FRAME_ICON" in sp
 
 
-def test_two_chores_walk_preps_poles_first():
-    # kp5: H on an equator control then CNOT left MI ≈ 0 at 50% for 15 presses.
+def test_two_chores_walk_has_no_strike_prep():
+    # kp6: strikes don't collapse under the strike-bank model, so the pole
+    # prep (c962069a) only spent 👥. Reverted; the MI half is a Bell weave.
     import json
     g = src("Core/Campaign/Guide.gd")
-    gw = g.split("static func _gate_word(")[1].split("\nstatic func ")[0]
-    assert gw.index("_to_pole(0, q)") < gw.index('_hat("druid", q)')
-    assert "_to_pole(1, q)" in gw
-    assert "static func _entangle(" in g
+    assert "_to_pole(" not in g
     walks = json.loads(src("Core/Campaign/campaign.json"))["guide"]["walks"]
     assert walks["mutual_information_at_least"] == ["entangle"]
+
+
+def test_free_terminal_pays_before_the_trip():
+    ft = src("Core/Campaign/Guide.gd").split("static func _free_terminal(")[1].split("\nstatic func ")[0]
+    assert ft.index("_supply(spend, q, 1)") < ft.index("_travel(biome, q)")
+
+
+
+def test_steer_tips_before_the_ace_hat_and_pays_before_the_trip():
+    g = src("Core/Campaign/Guide.gd")
+    st = g.split("static func _steer(")[1].split("\nstatic func ")[0]
+    assert st.index("_supply(spend, q, 1)") < st.index("_travel(biome, q)")
+    assert st.index("_tip_toward(emoji, q)") < st.index('_hat("ace", q)')
+    assert '_cost_or(["strike", "👥"]' in st
+    tip = g.split("static func _tip_toward(")[1].split("\nstatic func ")[0]
+    assert "TIP_STALL_MS" in tip  # a pinned pole gives up early

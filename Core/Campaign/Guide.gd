@@ -1540,11 +1540,6 @@ static func _gate_word(pred: Dictionary, q: Dictionary) -> Dictionary:
 	var nxt := str(gates[done]).strip_edges().to_lower()
 	var biome := UIP._active_biome_name()
 	if nxt == "hadamard":
-		# A control on the equator: H sends it to a pole and the CNOT then
-		# entangles nothing (kp5: 50% for 15 presses, MI ≈ 0). Strike first.
-		var pole0 := _to_pole(0, q)
-		if not pole0.is_empty():
-			return pole0
 		var hd := _hat("druid", q)
 		if not hd.is_empty():
 			return hd
@@ -1555,10 +1550,6 @@ static func _gate_word(pred: Dictionary, q: Dictionary) -> Dictionary:
 			parts.append_array(_pick_plot(0))
 		parts.append(["Superpose the control", "E"])
 		return _chord(parts, q, "gate word hadamard")
-	if nxt == "cnot" and not UIP._in_gate_submenu():
-		var pole1 := _to_pole(1, q)  # the target, never the superposed control
-		if not pole1.is_empty():
-			return pole1
 	var ho := _hat("operator", q)
 	if not ho.is_empty():
 		return ho
@@ -1577,44 +1568,10 @@ static func _gate_word(pred: Dictionary, q: Dictionary) -> Dictionary:
 	return _pair_gate("", q, label)
 
 
-## A plot near a pole (≥ 85% either way), or {} once it is. Otherwise Ace,
-## pick it, Strike — a strike collapses the plot onto a pole. Bounded: three
-## strikes a minute per plot, then the walk goes on regardless.
-const POLE_NEAR := 0.35
-static var _pole_tries := {}
-static func _to_pole(col: int, q: Dictionary) -> Dictionary:
-	var biome := UIP._active_biome_name()
-	if absf(_north_pct(biome, col) - 0.5) >= POLE_NEAR:
-		return {}
-	var k := "%s|%d" % [biome, col]
-	var now := Time.get_ticks_msec()
-	var rec: Dictionary = _pole_tries.get(k, {"n": 0, "t": now})
-	if now - int(rec.get("t", now)) > 60000:
-		rec = {"n": 0, "t": now}
-	if int(rec.get("n", 0)) >= 3:
-		return {}
-	if not UIP._plot_bound(col):
-		if not _is_revealed(biome, col) and not _tracked(col):
-			return _reveal(col, q, [0, 1])
-	if str(ToolConfig.get_current_frame()) != "ace":
-		return _hat("ace", q)
-	var parts: Array = _close_first()
-	if _live_col() != col:
-		parts.append_array(_pick_plot(col))
-	else:
-		rec["n"] = int(rec.get("n", 0)) + 1
-	_pole_tries[k] = rec
-	parts.append(["strike it to a pole first (%d%%)" % int(round(_north_pct(biome, col) * 100.0)), _verb("strike")])
-	return _chord(parts, q, "to pole")
-
-
-## Entangle a pair past the MI bar: both plots at a pole, then a Bell weave.
+## Entangle a pair past the MI bar: a Bell weave on G and H. (A strike does
+## not collapse under the strike-bank model, so there is no pole prep a
+## player can do; kp6 spent 👥 on strikes that left the plots drifting.)
 static func _entangle(q: Dictionary) -> Dictionary:
-	if not UIP._in_gate_submenu():
-		for c in [0, 1]:
-			var pc := _to_pole(c, q)
-			if not pc.is_empty():
-				return pc
 	var ho := _hat("operator", q)
 	if not ho.is_empty():
 		return ho
@@ -1777,9 +1734,31 @@ static func _steer(biome: String, emoji: String, q: Dictionary) -> Dictionary:
 		var fr0 := _free_terminal(q)
 		if not fr0.is_empty():
 			return fr0
+	# The strike's 👥 is decided before the trip, or the supply trip and this
+	# one pull opposite ways ("to Shrine" ⇄ "to Village", sk27).
+	# Price the verb the trip leads to: a held or banked plot is gathered
+	# (🧺), anything else is struck (👥). Checking only 👥 sent sk31 back and
+	# forth for the 🧺 the release needed.
+	var pool = farm.terminal_pool
+	var tm = pool.get_measured_terminal_for_register(col, biome) if pool != null and pool.has_method("get_measured_terminal_for_register") else null
+	if tm == null and pool != null and pool.has_method("get_terminal_for_register"):
+		tm = pool.get_terminal_for_register(col, biome)
+	var gathers: bool = held != null or (tm != null and (bool(tm.is_measured) or (tm.has_method("has_banked") and tm.has_banked())))
+	var spend := "🧺" if gathers else "👥"
+	var price := float(UIP.gather_price()) if gathers else 1.0
+	if UIP._wallet(spend) < price:
+		var sup := _supply(spend, q, 1)
+		if not sup.is_empty():
+			return sup
 	var t := _travel(biome, q)
 	if not t.is_empty():
 		return t
+	# The tip wears the Druid; it must come before the Ace hat or the two
+	# undo each other ("Druid hat [0]" ⇄ "Ace hat [8]", sk29/dk26).
+	if held == null and UIP._plot_bound(col) and not UIP._plot_measured(col) and _live_col() == col:
+		var tip0 := _tip_toward(emoji, q)
+		if not tip0.is_empty():
+			return tip0
 	var h := _hat("ace", q)
 	if not h.is_empty():
 		return h
@@ -1790,8 +1769,12 @@ static func _steer(biome: String, emoji: String, q: Dictionary) -> Dictionary:
 		parts.append(["release", _verb("gather")])
 		return _cost_or(["gather", "🧺"], _chord(parts, q, "release"), q, 0)
 	if UIP._plot_bound(col):
+		# sf6 (50 flags, Fill the Urn): the plot sat at 100% 💀, so every strike
+		# landed 💀 and the follower spent its 👥 to 0 on "Strike for ⚱", then
+		# repeated a refused strike. Tip toward the pole first (bounded, as in
+		# the gather), and the strike pays 👥 — route a supply when out.
 		parts.append(["Strike for " + emoji, _verb("strike")])
-		return _chord(parts, q, "steer")
+		return _cost_or(["strike", "👥"], _chord(parts, q, "steer"), q, 0)
 	if _tracked(col):
 		return _evolve(biome, q)  # Ace F fast-forwards on a tracked plot; let time steer it
 	var fr := _free_terminal(q)
@@ -1834,6 +1817,13 @@ static func _free_terminal(q: Dictionary, protect: Array = []) -> Dictionary:
 		return {}
 	var biome := str(best.measured_biome_name if bool(best.is_measured) and str(best.measured_biome_name) != "" else best.bound_biome_name)
 	var col := int(best.measured_register_id if bool(best.is_measured) and int(best.measured_register_id) >= 0 else best.bound_register_id)
+	# Pay before the trip: with 0 👥 and 0 🧺 this walked to a probe it could
+	# neither strike nor gather, then back ("to Shrine" ⇄ "to Village", sf6).
+	var spend := "🧺" if bool(best.is_measured) or (best.has_method("has_banked") and best.has_banked()) else "👥"
+	if UIP._wallet(spend) < 1.0:
+		var sup := _supply(spend, q, 1)
+		if not sup.is_empty():
+			return sup
 	var tr := _travel(biome, q)
 	if not tr.is_empty():
 		return tr
@@ -1993,6 +1983,8 @@ static func _is_revealed(biome: String, col: int) -> bool:
 const TIP_MS := 20000         # tip for at most this long per plot …
 const TIP_FORGET_MS := 120000  # … then leave that plot to the strike for a while
 static var _tips := {}
+static var _tip_p0 := {}
+const TIP_STALL_MS := 5000
 
 
 static func _tip_toward(res: String, q: Dictionary) -> Dictionary:
@@ -2022,7 +2014,13 @@ static func _tip_toward(res: String, q: Dictionary) -> Dictionary:
 	var now := Time.get_ticks_msec()
 	if not _tips.has(tkey) or now - int(_tips[tkey]) > TIP_FORGET_MS:
 		_tips[tkey] = now
+		_tip_p0[tkey] = p
 	if now - int(_tips[tkey]) > TIP_MS:
+		return {}
+	# A pinned pole (the Shrine's 💀 at 100%: dissipation undoes every spin)
+	# never moves — give up after a few seconds instead of spinning out the
+	# budget (sk30: ten "Spin −" at 0%).
+	if now - int(_tips[tkey]) > TIP_STALL_MS and p <= float(_tip_p0.get(tkey, p)) + 0.01:
 		return {}
 	var hd := _hat("druid", q)
 	if not hd.is_empty():

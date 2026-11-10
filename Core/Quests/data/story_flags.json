@@ -1742,7 +1742,7 @@
     },
     "arc_quest": {
       "body": "Two Chores, One Thread — superpose then couple: Hadamard first, CNOT second, and push the pair's mutual information past 1 bit.",
-      "hint": "Ace [8]: strike both plots to a pole first. Druid [0]: Superpose (Hadamard) the control. Operator [9]: CNOT the pair. In that order — the other order makes something else entirely.",
+      "hint": "Druid [0]: Superpose (Hadamard) the control. Operator [9]: mark two plots, CNOT the pair. In that order, in one sitting — the other order makes something else entirely.",
       "state_predicates": [
         {
           "type": "gate_order",
