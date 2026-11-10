@@ -969,7 +969,9 @@ func _execute_incorporate_icon() -> Dictionary:
 			# already anchors another signature word. Saying "woven into your
 			# signature" here sent hub leg L4d chasing a signature that never
 			# grew (anti-gating law: no false help).
-			_toast_player("✗ %s already anchors one of your words — %s/%s cannot join your signature (berry still counted)" % [inc_n, inc_n, inc_s])
+			# Not a failure: the loop counts for berry goals (wave 19 keeper, wave 20
+			# distractible — both read the old ✗ as a refused step on the Monolith).
+			_toast_player("🧬 loop counted — %s/%s stays out of your signature (%s already anchors one of your words)" % [inc_n, inc_s, inc_n])
 	elif str(result.get("message", "")) != "":
 		_toast_player("✗ %s" % str(result.get("message", "")))
 	# Mirror on the QII signal too, for UI listeners (the engine emits its own). Same

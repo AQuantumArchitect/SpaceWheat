@@ -164,3 +164,12 @@ def test_staple_rescue_stands_while_the_gather_fee_is_short():
     assert qb.index('emoji != "🧺" and _vital_stock("🧺") < UIProgression.gather_price()') < qb.index("return _vital_stock(emoji) <= STAPLE_CRITICAL")
     g = src("Core/Campaign/Guide.gd").split("static func _gather(")[1].split("\nstatic func ")[0]
     assert "fee_board._rescue_open(res)" in g
+
+
+def test_anchored_incorporate_reads_as_counted_not_failed():
+    # Waves 19-20: the Monolith counts Ledger loops (berry_consumed_count_gte),
+    # but an anchored incorporate toasted "✗ …", and sensors left the plot.
+    qii = src("UI/Core/QuantumInstrumentInput.gd").split("func _execute_incorporate_icon(")[1].split("\nfunc ")[0]
+    assert "✗ %s already anchors" not in qii and "🧬 loop counted" in qii
+    camp = src("Core/Campaign/campaign.json")
+    assert "two Ledger loops (any Ledger plot counts)" in camp
