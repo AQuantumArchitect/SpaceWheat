@@ -130,3 +130,15 @@ def test_explore_heals_a_held_but_fogged_plot():
 def test_gather_buys_the_resource_when_no_basket_is_held():
     g = src("Core/Campaign/Guide.gd").split("static func _gather(")[1].split("\nstatic func ")[0]
     assert 'UIP._wallet("🧺") < 1.0 and res != "🧺"' in g and "_supply_via(tr, res, q, depth)" in g
+
+
+def test_weaves_refuse_an_empty_mark_before_the_hadamard():
+    # Wave 19 (distractible): marking a fogged ; then weaving gave a bare
+    # "Failed to apply Hadamard"; with the empty mark second, the first plot
+    # was H-rotated before the CNOT failed (a half-applied gate).
+    gh = src("Core/Instrumentation/Handlers/GateActionHandler.gd")
+    for fn, what in (("create_bell_pair", "A Bell pair"), ("create_ghz_state", "A GHZ weave")):
+        body = gh.split("static func %s(" % fn)[1].split("\nstatic func ")[0]
+        assert body.index('_refuse_no_qubit(farm, positions, "%s")' % what) < body.index('_apply_single_qubit_gate(')
+    helper = gh.split("static func _refuse_no_qubit(")[1].split("\nstatic func ")[0]
+    assert "explore it first" in helper and "[" not in helper.split('"message":')[1].split("\n")[0].replace("% [what, key]", "")

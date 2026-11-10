@@ -266,6 +266,9 @@ static func create_bell_pair(farm, positions: Array[Vector2i]) -> Dictionary:
 	var cross := _refuse_cross_biome(farm, positions, "A Bell pair")
 	if not cross.is_empty():
 		return cross
+	var empty := _refuse_no_qubit(farm, positions, "A Bell pair")
+	if not empty.is_empty():
+		return empty
 
 	# Step 1: Apply Hadamard to first qubit
 	var h_result = _apply_single_qubit_gate(farm, pos_a, "H")
@@ -307,6 +310,9 @@ static func create_ghz_state(farm, positions: Array[Vector2i]) -> Dictionary:
 	var cross := _refuse_cross_biome(farm, positions, "A GHZ weave")
 	if not cross.is_empty():
 		return cross
+	var empty := _refuse_no_qubit(farm, positions, "A GHZ weave")
+	if not empty.is_empty():
+		return empty
 
 	# Step 1: Apply Hadamard to first qubit
 	var h_result = _apply_single_qubit_gate(farm, positions[0], "H")
@@ -648,6 +654,29 @@ static func _refuse_cross_biome(farm, positions: Array[Vector2i], what: String) 
 		"message": "%s weaves plots of one biome — your marks span %s. Clear the marks, then mark two plots in the same biome." % [
 			what, " and ".join(names)],
 	}
+
+
+## Refuse BEFORE the Hadamard when a mark has no qubit under it (a fogged or
+## beyond-the-register plot). The weave used to fail with a bare "Failed to
+## apply Hadamard" — or, with the empty mark second, H the first plot and then
+## fail the CNOT, half-applying the gate (playtest wave 19, distractible).
+static func _refuse_no_qubit(farm, positions: Array[Vector2i], what: String) -> Dictionary:
+	if not farm:
+		return {}
+	for pos in positions:
+		var r := _resolve_biome_register(farm, pos)
+		var biome = r.get("biome", null)
+		if biome and biome.quantum_computer and int(r.get("register_id", -1)) >= 0:
+			continue
+		var keys := "GHJKL;"
+		var key: String = keys.substr(pos.x, 1) if pos.x >= 0 and pos.x < keys.length() else "?"
+		return {
+			"success": false,
+			"error": "no_quantum_state",
+			"position": pos,
+			"message": "%s needs a qubit under every mark. Plot %s has none yet: explore it first, or clear the marks with ' and mark explored plots." % [what, key],
+		}
+	return {}
 
 
 static func _resolve_biome_register(farm, position: Vector2i) -> Dictionary:
