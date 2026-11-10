@@ -347,3 +347,12 @@ def test_pump_and_drain_refusals_name_the_stake():
     lh = src("Core/Instrumentation/Handlers/LindbladHandler.gd")
     assert "Insufficient resources for drain" not in lh and "Insufficient resources for pump" not in lh
     assert lh.count("short of %s") == 2
+
+
+def test_banner_verbs_match_the_chip_labels():
+    # Literalist w32: banner "Hadamard [E]" vs chip "[E] Superpose";
+    # "Build gate [R]" vs "[R] Gate".
+    g = src("Core/Campaign/Guide.gd")
+    assert '["Build gate", "R"]' not in g and '["Hadamard", "E"]' not in g
+    import json
+    assert json.loads(src("Core/Campaign/campaign.json"))["guide"]["keymap"]["verb_labels"]["E"] == "Superpose"

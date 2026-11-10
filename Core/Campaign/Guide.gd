@@ -1494,7 +1494,7 @@ static func _pair_gate(gate_key: String, q: Dictionary, gate_label: String = "Be
 				if have.has(c) or not _is_revealed(biome, c):
 					continue
 				parts.append(["mark", "shift+" + _plot_key(c)])
-	parts.append(["Build gate", "R"])
+	parts.append(["Gate", "R"])  # the chip reads "[R] Gate" (literalist w32: "Build gate" ≠ "Gate")
 	return _chord(parts, q, "pair gate")
 
 
@@ -1694,7 +1694,7 @@ static func _superpose(q: Dictionary) -> Dictionary:
 	var h := _hat("druid", q)
 	if not h.is_empty():
 		return h
-	return _chord(_close_first() + _pick_plot(col) + [["Hadamard", "E"]], q, "superpose")
+	return _chord(_close_first() + _pick_plot(col) + [["Superpose", "E"]], q, "superpose")
 
 
 ## Quiet a biome's surface (coherence_fell): the Druid spins the plot that
