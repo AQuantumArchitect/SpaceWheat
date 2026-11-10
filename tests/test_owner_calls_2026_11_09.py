@@ -279,3 +279,13 @@ def test_armed_abandon_names_only_the_confirm():
     # "Abandon [Q] → confirm [F]" again disarmed it, forever.
     mh = src("Core/Campaign/Guide.gd").split("static func _market_held_chord(")[1].split("\nstatic func ")[0]
     assert "_abandon_arm_qid" in mh and "return _chord([tail], q, why)" in mh
+
+
+def test_board_empty_slot_does_not_select_the_last_row():
+    # Wave 26 distractible: L on an empty "—" slot clamped to the LAST row
+    # (another page) and the next R accepted Hearth Keepers ×231.
+    qb = src("UI/Overlays/QuestBoard.gd")
+    sel = qb.split("func _select(")[1].split("\nfunc ")[0]
+    assert sel.index("if idx >= total:") < sel.index("_selected_index = clampi(")
+    # the market cursor follows its offer through live re-sorts
+    assert "_reanchor_market_selection(rows)" in qb.split("func _selected_market_row(")[1].split("\nfunc ")[0]

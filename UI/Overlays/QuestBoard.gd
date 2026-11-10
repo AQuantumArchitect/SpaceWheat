@@ -359,6 +359,7 @@ func _reset_item_cursor() -> void:
 	_selected_index = 0
 	_item_page = 0
 	_row_confirm_armed = false
+	_pinned_market_id = null
 
 func _on_frame_changed(_new_frame_id: String, _prev_frame_id: String) -> void:
 	_on_frame_changed_local()
@@ -1109,6 +1110,7 @@ func _build_market_body() -> void:
 		hands += " · %d open" % free_n
 	_body_box.add_child(_make_muted_label(hands, 11))
 	var rows: Array = _market_rows()
+	_reanchor_market_selection(rows)
 	if rows.is_empty():
 		var empty_msg: String = _market_status_note
 		if empty_msg == "":
@@ -2237,10 +2239,39 @@ func _staples_first(offers: Array) -> Array:
 	return out
 
 
+## The ring re-sorts live (by what you hold; supply trades move between the
+## urgent and calm groups as staples change), so an index can point at a
+## different offer a moment later: wave 26's distractible pressed L then R and
+## took a 👥×231 contract that was not the row on screen. The pick pins the
+## offer's id; rendering and the verbs re-find it before acting.
+var _pinned_market_id = null
+
+func _pin_market_selection() -> void:
+	_pinned_market_id = null
+	if frame_id != FRAME_MARKET:
+		return
+	var rows: Array = _market_rows()
+	if _selected_index >= 0 and _selected_index < rows.size():
+		var d = rows[_selected_index].get("data", {})
+		if d is Dictionary and d.has("id"):
+			_pinned_market_id = d.get("id")
+
+func _reanchor_market_selection(rows: Array) -> void:
+	if frame_id != FRAME_MARKET or _pinned_market_id == null:
+		return
+	for i in range(rows.size()):
+		var d = rows[i].get("data", {})
+		if d is Dictionary and d.get("id") == _pinned_market_id:
+			if i != _selected_index:
+				_selected_index = i
+				_item_page = clampi(i / MAX_VISIBLE_ITEMS, 0, _item_page_count(rows.size()) - 1)
+			return
+
 func _selected_market_row() -> Dictionary:
 	if frame_id != FRAME_MARKET:
 		return {}
 	var rows: Array = _market_rows()
+	_reanchor_market_selection(rows)
 	if _selected_index < 0 or _selected_index >= rows.size():
 		return {}
 	var row = rows[_selected_index]
@@ -2570,7 +2601,14 @@ func _select(idx: int) -> void:
 	# six-key ring — callers on the current page pass page_start + slot.
 	_disarm_abandon()
 	var total := _current_row_count()
+	# An empty slot ("—") is not a row. Clamping sent it to the LAST row —
+	# often on another page — and the next R accepted a contract nobody saw
+	# (wave 26 distractible: L on "—", then R took Hearth Keepers ×231).
+	if idx >= total:
+		_toast_feedback("• no row on that key — G H J K L ; pick a row on this page")
+		return
 	_selected_index = clampi(idx, 0, maxi(0, total - 1))
+	_pin_market_selection()
 	# Keep the cursor and the visible page in agreement.
 	_item_page = clampi(_selected_index / MAX_VISIBLE_ITEMS, 0, _item_page_count(total) - 1)
 	_row_confirm_armed = true
