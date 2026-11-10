@@ -4,6 +4,38 @@ Runbook + ledger. The coordinator (Claude, this session) re-reads this file at t
 top of every loop iteration and appends to it at the bottom. Luke reads it in the
 morning. Branch: `overnight/2026-11-09-hive` (one PR, pushed after every fold).
 
+## Night 2 summary (running — last update 03:10, waves 19–28)
+
+**Where the game stands for a player who only follows the banner:** a strict follower from
+true zero now reaches **50 flags**, stopping only at Fill the Urn (a design blocker, below).
+The keeper (Haiku with a journal) is at **57 flags**, Act 6.
+
+**Soft-locks and Guide loops fixed tonight (each verified live, gated, pushed to PR #63):**
+- Trim ⇄ Plant churn was a Guide bug: plants for Lanternfall went to the Village (074aa414).
+- "Travel, then find out you can't pay" ping-pongs in four routes: strike for ⚱, probe-freeing,
+  gather laps and learn-word trips now buy 🍞/👥/🧺 before travelling (15fb7a04, e56c4357, 2cc7ca4d).
+- First plot key after a load toggled a mark instead of picking (3f56514b).
+- Armed abandon re-named Q, which disarms it (2b52f3a7).
+- Fee deadlock: 0 🧺 + 3 👥 had no rescue (7a25588c, Luke: keep).
+- Gathered plot with a live track could never be explored again; now named (5573fe44).
+- Market: an empty slot key selected the last row (another page), so R took a contract nobody saw;
+  the cursor also follows its offer through live re-sorts (44b8c562).
+- Arc: after an accept the next door slid under the cursor and a second R accepted it (2b52f3a7).
+- Bell/GHZ weave on a fogged mark half-applied the gate (3e3e09dd).
+
+**Legibility:** "🧬 loop counted" instead of ✗ (4fddc333); a route toast no longer steals the Icon
+hat's F (7c0a4808, which broke every toast until e48c1a60 — my mistake, now guarded by a test);
+lock text past Act 0; cull confirm says what a cull does (ab8cc352); Icon F reads "Stop track"
+on a live track (209003af); walkless loop doors name their biome (76f58235).
+
+**New Guide walks:** gate-order doors (Two Chores, The Long Braid), The Loop Came Home (mirror).
+Eleven objective types still have no walk (listed in For Luke).
+
+**For Luke, new tonight:** Fill the Urn has no lever I could find (100% 💀 pole, spins and
+fast-forward don't move it) · Two Chores' 1-bit bar and its order lost on save/load · eleven
+walkless objective types · `[']` toast oddity (unconfirmed). Watch It Fade turned out to be slow,
+not broken (corrected).
+
 ## Morning summary (final, 11:10, loop stopped after 15 waves)
 
 **Where a brand-new player gets now.**
