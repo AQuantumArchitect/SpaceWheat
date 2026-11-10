@@ -4,37 +4,47 @@ Runbook + ledger. The coordinator (Claude, this session) re-reads this file at t
 top of every loop iteration and appends to it at the bottom. Luke reads it in the
 morning. Branch: `overnight/2026-11-09-hive` (one PR, pushed after every fold).
 
-## Night 2 summary (running — last update 03:10, waves 19–28)
+## Night 2 summary (final, 05:45 — waves 19–36, loop stopped)
 
-**Where the game stands for a player who only follows the banner:** a strict follower from
-true zero now reaches **54 flags**; an earnest Haiku from zero reaches Act 1 at press 62 and Act 2 at press 121; a memoryless lost-lamb reaches Act 3 (05:10), stopping only at Fill the Urn (a design blocker, below).
-The keeper (Haiku with a journal) is at **58 flags**, Act 6.
+**Where the game stands for a player who only follows the banner**
+- A **strict follower** (no model, first bracketed key only) from true zero reaches **45 flags in
+  ~560–670 presses** on the final code and **54 flags** at best tonight. Every run that stopped did so at a
+  design blocker below, or at a Guide loop that was then folded.
+- An **earnest Haiku** from zero: **Act 1 at press 62, Act 2 at press 121**.
+- A **memoryless lost-lamb** from zero: tutorial → Act 1 → Act 2 (11 flags); continued from its bank → **Act 3** (19).
+- The **keeper** (Haiku with a journal, 16 sittings): 21 → **58 flags**, Act 6. The Arc now holds only Fill the Urn.
+- **Distractible / masher** runs at every depth (zero, Act 1, 2, 4, late): **no soft-lock left standing** after the folds.
 
-**Soft-locks and Guide loops fixed tonight (each verified live, gated, pushed to PR #63):**
-- Trim ⇄ Plant churn was a Guide bug: plants for Lanternfall went to the Village (074aa414).
-- "Travel, then find out you can't pay" ping-pongs in four routes: strike for ⚱, probe-freeing,
-  gather laps and learn-word trips now buy 🍞/👥/🧺 before travelling (15fb7a04, e56c4357, 2cc7ca4d).
-- First plot key after a load toggled a mark instead of picking (3f56514b).
-- Armed abandon re-named Q, which disarms it (2b52f3a7).
-- Fee deadlock: 0 🧺 + 3 👥 had no rescue (7a25588c, Luke: keep).
-- Gathered plot with a live track could never be explored again; now named (5573fe44).
-- Market: an empty slot key selected the last row (another page), so R took a contract nobody saw;
-  the cursor also follows its offer through live re-sorts (44b8c562).
-- Arc: after an accept the next door slid under the cursor and a second R accepted it (2b52f3a7).
-- Bell/GHZ weave on a fogged mark half-applied the gate (3e3e09dd).
+**Soft-locks and Guide loops fixed (each reproduced, fixed, verified live, gated, pushed to PR #63)**
+- Trim ⇄ Plant churn: the Guide planted in the Village for a Lanternfall door (074aa414).
+- "Travel, then find out you can't pay" ping-pongs: strike-for-⚱, probe-freeing, gather laps, learn-word
+  trips (15fb7a04, e56c4357, 2cc7ca4d). strict_follow.py now detects two-line ping-pongs (e56c4357).
+- Fee deadlock 0 🧺 + 3 👥 (7a25588c, Luke: keep) · first plot key after a load toggled a mark (3f56514b) ·
+  armed abandon re-named Q (2b52f3a7) · blind "Accept [R]" for a door not on the Arc (51359843) ·
+  plant picker paged for ever (2bfb316e) · gathered plot with a live track (5573fe44).
+- Market: an empty-slot key selected the last row (44b8c562), then kept the old pick (b7cccd7d); the cursor
+  follows its offer through re-sorts · Arc: a second R accepted the next door (2b52f3a7).
+- Weave on a fogged mark half-applied the gate (3e3e09dd).
 
-**Legibility:** "🧬 loop counted" instead of ✗ (4fddc333); a route toast no longer steals the Icon
-hat's F (7c0a4808, which broke every toast until e48c1a60 — my mistake, now guarded by a test);
-lock text past Act 0; cull confirm says what a cull does (ab8cc352); Icon F reads "Stop track"
-on a live track (209003af); walkless loop doors name their biome (76f58235).
+**Legibility:** 🧬 "loop counted" (4fddc333) · route toast vs Icon F (7c0a4808; broke every toast until
+e48c1a60 — mine, now guarded by a test) · lock text after Act 0 · cull confirm says what a cull does
+(ab8cc352) and its prompt leaves with the confirm (1117423d) · Icon F "Stop track" on a live track (209003af) ·
+no DLC 🔒 on open-country Spark/Merchant verbs where they work (ba3de3e5) · strike laps show
+"strike N of 6, then Gather" (c475e300) · banner says the chip's words: Superpose [E], Gate [R] (5bac4c43) ·
+pump/drain refusals name the stake (ee0885ac) · walkless loop doors name their biome (76f58235).
 
 **New Guide walks:** gate-order doors (Two Chores, The Long Braid), The Loop Came Home (mirror).
-Eleven objective types still have no walk (listed in For Luke).
 
-**For Luke, new tonight:** Fill the Urn has no lever I could find (100% 💀 pole, spins and
-fast-forward don't move it) · Two Chores' 1-bit bar and its order lost on save/load · eleven
-walkless objective types · `[']` toast oddity (unconfirmed). Watch It Fade turned out to be slow,
-not broken (corrected).
+**For Luke — decisions waiting (details further down in "For Luke"):**
+1. **Fill the Urn** — no player lever found; the strict follower grinds there. The current stop for a banner-only player.
+2. **Stay Yourself** — purity (Tr ρ²) never moved in 4 keeper sittings; the row truncates at "Purity…".
+3. **Two Chores, One Thread** — 1-bit MI bar vs fast-rotating Forest plots; its gate order is lost on save/load.
+4. **Eleven objective types with no Guide walk** (listed below).
+5. The banner picks which biome to cull · Ace F on a struck-but-unbound plot (two rules disagree) ·
+   the literalist's 23 text disagreements (key highlights listed) · 🪔 has no resources-table entry.
+Watch It Fade turned out slow, not broken (claimed by keeper 11).
+
+Pytest floor at the end: **699 passed**, the same 6 Windows-host failures. Tutorial gate: banner_follow 55 presses, 0/0/0.
 
 ## Morning summary (final, 11:10, loop stopped after 15 waves)
 
@@ -253,6 +263,7 @@ rotate three seats, always one soft-lock hunter (distractible / masher / lost-la
 | 35 | night 2 | distractible Act 2–3, lost-lamb Act 2+ (running) | distractible → 23 flags, **no soft-lock / false praise / narrow gate** in 13 detours: the Market empty-slot fix held (L then R accepted nothing), wrong-faction delivery, save/load after delivery, hat and biome wanders, a side-door chain claimed | stale "Strike refused — F explores first" after a gather (cleared by a biome round trip): **not reproduced** (gather → Explore → Strike works twice in a row from its bank) — noted | ds35, dk46 |
 | 35b | night 2 | lost-lamb continued from its Act 2 bank | **memoryless lost-lamb → Act 3 (19 flags)**: Find the Spring, Prove Reliable, Carry Water, the Timber and Water Teachings, Couple the Countries — all on the banner alone; walled at the 🌱 grind for Couple the Spring | strict from its bank continues 19 → 21 (The Gear-Bench, Hold Commerce) → pacing, not a lock (🌱 grind is already For Luke) | ll35, sk47 |
 | 36 | night 2 | earnest from TRUE ZERO, final fresh strict (running) | **earnest from zero: Act 1 at press 62, Act 2 at press 121** (10 flags in 132 presses); walled at Find the Woodlot's 🦅 14/21 (gathers paid 🐇) | 🦅 laps = pacing (trade fallback exists) · Ace F on a struck-but-unbound plot: the chip resolver shows Explore, but ace_f_would_explore() says no, so a route toast takes F ("📋 Charge") — the banner names another plot first, so following it is fine; the two rules disagree, noted for Luke | ea36, dk48 |
+| 36b | night 2 | final fresh strict from zero | **0 → 45 in 638 presses**, then "no 🪔 on the market ring yet — wait" (no biome carried 🪔; 🪔 has no resources-table entry, not reproduced after reload) | noted | sfzA |
 
 Pytest floor on this host (godot.exe on PATH + PYTHONUTF8 via the python3 shim): **655 passed, 6 failed, 50 skipped** (as of cd786e1d; +3 new tests) — the 6 are host-path tests (Windows separators, POSIX-only deploy scripts, no HOME), unchanged by every fold.
 
