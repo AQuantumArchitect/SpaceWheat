@@ -2884,6 +2884,13 @@
    "coherence_fell": [
     "still"
    ],
+   "gate_order": [
+    "gate_word"
+   ],
+   "mutual_information_at_least": [
+    "hat:operator",
+    "pair_gate:Q"
+   ],
    "coherence_at_least": [
     "superpose"
    ],

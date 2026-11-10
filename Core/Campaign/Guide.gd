@@ -472,6 +472,8 @@ static func _step(step: String, pred: Dictionary, q: Dictionary) -> Dictionary:
 			return _plot_verb(arg, q)
 		"pair_gate":
 			return _pair_gate(arg, q)
+		"gate_word":
+			return _gate_word(pred, q)
 		"reap":
 			return _reap(arg, q)
 		"measure":
@@ -1418,10 +1420,10 @@ static func _plot_verb(key: String, q: Dictionary) -> Dictionary:
 
 ## Two marked plots, then the gate: Operator hat, SHIFT-mark G and H, R opens
 ## the gate picker, `gate_key` picks the gate.
-static func _pair_gate(gate_key: String, q: Dictionary) -> Dictionary:
+static func _pair_gate(gate_key: String, q: Dictionary, gate_label: String = "Bell pair") -> Dictionary:
 	var inst = UIP._instrument()
 	if UIP._in_gate_submenu():
-		return _chord([["Bell pair", gate_key]], q, "pick gate")
+		return _chord([[gate_label, gate_key]], q, "pick gate")
 	# Exactly two marks, both on THIS biome's ring: marks left from other
 	# lessons (Ace G marks too) make a cross-biome pair that never weaves.
 	var marks: Array = inst.checked_plots if inst != null and "checked_plots" in inst else []
@@ -1458,6 +1460,51 @@ static func _pair_gate(gate_key: String, q: Dictionary) -> Dictionary:
 				parts.append(["mark", "shift+" + _plot_key(c)])
 	parts.append(["Build gate", "R"])
 	return _chord(parts, q, "pair gate")
+
+
+## Spell a gate word in order (gate_order: ["hadamard", "cnot"], the braids).
+## Wave 20 keeper: "Two Chores, One Thread" had no walk, so the banner never
+## named it; the keeper marked one plot and the picker closed. Hadamard =
+## Druid Superpose on the control (plot 0); a two-qubit gate = Operator,
+## mark plots 0 and 1, R opens the picker, then the key the picker shows it on.
+static func _gate_word(pred: Dictionary, q: Dictionary) -> Dictionary:
+	var gates: Array = pred.get("gates", []) if pred.get("gates", []) is Array else []
+	if gates.is_empty():
+		return {}
+	var qm = UIP._quest_manager()
+	var score := float(qm.evaluate_predicate_score(pred)) if qm != null and qm.has_method("evaluate_predicate_score") else 0.0
+	var done := int(round(clampf(score, 0.0, 1.0) * gates.size()))
+	if done >= gates.size():
+		return {}
+	var nxt := str(gates[done]).strip_edges().to_lower()
+	var biome := UIP._active_biome_name()
+	if nxt == "hadamard":
+		var hd := _hat("druid", q)
+		if not hd.is_empty():
+			return hd
+		if not _is_revealed(biome, 0) and not _tracked(0):
+			return _reveal(0, q, [0, 1])
+		var parts: Array = _close_first()
+		if _live_col() != 0:
+			parts.append_array(_pick_plot(0))
+		parts.append(["Superpose the control", "E"])
+		return _chord(parts, q, "gate word hadamard")
+	var ho := _hat("operator", q)
+	if not ho.is_empty():
+		return ho
+	var label := nxt.to_upper()
+	if UIP._in_gate_submenu():
+		var inst = UIP._instrument()
+		var data: Dictionary = inst.current_submenu_data if inst != null and "current_submenu_data" in inst else {}
+		var acts: Dictionary = data.get("actions", {}) if data.get("actions", {}) is Dictionary else {}
+		for k in ["Q", "E", "R"]:
+			var a = acts.get(k, {})
+			if a is Dictionary and str(a.get("gate_type", "")) == nxt:
+				return _chord([[label, k]], q, "pick gate")
+		if acts.has("F"):
+			return _chord([["more gates", "F"]], q, "gate page")
+		return {}
+	return _pair_gate("", q, label)
 
 
 ## Explore every unexplored plot of the biome you stand in: Ace, Shift+F.
