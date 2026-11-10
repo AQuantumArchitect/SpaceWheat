@@ -356,3 +356,12 @@ def test_banner_verbs_match_the_chip_labels():
     assert '["Build gate", "R"]' not in g and '["Hadamard", "E"]' not in g
     import json
     assert json.loads(src("Core/Campaign/campaign.json"))["guide"]["keymap"]["verb_labels"]["E"] == "Superpose"
+
+
+def test_market_empty_slot_clears_the_pick():
+    # Wave 33 distractible: L on "—" kept the old row picked and R accepted it.
+    qb = src("UI/Overlays/QuestBoard.gd")
+    sel = qb.split("func _select(")[1].split("\nfunc ")[0]
+    assert "_pick_cleared = true" in sel
+    r = qb.split("func _on_action_r(")[1].split("\nfunc ")[0]
+    assert r.index("if _pick_cleared:") < r.index("_accept_selected()")

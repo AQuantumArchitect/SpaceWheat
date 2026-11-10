@@ -360,6 +360,7 @@ func _reset_item_cursor() -> void:
 	_item_page = 0
 	_row_confirm_armed = false
 	_pinned_market_id = null
+	_pick_cleared = false
 
 func _on_frame_changed(_new_frame_id: String, _prev_frame_id: String) -> void:
 	_on_frame_changed_local()
@@ -455,6 +456,9 @@ func _on_action_r() -> void:
 	_disarm_abandon()
 	match frame_id:
 		FRAME_MARKET:
+			if _pick_cleared:
+				_toast_feedback("• pick a row first — G H J K L ;")
+				return
 			if str(_selected_market_row().get("kind", "")) == "offer":
 				_accept_selected()
 		FRAME_COMMITMENTS:
@@ -1126,10 +1130,11 @@ func _build_market_body() -> void:
 			var kind := str(entry.get("kind", ""))
 			var data: Dictionary = entry.get("data", {})
 			var made: Control
+			var lit: bool = abs_i == _selected_index and not _pick_cleared
 			if kind == "held":
-				made = _make_commitment_row(data, ITEM_KEYS[i], abs_i == _selected_index)
+				made = _make_commitment_row(data, ITEM_KEYS[i], lit)
 			else:
-				made = _make_offer_row(data, ITEM_KEYS[i], abs_i == _selected_index)
+				made = _make_offer_row(data, ITEM_KEYS[i], lit)
 			made.name = "BoardRow_%d" % i
 			made.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 			made.gui_input.connect(_on_row_gui_input.bind(abs_i))
@@ -2245,6 +2250,7 @@ func _staples_first(offers: Array) -> Array:
 ## took a 👥×231 contract that was not the row on screen. The pick pins the
 ## offer's id; rendering and the verbs re-find it before acting.
 var _pinned_market_id = null
+var _pick_cleared := false
 
 func _pin_market_selection() -> void:
 	_pinned_market_id = null
@@ -2606,7 +2612,14 @@ func _select(idx: int) -> void:
 	# (wave 26 distractible: L on "—", then R took Hearth Keepers ×231).
 	if idx >= total:
 		_toast_feedback("• no row on that key — G H J K L ; pick a row on this page")
+		# …and nothing stays picked: the old row still took the next R (wave 33
+		# distractible: L on "—", R accepted the earlier Hearth Keepers row).
+		_pick_cleared = true
+		_row_confirm_armed = false
+		_refresh_body()
+		_refresh_verb_chips()
 		return
+	_pick_cleared = false
 	_selected_index = clampi(idx, 0, maxi(0, total - 1))
 	_pin_market_selection()
 	# Keep the cursor and the visible page in agreement.
