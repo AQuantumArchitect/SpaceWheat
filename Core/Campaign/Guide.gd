@@ -913,7 +913,10 @@ static func _gather(res: String, need: int, q: Dictionary, depth: int = 0) -> Di
 	# it. A strict follower sat on "gather 👥 2/6 → Gather [Q]" with 0 🧺 (🧺 is
 	# bought with 👥, 👥 is farmed with 🧺) while 34 🌾 could buy 👥 in the
 	# Village (sf2, 558 presses deep, 2026-11-09).
-	if UIP._wallet("🧺") < 1.0 and res != "🧺":
+	var fee_board = UIP._quest_board()
+	if UIP._wallet("🧺") < 1.0 and res != "🧺" 			and (fee_board == null or not fee_board.has_method("_rescue_open") or fee_board._rescue_open(res)):
+		# Only a trade the board will actually show: a shut rescue sent the
+		# follower Market → ESC → Gather → Market forever (wave 19).
 		for tr in CampaignRuntime.supply_trades(res):
 			if _trade_ruled_out(res, str(tr.get("biome", ""))):
 				continue

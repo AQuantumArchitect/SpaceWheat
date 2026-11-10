@@ -1595,6 +1595,12 @@ func _rescue_open(emoji: String) -> bool:
 	# Owner ruling 2026-10-29. A staple's rescue (👥 🍞 🧺) stands on the
 	# Village board while that staple is critical — STAPLE_CRITICAL or fewer.
 	if emoji in STAPLES:
+		# Fee deadlock (wave 19 strict follower, 43 flags): 0 🧺 and 3 👥. 👥 is
+		# gathered (Q costs 🧺), 🧺 is bought with more 👥 than held, and the 👥
+		# rescue stayed shut because 3 > critical. While the gather fee is
+		# unaffordable, a gathered staple can't be gathered — its rescue stands.
+		if emoji != "🧺" and _vital_stock("🧺") < UIProgression.gather_price():
+			return true
 		return _vital_stock(emoji) <= STAPLE_CRITICAL
 	# 🌱 🔥 🔨 🪓 🌊 🦅 stand only while a live quest asks for them: not
 	# before (no stockpiling ahead of the story), not after (the door closes).
