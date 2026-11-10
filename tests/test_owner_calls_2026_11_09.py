@@ -316,3 +316,10 @@ def test_icon_f_chip_names_stopping_a_live_track():
     assert '"icon.f_track":' in src("Core/UI/ChipResolverRegistry.gd")
     rf = src("Core/UI/IconChipResolvers.gd").split("static func resolve_f(")[1]
     assert "register.is_tracked(ctx.qubit_index)" in rf and "Stop track" in rf
+
+
+def test_confirm_prompt_toast_leaves_with_the_confirm():
+    # Three sensors saw "Cull Biome — press F to confirm" linger after the cull.
+    assert "func dismiss_toasts_with_home(" in src("UI/PlayerShell.gd")
+    qii = src("UI/Core/QuantumInstrumentInput.gd")
+    assert qii.count('dismiss_toasts_with_home("cancel_confirm")') >= 2

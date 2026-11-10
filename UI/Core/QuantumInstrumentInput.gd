@@ -242,6 +242,8 @@ func _cancel_pending_confirm() -> void:
 	var cancelled_label := str(_confirm_pending.get("label", "action"))
 	_confirm_pending = {}
 	var shell := _resolve_player_shell()
+	if shell and shell.has_method("dismiss_toasts_with_home"):
+		shell.dismiss_toasts_with_home("cancel_confirm")
 	if shell and shell.has_method("show_hint"):
 		shell.show_hint("[color=#88aabb]%s cancelled[/color]" % cancelled_label, 2)
 
@@ -388,6 +390,9 @@ func _dispatch_action_key(key: String, shift: bool = false, ctrl: bool = false) 
 			if not _confirm_pending.is_empty():
 				var pending := _confirm_pending.duplicate()
 				_confirm_pending = {}
+				var cshell := _resolve_player_shell()
+				if cshell and cshell.has_method("dismiss_toasts_with_home"):
+					cshell.dismiss_toasts_with_home("cancel_confirm")
 				if bool(pending.get("shift_batch", false)):
 					_run_shift_batch(
 						str(pending.get("shift_action_name", "")),

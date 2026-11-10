@@ -395,6 +395,19 @@ func toast_f_chip_label() -> String:
 	return ""
 
 
+## Drop live toasts whose home is `key` (the ⚠ confirm prompt's
+## "cancel_confirm"). Once the confirm fired or was cancelled the prompt is
+## stale — three sensors saw "Cull Biome — press F to confirm" linger after
+## the cull was done.
+func dismiss_toasts_with_home(key: String) -> void:
+	if not _hint_toast_stack:
+		return
+	for child in _hint_toast_stack.get_children():
+		if "home_key" in child and str(child.home_key) == key:
+			_hint_toast_stack.remove_child(child)
+			child.queue_free()
+
+
 func _topmost_toast() -> HintToast:
 	if not _hint_toast_stack:
 		return null
