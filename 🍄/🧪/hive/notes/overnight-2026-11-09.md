@@ -117,6 +117,21 @@ Still open from the day-2 sensors (not folded yet):
   new content. Anything bigger → write it up under "For Luke" below.
 - **Git:** commit each fold with its evidence, push the branch, keep one PR.
 
+## Night 2 orders (2026-11-09, Luke signing off)
+
+Same fold limits and git rules as last night (one PR, #63; never merge). Waves
+rotate three seats, always one soft-lock hunter (distractible / masher / lost-lamb):
+- **Keeper** sitting 4+ from `keeper_demos_latest` (Act 6, 41 flags), journal
+  `journals/keeper-demos.md`. Press ≈ 1 min at this depth; budget accordingly.
+- **Distractible** from Act 1 and Act 4 saves (`distractible_tutorial_end3`,
+  `earnest_act2_w7_end`): save/load mid-step, marks off the banner, menu and hat wanders.
+- **Strict follower** (`strict_follow.py`, zero tokens) from the latest strict bank
+  (`sf4_end`, 43 flags) and from true zero now and then, to catch regressions.
+- Known and parked (For Luke): Trim ⇄ Plant churn. Don't fold it; if it blocks a
+  strict run, note it and restart from a different save.
+- Morning: put a short summary at the top of this file (flags reached per persona,
+  walls folded with commits, For Luke additions).
+
 ## The loop (one iteration)
 
 1. **Read** this ledger: current chapter, open walls, last wave.
