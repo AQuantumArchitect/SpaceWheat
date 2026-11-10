@@ -150,7 +150,8 @@ const ARCHETYPE_FRAMES: Dictionary = {
 					  "submenu": "icon_injection",
 					  "chip_resolver": "icon.r_state"},
 				"F": {"action": "toggle_berry_track", "label": "Track", "emoji": "⌖", "icon": "",
-					  "hint": "Toggle Berry-phase tracking on the focused icon. Press again to stop. Also fires Play."}
+					  "hint": "Toggle Berry-phase tracking on the focused icon. Press again to stop. Also fires Play.",
+					  "chip_resolver": "icon.f_track"}
 			},
 			# The mirror (docs/design/GAUGE_CAMPAIGN.md, "The Loop Came Home"): a
 			# phase is invisible alone, visible in company. Compares the

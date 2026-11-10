@@ -17,6 +17,8 @@ static func resolve(action_info: Dictionary, ctx) -> Dictionary:
 	match entry_name:
 		"icon.r_state":
 			patch = IconChipResolvers.resolve_r(ctx)
+		"icon.f_track":
+			patch = IconChipResolvers.resolve_f(ctx)
 		"ace.f_explore":
 			patch = AceChipResolvers.resolve_f(ctx)
 		"captain.r_chart":

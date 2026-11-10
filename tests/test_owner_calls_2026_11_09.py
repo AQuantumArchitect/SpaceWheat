@@ -308,3 +308,11 @@ def test_learn_word_buys_bread_before_the_trip():
 def test_cull_confirm_says_what_it_costs():
     qii = src("UI/Core/QuantumInstrumentInput.gd")
     assert 'action_name == "remove_biome"' in qii and "it can be charted again later" in qii
+
+
+def test_icon_f_chip_names_stopping_a_live_track():
+    # Keepers 10-12 + a distractible killed live loops: F read "Track" while tracking.
+    assert '"chip_resolver": "icon.f_track"' in src("Core/GameState/ToolConfig.gd")
+    assert '"icon.f_track":' in src("Core/UI/ChipResolverRegistry.gd")
+    rf = src("Core/UI/IconChipResolvers.gd").split("static func resolve_f(")[1]
+    assert "register.is_tracked(ctx.qubit_index)" in rf and "Stop track" in rf
