@@ -26,6 +26,7 @@ def run(*a):
     except Exception: return {"raw": r.stdout[-300:] + r.stderr[-300:]}
 run("start", seat, "--fresh") if ckpt == "--fresh" else run("start", seat, "--fresh", "--checkpoint", ckpt)
 same, last, presses, waits, changes = 0, None, 0, 0, []
+recent = []
 for i in range(steps):
     d = run("look", seat, "--no-graph")
     t = d.get("screen_text", [])
@@ -37,6 +38,10 @@ for i in range(steps):
         run("stop", seat); sys.exit(0)
     same = same + 1 if ban == last else 0
     last = ban
+    recent = (recent + [ban])[-20:]
+    if len(recent) == 20 and len(set(recent)) <= 2 and not any(("wait" in x) or ("ripening" in x) for x in recent):
+        print("STUCK (ping-pong) after", presses, "presses:", " ⇄ ".join(sorted(set(recent))))
+        break
     waity = ("wait" in ban) or ("ripening" in ban)
     if same >= (24 if waity else 10):
         print("STUCK after", presses, "presses,", waits, "waits:", ban); break

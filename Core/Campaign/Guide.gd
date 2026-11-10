@@ -962,6 +962,16 @@ static func _gather(res: String, need: int, q: Dictionary, depth: int = 0) -> Di
 				var supf := _supply(fee, q, depth + 1)
 				if not supf.is_empty():
 					return supf
+	# A lap pays 🍞 (explore) and 👥 (strike): buy what's short BEFORE the
+	# trip, or the supply trip and this one pull opposite ways — strict from
+	# zero, 31 flags: "to Village" ⇄ "to Starter Forest" for 1000+ presses
+	# (🍞 0, gather 🦅). Only from the field step itself (depth 0).
+	if depth == 0 and UIP._active_biome_name() != where:
+		for staple in ["🍞", "👥"]:
+			if staple != res and UIP._wallet(staple) < 1.0:
+				var pre := _supply(staple, q, 1)
+				if not pre.is_empty():
+					return pre
 	var t := _travel(where, q)
 	if not t.is_empty():
 		return t

@@ -289,3 +289,12 @@ def test_board_empty_slot_does_not_select_the_last_row():
     assert sel.index("if idx >= total:") < sel.index("_selected_index = clampi(")
     # the market cursor follows its offer through live re-sorts
     assert "_reanchor_market_selection(rows)" in qb.split("func _selected_market_row(")[1].split("\nfunc ")[0]
+
+
+def test_gather_buys_lap_staples_before_the_trip():
+    # Strict from zero, 31 flags: 🍞 0, gather 🦅 — "to Village" ⇄ "to Starter
+    # Forest" for 1000+ presses (the 🍞 check came after the trip).
+    g = src("Core/Campaign/Guide.gd").split("static func _gather(")[1].split("\nstatic func ")[0]
+    assert g.index('for staple in ["🍞", "👥"]') < g.index("var t := _travel(where, q)")
+    sf = src("🍄/🧪/strict_follow.py")
+    assert "STUCK (ping-pong)" in sf
