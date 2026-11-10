@@ -874,6 +874,12 @@ static func _market_held_chord(c: Dictionary, _home: String, verb: Array, q: Dic
 	var i := _commitment_index(c)
 	if i < 0:
 		return {}
+	# Armed already: only the confirm is left. Naming Q again disarmed it
+	# (Q toggles the arm) — strict from zero looped "Abandon [Q] → confirm [F]"
+	# at The Gear-Bench, 20 flags (night 2). Same law as the Trim/Cull confirm.
+	if not tail.is_empty() and "_abandon_arm_qid" in board \
+			and int(board._abandon_arm_qid) >= 0 and int(board._abandon_arm_qid) == int(c.get("id", -2)):
+		return _chord([tail], q, why)
 	var parts: Array = _active_view_first() + _page_to(i) + _row("%s %s×%d" % [str(c.get("faction", "")), str(c.get("resource", "")),
 			int(c.get("quantity", 0))], i) + [verb]
 	if not tail.is_empty():

@@ -2442,6 +2442,7 @@ func _accept_selected_arc() -> void:
 		return
 	var rows: Array = _arc_rows()
 	if _arc_selected_idx < 0 or _arc_selected_idx >= rows.size():
+		RefusalVoice.note("pick a door first — G H J K L ; selects a row, then Accept [R]")
 		return
 	var entry: Dictionary = rows[_arc_selected_idx]
 	if str(entry.get("kind", "")) != "arc_quest":
@@ -2452,7 +2453,11 @@ func _accept_selected_arc() -> void:
 	var data: Dictionary = entry.get("data", {})
 	if qm.has_method("accept_quest") and qm.accept_quest(data):
 		_disarm_arc_confirm()  # the accepted offer leaves the list; rows shift
+		# …and the next door slid under the cursor, so a second R accepted it
+		# (masher wave 22, keeper sitting 7). Nothing is selected after an accept.
+		_arc_selected_idx = -1
 		_refresh_body()
+		_declare_tab_actions()
 
 func _acknowledge_selected_arc() -> void:
 	var qm = _arc_quest_manager()
@@ -2470,7 +2475,9 @@ func _acknowledge_selected_arc() -> void:
 	if qid >= 0 and qm.has_method("dismiss_story_offer"):
 		qm.dismiss_story_offer(qid)
 	_disarm_arc_confirm()  # the dismissed offer leaves the list; rows shift
+	_arc_selected_idx = -1
 	_refresh_body()
+	_declare_tab_actions()
 
 func _ratio_bar(ratio: float, length: int) -> String:
 	return OverlayChrome.ratio_bar(ratio, length)

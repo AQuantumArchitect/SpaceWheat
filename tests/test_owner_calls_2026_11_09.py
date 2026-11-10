@@ -264,3 +264,18 @@ def test_steer_tips_before_the_ace_hat_and_pays_before_the_trip():
     assert '_cost_or(["strike", "👥"]' in st
     tip = g.split("static func _tip_toward(")[1].split("\nstatic func ")[0]
     assert "TIP_STALL_MS" in tip  # a pinned pole gives up early
+
+
+def test_arc_accept_clears_the_selection():
+    # Masher w22 + keeper 7: after an accept the next door slid under the
+    # cursor and a second R accepted it. Nothing is selected after an accept.
+    co = src("UI/Overlays/ControlsOverlay.gd")
+    acc = co.split("func _accept_selected_arc(")[1].split("\nfunc ")[0]
+    assert "_arc_selected_idx = -1" in acc and "pick a door first" in acc
+
+
+def test_armed_abandon_names_only_the_confirm():
+    # Strict from zero (20 flags): Q toggles the abandon arm, so naming
+    # "Abandon [Q] → confirm [F]" again disarmed it, forever.
+    mh = src("Core/Campaign/Guide.gd").split("static func _market_held_chord(")[1].split("\nstatic func ")[0]
+    assert "_abandon_arm_qid" in mh and "return _chord([tail], q, why)" in mh
