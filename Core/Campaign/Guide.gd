@@ -474,6 +474,8 @@ static func _step(step: String, pred: Dictionary, q: Dictionary) -> Dictionary:
 			return _pair_gate(arg, q)
 		"gate_word":
 			return _gate_word(pred, q)
+		"spinor":
+			return _spinor(q)
 		"reap":
 			return _reap(arg, q)
 		"measure":
@@ -1161,7 +1163,11 @@ static func _gate(pred: Dictionary, q: Dictionary) -> Dictionary:
 		return _strike_known(q)
 	if gate != "inject_icon" and gate != "plant":
 		return {}
-	return _plant(str(_km().get("plant_home", "Village")), "", false, q)
+	# The predicate's own biome wins: lantern_wakes asks for a plant IN
+	# Lanternfall (the gate key is biome-stamped), but this always planted in
+	# the Village — the Trim ⇄ Plant churn that held every strict follower at
+	# 43-48 flags (night 2: trim ☀/🌙, plant ☀/🌙, never counted).
+	return _plant(str(pred.get("biome", _km().get("plant_home", "Village"))), "", false, q)
 
 
 ## Plant a word into `biome`: the one whose poles include `atom` when named,
@@ -1460,6 +1466,59 @@ static func _pair_gate(gate_key: String, q: Dictionary, gate_label: String = "Be
 				parts.append(["mark", "shift+" + _plot_key(c)])
 	parts.append(["Build gate", "R"])
 	return _chord(parts, q, "pair gate")
+
+
+## The Loop Came Home (spinor_read −1): a stay-home reference, a ripe
+## traveler, then the mirror's Compare. Wave 20: no walk existed, so the
+## strict follower fell through to an unrelated gather. Icon hat; key 2 is
+## the mirror (R Stay Home, E Compare), key 1 the Icon mode (F Track).
+static func _spinor(q: Dictionary) -> Dictionary:
+	var biome := UIP._active_biome_name()
+	var inst = UIP._instrument()
+	var ref: Dictionary = inst.get_mirror_reference() if inst != null and inst.has_method("get_mirror_reference") else {}
+	var ref_here: bool = str(ref.get("biome_name", "")) == biome and int(ref.get("register_id", -1)) >= 0
+	var home: int = int(ref.get("register_id", 1)) if ref_here else 1
+	var trav: int = 0 if home != 0 else 1
+	for c in [trav, home]:
+		if not _is_revealed(biome, c) and not _tracked(c):
+			return _reveal(c, q, [trav, home])
+	# Only put the hat on: _hat also insists on the first mode, and this walk
+	# lives in both — "mirror [2]" ⇄ "Icon first mode [1]" forever (sk22).
+	if str(ToolConfig.get_current_frame()) != ToolConfig.FRAME_ICON:
+		var h := _hat("icon", q)
+		if not h.is_empty():
+			return h
+	var mode := str(ToolConfig.get_frame_mode_name(ToolConfig.FRAME_ICON))
+	var parts: Array = _close_first()
+	if not ref_here:
+		if mode != "mirror":
+			parts.append(["mirror", "2"])
+		if _live_col() != home:
+			parts.append_array(_pick_plot(home))
+		parts.append(["Stay Home", "R"])
+		return _chord(parts, q, "spinor home")
+	var reg = UIP._berry_register()
+	if not _tracked(trav):
+		if mode != "inject":
+			parts.append(["Icon mode", "1"])
+		if _live_col() != trav:
+			parts.append_array(_pick_plot(trav))
+		parts.append(["Track the traveler", _verb("track")])
+		return _chord(parts, q, "spinor track")
+	if reg == null or not reg.has_method("is_ripe") or not bool(reg.is_ripe(trav)):
+		if UIP._sim_paused():
+			return _chord(parts + [["Ace hat", _hat_key("ace")], ["resume", "E"]], q, "resume")
+		var farm = UIP._active_farm()
+		var stride := int(GranularityController.get_current_stride([farm.grid.get_biome(biome)])) if farm != null else 0
+		if stride < int(_km().get("clock_max_stride", 32)):
+			return _chord(parts + ["the traveler is ripening (don't Incorporate)", ["faster clock", _verb("faster")]], q, "clock")
+		return _wait("the traveler is ripening — wait, don't Incorporate", q, "ripen")
+	if mode != "mirror":
+		parts.append(["mirror", "2"])
+	if _live_col() != trav:
+		parts.append_array(_pick_plot(trav))
+	parts.append(["Compare", "E"])
+	return _chord(parts, q, "spinor compare")
 
 
 ## Spell a gate word in order (gate_order: ["hadamard", "cnot"], the braids).

@@ -220,3 +220,21 @@ def test_first_plot_press_after_a_load_picks_not_marks():
     sel = src("UI/Core/QuantumInstrumentInput.gd").split("func _select_plot(")[1].split("\nfunc ")[0]
     hl = sel.split("var was_highlighted = (")[1].split(")")[0]
     assert "_instrument.last_selected_position == target_grid_pos" in hl
+
+
+def test_gate_plant_uses_the_predicates_biome():
+    # Night 2: lantern_wakes wants a plant IN Lanternfall (biome-stamped gate
+    # key) but the Guide always planted in the Village — the Trim ⇄ Plant
+    # churn that held every strict follower at 43-48 flags.
+    g = src("Core/Campaign/Guide.gd").split("static func _gate(")[1].split("\nstatic func ")[0]
+    assert '_plant(str(pred.get("biome", _km().get("plant_home", "Village")))' in g
+
+
+def test_loop_came_home_has_a_walk():
+    import json
+    walks = json.loads(src("Core/Campaign/campaign.json"))["guide"]["walks"]
+    assert walks["spinor_read"] == ["spinor"]
+    sp = src("Core/Campaign/Guide.gd").split("static func _spinor(")[1].split("\nstatic func ")[0]
+    assert '["Stay Home", "R"]' in sp and '["Compare", "E"]' in sp
+    # only the hat, not its first mode: the walk lives in the mirror (mode 2)
+    assert "get_current_frame()) != ToolConfig.FRAME_ICON" in sp
