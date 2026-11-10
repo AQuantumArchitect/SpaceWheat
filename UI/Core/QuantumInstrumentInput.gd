@@ -2236,7 +2236,7 @@ func _perform_action(action_key: String) -> void:
 					if cur >= 0.0 and after >= 0.0:
 						var arrow := "▼" if after < cur - 0.005 else ("▲" if after > cur + 0.005 else "→")
 						gap_note = "  ·  gap %.2f→%.2f %s" % [cur, after, arrow]
-			elif action_name == "remove_biome":
+			elif action_name in ["remove_biome"]:
 				# Keeper sitting 11 stopped rather than cull blind: the confirm
 				# never said what a cull costs. (Farm.remove_biome: flux and mass
 				# pay out as credits, every probe is released, and the biome goes
