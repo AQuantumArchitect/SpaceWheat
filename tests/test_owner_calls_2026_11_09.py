@@ -341,3 +341,9 @@ def test_guide_never_names_a_blind_arc_accept():
 def test_strike_again_shows_a_lap_counter():
     g = src("Core/Campaign/Guide.gd").split("static func _gather(")[1].split("\nstatic func ")[0]
     assert '"strike %d of %d, then Gather"' in g
+
+
+def test_pump_and_drain_refusals_name_the_stake():
+    lh = src("Core/Instrumentation/Handlers/LindbladHandler.gd")
+    assert "Insufficient resources for drain" not in lh and "Insufficient resources for pump" not in lh
+    assert lh.count("short of %s") == 2

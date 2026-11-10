@@ -423,7 +423,9 @@ static func enable_persistent_drive(farm, positions: Array[Vector2i],
 		elif already_active > 0:
 			result["message"] = "Pump already active on %d plot(s)" % already_active
 		elif not insufficient.is_empty():
-			result["message"] = "Insufficient resources for pump"
+			# Keeper 16: the old "not enough resources" line + an unlabelled "−4"
+			# never said the stake was 🥀 (Gilded Rot's south pole). Name it.
+			result["message"] = "Not enough for the pump — short of %s (it stakes 4📜 + the north pole's emoji)" % ", ".join(PackedStringArray(insufficient.keys()))
 		else:
 			result["message"] = "No valid plots to pump"
 	return result
@@ -560,7 +562,9 @@ static func enable_persistent_decay(farm, positions: Array[Vector2i],
 		elif already_active > 0:
 			result["message"] = "Drain already active on %d plot(s)" % already_active
 		elif not insufficient.is_empty():
-			result["message"] = "Insufficient resources for drain"
+			# Keeper 16: the old "not enough resources" line + an unlabelled "−4"
+			# never said the stake was 🥀 (Gilded Rot's south pole). Name it.
+			result["message"] = "Not enough for the drain — short of %s (it stakes 4🧺 + the south pole's emoji)" % ", ".join(PackedStringArray(insufficient.keys()))
 		else:
 			result["message"] = "No valid plots to drain"
 	return result
