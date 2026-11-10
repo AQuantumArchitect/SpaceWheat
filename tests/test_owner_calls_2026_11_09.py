@@ -206,7 +206,7 @@ def test_gate_order_doors_have_a_walk():
     camp = json.loads(src("Core/Campaign/campaign.json"))
     walks = camp["guide"]["walks"]
     assert walks["gate_order"] == ["gate_word"]
-    assert walks["mutual_information_at_least"][-1].startswith("pair_gate")
+    assert walks["mutual_information_at_least"] == ["entangle"]
     g = src("Core/Campaign/Guide.gd").split("static func _gate_word(")[1].split("\nstatic func ")[0]
     assert '_hat("druid", q)' in g and '_hat("operator", q)' in g
     assert 'str(a.get("gate_type", "")) == nxt' in g  # key read from the live picker
@@ -238,3 +238,15 @@ def test_loop_came_home_has_a_walk():
     assert '["Stay Home", "R"]' in sp and '["Compare", "E"]' in sp
     # only the hat, not its first mode: the walk lives in the mirror (mode 2)
     assert "get_current_frame()) != ToolConfig.FRAME_ICON" in sp
+
+
+def test_two_chores_walk_preps_poles_first():
+    # kp5: H on an equator control then CNOT left MI ≈ 0 at 50% for 15 presses.
+    import json
+    g = src("Core/Campaign/Guide.gd")
+    gw = g.split("static func _gate_word(")[1].split("\nstatic func ")[0]
+    assert gw.index("_to_pole(0, q)") < gw.index('_hat("druid", q)')
+    assert "_to_pole(1, q)" in gw
+    assert "static func _entangle(" in g
+    walks = json.loads(src("Core/Campaign/campaign.json"))["guide"]["walks"]
+    assert walks["mutual_information_at_least"] == ["entangle"]

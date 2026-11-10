@@ -2318,7 +2318,7 @@
          ],
          "offer": {
           "body": "Two Chores, One Thread — superpose then couple: Hadamard first, CNOT second, and push the pair's mutual information past 1 bit.",
-          "hint": "Druid frame: Hadamard the control. Operator frame: CNOT the pair. In that order — the other order makes something else entirely."
+          "hint": "Ace [8]: strike both plots to a pole first. Druid [0]: Superpose (Hadamard) the control. Operator [9]: CNOT the pair. In that order — the other order makes something else entirely."
          },
          "on_open": {
           "standing": {
@@ -2891,8 +2891,7 @@
     "spinor"
    ],
    "mutual_information_at_least": [
-    "hat:operator",
-    "pair_gate:Q"
+    "entangle"
    ],
    "coherence_at_least": [
     "superpose"

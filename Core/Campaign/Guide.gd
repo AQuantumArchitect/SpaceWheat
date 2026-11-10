@@ -474,6 +474,8 @@ static func _step(step: String, pred: Dictionary, q: Dictionary) -> Dictionary:
 			return _pair_gate(arg, q)
 		"gate_word":
 			return _gate_word(pred, q)
+		"entangle":
+			return _entangle(q)
 		"spinor":
 			return _spinor(q)
 		"reap":
@@ -1538,6 +1540,11 @@ static func _gate_word(pred: Dictionary, q: Dictionary) -> Dictionary:
 	var nxt := str(gates[done]).strip_edges().to_lower()
 	var biome := UIP._active_biome_name()
 	if nxt == "hadamard":
+		# A control on the equator: H sends it to a pole and the CNOT then
+		# entangles nothing (kp5: 50% for 15 presses, MI ≈ 0). Strike first.
+		var pole0 := _to_pole(0, q)
+		if not pole0.is_empty():
+			return pole0
 		var hd := _hat("druid", q)
 		if not hd.is_empty():
 			return hd
@@ -1548,6 +1555,10 @@ static func _gate_word(pred: Dictionary, q: Dictionary) -> Dictionary:
 			parts.append_array(_pick_plot(0))
 		parts.append(["Superpose the control", "E"])
 		return _chord(parts, q, "gate word hadamard")
+	if nxt == "cnot" and not UIP._in_gate_submenu():
+		var pole1 := _to_pole(1, q)  # the target, never the superposed control
+		if not pole1.is_empty():
+			return pole1
 	var ho := _hat("operator", q)
 	if not ho.is_empty():
 		return ho
@@ -1564,6 +1575,59 @@ static func _gate_word(pred: Dictionary, q: Dictionary) -> Dictionary:
 			return _chord([["more gates", "F"]], q, "gate page")
 		return {}
 	return _pair_gate("", q, label)
+
+
+## A plot near a pole (≥ 85% either way), or {} once it is. Otherwise Ace,
+## pick it, Strike — a strike collapses the plot onto a pole. Bounded: three
+## strikes a minute per plot, then the walk goes on regardless.
+const POLE_NEAR := 0.35
+static var _pole_tries := {}
+static func _to_pole(col: int, q: Dictionary) -> Dictionary:
+	var biome := UIP._active_biome_name()
+	if absf(_north_pct(biome, col) - 0.5) >= POLE_NEAR:
+		return {}
+	var k := "%s|%d" % [biome, col]
+	var now := Time.get_ticks_msec()
+	var rec: Dictionary = _pole_tries.get(k, {"n": 0, "t": now})
+	if now - int(rec.get("t", now)) > 60000:
+		rec = {"n": 0, "t": now}
+	if int(rec.get("n", 0)) >= 3:
+		return {}
+	if not UIP._plot_bound(col):
+		if not _is_revealed(biome, col) and not _tracked(col):
+			return _reveal(col, q, [0, 1])
+	if str(ToolConfig.get_current_frame()) != "ace":
+		return _hat("ace", q)
+	var parts: Array = _close_first()
+	if _live_col() != col:
+		parts.append_array(_pick_plot(col))
+	else:
+		rec["n"] = int(rec.get("n", 0)) + 1
+	_pole_tries[k] = rec
+	parts.append(["strike it to a pole first (%d%%)" % int(round(_north_pct(biome, col) * 100.0)), _verb("strike")])
+	return _chord(parts, q, "to pole")
+
+
+## Entangle a pair past the MI bar: both plots at a pole, then a Bell weave.
+static func _entangle(q: Dictionary) -> Dictionary:
+	if not UIP._in_gate_submenu():
+		for c in [0, 1]:
+			var pc := _to_pole(c, q)
+			if not pc.is_empty():
+				return pc
+	var ho := _hat("operator", q)
+	if not ho.is_empty():
+		return ho
+	if UIP._in_gate_submenu():
+		var inst = UIP._instrument()
+		var data: Dictionary = inst.current_submenu_data if inst != null and "current_submenu_data" in inst else {}
+		var acts: Dictionary = data.get("actions", {}) if data.get("actions", {}) is Dictionary else {}
+		for k in ["Q", "E", "R"]:
+			var a = acts.get(k, {})
+			if a is Dictionary and str(a.get("gate_type", "")) == "bell":
+				return _chord([["Bell pair", k]], q, "pick gate")
+		return {}
+	return _pair_gate("", q, "Bell pair")
 
 
 ## Explore every unexplored plot of the biome you stand in: Ace, Shift+F.
