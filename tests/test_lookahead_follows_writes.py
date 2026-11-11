@@ -13,8 +13,8 @@ one its frames were forecast from. The game layer holds no invalidation at all.
 
 - tests/rho_write_epoch_check.gd: every QuantumComputer writer stamps the epoch.
 - tests/strike_collapse_probe.gd: the real game, lookahead ON, written five ways
-  (key strike, direct strike, GateInjector gate, a raw gate on the QC, a standing
-  pump). Each write must hold; the pump must compound across ticks.
+  (key strike, key Druid spin, direct strike, GateInjector gate, a raw gate on
+  the QC, a standing pump). Each write must hold; the pump must compound across ticks.
 - Source pins: the input layer, GateInjector and the verb handlers don't touch the
   batcher; any in-place ρ write outside QuantumComputer stamps the epoch.
 """
@@ -40,6 +40,7 @@ def _godot_env(tmp):
     env["APPDATA"] = str(tmp)               # Windows: user:// lives under %APPDATA%
     env["XDG_DATA_HOME"] = str(tmp)         # Linux / macOS
     env["SW_PROBE_USER_DIR_PREFIX"] = str(tmp)
+    env["RIG_UNLOCK_ALL"] = "1"             # Druid Spin + is locked for Act 0
     return env
 
 
@@ -72,7 +73,7 @@ def test_every_qc_writer_stamps_the_epoch(tmp_path):
         "next buffered frame would overwrite them:\n" + "\n".join(missing)
 
 
-@pytest.mark.parametrize("path", ["keys", "direct", "gate", "raw"])
+@pytest.mark.parametrize("path", ["keys", "druid", "direct", "gate", "raw"])
 def test_write_survives_the_lookahead(traces, path):
     assert path in traces, f"no {path} trace"
     t = traces[path]

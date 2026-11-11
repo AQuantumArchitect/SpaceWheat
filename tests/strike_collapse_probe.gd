@@ -10,11 +10,13 @@ extends SceneTree
 ##
 ##   keys    the player's path: Ace (8), plot G, explore F, strike R, pushed
 ##           through the viewport exactly like a hardware key (TheDemos)
+##   druid   the player's rotation: Druid hat (0), Spin + (R), real keys again
 ##   direct  QuantumInstrument.action_measure called directly (rig drivers,
 ##           ReelRunner, anything that skips QuantumInstrumentInput)
 ##   gate    an X gate through GateInjector.inject_gate (p → 1 − p)
 ##   raw     an X gate straight on the QuantumComputer, no helper at all
-##   pump    a standing pump contract (open regime) ticked by Farm every physics
+##   pump    a standing pump contract in one open-regime biome, the world still
+##           closed (What Fades before the door), ticked by Farm every physics
 ##           frame, rate 20 so it outruns any H: the north marginal goes to ~1
 ##
 ## `expect` is the p_north the write produced; `before` the p_north it replaced.
@@ -63,7 +65,7 @@ func _run() -> void:
 	var farm = app.game_root.farm
 	var shell = app.get_player_shell()
 	var inst = InstrumentLocator.resolve_quantum_instrument(shell)
-	for e in ["🍞", "👥"]:
+	for e in ["🍞", "👥", "⛰"]:
 		farm.economy.add_resource(e, 5000, "probe")
 	var strike := {}   # filled in place: lambdas capture locals by value
 	var on_action := func(action: String, result: Dictionary):
@@ -85,6 +87,36 @@ func _run() -> void:
 		quit(1)
 		return
 	await _trace("keys", lookahead, farm.grid.get_biome(str(abm.get_active_biome())), strike, -1.0)
+
+	# druid: the player's rotation — hat 0 (Druid), mode 1 (X: a Z spin leaves the
+	# populations alone), plot G, R (Spin +). Druid R is locked in Act 0, so the
+	# runner sets RIG_UNLOCK_ALL. The written register is whichever moved across
+	# the key press; nothing else names it.
+	var dbiome = farm.grid.get_biome(str(abm.get_active_biome()))
+	var qii = get_root().get_tree().get_first_node_in_group("quantum_instrument_input")
+	var spins := {}   # filled in place, like `strike`
+	if qii:
+		qii.action_performed.connect(func(a: String, r: Dictionary):
+			if a == "rotate_up": spins.merge(r, true))
+	await _press(KEY_0)
+	await _press(KEY_1)
+	await _press(KEY_G)
+	for _f in range(5): await process_frame
+	# push_input dispatches synchronously: read straight after the press, so the
+	# trace starts at the written value, not one phrame of evolution later.
+	var pre := _all_p_north(dbiome)
+	_push_key(KEY_R, true)
+	var post := _all_p_north(dbiome)
+	_push_key(KEY_R, false)
+	if not bool(spins.get("success", false)):
+		printerr("STRIKE_PROBE druid: Spin + did not apply: %s" % JSON.stringify(spins))
+		quit(1)
+		return
+	var spun := 0
+	for q in range(post.size()):
+		if absf(post[q] - pre[q]) > absf(post[spun] - pre[spun]):
+			spun = q
+	await _trace("druid", lookahead, dbiome, {"register_id": spun}, post[spun], pre[spun])
 
 	# direct: QuantumInstrument.action_measure, as rig drivers call it.
 	strike.clear()
@@ -111,9 +143,8 @@ func _run() -> void:
 	village.quantum_computer.apply_pauli_x(1)
 	await _trace("raw", lookahead, village, {"register_id": 1}, 1.0 - before, before)
 
-	# pump: a standing contract, ticked by Farm every physics frame. Farm only
-	# ticks contracts once the world is open (the endgame door's switch).
-	BalanceConfig.merge_physics_override({"dissipative_dynamics": true})
+	# pump: a standing contract ticked by Farm every physics frame. Only this
+	# biome's regime is open; the world switch stays closed (openness is a place).
 	var fqc = forest.quantum_computer
 	fqc.regime_override = "open"
 	fqc.set_register_infra_field(0, "lindblad_channel_kind", "damp")
@@ -152,6 +183,21 @@ func _p_north(biome, q: int) -> float:
 	if biome == null:
 		return -1.0
 	return float(biome.quantum_computer.get_marginal_density_matrix(null, q).get_element(0, 0).re)
+
+
+func _all_p_north(biome) -> Array:
+	var out: Array = []
+	for q in range(int(biome.quantum_computer.register_map.num_qubits)):
+		out.append(_p_north(biome, q))
+	return out
+
+
+func _push_key(keycode: int, pressed: bool) -> void:
+	var ev := InputEventKey.new()
+	ev.keycode = keycode
+	ev.physical_keycode = keycode
+	ev.pressed = pressed
+	get_root().push_input(ev, true)
 
 
 func _press(keycode: int, settle: int = 3) -> void:
