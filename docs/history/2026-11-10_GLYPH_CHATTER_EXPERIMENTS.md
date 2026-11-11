@@ -88,8 +88,9 @@ Two claims above were too broad. Both were checked again while fixing them
   `QuantumInstrument.action_measure` and `GateInjector` directly. The player's key path
   (8 G F R) invalidates the lookahead in `QuantumInstrumentInput` and holds the collapse,
   so player strikes do reach the chatter. The write sites themselves didn't invalidate,
-  so rig drivers, `ReelRunner` and bots lost their writes. PR #65 moves invalidation into
-  the write sites.
+  so rig drivers, `ReelRunner` and bots lost their writes. PR #65 makes the simulation
+  notice every write itself (`QuantumComputer.state_epoch`) and takes invalidation out
+  of the input layer.
 - **§4: the viz cache's MI is live with lookahead on.** The StarterForest 🐺–🦅 pair reads
   0.29–0.42 bits. The Village's MI is genuinely tiny, which is where the ≈0 came from.
   With lookahead **off** (the rig default) the MI cache is never filled and every pair
