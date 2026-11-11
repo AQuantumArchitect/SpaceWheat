@@ -39,8 +39,17 @@ playtest. No release tag and no itch push until Luke signs off in the
 - Cull is the player's choice. Ace F is gather-first on a struck plot. 🪔 has a
   resources entry. Literalist text fixes.
 
+**Loom post-game (afternoon)**: driven from the furthest bot save with the
+strict follower. Every beat in the story has now been claimed by a bot (only
+the Village paths not chosen are left). Fixed on the way (58f3e9d6):
+- The Fusion could never fire: count objectives used a centred soft gate,
+  so "fuse ≥ 1" scored 0.5 after the only fusion a bridge allows.
+- Gate words lost their place after a load (Two Chores, The Long Braid).
+- The pair gate could name Gate with one mark, and the old banner line named
+  Claim on a beat that wasn't ready (two banner loops).
+- `purity_at_most` (The Chain, Tested) had no walk, so the banner went silent.
+
 **Next**
-- Drive the Loom post-game through The Braid Alphabet and The Fusion.
 - Run a from-zero end-to-end playthrough to time the main ending.
 - Open the `ready-for-human-playtest` issue once a fresh-start build passes CI
   and the time-to-beat numbers exist.
@@ -52,3 +61,7 @@ playtest. No release tag and no itch push until Luke signs off in the
 - Two Chores' 1-bit mutual-information bar: still unverified with the clock
   locked. Keep 1 bit, or lower it for the Forest?
 - 🪔's Village rescue (🍞10 → 3🪔) copies its peers' price. Change it if you like.
+- The Chain, Tested asks for Tr(ρ²) ≤ 0.9 where you stand. Lanternfall reports itself
+  as open country but its purity read stays at 1.0 even after a Superpose, so the
+  new walk waits there. Is Lanternfall meant to be wet by then, or should the walk
+  send the player to another open biome (Gilded Rot grayed for Watch It Fade)?
