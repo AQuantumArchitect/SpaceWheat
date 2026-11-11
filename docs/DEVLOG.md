@@ -29,6 +29,9 @@ playtest. No release tag and no itch push until Luke signs off in the
   still, and a loop sat 0.003 rad short of ripe for 25 min. The Guide now
   offers a Druid "nudge" when a country has gone still (39192523), and #67 has
   a comment with the new SHA.
+- The gray walk (The Chain, Tested) now picks the most mixed open country by
+  live entropy (34a9e12a). The first pick could be the Shrine, which never
+  grays. The shipped-speed run is at 53 flags and continuing.
 
 ---
 
