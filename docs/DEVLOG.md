@@ -58,8 +58,8 @@ the Village paths not chosen are left). Fixed on the way (58f3e9d6):
 - PR #63 is large. I can't merge it, so the hand-over SHA for the playtest issue
   will be its head unless you merge it first. Should playtest builds come from
   the PR branch, or do you want to merge #63 first?
-- Two Chores' 1-bit mutual-information bar: still unverified with the clock
-  locked. Keep 1 bit, or lower it for the Forest?
+- (Answered by the bots: Two Chores' 1-bit mutual-information bar is reachable.
+  The strict follower claimed it through the Bell weave.)
 - 🪔's Village rescue (🍞10 → 3🪔) copies its peers' price. Change it if you like.
 - The Chain, Tested asks for Tr(ρ²) ≤ 0.9 where you stand. Lanternfall reports itself
   as open country but its purity read stays at 1.0 even after a Superpose, so the
